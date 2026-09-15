@@ -14,6 +14,8 @@
  */
 import { formaterNombre } from '@/lib/format/nombre'
 
+const fMono = "'JetBrains Mono', monospace"
+
 /** Payload de `GET /api/campaigns/[campaignId]/alignement` (Tâche 5). */
 export interface ReponseAlignement {
   score: number
@@ -33,6 +35,35 @@ export interface ReponseAlignement {
   impressions_totales: number
   depense_totale: number
   etalon: { score_median: number; n_campagnes: number; tolerance_pct: number } | null
+}
+
+/**
+ * Texte UNIQUE de l'avertissement « plan divergent » — voir `scoreAffichable`.
+ * Les surfaces trop étroites pour la phrase complète (carte flottante de la
+ * carte Diffusion, barre de contexte) utilisent la variante courte ; aucune
+ * n'écrit sa propre formulation.
+ */
+export const MESSAGE_PLAN_DIVERGENT =
+  "Le plan diverge entre acteurs sur au moins un code postal. Le score n'est pas " +
+  'calculable de façon fiable tant que ce n\'est pas tranché.'
+
+export const MESSAGE_PLAN_DIVERGENT_COURT = 'Score non calculable — le plan diverge entre acteurs.'
+
+/**
+ * Le score, ou `null` s'il ne doit PAS être présenté comme un nombre.
+ *
+ * SOURCE UNIQUE de cette règle (constat 10 de la relecture d'interface) :
+ * `plan_divergent` dit que `campaign_cp_rollup.planned_share` n'est plus une
+ * propriété du seul code postal, donc que le score n'est pas calculable de
+ * façon fiable. `ScoreAlignement` et `DiffusionMapLayer` remplaçaient déjà le
+ * nombre par un avertissement — jamais un nombre avec une réserve à côté —
+ * mais `BarreContexteCampagne`, seule surface visible en vue carte, affichait
+ * quand même `score/100`. Recopier le test une troisième fois l'aurait fait
+ * diverger une troisième fois : les trois surfaces passent désormais par ici.
+ */
+export function scoreAffichable(data: ReponseAlignement | null | undefined): number | null {
+  if (!data || data.plan_divergent) return null
+  return data.score
 }
 
 /**
@@ -104,6 +135,16 @@ function Variation({ valeur }: { valeur: number | null }) {
 }
 
 /**
+ * Cinq paliers de l'échelle SÉQUENTIELLE (DESIGN_SYSTEM §3) — le score 0-100
+ * est MONOTONE : il n'a ni centre neutre ni deux sens. L'échelle divergente
+ * qu'utilisait cette barre y faisait signifier « bon » au bleu, qui signifie
+ * « sur-pression » (mauvais) partout ailleurs dans le même écran.
+ * Cinq segments plats, jamais un `linear-gradient` (règle globale #10 du
+ * DESIGN_SYSTEM : « pas de glow, shadow, gradient, blur — flat total »).
+ */
+const PALIERS_SCORE = ['var(--seq-1)', 'var(--seq-2)', 'var(--seq-3)', 'var(--seq-4)', 'var(--seq-5)'] as const
+
+/**
  * Échelle de positionnement 0-100. N'affiche le repère et la phrase de
  * l'étalon secteur QUE si `etalon` n'est pas `null` — voir `etalonAffichable`.
  */
@@ -113,12 +154,17 @@ function Echelle({ score, etalon }: { score: number; etalon: number | null }) {
   return (
     <div style={{ marginTop: 20 }}>
       <div
+        aria-hidden="true"
         style={{
           height: 6, borderRadius: 3, position: 'relative',
-          background:
-            'linear-gradient(90deg, var(--diverge-sous-2) 0%, var(--diverge-sous-1) 32%, var(--diverge-sur-1) 62%, var(--diverge-sur-2) 100%)',
+          display: 'flex', overflow: 'visible',
         }}
       >
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', borderRadius: 3, overflow: 'hidden' }}>
+          {PALIERS_SCORE.map((couleur) => (
+            <span key={couleur} style={{ flex: 1, background: couleur }} />
+          ))}
+        </div>
         <i
           aria-hidden="true"
           style={{
@@ -151,9 +197,10 @@ function Echelle({ score, etalon }: { score: number; etalon: number | null }) {
 }
 
 export function ScoreAlignement({ data }: { data: ReponseAlignement }) {
+  const score = scoreAffichable(data)
   return (
     <div>
-      {data.plan_divergent ? (
+      {score == null ? (
         <div
           role="alert"
           style={{
@@ -161,8 +208,7 @@ export function ScoreAlignement({ data }: { data: ReponseAlignement }) {
             color: 'var(--warning)', borderRadius: 6, padding: 12, fontSize: 13,
           }}
         >
-          Le plan diverge entre acteurs sur au moins un code postal. Le score n'est pas
-          calculable de façon fiable tant que ce n'est pas tranché.
+          {MESSAGE_PLAN_DIVERGENT}
         </div>
       ) : (
         <>
@@ -171,15 +217,21 @@ export function ScoreAlignement({ data }: { data: ReponseAlignement }) {
           </div>
           <div
             style={{
+              // JetBrains Mono : le DESIGN_SYSTEM le réserve aux données
+              // numériques, et les deux autres surfaces qui affichent CE MÊME
+              // nombre (BarreContexteCampagne, DiffusionMapLayer) l'utilisent
+              // déjà — le chiffre signature de l'écran ne peut pas être le
+              // seul rendu dans une autre fonte.
+              fontFamily: fMono,
               fontSize: 104, lineHeight: 0.88, letterSpacing: '-0.05em', fontWeight: 700,
               color: 'var(--brand-teal)', display: 'flex', alignItems: 'baseline', gap: 6,
             }}
           >
-            {data.score}
+            {score}
             <span style={{ fontSize: 26, fontWeight: 500, color: 'var(--text-tertiary)' }}>/100</span>
           </div>
           <Variation valeur={data.variation_7j} />
-          <Echelle score={data.score} etalon={etalonAffichable(data.etalon)} />
+          <Echelle score={score} etalon={etalonAffichable(data.etalon)} />
           <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 10 }}>
             Toujours calculé au code postal, quelle que soit la maille affichée.
           </p>

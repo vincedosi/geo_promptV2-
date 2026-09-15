@@ -48,7 +48,10 @@ import { appliquerChangementCampagne } from '@/lib/campagne/transitions';
 import { obtenirAlignementPartage } from '@/lib/campagne/cache-alignement';
 import { obtenirListeCampagnesPartagee, type CampagneListItem } from '@/lib/campagne/cache-campagnes';
 import type { VueCampagne } from '@/lib/campagne/session-types';
-import type { ReponseAlignement } from './suivi-v2/ScoreAlignement';
+import {
+  scoreAffichable, MESSAGE_PLAN_DIVERGENT, MESSAGE_PLAN_DIVERGENT_COURT,
+  type ReponseAlignement,
+} from './suivi-v2/ScoreAlignement';
 import { formaterNombre } from '@/lib/format/nombre';
 
 const fInter = "'Inter', system-ui, sans-serif";
@@ -69,12 +72,18 @@ export function libellePeriode(debut: string | null, fin: string | null): string
   return d1 ?? d2;
 }
 
+// Aucune `boxShadow` ici, pour DEUX raisons : le DESIGN_SYSTEM interdit
+// ombres et reliefs (« flat total », règle globale #10), et surtout un style
+// EN LIGNE bat la règle globale `:focus-visible { box-shadow: 0 0 0 1px
+// var(--brand-teal-50) }` — y compris la valeur `'none'` du bouton inactif.
+// Un utilisateur au clavier tabulait donc sur le contrôle principal de
+// l'écran sans aucune indication visuelle de focus. L'état actif se lit par
+// le fond et la couleur de texte, et par `aria-pressed`.
 const boutonVueStyle = (actif: boolean): CSSProperties => ({
   border: 0, background: actif ? 'var(--bg-level-1)' : 'transparent',
   color: actif ? 'var(--text-primary)' : 'var(--text-tertiary)',
   borderRadius: 6, padding: '6px 12px', fontFamily: fInter, fontWeight: 500, fontSize: 12.5,
   cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-  boxShadow: actif ? '0 1px 2px rgba(0,0,0,0.15)' : 'none',
 });
 
 export function BarreContexteCampagne() {
@@ -203,9 +212,24 @@ export function BarreContexteCampagne() {
           }}
         >
           <span style={{ fontFamily: fInter, fontSize: 11.5, color: 'var(--text-tertiary)' }}>Alignement</span>
-          <b style={{ fontFamily: fMono, fontWeight: 600, fontSize: 16, color: 'var(--brand-teal)' }}>
-            {score ? `${formaterNombre(score.score)}/100` : '—'}
-          </b>
+          {/* `scoreAffichable` est la SOURCE UNIQUE de la règle : un plan qui
+              diverge entre acteurs rend le score non calculable, et cette
+              barre — seule surface visible en vue carte — annonçait quand
+              même un nombre que les deux autres surfaces déclaraient
+              indisponible (constat 10). */}
+          {score?.plan_divergent ? (
+            <b
+              role="alert"
+              title={MESSAGE_PLAN_DIVERGENT}
+              style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12.5, color: 'var(--warning)' }}
+            >
+              {MESSAGE_PLAN_DIVERGENT_COURT}
+            </b>
+          ) : (
+            <b style={{ fontFamily: fMono, fontWeight: 600, fontSize: 16, color: 'var(--brand-teal)' }}>
+              {scoreAffichable(score) != null ? `${formaterNombre(scoreAffichable(score)!)}/100` : '—'}
+            </b>
+          )}
           {scoreChargement && (
             <span aria-hidden="true" style={{ fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)' }}>
               actualisation…

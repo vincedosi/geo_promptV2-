@@ -90,7 +90,10 @@ import {
   JETON_CONTOUR_CARTE, JETON_HALO_CARTE, JETON_TEXTE_CARTE,
 } from '@/components/map/jetons-carte';
 import { zonesAAnnoter, centreFeature, bboxVersParametre } from '@/lib/campagne/diffusion-carte';
-import { libelleVariation, type ReponseAlignement } from '@/components/campagne/suivi-v2/ScoreAlignement';
+import {
+  libelleVariation, scoreAffichable, MESSAGE_PLAN_DIVERGENT,
+  type ReponseAlignement,
+} from '@/components/campagne/suivi-v2/ScoreAlignement';
 import { avecSemaphore } from '@/components/campagne/suivi-v2/avec-semaphore';
 import { formaterNombre, formaterNombreArrondi } from '@/lib/format/nombre';
 
@@ -490,9 +493,12 @@ export function DiffusionMapLayer({ mapRef, mapReady, visible }: Props) {
       )}
 
       {score && (
-        score.plan_divergent ? (
-          <p style={{ margin: 0, fontFamily: fInter, fontSize: 11, color: 'var(--warning)' }}>
-            Le plan diverge entre acteurs sur au moins un code postal — score non calculable.
+        // Même règle, même source (`scoreAffichable`) et même texte que
+        // `ScoreAlignement` et `BarreContexteCampagne` — jamais un troisième
+        // test recopié, ni une troisième formulation à tenir synchronisée.
+        scoreAffichable(score) == null ? (
+          <p role="alert" style={{ margin: 0, fontFamily: fInter, fontSize: 11, color: 'var(--warning)' }}>
+            {MESSAGE_PLAN_DIVERGENT}
           </p>
         ) : (
           <div>
