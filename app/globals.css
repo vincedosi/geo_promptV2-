@@ -96,6 +96,17 @@
     --seq-4: #3a9e91;
     --seq-5: #4ecdc4;
 
+    /* ── Habillage des calques MapLibre (contours de zone, halo d'étiquette).
+       MapLibre ne résout PAS `var()` dans `paint` : ces jetons sont lus par
+       `getComputedStyle` AU MOMENT de l'application (`lireJetonCarte`,
+       components/map/jetons-carte.ts) et réappliqués impérativement au
+       changement de thème. Ils existent parce que ces contours étaient peints
+       en `rgba(255,255,255,0.1x)` en dur : en thème clair, du blanc à 12-16 %
+       sur un fond clair ne se voit pas et la choroplèthe devient une tache
+       continue. */
+    --contour-carte: rgba(255, 255, 255, 0.16);
+    --halo-carte:    rgba(0, 0, 0, 0.75);
+
     --sidebar-width: 240px;
 
     /* Overlay flottant (IconBar overlay) — semi-transparent pour laisser voir la carte */
@@ -230,6 +241,11 @@
     --seq-3: #8ed6cc;
     --seq-4: #4fb3a6;
     --seq-5: #1f8a7c;
+
+    /* Habillage MapLibre (light) — voir le commentaire du bloc :root. Le
+       contour s'inverse : du noir translucide sur un fond clair. */
+    --contour-carte: rgba(0, 0, 0, 0.22);
+    --halo-carte:    rgba(255, 255, 255, 0.85);
 
     /* Overlay flottant (light) */
     --card-overlay: rgba(248, 248, 248, 0.90);

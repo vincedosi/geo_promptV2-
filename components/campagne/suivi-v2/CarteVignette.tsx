@@ -50,6 +50,9 @@ import { RAMPE_MAPLIBRE, BORNES_DIVERGENTES } from '@/lib/campagne/palette-diver
 import { RAMPE_SEQUENTIELLE } from '@/lib/campagne/palette-sequentielle';
 import { COULEUR_DONNEE_ABSENTE } from '@/lib/carreaux/expressions';
 import {
+  lireJetonCarte, apresApplicationDuTheme, JETON_CONTOUR_CARTE, JETON_FOND_CARTE,
+} from '@/components/map/jetons-carte';
+import {
   bornesQuantiles,
   rampePourBornes,
   expressionEtapes,
@@ -66,6 +69,7 @@ const fMono = "'JetBrains Mono', monospace";
 const SOURCE_ID = 'vignette-src';
 const FILL_ID = 'vignette-fill';
 const LINE_ID = 'vignette-line';
+const BG_ID = 'bg';
 
 export type { TypeVignette };
 
@@ -141,10 +145,10 @@ export function CarteVignette({
   // interactive (les trois vignettes partagent un cadrage fixe).
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg-primary').trim() || '#050505';
+    const bg = lireJetonCarte(JETON_FOND_CARTE);
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': bg } }] },
+      style: { version: 8, sources: {}, layers: [{ id: BG_ID, type: 'background', paint: { 'background-color': bg } }] },
       center: [2.5, 46.5],
       zoom: 3.4,
       attributionControl: false,
@@ -190,7 +194,7 @@ export function CarteVignette({
         });
         map.addLayer({
           id: LINE_ID, type: 'line', source: SOURCE_ID,
-          paint: { 'line-color': 'rgba(255,255,255,0.12)', 'line-width': 0.4 },
+          paint: { 'line-color': lireJetonCarte(JETON_CONTOUR_CARTE), 'line-width': 0.4 },
         });
       }
     };
@@ -228,6 +232,29 @@ export function CarteVignette({
     };
     if (map.isStyleLoaded()) reapply(); else map.once('load', reapply);
   }, [expression]);
+
+  // Même piège #1, deux propriétés que l'effet ci-dessus NE touche PAS : le
+  // fond plein de l'instance (lu une seule fois à la création) et le contour
+  // des zones. Sans cette ré-application, basculer sombre → clair pendant que
+  // le Suivi est ouvert laisse un carré `#050505` derrière les polygones au
+  // milieu d'une page blanche, et des contours blancs invisibles dessus.
+  // Keyé sur `theme` ET `features` : la seconde dépendance couvre le cas où
+  // les calques n'existaient pas encore au changement de thème.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const reapply = () => {
+      if (map.getLayer(BG_ID)) {
+        map.setPaintProperty(BG_ID, 'background-color', lireJetonCarte(JETON_FOND_CARTE));
+      }
+      if (map.getLayer(LINE_ID)) {
+        map.setPaintProperty(LINE_ID, 'line-color', lireJetonCarte(JETON_CONTOUR_CARTE));
+      }
+    };
+    return apresApplicationDuTheme(() => {
+      if (map.isStyleLoaded()) reapply(); else map.once('load', reapply);
+    });
+  }, [theme, features]);
 
   const { finGauche, finDroite } = libellesExtremites(type, domaine);
 
