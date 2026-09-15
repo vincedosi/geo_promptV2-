@@ -5229,6 +5229,21 @@ export type Database = {
         }
         Returns: Json
       }
+      alignement_par_maille_geo: {
+        Args: {
+          p_bbox_xmax?: number
+          p_bbox_xmin?: number
+          p_bbox_ymax?: number
+          p_bbox_ymin?: number
+          p_campaign_id: string
+          p_limite?: number
+          p_maille?: string
+          p_parent?: string
+          p_tolerance?: number
+          p_variable_code?: string
+        }
+        Returns: Json
+      }
       apply_zone_weights_to_strategy: {
         Args: { p_in_weights: Json; p_out_weights: Json; p_strategy_id: string }
         Returns: number

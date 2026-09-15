@@ -341,3 +341,202 @@ grant execute on function alignement_dispersion_cp(uuid, text, numeric) to servi
 
 comment on function alignement_dispersion_cp is
   'Histogramme de dispersion des ecarts au plan par CP (7 bandes fixes, BORNES_DIVERGENTES), maille CP uniquement. Totaux normalises sur le perimetre COMPLET de la campagne (meme ruling que alignement_par_maille), jamais sur le seul p_parent filtre.';
+
+
+-- ---------------------------------------------------------------------------
+-- alignement_par_maille_geo — Tache 13A. Meme perimetre et memes ecarts que
+-- alignement_par_maille (Tache 6, ruling T6-2 : totaux normalises sur le
+-- perimetre COMPLET `situe`, jamais sur le seul `filtre` -- meme defaut de
+-- rebasage que corrige plus haut dans ce fichier), AVEC la geometrie.
+--
+-- Ruling T6-1 : la geometrie NE PASSE PAS par alignement_par_maille, qui sert
+-- le tableau (sept lignes affichees). Cette RPC dediee sert les TROIS
+-- vignettes carte du Suivi V2 (impressions / variable du plan / alignement) --
+-- patron deja etabli dans le depot (`/suivi` vs `/suivi/map`, sql/117).
+--
+-- Jointure geometrique -- meme patron que sql/117_campaign_derive_map.sql:34-76 :
+-- `ref_codes_postaux.geom_simplified` a la maille CP, `ref_departements.geom`
+-- et `ref_regions.geom` au-dessus. JAMAIS `campaign_cp_rollup.dept`
+-- (LEFT(postal_code,2) effondre tous les DROM sur '97').
+--
+-- Joint aussi `indicator_cp_values` pour p_variable_code (la variable du plan,
+-- `bidding_strategies.in_zone_weights ->> 'variable_code'`, defaut
+-- 'abstention_pres_2022', verifie le 2026-09-14 : strategie active de la
+-- campagne demo). Moyenne NON PONDEREE des valeurs CP du groupe -- aucun poids
+-- demographique (population) n'est disponible sans rejoindre iris/carreaux,
+-- hors budget de cette tache ; `avg()` ignore nativement les CP sans valeur.
+--
+-- Aucune zone n'est EXCLUE faute de plan ou de variable materialisee : la
+-- geometrie reste presente, `ecart_pct`/`variable_valeur` valent NULL et
+-- `hors_plan` le signale -- au client de griser plutot que de masquer
+-- (spec Tache 13 : retirer une zone mentirait sur la couverture de la carte).
+--
+-- Bbox et limite : meme garde-fou budget I/O que `calculer_score_composite`
+-- (plafond nationale 3000 CP) -- 2041 CP est le plein perimetre de la
+-- campagne demo, donc sous ce plafond par construction. Bbox par defaut =
+-- BBOX_METRO (meme defaut que `suivi/map`) ; un DROM hors de cette bbox est
+-- filtre comme pour les autres cartes de suivi du depot, pas de reprojection
+-- en inset ici (hors budget de cette tache -- seul `get_campaign_derive_map`
+-- le fait).
+--
+-- RULING T13A-1 (mesure en prod le 2026-09-15, avant ce correctif) : la
+-- geometrie sortait a pleine resolution pour une vignette -- 13 regions a
+-- 5 205 ko / 194 067 sommets, 96 departements a 5 646 ko. `ref_regions` et
+-- `ref_departements` n'ont qu'une colonne `geom`, aucune variante simplifiee
+-- (contrairement a `ref_codes_postaux.geom_simplified`).
+-- `ST_SimplifyPreserveTopology` n'apporte RIEN (194 067 -> 193 504 sommets,
+-- 0,3 %). `ST_Simplify` a une tolerance FIXE descend a 174 ko (0,01 deg) ou
+-- 84 ko (0,02 deg) mais PERD des sous-polygones ultramarins : Mayotte passe
+-- de 9 a 2 anneaux et perd 13,5 % de sa surface (370 -> 320 km2), Martinique
+-- 4 -> 2, La Reunion 2 -> 1 -- exactement la regression DROM corrigee la
+-- veille de ce correctif (PV-2 plus haut dans ce fichier).
+--
+-- DECISION : la tolerance de simplification est DERIVEE DE L'ETENDUE DE LA
+-- BBOX DEMANDEE, jamais une constante -- v_tolerance_geom = max((xmax-xmin)
+-- / 1000, 0.0001). France entiere (~15 deg) -> ~0.015 deg : Mayotte occupe
+-- alors un seul pixel de la vignette, sa perte de surface y est invisible,
+-- et le payload chute a l'echelle de la centaine de ko. Une bbox etroite
+-- cadree sur Mayotte (~0.5 deg) -> ~0.0005 deg : detail plein conserve.
+-- L'ecran paie la precision qu'il affiche reellement, ni plus -- meme
+-- raisonnement que la cascade de zoom de `get_tile`. Applique a TOUTE maille,
+-- y compris CP : `geom_simplified` est deja plus leger mais en beneficie
+-- encore. Bbox absente (defauts de parametres) ou explicitement NULL ->
+-- repli sur la bbox metropolitaine standard du depot (memes coalesce
+-- ci-dessous que le defaut de parametre, en garde-fou double).
+create or replace function alignement_par_maille_geo(
+  p_campaign_id   uuid,
+  p_maille        text default 'departement',   -- 'region' | 'departement' | 'cp'
+  p_parent        text default null,
+  p_tolerance     numeric default null,
+  p_variable_code text default 'abstention_pres_2022',
+  p_bbox_xmin     float8 default -5.5,
+  p_bbox_ymin     float8 default 41.2,
+  p_bbox_xmax     float8 default 9.8,
+  p_bbox_ymax     float8 default 51.2,
+  p_limite        int default 3000
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_tol             numeric;
+  v_xmin            float8;
+  v_ymin            float8;
+  v_xmax            float8;
+  v_ymax            float8;
+  v_tolerance_geom  numeric;
+  v_res             jsonb;
+begin
+  if p_maille not in ('region', 'departement', 'cp') then
+    raise exception 'maille inconnue: %', p_maille;
+  end if;
+
+  select coalesce(p_tolerance, c.tolerance_pct) / 100.0 into v_tol
+    from dsp_campaigns c where c.id = p_campaign_id;
+  if v_tol is null then return jsonb_build_object('error', 'campagne_introuvable'); end if;
+
+  -- T13A-1 : bbox absente OU explicitement NULL -> repli sur la bbox
+  -- metropolitaine standard du depot (meme defaut que `suivi/map`).
+  v_xmin := coalesce(p_bbox_xmin, -5.5);
+  v_ymin := coalesce(p_bbox_ymin, 41.2);
+  v_xmax := coalesce(p_bbox_xmax, 9.8);
+  v_ymax := coalesce(p_bbox_ymax, 51.2);
+
+  -- T13A-1 : tolerance de simplification DERIVEE DE L'ETENDUE DE LA BBOX,
+  -- jamais une constante. Voir commentaire au-dessus de la fonction.
+  v_tolerance_geom := greatest((v_xmax - v_xmin) / 1000.0, 0.0001);
+
+  with cp as (
+    -- Sommer sur les acteurs AVANT tout calcul : la PK de campaign_cp_rollup
+    -- est (campaign_id, postal_code, actor), un CP apparait jusqu a 5 fois.
+    select r.postal_code,
+           sum(r.impressions)::numeric   as reel,
+           max(r.planned_share)::numeric as part_plan
+      from campaign_cp_rollup r
+     where r.campaign_id = p_campaign_id
+     group by r.postal_code
+  ),
+  -- Jointure INSEE reelle + variable du plan. JAMAIS `campaign_cp_rollup.dept`.
+  situe as (
+    select cp.*, rcp.code_dept, rd.nom_dept,
+           coalesce(rd.code_region, 'HORS')       as code_region,
+           coalesce(rr.nom_region, 'Hors region') as nom_region,
+           icv.value as variable_valeur
+      from cp
+      join ref_codes_postaux rcp on rcp.code_postal = cp.postal_code
+      join ref_departements  rd  on rd.code_dept   = rcp.code_dept
+      left join ref_regions  rr  on rr.code_region = rd.code_region
+      left join indicator_cp_values icv
+             on icv.postal_code = cp.postal_code and icv.indicator_code = p_variable_code
+  ),
+  filtre as (
+    select * from situe
+     where p_parent is null
+        or (p_maille = 'departement' and code_region = p_parent)
+        or (p_maille = 'cp'          and code_dept   = p_parent)
+  ),
+  -- Totaux sur le PERIMETRE COMPLET (`situe`), jamais sur `filtre` -- meme
+  -- ruling T6-2 que `alignement_par_maille` plus haut dans ce fichier.
+  tot as (select sum(reel) t_reel, sum(part_plan) t_part from situe),
+  groupe as (
+    select
+      case p_maille when 'region' then code_region when 'departement' then code_dept else postal_code end as code,
+      case p_maille when 'region' then max(nom_region) when 'departement' then max(nom_dept) else max(postal_code) end as nom,
+      sum(reel) as reel, sum(part_plan) as part_plan,
+      avg(variable_valeur) as variable_valeur
+      from filtre
+     group by 1
+  ),
+  avecgeom as (
+    select g.code, g.nom, g.reel, g.part_plan, g.variable_valeur, t.t_reel, t.t_part,
+      -- T13A-1 : ST_Simplify a tolerance DERIVEE DE LA BBOX (v_tolerance_geom),
+      -- appliquee a TOUTE maille -- y compris CP, ou geom_simplified est deja
+      -- plus leger mais en beneficie encore.
+      ST_Simplify(
+        case p_maille
+          when 'cp'     then (select geom_simplified from ref_codes_postaux where code_postal = g.code)
+          when 'region' then (select geom from ref_regions where code_region = g.code)
+          else               (select geom from ref_departements where code_dept = g.code)
+        end,
+        v_tolerance_geom
+      ) as geom_raw
+      from groupe g cross join tot t
+  )
+  select jsonb_build_object(
+    'maille', p_maille,
+    'parent', p_parent,
+    'variable_code', p_variable_code,
+    'n_total', (select count(*) from groupe),
+    'features', coalesce(jsonb_agg(u.feature order by u.tri desc nulls last), '[]'::jsonb)
+  ) into v_res
+  from (
+    select
+      jsonb_build_object(
+        'code', x.code,
+        'nom', x.nom,
+        'impressions', x.reel::bigint,
+        'ecart_pct', case when x.part_plan > 0
+          then round(((x.reel / ((x.part_plan / nullif(x.t_part,0)) * x.t_reel)) - 1) * 100, 1)
+        end,
+        'hors_plan', (x.part_plan = 0 and x.reel > 0),
+        'variable_valeur', round(x.variable_valeur, 2),
+        'geometry', ST_AsGeoJSON(x.geom_raw)::jsonb
+      ) as feature,
+      abs(x.reel - (x.part_plan / nullif(x.t_part,0)) * x.t_reel) as tri
+      from avecgeom x
+     where x.geom_raw is not null
+       and x.geom_raw && ST_MakeEnvelope(v_xmin, v_ymin, v_xmax, v_ymax, 4326)
+     order by tri desc nulls last
+     limit p_limite
+  ) u;
+
+  return v_res;
+end;
+$$;
+
+revoke all on function alignement_par_maille_geo(uuid, text, text, numeric, text, float8, float8, float8, float8, int) from public, anon, authenticated;
+grant execute on function alignement_par_maille_geo(uuid, text, text, numeric, text, float8, float8, float8, float8, int) to service_role;
+
+comment on function alignement_par_maille_geo is
+  'Agregation geometrique d alignement par maille (region/departement/cp), pour les trois vignettes carte (Tache 13A) -- jamais pour le tableau (alignement_par_maille, ruling T6-1). Joint indicator_cp_values pour la variable du plan. Memes totaux perimetre-complet (T6-2), meme jointure INSEE reelle (jamais campaign_cp_rollup.dept). Geometrie simplifiee (ST_Simplify) a une tolerance DERIVEE DE L ETENDUE DE LA BBOX demandee, jamais une constante (ruling T13A-1) -- protege les DROM d une simplification a tolerance fixe qui leur ferait perdre des sous-polygones entiers.';

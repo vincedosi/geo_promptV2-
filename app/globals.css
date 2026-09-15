@@ -68,6 +68,14 @@
     --diverge-sur-2:  #4a86b8;
     --diverge-sur-3:  #1f5c8f;
 
+    /* ── Échelle séquentielle (intensité croissante) — vignettes Impressions
+       et Variable du plan (lib/campagne/palette-sequentielle.ts). */
+    --seq-1: #132625;
+    --seq-2: #1b3d3a;
+    --seq-3: #2a6b62;
+    --seq-4: #3a9e91;
+    --seq-5: #4ecdc4;
+
     --sidebar-width: 240px;
 
     /* Overlay flottant (IconBar overlay) — semi-transparent pour laisser voir la carte */
@@ -186,6 +194,14 @@
     --diverge-sur-1:  #7ba7cc;
     --diverge-sur-2:  #2f6fa3;
     --diverge-sur-3:  #14496f;
+
+    /* ── Échelle séquentielle (intensité croissante) — vignettes Impressions
+       et Variable du plan (lib/campagne/palette-sequentielle.ts). */
+    --seq-1: #eaf7f5;
+    --seq-2: #c3ebe6;
+    --seq-3: #8ed6cc;
+    --seq-4: #4fb3a6;
+    --seq-5: #1f8a7c;
 
     /* Overlay flottant (light) */
     --card-overlay: rgba(248, 248, 248, 0.90);
