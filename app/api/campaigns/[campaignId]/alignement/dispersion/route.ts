@@ -6,10 +6,21 @@
  * histogramme dans les 7 bandes fixes de `BORNES_DIVERGENTES`
  * (`lib/campagne/palette-divergente.ts`), jamais retypées ici.
  *
- * `parent` désigne un département (ou, à titre permissif, une région) sur
- * lequel restreindre les CP affichés — jamais les totaux de normalisation,
- * qui restent calculés sur le périmètre COMPLET de la campagne côté RPC
- * (même ruling que `alignement_par_maille`, T6-2).
+ * `parent` désigne un **département**, et rien d'autre : cette route ne sert
+ * que la maille CP, dont le niveau immédiatement au-dessus est le département
+ * (fil d'Ariane région → département → CP). Il restreint les CP affichés —
+ * jamais les totaux de normalisation, qui restent calculés sur le périmètre
+ * COMPLET de la campagne côté RPC (même ruling que `alignement_par_maille`,
+ * T6-2).
+ *
+ * L'en-tête annonçait auparavant « ou, à titre permissif, une région », et la
+ * RPC filtrait en conséquence `code_dept = p_parent OR code_region = p_parent`.
+ * Ce n'était pas une tolérance mais une confusion entre deux nomenclatures
+ * INSEE qui **se recouvrent** : 18 codes désignent à la fois un département et
+ * une région. Mesuré sur la campagne démo — `parent=75` (Paris, 21 CP) rendait
+ * 164 CP, dont 143 en Nouvelle-Aquitaine (région '75'). Corrigé sql/171, qui
+ * aligne le prédicat sur les deux RPC sœurs (elles le conditionnent déjà à la
+ * maille demandée).
  *
  * `tolerance` est accepté pour la parité d'interface avec les routes sœurs
  * (`/alignement`, `/alignement/maille`) mais n'a aucun effet ici : les bandes
@@ -26,6 +37,7 @@ import { rpcJson } from '@/lib/supabase/rpc-json';
 export const dynamic = 'force-dynamic';
 
 const QuerySchema = z.object({
+  /** Code de DÉPARTEMENT — voir l'en-tête : jamais un code de région. */
   parent: z.string().max(10).optional(),
   tolerance: z.coerce.number().min(0).max(100).optional(),
 });
