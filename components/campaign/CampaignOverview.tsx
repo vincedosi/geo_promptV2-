@@ -8,7 +8,11 @@
  *
  * Utilisé :
  * - embarqué dans CampaignCockpit (view "overview")
- * - embarqué dans CampaignSuivi (onglet "Suivi" de l'overlay MAGELIAN)
+ * - monté par MagelianOverlay pour l'onglet "Aperçu" de l'overlay MAGELIAN
+ *
+ * Ce commentaire annonçait un montage dans `CampaignSuivi` (onglet "Suivi"),
+ * ce qui était déjà faux avant la suppression de ce fichier (Tâche 16) : le
+ * seul montage overlay a toujours été celui de l'onglet Aperçu.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';

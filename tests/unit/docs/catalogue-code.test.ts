@@ -31,8 +31,16 @@ import { readFileSync, existsSync } from 'node:fs';
  * confirmes par grep avant suppression) : 208 → 197. Cliquet releve a 197,
  * PAS a 188 — ce chiffre ne redeviendra atteignable qu'en traitant les ~9
  * exports morts restants des taches 9-15, hors perimetre de la Tache 16.
+ *
+ * Ramene a 196 apres relecture de la Tache 16 : le relecteur a rejoue knip
+ * lui-meme (197 confirme, le cliquet cliquetait bien) et trouve UN export
+ * mort introduit par la tache elle-meme — `SuiviCpRow` de
+ * `lib/campaigns/suivi-metrics.ts`, dont le seul consommateur etait la route
+ * `suivi/cps` supprimee ici. Un cliquet pose au-dessus de la valeur
+ * atteignable laisse passer sa propre dette : l'interface est retiree et le
+ * cliquet descend d'autant.
  */
-const CLIQUET_EXPORTS_MORTS = 197;
+const CLIQUET_EXPORTS_MORTS = 196;
 
 describe('catalogue du code', () => {
   it('existe et se declare genere', () => {

@@ -4,11 +4,11 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-09-15 — commit `43a3f96`.
+> Généré le 2026-09-15 — commit `732105c`.
 
 ## Totaux
 
-- Exports morts : 197
+- Exports morts : 196
 - Fichiers morts : 4
 - Dépendances inutilisées : 3
 
@@ -38,9 +38,9 @@ Trié par nombre d’occurrences décroissant.
 | `components/ui/dialog.tsx` | 6 | DialogPortal, DialogOverlay, DialogTrigger, DialogClose, DialogFooter, DialogDescription | — |
 | `lib/bidding-ml/client.ts` | 5 | predictForStrategy, detectDrift | ExecutionMode, PredictResponse, DriftResponse |
 | `lib/meteo/types.ts` | 5 | — | GridPoint, MeteoSquare, MeteoMeta, MeteoSummary, MeteoApiResponse |
-| `lib/campaigns/suivi-metrics.ts` | 5 | — | SuiviAlert, SuiviLevel1Row, SuiviDeptRow, SuiviCpRow, SuiviMedia |
 | `lib/import/types.ts` | 4 | INSEE_CARREAUX_INDICATORS | ImportConfig, DryRunStats, LogLevel |
 | `types/spatial.ts` | 4 | — | BattleData, ChatMessage, GeoJSONFeatureCollection, SpatialResult |
+| `lib/campaigns/suivi-metrics.ts` | 4 | — | SuiviAlert, SuiviLevel1Row, SuiviDeptRow, SuiviMedia |
 | `app/_components/agent/index.ts` | 3 | useAgent, AgentRecommendationCard, AgentAutonomyBadge | — |
 | `lib/isochrones/fetcher.ts` | 3 | ORS_MAX_RETRIES, ORS_RETRY_DELAY, ORS_DELAI_MS | — |
 | `app/admin/sources/_hooks/usePoiAdmin.ts` | 3 | emptyPoiForm | PoiForm, PoiModalState |
@@ -106,8 +106,8 @@ Trié par nombre d’occurrences décroissant.
 | `components/ui/input.tsx` | 1 | — | InputProps |
 | `lib/logger.ts` | 1 | — | Logger |
 | `lib/supabase/tables.ts` | 1 | — | TableUpdate |
-| `types/admin.ts` | 1 | — | HealthCheck |
 | `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
+| `types/admin.ts` | 1 | — | HealthCheck |
 | `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
 | `lib/campaigns/actor-metrics.ts` | 1 | — | ActorsPayload |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
