@@ -146,8 +146,17 @@ describe('PanneauAnalyse — verrou structurel de la garde de perimetre (spec §
     },
   );
 
-  it('verifierPerimetreClustering existe et enveloppe verifierPerimetreOutil(\'clustering\')', () => {
-    expect(corpsDuHandler('verifierPerimetreClustering')).toContain("verifierPerimetreOutil('clustering')");
+  it('verifierPerimetreClustering existe et enveloppe messageGardePourOutil(\'clustering\')', () => {
+    // Ruling FF-2 (2026-09-15) : ce wrapper rend desormais le MESSAGE de
+    // refus (string | null), pas un booleen — verifierPerimetreOutil et lui
+    // partagent la meme source (messageGardePourOutil) pour que le message
+    // relaye au wizard soit exactement celui affiche par ce panneau, jamais
+    // une seconde formulation.
+    expect(corpsDuHandler('verifierPerimetreClustering')).toContain("messageGardePourOutil('clustering')");
+  });
+
+  it('verifierPerimetreOutil et verifierPerimetreClustering partagent messageGardePourOutil — pas deux sources du meme message', () => {
+    expect(corpsDuHandler('verifierPerimetreOutil')).toContain('messageGardePourOutil(outil)');
   });
 
   it('le wizard de clustering (POST /api/poi-clusters/run) recoit verifierPerimetreClustering en prop', () => {

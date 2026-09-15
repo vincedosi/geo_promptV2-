@@ -474,7 +474,7 @@ export function DiffusionMapLayer({ mapRef, mapReady, visible }: Props) {
         <span>sur</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span aria-hidden style={{ width: 9, height: 9, borderRadius: 2, background: COULEUR_DONNEE_ABSENTE, flexShrink: 0 }} />
+        <span aria-hidden style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--donnee-absente)', flexShrink: 0 }} />
         <span style={{ fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)' }}>Gris = hors plan</span>
       </div>
 

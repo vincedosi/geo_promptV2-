@@ -230,10 +230,21 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
   // poser le filtre France rouvrirait les incidents du 28/03 et du 08/04 pour
   // Voronoï/bataille V1/bataille V2/application de la bataille/clustering, qui
   // n'ont jamais été mesurés à l'échelle nationale.
-  const verifierPerimetreOutil = (outil: OutilAnalyse): boolean => {
+  //
+  // Source UNIQUE du message par outil, partagée par les deux formes dont les
+  // appelants ont besoin : `verifierPerimetreOutil` (booléen, cinq handlers
+  // historiques ci-dessous) et `verifierPerimetreClustering` (texte du
+  // message, relayé jusqu'à ClusteringWizard — ruling FF-2, 2026-09-15). Sans
+  // cette source unique, le wizard n'a aucun moyen de connaître le refus RÉEL
+  // et retombe sur une constante générique qui contredit à l'écran le refus
+  // spécifique déjà posé dans `gardeMessage`.
+  const messageGardePourOutil = (outil: OutilAnalyse): string | null => {
     const msg = messageGardeOutil(outil, filtre);
     setGardeMessage(msg);
-    return msg === null;
+    return msg;
+  };
+  const verifierPerimetreOutil = (outil: OutilAnalyse): boolean => {
+    return messageGardePourOutil(outil) === null;
   };
 
   const handleVoronoi = () => {
@@ -263,7 +274,17 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
   // (relayé, lui, au score composite qui admet le national) : les deux ne
   // peuvent pas partager la même référence, sous peine de faire admettre — ou
   // refuser — le national aux deux outils à la fois.
-  const verifierPerimetreClustering = () => verifierPerimetreOutil('clustering');
+  //
+  // Rend le MESSAGE (pas un booléen, ruling FF-2 2026-09-15) : le wizard
+  // affichait jusqu'ici sa propre constante générique
+  // (`MESSAGE_PERIMETRE_MANQUANT`) quel que soit le refus réel, ce qui
+  // contredisait à l'écran le refus spécifique déjà posé dans `gardeMessage`
+  // ci-dessous (ex. filtre France posé → « le clustering ne peut pas être
+  // calculé sur la France entière… » ET « choisissez un périmètre » en même
+  // temps, alors qu'un périmètre était bel et bien choisi).
+  const verifierPerimetreClustering = (): string | null => {
+    return messageGardePourOutil('clustering');
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>

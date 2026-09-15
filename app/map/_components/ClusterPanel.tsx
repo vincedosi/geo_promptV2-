@@ -208,8 +208,10 @@ export interface ClusterPanelProps {
   onWizardClose?:     () => void;
   /** Garde de périmètre (spec §5) — transmise telle quelle à ClusteringWizard,
    *  qui l'appelle avant son POST /api/poi-clusters/run (round 2 de correction,
-   *  Tâche 7, 2026-09-12). Voir ClusteringWizard.tsx pour le pourquoi. */
-  verifierPerimetre?: () => boolean;
+   *  Tâche 7, 2026-09-12). Voir ClusteringWizard.tsx pour le pourquoi. Rend le
+   *  message de refus réel, `null` si le calcul peut continuer (ruling FF-2,
+   *  2026-09-15). */
+  verifierPerimetre?: () => string | null;
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────

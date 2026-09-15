@@ -57,6 +57,13 @@
     --warning: #f7b731;
     --info:    #5b9bd5;
 
+    /* Invariant, comme --brand-teal : ce gris est le MÊME littéral peint par
+       MapLibre (COULEUR_DONNEE_ABSENTE, lib/carreaux/expressions.ts) quel que
+       soit le thème — la pastille de légende DOM doit rester identique à ce
+       qui est réellement peint sur la carte, verrouillé par
+       tests/unit/carreaux/donnee-absente-css.test.ts. */
+    --donnee-absente: #9aa0a6;
+
     /* ── Échelle divergente d'alignement (sous-pression ↔ conforme ↔ sur-pression)
        Le sens se lit AUSSI par la position sur la barre : la teinte seule ne
        suffit pas pour un daltonien. */
@@ -183,6 +190,9 @@
     --danger:  #d4202f;
     --warning: #c08400;
     --info:    #3a78c0;
+
+    /* Invariant, comme --brand-teal — voir le commentaire du bloc :root. */
+    --donnee-absente: #9aa0a6;
 
     /* ── Échelle divergente d'alignement (sous-pression ↔ conforme ↔ sur-pression)
        Le sens se lit AUSSI par la position sur la barre : la teinte seule ne

@@ -8,7 +8,6 @@ import {
   ALL_FEATURES, ALL_THEME_IDS, featureSelectionLabel,
   type ThemeId,
 } from '@/lib/clustering/feature-themes';
-import { MESSAGE_PERIMETRE_MANQUANT } from '@/lib/carte/garde-perimetre';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -68,8 +67,16 @@ export interface ClusteringWizardProps {
    * de relecture d'un modèle déjà calculé) en croyant border ce POST, qui
    * part par un chemin totalement différent. Optionnelle pour ne rien casser
    * si ce composant est monté ailleurs sans garde à fournir.
+   *
+   * Rend le message de refus RÉEL (`messageGardeOutil('clustering', …)` côté
+   * appelant), `null` si le calcul peut continuer — pas un booléen (ruling
+   * FF-2, 2026-09-15) : un booléen forçait ce composant à afficher SA propre
+   * constante générique (`MESSAGE_PERIMETRE_MANQUANT`), qui contredisait à
+   * l'écran le refus spécifique déjà affiché par `PanneauAnalyse` quand le
+   * périmètre choisi était `'france'` (le clustering la refuse, le message
+   * générique disait pourtant « choisissez un périmètre »).
    */
-  verifierPerimetre?: () => boolean;
+  verifierPerimetre?: () => string | null;
 }
 
 // ─── Step indicator ─────────────────────────────────────────────────────────────
@@ -213,8 +220,9 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight, verifierP
   // validation. Ne remplace pas `buildGeoFilter()` (le périmètre géographique
   // propre au wizard, inchangé) : une seconde barrière, indépendante.
   const handleLaunch = async () => {
-    if (verifierPerimetre && !verifierPerimetre()) {
-      setLaunchError(MESSAGE_PERIMETRE_MANQUANT);
+    const messageGarde = verifierPerimetre?.() ?? null;
+    if (messageGarde !== null) {
+      setLaunchError(messageGarde);
       return;
     }
     setLaunching(true);

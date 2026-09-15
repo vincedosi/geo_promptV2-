@@ -53,8 +53,10 @@ export interface ClusteringSectionProps {
   onWizardHighlight?:       (poiTypes: string[], metropolitaine: boolean) => void;
   onWizardClose?:           () => void;
   /** Garde de périmètre (spec §5) — relayée jusqu'à ClusteringWizard sans
-   *  aucune logique ici (round 2 de correction, Tâche 7, 2026-09-12). */
-  verifierPerimetre?:       () => boolean;
+   *  aucune logique ici (round 2 de correction, Tâche 7, 2026-09-12). Rend le
+   *  message de refus réel, `null` si le calcul peut continuer (ruling FF-2,
+   *  2026-09-15). */
+  verifierPerimetre?:       () => string | null;
 }
 
 export function ClusteringSection({
