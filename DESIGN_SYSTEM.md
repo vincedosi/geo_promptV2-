@@ -93,6 +93,36 @@ seule** — sinon illisible pour un daltonien. Bornes symétriques autour de zé
 (`BORNES_DIVERGENTES`) : la sur-pression ne doit jamais paraître moins grave
 que la sous-pression équivalente.
 
+### Échelle séquentielle (intensité — vignettes carte du Suivi V2)
+Toute échelle qui n'est PAS l'écart au plan (ci-dessus) est séquentielle : une
+seule direction, du plus faible au plus fort, sans signe. Encode une intensité
+croissante — nombre d'impressions livrées, valeur d'un indicateur INSEE — sur
+les vignettes « Impressions » et « Variable du plan » du cockpit de suivi.
+Même patron de duplication que l'échelle divergente et pour la même raison
+(MapLibre ne résout pas `var()` dans `paint`) : valeurs dans `app/globals.css`
+(`:root` et `html.light`) et dupliquées en hex littéraux dans
+`lib/campagne/palette-sequentielle.ts` (`RAMPE_SEQUENTIELLE`), les deux copies
+verrouillées ensemble par
+`tests/unit/campagne/palette-sequentielle-css.test.ts`.
+
+| Token | Hex (dark) | Hex (light) | Usage |
+|-------|-----------|-------------|-------|
+| --seq-1 | #132625 | #eaf7f5 | Intensité la plus faible |
+| --seq-2 | #1b3d3a | #c3ebe6 | Faible |
+| --seq-3 | #2a6b62 | #8ed6cc | Médiane |
+| --seq-4 | #3a9e91 | #4fb3a6 | Forte |
+| --seq-5 | #4ecdc4 | #1f8a7c | Intensité la plus forte (= --brand-teal en dark) |
+
+Une seule rampe sert les deux vignettes séquentielles — ce n'est pas la couleur
+qui distingue « Impressions » de « Variable du plan » (les deux sont des
+intensités croissantes, sans signe), mais le domaine de données et la légende
+de chaque vignette. Dérivée de l'accent de marque (`--brand-teal`), du plus
+sombre/neutre (valeur faible) au teal plein (valeur forte), cohérente avec la
+RÈGLE D'OR ci-dessus (« la couleur n'apparaît que pour le statut ou
+l'interaction », ici l'intensité de la donnée). Choix visuel neuf (Tâche 13A,
+2026-09-15) — à valider par un designer au même titre que toute palette de
+données, pas encore éprouvé en usage.
+
 ### RÈGLE D'OR
 Pas de violet (#a855f7) nulle part. Pas de vert fluo (#3dffa0) sauf indicateur de statut système. Pas d'orange sur les boutons.
 

@@ -447,89 +447,256 @@ begin
   -- jamais une constante. Voir commentaire au-dessus de la fonction.
   v_tolerance_geom := greatest((v_xmax - v_xmin) / 1000.0, 0.0001);
 
-  with cp as (
-    -- Sommer sur les acteurs AVANT tout calcul : la PK de campaign_cp_rollup
-    -- est (campaign_id, postal_code, actor), un CP apparait jusqu a 5 fois.
-    select r.postal_code,
-           sum(r.impressions)::numeric   as reel,
-           max(r.planned_share)::numeric as part_plan
-      from campaign_cp_rollup r
-     where r.campaign_id = p_campaign_id
-     group by r.postal_code
-  ),
-  -- Jointure INSEE reelle + variable du plan. JAMAIS `campaign_cp_rollup.dept`.
-  situe as (
-    select cp.*, rcp.code_dept, rd.nom_dept,
-           coalesce(rd.code_region, 'HORS')       as code_region,
-           coalesce(rr.nom_region, 'Hors region') as nom_region,
-           icv.value as variable_valeur
-      from cp
-      join ref_codes_postaux rcp on rcp.code_postal = cp.postal_code
-      join ref_departements  rd  on rd.code_dept   = rcp.code_dept
-      left join ref_regions  rr  on rr.code_region = rd.code_region
-      left join indicator_cp_values icv
-             on icv.postal_code = cp.postal_code and icv.indicator_code = p_variable_code
-  ),
-  filtre as (
-    select * from situe
-     where p_parent is null
-        or (p_maille = 'departement' and code_region = p_parent)
-        or (p_maille = 'cp'          and code_dept   = p_parent)
-  ),
-  -- Totaux sur le PERIMETRE COMPLET (`situe`), jamais sur `filtre` -- meme
-  -- ruling T6-2 que `alignement_par_maille` plus haut dans ce fichier.
-  tot as (select sum(reel) t_reel, sum(part_plan) t_part from situe),
-  groupe as (
-    select
-      case p_maille when 'region' then code_region when 'departement' then code_dept else postal_code end as code,
-      case p_maille when 'region' then max(nom_region) when 'departement' then max(nom_dept) else max(postal_code) end as nom,
-      sum(reel) as reel, sum(part_plan) as part_plan,
-      avg(variable_valeur) as variable_valeur
-      from filtre
-     group by 1
-  ),
-  avecgeom as (
-    select g.code, g.nom, g.reel, g.part_plan, g.variable_valeur, t.t_reel, t.t_part,
-      -- T13A-1 : ST_Simplify a tolerance DERIVEE DE LA BBOX (v_tolerance_geom),
-      -- appliquee a TOUTE maille -- y compris CP, ou geom_simplified est deja
-      -- plus leger mais en beneficie encore.
-      ST_Simplify(
-        case p_maille
-          when 'cp'     then (select geom_simplified from ref_codes_postaux where code_postal = g.code)
-          when 'region' then (select geom from ref_regions where code_region = g.code)
-          else               (select geom from ref_departements where code_dept = g.code)
-        end,
-        v_tolerance_geom
-      ) as geom_raw
-      from groupe g cross join tot t
-  )
-  select jsonb_build_object(
-    'maille', p_maille,
-    'parent', p_parent,
-    'variable_code', p_variable_code,
-    'n_total', (select count(*) from groupe),
-    'features', coalesce(jsonb_agg(u.feature order by u.tri desc nulls last), '[]'::jsonb)
-  ) into v_res
-  from (
-    select
-      jsonb_build_object(
-        'code', x.code,
-        'nom', x.nom,
-        'impressions', x.reel::bigint,
-        'ecart_pct', case when x.part_plan > 0
-          then round(((x.reel / ((x.part_plan / nullif(x.t_part,0)) * x.t_reel)) - 1) * 100, 1)
-        end,
-        'hors_plan', (x.part_plan = 0 and x.reel > 0),
-        'variable_valeur', round(x.variable_valeur, 2),
-        'geometry', ST_AsGeoJSON(x.geom_raw)::jsonb
-      ) as feature,
-      abs(x.reel - (x.part_plan / nullif(x.t_part,0)) * x.t_reel) as tri
-      from avecgeom x
-     where x.geom_raw is not null
-       and x.geom_raw && ST_MakeEnvelope(v_xmin, v_ymin, v_xmax, v_ymax, 4326)
-     order by tri desc nulls last
-     limit p_limite
-  ) u;
+  -- T13A-3 (relecture, 2026-09-15) : trois formes de requete, UNE PAR MAILLE,
+  -- chacune avec une VRAIE jointure vers sa table de geometrie -- remplace une
+  -- sous-requete scalaire CORRELEE par ligne dans un `CASE p_maille WHEN ...`.
+  -- p_maille est CONSTANT pour tout l'appel, mais un `CASE` contenant une
+  -- sous-requete correlee sur `g.code` empeche Postgres de la replier en
+  -- jointure ensembliste : il execute un sous-plan PAR TUPLE. Mesure avant
+  -- correctif : 13 lignes/86,8 ms, 96 lignes/137,5 ms, 1879 lignes/972,8 ms --
+  -- ~0,45 ms/ligne, lineaire, la courbe d'une boucle et non d'une jointure.
+  -- Les cinq CTE (cp/situe/filtre/tot/groupe) sont dupliquees dans les trois
+  -- branches plutot que factorisees : c'est le prix de laisser Postgres choisir
+  -- une jointure par hachage/index sur l'ensemble plutot qu'une boucle.
+  --
+  -- CORRECTION APRES MESURE (meme passe) : remplacer la sous-requete par une
+  -- jointure NE SUFFISAIT PAS -- rejoue seule, la jointure ne gagnait rien
+  -- (972,8 -> 975,6 ms). Cause reelle : `geom_raw` (ST_Simplify appliquee a
+  -- `geom_simplified`, une colonne large) est referencee TROIS FOIS en aval
+  -- (le `select` GeoJSON, le filtre `is not null`, le filtre `&&` bbox) --
+  -- et une CTE non MATERIALIZED est INLINEE depuis PG12 : Postgres recalculait
+  -- ST_Simplify a CHACUNE des trois references, PAR LIGNE (confirme par
+  -- EXPLAIN : `Filter` contenait deux appels `st_simplify(...)` litteraux et
+  -- 3 `SubPlan`/`Index Scan ... loops=~2000` distincts). Meme defaut, memes
+  -- symptomes, que celui deja rencontre sur le Voronoi de ce depot. `avecgeom`
+  -- est donc `MATERIALIZED` : ST_Simplify s'execute UNE SEULE FOIS par ligne,
+  -- le resultat est reutilise aux trois references. Mesure : 625 -> 62 ms en
+  -- SQL nu (~10x), la jointure du T13A-3 n'etant utile qu'AVEC ce blocage.
+  if p_maille = 'cp' then
+    with cp as (
+      -- Sommer sur les acteurs AVANT tout calcul : la PK de campaign_cp_rollup
+      -- est (campaign_id, postal_code, actor), un CP apparait jusqu a 5 fois.
+      select r.postal_code,
+             sum(r.impressions)::numeric   as reel,
+             max(r.planned_share)::numeric as part_plan
+        from campaign_cp_rollup r
+       where r.campaign_id = p_campaign_id
+       group by r.postal_code
+    ),
+    -- Jointure INSEE reelle + variable du plan. JAMAIS `campaign_cp_rollup.dept`.
+    situe as (
+      select cp.*, rcp.code_dept, rd.nom_dept,
+             coalesce(rd.code_region, 'HORS')       as code_region,
+             coalesce(rr.nom_region, 'Hors region') as nom_region,
+             icv.value as variable_valeur
+        from cp
+        join ref_codes_postaux rcp on rcp.code_postal = cp.postal_code
+        join ref_departements  rd  on rd.code_dept   = rcp.code_dept
+        left join ref_regions  rr  on rr.code_region = rd.code_region
+        left join indicator_cp_values icv
+               on icv.postal_code = cp.postal_code and icv.indicator_code = p_variable_code
+    ),
+    filtre as (
+      select * from situe where p_parent is null or code_dept = p_parent
+    ),
+    -- Totaux sur le PERIMETRE COMPLET (`situe`), jamais sur `filtre` -- meme
+    -- ruling T6-2 que `alignement_par_maille` plus haut dans ce fichier.
+    tot as (select sum(reel) t_reel, sum(part_plan) t_part from situe),
+    groupe as (
+      select postal_code as code, max(postal_code) as nom,
+             sum(reel) as reel, sum(part_plan) as part_plan,
+             avg(variable_valeur) as variable_valeur
+        from filtre
+       group by 1
+    ),
+    -- Vraie jointure ensembliste (T13A-3) + MATERIALIZED : sans lui, la CTE est
+    -- inlinee (PG12+) et ST_Simplify(geom_raw) est recalculee a chacune des
+    -- trois references en aval (select GeoJSON + 2 filtres) -- voir le
+    -- commentaire au-dessus de l'aiguillage `if p_maille = ...`.
+    avecgeom as materialized (
+      select g.code, g.nom, g.reel, g.part_plan, g.variable_valeur, t.t_reel, t.t_part,
+             ST_Simplify(rcp2.geom_simplified, v_tolerance_geom) as geom_raw
+        from groupe g
+        cross join tot t
+        join ref_codes_postaux rcp2 on rcp2.code_postal = g.code
+    )
+    select jsonb_build_object(
+      'maille', p_maille,
+      'parent', p_parent,
+      'variable_code', p_variable_code,
+      'n_total', (select count(*) from groupe),
+      'features', coalesce(jsonb_agg(u.feature order by u.tri desc nulls last), '[]'::jsonb)
+    ) into v_res
+    from (
+      select
+        jsonb_build_object(
+          'code', x.code,
+          'nom', x.nom,
+          'impressions', x.reel::bigint,
+          'ecart_pct', case when x.part_plan > 0
+            then round(((x.reel / ((x.part_plan / nullif(x.t_part,0)) * x.t_reel)) - 1) * 100, 1)
+          end,
+          'hors_plan', (x.part_plan = 0 and x.reel > 0),
+          'variable_valeur', round(x.variable_valeur, 2),
+          'geometry', ST_AsGeoJSON(x.geom_raw)::jsonb
+        ) as feature,
+        abs(x.reel - (x.part_plan / nullif(x.t_part,0)) * x.t_reel) as tri
+        from avecgeom x
+       where x.geom_raw is not null
+         and x.geom_raw && ST_MakeEnvelope(v_xmin, v_ymin, v_xmax, v_ymax, 4326)
+       order by tri desc nulls last
+       limit p_limite
+    ) u;
+
+  elsif p_maille = 'region' then
+    with cp as (
+      select r.postal_code,
+             sum(r.impressions)::numeric   as reel,
+             max(r.planned_share)::numeric as part_plan
+        from campaign_cp_rollup r
+       where r.campaign_id = p_campaign_id
+       group by r.postal_code
+    ),
+    situe as (
+      select cp.*, rcp.code_dept, rd.nom_dept,
+             coalesce(rd.code_region, 'HORS')       as code_region,
+             coalesce(rr.nom_region, 'Hors region') as nom_region,
+             icv.value as variable_valeur
+        from cp
+        join ref_codes_postaux rcp on rcp.code_postal = cp.postal_code
+        join ref_departements  rd  on rd.code_dept   = rcp.code_dept
+        left join ref_regions  rr  on rr.code_region = rd.code_region
+        left join indicator_cp_values icv
+               on icv.postal_code = cp.postal_code and icv.indicator_code = p_variable_code
+    ),
+    -- Region est la racine de la hierarchie : aucun `p_parent` valide ne la
+    -- filtre (garde 400 deja cote route, T6-4) -- si p_parent est neanmoins
+    -- fourni, `filtre` est VIDE, meme comportement que la version precedente
+    -- (l'ancien `CASE` ne matchait aucune branche pour la maille 'region').
+    filtre as (
+      select * from situe where p_parent is null
+    ),
+    tot as (select sum(reel) t_reel, sum(part_plan) t_part from situe),
+    groupe as (
+      select code_region as code, max(nom_region) as nom,
+             sum(reel) as reel, sum(part_plan) as part_plan,
+             avg(variable_valeur) as variable_valeur
+        from filtre
+       group by 1
+    ),
+    -- Vraie jointure ensembliste (T13A-3). INNER JOIN : un `code_region`
+    -- synthetique 'HORS' (PV-2, DROM sans region de rattachement) n'a pas de
+    -- ligne dans `ref_regions` et disparait ici -- meme resultat net que
+    -- l'ancien filtre `geom_raw is not null`, qui l'excluait deja en aval.
+    -- MATERIALIZED : sans lui, la CTE est inlinee (PG12+) et ST_Simplify est
+    -- recalculee a chacune des trois references en aval -- voir le
+    -- commentaire au-dessus de l'aiguillage `if p_maille = ...`.
+    avecgeom as materialized (
+      select g.code, g.nom, g.reel, g.part_plan, g.variable_valeur, t.t_reel, t.t_part,
+             ST_Simplify(rr2.geom, v_tolerance_geom) as geom_raw
+        from groupe g
+        cross join tot t
+        join ref_regions rr2 on rr2.code_region = g.code
+    )
+    select jsonb_build_object(
+      'maille', p_maille,
+      'parent', p_parent,
+      'variable_code', p_variable_code,
+      'n_total', (select count(*) from groupe),
+      'features', coalesce(jsonb_agg(u.feature order by u.tri desc nulls last), '[]'::jsonb)
+    ) into v_res
+    from (
+      select
+        jsonb_build_object(
+          'code', x.code,
+          'nom', x.nom,
+          'impressions', x.reel::bigint,
+          'ecart_pct', case when x.part_plan > 0
+            then round(((x.reel / ((x.part_plan / nullif(x.t_part,0)) * x.t_reel)) - 1) * 100, 1)
+          end,
+          'hors_plan', (x.part_plan = 0 and x.reel > 0),
+          'variable_valeur', round(x.variable_valeur, 2),
+          'geometry', ST_AsGeoJSON(x.geom_raw)::jsonb
+        ) as feature,
+        abs(x.reel - (x.part_plan / nullif(x.t_part,0)) * x.t_reel) as tri
+        from avecgeom x
+       where x.geom_raw is not null
+         and x.geom_raw && ST_MakeEnvelope(v_xmin, v_ymin, v_xmax, v_ymax, 4326)
+       order by tri desc nulls last
+       limit p_limite
+    ) u;
+
+  else -- 'departement'
+    with cp as (
+      select r.postal_code,
+             sum(r.impressions)::numeric   as reel,
+             max(r.planned_share)::numeric as part_plan
+        from campaign_cp_rollup r
+       where r.campaign_id = p_campaign_id
+       group by r.postal_code
+    ),
+    situe as (
+      select cp.*, rcp.code_dept, rd.nom_dept,
+             coalesce(rd.code_region, 'HORS')       as code_region,
+             coalesce(rr.nom_region, 'Hors region') as nom_region,
+             icv.value as variable_valeur
+        from cp
+        join ref_codes_postaux rcp on rcp.code_postal = cp.postal_code
+        join ref_departements  rd  on rd.code_dept   = rcp.code_dept
+        left join ref_regions  rr  on rr.code_region = rd.code_region
+        left join indicator_cp_values icv
+               on icv.postal_code = cp.postal_code and icv.indicator_code = p_variable_code
+    ),
+    filtre as (
+      select * from situe where p_parent is null or code_region = p_parent
+    ),
+    tot as (select sum(reel) t_reel, sum(part_plan) t_part from situe),
+    groupe as (
+      select code_dept as code, max(nom_dept) as nom,
+             sum(reel) as reel, sum(part_plan) as part_plan,
+             avg(variable_valeur) as variable_valeur
+        from filtre
+       group by 1
+    ),
+    -- Vraie jointure ensembliste (T13A-3) + MATERIALIZED : sans lui, la CTE est
+    -- inlinee (PG12+) et ST_Simplify(geom_raw) est recalculee a chacune des
+    -- trois references en aval (select GeoJSON + 2 filtres) -- voir le
+    -- commentaire au-dessus de l'aiguillage `if p_maille = ...`.
+    avecgeom as materialized (
+      select g.code, g.nom, g.reel, g.part_plan, g.variable_valeur, t.t_reel, t.t_part,
+             ST_Simplify(rd2.geom, v_tolerance_geom) as geom_raw
+        from groupe g
+        cross join tot t
+        join ref_departements rd2 on rd2.code_dept = g.code
+    )
+    select jsonb_build_object(
+      'maille', p_maille,
+      'parent', p_parent,
+      'variable_code', p_variable_code,
+      'n_total', (select count(*) from groupe),
+      'features', coalesce(jsonb_agg(u.feature order by u.tri desc nulls last), '[]'::jsonb)
+    ) into v_res
+    from (
+      select
+        jsonb_build_object(
+          'code', x.code,
+          'nom', x.nom,
+          'impressions', x.reel::bigint,
+          'ecart_pct', case when x.part_plan > 0
+            then round(((x.reel / ((x.part_plan / nullif(x.t_part,0)) * x.t_reel)) - 1) * 100, 1)
+          end,
+          'hors_plan', (x.part_plan = 0 and x.reel > 0),
+          'variable_valeur', round(x.variable_valeur, 2),
+          'geometry', ST_AsGeoJSON(x.geom_raw)::jsonb
+        ) as feature,
+        abs(x.reel - (x.part_plan / nullif(x.t_part,0)) * x.t_reel) as tri
+        from avecgeom x
+       where x.geom_raw is not null
+         and x.geom_raw && ST_MakeEnvelope(v_xmin, v_ymin, v_xmax, v_ymax, 4326)
+       order by tri desc nulls last
+       limit p_limite
+    ) u;
+  end if;
 
   return v_res;
 end;
@@ -539,4 +706,4 @@ revoke all on function alignement_par_maille_geo(uuid, text, text, numeric, text
 grant execute on function alignement_par_maille_geo(uuid, text, text, numeric, text, float8, float8, float8, float8, int) to service_role;
 
 comment on function alignement_par_maille_geo is
-  'Agregation geometrique d alignement par maille (region/departement/cp), pour les trois vignettes carte (Tache 13A) -- jamais pour le tableau (alignement_par_maille, ruling T6-1). Joint indicator_cp_values pour la variable du plan. Memes totaux perimetre-complet (T6-2), meme jointure INSEE reelle (jamais campaign_cp_rollup.dept). Geometrie simplifiee (ST_Simplify) a une tolerance DERIVEE DE L ETENDUE DE LA BBOX demandee, jamais une constante (ruling T13A-1) -- protege les DROM d une simplification a tolerance fixe qui leur ferait perdre des sous-polygones entiers.';
+  'Agregation geometrique d alignement par maille (region/departement/cp), pour les trois vignettes carte (Tache 13A) -- jamais pour le tableau (alignement_par_maille, ruling T6-1). Joint indicator_cp_values pour la variable du plan. Memes totaux perimetre-complet (T6-2), meme jointure INSEE reelle (jamais campaign_cp_rollup.dept). Geometrie simplifiee (ST_Simplify) a une tolerance DERIVEE DE L ETENDUE DE LA BBOX demandee, jamais une constante (ruling T13A-1) -- protege les DROM d une simplification a tolerance fixe qui leur ferait perdre des sous-polygones entiers. Trois formes de requete, une par maille, chacune avec une VRAIE jointure vers sa table de geometrie (ruling T13A-3) -- remplace une sous-requete scalaire correlee par ligne (CASE p_maille), qui executait un sous-plan par tuple malgre un p_maille constant pour tout l appel. La CTE avecgeom est MATERIALIZED : sans quoi, inlinee (PG12+), ST_Simplify y serait recalculee a chacune de ses trois references en aval -- meme defaut deja rencontre sur le Voronoi de ce depot (10x plus lent sans, mesure sur la maille CP : 625 -> 62 ms).';
