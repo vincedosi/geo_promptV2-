@@ -15,45 +15,44 @@
  * garantie d'exister dans la nouvelle campagne.
  *
  * Interface volontairement SANS PROPS (contrat Tâche 15 : `<BarreContexteCampagne />`)
- * — la barre lit `useCampagneSession()` directement et se fetch elle-même :
- *  - la liste des campagnes (`/api/digital/campaigns`, scope org, léger —
- *    PAS `/api/admin/campaigns`, réservé au super_admin alors que Suivi V2
- *    est ouvert à tous les rôles sur leur propre org) ;
- *  - le score d'alignement de la campagne courante (`/api/campaigns/[id]/alignement`).
- *
- * Duplication ASSUMÉE avec `SuiviV2` : quand la barre est montée à l'intérieur
- * de l'écran de suivi, celui-ci fetch aussi `/alignement` pour ses propres
- * panneaux (ScoreAlignement, TroisComposantes). Deux appels concurrents à la
- * même route plutôt qu'un fil de props à faire traverser un composant qui,
- * par contrat, n'en prend aucun — `calculer_alignement_geo` n'est pas un scan
- * de table volumineuse (contrairement aux RPC carreaux/IRIS visées par la
- * règle des 3 appels parallèles, qui borne l'orchestration PROPRE de
- * `SuiviV2`). Signalé au rapport de la Tâche 15, pas contourné par une
- * dépendance croisée entre les deux composants.
+ * — la barre lit `useCampagneSession()` directement et se fetch elle-même,
+ * via deux sources PARTAGÉES à l'échelle du module plutôt que des `useRef`
+ * locaux (Ruling T15-2, relecture Tâche 15) : les deux montages de cette
+ * barre (`app/map/page.tsx` en vue carte, `SuiviV2` en vue suivi) n'ont pas
+ * d'ancêtre commun qui pourrait porter un cache partagé, et peuvent même
+ * être montés EN MÊME TEMPS (le contenu de l'overlay MAGELIAN reste monté,
+ * masqué, quand on bascule vers la carte) :
+ *  - `lib/campagne/cache-campagnes.ts` — liste des campagnes
+ *    (`/api/digital/campaigns`, scope org, léger — PAS `/api/admin/campaigns`,
+ *    réservé au super_admin alors que Suivi V2 est ouvert à tous les rôles
+ *    sur leur propre org) ;
+ *  - `lib/campagne/cache-alignement.ts` — score d'alignement de la campagne
+ *    courante, également nécessaire à `SuiviV2` pour ses propres panneaux
+ *    (`ScoreAlignement`, `TroisComposantes`).
+ * Sans ce partage, les deux montages dupliquaient les deux appels (constaté :
+ * 2 requêtes à `/api/digital/campaigns` ET 3 à `/alignement` à l'ouverture
+ * d'un seul écran) — un seul appel sert désormais tous les demandeurs, quel
+ * que soit celui qui le déclenche en premier. Les deux passent aussi par
+ * `semaphoreEcranSuivi` (Ruling T15-1), à l'intérieur même de ces deux
+ * modules — cette barre n'a donc rien à gérer elle-même pour respecter le
+ * budget de 3 appels Supabase en parallèle de cet écran.
  *
  * Chargement sans écran blanc : le score affiché reste visible (opacité
  * réduite + indicateur discret) pendant un rechargement — jamais remplacé
  * par un tiret le temps de la requête suivante.
  */
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
-import { adminFetch } from '@/lib/admin-fetch';
 import { useCampagneSession } from '@/lib/campagne/CampagneSessionContext';
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
 import { appliquerChangementCampagne } from '@/lib/campagne/transitions';
+import { obtenirAlignementPartage } from '@/lib/campagne/cache-alignement';
+import { obtenirListeCampagnesPartagee, type CampagneListItem } from '@/lib/campagne/cache-campagnes';
 import type { VueCampagne } from '@/lib/campagne/session-types';
 import type { ReponseAlignement } from './suivi-v2/ScoreAlignement';
 import { formaterNombre } from '@/lib/format/nombre';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
-
-interface CampagneListItem {
-  id: string;
-  name: string;
-  dsp_source: string | null;
-  date_start: string | null;
-  date_end: string | null;
-}
 
 /** « 1 avril – 30 avril 2026 » — `null` sans aucune borne exploitable. Logique
  *  pure, testable sans DOM (pas de test dédié demandé par le brief). */
@@ -84,23 +83,17 @@ export function BarreContexteCampagne() {
 
   const [campagnes, setCampagnes] = useState<CampagneListItem[] | null>(null);
 
-  // Un seul fetch, au montage — SANS garde « déjà chargé » combinée à
-  // l'annulation par nettoyage : sous React Strict Mode (dev), l'effet est
-  // monté-démonté-remonté ; une garde posée par le PREMIER passage empêche
-  // le SECOND (celui qui survit) de refetcher, alors que le résultat du
-  // premier est justement annulé par son propre nettoyage — `campagnes`
-  // resterait bloqué sur « Chargement… » indéfiniment (constaté à l'écran).
+  // Un seul fetch LOGIQUE, au montage — la déduplication (React Strict Mode
+  // dev monte-démonte-remonte chaque effet une fois ; les deux montages de
+  // cette barre peuvent aussi coexister) vit dans
+  // `lib/campagne/cache-campagnes.ts`, pas ici : une garde locale posée par
+  // le PREMIER passage aurait empêché le SECOND (celui qui survit) de
+  // refetcher, alors que le résultat du premier est justement annulé par son
+  // propre nettoyage — `campagnes` restait bloqué sur « Chargement… »
+  // indéfiniment (constaté à l'écran avant ce correctif).
   useEffect(() => {
     let annule = false;
-    (async () => {
-      try {
-        const res = await adminFetch('/api/digital/campaigns', { cache: 'no-store' });
-        const data = res.ok ? await res.json() : [];
-        if (!annule) setCampagnes(Array.isArray(data) ? data as CampagneListItem[] : []);
-      } catch {
-        if (!annule) setCampagnes([]);
-      }
-    })();
+    obtenirListeCampagnesPartagee().then((liste) => { if (!annule) setCampagnes(liste); });
     return () => { annule = true; };
   }, []);
 
@@ -112,15 +105,11 @@ export function BarreContexteCampagne() {
     if (!id) { setScore(null); return; }
     let annule = false;
     setScoreChargement(true);
-    (async () => {
-      try {
-        const res = await adminFetch(`/api/campaigns/${id}/alignement`, { cache: 'no-store' });
-        // Sur échec, le score précédent reste affiché (dimmed) — jamais
-        // effacé par une requête qui rate : voir l'en-tête du fichier.
-        if (res.ok && !annule) setScore(await res.json() as ReponseAlignement);
-      } catch { /* le score précédent reste affiché */ }
-      finally { if (!annule) setScoreChargement(false); }
-    })();
+    obtenirAlignementPartage(id).then((r) => {
+      // Sur échec, le score précédent reste affiché (dimmed) — jamais
+      // effacé par une requête qui rate : voir l'en-tête du fichier.
+      if (r.data && !annule) setScore(r.data);
+    }).finally(() => { if (!annule) setScoreChargement(false); });
     return () => { annule = true; };
   }, [session.campaignId]);
 

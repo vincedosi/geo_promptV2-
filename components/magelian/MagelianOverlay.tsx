@@ -186,6 +186,22 @@ export function MagelianOverlay() {
     })();
   }, [open, refreshLists]);
 
+  // Resynchronise `selectedId` sur `session.campaignId` — Ruling T15-4
+  // (relecture Tâche 15). `BarreContexteCampagne` (Tâche 15) est le seul
+  // écrivain de `session.campaignId` sur l'onglet Suivi ; `selectedId`
+  // alimente `deriveCampagneActive` donc `MapTopBar` (la « campagne active »
+  // affichée dans la top bar). Sans cet effet, changer de campagne depuis la
+  // barre laissait la top bar afficher l'ANCIENNE campagne — deux surfaces,
+  // deux réponses. Sens UNIQUE (session → selectedId, jamais l'inverse) :
+  // `SuiviV2` lit déjà `session.campaignId` directement, pas `selectedId` —
+  // faire les deux en parallèle rouvrirait la même incohérence dans l'autre
+  // sens. Ne s'applique qu'à l'onglet Suivi : Stratégie/Activation/Aperçu ne
+  // touchent pas `session.campaignId`.
+  useEffect(() => {
+    if (tab !== 'suivi' || !session.campaignId || session.campaignId === selectedId) return;
+    if (campaigns?.some((c) => c.id === session.campaignId)) setSelectedId(session.campaignId);
+  }, [tab, session.campaignId, selectedId, campaigns]);
+
   // Deep-link : dirige la campagne demandée vers le bon espace dès que la liste est là.
   useEffect(() => {
     if (!open || !request?.campaignId || campaigns === null) return;
@@ -656,7 +672,14 @@ export function MagelianOverlay() {
 
         {tab === 'suivi' && (
           selectedId ? (
-            <SuiviV2 key={selectedId} campaignId={selectedId} />
+            // PAS de `key={selectedId}` (contrairement à l'ancien
+            // `CampaignSuivi`) : `SuiviV2` réagit déjà à un changement de
+            // `session.campaignId` par ses propres effets (Tâche 15) — un
+            // remount effacerait exactement l'état qu'un changement de
+            // campagne depuis la barre est censé PRÉSERVER (vue, maille),
+            // contredisant `appliquerChangementCampagne`. Voir aussi l'effet
+            // de resynchronisation de `selectedId` ci-dessus (Ruling T15-4).
+            <SuiviV2 campaignId={selectedId} />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
               Aucune campagne à consulter — crée ta première campagne dans l&apos;onglet Stratégie.

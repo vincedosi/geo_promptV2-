@@ -102,6 +102,19 @@ export function rampePourBornes(rampe: readonly string[], nBornes: number): stri
  * (piège documenté en tête de fichier) ou si `rampe` n'a pas exactement
  * `bornes.length + 1` couleurs — mieux vaut planter au montage du composant
  * qu'une carte qui ne peint jamais rien.
+ *
+ * Ruling T15-3 (relecture Tâche 15) : `bornes` VIDE (aucune valeur finie —
+ * un jeu de `features` pas encore chargé, ou un indicateur non matérialisé
+ * sur tout le périmètre visible) est un cas ATTEIGNABLE sur cet écran, pas
+ * seulement au tout premier rendu. Avant ce correctif, `bornes = []`
+ * produisait un `step` à 3 éléments (`['step', get, couleurUnique]`, aucun
+ * palier) — MapLibre le REJETTE au runtime (« Expected at least 4 arguments,
+ * but found only 2 »), constaté à l'écran. La garde appelante (Tâche 15,
+ * `SuiviV2`) protège le tout premier rendu ; celui-ci protège la fonction
+ * elle-même, qui a précisément pour raison d'être de planter fort plutôt que
+ * de construire une expression MapLibre muette (voir le fichier `CarteVignette.tsx`).
+ * Sans palier, il n'y a qu'UNE couleur possible : l'expression devient une
+ * simple couleur littérale, jamais un `step` vide.
  */
 export function expressionEtapes(
   propriete: string,
@@ -121,8 +134,16 @@ export function expressionEtapes(
     )
   }
 
-  const step: unknown[] = ['step', ['get', propriete], rampe[0]]
-  bornes.forEach((b, i) => { step.push(b, rampe[i + 1]) })
+  let step: unknown
+  if (bornes.length === 0) {
+    // Une seule couleur possible — jamais un `step` à 0 palier (rejeté par
+    // MapLibre au runtime, T15-3).
+    step = rampe[0]
+  } else {
+    const s: unknown[] = ['step', ['get', propriete], rampe[0]]
+    bornes.forEach((b, i) => { s.push(b, rampe[i + 1]) })
+    step = s
+  }
 
   const conditionAbsence = proprieteAbsence
     ? ['any', ['==', ['get', propriete], null], ['==', ['get', proprieteAbsence], true]]

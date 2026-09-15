@@ -106,6 +106,19 @@ describe('expressionEtapes', () => {
     const condition = expr[1] as unknown[]
     expect(condition[0]).toBe('==')
   })
+
+  it('T15-3 : bornes vides (aucune valeur finie) -> couleur littérale, jamais un step à 0 palier', () => {
+    // Cas réel : `features` pas encore chargées, ou indicateur non
+    // matérialisé sur tout le périmètre visible — `bornesQuantiles` rend []
+    // et `rampePourBornes(rampe, 0)` rend exactement 1 couleur (voir plus haut).
+    const expr = expressionEtapes('variable_valeur', null, [], ['#unique'], '#gris')
+    const fallback = expr[3]
+    expect(fallback).toBe('#unique')
+    // Un `step` MapLibre à 0 palier (`['step', get, couleur]`, 3 éléments)
+    // est rejeté au runtime — la garantie ici est qu'il n'existe plus DU TOUT :
+    // le repli est une couleur, pas un tableau d'expression.
+    expect(Array.isArray(fallback)).toBe(false)
+  })
 })
 
 function feature(geometry: GeoJSON.Geometry): Pick<FeatureAlignementGeo, 'geometry'> {

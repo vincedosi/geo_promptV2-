@@ -1,0 +1,73 @@
+'use client';
+
+/**
+ * Cache PARTAGÉ (module, pas `useRef`) du score d'alignement d'une campagne
+ * — Ruling T15-2 (relecture Tâche 15). `BarreContexteCampagne` (montée à
+ * deux endroits sans ancêtre commun : `app/map/page.tsx` en vue carte,
+ * `SuiviV2` en vue suivi) et `SuiviV2` lui-même ont tous deux besoin de CE
+ * MÊME score (`GET /api/campaigns/[id]/alignement`) — un `useRef` par
+ * composant les aurait laissés dupliquer l'appel, constaté à l'écran (3
+ * requêtes réseau à `/alignement` à l'ouverture d'un seul écran). CLAUDE.md
+ * « cache client `useRef` — vérifier AVANT tout fetch » : l'intention (ne
+ * jamais refetcher sans avoir vérifié un cache d'abord) est ici servie par
+ * une portée MODULE, seule à survivre entre deux montages indépendants.
+ *
+ * Le score ne dépend JAMAIS de la maille ni du fil d'Ariane (`ScoreAlignement` :
+ * « Toujours calculé au code postal, quelle que soit la maille affichée ») —
+ * la clé de cache est donc `campaignId` seul, jamais invalidée par un
+ * drill-down.
+ *
+ * L'appel réseau lui-même passe par `semaphoreEcranSuivi` (Ruling T15-1) —
+ * ICI, dans la fonction qui émet réellement la requête, pas dans chaque
+ * appelant : un appelant qui oublierait de l'envelopper romprait la garantie
+ * de concurrence sans qu'aucun test ne puisse le voir depuis l'extérieur.
+ */
+import { adminFetch } from '@/lib/admin-fetch';
+import { semaphoreEcranSuivi } from './semaphore-suivi';
+import type { ReponseAlignement } from '@/components/campagne/suivi-v2/ScoreAlignement';
+
+export interface ResultatAlignement {
+  data: ReponseAlignement | null;
+  erreurMessage: string | null;
+}
+
+const cache = new Map<string, Promise<ResultatAlignement>>();
+
+async function corpsErreur(res: Response): Promise<string | null> {
+  try { return ((await res.json()) as { error?: string })?.error ?? null; } catch { return null; }
+}
+
+function demarrer(campaignId: string): Promise<ResultatAlignement> {
+  const promesse = (async (): Promise<ResultatAlignement> => {
+    const liberer = await semaphoreEcranSuivi.acquerir();
+    try {
+      const res = await adminFetch(`/api/campaigns/${campaignId}/alignement`, { cache: 'no-store' });
+      if (!res.ok) return { data: null, erreurMessage: (await corpsErreur(res)) ?? 'Erreur base de données.' };
+      return { data: await res.json() as ReponseAlignement, erreurMessage: null };
+    } catch (e) {
+      return { data: null, erreurMessage: e instanceof Error ? e.message : 'Erreur réseau.' };
+    } finally {
+      liberer();
+    }
+  })();
+  cache.set(campaignId, promesse);
+  return promesse;
+}
+
+/**
+ * Rend la promesse EN VOL si une requête pour cette campagne est déjà
+ * partie (le deuxième appelant ne déclenche JAMAIS un second appel réseau),
+ * sinon en démarre une et la met en cache.
+ */
+export function obtenirAlignementPartage(campaignId: string): Promise<ResultatAlignement> {
+  const existante = cache.get(campaignId);
+  if (existante) return existante;
+  return demarrer(campaignId);
+}
+
+/** Force un rechargement au prochain appel — inutilisé aujourd'hui (le score
+ *  ne se périme pas avec la navigation), gardé pour un rafraîchissement
+ *  volontaire futur plutôt que de réinventer le cache à ce moment-là. */
+export function invaliderAlignementPartage(campaignId: string): void {
+  cache.delete(campaignId);
+}

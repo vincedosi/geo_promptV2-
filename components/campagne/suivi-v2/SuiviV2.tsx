@@ -10,21 +10,45 @@
  *   TroisComposantes → ConstatsCorrection → CoutEtRythme → TableauDeregles →
  *   QuiADiffuse → DetailTechnique.
  *
- * ── Au plus 3 appels Supabase en parallèle (CLAUDE.md) ──────────────────────
- * `alignement`, `alignement/maille` et `/suivi` (route KEPT) partent
- * ENSEMBLE au montage et à chaque changement de maille/parent — exactement 3,
- * un seul `Promise.all`. Tout le reste part APRÈS et SEULEMENT quand visible
- * (IntersectionObserver, `useEnVue` ci-dessous), jamais au montage :
- *  - `alignement/maille/map` + `/api/cibles/indicators` (TrioCartes) — gagnés
- *    par la visibilité de la rangée 2 ;
- *  - `alignement/dispersion` (GraphiqueEcart en maille CP uniquement) — même
- *    déclencheur ;
- *  - `alignement/constats` (ConstatsCorrection) — sa propre section ;
- *  - `/actors` (QuiADiffuse) — sa propre section.
- * `reconcile` n'est PAS refetché ici : `DetailTechnique` s'auto-fetch déjà
- * (repli `<details onToggle>`, Tâche 14) — un second appel ferait double
- * emploi avec un composant qui gère déjà sa propre paresse, plus stricte
- * (ouverture explicite) que la visibilité seule.
+ * ── Au plus 3 appels Supabase en parallèle (CLAUDE.md) — Ruling T15-1 ──────
+ * Un SÉMAPHORE (`lib/campagne/semaphore-suivi.ts`, capacité 3) enveloppe
+ * CHAQUE appel `adminFetch` de ce fichier — les trois du « cœur » (alignement,
+ * alignement/maille, /suivi) ET tous ceux gardés par visibilité (TrioCartes,
+ * dispersion, constats, acteurs). Portée MODULE, pas une instance par montage
+ * (`useRef`) : `BarreContexteCampagne` (montée juste au-dessus, et parfois EN
+ * MÊME TEMPS à un second endroit — `app/map/page.tsx` en vue carte, quand le
+ * contenu de l'overlay reste monté masqué) partage le MÊME sémaphore pour ses
+ * propres appels (liste des campagnes, score d'alignement) — sans ce partage,
+ * deux instances à 3 chacune auraient pu totaliser 6 requêtes en vol. Jamais
+ * plus de 3 requêtes en vol EN MÊME TEMPS pour tout cet écran, quel que soit
+ * l'ordre d'arrivée ou le nombre de montages actifs.
+ *
+ * Une PREMIÈRE version gardait les effets « gagnés par visibilité » derrière
+ * `if (!visible) return`, sans lien avec l'état de chargement du cœur — la
+ * relecture (Ruling T15-1) a tracé qu'une fois la rangée 2 vue (ce qui arrive
+ * quasi toujours avant le premier clic, `rootMargin` de 200px compris), son
+ * effet se redéclenche à CHAQUE changement de maille/parent/campagne, DANS LE
+ * MÊME tick que les trois appels du cœur — cinq à sept requêtes en vol.
+ *
+ * Une garde par DÉPENDANCE D'ÉTAT (« ne fetch pas si `chargement` vaut déjà
+ * `true` ») ne suffit PAS à corriger ça : `setChargement(true)` appelé au
+ * début d'un effet ne devient visible aux AUTRES effets du MÊME commit qu'au
+ * rendu SUIVANT — deux effets déclenchés par le même changement de
+ * dépendances lisent donc tous les deux l'ANCIENNE valeur et démarrent leur
+ * fetch en même temps. Le sémaphore n'a pas ce problème : c'est une vraie
+ * file d'attente asynchrone (compteur incrémenté/décrémenté de façon
+ * SYNCHRONE dans `acquerir`/la fonction de libération), pas un état dérivé
+ * d'un rendu — un appelant qui arrive alors que 3 requêtes sont déjà en vol
+ * ATTEND réellement une place, il ne la manque jamais par une course.
+ *
+ * ── Le score d'alignement (Ruling T15-2) ─────────────────────────────────
+ * `BarreContexteCampagne`, montée juste au-dessus, a besoin du MÊME score
+ * (`/alignement`) que ce fichier. Les deux passent par
+ * `lib/campagne/cache-alignement.ts` — un cache PARTAGÉ (portée module) qui
+ * déduplique la requête : un seul appel réseau sert les deux, quel que soit
+ * celui qui le déclenche en premier. Le passage par le sémaphore vit DANS ce
+ * module (et dans `cache-campagnes.ts` pour la liste), pas ici : aucun
+ * appelant ne peut donc oublier de l'envelopper.
  *
  * ── Chargement sans écran blanc ──────────────────────────────────────────
  * Tant qu'aucune donnée n'a jamais été chargée, un message de chargement
@@ -54,6 +78,8 @@ import { useCampagneSession } from '@/lib/campagne/CampagneSessionContext';
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
 import { useTheme } from '@/lib/theme/ThemeProvider';
 import { formaterNombre } from '@/lib/format/nombre';
+import { semaphoreEcranSuivi } from '@/lib/campagne/semaphore-suivi';
+import { obtenirAlignementPartage } from '@/lib/campagne/cache-alignement';
 import { BarreContexteCampagne } from '../BarreContexteCampagne';
 import { BarreMaille } from './BarreMaille';
 import { ScoreAlignement, type ReponseAlignement } from './ScoreAlignement';
@@ -76,7 +102,9 @@ const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
 
 /** Déclenche `visible=true` une fois l'élément entré dans le viewport (+200px
- *  de marge) puis se désactive — jamais de re-fetch en boucle au scroll. */
+ *  de marge) puis se désactive — jamais de re-fetch en boucle au scroll.
+ *  Ne dit RIEN sur la concurrence réseau : c'est le sémaphore
+ *  (`semaphoreEcranSuivi`) qui la borne, pas ce hook (Ruling T15-1). */
 function useEnVue<T extends HTMLElement>(): [RefObject<T | null>, boolean] {
   const ref = useRef<T | null>(null);
   const [visible, setVisible] = useState(false);
@@ -91,6 +119,18 @@ function useEnVue<T extends HTMLElement>(): [RefObject<T | null>, boolean] {
     return () => obs.disconnect();
   }, [visible]);
   return [ref, visible];
+}
+
+/** Enveloppe une tâche réseau d'une place du sémaphore PARTAGÉ de l'écran
+ *  (`semaphoreEcranSuivi`, portée module — pas une instance de ce fichier) —
+ *  point d'entrée pour tout appel `adminFetch` direct de ce fichier.
+ *  `obtenirAlignementPartage`/`obtenirListeCampagnesPartagee` gèrent le leur
+ *  EUX-MÊMES en interne (Ruling T15-2) : ne jamais les envelopper ici aussi,
+ *  ce serait réserver deux places du sémaphore pour un seul appel réseau. */
+function avecSemaphore<T>(tache: () => Promise<T>): Promise<T> {
+  return semaphoreEcranSuivi.acquerir().then(async (liberer) => {
+    try { return await tache(); } finally { liberer(); }
+  });
 }
 
 function EtatVide({ titre, message }: { titre: string; message: string }) {
@@ -121,6 +161,8 @@ async function corpsErreur(res: Response): Promise<string | null> {
   try { return ((await res.json()) as { error?: string })?.error ?? null; } catch { return null; }
 }
 
+const MESSAGE_ERREUR_DEFAUT = 'Cette campagne n’est pas consultable pour le moment.';
+
 export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) {
   const { session, majSession, basculerVue } = useCampagneSession();
   const { open: overlayOpen, requestClose } = useMagelianOverlay();
@@ -135,55 +177,81 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
 
   const campaignId = session.campaignId ?? campaignIdProp;
 
-  // ── Vague 1 : alignement + alignement/maille + suivi (≤3 en parallèle) ──
+  // ── Cœur : alignement (cache partagé) — jamais grain-dépendant ─────────
   const [alignement, setAlignement] = useState<ReponseAlignement | null>(null);
-  const [maille, setMaille] = useState<{ unites: UniteAlignement[]; nTotal: number } | null>(null);
+  const [chargementAlignement, setChargementAlignement] = useState(false);
+  const [erreurAlignement, setErreurAlignement] = useState<string | null>(null);
+  const [alignementChargeUneFois, setAlignementChargeUneFois] = useState(false);
+
+  useEffect(() => {
+    if (!campaignId) return;
+    let annule = false;
+    setChargementAlignement(true);
+    // PAS enveloppé par `avecSemaphore` ici : `obtenirAlignementPartage`
+    // acquiert déjà sa place elle-même (Ruling T15-2) — le refaire ici
+    // réserverait deux places du sémaphore pour un seul appel réseau.
+    obtenirAlignementPartage(campaignId)
+      .then((r) => {
+        if (annule) return;
+        if (r.data) { setAlignement(r.data); setErreurAlignement(null); }
+        else setErreurAlignement(r.erreurMessage ?? MESSAGE_ERREUR_DEFAUT);
+      })
+      .finally(() => { if (!annule) { setChargementAlignement(false); setAlignementChargeUneFois(true); } });
+    return () => { annule = true; };
+  }, [campaignId]);
+
+  // ── Cœur : suivi (route KEPT) — jamais grain-dépendant non plus ────────
   const [suivi, setSuivi] = useState<SuiviPayload | null>(null);
-  const [chargement, setChargement] = useState(false);
-  const [chargeUneFois, setChargeUneFois] = useState(false);
-  const [erreurEcran, setErreurEcran] = useState<string | null>(null);
+  const [chargementSuivi, setChargementSuivi] = useState(false);
+  const [erreurSuivi, setErreurSuivi] = useState<string | null>(null);
+  const [suiviChargeUneFois, setSuiviChargeUneFois] = useState(false);
+
+  useEffect(() => {
+    if (!campaignId) return;
+    let annule = false;
+    setChargementSuivi(true);
+    avecSemaphore(() => adminFetch(`/api/digital/${campaignId}/suivi`, { cache: 'no-store' }))
+      .then(async (res) => {
+        if (annule) return;
+        if (res.ok) { setSuivi(await res.json() as SuiviPayload); setErreurSuivi(null); }
+        else setErreurSuivi((await corpsErreur(res)) ?? MESSAGE_ERREUR_DEFAUT);
+      })
+      .catch((e) => { if (!annule) setErreurSuivi(e instanceof Error ? e.message : 'Erreur réseau.'); })
+      .finally(() => { if (!annule) { setChargementSuivi(false); setSuiviChargeUneFois(true); } });
+    return () => { annule = true; };
+  }, [campaignId]);
+
+  // ── Cœur : alignement/maille — seul dépendant du grain (maille/parent) ──
+  const [maille, setMaille] = useState<{ unites: UniteAlignement[]; nTotal: number } | null>(null);
+  const [chargementMaille, setChargementMaille] = useState(false);
+  const [erreurMaille, setErreurMaille] = useState<string | null>(null);
+  const [mailleChargeUneFois, setMailleChargeUneFois] = useState(false);
   const nomsConnusRef = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     if (!campaignId) return;
     let annule = false;
-    setChargement(true);
-    (async () => {
-      const qs = new URLSearchParams({ maille: session.maille });
-      if (session.parent) qs.set('parent', session.parent);
-      try {
-        const [rAlign, rMaille, rSuivi] = await Promise.all([
-          adminFetch(`/api/campaigns/${campaignId}/alignement`, { cache: 'no-store' }),
-          adminFetch(`/api/campaigns/${campaignId}/alignement/maille?${qs}`, { cache: 'no-store' }),
-          adminFetch(`/api/digital/${campaignId}/suivi`, { cache: 'no-store' }),
-        ]);
+    setChargementMaille(true);
+    const qs = new URLSearchParams({ maille: session.maille });
+    if (session.parent) qs.set('parent', session.parent);
+    avecSemaphore(() => adminFetch(`/api/campaigns/${campaignId}/alignement/maille?${qs}`, { cache: 'no-store' }))
+      .then(async (res) => {
         if (annule) return;
-        const echec = [rAlign, rMaille, rSuivi].find((r) => !r.ok);
-        if (echec) {
-          setErreurEcran((await corpsErreur(echec)) ?? 'Cette campagne n’est pas consultable pour le moment.');
-          return; // les données déjà en place (le cas échéant) restent affichées
-        }
-        const [dAlign, dMaille, dSuivi] = await Promise.all([
-          rAlign.json() as Promise<ReponseAlignement>,
-          rMaille.json() as Promise<{ unites?: UniteAlignement[]; n_total?: number }>,
-          rSuivi.json() as Promise<SuiviPayload>,
-        ]);
+        if (!res.ok) { setErreurMaille((await corpsErreur(res)) ?? MESSAGE_ERREUR_DEFAUT); return; }
+        const d = await res.json() as { unites?: UniteAlignement[]; n_total?: number };
         if (annule) return;
-        for (const u of dMaille.unites ?? []) {
-          if (u.code && u.nom) nomsConnusRef.current.set(u.code, u.nom);
-        }
-        setAlignement(dAlign);
-        setMaille({ unites: dMaille.unites ?? [], nTotal: dMaille.n_total ?? 0 });
-        setSuivi(dSuivi);
-        setErreurEcran(null);
-      } catch (e) {
-        if (!annule) setErreurEcran(e instanceof Error ? e.message : 'Erreur réseau.');
-      } finally {
-        if (!annule) { setChargement(false); setChargeUneFois(true); }
-      }
-    })();
+        for (const u of d.unites ?? []) { if (u.code && u.nom) nomsConnusRef.current.set(u.code, u.nom); }
+        setMaille({ unites: d.unites ?? [], nTotal: d.n_total ?? 0 });
+        setErreurMaille(null);
+      })
+      .catch((e) => { if (!annule) setErreurMaille(e instanceof Error ? e.message : 'Erreur réseau.'); })
+      .finally(() => { if (!annule) { setChargementMaille(false); setMailleChargeUneFois(true); } });
     return () => { annule = true; };
   }, [campaignId, session.maille, session.parent]);
+
+  const chargement = chargementAlignement || chargementSuivi || chargementMaille;
+  const chargeUneFois = alignementChargeUneFois && suiviChargeUneFois && mailleChargeUneFois;
+  const erreurEcran = erreurAlignement || erreurMaille || erreurSuivi;
 
   // ── Rangée 2 : TrioCartes (alignement/maille/map + indicateurs) ─────────
   const [row2Ref, row2Visible] = useEnVue<HTMLDivElement>();
@@ -199,16 +267,18 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
     if (!row2Visible || !campaignId) return;
     let annule = false;
     setMapChargement(true);
+    const qs = new URLSearchParams({ maille: session.maille });
+    if (session.parent) qs.set('parent', session.parent);
+    if (indicateurChoisi) qs.set('variable', indicateurChoisi);
+    const besoinIndicateurs = indicateurs.length === 0;
     (async () => {
-      const qs = new URLSearchParams({ maille: session.maille });
-      if (session.parent) qs.set('parent', session.parent);
-      if (indicateurChoisi) qs.set('variable', indicateurChoisi);
-      const appels: Promise<Response>[] = [
-        adminFetch(`/api/campaigns/${campaignId}/alignement/maille/map?${qs}`, { cache: 'no-store' }),
-      ];
-      if (indicateurs.length === 0) appels.push(adminFetch('/api/cibles/indicators', { cache: 'no-store' }));
       try {
-        const [rMap, rInd] = await Promise.all(appels);
+        const [rMap, rInd] = await Promise.all([
+          avecSemaphore(() => adminFetch(`/api/campaigns/${campaignId}/alignement/maille/map?${qs}`, { cache: 'no-store' })),
+          besoinIndicateurs
+            ? avecSemaphore(() => adminFetch('/api/cibles/indicators', { cache: 'no-store' }))
+            : Promise.resolve(null),
+        ]);
         if (annule) return;
         if (rMap.ok) {
           const d = await rMap.json() as ReponseAlignementMailleGeo;
@@ -243,17 +313,16 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
   useEffect(() => {
     if (!row2Visible || !campaignId || session.maille !== 'cp') return;
     let annule = false;
-    (async () => {
-      const qs = new URLSearchParams();
-      if (session.parent) qs.set('parent', session.parent);
-      try {
-        const res = await adminFetch(`/api/campaigns/${campaignId}/alignement/dispersion?${qs}`, { cache: 'no-store' });
+    const qs = new URLSearchParams();
+    if (session.parent) qs.set('parent', session.parent);
+    avecSemaphore(() => adminFetch(`/api/campaigns/${campaignId}/alignement/dispersion?${qs}`, { cache: 'no-store' }))
+      .then(async (res) => {
         if (res.ok && !annule) {
           const d = await res.json() as { tranches?: TrancheDispersion[] };
           setTranches(d.tranches ?? []);
         }
-      } catch { /* la dispersion précédente (le cas échéant) reste affichée */ }
-    })();
+      })
+      .catch(() => { /* la dispersion précédente (le cas échéant) reste affichée */ });
     return () => { annule = true; };
   }, [row2Visible, campaignId, session.maille, session.parent]);
 
@@ -263,15 +332,14 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
   useEffect(() => {
     if (!constatsVisible || !campaignId) return;
     let annule = false;
-    (async () => {
-      try {
-        const res = await adminFetch(`/api/campaigns/${campaignId}/alignement/constats`, { cache: 'no-store' });
+    avecSemaphore(() => adminFetch(`/api/campaigns/${campaignId}/alignement/constats`, { cache: 'no-store' }))
+      .then(async (res) => {
         if (res.ok && !annule) {
           const d = await res.json() as { constats?: Constat[] };
           setConstats(d.constats ?? []);
         }
-      } catch { /* les constats précédents (le cas échéant) restent affichés */ }
-    })();
+      })
+      .catch(() => { /* les constats précédents (le cas échéant) restent affichés */ });
     return () => { annule = true; };
   }, [constatsVisible, campaignId]);
 
@@ -281,15 +349,14 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
   useEffect(() => {
     if (!actorsVisible || !campaignId) return;
     let annule = false;
-    (async () => {
-      try {
-        const res = await adminFetch(`/api/digital/${campaignId}/actors`, { cache: 'no-store' });
+    avecSemaphore(() => adminFetch(`/api/digital/${campaignId}/actors`, { cache: 'no-store' }))
+      .then(async (res) => {
         if (res.ok && !annule) {
           const d = await res.json() as { actors?: ActorRow[] };
           setCanaux(d.actors ?? []);
         }
-      } catch { /* les canaux précédents (le cas échéant) restent affichés */ }
-    })();
+      })
+      .catch(() => { /* les canaux précédents (le cas échéant) restent affichés */ });
     return () => { annule = true; };
   }, [actorsVisible, campaignId]);
 
@@ -299,19 +366,16 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
   const handleVoirTout = useCallback(() => {
     if (!campaignId) return;
     setEtenduChargement(true);
-    (async () => {
-      const qs = new URLSearchParams({ maille: session.maille, limite: '500' });
-      if (session.parent) qs.set('parent', session.parent);
-      try {
-        const res = await adminFetch(`/api/campaigns/${campaignId}/alignement/maille?${qs}`, { cache: 'no-store' });
+    const qs = new URLSearchParams({ maille: session.maille, limite: '500' });
+    if (session.parent) qs.set('parent', session.parent);
+    avecSemaphore(() => adminFetch(`/api/campaigns/${campaignId}/alignement/maille?${qs}`, { cache: 'no-store' }))
+      .then(async (res) => {
         if (res.ok) {
           const d = await res.json() as { unites?: UniteAlignement[] };
           setUniteEtendues(d.unites ?? []);
         }
-      } finally {
-        setEtenduChargement(false);
-      }
-    })();
+      })
+      .finally(() => setEtenduChargement(false));
   }, [campaignId, session.maille, session.parent]);
   // Une nouvelle maille/un nouveau drill-down invalide la liste étendue —
   // sans quoi « Voir tout » resterait ouvert sur le grain précédent.
@@ -428,15 +492,12 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
               <div style={{ flex: '1 1 320px', minWidth: 260 }}>
                 {/* Monté seulement après la PREMIÈRE résolution du fetch
                     (succès ou échec) — jamais avec `features=[]` au tout
-                    premier rendu : `bornesQuantiles([], …)` rend un tableau
-                    de bornes VIDE, et `expressionEtapes` construit alors un
-                    `step` MapLibre à 0 palier, que MapLibre rejette
-                    (« Expected at least 4 arguments, but found only 2 »,
-                    constaté à l'écran). Défaut latent de
-                    `lib/campagne/vignette-carte.ts` (Tâche 13), jamais
-                    exercé avant cet assemblage — contourné ici côté appelant
-                    plutôt que corrigé dans un fichier hors périmètre de
-                    cette tâche ; signalé au rapport. */}
+                    premier rendu, qui exerçait un défaut latent de
+                    `expressionEtapes` (Tâche 13, corrigé Ruling T15-3 :
+                    l'expression est maintenant plate à couleur unique quand
+                    `bornes` est vide, plus de `step` à 0 palier). Gardé ici
+                    aussi : rien à afficher tant que la donnée n'est jamais
+                    arrivée une première fois. */}
                 {mapChargeUneFois ? (
                   <TrioCartes
                     features={mapFeatures}
