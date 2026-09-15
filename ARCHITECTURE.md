@@ -300,17 +300,24 @@ du comportement metier de chaque outil.
 - **Un seul degrade de couleur a la fois** (`lib/carte/degrades.ts`, reducteur
   pur qui dit quoi eteindre sans rien eteindre lui-meme ; `lib/carte/
   calques-actifs.ts` l'enveloppe pour la bascule cochee/decochee et valide un
-  `DegradeId` relu a la frontiere — localStorage, URL). Avant, jusqu'a sept
+  `DegradeId` relu a la frontiere — localStorage, URL). Avant, jusqu'a huit
   choroplethes (carreaux, IRIS, indicateurs civiques, sante environnementale,
-  meteo, impressions de campagne, score composite) pouvaient s'empiler sans
-  qu'aucune legende ne dise laquelle on lisait. Le score composite (Tache 12,
-  2026-09-13) a ete ajoute a CE registre plutot que peint a cote : c'est la
-  seule chose qui l'empeche de s'empiler avec les six autres. Les valeurs
-  connues sont declarees DEUX fois — l'union `DegradeId` et le tableau
-  `DEGRADE_IDS` de `calques-actifs.ts` — et un type `UnionCouverte` fait
-  echouer `tsc` si la seconde oublie un membre de la premiere : sans lui, un
-  degrade ajoute serait REJETE en silence a la frontiere et ne se rallumerait
-  jamais depuis l'URL ou localStorage.
+  meteo, impressions de campagne, score composite, diffusion campagne)
+  pouvaient s'empiler sans qu'aucune legende ne dise laquelle on lisait. Le
+  score composite (Tache 12, 2026-09-13) puis la carte Diffusion plein ecran
+  du Suivi V2 (Tache 13B, 2026-09-15, `app/map/_components/
+  DiffusionMapLayer.tsx`) ont ete ajoutes a CE registre plutot que peints a
+  cote : c'est la seule chose qui les empeche de s'empiler avec les six
+  premiers. Diffusion revendique l'exclusivite depuis `page.tsx`, qui lit
+  directement la session de campagne (`useCampagneSession()`, contexte
+  GLOBAL depuis la Tache 2) — pas de bus d'evenements DOM, contrairement au
+  score composite et aux impressions de campagne, dont l'activation traverse
+  une frontiere d'arbre React que seul un `CustomEvent` peut franchir. Les
+  valeurs connues sont declarees DEUX fois — l'union `DegradeId` et le
+  tableau `DEGRADE_IDS` de `calques-actifs.ts` — et un type `UnionCouverte`
+  fait echouer `tsc` si la seconde oublie un membre de la premiere : sans
+  lui, un degrade ajoute serait REJETE en silence a la frontiere et ne se
+  rallumerait jamais depuis l'URL ou localStorage.
 - **Aucun calcul d'analyse sans perimetre** (`lib/carte/garde-perimetre.ts`) —
   bloque le lancement (Voronoi, bataille V1/V2, application de la bataille,
   clustering, score composite) tant qu'aucun `FiltreActif` n'est pose et

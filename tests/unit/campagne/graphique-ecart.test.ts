@@ -151,4 +151,14 @@ describe('selectionnerAnnotations', () => {
     const annotes = selectionnerAnnotations(avecHorsPlan, 10)
     expect(annotes.some((p) => p.code === 'Z')).toBe(false)
   })
+
+  it('générique (Tâche 13B) : fonctionne sur toute forme portant ecart_pct, pas seulement PointCourbe', () => {
+    const items = [
+      { code: 'A', ecart_pct: 5 },
+      { code: 'B', ecart_pct: -80 },
+      { code: 'C', ecart_pct: null },
+    ]
+    const annotes = selectionnerAnnotations(items, 2)
+    expect(annotes.map((p) => p.code)).toEqual(['B', 'A'])
+  })
 })

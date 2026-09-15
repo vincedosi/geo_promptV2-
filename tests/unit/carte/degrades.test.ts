@@ -19,6 +19,11 @@ describe('exclusivite des degrades de couleur', () => {
     expect(activerDegrade('carreaux', 'campagne-impressions').eteint).toBe('carreaux');
   });
 
+  it('la carte Diffusion (Tache 13B) exclut aussi les six autres, et l inverse', () => {
+    expect(activerDegrade('diffusion', 'iris').eteint).toBe('diffusion');
+    expect(activerDegrade('score', 'diffusion').eteint).toBe('score');
+  });
+
   it('donne le libelle francais exact de chaque degrade', () => {
     expect(libelleDegrade('carreaux')).toBe('Carreaux Filosofi');
     expect(libelleDegrade('iris')).toBe('IRIS');
@@ -26,5 +31,6 @@ describe('exclusivite des degrades de couleur', () => {
     expect(libelleDegrade('civic-sante')).toBe('Santé environnementale');
     expect(libelleDegrade('meteo')).toBe('Météo');
     expect(libelleDegrade('campagne-impressions')).toBe('Impressions de la campagne');
+    expect(libelleDegrade('diffusion')).toBe('Diffusion campagne');
   });
 });

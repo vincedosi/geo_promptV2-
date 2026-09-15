@@ -18,6 +18,16 @@ export type Maille = 'region' | 'departement' | 'cp'
 export type TypeVignette = 'impressions' | 'variable' | 'alignement'
 
 /**
+ * Piège #3 (task-13-brief.md) : la valeur d'un CP s'applique à TOUTE sa zone,
+ * quelle que soit la maille affichée — jamais de désagrégation sous le code
+ * postal, la maille d'achat du DSP. Texte UNIQUE, partagé par `CarteVignette`
+ * (Tâche 13A) et `DiffusionMapLayer` (Tâche 13B, carte plein écran) : une
+ * règle que le brief qualifie de non négociable ne doit jamais être portée
+ * par deux formulations qu'on pourrait laisser diverger.
+ */
+export const NOTE_MAILLE_CP = 'Valeur uniforme par code postal — la maille d\'achat du DSP.'
+
+/**
  * Une zone agrégée avec sa géométrie, rendue par `alignement_par_maille_geo`.
  * `ecart_pct` et `variable_valeur` valent `null` quand la donnée manque
  * (respectivement : plan nul → `hors_plan`, ou variable non matérialisée
@@ -126,8 +136,16 @@ export function expressionEtapes(
  * MultiPolygon uniquement (seuls types rendus par `alignement_par_maille_geo`).
  * `null` si aucune feature n'a de géométrie exploitable.
  */
-export function enveloppeFeatures(
-  features: readonly Pick<FeatureAlignementGeo, 'geometry'>[],
+/**
+ * Enveloppe [xmin, ymin, xmax, ymax] d'UNE géométrie Polygon/MultiPolygon —
+ * bloc élémentaire partagé par `enveloppeFeatures` (plusieurs features, cadrage
+ * partagé des vignettes) et par `centreFeature` (Tâche 13B,
+ * `lib/campagne/diffusion-carte.ts` : ancrage des étiquettes de zones
+ * déréglées et centrage sur sélection de la carte Diffusion plein écran).
+ * Extrait de `enveloppeFeatures` sans changement de comportement (Tâche 13B).
+ */
+export function enveloppeGeometrie(
+  geometry: GeoJSON.Geometry | undefined,
 ): [number, number, number, number] | null {
   let xmin = Infinity, ymin = Infinity, xmax = -Infinity, ymax = -Infinity
   let has = false
@@ -146,9 +164,26 @@ export function enveloppeFeatures(
     for (const c of coords) visiter(c)
   }
 
+  const geom = geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon | undefined
+  if (geom && 'coordinates' in geom) visiter(geom.coordinates)
+
+  return has ? [xmin, ymin, xmax, ymax] : null
+}
+
+export function enveloppeFeatures(
+  features: readonly Pick<FeatureAlignementGeo, 'geometry'>[],
+): [number, number, number, number] | null {
+  let xmin = Infinity, ymin = Infinity, xmax = -Infinity, ymax = -Infinity
+  let has = false
+
   for (const f of features) {
-    const geom = f.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon | undefined
-    if (geom && 'coordinates' in geom) visiter(geom.coordinates)
+    const env = enveloppeGeometrie(f.geometry)
+    if (!env) continue
+    has = true
+    if (env[0] < xmin) xmin = env[0]
+    if (env[1] < ymin) ymin = env[1]
+    if (env[2] > xmax) xmax = env[2]
+    if (env[3] > ymax) ymax = env[3]
   }
 
   return has ? [xmin, ymin, xmax, ymax] : null

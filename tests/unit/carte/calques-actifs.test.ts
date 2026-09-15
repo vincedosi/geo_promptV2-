@@ -3,7 +3,7 @@ import { validerDegradeId, basculerDegrade } from '@/lib/carte/calques-actifs';
 import { libelleDegrade } from '@/lib/carte/degrades';
 
 describe('validerDegradeId — validation a la frontiere', () => {
-  it('accepte les sept valeurs connues', () => {
+  it('accepte les huit valeurs connues', () => {
     expect(validerDegradeId('carreaux')).toBe('carreaux');
     expect(validerDegradeId('iris')).toBe('iris');
     expect(validerDegradeId('civic-indicateurs')).toBe('civic-indicateurs');
@@ -11,13 +11,14 @@ describe('validerDegradeId — validation a la frontiere', () => {
     expect(validerDegradeId('meteo')).toBe('meteo');
     expect(validerDegradeId('campagne-impressions')).toBe('campagne-impressions');
     expect(validerDegradeId('score')).toBe('score');
+    expect(validerDegradeId('diffusion')).toBe('diffusion');
   });
 
   // Un dégradé accepté à la frontière mais sans libellé s'afficherait
   // `undefined` dans le toast d'exclusivité. Le sens inverse (union non
   // couverte par DEGRADE_IDS) est verrouillé par `tsc`, voir calques-actifs.ts.
   it('a un libelle pour chaque valeur acceptee', () => {
-    for (const id of ['carreaux', 'iris', 'civic-indicateurs', 'civic-sante', 'meteo', 'campagne-impressions', 'score']) {
+    for (const id of ['carreaux', 'iris', 'civic-indicateurs', 'civic-sante', 'meteo', 'campagne-impressions', 'score', 'diffusion']) {
       const valide = validerDegradeId(id);
       expect(valide).not.toBeNull();
       expect(libelleDegrade(valide!)).toBeTruthy();

@@ -60,6 +60,7 @@ import { CaptureLayers } from '@/app/map/_components/CaptureLayers';
 import { CivicIndicatorsLayer, type CivicVariableCode } from '@/app/map/_components/CivicIndicatorsLayer';
 import { CivicHealthMapLayer } from '@/app/map/_components/CivicHealthMapLayer';
 import { SuiviMapLayer } from '@/app/map/_components/SuiviMapLayer';
+import { DiffusionMapLayer } from '@/app/map/_components/DiffusionMapLayer';
 import { ScoreMapLayer, SCORE_MAP_EVENT, type ScoreMapEventDetail } from '@/app/map/_components/ScoreMapLayer';
 import { ZoneMediaPlanPanel, PANEL_WIDTH } from '@/app/map/_components/ZoneMediaPlanPanel';
 import dynamic from 'next/dynamic';
@@ -73,6 +74,7 @@ import { AIOverlay, LARGEUR_TIROIR_ASSISTANT } from '@/components/map/overlays/A
 import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
 import { HelpOverlay } from '@/components/map/overlays/HelpOverlay';
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
+import { useCampagneSession } from '@/lib/campagne/CampagneSessionContext';
 import { CampagneActiveCard } from '@/components/magelian/CampagneActiveCard';
 import { ENTREES_NAVIGATION, LARGEUR_RAIL, entreeParRaccourci, type EntreeId } from '@/lib/navigation/config';
 import { ignorerRaccourciClavier } from '@/lib/navigation/garde-saisie';
@@ -128,6 +130,12 @@ export default function MapPage() {
   // après la définition de `onDegrade`, qui dépend de `mapLayers`).
   const [campagneActive, setCampagneActive] = useState<SuiviMapEventDetail | null>(null);
   const campagneActiveRef = useRef<SuiviMapEventDetail | null>(null);
+  // Session de campagne (Tâche 2, contexte GLOBAL depuis app/layout.tsx) —
+  // pilote `DiffusionMapLayer` (Tâche 13B) : contrairement à `SuiviMapLayer`
+  // ci-dessus, cette page peut lire l'état d'activation DIRECTEMENT (même
+  // contexte React que l'overlay MAGELIAN), sans bus d'événements DOM.
+  const { session: campagneSession } = useCampagneSession();
+  const diffusionActifRef = useRef(false);
   // Route selon le TYPE de l'entrée (lib/navigation/config.ts), pas selon son
   // id : une entrée `overlay-plein-ecran` (Campagne) ouvre l'overlay MAGELIAN
   // via son propre contexte et ne devient donc jamais `entreeActive` — les
@@ -518,6 +526,22 @@ export default function MapPage() {
     window.addEventListener(SCORE_MAP_EVENT, onScore);
     return () => window.removeEventListener(SCORE_MAP_EVENT, onScore);
   }, [onDegrade]);
+
+  // Carte Diffusion (Tâche 13B) : contrairement au statut « campagne active »
+  // et au score ci-dessus, aucun bus d'événements n'est nécessaire — la
+  // session de campagne est un contexte React partagé (Tâche 2), lu
+  // directement. Même règle « transition seulement » que les deux blocs
+  // précédents (jamais à chaque changement de maille/fil d'Ariane, qui ne
+  // change pas l'activation elle-même). Aucun effet de bord à l'éviction :
+  // `DiffusionMapLayer` recalcule lui-même sa visibilité depuis
+  // `mapLayers.degradeActif` (prop `visible` ci-dessous) et se nettoie seul.
+  const diffusionActif = Boolean(campagneSession.campaignId) && campagneSession.vue === 'carte';
+  useEffect(() => {
+    const etaitActive = diffusionActifRef.current;
+    diffusionActifRef.current = diffusionActif;
+    if (diffusionActif && !etaitActive) onDegrade('diffusion', true);
+    if (!diffusionActif && etaitActive) onDegrade('diffusion', false);
+  }, [diffusionActif, onDegrade]);
 
   const handleFermerCampagneActive = useCallback(() => {
     window.dispatchEvent(new Event(SUIVI_MAP_CLEAR_EVENT));
@@ -1091,6 +1115,11 @@ export default function MapPage() {
         onLoadingChange={setCivicLoading}
       />
       <SuiviMapLayer mapRef={mapRef} />
+      <DiffusionMapLayer
+        mapRef={mapRef}
+        mapReady={mapReady}
+        visible={diffusionActif && mapLayers.degradeActif === 'diffusion'}
+      />
       <ScoreMapLayer mapRef={mapRef} />
       <LegendeCarte
         degradeActif={mapLayers.degradeActif}

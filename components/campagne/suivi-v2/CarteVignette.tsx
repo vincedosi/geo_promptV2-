@@ -55,6 +55,7 @@ import {
   expressionEtapes,
   domaineValeurs,
   libellesExtremites,
+  NOTE_MAILLE_CP,
   type FeatureAlignementGeo,
   type TypeVignette,
 } from '@/lib/campagne/vignette-carte';
@@ -75,8 +76,10 @@ function proprieteValeur(type: TypeVignette): 'impressions' | 'variable_valeur' 
   return 'ecart_pct';
 }
 
-/** Piège #3 : rappel systématique de la maille d'achat du DSP. */
-const NOTE_MAILLE_CP = 'Valeur uniforme par code postal — la maille d\'achat du DSP.';
+// NOTE_MAILLE_CP vient désormais de `lib/campagne/vignette-carte.ts` (Tâche
+// 13B) : `DiffusionMapLayer.tsx` (carte plein écran) doit afficher EXACTEMENT
+// le même texte — une seule formulation pour une règle que le brief qualifie
+// de non négociable, jamais deux textes à tenir synchronisés à la main.
 
 export interface CarteVignetteProps {
   type: TypeVignette;

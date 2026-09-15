@@ -5,6 +5,7 @@ import {
   rampePourBornes,
   expressionEtapes,
   enveloppeFeatures,
+  enveloppeGeometrie,
   domaineValeurs,
   libellesExtremites,
   type FeatureAlignementGeo,
@@ -131,6 +132,17 @@ describe('enveloppeFeatures', () => {
 
   it('null quand aucune géométrie exploitable', () => {
     expect(enveloppeFeatures([])).toBeNull()
+  })
+})
+
+describe('enveloppeGeometrie (Tâche 13B : bloc élémentaire partagé)', () => {
+  it('calcule l enveloppe d une géométrie seule, identique au cas à une feature de enveloppeFeatures', () => {
+    const geom: GeoJSON.Geometry = { type: 'Polygon', coordinates: [[[1, 2], [4, 2], [4, 5], [1, 5], [1, 2]]] }
+    expect(enveloppeGeometrie(geom)).toEqual([1, 2, 4, 5])
+  })
+
+  it('null pour une géométrie absente', () => {
+    expect(enveloppeGeometrie(undefined)).toBeNull()
   })
 })
 

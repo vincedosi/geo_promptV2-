@@ -167,15 +167,26 @@ export function construireSeriesCourbe(
 }
 
 /**
- * Les `max` points les plus déréglés (plus grand `|ecart_pct|`), pour
- * annotation sur la courbe. Tout étiqueter rend un graphique illisible — la
- * raison même de cette sélection (spec Tâche 12). Les unités sans écart
- * définissable (`ecart_pct === null`, hors plan) ne peuvent pas être
- * classées par écart : exclues de la sélection, jamais annotées à zéro.
+ * Les `max` éléments les plus déréglés (plus grand `|ecart_pct|`), pour
+ * annotation. Tout étiqueter rend un graphique — ou une carte — illisible :
+ * la raison même de cette sélection (spec Tâche 12). Les éléments sans écart
+ * définissable (`ecart_pct === null`, hors plan) ne peuvent pas être classés
+ * par écart : exclus de la sélection, jamais annotés à zéro.
+ *
+ * Générique (Tâche 13B) : au départ spécifique à `PointCourbe` (courbe
+ * plan/réel de `GraphiqueEcart`), généralisée à tout ce qui porte un
+ * `ecart_pct` pour servir aussi l'annotation des zones les plus déréglées de
+ * `DiffusionMapLayer` (`lib/campagne/diffusion-carte.ts`) sur des features
+ * géométriques — même sélection, même tri, un seul endroit qui les définit.
+ * Signature compatible : `selectionnerAnnotations(serie)` (Tâche 12,
+ * `GraphiqueEcart.tsx`) infère toujours `T = PointCourbe` sans changement.
  */
-export function selectionnerAnnotations(points: PointCourbe[], max = 5): PointCourbe[] {
+export function selectionnerAnnotations<T extends { ecart_pct: number | null }>(
+  points: readonly T[],
+  max = 5,
+): (T & { ecart_pct: number })[] {
   return points
-    .filter((p): p is PointCourbe & { ecart_pct: number } => p.ecart_pct !== null)
+    .filter((p): p is T & { ecart_pct: number } => p.ecart_pct !== null)
     .slice()
     .sort((a, b) => Math.abs(b.ecart_pct) - Math.abs(a.ecart_pct))
     .slice(0, max)

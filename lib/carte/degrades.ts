@@ -15,7 +15,8 @@ export type DegradeId =
   | 'civic-sante'
   | 'meteo'
   | 'campagne-impressions'
-  | 'score';
+  | 'score'
+  | 'diffusion';
 
 const LIBELLES: Record<DegradeId, string> = {
   'carreaux': 'Carreaux Filosofi',
@@ -29,6 +30,10 @@ const LIBELLES: Record<DegradeId, string> = {
   // qui l'empêche de s'empiler avec les six premières — le défaut même que la
   // Tâche 5 a fermé.
   'score': 'Score composite',
+  // Tâche 13B (2026-09-15) : la carte Diffusion plein écran (pression réelle
+  // contre plan, échelle divergente) est elle aussi une choroplèthe pleine
+  // page — même raisonnement que le score composite ci-dessus.
+  'diffusion': 'Diffusion campagne',
 };
 
 export function libelleDegrade(id: DegradeId): string {
