@@ -26,13 +26,14 @@
  * `CampaignSuivi.tsx` (`GET /api/bidding/strategies`, filtré côté client par
  * `campaign_id` : aucune route dédiée « stratégie d'une campagne » n'existe).
  */
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { adminFetch } from '@/lib/admin-fetch'
 import { formaterNombreAbrege } from '@/lib/format/nombre'
 import type { SuiviDaily, SuiviPayload } from '@/lib/campaigns/suivi-metrics'
 import type { ReconciliationPayload } from '@/lib/campaigns/reconciliation-metrics'
 import { ReconciliationPanel } from '@/components/campaign/suivi/ReconciliationPanel'
 import { FinalReport } from '@/components/campaign/FinalReport'
+import { avecSemaphore } from './avec-semaphore'
 
 const fInter = "'Inter', system-ui, sans-serif"
 const fMono = "'JetBrains Mono', monospace"
@@ -167,9 +168,27 @@ export function DetailTechnique({ campaignId }: { campaignId: string }) {
   const [pulling, setPulling] = useState(false)
   const dejaDeclenche = useRef(false)
 
+  // `dejaDeclenche` est un verrou « une seule fois », pas « une seule fois par
+  // campagne » : sans cette remise à zéro, ouvrir le détail sur la campagne A,
+  // le replier, changer de campagne dans la barre de contexte puis le rouvrir
+  // affichait la réconciliation DSP et la trajectoire budget de A sous le
+  // titre de B. Le composant est monté SANS `key` par `SuiviV2` — on ne
+  // compte donc pas sur un remount pour remettre l'état à plat.
+  useEffect(() => {
+    dejaDeclenche.current = false
+    setSuivi(null)
+    setRecon(null)
+    setStrategie({ id: null, status: null })
+    setCharge(false)
+    setChargement(false)
+    setErreur(null)
+  }, [campaignId])
+
   const chargerRecon = useCallback(async () => {
     try {
-      const res = await adminFetch(`/api/digital/${campaignId}/reconcile`, { cache: 'no-store' })
+      const res = await avecSemaphore(
+        () => adminFetch(`/api/digital/${campaignId}/reconcile`, { cache: 'no-store' }),
+      )
       if (res.ok) setRecon((await res.json()) as ReconciliationPayload)
     } catch { /* le panneau affiche l'état vide */ }
   }, [campaignId])
@@ -180,9 +199,12 @@ export function DetailTechnique({ campaignId }: { campaignId: string }) {
     setChargement(true)
     setErreur(null)
     try {
+      // Sémaphore PARTAGÉ de l'écran de suivi (budget CLAUDE.md : 3 appels
+      // Supabase simultanés) — ces deux-là partaient hors budget, alors même
+      // que le cœur de `SuiviV2` en a déjà trois en vol au même instant.
       const [rSuivi, rStrategies] = await Promise.all([
-        adminFetch(`/api/digital/${campaignId}/suivi`, { cache: 'no-store' }),
-        adminFetch('/api/bidding/strategies', { cache: 'no-store' }),
+        avecSemaphore(() => adminFetch(`/api/digital/${campaignId}/suivi`, { cache: 'no-store' })),
+        avecSemaphore(() => adminFetch('/api/bidding/strategies', { cache: 'no-store' })),
       ])
       if (rSuivi.ok) setSuivi((await rSuivi.json()) as SuiviPayload)
       const strategies: ListeStrategiesReponse = rStrategies.ok

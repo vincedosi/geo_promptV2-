@@ -78,7 +78,7 @@ import { useCampagneSession } from '@/lib/campagne/CampagneSessionContext';
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
 import { useTheme } from '@/lib/theme/ThemeProvider';
 import { formaterNombre } from '@/lib/format/nombre';
-import { semaphoreEcranSuivi } from '@/lib/campagne/semaphore-suivi';
+import { avecSemaphore } from './avec-semaphore';
 import { obtenirAlignementPartage } from '@/lib/campagne/cache-alignement';
 import { BarreContexteCampagne } from '../BarreContexteCampagne';
 import { BarreMaille } from './BarreMaille';
@@ -119,18 +119,6 @@ function useEnVue<T extends HTMLElement>(): [RefObject<T | null>, boolean] {
     return () => obs.disconnect();
   }, [visible]);
   return [ref, visible];
-}
-
-/** Enveloppe une tâche réseau d'une place du sémaphore PARTAGÉ de l'écran
- *  (`semaphoreEcranSuivi`, portée module — pas une instance de ce fichier) —
- *  point d'entrée pour tout appel `adminFetch` direct de ce fichier.
- *  `obtenirAlignementPartage`/`obtenirListeCampagnesPartagee` gèrent le leur
- *  EUX-MÊMES en interne (Ruling T15-2) : ne jamais les envelopper ici aussi,
- *  ce serait réserver deux places du sémaphore pour un seul appel réseau. */
-function avecSemaphore<T>(tache: () => Promise<T>): Promise<T> {
-  return semaphoreEcranSuivi.acquerir().then(async (liberer) => {
-    try { return await tache(); } finally { liberer(); }
-  });
 }
 
 function EtatVide({ titre, message }: { titre: string; message: string }) {
