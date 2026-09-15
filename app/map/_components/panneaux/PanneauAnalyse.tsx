@@ -48,6 +48,21 @@
  *         et le POST du wizard sont deux chemins de code totalement
  *         indépendants.
  *
+ * **Refus du périmètre national (spec-filtre-france.md, 2026-09-15) :** le
+ * filtre `'france'` (`lib/carte/filtre.ts`) lève la garde ci-dessus pour LES
+ * SIX outils d'un coup — c'est le sens même de son ajout. `outilAdmetNational`
+ * (`lib/carte/garde-perimetre.ts`) distingue les outils dont le coût sur la
+ * France est mesuré et négligeable (le score composite, 159 ms) des cinq
+ * autres, jamais mesurés à cette échelle (Voronoï, bataille V1/V2,
+ * application de la bataille, clustering) : `verifierPerimetreOutil`
+ * refuse EXPLICITEMENT un périmètre national pour ces cinq-là, avec un
+ * message qui nomme l'outil — jamais un blocage muet. `verifierPerimetre`
+ * (générique, sans refus national) reste utilisé par le score composite et
+ * la relecture GET du clustering ((a) ci-dessus, pas un calcul lourd) ;
+ * `verifierPerimetreClustering` enveloppe `verifierPerimetreOutil('clustering')`
+ * pour LE calcul lourd (b) — un identifiant DISTINCT, câblé structurellement
+ * par `tests/unit/carte/panneau-analyse-garde.test.ts`.
+ *
  * **Parité stricte avec l'ex-FilterPanel pour le territoire de la bataille**
  * (`scope`/`selectedRegions`/`selectedDepts`/`ville`, dérivés via
  * `useTerritorySelection`) : ces props restent câblées depuis `page.tsx`
@@ -75,7 +90,7 @@ import { useIsochroneBattle } from '../filter-panel/use-isochrone-battle';
 import type { ClusterGeoJSON } from '../ClusterPanel';
 import type { FilterPanelProps } from '../filter-panel/types';
 import type { FiltreActif } from '@/lib/carte/filtre';
-import { messageGardePerimetre } from '@/lib/carte/garde-perimetre';
+import { messageGardePerimetre, messageGardeOutil, type OutilAnalyse } from '@/lib/carte/garde-perimetre';
 
 export interface PanneauAnalyseProps {
   // ── Territoire — parité stricte avec l'ex-FilterPanel (voir en-tête) ──────
@@ -200,32 +215,55 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
   // tests/unit/carte/panneau-analyse-garde.test.ts (lit ce fichier). ───────
   const [gardeMessage, setGardeMessage] = useState<string | null>(null);
   useEffect(() => { if (filtre) setGardeMessage(null); }, [filtre]);
+  // Générique : un périmètre est choisi (n'importe lequel, y compris
+  // `'france'`) — c'est ce qu'utilisent le score composite (admet le national,
+  // spec-filtre-france.md) et la relecture GET du clustering (pas un calcul
+  // lourd — round 1).
   const verifierPerimetre = (): boolean => {
     const msg = messageGardePerimetre(filtre);
     setGardeMessage(msg);
     return msg === null;
   };
+  // Spécifique aux CINQ outils lourds (spec-filtre-france.md §3, 2026-09-15) :
+  // en plus du refus générique ci-dessus, refuse EXPLICITEMENT un périmètre
+  // `'france'` pour tout outil dont `outilAdmetNational` rend `false` — sinon
+  // poser le filtre France rouvrirait les incidents du 28/03 et du 08/04 pour
+  // Voronoï/bataille V1/bataille V2/application de la bataille/clustering, qui
+  // n'ont jamais été mesurés à l'échelle nationale.
+  const verifierPerimetreOutil = (outil: OutilAnalyse): boolean => {
+    const msg = messageGardeOutil(outil, filtre);
+    setGardeMessage(msg);
+    return msg === null;
+  };
 
   const handleVoronoi = () => {
-    if (!exactlyOnePOI || !verifierPerimetre()) return;
+    if (!exactlyOnePOI || !verifierPerimetreOutil('voronoi')) return;
     send(`Fais le Voronoi des ${selectedPOI[0]} ${territoire}`);
   };
-  const handleCheckORSGarde = () => { if (verifierPerimetre()) handleCheckORS(); };
-  const handleBattleGarde = (force = false) => { if (verifierPerimetre()) handleBattle(force); };
-  const handleCheckV2Garde = () => { if (verifierPerimetre()) handleCheckV2(); };
-  const handleFillMissingV2Garde = () => { if (verifierPerimetre()) handleFillMissingV2(); };
-  const handleBattleV2Garde = (force = false) => { if (verifierPerimetre()) handleBattleV2(force); };
+  const handleCheckORSGarde = () => { if (verifierPerimetreOutil('bataille_v1')) handleCheckORS(); };
+  const handleBattleGarde = (force = false) => { if (verifierPerimetreOutil('bataille_v1')) handleBattle(force); };
+  const handleCheckV2Garde = () => { if (verifierPerimetreOutil('bataille_v2')) handleCheckV2(); };
+  const handleFillMissingV2Garde = () => { if (verifierPerimetreOutil('bataille_v2')) handleFillMissingV2(); };
+  const handleBattleV2Garde = (force = false) => { if (verifierPerimetreOutil('bataille_v2')) handleBattleV2(force); };
 
   // ── Round 1 de correction : point de lancement transmis nu au premier
   // passage — même patron que ci-dessus (enveloppe la fonction passée en
   // prop, ne touche pas IsochronesTool.tsx). ───────────────────────────────
   const handleApplyBattleGarde: FilterPanelProps['onApplyBattle'] = async (rings, category, poisForMap, onProgress) => {
-    if (!verifierPerimetre()) return;
+    if (!verifierPerimetreOutil('application_bataille')) return;
     await onApplyBattle(rings, category, poisForMap, onProgress);
   };
   // Round 1 : gardait cette relecture GET (prudence). Round 2 : ce n'est PAS
-  // le calcul lourd — voir plus bas `verifierPerimetre` relayé au wizard.
+  // le calcul lourd — voir plus bas `verifierPerimetreClustering` relayé au
+  // wizard, seul point qui refuse réellement le périmètre national.
   const handleLoadClustersGarde = () => { if (verifierPerimetre()) props.onLoadClusters?.(); };
+  // Relayé en prop à `ClusteringSection` → `ClusterPanel` → `ClusteringWizard`,
+  // qui l'appelle juste avant son POST `/api/poi-clusters/run` — LE calcul
+  // lourd (round 2 de la Tâche 7). Identifiant DISTINCT de `verifierPerimetre`
+  // (relayé, lui, au score composite qui admet le national) : les deux ne
+  // peuvent pas partager la même référence, sous peine de faire admettre — ou
+  // refuser — le national aux deux outils à la fois.
+  const verifierPerimetreClustering = () => verifierPerimetreOutil('clustering');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
@@ -366,7 +404,10 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
             Sixième outil de calcul du panneau, donc SEPTIÈME point de
             lancement gardé : `verifierPerimetre` est relayé en prop et appelé
             juste avant le POST, comme pour le wizard de clustering. Sans
-            périmètre, le score porterait sur les 6 187 CP de France. */}
+            périmètre, le score porterait sur les 6 187 CP de France.
+            2026-09-15 : SEUL outil qui ADMET le périmètre national (159 ms
+            mesurés sur la France — spec-filtre-france.md) — `verifierPerimetre`
+            reste donc générique ici, sans le refus de `verifierPerimetreOutil`. */}
         <ScoreCompositeTool filtre={filtre} verifierPerimetre={verifierPerimetre} />
 
         {/* ── Accordéon : CORRÉLATION (Tâche 13, 2026-09-13) ───────────────
@@ -381,9 +422,12 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
         <CorrelationTool />
 
         {/* ── Accordéon : CLUSTERING — composant telle quelle, DEUX points gardés :
-            onLoadClusters (relecture, round 1) et verifierPerimetre relayé
-            jusqu'à ClusteringWizard pour son POST /api/poi-clusters/run —
-            le VRAI calcul (round 2, voir en-tête du fichier). ──────────── */}
+            onLoadClusters (relecture, round 1) et verifierPerimetreClustering
+            relayé jusqu'à ClusteringWizard pour son POST /api/poi-clusters/run
+            — le VRAI calcul (round 2, voir en-tête du fichier). 2026-09-15 :
+            REFUSE le périmètre national (jamais mesuré à cette échelle),
+            contrairement au score composite ci-dessus — identifiant DISTINCT
+            de `verifierPerimetre` pour cette raison. ──────────── */}
         <ClusteringSection
           analyseOpen={analyseOpen}
           toggleAnalyse={toggleAnalyse}
@@ -398,7 +442,7 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
           onFitBounds={props.onFitBounds}
           onWizardHighlight={props.onWizardHighlight}
           onWizardClose={props.onWizardClose}
-          verifierPerimetre={verifierPerimetre}
+          verifierPerimetre={verifierPerimetreClustering}
         />
 
       </div>

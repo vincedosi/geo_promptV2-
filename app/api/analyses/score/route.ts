@@ -39,13 +39,25 @@
  *    comme « trop larges » : le score n'aurait marché nulle part.
  *    Cette route accepte les trois formes, par ordre de précision :
  *    `codes_postaux` explicites, un `perimetre` de filtre résolu par
- *    `codes_postaux_du_perimetre` (sql/146), ou une `bbox` résolue par
+ *    `codes_postaux_du_perimetre_jsonb` (sql/168, jumelle `RETURNS jsonb` de
+ *    `codes_postaux_du_perimetre`, sql/146/167), ou une `bbox` résolue par
  *    `codes_postaux_dans_bbox` (sql/144, index GIST — `centroid_lat`/
  *    `centroid_lon` sont NULL sur les 6 187 lignes, un filtre direct dessus
  *    rendrait toujours vide).
  *
+ * 4. **`'france'` (2026-09-15, spec-filtre-france.md).** `PerimetreSchema`
+ *    accepte ce type au même titre que les autres. `codes_postaux_du_perimetre`
+ *    (`RETURNS TABLE`) rend bien les 6 187 CP en SQL direct, mais PostgREST
+ *    tronque à 5 000 lignes TOUTE RPC `RETURNS TABLE` — mesuré ici en testant
+ *    le parcours réel (navigateur) : la première version de ce périmètre
+ *    affichait « 1 462 codes postaux scorés sur 5 000 », pas 6 187, sans
+ *    erreur. Même piège déjà documenté pour `correlation_campagne_indicateur`
+ *    (sql/154). Corrigé par la jumelle `codes_postaux_du_perimetre_jsonb`
+ *    (sql/168, `RETURNS jsonb`, jamais tronquée) — seule cette route l'appelle.
+ *
  * Mesure (`EXPLAIN ANALYZE`, périmètre de 500 CP, 2 indicateurs) :
- * 23,5 ms, 632 blocs en cache, 13 lus.
+ * 23,5 ms, 632 blocs en cache, 13 lus. Périmètre France (6 187 CP, 2
+ * indicateurs) : 159 ms, `shared hit=2795 read=80` (640 Ko).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -55,7 +67,7 @@ import { checkZoneAccess } from '@/lib/campaigns/access';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { assurerIndicateurCp } from '@/lib/analyses/indicateurs';
-import { toJson } from '@/lib/supabase/rpc-json';
+import { toJson, rpcJson } from '@/lib/supabase/rpc-json';
 import type { TableInsert } from '@/lib/supabase/tables';
 
 export const dynamic = 'force-dynamic';
@@ -101,9 +113,14 @@ const IndicateurSchema = z.object({
   sens: z.enum(['croissant', 'decroissant']),
 });
 
-/** Miroir de `FiltreActif` (lib/carte/filtre.ts) — le périmètre tel que la carte le pose. */
+/**
+ * Miroir de `FiltreActif` (lib/carte/filtre.ts) — le périmètre tel que la
+ * carte le pose. `'france'` ajouté le 2026-09-15 (spec-filtre-france.md) :
+ * seul type qui n'a PAS besoin de `checkZoneAccess` (pas une zone) et dont
+ * `code` est ignoré côté RPC (`codes_postaux_du_perimetre_jsonb`, sql/168).
+ */
 const PerimetreSchema = z.object({
-  type: z.enum(['region', 'departement', 'commune', 'cp', 'zone']),
+  type: z.enum(['region', 'departement', 'commune', 'cp', 'zone', 'france']),
   code: z.string().min(1).max(64),
 });
 
@@ -157,14 +174,20 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Zone introuvable.' }, { status: 404 });
       }
     }
-    const { data, error } = await supabase.rpc('codes_postaux_du_perimetre', {
+    // `_jsonb` et non `codes_postaux_du_perimetre` (RETURNS TABLE, sql/146/167) :
+    // PostgREST tronque À 5 000 LIGNES même une RPC RETURNS TABLE — mesuré ici
+    // (2026-09-15) sur le périmètre `'france'`, 6 187 CP réels rendus comme
+    // 5 000 sans erreur, comme documenté pour `correlation_campagne_indicateur`
+    // (sql/154). `codes_postaux_du_perimetre_jsonb` (sql/168) est la jumelle
+    // `RETURNS jsonb`, jamais tronquée par PostgREST.
+    const { data, error } = await supabase.rpc('codes_postaux_du_perimetre_jsonb', {
       p_type: perimetre.type, p_code: perimetre.code,
     });
     if (error) {
       console.error('[POST /api/analyses/score] périmètre:', error.message);
       return NextResponse.json({ error: 'Résolution du périmètre impossible.' }, { status: 500 });
     }
-    codesPostaux = (data ?? []).map((l) => l.code_postal);
+    codesPostaux = rpcJson<string[]>(data) ?? [];
   }
   if (!codesPostaux.length && bbox) {
     const [ouest, sud, est, nord] = bbox;

@@ -297,6 +297,26 @@ du comportement metier de chaque outil.
   d'un filtre POSE dont la bbox n'est pas encore resolue (region/departement/
   commune/CP) — different du cas « pas de filtre du tout » que gere
   `bbox-requete.ts`.
+  **Type `'france'` (2026-09-15, spec-filtre-france.md)** : une INTENTION
+  explicite de perimetre national — ajoute au panneau Filtre (« Perimetre
+  national »), distinct du pill Metro/+DROM (`scope`) qui ne pilote toujours
+  que `/api/map/pois`. Piege inverse de l'intuition : `bboxDuFiltre` (fichier
+  protege, inchange) replie sur `BBOX_METRO` des qu'un filtre n'a pas de bbox
+  propre — applique a `'france'`, cela enverrait `BBOX_METRO` a CHAQUE requete
+  de couche, PLUS restrictif que l'absence de filtre (l'incident documente en
+  tete de `bbox-requete.ts` : 339 POI d'outre-mer masques). `bboxPourRequete`
+  intercepte donc ce type AVANT d'appeler `bboxDuFiltre` et rend `undefined`,
+  comme l'absence de filtre. Cote base, `codes_postaux_du_perimetre` (sql/146,
+  branche `'france'` ajoutee sql/167) rend les 6 187 CP du referentiel pour ce
+  type — mesure SQL directe : 3,9 ms, `shared hit=349`, aucune lecture disque.
+  **Trouve en testant le parcours REEL (navigateur), pas seulement l'appel
+  SQL** : `/api/analyses/score` affichait « scores sur **5 000** » et non
+  6 187 — PostgREST tronque a 5000 lignes TOUTE RPC `RETURNS TABLE`, meme
+  piege deja documente pour `correlation_campagne_indicateur` (sql/154).
+  Corrige par la jumelle `codes_postaux_du_perimetre_jsonb` (sql/168,
+  `RETURNS jsonb`, jamais tronquee ; l'originale `RETURNS TABLE` reste
+  INCHANGEE, un DROP etant exclu en production) — seule `/api/analyses/score`
+  l'appelle desormais pour le perimetre `FiltreActif`.
 - **Un seul degrade de couleur a la fois** (`lib/carte/degrades.ts`, reducteur
   pur qui dit quoi eteindre sans rien eteindre lui-meme ; `lib/carte/
   calques-actifs.ts` l'enveloppe pour la bascule cochee/decochee et valide un
@@ -328,6 +348,21 @@ du comportement metier de chaque outil.
   version avait ecrit la garde correctement dans un test isole, tout en
   laissant une prop reelle cablee SANS garde en production ; seul un test qui
   lit le composant reel attrape ce genre d'ecart.
+  **Refus explicite du perimetre national (2026-09-15, spec-filtre-france.md)** :
+  poser le filtre `'france'` fait passer `perimetreChoisi` pour LES SIX outils
+  d'un coup — c'est le but meme de ce filtre. `outilAdmetNational` (meme
+  fichier) distingue l'outil dont le cout sur la France est mesure et
+  negligeable (le score composite, 159 ms/640 Ko sur les 6 187 CP,
+  `/api/analyses/score`) des cinq autres, jamais mesures a cette echelle
+  (Voronoi/bataille V1/bataille V2/application de la bataille/clustering) et
+  dont un seul (le Voronoi) depassait 30 s avant un correctif de la veille :
+  `messageGardeOutil` leur rend un refus qui NOMME l'outil et propose une
+  region ou un departement, jamais un blocage muet. Cablage verrouille par le
+  meme test structurel (`HANDLERS_GARDE_OUTIL`, `verifierPerimetreOutil`) —
+  `verifierPerimetreClustering`, relaye a `ClusteringWizard`, est un
+  identifiant DISTINCT du `verifierPerimetre` generique relaye au score
+  composite : les deux ne peuvent pas partager la meme reference sans faire
+  admettre — ou refuser — le national aux deux outils a la fois.
 
 ### Pile Echap et garde de saisie
 
@@ -671,7 +706,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/analyses` | GET/POST | GET : liste des analyses de l'org (`?type=`, bornee a 50, `idx_analyses_org_date`). POST : enregistre un lancement (nom, parametres complets, maillage, perimetre) |
 | `/api/analyses/[id]` | GET/DELETE | Detail complet (avec `parametres`/`perimetre`/`resultat`) / suppression, scopes org |
 | `/api/analyses/[id]/rejouer` | POST | Rend de quoi RELANCER une analyse : type, parametres, maillage, perimetre, et l'appel a faire quand le moteur est cable (`score` -> POST `/api/analyses/score`, `correlation` -> GET `/api/analyses/correlation` ; les quatre autres rendent `cable: false`). **N'ECRIT RIEN** depuis le 2026-09-13 : la premiere version inserait une ligne `en_cours` qu'aucun moteur ne reprenait, sans trigger ni delai d'expiration et sans UI de suppression — un fantome eternel par rejeu, double d'un « termine » des que le vrai calcul tournait. La ligne est ecrite par le moteur qui calcule, au moment ou il calcule |
-| `/api/analyses/score` | POST | **Score composite** (Tache 12, sql/146) : plusieurs indicateurs de `cible_indicator_registry` normalises 0-100 sur le perimetre puis ponderes, un score par code postal. Perimetre OBLIGATOIRE sous l'une de trois formes (`codes_postaux`, `perimetre` d'un `FiltreActif`, `bbox`), plafonne a 3000 CP. Materialise a la demande tout indicateur ABSENT d'`indicator_cp_values` (sequentiellement — jamais en parallele), et rend la date de calcul de chacun. Enregistre le lancement dans `analyses` (type `score`). Quota `geo:rl:analyse-score` 12/min |
+| `/api/analyses/score` | POST | **Score composite** (Tache 12, sql/146) : plusieurs indicateurs de `cible_indicator_registry` normalises 0-100 sur le perimetre puis ponderes, un score par code postal. Perimetre OBLIGATOIRE sous l'une de trois formes (`codes_postaux`, `perimetre` d'un `FiltreActif` — types `region`/`departement`/`commune`/`cp`/`zone`/**`france`**, ce dernier depuis le 2026-09-15, resolu par `codes_postaux_du_perimetre_jsonb`, sql/168 — `bbox`), plafonne a **7000** CP (releve de 3000 le 2026-09-15 : la France entiere, 6 187 CP avec 2 indicateurs, mesure a 159 ms/640 Ko — voir la note du fichier). Materialise a la demande tout indicateur ABSENT d'`indicator_cp_values` (sequentiellement — jamais en parallele), et rend la date de calcul de chacun. Enregistre le lancement dans `analyses` (type `score`). Quota `geo:rl:analyse-score` 12/min |
 | `/api/analyses/correlation` | GET | **Correlation impressions x indicateur** (Tache 13, sql/147) : `?campaignId=&variable=`. Apparie les impressions livrees par CP (`campaign_cp_rollup`, DEJA agrege — jamais `dsp_campaign_data`) avec un indicateur INSEE, et rend le coefficient de Pearson, `n`, les points du nuage et la COUVERTURE (CP apparies / CP touches par la campagne). La couverture n'est pas decorative : la jointure est interne, et `rev_median` ne couvre que 1221 des 2041 CP d'une campagne reelle — 40 % ecartes en silence sans elle. Scope org par `checkCampaignAccess`. Quota `geo:rl:analyse-correlation` 12/min |
 | `/api/custom-geo/source/score` | POST | Geometrie des CP dont le score composite depasse un seuil — route soeur d'`indicator-threshold`, qui elle ne sait selectionner que sur UN indicateur et ne peut donc PAS exprimer « score composite >= 60 ». Recalcule le score cote serveur (jamais une liste de CP remontee par le client), plafond 1500 CP. Le client sauvegarde ensuite par `/api/custom-geo/save` (`source_type: 'score_composite'`) |
 
@@ -911,10 +946,11 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `build_ref_codes_postaux` | Construction ref CP | `api/admin/import-laposte/` |
 | `truncate_laposte_hexasmal` | Reset ref La Poste | `api/admin/import-laposte/` |
 | `update_laposte_centroids` | Centroides CP | `api/admin/import-laposte/` |
-| `calculer_score_composite` | Score composite 0-100 par code postal : N indicateurs d'`indicator_cp_values` normalises min-max SUR LE PERIMETRE demande (jamais la France — budget I/O Nano), puis ponderes. Rend aussi `n_indicateurs`, sans quoi un score porte par un seul indicateur serait indiscernable d'un score complet — ce n'est pas theorique, `rev_median` ne couvre que 1952 des 6186 CP. Jumeau TypeScript teste : `lib/analyses/score.ts` (memes poids, meme arrondi). Mesure : 23,5 ms sur 500 CP | `api/analyses/score/`, `api/custom-geo/source/score/` (sql/146) |
+| `calculer_score_composite` | Score composite 0-100 par code postal : N indicateurs d'`indicator_cp_values` normalises min-max SUR LE PERIMETRE demande — jamais des bornes nationales figees (c'est le role d'`iris_bornes_echelle` pour les couleurs) — puis ponderes. Rend aussi `n_indicateurs`, sans quoi un score porte par un seul indicateur serait indiscernable d'un score complet — ce n'est pas theorique, `rev_median` ne couvre que 1952 des 6186 CP. Jumeau TypeScript teste : `lib/analyses/score.ts` (memes poids, meme arrondi). Mesure : 23,5 ms sur 500 CP, **159 ms sur les 6 187 CP de France** (spec-filtre-france.md, 2026-09-15) — `/api/analyses/score` admet desormais ce perimetre (plafond releve a 7000, filtre `'france'`) ; `/api/custom-geo/source/score` reste plafonne a 1500 CP, un choix produit (zone trop large a creer) et non une contrainte technique | `api/analyses/score/`, `api/custom-geo/source/score/` (sql/146) |
 | `correlation_campagne_indicateur` | Impressions par CP (SOMMEES sur les acteurs) appariees a un indicateur INSEE. La somme est obligatoire : la PK de `campaign_cp_rollup` est (campaign_id, postal_code, ACTEUR), donc un CP y apparait jusqu'a 5 fois — 10 205 lignes pour 2 041 CP sur une campagne reelle. **`RETURNS jsonb` et non `TABLE` (sql/154)** : PostgREST tronque a 5 000 lignes AUSSI les RPC `RETURNS TABLE` — mesure, `codes_postaux_dans_bbox` rend 5 000 lignes pour 6 051 reelles, sans erreur. Une campagne nationale de plus de 5 000 CP aurait vu son coefficient calcule sur la moitie nord-est de la France, avec un `n` faux et rien pour le dire | `api/analyses/correlation/` (sql/147, sql/154) |
 | `compte_cp_campagne` | Nombre de codes postaux DISTINCTS touches par une campagne. Existe parce que supabase-js ne sait pas faire un `COUNT(DISTINCT)` : un `count: 'exact'` compterait une ligne par acteur et annoncerait 5x trop. Separee de la RPC d'appariement pour repondre AUSSI quand zero CP s'apparie — le cas ou ce chiffre compte le plus | `api/analyses/correlation/` (sql/147) |
-| `codes_postaux_du_perimetre` | Codes postaux d'un `FiltreActif` (region/departement/commune/CP/zone). Existe parce qu'un filtre ne porte de bbox resolue QUE pour une zone enregistree : `bboxDuFiltre` repliait sinon sur `BBOX_METRO`, soit les 6187 CP de France. Branches SEPAREES et non un `CASE` dans le `WHERE` — le CASE rendait `idx_ref_cp_dept` inutilisable (835 ms -> 6,5 ms). Le palier commune passe par `communes_arrondissements`, sans quoi Marseille/Paris/Lyon rendaient ZERO CP | `api/analyses/score/` (sql/146) |
+| `codes_postaux_du_perimetre` | Codes postaux d'un `FiltreActif` (region/departement/commune/CP/zone/**france**). Existe parce qu'un filtre ne porte de bbox resolue QUE pour une zone enregistree : `bboxDuFiltre` repliait sinon sur `BBOX_METRO`, soit les 6187 CP de France. Branches SEPAREES et non un `CASE` dans le `WHERE` — le CASE rendait `idx_ref_cp_dept` inutilisable (835 ms -> 6,5 ms). Le palier commune passe par `communes_arrondissements`, sans quoi Marseille/Paris/Lyon rendaient ZERO CP. Branche `france` (sql/167, 2026-09-15) : l'ensemble du referentiel (6 187 CP, `p_code` ignore) — 3,9 ms, `shared hit=349`, zero lecture disque. **`RETURNS TABLE`, donc tronquee a 5000 lignes par PostgREST des le periemtre france — voir la jumelle ci-dessous, seule appelee par l'app** | plus appelee par l'app depuis sql/168 (definition conservee, jamais de DROP) |
+| `codes_postaux_du_perimetre_jsonb` | Jumelle `RETURNS jsonb` de `codes_postaux_du_perimetre` ci-dessus (sql/168, 2026-09-15) : PostgREST tronque a 5000 lignes TOUTE RPC `RETURNS TABLE`, meme piege deja documente pour `correlation_campagne_indicateur` (sql/154) — decouvert en testant le parcours reel, `/api/analyses/score` affichait 5 000 CP au lieu de 6 187 sur le perimetre `france`. Une fonction JUMELLE plutot qu'un DROP + CREATE OR REPLACE de l'originale (changer le type de retour l'exige, et DROP est exclu en production). Verifie : `jsonb_array_length(...('france', _)) = 6187` | `api/analyses/score/` (sql/168) |
 | `codes_postaux_dans_bbox` | Codes postaux dont le centroide (`ref_codes_postaux.centroid`, geometry GIST) tombe dans une bbox (sql/144). `centroid_lat`/`centroid_lon` sont NULL sur les 6187 lignes — seule cette RPC (PostGIS `&&`/`ST_MakeEnvelope`) donne un resultat correct | `api/civic-indicators/health-map/` (scale=cp, Tache 4) |
 
 ### Admin & Monitoring

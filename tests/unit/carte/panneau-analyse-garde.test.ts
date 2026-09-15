@@ -55,18 +55,30 @@ const PROPS_DE_LANCEMENT: Array<[attribut: string, attendu: string]> = [
   ['onLoadClusters', 'handleLoadClustersGarde'],
 ];
 
-/** Handlers locaux qui doivent exister (déclarés par `const <nom> = ...`)
- *  et qui doivent tous appeler `verifierPerimetre()` dans leur corps. */
-const HANDLERS_GARDES = [
-  'handleVoronoi',
-  'handleCheckORSGarde',
-  'handleBattleGarde',
-  'handleCheckV2Garde',
-  'handleFillMissingV2Garde',
-  'handleBattleV2Garde',
-  'handleApplyBattleGarde',
-  'handleLoadClustersGarde',
+/**
+ * Handlers locaux des CINQ outils lourds (spec-filtre-france.md, 2026-09-15) :
+ * doivent appeler `verifierPerimetreOutil('<outil>')` — pas `verifierPerimetre()`
+ * seul — pour refuser explicitement un périmètre national. [nom du handler,
+ * identifiant d'outil attendu (OutilAnalyse de garde-perimetre.ts)].
+ */
+const HANDLERS_GARDE_OUTIL: Array<[nom: string, outil: string]> = [
+  ['handleVoronoi', 'voronoi'],
+  ['handleCheckORSGarde', 'bataille_v1'],
+  ['handleBattleGarde', 'bataille_v1'],
+  ['handleCheckV2Garde', 'bataille_v2'],
+  ['handleFillMissingV2Garde', 'bataille_v2'],
+  ['handleBattleV2Garde', 'bataille_v2'],
+  ['handleApplyBattleGarde', 'application_bataille'],
 ];
+
+/**
+ * Handlers gardés par le refus GÉNÉRIQUE seulement (`verifierPerimetre()`,
+ * sans refus de périmètre national) : `handleLoadClustersGarde` n'est qu'une
+ * relecture GET d'un modèle déjà calculé, pas le calcul lourd (voir en-tête
+ * de PanneauAnalyse.tsx) — celui-ci est gardé par `verifierPerimetreClustering`,
+ * vérifié séparément plus bas (relayé à ClusteringWizard).
+ */
+const HANDLERS_GARDE_GENERIQUE = ['handleLoadClustersGarde'];
 
 /**
  * Extrait la valeur d'une prop JSX `attribut={...}`, tolérante aux espaces
@@ -117,29 +129,59 @@ describe('PanneauAnalyse — verrou structurel de la garde de perimetre (spec §
     },
   );
 
-  it.each(HANDLERS_GARDES)('le handler "%s" appelle bien verifierPerimetre()', (nom) => {
+  it.each(HANDLERS_GARDE_GENERIQUE)('le handler "%s" appelle bien verifierPerimetre()', (nom) => {
     expect(corpsDuHandler(nom)).toContain('verifierPerimetre(');
   });
 
-  it('le wizard de clustering (POST /api/poi-clusters/run) recoit verifierPerimetre en prop', () => {
+  // spec-filtre-france.md §3 (2026-09-15) : les CINQ outils lourds doivent
+  // refuser explicitement un périmètre national — pas seulement appeler la
+  // garde générique. Vérifie que chaque handler appelle
+  // `verifierPerimetreOutil('<outil attendu>')`, avec le BON identifiant
+  // (une régression plausible : câbler le mauvais outil, qui produirait un
+  // message trompeur sans faire rougir un simple `toContain('verifierPerimetreOutil(')`).
+  it.each(HANDLERS_GARDE_OUTIL)(
+    'le handler "%s" refuse le perimetre national via verifierPerimetreOutil(\'%s\')',
+    (nom, outil) => {
+      expect(corpsDuHandler(nom)).toContain(`verifierPerimetreOutil('${outil}')`);
+    },
+  );
+
+  it('verifierPerimetreClustering existe et enveloppe verifierPerimetreOutil(\'clustering\')', () => {
+    expect(corpsDuHandler('verifierPerimetreClustering')).toContain("verifierPerimetreOutil('clustering')");
+  });
+
+  it('le wizard de clustering (POST /api/poi-clusters/run) recoit verifierPerimetreClustering en prop', () => {
     // Le VRAI calcul du clustering ne passe pas par onLoadClusters (un simple
     // GET de relecture d'un modele deja calcule) mais par ClusteringWizard,
     // monte par ClusterPanel, monte par ClusteringSection. La garde y est
     // relayee via la prop verifierPerimetre jusqu'a ClusteringWizard, qui
-    // l'appelle avant son fetch POST (round 2 de correction).
+    // l'appelle avant son fetch POST (round 2 de correction). 2026-09-15 :
+    // c'est desormais verifierPerimetreClustering (refuse le national) qui
+    // est relaye, un identifiant DISTINCT de verifierPerimetre (relaye, lui,
+    // au score composite qui admet le national) — les deux ne peuvent pas
+    // partager la meme reference sans faire admettre/refuser le national aux
+    // deux outils a la fois.
     const blocClusteringSection = SOURCE.match(/<ClusteringSection[\s\S]*?\/>/)?.[0];
     expect(blocClusteringSection, '<ClusteringSection ... /> introuvable dans PanneauAnalyse.tsx').toBeTruthy();
-    expect(blocClusteringSection).toMatch(/verifierPerimetre=\{\s*verifierPerimetre\s*\}/);
+    expect(blocClusteringSection).toMatch(/verifierPerimetre=\{\s*verifierPerimetreClustering\s*\}/);
   });
 
-  it('l outil Score composite (POST /api/analyses/score) recoit verifierPerimetre en prop', () => {
+  it('l outil Score composite (POST /api/analyses/score) recoit verifierPerimetre (générique) en prop', () => {
     // Tache 12 (2026-09-13), meme patron que ClusteringWizard ci-dessus : le
     // calcul est lance DANS le composant enfant, pas par une prop de
     // PanneauAnalyse — la garde ne peut donc pas etre enveloppee ici, elle est
     // relayee. Sans elle, un score porterait sur les 6 187 CP de France.
+    //
+    // 2026-09-15 (spec-filtre-france.md) : SEUL outil qui ADMET le perimetre
+    // national (159 ms mesures sur les 6 187 CP) — reste sur le
+    // `verifierPerimetre` GENERIQUE (sans refus national), jamais
+    // `verifierPerimetreOutil`/`verifierPerimetreClustering`. Régression
+    // directe possible : câbler par erreur le wrapper qui refuse le national
+    // bloquerait le seul outil censé l'accepter.
     const bloc = SOURCE.match(/<ScoreCompositeTool[\s\S]*?\/>/)?.[0];
     expect(bloc, '<ScoreCompositeTool ... /> introuvable dans PanneauAnalyse.tsx').toBeTruthy();
     expect(bloc).toMatch(/verifierPerimetre=\{\s*verifierPerimetre\s*\}/);
+    expect(bloc).not.toMatch(/verifierPerimetreOutil|verifierPerimetreClustering/);
   });
 
   it('ScoreCompositeTool appelle verifierPerimetre() AVANT son fetch de calcul', () => {

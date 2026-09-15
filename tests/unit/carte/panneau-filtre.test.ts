@@ -44,6 +44,11 @@ describe('panneau-filtre-logique — seedDepuisFiltre', () => {
     expect(seedDepuisFiltre(zone)).toEqual({ ville: '', codePostal: '', selectedRegions: [], selectedDepts: [] });
     expect(seedDepuisFiltre(null)).toEqual({ ville: '', codePostal: '', selectedRegions: [], selectedDepts: [] });
   });
+
+  it('un filtre france ne remplit aucun champ du widget administratif non plus', () => {
+    const france: FiltreActif = { type: 'france', code: 'france', label: 'France entière' };
+    expect(seedDepuisFiltre(france)).toEqual({ ville: '', codePostal: '', selectedRegions: [], selectedDepts: [] });
+  });
 });
 
 describe('panneau-filtre-logique — composerFiltreVille / composerFiltreCodePostal', () => {
@@ -90,6 +95,11 @@ describe('panneau-filtre-logique — filtreApresChangementScope (round 2)', () =
     expect(filtreApresChangementScope(zone)).toBe(zone);
   });
 
+  it('un filtre france survit de meme — pas administratif, independant du pill Metro/+DROM', () => {
+    const france: FiltreActif = { type: 'france', code: 'france', label: 'France entière' };
+    expect(filtreApresChangementScope(france)).toBe(france);
+  });
+
   it('sans filtre actif, rend null sans effet', () => {
     expect(filtreApresChangementScope(null)).toBeNull();
   });
@@ -104,5 +114,16 @@ describe('bboxPourRequete — la bbox ne part que si un filtre est actif', () =>
     expect(bboxPourRequete(departement)).toEqual(BBOX_METRO);
     const avecBbox: FiltreActif = { ...zone, bbox: [4.2, 43.1, 5.8, 43.9] };
     expect(bboxPourRequete(avecBbox)).toEqual([4.2, 43.1, 5.8, 43.9]);
+  });
+
+  // Verification #1 de la spec (spec-filtre-france.md, LE PIEGE) : un filtre
+  // 'france' est un filtre ACTIF (filtre !== null) mais doit rendre undefined,
+  // exactement comme l'absence de filtre — jamais BBOX_METRO. bboxDuFiltre
+  // (fichier protege, inchange) REPLIE pourtant sur BBOX_METRO pour ce type
+  // (voir tests/unit/carte/filtre.test.ts) : c'est bboxPourRequete qui doit
+  // l'intercepter AVANT d'appeler bboxDuFiltre, pas l'inverse.
+  it("rend undefined pour le filtre 'france' — jamais BBOX_METRO (339 POI d'outre-mer sinon)", () => {
+    const france: FiltreActif = { type: 'france', code: 'france', label: 'France entière' };
+    expect(bboxPourRequete(france)).toBeUndefined();
   });
 });

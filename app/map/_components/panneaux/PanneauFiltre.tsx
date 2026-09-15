@@ -37,13 +37,17 @@
  * (region/departement/commune/cp) — un filtre `zone` survit, il n'est pas
  * administratif. Voir `filtreApresChangementScope` (panneau-filtre-logique.ts).
  *
- * Simplifications assumees (TypeFiltre est un fichier protege, pas de valeur
- * pour un perimetre national) :
- *   - Le perimetre global (« France Metro » / « France + DROM ») ne compose
- *     PAS de `FiltreActif` (aucune valeur de `TypeFiltre` ne correspond a un
- *     scope national, et elargir la bbox sur « +DROM » violerait la regle
- *     CLAUDE.md « jamais France entiere ») — il pilote uniquement `scope`
- *     (voir ci-dessus), pas `bboxDuFiltre`.
+ * Simplifications assumees :
+ *   - Le perimetre global (« France Metro » / « France + DROM », pill du
+ *     widget `PerimeterSections`) ne compose PAS de `FiltreActif` — il pilote
+ *     uniquement `scope` (voir ci-dessus), pas `bboxDuFiltre`. NE PAS CONFONDRE
+ *     avec le filtre `'france'` ajoute le 2026-09-15 (spec-filtre-france.md,
+ *     bloc « Perimetre national » plus bas dans ce fichier) : celui-ci EST un
+ *     `FiltreActif` a part entiere (poserFiltre/bboxPourRequete le traitent),
+ *     une intention explicite de perimetre national pour les outils du
+ *     panneau Analyse — sans bbox, jamais `BBOX_METRO` (voir
+ *     lib/carte/bbox-requete.ts). Les deux widgets restent independants : le
+ *     pill Metro/+DROM continue de piloter uniquement `scope`.
  *   - Region / departement / commune / code postal composent un `FiltreActif`
  *     SANS bbox resolue (le referentiel regions/departements ne porte pas de
  *     bbox) : `bboxDuFiltre` replie alors sur `BBOX_METRO`, jamais une bbox
@@ -269,6 +273,18 @@ export function PanneauFiltre({ filtre, onFiltre, scope: scopeProp, onScopeChang
     }));
   };
 
+  // ── Filtre « France entière » (spec-filtre-france.md, 2026-09-15) — une
+  // INTENTION explicite de périmètre national, pas un retrait de filtre : sans
+  // lui, « France entière » était l'ABSENCE de filtre, ce qui bloquait le
+  // score composite via la garde de périmètre (elle refuse `filtre === null`).
+  // AUCUNE bbox (code volontairement sans `bbox` — voir lib/carte/bbox-requete.ts) :
+  // en porter une replierait sur BBOX_METRO à chaque requête de couche, plus
+  // restrictif que l'absence de filtre actuelle (339 POI d'outre-mer masqués).
+  // Bascule comme tout filtre (`poserFiltre`) : cliquer à nouveau le retire.
+  const selectFrance = () => {
+    onFiltre(poserFiltre(filtreRef.current, { type: 'france', code: 'france', label: 'France entière' }));
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
       <PerimeterSections
@@ -296,6 +312,44 @@ export function PanneauFiltre({ filtre, onFiltre, scope: scopeProp, onScopeChang
         territoryMaskEnabled={false}
         setTerritoryMaskEnabled={() => { /* masque territoire non branche ici — voir en-tete du fichier */ }}
       />
+
+      {/* Périmètre national — spec-filtre-france.md (2026-09-15). Une
+          INTENTION explicite, pas un simple retrait de filtre : sans lui,
+          « France entière » était l'absence de filtre, ce que la garde de
+          périmètre du panneau Analyse bloquait (« Choisissez un périmètre »).
+          Le score composite l'admet (159 ms sur les 6 187 CP) ; les cinq
+          autres outils lourds le refusent explicitement — voir PanneauAnalyse. */}
+      <div>
+        <div style={{
+          background: 'var(--elevated)', borderTop: '1px solid var(--border-subtle)',
+          padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+          <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }}>
+            Périmètre national
+          </span>
+        </div>
+        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, lineHeight: 1.5 }}>
+            Pose un filtre explicite sur la France entière — utile pour un calcul
+            dont le périmètre naturel est national. N&apos;ajoute aucune restriction
+            géographique (aucune bbox), à la différence des autres filtres.
+          </div>
+          <button
+            onClick={selectFrance}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '8px 10px', borderRadius: 4, width: '100%',
+              background: filtre?.type === 'france' ? 'var(--brand-teal-30)' : C.bgInput,
+              border: `0.5px solid ${filtre?.type === 'france' ? 'var(--brand-teal)' : C.border}`,
+              color: filtre?.type === 'france' ? 'var(--brand-teal)' : C.text,
+              fontFamily: fInter, fontSize: 12, cursor: 'pointer',
+            }}
+          >
+            France entière
+          </button>
+        </div>
+      </div>
 
       {/* Filtrer sur une zone enregistree — liste dynamique, jamais en dur */}
       <div>

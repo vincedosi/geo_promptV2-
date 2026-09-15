@@ -37,4 +37,19 @@ describe('filtre unique', () => {
     const zone: FiltreActif = { type: 'zone', code: '13', label: 'Zone 13' };
     expect(poserFiltre(dept, zone)).toEqual(zone);
   });
+
+  // Filtre 'france' (spec-filtre-france.md, 2026-09-15) — touche minimale au
+  // fichier protege : un membre d'union de plus, poserFiltre/retirerFiltre et
+  // le repli de bboxDuFiltre restent INCHANGES (verifie ici).
+  it('le filtre france se pose et se bascule comme n importe quel autre', () => {
+    const france: FiltreActif = { type: 'france', code: 'france', label: 'France entière' };
+    expect(poserFiltre(null, france)).toEqual(france);
+    expect(poserFiltre(france, france)).toBeNull();
+    expect(poserFiltre(dept, france)).toEqual(france);
+  });
+
+  it('bboxDuFiltre replie sur BBOX_METRO pour le filtre france aussi (repli inchange, non contourne) — c est bboxPourRequete qui porte la vraie correction, voir bbox-requete.test', () => {
+    const france: FiltreActif = { type: 'france', code: 'france', label: 'France entière' };
+    expect(bboxDuFiltre(france)).toEqual(BBOX_METRO);
+  });
 });

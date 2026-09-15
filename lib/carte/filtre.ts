@@ -22,7 +22,14 @@ export const BBOX_METRO: readonly [number, number, number, number] = Object.free
 
 // Non exporte : aucun consommateur externe (verifie par `npm run catalogue`) —
 // seul `FiltreActif.type` ci-dessous en a besoin, dans ce fichier.
-type TypeFiltre = 'region' | 'departement' | 'commune' | 'cp' | 'zone';
+//
+// 'france' ajoute le 2026-09-15 (spec-filtre-france.md, option B choisie par
+// Vincent) : une intention explicite de perimetre national, PAS une bbox.
+// Touche minimale a ce fichier protege — un simple membre d'union ajoute.
+// `poserFiltre`/`retirerFiltre`/le repli de `bboxDuFiltre` restent inchanges :
+// c'est `lib/carte/bbox-requete.ts` qui porte la vraie correction (rendre
+// `undefined` pour ce type, jamais `BBOX_METRO` — voir son en-tete).
+type TypeFiltre = 'region' | 'departement' | 'commune' | 'cp' | 'zone' | 'france';
 
 export interface FiltreActif {
   type: TypeFiltre;

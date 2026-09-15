@@ -5304,6 +5304,10 @@ export type Database = {
           code_postal: string
         }[]
       }
+      codes_postaux_du_perimetre_jsonb: {
+        Args: { p_code: string; p_type: string }
+        Returns: Json
+      }
       compte_cp_campagne: { Args: { p_campaign_id: string }; Returns: number }
       compte_poi_par_categorie: {
         Args: {

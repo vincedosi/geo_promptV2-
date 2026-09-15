@@ -28,6 +28,18 @@
  *     `FiltreActif` — second paramètre optionnel, pour ne pas braquer cette
  *     fonction sur la seule modélisation actuelle si une sélection de zone
  *     propre au panneau Analyse apparaît plus tard (Phase 2, Tâches 14-18).
+ *
+ * **Filtre `'france'` (2026-09-15, spec-filtre-france.md) : un périmètre
+ * CHOISI, pas absent.** `perimetreChoisi`/`messageGardePerimetre` passent
+ * donc naturellement — c'est le sens même de la Tâche (« France entière » est
+ * désormais une intention explicite, plus l'absence de filtre). Mais poser ce
+ * filtre lève la garde pour LES SIX outils du panneau Analyse d'un coup, et
+ * cinq d'entre eux coûtent bien plus que le score composite (159 ms sur les
+ * 6 187 CP) : le Voronoï dépassait 30 s avant le correctif de la veille,
+ * clustering et bataille sont du même ordre — rouvrir les incidents du 28/03
+ * et du 08/04 pour ces cinq-là. `outilAdmetNational`/`messageGardeOutil`
+ * ci-dessous ajoutent donc un second refus, spécifique au périmètre national,
+ * que seul le score composite ne subit pas.
  */
 import type { FiltreActif } from './filtre';
 
@@ -46,4 +58,75 @@ export function perimetreChoisi(filtre: FiltreActif | null, zoneSelectionnee?: s
  */
 export function messageGardePerimetre(filtre: FiltreActif | null, zoneSelectionnee?: string | null): string | null {
   return perimetreChoisi(filtre, zoneSelectionnee) ? null : MESSAGE_PERIMETRE_MANQUANT;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Refus explicite du périmètre national — spec-filtre-france.md §3
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Les six outils de calcul du panneau Analyse gardés par cette garde. Ne
+ * couvre pas la Corrélation (bornée par une campagne, pas par la carte —
+ * absence de garde ASSUMÉE, voir `PanneauAnalyse.tsx`).
+ */
+export type OutilAnalyse =
+  | 'voronoi'
+  | 'bataille_v1'
+  | 'bataille_v2'
+  | 'application_bataille'
+  | 'clustering'
+  | 'score_composite';
+
+/** Libellé humain de chaque outil, pour un message de refus qui NOMME l'outil. */
+const LIBELLE_OUTIL: Record<OutilAnalyse, string> = {
+  voronoi: 'Le Voronoï',
+  bataille_v1: 'La bataille isochrone',
+  bataille_v2: 'La bataille isochrone V2',
+  application_bataille: 'L’application de la bataille',
+  clustering: 'Le clustering',
+  score_composite: 'Le score composite',
+};
+
+/**
+ * Seuls les outils dont le coût mesuré sur la France entière reste négligeable
+ * admettent un périmètre national. Au 2026-09-15, un seul : le score composite
+ * (159 ms, 640 Ko lus sur les 6 187 CP — voir `/api/analyses/score`). Les cinq
+ * autres n'ont jamais été mesurés à cette échelle et le Voronoï dépassait 30 s
+ * avant le correctif de la veille : les traiter comme la France l'incident du
+ * 28/03/08-04 rejoué par l'outil censé le prévenir.
+ */
+export function outilAdmetNational(outil: OutilAnalyse): boolean {
+  return outil === 'score_composite';
+}
+
+/**
+ * Message de refus d'un périmètre national pour UN outil donné, `null` si
+ * l'outil l'admet. À combiner avec `messageGardePerimetre` : appeler
+ * seulement quand un périmètre EST choisi (sinon `MESSAGE_PERIMETRE_MANQUANT`
+ * prime — voir `messageGardeOutil`).
+ */
+export function messageRefusNational(outil: OutilAnalyse): string | null {
+  if (outilAdmetNational(outil)) return null;
+  return `${LIBELLE_OUTIL[outil]} ne peut pas être calculé sur la France entière — choisissez une région ou un département.`;
+}
+
+/**
+ * Message à afficher avant de bloquer le lancement d'UN outil précis,
+ * `null` si le calcul peut continuer. Combine les deux refus, dans l'ordre :
+ * 1. aucun périmètre choisi du tout (`messageGardePerimetre`) ;
+ * 2. un périmètre national choisi, pour un outil qui ne l'admet pas
+ *    (`messageRefusNational`).
+ *
+ * Pour le score composite, `outilAdmetNational` rend toujours `true` : cette
+ * fonction se comporte alors exactement comme `messageGardePerimetre` seule.
+ */
+export function messageGardeOutil(
+  outil: OutilAnalyse,
+  filtre: FiltreActif | null,
+  zoneSelectionnee?: string | null,
+): string | null {
+  const messageAbsence = messageGardePerimetre(filtre, zoneSelectionnee);
+  if (messageAbsence !== null) return messageAbsence;
+  if (filtre?.type === 'france') return messageRefusNational(outil);
+  return null;
 }
