@@ -93,6 +93,7 @@ import { TableauDeregles, type UniteMaille as UniteAffichee } from './TableauDer
 import { QuiADiffuse } from './QuiADiffuse';
 import { DetailTechnique } from './DetailTechnique';
 import type { Constat } from '@/lib/campagne/constats';
+import type { EtatSection } from './etat-section';
 import type { ActorRow } from '@/lib/campaigns/actor-metrics';
 import type { UniteAlignement, TrancheDispersion } from '@/lib/campagne/graphique-ecart';
 import type { FeatureAlignementGeo, ReponseAlignementMailleGeo } from '@/lib/campagne/vignette-carte';
@@ -315,38 +316,52 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
   }, [row2Visible, campaignId, session.maille, session.parent]);
 
   // ── Ce qu'il faut corriger ────────────────────────────────────────────
+  // `etat` est SÉPARÉ de la donnée : un `[]` ne peut pas porter à la fois
+  // « pas encore chargé », « la requête a échoué » et « rien à signaler ».
+  // Sur une campagne gravement déréglée dont `/alignement/constats` répond
+  // 500, l'écran annonçait « Aucun écart notable — rien à corriger » — un
+  // silence présenté comme une bonne nouvelle, sur l'écran qui doit alerter
+  // (constat 15 de la relecture d'interface, `etat-section.ts`).
   const [constatsRef, constatsVisible] = useEnVue<HTMLDivElement>();
   const [constats, setConstats] = useState<Constat[]>([]);
+  const [constatsEtat, setConstatsEtat] = useState<EtatSection>('chargement');
+  const [constatsEssai, setConstatsEssai] = useState(0);
   useEffect(() => {
     if (!constatsVisible || !campaignId) return;
     let annule = false;
+    setConstatsEtat('chargement');
     avecSemaphore(() => adminFetch(`/api/campaigns/${campaignId}/alignement/constats`, { cache: 'no-store' }))
       .then(async (res) => {
-        if (res.ok && !annule) {
-          const d = await res.json() as { constats?: Constat[] };
-          setConstats(d.constats ?? []);
-        }
+        if (annule) return;
+        if (!res.ok) { setConstatsEtat('echec'); return; }
+        const d = await res.json() as { constats?: Constat[] };
+        setConstats(d.constats ?? []);
+        setConstatsEtat('pret');
       })
-      .catch(() => { /* les constats précédents (le cas échéant) restent affichés */ });
+      .catch(() => { if (!annule) setConstatsEtat('echec'); });
     return () => { annule = true; };
-  }, [constatsVisible, campaignId]);
+  }, [constatsVisible, campaignId, constatsEssai]);
 
   // ── Qui a diffusé ─────────────────────────────────────────────────────
   const [actorsRef, actorsVisible] = useEnVue<HTMLDivElement>();
   const [canaux, setCanaux] = useState<ActorRow[]>([]);
+  const [canauxEtat, setCanauxEtat] = useState<EtatSection>('chargement');
+  const [canauxEssai, setCanauxEssai] = useState(0);
   useEffect(() => {
     if (!actorsVisible || !campaignId) return;
     let annule = false;
+    setCanauxEtat('chargement');
     avecSemaphore(() => adminFetch(`/api/digital/${campaignId}/actors`, { cache: 'no-store' }))
       .then(async (res) => {
-        if (res.ok && !annule) {
-          const d = await res.json() as { actors?: ActorRow[] };
-          setCanaux(d.actors ?? []);
-        }
+        if (annule) return;
+        if (!res.ok) { setCanauxEtat('echec'); return; }
+        const d = await res.json() as { actors?: ActorRow[] };
+        setCanaux(d.actors ?? []);
+        setCanauxEtat('pret');
       })
-      .catch(() => { /* les canaux précédents (le cas échéant) restent affichés */ });
+      .catch(() => { if (!annule) setCanauxEtat('echec'); });
     return () => { annule = true; };
-  }, [actorsVisible, campaignId]);
+  }, [actorsVisible, campaignId, canauxEssai]);
 
   // ── « Voir tout » du tableau déréglés — chargé à la demande (Tâche 14) ──
   const [uniteEtendues, setUniteEtendues] = useState<UniteAlignement[] | null>(null);
@@ -508,7 +523,12 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
             {alignement && <TroisComposantes data={alignement} />}
 
             <Section innerRef={constatsRef}>
-              <ConstatsCorrection constats={constats} onAction={handleActionConstat} />
+              <ConstatsCorrection
+                constats={constats}
+                etat={constatsEtat}
+                onAction={handleActionConstat}
+                onReessayer={() => setConstatsEssai((n) => n + 1)}
+              />
             </Section>
 
             {donneesCoutEtRythme && (
@@ -552,7 +572,12 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
             </Section>
 
             <Section innerRef={actorsRef}>
-              <QuiADiffuse canaux={canaux} cpmMoyen={suivi?.cpm.real ?? null} />
+              <QuiADiffuse
+                canaux={canaux}
+                cpmMoyen={suivi?.cpm.real ?? null}
+                etat={canauxEtat}
+                onReessayer={() => setCanauxEssai((n) => n + 1)}
+              />
             </Section>
 
             <Section>

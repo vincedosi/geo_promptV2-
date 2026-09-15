@@ -28,6 +28,7 @@
 import { cpmHorsPrevu } from './CoutEtRythme'
 import { formaterNombre, formaterNombreAbrege } from '@/lib/format/nombre'
 import { actorKindLabel, type ActorRow } from '@/lib/campaigns/actor-metrics'
+import type { EtatSection } from './etat-section'
 
 const fInter = "'Inter', system-ui, sans-serif"
 const fMono = "'JetBrains Mono', monospace"
@@ -44,7 +45,48 @@ export function largeurBarreCanal(sharePct: number | null, maxSharePct: number):
   return Math.min(100, (sharePct / max) * 100)
 }
 
-export function QuiADiffuse({ canaux, cpmMoyen }: { canaux: ActorRow[]; cpmMoyen: number | null }) {
+export function QuiADiffuse({ canaux, cpmMoyen, etat, onReessayer }: {
+  canaux: ActorRow[]
+  cpmMoyen: number | null
+  /** Obligatoire — une liste vide ne distingue pas « pas encore chargé » de
+   *  « la requête a échoué » et de « personne n'a diffusé » (constat 15,
+   *  voir `etat-section.ts`). */
+  etat: EtatSection
+  onReessayer?: () => void
+}) {
+  if (etat === 'chargement') {
+    return (
+      <div>
+        <Titre />
+        <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Chargement des partenaires…</p>
+      </div>
+    )
+  }
+
+  if (etat === 'echec') {
+    return (
+      <div>
+        <Titre />
+        <p role="alert" style={{ fontSize: 13, color: 'var(--danger)', margin: 0 }}>
+          Liste des partenaires indisponible — cela ne veut pas dire qu&rsquo;aucun n&rsquo;a diffusé.
+        </p>
+        {onReessayer && (
+          <button
+            type="button"
+            onClick={onReessayer}
+            style={{
+              marginTop: 8, border: '0.5px solid var(--brand-teal)', background: 'transparent',
+              color: 'var(--brand-teal)', borderRadius: 6, padding: '6px 12px', fontSize: 12.5,
+              fontFamily: fInter, cursor: 'pointer',
+            }}
+          >
+            Réessayer
+          </button>
+        )}
+      </div>
+    )
+  }
+
   if (canaux.length === 0) {
     return (
       <div>
