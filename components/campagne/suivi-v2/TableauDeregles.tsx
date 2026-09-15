@@ -176,24 +176,30 @@ function BarreDivergente({ ecartPct, horsPlan }: { ecartPct: number | null; hors
   )
 }
 
-function EcartTag({ u }: { u: UniteMaille }) {
-  const couleur = RAMPE_CSS[graviteEcart(u.ecart_pct, u.hors_plan)]
-  if (u.ecart_pct == null || u.hors_plan) {
-    return (
-      <span style={{
-        display: 'inline-flex', fontSize: 12, fontWeight: 500, padding: '2px 8px',
-        borderRadius: 6, background: 'var(--bg-level-3)', color: couleur,
-      }}>
-        hors plan
-      </span>
-    )
-  }
+/**
+ * Étiquette d'écart.
+ *
+ * La rampe divergente sert de PASTILLE, jamais de couleur de texte (constat 13
+ * de la relecture d'interface) : ces jetons sont conçus comme couleurs de
+ * REMPLISSAGE (carte, barre). Peints en texte sur `--bg-level-3`,
+ * `--diverge-neutre` donnait #4a4a4a sur #181818 en sombre (~2,1:1) et
+ * #c6d2cf sur #e2e2e2 en clair (~1,2:1) — un pourcentage illisible pour toute
+ * unité proche du plan, dans les deux thèmes, c'est-à-dire pour la majorité
+ * des lignes. Le chiffre passe en `--text-primary` ; la teinte reste présente
+ * et lisible dans la pastille, et le sens continue de se lire par le CÔTÉ de
+ * la barre juste au-dessus.
+ */
+export function EcartTag({ ecartPct, horsPlan: horsPlanBrut }: { ecartPct: number | null; horsPlan?: boolean }) {
+  const couleur = RAMPE_CSS[graviteEcart(ecartPct, horsPlanBrut)]
+  const horsPlan = ecartPct == null || horsPlanBrut
   return (
     <span style={{
-      display: 'inline-flex', fontSize: 12, fontWeight: 500, padding: '2px 8px',
-      borderRadius: 6, background: 'var(--bg-level-3)', color: couleur,
+      display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500,
+      padding: '2px 8px', borderRadius: 6,
+      background: 'var(--bg-level-3)', color: 'var(--text-primary)',
     }}>
-      {u.ecart_pct > 0 ? '+' : ''}{formaterNombre(u.ecart_pct)} %
+      <i aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: couleur, flexShrink: 0 }} />
+      {horsPlan ? 'hors plan' : `${ecartPct! > 0 ? '+' : ''}${formaterNombre(ecartPct!)} %`}
     </span>
   )
 }
@@ -290,13 +296,38 @@ export function TableauDeregles({ unites, nTotal, onVoirTout }: {
                   style={{ borderBottom: '1px solid var(--border-subtle)', cursor: niveauSuivant ? 'pointer' : 'default' }}
                 >
                   <td style={{ padding: '9px 10px', fontFamily: fInter, fontSize: 13, color: 'var(--text-primary)' }}>
-                    <b style={{ fontWeight: 500 }}>{u.code}</b>{' '}
-                    <span style={{ color: 'var(--text-tertiary)', fontSize: 12.5 }}>{u.nom}</span>
+                    {/* Le drill-down était porté par le seul `onClick` de la
+                        ligne : sans `tabIndex`, sans rôle et sans gestionnaire
+                        clavier, descendre d'une région vers ses départements
+                        était impossible au clavier, alors que le seul élément
+                        focusable de la ligne (« Voir sur la carte ») fait
+                        autre chose. Un vrai `<button>` porte l'action ; le
+                        `onClick` de la ligne reste un raccourci souris.
+                        `stopPropagation` évite le double déclenchement. */}
+                    {niveauSuivant ? (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); majSession({ parent: u.code, maille: niveauSuivant }) }}
+                        aria-label={`${u.code} ${u.nom} — voir le détail par ${LIBELLES_MAILLE[niveauSuivant].toLowerCase()}`}
+                        style={{
+                          border: 0, background: 'transparent', padding: 0, cursor: 'pointer',
+                          fontFamily: fInter, fontSize: 13, color: 'var(--text-primary)', textAlign: 'left',
+                        }}
+                      >
+                        <b style={{ fontWeight: 500 }}>{u.code}</b>{' '}
+                        <span style={{ color: 'var(--text-tertiary)', fontSize: 12.5 }}>{u.nom}</span>
+                      </button>
+                    ) : (
+                      <>
+                        <b style={{ fontWeight: 500 }}>{u.code}</b>{' '}
+                        <span style={{ color: 'var(--text-tertiary)', fontSize: 12.5 }}>{u.nom}</span>
+                      </>
+                    )}
                   </td>
                   <td style={{ ...cellStyle, minWidth: 140 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'stretch' }}>
                       <BarreDivergente ecartPct={u.ecart_pct} horsPlan={u.hors_plan} />
-                      <div style={{ textAlign: 'right' }}><EcartTag u={u} /></div>
+                      <div style={{ textAlign: 'right' }}><EcartTag ecartPct={u.ecart_pct} horsPlan={u.hors_plan} /></div>
                     </div>
                   </td>
                   <td style={cellStyle}>{formaterNombre(u.impressions)}</td>

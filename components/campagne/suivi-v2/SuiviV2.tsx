@@ -89,7 +89,7 @@ import { TrioCartes, type IndicateurOption, type VariableActive } from './TrioCa
 import { TroisComposantes } from './TroisComposantes';
 import { ConstatsCorrection } from './ConstatsCorrection';
 import { CoutEtRythme, type DonneesCoutEtRythme } from './CoutEtRythme';
-import { TableauDeregles, type UniteMaille as UniteAffichee } from './TableauDeregles';
+import { TableauDeregles, EcartTag, type UniteMaille as UniteAffichee } from './TableauDeregles';
 import { QuiADiffuse } from './QuiADiffuse';
 import { DetailTechnique } from './DetailTechnique';
 import type { Constat } from '@/lib/campagne/constats';
@@ -366,8 +366,15 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
   // ── « Voir tout » du tableau déréglés — chargé à la demande (Tâche 14) ──
   const [uniteEtendues, setUniteEtendues] = useState<UniteAlignement[] | null>(null);
   const [etenduChargement, setEtenduChargement] = useState(false);
+  // Garde d'appel EN VOL : sans elle, un double-clic sur « Voir les N … »
+  // envoyait deux fois la requête `limite=500`. Un `useRef` et non l'état
+  // `etenduChargement` — `setEtenduChargement(true)` n'est visible qu'au
+  // rendu suivant, donc deux clics dans le même tick le liraient tous deux
+  // à `false` (même raisonnement que le sémaphore, en-tête de fichier).
+  const voirToutEnVolRef = useRef(false);
   const handleVoirTout = useCallback(() => {
-    if (!campaignId) return;
+    if (!campaignId || voirToutEnVolRef.current) return;
+    voirToutEnVolRef.current = true;
     setEtenduChargement(true);
     const qs = new URLSearchParams({ maille: session.maille, limite: '500' });
     if (session.parent) qs.set('parent', session.parent);
@@ -378,7 +385,7 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
           setUniteEtendues(d.unites ?? []);
         }
       })
-      .finally(() => setEtenduChargement(false));
+      .finally(() => { voirToutEnVolRef.current = false; setEtenduChargement(false); });
   }, [campaignId, session.maille, session.parent]);
   // Une nouvelle maille/un nouveau drill-down invalide la liste étendue —
   // sans quoi « Voir tout » resterait ouvert sur le grain précédent.
@@ -552,13 +559,18 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
                       {[...uniteEtendues]
                         .sort((a, b) => Math.abs(b.impressions - (b.plan ?? 0)) - Math.abs(a.impressions - (a.plan ?? 0)))
                         .map((u) => (
-                          <tr key={u.code ?? u.nom} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                          // Bordures en 0,5 px comme tout le reste de l'écran,
+                          // et l'écart rendu par le MÊME `EcartTag` que le
+                          // tableau court : deux rendus du même objet métier
+                          // dont un seul respectait l'échelle divergente, c'est
+                          // exactement ce que la Tâche 14 a servi à unifier.
+                          <tr key={u.code ?? u.nom} style={{ borderBottom: '0.5px solid var(--border-subtle)' }}>
                             <td style={{ padding: '7px 10px', fontFamily: fInter, fontSize: 12.5, color: 'var(--text-primary)' }}>
                               <b style={{ fontWeight: 500 }}>{u.code ?? '—'}</b>{' '}
                               <span style={{ color: 'var(--text-tertiary)' }}>{u.nom ?? ''}</span>
                             </td>
-                            <td style={{ padding: '7px 10px', fontFamily: fMono, fontSize: 12, textAlign: 'right', color: 'var(--text-secondary)' }}>
-                              {u.hors_plan || u.ecart_pct == null ? 'hors plan' : `${u.ecart_pct > 0 ? '+' : ''}${formaterNombre(u.ecart_pct)} %`}
+                            <td style={{ padding: '7px 10px', textAlign: 'right' }}>
+                              <EcartTag ecartPct={u.ecart_pct} horsPlan={u.hors_plan} />
                             </td>
                             <td style={{ padding: '7px 10px', fontFamily: fMono, fontSize: 12, textAlign: 'right', color: 'var(--text-secondary)' }}>
                               {formaterNombre(u.impressions)}

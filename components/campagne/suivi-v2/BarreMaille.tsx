@@ -7,10 +7,37 @@ export const LIBELLES_MAILLE: Record<Maille, string> = {
   region: 'Région', departement: 'Département', cp: 'Code postal',
 }
 
-/** Logique pure, testée sans DOM. */
-export function libelleFilAriane(_maille: Maille, parent: string | null, nomParent: string | null): string[] {
+/**
+ * Maille de la RACINE du fil d'Ariane — « région, sans parent » est la racine
+ * (ARCHITECTURE.md, route `alignement/maille`). Revenir à « France entière »
+ * doit donc restaurer CETTE maille : remettre le seul `parent` à `null` en
+ * laissant `maille: 'cp'` faisait atterrir l'utilisateur sur la liste
+ * nationale des codes postaux (plafonnée à 200 côté route), pas sur les
+ * régions (constat 24 de la relecture d'interface).
+ */
+export const MAILLE_RACINE: Maille = 'region'
+
+/** Maille du PARENT d'une maille donnée — `null` à la racine. */
+const MAILLE_PARENTE: Record<Maille, Maille | null> = {
+  region: null, departement: 'region', cp: 'departement',
+}
+
+/**
+ * Fil d'Ariane. Logique pure, testée sans DOM.
+ *
+ * `maille` n'est pas décoratif : la session ne porte qu'UN `parent` (le
+ * niveau immédiatement au-dessus), jamais le chemin complet — après un drill
+ * région → département → CP, le segment « 31 » est un DÉPARTEMENT, et le fil
+ * disait seulement « France entière › 31 » sans jamais dire de quoi. La
+ * maille du parent se déduit de la maille courante et qualifie le segment.
+ */
+export function libelleFilAriane(maille: Maille, parent: string | null, nomParent: string | null): string[] {
   const fil = ['France entière']
-  if (parent) fil.push(nomParent ?? parent)
+  if (parent) {
+    const parente = MAILLE_PARENTE[maille]
+    const nom = nomParent ?? parent
+    fil.push(parente ? `${LIBELLES_MAILLE[parente]} ${nom}` : nom)
+  }
   return fil
 }
 
@@ -33,7 +60,8 @@ export function BarreMaille({ nUnites, nTotal, nomParent }: {
             {i > 0 && <span style={{ color: 'var(--text-tertiary)' }}>›</span>}
             {i < fil.length - 1 ? (
               <button
-                onClick={() => majSession({ parent: null, uniteSelectionnee: null })}
+                type="button"
+                onClick={() => majSession({ parent: null, maille: MAILLE_RACINE, uniteSelectionnee: null })}
                 style={{
                   border: 0, background: 'none', padding: 0, cursor: 'pointer',
                   color: 'var(--brand-teal)', fontSize: 13, textDecoration: 'underline',
