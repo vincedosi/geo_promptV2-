@@ -38,6 +38,19 @@
     --bg-surface: var(--bg-level-1);
     --bg-hover:   var(--bg-level-3);
 
+    /* Noms de surface du DESIGN_SYSTEM (§3 « Surfaces »), alias de l'échelle
+       ci-dessus. Ils existent parce que le document les désigne comme des
+       COULEURS et que du code les écrivait en `background: var(--elevated)`
+       alors qu'ils n'étaient définis nulle part : la déclaration était
+       invalide et le fond retombait sur transparent — texte posé à nu sur les
+       tuiles MapLibre pour les cartes flottantes. `--surface` porte le rôle
+       que le DESIGN_SYSTEM nomme `--card` (#0a0a0a) : le jeton `--card` lui
+       est déjà pris par shadcn, où il vaut un triplet HSL (`0 0% 4%`) destiné
+       à `hsl(var(--card))` et non une couleur. */
+    --surface:  var(--bg-level-1);
+    --elevated: var(--bg-level-2);
+    --overlay:  var(--bg-level-3);
+
     --border-subtle:  #1a1a1a;
     --border-default: #262626;
     --border-hover:   #333333;
@@ -170,6 +183,11 @@
     --bg-primary: var(--bg-level-0);
     --bg-surface: var(--bg-level-1);
     --bg-hover:   var(--bg-level-3);
+
+    /* Surfaces nommées du DESIGN_SYSTEM — voir le commentaire du bloc :root. */
+    --surface:  var(--bg-level-1);
+    --elevated: var(--bg-level-2);
+    --overlay:  var(--bg-level-3);
 
     --border-subtle:  #e5e5e5;
     --border-default: #d0d0d0;

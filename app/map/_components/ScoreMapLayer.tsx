@@ -241,7 +241,7 @@ export function ScoreMapLayer({ mapRef }: Props) {
   return (
     <div style={{
       position: 'absolute', bottom: 24, left: LARGEUR_RAIL + ECART_RAIL_PANNEAU,
-      background: 'var(--card)', border: '0.5px solid var(--border-subtle)',
+      background: 'var(--card-overlay)', border: '0.5px solid var(--border-default)',
       borderRadius: 6, padding: '10px 12px', zIndex: 5, minWidth: 200, maxWidth: 260,
       fontFamily: fInter, fontSize: 11, color: 'var(--text-secondary)',
     }}>

@@ -280,7 +280,7 @@ export function CorrelationTool() {
                           const d = payload[0]?.payload as { code: string; x: number; y: number };
                           return (
                             <div style={{
-                              background: 'var(--card)', border: `0.5px solid ${C.border}`,
+                              background: 'var(--surface)', border: `0.5px solid ${C.border}`,
                               borderRadius: 4, padding: '6px 10px', fontFamily: fMono, fontSize: 10,
                               color: C.textSec,
                             }}>

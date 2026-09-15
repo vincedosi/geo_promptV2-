@@ -175,7 +175,7 @@ export default function QualiteDonneesPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {verifications.map((v) => (
             <section key={v.cle} style={{
-              background: 'var(--card)', border: '0.5px solid var(--border-subtle)', borderRadius: 8,
+              background: 'var(--surface)', border: '0.5px solid var(--border-subtle)', borderRadius: 8,
             }}>
               <header style={{
                 display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',

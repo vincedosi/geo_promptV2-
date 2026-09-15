@@ -10,7 +10,7 @@ export const COLORS = {
   border: 'var(--border-subtle)',
   borderDefault: 'var(--border-default)',
   borderHover: 'var(--border-hover)',
-  bgPanel: 'var(--card)',
+  bgPanel: 'var(--surface)',
   bgSurface: 'var(--bg-surface)',
   bgLevel2: 'var(--bg-level-2)',
   bgLevel3: 'var(--bg-level-3)',

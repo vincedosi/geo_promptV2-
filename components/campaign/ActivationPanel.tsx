@@ -257,7 +257,7 @@ export function ActivationPanel({ campaignId }: ActivationPanelProps) {
       {/* ── 1. Pré-vol ─────────────────────────────────────────────────── */}
       {prevol && (
         <section style={{
-          background: 'var(--card)', border: '0.5px solid var(--border-subtle)',
+          background: 'var(--surface)', border: '0.5px solid var(--border-subtle)',
           borderRadius: 8, padding: 14, marginBottom: 16,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -367,7 +367,7 @@ export function ActivationPanel({ campaignId }: ActivationPanelProps) {
       {/* ── 2. Flux de poussée ─────────────────────────────────────────── */}
       {flux.length > 0 && (
         <section style={{
-          background: 'var(--card)', border: '0.5px solid var(--border-subtle)',
+          background: 'var(--surface)', border: '0.5px solid var(--border-subtle)',
           borderRadius: 8, padding: 14, marginBottom: 16,
         }}>
           <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 8 }}>
@@ -390,7 +390,7 @@ export function ActivationPanel({ campaignId }: ActivationPanelProps) {
 
       {/* ── 3. Historique ──────────────────────────────────────────────── */}
       <section style={{
-        background: 'var(--card)', border: '0.5px solid var(--border-subtle)',
+        background: 'var(--surface)', border: '0.5px solid var(--border-subtle)',
         borderRadius: 8, padding: 14,
       }}>
         <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 10 }}>
