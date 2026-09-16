@@ -2,6 +2,22 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+// Import STATIQUE du module testé, et c'est délibéré : `vi.mock` est hissé par
+// vitest au-dessus des imports, donc le stub d'`admin-fetch` s'applique quand
+// même. Un `await import()` posé dans le `beforeEach` — ce qu'il y avait ici —
+// fait facturer la transformation du module au délai de 10 s DU HOOK : en passe
+// complète sous contention le hook expirait, les liaisons restaient indéfinies,
+// et l'`afterEach` échouait sur « invalider is not a function ». Le fichier
+// passait seul et échouait avec les autres.
+//
+// C'est la troisième fois que ce motif casse la suite (deux tests DSP corrigés
+// le 2026-09-16 par le même geste) : un import dynamique dans un hook est un
+// délai d'expiration déguisé en dépendance.
+import {
+  obtenirAlignementPartage,
+  invaliderAlignementPartage,
+} from '@/lib/campagne/cache-alignement';
+
 /**
  * @file tests/unit/campagne/raison-aucune-donnee.test.ts
  *
@@ -64,14 +80,11 @@ function reponse(ok: boolean, corps: unknown): Response {
 }
 
 describe('« pas encore de diffusion » remonte comme un ETAT, pas comme une panne', () => {
-  let obtenir: (id: string) => Promise<{ data: unknown; erreurMessage: string | null; raison: string | null }>;
-  let invalider: (id: string) => void;
+  const obtenir = obtenirAlignementPartage;
+  const invalider = invaliderAlignementPartage;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     adminFetchStub.mockReset();
-    const mod = await import('@/lib/campagne/cache-alignement');
-    obtenir = mod.obtenirAlignementPartage;
-    invalider = mod.invaliderAlignementPartage;
   });
 
   afterEach(() => {
