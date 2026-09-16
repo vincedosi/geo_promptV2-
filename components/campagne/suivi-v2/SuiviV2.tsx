@@ -170,6 +170,13 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
   const [alignement, setAlignement] = useState<ReponseAlignement | null>(null);
   const [chargementAlignement, setChargementAlignement] = useState(false);
   const [erreurAlignement, setErreurAlignement] = useState<string | null>(null);
+  // Une campagne qui n'a pas encore diffusé n'est PAS une panne : la route
+  // rend 404 + `raison: 'aucune_donnee'` (au lieu de l'ancien 200 portant
+  // `score: 0`, un verdict inventé). Sans cette distinction, une campagne
+  // créée le matin s'affichait « Cette campagne n'est pas consultable » —
+  // quatrième état de la famille du constat 15 : ni chargement, ni échec, ni
+  // « rien à signaler », mais « pas encore ».
+  const [pasEncoreDeDiffusion, setPasEncoreDeDiffusion] = useState(false);
   const [alignementChargeUneFois, setAlignementChargeUneFois] = useState(false);
 
   useEffect(() => {
@@ -182,8 +189,17 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
     obtenirAlignementPartage(campaignId)
       .then((r) => {
         if (annule) return;
-        if (r.data) { setAlignement(r.data); setErreurAlignement(null); }
-        else setErreurAlignement(r.erreurMessage ?? MESSAGE_ERREUR_DEFAUT);
+        if (r.data) {
+          setAlignement(r.data);
+          setErreurAlignement(null);
+          setPasEncoreDeDiffusion(false);
+        } else if (r.raison === 'aucune_donnee') {
+          setPasEncoreDeDiffusion(true);
+          setErreurAlignement(null);
+        } else {
+          setPasEncoreDeDiffusion(false);
+          setErreurAlignement(r.erreurMessage ?? MESSAGE_ERREUR_DEFAUT);
+        }
       })
       .finally(() => { if (!annule) { setChargementAlignement(false); setAlignementChargeUneFois(true); } });
     return () => { annule = true; };
@@ -442,6 +458,23 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
         <EtatVide
           titre="Aucune campagne sélectionnée"
           message="Choisis une campagne dans la barre ci-dessus pour afficher son suivi."
+        />
+      </div>
+    );
+  }
+
+  // Avant la branche d'erreur, et jamais fondue dedans : « pas encore de
+  // diffusion » est un ÉTAT NORMAL du cycle de vie d'une campagne, pas une
+  // panne. Le dire comme une erreur ferait chercher un problème là où il n'y
+  // en a pas, et masquerait le seul fait utile — qu'il n'y a rien à mesurer
+  // tant que rien n'a été livré.
+  if (pasEncoreDeDiffusion && !alignement) {
+    return (
+      <div>
+        <BarreContexteCampagne />
+        <EtatVide
+          titre="Pas encore de diffusion"
+          message="Cette campagne n’a encore livré aucune impression. Le score d’alignement et les écarts au plan seront calculables dès les premières impressions remontées."
         />
       </div>
     );

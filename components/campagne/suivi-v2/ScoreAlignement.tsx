@@ -97,6 +97,15 @@ export function positionEchelle(valeur: number): number {
  * que `n_campagnes` vaut 0 — l'afficher comme une moyenne du secteur mettrait
  * un nombre fabriqué au centre d'un écran dont l'argument entier est
  * l'exactitude. Se lit sur la donnée, jamais en dur.
+ *
+ * `null` veut dire NE RIEN RENDRE — ni le repère sur la barre, ni le libellé,
+ * ni un « — » qui laisserait croire à une valeur en cours de chargement. Un
+ * média planner ne doit pas voir l'emplacement d'un repère qui n'existe pas.
+ * Le cas est aujourd'hui le seul possible : `/alignement` rend `etalon: null`
+ * tant que `n_campagnes === 0`, et rien n'écrit jamais dans
+ * `etalon_alignement` (agent « justesse », 2026-09-16). Le bloc réapparaîtra
+ * le jour où l'étalon sera réellement calculé sur un corpus ; ce garde-fou
+ * est ce qui permet de le rebrancher sans rien changer ici.
  */
 export function etalonAffichable(
   etalon: { score_median: number; n_campagnes: number } | null | undefined,

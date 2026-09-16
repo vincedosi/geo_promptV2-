@@ -29,12 +29,29 @@ import type { ReponseAlignement } from '@/components/campagne/suivi-v2/ScoreAlig
 export interface ResultatAlignement {
   data: ReponseAlignement | null;
   erreurMessage: string | null;
+  /**
+   * Raison MÉTIER d'un refus de calcul, telle que la route la nomme
+   * (`raison` du corps 404 — aujourd'hui `'aucune_donnee'`). `null` pour une
+   * panne : 500, réseau, droits.
+   *
+   * Existe parce qu'une campagne qui n'a pas encore diffusé n'est PAS une
+   * panne : la rendre comme telle affiche « Cette campagne n'est pas
+   * consultable » sur une campagne créée le matin, qui va très bien. Le
+   * message seul ne permet pas de faire la différence sans comparer des
+   * phrases françaises — l'écran a besoin du code, pas du texte.
+   */
+  raison: string | null;
 }
 
 const cache = new Map<string, Promise<ResultatAlignement>>();
 
-async function corpsErreur(res: Response): Promise<string | null> {
-  try { return ((await res.json()) as { error?: string })?.error ?? null; } catch { return null; }
+async function corpsErreur(res: Response): Promise<{ message: string | null; raison: string | null }> {
+  try {
+    const corps = (await res.json()) as { error?: string; raison?: string };
+    return { message: corps?.error ?? null, raison: corps?.raison ?? null };
+  } catch {
+    return { message: null, raison: null };
+  }
 }
 
 function demarrer(campaignId: string): Promise<ResultatAlignement> {
@@ -42,10 +59,13 @@ function demarrer(campaignId: string): Promise<ResultatAlignement> {
     const liberer = await semaphoreEcranSuivi.acquerir();
     try {
       const res = await adminFetch(`/api/campaigns/${campaignId}/alignement`, { cache: 'no-store' });
-      if (!res.ok) return { data: null, erreurMessage: (await corpsErreur(res)) ?? 'Erreur base de données.' };
-      return { data: await res.json() as ReponseAlignement, erreurMessage: null };
+      if (!res.ok) {
+        const { message, raison } = await corpsErreur(res);
+        return { data: null, erreurMessage: message ?? 'Erreur base de données.', raison };
+      }
+      return { data: await res.json() as ReponseAlignement, erreurMessage: null, raison: null };
     } catch (e) {
-      return { data: null, erreurMessage: e instanceof Error ? e.message : 'Erreur réseau.' };
+      return { data: null, erreurMessage: e instanceof Error ? e.message : 'Erreur réseau.', raison: null };
     } finally {
       liberer();
     }

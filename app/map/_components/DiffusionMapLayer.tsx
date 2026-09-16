@@ -148,6 +148,8 @@ export function DiffusionMapLayer({ mapRef, mapReady, visible }: Props) {
   const [chargement, setChargement] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [score, setScore] = useState<ReponseAlignement | null>(null);
+  /** 404 `raison: 'aucune_donnee'` — état du cycle de vie, pas une panne. */
+  const [pasEncoreDeDiffusion, setPasEncoreDeDiffusion] = useState(false);
 
   const dernierBboxRef = useRef<string | null>(null);
   /** Jeton de séquence : seule la réponse du DERNIER appel lancé a le droit
@@ -247,16 +249,23 @@ export function DiffusionMapLayer({ mapRef, mapReady, visible }: Props) {
   // ── Score rappelé dans la carte flottante — indépendant de la maille/bbox,
   // toujours calculé au CP (règle non négociable de la spec). ─────────────
   useEffect(() => {
-    if (!visible || !campaignId) { setScore(null); return; }
+    if (!visible || !campaignId) { setScore(null); setPasEncoreDeDiffusion(false); return; }
     let annule = false;
     (async () => {
       try {
         const res = await avecSemaphore(
           () => adminFetch(`/api/campaigns/${campaignId}/alignement`, { cache: 'no-store' }),
         );
-        if (!res.ok) return;
+        if (!res.ok) {
+          // Une campagne qui n'a pas encore diffusé n'est pas une panne : la
+          // dire, plutôt que de laisser la carte muette devant un score
+          // absent — silence qu'on lirait comme « tout va bien ».
+          const corps = await res.json().catch(() => null) as { raison?: string } | null;
+          if (!annule) setPasEncoreDeDiffusion(corps?.raison === 'aucune_donnee');
+          return;
+        }
         const data = await res.json() as ReponseAlignement;
-        if (!annule) setScore(data);
+        if (!annule) { setScore(data); setPasEncoreDeDiffusion(false); }
       } catch { /* la carte reste utilisable sans le rappel de score */ }
     })();
     return () => { annule = true; };
@@ -490,6 +499,12 @@ export function DiffusionMapLayer({ mapRef, mapReady, visible }: Props) {
 
       {erreur && (
         <p role="alert" style={{ margin: 0, fontFamily: fInter, fontSize: 12, color: 'var(--danger)' }}>{erreur}</p>
+      )}
+
+      {pasEncoreDeDiffusion && !score && (
+        <p style={{ margin: 0, fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)' }}>
+          Pas encore de diffusion — le score sera calculable dès les premières impressions.
+        </p>
       )}
 
       {score && (

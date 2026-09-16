@@ -109,6 +109,10 @@ export function BarreContexteCampagne() {
 
   const [score, setScore] = useState<ReponseAlignement | null>(null);
   const [scoreChargement, setScoreChargement] = useState(false);
+  // « Pas encore de diffusion » (404 `raison: 'aucune_donnee'`) est un ÉTAT du
+  // cycle de vie d'une campagne, pas une panne — et pas davantage un score
+  // absent : un tiret laisserait croire à une valeur qui n'a pas chargé.
+  const [pasEncoreDeDiffusion, setPasEncoreDeDiffusion] = useState(false);
 
   useEffect(() => {
     const id = session.campaignId;
@@ -116,9 +120,11 @@ export function BarreContexteCampagne() {
     let annule = false;
     setScoreChargement(true);
     obtenirAlignementPartage(id).then((r) => {
+      if (annule) return;
       // Sur échec, le score précédent reste affiché (dimmed) — jamais
       // effacé par une requête qui rate : voir l'en-tête du fichier.
-      if (r.data && !annule) setScore(r.data);
+      if (r.data) { setScore(r.data); setPasEncoreDeDiffusion(false); return; }
+      if (r.raison === 'aucune_donnee') { setScore(null); setPasEncoreDeDiffusion(true); }
     }).finally(() => { if (!annule) setScoreChargement(false); });
     return () => { annule = true; };
   }, [session.campaignId]);
@@ -234,6 +240,10 @@ export function BarreContexteCampagne() {
               style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12.5, color: 'var(--warning)' }}
             >
               {MESSAGE_PLAN_DIVERGENT_COURT}
+            </b>
+          ) : pasEncoreDeDiffusion ? (
+            <b style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12.5, color: 'var(--text-tertiary)' }}>
+              pas encore de diffusion
             </b>
           ) : (
             <b style={{ fontFamily: fMono, fontWeight: 600, fontSize: 16, color: 'var(--brand-teal)' }}>
