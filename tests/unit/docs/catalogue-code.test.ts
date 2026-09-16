@@ -56,7 +56,13 @@ describe('catalogue du code', () => {
 
   it(
     'le nombre d exports morts MESURE ne remonte pas, et le fichier commite dit la meme chose',
-    { timeout: 120_000 },
+    // Délai TRÈS large, et à dessein : knip est un processus fils qui met ~7 s
+    // seul, mais il concourt ici avec 137 fichiers de test en parallèle sur les
+    // mêmes cœurs. Un délai serré transformerait la contention machine en échec
+    // de test — exactement le flake que ce lot vient de refermer sur
+    // `dsp/dv360-auth`. La suite complète dure ~110 s au total : ce plafond ne
+    // peut être atteint que si knip est réellement bloqué.
+    { timeout: 300_000 },
     () => {
       const rapport = construireRapport(lancerKnip());
       const mesure: number = rapport.totalExportsMorts;

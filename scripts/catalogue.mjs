@@ -77,18 +77,26 @@ function lancerKnip() {
   } catch (err) {
     // execFileSync leve quand le process fils sort en erreur — knip le fait
     // des qu'il liste au moins un probleme. La sortie utile est dans err.stdout.
+    // LEVE plutot que process.exit(1) : cette fonction est aussi appelee depuis
+    // `tests/unit/docs/catalogue-code.test.ts`, et un `process.exit` y tuerait
+    // le worker Vitest au lieu de faire echouer proprement le test — on
+    // perdrait le message qui dit pourquoi. Le chemin CLI, lui, attrape et sort
+    // en erreur (voir plus bas).
     const stdout = err.stdout?.toString();
     if (!stdout) {
-      console.error('[catalogue] knip n’a produit aucune sortie exploitable.');
-      console.error(err.stderr?.toString() ?? err.message);
-      process.exit(1);
+      throw new Error(
+        '[catalogue] knip n’a produit aucune sortie exploitable : '
+        + (err.stderr?.toString() ?? err.message),
+      );
     }
     try {
       return JSON.parse(stdout);
     } catch (parseErr) {
-      console.error('[catalogue] sortie knip illisible en JSON :', parseErr.message);
-      console.error(stdout.slice(0, 2000));
-      process.exit(1);
+      throw new Error(
+        `[catalogue] sortie knip illisible en JSON : ${parseErr.message}
+`
+        + stdout.slice(0, 2000),
+      );
     }
   }
 }
@@ -257,7 +265,13 @@ const lanceDirectement = process.argv[1]
   && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 
 if (lanceDirectement) {
-  const data = lancerKnip();
+  let data;
+  try {
+    data = lancerKnip();
+  } catch (e) {
+    console.error(e.message);
+    process.exit(1);
+  }
   const rapport = construireRapport(data);
   const sha = shaCourant();
   const date = new Date().toISOString().slice(0, 10);
