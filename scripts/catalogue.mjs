@@ -23,10 +23,18 @@
  * 4 fichiers morts avant comme après. Elle est conservée parce qu'explicite
  * vaut mieux qu'implicite.
  *
- * La seule bascule qui change le résultat est `"vitest": false`, et elle coûte
- * plus qu'elle ne rapporte : 196 → 302 exports morts, l'écart étant en grande
- * partie des utilitaires légitimement propres aux tests. Un cliquet posé sur
- * 302 ne cliquette plus.
+ * ⚠️ Rectifié après mesure (relecture des corrections, 2026-09-16) : la phrase
+ * qui tenait ici — « la seule bascule qui change le résultat est
+ * `"vitest": false` » — était FAUSSE sur le mécanisme. Mesuré config par
+ * config, à totaux constants 195/4/3 : ligne `tests/**` retirée SEULE, aucun
+ * changement ; `"vitest": false` SEUL, aucun changement non plus. Il faut les
+ * DEUX pour que le catalogue bascule — et alors il passe à 302/11/3.
+ *
+ * La conclusion tient, sa justification non : c'est bien le cumul des deux
+ * sources d'entrée qui masque les modules atteints par les seuls tests, et un
+ * cliquet posé sur 302 ne cliquetterait plus. Mais quiconque aurait suivi
+ * l'ancienne phrase aurait basculé un seul réglage, constaté qu'il ne se passe
+ * rien, et conclu que la mesure était sans effet.
  *
  * La question précise — « quel module de production n'est atteint que par un
  * test ? » — est donc posée ailleurs, par

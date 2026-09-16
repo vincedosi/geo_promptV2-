@@ -5,7 +5,7 @@ import { join, sep } from 'node:path';
 import { calculerAlignement, type UniteAlignement as UniteScore } from '@/lib/campagne/alignement';
 import { calculerConstats, type UniteConstat } from '@/lib/campagne/constats';
 import {
-  construireSeriesCourbe, preparerDispersion, selectionnerAnnotations,
+  construireSeriesCourbe, preparerDispersion, selectionnerAnnotations, LIMITE_COURBE,
   type UniteAlignement as UniteCourbe,
 } from '@/lib/campagne/graphique-ecart';
 import { trierDeregles, graviteEcart, type UniteMaille } from '@/components/campagne/suivi-v2/TableauDeregles';
@@ -123,10 +123,13 @@ describe('unités hors plan — le volume sans plan ne se perd nulle part', () =
       plan: u.plan, ecart_pct: ecartPct(u), hors_plan: u.plan === 0,
       volume_deplace: u.plan === 0 ? u.reel : Math.abs(u.reel - u.plan),
     }));
-    // Maille région : plafond 12, dix unités, tout tient — mais un `slice`
-    // posé après un tri par plan décroissant les couperait quand même dès que
-    // le plafond mord. Le cas « plafond dépassé » est balayé dans
-    // graphique-ecart.test.ts ; ici on vérifie la CONSERVATION du volume.
+    // Maille région : plafond 12, dix unités — le plafond ne mord PAS ici, et
+    // ce cas vérifie la CONSERVATION du volume. Le cas « plafond dépassé »,
+    // celui où le `slice` coupe réellement, est le suivant : il était absent
+    // de ce verrou, et la relecture des corrections l'a démontré en
+    // réintroduisant le `slice(0, limite)` sans faire rougir une seule ligne
+    // de ce fichier. Un verrou de famille qui laisse passer LE défaut qu'il
+    // annonce en tête ne garde rien.
     const serie = construireSeriesCourbe(unites, 'region');
     const gardes = serie.filter((p) => CODES_HORS_PLAN.includes(p.code));
     expect(gardes.map((p) => p.code).sort()).toEqual(CODES_HORS_PLAN);
@@ -135,6 +138,40 @@ describe('unités hors plan — le volume sans plan ne se perd nulle part', () =
     expect(gardes.reduce((s, p) => s + p.gapSous, 0)).toBe(0);
     // Conservation globale : aucune impression n'a disparu de la série.
     expect(serie.reduce((s, p) => s + p.reel, 0)).toBe(VOLUME_TOTAL);
+  });
+
+  it('la COURBE garde les unités hors plan même quand le plafond MORD', () => {
+    // LE cas que ce verrou annonce et ne couvrait pas. Une unité hors plan a
+    // `plan = 0` : le tri par plan décroissant la met DERNIÈRE, donc c'est
+    // exactement elle que `slice(0, limite)` ampute en premier.
+    //
+    // Quinze unités de remplissage, toutes au plan et toutes plus grosses que
+    // n'importe quelle unité de BRUT : elles raflent les douze places de la
+    // maille région. Si le `slice` revient, les trois unités hors plan sont
+    // les trois premières à disparaître — et ce cas rougit.
+    const REMPLISSAGE = Array.from({ length: 15 }, (_, i) => ({
+      code: `R${i}`, nom: `Remplissage ${i}`, plan: 5000, reel: 5000,
+    }));
+    const versUnite = (u: { code: string; nom: string; plan: number; reel: number }): UniteCourbe => ({
+      code: u.code, nom: u.nom, impressions: u.reel, spend: null, cpm: null,
+      plan: u.plan, ecart_pct: ecartPct(u), hors_plan: u.plan === 0,
+      volume_deplace: u.plan === 0 ? u.reel : Math.abs(u.reel - u.plan),
+    });
+    const unites: UniteCourbe[] = [
+      ...BRUT.map((u) => versUnite({ code: u.code, nom: u.nom, plan: u.plan, reel: u.reel })),
+      ...REMPLISSAGE.map(versUnite),
+    ];
+    expect(unites.length, 'le jeu doit dépasser LIMITE_COURBE.region (12)')
+      .toBeGreaterThan(LIMITE_COURBE.region);
+
+    const serie = construireSeriesCourbe(unites, 'region');
+    const codes = serie.map((p) => p.code);
+    for (const code of CODES_HORS_PLAN) {
+      expect(codes, `l'unité hors plan ${code} a été coupée par le plafond`).toContain(code);
+    }
+    // Et leur volume reste compté comme de la sur-pression entière.
+    const gardes = serie.filter((p) => CODES_HORS_PLAN.includes(p.code));
+    expect(gardes.reduce((s, p) => s + p.gapSur, 0)).toBe(VOLUME_HORS_PLAN);
   });
 
   it('l HISTOGRAMME tient les CP hors plan à part, sans les fondre ni les perdre', () => {

@@ -15,7 +15,7 @@ import { join } from 'node:path';
  * un ÉTAT DU CYCLE DE VIE d'une PANNE : sans lui, l'écran affiche « Cette
  * campagne n'est pas consultable » sur une campagne qui va très bien.
  *
- * Le littéral `'aucune_donnee'` est écrit **cinq fois, dans cinq fichiers**
+ * Le littéral `'aucune_donnee'` est écrit **quatre fois, dans quatre fichiers**
  * — la RPC, la route, puis trois consommateurs qui le comparent chacun de leur
  * côté. Aucun type ne les relie : renommer le code côté base ou côté route
  * laisserait les trois comparaisons silencieusement fausses, et les trois
@@ -23,11 +23,31 @@ import { join } from 'node:path';
  *
  * Ce fichier ferme le cas dans les deux sens : un test de COMPORTEMENT sur le
  * cache, qui vérifie que le code remonte bien du corps 404 jusqu'à l'appelant,
- * et un test STRUCTUREL qui vérifie que les cinq écritures du littéral sont
+ * et un test STRUCTUREL qui vérifie que les écritures du littéral sont
  * toujours les mêmes.
  */
 
 const RACINE = process.cwd();
+
+/**
+ * Retire commentaires de ligne et de bloc avant toute recherche de littéral.
+ *
+ * Sans ce filtre, le verrou se satisfait de la PROSE : la relecture des
+ * corrections a supprimé la comparaison réelle de `SuiviV2.tsx` et le test est
+ * resté VERT, le littéral survivant dans la JSDoc quarante lignes plus haut.
+ * Un verrou qu'un commentaire suffit à contenter ne garde pas le code — il
+ * garde la description du code, ce qui est exactement le défaut que ce
+ * chantier a rencontré partout ailleurs.
+ *
+ * Volontairement simple (pas d'analyse syntaxique) : le pire cas est un faux
+ * NÉGATIF sur un littéral qui contiendrait `//`, ce qui ferait rougir à tort
+ * plutôt que passer à tort. Un verrou se trompe du bon côté.
+ */
+function sansCommentaires(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
 const CODE = 'aucune_donnee';
 
 // `cache-alignement.ts` émet la requête lui-même (le sémaphore vit DANS la
@@ -122,14 +142,22 @@ describe('le littéral « aucune_donnee » est le meme partout', () => {
   const ECRITURES: Array<[string, string]> = [
     ['sql/172_alignement_cas_degenere.sql', 'la RPC, qui EMET le code'],
     ['app/api/campaigns/[campaignId]/alignement/route.ts', 'la route, qui le relaie en 404'],
-    ['lib/campagne/cache-alignement.ts', 'le cache partagé, qui l’extrait du corps'],
+    // `lib/campagne/cache-alignement.ts` n'est PAS dans cette liste, et son
+    // absence est le résultat d'une mesure. Durcir ce verrou pour qu'il ignore
+    // les commentaires l'a fait rougir sur ce fichier : le littéral n'y vivait
+    // que dans la JSDoc. Vérification faite, le cache est TRANSPARENT — il lit
+    // `corps?.raison` et le relaie tel quel, sans jamais le comparer à quoi que
+    // ce soit. C'est la bonne conception : un cache n'a pas à connaître les
+    // codes métier qu'il transporte. C'était donc la LISTE qui avait tort, pas
+    // le cache — et un verrou qui se contentait de la prose ne pouvait pas le
+    // dire.
     ['components/campagne/BarreContexteCampagne.tsx', 'la barre de contexte de la carte'],
     ['components/campagne/suivi-v2/SuiviV2.tsx', 'l’écran de suivi'],
     ['app/map/_components/DiffusionMapLayer.tsx', 'la couche Diffusion de la carte'],
   ];
 
   it.each(ECRITURES)('%s contient le code, inchangé (%s)', (chemin) => {
-    const source = readFileSync(join(RACINE, chemin), 'utf8');
+    const source = sansCommentaires(readFileSync(join(RACINE, chemin), 'utf8'));
     expect(
       source.includes(CODE),
       `« ${CODE} » n'apparaît plus dans ${chemin}. Si le code métier a été renommé, il doit `

@@ -44,7 +44,11 @@ import { lancerKnip, construireRapport } from '../../../scripts/catalogue.mjs';
  * mesuree apres le lot tests/docs — un cliquet pose au-dessus de la valeur
  * atteignable laisse passer sa propre dette.
  */
-const CLIQUET_EXPORTS_MORTS = 195;
+// Descendu a 194 le 2026-09-16 : le verrou de famille des unites hors plan
+// consomme desormais `LIMITE_COURBE`, qui etait un export mort. Un cliquet se
+// baisse a chaque fois qu'on peut — c'est la seule chose qui l'empeche de
+// devenir un plafond decoratif.
+const CLIQUET_EXPORTS_MORTS = 194;
 
 describe('catalogue du code', () => {
   it('existe et se declare genere', () => {
