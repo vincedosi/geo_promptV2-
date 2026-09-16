@@ -54,8 +54,12 @@ const C = {
   textDim:    'var(--text-secondary)',
   textSec:    'var(--text-tertiary)',
   green:      'var(--success)',
-  warn:       '#fbbf24',
-  red:        '#f87171',
+  // Jetons et non des hex : `--warning` et `--danger` existent dans les DEUX
+  // themes et sont justement assombris en clair (#c08400, #d4202f). Le
+  // #fbbf24 en dur s'affichait a ~1,8:1 sur blanc sur /admin/health en theme
+  // clair — un avertissement de fraicheur illisible (constat 19).
+  warn:       'var(--warning)',
+  red:        'var(--danger)',
 };
 const fontMono = "'JetBrains Mono', monospace";
 const fontInter = "'Inter', system-ui, sans-serif";

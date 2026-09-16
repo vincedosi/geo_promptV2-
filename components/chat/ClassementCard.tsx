@@ -16,7 +16,11 @@ const P = {
   text:    'var(--text-primary)',
   dim:     'var(--text-secondary)',
   dimmer:  'var(--text-tertiary)',
-  gridLn:  'rgba(255,255,255,0.06)',
+  // Jeton et non un `rgba(255,255,255,…)` : ce blanc a 6 % etait INVISIBLE
+  // en theme clair — la grille du graphique et les separateurs du tableau
+  // disparaissaient purement et simplement (constat 16), sous le commentaire
+  // qui promet le contraire trois lignes plus haut.
+  gridLn:  'var(--border-subtle)',
   danger:  'var(--danger)',
   warning: 'var(--warning)',
 };
@@ -260,7 +264,7 @@ export function ClassementCard({ output, onFlyTo }: ClassementCardProps) {
                   key={r.code}
                   onClick={() => cliquable && handleClick(r)}
                   style={{
-                    borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    borderBottom: '0.5px solid var(--border-subtle)',
                     cursor: cliquable ? 'pointer' : 'default',
                     opacity: cliquable ? 1 : 0.6,
                   }}
@@ -288,7 +292,7 @@ export function ClassementCard({ output, onFlyTo }: ClassementCardProps) {
       {/* Footer source */}
       <div style={{
         marginTop: 14, paddingTop: 10,
-        borderTop: '1px solid rgba(255,255,255,0.06)',
+        borderTop: '0.5px solid var(--border-subtle)',
         fontSize: 9, color: P.dimmer, fontFamily: fontMono,
       }}>
         INSEE RP 2022 / Filosofi 2021 — palier {palierLabel}

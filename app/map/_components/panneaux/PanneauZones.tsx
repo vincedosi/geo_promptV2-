@@ -109,7 +109,7 @@ export function PanneauZones({ mapRef, onLoadedZonesChange }: PanneauZonesProps)
               marginLeft: 'auto',
               minWidth: 18, height: 18, padding: '0 5px',
               borderRadius: 9, background: 'var(--brand-teal)',
-              color: '#050505', fontFamily: "'JetBrains Mono', monospace",
+              color: 'var(--brand-teal-fg)', fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10, fontWeight: 700,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>{layerCount}</span>

@@ -64,6 +64,13 @@
     --brand-teal-30: rgba(78,205,196,0.3);
     --brand-teal-50: rgba(78,205,196,0.5);
     --brand-teal-10: rgba(78,205,196,0.1);
+    /* Texte/icône POSÉ SUR l'aplat teal. Invariant comme `--brand-teal`
+       lui-même : le fond ne change pas d'un thème à l'autre, donc son
+       premier plan non plus — le prendre sur `--bg-level-0` le ferait passer
+       au blanc en thème clair, sur un teal clair. Existe pour que ce
+       `#050505` cesse d'être retapé à la main (DESIGN_SYSTEM §5, « bouton
+       send = cercle #4ecdc4 avec icône #050505 »). */
+    --brand-teal-fg: #050505;
 
     --success: #3dffa0;
     --danger:  #ff5757;
@@ -214,6 +221,8 @@
     --brand-teal-30: rgba(78,205,196,0.3);
     --brand-teal-50: rgba(78,205,196,0.5);
     --brand-teal-10: rgba(78,205,196,0.1);
+    /* Invariant, comme le teal lui-même — voir le commentaire du bloc :root. */
+    --brand-teal-fg: #050505;
 
     --success: #0fa958;
     --danger:  #d4202f;
