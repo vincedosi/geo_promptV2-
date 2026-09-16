@@ -9,7 +9,11 @@ function touche(init: Partial<KeyboardEvent>): KeyboardEvent {
 }
 
 describe('configuration de navigation', () => {
-  it('declare exactement les sept entrees de la spec, dans l ordre', () => {
+  // « huit » et non « sept » : le titre disait sept, l'assertion en comptait
+  // huit, et ARCHITECTURE.md § Navigation de /map dit « soit huit entrees »
+  // (cinq themes + Assistant + Reglages + Aide). Sans consequence
+  // fonctionnelle, mais un titre de test faux se propage dans les revues.
+  it('declare exactement les huit entrees de la spec, dans l ordre', () => {
     expect(ENTREES_NAVIGATION.map(e => e.id)).toEqual([
       'assistant', 'campagne', 'filtre', 'calques', 'analyse', 'zones', 'reglages', 'aide',
     ]);

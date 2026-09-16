@@ -172,16 +172,25 @@ describe('libellesExtremites', () => {
   it('impressions : qualitatif "faible"/"fort" sans domaine', () => {
     expect(libellesExtremites('impressions', null)).toEqual({ finGauche: 'faible', finDroite: 'fort' })
   })
-  it('impressions : valeurs abrégées quand un domaine existe', () => {
-    const { finGauche, finDroite } = libellesExtremites('impressions', [1200, 3_400_000])
-    expect(finGauche).not.toBe('faible')
-    expect(finDroite).not.toBe('fort')
+  /**
+   * Ces deux cas n'assertaient que des NON-ÉGALITÉS (`not.toBe('faible')`,
+   * `not.toBe('—')`) : ils vérifiaient qu'on n'affiche plus le libellé
+   * qualitatif, jamais ce qu'on affiche à la place. Min et max intervertis, ou
+   * 3 400 000 abrégé « 1,2 k », passaient tous les deux — et la légende des
+   * vignettes « Impressions » et « Variable du plan » se lit alors à l'envers
+   * sur la carte du Suivi V2.
+   *
+   * Valeurs attendues écrites en dur, jamais recalculées par
+   * `formaterNombreAbrege` : 1 200 → « 1.2k », 3 400 000 → « 3.4M ».
+   */
+  it('impressions : valeurs abrégées quand un domaine existe, min à gauche', () => {
+    expect(libellesExtremites('impressions', [1200, 3_400_000]))
+      .toEqual({ finGauche: '1.2k', finDroite: '3.4M' })
   })
   it('variable : em-dash sans domaine, valeurs formatées sinon', () => {
     expect(libellesExtremites('variable', null)).toEqual({ finGauche: '—', finDroite: '—' })
-    const { finGauche, finDroite } = libellesExtremites('variable', [28, 50])
-    expect(finGauche).not.toBe('—')
-    expect(finDroite).not.toBe('—')
+    expect(libellesExtremites('variable', [28, 50]))
+      .toEqual({ finGauche: '28', finDroite: '50' })
   })
   it('alignement : toujours "sous"/"sur", domaine ignoré', () => {
     expect(libellesExtremites('alignement', null)).toEqual({ finGauche: 'sous', finDroite: 'sur' })

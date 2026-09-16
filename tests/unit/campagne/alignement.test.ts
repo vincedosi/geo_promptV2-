@@ -129,15 +129,49 @@ describe('score d alignement géographique', () => {
     expect(r.score).toBe(91)
   })
 
-  it('reproduit la mesure du 2026-09-14 sur la campagne de démo', () => {
-    // Valeurs mesurées en base : sous 3,84 % · sur 3,35 % · conformes 72,5 %
-    // Ce test fige la formule, pas les données : il utilise un jeu réduit
-    // dont les proportions sont connues.
+  /**
+   * Ce cas remplace un test qui s'intitulait « reproduit la mesure du
+   * 2026-09-14 sur la campagne de démo » et citait en commentaire « sous
+   * 3,84 % · sur 3,35 % · conformes 72,5 % » — sans jamais asserter aucun des
+   * trois. Sa seule assertion était `conformes_pct ≈ 87,5` sur un jeu de 8
+   * unités dont 7 conformes : 7/8, une tautologie arithmétique qui ne pouvait
+   * distinguer aucun défaut de la formule.
+   *
+   * On ne peut PAS reproduire la mesure de la base à partir d'un jeu réduit :
+   * ce sont 2 041 codes postaux, pas quarante. Ce que ce jeu fait, et que le
+   * précédent ne faisait pas, c'est épingler LES QUATRE chiffres à des
+   * PROPORTIONS de production — et deux d'entre eux retombent exactement sur
+   * la mesure du 2026-09-14 (score 93, conformes 72,5 %), ce qui n'est pas un
+   * hasard mais le résultat du dimensionnement choisi.
+   *
+   * Composition, calculée à la main :
+   *   29 conformes  réel 1000, plan 1000                    → 29 000 réel
+   *    6 sous       réel  650, plan 1000, bas 900, manque 250 chacune → 1 500
+   *    5 sur        réel 1350, plan 1000, haut 1100, trop 250 chacune → 1 250
+   *   total réel 29 000 + 3 900 + 6 750 = 39 650
+   *   sous 1 500 / 39 650 = 3,78 %   ·   sur 1 250 / 39 650 = 3,15 %
+   *   pénalité 6,94 → score 93       ·   conformes 29/40 = 72,5 %
+   *
+   * Défauts que ces valeurs distinguent, chiffrés :
+   *   - dénominateur = volume PLANIFIÉ (40 000) au lieu du réel : 3,75 / 3,13
+   *   - écart ENTIER compté au lieu de la seule part au-delà de la tolérance :
+   *     5,30 / 4,41 (et score 90)
+   *   - conformes comptés sur les seules unités au plan non nul : ici
+   *     identique, c'est le cas « plan nul » ci-dessus qui le couvre.
+   */
+  it('épingle les quatre chiffres sur un jeu aux PROPORTIONS de la campagne démo', () => {
     const u: UniteAlignement[] = [
-      { code: 'a', reel: 384, plan: 1000 },  // très sous
-      ...Array.from({ length: 7 }, (_, i) => ({ code: `c${i}`, reel: 1000, plan: 1000 })),
+      ...Array.from({ length: 29 }, (_, i) => ({ code: `ok${i}`, reel: 1000, plan: 1000 })),
+      ...Array.from({ length: 6 }, (_, i) => ({ code: `sous${i}`, reel: 650, plan: 1000 })),
+      ...Array.from({ length: 5 }, (_, i) => ({ code: `sur${i}`, reel: 1350, plan: 1000 })),
     ]
     const r = calcule(u, 10, 1)
-    expect(r.conformes_pct).toBeCloseTo(87.5, 1)
+    expect(r.n_unites).toBe(40)
+    expect(r.sous_pression_imps).toBe(1500)
+    expect(r.sur_pression_imps).toBe(1250)
+    expect(r.sous_pression_pct).toBe(3.78)   // dénominateur planifié : 3,75
+    expect(r.sur_pression_pct).toBe(3.15)    // dénominateur planifié : 3,13
+    expect(r.conformes_pct).toBe(72.5)
+    expect(r.score).toBe(93)                 // écart entier au lieu de la marge : 90
   })
 })

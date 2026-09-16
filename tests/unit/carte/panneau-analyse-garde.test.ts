@@ -102,8 +102,24 @@ function valeurDeLaProp(attribut: string): string | null {
  */
 function corpsDuHandler(nom: string): string {
   const marqueur = `const ${nom}`;
-  const debut = SOURCE.indexOf(marqueur);
-  expect(debut, `déclaration "${marqueur}" introuvable dans PanneauAnalyse.tsx`).toBeGreaterThanOrEqual(0);
+  // FRONTIÈRE DE MOT obligatoire. `SOURCE.indexOf('const ' + nom)` localisait
+  // par PRÉFIXE, et les trois handlers gardés de PanneauAnalyse.tsx sont
+  // préfixes les uns des autres : `verifierPerimetre`,
+  // `verifierPerimetreOutil`, `verifierPerimetreClustering`. Seul l'ordre
+  // actuel des déclarations sauvait le test — une réorganisation du fichier
+  // qui remonterait `verifierPerimetreClustering` au-dessus de
+  // `verifierPerimetre` faisait extraire le corps du MAUVAIS handler, et le
+  // verrou structurel validait alors un câblage qu'il n'avait pas lu.
+  // `\b` entre `e` et `C` n'existe pas (deux caractères de mot), donc
+  // `const verifierPerimetre\b` ne matche pas `const verifierPerimetreClustering`.
+  const motifDeclaration = new RegExp(`const\\s+${nom}\\b`, 'g');
+  const occurrences = Array.from(SOURCE.matchAll(motifDeclaration));
+  expect(
+    occurrences.length,
+    `déclaration "${marqueur}" : ${occurrences.length} occurrence(s) dans PanneauAnalyse.tsx — `
+    + 'il en faut exactement une pour que l\'extraction soit non ambiguë.',
+  ).toBe(1);
+  const debut = occurrences[0].index!;
   const ouvrante = SOURCE.indexOf('{', debut);
   expect(ouvrante, `accolade ouvrante du corps introuvable pour "${marqueur}"`).toBeGreaterThan(debut);
   let profondeur = 0;
