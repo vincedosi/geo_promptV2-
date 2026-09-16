@@ -37,7 +37,7 @@
 import { execFileSync } from 'node:child_process';
 import { writeFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_FILE = join(ROOT, 'docs', 'CATALOGUE_CODE.md');
@@ -239,15 +239,34 @@ function formaterMarkdown(rapport, sha, date) {
   return lignes.join('\n');
 }
 
-const data = lancerKnip();
-const rapport = construireRapport(data);
-const sha = shaCourant();
-const date = new Date().toISOString().slice(0, 10);
-const markdown = formaterMarkdown(rapport, sha, date);
+/**
+ * `lancerKnip` et `construireRapport` sont EXPORTES pour que
+ * `tests/unit/docs/catalogue-code.test.ts` mesure la realite au lieu de relire
+ * le nombre que le fichier commite annonce sur lui-meme.
+ *
+ * C'est le trou que ce meme fichier raconte : le catalogue est reste a 188 du
+ * 12/09 au 15/09 pendant que la mesure etait a 208, sur sept taches, parce que
+ * le cliquet ne lisait qu'un nombre ecrit dans un document. Exporter plutot que
+ * recopier la regle de comptage dans le test : une seule definition de « ce
+ * qu'est un export mort », pas deux qui divergeraient.
+ */
+export { lancerKnip, construireRapport };
 
-writeFileSync(OUT_FILE, markdown, 'utf8');
+/** Vrai quand ce fichier est lance directement (`npm run catalogue`), faux a l'import. */
+const lanceDirectement = process.argv[1]
+  && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 
-console.log(`[catalogue] docs/CATALOGUE_CODE.md régénéré.`);
-console.log(
-  `[catalogue] exports morts : ${rapport.totalExportsMorts} · fichiers morts : ${rapport.totalFichiersMorts} · dépendances inutilisées : ${rapport.totalDependancesInutilisees}`,
-);
+if (lanceDirectement) {
+  const data = lancerKnip();
+  const rapport = construireRapport(data);
+  const sha = shaCourant();
+  const date = new Date().toISOString().slice(0, 10);
+  const markdown = formaterMarkdown(rapport, sha, date);
+
+  writeFileSync(OUT_FILE, markdown, 'utf8');
+
+  console.log(`[catalogue] docs/CATALOGUE_CODE.md régénéré.`);
+  console.log(
+    `[catalogue] exports morts : ${rapport.totalExportsMorts} · fichiers morts : ${rapport.totalFichiersMorts} · dépendances inutilisées : ${rapport.totalDependancesInutilisees}`,
+  );
+}

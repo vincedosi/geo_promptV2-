@@ -4,11 +4,11 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-09-15 — commit `732105c`.
+> Généré le 2026-09-16 — commit `aa334ce`.
 
 ## Totaux
 
-- Exports morts : 196
+- Exports morts : 195
 - Fichiers morts : 4
 - Dépendances inutilisées : 3
 
@@ -78,11 +78,11 @@ Trié par nombre d’occurrences décroissant.
 | `lib/geo/region-lookup-server.ts` | 1 | invalidateRegionCache | — |
 | `lib/http/lecture-avec-reprise.ts` | 1 | ATTENTE_MAX_MS | — |
 | `lib/version.ts` | 1 | APP_NAME | — |
+| `lib/dsp-mapping/parser.ts` | 1 | parseRow | — |
+| `lib/campaigns/platform-links.ts` | 1 | PlatformLinksSchema | — |
 | `lib/campagne/constats.ts` | 1 | SEUIL_ECART_SIGNALE_PCT | — |
 | `lib/campagne/graphique-ecart.ts` | 1 | LIMITE_COURBE | — |
 | `components/campagne/suivi-v2/TableauDeregles.tsx` | 1 | LIGNES_MAX | — |
-| `lib/dsp-mapping/parser.ts` | 1 | parseRow | — |
-| `lib/campaigns/platform-links.ts` | 1 | PlatformLinksSchema | — |
 | `lib/civic-health/atmofrance-client.ts` | 1 | AASQA_REGION_CODES | — |
 | `lib/pacing/rebid.ts` | 1 | REBID_EPSILON | — |
 | `lib/demo/rng.ts` | 1 | hashStr | — |
@@ -95,7 +95,6 @@ Trié par nombre d’occurrences décroissant.
 | `lib/import/column-detector.ts` | 1 | normalizeColumnName | — |
 | `lib/civic-health/provider.ts` | 1 | _resetProvider | — |
 | `lib/metrics-display/loader.ts` | 1 | invalidateMetricsCache | — |
-| `lib/campagne/cache-alignement.ts` | 1 | invaliderAlignementPartage | — |
 | `app/map/_components/filter-panel/styles.ts` | 1 | hexToRgb | — |
 | `lib/dsp-mapping/transformer.ts` | 1 | listKnownTransforms | — |
 | `lib/dsp/push/simulated.ts` | 1 | buildPayloadSummary | — |
@@ -106,12 +105,12 @@ Trié par nombre d’occurrences décroissant.
 | `components/ui/input.tsx` | 1 | — | InputProps |
 | `lib/logger.ts` | 1 | — | Logger |
 | `lib/supabase/tables.ts` | 1 | — | TableUpdate |
-| `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
 | `types/admin.ts` | 1 | — | HealthCheck |
-| `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
+| `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
 | `lib/campaigns/actor-metrics.ts` | 1 | — | ActorsPayload |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |
+| `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
 | `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
 | `lib/demo/pilot-types.ts` | 1 | — | PilotItem |
 | `lib/dsp/push/types.ts` | 1 | — | PushStatus |
