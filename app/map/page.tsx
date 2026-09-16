@@ -77,6 +77,7 @@ import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext
 import { useCampagneSession } from '@/lib/campagne/CampagneSessionContext';
 import { CampagneActiveCard } from '@/components/magelian/CampagneActiveCard';
 import { BarreContexteCampagne } from '@/components/campagne/BarreContexteCampagne';
+import { DIFFUSION_REARM_EVENT } from '@/components/campagne/diffusion-rearm';
 import { ENTREES_NAVIGATION, LARGEUR_RAIL, entreeParRaccourci, type EntreeId } from '@/lib/navigation/config';
 import { ignorerRaccourciClavier } from '@/lib/navigation/garde-saisie';
 import { empiler, depiler, fermerLePlusHaut } from '@/lib/carte/pile-echap';
@@ -146,6 +147,23 @@ export default function MapPage() {
   // contexte React que l'overlay MAGELIAN), sans bus d'événements DOM.
   const { session: campagneSession } = useCampagneSession();
   const diffusionActifRef = useRef(false);
+  // Hauteur RÉELLE de la barre de contexte campagne, mesurée plutôt que codée
+  // en dur : elle passe à deux lignes sur une fenêtre étroite (`flexWrap`).
+  // Sert à décaler `FiltreChip`, qui lui passait intégralement dessous en vue
+  // Diffusion (constat 4 : la croix « Retirer le filtre » devenait
+  // inatteignable, seule façon de retirer un filtre sans quitter la vue).
+  const barreContexteRef = useRef<HTMLDivElement | null>(null);
+  const [hauteurBarreContexte, setHauteurBarreContexte] = useState(0);
+  useEffect(() => {
+    const el = barreContexteRef.current;
+    if (!el) { setHauteurBarreContexte(0); return; }
+    const mesurer = () => setHauteurBarreContexte(el.getBoundingClientRect().height);
+    mesurer();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(mesurer);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [monte, campagneSession.vue]);
   // Route selon le TYPE de l'entrée (lib/navigation/config.ts), pas selon son
   // id : une entrée `overlay-plein-ecran` (Campagne) ouvre l'overlay MAGELIAN
   // via son propre contexte et ne devient donc jamais `entreeActive` — les
@@ -552,6 +570,23 @@ export default function MapPage() {
     if (diffusionActif && !etaitActive) onDegrade('diffusion', true);
     if (!diffusionActif && etaitActive) onDegrade('diffusion', false);
   }, [diffusionActif, onDegrade]);
+
+  // Réarmement (constat 9). « Transition seulement » a une conséquence que
+  // l'effet ci-dessus ne peut pas rattraper seul : une fois `diffusion`
+  // ÉVINCÉ par une autre choroplèthe (cocher IRIS depuis le panneau Calques),
+  // rien ne le rallume — décocher IRIS ne repasse pas par
+  // `onDegrade('diffusion', true)`, et la barre de contexte continue
+  // d'afficher « Diffusion » sélectionné devant une carte vide. Le geste
+  // naturel — recliquer « Diffusion » alors qu'on y est déjà — ne change
+  // AUCUN état de session : il arrive donc par cet événement.
+  useEffect(() => {
+    const onRearm = () => {
+      if (!diffusionActifRef.current) return;
+      onDegrade('diffusion', true);
+    };
+    window.addEventListener(DIFFUSION_REARM_EVENT, onRearm);
+    return () => window.removeEventListener(DIFFUSION_REARM_EVENT, onRearm);
+  }, [onDegrade]);
 
   const handleFermerCampagneActive = useCallback(() => {
     window.dispatchEvent(new Event(SUIVI_MAP_CLEAR_EVENT));
@@ -1062,11 +1097,12 @@ export default function MapPage() {
           ci-dessous tant que cette barre est affichée, plutôt que de laisser
           son texte disparaître derrière un panneau opaque (constaté à
           l'écran, Tâche 15). `FiltreChip` (z 35, sous la top bar) reste
-          affiché tel quel : son information (filtre carte) n'est pas
-          redondante avec cette barre — collision non vérifiée à ce jour,
-          signalée au rapport plutôt que corrigée à l'aveugle. */}
+          affiché, mais DÉCALÉ vers le bas de la hauteur réelle de cette barre
+          (`hauteurBarreContexte`, mesurée) : la collision était réelle — le
+          chip passait intégralement dessous et sa croix « Retirer le filtre »
+          devenait inatteignable (constat 4 de la relecture d'interface). */}
       {monte && campagneSession.vue === 'carte' && (
-        <div style={{
+        <div ref={barreContexteRef} style={{
           position: 'fixed', top: railMasque ? 0 : MAP_TOPBAR_HEIGHT,
           left: railMasque ? 0 : LARGEUR_RAIL, right: 0, zIndex: 46,
         }}>
@@ -1080,7 +1116,11 @@ export default function MapPage() {
         badgeAlertes={0 /* source du compte d'alertes : viendra avec l'onglet Suivi */}
         pastille={filtre !== null}
       />
-      <FiltreChip filtre={filtre} onRetirer={() => setFiltre(retirerFiltre())} />
+      <FiltreChip
+        filtre={filtre}
+        onRetirer={() => setFiltre(retirerFiltre())}
+        decalageHaut={monte && campagneSession.vue === 'carte' ? hauteurBarreContexte : 0}
+      />
       {!(monte && campagneSession.vue === 'carte') && <CampagneActiveCard />}
       {entreeActiveDef?.type === 'tiroir-droit' && (
         <AIOverlay

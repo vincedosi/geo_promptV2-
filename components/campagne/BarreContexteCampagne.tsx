@@ -48,6 +48,7 @@ import { appliquerChangementCampagne } from '@/lib/campagne/transitions';
 import { obtenirAlignementPartage } from '@/lib/campagne/cache-alignement';
 import { obtenirListeCampagnesPartagee, type CampagneListItem } from '@/lib/campagne/cache-campagnes';
 import type { VueCampagne } from '@/lib/campagne/session-types';
+import { DIFFUSION_REARM_EVENT } from './diffusion-rearm';
 import {
   scoreAffichable, MESSAGE_PLAN_DIVERGENT, MESSAGE_PLAN_DIVERGENT_COURT,
   type ReponseAlignement,
@@ -135,7 +136,16 @@ export function BarreContexteCampagne() {
   // supérieur). Toujours `requestClose` (jamais `closeOverlay`), même chemin
   // animé qu'Échap et le bouton Fermer (round de correction 1, MagelianOverlay).
   const handleToggleVue = useCallback((cible: VueCampagne) => {
-    if (session.vue === cible) return;
+    if (session.vue === cible) {
+      // Déjà sur cette vue : rien à basculer, MAIS le dégradé `diffusion` a
+      // pu être évincé entre-temps par une autre choroplèthe (cocher IRIS
+      // depuis le panneau Calques) — auquel cas ce bouton reste sélectionné
+      // devant une carte vide et rien ne le rallume (constat 9). Recliquer
+      // « Diffusion » redemande donc l'exclusivité ; `app/map/page.tsx`
+      // ignore l'événement s'il n'y a rien à rallumer.
+      if (cible === 'carte') window.dispatchEvent(new Event(DIFFUSION_REARM_EVENT));
+      return;
+    }
     basculerVue();
     if (cible === 'carte' && overlayOpen) requestClose();
     else if (cible === 'suivi' && !overlayOpen) {

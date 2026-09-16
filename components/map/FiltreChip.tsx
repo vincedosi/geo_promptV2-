@@ -10,6 +10,19 @@ interface FiltreChipProps {
   filtre: FiltreActif | null;
   /** Retire le filtre (croix). */
   onRetirer: () => void;
+  /**
+   * Hauteur, en pixels, de ce qui occupe déjà le haut de la carte sous la top
+   * bar — aujourd'hui la barre de contexte campagne (`BarreContexteCampagne`,
+   * opaque, `zIndex: 46`, mesurée par `app/map/page.tsx`).
+   *
+   * Sans ce décalage, le chip lui passait INTÉGRALEMENT dessous (`zIndex: 35`)
+   * en vue Diffusion avec un filtre carte posé : sa croix « Retirer le
+   * filtre » devenait inatteignable et l'utilisateur ne pouvait plus retirer
+   * son filtre sans quitter la vue campagne (constat 4 de la relecture
+   * d'interface). Mesurée plutôt que codée en dur : la barre passe à deux
+   * lignes sur une fenêtre étroite (`flexWrap`).
+   */
+  decalageHaut?: number;
 }
 
 /**
@@ -19,14 +32,14 @@ interface FiltreChipProps {
  * rail quand celui-ci est ouvert à la même position (zIndex inférieur) :
  * le panneau affiche déjà le filtre courant dans ce cas.
  */
-export function FiltreChip({ filtre, onRetirer }: FiltreChipProps) {
+export function FiltreChip({ filtre, onRetirer, decalageHaut = 0 }: FiltreChipProps) {
   if (!filtre) return null;
 
   return (
     <div
       style={{
         position: 'absolute',
-        top: MAP_TOPBAR_HEIGHT + 12,
+        top: MAP_TOPBAR_HEIGHT + decalageHaut + 12,
         left: LARGEUR_RAIL + ECART_RAIL_PANNEAU,
         zIndex: 35,
         display: 'flex',
