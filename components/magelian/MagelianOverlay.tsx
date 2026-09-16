@@ -347,8 +347,9 @@ export function MagelianOverlay() {
 
   // Le portail reste monté une fois `mounted` — `hidden` retire l'élément du
   // flux ET de l'arbre d'accessibilité sans démonter les enfants (Tâche 2) :
-  // l'onglet Suivi de CampaignSuivi (et sa session locale) survit à la
-  // bascule vers la carte au lieu d'être détruit puis recréé.
+  // l'onglet Suivi (aujourd'hui `SuiviV2` — c'etait `CampaignSuivi` quand ce
+  // commentaire a ete ecrit, Tache 2) et sa session locale survivent a la
+  // bascule vers la carte au lieu d'etre detruits puis recrees.
   if (!mounted) return null;
   const masque = !open && !closing;
 

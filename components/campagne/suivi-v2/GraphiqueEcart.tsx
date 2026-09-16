@@ -25,8 +25,10 @@
  * dérivée de l'état React, jamais lue une fois via `getComputedStyle` à la
  * création puis figée — le défaut déjà documenté sur `SuiviMapLayer.tsx` et
  * `CivicHealthMapLayer.tsx`). Tout le reste (axes, légende, conteneurs) est
- * du DOM ordinaire et utilise `var(--token)` normalement, comme le fait déjà
- * `SuiviCharts.tsx` pour ses propres lignes Recharts.
+ * du DOM ordinaire et utilise `var(--jeton)` normalement, comme le faisait
+ * `SuiviCharts.tsx` pour ses propres lignes Recharts — fichier SUPPRIME a la
+ * Tache 16 avec l'ancien ecran de suivi, ce patron n'est donc plus lisible
+ * ailleurs que dans les tests de ce chantier.
  */
 import {
   Area, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, ResponsiveContainer,

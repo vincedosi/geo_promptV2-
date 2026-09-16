@@ -79,7 +79,9 @@ interface MetricConfig {
   legend: (c: Tone, forecastCpm: number | null) => Array<[string, string]>;
   /** Métrique masquée sous filtre acteur partiel : sa valeur devient une
    *  contribution (lit l'objectif GLOBAL, pas la part de l'acteur) → trompeuse
-   *  rendue comme une atteinte absolue. Cohérent avec le masquage SuiviTable. */
+   *  rendue comme une atteinte absolue. Ce masquage etait coherent avec celui de
+   *  `SuiviTable.tsx`, SUPPRIME a la Tache 16 avec l'ancien ecran de suivi ;
+   *  la regle reste bonne, mais elle n'a plus de pendant a verifier. */
   hiddenUnderPartialActors?: true;
 }
 

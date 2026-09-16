@@ -5,8 +5,9 @@
  * suivi V2 (Tâche 13A, task-13-brief.md). Composant PUR côté données : reçoit
  * son `FeatureCollection` déjà calculé (route
  * `.../alignement/maille/map`, RPC `alignement_par_maille_geo`, sql/165) —
- * aucun fetch ici, Task 15 orchestre. Même patron d'instance MapLibre
- * embarquée que `components/campaign/suivi/SuiviDeriveMap.tsx` : fond plein
+ * aucun fetch ici, Task 15 orchestre. Reprend le patron d'instance MapLibre
+ * embarquee de `components/campaign/suivi/SuiviDeriveMap.tsx`, SUPPRIME a la
+ * Tache 16 avec l'ancien ecran de suivi (le patron survit ici) : fond plein
  * sombre/clair, zéro tuile externe (aucun I/O tuiles Nano pour une carte qui
  * ne montre que des polygones déjà servis).
  *

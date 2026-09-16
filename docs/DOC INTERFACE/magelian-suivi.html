@@ -3,13 +3,37 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Magelian, suivi de campagne</title>
+<title>Magelian, suivi de campagne — MAQUETTE (palette et typo NON conformes)</title>
+<!--
+  ⚠ MAQUETTE DE REFERENCE — A LIRE AVANT D'EN REPRENDRE QUOI QUE CE SOIT.
+
+  Ce fichier fait foi pour LA HIERARCHIE DE L'INFORMATION, LA STRUCTURE, LES
+  LIBELLES ET LES MICRO-TEXTES de l'onglet Suivi. Rien de plus.
+
+  Ses COULEURS et ses POLICES ne sont PAS celles du produit et ne doivent
+  jamais en etre reprises :
+    - palette CLAIRE (--paper:#FAFBFA, --ink:#101B1C, --teal:#0B8A7C) la ou
+      MAGELIAN est dark minimal et n'a qu'un teal, #4ecdc4 ;
+    - polices Archivo + Public Sans chargees depuis Google Fonts, la ou la
+      regle du produit est « deux fontes maximum : Inter + JetBrains Mono ».
+
+  `DESIGN_SYSTEM.md` a la racine est la source de verite pour tout travail
+  frontend : EN CAS DE DIVERGENCE, LE DESIGN SYSTEM GAGNE. Cette clause etait
+  ecrite dans le fichier VOISIN (PROMPT_OVERLAY_SUIVI_V2.md) et pas ici,
+  alors que ce HTML s'ouvre seul dans un navigateur et qu'il est le seul
+  artefact visuel de l'ecran — corrige le 2026-09-16.
+
+  Les jetons ci-dessous sont locaux a cette maquette. Ils ne correspondent a
+  aucun jeton de `app/globals.css` et ne sont pas verrouilles par
+  `tests/unit/design/jetons-css.test.ts`, qui ne balaie que le code.
+-->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
-  --paper:#FAFBFA; --panel:#FFFFFF; --ink:#101B1C; --ink-2:#4A5D5E; --ink-3:#8397 98;
+  --paper:#FAFBFA; --panel:#FFFFFF; --ink:#101B1C; --ink-2:#4A5D5E; /* (un --ink-3 casse par une espace, #8397 98, vivait ici ; il etait sans effet,
+     la ligne suivante le redefinit correctement) */
   --ink-3:#839798; --rule:#E4EAE9; --rule-2:#D2DBDA;
   --teal:#0B8A7C; --teal-d:#075C52; --teal-1:#E6F3F0; --teal-2:#B9DED6;
   --rust:#BF5330; --rust-1:#FBEDE8; --amber:#9A6B12; --amber-1:#FBF2DF;
@@ -213,6 +237,14 @@ tbody tr{cursor:pointer}
 </style>
 </head>
 <body>
+<div style="background:#050505;color:#f0f0f0;font-family:system-ui,sans-serif;font-size:13px;line-height:1.5;padding:12px 18px;border-bottom:2px solid #4ecdc4">
+  <strong style="color:#4ecdc4">Maquette de référence — palette et typographie NON conformes.</strong>
+  Ce document fait foi pour la <strong>hiérarchie de l’information, la structure, les libellés
+  et les micro-textes</strong>. Rien d’autre. Ses couleurs (palette claire) et ses polices
+  (Archivo + Public&nbsp;Sans) ne sont pas celles du produit : MAGELIAN est <em>dark minimal</em>,
+  Inter + JetBrains&nbsp;Mono, accent teal <code style="color:#4ecdc4">#4ecdc4</code>.
+  En cas de divergence, <code>DESIGN_SYSTEM.md</code> gagne.
+</div>
 <header class="top">
   <div class="wrap">
     <div class="brand"><i></i>MAGELIAN</div>

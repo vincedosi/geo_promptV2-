@@ -73,9 +73,16 @@
 >   marque « protege » par le contrat de la Tache 5 dans l'en-tete de
 >   `lib/carte/calques-actifs.ts`. Ce perimetre depassait les fichiers annonces
 >   par cette tache (`components/magelian/MagelianOverlay.tsx` + ce document) ;
->   la regle de cette meme tache est explicite — « un fichier avec un
->   consommateur restant ne part pas encore, le dire plutot que de supprimer et
->   rattraper les degats ». Reste donc a faire, en tache separee et revue :
+>   et la regle appliquee ici est celle de `CLAUDE.md` § Methodologie (« pas de
+>   modifs non demandees », « apres modif, grep pour confirmer que rien d'autre
+>   n'est casse ») : un fichier qui a encore un consommateur vivant ne part pas
+>   dans cette tache — on le dit et on le documente, plutot que de le supprimer
+>   et de rattraper les degats au prochain build. *(Ce paragraphe invoquait
+>   jusqu'au 2026-09-16 « la regle de cette meme tache », citee entre
+>   guillemets ; la phrase ne figure ni dans `task-16-brief.md` ni dans le plan
+>   du chantier — elle ne vivait que dans le rapport de l'agent executant. Une
+>   justification qui renvoie a un document introuvable ne justifie rien.)*
+>   Reste donc a faire, en tache separee et revue :
 >   supprimer `SuiviMapLayer.tsx` et desactiver proprement le degrade
 >   `'campagne-impressions'` cote page.tsx/PanneauCalques/LegendeCarte.
 >
@@ -131,7 +138,7 @@
 | Langage | TypeScript (strict) | ^5.3 |
 | Base de donnees | Supabase (PostgreSQL **17.6.1.063** + PostGIS) — les docs annoncaient 15 jusqu'au 2026-09-13, soit deux versions majeures d'ecart. Compute **Micro** et non Nano (shared_buffers 256 Mo, effective_cache_size 768 Mo, soit ~1 Go de RAM) | ^2.97 |
 | Cartographie | MapLibre GL JS | ^5.18 |
-| Tuiles vectorielles | MVT servies par PostGIS (`ST_AsMVT`). PMTiles conserve pour les carreaux uniquement — les IRIS sont passes en MVT le 2026-09-11 | 4.4.0 |
+| Tuiles vectorielles | MVT servies par PostGIS (`ST_AsMVT`) — **pour TOUT**, carreaux compris. Le paquet `pmtiles` (4.4.0) reste declare dans `package.json` mais **plus rien ne l'importe** : `npm run catalogue` le liste en dependance jamais importee, le protocole n'est plus enregistre (`app/copilote/_hooks/useMapInit.ts:136`) et aucune couche PMTiles ne subsiste. Ce document annoncait « PMTiles conserve pour les carreaux uniquement » jusqu'au 2026-09-16 : c'etait faux, les carreaux passent par `/api/tiles/[z]/[x]/[y]` (documente comme tel plus bas). Le desinstaller est un geste sans risque, laisse a une passe de nettoyage | — |
 | LLM / Copilote | Vercel AI SDK + Gemini 2.5 Flash / Mistral Small | ai ^6.0 |
 | Fonds de carte | OpenFreeMap (Liberty / Positron / Bright) + MAGELIAN dark style | — |
 | Isochrones | OpenRouteService (ORS) REST API | — |
@@ -180,9 +187,20 @@ genesis_app/
 │   ├── login/                  # Page de connexion Supabase Auth
 │   ├── map/                    # Page carte complete
 │   │   ├── _components/        # panneaux/ (Filtre/Calques/Analyse/Zones du rail),
-│   │   │                       # IrisDetailPanel, ClusterPanel — FilterPanel.tsx
-│   │   │                       # (l'ancien monolithe) supprime le 2026-09-12,
-│   │   │                       # vide par les taches 2 a 7
+│   │   │                       # IrisDetailPanel, ClusterPanel, ClusteringWizard,
+│   │   │                       # CaptureLayers, ZoneMediaPlanPanel, DessinLibre,
+│   │   │                       # et les couches de carte : CivicHealthMapLayer,
+│   │   │                       # CivicIndicatorsLayer, ScoreMapLayer,
+│   │   │                       # DiffusionMapLayer, SuiviMapLayer.
+│   │   │                       # FilterPanel.tsx (l'ancien monolithe) supprime le
+│   │   │                       # 2026-09-12, vide par les taches 2 a 7 — mais
+│   │   │                       # ⚠ le repertoire filter-panel/ VIT TOUJOURS
+│   │   │                       # (34 fichiers) : ce n'est pas un residu, il porte
+│   │   │                       # les outils montes par les panneaux du rail, dont
+│   │   │                       # ScoreCompositeTool.tsx, CorrelationTool.tsx et
+│   │   │                       # use-analyses.ts ajoutes par la Tache 11-12.
+│   │   │                       # Ne pas le supprimer en lisant « FilterPanel
+│   │   │                       # supprime » : ce sont deux choses differentes.
 │   │   └── analyse/digital/    # Analyse campagnes digitales
 │   │       ├── _components/    # AnalysisPanel, SyncMap, BiddingCopilot,
 │   │       │                   # MeteoGeoPanel, MediaHeatmap, KpiSummary...
@@ -192,6 +210,13 @@ genesis_app/
 ├── components/                 # Composants React partages
 │   ├── AppSidebar.tsx          # Sidebar navigation MAGELIAN
 │   ├── campaign/               # Gestion campagne (embarquee dans l'overlay MAGELIAN)
+│   │   ├── ActivationPanel.tsx # ⚠ L'ECRAN qui pilote les quatre routes
+│   │   │                       # /api/campaigns/[id]/activation/{prevol,pousser,
+│   │   │                       # historique,rollback} (Tache 20, onglet Activation).
+│   │   │                       # Absent de ce document jusqu'au 2026-09-16, alors
+│   │   │                       # que les quatre routes y etaient decrites en detail :
+│   │   │                       # on pouvait chercher « qui appelle activation/pousser »
+│   │   │                       # et conclure que la plomberie n'avait pas d'interface.
 │   │   ├── CampaignCockpit.tsx # Fil d'Ariane + wizard prog (Cible→Canaux & budgets→Pression→Strategie→Lancement)
 │   │   ├── CampaignOverview.tsx# Apercu campagne + actions (Pause/Cloturer/Archiver/Supprimer) —
 │   │   │                       # la modification passe par l'onglet Strategie (wizard)
@@ -230,7 +255,11 @@ genesis_app/
 │   │   │                       # bouton Ouvrir, visible quand l'overlay est ferme, aucune requete
 │   │   ├── MagelianDeepLink.tsx# Lit /map?campaign=&tab=, ouvre l'overlay, nettoie l'URL
 │   │   └── deep-link.ts        # parseMagelianParams (ignore ?overlay= des autres overlays)
-│   ├── CarreauxPMTilesLayer    # Couche PMTiles carreaux INSEE
+│   │                           # (Il n'y a PLUS de couche PMTiles. Ce document listait ici un
+│   │                           #  `CarreauxPMTilesLayer` qui n'existe pas sur le disque — verifie
+│   │                           #  le 2026-09-16. Les carreaux sont servis en MVT par
+│   │                           #  /api/tiles/[z]/[x]/[y]. Ligne conservee sous cette forme pour
+│   │                           #  que la recherche du nom tombe sur l'explication.)
 │   ├── SessionBadge            # Badge session utilisateur
 │   └── ui/                     # Composants UI MAGELIAN
 │       ├── GeoBot.tsx          # Mascotte/assistant visuel
@@ -538,11 +567,38 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 `poi_france`, `saved_maps`, `profiles`, `organizations`,
 `organization_members`, `campaign_organizations`.
 
-⚠️ **Elles ne s'executent jamais.** Les 146 routes API utilisent
-`createAdminClient()` (cle `service_role`), qui contourne RLS ; aucune
-n'utilise la cle anon. L'autorisation reellement appliquee est celle du
-middleware (authentifie ?) plus les guards et le scoping par org ecrits dans
-chaque handler.
+⚠️ **Elles ne s'executent jamais.** Les routes API qui parlent a Supabase le
+font par `createAdminClient()` (cle `service_role`), qui contourne RLS ; aucune
+n'instancie de client avec la cle anon. L'autorisation reellement appliquee est
+celle du middleware (authentifie ?) plus les guards et le scoping par org
+ecrits dans chaque handler.
+
+> **Recomptage du 2026-09-16.** Cette phrase annoncait « les 146 routes API »
+> depuis des mois, et se lisait comme un recensement exhaustif — 146 sur 146,
+> donc la garantie tient. Le depot en comptait **205**, dont 23 ajoutees par
+> `feat/suivi-v2` : **59 routes n'avaient jamais ete comptees**, et il suffisait
+> qu'une seule passe par la cle anon pour que la garantie tombe sans que
+> personne ait de raison d'aller voir. Un chiffre ne vaut que par la date a
+> laquelle il a ete mesure, d'ou ce paragraphe plutot qu'un nouveau nombre dans
+> la phrase.
+>
+> Mesures du 2026-09-16 : **205** fichiers `app/api/**/route.ts` sur le disque,
+> **204 suivis par git** (voir l'anomalie ci-dessous) ; **180** instancient
+> `createAdminClient()` ; **0** instancie un client Supabase avec la cle anon —
+> le seul fichier qui nomme `SUPABASE_ANON_KEY` est `/api/admin/health`, qui en
+> verifie la PRESENCE sans s'en servir. Les ~25 routes restantes ne parlent pas
+> a Supabase (proxys de tuiles, diagnostics de configuration, webhooks).
+>
+> ⚠️ **`app/api/radio/data/route.ts` n'est PAS suivi par git** : le motif
+> `data/` de `.gitignore:45` l'exclut, et il n'a jamais ete commite (verifie sur
+> toutes les branches). Il porte pourtant un `DELETE` reserve au super_admin
+> (« Suppression des donnees radio », cibles `emetteurs`/`radios`/`all`) que
+> `app/admin/radio/page.tsx:305,319` appelle par `adminFetch`. Sur le poste du
+> developpeur le bouton fonctionne ; en production, Vercel deploie depuis git,
+> la route n'existe pas et la suppression repond 404. **A trancher : ajouter une
+> exception a `.gitignore` (et donc deployer une route destructrice qui n'a
+> jamais tourne en production), ou retirer le bouton.** Signale ici plutot que
+> corrige a la volee — les deux issues ont des consequences.
 
 Les policies restent une defense en profondeur valable — mais personne ne doit
 supposer qu'elles protegent quoi que ce soit tant que ce chemin n'est pas
@@ -580,7 +636,13 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/map/ooh` | POST | Panneaux OOH. `bbox` optionnelle (Tache 4), meme regle que `/api/map/pois` |
 | `/api/map/transport` | GET | Donnees transport |
 | `/api/map/poi-natures` | GET | Natures de POI |
-| `/api/tiles/[z]/[x]/[y]` | GET | Tuiles MVT carreaux (gzip obligatoire). **Cascade `get_tile` calee sur la taille apparente des mailles** (une choroplethe se lit entre 10 et 40 px par carreau) : `z<=6` 20 km · `z7` 5 km · `z8` 2 km · `z9-11` **1 km** · `z>=12` 200 m (sql/129). Ne PAS redescendre le seuil du 200 m sans avoir d'abord donne des colonnes typees a `carreaux_filosofi` : ses 4,6 Go et son jsonb de 806 o/ligne imposent un plancher d'environ 4 s par tuile froide sur Nano. Chaque feature porte `superficie_km2` (sql/122), consomme par `lib/carreaux/normalisation.ts` pour rendre les indicateurs comparables entre paliers de zoom. **Tout changement du schema de tuile (colonnes ajoutees/retirees) impose de bumper `CARREAUX_TILE_VERSION` dans `lib/version.ts`** — sinon une tuile en cache (jusqu'a 1 h) reste servie avec l'ancien schema pendant que le front attend le nouveau. |
+| `/api/tiles/[z]/[x]/[y]` | GET | Tuiles MVT carreaux (gzip obligatoire). **Cascade `get_tile` calee sur la taille apparente des mailles** (une choroplethe se lit entre 10 et 40 px par carreau) : `z<=6` 20 km · `z7` 5 km · `z8` 2 km · `z9-11` **1 km** · `z>=12` 200 m (sql/129). Ne PAS redescendre le seuil du 200 m sans avoir d'abord donne des colonnes typees a `carreaux_filosofi` : ses 4,6 Go et son jsonb de 806 o/ligne imposent un plancher d'environ 4 s par tuile froide (mesure faite quand le compute etait annonce Nano ; le palier reel est Micro, voir « Budget I/O Supabase » plus bas — le plancher, lui, a ete chronometre et reste vrai). Chaque feature porte `superficie_km2` (sql/122), consomme par `lib/carreaux/normalisation.ts` pour rendre les indicateurs comparables entre paliers de zoom. **Tout changement du schema de tuile (colonnes ajoutees/retirees) impose de bumper `CARREAUX_TILE_VERSION` dans `lib/version.ts`** — sinon une tuile en cache (jusqu'a 1 h) reste servie avec l'ancien schema pendant que le front attend le nouveau. |
+| `/api/tiles/iris/[z]/[x]/[y]` | GET | Tuiles MVT IRIS (RPC `get_iris_tile`, sql/139) — cascade departement/commune/IRIS, plancher `IRIS_ZOOM_PLANCHER`. Placee sous `/api/tiles/` a dessein : le matcher de `middleware.ts` raisonne par SEGMENT. Voir la section « IRIS : tuiles MVT servies par Postgres » |
+| `/api/tmja-tiles/[z]/[x]/[y]` | GET | Tuiles MVT du flux routier (`comptages_routiers`), pipeline calque sur celui des carreaux. ⚠ 99,7 % de cette table est un proxy OSM a 11 valeurs constantes et non du TMJA mesure — arbitrage produit en cours |
+| `/api/map/territory-mask` | POST | Geometrie d'un territoire (region/departement/CP) pour le masque MapLibre cote client — meme union admin que `/api/custom-geo/source/admin` |
+| `/api/insee-variables/[code]/geojson` | GET | Polygones CP d'une bbox enrichis de la valeur d'une variable INSEE (couche indicateurs) |
+| `/api/insee-variables/cp-detail` | GET | Commune principale d'un code postal + nombre de communes associees — popup de la couche ci-dessus |
+| `/api/ref/geo` | GET | Referentiel regions/departements INSEE lu EN BASE (`ref_regions` + `ref_departements`). Remplace `lib/geo/france-admin.ts` partout ou la liste doit etre a jour |
 
 ### Clustering POI x Filosofi (restaure le 2026-09-12)
 | Route | Methode | Description |
@@ -594,7 +656,10 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/poi-clusters/[clusterId]` | GET | Detail d'un cluster |
 | `/api/poi-clusters/poi/[poiId]` | GET | Clusters d'un POI, toutes durees |
 | `/api/poi-clusters/history/[poiId]` | GET | Historique des assignations d'un POI |
-| `/api/poi-clusters/count`, `/poi-types`, `/france-averages`, `/model` | GET | Comptages, types disponibles, moyennes France, modele courant |
+| `/api/poi-clusters/count` | GET | Nombre de POI clusterises |
+| `/api/poi-clusters/poi-types` | GET | Types de POI disponibles, avec total et nombre deja clusterise |
+| `/api/poi-clusters/france-averages` | GET | Moyennes nationales Filosofi (reference du radar de clustering) |
+| `/api/poi-clusters/model` | GET | Modele courant |
 
 > Les 13 routes sont protegees par `middleware.ts` (`/api/poi-clusters` dans
 > `PROTECTED_API_PREFIXES` **et** `/api/poi-clusters/:path*` dans le matcher —
@@ -639,8 +704,10 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/digital/[campaignId]/analysis` | GET | Breakdown/medias/indicators/heatmap |
 | `/api/digital/[campaignId]/map` | GET | Choroplethe CP campagne (GeoJSON) |
 | `/api/digital/[campaignId]/media` | GET | Regies distinctes campagne |
+| `/api/digital/[campaignId]/actors` | GET | Acteurs de la campagne (DSP / social / regie) avec livre, depense, CPM, part et atteinte d'objectif — alimente « Qui a diffuse » du Suivi V2 (RPC `get_campaign_actors`) |
+| `/api/digital/[campaignId]/pacing` | GET | Diagnostic plan-vs-reel PAR ITEM de zone (`?version=`) : parts intra-zone, ecart, statut, spillover. Distinct de `/suivi`, qui agrege au niveau campagne |
+| `/api/digital/[campaignId]/custom-zone/[zoneId]` | GET | Croisement campagne x zone custom → GeoJSON + resume, meme forme que `/map` |
 | `/api/digital/[campaignId]/ai-analysis` | POST | Analyse Gemini performances geo |
-| `/api/digital/[campaignId]/bidding-chat` | POST | Chat bidding Gemini multi-turn |
 | `/api/digital/[campaignId]/campaign-chat` | POST | Chat IA « Suivi campagne » — streaming Gemini, historique ephemere cote client, contexte serveur borne (stats geo RPC 098 + journal strategie 25/15/10 + breakdown IRIS 30) |
 | `/api/digital/[campaignId]/suivi` | GET | Payload complet du cockpit de suivi (pacing, CPM, pression tenue, alertes, depts, quotidien) — lit les rollups uniquement, backfill lazy si absents (campagnes avec strategie). Route KEPT (Tache 16) : `pacing.total_budget` + `daily` alimentent la trajectoire budget de `suivi-v2/DetailTechnique.tsx` |
 | `/api/digital/[campaignId]/suivi/map` | GET | Choroplethe CP du suivi (`?metric=hold\|cpm&bbox=`) — features GeoJSON pour SuiviMapLayer |
@@ -677,7 +744,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/radio/filter-options` | GET | Options filtres (categories, groupes) |
 | `/api/radio/stats` | GET | Stats radios |
 | `/api/radio/audit` | GET | Audit matching radio |
-| `/api/radio/data` | GET | Donnees radio |
+| `/api/radio/data` | DELETE | ⚠️ **Suppression** des donnees radio (`{ target: 'emetteurs' \| 'radios' \| 'all', confirm }`, `requireAdmin()`) — et NON un GET « donnees radio », comme ce tableau l'annoncait jusqu'au 2026-09-16. **Le fichier n'est pas suivi par git** (motif `data/` de `.gitignore:45`) : il n'existe donc pas en production, ou le bouton de `/admin/radio` repond 404. Voir la note de la section « RLS — DORMANTES » |
 | `/api/radio/import-anfr` | POST | Import ANFR (requireAdmin) |
 | `/api/radio/import-arcom-ods` | POST | Import Arcom ODS (requireAdmin) |
 | `/api/radio/crawl-arcom` | POST | Crawl + matching Arcom (requireAdmin) |
@@ -700,6 +767,8 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/admin/campaigns/[id]` | GET/DELETE/PATCH | Detail/suppression/modification campagne |
 | `/api/admin/campaigns/[id]/organizations` | GET/POST | Gestion orgs campagne |
 | `/api/admin/campaigns/[id]/organizations/[orgId]` | DELETE | Retrait org campagne |
+| `/api/admin/campaigns/[id]/metrics` | GET | KPIs reellement remplis (`available`) et declares-mais-vides (`empty`) d'une campagne — pilote le selecteur de KPI (RPC `get_campaign_available_metrics`) |
+| `/api/admin/campaigns/[id]/aggregate` | GET | Total agrege d'UN KPI (`?metric=`), valide contre `dsp_metrics_registry` — 400 sur un champ inconnu |
 
 ### DSP API (connexions) (protegees par `requireAdmin()`)
 | Route | Methode | Description |
@@ -759,12 +828,17 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/admin/users/[id]` | DELETE | Suppression utilisateur |
 | `/api/admin/imports` | GET | Historique imports |
 | `/api/admin/init-admin` | POST | Init premier admin (protege par ADMIN_INIT_KEY) |
+| `/api/admin/custom-geo/list` | GET | Liste CROSS-WORKSPACE des `custom_geo_zones` (super_admin, service role) |
+| `/api/admin/custom-geo/stats` | GET | Stats cross-workspace des zones, pour la carte d'en-tete de `/admin/sources` |
+| `/api/admin/custom-geo/[id]` | DELETE | Suppression cross-workspace d'une zone (override RLS) |
+| `/api/admin/import-geo/register` | POST | Enregistre une source geo importee (pendant de `/api/admin/import-geo/*`) |
 
 ### Multi-tenant utilisateur
 | Route | Methode | Description |
 |-------|---------|-------------|
 | `/api/user/organizations` | GET | Orgs de l'utilisateur courant |
 | `/api/user/switch-org` | POST | Changement d'org active |
+| `/api/auth/[...auth]` | GET/POST | Catch-all INERTE. L'authentification se fait entierement cote client par le SDK Supabase ; cette route existe pour qu'un appel a `/api/auth/*` reponde autre chose qu'un 404 |
 
 > La page `/integration-panneaux` et ses routes `/api/integration-panneaux/*`
 > ont ete supprimees en 2026-07 (pipeline CSV incomplet, perte de colonnes —
@@ -777,13 +851,68 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/custom-geo/national-totals` | GET | Totaux population France par tranche d'age (RPC `get_national_population_totals` sur carreaux_5km, cache serveur 24h) — colonne « % France » du plan media (ZoneMediaPlanPanel : budget/CPM/cible sur les zones affichees) |
 | `/api/custom-geo/[id]/items-audience` | GET | Audience par item d'une zone (les isochrones d'une zone battle) — cache `items_audience_stats`, sinon RPC `compute_zone_items_audience` (sql/088, cibles age+menages+logement social sql/090) |
 | `/api/custom-geo/[id]/export?weights=` | GET | Variantes ponderees de `bidding_script` (paliers de score DV360 par item) et `tiktok_geo` (un ad group par item avec part de budget) — poids du plan media, RPC `get_zone_items_export` (sql/089) |
-| `/api/custom-geo/source/*` | — | ⚠ **Les cinq routes de fabrication de zone (codes-postaux, rayon, dessin, intersection, difference) et les trois routes d'analyse (`/api/analyses`, `/score`, `/correlation`) portent un quota** ajoute apres relecture : 20 appels / 60 s par utilisateur, compteur PARTAGE en base (`consommer_quota`, sql/135), jamais une Map locale. Cout unitaire mesure : `get_admin_filter_geometry` sur 2 000 CP lit **540 blocs disque** par appel, `zone_dessin` sur 5 000 sommets prend 1,5 s, `zone_rayon` a 100 km 355 ms — sans plafond, une boucle sur l'une d'elles est la famille exacte de l'incident du 28/03 |
+| `/api/custom-geo/source/*` | — | ⚠ **Six des dix-sept routes de ce prefixe portent un quota**, PAS toutes. Avec quota (20 appels / 60 s par utilisateur, compteur PARTAGE en base — `consommer_quota`, sql/135, jamais une Map locale) : `codes-postaux`, `rayon`, `dessin`, `intersection`, `difference` (les cinq routes de fabrication de zone) et `score` (quota `geo:rl:zone-score`, ajoute le 2026-09-15). Les trois routes d'analyse `/api/analyses`, `/score` et `/correlation` en ont un aussi. **SANS quota** : `admin`, `battle`, `carreaux`, `composite`, `digital`, `indicator-threshold`, `iris`, `meteo`, `radio`, `tmja`, `voronoi` — et parmi elles, **`admin`, `indicator-threshold` et `meteo` appellent `get_admin_filter_geometry`**, la RPC dont le cout justifie le garde-fou. Recompte le 2026-09-16 : jusque-la cette ligne, posee sur le glob, laissait croire que les dix-sept etaient couvertes. Cout unitaire mesure : `get_admin_filter_geometry` sur 2 000 CP lit **540 blocs disque** par appel, `zone_dessin` sur 5 000 sommets prend 1,5 s, `zone_rayon` a 100 km 355 ms — sans plafond, une boucle sur l'une d'elles est la famille exacte de l'incident du 28/03 |
 | `/api/custom-geo/source/codes-postaux` | POST | **Une zone depuis une liste de CP** (Tache 16) : liste collee (JSON) ou fichier depose (multipart, lu par `lireFormulaire()` + `fichierDeFormulaire()`, jamais un cast). Borne a 2 000 CP. Rend SEPAREMENT les jetons rejetes (coquille de saisie) et les codes inconnus du referentiel (Cedex, code perime, CP etranger) — un import qui avale 500 codes, en resout 460 et n'en dit rien produit une zone plus petite que commandee, et personne ne s'en apercoit avant la facture. La verification au referentiel est **decoupee en lots de 500** : `postgrest-js` encode chaque virgule d'un `.in()` en `%2C`, soit 8 caracteres par CP — a 2 000 codes l'URL faisait **16 104 caracteres** (mesure) pour une limite Kong/nginx usuelle de 16 384, et un depassement echoue MUETTEMENT |
 | `/api/custom-geo/source/rayon` | POST | **Zone circulaire** (Tache 17, sql/155) : `{lon, lat, rayon_m}`, rayon borne a 100 km. `ST_Buffer` sur `geography` — en degres, le cercle deviendrait une ellipse et « 20 km » n'en ferait pas 20. Clippe sur `france_borders`, qui couvre les DROM (verifie : -61,8 a 55,8 de longitude). Rend `part_retenue` : Marseille 20 km ne garde que 60,5 % du cercle, le reste est en mer. 409 si le clip emporte tout |
 | `/api/custom-geo/source/dessin` | POST | **Trace libre** (Tache 18, sql/156) : recoit le polygone dessine, le valide par `ST_MakeValid` — un trace a main levee croise souvent son propre chemin, et le « noeud papillon » resultant ferait lever toute operation PostGIS ulterieure — puis le clippe sur `france_borders`. 409 sur un trace sans surface exploitable. Rend `corrige` (le trace a du etre repare, la zone n'est pas exactement celle dessinee) et `part_retenue` |
 | `/api/custom-geo/source/intersection` | POST | **Ce que 2 a 20 zones ont en commun** (Tache 14, sql/151) : la premiere zone intersectee avec l'UNION des autres — et non une reduction deux a deux, qui repondrait a une autre question. Repond **409** sur une intersection vide plutot que de creer une zone a zero code postal, qui partirait ensuite au DSP. `checkZoneAccess` par lots de 3 |
 | `/api/custom-geo/source/difference` | POST | **Une zone moins d'autres** (Tache 14, sql/151). `zone_base` et `zones_retirees` sont deux champs distincts et non une liste : l'operation n'est PAS symetrique, et rien dans le resultat ne dirait qu'on s'est trompe d'ordre. 409 si rien ne reste |
 | `/api/custom-geo/media-plan` | GET/POST/DELETE | Rattachement du plan media a une campagne DSP — persiste budget/CPM/cible/poids dans `dsp_campaigns.geo_strategy.media_plan` (sous-cle namespacee, scope org) |
+| `/api/custom-geo/media-plan/snapshot` | POST | Fige un snapshot VERSIONNE du plan pousse au DSP, item par item (`zone_id:poi_id`), expanse en codes postaux via `get_zone_items_export` |
+| `/api/custom-geo/list` | GET | Zones custom de l'org courante |
+| `/api/custom-geo/stats` | GET | Comptages des zones de l'org, pour l'en-tete de la galerie |
+| `/api/custom-geo/[id]/geometry` | GET | Geometrie d'une zone enregistree |
+| `/api/custom-geo/capture` | POST | Recoit N geometries + une transformation, appelle `transform_geometries_for_save` puis enchaine creation et resolution des codes |
+
+**Les onze autres routes `/api/custom-geo/source/*`** — fabrication d'une zone depuis une couche affichee ; toutes en POST, toutes rendant une geometrie que le client enregistre ensuite par `/api/custom-geo/save`. ⚠ **Aucune ne porte de quota**, voir l'avertissement de la ligne `source/*` plus haut.
+
+| Route | Description |
+|-------|-------------|
+| `/api/custom-geo/source/admin` | Union des geometries d'une selection administrative (region / departement / CP). Appelle `get_admin_filter_geometry` |
+| `/api/custom-geo/source/indicator-threshold` | Codes passant un seuil sur UN indicateur du registre, puis materialisation de la geometrie. Route sœur de `source/score`, qui elle sait exprimer un score COMPOSITE |
+| `/api/custom-geo/source/meteo` | Enveloppe de `get_admin_filter_geometry` : la meteo est agregee par zones admin existantes, pas sur une grille propre |
+| `/api/custom-geo/source/carreaux` | Union des carreaux Filosofi d'une bbox (borne par `max_rows`), filtrage optionnel par bornes de valeur |
+| `/api/custom-geo/source/iris` | Union des geometries d'un ensemble d'IRIS |
+| `/api/custom-geo/source/voronoi` | Union des cellules Voronoi d'une categorie (mode standard V1 ; le mode routier reste a faire) |
+| `/api/custom-geo/source/battle` | Geometrie d'une bataille isochrone (union des caches cibles) |
+| `/api/custom-geo/source/radio` | Union des buffers de couverture des emetteurs d'une radio (RPC `get_radio_coverage_geometry`, sql/121) |
+| `/api/custom-geo/source/tmja` | Buffer de 250 m autour des LineStrings de flux routier d'une bbox, unis en MultiPolygon |
+| `/api/custom-geo/source/digital` | Zone active d'une campagne digitale, filtree sur les codes ayant recu des impressions |
+| `/api/custom-geo/source/composite` | Union des geometries de 2 a 20 zones custom membres — a distinguer de `source/intersection` et `source/difference`, qui repondent a d'autres questions |
+
+### Wizard de campagne — cibles, canaux, brouillons
+| Route | Methode | Description |
+|-------|---------|-------------|
+| `/api/campaigns/[campaignId]/channels` | GET/PUT | Canaux de diffusion d'une campagne (DSP / reseaux / ad server). Catalogue = `dsp_channel_registry`, « connecte » = `dsp_connections` de l'org ; persiste dans `geo_strategy.channels` |
+| `/api/cibles/indicators` | GET | Catalogue des indicateurs ciblables (`cible_indicator_registry`) |
+| `/api/cibles/preview` | GET | Apercu `count` / population d'un seuil (`?indicator=&operator=&threshold=`) — COUNT indexe, **jamais de geometrie** : c'est ce qui rend l'apercu utilisable a chaque mouvement de curseur |
+| `/api/bidding/strategies/drafts` | GET/POST | Brouillons de strategie de l'utilisateur courant (`consumed_at IS NULL`) ; POST = upsert appele par l'autosave du wizard |
+| `/api/bidding/strategies/drafts/[id]` | GET/DELETE | Chargement / abandon d'un brouillon, avec verification du proprietaire |
+| `/api/bidding/strategies/[id]/final-report` | POST | Bilan executif Gemini en cinq sections d'une campagne terminee, cache memoire 1 h. ⚠ Lit `get_strategy_comparison_data`, **tronquee a 5 000 lignes par PostgREST** sur une table qui en porte 280 000 — defaut C de `docs/SUITE_TRONCATURE_POSTGREST.md` |
+
+### Agent autonome (bidding)
+| Route | Methode | Description |
+|-------|---------|-------------|
+| `/api/agent/chat` | POST | Pipeline complet : detection d'intention → handler → application des regles → trace d'audit |
+| `/api/agent/analyze-drift` | POST | Force l'intention `analyze_drift` sur un evenement de derive donne |
+| `/api/agent/apply-recommendation` | POST | Applique ou rejette une recommandation de l'agent et trace la decision |
+| `/api/pilot` | POST | Point d'entree du pilote automatique |
+
+### Mode demo (bac a sable)
+
+Sept routes qui montent, font vivre et demontent un jeu de donnees de
+demonstration. Elles ecrivent en base comme les vraies — le mode demo est un
+jeu de DONNEES, pas un chemin de code separe (`sql/112`).
+
+| Route | Methode | Description |
+|-------|---------|-------------|
+| `/api/demo/seed` | POST | Monte le jeu de demonstration |
+| `/api/demo/reset` | POST | Remet le jeu a son etat initial |
+| `/api/demo/teardown` | POST | Demonte le jeu |
+| `/api/demo/simulate-period` | POST | Fait avancer la campagne de demonstration d'une periode |
+| `/api/demo/apply-rebid` | POST | Applique un rebid sur la campagne de demonstration |
+| `/api/demo/report` | GET | Rapport de demonstration |
+| `/api/demo/report/narrative` | POST | Version redigee du rapport ci-dessus |
 
 ### Analyses enregistrees (Tache 11, 2026-09-12)
 | Route | Methode | Description |
@@ -849,7 +978,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `dsp_campaign_data` | Lignes d'impressions DSP | Unicite via index EXPRESSION `idx_dsp_data_unique` sur (campaign_id, COALESCE(date), COALESCE(postal_code), COALESCE(city), COALESCE(media)) — 5 colonnes, NULL=egal. **Non inferable par `onConflict` PostgREST** : pour un import idempotent, faire DELETE cible + insert (pas d'upsert). |
 | `campaign_organizations` | Liaison N:N campaigns/orgs | campaign_id, organization_id |
 | `postal_code_commune` | Referentiel La Poste | ~35k lignes, code postal -> commune |
-| `indicator_cp_materializations` | Journal des materialisations d'`indicator_cp_values` : une ligne par indicateur, avec le NOMBRE de lignes ecrites (zero compris) et la date de la donnee pour les sources quotidiennes | sql/148 (2026-09-13). Existe parce que la PRESENCE de valeurs ne dit pas qu'on a deja calcule : `materialize_indicator_cp_values` peut ecrire ZERO ligne — `part_couples_enfants` pointe sur une colonne vide sur les 49 448 IRIS tout en etant active au registre — et un appelant qui teste la presence rematerialisait alors a CHAQUE lancement, soit un seq scan complet d'`iris` (~173 Mo, 1,3 s) sur un Nano a 5 Mo/s. RLS deny-all |
+| `indicator_cp_materializations` | Journal des materialisations d'`indicator_cp_values` : une ligne par indicateur, avec le NOMBRE de lignes ecrites (zero compris) et la date de la donnee pour les sources quotidiennes | sql/148 (2026-09-13). Existe parce que la PRESENCE de valeurs ne dit pas qu'on a deja calcule : `materialize_indicator_cp_values` peut ecrire ZERO ligne — `part_couples_enfants` pointe sur une colonne vide sur les 49 448 IRIS tout en etant active au registre — et un appelant qui teste la presence rematerialisait alors a CHAQUE lancement, soit un seq scan complet d'`iris` — mesure : ~173 Mo et 1,3 s, chiffre a preferer au « 5 Mo/s » qui circulait alors (voir « Budget I/O Supabase »). RLS deny-all |
 | `indicator_cp_values` | Valeurs d'indicateurs INSEE par code postal (pression sur la cible) | Materialisation lazy par indicateur (RPC ci-dessous), agregation IRIS -> CP avec fallback communal ; consommee par apply_zone_weights_to_strategy et l'export custom bidding |
 | `campaign_daily_rollup` | Agregat quotidien par campagne (date × media : imps, clics, spend) | Rafraichi a l'import/absorb/armement — le cockpit de suivi ne scanne JAMAIS dsp_campaign_data. RLS deny-all (routes service role) |
 | `campaign_cp_rollup` | Agregat par CP (imps, spend, fenetres 7 j, in_target + planned_share du plan) | ~6-12k lignes/campagne — tableau, alertes et carte du suivi. RLS deny-all |
@@ -923,7 +1052,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `smart_prompt_feedback` | Feedback prompts IA (user_id) | |
 | `smart_ville_stats` | Stats villes | |
 | `qualite_releves` | Dernier releve de chaque verification de qualite des donnees | sql/149 (2026-09-13). Rouvrir `/admin/qualite-donnees` lit CETTE table, jamais les tables sources. RLS deny-all |
-| `quotas_appels` | Compteurs de quota d'appels PARTAGES entre instances (sql/135) | Une ligne par cle = prefixe de route + appelant. Ecrite par la RPC `consommer_quota` (un seul `INSERT … ON CONFLICT … RETURNING`, donc exact en concurrence). Se purge elle-meme. RLS deny-all. **C'est le garde-fou du budget I/O Nano** : avant, il comptait en memoire d'instance et ne limitait rien sur Vercel |
+| `quotas_appels` | Compteurs de quota d'appels PARTAGES entre instances (sql/135) | Une ligne par cle = prefixe de route + appelant. Ecrite par la RPC `consommer_quota` (un seul `INSERT … ON CONFLICT … RETURNING`, donc exact en concurrence). Se purge elle-meme. RLS deny-all. **C'est le garde-fou du budget I/O** : avant, il comptait en memoire d'instance et ne limitait rien sur Vercel |
 | `civic_health_cache` | Cache indicateurs ATMO + pollen par code INSEE commune | TTL 24h, fallback stale 48h, RLS public read / service write, source ODbL Atmo France |
 | `pollen_map_daily` | Indice pollen national par code postal (max des communes du CP) + concentrations grains/m³ par espece + alerte | ~6 200 lignes/jour, purge J-2, ingestion bulk WFS (sql/084 + 086), RLS read auth / write service |
 | `atmo_map_daily` | Indice ATMO qualite de l'air par code postal (max des communes du CP) | ~5 000 lignes/jour, purge J-2, ingestion bulk WFS (sql/085), RLS read auth / write service |
@@ -991,7 +1120,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `materialize_indicator_cp_values` | Materialise un indicateur du registre IRIS en valeurs par CP (agregation ponderee + fallback communal), table `indicator_cp_values` | Lancement wizard (matérialisation lazy), `api/bidding/strategies/` |
 | `refresh_campaign_rollups` | Reconstruit les rollups de suivi d'une campagne (daily + CP, plan copie de bidding_zone_configs) | Import DSP, absorb, armement, backfill lazy `api/digital/[id]/suivi/` |
 | `get_campaign_suivi` | Payload jsonb complet du cockpit (pacing, cpm, pression, objectif, alertes, depts, daily) — seuils d'alerte constants sql/108 | `api/digital/[id]/suivi/` |
-| `get_campaign_suivi_cps` | CP d'un departement (drill, max 500, pires indices d'abord) | *orpheline sur cette branche* (Tache 16, 2026-09-15) — la route `api/digital/[id]/suivi/cps/` est supprimee avec `SuiviTable.tsx`, son seul appelant. Reste EN BASE : `origin/main` (prod) a encore les deux, meme regle que les RPC `get_campaign_derive_*` ci-dessous |
+| `get_campaign_suivi_cps` | CP d'un departement (drill, max 500, pires indices d'abord) | *orpheline sur cette branche* (Tache 16, 2026-09-15) — la route `api/digital/[id]/suivi/cps/` est supprimee avec `SuiviTable.tsx`, son seul appelant. Reste EN BASE : `origin/main` (prod) a encore les deux, meme regle que les RPC `get_campaign_derive_*` — dont la description vit dans le PARAGRAPHE DE TETE de ce document (« Les RPC get_campaign_derive_map… restent EN BASE ») et non dans ce tableau, ou elles n'ont jamais eu de ligne. Le renvoi disait « ci-dessous » jusqu'au 2026-09-16 : la tache SQL de nettoyage post-merge, explicitement prevue par ce meme paragraphe, l'aurait suivi et n'aurait rien trouve — soit elle oubliait les trois RPC, soit elle les supprimait sans la mise en garde « origin/main les appelle encore », ce qui casse l'ecran de suivi en production, en direct, sur une base partagee entre branches |
 | `get_campaign_suivi_map` | Features CP (geometries ref_codes_postaux) pour la choroplethe hold/cpm | `api/digital/[id]/suivi/map/` |
 | `simulate_dsp_report` | Genere le rapport DSP demo (set-based depuis les rollups, part de budget, sur-declaration ×1,03) | `api/digital/[id]/reconcile/pull/` |
 | `get_campaign_reconciliation` | Payload reconciliation (global taux de mesure, par canal, tendance) | `api/digital/[id]/reconcile/` |
@@ -1105,7 +1234,25 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 
 ## Contraintes operationnelles
 
-### Supabase Nano (250 IOPS, 5 MB/s, burst 30 min/jour)
+### Budget I/O Supabase — les regles tiennent, le chiffre n'est plus citable
+
+> **Ce titre annoncait « Supabase Nano (250 IOPS, 5 MB/s, burst 30 min/jour) »
+> jusqu'au 2026-09-16.** Il contredisait le tableau Stack technique de CE MEME
+> document, huit cents lignes plus haut : le compute est **Micro**, pas Nano
+> (`shared_buffers` 256 Mo, `effective_cache_size` 768 Mo, ~1 Go de RAM), et
+> une lecture sequentielle de 348 Mo a ete chronometree a **~195 Mo/s** le
+> 2026-09-13, pas 5. `CLAUDE.md` conclut depuis cette mesure : « ne plus
+> **citer** 250 IOPS / 5 MB/s comme un fait etabli ». Le document autoritaire
+> le citait quand meme, dans son titre.
+>
+> **Cela ne releve AUCUNE des regles ci-dessous.** Une mesure unique ne
+> distingue pas un debit soutenu d'une rafale sur credits de burst, les trois
+> incidents d'epuisement d'I/O ont bien eu lieu, et le plafond qui a lache
+> etait peut-etre le debit ALEATOIRE, que cette mesure sequentielle ne dit pas.
+> Tant que le palier et l'IOPS provisionnee ne sont pas releves dans la console
+> Supabase (point 0 de `docs/audit/QUICK_WINS.md`, non lisible en SQL), on
+> continue de coder comme si la marge etait etroite.
+
 - Max 3 requetes Supabase paralleles (`Promise.all`)
 - Bbox = viewport carte visible, jamais France entiere
 - Lazy loading : 1 colonne IRIS a la fois
@@ -1113,8 +1260,20 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 - Batch insert par 50 max (`lib/import/inserter.ts`)
 - `EXPLAIN ANALYZE` sur toute nouvelle requete PostGIS
 
-### PostgREST
-- Truncate a 5000 rows par defaut → utiliser RPC JSON ou `.limit(100000)`
+### PostgREST — troncature a 5 000 lignes, sans erreur
+
+- **Toute** fonction `RETURNS TABLE` ou `SETOF` est coupee a 5 000 lignes par
+  PostgREST, sans exception levee, sans en-tete, sans avertissement. Cinq
+  occurrences recensees dans ce projet, **trois encore ouvertes en
+  production** : `docs/SUITE_TRONCATURE_POSTGREST.md`.
+- Une RPC dont le resultat peut depasser ce seuil est `RETURNS jsonb`. Changer
+  le type de retour d'une fonction existante exige un `DROP`, exclu en
+  production : on ecrit une **jumelle** `_jsonb` porteuse du corps, et
+  l'originale devient une **enveloppe mince** (patron sql/154, 168-169, 170).
+- Sur une requete PostgREST ordinaire (pas une RPC), `.limit(100000)` leve la
+  troncature.
+- `tests/unit/db/troncature-postgrest.test.ts` exige une borne ecrite pour
+  chaque RPC tabulaire appelee par l'application.
 
 ### MapLibre 5.x
 - Gzip obligatoire sur reponses MVT (plante silencieusement sans)
