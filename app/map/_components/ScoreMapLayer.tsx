@@ -42,7 +42,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import { echapperHtml as esc } from '@/lib/map/echapper-html';
 import { adminFetch } from '@/lib/admin-fetch';
-import { LARGEUR_RAIL, ECART_RAIL_PANNEAU } from '@/lib/navigation/config';
+import { PALIERS_SEQUENTIELS_CSS as PALIERS_SCORE } from '@/components/ui/echelle-sequentielle';
 
 /** Nom de l'événement d'activation — partagé, jamais recopié en litteral. */
 export const SCORE_MAP_EVENT = 'magelian:score-map';
@@ -240,9 +240,15 @@ export function ScoreMapLayer({ mapRef }: Props) {
 
   return (
     <div style={{
-      position: 'absolute', bottom: 24, left: LARGEUR_RAIL + ECART_RAIL_PANNEAU,
+      // Ancrée en BAS À DROITE, comme la carte flottante de la vue Diffusion
+      // (`DiffusionMapLayer`) — les deux dégradés s'excluent, elles ne
+      // peuvent donc jamais se chevaucher. Elle était auparavant au même
+      // `left` et à 12 px près au même `bottom` que `LegendeCarte`, qui la
+      // recouvrait (zIndex 35 contre 5) dès qu'un figuré ou une analyse
+      // rendait cette dernière visible (constat 17).
+      position: 'absolute', bottom: 28, right: 16,
       background: 'var(--card-overlay)', border: '0.5px solid var(--border-default)',
-      borderRadius: 6, padding: '10px 12px', zIndex: 5, minWidth: 200, maxWidth: 260,
+      borderRadius: 6, padding: '10px 12px', zIndex: 35, minWidth: 200, maxWidth: 260,
       fontFamily: fInter, fontSize: 11, color: 'var(--text-secondary)',
     }}>
       {chargement && 'Chargement des contours…'}
@@ -272,10 +278,14 @@ export function ScoreMapLayer({ mapRef }: Props) {
             >×</button>
           </div>
           <div style={{ marginBottom: 8, lineHeight: 1.4 }}>{actif.libelle}</div>
-          <div style={{
-            height: 6, borderRadius: 3, marginBottom: 4,
-            background: 'linear-gradient(to right, rgba(78,205,196,0.10), var(--brand-teal))',
-          }} />
+          {/* Cinq paliers plats de l'échelle SÉQUENTIELLE (le score est
+              monotone), jamais un `linear-gradient` — règle globale #10 du
+              DESIGN_SYSTEM, « pas de glow, shadow, gradient, blur ». */}
+          <div style={{ display: 'flex', gap: 2, height: 6, marginBottom: 4 }} aria-hidden>
+            {PALIERS_SCORE.map((couleur) => (
+              <span key={couleur} style={{ flex: 1, borderRadius: 1, background: couleur }} />
+            ))}
+          </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)' }}>
             <span>0</span><span>100</span>
           </div>

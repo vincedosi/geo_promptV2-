@@ -13,6 +13,7 @@
  * côté.
  */
 import { formaterNombre } from '@/lib/format/nombre'
+import { PALIERS_SEQUENTIELS_CSS } from '@/components/ui/echelle-sequentielle'
 
 const fMono = "'JetBrains Mono', monospace"
 
@@ -135,14 +136,13 @@ function Variation({ valeur }: { valeur: number | null }) {
 }
 
 /**
- * Cinq paliers de l'échelle SÉQUENTIELLE (DESIGN_SYSTEM §3) — le score 0-100
- * est MONOTONE : il n'a ni centre neutre ni deux sens. L'échelle divergente
- * qu'utilisait cette barre y faisait signifier « bon » au bleu, qui signifie
- * « sur-pression » (mauvais) partout ailleurs dans le même écran.
- * Cinq segments plats, jamais un `linear-gradient` (règle globale #10 du
- * DESIGN_SYSTEM : « pas de glow, shadow, gradient, blur — flat total »).
+ * Le score 0-100 est MONOTONE : il n'a ni centre neutre ni deux sens.
+ * L'échelle DIVERGENTE qu'utilisait cette barre y faisait signifier « bon »
+ * au bleu, qui signifie « sur-pression » (mauvais) partout ailleurs dans le
+ * même écran. Cinq segments plats de l'échelle séquentielle partagée, jamais
+ * un `linear-gradient` (règle globale #10 du DESIGN_SYSTEM).
  */
-const PALIERS_SCORE = ['var(--seq-1)', 'var(--seq-2)', 'var(--seq-3)', 'var(--seq-4)', 'var(--seq-5)'] as const
+const PALIERS_SCORE = PALIERS_SEQUENTIELS_CSS
 
 /**
  * Échelle de positionnement 0-100. N'affiche le repère et la phrase de

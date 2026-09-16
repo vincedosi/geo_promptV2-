@@ -118,10 +118,52 @@ const titreStyle: React.CSSProperties = {
 };
 const labelStyle: React.CSSProperties = { fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)' };
 
+/**
+ * `BlocDegrade` rendra-t-il quelque chose ?
+ *
+ * SOURCE UNIQUE de la question (constat 17 de la relecture d'interface) :
+ * `LegendeCarte` décidait de s'afficher sur `degradeActif != null`, alors que
+ * `BlocDegrade` rend `null` pour plusieurs dégradés — les deux ajoutés par
+ * cette branche (`'score'` et `'diffusion'`, qui portent leur PROPRE légende
+ * à côté de la carte) mais aussi `civic-indicateurs` sur une autre variable,
+ * `civic-sante` sans couche et `campagne-impressions` sans campagne. Activer
+ * le score composite ou la diffusion sans aucun figuré ni analyse faisait
+ * donc apparaître une boîte « Légende » entièrement VIDE en bas à gauche,
+ * posée par-dessus la légende propre de `ScoreMapLayer`.
+ *
+ * Le `switch` est EXHAUSTIF (`_exhaustif: never`) : un dégradé ajouté à
+ * `DegradeId` sans décision ici fait échouer `tsc` au lieu de reproduire
+ * silencieusement la boîte vide.
+ */
+function degradeALegende(props: LegendeCarteProps): boolean {
+  const d = props.degradeActif;
+  if (!d) return false;
+  switch (d) {
+    case 'carreaux':
+    case 'iris':
+    case 'meteo':
+      return true;
+    case 'civic-indicateurs':
+      return props.civicVariableCode === 'abstention_pres_2022';
+    case 'civic-sante':
+      return Boolean(props.civicHealthLayer);
+    case 'campagne-impressions':
+      return Boolean(props.campagneActive);
+    case 'score':
+    case 'diffusion':
+      // Légendes portées par `ScoreMapLayer` / `DiffusionMapLayer`.
+      return false;
+    default: {
+      const _exhaustif: never = d;
+      return _exhaustif;
+    }
+  }
+}
+
 /** Bloc légende du dégradé actif — une seule branche à la fois (exclusivité). */
 function BlocDegrade(props: LegendeCarteProps) {
   const { degradeActif } = props;
-  if (!degradeActif) return null;
+  if (!degradeActif || !degradeALegende(props)) return null;
 
   if (degradeActif === 'carreaux') {
     const indicateur = props.carreauxIndicateur ?? 'population_totale';
@@ -466,7 +508,9 @@ function BlocFigures(props: LegendeCarteProps) {
 export function LegendeCarte(props: LegendeCarteProps) {
   const [ouvert, setOuvert] = useState(true);
 
-  const degradeVisible = props.degradeActif != null;
+  // Jamais `degradeActif != null` : un dégradé sans légende dans ce bloc
+  // ouvrirait une boîte « Légende » vide (constat 17, voir `degradeALegende`).
+  const degradeVisible = degradeALegende(props);
   const poiCount = props.selectedPOI?.length ?? 0;
   const figuresVisible = poiCount > 0 || !!props.tmjaVisible || !!props.radioVisible || !!props.oohActif;
   const analyseVisible = !!props.zoneData && (props.activeCats?.length ?? 0) > 0;
@@ -481,8 +525,12 @@ export function LegendeCarte(props: LegendeCarteProps) {
         bottom: 12,
         zIndex: 35,
         background: 'var(--card-overlay, rgba(10,10,10,0.92))',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
+        // Même jeton que les trois autres panneaux flottants de
+        // `components/map/` : un `8px` en dur floutait deux fois plus fort
+        // que la top bar et l'overlay, et ne suivrait pas un changement du
+        // jeton (constat 22).
+        backdropFilter: 'blur(var(--backdrop-blur, 4px))',
+        WebkitBackdropFilter: 'blur(var(--backdrop-blur, 4px))',
         border: '0.5px solid var(--border-default)',
         borderRadius: 8,
         minWidth: 180,
