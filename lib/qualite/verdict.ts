@@ -1,12 +1,21 @@
 /**
- * @file lib/qualite/verdict.ts — règle de verdict de la page « Qualité des
- * données » (2026-09-13, écrit après relecture).
+ * @file lib/qualite/verdict.ts — **jumeau TypeScript** de la règle de verdict
+ * de la page « Qualité des données » (2026-09-13, écrit après relecture).
  *
  * **Jumeau TypeScript de `qualite_indicateurs` (sql/152).** Le calcul de
  * production se fait en SQL, en un seul balayage d'`iris` ; ce module tient la
  * MÊME règle en TypeScript, testable sans base. Les deux doivent évoluer
  * ensemble, dans le même commit — comme `lib/analyses/score.ts` et
  * `calculer_score_composite`.
+ *
+ * ⚠ **Ce fichier n'a aucun consommateur en production, et c'est normal pour un
+ * jumeau — mais il faut le savoir en le lisant.** `/admin/qualite-donnees`
+ * appelle la RPC ; rien ici n'est exécuté par l'application. Son seul
+ * importeur est `tests/unit/qualite/verdicts.test.ts`, dont le second
+ * `describe` rattache ces branches à celles du `CASE` de sql/152 : sans ce
+ * rattachement, douze tests verts garderaient un code que personne n'exécute
+ * pendant qu'une migration réintroduirait le défaut dans celui qui tourne.
+ * Recensé par `tests/unit/docs/modules-testes-sans-consommateur.test.ts`.
  *
  * ── Pourquoi cette règle mérite d'être écrite deux fois ────────────────────
  * La première version de cette page n'avait aucun test, et une relecture

@@ -8,6 +8,31 @@
  * « 70 tables — RLS partout » est l'exemple à ne pas reproduire).
  *
  * Usage : `npm run catalogue`. Ne modifie que `docs/CATALOGUE_CODE.md`.
+ *
+ * ── UN ANGLE MORT CONNU, mesuré le 2026-09-16 ──────────────────────────────
+ *
+ * Les fichiers de test sont des POINTS D'ENTRÉE de knip. Un module de `lib/`
+ * ou `components/` qu'aucun code de production n'importe, mais qu'un test
+ * importe, compte donc comme « utilisé » et n'apparaît JAMAIS dans ce
+ * catalogue.
+ *
+ * La ligne `"tests/**` + `/*.test.ts"` du tableau `entry` de `knip.json` en a
+ * été accusée. Elle est **redondante, pas coupable** : le plugin Vitest de
+ * knip lit `vitest.config.ts` et ajoute lui-même son `include` aux points
+ * d'entrée. Retirer la ligne ne change rien — mesuré, 196 exports morts et
+ * 4 fichiers morts avant comme après. Elle est conservée parce qu'explicite
+ * vaut mieux qu'implicite.
+ *
+ * La seule bascule qui change le résultat est `"vitest": false`, et elle coûte
+ * plus qu'elle ne rapporte : 196 → 302 exports morts, l'écart étant en grande
+ * partie des utilitaires légitimement propres aux tests. Un cliquet posé sur
+ * 302 ne cliquette plus.
+ *
+ * La question précise — « quel module de production n'est atteint que par un
+ * test ? » — est donc posée ailleurs, par
+ * `tests/unit/docs/modules-testes-sans-consommateur.test.ts`, qui refait la
+ * fermeture transitive depuis les points d'entrée de production et exige une
+ * raison écrite pour chacun des sept modules concernés.
  */
 import { execFileSync } from 'node:child_process';
 import { writeFileSync, readFileSync } from 'node:fs';
