@@ -268,4 +268,144 @@ describe('dérive entre ARCHITECTURE.md et le code', () => {
       'ce nouvel appelant, puis mettre à jour la doc.',
     ).toEqual([]);
   });
+
+  // ── Chantier suivi-v2 (taches 1-16, 2026-09-14/15) ────────────────────────
+  //
+  // Ajoutés le 2026-09-16 : AUCUN des huit contrôles ci-dessus ne regardait une
+  // seule affirmation ajoutée par ce chantier, alors que le fichier contenait
+  // déjà le patron exact qu'il fallait (le balayage d'importeurs de
+  // `ClusteringResultsContent`). Les trois affirmations verrouillées ici sont
+  // celles dont dépend une DÉCISION : ne pas supprimer trois fichiers, et
+  // pouvoir en supprimer un quatrième plus tard sans casser la production.
+
+  function fichiersDe(dossier: string): string[] {
+    const trouves: string[] = [];
+    for (const entree of readdirSync(dossier)) {
+      if (entree === 'node_modules' || entree === '.next') continue;
+      const chemin = join(dossier, entree);
+      if (statSync(chemin).isDirectory()) trouves.push(...fichiersDe(chemin));
+      else if (/\.tsx?$/.test(entree)) trouves.push(chemin);
+    }
+    return trouves;
+  }
+
+  it('SuiviMapLayer.tsx est TOUJOURS monte par page.tsx — la decision de ne pas le supprimer tient', () => {
+    // ARCHITECTURE.md (§ Tâche 16) justifie de garder ce fichier par le fait
+    // qu'il a encore un consommateur vivant, et annonce sa suppression comme
+    // « reste à faire ». Le jour où cette tâche sera faite, cette affirmation
+    // deviendra fausse et doit rougir ici — sinon le document continuera
+    // d'affirmer au présent qu'un fichier supprimé est monté.
+    expect(
+      archi.includes('`app/map/_components/SuiviMapLayer.tsx` — toujours importe et monte par'),
+      "ARCHITECTURE.md n'affirme plus que SuiviMapLayer.tsx est monté par page.tsx. "
+      + 'Si le fichier a été supprimé (tâche de suite annoncée), retirer ce test ET le paragraphe. '
+      + 'Si la phrase a seulement été reformulée, mettre à jour le test.',
+    ).toBe(true);
+
+    const page = lire('app/map/page.tsx');
+    expect(
+      /SuiviMapLayer/.test(page),
+      'ARCHITECTURE.md affirme que SuiviMapLayer.tsx est « toujours importe et monte par '
+      + "app/map/page.tsx » — page.tsx ne le mentionne plus. L'un des deux ment.",
+    ).toBe(true);
+
+    // Les exports que le même paragraphe dit « toujours consommés », chacun
+    // chez SON consommateur. L'attribution du document était collective
+    // (« ses exports … consommés par A et B »), donc invérifiable : elle
+    // laissait croire que `legendePourMetrique` venait de PanneauCalques, ce
+    // qui est faux — il n'a qu'un consommateur, LegendeCarte.
+    expect(
+      /SuiviMapEventDetail/.test(lire('app/map/_components/panneaux/PanneauCalques.tsx')),
+      'ARCHITECTURE.md affirme que le type `SuiviMapEventDetail` est toujours consommé par '
+      + "PanneauCalques.tsx (groupe « Campagne active ») — ce n'est plus vrai.",
+    ).toBe(true);
+    expect(
+      /legendePourMetrique/.test(lire('components/map/LegendeCarte.tsx')),
+      'ARCHITECTURE.md affirme que `legendePourMetrique` est toujours consommé par '
+      + "LegendeCarte.tsx, son SEUL consommateur — ce n'est plus vrai. S'il n'en a plus aucun, "
+      + "l'export est mort et la décision de garder SuiviMapLayer.tsx perd un de ses deux motifs.",
+    ).toBe(true);
+  });
+
+  it('ReconciliationPanel est TOUJOURS reutilise par DetailTechnique — l autre decision de non-suppression', () => {
+    expect(
+      archi.includes('ReconciliationPanel.tsx'),
+      'ARCHITECTURE.md ne parle plus de ReconciliationPanel.tsx.',
+    ).toBe(true);
+    expect(
+      /ReconciliationPanel/.test(lire('components/campagne/suivi-v2/DetailTechnique.tsx')),
+      'ARCHITECTURE.md justifie de ne PAS avoir supprimé components/campaign/suivi/'
+      + 'ReconciliationPanel.tsx par sa réutilisation « TEL QUEL » dans suivi-v2/DetailTechnique.tsx. '
+      + "DetailTechnique ne l'importe plus : soit le panneau est devenu mort (le supprimer avec "
+      + 'lib/campaigns/reconciliation-metrics.ts), soit la doc doit dire son nouveau consommateur.',
+    ).toBe(true);
+  });
+
+  it('l ancien ecran de suivi est bien parti, et la doc ne le ressuscite pas', () => {
+    // Le paragraphe de tête liste neuf composants supprimés. S'ils
+    // réapparaissaient, le document décrirait une suppression qui n'a pas eu
+    // lieu — et `SuiviV2` cesserait d'être le seul écran de suivi.
+    const supprimes = [
+      'components/campaign/CampaignSuivi.tsx',
+      'components/campaign/suivi/SuiviCockpit.tsx',
+      'components/campaign/suivi/SuiviCharts.tsx',
+      'components/campaign/suivi/SuiviTable.tsx',
+      'components/campaign/suivi/SuiviDeriveMap.tsx',
+      'components/campaign/suivi/DeriveTable.tsx',
+      'components/campaign/suivi/MeshSelector.tsx',
+      'components/campaign/suivi/ActorFilter.tsx',
+      'components/campaign/suivi/ActorPanel.tsx',
+    ];
+    const revenus = supprimes.filter((f) => existsSync(join(RACINE, f)));
+    expect(
+      revenus,
+      `ARCHITECTURE.md annonce ces fichiers supprimés (Tâche 16), ils existent : ${revenus.join(', ')}.`,
+    ).toEqual([]);
+  });
+
+  it('l arborescence de suivi-v2 liste exactement les fichiers reels', () => {
+    const reels = readdirSync(join(RACINE, 'components', 'campagne', 'suivi-v2'))
+      .filter((f) => /\.tsx?$/.test(f))
+      .map((f) => f.replace(/\.tsx?$/, ''))
+      .sort();
+    const section = archi.slice(archi.indexOf('└── suivi-v2/'), archi.indexOf('├── magelian/'));
+    expect(section.length, 'section suivi-v2 introuvable dans l arborescence').toBeGreaterThan(100);
+
+    const absents = reels.filter((n) => !section.includes(n));
+    expect(
+      absents,
+      `Fichiers de components/campagne/suivi-v2/ absents de l'arborescence d'ARCHITECTURE.md : `
+      + `${absents.join(', ')}. C'est la section qui décrit l'écran de suivi actuel — un fichier `
+      + `qui n'y figure pas est invisible pour qui lit le document autoritaire.`,
+    ).toEqual([]);
+  });
+
+  it('toute route API est documentee — la reciproque du recomptage du 2026-09-16', () => {
+    // Ce test a été DÉCLINÉ à l'écriture de ce fichier (« il ne compare pas la
+    // liste des 170 routes une par une… un test qu'on désactiverait au premier
+    // ajout de route légitime »). L'écart a alors grossi jusqu'à 51 routes
+    // absentes sur 204, et la phrase de sécurité « les 146 routes API » est
+    // restée fausse pendant des mois.
+    //
+    // Il est réintroduit maintenant que l'écart est à ZÉRO, et il n'exige rien
+    // de plus que la règle déjà écrite dans CLAUDE.md : « un commit qui ajoute
+    // ou retire une route met le doc à jour DANS LE MÊME COMMIT ». Une route
+    // ajoutée sans sa ligne fait donc rougir la suite, ce qui est le but.
+    const routes = fichiersDe(join(RACINE, 'app', 'api'))
+      .map((f) => f.slice(RACINE.length + 1).split(sep).join('/'))
+      .filter((f) => f.endsWith('/route.ts'))
+      .map((f) => '/' + f.replace(/^app\//, '').replace(/\/route\.ts$/, ''));
+
+    expect(routes.length, 'aucune route trouvée sous app/api — le balayage a-t-il divergé ?').toBeGreaterThan(150);
+
+    const absentes = routes.filter((r) => !archi.includes(r)).sort();
+    expect(
+      absentes,
+      `Routes API absentes d'ARCHITECTURE.md :\n${absentes.map((r) => `  ${r}`).join('\n')}\n\n`
+      + 'CLAUDE.md § Documentation : « un commit qui ajoute ou retire une route met le doc à jour '
+      + 'DANS LE MÊME COMMIT ». Ajouter une ligne au tableau de la section correspondante. '
+      + "Si la route n'a rien à y faire (catch-all inerte, diagnostic), le dire — une ligne qui "
+      + "explique pourquoi une route existe vaut mieux qu'une absence.",
+    ).toEqual([]);
+  });
 });

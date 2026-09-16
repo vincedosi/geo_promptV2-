@@ -58,10 +58,12 @@
 >   `DetailTechnique.tsx` lui-meme (« props-driven, deja teste, pas de deuxieme
 >   table reecrite pour le meme besoin »).
 > - `app/map/_components/SuiviMapLayer.tsx` — toujours importe et monte par
->   `app/map/page.tsx`, et ses exports (`SuiviMapEventDetail`,
->   `legendePourMetrique`) toujours consommes par
->   `app/map/_components/panneaux/PanneauCalques.tsx` (groupe « Campagne active »
->   du panneau Calques) et `components/map/LegendeCarte.tsx`. L'en-tete de
+>   `app/map/page.tsx`, et ses deux exports ont chacun leur consommateur
+>   (attribution precisee le 2026-09-16, elle etait collective et donc
+>   invérifiable) : le type `SuiviMapEventDetail` par `app/map/page.tsx` ET
+>   `app/map/_components/panneaux/PanneauCalques.tsx` (groupe « Campagne
+>   active » du panneau Calques), la fonction `legendePourMetrique` par
+>   `components/map/LegendeCarte.tsx` — et par elle seule. L'en-tete de
 >   `DiffusionMapLayer.tsx` (Tache 13B) indique que ce fichier « remplace
 >   SuiviMapLayer.tsx dans l'intention, pas dans le code » et que sa suppression
 >   reelle est reservee a la Tache 16 — mais l'y retirer proprement suppose de
@@ -243,7 +245,14 @@ genesis_app/
 │   │                           # lib/campaigns/actor-metrics.ts), DetailTechnique (bloc technique
 │   │                           # replie — budget vs trajectoire + ReconciliationPanel reutilise de
 │   │                           # components/campaign/suivi/ + FinalReport), BandeauAvancement/
-│   │                           # BarreMaille/CoutEtRythme/TroisComposantes (etat/maille/cout)
+│   │                           # BarreMaille/CoutEtRythme/TroisComposantes (etat/maille/cout),
+│   │                           # plus deux modules NON visuels partages par l'ecran :
+│   │                           # etat-section.ts ('chargement' | 'echec' | 'pret', porte A COTE
+│   │                           # de la donnee — un tableau vide confondait les trois etats)
+│   │                           # et avec-semaphore.ts (le budget de 3 appels Supabase
+│   │                           # simultanes vaut pour TOUT l'ecran, overlay masque compris).
+│   │                           # Quinze fichiers, verrouilles par
+│   │                           # tests/unit/docs/derive-documentation.test.ts
 │   ├── magelian/               # Overlay MAGELIAN (Strategie/Suivi/Apercu) + deep-link
 │   │   ├── MagelianOverlay.tsx # Overlay plein ecran — onglets Strategie/Suivi/Apercu ; selecteur
 │   │   │                       # de campagne reserve a Suivi/Apercu (donnees OU strategie)
