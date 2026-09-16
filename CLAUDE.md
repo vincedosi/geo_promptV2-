@@ -51,6 +51,33 @@ OBLIGATOIRE :
   invocation peut être une instance différente. Le compteur partagé vit en base
   (`consommer_quota`, sql/135), parce qu'Upstash n'est pas configuré en prod.
 
+### Troncature PostgREST — 5 000 lignes, sans erreur, sans en-tête
+
+**PostgREST coupe à 5 000 lignes TOUTE fonction `RETURNS TABLE` ou `SETOF`.**
+Pas d'exception levée, pas d'avertissement, pas d'en-tête : l'appelant reçoit un
+tableau parfaitement valide de 5 000 éléments et n'a aucun moyen de savoir qu'il
+en manquait 1 187. Aucun `if (error)` ne peut voir ça passer. Cinq occurrences
+recensées, dont trois corrigées et **trois encore ouvertes en production** —
+`docs/SUITE_TRONCATURE_POSTGREST.md`.
+
+RÈGLE :
+- Une RPC dont le résultat **peut** dépasser 5 000 lignes est `RETURNS jsonb`.
+  `RETURNS TABLE` est réservée aux résultats **bornés par construction** : un
+  `LIMIT` dans le corps, un tableau d'ids fourni par l'appelant, une table de
+  référence dont la taille est connue et petite.
+- Changer le type de retour d'une fonction existante exige un `DROP`, **exclu en
+  production** : on écrit une **jumelle** `_jsonb` qui porte le corps, et
+  l'originale devient une **enveloppe mince** qui l'appelle. Un seul corps, deux
+  formes de retour, dérive impossible. Patron littéral : sql/154, sql/168-169,
+  sql/170.
+- Un plafond côté route (« 1 500 CP maximum ») est une borne acceptable — mais
+  c'est une constante, et le jour où quelqu'un la relève au-dessus de 5 000 la
+  troncature revient **en silence**. L'écrire dans le commentaire de la constante.
+- `tests/unit/db/troncature-postgrest.test.ts` verrouille la règle : toute RPC
+  tabulaire appelée depuis `app/` ou `lib/` doit y avoir une borne écrite, ou
+  être déclarée en dette ET nommée dans le document ci-dessus. Ne pas le
+  désactiver, le compléter.
+
 ### Auth Middleware
 
 ```
