@@ -26,6 +26,7 @@ import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { lireCorps } from '@/lib/api/valider-corps';
+import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -39,6 +40,25 @@ const MAX_INDICATEURS = 6;
  * DSP. `get_admin_filter_geometry` unit les polygones de chaque CP.
  */
 const MAX_CP_ZONE = 1500;
+
+/**
+ * Quota — la SIXIÈME route de fabrication de zone, et la seule qui n'en avait
+ * aucun. Les cinq autres (codes-postaux, rayon, dessin, intersection,
+ * différence) portent toutes `max: 20 / 60 s`, et `ARCHITECTURE.md` rangeait
+ * celle-ci dans le même bloc — la documentation garantissait une protection
+ * qui n'existait pas.
+ *
+ * Elle enchaîne pourtant `calculer_score_composite` (jusqu'à 3 000 CP) PUIS
+ * `get_admin_filter_geometry` sur jusqu'à 1 500 CP — l'appel qu'ARCHITECTURE.md
+ * chiffre à 540 blocs disque pour 2 000 CP. Un curseur de seuil relié à cette
+ * route sans anti-rebond, ou un onglet laissé sur un `setInterval`, et c'est
+ * la famille exacte de l'incident du 28/03, sans plafond en base pour
+ * l'arrêter.
+ *
+ * Compteur PARTAGÉ en base (`consommer_quota`, sql/135) — jamais une `Map`
+ * locale, qui ne limiterait rien sur Vercel (CLAUDE.md).
+ */
+const limiteur = createRateLimiter({ max: 20, window: '60 s', prefix: 'geo:rl:zone-score' });
 
 const CorpsSchema = z.object({
   indicateurs: z.array(z.object({
@@ -55,6 +75,9 @@ const CorpsSchema = z.object({
 export async function POST(request: NextRequest) {
   const profile = await requireAuth(request);
   if (!profile) return authUnauthorized();
+
+  const quota = await limiteur(profile.id);
+  if (!quota.ok) return rateLimitResponse(quota.retrySec);
 
   const corps = await lireCorps(request, CorpsSchema);
   if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });

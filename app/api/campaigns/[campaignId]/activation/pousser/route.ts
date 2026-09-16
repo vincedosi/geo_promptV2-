@@ -28,7 +28,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
-import { createAdminClient } from '@/lib/auth';
+import { createAdminClient, isSuperAdmin } from '@/lib/auth';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { zonesModifiees, type EmpreinteZones } from '@/lib/campaigns/version-strategie';
@@ -91,6 +91,27 @@ export async function POST(
   const supabase = createAdminClient();
   const acces = await checkCampaignAccess(supabase, profile, campaignId);
   if (acces !== 'ok') return NextResponse.json({ error: 'Campagne introuvable.' }, { status: 404 });
+
+  // ── Le droit de pousser, VÉRIFIÉ AVANT d'écrire quoi que ce soit ───────
+  // Chaque cible ré-appelle en HTTP `/api/admin/dsp/dv360/targeting/push`,
+  // dont le guard est `isSuperAdmin` STRICT — `requireAdmin()` de ce projet
+  // n'est pas « admin », c'est « super_admin » (ARCHITECTURE.md, audit du
+  // 2026-09-10). Un utilisateur `admin` ou `client` de l'org propriétaire
+  // franchissait `requireAuth` + `checkCampaignAccess`, écrivait un
+  // `activation_lots` et jusqu'à 50 `activation_cibles`, encaissait 50
+  // réponses 401 des appels internes, et refermait le lot en `echec` :
+  // 51 lignes écrites pour rien et un historique vide de sens. C'est
+  // fail-closed côté sécurité — rien ne part chez DV360 — mais le refus doit
+  // arriver en amont, pas se découvrir line item par line item.
+  if (!isSuperAdmin(profile)) {
+    return NextResponse.json(
+      {
+        error: 'droit_insuffisant',
+        message: 'La poussée de ciblage vers un DSP est réservée aux super-administrateurs.',
+      },
+      { status: 403 },
+    );
+  }
 
   // ── Le pré-vol, rejoué côté serveur ───────────────────────────────────
   // Le client a pu l'appeler, mais on ne pousse pas sur la foi d'un appel

@@ -21,13 +21,20 @@
  *    personne n'a validé, et qui ne correspond ni à la version publiée ni à ce
  *    qu'affiche la carte.
  *
- * Les deux sont rendus comme des `blocages`, pas comme une erreur HTTP : la
+ * 3. **Droit insuffisant** (2026-09-15). La poussée ré-appelle en HTTP
+ *    `/api/admin/dsp/dv360/targeting/push`, dont le guard est `isSuperAdmin`
+ *    STRICT. Un `admin` ou un `client` de l'org propriétaire lisait un pré-vol
+ *    `activable: true`, cliquait, et découvrait le refus après l'écriture d'un
+ *    `activation_lots` et de ses 50 `activation_cibles`, toutes en échec — 51
+ *    lignes pour rien, et un historique vide de sens.
+ *
+ * Les trois sont rendus comme des `blocages`, pas comme une erreur HTTP : la
  * page doit pouvoir montrer le reste du pré-vol en expliquant ce qui manque.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
-import { createAdminClient } from '@/lib/auth';
+import { createAdminClient, isSuperAdmin } from '@/lib/auth';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { zonesModifiees, type EmpreinteZones } from '@/lib/campaigns/version-strategie';
 import { rpcJson } from '@/lib/supabase/rpc-json';
@@ -72,6 +79,19 @@ export async function GET(
   const blocages: string[] = [];
   if (!strategie) {
     blocages.push('Aucune stratégie n’est définie pour cette campagne.');
+  }
+
+  // Troisième blocage : le DROIT de pousser. `/activation/pousser` ré-appelle
+  // en HTTP `/api/admin/dsp/dv360/targeting/push`, dont le guard est
+  // `isSuperAdmin` strict — `requireAdmin()` de ce projet n'est pas « admin »,
+  // c'est « super_admin » (ARCHITECTURE.md, audit du 2026-09-10). Sans ce
+  // blocage, un `admin` ou un `client` de l'org propriétaire voyait un pré-vol
+  // `activable: true`, cliquait, et ne découvrait le refus qu'après l'écriture
+  // d'un lot et de ses 50 cibles, toutes en échec.
+  if (!isSuperAdmin(profile)) {
+    blocages.push(
+      'La poussée de ciblage vers un DSP est réservée aux super-administrateurs.',
+    );
   }
 
   // ── Version publiée et dérive (Tâche 19) ──────────────────────────────
