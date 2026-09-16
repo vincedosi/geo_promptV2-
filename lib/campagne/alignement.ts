@@ -8,8 +8,22 @@
  * Ce n'est PAS un indicateur de ciblage. On vise rarement une partie seulement
  * de la France ; l'enjeu est la répartition, pas le périmètre.
  *
- * Jumeau SQL : `calculer_alignement_geo` (sql/165). Les deux DOIVENT arrondir
- * identiquement — voir tests/unit/campagne/alignement.test.ts.
+ * Jumeau SQL : `calculer_alignement_geo` (sql/165, corrigée sql/172). Les deux
+ * DOIVENT arrondir identiquement — voir tests/unit/campagne/alignement.test.ts.
+ *
+ * ── « Pas calculable » n'est ni 0 ni 100 (2026-09-15) ─────────────────────
+ * Ce jumeau rendait `score: 100, conformes_pct: 100` sur un jeu vide ou sans
+ * volume réel ; la RPC rendait `score: 0, conformes_pct: null` pour la MÊME
+ * entrée (mesuré sur une campagne sans rollup). ARCHITECTURE.md affirmait
+ * « accord exact » entre les deux : vrai du chemin nominal — croisé en base
+ * sur la campagne démo, 2 041 CP, score 93 des deux côtés — faux du cas
+ * dégénéré, celui qu'un jumeau sert justement à cadrer.
+ *
+ * Aucun des deux n'avait raison. Un alignement de 100 sur une campagne qui n'a
+ * rien diffusé la déclare parfaite ; un alignement de 0 la déclare
+ * catastrophique. Les deux inventent un verdict là où il n'y a rien à mesurer.
+ * Les deux implémentations disent désormais la même chose : `null` ici,
+ * `{error: 'aucune_donnee', calculable: false}` côté SQL.
  */
 
 export interface UniteAlignement {
@@ -30,20 +44,22 @@ export interface ResultatAlignement {
   n_unites: number
 }
 
+/**
+ * Rend `null` quand le score n'est PAS CALCULABLE : aucune unité, ou aucune
+ * impression réelle à répartir entre elles. Le dénominateur de toutes les
+ * pénalités est le volume réel total ; sans lui, il n'y a pas de score « par
+ * défaut » à produire — seulement un verdict à ne pas rendre.
+ */
 export function calculerAlignement(
   unites: UniteAlignement[],
   tolerancePct: number,
   poidsSurpression: number,
-): ResultatAlignement {
-  const vide: ResultatAlignement = {
-    score: 100, conformes_pct: 100, sous_pression_pct: 0, sur_pression_pct: 0,
-    sous_pression_imps: 0, sur_pression_imps: 0, n_unites: 0,
-  }
-  if (unites.length === 0) return vide
+): ResultatAlignement | null {
+  if (unites.length === 0) return null
 
   const t = tolerancePct / 100
   const totalReel = unites.reduce((s, u) => s + u.reel, 0)
-  if (totalReel <= 0) return { ...vide, n_unites: unites.length }
+  if (totalReel <= 0) return null
 
   let manque = 0
   let trop = 0
