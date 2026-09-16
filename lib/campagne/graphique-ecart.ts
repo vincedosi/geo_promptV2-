@@ -78,12 +78,24 @@ export function preparerDispersion(
   tranches: TrancheDispersion[],
 ): { barres: BarreDispersion[]; horsPlan: HorsPlanDispersion | null } {
   const barres: BarreDispersion[] = []
-  let horsPlan: HorsPlanDispersion | null = null
+  // Accumulateurs SCALAIRES plutôt qu'un objet réaffecté : `let horsPlan:
+  // HorsPlanDispersion | null = null` dont la seule affectation se lit
+  // elle-même est inférée circulairement, et tsc la réduit à `never`
+  // (« Property 'n_cp' does not exist on type 'never' »).
+  let horsPlanCp = 0
+  let horsPlanImps = 0
+  let aDuHorsPlan = false
 
   for (const t of tranches) {
     const index = indexTranche(t.borne_basse, t.borne_haute)
     if (index === null) {
-      horsPlan = { n_cp: t.n_cp, impressions: t.impressions }
+      // CUMUL, jamais écrasement : `alignement_dispersion_cp` n'émet qu'une
+      // tranche à bornes nulles (`group by width_bucket`), mais la fonction
+      // dont la raison d'être est de NE PAS perdre les CP hors plan ne peut
+      // pas reposer sur cette hypothèse. Trois lignes, et l'hypothèse tombe.
+      aDuHorsPlan = true
+      horsPlanCp += t.n_cp
+      horsPlanImps += t.impressions
       continue
     }
     barres.push({
@@ -97,6 +109,9 @@ export function preparerDispersion(
   }
 
   barres.sort((a, b) => a.index - b.index)
+  const horsPlan: HorsPlanDispersion | null = aDuHorsPlan
+    ? { n_cp: horsPlanCp, impressions: horsPlanImps }
+    : null
   return { barres, horsPlan }
 }
 
@@ -136,20 +151,64 @@ export const LIMITE_COURBE: Record<'region' | 'departement', number> = {
 }
 
 /**
+ * Une unité qui a reçu du volume sans qu'aucun plan ne l'attende. C'est le
+ * signal le plus pur de la sur-pression — et celui qui disparaissait.
+ *
+ * `hors_plan` est posé par la RPC (`part_plan = 0 and reel > 0`) ; le second
+ * terme n'est qu'une ceinture pour un payload qui aurait perdu le drapeau
+ * mais gardé un plan nul et des impressions.
+ */
+function estHorsPlan(u: UniteAlignement): boolean {
+  return (u.hors_plan || (u.plan ?? 0) <= 0) && u.impressions > 0
+}
+
+/**
  * Construit la série de la courbe : triée par plan décroissant (les unités
- * les plus lourdes du plan d'abord — mêmes lecture que le mock), bornée à
- * `LIMITE_COURBE[maille]`. N'exclut PAS les unités hors plan : une unité qui
- * reçoit du volume sans plan est un signal, pas un CP à cacher.
+ * les plus lourdes du plan d'abord — même lecture que le mock), bornée à
+ * `LIMITE_COURBE[maille]`.
+ *
+ * ── Les unités hors plan ont des PLACES RÉSERVÉES ────────────────────────
+ * Le commentaire de cette fonction promettait déjà « n'exclut PAS les unités
+ * hors plan : une unité qui reçoit du volume sans plan est un signal, pas un
+ * CP à cacher ». Le code faisait l'inverse, et de façon systématique : une
+ * unité hors plan a `plan = 0`, le tri par plan décroissant la rangeait donc
+ * en toute dernière position et le `slice(0, limite)` la coupait dès qu'il y
+ * avait plus de 26 unités (département) ou 12 (région).
+ *
+ * Mesuré sur la campagne démo : `alignement_par_maille(maille='departement')`
+ * rend 100 départements dont **7 hors plan**, et les 7 ont plus de 26
+ * départements au-dessus d'eux par `plan` — aucun n'atteignait jamais la
+ * courbe. C'est la QUATRIÈME fois que les unités sans plan se perdent sur ce
+ * chantier, et la première où le code affirmait par écrit faire le contraire.
+ *
+ * La sélection réserve donc des places : toutes les unités hors plan sont
+ * gardées tant qu'elles ne dépassent pas la MOITIÉ du plafond (au-delà, les
+ * plus volumineuses, sinon la courbe ne raconterait plus que celles-là et
+ * perdrait la lecture du plan qui est sa raison d'être). L'ordre d'affichage
+ * ne change pas : plan décroissant, donc les hors-plan en fin de courbe —
+ * visibles, à leur place de lecture.
  */
 export function construireSeriesCourbe(
   unites: UniteAlignement[],
   maille: 'region' | 'departement',
 ): PointCourbe[] {
   const limite = LIMITE_COURBE[maille]
-  return unites
-    .slice()
+
+  const horsPlan = unites.filter(estHorsPlan)
+    .sort((a, b) => (b.volume_deplace || b.impressions) - (a.volume_deplace || a.impressions))
+  const avecPlan = unites.filter((u) => !estHorsPlan(u))
     .sort((a, b) => (b.plan ?? 0) - (a.plan ?? 0))
-    .slice(0, limite)
+
+  // Au moins la moitié du plafond leur est réservée — davantage si les unités
+  // au plan ne suffisent pas à remplir la courbe.
+  const nHorsPlan = Math.min(
+    horsPlan.length,
+    Math.max(Math.floor(limite / 2), limite - avecPlan.length),
+  )
+  const nAvecPlan = Math.min(avecPlan.length, Math.max(0, limite - nHorsPlan))
+
+  return [...avecPlan.slice(0, nAvecPlan), ...horsPlan.slice(0, nHorsPlan)]
+    .sort((a, b) => (b.plan ?? 0) - (a.plan ?? 0))
     .map((u) => {
       const plan = u.plan ?? 0
       const reel = u.impressions

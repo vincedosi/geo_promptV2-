@@ -156,15 +156,30 @@ function constatSurPression(unites: UniteConstat[]): Constat | null {
     candidats.push({ u, trop, eur: u.cpm != null ? (trop / 1000) * u.cpm : 0 })
   }
   if (candidats.length === 0) return null
-  candidats.sort((a, b) => b.trop - a.trop)
+
+  // Le TRI et la MESURE AFFICHÉE sont la même grandeur : les euros. Classer
+  // par volume (`trop`) puis titrer en euros laissait une unité au `cpm` nul
+  // gagner le classement avec `eur: 0` — et le constat annonçait « X et Y
+  // concentrent la sur-pression : 0 € déplaçables », une phrase qui se
+  // contredit elle-même. Départage par volume à euros égaux, pour que deux
+  // unités sans dépense renseignée restent classées par ce qu'on sait d'elles.
+  candidats.sort((a, b) => (b.eur - a.eur) || (b.trop - a.trop))
 
   const top = candidats.slice(0, 2)
   const totalEur = Math.round(top.reduce((s, c) => s + c.eur, 0))
+  const totalTrop = Math.round(top.reduce((s, c) => s + c.trop, 0))
   const verbe = top.length > 1 ? 'concentrent' : 'concentre'
+
+  // Aucune dépense renseignée sur ces unités (`cpm` nul) : on chiffre ce que
+  // la base sait — le volume — plutôt qu'un « 0 € » qui nierait le constat
+  // qu'il est censé porter. Toujours chiffré, jamais un adjectif.
+  const mesure = totalEur > 0
+    ? `${formaterNombre(totalEur)} € déplaçables`
+    : `${formaterNombre(totalTrop)} impressions à redéployer`
 
   return {
     id: 'sur_pression',
-    titre: `${listerUnites(top.map((c) => c.u))} ${verbe} la sur-pression : ${formaterNombre(totalEur)} € déplaçables`,
+    titre: `${listerUnites(top.map((c) => c.u))} ${verbe} la sur-pression : ${mesure}`,
     action: 'Rééquilibrer les poids',
     cible: top[0].u.code,
   }

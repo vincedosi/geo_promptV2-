@@ -70,6 +70,18 @@ describe('preparerDispersion', () => {
     const { horsPlan } = preparerDispersion(tranches.slice(0, 3))
     expect(horsPlan).toBeNull()
   })
+
+  it('CUMULE plusieurs lignes hors plan au lieu de ne garder que la dernière', () => {
+    // `alignement_dispersion_cp` n'en émet qu'une (`group by width_bucket`),
+    // mais la fonction dont la raison d'être est de ne PAS perdre les CP sans
+    // plan ne peut pas reposer sur cette hypothèse : un écrasement en ferait
+    // disparaître silencieusement.
+    const { horsPlan } = preparerDispersion([
+      { borne_basse: null, borne_haute: null, n_cp: 400, impressions: 132000 },
+      { borne_basse: null, borne_haute: null, n_cp: 7, impressions: 900 },
+    ])
+    expect(horsPlan).toEqual({ n_cp: 407, impressions: 132900 })
+  })
 })
 
 describe('formaterPlageTranche', () => {
@@ -119,6 +131,87 @@ describe('construireSeriesCourbe', () => {
       [unite({ code: 'A', plan: null, impressions: 500, hors_plan: true })], 'departement',
     )
     expect(p).toMatchObject({ plan: 0, reel: 500, min: 0, gapSous: 0, gapSur: 500 })
+  })
+})
+
+// ── Les unités hors plan ne sont plus coupées par le plafond ──────────────
+// Le commentaire de `construireSeriesCourbe` promettait déjà de les garder
+// (« un signal, pas un CP à cacher ») ; le tri par plan décroissant les rangeait
+// en dernier et le plafond les coupait TOUTES. Ces tests portent sur la
+// PROPRIÉTÉ — « aucune unité hors plan volumineuse ne disparaît tant qu'elles
+// restent minoritaires » — et non sur un exemple : c'est la quatrième fois que
+// les unités sans plan se perdent sur ce chantier, un cas d'école figé
+// n'aurait couvert que la cinquième forme du même oubli.
+describe('construireSeriesCourbe — place réservée aux unités hors plan', () => {
+  /** N unités au plan, plan décroissant, plus `nHors` unités hors plan. */
+  function jeu(nAvecPlan: number, nHors: number): UniteAlignement[] {
+    return [
+      ...Array.from({ length: nAvecPlan }, (_, i) =>
+        unite({ code: `P${i}`, plan: 1_000_000 - i, impressions: 1_000_000 - i, ecart_pct: 0 })),
+      ...Array.from({ length: nHors }, (_, i) =>
+        unite({
+          code: `H${i}`, plan: 0, impressions: 100 + i, hors_plan: true,
+          ecart_pct: null, volume_deplace: 100 + i,
+        })),
+    ]
+  }
+
+  for (const [maille, limite] of [['region', 12], ['departement', 26]] as const) {
+    it(`maille ${maille} : TOUTES les unités hors plan survivent tant qu elles sont minoritaires`, () => {
+      // Chaque unité au plan pèse un million, chaque hors-plan une centaine :
+      // un tri par plan seul les relègue systématiquement derrière le plafond.
+      for (let nHors = 0; nHors <= Math.floor(limite / 2); nHors++) {
+        const serie = construireSeriesCourbe(jeu(200, nHors), maille)
+        expect(serie).toHaveLength(limite)
+        const survivantes = serie.filter((p) => p.code.startsWith('H')).length
+        expect(survivantes).toBe(nHors)
+      }
+    })
+
+    it(`maille ${maille} : au-delà de la moitié du plafond, garde les plus volumineuses sans noyer la courbe`, () => {
+      const serie = construireSeriesCourbe(jeu(200, limite), maille)
+      expect(serie).toHaveLength(limite)
+      const hors = serie.filter((p) => p.code.startsWith('H'))
+      // Jamais plus de la moitié : la courbe garde la lecture du plan, qui est
+      // sa raison d'être.
+      const places = Math.floor(limite / 2)
+      expect(hors.length).toBe(places)
+      // Et ce sont les PLUS VOLUMINEUSES, pas les premières venues : les
+      // impressions des hors-plan valent 100+i, donc les `places` dernières.
+      const attendues = Array.from({ length: places }, (_, k) => `H${limite - 1 - k}`)
+      expect(hors.map((p) => p.code).sort()).toEqual(attendues.sort())
+    })
+  }
+
+  it('reproduit la mesure du 2026-09-14 : 100 départements dont 7 hors plan', () => {
+    // `alignement_par_maille(maille='departement')` rend 100 départements dont
+    // 7 `hors_plan`, tous derrière plus de 26 départements par `plan` — aucun
+    // n'atteignait la courbe avant ce correctif.
+    const serie = construireSeriesCourbe(jeu(93, 7), 'departement')
+    expect(serie).toHaveLength(26)
+    expect(serie.filter((p) => p.code.startsWith('H'))).toHaveLength(7)
+  })
+
+  it('ne remplit pas la courbe de hors-plan quand il n y a presque pas d unités au plan', () => {
+    const serie = construireSeriesCourbe(jeu(2, 100), 'departement')
+    expect(serie).toHaveLength(26)
+    expect(serie.filter((p) => !p.code.startsWith('H'))).toHaveLength(2)
+  })
+
+  it('garde l ordre d affichage par plan décroissant — les hors-plan en fin de courbe', () => {
+    const serie = construireSeriesCourbe(jeu(30, 3), 'departement')
+    const plans = serie.map((p) => p.plan)
+    expect([...plans].sort((a, b) => b - a)).toEqual(plans)
+    expect(serie.slice(-3).every((p) => p.code.startsWith('H'))).toBe(true)
+  })
+
+  it('une unité hors plan SANS volume n occupe aucune place réservée', () => {
+    // Plan nul ET zéro impression : il n'y a aucun signal à montrer.
+    const serie = construireSeriesCourbe(
+      [...jeu(30, 0), unite({ code: 'VIDE', plan: 0, impressions: 0, hors_plan: true })],
+      'departement',
+    )
+    expect(serie.some((p) => p.code === 'VIDE')).toBe(false)
   })
 })
 

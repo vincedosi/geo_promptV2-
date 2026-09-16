@@ -52,4 +52,38 @@ describe('constats de correction', () => {
     })
     expect(c.some((x) => x.id === 'sur_pression' && x.titre.includes('06'))).toBe(true)
   })
+
+  // ── Le tri et la mesure affichee sont la MEME grandeur ────────────────────
+  // `constatSurPression` classait par volume (`trop`) puis titrait en euros :
+  // une unite au `cpm` nul gagnait le classement avec `eur: 0`, et le constat
+  // annoncait « X et Y concentrent la sur-pression : 0 € deplacables », une
+  // phrase qui se contredit elle-meme.
+  it('ne titre jamais « 0 € deplacables » — sans depense connue, il chiffre le volume', () => {
+    const c = calculerConstats({
+      unites: [
+        { code: '06', nom: 'Alpes-Maritimes', ecart_pct: null, impressions: 900, cpm: null, hors_plan: true, volume_deplace: 900 },
+        { code: '2A', nom: 'Corse-du-Sud', ecart_pct: null, impressions: 300, cpm: null, hors_plan: true, volume_deplace: 300 },
+      ],
+      cpm_moyen: null, canaux: [],
+    })
+    const sur = c.find((x) => x.id === 'sur_pression')
+    expect(sur).toBeDefined()
+    expect(sur!.titre).not.toContain('0 €')
+    expect(sur!.titre).toContain('impressions')
+  })
+
+  it('classe par euros quand la depense est connue, pas par volume seul', () => {
+    // '2B' a MOINS de volume mais un CPM 10x superieur : c'est lui qui porte
+    // les euros deplacables, donc lui qui doit mener le constat.
+    const c = calculerConstats({
+      unites: [
+        { code: '06', nom: 'Alpes-Maritimes', ecart_pct: null, impressions: 1000, cpm: 1, hors_plan: true, volume_deplace: 1000 },
+        { code: '2B', nom: 'Haute-Corse', ecart_pct: null, impressions: 800, cpm: 40, hors_plan: true, volume_deplace: 800 },
+      ],
+      cpm_moyen: null, canaux: [],
+    })
+    const sur = c.find((x) => x.id === 'sur_pression')
+    expect(sur!.cible).toBe('2B')
+    expect(sur!.titre).toContain('€')
+  })
 })
