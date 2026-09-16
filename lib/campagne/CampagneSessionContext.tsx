@@ -1,7 +1,8 @@
 'use client'
 import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { SESSION_DEFAUT, sessionVersUrl, urlVersSession } from './session-url'
+import { SESSION_DEFAUT, sessionDepuisObjet, sessionVersUrl, urlVersSession } from './session-url'
+import { appliquerBascule } from './transitions'
 import type { CampagneSession, VueCampagne } from './session-types'
 
 export const CLE_SESSION_STORAGE = 'magelian-campagne-session'
@@ -11,18 +12,26 @@ export const CLE_SESSION_STORAGE = 'magelian-campagne-session'
  * annonce ; le storage n'est qu'un repli pour le retour dans l'application.
  */
 export function fusionnerSession(
-  stockee: CampagneSession | null,
+  stockee: Partial<CampagneSession> | null,
   url: URLSearchParams,
 ): CampagneSession {
   return { ...SESSION_DEFAUT, ...(stockee ?? {}), ...urlVersSession(url) }
 }
 
-function lireStorage(): CampagneSession | null {
+/**
+ * Relit la session persistée. **Validée**, comme l'URL l'est déjà : c'est le
+ * `JSON.parse(brut) as CampagneSession` d'avant — un cast, donc aucune
+ * vérification — qui laissait passer une `maille` inconnue (l'onglet Suivi en
+ * erreur à chaque ouverture, sans issue depuis l'interface) ou un `acteurs`
+ * nul (`TypeError` au montage du provider qui enveloppe toute l'application).
+ * Voir `sessionDepuisObjet` pour le détail des deux scénarios.
+ */
+function lireStorage(): Partial<CampagneSession> | null {
   try {
     const brut = window.localStorage.getItem(CLE_SESSION_STORAGE)
-    return brut ? (JSON.parse(brut) as CampagneSession) : null
+    return brut ? sessionDepuisObjet(JSON.parse(brut)) : null
   } catch {
-    return null // fenêtre privée, storage bloqué : on repart des défauts
+    return null // fenêtre privée, storage bloqué, JSON illisible : les défauts
   }
 }
 
@@ -90,8 +99,12 @@ export function CampagneSessionProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  // `appliquerBascule` (lib/campagne/transitions.ts) et NON une copie de la
+  // règle : c'est la source de vérité testée. La copie qui vivait ici était
+  // le motif que CLAUDE.md interdit pour les formateurs (`fmtNum` × 15) —
+  // deux écritures d'une même règle, dont une seule est couverte.
   const basculerVue = useCallback(() => {
-    setSession(prev => ({ ...prev, vue: prev.vue === 'suivi' ? 'carte' : 'suivi' }))
+    setSession(appliquerBascule)
   }, [])
 
   // Persistance storage

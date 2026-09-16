@@ -51,6 +51,24 @@ function demarrer(campaignId: string): Promise<ResultatAlignement> {
     }
   })();
   cache.set(campaignId, promesse);
+  // Un ÉCHEC n'est jamais mis en cache durablement. La promesse y entre avant
+  // que son issue soit connue — c'est ce qui déduplique les appels en vol —
+  // mais un cold start Supabase, un 500 passager ou une coupure réseau
+  // laissait sinon « Cette campagne n'est pas consultable pour le moment »
+  // pour TOUTE la vie de l'onglet : le cache est de portée module, changer de
+  // campagne et revenir ne le purge pas, `invaliderAlignementPartage` n'a
+  // aucun appelant et l'écran n'expose pas de bouton « réessayer ». Seul un
+  // rechargement complet du navigateur débloquait l'utilisateur.
+  //
+  // Le cache voisin (`cache-campagnes.ts`) avait déjà la bonne politique — se
+  // purger dans un `finally` — et c'est le mauvais des deux qui gardait
+  // l'erreur. Ici, on garde la dédup en vol ET on retire l'entrée quand la
+  // requête a échoué, pour que la tentative suivante reparte.
+  void promesse.then((r) => {
+    if (r.erreurMessage !== null && cache.get(campaignId) === promesse) {
+      cache.delete(campaignId);
+    }
+  });
   return promesse;
 }
 
@@ -66,8 +84,9 @@ export function obtenirAlignementPartage(campaignId: string): Promise<ResultatAl
 }
 
 /** Force un rechargement au prochain appel — inutilisé aujourd'hui (le score
- *  ne se périme pas avec la navigation), gardé pour un rafraîchissement
- *  volontaire futur plutôt que de réinventer le cache à ce moment-là. */
+ *  ne se périme pas avec la navigation, et un ÉCHEC se purge désormais tout
+ *  seul dans `demarrer`), gardé pour un rafraîchissement volontaire futur
+ *  plutôt que de réinventer le cache à ce moment-là. */
 export function invaliderAlignementPartage(campaignId: string): void {
   cache.delete(campaignId);
 }

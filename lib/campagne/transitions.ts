@@ -6,11 +6,14 @@
  * mais efface le fil d'Ariane et la sélection, qui désignent des codes sans
  * garantie d'exister dans la nouvelle campagne (`appliquerChangementCampagne`).
  *
- * `CampagneSessionContext.basculerVue` réplique la même transformation que
- * `appliquerBascule` (compatibilité historique) ; ce fichier en est la
- * source de vérité testée. `BarreContexteCampagne` (le premier écrivain de
- * `session.campaignId`, Tâche 15) appelle `appliquerChangementCampagne`
- * directement.
+ * `CampagneSessionContext.basculerVue` APPELLE `appliquerBascule` depuis le
+ * 2026-09-15 : il en répliquait la transformation (« compatibilité
+ * historique »), soit deux écritures d'une même règle dont une seule était
+ * testée — le motif que CLAUDE.md interdit pour les formateurs (`fmtNum`
+ * × 15) et qui vaut tout autant pour une transition d'état. Ce fichier est la
+ * source de vérité, et désormais la seule. `BarreContexteCampagne` (le
+ * premier écrivain de `session.campaignId`, Tâche 15) appelle
+ * `appliquerChangementCampagne` directement.
  */
 import type { CampagneSession } from './session-types'
 

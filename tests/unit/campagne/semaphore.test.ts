@@ -44,4 +44,49 @@ describe('creerSemaphore', () => {
     await p3
     expect(ordre).toEqual([2, 3])
   })
+
+  // ── Une libération en trop ne doit pas relever le plafond ────────────────
+  // `liberer` était UNE SEULE fermeture rendue à tous les acquéreurs, pas un
+  // jeton par acquisition. Un appelant qui l'aurait déclenchée deux fois
+  // (double `finally`, `finally` + gestionnaire d'annulation) décrémentait
+  // `actifs` deux fois et dépilait deux attentes : le plafond de 3 passait
+  // durablement à 4, 5… sans jamais redescendre — exactement la règle non
+  // négociable de CLAUDE.md que ce module existe pour tenir.
+  it('une libération appelée DEUX FOIS ne compte que pour une', async () => {
+    const sem = creerSemaphore(3)
+    const l1 = await sem.acquerir()
+    await sem.acquerir()
+    expect(sem.enVol()).toBe(2)
+    l1()
+    l1()
+    l1()
+    expect(sem.enVol()).toBe(1)
+  })
+
+  it('le plafond tient même si CHAQUE tâche libère deux fois', async () => {
+    const sem = creerSemaphore(3)
+    let pic = 0
+    const enCours = new Set<number>()
+
+    async function tache(id: number): Promise<void> {
+      const liberer = await sem.acquerir()
+      enCours.add(id)
+      pic = Math.max(pic, enCours.size)
+      await new Promise((r) => setTimeout(r, 1))
+      enCours.delete(id)
+      liberer()
+      liberer() // la libération en trop : sans jeton, elle ouvrait une place de plus
+    }
+
+    await Promise.all(Array.from({ length: 12 }, (_, i) => tache(i)))
+    expect(pic).toBeLessThanOrEqual(3)
+    expect(sem.enVol()).toBe(0)
+  })
+
+  it('chaque acquisition rend un jeton DISTINCT', async () => {
+    const sem = creerSemaphore(2)
+    const a = await sem.acquerir()
+    const b = await sem.acquerir()
+    expect(a).not.toBe(b)
+  })
 })
