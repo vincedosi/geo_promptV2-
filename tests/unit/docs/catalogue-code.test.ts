@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
-// @ts-expect-error — script Node en .mjs, sans déclaration de types. Importé
-// plutôt que recopié : la règle de comptage d'« un export mort » doit rester
-// définie UNE fois (cf. les quinze `fmtNum` de DUP-001).
+// Script Node en .mjs, importé plutôt que recopié : la règle de comptage
+// d'« un export mort » doit rester définie UNE fois (cf. les quinze `fmtNum`
+// de DUP-001). `allowJs` le résout, ses signatures sont inférées.
 import { lancerKnip, construireRapport } from '../../../scripts/catalogue.mjs';
 
 /**
