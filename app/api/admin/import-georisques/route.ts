@@ -57,6 +57,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { triggerFilled } from '@/lib/supabase/tables';
+import { toJson } from '@/lib/supabase/rpc-json';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { fetchLectureAvecReprise } from '@/lib/http/lecture-avec-reprise';
 import { normaliserSiteIcpe, estInstallationClassee, SOURCE_ICPE } from '@/lib/import/georisques/classement';
@@ -238,8 +240,22 @@ export async function POST(request: NextRequest) {
               const lot = lignes.slice(i, i + TAILLE_LOT);
               const { data, error } = await supabase
                 .from('poi_france')
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- geom est posée par le trigger auto_set_geom
-                .upsert(lot as any, { onConflict: 'id' })
+                // `triggerFilled` et non un cast : `poi_france.geom` est posée
+                // par `auto_set_geom()`, donc requise pour le générateur de
+                // types et interdite pour l'appelant. Le helper n'exempte QUE
+                // cette colonne, là où un `as any` ferait aussi sauter la
+                // vérification des colonnes légitimes. Patron documenté dans
+                // ARCHITECTURE.md (tableau des quatre frontières non typables).
+                .upsert(
+                  // `toJson` sur `metadata` : le helper de la frontiere jsonb.
+                  // `Record<string, unknown>` n'est pas assignable a `Json`,
+                  // et c'est juste — `unknown` autorise une fonction ou un
+                  // `undefined`, que PostgreSQL refuserait.
+                  lot.map((l) =>
+                    triggerFilled<'poi_france', 'geom'>({ ...l, metadata: toJson(l.metadata) }),
+                  ),
+                  { onConflict: 'id' },
+                )
                 .select('id');
 
               if (error) {
