@@ -1,5 +1,18 @@
 /** @type {import('next').NextConfig} */
 
+// Stack Supabase LOCAL (conteneurs de dev, cf. scripts/local/). A ouvrir dans
+// la CSP, sinon le navigateur REFUSE la requete avant meme de l'emettre :
+// `http://127.0.0.1:54321` ne correspond ni a 'self' (localhost:3000) ni a
+// `https://*.supabase.co`. Diagnostic du 2026-09-17 — le symptome ment : la
+// connexion echoue sans qu'AUCUNE trace n'arrive dans les journaux de GoTrue,
+// ce qui se lit comme un mot de passe refuse alors que rien n'est parti.
+// ⚠ EN PRODUCTION, LA LISTE RESTE VIDE : la CSP de prod ne doit jamais
+// autoriser une origine en http ni une adresse de boucle locale.
+const originesSupabaseLocal =
+  process.env.NODE_ENV === 'production'
+    ? []
+    : ['http://127.0.0.1:54321', 'http://localhost:54321'];
+
 const securityHeaders = [
   { key: 'X-Frame-Options',           value: 'DENY' },
   { key: 'X-Content-Type-Options',    value: 'nosniff' },
@@ -34,6 +47,7 @@ const securityHeaders = [
         "https://www.insee.fr",
         "https://github.com",
         "https://objects.githubusercontent.com",
+        ...originesSupabaseLocal,
       ].join(' '),
       // Web Workers MapLibre (blob: URL générée dynamiquement)
       "worker-src 'self' blob:",
