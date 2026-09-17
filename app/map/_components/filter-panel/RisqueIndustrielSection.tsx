@@ -26,8 +26,13 @@ import { C, fInter, fMono } from './tokens';
 import { labelStyle } from './styles';
 import { ORDRE_TYPES, LIBELLE_TYPE, COULEURS_CSS } from '@/lib/carte/palette-risques';
 
-/** Niveaux réglementaires, du plus grave au moins. */
-export const NIVEAUX_RISQUE = [
+/**
+ * Niveaux réglementaires, du plus grave au moins.
+ *
+ * NON exportée : rien d'autre ne la nomme, et `knip` comptait l'export comme
+ * mort (cliquet de tests/unit/docs/catalogue-code.test.ts).
+ */
+const NIVEAUX_RISQUE = [
   { id: 'seveso_haut', label: 'Seveso seuil haut' },
   { id: 'seveso_bas', label: 'Seveso seuil bas' },
   { id: 'ied', label: 'Directive IED' },
