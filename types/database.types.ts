@@ -5369,6 +5369,7 @@ export type Database = {
         Args: { p_caller_user_id?: string; p_zone_id: string }
         Returns: Json
       }
+      consolider_geo_icpe: { Args: never; Returns: Json }
       consommer_quota: {
         Args: { p_cle: string; p_fenetre_s: number; p_max: number }
         Returns: Json

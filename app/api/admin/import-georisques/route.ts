@@ -275,6 +275,33 @@ export async function POST(request: NextRequest) {
           } while (page <= pagesDept);
         }
 
+        /**
+         * Consolidation géographique — indispensable, et pas cosmétique.
+         *
+         * La pagination de Géorisques n'est PAS stable : deux imports
+         * nationaux successifs du 2026-09-17 ont apporté 4 500 sites que le
+         * premier n'avait pas vus, et laissé 6 079 sites que le second n'a pas
+         * revus. Les colonnes géographiques ne se remplissent donc que pour les
+         * lignes que l'API veut bien renvoyer — et sans `code_departement`,
+         * `/api/map/pois` ne trouve RIEN quand on filtre par département.
+         *
+         * Cette RPC répare ces lignes depuis ce qu'elles portent déjà
+         * (`metadata.code_insee`), sans rappeler l'API. Bornée par
+         * `code_departement is null` : quand tout est renseigné, elle ne touche
+         * aucune ligne. Mesure au premier appel : 6 079 réparées, 0 restante.
+         */
+        const { data: consolidation, error: erreurConsolidation } =
+          await supabase.rpc('consolider_geo_icpe');
+        if (erreurConsolidation) {
+          erreurs.push(`Consolidation géographique : ${erreurConsolidation.message}`);
+        }
+
+        emettre({
+          etape: 'consolidation',
+          message: 'Colonnes géographiques réparées pour les lignes non revues par l API',
+          resultat: consolidation ?? null,
+        });
+
         emettre({
           etape: 'termine',
           pourcentage: 100,

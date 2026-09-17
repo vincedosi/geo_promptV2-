@@ -167,10 +167,10 @@ export async function POST(req: NextRequest) {
       const applyFilters = (q: any): any => {
         if (resolvedCat) q = q.eq('categorie', resolvedCat);
         if (natures.length > 0) q = q.in('metadata->>libelle_nature', natures);
-        // Sites dont l'activite a cesse : masques par defaut (voir le schema).
-        // `.not(... 'in' ...)` laisse passer les lignes dont `etat_activite`
-        // est NUL, ce qui est voulu : l'absence d'information n'est pas une
-        // cessation d'activite.
+        // Installations classees dont l'activite a cesse : masquees par defaut
+        // (voir le schema). `.not(... 'eq' ...)` laisse passer les lignes dont
+        // `etat_activite` est NUL, ce qui est voulu : l'absence d'information
+        // n'est pas une cessation d'activite.
         if (resolvedCat === 'risque_industriel' && !poi_inclure_inactifs) {
           q = q.not('metadata->>etat_activite', 'eq', "En fin d'exploitation");
         }
