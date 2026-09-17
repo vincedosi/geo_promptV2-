@@ -144,7 +144,8 @@
 | LLM / Copilote | Vercel AI SDK + Gemini 2.5 Flash / Mistral Small | ai ^6.0 |
 | Fonds de carte | OpenFreeMap (Liberty / Positron / Bright) + MAGELIAN dark style | — |
 | Isochrones | OpenRouteService (ORS) REST API | — |
-| Risques industriels | **Georisques** (ministere de la Transition ecologique) — `api/v1/installations_classees`, **sans jeton**. 138 423 installations classees. Le WFS `PPRT_PERIMETRE_RISQIND` porte les polygones de perimetre PPRT mais reste **hors perimetre** (source figee a fevrier 2023, reponses plafonnees a 80 000 features) | — |
+| Risques industriels | **Georisques** (ministere de la Transition ecologique) — `api/v1/installations_classees`, **sans jeton**. 138 423 installations classees. Aussi `api/v1/gaspar/pprt` : **415 procedures PPRT**, sans geometrie | — |
+| Perimetres PPRT (polygones) | **Geoplateforme IGN** — WFS `wfs_sup:assiette_sup_s`, filtre `suptype='pm3'` (servitude d'utilite publique PM3 = PPRT), alimente par le Geoportail de l'Urbanisme. **664 polygones**, GeoJSON, `CQL_FILTER` honore, `numberMatched` exact. Voir « Perimetres PPRT » plus bas pour la comparaison mesuree avec le WFS Georisques, qui ne convient PAS | — |
 | Meteo | Open-Meteo API (temperature, precipitation, ensoleillement) | — |
 | Inference ML bidding | **Modal** (serverless Python, HTTPS) — `-predict` / `-train` / `-detect-drift` | — |
 | Jobs asynchrones | Inngest (serverless queue) | ^3.52 |
@@ -809,6 +810,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/admin/import-poi/execute` | POST | Import batch SSE streaming |
 | `/api/admin/import-ooh/arcgis` | POST/DELETE | Import OOH ArcGIS REST |
 | `/api/admin/import-georisques` | POST | **Installations classees (ICPE) de l'API Georisques** vers `poi_france`, categorie `risque_industriel` (sql/173, spec du 2026-09-17). Flux NDJSON avec progression, lots de 50, `id` deterministe derive du `codeAIOT` — donc rejouable sans doublon (verifie : 1534 -> 1534 au rejeu). Corps `{departements?: string[], page_size?: number}`, defaut = les 101 departements. **Trois mesures a ne pas re-deviner** : `page_size` plafonne a **1 000** (a 2 000 l'API rend ZERO ligne, sans erreur) ; le filtre `statut_seveso` de l'API **est ignore** (il rend les 138 423 lignes quelle que soit la valeur), donc on ingere et on classe en base ; et l'endpoint sert aussi des etablissements `regime = 'Non ICPE'` qui ne sont PAS des installations classees — **19 % du volume national**, ecartes et comptes a part (`hors_perimetre`), jamais en silence. L'upsert MET A JOUR (referentiel vivant), donc `.select('id')` rend tout le lot : le compteur s'appelle `ecrites`, pas `inserees` |
+| `/api/admin/import-pprt` | POST | **Perimetres PPRT (servitudes PM3) de la Geoplateforme IGN** vers `pprt_perimetres` (sql/177). Flux NDJSON avec progression. UN appel sortant — le WFS `wfs_sup:assiette_sup_s` filtre `suptype='pm3'` rend les **664 assiettes en une fois** (5,6 Mo) — puis UNE transaction par partition (69 documents deposes au GPU). Corps `{partitions?: string[]}` pour rejouer un seul document. Mesure : 664 ecrites en 11,2 s, 0 rejetee, 0 echec. ⚠ Ne PAS passer par le WFS Georisques `PPRT_PERIMETRE_RISQIND` malgre son nom : ~147 000 lignes, tous les PPR confondus, `CQL_FILTER` ignore en silence — voir § « Perimetres PPRT » |
 | `/api/admin/import-datagouv` | POST | Import data.gouv.fr (SSRF whitelist). **Idempotent** depuis le 2026-09-11 : `id` deterministe (`lib/import/identite-poi.ts`, source `data_gouv`) + `upsert onConflict: 'id'`, donc un re-import du meme jeu n'ecrit rien. Les compteurs du flux NDJSON portent `inserted` ET `ignored` (deja presents) |
 | `/api/admin/import-geo/*` | POST | Import Shapefile |
 | `/api/admin/geocode/batch` | POST | Geocode batch BAN |
@@ -1064,6 +1066,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `smart_prompt_feedback` | Feedback prompts IA (user_id) | |
 | `smart_ville_stats` | Stats villes | |
 | `icpe_rubrique_familles` | Familles de rubriques ICPE : traduit le prefixe (2 chiffres) du numero de rubrique en **nature de risque** (41 toxicite aigue, 47 GPL et produits petroliers, 27 dechets...). 15 lignes | sql/173 (2026-09-17). Miroir TS `lib/import/georisques/familles.ts` — le classement tourne sur 138 423 sites et ne peut pas faire un aller-retour en base par rubrique ; la table sert l'affichage et l'evolution sans deploiement. `rang_gravite` (UNIQUE) ne sert QU'A departager la nature dominante d'un site qui en porte plusieurs : ce n'est pas une echelle de danger, la gravite reglementaire est le statut Seveso. RLS deny-all |
+| `pprt_perimetres` | Perimetres PPRT (servitudes PM3, Geoplateforme IGN). **UNE LIGNE = UNE ASSIETTE** : 664 assiettes, 609 generateurs (`id_generateur` = l'etablissement, PAS la procedure — `gaspar/pprt` en recense 415, sans cle de jointure). `geom` 4326 + `geom_3857` pre-calculee + `superficie_km2` sur `geography` | sql/177 (2026-09-17). 15 Mo. `code_departement` CALCULE par recouvrement geometrique sur `ref_departements`, **jamais lu dans `partition`** dont 5 depots sur 69 sont REGIONAUX (`_SUP_R76_` = Occitanie, 77 zones). `id_assiette` conserve mais NON unique : `2147483647` y est porte par 4 PPRT sans rapport. RLS deny-all |
 | `qualite_releves` | Dernier releve de chaque verification de qualite des donnees | sql/149 (2026-09-13). Rouvrir `/admin/qualite-donnees` lit CETTE table, jamais les tables sources. RLS deny-all |
 | `quotas_appels` | Compteurs de quota d'appels PARTAGES entre instances (sql/135) | Une ligne par cle = prefixe de route + appelant. Ecrite par la RPC `consommer_quota` (un seul `INSERT … ON CONFLICT … RETURNING`, donc exact en concurrence). Se purge elle-meme. RLS deny-all. **C'est le garde-fou du budget I/O** : avant, il comptait en memoire d'instance et ne limitait rien sur Vercel |
 | `civic_health_cache` | Cache indicateurs ATMO + pollen par code INSEE commune | TTL 24h, fallback stale 48h, RLS public read / service write, source ODbL Atmo France |
@@ -1199,6 +1202,8 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `log_smart_prompt_feedback` | Log feedback prompt IA | `api/smart-prompt/` |
 | `risques_industriels_carte` | Sites ICPE d'une bbox pour la couche carte dediee, avec zone de danger optionnelle. `ST_Buffer` sur **geography** : rayon en metres, jamais en degres — en 4326 « 500 m » vaudrait 500 m en latitude et ~350 m en longitude a Marseille, une ellipse presentee comme un cercle (meme raison que `zone_rayon`, sql/155). C'est la MEME geometrie qui servira a compter la population exposee : une seule definition du cercle, pas une pour l'affichage et une pour le calcul. Mesure : 1 259 sites + zones de 500 m = 4,2 Mo en 323 ms, 0 lecture disque | `api/map/risques-industriels/` (sql/175) |
 | `consolider_geo_icpe` | Repare `code_departement`/`departement`/`region` des POI ICPE depuis `metadata.code_insee`. Existe parce que **la pagination de l'API Georisques n'est pas stable** : deux imports successifs ont apporte 4 500 sites inedits et laisse 6 079 sites non revus (~5 % de rotation), donc les colonnes ajoutees apres un import ne se remplissent que pour les lignes que l'API veut bien renvoyer — et sans `code_departement`, `/api/map/pois` ne rend RIEN sur un filtre departemental | `api/admin/import-georisques/` (sql/174) |
+| `pprt_importer_partition` | Remplace en UNE transaction toutes les zones PPRT d'une partition : DELETE cible + INSERT set-based. La partition n'est donc jamais vide en base, contrairement a un DELETE puis un INSERT emis separement par le client. `ST_MakeValid` puis `ST_CollectionExtract(..., 3)` avant insertion — un trace depose par une DDT peut se croiser, et la colonne MultiPolygon refuserait la GeometryCollection que rend la reparation. Rend `recues`/`supprimees`/`inserees`/`ecartees` | `api/admin/import-pprt/` (sql/177) |
+| `pprt_consolider_departement` | Rattrape `code_departement`/`nom_departement`/`code_region` des zones PPRT qui en manquent, par recouvrement maximal sur `ref_departements` — une zone a cheval tombe du cote ou elle mord le plus. Rejouable, ne touche jamais une ligne deja renseignee. Pendant de `consolider_geo_icpe` | `api/admin/import-pprt/` (sql/177) |
 | `consommer_quota` | Consomme une unite de quota et dit si l'appel passe (sql/135) | `lib/api/rate-limit.ts` — tous les limiteurs |
 | `compute_filosofi_profiles_batch_2km` | **Profilage Filosofi par defaut depuis le 2026-09-12.** Variante sur `carreaux_2km` (colonnes typees, sans jsonb) — **7,8x plus rapide** (19 818 ms -> 2 543 ms pour 5 POI) et 6x moins de lectures disque. Les 16 variables du modele derivent de moins de 3,5 % ; seule `population_totale` derive de 11,8 %, et elle n'entre PAS dans le modele. Mesure sur le meme calcul (95 CIRFA) : profilage ~6 min -> 6,5 s, K 7 -> 4. Le 200 m reste joignable par `--palier 200m`. Voir docs/PLAN_CLUSTERING.md (sql/142, sql/143) | `scripts/clustering_poi_filosofi.py` |
 | `compute_filosofi_profiles_batch` | Profil sociodemographique Filosofi d'un lot de POI, par intersection avec leur isochrone. **~4 s par POI** : joint `carreaux_filosofi` (2,3 M lignes) et extrait 26 champs d'un jsonb par carreau | `scripts/clustering_poi_filosofi.py` |
@@ -1391,6 +1396,108 @@ Le workflow `generate-iris-pmtiles` et son bouton d'administration restent en
 place mais n'alimentent plus rien : a trancher (voir `docs/AUDIT_IRIS_TERRAIN.md`).
 
 ---
+
+## Perimetres PPRT — la source est la Geoplateforme, PAS le WFS Georisques
+
+> Mesure du 2026-09-17. Ce document affirmait que le WFS Georisques
+> `PPRT_PERIMETRE_RISQIND` « porte les polygones de perimetre PPRT » et
+> plafonnait « a 80 000 features ». **Les deux enonces sont faux**, et le
+> premier est le plus couteux : il aurait fait batir le chantier sur une couche
+> qui ne contient pas ce que son nom annonce.
+
+**Retenu : `wfs_sup:assiette_sup_s` sur `data.geopf.fr/wfs/ows`, filtre
+`suptype='pm3'`.** La categorie **PM3** des servitudes d'utilite publique EST
+le PPRT ; la couche est alimentee par le Geoportail de l'Urbanisme, ou chaque
+DDT depose ses documents.
+
+| | Geoplateforme `wfs_sup` (retenu) | Georisques `PPRT_PERIMETRE_RISQIND` (ecarte) |
+|---|---|---|
+| Lignes a telecharger | **664** | **~147 000** (borne par dichotomie entre 146 875 et 148 437) |
+| Contenu | PPRT uniquement | **TOUS les PPR** — la ligne a `STARTINDEX=100000` est `lib_ppr = 'PPRN-Mvt - MOLIERES'`, un PPR mouvement de terrain |
+| `CQL_FILTER` | honore (664 sur 138 558 assiettes toutes SUP) | **ignore en silence** — `lib_ppr LIKE 'PPRT%'` rend `PPRmt_Pougny` |
+| `numberMatched` | exact | **vaut toujours 500**, quel que soit `STARTINDEX` : on ne peut pas savoir quand s'arreter |
+| Sortie | GeoJSON | GML seulement (`application/json` refuse) |
+| Requetes pour tout avoir | 1 | ~294 pages de 500, puis filtrage cote client |
+
+Mesures sur les 664 polygones : **5,6 Mo** de GeoJSON, 202 899 sommets
+(306 par zone), bbox **lon -61,56 a 55,58 / lat -21,20 a 51,06** — les DROM
+sont dedans (971, 973, 974). Etang de Berre : 14 zones nommees proprement
+(« PPRT ARCELOR MITTAL », « PPRT FOS-OUEST », « PPRT BUTAGAZ Rognac »).
+
+**Couverture reelle, mesuree APRES import : 87 departements sur les 88 qui ont
+un PPRT.** Seule la **Haute-Loire (43), 2 procedures**, n'a aucune zone.
+
+> ⚠️ **Correction du 2026-09-17, meme jour.** Ce paragraphe annoncait « 63
+> departements » et « au moins 78 procedures (19 %) manquantes, dont la
+> Seine-Maritime (10 PPRT), la Haute-Garonne (9) et la Loire-Atlantique (7) ».
+> **C'etait faux, et la cause est instructive** : la couverture avait ete
+> recensee en lisant le code departemental dans le NOM DE PARTITION, or 5 des
+> 69 depots sont **regionaux** (`_SUP_R76_` = Occitanie) et portent 77 des 664
+> zones a eux seuls. Les trois departements cites sont bel et bien presents —
+> verifie en base apres import, avec le compte EXACT de `gaspar/pprt` :
+> Seine-Maritime 10 zones / 10 generateurs, Haute-Garonne 9, Loire-Atlantique
+> 7. C'est pour cela que `code_departement` est desormais calcule par
+> **recouvrement geometrique** sur `ref_departements` et jamais lu dans un nom
+> de fichier.
+
+**Une limite qui reste, et il faut la dire au client :**
+
+- **C'est l'ENVELOPPE du PPRT, pas le zonage interne.** `typeass` vaut
+  « Enveloppe des zonages reglementaires » sur 633 des 664 lignes : un polygone
+  par procedure, sans la distinction rouge/bleu/grise. Et ce zonage interne
+  **n'est pas normalise a l'echelle nationale** — `gaspar/pprt` declare plus de
+  **200 libelles distincts** de `codeZone` pour ce qui devrait etre quatre
+  familles (`R`, `r`, `B`, `b`, `G`), chaque DDT nommant les siennes a sa
+  facon (« petit b Faible (Fai) », « zone grisée », « B_Autorisation sous
+  conditions et prescriptions »...). Le detail rouge/bleu n'existe que dans les
+  jeux `data.gouv.fr` publies **un par PPRT ou par departement** par chaque
+  DDT/DREAL — eparpilles, aux schemas variables, sans point d'entree unique.
+
+**Fraicheur** : `gpu_timestamp` est propre a chaque document depose (de 2020-07
+a 2026-08 dans le lot). Ce n'est donc pas un referentiel fige comme l'annoncait
+ce document, mais il n'est pas non plus homogene : chaque PPRT date du jour ou
+sa DDT l'a televerse.
+
+### Ce qui est en place (2026-09-17, sql/177)
+
+**TROIS nombres, aucun interchangeable** — c'est le piege de vocabulaire de
+cette source : **664 assiettes** (les polygones, une ligne de table chacun),
+**609 generateurs** (`id_generateur` = l'etablissement a l'origine du risque),
+**415 procedures PPRT** (`gaspar/pprt`). Plusieurs generateurs relevent d'une
+meme procedure, et **ce flux ne porte aucune cle de jointure vers GASPAR**. La
+colonne s'appelait `id_procedure` a la premiere ecriture : quiconque l'aurait
+comptee aurait annonce « 609 PPRT ». Renommee avant toute donnee en production.
+
+| Objet | Role |
+|---|---|
+| `POST /api/admin/import-pprt` | Import NDJSON avec progression. UN appel sortant (le WFS rend les 664 en une fois, 5,6 Mo), puis UNE transaction par partition. Corps `{partitions?: string[]}` pour rejouer un seul document. `requireAdmin()` |
+| `pprt_perimetres` | 664 lignes, **15 Mo**, `geom` 4326 + `geom_3857` pre-calculee (c'est en 3857 que vit l'index GIST de `carreaux_1km`, donc la projection du chantier C) + `superficie_km2` sur `geography`. RLS deny-all |
+| `pprt_importer_partition(text, jsonb)` | DELETE cible + INSERT set-based dans la MEME transaction : la partition n'est jamais vide en base, meme une fraction de seconde |
+| `pprt_consolider_departement()` | Rattrape les zones sans departement, rejouable — pendant de `consolider_geo_icpe` (sql/174) |
+| `lib/import/pprt/normalisation.ts` | Logique pure, 47 tests sur une table de verite batie des valeurs REELLEMENT mesurees |
+
+**Mesures de l'import** (local, 2026-09-17) : 664 recues / 664 ecrites / **0
+rejetee, 0 ecartee, 0 echec, 0 sans departement**, 69 partitions, **11,2 s**,
+1 979 km2 cumules, 0 geometrie invalide. Rejeu verifie : la seconde passe
+supprime 664 et reecrit 664, net inchange. Requete carte type (bbox Etang de
+Berre) : **Bitmap Index Scan, 0,12 ms, `shared hit=17`, 0 lecture disque**.
+
+**Les donnees ne sont qu'en LOCAL** ; la prod ne porte que la structure (table
+vide, fonctions), comme pour les 99 152 ICPE. A pousser quand la couche
+d'affichage existera.
+
+**Trois defauts de la source, traites et testes** — a ne pas redecouvrir :
+- **`idass` n'identifie rien** : 660 valeurs distinctes pour 664 lignes.
+  `2147483647` (INT32_MAX, un debordement chez l'editeur) est porte par QUATRE
+  PPRT sans rapport. L'identite est donc un UUIDv5 de
+  `partition | nom_technique | md5(geometrie)`, unique sur les 664 et stable au
+  rejeu.
+- **`typeass` arrive en SIX orthographes pour deux familles**, dont une en
+  mojibake (`Pï¿½rimï¿½tre...`, l'UTF-8 de l'editeur relu en latin-1) et une
+  ligne valant `24`. Reparti en 639 enveloppes / 18 perimetres reglementes /
+  7 indetermines, la valeur brute toujours conservee a cote.
+- **Le nom lisible manque sur 202 des 664 lignes** : repli sur le nom technique,
+  degrossi.
 
 ## Environnement de developpement local (2026-09-17)
 

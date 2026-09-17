@@ -217,10 +217,21 @@ Les vrais **polygones** de risque industriel existent, mais pas dans l'API REST 
   réglementaire (`codeZone` R = interdiction, B = autorisation avec prescription)
   mais **aucune géométrie** ; `id_gaspar` fait la jointure avec le WFS.
 
-Deux réserves à lever avant de s'y engager : le WFS **plafonne ses réponses à
-80 000 features** (le vrai compte reste à établir, département par département)
-et sa dernière mise à jour annoncée est **février 2023** — c'est un référentiel
-figé, pas un flux.
+> **Réserves levées le 2026-09-17, et la conclusion s'inverse : ce WFS ne
+> convient pas, une autre source existe.** Le paragraphe ci-dessous disait que
+> le WFS Géorisques « plafonne ses réponses à 80 000 features » et datait de
+> février 2023. Mesuré : la couche porte **~147 000 lignes** et surtout elle
+> ne contient **pas que des PPRT** — la ligne à `STARTINDEX=100000` est
+> `lib_ppr = 'PPRN-Mvt - MOLIERES'`, un PPR mouvement de terrain. Son
+> `CQL_FILTER` est **ignoré en silence** (`lib_ppr LIKE 'PPRT%'` rend
+> `PPRmt_Pougny`) et son `numberMatched` vaut **toujours 500**.
+>
+> **Source retenue : `wfs_sup:assiette_sup_s` sur `data.geopf.fr/wfs/ows`,
+> filtre `suptype='pm3'`** — la catégorie PM3 des servitudes d'utilité publique
+> EST le PPRT. **664 polygones**, GeoJSON, filtre honoré, 5,6 Mo, DROM inclus.
+> Comparaison chiffrée, couverture (63 départements sur 88, dont la
+> Seine-Maritime absente) et limite « enveloppe, pas zonage interne » :
+> section « Périmètres PPRT » d'`ARCHITECTURE.md`.
 
 Table dédiée (`geometry(MultiPolygon,4326)` + index GIST), tuiles **MVT** sur le
 motif de `/api/tiles/[z]/[x]/[y]`, jamais du GeoJSON France entière. L'intérêt

@@ -4432,6 +4432,81 @@ export type Database = {
         }
         Relationships: []
       }
+      pprt_perimetres: {
+        Row: {
+          code_departement: string | null
+          code_region: string | null
+          date_source: string | null
+          depot_code: string | null
+          depot_niveau: string | null
+          document_source: string | null
+          fichier_acte: string | null
+          geom: unknown
+          geom_3857: unknown
+          id: string
+          id_assiette: string | null
+          id_generateur: string | null
+          importe_le: string
+          mode_geometrie: string | null
+          nom: string
+          nom_departement: string | null
+          nom_technique: string | null
+          partition: string
+          source: string
+          superficie_km2: number | null
+          type_zone: string
+          type_zone_source: string | null
+        }
+        Insert: {
+          code_departement?: string | null
+          code_region?: string | null
+          date_source?: string | null
+          depot_code?: string | null
+          depot_niveau?: string | null
+          document_source?: string | null
+          fichier_acte?: string | null
+          geom: unknown
+          geom_3857: unknown
+          id: string
+          id_assiette?: string | null
+          id_generateur?: string | null
+          importe_le?: string
+          mode_geometrie?: string | null
+          nom: string
+          nom_departement?: string | null
+          nom_technique?: string | null
+          partition: string
+          source?: string
+          superficie_km2?: number | null
+          type_zone: string
+          type_zone_source?: string | null
+        }
+        Update: {
+          code_departement?: string | null
+          code_region?: string | null
+          date_source?: string | null
+          depot_code?: string | null
+          depot_niveau?: string | null
+          document_source?: string | null
+          fichier_acte?: string | null
+          geom?: unknown
+          geom_3857?: unknown
+          id?: string
+          id_assiette?: string | null
+          id_generateur?: string | null
+          importe_le?: string
+          mode_geometrie?: string | null
+          nom?: string
+          nom_departement?: string | null
+          nom_technique?: string | null
+          partition?: string
+          source?: string
+          superficie_km2?: number | null
+          type_zone?: string
+          type_zone_source?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -6424,6 +6499,11 @@ export type Database = {
       }
       postgis_version: { Args: never; Returns: string }
       postgis_wagyu_version: { Args: never; Returns: string }
+      pprt_consolider_departement: { Args: never; Returns: Json }
+      pprt_importer_partition: {
+        Args: { p_lignes: Json; p_partition: string }
+        Returns: Json
+      }
       publier_strategie: {
         Args: {
           p_charge_utile: Json

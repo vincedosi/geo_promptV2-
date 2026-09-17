@@ -17,10 +17,18 @@
 --
 -- LE RAYON EST UN CHOIX, PAS UNE VERITE
 --   Ce n'est PAS le perimetre reglementaire d'un PPRT (415 procedures en
---   France, polygones du WFS Georisques, figes a fevrier 2023). C'est un rayon
---   indicatif que l'utilisateur regle. L'interface doit le dire : confondre les
---   deux ferait passer un cercle de notre invention pour une servitude
---   d'urbanisme opposable.
+--   France). C'est un rayon indicatif que l'utilisateur regle. L'interface doit
+--   le dire : confondre les deux ferait passer un cercle de notre invention
+--   pour une servitude d'urbanisme opposable.
+--
+--   Les vrais perimetres PPRT sont EN BASE depuis sql/177 : 664 assiettes de
+--   servitude PM3, importees de la Geoplateforme IGN, dans `pprt_perimetres`.
+--   Cet en-tete annoncait « polygones du WFS Georisques, figes a fevrier 2023 »
+--   jusqu'au 2026-09-17 : la source retenue n'est PAS celle-la (le WFS
+--   Georisques melange tous les PPR et ignore son propre filtre), et elle n'est
+--   pas figee. Les deux couches coexistent a dessein : le rayon est
+--   generalisable aux 99 152 installations classees, le PPRT ne couvre que 87
+--   departements mais il est officiel.
 --
 -- BORNES, parce que la table porte 99 152 sites
 --   `p_limite` plafonne le nombre de sites rendus (defaut 2 000). La bbox est
