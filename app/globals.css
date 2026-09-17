@@ -103,6 +103,21 @@
     --seq-4: #3a9e91;
     --seq-5: #4ecdc4;
 
+    /* ── Palette CATEGORIELLE des types de risque industriel (ICPE Georisques,
+       lib/carte/palette-risques.ts). QUATRE couleurs et pas plus : le
+       validateur de palette (skill dataviz, mode --pairs all, celui qui
+       s'applique a une carte) refuse 5 teintes et au-dela — a 7, orange et
+       rouge tombent a DeltaE 7,1 en vision NORMALE, plancher 15. Les paliers
+       sombres ne sont pas un eclaircissement des clairs : ils ont ete
+       re-choisis pour la bande sombre, sans quoi jaune/rouge retombe a 13,0.
+       Le non-precise reprend --donnee-absente : 68 % des sites n'ont aucune
+       rubrique exploitable, et une teinte de la palette y ferait lire un type
+       de risque inexistant. */
+    --risque-toxique:     #e66767;
+    --risque-inflammable: #b88a00;
+    --risque-pollution:   #008300;
+    --risque-autres:      #3987e5;
+
     /* ── Habillage des calques MapLibre (contours de zone, halo d'étiquette).
        MapLibre ne résout PAS `var()` dans `paint` : ces jetons sont lus par
        `getComputedStyle` AU MOMENT de l'application (`lireJetonCarte`,
@@ -250,6 +265,14 @@
     --seq-3: #8ed6cc;
     --seq-4: #4fb3a6;
     --seq-5: #1f8a7c;
+
+    /* Palette categorielle des types de risque industriel (light) — voir le
+       commentaire du bloc :root. Ces quatre hex sont ceux valides sur surface
+       #ffffff, pire paire en vision normale jaune/rouge DeltaE 20,8. */
+    --risque-toxique:     #e34948;
+    --risque-inflammable: #eda100;
+    --risque-pollution:   #008300;
+    --risque-autres:      #2a78d6;
 
     /* Habillage MapLibre (light) — voir le commentaire du bloc :root. Le
        contour s'inverse : du noir translucide sur un fond clair. */
