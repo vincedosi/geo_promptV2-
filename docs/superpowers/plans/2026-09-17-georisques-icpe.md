@@ -796,3 +796,52 @@ git commit -m "docs: route dimport Georisques, registre des familles ICPE, categ
 **Cohérence de nommage :** `SiteIcpeBrut`, `GraviteIcpe`, `LignePoiIcpe`, `graviteIcpe`, `naturesDuSite`, `natureDominante`, `normaliserSiteIcpe`, `identitePoiSourceExterne`, `SOURCE_ICPE`, `CATEGORIE_ICPE`, `FAMILLES_ICPE_SEED`, `NATURE_NON_PRECISEE` — un seul nom par chose, utilisé à l'identique d'une tâche à l'autre.
 
 **Point laissé ouvert, assumé :** Task 5 Step 3 renvoie à la spec §8 pour le corps de la route au lieu de le recopier en entier. C'est le seul endroit où le plan ne contient pas le code littéral, parce que la route est longue et que ses contraintes sont toutes verrouillées par le test de contrat de l'étape 1.
+
+---
+
+## Feuille de route — trois chantiers (cadrage Vincent, 2026-09-17)
+
+Ce plan ne couvre que le chantier A. Les deux suivants sont notes ici parce
+qu'ils contraignent des choix de A, et qu'un plan qui les ignore ferait prendre
+les mauvais.
+
+### Chantier A — les POINTS ICPE (ce plan)
+Livre : import, classement, 99 152 sites en base locale, palette validee.
+Reste : section dediee separee des autres POI, filtre multi-choix par type,
+halo optionnel, couleur par type sur le point ET le halo, popup complete.
+
+### Chantier B — les ZONES A RISQUE autour des POI
+**A trancher avant de coder**, la formulation admet deux lectures qui ne se
+substituent pas :
+
+| Lecture | Ce que c'est | Couverture | Limite |
+|---|---|---|---|
+| Perimetres **PPRT** | polygones reglementaires, WFS `PPRT_PERIMETRE_RISQIND` | ~415 procedures | source figee a **fevrier 2023**, reponses WFS plafonnees a **80 000** features |
+| Zones **calculees** | rayon de danger autour de chaque site, facon isochrone | les 99 152 sites | le rayon est un ARBITRAGE : fixe ? par type de risque ? par quantite stockee (`rubriques[].quantiteTotale`, qu'on a deja) ? |
+
+La seconde est la seule generalisable, la premiere la seule opposable. Elles
+peuvent cohabiter — un perimetre PPRT quand il existe, un rayon calcule sinon —
+mais il faut alors le DIRE sur la carte, sinon deux objets de nature differente
+portent la meme apparence.
+
+### Chantier C — la POPULATION EXPOSEE, par POI et par zone
+La finalite produit : « combien de personnes vivent dans le perimetre de ce
+site Seveso ». Croisement de chaque zone avec `carreaux_filosofi` ou `iris`.
+
+Ce qui existe deja et qu'il faut REUTILISER, pas reecrire :
+- `compute_zone_items_audience` (sql/088) fait exactement ce croisement pour les
+  zones custom, avec son cache `items_audience_stats` ;
+- `get_carreaux_for_scoring` lit les carreaux dans un rayon ;
+- les paliers agreges `carreaux_1km` / `2km` / `5km` existent pour ne pas payer
+  les 4,6 Go du 200 m quand la precision n'est pas rendue.
+
+Les deux contraintes qui decident de l'architecture :
+1. **99 152 sites x 2,3 M carreaux ne se calcule pas a la volee.** C'est un
+   traitement par LOTS, resultat STOCKE, avec progression — la regle des
+   imports du projet. Une intersection live serait l'incident du 28/03 en pire.
+2. **Le palier de carreaux doit suivre le rayon.** 200 m pour un rayon de
+   500 m, `carreaux_1km` au-dela.
+
+Consequence pour A, a ne pas oublier : le rayon et le palier retenus devront
+etre STOCKES avec le resultat, sinon deux calculs faits a six mois d'ecart
+donneront deux populations differentes sans qu'on sache laquelle croire.
