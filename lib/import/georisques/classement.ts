@@ -92,6 +92,9 @@ export interface LignePoiIcpe {
   adresse: string | null;
   ville: string | null;
   code_postal: string | null;
+  code_departement: string | null;
+  departement: string | null;
+  region: string | null;
   lat: number;
   lng: number;
   source: string;
@@ -191,6 +194,28 @@ export function natureDominante(site: SiteIcpeBrut): string {
   return candidates[0].famille.libelle;
 }
 
+/**
+ * Code département déduit du code INSEE de la commune.
+ *
+ * ── Pourquoi c'est indispensable, et comment on l'a appris ────────────────
+ *
+ * Le premier import national a rempli 94 652 lignes... que la carte ne montrait
+ * PAS : `/api/map/pois` filtre les départements sur `code_departement` ET
+ * `departement`, toutes deux nulles sur ces lignes. Zéro POI, sans erreur ni
+ * message — le symptôme exact déjà documenté pour les 5 584 lycées introuvables
+ * à Paris (docs/audit/QUICK_WINS.md point 19).
+ *
+ * On dérive du code INSEE et non du code postal : un code postal peut
+ * chevaucher deux départements (05130, 01590…), le code INSEE non.
+ * Les DROM tiennent sur trois chiffres (971 à 976), la métropole sur deux —
+ * la Corse comprise, dont les codes INSEE commencent par 2A/2B.
+ */
+export function codeDepartementDepuisInsee(codeInsee: string | null | undefined): string | null {
+  const c = (codeInsee ?? '').trim();
+  if (c.length < 2) return null;
+  return c.startsWith('97') || c.startsWith('98') ? c.slice(0, 3) : c.slice(0, 2);
+}
+
 /** `2026-06-11/15-11-56` → `2026-06-11`. La source colle l'heure à la date. */
 function dateSeule(valeur: string | null | undefined): string | null {
   const v = (valeur ?? '').trim();
@@ -208,7 +233,17 @@ function dateSeule(valeur: string | null | undefined): string | null {
  *    pollue toute analyse spatiale en silence.
  * L'appelant compte ces refus et les affiche (`ecartes`).
  */
-export function normaliserSiteIcpe(site: SiteIcpeBrut): LignePoiIcpe | null {
+export interface ReferentielGeo {
+  /** code département → nom du département */
+  nomDepartement: Map<string, string>;
+  /** code département → nom de la région */
+  nomRegion: Map<string, string>;
+}
+
+export function normaliserSiteIcpe(
+  site: SiteIcpeBrut,
+  geo?: ReferentielGeo,
+): LignePoiIcpe | null {
   const codeAiot = (site.codeAIOT ?? '').trim();
   if (!codeAiot) return null;
   if (typeof site.longitude !== 'number' || typeof site.latitude !== 'number') return null;
@@ -221,6 +256,8 @@ export function normaliserSiteIcpe(site: SiteIcpeBrut): LignePoiIcpe | null {
       .map((p) => (p ?? '').trim())
       .filter(Boolean)
       .join(' ') || null;
+
+  const codeDept = codeDepartementDepuisInsee(site.codeInsee);
 
   const inspections = (site.inspections ?? [])
     .map((i) => (i.dateInspection ?? '').trim())
@@ -236,6 +273,14 @@ export function normaliserSiteIcpe(site: SiteIcpeBrut): LignePoiIcpe | null {
     adresse,
     ville: (site.commune ?? '').trim() || null,
     code_postal: (site.codePostal ?? '').trim() || null,
+    code_departement: codeDept,
+    // On renseigne les DEUX écritures que `/api/map/pois` interroge : le code
+    // et le nom. Ce n'est pas redondant — la colonne `departement` porte un nom
+    // pour certains imports et un code pour d'autres, et la route teste les
+    // deux. Fournir le nom ici la rend cohérente avec le plus gros import
+    // existant (les lycées) au lieu d'ajouter une troisième convention.
+    departement: codeDept ? geo?.nomDepartement.get(codeDept) ?? null : null,
+    region: codeDept ? geo?.nomRegion.get(codeDept) ?? null : null,
     lat: site.latitude,
     lng: site.longitude,
     source: SOURCE_ICPE,

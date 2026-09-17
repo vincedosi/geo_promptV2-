@@ -60,6 +60,7 @@ import { createAdminClient } from '@/lib/auth';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { fetchLectureAvecReprise } from '@/lib/http/lecture-avec-reprise';
 import { normaliserSiteIcpe, estInstallationClassee, SOURCE_ICPE } from '@/lib/import/georisques/classement';
+import type { ReferentielGeo } from '@/lib/import/georisques/classement';
 import type { SiteIcpeBrut, LignePoiIcpe } from '@/lib/import/georisques/classement';
 
 export const dynamic = 'force-dynamic';
@@ -141,6 +142,35 @@ export async function POST(request: NextRequest) {
         controller.enqueue(encoder.encode(JSON.stringify(evenement) + '\n'));
       };
 
+      /**
+       * Référentiel géographique, chargé UNE FOIS pour tout l'import.
+       *
+       * `/api/map/pois` filtre les départements sur `code_departement` ET
+       * `departement`, et les régions sur `region`. Sans ces trois colonnes,
+       * les 94 652 sites sont en base et INVISIBLES sur la carte — constaté au
+       * premier import, zéro POI rendu sans la moindre erreur.
+       *
+       * Deux requêtes pour 101 départements et 18 régions, jamais une par
+       * ligne : le motif de `lib/import/inserter.ts` après son correctif du
+       * 2026-09-11.
+       */
+      const geo: ReferentielGeo = { nomDepartement: new Map(), nomRegion: new Map() };
+      {
+        const [dept, reg] = await Promise.all([
+          supabase.from('ref_departements').select('code_dept, nom_dept, code_region'),
+          supabase.from('ref_regions').select('code_region, nom_region'),
+        ]);
+        const nomParRegion = new Map(
+          (reg.data ?? []).map((r) => [r.code_region as string, r.nom_region as string]),
+        );
+        for (const d of dept.data ?? []) {
+          const code = d.code_dept as string;
+          if (d.nom_dept) geo.nomDepartement.set(code, d.nom_dept as string);
+          const nomR = d.code_region ? nomParRegion.get(d.code_region as string) : undefined;
+          if (nomR) geo.nomRegion.set(code, nomR);
+        }
+      }
+
       let traitees = 0;
       let ecrites = 0;
       let ecartes = 0;
@@ -198,7 +228,7 @@ export async function POST(request: NextRequest) {
                 horsPerimetre += 1;
                 continue;
               }
-              const ligne = normaliserSiteIcpe(site);
+              const ligne = normaliserSiteIcpe(site, geo);
               if (ligne) lignes.push(ligne);
               else ecartes += 1;
             }

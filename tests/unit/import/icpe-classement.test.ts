@@ -5,6 +5,7 @@ import {
   naturesDuSite,
   normaliserSiteIcpe,
   estInstallationClassee,
+  codeDepartementDepuisInsee,
   SOURCE_ICPE,
   CATEGORIE_ICPE,
 } from '@/lib/import/georisques/classement';
@@ -207,5 +208,55 @@ describe('périmètre : ce qui est une installation classée', () => {
     expect(estInstallationClassee(site({ regime: 'Autorisation' }))).toBe(true);
     expect(estInstallationClassee(site({ regime: 'Enregistrement' }))).toBe(true);
     expect(estInstallationClassee(site({ regime: null }))).toBe(true);
+  });
+});
+
+describe('code département déduit du code INSEE', () => {
+  it('métropole : deux premiers chiffres', () => {
+    expect(codeDepartementDepuisInsee('13117')).toBe('13');
+    expect(codeDepartementDepuisInsee('69123')).toBe('69');
+    expect(codeDepartementDepuisInsee('01001')).toBe('01');
+  });
+
+  it('Corse : 2A et 2B, qui ne sont pas des chiffres', () => {
+    expect(codeDepartementDepuisInsee('2A004')).toBe('2A');
+    expect(codeDepartementDepuisInsee('2B033')).toBe('2B');
+  });
+
+  it('DROM : trois caractères', () => {
+    expect(codeDepartementDepuisInsee('97411')).toBe('974');
+    expect(codeDepartementDepuisInsee('97101')).toBe('971');
+    expect(codeDepartementDepuisInsee('98411')).toBe('984');
+  });
+
+  it('rend null sur une entrée inexploitable plutôt qu un code tronqué', () => {
+    expect(codeDepartementDepuisInsee(null)).toBeNull();
+    expect(codeDepartementDepuisInsee('')).toBeNull();
+    expect(codeDepartementDepuisInsee('7')).toBeNull();
+  });
+
+  it('les colonnes géographiques sont renseignées dans la ligne produite', () => {
+    // Sans elles, /api/map/pois filtre sur code_departement ET departement, et
+    // rend ZERO POI sans erreur : les 94 652 sites seraient en base et
+    // invisibles. C'est ce qui est arrivé au premier import.
+    const geo = {
+      nomDepartement: new Map([['13', 'BOUCHES-DU-RHONE']]),
+      nomRegion: new Map([['13', "PROVENCE-ALPES-COTE D'AZUR"]]),
+    };
+    const l = normaliserSiteIcpe(
+      { codeAIOT: '1', raisonSociale: 'X', codeInsee: '13117', longitude: 5.2, latitude: 43.4 },
+      geo,
+    )!;
+    expect(l.code_departement).toBe('13');
+    expect(l.departement).toBe('BOUCHES-DU-RHONE');
+    expect(l.region).toBe("PROVENCE-ALPES-COTE D'AZUR");
+  });
+
+  it('sans référentiel, le code reste posé et les noms restent nuls', () => {
+    const l = normaliserSiteIcpe(
+      { codeAIOT: '1', raisonSociale: 'X', codeInsee: '13117', longitude: 5.2, latitude: 43.4 },
+    )!;
+    expect(l.code_departement).toBe('13');
+    expect(l.departement).toBeNull();
   });
 });
