@@ -4,6 +4,7 @@ import {
   natureDominante,
   naturesDuSite,
   normaliserSiteIcpe,
+  estInstallationClassee,
   SOURCE_ICPE,
   CATEGORIE_ICPE,
 } from '@/lib/import/georisques/classement';
@@ -190,5 +191,21 @@ describe('normalisation vers poi_france', () => {
     expect(l.sous_categorie).toBe('autre');
     expect(l.metadata.libelle_nature).toBe('Nature non précisée');
     expect(l.metadata.nb_inspections).toBe(0);
+  });
+});
+
+describe('périmètre : ce qui est une installation classée', () => {
+  it('écarte « Non ICPE » — 451 sites sur 1 985 au premier import réel du 13', () => {
+    expect(estInstallationClassee(site({ regime: 'Non ICPE' }))).toBe(false);
+  });
+
+  it('conserve « Autres régimes » — de vraies ICPE, au régime le plus léger', () => {
+    expect(estInstallationClassee(site({ regime: 'Autres régimes' }))).toBe(true);
+  });
+
+  it('conserve Autorisation, Enregistrement, et un régime absent', () => {
+    expect(estInstallationClassee(site({ regime: 'Autorisation' }))).toBe(true);
+    expect(estInstallationClassee(site({ regime: 'Enregistrement' }))).toBe(true);
+    expect(estInstallationClassee(site({ regime: null }))).toBe(true);
   });
 });

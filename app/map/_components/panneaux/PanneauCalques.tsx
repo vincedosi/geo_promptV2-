@@ -233,6 +233,7 @@ export function PanneauCalques(props: PanneauCalquesProps) {
   const {
     poiTypes, catsLoading, catsError, fetchCategories,
     poiNatures, fetchPoiNatures, selectedPoiNatures, setSelectedPoiNatures,
+    inclureInactifsIcpe, setInclureInactifsIcpe,
   } = usePoiCatalog();
 
   const { poiStyles, setPoiStyles, getPOIStyle, setPOIStyle } = usePoiStyles(onPOIStylesChange);
@@ -258,6 +259,7 @@ export function PanneauCalques(props: PanneauCalquesProps) {
         scope, regions: selectedRegions, depts: selectedDepts, ville,
         rayon_poi: poisRayon,
         poi_natures: Object.fromEntries(Object.entries(selectedPoiNatures).filter(([, v]) => v.length > 0)),
+        poi_inclure_inactifs: inclureInactifsIcpe,
       });
     } finally {
       setSearchLoading(false);
@@ -446,6 +448,8 @@ export function PanneauCalques(props: PanneauCalquesProps) {
             setPOIStyle={setPOIStyle}
             setPoiStyles={setPoiStyles}
             poiNatures={poiNatures}
+            inclureInactifsIcpe={inclureInactifsIcpe}
+            setInclureInactifsIcpe={setInclureInactifsIcpe}
             selectedPoiNatures={selectedPoiNatures}
             setSelectedPoiNatures={setSelectedPoiNatures}
             hasAnyPOI={hasAnyPOI}

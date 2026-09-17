@@ -144,6 +144,7 @@
 | LLM / Copilote | Vercel AI SDK + Gemini 2.5 Flash / Mistral Small | ai ^6.0 |
 | Fonds de carte | OpenFreeMap (Liberty / Positron / Bright) + MAGELIAN dark style | — |
 | Isochrones | OpenRouteService (ORS) REST API | — |
+| Risques industriels | **Georisques** (ministere de la Transition ecologique) — `api/v1/installations_classees`, **sans jeton**. 138 423 installations classees. Le WFS `PPRT_PERIMETRE_RISQIND` porte les polygones de perimetre PPRT mais reste **hors perimetre** (source figee a fevrier 2023, reponses plafonnees a 80 000 features) | — |
 | Meteo | Open-Meteo API (temperature, precipitation, ensoleillement) | — |
 | Inference ML bidding | **Modal** (serverless Python, HTTPS) — `-predict` / `-train` / `-detect-drift` | — |
 | Jobs asynchrones | Inngest (serverless queue) | ^3.52 |
@@ -806,6 +807,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/admin/import-poi/dry-run` | POST | Preview import (10 lignes) |
 | `/api/admin/import-poi/execute` | POST | Import batch SSE streaming |
 | `/api/admin/import-ooh/arcgis` | POST/DELETE | Import OOH ArcGIS REST |
+| `/api/admin/import-georisques` | POST | **Installations classees (ICPE) de l'API Georisques** vers `poi_france`, categorie `risque_industriel` (sql/173, spec du 2026-09-17). Flux NDJSON avec progression, lots de 50, `id` deterministe derive du `codeAIOT` — donc rejouable sans doublon (verifie : 1534 -> 1534 au rejeu). Corps `{departements?: string[], page_size?: number}`, defaut = les 101 departements. **Trois mesures a ne pas re-deviner** : `page_size` plafonne a **1 000** (a 2 000 l'API rend ZERO ligne, sans erreur) ; le filtre `statut_seveso` de l'API **est ignore** (il rend les 138 423 lignes quelle que soit la valeur), donc on ingere et on classe en base ; et l'endpoint sert aussi des etablissements `regime = 'Non ICPE'` qui ne sont PAS des installations classees — **19 % du volume national**, ecartes et comptes a part (`hors_perimetre`), jamais en silence. L'upsert MET A JOUR (referentiel vivant), donc `.select('id')` rend tout le lot : le compteur s'appelle `ecrites`, pas `inserees` |
 | `/api/admin/import-datagouv` | POST | Import data.gouv.fr (SSRF whitelist). **Idempotent** depuis le 2026-09-11 : `id` deterministe (`lib/import/identite-poi.ts`, source `data_gouv`) + `upsert onConflict: 'id'`, donc un re-import du meme jeu n'ecrit rien. Les compteurs du flux NDJSON portent `inserted` ET `ignored` (deja presents) |
 | `/api/admin/import-geo/*` | POST | Import Shapefile |
 | `/api/admin/geocode/batch` | POST | Geocode batch BAN |
@@ -1023,7 +1025,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 ### POI & Panneaux
 | Table | Description | Notes |
 |-------|-------------|-------|
-| `poi_france` | Points d'Interet — **une table**, et non une vue : il n'existe aucune table `poi` | Trigger `auto_set_geom`. `id` **deterministe** aux deux chemins d'import (universel et data.gouv) : UUIDv5 du contenu de la ligne (`lib/import/identite-poi.ts`), ce qui rend `onConflict: 'id'` operant et le rejeu d'un fichier sans effet. Ne jamais revenir a `randomUUID()` — voir `docs/AUDIT.md#ech-001` |
+| `poi_france` | Points d'Interet — **une table**, et non une vue : il n'existe aucune table `poi`. Porte depuis le 2026-09-17 la categorie **`risque_industriel`** (ICPE Georisques) : `sous_categorie` = la gravite (`seveso_haut`/`seveso_bas`/`ied`/`autorisation`/`enregistrement`/`autre`, qui colore le point), `metadata.libelle_nature` = la nature DOMINANTE du risque (qui le filtre), `metadata.natures_risque[]` = toutes ses natures | Trigger `auto_set_geom`. `id` **deterministe** aux deux chemins d'import (universel et data.gouv) : UUIDv5 du contenu de la ligne (`lib/import/identite-poi.ts`), ce qui rend `onConflict: 'id'` operant et le rejeu d'un fichier sans effet. Ne jamais revenir a `randomUUID()` — voir `docs/AUDIT.md#ech-001` |
 | `panneaux_affichage` | Panneaux OOH/DOOH toutes regies (~1 434 lignes) — table unique (carte + copilote) | `source_ref` = OBJECTID, UNIQUE (source, source_ref), filtrer `actif = true` |
 | `import_runs_ooh` | Historique imports OOH | |
 | `poi_categories` | Categories POI | |
@@ -1060,6 +1062,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `filosofi_national_averages` | Moyennes nationales Filosofi | |
 | `smart_prompt_feedback` | Feedback prompts IA (user_id) | |
 | `smart_ville_stats` | Stats villes | |
+| `icpe_rubrique_familles` | Familles de rubriques ICPE : traduit le prefixe (2 chiffres) du numero de rubrique en **nature de risque** (41 toxicite aigue, 47 GPL et produits petroliers, 27 dechets...). 15 lignes | sql/173 (2026-09-17). Miroir TS `lib/import/georisques/familles.ts` — le classement tourne sur 138 423 sites et ne peut pas faire un aller-retour en base par rubrique ; la table sert l'affichage et l'evolution sans deploiement. `rang_gravite` (UNIQUE) ne sert QU'A departager la nature dominante d'un site qui en porte plusieurs : ce n'est pas une echelle de danger, la gravite reglementaire est le statut Seveso. RLS deny-all |
 | `qualite_releves` | Dernier releve de chaque verification de qualite des donnees | sql/149 (2026-09-13). Rouvrir `/admin/qualite-donnees` lit CETTE table, jamais les tables sources. RLS deny-all |
 | `quotas_appels` | Compteurs de quota d'appels PARTAGES entre instances (sql/135) | Une ligne par cle = prefixe de route + appelant. Ecrite par la RPC `consommer_quota` (un seul `INSERT … ON CONFLICT … RETURNING`, donc exact en concurrence). Se purge elle-meme. RLS deny-all. **C'est le garde-fou du budget I/O** : avant, il comptait en memoire d'instance et ne limitait rien sur Vercel |
 | `civic_health_cache` | Cache indicateurs ATMO + pollen par code INSEE commune | TTL 24h, fallback stale 48h, RLS public read / service write, source ODbL Atmo France |
@@ -1383,6 +1386,143 @@ silence sur une source vide.
 
 Le workflow `generate-iris-pmtiles` et son bouton d'administration restent en
 place mais n'alimentent plus rien : a trancher (voir `docs/AUDIT_IRIS_TERRAIN.md`).
+
+---
+
+## Environnement de developpement local (2026-09-17)
+
+> Le dev tapait jusqu'ici directement dans la base de PROD — la meme que
+> Vercel — avec les consequences d'I/O documentees plus haut. Le stack Supabase
+> local (`supabase/config.toml`, deja present mais jamais monte) sert desormais
+> de bac a sable : Postgres 17 + PostGIS, PostgREST, GoTrue, Realtime, Storage
+> et Studio, en conteneurs.
+
+Quatre scripts dans `scripts/local/`, rejouables un par un :
+
+| Script | Role |
+|---|---|
+| `00-docker-up.sh` | demarre le moteur Docker et **diagnostique la RAM** avant d'attendre |
+| `01-supabase-up.sh` | `supabase start` — API 54321 · Postgres 54322 · Studio 54323 · mails 54324 |
+| `02-dump-prod.sh` | dump du projet distant vers `$DUMP_DIR` (defaut `C:/GENESIS/_dump_prod`, **hors depot**) : `auth.sql` + `public.sql` |
+| `03-restore-local.sh` | remise a zero de `public` + extensions -> comptes auth -> `public.sql`, via le `psql` du conteneur. **Rejouable** |
+| `04-env-local.sh` | ecrit `.env.development.local` (surcharge dev, `.env.local` intact) |
+| `05-verifier.sh` | controle en trois temps : conteneurs, volumetrie en base, **et PostgREST** — c'est PostgREST que l'app appelle, pas `psql` |
+
+- **WSL2 et surtout PAS Hyper-V.** Hyper-V **pre-alloue** toute la RAM de la
+  VM : sur ce poste (15,5 Go dont ~10 pris par Chrome, Teams, le nouvel Outlook
+  et les agents corporate), le demarrage echouait en `0x800705AA`
+  « ressources systeme insuffisantes » — a 6 Go, puis 4, 3, 2 et **jusqu'a
+  768 Mo**, meme en memoire dynamique. Baisser l'allocation ne resout rien, et
+  Docker Desktop reste affiche « starting » sans jamais donner la raison.
+  Le developpeur a besoin de son navigateur POUR tester l'app : lui demander de
+  fermer Chrome n'est pas une solution.
+  Sortie retenue le 2026-09-17 : **WSL2** (`wsl.2.7.14.0.x64.msi`, MSI Microsoft
+  signe, installe sans redemarrage — les fonctionnalites Windows
+  `Microsoft-Windows-Subsystem-Linux` et `VirtualMachinePlatform` etaient DEJA
+  activees). WSL2 n'alloue pas son plafond d'avance : il grandit a la demande et
+  `autoMemoryReclaim=gradual` rend la memoire a Windows quand la base est au
+  repos. Plafond declare dans `~/.wslconfig` : 3 Go, 4 vCPU, swap 4 Go.
+  `00-docker-up.sh` alerte si le backend Hyper-V est reactive — sur ce poste ce
+  n'est pas un detail de configuration, c'est la panne elle-meme.
+- **Perimetre des donnees** (~1,5 Go des 6,8 Go de prod) : sont EXCLUS
+  `carreaux_filosofi` (4 630 Mo, ne sert que les tuiles z>=12 — les paliers
+  1/2/5/20 km restent, donc la carte fonctionne jusqu'a z11) et
+  `comptages_routiers` (701 Mo, dont 99,7 % de proxy OSM et non du TMJA mesure).
+  IRIS, POI, campagnes DSP, radio et referentiels sont copies en entier.
+- **`[db.migrations]` et `[db.seed]` sont passes a `false`** dans
+  `supabase/config.toml` : le schema local vient du dump, pas des 43 fichiers
+  de `supabase/migrations/`, qui n'ont jamais ete l'historique reel du projet
+  (les migrations vivantes sont les ~150 fichiers de `sql/`, appliques par le
+  MCP Supabase). Corollaire : `supabase db push` ne pousse plus rien tant que
+  ces deux options sont a `false`.
+- **La CSP devait etre ouverte, et c'est le piege le plus trompeur du lot.**
+  `next.config.js` fixe `connect-src 'self' https://*.supabase.co …` : l'origine
+  locale `http://127.0.0.1:54321` n'y correspond pas, donc **le navigateur
+  refuse la requete AVANT de l'emettre**. Le symptome ment completement — la
+  connexion echoue sans qu'aucune trace n'arrive dans les journaux de GoTrue, ce
+  qui se lit comme un mot de passe refuse alors que rien n'est parti. Seule la
+  console du navigateur le dit (« violates the following Content Security Policy
+  directive »). Corrige par `originesSupabaseLocal`, ajoute a `connect-src`
+  **uniquement quand `NODE_ENV !== 'production'`** : verifie par appel direct a
+  `headers()` dans les deux modes — en prod, aucune origine en http ni en
+  boucle locale n'apparait.
+- **`.env.development.local` n'est lu qu'en dev.** Next.js le charge avant
+  `.env.local` pour `npm run dev` uniquement : `npm run build` et `npm test`
+  continuent de parler a la PROD. Renommer ou supprimer ce fichier fait
+  repasser le dev sur la prod, sans toucher aux cles reelles.
+- **`[realtime]`, `[storage]` et `[analytics]` sont a `false`** : verifie par
+  grep sur `app/`, `lib/` et `components/`, l'app n'ouvre aucun `.channel(` et
+  n'appelle jamais `.storage.from(` (les PMTiles IRIS passent par GitHub
+  Releases) ; logflare/vector ne servent qu'a explorer les logs du stack, et le
+  conteneur `vector` bouclait en redemarrage. Cinq conteneurs de moins
+  (realtime, storage-api, imgproxy, analytics, vector) la ou la RAM est le
+  facteur limitant. Reste 8 conteneurs, **575 Mo mesures** au total.
+- **Parite avec la prod verifiee, pas supposee** : local PostgreSQL **17.6** vs
+  17.6.1 en prod, et PostGIS **3.3.7 disponible dans l'image** = exactement la
+  version de prod, plus `http` 1.6, `pg_trgm` 1.6, `unaccent`, `pgcrypto`,
+  `uuid-ossp`, `pg_stat_statements` — les neuf extensions de la prod.
+- **Chemin reseau du dump : le pooler, jamais la connexion directe.**
+  `db.vkkdbygwbrxyogqosten.supabase.co` n'a qu'un enregistrement **AAAA**
+  (IPv6) et n'est pas joignable depuis ce poste (l'IPv4 directe est une option
+  payante). Le pooler repond en IPv4, et des deux hotes de la region **seul
+  `aws-1-eu-west-3.pooler.supabase.com` sert ce projet** : `aws-0` repond
+  « tenant/user not found », `aws-1` « password authentication failed » — c'est
+  ainsi qu'il a ete identifie sans connaitre le mot de passe. **Port 5432
+  obligatoire** (mode session) : en 6543, mode transaction, `pg_dump` ne
+  fonctionne pas. Le drapeau `--linked` est ecarte : le CLI 2.109 ne relit pas
+  `supabase/.temp/linked-project.json` et repond « Cannot find project ref »
+  alors que le projet EST lie.
+- **`.env.local` portait un BOM UTF-8** : le CLI Supabase refusait de demarrer
+  (`failed to parse environment file: unexpected character '»' in variable
+  name`) la ou Next.js le tolerait sans rien dire. Retire le 2026-09-17 — si le
+  fichier est reecrit un jour par un editeur Windows, le symptome reviendra.
+- **UN SEUL fichier de dump pour `public`, schema ET donnees — c'est
+  structurel, ne pas re-separer.** Un dump `--data-only` emet les `COPY` dans
+  l'ordre ALPHABETIQUE des tables avec les contraintes ACTIVES :
+  `activation_cibles` se charge avant `activation_lots` qu'elle reference, et
+  le restore casse. Un dump complet ordonne pre-data (tables) -> data -> 
+  post-data (contraintes, index, policies, triggers) : aucune cle etrangere
+  n'est verifiee pendant le chargement, et les index sont batis apres, donc
+  bien plus vite. Corollaire : l'auto-reference `radios.parent_radio_id`, que
+  pg_dump signale comme circulaire, ne demande aucun traitement particulier.
+- **Les comptes `auth` se chargent AVANT `public`** : mesure en base,
+  **18 contraintes** de `public` pointent vers `auth.users` (`created_by`,
+  `user_id`, `profiles.id`…). Effet secondaire utile : les empreintes bcrypt
+  venant de la prod, **le mot de passe de prod ouvre la session en local**.
+- **Deux enonces neutralises a la volee** (sur une copie, le dump reste
+  intact) : `CREATE SCHEMA public` — le schema existe deja en local et c'est
+  lui qui porte PostGIS, qu'on ne peut pas emporter — et les 24
+  `ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin`, que le `postgres` du
+  conteneur Supabase (**non superuser**) ne peut pas poser pour un autre role.
+  Sans consequence : elles ne regissent que des objets crees plus tard.
+- **`pg_dump` du CONTENEUR, pas le CLI Supabase** : `supabase db dump` emet un
+  `SET ROLE "postgres"` qu'un role restreint ne peut pas executer. Appeler
+  `pg_dump` directement l'evite, n'exige aucun Postgres installe sous Windows,
+  et permet de passer le mot de passe par `PGPASSWORD` plutot que dans une URI
+  (plus de percent-encoding a gerer).
+- **Piege Windows dans les scripts** : Git Bash (MSYS) traduit tout argument
+  ressemblant a un chemin Unix absolu. `psql -f /tmp/restore.sql` arrivait dans
+  le conteneur en `C:/Users/.../Temp/restore.sql`. `MSYS_NO_PATHCONV=1` est
+  donc pose sur ce qui s'execute DANS le conteneur — et surtout PAS sur le
+  `docker cp`, dont la source est un vrai chemin Windows.
+- **Resultat mesure le 2026-09-17** : 94 tables, **192 RPC applicatives**,
+  143 policies (le compte exact de la prod), 334 index. Volumes locaux : `iris`
+  209 Mo, `poi_france` 206 Mo, `carreaux_1km` 142 Mo, `dsp_campaign_data`
+  133 Mo. Effectifs compares un a un a la prod sur dix tables a RLS
+  (`iris` 49 448, `poi_france` 290 877, `dsp_campaign_data` 477 879,
+  `campaign_cp_rollup` 10 205, `emetteur_radio_stations` 569 698, `profiles`,
+  `organizations`, `custom_geo_zones`, `panneaux_affichage`,
+  `bidding_strategies`) : **identiques**. PostgREST sert les tables (HTTP 200)
+  et les RPC PostGIS repondent. **Parcours navigateur valide de bout en bout**
+  (Playwright, compte `admin@geoprompt.com`) : `POST /auth/v1/token` 200,
+  `/rest/v1/profiles` 200, `/api/user/organizations` 200,
+  `/api/digital/campaigns` 200, `/api/campaigns/[id]/alignement` 200 et
+  `/api/campaigns/[id]/alignement/maille/map` 200 — donc la RPC geometrique la
+  plus lourde tourne sur les donnees locales. Seule erreur restante : un glyphe
+  404 chez OpenFreeMap (`Open Sans Bold`), amont et present aussi en prod.
+- Le mot de passe Postgres de prod n'est dans aucun fichier suivi :
+  `02-dump-prod.sh` le lit dans `SUPABASE_DB_PASSWORD` (`.env.local`, gitignore)
+  ou dans l'environnement.
 
 ---
 

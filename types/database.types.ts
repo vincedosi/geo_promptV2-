@@ -3033,6 +3033,24 @@ export type Database = {
         }
         Relationships: []
       }
+      icpe_rubrique_familles: {
+        Row: {
+          libelle: string
+          prefixe: string
+          rang_gravite: number
+        }
+        Insert: {
+          libelle: string
+          prefixe: string
+          rang_gravite: number
+        }
+        Update: {
+          libelle?: string
+          prefixe?: string
+          rang_gravite?: number
+        }
+        Relationships: []
+      }
       import_runs_ooh: {
         Row: {
           erreurs: Json | null

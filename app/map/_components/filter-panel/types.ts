@@ -25,6 +25,8 @@ export interface DirectPOISearchParams {
   ville: string;
   rayon_poi: string | null;
   poi_natures?: Record<string, string[]>;
+  /** Inclure les ICPE « En fin d'exploitation » — masquees par defaut. */
+  poi_inclure_inactifs?: boolean;
 }
 
 export interface DirectBattleParams {

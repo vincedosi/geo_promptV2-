@@ -17,6 +17,18 @@ const poisPostSchema = z.object({
   ville:        z.string().max(200).default(''),
   rayon_poi:    z.string().max(20).nullable().default(null),
   poi_natures:  z.record(z.string(), z.array(z.string())).optional(),
+  /**
+   * Inclure les installations classees « En fin d'exploitation ».
+   *
+   * Par defaut FAUX, et c'est un choix de justesse, pas de performance : au
+   * premier import reel, 289 sites sur 1 534 du departement 13 etaient en fin
+   * d'exploitation (19 %). Les peindre a cote des sites actifs ferait lire un
+   * risque industriel la ou l'activite a cesse. Ils restent en base — un sol
+   * pollue survit a la fermeture du site — mais hors carte sauf demande
+   * explicite. N'agit que sur la categorie `risque_industriel`, seule a porter
+   * `metadata.etat_activite`.
+   */
+  poi_inclure_inactifs: z.boolean().optional().default(false),
   // [west, south, east, north] — lib/carte/filtre.ts (Tache 4, corrigee
   // round 1). Optionnelle : useMapDirectActions ne l'envoie QUE si un filtre
   // est actif (bboxDuFiltre(filtre)) — un premier essai l'envoyait toujours
@@ -59,7 +71,7 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues.map(i => i.message).join(', ') }, { status: 400 });
     }
-    const { poi_types, scope, regions, depts, ville, rayon_poi, poi_natures, bbox } = parsed.data;
+    const { poi_types, scope, regions, depts, ville, rayon_poi, poi_natures, bbox, poi_inclure_inactifs } = parsed.data;
 
     const session   = await getSessionOrg(req);
     const supabase  = createAdminClient();
@@ -155,6 +167,13 @@ export async function POST(req: NextRequest) {
       const applyFilters = (q: any): any => {
         if (resolvedCat) q = q.eq('categorie', resolvedCat);
         if (natures.length > 0) q = q.in('metadata->>libelle_nature', natures);
+        // Sites dont l'activite a cesse : masques par defaut (voir le schema).
+        // `.not(... 'in' ...)` laisse passer les lignes dont `etat_activite`
+        // est NUL, ce qui est voulu : l'absence d'information n'est pas une
+        // cessation d'activite.
+        if (resolvedCat === 'risque_industriel' && !poi_inclure_inactifs) {
+          q = q.not('metadata->>etat_activite', 'eq', "En fin d'exploitation");
+        }
         if (allowedSourceIds !== null) q = q.in('data_source_id', allowedSourceIds);
         if (bbox) q = q.gte('lat', bbox[1]).lte('lat', bbox[3]).gte('lng', bbox[0]).lte('lng', bbox[2]);
         return q;

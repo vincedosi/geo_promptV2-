@@ -118,6 +118,31 @@ export function graviteIcpe(site: SiteIcpeBrut): GraviteIcpe {
   return 'autre';
 }
 
+/**
+ * Le site relève-t-il bien de la police des installations classées ?
+ *
+ * ── Pourquoi ce filtre existe, et ce qu'il a coûté de le découvrir ────────
+ *
+ * L'API rend, sous le même endpoint, des établissements dont `regime` vaut
+ * `Non ICPE` : ils figurent dans la base AIOT de l'inspection pour d'autres
+ * motifs, mais ce ne sont PAS des installations classées. Mesuré sur le
+ * département 13 au premier import réel : **451 sites sur 1 985**, soit 23 %,
+ * et **aucun d'eux ne porte la moindre rubrique**.
+ *
+ * Les afficher dans un calque intitulé « Zones risque indus » serait faux — un
+ * media planner y lirait un risque industriel là où la donnée n'en décrit
+ * aucun. On les écarte donc, mais l'appelant les COMPTE et les affiche
+ * (`hors_perimetre`) : un site écarté en silence est un mensonge par omission.
+ *
+ * `Autres régimes` (606 sites, 31 %) est CONSERVÉ : ce sont de vraies
+ * installations classées, au régime le plus léger. On ne sait rien de leur
+ * risque — d'où la gravité `autre` et la nature « non précisée » — mais leur
+ * existence est une information juste.
+ */
+export function estInstallationClassee(site: SiteIcpeBrut): boolean {
+  return (site.regime ?? '').trim() !== 'Non ICPE';
+}
+
 /** Rubriques exploitables : numéro d'au moins 2 caractères ET préfixe connu. */
 function rubriquesConnues(site: SiteIcpeBrut) {
   return (site.rubriques ?? [])
