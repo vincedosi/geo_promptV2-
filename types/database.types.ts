@@ -6460,6 +6460,17 @@ export type Database = {
         Args: { p_caller_user_id?: string; p_zone_id: string }
         Returns: Json
       }
+      risques_industriels_carte: {
+        Args: {
+          p_bbox?: number[]
+          p_gravites?: string[]
+          p_inclure_inactifs?: boolean
+          p_limite?: number
+          p_natures?: string[]
+          p_rayon_m?: number
+        }
+        Returns: Json
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       simulate_dsp_report: { Args: { p_campaign_id: string }; Returns: Json }
