@@ -4,7 +4,7 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-09-17 — commit `311303a`.
+> Généré le 2026-09-17 — commit `fa74041`.
 
 ## Totaux
 
@@ -113,8 +113,8 @@ Trié par nombre d’occurrences décroissant.
 | `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
 | `lib/demo/pilot-types.ts` | 1 | — | PilotItem |
 | `lib/dsp/push/types.ts` | 1 | — | PushStatus |
-| `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
 | `lib/qualite/verdict.ts` | 1 | — | Verdict |
+| `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
 | `lib/report/types.ts` | 1 | — | ReportHeader |
 | `lib/radio/import-logger.ts` | 1 | — | LogEntry |
 | `types/campaign.ts` | 1 | — | DspCampaign |

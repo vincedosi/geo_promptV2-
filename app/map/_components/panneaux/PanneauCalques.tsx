@@ -327,6 +327,25 @@ export function PanneauCalques(props: PanneauCalquesProps) {
   if (civicVariableCode) actifs.push({ id: 'civic-indicateurs', label: libelleDegrade('civic-indicateurs'), onRetirer: () => onCivicVariableChangeCalque(null) });
   if (civicHealthLayer) actifs.push({ id: 'civic-sante', label: libelleDegrade('civic-sante'), onRetirer: () => onCivicHealthLayerChangeCalque(null) });
   if (meteoVisible) actifs.push({ id: 'meteo', label: libelleDegrade('meteo'), onRetirer: () => onClearMeteo?.() });
+  // Les deux couches de risque industriel MANQUAIENT à cette liste : « Actifs »
+  // est le seul endroit qui dise ce qui est posé sur la carte, et une couche
+  // absente d'ici ne peut pas s'éteindre depuis là. Elles sont comptées
+  // séparément parce qu'elles s'allument séparément — un périmètre opposable
+  // et un rayon de notre invention ne se pilotent pas ensemble.
+  if (risqueIndustriel.actif) {
+    actifs.push({
+      id: 'risque-industriel',
+      label: 'Zones à risque industriel',
+      onRetirer: () => risqueIndustriel.setActif(false),
+    });
+  }
+  if (risqueIndustriel.pprtActif) {
+    actifs.push({
+      id: 'pprt',
+      label: 'Périmètre PPRT',
+      onRetirer: () => risqueIndustriel.setPprtActif(false),
+    });
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
@@ -543,7 +562,7 @@ export function PanneauCalques(props: PanneauCalquesProps) {
 
       {/* ── Environnement ──────────────────────────────────────────────────── */}
       <GroupeCalques titre="Environnement" ouvert={groupesOuverts.environnement} onToggle={() => toggleGroupe('environnement')}
-        compte={(risqueIndustriel.actif ? 1 : 0) + (civicVariableCode ? 1 : 0) + (civicHealthLayer ? 1 : 0) + (meteoVisible ? 1 : 0)}>
+        compte={(risqueIndustriel.actif ? 1 : 0) + (risqueIndustriel.pprtActif ? 1 : 0) + (civicVariableCode ? 1 : 0) + (civicHealthLayer ? 1 : 0) + (meteoVisible ? 1 : 0)}>
           <RisqueIndustrielSection
             filterSearch={filterSearch}
             sectionsOpen={sectionsOpen}
@@ -561,6 +580,11 @@ export function PanneauCalques(props: PanneauCalquesProps) {
             afficherHalo={risqueIndustriel.afficherHalo}
             setAfficherHalo={risqueIndustriel.setAfficherHalo}
             compte={risqueIndustriel.compte}
+            pprtActif={risqueIndustriel.pprtActif}
+            setPprtActif={risqueIndustriel.setPprtActif}
+            pprtTypes={risqueIndustriel.pprtTypes}
+            setPprtTypes={risqueIndustriel.setPprtTypes}
+            pprtEtat={risqueIndustriel.pprtEtat}
           />
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <CivicIndicatorsSection

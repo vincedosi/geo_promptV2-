@@ -16,9 +16,21 @@
  *  - `rayonM = 0`, donc pas de zone de danger au départ. La zone est une
  *    lecture en plus, pas le défaut : elle recouvre le fond de carte, et son
  *    rayon est un choix de l'utilisateur qu'on ne peut pas présumer.
+ *
+ * ── LE PPRT EST DANS LE MÊME ÉTAT, ET C'EST VOULU ─────────────────────────
+ *
+ * Le périmètre PPRT (`pprtActif`) est une COUCHE distincte — une servitude
+ * opposable, pas un rayon de notre invention — mais elle vit dans la même
+ * section du panneau, parce que c'est là que l'utilisateur les compare. Un
+ * second hook aurait fait voyager deux objets pour une seule section.
+ *
+ * `pprtActif = false` au départ : la couche a un plancher de zoom (8), donc
+ * l'activer par défaut afficherait une case cochée qui ne produit rien tant
+ * qu'on n'a pas zoomé — exactement le défaut qui rendait la couche IRIS muette.
  */
 import { useMemo, useState } from 'react';
 import type { FiltresRisque } from '../RisqueIndustrielLayer';
+import type { EtatCouchePprt } from '../PprtLayer';
 
 export interface EtatRisqueIndustriel {
   actif: boolean;
@@ -35,6 +47,15 @@ export interface EtatRisqueIndustriel {
   setAfficherHalo: (v: boolean) => void;
   compte: { rendus: number; total: number } | null;
   setCompte: (rendus: number, total: number) => void;
+
+  /** Couche « Périmètre PPRT » (servitudes PM3), distincte du rayon calculé. */
+  pprtActif: boolean;
+  setPprtActif: (v: boolean) => void;
+  /** Familles de `type_zone` retenues. Vide = toutes. */
+  pprtTypes: string[];
+  setPprtTypes: (v: string[]) => void;
+  pprtEtat: EtatCouchePprt | null;
+  setPprtEtat: (e: EtatCouchePprt) => void;
   /** Ce que la couche consomme, mémoïsé pour ne pas relancer l'effet à vide. */
   filtres: FiltresRisque;
 }
@@ -47,6 +68,9 @@ export function useRisqueIndustriel(): EtatRisqueIndustriel {
   const [rayonM, setRayonM] = useState(0);
   const [afficherHalo, setAfficherHalo] = useState(true);
   const [compte, setCompteBrut] = useState<{ rendus: number; total: number } | null>(null);
+  const [pprtActif, setPprtActif] = useState(false);
+  const [pprtTypes, setPprtTypes] = useState<string[]>([]);
+  const [pprtEtat, setPprtEtat] = useState<EtatCouchePprt | null>(null);
 
   const filtres = useMemo<FiltresRisque>(
     () => ({ gravites: niveaux, typesRisque, inclureInactifs, rayonM, afficherHalo }),
@@ -62,6 +86,9 @@ export function useRisqueIndustriel(): EtatRisqueIndustriel {
     afficherHalo, setAfficherHalo,
     compte,
     setCompte: (rendus: number, total: number) => setCompteBrut({ rendus, total }),
+    pprtActif, setPprtActif,
+    pprtTypes, setPprtTypes,
+    pprtEtat, setPprtEtat,
     filtres,
   };
 }

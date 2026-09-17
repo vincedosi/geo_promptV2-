@@ -118,6 +118,15 @@
     --risque-pollution:   #008300;
     --risque-autres:      #3987e5;
 
+    /* Perimetre PPRT — ACHROMATIQUE a dessein. La couleur, sur cette carte,
+       porte le TYPE DE RISQUE (--risque-*) ; un perimetre reglementaire n'est
+       pas une donnee d'intensite, c'est une frontiere opposable. Lui donner une
+       teinte la mettrait en concurrence avec les quatre ci-dessus, et le
+       design system dit « monochrome par defaut, la couleur pour le statut ou
+       l'interaction ». Le trait porte donc l'autorite, pas la teinte. */
+    --pprt-contour: rgba(240,240,240,0.85);
+    --pprt-fond:    rgba(240,240,240,0.10);
+
     /* ── Habillage des calques MapLibre (contours de zone, halo d'étiquette).
        MapLibre ne résout PAS `var()` dans `paint` : ces jetons sont lus par
        `getComputedStyle` AU MOMENT de l'application (`lireJetonCarte`,
@@ -273,6 +282,10 @@
     --risque-inflammable: #eda100;
     --risque-pollution:   #008300;
     --risque-autres:      #2a78d6;
+
+    /* Inverse du theme sombre, comme --contour-carte et --halo-carte. */
+    --pprt-contour: rgba(26,26,26,0.80);
+    --pprt-fond:    rgba(26,26,26,0.08);
 
     /* Habillage MapLibre (light) — voir le commentaire du bloc :root. Le
        contour s'inverse : du noir translucide sur un fond clair. */

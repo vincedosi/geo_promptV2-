@@ -25,6 +25,9 @@ import { MultiDropdown } from './MultiDropdown';
 import { C, fInter, fMono } from './tokens';
 import { labelStyle } from './styles';
 import { ORDRE_TYPES, LIBELLE_TYPE, COULEURS_CSS } from '@/lib/carte/palette-risques';
+import { COULEURS_PPRT_CSS, TIRETE_PPRT, LIBELLE_TYPE_ZONE_PPRT } from '@/lib/carte/palette-pprt';
+import { PPRT_ZOOM_PLANCHER } from '@/lib/version';
+import type { EtatCouchePprt } from '../PprtLayer';
 
 /**
  * Niveaux réglementaires, du plus grave au moins.
@@ -43,6 +46,15 @@ const NIVEAUX_RISQUE = [
 
 /** Rayons proposés pour la zone de danger. 0 = aucune zone. */
 const RAYONS = [0, 300, 500, 1000, 2000, 5000] as const;
+
+/**
+ * Les trois familles de `pprt_perimetres.type_zone`, dans l'ordre de leur
+ * effectif mesuré (639 / 18 / 7 sur les 664 zones).
+ *
+ * NON exportée : rien d'autre ne la nomme, et `knip` compterait l'export comme
+ * mort (cliquet de tests/unit/docs/catalogue-code.test.ts).
+ */
+const TYPES_ZONE_PPRT = ['enveloppe', 'perimetre_reglemente', 'indetermine'] as const;
 
 export interface RisqueIndustrielSectionProps {
   filterSearch: string;
@@ -71,6 +83,13 @@ export interface RisqueIndustrielSectionProps {
 
   /** Compte remonté par la couche : rendus / total du filtre. */
   compte: { rendus: number; total: number } | null;
+
+  /** Couche « Périmètre PPRT » — servitudes PM3, distincte du rayon calculé. */
+  pprtActif: boolean;
+  setPprtActif: (v: boolean) => void;
+  pprtTypes: string[];
+  setPprtTypes: (v: string[]) => void;
+  pprtEtat: EtatCouchePprt | null;
 }
 
 export function RisqueIndustrielSection({
@@ -90,6 +109,11 @@ export function RisqueIndustrielSection({
   afficherHalo,
   setAfficherHalo,
   compte,
+  pprtActif,
+  setPprtActif,
+  pprtTypes,
+  setPprtTypes,
+  pprtEtat,
 }: RisqueIndustrielSectionProps) {
   const ouvert = sectionsOpen.risqueIndustriel !== false;
 
@@ -234,6 +258,96 @@ export function RisqueIndustrielSection({
               )}
             </>
           )}
+
+          {/* ── Périmètre PPRT ────────────────────────────────────────────
+              HORS du bloc `actif` à dessein : c'est une couche INDÉPENDANTE.
+              On doit pouvoir afficher les périmètres réglementaires sans
+              afficher les 99 152 points, et l'inverse. */}
+          <div
+            style={{
+              borderTop: `1px solid ${C.border}`,
+              marginTop: 4,
+              paddingTop: 10,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}
+          >
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={pprtActif}
+                onChange={(e) => setPprtActif(e.target.checked)}
+                style={{ accentColor: 'var(--brand-teal)', cursor: 'pointer' }}
+              />
+              <span style={{ fontFamily: fInter, fontSize: 12, color: C.text }}>
+                Périmètre PPRT (officiel)
+              </span>
+            </label>
+
+            <span style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, lineHeight: 1.4 }}>
+              664 périmètres réglementaires opposables, 87 départements sur les 88
+              qui ont un PPRT. À ne pas confondre avec le rayon indicatif ci-dessus.
+            </span>
+
+            {pprtActif && (
+              <>
+                {/* L'indice qui évite une case cochée sans effet : sous ce
+                    zoom, une zone de 2 km fait moins d'un pixel et la couche
+                    ne demande RIEN. */}
+                {pprtEtat?.sousLePlancher && (
+                  <span
+                    style={{
+                      fontFamily: fInter,
+                      fontSize: 10,
+                      color: 'var(--warning)',
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    Zoomez au niveau {PPRT_ZOOM_PLANCHER} pour voir les périmètres —
+                    plus loin, une zone mesure moins d&apos;un pixel.
+                  </span>
+                )}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={labelStyle}>Nature du périmètre</span>
+                  <MultiDropdown
+                    label="Toutes les natures"
+                    items={TYPES_ZONE_PPRT.map((t) => ({
+                      id: t,
+                      label: LIBELLE_TYPE_ZONE_PPRT[t],
+                    }))}
+                    selected={pprtTypes}
+                    onChange={setPprtTypes}
+                  />
+                </div>
+
+                {/* Légende : le TRAIT porte l'autorité, pas la teinte — la
+                    couleur de cette carte est réservée au type de risque. */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span
+                    style={{
+                      width: 22,
+                      height: 0,
+                      flexShrink: 0,
+                      borderTop: `1.5px dashed ${COULEURS_PPRT_CSS.contour}`,
+                    }}
+                  />
+                  <span style={{ fontFamily: fInter, fontSize: 11, color: C.textSec }}>
+                    Périmètre opposable (tireté {TIRETE_PPRT.join('/')})
+                  </span>
+                </div>
+
+                {pprtEtat && !pprtEtat.sousLePlancher && (
+                  <span style={{ fontFamily: fMono, fontSize: 10, color: C.textDim }}>
+                    {pprtEtat.rendus === pprtEtat.total
+                      ? `${pprtEtat.rendus} périmètre${pprtEtat.rendus > 1 ? 's' : ''} dans la vue`
+                      : `${pprtEtat.rendus} affichés sur ${pprtEtat.total} — les plus petits sont coupés`}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

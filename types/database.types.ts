@@ -6504,6 +6504,10 @@ export type Database = {
         Args: { p_lignes: Json; p_partition: string }
         Returns: Json
       }
+      pprt_perimetres_carte: {
+        Args: { p_bbox: number[]; p_limite?: number; p_types?: string[] }
+        Returns: Json
+      }
       publier_strategie: {
         Args: {
           p_charge_utile: Json

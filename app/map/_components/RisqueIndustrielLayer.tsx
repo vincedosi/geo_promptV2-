@@ -41,6 +41,7 @@
 import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import { echapperHtml as esc } from '@/lib/map/echapper-html';
+import { lignePopup as ligne } from '@/lib/map/popup';
 import { useTheme } from '@/lib/theme/ThemeProvider';
 import { adminFetch } from '@/lib/admin-fetch';
 import { expressionCouleurRisque, couleurDuType, librellesDuType, LIBELLE_TYPE } from '@/lib/carte/palette-risques';
@@ -89,15 +90,6 @@ const LIBELLE_GRAVITE: Record<string, string> = {
 };
 
 /** Une ligne de la popup, omise si la valeur est absente — jamais « null ». */
-function ligne(intitule: string, valeur: unknown): string {
-  const v = valeur === null || valeur === undefined ? '' : String(valeur).trim();
-  if (!v) return '';
-  return (
-    `<div style="display:flex;gap:8px;margin-top:3px">` +
-    `<span style="color:var(--text-tertiary);flex:0 0 96px">${esc(intitule)}</span>` +
-    `<span style="color:var(--text-secondary)">${esc(v)}</span></div>`
-  );
-}
 
 export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Props) {
   // Le thème vient du provider, comme dans `DiffusionMapLayer` : MapLibre ne

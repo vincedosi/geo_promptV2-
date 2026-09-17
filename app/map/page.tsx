@@ -84,6 +84,7 @@ import { empiler, depiler, fermerLePlusHaut } from '@/lib/carte/pile-echap';
 import { PanneauFiltre } from '@/app/map/_components/panneaux/PanneauFiltre';
 import { PanneauCalques } from '@/app/map/_components/panneaux/PanneauCalques';
 import { RisqueIndustrielLayer } from '@/app/map/_components/RisqueIndustrielLayer';
+import { PprtLayer } from '@/app/map/_components/PprtLayer';
 import { useRisqueIndustriel } from '@/app/map/_components/filter-panel/use-risque-industriel';
 import { PanneauAnalyse } from '@/app/map/_components/panneaux/PanneauAnalyse';
 import { PanneauZones } from '@/app/map/_components/panneaux/PanneauZones';
@@ -1154,6 +1155,15 @@ export default function MapPage() {
         actif={risqueIndustriel.actif}
         filtres={risqueIndustriel.filtres}
         onCompte={risqueIndustriel.setCompte}
+      />
+      {/* Perimetres PPRT : couche INDEPENDANTE du rayon calcule ci-dessus.
+          Une servitude opposable et un cercle de notre invention ne se
+          pilotent pas par le meme interrupteur. */}
+      <PprtLayer
+        mapRef={mapRef}
+        actif={risqueIndustriel.pprtActif}
+        typesZone={risqueIndustriel.pprtTypes}
+        onEtat={risqueIndustriel.setPprtEtat}
       />
       {/* Plan média sur les zones custom affichées (budget / CPM / cible) */}
       {planZones.length > 0 && planPanelOpen && (
