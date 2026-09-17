@@ -83,6 +83,8 @@ import { ignorerRaccourciClavier } from '@/lib/navigation/garde-saisie';
 import { empiler, depiler, fermerLePlusHaut } from '@/lib/carte/pile-echap';
 import { PanneauFiltre } from '@/app/map/_components/panneaux/PanneauFiltre';
 import { PanneauCalques } from '@/app/map/_components/panneaux/PanneauCalques';
+import { RisqueIndustrielLayer } from '@/app/map/_components/RisqueIndustrielLayer';
+import { useRisqueIndustriel } from '@/app/map/_components/filter-panel/use-risque-industriel';
 import { PanneauAnalyse } from '@/app/map/_components/panneaux/PanneauAnalyse';
 import { PanneauZones } from '@/app/map/_components/panneaux/PanneauZones';
 import { LegendeCarte } from '@/components/map/LegendeCarte';
@@ -203,6 +205,11 @@ export default function MapPage() {
   const [selectedBillboard, setSelectedBillboard] = useState<SelectedBillboard | null>(null);
   const [mapStyleUrl, setMapStyleUrl] = useState<string>(MAP_STYLE);
   const [densityMode,         setDensityMode]         = useState<boolean>(false);
+
+  // Couche « Zones a risque industriel » : etat regroupe dans son hook, partage
+  // entre le panneau (reglages) et la couche (rendu). Defaut Seveso, cf.
+  // use-risque-industriel.ts.
+  const risqueIndustriel = useRisqueIndustriel();
   const [poiStyles,           setPoiStyles]           = useState<POIStylesMap>({});
   // TMJA — flux routier (comptages_routiers)
   const [tmjaGeoJSON, setTmjaGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
@@ -897,6 +904,7 @@ export default function MapPage() {
     ),
     calques: () => (
       <PanneauCalques
+        risqueIndustriel={risqueIndustriel}
         degradeActif={mapLayers.degradeActif}
         onDegrade={onDegrade}
         carreauxVisible={mapLayers.carreauxVisible}
@@ -1141,6 +1149,12 @@ export default function MapPage() {
         </OverlayPanel>
       )}
       <CivicIndicatorsLayer mapRef={mapRef} variableCode={civicVariableCode} />
+      <RisqueIndustrielLayer
+        mapRef={mapRef}
+        actif={risqueIndustriel.actif}
+        filtres={risqueIndustriel.filtres}
+        onCompte={risqueIndustriel.setCompte}
+      />
       {/* Plan média sur les zones custom affichées (budget / CPM / cible) */}
       {planZones.length > 0 && planPanelOpen && (
         <ZoneMediaPlanPanel

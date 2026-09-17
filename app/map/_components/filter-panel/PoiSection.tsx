@@ -37,12 +37,6 @@ export interface PoiSectionProps {
   /** Natures disponibles par type de POI (metadata->>'libelle_nature'). */
   poiNatures: Record<string, string[]>;
 
-  /**
-   * Afficher les installations classees dont l'activite a cesse. FAUX par
-   * defaut : 19 % des sites importes sont « En fin d'exploitation ».
-   */
-  inclureInactifsIcpe: boolean;
-  setInclureInactifsIcpe: React.Dispatch<React.SetStateAction<boolean>>;
   selectedPoiNatures: Record<string, string[]>;
   setSelectedPoiNatures: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
 
@@ -68,8 +62,6 @@ export function PoiSection({
   setPOIStyle,
   setPoiStyles,
   poiNatures,
-  inclureInactifsIcpe,
-  setInclureInactifsIcpe,
   selectedPoiNatures,
   setSelectedPoiNatures,
   hasAnyPOI,
@@ -221,54 +213,6 @@ export function PoiSection({
                   </div>
                 )}
 
-                {/*
-                  Deux elements propres aux installations classees.
-
-                  La case « sites a l'arret » : 19 % des sites importes sont
-                  « En fin d'exploitation ». Les afficher a cote des sites
-                  actifs ferait lire un risque industriel la ou l'activite a
-                  cesse — d'ou le masquage par defaut, et le dire plutot que
-                  le taire.
-
-                  La legende : la couleur du point porte la GRAVITE
-                  reglementaire (sous_categorie), pendant que le filtre ci-dessus
-                  porte la NATURE du risque. Deux dimensions, deux roles : sans
-                  legende, personne ne peut savoir laquelle il lit.
-                */}
-                {poi === 'risque_industriel' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={inclureInactifsIcpe}
-                        onChange={e => setInclureInactifsIcpe(e.target.checked)}
-                        style={{ accentColor: 'var(--brand-teal)', cursor: 'pointer' }}
-                      />
-                      <span style={{ fontFamily: fInter, fontSize: 11, color: C.textDim }}>
-                        Inclure les sites a l&apos;arret
-                      </span>
-                    </label>
-
-                    <span style={{ fontFamily: fInter, fontSize: 11, color: C.textDim }}>
-                      Couleur du point : gravite
-                    </span>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      {[
-                        { cle: 'seveso_haut', libelle: 'Seveso seuil haut', jeton: 'var(--seq-5)' },
-                        { cle: 'seveso_bas', libelle: 'Seveso seuil bas', jeton: 'var(--seq-4)' },
-                        { cle: 'ied', libelle: 'Directive IED', jeton: 'var(--seq-3)' },
-                        { cle: 'autorisation', libelle: 'Autorisation', jeton: 'var(--seq-2)' },
-                        { cle: 'enregistrement', libelle: 'Enregistrement', jeton: 'var(--seq-1)' },
-                        { cle: 'autre', libelle: 'Regime declaratif ou non precise', jeton: 'var(--donnee-absente)' },
-                      ].map(({ cle, libelle, jeton }) => (
-                        <div key={cle} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ width: 10, height: 10, borderRadius: '50%', background: jeton, flexShrink: 0 }} />
-                          <span style={{ fontFamily: fInter, fontSize: 11, color: C.textSec }}>{libelle}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             );
           })}

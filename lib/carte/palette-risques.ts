@@ -174,6 +174,11 @@ export function librellesDuType(
   return familles.filter((f) => TYPE_PAR_PREFIXE[f.prefixe] === type).map((f) => f.libelle);
 }
 
+/** Couleur d'un type, pour le DOM qui a besoin d'un hex (popup MapLibre). */
+export function couleurDuType(type: TypeRisque, theme: 'dark' | 'light'): string {
+  return COULEURS_MAPLIBRE[theme][type] ?? COULEURS_MAPLIBRE[theme].non_precise;
+}
+
 /**
  * Expression MapLibre `match` qui colore une couche d'après la propriété
  * `type_risque` d'une feature. Écrite ici et nulle part ailleurs : le point et

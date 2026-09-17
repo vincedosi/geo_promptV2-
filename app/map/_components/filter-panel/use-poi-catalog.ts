@@ -32,14 +32,6 @@ export interface PoiCatalog {
   fetchPoiNatures: (poiType: string) => Promise<void>;
   selectedPoiNatures: Record<string, string[]>;
   setSelectedPoiNatures: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
-  /**
-   * Afficher les installations classees dont l'activite a cesse. FAUX par
-   * defaut : 19 % des sites importes sont « En fin d'exploitation », et les
-   * peindre a cote des sites actifs ferait lire un risque la ou il n'y en a
-   * plus. Ne concerne que la categorie `risque_industriel`.
-   */
-  inclureInactifsIcpe: boolean;
-  setInclureInactifsIcpe: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export function usePoiCatalog(): PoiCatalog {
@@ -51,7 +43,6 @@ export function usePoiCatalog(): PoiCatalog {
   // ── POI natures (metadata->>'libelle_nature' par categorie) ───────────────
   const [poiNatures, setPoiNatures] = useState<Record<string, string[]>>({});
   const [selectedPoiNatures, setSelectedPoiNatures] = useState<Record<string, string[]>>({});
-  const [inclureInactifsIcpe, setInclureInactifsIcpe] = useState(false);
   const fetchedNaturesRef = useRef<Set<string>>(new Set());
 
   const fetchPoiNatures = async (poiType: string) => {
@@ -111,6 +102,5 @@ export function usePoiCatalog(): PoiCatalog {
   return {
     poiTypes, catsLoading, catsError, fetchCategories,
     poiNatures, fetchPoiNatures, selectedPoiNatures, setSelectedPoiNatures,
-    inclureInactifsIcpe, setInclureInactifsIcpe,
   };
 }

@@ -45,6 +45,8 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { GroupeCalques } from './GroupeCalques';
+import { RisqueIndustrielSection } from '../filter-panel/RisqueIndustrielSection';
+import type { EtatRisqueIndustriel } from '../filter-panel/use-risque-industriel';
 import { CarreauxSection } from '../filter-panel/CarreauxSection';
 import { IrisSection } from '../filter-panel/IrisSection';
 import { CivicIndicatorsSection } from '../filter-panel/CivicIndicatorsSection';
@@ -158,6 +160,13 @@ export interface PanneauCalquesProps {
   onRadioFilterIdsChange?: (ids: string[]) => void;
   radioExcludeCategories?: string[];
   onRadioExcludeCategoriesChange?: (cats: string[]) => void;
+  /**
+   * Etat de la couche « Zones a risque industriel », regroupe dans un hook
+   * (`useRisqueIndustriel`) : ce panneau recoit deja une soixantaine de props,
+   * en ajouter douze pour une seule section serait illisible. Meme patron que
+   * `mapLayers`.
+   */
+  risqueIndustriel: EtatRisqueIndustriel;
   radioFilterOptions?: { radios: Array<{ id: string; nom: string; cat: string | null }>; categories: Array<{ value: string; label: string }> } | null;
   radioCoverageColor?: string;
   onRadioCoverageColorChange?: (c: string) => void;
@@ -213,6 +222,7 @@ export function PanneauCalques(props: PanneauCalquesProps) {
     civicVariableCode, onCivicVariableChange,
     civicHealthLayer, onCivicHealthLayerChange,
     meteoVisible, onClearMeteo,
+    risqueIndustriel,
   } = props;
 
   // ── Groupes repliables — tous fermés par défaut (même défaut que le mode
@@ -233,7 +243,6 @@ export function PanneauCalques(props: PanneauCalquesProps) {
   const {
     poiTypes, catsLoading, catsError, fetchCategories,
     poiNatures, fetchPoiNatures, selectedPoiNatures, setSelectedPoiNatures,
-    inclureInactifsIcpe, setInclureInactifsIcpe,
   } = usePoiCatalog();
 
   const { poiStyles, setPoiStyles, getPOIStyle, setPOIStyle } = usePoiStyles(onPOIStylesChange);
@@ -259,7 +268,6 @@ export function PanneauCalques(props: PanneauCalquesProps) {
         scope, regions: selectedRegions, depts: selectedDepts, ville,
         rayon_poi: poisRayon,
         poi_natures: Object.fromEntries(Object.entries(selectedPoiNatures).filter(([, v]) => v.length > 0)),
-        poi_inclure_inactifs: inclureInactifsIcpe,
       });
     } finally {
       setSearchLoading(false);
@@ -434,13 +442,19 @@ export function PanneauCalques(props: PanneauCalquesProps) {
       <GroupeCalques titre="POI et mobilité" ouvert={groupesOuverts.poiMobilite} onToggle={() => toggleGroupe('poiMobilite')}
         compte={selectedPOI.length + selectedTransportTypes.length + (tmjaVisible ? 1 : 0)}>
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* `risque_industriel` est RETIRE de la liste des types de POI : la
+              donnee a sa propre section dans le groupe Environnement, avec son
+              niveau reglementaire, son type de risque, sa zone de danger et sa
+              legende. La laisser ici en ferait une ligne parmi d'autres, sans
+              aucun de ces reglages — et sa couleur par categorie ecraserait la
+              couleur par type de risque. */}
           <PoiSection
             filterSearch={filterSearch}
             sectionsOpen={sectionsOpen}
             toggleSection={toggleSection}
             selectedPOI={selectedPOI}
             setSelectedPOI={setSelectedPOI}
-            poiTypes={poiTypes}
+            poiTypes={poiTypes.filter((t) => t.id !== 'risque_industriel')}
             catsLoading={catsLoading}
             catsError={catsError}
             fetchCategories={fetchCategories}
@@ -448,8 +462,6 @@ export function PanneauCalques(props: PanneauCalquesProps) {
             setPOIStyle={setPOIStyle}
             setPoiStyles={setPoiStyles}
             poiNatures={poiNatures}
-            inclureInactifsIcpe={inclureInactifsIcpe}
-            setInclureInactifsIcpe={setInclureInactifsIcpe}
             selectedPoiNatures={selectedPoiNatures}
             setSelectedPoiNatures={setSelectedPoiNatures}
             hasAnyPOI={hasAnyPOI}
@@ -531,7 +543,25 @@ export function PanneauCalques(props: PanneauCalquesProps) {
 
       {/* ── Environnement ──────────────────────────────────────────────────── */}
       <GroupeCalques titre="Environnement" ouvert={groupesOuverts.environnement} onToggle={() => toggleGroupe('environnement')}
-        compte={(civicVariableCode ? 1 : 0) + (civicHealthLayer ? 1 : 0) + (meteoVisible ? 1 : 0)}>
+        compte={(risqueIndustriel.actif ? 1 : 0) + (civicVariableCode ? 1 : 0) + (civicHealthLayer ? 1 : 0) + (meteoVisible ? 1 : 0)}>
+          <RisqueIndustrielSection
+            filterSearch={filterSearch}
+            sectionsOpen={sectionsOpen}
+            toggleSection={toggleSection}
+            actif={risqueIndustriel.actif}
+            setActif={risqueIndustriel.setActif}
+            niveaux={risqueIndustriel.niveaux}
+            setNiveaux={risqueIndustriel.setNiveaux}
+            typesRisque={risqueIndustriel.typesRisque}
+            setTypesRisque={risqueIndustriel.setTypesRisque}
+            inclureInactifs={risqueIndustriel.inclureInactifs}
+            setInclureInactifs={risqueIndustriel.setInclureInactifs}
+            rayonM={risqueIndustriel.rayonM}
+            setRayonM={risqueIndustriel.setRayonM}
+            afficherHalo={risqueIndustriel.afficherHalo}
+            setAfficherHalo={risqueIndustriel.setAfficherHalo}
+            compte={risqueIndustriel.compte}
+          />
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <CivicIndicatorsSection
             filterSearch={filterSearch}
