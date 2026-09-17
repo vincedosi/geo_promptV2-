@@ -161,3 +161,27 @@ export function identitePoi(champs: ChampsIdentitePoi): string {
 
   return uuidV5(cle, ESPACE_POI);
 }
+
+/**
+ * Identité d'un POI dont la SOURCE porte déjà un identifiant stable — par
+ * exemple le `codeAIOT` d'une installation classée Géorisques.
+ *
+ * ── Pourquoi une seconde fonction, et pas `identitePoi()` ──────────────────
+ *
+ * `identitePoi()` compose sa clé du nom, de l'adresse et des coordonnées, parce
+ * que les fichiers importés n'apportent AUCUN identifiant externe (voir
+ * l'en-tête de ce fichier). Quand la source en fournit un, il est strictement
+ * meilleur : il survit à un changement de raison sociale, à une correction
+ * d'adresse ou à un repositionnement du point, là où la clé composée créerait
+ * un doublon à chacun de ces trois événements — tous ordinaires sur un
+ * référentiel public mis à jour en continu.
+ *
+ * Le nom de la source entre dans la clé pour que deux référentiels utilisant la
+ * même numérotation ne se télescopent pas. Le préfixe littéral `ref-externe`
+ * garantit qu'aucune clé produite ici ne peut coïncider avec une clé de
+ * `identitePoi()`, dont le premier segment est un nom de source.
+ */
+export function identitePoiSourceExterne(source: string, refExterne: string): string {
+  const cle = ['ref-externe', normaliserTexte(source), normaliserTexte(refExterne)].join(SEP);
+  return uuidV5(cle, ESPACE_POI);
+}
