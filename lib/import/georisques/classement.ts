@@ -34,8 +34,15 @@ import { identitePoiSourceExterne } from '../identite-poi';
 export const SOURCE_ICPE = 'georisques_icpe';
 export const CATEGORIE_ICPE = 'risque_industriel';
 
-/** Une rubrique de la nomenclature ICPE, telle que l'API la renvoie. */
-export interface RubriqueIcpe {
+/**
+ * Une rubrique de la nomenclature ICPE, telle que l'API la renvoie.
+ *
+ * NON exportee : rien hors de ce module ne la nomme, et `knip` comptait
+ * l'export comme mort (cliquet de tests/unit/docs/catalogue-code.test.ts).
+ * Le typage structurel de TypeScript suffit aux appelants, qui passent des
+ * litteraux a `SiteIcpeBrut.rubriques`.
+ */
+interface RubriqueIcpe {
   numeroRubrique: string | null;
   nature?: string | null;
   regimeAutoriseAlinea?: string | null;
