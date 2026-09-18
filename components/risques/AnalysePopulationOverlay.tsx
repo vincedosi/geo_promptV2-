@@ -308,6 +308,8 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
    * carreaux à la demande.
    */
   const [onglet, setOnglet] = useState<'population' | 'rayon'>('population');
+
+  const [exportEnCours, setExportEnCours] = useState(false);
   /**
    * `deptsParRegion` n'est pas un doublon : la route rend les départements
    * IMBRIQUÉS dans leur région, et on les aplatissait en perdant le
@@ -495,6 +497,62 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
    * homonyme, les nomenclatures INSEE de region et de departement se
    * recouvrant sur 18 codes (sql/171).
    */
+  /**
+   * Export Excel.
+   *
+   * Il appelle une ROUTE plutôt que de fabriquer le classeur ici : le tableau
+   * affiché est tronqué (100 ou 200 lignes), or un tableur sert justement à
+   * regarder au-delà. La route redemande donc le calcul complet — avec les
+   * MÊMES paramètres, pour que le fichier ne puisse pas diverger de l'écran.
+   *
+   * Le classeur porte un onglet « Méthode et limites » : un tableur quitte
+   * l'application, et tout ce que l'interface explique disparaît au moment de
+   * l'export. Sans lui, le premier lecteur qui somme la colonne « sites »
+   * obtient un total faux sans aucun moyen de le savoir.
+   */
+  const exporter = async () => {
+    if (exportEnCours || !agregat) return;
+    setExportEnCours(true);
+    try {
+      const p = new URLSearchParams({ dimension, cible });
+      if (niveaux.length > 0) p.set('gravites', niveaux.join(','));
+      if (natures.length > 0) p.set('natures', natures.join(','));
+      if (modes.length > 0 && modes.length < MODES_ZONE.length) p.set('modes', modes.join(','));
+      if (rayon !== null) p.set('rayon_m', String(rayon));
+      if (forcerRayon) p.set('forcer_rayon', '1');
+      if (perim) {
+        p.set('perim_niveau', perim.niveau);
+        p.set('perim_codes', perim.code);
+      }
+      p.set('libelle_cible', libelleCible);
+      p.set('libelle_perim', chemin.length > 0 ? chemin[chemin.length - 1].nom : 'France entière');
+
+      const r = await adminFetch(`/api/risques/exposition/export?${p}`);
+      if (!r.ok) {
+        const j = await r.json().catch(() => null);
+        setErreur(j?.error ?? 'Export indisponible.');
+        return;
+      }
+      // Le nom du fichier vient du serveur : il porte la maille et la date, et
+      // le recomposer ici ferait deux vérités à tenir d'accord.
+      const cd = r.headers.get('Content-Disposition') ?? '';
+      const nom = /filename="([^"]+)"/.exec(cd)?.[1] ?? 'population-risque.xlsx';
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nom;
+      a.click();
+      // Sans cette libération, chaque export garde son blob en mémoire jusqu'au
+      // rechargement de la page — et un classeur de 7 000 lignes n'est pas léger.
+      URL.revokeObjectURL(url);
+    } catch {
+      setErreur('Export indisponible.');
+    } finally {
+      setExportEnCours(false);
+    }
+  };
+
   const descendre = (code: string, nom: string) => {
     if (!descendable) return;
     setChemin((c) => [...c, { niveau: dimension as 'region' | 'departement', code, nom }]);
@@ -699,16 +757,24 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
         <div style={{ flex: 1 }} />
         <button
           type="button"
-          disabled
-          title="Export Excel — prochaine étape"
+          onClick={exporter}
+          disabled={exportEnCours || !agregat || onglet !== 'population'}
+          title={onglet !== 'population'
+            ? 'L’export porte sur le tableau de population ; revenez à cet onglet.'
+            : 'Télécharger le tableau complet, avec un onglet « Méthode et limites »'}
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
-            background: 'transparent', border: '0.5px solid var(--border-default)',
-            borderRadius: 6, padding: '6px 12px', cursor: 'not-allowed',
-            fontFamily: fInter, fontSize: 12, color: 'var(--text-tertiary)',
+            background: 'transparent',
+            border: `0.5px solid ${exportEnCours || !agregat || onglet !== 'population'
+              ? 'var(--border-subtle)' : 'var(--border-default)'}`,
+            borderRadius: 6, padding: '6px 12px',
+            cursor: exportEnCours || !agregat || onglet !== 'population' ? 'not-allowed' : 'pointer',
+            fontFamily: fInter, fontSize: 12,
+            color: exportEnCours || !agregat || onglet !== 'population'
+              ? 'var(--text-tertiary)' : 'var(--text-secondary)',
           }}
         >
-          <Download size={13} /> Export Excel
+          <Download size={13} /> {exportEnCours ? 'Export…' : 'Export Excel'}
         </button>
         <button
           type="button"
