@@ -1,52 +1,55 @@
 'use client';
 
 /**
- * Mini-carte de France en SVG, à côté du tableau de population exposée.
+ * Carte de France du module « population à risque ».
  *
  * ── POURQUOI DU SVG ET PAS MAPLIBRE ───────────────────────────────────────
  *
  * Il n'y a rien à naviguer. Pas de zoom, pas de fond de carte, pas de tuiles :
- * une seule vue fixe de la France, 104 départements ou 13 régions, qui réagit
- * au même jeu de données que le tableau. Monter une instance MapLibre pour ça
- * coûterait un canvas WebGL, un style à charger et un cycle de vie à gérer,
- * pour un résultat moins net qu'un tracé vectoriel.
+ * une vue fixe, 104 départements ou 18 régions, qui réagit au même jeu de
+ * données que le tableau. Monter une instance MapLibre coûterait un canvas
+ * WebGL, un style à charger et un cycle de vie à gérer, pour un résultat moins
+ * net qu'un tracé vectoriel.
  *
- * Conséquence directe et voulue : **cette carte n'entre PAS au registre des
- * dégradés** (`lib/carte/degrades.ts`). Ce registre garantit qu'une seule
- * choroplèthe s'affiche à la fois sur la carte PRINCIPALE ; l'y inscrire
- * éteindrait le calque que l'utilisateur regardait derrière l'overlay.
+ * Conséquence voulue : **cette carte n'entre PAS au registre des dégradés**
+ * (`lib/carte/degrades.ts`). Ce registre garantit qu'une seule choroplèthe
+ * s'affiche à la fois sur la carte PRINCIPALE ; l'y inscrire éteindrait le
+ * calque que l'utilisateur regardait derrière l'overlay.
  *
- * ── LA PROJECTION ─────────────────────────────────────────────────────────
+ * ── TROIS DÉCISIONS DE CARTOGRAPHIE ───────────────────────────────────────
  *
- * Mercator sphérique, comme la carte principale : les deux doivent donner la
- * même silhouette à la France, sinon le passage de l'une à l'autre désoriente.
- * Le calcul tient en trois lignes parce que l'étendue est fixe — on n'a pas
- * besoin d'une bibliothèque de projection pour un cadre qui ne bouge jamais.
+ * **1. Seuils naturels, pas quantiles** (`lib/carte/seuils-naturels.ts`). Les
+ * quantiles imposent le même effectif par classe ; sur une grandeur aussi
+ * concentrée que l'exposition au risque — les 10 premiers départements portent
+ * 54 % du total — ils peignent de la même couleur un département à 0,8 % et la
+ * Seine-Maritime à 4,07 %. Jenks cherche les creux réels de la distribution.
  *
- * ── L'ÉCHELLE DE COULEUR ──────────────────────────────────────────────────
+ * **2. Un EFFECTIF ne se peint pas en aplat.** Colorier « 14 205 habitants »
+ * sur le Nord et sur le Val-de-Marne, qui n'ont ni la même surface ni la même
+ * population, c'est la faute classique de la choroplèthe : l'œil lit la
+ * surface, donc les grands départements paraissent toujours plus atteints. Un
+ * effectif se représente en **cercles proportionnels**, dont l'AIRE — jamais le
+ * rayon — suit la valeur. Part et densité, elles, sont des rapports : l'aplat
+ * leur convient.
  *
- * Par QUANTILES et non linéaire. La population exposée est très concentrée :
- * quelques bassins industriels écrasent tout le reste, et une échelle linéaire
- * rendrait 95 départements de la même teinte pâle. Les quantiles montrent la
- * hiérarchie réelle — au prix, assumé et dit dans la légende, d'une échelle
- * qui n'est pas proportionnelle.
- *
- * Une unité SANS valeur reçoit `--donnee-absente`, jamais la teinte la plus
- * faible de la rampe : « pas de site ici » et « peu de population exposée » ne
- * doivent pas se ressembler.
+ * **3. Les DROM ont leurs cartouches.** Ils comptent dans le total et dans le
+ * tableau ; les laisser hors du cadre faisait dire à la carte autre chose qu'au
+ * tableau. Chaque cartouche DÉRIVE son cadrage de la géométrie reçue, sans
+ * aucune coordonnée écrite en dur — un redécoupage n'a donc rien à casser.
  */
 import React, { useMemo, useState } from 'react';
 import { formaterNombre } from '@/lib/format/nombre';
+import { seuilsNaturels, classeDe } from '@/lib/carte/seuils-naturels';
 
-/** Une entité administrative telle que `/api/meteo-geo/zones` la rend. */
 /**
  * Une géométrie GeoJSON telle que `get_zone_polygons` la rend.
  *
- * ⚠ `GeometryCollection` n'est PAS un cas exotique ici : **66 des 104
+ * ⚠ `GeometryCollection` n'est PAS un cas exotique : **66 des 104
  * départements** en sont une (mesuré en production le 2026-09-18), dont Paris,
  * le Rhône, les Bouches-du-Rhône et le Nord. Une collection ne porte pas de
  * `coordinates` mais un tableau `geometries` — l'ignorer ne lève rien, elle
- * disparaît simplement du tracé.
+ * disparaît simplement du tracé, et un département non dessiné laisse voir le
+ * fond de page, donc du BLANC, indiscernable d'une unité sans donnée.
  */
 type GeometrieZone =
   | { type: 'Polygon'; coordinates: number[][][] }
@@ -59,160 +62,219 @@ export interface ZoneGeo {
   geometry: GeometrieZone;
 }
 
+interface Boite { x: number; y: number; w: number; h: number }
+
 interface Props {
   zones: ZoneGeo[];
-  /** Valeur à peindre, par code d'unité. Absente = unité non exposée. */
+  /** Valeur à représenter, par code d'unité. Absente = unité non exposée. */
   valeurs: Map<string, number>;
-  /** Ce que la couleur encode — sert la légende et l'infobulle. */
+  /** Ce que la valeur encode — sert la légende et l'infobulle. */
   libelleValeur: string;
-  /** Formatage de la valeur dans l'infobulle. */
   formater?: (v: number) => string;
   /**
-   * Les couleurs, du plus faible au plus fort. Fournies par l'appelant plutôt
-   * que figées ici : c'est le catalogue déjà utilisé par les carreaux et les
-   * IRIS (`lib/carreaux/catalogue.ts`), et l'utilisateur choisit.
-   *
-   * La rampe séquentielle teal du Suivi V2 servait avant ce changement. Elle
-   * est dérivée de l'accent de marque, donc très claire à son extrémité basse :
-   * sur fond clair, les départements peu exposés — la majorité — devenaient
-   * indiscernables du fond. C'est le « on voit des zones blanches » signalé.
+   * Les couleurs, du plus faible au plus fort, fournies par l'appelant : c'est
+   * le catalogue déjà utilisé par les carreaux et les IRIS, et l'utilisateur
+   * choisit.
    */
   stops: string[];
-  /** Unité survolée ou sélectionnée dans le tableau, mise en évidence ici. */
+  /**
+   * `aplat` pour un RAPPORT (part, densité), `cercles` pour un EFFECTIF.
+   * Voir la décision 2 de l'en-tête — ce n'est pas un goût, c'est ce qui
+   * empêche la carte de mentir.
+   */
+  mode?: 'aplat' | 'cercles';
   codeActif?: string | null;
   onSurvol?: (code: string | null) => void;
   onClic?: (code: string) => void;
 }
 
-/** Mercator sphérique, borné à la métropole. Les DROM ne sont pas dessinés. */
-const BORNES = { ouest: -5.3, est: 9.8, sud: 41.2, nord: 51.2 };
-const fInterCarte = 'Inter, system-ui, sans-serif';
 const LARGEUR = 300;
 const HAUTEUR = 300;
+/** Cinq classes : au-delà, l'œil ne distingue plus deux paliers voisins. */
+const N_CLASSES = 5;
+/** Côté d'un cartouche d'outre-mer, en unités du viewBox. */
+const COTE_OM = 30;
 
+const fInter = 'Inter, system-ui, sans-serif';
+const fMono = "'JetBrains Mono', monospace";
+
+/** Mercator sphérique — même projection que la carte principale. */
 function mercatorY(lat: number): number {
-  const r = (lat * Math.PI) / 180;
-  return Math.log(Math.tan(Math.PI / 4 + r / 2));
+  return Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 180 / 2));
 }
 
-const Y_SUD = mercatorY(BORNES.sud);
-const Y_NORD = mercatorY(BORNES.nord);
-
-function projeter(lon: number, lat: number): [number, number] {
-  const x = ((lon - BORNES.ouest) / (BORNES.est - BORNES.ouest)) * LARGEUR;
-  const y = HAUTEUR - ((mercatorY(lat) - Y_SUD) / (Y_NORD - Y_SUD)) * HAUTEUR;
-  return [x, y];
-}
+interface Cadre { ouest: number; est: number; sud: number; nord: number }
 
 /**
- * Anneaux GeoJSON → attribut `d` d'un `<path>`.
- *
- * Tolère une géométrie absente ou vide plutôt que de lever : une seule feature
- * sans coordonnées faisait tomber TOUT le composant dans son `ErrorBoundary`,
- * donc toute la carte, pour un département manquant. Un tracé vide est la
- * bonne réponse — l'unité apparaît simplement en gris.
- *
- * ── LE DÉFAUT QUI A MOTIVÉ LA RÉCURSION (2026-09-18) ──────────────────────
- *
- * Cette fonction ne traitait que `Polygon` et `MultiPolygon`. Or
- * `get_zone_polygons('departement')` rend **66 `GeometryCollection` sur 104**
- * (mesure en production), dont Paris, le Rhône, les Bouches-du-Rhône et le
- * Nord. Une collection porte `geometries`, jamais `coordinates` : la garde
- * `!Array.isArray(g.coordinates)` renvoyait donc une chaîne vide, et ces 66
- * départements n'étaient **pas dessinés du tout**.
- *
- * Le symptôme ment : un département non dessiné laisse voir le fond de la
- * page, donc du BLANC — indiscernable, à l'œil, d'une unité sans donnée, qui
- * est grise et bel et bien tracée. C'est ce qui a été signalé comme « il y a
- * des endroits en blanc, il en a trop, il manque des sites ». Les sites ne
- * manquaient pas : seuls 2 départements de métropole n'ont aucune exposition
- * (Hautes-Alpes et Lozère), et tous deux ont 0 site Seveso.
+ * Projette un cadre géographique dans une boîte de dessin en CONSERVANT les
+ * proportions. Sans cela, la Guyane (large) et La Réunion (ronde) seraient
+ * étirées différemment dans des cartouches de même taille, et une île y
+ * paraîtrait plus grande qu'elle n'est.
  */
-function versChemin(g: GeometrieZone | null | undefined): string {
-  if (!g) return '';
-  // Une collection se ramène à ses membres. Récursif parce que rien
-  // n'interdit à GeoJSON d'en imbriquer.
+function projecteur(cadre: Cadre, boite: Boite) {
+  const ySud = mercatorY(cadre.sud);
+  const yNord = mercatorY(cadre.nord);
+  const dLon = cadre.est - cadre.ouest || 1e-6;
+  const dY = yNord - ySud || 1e-6;
+  const echelle = Math.min(boite.w / dLon, boite.h / dY);
+  const largeurUtile = dLon * echelle;
+  const hauteurUtile = dY * echelle;
+  const dx = boite.x + (boite.w - largeurUtile) / 2;
+  const dy = boite.y + (boite.h - hauteurUtile) / 2;
+  return (lon: number, lat: number): [number, number] => [
+    dx + (lon - cadre.ouest) * echelle,
+    dy + hauteurUtile - (mercatorY(lat) - ySud) * echelle,
+  ];
+}
+
+/** Tous les anneaux d'une géométrie, collections comprises. */
+function anneaux(g: GeometrieZone | null | undefined): number[][][] {
+  if (!g) return [];
   if (g.type === 'GeometryCollection') {
-    return Array.isArray(g.geometries) ? g.geometries.map(versChemin).join('') : '';
+    return Array.isArray(g.geometries) ? g.geometries.flatMap(anneaux) : [];
   }
-  if (!Array.isArray(g.coordinates)) return '';
-  const polygones = g.type === 'Polygon'
-    ? [g.coordinates]
-    : g.coordinates;
-  if (!Array.isArray(polygones)) return '';
-  const morceaux: string[] = [];
-  for (const poly of polygones) {
-    if (!Array.isArray(poly)) continue;
-    for (const anneau of poly) {
-      if (!Array.isArray(anneau)) continue;
-      if (anneau.length < 3) continue;
-      const pts = anneau.map(([lon, lat]) => projeter(lon, lat));
-      morceaux.push(
-        `M${pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join('L')}Z`,
-      );
+  if (!Array.isArray(g.coordinates)) return [];
+  const polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+  if (!Array.isArray(polys)) return [];
+  const out: number[][][] = [];
+  for (const p of polys) {
+    if (!Array.isArray(p)) continue;
+    for (const a of p) if (Array.isArray(a) && a.length >= 3) out.push(a);
+  }
+  return out;
+}
+
+/** Cadre englobant d'un lot de zones. `null` si aucune géométrie exploitable. */
+function cadreDe(zones: ZoneGeo[]): Cadre | null {
+  let ouest = Infinity, est = -Infinity, sud = Infinity, nord = -Infinity;
+  for (const z of zones) {
+    for (const a of anneaux(z.geometry)) {
+      for (const paire of a) {
+        const lon = paire[0], lat = paire[1];
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+        if (lon < ouest) ouest = lon;
+        if (lon > est) est = lon;
+        if (lat < sud) sud = lat;
+        if (lat > nord) nord = lat;
+      }
     }
+  }
+  return Number.isFinite(ouest) ? { ouest, est, sud, nord } : null;
+}
+
+function chemin(z: ZoneGeo, proj: (lon: number, lat: number) => [number, number]): string {
+  const morceaux: string[] = [];
+  for (const a of anneaux(z.geometry)) {
+    const pts = a.map((p) => proj(p[0], p[1]));
+    morceaux.push(`M${pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join('L')}Z`);
   }
   return morceaux.join('');
 }
 
+/** Centre du cadre englobant — suffisant pour poser un cercle sur une vignette. */
+function centreDe(z: ZoneGeo, proj: (lon: number, lat: number) => [number, number]): [number, number] | null {
+  const c = cadreDe([z]);
+  if (!c) return null;
+  return proj((c.ouest + c.est) / 2, (c.sud + c.nord) / 2);
+}
+
+/**
+ * Collectivités d'outre-mer, reconnues par leur code à trois chiffres
+ * commençant par 97 — la règle INSEE, pas une liste écrite à la main.
+ */
+const estOutreMer = (code: string) => /^97\d$/.test(code);
+
+interface Trace { code: string; nom: string; d: string; c: [number, number] | null }
+interface TraceOM extends Trace { boite: Boite }
+
 export function CarteMiniFrance({
-  zones,
-  valeurs,
-  libelleValeur,
-  formater = formaterNombre,
-  stops,
-  codeActif,
-  onSurvol,
-  onClic,
+  zones, valeurs, libelleValeur, formater = formaterNombre,
+  stops, mode = 'aplat', codeActif, onSurvol, onClic,
 }: Props) {
   /**
-   * On ECARTE le premier palier de la rampe, et c'est le correctif du « il y a
-   * trop de blanc ».
+   * On ÉCARTE le premier palier de la rampe.
    *
    * Les palettes séquentielles du catalogue (rouge, bleu, vert, violet) sont
    * conçues pour un fond blanc : leur extrémité basse est quasi blanche
-   * (#FFF5F0 pour la rouge). Sur la page, un département peint de cette teinte
-   * est indiscernable du fond — et donc d'un département NON DESSINÉ. C'est
-   * exactement la confusion qui a fait chercher des sites manquants alors que
-   * 66 départements n'étaient pas tracés.
-   *
-   * En écartant ce palier, la teinte la plus pâle employée reste visible, et
-   * « aucune exposition » (gris) redevient le seul gris de la carte. Cinq
-   * paliers au lieu de six : on perd une nuance, on gagne de ne jamais
-   * confondre « peu » avec « rien ».
-   *
-   * Pour turbo et plasma, dont l'extrémité basse est sombre et non pâle, cela
-   * retire simplement la nuance la plus foncée — sans conséquence de lecture.
+   * (#FFF5F0 pour la rouge). Un département peint de cette teinte est
+   * indiscernable du fond, donc d'un département NON DESSINÉ — exactement la
+   * confusion qui a fait chercher des sites manquants alors que 66
+   * départements n'étaient pas tracés.
    */
-  const rampe = stops.length > 2 ? stops.slice(1) : stops;
+  const rampe = useMemo(() => (stops.length > 2 ? stops.slice(1) : stops), [stops]);
   const [survole, setSurvole] = useState<string | null>(null);
 
-  // Seuils de quantiles, recalculés quand les valeurs changent. Seules les
-  // unités RENSEIGNÉES entrent dans le calcul : inclure les zéros écraserait
-  // la moitié basse de l'échelle.
-  const seuils = useMemo(() => {
-    const v = [...valeurs.values()].filter((n) => Number.isFinite(n) && n > 0).sort((a, b) => a - b);
-    if (v.length === 0) return [];
-    return rampe.slice(1).map((_, i) => v[Math.floor(((i + 1) / rampe.length) * v.length)] ?? v[v.length - 1]);
-  }, [valeurs, rampe]);
-
-  const couleur = (code: string): string => {
-    const v = valeurs.get(code);
-    if (v === undefined || !Number.isFinite(v) || v <= 0) return 'var(--donnee-absente)';
-    let i = 0;
-    while (i < seuils.length && v >= seuils[i]) i++;
-    return rampe[Math.min(i, rampe.length - 1)];
-  };
-
-  const chemins = useMemo(
-    () => zones.map((z) => ({ code: z.properties.code, nom: z.properties.nom, d: versChemin(z.geometry) })),
-    [zones],
+  const metropole = useMemo(() => zones.filter((z) => !estOutreMer(z.properties.code)), [zones]);
+  // Seuls les territoires ultramarins EXPOSÉS reçoivent un cartouche : en
+  // afficher onze dont neuf vides encombrerait la carte sans rien apprendre.
+  const outreMer = useMemo(
+    () => zones.filter((z) => estOutreMer(z.properties.code) && valeurs.has(z.properties.code)),
+    [zones, valeurs],
   );
 
+  const bornes = useMemo(
+    () => seuilsNaturels([...valeurs.values()], Math.min(N_CLASSES, rampe.length)),
+    [valeurs, rampe.length],
+  );
+
+  const couleur = (code: string): string => {
+    const c = classeDe(valeurs.get(code), bornes);
+    return c < 0 ? 'var(--donnee-absente)' : rampe[Math.min(c, rampe.length - 1)];
+  };
+
+  /**
+   * Rayon d'un cercle proportionnel : l'AIRE suit la valeur, donc le rayon suit
+   * sa racine carrée. S'en écarter (rayon proportionnel à la valeur) exagère
+   * les grandes valeurs d'un facteur égal au rapport lui-même — une unité 100
+   * fois plus exposée occuperait 10 000 fois la surface.
+   */
+  const maxValeur = useMemo(() => {
+    const v = [...valeurs.values()].filter((x) => Number.isFinite(x) && x > 0);
+    return v.length > 0 ? Math.max(...v) : 1;
+  }, [valeurs]);
+  const rayon = (v: number) => 2 + Math.sqrt(v / maxValeur) * 15;
+
+  const cadreMetro = useMemo(() => cadreDe(metropole), [metropole]);
+  const projMetro = useMemo(
+    () => (cadreMetro ? projecteur(cadreMetro, { x: 0, y: 0, w: LARGEUR, h: HAUTEUR - 42 }) : null),
+    [cadreMetro],
+  );
+
+  const tracesMetro: Trace[] = useMemo(() => {
+    if (!projMetro) return [];
+    return metropole.map((z) => ({
+      code: z.properties.code,
+      nom: z.properties.nom,
+      d: chemin(z, projMetro),
+      c: centreDe(z, projMetro),
+    }));
+  }, [metropole, projMetro]);
+
+  /** Une bande de cartouches sous la métropole, un par territoire exposé. */
+  const tracesOM: TraceOM[] = useMemo(() => {
+    const out: TraceOM[] = [];
+    outreMer.forEach((z, i) => {
+      const boite: Boite = { x: 3 + i * (COTE_OM + 5), y: HAUTEUR - COTE_OM - 10, w: COTE_OM, h: COTE_OM };
+      const c = cadreDe([z]);
+      if (!c) return;
+      const proj = projecteur(c, boite);
+      out.push({
+        code: z.properties.code, nom: z.properties.nom,
+        d: chemin(z, proj), boite,
+        c: [boite.x + boite.w / 2, boite.y + boite.h / 2],
+      });
+    });
+    return out;
+  }, [outreMer]);
+
   const enAvant = survole ?? codeActif ?? null;
-  const infobulle = enAvant
-    ? { nom: chemins.find((c) => c.code === enAvant)?.nom ?? enAvant, valeur: valeurs.get(enAvant) }
-    : null;
+  const nomActif = [...tracesMetro, ...tracesOM].find((t) => t.code === enAvant)?.nom ?? enAvant;
+  const valeurActive = enAvant ? valeurs.get(enAvant) : undefined;
+
+  const traits = (code: string) => ({
+    stroke: enAvant === code ? 'var(--brand-teal)' : 'var(--text-tertiary)',
+    strokeWidth: enAvant === code ? 1.6 : 0.7,
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -223,44 +285,84 @@ export function CarteMiniFrance({
         style={{ width: '100%', height: 'auto', display: 'block' }}
         onMouseLeave={() => { setSurvole(null); onSurvol?.(null); }}
       >
-        {chemins.map((c) => {
-          const actif = enAvant === c.code;
+        {tracesMetro.map((t) => (
+          <path
+            key={t.code}
+            d={t.d}
+            /* En mode cercles, le fond reste NEUTRE : colorer l'aplat ET
+               dimensionner le cercle encoderait deux fois la même grandeur, et
+               l'aplat réintroduirait le biais de surface que les cercles
+               servent justement à éviter. */
+            fill={mode === 'cercles' ? 'var(--bg-level-2)' : couleur(t.code)}
+            {...traits(t.code)}
+            style={{ cursor: onClic ? 'pointer' : 'default', transition: 'fill 200ms var(--ease-out)' }}
+            onMouseEnter={() => { setSurvole(t.code); onSurvol?.(t.code); }}
+            onClick={() => onClic?.(t.code)}
+          >
+            <title>{`${t.nom} — ${valeurs.has(t.code) ? formater(valeurs.get(t.code) as number) : 'aucune exposition'}`}</title>
+          </path>
+        ))}
+
+        {mode === 'cercles' && tracesMetro.map((t) => {
+          const v = valeurs.get(t.code);
+          if (!t.c || v === undefined || !Number.isFinite(v) || v <= 0) return null;
           return (
-            <path
-              key={c.code}
-              d={c.d}
-              fill={couleur(c.code)}
-              /* Le contour porte la lecture quand le remplissage est pâle ou
-                 absent : a 0,4 px il disparaissait, et une unite sans donnee
-                 se confondait avec le fond de la page. */
-              stroke={actif ? 'var(--brand-teal)' : 'var(--text-tertiary)'}
-              strokeWidth={actif ? 1.6 : 0.7}
-              style={{ cursor: onClic ? 'pointer' : 'default', transition: 'fill 200ms var(--ease-out)' }}
-              onMouseEnter={() => { setSurvole(c.code); onSurvol?.(c.code); }}
-              onClick={() => onClic?.(c.code)}
-            >
-              <title>{`${c.nom} — ${valeurs.has(c.code) ? formater(valeurs.get(c.code) as number) : 'aucune exposition'}`}</title>
-            </path>
+            <circle
+              key={`c-${t.code}`}
+              cx={t.c[0]} cy={t.c[1]} r={rayon(v)}
+              fill={rampe[rampe.length - 1]} fillOpacity={0.55}
+              stroke={enAvant === t.code ? 'var(--brand-teal)' : rampe[rampe.length - 1]}
+              strokeWidth={enAvant === t.code ? 1.4 : 0.5}
+              style={{ pointerEvents: 'none' }}
+            />
           );
         })}
+
+        {/* Cartouches d'outre-mer. Encadrées et légendées : un territoire hors
+            échelle doit se voir comme tel, jamais se fondre dans le cadre. */}
+        {tracesOM.map((t) => (
+          <g key={`om-${t.code}`}>
+            <rect
+              x={t.boite.x - 1} y={t.boite.y - 1} width={COTE_OM + 2} height={COTE_OM + 2}
+              fill="none" stroke="var(--border-subtle)" strokeWidth={0.5}
+            />
+            <path
+              d={t.d}
+              fill={mode === 'cercles' ? 'var(--bg-level-2)' : couleur(t.code)}
+              {...traits(t.code)}
+              style={{ cursor: onClic ? 'pointer' : 'default' }}
+              onMouseEnter={() => { setSurvole(t.code); onSurvol?.(t.code); }}
+              onClick={() => onClic?.(t.code)}
+            >
+              <title>{`${t.nom} — ${formater(valeurs.get(t.code) as number)}`}</title>
+            </path>
+            {mode === 'cercles' && t.c && (
+              <circle
+                cx={t.c[0]} cy={t.c[1]} r={rayon(valeurs.get(t.code) as number)}
+                fill={rampe[rampe.length - 1]} fillOpacity={0.55}
+                stroke={rampe[rampe.length - 1]} strokeWidth={0.5}
+                style={{ pointerEvents: 'none' }}
+              />
+            )}
+            <text
+              x={t.boite.x + COTE_OM / 2} y={t.boite.y + COTE_OM + 7}
+              textAnchor="middle" style={{ fontFamily: fMono, fontSize: 7, fill: 'var(--text-tertiary)' }}
+            >
+              {t.code}
+            </text>
+          </g>
+        ))}
       </svg>
 
-      {/* Infobulle textuelle sous la carte plutôt que flottante : elle ne
-          recouvre jamais le tracé, et reste lisible au clavier. */}
-      <div
-        style={{
-          fontFamily: 'Inter, system-ui, sans-serif',
-          fontSize: 11,
-          color: 'var(--text-secondary)',
-          minHeight: 16,
-        }}
-      >
-        {infobulle ? (
+      {/* Infobulle sous la carte plutôt que flottante : elle ne recouvre jamais
+          le tracé, et reste lisible au clavier. */}
+      <div style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-secondary)', minHeight: 16 }}>
+        {enAvant ? (
           <>
-            <span style={{ color: 'var(--text-primary)' }}>{infobulle.nom}</span>
+            <span style={{ color: 'var(--text-primary)' }}>{nomActif}</span>
             {' — '}
-            <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-              {infobulle.valeur !== undefined ? formater(infobulle.valeur) : 'aucune exposition'}
+            <span style={{ fontFamily: fMono }}>
+              {valeurActive !== undefined ? formater(valeurActive) : 'aucune exposition'}
             </span>
           </>
         ) : (
@@ -268,43 +370,30 @@ export function CarteMiniFrance({
         )}
       </div>
 
-      {/* Échelle. Elle dit « par quantiles » parce qu'elle n'est PAS
-          proportionnelle : trois départements écrasent la distribution. */}
+      {/* Échelle. Les bornes sont ÉCRITES : une rampe muette n'apprend rien, et
+          c'est tout l'intérêt des seuils naturels de ne PAS être réguliers —
+          ne pas les montrer reviendrait à cacher ce qu'on vient de gagner. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden' }}>
-          {rampe.map((c, i) => (
+          {rampe.slice(0, Math.max(bornes.length, 1)).map((c, i) => (
             <span key={i} style={{ flex: 1, background: c }} />
           ))}
         </div>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 9,
-            color: 'var(--text-tertiary)',
-          }}
-        >
-          <span>faible</span>
-          <span>{libelleValeur} · quantiles</span>
-          <span>fort</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 9, color: 'var(--text-tertiary)' }}>
+          {bornes.length > 0
+            ? bornes.map((b, i) => <span key={i}>{formater(b)}</span>)
+            : <span>aucune valeur</span>}
+        </div>
+        <div style={{ fontFamily: fMono, fontSize: 9, color: 'var(--text-tertiary)' }}>
+          {libelleValeur} · seuils naturels{mode === 'cercles' ? ' · aire ∝ valeur' : ''}
         </div>
 
-        {/* « Aucune exposition » n'est PAS la valeur la plus faible de la
-            rampe, et la legende doit le montrer : sans cette ligne, un
-            departement gris se lit « peu expose » alors qu'il n'a aucun site.
-            C'est la meme regle que `--donnee-absente` ailleurs dans le produit. */}
+        {/* « Aucune exposition » n'est PAS la valeur la plus faible de la rampe :
+            sans cette ligne, un département gris se lit « peu exposé » alors
+            qu'il n'a aucun site. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 1 }}>
-          <span
-            style={{
-              width: 12, height: 6, borderRadius: 2,
-              background: 'var(--donnee-absente)',
-              border: '0.5px solid var(--text-tertiary)',
-            }}
-          />
-          <span style={{ fontFamily: fInterCarte, fontSize: 9, color: 'var(--text-tertiary)' }}>
-            aucune exposition
-          </span>
+          <span style={{ width: 12, height: 6, borderRadius: 2, background: 'var(--donnee-absente)', border: '0.5px solid var(--text-tertiary)' }} />
+          <span style={{ fontFamily: fInter, fontSize: 9, color: 'var(--text-tertiary)' }}>aucune exposition</span>
         </div>
       </div>
     </div>

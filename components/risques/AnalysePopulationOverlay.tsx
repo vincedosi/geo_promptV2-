@@ -40,6 +40,13 @@ import { CarteMiniFrance, type ZoneGeo } from './CarteMiniFrance';
 import { CARREAUX_PALETTES } from '@/lib/carreaux/catalogue';
 
 type Dimension = 'region' | 'departement' | 'code_postal' | 'commune';
+
+/**
+ * Un pas du fil d'Ariane. Le `nom` est porté avec le code parce qu'on ne peut
+ * pas le retrouver après coup : une fois descendu dans la Seine-Maritime, la
+ * liste affichée est celle de ses communes, et « 76 » n'y figure plus.
+ */
+interface Segment { niveau: 'region' | 'departement'; code: string; nom: string }
 type Encodage = 'part' | 'densite' | 'exposee';
 
 /**
@@ -51,11 +58,23 @@ type Encodage = 'part' | 'densite' | 'exposee';
  * Le classement, lui, reste parfaitement lisible — c'est justement ce qui est
  * demandé à cette maille (« les 100 plus grandes communes exposées »).
  */
+/**
+ * Les rayons que l'on peut NOMMER. Un média planner dit « 500 m », « 2 km » —
+ * jamais « 1,7 km ». Le curseur reste là pour l'entre-deux, mais les paliers
+ * portent l'usage courant et évitent de viser au pixel.
+ *
+ * 200 m est le plancher : c'est le côté du carreau INSEE, donc la plus petite
+ * distance qui puisse encore changer un résultat.
+ */
+const PALIERS_RAYON = [500, 1000, 2000, 5000];
+
 const DIMENSIONS: Array<{ id: Dimension; label: string; zones: 'region' | 'departement' | 'cp' | null }> = [
   { id: 'region', label: 'Région', zones: 'region' },
   { id: 'departement', label: 'Département', zones: 'departement' },
   { id: 'commune', label: 'Commune', zones: null },
-  { id: 'code_postal', label: 'Code postal', zones: 'cp' },
+  // Les contours postaux existent, mais on ne les dessine plus : à l'intérieur
+  // d'un département, une carte de France entière ne montrerait qu'un confetti.
+  { id: 'code_postal', label: 'Code postal', zones: null },
 ];
 
 /**
@@ -130,6 +149,9 @@ interface Agregat {
    */
   du_cache?: boolean;
   duree_ms?: number;
+  /** Rayon le plus large encore calculable sur ce périmètre (sql/197). */
+  rayon_max_m?: number;
+  n_sites_retenus?: number;
   lignes: Ligne[];
   calcule_le: string;
 }
@@ -172,7 +194,23 @@ const fInter = 'Inter, system-ui, sans-serif';
 const fMono = "'JetBrains Mono', monospace";
 
 export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Props) {
-  const [dimension, setDimension] = useState<Dimension>('departement');
+  /**
+   * LE FIL D'ARIANE, et non un sélecteur de « maille ».
+   *
+   * « Dimension » était une abstraction de développeur : personne ne pense
+   * « je choisis une maille », on pense France → Normandie → Seine-Maritime.
+   * Le chemin porte la descente, et la maille s'en DÉDUIT — on ne peut donc
+   * plus être dans un état incohérent (maille commune sans territoire, code
+   * postal national qui ne calcule pas).
+   *
+   * Le patron vient de `BarreMaille` du Suivi V2, à une différence près : il
+   * ne garde qu'UN parent, et son propre en-tête signale que le fil disait
+   * alors « France entière › 31 » sans jamais dire de quoi 31 était le code.
+   * Ici on garde le chemin ENTIER, ce qui supprime le problème.
+   */
+  const [chemin, setChemin] = useState<Segment[]>([]);
+  /** À l'étage département, on liste les communes ou les codes postaux. */
+  const [feuille, setFeuille] = useState<'commune' | 'code_postal'>('commune');
   const [cible, setCible] = useState('ind');
   const [encodage, setEncodage] = useState<Encodage>('part');
   const [rayon, setRayon] = useState<number | null>(null);   // null = rayon déduit
@@ -201,7 +239,7 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
    * (la maille du tableau, pas le territoire etudie). Deux commandes, meme
    * vocabulaire, sens differents : c'est la confusion qui a ete signalee.
    */
-  const [perim, setPerim] = useState<{ niveau: 'region' | 'departement'; code: string } | null>(null);
+
 
   /**
    * Cercle IMPOSE a tous les sites.
@@ -215,6 +253,20 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
    *               d'une zone publiee — l'ecran doit le dire.
    */
   const [forcerRayon, setForcerRayon] = useState(false);
+
+  /**
+   * DEUX états pour le rayon, et c'est le correctif du défaut signalé.
+   *
+   * Le champ relançait le calcul à CHAQUE frappe, avec un pas de 100 m. Quatre
+   * pressions sur la flèche = quatre requêtes de 4 s sur un quota de 20/min,
+   * d'où le 429 observé. Et 100 m n'a aucun sens : le carreau INSEE fait
+   * 200 m — en dessous, on déplace une frontière À L'INTÉRIEUR d'un carreau et
+   * le chiffre ne bouge pas.
+   *
+   * `rayonSaisi` suit la main, `rayon` suit le calcul. Le second rattrape le
+   * premier après un silence de DELAI_RAYON.
+   */
+  const [rayonSaisi, setRayonSaisi] = useState<number | null>(null);
 
   /**
    * Palette de la mini-carte, prise dans le catalogue DEJA utilise par les
@@ -284,7 +336,70 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
     })();
   }, []);
 
-  const dimCourante = DIMENSIONS.find((d) => d.id === dimension) ?? DIMENSIONS[1];
+  /**
+   * La maille affichée est celle des ENFANTS du dernier segment. C'est ce qui
+   * rend le code postal calculable : on ne le demande jamais nationalement,
+   * seulement à l'intérieur d'un département où l'on est déjà descendu.
+   */
+  const dimension: Dimension =
+    chemin.length === 0 ? 'region'
+    : chemin.length === 1 ? 'departement'
+    : feuille;
+
+  /**
+   * Le périmètre d'étude est le dernier segment du chemin.
+   *
+   * ⚠ `useMemo` OBLIGATOIRE, ce n'est pas du confort. Cet objet entre dans les
+   * dépendances du `useCallback` de calcul : reconstruit à chaque rendu, il
+   * changerait d'identité à chaque rendu, l'effet se rejouerait, le résultat
+   * provoquerait un rendu — et le calcul de 4 s tournerait EN BOUCLE sur la
+   * production. Le lint l'a signalé ; c'était un vrai défaut, pas un pinaillage.
+   */
+  const perim = useMemo(
+    () => (chemin.length > 0
+      ? { niveau: chemin[chemin.length - 1].niveau, code: chemin[chemin.length - 1].code }
+      : null),
+    [chemin],
+  );
+
+  /** Peut-on descendre depuis la maille affichée ? La commune est une feuille. */
+  /**
+   * Assez long pour absorber une rafale de clics sur le curseur, assez court
+   * pour ne pas donner l'impression que l'écran a décroché.
+   */
+  const DELAI_RAYON = 450;
+
+  useEffect(() => {
+    if (rayonSaisi === null) return;
+    const t = setTimeout(() => setRayon(rayonSaisi), DELAI_RAYON);
+    return () => clearTimeout(t);
+  }, [rayonSaisi]);
+
+  /** Le rayon réellement en vigueur — celui du serveur tant qu'on n'a rien choisi. */
+  const rayonCourant = rayon ?? agregat?.rayon_m ?? 532;
+  /**
+   * Le plafond vient de la BASE (sql/197) et jamais d'un calcul local : le
+   * seuil de surface vit dans la RPC, le recopier ici serait deux vérités qui
+   * divergent au premier réglage.
+   */
+  const maxRayonM = agregat?.rayon_max_m ?? null;
+
+  const descendable = dimension === 'region' || dimension === 'departement';
+
+  /**
+   * Descendre d'un cran. `setActif(null)` n'est pas cosmetique : l'unite
+   * survolee appartient au niveau qu'on QUITTE, et la laisser ferait
+   * surligner sur la nouvelle carte un code qui n'y existe plus — ou pire, un
+   * homonyme, les nomenclatures INSEE de region et de departement se
+   * recouvrant sur 18 codes (sql/171).
+   */
+  const descendre = (code: string, nom: string) => {
+    if (!descendable) return;
+    setChemin((c) => [...c, { niveau: dimension as 'region' | 'departement', code, nom }]);
+    setActif(null);
+  };
+
+  const dimCourante = DIMENSIONS.find((d) => d.id === dimension) ?? DIMENSIONS[0];
 
   // Les géométries de la dimension courante.
   useEffect(() => {
@@ -444,8 +559,13 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
         <h2 style={{ margin: 0, fontFamily: fInter, fontSize: 15, fontWeight: 500, color: 'var(--text-primary)' }}>
           Population à risque industriel
         </h2>
+        <FilAriane
+          chemin={chemin}
+          maille={dimCourante.label}
+          onRemonter={(n) => { setChemin((c) => c.slice(0, n)); setActif(null); }}
+        />
         <span style={{ fontFamily: fMono, fontSize: 11, color: 'var(--text-tertiary)' }}>
-          {libelleCible} · {dimCourante.label.toLowerCase()}
+          {libelleCible}
         </span>
         <div style={{ flex: 1 }} />
         <button
@@ -499,35 +619,71 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
           </select>
         </Champ>
 
-        <Champ label="Dimension">
-          <div style={{ display: 'flex', gap: 4 }}>
-            {DIMENSIONS.map((d) => (
-              <Pastille key={d.id} actif={dimension === d.id} onClick={() => setDimension(d.id)}>
-                {d.label}
+        {/* La maille se DÉDUIT du fil d'Ariane : il n'y a plus de sélecteur de
+            dimension. Seul subsiste, à l'étage département, le choix de la
+            feuille — commune ou code postal — parce que les deux répondent à
+            des questions différentes et qu'aucune ne dérive de l'autre. */}
+        {chemin.length >= 2 && (
+          <Champ label="Détail">
+            <div style={{ display: 'flex', gap: 4 }}>
+              <Pastille actif={feuille === 'commune'} onClick={() => setFeuille('commune')}
+                titre="Regroupe les arrondissements de Paris, Lyon et Marseille sous leur commune.">
+                Communes
               </Pastille>
-            ))}
-          </div>
-        </Champ>
+              <Pastille actif={feuille === 'code_postal'} onClick={() => setFeuille('code_postal')}
+                titre="Aucune part ni densité à cette maille : le seul référentiel de population par code postal surcompte de 10 %.">
+                Codes postaux
+              </Pastille>
+            </div>
+          </Champ>
+        )}
 
-        {/* Le rayon se saisit en KILOMETRES : c'est l'unite dans laquelle un
-            media planner raisonne (« 2 km autour de l'usine »), et 532 m
-            s'ecrit 0,5 km sans rien perdre. La base, elle, continue de
-            travailler en metres — la conversion vit ici et nulle part ailleurs. */}
+        {/* ── LE RAYON ───────────────────────────────────────────────────
+            Trois défauts corrigés d'un coup, tous signalés à l'usage :
+
+            - le PAS. 100 m n'a pas de sens : le carreau INSEE fait 200 m, en
+              dessous on déplace une frontière à l'intérieur d'un carreau et le
+              chiffre ne bouge pas. Les paliers sont les distances qu'un média
+              planner nomme réellement.
+            - la BORNE. On pouvait saisir 20 km et découvrir le refus après
+              coup. `rayon_max_m` vient de la base (sql/197) et borne le
+              curseur : on ne peut plus glisser jusqu'à l'échec.
+            - le DÉLAI. Chaque frappe relançait 4 s de calcul. */}
         <Champ label="Cercle autour de chaque site">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 3 }}>
+              {PALIERS_RAYON.map((m) => {
+                const horsBornes = maxRayonM !== null && m > maxRayonM;
+                return (
+                  <Pastille
+                    key={m}
+                    actif={(rayonSaisi ?? rayonCourant) === m}
+                    onClick={() => !horsBornes && setRayonSaisi(m)}
+                    titre={horsBornes
+                      ? `Au-delà de ce que le calcul tient sur ce périmètre (${formaterNombre(maxRayonM as number)} m). Descendez dans un territoire pour l’atteindre.`
+                      : undefined}
+                  >
+                    <span style={{ opacity: horsBornes ? 0.35 : 1 }}>
+                      {m < 1000 ? `${m} m` : `${m / 1000} km`}
+                    </span>
+                  </Pastille>
+                );
+              })}
+            </div>
+
             <input
-              type="number"
-              min={0.1}
-              max={20}
-              step={0.1}
-              value={((rayon ?? agregat?.rayon_m ?? 532) / 1000).toFixed(1)}
-              onChange={(e) => {
-                const km = Number(e.target.value);
-                setRayon(Number.isFinite(km) && km > 0 ? Math.round(km * 1000) : null);
-              }}
-              style={{ ...styleSelect, width: 76, fontFamily: fMono }}
+              type="range"
+              min={200}
+              max={maxRayonM ?? 5000}
+              step={100}
+              value={Math.min(rayonSaisi ?? rayonCourant, maxRayonM ?? 5000)}
+              onChange={(e) => setRayonSaisi(Number(e.target.value))}
+              aria-label="Rayon en mètres"
+              style={{ width: 110, accentColor: 'var(--brand-teal)' }}
             />
-            <span style={{ fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)' }}>km</span>
+            <span style={{ fontFamily: fMono, fontSize: 11, color: 'var(--text-primary)', minWidth: 52 }}>
+              {((rayonSaisi ?? rayonCourant) / 1000).toFixed(1).replace('.', ',')} km
+            </span>
 
             <label
               title="Applique le cercle à TOUS les sites, y compris ceux couverts par un périmètre PPRT publié."
@@ -546,15 +702,14 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
               imposer à tous les sites
             </label>
 
-            {/* Deux mentions EXCLUSIVES, jamais les deux : la seconde annule la
-                premiere. Le rayon deduit ne veut plus rien dire des qu'on
+            {/* Mentions EXCLUSIVES : « déduit » n'a plus de sens dès qu'on
                 impose une valeur choisie. */}
             {forcerRayon ? (
               <span
                 title="Aucun chiffre ne vient alors d'une zone publiée par l'État : tout est calculé sur ce cercle."
                 style={{ fontFamily: fInter, fontSize: 10, color: 'var(--warning)' }}
               >
-                périmètres PPRT ignorés — tout est indicatif
+                PPRT ignorés — tout indicatif
               </span>
             ) : agregat?.rayon_deduit ? (
               <span
@@ -565,8 +720,12 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
               </span>
             ) : null}
 
-            {rayon !== null && (
-              <button type="button" onClick={() => setRayon(null)} style={styleLien}>
+            {rayonSaisi !== null && (
+              <button
+                type="button"
+                onClick={() => { setRayonSaisi(null); setRayon(null); }}
+                style={styleLien}
+              >
                 rétablir
               </button>
             )}
@@ -628,41 +787,6 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
           </div>
         </Champ>
 
-        {/* UN seul menu, et deux `optgroup` plutot que deux menus en cascade :
-            le premier menu ne servait qu'a decider ce que le second afficherait,
-            ne changeait RIEN a l'ecran tant qu'aucun territoire n'etait choisi,
-            et relançait pourtant le calcul entier. Ici, tout choix a un effet,
-            et l'intitule dit « Territoire » : « Perimetre d'etude » proposait
-            « Region » et « Departement » juste a cote du selecteur Dimension,
-            qui offre les memes mots pour la maille du TABLEAU. */}
-        <Champ label="Territoire étudié">
-          <select
-            value={perim ? `${perim.niveau}:${perim.code}` : ''}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (!v) { setPerim(null); return; }
-              const [niveau, code] = v.split(':');
-              setPerim({ niveau: niveau as 'region' | 'departement', code });
-            }}
-            style={{ ...styleSelect, minWidth: 210 }}
-          >
-            <option value="">France entière</option>
-            {refGeo.regions.length > 0 && (
-              <optgroup label="Régions">
-                {refGeo.regions.map((u) => (
-                  <option key={`r-${u.code}`} value={`region:${u.code}`}>{u.nom}</option>
-                ))}
-              </optgroup>
-            )}
-            {refGeo.departements.length > 0 && (
-              <optgroup label="Départements">
-                {refGeo.departements.map((u) => (
-                  <option key={`d-${u.code}`} value={`departement:${u.code}`}>{u.code} — {u.nom}</option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </Champ>
 
         {/* Le rappel de ce qui a été hérité du panneau, pour que l'utilisateur
             sache d'où vient un filtre qu'il n'a pas posé ici. */}
@@ -728,10 +852,13 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
                       key={l.cle}
                       onMouseEnter={() => setActif(l.cle)}
                       onMouseLeave={() => setActif(null)}
+                      onClick={descendable ? () => descendre(l.cle, l.nom) : undefined}
+                      title={descendable ? 'Descendre dans ' + l.nom : undefined}
                       style={{
                         borderBottom: '0.5px solid var(--border-subtle)',
                         background: actif === l.cle ? 'var(--brand-teal-10)' : 'transparent',
                         transition: 'background-color 150ms var(--ease-out)',
+                        cursor: descendable ? 'pointer' : 'default',
                       }}
                     >
                       <td style={{ padding: '7px 8px', color: 'var(--text-primary)' }}>
@@ -739,6 +866,9 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
                           {l.cle}
                         </span>
                         {l.nom}
+                        {descendable && (
+                          <span aria-hidden style={{ color: 'var(--text-tertiary)', marginLeft: 6 }}>&rsaquo;</span>
+                        )}
                       </td>
                       <Td fort>{formaterNombre(l.exposee)}</Td>
                       <Td>{l.part_pct !== null ? `${formaterNombre(l.part_pct)} %` : '—'}</Td>
@@ -842,8 +972,19 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
               libelleValeur={encCourant.label}
               formater={formaterValeur}
               stops={(CARREAUX_PALETTES.find((p) => p.id === palette) ?? CARREAUX_PALETTES[0]).stops}
+              /* Part et densité sont des RAPPORTS : l'aplat leur convient.
+                 L'effectif est une quantité absolue — la peindre sur des
+                 départements de tailles très différentes ferait lire la
+                 surface au lieu de la valeur. Cercles proportionnels. */
+              mode={encodageEffectif === 'exposee' ? 'cercles' : 'aplat'}
               codeActif={actif}
               onSurvol={setActif}
+              onClic={descendable
+                ? (code) => {
+                    const l = agregat?.lignes.find((x) => x.cle === code);
+                    if (l) descendre(l.cle, l.nom);
+                  }
+                : undefined}
             />
 
             {/* Selecteur de palette, repris TEL QUEL du panneau Carreaux
@@ -974,6 +1115,67 @@ function Kpi({
       <span style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-secondary)' }}>{libelle}</span>
       <span style={{ fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)' }}>{note}</span>
     </div>
+  );
+}
+
+/**
+ * Fil d'Ariane. Chaque segment franchi est cliquable pour y revenir ; le
+ * dernier ne l'est pas, on y est deja.
+ *
+ * Le segment porte le NIVEAU en plus du nom (« Region Normandie »), parce que
+ * 18 codes INSEE designent a la fois un departement et une region (sql/171) :
+ * un fil qui afficherait « France entiere › 76 » ne dirait pas de quoi 76 est
+ * le code. C'est le defaut que l'en-tete de `BarreMaille` (Suivi V2) signale
+ * pour lui-meme.
+ */
+function FilAriane({ chemin, maille, onRemonter }: {
+  chemin: Array<{ niveau: 'region' | 'departement'; code: string; nom: string }>;
+  maille: string;
+  onRemonter: (n: number) => void;
+}) {
+  const LIB: Record<string, string> = { region: 'Région', departement: 'Département' };
+  return (
+    <nav aria-label="Fil d’Ariane" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+      <button
+        type="button"
+        onClick={() => onRemonter(0)}
+        disabled={chemin.length === 0}
+        style={{
+          border: 0, background: 'none', padding: 0,
+          fontFamily: fInter, fontSize: 12,
+          cursor: chemin.length === 0 ? 'default' : 'pointer',
+          color: chemin.length === 0 ? 'var(--text-primary)' : 'var(--brand-teal)',
+          textDecoration: chemin.length === 0 ? 'none' : 'underline',
+          textUnderlineOffset: 3,
+        }}
+      >
+        France entière
+      </button>
+      {chemin.map((seg, i) => (
+        <span key={seg.niveau + seg.code} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span aria-hidden style={{ color: 'var(--text-tertiary)' }}>&rsaquo;</span>
+          <button
+            type="button"
+            onClick={() => onRemonter(i + 1)}
+            disabled={i === chemin.length - 1}
+            title={LIB[seg.niveau] + ' ' + seg.code}
+            style={{
+              border: 0, background: 'none', padding: 0,
+              fontFamily: fInter, fontSize: 12,
+              cursor: i === chemin.length - 1 ? 'default' : 'pointer',
+              color: i === chemin.length - 1 ? 'var(--text-primary)' : 'var(--brand-teal)',
+              textDecoration: i === chemin.length - 1 ? 'none' : 'underline',
+              textUnderlineOffset: 3,
+            }}
+          >
+            {seg.nom}
+          </button>
+        </span>
+      ))}
+      <span style={{ fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)', marginLeft: 2 }}>
+        · {maille.toLowerCase()}
+      </span>
+    </nav>
   );
 }
 
