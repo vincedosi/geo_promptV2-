@@ -108,7 +108,7 @@ le lecteur à refaire les totaux à la main :
 
 | Feuille | Contenu |
 |---|---|
-| **Synthèse** | Les paramètres du calcul (maille, date, périmètre, rayon par défaut), le total nationalyes, et les avertissements — dont « la somme des lignes ne fait pas le total » |
+| **Synthèse** | Les paramètres du calcul (maille, date, périmètre, rayon par défaut), le total national, et les avertissements — dont « la somme des lignes ne fait pas le total » |
 | **Par département** | 101 lignes : population exposée, nombre de sites, dont sites sans PPRT, part indicative |
 | **Par site** | Le détail : nom, commune, gravité, nature dominante, mode (`pprt` / `buffer`), population, **`indicatif` en colonne** |
 
@@ -124,16 +124,23 @@ de mise en forme pour que les en-têtes restent lisibles).
 
 ---
 
-## 4. Forme : un overlay, pas une page
+## 4. Forme : un overlay ouvert depuis « Zones à risque »
 
 Règle structurelle du projet : tout passe par `/map` et ses overlays.
 
-La population exposée est **un calcul**, donc sa place est sous **Analyse**
-plutôt qu'en sixième thème du rail — les cinq thèmes forment une chaîne
-mentale qu'une sixième entrée casserait.
+**Tranché le 2026-09-18 :** pas de nouvelle entrée de rail, pas de déplacement
+vers Analyse. L'écran reste rattaché à la section **« Zones à risque
+industriel »** du panneau Calques, ouvert par un bouton pleine largeur :
 
-→ *À trancher avec Vincent : outil dans le panneau Analyse, ou entrée de rail
-dédiée ?*
+```
+  ╭────────────────────────────────────────╮
+  │  ▣  Analyser la population à risque  →  │
+  ╰────────────────────────────────────────╯
+```
+
+Il ouvre l'overlay **avec les filtres déjà cochés dans le panneau** (gravités,
+types de risque, paliers). On ne redemande pas ce à quoi l'utilisateur vient de
+répondre deux centimètres plus haut.
 
 ---
 
@@ -144,7 +151,7 @@ dédiée ?*
 `population_exposee_agregee(p_maille, p_groupe, p_filtres)` :
 
 - `p_maille` : `'carreaux'` | `'iris'`
-- `p_groupe` : `'national'` | `'departement'` | `'type_risque'` | `'gravite'`
+- `p_groupe` : `'region'` | `'departement'` (défaut) | `'code_postal'` | `'type_risque'` | `'gravite'` | `'national'`
 - `p_filtres` : gravités, types de risque, mode, rayon par défaut
 
 Union **dans chaque carreau**, découpe par département avant comptage. Retour
@@ -171,8 +178,8 @@ surface_km2, calculé_le). Rafraîchi **par lots**, jamais à la volée sur les
 
 - Sélecteur de maille **visible en permanence**
 - Tableau trié par population décroissante, avec la part du total
-- Choroplèthe départementale, **inscrite au registre des dégradés**
-  (`lib/carte/degrades.ts`) — sinon elle s'empile avec les huit autres
+- Mini-carte de France à côté du tableau — voir § 9. Elle n'entre **PAS** au
+  registre des dégradés : elle vit sur son propre canvas dans l'overlay
 - Bandeau d'honnêteté : *« 4 des 12 sites de ce département n'ont pas de
   périmètre publié — leur part repose sur un rayon choisi »*
 - Bouton d'export
@@ -190,18 +197,116 @@ surface_km2, calculé_le). Rafraîchi **par lots**, jamais à la volée sur les
 
 ---
 
-## 6. Questions ouvertes
+## 6. Arbitrages rendus (2026-09-18)
 
-1. **Outil dans Analyse, ou entrée de rail ?** (§ 4)
-2. **Quel rayon par défaut pour les sites sans PPRT ?** Le panneau carte laisse
-   l'utilisateur choisir ; un écran de reporting a besoin d'une valeur stable,
-   sinon deux exports ne se comparent pas. Proposition : **500 m**, affiché
-   dans la synthèse.
-3. **Inclure les sites sans PPRT dans le total national ?** Les inclure mélange
-   deux natures de chiffres ; les exclure sous-estime. Proposition : **deux
-   totaux côte à côte** — réglementaire seul, et avec les indicatifs.
-4. **IRIS : quelle variable de population ?** Les colonnes d'`iris` sont
-   dynamiques — passer par le registre, jamais par une liste en dur.
+**Emplacement — tranché.** L'overlay reste rattaché à « Zones à risque
+industriel » dans le panneau Calques, ouvert par un bouton **« Analyser la
+population à risque »** placé sous les deux cartes de zone. Il hérite des
+filtres déjà cochés dans le panneau : on ne redemande pas ce qui est répondu.
+
+**Zones à cheval — tranché : on DÉCOUPE.** Une zone qui chevauche deux
+départements est coupée par `ST_Intersection(zone, departement)` avant le
+comptage, et chaque moitié compte dans son département. Conséquence à écrire
+DANS l'écran, pas seulement ici : **un site peut apparaître dans deux lignes**,
+et la somme des lignes dépasse alors le total national. L'alternative
+— attribuer la zone entière à son département dominant — ferait des lignes
+fausses là où le découpage ne fait que des lignes qui ne s'additionnent pas.
+
+**Dimension — tranché.** Elle se choisit DANS l'overlay (région / département /
+code postal), **défaut : département**. Pas de hiérarchie imposée, pas de
+fil d'Ariane obligatoire : le média planner sait ce qu'il cherche.
+
+**Cibles — tranché : uniquement celles qui se calculent.** Voir § 8.
+
+**Reste ouvert :** le rayon par défaut pour les sites sans PPRT dans un export
+(il faut une valeur stable, sinon deux exports ne se comparent pas —
+proposition : 500 m, affiché dans la synthèse).
+
+---
+
+## 8. Les cibles — uniquement celles qui se calculent
+
+Mesuré le 2026-09-18 : `carreaux_filosofi.metadata` porte **26 champs, tous
+renseignés à 100 %**. Trois sont des identifiants (`idcar_1km`, `idcar_nat`,
+`lcog_geo`) et ne sont pas des cibles. Restent **23 champs numériques, tous des
+SOMMES** — donc tous proratables par la surface.
+
+| Famille | Cibles |
+|---|---|
+| Population | totale (`ind`) |
+| Âge | 0-3, 4-5, 6-10, 11-17, 18-24, 25-39, 40-54, 55-64, 65-79, 80+ |
+| Ménages | total, pauvres, monoparentaux, 1 personne, 5 pers. et +, propriétaires, en maison, en collectif |
+| Logement | sociaux, avant 1945, 1945-70, 1970-90, après 1990 |
+
+### La règle qui rend tout ça juste
+
+**Une cible est un EFFECTIF, jamais un taux.** On peut prendre 30 % des
+habitants d'un carreau ; on ne peut pas prendre 30 % d'un revenu médian.
+
+Les taux restent disponibles, mais **comme colonnes dérivées, calculées APRÈS
+agrégation** — jamais proratées :
+
+- part de ménages pauvres = `Σ men_pauv / Σ men`
+- revenu moyen = `Σ ind_snv / Σ ind`
+
+C'est la distinction que `classe_iris` (sql/138) porte déjà pour la cascade
+IRIS : effectif / densité / proportion. **On la réutilise, on n'en invente pas
+une seconde.**
+
+### Corollaire pour la maille IRIS
+
+Les colonnes d'`iris` sont **dynamiques**, et certaines sont des proportions
+(`part_*`, `taux_*`, `rev_*`). Le menu des cibles doit donc être construit
+depuis le registre, filtré sur `classe_iris(...) = 'effectif'`. Proposer une
+cible non proratable serait proposer un chiffre faux.
+
+---
+
+## 9. La mini-carte
+
+Une carte de France **à côté du tableau**, qui réagit aux mêmes filtres : deux
+représentations d'une seule donnée, jamais deux calculs.
+
+### ⚠ Le piège cartographique, et la proposition
+
+Colorer un polygone par un **effectif brut** est l'erreur classique de la
+choroplèthe : un grand département paraît plus intense simplement parce qu'il
+est grand. La couleur doit porter une grandeur **comparable entre unités**.
+
+Trois encodages possibles, et ils ne disent pas la même chose :
+
+| Encodage | Ce qu'on lit | Défaut |
+|---|---|---|
+| Population exposée (effectif) | « combien de gens » | Fausse la lecture : la surface domine |
+| Densité (hab/km² de zone exposée) | « à quel point c'est dense là où ça touche » | Un site isolé en ville sort en tête |
+| **Part de la population exposée (%)** | **« quelle fraction des habitants d'ici vit en zone à risque »** | Demande la population totale de l'unité |
+
+**Proposition : la part (%).** C'est la seule grandeur qui se compare entre un
+code postal parisien et un code postal rural, et c'est la phrase que le média
+planner veut pouvoir dire : *« 12 % des habitants de ce CP vivent en zone à
+risque industriel »*. L'effectif brut reste dans le tableau, à côté.
+
+→ *À confirmer avec Vincent : il a demandé « la densité, plus c'est rouge plus
+il y a de monde ». Densité et volume sont deux choses différentes, et la part
+est encore une troisième. Ne pas trancher à sa place.*
+
+### Contraintes techniques
+
+- **6 187 polygones au palier code postal.** Trop pour une mini-carte servie
+  brute. Géométrie **simplifiée**, et avec `ST_SimplifyPreserveTopology`, pas
+  `ST_Simplify` : la leçon de sql/178 vaut ici aussi — à une tolérance dérivée
+  de l'étendue France, `ST_Simplify` a **vidé 602 polygones PPRT sur 664**. Un
+  code postal parisien est du même ordre de grandeur.
+- **Ne montrer que les unités qui ont de l'exposition.** Les autres restent au
+  gris `--donnee-absente` — pas à la teinte la plus faible de l'échelle, qui se
+  lirait « peu exposé » là où il n'y a rien.
+- **Cette carte n'entre PAS au registre des dégradés** (`lib/carte/degrades.ts`).
+  Ce registre gouverne l'exclusivité des choroplèthes de la carte principale ;
+  la mini-carte vit dans l'overlay, sur son propre canvas, et ne peut pas
+  s'empiler avec elles. L'y inscrire éteindrait le calque que l'utilisateur
+  regardait derrière.
+- Palette : l'échelle **séquentielle** existante (`palette-sequentielle.ts`),
+  pas une nouvelle. Une seule direction, du faible au fort.
 
 ---
 
