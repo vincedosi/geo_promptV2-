@@ -302,13 +302,37 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
     return m;
   }, [agregat, encodage]);
 
-  const encCourant = ENCODAGES.find((e) => e.id === encodage) ?? ENCODAGES[0];
+  /**
+   * Au palier code postal, la part et la densité sont NULLES : aucun
+   * dénominateur fiable n'existe à cette maille (`ref_codes_postaux.pop_total`
+   * rend 110,5 % de la France réelle, `carreaux_cp_population` le même chiffre,
+   * et aucun indicateur de population n'est matérialisé par code postal —
+   * mesuré le 18/09/2026).
+   *
+   * Plutôt que de peindre une carte vide, on bascule sur l'effectif ET on le
+   * dit. Un encodage silencieusement inopérant se lirait comme « aucune
+   * exposition ».
+   */
+  const encodageIndisponible =
+    (encodage === 'part' || encodage === 'densite') &&
+    (agregat?.lignes.length ?? 0) > 0 &&
+    valeurs.size === 0;
+  const encodageEffectif: Encodage = encodageIndisponible ? 'exposee' : encodage;
+
+  const valeursCarte = useMemo(() => {
+    if (!encodageIndisponible) return valeurs;
+    const m = new Map<string, number>();
+    for (const l of agregat?.lignes ?? []) m.set(l.cle, l.exposee);
+    return m;
+  }, [encodageIndisponible, valeurs, agregat]);
+
+  const encCourant = ENCODAGES.find((e) => e.id === encodageEffectif) ?? ENCODAGES[0];
   const formaterValeur = useCallback(
     (v: number) =>
-      encodage === 'part' ? `${formaterNombre(v)} %`
-      : encodage === 'densite' ? `${formaterNombre(v)} hab/km²`
+      encodageEffectif === 'part' ? `${formaterNombre(v)} %`
+      : encodageEffectif === 'densite' ? `${formaterNombre(v)} hab/km²`
       : formaterNombre(v),
-    [encodage],
+    [encodageEffectif],
   );
 
   const libelleCible = cibles.find((c) => c.code === cible)?.libelle ?? 'Population totale';
@@ -650,7 +674,7 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
           {zones.length > 0 ? (
             <CarteMiniFrance
               zones={zones}
-              valeurs={valeurs}
+              valeurs={valeursCarte}
               libelleValeur={encCourant.label}
               formater={formaterValeur}
               codeActif={actif}
@@ -659,6 +683,15 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
           ) : (
             <p style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)' }}>
               Chargement des contours…
+            </p>
+          )}
+
+          {encodageIndisponible && (
+            <p style={{ fontFamily: fInter, fontSize: 10, color: 'var(--warning)', lineHeight: 1.5, margin: 0 }}>
+              Part et densité ne sont pas disponibles au code postal : aucun
+              référentiel de population n’y est fiable — celui de La Poste
+              recense 110,5 % de la population française. La carte affiche
+              l’effectif.
             </p>
           )}
 
