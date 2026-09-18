@@ -42,8 +42,28 @@ function sqlContenant(motif: string): { fichier: string; contenu: string } {
   throw new Error(`Aucune migration ne contient « ${motif} »`);
 }
 
-const CONSTRUCTION = sqlContenant('create or replace function public.construire_couverture_rayon(');
-const LECTURE = sqlContenant('create or replace function public.lire_couverture_rayon(');
+/**
+ * ⚠ Le motif ne dit PAS `create or replace`.
+ *
+ * `sqlContenant` rend la migration la PLUS RÉCENTE qui porte le motif. sql/200
+ * redéfinit `construire_couverture_rayon` par un `drop` suivi d'un `create`
+ * simple — ajouter des paramètres à valeur par défaut crée sinon une surcharge
+ * ambiguë (leçon de sql/191). Avec `create or replace` dans le motif, ces
+ * verrous auraient continué de lire sql/198, c'est-à-dire une version de la
+ * fonction qui n'est plus celle de la base : ils seraient restés verts en
+ * gardant du code mort.
+ */
+const CONSTRUCTION = sqlContenant('function public.construire_couverture_rayon(');
+const LECTURE = sqlContenant('function public.lire_couverture_rayon(');
+/**
+ * `compter_sites_rayon` a sa PROPRE recherche, et ce n'est pas de la
+ * redondance : elle est née dans sql/199 aux côtés de `lire_couverture_rayon`,
+ * mais sql/201 n'a redéfini que la seconde. Lire les deux dans le même fichier
+ * faisait donc chercher un compteur de sites dans une migration qui ne parle
+ * que de couverture — et le verrou tombait, sur une régression qui n'existait
+ * pas.
+ */
+const COMPTE_SITES = sqlContenant('function public.compter_sites_rayon(');
 
 describe('construction de la couverture par rayon', () => {
   const s = CONSTRUCTION.contenu;
@@ -119,7 +139,28 @@ describe('construction de la couverture par rayon', () => {
     expect(s).toMatch(/on conflict \(bande\) do update/);
   });
 
-  it('retire l’exécution à anon et authenticated', () => {
+  it('garde les bornes de longitude PARAMÉTRABLES, jamais deux constantes', () => {
+    // sql/198 découpait entre `-5.5` et `9.8` en dur — la bbox métropole. 1 698
+    // sites ICPE tombent hors de cet intervalle, DONT 45 SEVESO, et ils
+    // n'apparaissaient sur aucune courbe sans que rien ne le signale : la courbe
+    // montre une population, et une population absente ressemble trait pour
+    // trait à une population nulle.
+    expect(s).toMatch(/p_lon_ouest\s+numeric default -5\.5/);
+    expect(s).toMatch(/p_lon_est\s+numeric default 9\.8/);
+    expect(s).toMatch(/c_ouest constant numeric := p_lon_ouest/);
+    expect(s).toMatch(/c_est\s+constant numeric := p_lon_est/);
+  });
+
+  it('sépare la clé de journal de l’index de bande', () => {
+    // Une zone lointaine tient en UNE bande, donc son index vaut forcément 0 —
+    // or 0 est déjà la clé de la première bande de métropole, qu'elle
+    // écraserait. Les deux rôles ne peuvent pas rester portés par le même
+    // paramètre.
+    expect(s).toMatch(/v_bande_id int := coalesce\(p_bande_id, p_bande\)/);
+    expect(s).toMatch(/values \(v_bande_id, v_lon_min, v_lon_max/);
+  });
+
+    it('retire l’exécution à anon et authenticated', () => {
     expect(s).toMatch(/revoke all on function public\.construire_couverture_rayon/);
     expect(s).toMatch(/grant execute on function public\.construire_couverture_rayon[\s\S]*?to service_role/);
   });
@@ -173,8 +214,20 @@ describe('lecture de la courbe', () => {
   });
 
   it('compte les sites avec `sum`, pas `count` sur un groupement par nature', () => {
-    // `count(*)` aurait compte les NATURES — 8 au lieu de 1 258.
-    expect(s).toMatch(/'n_sites', coalesce\(sum\(n\), 0\)/);
+    // `count(*)` aurait compte les NATURES — 14 au lieu de 1 259 (mesure du
+    // 2026-09-18). Lit COMPTE_SITES et non `s` : les deux fonctions ne vivent
+    // plus dans le meme fichier depuis sql/201.
+    expect(COMPTE_SITES.contenu).toMatch(/'n_sites', coalesce\(sum\(n\), 0\)/);
+  });
+
+  it('la couverture annoncée ne compte QUE les bandes de métropole', () => {
+    // Les zones lointaines sont journalisees sous des cles >= 1000 et couvrent
+    // 1,0 et 0,9 degre : additionnees au reste, elles portaient le rapport a
+    // 112 % une fois la metropole complete. Or le bandeau d'alerte de l'ecran
+    // ne s'affiche QUE sous 99 % — un pre-calcul incomplet aurait cesse d'etre
+    // signale. Pas une coquille d'affichage : la disparition de l'avertissement.
+    expect(s).toMatch(/from public\.couverture_rayon_bandes where bande < 1000/);
+    expect(s).toMatch(/'n_zones_lointaines'/);
   });
 });
 

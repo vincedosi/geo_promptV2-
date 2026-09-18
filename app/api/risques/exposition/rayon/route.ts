@@ -80,9 +80,18 @@ interface Reponse {
   total_est_global: boolean;
   n_departements: number;
   courbes: Courbe[];
-  /** Part de la France dont le pré-calcul est fait. 100 = complet. */
+  /**
+   * Part de la MÉTROPOLE dont le pré-calcul est fait. 100 = complet.
+   *
+   * ⚠ Métropole seulement (sql/201). Les zones lointaines sont construites à
+   * part et comptées à part : les additionner ici portait le rapport à 112 %
+   * une fois la métropole complète, ce qui faisait disparaître le bandeau
+   * d'avertissement — il ne s'affiche que sous 99 %.
+   */
   couverture_pct: number;
   n_bandes_construites: number;
+  /** Zones d'outre-mer pré-calculées : Martinique et La Réunion, soit 2 au plus. */
+  n_zones_lointaines: number;
   calcule_le: string;
   n_sites?: number;
 }

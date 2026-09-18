@@ -230,6 +230,23 @@ pas au même endroit :
    un pourcentage faux.
 7. **Le détail par code postal sur la France entière n'est pas calculable** en
    temps interactif : il faut choisir une région ou un département.
+8. **Trois territoires d'outre-mer n'ont aucune population exposée
+   calculable**, et ce n'est pas un trou d'import : l'INSEE ne carroye pas la
+   Guadeloupe, la Guyane ni Mayotte. Le carroyage Filosofi 2021 à 200 m couvre
+   la métropole, la Martinique et La Réunion — ces trois-là seulement.
+
+   | | sites ICPE | dont Seveso | périmètres PPRT | population exposée |
+   |---|---:|---:|---:|---|
+   | La Réunion (974) | 869 | 6 | 24 | calculable |
+   | Martinique (972) | 226 | 8 | 2 | calculable |
+   | Guyane (973) | 265 | **27** | 5 | **pas de carreaux** |
+   | Guadeloupe (971) | 301 | 3 | 1 | **pas de carreaux** |
+   | Mayotte (976) | 37 | 1 | 0 | **pas de carreaux** |
+
+   La Guyane concentre à elle seule 27 Seveso, plus que la Martinique et La
+   Réunion réunies. Un site de ces trois territoires s'affiche donc SANS
+   chiffre — une donnée absente à la source, jamais une exposition nulle. Ne
+   pas lui appliquer le gris de la carte, qui signifie « zéro exposé ».
 
 ---
 
@@ -238,6 +255,8 @@ pas au même endroit :
 | Objet | Fichier |
 |---|---|
 | Import des périmètres PPRT | `sql/177` · `app/api/admin/import-pprt/` · `lib/import/pprt/normalisation.ts` |
+| Chargement des carreaux INSEE (source publique, DROM compris) | `scripts/local/07-carreaux-insee.sh` |
+| Bornes du découpage du pré-calcul, paramétrables | `sql/200` |
 | Import des sites ICPE | `sql/173`, `sql/174` · `app/api/admin/import-georisques/` · `lib/import/georisques/` |
 | Rattachement site ↔ PPRT | `sql/179` (`risques_industriels_carte`) |
 | Calcul de population | `sql/180` (`population_exposee_site`) |

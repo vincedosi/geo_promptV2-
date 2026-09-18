@@ -36,19 +36,18 @@
  * DÉRIVE son cadrage de la géométrie reçue, sans aucune coordonnée écrite en
  * dur — un redécoupage n'a donc rien à casser.
  *
- * ⚠ Aujourd'hui aucun ne s'affiche, et ce n'est pas un défaut du tracé : la
- * base ne porte aucun carreau INSEE hors métropole (vérifié le 2026-09-18 par
- * requête sur bbox, index GIST — zéro pour La Réunion, la Martinique et la
- * Guadeloupe).
+ * Deux cartouches peuvent désormais s'afficher pour de bon : les carreaux de
+ * **la Martinique et de La Réunion** sont en base depuis le 2026-09-18
+ * (`scripts/local/07-carreaux-insee.sh` — 11 222 et 14 773 carreaux,
+ * 1 190 910 habitants à eux deux). L'INSEE les publie dans le même fichier que
+ * la métropole ; c'est notre import qui s'était arrêté à l'Hexagone.
  *
- * ⚠⚠ MAIS LA SOURCE, ELLE, EN A. L'INSEE publie le carroyage 200 m pour la
- * métropole, **la Martinique et La Réunion** dans le même fichier. C'est donc
- * notre IMPORT qui s'est arrêté à l'Hexagone, pas la donnée qui manque — une
- * première version de ce commentaire affirmait le contraire. Seules la
- * Guadeloupe, la Guyane et Mayotte ne sont pas carroyées par l'INSEE.
- *
- * Le mécanisme des cartouches est donc prêt pour le jour où ces carreaux
- * seront chargés.
+ * ⚠ La Guadeloupe, la Guyane et Mayotte n'auront JAMAIS de cartouche tant que
+ * la source n'aura pas changé : l'INSEE ne carroye pas ces trois territoires.
+ * Leurs 603 sites, dont 31 Seveso — les 27 de Guyane compris — n'ont aucune
+ * population exposée calculable. L'absence de cartouche y est une donnée
+ * manquante à la source, jamais une exposition nulle : le gris de la carte dit
+ * « zéro exposé », et il ne faut pas le leur appliquer.
  */
 import React, { useMemo, useState } from 'react';
 import { formaterNombre } from '@/lib/format/nombre';

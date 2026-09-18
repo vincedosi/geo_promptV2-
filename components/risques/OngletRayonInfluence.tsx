@@ -65,9 +65,11 @@ interface Reponse {
   total_est_global: boolean;
   n_departements: number;
   n_sites: number;
-  /** Part de la France dont le pré-calcul est fait. 100 = complet. */
+  /** Part de la MÉTROPOLE dont le pré-calcul est fait. 100 = complet (sql/201). */
   couverture_pct: number;
   n_bandes_construites: number;
+  /** Zones d'outre-mer pré-calculées (Martinique, La Réunion) — 2 au plus. */
+  n_zones_lointaines: number;
   courbes: Courbe[];
   calcule_le: string;
 }
@@ -220,10 +222,11 @@ export function OngletRayonInfluence({
           borderBottom: '0.5px solid var(--warning)',
           fontFamily: fInter, fontSize: 11, color: 'var(--warning)', lineHeight: 1.5,
         }}>
-          <strong style={{ fontWeight: 500 }}>Pré-calcul partiel : {data.couverture_pct} % du
-          territoire</strong> ({data.n_bandes_construites} bandes construites). Les chiffres
-          ci-dessous SOUS-ESTIMENT la population couverte — ils ne portent que sur la part
-          déjà traitée. Terminer avec{' '}
+          <strong style={{ fontWeight: 500 }}>Pré-calcul partiel : {data.couverture_pct} % de la
+          métropole</strong> ({data.n_bandes_construites} bandes construites
+          {data.n_zones_lointaines > 0 && `, plus ${data.n_zones_lointaines} zone${data.n_zones_lointaines > 1 ? 's' : ''} d’outre-mer`}).
+          Les chiffres ci-dessous SOUS-ESTIMENT la population couverte — ils ne portent que sur
+          la part déjà traitée. Terminer avec{' '}
           <code style={{ fontFamily: fMono }}>node scripts/construire_couverture_rayon.mjs</code>.
         </p>
       )}

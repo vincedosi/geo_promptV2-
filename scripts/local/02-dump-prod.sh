@@ -17,9 +17,21 @@
 #
 # PERIMETRE (arbitrage du 2026-09-17, « socle fonctionnel ») : on exclut les
 # DONNEES de trois tables, leur STRUCTURE reste (--exclude-table-data) —
-#   public.carreaux_filosofi  4 630 Mo — ne sert que les tuiles z>=12 ; les
-#                             paliers 1/2/5/20 km sont conserves, donc la carte
-#                             fonctionne jusqu'a z11.
+#   public.carreaux_filosofi  4 630 Mo — NE PAS le rapatrier depuis la prod :
+#                             `scripts/local/07-carreaux-insee.sh` le charge
+#                             depuis le CSV public de l'INSEE, sans aucune I/O
+#                             sur Supabase, sans identifiant, et avec la
+#                             Martinique et La Reunion EN PLUS (2 324 577
+#                             carreaux contre 2 298 582 en prod).
+#                             ⚠ La justification d'origine de cette exclusion
+#                             — « ne sert que les tuiles z>=12, les paliers
+#                             1/2/5/20 km suffisent » — ne valait que pour la
+#                             CARTE. Tout calcul de POPULATION passe par ces
+#                             carreaux, et sur une base a 8,7 % il rendait des
+#                             totaux trop bas SANS rien signaler. C'est ce qui
+#                             a fait developper le module exposition contre la
+#                             production, jusqu'a l'epuisement de son budget
+#                             d'I/O le 2026-09-18.
 #   public.comptages_routiers   701 Mo — dont 99,7 % est le proxy OSM a 11
 #                             valeurs constantes, pas du TMJA mesure.
 #   public.spatial_ref_sys      — table systeme PostGIS, deja peuplee en local.

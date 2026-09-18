@@ -1216,7 +1216,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `vider_exposition_cache` | Vidange manuelle d'`exposition_cache`, par age de LECTURE (`lu_le`) et non de calcul : on garde ce qui sert, pas ce qui est recent. Necessaire au millesime INSEE, seul changement que la cle ne detecte pas | sql/193 |
 | `lire_couverture_rayon` | Lit la courbe cumulee depuis la table pre-calculee — **aucun croisement geometrique**. Rend une grille COMPLETE de 100 a 10 000 par pas de 100 : une nature sans carreau a un palier n'a pas de ligne (mesure : 94 points sur 99 pour « Inflammables »), et Recharts relierait les points existants en inventant une pente. Le dernier cumul connu est donc reporte. **L'increment est la DIFFERENCE de deux cumuls arrondis** et jamais l'arrondi de l'increment brut : 100 arrondis independants s'accumulaient a 26 habitants d'ecart sur le total, alors que la spec exige l'egalite exacte — meme correctif que sql/188. Le decalage de 100 m est voulu : le palier `b` regroupe [b, b+100), donc « a moins de 100 m » est l'increment du palier 0 | `api/risques/exposition/rayon/` (sql/199) |
 | `compter_sites_rayon` | Nombre de sites concernes par les filtres, pour le KPI de l'onglet. Ne se deduit pas de la table de couverture, qui compte des carreaux. `sum(n)` et non `count(*)` — la sous-requete etant groupee par nature, `count(*)` aurait rendu 8 au lieu de 1 258 | `api/risques/exposition/rayon/` (sql/199) |
-| `construire_couverture_rayon` | Construit UNE bande de longitude. Les bandes decoupent les CARREAUX, jamais les sites : un carreau doit etre traite exactement une fois, sans quoi son minimum serait calcule sur un sous-ensemble a chaque passe. **Deux correctifs de performance mesures en production** — (1) les SITES aussi sont filtres par la bande, sans quoi chacune parcourait les 1 258 sites de France ; (2) le jsonb des carreaux est SORTI des cles de groupement, car `metadata` pese ~806 octets et Postgres devait le hacher pour chaque groupe a chacun des quatre niveaux : **54,5 s -> 7,4 s** sur la meme bande, resultat identique | `scripts/construire_couverture_rayon.mjs` (sql/198) |
+| `construire_couverture_rayon` | Construit UNE bande de longitude. Les bandes decoupent les CARREAUX, jamais les sites : un carreau doit etre traite exactement une fois, sans quoi son minimum serait calcule sur un sous-ensemble a chaque passe. **Deux correctifs de performance mesures en production** — (1) les SITES aussi sont filtres par la bande, sans quoi chacune parcourait les 1 258 sites de France ; (2) le jsonb des carreaux est SORTI des cles de groupement, car `metadata` pese ~806 octets et Postgres devait le hacher pour chaque groupe a chacun des quatre niveaux : **54,5 s -> 7,4 s** sur la meme bande, resultat identique **sql/200 (2026-09-18) : les deux bornes du decoupage sont devenues des PARAMETRES** (`p_lon_ouest` / `p_lon_est`, defauts -5.5 / 9.8 — donc tout appel existant inchange). C'etaient deux constantes, la bbox metropole de `CLAUDE.md`, et **1 698 sites ICPE dont 45 SEVESO** tombent hors de cet intervalle : ils n'apparaissaient sur AUCUNE courbe, et rien ne le disait — la courbe montre une population, et une population absente ressemble trait pour trait a une population nulle. L'outre-mer se construit par des appels SEPARES (une bande par zone, cle de journal >= 1000) et non en elargissant le decoupage : un partitionnement uniforme de -61,8 a 55,8 mettrait la France entiere dans une ou deux bandes de 1 degre, exactement les bandes trop denses qui depassaient deja le delai. `p_bande_id` separe la CLE DE JOURNAL de l'INDEX de bande, que sql/198 confondait : une zone traitee en une seule bande a forcement l'index 0, deja pris par la premiere bande de metropole, qu'elle ecrasait. ⚠ **Limite qui reste, et qui n'est pas de notre fait** : le carroyage Filosofi 2021 a 200 m ne publie que metropole + Martinique + La Reunion. La Guadeloupe, la Guyane et Mayotte ont des sites mais AUCUN carreau, donc une population exposee nulle — une donnee absente, pas un zero. | `scripts/construire_couverture_rayon.mjs` (sql/198, bornes parametrables sql/200) |
 | `rayon_defaut_exposition` | Rayon par defaut des sites sans PPRT, **DEDUIT** des 664 perimetres reels : moyenne des rayons equivalents `r = racine(aire/pi)`, **532 m** mesures le 2026-09-18 (mediane 286 m, Q1 99 m, Q3 654 m, max 12 307 m). C'est la moyenne des RAYONS et non le rayon de l'aire moyenne — les deux different d'un facteur deux (532 contre 974 m), la racine carree etant concave. ⚠ Probablement trop genereux pour les sites concernes : un PPRT n'existe que la ou l'Etat a juge le risque assez fort, et les sites qui n'en ont pas sont majoritairement des Seveso seuil BAS | `api/risques/exposition/agregats/` (sql/185) |
 | `population_exposee_site` | **Population exposee d'un site** (sql/180). Prorata de SURFACE des carreaux INSEE 200 m intersectes : un carreau dont 30 % tombe dans la zone contribue 30 % de ses habitants — hypothese d'uniformite dans le carreau, fausse au detail, la seule possible sans palier plus fin. ⚠ **La population est dans `metadata->>'ind'`** : la colonne `ind` existe mais est NULL sur les 2 298 582 lignes, la lire rendrait ZERO partout sans erreur. Buffer construit sur `geography` (a Marseille un metre de 3857 vaut ~0,73 m reel : « 500 m » en couvrirait 685) puis transforme UNE fois en 3857, ou vit l'index GIST. ⚠ `carreaux_filosofi` ne couvre que les carreaux HABITES : 0 carreau = 0 habitant, pas une lacune — 250 des 664 perimetres sont dans ce cas. Mesures (prod, 2026-09-18) : un perimetre 299 ms / `shared hit=1367 read=242`, Index Scan ; les 664 perimetres = **173 819 habitants**, 414 peuples ; invariants du prompt verifies sur 40 sites (somme des couronnes = cumul 40/40, 0 palier decroissant) | `api/risques/[siteId]/exposition/` (sql/180) |
 | `risques_industriels_carte` | Sites ICPE d'une bbox pour la couche carte dediee, **rattaches a leur perimetre PPRT** (sql/179) et avec zone CALCULEE optionnelle. `statut_zone` (`pprt` / `sans_pprt` / `non_soumis` / `non_concerne`) est calcule EN BASE et repond a la seule question qui compte a l'ecran : cette zone est-elle publiee par l'Etat, ou calculee par nous ? Il distingue une donnee qui MANQUE (seuil haut sans PPRT, 137 sites) d'une zone qui n'existe pas EN DROIT (seuil bas, non soumis) — les confondre ferait passer une regle de droit pour une lacune d'import. Rattachement au perimetre le plus proche a **500 m**, et non par inclusion stricte : les coordonnees AIOT pointent parfois l'entree du site ou le centroide communal, et l'inclusion stricte perdait 71 Seveso seuil haut dont le PPRT est a 200 m (mesure : 496 -> 567 sur 717). ⚠ **`idx_pprt_geog` (GIST sur `geom::geography`) est OBLIGATOIRE** : `idx_pprt_geom` porte sur `geom` en geometry et le cast le rend inutilisable, d'ou un Seq Scan des 664 polygones PAR SITE — **118 340 ms et 1 614 807 buffers** mesures sur l'Etang de Berre, contre **164 ms et 3 332 buffers** avec l'index. `ST_Buffer` sur **geography** : rayon en metres, jamais en degres — en 4326 « 500 m » vaudrait 500 m en latitude et ~350 m en longitude a Marseille, une ellipse presentee comme un cercle (meme raison que `zone_rayon`, sql/155). C'est la MEME geometrie qui servira a compter la population exposee : une seule definition du cercle, pas une pour l'affichage et une pour le calcul. Mesure : 1 259 sites + zones de 500 m = 4,2 Mo en 323 ms, 0 lecture disque | `api/map/risques-industriels/` (sql/175, rattachement sql/179) |
@@ -1530,14 +1530,53 @@ Berre) : **Bitmap Index Scan, 0,12 ms, `shared hit=17`, 0 lecture disque**.
 > presentes. Lire cette phrase aurait fait croire qu'un test contre la prod ne
 > rendrait rien, alors que c'est le SEUL endroit ou les chiffres sont complets.
 
-**Prod et local ne portent PAS le meme jeu de carreaux, et c'est ce qui decide
-ou tester.** `carreaux_filosofi` est exclu du dump local (4 630 Mo) : la base
-locale en porte **200 000 sur 2 298 582**, soit **8,7 %**, et geographiquement
-groupes. Toute mesure de population exposee faite en local est donc JUSTE dans
-sa mecanique et FAUSSE dans ses totaux — c'est exactement ce qui a produit un
-« 5 804 exposes en France » juge impossible a juste titre le 2026-09-18, la
-prod rendant **421 214** sur le meme appel. Un ecran d'exposition se teste
-contre la prod, en lecture.
+> **Ce paragraphe disait le contraire jusqu'au 2026-09-18 au soir**, et sa
+> conclusion — « un ecran d'exposition se teste contre la prod, en lecture » —
+> est ce qui a fait developper tout le module exposition CONTRE la production,
+> jusqu'a ce que Supabase signale l'epuisement du budget d'I/O. Il decrivait
+> une situation reelle (local a 8,7 %) mais la presentait comme une fatalite
+> alors qu'elle tenait a une seule ligne d'exclusion dans `02-dump-prod.sh`.
+
+**Local et prod portent le meme jeu de carreaux depuis le 2026-09-18** — et le
+local en porte meme **plus**. `carreaux_filosofi` reste exclu du dump (4 630 Mo
+a tirer de la prod), mais il se charge desormais depuis la SOURCE PUBLIQUE
+INSEE, sans toucher a Supabase et sans aucun identifiant :
+`scripts/local/07-carreaux-insee.sh`.
+
+| | carreaux 200 m |
+|---|---|
+| production | 2 298 582 — metropole seule |
+| local apres `07` | **2 324 577** — metropole + Martinique + La Reunion |
+
+Les 25 995 carreaux supplementaires sont ceux des DROM, que l'INSEE publie dans
+le meme fichier et que la prod n'a jamais eus. **Ne PAS prendre le parquet de
+`data.gouv.fr`** : il se resout en `carreaux-200m-met-3035.parquet`, metropole
+seule, soit exactement la lacune qu'on repare.
+
+Fidelite verifiee avant d'ecrire le chargeur, et non supposee : sur le carreau
+`CRS3035RES200mN2242800E3635800`, les 31 champs de `metadata` concordent un a
+un avec la ligne du CSV, et la geometrie reconstruite s'ecarte de **1,1 mm** au
+centroide (Hausdorff 1,3 mm, surface 0,26 m2 sur 40 000, soit 6 ppm) — un
+dernier bit de `double` entre deux versions de PROJ. `ST_Equals` repond quand
+meme « faux », etant un test EXACT : ne pas s'en alarmer.
+
+Trois pieges de la source, mesures :
+- **Le SRID est DANS l'identifiant et change d'une zone a l'autre** : metropole
+  **3035**, Martinique **5490**, La Reunion **2975**. Appliquer 3035 aux trois
+  fichiers poserait les carreaux antillais au large du Portugal, sans la moindre
+  erreur — la projection etant parfaitement valide.
+- **`N` et `E` donnent le coin SUD-OUEST, pas le centre** : verifie contre les
+  geometries deja en base, 0,0 m d'ecart pour le coin, 142 m pour le centre.
+- **`lcog_geo` peut porter plusieurs communes separees par une virgule**
+  (`"66061,66179"`), le champ etant alors entre guillemets.
+
+⚠ **`carreaux_filosofi.id` est un `bigint` de sequence**, pas un identifiant
+derivable d'`idcar` : les id locaux ne sont donc PAS ceux de la prod. Verifie
+avant le chargement — aucune cle etrangere ne pointe vers cette table, aucun
+trigger ne la garnit, et aucun cache applicatif ne stocke d'id de carreau
+(`exposition_cache`, `couverture_rayon_risque` et `seveso_exposition` ne gardent
+que des agregats). La cle stable est `(idcar, resolution, millesime)`, qui porte
+l'index UNIQUE.
 
 **Trois defauts de la source, traites et testes** — a ne pas redecouvrir :
 - **`idass` n'identifie rien** : 660 valeurs distinctes pour 664 lignes.
@@ -1560,7 +1599,7 @@ contre la prod, en lecture.
 > de bac a sable : Postgres 17 + PostGIS, PostgREST, GoTrue, Realtime, Storage
 > et Studio, en conteneurs.
 
-Quatre scripts dans `scripts/local/`, rejouables un par un :
+Sept scripts dans `scripts/local/`, rejouables un par un :
 
 | Script | Role |
 |---|---|
@@ -1570,6 +1609,8 @@ Quatre scripts dans `scripts/local/`, rejouables un par un :
 | `03-restore-local.sh` | remise a zero de `public` + extensions -> comptes auth -> `public.sql`, via le `psql` du conteneur. **Rejouable** |
 | `04-env-local.sh` | ecrit `.env.development.local` (surcharge dev, `.env.local` intact) |
 | `05-verifier.sh` | controle en trois temps : conteneurs, volumetrie en base, **et PostgREST** — c'est PostgREST que l'app appelle, pas `psql` |
+| `06-rapatrier-carreaux.sh` | copie `carreaux_filosofi` depuis la PROD, par tranches de hachage. **Garde de secours** : `07` lui est preferable en tout point (source publique, aucun identifiant, aucune I/O sur Supabase, et les DROM en plus) |
+| `07-carreaux-insee.sh` | charge les 2 324 577 carreaux 200 m depuis le CSV INSEE — voir la section carreaux plus haut |
 
 - **WSL2 et surtout PAS Hyper-V.** Hyper-V **pre-alloue** toute la RAM de la
   VM : sur ce poste (15,5 Go dont ~10 pris par Chrome, Teams, le nouvel Outlook
@@ -1587,11 +1628,55 @@ Quatre scripts dans `scripts/local/`, rejouables un par un :
   repos. Plafond declare dans `~/.wslconfig` : 3 Go, 4 vCPU, swap 4 Go.
   `00-docker-up.sh` alerte si le backend Hyper-V est reactive — sur ce poste ce
   n'est pas un detail de configuration, c'est la panne elle-meme.
-- **Perimetre des donnees** (~1,5 Go des 6,8 Go de prod) : sont EXCLUS
-  `carreaux_filosofi` (4 630 Mo, ne sert que les tuiles z>=12 — les paliers
-  1/2/5/20 km restent, donc la carte fonctionne jusqu'a z11) et
-  `comptages_routiers` (701 Mo, dont 99,7 % de proxy OSM et non du TMJA mesure).
-  IRIS, POI, campagnes DSP, radio et referentiels sont copies en entier.
+- **Perimetre du DUMP** (~1,5 Go des 6,8 Go de prod) : sont EXCLUS
+  `carreaux_filosofi` (4 630 Mo) et `comptages_routiers` (701 Mo, dont 99,7 % de
+  proxy OSM et non du TMJA mesure). IRIS, POI, campagnes DSP, radio et
+  referentiels sont copies en entier.
+  ⚠ **Exclu du dump ne veut plus dire absent de la base.** `carreaux_filosofi`
+  se charge depuis l'INSEE par `07-carreaux-insee.sh` et le local en porte alors
+  2 324 577, soit plus que la prod. La justification d'origine de l'exclusion —
+  « ne sert que les tuiles z>=12, les paliers 1/2/5/20 km restent » — etait vraie
+  pour la CARTE et fausse pour tout calcul de POPULATION, qui passe par ces
+  carreaux et rendait des totaux trop bas sans le signaler.
+- **Le stack local est PLUS SEVERE que la production sur deux delais, et les
+  deux symptomes mentent.** Mesure le 2026-09-18, en essayant d'y faire tourner
+  un pre-calcul :
+  - le role `authenticator` (par lequel PostgREST ouvre ses connexions) porte
+    `statement_timeout=8s`, et `service_role` n'en declare aucun — il herite
+    donc des 8 s, contre **2 min** en production ;
+  - **Kong, la passerelle HTTP, coupe a 60 s**. Le message est
+    « The upstream server is timing out » et il ne vient PAS de Postgres :
+    desserrer `statement_timeout` cote base n'y change rien, la requete tourne
+    toujours mais plus personne n'attend sa reponse.
+
+  `03-restore-local.sh` porte `service_role` a 30 min (LOCAL uniquement — les
+  2 min de la prod sont un garde-fou du budget d'I/O, jamais une gene). Pour
+  Kong il n'y a rien a regler : **un outil de CONSTRUCTION n'emprunte pas la
+  passerelle de l'application**. `scripts/construire_couverture_rayon.mjs`
+  parle a Postgres par `psql` dans le conteneur quand il vise le local, et ne
+  garde le chemin HTTPS que pour `--prod`. Mesure : une bande a tenu **243 s**
+  la ou Kong coupait a 60.
+
+- **Le planificateur local se croyait sur un disque a plateaux sans cache**, et
+  c'est le reglage le plus rentable du lot. Mesure du 2026-09-18 :
+  `effective_cache_size` valait **128 Mo**, soit EXACTEMENT `shared_buffers` —
+  le planificateur en deduit qu'aucun cache systeme n'existe et prefere le
+  balayage sequentiel a l'index sur a peu pres tout. La production annonce
+  768 Mo. Et `random_page_cost` valait 4.0, le defaut d'un disque mecanique,
+  alors que le volume Docker est sur SSD.
+
+  Effet mesure sur le pre-calcul de couverture, a densite comparable : la
+  bande 40 a pris **243 s** avant, la bande 80 — region parisienne, **deux fois
+  plus de lignes produites** — en a pris **23** apres. Les 80 bandes restantes
+  sont passees en 793 s au total, la ou les premieres tournaient en minutes.
+  14 Go de fichiers temporaires avaient ete ecrits avant le correctif.
+
+  `effective_cache_size` n'ALLOUE rien : c'est une estimation, pas une
+  reservation. Les deux sont poses **sur le role** (`alter role postgres set`)
+  et non par `ALTER SYSTEM` : le `postgres` du conteneur Supabase n'est pas
+  superuser et se voit repondre « permission denied to set parameter ».
+  `03-restore-local.sh` les repose apres chaque restauration.
+
 - **`[db.migrations]` et `[db.seed]` sont passes a `false`** dans
   `supabase/config.toml` : le schema local vient du dump, pas des 43 fichiers
   de `supabase/migrations/`, qui n'ont jamais ete l'historique reel du projet

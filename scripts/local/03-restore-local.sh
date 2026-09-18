@@ -90,6 +90,51 @@ sed -E 's|^CREATE SCHEMA public;$|-- CREATE SCHEMA public; neutralise par 03-res
   "$DUMP_DIR/public.sql" > "$DUMP_DIR/public.local.sql"
 jouer "$DUMP_DIR/public.local.sql"
 
+
+# ── Delai d'expiration des requetes, cote LOCAL SEULEMENT ────────────────────
+#
+# Mesure du 2026-09-18 : en local, le role `authenticator` (celui par lequel
+# PostgREST ouvre ses connexions) porte `statement_timeout=8s`, et `service_role`
+# n'en declare aucun — il herite donc des 8 s. C'est BIEN PLUS SERRE que la
+# production, ou le meme chemin dispose de 2 min.
+#
+# Consequence concrete : les outils de CONSTRUCTION (pre-calcul de couverture
+# par rayon, materialisation d'indicateurs) travaillent par lots de 20 a 30 s et
+# etaient annules a chaque fois, sans jamais pouvoir aboutir — le message parle
+# d'un delai depasse, pas d'un lot trop gros, et on cherche longtemps du cote du
+# volume.
+#
+# 30 min et pas 0 : un plafond desserre reste un plafond. Une requete partie en
+# vrille sur un poste de dev doit finir par rendre la main.
+#
+# ⚠ Ne JAMAIS porter cette ligne en production. Le delai de 2 min y est un
+# garde-fou du budget d'I/O, pas une gene.
+echo
+echo "-> delai des requetes PostgREST porte a 30 min (LOCAL uniquement)"
+MSYS_NO_PATHCONV=1 docker exec -i -e PGPASSWORD=postgres "$CONTENEUR" psql -U postgres -d postgres -q -c   "alter role service_role set statement_timeout = '30min'"
+# Les connexions deja dans le pool gardent l'ancienne valeur : elle est lue au
+# SET ROLE, donc a l'ouverture de la session.
+docker restart supabase_rest_genesis_app >/dev/null 2>&1 || true
+
+# ── Le planificateur local croit tourner sur un disque mecanique sans cache ──
+#
+# Mesure du 2026-09-18, base locale : `effective_cache_size` = 128 Mo, soit
+# EXACTEMENT `shared_buffers`. Le planificateur en deduit qu'aucun cache systeme
+# n'existe et prefere le balayage sequentiel a l'index sur a peu pres tout. La
+# production annonce 768 Mo. Et `random_page_cost` vaut 4.0, le defaut d'un
+# disque a plateaux, alors que le volume Docker est sur SSD.
+#
+# Consequence mesuree : 14 Go de fichiers temporaires ecrits pendant le
+# pre-calcul de couverture, et 79 % seulement de succes de cache.
+#
+# `effective_cache_size` n'ALLOUE rien — c'est une estimation, pas une
+# reservation. Les deux sont poses sur le ROLE et non par ALTER SYSTEM : le
+# `postgres` du conteneur Supabase n'est pas superuser et se voit refuser
+# « permission denied to set parameter ».
+echo "-> planificateur local : effective_cache_size 1,5 Go, random_page_cost 1.1"
+MSYS_NO_PATHCONV=1 docker exec -i -e PGPASSWORD=postgres "$CONTENEUR" psql -U postgres -d postgres -q   -c "alter role postgres set effective_cache_size = '1536MB'"
+MSYS_NO_PATHCONV=1 docker exec -i -e PGPASSWORD=postgres "$CONTENEUR" psql -U postgres -d postgres -q   -c "alter role postgres set random_page_cost = 1.1"
+
 echo
 echo "-> controle : tables les plus grosses en local"
 MSYS_NO_PATHCONV=1 docker exec -i -e PGPASSWORD=postgres "$CONTENEUR" psql -U postgres -d postgres -c "

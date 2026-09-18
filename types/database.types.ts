@@ -5542,7 +5542,14 @@ export type Database = {
         Returns: Json
       }
       construire_couverture_rayon: {
-        Args: { p_bande: number; p_n_bandes?: number; p_rayon_max_m?: number }
+        Args: {
+          p_bande: number
+          p_n_bandes?: number
+          p_rayon_max_m?: number
+          p_lon_ouest?: number
+          p_lon_est?: number
+          p_bande_id?: number
+        }
         Returns: Json
       }
       compte_cp_campagne: { Args: { p_campaign_id: string }; Returns: number }
