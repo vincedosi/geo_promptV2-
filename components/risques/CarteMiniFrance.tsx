@@ -39,10 +39,24 @@ import React, { useMemo, useState } from 'react';
 import { formaterNombre } from '@/lib/format/nombre';
 
 /** Une entité administrative telle que `/api/meteo-geo/zones` la rend. */
+/**
+ * Une géométrie GeoJSON telle que `get_zone_polygons` la rend.
+ *
+ * ⚠ `GeometryCollection` n'est PAS un cas exotique ici : **66 des 104
+ * départements** en sont une (mesuré en production le 2026-09-18), dont Paris,
+ * le Rhône, les Bouches-du-Rhône et le Nord. Une collection ne porte pas de
+ * `coordinates` mais un tableau `geometries` — l'ignorer ne lève rien, elle
+ * disparaît simplement du tracé.
+ */
+type GeometrieZone =
+  | { type: 'Polygon'; coordinates: number[][][] }
+  | { type: 'MultiPolygon'; coordinates: number[][][][] }
+  | { type: 'GeometryCollection'; geometries: GeometrieZone[] };
+
 export interface ZoneGeo {
   type: 'Feature';
   properties: { code: string; nom: string };
-  geometry: { type: 'Polygon' | 'MultiPolygon'; coordinates: number[][][] | number[][][][] };
+  geometry: GeometrieZone;
 }
 
 interface Props {
@@ -97,12 +111,34 @@ function projeter(lon: number, lat: number): [number, number] {
  * sans coordonnées faisait tomber TOUT le composant dans son `ErrorBoundary`,
  * donc toute la carte, pour un département manquant. Un tracé vide est la
  * bonne réponse — l'unité apparaît simplement en gris.
+ *
+ * ── LE DÉFAUT QUI A MOTIVÉ LA RÉCURSION (2026-09-18) ──────────────────────
+ *
+ * Cette fonction ne traitait que `Polygon` et `MultiPolygon`. Or
+ * `get_zone_polygons('departement')` rend **66 `GeometryCollection` sur 104**
+ * (mesure en production), dont Paris, le Rhône, les Bouches-du-Rhône et le
+ * Nord. Une collection porte `geometries`, jamais `coordinates` : la garde
+ * `!Array.isArray(g.coordinates)` renvoyait donc une chaîne vide, et ces 66
+ * départements n'étaient **pas dessinés du tout**.
+ *
+ * Le symptôme ment : un département non dessiné laisse voir le fond de la
+ * page, donc du BLANC — indiscernable, à l'œil, d'une unité sans donnée, qui
+ * est grise et bel et bien tracée. C'est ce qui a été signalé comme « il y a
+ * des endroits en blanc, il en a trop, il manque des sites ». Les sites ne
+ * manquaient pas : seuls 2 départements de métropole n'ont aucune exposition
+ * (Hautes-Alpes et Lozère), et tous deux ont 0 site Seveso.
  */
-function versChemin(g: ZoneGeo['geometry'] | null | undefined): string {
-  if (!g || !Array.isArray(g.coordinates)) return '';
+function versChemin(g: GeometrieZone | null | undefined): string {
+  if (!g) return '';
+  // Une collection se ramène à ses membres. Récursif parce que rien
+  // n'interdit à GeoJSON d'en imbriquer.
+  if (g.type === 'GeometryCollection') {
+    return Array.isArray(g.geometries) ? g.geometries.map(versChemin).join('') : '';
+  }
+  if (!Array.isArray(g.coordinates)) return '';
   const polygones = g.type === 'Polygon'
-    ? [g.coordinates as number[][][]]
-    : (g.coordinates as number[][][][]);
+    ? [g.coordinates]
+    : g.coordinates;
   if (!Array.isArray(polygones)) return '';
   const morceaux: string[] = [];
   for (const poly of polygones) {

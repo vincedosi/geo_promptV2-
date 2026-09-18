@@ -108,6 +108,18 @@ interface Agregat {
   tronquee: boolean;
   /** Carreaux qu'on n'a pas su rattacher à une unité — exclus du total. */
   carreaux_non_attribues?: number;
+  /** Le cercle a-t-il été imposé à TOUS les sites, périmètres PPRT compris ? */
+  rayon_force?: boolean;
+  /**
+   * Résultat servi depuis `exposition_cache` plutôt que recalculé.
+   *
+   * Remonte jusqu'ici à dessein : une valeur rendue instantanément doit
+   * pouvoir dire de quand elle date, sinon elle se fait passer pour un calcul
+   * frais. `duree_ms` reste celle du calcul D'ORIGINE — « ce résultat a coûté
+   * 43 s à produire » est l'information utile, pas « 0 ms à relire ».
+   */
+  du_cache?: boolean;
+  duree_ms?: number;
   lignes: Ligne[];
   calcule_le: string;
 }
@@ -721,6 +733,29 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
                   peuplées seulement sont affichées. Le total ci-dessus les compte toutes.
                 </p>
               )}
+
+              {/* D'où vient ce chiffre et de quand il date.
+                  Un résultat servi depuis le cache arrive instantanément : sans
+                  cette ligne il se ferait passer pour un calcul frais, et
+                  personne ne saurait qu'un import l'a peut-être périmé.
+                  `duree_ms` est celle du calcul D'ORIGINE — « ce résultat a
+                  coûté 43 s » est l'information utile, pas « 0 ms à relire ». */}
+              <p
+                style={{
+                  fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)',
+                  marginTop: 14, borderTop: '0.5px solid var(--border-subtle)', paddingTop: 8,
+                }}
+              >
+                {agregat.du_cache ? 'résultat mémorisé' : 'calculé à l’instant'}
+                {' · '}
+                {new Date(agregat.calcule_le).toLocaleString('fr-FR', {
+                  day: '2-digit', month: '2-digit', year: 'numeric',
+                  hour: '2-digit', minute: '2-digit',
+                })}
+                {typeof agregat.duree_ms === 'number' && (
+                  <> · {formaterNombre(Math.round(agregat.duree_ms))} ms de calcul</>
+                )}
+              </p>
 
               {/* L'avertissement qui empêche la mauvaise lecture la plus probable. */}
               <p style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)', marginTop: 14, lineHeight: 1.5 }}>
