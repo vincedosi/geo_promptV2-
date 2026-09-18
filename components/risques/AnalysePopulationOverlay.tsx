@@ -105,6 +105,8 @@ interface Agregat {
   total_sites: number;
   total_indicatifs: number;
   tronquee: boolean;
+  /** Carreaux qu'on n'a pas su rattacher à une unité — exclus du total. */
+  carreaux_non_attribues?: number;
   lignes: Ligne[];
   calcule_le: string;
 }
@@ -573,6 +575,15 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
               {agregat.lignes.length === 0 && !chargement && (
                 <p style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-tertiary)' }}>
                   Aucune population exposée pour ces filtres.
+                </p>
+              )}
+
+              {/* Un chiffre amputé en silence est pire qu'un chiffre absent :
+                  si des carreaux n'ont pas pu être rattachés, on le dit. */}
+              {(agregat.carreaux_non_attribues ?? 0) > 0 && (
+                <p style={{ fontFamily: fInter, fontSize: 11, color: 'var(--warning)', marginTop: 10 }}>
+                  {formaterNombre(agregat.carreaux_non_attribues as number)} carreau(x) n’ont pas pu
+                  être rattachés à une unité et sont exclus du total.
                 </p>
               )}
 
