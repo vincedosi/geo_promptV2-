@@ -165,7 +165,26 @@ export function CarteMiniFrance({
   onSurvol,
   onClic,
 }: Props) {
-  const rampe = stops;
+  /**
+   * On ECARTE le premier palier de la rampe, et c'est le correctif du « il y a
+   * trop de blanc ».
+   *
+   * Les palettes séquentielles du catalogue (rouge, bleu, vert, violet) sont
+   * conçues pour un fond blanc : leur extrémité basse est quasi blanche
+   * (#FFF5F0 pour la rouge). Sur la page, un département peint de cette teinte
+   * est indiscernable du fond — et donc d'un département NON DESSINÉ. C'est
+   * exactement la confusion qui a fait chercher des sites manquants alors que
+   * 66 départements n'étaient pas tracés.
+   *
+   * En écartant ce palier, la teinte la plus pâle employée reste visible, et
+   * « aucune exposition » (gris) redevient le seul gris de la carte. Cinq
+   * paliers au lieu de six : on perd une nuance, on gagne de ne jamais
+   * confondre « peu » avec « rien ».
+   *
+   * Pour turbo et plasma, dont l'extrémité basse est sombre et non pâle, cela
+   * retire simplement la nuance la plus foncée — sans conséquence de lecture.
+   */
+  const rampe = stops.length > 2 ? stops.slice(1) : stops;
   const [survole, setSurvole] = useState<string | null>(null);
 
   // Seuils de quantiles, recalculés quand les valeurs changent. Seules les

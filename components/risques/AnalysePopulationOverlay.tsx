@@ -222,7 +222,14 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
    * ici : c'est la meme question posee au meme utilisateur, et deux catalogues
    * auraient diverge.
    */
-  const [palette, setPalette] = useState<string>('turbo');
+  /*
+   * Défaut : la rampe ROUGE, séquentielle. Turbo a d'abord été retenue parce
+   * qu'elle rend chaque unité visible, mais c'est un arc-en-ciel : deux
+   * départements de valeurs voisines y prennent des teintes sans rapport, et
+   * l'œil ne peut pas lire « plus » ou « moins » sans revenir à la légende.
+   * Une échelle d'intensité doit s'ordonner toute seule.
+   */
+  const [palette, setPalette] = useState<string>('rouge');
   const [refGeo, setRefGeo] = useState<{ regions: UniteRef[]; departements: UniteRef[] }>({ regions: [], departements: [] });
 
   // Cache des géométries par dimension : elles ne changent jamais, et les
@@ -702,8 +709,17 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
                     <Th>{libelleCible}</Th>
                     <Th>Part</Th>
                     <Th>Densité</Th>
-                    <Th>Sites</Th>
-                    <Th>dont indicatifs</Th>
+                    {/* Une commune peut etre tres exposee sans porter le
+                        moindre site : Le Petit-Quevilly compte 9 850 exposes
+                        pour 0 site, parce que c'est le PPRT du Grand-Quevilly
+                        qui deborde chez elle. Sans cette explication, la ligne
+                        se lit comme une incoherence. */}
+                    <Th titre="Sites implantés dans cette unité. Une unité peut être exposée sans en porter aucun : c'est la zone d'un site voisin qui déborde chez elle. Ce compte ne s'additionne donc pas avec la population.">
+                      Sites
+                    </Th>
+                    <Th titre="Parmi ces sites, ceux dont la zone est un rayon que NOUS avons choisi, faute de périmètre PPRT publié par l'État.">
+                      dont indicatifs
+                    </Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -961,12 +977,18 @@ function Kpi({
   );
 }
 
-function Th({ children, align = 'right' }: { children: React.ReactNode; align?: 'left' | 'right' }) {
+function Th({ children, align = 'right', titre }: {
+  children: React.ReactNode; align?: 'left' | 'right'; titre?: string;
+}) {
   return (
     <th
+      title={titre}
       style={{
         textAlign: align, padding: '6px 8px', fontWeight: 400,
         fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)',
+        // Le pointillé signale qu'il y a une explication à survoler, sans
+        // ajouter une icône de plus dans un en-tête déjà dense.
+        ...(titre ? { borderBottom: '1px dotted var(--border-default)', cursor: 'help' } : null),
       }}
     >
       {children}
