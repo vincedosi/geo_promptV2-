@@ -4432,6 +4432,54 @@ export type Database = {
         }
         Relationships: []
       }
+      pprt_documents: {
+        Row: {
+          bassin_risques: string | null
+          code_departement_pilote: string | null
+          date_modification: string | null
+          en_revision: boolean
+          id_gaspar: string
+          importe_le: string
+          modele: string | null
+          nom: string
+          nom_departement_pilote: string | null
+          source: string
+          sup_existe: boolean
+          types_zones: Json
+          zonage_existe: boolean
+        }
+        Insert: {
+          bassin_risques?: string | null
+          code_departement_pilote?: string | null
+          date_modification?: string | null
+          en_revision?: boolean
+          id_gaspar: string
+          importe_le?: string
+          modele?: string | null
+          nom: string
+          nom_departement_pilote?: string | null
+          source?: string
+          sup_existe?: boolean
+          types_zones?: Json
+          zonage_existe?: boolean
+        }
+        Update: {
+          bassin_risques?: string | null
+          code_departement_pilote?: string | null
+          date_modification?: string | null
+          en_revision?: boolean
+          id_gaspar?: string
+          importe_le?: string
+          modele?: string | null
+          nom?: string
+          nom_departement_pilote?: string | null
+          source?: string
+          sup_existe?: boolean
+          types_zones?: Json
+          zonage_existe?: boolean
+        }
+        Relationships: []
+      }
       pprt_perimetres: {
         Row: {
           code_departement: string | null
@@ -4445,6 +4493,7 @@ export type Database = {
           geom_3857: unknown
           id: string
           id_assiette: string | null
+          id_gaspar: string | null
           id_generateur: string | null
           importe_le: string
           mode_geometrie: string | null
@@ -4469,6 +4518,7 @@ export type Database = {
           geom_3857: unknown
           id: string
           id_assiette?: string | null
+          id_gaspar?: string | null
           id_generateur?: string | null
           importe_le?: string
           mode_geometrie?: string | null
@@ -4493,6 +4543,7 @@ export type Database = {
           geom_3857?: unknown
           id?: string
           id_assiette?: string | null
+          id_gaspar?: string | null
           id_generateur?: string | null
           importe_le?: string
           mode_geometrie?: string | null

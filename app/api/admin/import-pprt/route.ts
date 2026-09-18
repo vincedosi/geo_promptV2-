@@ -41,6 +41,7 @@ import { fetchLectureAvecReprise } from '@/lib/http/lecture-avec-reprise';
 import { normaliserZonePprt, SOURCE_PPRT } from '@/lib/import/pprt/normalisation';
 import type { FeaturePm3, LignePprt } from '@/lib/import/pprt/normalisation';
 import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
+import type { TableInsert } from '@/lib/supabase/tables';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,6 +83,38 @@ function urlWfs(): string {
     COUNT: String(LIMITE_FEATURES),
   });
   return `${BASE_WFS}?${params.toString()}`;
+}
+
+/**
+ * Les GÉNÉRATEURS PM3 — la seule couche qui porte `id_gaspar`.
+ *
+ * `ARCHITECTURE.md` a affirmé pendant un mois que ce flux n'avait « aucune clé
+ * de jointure vers GASPAR ». La chaîne existe :
+ * `assiette.idgen → generateur.idgen → id_gaspar`. Mesuré le 2026-09-18 :
+ * 664 assiettes sur 664 se rattachent, 0 sans `id_gaspar`, 404 procédures
+ * atteintes sur les 415 de GASPAR.
+ *
+ * `PROPERTYNAME` restreint la réponse aux trois champs utiles : sans lui le
+ * serveur renvoie les géométries des 711 générateurs, soit plusieurs mégaoctets
+ * pour une table de correspondance.
+ */
+function urlGenerateurs(): string {
+  const params = new URLSearchParams({
+    SERVICE: 'WFS',
+    VERSION: '2.0.0',
+    REQUEST: 'GetFeature',
+    TYPENAMES: 'wfs_sup:generateur_sup_s',
+    OUTPUTFORMAT: 'application/json',
+    CQL_FILTER: "suptype='pm3'",
+    PROPERTYNAME: 'idgen,id_gaspar,nomgen',
+    COUNT: String(LIMITE_FEATURES),
+  });
+  return `${BASE_WFS}?${params.toString()}`;
+}
+
+/** Les procédures PPRT de GASPAR. 415 au total, 100 par page. */
+function urlGaspar(page: number): string {
+  return `https://www.georisques.gouv.fr/api/v1/gaspar/pprt?page=${page}&page_size=100`;
 }
 
 export async function POST(request: NextRequest) {
@@ -166,6 +199,37 @@ export async function POST(request: NextRequest) {
           });
         }
 
+        // ── La table de correspondance vers GASPAR ───────────────────────
+        //
+        // UN appel de plus, et il n'est pas bloquant : si la couche des
+        // générateurs est indisponible, les périmètres s'importent quand même
+        // avec `id_gaspar` à NULL. Faire échouer un référentiel de servitudes
+        // parce qu'une métadonnée manque serait disproportionné.
+        emettre({ etape: 'generateurs', message: 'Correspondance vers GASPAR', pourcentage: 12 });
+
+        const gasparParGenerateur = new Map<string, string>();
+        try {
+          const rep = await fetchLectureAvecReprise(urlGenerateurs(), {}, { delaiMs: DELAI_WFS_MS });
+          if (rep.ok) {
+            const jg = (await rep.json()) as {
+              features?: Array<{ properties?: { idgen?: string | null; id_gaspar?: string | null } }>;
+            };
+            for (const g of jg.features ?? []) {
+              const idgen = g.properties?.idgen?.trim();
+              const gaspar = g.properties?.id_gaspar?.trim();
+              if (idgen && gaspar) gasparParGenerateur.set(idgen, gaspar);
+            }
+          }
+        } catch {
+          // Volontairement avalé : voir le commentaire ci-dessus.
+        }
+        emettre({
+          etape: 'generateurs',
+          message: `${gasparParGenerateur.size} générateur(s) rattaché(s) à une procédure`,
+          generateurs_rattaches: gasparParGenerateur.size,
+          pourcentage: 14,
+        });
+
         // ── Normalisation, puis regroupement par partition ────────────────
         emettre({ etape: 'normalisation', message: 'Classement par document source', pourcentage: 15 });
 
@@ -179,6 +243,13 @@ export async function POST(request: NextRequest) {
             continue;
           }
           if (partitionsVoulues && !partitionsVoulues.has(ligne.partition)) continue;
+
+          // La procédure dont relève cette assiette, via son générateur.
+          // `null` quand la correspondance manque : c'est une métadonnée, pas
+          // une condition d'existence du périmètre.
+          ligne.id_gaspar = ligne.id_generateur
+            ? gasparParGenerateur.get(ligne.id_generateur) ?? null
+            : null;
 
           const lot = parPartition.get(ligne.partition);
           if (lot) lot.push(ligne);
@@ -266,10 +337,93 @@ export async function POST(request: NextRequest) {
           emettre({ etape: 'avertissement', message: `Consolidation : ${consErr.message}` });
         }
 
+        // ── Les PROCÉDURES PPRT (GASPAR) ─────────────────────────────────
+        //
+        // 415 plans, pagination par 100. Non bloquant comme les générateurs :
+        // ces lignes sont des métadonnées (nom officiel du plan, bassin de
+        // risques, types de zones déclarés). Un référentiel de servitudes
+        // valide ne doit pas être refusé parce qu'une API tierce est lente.
+        //
+        // ⚠ GASPAR N'EXPOSE NI `etat`, NI `date_approbation`, NI
+        //   `date_abrogation` — vérifié champ par champ. Ne pas les chercher
+        //   ici : ils ne sont pas omis, ils n'existent pas dans ce flux.
+        emettre({ etape: 'procedures', message: 'Procédures PPRT (GASPAR)', pourcentage: 97 });
+
+        let procedures = 0;
+        try {
+          // Typé par le générateur plutôt qu'en `Record<string, unknown>` :
+          // c'est ce qui fait échouer `tsc` si une colonne change de nom,
+          // au lieu de laisser l'upsert ignorer le champ en silence.
+          const docs: Array<TableInsert<'pprt_documents'>> = [];
+          for (let page = 1; page <= 6; page++) {
+            const rep = await fetchLectureAvecReprise(urlGaspar(page), {}, { delaiMs: 30_000 });
+            if (!rep.ok) break;
+            const jd = (await rep.json()) as {
+              content?: Array<Record<string, never>>;
+              totalElements?: number;
+            };
+            const lot = jd.content ?? [];
+            for (const c of lot) {
+              const id = String(c.idGaspar ?? '').trim();
+              if (!id) continue;
+              const zr = (c.zonageReglementaire ?? {}) as Record<string, unknown>;
+              const dp = (c.departementPilote ?? {}) as Record<string, unknown>;
+              // Date au format français dd/mm/yyyy — convertie ici plutôt que
+              // laissée au hasard du parseur de PostgreSQL, qui lirait 03/05
+              // comme le 5 mars.
+              const dm = String(c.dateModification ?? '');
+              const m = dm.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+              docs.push({
+                id_gaspar: id,
+                nom: String(c.libPpr ?? id).trim(),
+                bassin_risques: (String(c.libBassinRisques ?? '').trim() || null),
+                modele: (String(c.modeleProcedure ?? '').trim() || null),
+                code_departement_pilote: (String(dp.codeDepartementPilote ?? '').trim() || null),
+                nom_departement_pilote: (String(dp.libelleDepartementPilote ?? '').trim() || null),
+                en_revision: c.etatRevision === true,
+                sup_existe: c.supExists === true,
+                zonage_existe: zr.zoneRegExists === true,
+                // `toJson` : frontière jsonb, la seule façon typée d'y écrire
+                // un objet applicatif (convention du projet).
+                types_zones: toJson(zr.listTypeReg ?? []),
+                date_modification: m ? `${m[3]}-${m[2]}-${m[1]}` : null,
+              });
+            }
+            if (docs.length >= (jd.totalElements ?? 0) || lot.length === 0) break;
+          }
+
+          // Lots de 50 : convention du projet pour toute écriture en base.
+          for (let i = 0; i < docs.length; i += 50) {
+            const { error } = await supabase
+              .from('pprt_documents')
+              .upsert(docs.slice(i, i + 50), { onConflict: 'id_gaspar' });
+            // supabase-js ne lève pas : sans cette lecture, un échec d'écriture
+            // passerait pour un succès et la table resterait vide.
+            if (error) {
+              emettre({ etape: 'avertissement', message: `Procédures : ${error.message}` });
+              break;
+            }
+            procedures += docs.slice(i, i + 50).length;
+          }
+        } catch (e) {
+          emettre({
+            etape: 'avertissement',
+            message: `Procédures GASPAR indisponibles : ${e instanceof Error ? e.message : 'erreur'}`,
+          });
+        }
+
+        emettre({
+          etape: 'procedures',
+          message: `${procedures} procédure(s) PPRT enregistrée(s)`,
+          procedures,
+          pourcentage: 99,
+        });
+
         emettre({
           etape: 'termine',
           pourcentage: 100,
           source: SOURCE_PPRT,
+          procedures,
           recues: features.length,
           rejetees,
           partitions: partitions.length,

@@ -191,6 +191,15 @@ export interface LignePprt {
   type_zone: TypeZonePprt;
   type_zone_source: string | null;
   id_generateur: string | null;
+  /**
+   * Procédure PPRT dont relève l'assiette (`gaspar/pprt`).
+   *
+   * Posée par la ROUTE et non par cette fonction : elle ne se lit pas sur
+   * l'assiette mais sur le GÉNÉRATEUR, une autre couche du même WFS
+   * (`generateur_sup_s.id_gaspar`, sql/183). La normalisation ne voit qu'une
+   * assiette à la fois et ne peut donc pas la résoudre.
+   */
+  id_gaspar: string | null;
   id_assiette: string | null;
   nom_technique: string | null;
   /** Échelon du dépôt au GPU : 'departement' ou 'region'. Provenance, pas localisation. */
@@ -242,6 +251,8 @@ export function normaliserZonePprt(feature: FeaturePm3): LignePprt | null {
     type_zone: normaliserTypeZone(texte(p.typeass)),
     type_zone_source: texte(p.typeass),
     id_generateur: texte(p.idgen),
+    // Résolu après coup par la route, à partir de la couche des générateurs.
+    id_gaspar: null,
     id_assiette: texte(p.idass),
     nom_technique: nomass,
     depot_niveau: depot?.niveau ?? null,
