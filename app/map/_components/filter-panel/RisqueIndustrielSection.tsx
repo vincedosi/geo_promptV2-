@@ -1,23 +1,46 @@
-'use client';
-
 /**
  * Section « Zones à risque industriel » du panneau Calques.
  *
- * ── Pourquoi une section à part et pas une entrée de la liste des POI ──────
+ * ── CE QUE CETTE SECTION DOIT FAIRE COMPRENDRE, ET DANS QUEL ORDRE ────────
  *
- * Demande explicite : cette donnée n'est pas un POI comme un lycée. Elle a son
- * niveau réglementaire, son type de risque, sa zone de danger et sa propre
- * légende — rien de tout cela n'a de place dans un sélecteur générique où elle
- * ne serait qu'une ligne parmi d'autres. `risque_industriel` est donc RETIRÉ de
- * la liste des types de POI (voir `PanneauCalques`) et vit ici.
+ * Elle superpose deux objets de nature opposée : les **périmètres PPRT**,
+ * servitudes publiées par l'État et opposables en urbanisme, et une **zone
+ * calculée** — un cercle dont MAGELIAN choisit le rayon. Un média planner qui
+ * les confond met dans une recommandation client un chiffre d'habitants
+ * exposés issu d'un rayon que nous avons inventé.
  *
- * ── Le défaut est Seveso, et c'est un choix de justesse ───────────────────
+ * La section répond donc à trois questions, dans cet ordre :
  *
- * La base porte 99 152 installations classées, dont seulement 1 327 Seveso.
- * Les 98 000 autres sont des carrières, entrepôts, stations-service,
- * chaufferies : des installations classées, pas des sites à risque majeur.
- * Ouvrir sur « tout » noierait les 1 327 sites qui comptent — et 99 152 points
- * ne s'affichent de toute façon pas. Les autres niveaux restent à un clic.
+ *   1. **Ce que je vois** — combien de sites, et combien ont un périmètre réel
+ *   2. **Ce qui fait foi** — le périmètre PPRT
+ *   3. **Ce que j'ajoute moi-même** — la zone calculée
+ *
+ * ── L'ORDRE EST UNE DÉCISION, PAS UNE MISE EN PAGE ────────────────────────
+ *
+ * Jusqu'au 2026-09-18, l'ordre était l'inverse : sept contrôles à plat, tous
+ * du même poids visuel, avec notre cercle inventé en tête et la servitude
+ * opposable enterrée sous six réglages. La hiérarchie visuelle affirmait le
+ * contraire de la hiérarchie juridique.
+ *
+ * ── LE TRAIT EST LE TITRE ─────────────────────────────────────────────────
+ *
+ * Chaque carte porte son propre tracé dans son en-tête : trait plein pour le
+ * réglementaire, tireté pour le calculé (`lib/carte/nature-zone.ts`). La
+ * légende n'est donc plus une note en bas de panneau ni un encart flottant à
+ * l'autre bout de l'écran : elle est là où l'on choisit. C'est ce qui rend la
+ * confusion difficile plutôt que simplement déconseillée.
+ *
+ * Les motifs ne sont PAS retapés ici : ils viennent de `LARGEUR_TRAIT_PPRT` et
+ * `TIRETE_ZONE_CALCULEE`, les mêmes constantes que MapLibre reçoit. Une
+ * légende qui montre un trait que la carte ne dessine pas est pire qu'une
+ * absence de légende.
+ *
+ * ── CE QUI DESCEND DANS LES REPLIS ───────────────────────────────────────
+ *
+ * Niveau réglementaire, type de risque, halo, sites à l'arrêt : ce sont des
+ * RÉGLAGES, pas la lecture principale. Ils gardent tous leur comportement,
+ * seule leur place change — la règle « pas de modification non demandée » du
+ * projet vaut aussi pour une refonte visuelle.
  */
 import React from 'react';
 import { FilterSectionHeader } from './FilterSectionHeader';
@@ -26,6 +49,8 @@ import { C, fInter, fMono } from './tokens';
 import { labelStyle } from './styles';
 import { ORDRE_TYPES, LIBELLE_TYPE, COULEURS_CSS } from '@/lib/carte/palette-risques';
 import { COULEURS_PPRT_CSS, LARGEUR_TRAIT_PPRT, LIBELLE_TYPE_ZONE_PPRT } from '@/lib/carte/palette-pprt';
+import { TIRETE_ZONE_CALCULEE } from '@/lib/carte/nature-zone';
+import { formaterNombre } from '@/lib/format/nombre';
 import { PPRT_ZOOM_PLANCHER } from '@/lib/version';
 import type { EtatCouchePprt } from '../PprtLayer';
 
@@ -50,9 +75,6 @@ const RAYONS = [0, 300, 500, 1000, 2000, 5000] as const;
 /**
  * Les trois familles de `pprt_perimetres.type_zone`, dans l'ordre de leur
  * effectif mesuré (639 / 18 / 7 sur les 664 zones).
- *
- * NON exportée : rien d'autre ne la nomme, et `knip` compterait l'export comme
- * mort (cliquet de tests/unit/docs/catalogue-code.test.ts).
  */
 const TYPES_ZONE_PPRT = ['enveloppe', 'perimetre_reglemente', 'indetermine'] as const;
 
@@ -81,8 +103,12 @@ export interface RisqueIndustrielSectionProps {
   afficherHalo: boolean;
   setAfficherHalo: (v: boolean) => void;
 
-  /** Compte remonté par la couche : rendus / total du filtre. */
-  compte: { rendus: number; total: number } | null;
+  /**
+   * Compte remonté par la couche. `avecPprt` est ce qui permet d'afficher la
+   * part de la vue qui repose sur une donnée de l'État — il vient de la base
+   * (sql/179) et n'est jamais recalculé ici.
+   */
+  compte: { rendus: number; total: number; avecPprt: number } | null;
 
   /** Couche « Périmètre PPRT » — servitudes PM3, distincte du rayon calculé. */
   pprtActif: boolean;
@@ -90,6 +116,130 @@ export interface RisqueIndustrielSectionProps {
   pprtTypes: string[];
   setPprtTypes: (v: string[]) => void;
   pprtEtat: EtatCouchePprt | null;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Briques de présentation. Locales : elles n'ont de sens que pour cette
+   section, et les exporter les ferait compter comme mortes par `knip`.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/** Aperçu du tracé, tel que MapLibre le dessine réellement. */
+function Trace({ tirete }: { tirete: boolean }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: 20,
+        height: 0,
+        flexShrink: 0,
+        borderTop: tirete
+          ? `1px dashed ${C.textSec}`
+          : `${LARGEUR_TRAIT_PPRT}px solid ${COULEURS_PPRT_CSS.contour}`,
+      }}
+    />
+  );
+}
+
+/**
+ * Carte d'une zone : le tracé, le nom, ce qu'elle vaut, son interrupteur.
+ *
+ * L'interrupteur est une CASE À COCHER et non un bouton stylé : elle reste
+ * annonçable par un lecteur d'écran et atteignable au clavier sans qu'on ait
+ * à rebâtir le rôle à la main.
+ */
+function CarteZone({
+  tirete,
+  titre,
+  sousTitre,
+  actif,
+  onToggle,
+  enfants,
+}: {
+  tirete: boolean;
+  titre: string;
+  sousTitre: string;
+  actif: boolean;
+  onToggle: (v: boolean) => void;
+  enfants?: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        border: `0.5px solid ${actif ? 'var(--brand-teal-30)' : C.border}`,
+        borderRadius: 8,
+        background: actif ? 'var(--brand-teal-10)' : 'transparent',
+        padding: '10px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        transition: 'border-color 200ms var(--ease-out), background-color 200ms var(--ease-out)',
+      }}
+    >
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+        <Trace tirete={tirete} />
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, minWidth: 0 }}>
+          <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.text }}>
+            {titre}
+          </span>
+          <span style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, lineHeight: 1.35 }}>
+            {sousTitre}
+          </span>
+        </span>
+        <input
+          type="checkbox"
+          checked={actif}
+          onChange={(e) => onToggle(e.target.checked)}
+          style={{ accentColor: 'var(--brand-teal)', cursor: 'pointer', flexShrink: 0 }}
+        />
+      </label>
+      {actif && enfants}
+    </div>
+  );
+}
+
+/** Repli secondaire : un réglage qu'on ouvre quand on en a besoin. */
+function Repli({
+  titre,
+  indice,
+  children,
+}: {
+  titre: string;
+  indice?: string;
+  children: React.ReactNode;
+}) {
+  const [ouvert, setOuvert] = React.useState(false);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOuvert((v) => !v)}
+        aria-expanded={ouvert}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          background: 'none',
+          border: 'none',
+          padding: '4px 0',
+          cursor: 'pointer',
+          fontFamily: fInter,
+          fontSize: 11,
+          color: C.textSec,
+          textAlign: 'left',
+        }}
+      >
+        <span aria-hidden style={{ color: C.textDim, width: 8 }}>{ouvert ? '−' : '+'}</span>
+        <span style={{ flex: 1 }}>{titre}</span>
+        {indice && <span style={{ fontFamily: fMono, fontSize: 10, color: C.textDim }}>{indice}</span>}
+      </button>
+      {ouvert && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '6px 0 4px 14px' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function RisqueIndustrielSection({
@@ -117,6 +267,12 @@ export function RisqueIndustrielSection({
 }: RisqueIndustrielSectionProps) {
   const ouvert = sectionsOpen.risqueIndustriel !== false;
 
+  // Part des sites visibles qui reposent sur une donnée de l'État. C'est la
+  // réponse à « est-ce que je peux me fier à cette carte ? », et elle doit
+  // arriver AVANT qu'on ait cliqué quoi que ce soit.
+  const partPprt =
+    compte && compte.rendus > 0 ? Math.round((compte.avecPprt / compte.rendus) * 100) : null;
+
   return (
     <div style={{ paddingBottom: 4 }}>
       <FilterSectionHeader
@@ -130,7 +286,8 @@ export function RisqueIndustrielSection({
 
       {ouvert && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 14px 12px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+          {/* ── 1. Ce que je vois ──────────────────────────────────────── */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
             <input
               type="checkbox"
               checked={actif}
@@ -138,170 +295,70 @@ export function RisqueIndustrielSection({
               style={{ accentColor: 'var(--brand-teal)', cursor: 'pointer' }}
             />
             <span style={{ fontFamily: fInter, fontSize: 12, color: C.text }}>
-              Afficher sur la carte
+              Afficher les sites classés
             </span>
           </label>
 
-          {actif && (
-            <>
-              {/* ── Niveau réglementaire ─────────────────────────────── */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={labelStyle}>Niveau</span>
-                <MultiDropdown
-                  label="Aucun niveau"
-                  items={NIVEAUX_RISQUE.map((n) => ({ id: n.id, label: n.label }))}
-                  selected={niveaux}
-                  onChange={setNiveaux}
-                />
-                <span style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>
-                  1 327 sites Seveso en France sur 99 152 installations classées.
-                </span>
-              </div>
-
-              {/* ── Type de risque ───────────────────────────────────── */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={labelStyle}>Type de risque</span>
-                <MultiDropdown
-                  label="Tous les types"
-                  items={ORDRE_TYPES.map((t) => ({ id: t, label: LIBELLE_TYPE[t] }))}
-                  selected={typesRisque}
-                  onChange={setTypesRisque}
-                />
-              </div>
-
-              {/* ── Zone calculée ────────────────────────────────────────
-                  Appelée « Zone de danger » jusqu'au 2026-09-18. Le mot
-                  affirmait une autorité que ce cercle n'a pas : il vaut ce que
-                  vaut le rayon qu'on choisit ici, et rien de plus. La zone de
-                  danger réelle, quand elle existe, c'est le périmètre PPRT. */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={labelStyle}>Zone calculée</span>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {RAYONS.map((r) => (
-                    <button
-                      key={r}
-                      onClick={() => setRayonM(r)}
-                      style={{
-                        background: rayonM === r ? 'var(--brand-teal-10)' : 'transparent',
-                        border: `0.5px solid ${rayonM === r ? 'var(--brand-teal)' : C.border}`,
-                        color: rayonM === r ? 'var(--brand-teal)' : C.textSec,
-                        borderRadius: 6,
-                        padding: '4px 8px',
-                        fontFamily: fMono,
-                        fontSize: 10,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {r === 0 ? 'aucune' : r < 1000 ? `${r} m` : `${r / 1000} km`}
-                    </button>
-                  ))}
-                </div>
-                {rayonM > 0 && (
-                  <span style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, lineHeight: 1.4 }}>
-                    Rayon indicatif autour du site, calculé en mètres réels,
-                    dessiné en <strong style={{ fontWeight: 500 }}>tireté</strong>.
-                    Ce n&apos;est pas le périmètre réglementaire d&apos;un PPRT.
-                  </span>
+          {actif && compte && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <div style={{ fontFamily: fMono, fontSize: 11, color: C.text }}>
+                {formaterNombre(compte.rendus)} site{compte.rendus > 1 ? 's' : ''} dans la vue
+                {compte.rendus !== compte.total && (
+                  <span style={{ color: C.textDim }}> sur {formaterNombre(compte.total)}</span>
                 )}
               </div>
-
-              {/* ── Halo de lecture ─────────────────────────────────── */}
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={afficherHalo}
-                  onChange={(e) => setAfficherHalo(e.target.checked)}
-                  style={{ accentColor: 'var(--brand-teal)', cursor: 'pointer' }}
-                />
-                <span style={{ fontFamily: fInter, fontSize: 11, color: C.textSec }}>
-                  Halo autour des points
-                </span>
-              </label>
-
-              {/* ── Sites à l'arrêt ─────────────────────────────────── */}
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={inclureInactifs}
-                  onChange={(e) => setInclureInactifs(e.target.checked)}
-                  style={{ accentColor: 'var(--brand-teal)', cursor: 'pointer' }}
-                />
-                <span style={{ fontFamily: fInter, fontSize: 11, color: C.textSec }}>
-                  Inclure les sites à l&apos;arrêt
-                </span>
-              </label>
-
-              {/* ── Légende : la couleur porte le TYPE de risque ─────── */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <span style={labelStyle}>Couleur du point et de sa zone</span>
-                {ORDRE_TYPES.map((t) => (
-                  <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: '50%',
-                        background: COULEURS_CSS[t],
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span style={{ fontFamily: fInter, fontSize: 11, color: C.textSec }}>
-                      {LIBELLE_TYPE[t]}
-                    </span>
+              {partPprt !== null && (
+                <>
+                  <div style={{ fontFamily: fInter, fontSize: 11, color: C.textSec }}>
+                    {formaterNombre(compte.avecPprt)} avec un périmètre réglementaire
                   </div>
-                ))}
-              </div>
-
-              {/* Un compte tronqué doit le dire : la couche coupe les sites les
-                  moins graves en premier, jamais un Seveso. */}
-              {compte && (
-                <span style={{ fontFamily: fMono, fontSize: 10, color: C.textDim }}>
-                  {compte.rendus === compte.total
-                    ? `${compte.rendus} site${compte.rendus > 1 ? 's' : ''} dans la vue`
-                    : `${compte.rendus} sites affichés sur ${compte.total} — zoomez pour les voir tous`}
-                </span>
+                  {/* La barre rend la proportion lisible sans lire le chiffre.
+                      `--donnee-absente` pour le reste : ce n'est pas « peu »,
+                      c'est « pas de donnée de l'État ». */}
+                  <div
+                    role="img"
+                    aria-label={`${partPprt} % des sites de la vue ont un périmètre réglementaire`}
+                    style={{
+                      display: 'flex',
+                      height: 4,
+                      borderRadius: 2,
+                      overflow: 'hidden',
+                      background: 'var(--donnee-absente)',
+                    }}
+                  >
+                    <span style={{ width: `${partPprt}%`, background: 'var(--brand-teal)' }} />
+                  </div>
+                  <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim }}>
+                    {partPprt} % couverts par un PPRT
+                  </div>
+                </>
               )}
-            </>
+              {compte.rendus !== compte.total && (
+                <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, lineHeight: 1.4 }}>
+                  Liste tronquée — les sites les moins graves sont coupés en
+                  premier, jamais un Seveso. Zoomez pour les voir tous.
+                </div>
+              )}
+            </div>
           )}
 
-          {/* ── Périmètre PPRT ────────────────────────────────────────────
+          {/* ── 2. Ce qui fait foi ─────────────────────────────────────────
               HORS du bloc `actif` à dessein : c'est une couche INDÉPENDANTE.
               On doit pouvoir afficher les périmètres réglementaires sans
               afficher les 99 152 points, et l'inverse. */}
-          <div
-            style={{
-              borderTop: `1px solid ${C.border}`,
-              marginTop: 4,
-              paddingTop: 10,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-            }}
-          >
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={pprtActif}
-                onChange={(e) => setPprtActif(e.target.checked)}
-                style={{ accentColor: 'var(--brand-teal)', cursor: 'pointer' }}
-              />
-              <span style={{ fontFamily: fInter, fontSize: 12, color: C.text }}>
-                Périmètre PPRT (officiel)
-              </span>
-            </label>
-
-            <span style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, lineHeight: 1.4 }}>
-              664 périmètres réglementaires opposables, 87 départements sur les 88
-              qui ont un PPRT. À ne pas confondre avec le rayon indicatif ci-dessus.
-            </span>
-
-            {pprtActif && (
+          <CarteZone
+            tirete={false}
+            titre="Périmètre PPRT"
+            sousTitre="Publié par l’État · opposable en urbanisme"
+            actif={pprtActif}
+            onToggle={setPprtActif}
+            enfants={
               <>
                 {/* L'indice qui évite une case cochée sans effet : sous ce
                     zoom, une zone de 2 km fait moins d'un pixel et la couche
                     ne demande RIEN. */}
                 {pprtEtat?.sousLePlancher && (
-                  <span
+                  <div
                     style={{
                       fontFamily: fInter,
                       fontSize: 10,
@@ -311,8 +368,16 @@ export function RisqueIndustrielSection({
                   >
                     Zoomez au niveau {PPRT_ZOOM_PLANCHER} pour voir les périmètres —
                     plus loin, une zone mesure moins d&apos;un pixel.
-                  </span>
+                  </div>
                 )}
+
+                <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim }}>
+                  {pprtEtat && !pprtEtat.sousLePlancher
+                    ? pprtEtat.rendus === pprtEtat.total
+                      ? `${formaterNombre(pprtEtat.rendus)} périmètre${pprtEtat.rendus > 1 ? 's' : ''} dans la vue`
+                      : `${formaterNombre(pprtEtat.rendus)} affichés sur ${formaterNombre(pprtEtat.total)} — les plus petits sont coupés`
+                    : '664 périmètres · 87 départements sur 88'}
+                </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span style={labelStyle}>Nature du périmètre</span>
@@ -326,38 +391,146 @@ export function RisqueIndustrielSection({
                     onChange={setPprtTypes}
                   />
                 </div>
+              </>
+            }
+          />
 
-                {/* Légende : le TRAIT porte l'autorité, pas la teinte — la
-                    couleur de cette carte est réservée au type de risque.
-                    Trait PLEIN, parce que ce périmètre est réglementaire ;
-                    la zone que MAGELIAN calcule est tiretée. Convention
-                    unique : `lib/carte/nature-zone.ts`. */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span
-                    style={{
-                      width: 22,
-                      height: 0,
-                      flexShrink: 0,
-                      borderTop: `${LARGEUR_TRAIT_PPRT}px solid ${COULEURS_PPRT_CSS.contour}`,
-                    }}
+          {/* ── 3. Ce que j'ajoute moi-même ────────────────────────────────
+              Appelée « Zone de danger » jusqu'au 2026-09-18. Le mot affirmait
+              une autorité que ce cercle n'a pas : il vaut ce que vaut le rayon
+              choisi ici, et rien de plus. */}
+          {actif && (
+            <CarteZone
+              tirete
+              titre="Zone calculée"
+              sousTitre="Rayon choisi ci-dessous · aucune valeur réglementaire"
+              actif={rayonM > 0}
+              onToggle={(v) => setRayonM(v ? 500 : 0)}
+              enfants={
+                <>
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {RAYONS.filter((r) => r > 0).map((r) => (
+                      <button
+                        key={r}
+                        onClick={() => setRayonM(r)}
+                        aria-pressed={rayonM === r}
+                        style={{
+                          background: rayonM === r ? 'var(--brand-teal-10)' : 'transparent',
+                          border: `0.5px solid ${rayonM === r ? 'var(--brand-teal)' : C.border}`,
+                          color: rayonM === r ? 'var(--brand-teal)' : C.textSec,
+                          borderRadius: 6,
+                          padding: '4px 8px',
+                          fontFamily: fMono,
+                          fontSize: 10,
+                          cursor: 'pointer',
+                          transition:
+                            'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out)',
+                        }}
+                      >
+                        {r < 1000 ? `${r} m` : `${r / 1000} km`}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, lineHeight: 1.4 }}>
+                    Calculé en mètres réels autour du point, dessiné en tireté
+                    ({TIRETE_ZONE_CALCULEE.join('/')}). Ce n&apos;est pas le
+                    périmètre réglementaire d&apos;un PPRT.
+                  </div>
+                </>
+              }
+            />
+          )}
+
+          {/* ── Réglages ────────────────────────────────────────────────── */}
+          {actif && (
+            <div style={{ borderTop: `0.5px solid ${C.border}`, paddingTop: 6 }}>
+              <Repli
+                titre="Filtrer les sites"
+                indice={`${niveaux.length}/${NIVEAUX_RISQUE.length}`}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={labelStyle}>Niveau réglementaire</span>
+                  <MultiDropdown
+                    label="Aucun niveau"
+                    items={NIVEAUX_RISQUE.map((n) => ({ id: n.id, label: n.label }))}
+                    selected={niveaux}
+                    onChange={setNiveaux}
                   />
-                  <span style={{ fontFamily: fInter, fontSize: 11, color: C.textSec }}>
-                    Périmètre opposable — trait plein
+                  <span style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>
+                    1 327 sites Seveso en France sur 99 152 installations classées.
                   </span>
                 </div>
 
-                {pprtEtat && !pprtEtat.sousLePlancher && (
-                  <span style={{ fontFamily: fMono, fontSize: 10, color: C.textDim }}>
-                    {pprtEtat.rendus === pprtEtat.total
-                      ? `${pprtEtat.rendus} périmètre${pprtEtat.rendus > 1 ? 's' : ''} dans la vue`
-                      : `${pprtEtat.rendus} affichés sur ${pprtEtat.total} — les plus petits sont coupés`}
-                  </span>
-                )}
-              </>
-            )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={labelStyle}>Type de risque</span>
+                  <MultiDropdown
+                    label="Tous les types"
+                    items={ORDRE_TYPES.map((t) => ({ id: t, label: LIBELLE_TYPE[t] }))}
+                    selected={typesRisque}
+                    onChange={setTypesRisque}
+                  />
+                  {/* Les pastilles disent ce qui est retenu SANS ouvrir le
+                      menu — et la couleur est celle que la carte peint. */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 10px', marginTop: 2 }}>
+                    {ORDRE_TYPES.map((t) => {
+                      const retenu = typesRisque.length === 0 || typesRisque.includes(t);
+                      return (
+                        <span
+                          key={t}
+                          style={{ display: 'flex', alignItems: 'center', gap: 5, opacity: retenu ? 1 : 0.35 }}
+                        >
+                          <span
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: '50%',
+                              background: COULEURS_CSS[t],
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span style={{ fontFamily: fInter, fontSize: 10, color: C.textSec }}>
+                            {LIBELLE_TYPE[t]}
+                          </span>
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
 
-            <ProvenanceDesZones />
-          </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={inclureInactifs}
+                    onChange={(e) => setInclureInactifs(e.target.checked)}
+                    style={{ accentColor: 'var(--brand-teal)', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontFamily: fInter, fontSize: 11, color: C.textSec }}>
+                    Inclure les sites à l&apos;arrêt
+                  </span>
+                </label>
+              </Repli>
+
+              <Repli titre="Affichage">
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={afficherHalo}
+                    onChange={(e) => setAfficherHalo(e.target.checked)}
+                    style={{ accentColor: 'var(--brand-teal)', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontFamily: fInter, fontSize: 11, color: C.textSec }}>
+                    Halo autour des points
+                  </span>
+                </label>
+                <span style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, lineHeight: 1.4 }}>
+                  Aide de lecture à faible zoom, où une zone de 500 m ferait
+                  moins d&apos;un pixel. Ce n&apos;est pas une mesure.
+                </span>
+              </Repli>
+            </div>
+          )}
+
+          <ProvenanceDesZones />
         </div>
       )}
     </div>
@@ -386,9 +559,10 @@ function ProvenanceDesZones() {
     lineHeight: 1.5,
     margin: '0 0 6px',
   };
+  const fort: React.CSSProperties = { color: C.textSec, fontWeight: 500 };
 
   return (
-    <div style={{ marginTop: 4, borderTop: `0.5px solid ${C.border}`, paddingTop: 8 }}>
+    <div style={{ marginTop: 2, borderTop: `0.5px solid ${C.border}`, paddingTop: 8 }}>
       <button
         type="button"
         onClick={() => setOuvert((v) => !v)}
@@ -410,36 +584,28 @@ function ProvenanceDesZones() {
       {ouvert && (
         <div style={{ marginTop: 6 }}>
           <p style={para}>
-            <strong style={{ color: C.textSec, fontWeight: 500 }}>
-              L&apos;État ne publie pas de « rayon de risque » par site.
-            </strong>{' '}
+            <strong style={fort}>L&apos;État ne publie pas de « rayon de risque » par site.</strong>{' '}
             Il produit une cascade : les zones d&apos;effets de l&apos;étude de
             dangers (seuils SEI, SEL, SELS), puis l&apos;aléa du PPRT en sept
             niveaux, puis le zonage réglementaire (rouge, bleu, gris), puis
             l&apos;enveloppe du périmètre.
           </p>
           <p style={para}>
-            <strong style={{ color: C.textSec, fontWeight: 500 }}>
-              Seule la dernière est exploitable nationalement.
-            </strong>{' '}
+            <strong style={fort}>Seule la dernière est exploitable nationalement.</strong>{' '}
             Les zones d&apos;effets ne sortent d&apos;aucune API. Le zonage
             rouge/bleu n&apos;existe qu&apos;en image (WMS Géorisques) ou
             éparpillé, un jeu par DDT. L&apos;enveloppe, elle, est un flux
             unique : 664 périmètres de servitude PM3, Géoplateforme IGN.
           </p>
           <p style={para}>
-            <strong style={{ color: C.textSec, fontWeight: 500 }}>
-              Le PPRT ne concerne que le seuil haut.
-            </strong>{' '}
+            <strong style={fort}>Le PPRT ne concerne que le seuil haut.</strong>{' '}
             Mesuré le 18/09/2026 : 79 % des 717 sites Seveso seuil haut ont un
             périmètre, contre 20 % des 610 sites seuil bas — qui n&apos;y sont
             pas soumis. 137 sites seuil haut n&apos;en ont aucun de publié :
             c&apos;est un vrai manque, pas une règle.
           </p>
           <p style={{ ...para, margin: 0 }}>
-            <strong style={{ color: C.textSec, fontWeight: 500 }}>
-              Comment les distinguer à l&apos;écran :
-            </strong>{' '}
+            <strong style={fort}>Comment les distinguer à l&apos;écran :</strong>{' '}
             trait plein = périmètre publié par l&apos;État, opposable. Trait
             tireté = zone que MAGELIAN calcule à partir du rayon choisi
             ci-dessus, sans valeur réglementaire.

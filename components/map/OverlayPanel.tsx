@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Maximize2, Minimize2, X } from 'lucide-react';
-import { LARGEUR_RAIL, ECART_RAIL_PANNEAU, type EntreeId } from '@/lib/navigation/config';
+import { LARGEUR_RAIL, ECART_RAIL_PANNEAU, type EntreeId, LARGEUR_PANNEAU } from '@/lib/navigation/config';
 import { empiler, depiler } from '@/lib/carte/pile-echap';
 
 /** Identifiant fixe dans la pile Echap : un seul OverlayPanel est monté à la
@@ -16,7 +16,7 @@ interface OverlayPanelProps {
   dotColor: string;
   onClose: () => void;
   children: ReactNode;
-  /** Largeur (default 280) */
+  /** Largeur en pixels. Defaut : `LARGEUR_PANNEAU` (lib/navigation/config.ts). */
   width?: number;
   /** Offset vertical pour laisser la place à une top bar (default 0) */
   topOffset?: number;
@@ -37,7 +37,7 @@ export function OverlayPanel({
   dotColor,
   onClose,
   children,
-  width = 280,
+  width = LARGEUR_PANNEAU,
   topOffset = 0,
   expandable = false,
 }: OverlayPanelProps) {
@@ -236,6 +236,19 @@ export function OverlayPanel({
         style={{
           flex: 1,
           overflowY: 'auto',
+          // Les bandeaux de section sont en PLEINE LARGEUR par une marge
+          // negative (`FilterSectionHeader`, `margin: 0 -16px`) qui suppose un
+          // parent a 16 px de padding horizontal. Ce parent n'en a pas : chaque
+          // bandeau depassait donc de 32 px et ouvrait une BARRE DE DEFILEMENT
+          // HORIZONTALE en bas du panneau — mesure du 2026-09-18, sur TOUTES
+          // les sections (Meteo et Indicateurs civiques comprises), pas
+          // seulement celles retouchees.
+          //
+          // On masque le debordement plutot que de retirer la marge negative :
+          // le pleine-largeur est voulu, c'est lui qui donne au bandeau son
+          // bord a bord. `hidden` le fait clipper par le panneau, ce qui est
+          // exactement le rendu recherche, sans barre parasite.
+          overflowX: 'hidden',
           padding: '8px 0',
           minHeight: 0,
           // display: flex pour que les enfants avec h-full / flex se contraignent

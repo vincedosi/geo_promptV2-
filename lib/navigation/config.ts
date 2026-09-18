@@ -62,6 +62,25 @@ export const LARGEUR_RAIL = 76;
 /** Ecart entre le rail et le panneau qu'il ouvre. */
 export const ECART_RAIL_PANNEAU = 8;
 
+/**
+ * Largeur des quatre panneaux du rail (Filtre / Calques / Analyse / Zones).
+ *
+ * Etait a 280, en dur dans `components/map/OverlayPanel.tsx`. A cette largeur,
+ * la section « Zones a risque industriel » faisait deborder ses six boutons de
+ * rayon sur deux lignes et ouvrait une BARRE DE DEFILEMENT HORIZONTALE en bas
+ * du panneau — le symptome le plus net qu'une largeur ne suffit plus.
+ *
+ * 340 est la valeur ou ces six boutons tiennent sur une ligne et ou
+ * « Perimetre reglementaire » ne se tronque plus, tout en restant sous le
+ * quart d'un ecran 1440. Elle vaut pour LES QUATRE panneaux : ils partagent
+ * `OverlayPanel`, et en elargir un seul creerait un saut de largeur a chaque
+ * bascule d'outil.
+ *
+ * Toute largeur calee sur le panneau lit cette constante, jamais un 280 en
+ * dur — meme regle que `LARGEUR_RAIL`.
+ */
+export const LARGEUR_PANNEAU = 340;
+
 export const ENTREES_NAVIGATION: readonly EntreeNavigation[] = [
   {
     id: 'assistant', label: 'Assistant', icone: Sparkles,
