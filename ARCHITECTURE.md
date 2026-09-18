@@ -1512,9 +1512,23 @@ rejetee, 0 ecartee, 0 echec, 0 sans departement**, 69 partitions, **11,2 s**,
 supprime 664 et reecrit 664, net inchange. Requete carte type (bbox Etang de
 Berre) : **Bitmap Index Scan, 0,12 ms, `shared hit=17`, 0 lecture disque**.
 
-**Les donnees ne sont qu'en LOCAL** ; la prod ne porte que la structure (table
-vide, fonctions), comme pour les 99 152 ICPE. A pousser quand la couche
-d'affichage existera.
+> ⚠️ **Corrige le 2026-09-18 : ce paragraphe annoncait « les donnees ne sont
+> qu'en LOCAL ; la prod ne porte que la structure (table vide, fonctions) ».
+> C'est FAUX depuis le deploiement des migrations du chantier exposition.**
+> Mesure directe en prod ce jour : `pprt_perimetres` **664 lignes**,
+> `poi_france` categorie `risque_industriel` **96 427**, `carreaux_filosofi`
+> **2 298 582**, `cibles_exposition` **24**, et les trois RPC d'exposition
+> presentes. Lire cette phrase aurait fait croire qu'un test contre la prod ne
+> rendrait rien, alors que c'est le SEUL endroit ou les chiffres sont complets.
+
+**Prod et local ne portent PAS le meme jeu de carreaux, et c'est ce qui decide
+ou tester.** `carreaux_filosofi` est exclu du dump local (4 630 Mo) : la base
+locale en porte **200 000 sur 2 298 582**, soit **8,7 %**, et geographiquement
+groupes. Toute mesure de population exposee faite en local est donc JUSTE dans
+sa mecanique et FAUSSE dans ses totaux — c'est exactement ce qui a produit un
+« 5 804 exposes en France » juge impossible a juste titre le 2026-09-18, la
+prod rendant **421 214** sur le meme appel. Un ecran d'exposition se teste
+contre la prod, en lecture.
 
 **Trois defauts de la source, traites et testes** — a ne pas redecouvrir :
 - **`idass` n'identifie rien** : 660 valeurs distinctes pour 664 lignes.
