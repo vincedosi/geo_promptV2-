@@ -204,11 +204,21 @@ export interface PanneauCalquesProps {
   onClearMeteo?: () => void;
   meteoVisible?: boolean;
   meteoLabel?: string | null;
+
+  /**
+   * Ouvre l'overlay « Analyser la population à risque ».
+   *
+   * Relayée jusqu'a `RisqueIndustrielSection` : l'overlay est monté par
+   * `app/map/page.tsx`, pas par ce panneau, parce qu'il couvre tout l'ecran et
+   * doit survivre a la fermeture du panneau qui l'a ouvert.
+   */
+  onAnalyserPopulation?: () => void;
 }
 
 type CleGroupe = 'socioDemo' | 'campagne' | 'poiMobilite' | 'mediasOffline' | 'environnement' | 'analyses';
 
 export function PanneauCalques(props: PanneauCalquesProps) {
+  const { onAnalyserPopulation } = props;
   const {
     degradeActif, onDegrade,
     carreauxVisible, setCarreauxVisible,
@@ -585,6 +595,7 @@ export function PanneauCalques(props: PanneauCalquesProps) {
             pprtTypes={risqueIndustriel.pprtTypes}
             setPprtTypes={risqueIndustriel.setPprtTypes}
             pprtEtat={risqueIndustriel.pprtEtat}
+            onAnalyserPopulation={onAnalyserPopulation}
           />
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <CivicIndicatorsSection

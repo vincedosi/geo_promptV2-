@@ -1814,6 +1814,30 @@ export type Database = {
         }
         Relationships: []
       }
+      cibles_exposition: {
+        Row: {
+          actif: boolean
+          code: string
+          famille: string
+          libelle: string
+          ordre: number
+        }
+        Insert: {
+          actif?: boolean
+          code: string
+          famille: string
+          libelle: string
+          ordre: number
+        }
+        Update: {
+          actif?: boolean
+          code?: string
+          famille?: string
+          libelle?: string
+          ordre?: number
+        }
+        Relationships: []
+      }
       civic_health_cache: {
         Row: {
           code_insee: string
@@ -6597,6 +6621,18 @@ export type Database = {
       }
       postgis_version: { Args: never; Returns: string }
       postgis_wagyu_version: { Args: never; Returns: string }
+      population_exposee_agregee: {
+        Args: {
+          p_cible?: string
+          p_dimension?: string
+          p_gravites?: string[]
+          p_limite?: number
+          p_modes?: string[]
+          p_natures?: string[]
+          p_rayon_m?: number
+        }
+        Returns: Json
+      }
       population_exposee_site: { Args: { p_site_id: string }; Returns: Json }
       pprt_consolider_departement: { Args: never; Returns: Json }
       pprt_importer_partition: {
@@ -6621,6 +6657,7 @@ export type Database = {
       qualite_fraicheur: { Args: never; Returns: Json }
       qualite_indicateurs: { Args: never; Returns: Json }
       qualite_invariants: { Args: never; Returns: Json }
+      rayon_defaut_exposition: { Args: never; Returns: number }
       refresh_campaign_rollups: {
         Args: { p_campaign_id: string }
         Returns: Json

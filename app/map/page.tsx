@@ -85,6 +85,7 @@ import { PanneauFiltre } from '@/app/map/_components/panneaux/PanneauFiltre';
 import { PanneauCalques } from '@/app/map/_components/panneaux/PanneauCalques';
 import { RisqueIndustrielLayer } from '@/app/map/_components/RisqueIndustrielLayer';
 import { PprtLayer } from '@/app/map/_components/PprtLayer';
+import { AnalysePopulationOverlay } from '@/components/risques/AnalysePopulationOverlay';
 import { useRisqueIndustriel } from '@/app/map/_components/filter-panel/use-risque-industriel';
 import { PanneauAnalyse } from '@/app/map/_components/panneaux/PanneauAnalyse';
 import { PanneauZones } from '@/app/map/_components/panneaux/PanneauZones';
@@ -211,6 +212,7 @@ export default function MapPage() {
   // entre le panneau (reglages) et la couche (rendu). Defaut Seveso, cf.
   // use-risque-industriel.ts.
   const risqueIndustriel = useRisqueIndustriel();
+  const [analysePopulation, setAnalysePopulation] = useState(false);
   const [poiStyles,           setPoiStyles]           = useState<POIStylesMap>({});
   // TMJA — flux routier (comptages_routiers)
   const [tmjaGeoJSON, setTmjaGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
@@ -905,6 +907,7 @@ export default function MapPage() {
     ),
     calques: () => (
       <PanneauCalques
+        onAnalyserPopulation={() => setAnalysePopulation(true)}
         risqueIndustriel={risqueIndustriel}
         degradeActif={mapLayers.degradeActif}
         onDegrade={onDegrade}
@@ -1159,6 +1162,18 @@ export default function MapPage() {
       {/* Perimetres PPRT : couche INDEPENDANTE du rayon calcule ci-dessus.
           Une servitude opposable et un cercle de notre invention ne se
           pilotent pas par le meme interrupteur. */}
+      {/* Overlay plein ecran : monte ICI et non dans le panneau Calques, pour
+          qu'il survive a la fermeture de celui-ci. Il herite des filtres deja
+          coches — on ne redemande pas ce a quoi l'utilisateur vient de
+          repondre dans le panneau. */}
+      {analysePopulation && (
+      <AnalysePopulationOverlay
+        onFermer={() => setAnalysePopulation(false)}
+        gravites={risqueIndustriel.niveaux}
+        typesRisque={risqueIndustriel.typesRisque}
+      />
+      )}
+
       <PprtLayer
         mapRef={mapRef}
         actif={risqueIndustriel.pprtActif}

@@ -116,6 +116,9 @@ export interface RisqueIndustrielSectionProps {
   pprtTypes: string[];
   setPprtTypes: (v: string[]) => void;
   pprtEtat: EtatCouchePprt | null;
+
+  /** Ouvre l'overlay « Analyser la population à risque ». */
+  onAnalyserPopulation?: () => void;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -264,6 +267,7 @@ export function RisqueIndustrielSection({
   pprtTypes,
   setPprtTypes,
   pprtEtat,
+  onAnalyserPopulation,
 }: RisqueIndustrielSectionProps) {
   const ouvert = sectionsOpen.risqueIndustriel !== false;
 
@@ -439,6 +443,40 @@ export function RisqueIndustrielSection({
                 </>
               }
             />
+          )}
+
+          {/* ── L'analyse ────────────────────────────────────────────────
+              Placée APRÈS les deux cartes de zone, parce qu'elle dépend
+              d'elles : c'est la zone choisie ci-dessus qui définit ce qu'on
+              compte. L'overlay hérite des filtres de ce panneau — on ne
+              redemande pas ce à quoi l'utilisateur vient de répondre. */}
+          {onAnalyserPopulation && (
+            <button
+              type="button"
+              onClick={onAnalyserPopulation}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 7,
+                width: '100%',
+                padding: '9px 12px',
+                background: 'transparent',
+                border: '0.5px solid var(--brand-teal)',
+                borderRadius: 8,
+                color: 'var(--brand-teal)',
+                fontFamily: fInter,
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'background-color 200ms var(--ease-out)',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--brand-teal-10)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              Analyser la population à risque
+              <span aria-hidden>&rarr;</span>
+            </button>
           )}
 
           {/* ── Réglages ────────────────────────────────────────────────── */}
