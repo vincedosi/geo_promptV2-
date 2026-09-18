@@ -218,9 +218,39 @@ fil d'Ariane obligatoire : le média planner sait ce qu'il cherche.
 
 **Cibles — tranché : uniquement celles qui se calculent.** Voir § 8.
 
-**Reste ouvert :** le rayon par défaut pour les sites sans PPRT dans un export
-(il faut une valeur stable, sinon deux exports ne se comparent pas —
-proposition : 500 m, affiché dans la synthèse).
+**Rayon par défaut des sites sans PPRT — tranché : il se DÉDUIT des périmètres
+réels, il ne se décrète pas.**
+
+Mesure du 2026-09-18 sur les 664 périmètres, rayon équivalent `r = √(aire/π)` :
+
+| | Valeur |
+|---|---|
+| Rayon **moyen** | **532 m** ← retenu |
+| Rayon médian | 286 m |
+| Quartiles (Q1 / Q3) | 99 m / 654 m |
+| Min / Max | 1 m / 12 307 m |
+| Aire moyenne / médiane | 2,98 km² / **0,26 km²** |
+
+Trois choses à savoir sur ce 532 m :
+
+1. **C'est la moyenne des RAYONS, pas le rayon de l'aire moyenne.** Les deux
+   diffèrent d'un facteur deux (532 m contre 974 m) parce que la racine carrée
+   est concave. « La moyenne des sites » se lit comme la première.
+2. **La distribution est très asymétrique** — moyenne 532 m, médiane 286 m,
+   maximum 12,3 km. Quelques bassins industriels énormes tirent la moyenne. La
+   médiane serait plus représentative d'un PPRT « typique » ; la moyenne est
+   plus prudente, donc retenue.
+3. ⚠ **Ce rayon est probablement trop GÉNÉREUX pour les sites concernés.** Un
+   PPRT n'existe que là où l'État a jugé le risque assez fort pour en imposer
+   un. Les sites qui n'en ont pas sont majoritairement des Seveso seuil **bas**,
+   donc moins dangereux. Appliquer la moyenne des seuils hauts les surestime.
+   À dire dans l'écran, pas seulement ici.
+
+**La valeur est CALCULÉE, pas écrite en dur** : elle se recalcule à chaque
+import et suit le référentiel. Elle reste **ajustable** dans l'overlay, et la
+valeur retenue part dans l'export avec sa provenance — « rayon 532 m, moyenne
+des 664 périmètres PPRT publiés, mesuré le 18/09/2026 ». Un rayon sans
+provenance dans un tableur ressort comme une vérité.
 
 ---
 
@@ -281,14 +311,22 @@ Trois encodages possibles, et ils ne disent pas la même chose :
 | Densité (hab/km² de zone exposée) | « à quel point c'est dense là où ça touche » | Un site isolé en ville sort en tête |
 | **Part de la population exposée (%)** | **« quelle fraction des habitants d'ici vit en zone à risque »** | Demande la population totale de l'unité |
 
-**Proposition : la part (%).** C'est la seule grandeur qui se compare entre un
-code postal parisien et un code postal rural, et c'est la phrase que le média
-planner veut pouvoir dire : *« 12 % des habitants de ce CP vivent en zone à
-risque industriel »*. L'effectif brut reste dans le tableau, à côté.
+**Tranché le 2026-09-18 : un bascule à trois positions**, au-dessus de la
+mini-carte, et la légende change avec lui.
 
-→ *À confirmer avec Vincent : il a demandé « la densité, plus c'est rouge plus
-il y a de monde ». Densité et volume sont deux choses différentes, et la part
-est encore une troisième. Ne pas trancher à sa place.*
+```
+  Colorer par   [ Part % ]  [ Densité ]  [ Effectif ]
+```
+
+Défaut : **Part (%)**. C'est la seule des trois qui se compare entre un code
+postal parisien et un code postal rural, et c'est la phrase qu'on veut pouvoir
+dire : *« 12 % des habitants de ce CP vivent en zone à risque industriel »*.
+
+Les deux autres restent à un clic parce qu'elles répondent à d'autres questions
+légitimes — « où y a-t-il le plus de monde » (effectif) et « où est-ce le plus
+dense » (densité). **Chaque position a sa propre échelle et son propre
+libellé** : basculer sans changer la légende ferait lire des pourcentages comme
+des habitants.
 
 ### Contraintes techniques
 
