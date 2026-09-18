@@ -1233,6 +1233,10 @@ export default function MapPage() {
         tmjaHideLowTraffic={tmjaHideLowTraffic}
         radioVisible={radioVisible}
         radioCoverageColor={radioCoverageColor}
+        risquesActif={risqueIndustriel.actif}
+        risquesRayonM={risqueIndustriel.rayonM}
+        pprtActif={risqueIndustriel.pprtActif}
+        risquesCompte={risqueIndustriel.compte}
         zoneData={zoneData}
         activeCats={activeCats}
         isochroneVisible={mapLayers.isochroneVisible}

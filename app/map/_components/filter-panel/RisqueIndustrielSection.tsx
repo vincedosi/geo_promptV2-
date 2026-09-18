@@ -25,7 +25,7 @@ import { MultiDropdown } from './MultiDropdown';
 import { C, fInter, fMono } from './tokens';
 import { labelStyle } from './styles';
 import { ORDRE_TYPES, LIBELLE_TYPE, COULEURS_CSS } from '@/lib/carte/palette-risques';
-import { COULEURS_PPRT_CSS, TIRETE_PPRT, LIBELLE_TYPE_ZONE_PPRT } from '@/lib/carte/palette-pprt';
+import { COULEURS_PPRT_CSS, LARGEUR_TRAIT_PPRT, LIBELLE_TYPE_ZONE_PPRT } from '@/lib/carte/palette-pprt';
 import { PPRT_ZOOM_PLANCHER } from '@/lib/version';
 import type { EtatCouchePprt } from '../PprtLayer';
 
@@ -44,7 +44,7 @@ const NIVEAUX_RISQUE = [
   { id: 'autre', label: 'Régime déclaratif ou non précisé' },
 ] as const;
 
-/** Rayons proposés pour la zone de danger. 0 = aucune zone. */
+/** Rayons proposés pour la zone calculée. 0 = aucune zone. */
 const RAYONS = [0, 300, 500, 1000, 2000, 5000] as const;
 
 /**
@@ -169,9 +169,13 @@ export function RisqueIndustrielSection({
                 />
               </div>
 
-              {/* ── Zone de danger ───────────────────────────────────── */}
+              {/* ── Zone calculée ────────────────────────────────────────
+                  Appelée « Zone de danger » jusqu'au 2026-09-18. Le mot
+                  affirmait une autorité que ce cercle n'a pas : il vaut ce que
+                  vaut le rayon qu'on choisit ici, et rien de plus. La zone de
+                  danger réelle, quand elle existe, c'est le périmètre PPRT. */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={labelStyle}>Zone de danger</span>
+                <span style={labelStyle}>Zone calculée</span>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   {RAYONS.map((r) => (
                     <button
@@ -194,7 +198,8 @@ export function RisqueIndustrielSection({
                 </div>
                 {rayonM > 0 && (
                   <span style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, lineHeight: 1.4 }}>
-                    Rayon indicatif autour du site, calculé en mètres réels.
+                    Rayon indicatif autour du site, calculé en mètres réels,
+                    dessiné en <strong style={{ fontWeight: 500 }}>tireté</strong>.
                     Ce n&apos;est pas le périmètre réglementaire d&apos;un PPRT.
                   </span>
                 )}
@@ -323,18 +328,21 @@ export function RisqueIndustrielSection({
                 </div>
 
                 {/* Légende : le TRAIT porte l'autorité, pas la teinte — la
-                    couleur de cette carte est réservée au type de risque. */}
+                    couleur de cette carte est réservée au type de risque.
+                    Trait PLEIN, parce que ce périmètre est réglementaire ;
+                    la zone que MAGELIAN calcule est tiretée. Convention
+                    unique : `lib/carte/nature-zone.ts`. */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span
                     style={{
                       width: 22,
                       height: 0,
                       flexShrink: 0,
-                      borderTop: `1.5px dashed ${COULEURS_PPRT_CSS.contour}`,
+                      borderTop: `${LARGEUR_TRAIT_PPRT}px solid ${COULEURS_PPRT_CSS.contour}`,
                     }}
                   />
                   <span style={{ fontFamily: fInter, fontSize: 11, color: C.textSec }}>
-                    Périmètre opposable (tireté {TIRETE_PPRT.join('/')})
+                    Périmètre opposable — trait plein
                   </span>
                 </div>
 
@@ -347,7 +355,95 @@ export function RisqueIndustrielSection({
                 )}
               </>
             )}
+
+            <ProvenanceDesZones />
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * « D'où viennent ces zones ? » — le repli qui répond une fois pour toutes.
+ *
+ * Il vit ICI, dans le panneau, et pas sur une page d'aide séparée : c'est au
+ * moment où l'on coche la couche que la question se pose, et la règle du
+ * projet est que tout passe par /map et ses overlays. Une page qu'il faut
+ * aller chercher n'est jamais lue par la personne qui en a besoin.
+ *
+ * Les chiffres sont ceux MESURÉS le 2026-09-18 sur la base complète, pas des
+ * ordres de grandeur. Ils datent, et c'est pour ça que la date est écrite :
+ * un taux de couverture sans date ne veut rien dire.
+ */
+function ProvenanceDesZones() {
+  const [ouvert, setOuvert] = React.useState(false);
+
+  const para: React.CSSProperties = {
+    fontFamily: fInter,
+    fontSize: 10,
+    color: C.textDim,
+    lineHeight: 1.5,
+    margin: '0 0 6px',
+  };
+
+  return (
+    <div style={{ marginTop: 4, borderTop: `0.5px solid ${C.border}`, paddingTop: 8 }}>
+      <button
+        type="button"
+        onClick={() => setOuvert((v) => !v)}
+        aria-expanded={ouvert}
+        style={{
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          cursor: 'pointer',
+          fontFamily: fInter,
+          fontSize: 11,
+          color: 'var(--brand-teal)',
+          textAlign: 'left',
+        }}
+      >
+        {ouvert ? '− ' : '+ '}D&apos;où viennent ces zones ?
+      </button>
+
+      {ouvert && (
+        <div style={{ marginTop: 6 }}>
+          <p style={para}>
+            <strong style={{ color: C.textSec, fontWeight: 500 }}>
+              L&apos;État ne publie pas de « rayon de risque » par site.
+            </strong>{' '}
+            Il produit une cascade : les zones d&apos;effets de l&apos;étude de
+            dangers (seuils SEI, SEL, SELS), puis l&apos;aléa du PPRT en sept
+            niveaux, puis le zonage réglementaire (rouge, bleu, gris), puis
+            l&apos;enveloppe du périmètre.
+          </p>
+          <p style={para}>
+            <strong style={{ color: C.textSec, fontWeight: 500 }}>
+              Seule la dernière est exploitable nationalement.
+            </strong>{' '}
+            Les zones d&apos;effets ne sortent d&apos;aucune API. Le zonage
+            rouge/bleu n&apos;existe qu&apos;en image (WMS Géorisques) ou
+            éparpillé, un jeu par DDT. L&apos;enveloppe, elle, est un flux
+            unique : 664 périmètres de servitude PM3, Géoplateforme IGN.
+          </p>
+          <p style={para}>
+            <strong style={{ color: C.textSec, fontWeight: 500 }}>
+              Le PPRT ne concerne que le seuil haut.
+            </strong>{' '}
+            Mesuré le 18/09/2026 : 79 % des 717 sites Seveso seuil haut ont un
+            périmètre, contre 20 % des 610 sites seuil bas — qui n&apos;y sont
+            pas soumis. 137 sites seuil haut n&apos;en ont aucun de publié :
+            c&apos;est un vrai manque, pas une règle.
+          </p>
+          <p style={{ ...para, margin: 0 }}>
+            <strong style={{ color: C.textSec, fontWeight: 500 }}>
+              Comment les distinguer à l&apos;écran :
+            </strong>{' '}
+            trait plein = périmètre publié par l&apos;État, opposable. Trait
+            tireté = zone que MAGELIAN calcule à partir du rayon choisi
+            ci-dessus, sans valeur réglementaire.
+          </p>
         </div>
       )}
     </div>

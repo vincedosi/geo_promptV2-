@@ -49,6 +49,8 @@ import { ATMO_LEVEL_LABELS, POLLEN_LEVEL_LABELS } from '@/lib/civic-health/level
 import { TMJA_LEGEND } from '@/app/map/_components/filter-panel/TmjaSection';
 import { legendePourMetrique, type SuiviMapEventDetail } from '@/app/map/_components/SuiviMapLayer';
 import { getCatColor, ISOCHRONE_COLORS, ISOCHRONE_MODE_LABELS, BATTLE_PALIER_OPACITY } from '@/app/copilote/_lib/constants';
+import { LARGEUR_TRAIT_PPRT } from '@/lib/carte/palette-pprt';
+import { formaterNombre } from '@/lib/format/nombre';
 import type { ZoneData, VoronoiData } from '@/types/spatial';
 
 const fInter = "'Inter', system-ui, sans-serif";
@@ -109,6 +111,16 @@ export interface LegendeCarteProps {
   battlePois?: { id: string; nom: string; color: string }[];
   battleMaxPalier?: number;
   setBattleMaxPalier?: (v: number) => void;
+
+  // ── Risque industriel : zone CALCULÉE vs zone RÉGLEMENTAIRE ─────────────
+  /** La couche des sites ICPE est-elle active ? */
+  risquesActif?: boolean;
+  /** Rayon de la zone calculée, en mètres. 0 = aucune zone calculée dessinée. */
+  risquesRayonM?: number;
+  /** La couche des périmètres PPRT est-elle active ? */
+  pprtActif?: boolean;
+  /** Sites rendus, et combien d'entre eux ont un vrai périmètre PPRT. */
+  risquesCompte?: { rendus: number; total: number; avecPprt: number } | null;
 }
 
 const swatchRow: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6 };
@@ -505,6 +517,73 @@ function BlocFigures(props: LegendeCarteProps) {
   );
 }
 
+/**
+ * Zones à risque : la seule chose que cette boîte doit faire comprendre, c'est
+ * **laquelle des deux zones on a calculée et laquelle vient de l'État**.
+ *
+ * Le motif du trait est la réponse, et il est reproduit ici depuis
+ * `lib/carte/nature-zone.ts` plutôt que retapé : si le tireté change sur la
+ * carte, il change ici. Une légende qui montre un trait que la carte ne
+ * dessine pas est pire qu'une absence de légende.
+ */
+function BlocZonesRisque(props: LegendeCarteProps) {
+  const zoneCalculee = !!props.risquesActif && (props.risquesRayonM ?? 0) > 0;
+  const zoneReglementaire = !!props.pprtActif;
+  if (!zoneCalculee && !zoneReglementaire) return null;
+
+  const c = props.risquesCompte;
+
+  return (
+    <div>
+      <div style={titreStyle}>Zones à risque</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        {zoneReglementaire && (
+          <div style={swatchRow}>
+            <span
+              aria-hidden
+              style={{
+                width: 16, height: 0, flexShrink: 0,
+                borderTop: `${LARGEUR_TRAIT_PPRT}px solid var(--pprt-contour)`,
+              }}
+            />
+            <span style={{ ...labelStyle, fontFamily: fInter, color: 'var(--text-secondary)' }}>
+              Périmètre PPRT — réglementaire
+            </span>
+          </div>
+        )}
+        {zoneCalculee && (
+          <div style={swatchRow}>
+            <span
+              aria-hidden
+              style={{
+                width: 16, height: 0, flexShrink: 0,
+                borderTop: '1px dashed var(--text-secondary)',
+              }}
+            />
+            <span style={{ ...labelStyle, fontFamily: fInter, color: 'var(--text-secondary)' }}>
+              Rayon {formaterNombre(props.risquesRayonM ?? 0)} m — calculé
+            </span>
+          </div>
+        )}
+        {/*
+          Le compte n'est pas décoratif : il dit quelle PART de ce qu'on voit
+          repose sur une donnée de l'État. « 211 sur 1 024 » se lit autrement
+          qu'une carte muette où tout paraît également fondé.
+        */}
+        {zoneCalculee && c && c.rendus > 0 && (
+          <div style={{ ...labelStyle, lineHeight: 1.4 }}>
+            {formaterNombre(c.avecPprt)} site{c.avecPprt > 1 ? 's' : ''} sur{' '}
+            {formaterNombre(c.rendus)} {c.avecPprt > 1 ? 'ont' : 'a'} un périmètre PPRT
+          </div>
+        )}
+        <div style={{ ...labelStyle, lineHeight: 1.4, color: 'var(--text-tertiary)' }}>
+          Trait plein = publié par l&rsquo;État · tireté = calculé par MAGELIAN
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function LegendeCarte(props: LegendeCarteProps) {
   const [ouvert, setOuvert] = useState(true);
 
@@ -514,8 +593,13 @@ export function LegendeCarte(props: LegendeCarteProps) {
   const poiCount = props.selectedPOI?.length ?? 0;
   const figuresVisible = poiCount > 0 || !!props.tmjaVisible || !!props.radioVisible || !!props.oohActif;
   const analyseVisible = !!props.zoneData && (props.activeCats?.length ?? 0) > 0;
+  // Même règle que les trois autres blocs : la boîte ne s'ouvre que si ce
+  // bloc rendra quelque chose, sinon on reproduit la « Légende » vide du
+  // constat 17.
+  const zonesRisqueVisible =
+    (!!props.risquesActif && (props.risquesRayonM ?? 0) > 0) || !!props.pprtActif;
 
-  if (!degradeVisible && !figuresVisible && !analyseVisible) return null;
+  if (!degradeVisible && !figuresVisible && !analyseVisible && !zonesRisqueVisible) return null;
 
   return (
     <div
@@ -558,6 +642,7 @@ export function LegendeCarte(props: LegendeCarteProps) {
         <div style={{ padding: '0 10px 10px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           <BlocAnalyse {...props} />
           <BlocDegrade {...props} />
+          <BlocZonesRisque {...props} />
           <BlocFigures {...props} />
         </div>
       )}

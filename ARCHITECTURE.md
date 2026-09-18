@@ -1067,7 +1067,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `smart_prompt_feedback` | Feedback prompts IA (user_id) | |
 | `smart_ville_stats` | Stats villes | |
 | `icpe_rubrique_familles` | Familles de rubriques ICPE : traduit le prefixe (2 chiffres) du numero de rubrique en **nature de risque** (41 toxicite aigue, 47 GPL et produits petroliers, 27 dechets...). 15 lignes | sql/173 (2026-09-17). Miroir TS `lib/import/georisques/familles.ts` — le classement tourne sur 138 423 sites et ne peut pas faire un aller-retour en base par rubrique ; la table sert l'affichage et l'evolution sans deploiement. `rang_gravite` (UNIQUE) ne sert QU'A departager la nature dominante d'un site qui en porte plusieurs : ce n'est pas une echelle de danger, la gravite reglementaire est le statut Seveso. RLS deny-all |
-| `pprt_perimetres` | Perimetres PPRT (servitudes PM3, Geoplateforme IGN). **UNE LIGNE = UNE ASSIETTE** : 664 assiettes, 609 generateurs (`id_generateur` = l'etablissement, PAS la procedure — `gaspar/pprt` en recense 415, sans cle de jointure). `geom` 4326 + `geom_3857` pre-calculee + `superficie_km2` sur `geography` | sql/177 (2026-09-17). 15 Mo. `code_departement` CALCULE par recouvrement geometrique sur `ref_departements`, **jamais lu dans `partition`** dont 5 depots sur 69 sont REGIONAUX (`_SUP_R76_` = Occitanie, 77 zones). `id_assiette` conserve mais NON unique : `2147483647` y est porte par 4 PPRT sans rapport. RLS deny-all |
+| `pprt_perimetres` | Perimetres PPRT (servitudes PM3, Geoplateforme IGN). **UNE LIGNE = UNE ASSIETTE** : 664 assiettes, 609 generateurs (`id_generateur` = l'etablissement, PAS la procedure — `gaspar/pprt` en recense 415, sans cle de jointure). `geom` 4326 + `geom_3857` pre-calculee + `superficie_km2` sur `geography` | sql/177 (2026-09-17). 15 Mo. **Trois index geometriques, et le troisieme n'est pas redondant** : `idx_pprt_geom` (GIST sur `geom`) et `idx_pprt_geog` (GIST sur `geom::geography`, sql/179) — un `ST_DWithin` en geography ne peut PAS emprunter l'index geometry, le cast change le type indexe. Sans `idx_pprt_geog`, le rattachement site<->PPRT retombait en Seq Scan par site : 118 340 ms mesurees contre 164 ms. `code_departement` CALCULE par recouvrement geometrique sur `ref_departements`, **jamais lu dans `partition`** dont 5 depots sur 69 sont REGIONAUX (`_SUP_R76_` = Occitanie, 77 zones). `id_assiette` conserve mais NON unique : `2147483647` y est porte par 4 PPRT sans rapport. RLS deny-all |
 | `qualite_releves` | Dernier releve de chaque verification de qualite des donnees | sql/149 (2026-09-13). Rouvrir `/admin/qualite-donnees` lit CETTE table, jamais les tables sources. RLS deny-all |
 | `quotas_appels` | Compteurs de quota d'appels PARTAGES entre instances (sql/135) | Une ligne par cle = prefixe de route + appelant. Ecrite par la RPC `consommer_quota` (un seul `INSERT … ON CONFLICT … RETURNING`, donc exact en concurrence). Se purge elle-meme. RLS deny-all. **C'est le garde-fou du budget I/O** : avant, il comptait en memoire d'instance et ne limitait rien sur Vercel |
 | `civic_health_cache` | Cache indicateurs ATMO + pollen par code INSEE commune | TTL 24h, fallback stale 48h, RLS public read / service write, source ODbL Atmo France |
@@ -1201,7 +1201,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `get_check_constraint_values` | Valeurs contraintes CHECK | `api/` |
 | `drop_carreaux_table` | DROP table carreaux dynamique | `api/admin/sources/[id]/` |
 | `log_smart_prompt_feedback` | Log feedback prompt IA | `api/smart-prompt/` |
-| `risques_industriels_carte` | Sites ICPE d'une bbox pour la couche carte dediee, avec zone de danger optionnelle. `ST_Buffer` sur **geography** : rayon en metres, jamais en degres — en 4326 « 500 m » vaudrait 500 m en latitude et ~350 m en longitude a Marseille, une ellipse presentee comme un cercle (meme raison que `zone_rayon`, sql/155). C'est la MEME geometrie qui servira a compter la population exposee : une seule definition du cercle, pas une pour l'affichage et une pour le calcul. Mesure : 1 259 sites + zones de 500 m = 4,2 Mo en 323 ms, 0 lecture disque | `api/map/risques-industriels/` (sql/175) |
+| `risques_industriels_carte` | Sites ICPE d'une bbox pour la couche carte dediee, **rattaches a leur perimetre PPRT** (sql/179) et avec zone CALCULEE optionnelle. `statut_zone` (`pprt` / `sans_pprt` / `non_soumis` / `non_concerne`) est calcule EN BASE et repond a la seule question qui compte a l'ecran : cette zone est-elle publiee par l'Etat, ou calculee par nous ? Il distingue une donnee qui MANQUE (seuil haut sans PPRT, 137 sites) d'une zone qui n'existe pas EN DROIT (seuil bas, non soumis) — les confondre ferait passer une regle de droit pour une lacune d'import. Rattachement au perimetre le plus proche a **500 m**, et non par inclusion stricte : les coordonnees AIOT pointent parfois l'entree du site ou le centroide communal, et l'inclusion stricte perdait 71 Seveso seuil haut dont le PPRT est a 200 m (mesure : 496 -> 567 sur 717). ⚠ **`idx_pprt_geog` (GIST sur `geom::geography`) est OBLIGATOIRE** : `idx_pprt_geom` porte sur `geom` en geometry et le cast le rend inutilisable, d'ou un Seq Scan des 664 polygones PAR SITE — **118 340 ms et 1 614 807 buffers** mesures sur l'Etang de Berre, contre **164 ms et 3 332 buffers** avec l'index. `ST_Buffer` sur **geography** : rayon en metres, jamais en degres — en 4326 « 500 m » vaudrait 500 m en latitude et ~350 m en longitude a Marseille, une ellipse presentee comme un cercle (meme raison que `zone_rayon`, sql/155). C'est la MEME geometrie qui servira a compter la population exposee : une seule definition du cercle, pas une pour l'affichage et une pour le calcul. Mesure : 1 259 sites + zones de 500 m = 4,2 Mo en 323 ms, 0 lecture disque | `api/map/risques-industriels/` (sql/175, rattachement sql/179) |
 | `consolider_geo_icpe` | Repare `code_departement`/`departement`/`region` des POI ICPE depuis `metadata.code_insee`. Existe parce que **la pagination de l'API Georisques n'est pas stable** : deux imports successifs ont apporte 4 500 sites inedits et laisse 6 079 sites non revus (~5 % de rotation), donc les colonnes ajoutees apres un import ne se remplissent que pour les lignes que l'API veut bien renvoyer — et sans `code_departement`, `/api/map/pois` ne rend RIEN sur un filtre departemental | `api/admin/import-georisques/` (sql/174) |
 | `pprt_perimetres_carte` | Perimetres PPRT d'une bbox pour la couche carte. **`ST_SimplifyPreserveTopology` et JAMAIS `ST_Simplify`**, tolerance **PLAFONNEE a 0,0001 deg (~11 m)** : mesure sur les 664 zones, `ST_Simplify` en vide **18** a 11 m et **602 sur 664** a une tolerance derivee de l'etendue France — un PPRT fait 0,94 km de large en moyenne et **2 m** au minimum, donc la regle de `alignement_par_maille_geo` (ruling T13A-1) detruirait cette couche. PreserveTopology a 11 m : 0 zone videe, 0 invalide, 0,314 % de surface. La limite coupe les PLUS PETITES zones d'abord (un bassin industriel compte plus qu'un eclat de 2 m) et `n_total` est compte AVANT | `api/map/pprt/` (sql/178) |
 | `pprt_importer_partition` | Remplace en UNE transaction toutes les zones PPRT d'une partition : DELETE cible + INSERT set-based. La partition n'est donc jamais vide en base, contrairement a un DELETE puis un INSERT emis separement par le client. `ST_MakeValid` puis `ST_CollectionExtract(..., 3)` avant insertion — un trace depose par une DDT peut se croiser, et la colonne MultiPolygon refuserait la GeometryCollection que rend la reparation. Rend `recues`/`supprimees`/`inserees`/`ecartees` | `api/admin/import-pprt/` (sql/177) |
@@ -1466,9 +1466,28 @@ sa DDT l'a televerse.
 cette source : **664 assiettes** (les polygones, une ligne de table chacun),
 **609 generateurs** (`id_generateur` = l'etablissement a l'origine du risque),
 **415 procedures PPRT** (`gaspar/pprt`). Plusieurs generateurs relevent d'une
-meme procedure, et **ce flux ne porte aucune cle de jointure vers GASPAR**. La
-colonne s'appelait `id_procedure` a la premiere ecriture : quiconque l'aurait
-comptee aurait annonce « 609 PPRT ». Renommee avant toute donnee en production.
+meme procedure. La colonne s'appelait `id_procedure` a la premiere ecriture :
+quiconque l'aurait comptee aurait annonce « 609 PPRT ». Renommee avant toute
+donnee en production.
+
+> ⚠️ **Correction du 2026-09-18 : la cle de jointure vers GASPAR EXISTE.**
+> Ce paragraphe affirmait que « ce flux ne porte aucune cle de jointure vers
+> GASPAR », ce qui fermait la porte a tout enrichissement par les donnees de
+> procedure (nom du plan, bassin de risques, types de zones reglementaires).
+> C'est faux : la couche **`wfs_sup:generateur_sup_s`** porte un champ
+> **`id_gaspar`**, et l'assiette porte `idgen`.
+>
+> Mesure du 2026-09-18 sur le flux complet : **664 assiettes / 664 se
+> rattachent a un generateur** (609 distincts, 711 entites au total), **0 sans
+> `id_gaspar`**, atteignant **404 procedures GASPAR distinctes** sur les 415
+> recensees — coherent avec les 403 PPRT prevus au niveau national.
+> `GET /api/v1/gaspar/pprt` rend alors, par procedure, `libPpr`,
+> `libBassinRisques` et `zonageReglementaire.listTypeReg` (les `codeZone`
+> R / r / B / b) — **sans geometrie**.
+>
+> `id_gaspar` n'est PAS encore importe dans `pprt_perimetres` : seul
+> `id_generateur` l'est. L'ajouter demande une passe d'import supplementaire
+> (une requete WFS de plus sur `generateur_sup_s`), non faite a ce jour.
 
 | Objet | Role |
 |---|---|

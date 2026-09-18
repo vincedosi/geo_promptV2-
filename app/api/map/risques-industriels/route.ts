@@ -75,6 +75,10 @@ interface Collection {
   n_total: number;
   n_rendus: number;
   rayon_m: number | null;
+  /** Combien des sites RENDUS ont un périmètre PPRT réel (sql/179). */
+  n_avec_pprt: number;
+  /** Tolérance du rattachement site ↔ PPRT, en mètres. */
+  tolerance_rattachement_m: number;
 }
 
 function bboxValide(brut: string | undefined): number[] | null {
@@ -133,7 +137,15 @@ export async function GET(request: NextRequest) {
   const collection = rpcJson<Collection>(data);
   if (!collection) {
     return NextResponse.json(
-      { type: 'FeatureCollection', features: [], n_total: 0, n_rendus: 0, rayon_m: null },
+      {
+        type: 'FeatureCollection',
+        features: [],
+        n_total: 0,
+        n_rendus: 0,
+        rayon_m: null,
+        n_avec_pprt: 0,
+        tolerance_rattachement_m: 0,
+      },
     );
   }
 

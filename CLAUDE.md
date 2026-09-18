@@ -9,7 +9,57 @@
 
 **MAGELIAN** — SaaS B2B géomarketing OOH/DOOH. Planification d'affichage extérieur sur données INSEE.
 Stack : Next.js 15 App Router · TypeScript strict · Supabase Pro (PostgreSQL **17.6** + PostGIS, compute **Micro**) · MapLibre GL JS · Vercel AI SDK (Gemini 2.5 Flash / Mistral Small) · Tailwind CSS · Inngest · Zod · Vitest
-Projet Supabase : `vkkdbygwbrxyogqosten` (eu-west-3). Utiliser MCP Supabase (`execute_sql`, `apply_migration`), JAMAIS de SQL manuel.
+### ⛔ BASE : LE LOCAL D'ABORD — la prod ne se touche pas sans accord explicite
+
+**Depuis le 2026-09-17, un stack Supabase local existe** (`scripts/local/`,
+§ « Environnement de développement local » d'`ARCHITECTURE.md`) : Postgres 17.6
++ PostGIS, 94 tables, 192 RPC, la copie des données de prod.
+
+- **Tout travail de développement va en LOCAL.** Migrations, `EXPLAIN ANALYZE`,
+  mesures, essais : `docker exec supabase_db_genesis_app psql -U postgres`.
+  Le stack se remonte avec `scripts/local/00-docker-up.sh` puis `01-supabase-up.sh`.
+- **La prod (`vkkdbygwbrxyogqosten`, eu-west-3) ne reçoit une migration
+  QU'APRÈS accord explicite de Vincent, demandé pour cette migration-là.**
+  Un accord donné sur une tâche ne vaut pas pour la suivante. Le dire AVANT,
+  jamais après coup.
+- Le MCP Supabase (`execute_sql`, `apply_migration`) parle à la **PROD**, et à
+  rien d'autre. Ce n'est pas l'outil du quotidien : c'est le geste de
+  déploiement. Ne jamais l'appeler par réflexe « parce que c'est l'outil du
+  projet ».
+
+> **Cette ligne disait « Utiliser MCP Supabase, JAMAIS de SQL manuel » jusqu'au
+> 2026-09-18**, sans mentionner le local — elle avait été écrite quand la prod
+> était le SEUL environnement. Le 2026-09-18, l'agent a appliqué sql/179
+> directement en production en suivant cette règle à la lettre, alors que la
+> base locale tournait déjà et que rien ne l'exigeait. Une règle qui survit à
+> son contexte ne se contente pas d'être inutile : elle commande le mauvais geste.
+
+En local, `psql` dans le conteneur est la voie normale. « JAMAIS de SQL
+manuel » visait la prod, et ne vaut que pour elle.
+
+**Quelle commande parle à quelle base — vérifié le 2026-09-18, pas supposé :**
+
+| Commande | Fichier d'env lu | Base atteinte |
+|---|---|---|
+| `npm run dev` | `.env.development.local` | **locale** — Next le charge avant `.env.local`, en dev uniquement |
+| `npm test` | `.env.development.local` **depuis le 2026-09-18** | **locale** |
+| `npm run build` | `.env.local` | **prod** — mais AUCUNE requête n'part au build |
+
+- **`npm test` tapait en PRODUCTION jusqu'au 2026-09-18**, avec la clé
+  `service_role` qui contourne toute RLS. Un seul fichier en était la cause —
+  `tests/integration/supabase-rpc.test.ts` — qui appelait
+  `dotenv.config({ path: '.env.local' })` **en dur**. Mesuré avant correctif :
+  `injecting env (24) from .env.local`, appels de 542 ms (des allers-retours
+  réseau, pas du local). Il charge désormais `.env.development.local` en
+  priorité. `dotenv` n'écrase pas une variable déjà posée : **l'ordre de ces
+  deux lignes EST le garde-fou**, l'inverser remet les tests sur la prod.
+- **`npm run build` ne fait aucune requête Supabase** : vérifié, aucun
+  composant serveur ni page `async` n'appelle `createAdminClient` hors
+  `app/api/`, et les routes sont `force-dynamic`. En revanche il **inline les
+  identifiants de `.env.local` dans le bundle client** : un build local suivi
+  d'un `npm start` sert une application qui parle à la PROD. Pour un build de
+  vérification contre la base locale, passer `NEXT_PUBLIC_SUPABASE_URL` et
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY` explicitement.
 
 ## ⛔ RÈGLES CRITIQUES — NON NÉGOCIABLE
 

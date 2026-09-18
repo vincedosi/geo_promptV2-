@@ -45,8 +45,13 @@ export interface EtatRisqueIndustriel {
   setRayonM: (v: number) => void;
   afficherHalo: boolean;
   setAfficherHalo: (v: boolean) => void;
-  compte: { rendus: number; total: number } | null;
-  setCompte: (rendus: number, total: number) => void;
+  /**
+   * `avecPprt` compte, parmi les sites RENDUS, ceux qui ont un vrai perimetre
+   * PPRT (sql/179). Il voyage avec le compte plutot que d'etre re-derive dans
+   * la legende : deux calculs du meme chiffre finiraient par en donner deux.
+   */
+  compte: { rendus: number; total: number; avecPprt: number } | null;
+  setCompte: (rendus: number, total: number, avecPprt: number) => void;
 
   /** Couche « Périmètre PPRT » (servitudes PM3), distincte du rayon calculé. */
   pprtActif: boolean;
@@ -67,7 +72,7 @@ export function useRisqueIndustriel(): EtatRisqueIndustriel {
   const [inclureInactifs, setInclureInactifs] = useState(false);
   const [rayonM, setRayonM] = useState(0);
   const [afficherHalo, setAfficherHalo] = useState(true);
-  const [compte, setCompteBrut] = useState<{ rendus: number; total: number } | null>(null);
+  const [compte, setCompteBrut] = useState<{ rendus: number; total: number; avecPprt: number } | null>(null);
   const [pprtActif, setPprtActif] = useState(false);
   const [pprtTypes, setPprtTypes] = useState<string[]>([]);
   const [pprtEtat, setPprtEtat] = useState<EtatCouchePprt | null>(null);
@@ -85,7 +90,8 @@ export function useRisqueIndustriel(): EtatRisqueIndustriel {
     rayonM, setRayonM,
     afficherHalo, setAfficherHalo,
     compte,
-    setCompte: (rendus: number, total: number) => setCompteBrut({ rendus, total }),
+    setCompte: (rendus: number, total: number, avecPprt: number) =>
+      setCompteBrut({ rendus, total, avecPprt }),
     pprtActif, setPprtActif,
     pprtTypes, setPprtTypes,
     pprtEtat, setPprtEtat,

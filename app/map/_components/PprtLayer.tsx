@@ -11,11 +11,16 @@
  *
  * Cette couche dessine les **664 périmètres réglementaires opposables**
  * importés de la Géoplateforme (sql/177). Elle est donc dessinée autrement, à
- * dessein : trait **tireté**, aplat presque transparent, et couleur
+ * dessein : trait **plein**, aplat presque transparent, et couleur
  * **achromatique** (`lib/carte/palette-pprt.ts`). Sur cette carte la couleur
  * porte le type de risque ; une frontière juridique n'est pas un type de
  * risque, et lui donner une teinte ferait chercher « de quel risque » elle
  * parle. Le trait porte l'autorité, pas la teinte.
+ *
+ * Le trait était TIRETÉ jusqu'au 2026-09-18, et le cercle calculé plein —
+ * l'inverse de la convention cartographique, qui réserve le discontinu à
+ * l'approximatif. La règle unique vit dans `lib/carte/nature-zone.ts` :
+ * **plein = réglementaire, tireté = calculé**.
  *
  * ── LE PLANCHER DE ZOOM N'EST PAS UNE OPTIMISATION ────────────────────────
  *
@@ -32,7 +37,7 @@ import maplibregl from 'maplibre-gl';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useTheme } from '@/lib/theme/ThemeProvider';
 import { PPRT_ZOOM_PLANCHER } from '@/lib/version';
-import { couleursPprt, TIRETE_PPRT, LIBELLE_TYPE_ZONE_PPRT } from '@/lib/carte/palette-pprt';
+import { couleursPprt, LARGEUR_TRAIT_PPRT, LIBELLE_TYPE_ZONE_PPRT } from '@/lib/carte/palette-pprt';
 import { formaterNombre } from '@/lib/format/nombre';
 import { lignePopup as ligne, titrePopup, cadrePopup } from '@/lib/map/popup';
 
@@ -178,11 +183,21 @@ export function PprtLayer({ mapRef, actif, typesZone, onEtat }: Props) {
           source: SOURCE,
           paint: {
             'line-color': couleurs.contour,
-            'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1, 12, 1.5, 16, 2] as never,
-            // Le tireté distingue le périmètre officiel du cercle de danger
-            // calculé, qui est un aplat plein. Deux objets de nature
-            // différente ne doivent pas se dessiner pareil.
-            'line-dasharray': [...TIRETE_PPRT] as never,
+            // Trait PLEIN, et volontairement le plus épais des deux : c'est
+            // lui qui affirme une limite opposable. Le cercle calculé de
+            // `RisqueIndustrielLayer` est tireté et plus fin
+            // (`lib/carte/nature-zone.ts`).
+            'line-width': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              8,
+              LARGEUR_TRAIT_PPRT * 0.8,
+              12,
+              LARGEUR_TRAIT_PPRT,
+              16,
+              LARGEUR_TRAIT_PPRT * 1.4,
+            ] as never,
           },
         });
       }

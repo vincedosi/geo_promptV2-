@@ -12,10 +12,24 @@
  *
  * Le design system tranche la question à notre place : « monochrome par
  * défaut, la couleur n'apparaît que pour le statut ou l'interaction ». C'est
- * donc le TRAIT qui porte l'autorité — net, tireté, appuyé — et pas la teinte.
- * Le tireté distingue en plus le périmètre officiel du cercle de danger
- * calculé (sql/175), qui est un aplat plein : deux objets de nature
- * différente ne doivent pas se dessiner pareil.
+ * donc le TRAIT qui porte l'autorité — net, continu, appuyé — et pas la
+ * teinte.
+ *
+ * ── LE TRAIT ÉTAIT TIRETÉ JUSQU'AU 2026-09-18, ET C'ÉTAIT À L'ENVERS ──────
+ *
+ * Ce fichier a dessiné le périmètre PPRT en TIRETÉ pendant un mois, en
+ * justifiant ici même que le tireté « distingue le périmètre officiel du
+ * cercle de danger calculé, qui est un aplat plein ». L'intention était juste
+ * — deux objets de nature différente ne doivent pas se dessiner pareil — mais
+ * le sens était inversé : en cartographie, un tracé continu affirme une limite
+ * qui fait foi, un tracé discontinu signale une limite approximative ou
+ * indicative. Un utilisateur voyait donc notre cercle de 500 m en trait plein
+ * et prenait la servitude opposable, en pointillés, pour l'approximation.
+ *
+ * La convention vit désormais dans `lib/carte/nature-zone.ts`, seule et
+ * écrite une fois : **trait plein = réglementaire, trait tireté = calculé**.
+ * Le tireté a suivi le cercle calculé (`TIRETE_ZONE_CALCULEE`) ; il n'y a plus
+ * de `TIRETE_PPRT`, et c'est voulu — le périmètre PPRT n'en a plus.
  *
  * ── LES VALEURS SONT ÉCRITES DEUX FOIS, ET C'EST INÉVITABLE ───────────────
  *
@@ -54,13 +68,14 @@ export const COULEURS_PPRT_CSS: CouleursPprt = {
 };
 
 /**
- * Tireté du contour, en multiples de la largeur du trait.
+ * Largeur du trait du périmètre, en pixels, par palier de zoom.
  *
- * Exporté plutôt qu'écrit dans le composant : c'est ce motif qui distingue le
- * périmètre réglementaire du cercle de danger calculé, et la légende doit
- * pouvoir le reproduire sans le retyper.
+ * Exportée plutôt qu'écrite dans le composant : la légende doit reproduire le
+ * trait à l'identique, et le périmètre PPRT n'a plus que sa CONTINUITÉ et son
+ * épaisseur pour se distinguer de la zone calculée (voir `nature-zone.ts`).
+ * Le lui faire deviner rendrait la légende fausse au premier ajustement.
  */
-export const TIRETE_PPRT = [3, 2] as const;
+export const LARGEUR_TRAIT_PPRT = 1.5;
 
 /**
  * Libellés des deux familles de `type_zone`, plus l'aveu d'ignorance.

@@ -17,9 +17,14 @@
  *
  * ── Trois couches MapLibre, dans cet ordre ────────────────────────────────
  *
- *  1. `risques-zone`   — la ZONE DE DANGER, un vrai polygone métrique calculé
+ *  1. `risques-zone`   — la ZONE CALCULÉE, un vrai polygone métrique produit
  *                        par PostGIS (`ST_Buffer` sur `geography`). Affichée
- *                        seulement si l'utilisateur a demandé un rayon.
+ *                        seulement si l'utilisateur a demandé un rayon. Son
+ *                        contour est TIRETÉ : elle n'a aucune valeur
+ *                        réglementaire, contrairement au périmètre PPRT de
+ *                        `PprtLayer`, dessiné en trait plein. La convention
+ *                        est écrite une seule fois, dans
+ *                        `lib/carte/nature-zone.ts`.
  *  2. `risques-halo`   — le halo autour du point : un cercle flou en pixels,
  *                        qui donne la lisibilité à faible zoom là où la zone
  *                        métrique devient invisible.
@@ -46,6 +51,8 @@ import { useTheme } from '@/lib/theme/ThemeProvider';
 import { adminFetch } from '@/lib/admin-fetch';
 import { expressionCouleurRisque, couleurDuType, librellesDuType, LIBELLE_TYPE } from '@/lib/carte/palette-risques';
 import { FAMILLES_ICPE_SEED, NATURE_NON_PRECISEE } from '@/lib/import/georisques/familles';
+import { descriptionStatut, TIRETE_ZONE_CALCULEE } from '@/lib/carte/nature-zone';
+import { formaterNombre } from '@/lib/format/nombre';
 import type { TypeRisque } from '@/lib/carte/palette-risques';
 
 const SOURCE_POINTS = 'risques-industriels-src';
@@ -77,7 +84,7 @@ interface Props {
   actif: boolean;
   filtres: FiltresRisque;
   /** Remonte le compte au panneau : « 1 259 sites affichés sur 1 327 ». */
-  onCompte?: (rendus: number, total: number) => void;
+  onCompte?: (rendus: number, total: number, avecPprt: number) => void;
 }
 
 const LIBELLE_GRAVITE: Record<string, string> = {
@@ -155,6 +162,7 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
         }>;
         n_total?: number;
         n_rendus?: number;
+        n_avec_pprt?: number;
       };
       try {
         // `adminFetch` et non `fetch` : la route est protegee par
@@ -227,7 +235,16 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
           id: ID_ZONE_CONTOUR,
           type: 'line',
           source: SOURCE_ZONES,
-          paint: { 'line-color': couleur as never, 'line-width': 1, 'line-opacity': 0.5 },
+          paint: {
+            'line-color': couleur as never,
+            // Trait TIRETÉ et fin : cette zone est CALCULÉE par nous, elle
+            // n'a aucune valeur réglementaire. Le périmètre PPRT de
+            // `PprtLayer` est plein et plus épais. Convention unique :
+            // `lib/carte/nature-zone.ts`.
+            'line-width': 1,
+            'line-opacity': 0.7,
+            'line-dasharray': [...TIRETE_ZONE_CALCULEE] as never,
+          },
         });
       }
 
@@ -275,6 +292,9 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
           } catch { /* charge utile inattendue : on affiche le reste */ }
 
           const coordonnees = `${Number(p.lat).toFixed(5)}, ${Number(p.lng).toFixed(5)}`;
+          // Calculé en base (sql/179) et seulement mis en mots ici : la
+          // couche, la popup et la légende doivent lire la même règle.
+          const statut = descriptionStatut(p.statut_zone as string | null | undefined);
           const rub = rubriques
             .slice(0, 6)
             .map((r) => {
@@ -307,7 +327,28 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
             ligne('Code AIOT', p.code_aiot) +
             ligne('Dernière inspection', p.derniere_inspection) +
             ligne('Inspections', p.nb_inspections ? `${p.nb_inspections} au total` : '') +
-            ligne('Zone affichée', p.rayon_m ? `rayon ${p.rayon_m} m (indicatif)` : '') +
+            // ── La réponse à « calculée ou réelle ? », en tête de bloc ─────
+            // Toujours affichée, jamais conditionnelle : un site sans
+            // périmètre doit le DIRE, sinon son absence se lit comme un oubli
+            // de notre import. `statut` vient de la base (sql/179), il n'est
+            // pas redéduit ici.
+            `<div style="margin-top:8px;padding-top:6px;border-top:0.5px solid var(--border-subtle)">` +
+            `<div style="display:flex;align-items:center;gap:6px">` +
+            `<span style="width:14px;height:0;flex:0 0 auto;border-top:1.5px ${statut.reglementaire ? 'solid' : 'dashed'} var(--text-secondary)"></span>` +
+            `<span style="color:var(--text-primary);font-weight:500">${esc(statut.libelle)}</span>` +
+            (p.pprt_km2 ? `<span style="color:var(--text-secondary)">— ${esc(formaterNombre(Number(p.pprt_km2)))} km²</span>` : '') +
+            `</div>` +
+            (p.pprt_nom ? ligne('Plan', p.pprt_nom) : '') +
+            // La distance n'est pas décorative : le rattachement tolère 500 m
+            // pour rattraper le géocodage AIOT, donc « dans le périmètre » et
+            // « à 300 m du périmètre » ne sont pas la même chose et l'écran
+            // ne doit pas les confondre.
+            (Number(p.pprt_distance_m) > 0
+              ? ligne('Distance au périmètre', `${formaterNombre(Number(p.pprt_distance_m))} m`)
+              : '') +
+            `<div style="color:var(--text-tertiary);margin-top:4px;line-height:1.4">${esc(statut.explication)}</div>` +
+            `</div>` +
+            ligne('Zone affichée', p.rayon_m ? `rayon ${p.rayon_m} m — calculé, indicatif` : '') +
             ligne('Donnée du', p.date_maj_source) +
             (rub
               ? `<div style="margin-top:6px;color:var(--text-tertiary)">Rubriques ICPE</div>` +
@@ -342,7 +383,11 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
         if (m2.getLayer(id)) m2.setPaintProperty(id, prop, couleur as never);
       }
 
-      onCompte?.(charge.n_rendus ?? points.features.length, charge.n_total ?? 0);
+      onCompte?.(
+        charge.n_rendus ?? points.features.length,
+        charge.n_total ?? 0,
+        charge.n_avec_pprt ?? 0,
+      );
     };
 
     void charger();
