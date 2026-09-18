@@ -203,6 +203,30 @@ export async function GET(request: NextRequest) {
         { status: 400 },
       );
     }
+    /*
+     * `zone_trop_vaste` : meme famille que `trop_de_sites` — un refus que
+     * l'utilisateur peut lever — mais il a DEUX leviers au lieu d'un, et le
+     * message doit les donner tous les deux avec un chiffre. Le rayon
+     * maximal est calcule par la base sur le nombre de sites reellement
+     * retenu : sans lui, on tatonne entre deux refus.
+     */
+    if (resultat.error === 'zone_trop_vaste') {
+      const r = resultat as unknown as {
+        n_sites?: number; km2?: number; max_km2?: number; rayon_max_m?: number;
+      };
+      const km = ((r.rayon_max_m ?? 0) / 1000).toFixed(1).replace('.', ',');
+      return NextResponse.json(
+        {
+          error:
+            `Un cercle de cette taille autour de ${formaterNombre(r.n_sites ?? 0)} sites couvrirait ` +
+            `${formaterNombre(r.km2 ?? 0)} km², au-dela des ${formaterNombre(r.max_km2 ?? 0)} km² que le calcul ` +
+            `traite dans un temps d'ecran. Deux sorties : descendre a ${km} km, ou choisir un territoire ` +
+            `plus petit dans « Territoire etudie » — moins de sites, donc un rayon plus large permis.`,
+          n_sites: r.n_sites, km2: r.km2, max_km2: r.max_km2, rayon_max_m: r.rayon_max_m,
+        },
+        { status: 400 },
+      );
+    }
     return NextResponse.json(
       { error: MESSAGES[resultat.error ?? ''] ?? 'Calcul impossible.' },
       { status: 400 },
