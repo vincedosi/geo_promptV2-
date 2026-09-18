@@ -36,8 +36,6 @@
  * doivent pas se ressembler.
  */
 import React, { useMemo, useState } from 'react';
-import { useTheme } from '@/lib/theme/ThemeProvider';
-import { RAMPE_SEQUENTIELLE } from '@/lib/campagne/palette-sequentielle';
 import { formaterNombre } from '@/lib/format/nombre';
 
 /** Une entité administrative telle que `/api/meteo-geo/zones` la rend. */
@@ -55,6 +53,17 @@ interface Props {
   libelleValeur: string;
   /** Formatage de la valeur dans l'infobulle. */
   formater?: (v: number) => string;
+  /**
+   * Les couleurs, du plus faible au plus fort. Fournies par l'appelant plutôt
+   * que figées ici : c'est le catalogue déjà utilisé par les carreaux et les
+   * IRIS (`lib/carreaux/catalogue.ts`), et l'utilisateur choisit.
+   *
+   * La rampe séquentielle teal du Suivi V2 servait avant ce changement. Elle
+   * est dérivée de l'accent de marque, donc très claire à son extrémité basse :
+   * sur fond clair, les départements peu exposés — la majorité — devenaient
+   * indiscernables du fond. C'est le « on voit des zones blanches » signalé.
+   */
+  stops: string[];
   /** Unité survolée ou sélectionnée dans le tableau, mise en évidence ici. */
   codeActif?: string | null;
   onSurvol?: (code: string | null) => void;
@@ -63,6 +72,7 @@ interface Props {
 
 /** Mercator sphérique, borné à la métropole. Les DROM ne sont pas dessinés. */
 const BORNES = { ouest: -5.3, est: 9.8, sud: 41.2, nord: 51.2 };
+const fInterCarte = 'Inter, system-ui, sans-serif';
 const LARGEUR = 300;
 const HAUTEUR = 300;
 
@@ -114,12 +124,12 @@ export function CarteMiniFrance({
   valeurs,
   libelleValeur,
   formater = formaterNombre,
+  stops,
   codeActif,
   onSurvol,
   onClic,
 }: Props) {
-  const { theme } = useTheme();
-  const rampe = RAMPE_SEQUENTIELLE[theme] ?? RAMPE_SEQUENTIELLE.dark;
+  const rampe = stops;
   const [survole, setSurvole] = useState<string | null>(null);
 
   // Seuils de quantiles, recalculés quand les valeurs changent. Seules les
@@ -165,8 +175,11 @@ export function CarteMiniFrance({
               key={c.code}
               d={c.d}
               fill={couleur(c.code)}
-              stroke={actif ? 'var(--brand-teal)' : 'var(--contour-carte)'}
-              strokeWidth={actif ? 1.4 : 0.4}
+              /* Le contour porte la lecture quand le remplissage est pâle ou
+                 absent : a 0,4 px il disparaissait, et une unite sans donnee
+                 se confondait avec le fond de la page. */
+              stroke={actif ? 'var(--brand-teal)' : 'var(--text-tertiary)'}
+              strokeWidth={actif ? 1.6 : 0.7}
               style={{ cursor: onClic ? 'pointer' : 'default', transition: 'fill 200ms var(--ease-out)' }}
               onMouseEnter={() => { setSurvole(c.code); onSurvol?.(c.code); }}
               onClick={() => onClic?.(c.code)}
@@ -220,6 +233,23 @@ export function CarteMiniFrance({
           <span>faible</span>
           <span>{libelleValeur} · quantiles</span>
           <span>fort</span>
+        </div>
+
+        {/* « Aucune exposition » n'est PAS la valeur la plus faible de la
+            rampe, et la legende doit le montrer : sans cette ligne, un
+            departement gris se lit « peu expose » alors qu'il n'a aucun site.
+            C'est la meme regle que `--donnee-absente` ailleurs dans le produit. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 1 }}>
+          <span
+            style={{
+              width: 12, height: 6, borderRadius: 2,
+              background: 'var(--donnee-absente)',
+              border: '0.5px solid var(--text-tertiary)',
+            }}
+          />
+          <span style={{ fontFamily: fInterCarte, fontSize: 9, color: 'var(--text-tertiary)' }}>
+            aucune exposition
+          </span>
         </div>
       </div>
     </div>

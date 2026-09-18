@@ -68,6 +68,14 @@ const ParamsSchema = z.object({
   rayon_m: z.coerce.number().int().min(50).max(20000).optional(),
   limite: z.coerce.number().int().min(1).max(7000).optional(),
   /** Périmètre d'étude : 'region' | 'departement'. Absent = France entière. */
+  /*
+   * Impose le cercle a TOUS les sites, y compris ceux couverts par un PPRT.
+   * Sans lui, `rayon_m` ne touchait que les sites sans servitude : demander
+   * « 5 km autour de chaque site » etait impossible. `p_modes=['buffer']` ne
+   * repond pas a la meme question — il EXCLUT les sites qui ont un plan, donc
+   * rend un total plus PETIT au lieu d'un total recalcule.
+   */
+  forcer_rayon: z.enum(['0', '1']).optional(),
   perim_niveau: z.enum(['region', 'departement']).optional(),
   /** Codes du périmètre, séparés par des virgules. */
   perim_codes: z.string().max(600).optional(),
@@ -156,6 +164,7 @@ export async function GET(request: NextRequest) {
     // installations d'un territoire, pas un découpage de la population.
     p_perim_niveau: nullableArg(p.perim_codes ? (p.perim_niveau ?? 'departement') : null),
     p_perim_codes: nullableArg(liste(p.perim_codes)),
+    p_forcer_rayon: p.forcer_rayon === '1',
   });
 
   if (error) {

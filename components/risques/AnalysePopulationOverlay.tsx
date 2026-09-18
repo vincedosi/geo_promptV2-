@@ -37,6 +37,7 @@ import { librellesDuType } from '@/lib/carte/palette-risques';
 import type { TypeRisque } from '@/lib/carte/palette-risques';
 import { FAMILLES_ICPE_SEED, NATURE_NON_PRECISEE } from '@/lib/import/georisques/familles';
 import { CarteMiniFrance, type ZoneGeo } from './CarteMiniFrance';
+import { CARREAUX_PALETTES } from '@/lib/carreaux/catalogue';
 
 type Dimension = 'region' | 'departement' | 'code_postal';
 type Encodage = 'part' | 'densite' | 'exposee';
@@ -179,6 +180,27 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
    * vocabulaire, sens differents : c'est la confusion qui a ete signalee.
    */
   const [perim, setPerim] = useState<{ niveau: 'region' | 'departement'; code: string } | null>(null);
+
+  /**
+   * Cercle IMPOSE a tous les sites.
+   *
+   * `rayon` seul ne touchait que les sites SANS perimetre PPRT : demander
+   * « 5 km autour de chaque site » etait impossible, un site couvert par une
+   * servitude gardant toujours la geometrie de l'Etat. Les deux questions sont
+   * legitimes et differentes :
+   *   - decoche : la zone officielle quand elle existe, le cercle sinon ;
+   *   - cochee  : le meme cercle partout, et AUCUN chiffre ne vient alors
+   *               d'une zone publiee — l'ecran doit le dire.
+   */
+  const [forcerRayon, setForcerRayon] = useState(false);
+
+  /**
+   * Palette de la mini-carte, prise dans le catalogue DEJA utilise par les
+   * carreaux et les IRIS (`lib/carreaux/catalogue.ts`) plutot que redefinie
+   * ici : c'est la meme question posee au meme utilisateur, et deux catalogues
+   * auraient diverge.
+   */
+  const [palette, setPalette] = useState<string>('turbo');
   const [refGeo, setRefGeo] = useState<{ regions: UniteRef[]; departements: UniteRef[] }>({ regions: [], departements: [] });
 
   // Cache des géométries par dimension : elles ne changent jamais, et les
@@ -292,6 +314,7 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
         p.set('perim_codes', perim.code);
       }
       if (rayon !== null) p.set('rayon_m', String(rayon));
+      if (forcerRayon) p.set('forcer_rayon', '1');
       if (dimension === 'code_postal') p.set('limite', '500');
       const r = await adminFetch(`/api/risques/exposition/agregats?${p}`);
       const j = await r.json();
@@ -303,7 +326,7 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
     } finally {
       setChargement(false);
     }
-  }, [dimension, cible, niveaux, natures, modes, perim, rayon, tropLarge]);
+  }, [dimension, cible, niveaux, natures, modes, perim, rayon, forcerRayon, tropLarge]);
 
   useEffect(() => {
     void calculer();
@@ -445,26 +468,62 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
           </div>
         </Champ>
 
-        <Champ label="Rayon des sites sans PPRT">
+        {/* Le rayon se saisit en KILOMETRES : c'est l'unite dans laquelle un
+            media planner raisonne (« 2 km autour de l'usine »), et 532 m
+            s'ecrit 0,5 km sans rien perdre. La base, elle, continue de
+            travailler en metres — la conversion vit ici et nulle part ailleurs. */}
+        <Champ label="Cercle autour de chaque site">
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <input
               type="number"
-              min={50}
-              max={20000}
-              step={50}
-              value={rayon ?? agregat?.rayon_m ?? 532}
-              onChange={(e) => setRayon(Number(e.target.value) || null)}
-              style={{ ...styleSelect, width: 92, fontFamily: fMono }}
+              min={0.1}
+              max={20}
+              step={0.1}
+              value={((rayon ?? agregat?.rayon_m ?? 532) / 1000).toFixed(1)}
+              onChange={(e) => {
+                const km = Number(e.target.value);
+                setRayon(Number.isFinite(km) && km > 0 ? Math.round(km * 1000) : null);
+              }}
+              style={{ ...styleSelect, width: 76, fontFamily: fMono }}
             />
-            <span style={{ fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)' }}>m</span>
-            {agregat?.rayon_deduit && (
+            <span style={{ fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)' }}>km</span>
+
+            <label
+              title="Applique le cercle à TOUS les sites, y compris ceux couverts par un périmètre PPRT publié."
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+                fontFamily: fInter, fontSize: 11,
+                color: forcerRayon ? 'var(--brand-teal)' : 'var(--text-secondary)',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={forcerRayon}
+                onChange={(e) => setForcerRayon(e.target.checked)}
+                style={{ accentColor: 'var(--brand-teal)', cursor: 'pointer' }}
+              />
+              imposer à tous les sites
+            </label>
+
+            {/* Deux mentions EXCLUSIVES, jamais les deux : la seconde annule la
+                premiere. Le rayon deduit ne veut plus rien dire des qu'on
+                impose une valeur choisie. */}
+            {forcerRayon ? (
+              <span
+                title="Aucun chiffre ne vient alors d'une zone publiée par l'État : tout est calculé sur ce cercle."
+                style={{ fontFamily: fInter, fontSize: 10, color: 'var(--warning)' }}
+              >
+                périmètres PPRT ignorés — tout est indicatif
+              </span>
+            ) : agregat?.rayon_deduit ? (
               <span
                 title="Moyenne des rayons équivalents des 664 périmètres PPRT publiés"
                 style={{ fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)' }}
               >
                 déduit des périmètres réels
               </span>
-            )}
+            ) : null}
+
             {rayon !== null && (
               <button type="button" onClick={() => setRayon(null)} style={styleLien}>
                 rétablir
@@ -701,14 +760,47 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
           </div>
 
           {zones.length > 0 ? (
+            /* Fragment : la carte ET son sélecteur de palette sont deux enfants
+               de la même branche de ternaire. */
+            <>
             <CarteMiniFrance
               zones={zones}
               valeurs={valeursCarte}
               libelleValeur={encCourant.label}
               formater={formaterValeur}
+              stops={(CARREAUX_PALETTES.find((p) => p.id === palette) ?? CARREAUX_PALETTES[0]).stops}
               codeActif={actif}
               onSurvol={setActif}
             />
+
+            {/* Selecteur de palette, repris TEL QUEL du panneau Carreaux
+                (`CarreauxSection.tsx`) : memes pastilles, meme catalogue, meme
+                geste. Une seconde facon de choisir une palette dans le meme
+                produit aurait ete un dialecte de plus a apprendre. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <span style={{ fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)' }}>
+                Palette
+              </span>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                {CARREAUX_PALETTES.map((pal) => (
+                  <button
+                    key={pal.id}
+                    type="button"
+                    onClick={() => setPalette(pal.id)}
+                    title={pal.label}
+                    aria-pressed={palette === pal.id}
+                    style={{
+                      border: `1.5px solid ${palette === pal.id ? 'var(--text-primary)' : 'transparent'}`,
+                      borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none',
+                      display: 'flex', overflow: 'hidden', width: 28, height: 12,
+                    }}
+                  >
+                    {pal.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            </>
           ) : (
             <p style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)' }}>
               Chargement des contours…
