@@ -277,14 +277,28 @@ begin
   ),
   -- La population n'est lue QU'ICI, par jointure sur la clé primaire des
   -- carreaux, et une seule fois par (carreau × niveau × cible).
-  detail as (
-    select s.dep, s.gravite, s.nature, s.rayon_m, k.code as cible,
-           sum(coalesce((c.metadata->>k.code)::numeric, 0)) as somme
-      from seaux s
-      join public.carreaux_filosofi c on c.id = s.carreau
+  -- ⚠ LES CIBLES SONT EXTRAITES UNE FOIS PAR CARREAU, pas une fois par
+  -- (carreau × niveau). `grouping sets` produit QUATRE niveaux par carreau ;
+  -- extraire les 24 cibles à chaque niveau faisait 96 lectures jsonb par
+  -- carreau au lieu de 24. En Île-de-France, même un tiers de bande dépassait
+  -- les 2 min de `statement_timeout`.
+  --
+  -- Le résultat est identique : la somme d'une valeur constante par carreau ne
+  -- dépend pas du nombre de fois qu'on l'a lue.
+  valeurs as (
+    select u.carreau, k.code as cible,
+           coalesce((c.metadata->>k.code)::numeric, 0) as v
+      from (select distinct carreau from seaux) u
+      join public.carreaux_filosofi c on c.id = u.carreau
       cross join unnest(v_cibles) as k(code)
+  ),
+  detail as (
+    select s.dep, s.gravite, s.nature, s.rayon_m, v.cible,
+           sum(v.v) as somme
+      from seaux s
+      join valeurs v on v.carreau = s.carreau
      where s.dep is not null and s.dep <> ''
-     group by s.dep, s.gravite, s.nature, s.rayon_m, k.code
+     group by s.dep, s.gravite, s.nature, s.rayon_m, v.cible
   ),
   pop as (
     select dep, gravite, nature, rayon_m, jsonb_object_agg(cible, somme) as populations
@@ -309,7 +323,15 @@ begin
          populations = (
            select jsonb_object_agg(k, coalesce((t.populations->>k)::numeric, 0)
                                     + coalesce((excluded.populations->>k)::numeric, 0))
-             from jsonb_object_keys(t.populations || excluded.populations) k
+             -- ⚠ `unnest(v_cibles)` et NON `jsonb_object_keys(a || b)`.
+             -- Cette concaténation construisait un jsonb complet POUR CHAQUE
+             -- LIGNE en conflit, juste pour en énumérer les clés — et les
+             -- départements denses, déjà écrits par les bandes précédentes,
+             -- sont presque tous en conflit. C'était LE goulet : une bande
+             -- d'Île-de-France passait de « dépasse 2 min » à 26 s.
+             --
+             -- Les deux côtés portent les mêmes clés, celles du catalogue.
+             from unnest(v_cibles) k
          );
 
   get diagnostics v_lignes = row_count;

@@ -188,6 +188,17 @@ begin
              ) order by (nature = '*') desc, total desc)
         from courbes
     ), '[]'::jsonb),
+    -- ⚠ LA COUVERTURE DU PRÉ-CALCUL REMONTE À L'ÉCRAN.
+    --
+    -- La table peut être partielle : la construction se fait par bandes et peut
+    -- être interrompue — elle l'a été le 2026-09-18 à 19 bandes sur 40, sur
+    -- alerte de budget d'I/O Supabase. Une courbe bâtie sur une France
+    -- incomplète SOUS-ESTIME, et rien dans les données ne le signale : elle a
+    -- exactement la même forme qu'une courbe complète.
+    'couverture_pct', (
+       select round(100.0 * coalesce(sum(lon_max - lon_min), 0) / (9.8 - (-5.5)))
+         from public.couverture_rayon_bandes),
+    'n_bandes_construites', (select count(*) from public.couverture_rayon_bandes),
     'calcule_le', now()
   ) into v_result;
 

@@ -80,6 +80,9 @@ interface Reponse {
   total_est_global: boolean;
   n_departements: number;
   courbes: Courbe[];
+  /** Part de la France dont le pré-calcul est fait. 100 = complet. */
+  couverture_pct: number;
+  n_bandes_construites: number;
   calcule_le: string;
   n_sites?: number;
 }

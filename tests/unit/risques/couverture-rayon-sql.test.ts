@@ -50,11 +50,38 @@ describe('construction de la couverture par rayon', () => {
 
   it('ne met JAMAIS le jsonb des carreaux dans une clé de groupement', () => {
     // C'est LE défaut de performance : 54,5 s -> 7,4 s en le sortant.
-    expect(s).not.toMatch(/group by grouping sets[\s\S]{0,400}\bmeta\b/);
-    expect(s).not.toMatch(/group by [^\n]*\bmeta\b/);
-    // Et la population est lue par jointure sur la clé primaire, au dernier
-    // moment.
-    expect(s).toMatch(/join public\.carreaux_filosofi c on c\.id = s\.carreau/);
+    //
+    // On vérifie les CLÉS de groupement elles-mêmes, pas la présence du mot :
+    // `c.metadata` apparaît légitimement dans la CTE `valeurs`, qui extrait les
+    // cibles UNE fois par carreau — c'est justement le second correctif.
+    const tuples = [...s.matchAll(/\(carreau[^)]*\)/g)].map((m) => m[0]);
+    expect(tuples.length, 'les tuples de grouping sets doivent exister').toBeGreaterThan(0);
+    for (const t of tuples) {
+      expect(t, `clé de groupement contenant un jsonb : ${t}`).not.toMatch(/meta/);
+    }
+  });
+
+  it('extrait les cibles UNE fois par carreau, pas une fois par niveau', () => {
+    // `grouping sets` produit quatre niveaux par carreau : extraire les 24
+    // cibles à chaque niveau faisait 96 lectures jsonb par carreau au lieu de
+    // 24, et une bande d'Île-de-France dépassait alors les 2 min de
+    // `statement_timeout`.
+    expect(s).toMatch(/select distinct carreau from seaux/);
+    expect(s).toMatch(/join public\.carreaux_filosofi c on c\.id = u\.carreau/);
+  });
+
+  it('fusionne les populations sans concaténer deux jsonb par ligne', () => {
+    // `jsonb_object_keys(a || b)` construisait un jsonb complet POUR CHAQUE
+    // ligne en conflit, juste pour en énumérer les clés — et les départements
+    // denses, déjà écrits par les bandes précédentes, sont presque tous en
+    // conflit. C'était LE goulet : une bande d'Île-de-France passait de
+    // « dépasse 2 min » à 26 s.
+    // On interdit l'USAGE (`from jsonb_object_keys(...)`), pas la mention :
+    // le commentaire de la migration cite la forme abandonnée pour expliquer
+    // pourquoi. Troisième fois aujourd'hui qu'un verrou trop large se
+    // déclenche sur le texte qui explique le correctif.
+    expect(s).not.toMatch(/from jsonb_object_keys\(/);
+    expect(s).toMatch(/from unnest\(v_cibles\) k/);
   });
 
   it('filtre les SITES par la bande, pas seulement les carreaux', () => {

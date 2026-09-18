@@ -65,6 +65,9 @@ interface Reponse {
   total_est_global: boolean;
   n_departements: number;
   n_sites: number;
+  /** Part de la France dont le pré-calcul est fait. 100 = complet. */
+  couverture_pct: number;
+  n_bandes_construites: number;
   courbes: Courbe[];
   calcule_le: string;
 }
@@ -142,6 +145,15 @@ export function OngletRayonInfluence({
       for (const pt of c.points) {
         const ligne = parRayon.get(pt.r) ?? { r: pt.r };
         ligne[c.cle] = pt.p;
+        // L'INCRÉMENT de la courbe totale, transporté à part.
+        //
+        // Il était perdu dans le pivot — la ligne ne gardait que le cumul `p`
+        // — et le KPI « au palier suivant » affichait donc 0 en permanence,
+        // sans que rien ne le signale. Vu à l'écran, pas en relisant le code.
+        //
+        // C'est celui de la courbe TOTALE : « combien d'habitants de plus si
+        // j'élargis de 100 m » n'a de sens que toutes natures confondues.
+        if (c.cle === TOUTES) ligne.increment = pt.i;
         parRayon.set(pt.r, ligne);
       }
     }
@@ -196,6 +208,26 @@ export function OngletRayonInfluence({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      {/* ⚠ LE PRÉ-CALCUL PEUT ÊTRE PARTIEL, et il faut le dire AVANT les
+          chiffres. Une courbe bâtie sur une France incomplète sous-estime
+          sans rien changer à sa forme : elle se lit exactement comme une
+          courbe juste. La construction est un traitement lourd qui peut être
+          interrompu — elle l'a été le 2026-09-18 sur alerte de budget d'I/O. */}
+      {data.couverture_pct < 99 && (
+        <p style={{
+          margin: 0, padding: '10px 20px',
+          background: 'var(--bg-level-2)',
+          borderBottom: '0.5px solid var(--warning)',
+          fontFamily: fInter, fontSize: 11, color: 'var(--warning)', lineHeight: 1.5,
+        }}>
+          <strong style={{ fontWeight: 500 }}>Pré-calcul partiel : {data.couverture_pct} % du
+          territoire</strong> ({data.n_bandes_construites} bandes construites). Les chiffres
+          ci-dessous SOUS-ESTIMENT la population couverte — ils ne portent que sur la part
+          déjà traitée. Terminer avec{' '}
+          <code style={{ fontFamily: fMono }}>node scripts/construire_couverture_rayon.mjs</code>.
+        </p>
+      )}
+
       {/* ── KPI ──────────────────────────────────────────────────────────── */}
       <div style={{
         display: 'flex', alignItems: 'flex-end', gap: 34,
@@ -219,7 +251,7 @@ export function OngletRayonInfluence({
         />
         {auRayon && (
           <Kpi
-            valeur={formaterNombre(auRayon.i ?? 0)}
+            valeur={formaterNombre(auRayon.increment ?? 0)}
             libelle="au palier suivant"
             note="habitants gagnés par 100 m de plus"
           />
