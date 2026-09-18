@@ -38,6 +38,7 @@ import type { TypeRisque } from '@/lib/carte/palette-risques';
 import { FAMILLES_ICPE_SEED, NATURE_NON_PRECISEE } from '@/lib/import/georisques/familles';
 import { CarteMiniFrance, type ZoneGeo } from './CarteMiniFrance';
 import { CARREAUX_PALETTES } from '@/lib/carreaux/catalogue';
+import { OngletRayonInfluence } from './OngletRayonInfluence';
 
 type Dimension = 'region' | 'departement' | 'code_postal' | 'commune';
 
@@ -209,8 +210,21 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
    * Ici on garde le chemin ENTIER, ce qui supprime le problème.
    */
   const [chemin, setChemin] = useState<Segment[]>([]);
-  /** À l'étage département, on liste les communes ou les codes postaux. */
-  const [feuille, setFeuille] = useState<'commune' | 'code_postal'>('commune');
+  /**
+   * La maille CHOISIE, qui prime sur celle déduite du fil d'Ariane.
+   *
+   * ⚠ Le fil seul était une RÉGRESSION, et une grave : il rendait le
+   * classement national des communes — « les 100 plus grandes communes
+   * exposées » — inatteignable, puisqu'il fallait d'abord descendre dans un
+   * département. Une navigation ne doit pas retirer une réponse que l'écran
+   * savait déjà donner.
+   *
+   * Les deux sont complémentaires et répondent à deux questions différentes :
+   * le fil dit OÙ l'on est, la maille dit CE QU'ON LISTE. `null` = la maille
+   * naturelle du niveau courant, c'est-à-dire le comportement d'un drill-down
+   * ordinaire.
+   */
+  const [mailleChoisie, setMailleChoisie] = useState<Dimension | null>(null);
   const [cible, setCible] = useState('ind');
   const [encodage, setEncodage] = useState<Encodage>('part');
   const [rayon, setRayon] = useState<number | null>(null);   // null = rayon déduit
@@ -282,7 +296,28 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
    * Une échelle d'intensité doit s'ordonner toute seule.
    */
   const [palette, setPalette] = useState<string>('rouge');
-  const [refGeo, setRefGeo] = useState<{ regions: UniteRef[]; departements: UniteRef[] }>({ regions: [], departements: [] });
+
+  /**
+   * Les deux onglets répondent à deux questions distinctes, et partagent les
+   * mêmes filtres :
+   *   `population` — combien d'habitants dans les zones, et OÙ ;
+   *   `rayon`      — quel RAYON retenir, en lisant la courbe entière.
+   *
+   * Le second n'est pas une variante du premier : il lit une table
+   * pré-calculée (sql/198) et ne recalcule rien, là où le premier croise les
+   * carreaux à la demande.
+   */
+  const [onglet, setOnglet] = useState<'population' | 'rayon'>('population');
+  /**
+   * `deptsParRegion` n'est pas un doublon : la route rend les départements
+   * IMBRIQUÉS dans leur région, et on les aplatissait en perdant le
+   * rattachement. Sans lui, la carte ne peut pas savoir quels départements
+   * dessiner une fois descendu dans une région — elle affichait donc les 104
+   * de France, dont cinq colorés et 99 gris.
+   */
+  const [refGeo, setRefGeo] = useState<{
+    regions: UniteRef[]; departements: UniteRef[]; deptsParRegion: Record<string, string[]>;
+  }>({ regions: [], departements: [], deptsParRegion: {} });
 
   // Cache des géométries par dimension : elles ne changent jamais, et les
   // recharger à chaque bascule de dimension paierait un aller-retour pour rien.
@@ -331,7 +366,11 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
         const departements = (j.regions ?? []).flatMap((x) =>
           (x.depts ?? []).map((d) => ({ code: d.code_dept, nom: d.nom_dept })),
         );
-        setRefGeo({ regions, departements });
+        const deptsParRegion: Record<string, string[]> = {};
+        for (const x of j.regions ?? []) {
+          deptsParRegion[x.code_region] = (x.depts ?? []).map((d) => d.code_dept);
+        }
+        setRefGeo({ regions, departements, deptsParRegion });
       } catch { /* le sélecteur reste sur France entière */ }
     })();
   }, []);
@@ -341,10 +380,13 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
    * rend le code postal calculable : on ne le demande jamais nationalement,
    * seulement à l'intérieur d'un département où l'on est déjà descendu.
    */
-  const dimension: Dimension =
+  /** La maille NATURELLE du niveau courant — celle d'un drill-down ordinaire. */
+  const mailleNaturelle: Dimension =
     chemin.length === 0 ? 'region'
     : chemin.length === 1 ? 'departement'
-    : feuille;
+    : 'commune';
+
+  const dimension: Dimension = mailleChoisie ?? mailleNaturelle;
 
   /**
    * Le périmètre d'étude est le dernier segment du chemin.
@@ -384,7 +426,67 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
    */
   const maxRayonM = agregat?.rayon_max_m ?? null;
 
-  const descendable = dimension === 'region' || dimension === 'departement';
+  /**
+   * On ne descend QUE si la maille affichée est la maille naturelle du niveau.
+   * Lister les communes de France depuis la racine est légitime, mais cliquer
+   * une commune ne mène nulle part — il n'y a pas d'étage en dessous, et
+   * pousser un segment « commune » dans le fil produirait un chemin dont la
+   * suite serait vide.
+   */
+  /**
+   * Les zones que la carte doit dessiner — celles du TERRITOIRE courant, pas
+   * celles de la France entière.
+   *
+   * Une fois descendu dans une région, la carte montrait toujours les 104
+   * départements : cinq colorés, 99 gris, et un cadrage national dans lequel
+   * la région tenait dans un timbre-poste. Le cadrage se dérive du contenu
+   * (`cadreDe`), donc filtrer suffit à zoomer — aucune coordonnée à calculer.
+   *
+   * Les unités du territoire SANS exposition restent dessinées, en gris : ce
+   * sont des voisines légitimes, et les retirer laisserait des trous dans la
+   * silhouette.
+   */
+  const zonesAffichees = useMemo(() => {
+    if (chemin.length === 0) return zones;
+    const seg = chemin[chemin.length - 1];
+
+    // Le filtre ne vaut que si la maille DESSINÉE est bien celle des enfants du
+    // segment. Forcer « Région » alors qu'on est descendu dans une région
+    // demande la carte des RÉGIONS : filtrer par codes de départements n'y
+    // aurait aucun sens et viderait le tracé.
+    /**
+     * ⚠ Le territoire NE SUFFIT PAS à décider ce qu'on dessine.
+     *
+     * Le périmètre d'étude filtre les SITES, pas les carreaux : un site normand
+     * dont la zone déborde de quelques centaines de mètres apporte sa
+     * population au département voisin. Descendre dans la Normandie fait donc
+     * apparaître au tableau la Somme et la Mayenne — mesuré, 7 lignes pour 5
+     * départements normands. C'est le comportement voulu d'une étude locale :
+     * on étudie les installations d'un territoire, pas un découpage de la
+     * population.
+     *
+     * La carte doit donc dessiner l'UNION du territoire et de ce que le tableau
+     * liste. Ne montrer que le territoire laissait deux lignes sans contrepartie
+     * sur la carte ; ne montrer que le tableau laisserait des trous dans la
+     * silhouette là où un département n'a aucune exposition.
+     */
+    const codes = new Set<string>();
+    if (seg.niveau === 'region' && dimension === 'departement') {
+      for (const c of refGeo.deptsParRegion[seg.code] ?? []) codes.add(c);
+    } else if (seg.niveau === 'departement' && dimension === 'departement') {
+      codes.add(seg.code);
+    }
+    for (const l of agregat?.lignes ?? []) codes.add(l.cle);
+
+    // Tant que rien n'est résolu, mieux vaut tout montrer que rien : une carte
+    // vide se lirait comme une panne.
+    if (codes.size === 0) return zones;
+    const filtrees = zones.filter((z) => codes.has(z.properties.code));
+    return filtrees.length > 0 ? filtrees : zones;
+  }, [zones, chemin, dimension, refGeo.deptsParRegion, agregat]);
+
+  const descendable =
+    dimension === mailleNaturelle && (dimension === 'region' || dimension === 'departement');
 
   /**
    * Descendre d'un cran. `setActif(null)` n'est pas cosmetique : l'unite
@@ -396,6 +498,10 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
   const descendre = (code: string, nom: string) => {
     if (!descendable) return;
     setChemin((c) => [...c, { niveau: dimension as 'region' | 'departement', code, nom }]);
+    // On repasse en maille NATURELLE : descendre d'un cran, c'est demander le
+    // niveau d'en dessous. Garder une maille forcée ferait afficher, après un
+    // clic sur une région, la liste de ses régions — c'est-à-dire elle-même.
+    setMailleChoisie(null);
     setActif(null);
   };
 
@@ -564,6 +670,29 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
           maille={dimCourante.label}
           onRemonter={(n) => { setChemin((c) => c.slice(0, n)); setActif(null); }}
         />
+        <div style={{ display: 'flex', gap: 2, marginLeft: 4 }}>
+          {([
+            ['population', 'Population exposée'],
+            ['rayon', 'Rayon d’influence'],
+          ] as const).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setOnglet(id)}
+              aria-pressed={onglet === id}
+              style={{
+                border: 0, background: 'none', padding: '4px 10px 6px', cursor: 'pointer',
+                fontFamily: fInter, fontSize: 12,
+                fontWeight: onglet === id ? 500 : 400,
+                color: onglet === id ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                // Souligné teal : le patron d'onglets du DESIGN_SYSTEM.
+                borderBottom: `2px solid ${onglet === id ? 'var(--brand-teal)' : 'transparent'}`,
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <span style={{ fontFamily: fMono, fontSize: 11, color: 'var(--text-tertiary)' }}>
           {libelleCible}
         </span>
@@ -619,24 +748,76 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
           </select>
         </Champ>
 
-        {/* La maille se DÉDUIT du fil d'Ariane : il n'y a plus de sélecteur de
-            dimension. Seul subsiste, à l'étage département, le choix de la
-            feuille — commune ou code postal — parce que les deux répondent à
-            des questions différentes et qu'aucune ne dérive de l'autre. */}
-        {chemin.length >= 2 && (
-          <Champ label="Détail">
-            <div style={{ display: 'flex', gap: 4 }}>
-              <Pastille actif={feuille === 'commune'} onClick={() => setFeuille('commune')}
-                titre="Regroupe les arrondissements de Paris, Lyon et Marseille sous leur commune.">
-                Communes
+        {/* La maille dit CE QU'ON LISTE, le fil d'Ariane dit OÙ. Les deux
+            cohabitent : lister les communes de France entière est une question
+            légitime — c'est même la demande d'origine, « les 100 plus grandes
+            communes exposées » — et la retirer au profit du seul drill-down
+            était une régression. */}
+        {/* Ces deux contrôles ne valent que pour l'onglet Population : la
+            courbe de rayon n'a pas de maille (elle agrège tout le territoire)
+            et porte son propre curseur. Les laisser visibles ferait croire
+            qu'ils agissent sur ce qu'on regarde. */}
+        {onglet === 'population' && (
+        <Champ label="Lister par">
+          <div style={{ display: 'flex', gap: 4 }}>
+            {DIMENSIONS.map((d) => (
+              <Pastille
+                key={d.id}
+                actif={dimension === d.id}
+                onClick={() => setMailleChoisie(d.id === mailleNaturelle ? null : d.id)}
+                titre={
+                  d.id === 'commune'
+                    ? 'Regroupe les arrondissements de Paris, Lyon et Marseille sous leur commune.'
+                    : d.id === 'code_postal'
+                      ? 'Ni part ni densité à cette maille : le seul référentiel de population par code postal surcompte de 10 %.'
+                      : undefined
+                }
+              >
+                {d.label}
               </Pastille>
-              <Pastille actif={feuille === 'code_postal'} onClick={() => setFeuille('code_postal')}
-                titre="Aucune part ni densité à cette maille : le seul référentiel de population par code postal surcompte de 10 %.">
-                Codes postaux
-              </Pastille>
-            </div>
-          </Champ>
+            ))}
+          </div>
+        </Champ>
         )}
+
+        {/* Le TERRITOIRE reste visible dans les deux onglets : c'est un filtre
+            partagé, pas un réglage de la maille. Le masquer obligerait à
+            revenir sur l'autre onglet pour changer de périmètre. */}
+        {/* Raccourci de territoire. Le fil d'Ariane sert à DESCENDRE pas à pas ;
+            ce menu sert à SAUTER directement là où l'on sait déjà aller, sans
+            traverser les étages. Il écrit le même état — donc le fil se met à
+            jour tout seul, et les deux ne peuvent pas se contredire. */}
+        <Champ label="Territoire">
+          <select
+            value={chemin.length > 0 ? `${chemin[chemin.length - 1].niveau}:${chemin[chemin.length - 1].code}` : ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              setActif(null);
+              if (!v) { setChemin([]); return; }
+              const [niveau, code] = v.split(':');
+              const nom = (niveau === 'region' ? refGeo.regions : refGeo.departements)
+                .find((u) => u.code === code)?.nom ?? code;
+              setChemin([{ niveau: niveau as 'region' | 'departement', code, nom }]);
+            }}
+            style={{ ...styleSelect, minWidth: 190 }}
+          >
+            <option value="">France entière</option>
+            {refGeo.regions.length > 0 && (
+              <optgroup label="Régions">
+                {refGeo.regions.map((u) => (
+                  <option key={`r-${u.code}`} value={`region:${u.code}`}>{u.nom}</option>
+                ))}
+              </optgroup>
+            )}
+            {refGeo.departements.length > 0 && (
+              <optgroup label="Départements">
+                {refGeo.departements.map((u) => (
+                  <option key={`d-${u.code}`} value={`departement:${u.code}`}>{u.code} — {u.nom}</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </Champ>
 
         {/* ── LE RAYON ───────────────────────────────────────────────────
             Trois défauts corrigés d'un coup, tous signalés à l'usage :
@@ -649,6 +830,7 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
               coup. `rayon_max_m` vient de la base (sql/197) et borne le
               curseur : on ne peut plus glisser jusqu'à l'échec.
             - le DÉLAI. Chaque frappe relançait 4 s de calcul. */}
+        {onglet === 'population' && (
         <Champ label="Cercle autour de chaque site">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ display: 'flex', gap: 3 }}>
@@ -731,6 +913,7 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
             )}
           </div>
         </Champ>
+        )}
       </div>
 
       {/* ── Filtres ─────────────────────────────────────────────────────
@@ -798,6 +981,16 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
       </div>
 
       {/* ── Corps ───────────────────────────────────────────────────────── */}
+      {onglet === 'rayon' ? (
+        <OngletRayonInfluence
+          cible={cible}
+          libelleCible={libelleCible}
+          niveaux={niveaux}
+          natures={natures}
+          perim={perim}
+          nomPerim={chemin.length > 0 ? chemin[chemin.length - 1].nom : 'France entière'}
+        />
+      ) : (
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {/* Tableau */}
         <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px', minWidth: 0 }}>
@@ -967,7 +1160,7 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
                de la même branche de ternaire. */
             <>
             <CarteMiniFrance
-              zones={zones}
+              zones={zonesAffichees}
               valeurs={valeursCarte}
               libelleValeur={encCourant.label}
               formater={formaterValeur}
@@ -1041,11 +1234,17 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
 
           <p style={{ fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)', lineHeight: 1.5, margin: 0 }}>
             {encCourant.aide}. Le gris signale une unité <strong style={{ fontWeight: 500 }}>sans
-            aucune exposition</strong> — pas une valeur faible. Métropole uniquement : les DROM ne
-            sont pas dessinés, mais ils comptent dans le tableau et dans le total.
+            aucune exposition</strong> — pas une valeur faible.
+            {' '}
+            <strong style={{ fontWeight: 500 }}>Outre-mer : non calculable.</strong> Le carroyage
+            INSEE 200 m, sur lequel repose tout ce calcul, ne couvre pas les DROM — zéro carreau
+            mesuré en base. Les 45 sites Seveso et 32 périmètres PPRT qui y sont recensés
+            n’apparaissent donc ni sur la carte, ni dans le tableau, ni dans le total. Ce n’est pas
+            un oubli d’import : la donnée source s’arrête à la métropole.
           </p>
         </aside>
       </div>
+      )}
     </div>
   );
 }

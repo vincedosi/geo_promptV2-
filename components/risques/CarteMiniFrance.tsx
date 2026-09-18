@@ -32,10 +32,16 @@
  * rayon — suit la valeur. Part et densité, elles, sont des rapports : l'aplat
  * leur convient.
  *
- * **3. Les DROM ont leurs cartouches.** Ils comptent dans le total et dans le
- * tableau ; les laisser hors du cadre faisait dire à la carte autre chose qu'au
- * tableau. Chaque cartouche DÉRIVE son cadrage de la géométrie reçue, sans
- * aucune coordonnée écrite en dur — un redécoupage n'a donc rien à casser.
+ * **3. Les territoires lointains ont leurs cartouches.** Chaque cartouche
+ * DÉRIVE son cadrage de la géométrie reçue, sans aucune coordonnée écrite en
+ * dur — un redécoupage n'a donc rien à casser.
+ *
+ * ⚠ Aujourd'hui aucun ne s'affiche, et ce n'est pas un défaut : le carroyage
+ * INSEE 200 m ne couvre pas les DROM (zéro carreau mesuré en base le
+ * 2026-09-18), donc la population exposée n'y est pas calculable — alors même
+ * que 45 sites Seveso et 32 périmètres PPRT y sont recensés. Le mécanisme est
+ * en place pour le jour où la donnée arrivera ; l'écran, lui, DIT que ce n'est
+ * pas calculable plutôt que de laisser croire à une absence de risque.
  */
 import React, { useMemo, useState } from 'react';
 import { formaterNombre } from '@/lib/format/nombre';
@@ -98,7 +104,27 @@ const COTE_OM = 30;
 const fInter = 'Inter, system-ui, sans-serif';
 const fMono = "'JetBrains Mono', monospace";
 
-/** Mercator sphérique — même projection que la carte principale. */
+/**
+ * Mercator sphérique — même projection que la carte principale.
+ *
+ * ⚠ LES DEUX AXES DOIVENT ÊTRE DANS LA MÊME UNITÉ, et c'est le piège qui a
+ * aplati la carte.
+ *
+ * `mercatorX` renvoie des RADIANS, pas des degrés. La formule de Mercator
+ * donne `y = ln(tan(π/4 + φ/2))`, un nombre sans dimension de l'ordre de 1 —
+ * la France métropolitaine y couvre 0,245. En longitude, elle couvre 14,7
+ * DEGRÉS. Comparer les deux pour calculer une échelle commune revient à
+ * comparer des kilomètres à des pouces : l'échelle est alors imposée par la
+ * longitude, et la hauteur utile tombe à **5 pixels sur 258** — un trait
+ * horizontal, ce qui est exactement ce qui s'affichait.
+ *
+ * En radians, la France couvre 0,257 en x et 0,245 en y : le rapport vaut 1,05,
+ * et la silhouette est juste.
+ */
+function mercatorX(lon: number): number {
+  return (lon * Math.PI) / 180;
+}
+
 function mercatorY(lat: number): number {
   return Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 180 / 2));
 }
@@ -112,17 +138,20 @@ interface Cadre { ouest: number; est: number; sud: number; nord: number }
  * paraîtrait plus grande qu'elle n'est.
  */
 function projecteur(cadre: Cadre, boite: Boite) {
+  // Les DEUX axes en radians de Mercator : voir l'avertissement ci-dessus.
+  const xOuest = mercatorX(cadre.ouest);
+  const xEst = mercatorX(cadre.est);
   const ySud = mercatorY(cadre.sud);
   const yNord = mercatorY(cadre.nord);
-  const dLon = cadre.est - cadre.ouest || 1e-6;
-  const dY = yNord - ySud || 1e-6;
-  const echelle = Math.min(boite.w / dLon, boite.h / dY);
-  const largeurUtile = dLon * echelle;
+  const dX = xEst - xOuest || 1e-9;
+  const dY = yNord - ySud || 1e-9;
+  const echelle = Math.min(boite.w / dX, boite.h / dY);
+  const largeurUtile = dX * echelle;
   const hauteurUtile = dY * echelle;
   const dx = boite.x + (boite.w - largeurUtile) / 2;
   const dy = boite.y + (boite.h - hauteurUtile) / 2;
   return (lon: number, lat: number): [number, number] => [
-    dx + (lon - cadre.ouest) * echelle,
+    dx + (mercatorX(lon) - xOuest) * echelle,
     dy + hauteurUtile - (mercatorY(lat) - ySud) * echelle,
   ];
 }
@@ -179,10 +208,63 @@ function centreDe(z: ZoneGeo, proj: (lon: number, lat: number) => [number, numbe
 }
 
 /**
- * Collectivités d'outre-mer, reconnues par leur code à trois chiffres
- * commençant par 97 — la règle INSEE, pas une liste écrite à la main.
+ * Sépare la métropole des territoires lointains — par la GÉOGRAPHIE, pas par
+ * le code.
+ *
+ * ── LE DÉFAUT QUE CETTE FONCTION CORRIGE ──────────────────────────────────
+ *
+ * La première version testait `/^97\d$/`, la règle INSEE des DÉPARTEMENTS
+ * d'outre-mer. Elle marchait à la maille département — et cassait
+ * complètement la carte à la maille RÉGION, où les mêmes territoires portent
+ * les codes **01, 02, 03, 04 et 06** (Guadeloupe, Martinique, Guyane, La
+ * Réunion, Mayotte), indiscernables de codes métropolitains.
+ *
+ * Conséquence mesurée à l'écran : ces régions entraient dans le cadre
+ * principal, dont l'étendue passait de 15° de longitude à plus de 110° — de la
+ * Guyane à La Réunion. La France métropolitaine se réduisait alors à quelques
+ * pixels au centre d'un cadre vide.
+ *
+ * ── LA RÈGLE RETENUE ──────────────────────────────────────────────────────
+ *
+ * On prend la MÉDIANE des centres, puis on écarte ce qui s'en éloigne de plus
+ * de `ECART_LOINTAIN` degrés. La médiane est insensible aux valeurs extrêmes —
+ * c'est justement ce qu'on veut quand les extrêmes sont ce qu'on cherche à
+ * isoler.
+ *
+ * Aucun code ni aucune coordonnée n'est écrit en dur : la règle tient à
+ * n'importe quelle maille, y compris une nomenclature qu'on ne connaît pas
+ * encore. Le seuil est un ORDRE DE GRANDEUR, pas une frontière — la métropole
+ * tient dans 15° de longitude et 10° de latitude, les territoires ultramarins
+ * sont à plus de 40° du centre.
  */
-const estOutreMer = (code: string) => /^97\d$/.test(code);
+const ECART_LOINTAIN = 20;
+
+function mediane(xs: number[]): number {
+  const s = [...xs].sort((a, b) => a - b);
+  return s.length === 0 ? 0 : s[Math.floor(s.length / 2)];
+}
+
+function separerLointains(zones: ZoneGeo[]): { principal: ZoneGeo[]; lointains: ZoneGeo[] } {
+  const centres = new Map<string, [number, number]>();
+  for (const z of zones) {
+    const c = cadreDe([z]);
+    if (c) centres.set(z.properties.code, [(c.ouest + c.est) / 2, (c.sud + c.nord) / 2]);
+  }
+  const vals = [...centres.values()];
+  if (vals.length === 0) return { principal: zones, lointains: [] };
+  const mLon = mediane(vals.map((v) => v[0]));
+  const mLat = mediane(vals.map((v) => v[1]));
+
+  const principal: ZoneGeo[] = [];
+  const lointains: ZoneGeo[] = [];
+  for (const z of zones) {
+    const c = centres.get(z.properties.code);
+    const loin = c !== undefined
+      && (Math.abs(c[0] - mLon) > ECART_LOINTAIN || Math.abs(c[1] - mLat) > ECART_LOINTAIN);
+    (loin ? lointains : principal).push(z);
+  }
+  return { principal, lointains };
+}
 
 interface Trace { code: string; nom: string; d: string; c: [number, number] | null }
 interface TraceOM extends Trace { boite: Boite }
@@ -204,12 +286,12 @@ export function CarteMiniFrance({
   const rampe = useMemo(() => (stops.length > 2 ? stops.slice(1) : stops), [stops]);
   const [survole, setSurvole] = useState<string | null>(null);
 
-  const metropole = useMemo(() => zones.filter((z) => !estOutreMer(z.properties.code)), [zones]);
-  // Seuls les territoires ultramarins EXPOSÉS reçoivent un cartouche : en
+  const { principal: metropole, lointains } = useMemo(() => separerLointains(zones), [zones]);
+  // Seuls les territoires lointains EXPOSÉS reçoivent un cartouche : en
   // afficher onze dont neuf vides encombrerait la carte sans rien apprendre.
   const outreMer = useMemo(
-    () => zones.filter((z) => estOutreMer(z.properties.code) && valeurs.has(z.properties.code)),
-    [zones, valeurs],
+    () => lointains.filter((z) => valeurs.has(z.properties.code)),
+    [lointains, valeurs],
   );
 
   const bornes = useMemo(

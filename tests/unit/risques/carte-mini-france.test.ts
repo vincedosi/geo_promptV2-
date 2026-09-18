@@ -90,11 +90,14 @@ describe('mini-carte de France — ce que la couleur dit', () => {
     expect(SOURCE).toContain('seuilsNaturels');
     expect(SOURCE).toContain('classeDe');
     // Interdire le MOT « quantile » serait trop strict : l'en-tête l'emploie
-    // pour expliquer pourquoi on ne s'en sert pas. Ce qu'il faut interdire,
-    // c'est que le composant recalcule des seuils LUI-MÊME — la version
-    // précédente triait les valeurs sur place pour en découper des quantiles.
-    // Aucun tri ne doit subsister ici : il vit dans seuils-naturels.ts.
-    expect(SOURCE).not.toMatch(/\.sort\(/);
+    // pour expliquer pourquoi on ne s'en sert pas. Et interdire tout `.sort(`
+    // le serait aussi — la séparation des territoires lointains trie des
+    // COORDONNÉES, ce qui n'a rien à voir.
+    //
+    // Ce qu'il faut interdire, c'est que le composant classe les VALEURS
+    // lui-même : la version précédente les triait sur place pour en découper
+    // des quantiles. Ce tri-là doit vivre dans seuils-naturels.ts.
+    expect(SOURCE).not.toMatch(/valeurs\.values\(\)\]\s*\.sort/);
   });
 
   it('un EFFECTIF passe en cercles proportionnels, jamais en aplat', () => {
@@ -108,7 +111,25 @@ describe('mini-carte de France — ce que la couleur dit', () => {
 
   it('dessine les DROM en cartouches — ils comptent dans le total', () => {
     // Les laisser hors cadre faisait dire à la carte autre chose qu'au tableau.
-    expect(SOURCE).toMatch(/estOutreMer/);
+    expect(SOURCE).toMatch(/separerLointains/);
+
+    // ⚠ La séparation se fait par la GÉOGRAPHIE, jamais par le code.
+    //
+    // La première version testait `/^97\d$/`, la règle INSEE des DÉPARTEMENTS
+    // d'outre-mer. Elle marchait à la maille département et CASSAIT la carte à
+    // la maille région, où les mêmes territoires portent les codes 01, 02, 03,
+    // 04 et 06 — indiscernables de codes métropolitains. Ces régions entraient
+    // alors dans le cadre principal, dont l'étendue passait de 15° à plus de
+    // 110° de longitude : la métropole se réduisait à quelques pixels.
+    // La règle ne doit pas EXÉCUTER de test sur le code : le motif `^97` peut
+    // rester dans le commentaire qui explique pourquoi on l'a abandonné, mais
+    // pas dans un `.test(...)`.
+    expect(SOURCE).not.toMatch(/\^97\d\$\/\.test/);
+    // La séparation s'appuie sur la MÉDIANE des centres : insensible aux
+    // valeurs extrêmes, ce qui est exactement ce qu'on veut quand les extrêmes
+    // sont ce qu'on cherche à isoler.
+    expect(SOURCE).toMatch(/mediane/);
+
     // Le cadrage de chaque cartouche est DÉRIVÉ de la géométrie reçue : aucune
     // coordonnée écrite en dur, donc rien à casser à un redécoupage.
     expect(SOURCE).not.toMatch(/-6[01]\.\d|55\.\d{2}/);

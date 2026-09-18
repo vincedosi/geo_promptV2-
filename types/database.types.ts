@@ -5532,6 +5532,19 @@ export type Database = {
         Args: { p_code: string; p_type: string }
         Returns: Json
       }
+      compter_sites_rayon: {
+        Args: {
+          p_gravites?: string[]
+          p_natures?: string[]
+          p_perim_codes?: string[]
+          p_perim_niveau?: string
+        }
+        Returns: Json
+      }
+      construire_couverture_rayon: {
+        Args: { p_bande: number; p_n_bandes?: number; p_rayon_max_m?: number }
+        Returns: Json
+      }
       compte_cp_campagne: { Args: { p_campaign_id: string }; Returns: number }
       compte_poi_par_categorie: {
         Args: {
@@ -6511,6 +6524,16 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: Json
       }
+      lire_couverture_rayon: {
+        Args: {
+          p_cible?: string
+          p_gravites?: string[]
+          p_natures?: string[]
+          p_perim_codes?: string[]
+          p_perim_niveau?: string
+        }
+        Returns: Json
+      }
       log_smart_prompt_feedback: {
         Args: {
           p_agent?: string
@@ -6632,6 +6655,7 @@ export type Database = {
           p_perim_codes?: string[]
           p_perim_niveau?: string
           p_rayon_m?: number
+          p_forcer_rayon?: boolean
         }
         Returns: Json
       }
