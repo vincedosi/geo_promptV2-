@@ -161,6 +161,55 @@ la famille exacte de l'incident du 28/03 (`CLAUDE.md`, « Incidents »).
 
 ---
 
+## 5 bis. Les référentiels qui mentent — trouvé à l'audit du 18/09
+
+Ce module a subi **deux audits**. Ils ont donné **cinq défauts, tous de la même
+famille : une colonne qui existe et ment.** Aucun ne levait d'erreur, aucun ne
+se voyait à la relecture — chacun rendait un chiffre plausible ou un écran vide.
+
+| Colonne | Ce qu'elle promet | Ce qu'elle vaut |
+|---|---|---|
+| `carreaux_filosofi.ind` | la population du carreau | **NULL sur 2 298 582 lignes** |
+| `carreaux_filosofi.geom_centroid` | le centroïde | **NULL sur 2 298 582 lignes** |
+| `ref_codes_postaux.pop_total` | la population du CP | **110,5 %** de la France réelle |
+| `ref_codes_postaux.surface_km2` | la surface du CP | **109,3 %** du territoire |
+| `carreaux_cp_population.pop_total` | idem | le même 110,5 % — c'en est la source |
+
+Les deux derniers surcomptent pour la **même raison que le calcul lui-même
+devait éviter** : un carreau à cheval sur deux codes postaux est compté dans
+les deux. Le double comptage était dans le dénominateur.
+
+Et 169 codes postaux sur 6 187 ont `pop_total` à NULL, dont la **totalité** de
+ceux de Paris, La Réunion, la Guadeloupe, la Martinique et la Guyane — comme
+`sum()` ignore les NULL, ces départements recevaient un dénominateur amputé
+sans que rien ne le signale.
+
+### Ce sur quoi on s'appuie désormais
+
+**`iris_agg_departement`** : 67 760 552 habitants, soit **100,0 % du chiffre
+INSEE**, et 638 019 km² (+0,8 %).
+
+**Au palier code postal, aucune source fiable n'existe** : part et densité y
+sont rendues nulles, et l'écran bascule sur l'effectif en le disant.
+
+### Le filet qui empêche la rechute
+
+Deux suites de tests, parce que les deux familles de régression ne se voient
+pas au même endroit :
+
+- `tests/unit/risques/exposition-sql.test.ts` — **12 verrous structurels**, sans
+  base. Ils lisent le SQL et refusent qu'on relise `ind`, `geom_centroid` ou le
+  dénominateur de La Poste. Vérifié : chacun **attrape** le bug historique
+  correspondant quand on le rejoue sur l'ancienne migration.
+- `tests/integration/exposition-invariants.test.ts` — **12 invariants sur la
+  base** : somme des lignes = total, région = département, aucun carreau perdu,
+  aucune part > 100 %, dédoublonnage des natures de zone, un périmètre ne peut
+  que réduire, une cible inconnue est refusée. Plus une sentinelle : **si `ind`
+  se remplit un jour, le test rougit** — ce n'est pas un bug, c'est une
+  invitation à simplifier.
+
+---
+
 ## 6. Limites à dire au client
 
 1. **Pas de découpage rouge/bleu/gris.** On donne la population du périmètre
@@ -175,6 +224,12 @@ la famille exacte de l'incident du 28/03 (`CLAUDE.md`, « Incidents »).
    raisonnable ; sur un périmètre de moins d'un hectare elle ne l'est plus.
 5. **Le millésime des carreaux est 2021** (Filosofi), celui des périmètres va
    de 2016 à 2026 selon le document. Les deux ne datent pas du même jour.
+6. **Aucune « part de la population » au code postal.** Le seul référentiel de
+   population disponible à cette maille surcompte de 10,5 % (§ 5 bis). À ce
+   palier, l'écran ne donne que des effectifs — on préfère une colonne vide à
+   un pourcentage faux.
+7. **Le détail par code postal sur la France entière n'est pas calculable** en
+   temps interactif : il faut choisir une région ou un département.
 
 ---
 
