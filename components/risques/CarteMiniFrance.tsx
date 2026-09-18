@@ -36,12 +36,19 @@
  * DÉRIVE son cadrage de la géométrie reçue, sans aucune coordonnée écrite en
  * dur — un redécoupage n'a donc rien à casser.
  *
- * ⚠ Aujourd'hui aucun ne s'affiche, et ce n'est pas un défaut : le carroyage
- * INSEE 200 m ne couvre pas les DROM (zéro carreau mesuré en base le
- * 2026-09-18), donc la population exposée n'y est pas calculable — alors même
- * que 45 sites Seveso et 32 périmètres PPRT y sont recensés. Le mécanisme est
- * en place pour le jour où la donnée arrivera ; l'écran, lui, DIT que ce n'est
- * pas calculable plutôt que de laisser croire à une absence de risque.
+ * ⚠ Aujourd'hui aucun ne s'affiche, et ce n'est pas un défaut du tracé : la
+ * base ne porte aucun carreau INSEE hors métropole (vérifié le 2026-09-18 par
+ * requête sur bbox, index GIST — zéro pour La Réunion, la Martinique et la
+ * Guadeloupe).
+ *
+ * ⚠⚠ MAIS LA SOURCE, ELLE, EN A. L'INSEE publie le carroyage 200 m pour la
+ * métropole, **la Martinique et La Réunion** dans le même fichier. C'est donc
+ * notre IMPORT qui s'est arrêté à l'Hexagone, pas la donnée qui manque — une
+ * première version de ce commentaire affirmait le contraire. Seules la
+ * Guadeloupe, la Guyane et Mayotte ne sont pas carroyées par l'INSEE.
+ *
+ * Le mécanisme des cartouches est donc prêt pour le jour où ces carreaux
+ * seront chargés.
  */
 import React, { useMemo, useState } from 'react';
 import { formaterNombre } from '@/lib/format/nombre';

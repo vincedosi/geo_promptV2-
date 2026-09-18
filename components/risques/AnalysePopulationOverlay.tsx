@@ -1302,11 +1302,13 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
             {encCourant.aide}. Le gris signale une unité <strong style={{ fontWeight: 500 }}>sans
             aucune exposition</strong> — pas une valeur faible.
             {' '}
-            <strong style={{ fontWeight: 500 }}>Outre-mer : non calculable.</strong> Le carroyage
-            INSEE 200 m, sur lequel repose tout ce calcul, ne couvre pas les DROM — zéro carreau
-            mesuré en base. Les 45 sites Seveso et 32 périmètres PPRT qui y sont recensés
-            n’apparaissent donc ni sur la carte, ni dans le tableau, ni dans le total. Ce n’est pas
-            un oubli d’import : la donnée source s’arrête à la métropole.
+            <strong style={{ fontWeight: 500 }}>Outre-mer : non calculable aujourd’hui.</strong>{' '}
+            Aucun carreau INSEE n’est en base hors métropole — vérifié. Mais la donnée EXISTE
+            pour <strong style={{ fontWeight: 500 }}>la Martinique et La Réunion</strong>, que
+            l’INSEE publie avec la métropole : c’est notre import qui s’est arrêté à l’Hexagone,
+            pas la source. La Guadeloupe, la Guyane et Mayotte, elles, ne sont pas carroyées.
+            Les 45 sites Seveso et 32 périmètres PPRT d’outre-mer n’apparaissent donc ni sur la
+            carte, ni dans le tableau, ni dans le total.
           </p>
         </aside>
       </div>
