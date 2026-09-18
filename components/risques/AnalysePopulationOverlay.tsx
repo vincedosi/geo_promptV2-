@@ -247,7 +247,23 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
     return n;
   }, [typesRisque]);
 
+  /**
+   * Le détail par code postal sur la France entière dépasse le temps de calcul
+   * (mesuré en production : délai dépassé, alors que la même dimension sur une
+   * région répond). On le dit AVANT de lancer plutôt que de laisser tourner un
+   * appel qui n'aboutira pas — une attente sans fin se lit comme une panne.
+   */
+  const tropLarge = dimension === 'code_postal' && perimCodes.length === 0;
+
   const calculer = useCallback(async () => {
+    if (tropLarge) {
+      setAgregat(null);
+      setErreur(
+        'À l’échelle nationale, le détail par code postal dépasse le temps de calcul. ' +
+        'Choisissez une région ou un département dans « Périmètre d’étude ».',
+      );
+      return;
+    }
     setChargement(true);
     setErreur(null);
     try {
@@ -271,7 +287,7 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
     } finally {
       setChargement(false);
     }
-  }, [dimension, cible, niveaux, natures, modes, perimNiveau, perimCodes, rayon]);
+  }, [dimension, cible, niveaux, natures, modes, perimNiveau, perimCodes, rayon, tropLarge]);
 
   useEffect(() => {
     void calculer();
