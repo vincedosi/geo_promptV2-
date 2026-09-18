@@ -6629,6 +6629,8 @@ export type Database = {
           p_limite?: number
           p_modes?: string[]
           p_natures?: string[]
+          p_perim_codes?: string[]
+          p_perim_niveau?: string
           p_rayon_m?: number
         }
         Returns: Json

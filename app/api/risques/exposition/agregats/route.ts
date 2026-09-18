@@ -66,6 +66,10 @@ const ParamsSchema = z.object({
   /** Rayon des sites sans PPRT. Absent = rayon déduit des périmètres réels. */
   rayon_m: z.coerce.number().int().min(50).max(20000).optional(),
   limite: z.coerce.number().int().min(1).max(7000).optional(),
+  /** Périmètre d'étude : 'region' | 'departement'. Absent = France entière. */
+  perim_niveau: z.enum(['region', 'departement']).optional(),
+  /** Codes du périmètre, séparés par des virgules. */
+  perim_codes: z.string().max(600).optional(),
 });
 
 interface Ligne {
@@ -94,6 +98,8 @@ interface Agregat {
   total_indicatifs?: number;
   total_carreaux?: number;
   tronquee?: boolean;
+  perim_niveau?: string | null;
+  perim_codes?: string[];
   lignes?: Ligne[];
   calcule_le?: string;
 }
@@ -143,6 +149,12 @@ export async function GET(request: NextRequest) {
     p_modes: nullableArg(modes && modes.length > 0 ? modes : null),
     p_rayon_m: nullableArg(p.rayon_m ?? null),
     p_limite: p.limite ?? 200,
+    // Le périmètre filtre les SITES, pas les carreaux : un site du périmètre
+    // dont la zone déborde juste au-delà apporte quand même sa population.
+    // C'est le comportement attendu d'une étude locale — on étudie les
+    // installations d'un territoire, pas un découpage de la population.
+    p_perim_niveau: nullableArg(p.perim_codes ? (p.perim_niveau ?? 'departement') : null),
+    p_perim_codes: nullableArg(liste(p.perim_codes)),
   });
 
   if (error) {

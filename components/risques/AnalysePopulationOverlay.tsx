@@ -58,6 +58,30 @@ const ENCODAGES: Array<{ id: Encodage; label: string; aide: string }> = [
   { id: 'exposee', label: 'Effectif', aide: "Nombre d'habitants exposés — un grand territoire paraît plus intense" },
 ];
 
+/**
+ * Les deux natures de zone. C'est le filtre le plus important de l'écran :
+ * `pprt` ne retient que les sites dont la zone est une servitude PUBLIÉE par
+ * l'État, `buffer` ceux dont la zone est un rayon que nous avons choisi.
+ * Les décocher séparément permet de répondre à « et si je ne garde que ce qui
+ * est opposable ? », qui est la question d'une recommandation client.
+ */
+const MODES_ZONE: Array<{ id: string; label: string; aide: string }> = [
+  { id: 'pprt', label: 'Périmètre PPRT', aide: "Servitude publiée par l'État, opposable" },
+  { id: 'buffer', label: 'Rayon calculé', aide: 'Rayon choisi ci-dessus — aucune valeur réglementaire' },
+];
+
+/** Niveaux réglementaires, du plus grave au moins. Miroir du panneau Calques. */
+const NIVEAUX: Array<{ id: string; label: string }> = [
+  { id: 'seveso_haut', label: 'Seveso haut' },
+  { id: 'seveso_bas', label: 'Seveso bas' },
+  { id: 'ied', label: 'IED' },
+  { id: 'autorisation', label: 'Autorisation' },
+  { id: 'enregistrement', label: 'Enregistrement' },
+  { id: 'autre', label: 'Autre' },
+];
+
+interface UniteRef { code: string; nom: string }
+
 interface Ligne {
   cle: string;
   nom: string;
@@ -133,6 +157,11 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
   const [chargement, setChargement] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [actif, setActif] = useState<string | null>(null);
+  const [modes, setModes] = useState<string[]>(['pprt', 'buffer']);
+  const [niveaux, setNiveaux] = useState<string[]>(gravites.length > 0 ? gravites : ['seveso_haut', 'seveso_bas']);
+  const [perimNiveau, setPerimNiveau] = useState<'region' | 'departement'>('region');
+  const [perimCodes, setPerimCodes] = useState<string[]>([]);
+  const [refGeo, setRefGeo] = useState<{ regions: UniteRef[]; departements: UniteRef[] }>({ regions: [], departements: [] });
 
   // Cache des géométries par dimension : elles ne changent jamais, et les
   // recharger à chaque bascule de dimension paierait un aller-retour pour rien.
@@ -158,6 +187,33 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
       } catch { /* le menu reste sur la cible par défaut */ }
     })();
   }, [cibles.length]);
+
+  // Le referentiel geographique vient de la BASE (`/api/ref/geo`), jamais d'une
+  // liste ecrite en dur : c'est la regle du projet, et une liste figee
+  // divergerait au premier redecoupage administratif.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const r = await adminFetch('/api/ref/geo');
+        if (!r.ok) return;
+        // La route rend les départements IMBRIQUÉS dans leur région : on les
+        // aplatit ici plutôt que d'ajouter une seconde route pour la même
+        // donnée, déjà en cache CDN une heure.
+        const j = (await r.json()) as {
+          regions?: Array<{
+            code_region: string;
+            nom_region: string;
+            depts?: Array<{ code_dept: string; nom_dept: string }>;
+          }>;
+        };
+        const regions = (j.regions ?? []).map((x) => ({ code: x.code_region, nom: x.nom_region }));
+        const departements = (j.regions ?? []).flatMap((x) =>
+          (x.depts ?? []).map((d) => ({ code: d.code_dept, nom: d.nom_dept })),
+        );
+        setRefGeo({ regions, departements });
+      } catch { /* le sélecteur reste sur France entière */ }
+    })();
+  }, []);
 
   const dimCourante = DIMENSIONS.find((d) => d.id === dimension) ?? DIMENSIONS[1];
 
@@ -194,8 +250,13 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
     setErreur(null);
     try {
       const p = new URLSearchParams({ dimension, cible });
-      if (gravites.length > 0) p.set('gravites', gravites.join(','));
+      if (niveaux.length > 0) p.set('gravites', niveaux.join(','));
       if (natures.length > 0) p.set('natures', natures.join(','));
+      if (modes.length > 0 && modes.length < MODES_ZONE.length) p.set('modes', modes.join(','));
+      if (perimCodes.length > 0) {
+        p.set('perim_niveau', perimNiveau);
+        p.set('perim_codes', perimCodes.join(','));
+      }
       if (rayon !== null) p.set('rayon_m', String(rayon));
       if (dimension === 'code_postal') p.set('limite', '500');
       const r = await adminFetch(`/api/risques/exposition/agregats?${p}`);
@@ -208,7 +269,7 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
     } finally {
       setChargement(false);
     }
-  }, [dimension, cible, gravites, natures, rayon]);
+  }, [dimension, cible, niveaux, natures, modes, perimNiveau, perimCodes, rayon]);
 
   useEffect(() => {
     void calculer();
@@ -353,6 +414,92 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
             )}
           </div>
         </Champ>
+      </div>
+
+      {/* ── Filtres ─────────────────────────────────────────────────────
+          Séparés des contrôles du haut à dessein : au-dessus on choisit CE
+          QU'ON REGARDE (cible, dimension, rayon), ici on choisit CE QU'ON
+          RETIENT. Mélanger les deux oblige à relire toute la barre pour
+          savoir d'où vient un chiffre. */}
+      <div
+        style={{
+          display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
+          padding: '10px 20px',
+          borderBottom: '0.5px solid var(--border-subtle)',
+          background: 'var(--bg-surface)',
+        }}
+      >
+        <Champ label="Nature de la zone">
+          <div style={{ display: 'flex', gap: 4 }}>
+            {MODES_ZONE.map((m) => (
+              <Pastille
+                key={m.id}
+                actif={modes.includes(m.id)}
+                titre={m.aide}
+                onClick={() =>
+                  setModes((v) => {
+                    const suivant = v.includes(m.id) ? v.filter((x) => x !== m.id) : [...v, m.id];
+                    // Tout décocher ne rendrait rien : on garde au moins une
+                    // nature, plutôt qu'un écran vide sans explication.
+                    return suivant.length === 0 ? v : suivant;
+                  })
+                }
+              >
+                {m.label}
+              </Pastille>
+            ))}
+          </div>
+        </Champ>
+
+        <Champ label="Niveau réglementaire">
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {NIVEAUX.map((n) => (
+              <Pastille
+                key={n.id}
+                actif={niveaux.includes(n.id)}
+                onClick={() =>
+                  setNiveaux((v) => {
+                    const suivant = v.includes(n.id) ? v.filter((x) => x !== n.id) : [...v, n.id];
+                    return suivant.length === 0 ? v : suivant;
+                  })
+                }
+              >
+                {n.label}
+              </Pastille>
+            ))}
+          </div>
+        </Champ>
+
+        <Champ label="Périmètre d’étude">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <select
+              value={perimNiveau}
+              onChange={(e) => { setPerimNiveau(e.target.value as 'region' | 'departement'); setPerimCodes([]); }}
+              style={{ ...styleSelect, padding: '6px 8px' }}
+            >
+              <option value="region">Région</option>
+              <option value="departement">Département</option>
+            </select>
+            <select
+              value={perimCodes[0] ?? ''}
+              onChange={(e) => setPerimCodes(e.target.value ? [e.target.value] : [])}
+              style={{ ...styleSelect, minWidth: 170 }}
+            >
+              <option value="">France entière</option>
+              {(perimNiveau === 'region' ? refGeo.regions : refGeo.departements).map((u) => (
+                <option key={u.code} value={u.code}>{u.code} — {u.nom}</option>
+              ))}
+            </select>
+          </div>
+        </Champ>
+
+        {/* Le rappel de ce qui a été hérité du panneau, pour que l'utilisateur
+            sache d'où vient un filtre qu'il n'a pas posé ici. */}
+        {typesRisque.length > 0 && (
+          <span style={{ fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)', alignSelf: 'flex-end', paddingBottom: 7 }}>
+            Types de risque filtrés depuis le panneau Calques ({typesRisque.length})
+          </span>
+        )}
       </div>
 
       {/* ── Corps ───────────────────────────────────────────────────────── */}
