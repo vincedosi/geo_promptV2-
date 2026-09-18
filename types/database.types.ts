@@ -4905,6 +4905,53 @@ export type Database = {
           },
         ]
       }
+      seveso_exposition: {
+        Row: {
+          calcule_le: string
+          id: number
+          indicatif: boolean
+          mode: string
+          nb_carreaux: number
+          palier: string
+          pop_couronne: number
+          pop_exposee: number
+          site_id: string
+          surface_km2: number | null
+        }
+        Insert: {
+          calcule_le?: string
+          id?: number
+          indicatif: boolean
+          mode: string
+          nb_carreaux?: number
+          palier: string
+          pop_couronne?: number
+          pop_exposee?: number
+          site_id: string
+          surface_km2?: number | null
+        }
+        Update: {
+          calcule_le?: string
+          id?: number
+          indicatif?: boolean
+          mode?: string
+          nb_carreaux?: number
+          palier?: string
+          pop_couronne?: number
+          pop_exposee?: number
+          site_id?: string
+          surface_km2?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seveso_exposition_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "poi_france"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       smart_prompt_feedback: {
         Row: {
           agent: string | null
@@ -6499,6 +6546,7 @@ export type Database = {
       }
       postgis_version: { Args: never; Returns: string }
       postgis_wagyu_version: { Args: never; Returns: string }
+      population_exposee_site: { Args: { p_site_id: string }; Returns: Json }
       pprt_consolider_departement: { Args: never; Returns: Json }
       pprt_importer_partition: {
         Args: { p_lignes: Json; p_partition: string }

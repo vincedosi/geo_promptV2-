@@ -98,6 +98,90 @@ const LIBELLE_GRAVITE: Record<string, string> = {
 
 /** Une ligne de la popup, omise si la valeur est absente — jamais « null ». */
 
+/**
+ * Va chercher la population exposée et remplit le bloc réservé dans la popup.
+ *
+ * ── POURQUOI APRÈS L'OUVERTURE, ET PAS AVANT ──────────────────────────────
+ *
+ * Le calcul croise la zone du site avec `carreaux_filosofi` (2,3 M carreaux de
+ * 200 m) et prend environ 300 ms. Le faire avant d'ouvrir la popup ferait
+ * paraître la carte figée à chaque clic. On ouvre immédiatement avec un
+ * « calcul… », on remplit quand la réponse arrive.
+ *
+ * ── CE QUI NE DOIT JAMAIS SE PERDRE EN ROUTE ─────────────────────────────
+ *
+ * `indicatif`. Le même nombre d'habitants ne vaut pas la même chose selon que
+ * la zone est la servitude PPRT publiée par l'État, ou un rayon que nous avons
+ * choisi. Un chiffre repris dans une recommandation client doit porter cette
+ * différence, d'où le bandeau explicite en mode buffer.
+ *
+ * Si le bloc a disparu (popup fermée, ou remplacée par un autre clic), on
+ * abandonne silencieusement : `idBloc` est unique par popup, donc une réponse
+ * en retard ne peut pas écrire dans la popup suivante.
+ */
+async function remplirExposition(siteId: string, idBloc: string): Promise<void> {
+  const cible = () => document.getElementById(idBloc);
+  if (!siteId || !cible()) return;
+
+  let charge: {
+    mode?: 'pprt' | 'buffer';
+    indicatif?: boolean;
+    paliers?: Array<{ palier: string; libelle: string; pop_exposee: number; pop_couronne: number }>;
+    error?: string;
+  };
+  try {
+    const res = await adminFetch(`/api/risques/${encodeURIComponent(siteId)}/exposition`);
+    charge = await res.json();
+    if (!res.ok) {
+      const el = cible();
+      if (el) el.textContent = charge?.error ?? 'Population exposée indisponible.';
+      return;
+    }
+  } catch {
+    const el = cible();
+    if (el) el.textContent = 'Population exposée indisponible.';
+    return;
+  }
+
+  const el = cible();
+  if (!el) return;
+
+  const paliers = charge.paliers ?? [];
+  if (paliers.length === 0) {
+    el.textContent = 'Population exposée non calculable.';
+    return;
+  }
+
+  const indicatif = charge.indicatif !== false;
+  const lignes = paliers
+    .map((pa) => {
+      // En mode buffer, la couronne dit ce que CE palier ajoute au précédent :
+      // sans elle, trois cumuls croissants se lisent comme trois populations
+      // distinctes qu'on serait tenté d'additionner.
+      const sup =
+        charge.mode === 'buffer' && pa.pop_couronne !== pa.pop_exposee
+          ? `<span style="color:var(--text-tertiary)"> (+${esc(formaterNombre(pa.pop_couronne))})</span>`
+          : '';
+      return (
+        `<div style="display:flex;justify-content:space-between;gap:10px">` +
+        `<span style="color:var(--text-secondary)">${esc(pa.libelle)}</span>` +
+        `<span style="font-family:'JetBrains Mono',monospace;color:var(--text-primary)">` +
+        `${esc(formaterNombre(pa.pop_exposee))}${sup}</span></div>`
+      );
+    })
+    .join('');
+
+  el.innerHTML =
+    `<div style="color:var(--text-primary);font-weight:500;margin-bottom:4px">Population exposée</div>` +
+    lignes +
+    `<div style="color:var(--text-tertiary);margin-top:4px;line-height:1.4">` +
+    (indicatif
+      ? 'Estimée sur des rayons choisis dans le panneau — aucune valeur réglementaire.'
+      : 'Estimée sur le périmètre PPRT publié par l’État.') +
+    ' Répartition au prorata de surface des carreaux INSEE de 200 m.' +
+    `</div>`;
+}
+
 export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Props) {
   // Le thème vient du provider, comme dans `DiffusionMapLayer` : MapLibre ne
   // résout pas `var()` dans `paint`, il faut donc savoir quel palier servir.
@@ -295,6 +379,9 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
           // Calculé en base (sql/179) et seulement mis en mots ici : la
           // couche, la popup et la légende doivent lire la même règle.
           const statut = descriptionStatut(p.statut_zone as string | null | undefined);
+          // Identifiant unique : deux popups successives ne doivent pas se
+          // remplir l'une l'autre si la première réponse arrive en retard.
+          const idExpo = `expo-${Math.random().toString(36).slice(2)}`;
           const rub = rubriques
             .slice(0, 6)
             .map((r) => {
@@ -357,6 +444,11 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
                   ? `<div style="color:var(--text-tertiary);margin-top:2px">+ ${rubriques.length - 6} autres</div>`
                   : '')
               : '') +
+            // Emplacement de la population exposée. Le calcul croise les
+            // carreaux Filosofi 200 m et prend ~300 ms : le faire AVANT
+            // d'ouvrir la popup ferait paraître la carte figée au clic.
+            // On ouvre tout de suite, on remplit ensuite.
+            `<div id="${idExpo}" style="margin-top:8px;padding-top:6px;border-top:0.5px solid var(--border-subtle);color:var(--text-tertiary)">Population exposée — calcul…</div>` +
             `</div>`;
 
           popupRef.current?.remove();
@@ -364,6 +456,8 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
             .setLngLat(f.geometry.type === 'Point' ? (f.geometry.coordinates as [number, number]) : e.lngLat)
             .setHTML(html)
             .addTo(m2);
+
+          void remplirExposition(String(p.id ?? ''), idExpo);
         });
 
         m2.on('mouseenter', ID_POINT, () => { m2.getCanvas().style.cursor = 'pointer'; });
