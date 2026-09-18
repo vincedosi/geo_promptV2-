@@ -36,6 +36,7 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { rpcJson, nullableArg } from '@/lib/supabase/rpc-json';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
+import { formaterNombre } from '@/lib/format/nombre';
 
 export const dynamic = 'force-dynamic';
 
@@ -167,6 +168,32 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Calcul indisponible.' }, { status: 500 });
   }
   if (!resultat.calculable) {
+    /*
+     * `trop_de_sites` est le SEUL refus qui doit citer des chiffres, parce
+     * que c'est le seul que l'utilisateur peut lever lui-meme : lui dire
+     * « trop de sites » sans dire combien, ni combien sont admis, ni comment
+     * descendre, c'est un mur. Le message nomme donc les deux nombres et la
+     * sortie — restreindre le territoire, ou retirer un regime.
+     *
+     * Il n'est pas dans MESSAGES parce que MESSAGES est une table de
+     * constantes, et que celui-ci depend du resultat.
+     */
+    if (resultat.error === 'trop_de_sites') {
+      const r = resultat as unknown as { n_sites?: number; max_sites?: number };
+      const n = formaterNombre(r.n_sites ?? 0);
+      const max = formaterNombre(r.max_sites ?? 0);
+      return NextResponse.json(
+        {
+          error:
+            `Ce filtre retient ${n} sites, au-dela des ${max} que le calcul traite ` +
+            `dans un temps d'ecran. Choisissez un territoire dans « Territoire etudie », ` +
+            `ou retirez un regime (Seveso seul reste calculable sur la France entiere).`,
+          n_sites: r.n_sites,
+          max_sites: r.max_sites,
+        },
+        { status: 400 },
+      );
+    }
     return NextResponse.json(
       { error: MESSAGES[resultat.error ?? ''] ?? 'Calcul impossible.' },
       { status: 400 },

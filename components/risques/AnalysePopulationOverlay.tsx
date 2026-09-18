@@ -161,8 +161,24 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
   const [actif, setActif] = useState<string | null>(null);
   const [modes, setModes] = useState<string[]>(['pprt', 'buffer']);
   const [niveaux, setNiveaux] = useState<string[]>(gravites.length > 0 ? gravites : ['seveso_haut', 'seveso_bas']);
-  const [perimNiveau, setPerimNiveau] = useState<'region' | 'departement'>('region');
-  const [perimCodes, setPerimCodes] = useState<string[]>([]);
+  /**
+   * Le perimetre d'etude est UN seul etat, et c'est un correctif (2026-09-18).
+   *
+   * Il etait porte par deux : `perimNiveau` ('region' | 'departement') et
+   * `perimCodes`. Le premier ne changeait QUE la liste offerte par le second —
+   * il ne touchait jamais la requete tant qu'aucun code n'etait choisi, et il
+   * figurait pourtant dans les dependances du calcul. Cliquer « Region » ou
+   * « Departement » relançait donc les ~9 s de calcul pour rendre EXACTEMENT
+   * le meme resultat : six requetes rigoureusement identiques relevees dans le
+   * journal du serveur. De l'exterieur, ce bouton ne faisait rien — sinon
+   * faire patienter.
+   *
+   * Il portait en plus les mots « Region » et « Departement » a cote du
+   * selecteur « Dimension », qui offre les MEMES mots pour une autre question
+   * (la maille du tableau, pas le territoire etudie). Deux commandes, meme
+   * vocabulaire, sens differents : c'est la confusion qui a ete signalee.
+   */
+  const [perim, setPerim] = useState<{ niveau: 'region' | 'departement'; code: string } | null>(null);
   const [refGeo, setRefGeo] = useState<{ regions: UniteRef[]; departements: UniteRef[] }>({ regions: [], departements: [] });
 
   // Cache des géométries par dimension : elles ne changent jamais, et les
@@ -253,14 +269,14 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
    * région répond). On le dit AVANT de lancer plutôt que de laisser tourner un
    * appel qui n'aboutira pas — une attente sans fin se lit comme une panne.
    */
-  const tropLarge = dimension === 'code_postal' && perimCodes.length === 0;
+  const tropLarge = dimension === 'code_postal' && perim === null;
 
   const calculer = useCallback(async () => {
     if (tropLarge) {
       setAgregat(null);
       setErreur(
         'À l’échelle nationale, le détail par code postal dépasse le temps de calcul. ' +
-        'Choisissez une région ou un département dans « Périmètre d’étude ».',
+        'Choisissez une région ou un département dans « Territoire étudié ».',
       );
       return;
     }
@@ -271,9 +287,9 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
       if (niveaux.length > 0) p.set('gravites', niveaux.join(','));
       if (natures.length > 0) p.set('natures', natures.join(','));
       if (modes.length > 0 && modes.length < MODES_ZONE.length) p.set('modes', modes.join(','));
-      if (perimCodes.length > 0) {
-        p.set('perim_niveau', perimNiveau);
-        p.set('perim_codes', perimCodes.join(','));
+      if (perim) {
+        p.set('perim_niveau', perim.niveau);
+        p.set('perim_codes', perim.code);
       }
       if (rayon !== null) p.set('rayon_m', String(rayon));
       if (dimension === 'code_postal') p.set('limite', '500');
@@ -287,7 +303,7 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
     } finally {
       setChargement(false);
     }
-  }, [dimension, cible, niveaux, natures, modes, perimNiveau, perimCodes, rayon, tropLarge]);
+  }, [dimension, cible, niveaux, natures, modes, perim, rayon, tropLarge]);
 
   useEffect(() => {
     void calculer();
@@ -512,27 +528,40 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
           </div>
         </Champ>
 
-        <Champ label="Périmètre d’étude">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <select
-              value={perimNiveau}
-              onChange={(e) => { setPerimNiveau(e.target.value as 'region' | 'departement'); setPerimCodes([]); }}
-              style={{ ...styleSelect, padding: '6px 8px' }}
-            >
-              <option value="region">Région</option>
-              <option value="departement">Département</option>
-            </select>
-            <select
-              value={perimCodes[0] ?? ''}
-              onChange={(e) => setPerimCodes(e.target.value ? [e.target.value] : [])}
-              style={{ ...styleSelect, minWidth: 170 }}
-            >
-              <option value="">France entière</option>
-              {(perimNiveau === 'region' ? refGeo.regions : refGeo.departements).map((u) => (
-                <option key={u.code} value={u.code}>{u.code} — {u.nom}</option>
-              ))}
-            </select>
-          </div>
+        {/* UN seul menu, et deux `optgroup` plutot que deux menus en cascade :
+            le premier menu ne servait qu'a decider ce que le second afficherait,
+            ne changeait RIEN a l'ecran tant qu'aucun territoire n'etait choisi,
+            et relançait pourtant le calcul entier. Ici, tout choix a un effet,
+            et l'intitule dit « Territoire » : « Perimetre d'etude » proposait
+            « Region » et « Departement » juste a cote du selecteur Dimension,
+            qui offre les memes mots pour la maille du TABLEAU. */}
+        <Champ label="Territoire étudié">
+          <select
+            value={perim ? `${perim.niveau}:${perim.code}` : ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) { setPerim(null); return; }
+              const [niveau, code] = v.split(':');
+              setPerim({ niveau: niveau as 'region' | 'departement', code });
+            }}
+            style={{ ...styleSelect, minWidth: 210 }}
+          >
+            <option value="">France entière</option>
+            {refGeo.regions.length > 0 && (
+              <optgroup label="Régions">
+                {refGeo.regions.map((u) => (
+                  <option key={`r-${u.code}`} value={`region:${u.code}`}>{u.nom}</option>
+                ))}
+              </optgroup>
+            )}
+            {refGeo.departements.length > 0 && (
+              <optgroup label="Départements">
+                {refGeo.departements.map((u) => (
+                  <option key={`d-${u.code}`} value={`departement:${u.code}`}>{u.code} — {u.nom}</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
         </Champ>
 
         {/* Le rappel de ce qui a été hérité du panneau, pour que l'utilisateur
