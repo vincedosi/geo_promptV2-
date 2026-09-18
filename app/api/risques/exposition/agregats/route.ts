@@ -52,7 +52,15 @@ const limiteur = createRateLimiter({
   prefix: 'geo:rl:exposition-agregats',
 });
 
-const DIMENSIONS = ['region', 'departement', 'code_postal'] as const;
+/*
+ * `commune` est MOINS chere que `code_postal`, et c'est contre-intuitif : le
+ * carreau porte deja son code commune INSEE (`metadata->>'lcog_geo'`), la
+ * maille commune supprime donc le point-dans-polygone contre les 6 187
+ * contours de `ref_codes_postaux` au lieu de l'alourdir. Elle est la reponse
+ * a « le detail par code postal est trop long » — 34 921 communes, mais un
+ * simple regroupement par attribut.
+ */
+const DIMENSIONS = ['region', 'departement', 'code_postal', 'commune'] as const;
 const MODES = ['pprt', 'buffer'] as const;
 
 const ParamsSchema = z.object({

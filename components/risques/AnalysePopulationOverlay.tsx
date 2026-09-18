@@ -39,12 +39,22 @@ import { FAMILLES_ICPE_SEED, NATURE_NON_PRECISEE } from '@/lib/import/georisques
 import { CarteMiniFrance, type ZoneGeo } from './CarteMiniFrance';
 import { CARREAUX_PALETTES } from '@/lib/carreaux/catalogue';
 
-type Dimension = 'region' | 'departement' | 'code_postal';
+type Dimension = 'region' | 'departement' | 'code_postal' | 'commune';
 type Encodage = 'part' | 'densite' | 'exposee';
 
-const DIMENSIONS: Array<{ id: Dimension; label: string; zones: 'region' | 'departement' | 'cp' }> = [
+/**
+ * `zones` dit quels contours la mini-carte peut dessiner — `null` quand il n'y
+ * en a pas.
+ *
+ * La commune n'en a pas, et c'est délibéré : 34 921 polygones sur une carte de
+ * 300 px donneraient une bouillie de traits, pour un poids de plusieurs Mo.
+ * Le classement, lui, reste parfaitement lisible — c'est justement ce qui est
+ * demandé à cette maille (« les 100 plus grandes communes exposées »).
+ */
+const DIMENSIONS: Array<{ id: Dimension; label: string; zones: 'region' | 'departement' | 'cp' | null }> = [
   { id: 'region', label: 'Région', zones: 'region' },
   { id: 'departement', label: 'Département', zones: 'departement' },
+  { id: 'commune', label: 'Commune', zones: null },
   { id: 'code_postal', label: 'Code postal', zones: 'cp' },
 ];
 
@@ -272,6 +282,9 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
   // Les géométries de la dimension courante.
   useEffect(() => {
     const cle = dimCourante.zones;
+    // Pas de contours a cette maille (commune) : on vide plutot que d'appeler
+    // une route avec `scale=null`, qui repondrait 400.
+    if (cle === null) { setZones([]); return; }
     const enCache = cacheZones.current.get(cle);
     if (enCache) { setZones(enCache); return; }
     void (async () => {
@@ -303,14 +316,20 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
    * région répond). On le dit AVANT de lancer plutôt que de laisser tourner un
    * appel qui n'aboutira pas — une attente sans fin se lit comme une panne.
    */
+  /*
+   * Ne vise QUE le code postal. La commune, elle, est calculable sur la France
+   * entiere — elle ne fait aucun croisement geometrique (sql/194).
+   */
   const tropLarge = dimension === 'code_postal' && perim === null;
 
   const calculer = useCallback(async () => {
     if (tropLarge) {
       setAgregat(null);
       setErreur(
-        'À l’échelle nationale, le détail par code postal dépasse le temps de calcul. ' +
-        'Choisissez une région ou un département dans « Territoire étudié ».',
+        'À l’échelle nationale, le détail par code postal dépasse le temps de calcul : ' +
+        'il exige un point-dans-polygone contre les 6 187 contours postaux, carreau par carreau. ' +
+        'Deux sorties — passer à la maille « Commune », qui répond à la même question ' +
+        'sans ce croisement, ou choisir un territoire dans « Territoire étudié ».',
       );
       return;
     }
@@ -328,6 +347,9 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
       if (rayon !== null) p.set('rayon_m', String(rayon));
       if (forcerRayon) p.set('forcer_rayon', '1');
       if (dimension === 'code_postal') p.set('limite', '500');
+      // 100 communes : c'est le classement demande, et au-dela la liste cesse
+      // d'etre lisible. Le TOTAL, lui, compte toujours toutes les unites.
+      if (dimension === 'commune') p.set('limite', '100');
       const r = await adminFetch(`/api/risques/exposition/agregats?${p}`);
       const j = await r.json();
       if (!r.ok) { setErreur(j?.error ?? 'Calcul indisponible.'); setAgregat(null); return; }
@@ -836,6 +858,15 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
               </div>
             </div>
             </>
+          ) : dimCourante.zones === null ? (
+            /* Pas d'attente ici : il n'y a RIEN a charger a cette maille, et
+               laisser « Chargement des contours… » tourner indefiniment se
+               lirait comme une panne. On dit pourquoi, et ce qu'on gagne. */
+            <p style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+              Pas de carte à la maille commune : 34 921 polygones sur 300 px
+              donneraient une bouillie de traits. Le classement ci-contre reste
+              lisible, lui — c’est ce qu’on vient chercher ici.
+            </p>
           ) : (
             <p style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)' }}>
               Chargement des contours…
