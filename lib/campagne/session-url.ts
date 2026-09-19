@@ -11,6 +11,49 @@ export const SESSION_DEFAUT: CampagneSession = {
  * ne doit pas transporter du bruit, et un paramètre absent se relit comme
  * « valeur par défaut », jamais comme « valeur perdue ».
  */
+/**
+ * Les clés que la session de campagne POSSÈDE dans l'URL.
+ *
+ * ⚠ Elle n'en possède pas d'autres, et la distinction n'est pas théorique.
+ * `/map` est une page partagée : l'analyse de population à risque y écrit
+ * `risque=`, et d'autres écrans en écriront demain. La persistance de session
+ * écrasait la chaîne de requête ENTIÈRE — un `router.replace('/map?' + qs)` qui
+ * reconstruit tout — et faisait donc disparaître les paramètres des voisins à
+ * la première bascule de vue, sans erreur ni trace.
+ *
+ * Constaté le 2026-09-19 : ouvrir `/map?risque=onglet%3Ddiffusion` aboutissait
+ * à `/map?campagne=…&maille=cp&parent=13&unite=13104`. Le lien partagé perdait
+ * exactement ce qu'il transportait.
+ */
+export const CLES_SESSION = [
+  'campagne', 'vue', 'onglet', 'maille', 'parent', 'unite', 'tri', 'acteurs',
+] as const;
+
+/**
+ * Fusionne les paramètres de session dans une chaîne de requête EXISTANTE.
+ *
+ * Les clés de la session sont remplacées, toutes les autres sont conservées
+ * telles quelles. C'est ce qui permet à plusieurs écrans de cohabiter dans la
+ * même URL sans se marcher dessus.
+ *
+ * @param s - La session à sérialiser.
+ * @param actuels - Les paramètres présents dans l'URL, souvent ceux du voisin.
+ * @returns Les paramètres fusionnés.
+ *
+ * @example
+ * fusionnerUrlSession(session, new URLSearchParams('risque=onglet%3Drayons'))
+ * // → 'risque=onglet%3Drayons&campagne=…'  — le voisin survit
+ */
+export function fusionnerUrlSession(
+  s: CampagneSession,
+  actuels: URLSearchParams,
+): URLSearchParams {
+  const sortie = new URLSearchParams(actuels)
+  for (const cle of CLES_SESSION) sortie.delete(cle)
+  for (const [cle, valeur] of sessionVersUrl(s)) sortie.set(cle, valeur)
+  return sortie
+}
+
 export function sessionVersUrl(s: CampagneSession): URLSearchParams {
   const p = new URLSearchParams()
   if (s.campaignId) p.set('campagne', s.campaignId)

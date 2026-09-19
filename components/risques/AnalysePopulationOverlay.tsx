@@ -52,6 +52,8 @@ import { FournisseurRisque, useEtatRisque } from '@/components/risques/ContexteR
 import type { Onglet } from '@/lib/risques/etat-url';
 import { ResumeProfil } from '@/components/risques/ResumeProfil';
 import { BoutonVoirCarte } from '@/components/risques/BoutonVoirCarte';
+import { OngletDiffusion } from '@/components/risques/OngletDiffusion';
+import { BoutonExportProfil } from '@/components/risques/BoutonExportProfil';
 import { NIVEAUX_RISQUE } from '@/lib/risques/gravites';
 
 // La maille vient de `lib/risques/dimensions.ts` : les trois listes blanches
@@ -835,6 +837,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
           {([
             ['rayons', 'Rayons'],
             ['territoires', 'Territoires'],
+            ['diffusion', 'Diffusion'],
           ] as const).map(([id, label]) => (
             <button
               key={id}
@@ -865,6 +868,14 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         {/* Persistant, dans l'en-tete : la carte illustre le profil quel que
             soit l'onglet ouvert, et le chercher dans un onglet precis serait
             une devinette. */}
+        <BoutonExportProfil
+          profil={etat.profil}
+          cible={cible}
+          libelleCible={libelleCible}
+          maille={dimCourante.id}
+          parent={chemin.find((c) => c.niveau === 'departement')?.code ?? null}
+          campagne={etat.campagne}
+        />
         <BoutonVoirCarte profil={etat.profil} onFermer={onFermer} />
         <button
           type="button"
@@ -1163,7 +1174,16 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
       </div>
 
       {/* ── Corps ───────────────────────────────────────────────────────── */}
-      {onglet === 'rayons' ? (
+      {onglet === 'diffusion' ? (
+        <OngletDiffusion
+          campagne={etat.campagne}
+          profil={etat.profil}
+          cible={cible}
+          libelleCible={libelleCible}
+          maille={dimCourante.id}
+          parent={chemin.find((c) => c.niveau === 'departement')?.code ?? null}
+        />
+      ) : onglet === 'rayons' ? (
         <OngletRayons
           profil={etat.profil}
           onProfil={(p) => majEtat({ profil: p })}

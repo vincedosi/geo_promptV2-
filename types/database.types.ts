@@ -1419,6 +1419,7 @@ export type Database = {
           carreau_id: number
           code_commune: string | null
           code_departement: string
+          code_postal: string | null
           d_bas_m: number | null
           d_haut_m: number | null
           pprt_niveau: string | null
@@ -1427,6 +1428,7 @@ export type Database = {
           carreau_id: number
           code_commune?: string | null
           code_departement: string
+          code_postal?: string | null
           d_bas_m?: number | null
           d_haut_m?: number | null
           pprt_niveau?: string | null
@@ -1435,6 +1437,7 @@ export type Database = {
           carreau_id?: number
           code_commune?: string | null
           code_departement?: string
+          code_postal?: string | null
           d_bas_m?: number | null
           d_haut_m?: number | null
           pprt_niveau?: string | null
@@ -2173,6 +2176,27 @@ export type Database = {
           nature?: string
           populations?: Json
           rayon_m?: number
+        }
+        Relationships: []
+      }
+      cp_population_totale: {
+        Row: {
+          code_postal: string
+          construit_le: string
+          n_carreaux: number
+          populations: Json
+        }
+        Insert: {
+          code_postal: string
+          construit_le?: string
+          n_carreaux: number
+          populations: Json
+        }
+        Update: {
+          code_postal?: string
+          construit_le?: string
+          n_carreaux?: number
+          populations?: Json
         }
         Relationships: []
       }
@@ -5887,6 +5911,17 @@ export type Database = {
         Returns: string
       }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      diffusion_par_classe: {
+        Args: {
+          p_campagne: string
+          p_cible?: string
+          p_limite?: number
+          p_maille?: string
+          p_parent?: string
+          p_profil: Json
+        }
+        Returns: Json
+      }
       disablelongtransactions: { Args: never; Returns: string }
       drop_carreaux_table: { Args: { table_name: string }; Returns: undefined }
       dropgeometrycolumn:
@@ -6927,6 +6962,16 @@ export type Database = {
         Returns: number
       }
       releve_empreinte_carreaux: { Args: never; Returns: Json }
+      remplir_code_postal_carreau: { Args: { p_lot?: number }; Returns: Json }
+      remplir_cp_population_totale: {
+        Args: {
+          p_bande: number
+          p_lon_est?: number
+          p_lon_ouest?: number
+          p_n_bandes?: number
+        }
+        Returns: Json
+      }
       remplir_pprt_niveau_generateur: { Args: never; Returns: Json }
       repair_iso_cache_geoms: { Args: never; Returns: Json }
       resolve_custom_geo_zone_codes:

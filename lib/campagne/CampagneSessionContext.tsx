@@ -1,7 +1,7 @@
 'use client'
 import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { SESSION_DEFAUT, sessionDepuisObjet, sessionVersUrl, urlVersSession } from './session-url'
+import { SESSION_DEFAUT, fusionnerUrlSession, sessionDepuisObjet, sessionVersUrl, urlVersSession } from './session-url'
 import { appliquerBascule } from './transitions'
 import type { CampagneSession, VueCampagne } from './session-types'
 
@@ -117,9 +117,22 @@ export function CampagneSessionProvider({ children }: { children: ReactNode }) {
   const derniereUrlRef = useRef<string>('')
   useEffect(() => {
     if (!doitLireUrl(pathname)) return
-    const qs = sessionVersUrl(session).toString()
-    if (qs === derniereUrlRef.current) return
-    derniereUrlRef.current = qs
+    // ⚠ FUSION et non remplacement. Cet effet reconstruisait la chaîne de
+    // requête ENTIÈRE à partir de la seule session, et faisait donc disparaître
+    // les paramètres des autres écrans de `/map` — l'analyse de population à
+    // risque écrit `risque=`, et ouvrir un lien qui le portait aboutissait à
+    // une URL sans lui, sans erreur ni trace (constaté le 2026-09-19).
+    //
+    // La comparaison, elle, reste sur les seules clés de la session : sinon un
+    // voisin qui modifie SON paramètre déclencherait une réécriture ici, et les
+    // deux effets se relanceraient l'un l'autre.
+    const qsSession = sessionVersUrl(session).toString()
+    if (qsSession === derniereUrlRef.current) return
+    derniereUrlRef.current = qsSession
+    const actuels = typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search)
+      : new URLSearchParams()
+    const qs = fusionnerUrlSession(session, actuels).toString()
     router.replace(qs ? `/map?${qs}` : '/map', { scroll: false })
   }, [session, pathname, router])
 
