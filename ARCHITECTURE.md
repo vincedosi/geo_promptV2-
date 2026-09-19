@@ -90,15 +90,26 @@
 >
 > **Les RPC `get_campaign_derive_map`, `get_campaign_derive_ranked`,
 > `get_campaign_derive_headline` (sql/117-118) et `get_campaign_suivi_cps`
-> restent EN BASE**, bien qu'orphelines sur cette branche : `origin/main` (ce
-> que la prod execute aujourd'hui) appelle encore ces RPC depuis les routes
-> `derive/map`, `derive/ranked` et `suivi/cps` supprimees ici (`SuiviTable.tsx`,
-> leur seul appelant commun avec `SuiviDeriveMap.tsx`/`DeriveTable.tsx`, y
-> disparait aussi). La base de donnees Supabase est UNIQUE et partagee entre
+> (sql/109, elargie sql/113) ont ete SUPPRIMEES le 2026-09-19 — sql/202.**
+>
+> Ce paragraphe interdisait leur suppression jusqu'a cette date, et la raison
+> etait juste : « La base de donnees Supabase est UNIQUE et partagee entre
 > branches — les supprimer maintenant casserait l'ecran de suivi en production,
-> en direct, pendant que cette branche n'est pas mergee. A traiter en tache SQL
-> separee, APRES le merge de `feat/suivi-v2`, une fois que `main` ne les
-> appelle plus.
+> en direct. » Elle a cesse de valoir le jour ou le projet Supabase heberge a
+> ete abandonne : il n'y a plus de base partagee, plus de production en ligne,
+> plus d'ecran deploye a casser.
+>
+> Les quatre conditions du § « Menage en base » ont ete verifiees une a une
+> avant d'ecrire la migration : 0 appelant dans le code de cette branche,
+> 0 appelant EN BASE (`pg_proc.prosrc` et `information_schema.views`), aucune
+> dependance structurelle, et une definition presente dans une migration
+> versionnee — c'est elle qui rend la suppression reversible par un simple
+> `git show`.
+>
+> ⚠ **`origin/main` les appelle encore**, dans 6 fichiers. Tant que
+> `feat/suivi-v2` n'est pas mergee, sortir `main` en local et ouvrir l'ecran de
+> suivi rendra une erreur. Ce n'est plus un incident de production — il n'y en
+> a plus — c'est une gene de poste de travail, et elle disparait au merge.
 
 > **Retrait de Pilotage ML (2026-09-08).** L'overlay `pilotage` du rail /map a ete
 > supprime, avec le wizard de strategie A4.7 (`app/strategies/`), les pages de demo
@@ -1147,7 +1158,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `materialize_indicator_cp_values` | Materialise un indicateur du registre IRIS en valeurs par CP (agregation ponderee + fallback communal), table `indicator_cp_values` | Lancement wizard (matérialisation lazy), `api/bidding/strategies/` |
 | `refresh_campaign_rollups` | Reconstruit les rollups de suivi d'une campagne (daily + CP, plan copie de bidding_zone_configs) | Import DSP, absorb, armement, backfill lazy `api/digital/[id]/suivi/` |
 | `get_campaign_suivi` | Payload jsonb complet du cockpit (pacing, cpm, pression, objectif, alertes, depts, daily) — seuils d'alerte constants sql/108 | `api/digital/[id]/suivi/` |
-| `get_campaign_suivi_cps` | CP d'un departement (drill, max 500, pires indices d'abord) | *orpheline sur cette branche* (Tache 16, 2026-09-15) — la route `api/digital/[id]/suivi/cps/` est supprimee avec `SuiviTable.tsx`, son seul appelant. Reste EN BASE : `origin/main` (prod) a encore les deux, meme regle que les RPC `get_campaign_derive_*` — dont la description vit dans le PARAGRAPHE DE TETE de ce document (« Les RPC get_campaign_derive_map… restent EN BASE ») et non dans ce tableau, ou elles n'ont jamais eu de ligne. Le renvoi disait « ci-dessous » jusqu'au 2026-09-16 : la tache SQL de nettoyage post-merge, explicitement prevue par ce meme paragraphe, l'aurait suivi et n'aurait rien trouve — soit elle oubliait les trois RPC, soit elle les supprimait sans la mise en garde « origin/main les appelle encore », ce qui casse l'ecran de suivi en production, en direct, sur une base partagee entre branches |
+| `get_campaign_suivi_cps` | **SUPPRIMEE le 2026-09-19 (sql/202)** avec les trois `get_campaign_derive_*`, l'ancien ecran de suivi ne l'appelant plus depuis la Tache 16. Definition conservee dans sql/113 (signature a 3 arguments) et sql/109 (a 2) : restaurer est un `git show`, pas une restauration de sauvegarde. Le detail du raisonnement vit dans le PARAGRAPHE DE TETE de ce document, ou elle etait decrite avec les trois autres | — |
 | `get_campaign_suivi_map` | Features CP (geometries ref_codes_postaux) pour la choroplethe hold/cpm | `api/digital/[id]/suivi/map/` |
 | `simulate_dsp_report` | Genere le rapport DSP demo (set-based depuis les rollups, part de budget, sur-declaration ×1,03) | `api/digital/[id]/reconcile/pull/` |
 | `get_campaign_reconciliation` | Payload reconciliation (global taux de mesure, par canal, tendance) | `api/digital/[id]/reconcile/` |

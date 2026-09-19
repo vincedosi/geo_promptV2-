@@ -5995,33 +5995,6 @@ export type Database = {
           has_data: boolean
         }[]
       }
-      get_campaign_derive_headline: {
-        Args: { p_actors?: string[]; p_campaign_id: string; p_metric?: string }
-        Returns: number
-      }
-      get_campaign_derive_map: {
-        Args: {
-          p_actors?: string[]
-          p_bbox_xmax?: number
-          p_bbox_xmin?: number
-          p_bbox_ymax?: number
-          p_bbox_ymin?: number
-          p_campaign_id: string
-          p_mesh?: string
-          p_metric?: string
-        }
-        Returns: Json
-      }
-      get_campaign_derive_ranked: {
-        Args: {
-          p_actors?: string[]
-          p_campaign_id: string
-          p_limit?: number
-          p_mesh?: string
-          p_metric?: string
-        }
-        Returns: Json
-      }
       get_campaign_expected: {
         Args: { p_campaign_id: string }
         Returns: number
@@ -6078,10 +6051,6 @@ export type Database = {
       }
       get_campaign_suivi: {
         Args: { p_actors?: string[]; p_campaign_id: string }
-        Returns: Json
-      }
-      get_campaign_suivi_cps: {
-        Args: { p_actors?: string[]; p_campaign_id: string; p_dept: string }
         Returns: Json
       }
       get_campaign_suivi_map: {
