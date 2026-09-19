@@ -48,6 +48,10 @@ import {
 } from '@/lib/risques/dimensions';
 import type { Dimension as DimensionPartagee, ModeZone } from '@/lib/risques/dimensions';
 import { Champ, Pastille, FilAriane, Th, Td, styleLien } from '@/components/risques/elements';
+import { FournisseurRisque, useEtatRisque } from '@/components/risques/ContexteRisque';
+import type { Onglet } from '@/lib/risques/etat-url';
+import { ResumeProfil } from '@/components/risques/ResumeProfil';
+import { NIVEAUX_RISQUE } from '@/lib/risques/gravites';
 
 // La maille vient de `lib/risques/dimensions.ts` : les trois listes blanches
 // (ici, /agregats, /export) divergeaient, et `arrondissement` etait donc
@@ -136,15 +140,10 @@ const AIDE_MODE: Record<ModeZone, { label: string; aide: string }> = {
 
 const MODES_ZONE = MODES_PARTAGES.map((id) => ({ id, ...AIDE_MODE[id] }));
 
-/** Niveaux réglementaires, du plus grave au moins. Miroir du panneau Calques. */
-const NIVEAUX: Array<{ id: string; label: string }> = [
-  { id: 'seveso_haut', label: 'Seveso haut' },
-  { id: 'seveso_bas', label: 'Seveso bas' },
-  { id: 'ied', label: 'IED' },
-  { id: 'autorisation', label: 'Autorisation' },
-  { id: 'enregistrement', label: 'Enregistrement' },
-  { id: 'autre', label: 'Autre' },
-];
+// Les niveaux viennent de `lib/risques/gravites.ts`. Cette liste etait ecrite
+// ici en dur sous le commentaire « Miroir du panneau Calques » — et divergeait
+// sur QUATRE libelles sur six (constat R-26).
+const NIVEAUX = NIVEAUX_RISQUE;
 
 interface UniteRef { code: string; nom: string }
 
@@ -227,7 +226,25 @@ interface Props {
 }
 
 
-export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Props) {
+/**
+ * L'écran du module. Enveloppé par {@link AnalysePopulationOverlay}, qui lui
+ * fournit l'état partagé.
+ *
+ * ⚠ Il ne peut pas porter le fournisseur lui-même : un composant ne consomme
+ * pas un contexte qu'il déclare dans son propre rendu.
+ */
+function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
+  /**
+   * L'ÉTAT PARTAGÉ, et non vingt `useState` indépendants.
+   *
+   * Les deux onglets portaient chacun leur copie des mêmes filtres : changer de
+   * niveau réglementaire dans l'un ne changeait rien dans l'autre, et les deux
+   * affichaient alors des chiffres différents pour la même question sans que
+   * rien ne le signale. Ce qui change un chiffre vit désormais ici, et se
+   * reflète dans l'URL — donc se partage et survit à un rechargement.
+   */
+  const { etat, majEtat } = useEtatRisque();
+
   /**
    * LE FIL D'ARIANE, et non un sélecteur de « maille ».
    *
@@ -258,7 +275,8 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
    * ordinaire.
    */
   const [mailleChoisie, setMailleChoisie] = useState<Dimension | null>(null);
-  const [cible, setCible] = useState('ind');
+  const cible = etat.cible;
+  const setCible = useCallback((v: string) => majEtat({ cible: v }), [majEtat]);
   const [encodage, setEncodage] = useState<Encodage>('part');
   const [rayon, setRayon] = useState<number | null>(null);   // null = rayon déduit
   const [cibles, setCibles] = useState<Cible[]>([]);
@@ -267,8 +285,25 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
   const [chargement, setChargement] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [actif, setActif] = useState<string | null>(null);
-  const [modes, setModes] = useState<string[]>(['pprt', 'buffer']);
-  const [niveaux, setNiveaux] = useState<string[]>(gravites.length > 0 ? gravites : ['seveso_haut', 'seveso_bas']);
+  /**
+   * Modes et niveaux passent par l'état partagé, avec un shim qui accepte la
+   * forme « fonction de mise à jour » déjà employée plus bas.
+   *
+   * ⚠ Le shim lit `etat` et non une valeur figée : écrire
+   * `majEtat({ modes: f(modes) })` en capturant `modes` du rendu courant
+   * perdrait une modification sur deux quand deux cases sont cochées coup sur
+   * coup — la seconde recalculerait à partir d'un état déjà périmé.
+   */
+  const modes = etat.modes as string[];
+  const setModes = useCallback(
+    (f: (v: string[]) => string[]) => majEtat({ modes: f([...etat.modes]) as ModeZone[] }),
+    [majEtat, etat.modes],
+  );
+  const niveaux = etat.gravites;
+  const setNiveaux = useCallback(
+    (f: (v: string[]) => string[]) => majEtat({ gravites: f([...etat.gravites]) }),
+    [majEtat, etat.gravites],
+  );
   /**
    * Le perimetre d'etude est UN seul etat, et c'est un correctif (2026-09-18).
    *
@@ -340,7 +375,8 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
    * pré-calculée (sql/198) et ne recalcule rien, là où le premier croise les
    * carreaux à la demande.
    */
-  const [onglet, setOnglet] = useState<'population' | 'rayon'>('population');
+  const onglet = etat.onglet;
+  const setOnglet = useCallback((v: Onglet) => majEtat({ onglet: v }), [majEtat]);
 
   const [exportEnCours, setExportEnCours] = useState(false);
   /**
@@ -796,8 +832,8 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
         />
         <div style={{ display: 'flex', gap: 2, marginLeft: 4 }}>
           {([
-            ['population', 'Population exposée'],
-            ['rayon', 'Rayon d’influence'],
+            ['rayons', 'Rayons'],
+            ['territoires', 'Territoires'],
           ] as const).map(([id, label]) => (
             <button
               key={id}
@@ -820,23 +856,27 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
         <span style={{ fontFamily: fMono, fontSize: 11, color: 'var(--text-tertiary)' }}>
           {libelleCible}
         </span>
+        {/* Le profil decide de la classe de chaque carreau, donc de TOUS les
+            chiffres affiches. Le laisser dans le seul onglet « Rayons » ferait
+            lire un tableau sans savoir sur quels anneaux il a ete calcule. */}
+        <ResumeProfil profil={etat.profil} onOuvrirAtelier={() => setOnglet('rayons')} />
         <div style={{ flex: 1 }} />
         <button
           type="button"
           onClick={exporter}
-          disabled={exportEnCours || !agregat || onglet !== 'population'}
-          title={onglet !== 'population'
+          disabled={exportEnCours || !agregat || onglet !== 'territoires'}
+          title={onglet !== 'territoires'
             ? 'L’export porte sur le tableau de population ; revenez à cet onglet.'
             : 'Télécharger le tableau complet, avec un onglet « Méthode et limites »'}
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
             background: 'transparent',
-            border: `0.5px solid ${exportEnCours || !agregat || onglet !== 'population'
+            border: `0.5px solid ${exportEnCours || !agregat || onglet !== 'territoires'
               ? 'var(--border-subtle)' : 'var(--border-default)'}`,
             borderRadius: 6, padding: '6px 12px',
-            cursor: exportEnCours || !agregat || onglet !== 'population' ? 'not-allowed' : 'pointer',
+            cursor: exportEnCours || !agregat || onglet !== 'territoires' ? 'not-allowed' : 'pointer',
             fontFamily: fInter, fontSize: 12,
-            color: exportEnCours || !agregat || onglet !== 'population'
+            color: exportEnCours || !agregat || onglet !== 'territoires'
               ? 'var(--text-tertiary)' : 'var(--text-secondary)',
           }}
         >
@@ -889,7 +929,7 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
             courbe de rayon n'a pas de maille (elle agrège tout le territoire)
             et porte son propre curseur. Les laisser visibles ferait croire
             qu'ils agissent sur ce qu'on regarde. */}
-        {onglet === 'population' && (
+        {onglet === 'territoires' && (
         <Champ label="Lister par">
           <div style={{ display: 'flex', gap: 4 }}>
             {DIMENSIONS.map((d) => (
@@ -962,7 +1002,7 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
               coup. `rayon_max_m` vient de la base (sql/197) et borne le
               curseur : on ne peut plus glisser jusqu'à l'échec.
             - le DÉLAI. Chaque frappe relançait 4 s de calcul. */}
-        {onglet === 'population' && (
+        {onglet === 'territoires' && (
         <Champ label="Cercle autour de chaque site">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ display: 'flex', gap: 3 }}>
@@ -1118,7 +1158,7 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
       </div>
 
       {/* ── Corps ───────────────────────────────────────────────────────── */}
-      {onglet === 'rayon' ? (
+      {onglet === 'rayons' ? (
         <OngletRayonInfluence
           cible={cible}
           libelleCible={libelleCible}
@@ -1387,6 +1427,21 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
       </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Le module « Population à risque industriel ».
+ *
+ * Enveloppe {@link CorpsAnalyse} du fournisseur d'état : c'est lui qui lit
+ * l'URL au montage et l'y reflète ensuite, de sorte qu'une vue se partage par
+ * un simple lien et survive à un rechargement.
+ */
+export function AnalysePopulationOverlay(props: Props) {
+  return (
+    <FournisseurRisque>
+      <CorpsAnalyse {...props} />
+    </FournisseurRisque>
   );
 }
 

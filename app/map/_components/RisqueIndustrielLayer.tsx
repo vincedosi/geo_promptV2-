@@ -54,6 +54,7 @@ import { FAMILLES_ICPE_SEED, NATURE_NON_PRECISEE } from '@/lib/import/georisques
 import { descriptionStatut, TIRETE_ZONE_CALCULEE, LARGEUR_TRAIT_ZONE } from '@/lib/carte/nature-zone';
 import { formaterNombre } from '@/lib/format/nombre';
 import type { TypeRisque } from '@/lib/carte/palette-risques';
+import { libelleGravite } from '@/lib/risques/gravites';
 
 const SOURCE_POINTS = 'risques-industriels-src';
 const SOURCE_ZONES = 'risques-industriels-zones-src';
@@ -87,14 +88,8 @@ interface Props {
   onCompte?: (rendus: number, total: number, avecPprt: number) => void;
 }
 
-const LIBELLE_GRAVITE: Record<string, string> = {
-  seveso_haut: 'Seveso seuil haut',
-  seveso_bas: 'Seveso seuil bas',
-  ied: 'Directive IED',
-  autorisation: 'Autorisation',
-  enregistrement: 'Enregistrement',
-  autre: 'Régime déclaratif ou non précisé',
-};
+// `LIBELLE_GRAVITE` vient de `lib/risques/gravites.ts` : il etait recopie ici,
+// dans le panneau Calques et dans l'overlay, et l'overlay divergeait (R-26).
 
 /** Une ligne de la popup, omise si la valeur est absente — jamais « null ». */
 
@@ -443,7 +438,7 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
             `<div style="display:flex;align-items:center;gap:6px;margin:6px 0">` +
             `<span style="width:8px;height:8px;border-radius:50%;background:${esc(couleurDuType(type, theme))};flex:0 0 auto"></span>` +
             `<span style="color:var(--text-secondary)">${esc(LIBELLE_TYPE[type])}</span></div>` +
-            ligne('Niveau', LIBELLE_GRAVITE[String(p.gravite ?? '')] ?? p.gravite) +
+            ligne('Niveau', libelleGravite(String(p.gravite ?? ''))) +
             ligne('Adresse', p.adresse) +
             ligne('Commune', [p.code_postal, p.ville].filter(Boolean).join(' ')) +
             ligne('Département', p.departement) +

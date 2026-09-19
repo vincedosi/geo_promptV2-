@@ -1,0 +1,141 @@
+/**
+ * Le modèle `ProfilRayons` — le contrat que client et serveur partagent.
+ *
+ * ── POURQUOI CES TESTS SONT LES PREMIERS ──────────────────────────────────
+ *
+ * Le profil voyage dans l'URL, dans le corps d'une requête, dans une clé de
+ * cache et dans un nom de tuile. Les quatre doivent voir le MÊME objet, sinon
+ * un cache est servi pour un profil qui n'est pas celui qu'on regarde — le
+ * défaut exact que sql/196 a dû corriger en production sur `exposition_cache`,
+ * où le résultat précédent était rendu avec une date d'apparence légitime.
+ *
+ * La normalisation (tri, dédoublonnage, bornes) est donc dans la MÊME fonction
+ * que la validation : un profil qui passe le schéma est déjà canonique, et
+ * deux profils équivalents ne peuvent pas produire deux empreintes.
+ */
+import { describe, it, expect } from 'vitest';
+import {
+  ProfilRayonsSchema,
+  PROFIL_DEFAUT,
+  normaliserProfil,
+  RAYON_MIN_M,
+  RAYON_MAX_M,
+  ANNEAUX_MAX,
+  anneauxDuNiveau,
+  type ProfilRayons,
+} from '@/lib/risques/profil';
+
+/** Un profil valide de référence, pour n'écrire que la variation qui compte. */
+const base: ProfilRayons = {
+  haut: [1000, 2000, 5000],
+  bas: [500, 1000],
+  autres: [],
+  lie: false,
+  inclurePPRT: true,
+};
+
+describe('ProfilRayonsSchema', () => {
+  it('accepte un profil de référence', () => {
+    expect(ProfilRayonsSchema.parse(base)).toEqual(base);
+  });
+
+  it('trie les anneaux, quel que soit l ordre de saisie', () => {
+    const p = ProfilRayonsSchema.parse({ ...base, haut: [5000, 1000, 2000] });
+    expect(p.haut).toEqual([1000, 2000, 5000]);
+  });
+
+  it('dedoublonne : deux anneaux identiques produiraient une bande vide', () => {
+    // Une bande [2000, 2000) ne contient aucun carreau. Elle s'afficherait
+    // dans la légende avec une population de zéro, et le lecteur conclurait
+    // que personne n'habite là — alors que la bande n'existe pas.
+    const p = ProfilRayonsSchema.parse({ ...base, haut: [1000, 2000, 2000] });
+    expect(p.haut).toEqual([1000, 2000]);
+  });
+
+  it('refuse un rayon sous le plancher', () => {
+    expect(() => ProfilRayonsSchema.parse({ ...base, haut: [RAYON_MIN_M - 1] })).toThrow();
+  });
+
+  it('refuse un rayon au-dessus du plafond', () => {
+    // 10 km est la borne du pré-calcul (sql/198). Au-delà, il n'y a pas de
+    // donnée : accepter la valeur rendrait une bande vide indiscernable d'une
+    // bande sans habitant.
+    expect(() => ProfilRayonsSchema.parse({ ...base, haut: [RAYON_MAX_M + 100] })).toThrow();
+  });
+
+  it('refuse plus de quatre anneaux par niveau', () => {
+    expect(() => ProfilRayonsSchema.parse({ ...base, haut: [500, 1000, 2000, 5000, 8000] })).toThrow();
+  });
+
+  it('accepte exactement quatre anneaux', () => {
+    const p = ProfilRayonsSchema.parse({ ...base, haut: [500, 1000, 2000, 5000] });
+    expect(p.haut).toHaveLength(ANNEAUX_MAX);
+  });
+
+  it('accepte un niveau sans aucun anneau', () => {
+    // « Autres » est vide par défaut dans cette mission : le niveau existe dans
+    // le type mais n'a aucune donnée derrière lui. Le refuser obligerait à
+    // inventer un anneau factice.
+    expect(ProfilRayonsSchema.parse({ ...base, autres: [] }).autres).toEqual([]);
+  });
+
+  it('refuse un rayon non entier — les paliers du pre-calcul sont des entiers', () => {
+    expect(() => ProfilRayonsSchema.parse({ ...base, haut: [1500.5] })).toThrow();
+  });
+});
+
+describe('normaliserProfil', () => {
+  it('rend un profil deja canonique inchange', () => {
+    expect(normaliserProfil(base)).toEqual(base);
+  });
+
+  it('deux saisies equivalentes donnent le MEME objet', () => {
+    // C'est la propriété dont dépend toute la mémorisation : si deux profils
+    // équivalents se normalisaient différemment, ils auraient deux empreintes,
+    // donc deux caches, donc deux calculs pour une seule question.
+    const a = normaliserProfil({ ...base, haut: [2000, 1000, 5000, 1000] });
+    const b = normaliserProfil({ ...base, haut: [1000, 2000, 5000] });
+    expect(a).toEqual(b);
+  });
+
+  it('lie = true : le niveau bas reprend les anneaux du haut', () => {
+    // Mode comparaison. Laisser `bas` diverger pendant que l'interface annonce
+    // « liés » donnerait une carte qui contredit son propre cadenas.
+    const p = normaliserProfil({ ...base, lie: true });
+    expect(p.bas).toEqual(p.haut);
+    expect(p.autres).toEqual(p.haut);
+  });
+
+  it('lie = true puis false : les anneaux propres NE sont PAS restaures', () => {
+    // Décision explicite : lier écrase. Conserver un état caché « avant
+    // liaison » ferait réapparaître des anneaux que l'utilisateur ne voit nulle
+    // part au moment où il décoche, ce qui se lit comme un bug.
+    const lie = normaliserProfil({ ...base, lie: true });
+    const delie = normaliserProfil({ ...lie, lie: false });
+    expect(delie.bas).toEqual(base.haut);
+  });
+});
+
+describe('anneauxDuNiveau', () => {
+  it('rend les anneaux propres quand les niveaux ne sont pas lies', () => {
+    expect(anneauxDuNiveau(base, 'bas')).toEqual([500, 1000]);
+  });
+
+  it('rend les anneaux du haut quand les niveaux sont lies', () => {
+    expect(anneauxDuNiveau({ ...base, lie: true }, 'bas')).toEqual([1000, 2000, 5000]);
+  });
+});
+
+describe('PROFIL_DEFAUT', () => {
+  it('passe son propre schema', () => {
+    // Un défaut invalide ne se verrait qu'au premier rendu, sous la forme d'un
+    // écran vide sans message.
+    expect(() => ProfilRayonsSchema.parse(PROFIL_DEFAUT)).not.toThrow();
+  });
+
+  it('donne plus d anneaux au niveau haut qu au niveau bas', () => {
+    // La finalité du module est le bidding DIFFÉRENCIÉ : un défaut identique
+    // sur les deux niveaux n'illustrerait pas ce que l'écran sert à faire.
+    expect(PROFIL_DEFAUT.haut.length).toBeGreaterThan(PROFIL_DEFAUT.bas.length);
+  });
+});

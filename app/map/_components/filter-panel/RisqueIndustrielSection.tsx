@@ -58,21 +58,10 @@ import { TIRETE_ZONE_CALCULEE, LARGEUR_TRAIT_ZONE } from '@/lib/carte/nature-zon
 import { formaterNombre } from '@/lib/format/nombre';
 import { PPRT_ZOOM_PLANCHER } from '@/lib/version';
 import type { EtatCouchePprt } from '../PprtLayer';
+import { NIVEAUX_RISQUE } from '@/lib/risques/gravites';
 
-/**
- * Niveaux réglementaires, du plus grave au moins.
- *
- * NON exportée : rien d'autre ne la nomme, et `knip` comptait l'export comme
- * mort (cliquet de tests/unit/docs/catalogue-code.test.ts).
- */
-const NIVEAUX_RISQUE = [
-  { id: 'seveso_haut', label: 'Seveso seuil haut' },
-  { id: 'seveso_bas', label: 'Seveso seuil bas' },
-  { id: 'ied', label: 'Directive IED' },
-  { id: 'autorisation', label: 'Autorisation' },
-  { id: 'enregistrement', label: 'Enregistrement' },
-  { id: 'autre', label: 'Régime déclaratif ou non précisé' },
-] as const;
+// Niveaux reglementaires : `lib/risques/gravites.ts` en est la seule source.
+// Ils etaient declares ici, dans la couche carte ET dans l'overlay (R-26).
 
 /** Rayons proposés pour la zone calculée. 0 = aucune zone. */
 const RAYONS = [0, 300, 500, 1000, 2000, 5000] as const;
