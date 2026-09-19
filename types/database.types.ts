@@ -7,10 +7,30 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -1367,6 +1387,60 @@ export type Database = {
         }
         Relationships: []
       }
+      carreau_risque_bandes: {
+        Row: {
+          bande: number
+          construit_le: string
+          duree_ms: number
+          lon_max: number
+          lon_min: number
+          n_lignes: number
+        }
+        Insert: {
+          bande: number
+          construit_le?: string
+          duree_ms: number
+          lon_max: number
+          lon_min: number
+          n_lignes: number
+        }
+        Update: {
+          bande?: number
+          construit_le?: string
+          duree_ms?: number
+          lon_max?: number
+          lon_min?: number
+          n_lignes?: number
+        }
+        Relationships: []
+      }
+      carreau_risque_distance: {
+        Row: {
+          carreau_id: number
+          code_commune: string | null
+          code_departement: string
+          d_bas_m: number | null
+          d_haut_m: number | null
+          pprt_niveau: string | null
+        }
+        Insert: {
+          carreau_id: number
+          code_commune?: string | null
+          code_departement: string
+          d_bas_m?: number | null
+          d_haut_m?: number | null
+          pprt_niveau?: string | null
+        }
+        Update: {
+          carreau_id?: number
+          code_commune?: string | null
+          code_departement?: string
+          d_bas_m?: number | null
+          d_haut_m?: number | null
+          pprt_niveau?: string | null
+        }
+        Relationships: []
+      }
       carreaux_1km: {
         Row: {
           familles_monoparentales: number
@@ -2045,6 +2119,60 @@ export type Database = {
           tmja?: number | null
           tmja_tier?: number
           type_comptage?: string | null
+        }
+        Relationships: []
+      }
+      couverture_rayon_bandes: {
+        Row: {
+          bande: number
+          construit_le: string
+          duree_ms: number
+          lon_max: number
+          lon_min: number
+          n_lignes: number
+        }
+        Insert: {
+          bande: number
+          construit_le?: string
+          duree_ms: number
+          lon_max: number
+          lon_min: number
+          n_lignes: number
+        }
+        Update: {
+          bande?: number
+          construit_le?: string
+          duree_ms?: number
+          lon_max?: number
+          lon_min?: number
+          n_lignes?: number
+        }
+        Relationships: []
+      }
+      couverture_rayon_risque: {
+        Row: {
+          code_departement: string
+          gravite: string
+          n_carreaux: number
+          nature: string
+          populations: Json
+          rayon_m: number
+        }
+        Insert: {
+          code_departement: string
+          gravite: string
+          n_carreaux: number
+          nature: string
+          populations: Json
+          rayon_m: number
+        }
+        Update: {
+          code_departement?: string
+          gravite?: string
+          n_carreaux?: number
+          nature?: string
+          populations?: Json
+          rayon_m?: number
         }
         Relationships: []
       }
@@ -2940,6 +3068,30 @@ export type Database = {
           n_campagnes?: number
           score_median?: number
           tolerance_pct?: number
+        }
+        Relationships: []
+      }
+      exposition_cache: {
+        Row: {
+          calcule_le: string
+          cle: string
+          lu_le: string
+          n_lectures: number
+          payload: Json
+        }
+        Insert: {
+          calcule_le?: string
+          cle: string
+          lu_le?: string
+          n_lectures?: number
+          payload: Json
+        }
+        Update: {
+          calcule_le?: string
+          cle?: string
+          lu_le?: string
+          n_lectures?: number
+          payload?: Json
         }
         Relationships: []
       }
@@ -5495,7 +5647,27 @@ export type Database = {
         Args: { p_iso_geojson: string; p_since: string }
         Returns: boolean
       }
+      classe_carreau_risque: {
+        Args: {
+          p_bas: number[]
+          p_d_bas: number
+          p_d_haut: number
+          p_haut: number[]
+          p_inclure_pprt: boolean
+          p_pprt_niveau: string
+        }
+        Returns: string
+      }
       classe_iris: { Args: { p_colonne: string }; Returns: string }
+      classer_lot_risque: {
+        Args: {
+          p_bas: number[]
+          p_cas: Json
+          p_haut: number[]
+          p_inclure_pprt: boolean
+        }
+        Returns: string[]
+      }
       classer_territoires: {
         Args: {
           p_indicateur: string
@@ -5532,26 +5704,6 @@ export type Database = {
         Args: { p_code: string; p_type: string }
         Returns: Json
       }
-      compter_sites_rayon: {
-        Args: {
-          p_gravites?: string[]
-          p_natures?: string[]
-          p_perim_codes?: string[]
-          p_perim_niveau?: string
-        }
-        Returns: Json
-      }
-      construire_couverture_rayon: {
-        Args: {
-          p_bande: number
-          p_n_bandes?: number
-          p_rayon_max_m?: number
-          p_lon_ouest?: number
-          p_lon_est?: number
-          p_bande_id?: number
-        }
-        Returns: Json
-      }
       compte_cp_campagne: { Args: { p_campaign_id: string }; Returns: number }
       compte_poi_par_categorie: {
         Args: {
@@ -5564,6 +5716,15 @@ export type Database = {
           categorie: string
           nb: number
         }[]
+      }
+      compter_sites_rayon: {
+        Args: {
+          p_gravites?: string[]
+          p_natures?: string[]
+          p_perim_codes?: string[]
+          p_perim_niveau?: string
+        }
+        Returns: Json
       }
       compute_filosofi_national_averages: { Args: never; Returns: Json }
       compute_filosofi_profiles_batch: {
@@ -5589,6 +5750,28 @@ export type Database = {
       consolider_geo_icpe: { Args: never; Returns: Json }
       consommer_quota: {
         Args: { p_cle: string; p_fenetre_s: number; p_max: number }
+        Returns: Json
+      }
+      construire_carreau_risque_distance: {
+        Args: {
+          p_bande: number
+          p_bande_id?: number
+          p_lon_est?: number
+          p_lon_ouest?: number
+          p_n_bandes?: number
+          p_rayon_max_m?: number
+        }
+        Returns: Json
+      }
+      construire_couverture_rayon: {
+        Args: {
+          p_bande: number
+          p_bande_id?: number
+          p_lon_est?: number
+          p_lon_ouest?: number
+          p_n_bandes?: number
+          p_rayon_max_m?: number
+        }
         Returns: Json
       }
       construire_iris_agg: {
@@ -6496,10 +6679,6 @@ export type Database = {
         Args: { p_curve: Json; p_x: number }
         Returns: number
       }
-      list_custom_geo_source_types: {
-        Args: { p_org_id: string }
-        Returns: Json
-      }
       lire_couverture_rayon: {
         Args: {
           p_cible?: string
@@ -6508,6 +6687,10 @@ export type Database = {
           p_perim_codes?: string[]
           p_perim_niveau?: string
         }
+        Returns: Json
+      }
+      list_custom_geo_source_types: {
+        Args: { p_org_id: string }
         Returns: Json
       }
       log_smart_prompt_feedback: {
@@ -6583,6 +6766,32 @@ export type Database = {
       populate_geometry_columns:
         | { Args: { tbl_oid: unknown; use_typmod?: boolean }; Returns: number }
         | { Args: { use_typmod?: boolean }; Returns: string }
+      population_exposee_agregee: {
+        Args: {
+          p_cible?: string
+          p_dimension?: string
+          p_forcer_rayon?: boolean
+          p_gravites?: string[]
+          p_limite?: number
+          p_modes?: string[]
+          p_natures?: string[]
+          p_perim_codes?: string[]
+          p_perim_niveau?: string
+          p_rayon_m?: number
+        }
+        Returns: Json
+      }
+      population_exposee_site: { Args: { p_site_id: string }; Returns: Json }
+      population_par_classe: {
+        Args: {
+          p_cible?: string
+          p_limite?: number
+          p_maille?: string
+          p_parent?: string
+          p_profil: Json
+        }
+        Returns: Json
+      }
       postgis_constraint_dims: {
         Args: { geomcolumn: string; geomschema: string; geomtable: string }
         Returns: number
@@ -6620,26 +6829,18 @@ export type Database = {
       }
       postgis_version: { Args: never; Returns: string }
       postgis_wagyu_version: { Args: never; Returns: string }
-      population_exposee_agregee: {
-        Args: {
-          p_cible?: string
-          p_dimension?: string
-          p_gravites?: string[]
-          p_limite?: number
-          p_modes?: string[]
-          p_natures?: string[]
-          p_perim_codes?: string[]
-          p_perim_niveau?: string
-          p_rayon_m?: number
-          p_forcer_rayon?: boolean
-        }
-        Returns: Json
-      }
-      population_exposee_site: { Args: { p_site_id: string }; Returns: Json }
       pprt_consolider_departement: { Args: never; Returns: Json }
       pprt_importer_partition: {
         Args: { p_lignes: Json; p_partition: string }
         Returns: Json
+      }
+      pprt_niveaux: {
+        Args: never
+        Returns: {
+          geom_3857: unknown
+          niveau: string
+          pprt_id: string
+        }[]
       }
       pprt_perimetres_carte: {
         Args: { p_bbox: number[]; p_limite?: number; p_types?: string[] }
@@ -6696,6 +6897,14 @@ export type Database = {
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       simulate_dsp_report: { Args: { p_campaign_id: string }; Returns: Json }
+      sites_exposition: {
+        Args: { p_depts?: string[]; p_gravites: string[]; p_natures?: string[] }
+        Returns: {
+          id: string
+          lat: number
+          lng: number
+        }[]
+      }
       smart_demographie_ranking: {
         Args: {
           p_indicateur?: string
@@ -7351,6 +7560,9 @@ export type Database = {
         }
         Returns: string
       }
+      vider_carreau_risque_distance: { Args: never; Returns: Json }
+      vider_couverture_rayon: { Args: never; Returns: number }
+      vider_exposition_cache: { Args: { p_avant?: string }; Returns: number }
       zone_dessin: { Args: { p_geojson: Json }; Returns: Json }
       zone_difference: {
         Args: { p_base: string; p_retires: string[] }
@@ -7387,12 +7599,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -7416,11 +7628,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -7441,11 +7653,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -7466,11 +7678,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -7483,11 +7695,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never) = never,
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -7497,9 +7709,13 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       job_status: ["pending", "processing", "completed", "failed"],
     },
   },
 } as const
+

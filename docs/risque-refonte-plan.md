@@ -356,10 +356,24 @@ de définition**, et il fera bouger des chiffres :
   niveau changera** : les 328 071 carreaux aujourd'hui comptés dans les deux
   marges seront attribués au seul niveau Seveso haut.
 
-Conséquence attendue et à vérifier après construction : la population « Seveso
-bas » **baissera**, la population « Seveso haut » restera stable, et leur somme
-égalera enfin le total — ce qui n'est pas le cas aujourd'hui. Je mesurerai
-l'écart exact et l'écrirai ici plutôt que de le laisser découvrir à l'écran.
+**MESURÉ le 2026-09-19**, profil par défaut (haut 1/2/5 km, bas 0,5/1 km,
+PPRT à part), cible `ind`, France entière :
+
+| | ancien affichage (marginal) | règle d'affectation unique | écart |
+|---|---:|---:|---:|
+| Seveso seuil haut | 13 585 817 | 13 585 902 | **+85** |
+| Seveso seuil bas | 1 055 801 | 517 797 | **−538 004** |
+| **somme affichée** | **14 641 618** | **14 103 699** | **−537 919** |
+
+La prédiction est vérifiée à la lettre : le seuil haut ne bouge pas (les 85
+habitants gagnés viennent de carreaux couverts par un périmètre PPRT mais au-delà
+du dernier anneau), le seuil bas est **divisé par deux**, et la somme des deux
+égale enfin le total.
+
+Autrement dit, l'écran annonçait **537 919 habitants de plus qu'il n'y en a**,
+soit **3,8 %** — non pas parce qu'un nombre était faux, mais parce que deux
+nombres exacts ne devaient pas être additionnés. C'est le défaut le plus
+difficile à repérer : chaque moitié résiste à la vérification.
 
 ---
 

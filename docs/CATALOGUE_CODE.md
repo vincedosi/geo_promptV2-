@@ -4,7 +4,7 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-09-19 — commit `9713e79`.
+> Généré le 2026-09-19 — commit `6ed3d36`.
 
 ## Totaux
 
@@ -82,10 +82,10 @@ Trié par nombre d’occurrences décroissant.
 | `lib/campaigns/platform-links.ts` | 1 | PlatformLinksSchema | — |
 | `lib/campagne/constats.ts` | 1 | SEUIL_ECART_SIGNALE_PCT | — |
 | `components/campagne/suivi-v2/TableauDeregles.tsx` | 1 | LIGNES_MAX | — |
-| `lib/civic-health/atmofrance-client.ts` | 1 | AASQA_REGION_CODES | — |
 | `lib/pacing/rebid.ts` | 1 | REBID_EPSILON | — |
 | `lib/demo/rng.ts` | 1 | hashStr | — |
 | `lib/geo/dept-lookup-server.ts` | 1 | invalidateDeptCache | — |
+| `lib/civic-health/atmofrance-client.ts` | 1 | AASQA_REGION_CODES | — |
 | `lib/prompting/code-generation/dv360.ts` | 1 | DV360_PROMPT_SECTION | — |
 | `lib/auth/roles.ts` | 1 | ROLES_MEMBRE | — |
 | `lib/iris-crawler/db-columns.ts` | 1 | getCoreColumnType | — |
@@ -110,11 +110,11 @@ Trié par nombre d’occurrences décroissant.
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |
 | `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
-| `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
 | `lib/demo/pilot-types.ts` | 1 | — | PilotItem |
 | `lib/dsp/push/types.ts` | 1 | — | PushStatus |
-| `lib/qualite/verdict.ts` | 1 | — | Verdict |
+| `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
 | `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
+| `lib/qualite/verdict.ts` | 1 | — | Verdict |
 | `lib/report/types.ts` | 1 | — | ReportHeader |
 | `lib/radio/import-logger.ts` | 1 | — | LogEntry |
 | `types/campaign.ts` | 1 | — | DspCampaign |
