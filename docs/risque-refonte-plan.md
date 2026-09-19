@@ -377,16 +377,77 @@ difficile à repérer : chaque moitié résiste à la vérification.
 
 ---
 
-## 7. Ordre d'exécution et points de contrôle
+## 7. Ce qui est livré, et ce qui ne l'est pas
 
-| Phase | Livrable vérifiable | Commit |
+> Mis à jour le 2026-09-19 au soir, après exécution. Les cases cochées ont été
+> vérifiées dans le navigateur, pas seulement en SQL.
+
+### Livré
+
+| Phase | Livrable | Commit |
 |---|---|---|
-| 0 | Ce document | `docs: audit du module risque avant refonte` |
-| 1 | Un écran, un état, sérialisé dans l'URL. Aucun changement de chiffre. | `refactor(risques): un seul ecran, un seul etat` |
-| 2 | `affectation.ts` + sql/203 + l'atelier Rayons. Écart de total mesuré et écrit. | `feat(risques): atelier de rayons et regle d affectation unique` |
-| 3 | sql/204-205 + `ZonesRisqueLayer`. `EXPLAIN ANALYZE` sur la tuile. | `feat(risques): couche MVT des zones de risque` |
-| 4 | sql/206 + seed + onglet Diffusion. | `feat(risques): onglet diffusion et campagne de demonstration` |
-| 5 | Export, états vides, tests, `npm run catalogue` propre. | `feat(risques): finitions, export et tests` |
+| 0 | Cet audit | `9713e79` |
+| 1 | Un écran, un état, sérialisé dans l'URL. R-26 fermé au passage. | `6ed3d36` |
+| 2a | `carreau_risque_distance` (883 451 lignes) + la règle d'affectation unique, croisée TS ⇔ SQL à chaque exécution de la suite | `295fcd3` |
+| 2b | L'atelier Rayons : anneaux par niveau, tableau des bandes, cumul | `36e4ed9` |
+| 3 | Zones MVT sur la carte, exclusivité géométrique vérifiée | `f96495f` |
+| 4 | Onglet Diffusion, indice de pression, jeu de démonstration | `adc6257` |
+| 5 | Export Excel cinq onglets, états vides et d'erreur | `adc6257` |
 
-Contrôles à chaque phase, sans exception : `npx tsc --noEmit`, `npm run lint`,
-`npm run test:unit`, et `EXPLAIN ANALYZE` sur toute nouvelle requête PostGIS.
+**Écart de total mesuré et corrigé : 537 919 habitants** (§ 6), plus
+**375 millions d'impressions** qui disparaissaient des barres de l'onglet
+Diffusion.
+
+### NON livré, et il faut le dire
+
+Ces points du brief n'ont pas été faits. Aucun n'est bloqué : ils sont hors du
+temps de cette passe.
+
+**Phase 2 — la courbe n'est pas devenue un sélecteur.** Le brief demande des
+marqueurs verticaux déplaçables et un clic sur la courbe pour ajouter un anneau.
+La courbe est restée en lecture, sous le tableau des bandes, avec un
+avertissement expliquant que ses chiffres sont MARGINAUX et ne s'additionnent
+pas à ceux du tableau. Le réglage se fait par les chips du panneau de profil,
+qui couvrent la même fonction sans interaction de glissement.
+
+**Phase 3 — cinq raffinements de la couche carte.** Survol d'un site montrant
+ses cercles propres ; clic ouvrant la fiche du site ; étiquette du rayon le long
+du contour (`symbol-placement: line`) ; rendu par zoom (points proportionnels
+sous z7, détail au-delà de z10) ; filtre de niveau dans la légende de la couche.
+Les zones s'affichent, se colorent par niveau et dégradent leur opacité du cœur
+vers l'extérieur — le reste est du confort de lecture.
+
+**Phase 3 — le lien tableau ⇄ carte.** Cliquer un territoire pour y cadrer la
+carte, cliquer une zone pour rouvrir le module filtré.
+
+**Phase 4 — deux blocs de l'onglet Diffusion.** Le tableau par territoire (même
+« Lister par » que Territoires) et l'évolution quotidienne en zone contre hors
+zone. Les barres par classe, les KPI et l'emplacement custom bidding sont là.
+
+**Phase 5 — la navigation au clavier** sur les chips et les marqueurs.
+
+### Deux dettes créées par ce chantier
+
+- **`AnalysePopulationOverlay.tsx` a GROSSI** au lieu de fondre : il porte
+  désormais trois onglets au lieu de deux. Le découpage reste le point 3.1 de
+  `docs/PLAN_REPRISE.md`, et il est un peu plus urgent qu'avant.
+- **`/api/risques/exposition/*` et `/api/risques/profil/*` coexistent** et ne
+  calculent PAS la même chose : les premières partent des zones PPRT-ou-rayon
+  par site, les secondes de la règle d'affectation unique. Les deux sont
+  justes, pour deux questions différentes — mais deux chemins pour « la
+  population exposée » finiront par être confondus. À trancher : migrer
+  l'onglet Territoires vers la nouvelle règle, ou nommer les deux plus
+  clairement à l'écran.
+
+---
+
+## 8. Les contrôles, à chaque phase
+
+`npx tsc --noEmit`, `npm run lint`, `npm run test:unit`, `npm run catalogue`, et
+`EXPLAIN ANALYZE` sur toute nouvelle requête PostGIS. Aucune exception sur les
+cinq phases.
+
+⚠ **Ne pas vérifier `tsc` à travers un `head`.** Le commit `adc6257` annonce
+« tsc propre » et ne l'était pas : `npx tsc --noEmit | head -3` rend le code de
+retour de `head`, jamais celui de `tsc`, et la chaîne `&&` a laissé passer le
+commit. Corrigé par `e0d9854`, qui le dit.
