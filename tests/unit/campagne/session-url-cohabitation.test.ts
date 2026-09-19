@@ -81,7 +81,11 @@ describe('fusionnerUrlSession', () => {
      */
     const complete = {
       ...SESSION_DEFAUT,
-      campaignId: 'x', vue: 'apercu' as const, onglet: 'strategie' as const,
+      // ⚠ `vue` vaut 'suivi' | 'carte', et `onglet` est celui de l'overlay
+      // MAGELIAN. Une valeur hors liste ne lève pas au runtime — `urlVersSession`
+      // l'ignore — mais elle fait échouer `tsc`, et c'est ce qui a rattrapé une
+      // première version de ce test où `vue: 'apercu'` passait tous les asserts.
+      campaignId: 'x', vue: 'carte' as const, onglet: 'strategie' as const,
       maille: 'cp' as const, parent: '13', uniteSelectionnee: '13104',
       tri: 'meilleur' as const, acteurs: ['dv360'],
     };
