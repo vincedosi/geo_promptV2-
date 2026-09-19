@@ -1,0 +1,46 @@
+# Fins de ligne — normalisées à LF dans le dépôt ET à la sortie.
+#
+# ── POURQUOI CE FICHIER EXISTE ───────────────────────────────────────────────
+#
+# `core.autocrlf = true` est le réglage par défaut de Git pour Windows : chaque
+# `git checkout` réécrit les fichiers texte en CRLF. Sans `.gitattributes` pour
+# s'y opposer, cela a cassé un test le 2026-09-19, et le symptôme ne désignait
+# rien de ce qui n'allait pas :
+#
+#     SyntaxError: Invalid or unexpected token
+#       tests/unit/docs/catalogue-code.test.ts:3:31
+#
+# La ligne 3 est un COMMENTAIRE, et le fichier était parfaitement valide. La
+# cause était dans le module qu'il importe : `scripts/catalogue.mjs` commence
+# par `#!/usr/bin/env node`, et le CR ajouté en fin de shebang fait échouer
+# esbuild. Le test a cessé de se charger — pas de s'exécuter, de SE CHARGER —
+# après un simple changement de branche, sans qu'une ligne de code ait bougé.
+#
+# ── CE QUI SERAIT CASSÉ AILLEURS ─────────────────────────────────────────────
+#
+# Les quatorze scripts de `scripts/local/` portent le même shebang. Git Bash
+# sous Windows le tolère — vérifié, ils s'exécutent — mais un shell Linux ou un
+# agent d'intégration continue répondrait `bad interpreter: /usr/bin/env bash^M`.
+# Le dépôt est donc actuellement sain par tolérance, pas par construction.
+#
+# `eol=lf` et pas seulement `text=auto` : le premier impose LF DANS LE FICHIER
+# SORTI, le second ne normalise que ce qui est stocké. C'est la sortie qui
+# compte ici, puisque c'est elle qu'esbuild et bash lisent.
+
+* text=auto eol=lf
+
+# Binaires : jamais touchés.
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.webp   binary
+*.pdf    binary
+*.zip    binary
+*.gz     binary
+*.parquet binary
+*.pmtiles binary
+*.xlsx   binary
+*.ods    binary
+*.dump   binary
