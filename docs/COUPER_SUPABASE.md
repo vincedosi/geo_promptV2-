@@ -30,16 +30,33 @@ Les deux blocages annoncés plus bas ont été levés :
 
 ### Sauvegarde prise avant la suppression (2026-09-19)
 
-`C:/GENESIS/_sauvegarde_locale/local-2026-09-19.sql` — **1,24 Go**, dump du
-schéma `public` ET `auth` de la base locale.
+`C:/GENESIS/_sauvegarde_locale/local-2026-09-19.dump` — **339 Mo**, format
+BINAIRE, schémas `public` et `auth`. Reproductible par
+`scripts/local/10-sauvegarder.sh`, qui prend la sauvegarde **et la restaure
+dans une base jetable pour vérifier qu'elle tient**.
+
+⚠ **La première version était en texte, et ne se restaurait PAS.** Elle
+contenait bien les 569 698 lignes — mais le restore rendait **568 197
+« syntax error »**. Trois causes, toutes découvertes en la testant :
+
+1. **`estrict` (PostgreSQL 17.6)** met psql en mode restreint, où `\.` — le
+   terminateur de chaque bloc de données — est lui aussi bloqué. Les lignes de
+   données sont alors lues comme du SQL. D'où le format binaire.
+2. **`OWNER TO` / `SET ROLE`** : le `postgres` du conteneur n'est pas
+   superuser. D'où `--no-owner --no-acl`.
+3. **Le schéma `extensions`** (convention Supabase) manquait à la base de
+   test : `poi_france` et `panneaux_affichage` ne se créaient pas, en silence.
+
+**Une sauvegarde non testée n'est pas une sauvegarde.**
 
 Elle existe parce que depuis la restauration radio, **le volume Docker était
 devenu la seule copie** des 569 698 liaisons : le dump de prod du 17/09 ne les
 contient pas, et une fois le projet hébergé supprimé elles sont
 irrécupérables.
 
-Vérifié dans le fichier : **569 698** liaisons radio · **1 100** comptages
-routiers mesurés · **5** comptes `auth.users`.
+Vérifié par restauration réelle : **569 698** liaisons radio · **390 029** POI ·
+**477 879** lignes DSP · **49 448** IRIS · **1 100** comptages routiers ·
+**664** PPRT · **5** comptes `auth.users` · 102 tables · 985 fonctions.
 
 Deux tables en sont exclues **à dessein**, parce qu'un script les reconstruit :
 `carreaux_filosofi` (2 324 577 lignes, `scripts/local/07-carreaux-insee.sh`) et
