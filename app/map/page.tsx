@@ -10,9 +10,9 @@ import { logger } from '@/lib/logger';
  *   1. Imports + dynamic loaders
  *   2. State transverse (overlays, périmètre, TMJA, civique, plan média)
  *   3. Appels des hooks de domaine (cf ci-dessous)
- *   4. Deep-links URL (?customZone, ?layer=digital, ?overlay=)
+ *   4. Deep-link URL (?customZone : charge une zone custom au montage)
  *   5. Marqueurs POI + effacement global des couches
- *   6. Render JSX (MapTopBar + IconBar + OverlayPanel + panneaux latéraux)
+ *   6. Render JSX (MapTopBar + RailNavigation + OverlayPanel + panneaux latéraux)
  *
  * @hooks de domaine — app/map/_hooks/
  *   - useRadioLayer       : émetteurs FM/DAB+, filtres, clusters/heatmap/couverture
@@ -23,12 +23,12 @@ import { logger } from '@/lib/logger';
  * @maintainers Pour étendre ce fichier :
  *   - NE PAS ajouter de `useState` au top pour un nouveau domaine — créer un
  *     hook dans `app/map/_hooks/`, appelé après `useMapInit`
- *   - Les overlays (IconBar items) sont déjà isolés dans
+ *   - Les overlays (entrées du rail) sont déjà isolés dans
  *     `components/map/overlays/`
  *   - Lire docs/known_tech_debt.md avant refactor structurel
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -53,42 +53,151 @@ import { useRateLimitHandler } from '@/app/copilote/_hooks/useRateLimitHandler';
 import { useToolProcessor } from '@/app/copilote/_hooks/useToolProcessor';
 import { useProviderSelector } from '@/app/copilote/_hooks/useProviderSelector';
 import { MapPanel }            from '@/app/copilote/_components/MapPanel';
-import { FilterPanel } from '@/app/map/_components/FilterPanel';
-import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams, POIStylesMap } from '@/app/map/_components/FilterPanel';
+import type { POIStylesMap } from '@/app/map/_components/filter-panel/poi-style';
 import { IrisDetailPanel }    from '@/app/map/_components/IrisDetailPanel';
 import type { IrisDetailData } from '@/app/map/_components/IrisDetailPanel';
 import { CaptureLayers } from '@/app/map/_components/CaptureLayers';
 import { CivicIndicatorsLayer, type CivicVariableCode } from '@/app/map/_components/CivicIndicatorsLayer';
 import { CivicHealthMapLayer } from '@/app/map/_components/CivicHealthMapLayer';
 import { SuiviMapLayer } from '@/app/map/_components/SuiviMapLayer';
+import { DiffusionMapLayer } from '@/app/map/_components/DiffusionMapLayer';
+import { ScoreMapLayer, SCORE_MAP_EVENT, type ScoreMapEventDetail } from '@/app/map/_components/ScoreMapLayer';
 import { ZoneMediaPlanPanel, PANEL_WIDTH } from '@/app/map/_components/ZoneMediaPlanPanel';
 import dynamic from 'next/dynamic';
 import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import type { ZoneData, BattleResult } from '@/types/spatial';
 import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
-import { IconBar, type OverlayId } from '@/components/map/IconBar';
+import { RailNavigation } from '@/components/map/RailNavigation';
 import { MapTopBar, MAP_TOPBAR_HEIGHT } from '@/components/map/MapTopBar';
 import { OverlayPanel } from '@/components/map/OverlayPanel';
-import { AIOverlay } from '@/components/map/overlays/AIOverlay';
+import { AIOverlay, LARGEUR_TIROIR_ASSISTANT } from '@/components/map/overlays/AIOverlay';
 import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
-import { ZonesOverlay } from '@/components/map/overlays/ZonesOverlay';
+import { HelpOverlay } from '@/components/map/overlays/HelpOverlay';
+import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
+import { useCampagneSession } from '@/lib/campagne/CampagneSessionContext';
+import { CampagneActiveCard } from '@/components/magelian/CampagneActiveCard';
+import { BarreContexteCampagne } from '@/components/campagne/BarreContexteCampagne';
+import { DIFFUSION_REARM_EVENT } from '@/components/campagne/diffusion-rearm';
+import { ENTREES_NAVIGATION, LARGEUR_RAIL, entreeParRaccourci, type EntreeId } from '@/lib/navigation/config';
+import { ignorerRaccourciClavier } from '@/lib/navigation/garde-saisie';
+import { empiler, depiler, fermerLePlusHaut } from '@/lib/carte/pile-echap';
+import { PanneauFiltre } from '@/app/map/_components/panneaux/PanneauFiltre';
+import { PanneauCalques } from '@/app/map/_components/panneaux/PanneauCalques';
+import { RisqueIndustrielLayer } from '@/app/map/_components/RisqueIndustrielLayer';
+import { PprtLayer } from '@/app/map/_components/PprtLayer';
+import { AnalysePopulationOverlay } from '@/components/risques/AnalysePopulationOverlay';
+import { useRisqueIndustriel } from '@/app/map/_components/filter-panel/use-risque-industriel';
+import { PanneauAnalyse } from '@/app/map/_components/panneaux/PanneauAnalyse';
+import { PanneauZones } from '@/app/map/_components/panneaux/PanneauZones';
+import { LegendeCarte } from '@/components/map/LegendeCarte';
+import { FiltreChip } from '@/components/map/FiltreChip';
+import { retirerFiltre, type FiltreActif } from '@/lib/carte/filtre';
+import { libelleDegrade, type DegradeId } from '@/lib/carte/degrades';
+import {
+  SUIVI_MAP_STATUS_EVENT, SUIVI_MAP_CLEAR_EVENT, type SuiviMapEventDetail,
+} from '@/app/map/_components/SuiviMapLayer';
+import { useToast } from '@/components/ui/geo-toast';
 import { Maximize2, Minimize2, Eraser, FileDown } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
+
+/**
+ * Couleur du dot de l'en-tête de l'OverlayPanel, par entrée du rail.
+ * L'Assistant n'y figure plus depuis la Tâche 8 : ce n'est plus un
+ * `OverlayPanel` (panneau gauche) mais un tiroir droit autonome (`AIOverlay`),
+ * qui porte son propre dot. Le titre, lui, vient directement de
+ * `ENTREES_NAVIGATION` (source unique de la navigation, cf
+ * lib/navigation/config.ts) — plus d'override local à synchroniser.
+ */
+const DOT_PAR_ENTREE: Partial<Record<EntreeId, string>> = {
+  filtre: 'var(--cat-context)',
+  calques: 'var(--cat-terrain)',
+  analyse: 'var(--cat-analysis)',
+  zones: 'var(--brand-teal)',
+  reglages: 'var(--text-tertiary)',
+  aide: 'var(--text-tertiary)',
+};
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MapPage() {
   const [error,    setError]    = useState<string | null>(null);
   const [zoneData, setZoneData] = useState<ZoneData | null>(null);
-  const [iconBarHidden, setIconBarHidden] = useState(false);
-  const [activeOverlay, setActiveOverlay] = useState<OverlayId | null>(null);
-  const handleOverlayToggle = useCallback((id: OverlayId) => {
-    setActiveOverlay(prev => prev === id ? null : id);
-  }, []);
+  const [railMasque, setRailMasque] = useState(false);
+  const [entreeActive, setEntreeActive] = useState<EntreeId | null>(null);
+  // Monté côté client uniquement (Tâche 15) : `CampagneSessionProvider` seme
+  // sa session de façon SYNCHRONE dès son premier rendu client (lecture
+  // immédiate de l'URL/localStorage, `CampagneSessionContext.tsx`) — un rendu
+  // serveur qui n'a JAMAIS `window` reste toujours sur `SESSION_DEFAUT`. Tout
+  // JSX de cette page qui ajoute/retire un noeud DOM selon `campagneSession.vue`
+  // doit donc attendre ce flag, sans quoi le tout premier rendu client (avant
+  // hydratation) peut déjà diverger du HTML serveur — mismatch d'hydratation.
+  const [monte, setMonte] = useState(false);
+  useEffect(() => { setMonte(true); }, []);
+  const { open: magelianOverlayOpen, openOverlay, requestClose: requestCloseMagelianOverlay, setFiltreActif } = useMagelianOverlay();
+  const { toast } = useToast();
+  // Campagne active (SuiviMapLayer) : statut rediffusé par ce composant à
+  // chaque changement (activation, fermeture, changement de métrique) — seul
+  // moyen pour cette page de savoir si une campagne est active, l'état réel
+  // vivant dans SuiviMapLayer (déclenché par un événement DOM émis ailleurs,
+  // ex. CampaignSuivi.tsx). Tâche 6 : pilote le groupe « Campagne active » du
+  // panneau Calques + l'exclusivité des dégradés de couleur (effet plus bas,
+  // après la définition de `onDegrade`, qui dépend de `mapLayers`).
+  const [campagneActive, setCampagneActive] = useState<SuiviMapEventDetail | null>(null);
+  const campagneActiveRef = useRef<SuiviMapEventDetail | null>(null);
+  // Session de campagne (Tâche 2, contexte GLOBAL depuis app/layout.tsx) —
+  // pilote `DiffusionMapLayer` (Tâche 13B) : contrairement à `SuiviMapLayer`
+  // ci-dessus, cette page peut lire l'état d'activation DIRECTEMENT (même
+  // contexte React que l'overlay MAGELIAN), sans bus d'événements DOM.
+  const { session: campagneSession } = useCampagneSession();
+  const diffusionActifRef = useRef(false);
+  // Hauteur RÉELLE de la barre de contexte campagne, mesurée plutôt que codée
+  // en dur : elle passe à deux lignes sur une fenêtre étroite (`flexWrap`).
+  // Sert à décaler `FiltreChip`, qui lui passait intégralement dessous en vue
+  // Diffusion (constat 4 : la croix « Retirer le filtre » devenait
+  // inatteignable, seule façon de retirer un filtre sans quitter la vue).
+  const barreContexteRef = useRef<HTMLDivElement | null>(null);
+  const [hauteurBarreContexte, setHauteurBarreContexte] = useState(0);
+  useEffect(() => {
+    const el = barreContexteRef.current;
+    if (!el) { setHauteurBarreContexte(0); return; }
+    const mesurer = () => setHauteurBarreContexte(el.getBoundingClientRect().height);
+    mesurer();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(mesurer);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [monte, campagneSession.vue]);
+  // Route selon le TYPE de l'entrée (lib/navigation/config.ts), pas selon son
+  // id : une entrée `overlay-plein-ecran` (Campagne) ouvre l'overlay MAGELIAN
+  // via son propre contexte et ne devient donc jamais `entreeActive` — les
+  // autres (tiroir droit, panneau gauche, lien) basculent `entreeActive`, et
+  // c'est le JSX de rendu qui décide où chacune s'affiche.
+  const handleEntree = useCallback((id: EntreeId) => {
+    const entree = ENTREES_NAVIGATION.find(e => e.id === id);
+    if (entree?.type === 'overlay-plein-ecran') {
+      // Bascule Campagne / Carte (Tâche 9) : Alt+C ou le clic sur l'icône du
+      // rail alternent entre les deux, au lieu de rouvrir un overlay déjà
+      // ouvert. `requestClose` (jamais `closeOverlay` en direct, round de
+      // correction 1 point 4) : même chemin de fermeture animée que le
+      // bouton Fermer et Échap.
+      if (magelianOverlayOpen) requestCloseMagelianOverlay(); else openOverlay();
+      return;
+    }
+    setEntreeActive(prev => prev === id ? null : id);
+  }, [magelianOverlayOpen, openOverlay, requestCloseMagelianOverlay]);
   // POI sélectionnés : lifted ici pour persistance entre fermeture/réouverture overlay
-  // (sinon le state local de FilterPanel se perd → analyses bloquées par le check exactlyOnePOI)
+  // (sinon le state local de PanneauCalques/PanneauAnalyse se perd → analyses
+  // bloquées par le check exactlyOnePOI)
   const [selectedPOI, setSelectedPOI] = useState<string[]>([]);
+  // Filtre unique « où je regarde » (Tâche 4, lib/carte/filtre.ts) — source
+  // unique partagée par PanneauFiltre, FiltreChip, la pastille du rail et les
+  // fetchs de couche bornés par bboxDuFiltre (useMapDirectActions, useMeteoLayer,
+  // CivicHealthMapLayer). Pas de duplication d'état : un seul useState ici.
+  const [filtre, setFiltre] = useState<FiltreActif | null>(null);
+  // Miroir dans le contexte MAGELIAN (Tâche 9) : l'onglet Stratégie affiche
+  // la note de périmètre (spec §3) sans dupliquer l'état du filtre.
+  useEffect(() => { setFiltreActif(filtre); }, [filtre, setFiltreActif]);
   // Périmètre territorial : même lift (filtre dept/région doit survivre au cycle
   // mount/unmount des overlays — sinon Bataille V2 ignore le filtre user)
   const [perimeterScope,           setPerimeterScope]           = useState<'metro' | 'all' | null>(null);
@@ -98,6 +207,12 @@ export default function MapPage() {
   const [selectedBillboard, setSelectedBillboard] = useState<SelectedBillboard | null>(null);
   const [mapStyleUrl, setMapStyleUrl] = useState<string>(MAP_STYLE);
   const [densityMode,         setDensityMode]         = useState<boolean>(false);
+
+  // Couche « Zones a risque industriel » : etat regroupe dans son hook, partage
+  // entre le panneau (reglages) et la couche (rendu). Defaut Seveso, cf.
+  // use-risque-industriel.ts.
+  const risqueIndustriel = useRisqueIndustriel();
+  const [analysePopulation, setAnalysePopulation] = useState(false);
   const [poiStyles,           setPoiStyles]           = useState<POIStylesMap>({});
   // TMJA — flux routier (comptages_routiers)
   const [tmjaGeoJSON, setTmjaGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
@@ -143,14 +258,39 @@ export default function MapPage() {
 
 
 
-  // ── Esc : si IconBar masquée, la ré-afficher (priorité basse — OverlayPanel Esc gère en premier) ──
+  // ── Rail masqué (mode immersif) : entrée dans la pile Echap, au lieu d'un
+  // listener direct — Escape le ré-affiche, avec le même ordre garanti
+  // (dernier ouvert = premier fermé) que les panneaux et tiroirs. ──
+  useEffect(() => {
+    if (!railMasque) return;
+    empiler('rail-masque', () => setRailMasque(false));
+    return () => depiler('rail-masque');
+  }, [railMasque]);
+
+  // ── Un seul listener clavier global : raccourcis du rail (entreeParRaccourci,
+  // lib/navigation/config.ts) + Escape (fermerLePlusHaut, lib/carte/pile-echap.ts).
+  // La garde de saisie (lib/navigation/garde-saisie.ts, round de correction 1)
+  // ne s'applique JAMAIS à Echap : taper dans l'Assistant ou une recherche de
+  // panneau ne doit pas désactiver la touche qui les ferme. Elle ne filtre que
+  // les raccourcis à modificateur, portée reprise de l'ancien IconBar.tsx:57-59
+  // (supprimé Tâche 2), qui ne scopait sa garde qu'au seul raccourci `/`. ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && iconBarHidden) { setIconBarHidden(false); e.preventDefault(); }
+      if (ignorerRaccourciClavier(e.key, document.activeElement)) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        fermerLePlusHaut();
+        return;
+      }
+      const entree = entreeParRaccourci(e);
+      if (entree) {
+        e.preventDefault();
+        handleEntree(entree);
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [iconBarHidden]);
+  }, [handleEntree]);
 
   useEffect(() => {
     const stored = localStorage.getItem('genesis_map_style');
@@ -174,7 +314,7 @@ export default function MapPage() {
     meteoPanelOpen, setMeteoPanelOpen,
     handleMeteoApply,
     handleMeteoClear,
-  } = useMeteoLayer(mapRef, mapReady);
+  } = useMeteoLayer(mapRef, mapReady, filtre);
 
   // ── Detail IRIS : clic sur la couche + fetch (cf _hooks/useIrisDetail) ────
   const { selectedIrisCode, setSelectedIrisCode, selectedIrisData, setSelectedIrisData, irisDetailLoading } =
@@ -332,7 +472,7 @@ export default function MapPage() {
 
   // ── Toggle TMJA (vector tiles : affichage instantané, lazy par viewport) ───
   // On garde un FeatureCollection vide en sentinel pour réutiliser la prop
-  // tmjaVisible existante côté FilterPanel et CaptureLayers — la vraie data
+  // tmjaVisible existante côté PanneauCalques et CaptureLayers — la vraie data
   // est servie par les tiles MVT via la source vector tmja-source.
   const handleLoadTMJA = async () => {
     setTmjaGeoJSON({ type: 'FeatureCollection', features: [] });
@@ -347,6 +487,121 @@ export default function MapPage() {
     setSaveName:              savedMaps.setSaveName,
   });
 
+  // Etat du calque de score, en REF : lu et ecrit dans la meme pile
+  // synchrone que `onDegrade` (voir le deroule detaille plus bas).
+  const scoreActifRef = useRef(false);
+
+  // ── Exclusivité des dégradés de couleur (Tâche 6) — un seul à la fois
+  // (lib/carte/degrades.ts). `mapLayers.basculerDegrade` porte carreaux et
+  // IRIS (son état) et applique déjà leur propre extinction ; cette fonction
+  // applique celle des trois dégradés qui vivent hors de `useMapLayers`
+  // (indicateurs civiques, santé environnementale, météo, impressions de
+  // campagne) et le toast d'exclusivité (spec §3) — quel que soit le calque
+  // qui vient de s'activer.
+  const onDegrade = useCallback((cible: DegradeId, next: boolean) => {
+    const eteint = mapLayers.basculerDegrade(cible, next);
+    if (!eteint) return;
+    if (eteint === 'civic-indicateurs') setCivicVariableCode(null);
+    if (eteint === 'civic-sante') setCivicHealthLayer(null);
+    if (eteint === 'meteo') handleMeteoClear();
+    if (eteint === 'campagne-impressions') window.dispatchEvent(new Event(SUIVI_MAP_CLEAR_EVENT));
+    // Tache 12 : eteindre le score = rediffuser l'evenement avec zero score.
+    //
+    // `scoreActifRef` est mis a jour AVANT le dispatch, et ce n'est pas un
+    // detail : `dispatchEvent` est SYNCHRONE, donc le listener `onScore`
+    // ci-dessous s'executerait dans cette meme pile et rappellerait
+    // `onDegrade('score', false)` — avec le `degradeActif` du DERNIER RENDU,
+    // pas celui qu'on vient de poser. Deroule du defaut (relecture du
+    // 2026-09-13), au depart score allume :
+    //   1. l'utilisateur coche IRIS   -> setDegradeActif('iris') en file
+    //   2. dispatch synchrone          -> onScore -> onDegrade('score', false)
+    //   3. degradeActif y vaut encore 'score' (etat non rafraichi)
+    //      -> setDegradeActif(null) en file, APRES le 'iris'
+    //   4. React applique dans l'ordre : degradeActif finit a null alors
+    //      qu'IRIS est affiche.
+    // La legende n'annoncait donc plus rien, et le degrade suivant n'evincait
+    // plus IRIS : deux chorophletes empilees, le defaut meme que la Tache 5 a
+    // ferme. Poser la ref d'abord neutralise l'etape 2 par la garde de
+    // transition du listener.
+    if (eteint === 'score') {
+      scoreActifRef.current = false;
+      window.dispatchEvent(new CustomEvent(SCORE_MAP_EVENT, {
+        detail: { scores: [], libelle: '', nIndicateurs: 0 } satisfies ScoreMapEventDetail,
+      }));
+    }
+    toast.info(`${libelleDegrade(eteint)} a été masqué — un seul dégradé de couleur à la fois`);
+  }, [mapLayers, handleMeteoClear, toast]);
+
+  // Statut « campagne active » (SuiviMapLayer) — ne demande l'exclusivité
+  // qu'à la transition null ⇄ non-null (jamais à chaque changement de
+  // métrique, qui rediffuse aussi ce statut).
+  useEffect(() => {
+    const onStatus = (e: Event) => {
+      const detail = (e as CustomEvent<SuiviMapEventDetail | null>).detail ?? null;
+      const etaitActive = campagneActiveRef.current !== null;
+      const estActive = detail !== null;
+      campagneActiveRef.current = detail;
+      setCampagneActive(detail);
+      if (estActive && !etaitActive) onDegrade('campagne-impressions', true);
+      if (!estActive && etaitActive) onDegrade('campagne-impressions', false);
+    };
+    window.addEventListener(SUIVI_MAP_STATUS_EVENT, onStatus);
+    return () => window.removeEventListener(SUIVI_MAP_STATUS_EVENT, onStatus);
+  }, [onDegrade]);
+
+  // Score composite (Tache 12) : le calque s'allume depuis PanneauAnalyse, pas
+  // depuis une checkbox de calque — page.tsx doit donc apprendre son etat par
+  // le meme evenement, pour appliquer l'exclusivite des degrades. Ne demande
+  // la bascule qu'aux transitions, comme le statut de campagne ci-dessus.
+  useEffect(() => {
+    const onScore = (e: Event) => {
+      const detail = (e as CustomEvent<ScoreMapEventDetail>).detail;
+      const actif = Boolean(detail?.scores?.length);
+      if (actif === scoreActifRef.current) return;
+      scoreActifRef.current = actif;
+      onDegrade('score', actif);
+    };
+    window.addEventListener(SCORE_MAP_EVENT, onScore);
+    return () => window.removeEventListener(SCORE_MAP_EVENT, onScore);
+  }, [onDegrade]);
+
+  // Carte Diffusion (Tâche 13B) : contrairement au statut « campagne active »
+  // et au score ci-dessus, aucun bus d'événements n'est nécessaire — la
+  // session de campagne est un contexte React partagé (Tâche 2), lu
+  // directement. Même règle « transition seulement » que les deux blocs
+  // précédents (jamais à chaque changement de maille/fil d'Ariane, qui ne
+  // change pas l'activation elle-même). Aucun effet de bord à l'éviction :
+  // `DiffusionMapLayer` recalcule lui-même sa visibilité depuis
+  // `mapLayers.degradeActif` (prop `visible` ci-dessous) et se nettoie seul.
+  const diffusionActif = Boolean(campagneSession.campaignId) && campagneSession.vue === 'carte';
+  useEffect(() => {
+    const etaitActive = diffusionActifRef.current;
+    diffusionActifRef.current = diffusionActif;
+    if (diffusionActif && !etaitActive) onDegrade('diffusion', true);
+    if (!diffusionActif && etaitActive) onDegrade('diffusion', false);
+  }, [diffusionActif, onDegrade]);
+
+  // Réarmement (constat 9). « Transition seulement » a une conséquence que
+  // l'effet ci-dessus ne peut pas rattraper seul : une fois `diffusion`
+  // ÉVINCÉ par une autre choroplèthe (cocher IRIS depuis le panneau Calques),
+  // rien ne le rallume — décocher IRIS ne repasse pas par
+  // `onDegrade('diffusion', true)`, et la barre de contexte continue
+  // d'afficher « Diffusion » sélectionné devant une carte vide. Le geste
+  // naturel — recliquer « Diffusion » alors qu'on y est déjà — ne change
+  // AUCUN état de session : il arrive donc par cet événement.
+  useEffect(() => {
+    const onRearm = () => {
+      if (!diffusionActifRef.current) return;
+      onDegrade('diffusion', true);
+    };
+    window.addEventListener(DIFFUSION_REARM_EVENT, onRearm);
+    return () => window.removeEventListener(DIFFUSION_REARM_EVENT, onRearm);
+  }, [onDegrade]);
+
+  const handleFermerCampagneActive = useCallback(() => {
+    window.dispatchEvent(new Event(SUIVI_MAP_CLEAR_EVENT));
+  }, []);
+
   // ── Actions directes POI / OOH / isochrones + état de bataille
   //    (cf _hooks/useMapDirectActions) ─────────────────────────────────────
   const {
@@ -360,7 +615,7 @@ export default function MapPage() {
     handleFillIsochroneCache,
     handleApplyBattle,
     handleDirectBattleV2,
-  } = useMapDirectActions(mapRef, mapLayers, setZoneData, setError);
+  } = useMapDirectActions(mapRef, mapLayers, setZoneData, setError, filtre);
 
   // ── Marqueurs POI + cadrage (cf _hooks/useMapMarkers) ─────────────────────
   useMapMarkers(mapRef, markersRef, mapReady, zoneData, densityMode, poiStyles, setSelectedBillboard);
@@ -457,6 +712,10 @@ export default function MapPage() {
     setCivicVariableCode(null);
     setCivicHealthLayer(null);
     setCivicProgress(null);
+    // Dégradé de couleur actif (Tâche 6) — reset direct, jamais via
+    // `onDegrade` : un « tout effacer » n'a pas à afficher de toast d'éviction.
+    mapLayers.setDegradeActif(null);
+    window.dispatchEvent(new Event(SUIVI_MAP_CLEAR_EVENT));
     setRadioVisible(false);
     setRadioHeatmapMode(false);
     setRadioCoverageMode(false);
@@ -558,7 +817,9 @@ export default function MapPage() {
 
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];
 
-  // Chat slot partagé : utilisé par FilterPanel (legacy, tant que monté) et AIOverlay (nouveau)
+  // Chat slot : rendu par AIOverlay (entrée « Assistant » du rail). FilterPanel
+  // ne le monte plus depuis la Tâche 7 (son unique appelant, l'entrée « Analyse »,
+  // a migré vers PanneauAnalyse).
   const chatSlotContent = (
     <ChatPanel
       containerStyle={{ width: '100%', minWidth: 0, flex: 1, borderRight: 'none', minHeight: 0 }}
@@ -590,10 +851,6 @@ export default function MapPage() {
       deleteMap={savedMaps.deleteMap}
       zoneData={zoneData}
       provider={providerSelector.provider}
-      setProvider={providerSelector.setProvider}
-      providerStatus={providerSelector.providerStatus}
-      statusLoading={providerSelector.statusLoading}
-      refreshProviderStatus={providerSelector.refreshStatus}
       sessionTokens={chat.sessionTokens}
       onFlyTo={handleFlyTo}
       onHighlightIris={(codeIris: string | null) => {
@@ -632,207 +889,302 @@ export default function MapPage() {
     />
   );
 
+  // Table de routage des quatre panneaux du rail (+ Réglages, + Aide) : plus
+  // aucun ternaire `entreeActive === 'x' && (...)` dans le JSX de rendu — un
+  // id se résout en un composant, un point c'est tout. « Assistant » n'y
+  // figure pas : depuis la Tâche 8 c'est un tiroir droit autonome
+  // (`AIOverlay`), pas un enfant d'`OverlayPanel`. « Campagne » n'y figure
+  // pas non plus : `handleEntree` (ci-dessus) ne la laisse jamais devenir
+  // `entreeActive`.
+  const PANNEAUX: Partial<Record<EntreeId, () => ReactNode>> = {
+    filtre: () => (
+      <PanneauFiltre
+        filtre={filtre}
+        onFiltre={setFiltre}
+        scope={perimeterScope}
+        onScopeChange={setPerimeterScope}
+      />
+    ),
+    calques: () => (
+      <PanneauCalques
+        onAnalyserPopulation={() => setAnalysePopulation(true)}
+        risqueIndustriel={risqueIndustriel}
+        degradeActif={mapLayers.degradeActif}
+        onDegrade={onDegrade}
+        carreauxVisible={mapLayers.carreauxVisible}
+        carreauxLoaded={mapLayers.carreauxLoaded}
+        carreauxIndicateur={mapLayers.carreauxIndicateur}
+        carreauxPalette={mapLayers.carreauxPalette}
+        carreauxOpacity={mapLayers.carreauxOpacity}
+        carreaux3D={mapLayers.carreaux3D}
+        setCarreaux3D={mapLayers.setCarreaux3D}
+        carreauxHauteur={mapLayers.carreauxHauteur}
+        setCarreauxHauteur={mapLayers.setCarreauxHauteur}
+        carreauxRange={mapLayers.carreauxRange}
+        carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
+        setCarreauxVisible={mapLayers.setCarreauxVisible}
+        setCarreauxIndicateur={mapLayers.setCarreauxIndicateur}
+        setCarreauxPalette={mapLayers.setCarreauxPalette}
+        setCarreauxOpacity={mapLayers.setCarreauxOpacity}
+        setCarreauxSelectedBucket={mapLayers.setCarreauxSelectedBucket}
+        irisVisible={mapLayers.irisVisible}
+        irisIndicateur={mapLayers.irisIndicateur}
+        irisPalette={mapLayers.irisPalette}
+        irisOpacity={mapLayers.irisOpacity}
+        iris3D={mapLayers.iris3D}
+        setIris3D={mapLayers.setIris3D}
+        irisHauteur={mapLayers.irisHauteur}
+        setIrisHauteur={mapLayers.setIrisHauteur}
+        irisBornes={mapLayers.irisBornes}
+        irisTrueOnly={mapLayers.irisTrueOnly}
+        zoomCourant={mapLayers.zoomCourant}
+        irisZoomPlancher={mapLayers.irisZoomPlancher}
+        setIrisVisible={mapLayers.setIrisVisible}
+        setIrisIndicateur={mapLayers.setIrisIndicateur}
+        setIrisPalette={mapLayers.setIrisPalette}
+        setIrisOpacity={mapLayers.setIrisOpacity}
+        setIrisTrueOnly={mapLayers.setIrisTrueOnly}
+        campagneActive={campagneActive}
+        onFermerCampagneActive={handleFermerCampagneActive}
+        selectedPOI={selectedPOI}
+        onSelectedPOIChange={setSelectedPOI}
+        onDirectSearch={handleDirectSearch}
+        onPOIStylesChange={setPoiStyles}
+        densityMode={densityMode}
+        onDensityModeChange={(v) => { setDensityMode(v); localStorage.setItem('genesis_density_mode', String(v)); }}
+        scope={perimeterScope}
+        selectedRegions={perimeterSelectedRegions}
+        selectedDepts={perimeterSelectedDepts}
+        ville={perimeterVille}
+        onDirectOOH={handleDirectOOH}
+        onLoadTransport={handleLoadTransport}
+        onLoadTMJA={handleLoadTMJA}
+        tmjaVisible={!!tmjaGeoJSON}
+        onClearTMJA={() => setTmjaGeoJSON(null)}
+        tmjaHideLowTraffic={tmjaHideLowTraffic}
+        onToggleTmjaHideLowTraffic={setTmjaHideLowTraffic}
+        radioVisible={radioVisible}
+        onToggleRadio={() => setRadioVisible(v => !v)}
+        radioHeatmapMode={radioHeatmapMode}
+        onToggleRadioHeatmap={() => setRadioHeatmapMode(v => !v)}
+        radioCoverageMode={radioCoverageMode}
+        onToggleRadioCoverage={() => setRadioCoverageMode(v => !v)}
+        radioLoading={radioLoading}
+        radioSystemeFilter={radioSystemeFilter}
+        onRadioSystemeChange={v => setRadioSystemeFilter(v)}
+        onSelectRadio={(id, nom) => { setRadioSelectedId(id); setRadioSelectedNom(nom); setRadioVisible(true); }}
+        radioCount={radioGeoJSON?.features.length ?? 0}
+        radioSelectedNom={radioSelectedNom}
+        onClearRadioSelection={() => { setRadioSelectedId(null); setRadioSelectedNom(null); }}
+        radioFilterOptions={radioFilterOptions}
+        radioFilterIds={radioFilterIds}
+        onRadioFilterIdsChange={setRadioFilterIds}
+        radioExcludeCategories={radioExcludeCategories}
+        onRadioExcludeCategoriesChange={setRadioExcludeCategories}
+        radioCoverageColor={radioCoverageColor}
+        onRadioCoverageColorChange={setRadioCoverageColor}
+        radioCoverageOpacity={radioCoverageOpacity}
+        onRadioCoverageOpacityChange={setRadioCoverageOpacity}
+        radioBorderWidth={radioBorderWidth}
+        onRadioBorderWidthChange={setRadioBorderWidth}
+        radioPointSize={radioPointSize}
+        onRadioPointSizeChange={setRadioPointSize}
+        onRecenterFrance={() => { mapRef.current?.fitBounds([[-5.5, 41.3], [9.6, 51.1]], { padding: 20, duration: 1000 }); }}
+        civicVariableCode={civicVariableCode}
+        onCivicVariableChange={setCivicVariableCode}
+        selectedIrisCommuneCode={selectedIrisData?.code_commune ?? null}
+        selectedIrisCommuneName={selectedIrisData?.nom_commune ?? null}
+        civicHealthLayer={civicHealthLayer}
+        onCivicHealthLayerChange={layer => {
+          setCivicProgress(null);
+          setCivicMetric('global');
+          setCivicHealthLayer(layer);
+        }}
+        civicProgress={civicProgress}
+        civicLoading={civicLoading}
+        civicScale={civicScale}
+        onCivicScaleChange={s => { setCivicProgress(null); setCivicScale(s); }}
+        civicMetric={civicMetric}
+        onCivicMetricChange={setCivicMetric}
+        civicMinLevel={civicMinLevel}
+        onCivicMinLevelChange={setCivicMinLevel}
+        civicCpStatus={civicCpStatus}
+        civicCpDate={civicCpDate}
+        onCivicIngested={() => setCivicRefreshKey(k => k + 1)}
+        onOpenMeteo={() => setMeteoPanelOpen(true)}
+        onClearMeteo={() => { onDegrade('meteo', false); handleMeteoClear(); }}
+        meteoVisible={meteoVisible}
+        meteoLabel={meteo.meta ? METEO_LABEL[meteo.meta.variable] : null}
+      />
+    ),
+    analyse: () => (
+      <PanneauAnalyse
+        scope={perimeterScope}
+        onScopeChange={setPerimeterScope}
+        selectedRegions={perimeterSelectedRegions}
+        onSelectedRegionsChange={setPerimeterSelectedRegions}
+        selectedDepts={perimeterSelectedDepts}
+        onSelectedDeptsChange={setPerimeterSelectedDepts}
+        ville={perimeterVille}
+        onVilleChange={setPerimeterVille}
+        filtre={filtre}
+        selectedPOI={selectedPOI}
+        sendMessage={chat.sendMessage}
+        isLoading={chat.isLoading}
+        onDirectBattle={handleDirectBattle}
+        onDirectBattleV2={handleDirectBattleV2}
+        onFillIsochroneCache={handleFillIsochroneCache}
+        onApplyBattle={handleApplyBattle}
+        voronoiVisible={mapLayers.voronoiVisible}
+        setVoronoiVisible={mapLayers.setVoronoiVisible}
+        battleVisible={mapLayers.battleVisible}
+        setBattleVisible={mapLayers.setBattleVisible}
+        battleOuterFillVisible={mapLayers.battleOuterFillVisible}
+        setBattleOuterFillVisible={mapLayers.setBattleOuterFillVisible}
+        clusterGeoJSON={clusterGeoJSON}
+        clustersVisible={clustersVisible}
+        clusterLoading={clusterLoading}
+        clusterDuration={clusterDuration}
+        onToggleClusters={handleToggleClusters}
+        onLoadClusters={handleToggleClusters}
+        onClusterDurationChange={handleClusterDurationChange}
+        onFitBounds={handleFitBounds}
+        onWizardHighlight={handleWizardHighlight}
+        onWizardClose={() => setWizardHighlightGeoJSON(null)}
+        onFlyTo={handleFlyTo}
+      />
+    ),
+    zones: () => <PanneauZones mapRef={mapRef} onLoadedZonesChange={handleLoadedZonesChange} />,
+    reglages: () => (
+      <SettingsOverlay
+        mapStyles={MAP_STYLES as unknown as { id: string; label: string; url: string }[]}
+        currentMapStyleUrl={mapStyleUrl}
+        onMapStyleChange={handleMapStyleChange}
+        onSaveCurrentView={() => savedMaps.setShowSavePanel(true)}
+        saveLoading={savedMaps.saveLoading}
+        provider={providerSelector.provider}
+        setProvider={providerSelector.setProvider}
+        providerStatus={providerSelector.providerStatus}
+        statusLoading={providerSelector.statusLoading}
+        refreshProviderStatus={providerSelector.refreshStatus}
+      />
+    ),
+    aide: () => <HelpOverlay />,
+  };
+
+  // Définition de l'entrée active — source unique pour savoir OÙ elle
+  // s'affiche (round de correction 1, Tâche 8) : lire `type` depuis
+  // `ENTREES_NAVIGATION` au lieu de comparer l'id à `'assistant'` en dur,
+  // précisément pour ne pas reproduire la dette que cette tâche referme
+  // (une seule entrée porte aujourd'hui `'tiroir-droit'`, mais le jour où une
+  // deuxième apparaît, une comparaison d'id ne la verrait pas).
+  const entreeActiveDef = entreeActive ? ENTREES_NAVIGATION.find(e => e.id === entreeActive) : undefined;
+
+  // Décalage horizontal des boutons flottants de la carte (immersif, tout
+  // effacer, script bidding, rouvrir le plan média) : ils s'écartaient déjà du
+  // plan média (`PANEL_WIDTH`) ; ils doivent s'écarter du tiroir Assistant
+  // aussi maintenant qu'il s'ouvre à droite (Tâche 8), sans quoi il flotte
+  // par-dessus le chat (les deux sont ancrés `right: 0`). Plafonné à
+  // `calc(100vw - 60px)` (round de correction 1) : plan média (600) + tiroir
+  // (380) ouverts ensemble poussaient les boutons hors d'un écran étroit.
+  const railBoutonsRight = `min(${
+    10
+    + (planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 0)
+    + (entreeActiveDef?.type === 'tiroir-droit' ? LARGEUR_TIROIR_ASSISTANT + 10 : 0)
+  }px, calc(100vw - 60px))`;
+
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)',
-      paddingLeft: iconBarHidden ? 0 : 48,
-      paddingTop: iconBarHidden ? 0 : MAP_TOPBAR_HEIGHT,
+      paddingLeft: railMasque ? 0 : LARGEUR_RAIL,
+      paddingTop: railMasque ? 0 : MAP_TOPBAR_HEIGHT,
       transition: 'padding-left 200ms var(--ease-out), padding-top 200ms var(--ease-out)',
     }}>
-      {!iconBarHidden && <MapTopBar />}
-      <IconBar
-        activeItem={activeOverlay}
-        onItemClick={handleOverlayToggle}
-        hidden={iconBarHidden}
+      {!railMasque && <MapTopBar />}
+      {/* Barre de contexte commune aux deux vues de Suivi V2 (Tâche 15) — ne
+          se montre qu'en vue carte : en vue suivi, la MÊME barre vit en tête
+          de `SuiviV2`, dans l'overlay MAGELIAN. `zIndex` au-dessus de
+          `CampagneActiveCard` (34) : les deux s'ancrent au même endroit
+          (top-gauche sous la top bar) — `CampagneActiveCard` est donc masquée
+          ci-dessous tant que cette barre est affichée, plutôt que de laisser
+          son texte disparaître derrière un panneau opaque (constaté à
+          l'écran, Tâche 15). `FiltreChip` (z 35, sous la top bar) reste
+          affiché, mais DÉCALÉ vers le bas de la hauteur réelle de cette barre
+          (`hauteurBarreContexte`, mesurée) : la collision était réelle — le
+          chip passait intégralement dessous et sa croix « Retirer le filtre »
+          devenait inatteignable (constat 4 de la relecture d'interface). */}
+      {monte && campagneSession.vue === 'carte' && (
+        <div ref={barreContexteRef} style={{
+          position: 'fixed', top: railMasque ? 0 : MAP_TOPBAR_HEIGHT,
+          left: railMasque ? 0 : LARGEUR_RAIL, right: 0, zIndex: 46,
+        }}>
+          <BarreContexteCampagne />
+        </div>
+      )}
+      <RailNavigation
+        entreeActive={entreeActive}
+        onEntree={handleEntree}
+        masque={railMasque}
+        badgeAlertes={0 /* source du compte d'alertes : viendra avec l'onglet Suivi */}
+        pastille={filtre !== null}
       />
-      {activeOverlay && (
+      <FiltreChip
+        filtre={filtre}
+        onRetirer={() => setFiltre(retirerFiltre())}
+        decalageHaut={monte && campagneSession.vue === 'carte' ? hauteurBarreContexte : 0}
+      />
+      {!(monte && campagneSession.vue === 'carte') && <CampagneActiveCard />}
+      {entreeActiveDef?.type === 'tiroir-droit' && (
+        <AIOverlay
+          chatSlot={chatSlotContent}
+          onClose={() => setEntreeActive(null)}
+          topOffset={railMasque ? 0 : MAP_TOPBAR_HEIGHT}
+        />
+      )}
+      {entreeActive && entreeActiveDef?.type === 'panneau-gauche' && (
         <OverlayPanel
-          topOffset={iconBarHidden ? 0 : MAP_TOPBAR_HEIGHT}
-          category={activeOverlay}
-          title={
-            activeOverlay === 'ai' ? 'geo.prompt' :
-            activeOverlay === 'perimeter' ? 'Périmètre' :
-            activeOverlay === 'terrain' ? 'Données terrain' :
-            activeOverlay === 'audience' ? 'Audience' :
-            activeOverlay === 'analyses' ? 'Analyses' :
-            activeOverlay === 'zones' ? 'Zones sauvegardées' :
-            'Réglages'
-          }
-          dotColor={
-            activeOverlay === 'ai' ? 'var(--brand-teal)' :
-            activeOverlay === 'perimeter' ? 'var(--cat-context)' :
-            activeOverlay === 'terrain' ? 'var(--cat-terrain)' :
-            activeOverlay === 'audience' ? 'var(--cat-socio)' :
-            activeOverlay === 'analyses' ? 'var(--cat-analysis)' :
-            activeOverlay === 'zones' ? 'var(--brand-teal)' :
-            'var(--text-tertiary)'
-          }
-          onClose={() => setActiveOverlay(null)}
+          topOffset={railMasque ? 0 : MAP_TOPBAR_HEIGHT}
+          category={entreeActive}
+          title={entreeActiveDef.label}
+          dotColor={DOT_PAR_ENTREE[entreeActive] ?? 'var(--text-tertiary)'}
+          onClose={() => setEntreeActive(null)}
         >
-          {activeOverlay === 'ai' && <AIOverlay chatSlot={chatSlotContent} />}
-          {(activeOverlay === 'perimeter' || activeOverlay === 'terrain' || activeOverlay === 'audience' || activeOverlay === 'analyses') && (
-            <FilterPanel
-              visibleCategory={activeOverlay}
-              chatSlot={null}
-              sendMessage={chat.sendMessage}
-              onDirectOOH={handleDirectOOH}
-              onDirectSearch={handleDirectSearch}
-              onDirectBattle={handleDirectBattle}
-              onDirectBattleV2={handleDirectBattleV2}
-              onFillIsochroneCache={handleFillIsochroneCache}
-              onApplyBattle={handleApplyBattle}
-              isLoading={chat.isLoading}
-              error={error}
-              zoneData={zoneData}
-              voronoiVisible={mapLayers.voronoiVisible}
-              setVoronoiVisible={mapLayers.setVoronoiVisible}
-              battleVisible={mapLayers.battleVisible}
-              setBattleVisible={mapLayers.setBattleVisible}
-              battleOuterFillVisible={mapLayers.battleOuterFillVisible}
-              setBattleOuterFillVisible={mapLayers.setBattleOuterFillVisible}
-              isochroneVisible={mapLayers.isochroneVisible}
-              setIsochroneVisible={mapLayers.setIsochroneVisible}
-              setShowSavePanel={savedMaps.setShowSavePanel}
-              densityMode={densityMode}
-              onDensityModeChange={(v) => { setDensityMode(v); localStorage.setItem('genesis_density_mode', String(v)); }}
-              onPOIStylesChange={setPoiStyles}
-              onFlyTo={handleFlyTo}
-              carreauxVisible={mapLayers.carreauxVisible}
-              carreauxLoaded={mapLayers.carreauxLoaded}
-              carreauxIndicateur={mapLayers.carreauxIndicateur}
-              carreauxPalette={mapLayers.carreauxPalette}
-              carreauxOpacity={mapLayers.carreauxOpacity}
-              carreaux3D={mapLayers.carreaux3D}
-              setCarreaux3D={mapLayers.setCarreaux3D}
-              carreauxHauteur={mapLayers.carreauxHauteur}
-              setCarreauxHauteur={mapLayers.setCarreauxHauteur}
-              carreauxRange={mapLayers.carreauxRange}
-              carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
-              setCarreauxVisible={mapLayers.setCarreauxVisible}
-              setCarreauxIndicateur={mapLayers.setCarreauxIndicateur}
-              setCarreauxPalette={mapLayers.setCarreauxPalette}
-              setCarreauxOpacity={mapLayers.setCarreauxOpacity}
-              setCarreauxSelectedBucket={mapLayers.setCarreauxSelectedBucket}
-              irisVisible={mapLayers.irisVisible}
-              irisIndicateur={mapLayers.irisIndicateur}
-              irisPalette={mapLayers.irisPalette}
-              irisOpacity={mapLayers.irisOpacity}
-              iris3D={mapLayers.iris3D}
-              setIris3D={mapLayers.setIris3D}
-              irisHauteur={mapLayers.irisHauteur}
-              setIrisHauteur={mapLayers.setIrisHauteur}
-              irisBornes={mapLayers.irisBornes}
-              irisTrueOnly={mapLayers.irisTrueOnly}
-              zoomCourant={mapLayers.zoomCourant}
-              irisZoomPlancher={mapLayers.irisZoomPlancher}
-              clusterGeoJSON={clusterGeoJSON}
-              clustersVisible={clustersVisible}
-              clusterLoading={clusterLoading}
-              clusterDuration={clusterDuration}
-              onToggleClusters={handleToggleClusters}
-              onLoadClusters={handleToggleClusters}
-              onClusterDurationChange={handleClusterDurationChange}
-              onFitBounds={handleFitBounds}
-              onWizardHighlight={handleWizardHighlight}
-              onWizardClose={() => setWizardHighlightGeoJSON(null)}
-              setIrisVisible={mapLayers.setIrisVisible}
-              setIrisIndicateur={mapLayers.setIrisIndicateur}
-              setIrisPalette={mapLayers.setIrisPalette}
-              setIrisOpacity={mapLayers.setIrisOpacity}
-              setIrisTrueOnly={mapLayers.setIrisTrueOnly}
-              mainMapRef={mapRef}
-              onLoadTransport={handleLoadTransport}
-              onLoadTMJA={handleLoadTMJA}
-              tmjaVisible={!!tmjaGeoJSON}
-              tmjaHideLowTraffic={tmjaHideLowTraffic}
-              onToggleTmjaHideLowTraffic={setTmjaHideLowTraffic}
-              onOpenMeteo={() => setMeteoPanelOpen(true)}
-              onClearMeteo={handleMeteoClear}
-              meteoVisible={meteoVisible}
-              meteoLabel={meteo.meta ? METEO_LABEL[meteo.meta.variable] : null}
-              onClearTMJA={() => setTmjaGeoJSON(null)}
-              civicVariableCode={civicVariableCode}
-              onCivicVariableChange={setCivicVariableCode}
-              selectedIrisCommuneCode={selectedIrisData?.code_commune ?? null}
-              selectedIrisCommuneName={selectedIrisData?.nom_commune ?? null}
-              civicHealthLayer={civicHealthLayer}
-              onCivicHealthLayerChange={layer => {
-                // Changer de couche remet la métrique sur l'indice global
-                // (les métriques pollen/air ne se recouvrent pas)
-                setCivicProgress(null);
-                setCivicMetric('global');
-                setCivicHealthLayer(layer);
-              }}
-              civicProgress={civicProgress}
-              civicLoading={civicLoading}
-              civicScale={civicScale}
-              onCivicScaleChange={s => { setCivicProgress(null); setCivicScale(s); }}
-              civicMetric={civicMetric}
-              onCivicMetricChange={setCivicMetric}
-              civicMinLevel={civicMinLevel}
-              onCivicMinLevelChange={setCivicMinLevel}
-              civicCpStatus={civicCpStatus}
-              civicCpDate={civicCpDate}
-              onCivicIngested={() => setCivicRefreshKey(k => k + 1)}
-              radioVisible={radioVisible}
-              onToggleRadio={() => setRadioVisible(v => !v)}
-              radioHeatmapMode={radioHeatmapMode}
-              onToggleRadioHeatmap={() => setRadioHeatmapMode(v => !v)}
-              radioCoverageMode={radioCoverageMode}
-              onToggleRadioCoverage={() => setRadioCoverageMode(v => !v)}
-              radioLoading={radioLoading}
-              radioSystemeFilter={radioSystemeFilter}
-              onRadioSystemeChange={v => { setRadioSystemeFilter(v); }}
-              onSelectRadio={(id, nom) => { setRadioSelectedId(id); setRadioSelectedNom(nom); setRadioVisible(true); }}
-              radioCount={radioGeoJSON?.features.length ?? 0}
-              radioSelectedNom={radioSelectedNom}
-              onClearRadioSelection={() => { setRadioSelectedId(null); setRadioSelectedNom(null); }}
-              radioFilterOptions={radioFilterOptions}
-              radioFilterIds={radioFilterIds}
-              onRadioFilterIdsChange={setRadioFilterIds}
-              radioExcludeCategories={radioExcludeCategories}
-              onRadioExcludeCategoriesChange={setRadioExcludeCategories}
-              radioCoverageColor={radioCoverageColor}
-              onRadioCoverageColorChange={setRadioCoverageColor}
-              radioCoverageOpacity={radioCoverageOpacity}
-              onRadioCoverageOpacityChange={setRadioCoverageOpacity}
-              radioBorderWidth={radioBorderWidth}
-              onRadioBorderWidthChange={setRadioBorderWidth}
-              radioPointSize={radioPointSize}
-              onRadioPointSizeChange={setRadioPointSize}
-              onRecenterFrance={() => { mapRef.current?.fitBounds([[-5.5, 41.3], [9.6, 51.1]], { padding: 20, duration: 1000 }); }}
-              selectedPOI={selectedPOI}
-              onSelectedPOIChange={setSelectedPOI}
-              selectedDepts={perimeterSelectedDepts}
-              onSelectedDeptsChange={setPerimeterSelectedDepts}
-              selectedRegions={perimeterSelectedRegions}
-              onSelectedRegionsChange={setPerimeterSelectedRegions}
-              ville={perimeterVille}
-              onVilleChange={setPerimeterVille}
-              scope={perimeterScope}
-              onScopeChange={setPerimeterScope}
-            />
-          )}
-          {activeOverlay === 'zones' && (
-            <ZonesOverlay mapRef={mapRef} onLoadedZonesChange={handleLoadedZonesChange} />
-          )}
-          {activeOverlay === 'settings' && (
-            <SettingsOverlay
-              mapStyles={MAP_STYLES as unknown as { id: string; label: string; url: string }[]}
-              currentMapStyleUrl={mapStyleUrl}
-              onMapStyleChange={handleMapStyleChange}
-              onSaveCurrentView={() => savedMaps.setShowSavePanel(true)}
-              saveLoading={savedMaps.saveLoading}
-            />
-          )}
+          {PANNEAUX[entreeActive]?.()}
         </OverlayPanel>
       )}
       <CivicIndicatorsLayer mapRef={mapRef} variableCode={civicVariableCode} />
+      <RisqueIndustrielLayer
+        mapRef={mapRef}
+        actif={risqueIndustriel.actif}
+        filtres={risqueIndustriel.filtres}
+        onCompte={risqueIndustriel.setCompte}
+      />
+      {/* Perimetres PPRT : couche INDEPENDANTE du rayon calcule ci-dessus.
+          Une servitude opposable et un cercle de notre invention ne se
+          pilotent pas par le meme interrupteur. */}
+      {/* Overlay plein ecran : monte ICI et non dans le panneau Calques, pour
+          qu'il survive a la fermeture de celui-ci. Il herite des filtres deja
+          coches — on ne redemande pas ce a quoi l'utilisateur vient de
+          repondre dans le panneau. */}
+      {analysePopulation && (
+      <AnalysePopulationOverlay
+        onFermer={() => setAnalysePopulation(false)}
+        gravites={risqueIndustriel.niveaux}
+        typesRisque={risqueIndustriel.typesRisque}
+      />
+      )}
+
+      <PprtLayer
+        mapRef={mapRef}
+        actif={risqueIndustriel.pprtActif}
+        typesZone={risqueIndustriel.pprtTypes}
+        onEtat={risqueIndustriel.setPprtEtat}
+      />
       {/* Plan média sur les zones custom affichées (budget / CPM / cible) */}
       {planZones.length > 0 && planPanelOpen && (
         <ZoneMediaPlanPanel
           zones={planZones}
-          topOffset={iconBarHidden ? 0 : MAP_TOPBAR_HEIGHT}
+          topOffset={railMasque ? 0 : MAP_TOPBAR_HEIGHT}
           onClose={() => setPlanPanelOpen(false)}
         />
       )}
@@ -842,8 +1194,8 @@ export default function MapPage() {
           title="Rouvrir le plan média des zones affichées"
           style={{
             position: 'fixed',
-            top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 126,
-            right: planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 10,
+            top: (railMasque ? 10 : MAP_TOPBAR_HEIGHT + 8) + 126,
+            right: railBoutonsRight,
             zIndex: 50,
             display: 'flex', alignItems: 'center', gap: 6,
             background: 'var(--bg-surface)', border: '0.5px solid var(--brand-teal)',
@@ -865,11 +1217,58 @@ export default function MapPage() {
         minLevel={civicMinLevel}
         metric={civicMetric}
         refreshKey={civicRefreshKey}
+        filtre={filtre}
         onProgress={(done, total) => setCivicProgress({ done, total })}
         onCpDataStatus={(status, date) => { setCivicCpStatus(status); setCivicCpDate(date); }}
         onLoadingChange={setCivicLoading}
       />
       <SuiviMapLayer mapRef={mapRef} />
+      <DiffusionMapLayer
+        mapRef={mapRef}
+        mapReady={mapReady}
+        visible={diffusionActif && mapLayers.degradeActif === 'diffusion'}
+      />
+      <ScoreMapLayer mapRef={mapRef} />
+      <LegendeCarte
+        degradeActif={mapLayers.degradeActif}
+        carreauxIndicateur={mapLayers.carreauxIndicateur}
+        carreauxPalette={mapLayers.carreauxPalette}
+        carreauxRange={mapLayers.carreauxRange}
+        carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
+        setCarreauxSelectedBucket={mapLayers.setCarreauxSelectedBucket}
+        irisPalette={mapLayers.irisPalette}
+        irisBornes={mapLayers.irisBornes}
+        civicVariableCode={civicVariableCode}
+        civicHealthLayer={civicHealthLayer}
+        civicMinLevel={civicMinLevel}
+        meteoLabel={meteo.meta ? METEO_LABEL[meteo.meta.variable] : null}
+        campagneActive={campagneActive}
+        selectedPOI={selectedPOI}
+        tmjaVisible={!!tmjaGeoJSON}
+        tmjaHideLowTraffic={tmjaHideLowTraffic}
+        radioVisible={radioVisible}
+        radioCoverageColor={radioCoverageColor}
+        risquesActif={risqueIndustriel.actif}
+        risquesRayonM={risqueIndustriel.rayonM}
+        pprtActif={risqueIndustriel.pprtActif}
+        risquesCompte={risqueIndustriel.compte}
+        zoneData={zoneData}
+        activeCats={activeCats}
+        isochroneVisible={mapLayers.isochroneVisible}
+        isochroneMinutes={mapLayers.isochroneMinutes}
+        isochroneMode={mapLayers.isochroneMode}
+        voronoiVisible={mapLayers.voronoiVisible}
+        voronoiCategory={mapLayers.voronoiCategory}
+        voronoiPois={mapLayers.voronoiPois}
+        voronoiDataForSaveRef={savedMaps.voronoiDataForSaveRef}
+        setShowSavePanel={savedMaps.setShowSavePanel}
+        setSaveError={savedMaps.setSaveError}
+        battleVisible={mapLayers.battleVisible}
+        battleCategory={mapLayers.battleCategory}
+        battlePois={mapLayers.battlePois}
+        battleMaxPalier={mapLayers.battleMaxPalier}
+        setBattleMaxPalier={mapLayers.setBattleMaxPalier}
+      />
       <CaptureLayers
         clusterGeoJSON={clusterGeoJSON}
         clustersVisible={clustersVisible}
@@ -894,16 +1293,16 @@ export default function MapPage() {
         {/* Map area */}
         <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
 
-          {/* Mode immersif : toggle IconBar — z=50 pour rester cliquable au-dessus de l'overlay
+          {/* Mode immersif : toggle du rail — z=50 pour rester cliquable au-dessus de l'overlay
              Le bouton descend sous la MapTopBar quand elle est affichée. */}
           <button
-            onClick={() => setIconBarHidden(h => !h)}
-            title={iconBarHidden ? 'Afficher la barre (Escape)' : 'Masquer la barre (mode immersif)'}
-            aria-pressed={iconBarHidden}
+            onClick={() => setRailMasque(h => !h)}
+            title={railMasque ? 'Afficher la barre (Escape)' : 'Masquer la barre (mode immersif)'}
+            aria-pressed={railMasque}
             style={{
               position: 'fixed',
-              top: iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8,
-              right: planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 10,
+              top: railMasque ? 10 : MAP_TOPBAR_HEIGHT + 8,
+              right: railBoutonsRight,
               zIndex: 50,
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
               borderRadius: 6, padding: 8,
@@ -914,7 +1313,7 @@ export default function MapPage() {
             onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
           >
-            {iconBarHidden ? <Maximize2 size={16} strokeWidth={1.5} /> : <Minimize2 size={16} strokeWidth={1.5} />}
+            {railMasque ? <Maximize2 size={16} strokeWidth={1.5} /> : <Minimize2 size={16} strokeWidth={1.5} />}
           </button>
 
           {/* Tout effacer — vide toutes les couches et zones affichées */}
@@ -923,8 +1322,8 @@ export default function MapPage() {
             title="Tout effacer (couches et zones affichées)"
             style={{
               position: 'fixed',
-              top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 42,
-              right: planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 10,
+              top: (railMasque ? 10 : MAP_TOPBAR_HEIGHT + 8) + 42,
+              right: railBoutonsRight,
               zIndex: 50,
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
               borderRadius: 6, padding: 8,
@@ -946,8 +1345,8 @@ export default function MapPage() {
               title={`Générer le fichier custom bidding DV360 pour « ${battlePois[0]?.nom ?? 'zone custom'} »`}
               style={{
                 position: 'fixed',
-                top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 84,
-                right: planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 10,
+                top: (railMasque ? 10 : MAP_TOPBAR_HEIGHT + 8) + 84,
+                right: railBoutonsRight,
                 zIndex: 50,
                 display: 'flex', alignItems: 'center', gap: 6,
                 background: 'var(--bg-surface)', border: '0.5px solid var(--brand-teal)',
@@ -968,7 +1367,6 @@ export default function MapPage() {
       <MapPanel
         mapContainerRef={mapContainerRef}
         zoneData={zoneData}
-        activeCats={activeCats}
         isochroneVisible={mapLayers.isochroneVisible}
         isochroneMinutes={mapLayers.isochroneMinutes}
         isochroneMode={mapLayers.isochroneMode}
@@ -979,17 +1377,10 @@ export default function MapPage() {
         isLoading={chat.isLoading}
         voronoiVisible={mapLayers.voronoiVisible}
         voronoiCategory={mapLayers.voronoiCategory}
-        voronoiPois={mapLayers.voronoiPois}
         setVoronoiVisible={mapLayers.setVoronoiVisible}
-        voronoiDataForSaveRef={savedMaps.voronoiDataForSaveRef}
-        setShowSavePanel={savedMaps.setShowSavePanel}
-        setSaveError={savedMaps.setSaveError}
         battleVisible={mapLayers.battleVisible}
         battleCategory={mapLayers.battleCategory}
-        battlePois={mapLayers.battlePois}
         setBattleVisible={mapLayers.setBattleVisible}
-        battleMaxPalier={mapLayers.battleMaxPalier}
-        setBattleMaxPalier={mapLayers.setBattleMaxPalier}
         carreauxRange={mapLayers.carreauxRange}
         carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
         setCarreauxVisible={mapLayers.setCarreauxVisible}
@@ -1043,7 +1434,12 @@ export default function MapPage() {
                 // Panneau maintenu ouvert pendant le fetch (spinner) et en cas
                 // d'erreur (le message s'affiche dedans) — fermé sur succès.
                 const ok = await handleMeteoApply(params);
-                if (ok) setMeteoPanelOpen(false);
+                if (ok) {
+                  // Exclusivité des dégradés (Tâche 6) : la météo devient le
+                  // dégradé actif, évince l'ancien (toast) si besoin.
+                  onDegrade('meteo', true);
+                  setMeteoPanelOpen(false);
+                }
               }}
               onClose={() => setMeteoPanelOpen(false)}
               loading={meteo.loading}

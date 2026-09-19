@@ -12,6 +12,15 @@
 import { inngest } from '@/lib/inngest/client';
 import { createAdminClient } from '@/lib/auth';
 import { toJson } from '@/lib/supabase/rpc-json';
+import { fetchAvecDelai } from '@/lib/http/fetch-avec-delai';
+
+/**
+ * Auto-appels vers nos propres routes (détection de dérive, recommandations,
+ * application). Sans délai, une route qui pend figeait l'étape Inngest jusqu'à
+ * SON délai à elle ; 60 s couvre les plus lentes observées et rend la main
+ * avant. Pas de reprise : `apply` n'est pas idempotent.
+ */
+const DELAI_AUTO_APPEL_MS = 60_000;
 
 interface Strategy {
   id: string;
@@ -97,11 +106,11 @@ export const agentAutoPilotDaily = inngest.createFunction(
       await step.run(`drift-detect-${sid}`, async () => {
         try {
           const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-          await fetch(`${baseUrl}/api/bidding/strategies/${sid}/drift-detect-local`, {
+          await fetchAvecDelai(`${baseUrl}/api/bidding/strategies/${sid}/drift-detect-local`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ lookback_days: 7, metric: 'impressions' }),
-          });
+          }, DELAI_AUTO_APPEL_MS);
         } catch { /* best-effort */ }
       });
 
@@ -109,9 +118,9 @@ export const agentAutoPilotDaily = inngest.createFunction(
       await step.run(`generate-reco-${sid}`, async () => {
         try {
           const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-          await fetch(`${baseUrl}/api/bidding/strategies/${sid}/recommendations`, {
+          await fetchAvecDelai(`${baseUrl}/api/bidding/strategies/${sid}/recommendations`, {
             method: 'POST',
-          });
+          }, DELAI_AUTO_APPEL_MS);
         } catch { /* best-effort */ }
       });
 
@@ -159,10 +168,10 @@ export const agentAutoPilotDaily = inngest.createFunction(
           // Apply via endpoint pour réutiliser la logique
           try {
             const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-            const res = await fetch(`${baseUrl}/api/bidding/strategies/${sid}/recommendations/${reco.id}/apply`, {
+            const res = await fetchAvecDelai(`${baseUrl}/api/bidding/strategies/${sid}/recommendations/${reco.id}/apply`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-            });
+            }, DELAI_AUTO_APPEL_MS);
             if (res.ok) {
               applied++;
               // Trace best-effort dans bidding_agent_actions.

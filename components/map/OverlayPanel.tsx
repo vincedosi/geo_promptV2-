@@ -2,15 +2,21 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Maximize2, Minimize2, X } from 'lucide-react';
-import type { OverlayId } from './IconBar';
+import { LARGEUR_RAIL, ECART_RAIL_PANNEAU, type EntreeId, LARGEUR_PANNEAU } from '@/lib/navigation/config';
+import { empiler, depiler } from '@/lib/carte/pile-echap';
+
+/** Identifiant fixe dans la pile Echap : un seul OverlayPanel est monté à la
+ *  fois (une seule entrée du rail peut être active), seule sa `category`
+ *  change quand on bascule d'un outil à l'autre sans fermer. */
+const PILE_ID = 'overlay-panel';
 
 interface OverlayPanelProps {
-  category: OverlayId;
+  category: EntreeId;
   title: string;
   dotColor: string;
   onClose: () => void;
   children: ReactNode;
-  /** Largeur (default 280) */
+  /** Largeur en pixels. Defaut : `LARGEUR_PANNEAU` (lib/navigation/config.ts). */
   width?: number;
   /** Offset vertical pour laisser la place à une top bar (default 0) */
   topOffset?: number;
@@ -31,7 +37,7 @@ export function OverlayPanel({
   dotColor,
   onClose,
   children,
-  width = 280,
+  width = LARGEUR_PANNEAU,
   topOffset = 0,
   expandable = false,
 }: OverlayPanelProps) {
@@ -42,6 +48,16 @@ export function OverlayPanel({
   const [closing, setClosing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Identité stable de `handleClose` (round de correction 1, Tâche 8) :
+  // `onClose` est souvent une fonction fléchée inline côté appelant
+  // (`onClose={() => setEntreeActive(null)}`), recréée à chaque rendu de
+  // `MapPage`. Sans ces refs, `handleClose` changeait d'identité à chaque
+  // rendu, ré-empilait dans la pile Echap à chaque rendu (page.tsx re-rend à
+  // chaque jeton de streaming du chat) et pouvait — même après le correctif
+  // du module `pile-echap.ts` — refaire tourner cet effet inutilement.
+  const closingRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
   // Morph inter-catégories : quand l'utilisateur switch d'overlay (Périmètre →
   // Analyses) sans fermer, on re-trigger une mini-animation sur header+body
@@ -59,36 +75,42 @@ export function OverlayPanel({
     }
   }, [category]);
 
-  // Wrappe l'appel parent : déclenche l'animation de sortie puis unmount après EXIT_DURATION
+  // Wrappe l'appel parent : déclenche l'animation de sortie puis unmount après
+  // EXIT_DURATION. Deps vides : identité stable (voir les refs ci-dessus),
+  // condition de garde sur `closingRef` (pas sur le state `closing`, qui
+  // romprait la stabilité), `onClose` toujours lu via sa ref à jour.
   const handleClose = useCallback(() => {
-    if (closing) return;
+    if (closingRef.current) return;
+    closingRef.current = true;
     setClosing(true);
-    closeTimerRef.current = setTimeout(() => onClose(), EXIT_DURATION_MS);
-  }, [closing, onClose]);
+    closeTimerRef.current = setTimeout(() => onCloseRef.current(), EXIT_DURATION_MS);
+  }, []);
 
   useEffect(() => () => {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
   }, []);
 
-  // Esc ferme l'overlay
+  // Esc ferme l'overlay — via la pile Echap (lib/carte/pile-echap.ts) : le
+  // dernier ouvert se ferme en premier, plus de listener direct concurrent.
+  // Deps VIDES à dessein (round de correction 2) : `handleClose` est stable
+  // (useCallback à deps vides ci-dessus), donc l'omettre ne perd aucune
+  // fraîcheur — et surtout, ça verrouille l'effet pour qu'il ne se relance
+  // JAMAIS après le montage. Un tableau `[handleClose]` serait équivalent en
+  // pratique, mais `tests/unit/carte/pile-echap-usage.test.ts` exige `[]`
+  // littéralement : c'est la seule forme qu'aucun reformattage ni aucune
+  // future dépendance ajoutée par erreur ne peut faire dériver en silence.
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        handleClose();
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [handleClose]);
+    empiler(PILE_ID, handleClose);
+    return () => depiler(PILE_ID);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Click-outside : ferme si le clic est hors de l'overlay ET hors de l'IconBar
+  // Click-outside : ferme si le clic est hors de l'overlay ET hors du rail
   useEffect(() => {
     function onClick(e: MouseEvent) {
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (target.closest('.overlay-panel')) return;
-      if (target.closest('.icon-bar')) return;
+      if (target.closest('.rail-navigation')) return;
       handleClose();
     }
     // Décaler d'un tick pour ne pas catcher le clic d'ouverture
@@ -110,9 +132,9 @@ export function OverlayPanel({
       style={{
         position: 'fixed',
         top: 12 + topOffset,
-        left: 56, // 48 IconBar + 8 gap
-        width: expanded ? 'calc(100vw - 80px)' : width,
-        maxWidth: expanded ? 'calc(100vw - 80px)' : undefined,
+        left: LARGEUR_RAIL + ECART_RAIL_PANNEAU,
+        width: expanded ? `calc(100vw - ${LARGEUR_RAIL + ECART_RAIL_PANNEAU + 24}px)` : width,
+        maxWidth: expanded ? `calc(100vw - ${LARGEUR_RAIL + ECART_RAIL_PANNEAU + 24}px)` : undefined,
         maxHeight: `calc(100vh - 24px - ${topOffset}px)`,
         background: 'var(--card-overlay, rgba(10, 10, 10, 0.92))',
         backdropFilter: 'blur(var(--backdrop-blur, 4px))',
@@ -214,6 +236,19 @@ export function OverlayPanel({
         style={{
           flex: 1,
           overflowY: 'auto',
+          // Les bandeaux de section sont en PLEINE LARGEUR par une marge
+          // negative (`FilterSectionHeader`, `margin: 0 -16px`) qui suppose un
+          // parent a 16 px de padding horizontal. Ce parent n'en a pas : chaque
+          // bandeau depassait donc de 32 px et ouvrait une BARRE DE DEFILEMENT
+          // HORIZONTALE en bas du panneau — mesure du 2026-09-18, sur TOUTES
+          // les sections (Meteo et Indicateurs civiques comprises), pas
+          // seulement celles retouchees.
+          //
+          // On masque le debordement plutot que de retirer la marge negative :
+          // le pleine-largeur est voulu, c'est lui qui donne au bandeau son
+          // bord a bord. `hidden` le fait clipper par le panneau, ce qui est
+          // exactement le rendu recherche, sans barre parasite.
+          overflowX: 'hidden',
           padding: '8px 0',
           minHeight: 0,
           // display: flex pour que les enfants avec h-full / flex se contraignent

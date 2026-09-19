@@ -1,25 +1,33 @@
 /**
  * GET /api/civic-indicators/health-map
- *   ?dataset=pollen|atmo&scale=departement|cp&min_level=0-6&metric=global|<espèce|polluant>
+ *   ?dataset=pollen|atmo&scale=departement|cp&min_level=0-6&metric=global|<espèce|polluant>&bbox=w,s,e,n
  *
  * Carte santé environnementale (allergènes + qualité de l'air), deux échelles :
  *
  *   scale=departement (défaut) — échantillonnage 1 commune représentative
  *   par département (RPC get_dept_representative_communes) via le pipeline
- *   getHealthWithCache. Streaming NDJSON (progression temps réel), chaque
- *   ligne dept porte pollen ET air (même coût, un seul pipeline) :
+ *   groupé getHealthEnMasse (cache lu et écrit PAR LOTS : ~5 requêtes de base
+ *   au lieu de jusqu'à 312, mesure du 2026-09-13). Streaming NDJSON
+ *   (progression temps réel), chaque ligne dept porte pollen ET air :
  *     {"type":"meta","total":104}
  *     {"type":"dept","code_dept":"22","nom_dept":"...","pollen":{...},"air":{...},"stale":false}
  *     {"type":"done","fetched":100,"failed":4}
  *
  *   scale=cp — lit pollen_map_daily / atmo_map_daily (ingestion bulk WFS
  *   nationale, niveaux max des communes du CP). Filtre SQL min_level sur la
- *   métrique demandée. JSON :
+ *   métrique demandée, et `bbox` optionnelle (Tâche 4, corrigée round 1,
+ *   2026-09-12) sur les codes postaux resolus par la RPC PostGIS
+ *   `codes_postaux_dans_bbox` (sql/144) — PAS un filtre direct sur
+ *   `ref_codes_postaux.centroid_lat/centroid_lon`, qui sont NULL sur les
+ *   6187 lignes (colonne reellement peuplee : `centroid`, geometry, GIST).
+ *   Sans `bbox`, comportement d'avant : lecture nationale complète
+ *   (~6 200 lignes, léger). JSON :
  *     {"date":"2026-07-03","rows":[{"code_postal":"29200","indice_global":4,...}]}
  *     ou {"date":null,"rows":[],"error":"no_data"} si l'ingestion n'a jamais tourné.
  *
  * min_level/metric ne s'appliquent qu'à scale=cp (au département, le filtre
- * est côté client — les ~104 valeurs sont déjà chargées).
+ * est côté client — les ~104 valeurs sont déjà chargées). `bbox` ne s'applique
+ * qu'à scale=cp egalement (le département n'a pas de notion de bbox).
  *
  * Source : Atmo France et les AASQA — licence ODbL (mention obligatoire côté UI).
  */
@@ -27,12 +35,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
-import { getHealthWithCache } from '@/lib/civic-health/get-health';
+import { getHealthEnMasse } from '@/lib/civic-health/get-health';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
-/** Concurrence des lookups dept (cache DB + API Atmo) — reste sous la limite Nano. */
+/** Appels provider simultanés (tiers HTTP, pas la base : le cache est lu et écrit par lots). */
 const CONCURRENCY = 3;
+/**
+ * Au-delà, un `.in('code_postal', …)` dépasse la limite d'URL de PostgREST
+ * (~8 caractères encodés par code ; 2 000 codes = 16 104 caractères mesurés
+ * pour une limite usuelle de 16 384, qui échoue MUETTEMENT). On lit alors la
+ * table nationale du jour (~6 200 lignes, « léger » : c'est déjà le chemin
+ * sans bbox) et on filtre en mémoire — deux requêtes au plus, quelle que soit
+ * la taille de la bbox.
+ */
+const MAX_CODES_DANS_IN = 500;
 
 const POLLEN_METRICS = ['global', 'ambroisie', 'armoise', 'aulne', 'bouleau', 'graminees', 'olivier'] as const;
 const ATMO_METRICS = ['global', 'no2', 'o3', 'pm10', 'pm25', 'so2'] as const;
@@ -42,6 +60,9 @@ const querySchema = z.object({
   scale: z.enum(['departement', 'cp']).default('departement'),
   min_level: z.coerce.number().int().min(0).max(6).default(0),
   metric: z.string().default('global'),
+  // [west, south, east, north] — lib/carte/filtre.ts (Tache 4). Ne s'applique
+  // qu'a scale=cp ; ignore sur scale=departement (echantillon national fixe).
+  bbox: z.string().regex(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$/).optional(),
 });
 
 const CP_TABLES = {
@@ -70,7 +91,7 @@ export async function GET(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'invalid_params' }, { status: 400 });
   }
-  const { dataset, scale, min_level, metric } = parsed.data;
+  const { dataset, scale, min_level, metric, bbox } = parsed.data;
   const validMetrics: readonly string[] = dataset === 'pollen' ? POLLEN_METRICS : ATMO_METRICS;
   if (!validMetrics.includes(metric)) {
     return NextResponse.json({ error: 'invalid_params' }, { status: 400 });
@@ -96,17 +117,52 @@ export async function GET(request: NextRequest) {
     if (!date) {
       return NextResponse.json({ date: null, rows: [], error: 'no_data' });
     }
-    const { data: rows, error: rowsErr } = await supabase
+
+    // bbox (Tache 4, corrigee round 1) : resout d'abord les codes postaux dont
+    // le centroide tombe dans la bbox via la RPC `codes_postaux_dans_bbox`
+    // (sql/144). `ref_codes_postaux.centroid_lat`/`centroid_lon` sont NULL sur
+    // les 6187 lignes — un `.gte()` dessus ne matche jamais rien et rendait
+    // silencieusement `rows: []` en toutes circonstances. La colonne qui porte
+    // reellement l'information est `centroid` (geometry, indexee GIST) : la
+    // RPC l'interroge en PostGIS (`&&` sur ST_MakeEnvelope). Jamais un masque
+    // cote client.
+    let codesPostauxBbox: string[] | null = null;
+    if (bbox) {
+      const [west, south, east, north] = bbox.split(',').map(Number);
+      const { data: cps, error: cpsErr } = await supabase
+        .rpc('codes_postaux_dans_bbox', { p_ouest: west, p_sud: south, p_est: east, p_nord: north });
+      if (cpsErr) {
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+      }
+      codesPostauxBbox = ((cps ?? []) as { code_postal: string }[]).map(c => c.code_postal);
+      if (codesPostauxBbox.length === 0) {
+        return NextResponse.json({ date, rows: [] }, { headers: { 'Cache-Control': 'no-store' } });
+      }
+    }
+
+    let query = supabase
       .from(table)
       .select(columns)
       .eq('date_ech', date)
-      .gte(levelColumn, Math.max(min_level, 1)) // 0 = indisponible, jamais peint
-      .limit(10_000);
+      .gte(levelColumn, Math.max(min_level, 1)); // 0 = indisponible, jamais peint
+    const filtrerEnMemoire = !!codesPostauxBbox && codesPostauxBbox.length > MAX_CODES_DANS_IN;
+    if (codesPostauxBbox && !filtrerEnMemoire) {
+      query = query.in('code_postal', codesPostauxBbox);
+    }
+    const { data: rowsBrutes, error: rowsErr } = await query.limit(10_000);
     if (rowsErr) {
+      logger.error('civic-health/health-map', `${table} : ${rowsErr.message}`);
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
+    // `columns` est une chaîne construite : le générateur ne peut pas typer
+    // la ligne, d'où le passage par `unknown`. Seul `code_postal` est lu ici.
+    let rows = (rowsBrutes ?? []) as unknown as { code_postal: string }[];
+    if (filtrerEnMemoire && codesPostauxBbox) {
+      const retenus = new Set(codesPostauxBbox);
+      rows = rows.filter((r) => retenus.has(r.code_postal));
+    }
     return NextResponse.json(
-      { date, rows: rows ?? [] },
+      { date, rows },
       // no-store : le flux no_data → ingestion admin → refetch doit voir la
       // donnée fraîche immédiatement (un max-age ferait rejouer le no_data
       // depuis le cache navigateur). Lecture SQL indexée (PK date) — léger.
@@ -123,6 +179,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 
+  // Une commune représentative peut, en théorie, servir plusieurs départements :
+  // on résout chaque commune UNE fois et on émet une ligne par département.
+  const deptsParCommune = new Map<string, DeptRow[]>();
+  for (const d of depts) {
+    const code = d.code_commune.toUpperCase();
+    const liste = deptsParCommune.get(code);
+    if (liste) liste.push(d); else deptsParCommune.set(code, [d]);
+  }
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -131,35 +196,35 @@ export async function GET(request: NextRequest) {
 
       let fetched = 0;
       let failed = 0;
-      let cursor = 0;
 
-      const worker = async () => {
-        while (cursor < depts.length) {
-          const dept = depts[cursor++];
-          try {
-            const { data } = await getHealthWithCache(dept.code_commune.toUpperCase());
-            if (data?.pollen || data?.air) {
-              fetched++;
-              send({
-                type: 'dept',
-                code_dept: dept.code_dept,
-                nom_dept: dept.nom_dept,
-                pollen: data.pollen,
-                air: data.air,
-                stale: data.stale,
-              });
-            } else {
-              failed++;
-              send({ type: 'dept', code_dept: dept.code_dept, nom_dept: dept.nom_dept, pollen: null, air: null });
+      try {
+        // Cache lu et écrit PAR LOTS (lib/civic-health/get-health.ts) : 1 lecture
+        // groupée + provider sur les seuls manquants + ⌈n/50⌉ écritures + 1
+        // lecture périmée, au lieu de jusqu'à 3 requêtes PAR département.
+        await getHealthEnMasse([...deptsParCommune.keys()], {
+          concurrence: CONCURRENCY,
+          surResultat: (code, data) => {
+            for (const dept of deptsParCommune.get(code) ?? []) {
+              if (data?.pollen || data?.air) {
+                fetched++;
+                send({
+                  type: 'dept',
+                  code_dept: dept.code_dept,
+                  nom_dept: dept.nom_dept,
+                  pollen: data.pollen,
+                  air: data.air,
+                  stale: data.stale,
+                });
+              } else {
+                failed++;
+                send({ type: 'dept', code_dept: dept.code_dept, nom_dept: dept.nom_dept, pollen: null, air: null });
+              }
             }
-          } catch {
-            failed++;
-            send({ type: 'dept', code_dept: dept.code_dept, nom_dept: dept.nom_dept, pollen: null, air: null });
-          }
-        }
-      };
-
-      await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+          },
+        });
+      } catch (err) {
+        logger.error('civic-health/health-map', `département : ${err instanceof Error ? err.message : err}`);
+      }
       send({ type: 'done', fetched, failed });
       controller.close();
     },

@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { ISOCHRONE_COLORS, ISOCHRONE_MODE_LABELS, BATTLE_PALIER_OPACITY, getCatColor } from '../_lib/constants';
+import { ISOCHRONE_COLORS, ISOCHRONE_MODE_LABELS } from '../_lib/constants';
 import maplibregl from 'maplibre-gl';
-import type { ZoneData, VoronoiData } from '@/types/spatial';
+import type { ZoneData } from '@/types/spatial';
 import type { SelectedBillboard } from '@/types/map';
-import { palierEchelle, versValeurReelle, formaterValeur } from '@/lib/carreaux/bornes';
 import type { BornesEchelle } from '@/lib/carreaux/bornes';
 
 interface MapPanelProps {
@@ -11,7 +10,6 @@ interface MapPanelProps {
   mapRef?: React.MutableRefObject<maplibregl.Map | null>;
   mapReady?: boolean;
   zoneData: ZoneData | null;
-  activeCats: string[];
   isochroneVisible: boolean;
   isochroneMinutes: number;
   isochroneMode: string;
@@ -22,17 +20,10 @@ interface MapPanelProps {
   isLoading: boolean;
   voronoiVisible: boolean;
   voronoiCategory: string;
-  voronoiPois: { id: string; nom: string; color: string }[];
   setVoronoiVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
-  voronoiDataForSaveRef: React.MutableRefObject<VoronoiData | null>;
-  setShowSavePanel: (v: boolean | ((prev: boolean) => boolean)) => void;
-  setSaveError: (v: string | null) => void;
   battleVisible: boolean;
   battleCategory: string;
-  battlePois: { id: string; nom: string; color: string }[];
   setBattleVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
-  battleMaxPalier: number;
-  setBattleMaxPalier: (v: number) => void;
   carreauxRange: BornesEchelle | null;
   carreauxSelectedBucket: number | null;
   setCarreauxVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
@@ -109,21 +100,12 @@ const toggleBtnBase = (active: boolean, activeColor: string): React.CSSPropertie
   textTransform: 'uppercase' as const,
 });
 
-// Formate une valeur numérique pour la légende. Délègue à `formaterValeur`
-// (lib/carreaux/bornes.ts), partagé avec la légende de CarreauxSection : les deux
-// légendes décrivent la même échelle, elles ne doivent pas l'arrondir
-// différemment. La précision adaptative y est nécessaire — les bornes basses
-// descendent à 0,02 log./km², qu'un arrondi à l'entier affichait « 0 – 0 ».
-const fmtVal = formaterValeur;
-
 export function MapPanel({
-  mapContainerRef, mapRef, mapReady, zoneData, activeCats,
+  mapContainerRef, mapRef, mapReady, zoneData,
   isochroneVisible, isochroneMinutes, isochroneMode, isochroneFromCache, isochroneCachedAt,
   setIsochroneVisible, recalculerIsochrone, isLoading,
-  voronoiVisible, voronoiCategory, voronoiPois, setVoronoiVisible,
-  voronoiDataForSaveRef, setShowSavePanel, setSaveError,
-  battleVisible, battleCategory, battlePois, setBattleVisible,
-  battleMaxPalier, setBattleMaxPalier,
+  voronoiVisible, voronoiCategory, setVoronoiVisible,
+  battleVisible, battleCategory, setBattleVisible,
   carreauxRange, carreauxSelectedBucket,
   setCarreauxVisible, setCarreauxIndicateur, setCarreauxPalette, setCarreauxOpacity, setCarreauxSelectedBucket,
   selectedBillboard, closeBillboardDrawer,
@@ -243,7 +225,7 @@ export function MapPanel({
 
       {/* Toggles layers : ligne compacte */}
       <div style={{ display: 'flex', gap: 4 }}>
-        {/* Carreaux : contrôles déplacés dans FilterPanel > ANALYSE > CARREAUX */}
+        {/* Carreaux : contrôles dans PanneauCalques > Socio-démographie (Tâche 6, 2026-09-12) */}
         {voronoiCategory && (
           <button onClick={() => setVoronoiVisible(v => !v)}
             onMouseEnter={() => setHoveredToggle('voronoi')}
@@ -264,133 +246,10 @@ export function MapPanel({
         )}
       </div>
 
-
-      {/* Légende catégories */}
-      {activeCats.length > 0 && (
-        <div style={{
-          ...badgeBase,
-          position: 'relative',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 5,
-        }}>
-          <div style={{ fontFamily: fontMono, fontSize: 9, color: C.textSec, letterSpacing: '0.08em', marginBottom: 2 }}>
-            LEGENDE
-          </div>
-          {activeCats.map((cat) => (
-            <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: zoneData!.couleur_overrides?.[cat] ?? getCatColor(cat), flexShrink: 0 }} />
-              <span style={{ color: C.textDim }}>{cat} <span style={{ color: C.textDim }}>({zoneData!.categories[cat]})</span></span>
-            </div>
-          ))}
-          {zoneData!.rayon_metres && (
-            <div style={{ marginTop: 3, paddingTop: 5, borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 7 }}>
-              <span style={{ display: 'inline-block', width: 9, height: 9, background: 'rgba(240,240,240,0.05)', borderRadius: 1, border: '1.5px dashed #444444', flexShrink: 0 }} />
-              <span style={{ color: C.textDim }}>Zone {(zoneData!.rayon_metres / 1000).toFixed(1)} km</span>
-            </div>
-          )}
-          {zoneData!.rayon_poi_metres && (
-            <div style={{ marginTop: 3, paddingTop: 5, borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 7 }}>
-              <span style={{ display: 'inline-block', width: 9, height: 9, background: 'rgba(34,197,94,0.12)', borderRadius: '50%', border: `1.5px solid ${C.success}`, flexShrink: 0 }} />
-              <span style={{ color: C.textDim }}>R={zoneData!.rayon_poi_metres >= 1000 ? `${(zoneData!.rayon_poi_metres/1000).toFixed(1)}km` : `${zoneData!.rayon_poi_metres}m`}/POI</span>
-            </div>
-          )}
-          {isochroneVisible && isochroneMinutes > 0 && (
-            <div style={{ marginTop: 3, paddingTop: 5, borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 7 }}>
-              <span style={{ display: 'inline-block', width: 9, height: 9, background: `${(ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).fill}30`, borderRadius: 1, border: `1.5px solid ${(ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).line}`, flexShrink: 0 }} />
-              <span style={{ color: C.textDim }}>Iso {isochroneMinutes}min ({ISOCHRONE_MODE_LABELS[isochroneMode] ?? isochroneMode})</span>
-            </div>
-          )}
-          {voronoiVisible && voronoiCategory && (() => {
-            const regionLabel = voronoiDataForSaveRef.current?._meta?.filtre_region
-              ?? voronoiDataForSaveRef.current?._meta?.filtre_ville
-              ?? voronoiDataForSaveRef.current?._meta?.filtre_dept
-              ?? null;
-            return (
-              <div style={{ marginTop: 3, paddingTop: 5, borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ display: 'inline-block', width: 9, height: 9, background: (voronoiPois[0]?.color ?? C.warn) + '40', borderRadius: 1, border: `1.5px solid ${voronoiPois[0]?.color ?? C.warn}`, flexShrink: 0 }} />
-                    <span style={{ color: C.text, fontSize: 9, fontFamily: fontInter, letterSpacing: '0.08em' }}>
-                      VORONOI{regionLabel ? ` · ${regionLabel}` : ''}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => { setShowSavePanel(true); setSaveError(null); }}
-                    title="Sauvegarder ce Voronoï"
-                    style={{ background: 'var(--border-subtle)', border: '0.5px solid var(--border-default)', borderRadius: 4, padding: '2px 8px', fontSize: 9, color: C.textSec, cursor: 'pointer', fontFamily: fontInter }}
-                  >SAVE</button>
-                </div>
-                {voronoiPois.map(c => (
-                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ display: 'inline-block', width: 8, height: 8, background: c.color + '40', borderRadius: 1, border: `1.5px solid ${c.color}`, flexShrink: 0 }} />
-                    <span style={{ fontSize: 9, color: C.textDim }}>{c.nom}</span>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-          {battleVisible && battleCategory && (() => {
-            // Déduire les paliers présents depuis battlePois (ou utiliser valeurs fixes)
-            const visiblePaliers = [10, 20, 30, 40, 50, 60, 90].filter(p => p <= battleMaxPalier);
-            return (
-              <div style={{ marginTop: 3, paddingTop: 5, borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ display: 'inline-block', width: 9, height: 9, background: C.dangerBg, borderRadius: 1, border: `1.5px solid ${C.danger}`, flexShrink: 0 }} />
-                  <span style={{ color: C.text, fontSize: 9, fontFamily: fontInter, letterSpacing: '0.08em' }}>BATAILLE · {battleCategory}</span>
-                </div>
-
-                {/* Slider palier max */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 2 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 8, color: C.textDim, fontFamily: fontInter, letterSpacing: '0.08em' }}>PALIER_MAX</span>
-                    <span style={{ fontSize: 9, color: C.danger, fontFamily: fontMono, fontWeight: 600 }}>{battleMaxPalier} min</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={10} max={90} step={10}
-                    value={battleMaxPalier}
-                    onChange={e => setBattleMaxPalier(Number(e.target.value))}
-                    style={{
-                      width: '100%', cursor: 'pointer', accentColor: C.danger,
-                      height: 14,
-                    }}
-                  />
-                  {/* Rampe opacité */}
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, marginTop: 1 }}>
-                    {[10, 20, 30, 40, 50, 60, 90].map(p => {
-                      const active = p <= battleMaxPalier;
-                      return (
-                        <div key={p} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flex: 1 }}>
-                          <span style={{
-                            display: 'inline-block', width: '100%', height: 6,
-                            background: active ? `rgba(239,68,68,${BATTLE_PALIER_OPACITY[p] ?? 0.15})` : C.bgElevated,
-                            borderRadius: 1,
-                            border: active ? 'none' : `1px solid ${C.border}`,
-                            transition: 'background 0.2s',
-                          }} />
-                          <span style={{ fontSize: 7, color: active ? C.textDim : C.textDim }}>{p}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Légende POIs */}
-                {battlePois.slice(0, 8).map(c => (
-                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ display: 'inline-block', width: 8, height: 8, background: c.color + '40', borderRadius: 1, border: `1.5px solid ${c.color}`, flexShrink: 0 }} />
-                    <span style={{ fontSize: 9, color: C.textDim }}>{c.nom}</span>
-                  </div>
-                ))}
-                {battlePois.length > 8 && (
-                  <span style={{ fontSize: 9, color: C.textDim }}>+{battlePois.length - 8} autres</span>
-                )}
-              </div>
-            );
-          })()}
-        </div>
-      )}
+      {/* La légende catégories POI / isochrone / Voronoï / bataille a été
+          absorbée dans LegendeCarte (composants/map/LegendeCarte.tsx,
+          BlocAnalyse) le 2026-09-12 (Tâche 7) — une seule légende à l'écran,
+          plus deux dans des coins opposés. */}
 
       </div>{/* ── fin colonne top-left ── */}
 

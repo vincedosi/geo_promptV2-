@@ -13,6 +13,7 @@ import {
   Monitor,
   Plug,
   Radio,
+  ShieldCheck,
   Target,
   Upload,
   Users,
@@ -72,6 +73,10 @@ const navItems: NavSection[] = [
       { href: '/admin/organizations', label: 'Organisations', icon: Users },
       { href: '/admin/imports', label: 'Imports', icon: Upload },
       { href: '/admin/health', label: 'Health check', icon: Activity, badge: 'Sys' },
+      // Distincte de Health check, qui regarde l'infrastructure (variables
+      // d'environnement, connectivite, taille des tables) : celle-ci regarde
+      // le CONTENU — ce que les tables contiennent, et ce qu'elles n'ont pas.
+      { href: '/admin/qualite-donnees', label: 'Qualite des donnees', icon: ShieldCheck, badge: 'Sys' },
     ],
   },
 ]

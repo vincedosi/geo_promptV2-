@@ -6,8 +6,8 @@
  *
  * Regroupe les 6 handlers et les 4 etats qui vivaient dans app/map/page.tsx
  * (refactor du 31/08/2026) :
- *   - handleDirectOOH            : panneaux OOH de la bbox visible
- *   - handleDirectSearch         : recherche POI directe
+ *   - handleDirectOOH            : panneaux OOH bornes par bboxDuFiltre(filtre)
+ *   - handleDirectSearch         : recherche POI directe, bornee de meme
  *   - handleDirectBattle         : isochrones multi-POI (v1, streaming)
  *   - handleFillIsochroneCache   : prechauffage du cache ORS
  *   - handleApplyBattle          : decoupe des territoires (ST_Difference)
@@ -16,6 +16,14 @@
  * ⛔ Deplacement a l'identique : ces handlers pilotent /api/isochrone-battle*,
  * code metier protege. Ne rien reordonner, ne rien "optimiser" ici — les
  * appels sont sequentiels et bornes par bbox par respect des contraintes I/O.
+ *
+ * Tache 4 (2026-09-12, corrigee round 1) : `handleDirectOOH`/`handleDirectSearch`
+ * envoient `bbox: bboxDuFiltre(filtre)` a `/api/map/ooh` et `/api/map/pois`
+ * UNIQUEMENT SI un filtre est actif. Un premier essai l'envoyait toujours
+ * (repli sur BBOX_METRO sans filtre) : ca masquait 339 POI d'outre-mer et
+ * rendait le pill « France + DROM » inerte. Sans filtre, comportement
+ * inchange : aucune bbox, scope/regions/depts/ville seuls decident (comme
+ * avant cette tache).
  *
  * ⛔ A appeler APRES useMapInit et useMapLayers.
  */
@@ -28,15 +36,18 @@ import type {
   DirectBattleParams,
   DirectBattleV2Params,
   FillIsochroneCacheParams,
-} from '@/app/map/_components/FilterPanel';
+} from '@/app/map/_components/filter-panel/types';
 import type { ZoneData, BattleResult } from '@/types/spatial';
 import type { POI } from '@/types/poi';
+import type { FiltreActif } from '@/lib/carte/filtre';
+import { bboxPourRequete } from '@/lib/carte/bbox-requete';
 
 export function useMapDirectActions(
   mapRef: React.RefObject<maplibregl.Map | null>,
   mapLayers: ReturnType<typeof useMapLayers>,
   setZoneData: React.Dispatch<React.SetStateAction<ZoneData | null>>,
   setError: React.Dispatch<React.SetStateAction<string | null>>,
+  filtre: FiltreActif | null,
 ) {
   const [battleFeatures,      setBattleFeatures]      = useState<GeoJSON.Feature[]>([]);
   const [battlePois,          setBattlePois]          = useState<POI[]>([]);
@@ -55,10 +66,11 @@ export function useMapDirectActions(
     setError(null);
     setZoneData(null);
     try {
+      const bbox = bboxPourRequete(filtre);
       const res = await fetch('/api/map/ooh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ regies: regies ?? [] }),
+        body: JSON.stringify({ regies: regies ?? [], ...(bbox ? { bbox } : {}) }),
         signal: AbortSignal.timeout(15000),
       });
       if (!res.ok) {
@@ -78,10 +90,11 @@ export function useMapDirectActions(
     setError(null);
     setZoneData(null);
     try {
+      const bbox = bboxPourRequete(filtre);
       const res = await fetch('/api/map/pois', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
+        body: JSON.stringify({ ...params, ...(bbox ? { bbox } : {}) }),
         signal: AbortSignal.timeout(25000),
       });
       if (!res.ok) {

@@ -52,14 +52,22 @@ max_client_conn = 100
 
 [db.migrations]
 # If disabled, migrations will be skipped during a db push or reset.
-enabled = true
+# MAGELIAN : DESACTIVE a dessein (2026-09-17). Le schema local vient du DUMP de
+# prod (scripts/local/02-dump-prod.sh + 03-restore-local.sh), pas des 43
+# fichiers de supabase/migrations/ — qui n'ont jamais ete l'historique reel du
+# projet, les migrations vivantes etant les ~150 fichiers de sql/ appliques par
+# le MCP Supabase. Les laisser tourner au `supabase start` poserait un schema
+# partiel que le restore viendrait contredire.
+enabled = false
 # Specifies an ordered list of schema files that describe your database.
 # Supports glob patterns relative to supabase directory: "./schemas/*.sql"
 schema_paths = []
 
 [db.seed]
 # If enabled, seeds the database after migrations during a db reset.
-enabled = true
+# MAGELIAN : DESACTIVE — il n'existe aucun supabase/seed.sql dans le depot, et
+# les donnees locales viennent du dump de prod (meme raison que ci-dessus).
+enabled = false
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
 sql_paths = ["./seed.sql"]
@@ -79,7 +87,11 @@ allowed_cidrs_v6 = ["::/0"]
 # enabled = true
 
 [realtime]
-enabled = true
+# MAGELIAN : DESACTIVE (2026-09-17). Verifie par grep sur app/, lib/ et
+# components/ : aucun `.channel(`, aucun `postgres_changes`, l'app n'ouvre
+# jamais d'abonnement temps reel. Un conteneur de moins sur un poste ou la RAM
+# est le facteur limitant.
+enabled = false
 # Bind realtime via either IPv4 or IPv6. (default: IPv4)
 # ip_version = "IPv6"
 # The maximum length in bytes of HTTP request headers. (default: 4096)
@@ -107,7 +119,10 @@ port = 54324
 # sender_name = "Admin"
 
 [storage]
-enabled = true
+# MAGELIAN : DESACTIVE (2026-09-17). Verifie par grep : aucun `.storage.from(`
+# dans le code. Les PMTiles IRIS passent par GitHub Releases, pas par Supabase
+# Storage. Desactiver evite les conteneurs storage-api ET imgproxy.
+enabled = false
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 
@@ -369,7 +384,11 @@ deno_version = 2
 # secret_key = "env(SECRET_VALUE)"
 
 [analytics]
-enabled = true
+# MAGELIAN : DESACTIVE (2026-09-17). Logflare + vector servent a explorer les
+# logs du stack local ; ils ne participent a AUCUN chemin de l'application, et
+# le conteneur `vector` bouclait en redemarrage sur ce poste. Deux conteneurs de
+# moins. Les logs restent lisibles par `docker logs <conteneur>`.
+enabled = false
 port = 54327
 # Configure one of the supported backends: `postgres`, `bigquery`.
 backend = "postgres"

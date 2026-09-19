@@ -10,6 +10,13 @@
  * fermeture et reouverture des overlays — les analyses doivent voir les filtres
  * territoriaux courants meme apres un demontage du panneau.
  *
+ * Deuxieme consommateur depuis la Tache 4 (2026-09-12) : `PanneauFiltre`
+ * (app/map/_components/panneaux/PanneauFiltre.tsx) l'appelle SANS props —
+ * instance locale et non liee, uniquement pour piloter le widget
+ * `PerimeterSections` reutilise et composer un `FiltreActif` (lib/carte/filtre.ts).
+ * Ce n'est pas le meme perimetre que celui lifte par `FilterPanel` (qui, lui,
+ * alimente toujours la recherche POI et la bataille isochrone).
+ *
  * Les codes manipules sont les VRAIS codes INSEE (ref_regions.code_region,
  * ref_departements.code_dept) et sont envoyes tels quels aux RPC. Ne jamais
  * revenir a des ids applicatifs ('bre', 'ara') : ils ne matchaient aucune RPC.

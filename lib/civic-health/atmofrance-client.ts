@@ -37,6 +37,13 @@ const REQUEST_TIMEOUT_MS = 15_000;
 
 type CachedToken = { token: string; expiresAt: number };
 let tokenCache: CachedToken | null = null;
+/**
+ * Connexion en vol, partagée : `fetchHealth` lit l'air et le pollen EN
+ * PARALLÈLE, et les deux reçoivent 401 au même instant quand le jeton expire.
+ * Sans ce verrou, chacun se reconnectait de son côté — deux logins pour un
+ * seul jeton utile, et un quota de connexion Atmo consommé deux fois.
+ */
+let loginEnCours: Promise<string> | null = null;
 
 interface AtmoFeatureProps {
   code_zone?: string;
@@ -98,14 +105,21 @@ async function getValidToken(username: string, password: string): Promise<string
   if (tokenCache && tokenCache.expiresAt > now) {
     return tokenCache.token;
   }
-  const token = await login(username, password);
-  tokenCache = { token, expiresAt: now + TOKEN_TTL_MS };
-  return token;
+  if (!loginEnCours) {
+    loginEnCours = login(username, password)
+      .then((token) => {
+        tokenCache = { token, expiresAt: Date.now() + TOKEN_TTL_MS };
+        return token;
+      })
+      .finally(() => { loginEnCours = null; });
+  }
+  return loginEnCours;
 }
 
 /** Réinitialise le cache de token (utile pour les tests). */
 export function _resetTokenCache(): void {
   tokenCache = null;
+  loginEnCours = null;
 }
 
 /** Clause de filtre Atmo Data : {champ: {operator, value}} JSON puis URI-encodé. */
@@ -122,54 +136,38 @@ function buildFilter(codeInsee: string, sinceDate: string): string {
   });
 }
 
-async function fetchDataset(
-  datasetId: number,
-  codeInsee: string,
-  token: string,
-): Promise<AtmoFeatureProps[]> {
-  const filter = buildFilter(codeInsee, todayIso(0));
-  const url = `${DATA_URL}/${datasetId}/${filter}?withGeom=false`;
-  const res = await fetchWithTimeout(url, {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-  }, REQUEST_TIMEOUT_MS);
-  if (res.status === 401) {
-    tokenCache = null;
-    throw new Error('atmo_unauthorized');
-  }
-  if (res.status === 429) {
-    const retryAfter = res.headers.get('Retry-After') ?? '60';
-    throw new Error(`atmo_rate_limited:${retryAfter}`);
-  }
-  if (!res.ok) {
-    throw new Error(`atmo_data_failed:${datasetId}:${res.status}`);
-  }
-  const json = (await res.json()) as AtmoFeatureCollection;
-  const features = json?.features ?? [];
-  return features
-    .map(f => f.properties)
-    .filter((p): p is AtmoFeatureProps => !!p);
-}
+/** Identifiants d'un client pour se reconnecter si le jeton est refusé. */
+type Identifiants = { username: string; password: string };
 
 /**
- * Requête bas niveau avec filtre arbitraire — sert au bulk national (carte
- * des allergènes) et au script de diagnostic scripts/test_atmo_bulk.ts.
- * Timeout élargi : une réponse France entière peut peser plusieurs Mo.
+ * Lit un dataset avec un jeton ; sur 401, le jeton est jeté, UNE reconnexion
+ * est tentée et l'appel rejoué une fois. Avant, un 401 ne faisait que vider le
+ * cache : l'appel en cours échouait, et seul le SUIVANT profitait du nouveau
+ * jeton — la première fiche consultée après l'expiration (~1 h) manquait
+ * toujours. Un second 401 est rendu tel quel : rejouer ne le corrigera pas.
  */
-export async function fetchDatasetRaw(
-  datasetId: number,
-  filter: AtmoFilter,
+async function lireDataset(
+  url: string,
   token: string,
-  timeoutMs = 60_000,
+  timeoutMs: number,
+  datasetId: number,
+  identifiants?: Identifiants,
 ): Promise<AtmoFeatureProps[]> {
-  const url = `${DATA_URL}/${datasetId}/${encodeFilter(filter)}?withGeom=false`;
-  const res = await fetchWithTimeout(
+  const appel = (jeton: string) => fetchWithTimeout(
     url,
-    { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } },
+    { headers: { Authorization: `Bearer ${jeton}`, Accept: 'application/json' } },
     timeoutMs,
   );
+  let res = await appel(token);
   if (res.status === 401) {
     tokenCache = null;
-    throw new Error('atmo_unauthorized');
+    if (!identifiants) throw new Error('atmo_unauthorized');
+    const nouveau = await getValidToken(identifiants.username, identifiants.password);
+    res = await appel(nouveau);
+    if (res.status === 401) {
+      tokenCache = null;
+      throw new Error('atmo_unauthorized');
+    }
   }
   if (res.status === 429) {
     const retryAfter = res.headers.get('Retry-After') ?? '60';
@@ -182,6 +180,33 @@ export async function fetchDatasetRaw(
   return (json?.features ?? [])
     .map(f => f.properties)
     .filter((p): p is AtmoFeatureProps => !!p);
+}
+
+async function fetchDataset(
+  datasetId: number,
+  codeInsee: string,
+  token: string,
+  identifiants?: Identifiants,
+): Promise<AtmoFeatureProps[]> {
+  const filter = buildFilter(codeInsee, todayIso(0));
+  const url = `${DATA_URL}/${datasetId}/${filter}?withGeom=false`;
+  return lireDataset(url, token, REQUEST_TIMEOUT_MS, datasetId, identifiants);
+}
+
+/**
+ * Requête bas niveau avec filtre arbitraire — sert au bulk national (carte
+ * des allergènes) et au script de diagnostic scripts/test_atmo_bulk.ts.
+ * Timeout élargi : une réponse France entière peut peser plusieurs Mo.
+ */
+export async function fetchDatasetRaw(
+  datasetId: number,
+  filter: AtmoFilter,
+  token: string,
+  timeoutMs = 60_000,
+  identifiants?: Identifiants,
+): Promise<AtmoFeatureProps[]> {
+  const url = `${DATA_URL}/${datasetId}/${encodeFilter(filter)}?withGeom=false`;
+  return lireDataset(url, token, timeoutMs, datasetId, identifiants);
 }
 
 /** Login avec les creds env — pour le script de diagnostic uniquement. */
@@ -285,8 +310,8 @@ const BULK_MIN_COMMUNES = 2_000;
 
 export class AtmoFranceProvider implements HealthProvider {
   readonly name = 'atmofrance' as const;
-  private readonly username: string;
-  private readonly password: string;
+  readonly username: string;
+  readonly password: string;
 
   constructor(username: string, password: string) {
     if (!username || !password) {
@@ -301,11 +326,11 @@ export class AtmoFranceProvider implements HealthProvider {
     const token = await getValidToken(this.username, this.password);
 
     const [airFeatures, pollenFeatures] = await Promise.all([
-      fetchDataset(DATA_ID_ATMO, codeInsee, token).catch(err => {
+      fetchDataset(DATA_ID_ATMO, codeInsee, token, this).catch(err => {
         console.warn('[atmofrance] ATMO fetch failed', err);
         return [] as AtmoFeatureProps[];
       }),
-      fetchDataset(DATA_ID_POLLEN, codeInsee, token).catch(err => {
+      fetchDataset(DATA_ID_POLLEN, codeInsee, token, this).catch(err => {
         console.warn('[atmofrance] Pollen fetch failed', err);
         return [] as AtmoFeatureProps[];
       }),
@@ -354,6 +379,8 @@ export class AtmoFranceProvider implements HealthProvider {
         DATA_ID_POLLEN,
         { date_ech: { operator: '=', value: today } },
         token,
+        undefined,
+        this,
       );
       collectPollenByCommune(features, byCommune);
       onLog?.(`Bulk France : ${features.length} lignes → ${byCommune.size} communes (jour J)`);
@@ -375,6 +402,8 @@ export class AtmoFranceProvider implements HealthProvider {
             date_ech: { operator: '=', value: today },
           },
           token,
+          undefined,
+          this,
         );
         collectPollenByCommune(features, byCommune);
         okRegions++;

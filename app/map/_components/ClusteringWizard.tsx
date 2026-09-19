@@ -56,6 +56,27 @@ export interface ClusteringWizardProps {
   onJobStarted: (jobId: string) => void;
   /** Called with POI type codes + bounding box to highlight on map */
   onHighlight?: (poiTypes: string[], metropolitaine: boolean) => void;
+  /**
+   * Garde de périmètre (spec §5, CLAUDE.md, incidents du 28/03 et du 08/04) —
+   * appelée juste avant le POST `/api/poi-clusters/run`. Ce wizard construit
+   * son PROPRE `geo_filter` (métropolitaine + régions, indépendant du
+   * `FiltreActif` de l'app) et peut l'envoyer entièrement vide
+   * (`{ metropolitaine: false, regions: [], depts: [] }`) — un calcul France
+   * entière que rien d'autre ici ne borne. Round 2 de correction (Tâche 7,
+   * 2026-09-12) : le premier passage gardait `onLoadClusters` (un simple GET
+   * de relecture d'un modèle déjà calculé) en croyant border ce POST, qui
+   * part par un chemin totalement différent. Optionnelle pour ne rien casser
+   * si ce composant est monté ailleurs sans garde à fournir.
+   *
+   * Rend le message de refus RÉEL (`messageGardeOutil('clustering', …)` côté
+   * appelant), `null` si le calcul peut continuer — pas un booléen (ruling
+   * FF-2, 2026-09-15) : un booléen forçait ce composant à afficher SA propre
+   * constante générique (`MESSAGE_PERIMETRE_MANQUANT`), qui contredisait à
+   * l'écran le refus spécifique déjà affiché par `PanneauAnalyse` quand le
+   * périmètre choisi était `'france'` (le clustering la refuse, le message
+   * générique disait pourtant « choisissez un périmètre »).
+   */
+  verifierPerimetre?: () => string | null;
 }
 
 // ─── Step indicator ─────────────────────────────────────────────────────────────
@@ -74,7 +95,7 @@ function StepDot({ n, active, done }: { n: number; active: boolean; done: boolea
 }
 
 // ─── Main Wizard ───────────────────────────────────────────────────────────────
-export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: ClusteringWizardProps) {
+export function ClusteringWizard({ onClose, onJobStarted, onHighlight, verifierPerimetre }: ClusteringWizardProps) {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
   // Step 1 — POI types
@@ -194,7 +215,16 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
     setSelectedRegions(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   // ── Launch job ───────────────────────────────────────────────────────────
+  // Garde de périmètre (spec §5) — bloque le POST /api/poi-clusters/run tant
+  // qu'aucun FiltreActif/zone n'est choisi côté app, AVANT toute autre
+  // validation. Ne remplace pas `buildGeoFilter()` (le périmètre géographique
+  // propre au wizard, inchangé) : une seconde barrière, indépendante.
   const handleLaunch = async () => {
+    const messageGarde = verifierPerimetre?.() ?? null;
+    if (messageGarde !== null) {
+      setLaunchError(messageGarde);
+      return;
+    }
     setLaunching(true);
     setLaunchError(null);
     try {

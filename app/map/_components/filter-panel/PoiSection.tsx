@@ -36,6 +36,7 @@ export interface PoiSectionProps {
 
   /** Natures disponibles par type de POI (metadata->>'libelle_nature'). */
   poiNatures: Record<string, string[]>;
+
   selectedPoiNatures: Record<string, string[]>;
   setSelectedPoiNatures: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
 
@@ -211,6 +212,7 @@ export function PoiSection({
                     />
                   </div>
                 )}
+
               </div>
             );
           })}

@@ -5,8 +5,10 @@
  *   - Performance / Wins / Limites / Reco prochaine campagne / ROI estimé
  *
  * Déplacé depuis app/custom-bidding/[strategyId]/_components/ le 2026-09-08,
- * lors de la suppression de l'overlay Pilotage ML : seul rescapé de ce dossier,
- * il reste consommé par CampaignSuivi. Contenu inchangé.
+ * lors de la suppression de l'overlay Pilotage ML : seul rescapé de ce dossier.
+ * Tache 16 (2026-09-15) : `CampaignSuivi.tsx` a disparu avec l'ancien ecran de
+ * suivi ; ce composant reste consomme, TEL QUEL, par
+ * `components/campagne/suivi-v2/DetailTechnique.tsx`. Contenu inchange.
  */
 import { useEffect, useState } from 'react';
 import { FileCheck2, RefreshCw, Trophy, AlertCircle, ArrowRight, Banknote, Sparkles, FileText } from 'lucide-react';

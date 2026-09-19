@@ -18,11 +18,24 @@ import { getSourceTypeLabel } from '@/lib/custom-geo/source-type-labels';
 import { downloadZoneExport } from '@/lib/custom-geo/download-export';
 import { ZoneDeleteDialog } from '@/app/map/custom-geo/_components/ZoneDeleteDialog';
 import type { CustomGeoZoneSummary } from '@/types/custom-geo';
+import { ZonesOperations } from './ZonesOperations';
+import { decrireComposition } from '@/lib/custom-geo/composition';
 
 interface Props {
   mapRef: React.MutableRefObject<MaplibreMap | null>;
   /** Notifie le parent des zones actuellement affichées sur la carte (plan média). */
   onLoadedZonesChange?: (zones: Array<{ id: string; name: string }>) => void;
+  /**
+   * Incrémentée par le parent après une création de zone : recharge la liste
+   * SANS démonter ce composant.
+   *
+   * Une `key` aurait été plus courte, et c'est ce qui avait été fait — à tort.
+   * Démonter ce composant laisse les couches MapLibre des zones affichées
+   * peintes sur la carte (le nettoyage de démontage capture le `loadedZones`
+   * du premier rendu, voir plus bas) : des zones visibles qu'aucun bouton ne
+   * peut plus masquer.
+   */
+  rafraichirCle?: number;
 }
 
 interface ZonesStats {
@@ -73,11 +86,15 @@ const lineIdOf   = (zoneId: string) => `custom-zone-line-${zoneId}`;
 
 // ─── Composant principal ──────────────────────────────────────────────────
 
-export function ZonesOverlay({ mapRef, onLoadedZonesChange }: Props) {
+export function ZonesOverlay({ mapRef, onLoadedZonesChange, rafraichirCle = 0 }: Props) {
   const { session, isLoading: sessionLoading } = useSession();
   const orgId = session?.user?.organizationId ?? '';
 
   const [zones, setZones] = useState<CustomGeoZoneSummary[]>([]);
+  // Selection pour les operations booleennes (Tache 14). TABLEAU et non Set :
+  // l'ordre de cochage designe la base de la soustraction, qui n'est pas
+  // symetrique — un Set perdrait cette information.
+  const [selection, setSelection] = useState<string[]>([]);
   const [stats, setStats] = useState<ZonesStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -139,7 +156,16 @@ export function ZonesOverlay({ mapRef, onLoadedZonesChange }: Props) {
       ]);
       if (!listRes.ok) throw new Error(`HTTP ${listRes.status}`);
       const listData = await listRes.json();
-      setZones(listData.zones ?? []);
+      const listeZones = listData.zones ?? [];
+      setZones(listeZones);
+      // A6g : une zone supprimee (ici ou ailleurs) doit sortir de la selection,
+      // sinon l'operation booleenne suivante part avec son uuid et repond 404
+      // sans que l'utilisateur comprenne laquelle est en cause.
+      const existants = new Set(listeZones.map((z: { id: string }) => z.id));
+      setSelection((prev) => {
+        const filtree = prev.filter((id) => existants.has(id));
+        return filtree.length === prev.length ? prev : filtree;
+      });
       if (statsRes.ok) {
         const s = await statsRes.json();
         setStats({
@@ -155,11 +181,16 @@ export function ZonesOverlay({ mapRef, onLoadedZonesChange }: Props) {
     }
   }, [orgId, sourceTypeFilter, searchQuery]);
 
-  // Initial fetch + debounce sur recherche
+  // Initial fetch + debounce sur recherche.
+  //
+  // `rafraichirCle` est un DECLENCHEUR, pas une donnee lue : sa place est ici
+  // et non dans les deps de `fetchAll`, qui ne s'en sert pas — ESLint le
+  // signalait a juste titre comme dependance inutile.
   useEffect(() => {
     const t = setTimeout(fetchAll, searchQuery ? 200 : 0);
     return () => clearTimeout(t);
-  }, [fetchAll, searchQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchAll, searchQuery, rafraichirCle]);
 
   // ── Source types disponibles (pour le filtre dropdown) ────────────────
   const availableSourceTypes = useMemo(() => {
@@ -358,6 +389,13 @@ export function ZonesOverlay({ mapRef, onLoadedZonesChange }: Props) {
           Aucune zone sauvegardée. Utilise le bouton « Sauvegarder la vue » pour créer ta première zone.
         </div>
       )}
+      <ZonesOperations
+        selection={selection}
+        nomsParId={new Map(zones.map(z => [z.id, z.name]))}
+        orgId={orgId}
+        onTermine={() => { setSelection([]); void fetchAll(); }}
+      />
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {zones.map(zone => (
           <ZoneCard
@@ -368,6 +406,10 @@ export function ZonesOverlay({ mapRef, onLoadedZonesChange }: Props) {
             onShow={() => showZoneOnMap(zone)}
             onHide={() => hideZoneFromMap(zone.id)}
             onDelete={() => setZoneToDelete(zone)}
+            rangSelection={selection.indexOf(zone.id)}
+            onBasculerSelection={() => setSelection(prev => (
+              prev.includes(zone.id) ? prev.filter(id => id !== zone.id) : [...prev, zone.id]
+            ))}
           />
         ))}
       </div>
@@ -387,7 +429,7 @@ export function ZonesOverlay({ mapRef, onLoadedZonesChange }: Props) {
 // ─── ZoneCard ─────────────────────────────────────────────────────────────
 
 function ZoneCard({
-  zone, loaded, pending, onShow, onHide, onDelete,
+  zone, loaded, pending, onShow, onHide, onDelete, rangSelection, onBasculerSelection,
 }: {
   zone: CustomGeoZoneSummary;
   loaded: LoadedZone | null;
@@ -395,6 +437,9 @@ function ZoneCard({
   onShow: () => void;
   onHide: () => void;
   onDelete: () => void;
+  /** Position dans la selection (0 = base d'une soustraction), -1 si non cochee. */
+  rangSelection: number;
+  onBasculerSelection: () => void;
 }) {
   const sourceLabel = getSourceTypeLabel(zone.source_type);
   const dept = zone.dept_codes ?? [];
@@ -409,8 +454,25 @@ function ZoneCard({
       display: 'flex', flexDirection: 'column', gap: 6,
       transition: 'border-color 150ms var(--ease-hover)',
     }}>
-      {/* Title + status dot */}
+      {/* Title + status dot — la case a cocher precede le titre : elle sert les
+          operations booleennes (Tache 14), et son RANG est affiche parce que
+          l'ordre de cochage designe la base d'une soustraction. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', flexShrink: 0 }}>
+          <input
+            type="checkbox"
+            checked={rangSelection >= 0}
+            onChange={onBasculerSelection}
+            aria-label={`Selectionner ${zone.name} pour une operation`}
+            style={{ accentColor: 'var(--brand-teal)', cursor: 'pointer' }}
+          />
+          {rangSelection >= 0 && (
+            <span style={{
+              fontFamily: fMono, fontSize: 9, color: 'var(--brand-teal)',
+              minWidth: 10, textAlign: 'center',
+            }}>{rangSelection + 1}</span>
+          )}
+        </label>
         {loaded && (
           <span style={{
             width: 6, height: 6, borderRadius: '50%', background: loaded.color, flexShrink: 0,
@@ -433,6 +495,16 @@ function ZoneCard({
         <span style={{ color: 'var(--text-tertiary)', fontFamily: fMono }}>
           {zone.feature_count_iris} IRIS · {zone.feature_count_cp} CP
         </span>
+      </div>
+
+      {/* De quoi la zone est FAITE (Tache 15) — derive de source_metadata,
+          jamais stocke, aucune requete : `source_metadata` est deja dans la
+          reponse de /api/custom-geo/list. « Cible composite (2 zones) » ne
+          disait pas si la zone venait d'un seuil de revenu, d'une bataille
+          isochrone ou d'une soustraction — or c'est cette zone qui part au
+          DSP. */}
+      <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5, fontFamily: fInter }}>
+        {decrireComposition(zone.source_type, zone.source_metadata)}
       </div>
 
       {/* Dept + Region */}

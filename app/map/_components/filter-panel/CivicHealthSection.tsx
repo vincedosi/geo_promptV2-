@@ -13,7 +13,6 @@
 
 import React from 'react';
 import { HealthIndicatorCard } from '@/components/donnees-terrain/HealthIndicatorCard';
-import { ATMO_LEVEL_LABELS, POLLEN_LEVEL_LABELS } from '@/lib/civic-health/levels';
 import { FilterSectionHeader } from './FilterSectionHeader';
 import { C, fInter, fMono } from './tokens';
 import { labelStyle } from './styles';
@@ -301,27 +300,9 @@ export function CivicHealthSection({
                 </div>
               ) : null}
 
-              {/* Légende : un libellé par niveau (1-6) */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, marginBottom: 6 }}>
-                  {civicHealthLayer === 'pollen' ? 'Indice pollen' : 'Indice ATMO'}
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 10px' }}>
-                  {([1, 2, 3, 4, 5, 6] as const).map(lvl => {
-                    const token = civicHealthLayer === 'pollen' ? `--pollen-level-${lvl}` : `--atmo-level-${lvl}`;
-                    const label = civicHealthLayer === 'pollen' ? POLLEN_LEVEL_LABELS[lvl] : ATMO_LEVEL_LABELS[lvl];
-                    const dimmed = civicMinLevel > 0 && lvl < civicMinLevel;
-                    return (
-                      <div key={lvl} style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: dimmed ? 0.3 : 1, transition: 'opacity 150ms var(--ease-hover)' }}>
-                        <span style={{ width: 10, height: 10, borderRadius: 2, background: `var(${token})`, flexShrink: 0 }} />
-                        <span style={{ fontFamily: fInter, fontSize: 10, color: C.textSec }}>
-                          {lvl} — {label}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              {/* Légende — rendue par la légende unique de la carte (LegendeCarte,
+                  Tâche 6), qui lit directement ATMO_LEVEL_LABELS / POLLEN_LEVEL_LABELS
+                  (lib/civic-health/levels, déjà exportées). */}
 
               <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
                 Source : Atmo France et les AASQA (ODbL) — {civicScale === 'cp'

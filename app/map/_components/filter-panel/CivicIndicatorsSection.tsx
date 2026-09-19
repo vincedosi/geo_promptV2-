@@ -12,14 +12,25 @@ import { FilterSectionHeader } from './FilterSectionHeader';
 import { C, fInter, fMono } from './tokens';
 import { labelStyle } from './styles';
 
-/** Paliers du gradient de la légende : [couleur, poids relatif]. */
-const ABSTENTION_LEGEND: [string, number][] = [
+/**
+ * Paliers du gradient de la légende : [couleur, poids relatif].
+ *
+ * Exportée pour `components/map/LegendeCarte.tsx` (Tâche 6) : la légende
+ * unique du panneau Calques rend ce gradient, cette section ne l'affiche
+ * plus elle-même.
+ */
+export const ABSTENTION_LEGEND: [string, number][] = [
   ['#16a34a', 0.5],
   ['#84cc16', 1],
   ['#eab308', 1],
   ['#f97316', 1],
   ['#dc2626', 1.2],
   ['#7f1d1d', 0.8],
+];
+
+/** Libellés des trois repères affichés sous le gradient, dans l'ordre. */
+export const ABSTENTION_LEGEND_REPERES: readonly [string, string, string] = [
+  '10% (forte particip.)', '30%', '60% (forte abst.)',
 ];
 
 export interface CivicIndicatorsSectionProps {
@@ -73,22 +84,8 @@ export function CivicIndicatorsSection({
 
         {civicVariableCode === 'abstention_pres_2022' && (
           <>
-            {/* Légende gradient */}
-            <div style={{ marginTop: 10 }}>
-              <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, marginBottom: 4 }}>
-                Légende
-              </div>
-              <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden' }}>
-                {ABSTENTION_LEGEND.map(([color, weight], i) => (
-                  <div key={i} style={{ flex: weight, background: color }} />
-                ))}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 9, color: C.muted, marginTop: 2 }}>
-                <span>10% (forte particip.)</span>
-                <span>30%</span>
-                <span>60% (forte abst.)</span>
-              </div>
-            </div>
+            {/* Légende — rendue par la légende unique de la carte (LegendeCarte,
+                Tâche 6), qui lit ABSTENTION_LEGEND exporté ci-dessus. */}
 
             {/* Source */}
             <div style={{ marginTop: 10, fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>

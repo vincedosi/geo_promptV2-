@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { APP_VERSION, BUILD_DATE } from '@/lib/version';
 import type { Check, HealthResponse } from '@/types/admin';
+import FraicheurPanel from './_components/FraicheurPanel';
 
 const C = {
   bg:          'var(--bg-primary)',
@@ -124,7 +125,15 @@ function CheckCard({ check }: { check: Check }) {
   );
 }
 
+type Onglet = 'systeme' | 'fraicheur';
+
+const ONGLETS: { cle: Onglet; libelle: string }[] = [
+  { cle: 'systeme', libelle: 'Diagnostic système' },
+  { cle: 'fraicheur', libelle: 'Fraîcheur données' },
+];
+
 export default function HealthPage() {
+  const [onglet, setOnglet] = useState<Onglet>('systeme');
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
@@ -210,10 +219,38 @@ export default function HealthPage() {
           )}
         </div>
         <p style={{ color: C.textDim, fontSize: 13, margin: 0, fontFamily: fontInter }}>
-          Diagnostic système — variables d&apos;environnement, connectivité Supabase, tables
+          {onglet === 'systeme'
+            ? 'Variables d’environnement, connectivité Supabase, tables'
+            : 'D’où vient chaque donnée, comment elle entre, et de quand elle date'}
         </p>
       </div>
 
+      {/* Onglets */}
+      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${C.border}`, marginBottom: 20 }}>
+        {ONGLETS.map((o) => (
+          <button
+            key={o.cle}
+            onClick={() => setOnglet(o.cle)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              borderBottom: `2px solid ${onglet === o.cle ? C.accent : 'transparent'}`,
+              color: onglet === o.cle ? C.text : C.textSec,
+              fontFamily: fontInter,
+              fontWeight: 500,
+              fontSize: 13,
+              padding: '8px 14px',
+              cursor: 'pointer',
+              marginBottom: -1,
+            }}
+          >
+            {o.libelle}
+          </button>
+        ))}
+      </div>
+
+      {onglet === 'systeme' && (
+      <>
       {/* Global Status Card */}
       <div style={{
         padding: '20px 24px',
@@ -550,6 +587,10 @@ export default function HealthPage() {
         </div>
 
       </div>
+      </>
+      )}
+
+      {onglet === 'fraicheur' && <FraicheurPanel />}
     </div>
   );
 }

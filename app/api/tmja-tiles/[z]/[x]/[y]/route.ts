@@ -20,6 +20,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { gzipSync, gunzipSync } from 'zlib';
 import { createAdminClient } from '@/lib/auth';
+import {
+  creerCacheTuiles,
+  BUDGET_CACHE_TUILES_OCTETS,
+  TTL_CACHE_TUILES_MS,
+} from '@/lib/tiles/cache-lru';
 
 function getSupabase() {
   return createAdminClient();
@@ -27,20 +32,15 @@ function getSupabase() {
 
 export const dynamic = 'force-dynamic';
 
-const tileMemCache = new Map<string, { buf: Buffer; expires: number }>();
+// Cache partage, borne en OCTETS et evince par usage (lib/tiles/cache-lru.ts).
+// L'ancien plafonnait a 1 000 ENTREES et purgeait les 200 premieres CLES
+// INSEREES : il evincait donc une tuile tres demandee avant une tuile vue une
+// seule fois, et ne bornait pas la memoire — une tuile pese de 101 ko a 827 ko.
+const tileMemCache = creerCacheTuiles({
+  budgetOctets: BUDGET_CACHE_TUILES_OCTETS,
+  ttlMs: TTL_CACHE_TUILES_MS,
+});
 const pendingTiles = new Map<string, Promise<Buffer | null>>();
-const CACHE_TTL_MS = 60 * 60 * 1000;
-const MAX_CACHE = 1000;
-
-function pruneCacheIfNeeded() {
-  if (tileMemCache.size <= MAX_CACHE) return;
-  const toDelete = Math.floor(MAX_CACHE * 0.2);
-  let i = 0;
-  for (const k of tileMemCache.keys()) {
-    tileMemCache.delete(k);
-    if (++i >= toDelete) break;
-  }
-}
 
 /** Renvoie la tuile MVT déjà gzippée (stockée gzippée en cache mémoire). */
 async function fetchTileBuffer(zoom: number, tileX: number, tileY: number): Promise<Buffer | null> {
@@ -90,11 +90,10 @@ export async function GET(
   const acceptsGzip = (req.headers.get('accept-encoding') ?? '').includes('gzip');
   const v = req.nextUrl.searchParams.get('v') ?? '0';
   const key = `${v}/${zoom}/${tileX}/${tileY}`;
-  const now = Date.now();
 
-  const cached = tileMemCache.get(key);
-  if (cached && now < cached.expires) {
-    const body = acceptsGzip ? cached.buf : gunzipSync(cached.buf);
+  const cached = tileMemCache.lire(key);
+  if (cached) {
+    const body = acceptsGzip ? cached : gunzipSync(cached);
     return new NextResponse(body as unknown as BodyInit, {
       headers: tileHeaders('HIT', acceptsGzip),
     });
@@ -114,8 +113,7 @@ export async function GET(
     return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
   }
 
-  pruneCacheIfNeeded();
-  tileMemCache.set(key, { buf: buffer, expires: now + CACHE_TTL_MS });
+  tileMemCache.ecrire(key, buffer);
 
   const body = acceptsGzip ? buffer : gunzipSync(buffer);
   return new NextResponse(body as unknown as BodyInit, {

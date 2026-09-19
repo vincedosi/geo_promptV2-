@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import { echapperHtml as esc } from '@/lib/map/echapper-html';
 import { adminFetch } from '@/lib/admin-fetch';
+import { LARGEUR_RAIL, ECART_RAIL_PANNEAU } from '@/lib/navigation/config';
 
 const SOURCE_ID = 'suivi-campaign-zones';
 const FILL_ID = 'suivi-campaign-zones-fill';
@@ -78,7 +79,9 @@ interface MetricConfig {
   legend: (c: Tone, forecastCpm: number | null) => Array<[string, string]>;
   /** Métrique masquée sous filtre acteur partiel : sa valeur devient une
    *  contribution (lit l'objectif GLOBAL, pas la part de l'acteur) → trompeuse
-   *  rendue comme une atteinte absolue. Cohérent avec le masquage SuiviTable. */
+   *  rendue comme une atteinte absolue. Ce masquage etait coherent avec celui de
+   *  `SuiviTable.tsx`, SUPPRIME a la Tache 16 avec l'ancien ecran de suivi ;
+   *  la regle reste bonne, mais elle n'a plus de pendant a verifier. */
   hiddenUnderPartialActors?: true;
 }
 
@@ -121,6 +124,27 @@ const METRICS: Record<SuiviMapMetric, MetricConfig> = {
 const SOURCE_TITLE: Record<SuiviMapSource, string> = { suivi: 'Suivi campagne', reconcile: 'Réconciliation' };
 const METRIC_KEYS = Object.keys(METRICS) as SuiviMapMetric[];
 
+/**
+ * Événement diffusé à chaque changement du statut actif/inactif (activation,
+ * fermeture, changement de métrique) — permet à `page.tsx` de suivre l'état
+ * SANS dupliquer la logique d'activation (Tâche 6, 2026-09-12) : le groupe
+ * « Campagne active » du panneau Calques n'apparaît que si un `detail` non
+ * nul est reçu, et l'exclusivité des dégradés est demandée à ce moment-là.
+ */
+export const SUIVI_MAP_STATUS_EVENT = 'magelian:suivi-map-status';
+/** Demande de fermeture externe (ex. évincé par un autre dégradé, ou croix
+ *  « Actifs » du panneau Calques) — symétrique de `magelian:suivi-map`. */
+export const SUIVI_MAP_CLEAR_EVENT = 'magelian:suivi-map-clear';
+
+/**
+ * Paliers de légende [couleur, libellé] d'une métrique — exportée pour
+ * `components/map/LegendeCarte.tsx` (Tâche 6) : la légende unique du panneau
+ * Calques les rend, ce composant ne les affiche plus lui-même.
+ */
+export function legendePourMetrique(metric: SuiviMapMetric, forecastCpm: number | null): Array<[string, string]> {
+  return METRICS[metric].legend(readToneColors(), forecastCpm);
+}
+
 export function SuiviMapLayer({ mapRef }: { mapRef: React.MutableRefObject<maplibregl.Map | null> }) {
   const [active, setActive] = useState<SuiviMapEventDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -135,6 +159,22 @@ export function SuiviMapLayer({ mapRef }: { mapRef: React.MutableRefObject<mapli
     window.addEventListener('magelian:suivi-map', onEvent);
     return () => window.removeEventListener('magelian:suivi-map', onEvent);
   }, []);
+
+  // Fermeture demandée depuis l'extérieur (panneau Calques : croix « Actifs »,
+  // ou éviction par un autre dégradé de couleur — un seul à la fois).
+  useEffect(() => {
+    const onClear = () => setActive(null);
+    window.addEventListener(SUIVI_MAP_CLEAR_EVENT, onClear);
+    return () => window.removeEventListener(SUIVI_MAP_CLEAR_EVENT, onClear);
+  }, []);
+
+  // Rediffuse le statut courant à chaque changement (activation, fermeture,
+  // changement de métrique) — source unique pour page.tsx, qui n'a sinon
+  // aucun moyen de savoir si une campagne est active (état interne à ce
+  // composant, déclenché par un événement DOM émis ailleurs).
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent<SuiviMapEventDetail | null>(SUIVI_MAP_STATUS_EVENT, { detail: active }));
+  }, [active]);
 
   const cleanup = useCallback(() => {
     const map = mapRef.current;
@@ -218,7 +258,6 @@ export function SuiviMapLayer({ mapRef }: { mapRef: React.MutableRefObject<mapli
   if (!active) return null;
 
   const cfg = METRICS[active.metric];
-  const c = readToneColors();
   // Sous filtre acteur partiel, on retire les métriques marquées
   // hiddenUnderPartialActors (règle portée par la table METRICS, pas par un test
   // de nom de métrique ici) — cf. commentaire de MetricConfig.
@@ -229,7 +268,7 @@ export function SuiviMapLayer({ mapRef }: { mapRef: React.MutableRefObject<mapli
 
   return (
     <div style={{
-      position: 'fixed', left: 68, bottom: 28, zIndex: 5000,
+      position: 'fixed', left: LARGEUR_RAIL + ECART_RAIL_PANNEAU + 12, bottom: 28, zIndex: 5000,
       background: 'var(--card-overlay, rgba(10,10,10,0.92))', border: '0.5px solid var(--border-default)',
       borderRadius: 8, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, minWidth: 210,
     }}>
@@ -263,14 +302,8 @@ export function SuiviMapLayer({ mapRef }: { mapRef: React.MutableRefObject<mapli
           </button>
         ))}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {cfg.legend(c, active.forecastCpm).map(([color, label]) => (
-          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span aria-hidden style={{ width: 10, height: 10, borderRadius: 2, background: color, display: 'inline-block' }} />
-            <span style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-secondary)' }}>{label}</span>
-          </div>
-        ))}
-      </div>
+      {/* Légende — rendue par la légende unique de la carte (LegendeCarte,
+          Tâche 6) via `legendePourMetrique` exportée ci-dessus. */}
     </div>
   );
 }

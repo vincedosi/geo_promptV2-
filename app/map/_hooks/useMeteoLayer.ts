@@ -13,6 +13,12 @@
  * Le cache des polygones est volontairement un `useRef` par echelle : les
  * geometries admin ne changent pas et un re-fetch a chaque application de
  * filtre couterait plusieurs Mo pour rien (contrainte Nano).
+ *
+ * Tache 4 (2026-09-12, corrigee round 1) : en mode `cp`, QUAND UN FILTRE EST
+ * ACTIF, la bbox envoyee est celle du filtre (lib/carte/bbox-requete.ts) —
+ * plus precise que le viewport. Sans filtre, comportement inchange : le
+ * viewport courant (`mapRef.current.getBounds()`), comme avant cette tache —
+ * un repli systematique sur BBOX_METRO masquait l'outre-mer.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
@@ -21,10 +27,13 @@ import { adminFetch } from '@/lib/admin-fetch';
 import { useMeteoData } from '@/lib/meteo/use-meteo-data';
 import { buildColorExpression as buildMeteoColorExpr } from '@/lib/meteo/palettes';
 import { type MeteoParams, type MeteoScale } from '@/lib/meteo/types';
+import type { FiltreActif } from '@/lib/carte/filtre';
+import { bboxPourRequete } from '@/lib/carte/bbox-requete';
 
 export function useMeteoLayer(
   mapRef: React.RefObject<maplibregl.Map | null>,
   mapReady: boolean,
+  filtre: FiltreActif | null,
 ) {
   // Météo — choroplèthe par zones admin (Open-Meteo, polygones dép./régions)
   const [meteoVisible, setMeteoVisible] = useState(false);
@@ -131,18 +140,35 @@ export function useMeteoLayer(
     // pour les appels sans scale (compatibilité).
     const days = (new Date(params.endDate).getTime() - new Date(params.startDate).getTime()) / 86400000;
     const scale: MeteoScale = params.scale ?? (days > 30 ? 'region' : 'departement');
-    // Mode cp : le viewport restreint les zones interrogées (CP exacts si la
-    // vue en contient ≤ 500, sinon échantillonnage spatial côté serveur).
+    // Mode cp : si un filtre est actif, il restreint les zones interrogées
+    // (CP exacts si la zone en contient ≤ 500, sinon échantillonnage spatial
+    // côté serveur) — plus précis qu'un viewport. Round 1 de correction
+    // (2026-09-12) : SANS filtre, on revient au viewport (comportement
+    // d'avant cette tâche) — bboxPourRequete rend `undefined` sans filtre,
+    // jamais un repli sur BBOX_METRO qui masquerait l'outre-mer.
     let bbox: string | undefined;
     if (scale === 'cp') {
-      const b = mapRef.current?.getBounds();
-      if (b) bbox = `${b.getWest().toFixed(3)},${b.getSouth().toFixed(3)},${b.getEast().toFixed(3)},${b.getNorth().toFixed(3)}`;
+      const bboxFiltre = bboxPourRequete(filtre);
+      if (bboxFiltre) {
+        const [west, south, east, north] = bboxFiltre;
+        bbox = `${west.toFixed(3)},${south.toFixed(3)},${east.toFixed(3)},${north.toFixed(3)}`;
+      } else {
+        const b = mapRef.current?.getBounds();
+        if (b) bbox = `${b.getWest().toFixed(3)},${b.getSouth().toFixed(3)},${b.getEast().toFixed(3)},${b.getNorth().toFixed(3)}`;
+      }
     }
-    await ensureMeteoZones(scale);
-    const ok = await meteo.fetch(scale, { ...params, bbox });
+    // Les polygones (GeoJSON stable, cache navigateur/CDN) et la météo
+    // (Open-Meteo) ne dépendent pas l'un de l'autre : on les charge ENSEMBLE.
+    // Au palier CP, les polygones pèsent ~3,8 Mo : les attendre AVANT de
+    // lancer l'appel météo ajoutait leur temps de transfert à celui d'Open-Meteo.
+    // Deux requêtes Supabase au plus en parallèle — sous la limite de trois.
+    const [, ok] = await Promise.all([
+      ensureMeteoZones(scale),
+      meteo.fetch(scale, { ...params, bbox }),
+    ]);
     if (ok) setMeteoVisible(true);
     return ok;
-  }, [meteo, ensureMeteoZones, mapRef]);
+  }, [meteo, ensureMeteoZones, filtre, mapRef]);
 
   const handleMeteoClear = useCallback(() => {
     meteo.clear();

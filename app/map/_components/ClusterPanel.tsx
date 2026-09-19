@@ -2,6 +2,11 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
+import { empiler, depiler } from '@/lib/carte/pile-echap';
+
+/** Identifiant fixe dans la pile Echap : le mode comparaison est une entrée
+ *  empilée par-dessus le panneau qui la contient (jamais deux à la fois). */
+const PILE_ID_COMPARE = 'cluster-compare';
 const ClusteringWizard = dynamic(
   () => import('./ClusteringWizard').then(m => ({ default: m.ClusteringWizard })),
   { ssr: false },
@@ -38,7 +43,8 @@ export interface ClusterPoi {
   lng?:            number;
 }
 
-export interface ClusterSummaryEntry {
+// Non exporte : aucun consommateur externe (verifie par `npm run catalogue`).
+interface ClusterSummaryEntry {
   label:       string;
   count:       number;
   color:       string;
@@ -200,12 +206,18 @@ export interface ClusterPanelProps {
   onFitBounds:      (bounds: [[number, number], [number, number]]) => void;
   onWizardHighlight?: (poiTypes: string[], metropolitaine: boolean) => void;
   onWizardClose?:     () => void;
+  /** Garde de périmètre (spec §5) — transmise telle quelle à ClusteringWizard,
+   *  qui l'appelle avant son POST /api/poi-clusters/run (round 2 de correction,
+   *  Tâche 7, 2026-09-12). Voir ClusteringWizard.tsx pour le pourquoi. Rend le
+   *  message de refus réel, `null` si le calcul peut continuer (ruling FF-2,
+   *  2026-09-15). */
+  verifierPerimetre?: () => string | null;
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function ClusterPanel({
   geojson, visible, loading, duration, onToggle, onLoad, onDurationChange, onFlyTo, onFitBounds,
-  onWizardHighlight, onWizardClose,
+  onWizardHighlight, onWizardClose, verifierPerimetre,
 }: ClusterPanelProps) {
 
   const [section,    setSection]    = useState<'legend' | 'table' | 'compare'>('legend');
@@ -238,13 +250,13 @@ export function ClusterPanel({
     return () => window.removeEventListener('genesis:cluster-select', handler);
   }, [compareMode]);
 
-  // Escape to exit compare mode
+  // Escape to exit compare mode — via la pile Echap (lib/carte/pile-echap.ts) :
+  // le mode comparaison se ferme avant le panneau qui le contient, plus de
+  // listener direct concurrent.
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && compareMode !== 'idle') exitCompare();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    if (compareMode === 'idle') return;
+    empiler(PILE_ID_COMPARE, exitCompare);
+    return () => depiler(PILE_ID_COMPARE);
   }, [compareMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function exitCompare() {
@@ -352,6 +364,7 @@ export function ClusterPanel({
             onClose={() => { setWizardOpen(false); onWizardClose?.(); }}
             onJobStarted={() => { setWizardOpen(false); onWizardClose?.(); onLoad(); }}
             onHighlight={onWizardHighlight}
+            verifierPerimetre={verifierPerimetre}
           />
         )}
         <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -423,6 +436,7 @@ export function ClusterPanel({
           onClose={() => { setWizardOpen(false); onWizardClose?.(); }}
           onJobStarted={() => { setWizardOpen(false); onWizardClose?.(); onLoad(); }}
           onHighlight={onWizardHighlight}
+          verifierPerimetre={verifierPerimetre}
         />
       )}
 

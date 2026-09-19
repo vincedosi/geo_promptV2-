@@ -39,17 +39,6 @@ export interface SuiviDeptRow {
   objective_alignment: number | null;
 }
 
-export interface SuiviCpRow {
-  postal_code: string;
-  in_target: boolean;
-  impressions: number;
-  hold_index: number | null;
-  cpm: number | null;
-  spend: number;
-  delta7_pct: number | null;
-  objective_alignment: number | null;
-}
-
 export interface SuiviDaily {
   date: string;
   impressions: number;

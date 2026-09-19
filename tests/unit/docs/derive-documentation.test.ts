@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { join, sep } from 'node:path';
 
 /**
  * Détection de dérive entre ARCHITECTURE.md et le code réel.
@@ -128,5 +128,284 @@ describe('dérive entre ARCHITECTURE.md et le code', () => {
       + "Si c'est parce que la clé anon est enfin utilisée, tant mieux — mettre à jour ce test. "
       + "Sinon, la mention doit rester : un lecteur en conclut que la base est protégée.",
     ).toBe(true);
+  });
+
+  // ── Section « Navigation de /map » (tâche 10, 2026-09-12) ──────────────────
+  //
+  // Les cinq contrôles ci-dessus ne couvrent rien de cette section : ni les
+  // raccourcis, ni LARGEUR_RAIL, ni le nombre de dégradés, ni l'affirmation
+  // « ClusteringResultsContent.tsx n'est importé nulle part ». Un relecteur
+  // l'a fait remarquer en round de correction 1 : c'est exactement l'angle
+  // mort qui a produit l'incident « 70 tables — RLS partout » — une section
+  // qui se lit comme un fait vérifié alors qu'aucun test ne la regarde.
+  //
+  // Le dernier contrôle compte le plus : la décision parquée sur
+  // `ClusteringResultsContent.tsx` (garde de périmètre non relayée, laissée
+  // en l'état PARCE QU'aucun composant vivant ne le monte) n'est sûre que
+  // tant que cette affirmation reste vraie. Le jour où quelqu'un l'importe,
+  // ce test doit rougir — sinon la doc ment ET le trou de garde devient
+  // vivant sans qu'on le sache.
+
+  const configNav = lire('lib/navigation/config.ts');
+  const navSection = archi.slice(archi.indexOf('## Navigation de /map'), archi.indexOf('## Modele multi-tenant'));
+
+  it('LARGEUR_RAIL citée dans la doc correspond à lib/navigation/config.ts', () => {
+    const reelle = configNav.match(/export const LARGEUR_RAIL = (\d+);/)?.[1];
+    expect(reelle, 'LARGEUR_RAIL introuvable dans lib/navigation/config.ts — a-t-elle été renommée ?').toBeDefined();
+
+    const citee = navSection.match(/`LARGEUR_RAIL`\s*\((\d+)\s*px/)?.[1];
+    expect(citee, 'ARCHITECTURE.md ne cite plus LARGEUR_RAIL sous la forme "`LARGEUR_RAIL` (NN px" attendue').toBeDefined();
+
+    expect(
+      citee,
+      `ARCHITECTURE.md annonce LARGEUR_RAIL = ${citee}, lib/navigation/config.ts dit ${reelle}.`,
+    ).toBe(reelle);
+  });
+
+  it('les raccourcis du tableau de navigation correspondent à ENTREES_NAVIGATION', () => {
+    // Découpe le tableau ENTREES_NAVIGATION en objets `{ ... }` par comptage
+    // d'accolades (style repris de tests/unit/carte/pile-echap-usage.test.ts),
+    // puis extrait id + raccourci de chaque objet.
+    const debutTableau = configNav.indexOf('export const ENTREES_NAVIGATION');
+    expect(debutTableau, 'ENTREES_NAVIGATION introuvable dans lib/navigation/config.ts').toBeGreaterThanOrEqual(0);
+    // Ne pas confondre avec le `[]` du TYPE `readonly EntreeNavigation[]` qui
+    // précède le `= [` du littéral : chercher "= [" d'abord.
+    const debutCrochet = configNav.indexOf('[', configNav.indexOf('= [', debutTableau));
+    let profondeur = 0;
+    let i = debutCrochet;
+    for (; i < configNav.length; i++) {
+      if (configNav[i] === '[') profondeur++;
+      else if (configNav[i] === ']') { profondeur--; if (profondeur === 0) break; }
+    }
+    const corpsTableau = configNav.slice(debutCrochet, i + 1);
+
+    const raccourcisReels = new Map<string, string | null>();
+    for (const m of corpsTableau.matchAll(/\{\s*id:\s*'([a-z]+)'[\s\S]*?\n\s*\},/g)) {
+      const bloc = m[0];
+      const id = m[1];
+      const raccourci = bloc.match(/raccourci:\s*'([^']+)'/)?.[1] ?? null;
+      raccourcisReels.set(id, raccourci);
+    }
+    expect(raccourcisReels.size, 'aucune entrée extraite de ENTREES_NAVIGATION — le motif d\'extraction a-t-il divergé du style du fichier ?').toBeGreaterThanOrEqual(8);
+
+    // Table doc : | Nom francais | ... | `Raccourci` (ou —) | ... |
+    const idParLabel: Record<string, string> = {
+      Filtre: 'filtre', Calques: 'calques', Analyse: 'analyse', Zones: 'zones',
+      Campagne: 'campagne', Assistant: 'assistant',
+    };
+    const divergences: string[] = [];
+    for (const [label, id] of Object.entries(idParLabel)) {
+      const ligne = navSection.match(new RegExp(`\\|\\s*${label}\\s*\\|[^|]*\\|\\s*([^|]+)\\|`));
+      expect(ligne, `ligne du tableau pour "${label}" introuvable dans la section Navigation`).not.toBeNull();
+      const celluleRaccourci = ligne![1].trim();
+      const raccourciDoc = celluleRaccourci.match(/`([^`]+)`/)?.[1]?.toLowerCase() ?? null;
+      const raccourciReel = raccourcisReels.get(id) ?? null;
+      if (raccourciDoc !== raccourciReel) {
+        divergences.push(`${label} : doc dit "${raccourciDoc}", config.ts dit "${raccourciReel}"`);
+      }
+    }
+    expect(divergences, divergences.join(' ; ')).toEqual([]);
+  });
+
+  it('le nombre de dégradés cité correspond au nombre de DegradeId', () => {
+    const degrades = lire('lib/carte/degrades.ts');
+    const blocType = degrades.match(/export type DegradeId =\s*([\s\S]*?);/)?.[1];
+    expect(blocType, 'union DegradeId introuvable dans lib/carte/degrades.ts').toBeDefined();
+    const nombreReel = (blocType!.match(/\|\s*'[^']+'/g) ?? []).length;
+    expect(nombreReel, 'aucune valeur DegradeId extraite — le motif a-t-il divergé du style du fichier ?').toBeGreaterThan(0);
+
+    const motsVersNombre: Record<string, number> = {
+      deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, sept: 7, huit: 8, neuf: 9, dix: 10,
+    };
+    const mot = navSection.match(/jusqu'a\s+(\w+)\s+choroplethes/)?.[1];
+    expect(mot, 'ARCHITECTURE.md ne cite plus le nombre de choroplèthes concurrentes avant le dégradé unique').toBeDefined();
+    const nombreCite = motsVersNombre[mot!.toLowerCase()];
+    expect(nombreCite, `mot-nombre "${mot}" non reconnu par le dictionnaire du test — l'étendre`).toBeDefined();
+
+    expect(
+      nombreCite,
+      `ARCHITECTURE.md cite "${mot}" (${nombreCite}) choroplèthes, lib/carte/degrades.ts déclare ${nombreReel} DegradeId.`,
+    ).toBe(nombreReel);
+  });
+
+  it('ClusteringResultsContent.tsx n est importe nulle part — la decision parquee reste sure', () => {
+    // Round 1 de correction (tâche 10) : la doc affirmait ce fait sans qu'
+    // aucun test ne le vérifie. Balayage du dépôt, même patron que
+    // tests/unit/carte/pile-echap-usage.test.ts.
+    const FICHIER_CIBLE = join('components', 'map', 'ClusteringResultsContent.tsx').split(sep).join('/');
+    expect(
+      navSection.includes('ClusteringResultsContent'),
+      'ARCHITECTURE.md ne mentionne plus ClusteringResultsContent.tsx dans la section Navigation — ' +
+      'la décision parquée a-t-elle été retirée ou déplacée ? Mettre à jour ce test en conséquence.',
+    ).toBe(true);
+
+    function fichiers(dossier: string): string[] {
+      const trouves: string[] = [];
+      for (const entree of readdirSync(dossier)) {
+        if (entree === 'node_modules' || entree === '.next') continue;
+        const chemin = join(dossier, entree);
+        if (statSync(chemin).isDirectory()) trouves.push(...fichiers(chemin));
+        else if (entree.endsWith('.ts') || entree.endsWith('.tsx')) trouves.push(chemin);
+      }
+      return trouves;
+    }
+
+    const importeurs: string[] = [];
+    for (const dossier of ['app', 'components', 'lib']) {
+      for (const chemin of fichiers(join(RACINE, dossier))) {
+        const relatif = join(chemin.slice(RACINE.length + 1)).split(sep).join('/');
+        if (relatif === FICHIER_CIBLE) continue; // le fichier qui LE DÉFINIT, pas un appelant
+        const source = readFileSync(chemin, 'utf8');
+        if (/\bClusteringResultsContent\b/.test(source)) importeurs.push(relatif);
+      }
+    }
+
+    expect(
+      importeurs,
+      `ClusteringResultsContent.tsx est désormais référencé par : ${importeurs.join(', ')}. ` +
+      'La décision parquée de tâche 10 (ARCHITECTURE.md § Navigation de /map) supposait ce fichier ' +
+      "mort et sans appelant — vérifier que la garde de périmètre est bien relayée avant d'accepter " +
+      'ce nouvel appelant, puis mettre à jour la doc.',
+    ).toEqual([]);
+  });
+
+  // ── Chantier suivi-v2 (taches 1-16, 2026-09-14/15) ────────────────────────
+  //
+  // Ajoutés le 2026-09-16 : AUCUN des huit contrôles ci-dessus ne regardait une
+  // seule affirmation ajoutée par ce chantier, alors que le fichier contenait
+  // déjà le patron exact qu'il fallait (le balayage d'importeurs de
+  // `ClusteringResultsContent`). Les trois affirmations verrouillées ici sont
+  // celles dont dépend une DÉCISION : ne pas supprimer trois fichiers, et
+  // pouvoir en supprimer un quatrième plus tard sans casser la production.
+
+  function fichiersDe(dossier: string): string[] {
+    const trouves: string[] = [];
+    for (const entree of readdirSync(dossier)) {
+      if (entree === 'node_modules' || entree === '.next') continue;
+      const chemin = join(dossier, entree);
+      if (statSync(chemin).isDirectory()) trouves.push(...fichiersDe(chemin));
+      else if (/\.tsx?$/.test(entree)) trouves.push(chemin);
+    }
+    return trouves;
+  }
+
+  it('SuiviMapLayer.tsx est TOUJOURS monte par page.tsx — la decision de ne pas le supprimer tient', () => {
+    // ARCHITECTURE.md (§ Tâche 16) justifie de garder ce fichier par le fait
+    // qu'il a encore un consommateur vivant, et annonce sa suppression comme
+    // « reste à faire ». Le jour où cette tâche sera faite, cette affirmation
+    // deviendra fausse et doit rougir ici — sinon le document continuera
+    // d'affirmer au présent qu'un fichier supprimé est monté.
+    expect(
+      archi.includes('`app/map/_components/SuiviMapLayer.tsx` — toujours importe et monte par'),
+      "ARCHITECTURE.md n'affirme plus que SuiviMapLayer.tsx est monté par page.tsx. "
+      + 'Si le fichier a été supprimé (tâche de suite annoncée), retirer ce test ET le paragraphe. '
+      + 'Si la phrase a seulement été reformulée, mettre à jour le test.',
+    ).toBe(true);
+
+    const page = lire('app/map/page.tsx');
+    expect(
+      /SuiviMapLayer/.test(page),
+      'ARCHITECTURE.md affirme que SuiviMapLayer.tsx est « toujours importe et monte par '
+      + "app/map/page.tsx » — page.tsx ne le mentionne plus. L'un des deux ment.",
+    ).toBe(true);
+
+    // Les exports que le même paragraphe dit « toujours consommés », chacun
+    // chez SON consommateur. L'attribution du document était collective
+    // (« ses exports … consommés par A et B »), donc invérifiable : elle
+    // laissait croire que `legendePourMetrique` venait de PanneauCalques, ce
+    // qui est faux — il n'a qu'un consommateur, LegendeCarte.
+    expect(
+      /SuiviMapEventDetail/.test(lire('app/map/_components/panneaux/PanneauCalques.tsx')),
+      'ARCHITECTURE.md affirme que le type `SuiviMapEventDetail` est toujours consommé par '
+      + "PanneauCalques.tsx (groupe « Campagne active ») — ce n'est plus vrai.",
+    ).toBe(true);
+    expect(
+      /legendePourMetrique/.test(lire('components/map/LegendeCarte.tsx')),
+      'ARCHITECTURE.md affirme que `legendePourMetrique` est toujours consommé par '
+      + "LegendeCarte.tsx, son SEUL consommateur — ce n'est plus vrai. S'il n'en a plus aucun, "
+      + "l'export est mort et la décision de garder SuiviMapLayer.tsx perd un de ses deux motifs.",
+    ).toBe(true);
+  });
+
+  it('ReconciliationPanel est TOUJOURS reutilise par DetailTechnique — l autre decision de non-suppression', () => {
+    expect(
+      archi.includes('ReconciliationPanel.tsx'),
+      'ARCHITECTURE.md ne parle plus de ReconciliationPanel.tsx.',
+    ).toBe(true);
+    expect(
+      /ReconciliationPanel/.test(lire('components/campagne/suivi-v2/DetailTechnique.tsx')),
+      'ARCHITECTURE.md justifie de ne PAS avoir supprimé components/campaign/suivi/'
+      + 'ReconciliationPanel.tsx par sa réutilisation « TEL QUEL » dans suivi-v2/DetailTechnique.tsx. '
+      + "DetailTechnique ne l'importe plus : soit le panneau est devenu mort (le supprimer avec "
+      + 'lib/campaigns/reconciliation-metrics.ts), soit la doc doit dire son nouveau consommateur.',
+    ).toBe(true);
+  });
+
+  it('l ancien ecran de suivi est bien parti, et la doc ne le ressuscite pas', () => {
+    // Le paragraphe de tête liste neuf composants supprimés. S'ils
+    // réapparaissaient, le document décrirait une suppression qui n'a pas eu
+    // lieu — et `SuiviV2` cesserait d'être le seul écran de suivi.
+    const supprimes = [
+      'components/campaign/CampaignSuivi.tsx',
+      'components/campaign/suivi/SuiviCockpit.tsx',
+      'components/campaign/suivi/SuiviCharts.tsx',
+      'components/campaign/suivi/SuiviTable.tsx',
+      'components/campaign/suivi/SuiviDeriveMap.tsx',
+      'components/campaign/suivi/DeriveTable.tsx',
+      'components/campaign/suivi/MeshSelector.tsx',
+      'components/campaign/suivi/ActorFilter.tsx',
+      'components/campaign/suivi/ActorPanel.tsx',
+    ];
+    const revenus = supprimes.filter((f) => existsSync(join(RACINE, f)));
+    expect(
+      revenus,
+      `ARCHITECTURE.md annonce ces fichiers supprimés (Tâche 16), ils existent : ${revenus.join(', ')}.`,
+    ).toEqual([]);
+  });
+
+  it('l arborescence de suivi-v2 liste exactement les fichiers reels', () => {
+    const reels = readdirSync(join(RACINE, 'components', 'campagne', 'suivi-v2'))
+      .filter((f) => /\.tsx?$/.test(f))
+      .map((f) => f.replace(/\.tsx?$/, ''))
+      .sort();
+    const section = archi.slice(archi.indexOf('└── suivi-v2/'), archi.indexOf('├── magelian/'));
+    expect(section.length, 'section suivi-v2 introuvable dans l arborescence').toBeGreaterThan(100);
+
+    const absents = reels.filter((n) => !section.includes(n));
+    expect(
+      absents,
+      `Fichiers de components/campagne/suivi-v2/ absents de l'arborescence d'ARCHITECTURE.md : `
+      + `${absents.join(', ')}. C'est la section qui décrit l'écran de suivi actuel — un fichier `
+      + `qui n'y figure pas est invisible pour qui lit le document autoritaire.`,
+    ).toEqual([]);
+  });
+
+  it('toute route API est documentee — la reciproque du recomptage du 2026-09-16', () => {
+    // Ce test a été DÉCLINÉ à l'écriture de ce fichier (« il ne compare pas la
+    // liste des 170 routes une par une… un test qu'on désactiverait au premier
+    // ajout de route légitime »). L'écart a alors grossi jusqu'à 51 routes
+    // absentes sur 204, et la phrase de sécurité « les 146 routes API » est
+    // restée fausse pendant des mois.
+    //
+    // Il est réintroduit maintenant que l'écart est à ZÉRO, et il n'exige rien
+    // de plus que la règle déjà écrite dans CLAUDE.md : « un commit qui ajoute
+    // ou retire une route met le doc à jour DANS LE MÊME COMMIT ». Une route
+    // ajoutée sans sa ligne fait donc rougir la suite, ce qui est le but.
+    const routes = fichiersDe(join(RACINE, 'app', 'api'))
+      .map((f) => f.slice(RACINE.length + 1).split(sep).join('/'))
+      .filter((f) => f.endsWith('/route.ts'))
+      .map((f) => '/' + f.replace(/^app\//, '').replace(/\/route\.ts$/, ''));
+
+    expect(routes.length, 'aucune route trouvée sous app/api — le balayage a-t-il divergé ?').toBeGreaterThan(150);
+
+    const absentes = routes.filter((r) => !archi.includes(r)).sort();
+    expect(
+      absentes,
+      `Routes API absentes d'ARCHITECTURE.md :\n${absentes.map((r) => `  ${r}`).join('\n')}\n\n`
+      + 'CLAUDE.md § Documentation : « un commit qui ajoute ou retire une route met le doc à jour '
+      + 'DANS LE MÊME COMMIT ». Ajouter une ligne au tableau de la section correspondante. '
+      + "Si la route n'a rien à y faire (catch-all inerte, diagnostic), le dire — une ligne qui "
+      + "explique pourquoi une route existe vaut mieux qu'une absence.",
+    ).toEqual([]);
   });
 });

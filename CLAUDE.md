@@ -8,14 +8,94 @@
 ## Projet
 
 **MAGELIAN** — SaaS B2B géomarketing OOH/DOOH. Planification d'affichage extérieur sur données INSEE.
-Stack : Next.js 15 App Router · TypeScript strict · Supabase Pro (PostgreSQL 15 + PostGIS, compute **Nano**) · MapLibre GL JS · Vercel AI SDK (Gemini 2.5 Flash / Mistral Small) · Tailwind CSS · Inngest · Zod · Vitest
-Projet Supabase : `vkkdbygwbrxyogqosten` (eu-west-3). Utiliser MCP Supabase (`execute_sql`, `apply_migration`), JAMAIS de SQL manuel.
+Stack : Next.js 15 App Router · TypeScript strict · Supabase Pro (PostgreSQL **17.6** + PostGIS, compute **Micro**) · MapLibre GL JS · Vercel AI SDK (Gemini 2.5 Flash / Mistral Small) · Tailwind CSS · Inngest · Zod · Vitest
+### ⛔ BASE : LE LOCAL D'ABORD — la prod ne se touche pas sans accord explicite
+
+**Depuis le 2026-09-17, un stack Supabase local existe** (`scripts/local/`,
+§ « Environnement de développement local » d'`ARCHITECTURE.md`) : Postgres 17.6
++ PostGIS, 94 tables, 192 RPC, la copie des données de prod.
+
+- **Tout travail de développement va en LOCAL.** Migrations, `EXPLAIN ANALYZE`,
+  mesures, essais : `docker exec supabase_db_genesis_app psql -U postgres`.
+  Le stack se remonte avec `scripts/local/00-docker-up.sh` puis `01-supabase-up.sh`.
+- **Le projet hébergé `vkkdbygwbrxyogqosten` est en cours d'abandon
+  (2026-09-19).** Tout ce qu'il portait d'irremplaçable a été rapatrié —
+  569 698 liaisons radio et 1 100 comptages routiers mesurés — et le diff
+  complet des 103 tables ne laisse plus que des caches régénérables et les
+  406 930 lignes de proxy OSM, volontairement abandonnées.
+  `npm run dev`, `npm test` ET `npm run build` tournent en local ;
+  1 451 tests et le build le vérifient.
+- **Le MCP Supabase parle à ce projet hébergé, et à rien d'autre.** Il n'a plus
+  d'usage une fois le projet supprimé. Tant qu'il existe, ne pas l'appeler par
+  réflexe : la voie normale est `psql` dans le conteneur.
+- ⚠ **La clé `service_role` du projet hébergé reste à RÉVOQUER** : elle est
+  dans l'historique git. Supprimer le projet la neutralise ; le mettre en pause,
+  non.
+
+> **Cette ligne disait « Utiliser MCP Supabase, JAMAIS de SQL manuel » jusqu'au
+> 2026-09-18**, sans mentionner le local — elle avait été écrite quand la prod
+> était le SEUL environnement. Le 2026-09-18, l'agent a appliqué sql/179
+> directement en production en suivant cette règle à la lettre, alors que la
+> base locale tournait déjà et que rien ne l'exigeait. Une règle qui survit à
+> son contexte ne se contente pas d'être inutile : elle commande le mauvais geste.
+
+En local, `psql` dans le conteneur est la voie normale. « JAMAIS de SQL
+manuel » visait la prod, et ne vaut que pour elle.
+
+**Quelle commande parle à quelle base — vérifié le 2026-09-19, pas supposé :**
+
+| Commande | Fichier d'env lu | Base atteinte |
+|---|---|---|
+| `npm run dev` | `.env.development.local` | **locale** — Next le charge avant `.env.local`, en dev uniquement |
+| `npm test` | `.env.development.local` | **locale** |
+| `npm run build` | `.env.local` | **locale depuis le 2026-09-19** |
+
+**Les trois pointent désormais sur le local.** `.env.local` portait les
+identifiants du projet hébergé jusqu'au 2026-09-19 ; ses quatre variables
+Supabase ont été basculées sur les conteneurs. L'ancienne version est dans
+`.env.local.avant-coupure-supabase-2026-09-19`, non suivi par git.
+
+⚠ **`.env.local` ne porte pas que Supabase.** Il contient aussi `ORS_API_KEY`,
+`GOOGLE_GENERATIVE_AI_API_KEY`, `MISTRAL_API_KEY`, `DSP_ENC_KEY` et
+`ADMIN_INIT_KEY`. Le supprimer casserait l'IA, les isochrones et le chiffrement
+DSP, pas seulement la base.
+
+- **`npm test` tapait en PRODUCTION jusqu'au 2026-09-18**, avec la clé
+  `service_role` qui contourne toute RLS. Un seul fichier en était la cause —
+  `tests/integration/supabase-rpc.test.ts` — qui appelait
+  `dotenv.config({ path: '.env.local' })` **en dur**. Mesuré avant correctif :
+  `injecting env (24) from .env.local`, appels de 542 ms (des allers-retours
+  réseau, pas du local). Il charge désormais `.env.development.local` en
+  priorité. `dotenv` n'écrase pas une variable déjà posée : **l'ordre de ces
+  deux lignes EST le garde-fou**, l'inverser remet les tests sur la prod.
+- **`npm run build` ne fait aucune requête Supabase** : vérifié, aucun
+  composant serveur ni page `async` n'appelle `createAdminClient` hors
+  `app/api/`, et les routes sont `force-dynamic`. En revanche il **inline les
+  identifiants de `.env.local` dans le bundle client** : un build local suivi
+  d'un `npm start` sert une application qui parle à la PROD. Pour un build de
+  vérification contre la base locale, passer `NEXT_PUBLIC_SUPABASE_URL` et
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY` explicitement.
 
 ## ⛔ RÈGLES CRITIQUES — NON NÉGOCIABLE
 
-### Supabase Nano — Disk I/O (250 IOPS, 5 MB/s, burst 30 min/jour)
+### Disk I/O — les règles tiennent, les chiffres sont à revérifier
 
 **Budget I/O épuisé → Auth 504 → app down pendant des heures. Déjà arrivé 3 fois.**
+
+> **Mesuré le 2026-09-13, et cela contredit l'en-tête historique.** Ce titre
+> annonçait « Nano — 250 IOPS, 5 MB/s ». Or le compute est **Micro**
+> (`shared_buffers` 256 Mo, `effective_cache_size` 768 Mo, ≈ 1 Go de RAM), et une
+> lecture séquentielle de 348 Mo a été chronométrée à **≈ 195 Mo/s**, pas 5.
+>
+> **Cela ne relâche AUCUNE des interdictions ci-dessous.** Une mesure unique ne
+> distingue pas un débit soutenu d'une rafale sur crédits de burst, les trois
+> incidents ont bien eu lieu, et le plafond qui a lâché était peut-être le débit
+> **aléatoire**, que cette mesure séquentielle ne dit pas. Tant que le palier et
+> l'IOPS provisionnée ne sont pas relevés dans la console Supabase — point 0 de
+> `docs/audit/QUICK_WINS.md`, non lisible en SQL — on continue de coder comme si
+> la marge était étroite.
+>
+> Ce qui change : ne plus **citer** « 250 IOPS / 5 MB/s » comme un fait établi.
 
 INTERDIT :
 - Batch/parallèle > 1 colonne sur tables IRIS (51k) ou carreaux_filosofi (2.3M)
@@ -35,6 +115,33 @@ OBLIGATOIRE :
   locale. Un compteur en mémoire de processus ne limite RIEN sur Vercel — chaque
   invocation peut être une instance différente. Le compteur partagé vit en base
   (`consommer_quota`, sql/135), parce qu'Upstash n'est pas configuré en prod.
+
+### Troncature PostgREST — 5 000 lignes, sans erreur, sans en-tête
+
+**PostgREST coupe à 5 000 lignes TOUTE fonction `RETURNS TABLE` ou `SETOF`.**
+Pas d'exception levée, pas d'avertissement, pas d'en-tête : l'appelant reçoit un
+tableau parfaitement valide de 5 000 éléments et n'a aucun moyen de savoir qu'il
+en manquait 1 187. Aucun `if (error)` ne peut voir ça passer. Cinq occurrences
+recensées, dont trois corrigées et **trois encore ouvertes en production** —
+`docs/SUITE_TRONCATURE_POSTGREST.md`.
+
+RÈGLE :
+- Une RPC dont le résultat **peut** dépasser 5 000 lignes est `RETURNS jsonb`.
+  `RETURNS TABLE` est réservée aux résultats **bornés par construction** : un
+  `LIMIT` dans le corps, un tableau d'ids fourni par l'appelant, une table de
+  référence dont la taille est connue et petite.
+- Changer le type de retour d'une fonction existante exige un `DROP`, **exclu en
+  production** : on écrit une **jumelle** `_jsonb` qui porte le corps, et
+  l'originale devient une **enveloppe mince** qui l'appelle. Un seul corps, deux
+  formes de retour, dérive impossible. Patron littéral : sql/154, sql/168-169,
+  sql/170.
+- Un plafond côté route (« 1 500 CP maximum ») est une borne acceptable — mais
+  c'est une constante, et le jour où quelqu'un la relève au-dessus de 5 000 la
+  troncature revient **en silence**. L'écrire dans le commentaire de la constante.
+- `tests/unit/db/troncature-postgrest.test.ts` verrouille la règle : toute RPC
+  tabulaire appelée depuis `app/` ou `lib/` doit y avoir une borne écrite, ou
+  être déclarée en dette ET nommée dans le document ci-dessus. Ne pas le
+  désactiver, le compléter.
 
 ### Auth Middleware
 
@@ -167,12 +274,28 @@ Tout import/traitement batch DOIT avoir : barre de progression UI (%, lignes tra
 ## Commandes
 
 ```bash
-npm run dev          # Dev (localhost:3000)
-npm run build        # Build prod
-npx tsc --noEmit     # Type-check
-npm test             # Vitest
-npm run lint         # ESLint
+npm run dev              # Dev (localhost:3000)
+npm run build            # Build prod
+npx tsc --noEmit         # Type-check
+npm test                 # Vitest — unitaires PUIS integration, en deux passes
+npm run test:unit        # Unitaires seuls (rapide, aucune base)
+npm run test:integration # Integration seule (tape la base locale)
+npm run lint             # ESLint
 ```
+
+### Tests — deux passes, et ce n'est pas un detail
+
+`npm test` lance `--project unit` PUIS `--project integration`, jamais les deux
+ensemble (`vitest.workspace.ts`, `package.json`). Les tests d'integration tapent
+la base locale ; les laisser partager les 4 vCPU de la VM avec 150 fichiers
+unitaires privait PostgREST de CPU, et Kong rendait « An invalid response was
+received from the upstream server ».
+
+Le symptome mentait deux fois : un test DIFFERENT echouait a chaque execution,
+et le message ne nommait ni la concurrence ni la memoire. Mesure du
+2026-09-19 : le fichier d'invariants de couverture passe **3 fois sur 3** lance
+seul, et echouait **2 fois sur 3** dans la suite complete. Ne pas remettre les
+deux projets en parallele pour gagner 10 secondes.
 
 ## Compaction
 

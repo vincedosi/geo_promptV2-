@@ -14,11 +14,34 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
 
-// Charger .env.local si présent
-const envPath = path.resolve(process.cwd(), '.env.local');
+/**
+ * ── CE FICHIER TAPAIT EN PRODUCTION, ET RIEN NE LE DISAIT (2026-09-18) ─────
+ *
+ * Il chargeait `.env.local` par son nom, en dur. Or `.env.local` porte les
+ * identifiants de PROD — l'URL `vkkdbygwbrxyogqosten.supabase.co` et la clé
+ * `service_role`, qui contourne toute RLS. Un simple `npm test` émettait donc
+ * des requêtes réelles sur la base de production, sans le dire : vérifié le
+ * 2026-09-18 en observant `[dotenv] injecting env (24) from .env.local` et
+ * des appels de 542 ms, soit des allers-retours réseau et non du local.
+ *
+ * Depuis le 2026-09-17 un stack local existe, et ses identifiants vivent dans
+ * `.env.development.local` (écrit par `scripts/local/04-env-local.sh`). C'est
+ * lui qu'on charge EN PRIORITÉ. `.env.local` ne sert plus que de repli, pour
+ * la machine d'un contributeur qui n'a pas monté le stack.
+ *
+ * L'ordre compte et n'est pas un détail de confort : `dotenv` n'écrase pas une
+ * variable déjà posée (sans `override: true`), donc le PREMIER fichier chargé
+ * gagne. Inverser ces deux lignes remettrait les tests sur la production.
+ */
+const envLocalDev = path.resolve(process.cwd(), '.env.development.local');
+const envLocal = path.resolve(process.cwd(), '.env.local');
+const envPath = fs.existsSync(envLocalDev) ? envLocalDev : envLocal;
 if (fs.existsSync(envPath)) {
   dotenv.config({ path: envPath });
 }
+// Dit en clair sur quelle base la suite s'exécute. Un test d'intégration qui
+// ne nomme pas sa cible est un test dont on ne sait pas ce qu'il prouve.
+console.log(`[supabase-rpc] base ciblée : ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? '(aucune)'}`);
 
 const SUPABASE_URL  = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY   = process.env.SUPABASE_SERVICE_ROLE_KEY;

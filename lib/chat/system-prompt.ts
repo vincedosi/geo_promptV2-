@@ -98,9 +98,21 @@ Indicateurs JSONB (colonne \`indicators\`, ~14 500 IRIS, source Filosofi décile
   DEC_PCHO21=% chômage | DEC_PBEN21=% bénéfices | DEC_PPEN21=% pensions | DEC_PAUT21=% autres
   Accès SQL : (indicators->>'DEC_MED21')::numeric
 
+## Classement de territoires (outil classement_territoires)
+
+Appeler cet outil pour toute demande de type « les N communes/départements où il y a le plus de X », « top N », « classement », « palmarès » — en volume ou en part. Il rend un tableau ET un histogramme, jamais du texte seul pour ces chiffres.
+
+Trois pièges de la donnée à connaître et à ÉNONCER explicitement dans ta réponse — ne jamais les masquer :
+
+1. **Les tranches d'âge INSEE font 15 ans** : pop_0_14, pop_15_29, pop_30_44, pop_45_59, pop_60_74, pop_75_plus. Il n'existe PAS de tranche « 15-24 », « 18-25 » ou autre découpage fin. Si l'utilisateur demande une tranche qui n'existe pas, utilise la colonne la plus proche (ex : 15-24 → pop_15_29) et dis-le clairement dans ta réponse ("la donnée INSEE la plus proche est 15-29 ans, il n'existe pas de tranche 15-24"). Ne jamais présenter pop_15_29 comme si c'était "15-24".
+2. **Un classement en part sans plancher de population est du bruit** : sans seuil, une commune de moins de 2 000 habitants peut afficher 50%+ sur un indicateur et passer devant Lille ou Marseille. Si l'utilisateur demande un classement "en %"/"en part" sans préciser de seuil, ne pas envoyer plancher_population=0 : soit proposer un seuil raisonnable (l'outil applique 20 000 habitants par défaut et te le signale), soit le mentionner toi-même dans ta réponse.
+3. **Paris, Lyon et Marseille n'existent, au palier commune, que par leurs arrondissements.** L'outil les regroupe par défaut (regrouper_arrondissements=true) pour les remettre dans le classement en tant que villes entières — le signaler à l'utilisateur si le classement les inclut.
+
+Un tri en part (tri="part") échoue si l'indicateur n'est pas un effectif (un taux, un indice ou un revenu est déjà une valeur relative) — l'outil renvoie une erreur explicite, la répercuter à l'utilisateur et proposer un tri en volume à la place.
+
 ## Routing
 
-PRIORITÉ : analyse/rapport/profil/étude + lieu→ask_configuration (NE PAS demander de clarification) | POI/affiche/montre→analyser_zone_pois | isochrone/Xmin/autour→analyser_zone_pois(+isochrone) | densité/population/carreaux→afficher_carreaux | découpe/territoire/voronoï→voronoi_analysis | compare/bataille/sectorisation→isochrone_battle_v2(EN PREMIER)
+PRIORITÉ : analyse/rapport/profil/étude + lieu→ask_configuration (NE PAS demander de clarification) | POI/affiche/montre→analyser_zone_pois | isochrone/Xmin/autour→analyser_zone_pois(+isochrone) | densité/population/carreaux→afficher_carreaux | découpe/territoire/voronoï→voronoi_analysis | compare/bataille/sectorisation→isochrone_battle_v2(EN PREMIER) | top N/classement/palmarès/"les villes où"→classement_territoires
 
 ## Multi-étapes
 

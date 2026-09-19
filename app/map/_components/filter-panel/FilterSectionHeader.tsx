@@ -1,12 +1,20 @@
 'use client';
 
-/** En-tête de section repliable du FilterPanel + libellés d'aide associés. */
+/**
+ * En-tête de section repliable du FilterPanel + libellés d'aide associés.
+ *
+ * La puce teal 6px a été retirée à la Tâche 6 (2026-09-12, spec §4) : le dot
+ * teal du design system reste réservé à l'en-tête du PANNEAU lui-même
+ * (`OverlayPanel.tsx`), pas aux groupes/sections internes — `GroupeCalques`
+ * est désormais le seul composant à porter un chevron de groupe.
+ */
 
 import React from 'react';
 import { ChevronDown, HelpCircle } from 'lucide-react';
 
 // ─── Tooltip data for complex labels ──────────────────────────────────────────
-export const TOOLTIPS: Record<string, string> = {
+// Non exporte : aucun consommateur externe (verifie par `npm run catalogue`).
+const TOOLTIPS: Record<string, string> = {
   tmja:       'Trafic Moyen Journalier Annuel — nombre de véhicules/jour sur un tronçon routier',
   iris:       'Ilots Regroupés pour l\'Information Statistique — découpage INSEE de 2 000 habitants',
   carreaux:   'Maillage 200m de l\'INSEE avec revenus et données fiscales',
@@ -48,7 +56,6 @@ export function FilterSectionHeader({
         position: 'sticky', top: 0, zIndex: 10,
       }}
     >
-      <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
       <span style={{ fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 500, fontSize: 12, color: 'var(--text-primary)', flex: 1 }}>
         {renderLabel()}
       </span>

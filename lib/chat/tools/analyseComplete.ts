@@ -143,14 +143,18 @@ export async function analyseComplete(args: Record<string, unknown>) {
     : [];
 
   if (!perimetre_value.trim()) {
-    return { error: "Périmètre requis pour l'analyse complète." };
+    // `type` posé même sur l'erreur : sans lui, `output?.type === 'analyse_complete'`
+    // (le filtre de ChatPanel.tsx qui sélectionne la part à rendre dans
+    // AnalyseCard) ne matche jamais une erreur, qui reste alors invisible à
+    // l'écran — même défaut que `classement_territoires` avant correctif.
+    return { type: 'analyse_complete' as const, error: "Périmètre requis pour l'analyse complète." };
   }
 
   const supabase     = createAdminClient();
   const orgSourceIds = getOrgSourceIds();
 
   if (orgSourceIds !== null && orgSourceIds.length === 0) {
-    return { error: "Aucune source configurée pour votre organisation." };
+    return { type: 'analyse_complete' as const, error: "Aucune source configurée pour votre organisation." };
   }
 
   const coords   = perimetre_type === 'region'

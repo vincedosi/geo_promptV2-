@@ -8,13 +8,23 @@ import { lireCorps } from '@/lib/api/valider-corps';
 export const dynamic = 'force-dynamic';
 
 /** Filtre optionnel sur les regies. Absent ou vide = toutes. */
-const PanneauxSchema = z.object({ regies: z.array(z.string()).optional() });
+// bbox : [west, south, east, north] — lib/carte/filtre.ts (Tache 4, corrigee
+// round 1). Optionnelle : useMapDirectActions ne l'envoie QUE si un filtre
+// est actif (bboxDuFiltre(filtre)) — un premier essai l'envoyait toujours en
+// repli sur BBOX_METRO, ce qui masquait l'outre-mer en permanence. Quand elle
+// est presente, elle borne REELLEMENT la requete cote serveur (jamais un
+// masque cote client) ; absente, la requete se comporte comme avant (aucune
+// borne geographique).
+const PanneauxSchema = z.object({
+  regies: z.array(z.string()).optional(),
+  bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]).optional(),
+});
 
 export async function POST(req: NextRequest) {
   try {
     const corps = await lireCorps(req, PanneauxSchema);
     if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
-    const { regies } = corps.valeur;
+    const { regies, bbox } = corps.valeur;
 
     const supabase = createAdminClient();
 
@@ -26,6 +36,11 @@ export async function POST(req: NextRequest) {
 
     if (regies && regies.length > 0) {
       query = query.in('regie', regies);
+    }
+
+    if (bbox) {
+      const [west, south, east, north] = bbox;
+      query = query.gte('lng', west).lte('lng', east).gte('lat', south).lte('lat', north);
     }
 
     const { data, error } = await query.limit(5000);

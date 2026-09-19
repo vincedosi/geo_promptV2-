@@ -10,8 +10,14 @@ import { FilterSectionHeader } from './FilterSectionHeader';
 import { C, fInter, fMono } from './tokens';
 import { pill, primaryBtn } from './styles';
 
-/** Paliers de la légende — l'ordre suit celui affiché à l'écran. */
-const TMJA_LEGEND = [
+/**
+ * Paliers de la légende — l'ordre suit celui affiché à l'écran.
+ *
+ * Exportée pour `components/map/LegendeCarte.tsx` (Tâche 6) : la légende
+ * unique du panneau Calques rend ces paliers, cette section ne les affiche
+ * plus elle-même.
+ */
+export const TMJA_LEGEND = [
   { color: '#4292C6', label: '< 5 000 véh/j', isLow: true },
   { color: '#f6d543', label: '5 000 – 15 000 véh/j', isLow: false },
   { color: '#e5a00d', label: '15 000 – 40 000 véh/j', isLow: false },
@@ -50,21 +56,8 @@ export function TmjaSection({
       {sectionsOpen.tmja !== false && (
       <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
 
-      {/* Légende couleurs */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 2 }}>
-          Légende — trafic moyen journalier
-        </div>
-        {TMJA_LEGEND.map(({ color, label, isLow }) => {
-          const dimmed = isLow && tmjaHideLowTraffic;
-          return (
-            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: dimmed ? 0.35 : 1 }}>
-              <div style={{ width: 24, height: 3, background: color, borderRadius: 2, flexShrink: 0, textDecoration: dimmed ? 'line-through' : 'none' }} />
-              <span style={{ fontFamily: fMono, fontSize: 9, color: C.muted, textDecoration: dimmed ? 'line-through' : 'none' }}>{label}</span>
-            </div>
-          );
-        })}
-      </div>
+      {/* Légende — rendue par la légende unique de la carte (LegendeCarte,
+          Tâche 6), qui lit TMJA_LEGEND exporté ci-dessus. */}
 
       {/* Toggle : masquer le trafic faible (perf + lisibilité) */}
       <label

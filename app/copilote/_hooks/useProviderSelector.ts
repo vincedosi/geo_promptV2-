@@ -10,7 +10,10 @@ export interface ProviderStatus {
 }
 
 export function useProviderSelector() {
-  const [provider, setProvider] = useState<Provider>('gemini');
+  // Mistral par defaut : mesure du 2026-09-15, meme prompt minimal sur les deux
+  // API — Mistral 0,37 s contre 5,45 s pour Gemini. Gemini reste selectionnable
+  // dans Reglages, et `/api/chat` accepte toujours les deux valeurs.
+  const [provider, setProvider] = useState<Provider>('mistral');
   const [providerStatus, setProviderStatus] = useState<ProviderStatus>({
     mistral: null,
     gemini: null,

@@ -13,6 +13,8 @@ import type { BornesIris } from '@/lib/iris/echelle';
 import type { ClusterGeoJSON } from '../ClusterPanel';
 import type { BornesEchelle } from '@/lib/carreaux/bornes';
 import type { POIStylesMap } from './poi-style';
+import type { FiltreActif } from '@/lib/carte/filtre';
+
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 export interface DirectPOISearchParams {
@@ -206,9 +208,6 @@ export interface FilterPanelProps {
   onRadioPointSizeChange?: (v: number) => void;
   onRecenterFrance?:      () => void;
 
-  /** Mode overlay : rend uniquement la CategoryGroup correspondante sans tabs/HOME/search.
-   *  Quand set, le FilterPanel sert de contenu à un OverlayPanel externe. */
-  visibleCategory?: 'perimeter' | 'terrain' | 'audience' | 'analyses';
   /** POI sélectionnés (controlled). Si fourni avec onSelectedPOIChange, l'état persiste
    *  au-delà du cycle mount/unmount du FilterPanel (overlay close → reopen). */
   selectedPOI?: string[];
@@ -223,4 +222,13 @@ export interface FilterPanelProps {
   onVilleChange?: (ville: string) => void;
   scope?: 'metro' | 'all' | null;
   onScopeChange?: (scope: 'metro' | 'all' | null) => void;
+  /**
+   * Filtre unique actif (lib/carte/filtre.ts, Tâche 4 — round 1). Dérive
+   * `filtre_ville`/`filtre_regions`/`filtre_depts` pour `useIsochroneBattle` :
+   * les anciens `selectedRegions`/`selectedDepts`/`ville` de ce composant ne
+   * sont plus alimentés par aucune UI (le widget a déménagé dans
+   * `PanneauFiltre`), la bataille isochrone partait donc sans aucune borne
+   * géographique avant cette correction.
+   */
+  filtre?: FiltreActif | null;
 }

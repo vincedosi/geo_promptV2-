@@ -52,6 +52,40 @@ export async function getRegionNameMap(
   }
 }
 
+/**
+ * Toutes les écritures sous lesquelles une région peut apparaître dans
+ * `poi_france.region`, pour un code INSEE demandé.
+ *
+ * POURQUOI PLUSIEURS ÉCRITURES
+ * Mesuré le 2026-09-13 : l'Île-de-France est stockée sous DEUX orthographes
+ * — `Ile-de-France` sur 981 POI et `Île-de-France` sur 34. C'est ce qui
+ * justifiait le filtrage en JavaScript après normalisation ; ici on génère les
+ * variantes à l'avance pour que le filtre parte en SQL et se serve de
+ * `idx_poi_france_region`.
+ *
+ * Fonction PURE, testée sans base.
+ */
+export function ecrituresDeLaRegion(
+  code: string,
+  nomsParCode: Map<string, string>,
+): string[] {
+  const brut = code.trim();
+  if (!brut) return [];
+
+  const ecritures = new Set<string>([brut]);
+
+  const nom = nomsParCode.get(brut);
+  if (nom) {
+    ecritures.add(nom);
+    // Variante sans accent : c'est exactement l'écart mesuré entre
+    // `Île-de-France` (référentiel) et `Ile-de-France` (981 POI).
+    const sansAccent = nom.normalize('NFD').replace(/[̀-ͯ]/g, '');
+    if (sansAccent !== nom) ecritures.add(sansAccent);
+  }
+
+  return [...ecritures].filter((e) => e.length > 0);
+}
+
 /** Invalidation manuelle (utile uniquement si ref_regions change en runtime). */
 export function invalidateRegionCache(): void {
   cache = null;

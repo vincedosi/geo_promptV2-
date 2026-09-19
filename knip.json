@@ -1,0 +1,29 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "app/**/page.tsx",
+    "app/**/layout.tsx",
+    "app/**/route.ts",
+    "app/**/loading.tsx",
+    "app/**/error.tsx",
+    "app/**/not-found.tsx",
+    "app/**/template.tsx",
+    "app/**/default.tsx",
+    "app/global-error.tsx",
+    "middleware.ts",
+    "instrumentation.ts",
+    "next.config.js",
+    "tests/**/*.test.ts",
+    "scripts/**/*.{ts,mjs}",
+    "lib/inngest/**/*.ts"
+  ],
+  "project": ["app/**/*.{ts,tsx}", "lib/**/*.ts", "components/**/*.tsx", "types/**/*.ts"],
+  "ignore": ["types/database.types.ts"],
+  "ignoreDependencies": [
+    "tailwindcss-animate",
+    "autoprefixer",
+    "postcss",
+    "tsx",
+    "@types/proj4"
+  ]
+}

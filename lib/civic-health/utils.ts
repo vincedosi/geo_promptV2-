@@ -5,27 +5,37 @@
  */
 import type { PollenLevel, PollenSpecies } from './types';
 import { parsePollenLevel } from './levels';
+import { fetchAvecDelai } from '@/lib/http/fetch-avec-delai';
 
-/** Date ISO YYYY-MM-DD à `offsetDays` jours d'aujourd'hui (0 = jour J). */
-export function isoDate(offsetDays = 0): string {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  return d.toISOString().slice(0, 10);
+const FORMAT_PARIS = new Intl.DateTimeFormat('fr-CA', {
+  timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit',
+});
+
+/**
+ * Date ISO YYYY-MM-DD à `offsetDays` jours d'aujourd'hui (0 = jour J), en
+ * **heure de Paris**.
+ *
+ * Atmo publie ses indices par jour civil français (`date_ech`). L'ancienne
+ * version lisait `toISOString()`, c'est-à-dire la date UTC : entre 22 h (été)
+ * ou 23 h (hiver) et minuit, heure de Paris, elle rendait la VEILLE, et un
+ * rejeu manuel de l'ingestion à cette heure-là demandait au WFS le jour J-1
+ * en croyant demander J. Le cron de 05 h 30 n'était pas touché ; un opérateur
+ * qui relance le soir, si.
+ */
+export function isoDate(offsetDays = 0, now: Date = new Date()): string {
+  const jourParis = FORMAT_PARIS.format(now); // fr-CA → YYYY-MM-DD
+  if (offsetDays === 0) return jourParis;
+  const [y, m, d] = jourParis.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + offsetDays)).toISOString().slice(0, 10);
 }
 
-/** fetch avec AbortController + timeout, cache désactivé. */
-export async function fetchWithTimeout(
+/** fetch avec délai d'expiration, cache désactivé. Délègue à `fetchAvecDelai` (erreur nommée, minuteur nettoyé). */
+export function fetchWithTimeout(
   url: string,
   init: RequestInit,
   timeoutMs: number,
 ): Promise<Response> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...init, signal: ctrl.signal, cache: 'no-store' });
-  } finally {
-    clearTimeout(t);
-  }
+  return fetchAvecDelai(url, { ...init, cache: 'no-store' }, timeoutMs);
 }
 
 /** Champs pollen bruts d'une feature (WFS ou dataset 122) — clés code_ et conc_ par espèce. */

@@ -26,16 +26,20 @@ import { echapperHtml as esc } from '@/lib/map/echapper-html';
 import { adminFetch } from '@/lib/admin-fetch';
 import { ATMO_LEVEL_LABELS, POLLEN_LEVEL_LABELS } from '@/lib/civic-health/levels';
 import type { AirIndicator, AtmoLevel, PollenIndicator } from '@/lib/civic-health/types';
+import type { FiltreActif } from '@/lib/carte/filtre';
+import { bboxPourRequete } from '@/lib/carte/bbox-requete';
 
-export const CIVIC_SOURCE_ID = 'civic-health-zones';
+// Non exportes : aucun consommateur externe (verifie par `npm run catalogue`),
+// usage interne a ce fichier uniquement.
+const CIVIC_SOURCE_ID = 'civic-health-zones';
 const FILL_ID = 'civic-health-zones-fill';
 const LINE_ID = 'civic-health-zones-line';
 
-export type CivicDataset = 'pollen' | 'atmo';
-export type CivicScale = 'departement' | 'cp';
+type CivicDataset = 'pollen' | 'atmo';
+type CivicScale = 'departement' | 'cp';
 
 /** Libellé d'un niveau selon le dataset (0 = indisponible côté pollen). */
-export function civicLevelLabel(dataset: CivicDataset, lvl: number): string {
+function civicLevelLabel(dataset: CivicDataset, lvl: number): string {
   if (dataset === 'pollen') return POLLEN_LEVEL_LABELS[lvl as keyof typeof POLLEN_LEVEL_LABELS] ?? '—';
   return lvl >= 1 && lvl <= 6 ? ATMO_LEVEL_LABELS[lvl as AtmoLevel] : 'indisponible';
 }
@@ -121,6 +125,16 @@ interface Props {
   /** Fin de chargement (succès ou erreur) — pour l'état loading du panel. */
   onLoadingChange?: (loading: boolean) => void;
   opacity?: number;
+  /**
+   * Filtre unique actif (lib/carte/filtre.ts, Tâche 4) — quand il est actif,
+   * borne réellement la lecture `scale='cp'` (pollen_map_daily/atmo_map_daily)
+   * via la RPC `codes_postaux_dans_bbox` (sql/144). Sans filtre, comportement
+   * inchangé : lecture nationale complète (~6 200 lignes, léger) — envoyer
+   * BBOX_METRO par défaut masquerait l'outre-mer, une régression corrigée au
+   * round 1. N'affecte pas `scale='departement'` (échantillon national fixe,
+   * ~104 lignes, pas de notion de bbox).
+   */
+  filtre?: FiltreActif | null;
 }
 
 export function CivicHealthMapLayer({
@@ -134,6 +148,7 @@ export function CivicHealthMapLayer({
   onCpDataStatus,
   onLoadingChange,
   opacity = 0.55,
+  filtre = null,
 }: Props) {
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const clickRef = useRef<((e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => void) | null>(null);
@@ -179,7 +194,16 @@ export function CivicHealthMapLayer({
     src.setData(merged);
   };
 
-  // ── Effet data : (re)charge zones + valeurs quand dataset/échelle change ──
+  // bbox envoyee a scale='cp' UNIQUEMENT SI un filtre est actif — bboxPourRequete
+  // (lib/carte/bbox-requete.ts, round 1 de correction) rend `undefined` sans
+  // filtre, jamais un repli BBOX_METRO qui masquerait l'outre-mer en
+  // permanence. `null` aussi quand scale !== 'cp' (le departement est un
+  // echantillon national fixe, sans notion de bbox) — pour ne PAS
+  // re-declencher l'effet data a chaque changement de filtre dans ce cas.
+  const bboxFiltre = scale === 'cp' ? bboxPourRequete(filtre) : undefined;
+  const bboxParam = bboxFiltre ? bboxFiltre.join(',') : null;
+
+  // ── Effet data : (re)charge zones + valeurs quand dataset/échelle/bbox change ──
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -279,10 +303,14 @@ export function CivicHealthMapLayer({
 
         // 2. Valeurs selon l'échelle
         if (scale === 'cp') {
-          // min_level=0 volontaire : on charge tout (~6 200 lignes, léger) et
-          // le seuil/métrique est appliqué au paint — changer de filtre ne
-          // redéclenche aucun fetch.
-          const res = await adminFetch(`/api/civic-indicators/health-map?dataset=${dataset}&scale=cp&min_level=0&metric=global`);
+          // min_level=0 volontaire : le seuil/métrique est appliqué au paint,
+          // sans refetch. La bbox, elle, borne réellement la lecture serveur
+          // (Tâche 4, corrigée round 1) quand un filtre est actif — sans
+          // filtre, comportement d'avant : aucune bbox, lecture nationale
+          // complète (~6 200 lignes, léger).
+          const url = `/api/civic-indicators/health-map?dataset=${dataset}&scale=cp&min_level=0&metric=global`
+            + (bboxParam ? `&bbox=${bboxParam}` : '');
+          const res = await adminFetch(url);
           if (!res.ok) throw new Error(`health-map cp HTTP ${res.status}`);
           const payload = await res.json() as { date: string | null; rows: CpRow[]; error?: string };
           if (cancelled) return;
@@ -385,9 +413,12 @@ export function CivicHealthMapLayer({
       const m = mapRef.current;
       if (m) cleanup(m);
     };
-    // opacity absent des deps : simple peinture, gérée par l'effet dédié ci-dessous
+    // opacity absent des deps : simple peinture, gérée par l'effet dédié ci-dessous.
+    // bboxParam (Tâche 4) : refetch quand le filtre change EN scale='cp'
+    // uniquement (bboxParam vaut null, stable, sinon — pas de refetch inutile
+    // du départemental quand le filtre change).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataset, scale, refreshKey]);
+  }, [dataset, scale, refreshKey, bboxParam]);
 
   // ── Effet filtre : repaint sans refetch quand seuil/métrique change ───────
   useEffect(() => {

@@ -12,33 +12,93 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
+      activation_cibles: {
+        Row: {
+          erreur: string | null
+          etat_avant: Json | null
+          id: string
+          line_item_id: string
+          line_item_nom: string | null
+          lot_id: string
+          maj_le: string
+          statut: string
+        }
+        Insert: {
+          erreur?: string | null
+          etat_avant?: Json | null
+          id?: string
+          line_item_id: string
+          line_item_nom?: string | null
+          lot_id: string
+          maj_le?: string
+          statut?: string
+        }
+        Update: {
+          erreur?: string | null
+          etat_avant?: Json | null
+          id?: string
+          line_item_id?: string
+          line_item_nom?: string | null
+          lot_id?: string
+          maj_le?: string
+          statut?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activation_cibles_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "activation_lots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activation_lots: {
+        Row: {
+          campaign_id: string
+          canal: string
+          id: string
+          lance_le: string
+          lance_par: string
+          org_id: string
+          statut: string
+          termine_le: string | null
+          version_strategie: number | null
+        }
+        Insert: {
+          campaign_id: string
+          canal: string
+          id?: string
+          lance_le?: string
+          lance_par: string
+          org_id: string
+          statut?: string
+          termine_le?: string | null
+          version_strategie?: number | null
+        }
+        Update: {
+          campaign_id?: string
+          canal?: string
+          id?: string
+          lance_le?: string
+          lance_par?: string
+          org_id?: string
+          statut?: string
+          termine_le?: string | null
+          version_strategie?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activation_lots_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "dsp_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       adaptive_model_state: {
         Row: {
           algorithm_code: string
@@ -248,6 +308,62 @@ export type Database = {
             columns: ["strategy_id"]
             isOneToOne: false
             referencedRelation: "bidding_strategies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      analyses: {
+        Row: {
+          created_at: string
+          created_by: string
+          erreur: string | null
+          id: string
+          maillage: string | null
+          nom: string
+          org_id: string
+          parametres: Json
+          perimetre: Json | null
+          resultat: Json | null
+          statut: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          erreur?: string | null
+          id?: string
+          maillage?: string | null
+          nom: string
+          org_id: string
+          parametres: Json
+          perimetre?: Json | null
+          resultat?: Json | null
+          statut?: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          erreur?: string | null
+          id?: string
+          maillage?: string | null
+          nom?: string
+          org_id?: string
+          parametres?: Json
+          perimetre?: Json | null
+          resultat?: Json | null
+          statut?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analyses_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -1698,6 +1814,30 @@ export type Database = {
         }
         Relationships: []
       }
+      cibles_exposition: {
+        Row: {
+          actif: boolean
+          code: string
+          famille: string
+          libelle: string
+          ordre: number
+        }
+        Insert: {
+          actif?: boolean
+          code: string
+          famille: string
+          libelle: string
+          ordre: number
+        }
+        Update: {
+          actif?: boolean
+          code?: string
+          famille?: string
+          libelle?: string
+          ordre?: number
+        }
+        Relationships: []
+      }
       civic_health_cache: {
         Row: {
           code_insee: string
@@ -1830,6 +1970,24 @@ export type Database = {
           silhouette_score?: number | null
           variance_explained?: number | null
           version?: number
+        }
+        Relationships: []
+      }
+      communes_arrondissements: {
+        Row: {
+          code_arrondissement: string
+          code_commune_mere: string
+          nom_commune_mere: string
+        }
+        Insert: {
+          code_arrondissement: string
+          code_commune_mere: string
+          nom_commune_mere: string
+        }
+        Update: {
+          code_arrondissement?: string
+          code_commune_mere?: string
+          nom_commune_mere?: string
         }
         Relationships: []
       }
@@ -2325,10 +2483,12 @@ export type Database = {
           kpi_target: number | null
           name: string
           organization_id: string | null
+          overpressure_weight: number
           product: string | null
           status_override: string | null
           status_override_at: string | null
           status_override_by: string | null
+          tolerance_pct: number
           total_budget: number | null
           total_tracked_ads: number | null
           total_unique_impressions: number
@@ -2349,10 +2509,12 @@ export type Database = {
           kpi_target?: number | null
           name: string
           organization_id?: string | null
+          overpressure_weight?: number
           product?: string | null
           status_override?: string | null
           status_override_at?: string | null
           status_override_by?: string | null
+          tolerance_pct?: number
           total_budget?: number | null
           total_tracked_ads?: number | null
           total_unique_impressions?: number
@@ -2373,10 +2535,12 @@ export type Database = {
           kpi_target?: number | null
           name?: string
           organization_id?: string | null
+          overpressure_weight?: number
           product?: string | null
           status_override?: string | null
           status_override_at?: string | null
           status_override_by?: string | null
+          tolerance_pct?: number
           total_budget?: number | null
           total_tracked_ads?: number | null
           total_unique_impressions?: number
@@ -2755,6 +2919,30 @@ export type Database = {
           },
         ]
       }
+      etalon_alignement: {
+        Row: {
+          calcule_le: string
+          id: boolean
+          n_campagnes: number
+          score_median: number
+          tolerance_pct: number
+        }
+        Insert: {
+          calcule_le?: string
+          id?: boolean
+          n_campagnes: number
+          score_median: number
+          tolerance_pct: number
+        }
+        Update: {
+          calcule_le?: string
+          id?: boolean
+          n_campagnes?: number
+          score_median?: number
+          tolerance_pct?: number
+        }
+        Relationships: []
+      }
       filosofi_national_averages: {
         Row: {
           avg_value: number | null
@@ -2869,6 +3057,24 @@ export type Database = {
         }
         Relationships: []
       }
+      icpe_rubrique_familles: {
+        Row: {
+          libelle: string
+          prefixe: string
+          rang_gravite: number
+        }
+        Insert: {
+          libelle: string
+          prefixe: string
+          rang_gravite: number
+        }
+        Update: {
+          libelle?: string
+          prefixe?: string
+          rang_gravite?: number
+        }
+        Relationships: []
+      }
       import_runs_ooh: {
         Row: {
           erreurs: Json | null
@@ -2911,6 +3117,30 @@ export type Database = {
           statut?: string | null
           termine_le?: string | null
           url?: string | null
+        }
+        Relationships: []
+      }
+      indicator_cp_materializations: {
+        Row: {
+          computed_at: string
+          data_source: string
+          date_donnee: string | null
+          indicator_code: string
+          n_lignes: number
+        }
+        Insert: {
+          computed_at?: string
+          data_source: string
+          date_donnee?: string | null
+          indicator_code: string
+          n_lignes: number
+        }
+        Update: {
+          computed_at?: string
+          data_source?: string
+          date_donnee?: string | null
+          indicator_code?: string
+          n_lignes?: number
         }
         Relationships: []
       }
@@ -4226,6 +4456,132 @@ export type Database = {
         }
         Relationships: []
       }
+      pprt_documents: {
+        Row: {
+          bassin_risques: string | null
+          code_departement_pilote: string | null
+          date_modification: string | null
+          en_revision: boolean
+          id_gaspar: string
+          importe_le: string
+          modele: string | null
+          nom: string
+          nom_departement_pilote: string | null
+          source: string
+          sup_existe: boolean
+          types_zones: Json
+          zonage_existe: boolean
+        }
+        Insert: {
+          bassin_risques?: string | null
+          code_departement_pilote?: string | null
+          date_modification?: string | null
+          en_revision?: boolean
+          id_gaspar: string
+          importe_le?: string
+          modele?: string | null
+          nom: string
+          nom_departement_pilote?: string | null
+          source?: string
+          sup_existe?: boolean
+          types_zones?: Json
+          zonage_existe?: boolean
+        }
+        Update: {
+          bassin_risques?: string | null
+          code_departement_pilote?: string | null
+          date_modification?: string | null
+          en_revision?: boolean
+          id_gaspar?: string
+          importe_le?: string
+          modele?: string | null
+          nom?: string
+          nom_departement_pilote?: string | null
+          source?: string
+          sup_existe?: boolean
+          types_zones?: Json
+          zonage_existe?: boolean
+        }
+        Relationships: []
+      }
+      pprt_perimetres: {
+        Row: {
+          code_departement: string | null
+          code_region: string | null
+          date_source: string | null
+          depot_code: string | null
+          depot_niveau: string | null
+          document_source: string | null
+          fichier_acte: string | null
+          geom: unknown
+          geom_3857: unknown
+          id: string
+          id_assiette: string | null
+          id_gaspar: string | null
+          id_generateur: string | null
+          importe_le: string
+          mode_geometrie: string | null
+          nom: string
+          nom_departement: string | null
+          nom_technique: string | null
+          partition: string
+          source: string
+          superficie_km2: number | null
+          type_zone: string
+          type_zone_source: string | null
+        }
+        Insert: {
+          code_departement?: string | null
+          code_region?: string | null
+          date_source?: string | null
+          depot_code?: string | null
+          depot_niveau?: string | null
+          document_source?: string | null
+          fichier_acte?: string | null
+          geom: unknown
+          geom_3857: unknown
+          id: string
+          id_assiette?: string | null
+          id_gaspar?: string | null
+          id_generateur?: string | null
+          importe_le?: string
+          mode_geometrie?: string | null
+          nom: string
+          nom_departement?: string | null
+          nom_technique?: string | null
+          partition: string
+          source?: string
+          superficie_km2?: number | null
+          type_zone: string
+          type_zone_source?: string | null
+        }
+        Update: {
+          code_departement?: string | null
+          code_region?: string | null
+          date_source?: string | null
+          depot_code?: string | null
+          depot_niveau?: string | null
+          document_source?: string | null
+          fichier_acte?: string | null
+          geom?: unknown
+          geom_3857?: unknown
+          id?: string
+          id_assiette?: string | null
+          id_gaspar?: string | null
+          id_generateur?: string | null
+          importe_le?: string
+          mode_geometrie?: string | null
+          nom?: string
+          nom_departement?: string | null
+          nom_technique?: string | null
+          partition?: string
+          source?: string
+          superficie_km2?: number | null
+          type_zone?: string
+          type_zone_source?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -4269,6 +4625,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      qualite_releves: {
+        Row: {
+          calcule_le: string
+          duree_ms: number | null
+          releve: Json
+          verification: string
+        }
+        Insert: {
+          calcule_le?: string
+          duree_ms?: number | null
+          releve: Json
+          verification: string
+        }
+        Update: {
+          calcule_le?: string
+          duree_ms?: number | null
+          releve?: Json
+          verification?: string
+        }
+        Relationships: []
       }
       quotas_appels: {
         Row: {
@@ -4603,6 +4980,53 @@ export type Database = {
           },
         ]
       }
+      seveso_exposition: {
+        Row: {
+          calcule_le: string
+          id: number
+          indicatif: boolean
+          mode: string
+          nb_carreaux: number
+          palier: string
+          pop_couronne: number
+          pop_exposee: number
+          site_id: string
+          surface_km2: number | null
+        }
+        Insert: {
+          calcule_le?: string
+          id?: number
+          indicatif: boolean
+          mode: string
+          nb_carreaux?: number
+          palier: string
+          pop_couronne?: number
+          pop_exposee?: number
+          site_id: string
+          surface_km2?: number | null
+        }
+        Update: {
+          calcule_le?: string
+          id?: number
+          indicatif?: boolean
+          mode?: string
+          nb_carreaux?: number
+          palier?: string
+          pop_couronne?: number
+          pop_exposee?: number
+          site_id?: string
+          surface_km2?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seveso_exposition_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "poi_france"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       smart_prompt_feedback: {
         Row: {
           agent: string | null
@@ -4689,6 +5113,44 @@ export type Database = {
           srtext?: string | null
         }
         Relationships: []
+      }
+      strategie_versions: {
+        Row: {
+          charge_utile: Json
+          empreinte_zones: Json
+          id: string
+          publiee_le: string
+          publiee_par: string
+          strategie_id: string
+          version: number
+        }
+        Insert: {
+          charge_utile: Json
+          empreinte_zones?: Json
+          id?: string
+          publiee_le?: string
+          publiee_par: string
+          strategie_id: string
+          version: number
+        }
+        Update: {
+          charge_utile?: Json
+          empreinte_zones?: Json
+          id?: string
+          publiee_le?: string
+          publiee_par?: string
+          strategie_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "strategie_versions_strategie_id_fkey"
+            columns: ["strategie_id"]
+            isOneToOne: false
+            referencedRelation: "bidding_strategies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       strategy_changes: {
         Row: {
@@ -4968,19 +5430,129 @@ export type Database = {
         }
         Returns: Json
       }
+      alignement_dispersion_cp: {
+        Args: { p_campaign_id: string; p_parent?: string; p_tolerance?: number }
+        Returns: Json
+      }
+      alignement_par_maille: {
+        Args: {
+          p_campaign_id: string
+          p_limite?: number
+          p_maille?: string
+          p_parent?: string
+          p_tolerance?: number
+        }
+        Returns: Json
+      }
+      alignement_par_maille_geo: {
+        Args: {
+          p_bbox_xmax?: number
+          p_bbox_xmin?: number
+          p_bbox_ymax?: number
+          p_bbox_ymin?: number
+          p_campaign_id: string
+          p_limite?: number
+          p_maille?: string
+          p_parent?: string
+          p_tolerance?: number
+          p_variable_code?: string
+        }
+        Returns: Json
+      }
       apply_zone_weights_to_strategy: {
         Args: { p_in_weights: Json; p_out_weights: Json; p_strategy_id: string }
         Returns: number
       }
       archive_and_purge_radio: { Args: never; Returns: Json }
       build_ref_codes_postaux: { Args: never; Returns: undefined }
+      calculer_alignement_geo: {
+        Args: { p_campaign_id: string; p_poids?: number; p_tolerance?: number }
+        Returns: Json
+      }
+      calculer_score_composite: {
+        Args: {
+          p_codes_postaux: string[]
+          p_indicateurs: string[]
+          p_poids: number[]
+          p_sens: string[]
+        }
+        Returns: {
+          n_indicateurs: number
+          postal_code: string
+          score: number
+        }[]
+      }
+      calculer_score_composite_jsonb: {
+        Args: {
+          p_codes_postaux: string[]
+          p_indicateurs: string[]
+          p_poids: number[]
+          p_sens: string[]
+        }
+        Returns: Json
+      }
       check_iso_hits_new_carreaux: {
         Args: { p_iso_geojson: string; p_since: string }
         Returns: boolean
       }
       classe_iris: { Args: { p_colonne: string }; Returns: string }
+      classer_territoires: {
+        Args: {
+          p_indicateur: string
+          p_limite?: number
+          p_palier?: string
+          p_plancher_population?: number
+          p_regrouper_arrondissements?: boolean
+          p_tri?: string
+        }
+        Returns: {
+          classe: string
+          code: string
+          nom: string
+          part: number
+          population: number
+          valeur: number
+        }[]
+      }
       clip_geojson_to_france: { Args: { p_fc: Json }; Returns: Json }
       clip_rings_to_france: { Args: { p_rings: Json }; Returns: Json }
+      codes_postaux_dans_bbox: {
+        Args: { p_est: number; p_nord: number; p_ouest: number; p_sud: number }
+        Returns: {
+          code_postal: string
+        }[]
+      }
+      codes_postaux_du_perimetre: {
+        Args: { p_code: string; p_type: string }
+        Returns: {
+          code_postal: string
+        }[]
+      }
+      codes_postaux_du_perimetre_jsonb: {
+        Args: { p_code: string; p_type: string }
+        Returns: Json
+      }
+      compter_sites_rayon: {
+        Args: {
+          p_gravites?: string[]
+          p_natures?: string[]
+          p_perim_codes?: string[]
+          p_perim_niveau?: string
+        }
+        Returns: Json
+      }
+      construire_couverture_rayon: {
+        Args: {
+          p_bande: number
+          p_n_bandes?: number
+          p_rayon_max_m?: number
+          p_lon_ouest?: number
+          p_lon_est?: number
+          p_bande_id?: number
+        }
+        Returns: Json
+      }
+      compte_cp_campagne: { Args: { p_campaign_id: string }; Returns: number }
       compte_poi_par_categorie: {
         Args: {
           p_categories: string[]
@@ -5014,6 +5586,7 @@ export type Database = {
         Args: { p_caller_user_id?: string; p_zone_id: string }
         Returns: Json
       }
+      consolider_geo_icpe: { Args: never; Returns: Json }
       consommer_quota: {
         Args: { p_cle: string; p_fenetre_s: number; p_max: number }
         Returns: Json
@@ -5032,6 +5605,10 @@ export type Database = {
           colonnes: number
           duree_ms: number
         }[]
+      }
+      correlation_campagne_indicateur: {
+        Args: { p_campaign_id: string; p_indicator_code: string }
+        Returns: Json
       }
       count_emetteurs_par_radio: {
         Args: never
@@ -5104,8 +5681,10 @@ export type Database = {
           }
         | { Args: { schema_name: string; table_name: string }; Returns: string }
         | { Args: { table_name: string }; Returns: string }
+      empreinte_zones: { Args: { p_zone_ids: string[] }; Returns: Json }
       enablelongtransactions: { Args: never; Returns: string }
       equals: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      etat_indicateur_cp: { Args: { p_indicator_code: string }; Returns: Json }
       export_carreaux_after: {
         Args: { p_last_idcar: string; p_limit: number }
         Returns: {
@@ -5254,6 +5833,10 @@ export type Database = {
           ms: number
           sources: number
         }[]
+      }
+      fraicheur_sources: {
+        Args: { p_inclure_lourd?: boolean; p_sources: Json }
+        Returns: Json
       }
       geo_alignment_baseline: {
         Args: {
@@ -5412,33 +5995,6 @@ export type Database = {
           has_data: boolean
         }[]
       }
-      get_campaign_derive_headline: {
-        Args: { p_actors?: string[]; p_campaign_id: string; p_metric?: string }
-        Returns: number
-      }
-      get_campaign_derive_map: {
-        Args: {
-          p_actors?: string[]
-          p_bbox_xmax?: number
-          p_bbox_xmin?: number
-          p_bbox_ymax?: number
-          p_bbox_ymin?: number
-          p_campaign_id: string
-          p_mesh?: string
-          p_metric?: string
-        }
-        Returns: Json
-      }
-      get_campaign_derive_ranked: {
-        Args: {
-          p_actors?: string[]
-          p_campaign_id: string
-          p_limit?: number
-          p_mesh?: string
-          p_metric?: string
-        }
-        Returns: Json
-      }
       get_campaign_expected: {
         Args: { p_campaign_id: string }
         Returns: number
@@ -5495,10 +6051,6 @@ export type Database = {
       }
       get_campaign_suivi: {
         Args: { p_actors?: string[]; p_campaign_id: string }
-        Returns: Json
-      }
-      get_campaign_suivi_cps: {
-        Args: { p_actors?: string[]; p_campaign_id: string; p_dept: string }
         Returns: Json
       }
       get_campaign_suivi_map: {
@@ -5948,6 +6500,16 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: Json
       }
+      lire_couverture_rayon: {
+        Args: {
+          p_cible?: string
+          p_gravites?: string[]
+          p_natures?: string[]
+          p_perim_codes?: string[]
+          p_perim_niveau?: string
+        }
+        Returns: Json
+      }
       log_smart_prompt_feedback: {
         Args: {
           p_agent?: string
@@ -5975,6 +6537,10 @@ export type Database = {
       match_campaign_postal_to_iris: {
         Args: { p_campaign_id: string }
         Returns: number
+      }
+      materialiser_indicateur_cp: {
+        Args: { p_indicator_code: string }
+        Returns: Json
       }
       materialize_indicator_cp_values: {
         Args: { p_indicator_code: string }
@@ -6054,7 +6620,46 @@ export type Database = {
       }
       postgis_version: { Args: never; Returns: string }
       postgis_wagyu_version: { Args: never; Returns: string }
+      population_exposee_agregee: {
+        Args: {
+          p_cible?: string
+          p_dimension?: string
+          p_gravites?: string[]
+          p_limite?: number
+          p_modes?: string[]
+          p_natures?: string[]
+          p_perim_codes?: string[]
+          p_perim_niveau?: string
+          p_rayon_m?: number
+          p_forcer_rayon?: boolean
+        }
+        Returns: Json
+      }
+      population_exposee_site: { Args: { p_site_id: string }; Returns: Json }
+      pprt_consolider_departement: { Args: never; Returns: Json }
+      pprt_importer_partition: {
+        Args: { p_lignes: Json; p_partition: string }
+        Returns: Json
+      }
+      pprt_perimetres_carte: {
+        Args: { p_bbox: number[]; p_limite?: number; p_types?: string[] }
+        Returns: Json
+      }
+      publier_strategie: {
+        Args: {
+          p_charge_utile: Json
+          p_empreinte: Json
+          p_publiee_par: string
+          p_strategie_id: string
+        }
+        Returns: Json
+      }
       purge_old_agent_chat_messages: { Args: never; Returns: number }
+      qualite_colonnes_iris: { Args: never; Returns: Json }
+      qualite_fraicheur: { Args: never; Returns: Json }
+      qualite_indicateurs: { Args: never; Returns: Json }
+      qualite_invariants: { Args: never; Returns: Json }
+      rayon_defaut_exposition: { Args: never; Returns: number }
       refresh_campaign_rollups: {
         Args: { p_campaign_id: string }
         Returns: Json
@@ -6075,6 +6680,17 @@ export type Database = {
           }
       resolve_custom_geo_zone_codes_with_subzones: {
         Args: { p_caller_user_id?: string; p_zone_id: string }
+        Returns: Json
+      }
+      risques_industriels_carte: {
+        Args: {
+          p_bbox?: number[]
+          p_gravites?: string[]
+          p_inclure_inactifs?: boolean
+          p_limite?: number
+          p_natures?: string[]
+          p_rayon_m?: number
+        }
         Returns: Json
       }
       show_limit: { Args: never; Returns: number }
@@ -6735,6 +7351,16 @@ export type Database = {
         }
         Returns: string
       }
+      zone_dessin: { Args: { p_geojson: Json }; Returns: Json }
+      zone_difference: {
+        Args: { p_base: string; p_retires: string[] }
+        Returns: Json
+      }
+      zone_intersection: { Args: { p_zone_ids: string[] }; Returns: Json }
+      zone_rayon: {
+        Args: { p_lat: number; p_lon: number; p_rayon_m: number }
+        Returns: Json
+      }
     }
     Enums: {
       job_status: "pending" | "processing" | "completed" | "failed"
@@ -6871,9 +7497,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       job_status: ["pending", "processing", "completed", "failed"],

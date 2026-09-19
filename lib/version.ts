@@ -63,6 +63,26 @@ export const IRIS_TILE_VERSION = 2;
  */
 export const IRIS_ZOOM_PLANCHER = 4;
 
+/**
+ * Zoom au-dessous duquel la couche « Périmètre PPRT » ne demande rien.
+ *
+ * Source unique : la couche MapLibre ET la section du panneau lisent cette
+ * constante — deux copies d'un chiffre finiraient par se contredire, et
+ * l'utilisateur verrait un bandeau « zoomez » sur une couche qui charge, ou
+ * l'inverse.
+ *
+ * **8 et pas moins, et c'est un calcul de lisibilité avant d'être un calcul
+ * d'I/O.** Un PPRT fait 0,94 km de large en moyenne (le plus petit : 2 m).
+ * À la latitude 45, la résolution vaut ~110 700 / 2^z mètres par pixel : pour
+ * qu'une zone de 2 km couvre au moins 4 px, il faut z >= 7,8.
+ *
+ * Poids mesuré le 2026-09-17 (664 zones en base) :
+ *   France entière   4 948 ko brut · 886 ko simplifié · illisible
+ *   vue z8 (6°)        802 ko brut · 182 ko simplifié · 126 zones · 46 ms
+ *   Étang de Berre      86 ko brut ·  26 ko simplifié ·  15 zones
+ */
+export const PPRT_ZOOM_PLANCHER = 8;
+
 // À incrémenter à chaque migration modifiant la fonction MVT carreaux (get_carreaux_tile / tiles/{z}/{x}/{y})
 // v13 — 2026-04-24 : expose code_dept + code_region dans les props MVT (JOIN ref_departements)
 //       pour filtre territorial client-side (setFilter) sans refetch.

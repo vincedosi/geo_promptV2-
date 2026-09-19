@@ -137,8 +137,18 @@ export function createRateLimiter({ max, window, prefix }: RateLimitOptions): Ra
 
   return async (key: string) => {
     if (upstash) {
-      const { success, reset } = await upstash.limit(key);
-      return { ok: success, retrySec: success ? 0 : Math.ceil((reset - Date.now()) / 1000) };
+      // Un limiteur dont le dos est injoignable ne doit PAS faire echouer la
+      // requete qu'il protege : les deux variables Upstash peuvent etre
+      // renseignees vers un hote qui ne resout plus (base supprimee, DNS, dev
+      // local). Sans ce filet, `upstash.limit()` leve et la route repond 500 —
+      // constate le 2026-09-13 sur ENOTFOUND, et cela vaut pour TOUTES les
+      // routes a quota, pas seulement celle qui l'a revele.
+      try {
+        const { success, reset } = await upstash.limit(key);
+        return { ok: success, retrySec: success ? 0 : Math.ceil((reset - Date.now()) / 1000) };
+      } catch (e) {
+        console.error('[rate-limit] Upstash injoignable, repli sur le compteur en base:', e instanceof Error ? e.message : e);
+      }
     }
 
     // Pas d'Upstash : le compteur partagé en base prend le relais. C'est le

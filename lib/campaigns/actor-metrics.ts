@@ -1,9 +1,15 @@
 /**
  * Vue par acteur — types du payload de get_campaign_actors (sql/113) et helpers
- * purs. Aucune dépendance React (testable Vitest). Formats réutilisés de
- * suivi-metrics (DRY).
+ * purs. Aucune dépendance React (testable Vitest).
+ *
+ * Tache 16 (2026-09-15) : le re-export de `fmtInt`/`fmtCpm`/`fmtPct`/`toneColor`
+ * depuis `suivi-metrics.ts` a ete retire — ses seuls consommateurs
+ * (`CampaignSuivi.tsx` et `components/campaign/suivi/{SuiviTable,ActorPanel,
+ * ActorFilter}.tsx`) ont disparu avec l'ancien ecran de suivi. Les
+ * consommateurs restants (`ReconciliationPanel.tsx`, `suivi-v2/
+ * DetailTechnique.tsx`) importent ces formatteurs directement de
+ * `suivi-metrics.ts` / `reconciliation-metrics.ts`, jamais via ce fichier.
  */
-export { fmtInt, fmtCpm, fmtPct, toneColor } from './suivi-metrics';
 
 export type ActorKind = 'dsp' | 'social' | 'régie';
 

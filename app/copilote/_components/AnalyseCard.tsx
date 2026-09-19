@@ -24,6 +24,7 @@ interface PoiItem {
 }
 interface AnalyseOutput {
   type?:     string;
+  error?:    string;
   perimetre?: {
     type:              string;
     value:             string;
@@ -161,6 +162,33 @@ export function AnalyseCard({ output, onFlyTo, onHighlightIris }: AnalyseCardPro
 
   if (!output || output.type !== "analyse_complete") return null;
   const data = output as unknown as AnalyseOutput;
+
+  // Erreur remontée par `analyseComplete.ts` (périmètre manquant, organisation
+  // sans source…) : posait `error` sans `type` jusqu'ici, donc invisible — le
+  // filtre de ChatPanel.tsx qui sélectionne cette part ne matchait jamais et
+  // AnalyseCard n'était de toute façon jamais monté. `type` est désormais posé
+  // en amont ; ce garde affiche enfin le message plutôt que de rendre `null`.
+  if (data.error) {
+    return (
+      <div className="analyse-card-root" style={{
+        marginTop: 10,
+        background: 'var(--bg-surface)',
+        border: `0.5px solid ${P.border}`,
+        borderLeft: '3px solid var(--danger)',
+        borderRadius: '2px 12px 12px 12px',
+        padding: '14px 16px',
+        fontFamily: fontInter,
+      }}>
+        <div style={{
+          fontSize: 11, fontFamily: fontMono, letterSpacing: '0.12em',
+          textTransform: 'uppercase', color: 'var(--danger)', marginBottom: 6,
+        }}>
+          Analyse impossible
+        </div>
+        <div style={{ fontSize: 13, color: P.text, lineHeight: 1.5 }}>{data.error}</div>
+      </div>
+    );
+  }
 
   const { perimetre, demographie, panneaux, poi } = data;
   if (!perimetre || !demographie) return null;

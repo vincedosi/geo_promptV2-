@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { fetchAvecDelai } from '@/lib/http/fetch-avec-delai';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +18,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const res = await fetch(
+  // Borné : un déclenchement de workflow n'est pas idempotent (deux runs), on
+  // ne rejoue pas — on refuse seulement de pendre jusqu'au délai de la plateforme.
+  const res = await fetchAvecDelai(
     `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/${WORKFLOW}/dispatches`,
     {
       method: 'POST',

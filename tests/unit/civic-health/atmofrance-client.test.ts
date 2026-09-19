@@ -4,14 +4,11 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AtmoFranceProvider, _resetTokenCache } from '@/lib/civic-health/atmofrance-client';
+// Même horloge que le client (jour civil de Paris) : une copie locale en UTC
+// ferait échouer ces tests entre 22 h et minuit, heure de Paris.
+import { isoDate as todayIso } from '@/lib/civic-health/utils';
 
 const realFetch = global.fetch;
-
-function todayIso(offsetDays = 0): string {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  return d.toISOString().slice(0, 10);
-}
 
 function makeFeature(props: Record<string, unknown>) {
   return { properties: props };
@@ -125,5 +122,35 @@ describe('AtmoFranceProvider', () => {
 
     const p = new AtmoFranceProvider('user', 'pass');
     await expect(p.fetchHealth('75056')).rejects.toThrow(/atmo_login_failed/);
+  });
+});
+
+describe('AtmoFranceProvider — jeton expire', () => {
+  beforeEach(() => { _resetTokenCache(); });
+  afterEach(() => { global.fetch = realFetch; });
+
+  it('sur 401, se reconnecte UNE fois et rejoue l appel — la fiche en cours ne manque plus', async () => {
+    const jetons = ['tok-vieux', 'tok-neuf'];
+    let logins = 0;
+    const autorisations: string[] = [];
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/api/login')) {
+        return new Response(JSON.stringify({ token: jetons[logins++] }), { status: 200 });
+      }
+      const auth = String((init?.headers as Record<string, string>)?.Authorization ?? '');
+      autorisations.push(auth);
+      if (auth.endsWith('tok-vieux')) return new Response('{}', { status: 401 });
+      return new Response(JSON.stringify({
+        features: [makeFeature({ code_zone: '75056', lib_zone: 'Paris', date_ech: todayIso(0), code_qual: 2 })],
+      }), { status: 200 });
+    }) as typeof fetch;
+
+    const p = new AtmoFranceProvider('user', 'pass');
+    const r = await p.fetchHealth('75056');
+    expect(r).not.toBeNull();
+    expect(logins).toBe(2);
+    // Deux datasets, chacun rejoue une fois avec le nouveau jeton
+    expect(autorisations.filter(a => a.endsWith('tok-neuf'))).toHaveLength(2);
   });
 });

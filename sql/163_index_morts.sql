@@ -1,0 +1,55 @@
+-- ============================================================================
+-- sql/163 — suppression de trois index provablement morts (2026-09-13)
+--
+-- Point 6 de docs/audit/QUICK_WINS.md, qui en visait douze pour 236 Mo. Trois
+-- sont supprimés ici, pour 34 Mo. Les neuf autres restent, et chacun pour une
+-- raison écrite — un index épargné sans motif se refait supprimer au prochain
+-- audit, ou pire, se fait supprimer à tort.
+--
+-- PRÉALABLE VÉRIFIÉ : `pg_stat_database.stats_reset` vaut NULL sur cette base.
+-- Les compteurs `idx_scan` courent donc depuis sa création (février 2026), et
+-- un `idx_scan = 0` signifie vraiment « jamais parcouru », pas « compteur remis
+-- à zéro récemment ». Sans cette vérification, tout ce raisonnement serait nul.
+--
+-- ── Les trois supprimés, et la preuve pour chacun ──────────────────────────
+--
+-- `idx_poi_france_geom_geography_gist` (23 Mo) — index GiST sur
+--   `(geom)::geography`. Aucune requête du dépôt n'interroge `poi_france` en
+--   `geography` : la recherche ne rend rien, ni dans `sql/`, ni dans le code.
+--   ⚠ À ne pas confondre avec `idx_poi_france_geom` (14 Mo), lui CONSERVÉ :
+--   le point 7 en aura besoin. Son jumeau partiel `idx_poi_france_geom_cat`
+--   ne couvre que `categorie IS NOT NULL`, et le planificateur ne peut s'en
+--   servir que si la requête porte ce prédicat — or la route rend la catégorie
+--   facultative. Les deux ne sont donc pas redondants.
+--
+-- `idx_bds_metrics_gin` (5,6 Mo) — index GIN sur `bidding_daily_state.metrics`.
+--   La table est vide, mais elle a de VRAIS lecteurs (`lib/agent/intents/
+--   analyze_drift.ts` et `modal/bidding_ml/`), donc « table vide » ne suffisait
+--   pas à conclure. Ce qui conclut : ces lecteurs sélectionnent `metrics` mais
+--   filtrent sur `strategy_id` et trient sur `date`. Aucun ne descend DANS le
+--   jsonb. Un index GIN ne sert qu'aux requêtes `@>`, `?`, `?|` sur le contenu :
+--   celui-ci serait inutile même une fois la table remplie.
+--
+-- `idx_dsp_data_impressions` (5 Mo) — btree sur `dsp_campaign_data.impressions`
+--   (477 879 lignes). Trois `ORDER BY impressions DESC` existent (sql/108 et
+--   sql/113), mais ils portent tous sur le résultat D'UNE AGRÉGATION déjà
+--   calculée, pas sur les lignes de la table. Un index sur la colonne brute ne
+--   peut pas les servir.
+--
+-- ── Les neuf conservés ─────────────────────────────────────────────────────
+--
+-- Les trois de `comptages_routiers` (169 Mo, soit l'essentiel du gain promis)
+--   sont le gros lot, et ils attendent l'arbitrage du point 18 : si le proxy
+--   OSM disparaît, c'est la table entière qui part et la question ne se pose
+--   plus. Les supprimer maintenant serait trancher par la bande une décision
+--   produit qui n'est pas prise.
+-- `idx_poi_france_geom` — voir ci-dessus, le point 7 en aura besoin.
+-- `idx_poi_france_organization` — le point 10 (cloisonnement par organisation)
+--   filtrera précisément là-dessus.
+-- `idx_iris_centroid`, `idx_ref_communes_geom`, `idx_emetteurs_freq` — moins de
+--   2 Mo chacun, sur des tables de travail actif. Le gain ne paie pas le risque.
+-- ============================================================================
+
+DROP INDEX IF EXISTS public.idx_poi_france_geom_geography_gist;
+DROP INDEX IF EXISTS public.idx_bds_metrics_gin;
+DROP INDEX IF EXISTS public.idx_dsp_data_impressions;

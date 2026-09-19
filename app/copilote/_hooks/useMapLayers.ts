@@ -18,6 +18,8 @@ import { echelleDe, echelleLogExpr, donneeIrisExploitableExpr,
   type BornesIris, type CatalogueBornesIris } from '@/lib/iris/echelle';
 import type { IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
 import { IRIS_ZOOM_PLANCHER } from '@/lib/version';
+import type { DegradeId } from '@/lib/carte/degrades';
+import { basculerDegrade as basculerDegradePur } from '@/lib/carte/calques-actifs';
 
 // ── Carreaux — normalisation (densité / moyenne) ───────────────────────────────
 // La cascade de `get_tile` (sql/129) sert des mailles de 200 m, 2 km, 5 km ou 20 km :
@@ -1253,6 +1255,21 @@ export function useMapLayers({
     }
   };
 
+  // ── Dégradé de couleur actif (Tâche 6) — un seul à la fois, cf lib/carte/degrades.ts.
+  // Carreaux et IRIS vivent ici : leur extinction (quand un autre dégradé
+  // s'active) est donc appliquée directement. Les trois autres dégradés
+  // (indicateurs civiques, santé environnementale, météo, impressions de
+  // campagne) sont pilotés par app/map/page.tsx — `basculerDegrade` rend
+  // `aEteindre` pour que la page applique leur propre extinction + le toast.
+  const [degradeActif, setDegradeActif] = useState<DegradeId | null>(null);
+  const basculerDegrade = useCallback((cible: DegradeId, next: boolean): DegradeId | null => {
+    const resultat = basculerDegradePur(degradeActif, cible, next);
+    setDegradeActif(resultat.degradeActif);
+    if (resultat.aEteindre === 'carreaux') setCarreauxVisible(false);
+    if (resultat.aEteindre === 'iris') setIrisVisible(false);
+    return resultat.aEteindre;
+  }, [degradeActif, setCarreauxVisible, setIrisVisible]);
+
   return {
     // Voronoï
     voronoiVisible, setVoronoiVisible,
@@ -1301,6 +1318,10 @@ export function useMapLayers({
     // couche ne montre rien, au lieu de laisser une carte vide muette.
     zoomCourant,
     irisZoomPlancher: IRIS_ZOOM_PLANCHER,
+    // Dégradé de couleur actif (Tâche 6, exclusivité — lib/carte/degrades.ts)
+    degradeActif,
+    setDegradeActif,
+    basculerDegrade,
     // Visualization functions
     applyVoronoi,
     clearBattlePartialRings,

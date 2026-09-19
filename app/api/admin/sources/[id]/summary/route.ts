@@ -5,8 +5,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { fetchAvecDelai } from '@/lib/http/fetch-avec-delai';
 
 export const dynamic = 'force-dynamic';
+
+/** Un résumé de 200 jetons par Mistral Small arrive en quelques secondes ; au-delà de 30 s, il n'arrivera pas. */
+const DELAI_MISTRAL_MS = 30_000;
 
 export async function POST(
   request: NextRequest,
@@ -37,7 +41,7 @@ export async function POST(
     const mistralKey = process.env.MISTRAL_API_KEY;
     if (!mistralKey) throw new Error('MISTRAL_API_KEY manquant');
 
-    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+    const response = await fetchAvecDelai('https://api.mistral.ai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -55,7 +59,7 @@ export async function POST(
         temperature: 0.3,
         max_tokens: 200,
       }),
-    });
+    }, DELAI_MISTRAL_MS);
 
     if (!response.ok) {
       throw new Error(`Mistral API error: ${response.status}`);

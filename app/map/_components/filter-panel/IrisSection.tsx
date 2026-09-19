@@ -10,9 +10,7 @@
 
 import React from 'react';
 import { IRIS_PALETTES } from '@/app/copilote/_hooks/useMapLayers';
-import { bornesInternes } from '@/lib/carreaux/expressions';
-import { versValeurReelle } from '@/lib/carreaux/bornes';
-import { echelleDe, uniteIris, niveauAuZoom, LIBELLE_NIVEAU,
+import { niveauAuZoom, LIBELLE_NIVEAU,
   type BornesIris } from '@/lib/iris/echelle';
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 import { C, fInter, fMono } from './tokens';
@@ -85,7 +83,6 @@ export function IrisSection({
           border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
         }}
       >
-        <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
         <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
           IRIS
           {irisVisible && <span style={{ color: C.green, marginLeft: 6 }}>●</span>}
@@ -272,59 +269,9 @@ export function IrisSection({
           )}
         </div>
 
-        {/* Légende — les MÊMES frontières que la peinture (bornesInternes),
-            jamais un découpage parallèle qui annoncerait une teinte que la
-            carte n'emploie pas dans cette tranche. */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
-            <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim }}>Légende</span>
-            {irisBornes && (
-              <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>
-                {uniteIris(irisBornes.classe) || '%'} · échelle log
-              </span>
-            )}
-          </div>
-          {(() => {
-            const pal = IRIS_PALETTES.find(p => p.id === (irisPalette ?? 'bleu')) ?? IRIS_PALETTES[0];
-            if (irisBornes) {
-              const frontieres = bornesInternes(echelleDe(irisBornes), pal.stops.length)
-                .map(versValeurReelle);
-              const fmt = (v: number) =>
-                v >= 100000 ? `${Math.round(v / 1000)}k`
-                : v >= 1000 ? `${(v / 1000).toFixed(1)}k`
-                : v >= 10   ? Math.round(v).toString()
-                : v >= 1    ? v.toFixed(1)
-                : v.toFixed(2);
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  {pal.stops.map((color, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
-                      <span style={{ color: C.textDim, fontSize: 8, fontFamily: fMono }}>
-                        {i === 0 ? `≤ ${fmt(frontieres[0])}`
-                          : i === pal.stops.length - 1 ? `≥ ${fmt(frontieres[frontieres.length - 1])}`
-                          : `${fmt(frontieres[i - 1])} – ${fmt(frontieres[i])}`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              );
-            }
-            if (irisVisible && irisBornes === undefined) {
-              return <div style={{ color: C.textDim, fontSize: 11, fontFamily: fInter }}>Chargement...</div>;
-            }
-            if (irisVisible && irisBornes === null) {
-              // Pas de bornes = colonne absente OU entièrement vide en base.
-              // Quatre indicateurs du menu sont dans ce cas (mesuré 2026-09-12).
-              return <div style={{ color: C.amber, fontSize: 11, fontFamily: fInter }}>! Aucune donnée pour cet indicateur</div>;
-            }
-            return (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
-              </div>
-            );
-          })()}
-        </div>
+        {/* Légende — rendue par la légende unique de la carte (LegendeCarte,
+            Tâche 6), mêmes frontières que la peinture (bornesInternes) : ni
+            l'une ni l'autre ne doivent découper l'échelle différemment. */}
 
       </div>
       )}

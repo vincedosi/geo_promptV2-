@@ -88,3 +88,7 @@ docs/Adform/
 
 .next-verify/
 .env*
+
+# Documents fournis par le client/groupe, jamais versionnes (SEC — un .docx
+# interne AIDA a ete emporte par un 'git add' trop large le 2026-09-16).
+docs/**/*.docx

@@ -14,10 +14,28 @@
  */
 import { useEffect, useRef, useState } from 'react';
 
-/** Sections repliables du panneau, dans l'ordre d'apparition. */
-export const SECTION_KEYS = [
-  'perimetre', 'regions', 'departements', 'recherche', 'poi', 'ooh',
-  'transport', 'tmja', 'meteo', 'radio', 'civicHealth',
+/**
+ * Sections repliables du panneau, dans l'ordre d'apparition.
+ *
+ * Réordonné à la Tâche 6 (2026-09-12) pour suivre l'ordre des groupes du
+ * panneau Calques (`PanneauCalques.tsx`) : POI et mobilité (poi, transport,
+ * tmja) → Médias offline (ooh, radio) → Environnement (civic, civicHealth,
+ * meteo). `perimetre`/`regions`/`departements`/`recherche` restent en tête :
+ * ce sont les clés de `PanneauFiltre` (widget territorial), sans rapport
+ * avec les groupes Calques.
+ *
+ * Round de correction 1 (2026-09-12) : `'civic'` AJOUTÉE — bug pré-existant
+ * (la clé n'a jamais figuré ici, alors que `CivicIndicatorsSection` lit
+ * `sectionsOpen.civic`). Conséquence réelle avant ce correctif : `setAll`
+ * (« Tout replier »/« Tout déployer ») reconstruit l'état à partir de CETTE
+ * liste seule — sans `'civic'`, la section Indicateurs civiques retombait
+ * systématiquement sur `undefined` (donc ouverte) et « Tout replier » ne la
+ * refermait jamais.
+ */
+// Non exporte : aucun consommateur externe (verifie par `npm run catalogue`).
+const SECTION_KEYS = [
+  'perimetre', 'regions', 'departements', 'recherche',
+  'poi', 'transport', 'tmja', 'ooh', 'radio', 'civic', 'civicHealth', 'meteo',
 ] as const;
 
 /** Sections fermees au premier rendu (zone-specifiques). */

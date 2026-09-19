@@ -3,15 +3,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname } from 'next/navigation';
-import { X } from 'lucide-react';
+import { X, Info } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { partitionCampaigns } from '@/lib/campaigns/overlay-partition';
 import { CampaignCockpit } from '@/components/campaign/CampaignCockpit';
-import { CampaignSuivi } from '@/components/campaign/CampaignSuivi';
+import { SuiviV2 } from '@/components/campagne/suivi-v2/SuiviV2';
 import { CampaignOverview } from '@/components/campaign/CampaignOverview';
+import { ActivationPanel } from '@/components/campaign/ActivationPanel';
 import { CreationHall } from './CreationHall';
 import { useMagelianOverlay } from './MagelianOverlayContext';
 import type { MagelianTab } from './deep-link';
+import { useCampagneSession } from '@/lib/campagne/CampagneSessionContext';
+import { deriveCampagneActive } from '@/lib/campaigns/campagne-active';
+import { LARGEUR_RAIL, ECART_RAIL_PANNEAU } from '@/lib/navigation/config';
+import { empiler, depiler } from '@/lib/carte/pile-echap';
+
+/** Identifiant fixe dans la pile Echap : une seule instance de cet overlay
+ *  est montée (elle vit dans le layout), gardée ou fermée via `open`. */
+const PILE_ID = 'magelian-overlay';
 
 // ── Design tokens (DESIGN_SYSTEM.md — jamais de hex en dur) ─────────────────────
 const fInter = "'Inter', system-ui, sans-serif";
@@ -27,22 +36,33 @@ interface CampaignRef {
   name: string;
   dsp_source: string | null;
   total_tracked_ads: number | null;
+  /** Annonceur déclaré au wizard — porte `campagneActive` (Tâche 9). */
+  advertiser: string | null;
 }
 
 export function MagelianOverlay() {
-  const { open, request, closeOverlay, clearRequest } = useMagelianOverlay();
-  // Sur /map il n'y a pas de sidebar 240px mais le rail d'icônes 48px :
-  // l'overlay se cale à droite du rail (56) au lieu de la sidebar (256).
+  const {
+    open, request, closeOverlay, clearRequest, setCampagneActive, filtreActif, closeRequestId,
+  } = useMagelianOverlay();
+  // Sur /map il n'y a pas de sidebar 240px mais le rail de navigation
+  // (LARGEUR_RAIL) : l'overlay se cale à droite du rail (rail + écart) au
+  // lieu de la sidebar (256).
   const pathname = usePathname();
   const onMap = pathname?.startsWith('/map') ?? false;
-  const panelLeft = onMap ? 56 : 256;
-  const panelWidth = onMap ? 'calc(100vw - 68px)' : 'calc(100vw - 268px)';
+  const panelLeft = onMap ? LARGEUR_RAIL + ECART_RAIL_PANNEAU : 256;
+  const panelWidth = onMap ? `calc(100vw - ${LARGEUR_RAIL + ECART_RAIL_PANNEAU + 12}px)` : 'calc(100vw - 268px)';
   const [closing, setClosing] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
 
-  const [tab, setTab] = useState<MagelianTab>('suivi');
+  // L'onglet actif vit dans la session partagée carte/overlay (Tâche 2) : il
+  // survit à la bascule vers la carte au lieu de repartir sur Suivi à chaque
+  // réouverture. `setTab` reste le nom local pour ne pas toucher tous les
+  // appelants (clic sur un onglet, deep-link reçu overlay déjà ouvert).
+  const { session, majSession } = useCampagneSession();
+  const tab = session.onglet;
+  const setTab = useCallback((t: MagelianTab) => majSession({ onglet: t }), [majSession]);
   const [campaigns, setCampaigns] = useState<CampaignRef[] | null>(null);
   const [strategyIds, setStrategyIds] = useState<ReadonlySet<string>>(new Set());
   const [draftSavedAt, setDraftSavedAt] = useState<ReadonlyMap<string, string>>(new Map());
@@ -60,13 +80,39 @@ export function MagelianOverlay() {
   useEffect(() => { requestRef.current = request; }, [request]);
 
   const handleClose = useCallback(() => {
-    if (closing) return;
+    if (!open || closing) return;
     setClosing(true);
     closeTimerRef.current = setTimeout(() => {
       closeOverlay();
       setClosing(false);
     }, EXIT_DURATION_MS);
-  }, [closing, closeOverlay]);
+  }, [open, closing, closeOverlay]);
+
+  // Round de correction 2 (Tâche 8) : `handleClose` change d'identité
+  // exactement quand `closing` bascule à `true` — c'est-à-dire au moment
+  // même où l'on ferme. S'il était le callback empilé tel quel, React
+  // exécuterait le nettoyage de l'effet (`depiler`) avant de relancer le
+  // nouveau, verrait l'id ABSENT et le ré-empilerait au sommet en pleine
+  // fermeture. Cette ref + ce wrapper stable isolent la pile Echap de ce
+  // churn : seul `open` doit gouverner le cycle empiler/depiler.
+  const handleCloseRef = useRef(handleClose);
+  useEffect(() => { handleCloseRef.current = handleClose; }, [handleClose]);
+  const fermerPourPile = useCallback(() => handleCloseRef.current(), []);
+
+  // Round de correction 1 (Tâche 9, point 4) : `requestClose()` du contexte
+  // (bascule Alt+C, bouton « Campagne / Carte » de la top bar, bouton
+  // « Carte » de cet en-tête) passe par le MÊME `handleClose` animé
+  // qu'Échap et le bouton Fermer, au lieu de couper `open` sec via
+  // `closeOverlay()`. `lastCloseRequestIdRef` initialisé à la valeur
+  // courante : seule une INCRÉMENTATION déclenche la fermeture, jamais le
+  // montage initial.
+  const lastCloseRequestIdRef = useRef(closeRequestId);
+  useEffect(() => {
+    if (closeRequestId !== lastCloseRequestIdRef.current) {
+      lastCloseRequestIdRef.current = closeRequestId;
+      handleCloseRef.current();
+    }
+  }, [closeRequestId]);
 
   // Monté côté client uniquement (createPortal a besoin de document).
   useEffect(() => { setMounted(true); }, []);
@@ -75,13 +121,12 @@ export function MagelianOverlay() {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
   }, []);
 
-  // Reset l'onglet actif à chaque nouvelle ouverture (deep-link prioritaire) + horodate.
+  // Horodate l'ouverture (fenêtre de garde du click-outside, ligne ~312).
+  // L'onglet actif ne se réinitialise plus ici : il vit dans la session
+  // partagée (session.onglet, Tâche 2) et survit à la bascule carte/overlay
+  // au lieu de repartir sur Suivi à chaque réouverture.
   useEffect(() => {
-    if (open) {
-      setTab(request?.tab ?? 'suivi');
-      openedAtRef.current = Date.now();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (open) openedAtRef.current = Date.now();
   }, [open]);
 
   // Deep-link reçu overlay déjà ouvert : applique l'onglet demandé.
@@ -104,6 +149,7 @@ export function MagelianOverlay() {
         ? campData.map((c: CampaignRef) => ({
             id: c.id, name: c.name, dsp_source: c.dsp_source ?? null,
             total_tracked_ads: c.total_tracked_ads ?? null,
+            advertiser: c.advertiser ?? null,
           }))
         : [];
       setCampaigns(list);
@@ -140,13 +186,29 @@ export function MagelianOverlay() {
     })();
   }, [open, refreshLists]);
 
+  // Resynchronise `selectedId` sur `session.campaignId` — Ruling T15-4
+  // (relecture Tâche 15). `BarreContexteCampagne` (Tâche 15) est le seul
+  // écrivain de `session.campaignId` sur l'onglet Suivi ; `selectedId`
+  // alimente `deriveCampagneActive` donc `MapTopBar` (la « campagne active »
+  // affichée dans la top bar). Sans cet effet, changer de campagne depuis la
+  // barre laissait la top bar afficher l'ANCIENNE campagne — deux surfaces,
+  // deux réponses. Sens UNIQUE (session → selectedId, jamais l'inverse) :
+  // `SuiviV2` lit déjà `session.campaignId` directement, pas `selectedId` —
+  // faire les deux en parallèle rouvrirait la même incohérence dans l'autre
+  // sens. Ne s'applique qu'à l'onglet Suivi : Stratégie/Activation/Aperçu ne
+  // touchent pas `session.campaignId`.
+  useEffect(() => {
+    if (tab !== 'suivi' || !session.campaignId || session.campaignId === selectedId) return;
+    if (campaigns?.some((c) => c.id === session.campaignId)) setSelectedId(session.campaignId);
+  }, [tab, session.campaignId, selectedId, campaigns]);
+
   // Deep-link : dirige la campagne demandée vers le bon espace dès que la liste est là.
   useEffect(() => {
     if (!open || !request?.campaignId || campaigns === null) return;
     const found = campaigns.find((c) => c.id === request.campaignId);
     if (found) {
       const consultable = (found.total_tracked_ads ?? 0) > 0 || strategyIds.has(found.id);
-      if ((request.tab ?? tab) === 'creation') setCreationCampaignId(found.id);
+      if ((request.tab ?? tab) === 'strategie') setCreationCampaignId(found.id);
       else if (consultable) setSelectedId(found.id);
     }
     clearRequest();
@@ -179,6 +241,18 @@ export function MagelianOverlay() {
     () => partitionCampaigns(campaigns ?? [], strategyIds),
     [campaigns, strategyIds],
   );
+
+  // Contexte global "campagne active" (Tâche 9) : dérivée par la fonction
+  // PURE `deriveCampagneActive` (lib/campaigns/campagne-active.ts, testée
+  // isolément) de ce qui est actuellement en contexte dans l'overlay —
+  // consultée (Suivi/Aperçu) via `selectedId`, ou éditée (Stratégie) via
+  // `creationCampaignId` — pour la top bar et la carte flottante après
+  // retour à la carte. PERSISTE à la fermeture (cette instance ne démonte
+  // jamais, et ni `closeOverlay` ni `requestClose` ne dépendent de cet
+  // effet). Aucun fetch : dérivé des listes déjà chargées par `refreshLists`.
+  useEffect(() => {
+    setCampagneActive(deriveCampagneActive(tab, creationCampaignId, selectedId, campaigns));
+  }, [tab, selectedId, creationCampaignId, campaigns, setCampagneActive]);
 
   // Retire une campagne des listes ; répare la sélection de consultation.
   const removeCampaign = useCallback((id: string) => {
@@ -216,7 +290,7 @@ export function MagelianOverlay() {
       const d = await res.json().catch(() => ({}));
       if (!res.ok || !d.campaign) return;
       setCampaigns((prev) => [
-        { id: d.campaign.id, name: d.campaign.name, dsp_source: 'magelian', total_tracked_ads: 0 },
+        { id: d.campaign.id, name: d.campaign.name, dsp_source: 'magelian', total_tracked_ads: 0, advertiser: null },
         ...(prev ?? []),
       ]);
       setCreationCampaignId(d.campaign.id);
@@ -237,18 +311,19 @@ export function MagelianOverlay() {
     setCampaigns((prev) => prev ? prev.map((c) => (c.id === creationCampaignId ? { ...c, name } : c)) : prev);
   }, [creationCampaignId]);
 
-  // Esc ferme l'overlay
+  // Esc ferme l'overlay — via la pile Echap (lib/carte/pile-echap.ts) : le
+  // dernier ouvert se ferme en premier, plus de listener direct concurrent.
+  // `fermerPourPile` est stable (deps vides ci-dessus) : seul `open` doit
+  // gouverner ce cycle push/pop, jamais l'identité du callback — c'est
+  // exactement l'exception documentée et vérifiée par
+  // tests/unit/carte/pile-echap-usage.test.ts (cette instance persiste tout
+  // au long des cycles ouverture/fermeture, contrairement à OverlayPanel /
+  // AIOverlay / ClusterResultsOverlay qui montent et démontent).
   useEffect(() => {
     if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        handleClose();
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, handleClose]);
+    empiler(PILE_ID, fermerPourPile);
+    return () => depiler(PILE_ID);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Click-outside : ferme si le clic est hors du panel ET hors du bouton sidebar.
   useEffect(() => {
@@ -270,7 +345,13 @@ export function MagelianOverlay() {
     };
   }, [open, handleClose]);
 
-  if (!mounted || (!open && !closing)) return null;
+  // Le portail reste monté une fois `mounted` — `hidden` retire l'élément du
+  // flux ET de l'arbre d'accessibilité sans démonter les enfants (Tâche 2) :
+  // l'onglet Suivi (aujourd'hui `SuiviV2` — c'etait `CampaignSuivi` quand ce
+  // commentaire a ete ecrit, Tache 2) et sa session locale survivent a la
+  // bascule vers la carte au lieu d'etre detruits puis recrees.
+  if (!mounted) return null;
+  const masque = !open && !closing;
 
   const creationCampaign = creationCampaignId
     ? campaigns?.find((c) => c.id === creationCampaignId) ?? null
@@ -285,6 +366,9 @@ export function MagelianOverlay() {
       data-state={closing ? 'closing' : 'open'}
       role="dialog"
       aria-label="MAGELIAN"
+      hidden={masque}
+      aria-hidden={masque}
+      inert={masque}
       style={{
         position: 'fixed',
         top: 12,
@@ -300,7 +384,11 @@ export function MagelianOverlay() {
         // Au-dessus de la carte MapLibre (conteneur /map en z-index 9999)
         // et du rail comme de la sidebar. Overlay porté sur <body>.
         zIndex: 10000,
-        display: 'flex',
+        // L'attribut `hidden` seul ne suffirait pas : sa règle par défaut
+        // (`[hidden] { display: none }`) est d'origine UA, qu'un style en
+        // ligne — même `display: 'flex'` — passe toujours devant. Le masquage
+        // doit donc être explicite ici, pas seulement porté par l'attribut.
+        display: masque ? 'none' : 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
         willChange: 'transform, opacity',
@@ -371,6 +459,32 @@ export function MagelianOverlay() {
             Mode démo
           </label>
         )}
+        {/* Bascule vers la carte (Tâche 9, round de correction 1, point 3) :
+            le bouton `Campagne / Carte` de MapTopBar est recouvert par cet
+            overlay (z-index supérieur) tant qu'il est ouvert — ce contrôle
+            rend la bascule disponible DANS les deux états, sans toucher au
+            z-index. Même chemin animé que Échap/Fermer (`handleClose`). */}
+        <button
+          type="button"
+          onClick={handleClose}
+          title="Revenir à la carte (Alt+C)"
+          style={{
+            background: 'transparent',
+            border: '0.5px solid var(--border-default)',
+            borderRadius: 6,
+            padding: '5px 10px',
+            cursor: 'pointer',
+            fontFamily: fInter,
+            fontWeight: 500,
+            fontSize: 12,
+            color: 'var(--text-secondary)',
+            transition: 'color var(--duration-hover, 150ms) var(--ease-hover, ease), border-color var(--duration-hover, 150ms) var(--ease-hover, ease)',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border-default)'; }}
+        >
+          Carte
+        </button>
         <button
           type="button"
           onClick={handleClose}
@@ -392,7 +506,7 @@ export function MagelianOverlay() {
         </button>
       </div>
 
-      {/* Tab bar — Création (produire) séparée de Suivi/Aperçu (consulter) */}
+      {/* Tab bar — Stratégie (produire, ex-Programmer) séparée de Suivi/Aperçu (consulter) */}
       <div
         style={{
           display: 'flex',
@@ -403,8 +517,9 @@ export function MagelianOverlay() {
         }}
       >
         {([
-          ['creation', 'Programmer'],
-          ['suivi', 'Suivi campagne'],
+          ['strategie', 'Stratégie'],
+          ['activation', 'Activation'],
+          ['suivi', 'Suivi'],
           ['apercu', 'Aperçu'],
         ] as const).map(([key, label]) => (
           <button
@@ -429,9 +544,13 @@ export function MagelianOverlay() {
         ))}
       </div>
 
-      {/* Sélecteur de consultation — partagé par Suivi et Aperçu uniquement :
-          on choisit LA campagne à regarder. La création a son propre hall. */}
-      {tab !== 'creation' && (
+      {/* Sélecteur de consultation — partagé par Activation et Aperçu :
+          on choisit LA campagne à regarder. Stratégie a son propre hall.
+          Suivi a désormais le sien, dans `BarreContexteCampagne` (Tâche 15,
+          `SuiviV2`) — ce sélecteur-ci ne double plus l'écran de suivi, sans
+          quoi changer de campagne depuis SuiviV2 laisserait ce menu-ci
+          affiché sur l'ancienne valeur. */}
+      {tab !== 'strategie' && tab !== 'suivi' && (
         <div style={{ padding: '12px 16px 10px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <label
             htmlFor="magelian-campaign-select"
@@ -457,6 +576,10 @@ export function MagelianOverlay() {
           >
             {campaigns === null && <option value="">Chargement…</option>}
             {emptyConsultation && <option value="">Aucune campagne</option>}
+            {/* Sans campagne active (Tâche 9, étape 2) : campagnes disponibles mais aucune choisie. */}
+            {campaigns !== null && !emptyConsultation && !selectedId && (
+              <option value="">Choisir une campagne</option>
+            )}
             {consultables.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -473,7 +596,7 @@ export function MagelianOverlay() {
           minHeight: 0,
         }}
       >
-        {tab === 'creation' && (
+        {tab === 'strategie' && (
           creationCampaignId ? (
             <div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14 }}>
@@ -492,6 +615,26 @@ export function MagelianOverlay() {
                   {creationCampaign ? ` — ${creationCampaign.name}` : ''}
                 </span>
               </div>
+              {/* Note de périmètre (Tâche 9, étape 4 — spec §3, règle non
+                  négociable) : un filtre de carte ne restreint JAMAIS le
+                  périmètre d'une stratégie, qui couvre toute la campagne.
+                  `filtreActif` est un miroir de lib/carte/filtre.ts porté
+                  par le contexte MAGELIAN — aucun fetch. */}
+              {filtreActif && (
+                <div
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 8,
+                    background: 'var(--elevated)', border: '0.5px solid var(--border-default)',
+                    borderRadius: 6, padding: '10px 12px', marginBottom: 14,
+                  }}
+                >
+                  <Info size={14} strokeWidth={1.5} color="var(--brand-teal)" style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    Un filtre de carte est actif. Il ne s&apos;applique pas à cette stratégie : une stratégie
+                    couvre toute la campagne.
+                  </span>
+                </div>
+              )}
               <CampaignCockpit
                 key={creationCampaignId}
                 campaignId={creationCampaignId}
@@ -515,12 +658,32 @@ export function MagelianOverlay() {
           )
         )}
 
-        {tab === 'suivi' && (
+        {/* Tache 20 : l'onglet Activation, entre « je programme » et « je suis ».
+            Il enveloppe le push DSP qui existait NU — ni pre-vol, ni statut par
+            line item, ni historique, ni retour arriere. */}
+        {tab === 'activation' && (
           selectedId ? (
-            <CampaignSuivi key={selectedId} campaignId={selectedId} mapAvailable={onMap} onShowedMap={handleClose} />
+            <ActivationPanel key={selectedId} campaignId={selectedId} />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
-              Aucune campagne à consulter — crée ta première campagne dans l&apos;onglet Programmer.
+              Aucune campagne à activer — crée ta première campagne dans l&apos;onglet Stratégie.
+            </div>
+          ) : null
+        )}
+
+        {tab === 'suivi' && (
+          selectedId ? (
+            // PAS de `key={selectedId}` (contrairement à l'ancien
+            // `CampaignSuivi`) : `SuiviV2` réagit déjà à un changement de
+            // `session.campaignId` par ses propres effets (Tâche 15) — un
+            // remount effacerait exactement l'état qu'un changement de
+            // campagne depuis la barre est censé PRÉSERVER (vue, maille),
+            // contredisant `appliquerChangementCampagne`. Voir aussi l'effet
+            // de resynchronisation de `selectedId` ci-dessus (Ruling T15-4).
+            <SuiviV2 campaignId={selectedId} />
+          ) : campaigns !== null ? (
+            <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
+              Aucune campagne à consulter — crée ta première campagne dans l&apos;onglet Stratégie.
             </div>
           ) : null
         )}
@@ -530,7 +693,7 @@ export function MagelianOverlay() {
             <CampaignOverview key={selectedId} campaignId={selectedId} onDeleted={handleCampaignDeleted} />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
-              Aucune campagne à consulter — crée ta première campagne dans l&apos;onglet Programmer.
+              Aucune campagne à consulter — crée ta première campagne dans l&apos;onglet Stratégie.
             </div>
           ) : null
         )}

@@ -113,6 +113,14 @@ et le fichier devient un pur assembleur.
 | `use-poi-styles` | style des pins par catégorie |
 | `use-isochrone-battle` | isochrones, cache ORS, bataille V1/V2 |
 
+> **Note du 2026-09-13.** `use-panel-resize`, `use-admin-scope-layer` et
+> `use-territory-mask` — trois hooks du tableau ci-dessus, exacts à leur date — ont été
+> **supprimés** ce jour-là par le catalogue du code (tâche 23, `npm run catalogue` /
+> knip) : `FilterPanel.tsx` a été retiré par le chantier de navigation à 5 thèmes sans
+> que ces trois imports soient migrés vers les nouveaux panneaux, ce qui les a laissés
+> orphelins. Le tableau reste tel qu'il était écrit le 2026-09-08 — c'est un journal
+> daté, pas une doc de référence à tenir à jour.
+
 **Nettoyage au passage** : 20 imports et constantes morts laissés par la
 première passe. Ils survivaient parce que `next/core-web-vitals` n'active pas
 `no-unused-vars` — le lint était vert malgré eux. À garder en tête : **un lint

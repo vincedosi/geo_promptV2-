@@ -31,43 +31,217 @@ Style inspiré de Linear, Vercel, Raycast. Monochrome par défaut, couleur avec 
 
 ## 3. Tokens de couleur
 
-### Surfaces (du plus sombre au plus clair)
-| Token | Hex | Usage |
-|-------|-----|-------|
-| --background | #050505 | Fond de page principal |
-| --card | #0a0a0a | Panels, sidebar, cards |
-| --elevated | #111111 | Éléments surélevés, bandeaux de section, hover |
-| --overlay | #181818 | Overlays, muted backgrounds |
+> **Ce tableau décrit `app/globals.css`, il ne le précède pas.** Tout jeton
+> listé ici est défini dans `:root` ET dans `html.light`, et
+> `tests/unit/design/jetons-css.test.ts` fait échouer la suite si l'un des deux
+> dérive — dans les deux sens : un `var(--x)` employé par le code sans jeton en
+> face, ou un jeton documenté ici sans définition en CSS.
+>
+> Ce test existe parce que le second sens a menti deux fois. Jusqu'au
+> 2026-09-16, ce document présentait `--elevated` et `--overlay` comme des
+> jetons du système alors que le CSS ne les a **jamais** portés : neuf
+> `background: var(--elevated)` écrits de bonne foi rendaient un fond
+> **transparent**, sans erreur console, sans rien de rouge. Un `var()` inconnu
+> n'échoue pas — la déclaration est simplement ignorée.
+
+### ⚠ Deux familles de jetons, à ne pas confondre
+
+`app/globals.css` porte **deux** jeux de variables, et ils ne s'emploient pas
+de la même façon :
+
+| Famille | Exemples | Valeur en CSS | Emploi |
+|---|---|---|---|
+| Jetons MAGELIAN (ce document) | `--surface`, `--text-primary`, `--brand-teal` | une **couleur** (`#0a0a0a`, `rgba(…)`) | `background: var(--surface)` |
+| Jetons shadcn/ui | `--background`, `--card`, `--popover`, `--muted`, `--border`, `--ring` | un **triplet HSL sans fonction** (`0 0% 4%`) | `hsl(var(--card))`, ou via les classes Tailwind `bg-card` / `text-foreground` |
+
+**`background: var(--card)` ne produit pas un fond sombre, il ne produit
+rien** : `0 0% 4%` n'est pas une couleur valide. Six occurrences de ce défaut
+ont été corrigées le 2026-09-16. Pour une surface, le jeton MAGELIAN
+`--surface` porte exactement le rôle que ce document appelait `--card` ; le nom
+était déjà pris par shadcn, d'où le doublon.
+
+### Surfaces (du plus sombre au plus clair, en thème sombre)
+Quatre paliers numérotés, plus trois alias **nommés par le rôle**. Les deux
+écritures désignent la même couleur : préférer l'alias de rôle dans du code
+neuf, il dit ce que l'élément EST.
+
+| Token | Hex (dark) | Hex (light) | Usage |
+|-------|-----------|-------------|-------|
+| --bg-level-0 (alias --bg-primary) | #050505 | #ffffff | Fond de page principal |
+| --bg-level-1 (alias **--surface**, --bg-surface) | #0a0a0a | #f5f5f5 | Panels, sidebar, cards |
+| --bg-level-2 (alias **--elevated**) | #111111 | #eeeeee | Éléments surélevés, bandeaux de section |
+| --bg-level-3 (alias **--overlay**, --bg-hover) | #181818 | #e2e2e2 | Fond de badge, hover, muted |
+| --card-overlay | rgba(10,10,10,0.92) | rgba(248,248,248,0.90) | Panneau **flottant sur la carte** (légendes, cartes de contexte) — translucide à dessein |
 
 ### Borders
-| Token | Hex | Usage |
-|-------|-----|-------|
-| --border-subtle | #1a1a1a | Séparateurs par défaut, borders de cards |
-| --border-default | #262626 | Inputs, boutons outline |
-| --border-hover | #333333 | Hover state, focus ring |
+| Token | Hex (dark) | Hex (light) | Usage |
+|-------|-----------|-------------|-------|
+| --border-subtle | #1a1a1a | #e5e5e5 | Séparateurs par défaut, borders de cards |
+| --border-default | #262626 | #d0d0d0 | Inputs, boutons outline |
+| --border-hover | #333333 | #b8b8b8 | Hover state, focus ring |
 
 ### Texte
-| Token | Hex | Usage |
-|-------|-----|-------|
-| --text-primary | #f0f0f0 | Titres, texte principal, labels actifs |
-| --text-secondary | #a0a0a0 | Corps de texte, labels inactifs |
-| --text-tertiary | #666666 | Hints, placeholders, métadonnées |
+| Token | Hex (dark) | Hex (light) | Usage |
+|-------|-----------|-------------|-------|
+| --text-primary | #f0f0f0 | #1a1a1a | Titres, texte principal, labels actifs |
+| --text-secondary | #b0b0b0 | #555555 | Corps de texte, labels inactifs |
+| --text-tertiary | #8a8a8a | #8a8a8a | Hints, placeholders, métadonnées |
+
+> Les valeurs de `--text-secondary` et `--text-tertiary` ont été **éclaircies**
+> en thème sombre (de `#a0a0a0` / `#666666` aux valeurs ci-dessus) pour le
+> contraste. Ce document annonçait encore les anciennes le 2026-09-16 : un
+> composant qui aurait retapé `#666666` en dur aurait donc été *moins* lisible
+> que le reste de l'interface tout en se croyant conforme.
 
 ### Accent de marque
-| Token | Hex | Usage |
-|-------|-----|-------|
-| --brand-teal | #4ecdc4 | Accent MAGELIAN : tabs actifs, boutons send, dots de section, liens, focus |
-| --brand-teal-hover | #3dbdb5 | Hover du teal |
-| --brand-teal-30 | rgba(78,205,196,0.3) | Borders hover subtiles, badges |
-| --brand-teal-50 | rgba(78,205,196,0.5) | Focus ring des inputs |
+| Token | Hex (dark) | Hex (light) | Usage |
+|-------|-----------|-------------|-------|
+| --brand-teal | #4ecdc4 | #4ecdc4 | Accent MAGELIAN : tabs actifs, boutons send, dots de section, liens, focus |
+| --brand-teal-hover | #3dbdb5 | #3dbdb5 | Hover du teal |
+| --brand-teal-10 | rgba(78,205,196,0.1) | rgba(78,205,196,0.1) | Fond d'un élément teal (tag, pastille) |
+| --brand-teal-30 | rgba(78,205,196,0.3) | rgba(78,205,196,0.3) | Borders hover subtiles, badges |
+| --brand-teal-50 | rgba(78,205,196,0.5) | rgba(78,205,196,0.5) | Focus ring des inputs |
+| --brand-teal-fg | #050505 | #050505 | Texte/icône POSÉ SUR un aplat teal — **invariant**, comme le teal lui-même |
+
+Le teal ne bascule pas avec le thème : c'est l'accent de marque, pas une
+surface. `--brand-teal-fg` est invariant pour la même raison — le dériver de
+`--bg-level-0` le ferait passer au blanc sur un aplat teal clair, illisible.
 
 ### Statut (seules couleurs sémantiques autorisées)
-| Token | Hex | Usage |
-|-------|-----|-------|
-| --success | #3dffa0 | Statut système OK, dot "Online" |
-| --danger | #ff5757 | Erreurs, alertes destructives |
-| --warning | #f7b731 | Avertissements, billing |
-| --info | #5b9bd5 | Liens informatifs (usage rare) |
+| Token | Hex (dark) | Hex (light) | Usage |
+|-------|-----------|-------------|-------|
+| --success | #3dffa0 | #0fa958 | Statut système OK, dot "Online" |
+| --danger | #ff5757 | #d4202f | Erreurs, alertes destructives |
+| --warning | #f7b731 | #c08400 | Avertissements, billing |
+| --info | #5b9bd5 | #3a78c0 | Liens informatifs (usage rare) |
+
+Les quatre sont **assombris** en thème clair : le vert fluo et le rouge vif du
+thème sombre sont illisibles sur blanc.
+
+### Donnée absente, et les deux jetons de carte
+| Token | Hex (dark) | Hex (light) | Usage |
+|-------|-----------|-------------|-------|
+| --donnee-absente | #9aa0a6 | #9aa0a6 | Gris NEUTRE d'une valeur absente — jamais une teinte de l'échelle en cours, qui ferait lire « faible » là où il n'y a rien |
+| --contour-carte | rgba(255,255,255,0.16) | rgba(0,0,0,0.22) | Contour des polygones MapLibre — **inversé** entre thèmes |
+| --halo-carte | rgba(0,0,0,0.75) | rgba(255,255,255,0.85) | Halo des étiquettes MapLibre — inversé lui aussi |
+
+### Échelle divergente (écart au plan média)
+Seule échelle divergente du projet — toutes les autres sont séquentielles. Encode
+l'écart en % entre la pression livrée et la pression planifiée d'une campagne :
+sous-pression d'un côté, conformité au centre, sur-pression de l'autre. Valeurs
+dans `app/globals.css` (`:root` et `html.light`) et dupliquées en hex littéraux
+dans `lib/campagne/palette-divergente.ts` (`RAMPE_MAPLIBRE`) — MapLibre ne résout
+pas `var()` dans `paint`, d'où les deux copies, verrouillées ensemble par
+`tests/unit/campagne/palette-divergente.test.ts`.
+
+Les bornes sont `BORNES_DIVERGENTES = [-50, -25, -10, 10, 25, 50]`, six bornes
+donc **sept** tranches, et `trancheDivergente()` en est la seule marche.
+L'intervalle porté par chaque jeton est écrit ci-dessous **tel que la fonction
+le calcule** — jusqu'au 2026-09-16 ce tableau annonçait « forte » à ±25 %, soit
+la frontière de `sous-2`/`sur-2`, la bande *intermédiaire* : un code postal à
++30 % était décrit « sur-pression forte » par ce document et peint
+« sur-pression » par la carte.
+
+| Token | Hex (dark) | Hex (light) | Écart au plan | Usage |
+|-------|-----------|-------------|---------------|-------|
+| --diverge-sous-3 | #c2410c | #9a2f08 | < −50 % | Sous-pression forte — « moins de la moitié » |
+| --diverge-sous-2 | #ea7c4a | #cc5f27 | −50 % à −25 % | Sous-pression |
+| --diverge-sous-1 | #f0b48c | #e8a878 | −25 % à −10 % | Légèrement sous |
+| --diverge-neutre | #4a4a4a | #c6d2cf | −10 % à +10 % | Conforme au plan |
+| --diverge-sur-1 | #8fb8d8 | #7ba7cc | +10 % à +25 % | Légèrement au-dessus |
+| --diverge-sur-2 | #4a86b8 | #2f6fa3 | +25 % à +50 % | Sur-pression |
+| --diverge-sur-3 | #1f5c8f | #14496f | ≥ +50 % | Sur-pression forte — « plus de 50 % au-dessus » |
+
+Chaque borne appartient à la tranche du HAUT (`ecart >= borne` fait monter
+d'un cran) : −50 % exactement est donc `sous-2`, pas `sous-3`. Les libellés de
+la colonne Usage sont ceux de `LIBELLES_TRANCHES`, dans le même ordre.
+
+**Le sens doit aussi se lire par la POSITION sur la barre, jamais la teinte
+seule** — sinon illisible pour un daltonien. Bornes symétriques autour de zéro
+(`BORNES_DIVERGENTES`) : la sur-pression ne doit jamais paraître moins grave
+que la sous-pression équivalente.
+
+### Échelle séquentielle (intensité — vignettes carte du Suivi V2)
+Toute échelle qui n'est PAS l'écart au plan (ci-dessus) est séquentielle : une
+seule direction, du plus faible au plus fort, sans signe. Encode une intensité
+croissante — nombre d'impressions livrées, valeur d'un indicateur INSEE — sur
+les vignettes « Impressions » et « Variable du plan » du cockpit de suivi.
+Même patron de duplication que l'échelle divergente et pour la même raison
+(MapLibre ne résout pas `var()` dans `paint`) : valeurs dans `app/globals.css`
+(`:root` et `html.light`) et dupliquées en hex littéraux dans
+`lib/campagne/palette-sequentielle.ts` (`RAMPE_SEQUENTIELLE`), les deux copies
+verrouillées ensemble par
+`tests/unit/campagne/palette-sequentielle-css.test.ts`.
+
+| Token | Hex (dark) | Hex (light) | Usage |
+|-------|-----------|-------------|-------|
+| --seq-1 | #132625 | #eaf7f5 | Intensité la plus faible |
+| --seq-2 | #1b3d3a | #c3ebe6 | Faible |
+| --seq-3 | #2a6b62 | #8ed6cc | Médiane |
+| --seq-4 | #3a9e91 | #4fb3a6 | Forte |
+| --seq-5 | #4ecdc4 | #1f8a7c | Intensité la plus forte (= --brand-teal en dark) |
+
+Une seule rampe sert les deux vignettes séquentielles — ce n'est pas la couleur
+qui distingue « Impressions » de « Variable du plan » (les deux sont des
+intensités croissantes, sans signe), mais le domaine de données et la légende
+de chaque vignette. Dérivée de l'accent de marque (`--brand-teal`), du plus
+sombre/neutre (valeur faible) au teal plein (valeur forte), cohérente avec la
+RÈGLE D'OR ci-dessus (« la couleur n'apparaît que pour le statut ou
+l'interaction », ici l'intensité de la donnée). Choix visuel neuf (Tâche 13A,
+2026-09-15) — à valider par un designer au même titre que toute palette de
+données, pas encore éprouvé en usage.
+
+### Échelle qualitative (natures de risque — courbes du rayon d'influence)
+
+Ni divergente ni séquentielle : **qualitative**. Les natures de risque ne
+s'ordonnent pas — il n'y a ni plus ni moins entre « Explosibles » et
+« Déchets » — donc il faut des teintes distinctes, pas les paliers d'une rampe.
+Huit courbes au plus, une par nature présente.
+
+| Token | Hex (dark) | Hex (light) |
+|-------|-----------|-------------|
+| --nature-1 | #e07a3f | #b85c22 |
+| --nature-2 | #3d8bb5 | #2a6d92 |
+| --nature-3 | #4aa06b | #2f7d4d |
+| --nature-4 | #c2554e | #9e3b35 |
+| --nature-5 | #6d8fa8 | #4d6d85 |
+| --nature-6 | #b58b34 | #8c6a1c |
+| --nature-7 | #4f7d7a | #35605d |
+| --nature-8 | #a06c8c | #7e4e6c |
+
+Alternance chaud/froid et non un dégradé rouge-vert : c'est ce qui les garde
+distinguables en niveaux de gris ET pour un daltonisme deutan. Assombries en
+thème clair, comme les quatre `--risque-*` et les quatre couleurs de statut.
+
+**La courbe TOTALE ne prend aucune de ces huit** : elle porte `--brand-teal`, et
+elle seule — c'est ce qui la distingue au premier coup d'œil d'une nature parmi
+d'autres. Elle n'est d'ailleurs pas la somme des autres (un carreau proche de
+deux natures compte dans les deux), et l'écran le dit.
+
+> **Pas de duplication en TypeScript ici**, contrairement aux échelles
+> divergente et séquentielle : celles-là alimentent MapLibre, qui ne résout pas
+> `var()` dans `paint`. Ces courbes-ci sont servies par Recharts, **qui le
+> résout**. Une seule définition suffit donc, dans `app/globals.css`.
+>
+> Ces huit teintes étaient écrites EN DUR dans `OngletRayonInfluence.tsx`
+> jusqu'au 2026-09-19, sans variante de thème clair et hors de tout test — dans
+> un fichier qui prouvait pourtant trois lignes plus bas que `var()` y marche.
+
+### Contour du point de site à risque
+
+| Token | Valeur (dark) | Valeur (light) | Usage |
+|-------|---------------|----------------|-------|
+| `CONTOUR_POINT` (`lib/carte/palette-risques.ts`) | rgba(255,255,255,0.9) | rgba(26,26,26,0.85) | Cerne du point ICPE sur la carte |
+
+**Inversé** entre thèmes, comme `--contour-carte` et `--halo-carte`. Il valait
+`rgba(255,255,255,0.9)` en dur : sur fond clair, un cerne blanc ne détoure plus
+rien et le point perd ce qui le rend lisible au-dessus d'une zone colorée.
+
+Opacité 0,9 et non 0,16 comme `--contour-carte` : celui-ci sépare deux
+polygones voisins, celui-là détache un point de ce qu'il recouvre. Deux besoins
+différents, pas deux réglages du même.
+
+⚠ Valeurs littérales et non `var()` : c'est MapLibre qui les consomme.
 
 ### RÈGLE D'OR
 Pas de violet (#a855f7) nulle part. Pas de vert fluo (#3dffa0) sauf indicateur de statut système. Pas d'orange sur les boutons.

@@ -6,7 +6,11 @@
  * DB pour les actions auto-appliquées (bid changes, alerts, retrain, etc.).
  */
 import { createAdminClient } from '@/lib/auth';
+import { fetchAvecDelai } from '@/lib/http/fetch-avec-delai';
 import type { AutonomyLevel, ProposedAction } from './types';
+
+/** L'entraînement passe par Modal (lib/bidding-ml) : quelques dizaines de secondes. Au-delà de 2 min, le worker rend la main. */
+const DELAI_ENTRAINEMENT_MS = 120_000;
 
 /**
  * Charge le niveau d'autonomie effectif pour un user / strategy donné.
@@ -144,11 +148,11 @@ export async function applyAction(
         if (!ctx.strategy_id) return null;
         const url = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
         try {
-          await fetch(`${url}/api/bidding/train`, {
+          await fetchAvecDelai(`${url}/api/bidding/train`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ strategy_id: ctx.strategy_id }),
-          });
+          }, DELAI_ENTRAINEMENT_MS);
         } catch (e) {
           console.warn('[agent.applyAction] retrain fire-and-forget failed', e);
         }
