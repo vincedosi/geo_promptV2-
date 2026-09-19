@@ -28,6 +28,31 @@ Les deux blocages annoncés plus bas ont été levés :
   versionné. L'audit le classait 🔴 bloquant sur la foi de ce fichier — une
   référence dans le dépôt n'est pas une ressource qui existe.
 
+### Sauvegarde prise avant la suppression (2026-09-19)
+
+`C:/GENESIS/_sauvegarde_locale/local-2026-09-19.sql` — **1,24 Go**, dump du
+schéma `public` ET `auth` de la base locale.
+
+Elle existe parce que depuis la restauration radio, **le volume Docker était
+devenu la seule copie** des 569 698 liaisons : le dump de prod du 17/09 ne les
+contient pas, et une fois le projet hébergé supprimé elles sont
+irrécupérables.
+
+Vérifié dans le fichier : **569 698** liaisons radio · **1 100** comptages
+routiers mesurés · **5** comptes `auth.users`.
+
+Deux tables en sont exclues **à dessein**, parce qu'un script les reconstruit :
+`carreaux_filosofi` (2 324 577 lignes, `scripts/local/07-carreaux-insee.sh`) et
+`couverture_rayon_risque` (115 962 lignes,
+`scripts/construire_couverture_rayon.mjs`). Les inclure aurait fait 4 Go pour
+de la donnée régénérable.
+
+⚠ **Elle est sur le MÊME poste que la base.** Une sauvegarde qui partage le
+disque de ce qu'elle protège ne protège que d'une erreur logicielle, pas d'une
+panne matérielle. La copier ailleurs reste à faire.
+
+---
+
 **Reste à faire, hors de cette session** : supprimer le projet hébergé et
 révoquer la clé `service_role`, qui est dans l'historique git.
 
