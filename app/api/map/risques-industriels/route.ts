@@ -47,7 +47,7 @@ const GRAVITES = [
 ] as const;
 
 const ParamsSchema = z.object({
-  /** [ouest, sud, est, nord]. Absente = France entière : réservé aux Seveso. */
+  /** [ouest, sud, est, nord]. Absente = France entière, et alors SEVESO SEULS (appliqué dans le handler). */
   bbox: z.string().optional(),
   /** Niveaux réglementaires retenus. Défaut : les deux niveaux Seveso. */
   gravites: z.string().optional(),
@@ -116,12 +116,43 @@ export async function GET(request: NextRequest) {
     .map((n) => n.trim())
     .filter(Boolean);
 
+  /*
+   * ── SANS BBOX, ON NE SERT QUE LES SEVESO ─────────────────────────────────
+   *
+   * Le commentaire du schéma annonçait cette règle depuis l'origine ; RIEN ne
+   * l'appliquait (constat R-02 de `docs/AUDIT_ZONE_RISQUE.md`). `bbox` est
+   * facultative, les six gravités étaient acceptées, et la RPC fait
+   * `p_bbox is null or …` sans restriction.
+   *
+   * Concrètement, `?gravites=autre&limite=5000&rayon_m=20000` sans bbox
+   * déclenchait un balayage national de 41 690 sites et 5 000 `ST_Buffer` de
+   * 20 km sérialisés en GeoJSON — la règle d'I/O du projet contournée par un
+   * paramètre que le code acceptait et que son propre commentaire interdisait.
+   *
+   * On refuse plutôt que de rogner en silence : un appelant qui demande la
+   * France entière sur `autre` a besoin de savoir qu'il ne l'aura pas, sinon il
+   * lira une carte incomplète pour une carte complète.
+   */
+  const bbox = bboxValide(p.bbox);
+  const SEVESO: readonly string[] = ['seveso_haut', 'seveso_bas'];
+  if (!bbox && gravites.some((g) => !SEVESO.includes(g))) {
+    return NextResponse.json(
+      {
+        error:
+          'Sans emprise géographique, seuls les sites Seveso peuvent être servis : '
+          + 'les autres régimes représentent près de 100 000 installations. '
+          + 'Ajoutez une bbox, ou limitez la demande à seveso_haut et seveso_bas.',
+      },
+      { status: 400 },
+    );
+  }
+
   const supabase = createAdminClient();
   const { data, error } = await supabase.rpc('risques_industriels_carte', {
     // `nullableArg` : le generateur declare ces arguments non-nullables, mais
     // le SQL accepte NULL (bbox absente = France entiere, natures absentes =
     // toutes). Helper documente du projet, plutot qu'un cast a l'aveugle.
-    p_bbox: nullableArg(bboxValide(p.bbox)),
+    p_bbox: nullableArg(bbox),
     p_gravites: gravites,
     p_natures: nullableArg(natures.length > 0 ? natures : null),
     p_inclure_inactifs: p.inclure_inactifs === '1',

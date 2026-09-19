@@ -35,8 +35,32 @@ import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { rpcJson } from '@/lib/supabase/rpc-json';
+import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * 30 par minute, compteur PARTAGÉ en base (`consommer_quota`, sql/135).
+ *
+ * Il manquait, et c'était le constat R-01 de `docs/AUDIT_ZONE_RISQUE.md` : les
+ * trois routes sœurs (`agregats` 20, `export` 6, `rayon` 30) en ont une, pas
+ * celle-ci — alors que c'est la seule des quatre qui CALCULE **et** ÉCRIT.
+ *
+ * Ce que ça empêche concrètement : `siteId` est énumérable sur 99 152 sites, et
+ * chaque appel non caché déclenche ~300 ms d'intersection sur
+ * `carreaux_filosofi` (2,3 M lignes). Une boucle sur les identifiants réalisait
+ * exactement le « pré-calcul de masse » que l'en-tête de ce fichier déclare
+ * refuser — l'intention était écrite, rien ne l'appliquait.
+ *
+ * 30 et non 6 : un média planner qui parcourt une zone industrielle clique
+ * légitimement une dizaine de sites d'affilée. Le plafond vise la boucle, pas
+ * l'usage.
+ */
+const limiteur = createRateLimiter({
+  max: 30,
+  window: '60 s',
+  prefix: 'geo:rl:exposition-site',
+});
 
 const ParamsSchema = z.object({
   /** Force le recalcul même si le cache porte déjà une réponse. */
@@ -80,6 +104,11 @@ export async function GET(
 ) {
   const profile = await requireAuth(request);
   if (!profile) return authUnauthorized();
+
+  // Le quota est consommé AVANT toute lecture : un appel refusé ne doit rien
+  // coûter à la base, sans quoi le garde-fou paierait le prix qu'il évite.
+  const quota = await limiteur(profile.id);
+  if (!quota.ok) return rateLimitResponse(quota.retrySec);
 
   const { siteId } = await params;
   if (!z.string().uuid().safeParse(siteId).success) {
