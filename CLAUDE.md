@@ -274,12 +274,28 @@ Tout import/traitement batch DOIT avoir : barre de progression UI (%, lignes tra
 ## Commandes
 
 ```bash
-npm run dev          # Dev (localhost:3000)
-npm run build        # Build prod
-npx tsc --noEmit     # Type-check
-npm test             # Vitest
-npm run lint         # ESLint
+npm run dev              # Dev (localhost:3000)
+npm run build            # Build prod
+npx tsc --noEmit         # Type-check
+npm test                 # Vitest — unitaires PUIS integration, en deux passes
+npm run test:unit        # Unitaires seuls (rapide, aucune base)
+npm run test:integration # Integration seule (tape la base locale)
+npm run lint             # ESLint
 ```
+
+### Tests — deux passes, et ce n'est pas un detail
+
+`npm test` lance `--project unit` PUIS `--project integration`, jamais les deux
+ensemble (`vitest.workspace.ts`, `package.json`). Les tests d'integration tapent
+la base locale ; les laisser partager les 4 vCPU de la VM avec 150 fichiers
+unitaires privait PostgREST de CPU, et Kong rendait « An invalid response was
+received from the upstream server ».
+
+Le symptome mentait deux fois : un test DIFFERENT echouait a chaque execution,
+et le message ne nommait ni la concurrence ni la memoire. Mesure du
+2026-09-19 : le fichier d'invariants de couverture passe **3 fois sur 3** lance
+seul, et echouait **2 fois sur 3** dans la suite complete. Ne pas remettre les
+deux projets en parallele pour gagner 10 secondes.
 
 ## Compaction
 

@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "vitest run",
+    "test": "vitest run --project unit && vitest run --project integration",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
     "test:watch": "vitest",
     "test:db": "supabase test db",
     "catalogue": "node scripts/catalogue.mjs"

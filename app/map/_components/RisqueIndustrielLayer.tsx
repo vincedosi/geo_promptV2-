@@ -189,6 +189,31 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  /**
+   * Les gestionnaires de clic ne sont posés qu'UNE fois par montage.
+   *
+   * Ils l'étaient auparavant dans la branche de CRÉATION de la couche, sous
+   * `if (!m2.getLayer(ID_POINT))`. Or `nettoyer()` supprime la couche quand
+   * `actif` repasse à `false`, sans jamais faire `off()` : au ré-affichage la
+   * branche était de nouveau vraie et un écouteur de plus s'ajoutait. Après N
+   * décochages/recochages, **un clic déclenchait N appels** à
+   * `/api/risques/[siteId]/exposition`.
+   *
+   * `PprtLayer` résolvait déjà exactement ce cas avec ce même drapeau, et le
+   * documentait — la correction n'existait que d'un côté (constat R-03 de
+   * `docs/AUDIT_ZONE_RISQUE.md`).
+   */
+  const clicPoseRef = useRef(false);
+  /** Les références gardées pour pouvoir retirer les écouteurs au démontage. */
+  const ecouteursRef = useRef<Array<[string, (e: never) => void]>>([]);
+  /**
+   * `onCompte` passe par une ref : capturé en closure, il restait figé à la
+   * valeur du dernier passage de l'effet, dont les dépendances sont
+   * `eslint-disable`d. Même patron que `onEtatRef` dans `PprtLayer` (R-04).
+   */
+  const onCompteRef = useRef(onCompte);
+  onCompteRef.current = onCompte;
+
   // Nettoyage : les couches partent dans l'ordre inverse de leur ajout.
   const nettoyer = () => {
     const map = mapRef.current;
@@ -360,9 +385,17 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
             'circle-stroke-color': 'rgba(255,255,255,0.9)',
           },
         });
+      }
 
-        // ── Popup : TOUT ce dont on dispose sur le site ──────────────────
-        m2.on('click', ID_POINT, (e) => {
+      // ── Popup : TOUT ce dont on dispose sur le site ────────────────────
+      //
+      // HORS de la branche de création de couche, et gardé par `clicPoseRef` :
+      // voir le commentaire de ce drapeau plus haut. Une seule pose par
+      // montage, quel que soit le nombre de cycles décocher/recocher.
+      if (!clicPoseRef.current) {
+        clicPoseRef.current = true;
+
+        const surClic = (e: maplibregl.MapLayerMouseEvent) => {
           const f = e.features?.[0];
           if (!f) return;
           const p = f.properties as Record<string, unknown>;
@@ -458,10 +491,22 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
             .addTo(m2);
 
           void remplirExposition(String(p.id ?? ''), idExpo);
-        });
+        };
 
-        m2.on('mouseenter', ID_POINT, () => { m2.getCanvas().style.cursor = 'pointer'; });
-        m2.on('mouseleave', ID_POINT, () => { m2.getCanvas().style.cursor = ''; });
+        const surEntree = () => { m2.getCanvas().style.cursor = 'pointer'; };
+        const surSortie = () => { m2.getCanvas().style.cursor = ''; };
+
+        m2.on('click', ID_POINT, surClic);
+        m2.on('mouseenter', ID_POINT, surEntree);
+        m2.on('mouseleave', ID_POINT, surSortie);
+
+        // Gardés pour pouvoir les retirer au démontage : `removeLayer` ne
+        // retire PAS les écouteurs délégués, c'est toute l'origine du défaut.
+        ecouteursRef.current = [
+          ['click', surClic],
+          ['mouseenter', surEntree],
+          ['mouseleave', surSortie],
+        ];
       }
 
       // Visibilité pilotée par les réglages, sans recréer les couches.
@@ -477,7 +522,7 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
         if (m2.getLayer(id)) m2.setPaintProperty(id, prop, couleur as never);
       }
 
-      onCompte?.(
+      onCompteRef.current?.(
         charge.n_rendus ?? points.features.length,
         charge.n_total ?? 0,
         charge.n_avec_pprt ?? 0,
@@ -494,6 +539,17 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
       annule = true;
       abortRef.current?.abort();
       map.off('moveend', surDeplacement);
+
+      // `nettoyer()` manquait ici — sources et couches MapLibre survivaient au
+      // démontage, alors que `PprtLayer` le faisait déjà (R-04). Les écouteurs
+      // délégués partent avec, sans quoi ils resteraient armés sur une couche
+      // qui n'existe plus.
+      for (const [type, fn] of ecouteursRef.current) {
+        map.off(type as 'click', ID_POINT, fn as never);
+      }
+      ecouteursRef.current = [];
+      clicPoseRef.current = false;
+      nettoyer();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
