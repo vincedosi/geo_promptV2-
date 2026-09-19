@@ -26,6 +26,7 @@ import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { rpcJson, nullableArg } from '@/lib/supabase/rpc-json';
+import { bboxValide } from '@/lib/api/parametres-requete';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,14 +48,6 @@ interface Collection {
   n_rendus: number;
   tolerance_deg: number;
   error?: string;
-}
-
-function bboxValide(brut: string): number[] | null {
-  const parts = brut.split(',').map(Number);
-  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return null;
-  const [o, s, e, n] = parts;
-  if (o >= e || s >= n) return null;
-  return [o, s, e, n];
 }
 
 export async function GET(request: NextRequest) {

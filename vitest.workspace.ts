@@ -22,15 +22,13 @@ import path from 'path';
  * dernier venant de Kong, pas de Postgres. Rien dans le message ne désignait la
  * concurrence, et chaque échec ressemblait à une régression du test concerné.
  *
- * DEUX correctifs, et le second est celui qui compte :
- *  1. `fileParallelism: false` sérialise les fichiers d'intégration entre eux ;
- *  2. `npm test` lance les deux projets en DEUX PASSES SUCCESSIVES
- *     (`package.json`), et non en parallèle. Sérialiser l'intégration ne
- *     servait à rien tant que 150 fichiers unitaires tournaient en même temps
- *     sur les 4 vCPU de la VM : PostgREST, privé de CPU, ne répondait plus et
- *     Kong rendait « An invalid response was received from the upstream
- *     server ». Mesuré : le fichier d'invariants passe 3/3 lancé seul, et
- *     échouait 2 fois sur 3 dans la suite complète.
+ * LE correctif : `npm test` lance les deux projets en DEUX PASSES
+ * SUCCESSIVES (`package.json`), et non en parallèle. Sérialiser les seuls
+ * fichiers d'intégration ne servait à rien tant que 150 fichiers unitaires
+ * tournaient en même temps sur les 4 vCPU de la VM : PostgREST, privé de CPU,
+ * ne répondait plus et Kong rendait « An invalid response was received from
+ * the upstream server ». Mesuré : le fichier d'invariants passe 3/3 lancé
+ * seul, et échouait 2 fois sur 3 dans la suite complète.
  *
  * Le coût est nul — l'intégration prend 10 s — et le gain est une suite qui dit
  * la vérité.
@@ -58,9 +56,14 @@ export default defineWorkspace([
       environment: 'node',
       globals: true,
       include: ['tests/integration/**/*.test.ts'],
-      // Un seul fichier à la fois : ils partagent la base.
-      fileParallelism: false,
-      // Et un seul test à la fois DANS un fichier, pour la même raison.
+      // Un seul test à la fois dans un fichier : ils partagent la base.
+      //
+      // ⚠ `fileParallelism: false` a été essayé ici et RETIRÉ : l'option
+      // n'existe pas dans une configuration de PROJET, seulement à la racine.
+      // Elle était donc silencieusement ignorée — `tsc` l'a signalée, pas
+      // Vitest. Un réglage qui ne s'applique pas est pire que son absence : il
+      // fait croire à une protection. La sérialisation réelle vient des deux
+      // passes de `npm test`.
       sequence: { concurrent: false },
       // Les calculs d'exposition dépassent le défaut de 5 s par construction :
       // prouver qu'une colonne est vide sur 2,3 M lignes demande de les lire

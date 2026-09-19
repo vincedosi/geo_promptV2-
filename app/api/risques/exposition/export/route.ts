@@ -29,6 +29,7 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { rpcJson, nullableArg } from '@/lib/supabase/rpc-json';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
+import { liste } from '@/lib/api/parametres-requete';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,12 +59,6 @@ const ParamsSchema = z.object({
   libelle_cible: z.string().max(120).optional(),
   libelle_perim: z.string().max(120).optional(),
 });
-
-function liste(brut: string | undefined): string[] | null {
-  if (!brut) return null;
-  const v = brut.split(',').map((s) => s.trim()).filter(Boolean);
-  return v.length > 0 ? v : null;
-}
 
 interface Ligne {
   cle: string; nom: string; exposee: number; n_sites: number; n_indicatifs: number;

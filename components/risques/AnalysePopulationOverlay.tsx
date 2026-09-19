@@ -31,7 +31,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, Download, Loader2 } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
-import { formaterNombre } from '@/lib/format/nombre';
+import { formaterNombre, formaterDecimal } from '@/lib/format/nombre';
 import { empiler, depiler } from '@/lib/carte/pile-echap';
 import { librellesDuType } from '@/lib/carte/palette-risques';
 import type { TypeRisque } from '@/lib/carte/palette-risques';
@@ -39,6 +39,8 @@ import { FAMILLES_ICPE_SEED, NATURE_NON_PRECISEE } from '@/lib/import/georisques
 import { CarteMiniFrance, type ZoneGeo } from './CarteMiniFrance';
 import { CARREAUX_PALETTES } from '@/lib/carreaux/catalogue';
 import { OngletRayonInfluence } from './OngletRayonInfluence';
+import { fInter, fMono } from '@/lib/design/polices';
+import { Kpi } from '@/components/risques/Kpi';
 
 type Dimension = 'region' | 'departement' | 'code_postal' | 'commune';
 
@@ -191,8 +193,6 @@ interface Props {
   typesRisque: string[];
 }
 
-const fInter = 'Inter, system-ui, sans-serif';
-const fMono = "'JetBrains Mono', monospace";
 
 export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Props) {
   /**
@@ -497,61 +497,6 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
    * homonyme, les nomenclatures INSEE de region et de departement se
    * recouvrant sur 18 codes (sql/171).
    */
-  /**
-   * Export Excel.
-   *
-   * Il appelle une ROUTE plutôt que de fabriquer le classeur ici : le tableau
-   * affiché est tronqué (100 ou 200 lignes), or un tableur sert justement à
-   * regarder au-delà. La route redemande donc le calcul complet — avec les
-   * MÊMES paramètres, pour que le fichier ne puisse pas diverger de l'écran.
-   *
-   * Le classeur porte un onglet « Méthode et limites » : un tableur quitte
-   * l'application, et tout ce que l'interface explique disparaît au moment de
-   * l'export. Sans lui, le premier lecteur qui somme la colonne « sites »
-   * obtient un total faux sans aucun moyen de le savoir.
-   */
-  const exporter = async () => {
-    if (exportEnCours || !agregat) return;
-    setExportEnCours(true);
-    try {
-      const p = new URLSearchParams({ dimension, cible });
-      if (niveaux.length > 0) p.set('gravites', niveaux.join(','));
-      if (natures.length > 0) p.set('natures', natures.join(','));
-      if (modes.length > 0 && modes.length < MODES_ZONE.length) p.set('modes', modes.join(','));
-      if (rayon !== null) p.set('rayon_m', String(rayon));
-      if (forcerRayon) p.set('forcer_rayon', '1');
-      if (perim) {
-        p.set('perim_niveau', perim.niveau);
-        p.set('perim_codes', perim.code);
-      }
-      p.set('libelle_cible', libelleCible);
-      p.set('libelle_perim', chemin.length > 0 ? chemin[chemin.length - 1].nom : 'France entière');
-
-      const r = await adminFetch(`/api/risques/exposition/export?${p}`);
-      if (!r.ok) {
-        const j = await r.json().catch(() => null);
-        setErreur(j?.error ?? 'Export indisponible.');
-        return;
-      }
-      // Le nom du fichier vient du serveur : il porte la maille et la date, et
-      // le recomposer ici ferait deux vérités à tenir d'accord.
-      const cd = r.headers.get('Content-Disposition') ?? '';
-      const nom = /filename="([^"]+)"/.exec(cd)?.[1] ?? 'population-risque.xlsx';
-      const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = nom;
-      a.click();
-      // Sans cette libération, chaque export garde son blob en mémoire jusqu'au
-      // rechargement de la page — et un classeur de 7 000 lignes n'est pas léger.
-      URL.revokeObjectURL(url);
-    } catch {
-      setErreur('Export indisponible.');
-    } finally {
-      setExportEnCours(false);
-    }
-  };
 
   const descendre = (code: string, nom: string) => {
     if (!descendable) return;
@@ -597,6 +542,88 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
   }, [typesRisque]);
 
   /**
+   * Ce qui est DEMANDÉ : dimension, cible, filtres, périmètre, rayon.
+   *
+   * Une seule fabrique pour l'écran ET pour l'export. Les deux construisaient
+   * les mêmes douze lignes chacun de leur côté (constat R-08 de
+   * `docs/AUDIT_ZONE_RISQUE.md`), à l'ordre des clés près. Un filtre ajouté
+   * d'un seul côté aurait fait diverger le tableur de l'écran — précisément ce
+   * que l'en-tête de `export/route.ts` déclare vouloir empêcher.
+   *
+   * Ce qui reste propre à chaque appelant est ajouté APRÈS : les libellés
+   * lisibles pour l'export, le plafond de lignes pour l'écran. Ni l'un ni
+   * l'autre ne change le périmètre interrogé.
+   */
+  // Remontee ici : `exporter` la capture, et elle etait declaree 120 lignes
+  // plus bas. Correct a l'execution — l'export n'est appele qu'apres le
+  // rendu — mais c'est un couplage temporel implicite (constat R-26).
+  const libelleCible = cibles.find((c) => c.code === cible)?.libelle ?? 'Population totale';
+
+  const parametresDemande = useCallback(() => {
+    const p = new URLSearchParams({ dimension, cible });
+    if (niveaux.length > 0) p.set('gravites', niveaux.join(','));
+    if (natures.length > 0) p.set('natures', natures.join(','));
+    if (modes.length > 0 && modes.length < MODES_ZONE.length) p.set('modes', modes.join(','));
+    if (perim) {
+      p.set('perim_niveau', perim.niveau);
+      p.set('perim_codes', perim.code);
+    }
+    if (rayon !== null) p.set('rayon_m', String(rayon));
+    if (forcerRayon) p.set('forcer_rayon', '1');
+    return p;
+  }, [dimension, cible, niveaux, natures, modes, perim, rayon, forcerRayon]);
+
+  /**
+   * Export Excel.
+   *
+   * Il appelle une ROUTE plutôt que de fabriquer le classeur ici : le tableau
+   * affiché est tronqué (100 ou 200 lignes), or un tableur sert justement à
+   * regarder au-delà. La route redemande donc le calcul complet — avec les
+   * MÊMES paramètres, pour que le fichier ne puisse pas diverger de l'écran.
+   *
+   * Le classeur porte un onglet « Méthode et limites » : un tableur quitte
+   * l'application, et tout ce que l'interface explique disparaît au moment de
+   * l'export. Sans lui, le premier lecteur qui somme la colonne « sites »
+   * obtient un total faux sans aucun moyen de le savoir.
+   */
+  const exporter = async () => {
+    if (exportEnCours || !agregat) return;
+    setExportEnCours(true);
+    try {
+      const p = parametresDemande();
+      // L'export porte en plus les libellés lisibles, pour l'en-tête du
+      // classeur : ils ne changent PAS ce qui est demandé, seulement ce qui
+      // est écrit dessus.
+      p.set('libelle_cible', libelleCible);
+      p.set('libelle_perim', chemin.length > 0 ? chemin[chemin.length - 1].nom : 'France entière');
+
+      const r = await adminFetch(`/api/risques/exposition/export?${p}`);
+      if (!r.ok) {
+        const j = await r.json().catch(() => null);
+        setErreur(j?.error ?? 'Export indisponible.');
+        return;
+      }
+      // Le nom du fichier vient du serveur : il porte la maille et la date, et
+      // le recomposer ici ferait deux vérités à tenir d'accord.
+      const cd = r.headers.get('Content-Disposition') ?? '';
+      const nom = /filename="([^"]+)"/.exec(cd)?.[1] ?? 'population-risque.xlsx';
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nom;
+      a.click();
+      // Sans cette libération, chaque export garde son blob en mémoire jusqu'au
+      // rechargement de la page — et un classeur de 7 000 lignes n'est pas léger.
+      URL.revokeObjectURL(url);
+    } catch {
+      setErreur('Export indisponible.');
+    } finally {
+      setExportEnCours(false);
+    }
+  };
+
+  /**
    * Le détail par code postal sur la France entière dépasse le temps de calcul
    * (mesuré en production : délai dépassé, alors que la même dimension sur une
    * région répond). On le dit AVANT de lancer plutôt que de laisser tourner un
@@ -622,16 +649,7 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
     setChargement(true);
     setErreur(null);
     try {
-      const p = new URLSearchParams({ dimension, cible });
-      if (niveaux.length > 0) p.set('gravites', niveaux.join(','));
-      if (natures.length > 0) p.set('natures', natures.join(','));
-      if (modes.length > 0 && modes.length < MODES_ZONE.length) p.set('modes', modes.join(','));
-      if (perim) {
-        p.set('perim_niveau', perim.niveau);
-        p.set('perim_codes', perim.code);
-      }
-      if (rayon !== null) p.set('rayon_m', String(rayon));
-      if (forcerRayon) p.set('forcer_rayon', '1');
+      const p = parametresDemande();
       if (dimension === 'code_postal') p.set('limite', '500');
       // 100 communes : c'est le classement demande, et au-dela la liste cesse
       // d'etre lisible. Le TOTAL, lui, compte toujours toutes les unites.
@@ -646,7 +664,11 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
     } finally {
       setChargement(false);
     }
-  }, [dimension, cible, niveaux, natures, modes, perim, rayon, forcerRayon, tropLarge]);
+  // `parametresDemande` remplace les huit dependances qu'elle porte deja :
+  // les lister en double ferait deux verites a tenir d'accord, et c'est
+  // exactement la divergence qu'on vient de supprimer. `tropLarge` reste, il
+  // n'entre pas dans la demande — il decide seulement si on l'emet.
+  }, [parametresDemande, dimension, tropLarge]);
 
   useEffect(() => {
     void calculer();
@@ -694,7 +716,6 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
     [encodageEffectif],
   );
 
-  const libelleCible = cibles.find((c) => c.code === cible)?.libelle ?? 'Population totale';
 
   // Les cibles groupées par famille, pour un menu lisible.
   const familles = [...new Set(cibles.map((c) => c.famille))];
@@ -930,7 +951,7 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
               style={{ width: 110, accentColor: 'var(--brand-teal)' }}
             />
             <span style={{ fontFamily: fMono, fontSize: 11, color: 'var(--text-primary)', minWidth: 52 }}>
-              {((rayonSaisi ?? rayonCourant) / 1000).toFixed(1).replace('.', ',')} km
+              {formaterDecimal((rayonSaisi ?? rayonCourant) / 1000)} km
             </span>
 
             <label
@@ -1368,24 +1389,6 @@ function Pastille({
   );
 }
 
-function Kpi({
-  valeur, libelle, note, accent,
-}: { valeur: string; libelle: string; note: string; accent?: boolean }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      <span
-        style={{
-          fontFamily: fMono, fontSize: 24, lineHeight: 1.1,
-          color: accent ? 'var(--brand-teal)' : 'var(--text-primary)',
-        }}
-      >
-        {valeur}
-      </span>
-      <span style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-secondary)' }}>{libelle}</span>
-      <span style={{ fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)' }}>{note}</span>
-    </div>
-  );
-}
 
 /**
  * Fil d'Ariane. Chaque segment franchi est cliquable pour y revenir ; le

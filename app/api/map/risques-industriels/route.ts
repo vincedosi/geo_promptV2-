@@ -34,6 +34,7 @@ import { rpcJson, nullableArg } from '@/lib/supabase/rpc-json';
 import { typeRisqueDepuisLibelle } from '@/lib/carte/palette-risques';
 import type { TypeRisque } from '@/lib/carte/palette-risques';
 import { FAMILLES_ICPE_SEED } from '@/lib/import/georisques/familles';
+import { bboxValide } from '@/lib/api/parametres-requete';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,15 +80,6 @@ interface Collection {
   n_avec_pprt: number;
   /** Tolérance du rattachement site ↔ PPRT, en mètres. */
   tolerance_rattachement_m: number;
-}
-
-function bboxValide(brut: string | undefined): number[] | null {
-  if (!brut) return null;
-  const parts = brut.split(',').map(Number);
-  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return null;
-  const [o, s, e, n] = parts;
-  if (o >= e || s >= n) return null;
-  return [o, s, e, n];
 }
 
 export async function GET(request: NextRequest) {

@@ -29,10 +29,10 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { adminFetch } from '@/lib/admin-fetch';
-import { formaterNombre, formaterNombreAbrege } from '@/lib/format/nombre';
+import { formaterNombre, formaterNombreAbrege, formaterDecimal } from '@/lib/format/nombre';
+import { fInter, fMono } from '@/lib/design/polices';
+import { Kpi } from '@/components/risques/Kpi';
 
-const fInter = 'Inter, system-ui, sans-serif';
-const fMono = "'JetBrains Mono', monospace";
 
 /** La courbe « toutes natures confondues », distinguée par cette clé côté base. */
 const TOUTES = '*';
@@ -236,24 +236,24 @@ export function OngletRayonInfluence({
         display: 'flex', alignItems: 'flex-end', gap: 34,
         padding: '16px 20px 12px',
       }}>
-        <Kpi
+        <Kpi taille={22}
           valeur={formaterNombre(popAuRayon)}
-          libelle={`à moins de ${(rayon / 1000).toFixed(1).replace('.', ',')} km`}
+          libelle={`à moins de ${formaterDecimal(rayon / 1000)} km`}
           note={`${libelleCible.toLowerCase()} · ${nomPerim}`}
           accent
         />
-        <Kpi
-          valeur={`${part.toFixed(1).replace('.', ',')} %`}
+        <Kpi taille={22}
+          valeur={`${formaterDecimal(part)} %`}
           libelle="du total à 10 km"
           note={`${formaterNombre(totalToutes)} au maximum`}
         />
-        <Kpi
+        <Kpi taille={22}
           valeur={formaterNombre(data.n_sites)}
           libelle="sites concernés"
           note={`${data.n_departements} département${data.n_departements > 1 ? 's' : ''}`}
         />
         {auRayon && (
-          <Kpi
+          <Kpi taille={22}
             valeur={formaterNombre(auRayon.increment ?? 0)}
             libelle="au palier suivant"
             note="habitants gagnés par 100 m de plus"
@@ -274,7 +274,7 @@ export function OngletRayonInfluence({
           style={{ flex: 1, accentColor: 'var(--brand-teal)' }}
         />
         <span style={{ fontFamily: fMono, fontSize: 12, color: 'var(--text-primary)', minWidth: 66 }}>
-          {(rayon / 1000).toFixed(1).replace('.', ',')} km
+          {formaterDecimal(rayon / 1000)} km
         </span>
         {/* Le déplacement ne déclenche AUCUN appel : la série entière est déjà
             en mémoire. C'est la promesse de cet onglet, autant la tenir visible. */}
@@ -312,7 +312,7 @@ export function OngletRayonInfluence({
               /* Types laissés à l'inférence de Recharts : ses signatures de
                  formateurs sont des unions larges que l'annotation manuelle
                  n'assigne pas. Même choix que `GraphiqueEcart` du Suivi V2. */
-              labelFormatter={(v) => `à moins de ${(Number(v) / 1000).toFixed(1).replace('.', ',')} km`}
+              labelFormatter={(v) => `à moins de ${formaterDecimal(Number(v) / 1000)} km`}
               formatter={(v, nom) => [
                 formaterNombre(Number(v)),
                 nom === TOUTES ? 'Toutes natures' : String(nom),
@@ -394,22 +394,6 @@ export function OngletRayonInfluence({
   );
 }
 
-function Kpi({ valeur, libelle, note, accent }: {
-  valeur: string; libelle: string; note: string; accent?: boolean;
-}) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      <span style={{
-        fontFamily: fMono, fontSize: 22, lineHeight: 1.1,
-        color: accent ? 'var(--brand-teal)' : 'var(--text-primary)',
-      }}>
-        {valeur}
-      </span>
-      <span style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-secondary)' }}>{libelle}</span>
-      <span style={{ fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)' }}>{note}</span>
-    </div>
-  );
-}
 
 /** Squelette de chargement — la forme de l'écran, pas un tourniquet. */
 function Squelette() {

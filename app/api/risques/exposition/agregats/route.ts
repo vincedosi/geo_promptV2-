@@ -36,7 +36,8 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { rpcJson, nullableArg } from '@/lib/supabase/rpc-json';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
-import { formaterNombre } from '@/lib/format/nombre';
+import { formaterNombre, formaterDecimal } from '@/lib/format/nombre';
+import { liste } from '@/lib/api/parametres-requete';
 
 export const dynamic = 'force-dynamic';
 
@@ -128,13 +129,6 @@ const MESSAGES: Record<string, string> = {
     "Cette cible n'est pas calculable. Seuls les effectifs le sont — un taux ne se prorate pas par la surface.",
 };
 
-/** 'a,b , c' → ['a','b','c'] ; chaîne vide ou absente → null (= pas de filtre). */
-function liste(brut: string | undefined): string[] | null {
-  if (!brut) return null;
-  const v = brut.split(',').map((s) => s.trim()).filter(Boolean);
-  return v.length > 0 ? v : null;
-}
-
 export async function GET(request: NextRequest) {
   const profile = await requireAuth(request);
   if (!profile) return authUnauthorized();
@@ -222,7 +216,7 @@ export async function GET(request: NextRequest) {
       const r = resultat as unknown as {
         n_sites?: number; km2?: number; max_km2?: number; rayon_max_m?: number;
       };
-      const km = ((r.rayon_max_m ?? 0) / 1000).toFixed(1).replace('.', ',');
+      const km = formaterDecimal((r.rayon_max_m ?? 0) / 1000);
       return NextResponse.json(
         {
           error:

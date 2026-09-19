@@ -22,5 +22,7 @@ export const C = {
   redBorder: 'rgba(255,87,87,0.25)',
   muted:     'var(--text-tertiary)',
 };
-export const fInter    = "'Inter', system-ui, sans-serif";
-export const fMono     = "'JetBrains Mono','Fira Mono',monospace";
+// Ré-exportés depuis `lib/design/polices.ts`, seule définition du dépôt.
+// Les valeurs étaient recopiées dans une dizaine de composants et avaient
+// divergé — le repli `Fira Mono` manquait dans trois d'entre eux (R-24).
+export { fInter, fMono } from '@/lib/design/polices';

@@ -34,6 +34,7 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { rpcJson, nullableArg } from '@/lib/supabase/rpc-json';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
+import { liste } from '@/lib/api/parametres-requete';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,13 +62,6 @@ const MESSAGES: Record<string, string> = {
   cible_inconnue:
     "Cette cible n'est pas calculable. Seuls les effectifs le sont — un taux ne se prorate pas par la surface.",
 };
-
-/** 'a,b , c' → ['a','b','c'] ; chaîne vide ou absente → null (= pas de filtre). */
-function liste(brut: string | undefined): string[] | null {
-  if (!brut) return null;
-  const v = brut.split(',').map((s) => s.trim()).filter(Boolean);
-  return v.length > 0 ? v : null;
-}
 
 interface Point { r: number; p: number; i: number }
 interface Courbe { cle: string; total: number; carreaux: number; points: Point[] }

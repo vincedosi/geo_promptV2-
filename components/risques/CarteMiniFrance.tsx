@@ -52,6 +52,7 @@
 import React, { useMemo, useState } from 'react';
 import { formaterNombre } from '@/lib/format/nombre';
 import { seuilsNaturels, classeDe } from '@/lib/carte/seuils-naturels';
+import { fInter, fMono } from '@/lib/design/polices';
 
 /**
  * Une géométrie GeoJSON telle que `get_zone_polygons` la rend.
@@ -107,8 +108,6 @@ const N_CLASSES = 5;
 /** Côté d'un cartouche d'outre-mer, en unités du viewBox. */
 const COTE_OM = 30;
 
-const fInter = 'Inter, system-ui, sans-serif';
-const fMono = "'JetBrains Mono', monospace";
 
 /**
  * Mercator sphérique — même projection que la carte principale.

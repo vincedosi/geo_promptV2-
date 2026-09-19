@@ -92,3 +92,35 @@ export function formaterNombreAbregeSansMilliard(valeur: unknown): string {
   if (v >= 1e3) return (v / 1e3).toFixed(1) + 'k';
   return v.toLocaleString('fr-FR');
 }
+
+/**
+ * Formate un nombre avec un nombre fixe de décimales, en notation française.
+ *
+ * Existe parce que `toFixed(1).replace('.', ',')` s'était reformé **six fois**
+ * dans le périmètre « zone à risque » — dont une côté serveur (constat R-19 de
+ * `docs/AUDIT_ZONE_RISQUE.md`). C'est la septième variante de la règle DUP-001,
+ * celle qui avait déjà donné quinze `fmtNum` locaux avant le 2026-09-11.
+ *
+ * `toLocaleString` et non un `replace` : il gère aussi le séparateur de
+ * milliers, qu'un `replace` sur le point décimal laissait en notation anglaise
+ * dès qu'on dépassait mille.
+ *
+ * @param valeur - La valeur à formater.
+ * @param decimales - Le nombre de décimales, toujours affichées. Défaut : 1.
+ * @returns La valeur formatée, ou le marqueur d'absence si elle n'est pas finie.
+ *
+ * @example
+ * formaterDecimal(2.5)        // '2,5'
+ * formaterDecimal(1234.56, 2) // '1 234,56'
+ * formaterDecimal(null)       // '—'
+ */
+export function formaterDecimal(
+  valeur: number | null | undefined,
+  decimales = 1,
+): string {
+  if (valeur == null || !Number.isFinite(valeur)) return ABSENT;
+  return valeur.toLocaleString('fr-FR', {
+    minimumFractionDigits: decimales,
+    maximumFractionDigits: decimales,
+  });
+}
