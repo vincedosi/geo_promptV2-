@@ -149,7 +149,7 @@
 | Framework web | Next.js (App Router) | 15.5.25 |
 | Runtime UI | React | ^19.0 |
 | Langage | TypeScript (strict) | ^5.3 |
-| Base de donnees | Supabase (PostgreSQL **17.6.1.063** + PostGIS) — les docs annoncaient 15 jusqu'au 2026-09-13, soit deux versions majeures d'ecart. Compute **Micro** et non Nano (shared_buffers 256 Mo, effective_cache_size 768 Mo, soit ~1 Go de RAM) | ^2.97 |
+| Base de donnees | Supabase (PostgreSQL **17.6** + **PostGIS 3.3.7**) — les docs annoncaient 15 jusqu'au 2026-09-13, soit deux versions majeures d'ecart. **L'environnement de reference est le stack LOCAL depuis le 2026-09-19** (conteneurs Docker, § « Environnement de developpement local ») ; le projet heberge portait un compute **Micro** et non Nano (shared_buffers 256 Mo, effective_cache_size 768 Mo, soit ~1 Go de RAM), et ses contraintes d'I/O restent la regle de codage. Neuf extensions actives, mesurees le 2026-09-19 : `postgis`, `http` 1.6, `pg_net`, `pg_trgm`, `pgcrypto`, `unaccent`, `uuid-ossp`, `pg_stat_statements`, `supabase_vault`. Acces applicatif par `@supabase/supabase-js` + `@supabase/ssr` (^0.5.2) | ^2.97 |
 | Cartographie | MapLibre GL JS | ^5.18 |
 | Tuiles vectorielles | MVT servies par PostGIS (`ST_AsMVT`) — **pour TOUT**, carreaux compris. Le paquet `pmtiles` (4.4.0) reste declare dans `package.json` mais **plus rien ne l'importe** : `npm run catalogue` le liste en dependance jamais importee, le protocole n'est plus enregistre (`app/copilote/_hooks/useMapInit.ts:136`) et aucune couche PMTiles ne subsiste. Ce document annoncait « PMTiles conserve pour les carreaux uniquement » jusqu'au 2026-09-16 : c'etait faux, les carreaux passent par `/api/tiles/[z]/[x]/[y]` (documente comme tel plus bas). Le desinstaller est un geste sans risque, laisse a une passe de nettoyage | — |
 | LLM / Copilote | Vercel AI SDK + Gemini 2.5 Flash / Mistral Small | ai ^6.0 |
@@ -158,19 +158,26 @@
 | Risques industriels | **Georisques** (ministere de la Transition ecologique) — `api/v1/installations_classees`, **sans jeton**. 138 423 installations classees. Aussi `api/v1/gaspar/pprt` : **415 procedures PPRT**, sans geometrie | — |
 | Perimetres PPRT (polygones) | **Geoplateforme IGN** — WFS `wfs_sup:assiette_sup_s`, filtre `suptype='pm3'` (servitude d'utilite publique PM3 = PPRT), alimente par le Geoportail de l'Urbanisme. **664 polygones**, GeoJSON, `CQL_FILTER` honore, `numberMatched` exact. Voir « Perimetres PPRT » plus bas pour la comparaison mesuree avec le WFS Georisques, qui ne convient PAS | — |
 | Meteo | Open-Meteo API (temperature, precipitation, ensoleillement) | — |
-| Inference ML bidding | **Modal** (serverless Python, HTTPS) — `-predict` / `-train` / `-detect-drift` | — |
-| Jobs asynchrones | Inngest (serverless queue) | ^3.52 |
-| Rate limiting | Upstash Redis | ^2.0 |
+| Inference ML bidding | **Modal** (serverless Python, HTTPS) — `-predict` / `-train` / `-detect-drift`. **Le seul composant qui ne tourne pas dans Next.js**, et le seul code Python deploye. Bibliotheques : `river` (apprentissage EN LIGNE, incremental — c'est ce qui permet de reprendre un modele sans tout rejouer), `scikit-learn`, `numpy`, `pandas`, client `supabase` | — |
+| Scripts Python hors ligne | 38 fichiers dans `scripts/` et `modal/` (imports INSEE/OSM/GTFS/TMJA, clustering POI x Filosofi, rescoring) : `supabase`, `requests`, `pandas`, `numpy`, `scikit-learn`, `pyproj`, `matplotlib`, `dotenv`. **Aucun runtime Python sur Vercel** — d'ou le 503 explicite de `/api/poi-clusters/run` quand le script est absent | — |
+| Jobs asynchrones | Inngest (serverless queue) — ⚠ **plus d'ordonnanceur depuis la coupure du 2026-09-19** : Inngest appelle `/api/inngest` sur l'URL publique de l'application, et il n'y a plus de deploiement. Le cron `civic-daily-ingest` ne tourne donc plus (§ 2.1 de `docs/PLAN_REPRISE.md`) | ^3.54 |
+| Rate limiting | Upstash Redis — **declare mais NON configure** : `lib/api/rate-limit.ts` l'importe, aucune variable `UPSTASH_*` n'est posee, et le limiteur retombe sur le compteur **en base** (`consommer_quota`, sql/135). C'est ce compteur partage qui protege reellement le budget d'I/O — une `Map` en memoire de processus ne limite RIEN sur Vercel | ^2.0 |
 | PDF export | @react-pdf/renderer — **plus installe** : retire en dommage collateral de la suppression du clustering (commit 7192c68), son seul consommateur. A reinstaller le jour ou le rapport PDF est restaure (docs/PLAN_CLUSTERING.md) | — |
-| Lecture tableurs | exceljs (.xlsx/.xlsm) + lecteur .ods maison (jszip) | ^4.4 |
-| Graphiques | Recharts | ^3.8 |
+| Lecture tableurs | exceljs (.xlsx/.xlsm, et l'export du tableau d'exposition) + lecteur .ods maison (jszip ^3.10) | ^4.4 |
+| Lecture CSV | papaparse — six consommateurs : parser DSP, parser d'import universel, geocodeur, parser ANFR, depot CSV IRIS, construction des geotargets Google | ^5.4 |
+| Reprojection | proj4 — deux consommateurs seulement (lecteur de shapefile a l'import des carreaux, geocodeur). Toute reprojection en base passe par PostGIS, jamais par lui | ^2.11 |
+| Graphiques | Recharts — sept consommateurs. ⚠ Contrairement a MapLibre, **il resout `var()`** : une palette servie a Recharts n'a pas a etre dupliquee en hex litteraux (voir `DESIGN_SYSTEM.md` § echelle qualitative) | ^3.8 |
 | Dessin sur carte | **terra-draw** + `terra-draw-maplibre-gl-adapter` — seul moteur qui pilote MapLibre 5 nativement (`mapbox-gl-draw` exige un adaptateur non maintenu). Bundlee, jamais chargee d'un CDN : la CSP de `next.config.js` n'a RIEN a ouvrir, `script-src 'self'` suffit (verifie, pas suppose). Chargee en `dynamic(ssr:false)` a l'ouverture de l'outil seulement — elle ne pese pas dans le paquet initial de `/map` | ^1.33 / ^1.4 |
-| Styles | Tailwind CSS + Design System MAGELIAN (dark minimal) | ^3.4 |
+| Styles | Tailwind CSS + Design System MAGELIAN (dark minimal) — `DESIGN_SYSTEM.md` est la source de verite du frontend | ^3.4 |
+| Composants UI | **shadcn/ui** sur **Radix** (`react-dialog`, `react-separator`, `react-slot`, `react-tabs` — quatre primitives, pas la suite entiere) + `class-variance-authority`, `clsx`, `tailwind-merge`, `tailwindcss-animate`. Icones : **lucide-react** | ^1.1 / ^1.7 |
 | Fonts | Inter (UI) + JetBrains Mono (donnees/code) | — |
 | Validation | Zod | ^3.22 |
-| Tests | Vitest | ^2.0 |
+| Authentification DSP | `google-auth-library` — flux OAuth et compte de service DV360 | ^10.7 |
+| Client SQL direct | `postgres` (postgres.js) — **un seul appelant**, `/api/admin/health`. Tout le reste passe par PostgREST via supabase-js. `pg` et `@types/pg` restent en devDependency | ^3.4 |
+| Tests | Vitest — deux projets lances en SEQUENCE (`unit` puis `integration`), jamais en parallele : voir `CLAUDE.md` § Tests | ^2.0 |
 | Catalogue du code | knip (exports/fichiers morts, dependances inutilisees — `npm run catalogue`) | ^6.35 |
-| CI/CD | Vercel (deploiement automatique sur push `main`) | — |
+| Outillage | ESLint 8 + `eslint-config-next` · `tsx` (scripts TS) · `dotenv` · CLI Supabase (^2.78 declaree, **2.109 installee** sur ce poste) | — |
+| CI/CD | Vercel — ⚠ **plus aucun deploiement actif depuis le 2026-09-19.** Cette ligne annoncait « deploiement automatique sur push `main` » jusqu'a cette date, ce qui se lit comme une garantie qu'un push met en ligne : il ne met plus rien en ligne. Le projet Vercel `geo-prompt-v2` existe encore ; remonter un deploiement est une decision, pas un acquis | — |
 
 ---
 
