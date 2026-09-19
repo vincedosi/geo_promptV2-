@@ -16,27 +16,10 @@
  */
 import React from 'react';
 import {
-  anneauxDuNiveau, LIBELLE_NIVEAU, NIVEAUX, type ProfilRayons,
+  anneauxDuNiveau, LIBELLE_NIVEAU, NIVEAUX, libelleRayon, type ProfilRayons,
 } from '@/lib/risques/profil';
 import { classesDuProfil, HORS_ZONE } from '@/lib/risques/affectation';
 import { fInter, fMono } from '@/lib/design/polices';
-
-/**
- * Met un rayon en mètres sous la forme la plus courte qui reste juste.
- *
- * Un média planner dit « 500 m » et « 2 km », jamais « 2000 m ». La bascule se
- * fait au kilomètre entier seulement : 1 500 m resterait « 1,5 km », lisible,
- * mais 1 234 m deviendrait « 1,2 km » et perdrait de la précision dans un
- * libellé qui sert à vérifier une saisie.
- *
- * @param m - Le rayon, en mètres.
- * @returns Par exemple `500 m`, `2 km`, `1,5 km`.
- */
-function libelleRayon(m: number): string {
-  if (m < 1000) return `${m} m`;
-  const km = m / 1000;
-  return `${Number.isInteger(km) ? km : km.toFixed(1).replace('.', ',')} km`;
-}
 
 interface Props {
   profil: ProfilRayons;

@@ -38,7 +38,7 @@ import type { TypeRisque } from '@/lib/carte/palette-risques';
 import { FAMILLES_ICPE_SEED, NATURE_NON_PRECISEE } from '@/lib/import/georisques/familles';
 import { CarteMiniFrance, type ZoneGeo } from './CarteMiniFrance';
 import { CARREAUX_PALETTES } from '@/lib/carreaux/catalogue';
-import { OngletRayonInfluence } from './OngletRayonInfluence';
+import { OngletRayons } from '@/components/risques/OngletRayons';
 import { fInter, fMono } from '@/lib/design/polices';
 import { Kpi } from '@/components/risques/Kpi';
 import {
@@ -1159,13 +1159,21 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
 
       {/* ── Corps ───────────────────────────────────────────────────────── */}
       {onglet === 'rayons' ? (
-        <OngletRayonInfluence
+        <OngletRayons
+          profil={etat.profil}
+          onProfil={(p) => majEtat({ profil: p })}
           cible={cible}
           libelleCible={libelleCible}
-          niveaux={niveaux}
+          maille={dimCourante.id}
+          /* Le fil d'Ariane ne descend qu'au departement pour les bandes : le
+             pre-calcul porte le departement et la commune en colonne, jamais
+             une region. Le dernier segment de niveau 'departement' fait donc
+             foi, et `null` vaut « France entiere ». */
+          parent={chemin.find((c) => c.niveau === 'departement')?.code ?? null}
+          nomPerimetre={chemin.length > 0 ? chemin[chemin.length - 1].nom : 'France entière'}
+          gravites={niveaux}
           natures={natures}
           perim={perim}
-          nomPerim={chemin.length > 0 ? chemin[chemin.length - 1].nom : 'France entière'}
         />
       ) : (
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>

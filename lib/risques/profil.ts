@@ -190,3 +190,24 @@ export function normaliserProfil(brut: unknown): ProfilRayons {
   if (!p.lie) return p;
   return { ...p, bas: p.haut, autres: p.haut };
 }
+
+/**
+ * Met un rayon en mètres sous la forme la plus courte qui reste juste.
+ *
+ * Un média planner dit « 500 m » et « 2 km », jamais « 2000 m ». La bascule se
+ * fait au kilomètre entier seulement : 1 500 m reste « 1,5 km », lisible, mais
+ * 1 234 m deviendrait « 1,2 km » et perdrait de la précision dans un libellé
+ * qui sert justement à vérifier une saisie.
+ *
+ * ⚠ Source UNIQUE. Elle a été écrite deux fois le même jour — dans le résumé de
+ * profil et dans le panneau de réglage — et deux formats de rayon sur le même
+ * écran font douter qu'il s'agisse du même rayon.
+ *
+ * @param m - Le rayon, en mètres.
+ * @returns Par exemple `500 m`, `2 km`, `1,5 km`.
+ */
+export function libelleRayon(m: number): string {
+  if (m < 1000) return `${m} m`;
+  const km = m / 1000;
+  return `${Number.isInteger(km) ? km : km.toFixed(1).replace('.', ',')} km`;
+}
