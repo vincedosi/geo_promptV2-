@@ -203,6 +203,21 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
    * documentait — la correction n'existait que d'un côté (constat R-03 de
    * `docs/AUDIT_ZONE_RISQUE.md`).
    */
+  /**
+   * Les données riches de chaque site, gardées À CÔTÉ de la source MapLibre.
+   *
+   * MapLibre aplatit les propriétés imbriquées : `natures_risque` et
+   * `rubriques` ne survivent pas à un `feature-state`. La parade était de les
+   * SÉRIALISER dans chaque feature — donc deux `JSON.stringify` par site, à
+   * chaque `moveend`, jusqu'à 5 000 sites : 10 000 sérialisations sur le thread
+   * principal par panoramique, pour des données ensuite RÉ-ANALYSÉES au clic
+   * (constat R-22 de `docs/AUDIT_ZONE_RISQUE.md`).
+   *
+   * Une table indexée par identifiant coûte une écriture par site au
+   * chargement, et une lecture pour le seul site cliqué. Le contenu de la
+   * popup est identique.
+   */
+  const donneesRef = useRef(new Map<string, { natures: string[]; rubriques: Array<Record<string, unknown>> }>());
   const clicPoseRef = useRef(false);
   /** Les références gardées pour pouvoir retirer les écouteurs au démontage. */
   const ecouteursRef = useRef<Array<[string, (e: never) => void]>>([]);
@@ -289,20 +304,19 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
       const m2 = mapRef.current;
       if (!m2) return;
 
-      // Les propriétés jsonb voyagent mal dans les `feature-state` MapLibre :
-      // on aplatit ce dont les couches ont besoin, et on garde le reste en
-      // chaîne pour la popup.
-      const points = {
-        type: 'FeatureCollection' as const,
-        features: charge.features.map((f) => ({
-          ...f,
-          properties: {
-            ...f.properties,
-            natures_json: JSON.stringify(f.properties.natures_risque ?? []),
-            rubriques_json: JSON.stringify(f.properties.rubriques ?? []),
+      // Les propriétés jsonb voyagent mal dans les `feature-state` MapLibre.
+      // Plutôt que de les sérialiser dans chaque feature, on les range à côté,
+      // indexées par identifiant — voir `donneesRef`.
+      donneesRef.current = new Map(
+        charge.features.map((f) => [
+          String(f.properties.id),
+          {
+            natures: (f.properties.natures_risque as string[] | undefined) ?? [],
+            rubriques: (f.properties.rubriques as Array<Record<string, unknown>> | undefined) ?? [],
           },
-        })),
-      };
+        ]),
+      );
+      const points = { type: 'FeatureCollection' as const, features: charge.features };
 
       // Les zones sont un jeu SÉPARÉ : une source de polygones, pour que le
       // point reste un point (un `circle` ne se dessine pas sur un polygone).
@@ -401,12 +415,12 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
           const p = f.properties as Record<string, unknown>;
           const type = String(p.type_risque ?? 'non_precise') as TypeRisque;
 
-          let natures: string[] = [];
-          let rubriques: Array<Record<string, unknown>> = [];
-          try {
-            natures = JSON.parse(String(p.natures_json ?? '[]'));
-            rubriques = JSON.parse(String(p.rubriques_json ?? '[]'));
-          } catch { /* charge utile inattendue : on affiche le reste */ }
+          // Lues dans la table du chargement, jamais ré-analysées : la feature
+          // MapLibre ne porte plus de chaîne JSON. Un site absent de la table
+          // (chargement en cours) affiche simplement le reste de la popup.
+          const riches = donneesRef.current.get(String(p.id ?? ''));
+          const natures: string[] = riches?.natures ?? [];
+          const rubriques: Array<Record<string, unknown>> = riches?.rubriques ?? [];
 
           const coordonnees = `${Number(p.lat).toFixed(5)}, ${Number(p.lng).toFixed(5)}`;
           // Calculé en base (sql/179) et seulement mis en mots ici : la
