@@ -165,6 +165,11 @@ function degradeALegende(props: LegendeCarteProps): boolean {
     case 'diffusion':
       // Légendes portées par `ScoreMapLayer` / `DiffusionMapLayer`.
       return false;
+    case 'zones-risque':
+      // Légende portée par `ZonesRisqueLayer`, qui seul connaît les classes du
+      // profil courant — elles changent à chaque anneau ajouté ou retiré, et
+      // une légende générique ne pourrait pas les nommer.
+      return false;
     default: {
       const _exhaustif: never = d;
       return _exhaustif;

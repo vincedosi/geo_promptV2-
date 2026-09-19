@@ -118,6 +118,19 @@
     --risque-pollution:   #008300;
     --risque-autres:      #3987e5;
 
+    /* NIVEAU reglementaire d'un site, a ne pas confondre avec son TYPE de
+       risque ci-dessus. Les --risque-* disent DE QUOI il s'agit (toxique,
+       inflammable) ; ceux-ci disent A QUEL SEUIL. Deux questions, deux
+       palettes : les melanger ferait lire « inflammable » la ou on veut lire
+       « seuil haut ».
+
+       Chaud contre ambre, et non rouge contre vert : le seuil bas n'est pas
+       « sans danger », c'est un seuil plus bas. Un couple rouge/vert le dirait
+       faux, en plus d'etre illisible pour un daltonien deutan. */
+    --niveau-haut:  #e0603f;
+    --niveau-bas:   #d99a1f;
+    --niveau-autres: #7a8b9c;
+
     /* Palette QUALITATIVE des courbes par nature de risque (onglet « Rayon
        d'influence »). Huit teintes, parce qu'une courbe par nature — et les
        natures ne s'ordonnent pas : il n'y a ni plus ni moins entre
@@ -305,6 +318,12 @@
     --risque-inflammable: #eda100;
     --risque-pollution:   #008300;
     --risque-autres:      #2a78d6;
+
+    /* Niveaux reglementaires (light) — assombris pour tenir sur #ffffff, comme
+       les quatre --risque-* et les couleurs de statut. */
+    --niveau-haut:  #b8431f;
+    --niveau-bas:   #a8720a;
+    --niveau-autres: #5a6b7c;
 
     /* Palette qualitative des courbes par nature (light) — voir le bloc :root.
        Assombries pour tenir sur #ffffff, comme les quatre --risque-* et les

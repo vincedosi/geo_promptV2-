@@ -16,7 +16,8 @@ export type DegradeId =
   | 'meteo'
   | 'campagne-impressions'
   | 'score'
-  | 'diffusion';
+  | 'diffusion'
+  | 'zones-risque';
 
 const LIBELLES: Record<DegradeId, string> = {
   'carreaux': 'Carreaux Filosofi',
@@ -34,6 +35,11 @@ const LIBELLES: Record<DegradeId, string> = {
   // contre plan, échelle divergente) est elle aussi une choroplèthe pleine
   // page — même raisonnement que le score composite ci-dessus.
   'diffusion': 'Diffusion campagne',
+  // 2026-09-19 : les zones de risque sont des aplats pleine page, comme le
+  // score composite et la diffusion. Les ajouter ICI plutôt que de les peindre
+  // à côté du registre est ce qui les empêche de s'empiler avec les huit
+  // autres — et ce qui garantit qu'une seule légende parle à la fois.
+  'zones-risque': 'Zones de risque',
 };
 
 export function libelleDegrade(id: DegradeId): string {

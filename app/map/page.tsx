@@ -85,6 +85,7 @@ import { PanneauFiltre } from '@/app/map/_components/panneaux/PanneauFiltre';
 import { PanneauCalques } from '@/app/map/_components/panneaux/PanneauCalques';
 import { RisqueIndustrielLayer } from '@/app/map/_components/RisqueIndustrielLayer';
 import { PprtLayer } from '@/app/map/_components/PprtLayer';
+import { ZonesRisqueLayer } from '@/app/map/_components/ZonesRisqueLayer';
 import { AnalysePopulationOverlay } from '@/components/risques/AnalysePopulationOverlay';
 import { useRisqueIndustriel } from '@/app/map/_components/filter-panel/use-risque-industriel';
 import { PanneauAnalyse } from '@/app/map/_components/panneaux/PanneauAnalyse';
@@ -1229,6 +1230,10 @@ export default function MapPage() {
         visible={diffusionActif && mapLayers.degradeActif === 'diffusion'}
       />
       <ScoreMapLayer mapRef={mapRef} />
+      {/* Les zones de risque s'allument par CustomEvent depuis l'overlay, qui
+          vit dans une autre branche de l'arbre React — meme chemin que
+          ScoreMapLayer ci-dessus. */}
+      <ZonesRisqueLayer mapRef={mapRef} />
       <LegendeCarte
         degradeActif={mapLayers.degradeActif}
         carreauxIndicateur={mapLayers.carreauxIndicateur}

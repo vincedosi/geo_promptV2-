@@ -21,6 +21,7 @@ const DEGRADE_IDS = [
   'campagne-impressions',
   'score',
   'diffusion',
+  'zones-risque',
 ] as const satisfies readonly DegradeId[];
 
 /**

@@ -51,6 +51,7 @@ import { Champ, Pastille, FilAriane, Th, Td, styleLien } from '@/components/risq
 import { FournisseurRisque, useEtatRisque } from '@/components/risques/ContexteRisque';
 import type { Onglet } from '@/lib/risques/etat-url';
 import { ResumeProfil } from '@/components/risques/ResumeProfil';
+import { BoutonVoirCarte } from '@/components/risques/BoutonVoirCarte';
 import { NIVEAUX_RISQUE } from '@/lib/risques/gravites';
 
 // La maille vient de `lib/risques/dimensions.ts` : les trois listes blanches
@@ -861,6 +862,10 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
             lire un tableau sans savoir sur quels anneaux il a ete calcule. */}
         <ResumeProfil profil={etat.profil} onOuvrirAtelier={() => setOnglet('rayons')} />
         <div style={{ flex: 1 }} />
+        {/* Persistant, dans l'en-tete : la carte illustre le profil quel que
+            soit l'onglet ouvert, et le chercher dans un onglet precis serait
+            une devinette. */}
+        <BoutonVoirCarte profil={etat.profil} onFermer={onFermer} />
         <button
           type="button"
           onClick={exporter}

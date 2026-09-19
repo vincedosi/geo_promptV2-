@@ -4656,6 +4656,24 @@ export type Database = {
         }
         Relationships: []
       }
+      pprt_niveau_generateur: {
+        Row: {
+          geom_3857: unknown
+          niveau: string | null
+          pprt_id: string
+        }
+        Insert: {
+          geom_3857: unknown
+          niveau?: string | null
+          pprt_id: string
+        }
+        Update: {
+          geom_3857?: unknown
+          niveau?: string | null
+          pprt_id?: string
+        }
+        Relationships: []
+      }
       pprt_perimetres: {
         Row: {
           code_departement: string | null
@@ -5351,6 +5369,39 @@ export type Database = {
           },
         ]
       }
+      zones_risque_cache: {
+        Row: {
+          bande: number | null
+          classe: string
+          construit_le: string
+          geom: unknown
+          geom_3857: unknown
+          niveau: string
+          profil_code: string
+          surface_km2: number | null
+        }
+        Insert: {
+          bande?: number | null
+          classe: string
+          construit_le?: string
+          geom: unknown
+          geom_3857: unknown
+          niveau: string
+          profil_code: string
+          surface_km2?: number | null
+        }
+        Update: {
+          bande?: number | null
+          classe?: string
+          construit_le?: string
+          geom?: unknown
+          geom_3857?: unknown
+          niveau?: string
+          profil_code?: string
+          surface_km2?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       carreaux_20km: {
@@ -5788,6 +5839,10 @@ export type Database = {
           colonnes: number
           duree_ms: number
         }[]
+      }
+      construire_zones_risque: {
+        Args: { p_code: string; p_profil: Json }
+        Returns: Json
       }
       correlation_campagne_indicateur: {
         Args: { p_campaign_id: string; p_indicator_code: string }
@@ -6872,6 +6927,7 @@ export type Database = {
         Returns: number
       }
       releve_empreinte_carreaux: { Args: never; Returns: Json }
+      remplir_pprt_niveau_generateur: { Args: never; Returns: Json }
       repair_iso_cache_geoms: { Args: never; Returns: Json }
       resolve_custom_geo_zone_codes:
         | { Args: { p_zone_id: string }; Returns: Json }
@@ -7563,6 +7619,7 @@ export type Database = {
       vider_carreau_risque_distance: { Args: never; Returns: Json }
       vider_couverture_rayon: { Args: never; Returns: number }
       vider_exposition_cache: { Args: { p_avant?: string }; Returns: number }
+      vider_zones_risque: { Args: { p_avant?: string }; Returns: Json }
       zone_dessin: { Args: { p_geojson: Json }; Returns: Json }
       zone_difference: {
         Args: { p_base: string; p_retires: string[] }
@@ -7572,6 +7629,10 @@ export type Database = {
       zone_rayon: {
         Args: { p_lat: number; p_lon: number; p_rayon_m: number }
         Returns: Json
+      }
+      zones_risque_tuile: {
+        Args: { p_profil_code: string; p_x: number; p_y: number; p_z: number }
+        Returns: string
       }
     }
     Enums: {

@@ -227,6 +227,30 @@ deux natures compte dans les deux), et l'écran le dit.
 > jusqu'au 2026-09-19, sans variante de thème clair et hors de tout test — dans
 > un fichier qui prouvait pourtant trois lignes plus bas que `var()` y marche.
 
+### Niveau réglementaire d'un site à risque
+
+⚠ **À ne pas confondre avec les quatre `--risque-*`**, qui sont juste au-dessus
+dans `globals.css` et répondent à une autre question. Les `--risque-*` disent
+**de quoi** il s'agit (toxique, inflammable, pollution) ; ceux-ci disent **à
+quel seuil** le site est classé. Deux questions, deux palettes — les mélanger
+ferait lire « inflammable » là où l'écran veut dire « seuil haut ».
+
+| Token | Hex (dark) | Hex (light) | Usage |
+|-------|-----------|-------------|-------|
+| --niveau-haut | #e0603f | #b8431f | Seveso seuil haut — zones, bandes, légende |
+| --niveau-bas | #d99a1f | #a8720a | Seveso seuil bas |
+| --niveau-autres | #7a8b9c | #5a6b7c | Autres régimes, non calculés à ce jour |
+
+**Chaud contre ambre, et non rouge contre vert.** Le seuil bas n'est pas « sans
+danger », c'est un seuil plus bas : un couple rouge/vert le dirait faux, en plus
+d'être illisible pour un daltonisme deutan. Le gris bleuté des autres régimes
+les sort de l'échelle de gravité plutôt que de les y placer en bas.
+
+L'intensité à l'intérieur d'un niveau ne passe PAS par la teinte mais par
+**l'opacité**, dégressive du cœur vers l'extérieur (0,45 · 0,28 · 0,16 · 0,08).
+C'est ce qui permet de lire la distance et le niveau d'un seul coup d'œil : la
+teinte dit lequel, l'opacité dit combien on s'en éloigne.
+
 ### Contour du point de site à risque
 
 | Token | Valeur (dark) | Valeur (light) | Usage |
