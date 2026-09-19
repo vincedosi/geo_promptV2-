@@ -183,6 +183,34 @@ describe('couleurs — jamais de hex en dur (règle formelle du projet)', () => 
   });
 });
 
+describe('méthode et limites — une seule substance, deux rendus', () => {
+  it('la route d’export ne rédige plus son texte elle-même', () => {
+    // Vingt lignes de méthodologie étaient écrites en dur dans la route :
+    // corriger une phrase imposait de toucher une API (R-23).
+    const s = lire('app/api/risques/exposition/export/route.ts');
+    expect(s).toMatch(/from '@\/lib\/risques\/methode'/);
+    expect(s).toMatch(/for \(const n of LIMITES\) ligne\(n\.titre, n\.texte\)/);
+    expect(s).toMatch(/for \(const n of SOURCES\) ligne\(n\.titre, n\.texte\)/);
+  });
+
+  it('l’écran et le classeur disent les MÊMES faits sur l’outre-mer', () => {
+    // Les deux rendus diffèrent légitimement — l'écran met en forme, le
+    // classeur est plat. Ce qui ne doit pas diverger, ce sont les FAITS : un
+    // lecteur qui compare les deux ne doit pas trouver deux vérités.
+    const ecran = lire('components/risques/AnalysePopulationOverlay.tsx');
+    const methode = lire('lib/risques/methode.ts');
+    for (const fait of ['603 sites', '31', '27 de Guyane', '26 022 carreaux']) {
+      expect(ecran, `l'écran a perdu « ${fait} »`).toContain(fait);
+      expect(methode, `le classeur a perdu « ${fait} »`).toContain(fait);
+    }
+    // Et la distinction qui compte le plus, des deux côtés.
+    for (const s of [ecran, methode]) {
+      expect(s).toMatch(/donnée absente à la source/);
+      expect(s).toMatch(/pas une exposition nulle/);
+    }
+  });
+});
+
 describe('aucun code de débogage dans le périmètre', () => {
   it('ni console.log, ni debugger', () => {
     for (const f of PERIMETRE) {

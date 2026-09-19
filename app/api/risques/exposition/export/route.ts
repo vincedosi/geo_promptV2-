@@ -31,6 +31,7 @@ import { rpcJson, nullableArg } from '@/lib/supabase/rpc-json';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { liste } from '@/lib/api/parametres-requete';
 import { DIMENSIONS, LIBELLE_DIMENSION, modesValides } from '@/lib/risques/dimensions';
+import { METHODE_CALCUL, LIMITES, SOURCES } from '@/lib/risques/methode';
 
 export const dynamic = 'force-dynamic';
 
@@ -186,30 +187,24 @@ export async function GET(request: NextRequest) {
     : `${a.rayon_m} m pour les sites sans PPRT${a.rayon_deduit ? ', déduit des périmètres réels' : ''}`);
   meta.addRow([]);
 
+  // Le texte vient de `lib/risques/methode.ts`, partagé avec l'écran : il y
+  // était rédigé DEUX fois, et différemment. Corriger une phrase imposait de
+  // toucher une route API (R-23).
   ligne('Comment le chiffre est obtenu', '', true);
-  ligne('Zone retenue', a.rayon_force
-    ? 'Un cercle du rayon choisi autour de CHAQUE site. Aucun chiffre ne provient d’une zone publiée par l’État.'
-    : 'Le périmètre PPRT publié par l’État quand le site en a un (rattachement à 500 m), sinon un cercle du rayon indiqué.');
-  ligne('Population', 'Carreaux INSEE de 200 m (Filosofi), répartis au prorata de surface : un carreau dont 30 % tombe dans la zone contribue 30 % de ses habitants. Hypothèse d’une population uniforme dans le carreau — fausse au détail, raisonnable en agrégat.');
-  ligne('Double comptage', 'Les zones qui se recouvrent sont UNIES avant comptage : un habitant proche de deux sites n’est compté qu’une fois. Sans cette union, l’écart mesuré atteint +62 % sur un département dense.');
+  ligne('Zone retenue', METHODE_CALCUL.zone(Boolean(a.rayon_force)));
+  ligne('Population', METHODE_CALCUL.population);
+  ligne('Double comptage', METHODE_CALCUL.doubleComptage);
 
   meta.addRow([]);
   ligne('Ce que ces chiffres ne disent PAS', '', true);
-  ligne('La colonne « Sites »', 'Elle ne s’additionne PAS avec la population. Elle compte les sites IMPLANTÉS dans l’unité ; une commune peut être très exposée sans en porter aucun, quand c’est la zone d’un site voisin qui déborde chez elle.');
-  ligne('« dont rayon calculé »', 'Ces sites n’ont AUCUN périmètre publié par l’État : leur zone est un cercle que nous avons choisi. Le chiffre est indicatif, pas réglementaire.');
-  ligne('Outre-mer', 'CALCULABLE pour la Martinique et La Réunion : l’INSEE publie leur carroyage 200 m dans le même fichier que la métropole, et il est en base depuis le 18/09/2026 (26 022 carreaux, 1 190 910 habitants). Leurs 14 sites Seveso et 26 périmètres PPRT sont donc comptés. NON CALCULABLE pour la Guadeloupe, la Guyane et Mayotte, que l’INSEE ne carroye pas : leurs 603 sites, dont 31 Seveso — les 27 de Guyane compris — n’ont aucune population exposée calculable et n’entrent pas dans le total. Un site y apparaît sans chiffre : c’est une donnée absente à la source, pas une exposition nulle.');
-  ligne('Part et densité au code postal', 'Absentes à cette maille, et c’est délibéré : le seul référentiel de population par code postal disponible surcompte de 10,5 % la population française, et est vide sur Paris et les DROM. Une colonne vide vaut mieux qu’un pourcentage faux.');
-  ligne('Paris, Lyon, Marseille', 'À la maille Commune, leurs arrondissements sont REGROUPÉS sous la commune mère. À la maille Arrondissement, ils sont détaillés. Ce sont les trois seules communes françaises concernées.');
+  for (const n of LIMITES) ligne(n.titre, n.texte);
   if ((a.carreaux_non_attribues ?? 0) > 0) {
     ligne('Carreaux non rattachés', `${a.carreaux_non_attribues} carreaux n’ont pas pu être rattachés à une unité et sont EXCLUS du total.`);
   }
 
   meta.addRow([]);
   ligne('Sources', '', true);
-  ligne('Sites à risque', 'Géorisques (ministère de la Transition écologique), API installations classées.');
-  ligne('Périmètres PPRT', 'Géoplateforme IGN, servitudes d’utilité publique PM3 — 664 périmètres.');
-  ligne('Population', 'INSEE Filosofi, carroyage 200 m, millésime 2021.');
-  ligne('Dénominateurs', 'INSEE IRIS agrégés — 67 760 552 habitants, soit 100,0 % du chiffre national.');
+  for (const n of SOURCES) ligne(n.titre, n.texte);
 
   const buffer = await wb.xlsx.writeBuffer();
   const horodatage = new Date().toISOString().slice(0, 10);
