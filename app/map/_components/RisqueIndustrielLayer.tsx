@@ -49,9 +49,9 @@ import { echapperHtml as esc } from '@/lib/map/echapper-html';
 import { lignePopup as ligne } from '@/lib/map/popup';
 import { useTheme } from '@/lib/theme/ThemeProvider';
 import { adminFetch } from '@/lib/admin-fetch';
-import { expressionCouleurRisque, couleurDuType, librellesDuType, LIBELLE_TYPE } from '@/lib/carte/palette-risques';
+import { expressionCouleurRisque, couleurDuType, librellesDuType, LIBELLE_TYPE, CONTOUR_POINT } from '@/lib/carte/palette-risques';
 import { FAMILLES_ICPE_SEED, NATURE_NON_PRECISEE } from '@/lib/import/georisques/familles';
-import { descriptionStatut, TIRETE_ZONE_CALCULEE } from '@/lib/carte/nature-zone';
+import { descriptionStatut, TIRETE_ZONE_CALCULEE, LARGEUR_TRAIT_ZONE } from '@/lib/carte/nature-zone';
 import { formaterNombre } from '@/lib/format/nombre';
 import type { TypeRisque } from '@/lib/carte/palette-risques';
 
@@ -350,7 +350,7 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
             // n'a aucune valeur réglementaire. Le périmètre PPRT de
             // `PprtLayer` est plein et plus épais. Convention unique :
             // `lib/carte/nature-zone.ts`.
-            'line-width': 1,
+            'line-width': LARGEUR_TRAIT_ZONE,
             'line-opacity': 0.7,
             'line-dasharray': [...TIRETE_ZONE_CALCULEE] as never,
           },
@@ -382,7 +382,7 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
             'circle-color': couleur as never,
             'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 3, 8, 5, 12, 7] as never,
             'circle-stroke-width': 1,
-            'circle-stroke-color': 'rgba(255,255,255,0.9)',
+            'circle-stroke-color': CONTOUR_POINT[theme],
           },
         });
       }
@@ -520,6 +520,11 @@ export function RisqueIndustrielLayer({ mapRef, actif, filtres, onCompte }: Prop
       // Couleurs à jour si le thème a changé depuis la création des couches.
       for (const [id, prop] of [[ID_ZONE, 'fill-color'], [ID_ZONE_CONTOUR, 'line-color'], [ID_HALO, 'circle-color'], [ID_POINT, 'circle-color']] as const) {
         if (m2.getLayer(id)) m2.setPaintProperty(id, prop, couleur as never);
+      }
+      // Le cerne aussi : il s'inverse entre thèmes depuis R-12, et l'oublier
+      // ici le laisserait blanc sur fond clair après une bascule.
+      if (m2.getLayer(ID_POINT)) {
+        m2.setPaintProperty(ID_POINT, 'circle-stroke-color', CONTOUR_POINT[theme] as never);
       }
 
       onCompteRef.current?.(

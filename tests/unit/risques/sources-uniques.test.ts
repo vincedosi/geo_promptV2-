@@ -149,6 +149,40 @@ describe('ce qui est demandé — une seule fabrique', () => {
   });
 });
 
+describe('couleurs — jamais de hex en dur (règle formelle du projet)', () => {
+  it('aucune couleur littérale dans les composants du périmètre', () => {
+    // `DESIGN_SYSTEM.md` : toujours `var(--token)`. Huit hex s'étaient posés
+    // dans la palette de courbes (R-05), sans variante de thème clair et hors
+    // de tout verrou — alors que le même fichier prouvait trois lignes plus
+    // bas que `var()` fonctionne dans Recharts.
+    for (const f of PERIMETRE.filter((p) => p.endsWith('.tsx'))) {
+      const s = lire(f);
+      const hex = s.match(/#[0-9a-fA-F]{6}/g) ?? [];
+      expect(hex, `${f} porte des couleurs en dur : ${hex.join(', ')}`).toEqual([]);
+    }
+  });
+
+  it('la palette de courbes passe par des jetons, dans les DEUX thèmes', () => {
+    const s = lire('components/risques/OngletRayonInfluence.tsx');
+    expect(s).toMatch(/'var\(--nature-1\)'/);
+    const css = lire('app/globals.css');
+    // Huit jetons, deux fois : `:root` (sombre) et `html.light`.
+    expect((css.match(/--nature-\d:/g) ?? []).length).toBe(16);
+  });
+
+  it('le cerne du point de carte s’inverse entre thèmes', () => {
+    // R-12 : il valait `rgba(255,255,255,0.9)` en dur, alors que toutes les
+    // autres peintures de la couche sont déjà indexées. Sur fond clair, un
+    // cerne blanc ne détoure plus rien.
+    const p = lire('lib/carte/palette-risques.ts');
+    expect(p).toMatch(/export const CONTOUR_POINT: Record<'dark' \| 'light', string>/);
+    const l = lire('app/map/_components/RisqueIndustrielLayer.tsx');
+    expect(l).toMatch(/'circle-stroke-color': CONTOUR_POINT\[theme\]/);
+    // Et la bascule de thème doit le reprendre, pas seulement la création.
+    expect(l).toMatch(/setPaintProperty\(ID_POINT, 'circle-stroke-color', CONTOUR_POINT\[theme\]/);
+  });
+});
+
 describe('aucun code de débogage dans le périmètre', () => {
   it('ni console.log, ni debugger', () => {
     for (const f of PERIMETRE) {

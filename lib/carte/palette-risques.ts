@@ -197,3 +197,27 @@ export function expressionCouleurRisque(theme: 'dark' | 'light'): unknown[] {
     c.non_precise, // valeur par défaut, y compris pour `non_precise`
   ];
 }
+
+/**
+ * Cerne du point de site, indexé par thème.
+ *
+ * Il valait `rgba(255,255,255,0.9)` en dur dans `RisqueIndustrielLayer`
+ * (constat R-12 de `docs/AUDIT_ZONE_RISQUE.md`), alors que TOUTES les autres
+ * peintures de cette couche passent déjà par `expressionCouleurRisque(theme)`.
+ *
+ * En thème clair, un cerne blanc sur un fond clair ne détoure plus rien : le
+ * point perd exactement ce qui le rend lisible quand il se superpose à une
+ * zone colorée. La valeur s'inverse donc, comme `--contour-carte` et
+ * `--halo-carte` du design system.
+ *
+ * Opacité 0,9 et non 0,16 comme `--contour-carte` : celui-ci sépare des
+ * polygones voisins, celui-là doit détacher un point de ce qu'il recouvre.
+ * Ce sont deux besoins différents, pas deux réglages du même.
+ *
+ * ⚠ Valeurs littérales et non `var()` : MapLibre ne résout pas les variables
+ * CSS dans `paint`. Même raison que `COULEURS_MAPLIBRE` ci-dessus.
+ */
+export const CONTOUR_POINT: Record<'dark' | 'light', string> = {
+  dark: 'rgba(255,255,255,0.9)',
+  light: 'rgba(26,26,26,0.85)',
+};

@@ -30,10 +30,15 @@
  * l'autre bout de l'écran : elle est là où l'on choisit. C'est ce qui rend la
  * confusion difficile plutôt que simplement déconseillée.
  *
- * Les motifs ne sont PAS retapés ici : ils viennent de `LARGEUR_TRAIT_PPRT` et
- * `TIRETE_ZONE_CALCULEE`, les mêmes constantes que MapLibre reçoit. Une
- * légende qui montre un trait que la carte ne dessine pas est pire qu'une
- * absence de légende.
+ * Les motifs ne sont PAS retapés ici : ils viennent de `LARGEUR_TRAIT_PPRT`,
+ * `LARGEUR_TRAIT_ZONE` et `TIRETE_ZONE_CALCULEE`, les mêmes constantes que
+ * MapLibre reçoit. Une légende qui montre un trait que la carte ne dessine pas
+ * est pire qu'une absence de légende.
+ *
+ * ⚠ La COULEUR, elle, est volontairement neutre pour la zone calculée : la
+ * carte la peint du type de risque du site, et un type varie d'un point à
+ * l'autre. Une légende générique ne peut pas en choisir un. C'est le TRACÉ qui
+ * porte l'information — plein ou tireté — et c'est lui qui doit être fidèle.
  *
  * ── CE QUI DESCEND DANS LES REPLIS ───────────────────────────────────────
  *
@@ -49,7 +54,7 @@ import { C, fInter, fMono } from './tokens';
 import { labelStyle } from './styles';
 import { ORDRE_TYPES, LIBELLE_TYPE, COULEURS_CSS } from '@/lib/carte/palette-risques';
 import { COULEURS_PPRT_CSS, LARGEUR_TRAIT_PPRT, LIBELLE_TYPE_ZONE_PPRT } from '@/lib/carte/palette-pprt';
-import { TIRETE_ZONE_CALCULEE } from '@/lib/carte/nature-zone';
+import { TIRETE_ZONE_CALCULEE, LARGEUR_TRAIT_ZONE } from '@/lib/carte/nature-zone';
 import { formaterNombre } from '@/lib/format/nombre';
 import { PPRT_ZOOM_PLANCHER } from '@/lib/version';
 import type { EtatCouchePprt } from '../PprtLayer';
@@ -131,14 +136,33 @@ function Trace({ tirete }: { tirete: boolean }) {
   return (
     <span
       aria-hidden
-      style={{
-        width: 20,
-        height: 0,
-        flexShrink: 0,
-        borderTop: tirete
-          ? `1px dashed ${C.textSec}`
-          : `${LARGEUR_TRAIT_PPRT}px solid ${COULEURS_PPRT_CSS.contour}`,
-      }}
+      style={
+        tirete
+          ? {
+              width: 20,
+              height: LARGEUR_TRAIT_ZONE,
+              flexShrink: 0,
+              /*
+               * Le motif est DÉRIVÉ de `TIRETE_ZONE_CALCULEE`, la constante que
+               * MapLibre reçoit — et non retapé.
+               *
+               * `border-top: 1px dashed` laissait le navigateur choisir la
+               * longueur des tirets : la légende montrait un trait que la carte
+               * ne dessinait pas, exactement ce que l'en-tête de ce fichier
+               * déclare éviter (constat R-13).
+               *
+               * Un dégradé répété plutôt qu'une bordure, parce que c'est la
+               * seule façon d'imposer en CSS le rythme `[2, 2]` de MapLibre.
+               */
+              backgroundImage: `repeating-linear-gradient(to right, ${C.textSec} 0 ${TIRETE_ZONE_CALCULEE[0]}px, transparent ${TIRETE_ZONE_CALCULEE[0]}px ${TIRETE_ZONE_CALCULEE[0] + TIRETE_ZONE_CALCULEE[1]}px)`,
+            }
+          : {
+              width: 20,
+              height: 0,
+              flexShrink: 0,
+              borderTop: `${LARGEUR_TRAIT_PPRT}px solid ${COULEURS_PPRT_CSS.contour}`,
+            }
+      }
     />
   );
 }

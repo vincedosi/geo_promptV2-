@@ -191,6 +191,58 @@ l'interaction », ici l'intensité de la donnée). Choix visuel neuf (Tâche 13A
 2026-09-15) — à valider par un designer au même titre que toute palette de
 données, pas encore éprouvé en usage.
 
+### Échelle qualitative (natures de risque — courbes du rayon d'influence)
+
+Ni divergente ni séquentielle : **qualitative**. Les natures de risque ne
+s'ordonnent pas — il n'y a ni plus ni moins entre « Explosibles » et
+« Déchets » — donc il faut des teintes distinctes, pas les paliers d'une rampe.
+Huit courbes au plus, une par nature présente.
+
+| Token | Hex (dark) | Hex (light) |
+|-------|-----------|-------------|
+| --nature-1 | #e07a3f | #b85c22 |
+| --nature-2 | #3d8bb5 | #2a6d92 |
+| --nature-3 | #4aa06b | #2f7d4d |
+| --nature-4 | #c2554e | #9e3b35 |
+| --nature-5 | #6d8fa8 | #4d6d85 |
+| --nature-6 | #b58b34 | #8c6a1c |
+| --nature-7 | #4f7d7a | #35605d |
+| --nature-8 | #a06c8c | #7e4e6c |
+
+Alternance chaud/froid et non un dégradé rouge-vert : c'est ce qui les garde
+distinguables en niveaux de gris ET pour un daltonisme deutan. Assombries en
+thème clair, comme les quatre `--risque-*` et les quatre couleurs de statut.
+
+**La courbe TOTALE ne prend aucune de ces huit** : elle porte `--brand-teal`, et
+elle seule — c'est ce qui la distingue au premier coup d'œil d'une nature parmi
+d'autres. Elle n'est d'ailleurs pas la somme des autres (un carreau proche de
+deux natures compte dans les deux), et l'écran le dit.
+
+> **Pas de duplication en TypeScript ici**, contrairement aux échelles
+> divergente et séquentielle : celles-là alimentent MapLibre, qui ne résout pas
+> `var()` dans `paint`. Ces courbes-ci sont servies par Recharts, **qui le
+> résout**. Une seule définition suffit donc, dans `app/globals.css`.
+>
+> Ces huit teintes étaient écrites EN DUR dans `OngletRayonInfluence.tsx`
+> jusqu'au 2026-09-19, sans variante de thème clair et hors de tout test — dans
+> un fichier qui prouvait pourtant trois lignes plus bas que `var()` y marche.
+
+### Contour du point de site à risque
+
+| Token | Valeur (dark) | Valeur (light) | Usage |
+|-------|---------------|----------------|-------|
+| `CONTOUR_POINT` (`lib/carte/palette-risques.ts`) | rgba(255,255,255,0.9) | rgba(26,26,26,0.85) | Cerne du point ICPE sur la carte |
+
+**Inversé** entre thèmes, comme `--contour-carte` et `--halo-carte`. Il valait
+`rgba(255,255,255,0.9)` en dur : sur fond clair, un cerne blanc ne détoure plus
+rien et le point perd ce qui le rend lisible au-dessus d'une zone colorée.
+
+Opacité 0,9 et non 0,16 comme `--contour-carte` : celui-ci sépare deux
+polygones voisins, celui-là détache un point de ce qu'il recouvre. Deux besoins
+différents, pas deux réglages du même.
+
+⚠ Valeurs littérales et non `var()` : c'est MapLibre qui les consomme.
+
 ### RÈGLE D'OR
 Pas de violet (#a855f7) nulle part. Pas de vert fluo (#3dffa0) sauf indicateur de statut système. Pas d'orange sur les boutons.
 

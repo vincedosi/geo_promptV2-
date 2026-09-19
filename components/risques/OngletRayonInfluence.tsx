@@ -47,10 +47,19 @@ const TOUTES = '*';
  * Aucun violet, règle du DESIGN_SYSTEM. Les teintes sont choisies pour rester
  * distinguables en niveaux de gris ET pour un daltonisme deutan — d'où
  * l'alternance chaud/froid plutôt qu'un dégradé rouge-vert.
+ *
+ * ⚠ Elles étaient écrites EN DUR ici, sans variante de thème clair et hors de
+ * tout verrou (constat R-05 de `docs/AUDIT_ZONE_RISQUE.md`) — une violation
+ * directe de la règle « jamais de hex en dur » alors que ce fichier prouvait
+ * trois lignes plus bas que `var()` fonctionne dans Recharts.
+ *
+ * Pas de duplication en TypeScript ici, contrairement à `palette-risques.ts` :
+ * MapLibre ne résout pas `var()` dans `paint`, Recharts si. Une seule
+ * définition suffit donc, dans `app/globals.css`.
  */
 const TEINTES = [
-  '#e07a3f', '#3d8bb5', '#4aa06b', '#c2554e',
-  '#6d8fa8', '#b58b34', '#4f7d7a', '#a06c8c',
+  'var(--nature-1)', 'var(--nature-2)', 'var(--nature-3)', 'var(--nature-4)',
+  'var(--nature-5)', 'var(--nature-6)', 'var(--nature-7)', 'var(--nature-8)',
 ];
 
 /** La courbe totale porte l'accent de marque, et elle seule. */
