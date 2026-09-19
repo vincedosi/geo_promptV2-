@@ -18,14 +18,19 @@ Stack : Next.js 15 App Router · TypeScript strict · Supabase Pro (PostgreSQL *
 - **Tout travail de développement va en LOCAL.** Migrations, `EXPLAIN ANALYZE`,
   mesures, essais : `docker exec supabase_db_genesis_app psql -U postgres`.
   Le stack se remonte avec `scripts/local/00-docker-up.sh` puis `01-supabase-up.sh`.
-- **La prod (`vkkdbygwbrxyogqosten`, eu-west-3) ne reçoit une migration
-  QU'APRÈS accord explicite de Vincent, demandé pour cette migration-là.**
-  Un accord donné sur une tâche ne vaut pas pour la suivante. Le dire AVANT,
-  jamais après coup.
-- Le MCP Supabase (`execute_sql`, `apply_migration`) parle à la **PROD**, et à
-  rien d'autre. Ce n'est pas l'outil du quotidien : c'est le geste de
-  déploiement. Ne jamais l'appeler par réflexe « parce que c'est l'outil du
-  projet ».
+- **Le projet hébergé `vkkdbygwbrxyogqosten` est en cours d'abandon
+  (2026-09-19).** Tout ce qu'il portait d'irremplaçable a été rapatrié —
+  569 698 liaisons radio et 1 100 comptages routiers mesurés — et le diff
+  complet des 103 tables ne laisse plus que des caches régénérables et les
+  406 930 lignes de proxy OSM, volontairement abandonnées.
+  `npm run dev`, `npm test` ET `npm run build` tournent en local ;
+  1 451 tests et le build le vérifient.
+- **Le MCP Supabase parle à ce projet hébergé, et à rien d'autre.** Il n'a plus
+  d'usage une fois le projet supprimé. Tant qu'il existe, ne pas l'appeler par
+  réflexe : la voie normale est `psql` dans le conteneur.
+- ⚠ **La clé `service_role` du projet hébergé reste à RÉVOQUER** : elle est
+  dans l'historique git. Supprimer le projet la neutralise ; le mettre en pause,
+  non.
 
 > **Cette ligne disait « Utiliser MCP Supabase, JAMAIS de SQL manuel » jusqu'au
 > 2026-09-18**, sans mentionner le local — elle avait été écrite quand la prod
@@ -37,13 +42,23 @@ Stack : Next.js 15 App Router · TypeScript strict · Supabase Pro (PostgreSQL *
 En local, `psql` dans le conteneur est la voie normale. « JAMAIS de SQL
 manuel » visait la prod, et ne vaut que pour elle.
 
-**Quelle commande parle à quelle base — vérifié le 2026-09-18, pas supposé :**
+**Quelle commande parle à quelle base — vérifié le 2026-09-19, pas supposé :**
 
 | Commande | Fichier d'env lu | Base atteinte |
 |---|---|---|
 | `npm run dev` | `.env.development.local` | **locale** — Next le charge avant `.env.local`, en dev uniquement |
-| `npm test` | `.env.development.local` **depuis le 2026-09-18** | **locale** |
-| `npm run build` | `.env.local` | **prod** — mais AUCUNE requête n'part au build |
+| `npm test` | `.env.development.local` | **locale** |
+| `npm run build` | `.env.local` | **locale depuis le 2026-09-19** |
+
+**Les trois pointent désormais sur le local.** `.env.local` portait les
+identifiants du projet hébergé jusqu'au 2026-09-19 ; ses quatre variables
+Supabase ont été basculées sur les conteneurs. L'ancienne version est dans
+`.env.local.avant-coupure-supabase-2026-09-19`, non suivi par git.
+
+⚠ **`.env.local` ne porte pas que Supabase.** Il contient aussi `ORS_API_KEY`,
+`GOOGLE_GENERATIVE_AI_API_KEY`, `MISTRAL_API_KEY`, `DSP_ENC_KEY` et
+`ADMIN_INIT_KEY`. Le supprimer casserait l'IA, les isochrones et le chiffrement
+DSP, pas seulement la base.
 
 - **`npm test` tapait en PRODUCTION jusqu'au 2026-09-18**, avec la clé
   `service_role` qui contourne toute RLS. Un seul fichier en était la cause —

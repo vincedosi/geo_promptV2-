@@ -9,7 +9,31 @@
 
 ---
 
-## Verdict
+## Verdict — FAIT le 2026-09-19
+
+**La coupure est effective.** `npm run dev`, `npm test` et `npm run build`
+tournent tous les trois sur les conteneurs ; 1 451 tests et le build le
+vérifient. `.env.local` ne contient plus aucune référence au projet hébergé.
+
+Les deux blocages annoncés plus bas ont été levés :
+
+- **Le blocage de données est réglé** (§1) : 569 698 liaisons radio et 1 100
+  comptages routiers mesurés ont été rapatriés
+  (`scripts/local/08-rapatrier-radio.sh`, `09-rapatrier-tmja-reel.sh`). Le diff
+  complet des 103 tables ne laisse plus que des caches régénérables et les
+  406 930 lignes de proxy OSM, abandonnées à dessein.
+- **Le blocage Vercel n'existait pas** (§2) : vérifié le 2026-09-19, la team
+  `vincedosis-projects` ne contient **aucun projet**. `geo-prompt-v2` avait déjà
+  été supprimé, et `.vercel/project.json` du dépôt n'est qu'un résidu non
+  versionné. L'audit le classait 🔴 bloquant sur la foi de ce fichier — une
+  référence dans le dépôt n'est pas une ressource qui existe.
+
+**Reste à faire, hors de cette session** : supprimer le projet hébergé et
+révoquer la clé `service_role`, qui est dans l'historique git.
+
+---
+
+## Verdict initial de l'audit (conservé)
 
 **Faisable, mais PAS aujourd'hui sans perdre des données.** Un blocage de
 données et une décision produit doivent être réglés d'abord.
@@ -54,8 +78,11 @@ donc été perdue depuis, en local, sans que rien ne le signale.**
 **seule** liaison exploitable » entre émetteurs et radios — `radios_id` étant
 NULL partout. Couper maintenant casse la fonctionnalité radio.
 
-**À faire avant de couper** : re-dumper les trois tables radio depuis la
-production vers le local.
+**FAIT le 2026-09-19** (`scripts/local/08-rapatrier-radio.sh`) : 1 175 radios,
+12 704 émetteurs (42 récupérés de la prod), **569 698 liaisons**, **0
+orpheline**. `radios` et `emetteurs_radio` ont été COMPLÉTÉES et non vidées —
+le local portait 794 émetteurs absents de la prod, les effacer aurait été la
+perte symétrique de celle qu'on réparait.
 
 ## 2. La décision produit — le déploiement Vercel
 
