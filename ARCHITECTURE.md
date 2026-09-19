@@ -1599,7 +1599,8 @@ l'index UNIQUE.
 > de bac a sable : Postgres 17 + PostGIS, PostgREST, GoTrue, Realtime, Storage
 > et Studio, en conteneurs.
 
-Sept scripts dans `scripts/local/`, rejouables un par un :
+**Onze fichiers** dans `scripts/local/`, rejouables un par un — dont trois
+font doublon, voir l'avertissement sous le tableau :
 
 | Script | Role |
 |---|---|
@@ -1609,8 +1610,25 @@ Sept scripts dans `scripts/local/`, rejouables un par un :
 | `03-restore-local.sh` | remise a zero de `public` + extensions -> comptes auth -> `public.sql`, via le `psql` du conteneur. **Rejouable** |
 | `04-env-local.sh` | ecrit `.env.development.local` (surcharge dev, `.env.local` intact) |
 | `05-verifier.sh` | controle en trois temps : conteneurs, volumetrie en base, **et PostgREST** — c'est PostgREST que l'app appelle, pas `psql` |
-| `06-rapatrier-carreaux.sh` | copie `carreaux_filosofi` depuis la PROD, par tranches de hachage. **Garde de secours** : `07` lui est preferable en tout point (source publique, aucun identifiant, aucune I/O sur Supabase, et les DROM en plus) |
-| `07-carreaux-insee.sh` | charge les 2 324 577 carreaux 200 m depuis le CSV INSEE — voir la section carreaux plus haut |
+| **`07-carreaux-insee.sh`** | **charge les 2 324 577 carreaux 200 m depuis le CSV INSEE** — voir la section carreaux plus haut. C'est le SEUL des quatre chemins ci-dessous a ne rien couter a la production, a ne demander aucun identifiant, et a porter les DROM |
+| `06-rapatrier-carreaux.sh` | ⚠ copie `carreaux_filosofi` depuis la PROD par tranches de hachage — **supplante par `07-carreaux-insee.sh`** |
+| `07-carreaux-200m.sh` | ⚠ copie `carreaux_filosofi` depuis la PROD par tranches d'index — **supplante, et DOUBLON de la ligne precedente** (voir la note ci-dessous) |
+| `06-completer-tables-lourdes.sh` | ⚠ copie `carreaux_filosofi` ET `comptages_routiers` depuis la PROD — **supplante pour les carreaux** ; reste le seul chemin pour `comptages_routiers`, dont 99,7 % est du proxy OSM et non du TMJA mesure |
+| `dev-sur-prod.sh` | lance `npm run dev` contre la PRODUCTION en passant les valeurs par l'ENVIRONNEMENT (Next n'ecrase jamais une variable deja posee), sans toucher a `.env.development.local`. **Sortie de secours, pas le geste du quotidien** |
+
+> ⚠ **Quatre scripts pour une seule tache, et trois sont morts.** Recompte le
+> 2026-09-19 : ce tableau annoncait « Sept scripts » pour **onze fichiers**, et
+> trois d'entre eux — `06-rapatrier-carreaux.sh`, `07-carreaux-200m.sh`,
+> `06-completer-tables-lourdes.sh` — rapatrient tous `carreaux_filosofi` depuis
+> la production. `07-carreaux-200m.sh` et `06-completer-tables-lourdes.sh`
+> datent du montage du stack (commit `165eaa7`, 2026-09-17) ;
+> `06-rapatrier-carreaux.sh` a ete ecrit le 2026-09-18 **sans voir qu'ils
+> existaient**, et `07-carreaux-insee.sh` les a tous rendus inutiles le
+> lendemain. Ils ne sont pas supprimes ici — `docs/AUDIT_SEVESO_PPRT.md` cite
+> encore `07-carreaux-200m.sh` pour expliquer une mesure, et effacer un script
+> dont un document explique un resultat rend ce document incomprehensible. A
+> trancher en passe de menage : garder `06-completer-tables-lourdes.sh` pour
+> `comptages_routiers`, retirer les deux autres.
 
 - **WSL2 et surtout PAS Hyper-V.** Hyper-V **pre-alloue** toute la RAM de la
   VM : sur ce poste (15,5 Go dont ~10 pris par Chrome, Teams, le nouvel Outlook
