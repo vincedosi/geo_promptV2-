@@ -30,6 +30,7 @@ import { createAdminClient } from '@/lib/auth';
 import { rpcJson, nullableArg } from '@/lib/supabase/rpc-json';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { liste } from '@/lib/api/parametres-requete';
+import { DIMENSIONS, LIBELLE_DIMENSION, modesValides } from '@/lib/risques/dimensions';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,8 +43,6 @@ const limiteur = createRateLimiter({
   window: '60 s',
   prefix: 'geo:rl:exposition-export',
 });
-
-const DIMENSIONS = ['region', 'departement', 'code_postal', 'commune', 'arrondissement'] as const;
 
 const ParamsSchema = z.object({
   dimension: z.enum(DIMENSIONS).optional(),
@@ -74,10 +73,6 @@ interface Agregat {
   lignes: Ligne[]; calcule_le: string;
 }
 
-const LIBELLE_DIMENSION: Record<string, string> = {
-  region: 'Région', departement: 'Département', code_postal: 'Code postal',
-  commune: 'Commune', arrondissement: 'Arrondissement',
-};
 
 export async function GET(request: NextRequest) {
   const profile = await requireAuth(request);
@@ -100,7 +95,9 @@ export async function GET(request: NextRequest) {
     p_cible: p.cible ?? 'ind',
     p_gravites: nullableArg(liste(p.gravites)),
     p_natures: nullableArg(liste(p.natures)),
-    p_modes: nullableArg(liste(p.modes)),
+    // Validés, comme dans `/agregats` : un mode inconnu rendait ici un
+    // classeur VIDE sans message, là où l'écran répondait « les deux modes ».
+    p_modes: nullableArg(modesValides(liste(p.modes))),
     p_rayon_m: nullableArg(p.rayon_m ?? null),
     // On exporte TOUT, jamais la liste tronquée de l'écran : un tableur sert
     // justement à regarder au-delà des 100 premières lignes.

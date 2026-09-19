@@ -1695,6 +1695,30 @@ font doublon, voir l'avertissement sous le tableau :
   superuser et se voit repondre « permission denied to set parameter ».
   `03-restore-local.sh` les repose apres chaque restauration.
 
+- **Kong et PostgREST se disputent les connexions persistantes, et le symptome
+  ment.** Diagnostique le 2026-09-19, journaux de Kong a l'appui :
+
+      recv() failed (104: Connection reset by peer) while reading response
+      header from upstream, request: "POST /rest/v1/rpc/lire_couverture_rayon"
+      "POST /rest/v1/rpc/lire_couverture_rayon HTTP/1.1" 502 75
+
+  PostgREST ferme une connexion au moment precis ou Kong la reutilise. Kong
+  traduit la coupure en **502**, et supabase-js la rend comme « An invalid
+  response was received from the upstream server » — un message qui ne nomme ni
+  Kong, ni les connexions persistantes, ni la course. **Aucune erreur
+  n'apparait dans les journaux de PostgREST** : seuls ceux de Kong la portent.
+
+  Effet observe : un test d'integration DIFFERENT echouait a chaque execution,
+  ce qui se lisait comme une regression du test concerne. Mesure : 36/36 puis
+  4 echecs sur la passe suivante, sans qu'une ligne de code ait bouge.
+
+  Corrige dans le HARNAIS de test (`tests/integration/_client.ts`), jamais dans
+  `lib/` : c'est une particularite du stack local, la production Supabase regle
+  ses delais de connexion persistante. La reprise ne vaut que pour les LECTURES
+  (idempotentes), ne se declenche que sur 502/503, et n'a lieu qu'UNE fois —
+  deux coupures d'affilee ne sont plus une course mais une panne, et on veut la
+  voir. Verifie : 5 executions consecutives a 36/36.
+
 - **`[db.migrations]` et `[db.seed]` sont passes a `false`** dans
   `supabase/config.toml` : le schema local vient du dump, pas des 43 fichiers
   de `supabase/migrations/`, qui n'ont jamais ete l'historique reel du projet

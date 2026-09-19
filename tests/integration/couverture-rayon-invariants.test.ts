@@ -21,6 +21,7 @@ import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
+import { creerClientTest } from './_client';
 
 const envLocalDev = path.resolve(process.cwd(), '.env.development.local');
 const envLocal = path.resolve(process.cwd(), '.env.local');
@@ -39,7 +40,10 @@ interface Courbe { cle: string; total: number; carreaux: number; points: Point[]
 interface Reponse { calculable: boolean; courbes: Courbe[]; rayon_max_m: number; total_est_global: boolean }
 
 beforeAll(() => {
-  if (DISPO) sb = createClient(URL as string, KEY as string, { auth: { persistSession: false } });
+  // Client partagé : il reprend UNE fois sur 502/503, pour absorber la course
+  // sur les connexions persistantes entre Kong et PostgREST du stack local.
+  // Le diagnostic complet est dans `tests/integration/_client.ts`.
+  if (DISPO) sb = creerClientTest();
 });
 
 async function lire(params: Record<string, unknown> = {}): Promise<Reponse> {

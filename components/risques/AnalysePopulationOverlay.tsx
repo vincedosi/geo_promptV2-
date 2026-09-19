@@ -41,8 +41,17 @@ import { CARREAUX_PALETTES } from '@/lib/carreaux/catalogue';
 import { OngletRayonInfluence } from './OngletRayonInfluence';
 import { fInter, fMono } from '@/lib/design/polices';
 import { Kpi } from '@/components/risques/Kpi';
+import {
+  DIMENSIONS_PROPOSEES,
+  LIBELLE_DIMENSION,
+  MODES_ZONE as MODES_PARTAGES,
+} from '@/lib/risques/dimensions';
+import type { Dimension as DimensionPartagee, ModeZone } from '@/lib/risques/dimensions';
 
-type Dimension = 'region' | 'departement' | 'code_postal' | 'commune';
+// La maille vient de `lib/risques/dimensions.ts` : les trois listes blanches
+// (ici, /agregats, /export) divergeaient, et `arrondissement` etait donc
+// inatteignable alors que la RPC et l'export l'acceptent (R-09).
+type Dimension = DimensionPartagee;
 
 /**
  * Un pas du fil d'Ariane. Le `nom` est porté avec le code parce qu'on ne peut
@@ -71,14 +80,29 @@ type Encodage = 'part' | 'densite' | 'exposee';
  */
 const PALIERS_RAYON = [500, 1000, 2000, 5000];
 
-const DIMENSIONS: Array<{ id: Dimension; label: string; zones: 'region' | 'departement' | 'cp' | null }> = [
-  { id: 'region', label: 'Région', zones: 'region' },
-  { id: 'departement', label: 'Département', zones: 'departement' },
-  { id: 'commune', label: 'Commune', zones: null },
-  // Les contours postaux existent, mais on ne les dessine plus : à l'intérieur
-  // d'un département, une carte de France entière ne montrerait qu'un confetti.
-  { id: 'code_postal', label: 'Code postal', zones: null },
-];
+/**
+ * Ce que la mini-carte sait dessiner, par maille.
+ *
+ * Seule information PROPREMENT locale de ce tableau : les ids et les libellés
+ * viennent de `lib/risques/dimensions.ts`, où ils sont écrits une fois pour
+ * l'écran, `/agregats` et `/export`.
+ *
+ * Les contours postaux existent mais ne sont plus dessinés : à l'intérieur d'un
+ * département, une carte de France entière n'en montrerait qu'un confetti.
+ */
+const ZONES_DESSINEES: Record<DimensionPartagee, 'region' | 'departement' | 'cp' | null> = {
+  region: 'region',
+  departement: 'departement',
+  commune: null,
+  code_postal: null,
+  arrondissement: null,
+};
+
+const DIMENSIONS = DIMENSIONS_PROPOSEES.map((id) => ({
+  id,
+  label: LIBELLE_DIMENSION[id],
+  zones: ZONES_DESSINEES[id],
+}));
 
 /**
  * Les trois encodages de la carte. Ils ne disent PAS la même chose, et chacun
@@ -98,10 +122,18 @@ const ENCODAGES: Array<{ id: Encodage; label: string; aide: string }> = [
  * Les décocher séparément permet de répondre à « et si je ne garde que ce qui
  * est opposable ? », qui est la question d'une recommandation client.
  */
-const MODES_ZONE: Array<{ id: string; label: string; aide: string }> = [
-  { id: 'pprt', label: 'Périmètre PPRT', aide: "Servitude publiée par l'État, opposable" },
-  { id: 'buffer', label: 'Rayon calculé', aide: 'Rayon choisi ci-dessus — aucune valeur réglementaire' },
-];
+/**
+ * Les deux origines de zone, telles que l'écran les présente.
+ *
+ * Les IDENTIFIANTS viennent de `lib/risques/dimensions.ts` — les mêmes que les
+ * routes valident. Le libellé et l'aide sont propres à l'écran.
+ */
+const AIDE_MODE: Record<ModeZone, { label: string; aide: string }> = {
+  pprt: { label: 'Périmètre PPRT', aide: "Servitude publiée par l'État, opposable" },
+  buffer: { label: 'Rayon calculé', aide: 'Rayon choisi ci-dessus — aucune valeur réglementaire' },
+};
+
+const MODES_ZONE = MODES_PARTAGES.map((id) => ({ id, ...AIDE_MODE[id] }));
 
 /** Niveaux réglementaires, du plus grave au moins. Miroir du panneau Calques. */
 const NIVEAUX: Array<{ id: string; label: string }> = [
@@ -420,7 +452,19 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
   }, [rayonSaisi]);
 
   /** Le rayon réellement en vigueur — celui du serveur tant qu'on n'a rien choisi. */
-  const rayonCourant = rayon ?? agregat?.rayon_m ?? 532;
+  /*
+   * Le repli est la valeur RENDUE par la base, jamais un nombre écrit ici.
+   *
+   * Il valait `?? 532` (constat R-11). Or `sql/185` commente explicitement ce
+   * rayon : « DÉDUIT des 664 périmètres réels […] jamais écrit en dur »,
+   * recalculé à chaque import de PPRT. Le 532 en dur se serait donc figé au
+   * premier import suivant, et se serait affiché avant la réponse comme un
+   * chiffre mesuré — alors qu'il ne l'aurait plus été.
+   *
+   * `null` tant que la base n'a pas répondu : l'écran affiche « — » plutôt
+   * qu'un nombre qui a l'air juste.
+   */
+  const rayonCourant = rayon ?? agregat?.rayon_m ?? null;
   /**
    * Le plafond vient de la BASE (sql/197) et jamais d'un calcul local : le
    * seuil de surface vit dans la RPC, le recopier ici serait deux vérités qui
@@ -945,13 +989,18 @@ export function AnalysePopulationOverlay({ onFermer, gravites, typesRisque }: Pr
               min={200}
               max={maxRayonM ?? 5000}
               step={100}
-              value={Math.min(rayonSaisi ?? rayonCourant, maxRayonM ?? 5000)}
+              // Le curseur a besoin d'une position meme avant la premiere
+              // reponse : on prend le minimum de la plage, pas un chiffre
+              // invente qui aurait l'air d'une mesure.
+              value={Math.min(rayonSaisi ?? rayonCourant ?? 200, maxRayonM ?? 5000)}
               onChange={(e) => setRayonSaisi(Number(e.target.value))}
               aria-label="Rayon en mètres"
               style={{ width: 110, accentColor: 'var(--brand-teal)' }}
             />
             <span style={{ fontFamily: fMono, fontSize: 11, color: 'var(--text-primary)', minWidth: 52 }}>
-              {formaterDecimal((rayonSaisi ?? rayonCourant) / 1000)} km
+              {rayonSaisi ?? rayonCourant
+                ? `${formaterDecimal((rayonSaisi ?? rayonCourant ?? 0) / 1000)} km`
+                : '—'}
             </span>
 
             <label

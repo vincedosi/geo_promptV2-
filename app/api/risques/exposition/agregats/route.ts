@@ -38,6 +38,7 @@ import { rpcJson, nullableArg } from '@/lib/supabase/rpc-json';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { formaterNombre, formaterDecimal } from '@/lib/format/nombre';
 import { liste } from '@/lib/api/parametres-requete';
+import { DIMENSIONS, modesValides } from '@/lib/risques/dimensions';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,8 +62,6 @@ const limiteur = createRateLimiter({
  * a « le detail par code postal est trop long » — 34 921 communes, mais un
  * simple regroupement par attribut.
  */
-const DIMENSIONS = ['region', 'departement', 'code_postal', 'commune'] as const;
-const MODES = ['pprt', 'buffer'] as const;
 
 const ParamsSchema = z.object({
   dimension: z.enum(DIMENSIONS).optional(),
@@ -147,9 +146,7 @@ export async function GET(request: NextRequest) {
   const quota = await limiteur(profile.id);
   if (!quota.ok) return rateLimitResponse(quota.retrySec);
 
-  const modes = liste(p.modes)?.filter((m): m is (typeof MODES)[number] =>
-    (MODES as readonly string[]).includes(m),
-  );
+  const modes = modesValides(liste(p.modes));
 
   const supabase = createAdminClient();
   const { data, error } = await supabase.rpc('population_exposee_agregee', {
@@ -157,7 +154,7 @@ export async function GET(request: NextRequest) {
     p_cible: p.cible ?? 'ind',
     p_gravites: nullableArg(liste(p.gravites)),
     p_natures: nullableArg(liste(p.natures)),
-    p_modes: nullableArg(modes && modes.length > 0 ? modes : null),
+    p_modes: nullableArg(modes),
     p_rayon_m: nullableArg(p.rayon_m ?? null),
     p_limite: p.limite ?? 200,
     // Le périmètre filtre les SITES, pas les carreaux : un site du périmètre

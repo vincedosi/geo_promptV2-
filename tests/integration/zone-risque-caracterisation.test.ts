@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { existsSync } from 'node:fs';
-import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import { creerClientTest } from './_client';
 
 /**
  * Tests de CARACTÉRISATION de la zone à risque industriel.
@@ -24,15 +22,10 @@ import { createClient } from '@supabase/supabase-js';
  * Ce qu'il interdit, c'est qu'elle change SANS qu'on l'ait voulu.
  */
 
-// Priorité au local, comme les trois autres fichiers d'intégration : l'ordre
-// de ces deux lignes EST le garde-fou, dotenv n'écrase jamais une variable
-// déjà posée.
-if (existsSync('.env.development.local')) dotenv.config({ path: '.env.development.local' });
-dotenv.config({ path: '.env.local' });
-
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const cle = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const sb = createClient(url!, cle!, { auth: { persistSession: false } });
+// Client partagé : il reprend UNE fois sur 502/503, pour absorber la course
+// sur les connexions persistantes entre Kong et PostgREST du stack local.
+// Le diagnostic complet est dans `tests/integration/_client.ts`.
+const sb = creerClientTest();
 
 /** Bbox de l'Étang de Berre : le bassin industriel le plus dense de France. */
 const BERRE: [number, number, number, number] = [4.9, 43.3, 5.4, 43.6];
@@ -60,10 +53,6 @@ interface Carte {
 }
 
 describe('zone à risque — caractérisation (valeurs mesurées le 2026-09-19)', () => {
-  beforeAll(() => {
-    if (!url || !cle) throw new Error('NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY absentes');
-  });
-
   it('population_exposee_agregee au département rend 423 893 exposés sur 96 unités', async () => {
     const { data, error } = await sb.rpc('population_exposee_agregee', {
       p_dimension: 'departement',

@@ -269,6 +269,32 @@ function Repli({
   );
 }
 
+/**
+ * Ce que porte la base, à une DATE.
+ *
+ * Ces chiffres étaient semés en dur dans le JSX, sans date — alors que le bloc
+ * `ProvenanceDesZones` de ce même fichier date les siens (« Mesuré le
+ * 18/09/2026 »). La bonne pratique existait à dix lignes de là (constat R-14 de
+ * `docs/AUDIT_ZONE_RISQUE.md`).
+ *
+ * Ils ne peuvent PAS venir de l'API : celle-ci rend ce que contient la vue
+ * courante, pas un dénombrement national. Les dater est donc la seule honnêteté
+ * disponible — un chiffre ne vaut que par le jour où il a été compté.
+ *
+ * Mesuré le 19/09/2026 sur la base : `poi_france` catégorie
+ * `risque_industriel`, et `pprt_perimetres`.
+ */
+const RECENSEMENT = {
+  date: '19/09/2026',
+  icpe: 99152,
+  seveso: 1327,
+  sevesoSeuilHaut: 717,
+  pprt: 664,
+  departementsAvecPprt: 87,
+  /** Départements qui ont au moins un PPRT. Seule la Haute-Loire n'en a aucun. */
+  departementsConcernes: 88,
+} as const;
+
 export function RisqueIndustrielSection({
   filterSearch,
   sectionsOpen,
@@ -373,7 +399,7 @@ export function RisqueIndustrielSection({
           {/* ── 2. Ce qui fait foi ─────────────────────────────────────────
               HORS du bloc `actif` à dessein : c'est une couche INDÉPENDANTE.
               On doit pouvoir afficher les périmètres réglementaires sans
-              afficher les 99 152 points, et l'inverse. */}
+              afficher les points ICPE, et l'inverse. */}
           <CarteZone
             tirete={false}
             titre="Périmètre PPRT"
@@ -404,7 +430,7 @@ export function RisqueIndustrielSection({
                     ? pprtEtat.rendus === pprtEtat.total
                       ? `${formaterNombre(pprtEtat.rendus)} périmètre${pprtEtat.rendus > 1 ? 's' : ''} dans la vue`
                       : `${formaterNombre(pprtEtat.rendus)} affichés sur ${formaterNombre(pprtEtat.total)} — les plus petits sont coupés`
-                    : '664 périmètres · 87 départements sur 88'}
+                    : `${formaterNombre(RECENSEMENT.pprt)} périmètres · ${RECENSEMENT.departementsAvecPprt} départements sur ${RECENSEMENT.departementsConcernes} — recensé le ${RECENSEMENT.date}`}
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -519,7 +545,8 @@ export function RisqueIndustrielSection({
                     onChange={setNiveaux}
                   />
                   <span style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>
-                    1 327 sites Seveso en France sur 99 152 installations classées.
+                    {formaterNombre(RECENSEMENT.seveso)} sites Seveso en France sur{' '}
+                    {formaterNombre(RECENSEMENT.icpe)} installations classées — recensé le {RECENSEMENT.date}.
                   </span>
                 </div>
 
