@@ -39,7 +39,8 @@ dans une base jetable pour vérifier qu'elle tient**.
 contenait bien les 569 698 lignes — mais le restore rendait **568 197
 « syntax error »**. Trois causes, toutes découvertes en la testant :
 
-1. **`estrict` (PostgreSQL 17.6)** met psql en mode restreint, où `\.` — le
+1. **`
+estrict` (PostgreSQL 17.6)** met psql en mode restreint, où `\.` — le
    terminateur de chaque bloc de données — est lui aussi bloqué. Les lignes de
    données sont alors lues comme du SQL. D'où le format binaire.
 2. **`OWNER TO` / `SET ROLE`** : le `postgres` du conteneur n'est pas
@@ -67,6 +68,31 @@ de la donnée régénérable.
 ⚠ **Elle est sur le MÊME poste que la base.** Une sauvegarde qui partage le
 disque de ce qu'elle protège ne protège que d'une erreur logicielle, pas d'une
 panne matérielle. La copier ailleurs reste à faire.
+
+### Batterie de vérification avant suppression (2026-09-19)
+
+| Épreuve | Résultat |
+|---|---|
+| `npx tsc --noEmit` | 0 erreur |
+| `npm run lint` | 0 erreur |
+| `npm test` | **1 452** unitaires + **36** intégration |
+| `npm run build` | compilé en 60 s, lisant `.env.local` (donc le local) |
+| Parcours navigateur complet | 20 appels, **0 erreur**, **0 tentative vers le cloud** |
+| Module risques dans l'interface | 5 appels en 200 · « 1 192 sites dans la vue » · overlay et onglet Rayon ouverts |
+
+**La preuve décisive : l'arrêt du local.** La passerelle Kong locale a été
+stoppée, puis les tests d'intégration relancés : **28 des 36 ont échoué**. Ils
+ont ÉCHOUÉ au lieu de basculer silencieusement sur le cloud — c'est ce qui
+démontre qu'aucun repli caché ne subsiste. Passerelle redémarrée : 36/36.
+
+*La mise en pause du projet hébergé a été tentée et refusée par Supabase —
+« Project is not free-tier ». La simulation a donc été faite localement, ce qui
+est plus rigoureux : elle ne touche pas à l'infrastructure.*
+
+Les deux anciennes sauvegardes d'environnement qui portaient encore les
+identifiants du cloud (`.env.local.avant-coupure-*`, `.env.local.backup-*`) ont
+été sorties du dépôt vers `C:/GENESIS/_anciens_env/`. ⚠ Elles contiennent une
+clé `service_role` VIVANTE tant que le projet existe.
 
 ---
 
