@@ -25,7 +25,7 @@
 import { useEffect, useState } from 'react';
 import { Layers, Loader2 } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
-import { formaterNombre } from '@/lib/format/nombre';
+import { formaterNombre, formaterDecimal } from '@/lib/format/nombre';
 import { B, C, FieldBlock, fInter, fMono } from './ui';
 
 interface JeuResume {
@@ -148,7 +148,7 @@ export function SourcePlan({ choisi, onChoisir }: Props) {
                   <>
                     , taux d’utile{' '}
                     <span style={{ fontFamily: fMono, color: C.text }}>
-                      {Number(retenu.taux_utile).toFixed(1)} %
+                      {formaterDecimal(Number(retenu.taux_utile))} %
                     </span>
                   </>
                 )}

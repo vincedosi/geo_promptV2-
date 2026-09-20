@@ -31,7 +31,7 @@
  */
 import React, { useCallback, useMemo, useState } from 'react';
 import { Loader2, Save, Copy, Trash2, FolderOpen, Layers } from 'lucide-react';
-import { formaterNombre } from '@/lib/format/nombre';
+import { formaterNombre, formaterDecimal } from '@/lib/format/nombre';
 import { fInter, fMono } from '@/lib/design/polices';
 import { Kpi } from '@/components/risques/Kpi';
 import { COULEUR_NIVEAU_CSS } from '@/lib/carte/palette-zones-risque';
@@ -185,7 +185,7 @@ export function OngletZones({
                 note="ce que la campagne achète"
               />
               <Kpi
-                valeur={tauxUtile === null ? '—' : `${tauxUtile.toFixed(1)} %`}
+                valeur={tauxUtile === null ? '—' : `${formaterDecimal(tauxUtile)} %`}
                 libelle="Taux d’utile"
                 note={tauxUtile === null
                   ? 'aucun code postal retenu'
@@ -382,7 +382,7 @@ function Dilution({ seuil, onSeuil, visee, achetee }: {
           </span>{' '}
           habitants situés hors des zones, soit{' '}
           <span style={{ fontFamily: fMono, color: 'var(--text-primary)' }}>
-            {((100 * gaspille) / achetee).toFixed(1)} %
+            {formaterDecimal((100 * gaspille) / achetee)} %
           </span>{' '}
           de ce qu’elle paie.
         </p>
@@ -614,7 +614,7 @@ function Bibliotheque({ jeux, etat, ouvert, enCoursId, onOuvrir, onSupprimer }: 
             </div>
             <div style={{ fontFamily: fMono, fontSize: 10.5, color: 'var(--text-tertiary)', marginTop: 2 }}>
               {j.n_cp_retenus === null ? '—' : formaterNombre(j.n_cp_retenus)} codes postaux
-              {j.taux_utile !== null && ` · ${Number(j.taux_utile).toFixed(1)} % d’utile`}
+              {j.taux_utile !== null && ` · ${formaterDecimal(Number(j.taux_utile))} % d’utile`}
               {` · seuil ${Number(j.seuil_couverture_cp)} %`}
             </div>
           </div>

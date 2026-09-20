@@ -29,7 +29,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
-import { formaterNombre } from '@/lib/format/nombre';
+import { formaterNombre, formaterDecimal } from '@/lib/format/nombre';
 import { COULEUR_NIVEAU_CSS } from '@/lib/carte/palette-zones-risque';
 import { libelleClasse, anneauxParNiveau } from '@/lib/risques/libelle-classe';
 import { normaliserProfil, type Niveau } from '@/lib/risques/profil';
@@ -166,7 +166,7 @@ export function PressionParClasse({ campaignId }: Props) {
         {data.part_hors_zone_pct > 0 ? (
           <>
             <span style={{ fontFamily: fMono, color: 'var(--text-primary)' }}>
-              {data.part_hors_zone_pct.toFixed(1)} %
+              {formaterDecimal(data.part_hors_zone_pct)} %
             </span>{' '}
             des impressions sont tombées hors du jeu de zones.
           </>
@@ -252,9 +252,9 @@ function Barre({ classe, libelle, couleur }: {
       </div>
       <div style={{ display: 'flex', gap: 14, marginTop: 3, fontFamily: fMono, fontSize: 10.5, color: 'var(--text-tertiary)' }}>
         <span>{formaterNombre(classe.impressions)} imp.</span>
-        <span>plan {classe.part_plan_pct.toFixed(2)} %</span>
-        <span>servi {classe.part_impressions_pct.toFixed(2)} %</span>
-        {classe.cpm !== null && <span>{classe.cpm.toFixed(2)} € CPM</span>}
+        <span>plan {formaterDecimal(classe.part_plan_pct, 2)} %</span>
+        <span>servi {formaterDecimal(classe.part_impressions_pct, 2)} %</span>
+        {classe.cpm !== null && <span>{formaterDecimal(classe.cpm, 2)} € CPM</span>}
         <span>
           {formaterNombre(classe.n_cp_retenus)} / {formaterNombre(classe.n_cp)} CP retenus
         </span>
