@@ -40,6 +40,7 @@ import { lireCorps } from '@/lib/api/valider-corps';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { normaliserJeu } from '@/lib/zones/jeu';
 import { genererPlanCp, type CpZone } from '@/lib/zones/plan';
+import { lireTout } from '@/lib/supabase/lire-tout';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,20 +106,38 @@ export async function POST(
     );
   }
 
-  const { data: cpRows, error: erreurCp } = await supabase
-    .from('zone_set_cp')
-    .select('code_postal, classe, pop_en_zone, pop_totale, retenu')
-    .eq('zone_set_id', id)
-    // ⚠ Borne écrite. Le référentiel compte 6 187 codes postaux : au-delà, on
-    // servirait une liste tronquée sans le dire, et le plan couvrirait moins
-    // que ce que l'écran annonce.
-    .limit(7000);
-
-  if (erreurCp) {
-    console.error('[zones/rattacher] lecture CP :', erreurCp.message);
+  /*
+   * ⚠ Lecture PAGINÉE, et ce n'est pas une précaution. PostgREST applique
+   * `db-max-rows = 1000` côté SERVEUR (`supabase/config.toml:18`), et un
+   * `.limit(7000)` client ne le lève PAS. Mesuré le 2026-09-20 : un jeu de
+   * 1 942 codes postaux en rendait 1 000, et le plan écrit couvrait donc la
+   * moitié du jeu — un plan partiel qui se présente comme complet, exactement
+   * ce que le rollback de lot plus bas existe pour empêcher.
+   *
+   * ⚠ À ne pas confondre avec la troncature à 5 000 lignes des RPC
+   * `RETURNS TABLE` que `CLAUDE.md` documente : celle-ci frappe les requêtes de
+   * table ordinaires, et elle est quatre fois plus basse.
+   */
+  let cpRows: Array<{
+    code_postal: string; classe: string; pop_en_zone: number;
+    pop_totale: number; retenu: boolean;
+  }>;
+  try {
+    ({ lignes: cpRows } = await lireTout(
+      (de, a) => supabase
+        .from('zone_set_cp')
+        .select('code_postal, classe, pop_en_zone, pop_totale, retenu')
+        .eq('zone_set_id', id)
+        .order('code_postal')
+        .range(de, a),
+      7000,
+    ));
+  } catch (e) {
+    console.error('[zones/rattacher] lecture CP :', e instanceof Error ? e.message : e);
     return NextResponse.json({ error: 'Codes postaux du jeu illisibles.' }, { status: 500 });
   }
-  if (!cpRows || cpRows.length === 0) {
+
+  if (cpRows.length === 0) {
     return NextResponse.json(
       { error: 'Ce jeu de zones ne couvre aucun code postal.' },
       { status: 409 },

@@ -21,14 +21,26 @@
  * ⚠ Ce test tourne à CHAQUE exécution de la suite d'intégration, contrairement
  * aux croisements manuels qu'il remplace.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { creerClientTest } from './_client';
 import { calculerAlignement, type UniteAlignement } from '@/lib/campagne/alignement';
 
 const sb = creerClientTest();
 
-/** La campagne de démonstration du module risque — sans plan, par construction. */
-const SANS_PLAN = 'd0000000-0000-4000-8000-00000000f1a5';
+/*
+ * ── LE CAS « SANS PLAN » EST FABRIQUÉ ICI, ET NON EMPRUNTÉ ────────────────
+ *
+ * Ce test visait la campagne de démonstration du module risque, qui n'avait
+ * alors aucun plan. C'était une propriété ACCIDENTELLE de ce jeu, pas une
+ * garantie : sql/213 lui en a donné un — c'était même tout l'objet du
+ * correctif — et le test s'est mis à échouer en annonçant une régression qui
+ * n'existait pas.
+ *
+ * Un test qui emprunte son cas limite au jeu de démonstration d'un autre
+ * chantier casse le jour où ce jeu s'améliore. Celui-ci fabrique le sien,
+ * l'utilise, et le retire.
+ */
+const SANS_PLAN = '00000000-0000-4000-8000-0000a11a0000';
 /** La campagne de démonstration des élections — plan complet. */
 const AVEC_PLAN = 'dccc0000-0000-4000-8000-000000000002';
 
@@ -42,6 +54,19 @@ interface Alignement {
   plan_couverture_pct?: number;
 }
 
+/**
+ * Retire la campagne de test.
+ *
+ * ⚠ L'erreur est LUE. `supabase-js` ne lève pas : une suppression ratée
+ * laisserait une campagne `[TEST]` visible à l'écran, et la prochaine
+ * exécution échouerait sur une clé primaire déjà prise — avec un message qui
+ * ne nommerait pas la cause.
+ */
+async function retirerFixture(): Promise<void> {
+  const { error } = await sb.from('dsp_campaigns').delete().eq('id', SANS_PLAN);
+  if (error) throw new Error(`nettoyage de la fixture : ${error.message}`);
+}
+
 async function rpc(id: string): Promise<Alignement> {
   const { data, error } = await sb.rpc('calculer_alignement_geo', {
     p_campaign_id: id, p_tolerance: null, p_poids: null,
@@ -50,19 +75,36 @@ async function rpc(id: string): Promise<Alignement> {
   return data as unknown as Alignement;
 }
 
+/** Trois codes postaux qui ont reçu des impressions et ne portent aucun plan. */
+const ROLLUPS_SANS_PLAN = ['13001', '69001', '75001'].map((postal_code, i) => ({
+  campaign_id: SANS_PLAN,
+  postal_code,
+  dept: postal_code.slice(0, 2),
+  impressions: 100_000 * (i + 1),
+  spend: 400 * (i + 1),
+  actor: 'test',
+  planned_share: null,
+}));
+
 describe('« pas de plan » n est pas « plan parfaitement tenu »', () => {
   beforeAll(async () => {
-    const { count } = await sb
-      .from('dsp_campaigns')
-      .select('*', { count: 'exact', head: true })
-      .eq('id', SANS_PLAN);
-    if (!count) {
-      throw new Error(
-        'Le jeu de démonstration du module risque est absent. '
-        + 'npx tsx scripts/seed-demo-campagne-risque.ts',
-      );
-    }
+    // Idempotent : une exécution interrompue ne doit pas bloquer la suivante.
+    await retirerFixture();
+
+    const { error: erreurCampagne } = await sb.from('dsp_campaigns').insert({
+      id: SANS_PLAN,
+      name: '[TEST] alignement sans plan',
+      dsp_source: 'magelian',
+    });
+    if (erreurCampagne) throw new Error(`fixture campagne : ${erreurCampagne.message}`);
+
+    const { error: erreurRollup } = await sb
+      .from('campaign_cp_rollup')
+      .insert(ROLLUPS_SANS_PLAN);
+    if (erreurRollup) throw new Error(`fixture rollups : ${erreurRollup.message}`);
   }, 60_000);
+
+  afterAll(retirerFixture, 60_000);
 
   it('une campagne sans plan est NON CALCULABLE, et le dit', async () => {
     const r = await rpc(SANS_PLAN);
@@ -78,7 +120,7 @@ describe('« pas de plan » n est pas « plan parfaitement tenu »', () => {
     // Refuser de calculer ne veut pas dire refuser de renseigner : l'écran doit
     // pouvoir écrire « 2 000 codes postaux touchés, aucun plan défini ».
     const r = await rpc(SANS_PLAN);
-    expect(r.n_cp).toBeGreaterThan(0);
+    expect(r.n_cp).toBe(ROLLUPS_SANS_PLAN.length);
   }, 60_000);
 
   it('le jumeau TypeScript refuse le MEME cas', () => {

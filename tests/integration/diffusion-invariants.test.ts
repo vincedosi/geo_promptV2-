@@ -118,30 +118,40 @@ describe('ventilation de la diffusion par classe de risque', () => {
     }
   });
 
-  it('le scenario de demonstration SOUS-presse le seuil haut', () => {
+  it('le scenario de demonstration SOUS-presse les ABORDS des sites classes', () => {
     /*
-     * Le jeu applique −45 % là où plus d'un quart de la population du code
-     * postal est exposée au seuil haut. L'écran doit donc le montrer : un
-     * indice du seuil haut inférieur à celui du hors-zone.
-     *
      * Ce test garde le SCÉNARIO autant que le calcul. Un jeu uniforme donnerait
      * 100 partout — un écran qui ne montre rien, et sur lequel on ne pourrait
      * pas juger si la ventilation fonctionne.
+     *
+     * ⚠ **Il portait sur TOUT le seuil haut jusqu'au 2026-09-20, et il avait
+     * raison de changer.** Mesuré ce jour-là : l'anneau le plus large,
+     * `haut:3`, porte **1 468 des 1 942 codes postaux** du plan (76 %). Un
+     * agrégat sur `haut:*` est donc dominé par cet anneau, que le scénario
+     * laisse délibérément à son plan — l'assertion mesurait surtout le bruit
+     * de la classe la plus nombreuse.
+     *
+     * Le scénario de sql/213 est plus précis, et le propos du produit avec
+     * lui : ce sont les ABORDS IMMÉDIATS (`haut:pprt`, `haut:1`, `haut:2`) que
+     * la campagne néglige, à −70 %. C'est cela qu'on verrouille.
      */
-    const haut = d.classes.filter((c) => c.classe.startsWith('haut:'));
+    const ABORDS = ['haut:pprt', 'haut:1', 'haut:2'];
+    const abords = d.classes.filter((c) => ABORDS.includes(c.classe) && c.indice !== null);
     const hors = d.classes.find((c) => c.classe === 'hors');
-    expect(haut.length, 'aucune classe de seuil haut').toBeGreaterThan(0);
+
+    expect(abords.length, 'aucune classe d’abords immédiats').toBeGreaterThan(0);
     expect(hors?.indice, 'le hors-zone n’a pas d’indice').not.toBeNull();
 
-    const indiceHaut = haut
-      .filter((c) => c.indice !== null)
+    const population = abords.reduce((t, c) => t + c.population, 0);
+    const indiceAbords = abords
       .reduce((t, c) => t + (c.indice as number) * c.population, 0)
-      / Math.max(haut.reduce((t, c) => t + c.population, 0), 1);
+      / Math.max(population, 1);
 
     expect(
-      indiceHaut,
-      `Le seuil haut devrait être sous-pressé par le scénario de démonstration. `
-      + `Indice pondéré ${indiceHaut.toFixed(0)} contre ${hors?.indice} hors zone.`,
+      indiceAbords,
+      `Les abords immédiats devraient être sous-pressés par le scénario de `
+      + `démonstration. Indice pondéré ${indiceAbords.toFixed(0)} contre `
+      + `${hors?.indice} hors zone.`,
     ).toBeLessThan(hors?.indice as number);
   });
 

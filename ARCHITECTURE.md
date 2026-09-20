@@ -342,7 +342,19 @@ genesis_app/
 │   ├── meteo/                  # aggregation.ts, palettes.ts, types.ts
 │   ├── poi/                    # categories.ts
 │   ├── radio/                  # anfr-import, arcom-crawler, arcom-ods-parser...
-│   └── smart-prompt/           # Orchestrateur multi-agents Mistral
+│   ├── smart-prompt/           # Orchestrateur multi-agents Mistral
+│   └── supabase/               # rpc-json.ts, tables.ts + lire-tout.ts (2026-09-20) :
+│                               #   lecture PAGINEE. ⚠ PostgREST applique un
+│                               #   `db-max-rows` SERVEUR de **1000** sur ce stack
+│                               #   (`supabase/config.toml:18`), et AUCUN `.limit()`
+│                               #   client ne le depasse. Ce n'est PAS la troncature
+│                               #   a 5 000 lignes des RPC : celle-ci frappe toute
+│                               #   requete de TABLE ordinaire, et elle est quatre
+│                               #   fois plus basse. Mesure : `zone_set_cp` portait
+│                               #   1 942 codes postaux, `.select().limit(7000)` en
+│                               #   rendait 1 000, et le plan ecrit couvrait donc la
+│                               #   moitie du jeu — sans que rien le signale.
+│                               #   `lireTout` rend TOUT ou LEVE, jamais un debut
 │
 ├── types/                      # Interfaces TypeScript partagees
 │   ├── poi.ts                  # POI, PoiRow
@@ -1255,6 +1267,8 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `seed_campagne_risque_demo` | Jeu de demonstration de l'onglet Diffusion : campagne `[DEMO] Risque industriel`, 30 jours, 2 000 codes postaux, `is_demo = true`. Scenario DELIBERE — sur-pression de +45 % sur trois regions, SOUS-pression de -45 % la ou plus d'un quart de la population du code postal est exposee au seuil haut ; un jeu uniforme donnerait un indice de 100 partout, c'est-a-dire un ecran qui ne montre rien. Bruit tire de `md5(code_postal \|\| jour)` et jamais de `random()` : deux executions donnent le meme jeu, donc une capture d'ecran reste valable et une regression se voit. DELETE cible + INSERT dans la MEME transaction — `idx_dsp_data_unique` est un index d'EXPRESSION sur six colonnes que PostgREST ne sait pas inferer | `scripts/seed-demo-campagne-risque.ts` (sql/208) |
 | `purger_campagne_risque_demo` | Retire le jeu de demonstration ; la campagne emporte ses donnees et ses rollups en cascade | `scripts/seed-demo-campagne-risque.ts --purger` (sql/208) |
 | `construire_zone_set` | Fige un profil en jeu de zones. La geometrie n'est PAS recalculee : `construire_zones_risque` (sql/205) la produit deja avec sa priorite en `ST_Difference`, on l'appelle puis on COPIE — recopier cette logique en donnerait deux versions qui divergent au premier correctif, et l'ecran montrerait des zones que le plan ne compte pas. ⚠ **REFUSE un filtre de nature** (`filtre_nature_non_supporte`) : `carreau_risque_distance` a ete construite avec un predicat FIXE (Seveso haut et bas, toutes natures) et ne peut pas l'honorer. Un filtre affiche mais non applique est pire qu'un filtre absent. Mesure : 21,3 s pour 7 classes et 1 942 codes postaux | `api/zones/jeux/` (sql/211) |
+| `seed_impressions_risque_demo` | **Seme les impressions de la campagne de demonstration SUR SON PLAN** (sql/213, remplace sql/208). Trois defauts mesures de la version precedente, chacun instructif : (1) **les trois partenaires valaient tous 7,06 EUR de CPM** — le bruit etait tire par (code postal, jour), donc moyenne sur 20 000 lignes par acteur il convergeait vers sa moyenne ; **un bruit qui varie sur un axe qu'on agrege ensuite ne distingue rien**, et le CPM est desormais une propriete de l'ACTEUR (4,20 / 8,10 / 10,60 EUR de base) ; (2) **1,2 milliard d'impressions en 30 jours** — le generateur partait de `population x 0,9` par code postal ET par jour, soit chaque habitant servi presque une fois par jour ; on fixe desormais le TOTAL (30 M) et on repartit ; (3) refusait de semer sans plan (`plan_absent`), sans quoi l'alignement retomberait sur le faux 100/100 que sql/209 vient de fermer. ⚠ **Le scenario REDISTRIBUE, il ne gonfle pas** : les parts etant normalisees par leur somme, booster un groupe en degonfle mecaniquement tous les autres — mesure avant correctif, les codes postaux neutres tombaient a 0,79 de leur plan et il ne restait **9 conformes sur 1 942**. Le facteur du groupe sur-diffuse est donc CALCULE pour absorber exactement ce que les coupes liberent, ce qui laisse le groupe neutre sur son plan. ⚠ **La coupe porte sur `haut:pprt`/`haut:1`/`haut:2` et non sur `haut:%`** : l'anneau le plus large `haut:3` porte a lui seul **1 468 des 1 942 codes postaux** (76 %), et l'y inclure ne laissait plus aucun groupe neutre. Resultat mesure : 30 000 028 impressions, **63 % de conformes**, 474 codes postaux sous-presses autour des sites classes, 251 sur-presses en Ile-de-France, score 86/100 | `scripts/seed-demo-campagne-risque.ts` (sql/213) |
+| `purger_demo_risque` | Retire la campagne de demonstration ET les jeux de zones `[DEMO]`. La campagne emporte ses donnees, ses rollups et ses strategies en cascade ; un jeu emporte ses geometries et ses codes postaux | `scripts/seed-demo-campagne-risque.ts` (sql/213) |
 | `classe_carreau_risque` | **La regle d'affectation unique, en SQL** : un carreau, un niveau, une bande. Transcription de `lib/risques/affectation.ts`, croisee avec elle a CHAQUE execution de la suite par `tests/integration/affectation-sql.test.ts` — contrairement aux trois jumeaux TypeScript precedents du projet (`lib/analyses/score.ts`, `lib/campagne/alignement.ts`, `lib/qualite/verdict.ts`), croises UNE FOIS a la main. ⚠ **Ecrite sans aucune sous-requete, et c'est une mesure** : la premiere version cherchait la bande par `generate_subscripts … limit 1`, correcte mais NON INLINABLE — PostgreSQL l'appelait reellement 883 451 fois, soit **108 s** contre **12 s** pour la meme agregation a plat. En `case` imbriquee, elle se fond dans la requete appelante. Plafond de quatre anneaux par niveau, la meme borne que `ANNEAUX_MAX` cote TypeScript | `population_par_classe` (sql/204) |
 | `population_par_classe` | Population par classe du profil et par territoire (maille departement ou commune). `RETURNS jsonb` et non `TABLE` : cinquieme occurrence de la troncature PostgREST recensee dans le projet. **L'arrondi a lieu AU GRAIN LE PLUS FIN et nulle part ailleurs**, tous les totaux en decoulant par addition — arrondir chaque total separement produisait un ecart d'un habitant entre `total` et la somme de `par_classe` (14 103 577 contre 14 103 578), et un tableau qui ne s'additionne pas fait douter le lecteur, pas le logiciel. Meme correctif que sql/188. ⚠ **`parallel safe` n'est pas decoratif** : une fonction `security definer` est non parallelisable par defaut, et la marque fait passer l'appel national de **12,3 s a 2,8 s** | `api/risques/profil/bandes/` (sql/204) |
 | `classer_lot_risque` | Classe un lot de cas en un appel, pour le croisement TypeScript/SQL. **ENVELOPPE MINCE** de `classe_carreau_risque` : une seconde transcription ici ferait valider par le test une fonction que l'application n'appelle pas — le test resterait vert pendant que l'ecran afficherait faux | `tests/integration/affectation-sql.test.ts` (sql/204) |
@@ -1359,8 +1373,13 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
   le type de retour d'une fonction existante exige un `DROP`, exclu en
   production : on ecrit une **jumelle** `_jsonb` porteuse du corps, et
   l'originale devient une **enveloppe mince** (patron sql/154, 168-169, 170).
-- Sur une requete PostgREST ordinaire (pas une RPC), `.limit(100000)` leve la
-  troncature.
+- ⚠ **Sur une requete de TABLE ordinaire, le plafond est `db-max-rows`, et il
+  vaut 1 000 sur le stack local** (`supabase/config.toml:18`,
+  `PGRST_DB_MAX_ROWS=1000`, verifie dans l'environnement du conteneur le
+  2026-09-20). C'est un plafond SERVEUR : `.limit(100000)` ne le leve pas, il
+  demande seulement moins que lui. Passer par `lireTout`
+  (`lib/supabase/lire-tout.ts`), qui pagine et LEVE plutot que de rendre un
+  debut. Ce document affirmait l'inverse jusqu'a cette date.
 - `tests/unit/db/troncature-postgrest.test.ts` exige une borne ecrite pour
   chaque RPC tabulaire appelee par l'application.
 
