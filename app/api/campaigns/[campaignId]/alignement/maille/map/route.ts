@@ -10,8 +10,15 @@
  * de la campagne (`bidding_strategies.in_zone_weights->>'variable_code'`),
  * jamais une constante recopiée — `?variable=` la surcharge explicitement
  * (sélecteur d'un autre indicateur de `cible_indicator_registry`, Tâche 13
- * Step 2). Repli sur `abstention_pres_2022` si la campagne n'a pas de
- * stratégie ou que celle-ci ne porte pas de `variable_code`.
+ * Step 2).
+ *
+ * ⚠ **Le repli sur `abstention_pres_2022` ne vaut QUE pour un plan bâti sur
+ * un indicateur.** Un plan issu d'un JEU DE ZONES n'a aucune variable
+ * derrière lui : y replier faisait afficher « taux d'abstention » sous le
+ * titre « la variable qui a servi à bâtir le plan », pour une campagne dont
+ * le plan vient d'anneaux autour de sites classés. La réponse porte donc
+ * `source_plan`, et chaque unité porte `part_plan_pct` (sql/216) — la part du
+ * plan elle-même, qui se passe de proxy.
  *
  * Maille région SANS parent est la racine de la hiérarchie : passer un
  * `parent` est refusé en 400 (ruling T6-4, même garde que
@@ -24,6 +31,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { sourceDuPlan } from '@/lib/campagne/source-plan';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
@@ -121,22 +129,29 @@ export async function GET(
     return NextResponse.json({ error: 'Campagne introuvable.' }, { status: 404 });
   }
 
-  // Variable par défaut = celle de la stratégie de bidding active de la
-  // campagne, jamais une constante recopiée. `?variable=` la surcharge.
+  /*
+   * La source du plan est lue DANS TOUS LES CAS, même quand `?variable=` est
+   * fourni : le client en a besoin pour titrer la vignette, et la surcharge ne
+   * change pas d'où vient le plan — elle change seulement ce qu'on regarde
+   * à côté.
+   */
+  const { data: strategie, error: erreurStrategie } = await supabase
+    .from('bidding_strategies')
+    .select('in_zone_weights')
+    .eq('campaign_id', campaignId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (erreurStrategie) {
+    console.error('[alignement/maille/map] bidding_strategies:', erreurStrategie.message);
+  }
+  const source = sourceDuPlan(strategie?.in_zone_weights);
+
+  // Variable par défaut = celle de la stratégie, jamais une constante
+  // recopiée. `?variable=` la surcharge.
   let variableCode = variable;
   if (!variableCode) {
-    const { data: strategie, error: erreurStrategie } = await supabase
-      .from('bidding_strategies')
-      .select('in_zone_weights')
-      .eq('campaign_id', campaignId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (erreurStrategie) {
-      console.error('[alignement/maille/map] bidding_strategies:', erreurStrategie.message);
-    }
-    const poids = strategie?.in_zone_weights as { variable_code?: string } | null;
-    variableCode = poids?.variable_code || VARIABLE_DEFAUT;
+    variableCode = source.type === 'indicateur' ? source.code : VARIABLE_DEFAUT;
   }
 
   const { data, error } = await supabase.rpc('alignement_par_maille_geo', {
@@ -163,5 +178,14 @@ export async function GET(
     return NextResponse.json({ error: resultat.error }, { status: 404 });
   }
 
-  return NextResponse.json(resultat, { headers: { 'Cache-Control': 'no-store' } });
+  /*
+   * `source_plan` voyage AVEC les features. Sans lui, le client ne peut pas
+   * savoir si `variable_valeur` décrit le plan ou seulement un indicateur
+   * affiché à côté — et c'est cette ignorance qui lui faisait titrer
+   * « la variable qui a servi à bâtir le plan » sur un plan de zones.
+   */
+  return NextResponse.json(
+    { ...resultat, source_plan: source },
+    { headers: { 'Cache-Control': 'no-store' } },
+  );
 }

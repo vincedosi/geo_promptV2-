@@ -13,9 +13,21 @@
  */
 import type maplibregl from 'maplibre-gl'
 import { formaterNombre, formaterNombreAbrege } from '@/lib/format/nombre'
+import type { SourcePlan } from '@/lib/campagne/source-plan'
 
 export type Maille = 'region' | 'departement' | 'cp'
-export type TypeVignette = 'impressions' | 'variable' | 'alignement'
+/**
+ * Les vignettes carte du Suivi.
+ *
+ * ⚠ `'plan'` et `'variable'` ne montrent PAS la même chose, et les confondre
+ * est exactement le défaut que la Tâche de ce jour corrige :
+ *   · `'variable'` montre l'INDICATEUR qui a servi à bâtir le plan ;
+ *   · `'plan'` montre LA PART DU PLAN elle-même.
+ * Un plan bâti sur un jeu de zones n'a aucun indicateur derrière lui — l'écran
+ * repliait alors sur `abstention_pres_2022`, en titrant « la variable qui a
+ * servi à bâtir le plan » une variable que personne n'avait choisie.
+ */
+export type TypeVignette = 'impressions' | 'variable' | 'plan' | 'alignement'
 
 /**
  * Piège #3 (task-13-brief.md) : la valeur d'un CP s'applique à TOUTE sa zone,
@@ -41,6 +53,15 @@ export interface FeatureAlignementGeo {
   ecart_pct: number | null
   hors_plan: boolean
   variable_valeur: number | null
+  /**
+   * Part du plan de l'unité, en pourcentage du plan TOTAL de la campagne.
+   *
+   * ⚠ Toujours rapportée au périmètre complet, jamais au seul parent filtré
+   * (sql/216, même ruling que T6-2) : sinon la somme des parts vaudrait 100
+   * dans chaque drill-down, et aucun département ne pourrait plus apparaître
+   * sous ou sur-livré.
+   */
+  part_plan_pct: number | null
   geometry: GeoJSON.Geometry
 }
 
@@ -50,6 +71,9 @@ export interface ReponseAlignementMailleGeo {
   variable_code: string
   n_total: number
   features: FeatureAlignementGeo[]
+  /** D'où vient le plan. Décide du titre ET de la valeur de la vignette du
+   *  milieu — voir `lib/campagne/source-plan.ts`. */
+  source_plan?: SourcePlan
 }
 
 /** Vraie ssi `bornes` est strictement croissant — condition requise par
@@ -239,6 +263,13 @@ export function libellesExtremites(
   if (type === 'variable') {
     return domaine
       ? { finGauche: formaterNombre(domaine[0]), finDroite: formaterNombre(domaine[1]) }
+      : { finGauche: '—', finDroite: '—' }
+  }
+  if (type === 'plan') {
+    // En POURCENTAGE du plan, et l'unité est écrite : une part de plan sans
+    // son `%` se lirait comme un effectif.
+    return domaine
+      ? { finGauche: `${formaterNombre(domaine[0])} %`, finDroite: `${formaterNombre(domaine[1])} %` }
       : { finGauche: '—', finDroite: '—' }
   }
   return { finGauche: 'sous', finDroite: 'sur' }

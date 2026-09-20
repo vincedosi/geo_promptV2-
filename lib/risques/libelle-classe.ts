@@ -45,7 +45,20 @@ export function libelleClasse(classe: string, anneauxPar: Record<Niveau, number[
   if (bande === 'pprt') return `${court} — périmètre PPRT`;
   const anneaux = anneauxPar[niveau] ?? [];
   const i = Number(bande) - 1;
-  const debut = i === 0 ? '0' : libelleRayon(anneaux[i - 1]);
+
+  /*
+   * ⚠ Quand le profil ne porte AUCUN anneau pour ce niveau, on ne bricole pas
+   * une borne : on nomme la bande par son rang.
+   *
+   * `libelleRayon(undefined)` rendait **« NaN km »** — constaté à l'écran le
+   * 2026-09-20 sur le bloc « Pression par classe », qui affiche les classes
+   * d'un jeu ENREGISTRÉ sans forcément disposer du profil qui les a produites.
+   * Un « NaN » dans une interface n'informe de rien et fait douter de tout le
+   * reste du tableau, y compris des chiffres qui, eux, étaient justes.
+   */
+  if (anneaux.length === 0) return `${court} — bande ${i + 1}`;
+
+  const debut = i === 0 ? '0' : anneaux[i - 1] !== undefined ? libelleRayon(anneaux[i - 1]) : '?';
   /*
    * `?` et non une valeur inventée : une classe peut survivre à un anneau
    * retiré du profil — un jeu enregistré porte ses classes, le profil courant

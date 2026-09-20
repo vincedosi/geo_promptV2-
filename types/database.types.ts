@@ -7084,6 +7084,10 @@ export type Database = {
         Args: { p_bbox: number[]; p_limite?: number; p_types?: string[] }
         Returns: Json
       }
+      pression_par_classe: {
+        Args: { p_campaign_id: string; p_zone_set_id: string }
+        Returns: Json
+      }
       publier_strategie: {
         Args: {
           p_charge_utile: Json

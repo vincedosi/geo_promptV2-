@@ -75,9 +75,12 @@ const BG_ID = 'bg';
 export type { TypeVignette };
 
 /** Propriété GeoJSON dont chaque type de vignette tire sa couleur. */
-function proprieteValeur(type: TypeVignette): 'impressions' | 'variable_valeur' | 'ecart_pct' {
+function proprieteValeur(
+  type: TypeVignette,
+): 'impressions' | 'variable_valeur' | 'part_plan_pct' | 'ecart_pct' {
   if (type === 'impressions') return 'impressions';
   if (type === 'variable') return 'variable_valeur';
+  if (type === 'plan') return 'part_plan_pct';
   return 'ecart_pct';
 }
 
@@ -179,6 +182,7 @@ export function CarteVignette({
         properties: {
           code: f.code, nom: f.nom, impressions: f.impressions,
           ecart_pct: f.ecart_pct, hors_plan: f.hors_plan, variable_valeur: f.variable_valeur,
+          part_plan_pct: f.part_plan_pct,
         },
       })),
     };

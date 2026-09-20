@@ -31,6 +31,7 @@ import {
   type FeatureAlignementGeo,
   type TypeVignette,
 } from '@/lib/campagne/vignette-carte';
+import { libellesVignettePlan, type SourcePlan } from '@/lib/campagne/source-plan';
 
 const fInter = "'Inter', system-ui, sans-serif";
 
@@ -67,12 +68,27 @@ export interface TrioCartesProps {
   onChangeIndicateur?: (code: string) => void;
   /** Clic sur une vignette entière — 13B décide ce que ça ouvre. */
   onOuvrir?: (type: TypeVignette) => void;
+  /**
+   * D'où vient le plan de la campagne.
+   *
+   * ⚠ Elle décide du TITRE **et** de la GRANDEUR de la vignette du milieu :
+   * un plan bâti sur un jeu de zones n'a pas d'indicateur, et la vignette
+   * montre alors la part du plan elle-même. Absente, on retombe sur le
+   * comportement historique (indicateur) — ce qui reste juste pour toutes les
+   * campagnes dont le plan vient d'une variable.
+   */
+  sourcePlan?: SourcePlan;
 }
 
 export function TrioCartes({
   features, theme, chargement, erreur, variableActive, indicateursDisponibles,
-  onChangeIndicateur, onOuvrir,
+  onChangeIndicateur, onOuvrir, sourcePlan,
 }: TrioCartesProps) {
+  const planParZones = sourcePlan?.type === 'jeu_zones';
+  const { titre: titreMilieu, sousTitre: sousTitreMilieu } = libellesVignettePlan(
+    sourcePlan ?? { type: 'indicateur', code: variableActive.code },
+    variableActive.label,
+  );
   // Cadrage PARTAGÉ — calculé une fois ici, jamais par vignette (même
   // projection, même cadrage pour les trois, Tâche 13 Step 1).
   const bounds = useMemo<[number, number, number, number]>(
@@ -129,15 +145,23 @@ export function TrioCartes({
         onOuvrir={onOuvrir ? () => onOuvrir('impressions') : undefined}
       />
       <CarteVignette
-        type="variable"
-        titre={variableActive.label}
-        sousTitre="La variable qui a servi à bâtir le plan."
+        /* `plan` lit `part_plan_pct`, `variable` lit `variable_valeur` : deux
+           grandeurs différentes, jamais l'une présentée sous le nom de
+           l'autre. */
+        type={planParZones ? 'plan' : 'variable'}
+        titre={titreMilieu}
+        sousTitre={sousTitreMilieu}
         features={features}
         bounds={bounds}
         theme={theme}
         chargement={chargement}
-        onOuvrir={onOuvrir ? () => onOuvrir('variable') : undefined}
-        controleEnTete={indicateursDisponibles.length > 0 ? selecteurIndicateur : undefined}
+        onOuvrir={onOuvrir ? () => onOuvrir(planParZones ? 'plan' : 'variable') : undefined}
+        /* Le sélecteur d'indicateur disparaît sur un plan de zones : il
+           choisirait une variable qui ne pilote rien, dans une vignette qui
+           n'en affiche aucune. */
+        controleEnTete={
+          !planParZones && indicateursDisponibles.length > 0 ? selecteurIndicateur : undefined
+        }
       />
       <CarteVignette
         type="alignement"

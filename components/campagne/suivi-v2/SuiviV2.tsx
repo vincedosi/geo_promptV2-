@@ -86,6 +86,8 @@ import { ScoreAlignement, type ReponseAlignement } from './ScoreAlignement';
 import { BandeauAvancement, type DonneesAvancement } from './BandeauAvancement';
 import { GraphiqueEcart } from './GraphiqueEcart';
 import { TrioCartes, type IndicateurOption, type VariableActive } from './TrioCartes';
+import { PressionParClasse } from './PressionParClasse';
+import type { SourcePlan } from '@/lib/campagne/source-plan';
 import { TroisComposantes } from './TroisComposantes';
 import { ConstatsCorrection } from './ConstatsCorrection';
 import { CoutEtRythme, type DonneesCoutEtRythme } from './CoutEtRythme';
@@ -280,6 +282,9 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
   const [row2Ref, row2Visible] = useEnVue<HTMLDivElement>();
   const [mapFeatures, setMapFeatures] = useState<FeatureAlignementGeo[]>([]);
   const [mapVariableCode, setMapVariableCode] = useState<string | null>(null);
+  /** D'où vient le plan : décide du titre ET de la grandeur de la vignette du
+   *  milieu, et de la présence du bloc « Pression par classe ». */
+  const [sourcePlan, setSourcePlan] = useState<SourcePlan | undefined>(undefined);
   const [indicateurChoisi, setIndicateurChoisi] = useState<string | null>(null);
   const [indicateurs, setIndicateurs] = useState<IndicateurOption[]>([]);
   const [mapChargement, setMapChargement] = useState(false);
@@ -307,6 +312,7 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
           const d = await rMap.json() as ReponseAlignementMailleGeo;
           setMapFeatures(d.features ?? []);
           setMapVariableCode(d.variable_code ?? null);
+          setSourcePlan(d.source_plan);
           setMapErreur(null);
         } else {
           setMapErreur((await corpsErreur(rMap)) ?? 'Impossible de charger les cartes.');
@@ -608,6 +614,7 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
                     indicateursDisponibles={indicateurs}
                     onChangeIndicateur={setIndicateurChoisi}
                     onOuvrir={() => irVersCarte(null)}
+                    sourcePlan={sourcePlan}
                   />
                 ) : (
                   <p style={{ fontFamily: fInter, fontSize: 12.5, color: 'var(--text-tertiary)' }}>
@@ -618,6 +625,15 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
             </div>
 
             {alignement && <TroisComposantes data={alignement} />}
+
+            {/* Le bloc ne s'affiche QUE pour un plan bâti sur un jeu de zones :
+                sans classes, il n'aurait rien à ventiler. Le monter pour rien
+                ferait un appel réseau de plus et un cadre vide. */}
+            {sourcePlan?.type === 'jeu_zones' && campaignId && (
+              <Section>
+                <PressionParClasse campaignId={campaignId} />
+              </Section>
+            )}
 
             <Section innerRef={constatsRef}>
               <ConstatsCorrection

@@ -10,7 +10,7 @@ import type { FeatureAlignementGeo } from '@/lib/campagne/vignette-carte'
 function feature(over: Partial<FeatureAlignementGeo> = {}): FeatureAlignementGeo {
   return {
     code: '75', nom: 'Paris', impressions: 1000, ecart_pct: 0, hors_plan: false,
-    variable_valeur: null,
+    variable_valeur: null, part_plan_pct: null,
     geometry: { type: 'Polygon', coordinates: [[[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]] },
     ...over,
   }
