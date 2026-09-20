@@ -331,6 +331,27 @@ métadonnées), `SuiviV2.tsx` (bloc « Pression par classe », message d'état).
 
 ---
 
+## 6 bis. Un piège du pipeline, trouvé en le manipulant
+
+**`campaign_cp_rollup.planned_share` SURVIT à la suppression de sa stratégie.**
+
+Mesuré le 2026-09-20 : après avoir supprimé la stratégie d'essai, la campagne
+portait encore **1 017 codes postaux avec un `planned_share`** pour **zéro
+stratégie** en base. Le score d'alignement se calculait donc sur un plan dont
+la source n'existait plus — et rien, dans le payload, ne pouvait le signaler.
+
+C'est le comportement normal d'un rollup : il est figé jusqu'au prochain
+rafraîchissement. Mais la conséquence ne l'est pas — un écran peut afficher un
+plan que plus aucune stratégie ne justifie.
+
+`refresh_campaign_rollups` le nettoie correctement (vérifié : 1 017 → 0). Aucune
+route ne supprime de stratégie aujourd'hui, donc le cas n'est pas atteignable
+par l'interface ; il le deviendrait le jour où l'on ajouterait un
+« détacher le plan ». **Ce bouton devra rafraîchir les rollups dans la même
+opération**, sinon il laissera un plan fantôme derrière lui.
+
+---
+
 ## 7. Trois arbitrages que je tranche, et pourquoi
 
 **Le message « actualisation échouée » devient un état métier.** Il n'y a rien
