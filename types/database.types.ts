@@ -5393,6 +5393,157 @@ export type Database = {
           },
         ]
       }
+      zone_set_cp: {
+        Row: {
+          classe: string
+          code_postal: string
+          part_en_zone: number
+          pop_en_zone: number
+          pop_totale: number
+          retenu: boolean
+          zone_set_id: string
+        }
+        Insert: {
+          classe: string
+          code_postal: string
+          part_en_zone: number
+          pop_en_zone: number
+          pop_totale: number
+          retenu: boolean
+          zone_set_id: string
+        }
+        Update: {
+          classe?: string
+          code_postal?: string
+          part_en_zone?: number
+          pop_en_zone?: number
+          pop_totale?: number
+          retenu?: boolean
+          zone_set_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zone_set_cp_zone_set_id_fkey"
+            columns: ["zone_set_id"]
+            isOneToOne: false
+            referencedRelation: "zone_sets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zone_set_geoms: {
+        Row: {
+          bande: number | null
+          classe: string
+          geom: unknown
+          geom_3857: unknown
+          niveau: string
+          surface_km2: number | null
+          zone_set_id: string
+        }
+        Insert: {
+          bande?: number | null
+          classe: string
+          geom: unknown
+          geom_3857: unknown
+          niveau: string
+          surface_km2?: number | null
+          zone_set_id: string
+        }
+        Update: {
+          bande?: number | null
+          classe?: string
+          geom?: unknown
+          geom_3857?: unknown
+          niveau?: string
+          surface_km2?: number | null
+          zone_set_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zone_set_geoms_zone_set_id_fkey"
+            columns: ["zone_set_id"]
+            isOneToOne: false
+            referencedRelation: "zone_sets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zone_sets: {
+        Row: {
+          cible: string
+          construit_le: string | null
+          created_at: string
+          created_by: string | null
+          custom_geo_zone_id: string | null
+          description: string | null
+          gravites: string[]
+          id: string
+          mode_plan: string
+          modes: string[]
+          n_cp_retenus: number | null
+          natures: string[]
+          nom: string
+          org_id: string
+          poids: Json
+          population_exposee: number | null
+          profil: Json
+          profil_hash: string
+          seuil_couverture_cp: number
+          taux_utile: number | null
+          territoire: string | null
+          version: number
+        }
+        Insert: {
+          cible?: string
+          construit_le?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_geo_zone_id?: string | null
+          description?: string | null
+          gravites?: string[]
+          id?: string
+          mode_plan?: string
+          modes?: string[]
+          n_cp_retenus?: number | null
+          natures?: string[]
+          nom: string
+          org_id: string
+          poids?: Json
+          population_exposee?: number | null
+          profil: Json
+          profil_hash: string
+          seuil_couverture_cp?: number
+          taux_utile?: number | null
+          territoire?: string | null
+          version?: number
+        }
+        Update: {
+          cible?: string
+          construit_le?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_geo_zone_id?: string | null
+          description?: string | null
+          gravites?: string[]
+          id?: string
+          mode_plan?: string
+          modes?: string[]
+          n_cp_retenus?: number | null
+          natures?: string[]
+          nom?: string
+          org_id?: string
+          poids?: Json
+          population_exposee?: number | null
+          profil?: Json
+          profil_hash?: string
+          seuil_couverture_cp?: number
+          taux_utile?: number | null
+          territoire?: string | null
+          version?: number
+        }
+        Relationships: []
+      }
       zones_risque_cache: {
         Row: {
           bande: number | null
@@ -5864,6 +6015,7 @@ export type Database = {
           duree_ms: number
         }[]
       }
+      construire_zone_set: { Args: { p_zone_set_id: string }; Returns: Json }
       construire_zones_risque: {
         Args: { p_code: string; p_profil: Json }
         Returns: Json
@@ -6946,6 +7098,7 @@ export type Database = {
         Returns: Json
       }
       purge_old_agent_chat_messages: { Args: never; Returns: number }
+      purger_campagne_risque_demo: { Args: never; Returns: Json }
       qualite_colonnes_iris: { Args: never; Returns: Json }
       qualite_fraicheur: { Args: never; Returns: Json }
       qualite_indicateurs: { Args: never; Returns: Json }
@@ -6995,6 +7148,7 @@ export type Database = {
         }
         Returns: Json
       }
+      seed_campagne_risque_demo: { Args: never; Returns: Json }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       simulate_dsp_report: { Args: { p_campaign_id: string }; Returns: Json }
