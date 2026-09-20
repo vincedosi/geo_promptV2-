@@ -6023,6 +6023,10 @@ export type Database = {
         }[]
       }
       construire_zone_set: { Args: { p_zone_set_id: string }; Returns: Json }
+      construire_zone_set_corps: {
+        Args: { p_zone_set_id: string }
+        Returns: Json
+      }
       construire_zones_risque: {
         Args: { p_code: string; p_profil: Json }
         Returns: Json
@@ -6041,6 +6045,10 @@ export type Database = {
       count_poi_by_categorie_source: {
         Args: { p_categorie: string; p_source?: string }
         Returns: number
+      }
+      couverture_carreau_risque: {
+        Args: { p_departement?: string }
+        Returns: Json
       }
       create_carreaux_table: {
         Args: { table_name: string }

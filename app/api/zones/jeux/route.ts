@@ -70,6 +70,17 @@ const MESSAGES: Record<string, string> = {
   precalcul_absent:
     'Les distances par carreau n’ont pas encore été construites. '
     + 'Elles se calculent une fois après chaque import de sites à risque.',
+  /*
+   * ⚠ Distinct de `precalcul_absent`, et la distinction n'est pas de style :
+   * aucune construction ne rendra un territoire que l'INSEE ne carroie pas.
+   * Sans ce refus, l'atelier enregistrait un jeu VIDE — zéro classe, zéro
+   * code postal — qu'une campagne pouvait recevoir comme plan, et qui ne
+   * diffusait alors nulle part sans que rien le signale.
+   */
+  territoire_non_carroye:
+    'L’INSEE ne publie pas de carroyage à 200 m pour ce département : un jeu de '
+    + 'zones n’y retiendrait aucun code postal. Les sites y restent visibles sur '
+    + 'la carte, mais leur population exposée n’est pas mesurable.',
 };
 
 /**

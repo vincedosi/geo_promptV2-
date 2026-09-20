@@ -153,19 +153,81 @@ export async function GET(request: NextRequest) {
   }
 
   /*
-   * Le pré-calcul peut être ABSENT — il n'existe qu'après la construction
-   * (`scripts/construire_carreau_risque.mjs`). Le dire explicitement vaut
-   * mieux que de rendre des bandes à zéro, qui se liraient « personne n'habite
-   * près d'un site à risque » : un écran plausible et faux est pire qu'un
-   * écran qui refuse.
+   * ── UN RESULTAT VIDE A DEUX CAUSES, ET UNE SEULE SE CORRIGE ────────────
+   *
+   * Rendre des bandes a zero serait pire que refuser : cela se lirait
+   * « personne n'habite pres d'un site a risque ». Mais le refus doit nommer
+   * la BONNE cause.
+   *
+   *   · le pre-calcul n'a jamais ete construit -> lancer le script ;
+   *   · ce territoire n'est pas CARROYE par l'INSEE -> le script n'y changera
+   *     rien, jamais.
+   *
+   * Les deux rendaient le meme ecran jusqu'au 2026-09-20 : selectionner la
+   * Guadeloupe affichait « les distances n'ont pas encore ete construites,
+   * lancez node scripts/construire_carreau_risque.mjs » alors que le
+   * pre-calcul portait 883 451 lignes sur 98 departements. Le carroyage
+   * Filosofi 2021 a 200 m ne publie que la metropole, la Martinique et La
+   * Reunion — 971, 973 et 976 n'ont AUCUN carreau, et le script ne peut pas
+   * en fabriquer.
+   *
+   * Le message reclamait donc une action impossible, et il taisait le seul
+   * fait qui compte : ces trois departements portent 603 sites a risque, dont
+   * 31 Seveso, qui restent visibles sur la carte.
    */
   if (resultat.n_unites === 0 && (resultat.total ?? 0) === 0) {
+    const { data: diag, error: erreurDiag } = await supabase.rpc(
+      'couverture_carreau_risque',
+      { p_departement: nullableArg(p.parent ?? null) },
+    );
+    if (erreurDiag) {
+      console.error('[risques/profil/bandes] couverture :', erreurDiag.message);
+    }
+    const couverture = rpcJson<{
+      construit: boolean; territoire_couvert: boolean;
+      n_sites: number; n_seveso: number;
+    }>(diag);
+
+    // `construit === false` seulement : en cas d'echec du diagnostic, on ne
+    // suppose pas qu'il faut construire — mieux vaut la phrase generique
+    // qu'une consigne qui pourrait faire perdre vingt minutes.
+    if (couverture && !couverture.construit) {
+      return NextResponse.json(
+        {
+          error:
+            'Les distances par carreau n’ont pas encore été construites. '
+            + 'Elles se calculent une fois après chaque import de sites à risque.',
+          a_construire: true,
+        },
+        { status: 409 },
+      );
+    }
+
+    if (couverture && !couverture.territoire_couvert && p.parent) {
+      return NextResponse.json(
+        {
+          error:
+            `L’INSEE ne publie pas de carroyage à 200 m pour ce département : `
+            + `la population exposée n’y est pas calculable. `
+            + `${couverture.n_sites} sites à risque y sont pourtant recensés`
+            + (couverture.n_seveso > 0 ? `, dont ${couverture.n_seveso} Seveso` : '')
+            + `, et restent visibles sur la carte.`,
+          // ⚠ PAS `a_construire` : aucune construction n'y changera quoi que
+          // ce soit. Afficher la consigne ici ferait perdre du temps et
+          // laisserait croire que le chiffre existera un jour.
+          non_carroye: true,
+          n_sites: couverture.n_sites,
+          n_seveso: couverture.n_seveso,
+        },
+        { status: 409 },
+      );
+    }
+
     return NextResponse.json(
       {
         error:
-          'Les distances par carreau n’ont pas encore été construites. '
-          + 'Elles se calculent une fois après chaque import de sites à risque.',
-        a_construire: true,
+          'Aucun carreau habité ne se trouve à portée d’un site à risque sur ce '
+          + 'périmètre, avec ce profil de rayons.',
       },
       { status: 409 },
     );
