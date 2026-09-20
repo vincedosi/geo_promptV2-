@@ -30,22 +30,14 @@
  * « Rayons », on vient ici quand on a décidé.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Loader2, Save, Copy, Trash2, FolderOpen, Layers, Download, Crosshair,
-} from 'lucide-react';
+import { Loader2, Save, Copy, Trash2, FolderOpen, Layers, Download } from 'lucide-react';
 import { formaterNombre, formaterDecimal } from '@/lib/format/nombre';
 import { fInter, fMono } from '@/lib/design/polices';
 import { Kpi } from '@/components/risques/Kpi';
 import { COULEUR_NIVEAU_CSS } from '@/lib/carte/palette-zones-risque';
 import { libelleClasse, anneauxParNiveau } from '@/lib/risques/libelle-classe';
-import {
-  libelleRayon, anneauxDuNiveau, NIVEAUX, type Niveau, type ProfilRayons,
-} from '@/lib/risques/profil';
-import { codeProfil } from '@/lib/risques/code-profil';
-import { adminFetch } from '@/lib/admin-fetch';
-import {
-  ZONES_RISQUE_EVENT, type ZonesRisqueEventDetail,
-} from '@/app/map/_components/ZonesRisqueLayer';
+import { libelleRayon, type Niveau, type ProfilRayons } from '@/lib/risques/profil';
+import { CarteZones } from '@/components/risques/CarteZones';
 import {
   useJeuxZones, type ClasseJeu, type JeuResume,
 } from '@/components/risques/use-jeux-zones';
@@ -217,120 +209,131 @@ export function OngletZones({
   const tauxUtile = achetee > 0 ? (100 * visee) / achetee : null;
 
   return (
-    <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 18, overflowY: 'auto' }}>
-      <Comparateur profil={profil} onProfil={onProfil} />
+    /*
+     * ── CARTE À GAUCHE, RÉGLAGES À DROITE ──────────────────────────────
+     *
+     * L'onglet était une pile de bandeaux : rayons candidats, zooms de
+     * référence, tableau des classes, bibliothèque. Un atelier de ZONES qui
+     * ne montrait aucune zone, et où « adopter 2 km » se décidait sur un
+     * chiffre sans jamais voir ce que ces 2 km recouvrent.
+     *
+     * La carte devient l'objet, la colonne devient la commande.
+     */
+    <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+      <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+        <CarteZones profil={profil} gravites={gravites} pret={atelier.etat === 'pret'} />
+      </div>
 
-      <Section titre="Voir les superpositions">
-        <ZoomsReference profil={profil} onFermer={onFermer} />
-      </Section>
+      <aside
+        style={{
+          width: 420, flexShrink: 0, overflowY: 'auto',
+          borderLeft: '0.5px solid var(--border-subtle)',
+          padding: '16px 18px',
+          display: 'flex', flexDirection: 'column', gap: 18,
+        }}
+      >
+        <Comparateur profil={profil} onProfil={onProfil} />
 
-      <Section titre="Le jeu de zones">
-        {atelier.etat === 'vide' && (
-          <EtatAtelierVide onConstruire={construire} />
-        )}
+        <Section titre="Le jeu de zones">
+          {atelier.etat === 'vide' && <EtatAtelierVide onConstruire={construire} />}
 
-        {atelier.etat === 'chargement' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '24px 4px' }}>
-            <Loader2 size={16} className="animate-spin" style={{ color: 'var(--brand-teal)' }} />
-            <span style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-secondary)' }}>
-              Construction des zones et rattachement aux codes postaux. Compter une
-              vingtaine de secondes sur la France entière.
-            </span>
-          </div>
-        )}
-
-        {atelier.etat === 'echec' && (
-          <Alerte>
-            {atelier.erreur ?? 'La construction du jeu de zones a échoué.'}
-          </Alerte>
-        )}
-
-        {atelier.etat === 'pret' && jeu && detail && (
-          <>
-            <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', marginBottom: 16 }}>
-              <Kpi
-                valeur={formaterNombre(Math.round(visee))}
-                libelle={`${libelleCible} en zone`}
-                note="ce que le plan vise"
-              />
-              <Kpi
-                valeur={formaterNombre(Math.round(achetee))}
-                libelle={`${libelleCible} des codes postaux retenus`}
-                note="ce que la campagne achète"
-              />
-              <Kpi
-                valeur={tauxUtile === null ? '—' : `${formaterDecimal(tauxUtile)} %`}
-                libelle="Taux d’utile"
-                note={tauxUtile === null
-                  ? 'aucun code postal retenu'
-                  : 'population visée / population achetée'}
-                accent
-              />
-              <Kpi
-                valeur={formaterNombre(retenus)}
-                libelle="Codes postaux retenus"
-                note={`sur ${formaterNombre(detail.classes.reduce((t, c) => t + c.n_cp, 0))} touchés`}
-              />
+          {atelier.etat === 'chargement' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '18px 2px' }}>
+              <Loader2 size={15} className="animate-spin" style={{ color: 'var(--brand-teal)' }} />
+              <span style={{ fontFamily: fInter, fontSize: 11.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                Construction des zones et rattachement aux codes postaux.
+                Compter une vingtaine de secondes sur la France entière.
+              </span>
             </div>
+          )}
 
-            <Dilution
-              seuil={Number(jeu.seuil_couverture_cp)}
-              onSeuil={(s) => void atelier.regler({ seuil_couverture_cp: s })}
-              visee={visee}
-              achetee={achetee}
-            />
+          {atelier.etat === 'echec' && (
+            <Alerte>{atelier.erreur ?? 'La construction du jeu de zones a échoué.'}</Alerte>
+          )}
 
-            <TableauClasses
-              classes={detail.classes}
-              poids={jeu.poids ?? {}}
-              anneauxPar={anneauxPar}
-              onPoids={(classe, valeur) => void atelier.regler({
-                poids: { ...(jeu.poids ?? {}), [classe]: valeur },
-              })}
-            />
+          {atelier.etat === 'pret' && jeu && detail && (
+            <>
+              <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginBottom: 14 }}>
+                <Kpi
+                  valeur={formaterNombre(Math.round(visee))}
+                  libelle="Population visée"
+                  note="habitants en zone"
+                  taille={22}
+                />
+                <Kpi
+                  valeur={tauxUtile === null ? '—' : `${formaterDecimal(tauxUtile)} %`}
+                  libelle="Taux d’utile"
+                  note="visée / achetée"
+                  accent
+                  taille={22}
+                />
+                <Kpi
+                  valeur={formaterNombre(retenus)}
+                  libelle="Codes postaux"
+                  note={`sur ${formaterNombre(detail.classes.reduce((t, c) => t + c.n_cp, 0))} touchés`}
+                  taille={22}
+                />
+              </div>
 
-            <ModePlan
-              mode={(jeu.mode_plan as 'pondere' | 'exclusif') ?? 'pondere'}
-              onMode={(m) => void atelier.regler({ mode_plan: m })}
-            />
+              <Dilution
+                seuil={Number(jeu.seuil_couverture_cp)}
+                onSeuil={(v) => void atelier.regler({ seuil_couverture_cp: v })}
+                visee={visee}
+                achetee={achetee}
+              />
 
-            <Actions
-              brouillon={jeu.brouillon}
-              nom={jeu.brouillon ? nom : jeu.nom}
-              description={jeu.brouillon ? description : (jeu.description ?? '')}
-              onNom={setNom}
-              onDescription={setDescription}
-              onEnregistrer={async () => {
-                const ok = await atelier.regler({
-                  nom: jeu.brouillon ? nom : undefined,
-                  description: jeu.brouillon ? (description || null) : undefined,
-                  enregistrer: true,
-                });
-                if (ok) { setNom(''); setDescription(''); }
-              }}
-              onDupliquer={construire}
-              idPourExport={jeu.brouillon ? null : jeu.id}
-              erreur={atelier.erreur}
-            />
-          </>
-        )}
-      </Section>
+              <TableauClasses
+                classes={detail.classes}
+                poids={jeu.poids ?? {}}
+                anneauxPar={anneauxPar}
+                onPoids={(classe, valeur) => void atelier.regler({
+                  poids: { ...(jeu.poids ?? {}), [classe]: valeur },
+                })}
+              />
 
-      <Section titre="Jeux enregistrés">
-        <Bibliotheque
-          jeux={atelier.bibliotheque}
-          etat={atelier.etatBibliotheque}
-          ouvert={jeuOuvert}
-          enCoursId={enCoursId}
-          onOuvrir={ouvrir}
-          onSupprimer={async (id) => {
-            setEnCoursId(id);
-            await atelier.supprimer(id);
-            setEnCoursId(null);
-            if (jeuOuvert === id) onJeuOuvert(null);
-          }}
-        />
-      </Section>
+              <ModePlan
+                mode={(jeu.mode_plan as 'pondere' | 'exclusif') ?? 'pondere'}
+                onMode={(m) => void atelier.regler({ mode_plan: m })}
+              />
+
+              <Actions
+                brouillon={jeu.brouillon}
+                nom={jeu.brouillon ? nom : jeu.nom}
+                description={jeu.brouillon ? description : (jeu.description ?? '')}
+                onNom={setNom}
+                onDescription={setDescription}
+                onEnregistrer={async () => {
+                  const ok = await atelier.regler({
+                    nom: jeu.brouillon ? nom : undefined,
+                    description: jeu.brouillon ? (description || null) : undefined,
+                    enregistrer: true,
+                  });
+                  if (ok) { setNom(''); setDescription(''); }
+                }}
+                onDupliquer={construire}
+                idPourExport={jeu.brouillon ? null : jeu.id}
+                erreur={atelier.erreur}
+              />
+            </>
+          )}
+        </Section>
+
+        <Section titre="Jeux enregistrés">
+          <Bibliotheque
+            jeux={atelier.bibliotheque}
+            etat={atelier.etatBibliotheque}
+            ouvert={jeuOuvert}
+            enCoursId={enCoursId}
+            onOuvrir={ouvrir}
+            onSupprimer={async (id) => {
+              setEnCoursId(id);
+              await atelier.supprimer(id);
+              setEnCoursId(null);
+              if (jeuOuvert === id) onJeuOuvert(null);
+            }}
+          />
+        </Section>
+      </aside>
     </div>
   );
 }
@@ -355,7 +358,12 @@ function Comparateur({ profil, onProfil }: {
   const actuel = profil.haut;
   return (
     <Section titre="Partir d’un rayon">
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+      {/*
+        Quatre pastilles et non quatre cartes : la CARTE montre désormais ce
+        que chaque rayon recouvre, et répéter l'information en vignettes
+        prenait la moitié de l'écran pour dire moins bien.
+      */}
+      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
         {RAYONS_CANDIDATS.map((r) => {
           const actif = actuel.length === 1 && actuel[0] === r;
           return (
@@ -365,31 +373,22 @@ function Comparateur({ profil, onProfil }: {
               onClick={() => onProfil({ ...profil, haut: [r], bas: [r] })}
               aria-pressed={actif}
               style={{
-                flex: '1 1 150px',
-                textAlign: 'left',
-                padding: '12px 14px',
-                borderRadius: 8,
-                cursor: 'pointer',
-                fontFamily: fInter,
-                background: actif ? 'var(--brand-teal-10)' : 'var(--bg-level-2)',
+                padding: '6px 12px', borderRadius: 6, cursor: 'pointer',
+                fontFamily: fMono, fontSize: 12,
+                background: actif ? 'var(--brand-teal-10)' : 'transparent',
                 border: `0.5px solid ${actif ? 'var(--brand-teal)' : 'var(--border-subtle)'}`,
-                color: 'var(--text-primary)',
+                color: actif ? 'var(--brand-teal)' : 'var(--text-secondary)',
               }}
             >
-              <div style={{ fontFamily: fMono, fontSize: 16, marginBottom: 4 }}>
-                {libelleRayon(r)}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                un seul anneau, seuils haut et bas
-              </div>
+              {libelleRayon(r)}
             </button>
           );
         })}
       </div>
-      <p style={{ margin: '10px 0 0', fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)' }}>
-        Ces boutons remplacent le profil par un anneau unique, pour repartir d’une
-        base simple. Les anneaux multiples se règlent dans l’onglet Rayons, qui
-        chiffre ce que chacun ajoute.
+      <p style={{ margin: '8px 0 0', fontFamily: fInter, fontSize: 10.5, color: 'var(--text-tertiary)', lineHeight: 1.55 }}>
+        Remplace le profil par un anneau unique, sur les deux seuils. Les
+        anneaux multiples se règlent dans le tiroir de la barre, qui chiffre ce
+        que chacun ajoute.
       </p>
     </Section>
   );
@@ -732,94 +731,6 @@ function Bibliotheque({ jeux, etat, ouvert, enCoursId, onOuvrir, onSupprimer }: 
         </li>
       ))}
     </ul>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   Les zooms de référence
-   ══════════════════════════════════════════════════════════════════════════ */
-
-function ZoomsReference({ profil, onFermer }: {
-  profil: ProfilRayons;
-  onFermer: () => void;
-}) {
-  const [enCours, setEnCours] = useState<string | null>(null);
-  const [erreur, setErreur] = useState<string | null>(null);
-
-  /*
-   * Un profil sans aucun anneau ne dessine rien. Le dire AVANT de partir en
-   * requête : un aller-retour qui rend « zéro classe » laisserait croire à
-   * une panne. Même garde que `BoutonVoirCarte`.
-   */
-  const vide = NIVEAUX.every((n) => anneauxDuNiveau(profil, n).length === 0);
-
-  const aller = async (z: (typeof ZOOMS_REFERENCE)[number]) => {
-    setEnCours(z.nom);
-    setErreur(null);
-    try {
-      /*
-       * La géométrie est PRÉPARÉE avant d'allumer la couche. Sans cela, elle
-       * demanderait ses tuiles sous une clé que personne n'a construite, et
-       * MapLibre échouerait en SILENCE sur une source vide — le défaut exact
-       * qui a rendu la couche IRIS muette pendant des mois.
-       */
-      const rep = await adminFetch('/api/risques/zones/preparer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profil: codeProfil(profil) }),
-      });
-      if (!rep.ok) throw new Error('preparation');
-      window.dispatchEvent(new CustomEvent<ZonesRisqueEventDetail>(ZONES_RISQUE_EVENT, {
-        detail: { profil, recadrer: z.bbox },
-      }));
-      onFermer();
-    } catch {
-      setErreur('Préparation des zones impossible. Réessayez dans un instant.');
-    } finally {
-      setEnCours(null);
-    }
-  };
-
-  return (
-    <>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        {ZOOMS_REFERENCE.map((z) => (
-          <button
-            key={z.nom}
-            type="button"
-            disabled={vide || enCours !== null}
-            onClick={() => void aller(z)}
-            style={{
-              flex: '1 1 200px', textAlign: 'left', padding: '11px 13px', borderRadius: 8,
-              cursor: vide || enCours ? 'not-allowed' : 'pointer',
-              opacity: vide ? 0.45 : 1,
-              fontFamily: fInter,
-              background: 'var(--bg-level-2)',
-              border: '0.5px solid var(--border-subtle)',
-              color: 'var(--text-primary)',
-            }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 500 }}>
-              {enCours === z.nom
-                ? <Loader2 size={12} className="animate-spin" />
-                : <Crosshair size={12} style={{ color: 'var(--text-tertiary)' }} />}
-              {z.nom}
-            </span>
-            <span style={{ display: 'block', marginTop: 3, fontSize: 11, color: 'var(--text-tertiary)' }}>
-              {z.aide}
-            </span>
-          </button>
-        ))}
-      </div>
-      <p style={{ margin: '10px 0 0', fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.6 }}>
-        {vide
-          ? 'Ajoutez au moins un anneau dans l’onglet Rayons : un profil vide ne dessine rien.'
-          : 'Ces trois grappes montrent ce qu’une vue France entière ne montre jamais : '
-            + 'des zones qui se superposent. À l’échelle nationale, une zone de 2 km fait '
-            + 'moins d’un pixel.'}
-      </p>
-      {erreur && <div style={{ marginTop: 10 }}><Alerte>{erreur}</Alerte></div>}
-    </>
   );
 }
 

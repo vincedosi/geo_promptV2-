@@ -298,6 +298,25 @@ genesis_app/
 │   │                           # chiffres de l'ecran, et le laisser dans le
 │   │                           # seul onglet Rayons obligeait a changer
 │   │                           # d'onglet pour regler ce qu'on lisait ailleurs.
+│   │                           # ⚠ **L'onglet Zones est bati AUTOUR D'UNE VRAIE
+│   │                           # CARTE** (`CarteZones.tsx`, 2026-09-20) :
+│   │                           # zones en MVT (`/api/tiles/zones-risque`,
+│   │                           # geometries deja exclusives par
+│   │                           # `ST_Difference`) + sites en GeoJSON sur la
+│   │                           # bbox visible, zoomable, avec legende, grappes
+│   │                           # denses en surimpression et infobulle au clic.
+│   │                           # C'etait une pile de six bandeaux gris : un
+│   │                           # atelier de ZONES qui ne montrait aucune zone,
+│   │                           # ou « adopter 2 km » se decidait sur un chiffre
+│   │                           # sans jamais voir ce que ces 2 km recouvrent.
+│   │                           # ⚠ Le paint des sites lit `COULEUR_NIVEAU`
+│   │                           # (hex) et JAMAIS `COULEUR_NIVEAU_CSS` (`var()`)
+│   │                           # — MapLibre ne resout pas `var()` dans `paint`,
+│   │                           # `addLayer` LEVE, la couche n'est pas ajoutee,
+│   │                           # et la legende annoncait pourtant « 58 sites
+│   │                           # affiches » : un compte juste pour des points
+│   │                           # absents. La legende, elle, est du DOM et garde
+│   │                           # les jetons CSS.
 │   │                           # ⚠ Les DEUX chargements (use-bandes,
 │   │                           # use-courbe-rayon) vivent dans l'overlay et non
 │   │                           # dans les onglets : ils repartaient sinon a
