@@ -24,11 +24,11 @@
  * minimum par carreau. L'écran le dit plutôt que de laisser le lecteur faire
  * l'addition de tête.
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import type { ResultatCourbe } from '@/components/risques/use-courbe-rayon';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { adminFetch } from '@/lib/admin-fetch';
 import { formaterNombre, formaterNombreAbrege, formaterDecimal } from '@/lib/format/nombre';
 import { fInter, fMono } from '@/lib/design/polices';
 import { Kpi } from '@/components/risques/Kpi';
@@ -65,23 +65,11 @@ const TEINTES = [
 /** La courbe totale porte l'accent de marque, et elle seule. */
 const TEINTE_TOTALE = 'var(--brand-teal)';
 
-interface Point { r: number; p: number; i: number }
-interface Courbe { cle: string; total: number; carreaux: number; points: Point[] }
-interface Reponse {
-  cible: string;
-  gravite: string;
-  rayon_max_m: number;
-  total_est_global: boolean;
-  n_departements: number;
-  n_sites: number;
-  /** Part de la MÉTROPOLE dont le pré-calcul est fait. 100 = complet (sql/201). */
-  couverture_pct: number;
-  n_bandes_construites: number;
-  /** Zones d'outre-mer pré-calculées (Martinique, La Réunion) — 2 au plus. */
-  n_zones_lointaines: number;
-  courbes: Courbe[];
-  calcule_le: string;
-}
+/*
+ * ⚠ Les types du payload vivent dans `use-courbe-rayon.ts`, avec l'appel qui
+ * les produit. Les redéclarer ici en donnerait deux versions, et l'écran
+ * finirait par lire un champ que le serveur n'envoie plus.
+ */
 
 interface Props {
   cible: string;
@@ -93,56 +81,25 @@ interface Props {
   /** Territoire courant, dérivé du fil d'Ariane. */
   perim: { niveau: 'region' | 'departement'; code: string } | null;
   nomPerim: string;
+  /**
+   * La courbe, CHARGÉE PAR L'OVERLAY.
+   *
+   * ⚠ Elle l'était ici, et repartait donc à chaque retour sur l'onglet —
+   * mesuré : quatre appels pour cinq bascules, sans qu'un seul réglage ait
+   * bougé. La courbe disparaissait puis revenait, identique.
+   */
+  courbe: ResultatCourbe;
 }
 
 export function OngletRayonInfluence({
-  cible, libelleCible, niveaux, natures, perim, nomPerim,
+  cible, libelleCible, niveaux, natures, perim, nomPerim, courbe,
 }: Props) {
-  const [data, setData] = useState<Reponse | null>(null);
-  const [chargement, setChargement] = useState(false);
-  const [erreur, setErreur] = useState<string | null>(null);
-  const [aConstruire, setAConstruire] = useState(false);
+  const { data, chargement, erreur, aConstruire } = courbe;
   /** Rayon retenu par le curseur. Purement local — aucun appel réseau. */
   const [rayon, setRayon] = useState(1000);
   /** Courbes masquées par clic sur la légende. */
   const [masquees, setMasquees] = useState<Set<string>>(new Set());
 
-  const dernier = useRef(0);
-
-  const charger = useCallback(async () => {
-    setChargement(true);
-    setErreur(null);
-    setAConstruire(false);
-    const jeton = ++dernier.current;
-    try {
-      const p = new URLSearchParams({ cible });
-      if (niveaux.length > 0) p.set('gravites', niveaux.join(','));
-      if (natures.length > 0) p.set('natures', natures.join(','));
-      if (perim) {
-        p.set('perim_niveau', perim.niveau);
-        p.set('perim_codes', perim.code);
-      }
-      const r = await adminFetch(`/api/risques/exposition/rayon?${p}`);
-      const j = await r.json();
-      // Une réponse arrivée après une autre plus récente est ignorée : sans ce
-      // jeton, un filtre changé deux fois de suite pouvait afficher le
-      // résultat du PREMIER, arrivé en dernier.
-      if (jeton !== dernier.current) return;
-      if (!r.ok) {
-        setErreur(j?.error ?? 'Courbe indisponible.');
-        setAConstruire(Boolean(j?.a_construire));
-        setData(null);
-        return;
-      }
-      setData(j as Reponse);
-    } catch {
-      if (jeton === dernier.current) { setErreur('Courbe indisponible.'); setData(null); }
-    } finally {
-      if (jeton === dernier.current) setChargement(false);
-    }
-  }, [cible, niveaux, natures, perim]);
-
-  useEffect(() => { void charger(); }, [charger]);
 
   /**
    * Les points au format attendu par Recharts : une ligne par rayon, une
@@ -293,7 +250,23 @@ export function OngletRayonInfluence({
       </div>
 
       {/* ── LA COURBE ────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, minHeight: 240, padding: '0 8px 0 0' }}>
+      {/*
+        ⚠ Hauteur EXPLICITE, et non `flex: 1` + `minHeight`.
+
+        `ResponsiveContainer height="100%"` resout son pourcentage contre la
+        hauteur SPECIFIEE du parent. Avec `flex: 1` et `min-height: 240px`, le
+        parent mesurait bien 240 px a l'ecran — mais sa hauteur specifiee reste
+        `auto`, donc le pourcentage retombe sur `auto`, donc sur zero.
+
+        Mesure du 2026-09-20 : conteneur large de 1 546 px et **haut de 0**,
+        aucun `<svg>` emis. La courbe ne s'affichait pas, et rien ne le
+        signalait — ni erreur, ni cadre vide : Recharts ne rend simplement rien
+        sous une hauteur nulle, et les KPI au-dessus restaient justes.
+
+        C'est le patron de `GraphiqueEcart` (Suivi V2), qui fonctionne : une
+        hauteur en pixels sur le conteneur, `100%` sur le ResponsiveContainer.
+      */}
+      <div style={{ height: 280, padding: '0 8px 0 0' }}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={points} margin={{ top: 4, right: 20, bottom: 24, left: 8 }}>
             <CartesianGrid stroke="var(--border-subtle)" strokeDasharray="2 4" vertical={false} />

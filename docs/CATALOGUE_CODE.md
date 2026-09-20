@@ -4,7 +4,7 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-09-20 — commit `5c339d8`.
+> Généré le 2026-09-20 — commit `010fe42`.
 
 ## Totaux
 
@@ -87,12 +87,12 @@ Trié par nombre d’occurrences décroissant.
 | `lib/demo/rng.ts` | 1 | hashStr | — |
 | `lib/geo/dept-lookup-server.ts` | 1 | invalidateDeptCache | — |
 | `lib/prompting/code-generation/dv360.ts` | 1 | DV360_PROMPT_SECTION | — |
-| `lib/demo/controller.ts` | 1 | latestVersion | — |
 | `lib/auth/roles.ts` | 1 | ROLES_MEMBRE | — |
 | `lib/iris-crawler/db-columns.ts` | 1 | getCoreColumnType | — |
+| `lib/demo/controller.ts` | 1 | latestVersion | — |
 | `lib/api/safe-path.ts` | 1 | isValidUuid | — |
-| `lib/civic-health/provider.ts` | 1 | _resetProvider | — |
 | `lib/import/column-detector.ts` | 1 | normalizeColumnName | — |
+| `lib/civic-health/provider.ts` | 1 | _resetProvider | — |
 | `lib/metrics-display/loader.ts` | 1 | invalidateMetricsCache | — |
 | `app/map/_components/filter-panel/styles.ts` | 1 | hexToRgb | — |
 | `lib/dsp-mapping/transformer.ts` | 1 | listKnownTransforms | — |
@@ -104,8 +104,8 @@ Trié par nombre d’occurrences décroissant.
 | `components/ui/input.tsx` | 1 | — | InputProps |
 | `lib/logger.ts` | 1 | — | Logger |
 | `lib/supabase/tables.ts` | 1 | — | TableUpdate |
-| `types/admin.ts` | 1 | — | HealthCheck |
 | `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
+| `types/admin.ts` | 1 | — | HealthCheck |
 | `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
 | `lib/campaigns/actor-metrics.ts` | 1 | — | ActorsPayload |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
@@ -113,8 +113,8 @@ Trié par nombre d’occurrences décroissant.
 | `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
 | `lib/demo/pilot-types.ts` | 1 | — | PilotItem |
 | `lib/dsp/push/types.ts` | 1 | — | PushStatus |
-| `lib/qualite/verdict.ts` | 1 | — | Verdict |
 | `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
+| `lib/qualite/verdict.ts` | 1 | — | Verdict |
 | `lib/report/types.ts` | 1 | — | ReportHeader |
 | `lib/radio/import-logger.ts` | 1 | — | LogEntry |
 | `types/campaign.ts` | 1 | — | DspCampaign |

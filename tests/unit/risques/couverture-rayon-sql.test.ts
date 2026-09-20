@@ -236,20 +236,52 @@ describe('l’onglet ne recalcule rien au déplacement du curseur', () => {
     join(RACINE, 'components/risques/OngletRayonInfluence.tsx'),
     'utf-8',
   );
+  /*
+   * ⚠ Le CHARGEMENT a quitté le composant le 2026-09-20 pour
+   * `use-courbe-rayon.ts`, afin de survivre au changement d'onglet : il
+   * repartait à chaque retour sur Rayons — quatre appels mesurés pour cinq
+   * bascules, sans qu'un seul réglage ait bougé.
+   *
+   * Les deux invariants ci-dessous valent toujours, ils ont seulement changé
+   * de fichier. Les laisser pointer sur le composant les aurait rendus verts
+   * par accident le jour où quelqu'un y aurait remis un `fetch`.
+   */
+  const hook = readFileSync(
+    join(RACINE, 'components/risques/use-courbe-rayon.ts'),
+    'utf-8',
+  );
 
   it('le curseur ne touche QUE l’état local', () => {
     // C'est la promesse de cet onglet, et la correction du defaut signale :
     // dans l'autre onglet, chaque pas de rayon relançait un calcul de 4 s.
-    // `setRayon` ne doit apparaitre dans aucune dependance de chargement.
+    // Le curseur reste DANS le composant ; le chargement n'en sait rien.
     expect(composant).toMatch(/onChange=\{\(e\) => setRayon\(Number\(e\.target\.value\)\)\}/);
-    const deps = composant.match(/\}, \[cible, niveaux, natures, perim\]\)/);
-    expect(deps, 'le chargement ne doit pas dépendre du rayon').not.toBeNull();
+    /*
+     * ⚠ On lit le TABLEAU DE DÉPENDANCES, pas le fichier entier : le hook
+     * s'appelle `use-courbe-rayon` et parle de rayons partout — une recherche
+     * large rougirait sur son propre nom. Ce qui compte est que le rayon
+     * CHOISI AU CURSEUR n'y figure pas.
+     */
+    const deps = hook.match(/\}, \[([^\]]*)\]\);/g) ?? [];
+    expect(deps.length, 'aucun tableau de dépendances trouvé').toBeGreaterThan(0);
+    for (const d of deps) {
+      expect(d, 'le chargement ne doit pas dépendre du rayon').not.toMatch(/rayon/);
+    }
   });
 
   it('ignore une réponse dépassée par une plus récente', () => {
     // Sans ce jeton, un filtre change deux fois de suite pouvait afficher le
     // resultat du PREMIER appel, arrive en dernier.
-    expect(composant).toMatch(/jeton !== dernier\.current/);
+    expect(hook).toMatch(/jeton !== dernier\.current/);
+  });
+
+  it('le composant ne charge plus RIEN lui-même', () => {
+    /*
+     * Le verrou du hissage. Un `fetch` réintroduit ici referait repartir la
+     * courbe à chaque bascule d'onglet — le défaut exact que le déplacement
+     * corrige, et qui ne se voit pas : la courbe revient identique.
+     */
+    expect(composant).not.toMatch(/adminFetch|useEffect/);
   });
 
   it('dit que la courbe totale n’est pas la somme des autres', () => {

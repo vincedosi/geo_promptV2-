@@ -28,6 +28,7 @@ import { Loader2 } from 'lucide-react';
 import { PanneauProfil } from '@/components/risques/PanneauProfil';
 import { TableauBandes } from '@/components/risques/TableauBandes';
 import { OngletRayonInfluence } from '@/components/risques/OngletRayonInfluence';
+import type { ResultatCourbe } from '@/components/risques/use-courbe-rayon';
 import { useBandes } from '@/components/risques/use-bandes';
 import { Kpi } from '@/components/risques/Kpi';
 import { formaterNombre } from '@/lib/format/nombre';
@@ -37,7 +38,6 @@ import type { Dimension } from '@/lib/risques/dimensions';
 
 interface Props {
   profil: ProfilRayons;
-  onProfil: (p: ProfilRayons) => void;
   cible: string;
   libelleCible: string;
   maille: Dimension;
@@ -53,20 +53,24 @@ interface Props {
   gravites: string[];
   natures: string[];
   perim: { niveau: 'region' | 'departement'; code: string } | null;
+  /**
+   * Les bandes, CHARGÉES PAR L'OVERLAY et non par cet onglet.
+   *
+   * ⚠ Ce n'est pas un détail d'organisation. Tant que l'appel vivait ici, il
+   * repartait à chaque retour sur l'onglet — et le tableau se vidait le temps
+   * de la réponse, alors que rien n'avait changé. Hissé d'un cran, il survit
+   * au changement d'onglet : basculer devient instantané.
+   */
+  bandes: ReturnType<typeof useBandes>;
+  /** La courbe, chargée par l'overlay elle aussi. */
+  courbe: ResultatCourbe;
 }
 
 export function OngletRayons({
-  profil, onProfil, cible, libelleCible, maille, parent, nomPerimetre,
-  gravites, natures, perim,
+  profil, cible, libelleCible, maille, parent, nomPerimetre,
+  gravites, natures, perim, bandes: resultatBandes, courbe,
 }: Props) {
-  /*
-   * La maille du tableau des bandes est toujours celle que le pré-calcul porte
-   * en colonne. `code_postal` et les autres seraient refusées par la route ;
-   * les envoyer quand même ferait afficher une erreur là où l'utilisateur n'a
-   * rien demandé de spécial.
-   */
-  const mailleBandes: Dimension = maille === 'commune' ? 'commune' : 'departement';
-  const { etat, bandes, erreur, aConstruire } = useBandes(profil, cible, mailleBandes, parent);
+  const { etat, bandes, erreur, aConstruire } = resultatBandes;
 
   const parClasse = bandes?.par_classe ?? {};
 
@@ -80,18 +84,13 @@ export function OngletRayons({
   }).filter((x): x is { niveau: (typeof NIVEAUX)[number]; somme: number } => x !== null);
 
   return (
+    /*
+     * ⚠ Plus de colonne de réglage à gauche. L'éditeur d'anneaux a rejoint le
+     * TIROIR de la barre commune : il décide de la classe de chaque carreau,
+     * donc des chiffres des TROIS onglets, et le laisser ici obligeait à
+     * revenir sur celui-ci pour changer un rayon qu'on lisait ailleurs.
+     */
     <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-      {/* ── Réglage ─────────────────────────────────────────────────────── */}
-      <aside
-        style={{
-          width: 320, flexShrink: 0, overflow: 'auto',
-          borderRight: '0.5px solid var(--border-subtle)',
-          padding: '16px 18px',
-        }}
-      >
-        <PanneauProfil profil={profil} onProfil={onProfil} parClasse={parClasse} />
-      </aside>
-
       {/* ── Conséquence ─────────────────────────────────────────────────── */}
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px', minWidth: 0 }}>
         {etat === 'echec' && (
@@ -186,6 +185,7 @@ export function OngletRayons({
                 natures={natures}
                 perim={perim}
                 nomPerim={nomPerimetre}
+                courbe={courbe}
               />
             </div>
           </>

@@ -51,6 +51,9 @@ import { Champ, Pastille, FilAriane, Th, Td, styleLien } from '@/components/risq
 import { FournisseurRisque, useEtatRisque } from '@/components/risques/ContexteRisque';
 import type { Onglet } from '@/lib/risques/etat-url';
 import { ResumeProfil } from '@/components/risques/ResumeProfil';
+import { PanneauProfil } from '@/components/risques/PanneauProfil';
+import { useBandes } from '@/components/risques/use-bandes';
+import { useCourbeRayon } from '@/components/risques/use-courbe-rayon';
 import { BoutonVoirCarte } from '@/components/risques/BoutonVoirCarte';
 import { OngletZones } from '@/components/risques/OngletZones';
 import { BoutonExportProfil } from '@/components/risques/BoutonExportProfil';
@@ -379,6 +382,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
    * carreaux à la demande.
    */
   const onglet = etat.onglet;
+
   const setOnglet = useCallback((v: Onglet) => majEtat({ onglet: v }), [majEtat]);
 
   const [exportEnCours, setExportEnCours] = useState(false);
@@ -594,6 +598,28 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
 
   const dimCourante = DIMENSIONS.find((d) => d.id === dimension) ?? DIMENSIONS[0];
 
+  /*
+   * ── LE PRÉ-CALCUL DES BANDES VIT ICI, PAS DANS L'ONGLET ────────────────
+   *
+   * Il alimente le tableau de l'onglet Rayons ET le tiroir de réglage, qui est
+   * ouvrable depuis les trois onglets (chaque anneau y affiche ce qu'il
+   * apporte). Le laisser dans `OngletRayons` le faisait repartir à chaque
+   * retour sur cet onglet : le tableau se vidait le temps de la réponse, alors
+   * que rien n'avait changé.
+   *
+   * ⚠ La maille est ramenée à ce que le pré-calcul porte EN COLONNE. `cp` et
+   * les autres seraient refusées par la route ; les envoyer quand même ferait
+   * afficher une erreur là où l'utilisateur n'a rien demandé de spécial.
+   */
+  const mailleBandes: Dimension = dimCourante.id === 'commune' ? 'commune' : 'departement';
+  const resultatBandes = useBandes(
+    etat.profil,
+    cible,
+    mailleBandes,
+    chemin.find((c) => c.niveau === 'departement')?.code ?? null,
+  );
+
+
   // Les géométries de la dimension courante.
   useEffect(() => {
     const cle = dimCourante.zones;
@@ -624,6 +650,24 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
     if (typesRisque.includes('non_precise')) n.push(NATURE_NON_PRECISEE);
     return n;
   }, [typesRisque]);
+
+  /*
+   * La courbe de couverture, hissée pour la MÊME raison que les bandes : elle
+   * vivait dans `OngletRayonInfluence`, sous l'onglet Rayons, et repartait à
+   * chaque retour — quatre appels mesurés pour cinq bascules, sans qu'un seul
+   * réglage ait bougé.
+   */
+  const resultatCourbe = useCourbeRayon(
+    cible,
+    niveaux,
+    natures,
+    (() => {
+      const dernier = chemin[chemin.length - 1];
+      return dernier && (dernier.niveau === 'region' || dernier.niveau === 'departement')
+        ? { niveau: dernier.niveau, code: dernier.code }
+        : null;
+    })(),
+  );
 
   /**
    * Ce qui est DEMANDÉ : dimension, cible, filtres, périmètre, rayon.
@@ -862,8 +906,13 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         </span>
         {/* Le profil decide de la classe de chaque carreau, donc de TOUS les
             chiffres affiches. Le laisser dans le seul onglet « Rayons » ferait
-            lire un tableau sans savoir sur quels anneaux il a ete calcule. */}
-        <ResumeProfil profil={etat.profil} onOuvrirAtelier={() => setOnglet('rayons')} />
+            lire un tableau sans savoir sur quels anneaux il a ete calcule.
+            ⚠ Il DÉPLIE désormais le tiroir au lieu de changer d'onglet :
+            renvoyer ailleurs pour régler ce qui vaut partout était le défaut. */}
+        <ResumeProfil
+          profil={etat.profil}
+          onOuvrirAtelier={() => majEtat({ atelier: !etat.atelier })}
+        />
         <div style={{ flex: 1 }} />
         {/* Persistant, dans l'en-tete : la carte illustre le profil quel que
             soit l'onglet ouvert, et le chercher dans un onglet precis serait
@@ -911,12 +960,20 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         </button>
       </header>
 
-      {/* ── Barre de contrôles ──────────────────────────────────────────── */}
+      {/*
+        ── LA BARRE COMMUNE ───────────────────────────────────────────────
+        UNE seule rangée pour les trois onglets : tout ce qui est ici vaut
+        partout, et le changer met à jour les trois — l'état est unique
+        (`lib/risques/etat-url.ts`), il n'y a pas de copie à synchroniser.
+
+        Ce qui n'est PAS commun descend dans la rangée suivante, nommée. Le
+        mélange obligeait à relire toute la barre pour savoir si un réglage
+        agissait sur ce qu'on regardait.
+      */}
       <div
         style={{
           display: 'flex', alignItems: 'flex-end', gap: 18, flexWrap: 'wrap',
           padding: '12px 20px',
-          borderBottom: '0.5px solid var(--border-subtle)',
         }}
       >
         <Champ label="Cible">
@@ -945,28 +1002,6 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
             courbe de rayon n'a pas de maille (elle agrège tout le territoire)
             et porte son propre curseur. Les laisser visibles ferait croire
             qu'ils agissent sur ce qu'on regarde. */}
-        {onglet === 'territoires' && (
-        <Champ label="Lister par">
-          <div style={{ display: 'flex', gap: 4 }}>
-            {DIMENSIONS.map((d) => (
-              <Pastille
-                key={d.id}
-                actif={dimension === d.id}
-                onClick={() => setMailleChoisie(d.id === mailleNaturelle ? null : d.id)}
-                titre={
-                  d.id === 'commune'
-                    ? 'Regroupe les arrondissements de Paris, Lyon et Marseille sous leur commune.'
-                    : d.id === 'code_postal'
-                      ? 'Ni part ni densité à cette maille : le seul référentiel de population par code postal surcompte de 10 %.'
-                      : undefined
-                }
-              >
-                {d.label}
-              </Pastille>
-            ))}
-          </div>
-        </Champ>
-        )}
 
         {/* Le TERRITOIRE reste visible dans les deux onglets : c'est un filtre
             partagé, pas un réglage de la maille. Le masquer obligerait à
@@ -1018,7 +1053,136 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
               coup. `rayon_max_m` vient de la base (sql/197) et borne le
               curseur : on ne peut plus glisser jusqu'à l'échec.
             - le DÉLAI. Chaque frappe relançait 4 s de calcul. */}
-        {onglet === 'territoires' && (
+      </div>
+
+      {/* Suite de la MÊME barre : les filtres. Séparés d'un trait fin plutôt
+          que d'une bordure pleine — au-dessus on choisit CE QU'ON REGARDE,
+          ici CE QU'ON RETIENT, mais les deux valent pour les trois onglets. */}
+      <div
+        style={{
+          display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
+          padding: '0 20px 12px',
+          borderBottom: '0.5px solid var(--border-subtle)',
+        }}
+      >
+        <Champ label="Nature de la zone">
+          <div style={{ display: 'flex', gap: 4 }}>
+            {MODES_ZONE.map((m) => (
+              <Pastille
+                key={m.id}
+                actif={modes.includes(m.id)}
+                titre={m.aide}
+                onClick={() =>
+                  setModes((v) => {
+                    const suivant = v.includes(m.id) ? v.filter((x) => x !== m.id) : [...v, m.id];
+                    // Tout décocher ne rendrait rien : on garde au moins une
+                    // nature, plutôt qu'un écran vide sans explication.
+                    return suivant.length === 0 ? v : suivant;
+                  })
+                }
+              >
+                {m.label}
+              </Pastille>
+            ))}
+          </div>
+        </Champ>
+
+        <Champ label="Niveau réglementaire">
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {NIVEAUX.map((n) => (
+              <Pastille
+                key={n.id}
+                actif={niveaux.includes(n.id)}
+                onClick={() =>
+                  setNiveaux((v) => {
+                    const suivant = v.includes(n.id) ? v.filter((x) => x !== n.id) : [...v, n.id];
+                    return suivant.length === 0 ? v : suivant;
+                  })
+                }
+              >
+                {n.label}
+              </Pastille>
+            ))}
+          </div>
+        </Champ>
+
+
+        {/* Le rappel de ce qui a été hérité du panneau, pour que l'utilisateur
+            sache d'où vient un filtre qu'il n'a pas posé ici. */}
+        {typesRisque.length > 0 && (
+          <span style={{ fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)', alignSelf: 'flex-end', paddingBottom: 7 }}>
+            Types de risque filtrés depuis le panneau Calques ({typesRisque.length})
+          </span>
+        )}
+      </div>
+
+
+      {/*
+        ── LE TIROIR DES ANNEAUX, COMMUN AUX TROIS ONGLETS ────────────────
+        Le profil décide de la classe de chaque carreau, donc de tous les
+        chiffres de l'écran. Il vivait dans une colonne de l'onglet Rayons :
+        régler un rayon qu'on lisait ailleurs obligeait à changer d'onglet,
+        puis à revenir. Il se déplie maintenant sur place, où qu'on soit.
+      */}
+      {etat.atelier && (
+        <div
+          style={{
+            padding: '14px 20px',
+            borderBottom: '0.5px solid var(--border-subtle)',
+            background: 'var(--bg-level-2)',
+            maxHeight: 340, overflowY: 'auto',
+          }}
+        >
+          <PanneauProfil
+            profil={etat.profil}
+            onProfil={(p) => majEtat({ profil: p })}
+            parClasse={resultatBandes.bandes?.par_classe ?? {}}
+          />
+        </div>
+      )}
+
+      {/*
+        ── CE QUI EST PROPRE À L'ONGLET ───────────────────────────────────
+        Nommé, et sous la barre commune : sans ce libellé, un réglage visible
+        seulement ici se lit comme un filtre général, et on le cherche ensuite
+        sur les autres onglets.
+      */}
+      {onglet === 'territoires' && (
+        <div
+          style={{
+            display: 'flex', alignItems: 'flex-end', gap: 18, flexWrap: 'wrap',
+            padding: '10px 20px',
+            borderBottom: '0.5px solid var(--border-subtle)',
+            background: 'var(--bg-surface)',
+          }}
+        >
+          <span style={{
+            fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)',
+            alignSelf: 'center', letterSpacing: '0.04em',
+          }}>
+            Propre à Territoires
+          </span>
+        <Champ label="Lister par">
+          <div style={{ display: 'flex', gap: 4 }}>
+            {DIMENSIONS.map((d) => (
+              <Pastille
+                key={d.id}
+                actif={dimension === d.id}
+                onClick={() => setMailleChoisie(d.id === mailleNaturelle ? null : d.id)}
+                titre={
+                  d.id === 'commune'
+                    ? 'Regroupe les arrondissements de Paris, Lyon et Marseille sous leur commune.'
+                    : d.id === 'code_postal'
+                      ? 'Ni part ni densité à cette maille : le seul référentiel de population par code postal surcompte de 10 %.'
+                      : undefined
+                }
+              >
+                {d.label}
+              </Pastille>
+            ))}
+          </div>
+        </Champ>
+
         <Champ label="Cercle autour de chaque site">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ display: 'flex', gap: 3 }}>
@@ -1106,72 +1270,8 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
             )}
           </div>
         </Champ>
-        )}
-      </div>
-
-      {/* ── Filtres ─────────────────────────────────────────────────────
-          Séparés des contrôles du haut à dessein : au-dessus on choisit CE
-          QU'ON REGARDE (cible, dimension, rayon), ici on choisit CE QU'ON
-          RETIENT. Mélanger les deux oblige à relire toute la barre pour
-          savoir d'où vient un chiffre. */}
-      <div
-        style={{
-          display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
-          padding: '10px 20px',
-          borderBottom: '0.5px solid var(--border-subtle)',
-          background: 'var(--bg-surface)',
-        }}
-      >
-        <Champ label="Nature de la zone">
-          <div style={{ display: 'flex', gap: 4 }}>
-            {MODES_ZONE.map((m) => (
-              <Pastille
-                key={m.id}
-                actif={modes.includes(m.id)}
-                titre={m.aide}
-                onClick={() =>
-                  setModes((v) => {
-                    const suivant = v.includes(m.id) ? v.filter((x) => x !== m.id) : [...v, m.id];
-                    // Tout décocher ne rendrait rien : on garde au moins une
-                    // nature, plutôt qu'un écran vide sans explication.
-                    return suivant.length === 0 ? v : suivant;
-                  })
-                }
-              >
-                {m.label}
-              </Pastille>
-            ))}
-          </div>
-        </Champ>
-
-        <Champ label="Niveau réglementaire">
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {NIVEAUX.map((n) => (
-              <Pastille
-                key={n.id}
-                actif={niveaux.includes(n.id)}
-                onClick={() =>
-                  setNiveaux((v) => {
-                    const suivant = v.includes(n.id) ? v.filter((x) => x !== n.id) : [...v, n.id];
-                    return suivant.length === 0 ? v : suivant;
-                  })
-                }
-              >
-                {n.label}
-              </Pastille>
-            ))}
-          </div>
-        </Champ>
-
-
-        {/* Le rappel de ce qui a été hérité du panneau, pour que l'utilisateur
-            sache d'où vient un filtre qu'il n'a pas posé ici. */}
-        {typesRisque.length > 0 && (
-          <span style={{ fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)', alignSelf: 'flex-end', paddingBottom: 7 }}>
-            Types de risque filtrés depuis le panneau Calques ({typesRisque.length})
-          </span>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── Corps ───────────────────────────────────────────────────────── */}
       {onglet === 'zones' ? (
@@ -1195,7 +1295,8 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
       ) : onglet === 'rayons' ? (
         <OngletRayons
           profil={etat.profil}
-          onProfil={(p) => majEtat({ profil: p })}
+          bandes={resultatBandes}
+          courbe={resultatCourbe}
           cible={cible}
           libelleCible={libelleCible}
           maille={dimCourante.id}

@@ -74,6 +74,7 @@ describe('lireEtatUrl', () => {
       }),
       onglet: 'zones',
       jeu: 'b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e',
+      atelier: true,
       campagne: '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0',
     };
     expect(allerRetour(etat)).toEqual(etat);

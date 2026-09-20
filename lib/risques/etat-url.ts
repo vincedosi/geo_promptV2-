@@ -100,6 +100,14 @@ export interface EtatRisque {
    * enregistré (le profil courant fait alors foi).
    */
   jeu: string | null;
+  /**
+   * Le tiroir de réglage des anneaux est-il déplié ?
+   *
+   * Il vit dans l'URL comme le reste : le profil décide de la classe de chaque
+   * carreau, donc de TOUS les chiffres de l'écran. Un lien partagé doit pouvoir
+   * montrer d'où ils viennent, pas seulement ce qu'ils valent.
+   */
+  atelier: boolean;
   campagne: string | null;
 }
 
@@ -119,6 +127,7 @@ export const ETAT_DEFAUT: EtatRisque = {
   profil: PROFIL_DEFAUT,
   onglet: 'rayons',
   jeu: null,
+  atelier: false,
   campagne: null,
 };
 
@@ -174,6 +183,7 @@ export function ecrireEtatUrl(e: EtatRisque): string {
 
   if (e.onglet !== ETAT_DEFAUT.onglet) p.set('onglet', e.onglet);
   if (e.jeu) p.set('jeu', e.jeu);
+  if (e.atelier) p.set('atelier', '1');
   if (e.campagne) p.set('campagne', e.campagne);
   return p.toString();
 }
@@ -193,6 +203,7 @@ export function lireEtatUrl(p: URLSearchParams): EtatRisque {
   const maille = p.get('maille');
   const onglet = p.get('onglet');
   const jeu = p.get('jeu');
+  const atelier = p.get('atelier');
   const campagne = p.get('campagne');
   const profilBrut = p.get('profil');
   const profil = profilBrut ? profilDepuisCode(profilBrut) : null;
@@ -221,6 +232,7 @@ export function lireEtatUrl(p: URLSearchParams): EtatRisque {
       // là où son auteur regardait.
       : ONGLETS_HERITES[onglet ?? ''] ?? ETAT_DEFAUT.onglet,
     jeu: jeu && MOTIF_UUID.test(jeu) ? jeu : null,
+    atelier: atelier === '1',
     campagne: campagne && MOTIF_UUID.test(campagne) ? campagne : null,
   };
 }

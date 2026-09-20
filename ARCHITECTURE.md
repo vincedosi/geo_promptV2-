@@ -280,6 +280,30 @@ genesis_app/
 │   │                           # simultanes vaut pour TOUT l'ecran, overlay masque compris).
 │   │                           # Seize fichiers, verrouilles par
 │   │                           # tests/unit/docs/derive-documentation.test.ts
+│   ├── risques/                # Module « Population a risque industriel »
+│   │                           # (overlay plein ecran, ouvert depuis le panneau
+│   │                           # Calques). **UNE barre de commandes pour les
+│   │                           # TROIS onglets depuis le 2026-09-20** : tout ce
+│   │                           # qui y figure vaut partout, et le changer met a
+│   │                           # jour les trois — l'etat est unique
+│   │                           # (`lib/risques/etat-url.ts`), il n'y a aucune
+│   │                           # copie a synchroniser. Ce qui n'est PAS commun
+│   │                           # descend dans une rangee NOMMEE (« Propre a
+│   │                           # Territoires ») : sans ce libelle, un reglage
+│   │                           # visible sur un seul onglet se lit comme un
+│   │                           # filtre general, et on le cherche ensuite
+│   │                           # ailleurs. L'editeur d'anneaux est un TIROIR
+│   │                           # ouvrable des trois onglets — il decide de la
+│   │                           # classe de chaque carreau, donc de tous les
+│   │                           # chiffres de l'ecran, et le laisser dans le
+│   │                           # seul onglet Rayons obligeait a changer
+│   │                           # d'onglet pour regler ce qu'on lisait ailleurs.
+│   │                           # ⚠ Les DEUX chargements (use-bandes,
+│   │                           # use-courbe-rayon) vivent dans l'overlay et non
+│   │                           # dans les onglets : ils repartaient sinon a
+│   │                           # chaque bascule — quatre appels mesures pour
+│   │                           # cinq bascules, sans qu'un reglage ait bouge.
+│   │                           # Mesure apres correctif : ZERO appel.
 │   ├── magelian/               # Overlay MAGELIAN (Strategie/Suivi/Apercu) + deep-link
 │   │   ├── MagelianOverlay.tsx # Overlay plein ecran — onglets Strategie/Suivi/Apercu ; selecteur
 │   │   │                       # de campagne reserve a Suivi/Apercu (donnees OU strategie)
