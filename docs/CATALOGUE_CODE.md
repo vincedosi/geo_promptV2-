@@ -4,7 +4,7 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-09-20 — commit `8500dec`.
+> Généré le 2026-09-20 — commit `a2e57cd`.
 
 ## Totaux
 
@@ -103,16 +103,16 @@ Trié par nombre d’occurrences décroissant.
 | `lib/clustering/feature-themes.ts` | 1 | resolveThemesFromFeatures | — |
 | `components/ui/input.tsx` | 1 | — | InputProps |
 | `lib/logger.ts` | 1 | — | Logger |
-| `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
 | `types/admin.ts` | 1 | — | HealthCheck |
+| `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
 | `lib/supabase/tables.ts` | 1 | — | TableUpdate |
 | `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
 | `lib/campaigns/actor-metrics.ts` | 1 | — | ActorsPayload |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |
 | `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
-| `lib/dsp/push/types.ts` | 1 | — | PushStatus |
 | `lib/demo/pilot-types.ts` | 1 | — | PilotItem |
+| `lib/dsp/push/types.ts` | 1 | — | PushStatus |
 | `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
 | `lib/qualite/verdict.ts` | 1 | — | Verdict |
 | `lib/report/types.ts` | 1 | — | ReportHeader |

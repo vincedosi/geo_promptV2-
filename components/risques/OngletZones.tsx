@@ -221,7 +221,7 @@ export function OngletZones({
      */
     <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
       <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-        <CarteZones profil={profil} gravites={gravites} pret={atelier.etat === 'pret'} />
+        <CarteZones profil={profil} gravites={gravites} natures={natures} pret={atelier.etat === 'pret'} />
       </div>
 
       <aside

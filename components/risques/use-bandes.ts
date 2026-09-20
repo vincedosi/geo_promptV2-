@@ -88,6 +88,14 @@ export function useBandes(
   cible: string,
   maille: Dimension,
   parent: string | null,
+  /**
+   * Natures retenues. Vide = toutes.
+   *
+   * ⚠ Elles n'étaient PAS transmises jusqu'au 2026-09-20 : le filtre de la
+   * barre commune changeait la courbe de l'onglet et pas ce tableau, sans que
+   * rien le dise.
+   */
+  natures: string[] = [],
 ): Resultat {
   const [r, setR] = useState<Resultat>({
     etat: 'chargement', bandes: null, erreur: null, aConstruire: false,
@@ -103,6 +111,9 @@ export function useBandes(
   // Le profil est une valeur d'objet : le mettre en dépendance relancerait à
   // chaque rendu. Son code en est la forme canonique et comparable.
   const code = codeProfil(profil);
+  // ⚠ La FORME SÉRIALISÉE des natures, jamais le tableau : recréé à chaque
+  // rendu du parent, il relancerait l'appel indéfiniment.
+  const cleNatures = natures.join(',');
 
   useEffect(() => {
     const mien = ++jeton.current;
@@ -111,6 +122,7 @@ export function useBandes(
     const minuteur = setTimeout(async () => {
       const p = new URLSearchParams({ profil: code, cible, maille });
       if (parent) p.set('parent', parent);
+      if (cleNatures) p.set('natures', cleNatures);
 
       try {
         const rep = await adminFetch(`/api/risques/profil/bandes?${p}`);
@@ -138,7 +150,7 @@ export function useBandes(
     }, DELAI_MS);
 
     return () => clearTimeout(minuteur);
-  }, [code, cible, maille, parent]);
+  }, [code, cible, maille, parent, cleNatures]);
 
   return r;
 }

@@ -32,7 +32,7 @@
  */
 import { z } from 'zod';
 import { normaliserProfil, ProfilRayonsSchema } from '@/lib/risques/profil';
-import { codeProfil, profilDepuisCode } from '@/lib/risques/code-profil';
+import { codeProfil, profilDepuisCode, encStrict } from '@/lib/risques/code-profil';
 import { classesDuProfil, idClasse, HORS_ZONE } from '@/lib/risques/affectation';
 
 /** Les deux façons de traduire un jeu de zones en plan de campagne. */
@@ -155,20 +155,6 @@ export function normaliserJeu(brut: unknown): JeuDeZones {
 
 /** Sépare les champs du code. Absent des valeurs encodées, donc sans ambiguïté. */
 const SEP = '~';
-
-/**
- * Encodage d'URI STRICT.
- *
- * ⚠ `encodeURIComponent` laisse passer `!`, `'`, `(`, `)` et `*`. Une nature
- * comme « Chimie (IED) » sortait donc avec ses parenthèses, et le code cessait
- * d'être sûr partout où il voyage — une URL le supporte, un nom de fichier
- * d'export pas toujours.
- */
-const encStrict = (s: string): string =>
-  encodeURIComponent(s).replace(
-    /[!'()*]/g,
-    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
-  );
 
 /**
  * Le code canonique d'un jeu — sa clé de cache de GÉOMÉTRIE et de population.

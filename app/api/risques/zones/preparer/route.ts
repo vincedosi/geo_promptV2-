@@ -37,7 +37,7 @@ import { createAdminClient } from '@/lib/auth';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
-import { profilDepuisCode, codeProfil } from '@/lib/risques/code-profil';
+import { profilDepuisCode, codeProfil, codeZonesRisque } from '@/lib/risques/code-profil';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +56,15 @@ const limiteur = createRateLimiter({
 const CorpsSchema = z.object({
   /** Le profil sous sa forme codée (`lib/risques/code-profil.ts`). */
   profil: z.string().min(3).max(128),
+  /**
+   * Natures de risque retenues. Vide = toutes.
+   *
+   * ⚠ Elles entrent dans la CLÉ DE CACHE, pas seulement dans le calcul : depuis
+   * sql/220 la géométrie dépend du filtre, et deux vues qui n'en diffèrent que
+   * par lui partageraient sinon une entrée — la première construite servirait
+   * ses zones à la seconde, sous la légende de la seconde.
+   */
+  natures: z.array(z.string().max(120)).max(30).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -90,7 +99,16 @@ export async function POST(request: NextRequest) {
    * à créer deux entrées de cache pour une seule question, et la couche
    * demanderait alors des tuiles sous une clé que rien n'a construite.
    */
-  const code = codeProfil(profil);
+  const natures = corps.valeur.natures ?? [];
+  /*
+   * ⚠ La clé porte le profil ET les natures, par la MÊME fonction que la route
+   * de tuiles — c'est la seule chose qui garantisse que la couche demande des
+   * tuiles sous la clé qui vient d'être construite.
+   *
+   * Sans nature retenue, la clé est celle du profil seul : les caches bâtis
+   * avant ce filtre restent valides, et rien n'est à reconstruire.
+   */
+  const code = codeZonesRisque(codeProfil(profil), natures);
 
   const quota = await limiteur(profile.id);
   if (!quota.ok) return rateLimitResponse(quota.retrySec);
@@ -119,6 +137,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase.rpc('construire_zones_risque', {
     p_profil: toJson(profil),
     p_code: code,
+    p_natures: (natures.length > 0 ? natures : null) as never,
   });
 
   if (error) {

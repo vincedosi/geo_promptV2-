@@ -105,3 +105,49 @@ export function profilDepuisCode(code: string): ProfilRayons | null {
     return null;
   }
 }
+
+/**
+ * Encodage d'URI STRICT, source unique du projet.
+ *
+ * ⚠ `encodeURIComponent` laisse passer `!`, `'`, `(`, `)` et `*`. Une nature
+ * comme « Chimie (IED) » sortait donc avec ses parenthèses, et le code cessait
+ * d'être sûr partout où il voyage — une URL le supporte, un nom de fichier
+ * d'export pas toujours.
+ *
+ * Il vit ICI et non dans `lib/zones/jeu.ts`, qui l'a écrit le premier : ce
+ * dernier importe déjà `codeProfil` d'ici, et l'inverse ferait un cycle.
+ */
+export const encStrict = (s: string): string =>
+  encodeURIComponent(s).replace(
+    /[!'()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+
+/**
+ * La clé de cache des zones de risque : un profil, ET les natures retenues.
+ *
+ * ── POURQUOI LES NATURES DOIVENT Y ÊTRE ──────────────────────────────────
+ *
+ * `zones_risque_cache` est indexée par cette seule chaîne. Depuis sql/220, la
+ * géométrie des zones dépend AUSSI du filtre de nature — les anneaux ne sont
+ * plus tracés autour des mêmes sites. Deux vues qui ne diffèrent que par ce
+ * filtre partageraient sinon une entrée de cache : la première construite
+ * servirait ses zones à la seconde, sous la légende de la seconde.
+ *
+ * C'est le défaut que l'en-tête de `/api/tiles/zones-risque` écarte pour les
+ * empreintes de hachage — « servir les zones d'un profil sous la légende d'un
+ * autre ». Une clé incomplète le produit tout aussi bien qu'une collision.
+ *
+ * @param codeDuProfil - Le code rendu par {@link codeProfil}, déjà normalisé.
+ * @param natures - Les libellés retenus. Vide = toutes, et la clé est alors
+ *   celle du profil seul — les caches construits avant ce filtre restent donc
+ *   valides, et rien n'est à reconstruire.
+ * @returns La clé de cache.
+ */
+export function codeZonesRisque(codeDuProfil: string, natures: string[] = []): string {
+  if (natures.length === 0) return codeDuProfil;
+  // Trié : deux sélections des mêmes natures dans un ordre différent posent la
+  // même question, et ne doivent pas coûter deux constructions.
+  const n = [...natures].sort().map(encStrict).join('.');
+  return `${codeDuProfil}~n${n}`;
+}

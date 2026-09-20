@@ -41,6 +41,7 @@ import { createAdminClient } from '@/lib/auth';
 import { rpcJson, nullableArg, toJson } from '@/lib/supabase/rpc-json';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { profilDepuisCode } from '@/lib/risques/code-profil';
+import { liste } from '@/lib/api/parametres-requete';
 import { anneauxDuNiveau, NIVEAUX } from '@/lib/risques/profil';
 import { formaterNombre } from '@/lib/format/nombre';
 
@@ -67,6 +68,15 @@ const ParamsSchema = z.object({
   /** Code de département pour descendre d'un cran. */
   parent: z.string().regex(/^(2A|2B|\d{2,3})$/).optional(),
   limite: z.coerce.number().int().min(1).max(2000).optional(),
+  /**
+   * Libellés de natures retenus, séparés par des virgules. Absent = toutes.
+   *
+   * ⚠ Il MANQUAIT jusqu'au 2026-09-20, et le filtre vit pourtant dans la barre
+   * commune aux trois onglets : le décocher changeait la courbe juste en
+   * dessous et pas ce tableau. Un filtre affiché mais non appliqué est pire
+   * qu'un filtre absent.
+   */
+  natures: z.string().max(600).optional(),
 });
 
 const MESSAGES: Record<string, string> = {
@@ -85,6 +95,8 @@ interface Unite {
 interface Reponse {
   calculable: boolean;
   error?: string;
+  /** Renseigné par le seul refus `natures_inconnues` — voir plus bas. */
+  natures_inconnues?: string[];
   maille: string;
   cible: string;
   parent: string | null;
@@ -136,6 +148,7 @@ export async function GET(request: NextRequest) {
     p_maille: p.maille ?? 'departement',
     p_parent: nullableArg(p.parent ?? null),
     p_limite: p.limite ?? 200,
+    p_natures: liste(p.natures) as never,
   });
 
   if (error) {
@@ -148,6 +161,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Calcul des bandes indisponible.' }, { status: 500 });
   }
   if (!resultat.calculable) {
+    /*
+     * ⚠ Ce refus-ci NOMME ce qu'il n'a pas reconnu, parce que c'est la seule
+     * chose qui le rende diagnosticable : les libellés viennent d'un catalogue
+     * servi par la base, et un refus muet se lirait comme une panne du calcul.
+     * Un libellé non résolu ne peut pas être replié sur « non précisée » — il
+     * rendrait un chiffre plausible pour une question que personne n'a posée.
+     */
+    if (resultat.error === 'natures_inconnues') {
+      const inconnues = resultat.natures_inconnues ?? [];
+      return NextResponse.json(
+        {
+          error:
+            `Nature de risque non reconnue : ${inconnues.join(', ')}. `
+            + 'Le catalogue des natures a changé depuis le chargement de la page — '
+            + 'la rouvrir devrait suffire.',
+        },
+        { status: 400 },
+      );
+    }
     return NextResponse.json(
       { error: MESSAGES[resultat.error ?? ''] ?? 'Calcul impossible.' },
       { status: 400 },

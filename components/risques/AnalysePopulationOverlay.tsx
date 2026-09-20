@@ -598,26 +598,6 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
 
   const dimCourante = DIMENSIONS.find((d) => d.id === dimension) ?? DIMENSIONS[0];
 
-  /*
-   * ── LE PRÉ-CALCUL DES BANDES VIT ICI, PAS DANS L'ONGLET ────────────────
-   *
-   * Il alimente le tableau de l'onglet Rayons ET le tiroir de réglage, qui est
-   * ouvrable depuis les trois onglets (chaque anneau y affiche ce qu'il
-   * apporte). Le laisser dans `OngletRayons` le faisait repartir à chaque
-   * retour sur cet onglet : le tableau se vidait le temps de la réponse, alors
-   * que rien n'avait changé.
-   *
-   * ⚠ La maille est ramenée à ce que le pré-calcul porte EN COLONNE. `cp` et
-   * les autres seraient refusées par la route ; les envoyer quand même ferait
-   * afficher une erreur là où l'utilisateur n'a rien demandé de spécial.
-   */
-  const mailleBandes: Dimension = dimCourante.id === 'commune' ? 'commune' : 'departement';
-  const resultatBandes = useBandes(
-    etat.profil,
-    cible,
-    mailleBandes,
-    chemin.find((c) => c.niveau === 'departement')?.code ?? null,
-  );
 
 
   // Les géométries de la dimension courante.
@@ -667,6 +647,31 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         ? { niveau: dernier.niveau, code: dernier.code }
         : null;
     })(),
+  );
+
+  /*
+   * ── LE PRÉ-CALCUL DES BANDES VIT ICI, PAS DANS L'ONGLET ────────────────
+   *
+   * Il alimente le tableau de l'onglet Rayons ET le tiroir de réglage, qui est
+   * ouvrable depuis les trois onglets (chaque anneau y affiche ce qu'il
+   * apporte). Le laisser dans `OngletRayons` le faisait repartir à chaque
+   * retour sur cet onglet : le tableau se vidait le temps de la réponse, alors
+   * que rien n'avait changé.
+   *
+   * ⚠ La maille est ramenée à ce que le pré-calcul porte EN COLONNE. `cp` et
+   * les autres seraient refusées par la route ; les envoyer quand même ferait
+   * afficher une erreur là où l'utilisateur n'a rien demandé de spécial.
+   */
+  const mailleBandes: Dimension = dimCourante.id === 'commune' ? 'commune' : 'departement';
+  const resultatBandes = useBandes(
+    etat.profil,
+    cible,
+    mailleBandes,
+    chemin.find((c) => c.niveau === 'departement')?.code ?? null,
+    // ⚠ Le filtre de nature de la barre COMMUNE. Il n'arrivait pas jusqu'ici
+    // avant le 2026-09-20 : le décocher changeait la courbe de l'onglet Rayons
+    // et pas le tableau juste au-dessus.
+    natures,
   );
 
   /**

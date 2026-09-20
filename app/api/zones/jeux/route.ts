@@ -63,10 +63,20 @@ const CorpsSchema = z.object({
 
 const MESSAGES: Record<string, string> = {
   jeu_introuvable: 'Ce jeu de zones n’existe pas.',
+  /*
+   * ⚠ `filtre_nature_non_supporte` a été LEVÉ le 2026-09-20 (sql/220) : la
+   * dimension manquante a été construite (`carreau_risque_nature`, sql/218) et
+   * le filtre porte désormais sur la géométrie ET sur les codes postaux. Le
+   * message reste ici parce que sql/211 et sql/217 portent encore ce code dans
+   * une branche morte, et qu'un code sans message s'affiche « Construction
+   * impossible » — un refus muet là où il y avait une phrase.
+   */
   filtre_nature_non_supporte:
-    'Le filtre par nature de risque n’est pas encore applicable à un jeu de zones : '
-    + 'le pré-calcul des distances porte toutes les natures. Retirez le filtre, ou '
-    + 'construisez le jeu sur l’ensemble des natures.',
+    'Le filtre par nature de risque n’a pas pu être appliqué à ce jeu de zones. '
+    + 'Retirez le filtre, ou reconstruisez le pré-calcul des distances.',
+  natures_inconnues:
+    'Nature de risque non reconnue. Le catalogue des natures a changé depuis le '
+    + 'chargement de la page — la rouvrir devrait suffire.',
   precalcul_absent:
     'Les distances par carreau n’ont pas encore été construites. '
     + 'Elles se calculent une fois après chaque import de sites à risque.',

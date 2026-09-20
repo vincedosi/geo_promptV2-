@@ -44,7 +44,7 @@ import {
 } from '@/lib/carte/palette-zones-risque';
 import { TIRETE_ZONE_CALCULEE, LARGEUR_TRAIT_ZONE } from '@/lib/carte/nature-zone';
 import { CONTOUR_POINT } from '@/lib/carte/palette-risques';
-import { codeProfil } from '@/lib/risques/code-profil';
+import { codeProfil, codeZonesRisque } from '@/lib/risques/code-profil';
 import { LIBELLE_NIVEAU, anneauxDuNiveau, NIVEAUX, libelleRayon, type Niveau, type ProfilRayons } from '@/lib/risques/profil';
 import { formaterNombre } from '@/lib/format/nombre';
 import { fInter, fMono } from '@/lib/design/polices';
@@ -86,11 +86,20 @@ const VUE_INITIALE = GRAPPES[2].bbox;
 interface Props {
   profil: ProfilRayons;
   gravites: string[];
+  /**
+   * Natures de risque retenues. Vide = toutes.
+   *
+   * ⚠ Elles pilotent TROIS choses à la fois — les sites affichés, la clé de
+   * cache des zones, et donc les tuiles demandées. Les oublier sur l'une des
+   * trois donnerait une carte qui se contredit : des anneaux autour de sites
+   * qu'elle n'affiche pas, ou l'inverse.
+   */
+  natures: string[];
   /** Le jeu construit est-il prêt ? Sert le bandeau, jamais le rendu. */
   pret: boolean;
 }
 
-export function CarteZones({ profil, gravites, pret }: Props) {
+export function CarteZones({ profil, gravites, natures, pret }: Props) {
   const conteneur = useRef<HTMLDivElement | null>(null);
   const carte = useRef<maplibregl.Map | null>(null);
   const { theme } = useTheme();
@@ -98,8 +107,22 @@ export function CarteZones({ profil, gravites, pret }: Props) {
   const [nSites, setNSites] = useState<number | null>(null);
   const [preparation, setPreparation] = useState(false);
 
-  const code = useMemo(() => codeProfil(profil), [profil]);
+  // ⚠ Les formes SÉRIALISÉES, jamais les tableaux : recréés à chaque rendu du
+  // parent, ils relanceraient les effets indéfiniment.
   const cleGravites = gravites.join(',');
+  const cleNatures = natures.join(',');
+  /*
+   * La clé de cache des ZONES porte le profil ET les natures, par la même
+   * fonction que les deux routes serveur (préparation et tuiles). Sans les
+   * natures, un filtre changeait le tableau et laissait la carte sur les
+   * anneaux de tous les sites — la forme exacte du défaut que ce chantier
+   * corrige, en plus visible.
+   */
+  const codeSeul = useMemo(() => codeProfil(profil), [profil]);
+  const code = useMemo(
+    () => codeZonesRisque(codeSeul, cleNatures ? cleNatures.split(',') : []),
+    [codeSeul, cleNatures],
+  );
 
   /* ── Montage ───────────────────────────────────────────────────────────── */
   useEffect(() => {
@@ -144,7 +167,13 @@ export function CarteZones({ profil, gravites, pret }: Props) {
         type: 'vector',
         tiles: [
           `${window.location.origin}/api/tiles/zones-risque/{z}/{x}/{y}`
-          + `?profil=${encodeURIComponent(code)}`,
+          /*
+           * ⚠ `codeProfil(profil)` et non `code` : la route valide ce paramètre
+           * par `profilDepuisCode`, qui ne sait relire qu'un profil. Les
+           * natures voyagent à part, et le serveur recompose la MÊME clé.
+           */
+          + `?profil=${encodeURIComponent(codeSeul)}`
+          + (cleNatures ? `&natures=${encodeURIComponent(cleNatures)}` : ''),
         ],
         minzoom: ZONES_RISQUE_ZOOM_PLANCHER,
         maxzoom: 14,
@@ -208,7 +237,15 @@ export function CarteZones({ profil, gravites, pret }: Props) {
         await adminFetch('/api/risques/zones/preparer', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ profil: code }),
+          // Le PROFIL seul dans `profil`, les natures à part : le serveur
+          // recompose la clé, pour qu'elle ne puisse pas diverger de celle
+          // sous laquelle la couche demandera ses tuiles.
+          body: JSON.stringify({
+            profil: codeSeul,
+            // Reconstruit depuis la forme sérialisée : l'effet ne dépend ainsi
+            // que de chaînes, et le linter peut vérifier ses dépendances.
+            natures: cleNatures ? cleNatures.split(',') : [],
+          }),
         });
       } catch {
         // La carte reste utilisable : le fond et les sites s'affichent, et
@@ -222,7 +259,7 @@ export function CarteZones({ profil, gravites, pret }: Props) {
 
     void preparerPuisPoser();
     return () => { annule = true; };
-  }, [code, theme]);
+  }, [code, codeSeul, cleNatures, theme]);
 
   /* ── Les sites ─────────────────────────────────────────────────────────── */
   useEffect(() => {
@@ -238,6 +275,7 @@ export function CarteZones({ profil, gravites, pret }: Props) {
       try {
         const p = new URLSearchParams({ bbox, limite: '800' });
         if (cleGravites) p.set('gravites', cleGravites);
+        if (cleNatures) p.set('natures', cleNatures);
         const r = await adminFetch(`/api/map/risques-industriels?${p}`);
         if (!r.ok || annule) return;
         const j = await r.json();
@@ -349,7 +387,7 @@ export function CarteZones({ profil, gravites, pret }: Props) {
       m.off('moveend', differer);
       m.off('click', ID_SITES, surClic);
     };
-  }, [cleGravites, theme]);
+  }, [cleGravites, cleNatures, theme]);
 
   const sousLePlancher = zoom < ZONES_RISQUE_ZOOM_PLANCHER;
 

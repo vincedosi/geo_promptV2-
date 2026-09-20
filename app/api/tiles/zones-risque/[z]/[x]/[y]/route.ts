@@ -42,7 +42,7 @@ import {
   BUDGET_CACHE_TUILES_OCTETS,
   TTL_CACHE_TUILES_MS,
 } from '@/lib/tiles/cache-lru';
-import { profilDepuisCode } from '@/lib/risques/code-profil';
+import { profilDepuisCode, codeZonesRisque } from '@/lib/risques/code-profil';
 import { ZONES_RISQUE_ZOOM_PLANCHER } from '@/lib/version';
 
 export const dynamic = 'force-dynamic';
@@ -108,6 +108,26 @@ export async function GET(
   }
 
   /*
+   * ── LES NATURES FONT PARTIE DE LA CLÉ ──────────────────────────────────
+   *
+   * Depuis sql/220 la géométrie des zones dépend du filtre de nature : les
+   * anneaux ne sont plus tracés autour des mêmes sites. Deux vues qui n'en
+   * diffèrent que par ce filtre partageraient sinon l'entrée de cache du
+   * profil — c'est le défaut que l'en-tête de ce fichier écarte pour les
+   * empreintes de hachage (« servir les zones d'un profil sous la légende
+   * d'un autre »), et une clé incomplète le produit tout aussi bien.
+   *
+   * Elles arrivent en paramètre SÉPARÉ et non collées au code du profil, pour
+   * que `profilDepuisCode` continue de valider ce qu'il sait valider. La clé
+   * est ensuite composée par la MÊME fonction que la route de préparation.
+   */
+  const natures = (req.nextUrl.searchParams.get('natures') ?? '')
+    .split(',')
+    .map((n) => n.trim())
+    .filter(Boolean);
+  const cleZones = codeZonesRisque(code, natures);
+
+  /*
    * Sous le plancher, on coupe ICI et pas seulement côté base : inutile
    * d'ouvrir une connexion pour se faire répondre une tuile vide. À l'échelle
    * de la France, une bande de 500 m mesure moins d'un pixel — la couche
@@ -118,7 +138,9 @@ export async function GET(
   }
 
   const accepteGzip = (req.headers.get('accept-encoding') ?? '').includes('gzip');
-  const cle = `${code}/${zoom}/${tx}/${ty}`;
+  // ⚠ `cleZones` et non `code` : deux filtres de nature sur le même profil
+  // rendent des tuiles DIFFÉRENTES, et se partageraient sinon ce cache mémoire.
+  const cle = `${cleZones}/${zoom}/${tx}/${ty}`;
 
   const enCache = cacheMemoire.lire(cle);
   if (enCache) {
@@ -130,7 +152,7 @@ export async function GET(
 
   let promesse = enVol.get(cle);
   if (!promesse) {
-    promesse = lireTuile(zoom, tx, ty, code).finally(() => { enVol.delete(cle); });
+    promesse = lireTuile(zoom, tx, ty, cleZones).finally(() => { enVol.delete(cle); });
     enVol.set(cle, promesse);
   }
 
