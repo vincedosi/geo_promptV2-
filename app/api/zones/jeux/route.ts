@@ -46,8 +46,18 @@ const limiteur = createRateLimiter({
 });
 
 const CorpsSchema = z.object({
-  nom: z.string().min(1).max(120),
+  /**
+   * Le nom n'est exigé qu'à l'enregistrement. Un BROUILLON d'atelier n'en a
+   * pas : on règle, on compare, on décide, et le nom vient en dernier.
+   */
+  nom: z.string().min(1).max(120).optional(),
   description: z.string().max(600).optional(),
+  /**
+   * `true` construit sans enregistrer. Le jeu reste hors de la liste, et un
+   * brouillon déjà construit pour le MÊME profil est rendu tel quel : re-régler
+   * deux fois le même profil ne doit pas coûter deux fois 21 s.
+   */
+  brouillon: z.boolean().optional(),
   jeu: JeuDeZonesSchema,
 });
 
@@ -97,6 +107,10 @@ export async function GET(request: NextRequest) {
     .select('id, nom, description, version, created_at, construit_le, '
       + 'population_exposee, n_cp_retenus, taux_utile, mode_plan, seuil_couverture_cp')
     .eq('org_id', profile.organization_id)
+    // Les brouillons d'atelier ne sont pas des jeux : ils n'ont pas de nom, ils
+    // se purgent seuls, et les lister ferait croire à une bibliothèque pleine
+    // d'objets que personne n'a créés.
+    .eq('brouillon', false)
     .order('created_at', { ascending: false })
     // Borne écrite, et pas seulement par prudence : une liste présentée comme
     // exhaustive alors qu'elle est tronquée est un mensonge silencieux.
@@ -140,10 +154,51 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const quota = await limiteur(profile.id);
-  if (!quota.ok) return rateLimitResponse(quota.retrySec);
+  const brouillon = corps.valeur.brouillon === true;
+  if (!brouillon && !corps.valeur.nom) {
+    return NextResponse.json(
+      { error: 'Donnez un nom au jeu de zones.' },
+      { status: 400 },
+    );
+  }
 
   const supabase = createAdminClient();
+  const empreinte = codeJeu(jeu);
+
+  /*
+   * Un brouillon DÉJÀ construit pour ce profil est rendu tel quel, AVANT de
+   * consommer le quota : l'atelier revient souvent sur un profil qu'il vient
+   * de régler, et refaire 21 s de calcul pour un résultat identique serait
+   * aussi inutile que coûteux. L'index unique partiel
+   * `idx_zone_sets_brouillon_unique` (sql/215) garantit qu'il n'y en a qu'un.
+   */
+  if (brouillon) {
+    const { data: deja, error: erreurBrouillon } = await supabase
+      .from('zone_sets')
+      .select('id, version, n_cp_retenus, taux_utile, population_exposee, seuil_couverture_cp')
+      .eq('org_id', profile.organization_id)
+      .eq('profil_hash', empreinte)
+      .eq('brouillon', true)
+      .maybeSingle();
+
+    if (erreurBrouillon) {
+      console.error('[zones/jeux] brouillon :', erreurBrouillon.message);
+      return NextResponse.json({ error: 'Enregistrement impossible.' }, { status: 500 });
+    }
+    if (deja) {
+      return NextResponse.json({
+        id: deja.id,
+        version: deja.version,
+        deja_construit: true,
+        retenus: deja.n_cp_retenus,
+        taux_utile: deja.taux_utile,
+        population_exposee: deja.population_exposee,
+      });
+    }
+  }
+
+  const quota = await limiteur(profile.id);
+  if (!quota.ok) return rateLimitResponse(quota.retrySec);
 
   /*
    * La version : un jeu de même nom dans la même organisation est une NOUVELLE
@@ -154,7 +209,7 @@ export async function POST(request: NextRequest) {
     .from('zone_sets')
     .select('version')
     .eq('org_id', profile.organization_id)
-    .eq('nom', corps.valeur.nom)
+    .eq('nom', corps.valeur.nom ?? '')
     .order('version', { ascending: false })
     .limit(1);
 
@@ -167,8 +222,11 @@ export async function POST(request: NextRequest) {
   const { data: cree, error: erreurCreation } = await supabase
     .from('zone_sets')
     .insert({
-      nom: corps.valeur.nom,
+      // Un brouillon porte un nom vide plutôt que `null` : la colonne est
+      // `not null`, et un nom vide se distingue d'un nom oublié.
+      nom: corps.valeur.nom ?? '',
       description: corps.valeur.description ?? null,
+      brouillon,
       org_id: profile.organization_id,
       created_by: profile.id,
       version,
@@ -181,7 +239,7 @@ export async function POST(request: NextRequest) {
       mode_plan: jeu.mode_plan,
       seuil_couverture_cp: jeu.seuil_couverture_cp,
       poids: toJson(jeu.poids),
-      profil_hash: codeJeu(jeu),
+      profil_hash: empreinte,
     })
     .select('id')
     .single();

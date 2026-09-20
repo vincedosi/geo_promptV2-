@@ -5471,6 +5471,7 @@ export type Database = {
       }
       zone_sets: {
         Row: {
+          brouillon: boolean
           cible: string
           construit_le: string | null
           created_at: string
@@ -5495,6 +5496,7 @@ export type Database = {
           version: number
         }
         Insert: {
+          brouillon?: boolean
           cible?: string
           construit_le?: string | null
           created_at?: string
@@ -5519,6 +5521,7 @@ export type Database = {
           version?: number
         }
         Update: {
+          brouillon?: boolean
           cible?: string
           construit_le?: string | null
           created_at?: string
@@ -5837,6 +5840,10 @@ export type Database = {
         }
         Returns: Json
       }
+      appliquer_seuil_zone_set: {
+        Args: { p_seuil: number; p_zone_set_id: string }
+        Returns: Json
+      }
       apply_zone_weights_to_strategy: {
         Args: { p_in_weights: Json; p_out_weights: Json; p_strategy_id: string }
         Returns: number
@@ -6063,17 +6070,6 @@ export type Database = {
         Returns: string
       }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
-      diffusion_par_classe: {
-        Args: {
-          p_campagne: string
-          p_cible?: string
-          p_limite?: number
-          p_maille?: string
-          p_parent?: string
-          p_profil: Json
-        }
-        Returns: Json
-      }
       disablelongtransactions: { Args: never; Returns: string }
       drop_carreaux_table: { Args: { table_name: string }; Returns: undefined }
       dropgeometrycolumn:
@@ -7098,7 +7094,12 @@ export type Database = {
         Returns: Json
       }
       purge_old_agent_chat_messages: { Args: never; Returns: number }
+      purger_brouillons_zone_set: {
+        Args: { p_age_heures?: number }
+        Returns: Json
+      }
       purger_campagne_risque_demo: { Args: never; Returns: Json }
+      purger_demo_risque: { Args: never; Returns: Json }
       qualite_colonnes_iris: { Args: never; Returns: Json }
       qualite_fraicheur: { Args: never; Returns: Json }
       qualite_indicateurs: { Args: never; Returns: Json }
@@ -7149,6 +7150,10 @@ export type Database = {
         Returns: Json
       }
       seed_campagne_risque_demo: { Args: never; Returns: Json }
+      seed_impressions_risque_demo: {
+        Args: { p_campagne: string; p_jours?: number; p_total?: number }
+        Returns: Json
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       simulate_dsp_report: { Args: { p_campaign_id: string }; Returns: Json }

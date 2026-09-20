@@ -40,8 +40,25 @@ import {
 } from '@/lib/risques/profil';
 import { codeProfil, profilDepuisCode } from '@/lib/risques/code-profil';
 
-/** Les trois onglets, dans l'ordre du travail : on règle, on lit, on confronte. */
-const ONGLETS = ['rayons', 'territoires', 'diffusion'] as const;
+/**
+ * Les trois onglets, dans l'ordre du travail : on règle les anneaux, on lit ce
+ * qu'ils exposent, on fige le résultat en jeu de zones réutilisable.
+ *
+ * ⚠ Le troisième était `diffusion` jusqu'au 2026-09-20 : il confrontait une
+ * campagne à l'exposition, ce qui est le travail de Campagne > Suivi et non
+ * celui d'un atelier de zones. Le module produit désormais un OBJET — un jeu
+ * de zones — que la campagne reçoit comme plan ; le suivi de la diffusion
+ * revient là où il a toujours vécu, et se mesure au CODE POSTAL, la maille du
+ * plan.
+ *
+ * `diffusion` reste accepté en LECTURE comme alias hérité : un lien partagé
+ * avant cette date doit ouvrir un onglet, pas retomber en silence sur le
+ * premier. Même raisonnement que l'alias `tab=creation` de l'overlay MAGELIAN.
+ */
+const ONGLETS = ['rayons', 'territoires', 'zones'] as const;
+
+/** Ce qu'un ancien lien portait, et ce qu'il ouvre aujourd'hui. */
+const ONGLETS_HERITES: Record<string, Onglet> = { diffusion: 'zones' };
 
 export type Onglet = (typeof ONGLETS)[number];
 
@@ -77,7 +94,12 @@ export interface EtatRisque {
   /** Le profil d'anneaux, qui décide de la classe de chaque carreau. */
   profil: ProfilRayons;
   onglet: Onglet;
-  /** Campagne confrontée dans l'onglet Diffusion, ou `null`. */
+  /** Campagne confrontée, héritage de l'onglet Diffusion retiré. */
+  /**
+   * Jeu de zones ouvert dans l'onglet Zones, ou `null` pour un jeu non encore
+   * enregistré (le profil courant fait alors foi).
+   */
+  jeu: string | null;
   campagne: string | null;
 }
 
@@ -96,6 +118,7 @@ export const ETAT_DEFAUT: EtatRisque = {
   gravites: ['seveso_haut', 'seveso_bas'],
   profil: PROFIL_DEFAUT,
   onglet: 'rayons',
+  jeu: null,
   campagne: null,
 };
 
@@ -150,6 +173,7 @@ export function ecrireEtatUrl(e: EtatRisque): string {
   if (code !== codeProfil(ETAT_DEFAUT.profil)) p.set('profil', code);
 
   if (e.onglet !== ETAT_DEFAUT.onglet) p.set('onglet', e.onglet);
+  if (e.jeu) p.set('jeu', e.jeu);
   if (e.campagne) p.set('campagne', e.campagne);
   return p.toString();
 }
@@ -168,6 +192,7 @@ export function ecrireEtatUrl(e: EtatRisque): string {
 export function lireEtatUrl(p: URLSearchParams): EtatRisque {
   const maille = p.get('maille');
   const onglet = p.get('onglet');
+  const jeu = p.get('jeu');
   const campagne = p.get('campagne');
   const profilBrut = p.get('profil');
   const profil = profilBrut ? profilDepuisCode(profilBrut) : null;
@@ -191,7 +216,11 @@ export function lireEtatUrl(p: URLSearchParams): EtatRisque {
     profil: profil ?? ETAT_DEFAUT.profil,
     onglet: (ONGLETS as readonly string[]).includes(onglet ?? '')
       ? (onglet as Onglet)
-      : ETAT_DEFAUT.onglet,
+      // Un alias hérité AVANT le repli : traiter `diffusion` comme une valeur
+      // invalide renverrait un ancien lien sur « Rayons », donc ailleurs que
+      // là où son auteur regardait.
+      : ONGLETS_HERITES[onglet ?? ''] ?? ETAT_DEFAUT.onglet,
+    jeu: jeu && MOTIF_UUID.test(jeu) ? jeu : null,
     campagne: campagne && MOTIF_UUID.test(campagne) ? campagne : null,
   };
 }

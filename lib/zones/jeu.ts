@@ -57,7 +57,7 @@ export const POIDS_MAX = 5;
  * `hors`. Le motif est vérifié pour qu'une clé fantaisiste ne survive pas à
  * l'enregistrement.
  */
-const MOTIF_CLASSE = /^(haut|bas|autres):(pprt|[1-4])$|^hors$/;
+export const MOTIF_CLASSE = /^(haut|bas|autres):(pprt|[1-4])$|^hors$/;
 
 export const JeuDeZonesSchema = z.object({
   profil: ProfilRayonsSchema,

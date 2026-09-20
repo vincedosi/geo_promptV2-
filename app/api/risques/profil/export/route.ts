@@ -2,7 +2,7 @@
  * @file app/api/risques/profil/export/route.ts
  *
  * GET — le classeur du profil de rayons : ses anneaux, ses bandes, ses
- * territoires, et la diffusion d'une campagne s'il y en a une.
+ * territoires, et les codes postaux que le profil retient.
  *
  * ── POURQUOI LE PROFIL A SON PROPRE ONGLET ───────────────────────────────
  *
@@ -31,7 +31,6 @@ import { z } from 'zod';
 import ExcelJS from 'exceljs';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
-import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { rpcJson, nullableArg, toJson } from '@/lib/supabase/rpc-json';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { profilDepuisCode, codeProfil } from '@/lib/risques/code-profil';
@@ -39,6 +38,8 @@ import {
   anneauxDuNiveau, LIBELLE_NIVEAU, NIVEAUX, libelleRayon, type Niveau,
 } from '@/lib/risques/profil';
 import { LIMITES, SOURCES, METHODE_CALCUL } from '@/lib/risques/methode';
+
+import { libelleClasse } from '@/lib/risques/libelle-classe';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +59,6 @@ const ParamsSchema = z.object({
   cible: z.string().regex(/^[a-z0-9_]{1,40}$/).optional(),
   maille: z.enum(['departement', 'commune']).optional(),
   parent: z.string().regex(/^(2A|2B|\d{2,3})$/).optional(),
-  campagne: z.string().uuid().optional(),
   libelle_cible: z.string().max(120).optional(),
 });
 
@@ -71,31 +71,6 @@ interface Bandes {
   n_carreaux: number;
   par_classe: Record<string, number>;
   unites: Unite[];
-}
-interface ClasseDiffusion {
-  classe: string; population: number; impressions: number;
-  depense: number; indice: number | null;
-}
-interface Diffusion {
-  calculable: boolean;
-  est_demo: boolean;
-  impressions_totales: number;
-  impressions_en_zone: number;
-  population_touchee: number;
-  classes: ClasseDiffusion[];
-}
-
-/** Le libellé lisible d'une classe, reconstruit depuis le profil. */
-function libelleClasse(classe: string, anneauxPar: Record<Niveau, number[]>): string {
-  if (classe === 'hors') return 'Hors des anneaux';
-  const [niveau, bande] = classe.split(':') as [Niveau, string];
-  const court = LIBELLE_NIVEAU[niveau] ?? niveau;
-  if (bande === 'pprt') return `${court} — périmètre PPRT`;
-  const anneaux = anneauxPar[niveau] ?? [];
-  const i = Number(bande) - 1;
-  const debut = i === 0 ? '0' : libelleRayon(anneaux[i - 1]);
-  const fin = anneaux[i] !== undefined ? libelleRayon(anneaux[i]) : '?';
-  return `${court} — ${debut} à ${fin}`;
 }
 
 export async function GET(request: NextRequest) {
@@ -155,28 +130,6 @@ export async function GET(request: NextRequest) {
   const bandes = rpcJson<Bandes>(bandesRes.data);
   if (!bandes?.calculable) {
     return NextResponse.json({ error: 'Export impossible sur ce profil.' }, { status: 400 });
-  }
-
-  let diffusion: Diffusion | null = null;
-  if (p.campagne) {
-    const acces = await checkCampaignAccess(supabase, profile, p.campagne);
-    if (acces === 'not_found') {
-      return NextResponse.json({ error: 'Campagne introuvable.' }, { status: 404 });
-    }
-    if (acces !== 'ok') {
-      return NextResponse.json({ error: 'Accès refusé à cette campagne.' }, { status: 403 });
-    }
-    const dRes = await supabase.rpc('diffusion_par_classe', {
-      p_campagne: p.campagne,
-      p_profil: toJson(profil),
-      p_cible: p.cible ?? 'ind',
-      p_maille: maille,
-      p_parent: nullableArg(p.parent ?? null),
-      p_limite: 200,
-    });
-    // Une campagne sans données ne fait PAS échouer l'export : les trois autres
-    // onglets restent utiles, et l'absence du quatrième est explicite.
-    if (!dRes.error) diffusion = rpcJson<Diffusion>(dRes.data);
   }
 
   const wb = new ExcelJS.Workbook();
@@ -261,40 +214,7 @@ export async function GET(request: NextRequest) {
   }
   for (const col of ['total', ...classesVues]) wsTerr.getColumn(col).numFmt = '# ##0';
 
-  // ── Onglet 4 : la diffusion ─────────────────────────────────────────────
-  const wsDiff = wb.addWorksheet('Diffusion');
-  wsDiff.columns = [
-    { header: 'Classe', key: 'classe', width: 42 },
-    { header: libCible, key: 'pop', width: 16 },
-    { header: 'Impressions', key: 'imp', width: 16 },
-    { header: 'Dépense (EUR)', key: 'eur', width: 15 },
-    { header: 'Indice de pression', key: 'indice', width: 18 },
-  ];
-  wsDiff.getRow(1).font = { bold: true };
-  if (!diffusion?.calculable) {
-    wsDiff.addRow({
-      classe: p.campagne
-        ? 'Cette campagne n’a aucune impression au code postal.'
-        : 'Aucune campagne sélectionnée : rien à confronter.',
-    });
-  } else {
-    for (const c of diffusion.classes) {
-      wsDiff.addRow({
-        classe: libelleClasse(c.classe, anneauxPar),
-        pop: c.population,
-        imp: c.impressions,
-        eur: c.depense,
-        // `null` et non 0 : un indice incalculable n'est pas un indice nul.
-        indice: c.indice,
-      });
-    }
-    wsDiff.getColumn('pop').numFmt = '# ##0';
-    wsDiff.getColumn('imp').numFmt = '# ##0';
-    wsDiff.getColumn('eur').numFmt = '# ##0.00';
-    wsDiff.getColumn('indice').numFmt = '0';
-  }
-
-  // ── Onglet 5 : ce que les chiffres veulent dire ─────────────────────────
+  // ── Onglet 4 : ce que les chiffres veulent dire ─────────────────────────
   const meta = wb.addWorksheet('Méthode et limites');
   meta.columns = [{ width: 32 }, { width: 104 }];
   const ligneM = (a: string, b: string, gras = false) => {
@@ -320,30 +240,6 @@ export async function GET(request: NextRequest) {
     + 'porte les ménages fiscaux. Comparer ces totaux ferait conclure à tort à une lacune.',
   );
   ligneM('Double comptage', METHODE_CALCUL.doubleComptage);
-  if (diffusion?.calculable) {
-    ligneM(
-      'Impressions',
-      'VENTILÉES et non mesurées : une campagne s’achète au code postal, le risque se '
-      + 'mesure au carreau. La ventilation suppose la pression uniforme à l’intérieur d’un '
-      + 'code postal, et son dénominateur est la population TOTALE du code postal — jamais '
-      + 'sa seule part exposée.',
-    );
-    ligneM(
-      'Indice de pression',
-      'Part des impressions rapportée à la part de population, ×100. 100 = la classe reçoit '
-      + 'exactement son poids démographique. Vide quand la classe n’a aucune population : '
-      + 'un indice incalculable n’est pas un indice nul.',
-    );
-    if (diffusion.est_demo) {
-      ligneM(
-        'DONNÉES DE DÉMONSTRATION',
-        'Cette campagne est un jeu de démonstration (is_demo). Ses impressions sont '
-        + 'fabriquées et ne mesurent aucune diffusion réelle.',
-        true,
-      );
-    }
-  }
-
   meta.addRow([]);
   ligneM('Ce que les chiffres ne disent pas', '', true);
   ligneM(

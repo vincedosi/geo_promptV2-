@@ -72,10 +72,31 @@ describe('lireEtatUrl', () => {
       profil: normaliserProfil({
         haut: [500, 1000, 2000], bas: [300], autres: [], lie: false, inclurePPRT: false,
       }),
-      onglet: 'diffusion',
+      onglet: 'zones',
+      jeu: 'b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e',
       campagne: '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0',
     };
     expect(allerRetour(etat)).toEqual(etat);
+  });
+
+  it('un ancien lien onglet=diffusion ouvre l onglet Zones', () => {
+    /*
+     * L'onglet `diffusion` a été retiré le 2026-09-20 : le module de risque
+     * est devenu un atelier qui PRODUIT un jeu de zones, et le suivi de la
+     * diffusion est retourné dans Campagne > Suivi.
+     *
+     * Traiter `diffusion` comme une valeur invalide renverrait un lien partagé
+     * avant cette date sur « Rayons », c'est-à-dire ailleurs que là où son
+     * auteur regardait, et sans rien dire. Même raisonnement que l'alias
+     * hérité `tab=creation` de l'overlay MAGELIAN.
+     */
+    expect(lireEtatUrl(new URLSearchParams('onglet=diffusion')).onglet).toBe('zones');
+  });
+
+  it('un onglet vraiment inconnu retombe sur le defaut', () => {
+    // L'alias ne doit pas se transformer en tolérance générale : une valeur
+    // que personne n'a jamais servie est une erreur, pas un héritage.
+    expect(lireEtatUrl(new URLSearchParams('onglet=chimere')).onglet).toBe(ETAT_DEFAUT.onglet);
   });
 
   it('fait l aller-retour sur une nature contenant un point', () => {

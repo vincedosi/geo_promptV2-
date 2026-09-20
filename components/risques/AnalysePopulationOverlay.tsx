@@ -52,7 +52,7 @@ import { FournisseurRisque, useEtatRisque } from '@/components/risques/ContexteR
 import type { Onglet } from '@/lib/risques/etat-url';
 import { ResumeProfil } from '@/components/risques/ResumeProfil';
 import { BoutonVoirCarte } from '@/components/risques/BoutonVoirCarte';
-import { OngletDiffusion } from '@/components/risques/OngletDiffusion';
+import { OngletZones } from '@/components/risques/OngletZones';
 import { BoutonExportProfil } from '@/components/risques/BoutonExportProfil';
 import { NIVEAUX_RISQUE } from '@/lib/risques/gravites';
 
@@ -837,7 +837,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
           {([
             ['rayons', 'Rayons'],
             ['territoires', 'Territoires'],
-            ['diffusion', 'Diffusion'],
+            ['zones', 'Zones'],
           ] as const).map(([id, label]) => (
             <button
               key={id}
@@ -1174,14 +1174,22 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
       </div>
 
       {/* ── Corps ───────────────────────────────────────────────────────── */}
-      {onglet === 'diffusion' ? (
-        <OngletDiffusion
-          campagne={etat.campagne}
+      {onglet === 'zones' ? (
+        <OngletZones
           profil={etat.profil}
+          onProfil={(p) => majEtat({ profil: p })}
           cible={cible}
           libelleCible={libelleCible}
-          maille={dimCourante.id}
-          parent={chemin.find((c) => c.niveau === 'departement')?.code ?? null}
+          gravites={niveaux}
+          natures={natures}
+          /* Le territoire du jeu est le DÉPARTEMENT du fil d'Ariane, jamais la
+             région : `construire_zone_set` filtre sur `code_departement`, et
+             lui passer un code de région ne lèverait pas — il ne trouverait
+             simplement aucun carreau, et le jeu serait vide sans dire
+             pourquoi. */
+          territoire={chemin.find((c) => c.niveau === 'departement')?.code ?? null}
+          jeuOuvert={etat.jeu}
+          onJeuOuvert={(id) => majEtat({ jeu: id })}
         />
       ) : onglet === 'rayons' ? (
         <OngletRayons

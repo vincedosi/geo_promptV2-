@@ -1,0 +1,40 @@
+-- sql/214 — Retrait de `diffusion_par_classe`
+--           (2026-09-20)
+--
+-- ── POURQUOI CETTE FONCTION PART ─────────────────────────────────────────
+--
+-- Elle servait l'onglet « Diffusion » du module risque, supprimé par la
+-- phase 3 : le module devient un ATELIER qui produit un jeu de zones
+-- réutilisable, et le suivi de diffusion retourne dans Campagne > Suivi, où
+-- il a toujours vécu.
+--
+-- ── ET POURQUOI ELLE N'EST PAS SIMPLEMENT DÉPLACÉE ───────────────────────
+--
+-- Elle ventilait les impressions du CODE POSTAL vers le CARREAU de 200 m,
+-- pour les comparer à une exposition mesurée au carreau. C'était la seule
+-- façon de répondre tant qu'il n'existait pas de plan.
+--
+-- Il en existe un désormais, et il est bâti au CODE POSTAL (`zone_set_cp`,
+-- une classe dominante par code postal). Mesurer l'écart au plan à une
+-- granularité PLUS FINE que le plan lui-même ne le rend pas plus juste : cela
+-- ajoute une hypothèse de répartition intra-code-postal à un plan qui n'en
+-- porte aucune, et l'écart affiché mélangerait alors la dérive réelle de la
+-- campagne avec l'erreur de cette hypothèse.
+--
+-- Le bloc « Pression par classe » du Suivi joint donc `campaign_cp_rollup` à
+-- `zone_set_cp` : deux tables au même grain, aucune ventilation, aucun
+-- postulat.
+--
+-- ── LES QUATRE CONDITIONS DU « MÉNAGE EN BASE » ──────────────────────────
+--
+-- Vérifiées une à une avant d'écrire cette migration :
+--   · 0 appelant dans le code (`/api/risques/diffusion` supprimée) ;
+--   · 0 appelant EN BASE (`pg_proc.prosrc`, `information_schema.views`) ;
+--   · aucune dépendance structurelle ;
+--   · définition présente dans sql/207 — restaurer est un `git show`, pas une
+--     restauration de sauvegarde.
+
+-- Signature relevee EN BASE (`pg_proc.oid::regprocedure`) et non recopiee de
+-- sql/207 : un `drop function` qui se trompe d'arguments ne leve pas, il ne
+-- trouve simplement rien et laisse la fonction en place.
+drop function if exists public.diffusion_par_classe(uuid, jsonb, text, text, text, integer);
