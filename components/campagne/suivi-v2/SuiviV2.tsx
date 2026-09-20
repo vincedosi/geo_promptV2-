@@ -177,6 +177,15 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
   // quatrième état de la famille du constat 15 : ni chargement, ni échec, ni
   // « rien à signaler », mais « pas encore ».
   const [pasEncoreDeDiffusion, setPasEncoreDeDiffusion] = useState(false);
+  /**
+   * La campagne diffuse, mais AUCUN plan géographique ne lui est rattaché.
+   *
+   * Ce n'est ni une panne ni « pas encore » : c'est un état de configuration.
+   * Il était jusqu'au 2026-09-20 invisible — la RPC rendait `score: 100`, zéro
+   * écart à un plan qui n'existe pas (sql/209). L'écran affichait donc une
+   * campagne parfaitement alignée, avec 0 % de codes postaux conformes.
+   */
+  const [sansPlan, setSansPlan] = useState<{ nCp: number } | null>(null);
   const [alignementChargeUneFois, setAlignementChargeUneFois] = useState(false);
 
   useEffect(() => {
@@ -193,11 +202,20 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
           setAlignement(r.data);
           setErreurAlignement(null);
           setPasEncoreDeDiffusion(false);
+          setSansPlan(null);
         } else if (r.raison === 'aucune_donnee') {
           setPasEncoreDeDiffusion(true);
+          setSansPlan(null);
+          setErreurAlignement(null);
+        } else if (r.raison === 'plan_absent') {
+          // Le diagnostic voyage avec le refus : « 2 000 codes postaux
+          // touchés » vaut mieux qu'un message nu.
+          setSansPlan({ nCp: r.nCp ?? 0 });
+          setPasEncoreDeDiffusion(false);
           setErreurAlignement(null);
         } else {
           setPasEncoreDeDiffusion(false);
+          setSansPlan(null);
           setErreurAlignement(r.erreurMessage ?? MESSAGE_ERREUR_DEFAUT);
         }
       })
@@ -480,6 +498,28 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
     );
   }
 
+  // Même famille que « pas encore de diffusion », et même raison de le mettre
+  // AVANT la branche d'erreur : une campagne sans plan n'est pas en panne,
+  // elle n'est pas configurée. Le message nomme ce qui manque ET la suite —
+  // « non calculable » tout court laisse l'utilisateur devant un mur.
+  if (sansPlan && !alignement) {
+    return (
+      <div>
+        <BarreContexteCampagne />
+        <EtatVide
+          titre="Aucun plan géographique"
+          message={
+            `Cette campagne a diffusé sur ${formaterNombre(sansPlan.nCp)} codes postaux, mais aucun `
+            + `plan ne lui est rattaché : il n’y a rien à quoi comparer la diffusion. `
+            + `Le score d’alignement, les zones conformes et les écarts de pression ne sont pas `
+            + `calculables tant qu’un plan n’est pas défini. Rattachez un jeu de zones ou une `
+            + `variable de ciblage depuis l’onglet Stratégie.`
+          }
+        />
+      </div>
+    );
+  }
+
   if (erreurEcran && !alignement) {
     return (
       <div>
@@ -510,9 +550,26 @@ export function SuiviV2({ campaignId: campaignIdProp }: { campaignId: string }) 
               Actualisation…
             </span>
           )}
+          {/*
+            ⚠ Ce bandeau disait « La dernière actualisation a échoué — les
+            chiffres affichés datent d'avant », et il MENTAIT DEUX FOIS sur la
+            campagne de démonstration du module risque : rien n'avait échoué
+            (`refresh_campaign_rollups` rendait 2 000 lignes CP et 90
+            quotidiennes, vérifié le 2026-09-20), et les chiffres ne dataient
+            pas d'avant.
+
+            La cause réelle : `get_campaign_suivi` rend `{"error":
+            "no_strategy"}` quand la campagne n'a pas de stratégie de bidding.
+            Un état de CONFIGURATION, traduit en panne technique — ce qui
+            envoie chercher un problème d'infrastructure là où il manque un
+            plan.
+
+            Le message porte donc désormais la phrase de la route, qui sait de
+            quoi elle parle, et ne conclut plus à l'échec de sa place.
+          */}
           {erreurEcran && (
             <p role="alert" style={{ fontFamily: fInter, fontSize: 12, color: 'var(--warning)', margin: '0 0 10px' }}>
-              La dernière actualisation a échoué — les chiffres affichés datent d’avant.
+              {erreurEcran}
             </p>
           )}
 

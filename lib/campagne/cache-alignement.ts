@@ -41,16 +41,30 @@ export interface ResultatAlignement {
    * phrases françaises — l'écran a besoin du code, pas du texte.
    */
   raison: string | null;
+  /**
+   * Codes postaux touchés, quand la route refuse de calculer.
+   *
+   * Refuser de calculer n'est pas refuser de renseigner : l'écran doit pouvoir
+   * écrire « 2 000 codes postaux touchés, aucun plan défini » plutôt qu'un
+   * message nu. `null` quand le refus ne porte pas ce diagnostic.
+   */
+  nCp: number | null;
 }
 
 const cache = new Map<string, Promise<ResultatAlignement>>();
 
-async function corpsErreur(res: Response): Promise<{ message: string | null; raison: string | null }> {
+async function corpsErreur(
+  res: Response,
+): Promise<{ message: string | null; raison: string | null; nCp: number | null }> {
   try {
-    const corps = (await res.json()) as { error?: string; raison?: string };
-    return { message: corps?.error ?? null, raison: corps?.raison ?? null };
+    const corps = (await res.json()) as { error?: string; raison?: string; n_cp?: number };
+    return {
+      message: corps?.error ?? null,
+      raison: corps?.raison ?? null,
+      nCp: typeof corps?.n_cp === 'number' ? corps.n_cp : null,
+    };
   } catch {
-    return { message: null, raison: null };
+    return { message: null, raison: null, nCp: null };
   }
 }
 
@@ -60,12 +74,20 @@ function demarrer(campaignId: string): Promise<ResultatAlignement> {
     try {
       const res = await adminFetch(`/api/campaigns/${campaignId}/alignement`, { cache: 'no-store' });
       if (!res.ok) {
-        const { message, raison } = await corpsErreur(res);
-        return { data: null, erreurMessage: message ?? 'Erreur base de données.', raison };
+        const { message, raison, nCp } = await corpsErreur(res);
+        return { data: null, erreurMessage: message ?? 'Erreur base de données.', raison, nCp };
       }
-      return { data: await res.json() as ReponseAlignement, erreurMessage: null, raison: null };
+      return {
+        data: await res.json() as ReponseAlignement,
+        erreurMessage: null, raison: null, nCp: null,
+      };
     } catch (e) {
-      return { data: null, erreurMessage: e instanceof Error ? e.message : 'Erreur réseau.', raison: null };
+      // Panne réseau : ni raison métier, ni diagnostic — on ne sait rien.
+      return {
+        data: null,
+        erreurMessage: e instanceof Error ? e.message : 'Erreur réseau.',
+        raison: null, nCp: null,
+      };
     } finally {
       liberer();
     }

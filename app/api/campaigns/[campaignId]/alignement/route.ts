@@ -76,13 +76,19 @@ const QuerySchema = z.object({
   poids: z.coerce.number().min(0).max(5).optional(),
 });
 
-/** Payload de `calculer_alignement_geo` (sql/165, sql/172). */
+/** Payload de `calculer_alignement_geo` (sql/165, sql/172, sql/209). */
 interface AlignementPayload {
   error?: string;
   calculable?: boolean;
   score?: number;
   score_prev_7j?: number;
   prev_7j_calculable?: boolean;
+  /** Codes postaux touchés par la campagne. */
+  n_cp?: number;
+  /** Codes postaux portant un plan. Zéro ⇒ `error: 'plan_absent'` (sql/209). */
+  n_cp_plan?: number;
+  /** Part des codes postaux touchés qui portent un plan. */
+  plan_couverture_pct?: number;
   [key: string]: unknown;
 }
 
@@ -94,6 +100,12 @@ const MESSAGES_METIER: Record<string, string> = {
   campagne_introuvable: 'Campagne introuvable.',
   aucune_donnee:
     'Cette campagne n’a pas encore de données de diffusion : le score d’alignement n’est pas calculable.',
+  // sql/209. La RPC rendait 100 dans ce cas — zéro écart à un plan qui
+  // n'existe pas. Le message nomme ce qui manque ET ce qu'il faut faire :
+  // « non calculable » sans la suite laisserait l'utilisateur devant un mur.
+  plan_absent:
+    'Cette campagne n’a pas de plan géographique : il n’y a rien à quoi comparer la diffusion. '
+    + 'Rattachez-lui un jeu de zones ou une variable de ciblage depuis l’onglet Stratégie.',
 };
 
 export async function GET(
@@ -141,6 +153,12 @@ export async function GET(
         error: MESSAGES_METIER[resultat.error] ?? 'Score d’alignement indisponible.',
         raison: resultat.error,
         calculable: false,
+        // Le diagnostic voyage avec le refus : l'écran doit pouvoir écrire
+        // « 2 000 codes postaux touchés, aucun plan défini » plutôt qu'un
+        // message nu. Refuser de calculer n'est pas refuser de renseigner.
+        n_cp: resultat.n_cp ?? null,
+        n_cp_plan: resultat.n_cp_plan ?? null,
+        plan_couverture_pct: resultat.plan_couverture_pct ?? null,
       },
       { status: 404 },
     );

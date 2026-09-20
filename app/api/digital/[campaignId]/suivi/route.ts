@@ -38,8 +38,29 @@ export async function GET(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   let payload = rpcJson<SuiviPayload>(data);
 
+  /*
+   * ⚠ Le code brut ne repart PLUS au client. Il le faisait jusqu'au
+   * 2026-09-20, et l'écran le traduisait à sa façon : « La dernière
+   * actualisation a échoué — les chiffres affichés datent d'avant. » Deux
+   * mensonges dans une phrase — rien n'avait échoué (`refresh_campaign_rollups`
+   * fonctionne, vérifié) et les chiffres ne dataient pas d'avant.
+   *
+   * Un code métier brut affiché à l'utilisateur est un message technique qui a
+   * fui : c'est la règle que `alignement/route.ts` applique déjà avec sa table
+   * `MESSAGES_METIER`. `raison` reste là pour que l'écran distingue les cas
+   * sans comparer des phrases françaises.
+   */
   if (payload?.error === 'no_strategy') {
-    return NextResponse.json({ error: 'no_strategy' }, { status: 409 });
+    return NextResponse.json(
+      {
+        error:
+          'Cette campagne n’a pas de plan géographique : le suivi de pression n’a rien à '
+          + 'quoi comparer la diffusion. Rattachez-lui un jeu de zones ou une variable de '
+          + 'ciblage depuis l’onglet Stratégie.',
+        raison: 'no_strategy',
+      },
+      { status: 409 },
+    );
   }
   if (payload?.error === 'no_rollup') {
     const { error: refreshErr } = await supabase.rpc('refresh_campaign_rollups', { p_campaign_id: campaignId });

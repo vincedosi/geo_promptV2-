@@ -45,10 +45,30 @@ export interface ResultatAlignement {
 }
 
 /**
- * Rend `null` quand le score n'est PAS CALCULABLE : aucune unité, ou aucune
- * impression réelle à répartir entre elles. Le dénominateur de toutes les
- * pénalités est le volume réel total ; sans lui, il n'y a pas de score « par
- * défaut » à produire — seulement un verdict à ne pas rendre.
+ * Rend `null` quand le score n'est PAS CALCULABLE. Trois cas, et le troisième
+ * a été ajouté le 2026-09-20 :
+ *
+ * 1. aucune unité ;
+ * 2. aucune impression réelle à répartir — le dénominateur de toutes les
+ *    pénalités est le volume réel total ;
+ * 3. **aucune unité ne porte de plan.**
+ *
+ * ── POURQUOI LE TROISIÈME N'EST NI 0 NI 100 ──────────────────────────────
+ *
+ * Côté SQL, `calculer_alignement_geo` rendait **100** dans ce cas : zéro écart
+ * à un plan qui n'existe pas (mesuré le 2026-09-20 sur la campagne de
+ * démonstration, 2 000 CP et 1,2 Md d'impressions). Ce jumeau, lui, rendait
+ * **0** — le volume non planifié comptant en totalité en sur-pression.
+ *
+ * Les deux avaient tort, et ils DIVERGEAIENT : `ARCHITECTURE.md` affirmait
+ * leur accord « sur le chemin nominal et sur le cas dégénéré », mais ce
+ * cas-ci — des unités, des impressions, aucun plan — n'avait jamais été
+ * croisé. 0 se lit « campagne catastrophique », 100 se lit « campagne
+ * parfaite » : les deux sont des verdicts, là où il n'y a rien à juger.
+ *
+ * ⚠ La couverture PARTIELLE, elle, reste calculable — et le volume parti sur
+ * une unité sans plan compte EN TOTALITÉ en sur-pression. C'est ce qui
+ * garantit qu'une couverture partielle ne peut pas produire un score parfait.
  */
 export function calculerAlignement(
   unites: UniteAlignement[],
@@ -60,6 +80,11 @@ export function calculerAlignement(
   const t = tolerancePct / 100
   const totalReel = unites.reduce((s, u) => s + u.reel, 0)
   if (totalReel <= 0) return null
+
+  // Aucune unité ne porte de plan : il n'y a pas de score à rendre.
+  // ⚠ `> 0` et non `!= null` : un plan à zéro n'est pas un plan. C'est la MÊME
+  // condition que `n_cp_plan` côté SQL (sql/209).
+  if (!unites.some((u) => u.plan > 0)) return null
 
   let manque = 0
   let trop = 0
