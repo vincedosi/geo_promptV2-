@@ -29,9 +29,9 @@
  * lectures incomparables sans qu'on sache pourquoi.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { X, Download, Loader2 } from 'lucide-react';
+import { X } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
-import { formaterNombre, formaterDecimal } from '@/lib/format/nombre';
+import { formaterNombre } from '@/lib/format/nombre';
 import { empiler, depiler } from '@/lib/carte/pile-echap';
 import { librellesDuType } from '@/lib/carte/palette-risques';
 import type { TypeRisque } from '@/lib/carte/palette-risques';
@@ -40,7 +40,6 @@ import { CarteMiniFrance, type ZoneGeo } from './CarteMiniFrance';
 import { CARREAUX_PALETTES } from '@/lib/carreaux/catalogue';
 import { OngletRayons } from '@/components/risques/OngletRayons';
 import { fInter, fMono } from '@/lib/design/polices';
-import { Kpi } from '@/components/risques/Kpi';
 import {
   DIMENSIONS_PROPOSEES,
   LIBELLE_DIMENSION,
@@ -54,13 +53,14 @@ import { ResumeProfil } from '@/components/risques/ResumeProfil';
 import { PanneauProfil } from '@/components/risques/PanneauProfil';
 import { useBandes } from '@/components/risques/use-bandes';
 import { useCourbeRayon } from '@/components/risques/use-courbe-rayon';
+import { TableauCouverture } from '@/components/risques/TableauCouverture';
 import { BoutonVoirCarte } from '@/components/risques/BoutonVoirCarte';
 import { OngletZones } from '@/components/risques/OngletZones';
 import { BoutonExportProfil } from '@/components/risques/BoutonExportProfil';
 import { NIVEAUX_RISQUE } from '@/lib/risques/gravites';
 
 // La maille vient de `lib/risques/dimensions.ts` : les trois listes blanches
-// (ici, /agregats, /export) divergeaient, et `arrondissement` etait donc
+// (les deux routes d'exposition) divergeaient, et `arrondissement` etait donc
 // inatteignable alors que la RPC et l'export l'acceptent (R-09).
 type Dimension = DimensionPartagee;
 
@@ -89,14 +89,13 @@ type Encodage = 'part' | 'densite' | 'exposee';
  * 200 m est le plancher : c'est le côté du carreau INSEE, donc la plus petite
  * distance qui puisse encore changer un résultat.
  */
-const PALIERS_RAYON = [500, 1000, 2000, 5000];
 
 /**
  * Ce que la mini-carte sait dessiner, par maille.
  *
  * Seule information PROPREMENT locale de ce tableau : les ids et les libellés
  * viennent de `lib/risques/dimensions.ts`, où ils sont écrits une fois pour
- * l'écran, `/agregats` et `/export`.
+ * l'écran et les deux routes d'exposition.
  *
  * Les contours postaux existent mais ne sont plus dessinés : à l'intérieur d'un
  * département, une carte de France entière n'en montrerait qu'un confetti.
@@ -151,51 +150,19 @@ const MODES_ZONE = MODES_PARTAGES.map((id) => ({ id, ...AIDE_MODE[id] }));
 // sur QUATRE libelles sur six (constat R-26).
 const NIVEAUX = NIVEAUX_RISQUE;
 
+
+
+/** Un code de territoire et son libellé, pour les menus de périmètre. */
 interface UniteRef { code: string; nom: string }
 
-interface Ligne {
-  cle: string;
-  nom: string;
-  exposee: number;
-  n_sites: number;
-  n_indicatifs: number;
-  carreaux: number;
-  pop_totale: number | null;
-  surface_km2: number | null;
-  part_pct: number | null;
-  densite: number | null;
-}
-
-interface Agregat {
-  dimension: Dimension;
-  cible: string;
-  rayon_m: number;
-  rayon_deduit: boolean;
-  n_unites: number;
-  total_exposee: number;
-  total_sites: number;
-  total_indicatifs: number;
-  tronquee: boolean;
-  /** Carreaux qu'on n'a pas su rattacher à une unité — exclus du total. */
-  carreaux_non_attribues?: number;
-  /** Le cercle a-t-il été imposé à TOUS les sites, périmètres PPRT compris ? */
-  rayon_force?: boolean;
-  /**
-   * Résultat servi depuis `exposition_cache` plutôt que recalculé.
-   *
-   * Remonte jusqu'ici à dessein : une valeur rendue instantanément doit
-   * pouvoir dire de quand elle date, sinon elle se fait passer pour un calcul
-   * frais. `duree_ms` reste celle du calcul D'ORIGINE — « ce résultat a coûté
-   * 43 s à produire » est l'information utile, pas « 0 ms à relire ».
-   */
-  du_cache?: boolean;
-  duree_ms?: number;
-  /** Rayon le plus large encore calculable sur ce périmètre (sql/197). */
-  rayon_max_m?: number;
-  n_sites_retenus?: number;
-  lignes: Ligne[];
-  calcule_le: string;
-}
+/*
+ * ── LES TYPES DE L'ANCIEN MOTEUR ONT DISPARU ─────────────────────────────
+ *
+ * `Ligne` et `Agregat` décrivaient le payload de `/api/risques/exposition/
+ * agregats`. L'écran lit maintenant `population_par_classe`, dont le type vit
+ * dans `use-bandes.ts` — une seule déclaration, partagée par le tableau des
+ * bandes et par ce panneau, qui ne peuvent donc plus se désaccorder.
+ */
 
 interface Cible {
   code: string;
@@ -284,12 +251,13 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
   const cible = etat.cible;
   const setCible = useCallback((v: string) => majEtat({ cible: v }), [majEtat]);
   const [encodage, setEncodage] = useState<Encodage>('part');
-  const [rayon, setRayon] = useState<number | null>(null);   // null = rayon déduit
   const [cibles, setCibles] = useState<Cible[]>([]);
-  const [agregat, setAgregat] = useState<Agregat | null>(null);
   const [zones, setZones] = useState<ZoneGeo[]>([]);
-  const [chargement, setChargement] = useState(false);
-  const [erreur, setErreur] = useState<string | null>(null);
+  /*
+   * ⚠ Plus d'état d'erreur local : `useBandes` porte le sien, À CÔTÉ de la
+   * donnée. Un second état ici aurait laissé afficher un message périmé sous
+   * un tableau qui a réussi depuis.
+   */
   const [actif, setActif] = useState<string | null>(null);
   /**
    * Modes et niveaux passent par l'état partagé, avec un shim qui accepte la
@@ -329,32 +297,20 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
    */
 
 
-  /**
-   * Cercle IMPOSE a tous les sites.
+  /*
+   * ── DEUX ÉTATS DE RAYON ONT DISPARU ────────────────────────────────────
    *
-   * `rayon` seul ne touchait que les sites SANS perimetre PPRT : demander
-   * « 5 km autour de chaque site » etait impossible, un site couvert par une
-   * servitude gardant toujours la geometrie de l'Etat. Les deux questions sont
-   * legitimes et differentes :
-   *   - decoche : la zone officielle quand elle existe, le cercle sinon ;
-   *   - cochee  : le meme cercle partout, et AUCUN chiffre ne vient alors
-   *               d'une zone publiee — l'ecran doit le dire.
+   * `forcerRayon` imposait le cercle à TOUS les sites, servitude publiée
+   * comprise. `rayonSaisi` amortissait la frappe sur la réglette locale — le
+   * champ relançait le calcul à chaque pression, quatre requêtes de 4 s sur un
+   * quota de 20/min, d'où le 429 observé.
+   *
+   * Les deux appartenaient à un moteur que l'écran n'appelle plus. Le profil
+   * dit maintenant la même chose autrement : ses anneaux valent pour tous les
+   * niveaux, et `inclurePPRT` décide si la servitude prime. L'amortissement,
+   * lui, vit dans `useBandes`, qui l'applique à TOUT l'écran plutôt qu'à une
+   * seule réglette.
    */
-  const [forcerRayon, setForcerRayon] = useState(false);
-
-  /**
-   * DEUX états pour le rayon, et c'est le correctif du défaut signalé.
-   *
-   * Le champ relançait le calcul à CHAQUE frappe, avec un pas de 100 m. Quatre
-   * pressions sur la flèche = quatre requêtes de 4 s sur un quota de 20/min,
-   * d'où le 429 observé. Et 100 m n'a aucun sens : le carreau INSEE fait
-   * 200 m — en dessous, on déplace une frontière À L'INTÉRIEUR d'un carreau et
-   * le chiffre ne bouge pas.
-   *
-   * `rayonSaisi` suit la main, `rayon` suit le calcul. Le second rattrape le
-   * premier après un silence de DELAI_RAYON.
-   */
-  const [rayonSaisi, setRayonSaisi] = useState<number | null>(null);
 
   /**
    * Palette de la mini-carte, prise dans le catalogue DEJA utilise par les
@@ -385,7 +341,6 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
 
   const setOnglet = useCallback((v: Onglet) => majEtat({ onglet: v }), [majEtat]);
 
-  const [exportEnCours, setExportEnCours] = useState(false);
   /**
    * `deptsParRegion` n'est pas un doublon : la route rend les départements
    * IMBRIQUÉS dans leur région, et on les aplatissait en perdant le
@@ -483,38 +438,15 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
   );
 
   /** Peut-on descendre depuis la maille affichée ? La commune est une feuille. */
-  /**
-   * Assez long pour absorber une rafale de clics sur le curseur, assez court
-   * pour ne pas donner l'impression que l'écran a décroché.
-   */
-  const DELAI_RAYON = 450;
 
-  useEffect(() => {
-    if (rayonSaisi === null) return;
-    const t = setTimeout(() => setRayon(rayonSaisi), DELAI_RAYON);
-    return () => clearTimeout(t);
-  }, [rayonSaisi]);
-
-  /** Le rayon réellement en vigueur — celui du serveur tant qu'on n'a rien choisi. */
   /*
-   * Le repli est la valeur RENDUE par la base, jamais un nombre écrit ici.
+   * `rayonCourant` et `maxRayonM` ont disparu avec la réglette locale.
    *
-   * Il valait `?? 532` (constat R-11). Or `sql/185` commente explicitement ce
-   * rayon : « DÉDUIT des 664 périmètres réels […] jamais écrit en dur »,
-   * recalculé à chaque import de PPRT. Le 532 en dur se serait donc figé au
-   * premier import suivant, et se serait affiché avant la réponse comme un
-   * chiffre mesuré — alors qu'il ne l'aurait plus été.
-   *
-   * `null` tant que la base n'a pas répondu : l'écran affiche « — » plutôt
-   * qu'un nombre qui a l'air juste.
+   * `maxRayonM` valait `agregat.rayon_max_m` — le plafond que le garde-fou de
+   * surface de `population_exposee_agregee` renvoie, 1 179 m sur la France.
+   * Il n'a plus d'objet : `population_par_classe` lit un pré-calcul et n'a
+   * aucun rayon maximal. Le profil décide seul, et il va jusqu'à 10 km.
    */
-  const rayonCourant = rayon ?? agregat?.rayon_m ?? null;
-  /**
-   * Le plafond vient de la BASE (sql/197) et jamais d'un calcul local : le
-   * seuil de surface vit dans la RPC, le recopier ici serait deux vérités qui
-   * divergent au premier réglage.
-   */
-  const maxRayonM = agregat?.rayon_max_m ?? null;
 
   /**
    * On ne descend QUE si la maille affichée est la maille naturelle du niveau.
@@ -523,57 +455,6 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
    * pousser un segment « commune » dans le fil produirait un chemin dont la
    * suite serait vide.
    */
-  /**
-   * Les zones que la carte doit dessiner — celles du TERRITOIRE courant, pas
-   * celles de la France entière.
-   *
-   * Une fois descendu dans une région, la carte montrait toujours les 104
-   * départements : cinq colorés, 99 gris, et un cadrage national dans lequel
-   * la région tenait dans un timbre-poste. Le cadrage se dérive du contenu
-   * (`cadreDe`), donc filtrer suffit à zoomer — aucune coordonnée à calculer.
-   *
-   * Les unités du territoire SANS exposition restent dessinées, en gris : ce
-   * sont des voisines légitimes, et les retirer laisserait des trous dans la
-   * silhouette.
-   */
-  const zonesAffichees = useMemo(() => {
-    if (chemin.length === 0) return zones;
-    const seg = chemin[chemin.length - 1];
-
-    // Le filtre ne vaut que si la maille DESSINÉE est bien celle des enfants du
-    // segment. Forcer « Région » alors qu'on est descendu dans une région
-    // demande la carte des RÉGIONS : filtrer par codes de départements n'y
-    // aurait aucun sens et viderait le tracé.
-    /**
-     * ⚠ Le territoire NE SUFFIT PAS à décider ce qu'on dessine.
-     *
-     * Le périmètre d'étude filtre les SITES, pas les carreaux : un site normand
-     * dont la zone déborde de quelques centaines de mètres apporte sa
-     * population au département voisin. Descendre dans la Normandie fait donc
-     * apparaître au tableau la Somme et la Mayenne — mesuré, 7 lignes pour 5
-     * départements normands. C'est le comportement voulu d'une étude locale :
-     * on étudie les installations d'un territoire, pas un découpage de la
-     * population.
-     *
-     * La carte doit donc dessiner l'UNION du territoire et de ce que le tableau
-     * liste. Ne montrer que le territoire laissait deux lignes sans contrepartie
-     * sur la carte ; ne montrer que le tableau laisserait des trous dans la
-     * silhouette là où un département n'a aucune exposition.
-     */
-    const codes = new Set<string>();
-    if (seg.niveau === 'region' && dimension === 'departement') {
-      for (const c of refGeo.deptsParRegion[seg.code] ?? []) codes.add(c);
-    } else if (seg.niveau === 'departement' && dimension === 'departement') {
-      codes.add(seg.code);
-    }
-    for (const l of agregat?.lignes ?? []) codes.add(l.cle);
-
-    // Tant que rien n'est résolu, mieux vaut tout montrer que rien : une carte
-    // vide se lirait comme une panne.
-    if (codes.size === 0) return zones;
-    const filtrees = zones.filter((z) => codes.has(z.properties.code));
-    return filtrees.length > 0 ? filtrees : zones;
-  }, [zones, chemin, dimension, refGeo.deptsParRegion, agregat]);
 
   const descendable =
     dimension === mailleNaturelle && (dimension === 'region' || dimension === 'departement');
@@ -662,16 +543,31 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
    * les autres seraient refusées par la route ; les envoyer quand même ferait
    * afficher une erreur là où l'utilisateur n'a rien demandé de spécial.
    */
-  const mailleBandes: Dimension = dimCourante.id === 'commune' ? 'commune' : 'departement';
+  /*
+   * ⚠ La maille N'EST PLUS rabattue sur `departement`/`commune`.
+   *
+   * Elle l'était parce que `population_par_classe` ne portait que ces deux-là ;
+   * sql/221 lui a ajouté la région et le code postal, tirés de colonnes que
+   * `carreau_risque_distance` avait déjà. Les quatre mailles rendent
+   * désormais le MÊME total à l'habitant près — vérifié : 24 406 555 aux
+   * quatre.
+   */
   const resultatBandes = useBandes(
     etat.profil,
     cible,
-    mailleBandes,
+    dimension,
     chemin.find((c) => c.niveau === 'departement')?.code ?? null,
     // ⚠ Le filtre de nature de la barre COMMUNE. Il n'arrivait pas jusqu'ici
     // avant le 2026-09-20 : le décocher changeait la courbe de l'onglet Rayons
     // et pas le tableau juste au-dessus.
     natures,
+    /*
+     * ⚠ La RÉGION part dans son propre argument, jamais dans `parent`.
+     * `parent` est un code de DÉPARTEMENT, et les deux nomenclatures INSEE se
+     * recouvrent sur 18 codes — les confondre a déjà fait rendre 164 codes
+     * postaux au lieu de 21 sur un drill-down parisien (sql/171).
+     */
+    chemin.find((c) => c.niveau === 'region')?.code ?? null,
   );
 
   /**
@@ -692,129 +588,104 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
   // rendu — mais c'est un couplage temporel implicite (constat R-26).
   const libelleCible = cibles.find((c) => c.code === cible)?.libelle ?? 'Population totale';
 
-  const parametresDemande = useCallback(() => {
-    const p = new URLSearchParams({ dimension, cible });
-    if (niveaux.length > 0) p.set('gravites', niveaux.join(','));
-    if (natures.length > 0) p.set('natures', natures.join(','));
-    if (modes.length > 0 && modes.length < MODES_ZONE.length) p.set('modes', modes.join(','));
-    if (perim) {
-      p.set('perim_niveau', perim.niveau);
-      p.set('perim_codes', perim.code);
-    }
-    if (rayon !== null) p.set('rayon_m', String(rayon));
-    if (forcerRayon) p.set('forcer_rayon', '1');
-    return p;
-  }, [dimension, cible, niveaux, natures, modes, perim, rayon, forcerRayon]);
-
-  /**
-   * Export Excel.
-   *
-   * Il appelle une ROUTE plutôt que de fabriquer le classeur ici : le tableau
-   * affiché est tronqué (100 ou 200 lignes), or un tableur sert justement à
-   * regarder au-delà. La route redemande donc le calcul complet — avec les
-   * MÊMES paramètres, pour que le fichier ne puisse pas diverger de l'écran.
-   *
-   * Le classeur porte un onglet « Méthode et limites » : un tableur quitte
-   * l'application, et tout ce que l'interface explique disparaît au moment de
-   * l'export. Sans lui, le premier lecteur qui somme la colonne « sites »
-   * obtient un total faux sans aucun moyen de le savoir.
-   */
-  const exporter = async () => {
-    if (exportEnCours || !agregat) return;
-    setExportEnCours(true);
-    try {
-      const p = parametresDemande();
-      // L'export porte en plus les libellés lisibles, pour l'en-tête du
-      // classeur : ils ne changent PAS ce qui est demandé, seulement ce qui
-      // est écrit dessus.
-      p.set('libelle_cible', libelleCible);
-      p.set('libelle_perim', chemin.length > 0 ? chemin[chemin.length - 1].nom : 'France entière');
-
-      const r = await adminFetch(`/api/risques/exposition/export?${p}`);
-      if (!r.ok) {
-        const j = await r.json().catch(() => null);
-        setErreur(j?.error ?? 'Export indisponible.');
-        return;
-      }
-      // Le nom du fichier vient du serveur : il porte la maille et la date, et
-      // le recomposer ici ferait deux vérités à tenir d'accord.
-      const cd = r.headers.get('Content-Disposition') ?? '';
-      const nom = /filename="([^"]+)"/.exec(cd)?.[1] ?? 'population-risque.xlsx';
-      const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = nom;
-      a.click();
-      // Sans cette libération, chaque export garde son blob en mémoire jusqu'au
-      // rechargement de la page — et un classeur de 7 000 lignes n'est pas léger.
-      URL.revokeObjectURL(url);
-    } catch {
-      setErreur('Export indisponible.');
-    } finally {
-      setExportEnCours(false);
-    }
-  };
-
-  /**
-   * Le détail par code postal sur la France entière dépasse le temps de calcul
-   * (mesuré en production : délai dépassé, alors que la même dimension sur une
-   * région répond). On le dit AVANT de lancer plutôt que de laisser tourner un
-   * appel qui n'aboutira pas — une attente sans fin se lit comme une panne.
-   */
   /*
-   * Ne vise QUE le code postal. La commune, elle, est calculable sur la France
-   * entiere — elle ne fait aucun croisement geometrique (sql/194).
+   * ⚠ Ce memo est DESCENDU ici, sous `resultatBandes`.
+   *
+   * Il vivait deux cents lignes plus haut, quand il lisait `agregat`. Il lit
+   * maintenant les mêmes unités que le tableau — c'est ce qui garantit que la
+   * carte et la liste ne puissent plus montrer deux territoires différents —
+   * et une constante de bloc ne s'utilise pas avant sa déclaration.
    */
-  const tropLarge = dimension === 'code_postal' && perim === null;
+  /**
+   * Les zones que la carte doit dessiner — celles du TERRITOIRE courant, pas
+   * celles de la France entière.
+   *
+   * Une fois descendu dans une région, la carte montrait toujours les 104
+   * départements : cinq colorés, 99 gris, et un cadrage national dans lequel
+   * la région tenait dans un timbre-poste. Le cadrage se dérive du contenu
+   * (`cadreDe`), donc filtrer suffit à zoomer — aucune coordonnée à calculer.
+   *
+   * Les unités du territoire SANS exposition restent dessinées, en gris : ce
+   * sont des voisines légitimes, et les retirer laisserait des trous dans la
+   * silhouette.
+   */
+  const zonesAffichees = useMemo(() => {
+    if (chemin.length === 0) return zones;
+    const seg = chemin[chemin.length - 1];
 
-  const calculer = useCallback(async () => {
-    if (tropLarge) {
-      setAgregat(null);
-      setErreur(
-        'À l’échelle nationale, le détail par code postal dépasse le temps de calcul : ' +
-        'il exige un point-dans-polygone contre les 6 187 contours postaux, carreau par carreau. ' +
-        'Deux sorties — passer à la maille « Commune », qui répond à la même question ' +
-        'sans ce croisement, ou choisir un territoire dans « Territoire étudié ».',
-      );
-      return;
+    // Le filtre ne vaut que si la maille DESSINÉE est bien celle des enfants du
+    // segment. Forcer « Région » alors qu'on est descendu dans une région
+    // demande la carte des RÉGIONS : filtrer par codes de départements n'y
+    // aurait aucun sens et viderait le tracé.
+    /**
+     * ⚠ Le territoire NE SUFFIT PAS à décider ce qu'on dessine.
+     *
+     * Le périmètre d'étude filtre les SITES, pas les carreaux : un site normand
+     * dont la zone déborde de quelques centaines de mètres apporte sa
+     * population au département voisin. Descendre dans la Normandie fait donc
+     * apparaître au tableau la Somme et la Mayenne — mesuré, 7 lignes pour 5
+     * départements normands. C'est le comportement voulu d'une étude locale :
+     * on étudie les installations d'un territoire, pas un découpage de la
+     * population.
+     *
+     * La carte doit donc dessiner l'UNION du territoire et de ce que le tableau
+     * liste. Ne montrer que le territoire laissait deux lignes sans contrepartie
+     * sur la carte ; ne montrer que le tableau laisserait des trous dans la
+     * silhouette là où un département n'a aucune exposition.
+     */
+    const codes = new Set<string>();
+    if (seg.niveau === 'region' && dimension === 'departement') {
+      for (const c of refGeo.deptsParRegion[seg.code] ?? []) codes.add(c);
+    } else if (seg.niveau === 'departement' && dimension === 'departement') {
+      codes.add(seg.code);
     }
-    setChargement(true);
-    setErreur(null);
-    try {
-      const p = parametresDemande();
-      if (dimension === 'code_postal') p.set('limite', '500');
-      // 100 communes : c'est le classement demande, et au-dela la liste cesse
-      // d'etre lisible. Le TOTAL, lui, compte toujours toutes les unites.
-      if (dimension === 'commune') p.set('limite', '100');
-      const r = await adminFetch(`/api/risques/exposition/agregats?${p}`);
-      const j = await r.json();
-      if (!r.ok) { setErreur(j?.error ?? 'Calcul indisponible.'); setAgregat(null); return; }
-      setAgregat(j as Agregat);
-    } catch {
-      setErreur('Calcul indisponible.');
-      setAgregat(null);
-    } finally {
-      setChargement(false);
-    }
-  // `parametresDemande` remplace les huit dependances qu'elle porte deja :
-  // les lister en double ferait deux verites a tenir d'accord, et c'est
-  // exactement la divergence qu'on vient de supprimer. `tropLarge` reste, il
-  // n'entre pas dans la demande — il decide seulement si on l'emet.
-  }, [parametresDemande, dimension, tropLarge]);
+    for (const u of resultatBandes.bandes?.unites ?? []) codes.add(u.unite);
 
-  useEffect(() => {
-    void calculer();
-  }, [calculer]);
+    // Tant que rien n'est résolu, mieux vaut tout montrer que rien : une carte
+    // vide se lirait comme une panne.
+    if (codes.size === 0) return zones;
+    const filtrees = zones.filter((z) => codes.has(z.properties.code));
+    return filtrees.length > 0 ? filtrees : zones;
+  }, [zones, chemin, dimension, refGeo.deptsParRegion, resultatBandes.bandes]);
 
+  /*
+   * ── LE CALCUL PAR L'ANCIEN MOTEUR A DISPARU ────────────────────────────
+   *
+   * Il portait un garde-fou `tropLarge` : « à l'échelle nationale, le détail
+   * par code postal dépasse le temps de calcul — il exige un point-dans-
+   * polygone contre les 6 187 contours postaux, carreau par carreau ».
+   *
+   * C'était vrai de CE moteur, et de lui seul. `carreau_risque_distance` porte
+   * le code postal en colonne depuis sql/203 : ce croisement a été payé une
+   * fois pour toutes. Mesuré le 2026-09-20 — la maille code postal sur la
+   * France entière répond en **4,2 s**, soit le coût des trois autres.
+   *
+   * Le garde-fou part donc avec le moteur qui le justifiait. Le supprimer
+   * n'ouvre aucune vanne : `population_par_classe` ne touche jamais à une
+   * géométrie et ne balaie jamais les 2,3 millions de carreaux.
+   */
+
+  /**
+   * Les valeurs peintes sur la mini-carte, dérivées des MÊMES unités que le
+   * tableau — c'est ce qui garantit que la carte et la liste ne peuvent pas
+   * raconter deux choses.
+   *
+   * Part et densité sont calculées ICI, à partir des deux dénominateurs bruts
+   * que la RPC rend. Les faire calculer par la base aurait dispersé la
+   * définition entre le SQL, l'écran et le classeur.
+   */
   const valeurs = useMemo(() => {
     const m = new Map<string, number>();
-    for (const l of agregat?.lignes ?? []) {
-      const v = encodage === 'part' ? l.part_pct : encodage === 'densite' ? l.densite : l.exposee;
-      if (v !== null && Number.isFinite(v)) m.set(l.cle, v);
+    for (const u of resultatBandes.bandes?.unites ?? []) {
+      const v = encodage === 'part'
+        ? (u.pop_totale && u.pop_totale > 0 ? (u.total / u.pop_totale) * 100 : null)
+        : encodage === 'densite'
+          ? (u.surface_km2 && u.surface_km2 > 0 ? u.total / u.surface_km2 : null)
+          : u.total;
+      if (v !== null && Number.isFinite(v)) m.set(u.unite, v);
     }
     return m;
-  }, [agregat, encodage]);
+  }, [resultatBandes.bandes, encodage]);
 
   /**
    * Au palier code postal, la part et la densité sont NULLES : aucun
@@ -829,16 +700,16 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
    */
   const encodageIndisponible =
     (encodage === 'part' || encodage === 'densite') &&
-    (agregat?.lignes.length ?? 0) > 0 &&
+    (resultatBandes.bandes?.unites.length ?? 0) > 0 &&
     valeurs.size === 0;
   const encodageEffectif: Encodage = encodageIndisponible ? 'exposee' : encodage;
 
   const valeursCarte = useMemo(() => {
     if (!encodageIndisponible) return valeurs;
     const m = new Map<string, number>();
-    for (const l of agregat?.lignes ?? []) m.set(l.cle, l.exposee);
+    for (const u of resultatBandes.bandes?.unites ?? []) m.set(u.unite, u.total);
     return m;
-  }, [encodageIndisponible, valeurs, agregat]);
+  }, [encodageIndisponible, valeurs, resultatBandes.bandes]);
 
   const encCourant = ENCODAGES.find((e) => e.id === encodageEffectif) ?? ENCODAGES[0];
   const formaterValeur = useCallback(
@@ -933,27 +804,6 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         <BoutonVoirCarte profil={etat.profil} onFermer={onFermer} />
         <button
           type="button"
-          onClick={exporter}
-          disabled={exportEnCours || !agregat || onglet !== 'territoires'}
-          title={onglet !== 'territoires'
-            ? 'L’export porte sur le tableau de population ; revenez à cet onglet.'
-            : 'Télécharger le tableau complet, avec un onglet « Méthode et limites »'}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: 'transparent',
-            border: `0.5px solid ${exportEnCours || !agregat || onglet !== 'territoires'
-              ? 'var(--border-subtle)' : 'var(--border-default)'}`,
-            borderRadius: 6, padding: '6px 12px',
-            cursor: exportEnCours || !agregat || onglet !== 'territoires' ? 'not-allowed' : 'pointer',
-            fontFamily: fInter, fontSize: 12,
-            color: exportEnCours || !agregat || onglet !== 'territoires'
-              ? 'var(--text-tertiary)' : 'var(--text-secondary)',
-          }}
-        >
-          <Download size={13} /> {exportEnCours ? 'Export…' : 'Export Excel'}
-        </button>
-        <button
-          type="button"
           onClick={onFermer}
           aria-label="Fermer"
           style={{
@@ -998,15 +848,39 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
           </select>
         </Champ>
 
-        {/* La maille dit CE QU'ON LISTE, le fil d'Ariane dit OÙ. Les deux
-            cohabitent : lister les communes de France entière est une question
-            légitime — c'est même la demande d'origine, « les 100 plus grandes
-            communes exposées » — et la retirer au profit du seul drill-down
-            était une régression. */}
-        {/* Ces deux contrôles ne valent que pour l'onglet Population : la
-            courbe de rayon n'a pas de maille (elle agrège tout le territoire)
-            et porte son propre curseur. Les laisser visibles ferait croire
-            qu'ils agissent sur ce qu'on regarde. */}
+        {/*
+          La maille dit CE QU'ON LISTE, le fil d'Ariane dit OÙ. Les deux
+          cohabitent : lister les communes de France entière est une question
+          légitime — c'est même la demande d'origine, « les 100 plus grandes
+          communes exposées » — et la retirer au profit du seul drill-down
+          serait une régression.
+
+          ⚠ Ce sélecteur vivait sous ce bandeau d'onglet. Il n'a jamais été
+          propre à quoi que ce soit : il décrit ce qu'on regarde, au
+          même titre que la cible et le territoire. Ce qui l'accompagnait —
+          une réglette de rayon à part — l'était, lui, et a disparu avec le
+          moteur qui l'imposait.
+        */}
+        <Champ label="Lister par">
+          <div style={{ display: 'flex', gap: 4 }}>
+            {DIMENSIONS.map((d) => (
+              <Pastille
+                key={d.id}
+                actif={dimension === d.id}
+                onClick={() => setMailleChoisie(d.id === mailleNaturelle ? null : d.id)}
+                titre={
+                  d.id === 'commune'
+                    ? 'Le carroyage INSEE porte le code commune tel qu’il l’écrit : Paris, Lyon et Marseille y sont par arrondissement.'
+                    : d.id === 'code_postal'
+                      ? 'Ni part ni densité à cette maille : le seul référentiel de population par code postal surcompte de 10,5 %.'
+                      : undefined
+                }
+              >
+                {d.label}
+              </Pastille>
+            ))}
+          </div>
+        </Champ>
 
         {/* Le TERRITOIRE reste visible dans les deux onglets : c'est un filtre
             partagé, pas un réglage de la maille. Le masquer obligerait à
@@ -1152,131 +1026,32 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         seulement ici se lit comme un filtre général, et on le cherche ensuite
         sur les autres onglets.
       */}
-      {onglet === 'territoires' && (
-        <div
-          style={{
-            display: 'flex', alignItems: 'flex-end', gap: 18, flexWrap: 'wrap',
-            padding: '10px 20px',
-            borderBottom: '0.5px solid var(--border-subtle)',
-            background: 'var(--bg-surface)',
-          }}
-        >
-          <span style={{
-            fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)',
-            alignSelf: 'center', letterSpacing: '0.04em',
-          }}>
-            Propre à Territoires
-          </span>
-        <Champ label="Lister par">
-          <div style={{ display: 'flex', gap: 4 }}>
-            {DIMENSIONS.map((d) => (
-              <Pastille
-                key={d.id}
-                actif={dimension === d.id}
-                onClick={() => setMailleChoisie(d.id === mailleNaturelle ? null : d.id)}
-                titre={
-                  d.id === 'commune'
-                    ? 'Regroupe les arrondissements de Paris, Lyon et Marseille sous leur commune.'
-                    : d.id === 'code_postal'
-                      ? 'Ni part ni densité à cette maille : le seul référentiel de population par code postal surcompte de 10 %.'
-                      : undefined
-                }
-              >
-                {d.label}
-              </Pastille>
-            ))}
-          </div>
-        </Champ>
+      {/*
+        ── LA RÉGLETTE LOCALE A DISPARU ──────────────────────────────────────
 
-        <Champ label="Cercle autour de chaque site">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ display: 'flex', gap: 3 }}>
-              {PALIERS_RAYON.map((m) => {
-                const horsBornes = maxRayonM !== null && m > maxRayonM;
-                return (
-                  <Pastille
-                    key={m}
-                    actif={(rayonSaisi ?? rayonCourant) === m}
-                    onClick={() => !horsBornes && setRayonSaisi(m)}
-                    titre={horsBornes
-                      ? `Au-delà de ce que le calcul tient sur ce périmètre (${formaterNombre(maxRayonM as number)} m). Descendez dans un territoire pour l’atteindre.`
-                      : undefined}
-                  >
-                    <span style={{ opacity: horsBornes ? 0.35 : 1 }}>
-                      {m < 1000 ? `${m} m` : `${m / 1000} km`}
-                    </span>
-                  </Pastille>
-                );
-              })}
-            </div>
+        Ce bloc s'annonçait comme propre à un seul onglet et portait une
+        réglette de rayon à lui, plus une case « imposer le cercle à tous les
+        sites ».
+        L'en-tête annonçait « Seveso seuil haut 5 km », ce bloc calculait à
+        500 m, et les deux chiffres se contredisaient à deux ordres de grandeur
+        près — 390 112 contre 24 406 618.
 
-            <input
-              type="range"
-              min={200}
-              max={maxRayonM ?? 5000}
-              step={100}
-              // Le curseur a besoin d'une position meme avant la premiere
-              // reponse : on prend le minimum de la plage, pas un chiffre
-              // invente qui aurait l'air d'une mesure.
-              value={Math.min(rayonSaisi ?? rayonCourant ?? 200, maxRayonM ?? 5000)}
-              onChange={(e) => setRayonSaisi(Number(e.target.value))}
-              aria-label="Rayon en mètres"
-              style={{ width: 110, accentColor: 'var(--brand-teal)' }}
-            />
-            <span style={{ fontFamily: fMono, fontSize: 11, color: 'var(--text-primary)', minWidth: 52 }}>
-              {rayonSaisi ?? rayonCourant
-                ? `${formaterDecimal((rayonSaisi ?? rayonCourant ?? 0) / 1000)} km`
-                : '—'}
-            </span>
+        ⚠ **Toute réglette locale est un bug**, mais celle-ci n'était pas une
+        négligence : l'onglet tournait sur un moteur dont le garde-fou de
+        surface plafonne le rayon national à 1 179 m, et qui ne POUVAIT donc pas
+        honorer le profil. C'est le moteur qui a changé (sql/221), pas seulement
+        le câblage.
 
-            <label
-              title="Applique le cercle à TOUS les sites, y compris ceux couverts par un périmètre PPRT publié."
-              style={{
-                display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
-                fontFamily: fInter, fontSize: 11,
-                color: forcerRayon ? 'var(--brand-teal)' : 'var(--text-secondary)',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={forcerRayon}
-                onChange={(e) => setForcerRayon(e.target.checked)}
-                style={{ accentColor: 'var(--brand-teal)', cursor: 'pointer' }}
-              />
-              imposer à tous les sites
-            </label>
+        Le sélecteur de maille, lui, n'était pas local : il décrit ce qu'on
+        regarde, comme la cible et le territoire. Il a rejoint la barre commune.
 
-            {/* Mentions EXCLUSIVES : « déduit » n'a plus de sens dès qu'on
-                impose une valeur choisie. */}
-            {forcerRayon ? (
-              <span
-                title="Aucun chiffre ne vient alors d'une zone publiée par l'État : tout est calculé sur ce cercle."
-                style={{ fontFamily: fInter, fontSize: 10, color: 'var(--warning)' }}
-              >
-                PPRT ignorés — tout indicatif
-              </span>
-            ) : agregat?.rayon_deduit ? (
-              <span
-                title="Moyenne des rayons équivalents des 664 périmètres PPRT publiés"
-                style={{ fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)' }}
-              >
-                déduit des périmètres réels
-              </span>
-            ) : null}
-
-            {rayonSaisi !== null && (
-              <button
-                type="button"
-                onClick={() => { setRayonSaisi(null); setRayon(null); }}
-                style={styleLien}
-              >
-                rétablir
-              </button>
-            )}
-          </div>
-        </Champ>
-        </div>
-      )}
+        Ce qui est perdu avec ce bloc, et qu'il faut nommer : `forcer_rayon`,
+        qui imposait le cercle même aux sites couverts par une servitude
+        publiée. Le profil exprime la même intention autrement — `inclurePPRT`
+        décide si la servitude prime sur l'anneau — mais la formulation n'est
+        pas identique. `population_exposee_agregee` reste en base et garde ce
+        paramètre.
+      */}
 
       {/* ── Corps ───────────────────────────────────────────────────────── */}
       {onglet === 'zones' ? (
@@ -1319,147 +1094,26 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {/* Tableau */}
         <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px', minWidth: 0 }}>
-          {erreur && (
-            <p style={{ fontFamily: fInter, fontSize: 12, color: 'var(--danger)' }}>{erreur}</p>
-          )}
-
-          {agregat && (
-            <>
-              <div style={{ display: 'flex', gap: 28, marginBottom: 16, flexWrap: 'wrap' }}>
-                <Kpi
-                  valeur={formaterNombre(agregat.total_exposee)}
-                  libelle={libelleCible.toLowerCase()}
-                  note="la somme des lignes égale ce total"
-                  accent
-                />
-                <Kpi
-                  valeur={formaterNombre(agregat.total_sites)}
-                  libelle="sites classés"
-                  note="ne s’additionne pas entre lignes"
-                />
-                <Kpi
-                  valeur={formaterNombre(agregat.total_indicatifs)}
-                  libelle="sur un rayon choisi"
-                  note={`soit ${Math.round((agregat.total_indicatifs / Math.max(1, agregat.total_sites)) * 100)} % des sites`}
-                />
-              </div>
-
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: fInter, fontSize: 12 }}>
-                <thead>
-                  <tr style={{ borderBottom: '0.5px solid var(--border-default)' }}>
-                    <Th align="left">{dimCourante.label}</Th>
-                    <Th>{libelleCible}</Th>
-                    <Th>Part</Th>
-                    <Th>Densité</Th>
-                    {/* Une commune peut etre tres exposee sans porter le
-                        moindre site : Le Petit-Quevilly compte 9 850 exposes
-                        pour 0 site, parce que c'est le PPRT du Grand-Quevilly
-                        qui deborde chez elle. Sans cette explication, la ligne
-                        se lit comme une incoherence. */}
-                    <Th titre="Sites implantés dans cette unité. Une unité peut être exposée sans en porter aucun : c'est la zone d'un site voisin qui déborde chez elle. Ce compte ne s'additionne donc pas avec la population.">
-                      Sites
-                    </Th>
-                    <Th titre="Parmi ces sites, ceux dont la zone est un rayon que NOUS avons choisi, faute de périmètre PPRT publié par l'État.">
-                      dont indicatifs
-                    </Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {agregat.lignes.map((l) => (
-                    <tr
-                      key={l.cle}
-                      onMouseEnter={() => setActif(l.cle)}
-                      onMouseLeave={() => setActif(null)}
-                      onClick={descendable ? () => descendre(l.cle, l.nom) : undefined}
-                      title={descendable ? 'Descendre dans ' + l.nom : undefined}
-                      style={{
-                        borderBottom: '0.5px solid var(--border-subtle)',
-                        background: actif === l.cle ? 'var(--brand-teal-10)' : 'transparent',
-                        transition: 'background-color 150ms var(--ease-out)',
-                        cursor: descendable ? 'pointer' : 'default',
-                      }}
-                    >
-                      <td style={{ padding: '7px 8px', color: 'var(--text-primary)' }}>
-                        <span style={{ fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)', marginRight: 7 }}>
-                          {l.cle}
-                        </span>
-                        {l.nom}
-                        {descendable && (
-                          <span aria-hidden style={{ color: 'var(--text-tertiary)', marginLeft: 6 }}>&rsaquo;</span>
-                        )}
-                      </td>
-                      <Td fort>{formaterNombre(l.exposee)}</Td>
-                      <Td>{l.part_pct !== null ? `${formaterNombre(l.part_pct)} %` : '—'}</Td>
-                      <Td>{l.densite !== null ? formaterNombre(l.densite) : '—'}</Td>
-                      <Td>{formaterNombre(l.n_sites)}</Td>
-                      <Td dim>{l.n_indicatifs > 0 ? formaterNombre(l.n_indicatifs) : '—'}</Td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {agregat.lignes.length === 0 && !chargement && (
-                <p style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-tertiary)' }}>
-                  Aucune population exposée pour ces filtres.
-                </p>
-              )}
-
-              {/* Un chiffre amputé en silence est pire qu'un chiffre absent :
-                  si des carreaux n'ont pas pu être rattachés, on le dit. */}
-              {(agregat.carreaux_non_attribues ?? 0) > 0 && (
-                <p style={{ fontFamily: fInter, fontSize: 11, color: 'var(--warning)', marginTop: 10 }}>
-                  {formaterNombre(agregat.carreaux_non_attribues as number)} carreau(x) n’ont pas pu
-                  être rattachés à une unité et sont exclus du total.
-                </p>
-              )}
-
-              {agregat.tronquee && (
-                <p style={{ fontFamily: fInter, fontSize: 11, color: 'var(--warning)', marginTop: 10 }}>
-                  Liste tronquée : {formaterNombre(agregat.n_unites)} unités exposées, les plus
-                  peuplées seulement sont affichées. Le total ci-dessus les compte toutes.
-                </p>
-              )}
-
-              {/* D'où vient ce chiffre et de quand il date.
-                  Un résultat servi depuis le cache arrive instantanément : sans
-                  cette ligne il se ferait passer pour un calcul frais, et
-                  personne ne saurait qu'un import l'a peut-être périmé.
-                  `duree_ms` est celle du calcul D'ORIGINE — « ce résultat a
-                  coûté 43 s » est l'information utile, pas « 0 ms à relire ». */}
-              <p
-                style={{
-                  fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)',
-                  marginTop: 14, borderTop: '0.5px solid var(--border-subtle)', paddingTop: 8,
-                }}
-              >
-                {agregat.du_cache ? 'résultat mémorisé' : 'calculé à l’instant'}
-                {' · '}
-                {new Date(agregat.calcule_le).toLocaleString('fr-FR', {
-                  day: '2-digit', month: '2-digit', year: 'numeric',
-                  hour: '2-digit', minute: '2-digit',
-                })}
-                {typeof agregat.duree_ms === 'number' && (
-                  <> · {formaterNombre(Math.round(agregat.duree_ms))} ms de calcul</>
-                )}
-              </p>
-
-              {/* L'avertissement qui empêche la mauvaise lecture la plus probable. */}
-              <p style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)', marginTop: 14, lineHeight: 1.5 }}>
-                Un carreau INSEE de 200 m appartient à une seule unité : la somme de la colonne
-                population <strong style={{ fontWeight: 500 }}>égale</strong> le total. La colonne
-                « sites », elle, ne s’additionne pas — un site dont la zone déborde sur deux unités
-                compte dans les deux. Les sites sans périmètre PPRT reposent sur un rayon de{' '}
-                {formaterNombre(agregat.rayon_m)} m que vous choisissez, et non sur une servitude
-                publiée par l’État.
-              </p>
-            </>
-          )}
-
-          {chargement && !agregat && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-tertiary)', fontFamily: fInter, fontSize: 12 }}>
-              <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Calcul en cours…
-            </div>
-          )}
+          {/*
+            Le tableau, la ventilation par classe, les notes de lecture et les
+            trois KPI vivent maintenant dans un composant à part — celui que le
+            brief appelle « ③ Couverture ». Il lit le MÊME résultat que le
+            tableau des bandes de l'onglet Rayons, donc les deux ne peuvent plus
+            diverger : c'est un seul appel, pas deux calculs qu'on synchronise.
+          */}
+          <TableauCouverture
+            bandes={resultatBandes.bandes}
+            etat={resultatBandes.etat}
+            erreur={resultatBandes.erreur}
+            aConstruire={resultatBandes.aConstruire}
+            maille={dimension}
+            profil={etat.profil}
+            libelleCible={libelleCible}
+            descendable={descendable}
+            onDescendre={descendre}
+            actif={actif}
+            onSurvol={setActif}
+          />
         </div>
 
         {/* Mini-carte */}
@@ -1499,8 +1153,10 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
               onSurvol={setActif}
               onClic={descendable
                 ? (code) => {
-                    const l = agregat?.lignes.find((x) => x.cle === code);
-                    if (l) descendre(l.cle, l.nom);
+                    const u = resultatBandes.bandes?.unites.find((x) => x.unite === code);
+                    // Le code fait foi même sans libellé : une unité absente du
+                    // référentiel reste cliquable, elle a une population.
+                    if (u) descendre(u.unite, u.nom ?? u.unite);
                   }
                 : undefined}
             />

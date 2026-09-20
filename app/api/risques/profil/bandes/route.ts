@@ -64,9 +64,26 @@ const ParamsSchema = z.object({
   /** Le profil sous sa forme codée (`lib/risques/code-profil.ts`). */
   profil: z.string().min(3).max(128),
   cible: z.string().regex(/^[a-z0-9_]{1,40}$/).optional(),
-  maille: z.enum(['departement', 'commune']).optional(),
-  /** Code de département pour descendre d'un cran. */
+  /**
+   * Les quatre mailles de `population_par_classe` depuis sql/221.
+   *
+   * ⚠ `arrondissement` n'y est pas : `carreau_risque_distance` porte le code
+   * commune tel que l'INSEE le carroie, donc déjà en arrondissement pour Paris,
+   * Lyon et Marseille — la distinction que `population_exposee_agregee` fait
+   * (sql/195) n'existe pas dans ce pré-calcul. La proposer ici rendrait le même
+   * tableau sous deux noms.
+   */
+  maille: z.enum(['region', 'departement', 'commune', 'code_postal']).optional(),
+  /** Code de DÉPARTEMENT pour descendre d'un cran. */
   parent: z.string().regex(/^(2A|2B|\d{2,3})$/).optional(),
+  /**
+   * Code de RÉGION.
+   *
+   * ⚠ Un argument SÉPARÉ de `parent`, et non un parent polymorphe : **18 codes
+   * INSEE désignent à la fois un département et une région** (75 vaut Paris et
+   * la Nouvelle-Aquitaine). Le piège a déjà été payé une fois, sql/171.
+   */
+  region: z.string().regex(/^(0[1-9]|[1-9]\d|HORS)$/).optional(),
   limite: z.coerce.number().int().min(1).max(2000).optional(),
   /**
    * Libellés de natures retenus, séparés par des virgules. Absent = toutes.
@@ -147,6 +164,7 @@ export async function GET(request: NextRequest) {
     p_cible: p.cible ?? 'ind',
     p_maille: p.maille ?? 'departement',
     p_parent: nullableArg(p.parent ?? null),
+    p_region: nullableArg(p.region ?? null),
     p_limite: p.limite ?? 200,
     p_natures: liste(p.natures) as never,
   });

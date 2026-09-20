@@ -35,14 +35,29 @@ import type { Dimension } from '@/lib/risques/dimensions';
 /** Une unité territoriale et sa ventilation par classe. */
 export interface UniteBandes {
   unite: string;
+  /** Libellé lisible. `null` si le référentiel ne connaît pas ce code. */
+  nom: string | null;
   total: number;
   classes: Record<string, number>;
+  /**
+   * Population totale de l'unité — le DÉNOMINATEUR de la part.
+   *
+   * ⚠ `null` à la maille code postal, et ce n'est pas un oubli : le seul
+   * référentiel de population par code postal surcompte de **10,5 %**
+   * (74 876 618 contre 67 760 552), un carreau y étant compté dans chaque
+   * contour qui le recouvre. Une colonne vide qui s'explique vaut mieux qu'un
+   * pourcentage faux qui colore une carte.
+   */
+  pop_totale: number | null;
+  /** Superficie de l'unité — le dénominateur de la densité. Mêmes limites. */
+  surface_km2: number | null;
 }
 
 export interface Bandes {
   maille: string;
   cible: string;
   parent: string | null;
+  region?: string | null;
   n_unites: number;
   tronquee: boolean;
   n_carreaux: number;
@@ -96,6 +111,15 @@ export function useBandes(
    * rien le dise.
    */
   natures: string[] = [],
+  /**
+   * Code de RÉGION pour restreindre le calcul.
+   *
+   * ⚠ Distinct de `parent`, qui est un code de DÉPARTEMENT. Les deux
+   * nomenclatures INSEE se recouvrent sur **18 codes** — `75` vaut Paris ET la
+   * Nouvelle-Aquitaine — et les confondre a déjà coûté un drill-down qui
+   * rendait 164 codes postaux au lieu de 21 (sql/171).
+   */
+  region: string | null = null,
 ): Resultat {
   const [r, setR] = useState<Resultat>({
     etat: 'chargement', bandes: null, erreur: null, aConstruire: false,
@@ -122,6 +146,7 @@ export function useBandes(
     const minuteur = setTimeout(async () => {
       const p = new URLSearchParams({ profil: code, cible, maille });
       if (parent) p.set('parent', parent);
+      if (region) p.set('region', region);
       if (cleNatures) p.set('natures', cleNatures);
 
       try {
@@ -150,7 +175,7 @@ export function useBandes(
     }, DELAI_MS);
 
     return () => clearTimeout(minuteur);
-  }, [code, cible, maille, parent, cleNatures]);
+  }, [code, cible, maille, parent, region, cleNatures]);
 
   return r;
 }

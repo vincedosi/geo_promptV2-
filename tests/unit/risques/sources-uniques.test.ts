@@ -22,6 +22,7 @@ const lire = (p: string) => readFileSync(join(RACINE, p), 'utf-8');
 const PERIMETRE = [
   'components/risques/AnalysePopulationOverlay.tsx',
   'components/risques/OngletRayonInfluence.tsx',
+  'components/risques/TableauCouverture.tsx',
   'components/risques/CarteMiniFrance.tsx',
   'components/risques/Kpi.tsx',
   'app/api/risques/exposition/agregats/route.ts',
@@ -100,15 +101,36 @@ describe('polices — une seule définition dans tout le dépôt', () => {
   });
 });
 
-describe('composant Kpi — un seul, pour les deux écrans', () => {
-  it('ni l’overlay ni l’onglet ne redéfinissent Kpi', () => {
-    for (const f of [
-      'components/risques/AnalysePopulationOverlay.tsx',
-      'components/risques/OngletRayonInfluence.tsx',
-    ]) {
+describe('composant Kpi — un seul, pour tout le module', () => {
+  /*
+   * ⚠ L'invariant porte sur la REDÉFINITION, jamais sur l'import.
+   *
+   * Il exigeait que `AnalysePopulationOverlay` importe `Kpi`. C'était vrai
+   * tant que l'overlay rendait lui-même ses trois chiffres ; il ne les rend
+   * plus — `TableauCouverture` le fait. Un test qui réclame un import inutilisé
+   * force à garder un import mort, que `npm run catalogue` signalerait ensuite
+   * comme du code inutile : deux garde-fous qui se contredisent.
+   *
+   * Ce qui compte vraiment est qu'aucun fichier n'en écrive une seconde
+   * version — c'est le défaut d'origine (R-18), deux copies dans deux
+   * composants du MÊME overlay, qui ne différaient que par la taille de la
+   * valeur.
+   */
+  it('aucun composant du module ne redéfinit Kpi', () => {
+    for (const f of PERIMETRE.filter((x) => x.endsWith('.tsx') && !x.endsWith('Kpi.tsx'))) {
       const s = lire(f);
       expect(s, `${f} redéfinit Kpi`).not.toMatch(/^function Kpi\(/m);
-      expect(s, `${f} n'importe pas le Kpi partagé`).toMatch(/from '@\/components\/risques\/Kpi'/);
+      expect(s, `${f} redéfinit Kpi`).not.toMatch(/^export function Kpi\(/m);
+    }
+  });
+
+  it('les écrans qui affichent des KPI importent le composant partagé', () => {
+    for (const f of [
+      'components/risques/TableauCouverture.tsx',
+      'components/risques/OngletRayonInfluence.tsx',
+    ]) {
+      expect(lire(f), `${f} n'importe pas le Kpi partagé`)
+        .toMatch(/from '@\/components\/risques\/Kpi'/);
     }
   });
 
@@ -122,30 +144,46 @@ describe('composant Kpi — un seul, pour les deux écrans', () => {
   });
 });
 
-describe('ce qui est demandé — une seule fabrique', () => {
+describe('un seul moteur pour tout l’écran', () => {
   const s = lire('components/risques/AnalysePopulationOverlay.tsx');
 
-  it('l’écran et l’export construisent leurs paramètres au même endroit', () => {
-    // Douze lignes identiques des deux côtés. C'est la définition de « ce qui
-    // est demandé » : un filtre ajouté d'un seul côté ferait diverger le
-    // tableur de l'écran, ce que l'en-tête de `export/route.ts` déclare
-    // vouloir empêcher.
-    expect(s).toMatch(/const parametresDemande = useCallback\(/);
-    expect(s.match(/new URLSearchParams\(\{ dimension, cible \}\)/g)?.length ?? 0).toBe(1);
-    expect(s.match(/parametresDemande\(\)/g)?.length ?? 0).toBe(2);
+  /*
+   * ── CE QUE CET INVARIANT REMPLACE, ET POURQUOI ──────────────────────────
+   *
+   * Il exigeait une fabrique unique `parametresDemande`, parce que l'écran et
+   * son export appelaient tous deux `/api/risques/exposition/*` et qu'un filtre
+   * ajouté d'un seul côté aurait fait diverger le tableur de l'écran.
+   *
+   * L'écran n'appelle plus ce moteur. Il lit `population_par_classe`, comme le
+   * tableau des bandes, parce que l'autre ne POUVAIT PAS honorer le profil :
+   * son garde-fou de surface plafonne le rayon national à 1 179 m quand le
+   * profil en demande 5 000 — d'où les deux totaux contradictoires que cette
+   * refonte supprime, 390 112 contre 24 406 618.
+   *
+   * L'invariant devient donc plus fort : l'écran ne doit plus appeler DU TOUT
+   * l'ancien moteur. Une fabrique commune n'était qu'un moyen de les garder
+   * d'accord ; n'en avoir qu'un seul rend le désaccord impossible.
+   */
+  it('l’écran n’appelle plus `/api/risques/exposition/agregats` ni son export', () => {
+    expect(s).not.toMatch(/exposition\/agregats/);
+    expect(s).not.toMatch(/exposition\/export/);
   });
 
-  it('les déclarations précèdent leurs consommateurs', () => {
-    // R-26 : `exporter` capturait `natures` et `libelleCible` declarés plus
-    // bas. Correct à l'exécution — l'export n'est appelé qu'après le rendu —
-    // mais `useCallback` évalue ses dépendances AU rendu, et `tsc` l'a
-    // signalé dès que la fabrique est devenue un hook.
-    const ordre = ['const natures = useMemo', 'const libelleCible', 'const parametresDemande', 'const exporter'];
-    const positions = ordre.map((m) => s.indexOf(m));
-    for (const [i, pos] of positions.entries()) {
-      expect(pos, `${ordre[i]} introuvable`).toBeGreaterThan(-1);
-      if (i > 0) expect(pos, `${ordre[i]} doit suivre ${ordre[i - 1]}`).toBeGreaterThan(positions[i - 1]);
-    }
+  it('le tableau de couverture et celui des bandes lisent le MÊME résultat', () => {
+    // Un seul `useBandes` dans l'écran, dont le résultat part aux deux
+    // panneaux. Deux appels rendraient deux totaux à synchroniser — la
+    // situation d'origine, sous une autre forme.
+    expect(s.match(/useBandes\(/g)?.length ?? 0).toBe(1);
+    expect(s).toMatch(/bandes=\{resultatBandes\.bandes\}/);
+    expect(s).toMatch(/bandes=\{resultatBandes\}/);
+  });
+
+  it('plus aucune réglette de rayon locale', () => {
+    // « Toute réglette locale est un bug » : celle-ci affichait 500 m sous un
+    // en-tête qui annonçait 5 km.
+    expect(s).not.toMatch(/Propre à Territoires/);
+    expect(s).not.toMatch(/const \[rayonSaisi/);
+    expect(s).not.toMatch(/const \[forcerRayon/);
   });
 });
 

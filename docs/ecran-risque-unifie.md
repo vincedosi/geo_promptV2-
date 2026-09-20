@@ -269,11 +269,22 @@ lecture, et seule sql/222 la lit — une fois, à la construction.
 
 ### Ce qui NE doit PAS être supprimé, et il faut le dire
 
-- **`/api/risques/exposition/agregats` et `population_exposee_agregee` restent.**
-  Territoires cesse de les appeler, mais `/api/risques/exposition/export` les
-  appelle aussi, **avec les mêmes paramètres, à dessein** : un export qui
-  recalculerait autrement finirait par diverger, et c'est le tableur qu'on
-  croirait. Les retirer casserait l'export.
+- ⚠ **Correction apportée pendant la phase 1.** Ce paragraphe affirmait que
+  `/api/risques/exposition/agregats` devait rester « parce que
+  `/api/risques/exposition/export` l'appelle aussi ». **C'est faux**, et la
+  vérification est immédiate : un `grep` sur tout le dépôt montre que ces
+  **deux** routes n'ont qu'un seul appelant chacune, le bloc Territoires
+  d'`AnalysePopulationOverlay.tsx` que cette refonte remplace. L'export qui
+  compte vraiment est `/api/risques/profil/export`, appelé par
+  `BoutonExportProfil.tsx`, et il est **déjà** bâti sur le profil — il porte
+  même un onglet « Territoires ».
+
+  Les deux routes deviennent donc orphelines. Elles ne sont **pas** supprimées
+  dans la phase qui les orpheline : `population_exposee_agregee` reste le seul
+  chemin qui sache imposer un cercle à TOUS les sites (`forcer_rayon`), et les
+  retirer dans le même geste que la bascule mélangerait deux décisions. La
+  suppression revient à la phase 5, avec la preuve de `npm run catalogue`, comme
+  le brief le prévoit.
 - **`couverture_rayon_risque` et `/api/risques/exposition/rayon` restent** :
   c'est la bascule « par nature » du panneau ②, que le brief conserve.
 - **Les mesures de `lib/risques/methode.ts` restent** : l'outre-mer non

@@ -1444,6 +1444,57 @@ export type Database = {
         }
         Relationships: []
       }
+      carreau_risque_nature: {
+        Row: {
+          carreau_id: number
+          d_bas_m: number | null
+          d_haut_m: number | null
+          nature_ord: number
+          pprt_niveau: string | null
+        }
+        Insert: {
+          carreau_id: number
+          d_bas_m?: number | null
+          d_haut_m?: number | null
+          nature_ord: number
+          pprt_niveau?: string | null
+        }
+        Update: {
+          carreau_id?: number
+          d_bas_m?: number | null
+          d_haut_m?: number | null
+          nature_ord?: number
+          pprt_niveau?: string | null
+        }
+        Relationships: []
+      }
+      carreau_risque_nature_bandes: {
+        Row: {
+          bande: number
+          construit_le: string
+          duree_ms: number | null
+          lon_max: number | null
+          lon_min: number | null
+          n_lignes: number | null
+        }
+        Insert: {
+          bande: number
+          construit_le?: string
+          duree_ms?: number | null
+          lon_max?: number | null
+          lon_min?: number | null
+          n_lignes?: number | null
+        }
+        Update: {
+          bande?: number
+          construit_le?: string
+          duree_ms?: number | null
+          lon_max?: number | null
+          lon_min?: number | null
+          n_lignes?: number | null
+        }
+        Relationships: []
+      }
       carreaux_1km: {
         Row: {
           familles_monoparentales: number
@@ -4683,16 +4734,19 @@ export type Database = {
       pprt_niveau_generateur: {
         Row: {
           geom_3857: unknown
+          nature_ord: number | null
           niveau: string | null
           pprt_id: string
         }
         Insert: {
           geom_3857: unknown
+          nature_ord?: number | null
           niveau?: string | null
           pprt_id: string
         }
         Update: {
           geom_3857?: unknown
+          nature_ord?: number | null
           niveau?: string | null
           pprt_id?: string
         }
@@ -5393,6 +5447,30 @@ export type Database = {
           },
         ]
       }
+      unite_population_totale: {
+        Row: {
+          code: string
+          construit_le: string
+          maille: string
+          n_carreaux: number
+          populations: Json
+        }
+        Insert: {
+          code: string
+          construit_le?: string
+          maille: string
+          n_carreaux: number
+          populations: Json
+        }
+        Update: {
+          code?: string
+          construit_le?: string
+          maille?: string
+          n_carreaux?: number
+          populations?: Json
+        }
+        Relationships: []
+      }
       zone_set_cp: {
         Row: {
           classe: string
@@ -5996,6 +6074,17 @@ export type Database = {
         }
         Returns: Json
       }
+      construire_carreau_risque_nature: {
+        Args: {
+          p_bande: number
+          p_bande_id?: number
+          p_lon_est?: number
+          p_lon_ouest?: number
+          p_n_bandes?: number
+          p_rayon_max_m?: number
+        }
+        Returns: Json
+      }
       construire_couverture_rayon: {
         Args: {
           p_bande: number
@@ -6022,13 +6111,14 @@ export type Database = {
           duree_ms: number
         }[]
       }
+      construire_unite_population_totale: { Args: never; Returns: Json }
       construire_zone_set: { Args: { p_zone_set_id: string }; Returns: Json }
       construire_zone_set_corps: {
         Args: { p_zone_set_id: string }
         Returns: Json
       }
       construire_zones_risque: {
-        Args: { p_code: string; p_profil: Json }
+        Args: { p_code: string; p_natures?: string[]; p_profil: Json }
         Returns: Json
       }
       correlation_campagne_indicateur: {
@@ -6976,7 +7066,9 @@ export type Database = {
         Returns: number
       }
       merge_iris_indicators_batch: { Args: { p_rows: Json }; Returns: number }
+      natures_inconnues: { Args: { p_libelles: string[] }; Returns: string[] }
       notify_pgrst_reload: { Args: never; Returns: undefined }
+      ordinal_nature: { Args: { p_libelle: string }; Returns: number }
       panneaux_near_point: {
         Args: {
           p_lat: number
@@ -7033,8 +7125,10 @@ export type Database = {
           p_cible?: string
           p_limite?: number
           p_maille?: string
+          p_natures?: string[]
           p_parent?: string
           p_profil: Json
+          p_region?: string
         }
         Returns: Json
       }
@@ -7138,6 +7232,7 @@ export type Database = {
         }
         Returns: Json
       }
+      remplir_pprt_nature_generateur: { Args: never; Returns: Json }
       remplir_pprt_niveau_generateur: { Args: never; Returns: Json }
       repair_iso_cache_geoms: { Args: never; Returns: Json }
       resolve_custom_geo_zone_codes:
@@ -7833,6 +7928,7 @@ export type Database = {
         Returns: string
       }
       vider_carreau_risque_distance: { Args: never; Returns: Json }
+      vider_carreau_risque_nature: { Args: never; Returns: Json }
       vider_couverture_rayon: { Args: never; Returns: number }
       vider_exposition_cache: { Args: { p_avant?: string }; Returns: number }
       vider_zones_risque: { Args: { p_avant?: string }; Returns: Json }

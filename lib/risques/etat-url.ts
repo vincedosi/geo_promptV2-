@@ -26,7 +26,7 @@
  * individuellement — une nature illisible ne doit pas faire perdre la maille.
  */
 import {
-  DIMENSIONS,
+  DIMENSIONS_PROPOSEES,
   MODES_ZONE,
   modesValides,
   type Dimension,
@@ -214,7 +214,19 @@ export function lireEtatUrl(p: URLSearchParams): EtatRisque {
 
   return {
     cible: p.get('cible') ?? ETAT_DEFAUT.cible,
-    maille: (DIMENSIONS as readonly string[]).includes(maille ?? '')
+    /*
+     * ⚠ Validé contre `DIMENSIONS_PROPOSEES` et non `DIMENSIONS`.
+     *
+     * `arrondissement` est une maille LÉGITIME de `population_exposee_agregee`,
+     * mais `population_par_classe` — le moteur de cet écran depuis sql/221 — ne
+     * la porte pas : le carroyage INSEE écrit déjà le code commune en
+     * arrondissement pour Paris, Lyon et Marseille, donc les deux mailles
+     * rendraient le même tableau sous deux noms.
+     *
+     * L'accepter ici la laisserait partir à la route, qui répondrait 400 : un
+     * lien collé afficherait une erreur au lieu de l'écran.
+     */
+    maille: (DIMENSIONS_PROPOSEES as readonly string[]).includes(maille ?? '')
       ? (maille as Dimension)
       : ETAT_DEFAUT.maille,
     chemin: p.has('chemin') ? decoderListe(p.get('chemin') ?? '') : [],
