@@ -58,6 +58,19 @@ export const ZONES_RISQUE_EVENT = 'magelian:zones-risque';
 export interface ZonesRisqueEventDetail {
   /** Le profil à afficher, ou `null` pour éteindre la couche. */
   profil: ProfilRayons | null;
+  /**
+   * Bbox `[ouest, sud, est, nord]` sur laquelle recadrer la carte.
+   *
+   * Sert les zooms de référence de l'atelier — vallée de la chimie, Le Havre,
+   * Fos-sur-Mer — où les zones se SUPERPOSENT, ce qu'une vue France entière
+   * ne montre jamais : à cette échelle une zone de 2 km fait moins d'un pixel.
+   *
+   * ⚠ Le recadrage vit ICI et non chez l'appelant : c'est cette couche qui
+   * tient `mapRef`. Un bouton qui allumerait la couche sans bouger la caméra
+   * laisserait l'utilisateur devant une France vide, ce qui se lit comme un
+   * bouton cassé.
+   */
+  recadrer?: [number, number, number, number];
 }
 
 const SOURCE = 'zones-risque';
@@ -88,9 +101,21 @@ export function ZonesRisqueLayer({ mapRef, onSousLePlancher, onProfil }: Props) 
       const detail = (e as CustomEvent<ZonesRisqueEventDetail>).detail;
       setProfil(detail?.profil ?? null);
       onProfilRef.current?.(detail?.profil ?? null);
+      const bbox = detail?.recadrer;
+      if (bbox && mapRef.current) {
+        // `padding` : sans marge, les zones du bord se collent au cadre et on
+        // ne voit plus qu'elles s'arrêtent là.
+        mapRef.current.fitBounds(
+          [[bbox[0], bbox[1]], [bbox[2], bbox[3]]],
+          { padding: 48, duration: 900 },
+        );
+      }
     };
     window.addEventListener(ZONES_RISQUE_EVENT, surEvenement);
     return () => window.removeEventListener(ZONES_RISQUE_EVENT, surEvenement);
+    // `mapRef` est une ref : sa référence est stable, la relire à chaque
+    // événement donne la carte du moment sans rejouer l'abonnement.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const actif = profil !== null;

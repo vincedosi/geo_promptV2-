@@ -32,6 +32,7 @@ import { ZonesOverlay } from '@/components/map/overlays/ZonesOverlay';
 import { CreerZoneCodesPostaux } from './CreerZoneCodesPostaux';
 import { CreerZoneRayon } from './CreerZoneRayon';
 import { CreerZoneDessin } from './CreerZoneDessin';
+import { JeuxDeZonesRail } from './JeuxDeZonesRail';
 
 const CustomGeoCaptureModal = dynamic(
   retryImport(() => import('@/components/custom-geo/CustomGeoCaptureModal').then((m) => ({ default: m.CustomGeoCaptureModal }))),
@@ -42,6 +43,13 @@ export interface PanneauZonesProps {
   mapRef: React.MutableRefObject<MaplibreMap | null>;
   /** Notifie le parent des zones actuellement affichées sur la carte (plan média). */
   onLoadedZonesChange?: (zones: Array<{ id: string; name: string }>) => void;
+  /**
+   * Ouvre l'atelier « Population à risque industriel » sur un jeu enregistré.
+   *
+   * Optionnelle : sans elle, la section des jeux n'est pas rendue du tout —
+   * une liste dont les entrées ne s'ouvrent pas serait une impasse.
+   */
+  onOuvrirJeu?: (id: string) => void;
 }
 
 const sectionTitleStyle: React.CSSProperties = {
@@ -54,7 +62,7 @@ const sectionTitleStyle: React.CSSProperties = {
   marginTop: 0,
 };
 
-export function PanneauZones({ mapRef, onLoadedZonesChange }: PanneauZonesProps) {
+export function PanneauZones({ mapRef, onLoadedZonesChange, onOuvrirJeu }: PanneauZonesProps) {
   const { layerCount } = useCustomGeoCaptureContext();
   const [customGeoModalOpen, setCustomGeoModalOpen] = useState(false);
   // Rafraichit « Mes zones » apres une creation.
@@ -125,6 +133,22 @@ export function PanneauZones({ mapRef, onLoadedZonesChange }: PanneauZonesProps)
         <CreerZoneDessin mapRef={mapRef} onCree={() => setRafraichir((n) => n + 1)} />
       </section>
       {customGeoModalOpen && <CustomGeoCaptureModal onClose={() => setCustomGeoModalOpen(false)} />}
+
+      {/* ── Jeux de zones ──────────────────────────────────────────────
+          Un jeu de zones EST une zone : un périmètre nommé, enregistré,
+          réutilisable. Le chercher dans l'atelier suppose de se rappeler où
+          il a été fabriqué, alors que ce panneau est justement l'endroit où
+          l'on vient chercher un périmètre qu'on a déjà.
+
+          Placé AVANT « Mes zones » : les jeux de zones sont peu nombreux et
+          portent un plan de campagne, là où « Mes zones » peut compter des
+          dizaines d'entrées et se parcourt en défilant. */}
+      {onOuvrirJeu && (
+        <section style={{ padding: '12px 0 0', borderBottom: '0.5px solid var(--border-subtle)' }}>
+          <h4 style={{ ...sectionTitleStyle, padding: '0 16px' }}>Jeux de zones à risque</h4>
+          <JeuxDeZonesRail onOuvrir={onOuvrirJeu} />
+        </section>
+      )}
 
       {/* ── Mes zones ──────────────────────────────────────────────────── */}
       <section style={{ padding: '12px 0 0' }}>

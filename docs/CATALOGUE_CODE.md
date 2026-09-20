@@ -4,7 +4,7 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-09-20 — commit `5a63e37`.
+> Généré le 2026-09-20 — commit `f4f367e`.
 
 ## Totaux
 
@@ -74,10 +74,10 @@ Trié par nombre d’occurrences décroissant.
 | `lib/dsp/report/types.ts` | 2 | — | ReportStatus, DspReportRow |
 | `lib/chat/tools/types.ts` | 2 | — | BillboardRaw, CarreauRow |
 | `components/campagne/BarreContexteCampagne.tsx` | 1 | libellePeriode | — |
+| `lib/version.ts` | 1 | APP_NAME | — |
 | `lib/auth.ts` | 1 | createServerClient | — |
 | `lib/geo/region-lookup-server.ts` | 1 | invalidateRegionCache | — |
 | `lib/http/lecture-avec-reprise.ts` | 1 | ATTENTE_MAX_MS | — |
-| `lib/version.ts` | 1 | APP_NAME | — |
 | `lib/campagne/constats.ts` | 1 | SEUIL_ECART_SIGNALE_PCT | — |
 | `components/campagne/suivi-v2/TableauDeregles.tsx` | 1 | LIGNES_MAX | — |
 | `lib/dsp-mapping/parser.ts` | 1 | parseRow | — |
@@ -103,9 +103,9 @@ Trié par nombre d’occurrences décroissant.
 | `lib/clustering/feature-themes.ts` | 1 | resolveThemesFromFeatures | — |
 | `components/ui/input.tsx` | 1 | — | InputProps |
 | `lib/logger.ts` | 1 | — | Logger |
-| `lib/supabase/tables.ts` | 1 | — | TableUpdate |
-| `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
 | `types/admin.ts` | 1 | — | HealthCheck |
+| `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
+| `lib/supabase/tables.ts` | 1 | — | TableUpdate |
 | `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
 | `lib/campaigns/actor-metrics.ts` | 1 | — | ActorsPayload |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
@@ -114,8 +114,8 @@ Trié par nombre d’occurrences décroissant.
 | `lib/demo/pilot-types.ts` | 1 | — | PilotItem |
 | `lib/dsp/push/types.ts` | 1 | — | PushStatus |
 | `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
-| `lib/qualite/verdict.ts` | 1 | — | Verdict |
 | `lib/report/types.ts` | 1 | — | ReportHeader |
+| `lib/qualite/verdict.ts` | 1 | — | Verdict |
 | `lib/radio/import-logger.ts` | 1 | — | LogEntry |
 | `types/campaign.ts` | 1 | — | DspCampaign |
 | `lib/meteo/use-meteo-data.ts` | 1 | — | MeteoProgress |

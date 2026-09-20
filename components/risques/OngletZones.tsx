@@ -29,14 +29,23 @@
  * temps à calculer des profils que personne ne regarde. On règle dans l'onglet
  * « Rayons », on vient ici quand on a décidé.
  */
-import React, { useCallback, useMemo, useState } from 'react';
-import { Loader2, Save, Copy, Trash2, FolderOpen, Layers } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Loader2, Save, Copy, Trash2, FolderOpen, Layers, Download, Crosshair,
+} from 'lucide-react';
 import { formaterNombre, formaterDecimal } from '@/lib/format/nombre';
 import { fInter, fMono } from '@/lib/design/polices';
 import { Kpi } from '@/components/risques/Kpi';
 import { COULEUR_NIVEAU_CSS } from '@/lib/carte/palette-zones-risque';
 import { libelleClasse, anneauxParNiveau } from '@/lib/risques/libelle-classe';
-import { libelleRayon, type Niveau, type ProfilRayons } from '@/lib/risques/profil';
+import {
+  libelleRayon, anneauxDuNiveau, NIVEAUX, type Niveau, type ProfilRayons,
+} from '@/lib/risques/profil';
+import { codeProfil } from '@/lib/risques/code-profil';
+import { adminFetch } from '@/lib/admin-fetch';
+import {
+  ZONES_RISQUE_EVENT, type ZonesRisqueEventDetail,
+} from '@/app/map/_components/ZonesRisqueLayer';
 import {
   useJeuxZones, type ClasseJeu, type JeuResume,
 } from '@/components/risques/use-jeux-zones';
@@ -56,7 +65,46 @@ interface Props {
   /** Jeu ouvert, relayé à l'URL pour qu'un lien partagé rouvre le même. */
   jeuOuvert: string | null;
   onJeuOuvert: (id: string | null) => void;
+  /**
+   * Ferme l'overlay. La carte est DERRIÈRE : recadrer sans découvrir la carte
+   * produirait un bouton dont l'effet est invisible, ce qui se lit comme un
+   * bouton cassé.
+   */
+  onFermer: () => void;
 }
+
+/**
+ * Trois grappes industrielles denses, pour VOIR ce qu'une vue France entière
+ * ne montre jamais : des zones qui se superposent.
+ *
+ * ⚠ À l'échelle nationale, une zone de 2 km fait **moins d'un pixel** — c'est
+ * le même constat qui a donné son plancher de zoom à la couche PPRT. Un
+ * atelier qui n'ouvre que sur la France ne laisse jamais voir son objet.
+ *
+ * Densité mesurée le 2026-09-20, sites Seveso haut / bas dans chaque cadre :
+ * Fos 41/14, Le Havre 22/12, vallée de la chimie 17/8.
+ */
+const ZOOMS_REFERENCE: Array<{
+  nom: string;
+  aide: string;
+  bbox: [number, number, number, number];
+}> = [
+  {
+    nom: 'Vallée de la chimie',
+    aide: 'Lyon sud — 17 sites de seuil haut',
+    bbox: [4.75, 45.6, 5.05, 45.75],
+  },
+  {
+    nom: 'Estuaire de la Seine',
+    aide: 'Le Havre — 22 sites de seuil haut',
+    bbox: [0.05, 49.4, 0.55, 49.55],
+  },
+  {
+    nom: 'Étang de Berre',
+    aide: 'Fos-sur-Mer — 41 sites de seuil haut',
+    bbox: [4.75, 43.35, 5.3, 43.6],
+  },
+];
 
 /**
  * Les rayons que le comparateur propose.
@@ -91,7 +139,7 @@ function couleurDeClasse(classe: string): string {
 
 export function OngletZones({
   profil, onProfil, cible, libelleCible, gravites, natures, territoire,
-  jeuOuvert, onJeuOuvert,
+  jeuOuvert, onJeuOuvert, onFermer,
 }: Props) {
   const atelier = useJeuxZones();
   const [nom, setNom] = useState('');
@@ -122,6 +170,28 @@ export function OngletZones({
     void atelier.ouvrir(id);
   }, [atelier, onJeuOuvert]);
 
+  /*
+   * Un jeu nommé dans l'URL s'ouvre TOUT SEUL.
+   *
+   * C'est ce qui rend le lien partageable, et ce qui fait fonctionner l'entrée
+   * « Jeux de zones à risque » du rail : elle pose l'identifiant dans l'adresse
+   * et monte l'overlay. Sans cet effet, l'atelier s'ouvrait sur son état vide
+   * alors que l'adresse désignait un jeu précis — un lien qui mène au bon
+   * écran et n'y montre rien.
+   *
+   * ⚠ La garde est le JEU DÉJÀ CHARGÉ, pas un drapeau « première fois » : sans
+   * elle, chaque réponse relancerait le chargement, indéfiniment.
+   */
+  useEffect(() => {
+    if (!jeuOuvert || atelier.detail?.jeu.id === jeuOuvert) return;
+    if (atelier.etat === 'chargement') return;
+    void atelier.ouvrir(jeuOuvert);
+    // `atelier` est reconstruit à chaque rendu : le mettre en dépendance
+    // relancerait la lecture en boucle. Seuls l'identifiant demandé, celui
+    // déjà chargé et l'état comptent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jeuOuvert, atelier.detail?.jeu.id, atelier.etat]);
+
   const detail = atelier.detail;
   const jeu = detail?.jeu;
 
@@ -149,6 +219,10 @@ export function OngletZones({
   return (
     <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 18, overflowY: 'auto' }}>
       <Comparateur profil={profil} onProfil={onProfil} />
+
+      <Section titre="Voir les superpositions">
+        <ZoomsReference profil={profil} onFermer={onFermer} />
+      </Section>
 
       <Section titre="Le jeu de zones">
         {atelier.etat === 'vide' && (
@@ -235,6 +309,7 @@ export function OngletZones({
                 if (ok) { setNom(''); setDescription(''); }
               }}
               onDupliquer={construire}
+              idPourExport={jeu.brouillon ? null : jeu.id}
               erreur={atelier.erreur}
             />
           </>
@@ -508,7 +583,10 @@ function ModePlan({ mode, onMode }: {
   );
 }
 
-function Actions({ brouillon, nom, description, onNom, onDescription, onEnregistrer, onDupliquer, erreur }: {
+function Actions({
+  brouillon, nom, description, onNom, onDescription, onEnregistrer, onDupliquer,
+  idPourExport, erreur,
+}: {
   brouillon: boolean;
   nom: string;
   description: string;
@@ -516,6 +594,8 @@ function Actions({ brouillon, nom, description, onNom, onDescription, onEnregist
   onDescription: (v: string) => void;
   onEnregistrer: () => void;
   onDupliquer: () => void;
+  /** `null` tant que le jeu est un brouillon : on n'exporte pas un sans-nom. */
+  idPourExport: string | null;
   erreur: string | null;
 }) {
   const [enCours, setEnCours] = useState(false);
@@ -559,6 +639,18 @@ function Actions({ brouillon, nom, description, onNom, onDescription, onEnregist
           <Copy size={13} />
           {brouillon ? 'Reconstruire' : 'Dupliquer depuis le profil courant'}
         </button>
+        {idPourExport && (
+          /* Un lien et non un `fetch` : le navigateur gère le téléchargement,
+             son nom de fichier et sa reprise. Un `fetch` obligerait à monter
+             le classeur entier en mémoire avant de le re-télécharger. */
+          <a
+            href={`/api/zones/jeux/${idPourExport}/export`}
+            style={{ ...styleBoutonNeutre, textDecoration: 'none' }}
+          >
+            <Download size={13} />
+            Exporter (Excel)
+          </a>
+        )}
       </div>
       {erreur && <Alerte>{erreur}</Alerte>}
     </div>
@@ -640,6 +732,94 @@ function Bibliotheque({ jeux, etat, ouvert, enCoursId, onOuvrir, onSupprimer }: 
         </li>
       ))}
     </ul>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Les zooms de référence
+   ══════════════════════════════════════════════════════════════════════════ */
+
+function ZoomsReference({ profil, onFermer }: {
+  profil: ProfilRayons;
+  onFermer: () => void;
+}) {
+  const [enCours, setEnCours] = useState<string | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  /*
+   * Un profil sans aucun anneau ne dessine rien. Le dire AVANT de partir en
+   * requête : un aller-retour qui rend « zéro classe » laisserait croire à
+   * une panne. Même garde que `BoutonVoirCarte`.
+   */
+  const vide = NIVEAUX.every((n) => anneauxDuNiveau(profil, n).length === 0);
+
+  const aller = async (z: (typeof ZOOMS_REFERENCE)[number]) => {
+    setEnCours(z.nom);
+    setErreur(null);
+    try {
+      /*
+       * La géométrie est PRÉPARÉE avant d'allumer la couche. Sans cela, elle
+       * demanderait ses tuiles sous une clé que personne n'a construite, et
+       * MapLibre échouerait en SILENCE sur une source vide — le défaut exact
+       * qui a rendu la couche IRIS muette pendant des mois.
+       */
+      const rep = await adminFetch('/api/risques/zones/preparer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profil: codeProfil(profil) }),
+      });
+      if (!rep.ok) throw new Error('preparation');
+      window.dispatchEvent(new CustomEvent<ZonesRisqueEventDetail>(ZONES_RISQUE_EVENT, {
+        detail: { profil, recadrer: z.bbox },
+      }));
+      onFermer();
+    } catch {
+      setErreur('Préparation des zones impossible. Réessayez dans un instant.');
+    } finally {
+      setEnCours(null);
+    }
+  };
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {ZOOMS_REFERENCE.map((z) => (
+          <button
+            key={z.nom}
+            type="button"
+            disabled={vide || enCours !== null}
+            onClick={() => void aller(z)}
+            style={{
+              flex: '1 1 200px', textAlign: 'left', padding: '11px 13px', borderRadius: 8,
+              cursor: vide || enCours ? 'not-allowed' : 'pointer',
+              opacity: vide ? 0.45 : 1,
+              fontFamily: fInter,
+              background: 'var(--bg-level-2)',
+              border: '0.5px solid var(--border-subtle)',
+              color: 'var(--text-primary)',
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 500 }}>
+              {enCours === z.nom
+                ? <Loader2 size={12} className="animate-spin" />
+                : <Crosshair size={12} style={{ color: 'var(--text-tertiary)' }} />}
+              {z.nom}
+            </span>
+            <span style={{ display: 'block', marginTop: 3, fontSize: 11, color: 'var(--text-tertiary)' }}>
+              {z.aide}
+            </span>
+          </button>
+        ))}
+      </div>
+      <p style={{ margin: '10px 0 0', fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.6 }}>
+        {vide
+          ? 'Ajoutez au moins un anneau dans l’onglet Rayons : un profil vide ne dessine rien.'
+          : 'Ces trois grappes montrent ce qu’une vue France entière ne montre jamais : '
+            + 'des zones qui se superposent. À l’échelle nationale, une zone de 2 km fait '
+            + 'moins d’un pixel.'}
+      </p>
+      {erreur && <div style={{ marginTop: 10 }}><Alerte>{erreur}</Alerte></div>}
+    </>
   );
 }
 

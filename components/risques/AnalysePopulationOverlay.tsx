@@ -1190,6 +1190,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
           territoire={chemin.find((c) => c.niveau === 'departement')?.code ?? null}
           jeuOuvert={etat.jeu}
           onJeuOuvert={(id) => majEtat({ jeu: id })}
+          onFermer={onFermer}
         />
       ) : onglet === 'rayons' ? (
         <OngletRayons

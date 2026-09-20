@@ -87,6 +87,9 @@ import { RisqueIndustrielLayer } from '@/app/map/_components/RisqueIndustrielLay
 import { PprtLayer } from '@/app/map/_components/PprtLayer';
 import { ZonesRisqueLayer } from '@/app/map/_components/ZonesRisqueLayer';
 import { AnalysePopulationOverlay } from '@/components/risques/AnalysePopulationOverlay';
+import {
+  ecrireEtatUrl, ETAT_DEFAUT as ETAT_RISQUE_DEFAUT,
+} from '@/lib/risques/etat-url';
 import { useRisqueIndustriel } from '@/app/map/_components/filter-panel/use-risque-industriel';
 import { PanneauAnalyse } from '@/app/map/_components/panneaux/PanneauAnalyse';
 import { PanneauZones } from '@/app/map/_components/panneaux/PanneauZones';
@@ -214,6 +217,27 @@ export default function MapPage() {
   // use-risque-industriel.ts.
   const risqueIndustriel = useRisqueIndustriel();
   const [analysePopulation, setAnalysePopulation] = useState(false);
+
+  /*
+   * Ouvre l'atelier « Population à risque industriel » sur un jeu enregistré,
+   * depuis la liste du panneau Zones.
+   *
+   * ⚠ L'état du module vit dans UN SEUL paramètre d'URL (`risque`), encodé par
+   * `ecrireEtatUrl` : le module s'ouvre dans une page qui porte déjà ses
+   * propres paramètres, et les y mélanger rendrait les deux illisibles. On
+   * écrit donc l'URL AVANT de monter l'overlay — monté d'abord, il lirait
+   * l'ancien état et afficherait l'onglet Rayons pendant que l'adresse dit
+   * autre chose.
+   */
+  const ouvrirJeuDeZones = useCallback((id: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set(
+      'risque',
+      ecrireEtatUrl({ ...ETAT_RISQUE_DEFAUT, onglet: 'zones', jeu: id }).toString(),
+    );
+    window.history.replaceState(null, '', url.toString());
+    setAnalysePopulation(true);
+  }, []);
   const [poiStyles,           setPoiStyles]           = useState<POIStylesMap>({});
   // TMJA — flux routier (comptages_routiers)
   const [tmjaGeoJSON, setTmjaGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
@@ -1055,7 +1079,13 @@ export default function MapPage() {
         onFlyTo={handleFlyTo}
       />
     ),
-    zones: () => <PanneauZones mapRef={mapRef} onLoadedZonesChange={handleLoadedZonesChange} />,
+    zones: () => (
+      <PanneauZones
+        mapRef={mapRef}
+        onLoadedZonesChange={handleLoadedZonesChange}
+        onOuvrirJeu={ouvrirJeuDeZones}
+      />
+    ),
     reglages: () => (
       <SettingsOverlay
         mapStyles={MAP_STYLES as unknown as { id: string; label: string; url: string }[]}
