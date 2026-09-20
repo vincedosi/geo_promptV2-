@@ -30,6 +30,17 @@ export interface ProgDraft {
   cibles: CibleZoneRef[];
   /** Variable INSEE choisie pour piloter la courbe de pression (code si plusieurs indicateurs; null sinon). */
   pressureVariable: string | null;
+  /**
+   * Jeu de zones choisi comme PLAN géographique, ou `null` pour le plan par
+   * indicateur INSEE.
+   *
+   * ⚠ Les deux s'excluent, et c'est structurel : une campagne n'a qu'un plan,
+   * et `refresh_campaign_rollups` ne lit qu'UNE stratégie (la plus récente).
+   * Quand il est renseigné, le Lancement passe par
+   * `POST /api/zones/jeux/[id]/rattacher`, qui écrit lui-même la stratégie et
+   * son plan — la courbe de pression par indicateur n'est alors pas construite.
+   */
+  jeuZones: { id: string; nom: string; version: number } | null;
   /** Diffusion hors cible — ignorée si le panier est vide (national pur). */
   diffusion: Diffusion;
   /** Canaux déclarés (DSP/réseaux/ad server). Persistés au Lancement. */
@@ -60,6 +71,7 @@ export const DEFAULT_PROG_DRAFT: ProgDraft = {
   pressure: 2.2,
   cibles: [],
   pressureVariable: null,
+  jeuZones: null,
   diffusion: 'zones_only',
   channels: EMPTY_CHANNELS,
   channelBudgets: {},

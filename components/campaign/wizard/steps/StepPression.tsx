@@ -12,6 +12,7 @@ import type { Diffusion, StepProps } from './types';
 import { DIFFUSION_META, resolvePressureIndicators } from './types';
 import { B, C, FieldBlock, fInter, Lead, OptionRow, OptsList, StandardFooter, StepShell } from './ui';
 import { PressureControl } from './PressureControl';
+import { SourcePlan } from './SourcePlan';
 
 export function StepPression({
   draft, setDraft, onPrev, onNext,
@@ -36,7 +37,15 @@ export function StepPression({
         en chiffres — multiplicateur et CPM en euros.
       </Lead>
 
-      {(() => {
+      <SourcePlan
+        choisi={draft.jeuZones}
+        onChoisir={(j) => setDraft((prev) => ({ ...prev, jeuZones: j }))}
+      />
+
+      {/* Le choix d'indicateur n'a de sens que pour un plan PAR indicateur :
+          un jeu de zones porte déjà ses poids par classe, et proposer les deux
+          laisserait croire à un croisement que le plan ne fait pas. */}
+      {draft.jeuZones === null && (() => {
         const indicators = resolvePressureIndicators(draft.cibles);
         if (draft.cibles.length > 0 && indicators.length === 0) {
           return (
@@ -64,6 +73,14 @@ export function StepPression({
           </FieldBlock>
         );
       })()}
+
+      {draft.jeuZones !== null && (
+        <div style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, marginBottom: 16, lineHeight: 1.6 }}>
+          Le plan vient du jeu de zones <B>{draft.jeuZones.nom}</B> : ce sont ses poids par
+          classe qui répartissent le budget. Le multiplicateur ci-dessous reste utile — il
+          fixe l&apos;écart d&apos;enchère que le DSP acceptera.
+        </div>
+      )}
 
       <PressureControl
         pressure={draft.pressure}

@@ -143,6 +143,77 @@ export async function GET(
     }
   }
 
+  /*
+   * ── PLAN PAR JEU DE ZONES : ON LIT LE PLAN, ON NE LE REFAIT PAS ─────────
+   *
+   * Les autres modes reconstruisent le score en interpolant un indicateur
+   * INSEE sur une courbe. Un plan issu d'un jeu de zones n'a pas d'indicateur
+   * et pas de courbe : son multiplicateur a été calculé une fois, à partir des
+   * classes et de leurs poids, et il est DÉJÀ écrit dans `bidding_zone_configs`.
+   *
+   * Sans cette branche, l'export rendait `no_scores` en 422 — `variableCode`
+   * est null, donc `values` reste vide, donc `cps` aussi. Le plan existait, le
+   * fichier refusait de le sortir.
+   *
+   * Le recalculer ici serait pire qu'inutile : ce serait une seconde
+   * implémentation de `genererPlanCp`, qui finirait par diverger de celle qui
+   * a réellement produit le plan que le DSP reçoit.
+   */
+  if (strategy.weighting_mode === 'by_zone_set') {
+    const planScores: Record<string, number> = {};
+    let debut = 0;
+    for (;;) {
+      const { data, error } = await supabase
+        .from('bidding_zone_configs')
+        .select('postal_code, bid_multiplier')
+        .eq('strategy_id', strategy.id)
+        .eq('is_active', true)
+        .order('postal_code')
+        .range(debut, debut + PAGE - 1);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      const lignes = data ?? [];
+      for (const r of lignes) {
+        // Même borne que les autres modes : le DSP refuse au-delà de ×5, et
+        // laisser passer une valeur plus haute ferait rejeter le fichier
+        // entier plutôt qu'une ligne.
+        planScores[String(r.postal_code)] = Math.max(0, Math.min(5, Number(r.bid_multiplier)));
+      }
+      // ⚠ La pagination est OBLIGATOIRE : PostgREST plafonne les requêtes de
+      // table à 1 000 lignes côté serveur, et un plan national en porte près
+      // de 2 000. Un fichier custom bidding amputé de moitié ne se voit pas.
+      if (lignes.length < PAGE) break;
+      debut += PAGE;
+    }
+    if (Object.keys(planScores).length === 0) {
+      return NextResponse.json(
+        { error: 'plan_vide', detail: 'ce jeu de zones n’a écrit aucun code postal' },
+        { status: 422 },
+      );
+    }
+    const nomJeu = typeof inWeights.zone_set_nom === 'string' ? inWeights.zone_set_nom : null;
+    /*
+     * Ce que reçoit un code postal ABSENT du fichier, et les deux modes ne
+     * répondent pas la même chose — c'est leur définition même :
+     *
+     *   · `exclusif` → 0. Zéro impression hors des codes postaux retenus. Un
+     *     catch-all à ×1 rouvrirait la diffusion sur ce que le seuil de
+     *     couverture vient justement d'écarter, et le mode ne garantirait plus
+     *     rien.
+     *   · `pondere` → 1. Toute la France reçoit du budget, les zones en
+     *     reçoivent davantage. C'est la phrase que l'écran affiche au moment du
+     *     choix, et le fichier doit la tenir.
+     *
+     * ⚠ Le jeu ne couvre que les codes postaux à moins de 10 km d'un site
+     * classé — la portée du pré-calcul. En mode pondéré, le reste de la France
+     * est donc « hors fichier » sans être « hors plan » : d'où le ×1.
+     */
+    const exclusif = inWeights.mode_plan === 'exclusif';
+    return reponseFichier(strategy, channel, planScores, exclusif ? 0 : 1, {
+      variableLabel: nomJeu ? `jeu de zones « ${nomJeu} »` : 'jeu de zones',
+      national: false,
+    });
+  }
+
   // ── Scores par CP ─────────────────────────────────────────────────────────────
   const scores: Record<string, number> = {};
   const uniformIn = Number(inWeights.value ?? 1.0);
@@ -162,7 +233,36 @@ export async function GET(
 
   // National : le catch-all du script couvre les CP absents du dataset → neutre ×1.
   const outZoneScore = zoneCps ? outZoneScoreOf(strategy.out_zone_weights) : 1.0;
-  const scopeSuffix = !zoneCps ? 'national' : outZoneScore > 0 ? 'national_surpression' : 'zones_strictes';
+  return reponseFichier(strategy, channel, scores, outZoneScore, {
+    variableLabel: target.variableLabel ?? undefined,
+    national: !zoneCps,
+  });
+}
+
+/**
+ * Fabrique le fichier custom bidding à partir de scores DÉJÀ calculés.
+ *
+ * Extraite le 2026-09-20, quand le plan par jeu de zones est devenu une
+ * seconde source de scores : les deux chemins calculent leurs scores
+ * autrement, mais doivent produire EXACTEMENT le même format de fichier.
+ * Recopier la mise en forme aurait donné deux variantes du script DV360, dont
+ * une seule aurait été corrigée au prochain changement de format.
+ *
+ * @param scores - Multiplicateur par code postal, déjà borné à [0 ; 5].
+ * @param outZoneScore - Ce que reçoivent les codes postaux hors du fichier.
+ * @param options.variableLabel - Ce qui a piloté le plan, écrit dans l'en-tête.
+ * @param options.national - Vrai si le plan porte sur toute la France.
+ */
+function reponseFichier(
+  strategy: { id: string; name: string },
+  channel: { code: string; connection_provider: string | null },
+  scores: Record<string, number>,
+  outZoneScore: number,
+  options: { variableLabel?: string; national?: boolean },
+): Response {
+  const scopeSuffix = options.national
+    ? 'national'
+    : outZoneScore > 0 ? 'national_surpression' : 'zones_strictes';
   const slug = toSlug(strategy.name);
   const maxScore = Math.max(...Object.values(scores));
   const pressureLabel = '×' + maxScore.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
@@ -173,7 +273,7 @@ export async function GET(
   if (provider === 'dv360') {
     const script = buildPressureBiddingScript(strategy.name, tiers, outZoneScore, {
       pressure: pressureLabel,
-      variableLabel: target.variableLabel ?? undefined,
+      variableLabel: options.variableLabel,
     });
     return new Response(script, {
       headers: {

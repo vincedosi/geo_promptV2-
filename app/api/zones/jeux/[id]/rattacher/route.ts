@@ -179,10 +179,18 @@ export async function POST(
   }
 
   /*
-   * La stratégie porte le plan. On REMPLACE celle de la campagne plutôt que
-   * d'en empiler une : `refresh_campaign_rollups` ne lit que la plus récente
-   * (`ORDER BY created_at DESC LIMIT 1`), donc une stratégie de plus laisserait
-   * des lignes orphelines qui ne servent rien et brouillent le diagnostic.
+   * La stratégie porte le plan. `refresh_campaign_rollups` ne lit que la PLUS
+   * RÉCENTE (`ORDER BY created_at DESC LIMIT 1`), donc celle qu'on insère ici
+   * devient le plan de la campagne dès qu'elle existe.
+   *
+   * ⚠ Les précédentes sont ARCHIVÉES juste après, et non avant. Les archiver
+   * d'abord laisserait la campagne sans plan actif si l'écriture échouait
+   * ensuite ; les laisser en `active` ferait afficher deux stratégies actives
+   * pour une seule campagne, et l'écran ne saurait pas laquelle nommer.
+   *
+   * Archivées et NON supprimées : une stratégie porte l'historique de ce qui a
+   * été poussé au DSP (`strategie_versions`, `activation_lots`). L'effacer
+   * rendrait un rollback aveugle.
    */
   const { data: strat, error: erreurStrat } = await supabase
     .from('bidding_strategies')
@@ -271,6 +279,22 @@ export async function POST(
     }
   }
 
+  /*
+   * Les stratégies précédentes passent en `archived`. L'erreur est LUE :
+   * supabase-js ne lève pas, et deux stratégies `active` sur une campagne
+   * feraient diverger ce que l'écran nomme de ce que les rollups calculent.
+   * Ce n'est pas bloquant pour autant — le plan est déjà écrit et correct.
+   */
+  const { error: erreurArchive } = await supabase
+    .from('bidding_strategies')
+    .update({ status: 'archived' })
+    .eq('campaign_id', corps.valeur.campagne)
+    .neq('id', strat.id)
+    .in('status', ['draft', 'active', 'paused']);
+  if (erreurArchive) {
+    console.error('[zones/rattacher] archivage des strategies precedentes :', erreurArchive.message);
+  }
+
   const { error: erreurRefresh } = await supabase.rpc('refresh_campaign_rollups', {
     p_campaign_id: corps.valeur.campagne,
   });
@@ -293,5 +317,8 @@ export async function POST(
     part_plan_en_zone: plan.part_plan_en_zone,
     taux_utile: plan.taux_utile,
     n_retenus: plan.n_retenus,
+    // L'écran doit pouvoir dire que l'archivage a échoué : la campagne
+    // diffuserait bien sur le bon plan, mais afficherait deux stratégies.
+    anciennes_archivees: !erreurArchive,
   }, { status: 201 });
 }

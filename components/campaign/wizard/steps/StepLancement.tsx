@@ -229,6 +229,58 @@ export function StepLancement({
         } catch { /* non bloquant */ }
       }
 
+      /*
+       * ── PLAN PAR JEU DE ZONES : UN AUTRE CHEMIN, PAS UNE VARIANTE ───────
+       *
+       * `POST /api/zones/jeux/[id]/rattacher` écrit LUI-MÊME la stratégie,
+       * son plan code postal par code postal, et rafraîchit les rollups. Il
+       * archive aussi les stratégies précédentes de la campagne.
+       *
+       * On ne peut donc pas enchaîner les deux : `refresh_campaign_rollups`
+       * ne lit qu'UNE stratégie — la plus récente — et créer la stratégie du
+       * wizard après celle du jeu écraserait le plan qu'on vient de choisir,
+       * en silence.
+       */
+      if (draft.jeuZones) {
+        const res = await adminFetch(`/api/zones/jeux/${draft.jeuZones.id}/rattacher`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campagne: campaignId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toastApi.error('Rattachement impossible', data.error ?? `HTTP ${res.status}`);
+          setSubmitting(false);
+          return;
+        }
+
+        // Les canaux sont persistés comme dans l'autre chemin : ils ne
+        // dépendent pas de la source du plan.
+        await adminFetch(`/api/campaigns/${campaignId}/channels`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...draft.channels, budgets: draft.channelBudgets, links: draft.channelLinks,
+          }),
+        }).catch(() => { /* non bloquant : le plan est déjà écrit */ });
+
+        // Les deux chiffres qui doivent voyager avec le plan. Les taire ferait
+        // croire qu'on achète exactement ce qu'on vise.
+        const part = typeof data.part_plan_en_zone === 'number'
+          ? `${data.part_plan_en_zone.toFixed(0)} % du plan en zone`
+          : null;
+        const utile = typeof data.taux_utile === 'number'
+          ? `${data.taux_utile.toFixed(1)} % d'utile`
+          : null;
+        toastApi.success(
+          'Campagne créée',
+          [`${data.codes_postaux} codes postaux`, part, utile]
+            .filter(Boolean).join(' · '),
+        );
+        setArmedStrategyId(data.strategie ?? null);
+        onLaunched?.();
+        return;
+      }
+
       const { scope_type, zone_id } = await resolveFinalZone(draft.cibles, ownerOrgId);
       const hasZones = draft.cibles.length > 0;
       // Courbe sur l'indicateur réellement ciblé (ou uniforme sans indicateur,
