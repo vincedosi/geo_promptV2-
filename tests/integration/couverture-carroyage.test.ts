@@ -109,6 +109,60 @@ describe('couverture du carroyage INSEE', () => {
   }, 60_000);
 });
 
+/**
+ * Ce qui rend les quatre messages possibles.
+ *
+ * La RPC rend la MÊME forme — `total: 0, n_unites: 0` — pour quatre causes
+ * très différentes. Seul `hors_zone` les sépare, et la route s'appuie dessus.
+ * Si ce champ cessait d'être renseigné, les messages redeviendraient
+ * interchangeables sans qu'aucun test ne rougisse ailleurs.
+ */
+describe('un resultat vide reste discernable', () => {
+  const PROFIL_VIDE = { haut: [], bas: [], autres: [], lie: false, inclurePPRT: true };
+  const PROFIL_DEFAUT = {
+    haut: [1000, 2000, 5000], bas: [500, 1000], autres: [], lie: false, inclurePPRT: true,
+  };
+
+  async function bandes(profil: unknown, parent: string | null) {
+    const { data, error } = await sb.rpc('population_par_classe', {
+      p_profil: profil as never,
+      p_cible: 'ind',
+      p_maille: 'departement',
+      p_parent: parent,
+      p_limite: 40000,
+    });
+    if (error) throw new Error(`population_par_classe : ${error.message}`);
+    return data as unknown as { total: number; n_unites: number; hors_zone: number };
+  }
+
+  it('un profil SANS anneau laisse hors_zone bien au-dessus de zero', async () => {
+    /*
+     * LE test. Mesuré le 2026-09-20 : 41 083 708 habitants. Dire « aucun
+     * carreau à portée d'un site » dans ce cas serait l'INVERSE de la vérité —
+     * c'est le profil qui ne retient rien, pas la donnée qui manque.
+     */
+    const r = await bandes(PROFIL_VIDE, null);
+    expect(r.total).toBe(0);
+    expect(r.n_unites).toBe(0);
+    expect(r.hors_zone).toBeGreaterThan(1_000_000);
+  }, 120_000);
+
+  it('un territoire non carroye laisse hors_zone a zero', async () => {
+    // La différence avec le cas précédent : là, il n'y a réellement rien.
+    const r = await bandes(PROFIL_DEFAUT, '971');
+    expect(r.total).toBe(0);
+    expect(r.hors_zone).toBe(0);
+  }, 120_000);
+
+  it('le chemin nominal reste calculable', async () => {
+    // Le contrepoids : sans lui, une RPC qui rendrait TOUJOURS zéro passerait
+    // les deux tests précédents.
+    const r = await bandes(PROFIL_DEFAUT, null);
+    expect(r.total).toBeGreaterThan(0);
+    expect(r.n_unites).toBeGreaterThan(0);
+  }, 120_000);
+});
+
 describe('un jeu de zones ne se construit pas sur un territoire sans carreau', () => {
   it('refuse explicitement, plutôt que d enregistrer un jeu vide', async () => {
     const { data: modele, error: erreurModele } = await sb

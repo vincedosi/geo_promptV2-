@@ -41,6 +41,8 @@ import { createAdminClient } from '@/lib/auth';
 import { rpcJson, nullableArg, toJson } from '@/lib/supabase/rpc-json';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { profilDepuisCode } from '@/lib/risques/code-profil';
+import { anneauxDuNiveau, NIVEAUX } from '@/lib/risques/profil';
+import { formaterNombre } from '@/lib/format/nombre';
 
 export const dynamic = 'force-dynamic';
 
@@ -153,29 +155,43 @@ export async function GET(request: NextRequest) {
   }
 
   /*
-   * ── UN RESULTAT VIDE A DEUX CAUSES, ET UNE SEULE SE CORRIGE ────────────
+   * ── UN RESULTAT VIDE A QUATRE CAUSES ───────────────────────────────────
    *
    * Rendre des bandes a zero serait pire que refuser : cela se lirait
    * « personne n'habite pres d'un site a risque ». Mais le refus doit nommer
-   * la BONNE cause.
+   * la BONNE cause, et il y en a quatre — mesurees le 2026-09-20, toutes
+   * rendues par la RPC sous la MEME forme `total: 0, n_unites: 0` :
    *
-   *   · le pre-calcul n'a jamais ete construit -> lancer le script ;
-   *   · ce territoire n'est pas CARROYE par l'INSEE -> le script n'y changera
-   *     rien, jamais.
+   *   1. le profil ne porte AUCUN anneau — `hors_zone` vaut alors
+   *      **41 083 708** sur la France : quarante et un millions d'habitants
+   *      sont bel et bien a portee d'un site, c'est le profil qui ne retient
+   *      rien. Dire « aucun carreau a portee » serait l'inverse de la verite ;
+   *   2. le pre-calcul n'a jamais ete construit — lancer le script ;
+   *   3. le territoire n'est pas CARROYE par l'INSEE (971, 973, 976) — aucun
+   *      script n'y changera jamais rien ;
+   *   4. des carreaux sont a portee, mais aucun ne tombe dans les anneaux
+   *      choisis — mesure en Lozere : 1 carreau, 2 habitants, hors bandes.
    *
-   * Les deux rendaient le meme ecran jusqu'au 2026-09-20 : selectionner la
-   * Guadeloupe affichait « les distances n'ont pas encore ete construites,
-   * lancez node scripts/construire_carreau_risque.mjs » alors que le
-   * pre-calcul portait 883 451 lignes sur 98 departements. Le carroyage
-   * Filosofi 2021 a 200 m ne publie que la metropole, la Martinique et La
-   * Reunion — 971, 973 et 976 n'ont AUCUN carreau, et le script ne peut pas
-   * en fabriquer.
-   *
-   * Le message reclamait donc une action impossible, et il taisait le seul
-   * fait qui compte : ces trois departements portent 603 sites a risque, dont
-   * 31 Seveso, qui restent visibles sur la carte.
+   * L'ordre compte. La premiere cause se teste sans aucune requete et vaut
+   * quel que soit le territoire : la placer apres ferait diagnostiquer un
+   * territoire alors que le reglage de l'utilisateur suffit a tout expliquer.
    */
   if (resultat.n_unites === 0 && (resultat.total ?? 0) === 0) {
+    const aucunAnneau = NIVEAUX.every((n) => anneauxDuNiveau(profil, n).length === 0);
+    if (aucunAnneau) {
+      return NextResponse.json(
+        {
+          error:
+            'Ce profil ne porte aucun anneau : il ne retient donc aucun carreau. '
+            + 'Ajoutez-en au moins un dans la colonne de gauche.',
+          profil_vide: true,
+          // Ce que le profil LAISSE de cote — la preuve que la donnee est la.
+          hors_zone: resultat.hors_zone,
+        },
+        { status: 409 },
+      );
+    }
+
     const { data: diag, error: erreurDiag } = await supabase.rpc(
       'couverture_carreau_risque',
       { p_departement: nullableArg(p.parent ?? null) },
@@ -207,11 +223,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            `L’INSEE ne publie pas de carroyage à 200 m pour ce département : `
-            + `la population exposée n’y est pas calculable. `
+            'L’INSEE ne publie pas de carroyage à 200 m pour ce département : '
+            + 'la population exposée n’y est pas calculable. '
             + `${couverture.n_sites} sites à risque y sont pourtant recensés`
             + (couverture.n_seveso > 0 ? `, dont ${couverture.n_seveso} Seveso` : '')
-            + `, et restent visibles sur la carte.`,
+            + ', et restent visibles sur la carte.',
           // ⚠ PAS `a_construire` : aucune construction n'y changera quoi que
           // ce soit. Afficher la consigne ici ferait perdre du temps et
           // laisserait croire que le chiffre existera un jour.
@@ -223,11 +239,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    /*
+     * Reste la quatrieme cause. Le message CHIFFRE ce qui est a portee mais
+     * hors des anneaux : sans ce nombre, « elargissez vos anneaux » est un
+     * conseil au juge, et l'utilisateur ne sait pas s'il lui manque dix
+     * metres ou dix kilometres.
+     */
+    const aPortee = resultat.hors_zone ?? 0;
     return NextResponse.json(
       {
-        error:
-          'Aucun carreau habité ne se trouve à portée d’un site à risque sur ce '
-          + 'périmètre, avec ce profil de rayons.',
+        error: aPortee > 0
+          ? `Aucun carreau habité ne tombe dans les anneaux choisis sur ce périmètre. `
+            + `${formaterNombre(Math.round(aPortee))} habitants y vivent pourtant à moins `
+            + `de 10 km d’un site : élargissez les anneaux pour les atteindre.`
+          : 'Aucun carreau habité ne se trouve à moins de 10 km d’un site à risque '
+            + 'sur ce périmètre.',
+        hors_zone: aPortee,
       },
       { status: 409 },
     );
