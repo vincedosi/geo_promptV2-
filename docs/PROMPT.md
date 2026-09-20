@@ -1,158 +1,136 @@
-\# MISSION : jeu de zones de risque + branchement campagne (MAGELIAN)
+\# MISSION : écran unifié "Population à risque industriel" (MAGELIAN)
 
 
 
-\## Constat
+\## Constat sur l'existant
 
-Le module "Population à risque industriel" calcule bien l'exposition, mais son onglet Diffusion double le Suivi de campagne existant et ne marche pas :
+Les trois onglets actuels (Rayons, Territoires, Zones) partagent un en-tête mais pas leur état :
 
-\- le seed a créé des impressions sans plan ("2 000 codes postaux sans plan défini"), donc le Suivi retombe sur sa variable par défaut (taux d'abstention) et n'a rien à comparer ;
+\- l'en-tête annonce "Seveso seuil haut 5 km / seuil bas 5 km" pendant que Territoires garde sa propre réglette à 0,5 km, marquée "Propre à Territoires". Résultat : 217 946 habitants sur un écran, 24 406 618 sur l'autre, pour le même profil affiché. Indéfendable.
 
-\- l'alignement affiche 100/100 avec 0 CP conforme, 0 sous-pression et 0 sur-pression : faux positif ;
+\- la courbe du bas répond à une autre question que le tableau (672 323 contre 24 406 618) et le dit en note de bas de page. Il faut supprimer cette dualité, pas la documenter.
 
-\- volumes du seed irréalistes (1,2 Md d'impressions en 30 jours, 3 partenaires au même CPM de 7,06 €) ;
-
-\- bandeau "La dernière actualisation a échoué".
-
-Le maillon manquant : il n'existe pas d'objet "zone" enregistrable, donc rien à donner comme plan à une campagne.
+\- la carte n'apparaît que dans Zones, alors que c'est l'objet du module.
 
 
 
 \## Cap
 
-Le module risque devient un atelier qui produit un JEU DE ZONES réutilisable. Le suivi de diffusion reste dans Campagne > Suivi, rendu générique et alimenté par ce jeu de zones.
+Un seul écran, un seul état, une seule réglette en haut, une carte toujours visible, et quatre étapes en fil d'Ariane qui ne changent que le panneau de gauche.
+
+Le parcours métier : je choisis mes sites, je règle le rayon, je vérifie la couverture par territoire, j'enregistre un jeu de zones. Le jeu de zones est l'objet final, réutilisable comme plan géographique. Aucune diffusion, aucun DSP, aucune campagne dans ce module.
 
 
 
 \## Phase 0 : audit, puis STOP
 
-Écris docs/zones-risque-plan.md :
+Écris docs/ecran-risque-unifie.md :
 
-1\. Comment un plan de campagne est défini aujourd'hui : table(s), métadonnées, d'où vient "taux d'abstention (prés. 2022)", comment le Suivi choisit ses libellés, sa carte du milieu et ses légendes. Qu'est-ce qui est en dur ?
+1\. Où vit l'état de chaque onglet aujourd'hui, et pourquoi Territoires a une réglette locale. Ce qui est partagé, ce qui est dupliqué.
 
-2\. Pourquoi l'alignement vaut 100/100 alors que rien n'est calculable, et pourquoi l'actualisation échoue.
+2\. D'où viennent les chiffres de la courbe (précalcul, distance par site, par nature) et si on peut en tirer une courbe PAR NIVEAU réglementaire, en affectation exclusive, sans recalcul lourd.
 
-3\. Ce que fait l'entrée "Zones" de la barre latérale : objet existant à réutiliser, ou à créer ?
+3\. État du code des jeux de zones déjà construit (tables, RPC, tuiles) et ce qui est réutilisable.
 
-4\. Schéma réel des tables de campagne et de plan, maille d'achat (CP).
+4\. Comment les tuiles MVT des zones et la couche des sites sont branchées.
 
-5\. Comment la couche des sites et les tuiles MVT sont branchées sur la carte.
-
-6\. Plan de fichiers et de migrations.
+5\. Plan de fichiers, migrations, code à supprimer.
 
 Arrête-toi et attends mon "go".
 
 
 
-\## Phase 1 : correctifs de vérité
+\## Phase 1 : état unique
 
-\- Alignement non calculable = "non calculable" (et non 100/100), avec la raison affichée ("aucun plan défini sur cette campagne"). Idem pour les 3 cartes Zones conformes / Sous-pression / Sur-pression : état vide explicite, pas des 0 %.
+Un seul store pour tout l'écran, sérialisé dans l'URL :
 
-\- Corrige l'échec d'actualisation, ou expose l'erreur réelle si elle est externe.
+{ cible, territoire, natureZone, niveaux: ('haut'|'bas'|'ied'|'autorisation'|'enregistrement'|'autres')\[], rayons: { haut: number, bas: number, autres: number }, lie: boolean, inclurePPRT: boolean, etape: 1|2|3|4, maille: 'region'|'departement'|'cp'|'commune' }
 
-\- Test Vitest : couverture de plan nulle ou partielle ne produit jamais un score parfait.
+Zod partagé client / serveur, rayons en mètres (100 à 10 000).
 
+\- Supprime la réglette locale de Territoires et le libellé "Propre à Territoires". Toute réglette locale est un bug.
 
+\- Un anneau par niveau pour cette version (plus la classe PPRT à part). Le modèle reste un tableau de rayons par niveau en base, pour ouvrir les anneaux multiples plus tard sans migration.
 
-\## Phase 2 : l'objet "jeu de zones"
-
-Nouvelle table zone\_sets (+ migration MCP Supabase) :
-
-\- id, nom, description, created\_by, created\_at, version
-
-\- profil de rayons : { haut: number\[], bas: number\[], autres: number\[], lie: boolean, inclurePPRT: boolean } (mètres, 100 à 10 000, 4 anneaux max par niveau, trié), schéma Zod partagé client / serveur
-
-\- filtres figés : cible, territoire, nature de zone, niveaux réglementaires
-
-\- mode\_plan : 'exclusif' (hors zone = 0 impression) ou 'pondere' (France entière, poids relevé sur les classes), défaut 'pondere'
-
-\- seuil\_couverture\_cp : part minimale de la population d'un CP en zone pour que le CP soit retenu (défaut 20 %)
-
-\- poids par classe (multiplicateur d'enchère, 0 à 5, défaut 1)
-
-\- profil\_hash (déterministe, sur profil + filtres) pour le cache
-
-Tables filles : zone\_set\_geoms (classe, niveau, bande, geom 4326, geom\_3857, index GIST) et zone\_set\_cp (code\_postal, classe dominante, population en zone, part de la population du CP, retenu bool).
+\- Cadenas "lier les niveaux" : lie = true applique le même rayon à tous, lie = false donne un rayon par niveau (c'est ce qui permettra le bidding différencié).
 
 
 
-Règle d'affectation unique (fonction pure, testée) : chaque carreau INSEE 200 m reçoit UNE seule classe.
+Règle d'affectation exclusive (fonction pure, testée en Vitest), à conserver telle qu'elle est déjà écrite dans l'interface :
 
-1\. Niveau : Seveso haut prime sur bas, qui prime sur les autres.
+1\. Seveso seuil haut prime sur seuil bas, qui prime sur les autres.
 
-2\. Dans le niveau : classe "PPRT" si le carreau est dans un périmètre PPRT et inclurePPRT actif, sinon la plus petite bande couvrant la distance au site le plus proche de ce niveau.
+2\. Dans le niveau : classe "Périmètre PPRT" si le carreau est dans une servitude publiée et inclurePPRT actif, sinon "Bande calculée".
 
-3\. Bandes exclusives (0 à r1, r1 à r2, ...), cumul par somme.
+3\. Un carreau INSEE 200 m = une seule classe, donc toutes les sommes sont additives (par niveau, par bande, par territoire).
 
-Géométries : ST\_Buffer en géographie, ST\_Union par niveau et par bande, ST\_Difference pour l'exclusivité et la primauté du Haut. Calcul une fois par profil\_hash.
-
-
-
-\## Phase 3 : onglet "Zones" (remplace Diffusion)
-
-Supprime l'onglet Diffusion du module risque et tout son code mort (vérifie avec npm run catalogue). Onglets : 1. Rayons  2. Territoires  3. Zones.
-
-L'onglet Zones est piloté par la carte :
-
-\- Comparateur : petites cartes côte à côte, une par rayon candidat (500 m, 1, 2, 5 km), chacune avec population exposée, sites concernés, CP retenus. Clic = adopter ce rayon dans le profil.
-
-\- Grande carte du profil retenu : bandes fusionnées, teintes Seveso haut chaud (rouge corail) / bas ambre / autres gris bleuté (tokens du design system, clair et dark), opacité dégressive du cœur vers l'extérieur (ordre de grandeur 0,45 / 0,28 / 0,16 / 0,08), contour fin par bande, halo (line-blur) sur le contour extérieur, dernier anneau en pointillés, PPRT en hachures + trait plein, étiquette du rayon le long du contour à partir de z11. Par zoom : z<7 points proportionnels à la population, z7 à 10 zones fusionnées, z>10 détail + étiquettes. Survol d'un site : ses cercles propres en trait fin (polygone 64 segments côté client, aucune nouvelle dépendance) + infobulle population par bande.
-
-\- 2 ou 3 zooms de référence sur grappes denses (vallée de la chimie, Le Havre, Fos) pour montrer les superpositions.
-
-\- Panneau latéral : liste des classes (Haut PPRT, Haut bande 1..n, Bas..., hors zone) avec population, CP retenus, multiplicateur d'enchère éditable.
-
-\- Bloc "Dilution CP" : curseur seuil\_couverture\_cp, et en clair population exposée vs population des CP retenus, soit un taux d'utile. C'est le point dur : le DSP achète au CP, un cercle de 1 km est bien plus petit qu'un CP.
-
-\- Actions : Enregistrer le jeu de zones (nom + description), Dupliquer, Exporter (Excel : classes, CP retenus, poids ; plus un export points + rayons pour les DSP à ciblage par proximité).
-
-\- Les jeux enregistrés apparaissent dans l'entrée "Zones" de la barre latérale : liste, ouverture, suppression.
-
-Tuiles : sert les géométries du jeu via le pattern MVT existant (/api/tiles/..., ST\_AsMVT, gzip, simplification par zoom, même auth). Filtre Seveso haut / bas dans la légende de la couche, synchronisé avec le module. Clic tableau vers carte (fitBounds + surbrillance) et carte vers module.
+Garde les textes d'explication existants, ils sont bons, et garde la phrase sur les habitants à moins de 10 km non retenus par les anneaux, qui empêche de lire le total comme "la population non exposée de France".
 
 
 
-\## Phase 4 : le jeu de zones comme plan de campagne
+\## Phase 2 : la barre permanente
 
-Dans Campagne > Stratégie : une campagne tire son plan soit d'une variable (abstention, etc.), soit d'un jeu de zones. Sélecteur, avec la version du jeu figée au moment du rattachement.
+Toujours visible, quelle que soit l'étape, dans cet ordre :
 
-Génération du plan à la maille CP depuis zone\_set\_cp :
+1\. Filtres : Cible, Territoire, Nature de la zone, Niveau réglementaire (chips actuels conservés).
 
-\- mode 'exclusif' : part de plan nulle hors zone, répartition entre CP retenus au prorata de (population en zone x poids de la classe) ;
+2\. Réglette unique : une réglette par niveau actif quand lie = false, une seule quand lie = true. Lecture immédiate, sans recalcul, comme aujourd'hui. Chips de rappel ("Haut 2 km", "Bas 1 km") cliquables pour éditer.
 
-\- mode 'pondere' : tous les CP, au prorata de (population x poids de la classe du CP, 1 hors zone).
+3\. Bandeau KPI, 6 chiffres, format français, JetBrains Mono :
 
-Affiche la part de plan concentrée en zone et le taux d'utile au moment du rattachement.
+&#x20;  - population couverte (somme exclusive)
 
+&#x20;  - part de la population France
 
+&#x20;  - sites retenus sur total (ex. 421 / 676)
 
-\## Phase 5 : Suivi générique
+&#x20;  - codes postaux retenus
 
-Libellés, carte du milieu, légendes et textes d'aide viennent des métadonnées du plan, rien en dur ("taux d'abstention" ne doit plus apparaître pour un plan zones).
+&#x20;  - taux d'utile : population couverte / population des CP retenus. Indicateur clé, à styliser comme tel : il chute fortement aux petits rayons et doit être vu avant l'achat, pas après.
 
-Quand le plan est un jeu de zones, ajoute un bloc "Pression par classe" : part des impressions vs part du plan, indice (part impressions / part plan x 100, repère à 100), part diffusée hors zone, évolution quotidienne en zone vs hors zone. Barres par classe + tableau par territoire à la maille choisie.
+&#x20;  - gain marginal : habitants gagnés par 100 m de plus, au rayon courant (déjà calculé pour la courbe).
 
-
-
-\## Phase 6 : refaire le seed
-
-scripts/seed-demo-campagne-risque.ts, graine fixe, reproductible, purge incluse :
-
-\- crée d'abord un jeu de zones de démo, puis la campagne "\[DEMO] Risque industriel" rattachée à ce jeu ;
-
-\- 30 jours, maille CP, 20 à 40 M d'impressions au total, CPM distincts par partenaire (fourchette réaliste 3 à 12 €) ;
-
-\- scénario volontaire : sous-pression sur Seveso haut, sur-pression sur 2 ou 3 régions, pour que le Suivi montre des écarts ;
-
-\- respecte les contraintes d'unicité des tables (pré-agréger avant insert, lots de 50) ;
-
-\- badge "Données de démonstration" visible.
+Chaque KPI a une infobulle avec sa définition en une phrase.
 
 
 
-\## Phase 7 : finitions
+\## Phase 3 : fil d'Ariane et carte permanente
 
-États vides, chargement, erreur. Navigation clavier sur chips, marqueurs et curseurs. Nombres au format français, en JetBrains Mono. Tests Vitest : règle d'affectation, Zod du profil, profil\_hash, prorata CP, génération de plan dans les deux modes, score non calculable. Lint, typecheck et npm run catalogue propres.
+Fil d'Ariane "① Sites › ② Rayon › ③ Couverture › ④ Zones", chaque étape cliquable dans les deux sens, jamais un tunnel : on revient sans arrêt du 3 au 2. Étape courante soulignée, étapes déjà renseignées marquées. Navigation clavier.
+
+Mise en page : panneau de l'étape à gauche, carte à droite, toujours montée (une seule instance MapLibre, jamais démontée entre les étapes, seules les couches et la caméra changent). Poignée de redimensionnement, et bouton plein écran carte.
+
+Couches et zoom :
+
+\- z < 7 : points proportionnels à la population couverte par site, les zones ne sont pas lisibles à cette échelle et ne sont pas rendues.
+
+\- z 7 à 10 : zones fusionnées par niveau.
+
+\- z > 10 : détail, contours par classe, étiquette du rayon le long du contour.
+
+Style (tokens du design system, clair et dark) : Seveso haut rouge corail, bas ambre, autres gris bleuté. Trait plein pour les périmètres PPRT publiés, tireté pour les rayons calculés, comme le dit déjà la légende actuelle. Opacité modérée, aucune superposition d'opacité grâce à l'union des géométries.
+
+Survol d'un site : ses cercles en trait fin (polygone 64 segments côté client, aucune nouvelle dépendance) et infobulle population par classe.
+
+Conserve les raccourcis Vallée de la chimie, Estuaire de la Seine, Étang de Berre.
+
+
+
+\## Phase 4 : les quatre panneaux
+
+① Sites : sélection des niveaux, décompte par niveau et par nature de risque, part des sites couverts par un périmètre PPRT publié. Carte : points seuls.
+
+② Rayon : la courbe devient le sélecteur. Redessine-la PAR NIVEAU (seuil haut, seuil bas, cumul exclusif), en affectation exclusive, cohérente avec le tableau, pour supprimer la contradiction actuelle. Les natures de risque restent accessibles en bascule secondaire, avec leur note expliquant qu'elles ne s'additionnent pas. Marqueurs déplaçables sur la courbe, clic pour poser le rayon, tableau des classes (Périmètre PPRT, Bande calculée) par niveau avec population et cumul. Carte : anneaux qui se dilatent en direct pendant le glissement.
+
+③ Couverture : tableau à la maille choisie (Région, Département, Code postal, Commune) + choroplèthe latérale (Part %, Densité, Effectif) déjà en place. Survol de ligne : surbrillance sur la grande carte. Clic : fitBounds. Garde les notes existantes sur l'outre-mer et sur la colonne "sites" qui ne s'additionne pas.
+
+④ Zones : liste des classes (Haut PPRT, Haut bande, Bas PPRT, Bas bande, autres) avec population, CP retenus et multiplicateur d'enchère éditable (0 à 5, défaut 1). Curseur "CP retenu si au moins X % de sa population est en zone" (défaut 20 %), avec l'effet sur le taux d'utile affiché en direct. Enregistrement du jeu de zones (nom, description), duplication, liste des jeux enregistrés, suppression. Exports : Excel (classes, CP retenus, poids) et fichier points + rayons pour les outils à ciblage par proximité.
+
+
+
+\## Phase 5 : finitions
+
+États vides, chargement, erreur sur chaque panneau. Conserve le cache et la mention "résultat mémorisé · date · durée de calcul". Nombres au format français. Tests Vitest : règle d'affectation, Zod de l'état, hash de profil, cohérence courbe / tableau (même rayon, même total), taux d'utile, seuil de rétention CP. Lint, typecheck et npm run catalogue propres, code mort des anciens onglets supprimé.
 
 
 
@@ -162,11 +140,11 @@ scripts/seed-demo-campagne-risque.ts, graine fixe, reproductible, purge incluse 
 
 \- Aucune nouvelle dépendance npm (Next 15.5, React 19, MapLibre 5.18, shadcn/Radix, Recharts 3.8, exceljs, Zod).
 
-\- Routes API : Zod en entrée, getSession côté API (jamais getUser).
+\- Routes API : Zod en entrée, getSession côté API, jamais getUser.
 
 \- Migrations via le MCP Supabase, index GIST sur toute géométrie, EXPLAIN ANALYZE avant application, jamais de scan complet de carreaux\_filosofi, lots de 50, max 3 requêtes parallèles (compute Nano).
 
-\- Conserve le cache de résultats et la mention "résultat mémorisé".
+\- Tuiles : /api/tiles/..., ST\_AsMVT, gzip obligatoire, simplification par zoom.
 
 \- Interface en français, pas de tiret cadratin.
 
