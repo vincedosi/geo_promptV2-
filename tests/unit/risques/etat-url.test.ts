@@ -75,9 +75,31 @@ describe('lireEtatUrl', () => {
       etape: 'zones',
       jeu: 'b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e',
       atelier: true,
+      // `false`, donc l'inverse du défaut : un aller-retour qui porterait la
+      // valeur par défaut ne prouverait rien, elle ne s'écrit pas.
+      fusionner: false,
       campagne: '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0',
     };
     expect(allerRetour(etat)).toEqual(etat);
+  });
+
+  it('la lecture des zones est fusionnee par defaut, et ne s ecrit pas', () => {
+    expect(ETAT_DEFAUT.fusionner).toBe(true);
+    expect(ecrireEtatUrl(ETAT_DEFAUT)).not.toContain('fusion');
+    expect(lireEtatUrl(new URLSearchParams()).fusionner).toBe(true);
+  });
+
+  it('seul fusion=0 defusionne — toute autre valeur retombe sur les enveloppes', () => {
+    /*
+     * La lecture sûre est le mode fusionné. Un `fusion=` vide, mal encodé ou
+     * tronqué par un client de messagerie ne doit pas remplacer les
+     * enveloppes par des centaines de cercles : le lecteur croirait voir une
+     * carte que son auteur n'a pas envoyée.
+     */
+    expect(lireEtatUrl(new URLSearchParams('fusion=0')).fusionner).toBe(false);
+    for (const brut of ['fusion=1', 'fusion=', 'fusion=non', 'fusion=false', 'fusion=00']) {
+      expect(lireEtatUrl(new URLSearchParams(brut)).fusionner, brut).toBe(true);
+    }
   });
 
   it('un ancien lien onglet=diffusion ouvre l etape Zones', () => {

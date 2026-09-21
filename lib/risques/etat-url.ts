@@ -95,6 +95,21 @@ export interface EtatRisque {
    * montrer d'où ils viennent, pas seulement ce qu'ils valent.
    */
   atelier: boolean;
+  /**
+   * Les zones sont-elles affichées fusionnées par bande, ou site par site ?
+   *
+   * ⚠ C'est le SEUL champ de cet état qui ne change aucun chiffre — et il est
+   * ici quand même. Le commentaire de tête dit « tout ce qui change un chiffre
+   * affiché », ce qui l'exclurait ; mais la règle qu'il sert est « un lien
+   * partagé doit rendre la vue de son auteur », et deux lecteurs qui voient
+   * l'un des enveloppes et l'autre des cercles ne regardent pas la même carte.
+   *
+   * Aucun chargement n'en dépend : les cinq crochets de données prennent des
+   * champs scalaires nommés (`code`, `cible`, `maille`, `cleNatures`…) et
+   * jamais l'état entier, donc basculer cette case ne relance aucun calcul.
+   * C'est vérifié, pas supposé — et c'est ce qui rend la bascule instantanée.
+   */
+  fusionner: boolean;
   campagne: string | null;
 }
 
@@ -123,6 +138,13 @@ export const ETAT_DEFAUT: EtatRisque = {
   etape: 'sites',
   jeu: null,
   atelier: false,
+  /*
+   * Fusionné par défaut : c'est la lecture qui répond à la question du module
+   * — « jusqu'où s'étend le risque » — sans faire croire à une intensité là où
+   * il n'y a qu'une densité de sites. Le mode site par site répond à une autre
+   * question, « de quel site vient cette zone », qu'on ne pose qu'ensuite.
+   */
+  fusionner: true,
   campagne: null,
 };
 
@@ -179,6 +201,9 @@ export function ecrireEtatUrl(e: EtatRisque): string {
   if (e.etape !== ETAT_DEFAUT.etape) p.set('etape', e.etape);
   if (e.jeu) p.set('jeu', e.jeu);
   if (e.atelier) p.set('atelier', '1');
+  // `fusion=0` et non `fusion=1` : le défaut ne s'écrit pas, donc seul le mode
+  // site par site laisse une trace — celui qu'on a choisi.
+  if (!e.fusionner) p.set('fusion', '0');
   if (e.campagne) p.set('campagne', e.campagne);
   return p.toString();
 }
@@ -246,6 +271,14 @@ export function lireEtatUrl(p: URLSearchParams): EtatRisque {
       : ETAPES_HERITEES[etapeBrute ?? ''] ?? ETAT_DEFAUT.etape,
     jeu: jeu && MOTIF_UUID.test(jeu) ? jeu : null,
     atelier: atelier === '1',
+    /*
+     * Seul `fusion=0` défusionne. Toute autre valeur — absente, vide, « oui »,
+     * tronquée par un client de messagerie — retombe sur le défaut fusionné,
+     * qui est la lecture sûre : un `fusion=` mal transporté ne doit pas
+     * remplacer les enveloppes par des centaines de cercles sans qu'on l'ait
+     * demandé.
+     */
+    fusionner: p.get('fusion') !== '0',
     campagne: campagne && MOTIF_UUID.test(campagne) ? campagne : null,
   };
 }

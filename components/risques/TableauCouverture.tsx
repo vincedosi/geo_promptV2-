@@ -151,10 +151,35 @@ export function TableauCouverture({
   return (
     <>
       <div style={{ display: 'flex', gap: 28, marginBottom: 16, flexWrap: 'wrap' }}>
+        {/*
+          ⚠ La note disait « la somme des lignes égale ce total », et c'était
+          FAUX — mesuré le 2026-09-21 sur le profil par défaut : l'écart vaut
+          +1 habitant à la maille région, +22 au département, +502 à la
+          commune. Il croît avec le nombre d'unités, à ~0,19 par unité, parce
+          que chaque cellule (unité × classe) est arrondie à l'entier avant
+          d'être sommée.
+
+          Le total, lui, est groupé sur la CLASSE SEULE (sql/222) et tombe
+          exactement sur la somme de `par_classe`. Ce n'est pas un hasard :
+          c'est ce qui le rend IDENTIQUE aux quatre mailles, la propriété que
+          sql/222 a précisément établie après avoir mesuré 24 406 565 en région
+          contre 24 408 136 en commune pour un même profil.
+
+          On ne peut pas avoir les deux. Faire de `total` la somme des lignes
+          le ferait redépendre de la maille, ce qui est le défaut le plus grave
+          des deux : un total qui bouge quand on change de découpage fait
+          douter de tout l'écran, là où un arrondi de 502 sur 7 millions ne se
+          voit sur aucun chiffre affiché. C'est donc la PHRASE qui change.
+
+          ⚠ Elle compte au-delà de l'écran : `/api/risques/profil/export`
+          verse ces lignes dans un tableur, où quelqu'un sommera la colonne.
+          Mieux vaut qu'il ait lu « à l'arrondi près » ici que de croire son
+          tableur contre l'application.
+        */}
         <Kpi
           valeur={formaterNombre(bandes.total)}
           libelle={libelleCible.toLowerCase()}
-          note="la somme des lignes égale ce total"
+          note="les lignes se répartissent ce total, à l'arrondi près"
           accent
         />
         <Kpi

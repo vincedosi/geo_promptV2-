@@ -91,6 +91,24 @@ const ID_SITES = 'atelier-sites-points';
 const COUCHES_ZONES = [ID_FOND, ID_CONTOUR, ID_PPRT, ID_ETIQUETTES] as const;
 const ID_SURVOL = 'atelier-survol-cercles';
 const ID_APERCU = 'atelier-apercu-cercles';
+const SOURCE_CERCLES = 'atelier-cercles';
+const ID_CERCLES = 'atelier-cercles-traits';
+
+/**
+ * Le nombre de cercles dessinés en mode « site par site ».
+ *
+ * ⚠ Le plafond porte sur les CERCLES et non sur les sites, contrairement à
+ * `APERCU_SITES_MAX` — et ce n'est pas une coquetterie : un site du seuil haut
+ * porte jusqu'à quatre anneaux, donc plafonner à 250 sites autoriserait
+ * 1 000 cercles, quatre fois la charge que ce même plafond borne pour
+ * l'aperçu. Compter ce qu'on dessine est la seule façon de borner ce qu'on
+ * paie.
+ *
+ * 400 × 64 segments = 25 600 points, du même ordre que les 16 000 de l'aperçu
+ * à pleine charge — et celui-ci se reconstruit à chaque position du curseur,
+ * là où ceux-ci ne bougent qu'au relâchement ou au panoramique.
+ */
+const CERCLES_MAX = 400;
 
 /**
  * Le nombre de sites dont on dessine l'aperçu pendant un glissement.
@@ -168,15 +186,43 @@ interface Props {
    * qu'elle n'affiche pas, ou l'inverse.
    */
   natures: string[];
+  /**
+   * Zones fusionnées par bande (défaut), ou un cercle par site et par anneau.
+   *
+   * ⚠ Les deux modes ne répondent PAS à la même question, et c'est la raison
+   * d'être de la bascule. Fusionné : « jusqu'où s'étend le risque » — les
+   * enveloppes sont exclusives (sql/205, recouvrement mesuré à 0,00 m²) et
+   * leur opacité encode la DISTANCE. Site par site : « de quel site vient
+   * cette zone » — une question que l'aplat exclusif ne peut pas trancher, et
+   * qui n'était jusqu'ici atteignable qu'au survol, un site à la fois.
+   *
+   * ⚠ Basculer ne relance AUCUN calcul : les zones fusionnées sont déjà en
+   * cache côté serveur, les cercles se dérivent des sites déjà chargés, et
+   * aucun crochet de données ne dépend de ce booléen. On change de couche, pas
+   * de chiffre.
+   */
+  fusionner: boolean;
 }
 
-export function CarteRisque({ profil, apercu, gravites, natures }: Props) {
+export function CarteRisque({ profil, apercu, gravites, natures, fusionner }: Props) {
   const conteneur = useRef<HTMLDivElement | null>(null);
   const carte = useRef<maplibregl.Map | null>(null);
   const { theme } = useTheme();
   const [zoom, setZoom] = useState(9);
   const [nSites, setNSites] = useState<number | null>(null);
   const [preparation, setPreparation] = useState(false);
+  /*
+   * Un compteur de chargements de sites, et surtout PAS `nSites`.
+   *
+   * Les cercles du mode site par site se dérivent de `sitesRef`, une `ref` que
+   * React ne surveille pas : il faut donc un signal d'état pour les redessiner
+   * après un panoramique. `nSites` en serait un mauvais — deux vues voisines
+   * rendent souvent le MÊME nombre de sites, l'effet ne se relancerait pas, et
+   * la carte garderait les cercles de la vue précédente à côté des points de
+   * la nouvelle. Un compteur qui s'incrémente à chaque chargement réussi ne
+   * peut pas se taire sur une coïncidence de comptage.
+   */
+  const [versionSites, setVersionSites] = useState(0);
 
   /*
    * ⚠ Le profil dans une `ref`, lu par le gestionnaire de survol.
@@ -188,6 +234,24 @@ export function CarteRisque({ profil, apercu, gravites, natures }: Props) {
    */
   const profilRef = useRef(profil);
   profilRef.current = profil;
+
+  /*
+   * ⚠ Le mode d'affichage dans une `ref` EN PLUS de la prop, et les deux
+   * servent — ce n'est pas une redondance.
+   *
+   * L'effet des zones RECRÉE ses quatre couches à chaque changement de profil,
+   * de natures ou de thème, et une couche fraîchement ajoutée est visible.
+   * Sans cette `ref` lue à la création, déplacer un anneau en mode site par
+   * site ferait réapparaître les enveloppes par-dessus les cercles — les deux
+   * lectures superposées, donc aucune des deux.
+   *
+   * La `ref` décide donc à la CRÉATION, la prop décide à la BASCULE. Ajouter
+   * `fusionner` aux dépendances de l'effet des zones aurait recréé la source
+   * vectorielle à chaque clic sur la case, donc redemandé toutes les tuiles
+   * pour un changement qui n'en change aucune.
+   */
+  const fusionnerRef = useRef(fusionner);
+  fusionnerRef.current = fusionner;
 
   /*
    * La construction de la géométrie des zones, mesurée à 2 805 ms pour les
@@ -334,6 +398,8 @@ export function CarteRisque({ profil, apercu, gravites, natures }: Props) {
         source: SOURCE_ZONES,
         'source-layer': 'zones_risque',
         minzoom: ZONES_RISQUE_ZOOM_LISIBLE,
+        // Voir `fusionnerRef` : la création lit la ref, la bascule lit la prop.
+        layout: { visibility: fusionnerRef.current ? 'visible' : 'none' },
         paint: {
           'fill-color': expressionCouleurNiveau(theme) as never,
           // Aplat uni par niveau de loin, bandes détaillées de près.
@@ -356,6 +422,7 @@ export function CarteRisque({ profil, apercu, gravites, natures }: Props) {
         'source-layer': 'zones_risque',
         minzoom: ZONES_RISQUE_ZOOM_DETAIL,
         filter: ['!=', ['get', 'bande'], null],
+        layout: { visibility: fusionnerRef.current ? 'visible' : 'none' },
         paint: {
           'line-color': expressionCouleurNiveau(theme) as never,
           'line-width': LARGEUR_TRAIT_ZONE,
@@ -380,6 +447,7 @@ export function CarteRisque({ profil, apercu, gravites, natures }: Props) {
         'source-layer': 'zones_risque',
         minzoom: ZONES_RISQUE_ZOOM_LISIBLE,
         filter: ['==', ['get', 'bande'], null],
+        layout: { visibility: fusionnerRef.current ? 'visible' : 'none' },
         paint: {
           'line-color': expressionCouleurNiveau(theme) as never,
           'line-width': LARGEUR_TRAIT_ZONE + 0.5,
@@ -408,6 +476,7 @@ export function CarteRisque({ profil, apercu, gravites, natures }: Props) {
         'source-layer': 'zones_risque',
         minzoom: ZONES_RISQUE_ZOOM_DETAIL,
         layout: {
+          visibility: fusionnerRef.current ? 'visible' : 'none',
           'symbol-placement': 'line',
           'text-field': etiquetteClasse as never,
           // Une police du style OpenFreeMap : demander une fonte absente ferait
@@ -541,6 +610,7 @@ export function CarteRisque({ profil, apercu, gravites, natures }: Props) {
         // redemander à chaque position du curseur serait absurde.
         sitesRef.current = fc;
         setNSites(Array.isArray(fc?.features) ? fc.features.length : null);
+        setVersionSites((v) => v + 1);
       } catch {
         // Une carte sans ses points reste lisible : les zones sont l'objet.
         // Effacer la couche ferait croire qu'il n'y a plus de site.
@@ -678,6 +748,82 @@ export function CarteRisque({ profil, apercu, gravites, natures }: Props) {
     src.setData({ type: 'FeatureCollection', features: retenus });
   }, [apercu]);
 
+  /* ── Les cercles du mode site par site ─────────────────────────────────── */
+  useEffect(() => {
+    const m = carte.current;
+    if (!m) return;
+    const src = m.getSource(SOURCE_CERCLES) as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+
+    /*
+     * On ne construit RIEN tant que la case est cochée. Les cercles se
+     * dérivent certes sans requête, mais 400 cercles de 64 segments restent
+     * 25 600 points qu'on garderait en mémoire vive pour une couche masquée —
+     * et qu'il faudrait reconstruire à chaque panoramique sans que personne
+     * les regarde.
+     */
+    if (fusionner) {
+      src.setData({ type: 'FeatureCollection', features: [] });
+      return;
+    }
+
+    const features: GeoJSON.Feature[] = [];
+    for (const f of sitesRef.current?.features ?? []) {
+      if (features.length >= CERCLES_MAX) break;
+      const g = f.geometry;
+      if (!g || g.type !== 'Point') continue;
+      const gravite = String((f.properties as Record<string, unknown>)?.gravite ?? '');
+      const niveau: Niveau = gravite === 'seveso_haut' ? 'haut'
+        : gravite === 'seveso_bas' ? 'bas' : 'autres';
+      const [lon, lat] = g.coordinates as [number, number];
+      /*
+       * ⚠ `anneauxDuNiveau` et jamais `profil[niveau]` : quand le cadenas est
+       * fermé, ce sont les anneaux du niveau haut qui s'appliquent à tous, et
+       * lire le champ brut dessinerait des cercles que la légende contredit.
+       *
+       * Le niveau `autres` n'a aucun anneau par défaut — il n'est pas calculé
+       * par ce module. Ses sites gardent donc leur point, sans cercle : c'est
+       * la vérité, et la légende le dit déjà (« non calculés à ce jour »).
+       */
+      for (const rayon of anneauxDuNiveau(profilRef.current, niveau)) {
+        if (features.length >= CERCLES_MAX) break;
+        const cercle = circleGeoJSON(lon, lat, rayon);
+        features.push({
+          ...cercle,
+          properties: { ...(cercle.properties ?? {}), niveau },
+        } as GeoJSON.Feature);
+      }
+    }
+    src.setData({ type: 'FeatureCollection', features });
+  }, [fusionner, profil, versionSites]);
+
+  /* ── La bascule entre les deux lectures ────────────────────────────────── */
+  useEffect(() => {
+    const m = carte.current;
+    if (!m) return;
+    /*
+     * ⚠ Les couches peuvent ne pas exister encore — le style n'est pas chargé
+     * au premier rendu, et l'effet des zones les recrée à chaque profil.
+     * `setLayoutProperty` LÈVE sur une couche absente, et l'exception
+     * interromprait la boucle en laissant les autres couches dans l'état
+     * précédent : une moitié de chaque lecture à l'écran.
+     */
+    const basculer = (id: string, visible: boolean) => {
+      if (!m.getLayer(id)) return;
+      m.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
+    };
+    for (const id of COUCHES_ZONES) basculer(id, fusionner);
+    basculer(ID_CERCLES, !fusionner);
+    /*
+     * `fusionner` SEUL, et volontairement pas les dépendances de l'effet des
+     * zones. La visibilité à la CRÉATION est déjà portée par `fusionnerRef`,
+     * là où les couches sont posées : recopier ici la liste de leurs
+     * dépendances donnerait deux mécanismes pour une seule règle, et le jour
+     * où cette liste change d'un côté sans l'autre, la carte afficherait les
+     * deux lectures superposées.
+     */
+  }, [fusionner]);
+
   /* ── La couche de survol ───────────────────────────────────────────────── */
   useEffect(() => {
     const m = carte.current;
@@ -714,6 +860,47 @@ export function CarteRisque({ profil, apercu, gravites, natures }: Props) {
        * établie. Les vraies portent un aplat, une opacité par bande et un
        * contour par classe ; celle-ci n'a qu'un trait.
        */
+      /*
+       * ── LE MODE SITE PAR SITE ────────────────────────────────────────
+       *
+       * Posé le PREMIER, donc sous l'aperçu et sous le survol : quand on règle
+       * ou qu'on survole, ces gestes-là doivent rester lisibles par-dessus.
+       *
+       * ⚠ `line` et non `fill`, pour la raison mesurée sous l'aperçu : des
+       * disques concentriques qui se recouvrent empilent leur alpha, et une
+       * grappe dense vire à l'aplat plein. Or ce mode existe justement pour
+       * montrer QUI engendre quoi — le noyer sous un aplat lui retirerait sa
+       * seule raison d'être.
+       *
+       * La couleur vient de la propriété `niveau` de chaque cercle et non
+       * d'une constante : deux sites de seuils différents peuvent avoir des
+       * cercles imbriqués, et une teinte unique les rendrait indiscernables.
+       */
+      m.addSource(SOURCE_CERCLES, {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+      m.addLayer({
+        id: ID_CERCLES,
+        type: 'line',
+        source: SOURCE_CERCLES,
+        layout: { visibility: 'none' },
+        paint: {
+          'line-color': [
+            'match', ['get', 'niveau'],
+            'haut', COULEUR_NIVEAU[theme].haut,
+            'bas', COULEUR_NIVEAU[theme].bas,
+            COULEUR_NIVEAU[theme].autres,
+          ] as never,
+          'line-width': LARGEUR_TRAIT_ZONE,
+          // Tireté : ce sont des rayons QUE NOUS CALCULONS, même convention
+          // que le contour des bandes. Un trait plein le ferait passer pour un
+          // périmètre publié par l'État.
+          'line-dasharray': TIRETE_ZONE_CALCULEE as never,
+          'line-opacity': 0.75,
+        },
+      });
+
       m.addSource(SOURCE_APERCU, {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },

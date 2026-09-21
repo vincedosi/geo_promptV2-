@@ -1120,6 +1120,36 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         </Champ>
 
 
+        {/*
+          ── LA SEULE COMMANDE DE CETTE BARRE QUI NE FILTRE RIEN ──────────
+          Les autres décident de ce qu'on RETIENT ; celle-ci de comment on le
+          LIT. Elle est ici quand même, parce que la barre vaut pour les
+          quatre étapes et que la carte, elle aussi, est permanente.
+
+          ⚠ Aucun recalcul : les enveloppes sont déjà en cache côté serveur et
+          les cercles se dérivent des sites déjà chargés. C'est la raison pour
+          laquelle cette case peut vivre dans la barre des filtres sans y
+          apporter le coût des filtres.
+        */}
+        <Champ label="Lecture des zones">
+          <div style={{ display: 'flex', gap: 4 }}>
+            <Pastille
+              actif={etat.fusionner}
+              titre="Une enveloppe continue par bande — jusqu'où s'étend le risque"
+              onClick={() => majEtat({ fusionner: true })}
+            >
+              Fusionnées
+            </Pastille>
+            <Pastille
+              actif={!etat.fusionner}
+              titre="Un cercle par site et par anneau — de quel site vient cette zone"
+              onClick={() => majEtat({ fusionner: false })}
+            >
+              Site par site
+            </Pastille>
+          </div>
+        </Champ>
+
         {/* Le rappel de ce qui a été hérité du panneau, pour que l'utilisateur
             sache d'où vient un filtre qu'il n'a pas posé ici. */}
         {typesRisque.length > 0 && (
@@ -1537,6 +1567,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
             apercu={apercuRayon}
             gravites={niveaux}
             natures={natures}
+            fusionner={etat.fusionner}
           />
 
           {/*

@@ -138,6 +138,47 @@ describe('les quatre mailles', () => {
     }
   });
 
+  /*
+   * ── CE QUE `total` N'EST PAS, ET POURQUOI ON NE LE « RÉPARE » PAS ───────
+   *
+   * La somme des LIGNES ne retombe pas sur `total`, contrairement à la somme
+   * de `par_classe` testée juste au-dessus. Mesuré le 2026-09-21 sur le profil
+   * par défaut : +1 habitant à la maille région, +22 au département, +502 à la
+   * commune — l'écart croît avec le nombre d'unités, parce que chaque cellule
+   * (unité × classe) est arrondie à l'entier avant d'être sommée.
+   *
+   * ⚠ C'est un choix, et l'inverse serait PIRE. Faire de `total` la somme des
+   * lignes le ferait redépendre de la maille, ce que le premier test de ce
+   * fichier interdit — et pour cause : l'écran affichait 24 406 565 en région
+   * contre 24 408 136 en commune pour un même profil avant sql/222. Un total
+   * qui bouge quand on change de découpage fait douter de tout l'écran ; un
+   * arrondi de 502 sur 7 millions ne se voit sur aucun chiffre affiché.
+   *
+   * Ce test ne verrouille donc pas une égalité mais un ORDRE DE GRANDEUR :
+   * l'écart doit rester celui d'un arrondi. Chaque cellule dérive d'au plus
+   * un demi-habitant et une unité porte au plus huit classes, donc un demi
+   * par unité est déjà large — mais suffisamment serré pour distinguer un
+   * arrondi de la perte d'un département entier, qui est ce qu'on veut voir.
+   *
+   * L'interface dit « les lignes se répartissent ce total, à l'arrondi près ».
+   * Elle affirmait l'égalité jusqu'au 2026-09-21, ce qui était faux — et le
+   * seul test qui semblait la garantir portait sur `population_exposee_agregee`,
+   * l'AUTRE moteur, où elle est vraie (un carreau y appartient à une unité).
+   */
+  it('la somme des lignes dérive du total d’un arrondi, et pas plus', () => {
+    if (!precalcul) return;
+    for (const m of MAILLES) {
+      const b = parMaille.get(m)!;
+      const somme = (b.unites ?? []).reduce((t, u) => t + u.total, 0);
+      const ecart = Math.abs(somme - b.total!);
+      expect(
+        ecart,
+        `${m} : écart ${ecart} entre le total ${b.total} et la somme des ${b.n_unites} lignes `
+        + '— trop grand pour un arrondi, c’est une unité perdue ou comptée deux fois',
+      ).toBeLessThanOrEqual(b.n_unites!);
+    }
+  });
+
   it('le nombre d’unités croît avec la finesse de la maille', () => {
     if (!precalcul) return;
     const n = (m: string) => parMaille.get(m)!.n_unites!;
