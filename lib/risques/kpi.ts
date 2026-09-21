@@ -66,5 +66,23 @@ export function tauxUtile(
 ): number | null {
   if (!touchees || touchees <= 0) return null;
   if (reference && touchees >= reference) return null;
-  return Math.round((total / touchees) * 1000) / 10;
+
+  const taux = Math.round((total / touchees) * 1000) / 10;
+  /*
+   * ── ET QUAND LES DEUX SE CONFONDENT À L'AFFICHAGE ───────────────────────
+   *
+   * L'égalité exacte ne suffit pas, et la mesure l'a montré le jour même : à
+   * la maille DÉPARTEMENT sur la France entière, presque toutes les unités
+   * sont touchées — 22,1 % et 22,1 % s'affichaient côte à côte sous deux
+   * libellés. Le dénominateur différait de quelques dizaines de milliers
+   * d'habitants sur 63,8 millions, donc la garde d'égalité ne voyait rien.
+   *
+   * ⚠ Ce n'est PAS un seuil inventé : la comparaison se fait à la précision
+   * RÉELLEMENT AFFICHÉE, une décimale. Si l'écran ne peut pas distinguer les
+   * deux nombres, le second n'apprend rien — quelle que soit la distance qui
+   * les sépare en arrière-plan.
+   */
+  const part = partExposee(total, reference);
+  if (part !== null && part === taux) return null;
+  return taux;
 }

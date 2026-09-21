@@ -50,6 +50,28 @@ describe('tauxUtile', () => {
     expect(tauxUtile(TOTAL, REFERENCE + 1, REFERENCE)).toBeNull();
   });
 
+  it('rend null quand les deux se confondent A L AFFICHAGE', () => {
+    /*
+     * Mesuré le 2026-09-21 à la maille département : 22,1 % et 22,1 % côte à
+     * côte sous deux libellés différents. Presque toutes les unités sont
+     * touchées, donc le dénominateur ne diffère que de quelques dizaines de
+     * milliers d'habitants sur 63,8 millions — l'égalité exacte ne voyait
+     * rien. La comparaison se fait à la précision AFFICHÉE, une décimale : si
+     * l'écran ne sait pas les distinguer, le second n'apprend rien.
+     */
+    const presqueTout = Math.round(REFERENCE * 0.999);
+    expect(tauxUtile(TOTAL, presqueTout, REFERENCE)).toBeNull();
+  });
+
+  it('calcule des que l ecart est visible a une decimale', () => {
+    // La contrepartie : on ne masque QUE ce qui est indistinguable. Un écart
+    // d'un dixième de point reste un écart, et il s'affiche.
+    const ecarte = Math.round(REFERENCE * 0.99);
+    const taux = tauxUtile(TOTAL, ecarte, REFERENCE);
+    expect(taux).not.toBeNull();
+    expect(taux).not.toBe(partExposee(TOTAL, REFERENCE));
+  });
+
   it('calcule quand meme si la reference est inconnue', () => {
     // La dégénérescence ne se constate QUE par comparaison. Sans référence, on
     // rend le rapport plutôt qu'un tiret : il reste juste, il est seulement
