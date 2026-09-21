@@ -1260,7 +1260,8 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
       ) : etape === 'zones' ? (
         <OngletZones
           profil={etat.profil}
-          onProfil={(p) => majEtat({ profil: p })}
+          /* Pas de `onProfil` : le rayon vient de la réglette du menu unifié,
+             et de nulle part ailleurs (lot 5). */
           cible={cible}
           libelleCible={libelleCible}
           gravites={niveaux}

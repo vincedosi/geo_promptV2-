@@ -36,7 +36,7 @@ import { fInter, fMono } from '@/lib/design/polices';
 import { Kpi } from '@/components/risques/Kpi';
 import { COULEUR_NIVEAU_CSS } from '@/lib/carte/palette-zones-risque';
 import { libelleClasse, anneauxParNiveau } from '@/lib/risques/libelle-classe';
-import { libelleRayon, type Niveau, type ProfilRayons } from '@/lib/risques/profil';
+import { type Niveau, type ProfilRayons } from '@/lib/risques/profil';
 import {
   useJeuxZones, type ClasseJeu, type JeuResume,
 } from '@/components/risques/use-jeux-zones';
@@ -47,7 +47,12 @@ import {
 
 interface Props {
   profil: ProfilRayons;
-  onProfil: (p: ProfilRayons) => void;
+  /*
+   * ⚠ Pas de `onProfil` : ce panneau ne RÈGLE plus le profil, il le fige. Le
+   * rayon vient exclusivement de la réglette du menu unifié (lot 5). Lui
+   * rendre la capacité d'écrire le profil rouvrirait la porte au réglage en
+   * double que ce lot vient de fermer.
+   */
   cible: string;
   libelleCible: string;
   gravites: string[];
@@ -98,15 +103,24 @@ const ZOOMS_REFERENCE: Array<{
   },
 ];
 
-/**
- * Les rayons que le comparateur propose.
+/*
+ * ⚠ `RAYONS_CANDIDATS` et le « comparateur de rayons » ont été RETIRÉS le
+ * 2026-09-21 : le rayon vient EXCLUSIVEMENT de la réglette du menu unifié.
  *
- * Quatre valeurs rondes qui couvrent l'éventail réel des périmètres PPRT —
- * mesuré sur les 664 périmètres : rayon équivalent médian 286 m, moyenne
- * 532 m, troisième quartile 654 m, maximum 12,3 km. 500 m encadre la médiane,
- * 5 km la longue traîne.
+ * Ce n'était pas qu'un doublon. Adopter un rayon candidat écrivait
+ * `{ ...profil, haut: [r], bas: [r] }` — donc ÉCRASAIT un profil à plusieurs
+ * anneaux en un anneau unique, posé identiquement sur les deux seuils. Un
+ * profil « 1 · 2 · 5 km / 500 m · 1 km » devenait « 2 km / 2 km » d'un clic,
+ * et rien ne prévenait ni ne permettait de revenir.
+ *
+ * La réglette de la barre fait mieux et sans rien détruire : un bord par
+ * niveau, les anneaux intérieurs conservés, et un aperçu qui montre en direct
+ * ce que le rayon recouvre — ce que quatre pastilles ne pouvaient pas dire.
+ *
+ * Les mesures qui justifiaient ces quatre valeurs restent vraies et méritent
+ * de survivre ici : sur les 664 périmètres PPRT, rayon équivalent médian
+ * 286 m, moyenne 532 m, troisième quartile 654 m, maximum 12,3 km.
  */
-const RAYONS_CANDIDATS = [500, 1000, 2000, 5000] as const;
 
 /** Le libellé du mode de plan, et ce qu'il engage. */
 const LIBELLE_MODE: Record<(typeof MODES_PLAN)[number], { titre: string; aide: string }> = {
@@ -130,7 +144,7 @@ function couleurDeClasse(classe: string): string {
 }
 
 export function OngletZones({
-  profil, onProfil, cible, libelleCible, gravites, natures, territoire,
+  profil, cible, libelleCible, gravites, natures, territoire,
   jeuOuvert, onJeuOuvert, onFermer,
 }: Props) {
   const atelier = useJeuxZones();
@@ -245,7 +259,12 @@ export function OngletZones({
           </p>
         )}
 
-        <Comparateur profil={profil} onProfil={onProfil} />
+        {/*
+          ⚠ Le « comparateur de rayons » vivait ICI. Le rayon vient désormais
+          EXCLUSIVEMENT de la réglette du menu unifié — voir l'explication au
+          haut de ce fichier. Ce panneau ne règle plus aucune distance : il
+          fige, nomme et enregistre ce que la barre a réglé.
+        */}
 
         <Section titre="Le jeu de zones">
           {atelier.etat === 'vide' && <EtatAtelierVide onConstruire={construire} />}
@@ -348,62 +367,6 @@ export function OngletZones({
         </Section>
       </div>
     </>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   Le comparateur de rayons
-   ══════════════════════════════════════════════════════════════════════════ */
-
-/**
- * Quatre rayons candidats, à adopter d'un clic.
- *
- * ⚠ Il ne LANCE aucun calcul. Comparer quatre rayons par la population qu'ils
- * exposent demanderait quatre constructions de 21 s, soit une minute et demie
- * pour un écran de choix. Les chiffres d'exposition vivent dans l'onglet
- * « Rayons », qui les calcule déjà anneau par anneau ; ici on choisit un point
- * de départ, on ne mesure pas.
- */
-function Comparateur({ profil, onProfil }: {
-  profil: ProfilRayons;
-  onProfil: (p: ProfilRayons) => void;
-}) {
-  const actuel = profil.haut;
-  return (
-    <Section titre="Partir d’un rayon">
-      {/*
-        Quatre pastilles et non quatre cartes : la CARTE montre désormais ce
-        que chaque rayon recouvre, et répéter l'information en vignettes
-        prenait la moitié de l'écran pour dire moins bien.
-      */}
-      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-        {RAYONS_CANDIDATS.map((r) => {
-          const actif = actuel.length === 1 && actuel[0] === r;
-          return (
-            <button
-              key={r}
-              type="button"
-              onClick={() => onProfil({ ...profil, haut: [r], bas: [r] })}
-              aria-pressed={actif}
-              style={{
-                padding: '6px 12px', borderRadius: 6, cursor: 'pointer',
-                fontFamily: fMono, fontSize: 12,
-                background: actif ? 'var(--brand-teal-10)' : 'transparent',
-                border: `0.5px solid ${actif ? 'var(--brand-teal)' : 'var(--border-subtle)'}`,
-                color: actif ? 'var(--brand-teal)' : 'var(--text-secondary)',
-              }}
-            >
-              {libelleRayon(r)}
-            </button>
-          );
-        })}
-      </div>
-      <p style={{ margin: '8px 0 0', fontFamily: fInter, fontSize: 10.5, color: 'var(--text-tertiary)', lineHeight: 1.55 }}>
-        Remplace le profil par un anneau unique, sur les deux seuils. Les
-        anneaux multiples se règlent dans le tiroir de la barre, qui chiffre ce
-        que chacun ajoute.
-      </p>
-    </Section>
   );
 }
 
