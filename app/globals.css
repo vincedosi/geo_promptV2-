@@ -931,6 +931,45 @@ details > summary::-webkit-details-marker {
   border-radius: 4px;
 }
 
+/* ─── Barre de progression indéterminée (module de risque) ──────────────────── */
+
+/*
+ * Indéterminée, et non à pourcentage : aucune source de l'écran de risque ne
+ * rend d'avancement — ce sont des RPC qui répondent une fois, pas des flux à
+ * étapes. Un pourcentage y serait inventé.
+ *
+ * `transform` seul, jamais `left`/`width` : une animation de position ou de
+ * taille déclenche une mise en page à chaque image, sur un écran qui porte
+ * déjà une carte WebGL.
+ */
+@keyframes risque-barre-indeterminee {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+.risque-barre-indeterminee {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 25%;
+  background: var(--brand-teal);
+  animation: risque-barre-indeterminee 1.1s ease-in-out infinite;
+}
+
+/*
+ * Respecte le réglage système : une barre qui glisse en boucle est exactement
+ * ce que « réduire les animations » demande d'éteindre. Le fond teal reste,
+ * donc l'information « ça travaille » aussi.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .risque-barre-indeterminee {
+    animation: none;
+    width: 100%;
+    opacity: 0.45;
+  }
+}
+
 /* ─── Animations ────────────────────────────────────────────────────────────── */
 
 @keyframes spin {

@@ -40,6 +40,7 @@ import { libelleRayon, type Niveau, type ProfilRayons } from '@/lib/risques/prof
 import {
   useJeuxZones, type ClasseJeu, type JeuResume,
 } from '@/components/risques/use-jeux-zones';
+import { usePiste } from '@/components/risques/ContexteChargement';
 import {
   POIDS_MIN, POIDS_MAX, MODES_PLAN, type JeuDeZones,
 } from '@/lib/zones/jeu';
@@ -206,6 +207,14 @@ export function OngletZones({
     [detail],
   );
   const tauxUtile = achetee > 0 ? (100 * visee) / achetee : null;
+
+  /*
+   * La construction d'un jeu de zones : **21,3 s** mesurées pour 7 classes et
+   * 1 942 codes postaux sur la France. C'est le plus long geste du module, et
+   * le seul dont l'attente était signalée uniquement dans ce panneau — invisible
+   * dès qu'on regardait la carte.
+   */
+  usePiste('jeu-de-zones', 'Construction du jeu de zones…', atelier.etat === 'chargement');
 
   return (
     /*

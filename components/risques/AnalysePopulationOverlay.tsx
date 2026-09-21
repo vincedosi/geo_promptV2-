@@ -51,6 +51,11 @@ import { FournisseurRisque, useEtatRisque } from '@/components/risques/ContexteR
 import type { Etape } from '@/lib/risques/etape';
 import { FilArianeEtapes } from '@/components/risques/FilArianeEtapes';
 import { CarteRisque } from '@/components/risques/CarteRisque';
+import {
+  FournisseurChargement, usePiste, useChargement,
+} from '@/components/risques/ContexteChargement';
+import { BarreProgression, Perime } from '@/components/risques/BarreProgression';
+import { estPerime } from '@/lib/risques/chargement';
 import { PanneauSites } from '@/components/risques/PanneauSites';
 import { ResumeProfil } from '@/components/risques/ResumeProfil';
 import { RegletteRayons } from '@/components/risques/RegletteRayons';
@@ -357,6 +362,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
   const [largeurPanneau, setLargeurPanneau] = useState(480);
   const [carteSeule, setCarteSeule] = useState(false);
 
+
   /**
    * `deptsParRegion` n'est pas un doublon : la route rend les départements
    * IMBRIQUÉS dans leur région, et on les aplatissait en perdant le
@@ -615,6 +621,29 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
     perim ? (perim.niveau as 'departement' | 'region') : null,
     perim ? perim.code : null,
   );
+
+  /*
+   * ── LES PISTES DE CHARGEMENT ────────────────────────────────────────────
+   *
+   * Trois sources vivent ici ; les deux autres se déclarent d'où elles
+   * chargent — la préparation des zones dans `CarteRisque`, la construction
+   * d'un jeu dans le panneau ④. C'est tout l'intérêt du registre : aucune
+   * n'a besoin de savoir où la barre s'affiche.
+   *
+   * Les libellés disent le TRAVAIL et jamais la route : « Calcul de la
+   * population » et non « /profil/bandes », que personne n'attend.
+   */
+  usePiste('bandes', 'Calcul de la population par classe…', resultatBandes.etat === 'chargement');
+  usePiste('courbe', 'Lecture de la courbe de couverture…', resultatCourbe.chargement);
+  usePiste('sites', 'Comptage des sites…', compteSites.chargement);
+
+  const chargement = useChargement();
+  /*
+   * Des chiffres DÉJÀ à l'écran pendant qu'on recalcule : ils décrivent le
+   * filtre précédent, et rien ne le disait jusqu'ici. Au tout premier
+   * chargement il n'y a rien à périmer — `estPerime` fait la distinction.
+   */
+  const perime = estPerime(chargement.actif, resultatBandes.bandes !== null);
 
   /**
    * Le plus grand rayon du profil — l'abscisse à laquelle on lit le gain
@@ -1079,14 +1108,23 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         réglage — ce que faisait l'écran précédent, dont les KPI vivaient dans
         l'onglet Territoires pendant qu'on posait les anneaux ailleurs.
       */}
-      <BandeauKpi
-        bandes={resultatBandes.bandes}
-        sites={compteSites.compte}
-        courbe={courbeTotale}
-        rayonMax={rayonMaxProfil}
-        maille={dimension}
-        libelleCible={libelleCible}
-      />
+      {/*
+        La barre est ENTRE les réglages et les chiffres : c'est le geste du
+        dessus qui déclenche le calcul, et ce sont les chiffres du dessous qui
+        l'attendent. Posée ailleurs, il faudrait la chercher.
+      */}
+      <BarreProgression />
+
+      <Perime actif={perime}>
+        <BandeauKpi
+          bandes={resultatBandes.bandes}
+          sites={compteSites.compte}
+          courbe={courbeTotale}
+          rayonMax={rayonMaxProfil}
+          maille={dimension}
+          libelleCible={libelleCible}
+        />
+      </Perime>
 
       {/*
         ── CE QUI EST PROPRE À L'ONGLET ───────────────────────────────────
@@ -1149,6 +1187,12 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
              */
             visibility: carteSeule ? 'hidden' : 'visible',
           }}
+        >
+        {/* Le panneau de l'étape porte lui aussi des chiffres : le tableau de
+            ③, les décomptes de ①, les classes de ④. Ils périment ensemble. */}
+        <Perime
+          actif={perime}
+          style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
         >
       {etape === 'sites' ? (
         <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
@@ -1348,6 +1392,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         </aside>
       </div>
       )}
+        </Perime>
         </aside>
 
         {/*
@@ -1430,7 +1475,16 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
 export function AnalysePopulationOverlay(props: Props) {
   return (
     <FournisseurRisque>
-      <CorpsAnalyse {...props} />
+      {/*
+        Le registre des chargements enveloppe TOUT le corps : les sources qui
+        chargent ne sont pas au même endroit de l'arbre (les bandes ici, la
+        préparation des zones dans la carte, la construction d'un jeu dans le
+        panneau ④), et chacune déclare sa piste sans savoir où la barre
+        s'affiche.
+      */}
+      <FournisseurChargement>
+        <CorpsAnalyse {...props} />
+      </FournisseurChargement>
     </FournisseurRisque>
   );
 }

@@ -62,6 +62,7 @@ import {
 // service sur la carte du copilote. Un second cercle « maison » dans le même
 // produit, c'est le défaut des quinze `fmtNum` de `lib/format/nombre.ts`.
 import { circleGeoJSON } from '@/app/copilote/_lib/constants';
+import { usePiste } from '@/components/risques/ContexteChargement';
 import { TIRETE_ZONE_CALCULEE, LARGEUR_TRAIT_ZONE } from '@/lib/carte/nature-zone';
 import { CONTOUR_POINT } from '@/lib/carte/palette-risques';
 import { codeProfil, codeZonesRisque } from '@/lib/risques/code-profil';
@@ -150,6 +151,14 @@ export function CarteRisque({ profil, gravites, natures }: Props) {
    */
   const profilRef = useRef(profil);
   profilRef.current = profil;
+
+  /*
+   * La construction de la géométrie des zones, mesurée à 1 326 ms pour les
+   * sept classes du profil par défaut sur la France entière. Elle se déclarait
+   * jusqu'ici par une pastille posée SUR la carte, invisible dès qu'on
+   * regardait le panneau — c'est-à-dire pendant qu'on réglait.
+   */
+  usePiste('zones', 'Découpage des zones…', preparation);
 
   // ⚠ Les formes SÉRIALISÉES, jamais les tableaux : recréés à chaque rendu du
   // parent, ils relanceraient les effets indéfiniment.

@@ -49,6 +49,17 @@ export function useSitesCompte(
 
   useEffect(() => {
     const mien = ++jeton.current;
+    /*
+     * ⚠ Repasser en chargement à CHAQUE changement de filtre, et pas seulement
+     * au premier montage.
+     *
+     * Sans cette ligne, `chargement` restait faux après la première réponse :
+     * le compte précédent restait affiché pendant le nouvel appel, sans que
+     * rien ne le signale, et la barre de progression mutualisée ne voyait
+     * jamais cette source travailler. La donnée, elle, est conservée à
+     * dessein — un écran qui se vide à chaque filtre clignote.
+     */
+    setR((p) => ({ ...p, chargement: true }));
     (async () => {
       const p = new URLSearchParams();
       if (cleGravites) p.set('gravites', cleGravites);
