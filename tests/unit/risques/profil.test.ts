@@ -22,6 +22,7 @@ import {
   RAYON_MAX_M,
   ANNEAUX_MAX,
   anneauxDuNiveau,
+  poserRayonExterieur,
   type ProfilRayons,
 } from '@/lib/risques/profil';
 
@@ -137,5 +138,63 @@ describe('PROFIL_DEFAUT', () => {
     // La finalité du module est le bidding DIFFÉRENCIÉ : un défaut identique
     // sur les deux niveaux n'illustrerait pas ce que l'écran sert à faire.
     expect(PROFIL_DEFAUT.haut.length).toBeGreaterThan(PROFIL_DEFAUT.bas.length);
+  });
+});
+
+/*
+ * ── LA RÉGLETTE DE LA BARRE ───────────────────────────────────────────────
+ *
+ * Le brief compte « une réglette par niveau », ce qui suppose UN anneau par
+ * niveau. Le modèle en porte jusqu'à quatre, et le profil par défaut en a
+ * trois sur le seuil haut. La réglette déplace donc le BORD de la zone —
+ * l'anneau extérieur — et laisse les anneaux intérieurs aux chips.
+ *
+ * C'est la seule lecture qui réconcilie les deux, et c'est aussi celle du
+ * bandeau KPI, dont le gain marginal se lit au rayon maximal.
+ */
+describe('poserRayonExterieur', () => {
+  it('deplace le dernier anneau, en laissant les interieurs en place', () => {
+    expect(poserRayonExterieur(base, 'haut', 7000).haut).toEqual([1000, 2000, 7000]);
+  });
+
+  it('refuse de faire passer le bord SOUS un anneau interieur', () => {
+    // Sans cette garde, poser 1 500 m sur [1000, 2000, 5000] donnerait
+    // [1000, 1500, 2000] après tri : le bord deviendrait 2 000 m, soit
+    // l'inverse du geste demandé. Pire, la bande que l'utilisateur regardait
+    // aurait changé de rang sans qu'il touche à autre chose.
+    expect(poserRayonExterieur(base, 'haut', 1500).haut).toEqual([1000, 2000, 2100]);
+  });
+
+  it('ramene un bord sous le minimum au plancher', () => {
+    expect(poserRayonExterieur({ ...base, haut: [3000] }, 'haut', 10).haut)
+      .toEqual([RAYON_MIN_M]);
+  });
+
+  it('plafonne au bord du pre-calcul', () => {
+    // Au-delà de 10 km il n'y a AUCUNE donnée : une bande vide y serait
+    // indiscernable d'une bande réellement sans habitant.
+    expect(poserRayonExterieur({ ...base, haut: [3000] }, 'haut', 99_000).haut)
+      .toEqual([RAYON_MAX_M]);
+  });
+
+  it('cree le premier anneau d un niveau qui n en a aucun', () => {
+    // Sans cela, la réglette d'un niveau vide serait inerte : on la glisse et
+    // rien ne bouge, ce qui se lit comme un curseur cassé.
+    expect(poserRayonExterieur(base, 'autres', 3000).autres).toEqual([3000]);
+  });
+
+  it('ecrit sur le niveau HAUT quand les niveaux sont lies', () => {
+    // Écrire sur `bas` serait sans effet visible : `anneauxDuNiveau` rend les
+    // anneaux du haut tant que le cadenas est fermé, donc l'écran montrerait
+    // un curseur qui bouge et des chiffres qui ne changent pas.
+    const p = poserRayonExterieur({ ...base, lie: true }, 'bas', 8000);
+    expect(p.haut[p.haut.length - 1]).toBe(8000);
+    expect(anneauxDuNiveau(p, 'bas')).toEqual(p.haut);
+  });
+
+  it('rend un profil canonique, donc une empreinte stable', () => {
+    const p = poserRayonExterieur(base, 'bas', 4000);
+    expect(() => ProfilRayonsSchema.parse(p)).not.toThrow();
+    expect(p.bas).toEqual([...p.bas].sort((a, b) => a - b));
   });
 });

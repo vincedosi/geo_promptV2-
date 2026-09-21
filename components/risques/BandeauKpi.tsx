@@ -34,6 +34,7 @@ import React from 'react';
 import { fInter } from '@/lib/design/polices';
 import { formaterNombre, formaterDecimal } from '@/lib/format/nombre';
 import { Kpi } from '@/components/risques/Kpi';
+import { partExposee, tauxUtile } from '@/lib/risques/kpi';
 import { LIBELLE_DIMENSION, type Dimension } from '@/lib/risques/dimensions';
 import type { Bandes } from '@/components/risques/use-bandes';
 import type { CompteSites } from '@/components/risques/use-sites-compte';
@@ -50,11 +51,6 @@ interface Props {
   libelleCible: string;
 }
 
-/** Un pourcentage à une décimale, ou `null` si le dénominateur manque. */
-function pct(numerateur: number, denominateur: number | null | undefined): number | null {
-  if (!denominateur || denominateur <= 0) return null;
-  return Math.round((numerateur / denominateur) * 1000) / 10;
-}
 
 /**
  * Habitants gagnés par 100 m de rayon supplémentaire, au rayon courant.
@@ -82,8 +78,17 @@ export function BandeauKpi({
   bandes, sites, courbe, rayonMax, maille, libelleCible,
 }: Props) {
   const total = bandes?.total ?? null;
-  const partFrance = bandes ? pct(bandes.total, bandes.population_reference) : null;
-  const tauxUtile = bandes ? pct(bandes.total, bandes.pop_unites_touchees) : null;
+  const partFrance = bandes ? partExposee(bandes.total, bandes.population_reference) : null;
+  /*
+   * ⚠ `null` quand TOUTES les unités du territoire sont touchées : le taux
+   * vaudrait alors exactement la part affichée deux cases à gauche. Mesuré le
+   * 2026-09-21 à la maille région sur la France entière — les deux cases
+   * portaient 32,4 %, sous deux libellés différents. Le détail est dans
+   * `lib/risques/kpi.ts`.
+   */
+  const taux = bandes
+    ? tauxUtile(bandes.total, bandes.pop_unites_touchees, bandes.population_reference)
+    : null;
   const gain = gainMarginal(courbe, rayonMax);
 
   /*
@@ -126,9 +131,21 @@ export function BandeauKpi({
         note="les retenus se décident à l’étape Zones"
       />
       <Kpi
-        valeur={tauxUtile === null ? '—' : `${formaterDecimal(tauxUtile)} %`}
+        valeur={taux === null ? '—' : `${formaterDecimal(taux)} %`}
         libelle="taux d’utile"
-        note={`à la maille ${LIBELLE_DIMENSION[maille].toLowerCase()}`}
+        note={bandes && taux === null
+          /*
+           * La note DIT pourquoi le tiret, et ce qu'il faut faire pour obtenir
+           * le chiffre. Un tiret muet à la place du « chiffre clé » de l'écran
+           * se lit comme une panne.
+           *
+           * ⚠ Conditionnée à `bandes` : pendant le calcul, tous les KPI sont à
+           * « — » et cette note affirmerait que toutes les unités sont touchées
+           * alors que rien n'a encore été mesuré. Une explication donnée avant
+           * le fait qu'elle explique est une affirmation gratuite.
+           */
+          ? `toutes les unités sont touchées à la maille ${LIBELLE_DIMENSION[maille].toLowerCase()}`
+          : `à la maille ${LIBELLE_DIMENSION[maille].toLowerCase()}`}
         accent
       />
       <Kpi
@@ -150,8 +167,9 @@ export function BandeauKpi({
         title={
           'Taux d’utile : part des habitants des unités touchées qui vivent réellement en zone. '
           + 'Il chute aux petits rayons — on achète un territoire entier pour n’en viser qu’une '
-          + 'fraction. Le taux du PLAN, calculé sur les codes postaux réellement retenus, '
-          + 'apparaît à l’étape Zones.'
+          + 'fraction. Il n’est affiché que si des unités sont laissées de côté : quand toutes '
+          + 'sont touchées, il vaut exactement la part et n’apprend rien. Le taux du PLAN, '
+          + 'calculé sur les codes postaux réellement retenus, apparaît à l’étape Zones.'
         }
       >
         Ces six chiffres suivent les filtres et le profil. Survolez-en un pour sa définition.

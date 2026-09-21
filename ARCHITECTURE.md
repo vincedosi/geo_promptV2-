@@ -287,12 +287,28 @@ genesis_app/
 │   │                           # qui y figure vaut partout, et le changer met a
 │   │                           # jour les trois — l'etat est unique
 │   │                           # (`lib/risques/etat-url.ts`), il n'y a aucune
-│   │                           # copie a synchroniser. Ce qui n'est PAS commun
-│   │                           # descend dans une rangee NOMMEE (« Propre a
-│   │                           # Territoires ») : sans ce libelle, un reglage
-│   │                           # visible sur un seul onglet se lit comme un
-│   │                           # filtre general, et on le cherche ensuite
-│   │                           # ailleurs. L'editeur d'anneaux est un TIROIR
+│   │                           # copie a synchroniser. La rangee « Propre a
+│   │                           # Territoires » a DISPARU le 2026-09-21 avec le
+│   │                           # moteur qui l'imposait : sa reglette locale
+│   │                           # affichait 390 112 habitants pendant que
+│   │                           # l'en-tete en annoncait 24 406 618 pour le meme
+│   │                           # profil. La barre porte desormais UNE REGLETTE
+│   │                           # PAR NIVEAU (`RegletteRayons.tsx`), une seule
+│   │                           # quand le cadenas « lier les niveaux » est
+│   │                           # ferme. ⚠ Elle deplace le BORD de la zone —
+│   │                           # l'anneau EXTERIEUR — et jamais « le » rayon :
+│   │                           # un niveau en porte jusqu'a quatre et le profil
+│   │                           # par defaut en a trois sur le seuil haut, donc
+│   │                           # un curseur ne peut que mentir sur leur nombre.
+│   │                           # Les anneaux interieurs restent au tiroir, et
+│   │                           # sont rappeles en gris a cote de la valeur.
+│   │                           # ⚠ **Le calcul ne part qu'au RELACHEMENT**
+│   │                           # (mesure : zero requete sur 20 positions de
+│   │                           # glissement, une seule au relachement) :
+│   │                           # `population_par_classe` coute plusieurs
+│   │                           # secondes, une requete par pixel serait la
+│   │                           # famille de l'incident du 28/03. L'editeur
+│   │                           # d'anneaux reste un TIROIR
 │   │                           # ouvrable des trois onglets — il decide de la
 │   │                           # classe de chaque carreau, donc de tous les
 │   │                           # chiffres de l'ecran, et le laisser dans le

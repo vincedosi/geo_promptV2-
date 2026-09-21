@@ -164,6 +164,66 @@ export function anneauxDuNiveau(profil: ProfilRayons, niveau: Niveau): number[] 
 }
 
 /**
+ * Le pas du pré-calcul, en mètres.
+ *
+ * `couverture_rayon_risque` (sql/198) est agrégée par paliers de 100 m. Deux
+ * anneaux plus proches que cela délimiteraient une bande qu'aucun palier ne
+ * mesure : elle s'afficherait à zéro habitant, ce qui se lit « personne
+ * n'habite là » et non « cette bande n'a pas de donnée ».
+ */
+export const PAS_RAYON_M = 100;
+
+/**
+ * Pose le BORD de la zone d'un niveau — son anneau extérieur.
+ *
+ * ── POURQUOI LE BORD, ET PAS « LE » RAYON ─────────────────────────────────
+ *
+ * La barre porte une réglette par niveau, alors qu'un niveau peut avoir
+ * jusqu'à quatre anneaux (`ANNEAUX_MAX`) et que le profil par défaut en a
+ * trois sur le seuil haut. Une réglette ne peut donc pas représenter « le »
+ * rayon du niveau : elle déplace son anneau EXTÉRIEUR, c'est-à-dire l'étendue
+ * réelle de la zone, et laisse les anneaux intérieurs aux chips de l'atelier.
+ *
+ * C'est aussi l'abscisse à laquelle le bandeau KPI lit le gain marginal :
+ * « ce que 100 m de plus apporteraient » se demande au bord, pas au milieu.
+ *
+ * ── LE BORD NE PASSE JAMAIS SOUS UN ANNEAU INTÉRIEUR ──────────────────────
+ *
+ * Sans cette garde, poser 1 500 m sur `[1000, 2000, 5000]` rendrait
+ * `[1000, 1500, 2000]` après tri : le bord deviendrait 2 000 m, soit l'inverse
+ * du geste demandé, et la bande que l'utilisateur regardait aurait changé de
+ * rang sans qu'il ait touché à autre chose. On ramène donc au premier palier
+ * au-dessus du dernier anneau intérieur.
+ *
+ * @param profil - Le profil courant, déjà canonique.
+ * @param niveau - Le niveau dont on déplace le bord.
+ * @param rayonM - Le rayon visé, en mètres. Ramené dans les bornes du pré-calcul.
+ * @returns Un profil canonique. Écrit sur le niveau HAUT quand le cadenas est
+ *          fermé — écrire sur `bas` serait sans effet visible, `anneauxDuNiveau`
+ *          rendant alors les anneaux du haut.
+ *
+ * @example
+ * poserRayonExterieur({ haut: [1000, 2000, 5000], … }, 'haut', 7000).haut
+ * // → [1000, 2000, 7000]
+ */
+export function poserRayonExterieur(
+  profil: ProfilRayons,
+  niveau: Niveau,
+  rayonM: number,
+): ProfilRayons {
+  const cible: Niveau = profil.lie ? 'haut' : niveau;
+  const actuels = anneauxDuNiveau(profil, niveau);
+  const interieurs = actuels.slice(0, -1);
+  const dernierInterieur = interieurs[interieurs.length - 1];
+  const plancher = dernierInterieur === undefined
+    ? RAYON_MIN_M
+    : dernierInterieur + PAS_RAYON_M;
+
+  const borne = Math.min(RAYON_MAX_M, Math.max(plancher, Math.round(rayonM)));
+  return normaliserProfil({ ...profil, [cible]: [...interieurs, borne] });
+}
+
+/**
  * Rend un profil canonique : bornes vérifiées, anneaux triés et dédoublonnés,
  * liaison appliquée.
  *

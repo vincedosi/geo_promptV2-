@@ -50,6 +50,7 @@ import { Champ, Pastille, FilAriane, Th, Td, styleLien } from '@/components/risq
 import { FournisseurRisque, useEtatRisque } from '@/components/risques/ContexteRisque';
 import type { Onglet } from '@/lib/risques/etat-url';
 import { ResumeProfil } from '@/components/risques/ResumeProfil';
+import { RegletteRayons } from '@/components/risques/RegletteRayons';
 import { BandeauKpi } from '@/components/risques/BandeauKpi';
 import { anneauxDuNiveau, NIVEAUX as NIVEAUX_PROFIL } from '@/lib/risques/profil';
 import { useSitesCompte } from '@/components/risques/use-sites-compte';
@@ -960,16 +961,23 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         </Champ>
 
         {/* ── LE RAYON ───────────────────────────────────────────────────
-            Trois défauts corrigés d'un coup, tous signalés à l'usage :
+            UNE réglette par niveau, dans la barre commune — et plus une
+            réglette locale à un seul onglet, qui affichait 390 112 habitants
+            pendant que l'en-tête en annonçait 24 406 618 pour le même profil.
 
-            - le PAS. 100 m n'a pas de sens : le carreau INSEE fait 200 m, en
-              dessous on déplace une frontière à l'intérieur d'un carreau et le
-              chiffre ne bouge pas. Les paliers sont les distances qu'un média
-              planner nomme réellement.
-            - la BORNE. On pouvait saisir 20 km et découvrir le refus après
-              coup. `rayon_max_m` vient de la base (sql/197) et borne le
-              curseur : on ne peut plus glisser jusqu'à l'échec.
-            - le DÉLAI. Chaque frappe relançait 4 s de calcul. */}
+            Elle déplace le BORD de la zone. Les anneaux intérieurs restent à
+            l'atelier : un niveau en porte jusqu'à quatre, et le profil par
+            défaut en a trois sur le seuil haut — un curseur ne peut pas les
+            représenter, il peut seulement mentir sur leur nombre.
+
+            Le pas est celui du pré-calcul (100 m) et la borne celle de la
+            donnée (10 km) : on ne peut plus glisser jusqu'à un refus, ni
+            déplacer une frontière entre deux paliers sans qu'aucun chiffre
+            ne bouge. Le calcul ne part qu'au relâchement. */}
+        <RegletteRayons
+          profil={etat.profil}
+          onProfil={(p) => majEtat({ profil: p })}
+        />
       </div>
 
       {/* Suite de la MÊME barre : les filtres. Séparés d'un trait fin plutôt
