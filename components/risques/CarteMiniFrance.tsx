@@ -97,6 +97,14 @@ interface Props {
    */
   mode?: 'aplat' | 'cercles';
   codeActif?: string | null;
+  /**
+   * L'unité sur laquelle CADRER, ou `null` pour la France entière.
+   *
+   * ⚠ Distincte de `codeActif`, qui est le SURVOL : l'un suit la souris et
+   * s'efface, l'autre tient jusqu'au clic suivant. Cadrer sur le survol ferait
+   * sauter la carte au moindre mouvement au-dessus du tableau.
+   */
+  cadrageSur?: string | null;
   onSurvol?: (code: string | null) => void;
   onClic?: (code: string) => void;
 }
@@ -196,6 +204,24 @@ function cadreDe(zones: ZoneGeo[]): Cadre | null {
   return Number.isFinite(ouest) ? { ouest, est, sud, nord } : null;
 }
 
+/**
+ * Élargit un cadre d'une marge relative — le `padding` d'un `fitBounds`.
+ *
+ * ⚠ La marge est proportionnelle à chaque côté, et un PLANCHER en degrés la
+ * complète : sans lui, une unité minuscule — une commune de quelques
+ * centaines de mètres — donnerait un cadre presque nul, donc un facteur
+ * d'échelle immense et un tracé qui déborde de tous les côtés.
+ *
+ * @param c - Le cadre à élargir.
+ * @param part - La marge, en fraction de l'étendue (0,15 = 15 %).
+ * @returns Un cadre élargi.
+ */
+function elargir(c: Cadre, part: number): Cadre {
+  const mx = Math.max((c.est - c.ouest) * part, 0.05);
+  const my = Math.max((c.nord - c.sud) * part, 0.05);
+  return { ouest: c.ouest - mx, est: c.est + mx, sud: c.sud - my, nord: c.nord + my };
+}
+
 function chemin(z: ZoneGeo, proj: (lon: number, lat: number) => [number, number]): string {
   const morceaux: string[] = [];
   for (const a of anneaux(z.geometry)) {
@@ -276,7 +302,7 @@ interface TraceOM extends Trace { boite: Boite }
 
 export function CarteMiniFrance({
   zones, valeurs, libelleValeur, formater = formaterNombre,
-  stops, mode = 'aplat', codeActif, onSurvol, onClic,
+  stops, mode = 'aplat', codeActif, cadrageSur, onSurvol, onClic,
 }: Props) {
   /**
    * On ÉCARTE le premier palier de la rampe.
@@ -321,7 +347,29 @@ export function CarteMiniFrance({
   }, [valeurs]);
   const rayon = (v: number) => 2 + Math.sqrt(v / maxValeur) * 15;
 
-  const cadreMetro = useMemo(() => cadreDe(metropole), [metropole]);
+  /**
+   * Le cadre de la métropole — ou celui de l'unité SÉLECTIONNÉE.
+   *
+   * ── LE RECADRAGE, VERSION SVG ─────────────────────────────────────────
+   *
+   * C'est le `fitBounds` que demande le brief, traduit dans le seul langage
+   * de cette carte : elle n'a ni tuiles ni caméra, seulement une projection.
+   * Changer le cadre projeté REVIENT à cadrer dessus, et coûte un rendu — pas
+   * une instance WebGL de plus.
+   *
+   * ⚠ Le repli sur la France entière n'est pas un détail : une unité peut
+   * être sélectionnée dans le TABLEAU sans exister dans les géométries
+   * affichées — après une descente, la sélection appartient au niveau qu'on
+   * vient de quitter. Cadrer sur rien laisserait un écran vide.
+   */
+  const cadreMetro = useMemo(() => {
+    if (cadrageSur) {
+      const z = metropole.find((x) => x.properties.code === cadrageSur);
+      const c = z ? cadreDe([z]) : null;
+      if (c) return elargir(c, 0.18);
+    }
+    return cadreDe(metropole);
+  }, [metropole, cadrageSur]);
   const projMetro = useMemo(
     () => (cadreMetro ? projecteur(cadreMetro, { x: 0, y: 0, w: LARGEUR, h: HAUTEUR - 42 }) : null),
     [cadreMetro],
@@ -369,7 +417,17 @@ export function CarteMiniFrance({
         viewBox={`0 0 ${LARGEUR} ${HAUTEUR}`}
         role="img"
         aria-label={`Carte de France — ${libelleValeur}`}
-        style={{ width: '100%', height: 'auto', display: 'block' }}
+        /*
+         * ⚠ `maxHeight` en unités de VIEWPORT, et `height: auto` conservé.
+         *
+         * La carte est carrée (300 × 300) et prenait donc toute la largeur du
+         * panneau en hauteur : à 480 px de panneau, elle dépassait le bas de
+         * l'écran et il fallait faire défiler pour la voir entière — alors
+         * qu'elle sert justement à voir d'un coup d'œil. Le plafond la borne
+         * sans la déformer : `preserveAspectRatio` vaut `xMidYMid meet` par
+         * défaut, donc le tracé se centre au lieu de s'étirer.
+         */
+        style={{ width: '100%', height: 'auto', maxHeight: '38vh', display: 'block' }}
         onMouseLeave={() => { setSurvole(null); onSurvol?.(null); }}
       >
         {tracesMetro.map((t) => (

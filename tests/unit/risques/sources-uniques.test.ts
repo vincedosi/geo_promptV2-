@@ -169,13 +169,57 @@ describe('un seul moteur pour tout l’écran', () => {
     expect(s).not.toMatch(/exposition\/export/);
   });
 
-  it('le tableau de couverture et celui des bandes lisent le MÊME résultat', () => {
-    // Un seul `useBandes` dans l'écran, dont le résultat part aux deux
-    // panneaux. Deux appels rendraient deux totaux à synchroniser — la
-    // situation d'origine, sous une autre forme.
-    expect(s.match(/useBandes\(/g)?.length ?? 0).toBe(1);
+  it('un seul MOTEUR, et le second appel ne part que pendant une exploration', () => {
+    /*
+     * ⚠ Ce verrou exigeait UN SEUL `useBandes`. Il en tolère deux depuis le
+     * 2026-09-21, et la nuance est celle qui compte.
+     *
+     * Ce que l'invariant protège, c'est l'unicité du MOTEUR : deux totaux
+     * contradictoires — 390 112 contre 24 406 618 — venaient de deux RPC
+     * différentes, dont l'une ne pouvait pas honorer le profil affiché. Deux
+     * appels au MÊME moteur, mêmes profil et filtres, ne peuvent pas se
+     * contredire : ils répondent à deux périmètres, et l'écran dit lequel.
+     *
+     * Le second sert l'exploration locale de l'étape ③, où le tableau descend
+     * dans une région pendant que le bandeau KPI garde le territoire étudié.
+     * Il est GARDÉ par `exploration.length > 0` : sans ce garde-fou, il
+     * doublerait chaque calcul — 2,8 s sur le national — pour un résultat
+     * identique au premier.
+     */
+    const appels = s.match(/useBandes\(/g)?.length ?? 0;
+    expect(appels, 'deux appels au plus : le global et l’exploré').toBeLessThanOrEqual(2);
+
+    // Le bandeau KPI lit le résultat GLOBAL, le tableau le résultat affiché.
     expect(s).toMatch(/bandes=\{resultatBandes\.bandes\}/);
-    expect(s).toMatch(/bandes=\{resultatBandes\}/);
+    expect(s).toMatch(/bandes=\{bandesTableau\.bandes\}/);
+
+    if (appels === 2) {
+      // Le garde-fou, lu dans le source : l'appel exploré porte la condition.
+      expect(s, 'le second `useBandes` doit être conditionné à l’exploration')
+        .toMatch(/exploration\.length > 0,\s*\n?\s*\);/);
+    }
+  });
+
+  it('l’exploration n’écrit JAMAIS dans le filtre Territoire', () => {
+    /*
+     * La consigne du lot est une négation — « le clic NE DOIT PAS modifier le
+     * filtre global Territoire » — et une négation ne se voit pas à l'écran :
+     * l'affichage est identique que le filtre bouge ou non, jusqu'au moment où
+     * l'on change d'étape et où les chiffres ont changé sans raison visible.
+     *
+     * ⚠ `setChemin` reste LÉGITIME ailleurs, et la première écriture de ce
+     * test l'avait oublié : le fil d'Ariane des TERRITOIRES porte lui aussi un
+     * `onRemonter`, et son rôle est précisément de changer ce filtre. C'est
+     * donc le bloc du TABLEAU qu'on isole, pas un nom de prop.
+     */
+    const debut = s.indexOf('<TableauCouverture');
+    expect(debut, '<TableauCouverture introuvable').toBeGreaterThan(-1);
+    const bloc = s.slice(debut, s.indexOf('/>', debut));
+
+    expect(bloc, 'aucun geste du tableau ne doit écrire le filtre Territoire')
+      .not.toMatch(/setChemin/);
+    // Et il pilote bien l'exploration locale, sinon il ne pilote plus rien.
+    expect(bloc).toMatch(/setExploration/);
   });
 
   it('plus aucune réglette de rayon locale', () => {

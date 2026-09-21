@@ -143,6 +143,18 @@ export function useBandes(
    * rendait 164 codes postaux au lieu de 21 (sql/171).
    */
   region: string | null = null,
+  /**
+   * Faut-il seulement charger ?
+   *
+   * ⚠ Existe pour le tableau exploré de l'étape ③, qui a besoin d'un SECOND
+   * appel — mais seulement quand on explore. Sans ce drapeau, un second
+   * `useBandes` monté en permanence doublerait chaque calcul, y compris les
+   * 2,8 s du national, pour un résultat identique au premier.
+   *
+   * Un hook ne peut pas être appelé conditionnellement : c'est donc le hook
+   * qui porte la condition.
+   */
+  actif: boolean = true,
 ): Resultat {
   const [r, setR] = useState<Resultat>({
     etat: 'chargement', bandes: null, erreur: null, aConstruire: false,
@@ -163,6 +175,17 @@ export function useBandes(
   const cleNatures = natures.join(',');
 
   useEffect(() => {
+    /*
+     * Inactif : on n'appelle pas, et on ne laisse pas non plus un `chargement`
+     * allumé — la barre de progression mutualisée attendrait une réponse que
+     * personne n'a demandée.
+     */
+    if (!actif) {
+      jeton.current++;
+      setR({ etat: 'pret', bandes: null, erreur: null, aConstruire: false });
+      return;
+    }
+
     const mien = ++jeton.current;
     setR((p) => ({ ...p, etat: 'chargement' }));
 
@@ -198,7 +221,7 @@ export function useBandes(
     }, DELAI_MS);
 
     return () => clearTimeout(minuteur);
-  }, [code, cible, maille, parent, region, cleNatures]);
+  }, [code, cible, maille, parent, region, cleNatures, actif]);
 
   return r;
 }

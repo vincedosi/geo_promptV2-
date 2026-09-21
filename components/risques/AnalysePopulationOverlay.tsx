@@ -56,6 +56,11 @@ import {
 } from '@/components/risques/ContexteChargement';
 import { BarreProgression, Perime } from '@/components/risques/BarreProgression';
 import { estPerime } from '@/lib/risques/chargement';
+import {
+  mailleExploree, perimetreExplore, peutDescendre, peutRemonter,
+  descendre as descendreExploration, remonter as remonterExploration,
+  type SegmentExploration,
+} from '@/lib/risques/exploration';
 import { PanneauSites } from '@/components/risques/PanneauSites';
 import { ResumeProfil } from '@/components/risques/ResumeProfil';
 import { RegletteRayons, type ApercuRayon } from '@/components/risques/RegletteRayons';
@@ -477,42 +482,55 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
    * aucun rayon maximal. Le profil décide seul, et il va jusqu'à 10 km.
    */
 
-  /**
-   * On ne descend QUE si la maille affichée est la maille naturelle du niveau.
-   * Lister les communes de France depuis la racine est légitime, mais cliquer
-   * une commune ne mène nulle part — il n'y a pas d'étage en dessous, et
-   * pousser un segment « commune » dans le fil produirait un chemin dont la
-   * suite serait vide.
+  /*
+   * ⚠ `descendable` et `descendre` ont été RETIRÉS le 2026-09-21.
+   *
+   * Ils poussaient un segment dans `chemin`, c'est-à-dire dans le filtre
+   * « Territoire » de la barre commune : descendre pour regarder les
+   * départements d'une région faisait basculer tout l'écran — bandeau KPI,
+   * courbe, étapes voisines. La descente vit désormais dans
+   * `lib/risques/exploration.ts`, en état LOCAL à l'étape ③, et le filtre
+   * reste où l'utilisateur l'a posé.
+   *
+   * Ce qu'ils portaient de juste est conservé là-bas : on ne descend que
+   * depuis une région ou un département (`peutDescendre`), et le survol est
+   * effacé au changement de niveau — l'unité survolée appartient au niveau
+   * qu'on QUITTE, et la laisser ferait surligner un code qui n'existe plus,
+   * ou pire un homonyme, les nomenclatures INSEE de région et de département
+   * se recouvrant sur 18 codes (sql/171).
    */
 
-  const descendable =
-    dimension === mailleNaturelle && (dimension === 'region' || dimension === 'departement');
-
-  /**
-   * Descendre d'un cran. `setActif(null)` n'est pas cosmetique : l'unite
-   * survolee appartient au niveau qu'on QUITTE, et la laisser ferait
-   * surligner sur la nouvelle carte un code qui n'y existe plus — ou pire, un
-   * homonyme, les nomenclatures INSEE de region et de departement se
-   * recouvrant sur 18 codes (sql/171).
+  /*
+   * ── L'EXPLORATION LOCALE DU TABLEAU (étape ③) ───────────────────────────
+   *
+   * Déclarée ICI, avant les géométries : c'est elle qui décide de la maille
+   * affichée par le tableau ET par la mini-carte. Plus bas, la mini-carte
+   * aurait chargé les contours de la maille GLOBALE pendant que le tableau
+   * liste ceux de la maille explorée — une carte et un tableau qui ne parlent
+   * pas du même découpage.
    */
+  const [exploration, setExploration] = useState<SegmentExploration[]>([]);
 
-  const descendre = (code: string, nom: string) => {
-    if (!descendable) return;
-    setChemin((c) => [...c, { niveau: dimension as 'region' | 'departement', code, nom }]);
-    // On repasse en maille NATURELLE : descendre d'un cran, c'est demander le
-    // niveau d'en dessous. Garder une maille forcée ferait afficher, après un
-    // clic sur une région, la liste de ses régions — c'est-à-dire elle-même.
-    setMailleChoisie(null);
-    setActif(null);
-  };
+  /*
+   * L'unité sur laquelle la carte est cadrée. Distincte de `actif`, qui est le
+   * SURVOL : l'un suit la souris et s'efface, l'autre tient jusqu'au clic
+   * suivant. Les confondre ferait sauter le cadrage au moindre mouvement.
+   */
+  const [selectionCarte, setSelectionCarte] = useState<string | null>(null);
+
+  const mailleTableau = mailleExploree(exploration, dimension);
+  const perimetreTableau = perimetreExplore(exploration, {
+    region: chemin.find((c) => c.niveau === 'region')?.code ?? null,
+    parent: chemin.find((c) => c.niveau === 'departement')?.code ?? null,
+  });
 
   const dimCourante = DIMENSIONS.find((d) => d.id === dimension) ?? DIMENSIONS[0];
+  /** La maille réellement listée par l'étape ③ — explorée ou non. */
+  const dimTableau = DIMENSIONS.find((d) => d.id === mailleTableau) ?? dimCourante;
 
-
-
-  // Les géométries de la dimension courante.
+  // Les géométries de la maille LISTÉE, celle du tableau et de la mini-carte.
   useEffect(() => {
-    const cle = dimCourante.zones;
+    const cle = dimTableau.zones;
     // Pas de contours a cette maille (commune) : on vide plutot que d'appeler
     // une route avec `scale=null`, qui repondrait 400.
     if (cle === null) { setZones([]); return; }
@@ -528,7 +546,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         setZones(f);
       } catch { /* la carte reste vide, le tableau fonctionne */ }
     })();
-  }, [dimCourante.zones]);
+  }, [dimTableau.zones]);
 
   // Le calcul.
   // Types → libellés de nature. Mémoïsé : sans ça, le tableau se recalculerait
@@ -598,6 +616,32 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
      */
     chemin.find((c) => c.niveau === 'region')?.code ?? null,
   );
+
+  /*
+   * ── L'EXPLORATION LOCALE DU TABLEAU (étape ③) ───────────────────────────
+   *
+   * Cliquer une ligne écrivait le filtre « Territoire » de la barre commune :
+   * on descendait dans une région pour REGARDER ses départements, et tout
+   * l'écran basculait avec — bandeau KPI, courbe, autres étapes. Le filtre dit
+   * ce qu'on ÉTUDIE, l'exploration ce qu'on REGARDE dans le tableau.
+   *
+   * ⚠ Elle ne touche JAMAIS à `chemin` : la garantie tient parce que
+   * `perimetreExplore` ne reçoit le périmètre global qu'en lecture.
+   */
+  /*
+   * ⚠ Ce second appel ne part QUE pendant une exploration. Sans ce garde-fou,
+   * il doublerait chaque calcul — y compris les 2,8 s du national — pour un
+   * résultat identique au premier. Hors exploration, le tableau lit le même
+   * résultat que le bandeau KPI, donc il n'y a rien à charger.
+   */
+  const resultatExplore = useBandes(
+    etat.profil, cible, mailleTableau, perimetreTableau.parent,
+    natures, perimetreTableau.region,
+    exploration.length > 0,
+  );
+
+  /* Le résultat que le tableau affiche : l'exploré s'il existe, sinon le global. */
+  const bandesTableau = exploration.length > 0 ? resultatExplore : resultatBandes;
 
   /**
    * Ce qui est DEMANDÉ : dimension, cible, filtres, périmètre, rayon.
@@ -1274,19 +1318,62 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
             tableau des bandes de l'onglet Rayons, donc les deux ne peuvent plus
             diverger : c'est un seul appel, pas deux calculs qu'on synchronise.
           */}
+          {/*
+            ⚠ Le tableau lit `bandesTableau` et NON `resultatBandes` : pendant
+            une exploration, il montre les unités du territoire exploré pendant
+            que le bandeau KPI garde celles du filtre Territoire. Deux lectures
+            volontairement distinctes — et c'est le fil d'Ariane local qui dit
+            laquelle on regarde.
+          */}
           <TableauCouverture
-            bandes={resultatBandes.bandes}
-            etat={resultatBandes.etat}
-            erreur={resultatBandes.erreur}
-            aConstruire={resultatBandes.aConstruire}
-            maille={dimension}
+            bandes={bandesTableau.bandes}
+            etat={bandesTableau.etat}
+            erreur={bandesTableau.erreur}
+            aConstruire={bandesTableau.aConstruire}
+            maille={mailleTableau}
             profil={etat.profil}
             libelleCible={libelleCible}
-            descendable={descendable}
-            onDescendre={descendre}
+            descendable={peutDescendre(mailleTableau)}
+            onDescendre={(code, nom) => {
+              setExploration((c) => descendreExploration(c, mailleTableau, code, nom));
+              // L'unité survolée appartient au niveau qu'on QUITTE : la garder
+              // ferait surligner un code qui n'existe plus au niveau suivant —
+              // ou pire, un homonyme, les nomenclatures INSEE de région et de
+              // département se recouvrant sur 18 codes.
+              setActif(null);
+              setSelectionCarte(null);
+            }}
+            remontable={peutRemonter(exploration)}
+            onRemonter={() => {
+              setExploration(remonterExploration);
+              setActif(null);
+              setSelectionCarte(null);
+            }}
+            onSelection={(code) => setSelectionCarte(code)}
             actif={actif}
             onSurvol={setActif}
           />
+
+          {/* Le fil d'Ariane LOCAL : sans lui, on lirait un tableau de
+              départements sans savoir de quelle région, pendant que la barre
+              du haut annonce « France entière ». */}
+          {exploration.length > 0 && (
+            <p style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)', marginTop: 10 }}>
+              Exploration :{' '}
+              <button
+                type="button"
+                onClick={() => { setExploration([]); setActif(null); setSelectionCarte(null); }}
+                style={{
+                  background: 'none', border: 0, padding: 0, cursor: 'pointer',
+                  fontFamily: fInter, fontSize: 11, color: 'var(--brand-teal)',
+                }}
+              >
+                {chemin.length > 0 ? chemin[chemin.length - 1].nom : 'France entière'}
+              </button>
+              {exploration.map((s) => <span key={s.code}> › {s.nom}</span>)}
+              {' — '}le filtre Territoire de la barre, lui, n’a pas bougé.
+            </p>
+          )}
         </div>
 
         {/* Mini-carte — SOUS le tableau, plus à côté : voir l'en-tête du bloc. */}
@@ -1323,15 +1410,17 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
                  surface au lieu de la valeur. Cercles proportionnels. */
               mode={encodageEffectif === 'exposee' ? 'cercles' : 'aplat'}
               codeActif={actif}
+              cadrageSur={selectionCarte}
               onSurvol={setActif}
-              onClic={descendable
-                ? (code) => {
-                    const u = resultatBandes.bandes?.unites.find((x) => x.unite === code);
-                    // Le code fait foi même sans libellé : une unité absente du
-                    // référentiel reste cliquable, elle a une population.
-                    if (u) descendre(u.unite, u.nom ?? u.unite);
-                  }
-                : undefined}
+              /*
+                ⚠ Cliquer une unité SUR LA CARTE la sélectionne et recadre,
+                comme un clic sur la ligne du tableau. Elle faisait DESCENDRE
+                jusqu'au 2026-09-21, ce qui écrivait le filtre Territoire de la
+                barre commune : on cliquait pour regarder de plus près, et tout
+                l'écran changeait de sujet. Descendre est désormais le rôle des
+                flèches du tableau, et d'elles seules.
+              */
+              onClic={(code) => setSelectionCarte(code)}
             />
 
             {/* Selecteur de palette, repris TEL QUEL du panneau Carreaux
@@ -1362,7 +1451,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
               </div>
             </div>
             </>
-          ) : dimCourante.zones === null ? (
+          ) : dimTableau.zones === null ? (
             /* Pas d'attente ici : il n'y a RIEN a charger a cette maille, et
                laisser « Chargement des contours… » tourner indefiniment se
                lirait comme une panne. On dit pourquoi, et ce qu'on gagne. */

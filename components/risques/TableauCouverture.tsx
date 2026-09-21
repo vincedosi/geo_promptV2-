@@ -34,10 +34,26 @@
  * s'explique vaut mieux qu'un pourcentage faux qui colore une carte.
  */
 import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { fInter, fMono } from '@/lib/design/polices';
 import { formaterNombre } from '@/lib/format/nombre';
 import { Th, Td } from '@/components/risques/elements';
+
+/**
+ * Le style d'une flèche de navigation, active ou non.
+ *
+ * ⚠ Une flèche désactivée reste VISIBLE et garde sa place : la masquer
+ * décalerait le libellé d'une ligne à l'autre, et laisserait croire que la
+ * ligne a changé de nature. Grisée, elle dit « pas plus haut que la région ».
+ */
+const styleFleche = (actif: boolean): React.CSSProperties => ({
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  width: 16, height: 16, marginRight: 4, padding: 0,
+  background: 'none', border: 0, borderRadius: 3,
+  cursor: actif ? 'pointer' : 'default',
+  color: actif ? 'var(--text-secondary)' : 'var(--border-default)',
+  verticalAlign: 'middle',
+});
 import { Kpi } from '@/components/risques/Kpi';
 import { libelleClasse, anneauxParNiveau } from '@/lib/risques/libelle-classe';
 import { LIBELLE_DIMENSION, type Dimension } from '@/lib/risques/dimensions';
@@ -58,6 +74,14 @@ interface Props {
   /** Peut-on descendre d'un cran depuis cette maille ? */
   descendable: boolean;
   onDescendre: (code: string, nom: string) => void;
+  /** Y a-t-il un niveau au-dessus, c'est-à-dire est-on descendu ? */
+  remontable: boolean;
+  onRemonter: () => void;
+  /**
+   * Sélectionner une unité : la carte se recadre dessus, le tableau ne bouge
+   * pas. C'est ce qui distingue « regarder » de « descendre ».
+   */
+  onSelection: (code: string, nom: string) => void;
   /** Code de l'unité survolée, relayé à la carte. */
   actif: string | null;
   onSurvol: (code: string | null) => void;
@@ -83,7 +107,7 @@ function densite(u: UniteBandes): number | null {
 
 export function TableauCouverture({
   bandes, etat, erreur, aConstruire, maille, profil, libelleCible,
-  descendable, onDescendre, actif, onSurvol,
+  descendable, onDescendre, remontable, onRemonter, onSelection, actif, onSurvol,
 }: Props) {
   const anneaux = React.useMemo(() => anneauxParNiveau(profil), [profil]);
 
@@ -203,16 +227,46 @@ export function TableauCouverture({
                 key={u.unite}
                 onMouseEnter={() => onSurvol(u.unite)}
                 onMouseLeave={() => onSurvol(null)}
-                onClick={descendable ? () => onDescendre(u.unite, u.nom ?? u.unite) : undefined}
-                title={descendable ? `Descendre dans ${u.nom ?? u.unite}` : undefined}
+                /*
+                  ⚠ Le clic sur la LIGNE sélectionne et recadre la carte ; il
+                  ne descend plus. Descendre est le rôle de la flèche, et
+                  confondre les deux gestes rendait impossible de simplement
+                  REGARDER une unité : on quittait le niveau au moindre clic.
+                */
+                onClick={() => onSelection(u.unite, u.nom ?? u.unite)}
+                title={`Cadrer la carte sur ${u.nom ?? u.unite}`}
                 style={{
                   borderBottom: '0.5px solid var(--border-subtle)',
                   background: actif === u.unite ? 'var(--brand-teal-10)' : 'transparent',
                   transition: 'background-color 150ms var(--ease-out)',
-                  cursor: descendable ? 'pointer' : 'default',
+                  cursor: 'pointer',
                 }}
               >
                 <td style={{ padding: '7px 8px', color: 'var(--text-primary)' }}>
+                  {/*
+                    ── LES DEUX FLÈCHES ────────────────────────────────────
+                    Avant le libellé pour REMONTER, après pour DESCENDRE. Elles
+                    remplacent un clic sur la ligne entière, qui ne pouvait
+                    aller que dans un sens : pour revenir, il fallait le fil
+                    d'Ariane des territoires, à l'autre bout de l'écran.
+
+                    ⚠ Désactivées et non masquées aux extrémités : une flèche
+                    qui disparaît laisse croire que la ligne a changé de nature.
+                    Grisée, elle dit « pas plus haut que la région ».
+                  */}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onRemonter(); }}
+                    disabled={!remontable}
+                    aria-label={remontable
+                      ? 'Remonter d’un niveau'
+                      : 'Déjà au niveau le plus large'}
+                    title={remontable ? 'Remonter d’un niveau' : undefined}
+                    style={styleFleche(remontable)}
+                  >
+                    <ChevronLeft size={12} />
+                  </button>
+
                   <span style={{
                     fontFamily: fMono, fontSize: 10,
                     color: 'var(--text-tertiary)', marginRight: 7,
@@ -225,11 +279,19 @@ export function TableauCouverture({
                     mieux que de la faire disparaître du tableau.
                   */}
                   {u.nom ?? ''}
-                  {descendable && (
-                    <span aria-hidden style={{ color: 'var(--text-tertiary)', marginLeft: 6 }}>
-                      &rsaquo;
-                    </span>
-                  )}
+
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onDescendre(u.unite, u.nom ?? u.unite); }}
+                    disabled={!descendable}
+                    aria-label={descendable
+                      ? `Descendre dans ${u.nom ?? u.unite}`
+                      : 'Dernier niveau — pas de découpage plus fin'}
+                    title={descendable ? `Descendre dans ${u.nom ?? u.unite}` : undefined}
+                    style={{ ...styleFleche(descendable), marginLeft: 6, marginRight: 0 }}
+                  >
+                    <ChevronRight size={12} />
+                  </button>
                 </td>
                 <Td fort>{formaterNombre(u.total)}</Td>
                 <Td>{p !== null ? `${formaterNombre(p)} %` : '—'}</Td>
