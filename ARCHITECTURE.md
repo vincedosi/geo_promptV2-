@@ -177,7 +177,7 @@
 | Tests | Vitest — deux projets lances en SEQUENCE (`unit` puis `integration`), jamais en parallele : voir `CLAUDE.md` § Tests | ^2.0 |
 | Catalogue du code | knip (exports/fichiers morts, dependances inutilisees — `npm run catalogue`) | ^6.35 |
 | Outillage | ESLint 8 + `eslint-config-next` · `tsx` (scripts TS) · `dotenv` · CLI Supabase (^2.78 declaree, **2.109 installee** sur ce poste) | — |
-| CI/CD | Vercel — ⚠ **plus aucun deploiement actif depuis le 2026-09-19.** Cette ligne annoncait « deploiement automatique sur push `main` » jusqu'a cette date, ce qui se lit comme une garantie qu'un push met en ligne : il ne met plus rien en ligne. Le projet Vercel `geo-prompt-v2` existe encore ; remonter un deploiement est une decision, pas un acquis | — |
+| CI/CD | **AUCUN — Vercel est abandonne (arbitrage du 2026-09-21).** Il n'y a plus de chaine de deploiement, donc plus d'environnement de production : **le seul environnement du projet est le stack LOCAL** (§ « Environnement de developpement local »). ⚠ Ce qui en decoule, et qui n'est pas qu'administratif : tout raisonnement de la forme « en production, X se comporte autrement » est desormais SANS OBJET dans ce document, et plusieurs notes en dependaient — elles sont corrigees la ou elles se trouvent, pas ici. Cette ligne annoncait « deploiement automatique sur push `main` » jusqu'au 2026-09-19, puis « plus aucun deploiement actif, le projet `geo-prompt-v2` existe encore » jusqu'au 21 : les deux formulations laissaient croire qu'un push pouvait mettre quelque chose en ligne. Il ne peut plus. ⚠ Un push sur `main` reste un push vers **GitHub**, qui est le depot de reference et le reste | — |
 
 ---
 
@@ -862,12 +862,22 @@ ecrits dans chaque handler.
 > `data/` de `.gitignore:45` l'exclut, et il n'a jamais ete commite (verifie sur
 > toutes les branches). Il porte pourtant un `DELETE` reserve au super_admin
 > (« Suppression des donnees radio », cibles `emetteurs`/`radios`/`all`) que
-> `app/admin/radio/page.tsx:305,319` appelle par `adminFetch`. Sur le poste du
-> developpeur le bouton fonctionne ; en production, Vercel deploie depuis git,
-> la route n'existe pas et la suppression repond 404. **A trancher : ajouter une
-> exception a `.gitignore` (et donc deployer une route destructrice qui n'a
-> jamais tourne en production), ou retirer le bouton.** Signale ici plutot que
-> corrige a la volee — les deux issues ont des consequences.
+> `app/admin/radio/page.tsx:305,319` appelle par `adminFetch`.
+>
+> ⚠ **L'enjeu a change de nature le 2026-09-21, avec l'abandon de Vercel.**
+> Cette note disait : « sur le poste du developpeur le bouton fonctionne ; en
+> production, Vercel deploie depuis git, la route n'existe pas et la suppression
+> repond 404 », et concluait qu'il fallait trancher entre deployer une route
+> destructrice jamais eprouvee ou retirer le bouton. **Il n'y a plus de
+> production**, donc plus de divergence entre deux environnements : la route
+> existe partout ou le projet tourne, c'est-a-dire en local, et le bouton y
+> supprime reellement les donnees radio.
+>
+> Ce qui reste a trancher n'est donc plus un arbitrage de deploiement mais une
+> question de suivi : **un `DELETE` destructeur vit dans un fichier que git ne
+> voit pas**, donc hors revue, hors historique, et qu'un `git clean` emporte.
+> Les 569 698 liaisons radio rapatriees avant la coupure Supabase sont ce qu'il
+> efface. Ajouter une exception a `.gitignore`, ou retirer le bouton.
 
 Les policies restent une defense en profondeur valable — mais personne ne doit
 supposer qu'elles protegent quoi que ce soit tant que ce chemin n'est pas

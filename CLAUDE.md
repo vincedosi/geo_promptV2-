@@ -112,9 +112,24 @@ OBLIGATOIRE :
 - `EXPLAIN ANALYZE` sur toute nouvelle requête PostGIS
 - Index GIST sur toute colonne géométrie
 - Quotas d'appels : passer par `lib/api/rate-limit.ts`, **jamais** par une `Map`
-  locale. Un compteur en mémoire de processus ne limite RIEN sur Vercel — chaque
-  invocation peut être une instance différente. Le compteur partagé vit en base
-  (`consommer_quota`, sql/135), parce qu'Upstash n'est pas configuré en prod.
+  locale. Le compteur partagé vit en base (`consommer_quota`, sql/135), parce
+  qu'Upstash n'est pas configuré.
+
+  > **La raison écrite ici était « une `Map` ne limite RIEN sur Vercel, chaque
+  > invocation peut être une instance différente ». Vercel est abandonné depuis
+  > le 2026-09-21 — et la règle tient quand même.** Elle ne tient simplement
+  > plus pour cette raison-là, et c'est le genre d'écart qui fait supprimer un
+  > garde-fou : la justification tombe, on en conclut que la règle tombe.
+  >
+  > Ce que le compteur en base protège, c'est le **budget d'I/O** de la base —
+  > le plafond qui a lâché trois fois (§ Disk I/O). Ça vaut sur un seul
+  > processus comme sur trente : `qualite_donnees` à 6/min laissait déjà passer
+  > 4,4 fois le budget qu'il prétendait protéger, sur un seul poste. Et une
+  > `Map` locale repart à zéro à chaque redémarrage du serveur de dev, donc ne
+  > borne même pas une boucle qu'on relance.
+  >
+  > Le multi-instance redeviendra vrai le jour où un déploiement remonte. En
+  > attendant, on ne recâble rien.
 
 ### Troncature PostgREST — 5 000 lignes, sans erreur, sans en-tête
 
