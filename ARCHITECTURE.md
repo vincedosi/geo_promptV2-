@@ -333,6 +333,41 @@ genesis_app/
 │   │                           # chiffres de l'ecran, et le laisser dans le
 │   │                           # seul onglet Rayons obligeait a changer
 │   │                           # d'onglet pour regler ce qu'on lisait ailleurs.
+│   │                           # ⚠ **UNE SEULE BARRE DE PROGRESSION pour tout
+│   │                           # l'ecran** (`ContexteChargement.tsx`,
+│   │                           # `lib/risques/chargement.ts`, 2026-09-21) :
+│   │                           # cinq sources portaient QUATRE formes de
+│   │                           # signal differentes, et le bandeau gardait ses
+│   │                           # chiffres a l'ecran pendant les secondes du
+│   │                           # recalcul sans rien dire qu'ils decrivaient
+│   │                           # l'etat PRECEDENT. `usePiste(cle, libelle,
+│   │                           # actif)` declare ; le composant ne sait rien du
+│   │                           # reste. INDETERMINEE : aucune de ces sources
+│   │                           # ne rend d'avancement, un pourcentage y serait
+│   │                           # invente. Les chiffres perimes passent en
+│   │                           # opacite — jamais en squelette, qui effacerait
+│   │                           # la valeur qu'on veut justement comparer.
+│   │                           # ⚠ **L'EXPLORATION DE ③ EST LOCALE**
+│   │                           # (`lib/risques/exploration.ts`) : cliquer une
+│   │                           # ligne ecrivait le filtre Territoire, donc
+│   │                           # faisait basculer TOUT l'ecran — bandeau KPI,
+│   │                           # courbe, etapes voisines. Le filtre dit ce
+│   │                           # qu'on ETUDIE, l'exploration ce qu'on REGARDE.
+│   │                           # Trois gestes distincts : le clic SELECTIONNE
+│   │                           # (la carte se recadre), la fleche droite
+│   │                           # DESCEND, la gauche REMONTE. Un SECOND appel a
+│   │                           # `population_par_classe` sert le tableau
+│   │                           # explore, garde par `exploration.length > 0` —
+│   │                           # sans quoi il doublerait chaque calcul, 2,8 s
+│   │                           # sur le national, pour un resultat identique.
+│   │                           # ⚠ **Le rayon vient EXCLUSIVEMENT de la
+│   │                           # reglette** : le « comparateur de rayons » du
+│   │                           # panneau ④ a ete retire, et `OngletZones` n'a
+│   │                           # plus de `onProfil`. Il n'etait pas qu'un
+│   │                           # doublon — il ecrasait un profil a plusieurs
+│   │                           # anneaux en un anneau unique pose sur les DEUX
+│   │                           # seuils, ce qui annulait le bidding
+│   │                           # differencie qui justifie le module.
 │   │                           # ⚠ **LA CARTE EST PERMANENTE depuis le
 │   │                           # 2026-09-21** (`CarteRisque.tsx`, ex-
 │   │                           # `CarteZones.tsx`) : panneau de l'etape a
