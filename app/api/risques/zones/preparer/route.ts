@@ -15,12 +15,16 @@
  * ── POURQUOI PAS DE FLUX DE PROGRESSION ──────────────────────────────────
  *
  * `CLAUDE.md` impose une barre de progression sur tout traitement batch. Celui-ci
- * n'en est pas un, et c'est mesuré : **1 326 ms** pour les sept classes du
- * profil par défaut sur la France entière (1 259 sites, unions et différences
- * comprises). Une barre de progression sur une seconde et demie ajouterait du
- * bruit sans rien apprendre. Si un profil venait un jour à dépasser quelques
- * secondes, c'est cette mesure qu'il faudrait refaire, pas la règle qu'il
- * faudrait contourner.
+ * n'en est pas un, et c'est mesuré : **2 805 ms** pour les sept classes du
+ * profil par défaut sur la France entière (1 259 sites, unions, différences ET
+ * lissage compris). Une barre de progression sur moins de trois secondes
+ * ajouterait du bruit sans rien apprendre.
+ *
+ * ⚠ C'était **1 326 ms jusqu'au 2026-09-21**, avant que sql/223 n'ajoute la
+ * fermeture morphologique et `quad_segs=16`. La mesure a donc bien été REFAITE
+ * plutôt que la règle contournée — et le seuil de décision était posé
+ * d'avance : au-delà de 3 s, on branche l'indicateur de chargement. Si un
+ * prochain changement fait franchir ce seuil, c'est ce qu'il faudra faire.
  *
  * ── IDEMPOTENTE ──────────────────────────────────────────────────────────
  *

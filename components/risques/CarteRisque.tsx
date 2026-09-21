@@ -190,8 +190,9 @@ export function CarteRisque({ profil, apercu, gravites, natures }: Props) {
   profilRef.current = profil;
 
   /*
-   * La construction de la géométrie des zones, mesurée à 1 326 ms pour les
-   * sept classes du profil par défaut sur la France entière. Elle se déclarait
+   * La construction de la géométrie des zones, mesurée à 2 805 ms pour les
+   * sept classes du profil par défaut sur la France entière (1 326 ms avant le
+   * lissage de sql/223). Elle se déclarait
    * jusqu'ici par une pastille posée SUR la carte, invisible dès qu'on
    * regardait le panneau — c'est-à-dire pendant qu'on réglait.
    */
@@ -432,8 +433,9 @@ export function CarteRisque({ profil, apercu, gravites, natures }: Props) {
      * Sans cela, MapLibre demanderait ses tuiles sous une clé que personne n'a
      * construite et échouerait en SILENCE sur une source vide — le défaut exact
      * qui a rendu la couche IRIS muette pendant des mois. L'appel est
-     * idempotent (`deja_construit: true`) et mesuré à 1 326 ms pour les sept
-     * classes du profil par défaut sur la France entière.
+     * idempotent (`deja_construit: true`) et mesuré à 2 805 ms pour les sept
+     * classes du profil par défaut sur la France entière — payé UNE fois par
+     * code de profil, jamais à l'affichage ni par tuile.
      */
     const preparerPuisPoser = async () => {
       setPreparation(true);
@@ -688,9 +690,29 @@ export function CarteRisque({ profil, apercu, gravites, natures }: Props) {
        * Posé sous le survol : quand on règle en survolant un site, c'est le
        * site survolé qu'on veut distinguer, pas la nappe d'aperçu.
        *
-       * Remplissage TRÈS léger et trait franc : l'aperçu doit se lire comme
-       * une étendue en cours de réglage, jamais comme une zone établie — les
-       * vraies portent une opacité par bande et un contour par classe.
+       * ⚠ **`line` et non `fill`, et c'est une mesure.**
+       *
+       * L'aperçu dessine UN CERCLE PAR SITE — jusqu'à `APERCU_SITES_MAX`, et
+       * 42 sur une vue de l'Étang de Berre. En `fill`, deux cercles qui se
+       * recouvrent mélangent leur alpha : le recouvrement devient plus sombre,
+       * et une grappe dense vire au rouge plein. On lit alors une intensité là
+       * où il n'y a qu'une densité de sites — l'inverse exact de ce que les
+       * vraies zones racontent, elles qui sont exclusives (sql/205, vérifié à
+       * 0,00 m² de recouvrement) et dont l'opacité encode la DISTANCE.
+       *
+       * Deux fausses pistes écartées, mesurées le 2026-09-21 :
+       * — réunir les cercles en UN SEUL `MultiPolygon` ne change rien, earcut
+       *   triangule chaque polygone séparément et l'alpha se mélange quand
+       *   même (comparé à l'écran, les deux rendus sont identiques) ;
+       * — les fusionner côté client demanderait une bibliothèque géométrique,
+       *   que ce projet n'embarque pas — et les fusionner côté serveur serait
+       *   une requête par position du curseur, la famille de l'incident du
+       *   28/03.
+       *
+       * Un contour ne s'empile pas : il n'a pas de surface. Et il dit mieux ce
+       * que l'aperçu EST — une étendue en cours de réglage, jamais une zone
+       * établie. Les vraies portent un aplat, une opacité par bande et un
+       * contour par classe ; celle-ci n'a qu'un trait.
        */
       m.addSource(SOURCE_APERCU, {
         type: 'geojson',
@@ -698,12 +720,12 @@ export function CarteRisque({ profil, apercu, gravites, natures }: Props) {
       });
       m.addLayer({
         id: ID_APERCU,
-        type: 'fill',
+        type: 'line',
         source: SOURCE_APERCU,
         paint: {
-          'fill-color': COULEUR_NIVEAU[theme].haut,
-          'fill-opacity': 0.1,
-          'fill-outline-color': COULEUR_NIVEAU[theme].haut,
+          'line-color': COULEUR_NIVEAU[theme].haut,
+          'line-width': 1.5,
+          'line-opacity': 0.9,
         },
       });
 
