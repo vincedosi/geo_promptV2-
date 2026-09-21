@@ -191,7 +191,11 @@ begin
            -- ⚠ La population est dans `metadata->>'ind'`. La colonne `ind`
            -- existe mais est NULL sur toutes les lignes : la lire rendrait ZÉRO
            -- partout, sans erreur.
-           coalesce((c.metadata->>v_cible)::numeric, 0) as pop
+           coalesce((c.metadata->>v_cible)::numeric, 0) as pop,
+           -- Porté à part de `unite`, parce qu'on le compte à TOUTES les
+           -- mailles : c'est le grain auquel le DSP achète, quel que soit le
+           -- découpage choisi pour lire le tableau.
+           nullif(d.code_postal, '') as cp
       from public.carreau_risque_distance d
       join public.carreaux_filosofi c on c.id = d.carreau_id
       /*
@@ -395,6 +399,57 @@ begin
                 > (select count(*) from retenues),
     'n_carreaux', coalesce(
       (select sum(n) from par_classe_global where classe <> 'hors'), 0),
+    /*
+     * ── LE GRAIN D'ACHAT, À TOUTES LES MAILLES ─────────────────────────────
+     *
+     * Le DSP achète au CODE POSTAL, le risque se mesure au carreau de 200 m,
+     * et l'écran se lit à la maille qu'on veut. Ce compte reste donc le même
+     * quelle que soit la maille affichée — sans quoi « combien de codes postaux
+     * vais-je acheter » changerait de réponse selon la façon de regarder.
+     *
+     * ⚠ Les codes postaux RETENUS sont un autre chiffre : ils dépendent du
+     * seuil de couverture, qui se règle à l'étape Zones. Celui-ci compte ceux
+     * qui sont TOUCHÉS.
+     */
+    'n_codes_postaux', (
+      select count(distinct cp) from base where classe <> 'hors' and cp is not null),
+    /*
+     * ── LE DÉNOMINATEUR DE LA PART NATIONALE ───────────────────────────────
+     *
+     * La population de référence du PÉRIMÈTRE, pas de la France, dès qu'un
+     * territoire est choisi : « 12 % de la population » doit vouloir dire 12 %
+     * de ce qu'on regarde. Rapporter à la France entière depuis un département
+     * rendrait un chiffre toujours minuscule, donc illisible.
+     *
+     * ⚠ Elle sort d'`unite_population_totale`, donc du MÊME carroyage que le
+     * numérateur — jamais des 67,76 millions de l'INSEE, qui comptent trois
+     * départements d'outre-mer sans aucun carreau.
+     */
+    'population_reference', coalesce((
+      select round(sum((u.populations->>v_cible)::numeric))
+        from public.unite_population_totale u
+        left join public.ref_departements rd on rd.code_dept = u.code
+       where u.maille = 'departement'
+         and (p_parent is null or u.code = p_parent)
+         and (p_region is null or coalesce(rd.code_region, 'HORS') = p_region)
+    ), 0),
+    /*
+     * ── LA DILUTION ────────────────────────────────────────────────────────
+     *
+     * Population totale des unités TOUCHÉES, avant toute troncature de la
+     * liste. Rapportée au total exposé, elle dit ce qu'on achète pour ce qu'on
+     * vise — l'indicateur qui chute aux petits rayons et qu'il faut voir avant
+     * l'achat, pas après.
+     *
+     * ⚠ `null` quand la maille n'a pas de dénominateur (code postal) : un zéro
+     * se lirait « on n'achète rien », ce qui est l'inverse de « on ne sait pas
+     * dire combien ».
+     */
+    'pop_unites_touchees', (
+      select sum(l.pop_totale)
+        from totaux_unite t
+        join libelles l on l.cle = t.unite
+       where t.total > 0),
     'total', coalesce(
       (select sum(pop) from par_classe_global where classe <> 'hors'), 0),
     'par_classe', coalesce(

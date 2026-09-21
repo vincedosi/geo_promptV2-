@@ -302,6 +302,47 @@ lecture, et seule sql/222 la lit — une fois, à la construction.
 
 ---
 
+## ⚠ Défaut trouvé en chemin, hors périmètre de ce brief
+
+**L'attribution d'un carreau à « son » code postal n'est pas déterministe, et
+deux fonctions du projet qui l'écrivent à l'identique ne s'accordent pas.**
+
+La règle est « un carreau, un code postal : celui dont le centroïde est le plus
+proche parmi les contours qui le contiennent » (sql/206 pour
+`carreau_risque_distance.code_postal`, sql/207 pour `cp_population_totale`).
+Les deux implémentations sont littéralement les mêmes.
+
+Ce n'est pas un ordre total. Mesuré le 2026-09-20 :
+
+- **71 groupes de contours identiques, 181 codes postaux concernés** dans
+  `ref_codes_postaux` — plusieurs codes couvrent exactement le même polygone
+  (Dunkerque : 59140, 59240, 59430 et 59640 le partagent).
+- Sur un carreau de ce secteur, les quatre contours le contiennent **à la même
+  distance exacte** (0,0218). `distinct on` choisit alors arbitrairement.
+- Conséquence : **81 codes postaux sur 3 933** ont, dans `cp_population_totale`,
+  **moins de carreaux que `carreau_risque_distance` ne leur en attribue** —
+  logiquement impossible, l'une couvrant tous les carreaux et l'autre un
+  sous-ensemble. Pire écart : 295 carreaux.
+- 59640 : 6 carreaux et 975 habitants au dénominateur, 72 carreaux au
+  pré-calcul, 121 en recomptant à la main.
+
+**Ce que cela touche** : `zone_set_cp.part_en_zone`, donc `retenu`, donc
+`taux_utile` — le chiffre phare des jeux de zones. Sur le jeu enregistré
+existant (1 942 codes postaux), **zéro ligne ne dépasse 100 %** : l'effet est
+borné aujourd'hui, mais il n'est pas nul et il n'est pas reproductible.
+
+**Pourquoi ce n'est PAS corrigé ici.** Ajouter un départage déterministe
+(`order by …, r.code_postal`) rendrait les deux fonctions cohérentes en trois
+lignes. Mais cela donnerait TOUS les carreaux du contour partagé au plus petit
+code postal, et zéro aux trois autres — or un DSP qui cible au code postal a
+besoin des quatre pour couvrir les mêmes adresses. **La bonne réponse est un
+arbitrage produit**, pas un `order by`, et elle change le plan média.
+
+En attendant, l'écran ne propose ni part ni densité au code postal — décision
+prise pour d'autres raisons plus haut, et que ce défaut confirme.
+
+---
+
 ## Ce que cet audit n'a pas tranché
 
 - **Les points proportionnels à z < 7** (brief, phase 3) supposent une

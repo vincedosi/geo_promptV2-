@@ -50,6 +50,9 @@ import { Champ, Pastille, FilAriane, Th, Td, styleLien } from '@/components/risq
 import { FournisseurRisque, useEtatRisque } from '@/components/risques/ContexteRisque';
 import type { Onglet } from '@/lib/risques/etat-url';
 import { ResumeProfil } from '@/components/risques/ResumeProfil';
+import { BandeauKpi } from '@/components/risques/BandeauKpi';
+import { anneauxDuNiveau, NIVEAUX as NIVEAUX_PROFIL } from '@/lib/risques/profil';
+import { useSitesCompte } from '@/components/risques/use-sites-compte';
 import { PanneauProfil } from '@/components/risques/PanneauProfil';
 import { useBandes } from '@/components/risques/use-bandes';
 import { useCourbeRayon } from '@/components/risques/use-courbe-rayon';
@@ -589,6 +592,41 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
   const libelleCible = cibles.find((c) => c.code === cible)?.libelle ?? 'Population totale';
 
   /*
+   * Le comptage des sites ne dépend PAS du profil : déplacer un anneau ne
+   * change pas le nombre de sites classés. Il a donc son propre hook, et ne
+   * repart pas à chaque geste sur une réglette.
+   */
+  const compteSites = useSitesCompte(
+    niveaux,
+    natures,
+    perim ? (perim.niveau as 'departement' | 'region') : null,
+    perim ? perim.code : null,
+  );
+
+  /**
+   * Le plus grand rayon du profil — l'abscisse à laquelle on lit le gain
+   * marginal.
+   *
+   * ⚠ Le MAXIMUM et non le premier anneau : « ce que 100 m de plus
+   * apporteraient » se demande au bord de la zone, pas en son milieu.
+   */
+  const rayonMaxProfil = useMemo(() => {
+    const tous = NIVEAUX_PROFIL.flatMap((n) => anneauxDuNiveau(etat.profil, n));
+    return tous.length > 0 ? Math.max(...tous) : null;
+  }, [etat.profil]);
+
+  /*
+   * La courbe TOTALE, celle dont la clé est `'*'`. C'est la seule qui porte
+   * l'incrément du profil entier ; une courbe par nature répondrait à une autre
+   * question, et leur somme ne voudrait rien dire — un carreau proche de deux
+   * natures compte dans les deux.
+   */
+  const courbeTotale = useMemo(
+    () => resultatCourbe.data?.courbes.find((c) => c.cle === '*')?.points ?? null,
+    [resultatCourbe.data],
+  );
+
+  /*
    * ⚠ Ce memo est DESCENDU ici, sous `resultatBandes`.
    *
    * Il vivait deux cents lignes plus haut, quand il lisait `agregat`. Il lit
@@ -1019,6 +1057,24 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
           />
         </div>
       )}
+
+      {/*
+        ── LES SIX CHIFFRES, PERMANENTS ───────────────────────────────────────
+
+        Sous la barre de réglages et AU-DESSUS du corps : chaque geste de la
+        barre les change, et ils doivent rester sous les yeux pendant qu'on
+        règle. Les enfermer dans un panneau obligerait à y revenir après chaque
+        réglage — ce que faisait l'écran précédent, dont les KPI vivaient dans
+        l'onglet Territoires pendant qu'on posait les anneaux ailleurs.
+      */}
+      <BandeauKpi
+        bandes={resultatBandes.bandes}
+        sites={compteSites.compte}
+        courbe={courbeTotale}
+        rayonMax={rayonMaxProfil}
+        maille={dimension}
+        libelleCible={libelleCible}
+      />
 
       {/*
         ── CE QUI EST PROPRE À L'ONGLET ───────────────────────────────────

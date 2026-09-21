@@ -71,6 +71,29 @@ export interface Bandes {
    * contient que des carreaux à moins de 10 km d'un site à risque.
    */
   hors_zone: number;
+  /**
+   * Codes postaux TOUCHÉS — le grain auquel le DSP achète.
+   *
+   * ⚠ Invariant à la maille affichée, à dessein : « combien de codes postaux
+   * vais-je acheter » ne doit pas changer de réponse selon la façon de
+   * regarder le tableau. À ne pas confondre avec les codes postaux RETENUS,
+   * qui dépendent du seuil de couverture et se décident à l'étape Zones.
+   */
+  n_codes_postaux: number;
+  /**
+   * Population du périmètre étudié, tirée du MÊME carroyage que le total.
+   *
+   * ⚠ Jamais les 67,76 millions de l'INSEE : trois départements d'outre-mer
+   * n'ont aucun carreau, et le carroyage ne porte que les carreaux habités.
+   */
+  population_reference: number;
+  /**
+   * Population totale des unités touchées, avant troncature de la liste.
+   *
+   * Rapportée au total, elle dit ce qu'on achète pour ce qu'on vise.
+   * `null` à la maille code postal, qui n'a pas de dénominateur fiable.
+   */
+  pop_unites_touchees: number | null;
   unites: UniteBandes[];
 }
 
