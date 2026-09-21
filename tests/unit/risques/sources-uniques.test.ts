@@ -200,9 +200,28 @@ describe('couleurs — jamais de hex en dur (règle formelle du projet)', () => 
     }
   });
 
-  it('la palette de courbes passe par des jetons, dans les DEUX thèmes', () => {
-    const s = lire('components/risques/OngletRayonInfluence.tsx');
+  it('la palette de natures passe par des jetons, dans les DEUX thèmes', () => {
+    /*
+     * ⚠ Le verrou lisait `OngletRayonInfluence.tsx`, où la palette vivait.
+     * Elle est DEVENUE une source unique le 2026-09-21 (`palette-natures.ts`),
+     * parce que le panneau ① en a besoin pour sa barre empilée : les mêmes
+     * natures, sur le même écran, doivent porter les mêmes couleurs.
+     *
+     * L'intention du test ne change pas — des jetons, jamais des hex, et dans
+     * les deux thèmes — mais elle porte désormais sur le fichier qui les
+     * définit, et non sur l'un de ses deux consommateurs.
+     */
+    const s = lire('lib/risques/palette-natures.ts');
     expect(s).toMatch(/'var\(--nature-1\)'/);
+    expect(s.match(/#[0-9a-fA-F]{6}/g) ?? []).toEqual([]);
+
+    // Les deux consommateurs lisent la source, et ne redéclarent rien.
+    for (const f of ['components/risques/OngletRayonInfluence.tsx',
+      'components/risques/PanneauSites.tsx']) {
+      expect(lire(f), `${f} doit lire la palette partagée`)
+        .toMatch(/from '@\/lib\/risques\/palette-natures'/);
+    }
+
     const css = lire('app/globals.css');
     // Huit jetons, deux fois : `:root` (sombre) et `html.light`.
     expect((css.match(/--nature-\d:/g) ?? []).length).toBe(16);

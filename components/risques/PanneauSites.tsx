@@ -28,8 +28,9 @@
  */
 import React from 'react';
 import { fInter, fMono } from '@/lib/design/polices';
-import { formaterNombre } from '@/lib/format/nombre';
+import { formaterNombre, formaterDecimal } from '@/lib/format/nombre';
 import { Kpi } from '@/components/risques/Kpi';
+import { partsDeNature } from '@/lib/risques/palette-natures';
 import type { CompteSites } from '@/components/risques/use-sites-compte';
 
 interface Props {
@@ -41,16 +42,22 @@ interface Props {
 
 export function PanneauSites({ compte, chargement, libelleTerritoire }: Props) {
   /*
-   * Triées par effectif décroissant : la nature dominante du parc est la
-   * première chose à voir. L'ordre alphabétique ferait remonter « Autres
-   * dangers » en tête d'une liste qui sert justement à repérer le risque
-   * majoritaire.
+   * L'ordre, le regroupement de la queue et les teintes vivent dans
+   * `lib/risques/palette-natures.ts` — la même source que les courbes du
+   * panneau ②, pour qu'une nature garde sa couleur d'un panneau à l'autre.
    */
-  const natures = Object.entries(compte?.par_nature ?? {})
-    .filter(([, n]) => n > 0)
-    .sort((a, b) => b[1] - a[1]);
+  const parts = partsDeNature(compte?.par_nature ?? {});
+  const totalNatures = parts.reduce((t, p) => t + p.n, 0);
 
-  const plusGrande = natures.length > 0 ? natures[0][1] : 0;
+  /*
+   * ⚠ L'écart entre la somme des natures et le compte de sites retenus.
+   *
+   * Il doit valoir ZÉRO : chaque site compte sous sa nature dominante, donc
+   * une et une seule fois. Mesuré le 2026-09-21 : 1 259 = 1 259. On ne le
+   * suppose pas pour autant — si la RPC changeait de règle, une barre
+   * silencieusement plus courte que son total serait indétectable à l'œil.
+   */
+  const ecart = compte ? compte.retenus - totalNatures : 0;
 
   if (chargement) {
     return <p style={styleNote}>Comptage des sites…</p>;
@@ -86,42 +93,78 @@ export function PanneauSites({ compte, chargement, libelleTerritoire }: Props) {
         </p>
       )}
 
-      {natures.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {parts.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <span style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)' }}>
             De quoi ces sites menacent
           </span>
-          {natures.map(([nature, n]) => (
-            <div key={nature} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+          {/*
+            ── LA BARRE EMPILÉE ──────────────────────────────────────────
+            Une seule barre, segmentée par nature. Elle remplace une barre par
+            nature, proportionnelle à la plus grande : celle-ci montrait
+            l'ordre des natures, jamais leur POIDS RELATIF dans le parc. On lit
+            désormais « la toxicité aiguë, c'est 40 % du parc » d'un coup
+            d'œil.
+
+            ⚠ Les largeurs se calculent sur les EFFECTIFS et non sur les parts
+            arrondies : sept arrondis à une décimale ne totalisent pas 100, et
+            la barre finirait par un trou ou un débordement de quelques
+            dixièmes.
+          */}
+          <div
+            role="img"
+            aria-label={`Répartition des ${formaterNombre(totalNatures)} sites par nature de risque`}
+            style={{
+              display: 'flex', width: '100%', height: 10,
+              borderRadius: 3, overflow: 'hidden',
+              background: 'var(--border-subtle)',
+            }}
+          >
+            {parts.map((p) => (
               <span
+                key={p.libelle}
+                title={`${p.libelle} — ${formaterNombre(p.n)} sites (${formaterDecimal(p.pct)} %)`}
                 style={{
-                  fontFamily: fInter, fontSize: 11.5, color: 'var(--text-secondary)',
-                  flex: 1, minWidth: 0,
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  width: `${(p.n / totalNatures) * 100}%`,
+                  background: p.teinte,
+                  /* Un filet entre segments : deux teintes voisines de
+                     luminosité proche se lisent sinon comme une seule. */
+                  borderRight: '0.5px solid var(--bg-level-1)',
                 }}
-                title={nature}
-              >
-                {nature}
-              </span>
-              {/*
-                Barre proportionnelle à la PLUS GRANDE nature et non au total :
-                un parc dominé à 80 % par une nature écraserait toutes les
-                autres à un pixel, et on ne lirait plus leur ordre.
-              */}
+              />
+            ))}
+          </div>
+
+          {/* La légende EST la liste des effectifs : deux blocs séparés
+              obligeraient à faire l'aller-retour couleur → nom → chiffre. */}
+          {parts.map((p) => (
+            <div key={p.libelle} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span
                 aria-hidden
                 style={{
-                  width: 54, height: 4, borderRadius: 2,
-                  background: 'var(--border-subtle)', overflow: 'hidden',
+                  width: 9, height: 9, borderRadius: 2, flexShrink: 0,
+                  background: p.teinte,
+                }}
+              />
+              <span
+                style={{
+                  fontFamily: fInter, fontSize: 11.5,
+                  color: p.regroupee ? 'var(--text-tertiary)' : 'var(--text-secondary)',
+                  flex: 1, minWidth: 0,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}
+                title={p.libelle}
+              >
+                {p.libelle}
+              </span>
+              <span
+                style={{
+                  fontFamily: fMono, fontSize: 10.5, color: 'var(--text-tertiary)',
+                  minWidth: 38, textAlign: 'right',
                 }}
               >
-                <span
-                  style={{
-                    display: 'block', height: '100%',
-                    width: `${plusGrande > 0 ? (n / plusGrande) * 100 : 0}%`,
-                    background: 'var(--brand-teal)',
-                  }}
-                />
+                {formaterDecimal(p.pct)} %
               </span>
               <span
                 style={{
@@ -129,15 +172,33 @@ export function PanneauSites({ compte, chargement, libelleTerritoire }: Props) {
                   minWidth: 46, textAlign: 'right',
                 }}
               >
-                {formaterNombre(n)}
+                {formaterNombre(p.n)}
               </span>
             </div>
           ))}
+
+          {/*
+            L'écart doit valoir zéro : chaque site compte sous sa nature
+            dominante, donc une seule fois. S'il ne vaut pas zéro, le dire —
+            une barre plus courte que son total ne se voit pas à l'œil.
+          */}
+          {ecart !== 0 && (
+            <p style={{ ...styleNote, color: 'var(--warning)' }}>
+              ⚠ {formaterNombre(Math.abs(ecart))} site{Math.abs(ecart) > 1 ? 's' : ''}
+              {ecart > 0 ? ' ne sont rattachés à aucune nature' : ' sont comptés deux fois'} :
+              la barre ne couvre pas exactement le total retenu.
+            </p>
+          )}
+
           <p style={styleNote}>
             ⚠ Un site porte souvent plusieurs natures de risque ; celle comptée
             ici est sa nature <strong>dominante</strong>, déduite du rang de sa
-            rubrique ICPE. Les lignes s’additionnent donc bien au total des
-            sites retenus, mais elles ne disent pas tout de chaque site.
+            rubrique ICPE. Les segments s’additionnent donc bien au total des
+            sites retenus, mais ils ne disent pas tout de chaque site.
+            {parts.some((p) => p.regroupee) && (
+              <> Les natures les moins nombreuses sont regroupées : au-delà de
+              huit teintes, deux natures se ressembleraient.</>
+            )}
           </p>
         </div>
       )}

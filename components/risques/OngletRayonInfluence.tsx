@@ -32,6 +32,7 @@ import {
 import { formaterNombre, formaterNombreAbrege, formaterDecimal } from '@/lib/format/nombre';
 import { fInter, fMono } from '@/lib/design/polices';
 import { Kpi } from '@/components/risques/Kpi';
+import { TEINTES_NATURE } from '@/lib/risques/palette-natures';
 
 
 /** La courbe « toutes natures confondues », distinguée par cette clé côté base. */
@@ -57,10 +58,14 @@ const TOUTES = '*';
  * MapLibre ne résout pas `var()` dans `paint`, Recharts si. Une seule
  * définition suffit donc, dans `app/globals.css`.
  */
-const TEINTES = [
-  'var(--nature-1)', 'var(--nature-2)', 'var(--nature-3)', 'var(--nature-4)',
-  'var(--nature-5)', 'var(--nature-6)', 'var(--nature-7)', 'var(--nature-8)',
-];
+/*
+ * ⚠ DÉPLACÉES dans `lib/risques/palette-natures.ts` le 2026-09-21, parce que
+ * le panneau ① en a besoin pour sa barre empilée. Les mêmes natures, sur le
+ * même écran, doivent porter les mêmes couleurs : sinon « GPL et produits
+ * pétroliers » est orange ici et bleu deux panneaux plus loin, et plus rien ne
+ * relie les deux lectures.
+ */
+const TEINTES = TEINTES_NATURE;
 
 /** La courbe totale porte l'accent de marque, et elle seule. */
 const TEINTE_TOTALE = 'var(--brand-teal)';
