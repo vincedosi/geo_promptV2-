@@ -73,12 +73,35 @@ import { fInter, fMono } from '@/lib/design/polices';
 const SOURCE_ZONES = 'atelier-zones';
 const SOURCE_SITES = 'atelier-sites';
 const SOURCE_SURVOL = 'atelier-survol';
+const SOURCE_APERCU = 'atelier-apercu';
 const ID_FOND = 'atelier-zones-fond';
 const ID_CONTOUR = 'atelier-zones-contour';
 const ID_PPRT = 'atelier-zones-pprt';
 const ID_ETIQUETTES = 'atelier-zones-etiquettes';
 const ID_SITES = 'atelier-sites-points';
+
+/**
+ * Toutes les couches servies par la source des zones.
+ *
+ * ⚠ Elles doivent être retirées AVANT la source, sinon `removeSource` lève —
+ * et l'ancienne source reste, servant les tuiles du profil précédent sous la
+ * légende du nouveau. Une couche ajoutée sans être déclarée ici produit
+ * exactement ce défaut, en silence côté écran.
+ */
+const COUCHES_ZONES = [ID_FOND, ID_CONTOUR, ID_PPRT, ID_ETIQUETTES] as const;
 const ID_SURVOL = 'atelier-survol-cercles';
+const ID_APERCU = 'atelier-apercu-cercles';
+
+/**
+ * Le nombre de sites dont on dessine l'aperçu pendant un glissement.
+ *
+ * 64 segments par cercle, reconstruits à chaque position du curseur : à 800
+ * sites cela ferait 51 200 points par image, sur un écran qui porte déjà une
+ * carte WebGL. Les sites sont déjà bornés à la bbox visible ; ce plafond
+ * n'agit que sur les grappes les plus denses — où la centième couronne
+ * n'apprend plus rien de toute façon.
+ */
+const APERCU_SITES_MAX = 250;
 
 /**
  * Le halo des étiquettes de rayon.
@@ -121,6 +144,20 @@ const VUE_INITIALE = GRAPPES[2].bbox;
 
 interface Props {
   profil: ProfilRayons;
+  /**
+   * Le rayon en cours de réglage, tant que la réglette n'est pas relâchée.
+   *
+   * ⚠ APPROXIMATIF, et il faut le savoir : ce sont des DISQUES centrés sur
+   * chaque site, pas les zones réelles. Les vraies sont exclusives — sql/205
+   * les découpe par `ST_Difference`, le périmètre PPRT prime sur l'anneau du
+   * même niveau, et le seuil bas est amputé de l'empreinte du seuil haut.
+   * Reproduire ce découpage côté client à chaque position du curseur
+   * demanderait un moteur géométrique que le navigateur n'a pas.
+   *
+   * L'aperçu répond à « jusqu'où ça va », pas à « qui appartient à quoi ». Au
+   * relâchement, la vraie géométrie reprend la main.
+   */
+  apercu?: { niveau: Niveau | null; rayonM: number } | null;
   gravites: string[];
   /**
    * Natures de risque retenues. Vide = toutes.
@@ -133,7 +170,7 @@ interface Props {
   natures: string[];
 }
 
-export function CarteRisque({ profil, gravites, natures }: Props) {
+export function CarteRisque({ profil, apercu, gravites, natures }: Props) {
   const conteneur = useRef<HTMLDivElement | null>(null);
   const carte = useRef<maplibregl.Map | null>(null);
   const { theme } = useTheme();
@@ -159,6 +196,9 @@ export function CarteRisque({ profil, gravites, natures }: Props) {
    * regardait le panneau — c'est-à-dire pendant qu'on réglait.
    */
   usePiste('zones', 'Découpage des zones…', preparation);
+
+  /** Les sites actuellement chargés — la source des cercles d'aperçu. */
+  const sitesRef = useRef<GeoJSON.FeatureCollection | null>(null);
 
   // ⚠ Les formes SÉRIALISÉES, jamais les tableaux : recréés à chaque rendu du
   // parent, ils relanceraient les effets indéfiniment.
@@ -239,7 +279,21 @@ export function CarteRisque({ profil, gravites, natures }: Props) {
 
     const poser = () => {
       if (annule) return;
-      for (const id of [ID_FOND, ID_CONTOUR, ID_PPRT]) {
+      /*
+       * ⚠ TOUTES les couches de cette source, sans exception.
+       *
+       * `removeSource` LÈVE si une seule couche l'utilise encore — et le
+       * symptôme est vicieux : l'exception part dans la console, l'ancienne
+       * source reste en place, et la carte continue de servir les tuiles du
+       * profil PRÉCÉDENT sous la légende du nouveau. Constaté le 2026-09-21,
+       * la couche d'étiquettes ajoutée le matin même ne figurait pas dans
+       * cette liste.
+       *
+       * C'est `COUCHES_ZONES` qui la porte désormais, déclarée à côté des
+       * identifiants : en ajouter une sans l'y mettre demande de sauter une
+       * ligne qui dit exactement pourquoi.
+       */
+      for (const id of COUCHES_ZONES) {
         if (m.getLayer(id)) m.removeLayer(id);
       }
       if (m.getSource(SOURCE_ZONES)) m.removeSource(SOURCE_ZONES);
@@ -481,6 +535,9 @@ export function CarteRisque({ profil, gravites, natures }: Props) {
             },
           });
         }
+        // Gardés pour l'aperçu : leurs positions sont déjà là, et les
+        // redemander à chaque position du curseur serait absurde.
+        sitesRef.current = fc;
         setNSites(Array.isArray(fc?.features) ? fc.features.length : null);
       } catch {
         // Une carte sans ses points reste lisible : les zones sont l'objet.
@@ -580,12 +637,76 @@ export function CarteRisque({ profil, gravites, natures }: Props) {
     };
   }, [cleGravites, cleNatures, theme]);
 
+  /* ── L'aperçu pendant le glissement de la réglette ─────────────────────── */
+  useEffect(() => {
+    const m = carte.current;
+    if (!m) return;
+    const src = m.getSource(SOURCE_APERCU) as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+
+    if (!apercu) {
+      src.setData({ type: 'FeatureCollection', features: [] });
+      return;
+    }
+
+    const sites = sitesRef.current?.features ?? [];
+    /*
+     * ⚠ Plafonné, et le chiffre est réfléchi : 64 segments par cercle, un
+     * cercle par site, reconstruits à chaque position du curseur. À 800 sites
+     * cela ferait 51 200 points par image — le glissement saccaderait, sur un
+     * écran qui porte déjà une carte WebGL. Les sites sont déjà bornés à la
+     * bbox visible ; ce plafond n'agit que sur les grappes les plus denses,
+     * où la centième couronne n'apprend plus rien.
+     */
+    const retenus: GeoJSON.Feature[] = [];
+    for (const f of sites) {
+      if (retenus.length >= APERCU_SITES_MAX) break;
+      const g = f.geometry;
+      if (!g || g.type !== 'Point') continue;
+      const gravite = String((f.properties as Record<string, unknown>)?.gravite ?? '');
+      const niveau: Niveau = gravite === 'seveso_haut' ? 'haut'
+        : gravite === 'seveso_bas' ? 'bas' : 'autres';
+      // `null` = niveaux liés : le réglage vaut pour tous, donc on les dessine
+      // tous. Sinon, seul le niveau qu'on règle bouge — dessiner les autres
+      // montrerait un changement qui n'a pas lieu.
+      if (apercu.niveau !== null && apercu.niveau !== niveau) continue;
+      const [lon, lat] = g.coordinates as [number, number];
+      retenus.push(circleGeoJSON(lon, lat, apercu.rayonM));
+    }
+    src.setData({ type: 'FeatureCollection', features: retenus });
+  }, [apercu]);
+
   /* ── La couche de survol ───────────────────────────────────────────────── */
   useEffect(() => {
     const m = carte.current;
     if (!m) return;
     const poser = () => {
       if (m.getSource(SOURCE_SURVOL)) return;
+
+      /*
+       * ── L'APERÇU DE RÉGLAGE ──────────────────────────────────────────
+       * Posé sous le survol : quand on règle en survolant un site, c'est le
+       * site survolé qu'on veut distinguer, pas la nappe d'aperçu.
+       *
+       * Remplissage TRÈS léger et trait franc : l'aperçu doit se lire comme
+       * une étendue en cours de réglage, jamais comme une zone établie — les
+       * vraies portent une opacité par bande et un contour par classe.
+       */
+      m.addSource(SOURCE_APERCU, {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+      m.addLayer({
+        id: ID_APERCU,
+        type: 'fill',
+        source: SOURCE_APERCU,
+        paint: {
+          'fill-color': COULEUR_NIVEAU[theme].haut,
+          'fill-opacity': 0.1,
+          'fill-outline-color': COULEUR_NIVEAU[theme].haut,
+        },
+      });
+
       m.addSource(SOURCE_SURVOL, {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },

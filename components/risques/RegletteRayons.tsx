@@ -52,12 +52,34 @@ import { fInter, fMono } from '@/lib/design/polices';
  */
 const NIVEAUX_REGLABLES: readonly Niveau[] = ['haut', 'bas'];
 
+/**
+ * Ce qu'on est en train de régler, tant que le doigt n'a pas lâché.
+ *
+ * ⚠ Ce n'est PAS un profil : c'est une intention, qui n'a pas encore de
+ * géométrie en base. La carte s'en sert pour dessiner un aperçu approximatif,
+ * et rien d'autre ne doit le lire — surtout pas un calcul de population, qui
+ * afficherait un chiffre pour une zone qui n'existe pas encore.
+ */
+export interface ApercuRayon {
+  /** Le niveau dont on déplace le bord, ou `null` quand ils sont liés. */
+  niveau: Niveau | null;
+  rayonM: number;
+}
+
 interface Props {
   profil: ProfilRayons;
   onProfil: (p: ProfilRayons) => void;
+  /**
+   * Appelé à CHAQUE position du curseur, puis avec `null` au relâchement.
+   *
+   * C'est ce qui rend la carte vivante pendant le geste sans rien demander au
+   * serveur : la géométrie réelle coûte 1,3 s de construction, et une requête
+   * par pixel serait la famille de l'incident du 28/03.
+   */
+  onApercu?: (a: ApercuRayon | null) => void;
 }
 
-export function RegletteRayons({ profil, onProfil }: Props) {
+export function RegletteRayons({ profil, onProfil, onApercu }: Props) {
   /*
    * Cadenas fermé : UNE réglette, celle du seuil haut, dont les autres niveaux
    * héritent. Deux réglettes qui bougeraient ensemble diraient la même chose
@@ -75,6 +97,11 @@ export function RegletteRayons({ profil, onProfil }: Props) {
           niveau={niveau}
           libelle={profil.lie ? 'Tous les niveaux' : LIBELLE_NIVEAU[niveau]}
           onProfil={onProfil}
+          /* Cadenas fermé : l'aperçu vaut pour TOUS les niveaux, d'où le
+             `null` — la carte dessinerait sinon les cercles du seul seuil
+             haut pendant que la réglette annonce « tous les niveaux ». */
+          onApercu={onApercu}
+          niveauApercu={profil.lie ? null : niveau}
         />
       ))}
 
@@ -102,8 +129,8 @@ export function RegletteRayons({ profil, onProfil }: Props) {
 
 /** Une réglette : le bord d'un niveau, ses anneaux intérieurs rappelés. */
 function Reglette({
-  profil, niveau, libelle, onProfil,
-}: Props & { niveau: Niveau; libelle: string }) {
+  profil, niveau, libelle, onProfil, onApercu, niveauApercu,
+}: Props & { niveau: Niveau; libelle: string; niveauApercu: Niveau | null }) {
   /*
    * `null` = rien en cours de glissement, donc on affiche la valeur du profil.
    * Remettre `null` au relâchement fait retomber l'affichage sur ce que le
@@ -121,6 +148,15 @@ function Reglette({
   const poser = () => {
     if (glisse !== null) onProfil(poserRayonExterieur(profil, niveau, glisse));
     setGlisse(null);
+    // L'aperçu s'éteint AVANT que la vraie géométrie n'arrive : pendant la
+    // seconde de construction, la carte garde les zones précédentes. Les
+    // laisser côte à côte montrerait deux rayons pour un seul réglage.
+    onApercu?.(null);
+  };
+
+  const glisser = (v: number) => {
+    setGlisse(v);
+    onApercu?.({ niveau: niveauApercu, rayonM: v });
   };
 
   return (
@@ -147,7 +183,7 @@ function Reglette({
         max={RAYON_MAX_M}
         step={PAS_RAYON_M}
         value={affiche}
-        onChange={(e) => setGlisse(Number(e.target.value))}
+        onChange={(e) => glisser(Number(e.target.value))}
         onMouseUp={poser}
         onTouchEnd={poser}
         onKeyUp={poser}

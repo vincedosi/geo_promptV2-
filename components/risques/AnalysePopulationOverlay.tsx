@@ -58,7 +58,7 @@ import { BarreProgression, Perime } from '@/components/risques/BarreProgression'
 import { estPerime } from '@/lib/risques/chargement';
 import { PanneauSites } from '@/components/risques/PanneauSites';
 import { ResumeProfil } from '@/components/risques/ResumeProfil';
-import { RegletteRayons } from '@/components/risques/RegletteRayons';
+import { RegletteRayons, type ApercuRayon } from '@/components/risques/RegletteRayons';
 import { BandeauKpi } from '@/components/risques/BandeauKpi';
 import { anneauxDuNiveau, NIVEAUX as NIVEAUX_PROFIL } from '@/lib/risques/profil';
 import { useSitesCompte } from '@/components/risques/use-sites-compte';
@@ -361,6 +361,13 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
    */
   const [largeurPanneau, setLargeurPanneau] = useState(480);
   const [carteSeule, setCarteSeule] = useState(false);
+
+  /*
+   * Le rayon en cours de réglage, le temps d'un glissement. Il ne va ni dans
+   * l'URL ni dans l'état du module : il n'a pas encore de géométrie en base,
+   * et un lien partagé porterait un rayon que personne n'a validé.
+   */
+  const [apercuRayon, setApercuRayon] = useState<ApercuRayon | null>(null);
 
 
   /**
@@ -1010,6 +1017,10 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         <RegletteRayons
           profil={etat.profil}
           onProfil={(p) => majEtat({ profil: p })}
+          /* L'aperçu ne va PAS dans l'état d'URL : il ne dure que le temps
+             d'un geste, et un lien partagé porterait alors un rayon que
+             personne n'a validé. */
+          onApercu={setApercuRayon}
         />
       </div>
 
@@ -1431,7 +1442,12 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         )}
 
         <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-          <CarteRisque profil={etat.profil} gravites={niveaux} natures={natures} />
+          <CarteRisque
+            profil={etat.profil}
+            apercu={apercuRayon}
+            gravites={niveaux}
+            natures={natures}
+          />
 
           {/*
             « Carte seule » replie le panneau au lieu d'appeler l'API plein
