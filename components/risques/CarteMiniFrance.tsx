@@ -402,7 +402,19 @@ export function CarteMiniFrance({
     return out;
   }, [outreMer]);
 
-  const enAvant = survole ?? codeActif ?? null;
+  /**
+   * L'unité mise en avant : survol, puis survol du tableau, puis CADRAGE.
+   *
+   * ⚠ `cadrageSur` a été ajouté à cette cascade après vérification à l'écran :
+   * la carte se recadrait bien — Val-d'Oise mesuré au centre exact de la boîte
+   * — mais **rien ne disait sur quoi**. L'unité cadrée était tracée comme ses
+   * voisines, et avec les départements limitrophes qui débordent du cadre, on
+   * ne pouvait pas distinguer le sujet du décor.
+   *
+   * L'ordre compte : un survol en cours l'emporte sur le cadrage, parce qu'il
+   * répond à un geste en train de se faire.
+   */
+  const enAvant = survole ?? codeActif ?? cadrageSur ?? null;
   const nomActif = [...tracesMetro, ...tracesOM].find((t) => t.code === enAvant)?.nom ?? enAvant;
   const valeurActive = enAvant ? valeurs.get(enAvant) : undefined;
 
