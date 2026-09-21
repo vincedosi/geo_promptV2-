@@ -377,6 +377,37 @@ genesis_app/
 │   │                           # atelier de ZONES qui ne montrait aucune zone,
 │   │                           # ou « adopter 2 km » se decidait sur un chiffre
 │   │                           # sans jamais voir ce que ces 2 km recouvrent.
+│   │                           # ⚠ **TROIS REGIMES DE ZOOM** (2026-09-21) :
+│   │                           # sous `ZONES_RISQUE_ZOOM_LISIBLE` (7) les
+│   │                           # zones ne sont PAS peintes — elles y font
+│   │                           # moins d'un pixel — et le bandeau le dit ; de
+│   │                           # 7 a `ZONES_RISQUE_ZOOM_DETAIL` (10) les
+│   │                           # bandes d'un niveau sont FONDUES en un aplat
+│   │                           # uni (la question de cette echelle est « ou
+│   │                           # sont les zones », pas « a quelle distance ») ;
+│   │                           # au-dela, chaque bande reprend son opacite,
+│   │                           # son contour tirete et l'ETIQUETTE de son
+│   │                           # rayon le long du contour. ⚠ Le rayon n'est
+│   │                           # PAS dans la tuile (sql/205 y ecrit classe,
+│   │                           # niveau, bande, surface) : l'etiquette est un
+│   │                           # `match` compose cote client depuis le PROFIL,
+│   │                           # l'ajouter a la tuile imposant de reconstruire
+│   │                           # le cache a chaque anneau deplace.
+│   │                           # ⚠ **Pas de points proportionnels a la
+│   │                           # population sous z7**, malgre le brief : cette
+│   │                           # donnee n'existe pas par site a l'echelle
+│   │                           # nationale, et le proxy tentant — le rayon —
+│   │                           # vient du NIVEAU et non des habitants, donc
+│   │                           # n'encoderait que la couleur deja affichee
+│   │                           # sous l'apparence d'une mesure.
+│   │                           # ⚠ Le SURVOL d'un site dessine ses anneaux
+│   │                           # (64 segments, `circleGeoJSON` reutilise du
+│   │                           # copilote, AUCUNE requete) : l'aplat etant
+│   │                           # exclusif, il ne dit pas de quel site vient la
+│   │                           # zone qu'on regarde. La population par site
+│   │                           # reste hors du survol — elle demande un appel
+│   │                           # par site, donc des dizaines par mouvement de
+│   │                           # souris sur une grappe dense.
 │   │                           # ⚠ Le paint des sites lit `COULEUR_NIVEAU`
 │   │                           # (hex) et JAMAIS `COULEUR_NIVEAU_CSS` (`var()`)
 │   │                           # — MapLibre ne resout pas `var()` dans `paint`,

@@ -108,6 +108,34 @@ export const PPRT_ZOOM_PLANCHER = 8;
  */
 export const ZONES_RISQUE_ZOOM_PLANCHER = 4;
 
+/**
+ * Le zoom à partir duquel les zones sont RENDUES.
+ *
+ * ⚠ À ne pas confondre avec `ZONES_RISQUE_ZOOM_PLANCHER` juste au-dessus, qui
+ * dit à partir de quand les tuiles EXISTENT. Entre les deux — z4 à z7 — les
+ * tuiles sont servies et les zones peintes en taches de moins d'un pixel :
+ * présentes, illisibles, et sans que rien ne le dise. Le bandeau de la carte
+ * se déclenche sur CELUI-CI, pas sur le plancher, sinon il n'apparaîtrait
+ * qu'au-dessous de z4, c'est-à-dire jamais en usage réel.
+ *
+ * Les couches portent donc ce `minzoom` pendant que la source garde le
+ * plancher : séparer les deux permet de dire « zoomez » sans cesser de
+ * préparer les tuiles.
+ */
+export const ZONES_RISQUE_ZOOM_LISIBLE = 7;
+
+/**
+ * Le zoom à partir duquel on montre le DÉTAIL par classe.
+ *
+ * En dessous, les bandes d'un même niveau sont fondues en un seul aplat : à
+ * z8, un anneau de 500 m fait deux pixels et quatre opacités dégressives ne se
+ * distinguent plus — elles donnent un bord sale, pas une information. On lit
+ * alors « où sont les zones du seuil haut », ce qui est la question de cette
+ * échelle. Au-dessus, chaque bande reprend son opacité et son contour, et
+ * porte l'étiquette de son rayon.
+ */
+export const ZONES_RISQUE_ZOOM_DETAIL = 10;
+
 // À incrémenter à chaque migration modifiant la fonction MVT carreaux (get_carreaux_tile / tiles/{z}/{x}/{y})
 // v13 — 2026-04-24 : expose code_dept + code_region dans les props MVT (JOIN ref_departements)
 //       pour filtre territorial client-side (setFilter) sans refetch.

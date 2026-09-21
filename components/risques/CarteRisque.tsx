@@ -51,11 +51,17 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useTheme } from '@/lib/theme/ThemeProvider';
 import { adminFetch } from '@/lib/admin-fetch';
-import { ZONES_RISQUE_ZOOM_PLANCHER } from '@/lib/version';
 import {
-  expressionCouleurNiveau, expressionOpaciteBande,
+  ZONES_RISQUE_ZOOM_PLANCHER, ZONES_RISQUE_ZOOM_LISIBLE, ZONES_RISQUE_ZOOM_DETAIL,
+} from '@/lib/version';
+import {
+  expressionCouleurNiveau, expressionOpaciteSelonZoom,
   COULEUR_NIVEAU, COULEUR_NIVEAU_CSS, OPACITE_BANDE,
 } from '@/lib/carte/palette-zones-risque';
+// ⚠ Réutilisé et non réécrit : 64 segments, projection sphérique, déjà en
+// service sur la carte du copilote. Un second cercle « maison » dans le même
+// produit, c'est le défaut des quinze `fmtNum` de `lib/format/nombre.ts`.
+import { circleGeoJSON } from '@/app/copilote/_lib/constants';
 import { TIRETE_ZONE_CALCULEE, LARGEUR_TRAIT_ZONE } from '@/lib/carte/nature-zone';
 import { CONTOUR_POINT } from '@/lib/carte/palette-risques';
 import { codeProfil, codeZonesRisque } from '@/lib/risques/code-profil';
@@ -65,10 +71,25 @@ import { fInter, fMono } from '@/lib/design/polices';
 
 const SOURCE_ZONES = 'atelier-zones';
 const SOURCE_SITES = 'atelier-sites';
+const SOURCE_SURVOL = 'atelier-survol';
 const ID_FOND = 'atelier-zones-fond';
 const ID_CONTOUR = 'atelier-zones-contour';
 const ID_PPRT = 'atelier-zones-pprt';
+const ID_ETIQUETTES = 'atelier-zones-etiquettes';
 const ID_SITES = 'atelier-sites-points';
+const ID_SURVOL = 'atelier-survol-cercles';
+
+/**
+ * Le halo des étiquettes de rayon.
+ *
+ * ⚠ INVERSÉ entre thèmes, comme `--halo-carte` du DESIGN_SYSTEM : un halo
+ * sombre sur fond clair noircit le texte au lieu de le détourer. Littéral et
+ * non `var()` — c'est MapLibre qui le lit.
+ */
+const HALO_ETIQUETTE: Record<'dark' | 'light', string> = {
+  dark: 'rgba(0,0,0,0.75)',
+  light: 'rgba(255,255,255,0.85)',
+};
 
 /** Fond de carte neutre : la donnée doit dominer, pas le décor. */
 const FONDS: Record<'dark' | 'light', string> = {
@@ -119,6 +140,17 @@ export function CarteRisque({ profil, gravites, natures }: Props) {
   const [nSites, setNSites] = useState<number | null>(null);
   const [preparation, setPreparation] = useState(false);
 
+  /*
+   * ⚠ Le profil dans une `ref`, lu par le gestionnaire de survol.
+   *
+   * L'effet qui pose ce gestionnaire ne dépend QUE des filtres — le remonter
+   * sur le profil le rattacherait à chaque anneau déplacé, et chaque passe
+   * laisserait un écouteur de plus. La `ref` donne au survol la valeur du
+   * moment sans lier son cycle de vie à celui du profil.
+   */
+  const profilRef = useRef(profil);
+  profilRef.current = profil;
+
   // ⚠ Les formes SÉRIALISÉES, jamais les tableaux : recréés à chaque rendu du
   // parent, ils relanceraient les effets indéfiniment.
   const cleGravites = gravites.join(',');
@@ -135,6 +167,28 @@ export function CarteRisque({ profil, gravites, natures }: Props) {
     () => codeZonesRisque(codeSeul, cleNatures ? cleNatures.split(',') : []),
     [codeSeul, cleNatures],
   );
+
+  /**
+   * `classe` → le libellé de son rayon, pour l'étiquette portée par le contour.
+   *
+   * Construit depuis le PROFIL et non depuis la tuile : sql/205 n'y écrit pas
+   * le rayon, et l'y ajouter imposerait de reconstruire le cache de géométries
+   * à chaque anneau déplacé — pour une valeur que le client connaît déjà.
+   *
+   * Le périmètre publié porte « PPRT » et non une distance : il n'en a pas, sa
+   * forme vient d'un arrêté et pas d'un cercle.
+   */
+  const etiquetteClasse = useMemo(() => {
+    const m: unknown[] = ['match', ['get', 'classe']];
+    for (const n of NIVEAUX) {
+      m.push(`${n}:pprt`, 'PPRT');
+      anneauxDuNiveau(profil, n).forEach((r, i) => m.push(`${n}:${i + 1}`, libelleRayon(r)));
+    }
+    // Défaut vide : une classe inconnue ne doit rien écrire plutôt qu'un
+    // libellé inventé — c'est le signe qu'un profil et une tuile divergent.
+    m.push('');
+    return m;
+  }, [profil]);
 
   /* ── Montage ───────────────────────────────────────────────────────────── */
   useEffect(() => {
@@ -203,24 +257,40 @@ export function CarteRisque({ profil, gravites, natures }: Props) {
         maxzoom: 14,
       });
 
+      /*
+       * ⚠ `minzoom` sur la COUCHE, pas sur la source : les tuiles continuent
+       * d'être préparées et servies sous ce zoom (le plancher de la source
+       * reste `ZONES_RISQUE_ZOOM_PLANCHER`), mais on ne peint rien. Entre z4 et
+       * z7, une zone de 2 km tient dans moins d'un pixel : la peindre donne des
+       * poussières qu'on prend pour des artefacts, et qui cachent le fond.
+       */
       m.addLayer({
         id: ID_FOND,
         type: 'fill',
         source: SOURCE_ZONES,
         'source-layer': 'zones_risque',
+        minzoom: ZONES_RISQUE_ZOOM_LISIBLE,
         paint: {
           'fill-color': expressionCouleurNiveau(theme) as never,
-          'fill-opacity': expressionOpaciteBande() as never,
+          // Aplat uni par niveau de loin, bandes détaillées de près.
+          'fill-opacity': expressionOpaciteSelonZoom(ZONES_RISQUE_ZOOM_DETAIL) as never,
         },
       });
 
       // Tireté = zone CALCULÉE par nous. La convention vit une seule fois,
       // dans `lib/carte/nature-zone.ts`, et vaut sur toutes les couches.
+      /*
+       * ⚠ Le contour des bandes n'apparaît QU'AU DÉTAIL. Sous ce zoom, les
+       * anneaux d'un même niveau sont fondus en un aplat : leurs contours y
+       * dessineraient des cernes entre des teintes identiques, c'est-à-dire du
+       * bruit qui contredit la fusion.
+       */
       m.addLayer({
         id: ID_CONTOUR,
         type: 'line',
         source: SOURCE_ZONES,
         'source-layer': 'zones_risque',
+        minzoom: ZONES_RISQUE_ZOOM_DETAIL,
         filter: ['!=', ['get', 'bande'], null],
         paint: {
           'line-color': expressionCouleurNiveau(theme) as never,
@@ -232,16 +302,63 @@ export function CarteRisque({ profil, gravites, natures }: Props) {
 
       // Plein = servitude PUBLIÉE par l'État. Un lecteur doit distinguer
       // l'opposable du calculé sans lire la légende.
+      /*
+       * Le contour du PPRT, lui, reste visible dès que les zones le sont : ce
+       * n'est pas un détail de distance mais une servitude OPPOSABLE, et la
+       * seule chose de cette carte qui ne vienne pas d'un rayon que nous avons
+       * choisi. La fondre au dézoom effacerait la distinction que toute la
+       * légende porte.
+       */
       m.addLayer({
         id: ID_PPRT,
         type: 'line',
         source: SOURCE_ZONES,
         'source-layer': 'zones_risque',
+        minzoom: ZONES_RISQUE_ZOOM_LISIBLE,
         filter: ['==', ['get', 'bande'], null],
         paint: {
           'line-color': expressionCouleurNiveau(theme) as never,
           'line-width': LARGEUR_TRAIT_ZONE + 0.5,
           'line-opacity': 1,
+        },
+      });
+
+      /*
+       * ── L'ÉTIQUETTE DU RAYON, LE LONG DU CONTOUR ────────────────────────
+       *
+       * ⚠ La tuile ne porte PAS le rayon : sql/205 y écrit `classe`, `niveau`,
+       * `bande` et `surface_km2`. Le rayon est une propriété du PROFIL, que le
+       * client a sous la main — on compose donc un `match` de `classe` vers son
+       * libellé. L'ajouter à la tuile obligerait à reconstruire le cache à
+       * chaque déplacement d'anneau, pour une donnée que le client connaît
+       * déjà.
+       *
+       * `symbol-placement: 'line'` fait courir le texte le long du contour :
+       * posée au centre, une étiquette par classe s'empilerait avec celles des
+       * bandes voisines, toutes concentriques.
+       */
+      m.addLayer({
+        id: ID_ETIQUETTES,
+        type: 'symbol',
+        source: SOURCE_ZONES,
+        'source-layer': 'zones_risque',
+        minzoom: ZONES_RISQUE_ZOOM_DETAIL,
+        layout: {
+          'symbol-placement': 'line',
+          'text-field': etiquetteClasse as never,
+          // Une police du style OpenFreeMap : demander une fonte absente ferait
+          // disparaître TOUT le calque, sans erreur.
+          'text-font': ['Noto Sans Regular'],
+          'text-size': 10,
+          'symbol-spacing': 250,
+          // Jamais de chevauchement : deux anneaux proches empileraient leurs
+          // étiquettes et aucune ne serait lisible.
+          'text-allow-overlap': false,
+        },
+        paint: {
+          'text-color': expressionCouleurNiveau(theme) as never,
+          'text-halo-color': HALO_ETIQUETTE[theme],
+          'text-halo-width': 1.4,
         },
       });
     };
@@ -283,7 +400,13 @@ export function CarteRisque({ profil, gravites, natures }: Props) {
 
     void preparerPuisPoser();
     return () => { annule = true; };
-  }, [code, codeSeul, cleNatures, theme]);
+    /*
+     * `etiquetteClasse` dérive du profil, donc de `codeSeul` : l'effet se
+     * rejouerait de toute façon. On la déclare quand même — une dépendance
+     * vraie qu'on tait aujourd'hui parce qu'une autre la couvre est un piège
+     * pour le jour où cette autre disparaît.
+     */
+  }, [code, codeSeul, cleNatures, theme, etiquetteClasse]);
 
   /* ── Les sites ─────────────────────────────────────────────────────────── */
   useEffect(() => {
@@ -397,9 +520,43 @@ export function CarteRisque({ profil, gravites, natures }: Props) {
         .addTo(m);
       void niveau;
     };
+    /*
+     * ── SURVOL : LES ANNEAUX DU SITE, EN TRAIT FIN ──────────────────────
+     *
+     * Les zones peintes sont EXCLUSIVES — un carreau couvert par deux sites
+     * n'appartient qu'à une classe, et l'aplat ne dit donc pas de quel site
+     * vient le sien. Le survol répond à cette question, et à elle seule :
+     * voici ce que CE site engendre.
+     *
+     * ⚠ Calculé côté client, sans aucune requête : les rayons sont ceux du
+     * profil, la position est déjà dans la tuile GeoJSON. Un survol qui
+     * appellerait le serveur émettrait des dizaines de requêtes par mouvement
+     * de souris sur une grappe dense.
+     */
+    const dessinerSurvol = (e: maplibregl.MapLayerMouseEvent) => {
+      const f = e.features?.[0];
+      const g = f?.geometry;
+      if (!f || !g || g.type !== 'Point') return;
+      const [lon, lat] = g.coordinates as [number, number];
+      const gravite = String((f.properties as Record<string, unknown>).gravite ?? '');
+      const niveau: Niveau = gravite === 'seveso_haut' ? 'haut'
+        : gravite === 'seveso_bas' ? 'bas' : 'autres';
+
+      const cercles = anneauxDuNiveau(profilRef.current, niveau)
+        .map((r) => circleGeoJSON(lon, lat, r));
+      const src = m.getSource(SOURCE_SURVOL) as maplibregl.GeoJSONSource | undefined;
+      src?.setData({ type: 'FeatureCollection', features: cercles });
+    };
+
+    const effacerSurvol = () => {
+      const src = m.getSource(SOURCE_SURVOL) as maplibregl.GeoJSONSource | undefined;
+      src?.setData({ type: 'FeatureCollection', features: [] });
+    };
+
     m.on('click', ID_SITES, surClic);
+    m.on('mousemove', ID_SITES, dessinerSurvol);
     m.on('mouseenter', ID_SITES, () => { m.getCanvas().style.cursor = 'pointer'; });
-    m.on('mouseleave', ID_SITES, () => { m.getCanvas().style.cursor = ''; });
+    m.on('mouseleave', ID_SITES, () => { m.getCanvas().style.cursor = ''; effacerSurvol(); });
 
     m.on('moveend', differer);
     if (m.isStyleLoaded()) void charger();
@@ -410,10 +567,47 @@ export function CarteRisque({ profil, gravites, natures }: Props) {
       if (minuteur) clearTimeout(minuteur);
       m.off('moveend', differer);
       m.off('click', ID_SITES, surClic);
+      m.off('mousemove', ID_SITES, dessinerSurvol);
     };
   }, [cleGravites, cleNatures, theme]);
 
-  const sousLePlancher = zoom < ZONES_RISQUE_ZOOM_PLANCHER;
+  /* ── La couche de survol ───────────────────────────────────────────────── */
+  useEffect(() => {
+    const m = carte.current;
+    if (!m) return;
+    const poser = () => {
+      if (m.getSource(SOURCE_SURVOL)) return;
+      m.addSource(SOURCE_SURVOL, {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+      m.addLayer({
+        id: ID_SURVOL,
+        type: 'line',
+        source: SOURCE_SURVOL,
+        paint: {
+          // Blanc/noir selon le thème plutôt que la teinte du niveau : ces
+          // cercles se superposent aux zones DE CETTE MÊME teinte, et s'y
+          // fondraient exactement là où on veut les distinguer.
+          'line-color': CONTOUR_POINT[theme],
+          'line-width': 1,
+          'line-opacity': 0.85,
+        },
+      });
+    };
+    if (m.isStyleLoaded()) poser();
+    else m.once('load', poser);
+  }, [theme]);
+
+  /*
+   * ⚠ Le seuil de LISIBILITÉ, pas le plancher de la source.
+   *
+   * Le bandeau se déclenchait sous `ZONES_RISQUE_ZOOM_PLANCHER` (z4), donc
+   * quasiment jamais — et entre z4 et z7 la carte peignait des zones de moins
+   * d'un pixel sans rien dire. C'est exactement le cas où l'utilisateur croit
+   * qu'il n'y a rien à voir.
+   */
+  const sousLeSeuilLisible = zoom < ZONES_RISQUE_ZOOM_LISIBLE;
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 0 }}>
@@ -499,7 +693,7 @@ export function CarteRisque({ profil, gravites, natures }: Props) {
           MapLibre ne demande AUCUNE tuile sous le minzoom d'une source, et
           n'émet aucune erreur : sans ce bandeau, la carte paraîtrait vide
           alors qu'elle n'a simplement rien demandé. */}
-      {sousLePlancher && (
+      {sousLeSeuilLisible && (
         <div
           style={{
             position: 'absolute', top: 50, left: 10, zIndex: 2,

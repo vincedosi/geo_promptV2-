@@ -350,6 +350,37 @@ prise pour d'autres raisons plus haut, et que ce défaut confirme.
   Trois sorties : dimensionner par un proxy déjà en base (le rayon, donc la
   surface), ne pas dimensionner, ou construire un quatrième pré-calcul. La
   première est gratuite et honnête si la légende le dit.
+
+  > **Tranché le 2026-09-21 : on ne dimensionne pas.** Les trois sorties ne
+  > se valent pas, et la première — le rayon comme proxy — est la plus
+  > tentante et la pire. Le rayon ne vient pas des habitants : il vient du
+  > NIVEAU du site, et il est le même pour tous les sites d'un niveau puisque
+  > c'est l'utilisateur qui le règle. Un point dimensionné par lui n'encoderait
+  > donc **que la couleur déjà affichée**, tout en ayant l'apparence d'une
+  > mesure de population. Une légende qui le dit n'y change rien : on croit ce
+  > qu'on voit, pas ce qu'on lit en bas à gauche.
+  >
+  > Le quatrième pré-calcul reste possible mais il est hors de ce chantier :
+  > `seveso_exposition` est alimenté **à la demande, site par site**, et
+  > l'étendre aux 96 427 sites est l'incident du 28/03 rejoué (§ 4).
+  >
+  > Ce qui est fait à la place, et qui répond au vrai besoin de cette échelle —
+  > « où sont les zones » : les zones ne sont plus peintes sous
+  > `ZONES_RISQUE_ZOOM_LISIBLE` (z7), où elles faisaient moins d'un pixel, et
+  > le bandeau le dit. Il se déclenchait jusqu'ici sous z4, c'est-à-dire
+  > jamais.
+
+- **L'infobulle « population par classe » au survol d'un site** (brief,
+  phase 3) n'est PAS faite, et pour la même raison : ce chiffre n'existe que
+  par `/api/risques/[siteId]/exposition`, qui calcule à la demande. Un survol
+  qui appelle le serveur émet des dizaines de requêtes par déplacement de
+  souris sur une grappe dense — `geo:rl:exposition-*` mordrait avant que
+  l'utilisateur ait fini son geste.
+
+  Le survol dessine donc les **anneaux du site** (64 segments, `circleGeoJSON`
+  réutilisé, aucune requête) : il répond à « qu'est-ce que CE site engendre »,
+  que l'aplat exclusif ne peut pas dire. La population par site a sa place
+  dans l'infobulle du CLIC, où une requête est légitime — phase 4.
 - **La maille `commune` sur la grande carte** : 34 921 polygones. L'écran actuel
   refuse déjà la mini-carte à cette maille et le dit, plutôt que d'afficher un
   chargement sans fin. La même règle devra valoir ici.

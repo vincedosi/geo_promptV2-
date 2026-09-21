@@ -130,3 +130,41 @@ export function expressionOpaciteBande(): unknown[] {
     OPACITE_BANDE[3],
   ];
 }
+
+/**
+ * L'opacité d'un niveau vu de loin, bandes fondues.
+ *
+ * Entre les quatre paliers de `OPACITE_BANDE` : plus dense que la dernière
+ * bande — sinon l'emprise disparaîtrait au dézoom — sans atteindre celle du
+ * cœur, qui ferait lire tout le disque comme la zone la plus proche.
+ *
+ * ⚠ NON exportée, à dessein : rien d'autre que la fonction ci-dessous ne s'en
+ * sert, et un export sans consommateur est du code mort que `npm run catalogue`
+ * compte — le cliquet de `tests/unit/docs/catalogue-code.test.ts` l'a attrapé
+ * le jour même. La légende, elle, n'affiche pas cette valeur : elle liste les
+ * bandes, qui n'existent qu'au zoom de détail.
+ */
+const OPACITE_NIVEAU_FONDU = 0.32;
+
+/**
+ * L'opacité de remplissage SELON LE ZOOM : fondue de loin, détaillée de près.
+ *
+ * ── POURQUOI FONDRE LES BANDES AU DÉZOOM ──────────────────────────────────
+ *
+ * À z8, un anneau de 500 m fait deux pixels : quatre opacités dégressives n'y
+ * sont plus quatre informations, elles donnent un bord sale. La question de
+ * cette échelle est « où sont les zones du seuil haut », pas « à quelle
+ * distance exacte » — et on y répond en aplat uni par niveau.
+ *
+ * ⚠ `step` et non `interpolate` : une opacité qui glisserait progressivement
+ * entre les deux régimes afficherait, à mi-chemin, des bandes à demi fondues
+ * qui ne correspondraient à aucune lecture. La bascule est nette, et le seuil
+ * est `ZONES_RISQUE_ZOOM_DETAIL`, déclaré une seule fois.
+ *
+ * @param zoomDetail - Le zoom de bascule (`ZONES_RISQUE_ZOOM_DETAIL`), passé
+ *   en argument pour que ce module reste sans dépendance vers `lib/version.ts`.
+ * @returns L'expression à poser dans `fill-opacity`.
+ */
+export function expressionOpaciteSelonZoom(zoomDetail: number): unknown[] {
+  return ['step', ['zoom'], OPACITE_NIVEAU_FONDU, zoomDetail, expressionOpaciteBande()];
+}
