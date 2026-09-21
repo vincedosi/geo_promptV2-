@@ -72,7 +72,7 @@ describe('lireEtatUrl', () => {
       profil: normaliserProfil({
         haut: [500, 1000, 2000], bas: [300], autres: [], lie: false, inclurePPRT: false,
       }),
-      onglet: 'zones',
+      etape: 'zones',
       jeu: 'b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e',
       atelier: true,
       campagne: '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0',
@@ -80,24 +80,42 @@ describe('lireEtatUrl', () => {
     expect(allerRetour(etat)).toEqual(etat);
   });
 
-  it('un ancien lien onglet=diffusion ouvre l onglet Zones', () => {
+  it('un ancien lien onglet=diffusion ouvre l etape Zones', () => {
     /*
      * L'onglet `diffusion` a été retiré le 2026-09-20 : le module de risque
      * est devenu un atelier qui PRODUIT un jeu de zones, et le suivi de la
      * diffusion est retourné dans Campagne > Suivi.
      *
      * Traiter `diffusion` comme une valeur invalide renverrait un lien partagé
-     * avant cette date sur « Rayons », c'est-à-dire ailleurs que là où son
-     * auteur regardait, et sans rien dire. Même raisonnement que l'alias
+     * avant cette date sur la première étape, c'est-à-dire ailleurs que là où
+     * son auteur regardait, et sans rien dire. Même raisonnement que l'alias
      * hérité `tab=creation` de l'overlay MAGELIAN.
      */
-    expect(lireEtatUrl(new URLSearchParams('onglet=diffusion')).onglet).toBe('zones');
+    expect(lireEtatUrl(new URLSearchParams('onglet=diffusion')).etape).toBe('zones');
+  });
+
+  it('les trois anciens onglets ouvrent leur etape', () => {
+    /*
+     * Le passage aux quatre étapes (2026-09-21) ne doit casser aucun lien déjà
+     * envoyé. Une seconde génération d'alias ne remplace pas la première : les
+     * liens les plus anciens seraient sinon les premiers perdus.
+     */
+    expect(lireEtatUrl(new URLSearchParams('onglet=rayons')).etape).toBe('rayon');
+    expect(lireEtatUrl(new URLSearchParams('onglet=territoires')).etape).toBe('couverture');
+    expect(lireEtatUrl(new URLSearchParams('onglet=zones')).etape).toBe('zones');
+  });
+
+  it('etape prime sur onglet quand une URL porte les deux', () => {
+    // Une URL construite à partir d'un ancien lien peut porter les deux clés.
+    // C'est la valeur COURANTE qui gagne : l'alias ne sert qu'à rattraper un
+    // lien qui n'a pas la nouvelle.
+    expect(lireEtatUrl(new URLSearchParams('etape=sites&onglet=zones')).etape).toBe('sites');
   });
 
   it('un onglet vraiment inconnu retombe sur le defaut', () => {
     // L'alias ne doit pas se transformer en tolérance générale : une valeur
     // que personne n'a jamais servie est une erreur, pas un héritage.
-    expect(lireEtatUrl(new URLSearchParams('onglet=chimere')).onglet).toBe(ETAT_DEFAUT.onglet);
+    expect(lireEtatUrl(new URLSearchParams('onglet=chimere')).etape).toBe(ETAT_DEFAUT.etape);
   });
 
   it('fait l aller-retour sur une nature contenant un point', () => {
@@ -114,8 +132,8 @@ describe('lireEtatUrl', () => {
     expect(e.maille).toBe(ETAT_DEFAUT.maille);
   });
 
-  it('ignore un onglet inconnu', () => {
-    expect(lireEtatUrl(new URLSearchParams('onglet=inexistant')).onglet).toBe(ETAT_DEFAUT.onglet);
+  it('ignore une etape inconnue', () => {
+    expect(lireEtatUrl(new URLSearchParams('etape=inexistante')).etape).toBe(ETAT_DEFAUT.etape);
   });
 
   it('ignore un profil illisible et retombe sur le defaut', () => {

@@ -233,7 +233,7 @@ export default function MapPage() {
     const url = new URL(window.location.href);
     url.searchParams.set(
       'risque',
-      ecrireEtatUrl({ ...ETAT_RISQUE_DEFAUT, onglet: 'zones', jeu: id }).toString(),
+      ecrireEtatUrl({ ...ETAT_RISQUE_DEFAUT, etape: 'zones', jeu: id }).toString(),
     );
     window.history.replaceState(null, '', url.toString());
     setAnalysePopulation(true);

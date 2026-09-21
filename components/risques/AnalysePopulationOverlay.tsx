@@ -48,7 +48,9 @@ import {
 import type { Dimension as DimensionPartagee, ModeZone } from '@/lib/risques/dimensions';
 import { Champ, Pastille, FilAriane, Th, Td, styleLien } from '@/components/risques/elements';
 import { FournisseurRisque, useEtatRisque } from '@/components/risques/ContexteRisque';
-import type { Onglet } from '@/lib/risques/etat-url';
+import type { Etape } from '@/lib/risques/etape';
+import { FilArianeEtapes } from '@/components/risques/FilArianeEtapes';
+import { PanneauSites } from '@/components/risques/PanneauSites';
 import { ResumeProfil } from '@/components/risques/ResumeProfil';
 import { RegletteRayons } from '@/components/risques/RegletteRayons';
 import { BandeauKpi } from '@/components/risques/BandeauKpi';
@@ -341,9 +343,9 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
    * pré-calculée (sql/198) et ne recalcule rien, là où le premier croise les
    * carreaux à la demande.
    */
-  const onglet = etat.onglet;
+  const etape = etat.etape;
 
-  const setOnglet = useCallback((v: Onglet) => majEtat({ onglet: v }), [majEtat]);
+  const setEtape = useCallback((v: Etape) => majEtat({ etape: v }), [majEtat]);
 
   /**
    * `deptsParRegion` n'est pas un doublon : la route rend les départements
@@ -792,30 +794,22 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
           maille={dimCourante.label}
           onRemonter={(n) => { setChemin((c) => c.slice(0, n)); setActif(null); }}
         />
-        <div style={{ display: 'flex', gap: 2, marginLeft: 4 }}>
-          {([
-            ['rayons', 'Rayons'],
-            ['territoires', 'Territoires'],
-            ['zones', 'Zones'],
-          ] as const).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setOnglet(id)}
-              aria-pressed={onglet === id}
-              style={{
-                border: 0, background: 'none', padding: '4px 10px 6px', cursor: 'pointer',
-                fontFamily: fInter, fontSize: 12,
-                fontWeight: onglet === id ? 500 : 400,
-                color: onglet === id ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                // Souligné teal : le patron d'onglets du DESIGN_SYSTEM.
-                borderBottom: `2px solid ${onglet === id ? 'var(--brand-teal)' : 'transparent'}`,
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {/*
+          ⚠ DEUX fils d'Ariane sur cet en-tête, et ce n'est pas un doublon :
+          celui du dessus dit OÙ JE REGARDE (France › PACA › Bouches-du-Rhône),
+          celui-ci dit OÙ J'EN SUIS dans le travail. Les fondre obligerait à
+          quitter son territoire pour changer d'étape.
+        */}
+        <FilArianeEtapes
+          etape={etape}
+          parcours={{
+            gravites: etat.gravites,
+            profil: etat.profil,
+            chemin: etat.chemin,
+            jeu: etat.jeu,
+          }}
+          onEtape={setEtape}
+        />
         <span style={{ fontFamily: fMono, fontSize: 11, color: 'var(--text-tertiary)' }}>
           {libelleCible}
         </span>
@@ -1118,7 +1112,15 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
       */}
 
       {/* ── Corps ───────────────────────────────────────────────────────── */}
-      {onglet === 'zones' ? (
+      {etape === 'sites' ? (
+        <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
+          <PanneauSites
+            compte={compteSites.compte}
+            chargement={compteSites.chargement}
+            libelleTerritoire={chemin.length > 0 ? chemin[chemin.length - 1].nom : 'la France entière'}
+          />
+        </div>
+      ) : etape === 'zones' ? (
         <OngletZones
           profil={etat.profil}
           onProfil={(p) => majEtat({ profil: p })}
@@ -1136,7 +1138,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
           onJeuOuvert={(id) => majEtat({ jeu: id })}
           onFermer={onFermer}
         />
-      ) : onglet === 'rayons' ? (
+      ) : etape === 'rayon' ? (
         <OngletRayons
           profil={etat.profil}
           bandes={resultatBandes}

@@ -247,7 +247,7 @@ lecture, et seule sql/222 la lit — une fois, à la construction.
 | Action | Fichier |
 |---|---|
 | Créer | `lib/risques/etape.ts` — les quatre étapes, leurs libellés, leur ordre |
-| Créer | `components/risques/FilArianeRisque.tsx` |
+| Créer | `components/risques/FilArianeEtapes.tsx` — ⚠ **renommé** à l'écriture : `FilAriane` existe déjà pour les TERRITOIRES, dans le même en-tête. Deux composants au même nom pour deux chemins différents (où je regarde / où j'en suis) se confondent à la première relecture |
 | Créer | `components/risques/CarteRisque.tsx` — **une** instance MapLibre, jamais démontée |
 | Créer | `components/risques/PanneauSites.tsx` (①) |
 | Créer | `components/risques/PanneauRayon.tsx` (②) |

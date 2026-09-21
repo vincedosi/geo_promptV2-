@@ -39,28 +39,14 @@ import {
   type ProfilRayons,
 } from '@/lib/risques/profil';
 import { codeProfil, profilDepuisCode } from '@/lib/risques/code-profil';
+import { ETAPES, ETAPES_HERITEES, type Etape } from '@/lib/risques/etape';
 
-/**
- * Les trois onglets, dans l'ordre du travail : on règle les anneaux, on lit ce
- * qu'ils exposent, on fige le résultat en jeu de zones réutilisable.
- *
- * ⚠ Le troisième était `diffusion` jusqu'au 2026-09-20 : il confrontait une
- * campagne à l'exposition, ce qui est le travail de Campagne > Suivi et non
- * celui d'un atelier de zones. Le module produit désormais un OBJET — un jeu
- * de zones — que la campagne reçoit comme plan ; le suivi de la diffusion
- * revient là où il a toujours vécu, et se mesure au CODE POSTAL, la maille du
- * plan.
- *
- * `diffusion` reste accepté en LECTURE comme alias hérité : un lien partagé
- * avant cette date doit ouvrir un onglet, pas retomber en silence sur le
- * premier. Même raisonnement que l'alias `tab=creation` de l'overlay MAGELIAN.
+/*
+ * Les trois onglets `rayons` / `territoires` / `zones` ont laissé place aux
+ * QUATRE ÉTAPES du parcours le 2026-09-21 (`lib/risques/etape.ts`). Ils
+ * restent lus comme alias hérités — un lien partagé ne se corrige pas après
+ * coup.
  */
-const ONGLETS = ['rayons', 'territoires', 'zones'] as const;
-
-/** Ce qu'un ancien lien portait, et ce qu'il ouvre aujourd'hui. */
-const ONGLETS_HERITES: Record<string, Onglet> = { diffusion: 'zones' };
-
-export type Onglet = (typeof ONGLETS)[number];
 
 /**
  * L'état complet du module. Un seul objet, une seule source.
@@ -93,7 +79,8 @@ export interface EtatRisque {
   gravites: string[];
   /** Le profil d'anneaux, qui décide de la classe de chaque carreau. */
   profil: ProfilRayons;
-  onglet: Onglet;
+  /** L'étape ouverte du parcours. Le panneau de gauche en dépend, rien d'autre. */
+  etape: Etape;
   /** Campagne confrontée, héritage de l'onglet Diffusion retiré. */
   /**
    * Jeu de zones ouvert dans l'onglet Zones, ou `null` pour un jeu non encore
@@ -125,7 +112,15 @@ export const ETAT_DEFAUT: EtatRisque = {
   modes: [...MODES_ZONE],
   gravites: ['seveso_haut', 'seveso_bas'],
   profil: PROFIL_DEFAUT,
-  onglet: 'rayons',
+  /*
+   * On ouvre sur la PREMIÈRE étape, et non plus sur les rayons.
+   *
+   * Le parcours commence par le choix des sites : régler un rayon avant de
+   * savoir autour de quoi revient à répondre avant d'avoir la question. Les
+   * liens qui portaient `onglet=rayons` continuent d'ouvrir l'étape ② — c'est
+   * le rôle des alias hérités.
+   */
+  etape: 'sites',
   jeu: null,
   atelier: false,
   campagne: null,
@@ -181,7 +176,7 @@ export function ecrireEtatUrl(e: EtatRisque): string {
   const code = codeProfil(e.profil);
   if (code !== codeProfil(ETAT_DEFAUT.profil)) p.set('profil', code);
 
-  if (e.onglet !== ETAT_DEFAUT.onglet) p.set('onglet', e.onglet);
+  if (e.etape !== ETAT_DEFAUT.etape) p.set('etape', e.etape);
   if (e.jeu) p.set('jeu', e.jeu);
   if (e.atelier) p.set('atelier', '1');
   if (e.campagne) p.set('campagne', e.campagne);
@@ -201,7 +196,13 @@ export function ecrireEtatUrl(e: EtatRisque): string {
  */
 export function lireEtatUrl(p: URLSearchParams): EtatRisque {
   const maille = p.get('maille');
-  const onglet = p.get('onglet');
+  /*
+   * ⚠ `etape` d'abord, `onglet` ensuite — et jamais l'inverse. Une URL écrite
+   * aujourd'hui porte les deux si elle a été construite à partir d'un ancien
+   * lien, et c'est la valeur COURANTE qui doit gagner : l'alias ne sert qu'à
+   * rattraper un lien qui n'a pas la nouvelle clé.
+   */
+  const etapeBrute = p.get('etape') ?? p.get('onglet');
   const jeu = p.get('jeu');
   const atelier = p.get('atelier');
   const campagne = p.get('campagne');
@@ -237,12 +238,12 @@ export function lireEtatUrl(p: URLSearchParams): EtatRisque {
       ?? [...ETAT_DEFAUT.modes],
     gravites: gravitesBrutes.length > 0 ? gravitesBrutes : [...ETAT_DEFAUT.gravites],
     profil: profil ?? ETAT_DEFAUT.profil,
-    onglet: (ONGLETS as readonly string[]).includes(onglet ?? '')
-      ? (onglet as Onglet)
-      // Un alias hérité AVANT le repli : traiter `diffusion` comme une valeur
-      // invalide renverrait un ancien lien sur « Rayons », donc ailleurs que
-      // là où son auteur regardait.
-      : ONGLETS_HERITES[onglet ?? ''] ?? ETAT_DEFAUT.onglet,
+    etape: (ETAPES as readonly string[]).includes(etapeBrute ?? '')
+      ? (etapeBrute as Etape)
+      // Un alias hérité AVANT le repli : traiter `territoires` comme une valeur
+      // invalide renverrait un ancien lien sur la première étape, donc ailleurs
+      // que là où son auteur regardait.
+      : ETAPES_HERITEES[etapeBrute ?? ''] ?? ETAT_DEFAUT.etape,
     jeu: jeu && MOTIF_UUID.test(jeu) ? jeu : null,
     atelier: atelier === '1',
     campagne: campagne && MOTIF_UUID.test(campagne) ? campagne : null,

@@ -282,10 +282,29 @@ genesis_app/
 │   │                           # tests/unit/docs/derive-documentation.test.ts
 │   ├── risques/                # Module « Population a risque industriel »
 │   │                           # (overlay plein ecran, ouvert depuis le panneau
-│   │                           # Calques). **UNE barre de commandes pour les
-│   │                           # TROIS onglets depuis le 2026-09-20** : tout ce
+│   │                           # Calques). **QUATRE ETAPES et non trois onglets
+│   │                           # depuis le 2026-09-21** (`lib/risques/etape.ts`,
+│   │                           # `FilArianeEtapes.tsx`) : ① Sites › ② Rayon ›
+│   │                           # ③ Couverture › ④ Zones. Un onglet dit « regarde
+│   │                           # ailleurs », une etape dit « voici ou tu en es » —
+│   │                           # et le module EST un parcours, qui produit un jeu
+│   │                           # de zones. ⚠ **Ce n'est PAS un tunnel** : chaque
+│   │                           # etape reste cliquable dans les deux sens, le
+│   │                           # geste central etant le RETOUR du ③ au ② quand la
+│   │                           # couverture ne convient pas. La pastille d'une
+│   │                           # etape dit « tu as pose un choix ici », jamais
+│   │                           # « validee ». ⚠ DEUX fils d'Ariane sur l'en-tete,
+│   │                           # et ce n'est pas un doublon : `FilAriane`
+│   │                           # (`elements.tsx`) dit OU JE REGARDE (France ›
+│   │                           # PACA › Bouches-du-Rhone), `FilArianeEtapes` dit
+│   │                           # OU J'EN SUIS. ⚠ `onglet=rayons|territoires|
+│   │                           # zones|diffusion` reste lu comme ALIAS HERITE —
+│   │                           # un lien partage ne se corrige pas apres coup, et
+│   │                           # la 2e generation d'alias n'efface pas la 1re.
+│   │                           # **UNE barre de commandes pour toutes les etapes
+│   │                           # depuis le 2026-09-20** : tout ce
 │   │                           # qui y figure vaut partout, et le changer met a
-│   │                           # jour les trois — l'etat est unique
+│   │                           # jour les quatre — l'etat est unique
 │   │                           # (`lib/risques/etat-url.ts`), il n'y a aucune
 │   │                           # copie a synchroniser. La rangee « Propre a
 │   │                           # Territoires » a DISPARU le 2026-09-21 avec le
@@ -309,7 +328,7 @@ genesis_app/
 │   │                           # secondes, une requete par pixel serait la
 │   │                           # famille de l'incident du 28/03. L'editeur
 │   │                           # d'anneaux reste un TIROIR
-│   │                           # ouvrable des trois onglets — il decide de la
+│   │                           # ouvrable de toutes les etapes — il decide de la
 │   │                           # classe de chaque carreau, donc de tous les
 │   │                           # chiffres de l'ecran, et le laisser dans le
 │   │                           # seul onglet Rayons obligeait a changer
