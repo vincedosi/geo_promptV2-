@@ -37,7 +37,6 @@ import { Kpi } from '@/components/risques/Kpi';
 import { COULEUR_NIVEAU_CSS } from '@/lib/carte/palette-zones-risque';
 import { libelleClasse, anneauxParNiveau } from '@/lib/risques/libelle-classe';
 import { libelleRayon, type Niveau, type ProfilRayons } from '@/lib/risques/profil';
-import { CarteZones } from '@/components/risques/CarteZones';
 import {
   useJeuxZones, type ClasseJeu, type JeuResume,
 } from '@/components/risques/use-jeux-zones';
@@ -210,28 +209,33 @@ export function OngletZones({
 
   return (
     /*
-     * ── CARTE À GAUCHE, RÉGLAGES À DROITE ──────────────────────────────
+     * ── CE COMPOSANT N'EST PLUS QU'UN PANNEAU ──────────────────────────
      *
-     * L'onglet était une pile de bandeaux : rayons candidats, zooms de
-     * référence, tableau des classes, bibliothèque. Un atelier de ZONES qui
-     * ne montrait aucune zone, et où « adopter 2 km » se décidait sur un
-     * chiffre sans jamais voir ce que ces 2 km recouvrent.
-     *
-     * La carte devient l'objet, la colonne devient la commande.
+     * Il portait sa propre carte à gauche et ses réglages à droite. La carte
+     * a été remontée au niveau de l'overlay le 2026-09-21 : elle est commune
+     * aux quatre étapes, et une seule instance MapLibre vit désormais pour
+     * tout l'écran (`CarteRisque`, ex-`CarteZones`). Ce qui reste ici est la
+     * COMMANDE de l'étape ④, et le panneau est à gauche de cette carte.
      */
-    <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-      <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-        <CarteZones profil={profil} gravites={gravites} natures={natures} pret={atelier.etat === 'pret'} />
-      </div>
-
-      <aside
+    <>
+      <div
         style={{
-          width: 420, flexShrink: 0, overflowY: 'auto',
-          borderLeft: '0.5px solid var(--border-subtle)',
-          padding: '16px 18px',
+          overflowY: 'auto', padding: '16px 18px',
           display: 'flex', flexDirection: 'column', gap: 18,
         }}
       >
+        {/*
+          ⚠ Ce conseil vivait SUR la carte. Il y serait désormais affiché aux
+          quatre étapes, dont trois où l'on ne construit aucun jeu — et le
+          bouton qui l'exécute est juste dessous.
+        */}
+        {atelier.etat !== 'pret' && (
+          <p style={{ margin: 0, fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.55 }}>
+            Les zones affichées sur la carte sont celles du profil courant.
+            Construisez le jeu pour en tirer des codes postaux.
+          </p>
+        )}
+
         <Comparateur profil={profil} onProfil={onProfil} />
 
         <Section titre="Le jeu de zones">
@@ -333,8 +337,8 @@ export function OngletZones({
             }}
           />
         </Section>
-      </aside>
-    </div>
+      </div>
+    </>
   );
 }
 

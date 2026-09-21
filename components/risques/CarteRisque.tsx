@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * La carte de l'atelier de zones — l'objet, pas son résumé.
+ * La carte du module de risque — permanente, une seule instance.
  *
  * ── POURQUOI ELLE EXISTE ──────────────────────────────────────────────────
  *
@@ -11,6 +11,20 @@
  * chiffre sans jamais voir ce que ces 2 km recouvrent.
  *
  * La carte devient donc le centre de l'écran, et les réglages passent à côté.
+ *
+ * ── ELLE ÉTAIT `CarteZones`, ET NE L'EST PLUS (2026-09-21) ────────────────
+ *
+ * Elle ne vivait que dans l'étape ④, alors que la carte EST l'objet du
+ * module : on choisit des sites, on règle un rayon, on lit une couverture —
+ * les trois se regardent sur une carte, et il fallait atteindre la dernière
+ * étape pour en voir une.
+ *
+ * ⚠ **Une seule instance MapLibre, montée au niveau de l'overlay et JAMAIS
+ * démontée entre les étapes** : seules les couches et la caméra changent. La
+ * démonter et la remonter à chaque étape coûterait un rechargement complet du
+ * fond, de la position et des tuiles — et surtout, on perdrait la vue de
+ * l'utilisateur à chaque aller-retour entre ② et ③, qui est le geste le plus
+ * fréquent du module.
  *
  * ── DEUX COUCHES, DEUX SOURCES, DEUX RAISONS ──────────────────────────────
  *
@@ -95,11 +109,9 @@ interface Props {
    * qu'elle n'affiche pas, ou l'inverse.
    */
   natures: string[];
-  /** Le jeu construit est-il prêt ? Sert le bandeau, jamais le rendu. */
-  pret: boolean;
 }
 
-export function CarteZones({ profil, gravites, natures, pret }: Props) {
+export function CarteRisque({ profil, gravites, natures }: Props) {
   const conteneur = useRef<HTMLDivElement | null>(null);
   const carte = useRef<maplibregl.Map | null>(null);
   const { theme } = useTheme();
@@ -138,7 +150,19 @@ export function CarteZones({ profil, gravites, natures, pret }: Props) {
     m.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
     m.on('zoom', () => setZoom(m.getZoom()));
     carte.current = m;
-    return () => { m.remove(); carte.current = null; };
+
+    /*
+     * ⚠ MapLibre ne redimensionne PAS son canevas tout seul quand son conteneur
+     * change de taille sans que la fenêtre bouge — et c'est exactement ce qui
+     * arrive ici : la poignée du panneau et le bouton « carte seule » changent
+     * la largeur du conteneur, pas celle de la fenêtre. Sans cet observateur,
+     * la carte garde ses anciennes dimensions : la moitié droite reste grise et
+     * les clics tombent à côté des points.
+     */
+    const observateur = new ResizeObserver(() => m.resize());
+    observateur.observe(conteneur.current);
+
+    return () => { observateur.disconnect(); m.remove(); carte.current = null; };
     // Le thème est relu par l'effet suivant : le remonter ici détruirait la
     // carte à chaque bascule, donc la position de l'utilisateur avec elle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -504,23 +528,14 @@ export function CarteZones({ profil, gravites, natures, pret }: Props) {
         </div>
       )}
 
-      {/* ⚠ En BAS à droite, au-dessus de l'attribution : placé en haut, il
-          recouvrait les commandes de zoom — et la première chose qu'on veut
-          faire sur cette carte est justement de zoomer. */}
-      {!pret && (
-        <div
-          style={{
-            position: 'absolute', bottom: 28, right: 10, zIndex: 2,
-            padding: '7px 11px', borderRadius: 6, maxWidth: 230,
-            background: 'var(--card-overlay)',
-            border: '0.5px solid var(--border-subtle)',
-            fontFamily: fInter, fontSize: 10.5, color: 'var(--text-tertiary)', lineHeight: 1.5,
-          }}
-        >
-          Les zones affichées sont celles du profil courant. Construisez le jeu
-          pour en tirer des codes postaux.
-        </div>
-      )}
+      {/*
+        ⚠ Le bandeau « construisez le jeu pour en tirer des codes postaux »
+        vivait ICI et a rejoint le panneau de l'étape ④ (2026-09-21). C'est une
+        consigne sur le geste suivant, et le bouton qui l'exécute est dans ce
+        panneau : la carte est désormais commune aux quatre étapes, et elle
+        aurait porté sur les trois autres un conseil sans rapport avec ce qu'on
+        y fait.
+      */}
     </div>
   );
 }

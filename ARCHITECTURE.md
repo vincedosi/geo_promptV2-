@@ -333,8 +333,41 @@ genesis_app/
 │   │                           # chiffres de l'ecran, et le laisser dans le
 │   │                           # seul onglet Rayons obligeait a changer
 │   │                           # d'onglet pour regler ce qu'on lisait ailleurs.
-│   │                           # ⚠ **L'onglet Zones est bati AUTOUR D'UNE VRAIE
-│   │                           # CARTE** (`CarteZones.tsx`, 2026-09-20) :
+│   │                           # ⚠ **LA CARTE EST PERMANENTE depuis le
+│   │                           # 2026-09-21** (`CarteRisque.tsx`, ex-
+│   │                           # `CarteZones.tsx`) : panneau de l'etape a
+│   │                           # GAUCHE, carte a DROITE, **UNE seule instance
+│   │                           # MapLibre montee au niveau de l'overlay et
+│   │                           # JAMAIS demontee entre les etapes** — seules
+│   │                           # les couches et la camera changent. La
+│   │                           # remonter a chaque etape rechargerait fond,
+│   │                           # tuiles et position, et ferait perdre la vue a
+│   │                           # chaque aller-retour ② ↔ ③, le geste le plus
+│   │                           # frequent du module. Poignee de largeur
+│   │                           # (320-900 px) et bouton « Carte seule », qui
+│   │                           # REPLIE le panneau au lieu d'appeler l'API
+│   │                           # plein ecran — celle-ci sortirait la carte de
+│   │                           # l'overlay, donc du bandeau KPI et du fil
+│   │                           # d'Ariane. Le panneau replie garde
+│   │                           # `visibility: hidden` et NON `display: none` :
+│   │                           # ses composants resteraient sinon demontes, et
+│   │                           # un jeu en construction serait perdu.
+│   │                           # ⚠ **`ResizeObserver` obligatoire** : MapLibre
+│   │                           # ne redimensionne pas son canevas quand son
+│   │                           # conteneur change sans que la fenetre bouge —
+│   │                           # ce qui est le cas de la poignee ET du repli.
+│   │                           # Sans lui, la moitie droite reste grise et les
+│   │                           # clics tombent a cote des points.
+│   │                           # ⚠ L'etape ③ empile tableau et choroplethe au
+│   │                           # lieu de les mettre cote a cote : mesure a
+│   │                           # 480 px de panneau, la choroplethe gardait ses
+│   │                           # 340 px fixes et il restait une vingtaine de
+│   │                           # pixels au tableau. La choroplethe n'est PAS
+│   │                           # redondante avec la grande carte — celle-ci
+│   │                           # montre zones et sites, celle-la peint les
+│   │                           # unites par part/densite/effectif.
+│   │                           # (Historique : cette carte est nee dans
+│   │                           # l'onglet Zones le 2026-09-20) :
 │   │                           # zones en MVT (`/api/tiles/zones-risque`,
 │   │                           # geometries deja exclusives par
 │   │                           # `ST_Difference`) + sites en GeoJSON sur la

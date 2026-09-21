@@ -29,7 +29,7 @@
  * lectures incomparables sans qu'on sache pourquoi.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Maximize2, Minimize2 } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { formaterNombre } from '@/lib/format/nombre';
 import { empiler, depiler } from '@/lib/carte/pile-echap';
@@ -50,6 +50,7 @@ import { Champ, Pastille, FilAriane, Th, Td, styleLien } from '@/components/risq
 import { FournisseurRisque, useEtatRisque } from '@/components/risques/ContexteRisque';
 import type { Etape } from '@/lib/risques/etape';
 import { FilArianeEtapes } from '@/components/risques/FilArianeEtapes';
+import { CarteRisque } from '@/components/risques/CarteRisque';
 import { PanneauSites } from '@/components/risques/PanneauSites';
 import { ResumeProfil } from '@/components/risques/ResumeProfil';
 import { RegletteRayons } from '@/components/risques/RegletteRayons';
@@ -346,6 +347,15 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
   const etape = etat.etape;
 
   const setEtape = useCallback((v: Etape) => majEtat({ etape: v }), [majEtat]);
+
+  /*
+   * ⚠ La largeur du panneau et le repli de la carte vivent en état LOCAL, pas
+   * dans l'URL : ils ne changent aucun chiffre. `lib/risques/etat-url.ts` ne
+   * porte que ce qui décide d'un résultat — mettre une préférence d'affichage
+   * dans un lien partagé imposerait sa mise en page au destinataire.
+   */
+  const [largeurPanneau, setLargeurPanneau] = useState(480);
+  const [carteSeule, setCarteSeule] = useState(false);
 
   /**
    * `deptsParRegion` n'est pas un doublon : la route rend les départements
@@ -1111,7 +1121,35 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         paramètre.
       */}
 
-      {/* ── Corps ───────────────────────────────────────────────────────── */}
+      {/*
+        ── CORPS : LE PANNEAU DE L'ÉTAPE À GAUCHE, LA CARTE À DROITE ───────
+
+        ⚠ **UNE seule instance MapLibre, et elle ne se démonte JAMAIS** entre
+        les étapes : seules les couches et la caméra changent. La remonter à
+        chaque étape rechargerait le fond, les tuiles et la position — et le
+        geste le plus fréquent du module est l'aller-retour entre ② et ③, donc
+        on perdrait la vue de l'utilisateur précisément là où il revient le
+        plus souvent.
+
+        C'est pour cela que la carte est ICI, en dehors du ternaire des étapes,
+        et non dans chacun des panneaux.
+      */}
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        <aside
+          style={{
+            width: carteSeule ? 0 : largeurPanneau,
+            flexShrink: 0, minWidth: 0,
+            display: 'flex', flexDirection: 'column',
+            overflow: 'hidden',
+            /*
+             * ⚠ `visibility` et non `display: none` : le panneau reste dans le
+             * flux, donc ses composants ne sont pas démontés. Les replier
+             * relancerait tous leurs chargements au retour — et l'étape ④
+             * perdrait son jeu en cours de construction.
+             */
+            visibility: carteSeule ? 'hidden' : 'visible',
+          }}
+        >
       {etape === 'sites' ? (
         <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
           <PanneauSites
@@ -1157,7 +1195,21 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
           perim={perim}
         />
       ) : (
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+      /*
+       * ⚠ EMPILÉS, et non plus côte à côte (2026-09-21).
+       *
+       * Le tableau et la choroplèthe latérale partageaient la largeur de
+       * l'écran entier. Depuis que la carte permanente occupe la droite, cette
+       * étape tient dans le panneau : mesuré à 480 px, la choroplèthe gardait
+       * ses 340 px fixes et il restait une vingtaine de pixels au tableau, dont
+       * chaque ligne se réduisait à un caractère.
+       *
+       * La choroplèthe N'EST PAS redondante avec la grande carte : celle-ci
+       * montre les zones et les sites, celle-là peint les unités par part,
+       * densité ou effectif. Deux questions différentes — d'où l'empilement
+       * plutôt que la suppression.
+       */
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         {/* Tableau */}
         <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px', minWidth: 0 }}>
           {/*
@@ -1182,14 +1234,14 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
           />
         </div>
 
-        {/* Mini-carte */}
+        {/* Mini-carte — SOUS le tableau, plus à côté : voir l'en-tête du bloc. */}
         <aside
           style={{
-            width: 340, flexShrink: 0,
-            borderLeft: '0.5px solid var(--border-subtle)',
+            flexShrink: 0,
+            borderTop: '0.5px solid var(--border-subtle)',
             padding: '16px 18px',
             display: 'flex', flexDirection: 'column', gap: 12,
-            overflow: 'auto',
+            overflow: 'auto', maxHeight: '55%',
           }}
         >
           <div style={{ display: 'flex', gap: 4 }}>
@@ -1296,6 +1348,74 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         </aside>
       </div>
       )}
+        </aside>
+
+        {/*
+          ── LA POIGNÉE ──────────────────────────────────────────────────
+          Le panneau ③ porte un tableau ET une choroplèthe latérale, le ①
+          trois lignes : une largeur unique ne peut pas convenir aux quatre
+          étapes. On la règle, plutôt que d'arbitrer à leur place.
+        */}
+        {!carteSeule && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Largeur du panneau"
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              const depart = e.clientX;
+              const initiale = largeurPanneau;
+              const deplacer = (ev: PointerEvent) => {
+                // Bornée : sous 320 px le tableau de ③ devient illisible, et
+                // au-delà de 900 la carte ne montre plus rien d'utile.
+                const l = Math.max(320, Math.min(900, initiale + ev.clientX - depart));
+                setLargeurPanneau(l);
+              };
+              const relacher = () => {
+                window.removeEventListener('pointermove', deplacer);
+                window.removeEventListener('pointerup', relacher);
+              };
+              window.addEventListener('pointermove', deplacer);
+              window.addEventListener('pointerup', relacher);
+            }}
+            style={{
+              width: 5, flexShrink: 0, cursor: 'col-resize',
+              background: 'var(--border-subtle)',
+            }}
+          />
+        )}
+
+        <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+          <CarteRisque profil={etat.profil} gravites={niveaux} natures={natures} />
+
+          {/*
+            « Carte seule » replie le panneau au lieu d'appeler l'API plein
+            écran : celle-ci sortirait la carte de l'overlay, donc du bandeau
+            KPI et du fil d'Ariane — on verrait grand, sans plus savoir ce
+            qu'on regarde ni comment en sortir.
+          */}
+          <button
+            type="button"
+            onClick={() => setCarteSeule((v) => !v)}
+            aria-pressed={carteSeule}
+            title={carteSeule
+              ? 'Réafficher le panneau de l’étape'
+              : 'Masquer le panneau et n’afficher que la carte'}
+            style={{
+              position: 'absolute', top: 10, right: 56, zIndex: 3,
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              padding: '5px 10px', borderRadius: 6, cursor: 'pointer',
+              background: 'var(--card-overlay)',
+              border: '0.5px solid var(--border-default)',
+              fontFamily: fInter, fontSize: 11,
+              color: carteSeule ? 'var(--brand-teal)' : 'var(--text-secondary)',
+            }}
+          >
+            {carteSeule ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+            {carteSeule ? 'Afficher le panneau' : 'Carte seule'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
