@@ -2368,7 +2368,10 @@ npm test                 # Vitest
 npm run lint             # ESLint
 npm run catalogue        # Regenere docs/CATALOGUE_CODE.md (knip — exports/fichiers morts, deps inutilisees)
 npx supabase db push     # Appliquer migrations
-npx supabase gen types typescript --project-id vkkdbygwbrxyogqosten > types/database.types.ts
+# ⚠ La generation des types visait le projet HEBERGE, SUPPRIME le 2026-09-21 :
+#    `--project-id vkkdbygwbrxyogqosten` rend desormais une erreur d'authentification.
+#    Le schema de reference est le stack LOCAL.
+npx supabase gen types typescript --local > types/database.types.ts
 ```
 
 ---

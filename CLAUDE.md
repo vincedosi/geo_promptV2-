@@ -18,19 +18,24 @@ Stack : Next.js 15 App Router · TypeScript strict · Supabase Pro (PostgreSQL *
 - **Tout travail de développement va en LOCAL.** Migrations, `EXPLAIN ANALYZE`,
   mesures, essais : `docker exec supabase_db_genesis_app psql -U postgres`.
   Le stack se remonte avec `scripts/local/00-docker-up.sh` puis `01-supabase-up.sh`.
-- **Le projet hébergé `vkkdbygwbrxyogqosten` est en cours d'abandon
-  (2026-09-19).** Tout ce qu'il portait d'irremplaçable a été rapatrié —
-  569 698 liaisons radio et 1 100 comptages routiers mesurés — et le diff
-  complet des 103 tables ne laisse plus que des caches régénérables et les
-  406 930 lignes de proxy OSM, volontairement abandonnées.
-  `npm run dev`, `npm test` ET `npm run build` tournent en local ;
-  1 451 tests et le build le vérifient.
-- **Le MCP Supabase parle à ce projet hébergé, et à rien d'autre.** Il n'a plus
-  d'usage une fois le projet supprimé. Tant qu'il existe, ne pas l'appeler par
-  réflexe : la voie normale est `psql` dans le conteneur.
-- ⚠ **La clé `service_role` du projet hébergé reste à RÉVOQUER** : elle est
-  dans l'historique git. Supprimer le projet la neutralise ; le mettre en pause,
-  non.
+- **Le projet hébergé `vkkdbygwbrxyogqosten` est SUPPRIMÉ (2026-09-21).** Tout
+  ce qu'il portait d'irremplaçable avait été rapatrié avant — 569 698 liaisons
+  radio et 1 100 comptages routiers mesurés — et le diff complet des 103 tables
+  ne laissait plus que des caches régénérables et les 406 930 lignes de proxy
+  OSM, volontairement abandonnées. `npm run dev`, `npm test` ET `npm run build`
+  tournent en local ; **1 700 tests** et le build le vérifient (mesuré le
+  2026-09-22 ; cette ligne annonçait 1 451).
+- ⛔ **Le MCP Supabase ne parle PLUS à ce projet — il pointe sur un AUTRE
+  compte.** Mesuré le 2026-09-22 : il rend une seule organisation
+  (`vincedosi's Org`) et un seul projet, `HOTARU`, qui n'a aucun rapport avec
+  MAGELIAN. La consigne « ne pas l'appeler par réflexe » ne protège donc plus
+  d'un appel inutile mais d'un appel **sur un projet étranger**. La voie normale
+  reste `psql` dans le conteneur.
+- ✅ **La clé `service_role` du projet hébergé est NEUTRALISÉE** : le projet
+  ayant été supprimé, elle n'ouvre plus rien. Elle reste dans l'historique git —
+  c'est désormais un identifiant mort, plus une fuite. Cette ligne a porté
+  « reste à RÉVOQUER » du 2026-09-11 au 2026-09-22 ; laissée telle quelle, elle
+  aurait envoyé quelqu'un chercher une console qui n'existe plus.
 
 > **Cette ligne disait « Utiliser MCP Supabase, JAMAIS de SQL manuel » jusqu'au
 > 2026-09-18**, sans mentionner le local — elle avait été écrite quand la prod
