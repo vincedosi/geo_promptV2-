@@ -12,7 +12,10 @@
     "test:integration": "vitest run --project integration",
     "test:watch": "vitest",
     "test:db": "supabase test db",
-    "catalogue": "node scripts/catalogue.mjs"
+    "catalogue": "node scripts/catalogue.mjs",
+    "sauvegarder": "bash scripts/local/10-sauvegarder.sh",
+    "reconstruire": "bash scripts/local/11-reconstruire.sh",
+    "sante": "bash scripts/local/12-sante.sh"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.43",
