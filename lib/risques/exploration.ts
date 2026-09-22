@@ -146,3 +146,65 @@ export function descendre(
 export function remonter(chemin: SegmentExploration[]): SegmentExploration[] {
   return chemin.length === 0 ? chemin : chemin.slice(0, -1);
 }
+
+/**
+ * Les codes des unités que la mini-carte doit dessiner.
+ *
+ * ── POURQUOI CETTE FONCTION EXISTE ────────────────────────────────────────
+ *
+ * Le filtre de la mini-carte vivait dans `AnalysePopulationOverlay`, et il ne
+ * connaissait QUE le fil d'Ariane du filtre Territoire (`chemin`). Il sortait
+ * sur `if (chemin.length === 0) return zones` — tout dessiner.
+ *
+ * L'exploration locale du tableau, ajoutée le 2026-09-21, est un état
+ * DIFFÉRENT, et c'est tout son intérêt : explorer ne change pas le sujet de
+ * l'écran. Le filtre de la carte n'en a jamais été informé. Conséquence
+ * mesurée le 2026-09-22, en vue « France entière » : descendre dans
+ * l'Île-de-France listait ses **8 départements** au tableau pendant que la
+ * carte en dessinait **96** — toute la France, sans lien avec ce qu'on lit.
+ *
+ * Le second défaut était dans la même expression : les branches testaient la
+ * maille GLOBALE (`dimension`), qui vaut encore « région » quand on explore,
+ * alors que la maille DESSINÉE est celle du tableau exploré.
+ *
+ * ⚠ `unites` peut être vide pendant un recalcul (2,8 s sur la France). On ne
+ * retombe pas sur « tout montrer » dans ce cas : les codes déduits du chemin
+ * — les départements de la région explorée — tiennent le cadrage pendant
+ * l'attente. Sans eux, la carte affichait la France entière quelques secondes
+ * à chaque descente, ce qui se lit comme une carte qui ne suit pas.
+ *
+ * @param opts.chemin - Fil d'Ariane du filtre Territoire (ce qu'on ÉTUDIE).
+ * @param opts.exploration - Fil d'Ariane local du tableau (ce qu'on REGARDE).
+ * @param opts.mailleDessinee - La maille réellement listée ET dessinée.
+ * @param opts.unites - Les unités rendues par le calcul, y compris celles qui
+ *   débordent du territoire : un site voisin apporte sa population ici.
+ * @param opts.deptsParRegion - Le référentiel région -> départements.
+ * @returns Les codes à garder, ou `null` pour « tout dessiner » — le cas d'une
+ *   vue nationale non explorée, où la France entière EST le sujet.
+ */
+export function codesDessines(opts: {
+  chemin: SegmentExploration[];
+  exploration: SegmentExploration[];
+  mailleDessinee: Dimension;
+  unites: string[];
+  deptsParRegion: Record<string, string[]>;
+}): Set<string> | null {
+  const { chemin, exploration, mailleDessinee, unites, deptsParRegion } = opts;
+  const dernier = exploration[exploration.length - 1] ?? chemin[chemin.length - 1] ?? null;
+  if (dernier === null) return null;
+
+  const codes = new Set<string>();
+  if (mailleDessinee === 'departement') {
+    if (dernier.niveau === 'region') {
+      for (const c of deptsParRegion[dernier.code] ?? []) codes.add(c);
+    } else {
+      codes.add(dernier.code);
+    }
+  }
+  for (const u of unites) codes.add(u);
+
+  // Aucun code résolu : mieux vaut tout montrer que rien, une carte vide se
+  // lisant comme une panne. Ne survient que si le référentiel est muet ET le
+  // calcul sans résultat.
+  return codes.size === 0 ? null : codes;
+}

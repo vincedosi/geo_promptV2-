@@ -57,6 +57,7 @@ import {
 import { BarreProgression, Perime } from '@/components/risques/BarreProgression';
 import { estPerime } from '@/lib/risques/chargement';
 import {
+  codesDessines,
   mailleExploree, perimetreExplore, peutDescendre, peutRemonter,
   descendre as descendreExploration, remonter as remonterExploration,
   type SegmentExploration,
@@ -741,43 +742,33 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
    * silhouette.
    */
   const zonesAffichees = useMemo(() => {
-    if (chemin.length === 0) return zones;
-    const seg = chemin[chemin.length - 1];
-
-    // Le filtre ne vaut que si la maille DESSINÉE est bien celle des enfants du
-    // segment. Forcer « Région » alors qu'on est descendu dans une région
-    // demande la carte des RÉGIONS : filtrer par codes de départements n'y
-    // aurait aucun sens et viderait le tracé.
-    /**
-     * ⚠ Le territoire NE SUFFIT PAS à décider ce qu'on dessine.
+    /*
+     * ⚠ Le filtre lisait `chemin` SEUL, et sortait sur `chemin.length === 0`.
+     * L'exploration locale du tableau est un état DISTINCT depuis le
+     * 2026-09-21 — c'est tout son intérêt — et ce filtre ne la consultait pas.
+     * Mesuré dans le navigateur le 2026-09-22, en vue « France entière » :
+     * descendre dans l'Île-de-France listait ses 8 départements au tableau
+     * pendant que la carte en dessinait 96. Il testait de surcroît la maille
+     * GLOBALE (`dimension`), qui vaut encore « région » quand on explore.
      *
-     * Le périmètre d'étude filtre les SITES, pas les carreaux : un site normand
-     * dont la zone déborde de quelques centaines de mètres apporte sa
-     * population au département voisin. Descendre dans la Normandie fait donc
-     * apparaître au tableau la Somme et la Mayenne — mesuré, 7 lignes pour 5
-     * départements normands. C'est le comportement voulu d'une étude locale :
-     * on étudie les installations d'un territoire, pas un découpage de la
-     * population.
-     *
-     * La carte doit donc dessiner l'UNION du territoire et de ce que le tableau
-     * liste. Ne montrer que le territoire laissait deux lignes sans contrepartie
-     * sur la carte ; ne montrer que le tableau laisserait des trous dans la
-     * silhouette là où un département n'a aucune exposition.
+     * La décision est sortie dans `codesDessines` (lib/risques/exploration.ts),
+     * pure et testée : elle ne pouvait pas l'être ici, au milieu d'un composant
+     * de 1 500 lignes.
      */
-    const codes = new Set<string>();
-    if (seg.niveau === 'region' && dimension === 'departement') {
-      for (const c of refGeo.deptsParRegion[seg.code] ?? []) codes.add(c);
-    } else if (seg.niveau === 'departement' && dimension === 'departement') {
-      codes.add(seg.code);
-    }
-    for (const u of resultatBandes.bandes?.unites ?? []) codes.add(u.unite);
-
-    // Tant que rien n'est résolu, mieux vaut tout montrer que rien : une carte
-    // vide se lirait comme une panne.
-    if (codes.size === 0) return zones;
+    const codes = codesDessines({
+      chemin,
+      exploration,
+      mailleDessinee: mailleTableau,
+      // ⚠ `bandesTableau` et NON `resultatBandes` : voir le commentaire de
+      // `valeurs` juste dessous — la carte doit lire le calcul du TABLEAU.
+      unites: (bandesTableau.bandes?.unites ?? []).map((u) => u.unite),
+      deptsParRegion: refGeo.deptsParRegion,
+    });
+    if (codes === null) return zones;
     const filtrees = zones.filter((z) => codes.has(z.properties.code));
+    // Une carte vide se lirait comme une panne.
     return filtrees.length > 0 ? filtrees : zones;
-  }, [zones, chemin, dimension, refGeo.deptsParRegion, resultatBandes.bandes]);
+  }, [zones, chemin, exploration, mailleTableau, refGeo.deptsParRegion, bandesTableau.bandes]);
 
   /*
    * ── LE CALCUL PAR L'ANCIEN MOTEUR A DISPARU ────────────────────────────
@@ -805,9 +796,23 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
    * que la RPC rend. Les faire calculer par la base aurait dispersé la
    * définition entre le SQL, l'écran et le classeur.
    */
+  /*
+   * ⚠ `bandesTableau` et NON `resultatBandes`, et c'est LA cause du défaut
+   * constaté le 2026-09-22 : l'écran porte DEUX calculs — le global
+   * (`resultatBandes`) et l'exploré (`resultatExplore`) — et le tableau
+   * lisait le second pendant que la carte lisait le premier. Deux vues du
+   * même écran nourries par deux calculs différents.
+   *
+   * Le symptôme ne ressemblait PAS à une erreur de données : en descendant
+   * dans l'Île-de-France, la carte peignait « Aude 26,0 % » — la valeur de
+   * la RÉGION 11 posée sur le DÉPARTEMENT 11 — et « Paris 12,3 % », celle
+   * de la Nouvelle-Aquitaine (région 75) sur le département 75. Les deux
+   * nomenclatures INSEE se recouvrent sur 18 codes : la carte restait
+   * plausible tout en étant fausse. Même piège que sql/171.
+   */
   const valeurs = useMemo(() => {
     const m = new Map<string, number>();
-    for (const u of resultatBandes.bandes?.unites ?? []) {
+    for (const u of bandesTableau.bandes?.unites ?? []) {
       const v = encodage === 'part'
         ? (u.pop_totale && u.pop_totale > 0 ? (u.total / u.pop_totale) * 100 : null)
         : encodage === 'densite'
@@ -816,7 +821,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
       if (v !== null && Number.isFinite(v)) m.set(u.unite, v);
     }
     return m;
-  }, [resultatBandes.bandes, encodage]);
+  }, [bandesTableau.bandes, encodage]);
 
   /**
    * Au palier code postal, la part et la densité sont NULLES : aucun
@@ -829,18 +834,24 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
    * dit. Un encodage silencieusement inopérant se lirait comme « aucune
    * exposition ».
    */
+  /*
+   * ⚠ Les DEUX termes viennent de `bandesTableau`. Les mélanger — des unités
+   * comptées sur le calcul global, des valeurs sur le calcul exploré — ferait
+   * dire « encodage indisponible » alors qu'il l'est, ou l'inverse : le
+   * verdict porterait sur deux ensembles différents.
+   */
   const encodageIndisponible =
     (encodage === 'part' || encodage === 'densite') &&
-    (resultatBandes.bandes?.unites.length ?? 0) > 0 &&
+    (bandesTableau.bandes?.unites.length ?? 0) > 0 &&
     valeurs.size === 0;
   const encodageEffectif: Encodage = encodageIndisponible ? 'exposee' : encodage;
 
   const valeursCarte = useMemo(() => {
     if (!encodageIndisponible) return valeurs;
     const m = new Map<string, number>();
-    for (const u of resultatBandes.bandes?.unites ?? []) m.set(u.unite, u.total);
+    for (const u of bandesTableau.bandes?.unites ?? []) m.set(u.unite, u.total);
     return m;
-  }, [encodageIndisponible, valeurs, resultatBandes.bandes]);
+  }, [encodageIndisponible, valeurs, bandesTableau.bandes]);
 
   const encCourant = ENCODAGES.find((e) => e.id === encodageEffectif) ?? ENCODAGES[0];
   const formaterValeur = useCallback(

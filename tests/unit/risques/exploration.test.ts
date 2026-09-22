@@ -14,7 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   mailleExploree, perimetreExplore, peutDescendre, peutRemonter,
-  descendre, remonter, type SegmentExploration,
+  descendre, remonter, codesDessines, type SegmentExploration,
 } from '@/lib/risques/exploration';
 
 const PACA: SegmentExploration = { niveau: 'region', code: '93', nom: 'Provence-Alpes-Côte d’Azur' };
@@ -116,5 +116,67 @@ describe('descendre / remonter', () => {
   it('descendre puis remonter rend un chemin equivalent', () => {
     const depart: SegmentExploration[] = [PACA];
     expect(remonter(descendre(depart, 'departement', '13', 'Bouches-du-Rhône'))).toEqual(depart);
+  });
+});
+
+
+/**
+ * ── LA MINI-CARTE SUIT-ELLE LE TABLEAU ? ──────────────────────────────────
+ *
+ * Mesuré dans le navigateur le 2026-09-22, vue « France entière » : descendre
+ * dans l'Île-de-France listait ses 8 départements au tableau pendant que la
+ * carte en dessinait 96. Le filtre sortait sur `chemin.length === 0` et
+ * ignorait l'exploration, qui est un état distinct depuis le 2026-09-21.
+ */
+describe('codesDessines — la carte dessine ce que le tableau liste', () => {
+  const DEPTS = { '11': ['75', '77', '78', '91', '92', '93', '94', '95'], '93': ['04', '05', '06', '13', '83', '84'] };
+  const IDF: SegmentExploration = { niveau: 'region', code: '11', nom: 'Île-de-France' };
+
+  it('rend null hors exploration et sans filtre : la France entiere EST le sujet', () => {
+    expect(codesDessines({
+      chemin: [], exploration: [], mailleDessinee: 'region',
+      unites: ['11', '84'], deptsParRegion: DEPTS,
+    })).toBeNull();
+  });
+
+  it('filtre sur les departements de la region EXPLOREE, sans filtre Territoire', () => {
+    const codes = codesDessines({
+      chemin: [], exploration: [IDF], mailleDessinee: 'departement',
+      unites: ['75', '92', '93'], deptsParRegion: DEPTS,
+    });
+    // Les 8 departements franciliens, et surtout PAS les 96 de France.
+    expect(codes).not.toBeNull();
+    expect(codes!.has('75')).toBe(true);
+    expect(codes!.has('13')).toBe(false);
+    expect(codes!.size).toBe(8);
+  });
+
+  it('tient le cadrage pendant le recalcul, quand aucune unite n est encore rendue', () => {
+    // 2,8 s sur la France : sans ces codes, la carte affichait tout le pays.
+    const codes = codesDessines({
+      chemin: [], exploration: [IDF], mailleDessinee: 'departement',
+      unites: [], deptsParRegion: DEPTS,
+    });
+    expect(codes!.size).toBe(8);
+  });
+
+  it('garde les unites qui DEBORDENT du territoire explore', () => {
+    // Un site voisin apporte sa population ici : la ligne existe au tableau,
+    // elle doit exister sur la carte.
+    const codes = codesDessines({
+      chemin: [], exploration: [IDF], mailleDessinee: 'departement',
+      unites: ['60'], deptsParRegion: DEPTS,
+    });
+    expect(codes!.has('60')).toBe(true);
+  });
+
+  it('l exploration PRIME sur le filtre Territoire', () => {
+    // Le filtre dit ce qu'on etudie, l'exploration ce qu'on regarde.
+    const codes = codesDessines({
+      chemin: [PACA], exploration: [IDF], mailleDessinee: 'departement',
+      unites: [], deptsParRegion: DEPTS,
+    });
+    expect(codes!.has('75')).toBe(true);
+    expect(codes!.has('13')).toBe(false);
   });
 });
