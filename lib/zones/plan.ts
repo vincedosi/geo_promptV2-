@@ -44,6 +44,66 @@ export interface CpZone {
   retenu: boolean;
 }
 
+
+/**
+ * Replie les lignes d'un même code postal en une seule.
+ *
+ * ── POURQUOI CETTE FONCTION EXISTE ────────────────────────────────────────
+ *
+ * Depuis sql/225, `zone_set_cp` porte **une ligne par GRAPPE** : un code
+ * postal à cheval sur deux bassins en a deux. Mesuré le 2026-09-22 sur le
+ * profil par défaut : 2 255 lignes pour 1 942 codes postaux, **274 à cheval**,
+ * jusqu'à **6 grappes** pour un seul, et **69 portent des classes différentes**
+ * selon la grappe.
+ *
+ * Mais `bidding_zone_configs` a pour clé (strategy_id, postal_code,
+ * country_code) : **un multiplicateur par code postal**. Émettre deux lignes
+ * ferait échouer l'écriture du plan — ou, pire, en écraserait une par l'autre.
+ *
+ * ⚠ TROIS RÈGLES DE REPLI, ET UNE SEULE EST ÉVIDENTE :
+ * - `pop_en_zone` se **somme** : chaque grappe apporte sa part.
+ * - `pop_totale` NE SE SOMME PAS — c'est une propriété du code postal, répétée
+ *   sur chacune de ses lignes. La sommer ferait peser un CP de trois bassins
+ *   trois fois dans le taux d'utile.
+ * - le poids devient une **moyenne pondérée par la population** des poids de
+ *   classe. Pour un code postal à une seule ligne, le résultat est identique
+ *   au calcul précédent — la généralisation ne change donc rien à l'existant.
+ */
+export function regrouperParCodePostal(cps: CpZone[], jeu: JeuDeZones): CpAgrege[] {
+  const par = new Map<string, CpZone[]>();
+  for (const cp of cps) {
+    const l = par.get(cp.code_postal);
+    if (l) l.push(cp); else par.set(cp.code_postal, [cp]);
+  }
+
+  const out: CpAgrege[] = [];
+  for (const [code_postal, lignes] of par) {
+    const pop_en_zone = lignes.reduce((t, l) => t + l.pop_en_zone, 0);
+    // `max` et non une somme : la valeur est la même sur toutes les lignes.
+    const pop_totale = Math.max(...lignes.map((l) => l.pop_totale));
+    // `some` par tolérance : le SQL pose la même valeur sur toutes les lignes
+    // d'un code postal (le seuil se décide sur leur somme), mais une donnée
+    // incohérente ne doit pas faire disparaître un code postal retenu.
+    const retenu = lignes.some((l) => l.retenu);
+    // La classe AFFICHÉE reste la dominante, celle qui porte le plus de monde.
+    const dominante = lignes.reduce((a, b) => (b.pop_en_zone > a.pop_en_zone ? b : a));
+    const poidsMoyen = pop_en_zone > 0
+      ? lignes.reduce((t, l) => t + l.pop_en_zone * poidsDeClasse(jeu, l.classe), 0) / pop_en_zone
+      : poidsDeClasse(jeu, dominante.classe);
+    out.push({
+      code_postal, pop_en_zone, pop_totale, retenu,
+      classe: dominante.classe, poids: poidsMoyen,
+    });
+  }
+  return out;
+}
+
+/** Un code postal replié : ses grappes fondues en une ligne. */
+export interface CpAgrege extends CpZone {
+  /** Moyenne des poids de classe, pondérée par la population de chaque grappe. */
+  poids: number;
+}
+
 /** Une ligne de plan, prête pour `bidding_zone_configs`. */
 interface LignePlan {
   code_postal: string;
@@ -104,15 +164,21 @@ const MULT_MIN_NON_NUL = 0.001;
  * @example
  * genererPlanCp(cps, jeu).taux_utile // 55 — on achète 20 000 habitants pour en viser 11 000
  */
-export function genererPlanCp(cps: CpZone[], jeu: JeuDeZones): Plan {
+export function genererPlanCp(entrees: CpZone[], jeu: JeuDeZones): Plan {
   const exclusif = jeu.mode_plan === 'exclusif';
+
+  // ⚠ Replié AVANT tout calcul : depuis sql/225 il y a une ligne par grappe,
+  // et le DSP ne sait porter qu'un multiplicateur par code postal.
+  const cps = regrouperParCodePostal(entrees, jeu);
 
   // Le poids brut de chaque code postal, avant normalisation.
   const bruts = cps.map((cp) => {
     // ⚠ Un code postal non retenu est traité comme hors zone, dans les DEUX
     // modes. En exclusif il est écarté ; en pondéré il garde le poids neutre.
     const classeEffective = cp.retenu ? cp.classe : HORS_ZONE;
-    const poids = poidsDeClasse(jeu, classeEffective);
+    // Le poids moyen pondéré du code postal quand il est retenu ; le poids de
+    // la classe hors-zone sinon.
+    const poids = cp.retenu ? cp.poids : poidsDeClasse(jeu, classeEffective);
 
     if (exclusif) {
       return cp.retenu && classeEffective !== HORS_ZONE ? cp.pop_en_zone * poids : 0;

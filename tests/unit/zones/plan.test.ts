@@ -21,7 +21,7 @@
  * pour qu'ils restent lisibles par un humain qui ouvrirait la table.
  */
 import { describe, it, expect } from 'vitest';
-import { genererPlanCp, type CpZone } from '@/lib/zones/plan';
+import { genererPlanCp, regrouperParCodePostal, type CpZone } from '@/lib/zones/plan';
 import { normaliserJeu, JEU_DEFAUT, type JeuDeZones } from '@/lib/zones/jeu';
 
 const jeu = (p: Partial<JeuDeZones> = {}): JeuDeZones =>
@@ -198,5 +198,63 @@ describe('cas degeneres', () => {
     const vides = cps.map((c) => ({ ...c, pop_en_zone: 0, pop_totale: 0 }));
     const r = genererPlanCp(vides, jeu({ mode_plan: 'pondere' }));
     expect(somme(r.lignes)).toBe(0);
+  });
+});
+
+/**
+ * ── UN CODE POSTAL À CHEVAL SUR PLUSIEURS GRAPPES (sql/225) ────────────────
+ *
+ * Depuis la Phase 2, `zone_set_cp` porte UNE LIGNE PAR GRAPPE. Mesuré le
+ * 2026-09-22 sur le profil par défaut : 2 255 lignes pour 1 942 codes postaux,
+ * **274 à cheval**, jusqu'à **6 grappes** pour un seul, et **69 portent des
+ * classes différentes** selon la grappe.
+ *
+ * Mais `bidding_zone_configs` ne sait porter qu'UN multiplicateur par code
+ * postal. Ces tests verrouillent le repli — et surtout ses deux pièges.
+ */
+describe('regrouperParCodePostal — le DSP ne lit qu un poids par code postal', () => {
+  const deuxGrappes: CpZone[] = [
+    { code_postal: '13270', classe: 'haut:1', pop_en_zone: 6000, pop_totale: 10000, retenu: true },
+    { code_postal: '13270', classe: 'bas:2', pop_en_zone: 2000, pop_totale: 10000, retenu: true },
+  ];
+
+  it('somme la population exposee des grappes', () => {
+    const [cp] = regrouperParCodePostal(deuxGrappes, jeu());
+    expect(cp.pop_en_zone).toBe(8000);
+  });
+
+  it('⚠ NE SOMME PAS la population totale — elle est repetee sur chaque ligne', () => {
+    const [cp] = regrouperParCodePostal(deuxGrappes, jeu());
+    expect(
+      cp.pop_totale,
+      'la sommer ferait peser un CP de trois bassins trois fois dans le taux d utile',
+    ).toBe(10000);
+  });
+
+  it('le poids est la moyenne des classes, ponderee par la population', () => {
+    const j = jeu({ poids: { 'haut:1': 5, 'bas:2': 1 } });
+    const [cp] = regrouperParCodePostal(deuxGrappes, j);
+    // (6000 x 5 + 2000 x 1) / 8000 = 4
+    expect(cp.poids).toBeCloseTo(4, 6);
+  });
+
+  it('un code postal a UNE SEULE ligne garde exactement son poids de classe', () => {
+    // La generalisation ne doit rien changer a l existant : c est ce qui
+    // permet aux 45 tests precedents de passer sans modification.
+    const j = jeu({ poids: { 'haut:1': 5 } });
+    const [cp] = regrouperParCodePostal(
+      [{ code_postal: '13270', classe: 'haut:1', pop_en_zone: 8000, pop_totale: 10000, retenu: true }], j);
+    expect(cp.poids).toBe(5);
+  });
+
+  it('la classe affichee reste la DOMINANTE, celle qui porte le plus de monde', () => {
+    const [cp] = regrouperParCodePostal(deuxGrappes, jeu());
+    expect(cp.classe).toBe('haut:1');
+  });
+
+  it('genererPlanCp rend UNE ligne par code postal, jamais une par grappe', () => {
+    const plan = genererPlanCp([...deuxGrappes, ...cps], jeu());
+    const codes = plan.lignes.map((l) => l.code_postal);
+    expect(new Set(codes).size, 'un code postal apparait deux fois dans le plan').toBe(codes.length);
   });
 });

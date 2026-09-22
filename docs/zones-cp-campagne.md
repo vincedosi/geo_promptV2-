@@ -15,7 +15,7 @@ signale. Découverts en auditant, réparés avant d'écrire la suite.
 | | État au matin du 22/09 | Après réparation |
 |---|---|---|
 | `carreau_risque_distance.code_postal` | **0 / 883 451** renseignés | **883 451 / 883 451** |
-| `cp_population_totale` | **0 ligne** | 6 000+ codes postaux |
+| `cp_population_totale` | **0 ligne** | **6 037** codes postaux (sur 6 187 au référentiel) |
 
 **Même cause pour les deux, et c'est la troisième fois qu'on la rencontre** :
 une fonction SQL existe, elle marche, et **aucun script ne la pilote**
@@ -54,6 +54,25 @@ pas au niveau des communes, puisqu'on ne passe jamais par elles. La règle est
 « un carreau, un code postal », appliquée deux fois avec la MÊME méthode
 (`carreau_risque_distance.code_postal` et `cp_population_totale`), ce qui rend
 numérateur et dénominateur cohérents par construction.
+
+> ⚠ **Corrigé le 2026-09-22, en Phase 2 : cette cohérence n'est pas totale.**
+> La règle est bien la même des deux côtés, mais le dénominateur ne couvre que
+> **6 037 des 6 187** codes postaux, et **47 codes postaux portant des carreaux
+> à portée n'y ont aucune ligne** — Nantes 44200, Strasbourg 67100, Limoges
+> 87100, Saint-Denis 97417. S'y ajoutent **1 047 carreaux qu'aucun contour
+> postal ne couvre** (littoral, zones non adressées), qui portent la chaîne
+> vide. Ensemble : **177 672 habitants exposés qui ne donnent aucune ligne de
+> plan.**
+>
+> Ce n'est pas une erreur de calcul, c'est une limite d'**achetabilité**, et
+> les deux ne doivent pas se confondre : la population des bassins les compte
+> (sql/227), le plan ne peut pas. `remplir_zone_set_cp` rend désormais
+> `n_cp_sans_denominateur` et `pop_sans_denominateur` — à zéro comme
+> au-dessus — au lieu de les taire.
+>
+> **Reste à trancher** : compléter `cp_population_totale` pour ces 47 codes
+> postaux, ou acter que ces habitants ne sont pas ciblables. La question est
+> celle du référentiel, pas du moteur.
 
 **Outre-mer** : Martinique et La Réunion sont couvertes. Guadeloupe, Guyane et
 Mayotte n'ont **aucun carreau** — l'INSEE ne les carroie pas. Leurs sites

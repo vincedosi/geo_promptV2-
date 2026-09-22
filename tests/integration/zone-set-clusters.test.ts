@@ -23,7 +23,7 @@
  * ⚠ Les 133 habitants d'écart restants ne sont PAS un défaut : c'est l'arrondi
  * par unité, déjà documenté pour `population_par_classe` (+1 en région, +22 en
  * département, +502 en commune). 580 grappes × ~0,19 ≈ 110. Ce test verrouille
- * donc un ORDRE DE GRANDEUR, pas une égalité strictea — ce qui distingue un
+ * donc un ORDRE DE GRANDEUR, pas une égalité stricte — ce qui distingue un
  * arrondi de la perte d'un bassin entier.
  *
  * ⚠ Ces tests ÉCRIVENT : ils créent un jeu de zones brouillon et le
@@ -36,6 +36,25 @@ const sb = creerClientTest();
 
 /** Profil par défaut du module : trois anneaux au seuil haut, deux au bas. */
 const PROFIL = { haut: [1000, 2000, 5000], bas: [500, 1000], lie: false, inclurePPRT: true };
+
+/**
+ * ⚠ CE TEST TRAVAILLE SUR UN DÉPARTEMENT, ET CE N'EST PAS UN RACCOURCI.
+ *
+ * Sur la France entière, `remplir_zone_set_cp` lit les 215 646 carreaux
+ * retenus dans `carreaux_filosofi` — 4,6 Go, 806 octets de jsonb par ligne —
+ * contre 128 Mo de `shared_buffers` en local. Mesuré le 2026-09-22 sur LE MÊME
+ * jeu à dix minutes d'intervalle : **12 s** cache chaud, **44 s** ensuite, et
+ * **plus de 400 s** sur un cache froid. Kong coupe à 60 s : la suite passait ou
+ * échouait selon ce qui avait tourné avant elle, ce qui se lit comme un test
+ * instable alors que c'est une mesure honnête d'un coût variable.
+ *
+ * Les Bouches-du-Rhône portent l'Étang de Berre — le bassin le plus dense de
+ * France en sites classés — donc tout ce que ces tests vérifient y existe :
+ * des grappes de plusieurs sites, les deux niveaux Seveso, des codes postaux à
+ * cheval. Le coût de l'écran national, lui, se mesure à la main et se
+ * documente ; il ne se vérifie pas à chaque exécution de la suite.
+ */
+const DEPARTEMENT = '13';
 
 interface Grappe {
   rang: number;
@@ -57,29 +76,70 @@ beforeAll(async () => {
     .select('carreau_id', { count: 'exact', head: true });
   if (!count) return;
 
-  const { data: org } = await sb
+  // Les restes d'une exécution que rien n'a terminée proprement (machine
+  // arrêtée, test interrompu). Un brouillon porte des géométries et jusqu'à
+  // 2 000 lignes de codes postaux : on ne les laisse pas s'empiler.
+  await sb.from('zone_sets').delete().like('nom', 'TEST grappes (vitest)%');
+
+  const { data: org, error: eOrg } = await sb
     .from('profiles').select('id, organization_id')
     .not('organization_id', 'is', null).limit(1).single();
-  if (!org) return;
+  if (eOrg || !org) throw new Error(`aucune organisation : ${eOrg?.message ?? 'table vide'}`);
 
-  const { data: jeu } = await sb
+  const { data: jeu, error: eJeu } = await sb
     .from('zone_sets')
     .insert({
-      nom: 'TEST grappes (vitest)',
+      // ⚠ Un nom UNIQUE par exécution. Le nom fixe se heurtait à
+      // `zone_sets_nom_version_unique` dès qu'une exécution précédente avait
+      // laissé son jeu derrière elle — un `afterAll` ne tourne pas quand la
+      // machine s'arrête. L'insertion échouait alors, l'erreur n'était pas
+      // lue, et les cinq tests passaient au vert sans rien construire. Deux
+      // défauts se couvraient l'un l'autre.
+      nom: `TEST grappes (vitest) ${Date.now()}`,
       org_id: org.organization_id,
       created_by: org.id,
       profil: PROFIL,
       gravites: ['seveso_haut', 'seveso_bas'],
+      territoire: DEPARTEMENT,
       profil_hash: `vitest-${Date.now()}`,
       brouillon: true,
     })
     .select('id').single();
-  if (!jeu) return;
+  if (eJeu || !jeu) throw new Error(`creation du jeu : ${eJeu?.message ?? 'aucune ligne'}`);
   jeuId = jeu.id;
 
-  await sb.rpc('construire_zone_set_clusters', { p_zone_set_id: jeuId });
-  const { data } = await sb
+  // ⚠ LES DEUX ERREURS SONT LUES, et ce n'est pas de la ceinture-bretelles.
+  //
+  // Elles étaient ignorées : `await sb.rpc(...)` sans regarder `error`.
+  // supabase-js ne LÈVE pas, il rend `{ error }` — le remplissage pouvait
+  // donc échouer en silence, les grappes exister quand même (elles sont
+  // construites avant), `construit` passer à `true`, et les cinq tests se
+  // dérouler sur des grappes à `pop_exposee` null.
+  //
+  // Constaté le 2026-09-22 : `remplir_zone_set_cp` rendait « The upstream
+  // server is timing out » (Kong coupe à 60 s, et le remplissage va de 12 s à
+  // plus d'une minute selon l'état du cache de `carreaux_filosofi`) et la
+  // suite restait VERTE. Un test qui passe quand la chose testée n'a pas eu
+  // lieu est pire qu'un test absent : il certifie.
+  const { data: kRes, error: eK } = await sb.rpc('construire_zone_set_clusters', { p_zone_set_id: jeuId });
+  if (eK) throw new Error(`construire_zone_set_clusters : ${eK.message}`);
+  if ((kRes as { ok?: boolean } | null)?.ok !== true) {
+    throw new Error(`construire_zone_set_clusters a refuse : ${JSON.stringify(kRes)}`);
+  }
+
+  // ⚠ La population des grappes est remplie par le remplissage des codes
+  // postaux (sql/225), pas par la construction des grappes : une seule passe
+  // sur les carreaux au lieu de deux. sql/224 la calculait par un KNN sur les
+  // POLYGONES des bassins — 508 s a froid, contre 1,7 s aujourd'hui.
+  const { data: rRes, error: eR } = await sb.rpc('remplir_zone_set_cp', { p_zone_set_id: jeuId });
+  if (eR) throw new Error(`remplir_zone_set_cp : ${eR.message}`);
+  if ((rRes as { ok?: boolean } | null)?.ok !== true) {
+    throw new Error(`remplir_zone_set_cp a refuse : ${JSON.stringify(rRes)}`);
+  }
+
+  const { data, error: eG } = await sb
     .from('zone_set_clusters').select('*').eq('zone_set_id', jeuId);
+  if (eG) throw new Error(`lecture des grappes : ${eG.message}`);
   grappes = (data ?? []) as Grappe[];
   construit = grappes.length > 0;
 }, 300_000);
@@ -105,11 +165,16 @@ describe('zone_set_clusters — les bassins d un jeu de zones', () => {
     const somme = grappes.reduce((s, g) => s + Number(g.pop_exposee ?? 0), 0);
 
     // La référence : le MÊME profil passé au moteur de l'écran.
-    const { data } = await sb.rpc('population_par_classe', {
-      p_profil: PROFIL, p_cible: 'ind', p_maille: 'departement',
+    const { data, error } = await sb.rpc('population_par_classe', {
+      p_profil: PROFIL, p_cible: 'ind', p_maille: 'commune', p_parent: DEPARTEMENT,
     });
+    // ⚠ Ce test COMPARE : si la référence manque, il n'a rien à comparer et
+    // doit le dire. Il écrivait `if (!total) return expect(total).toBe(0)` —
+    // une tautologie qui rendait vert le cas où le moteur de l'écran est en
+    // panne, c'est-à-dire précisément le cas qu'il devrait signaler.
+    if (error) throw new Error(`population_par_classe : ${error.message}`);
     const total = Number((data as { total?: number } | null)?.total ?? 0);
-    if (!total) return expect(total).toBe(0);
+    expect(total, 'population_par_classe ne rend aucun total — rien a comparer').toBeGreaterThan(0);
 
     // Un arrondi par grappe, pas davantage : ~0,19 hab × N grappes.
     const ecart = Math.abs(somme - total);
