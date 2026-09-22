@@ -8105,6 +8105,14 @@ export type Database = {
         Args: { p_lat: number; p_lon: number; p_rayon_m: number }
         Returns: Json
       }
+      zone_set_cp_geo: {
+        Args: { p_bbox?: number[]; p_limite?: number; p_zone_set_id: string }
+        Returns: Json
+      }
+      zone_set_grappes: {
+        Args: { p_limite?: number; p_zone_set_id: string }
+        Returns: Json
+      }
       zones_risque_tuile: {
         Args: { p_profil_code: string; p_x: number; p_y: number; p_z: number }
         Returns: string

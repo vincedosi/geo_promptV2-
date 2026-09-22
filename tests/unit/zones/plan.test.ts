@@ -21,7 +21,9 @@
  * pour qu'ils restent lisibles par un humain qui ouvrirait la table.
  */
 import { describe, it, expect } from 'vitest';
-import { genererPlanCp, regrouperParCodePostal, type CpZone } from '@/lib/zones/plan';
+import {
+  genererPlanCp, regrouperParCodePostal, plierParCodePostal, type CpZone,
+} from '@/lib/zones/plan';
 import { normaliserJeu, JEU_DEFAUT, type JeuDeZones } from '@/lib/zones/jeu';
 
 const jeu = (p: Partial<JeuDeZones> = {}): JeuDeZones =>
@@ -327,6 +329,66 @@ describe('groupes de codes postaux indiscernables', () => {
     const plan = genererPlanCp(minuscule, jeu(), beaucoup);
     for (const l of plan.lignes.filter((x) => x.code_postal.startsWith('1327'))) {
       expect(l.multiplicateur).toBeGreaterThan(0);
+    }
+  });
+});
+
+
+/**
+ * Le panneau de l'atelier et la carte des codes postaux lisent la MÊME table,
+ * `zone_set_cp`, qui porte une ligne par (code postal x grappe) depuis
+ * sql/225. Tant que le panneau comptait des LIGNES, l'écran affichait deux
+ * vérités à trente centimètres l'une de l'autre : « 1 042 codes postaux sur
+ * 2 240 touchés, 77,1 % d'utile » d'un côté, « 890 sur 1 927, 81,6 % » de
+ * l'autre — les seconds étant les bons, vérifiés contre la base.
+ */
+describe('un code postal, une ligne — le repli partagé', () => {
+  /** Un code postal à cheval sur trois bassins, et un ordinaire. */
+  const troisGrappes: CpZone[] = [
+    { code_postal: '13270', classe: 'haut:1', pop_en_zone: 3000, pop_totale: 10000, retenu: true },
+    { code_postal: '13270', classe: 'haut:2', pop_en_zone: 2000, pop_totale: 10000, retenu: true },
+    { code_postal: '13270', classe: 'bas:1', pop_en_zone: 1000, pop_totale: 10000, retenu: true },
+    { code_postal: '13800', classe: 'haut:1', pop_en_zone: 4000, pop_totale: 8000, retenu: true },
+  ];
+
+  it('compte des CODES POSTAUX, jamais des lignes', () => {
+    expect(plierParCodePostal(troisGrappes)).toHaveLength(2);
+  });
+
+  it('⚠ NE SOMME PAS pop_totale — sinon le taux d utile s effondre', () => {
+    const [cp] = plierParCodePostal(troisGrappes);
+    // Sommee sur les trois lignes, elle vaudrait 30 000 : le code postal
+    // pesant trois fois ce qu on achete reellement.
+    expect(cp.pop_totale).toBe(10000);
+  });
+
+  it('le taux d utile du plan est celui qu on obtient en dedupliquant', () => {
+    const plan = genererPlanCp(troisGrappes, jeu());
+    // visee 6000 + 4000 = 10 000 ; achetee 10 000 + 8 000 = 18 000.
+    // `toBeCloseTo(_, 1)` : le taux est ARRONDI a la decimale par le produit
+    // (55,6 %), et c est cet arrondi qu on verrouille, pas le flottant brut.
+    expect(plan.taux_utile).toBeCloseTo(100 * 10000 / 18000, 1);
+  });
+
+  it('le taux d utile FAUX (lignes non repliees) serait sensiblement plus bas', () => {
+    // Ce que calculait le panneau : 10 000 / (3 x 10 000 + 8 000) = 26,3 %.
+    const faux = 100 * 10000 / (3 * 10000 + 8000);
+    const vrai = genererPlanCp(troisGrappes, jeu()).taux_utile!;
+    expect(faux).toBeLessThan(vrai);
+    expect(vrai - faux).toBeGreaterThan(20);
+  });
+
+  it('les deux replis s accordent : le plan et l affichage par classe', () => {
+    const plie = plierParCodePostal(troisGrappes);
+    const avecPoids = regrouperParCodePostal(troisGrappes, jeu());
+    expect(avecPoids.map((c) => c.code_postal).sort())
+      .toEqual(plie.map((c) => c.code_postal).sort());
+    for (const cp of avecPoids) {
+      const ref = plie.find((x) => x.code_postal === cp.code_postal)!;
+      expect(cp.pop_en_zone).toBe(ref.pop_en_zone);
+      expect(cp.pop_totale).toBe(ref.pop_totale);
+      expect(cp.classe).toBe(ref.classe);
+      expect(cp.retenu).toBe(ref.retenu);
     }
   });
 });

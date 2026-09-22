@@ -70,13 +70,46 @@ export interface CpZone {
  *   au calcul précédent — la généralisation ne change donc rien à l'existant.
  */
 export function regrouperParCodePostal(cps: CpZone[], jeu: JeuDeZones): CpAgrege[] {
+  return plierParCodePostal(cps).map(({ lignes, ...cp }) => ({
+    ...cp,
+    poids: cp.pop_en_zone > 0
+      ? lignes.reduce((t, l) => t + l.pop_en_zone * poidsDeClasse(jeu, l.classe), 0) / cp.pop_en_zone
+      : poidsDeClasse(jeu, cp.classe),
+  }));
+}
+
+/** Un code postal replié, avec les lignes dont il vient. */
+export interface CpPlie extends CpZone {
+  /** Les lignes d'origine — une par grappe. */
+  lignes: CpZone[];
+}
+
+/**
+ * Replie les lignes par code postal, SANS toucher aux poids.
+ *
+ * ── POURQUOI CETTE FONCTION EST À PART ────────────────────────────────────
+ *
+ * Elle est la règle de repli, et elle a DEUX consommateurs qui n'ont pas les
+ * mêmes besoins : le plan, qui a besoin d'un poids moyen pondéré, et
+ * l'affichage par classe du panneau de l'atelier, qui n'a besoin d'aucun poids
+ * et n'a pas de jeu normalisé sous la main.
+ *
+ * ⚠ Elle existe parce que le panneau comptait des LIGNES. Depuis sql/225,
+ * `zone_set_cp` en porte une par (code postal x grappe) : le panneau
+ * annonçait « 1 042 codes postaux sur 2 240 touchés » et un taux d'utile de
+ * 77,1 %, à côté d'une carte qui disait « 890 sur 1 927 » et 81,6 % — les
+ * deux chiffres justes étant ceux de la carte, vérifiés contre la base. Le
+ * `pop_totale` sommé sur les lignes fait peser trois fois un code postal
+ * présent dans trois bassins, et le taux d'utile s'effondre sans raison.
+ */
+export function plierParCodePostal(cps: CpZone[]): CpPlie[] {
   const par = new Map<string, CpZone[]>();
   for (const cp of cps) {
     const l = par.get(cp.code_postal);
     if (l) l.push(cp); else par.set(cp.code_postal, [cp]);
   }
 
-  const out: CpAgrege[] = [];
+  const out: CpPlie[] = [];
   for (const [code_postal, lignes] of par) {
     const pop_en_zone = lignes.reduce((t, l) => t + l.pop_en_zone, 0);
     // `max` et non une somme : la valeur est la même sur toutes les lignes.
@@ -87,12 +120,9 @@ export function regrouperParCodePostal(cps: CpZone[], jeu: JeuDeZones): CpAgrege
     const retenu = lignes.some((l) => l.retenu);
     // La classe AFFICHÉE reste la dominante, celle qui porte le plus de monde.
     const dominante = lignes.reduce((a, b) => (b.pop_en_zone > a.pop_en_zone ? b : a));
-    const poidsMoyen = pop_en_zone > 0
-      ? lignes.reduce((t, l) => t + l.pop_en_zone * poidsDeClasse(jeu, l.classe), 0) / pop_en_zone
-      : poidsDeClasse(jeu, dominante.classe);
     out.push({
       code_postal, pop_en_zone, pop_totale, retenu,
-      classe: dominante.classe, poids: poidsMoyen,
+      classe: dominante.classe, lignes,
     });
   }
   return out;

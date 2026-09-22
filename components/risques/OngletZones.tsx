@@ -208,8 +208,14 @@ export function OngletZones({
    * les quelques dizaines de millisecondes qui les séparent l'écran
    * afficherait un total qui ne serait pas la somme de ses lignes.
    */
+  /*
+   * ⚠ `population_en_zone_retenue` et non `population_en_zone` : le taux
+   * d'utile compare ce qu'on VISE à ce qu'on ACHÈTE sur le MÊME ensemble de
+   * codes postaux. Mesuré le 2026-09-22 : le panneau annonçait 91,6 % là où la
+   * base et la carte des codes postaux disaient 81,6 %.
+   */
   const visee = useMemo(
-    () => (detail?.classes ?? []).reduce((t, c) => t + c.population_en_zone, 0),
+    () => (detail?.classes ?? []).reduce((t, c) => t + c.population_en_zone_retenue, 0),
     [detail],
   );
   const achetee = useMemo(

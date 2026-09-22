@@ -27,6 +27,7 @@ import { lireCorps } from '@/lib/api/valider-corps';
 import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
 import { lireTout } from '@/lib/supabase/lire-tout';
 import { POIDS_MIN, POIDS_MAX, MODES_PLAN, MOTIF_CLASSE } from '@/lib/zones/jeu';
+import { plierParCodePostal } from '@/lib/zones/plan';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,24 +78,61 @@ interface ClasseJeu {
   n_cp: number;
   n_cp_retenus: number;
   population_en_zone: number;
+  /** La population en zone des SEULS codes postaux retenus — le numérateur
+   *  du taux d'utile, dont le dénominateur ne porte que sur eux. */
+  population_en_zone_retenue: number;
   population_achetee: number;
 }
 
 function regrouperParClasse(lignes: LigneCp[]): ClasseJeu[] {
+  /*
+   * ⚠ ON REPLIE D'ABORD PAR CODE POSTAL, et c'est un correctif.
+   *
+   * Depuis sql/225, `zone_set_cp` porte une ligne par (code postal x grappe).
+   * Compter les lignes faisait annoncer au panneau « 1 042 codes postaux sur
+   * 2 240 touchés » quand la carte du même écran disait « 890 sur 1 927 » ; et
+   * sommer `pop_totale` ligne à ligne faisait peser trois fois un code postal
+   * présent dans trois bassins, d'où un taux d'utile de 77,1 % contre 81,6 %
+   * réels — vérifiés contre la base.
+   *
+   * `plierParCodePostal` est la MÊME règle que celle du plan
+   * (`lib/zones/plan.ts`) : une seule définition de « un code postal, une
+   * ligne », donc pas deux comptages qui divergent.
+   */
+  const plies = plierParCodePostal(lignes.map((l) => ({
+    code_postal: l.code_postal,
+    classe: l.classe,
+    pop_en_zone: Number(l.pop_en_zone ?? 0),
+    pop_totale: Number(l.pop_totale ?? 0),
+    retenu: l.retenu,
+  })));
+
   const par = new Map<string, ClasseJeu>();
-  for (const l of lignes) {
+  for (const l of plies) {
     const c = par.get(l.classe) ?? {
       classe: l.classe,
       n_cp: 0,
       n_cp_retenus: 0,
       population_en_zone: 0,
+      population_en_zone_retenue: 0,
       population_achetee: 0,
     };
     c.n_cp += 1;
-    c.population_en_zone += Number(l.pop_en_zone ?? 0);
+    c.population_en_zone += l.pop_en_zone;
     if (l.retenu) {
       c.n_cp_retenus += 1;
-      c.population_achetee += Number(l.pop_totale ?? 0);
+      /*
+       * ⚠ LA POPULATION VISÉE **DES RETENUS**, et c'est une colonne à part.
+       *
+       * Le taux d'utile rapporte ce qu'on vise à ce qu'on achète — sur LE MÊME
+       * ensemble de codes postaux. Le panneau divisait la population en zone
+       * de TOUS les codes postaux par celle des seuls retenus, ce qui mélange
+       * deux populations : il annonçait 91,6 % là où la base et la carte
+       * disent 81,6 %. Un ratio dont le numérateur et le dénominateur ne
+       * portent pas sur le même ensemble ne veut rien dire.
+       */
+      c.population_en_zone_retenue += l.pop_en_zone;
+      c.population_achetee += l.pop_totale;
     }
     par.set(l.classe, c);
   }

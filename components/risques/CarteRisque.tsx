@@ -202,9 +202,19 @@ interface Props {
    * de chiffre.
    */
   fusionner: boolean;
+  /**
+   * Remonte l'instance MapLibre, pour la synchronisation des caméras avec la
+   * carte des codes postaux (étape ④).
+   *
+   * ⚠ Elle remonte `null` au démontage. Sans ça, le synchroniseur garderait
+   * une référence vers une carte détruite et appellerait `jumpTo` dessus au
+   * premier mouvement de l'autre — MapLibre lève alors sur un conteneur qui
+   * n'existe plus, et l'erreur désigne la carte SURVIVANTE.
+   */
+  onCarte?: (m: maplibregl.Map | null) => void;
 }
 
-export function CarteRisque({ profil, apercu, gravites, natures, fusionner }: Props) {
+export function CarteRisque({ profil, apercu, gravites, natures, fusionner, onCarte }: Props) {
   const conteneur = useRef<HTMLDivElement | null>(null);
   const carte = useRef<maplibregl.Map | null>(null);
   const { theme } = useTheme();
@@ -318,6 +328,7 @@ export function CarteRisque({ profil, apercu, gravites, natures, fusionner }: Pr
     m.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
     m.on('zoom', () => setZoom(m.getZoom()));
     carte.current = m;
+    onCarte?.(m);
 
     /*
      * ⚠ MapLibre ne redimensionne PAS son canevas tout seul quand son conteneur
@@ -330,7 +341,12 @@ export function CarteRisque({ profil, apercu, gravites, natures, fusionner }: Pr
     const observateur = new ResizeObserver(() => m.resize());
     observateur.observe(conteneur.current);
 
-    return () => { observateur.disconnect(); m.remove(); carte.current = null; };
+    return () => {
+      observateur.disconnect();
+      onCarte?.(null);
+      m.remove();
+      carte.current = null;
+    };
     // Le thème est relu par l'effet suivant : le remonter ici détruirait la
     // carte à chaque bascule, donc la position de l'utilisateur avec elle.
     // eslint-disable-next-line react-hooks/exhaustive-deps

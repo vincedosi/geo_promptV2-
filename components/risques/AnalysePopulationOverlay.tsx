@@ -50,7 +50,8 @@ import { Champ, Pastille, FilAriane, Th, Td, styleLien } from '@/components/risq
 import { FournisseurRisque, useEtatRisque } from '@/components/risques/ContexteRisque';
 import type { Etape } from '@/lib/risques/etape';
 import { FilArianeEtapes } from '@/components/risques/FilArianeEtapes';
-import { CarteRisque } from '@/components/risques/CarteRisque';
+import { VueCartesZones } from '@/components/risques/VueCartesZones';
+import { codeProfil } from '@/lib/risques/code-profil';
 import {
   FournisseurChargement, usePiste, useChargement,
 } from '@/components/risques/ContexteChargement';
@@ -1573,40 +1574,29 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         )}
 
         <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-          <CarteRisque
+          {/*
+            ⚠ LA CARTE SE DÉDOUBLE À L'ÉTAPE ④, et nulle part ailleurs.
+            C'est là qu'on décide ce qu'on achète, et cette décision EST la
+            comparaison de deux découpages qui ne coïncident pas : les anneaux
+            se mesurent au carreau de 200 m, le DSP achète au code postal.
+            Ailleurs il n'y a rien à comparer, et un interrupteur suffit.
+          */}
+          <VueCartesZones
+            etape={etape}
             profil={etat.profil}
+            codeProfilZones={codeProfil(etat.profil)}
             apercu={apercuRayon}
             gravites={niveaux}
             natures={natures}
             fusionner={etat.fusionner}
+            jeuId={etat.jeu}
+            /* Le seuil courant n'est pas relayé : la carte apprend son
+               changement par événement, le panneau qui le règle vivant dans
+               une autre branche de l'arbre. */
+            seuil={0}
+            carteSeule={carteSeule}
+            onCarteSeule={setCarteSeule}
           />
-
-          {/*
-            « Carte seule » replie le panneau au lieu d'appeler l'API plein
-            écran : celle-ci sortirait la carte de l'overlay, donc du bandeau
-            KPI et du fil d'Ariane — on verrait grand, sans plus savoir ce
-            qu'on regarde ni comment en sortir.
-          */}
-          <button
-            type="button"
-            onClick={() => setCarteSeule((v) => !v)}
-            aria-pressed={carteSeule}
-            title={carteSeule
-              ? 'Réafficher le panneau de l’étape'
-              : 'Masquer le panneau et n’afficher que la carte'}
-            style={{
-              position: 'absolute', top: 10, right: 56, zIndex: 3,
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              padding: '5px 10px', borderRadius: 6, cursor: 'pointer',
-              background: 'var(--card-overlay)',
-              border: '0.5px solid var(--border-default)',
-              fontFamily: fInter, fontSize: 11,
-              color: carteSeule ? 'var(--brand-teal)' : 'var(--text-secondary)',
-            }}
-          >
-            {carteSeule ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-            {carteSeule ? 'Afficher le panneau' : 'Carte seule'}
-          </button>
         </div>
       </div>
     </div>

@@ -41,12 +41,30 @@ export interface JeuResume {
   seuil_couverture_cp: number;
 }
 
+/**
+ * Émis quand un jeu vient d'être re-réglé (seuil, poids, mode de plan).
+ *
+ * La carte des codes postaux l'écoute : c'est le serveur qui décide de
+ * `retenu`, jamais l'écran — deux règles de rétention divergeraient au premier
+ * correctif, et c'est la carte qu'on croirait.
+ */
+export const EVENEMENT_JEU_REGLE = 'magelian:jeu-zones-regle';
+
 /** Ce qu'une classe pèse dans un jeu construit. */
 export interface ClasseJeu {
   classe: string;
   n_cp: number;
   n_cp_retenus: number;
   population_en_zone: number;
+  /**
+   * La population en zone des SEULS codes postaux retenus.
+   *
+   * ⚠ C'est elle, et jamais `population_en_zone`, qui fait le numérateur du
+   * taux d'utile : le dénominateur ne porte que sur les retenus, et un ratio
+   * dont les deux termes ne comptent pas le même ensemble ne veut rien dire.
+   * Le panneau annonçait 91,6 % là où la base disait 81,6 %.
+   */
+  population_en_zone_retenue: number;
   population_achetee: number;
 }
 
@@ -210,6 +228,22 @@ export function useJeuxZones(): Atelier {
       // serveur, et les deux finiraient par diverger.
       await chargerDetail(id, mien);
       if (champs.enregistrer) await rafraichirBibliotheque();
+      /*
+       * ⚠ UN ÉVÉNEMENT, parce que la carte des codes postaux vit dans une
+       * AUTRE BRANCHE de l'arbre React.
+       *
+       * Le seuil se règle dans le panneau de l'étape ④ ; la carte qui peint
+       * `retenu` est montée au niveau de l'overlay, à côté. Faire remonter le
+       * seuil jusqu'à l'ancêtre commun obligerait à le relayer à travers cinq
+       * composants qui n'en ont que faire. C'est le patron déjà retenu pour
+       * l'activation des zones de risque (`lib/carte/degrades.ts`).
+       *
+       * ⚠ Il est émis APRÈS `chargerDetail` : émis avant, la carte relirait
+       * pendant que le serveur écrit encore, et peindrait l'état précédent.
+       */
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(EVENEMENT_JEU_REGLE, { detail: { id } }));
+      }
       return true;
     } catch (e) {
       if (monte.current && mien === jeton.current) setErreur((e as Error).message);
