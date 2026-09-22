@@ -154,6 +154,58 @@
 > arborescence et tableau des variables d'environnement compris. Corrige le
 > 2026-09-11, et desormais garde par `tests/unit/docs/derive-documentation.test.ts`.
 
+> ## ⛔ Modal n'est PAS branchable — audit du 2026-09-22
+>
+> **Decision : les enchheres par code postal restent produites par un
+> GENERATEUR LOCAL. Ne pas appeler ce service.** Arbitrage de Vincent, sur
+> l'audit ci-dessous.
+>
+> **Le blocage n'est pas la plomberie, c'est la DONNEE.** Le modele
+> (`river.HoeffdingAdaptiveTreeRegressor`) apprend sur 8 features tirees du
+> jsonb `dsp_campaign_data.metrics`, et son reward vaut `leads - spend/12,5`.
+> Or, mesure ce jour : **477 879 lignes, ZERO avec un `metrics` non vide**, et
+> aucune colonne `leads`/`visits`/`conversions`/`bid_requests`/`bid_won`/`tier`
+> n'existe. Consequence : 4 features sur 8 sont constantes, et le reward se
+> reduit a **`- spend/12,5`**. Le modele n'apprendrait qu'une chose — depenser
+> est mauvais — et rendrait des multiplicateurs a l'air savant, derives d'un
+> signal inexistant.
+>
+> ⚠ **Sa sortie ecraserait le plan des jeux de zones.** Le mode `auto`
+> (`persistence.py:34`) fait un `upsert` sur `bidding_zone_configs`
+> `(strategy_id, postal_code, country_code)` — **exactement la cle et la table**
+> ou `genererPlanCp` ecrit le plan d'un jeu de zones (`lib/zones/plan.ts`).
+> Rien dans le schema ne distingue les deux origines : une passe de prediction
+> remplacerait « ce qu'on a decide d'acheter » par « ce que le modele predit »,
+> en silence.
+>
+> **Etat mesure le 2026-09-22 :**
+> - `MODAL_BIDDING_ML_URL` vaut `""` (vide) et aucun `MODAL_TOKEN_*` n'est
+>   pose : `getModalPrefix()` LEVE avant tout appel reseau. Le service est donc
+>   injoignable, et son deploiement invérifiable.
+> - `adaptive_model_state` : **0 ligne** — aucun modele n'a jamais ete entraine,
+>   donc `/predict` repondrait « Lance /train d'abord ».
+> - `bidding_daily_state`, `bidding_drift_events` : 0. La boucle n'a JAMAIS
+>   rien produit dans cette base.
+> - `bidding_zone_config_proposals` (cible du mode `suggest`) : **table
+>   inexistante**.
+> - Les **11 435** lignes de `bidding_zone_configs` viennent du wizard et des
+>   jeux de zones, jamais de Modal.
+> - La sortie ne part vers AUCUN DSP : le push DV360 lit `custom_geo_zones` et
+>   `custom_geo_zone_codes`. Le seul pont est le FICHIER d'`/export`, depose a
+>   la main.
+>
+> **Code vestigial recense** (non supprime, signale) : `predictForStrategy` et
+> `detectDrift` exportes sans appelant ; `agentAutoPilotDaily` (cron 06h00,
+> enregistre dans `app/api/inngest/route.ts`) appelle **deux routes supprimees
+> le 08/09** — `drift-detect-local` et `recommendations` — donc tomberait en 404
+> meme si un ordonnanceur existait ; `apply_proposal_to_config` sans appelant.
+>
+> **Ce qu'il faudrait pour rouvrir la question**, dans cet ordre : que
+> `dsp_campaign_data.metrics` porte enfin les conversions et les signaux
+> d'enchere (sujet d'INGESTION DSP, pas de ML) ; qu'un mode d'execution separe
+> les ecritures du modele de celles du plan ; et que Modal soit redeploye avec
+> une URL.
+
 ## Stack technique
 
 | Couche | Technologie | Version |
