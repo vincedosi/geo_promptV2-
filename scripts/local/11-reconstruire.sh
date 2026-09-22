@@ -61,7 +61,7 @@ etape() { echo ""; echo "=== $1 — $(( ($(date +%s) - t0) / 60 )) min ==="; }
 # 2026-09-22) se restaure sans le moindre GRANT. PostgREST répond alors 401 sur
 # tout, l'application affiche « Failed to fetch », et on cherche du côté des
 # clés JWT — qui sont bonnes. Reposer les droits est idempotent et coûte 2 s.
-etape "0/6 droits des rôles applicatifs"
+etape "0/7 droits des rôles applicatifs"
 sql "grant usage on schema public to anon, authenticated, service_role;
      grant all on all tables    in schema public to anon, authenticated, service_role;
      grant all on all sequences in schema public to anon, authenticated, service_role;
@@ -73,7 +73,7 @@ sql "grant usage on schema public to anon, authenticated, service_role;
 echo "  droits reposés (anon · authenticated · service_role)"
 
 # ── 1. LES CARREAUX ─────────────────────────────────────────────────────────
-etape "1/6 carreaux_filosofi"
+etape "1/7 carreaux_filosofi"
 if [ "$(n public.carreaux_filosofi)" -ge 2324577 ]; then
   echo "  déjà chargés : $(n public.carreaux_filosofi)"
 else
@@ -85,7 +85,7 @@ fi
 # Reprenable : le journal `carreau_risque_bandes` dit ce qui est fait et le
 # script saute ces bandes-là. 22 bandes attendues — 20 en métropole, plus la
 # Martinique et La Réunion, que le script traite en appels séparés.
-etape "2/6 carreau_risque_distance"
+etape "2/7 carreau_risque_distance"
 node scripts/construire_carreau_risque.mjs || { echo "ÉCHEC distances" >&2; exit 1; }
 echo "  -> $(n public.carreau_risque_distance) lignes"
 
@@ -100,7 +100,7 @@ echo "  -> $(n public.carreau_risque_distance) lignes"
 # Le découpage est le MÊME que celui de sql/203, et l'outre-mer part en appels
 # séparés avec des clés de journal >= 1000 : une zone traitée en une seule
 # bande a forcément l'index 0, déjà pris par la première bande métropolitaine.
-etape "3/6 carreau_risque_nature"
+etape "3/7 carreau_risque_nature"
 if [ "$(n public.carreau_risque_nature)" -ge 1446552 ]; then
   echo "  déjà construite : $(n public.carreau_risque_nature)"
 else
@@ -115,7 +115,7 @@ fi
 echo "  -> $(n public.carreau_risque_nature) lignes"
 
 # ── 4. LE DÉNOMINATEUR ──────────────────────────────────────────────────────
-etape "4/6 unite_population_totale"
+etape "4/7 unite_population_totale"
 if [ "$(n public.unite_population_totale)" -gt 0 ]; then
   echo "  déjà construit : $(n public.unite_population_totale) lignes"
 else
@@ -135,7 +135,19 @@ fi
 #
 # Ce que ça bloque quand c'est vide : toute conversion rayon -> code postal,
 # donc le plan que le DSP achète. Et ça ne se voit pas — la colonne existe.
-etape "4bis/6 carreau_risque_distance.code_postal"
+# ⚠ AJOUTÉ le 2026-09-22 : `cp_groupe` (sql/228) est un PRÉREQUIS des deux
+# remplissages qui suivent. `cp_du_point` la joint pour rendre le code
+# CANONIQUE d'un groupe de codes postaux indiscernables, et sans elle la
+# jointure ne rend AUCUNE ligne — donc tous les carreaux seraient déclarés
+# « sans code postal », en silence. 130 ms, aucune raison de s'en passer.
+etape "4bis/7 cp_groupe"
+if [ "$(n public.cp_groupe)" -gt 0 ]; then
+  echo "  déjà construit : $(n public.cp_groupe) codes postaux"
+else
+  echo "  $(sql "select public.construire_cp_groupe()")"
+fi
+
+etape "4ter/7 carreau_risque_distance.code_postal"
 manquants=$(sql "select count(*) from carreau_risque_distance where code_postal is null")
 if [ "${manquants:-0}" = "0" ]; then
   echo "  déjà rattachés : $(n public.carreau_risque_distance) carreaux"
@@ -166,12 +178,37 @@ fi
 # ⚠ 60 bandes en métropole, puis l'outre-mer par appels SÉPARÉS avec ses
 # propres bornes : un découpage uniforme de -61,6 à 56,0 mettrait toute la
 # France dans une ou deux bandes. Leçon de sql/200, déjà payée deux fois.
-etape "4ter/6 cp_population_totale"
+# ── 4 quater. LA POPULATION DU CARREAU, À CÔTÉ DE SA DISTANCE ───────────────
+#
+# ⚠ AJOUTÉ le 2026-09-22 (sql/229). Sans elle, le remplissage des codes
+# postaux d'un jeu de zones joint `carreaux_filosofi` — 4,6 Go, 811 octets de
+# jsonb par ligne — pour en tirer un nombre par carreau. Mesuré : 0,9 s pour
+# lire les distances seules, 11,2 s avec la jointure, et de 12 s à plus de
+# 400 s selon le cache sur une construction complète, quand Kong coupe à 60 s.
+#
+# Ce que ça bloque quand c'est vide : `remplir_zone_set_cp` REFUSE
+# (`population_carreau_absente`) plutôt que de replier sur la jointure — deux
+# chemins pour la même donnée, c'est deux chemins qui divergent.
+etape "4quater/7 carreau_risque_distance.pops"
+manquants=$(sql "select count(*) from carreau_risque_distance where pops is null")
+if [ "${manquants:-0}" = "0" ]; then
+  echo "  déjà remplis : $(n public.carreau_risque_distance) carreaux"
+else
+  echo "  $manquants carreau(x) sans population — remplissage par lots de 200 000"
+  while true; do
+    echo "    $(sql "select public.remplir_population_carreau(200000)")"
+    reste=$(sql "select count(*) from carreau_risque_distance where pops is null")
+    [ "${reste:-0}" = "0" ] && break
+  done
+fi
+
+etape "5/7 cp_population_totale"
 if [ "$(n public.cp_population_totale)" -gt 0 ]; then
   echo "  déjà construit : $(n public.cp_population_totale) codes postaux"
 else
   # Une ligne toutes les dix bandes, PAS un retour chariot : le journal est relu
-  # APRES coup, souvent dans un fichier, ou un  ecrase tout sur une seule
+  # APRES coup, souvent dans un fichier, ou un 
+ ecrase tout sur une seule
   # ligne illisible — constate sur la passe du 2026-09-22.
   for b in $(seq 0 59); do
     [ $(( b % 10 )) = 0 ] && echo "  metropole : bande $b/59…"
@@ -195,7 +232,7 @@ echo "  -> $(n public.cp_population_totale) codes postaux"
 # La cause est corrigée dans `10-sauvegarder.sh` (le journal est désormais
 # exclu avec sa table), mais toute sauvegarde ANTÉRIEURE au 22/09 porte encore
 # le défaut — d'où le `--tout` inconditionnel quand la table est vide.
-etape "5/6 couverture_rayon_risque"
+etape "6/7 couverture_rayon_risque"
 if [ "$(n public.couverture_rayon_risque)" -gt 0 ]; then
   echo "  déjà construite : $(n public.couverture_rayon_risque) lignes"
 else

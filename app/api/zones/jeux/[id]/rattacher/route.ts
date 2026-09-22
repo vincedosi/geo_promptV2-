@@ -40,6 +40,7 @@ import { lireCorps } from '@/lib/api/valider-corps';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { normaliserJeu } from '@/lib/zones/jeu';
 import { genererPlanCp, type CpZone } from '@/lib/zones/plan';
+import { lireGroupesCp } from '@/lib/zones/groupes';
 import { lireTout } from '@/lib/supabase/lire-tout';
 
 export const dynamic = 'force-dynamic';
@@ -164,7 +165,10 @@ export async function POST(
     retenu: r.retenu,
   }));
 
-  const plan = genererPlanCp(cps, jeu);
+  // Les codes postaux que le référentiel ne distingue pas : le plan les
+  // achète TOUS, sans quoi on cible un quart d'une ville (lib/zones/groupes.ts).
+  const groupes = await lireGroupesCp(supabase);
+  const plan = genererPlanCp(cps, jeu, groupes);
   const aEcrire = plan.lignes.filter((l) => l.multiplicateur > 0);
 
   if (aEcrire.length === 0) {

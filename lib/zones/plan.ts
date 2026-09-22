@@ -130,6 +130,23 @@ export interface Plan {
   n_retenus: number;
 }
 
+/**
+ * Les codes postaux qu'un référentiel ne sait pas distinguer, par canonique.
+ *
+ * ── POURQUOI CETTE NOTION EXISTE ──────────────────────────────────────────
+ *
+ * `ref_codes_postaux` porte la MÊME géométrie pour tous les codes postaux
+ * d'une commune : `ST_Equals(geom('44000'), geom('44200'))` répond `true`, et
+ * les quatre codes postaux de Nantes partagent aussi leur centroïde, au bit
+ * près. **71 groupes, 181 codes postaux**, jusqu'à 6 membres (sql/228).
+ *
+ * On ne peut donc PAS savoir dans lequel habite un exposé — l'information
+ * n'est pas dans la donnée. Le rattachement retient un code CANONIQUE, et le
+ * plan achète **tout le groupe** : cibler Nantes-44200 seul, c'était acheter
+ * un quart d'une ville dont les exposés sont répartis sur les quatre.
+ */
+export type MembresParCanonique = ReadonlyMap<string, readonly string[]>;
+
 /** Plafond de `bidding_zone_configs.bid_multiplier` (`numeric(6,3)`). */
 const MULT_MAX = 999.999;
 
@@ -164,7 +181,11 @@ const MULT_MIN_NON_NUL = 0.001;
  * @example
  * genererPlanCp(cps, jeu).taux_utile // 55 — on achète 20 000 habitants pour en viser 11 000
  */
-export function genererPlanCp(entrees: CpZone[], jeu: JeuDeZones): Plan {
+export function genererPlanCp(
+  entrees: CpZone[],
+  jeu: JeuDeZones,
+  membres?: MembresParCanonique,
+): Plan {
   const exclusif = jeu.mode_plan === 'exclusif';
 
   // ⚠ Replié AVANT tout calcul : depuis sql/225 il y a une ligne par grappe,
@@ -193,10 +214,10 @@ export function genererPlanCp(entrees: CpZone[], jeu: JeuDeZones): Plan {
   // croyant cibler.
   if (total <= 0) {
     return {
-      lignes: cps.map((cp) => ({
+      lignes: etendreAuxGroupes(cps.map((cp) => ({
         code_postal: cp.code_postal, part_plan: 0, multiplicateur: 0,
         classe: cp.classe, retenu: cp.retenu,
-      })),
+      })), membres),
       part_plan_en_zone: null,
       taux_utile: tauxUtile(cps),
       n_retenus: cps.filter((c) => c.retenu).length,
@@ -227,11 +248,55 @@ export function genererPlanCp(entrees: CpZone[], jeu: JeuDeZones): Plan {
   );
 
   return {
-    lignes,
+    lignes: etendreAuxGroupes(lignes, membres),
     part_plan_en_zone: Math.round(enZone * 1000) / 10,
     taux_utile: tauxUtile(cps),
+    // ⚠ Compté sur les codes postaux CANONIQUES, avant l'étalement : c'est le
+    // nombre de territoires retenus, pas le nombre de lignes envoyées au DSP.
+    // Les compter après ferait « 1 115 retenus » là où il y a 1 112 zones.
     n_retenus: cps.filter((c) => c.retenu).length,
   };
+}
+
+/**
+ * Étale chaque ligne sur tous les codes postaux de son groupe.
+ *
+ * ⚠ **LE MULTIPLICATEUR EST DIVISÉ PAR LE NOMBRE DE MEMBRES, et c'est le
+ * point à ne pas inverser.** `refresh_campaign_rollups` normalise
+ * (`planned_share = bid_multiplier / SUM(bid_multiplier) OVER ()`) : émettre
+ * quatre lignes au même multiplicateur donnerait à Nantes QUATRE FOIS la part
+ * qu'elle mérite, et le score d'alignement la déclarerait en sous-pression
+ * permanente sans qu'aucune diffusion n'y puisse rien.
+ *
+ * La population du groupe est déjà portée en entier par la ligne canonique —
+ * `cp_population_totale` agrège tous les carreaux de la commune sous le code
+ * canonique (sql/228). Diviser préserve donc exactement la part du groupe.
+ *
+ * ⚠ Le plancher `MULT_MIN_NON_NUL` est ré-appliqué APRÈS la division : sur un
+ * plan national, un sixième d'une part déjà faible s'arrondit à `0.000`, et le
+ * code postal disparaîtrait du plan sans jamais apparaître comme exclu.
+ */
+function etendreAuxGroupes(lignes: LignePlan[], membres?: MembresParCanonique): LignePlan[] {
+  if (!membres || membres.size === 0) return lignes;
+
+  const sortie: LignePlan[] = [];
+  for (const ligne of lignes) {
+    const groupe = membres.get(ligne.code_postal);
+    if (!groupe || groupe.length <= 1) {
+      sortie.push(ligne);
+      continue;
+    }
+    const n = groupe.length;
+    const part = ligne.part_plan / n;
+    const brut = Math.round((ligne.multiplicateur / n) * 1000) / 1000;
+    const multiplicateur = ligne.multiplicateur > 0
+      ? Math.min(MULT_MAX, Math.max(MULT_MIN_NON_NUL, brut))
+      : 0;
+    for (const code_postal of groupe) {
+      sortie.push({ ...ligne, code_postal, part_plan: part, multiplicateur });
+    }
+  }
+  return sortie;
 }
 
 /**

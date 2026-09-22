@@ -258,3 +258,75 @@ describe('regrouperParCodePostal — le DSP ne lit qu un poids par code postal',
     expect(new Set(codes).size, 'un code postal apparait deux fois dans le plan').toBe(codes.length);
   });
 });
+
+/**
+ * Les codes postaux que le référentiel ne sait pas distinguer.
+ *
+ * `ref_codes_postaux` porte la MÊME géométrie pour tous les codes postaux
+ * d'une commune (71 groupes, 181 codes postaux, sql/228) : on ne peut donc pas
+ * savoir dans lequel habite un exposé, et le plan doit les acheter tous.
+ */
+describe('groupes de codes postaux indiscernables', () => {
+  const membres = new Map<string, string[]>([
+    ['13270', ['13270', '13271', '13272', '13273']],
+  ]);
+
+  it('emet une ligne par membre du groupe, et aucune pour un code postal seul', () => {
+    const plan = genererPlanCp(cps, jeu(), membres);
+    const codes = plan.lignes.map((l) => l.code_postal).sort();
+    expect(codes).toEqual(['13100', '13270', '13271', '13272', '13273', '13800', '75001']);
+  });
+
+  it('⚠ DIVISE le multiplicateur par le nombre de membres', () => {
+    // Sans cette division, `refresh_campaign_rollups` normalise sur la somme
+    // des multiplicateurs et donne au groupe QUATRE FOIS sa part : la commune
+    // serait declaree en sous-pression permanente, sans qu aucune diffusion
+    // n y puisse rien.
+    const sans = genererPlanCp(cps, jeu());
+    const avec = genererPlanCp(cps, jeu(), membres);
+    const seul = sans.lignes.find((l) => l.code_postal === '13270')!;
+    const duGroupe = avec.lignes.filter((l) => membres.get('13270')!.includes(l.code_postal));
+
+    expect(duGroupe).toHaveLength(4);
+    for (const l of duGroupe) expect(l.multiplicateur).toBeCloseTo(seul.multiplicateur / 4, 3);
+  });
+
+  it('la part du groupe est EXACTEMENT celle du code postal canonique', () => {
+    const sans = genererPlanCp(cps, jeu());
+    const avec = genererPlanCp(cps, jeu(), membres);
+    const partSeul = sans.lignes.find((l) => l.code_postal === '13270')!.part_plan;
+    const partGroupe = avec.lignes
+      .filter((l) => membres.get('13270')!.includes(l.code_postal))
+      .reduce((t, l) => t + l.part_plan, 0);
+    expect(partGroupe).toBeCloseTo(partSeul, 10);
+  });
+
+  it('la somme des parts vaut toujours 1', () => {
+    expect(somme(genererPlanCp(cps, jeu(), membres).lignes)).toBeCloseTo(1, 10);
+  });
+
+  it('n_retenus compte les TERRITOIRES, pas les lignes envoyees au DSP', () => {
+    const avec = genererPlanCp(cps, jeu(), membres);
+    expect(avec.n_retenus, 'un groupe de 4 ne fait pas 4 zones retenues').toBe(2);
+  });
+
+  it('sans carte de groupes, le plan est identique a avant', () => {
+    expect(genererPlanCp(cps, jeu(), new Map())).toEqual(genererPlanCp(cps, jeu()));
+  });
+
+  it('un membre ne descend jamais a un multiplicateur nul par arrondi', () => {
+    // Un sixieme d une part deja faible s arrondit a 0.000, et le code postal
+    // disparaitrait du plan sans jamais apparaitre comme exclu.
+    const beaucoup = new Map<string, string[]>([
+      ['13270', ['13270', '13271', '13272', '13273', '13274', '13275']],
+    ]);
+    const minuscule: CpZone[] = [
+      { code_postal: '13270', classe: 'haut:1', pop_en_zone: 1, pop_totale: 1, retenu: true },
+      { code_postal: '13800', classe: 'haut:1', pop_en_zone: 9_000_000, pop_totale: 9_000_000, retenu: true },
+    ];
+    const plan = genererPlanCp(minuscule, jeu(), beaucoup);
+    for (const l of plan.lignes.filter((x) => x.code_postal.startsWith('1327'))) {
+      expect(l.multiplicateur).toBeGreaterThan(0);
+    }
+  });
+});

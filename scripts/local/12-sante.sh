@@ -118,6 +118,7 @@ vol_table carreau_risque_nature   1446552 "11-reconstruire.sh"
 vol_table couverture_rayon_risque   115962 "11-reconstruire.sh"
 vol_table unite_population_totale    35031 "11-reconstruire.sh"
 vol_table cp_population_totale         6000 "11-reconstruire.sh"
+vol_table cp_groupe                   6187 "11-reconstruire.sh"
 
 # ⚠ Une COLONNE peut être vide dans une table pleine, et c'est le cas le plus
 # traître : `carreau_risque_distance` affichait ses 883 451 lignes en vert le
@@ -132,6 +133,19 @@ if [ "${sans_cp:-1}" = "0" ]; then
 else
   printf '  ✗ %-26s %s carreau(x) sans code postal  (11-reconstruire.sh)
 ' "…distance.code_postal" "$sans_cp"
+fi
+
+# La MÊME famille de trou, sur la population du carreau (sql/229). Vide, un
+# jeu de zones ne se construit plus du tout : `remplir_zone_set_cp` refuse
+# plutôt que de replier sur `carreaux_filosofi`, et le message d'erreur ne dit
+# rien à qui n'a pas lu la migration.
+sans_pop=$(sql "select count(*) from public.carreau_risque_distance where pops is null")
+if [ "${sans_pop:-1}" = "0" ]; then
+  printf '  ✓ %-26s toutes renseignées
+' "…distance.pops"
+else
+  printf '  ✗ %-26s %s carreau(x) sans population  (11-reconstruire.sh)
+' "…distance.pops" "$sans_pop"
 fi
 
 # 8. Les sauvegardes. Une base saine sans sauvegarde récente est le seul état

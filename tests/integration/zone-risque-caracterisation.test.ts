@@ -99,7 +99,23 @@ describe('zone à risque — caractérisation (valeurs mesurées le 2026-09-19)'
     expect(c.courbes.length).toBe(14);
   }, 60_000);
 
-  it('la courbe totale atteint 42 409 940 habitants à 10 km d’un site Seveso', async () => {
+  /*
+   * ⚠ VALEUR RE-MESURÉE LE 2026-09-22, ET CE N'EST PAS UNE RÉGRESSION.
+   *
+   * Elle valait **42 409 940**, mesuré le 2026-09-19. Le 22, le volume Docker
+   * a été effacé : `carreaux_filosofi` a été rechargé depuis le CSV INSEE
+   * (`07-carreaux-insee.sh`) et `carreau_risque_distance` reconstruite. Le
+   * carroyage n'est donc plus exactement celui d'avant.
+   *
+   * La nouvelle valeur a été VÉRIFIÉE contre une source indépendante avant
+   * d'être écrite ici — la population des carreaux à moins de 10 km lue
+   * directement dans la table des distances rend **41 025 586**, à 220
+   * habitants de la courbe (le palier de 10 km est une borne fermée d'un côté,
+   * ouverte de l'autre). Une valeur de caractérisation qu'on met à jour sans
+   * la recouper ailleurs ne caractérise plus rien : elle enregistre ce que le
+   * code fait, y compris quand il a tort.
+   */
+  it('la courbe totale atteint 41 025 366 habitants à 10 km d’un site Seveso', async () => {
     const { data } = await sb.rpc('lire_couverture_rayon', {
       p_cible: 'ind',
       p_gravites: null,
@@ -112,7 +128,7 @@ describe('zone à risque — caractérisation (valeurs mesurées le 2026-09-19)'
     expect(totale, 'la courbe totale doit porter la clé *').toBeDefined();
     const dernier = totale!.points[totale!.points.length - 1];
     expect(dernier.r).toBe(10000);
-    expect(dernier.p).toBe(42409940);
+    expect(dernier.p).toBe(41025366);
   }, 60_000);
 
   it('compter_sites_rayon rend 1 259 sites répartis sur 14 natures', async () => {

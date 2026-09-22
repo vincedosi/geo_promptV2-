@@ -1417,29 +1417,35 @@ export type Database = {
       carreau_risque_distance: {
         Row: {
           carreau_id: number
+          centroide_3857: unknown
           code_commune: string | null
           code_departement: string
           code_postal: string | null
           d_bas_m: number | null
           d_haut_m: number | null
+          pops: number[] | null
           pprt_niveau: string | null
         }
         Insert: {
           carreau_id: number
+          centroide_3857?: unknown
           code_commune?: string | null
           code_departement: string
           code_postal?: string | null
           d_bas_m?: number | null
           d_haut_m?: number | null
+          pops?: number[] | null
           pprt_niveau?: string | null
         }
         Update: {
           carreau_id?: number
+          centroide_3857?: unknown
           code_commune?: string | null
           code_departement?: string
           code_postal?: string | null
           d_bas_m?: number | null
           d_haut_m?: number | null
+          pops?: number[] | null
           pprt_niveau?: string | null
         }
         Relationships: []
@@ -1949,6 +1955,7 @@ export type Database = {
           famille: string
           libelle: string
           ordre: number
+          rang_pop: number | null
         }
         Insert: {
           actif?: boolean
@@ -1956,6 +1963,7 @@ export type Database = {
           famille: string
           libelle: string
           ordre: number
+          rang_pop?: number | null
         }
         Update: {
           actif?: boolean
@@ -1963,6 +1971,7 @@ export type Database = {
           famille?: string
           libelle?: string
           ordre?: number
+          rang_pop?: number | null
         }
         Relationships: []
       }
@@ -2227,6 +2236,27 @@ export type Database = {
           nature?: string
           populations?: Json
           rayon_m?: number
+        }
+        Relationships: []
+      }
+      cp_groupe: {
+        Row: {
+          code_canonique: string
+          code_postal: string
+          construit_le: string
+          n_membres: number
+        }
+        Insert: {
+          code_canonique: string
+          code_postal: string
+          construit_le?: string
+          n_membres: number
+        }
+        Update: {
+          code_canonique?: string
+          code_postal?: string
+          construit_le?: string
+          n_membres?: number
         }
         Relationships: []
       }
@@ -5471,11 +5501,89 @@ export type Database = {
         }
         Relationships: []
       }
+      zone_set_cluster_sites: {
+        Row: {
+          cluster_id: string
+          geom_3857: unknown
+          site_id: string
+        }
+        Insert: {
+          cluster_id: string
+          geom_3857: unknown
+          site_id: string
+        }
+        Update: {
+          cluster_id?: string
+          geom_3857?: unknown
+          site_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zone_set_cluster_sites_cluster_id_fkey"
+            columns: ["cluster_id"]
+            isOneToOne: false
+            referencedRelation: "zone_set_clusters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zone_set_clusters: {
+        Row: {
+          created_at: string
+          geom: unknown
+          geom_3857: unknown
+          id: string
+          n_sites: number
+          niveau_dominant: string
+          nom: string
+          nom_auto: boolean
+          pop_exposee: number | null
+          rang: number
+          zone_set_id: string
+        }
+        Insert: {
+          created_at?: string
+          geom?: unknown
+          geom_3857?: unknown
+          id?: string
+          n_sites: number
+          niveau_dominant: string
+          nom: string
+          nom_auto?: boolean
+          pop_exposee?: number | null
+          rang: number
+          zone_set_id: string
+        }
+        Update: {
+          created_at?: string
+          geom?: unknown
+          geom_3857?: unknown
+          id?: string
+          n_sites?: number
+          niveau_dominant?: string
+          nom?: string
+          nom_auto?: boolean
+          pop_exposee?: number | null
+          rang?: number
+          zone_set_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zone_set_clusters_zone_set_id_fkey"
+            columns: ["zone_set_id"]
+            isOneToOne: false
+            referencedRelation: "zone_sets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       zone_set_cp: {
         Row: {
           classe: string
+          cluster_id: string
           code_postal: string
           part_en_zone: number
+          poids: number | null
           pop_en_zone: number
           pop_totale: number
           retenu: boolean
@@ -5483,8 +5591,10 @@ export type Database = {
         }
         Insert: {
           classe: string
+          cluster_id: string
           code_postal: string
           part_en_zone: number
+          poids?: number | null
           pop_en_zone: number
           pop_totale: number
           retenu: boolean
@@ -5492,14 +5602,23 @@ export type Database = {
         }
         Update: {
           classe?: string
+          cluster_id?: string
           code_postal?: string
           part_en_zone?: number
+          poids?: number | null
           pop_en_zone?: number
           pop_totale?: number
           retenu?: boolean
           zone_set_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "zone_set_cp_cluster_id_fkey"
+            columns: ["cluster_id"]
+            isOneToOne: false
+            referencedRelation: "zone_set_clusters"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "zone_set_cp_zone_set_id_fkey"
             columns: ["zone_set_id"]
@@ -6096,6 +6215,7 @@ export type Database = {
         }
         Returns: Json
       }
+      construire_cp_groupe: { Args: never; Returns: Json }
       construire_iris_agg: {
         Args: { p_niveau: string }
         Returns: {
@@ -6113,12 +6233,21 @@ export type Database = {
       }
       construire_unite_population_totale: { Args: never; Returns: Json }
       construire_zone_set: { Args: { p_zone_set_id: string }; Returns: Json }
+      construire_zone_set_clusters: {
+        Args: { p_zone_set_id: string }
+        Returns: Json
+      }
       construire_zone_set_corps: {
         Args: { p_zone_set_id: string }
         Returns: Json
       }
       construire_zones_risque: {
-        Args: { p_code: string; p_natures?: string[]; p_profil: Json }
+        Args: {
+          p_code: string
+          p_lissage_pct?: number
+          p_natures?: string[]
+          p_profil: Json
+        }
         Returns: Json
       }
       correlation_campagne_indicateur: {
@@ -6140,6 +6269,14 @@ export type Database = {
         Args: { p_departement?: string }
         Returns: Json
       }
+      cp_des_points: {
+        Args: { p_ids: number[]; p_pts: unknown[] }
+        Returns: {
+          code_postal: string
+          id: number
+        }[]
+      }
+      cp_du_point: { Args: { p: unknown }; Returns: string }
       create_carreaux_table: {
         Args: { table_name: string }
         Returns: undefined
@@ -6514,6 +6651,33 @@ export type Database = {
           has_data: boolean
         }[]
       }
+      get_campaign_derive_headline: {
+        Args: { p_actors?: string[]; p_campaign_id: string; p_metric?: string }
+        Returns: number
+      }
+      get_campaign_derive_map: {
+        Args: {
+          p_actors?: string[]
+          p_bbox_xmax?: number
+          p_bbox_xmin?: number
+          p_bbox_ymax?: number
+          p_bbox_ymin?: number
+          p_campaign_id: string
+          p_mesh?: string
+          p_metric?: string
+        }
+        Returns: Json
+      }
+      get_campaign_derive_ranked: {
+        Args: {
+          p_actors?: string[]
+          p_campaign_id: string
+          p_limit?: number
+          p_mesh?: string
+          p_metric?: string
+        }
+        Returns: Json
+      }
       get_campaign_expected: {
         Args: { p_campaign_id: string }
         Returns: number
@@ -6570,6 +6734,10 @@ export type Database = {
       }
       get_campaign_suivi: {
         Args: { p_actors?: string[]; p_campaign_id: string }
+        Returns: Json
+      }
+      get_campaign_suivi_cps: {
+        Args: { p_actors?: string[]; p_campaign_id: string; p_dept: string }
         Returns: Json
       }
       get_campaign_suivi_map: {
@@ -7174,14 +7342,6 @@ export type Database = {
         Args: { p_lignes: Json; p_partition: string }
         Returns: Json
       }
-      pprt_niveaux: {
-        Args: never
-        Returns: {
-          geom_3857: unknown
-          niveau: string
-          pprt_id: string
-        }[]
-      }
       pprt_perimetres_carte: {
         Args: { p_bbox: number[]; p_limite?: number; p_types?: string[] }
         Returns: Json
@@ -7232,8 +7392,10 @@ export type Database = {
         }
         Returns: Json
       }
+      remplir_population_carreau: { Args: { p_lot?: number }; Returns: Json }
       remplir_pprt_nature_generateur: { Args: never; Returns: Json }
       remplir_pprt_niveau_generateur: { Args: never; Returns: Json }
+      remplir_zone_set_cp: { Args: { p_zone_set_id: string }; Returns: Json }
       repair_iso_cache_geoms: { Args: never; Returns: Json }
       resolve_custom_geo_zone_codes:
         | { Args: { p_zone_id: string }; Returns: Json }
@@ -7931,6 +8093,7 @@ export type Database = {
       vider_carreau_risque_nature: { Args: never; Returns: Json }
       vider_couverture_rayon: { Args: never; Returns: number }
       vider_exposition_cache: { Args: { p_avant?: string }; Returns: number }
+      vider_population_carreau: { Args: never; Returns: Json }
       vider_zones_risque: { Args: { p_avant?: string }; Returns: Json }
       zone_dessin: { Args: { p_geojson: Json }; Returns: Json }
       zone_difference: {

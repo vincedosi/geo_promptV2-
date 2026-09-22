@@ -40,6 +40,7 @@ import { lireTout } from '@/lib/supabase/lire-tout';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { normaliserJeu, poidsDeClasse } from '@/lib/zones/jeu';
 import { genererPlanCp, type CpZone } from '@/lib/zones/plan';
+import { lireGroupesCp } from '@/lib/zones/groupes';
 import { libelleClasse, anneauxParNiveau } from '@/lib/risques/libelle-classe';
 import { normaliserProfil, anneauxDuNiveau, LIBELLE_NIVEAU, libelleRayon, NIVEAUX, type Niveau } from '@/lib/risques/profil';
 
@@ -154,7 +155,10 @@ export async function GET(
    * implémentations qui divergent au premier correctif — et c'est le tableur
    * qu'on croirait.
    */
-  const plan = genererPlanCp(cps, jeu);
+  // Les codes postaux que le référentiel ne distingue pas : le plan les
+  // achète TOUS, sans quoi on cible un quart d'une ville (lib/zones/groupes.ts).
+  const groupes = await lireGroupesCp(supabase);
+  const plan = genererPlanCp(cps, jeu, groupes);
   const multiplicateurParCp = new Map(plan.lignes.map((l) => [l.code_postal, l.multiplicateur]));
 
   const profil = normaliserProfil(jeuRow.profil);
