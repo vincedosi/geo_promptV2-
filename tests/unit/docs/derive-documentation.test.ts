@@ -228,45 +228,29 @@ describe('dérive entre ARCHITECTURE.md et le code', () => {
     ).toBe(nombreReel);
   });
 
-  it('ClusteringResultsContent.tsx n est importe nulle part — la decision parquee reste sure', () => {
-    // Round 1 de correction (tâche 10) : la doc affirmait ce fait sans qu'
-    // aucun test ne le vérifie. Balayage du dépôt, même patron que
-    // tests/unit/carte/pile-echap-usage.test.ts.
+  it('ClusteringResultsContent.tsx reste SUPPRIME — la garde de perimetre n a pas d amorce', () => {
+    // Ce test verrouillait la decision PARQUEE : « le fichier monte ClusterPanel
+    // sans relayer la garde de perimetre, mais rien ne l'importe, donc le trou
+    // n'est pas atteignable ». La passe knip du 2026-09-22 l'a fait remonter
+    // comme dernier fichier mort, et il a ete SUPPRIME plutot que repare.
+    //
+    // Le test change donc de nature sans changer de but : il ne surveille plus
+    // un fichier mort, il verifie qu'il ne REVIENT pas en l'etat. Repris tel
+    // quel, il lancerait un clustering sans perimetre — la famille de
+    // l'incident du 28/03, contre laquelle lib/carte/garde-perimetre.ts existe.
     const FICHIER_CIBLE = join('components', 'map', 'ClusteringResultsContent.tsx').split(sep).join('/');
     expect(
-      navSection.includes('ClusteringResultsContent'),
-      'ARCHITECTURE.md ne mentionne plus ClusteringResultsContent.tsx dans la section Navigation — ' +
-      'la décision parquée a-t-elle été retirée ou déplacée ? Mettre à jour ce test en conséquence.',
-    ).toBe(true);
-
-    function fichiers(dossier: string): string[] {
-      const trouves: string[] = [];
-      for (const entree of readdirSync(dossier)) {
-        if (entree === 'node_modules' || entree === '.next') continue;
-        const chemin = join(dossier, entree);
-        if (statSync(chemin).isDirectory()) trouves.push(...fichiers(chemin));
-        else if (entree.endsWith('.ts') || entree.endsWith('.tsx')) trouves.push(chemin);
-      }
-      return trouves;
-    }
-
-    const importeurs: string[] = [];
-    for (const dossier of ['app', 'components', 'lib']) {
-      for (const chemin of fichiers(join(RACINE, dossier))) {
-        const relatif = join(chemin.slice(RACINE.length + 1)).split(sep).join('/');
-        if (relatif === FICHIER_CIBLE) continue; // le fichier qui LE DÉFINIT, pas un appelant
-        const source = readFileSync(chemin, 'utf8');
-        if (/\bClusteringResultsContent\b/.test(source)) importeurs.push(relatif);
-      }
-    }
+      existsSync(join(RACINE, FICHIER_CIBLE)),
+      `${FICHIER_CIBLE} est de retour. S'il est reintroduit, il DOIT relayer ` +
+      '`verifierPerimetreClustering` comme le fait PanneauAnalyse.tsx — puis mettre a jour ' +
+      'ARCHITECTURE.md § Navigation de /map et ce test.',
+    ).toBe(false);
 
     expect(
-      importeurs,
-      `ClusteringResultsContent.tsx est désormais référencé par : ${importeurs.join(', ')}. ` +
-      'La décision parquée de tâche 10 (ARCHITECTURE.md § Navigation de /map) supposait ce fichier ' +
-      "mort et sans appelant — vérifier que la garde de périmètre est bien relayée avant d'accepter " +
-      'ce nouvel appelant, puis mettre à jour la doc.',
-    ).toEqual([]);
+      archi.includes('decision LEVEE et'),
+      "ARCHITECTURE.md ne porte plus la trace de la decision levee sur ClusteringResultsContent.tsx. " +
+      "Une suppression dont plus rien n'explique la raison sera refaite a l'envers.",
+    ).toBe(true);
   });
 
   // ── Chantier suivi-v2 (taches 1-16, 2026-09-14/15) ────────────────────────

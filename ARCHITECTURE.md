@@ -799,11 +799,19 @@ remplir.
   d'un wrapper `useCallback` a deps vides + ref) pourrait etre reintroduit
   sans faire rougir ce test. La protection reelle contre le defaut vecu trois
   fois pendant ce chantier reste la revue de code sur ce point precis.
-- `components/map/ClusteringResultsContent.tsx` monte `ClusterPanel` **sans
-  relayer** la garde de perimetre, et n'est importe nulle part dans le code
-  vivant — laisse en place volontairement plutot que supprime a l'aveugle. La
-  tache 23 (passe `knip`, detection de code mort avec preuves) le fera
-  remonter.
+- ~~`components/map/ClusteringResultsContent.tsx`~~ — **decision LEVEE et
+  fichier SUPPRIME le 2026-09-22.** Il montait `ClusterPanel` sans relayer la
+  garde de perimetre et n'etait importe nulle part ; il avait ete laisse en
+  place plutot que supprime a l'aveugle, en attendant que « la passe `knip`
+  le fasse remonter ». Elle l'a fait remonter le 22 : dernier des quatre
+  fichiers morts du catalogue.
+  **Supprime plutot que repare, et c'est le sens de la decision** : un fichier
+  qu'aucun ecran ne monte ne vaut pas d'etre corrige, mais celui-ci, repris tel
+  quel un jour, aurait lance un clustering SANS perimetre — la famille de
+  l'incident du 28/03, contre laquelle `lib/carte/garde-perimetre.ts` existe.
+  Le garder, c'etait laisser une amorce. `git show` le rend si l'ecran de
+  resultats de clustering revient — il devra alors relayer
+  `verifierPerimetreClustering`, comme le fait `PanneauAnalyse.tsx`.
 - L'overlay Campagne (MAGELIAN) retombe toujours sur l'onglet Suivi a la
   reouverture, meme si l'onglet Strategie etait ouvert avant fermeture —
   comportement preexistant a cette refonte, que la spec ne demandait pas de

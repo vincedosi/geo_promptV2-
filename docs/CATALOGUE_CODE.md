@@ -4,22 +4,19 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-09-22 — commit `74f0be2d`.
+> Généré le 2026-09-22 — commit `7944f880`.
 
 ## Totaux
 
 - Exports morts : 194
-- Fichiers morts : 1
+- Fichiers morts : 0
 - Dépendances inutilisées : 2
 
 `tests/unit/docs/catalogue-code.test.ts` verrouille « Exports morts » avec un cliquet : la baisse est libre, la hausse fait échouer le test.
 
 ## Fichiers morts
 
-Fichiers du périmètre analysé qu’aucun point d’entrée ne référence, directement ou
-transitivement.
-
-- `components/map/ClusteringResultsContent.tsx`
+_Aucun._
 
 ## Exports et types morts, par fichier
 
@@ -44,11 +41,11 @@ Trié par nombre d’occurrences décroissant.
 | `lib/dsp/report/index.ts` | 3 | selectReporter | DspReportRow, DspReporter |
 | `components/ui/GeoSkeleton.tsx` | 3 | SkeletonCard, SkeletonChart, SkeletonMap | — |
 | `lib/geo/france-admin.ts` | 3 | POI_TYPES, AUDIENCE_METRICS, POI_RAYONS | — |
-| `app/copilote/_lib/constants.ts` | 2 | applyChoropleth, CATEGORY_COLORS | — |
-| `app/map/_components/CivicIndicatorsLayer.tsx` | 2 | CIVIC_VARIABLES, getCivicLegendStops | — |
 | `components/ui/button.tsx` | 2 | buttonVariants | ButtonProps |
 | `components/ui/badge.tsx` | 2 | badgeVariants | BadgeProps |
 | `components/ui/table.tsx` | 2 | TableFooter, TableCaption | — |
+| `app/copilote/_lib/constants.ts` | 2 | applyChoropleth, CATEGORY_COLORS | — |
+| `app/map/_components/CivicIndicatorsLayer.tsx` | 2 | CIVIC_VARIABLES, getCivicLegendStops | — |
 | `lib/meteo/requete.ts` | 2 | ARCHIVE_CUTOFF, daysBetween | — |
 | `lib/campaigns/suivi-chat.ts` | 2 | ChatTurnSchema | CampaignChatBody |
 | `lib/dsp/dv360/auth.ts` | 2 | DV360_SCOPES, buildOAuthClient | — |
@@ -75,11 +72,11 @@ Trié par nombre d’occurrences décroissant.
 | `lib/auth.ts` | 1 | createServerClient | — |
 | `lib/geo/region-lookup-server.ts` | 1 | invalidateRegionCache | — |
 | `lib/http/lecture-avec-reprise.ts` | 1 | ATTENTE_MAX_MS | — |
+| `lib/campagne/constats.ts` | 1 | SEUIL_ECART_SIGNALE_PCT | — |
+| `components/campagne/suivi-v2/TableauDeregles.tsx` | 1 | LIGNES_MAX | — |
 | `lib/dsp-mapping/parser.ts` | 1 | parseRow | — |
 | `lib/campaigns/platform-links.ts` | 1 | PlatformLinksSchema | — |
 | `lib/civic-health/atmofrance-client.ts` | 1 | AASQA_REGION_CODES | — |
-| `lib/campagne/constats.ts` | 1 | SEUIL_ECART_SIGNALE_PCT | — |
-| `components/campagne/suivi-v2/TableauDeregles.tsx` | 1 | LIGNES_MAX | — |
 | `lib/pacing/rebid.ts` | 1 | REBID_EPSILON | — |
 | `lib/demo/rng.ts` | 1 | hashStr | — |
 | `lib/geo/dept-lookup-server.ts` | 1 | invalidateDeptCache | — |
@@ -98,16 +95,16 @@ Trié par nombre d’occurrences décroissant.
 | `lib/metrics-display/types.ts` | 1 | UnknownMetricError | — |
 | `components/campaign/_shared.tsx` | 1 | SH | — |
 | `lib/clustering/feature-themes.ts` | 1 | resolveThemesFromFeatures | — |
-| `lib/logger.ts` | 1 | — | Logger |
 | `components/ui/input.tsx` | 1 | — | InputProps |
+| `lib/logger.ts` | 1 | — | Logger |
 | `types/admin.ts` | 1 | — | HealthCheck |
 | `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
 | `lib/supabase/tables.ts` | 1 | — | TableUpdate |
+| `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
 | `lib/campaigns/actor-metrics.ts` | 1 | — | ActorsPayload |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |
 | `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
-| `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
 | `lib/demo/pilot-types.ts` | 1 | — | PilotItem |
 | `lib/dsp/push/types.ts` | 1 | — | PushStatus |
 | `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
