@@ -61,7 +61,7 @@ etape() { echo ""; echo "=== $1 — $(( ($(date +%s) - t0) / 60 )) min ==="; }
 # 2026-09-22) se restaure sans le moindre GRANT. PostgREST répond alors 401 sur
 # tout, l'application affiche « Failed to fetch », et on cherche du côté des
 # clés JWT — qui sont bonnes. Reposer les droits est idempotent et coûte 2 s.
-etape "0/5 droits des rôles applicatifs"
+etape "0/6 droits des rôles applicatifs"
 sql "grant usage on schema public to anon, authenticated, service_role;
      grant all on all tables    in schema public to anon, authenticated, service_role;
      grant all on all sequences in schema public to anon, authenticated, service_role;
@@ -73,7 +73,7 @@ sql "grant usage on schema public to anon, authenticated, service_role;
 echo "  droits reposés (anon · authenticated · service_role)"
 
 # ── 1. LES CARREAUX ─────────────────────────────────────────────────────────
-etape "1/5 carreaux_filosofi"
+etape "1/6 carreaux_filosofi"
 if [ "$(n public.carreaux_filosofi)" -ge 2324577 ]; then
   echo "  déjà chargés : $(n public.carreaux_filosofi)"
 else
@@ -85,7 +85,7 @@ fi
 # Reprenable : le journal `carreau_risque_bandes` dit ce qui est fait et le
 # script saute ces bandes-là. 22 bandes attendues — 20 en métropole, plus la
 # Martinique et La Réunion, que le script traite en appels séparés.
-etape "2/5 carreau_risque_distance"
+etape "2/6 carreau_risque_distance"
 node scripts/construire_carreau_risque.mjs || { echo "ÉCHEC distances" >&2; exit 1; }
 echo "  -> $(n public.carreau_risque_distance) lignes"
 
@@ -100,7 +100,7 @@ echo "  -> $(n public.carreau_risque_distance) lignes"
 # Le découpage est le MÊME que celui de sql/203, et l'outre-mer part en appels
 # séparés avec des clés de journal >= 1000 : une zone traitée en une seule
 # bande a forcément l'index 0, déjà pris par la première bande métropolitaine.
-etape "3/5 carreau_risque_nature"
+etape "3/6 carreau_risque_nature"
 if [ "$(n public.carreau_risque_nature)" -ge 1446552 ]; then
   echo "  déjà construite : $(n public.carreau_risque_nature)"
 else
@@ -115,12 +115,72 @@ fi
 echo "  -> $(n public.carreau_risque_nature) lignes"
 
 # ── 4. LE DÉNOMINATEUR ──────────────────────────────────────────────────────
-etape "4/5 unite_population_totale"
+etape "4/6 unite_population_totale"
 if [ "$(n public.unite_population_totale)" -gt 0 ]; then
   echo "  déjà construit : $(n public.unite_population_totale) lignes"
 else
   sql "select public.construire_unite_population_totale()" | head -c 200; echo
 fi
+
+# ── 4 bis. LE RATTACHEMENT CARREAU -> CODE POSTAL ───────────────────────────
+#
+# ⚠ AJOUTÉ le 2026-09-22, après avoir constaté que la reconstruction du matin
+# l'avait OUBLIÉ : la colonne `carreau_risque_distance.code_postal` (sql/206)
+# était renseignée sur **0 des 883 451 lignes**, et rien ne le signalait.
+#
+# Même famille de défaut que `carreau_risque_nature` : la fonction
+# `remplir_code_postal_carreau` existe, AUCUN script ne la pilotait. Une
+# fonction sans pilote n'est pas une étape de reconstruction, c'est une étape
+# qu'on oublie.
+#
+# Ce que ça bloque quand c'est vide : toute conversion rayon -> code postal,
+# donc le plan que le DSP achète. Et ça ne se voit pas — la colonne existe.
+etape "4bis/6 carreau_risque_distance.code_postal"
+manquants=$(sql "select count(*) from carreau_risque_distance where code_postal is null")
+if [ "${manquants:-0}" = "0" ]; then
+  echo "  déjà rattachés : $(n public.carreau_risque_distance) carreaux"
+else
+  echo "  $manquants carreau(x) sans code postal — remplissage par lots de 100 000"
+  # La fonction traite un lot et rend `restant` : on boucle jusqu'à zéro plutôt
+  # que de deviner le nombre de passes.
+  while true; do
+    r=$(sql "select public.remplir_code_postal_carreau(100000)")
+    echo "    $r"
+    reste=$(sql "select count(*) from carreau_risque_distance where code_postal is null")
+    [ "${reste:-0}" = "0" ] && break
+  done
+fi
+
+# ── 4 ter. LE DÉNOMINATEUR PAR CODE POSTAL ──────────────────────────────────
+#
+# ⚠ AJOUTÉ le 2026-09-22, même oubli : `cp_population_totale` (sql/207) était
+# à ZÉRO ligne. Elle n'était pilotée que par
+# `scripts/seed-demo-campagne-risque.ts`, donc reconstruire sans semer la démo
+# la laissait vide.
+#
+# C'est elle que `construire_zone_set` (sql/211) lit pour remplir
+# `zone_set_cp.pop_totale`. Vide, un jeu de zones sort avec un dénominateur
+# absent : pas de taux d'exposition, pas de taux d'utile, pas de dilution —
+# et aucun message.
+#
+# ⚠ 60 bandes en métropole, puis l'outre-mer par appels SÉPARÉS avec ses
+# propres bornes : un découpage uniforme de -61,6 à 56,0 mettrait toute la
+# France dans une ou deux bandes. Leçon de sql/200, déjà payée deux fois.
+etape "4ter/6 cp_population_totale"
+if [ "$(n public.cp_population_totale)" -gt 0 ]; then
+  echo "  déjà construit : $(n public.cp_population_totale) codes postaux"
+else
+  # Une ligne toutes les dix bandes, PAS un retour chariot : le journal est relu
+  # APRES coup, souvent dans un fichier, ou un  ecrase tout sur une seule
+  # ligne illisible — constate sur la passe du 2026-09-22.
+  for b in $(seq 0 59); do
+    [ $(( b % 10 )) = 0 ] && echo "  metropole : bande $b/59…"
+    sql "select public.remplir_cp_population_totale($b, 60)" >/dev/null
+  done
+  echo "  Martinique : $(sql "select public.remplir_cp_population_totale(0, 1, -61.6, -60.6)" | head -c 70)"
+  echo "  La Réunion : $(sql "select public.remplir_cp_population_totale(0, 1, 55.0, 56.0)" | head -c 70)"
+fi
+echo "  -> $(n public.cp_population_totale) codes postaux"
 
 # ── 5. LA COUVERTURE PAR RAYON ──────────────────────────────────────────────
 #
@@ -135,7 +195,7 @@ fi
 # La cause est corrigée dans `10-sauvegarder.sh` (le journal est désormais
 # exclu avec sa table), mais toute sauvegarde ANTÉRIEURE au 22/09 porte encore
 # le défaut — d'où le `--tout` inconditionnel quand la table est vide.
-etape "5/5 couverture_rayon_risque"
+etape "5/6 couverture_rayon_risque"
 if [ "$(n public.couverture_rayon_risque)" -gt 0 ]; then
   echo "  déjà construite : $(n public.couverture_rayon_risque) lignes"
 else
@@ -161,6 +221,7 @@ attendu carreau_risque_nature    1446552
 attendu unite_population_totale    35031
 attendu couverture_rayon_risque   115962
 attendu pprt_niveau_generateur       664
+attendu cp_population_totale        6000
 
 # ── LA SAUVEGARDE, ICI ET PAS PLUS TARD ─────────────────────────────────────
 #

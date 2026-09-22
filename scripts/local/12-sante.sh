@@ -117,6 +117,22 @@ vol_table carreau_risque_distance  883451 "11-reconstruire.sh"
 vol_table carreau_risque_nature   1446552 "11-reconstruire.sh"
 vol_table couverture_rayon_risque   115962 "11-reconstruire.sh"
 vol_table unite_population_totale    35031 "11-reconstruire.sh"
+vol_table cp_population_totale         6000 "11-reconstruire.sh"
+
+# ⚠ Une COLONNE peut être vide dans une table pleine, et c'est le cas le plus
+# traître : `carreau_risque_distance` affichait ses 883 451 lignes en vert le
+# 2026-09-22 pendant que sa colonne `code_postal` était renseignée ZÉRO fois.
+# Le compte de lignes ne le voyait pas ; la conversion rayon -> code postal,
+# elle, était impossible. Un diagnostic qui ne regarde que des effectifs de
+# lignes rate exactement ce genre de trou.
+sans_cp=$(sql "select count(*) from public.carreau_risque_distance where code_postal is null")
+if [ "${sans_cp:-1}" = "0" ]; then
+  printf '  ✓ %-26s tous rattachés
+' "…distance.code_postal"
+else
+  printf '  ✗ %-26s %s carreau(x) sans code postal  (11-reconstruire.sh)
+' "…distance.code_postal" "$sans_cp"
+fi
 
 # 8. Les sauvegardes. Une base saine sans sauvegarde récente est le seul état
 #    qui a l'air normal et ne l'est pas.
