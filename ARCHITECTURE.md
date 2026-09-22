@@ -1,7 +1,19 @@
 # ARCHITECTURE — MAGELIAN
 
-> Derniere mise a jour : 2026-09-08 (suppression de l'overlay Pilotage ML et de tout ce
-> qui n'etait atteignable que par lui — voir ci-dessous)
+> Derniere mise a jour : **2026-09-22** (remesure des chiffres que ce document
+> presente comme mesures : routes API, scripts du stack local, variables
+> d'environnement — voir les paragraphes dates du 22 plus bas).
+>
+> ⚠ **Cette ligne annoncait « 2026-09-08 » jusqu'a cette date**, alors que le
+> corps du document decrivait des chantiers du 2026-09-21 — quatorze jours
+> d'ecart. Elle ne se contentait pas d'etre inexacte : c'est la premiere ligne
+> que lit quelqu'un qui cherche a savoir s'il peut faire confiance au reste, et
+> elle repondait non a tort. Chaque section porte desormais sa propre date de
+> mesure ; celle-ci ne dit que la derniere passe de verification d'ensemble.
+>
+> Entree du 2026-09-08 (conservee, c'est elle que cette ligne portait) :
+> suppression de l'overlay Pilotage ML et de tout ce qui n'etait atteignable
+> que par lui — voir ci-dessous.
 > Regle structurelle : tout passe par /map et ses overlays (mediaplanner) ; le panneau Reglages = back office admin.
 > Deep-link overlay campagne : `/map?campaign=<id>&tab=<strategie|activation|suivi|apercu>` (ignore si `?overlay=` present).
 > Tache 9 (2026-09-12) : onglets de l'overlay MAGELIAN renommes — Programmer -> Strategie,
@@ -360,6 +372,32 @@ genesis_app/
 │   │                           # explore, garde par `exploration.length > 0` —
 │   │                           # sans quoi il doublerait chaque calcul, 2,8 s
 │   │                           # sur le national, pour un resultat identique.
+│   │                           # ⚠ **CES DEUX CALCULS SE CHOISISSENT PAR
+│   │                           # `bandesTableau`, ET LA MINI-CARTE DOIT LIRE
+│   │                           # LE MEME** (corrige le 2026-09-22) : le
+│   │                           # tableau lisait l'explore pendant que la carte
+│   │                           # lisait le global. Mesure au navigateur, en
+│   │                           # vue France entiere : descendre dans
+│   │                           # l'Ile-de-France listait ses 8 departements
+│   │                           # et en dessinait **96**, peints avec des
+│   │                           # valeurs de REGION — « Aude 26,0 % » etant la
+│   │                           # valeur de la region 11 posee sur le
+│   │                           # departement 11, « Paris 12,3 % » celle de la
+│   │                           # Nouvelle-Aquitaine (region 75) sur le
+│   │                           # departement 75. Les deux nomenclatures INSEE
+│   │                           # se recouvrent sur 18 codes, donc la carte
+│   │                           # restait plausible tout en etant fausse — le
+│   │                           # piege de sql/171, cote client cette fois.
+│   │                           # Le filtre des contours vit desormais dans la
+│   │                           # fonction pure `codesDessines`
+│   │                           # (`lib/risques/exploration.ts`) : il sortait
+│   │                           # sur `chemin.length === 0`, donc ignorait
+│   │                           # l'exploration, qui est un etat DISTINCT.
+│   │                           # Verrouille par
+│   │                           # `tests/unit/risques/carte-suit-tableau.test.ts`,
+│   │                           # qui lit le SOURCE du composant — le lien vit
+│   │                           # dans un `useMemo` qu'on ne peut pas appeler
+│   │                           # isolement.
 │   │                           # ⚠ **Le rayon vient EXCLUSIVEMENT de la
 │   │                           # reglette** : le « comparateur de rayons » du
 │   │                           # panneau ④ a ete retire, et `OngletZones` n'a
@@ -858,6 +896,18 @@ ecrits dans chaque handler.
 > verifie la PRESENCE sans s'en servir. Les ~25 routes restantes ne parlent pas
 > a Supabase (proxys de tuiles, diagnostics de configuration, webhooks).
 >
+> **Remesure du 2026-09-22 — et c'est le paragraphe ci-dessus qui avait raison
+> d'exister.** Six jours plus tard, les trois nombres ont bouge : **224** sur le
+> disque, **223 suivis par git**, **199** instancient `createAdminClient()`.
+> Dix-neuf routes de plus, soit 9 % en six jours (chantiers risque et jeux de
+> zones) — un chiffre ecrit dans une phrase, sans sa date, aurait de nouveau ete
+> lu comme un recensement. **Les deux garanties, elles, tiennent** : toujours
+> **0** route avec la cle anon (verifie le 2026-09-22, `/api/admin/health` reste
+> le seul fichier a nommer `SUPABASE_ANON_KEY`), et 224 − 199 = **25** routes
+> qui ne parlent pas a Supabase. Les dix-neuf nouvelles routes sont toutes
+> decrites dans les tableaux ci-dessous — verifie une a une, aucune route du
+> depot n'est absente de ce document.
+>
 > ⚠️ **`app/api/radio/data/route.ts` n'est PAS suivi par git** : le motif
 > `data/` de `.gitignore:45` l'exclut, et il n'a jamais ete commite (verifie sur
 > toutes les branches). Il porte pourtant un `DELETE` reserve au super_admin
@@ -1349,7 +1399,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `zone_set_geoms` | Geometrie figee des classes d'un jeu, exclusives entre elles. **COPIEE depuis `zones_risque_cache` et non referencee** : un plan enregistre ne doit pas changer sous une eviction de cache, `vider_zones_risque()` casserait sinon tous les jeux sauvegardes. Meme raisonnement que `strategie_versions.charge_utile` | sql/210. RLS deny-all |
 | `zone_set_cp` | Codes postaux d'un jeu, avec leur **classe dominante** (celle qui porte le plus de population — un code postal chevauche souvent plusieurs bandes, et en retenir une est ce qui fait tenir « un code postal, un poids »), la population en zone, la part du code postal couverte et `retenu`. ⚠ **C'est ici que se joue le point dur du produit** : le DSP achete au CODE POSTAL, le risque se mesure au carreau de 200 m. Mesure du 2026-09-20 sur un jeu Seveso 1/2/5 km au seuil de 20 % : 1 942 codes postaux touches, **1 113 retenus**, 13 165 660 habitants exposes, **taux d'utile 72,4 %** — on achete 18,2 M d'habitants pour en viser 13,2 M | sql/210. RLS deny-all |
 | `carreau_risque_distance` | **Distances JOINTES d'un carreau aux sites a risque, par niveau** : `d_haut_m` ET `d_bas_m` sur la MEME ligne, plus `pprt_niveau`. 883 451 lignes, 84 Mo, 98 departements. Existe parce que `couverture_rayon_risque` (sql/198) ne porte que les MARGES — elle sait dire « combien d'habitants a tel palier du plus proche seuil haut », jamais le couple pour un carreau donne. Or **317 367 carreaux (35,9 %) sont a portee des deux niveaux**, et la priorite « haut prime sur bas » a besoin exactement de ce couple. ⚠ **Pas de population dedans** : le jsonb `metadata` des carreaux pese ~806 o, le recopier ferait ~730 Mo pour une donnee deja en base ; la jointure se fait par cle PRIMAIRE sur les seuls carreaux retenus. ⚠ **Pas de cle etrangere** vers `carreaux_filosofi` : ses `id` sont des bigint de sequence et ne survivent pas a un rechargement depuis le CSV INSEE — `vider_carreau_risque_distance()` est la pour ce jour-la. Construite par `scripts/construire_carreau_risque.mjs`, par bandes de longitude reprenables (journal `carreau_risque_bandes`) | sql/203 (2026-09-19). RLS deny-all |
-| `carreau_risque_nature` | **La MEME chose que `carreau_risque_distance`, mais PAR NATURE de risque** : `d_haut_m` / `d_bas_m` / `pprt_niveau` au grain (carreau x nature). **1 446 552 lignes, 13 natures**, Martinique et La Reunion comprises. Existe parce que sa table mere a ete construite avec un predicat **FIXE** — Seveso haut et bas, toutes natures confondues — et ne peut donc pas repondre « distance au site *inflammable* le plus proche ». ⚠ **Une table FILLE et non quinze colonnes** sur la mere : la nature est une dimension, pas un attribut, et quinze colonnes `d_<nature>_m` auraient impose une migration a chaque nature ajoutee au registre. Le facteur de multiplication mesure est **1,64** et non 13 — un carreau n'est a portee que d'une ou deux natures en general. ⚠ **`nature_ord` est un `smallint`** et non le libelle : 1,4 M de lignes ne peuvent pas porter 25 caracteres chacune, et l'ordinal vient de `icpe_rubrique_familles.rang_gravite`, deja unique. ⚠ **`pprt_niveau` y est REPETE par nature** et ne vaut pas celui de la mere : un carreau peut etre couvert par un perimetre dont le generateur est d'une nature, et hors des anneaux d'une autre — sans cette colonne, filtrer une nature laissait a l'ecran les servitudes opposables des autres. Pas de cle etrangere vers `carreaux_filosofi`, meme raison que la mere | sql/218 (2026-09-20). Construite par `scripts/construire_carreau_risque.mjs`. RLS deny-all |
+| `carreau_risque_nature` | **La MEME chose que `carreau_risque_distance`, mais PAR NATURE de risque** : `d_haut_m` / `d_bas_m` / `pprt_niveau` au grain (carreau x nature). **1 446 552 lignes, 13 natures**, Martinique et La Reunion comprises. Existe parce que sa table mere a ete construite avec un predicat **FIXE** — Seveso haut et bas, toutes natures confondues — et ne peut donc pas repondre « distance au site *inflammable* le plus proche ». ⚠ **Une table FILLE et non quinze colonnes** sur la mere : la nature est une dimension, pas un attribut, et quinze colonnes `d_<nature>_m` auraient impose une migration a chaque nature ajoutee au registre. Le facteur de multiplication mesure est **1,64** et non 13 — un carreau n'est a portee que d'une ou deux natures en general. ⚠ **`nature_ord` est un `smallint`** et non le libelle : 1,4 M de lignes ne peuvent pas porter 25 caracteres chacune, et l'ordinal vient de `icpe_rubrique_familles.rang_gravite`, deja unique. ⚠ **`pprt_niveau` y est REPETE par nature** et ne vaut pas celui de la mere : un carreau peut etre couvert par un perimetre dont le generateur est d'une nature, et hors des anneaux d'une autre — sans cette colonne, filtrer une nature laissait a l'ecran les servitudes opposables des autres. Pas de cle etrangere vers `carreaux_filosofi`, meme raison que la mere | sql/218 (2026-09-20). ⚠ **AUCUN script ne la construit — corrige le 2026-09-22.** Cette case annoncait `scripts/construire_carreau_risque.mjs`, qui ne nomme nulle part `construire_carreau_risque_nature` : il ne batit que la table MERE. Il faut derouler les bandes a la main — 20 en metropole (`construire_carreau_risque_nature(i, 20)`), puis Martinique et La Reunion en appels SEPARES avec cles de journal >= 1000, plus `remplir_pprt_nature_generateur()` AVANT. Le defaut etait couteux precisement parce qu'il ne se voyait pas : en suivant cette ligne, on lancait le script, on lisait « termine », et le filtre par nature restait vide sans un mot — une table absente et une table qui ne retient rien se ressemblent a l'ecran. A doter d'un script, comme sa mere. RLS deny-all |
 | `pprt_niveau_generateur` | Le niveau (`haut`/`bas`) du site generateur de chaque perimetre PPRT, par rattachement au site le plus proche a **500 m** — MEME regle que sql/179, et 500 m plutot que l'inclusion stricte parce que les coordonnees AIOT pointent parfois l'entree du site. 664 perimetres, **532 rattaches** ; les 132 autres n'ont aucun site Seveso ACTIF assez proche, le generateur ayant pu cesser son activite — ce n'est pas une lacune d'import. **`nature_ord` ajoute sql/218** : la nature dominante du generateur, par la MEME regle de rattachement que le niveau — sans elle, un jeu filtre sur une nature gardait les perimetres PPRT de toutes. ⚠ **MATERIALISEE sur mesure** : ecrite d'abord comme fonction `stable`, elle coutait **51,9 s par appel**, et la construction l'appelle une fois par bande — 17 minutes de recalcul identique sur 20 bandes. Le symptome designait mal la cause : la bande de l'Atlantique produisait ZERO ligne en 42 s quand une bande dense en produisait 48 391 en 3,7 s, et un cout qui ne suit pas le volume de sortie est un cout fixe | sql/203 (2026-09-19). RLS deny-all |
 | `seveso_exposition` | Cache de la population exposee par site. Une ligne par (site, mode, palier). `indicatif` distingue un chiffre issu de la servitude PPRT d'un chiffre issu d'un rayon choisi par nous. `pop_couronne` est STOCKEE et non derivee a l'affichage : la couronne se deduit des cumuls DEJA ARRONDIS, sinon la somme des couronnes ne retombe pas sur le cumul (mesure avant correctif : 2+29+2096 = 2127 pour un cumul de 2126, et un tableau qui ne s'additionne pas fait douter le lecteur, pas le logiciel) | sql/180 (2026-09-18). Alimente a la demande par `/api/risques/[siteId]/exposition`. RLS deny-all |
 | `analyses` | Une analyse lancee (clusters/score/battle/voronoi/correlation/elm) devenue un objet rejouable : nom, `parametres` complets (cle de rejeu via `cleParametres`, `lib/analyses/types.ts`), `maillage`, `perimetre`, `resultat` leger, `statut` | sql/145 (2026-09-12). `type`/`statut` sont `text` + `CHECK` — le generateur sort `string`, les unions TS vivent dans `lib/analyses/types.ts` et doivent rester synchronisees a la main avec la contrainte. Index `idx_analyses_org_date` (org_id, created_at DESC) et `idx_analyses_type` (org_id, type). RLS deny-all, routes en `service_role`. Auparavant, seul le clustering laissait une trace (`clustering_models`/`clustering_jobs`) ; battles/voronois/isochrones n'en laissaient aucune |
@@ -1582,6 +1632,13 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `TIKTOK_APP_ID` | App ID TikTok Business API (fallback si non saisi par org via formulaire) |
 | `TIKTOK_APP_SECRET` | App Secret TikTok (fallback si non saisi par org) |
 | `TIKTOK_OAUTH_REDIRECT_URI` | Override du callback OAuth TikTok ; si absente, derivee de `NEXT_PUBLIC_APP_URL` + `/api/admin/dsp/tiktok/oauth/callback` |
+| `CONTENEUR_PG` | Nom du conteneur Postgres local (defaut `supabase_db_genesis_app`). Lu par les **cinq outils de construction** qui parlent a la base par `docker exec psql` plutot que par HTTP — `construire_carreau_risque.mjs`, `construire_couverture_rayon.mjs`, `seed-demo-campagne-risque.ts` et les deux moteurs `scripts/local/rapatrier-*.mjs`. C'est la variable qui dit OU est la base : sur un poste ou le conteneur porte un autre nom, tout le pre-calcul echoue |
+| `DEST_SAUVEGARDE` | Destination de `10-sauvegarder.sh` (defaut `C:/GENESIS/_sauvegarde_locale`). ⚠ La pointer sur un AUTRE disque que le volume Docker est le seul moyen que la sauvegarde protege d'autre chose qu'une erreur logicielle |
+| `ATMO_API_URL` | Override de l'API REST Atmo Data v2 (defaut `https://admindata.atmo-france.org`). ⚠ **A ne pas confondre avec `ATMO_WFS_URL`** juste au-dessus : celle-ci vise l'API authentifiee (`ATMO_FRANCE_USERNAME`/`PASSWORD`), celle-la le GeoServer WFS public sans identifiant qui sert l'ingestion nationale |
+| `GITHUB_ACTIONS_TOKEN` | Jeton de declenchement du workflow PMTiles depuis `/api/admin/trigger-pmtiles` |
+| `GITHUB_REPO` | Depot vise par ce declenchement, au format `owner/repo`. ⚠ Ces deux variables pilotent le workflow `generate-iris-pmtiles`, qui **n'alimente plus rien** depuis le passage des IRIS aux tuiles MVT servies par Postgres (voir la section dediee) : elles survivent a leur usage et partiront avec lui |
+| `DATABASE_URL` / `POSTGRES_URL` | Replis de `SUPABASE_DB_URL` dans `scripts/populate_geom_3857.ts`, seul consommateur. Les trois noms y sont essayes dans cet ordre |
+| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Vue Street View d'un panneau dans `app/copilote/_components/MapPanel.tsx` — l'unique consommateur, et **la seule dependance Google Maps du produit** (la cartographie est MapLibre + OpenFreeMap). `NEXT_PUBLIC_`, donc **inlinee dans le bundle client** : restreindre la cle par referent cote console Google, elle est lisible par tout visiteur. Absente, le composant remplace l'iframe par un bandeau rouge qui NOMME la variable (`MapPanel.tsx:331`) — verifie, pas de plantage |
 
 ---
 
@@ -1917,8 +1974,13 @@ l'index UNIQUE.
 > de bac a sable : Postgres 17 + PostGIS, PostgREST, GoTrue, Realtime, Storage
 > et Studio, en conteneurs.
 
-**Onze fichiers** dans `scripts/local/`, rejouables un par un — dont trois
-font doublon, voir l'avertissement sous le tableau :
+**Dix-huit fichiers** dans `scripts/local/`, rejouables un par un — dont trois
+font doublon, voir l'avertissement sous le tableau. (Ce nombre annoncait
+**onze** jusqu'au 2026-09-22 : les cinq fichiers ajoutes les 19 et 20 septembre
+— dont la seule SAUVEGARDE de la base — n'etaient decrits nulle part dans ce
+document. Voir le paragraphe « Cinq fichiers manquaient » sous le tableau. Les
+deux derniers, `11-reconstruire.sh` et `12-sante.sh`, sont nes de la reprise du
+22 : l'un porte l'ordre de remontage, l'autre le diagnostic.)
 
 | Script | Role |
 |---|---|
@@ -1932,7 +1994,12 @@ font doublon, voir l'avertissement sous le tableau :
 | `06-rapatrier-carreaux.sh` | ⚠ copie `carreaux_filosofi` depuis la PROD par tranches de hachage — **supplante par `07-carreaux-insee.sh`** |
 | `07-carreaux-200m.sh` | ⚠ copie `carreaux_filosofi` depuis la PROD par tranches d'index — **supplante, et DOUBLON de la ligne precedente** (voir la note ci-dessous) |
 | `06-completer-tables-lourdes.sh` | ⚠ copie `carreaux_filosofi` ET `comptages_routiers` depuis la PROD — **supplante pour les carreaux** ; reste le seul chemin pour `comptages_routiers`, dont 99,7 % est du proxy OSM et non du TMJA mesure |
-| `dev-sur-prod.sh` | lance `npm run dev` contre la PRODUCTION en passant les valeurs par l'ENVIRONNEMENT (Next n'ecrase jamais une variable deja posee), sans toucher a `.env.development.local`. **Sortie de secours, pas le geste du quotidien** |
+| `08-rapatrier-radio.sh` (+ `rapatrier-radio.mjs`, le moteur) | rapatrie les TROIS tables radio de la prod. Mesure du 2026-09-19 : le local portait **40 496** liaisons `emetteur_radio_stations` contre **569 698** en prod (-93 %) tout en ayant PLUS d'emetteurs — le dump du 17/09 en avait perdu l'essentiel sans rien signaler. Joue avant la coupure du projet heberge ; ces 569 698 lignes n'existent plus ailleurs |
+| `09-rapatrier-tmja-reel.sh` (+ `rapatrier-tmja-reel.mjs`) | rapatrie les **1 100 comptages routiers MESURES** (`source = 'tmja_rrn_national'`) et EUX SEULS — les 406 930 lignes de `osm_highway_proxy`, 11 valeurs constantes, sont volontairement abandonnees. Meme fenetre que le 08 : joue avant la coupure |
+| **`10-sauvegarder.sh`** | **la seule sauvegarde de la base, et la seule copie des donnees depuis la coupure du 2026-09-19.** `pg_dump -Fc` des schemas `public` + `auth` vers `$DEST_SAUVEGARDE` (defaut `C:/GENESIS/_sauvegarde_locale`), puis **restauration de controle dans une base jetable `verif_sauvegarde`** — une sauvegarde qu'on n'a jamais restauree n'est pas une sauvegarde, et celle-ci l'a prouve (voir les trois pieges ci-dessous). `carreaux_filosofi` et `couverture_rayon_risque` sont exclues : deux scripts les reconstruisent, les inclure ferait 4 Go de donnee regenerable. ⚠ La sauvegarde atterrit sur le MEME disque que la base : elle protege d'une erreur logicielle, pas d'une panne materielle |
+| **`11-reconstruire.sh`** (`npm run reconstruire`) | **Rejoue, DANS L'ORDRE, tout ce qu'une sauvegarde ne porte pas** : droits des roles, carreaux INSEE, `carreau_risque_distance`, `carreau_risque_nature`, `unite_population_totale`, `couverture_rayon_risque` — puis sauvegarde ce qu'il vient de construire. Chaque etape est SAUTEE si la table est deja pleine, donc rejouable sans risque. Ecrit le 2026-09-22 parce que cet ordre n'existait nulle part et a du etre reconstitue PENDANT la panne, au prix de deux erreurs. ⚠ Il appelle `construire_couverture_rayon.mjs --tout` quand la table est vide : le journal de bandes ment apres restauration (voir le 2e defaut plus bas) |
+| **`12-sante.sh`** (`npm run sante`) | **Dit QUELLE couche est en panne** quand l'application repond « Failed to fetch » — un message qui ne distingue pas un moteur Docker eteint d'un volume efface, d'un Postgres en demarrage ou de GRANTs manquants. Teste chaque etage PAR LE CHEMIN DE L'APPLICATION, PostgREST compris et pas seulement `psql` (superuser sur sa base, donc aveugle aux droits manquants), puis les effectifs des tables qui ne se regenerent pas, puis l'age des sauvegardes. Chaque defaut rend la commande qui repare |
+| `dev-sur-prod.sh` | lance `npm run dev` contre la PRODUCTION en passant les valeurs par l'ENVIRONNEMENT (Next n'ecrase jamais une variable deja posee), sans toucher a `.env.development.local`. **Sortie de secours, pas le geste du quotidien** ⚠ Devenu INERTE avec la coupure du projet heberge (2026-09-19) : il n'y a plus de production a viser |
 
 > ⚠ **Quatre scripts pour une seule tache, et trois sont morts.** Recompte le
 > 2026-09-19 : ce tableau annoncait « Sept scripts » pour **onze fichiers**, et
@@ -1947,6 +2014,116 @@ font doublon, voir l'avertissement sous le tableau :
 > dont un document explique un resultat rend ce document incomprehensible. A
 > trancher en passe de menage : garder `06-completer-tables-lourdes.sh` pour
 > `comptages_routiers`, retirer les deux autres.
+
+> ⚠ **Cinq fichiers manquaient a ce tableau, dont la sauvegarde.** Constate le
+> 2026-09-22 : `08-rapatrier-radio.sh`, `09-rapatrier-tmja-reel.sh`,
+> `10-sauvegarder.sh` et les deux moteurs `.mjs` ont ete ecrits les 19 et 20
+> septembre sans que ce document les enregistre — alors meme que la regle
+> « documentation a jour DANS le commit » de `CLAUDE.md` existe pour cela.
+>
+> Ce n'est pas qu'une lacune d'inventaire. Depuis l'abandon du projet Supabase
+> heberge, **le volume Docker est la seule copie des donnees** : un document
+> d'architecture qui ne nomme aucun script de sauvegarde se lit « il n'y en a
+> pas », et la conclusion raisonnable — en ecrire un — aurait produit un
+> quatrieme doublon, exactement le defaut decrit juste au-dessus.
+>
+> **Trois pieges de `pg_dump` sur ce stack, tous rencontres le meme jour**, et
+> c'est ce qui justifie la restauration de controle plutot qu'un simple dump :
+> - **`\restrict` (PostgreSQL 17.6)** ouvre tout dump TEXTE et met psql en mode
+>   restreint, ou `\.` — le terminateur de chaque bloc `COPY` — est lui aussi
+>   bloque. Les lignes de donnees passent alors pour du SQL : **568 197
+>   « syntax error »** a la restauration. D'ou le format BINAIRE (`-Fc`), que
+>   `pg_restore` lit sans aucune meta-commande psql.
+> - **`OWNER TO` / `SET ROLE`** : le `postgres` du conteneur Supabase n'est pas
+>   superuser (« must be able to SET ROLE "supabase_auth_admin" »). D'ou
+>   `--no-owner --no-acl`, la meme cause que les 24 `ALTER DEFAULT PRIVILEGES`
+>   neutralises au restore du dump de prod.
+> - **Le schema `extensions`** : convention Supabase, `pgcrypto` et `uuid-ossp`
+>   y vivent et des colonnes en dependent. Sans lui, `poi_france` et
+>   `panneaux_affichage` ne se creent pas — en silence, au milieu de 58 autres
+>   lignes.
+
+### Reprise du 2026-09-22 — le volume Docker efface, et ce qu'on en a appris
+
+Docker Desktop s'est retrouve **vide** : zero image, zero conteneur, **zero
+volume** (`docker volume ls` sans une ligne), alors que le moteur repondait
+normalement. Cause non etablie — le meme poste avait perdu `git` la veille
+(reinstalle en portable). Le stack local etant le SEUL environnement du projet
+depuis la coupure du 2026-09-19, c'etait la base entiere. Cote application, le
+symptome etait « Failed to fetch » sur chaque appel, avec un `npm run dev`
+parfaitement vivant sur le port 3000 : rien n'ecoutait plus sur 54321.
+
+**Tout ce qui a permis la reprise etait HORS de Docker** — c'est la seule chose
+a retenir de cet incident :
+
+| | Etat au 2026-09-22 |
+|---|---|
+| `_sauvegarde_locale/local-2026-09-19.dump` | 355 Mo, produit par `10-sauvegarder.sh` — **c'est lui qui a tout sauve** |
+| `_dump_prod/` (17/09) | encore la, mais deux jours plus vieux |
+| `_insee_carreaux/` | les 3 CSV, donc aucun telechargement a refaire |
+| git | les 223 migrations |
+
+**L'ordre de reprise, mesure ce jour-la** (~2 h, dont ~1 h 45 de calcul sans
+surveillance) :
+
+1. `01-supabase-up.sh` — retelechargement des images, puis 8 conteneurs.
+2. `drop schema public cascade` + recreation des extensions **avant** tout
+   restore : PostGIS habite `public`, sans lui aucune colonne `geometry` ne se
+   cree. ⚠ **`auth` ne se drope PAS** : il appartient a `supabase_admin` et le
+   `postgres` du conteneur n'est pas superuser (« must be owner of schema
+   auth ») — meme famille que les `OWNER TO` du restore de prod. On y injecte
+   les COMPTES seuls, `--data-only --table=users --table=identities`, et
+   **`users` AVANT `identities`** : l'ordre inverse viole la cle etrangere.
+3. `pg_restore --schema=public` : **0 erreur**, 102 tables, 985 fonctions,
+   143 policies — le compte exact d'avant.
+4. Rejeu des migrations **sql/203 a 223**, les 21 posterieures a la sauvegarde.
+5. `07-carreaux-insee.sh`, puis les pre-calculs du module risque.
+
+**Ce que la sauvegarde ne portait pas, et c'est par construction** : tout ce qui
+a ete calcule APRES le 19/09 10h45 — `carreau_risque_distance` (883 451 lignes,
+batie le 19 au soir), `carreau_risque_nature` (1 446 552, le 20),
+`unite_population_totale`, `couverture_rayon_risque`, `zones_risque_cache`, plus
+`carreaux_filosofi` volontairement exclu. Aucune de ces tables n'est dans git :
+ce sont des heures de calcul geometrique, pas du code. **Une sauvegarde
+quotidienne ne suffit pas a un projet dont la valeur est dans des pre-calculs :
+il faut soit la prendre apres chaque construction lourde, soit accepter de les
+rejouer — et savoir dans quel ORDRE**, d'ou la liste ci-dessus.
+
+> ⚠ **Le defaut qui a failli faire conclure a une sauvegarde inutilisable.**
+> `10-sauvegarder.sh` dumpait avec `--no-acl`, pose par symetrie avec
+> `--no-owner`. Une sauvegarde sans ACL ne porte **aucun `GRANT`** : apres
+> restauration, `anon`, `authenticated` et `service_role` n'avaient plus le
+> moindre droit sur les 102 tables, et PostgREST repondait **401 sur tout** —
+> un code qui envoie chercher du cote des cles JWT, alors que le corps disait
+> `42501 permission denied for table profiles`. Les cles etaient bonnes.
+>
+> **La verification integree ne pouvait pas l'attraper** : elle restaure dans
+> une base jetable et COMPTE DES LIGNES, or les lignes etaient toutes la. Un
+> dump sans droits se restaure parfaitement et ne sert a rien. Elle interrogeait
+> de surcroit la base en `psql -U postgres`, superuser sur sa propre base :
+> **ce chemin ne verra jamais un droit manquant.** Corrige le meme jour —
+> `--no-acl` retire du dump ET de la restauration de controle, et une assertion
+> `has_table_privilege` sur 3 roles x 3 tables temoins, qui fait echouer le
+> script. Meme lecon que `05-verifier.sh` (« c'est PostgREST que l'app appelle,
+> pas psql »), qui etait deja ecrite ailleurs dans ce depot.
+
+> ⚠ **Le second defaut, et le plus vicieux : une sauvegarde qui MENT au script
+> de reconstruction.** `couverture_rayon_risque` est exclue du dump parce
+> qu'elle se regenere — mais son JOURNAL DE BANDES,
+> `couverture_rayon_bandes`, est une petite table qui, elle, etait sauvegardee
+> normalement. Apres restauration le journal annoncait **122 bandes deja
+> construites** pour une table a **ZERO ligne**, et
+> `construire_couverture_rayon.mjs` repondait « ✓ 0 bande construite en 1 s »
+> avant de rendre la main, satisfait. L'ecran, lui, affichait toujours « la
+> couverture par rayon n'a pas encore ete construite » — deux composants du
+> meme projet en desaccord, chacun sur d'avoir raison.
+>
+> **Regle : une table regenerable et son journal de progression forment un
+> COUPLE. On les exclut tous les deux, ou aucun des deux.** Corrige le
+> 2026-09-22 (`--exclude-table-data=public.couverture_rayon_bandes`). Sortie de
+> secours si le cas se represente : `--tout`, qui purge le journal avant de
+> reconstruire. `carreaux_filosofi` n'a pas ce defaut —
+> `07-carreaux-insee.sh` vide et recharge sans consulter de journal.
 
 - **WSL2 et surtout PAS Hyper-V.** Hyper-V **pre-alloue** toute la RAM de la
   VM : sur ce poste (15,5 Go dont ~10 pris par Chrome, Teams, le nouvel Outlook
@@ -2113,6 +2290,13 @@ font doublon, voir l'avertissement sous le tableau :
   le conteneur en `C:/Users/.../Temp/restore.sql`. `MSYS_NO_PATHCONV=1` est
   donc pose sur ce qui s'execute DANS le conteneur — et surtout PAS sur le
   `docker cp`, dont la source est un vrai chemin Windows.
+- ⚠ **Ce releve date du 2026-09-17 et n'a PAS ete refait le 2026-09-22** : le
+  conteneur n'etait pas demarre, et un nombre de tables recopie d'une passe
+  precedente vaudrait moins que l'aveu. Il a certainement bouge — la
+  numerotation de `sql/` est montee jusqu'a **223** depuis (198 fichiers
+  numerotes presents), et les chantiers risque et jeux de zones y ajoutent
+  tables ET fonctions. Le remesurer demande le stack
+  monte (`00-docker-up.sh` puis `01-supabase-up.sh`), pas une lecture de code.
 - **Resultat mesure le 2026-09-17** : 94 tables, **192 RPC applicatives**,
   143 policies (le compte exact de la prod), 334 index. Volumes locaux : `iris`
   209 Mo, `poi_france` 206 Mo, `carreaux_1km` 142 Mo, `dsp_campaign_data`
