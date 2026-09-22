@@ -1986,7 +1986,7 @@ deux derniers, `11-reconstruire.sh` et `12-sante.sh`, sont nes de la reprise du
 |---|---|
 | `00-docker-up.sh` | demarre le moteur Docker et **diagnostique la RAM** avant d'attendre |
 | `01-supabase-up.sh` | `supabase start` — API 54321 · Postgres 54322 · Studio 54323 · mails 54324 |
-| `02-dump-prod.sh` | dump du projet distant vers `$DUMP_DIR` (defaut `C:/GENESIS/_dump_prod`, **hors depot**) : `auth.sql` + `public.sql` |
+| `02-dump-prod.sh` | ⚠ **INERTE depuis le 2026-09-22** : il dumpait le projet heberge, supprime le 19/09, et `$DUMP_DIR` (`C:/GENESIS/_dump_prod`) a ete efface le 22 apres verification table par table — les 91 tables du dump sont en base locale, aucune avec MOINS de lignes, plusieurs avec plus (`poi_france` 390 029 contre 290 877). Conserve comme trace du chemin de rapatriement, il ne peut plus rien dumper |
 | `03-restore-local.sh` | remise a zero de `public` + extensions -> comptes auth -> `public.sql`, via le `psql` du conteneur. **Rejouable** |
 | `04-env-local.sh` | ecrit `.env.development.local` (surcharge dev, `.env.local` intact) |
 | `05-verifier.sh` | controle en trois temps : conteneurs, volumetrie en base, **et PostgREST** — c'est PostgREST que l'app appelle, pas `psql` |
