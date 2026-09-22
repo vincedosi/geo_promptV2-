@@ -210,3 +210,73 @@ la seule facon de fermer les 3 routes publiques. Verification en navigateur
 authentifie apres modification : tuiles servies (200/204/200), `/api/ref/geo`
 200, carte `/map` rendue, 0 erreur console ; les memes routes en anonyme
 renvoient 401.
+
+---
+
+# Passe du 2026-09-22 — la documentation, et le disque
+
+> Protocole : `.claude/skills/cleanup-geomatik` · point de depart `61fe6e1e`
+> Declencheur : « dans C:\GENESIS c'est le bordel, plein de .md qui ne servent
+> plus a rien ». Menee le jour ou ce poste a perdu Docker ET une sauvegarde,
+> d'ou une regle appliquee tout du long : **rien n'est supprime sans que son
+> contenu existe ailleurs** — git pour le depot, la base et deux sauvegardes
+> verifiees pour les donnees.
+
+## Avant / apres
+
+| Metrique | Avant | Apres | Delta |
+|---|---|---|---|
+| Fichiers `.md` suivis (hors `.claude/`) | 138 | **65** | **-73** |
+| `.md` a la racine du depot | 13 | **8** | -5 |
+| `.md` cites nulle part | 66 | **10** | -56 |
+| Entrees a la racine de `C:\GENESIS` | 13 | **9** | -4 |
+| Espace disque libere | — | — | **~800 Mo** |
+| Tests unitaires | 1 700 verts | **1 700 verts** | — |
+| Liens morts introduits | — | **0** | — |
+
+## Ce qui a ete retire, et pourquoi
+
+**73 fichiers `.md`, 1 495 ko** — 24 plans et 23 specs `superpowers`, 12 docs,
+7 `SPRINT_*` UX, 2 `cleanup/`, 5 a la racine. Tous anterieurs a aout, tous sans
+aucun referent, tous dans git : `git show` les rend.
+
+⚠ **La liste a ete calculee par POINT FIXE, pas a l'oeil.** Un fichier n'est
+retire que si TOUS ceux qui le citent le sont aussi — sans quoi on fabrique le
+defaut d'a cote : un document vivant qui renvoie a un fichier absent. C'est ce
+qui a rattrape `CLEANUP_REPORT.md`, dont le seul referent etait
+`FINISH_REPORT.md`, lui-meme supprime. Verifie apres coup : aucun lien mort.
+
+**`DATABASE.md`** merite sa ligne. Genere le **2026-03-20**, il decrivait le
+schema du projet heberge `vkkdbygwbrxyogqosten` — **supprime depuis**. 295
+lignes de tables, six mois de retard, et deux fichiers vivants le citaient. Un
+SECOND document de schema, qui decrit une base qui n'existe plus : exactement
+ce que `CLAUDE.md` interdit depuis l'incident de `docs/architecture.md`
+(« 70 tables — RLS partout », lu comme une garantie de securite alors que les
+policies sont dormantes). Ses deux references sont REPORTEES, pas coupees —
+`sql/091` ne le cite plus, `docs/AUDIT_IMPORTS.md` explique ce qu'il etait.
+
+**Hors depot** : `_anciens_env/` (deux fichiers de secrets en clair —
+`SUPABASE_SERVICE_ROLE_KEY`, `GITHUB_TOKEN`, `DSP_ENC_KEY`, cles IA), les deux
+archives `.zip` de mars, et `_dump_prod/carreaux_filosofi.sql` (765 Mo),
+strictement remplace par la source INSEE qui porte EN PLUS les DROM.
+
+⚠ Avant de detruire `_anciens_env`, verifie et non suppose : la `DSP_ENC_KEY`
+du fichier de septembre a la MEME empreinte que celle du `.env.local` actuel
+(`730494…`), et une connexion DSP chiffree vit en base. Rien d'irremplacable
+n'est parti. **Mais supprimer une cle du disque ne la revoque pas** — celle du
+projet heberge reste a revoquer cote fournisseur, elle est aussi dans
+l'historique git depuis le 11/09.
+
+## Ce qui a ete GARDE, et c'est deliberе
+
+- **10 fichiers sans aucun referent**, tous de septembre : les plans du
+  chantier risque en cours. Les retirer parce qu'ils ne sont « cites nulle
+  part » confondrait *pas encore reference* avec *perime*.
+- **`_dump_prod/public.sql` (1,1 Go)** : derniere trace d'une production
+  supprimee. 97 Go restent libres, donc elle ne coute rien de reel — et le jour
+  ou ce poste a perdu Docker et une sauvegarde n'est pas le jour ou l'on detruit
+  la seule copie de quoi que ce soit. A retrancher dans une semaine si rien ne
+  la reclame.
+- **`ETAT_DES_LIEUX_DSP_PILOT.md`, `INSPECTION_DSP_IMPORT.md`,
+  `PROMPT_NAV_5_THEMES.md`** : anciens, mais cites par des fichiers vivants.
+  Le point fixe les a epargnes, et c'est son role.

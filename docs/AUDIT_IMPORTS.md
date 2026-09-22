@@ -42,7 +42,7 @@ L'import n'écrit que `metadata` JSONB. Tout l'aval est **orphelin, déclenché 
 - `scripts/populate_geom_3857.ts` : manuel — sans lui, `geom_3857` reste NULL (tuiles mortes)
 - `scripts/populate_carreaux_1km.ts` : manuel, dépend du précédent — **`carreaux_1km` est VIDE en base** (jamais abouti)
 - Migration `034` (agrégats 2km/5km) : à exécuter à la main dans le SQL Editor
-- ⚠️ Les deux RPC critiques `import_carreaux_batch` et `populate_carreaux_columns` ne sont **versionnées dans aucun .sql** du repo (seule trace : DATABASE.md) — dérive DB↔repo garantie
+- ⚠️ Les deux RPC critiques `import_carreaux_batch` et `populate_carreaux_columns` ne sont **versionnées dans aucun .sql** du repo — dérive DB↔repo garantie. (La « seule trace » citée ici était `DATABASE.md`, supprimé le 2026-09-22 : généré le 2026-03-20, il décrivait le schéma du projet hébergé `vkkdbygwbrxyogqosten`, supprimé depuis. Un second document de schéma qui décrit une base qui n'existe plus — exactement ce que `CLAUDE.md` interdit. Les deux RPC sont désormais versionnées ici même, sql/091, et décrites dans `ARCHITECTURE.md`.)
 - L'UI permet de renommer les clés metadata → casserait silencieusement tout l'aval (`metadata->>'ind'`…)
 - Bonus : le type `carreaux` de l'Import Universel (`lib/import`) est un **leurre** — exposé dans les types/UI, jamais implémenté (ni validator ni inserter)
 

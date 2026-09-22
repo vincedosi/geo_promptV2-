@@ -2,7 +2,7 @@
 -- 091 — Versionnement des 2 RPC carreaux critiques (dette C1)
 -- ============================================================
 -- Ces fonctions existaient en base mais n'étaient versionnées dans AUCUN .sql
--- du repo (seule trace : DATABASE.md) → dérive DB↔repo. Capturées ici depuis
+-- du repo → dérive DB↔repo. Capturées ici depuis
 -- la définition live le 2026-07-03 (pg_get_functiondef). Aucune modification,
 -- pur versionnement — voir docs/AUDIT_IMPORTS.md C1.
 --
