@@ -41,6 +41,7 @@ import {
   useJeuxZones, type ClasseJeu, type JeuResume,
 } from '@/components/risques/use-jeux-zones';
 import { usePiste } from '@/components/risques/ContexteChargement';
+import { PanneauExtractions } from '@/components/risques/PanneauExtractions';
 import {
   POIDS_MIN, POIDS_MAX, MODES_PLAN, type JeuDeZones,
 } from '@/lib/zones/jeu';
@@ -354,6 +355,18 @@ export function OngletZones({
               />
             </>
           )}
+        </Section>
+
+        {/* Une SECTION à part et non une ligne de plus dans « Actions » :
+            extraire ne règle pas le jeu, ça en fige un état. Les mélanger
+            ferait lire l'extraction comme un réglage de plus. */}
+        <Section titre="Extractions pour le custom bidding">
+          <PanneauExtractions
+            jeuId={jeu && !jeu.brouillon ? jeu.id : null}
+            /* La liste se relit quand le jeu est reconstruit : les extractions
+               déjà figées restent valables, mais le plan courant a changé. */
+            cleFraicheur={jeu?.construit_le ?? ''}
+          />
         </Section>
 
         <Section titre="Jeux enregistrés">

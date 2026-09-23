@@ -5628,6 +5628,121 @@ export type Database = {
           },
         ]
       }
+      zone_set_extraction_cp: {
+        Row: {
+          classe: string
+          cluster_id: string | null
+          cluster_rang: number | null
+          code_canonique: string
+          code_postal: string
+          extraction_id: string
+          multiplicateur: number
+          part_en_zone: number | null
+          pop_en_zone: number | null
+          pop_totale: number | null
+          retenu: boolean
+          zone_nom: string | null
+        }
+        Insert: {
+          classe: string
+          cluster_id?: string | null
+          cluster_rang?: number | null
+          code_canonique: string
+          code_postal: string
+          extraction_id: string
+          multiplicateur?: number
+          part_en_zone?: number | null
+          pop_en_zone?: number | null
+          pop_totale?: number | null
+          retenu?: boolean
+          zone_nom?: string | null
+        }
+        Update: {
+          classe?: string
+          cluster_id?: string | null
+          cluster_rang?: number | null
+          code_canonique?: string
+          code_postal?: string
+          extraction_id?: string
+          multiplicateur?: number
+          part_en_zone?: number | null
+          pop_en_zone?: number | null
+          pop_totale?: number | null
+          retenu?: boolean
+          zone_nom?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zone_set_extraction_cp_extraction_id_fkey"
+            columns: ["extraction_id"]
+            isOneToOne: false
+            referencedRelation: "zone_set_extractions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zone_set_extractions: {
+        Row: {
+          commentaire: string
+          created_at: string
+          created_by: string | null
+          empreinte: string
+          id: string
+          mode_plan: string
+          n_cp: number
+          n_retenus: number
+          origine: string
+          part_plan_en_zone: number | null
+          population_exposee: number
+          seuil_couverture_cp: number
+          taux_utile: number | null
+          version: number
+          zone_set_id: string
+        }
+        Insert: {
+          commentaire?: string
+          created_at?: string
+          created_by?: string | null
+          empreinte: string
+          id?: string
+          mode_plan: string
+          n_cp: number
+          n_retenus: number
+          origine?: string
+          part_plan_en_zone?: number | null
+          population_exposee?: number
+          seuil_couverture_cp: number
+          taux_utile?: number | null
+          version: number
+          zone_set_id: string
+        }
+        Update: {
+          commentaire?: string
+          created_at?: string
+          created_by?: string | null
+          empreinte?: string
+          id?: string
+          mode_plan?: string
+          n_cp?: number
+          n_retenus?: number
+          origine?: string
+          part_plan_en_zone?: number | null
+          population_exposee?: number
+          seuil_couverture_cp?: number
+          taux_utile?: number | null
+          version?: number
+          zone_set_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zone_set_extractions_zone_set_id_fkey"
+            columns: ["zone_set_id"]
+            isOneToOne: false
+            referencedRelation: "zone_sets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       zone_set_geoms: {
         Row: {
           bande: number | null
@@ -6304,6 +6419,17 @@ export type Database = {
         }
         Returns: string
       }
+      creer_zone_set_extraction: {
+        Args: {
+          p_commentaire?: string
+          p_created_by?: string
+          p_lignes: Json
+          p_origine?: string
+          p_resume: Json
+          p_zone_set_id: string
+        }
+        Returns: Json
+      }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       disablelongtransactions: { Args: never; Returns: string }
       drop_carreaux_table: { Args: { table_name: string }; Returns: undefined }
@@ -6651,33 +6777,6 @@ export type Database = {
           has_data: boolean
         }[]
       }
-      get_campaign_derive_headline: {
-        Args: { p_actors?: string[]; p_campaign_id: string; p_metric?: string }
-        Returns: number
-      }
-      get_campaign_derive_map: {
-        Args: {
-          p_actors?: string[]
-          p_bbox_xmax?: number
-          p_bbox_xmin?: number
-          p_bbox_ymax?: number
-          p_bbox_ymin?: number
-          p_campaign_id: string
-          p_mesh?: string
-          p_metric?: string
-        }
-        Returns: Json
-      }
-      get_campaign_derive_ranked: {
-        Args: {
-          p_actors?: string[]
-          p_campaign_id: string
-          p_limit?: number
-          p_mesh?: string
-          p_metric?: string
-        }
-        Returns: Json
-      }
       get_campaign_expected: {
         Args: { p_campaign_id: string }
         Returns: number
@@ -6734,10 +6833,6 @@ export type Database = {
       }
       get_campaign_suivi: {
         Args: { p_actors?: string[]; p_campaign_id: string }
-        Returns: Json
-      }
-      get_campaign_suivi_cps: {
-        Args: { p_actors?: string[]; p_campaign_id: string; p_dept: string }
         Returns: Json
       }
       get_campaign_suivi_map: {
@@ -7341,6 +7436,14 @@ export type Database = {
       pprt_importer_partition: {
         Args: { p_lignes: Json; p_partition: string }
         Returns: Json
+      }
+      pprt_niveaux: {
+        Args: never
+        Returns: {
+          geom_3857: unknown
+          niveau: string
+          pprt_id: string
+        }[]
       }
       pprt_perimetres_carte: {
         Args: { p_bbox: number[]; p_limite?: number; p_types?: string[] }
