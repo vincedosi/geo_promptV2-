@@ -216,6 +216,11 @@ export function CarteCodesPostaux({
       // « Codes postaux illisibles ».
       const r = await adminFetch(`/api/zones/jeux/${jeuId}/cp-geo?bbox=${bbox}`);
       const data = (await r.json()) as Chargement;
+      // ⚠ La carte a pu être détruite et remplacée pendant la requête
+      // (montage en double du StrictMode, démontage de l'étape) : `remove()`
+      // supprime `map.style`, et `getSource` lèverait sur l'ancienne instance.
+      // La nouvelle carte lance son propre chargement ; celui-ci est périmé.
+      if (carte.current !== m) return;
       if (!r.ok || data.error) {
         setEtat('echec');
         setMessage(data.error ?? 'Codes postaux illisibles.');
@@ -240,6 +245,9 @@ export function CarteCodesPostaux({
         n_retenus: data.n_retenus, taux_utile: data.taux_utile,
       });
     } catch (e) {
+      // Même garde : l'échec d'une carte qui n'est plus à l'écran ne doit pas
+      // s'afficher au-dessus de celle qui l'a remplacée.
+      if (carte.current !== m) return;
       setEtat('echec');
       setMessage(e instanceof Error ? e.message : 'Chargement interrompu.');
       onChiffres?.(null);
