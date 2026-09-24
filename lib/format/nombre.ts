@@ -77,6 +77,31 @@ export function formaterNombreAbrege(valeur: unknown): string {
 }
 
 /**
+ * Nombre abrégé en notation FRANÇAISE : `12,5 k`, `37,3 M`, `1,2 Md`.
+ *
+ * Existe à côté de `formaterNombreAbrege`, qui rend `37.3M` avec un point
+ * décimal : un écran qui écrit par ailleurs « 1 927 » et « 81,6 % » ne peut pas
+ * afficher « 249.8k € ». La remplacer changerait l'affichage des écrans qui
+ * l'emploient, ce qui n'est pas le rôle d'un ajout ; la convergence des deux
+ * reste un arbitrage à faire.
+ *
+ * @example
+ * formaterNombreCourt(37_312_000) // '37,3 M'
+ * formaterNombreCourt(950)        // '950'
+ */
+export function formaterNombreCourt(valeur: unknown): string {
+  const v = Number(valeur);
+  if (!Number.isFinite(v)) return ABSENT;
+  const a = Math.abs(v);
+  const un = (x: number, suffixe: string) =>
+    `${x.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ${suffixe}`;
+  if (a >= 1e9) return un(v / 1e9, 'Md');
+  if (a >= 1e6) return un(v / 1e6, 'M');
+  if (a >= 1e4) return un(v / 1e3, 'k');
+  return Math.round(v).toLocaleString('fr-FR');
+}
+
+/**
  * Même chose, **sans le palier `G`** : un milliard s'affiche « 1000.0M ».
  *
  * Cette fonction n'existe que pour préserver l'affichage de deux écrans

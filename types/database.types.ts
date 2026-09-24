@@ -2709,6 +2709,7 @@ export type Database = {
           date_end: string | null
           date_start: string | null
           dsp_source: string
+          est_simulation: boolean
           geo_strategy: Json
           id: string
           is_demo: boolean
@@ -2735,6 +2736,7 @@ export type Database = {
           date_end?: string | null
           date_start?: string | null
           dsp_source?: string
+          est_simulation?: boolean
           geo_strategy?: Json
           id?: string
           is_demo?: boolean
@@ -2761,6 +2763,7 @@ export type Database = {
           date_end?: string | null
           date_start?: string | null
           dsp_source?: string
+          est_simulation?: boolean
           geo_strategy?: Json
           id?: string
           is_demo?: boolean
@@ -5781,6 +5784,89 @@ export type Database = {
           },
         ]
       }
+      zone_set_simulations: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          created_by: string | null
+          date_debut: string
+          extraction_v1_id: string
+          extraction_v2_id: string | null
+          id: string
+          jour_recalage: number
+          jours: number
+          lignes_v1: number
+          lignes_v2: number
+          org_id: string
+          params: Json
+          statut: string
+          zone_set_id: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          created_by?: string | null
+          date_debut: string
+          extraction_v1_id: string
+          extraction_v2_id?: string | null
+          id?: string
+          jour_recalage: number
+          jours: number
+          lignes_v1?: number
+          lignes_v2?: number
+          org_id: string
+          params: Json
+          statut: string
+          zone_set_id: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          created_by?: string | null
+          date_debut?: string
+          extraction_v1_id?: string
+          extraction_v2_id?: string | null
+          id?: string
+          jour_recalage?: number
+          jours?: number
+          lignes_v1?: number
+          lignes_v2?: number
+          org_id?: string
+          params?: Json
+          statut?: string
+          zone_set_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zone_set_simulations_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: true
+            referencedRelation: "dsp_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zone_set_simulations_extraction_v1_id_fkey"
+            columns: ["extraction_v1_id"]
+            isOneToOne: false
+            referencedRelation: "zone_set_extractions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zone_set_simulations_extraction_v2_id_fkey"
+            columns: ["extraction_v2_id"]
+            isOneToOne: false
+            referencedRelation: "zone_set_extractions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zone_set_simulations_zone_set_id_fkey"
+            columns: ["zone_set_id"]
+            isOneToOne: false
+            referencedRelation: "zone_sets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       zone_sets: {
         Row: {
           brouillon: boolean
@@ -7529,6 +7615,18 @@ export type Database = {
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       simulate_dsp_report: { Args: { p_campaign_id: string }; Returns: Json }
+      simulation_agregats: { Args: { p_simulation: string }; Returns: Json }
+      simulation_carte: {
+        Args: {
+          p_xmax: number
+          p_xmin: number
+          p_ymax: number
+          p_ymin: number
+          p_zone_set: string
+        }
+        Returns: Json
+      }
+      simulation_entrees: { Args: { p_extraction: string }; Returns: Json }
       sites_exposition: {
         Args: { p_depts?: string[]; p_gravites: string[]; p_natures?: string[] }
         Returns: {

@@ -50,6 +50,9 @@ import { Champ, Pastille, FilAriane, Th, Td, styleLien } from '@/components/risq
 import { FournisseurRisque, useEtatRisque } from '@/components/risques/ContexteRisque';
 import type { Etape } from '@/lib/risques/etape';
 import { FilArianeEtapes } from '@/components/risques/FilArianeEtapes';
+import { FournisseurSimulation, useSimulation } from '@/components/risques/campagne/ContexteSimulation';
+import { BandeauCampagne } from '@/components/risques/campagne/BandeauCampagne';
+import { PanneauCampagne } from '@/components/risques/campagne/PanneauCampagne';
 import { VueCartesZones } from '@/components/risques/VueCartesZones';
 import { codeProfil } from '@/lib/risques/code-profil';
 import {
@@ -357,6 +360,8 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
    * carreaux à la demande.
    */
   const etape = etat.etape;
+  /** La simulation de l'étape ⑤ — lue ici pour le fil d'Ariane seulement. */
+  const simulationCampagne = useSimulation();
 
   const setEtape = useCallback((v: Etape) => majEtat({ etape: v }), [majEtat]);
 
@@ -909,6 +914,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
             profil: etat.profil,
             chemin: etat.chemin,
             jeu: etat.jeu,
+            simulation: !!simulationCampagne.reponse?.simulation,
           }}
           onEtape={setEtape}
         />
@@ -1212,6 +1218,13 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
       */}
       <BarreProgression />
 
+      {/* À l'étape ⑤ les six chiffres changent de question : « la campagne
+          tient-elle son plan », et non plus « combien d'habitants exposés ».
+          Même emplacement, même composant `Kpi` : on change de sujet, pas
+          d'écran. */}
+      {etape === 'campagne' ? (
+        <BandeauCampagne />
+      ) : (
       <Perime actif={perime}>
         <BandeauKpi
           bandes={resultatBandes.bandes}
@@ -1222,6 +1235,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
           libelleCible={libelleCible}
         />
       </Perime>
+      )}
 
       {/*
         ── CE QUI EST PROPRE À L'ONGLET ───────────────────────────────────
@@ -1299,6 +1313,8 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
             libelleTerritoire={chemin.length > 0 ? chemin[chemin.length - 1].nom : 'la France entière'}
           />
         </div>
+      ) : etape === 'campagne' ? (
+        <PanneauCampagne />
       ) : etape === 'zones' ? (
         <OngletZones
           profil={etat.profil}
@@ -1621,9 +1637,30 @@ export function AnalysePopulationOverlay(props: Props) {
         s'affiche.
       */}
       <FournisseurChargement>
-        <CorpsAnalyse {...props} />
+        <AvecSimulation>
+          <CorpsAnalyse {...props} />
+        </AvecSimulation>
       </FournisseurChargement>
     </FournisseurRisque>
+  );
+}
+
+/**
+ * Le fournisseur de l'étape ⑤, branché sur le jeu ouvert.
+ *
+ * ⚠ Il ne charge rien tant que l'étape ⑤ n'a pas été ouverte une fois : les
+ * étapes ① à ④ ne doivent pas payer une simulation qu'elles n'affichent pas.
+ * Une fois visitée, la simulation reste en mémoire, pour que le fil d'Ariane
+ * continue de marquer l'étape et que le retour ne recharge rien.
+ */
+function AvecSimulation({ children }: { children: React.ReactNode }) {
+  const { etat } = useEtatRisque();
+  const [visitee, setVisitee] = useState(false);
+  useEffect(() => { if (etat.etape === 'campagne') setVisitee(true); }, [etat.etape]);
+  return (
+    <FournisseurSimulation jeuId={etat.jeu} actif={visitee}>
+      {children}
+    </FournisseurSimulation>
   );
 }
 

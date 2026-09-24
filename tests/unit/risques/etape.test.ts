@@ -24,12 +24,12 @@ const parcours = {
 };
 
 describe('ETAPES', () => {
-  it('porte les quatre etapes du parcours, dans l ordre', () => {
-    expect(ETAPES).toEqual(['sites', 'rayon', 'couverture', 'zones']);
+  it('porte les cinq etapes du parcours, dans l ordre', () => {
+    expect(ETAPES).toEqual(['sites', 'rayon', 'couverture', 'zones', 'campagne']);
   });
 
   it('numerote a partir de l ordre du tableau, jamais a la main', () => {
-    expect(ETAPES.map(rangEtape)).toEqual([1, 2, 3, 4]);
+    expect(ETAPES.map(rangEtape)).toEqual([1, 2, 3, 4, 5]);
   });
 
   it('donne un libelle a chacune', () => {
@@ -93,5 +93,11 @@ describe('etapeRenseignee', () => {
   it('zones : vraie seulement pour un jeu ENREGISTRE', () => {
     expect(etapeRenseignee('zones', parcours)).toBe(false);
     expect(etapeRenseignee('zones', { ...parcours, jeu: 'abc' })).toBe(true);
+  });
+
+  it('campagne : vraie seulement quand une campagne a ete simulee', () => {
+    expect(etapeRenseignee('campagne', parcours)).toBe(false);
+    expect(etapeRenseignee('campagne', { ...parcours, jeu: 'abc' })).toBe(false);
+    expect(etapeRenseignee('campagne', { ...parcours, jeu: 'abc', simulation: true })).toBe(true);
   });
 });

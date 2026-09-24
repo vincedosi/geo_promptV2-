@@ -33,6 +33,8 @@ import {
   CarteCodesPostaux, LIBELLE_COLORATION, type ColorationCp,
 } from '@/components/risques/CarteCodesPostaux';
 import { TableauGrappes } from '@/components/risques/TableauGrappes';
+import { CarteCampagne } from '@/components/risques/campagne/CarteCampagne';
+import { TableauZonesCampagne } from '@/components/risques/campagne/TableauZonesCampagne';
 import type { ProfilRayons, Niveau } from '@/lib/risques/profil';
 import type { Etape } from '@/lib/risques/etape';
 
@@ -64,6 +66,16 @@ export function VueCartesZones({
   jeuId, seuil, carteSeule, onCarteSeule,
 }: Props) {
   const double = etape === 'zones' && !!jeuId;
+  /*
+   * ⑤ Campagne a SA carte, et elle remplace les deux autres le temps de
+   * l'étape : elle ne montre ni les anneaux ni le plan, mais ce qui a été
+   * diffusé. Montée à la PREMIÈRE visite seulement — les étapes ① à ④ ne
+   * doivent pas payer une instance MapLibre de plus — puis gardée, même règle
+   * que les deux autres : on ne remonte pas une carte en changeant d'étape.
+   */
+  const campagne = etape === 'campagne';
+  const [campagneMontee, setCampagneMontee] = useState(false);
+  useEffect(() => { if (campagne) setCampagneMontee(true); }, [campagne]);
   const [vue, setVue] = useState<'rayons' | 'cp'>('rayons');
   const [coloration, setColoration] = useState<ColorationCp>('plan');
   const [chiffres, setChiffres] = useState<Chiffres | null>(null);
@@ -121,8 +133,8 @@ export function VueCartesZones({
     }
   }, []);
 
-  const montreCp = double || vue === 'cp';
-  const montreRayons = double || vue === 'rayons';
+  const montreCp = !campagne && (double || vue === 'cp');
+  const montreRayons = !campagne && (double || vue === 'rayons');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
@@ -198,8 +210,21 @@ export function VueCartesZones({
           )}
         </div>
 
-        {/* ── L'interrupteur, HORS de l'étape ④ ─────────────────────────── */}
-        {!double && (
+        {/* ── La diffusion, à l'étape ⑤ ─────────────────────────────────── */}
+        {campagneMontee && (
+          <div style={{
+            position: 'relative',
+            flex: campagne ? 1 : 0,
+            minWidth: 0,
+            width: campagne ? undefined : 0,
+            visibility: campagne ? 'visible' : 'hidden',
+          }}>
+            <CarteCampagne />
+          </div>
+        )}
+
+        {/* ── L'interrupteur, HORS des étapes ④ et ⑤ ────────────────────── */}
+        {!double && !campagne && (
           <div style={{
             position: 'absolute', top: 10, right: 190, zIndex: 3,
             display: 'flex', gap: 2, padding: 2, borderRadius: 6,
@@ -229,7 +254,7 @@ export function VueCartesZones({
             : 'Masquer le panneau et n’afficher que la carte'}
           style={{
             position: 'absolute', top: 10, right: 56, zIndex: 4,
-            display: double ? 'none' : 'inline-flex', alignItems: 'center', gap: 5,
+            display: double || campagne ? 'none' : 'inline-flex', alignItems: 'center', gap: 5,
             padding: '5px 10px', borderRadius: 6, cursor: 'pointer',
             background: 'var(--card-overlay)',
             border: '0.5px solid var(--border-default)',
@@ -274,6 +299,9 @@ export function VueCartesZones({
           />
         </div>
       )}
+
+      {/* ── Le tableau des zones de la campagne, trié par écart ─────────── */}
+      {campagne && <TableauZonesCampagne />}
 
       {/* ── Le tableau des bassins ───────────────────────────────────────── */}
       {double && jeuId && (

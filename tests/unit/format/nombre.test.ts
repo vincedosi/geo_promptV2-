@@ -99,3 +99,17 @@ describe('formaterNombreAbregeSansMilliard — la divergence assumée', () => {
     }
   });
 });
+
+describe('formaterNombreCourt — abrégé en notation française', () => {
+  it('écrit la virgule décimale et une espace avant l’unité', async () => {
+    const { formaterNombreCourt } = await import('@/lib/format/nombre');
+    expect(formaterNombreCourt(37_312_000)).toBe('37,3 M');
+    expect(formaterNombreCourt(249_800)).toBe('249,8 k');
+    expect(formaterNombreCourt(1_250_000_000)).toBe('1,3 Md');
+  });
+  it('rend un entier en dessous de dix mille, et l’absence sur une valeur non finie', async () => {
+    const { formaterNombreCourt } = await import('@/lib/format/nombre');
+    expect(formaterNombreCourt(950)).toBe('950');
+    expect(formaterNombreCourt(Number.NaN)).toBe('—');
+  });
+});

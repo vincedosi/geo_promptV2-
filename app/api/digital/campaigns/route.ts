@@ -53,7 +53,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const rows = typeof data === 'string' ? JSON.parse(data) : (data ?? []);
+  const brutes = typeof data === 'string' ? JSON.parse(data) : (data ?? []);
+
+  // Les campagnes simulées (étape ⑤ du module risque, sql/232) sont écartées
+  // ICI plutôt que dans la RPC : la réécrire pour un filtre ferait courir un
+  // risque sur une fonction lue par quatre écrans. Une lecture d'index partiel.
+  const { data: simulees, error: erreurSimulees } = await supabase
+    .from('dsp_campaigns').select('id').eq('est_simulation', true);
+  if (erreurSimulees) {
+    return NextResponse.json({ error: erreurSimulees.message }, { status: 500 });
+  }
+  const aExclure = new Set((simulees ?? []).map((c) => c.id));
+  const rows = brutes.filter((c: { id: string }) => !aExclure.has(c.id));
 
   // Last data date per campaign — signal d'attention (statut & cycle de vie).
   // RPC bornée par les ids affichés → index scan, jamais de scan intégral de

@@ -28,6 +28,9 @@ export async function GET(request: NextRequest) {
     supabase.from('dsp_campaigns')
       .select('id, name, dsp_source, date_start, date_end, total_tracked_ads')
       .eq('organization_id', orgId)
+      // Jamais une campagne simulée : l'absorber mêlerait ses impressions
+      // générées à celles d'une campagne réelle (sql/232).
+      .eq('est_simulation', false)
       .neq('id', exclude ?? '00000000-0000-0000-0000-000000000000')
       .gt('total_tracked_ads', 0)
       .order('created_at', { ascending: false })

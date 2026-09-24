@@ -58,6 +58,9 @@ export async function GET(request: NextRequest) {
   let campaignsQuery = supabase
     .from('dsp_campaigns')
     .select('*, organizations(name)')
+    // Une campagne simulée (étape ⑤ du module risque, sql/232) ne doit jamais
+    // apparaître parmi les vraies : le sélecteur du Suivi la proposerait.
+    .eq('est_simulation', false)
     .order('created_at', { ascending: false });
   if (allowedIds) campaignsQuery = campaignsQuery.in('id', allowedIds);
 

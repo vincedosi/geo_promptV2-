@@ -48,7 +48,9 @@ import { lancerKnip, construireRapport } from '../../../scripts/catalogue.mjs';
 // consomme desormais `LIMITE_COURBE`, qui etait un export mort. Un cliquet se
 // baisse a chaque fois qu'on peut — c'est la seule chose qui l'empeche de
 // devenir un plafond decoratif.
-const CLIQUET_EXPORTS_MORTS = 194;
+// Descendu a 193 le 2026-09-24 : l'etape 5 (simulation de campagne) a
+// branche `lib/campagne/alignement.ts`, jusque-la importe par ses seuls tests.
+const CLIQUET_EXPORTS_MORTS = 193;
 
 describe('catalogue du code', () => {
   it('existe et se declare genere', () => {

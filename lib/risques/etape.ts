@@ -1,5 +1,5 @@
 /**
- * Les quatre étapes du module « Population à risque industriel ».
+ * Les cinq étapes du module « Population à risque industriel ».
  *
  * ── CE QUE CE MODÈLE REMPLACE ─────────────────────────────────────────────
  *
@@ -20,8 +20,14 @@
  */
 import { anneauxDuNiveau, NIVEAUX, type ProfilRayons } from '@/lib/risques/profil';
 
-/** Les quatre étapes, dans l'ordre du parcours. L'ordre EST la numérotation. */
-export const ETAPES = ['sites', 'rayon', 'couverture', 'zones'] as const;
+/**
+ * Les cinq étapes, dans l'ordre du parcours. L'ordre EST la numérotation.
+ *
+ * ⑤ Campagne (2026-09-24) : on fait diffuser une campagne sur le plan d'une
+ * extraction du jeu, puis on la recale. C'est la suite naturelle du parcours —
+ * le jeu de zones n'est pas l'objet final, ce qu'on en fait diffuser l'est.
+ */
+export const ETAPES = ['sites', 'rayon', 'couverture', 'zones', 'campagne'] as const;
 
 export type Etape = (typeof ETAPES)[number];
 
@@ -37,6 +43,7 @@ export const LIBELLE_ETAPE: Record<Etape, string> = {
   rayon: 'Rayon',
   couverture: 'Couverture',
   zones: 'Zones',
+  campagne: 'Campagne',
 };
 
 /**
@@ -66,7 +73,7 @@ export const ETAPES_HERITEES: Record<string, Etape> = {
  * au milieu renumérote tout le reste toute seule.
  *
  * @param e - L'étape.
- * @returns Son rang, de 1 à 4.
+ * @returns Son rang, de 1 à 5.
  */
 export function rangEtape(e: Etape): number {
   return ETAPES.indexOf(e) + 1;
@@ -83,6 +90,8 @@ export interface EtatParcours {
   profil: ProfilRayons;
   chemin: string[];
   jeu: string | null;
+  /** Une campagne a été simulée sur le jeu ouvert (étape ⑤). */
+  simulation?: boolean;
 }
 
 /**
@@ -122,5 +131,8 @@ export function etapeRenseignee(etape: Etape, e: EtatParcours): boolean {
     // et le seul qui survive à la fermeture de l'écran.
     case 'zones':
       return e.jeu !== null;
+    // Une campagne simulée : c'est le seul geste de l'étape, et il écrit en base.
+    case 'campagne':
+      return e.simulation === true;
   }
 }

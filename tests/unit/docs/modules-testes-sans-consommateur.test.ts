@@ -50,11 +50,6 @@ const ATTENDUS: Record<string, string> = {
     + '⚠ LIMITE : le croisement avec la RPC a eu lieu UNE FOIS, à la main, le 2026-09-14. '
     + 'Rien ne le rejoue — si sql/170 est retouchée, les tests restent verts et le score '
     + "affiché n'a plus d'oracle.",
-  'lib/campagne/alignement.ts':
-    'JUMEAU TypeScript ASSUMÉ de `calculer_alignement_geo` (sql/165, corrigée sql/172), '
-    + "nommé comme tel dans ARCHITECTURE.md. Même rôle et même limite que ci-dessus : "
-    + "l'accord « exact » a été croisé à la main le 2026-09-14, puis une fois de plus le "
-    + '2026-09-15 sur le cas dégénéré — que le croisement initial avait justement manqué.',
   'lib/qualite/verdict.ts':
     'JUMEAU TypeScript de `qualite_indicateurs` (sql/149, corrigée sql/152) — troisième du '
     + "projet, et le seul qui ne se présentait PAS comme tel : son en-tête l'annonçait comme "

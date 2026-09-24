@@ -11,6 +11,13 @@
  * Jumeau SQL : `calculer_alignement_geo` (sql/165, corrigée sql/172). Les deux
  * DOIVENT arrondir identiquement — voir tests/unit/campagne/alignement.test.ts.
  *
+ * ── Consommé en production depuis le 2026-09-24 ───────────────────────────
+ * Ce jumeau n'était importé que par ses tests. La simulation de campagne de
+ * l'étape ⑤ (`lib/simulation/alignement.ts`) l'appelle désormais pour noter
+ * chaque BASSIN : même règle que le Suivi, seule l'unité change. Une seconde
+ * formule d'alignement dans le même produit aurait donné deux scores
+ * qu'aucun utilisateur ne saurait départager.
+ *
  * ── « Pas calculable » n'est ni 0 ni 100 (2026-09-15) ─────────────────────
  * Ce jumeau rendait `score: 100, conformes_pct: 100` sur un jeu vide ou sans
  * volume réel ; la RPC rendait `score: 0, conformes_pct: null` pour la MÊME
