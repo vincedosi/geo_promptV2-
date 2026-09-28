@@ -252,6 +252,51 @@ export function normaliserProfil(brut: unknown): ProfilRayons {
 }
 
 /**
+ * Le profil RÉELLEMENT calculé, une fois le filtre de gravité appliqué.
+ *
+ * ── LE DÉFAUT QU'ELLE FERME (2026-09-28) ─────────────────────────────────
+ *
+ * Le filtre « Seveso seuil haut / seuil bas » de la barre commune ne vivait
+ * que dans l'état ; le calcul de population, la carte des zones et le jeu de
+ * zones ne lisaient que le PROFIL, qui porte des anneaux pour les deux seuils.
+ * Décocher le seuil bas ne changeait donc rien : à 5 km, l'écran affichait
+ * toujours ~24 M d'habitants, ceux des deux seuils.
+ *
+ * Vider les anneaux d'un niveau suffit côté base : `classe_carreau_risque`
+ * (sql/204) ne retient RIEN d'un niveau sans anneau, PPRT compris.
+ *
+ * ⚠ Un profil LIÉ est d'abord délié : lié, `anneauxDuNiveau` rend les anneaux
+ * du haut pour tous les niveaux, et vider `bas` serait sans effet.
+ *
+ * ⚠ Sans filtre effectif (liste vide, ou tous les niveaux gardés), le profil
+ * est rendu TEL QUEL — même objet, donc même code, donc les caches de zones
+ * et de jeux déjà construits restent valides.
+ *
+ * @param profil - Le profil saisi (celui que les réglettes éditent).
+ * @param gravites - Les gravités cochées (`seveso_haut`, `seveso_bas`, …).
+ * @returns Le profil à envoyer au calcul.
+ */
+export function profilDesGravites(profil: ProfilRayons, gravites: readonly string[]): ProfilRayons {
+  if (gravites.length === 0) return profil;
+  const garde = (n: Niveau) => GRAVITE_DU_NIVEAU[n].some((g) => gravites.includes(g));
+  // Les deux seuils SEULS : « autres » n'est calculé nulle part en base, et
+  // le vider changerait le code d'un profil lié sans changer aucun chiffre.
+  const aVider = (['haut', 'bas'] as const)
+    .filter((n) => !garde(n) && anneauxDuNiveau(profil, n).length > 0);
+  if (aVider.length === 0) return profil;
+
+  const delie: ProfilRayons = {
+    ...profil,
+    lie: false,
+    haut: anneauxDuNiveau(profil, 'haut'),
+    bas: anneauxDuNiveau(profil, 'bas'),
+    autres: anneauxDuNiveau(profil, 'autres'),
+  };
+  for (const n of aVider) delie[n] = [];
+  return delie;
+}
+
+/**
  * Met un rayon en mètres sous la forme la plus courte qui reste juste.
  *
  * Un média planner dit « 500 m » et « 2 km », jamais « 2000 m ». La bascule se

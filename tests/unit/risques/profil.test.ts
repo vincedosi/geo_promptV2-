@@ -23,6 +23,7 @@ import {
   ANNEAUX_MAX,
   anneauxDuNiveau,
   poserRayonExterieur,
+  profilDesGravites,
   type ProfilRayons,
 } from '@/lib/risques/profil';
 
@@ -196,5 +197,50 @@ describe('poserRayonExterieur', () => {
     const p = poserRayonExterieur(base, 'bas', 4000);
     expect(() => ProfilRayonsSchema.parse(p)).not.toThrow();
     expect(p.bas).toEqual([...p.bas].sort((a, b) => a - b));
+  });
+});
+
+describe('profilDesGravites', () => {
+  /*
+   * Le défaut signalé le 2026-09-28 : « Seveso seuil haut » seul coché, 5 km
+   * de rayon, et l'écran affichait toujours 24 M d'habitants — ceux des deux
+   * seuils. Le filtre vivait dans l'état, le calcul ne lisait que le profil.
+   */
+  it('vide les anneaux du seuil bas quand seul le seuil haut est coché', () => {
+    const p = profilDesGravites(base, ['seveso_haut']);
+    expect(p.haut).toEqual([1000, 2000, 5000]);
+    expect(p.bas).toEqual([]);
+  });
+
+  it('vide le seuil haut quand seul le seuil bas est coché', () => {
+    const p = profilDesGravites(base, ['seveso_bas']);
+    expect(p.haut).toEqual([]);
+    expect(p.bas).toEqual([500, 1000]);
+  });
+
+  it('délie un profil lié avant de vider un niveau', () => {
+    // Lié, `bas` recopie `haut` : sans déliaison, vider `bas` n'aurait aucun
+    // effet, `anneauxDuNiveau` rendant alors les anneaux du haut.
+    const lie = normaliserProfil({ ...base, lie: true });
+    const p = profilDesGravites(lie, ['seveso_haut']);
+    expect(p.lie).toBe(false);
+    expect(anneauxDuNiveau(p, 'bas')).toEqual([]);
+    expect(anneauxDuNiveau(p, 'haut')).toEqual([1000, 2000, 5000]);
+  });
+
+  it('rend le profil INCHANGÉ quand les deux seuils sont cochés', () => {
+    // Même objet, donc même code de profil : les caches existants restent bons.
+    expect(profilDesGravites(base, ['seveso_haut', 'seveso_bas'])).toBe(base);
+  });
+
+  it('laisse intact un profil LIÉ quand les deux seuils sont cochés', () => {
+    // Lié, `autres` recopie `haut` ; ce niveau n'est calculé nulle part, le
+    // vider changerait le code du profil — donc les caches — pour rien.
+    const lie = normaliserProfil({ ...base, lie: true });
+    expect(profilDesGravites(lie, ['seveso_haut', 'seveso_bas'])).toBe(lie);
+  });
+
+  it('ne filtre rien sur une liste vide — même convention que la base', () => {
+    expect(profilDesGravites(base, [])).toBe(base);
   });
 });

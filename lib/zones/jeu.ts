@@ -31,7 +31,7 @@
  * même chose, et l'un des deux vide le plan de son tranchant.
  */
 import { z } from 'zod';
-import { normaliserProfil, ProfilRayonsSchema } from '@/lib/risques/profil';
+import { normaliserProfil, profilDesGravites, ProfilRayonsSchema } from '@/lib/risques/profil';
 import { codeProfil, profilDepuisCode, encStrict } from '@/lib/risques/code-profil';
 import { classesDuProfil, idClasse, HORS_ZONE } from '@/lib/risques/affectation';
 
@@ -133,7 +133,15 @@ export function poidsDeClasse(jeu: JeuDeZones, classe: string): number {
  */
 export function normaliserJeu(brut: unknown): JeuDeZones {
   const j = JeuDeZonesSchema.parse(brut);
-  const profil = normaliserProfil(j.profil);
+  /*
+   * ⚠ Le filtre de gravité s'applique AU PROFIL, ici et côté serveur
+   * (2026-09-28). La géométrie (`construire_zones_risque`) et les codes
+   * postaux (`remplir_zone_set_cp`) ne lisent que le profil : un jeu enregistré
+   * avec « Seveso seuil haut » seul achetait pourtant les codes postaux des
+   * anneaux du seuil bas. `gravites` ne servait qu'au choix des sites des
+   * bassins (sql/224-225).
+   */
+  const profil = profilDesGravites(normaliserProfil(j.profil), j.gravites);
 
   const connues = new Set(classesDuProfil(profil).map(idClasse));
   const poids: Record<string, number> = {};

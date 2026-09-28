@@ -217,6 +217,16 @@ describe('jeuDepuisCode', () => {
 });
 
 describe('normaliserJeu', () => {
+  it('vide les anneaux du seuil bas quand seul le seuil haut est retenu', () => {
+    // La géométrie et les codes postaux ne lisent que le profil : sans ce
+    // filtre, un jeu « seuil haut » achetait aussi les anneaux du seuil bas.
+    const j = normaliserJeu({ ...base, gravites: ['seveso_haut'], poids: { 'bas:1': 3 } });
+    expect(j.profil.bas).toEqual([]);
+    expect(j.profil.haut).toEqual([1000, 2000, 5000]);
+    // Un poids sur une classe que le profil ne produit plus ne survit pas.
+    expect(j.poids).toEqual({});
+  });
+
   it('trie et dedoublonne les gravites et les natures', () => {
     // Même raison que pour les anneaux : deux saisies équivalentes doivent
     // produire le même objet, donc le même code, donc un seul calcul.

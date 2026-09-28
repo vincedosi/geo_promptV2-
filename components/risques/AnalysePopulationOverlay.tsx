@@ -70,7 +70,7 @@ import { PanneauSites } from '@/components/risques/PanneauSites';
 import { ResumeProfil } from '@/components/risques/ResumeProfil';
 import { RegletteRayons, type ApercuRayon } from '@/components/risques/RegletteRayons';
 import { BandeauKpi } from '@/components/risques/BandeauKpi';
-import { anneauxDuNiveau, NIVEAUX as NIVEAUX_PROFIL } from '@/lib/risques/profil';
+import { anneauxDuNiveau, NIVEAUX as NIVEAUX_PROFIL, profilDesGravites } from '@/lib/risques/profil';
 import { useSitesCompte } from '@/components/risques/use-sites-compte';
 import { PanneauProfil } from '@/components/risques/PanneauProfil';
 import { useBandes } from '@/components/risques/use-bandes';
@@ -296,6 +296,27 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
     [majEtat, etat.modes],
   );
   const niveaux = etat.gravites;
+  /*
+   * ⚠ DEUX profils, et ce n'est pas un doublon (2026-09-28).
+   *
+   * `etat.profil` est ce que l'utilisateur RÈGLE : réglettes, tiroir, résumé,
+   * fil d'Ariane. `profilCalcul` est ce qu'on CALCULE : le même, avec les
+   * anneaux des seuils décochés vidés. Tout ce qui compte des habitants,
+   * dessine des zones ou fabrique un jeu lit le second.
+   *
+   * Sans lui, décocher « Seveso seuil bas » ne changeait AUCUN chiffre : le
+   * filtre ne vivait que dans l'état, et à 5 km l'écran annonçait toujours
+   * ~24 M d'habitants, ceux des deux seuils.
+   *
+   * On ne vide pas `etat.profil` lui-même : recocher le seuil bas doit rendre
+   * ses anneaux, pas un niveau qu'il faudrait re-régler de mémoire.
+   */
+  // La forme SÉRIALISÉE des gravités en dépendance, jamais le tableau.
+  const cleNiveaux = niveaux.join(',');
+  const profilCalcul = useMemo(
+    () => profilDesGravites(etat.profil, cleNiveaux ? cleNiveaux.split(',') : []),
+    [etat.profil, cleNiveaux],
+  );
   const setNiveaux = useCallback(
     (f: (v: string[]) => string[]) => majEtat({ gravites: f([...etat.gravites]) }),
     [majEtat, etat.gravites],
@@ -607,7 +628,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
    * quatre.
    */
   const resultatBandes = useBandes(
-    etat.profil,
+    profilCalcul,
     cible,
     dimension,
     chemin.find((c) => c.niveau === 'departement')?.code ?? null,
@@ -642,7 +663,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
    * résultat que le bandeau KPI, donc il n'y a rien à charger.
    */
   const resultatExplore = useBandes(
-    etat.profil, cible, mailleTableau, perimetreTableau.parent,
+    profilCalcul, cible, mailleTableau, perimetreTableau.parent,
     natures, perimetreTableau.region,
     exploration.length > 0,
   );
@@ -711,9 +732,9 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
    * apporteraient » se demande au bord de la zone, pas en son milieu.
    */
   const rayonMaxProfil = useMemo(() => {
-    const tous = NIVEAUX_PROFIL.flatMap((n) => anneauxDuNiveau(etat.profil, n));
+    const tous = NIVEAUX_PROFIL.flatMap((n) => anneauxDuNiveau(profilCalcul, n));
     return tous.length > 0 ? Math.max(...tous) : null;
-  }, [etat.profil]);
+  }, [profilCalcul]);
 
   /*
    * La courbe TOTALE, celle dont la clé est `'*'`. C'est la seule qui porte
@@ -935,14 +956,14 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
             soit l'onglet ouvert, et le chercher dans un onglet precis serait
             une devinette. */}
         <BoutonExportProfil
-          profil={etat.profil}
+          profil={profilCalcul}
           cible={cible}
           libelleCible={libelleCible}
           maille={dimCourante.id}
           parent={chemin.find((c) => c.niveau === 'departement')?.code ?? null}
           campagne={etat.campagne}
         />
-        <BoutonVoirCarte profil={etat.profil} onFermer={onFermer} />
+        <BoutonVoirCarte profil={profilCalcul} onFermer={onFermer} />
         <button
           type="button"
           onClick={onFermer}
@@ -1317,7 +1338,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         <PanneauCampagne />
       ) : etape === 'zones' ? (
         <OngletZones
-          profil={etat.profil}
+          profil={profilCalcul}
           /* Pas de `onProfil` : le rayon vient de la réglette du menu unifié,
              et de nulle part ailleurs (lot 5). */
           cible={cible}
@@ -1336,7 +1357,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
         />
       ) : etape === 'rayon' ? (
         <OngletRayons
-          profil={etat.profil}
+          profil={profilCalcul}
           bandes={resultatBandes}
           courbe={resultatCourbe}
           cible={cible}
@@ -1390,7 +1411,7 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
             erreur={bandesTableau.erreur}
             aConstruire={bandesTableau.aConstruire}
             maille={mailleTableau}
-            profil={etat.profil}
+            profil={profilCalcul}
             libelleCible={libelleCible}
             descendable={peutDescendre(mailleTableau)}
             onDescendre={(code, nom) => {
@@ -1599,8 +1620,8 @@ function CorpsAnalyse({ onFermer, gravites, typesRisque }: Props) {
           */}
           <VueCartesZones
             etape={etape}
-            profil={etat.profil}
-            codeProfilZones={codeProfil(etat.profil)}
+            profil={profilCalcul}
+            codeProfilZones={codeProfil(profilCalcul)}
             apercu={apercuRayon}
             gravites={niveaux}
             natures={natures}
