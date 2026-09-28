@@ -6623,6 +6623,7 @@ export type Database = {
           surface_moyenne: number
         }[]
       }
+      export_couverture_rayon: { Args: { p_cible?: string }; Returns: Json }
       export_iris_after: {
         Args: { p_last_code_iris?: string; p_limit?: number }
         Returns: {

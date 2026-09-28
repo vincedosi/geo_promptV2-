@@ -33,6 +33,7 @@ import { formaterNombre, formaterNombreAbrege, formaterDecimal } from '@/lib/for
 import { fInter, fMono } from '@/lib/design/polices';
 import { Kpi } from '@/components/risques/Kpi';
 import { TEINTES_NATURE } from '@/lib/risques/palette-natures';
+import { BoutonExportRayon } from '@/components/risques/BoutonExportRayon';
 
 
 /** La courbe « toutes natures confondues », distinguée par cette clé côté base. */
@@ -104,6 +105,15 @@ export function OngletRayonInfluence({
   const [rayon, setRayon] = useState(1000);
   /** Courbes masquées par clic sur la légende. */
   const [masquees, setMasquees] = useState<Set<string>>(new Set());
+  /**
+   * Étiquettes de population tous les kilomètres, en option — décochée par
+   * défaut, la courbe seule se lit mieux quand on cherche où elle décroche.
+   *
+   * ⚠ Sur la courbe TOTALE seulement : dix étiquettes par courbe et jusqu'à
+   * neuf courbes feraient quatre-vingt-dix chiffres empilés. La population par
+   * nature reste lisible au survol et dans la légende.
+   */
+  const [etiquettes, setEtiquettes] = useState(false);
 
 
   /**
@@ -233,7 +243,9 @@ export function OngletRayonInfluence({
       </div>
 
       {/* ── LE CURSEUR ───────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 14px' }}>
+      {/* `flexWrap` : à 480 px de panneau, la case des étiquettes sortait du
+          cadre, libellé coupé. Elle passe désormais sous le curseur. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: '0 20px 14px' }}>
         <input
           type="range"
           min={100}
@@ -252,6 +264,19 @@ export function OngletRayonInfluence({
         <span style={{ fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)' }}>
           lecture immédiate, sans recalcul
         </span>
+        <label style={{
+          display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+          fontFamily: fInter, fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap',
+        }}>
+          <input
+            type="checkbox"
+            checked={etiquettes}
+            onChange={(e) => setEtiquettes(e.target.checked)}
+            style={{ accentColor: 'var(--brand-teal)' }}
+          />
+          Afficher les étiquettes (tous les 1 km)
+        </label>
+        <BoutonExportRayon niveaux={niveaux} natures={natures} perim={perim} rayonM={rayon} />
       </div>
 
       {/* ── LA COURBE ────────────────────────────────────────────────────── */}
@@ -273,7 +298,9 @@ export function OngletRayonInfluence({
       */}
       <div style={{ height: 280, padding: '0 8px 0 0' }}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={points} margin={{ top: 4, right: 20, bottom: 24, left: 8 }}>
+          {/* Marge haute élargie quand les étiquettes sont posées AU-DESSUS des
+              points : sinon celle du dernier kilomètre sort du cadre. */}
+          <LineChart data={points} margin={{ top: etiquettes ? 20 : 4, right: 20, bottom: 24, left: 8 }}>
             <CartesianGrid stroke="var(--border-subtle)" strokeDasharray="2 4" vertical={false} />
             <XAxis
               dataKey="r"
@@ -317,6 +344,10 @@ export function OngletRayonInfluence({
                 strokeWidth={c.cle === TOUTES ? 2.2 : 1.3}
                 dot={false}
                 isAnimationActive={false}
+                label={etiquettes && c.cle === TOUTES
+                  ? (props: { x?: number | string; y?: number | string; index?: number; value?: unknown }) =>
+                      etiquetteKm(props, points)
+                  : false}
               />
             ))}
           </LineChart>
@@ -383,6 +414,38 @@ export function OngletRayonInfluence({
 
 
 /** Squelette de chargement — la forme de l'écran, pas un tourniquet. */
+/**
+ * L'étiquette d'un point de la courbe totale, posée au-dessus du point —
+ * seulement aux kilomètres ronds. La série a un point tous les 100 m : sans ce
+ * filtre on en poserait cent.
+ *
+ * ⚠ On filtre sur le RAYON du point, lu dans la série par son index, jamais
+ * sur l'index lui-même : une nature sans carreau à un palier n'a pas de ligne,
+ * et l'index ne tomberait plus sur les kilomètres.
+ *
+ * Le halo (`paintOrder: stroke`) détache le chiffre de la grille et des autres
+ * courbes, dans les deux thèmes.
+ */
+function etiquetteKm(
+  props: { x?: number | string; y?: number | string; index?: number; value?: unknown },
+  points: Array<Record<string, number>>,
+): React.ReactElement<SVGElement> {
+  const { x, y, index, value } = props;
+  const r = index !== undefined ? points[index]?.r : undefined;
+  if (r === undefined || r % 1000 !== 0 || typeof value !== 'number') return <g />;
+  return (
+    <text
+      x={Number(x)} y={Number(y) - 8}
+      textAnchor="middle"
+      fontFamily={fMono} fontSize={10}
+      fill="var(--text-primary)"
+      stroke="var(--bg-level-1)" strokeWidth={3} paintOrder="stroke"
+    >
+      {formaterNombreAbrege(value)}
+    </text>
+  );
+}
+
 function Squelette() {
   return (
     <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
