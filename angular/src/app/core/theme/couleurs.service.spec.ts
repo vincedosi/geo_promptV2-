@@ -35,4 +35,26 @@ describe('CouleursService', () => {
     TestBed.tick();
     expect(() => p()).toThrow(/--jeton-qui-nexiste-pas/);
   });
+
+  it('suit le thème APPLIQUÉ (la classe sur <html>), pas le thème demandé', () => {
+    const original = window.getComputedStyle;
+    window.getComputedStyle = ((_elt: Element) => ({
+      getPropertyValue: (nom: string) =>
+        nom === '--essai-a'
+          ? (document.documentElement.classList.contains('light') ? '#222222' : '#111111')
+          : '',
+    })) as typeof window.getComputedStyle;
+    try {
+      const theme = TestBed.inject(ThemeService);
+      const p = TestBed.inject(CouleursService).palette({ fond: 'essai-a' });
+      TestBed.tick();
+      expect(p().fond).toBe('#111111');
+      theme.basculer();
+      p(); // lecture avant que l'effet pose la classe : la classe n'a pas encore changé
+      TestBed.tick();
+      expect(p().fond).toBe('#222222');
+    } finally {
+      window.getComputedStyle = original;
+    }
+  });
 });
