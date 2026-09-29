@@ -72,4 +72,11 @@ describe('CarteComponent', () => {
     carte().emettre('error');
     expect(erreurs).toEqual([]);
   });
+
+  it('pose la feuille de style MapLibre dans <head>', async () => {
+    await rendre();
+    const lien = document.head.querySelector('link[data-mg-maplibre]');
+    expect(lien).not.toBeNull();
+    expect(lien?.getAttribute('href')).toBe('maplibre.css');
+  });
 });
