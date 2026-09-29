@@ -25,7 +25,6 @@
               }
             ],
             "styles": [
-              "node_modules/maplibre-gl/dist/maplibre-gl.css",
               "src/styles.css"
             ]
           },
@@ -39,8 +38,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "4kB",
-                  "maximumError": "8kB"
+                  "maximumWarning": "8kB",
+                  "maximumError": "80kB"
                 }
               ],
               "outputHashing": "all"

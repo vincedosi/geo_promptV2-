@@ -20,10 +20,12 @@ async function rendre() {
   f.componentRef.setInput('cadre', [4.75, 43.35, 5.3, 43.6]);
   const pretes: unknown[] = [];
   const cadres: unknown[] = [];
+  const erreurs: string[] = [];
   f.componentInstance.prete.subscribe((m) => pretes.push(m));
   f.componentInstance.deplacee.subscribe((b) => cadres.push(b));
+  f.componentInstance.erreur.subscribe((e) => erreurs.push(e));
   await f.whenStable();
-  return { f, carte: () => carte, pretes, cadres };
+  return { f, carte: () => carte, pretes, cadres, erreurs };
 }
 
 describe('CarteComponent', () => {
@@ -56,5 +58,18 @@ describe('CarteComponent', () => {
     f.destroy();
     expect(ObservateurFactice.instances[0].disconnect).toHaveBeenCalled();
     expect(carte().retiree).toBe(true);
+  });
+
+  it('signale un fond de carte qui échoue AVANT le chargement', async () => {
+    const { carte, erreurs } = await rendre();
+    carte().emettre('error');
+    expect(erreurs).toEqual(["Le fond de carte n'a pas pu être chargé."]);
+  });
+
+  it('ne signale PAS une erreur de tuile survenue APRÈS le chargement', async () => {
+    const { carte, erreurs } = await rendre();
+    carte().emettre('load');
+    carte().emettre('error');
+    expect(erreurs).toEqual([]);
   });
 });
