@@ -58,4 +58,15 @@ describe('ThemeService', () => {
       if (descripteur) Object.defineProperty(window, 'localStorage', descripteur);
     }
   });
+
+  it('themeApplique ne change qu\'une fois la classe posée', () => {
+    const theme = TestBed.inject(ThemeService);
+    TestBed.tick();
+    expect(theme.themeApplique()).toBe('dark');
+    theme.basculer();
+    expect(theme.themeApplique()).toBe('dark'); // effet pas encore passé
+    TestBed.tick();
+    expect(theme.themeApplique()).toBe('light');
+    expect(document.documentElement.classList.contains('light')).toBe(true);
+  });
 });

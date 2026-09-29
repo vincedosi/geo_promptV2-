@@ -32,8 +32,14 @@ export class ThemeService {
   private readonly doc = inject(DOCUMENT);
   private readonly stockage = stockageDisponible(this.doc);
   private readonly _theme = signal<Theme>(themeInitial(this.stockage));
+  private readonly _themeApplique = signal<Theme>(themeInitial(this.stockage));
 
   readonly theme = this._theme.asReadonly();
+  /**
+   * Les couleurs calculées ne sont justes qu'une fois la classe posée : qui
+   * lit `getComputedStyle` doit dépendre de ce signal-ci, jamais de `theme`.
+   */
+  readonly themeApplique = this._themeApplique.asReadonly();
 
   constructor() {
     effect(() => {
@@ -47,6 +53,7 @@ export class ThemeService {
         // Stockage bloqué : le thème s'applique quand même, il ne sera
         // simplement pas retenu au prochain chargement.
       }
+      this._themeApplique.set(t);
     });
   }
 
