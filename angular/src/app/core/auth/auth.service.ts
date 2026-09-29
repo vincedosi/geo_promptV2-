@@ -10,6 +10,7 @@ export class AuthService {
   private readonly supabase = inject(SUPABASE);
   private readonly router = inject(Router);
   private readonly _session = signal<Session | null>(null);
+  private renvoiEnCours: Promise<void> | null = null;
 
   readonly session = this._session.asReadonly();
   readonly connecte = computed(() => this._session() !== null);
@@ -54,9 +55,18 @@ export class AuthService {
    * l'utilisateur bloqué sur l'écran d'erreur sans moyen d'en sortir.
    */
   async renvoyerVersConnexion(): Promise<void> {
-    await this.supabase.auth.signOut({ scope: 'local' });
-    this._session.set(null);
-    await this.redirigerVersConnexion();
+    // Plusieurs appels en vol peuvent échouer en 401 au même moment : un
+    // seul renvoi, les autres attendent le même.
+    this.renvoiEnCours ??= (async () => {
+      try {
+        await this.supabase.auth.signOut({ scope: 'local' });
+        this._session.set(null);
+        await this.redirigerVersConnexion();
+      } finally {
+        this.renvoiEnCours = null;
+      }
+    })();
+    return this.renvoiEnCours;
   }
 
   private async redirigerVersConnexion(): Promise<void> {

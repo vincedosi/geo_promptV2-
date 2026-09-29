@@ -157,5 +157,17 @@ describe('AuthService', () => {
         [['/connexion'], { queryParams: { redirection: '/risques' } }],
       ]);
     });
+
+    it('deux fins de session simultanées ne redirigent qu\'une fois', async () => {
+      const client = fauxClient({ session });
+      const routeur = fauxRouteur('/risques?etape=3');
+      const auth = creer(client, routeur);
+      await auth.initialiser();
+
+      await Promise.all([auth.renvoyerVersConnexion(), auth.renvoyerVersConnexion()]);
+
+      expect(routeur.appels.length).toBe(1);
+      expect(client.appelsSignOut).toEqual([{ scope: 'local' }]);
+    });
   });
 });

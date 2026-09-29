@@ -10,5 +10,6 @@ export function messageErreurApi(erreur: unknown): string {
   if (erreur.status === 429) return 'Trop de demandes rapprochées. Réessayez dans une minute.';
   const corps = erreur.error as { error?: unknown } | null;
   if (corps && typeof corps.error === 'string' && corps.error) return corps.error;
+  if (erreur.status === 403) return 'Votre rôle ne permet pas cette action.';
   return 'Une erreur inattendue est survenue.';
 }
