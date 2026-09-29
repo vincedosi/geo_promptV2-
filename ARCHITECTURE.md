@@ -242,6 +242,7 @@
 | Catalogue du code | knip (exports/fichiers morts, dependances inutilisees — `npm run catalogue`) | ^6.35 |
 | Outillage | ESLint 8 + `eslint-config-next` · `tsx` (scripts TS) · `dotenv` · CLI Supabase (^2.78 declaree, **2.109 installee** sur ce poste) | — |
 | CI/CD | **AUCUN — Vercel est abandonne (arbitrage du 2026-09-21).** Il n'y a plus de chaine de deploiement, donc plus d'environnement de production : **le seul environnement du projet est le stack LOCAL** (§ « Environnement de developpement local »). ⚠ Ce qui en decoule, et qui n'est pas qu'administratif : tout raisonnement de la forme « en production, X se comporte autrement » est desormais SANS OBJET dans ce document, et plusieurs notes en dependaient — elles sont corrigees la ou elles se trouvent, pas ici. Cette ligne annoncait « deploiement automatique sur push `main` » jusqu'au 2026-09-19, puis « plus aucun deploiement actif, le projet `geo-prompt-v2` existe encore » jusqu'au 21 : les deux formulations laissaient croire qu'un push pouvait mettre quelque chose en ligne. Il ne peut plus. ⚠ Un push sur `main` reste un push vers **GitHub**, qui est le depot de reference et le reste | — |
+| Interface Angular (migration en cours) | **Angular 21.2.4** épinglé (standalone, zoneless, signals), Tailwind 4, Vitest, `@supabase/ssr` — dossier `angular/`, application séparée servie sur `:4200` et reliée à l'API Next.js par le proxy de dev. Aucun import croisé avec le code React (`tests/unit/angular/isolement.test.ts`). Feuille de route : `docs/superpowers/plans/2026-09-29-transition-angular-feuille-de-route.md` | 21.2.4 |
 
 ---
 
@@ -249,6 +250,13 @@
 
 ```
 genesis_app/
+├── angular/                    # Application Angular (migration progressive, lot par lot)
+│   ├── proxy.conf.json         # /api -> localhost:3000 (même origine : les cookies suivent)
+│   ├── scripts/ecrire-config.mjs # public/config.local.json depuis .env.development.local (ignoré par git)
+│   └── src/app/
+│       ├── core/               # config, auth (@supabase/ssr), http (HttpBaseService, intercepteur)
+│       ├── layout/             # coquille (barre latérale)
+│       └── features/           # un dossier par module migré
 ├── app/                        # Next.js App Router — pages et routes API
 │   ├── api/                    # Routes API (voir section dediee)
 │   ├── admin/                  # Pages d'administration back-office
@@ -2479,6 +2487,36 @@ rejouer — et savoir dans quel ORDRE**, d'ou la liste ci-dessus.
 - Le mot de passe Postgres de prod n'est dans aucun fichier suivi :
   `02-dump-prod.sh` le lit dans `SUPABASE_DB_PASSWORD` (`.env.local`, gitignore)
   ou dans l'environnement.
+
+---
+
+## Application Angular (depuis le 2026-09-29)
+
+Migration progressive de l'interface, module par module, sans toucher à l'API
+(feuille de route : `docs/superpowers/plans/2026-09-29-transition-angular-feuille-de-route.md`).
+
+- **Deux applications, une API.** React sur `:3000`, Angular sur `:4200` ; le
+  proxy de dev d'Angular redirige `/api` vers `:3000`.
+- ⚠ **L'authentification est DOUBLE, et c'est ce qui a imposé `@supabase/ssr`.**
+  Les routes lues par `requireAuth()` exigent le Bearer ; celles de
+  `PROTECTED_API_PREFIXES` (`/api/tiles`, `/api/ref`, `/api/map/pois`…) sont
+  d'abord filtrées par `middleware.ts`, qui lit le COOKIE et ignore le
+  Bearer. `@supabase/ssr` range la session en cookies au format de
+  l'application React, et l'intercepteur `jetonInterceptor` pose le Bearer.
+  Vérifié au navigateur le 2026-09-29 : `/api/ref/geo` 200 par le
+  seul cookie.
+- **La clé anon n'est dans aucun fichier suivi** : `npm start` écrit
+  `angular/public/config.local.json` depuis `.env.development.local`, lu à
+  l'exécution par `ConfigService`.
+- **Préparé pour AIDA sans l'activer** : `HttpBaseService` construit toutes les
+  adresses (il héritera de `MechaRemoteAppHttpBaseService`), et les routes
+  métier vivent dans `remoteRoutes` (`angular/src/app/app.routes.ts`).
+- Le `tsconfig.json` et l'`.eslintrc.json` de la racine EXCLUENT `angular/` :
+  leur `**/*.ts` compilait sinon le projet Angular avec la configuration Next.
+- ⚠ **Le `.gitignore` racine porte une exception pour `angular/`** :
+  `!angular/src/**/data/` — son motif `data/` (déjà utilisé pour exclure
+  `app/api/radio/data/`, voir § « RLS — DORMANTES ») aurait sinon avalé
+  silencieusement `angular/src/app/features/*/data/`.
 
 ---
 

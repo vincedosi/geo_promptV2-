@@ -301,6 +301,8 @@ npm test                 # Vitest — unitaires PUIS integration, en deux passes
 npm run test:unit        # Unitaires seuls (rapide, aucune base)
 npm run test:integration # Integration seule (tape la base locale)
 npm run lint             # ESLint
+cd angular && npm start  # Interface Angular (localhost:4200), /api -> :3000
+cd angular && npm test   # Tests Angular (Vitest)
 ```
 
 ### Tests — deux passes, et ce n'est pas un detail

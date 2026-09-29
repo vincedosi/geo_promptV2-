@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpBackend, HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
@@ -14,7 +14,11 @@ export interface ConfigApplication {
 
 @Injectable({ providedIn: 'root' })
 export class ConfigService {
-  private readonly http = inject(HttpClient);
+  // HttpBackend et non HttpClient : cette requête précède le chargement de la
+  // configuration elle-même, et jetonInterceptor lit HttpBaseService.apiUrl,
+  // qui lit ConfigService.valeur — appeler http.get() ici via le pipeline
+  // d'intercepteurs lèverait donc AVANT même de partir (config pas chargée).
+  private readonly http = new HttpClient(inject(HttpBackend));
   private config: ConfigApplication | null = null;
 
   /** Lit /config.local.json. Rejette avec un message qui dit quoi faire. */
