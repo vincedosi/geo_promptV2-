@@ -5,13 +5,17 @@ import { appRoutes } from './app.routes';
 import { AuthService } from './core/auth/auth.service';
 import { ConfigService } from './core/config/config.service';
 import { jetonInterceptor } from './core/http/jeton.interceptor';
+import { sessionExpireeInterceptor } from './core/http/session-expiree.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideZonelessChangeDetection(),
     provideRouter(appRoutes, withComponentInputBinding()),
-    provideHttpClient(withInterceptors([jetonInterceptor])),
+    // sessionExpireeInterceptor APRÈS jetonInterceptor : il doit voir la
+    // réponse 401 d'un appel déjà porteur du Bearer, jamais intervenir sur la
+    // pose du jeton elle-même.
+    provideHttpClient(withInterceptors([jetonInterceptor, sessionExpireeInterceptor])),
     // La configuration AVANT la session : le token SUPABASE lit
     // ConfigService.valeur dans sa factory, donc AuthService (qui l'injecte)
     // ne doit être construit qu'APRÈS configService.charger(). Mais inject()
