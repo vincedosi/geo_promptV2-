@@ -120,3 +120,37 @@ Ce qui manque et que seul le siège peut fournir : le jeton `read:packages`
 | Divergence entre la logique React et sa copie Angular | Gel P5 ; la copie ne vit que le temps de la cohabitation |
 | ECharts ne couvre pas un graphique existant | Épreuve technique au lot 2, avant le module risque ; repli : D3 ciblé |
 | Deux serveurs de dev sur un poste à 15,5 Go de RAM | Mesurer au lot 0 ; Angular en `ng serve` sans SSR reste léger |
+
+## À savoir pour les lots suivants (revue finale du lot 0)
+
+- **Les requêtes de MapLibre ne passent PAS par l'intercepteur.** MapLibre fait
+  ses propres appels `fetch`, hors du `HttpClient` Angular — `jetonInterceptor`
+  ne les voit jamais. Une source de carte servie par une route `requireAuth()`
+  a besoin d'un `transformRequest` posant le Bearer à la main ; les routes au
+  cookie seul (`/api/tiles`, `/api/ref`) n'en ont pas besoin, le cookie voyage
+  avec toute requête `fetch` de même origine.
+- **La règle « 3 appels simultanés au plus » (CLAUDE.md) n'a encore AUCUN
+  mécanisme côté Angular.** Le socle ne fait qu'un seul appel à la fois ; dès
+  qu'un écran en lance plusieurs en parallèle (le module risque en fera), il
+  faut porter un sémaphore partagé dans `core/http/` avant le lot 3.
+  Équivalent React à reprendre, pas à réinventer :
+  `components/campagne/suivi-v2/avec-semaphore.ts`.
+- **`ConfigService` doit garder son client bâti sur `HttpBackend`.** Le faire
+  passer par le `HttpClient` intercepté recréerait le cycle
+  `jetonInterceptor` → `HttpBaseService.apiUrl` → `ConfigService.valeur`
+  décrit dans `ARCHITECTURE.md` § Application Angular — voir aussi
+  `angular/src/app/app.config.spec.ts`.
+- **`@supabase/ssr` se met à jour à la racine ET dans `angular/` ENSEMBLE.**
+  Les deux clients lisent et écrivent le même cookie de session ; une version
+  qui change son format sans l'autre casserait la session partagée entre
+  `:3000` et `:4200` en silence.
+- **Les dossiers d'accès aux données restent sous `angular/src/**/data/`** —
+  c'est le motif que l'exception du `.gitignore` racine attend
+  (`!angular/src/**/data/`, voir ARCHITECTURE.md). Un dossier `data/` posé
+  ailleurs dans `angular/` resterait suivi par erreur ou, pire, tomberait sous
+  le motif `data/` général et serait ignoré en silence.
+
+**Reporté aux lots suivants, pas oublié** : un garde INVERSE sur `/connexion`
+(empêcher un utilisateur déjà connecté d'y retourner) et un message dédié pour
+un 403 (droit refusé, distinct d'une session expirée) — `sessionExpireeInterceptor`
+ne traite que le 401.

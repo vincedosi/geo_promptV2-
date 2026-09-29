@@ -2504,7 +2504,32 @@ Migration progressive de l'interface, module par module, sans toucher à l'API
   Bearer. `@supabase/ssr` range la session en cookies au format de
   l'application React, et l'intercepteur `jetonInterceptor` pose le Bearer.
   Vérifié au navigateur le 2026-09-29 : `/api/ref/geo` 200 par le
-  seul cookie.
+  seul cookie — et l'autre moitié de la preuve, sans laquelle la première ne
+  prouve rien : appelé SANS Bearer, `/api/risques/sites/compter` répond 401 ;
+  il ne répond 200 dans la page que parce que `jetonInterceptor` l'ajoute. Les
+  deux routes sont donc bien protégées par des mécanismes DIFFÉRENTS, chacun
+  nécessaire.
+- ⚠ **Ordre de démarrage.** `ConfigService` lit `/config.local.json` par un
+  `HttpClient` construit sur `HttpBackend` et non sur le `HttpClient` injecté :
+  le faire passer par le pipeline d'intercepteurs recréerait le cycle
+  `jetonInterceptor` → `HttpBaseService.apiUrl` → `ConfigService.valeur`, qui
+  n'est pas encore chargée à cet instant précis. Et `provideAppInitializer`
+  attend `configService.charger()` avant de construire `AuthService` : un
+  `inject()` posé après cet `await` est hors contexte d'injection (NG0203),
+  d'où l'injecteur capturé avant l'`await` et rejoué via
+  `runInInjectionContext`. Les deux pièges sont couverts par
+  `angular/src/app/app.config.spec.ts`, qui démarre l'application EXACTEMENT
+  comme `main.ts` plutôt que de mocker chaque bout de la dépendance
+  circulaire séparément.
+- ⚠ **Fin de session en cours de page.** Le garde de route (`authGuard`) ne
+  s'exécute qu'À LA NAVIGATION : un jeton de rafraîchissement révoqué ou un
+  cookie expiré PENDANT qu'une page est déjà ouverte la laissait bloquée sur
+  son état d'erreur, sans aucun moyen d'en sortir. Un 401 de l'API
+  (`sessionExpireeInterceptor`, enregistré après `jetonInterceptor`) ou un
+  événement `SIGNED_OUT` de GoTrue (`AuthService.initialiser()`) renvoient
+  désormais vers `/connexion` avec la page courante à reprendre
+  (`AuthService.renvoyerVersConnexion()`), et l'erreur continue de remonter
+  vers la page pour que son état de chargement se résolve.
 - **La clé anon n'est dans aucun fichier suivi** : `npm start` écrit
   `angular/public/config.local.json` depuis `.env.development.local`, lu à
   l'exécution par `ConfigService`.
