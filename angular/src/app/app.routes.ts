@@ -11,7 +11,13 @@ export const remoteRoutes: Routes = [
   {
     path: '',
     canActivate: [authGuard],
-    loadComponent: () => import('./features/accueil/accueil.page').then((m) => m.AccueilPage),
+    loadComponent: () => import('./layout/coquille.component').then((m) => m.CoquilleComponent),
+    children: [
+      {
+        path: '',
+        loadComponent: () => import('./features/accueil/accueil.page').then((m) => m.AccueilPage),
+      },
+    ],
   },
 ];
 

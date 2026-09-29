@@ -43,6 +43,11 @@ public/data/
 
 # Données source volumineuses (INSEE, GTFS, etc.)
 data/
+# Piège connu (voir CLAUDE.md § RLS) : `data/` matche N'IMPORTE QUEL dossier
+# nommé `data` à n'importe quelle profondeur, y compris un dossier de code.
+# angular/src/app/features/*/data/ est la couche data-access Angular
+# (*.api.ts), pas un dépôt de données — jamais du code à exclure en silence.
+!angular/src/**/data/
 
 # Python benchmark venv (chantier A4.2)
 scripts/benchmarking/.venv/

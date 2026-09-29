@@ -1,0 +1,26 @@
+<section class="p-6 flex flex-col gap-4">
+  <h1 class="text-lg font-medium text-primary tracking-tight">Accueil</h1>
+
+  <div class="w-72 bg-surface border border-subtle rounded-lg p-4">
+    <p class="text-xs text-tertiary">Sites à risque industriel en base</p>
+    @switch (etat().statut) {
+      @case ('chargement') {
+        <p class="font-mono text-base text-secondary">…</p>
+      }
+      @case ('echec') {
+        @if (etat(); as e) {
+          @if (e.statut === 'echec') {
+            <p role="alert" class="text-xs text-danger">{{ e.message }}</p>
+          }
+        }
+      }
+      @case ('pret') {
+        @if (etat(); as e) {
+          @if (e.statut === 'pret') {
+            <p class="font-mono text-base text-primary">{{ formater(e.valeur.retenus) }}</p>
+          }
+        }
+      }
+    }
+  </div>
+</section>
