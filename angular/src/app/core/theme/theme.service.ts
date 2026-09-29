@@ -16,7 +16,17 @@ function stockageDisponible(doc: Document): Storage | null {
   }
 }
 
-/** Le thème courant. Les jetons clairs vivent sous `html.light` (styles/jetons.css). */
+/**
+ * Le thème courant. Les jetons clairs vivent sous `html.light` (styles/jetons.css).
+ *
+ * ⚠ Un script inline dans `index.html` pose déjà `light`/`dark` sur `<html>`
+ * AVANT que ce service existe — sans lui, un utilisateur en thème clair verrait
+ * le fond sombre pendant tout le démarrage (config + session). Ce service reste
+ * la seule source de vérité une fois construit : son `effect()` réapplique la
+ * classe depuis le signal, donc le script n'a besoin d'être exact qu'au premier
+ * rendu. Dans le shell AIDA, qui possède `index.html`, ce script n'existera
+ * plus — la propriété du thème sera à redécider à cette intégration.
+ */
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
   private readonly doc = inject(DOCUMENT);

@@ -8,6 +8,28 @@
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;700&display=swap">
+  <!--
+    Thème posé AVANT le premier affichage, comme themeInitScript côté React
+    (app/layout.tsx) : ThemeService (core/theme/) n'applique la classe
+    light/dark qu'après le bootstrap Angular (config + session), donc sans ce
+    script un utilisateur en thème clair voit le fond sombre le temps du
+    démarrage. ThemeService reste la source de vérité ENSUITE — ce script ne
+    fait que l'anticiper, avec la même clé de stockage (magelian-theme) et le
+    même défaut (dark) qu'elle. ⚠ Dans le shell AIDA, c'est LUI qui possède
+    index.html : ce script ne s'exécutera pas, et la question « qui décide du
+    thème » sera à trancher à cette intégration (voir ARCHITECTURE.md
+    § Application Angular).
+  -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('magelian-theme');
+        document.documentElement.classList.add(t === 'light' ? 'light' : 'dark');
+      } catch (e) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  </script>
 </head>
 <body>
   <mg-root></mg-root>
