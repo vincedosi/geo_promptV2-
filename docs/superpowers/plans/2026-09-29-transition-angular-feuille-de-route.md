@@ -143,3 +143,27 @@ Ce qui manque et que seul le siège peut fournir : le jeton `read:packages`
   (`!angular/src/**/data/`, voir ARCHITECTURE.md). Un dossier `data/` posé
   ailleurs dans `angular/` resterait suivi par erreur ou, pire, tomberait sous
   le motif `data/` général et serait ignoré en silence.
+
+### À savoir pour les lots suivants (revue finale du lot 1)
+
+- **Tout écran qui monte `mg-barre-progression` ou appelle `ChargementService.suivre()`
+  doit déclarer `providers: [ChargementService]`.** Le service n'est pas
+  `providedIn: 'root'` — sans ce provider par écran, l'injection remonte à la
+  racine et lève un `NullInjectorError`. Et les clés de piste passées à
+  `suivre(cle, …)` doivent être UNIQUES par écran : deux pistes qui partagent
+  une clé s'écrasent l'une l'autre dans le même service.
+- **`ThemeService` écrit sur `document.documentElement`** — dans le shell
+  AIDA, ce sera le `<html>` DU SHELL, pas celui d'un Angular isolé. La
+  propriété du thème (qui pose la classe en premier : le script inline de
+  `index.html`, ou `ThemeService`, ou le shell lui-même) est à décider AVANT
+  cette intégration, pas pendant.
+- **La limite de 3 appels simultanés ne couvre que `HttpClient`.** Les tuiles
+  et le GeoJSON de MapLibre lui échappent (déjà noté au lot 0) — la
+  discipline « bbox = carte visible » reste donc la responsabilité du
+  composant de carte, pas de `limiteurInterceptor`.
+
+Reporté au lot 3 : `button[mgPastille]` fixe `type="button"` en dur dans son
+`host` — sûr pour ses usages actuels (aucun n'est dans un `<form>`), mais un
+futur usage voulant un VRAI bouton de soumission (`type="submit"`) à
+l'intérieur d'un formulaire se heurtera à ce `type` figé. À vérifier au
+premier usage réel dans un `<form>`, pas avant.
