@@ -3,23 +3,16 @@
 
   <div class="w-72 bg-surface border border-subtle rounded-lg p-4">
     <p class="text-xs text-tertiary">Sites à risque industriel en base</p>
-    @switch (etat().statut) {
+    @let e = etat();
+    @switch (e.statut) {
       @case ('chargement') {
         <p class="font-mono text-base text-secondary">…</p>
       }
       @case ('echec') {
-        @if (etat(); as e) {
-          @if (e.statut === 'echec') {
-            <p role="alert" class="text-xs text-danger">{{ e.message }}</p>
-          }
-        }
+        <p role="alert" class="text-xs text-danger">{{ e.message }}</p>
       }
       @case ('pret') {
-        @if (etat(); as e) {
-          @if (e.statut === 'pret') {
-            <p class="font-mono text-base text-primary">{{ formater(e.valeur.retenus) }}</p>
-          }
-        }
+        <p class="font-mono text-base text-primary">{{ formater(e.valeur.retenus) }}</p>
       }
     }
   </div>

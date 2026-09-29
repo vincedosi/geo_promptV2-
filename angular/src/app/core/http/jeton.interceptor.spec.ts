@@ -1,6 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
+import type { HttpEvent } from '@angular/common/http';
+import { HttpClient, HttpRequest, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { type Observable, of } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { HttpBaseService } from './http-base.service';
 import { jetonInterceptor } from './jeton.interceptor';
@@ -39,5 +41,27 @@ describe('jetonInterceptor', () => {
     http.get('/config.local.json').subscribe();
     await attendre();
     expect(ctrl.expectOne('/config.local.json').request.headers.has('Authorization')).toBe(false);
+  });
+
+  it('relit le jeton à CHAQUE abonnement (item 2 : defer, pas from) — un futur retry ne doit jamais rejouer un jeton périmé', () => {
+    let appels = 0;
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: AuthService, useValue: { jeton: async () => { appels++; return 'jeton-a'; } } },
+        { provide: HttpBaseService, useValue: { apiUrl: '/api' } },
+      ],
+    });
+    const req = new HttpRequest('GET', '/api/risques/sites/compter');
+    const suivant = () => of({}) as unknown as Observable<HttpEvent<unknown>>;
+    const resultat = TestBed.runInInjectionContext(() => jetonInterceptor(req, suivant));
+
+    // Deux abonnements à LA MÊME observable retournée par l'intercepteur : un
+    // `from(promesse)` déjà créée à l'appel de la fonction rejouerait la même
+    // promesse (donc le même jeton) ; `defer(() => auth.jeton())` relit à
+    // chaque abonnement.
+    resultat.subscribe();
+    resultat.subscribe();
+
+    expect(appels).toBe(2);
   });
 });
