@@ -37,4 +37,25 @@ describe('ThemeService', () => {
       Storage.prototype.setItem = origine;
     }
   });
+
+  it('ne plante pas si l\'ACCÈS au stockage lève (Safari privé, politique bloquante)', () => {
+    const descripteur = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('bloqué', 'SecurityError');
+      },
+    });
+    try {
+      expect(() => TestBed.inject(ThemeService)).not.toThrow();
+      const theme = TestBed.inject(ThemeService);
+      expect(theme.theme()).toBe('dark');
+      theme.basculer();
+      expect(() => TestBed.tick()).not.toThrow();
+      expect(document.documentElement.classList.contains('light')).toBe(true);
+      expect(document.documentElement.classList.contains('dark')).toBe(false);
+    } finally {
+      if (descripteur) Object.defineProperty(window, 'localStorage', descripteur);
+    }
+  });
 });
