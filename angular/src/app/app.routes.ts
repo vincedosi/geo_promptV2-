@@ -1,5 +1,6 @@
 import type { Routes } from '@angular/router';
 import { authGuard } from './core/auth/auth.guard';
+import { sansSessionGuard } from './core/auth/sans-session.guard';
 
 /**
  * Les routes MÉTIER, toutes protégées. Nommée `remoteRoutes` parce que c'est
@@ -25,6 +26,7 @@ export const remoteRoutes: Routes = [
 export const appRoutes: Routes = [
   {
     path: 'connexion',
+    canActivate: [sansSessionGuard],
     loadComponent: () => import('./features/connexion/connexion.page').then((m) => m.ConnexionPage),
   },
   ...remoteRoutes,
