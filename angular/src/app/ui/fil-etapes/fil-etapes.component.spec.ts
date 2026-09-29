@@ -7,6 +7,8 @@ const ETAPES: EtapeAffichee[] = [
   { cle: 'c', rang: 3, libelle: 'Troisième', renseignee: false },
 ];
 
+let monte: HTMLElement | null = null;
+
 async function rendre(courante: string) {
   const f = TestBed.createComponent(FilEtapesComponent);
   f.componentRef.setInput('etapes', ETAPES);
@@ -15,10 +17,17 @@ async function rendre(courante: string) {
   f.componentInstance.choisir.subscribe((c) => choix.push(c));
   await f.whenStable();
   document.body.appendChild(f.nativeElement);
+  monte = f.nativeElement as HTMLElement;
   return { el: f.nativeElement as HTMLElement, choix };
 }
 
 describe('FilEtapesComponent', () => {
+  afterEach(() => {
+    monte?.remove();
+    monte = null;
+  });
+
+
   it('marque l\'étape courante et les étapes renseignées, sauf la courante', async () => {
     const { el } = await rendre('b');
     const boutons = el.querySelectorAll('button');
