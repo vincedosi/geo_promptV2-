@@ -8,8 +8,16 @@
        class="px-4 py-2 text-[13px] text-secondary border-l-2 border-transparent">
       Accueil
     </a>
+    <a routerLink="/catalogue" routerLinkActive="bg-overlay text-primary border-l-2 border-primary"
+       class="px-4 py-2 text-[13px] text-secondary border-l-2 border-transparent">
+      Catalogue
+    </a>
     <div class="mt-auto px-4 py-3 border-t border-subtle flex flex-col gap-2">
       <span class="font-mono text-[11px] text-tertiary truncate">{{ email() }}</span>
+      <button type="button" (click)="theme.basculer()"
+              class="self-start text-xs text-secondary hover:text-primary">
+        {{ theme.theme() === 'dark' ? 'Thème clair' : 'Thème sombre' }}
+      </button>
       <button type="button" (click)="deconnecter()"
               class="self-start text-xs text-secondary hover:text-primary">
         Se déconnecter

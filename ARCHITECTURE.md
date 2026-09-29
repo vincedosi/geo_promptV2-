@@ -2542,6 +2542,9 @@ Migration progressive de l'interface, module par module, sans toucher à l'API
   `!angular/src/**/data/` — son motif `data/` (déjà utilisé pour exclure
   `app/api/radio/data/`, voir § « RLS — DORMANTES ») aurait sinon avalé
   silencieusement `angular/src/app/features/*/data/`.
+- **Composants de base (lot 1, 2026-09-29)** dans `angular/src/app/ui/` : `mg-kpi`, `button[mgPastille]`, `mg-champ`, `th[mgTh]`/`td[mgTd]`, `mg-fil-etapes`, `mg-fil-ariane`, `mg-reglette` (validée au RELÂCHEMENT, jamais par pixel), `mg-barre-progression` + `[mgPerime]` alimentées par un `ChargementService` fourni par l'écran. Tous GÉNÉRIQUES : le vocabulaire du risque arrive au lot 3 en les configurant. Démonstration : page `/catalogue`. ⚠ **Portés depuis les primitives MAISON du module risque, pas depuis shadcn/ui** — inventaire du 2026-09-29 : aucun des 35 fichiers de `components/risques/` n'importe un composant shadcn.
+- **3 appels API simultanés au plus, pour toute l'application** (`limiteurInterceptor` + `SEMAPHORE_API`, `core/http/`), enregistré en PREMIER. Côté React la règle était tenue écran par écran ; ici elle ne dépend plus de la discipline de chaque écran. ⚠ Il ne voit que `HttpClient` : les requêtes de MapLibre (tuiles, GeoJSON) lui échappent.
+- **Thème** : `ThemeService` (`core/theme/`), classe `light`/`dark` sur `<html>`, même clé de stockage que React (`magelian-theme`), tolérant à un stockage bloqué.
 
 ---
 

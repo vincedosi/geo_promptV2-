@@ -1,0 +1,68 @@
+<mg-barre-progression />
+<section class="p-6 flex flex-col gap-8 max-w-4xl">
+  <h1 class="text-lg font-medium text-primary tracking-tight">Catalogue des composants</h1>
+
+  <div class="flex flex-col gap-3">
+    <h2 class="text-xs font-medium text-primary">Barre de progression et valeurs périmées</h2>
+    <button type="button" mgPastille [actif]="enCalcul()" (click)="enCalcul.set(!enCalcul())">
+      {{ enCalcul() ? 'Arrêter le calcul' : 'Lancer un calcul' }}
+    </button>
+    <div [mgPerime]="enCalcul()" class="flex gap-8">
+      <mg-kpi valeur="12 480" libelle="Valeur principale" note="Estompée pendant le calcul" />
+    </div>
+  </div>
+
+  <div class="flex flex-col gap-3">
+    <h2 class="text-xs font-medium text-primary">Tuiles de chiffre clé</h2>
+    <div class="flex gap-8">
+      <mg-kpi valeur="1 259" libelle="Taille 24" note="Note obligatoire" />
+      <mg-kpi valeur="72,3 %" libelle="Accent" note="Valeur en teal" [accent]="true" />
+      <mg-kpi valeur="580" libelle="Taille 22" note="Libellé plus petit" [taille]="22" />
+    </div>
+  </div>
+
+  <div class="flex flex-col gap-3">
+    <h2 class="text-xs font-medium text-primary">Pastilles et champ</h2>
+    <div class="flex gap-2">
+      <button type="button" mgPastille [actif]="pastilles()['premier']" (click)="basculerPastille('premier')">Premier choix</button>
+      <button type="button" mgPastille [actif]="pastilles()['second']" (click)="basculerPastille('second')">Second choix</button>
+    </div>
+    <mg-champ libelle="Un champ">
+      <select class="bg-elevated border border-subtle rounded-md px-3 py-2 text-[13px] text-primary w-60">
+        <option>Option A</option>
+        <option>Option B</option>
+      </select>
+    </mg-champ>
+  </div>
+
+  <div class="flex flex-col gap-3">
+    <h2 class="text-xs font-medium text-primary">Fil d’étapes et fil d’Ariane</h2>
+    <mg-fil-etapes [etapes]="etapes" [courante]="etapeCourante()" (choisir)="etapeCourante.set($event)" />
+    <mg-fil-ariane [segments]="segments()" precision="Détail" (remonter)="remonter($event)" />
+  </div>
+
+  <div class="flex flex-col gap-3">
+    <h2 class="text-xs font-medium text-primary">Réglette</h2>
+    <mg-reglette libelle="Un réglage" [valeur]="valeurReglette()" [min]="100" [max]="10000" [pas]="100"
+                 [formater]="formaterMetres" complement="500 m · 1 km ·"
+                 (apercu)="apercuReglette.set($event)" (valider)="valeurReglette.set($event)" />
+    <p class="font-mono text-[11px] text-tertiary">
+      Validé : {{ formaterMetres(valeurReglette()) }} · aperçu : {{ apercuReglette() === null ? '—' : formaterMetres(apercuReglette()!) }}
+    </p>
+  </div>
+
+  <div class="flex flex-col gap-3">
+    <h2 class="text-xs font-medium text-primary">Cellules de tableau</h2>
+    <table class="w-96 border-collapse">
+      <thead><tr>
+        <th mgTh alignement="gauche">Ligne</th>
+        <th mgTh explication="Une explication au survol">Valeur</th>
+      </tr></thead>
+      <tbody>
+        <tr><td mgTd class="!text-left">Alpha</td><td mgTd>1 204</td></tr>
+        <tr><td mgTd class="!text-left" attenue>Beta</td><td mgTd attenue>—</td></tr>
+        <tr><td mgTd class="!text-left" fort>Total</td><td mgTd fort>1 204</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>

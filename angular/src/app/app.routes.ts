@@ -18,6 +18,10 @@ export const remoteRoutes: Routes = [
         path: '',
         loadComponent: () => import('./features/accueil/accueil.page').then((m) => m.AccueilPage),
       },
+      {
+        path: 'catalogue',
+        loadComponent: () => import('./features/catalogue/catalogue.page').then((m) => m.CataloguePage),
+      },
     ],
   },
 ];

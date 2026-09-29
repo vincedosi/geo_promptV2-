@@ -63,7 +63,7 @@ qu'on bâtisse quoi que ce soit dessus.
 | Lot | Contenu | Livrable vérifiable | Dépend de |
 |---|---|---|---|
 | **0 — Socle** | Espace de travail Angular, jetons du design system, authentification, client HTTP, coquille (barre latérale, routes), outillage (tests, lint, build), doc | Se connecter sur `:4200`, voir le nombre de sites à risque lu dans `/api/risques/sites/compter` ET une tuile `/api/tiles/...` servie en 200 | — |
-| **1 — Composants de base** | Bouton, onglets, sélecteur, menu, fenêtre, info-bulle, tableau triable, réglette, barre de progression, fil d'Ariane, tuile KPI — sur l'Angular CDK, accessibles au clavier | Une page catalogue `/catalogue` qui montre chaque composant dans les deux thèmes | 0 |
+| **1 — Composants de base** ✅ 2026-09-29 | Portés depuis les primitives MAISON du module risque (l'inventaire a montré qu'il n'utilise aucun composant shadcn) : tuile KPI, pastille, champ, cellules de tableau, fil d'étapes, fil d'Ariane, réglette validée au relâchement, barre de progression unique et valeurs périmées. Plus : thème clair/sombre, 3 appels API simultanés au plus pour toute l'application, garde inverse de la connexion. Fenêtre modale et notifications reportées aux lots 5-6, seuls à s'en servir | Page `/catalogue`, vérifiée au navigateur dans les deux thèmes | 0 |
 | **2 — Carte et graphiques** | Composant carte MapLibre (cycle de vie, `ResizeObserver`, thème, tuiles MVT gzip), service de couleurs lisant les jetons CSS, épreuve technique ECharts (P7) | La carte des zones de risque et la courbe du rayon affichées dans une page d'essai, mêmes chiffres qu'en React | 0, 1 |
 | **3 — Module risque** | Les cinq étapes ① Sites › ② Rayon › ③ Couverture › ④ Zones › ⑤ Campagne, l'état dans l'URL, les exports, la barre de progression unique. Gel P5 à l'ouverture | Chaque étape comparée à l'écran React sur le même état d'URL, chiffres identiques ; puis retrait du module React | 0, 1, 2 |
 | **4 — Carte principale** | `/map`, rail des cinq thèmes, panneaux Filtre/Calques/Analyse/Zones | Parcours complet du rail | 3 |
@@ -129,12 +129,6 @@ Ce qui manque et que seul le siège peut fournir : le jeton `read:packages`
   a besoin d'un `transformRequest` posant le Bearer à la main ; les routes au
   cookie seul (`/api/tiles`, `/api/ref`) n'en ont pas besoin, le cookie voyage
   avec toute requête `fetch` de même origine.
-- **La règle « 3 appels simultanés au plus » (CLAUDE.md) n'a encore AUCUN
-  mécanisme côté Angular.** Le socle ne fait qu'un seul appel à la fois ; dès
-  qu'un écran en lance plusieurs en parallèle (le module risque en fera), il
-  faut porter un sémaphore partagé dans `core/http/` avant le lot 3.
-  Équivalent React à reprendre, pas à réinventer :
-  `components/campagne/suivi-v2/avec-semaphore.ts`.
 - **`ConfigService` doit garder son client bâti sur `HttpBackend`.** Le faire
   passer par le `HttpClient` intercepté recréerait le cycle
   `jetonInterceptor` → `HttpBaseService.apiUrl` → `ConfigService.valeur`
@@ -149,8 +143,3 @@ Ce qui manque et que seul le siège peut fournir : le jeton `read:packages`
   (`!angular/src/**/data/`, voir ARCHITECTURE.md). Un dossier `data/` posé
   ailleurs dans `angular/` resterait suivi par erreur ou, pire, tomberait sous
   le motif `data/` général et serait ignoré en silence.
-
-**Reporté aux lots suivants, pas oublié** : un garde INVERSE sur `/connexion`
-(empêcher un utilisateur déjà connecté d'y retourner) et un message dédié pour
-un 403 (droit refusé, distinct d'une session expirée) — `sessionExpireeInterceptor`
-ne traite que le 401.
