@@ -29,7 +29,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output, signal } f
              [min]="min()" [max]="max()" [step]="pas()" [value]="affiche()"
              [attr.aria-label]="descriptionAccessible() ?? libelle() + ', de ' + formater()(min()) + ' à ' + formater()(max())"
              (input)="glisser($event)"
-             (pointerup)="poser()" (keyup)="poser()" (blur)="poser()" />
+             (pointerup)="poser()" (change)="poser()" (keyup)="poser()" (blur)="poser()" />
     </div>
   `,
 })

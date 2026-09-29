@@ -30,6 +30,10 @@ function fauxClient(opts: OptionsFauxClient = {}) {
       signOut: async (arg?: unknown) => {
         appelsSignOut.push(arg);
         if (opts.erreurSignOut && appelsSignOut.length === 1) return { error: { message: 'echec réseau' } };
+        // Comme le vrai supabase-js : un signOut() qui réussit émet SIGNED_OUT
+        // à travers onAuthStateChange — c'est ce qui fait courir le handler de
+        // initialiser() EN MÊME TEMPS que l'appelant de signOut() (item 3).
+        rappel?.('SIGNED_OUT', null);
         return { error: null };
       },
     },
@@ -168,6 +172,36 @@ describe('AuthService', () => {
 
       expect(routeur.appels.length).toBe(1);
       expect(client.appelsSignOut).toEqual([{ scope: 'local' }]);
+    });
+
+    it('un seul renvoi malgré le SIGNED_OUT que signOut() émet lui-même', async () => {
+      // signOut({scope:'local'}) émet SIGNED_OUT, dont le handler de
+      // initialiser() appelle AUSSI le renvoi vers /connexion — en même temps
+      // que l'appel explicite qui suit dans renvoyerVersConnexion(). Sans la
+      // dé-duplication de la redirection elle-même (et pas seulement de
+      // l'appel externe renvoyerVersConnexion), ces deux chemins navigueraient
+      // chacun de leur côté.
+      const client = fauxClient({ session });
+      const routeur = fauxRouteur('/risques?etape=3');
+      const auth = creer(client, routeur);
+      await auth.initialiser();
+
+      await auth.renvoyerVersConnexion();
+
+      expect(routeur.appels.length).toBe(1);
+    });
+
+    it('une seconde fin de session, plus tard, renvoie à nouveau', async () => {
+      const client = fauxClient({ session });
+      const routeur = fauxRouteur('/risques?etape=3');
+      const auth = creer(client, routeur);
+      await auth.initialiser();
+
+      await auth.renvoyerVersConnexion();
+      await auth.renvoyerVersConnexion();
+
+      expect(routeur.appels.length).toBe(2);
+      expect(client.appelsSignOut).toEqual([{ scope: 'local' }, { scope: 'local' }]);
     });
   });
 });

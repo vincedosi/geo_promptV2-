@@ -33,8 +33,9 @@ export interface EtapeAffichee {
                 [class.text-teal]="e.cle === courante()">{{ e.rang }}</span>
           {{ e.libelle }}
           @if (e.renseignee && e.cle !== courante()) {
-            <span aria-label="renseignée" title="Vous avez posé un choix à cette étape."
+            <span aria-hidden="true" title="Vous avez posé un choix à cette étape."
                   class="size-[5px] rounded-full bg-teal"></span>
+            <span class="sr-only">(renseignée)</span>
           }
         </button>
       }

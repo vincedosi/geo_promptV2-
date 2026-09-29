@@ -4,6 +4,13 @@ import { InjectionToken } from '@angular/core';
 export interface Semaphore {
   acquerir(): Promise<() => void>;
   enVol(): number;
+  /**
+   * Nombre de demandeurs qui attendent une place. Un demandeur ABANDONNÉ
+   * (son appelant se désabonne) n'est pas retiré du tableau `attente` à cet
+   * instant — il reste compté ici jusqu'à ce que son tour arrive, moment où
+   * il rend la place aussitôt qu'il l'obtient (voir `limiteurInterceptor`,
+   * qui appelle `l()` sans s'en servir quand `abandonne` est vrai).
+   */
   enAttente(): number;
 }
 

@@ -20,7 +20,11 @@ describe('FilArianeComponent', () => {
     expect(remontees).toEqual([0, 1]);
     expect(boutons[2].disabled).toBe(true);
     expect(boutons[1].getAttribute('title')).toBe('Région 93');
-    expect(el.textContent).toContain('commune');
+    // Affichée TELLE QUE reçue : DESIGN_SYSTEM.md garde les acronymes (IRIS,
+    // INSEE…) en majuscules, et un `.toLowerCase()` les écraserait aussi.
+    expect(el.textContent).toContain('Commune');
+    expect(boutons[2].getAttribute('aria-current')).toBe('location');
+    expect(boutons[0].getAttribute('aria-current')).toBeNull();
   });
 
   it('un seul segment : il est courant, donc désactivé', async () => {
@@ -28,5 +32,13 @@ describe('FilArianeComponent', () => {
     f.componentRef.setInput('segments', [{ cle: 'fr', libelle: 'France entière' }]);
     await f.whenStable();
     expect((f.nativeElement as HTMLElement).querySelector('button')!.disabled).toBe(true);
+  });
+
+  it('ne modifie pas la casse d\'un acronyme (IRIS)', async () => {
+    const f = TestBed.createComponent(FilArianeComponent);
+    f.componentRef.setInput('segments', [{ cle: 'fr', libelle: 'France entière' }]);
+    f.componentRef.setInput('precision', 'IRIS');
+    await f.whenStable();
+    expect((f.nativeElement as HTMLElement).textContent).toContain('IRIS');
   });
 });

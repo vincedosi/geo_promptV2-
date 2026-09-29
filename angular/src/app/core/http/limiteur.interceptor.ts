@@ -46,6 +46,10 @@ export const limiteurInterceptor: HttpInterceptorFn = (req, next) => {
           abonne.complete();
         },
       });
+      // Une émission (et un abandon déclenché par elle) peut survenir de façon
+      // SYNCHRONE pendant ce subscribe() : la fonction de teardown ci-dessous
+      // tournait alors sur `interne` encore null et ne pouvait rien désabonner.
+      if (abandonne) interne.unsubscribe();
     });
 
     return () => {

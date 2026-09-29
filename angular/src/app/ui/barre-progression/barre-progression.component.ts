@@ -5,6 +5,13 @@ import { ChargementService } from '../../core/chargement/chargement.service';
  * UNE barre pour tout l'écran, lue dans le ChargementService fourni par
  * l'écran. TOUJOURS montée, seule l'opacité change : la démonter relancerait
  * l'animation et ferait sauter la mise en page à chaque calcul.
+ *
+ * ⚠ L'écran qui la monte DOIT déclarer `providers: [ChargementService]`
+ * (`@Injectable()` sans `providedIn: 'root'`, voir chargement.service.ts) —
+ * sans quoi l'injection remonte à la racine et lève un `NullInjectorError`.
+ * Et les clés de piste passées à `ChargementService.suivre(cle, …)` doivent
+ * être UNIQUES par écran : deux pistes qui partagent une clé s'écrasent
+ * l'une l'autre dans le même service.
  */
 @Component({
   selector: 'mg-barre-progression',

@@ -47,6 +47,8 @@ describe('limiteurInterceptor', () => {
     enAttente.unsubscribe();
     subs.forEach((s) => s.unsubscribe());
     await attendre();
+    // La place libérée par l'abandon ne doit jamais partir en requête réseau.
+    ctrl.expectNone('/api/a4');
     for (let i = 5; i <= 7; i++) http.get(`/api/a${i}`).subscribe();
     await attendre();
     expect(ctrl.match((r) => ['/api/a5', '/api/a6', '/api/a7'].includes(r.url)).length).toBe(3);

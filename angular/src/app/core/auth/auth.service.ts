@@ -11,6 +11,20 @@ export class AuthService {
   private readonly router = inject(Router);
   private readonly _session = signal<Session | null>(null);
   private renvoiEnCours: Promise<void> | null = null;
+  private redirectionEnCours: Promise<void> | null = null;
+  /**
+   * Vrai pendant le `signOut({scope:'local'})` de `renvoyerVersConnexion` :
+   * ce signOut ÉMET lui-même SIGNED_OUT (comme le vrai supabase-js), et sans
+   * ce garde le handler de `initialiser()` appellerait `redirigerVersConnexion`
+   * EN MÊME TEMPS que l'appel explicite qui suit — mesuré : les deux peuvent
+   * naviguer, un simple cache de promesse sur `redirigerVersConnexion` ne
+   * suffit pas, la redirection du handler pouvant se résoudre (et remettre
+   * son propre cache à zéro) AVANT que l'appel explicite n'ait eu l'occasion
+   * de le lire, selon l'ordre d'entrelacement des microtâches. Couper le
+   * doublon à sa SOURCE — l'événement qu'on a nous-mêmes provoqué — est la
+   * seule protection qui ne dépend pas d'un minutage.
+   */
+  private signOutLocalEnCours = false;
 
   readonly session = this._session.asReadonly();
   readonly connecte = computed(() => this._session() !== null);
@@ -25,8 +39,10 @@ export class AuthService {
       // La session peut se terminer côté GoTrue sans passer par deconnecter()
       // (jeton de rafraîchissement révoqué, cookie expiré ailleurs) : on
       // renvoie alors vers /connexion nous-mêmes, SANS rappeler signOut —
-      // GoTrue l'a déjà fait, c'est ce qui produit cet événement.
-      if (evt === 'SIGNED_OUT') void this.redirigerVersConnexion();
+      // GoTrue l'a déjà fait, c'est ce qui produit cet événement. Sauf si ce
+      // SIGNED_OUT vient du signOut() DE renvoyerVersConnexion lui-même : il
+      // s'en charge déjà, juste après.
+      if (evt === 'SIGNED_OUT' && !this.signOutLocalEnCours) void this.redirigerVersConnexion();
     });
   }
 
@@ -59,7 +75,12 @@ export class AuthService {
     // seul renvoi, les autres attendent le même.
     this.renvoiEnCours ??= (async () => {
       try {
-        await this.supabase.auth.signOut({ scope: 'local' });
+        this.signOutLocalEnCours = true;
+        try {
+          await this.supabase.auth.signOut({ scope: 'local' });
+        } finally {
+          this.signOutLocalEnCours = false;
+        }
         this._session.set(null);
         await this.redirigerVersConnexion();
       } finally {
@@ -69,9 +90,30 @@ export class AuthService {
     return this.renvoiEnCours;
   }
 
-  private async redirigerVersConnexion(): Promise<void> {
-    if (this.router.url.startsWith('/connexion')) return;
-    await this.router.navigate(['/connexion'], { queryParams: { redirection: this.router.url } });
+  /**
+   * `redirectionEnCours` réutilise une redirection déjà en vol et la remet à
+   * null en `finally` une fois la navigation terminée — une SECONDE fin de
+   * session, plus tard, redirige donc bien à nouveau. C'est une DÉFENSE EN
+   * PROFONDEUR pour deux déclencheurs vraiment indépendants (deux SIGNED_OUT
+   * externes rapprochés, par exemple) : elle NE SUFFIT PAS, seule, contre le
+   * doublon `renvoyerVersConnexion` ↔ handler `SIGNED_OUT` décrit sur
+   * `signOutLocalEnCours` — mesuré, la redirection du handler peut se
+   * résoudre et remettre CE cache à zéro avant que l'appel explicite ne le
+   * lise. Le repli « déjà sur /connexion » est traité SANS toucher au cache :
+   * le poser malgré tout exposerait la même fenêtre de réaffectation tardive.
+   */
+  private redirigerVersConnexion(): Promise<void> {
+    if (this.redirectionEnCours) return this.redirectionEnCours;
+    if (this.router.url.startsWith('/connexion')) return Promise.resolve();
+    const p = (async () => {
+      try {
+        await this.router.navigate(['/connexion'], { queryParams: { redirection: this.router.url } });
+      } finally {
+        this.redirectionEnCours = null;
+      }
+    })();
+    this.redirectionEnCours = p;
+    return p;
   }
 
   /**

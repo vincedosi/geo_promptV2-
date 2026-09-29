@@ -64,6 +64,15 @@ describe('RegletteComponent', () => {
     expect(r.el.textContent).toContain('2.5 km');
   });
 
+  it('un « change » (relâchement hors de la poignée) valide une fois ; le pointerup suivant ne revalide pas', async () => {
+    const r = await rendre();
+    await r.glisser(4000);
+    r.curseur.dispatchEvent(new Event('change'));
+    await r.f.whenStable();
+    await r.relacher();
+    expect(r.validations).toEqual([4000]);
+  });
+
   it('décrit sa plage aux lecteurs d\'écran', async () => {
     const r = await rendre();
     expect(r.curseur.getAttribute('aria-label')).toBe('Seuil haut, de 100 m à 10 km');

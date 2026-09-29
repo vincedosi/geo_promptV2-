@@ -24,19 +24,27 @@ export class EnteteCellule {
   readonly explication = input<string>();
 }
 
-/** Cellule de chiffre : alignée à droite, en police à chasse fixe. */
+/**
+ * Cellule de chiffre : alignée à droite par défaut, en police à chasse fixe.
+ * `alignement="gauche"` sert les colonnes de libellé (mirroir de `th[mgTh]`) —
+ * préférer cet input à un `class="!text-left"` posé au site d'appel, qui
+ * dérive silencieusement de la règle du composant.
+ */
 @Component({
   selector: 'td[mgTd]',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: '<ng-content />',
   host: {
-    class: 'text-right px-2 py-[7px] font-mono text-[11px]',
+    class: 'px-2 py-[7px] font-mono text-[11px]',
+    '[class.text-left]': 'alignement() === "gauche"',
+    '[class.text-right]': 'alignement() === "droite"',
     '[class.text-primary]': 'fort()',
     '[class.text-tertiary]': '!fort() && attenue()',
     '[class.text-secondary]': '!fort() && !attenue()',
   },
 })
 export class Cellule {
+  readonly alignement = input<'gauche' | 'droite'>('droite');
   readonly fort = input(false, { transform: booleanAttribute });
   readonly attenue = input(false, { transform: booleanAttribute });
 }

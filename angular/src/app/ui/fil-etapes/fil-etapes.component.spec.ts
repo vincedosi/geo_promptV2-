@@ -33,9 +33,11 @@ describe('FilEtapesComponent', () => {
     const boutons = el.querySelectorAll('button');
     expect(boutons[1].getAttribute('aria-current')).toBe('step');
     expect(boutons[0].getAttribute('aria-current')).toBeNull();
-    expect(boutons[0].querySelector('[aria-label="renseignée"]')).not.toBeNull();
-    expect(boutons[1].querySelector('[aria-label="renseignée"]')).toBeNull();
-    expect(boutons[2].querySelector('[aria-label="renseignée"]')).toBeNull();
+    // Le marqueur visuel est purement décoratif (aria-hidden) ; le texte
+    // lu par un lecteur d'écran est le span caché visuellement (sr-only).
+    expect(boutons[0].textContent).toContain('(renseignée)');
+    expect(boutons[1].textContent).not.toContain('(renseignée)');
+    expect(boutons[2].textContent).not.toContain('(renseignée)');
   });
 
   it('chaque étape reste cliquable, dans les deux sens', async () => {
