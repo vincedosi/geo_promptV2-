@@ -19,6 +19,7 @@
   --color-hover: var(--border-hover);
   --color-teal: var(--brand-teal);
   --color-teal-hover: var(--brand-teal-hover);
+  --color-teal-10: var(--brand-teal-10);
   --color-teal-fg: var(--brand-teal-fg);
   --color-danger: var(--danger);
   --color-warning: var(--warning);
