@@ -1,3 +1,46 @@
-/* You can add global styles to this file, and also import other style files */
-
 @import 'tailwindcss';
+@import './styles/jetons.css';
+
+/*
+ * Tailwind 4 : les utilitaires sont adossés aux jetons, jamais à des hex.
+ * `inline` fait écrire `var(--surface)` dans la classe générée, donc la
+ * bascule de thème (html.light) s'applique sans rien recompiler.
+ */
+@theme inline {
+  --color-page: var(--bg-level-0);
+  --color-surface: var(--surface);
+  --color-elevated: var(--elevated);
+  --color-overlay: var(--overlay);
+  --color-primary: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-tertiary: var(--text-tertiary);
+  --color-subtle: var(--border-subtle);
+  --color-default: var(--border-default);
+  --color-hover: var(--border-hover);
+  --color-teal: var(--brand-teal);
+  --color-teal-hover: var(--brand-teal-hover);
+  --color-teal-fg: var(--brand-teal-fg);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-level-0);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+:focus-visible {
+  outline: 1px solid var(--brand-teal-50);
+  outline-offset: 1px;
+}

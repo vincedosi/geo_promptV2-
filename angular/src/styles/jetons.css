@@ -1,0 +1,339 @@
+/*
+ * Jetons MAGELIAN — COPIE de app/globals.css (blocs :root et html.light),
+ * sans les triplets HSL de shadcn/ui, propres à React.
+ * Verrouillé par tests/unit/angular/jetons-paritaires.test.ts :
+ * modifier un jeton ici sans le modifier là-bas (ou l'inverse) fait échouer
+ * la suite. Source de vérité : DESIGN_SYSTEM.md.
+ */
+:root {
+  /* shadcn/ui HSL tokens — dark mode values (default) */
+  --radius: 0.375rem;
+
+  /* MAGELIAN scale (dark defaults) */
+  --bg-level-0: #050505;   /* primary background */
+  --bg-level-1: #0a0a0a;   /* surface cards/panels */
+  --bg-level-2: #111111;   /* elevated / section bands */
+  --bg-level-3: #181818;   /* hover/focus */
+  --bg-primary: var(--bg-level-0);
+  --bg-surface: var(--bg-level-1);
+  --bg-hover:   var(--bg-level-3);
+
+  /* Noms de surface du DESIGN_SYSTEM (§3 « Surfaces »), alias de l'échelle
+     ci-dessus. Ils existent parce que le document les désigne comme des
+     COULEURS et que du code les écrivait en `background: var(--elevated)`
+     alors qu'ils n'étaient définis nulle part : la déclaration était
+     invalide et le fond retombait sur transparent — texte posé à nu sur les
+     tuiles MapLibre pour les cartes flottantes. `--surface` porte le rôle
+     que le DESIGN_SYSTEM nomme `--card` (#0a0a0a) : le jeton `--card` lui
+     est déjà pris par shadcn, où il vaut un triplet HSL (`0 0% 4%`) destiné
+     à `hsl(var(--card))` et non une couleur. */
+  --surface:  var(--bg-level-1);
+  --elevated: var(--bg-level-2);
+  --overlay:  var(--bg-level-3);
+
+  --border-subtle:  #1a1a1a;
+  --border-default: #262626;
+  --border-hover:   #333333;
+
+  --text-primary:   #f0f0f0;
+  --text-secondary: #b0b0b0;
+  --text-tertiary:  #8a8a8a;
+
+  --brand-teal: #4ecdc4;
+  --brand-teal-hover: #3dbdb5;
+  --brand-teal-30: rgba(78,205,196,0.3);
+  --brand-teal-50: rgba(78,205,196,0.5);
+  --brand-teal-10: rgba(78,205,196,0.1);
+  /* Texte/icône POSÉ SUR l'aplat teal. Invariant comme `--brand-teal`
+     lui-même : le fond ne change pas d'un thème à l'autre, donc son
+     premier plan non plus — le prendre sur `--bg-level-0` le ferait passer
+     au blanc en thème clair, sur un teal clair. Existe pour que ce
+     `#050505` cesse d'être retapé à la main (DESIGN_SYSTEM §5, « bouton
+     send = cercle #4ecdc4 avec icône #050505 »). */
+  --brand-teal-fg: #050505;
+
+  --success: #3dffa0;
+  --danger:  #ff5757;
+  --warning: #f7b731;
+  --info:    #5b9bd5;
+
+  /* Invariant, comme --brand-teal : ce gris est le MÊME littéral peint par
+     MapLibre (COULEUR_DONNEE_ABSENTE, lib/carreaux/expressions.ts) quel que
+     soit le thème — la pastille de légende DOM doit rester identique à ce
+     qui est réellement peint sur la carte, verrouillé par
+     tests/unit/carreaux/donnee-absente-css.test.ts. */
+  --donnee-absente: #9aa0a6;
+
+  /* ── Échelle divergente d'alignement (sous-pression ↔ conforme ↔ sur-pression)
+     Le sens se lit AUSSI par la position sur la barre : la teinte seule ne
+     suffit pas pour un daltonien. */
+  --diverge-sous-3: #c2410c;
+  --diverge-sous-2: #ea7c4a;
+  --diverge-sous-1: #f0b48c;
+  --diverge-neutre: #4a4a4a;
+  --diverge-sur-1:  #8fb8d8;
+  --diverge-sur-2:  #4a86b8;
+  --diverge-sur-3:  #1f5c8f;
+
+  /* ── Échelle séquentielle (intensité croissante) — vignettes Impressions
+     et Variable du plan (lib/campagne/palette-sequentielle.ts). */
+  --seq-1: #132625;
+  --seq-2: #1b3d3a;
+  --seq-3: #2a6b62;
+  --seq-4: #3a9e91;
+  --seq-5: #4ecdc4;
+
+  /* ── Palette CATEGORIELLE des types de risque industriel (ICPE Georisques,
+     lib/carte/palette-risques.ts). QUATRE couleurs et pas plus : le
+     validateur de palette (skill dataviz, mode --pairs all, celui qui
+     s'applique a une carte) refuse 5 teintes et au-dela — a 7, orange et
+     rouge tombent a DeltaE 7,1 en vision NORMALE, plancher 15. Les paliers
+     sombres ne sont pas un eclaircissement des clairs : ils ont ete
+     re-choisis pour la bande sombre, sans quoi jaune/rouge retombe a 13,0.
+     Le non-precise reprend --donnee-absente : 68 % des sites n'ont aucune
+     rubrique exploitable, et une teinte de la palette y ferait lire un type
+     de risque inexistant. */
+  --risque-toxique:     #e66767;
+  --risque-inflammable: #b88a00;
+  --risque-pollution:   #008300;
+  --risque-autres:      #3987e5;
+
+  /* NIVEAU reglementaire d'un site, a ne pas confondre avec son TYPE de
+     risque ci-dessus. Les --risque-* disent DE QUOI il s'agit (toxique,
+     inflammable) ; ceux-ci disent A QUEL SEUIL. Deux questions, deux
+     palettes : les melanger ferait lire « inflammable » la ou on veut lire
+     « seuil haut ».
+
+     Chaud contre ambre, et non rouge contre vert : le seuil bas n'est pas
+     « sans danger », c'est un seuil plus bas. Un couple rouge/vert le dirait
+     faux, en plus d'etre illisible pour un daltonien deutan. */
+  --niveau-haut:  #e0603f;
+  --niveau-bas:   #d99a1f;
+  --niveau-autres: #7a8b9c;
+
+  /* Palette QUALITATIVE des courbes par nature de risque (onglet « Rayon
+     d'influence »). Huit teintes, parce qu'une courbe par nature — et les
+     natures ne s'ordonnent pas : il n'y a ni plus ni moins entre
+     « Explosibles » et « Dechets ». Il faut donc des teintes distinctes, pas
+     les paliers d'une rampe.
+
+     Elles etaient ecrites EN DUR dans OngletRayonInfluence.tsx, sans variante
+     de theme clair et hors de tout verrou (R-05). Recharts, lui, resout bien
+     var() — le meme fichier l'utilisait deja pour --brand-teal.
+
+     Alternance chaud/froid plutot qu'un degrade rouge-vert : c'est ce qui les
+     garde distinguables en niveaux de gris ET pour un daltonisme deutan.
+     Aucun violet, regle du DESIGN_SYSTEM. La courbe TOTALE ne prend aucune de
+     ces huit : elle porte --brand-teal, et elle seule. */
+  --nature-1: #e07a3f;
+  --nature-2: #3d8bb5;
+  --nature-3: #4aa06b;
+  --nature-4: #c2554e;
+  --nature-5: #6d8fa8;
+  --nature-6: #b58b34;
+  --nature-7: #4f7d7a;
+  --nature-8: #a06c8c;
+
+  /* Perimetre PPRT — ACHROMATIQUE a dessein. La couleur, sur cette carte,
+     porte le TYPE DE RISQUE (--risque-*) ; un perimetre reglementaire n'est
+     pas une donnee d'intensite, c'est une frontiere opposable. Lui donner une
+     teinte la mettrait en concurrence avec les quatre ci-dessus, et le
+     design system dit « monochrome par defaut, la couleur pour le statut ou
+     l'interaction ». Le trait porte donc l'autorite, pas la teinte. */
+  --pprt-contour: rgba(240,240,240,0.85);
+  --pprt-fond:    rgba(240,240,240,0.10);
+
+  /* ── Habillage des calques MapLibre (contours de zone, halo d'étiquette).
+     MapLibre ne résout PAS `var()` dans `paint` : ces jetons sont lus par
+     `getComputedStyle` AU MOMENT de l'application (`lireJetonCarte`,
+     components/map/jetons-carte.ts) et réappliqués impérativement au
+     changement de thème. Ils existent parce que ces contours étaient peints
+     en `rgba(255,255,255,0.1x)` en dur : en thème clair, du blanc à 12-16 %
+     sur un fond clair ne se voit pas et la choroplèthe devient une tache
+     continue. */
+  --contour-carte: rgba(255, 255, 255, 0.16);
+  --halo-carte:    rgba(0, 0, 0, 0.75);
+
+  --sidebar-width: 240px;
+
+  /* Overlay flottant (IconBar overlay) — semi-transparent pour laisser voir la carte */
+  --card-overlay: rgba(10, 10, 10, 0.92);
+
+  /* ── Motion tokens (Emil Kowalski curves) ─────────────────────────── */
+  --ease-out:     cubic-bezier(0.23, 1, 0.32, 1);     /* strong ease-out for UI entry/press */
+  --ease-in-out:  cubic-bezier(0.77, 0, 0.175, 1);    /* strong ease-in-out for on-screen movement */
+  --ease-drawer:  cubic-bezier(0.32, 0.72, 0, 1);     /* iOS-like drawer curve */
+  --ease-hover:   ease;                               /* hover/color changes only */
+
+  /* ── Choreography tokens (PROMPT spec — overlays/drawers/modals) ─── */
+  --ease-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);  /* entry with subtle bounce */
+  --ease-exit:    cubic-bezier(0.32, 0, 0.67, 0);     /* direct exit (acceleration) */
+  --duration-enter: 280ms;                             /* snappy entry */
+  --duration-exit:  200ms;                             /* faster exit */
+  --stagger-step:   50ms;                              /* delay between staggered children */
+  --backdrop-blur:  4px;                               /* drawer backdrop blur */
+
+  --duration-press:   160ms;  /* button press feedback */
+  --duration-hover:   150ms;  /* hover transitions */
+  --duration-tooltip: 150ms;  /* tooltips, small popovers */
+  --duration-popover: 200ms;  /* dropdowns, popovers */
+  --duration-modal:   250ms;  /* modals */
+  --duration-drawer:  300ms;  /* drawers, large overlays */
+
+  /* Category colors */
+  --cat-context: #8a8a8a;
+  --cat-context-rgb: 138, 138, 138;
+  --cat-terrain: #4ecdc4;
+  --cat-terrain-rgb: 78, 205, 196;
+  --cat-socio: #5b9bd5;
+  --cat-socio-rgb: 91, 155, 213;
+  --cat-media: #f7b731;
+  --cat-media-rgb: 247, 183, 49;
+  --cat-analysis: #e8845c;
+  --cat-analysis-rgb: 232, 132, 92;
+
+  /* ── Atmo France — niveaux qualité air ATMO 1→6 (officiels) ───────── */
+  --atmo-level-1: #50f0e6;  /* bon */
+  --atmo-level-2: #50ccaa;  /* moyen */
+  --atmo-level-3: #f0e641;  /* dégradé */
+  --atmo-level-4: #ff5050;  /* mauvais */
+  --atmo-level-5: #960032;  /* très mauvais */
+  --atmo-level-6: #872181;  /* extrêmement mauvais */
+  --atmo-level-na: #555555; /* indisponible */
+
+  /* ── Atmo France — niveaux pollen 0→6 (officiels RAEP) ────────────── */
+  --pollen-level-0: #555555; /* indisponible */
+  --pollen-level-1: #50f0e6; /* très faible */
+  --pollen-level-2: #50ccaa; /* faible */
+  --pollen-level-3: #f0e641; /* modéré */
+  --pollen-level-4: #ff5050; /* élevé */
+  --pollen-level-5: #960032; /* très élevé */
+  --pollen-level-6: #872181; /* extrêmement élevé */
+}
+
+html.light {
+  /* MAGELIAN scale (light mirror) */
+  --bg-level-0: #ffffff;
+  --bg-level-1: #f5f5f5;
+  --bg-level-2: #eeeeee;
+  --bg-level-3: #e2e2e2;
+  --bg-primary: var(--bg-level-0);
+  --bg-surface: var(--bg-level-1);
+  --bg-hover:   var(--bg-level-3);
+
+  /* Surfaces nommées du DESIGN_SYSTEM — voir le commentaire du bloc :root. */
+  --surface:  var(--bg-level-1);
+  --elevated: var(--bg-level-2);
+  --overlay:  var(--bg-level-3);
+
+  --border-subtle:  #e5e5e5;
+  --border-default: #d0d0d0;
+  --border-hover:   #b8b8b8;
+
+  --text-primary:   #1a1a1a;
+  --text-secondary: #555555;
+  --text-tertiary:  #8a8a8a;
+
+  /* Accent invariant — teal stays the same across themes */
+  --brand-teal: #4ecdc4;
+  --brand-teal-hover: #3dbdb5;
+  --brand-teal-30: rgba(78,205,196,0.3);
+  --brand-teal-50: rgba(78,205,196,0.5);
+  --brand-teal-10: rgba(78,205,196,0.1);
+  /* Invariant, comme le teal lui-même — voir le commentaire du bloc :root. */
+  --brand-teal-fg: #050505;
+
+  --success: #0fa958;
+  --danger:  #d4202f;
+  --warning: #c08400;
+  --info:    #3a78c0;
+
+  /* Invariant, comme --brand-teal — voir le commentaire du bloc :root. */
+  --donnee-absente: #9aa0a6;
+
+  /* ── Échelle divergente d'alignement (sous-pression ↔ conforme ↔ sur-pression)
+     Le sens se lit AUSSI par la position sur la barre : la teinte seule ne
+     suffit pas pour un daltonien. */
+  --diverge-sous-3: #9a2f08;
+  --diverge-sous-2: #cc5f27;
+  --diverge-sous-1: #e8a878;
+  --diverge-neutre: #c6d2cf;
+  --diverge-sur-1:  #7ba7cc;
+  --diverge-sur-2:  #2f6fa3;
+  --diverge-sur-3:  #14496f;
+
+  /* ── Échelle séquentielle (intensité croissante) — vignettes Impressions
+     et Variable du plan (lib/campagne/palette-sequentielle.ts). */
+  --seq-1: #eaf7f5;
+  --seq-2: #c3ebe6;
+  --seq-3: #8ed6cc;
+  --seq-4: #4fb3a6;
+  --seq-5: #1f8a7c;
+
+  /* Palette categorielle des types de risque industriel (light) — voir le
+     commentaire du bloc :root. Ces quatre hex sont ceux valides sur surface
+     #ffffff, pire paire en vision normale jaune/rouge DeltaE 20,8. */
+  --risque-toxique:     #e34948;
+  --risque-inflammable: #eda100;
+  --risque-pollution:   #008300;
+  --risque-autres:      #2a78d6;
+
+  /* Niveaux reglementaires (light) — assombris pour tenir sur #ffffff, comme
+     les quatre --risque-* et les couleurs de statut. */
+  --niveau-haut:  #b8431f;
+  --niveau-bas:   #a8720a;
+  --niveau-autres: #5a6b7c;
+
+  /* Palette qualitative des courbes par nature (light) — voir le bloc :root.
+     Assombries pour tenir sur #ffffff, comme les quatre --risque-* et les
+     quatre couleurs de statut du design system. */
+  --nature-1: #b85c22;
+  --nature-2: #2a6d92;
+  --nature-3: #2f7d4d;
+  --nature-4: #9e3b35;
+  --nature-5: #4d6d85;
+  --nature-6: #8c6a1c;
+  --nature-7: #35605d;
+  --nature-8: #7e4e6c;
+
+  /* Inverse du theme sombre, comme --contour-carte et --halo-carte. */
+  --pprt-contour: rgba(26,26,26,0.80);
+  --pprt-fond:    rgba(26,26,26,0.08);
+
+  /* Habillage MapLibre (light) — voir le commentaire du bloc :root. Le
+     contour s'inverse : du noir translucide sur un fond clair. */
+  --contour-carte: rgba(0, 0, 0, 0.22);
+  --halo-carte:    rgba(255, 255, 255, 0.85);
+
+  /* Overlay flottant (light) */
+  --card-overlay: rgba(248, 248, 248, 0.90);
+
+  /* Category colors (light) */
+  --cat-context: #737373;
+  --cat-context-rgb: 115, 115, 115;
+  --cat-terrain: #0d9488;
+  --cat-terrain-rgb: 13, 148, 136;
+  --cat-socio: #2563eb;
+  --cat-socio-rgb: 37, 99, 235;
+  --cat-media: #d97706;
+  --cat-media-rgb: 217, 119, 6;
+  --cat-analysis: #c2410c;
+  --cat-analysis-rgb: 194, 65, 12;
+
+  /* ── Atmo France — niveaux air/pollen (light mirror, mêmes hex officiels) */
+  --atmo-level-1: #2ec4b6;
+  --atmo-level-2: #2faf91;
+  --atmo-level-3: #c9b800;
+  --atmo-level-4: #d63838;
+  --atmo-level-5: #7a0028;
+  --atmo-level-6: #6b1968;
+  --atmo-level-na: #888888;
+
+  --pollen-level-0: #888888;
+  --pollen-level-1: #2ec4b6;
+  --pollen-level-2: #2faf91;
+  --pollen-level-3: #c9b800;
+  --pollen-level-4: #d63838;
+  --pollen-level-5: #7a0028;
+  --pollen-level-6: #6b1968;
+}
