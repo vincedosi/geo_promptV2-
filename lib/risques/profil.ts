@@ -275,6 +275,10 @@ export function normaliserProfil(brut: unknown): ProfilRayons {
  * @param profil - Le profil saisi (celui que les réglettes éditent).
  * @param gravites - Les gravités cochées (`seveso_haut`, `seveso_bas`, …).
  * @returns Le profil à envoyer au calcul.
+ *
+ * @example
+ * profilDesGravites(PROFIL_DEFAUT, ['seveso_haut']).bas; // []
+ * profilDesGravites(PROFIL_DEFAUT, ['seveso_haut', 'seveso_bas']) === PROFIL_DEFAUT; // true
  */
 export function profilDesGravites(profil: ProfilRayons, gravites: readonly string[]): ProfilRayons {
   if (gravites.length === 0) return profil;

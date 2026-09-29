@@ -23,11 +23,15 @@ interface Props {
   rayonM: number;
 }
 
-export function BoutonExportRayon({ niveaux, natures, perim, rayonM }: Props) {
+/**
+ * @param props - Filtres et rayon de l'écran, valeurs initiales du classeur.
+ * @returns Le bouton et, en cas d'échec, le message de l'API.
+ */
+export function BoutonExportRayon({ niveaux, natures, perim, rayonM }: Props): React.JSX.Element {
   const [enCours, setEnCours] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const exporter = async () => {
+  const exporter = async (): Promise<void> => {
     setEnCours(true);
     setMessage(null);
     try {

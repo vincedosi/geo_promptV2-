@@ -82,6 +82,10 @@ export interface DonneesExportRayon {
  *
  * @param r - La réponse de `export_couverture_rayon`.
  * @returns Les lignes cumulées, les natures ordonnées, les référentiels.
+ *
+ * @example
+ * const d = preparerDonnees(rpcJson<ReponseExportRayon>(data)!);
+ * d.lignes[0].cumuls[49]; // population à moins de 5 km pour cette ligne
  */
 export function preparerDonnees(r: ReponseExportRayon): DonneesExportRayon {
   const regionDuDept = new Map(r.departements.map((d) => [d.code, d.region ?? '']));
@@ -137,6 +141,13 @@ export interface EtatInitialExport {
 /**
  * La clé de gravité du classeur qui correspond aux gravités cochées à l'écran.
  * Même règle que sql/199 : aucune ou les deux → la courbe des deux seuils.
+ *
+ * @param gravites - Les gravités cochées à l'écran.
+ * @returns La clé écrite dans le classeur.
+ *
+ * @example
+ * cleGraviteInitiale(['seveso_haut']);               // 'seveso_haut'
+ * cleGraviteInitiale(['seveso_haut', 'seveso_bas']); // 'seveso_haut_et_bas'
  */
 export function cleGraviteInitiale(gravites: readonly string[]): string {
   const haut = gravites.includes('seveso_haut');
@@ -146,7 +157,17 @@ export function cleGraviteInitiale(gravites: readonly string[]): string {
   return GRAVITE_TOUTES;
 }
 
-/** Le palier (1 à 100) du rayon demandé, borné — la valeur de la réglette. */
+/**
+ * Le palier (1 à 100) du rayon demandé, borné — la valeur de la réglette.
+ *
+ * @param rayonM - Rayon en mètres ; hors bornes, ramené à 100 m ou 10 km, et
+ *   un rayon non numérique retombe sur 1 km, la valeur par défaut de l'écran.
+ * @returns Le palier, de 1 (100 m) à 100 (10 km).
+ *
+ * @example
+ * palierDuRayon(5000); // 50
+ * palierDuRayon(0);    // 1
+ */
 export function palierDuRayon(rayonM: number): number {
   const p = Math.round(rayonM / PAS_M);
   return Math.min(N_PALIERS, Math.max(1, Number.isFinite(p) ? p : 10));

@@ -30,6 +30,7 @@ import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { rpcJson } from '@/lib/supabase/rpc-json';
+import { logger } from '@/lib/logger';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { liste } from '@/lib/api/parametres-requete';
 import { preparerDonnees, type ReponseExportRayon } from '@/lib/risques/export-rayon/donnees';
@@ -51,7 +52,18 @@ const ParamsSchema = z.object({
   rayon_m: z.coerce.number().int().min(100).max(10_000).optional(),
 });
 
-export async function GET(request: NextRequest) {
+/** Portée des journaux de cette route. */
+const PORTEE = 'risques/exposition/rayon/export';
+
+/**
+ * Fabrique et sert le classeur.
+ *
+ * @param request - Requête authentifiée ; paramètres de l'état initial.
+ * @returns Le .xlsx en pièce jointe ; 400 paramètres invalides, 401 non
+ *   authentifié, 409 pré-calcul absent, 429 quota, 500 lecture ou fabrication
+ *   impossible — toujours avec un message en français.
+ */
+export async function GET(request: NextRequest): Promise<NextResponse> {
   const profile = await requireAuth(request);
   if (!profile) return authUnauthorized();
 
@@ -70,7 +82,7 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminClient();
   const { data, error } = await supabase.rpc('export_couverture_rayon', { p_cible: 'ind' });
   if (error) {
-    console.error('[risques/exposition/rayon/export]', error.message);
+    logger.error(PORTEE, 'lecture de la couverture', { message: error.message });
     return NextResponse.json({ error: 'Export indisponible.' }, { status: 500 });
   }
   const brut = rpcJson<ReponseExportRayon>(data);
@@ -90,12 +102,21 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const fichier = await construireClasseurRayon(preparerDonnees(brut), {
-    gravites: liste(p.gravites) ?? [],
-    natures: liste(p.natures) ?? [],
-    perim: p.perim_niveau && p.perim_code ? { niveau: p.perim_niveau, code: p.perim_code } : null,
-    rayonM: p.rayon_m ?? 1000,
-  });
+  let fichier: Buffer;
+  try {
+    fichier = await construireClasseurRayon(preparerDonnees(brut), {
+      gravites: liste(p.gravites) ?? [],
+      natures: liste(p.natures) ?? [],
+      perim: p.perim_niveau && p.perim_code ? { niveau: p.perim_niveau, code: p.perim_code } : null,
+      rayonM: p.rayon_m ?? 1000,
+    });
+  } catch (e) {
+    // Une erreur de FABRICATION (injection du graphique), jamais de donnée :
+    // sans ce garde-fou elle remontait en 500 nu, et le bouton affichait
+    // « Export impossible » sans que rien ne soit journalisé.
+    logger.error(PORTEE, e instanceof Error ? e : 'fabrication du classeur');
+    return NextResponse.json({ error: 'Le classeur n’a pas pu être fabriqué.' }, { status: 500 });
+  }
 
   const date = new Date().toISOString().slice(0, 10);
   return new NextResponse(new Uint8Array(fichier), {

@@ -24,7 +24,15 @@
  */
 import JSZip from 'jszip';
 
-/** Échappe une chaîne pour un nœud texte ou un attribut XML. */
+/**
+ * Échappe une chaîne pour un nœud texte ou un attribut XML.
+ *
+ * @param s - Texte brut (un nom de nature, une formule).
+ * @returns Le texte échappé.
+ *
+ * @example
+ * echapperXml('A & B'); // 'A &amp; B'
+ */
 export function echapperXml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -163,6 +171,13 @@ function axeXml(o: {
  * Le graphique en nuage de points reliés — et non en courbes : seul le nuage
  * porte un axe des abscisses NUMÉRIQUE, donc un repère vertical placé au rayon
  * exact de la réglette, et des étiquettes aux seuls kilomètres ronds.
+ *
+ * @param o - Titre, séries et axes.
+ * @returns Le XML de `xl/charts/chart1.xml`.
+ *
+ * @example
+ * graphiqueXml({ titre: "'Rayon'!$A$2", series, xMin: 0, xMax: 10, xPas: 1,
+ *   formatX: '0" km"', formatY: '#,##0' });
  */
 export function graphiqueXml(o: OptionsGraphique): string {
   const legende = o.series
@@ -237,6 +252,13 @@ function ancreVml(a: AncreControle): string {
 /**
  * Le VML des contrôles. `premierId` fixe les identifiants de forme : Excel les
  * veut uniques dans le classeur, par blocs de 1 024 par dessin.
+ *
+ * @param controles - Barre de défilement et cases, dans l'ordre de dessin.
+ * @param premierId - Identifiant de la première forme.
+ * @returns Le XML de `xl/drawings/vmlDrawing1.vml`.
+ *
+ * @example
+ * vmlControles([{ type: 'case', ancre, lien: '$Z$20', texte: 'Explosibles', cochee: true }]);
  */
 export function vmlControles(controles: Controle[], premierId = 1025): string {
   const formes = controles.map((c, i) => {
@@ -298,7 +320,20 @@ const APRES_DESSIN = [
   '<webPublishItems', '<tableParts', '<extLst', '</worksheet>',
 ];
 
-/** Insère `<drawing>` et `<legacyDrawing>` à leur place dans le XML d'une feuille. */
+/**
+ * Insère `<drawing>` et `<legacyDrawing>` à leur place dans le XML d'une feuille.
+ *
+ * @param feuille - Le XML de la feuille, tel qu'exceljs l'a écrit.
+ * @param idDessin - Identifiant de relation du dessin (graphique).
+ * @param idVml - Identifiant de relation du VML (contrôles).
+ * @returns Le XML complété, préfixe `r:` déclaré.
+ * @throws {Error} Si la feuille porte déjà un dessin : l'écraser ferait
+ *   disparaître celui d'exceljs sans le dire.
+ *
+ * @example
+ * insererBalisesDessin('<worksheet xmlns:r="…"><sheetData/></worksheet>', 'rA', 'rB');
+ * // '<worksheet …><sheetData/><drawing r:id="rA"/><legacyDrawing r:id="rB"/></worksheet>'
+ */
 export function insererBalisesDessin(feuille: string, idDessin: string, idVml: string): string {
   if (/<drawing\b|<legacyDrawing\b/.test(feuille)) {
     throw new Error('La feuille porte déjà un dessin : l’injection écraserait celui d’exceljs.');
@@ -344,7 +379,15 @@ function ajouterRelations(existantes: string | null, ajouts: Array<{ id: string;
   return existantes.replace('</Relationships>', lignes + '</Relationships>');
 }
 
-/** Ajoute les types de contenu des nouvelles parties, sans doublon. */
+/**
+ * Ajoute les types de contenu des nouvelles parties, sans doublon.
+ *
+ * @param types - Le XML de `[Content_Types].xml`.
+ * @returns Le XML complété ; rejouer la fonction ne change plus rien.
+ *
+ * @example
+ * completerTypes('<Types></Types>'); // + vml, drawing1.xml, chart1.xml
+ */
 export function completerTypes(types: string): string {
   let t = types;
   if (!/Extension="vml"/.test(t)) {
@@ -377,7 +420,13 @@ export interface Injection {
  * @param classeur - Le .xlsx d'exceljs.
  * @param i - Ce qu'il faut ajouter, et où.
  * @returns Le .xlsx complété.
- * @throws Si la feuille est absente ou porte déjà un dessin.
+ * @throws {Error} Si la feuille est absente, ou si le classeur ou la
+ *   feuille porte déjà un dessin (les noms de parties entreraient en collision).
+ *
+ * @example
+ * const xlsx = await injecter(await wb.xlsx.writeBuffer(), {
+ *   feuille: 'Rayon', graphique, ancreGraphique, controles,
+ * });
  */
 export async function injecter(classeur: Buffer | ArrayBuffer, i: Injection): Promise<Buffer> {
   const zip = await JSZip.loadAsync(classeur);
