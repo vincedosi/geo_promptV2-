@@ -38,7 +38,10 @@
           }
         },
         "test": {
-          "builder": "@angular/build:unit-test"
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "buildTarget": "magelian:esbuild:development"
+          }
         },
         "esbuild": {
           "builder": "@angular/build:application",
@@ -59,7 +62,9 @@
                 "inject": false
               }
             ],
-            "polyfills": ["es-module-shims"]
+            "polyfills": [
+              "es-module-shims"
+            ]
           },
           "configurations": {
             "production": {
