@@ -22,6 +22,10 @@ export const remoteRoutes: Routes = [
         path: 'catalogue',
         loadComponent: () => import('./features/catalogue/catalogue.page').then((m) => m.CataloguePage),
       },
+      {
+        path: 'essai-carte',
+        loadComponent: () => import('./features/essai-carte/essai-carte.page').then((m) => m.EssaiCartePage),
+      },
     ],
   },
 ];

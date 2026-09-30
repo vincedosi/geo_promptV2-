@@ -1,0 +1,35 @@
+<div class="flex flex-col">
+  <mg-barre-progression />
+  <div class="p-6 flex flex-col gap-4">
+    <header>
+      <h1 class="text-lg font-medium text-primary">Essai carte</h1>
+      <p class="text-xs text-tertiary">Zones de risque, sites et courbe de couverture, sur les vraies données.</p>
+    </header>
+
+    @if (erreurCarte(); as message) {
+      <p role="alert" class="text-xs text-danger">{{ message }}</p>
+    }
+    <mg-carte [cadre]="cadre" (prete)="surCartePrete($event)" (erreur)="erreurCarte.set($event)"
+              class="block h-[520px] w-full border border-subtle" />
+    @if (erreurZones(); as message) {
+      <p role="alert" class="text-xs text-danger">{{ message }}</p>
+    }
+    @if (erreurSites(); as message) {
+      <p role="alert" class="text-xs text-danger">{{ message }}</p>
+    }
+
+    @if (erreurCourbe(); as message) {
+      <p role="alert" class="text-xs text-danger">{{ message }}</p>
+    } @else {
+      <div class="flex gap-8">
+        <mg-kpi libelle="Habitants à moins de 5 km" [valeur]="habitants5km()"
+                note="Pré-calcul carroyé INSEE, seuil haut seul" />
+        <mg-kpi libelle="Sites Seveso seuil haut" [valeur]="nbSites()"
+                note="Pré-calcul carroyé INSEE, seuil haut seul" />
+      </div>
+      <mg-courbe libelle="Population couverte selon le rayon autour des sites Seveso seuil haut"
+                 [series]="series()" [formaterX]="formaterX" [formaterY]="formaterY"
+                 [repere]="repere" [domaineX]="domaineX()" />
+    }
+  </div>
+</div>

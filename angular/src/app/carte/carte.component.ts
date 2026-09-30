@@ -36,7 +36,9 @@ import { FABRIQUE_CARTE, FOND_POSITRON } from './fabrique-carte';
 @Component({
   selector: 'mg-carte',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: '<div #conteneur class="absolute inset-0"></div>',
+  // `h-full w-full` en plus de `inset-0` : `.maplibregl-map` impose `position: relative` (feuille
+  // chargée après Tailwind), ce qui annule `inset-0` — la carte gardait 300 px de haut.
+  template: '<div #conteneur class="absolute inset-0 h-full w-full"></div>',
   host: { class: 'block relative' },
 })
 export class CarteComponent {

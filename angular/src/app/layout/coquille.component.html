@@ -12,6 +12,10 @@
        class="px-4 py-2 text-[13px] text-secondary border-l-2 border-transparent">
       Catalogue
     </a>
+    <a routerLink="/essai-carte" routerLinkActive="bg-overlay text-primary border-l-2 border-primary"
+       class="px-4 py-2 text-[13px] text-secondary border-l-2 border-transparent">
+      Essai carte
+    </a>
     <div class="mt-auto px-4 py-3 border-t border-subtle flex flex-col gap-2">
       <span class="font-mono text-[11px] text-tertiary truncate">{{ email() }}</span>
       <button type="button" (click)="theme.basculer()"
