@@ -10,7 +10,7 @@
       <p role="alert" class="text-xs text-danger">{{ message }}</p>
     }
     <mg-carte [cadre]="cadre" (prete)="surCartePrete($event)" (erreur)="erreurCarte.set($event)"
-              class="block h-[520px] w-full border border-subtle" />
+              class="block h-[520px] w-full border-fin border-subtle" />
     @if (erreurZones(); as message) {
       <p role="alert" class="text-xs text-danger">{{ message }}</p>
     }

@@ -1,12 +1,12 @@
 <main class="min-h-full flex items-center justify-center bg-page">
   @if (demarrage.erreur(); as message) {
     <!-- Démarrage en échec : un formulaire ne pourrait rien faire, on dit pourquoi. -->
-    <div class="w-80 flex flex-col gap-4 bg-surface border border-subtle rounded-lg p-6">
+    <div class="w-80 flex flex-col gap-4 bg-surface border-fin border-subtle rounded-lg p-6">
       <mg-logo class="h-5 self-start" />
       <p role="alert" class="text-sm text-danger">{{ message }}</p>
     </div>
   } @else {
-    <form class="w-80 flex flex-col gap-4 bg-surface border border-subtle rounded-lg p-6"
+    <form class="w-80 flex flex-col gap-4 bg-surface border-fin border-subtle rounded-lg p-6"
           (ngSubmit)="envoyer()">
       <mg-logo class="h-5 self-start" />
       <h1 class="text-lg font-medium text-primary">Connexion</h1>
@@ -14,14 +14,14 @@
       <label class="flex flex-col gap-1 text-xs text-tertiary">
         Adresse e-mail
         <input type="email" name="email" autocomplete="username" required
-               class="bg-elevated border border-subtle rounded-md px-3 py-2 text-[13px] text-primary"
+               class="bg-elevated border-fin border-subtle rounded-md px-3 py-2 text-[13px] text-primary"
                [ngModel]="email()" (ngModelChange)="email.set($event)" />
       </label>
 
       <label class="flex flex-col gap-1 text-xs text-tertiary">
         Mot de passe
         <input type="password" name="motDePasse" autocomplete="current-password" required
-               class="bg-elevated border border-subtle rounded-md px-3 py-2 text-[13px] text-primary"
+               class="bg-elevated border-fin border-subtle rounded-md px-3 py-2 text-[13px] text-primary"
                [ngModel]="motDePasse()" (ngModelChange)="motDePasse.set($event)" />
       </label>
 

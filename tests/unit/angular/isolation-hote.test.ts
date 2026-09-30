@@ -83,3 +83,35 @@ describe(":host — ce que le shell ne peut plus changer dans MAGELIAN", () => {
     expect([...hote.keys()].filter((p) => p.startsWith('--'))).toEqual([]);
   });
 });
+
+describe('base globale alignée sur React (lot Rendu, R0)', () => {
+  it('le lissage des polices est `antialiased` (G1), en !important comme les autres héritées', () => {
+    expect(regle(':host').get('-webkit-font-smoothing')).toBe('antialiased !important');
+  });
+
+  it('la sélection est teal à 20 % (G3) et la barre de défilement fait 6 px (G2), sur des sélecteurs universels', () => {
+    expect(regle('::selection').get('background')).toBe('rgba(78, 205, 196, 0.2)');
+    expect(regle('::-webkit-scrollbar').get('width')).toBe('6px');
+    expect(regle('::-webkit-scrollbar').get('height')).toBe('6px');
+    expect(regle('::-webkit-scrollbar-thumb').get('background')).toBe('var(--border-default)');
+    expect(regle('::-webkit-scrollbar-thumb:hover').get('background')).toBe('var(--border-hover)');
+  });
+
+  it('le changement de thème est adouci sur :host (G5)', () => {
+    expect(regle(':host').get('transition')).toContain('background-color 200ms');
+  });
+
+  it('les utilitaires de bord fin valent 0,5 px (DESIGN_SYSTEM § 7.8)', () => {
+    for (const [nom, propriete] of [
+      ['border-fin', 'border-width'],
+      ['border-t-fin', 'border-top-width'],
+      ['border-b-fin', 'border-bottom-width'],
+      ['border-l-fin', 'border-left-width'],
+      ['border-r-fin', 'border-right-width'],
+    ]) {
+      const m = CSS.match(new RegExp(String.raw`@utility ${nom}\s*\{([^}]*)\}`));
+      expect(m, `@utility ${nom} absent`).not.toBeNull();
+      expect(m![1]).toContain(`${propriete}: 0.5px`);
+    }
+  });
+});

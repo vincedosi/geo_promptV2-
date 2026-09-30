@@ -121,9 +121,11 @@
   paint-order: normal !important;
   -webkit-text-fill-color: currentcolor !important;
   -webkit-text-stroke: 0 currentcolor !important;
-  -webkit-font-smoothing: auto !important;
+  -webkit-font-smoothing: antialiased !important;
   pointer-events: auto !important;
   -webkit-tap-highlight-color: initial !important;
+  /* G5 : bascule de thème adoucie, comme `html, body` côté React (globals.css:407). Non héritée : normale. */
+  transition: background-color 200ms var(--ease-out), color 200ms var(--ease-out);
 }
 
 :host(.light) {
@@ -133,6 +135,52 @@
 :focus-visible {
   outline: 1px solid var(--brand-teal-50);
   outline-offset: 1px;
+}
+
+/*
+ * Sélection et barres de défilement (G3, G2 — portés de app/globals.css:410-431).
+ * Sélecteurs universels : dans une feuille ADOPTÉE ils s'appliquent aux éléments
+ * de la racine d'ombre qui l'adopte (mesuré au navigateur, R0), donc à tout MAGELIAN.
+ */
+::selection {
+  background: rgba(78, 205, 196, 0.2);
+  color: var(--text-primary);
+}
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}
+
+/*
+ * Bords 0,5 px (DESIGN_SYSTEM § 7.8 : « jamais 1px sauf les séparateurs de
+ * section »). `border` de Tailwind vaut 1 px ; ces utilitaires valent 0,5 px et
+ * ne posent QUE l'épaisseur, la couleur restant celle de `border-subtle` /
+ * `border-default` / `border-hover`. Le style `solid` vient du préflight Tailwind.
+ */
+@utility border-fin {
+  border-width: 0.5px;
+}
+@utility border-t-fin {
+  border-top-width: 0.5px;
+}
+@utility border-b-fin {
+  border-bottom-width: 0.5px;
+}
+@utility border-l-fin {
+  border-left-width: 0.5px;
+}
+@utility border-r-fin {
+  border-right-width: 0.5px;
 }
 
 /*
