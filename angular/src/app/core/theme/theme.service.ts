@@ -31,29 +31,30 @@ function themeDeLaClasse(doc: Document, strict: boolean): Theme | null {
 /**
  * Le thème courant. Les jetons clairs vivent sous `html.light` (styles/jetons.css).
  *
- * RÈGLE : **le shell peut poser la classe, MAGELIAN la suit ; MAGELIAN ne la
- * pose que quand son utilisateur bascule.** Dans le shell AIDA, l'hôte possède
- * `<html>` et peut changer `light`/`dark` quand il veut. Un `MutationObserver`
- * (attributeFilter `class`) recopie donc cette classe dans `theme` ET
- * `themeApplique`, pour que les couleurs calculées (carte, courbes) se repeignent.
- * Ce choix venant de l'hôte n'est PAS écrit dans `localStorage` : ce n'est pas
- * la préférence de l'utilisateur de MAGELIAN.
+ * RÈGLE DE PROPRIÉTÉ : **le shell peut poser la classe, MAGELIAN la suit.**
+ * MAGELIAN n'écrit `<html>` (classes ET `style.colorScheme`) que dans DEUX cas :
+ *  (a) son utilisateur bascule, via `basculer()` ;
+ *  (b) au tout premier passage, quand `<html>` ne porte NI `light` NI `dark`
+ *      (autonome sans script inline, ou tests).
+ * Dans tous les autres cas il suit et n'écrit rien : changement externe,
+ * démarrage avec une seule classe (l'hôte a tranché) ou avec les deux (repli
+ * sur le stockage pour `theme`, mais aucune classe de l'hôte n'est retirée).
  *
- * ⚠ Origine du choix, sans drapeau à consommer : `themeUtilisateur` ne vaut
- * quelque chose que si le dernier changement vient de `basculer()`. L'`effect`
- * n'écrit dans le stockage que si `theme === themeUtilisateur`. Un changement
- * externe remet `themeUtilisateur` à null — ça marche que l'`effect` tourne
- * avant ou après l'observateur, et ça n'avale pas une bascule ultérieure.
+ * Un `MutationObserver` (attributeFilter `class`) recopie la classe de l'hôte
+ * dans `theme` ET `themeApplique`, pour que les couleurs calculées (carte,
+ * courbes) se repeignent. Lecture = ce que le CSS rend (jetons.css n'a que
+ * `:root`, sombre, et `html.light`) : `light` présente -> clair, sinon sombre ;
+ * classe absente -> sombre, les deux -> clair. `color-scheme` reste à l'hôte.
  *
- * Lecture de la classe = ce que le CSS rend réellement (jetons.css n'a que
- * `:root`, sombre, et `html.light`) : `light` présente -> clair, sinon sombre.
- * Classe absente -> sombre ; les deux ensemble -> clair. Jamais persisté.
+ * Persistance : seul un geste de l'utilisateur de MAGELIAN est écrit dans
+ * `localStorage`. `themeUtilisateur` n'est renseigné que par `basculer()` ; l'effect
+ * n'écrit que si `theme` lui est égal. Pas de drapeau « consommé une fois » :
+ * tout changement externe le vide, donc il n'a jamais besoin d'être remis à null
+ * après une écriture. `ecrireHtml` (a et b) fonctionne pareil : il est levé par
+ * `basculer()` ou au démarrage, et retombé par l'effect qui écrit.
  *
  * Au DÉMARRAGE, le thème initial vient de `<html>` quand UNE SEULE des deux
- * classes y est (l'hôte a déjà tranché : sans cela, notre premier passage
- * d'`effect` écraserait son thème par celui de notre stockage). Sinon — aucune
- * classe, ou les deux — on est en autonome avant le script inline, ou dans un
- * cas ambigu : repli sur le stockage. Un thème repris de l'hôte n'est pas persisté.
+ * classes y est ; sinon repli sur le stockage.
  *
  * Un script inline dans `index.html` pose déjà la classe et `color-scheme`
  * AVANT ce service (sinon fond sombre/blanc le temps du démarrage) ; ce service
@@ -74,6 +75,9 @@ export class ThemeService {
    * n'écrit que si `theme` lui est égal.
    */
   private themeUtilisateur: Theme | null = null;
+  /** Autorise l'effect à écrire classes et color-scheme sur `<html>` : cas (a) et (b) de la JSDoc. */
+  private ecrireHtml = !this.doc.documentElement.classList.contains('light')
+    && !this.doc.documentElement.classList.contains('dark');
 
   readonly theme = this._theme.asReadonly();
   /**
@@ -86,11 +90,14 @@ export class ThemeService {
     effect(() => {
       const t = this._theme();
       const racine = this.doc.documentElement;
-      racine.classList.toggle('light', t === 'light');
-      racine.classList.toggle('dark', t === 'dark');
-      // Sans cela, une bascule laisse des barres de défilement et des champs
-      // de formulaire dans l'ancien thème.
-      racine.style.colorScheme = t;
+      if (this.ecrireHtml) {
+        this.ecrireHtml = false;
+        racine.classList.toggle('light', t === 'light');
+        racine.classList.toggle('dark', t === 'dark');
+        // Sans cela, une bascule laisse des barres de défilement et des champs
+        // de formulaire dans l'ancien thème.
+        racine.style.colorScheme = t;
+      }
       if (t === this.themeUtilisateur) {
         try {
           this.stockage?.setItem(CLE_THEME, t);
@@ -113,6 +120,7 @@ export class ThemeService {
   basculer(): void {
     const suivant = themeSuivant(this._theme());
     this.themeUtilisateur = suivant;
+    this.ecrireHtml = true;
     this._theme.set(suivant);
   }
 
@@ -123,6 +131,5 @@ export class ThemeService {
     this.themeUtilisateur = null;
     this._theme.set(pose);
     this._themeApplique.set(pose); // la classe est DÉJÀ là : les couleurs sont justes tout de suite
-    this.doc.documentElement.style.colorScheme = pose;
   }
 }

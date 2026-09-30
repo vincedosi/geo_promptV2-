@@ -6,6 +6,7 @@ describe('ThemeService', () => {
   beforeEach(() => {
     localStorage.clear();
     document.documentElement.className = '';
+    document.documentElement.style.colorScheme = '';
   });
 
   it('pose la classe du thème sur <html>', () => {
@@ -93,7 +94,7 @@ describe('ThemeService', () => {
       await imposer(['dark'], ['light']);
       expect(service.theme()).toBe('light');
       expect(service.themeApplique()).toBe('light');
-      expect(document.documentElement.style.colorScheme).toBe('light');
+      expect(document.documentElement.style.colorScheme).toBe('dark'); // posé au démarrage autonome, l'hôte le tient ensuite
     });
 
     it("ne mémorise pas un thème imposé par le shell", async () => {
@@ -147,19 +148,27 @@ describe('ThemeService', () => {
       TestBed.tick();
       await imposer(['dark'], ['light']);
       expect(service.theme()).toBe('light');
+      const schema = document.documentElement.style.colorScheme;
       await imposer(['light'], []); // plus aucune classe
       expect(service.theme()).toBe('dark');
       expect(service.themeApplique()).toBe('dark');
       expect(localStorage.getItem(CLE_THEME)).toBeNull();
+      // L'hôte a retiré la classe exprès : on ne la lui remet pas, ni color-scheme.
+      expect(document.documentElement.className).toBe('');
+      expect(document.documentElement.style.colorScheme).toBe(schema);
     });
 
     it("les deux classes à la fois : la page rend clair, on suit, sans rien écrire", async () => {
       const service = TestBed.inject(ThemeService);
       TestBed.tick();
+      const schema = document.documentElement.style.colorScheme;
       await imposer([], ['light']); // dark + light
       expect(service.theme()).toBe('light');
       expect(service.themeApplique()).toBe('light');
       expect(localStorage.getItem(CLE_THEME)).toBeNull();
+      // On ne retire pas le `dark` de l'hôte, et on ne touche pas color-scheme.
+      expect([...document.documentElement.classList].sort()).toEqual(['dark', 'light']);
+      expect(document.documentElement.style.colorScheme).toBe(schema);
     });
 
     it("débranche l'observateur à la destruction de l'injecteur", async () => {
@@ -191,7 +200,7 @@ describe('ThemeService', () => {
           expect(service.theme()).toBe('light');
           expect(service.themeApplique()).toBe('light');
           expect(document.documentElement.className).toBe('light');
-          expect(document.documentElement.style.colorScheme).toBe('light');
+          expect(document.documentElement.style.colorScheme).toBe('');
           expect(espion).not.toHaveBeenCalled();
         } finally {
           espion.mockRestore();
@@ -212,6 +221,30 @@ describe('ThemeService', () => {
       const service = TestBed.inject(ThemeService);
       TestBed.tick();
       expect(service.theme()).toBe('dark');
+      expect([...document.documentElement.classList].sort()).toEqual(['dark', 'light']);
     });
+
+    it("un thème posé par l'hôte n'est jamais réécrit sur <html> (classes et color-scheme)", () => {
+      document.documentElement.className = 'light';
+      TestBed.inject(ThemeService);
+      TestBed.tick();
+      expect(document.documentElement.style.colorScheme).toBe('');
+    });
+  });
+
+  it("une bascule de l'utilisateur écrit classe, color-scheme et stockage, une seule fois", () => {
+    const espion = vi.spyOn(Storage.prototype, 'setItem');
+    try {
+      const service = TestBed.inject(ThemeService);
+      TestBed.tick(); // démarrage autonome : classe et color-scheme posés, rien mémorisé
+      espion.mockClear();
+      service.basculer();
+      TestBed.tick();
+      expect(document.documentElement.className).toBe('light');
+      expect(document.documentElement.style.colorScheme).toBe('light');
+      expect(espion).toHaveBeenCalledTimes(1);
+    } finally {
+      espion.mockRestore();
+    }
   });
 });
