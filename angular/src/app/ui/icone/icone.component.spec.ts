@@ -6,13 +6,20 @@ import { ICONES, type NomIcone } from './icones';
 
 @Component({
   imports: [IconeComponent],
-  template: `<mg-icone [nom]="nom()" [taille]="taille()" [trait]="trait()" [libelle]="libelle()" />`,
+  template: `<mg-icone [nom]="nom()" [libelle]="libelle()" />`,
 })
 class HoteComponent {
   readonly nom = signal<NomIcone>('calques');
-  readonly taille = signal(16);
-  readonly trait = signal(1.5);
   readonly libelle = signal<string | undefined>(undefined);
+}
+
+@Component({
+  imports: [IconeComponent],
+  template: `<mg-icone nom="calques" [taille]="taille()" [trait]="trait()" />`,
+})
+class HoteAvecPropsComponent {
+  readonly taille = signal(24);
+  readonly trait = signal(2);
 }
 
 function monter() {
@@ -25,8 +32,8 @@ function monter() {
 describe('mg-icone', () => {
   const noms = Object.keys(ICONES) as NomIcone[];
 
-  it('porte les 24 tracés recensés dans les écrans React du lot', () => {
-    expect(noms.length).toBe(24);
+  it('porte les 27 tracés recensés dans les écrans React du lot', () => {
+    expect(noms.length).toBe(27);
   });
 
   it.each(noms)('rend « %s » en svg lucide 24 × 24', (nom) => {
@@ -39,24 +46,34 @@ describe('mg-icone', () => {
     expect(s.getAttribute('stroke')).toBe('currentColor');
     expect(s.getAttribute('stroke-linecap')).toBe('round');
     expect(s.getAttribute('stroke-linejoin')).toBe('round');
-    expect(s.children.length).toBe(ICONES[nom].length);
+    expect(s.children.length).toBe(ICONES[nom].el.length);
     expect(s.namespaceURI).toBe('http://www.w3.org/2000/svg');
     for (const enfant of Array.from(s.children)) {
       expect(enfant.namespaceURI).toBe('http://www.w3.org/2000/svg');
     }
   });
 
-  it('applique la taille et le trait (1,5 par défaut)', () => {
-    const { fixture, svg } = monter();
-    expect(svg().getAttribute('width')).toBe('16');
-    expect(svg().getAttribute('height')).toBe('16');
-    expect(svg().getAttribute('stroke-width')).toBe('1.5');
-    fixture.componentInstance.taille.set(20);
-    fixture.componentInstance.trait.set(1.75);
+  it('reprend les défauts de lucide : 24 px, trait 2', () => {
+    const { svg } = monter();
+    expect(svg().getAttribute('width')).toBe('24');
+    expect(svg().getAttribute('height')).toBe('24');
+    expect(svg().getAttribute('stroke-width')).toBe('2');
+  });
+
+  it('applique la taille et le trait passés, comme les props React', () => {
+    const fixture = TestBed.createComponent(HoteAvecPropsComponent);
+    fixture.componentInstance.taille.set(16);
+    fixture.componentInstance.trait.set(1.5);
     fixture.detectChanges();
-    expect(svg().getAttribute('width')).toBe('20');
-    expect(svg().getAttribute('height')).toBe('20');
-    expect(svg().getAttribute('stroke-width')).toBe('1.75');
+    const svg = fixture.nativeElement.querySelector('svg') as SVGElement;
+    expect(svg.getAttribute('width')).toBe('16');
+    expect(svg.getAttribute('height')).toBe('16');
+    expect(svg.getAttribute('stroke-width')).toBe('1.5');
+  });
+
+  it("ne pose pas shrink-0 sur l'hôte (lucide émet un svg nu)", () => {
+    const { fixture } = monter();
+    expect((fixture.nativeElement.querySelector('mg-icone') as HTMLElement).classList.contains('shrink-0')).toBe(false);
   });
 
   it('est décorative par défaut', () => {

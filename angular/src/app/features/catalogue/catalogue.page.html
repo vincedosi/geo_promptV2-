@@ -52,12 +52,15 @@
   </div>
 
   <div class="flex flex-col gap-3">
-    <h2 class="text-xs font-medium text-primary">Icônes</h2>
-    <div class="grid grid-cols-[auto_repeat(3,auto)] gap-x-6 gap-y-2 items-center text-secondary w-fit" data-testid="planche-icones">
+    <h2 class="text-xs font-medium text-primary">Icônes (14, 16 et 20 px : trait 1,5 comme la barre latérale React, puis trait 2, défaut lucide)</h2>
+    <div class="grid grid-cols-[auto_repeat(6,auto)] gap-x-6 gap-y-2 items-center text-secondary w-fit" data-testid="planche-icones">
       @for (nom of iconesPortees; track nom) {
         <span class="font-mono text-[11px] text-tertiary">{{ nom }}</span>
         @for (t of taillesIcones; track t) {
-          <mg-icone [nom]="nom" [taille]="t" />
+          <mg-icone [nom]="nom" [taille]="t" [trait]="1.5" />
+        }
+        @for (t of taillesIcones; track t) {
+          <mg-icone [nom]="nom" [taille]="t" [trait]="2" />
         }
       }
     </div>
