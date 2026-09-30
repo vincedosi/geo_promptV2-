@@ -1,10 +1,6 @@
-import { bootstrapApplication } from '@angular/platform-browser';
-import { appConfig } from './app/app.config';
-import { App } from './app/app';
-import { afficherErreurDemarrage } from './app/core/demarrage/erreur-demarrage';
+import { initFederation } from '@angular-architects/native-federation';
 
-bootstrapApplication(App, appConfig)
-  .catch((err) => {
-    console.error(err);
-    afficherErreurDemarrage(err, document);
-  });
+initFederation()
+  .catch((err) => console.error(err))
+  .then((_) => import('./bootstrap'))
+  .catch((err) => console.error(err));

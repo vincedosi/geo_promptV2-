@@ -13,15 +13,18 @@
   "private": true,
   "packageManager": "npm@10.8.2",
   "dependencies": {
+    "@angular-architects/native-federation": "21.2.1",
     "@angular/common": "21.2.4",
     "@angular/compiler": "21.2.4",
     "@angular/core": "21.2.4",
     "@angular/forms": "21.2.4",
     "@angular/platform-browser": "21.2.4",
     "@angular/router": "21.2.4",
+    "@softarc/native-federation-node": "^3.3.4",
     "@supabase/ssr": "0.5.2",
     "@supabase/supabase-js": "2.97.0",
     "echarts": "6.1.0",
+    "es-module-shims": "^1.5.12",
     "maplibre-gl": "5.18.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
