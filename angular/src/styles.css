@@ -36,6 +36,7 @@
   --color-teal-hover: var(--brand-teal-hover);
   --color-teal-10: var(--brand-teal-10);
   --color-teal-fg: var(--brand-teal-fg);
+  --color-logo-accent: var(--logo-accent);
   --color-danger: var(--danger);
   --color-warning: var(--warning);
   --color-success: var(--success);
@@ -85,7 +86,9 @@
   font-size-adjust: none !important;
   font-synthesis: weight style small-caps !important;
   font-optical-sizing: auto !important;
-  line-height: 1.6 !important;
+  /* 1,5 : le rendu EFFECTIF de React (préflight Tailwind ; globals.css n'en pose aucun). DESIGN_SYSTEM §4
+     annonce 1,6 pour le corps : la parité avec React l'emporte. */
+  line-height: 1.5 !important;
   letter-spacing: normal !important;
   word-spacing: normal !important;
   text-transform: none !important;
