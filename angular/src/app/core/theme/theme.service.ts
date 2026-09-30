@@ -50,8 +50,10 @@ function themeDeLaClasse(doc: Document, strict: boolean): Theme | null {
  * `localStorage`. `themeUtilisateur` n'est renseigné que par `basculer()` ; l'effect
  * n'écrit que si `theme` lui est égal. Pas de drapeau « consommé une fois » :
  * tout changement externe le vide, donc il n'a jamais besoin d'être remis à null
- * après une écriture. `ecrireHtml` (a et b) fonctionne pareil : il est levé par
- * `basculer()` ou au démarrage, et retombé par l'effect qui écrit.
+ * après une écriture. `ecrireHtml` (a et b) est levé par `basculer()` ou au
+ * démarrage ; il retombe quand l'effect écrit, OU dès qu'un changement externe
+ * arrive avant lui (l'hôte gagne : sa classe n'est jamais écrasée, et le geste
+ * de l'utilisateur supplanté n'est pas mémorisé non plus).
  *
  * Au DÉMARRAGE, le thème initial vient de `<html>` quand UNE SEULE des deux
  * classes y est ; sinon repli sur le stockage.
@@ -127,8 +129,12 @@ export class ThemeService {
   /** Rappel de l'observateur : recopie la classe de `<html>` (règle du CSS) si elle est nouvelle. */
   private suivreLaClasse(): void {
     const pose = themeDeLaClasse(this.doc, false)!;
-    if (pose === this._theme()) return; // c'est notre propre pose (basculer, effect) : rien à faire
+    // Drapeau armé = l'effect n'a pas encore écrit : la mutation ne peut être que celle de l'hôte,
+    // même si elle donne le même thème que le nôtre (l'effect écraserait sinon ses classes).
+    const externe = this.ecrireHtml;
+    if (pose === this._theme() && !externe) return; // notre propre pose (l'effect a écrit) : rien à faire
     this.themeUtilisateur = null;
+    this.ecrireHtml = false; // un changement externe désarme aussi l'écriture (bascule ou démarrage pas encore passés par l'effect)
     this._theme.set(pose);
     this._themeApplique.set(pose); // la classe est DÉJÀ là : les couleurs sont justes tout de suite
   }

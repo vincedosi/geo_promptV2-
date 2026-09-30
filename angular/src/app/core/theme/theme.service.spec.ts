@@ -171,6 +171,33 @@ describe('ThemeService', () => {
       expect(document.documentElement.style.colorScheme).toBe(schema);
     });
 
+    it("bascule PUIS l'hôte retire toute classe avant l'effect : l'hôte gagne, rien n'est réécrit ni mémorisé", async () => {
+      const service = TestBed.inject(ThemeService);
+      TestBed.tick(); // démarrage autonome : classe dark et color-scheme posés
+      const schema = document.documentElement.style.colorScheme;
+      service.basculer(); // drapeau d'écriture armé, effect pas encore passé
+      document.documentElement.classList.remove('dark');
+      await Promise.resolve(); // l'observateur voit l'absence de classe -> dark
+      TestBed.tick();
+      expect(service.theme()).toBe('dark');
+      expect(document.documentElement.className).toBe('');
+      expect(document.documentElement.style.colorScheme).toBe(schema);
+      // Le geste de l'utilisateur a été supplanté avant de prendre effet : non mémorisé.
+      expect(localStorage.getItem(CLE_THEME)).toBeNull();
+    });
+
+    it("bascule PUIS l'hôte pose les deux classes avant l'effect : classes de l'hôte intactes", async () => {
+      const service = TestBed.inject(ThemeService);
+      TestBed.tick();
+      service.basculer();
+      document.documentElement.classList.add('light'); // dark + light
+      await Promise.resolve();
+      TestBed.tick();
+      expect([...document.documentElement.classList].sort()).toEqual(['dark', 'light']);
+      expect(service.theme()).toBe('light');
+      expect(localStorage.getItem(CLE_THEME)).toBeNull();
+    });
+
     it("débranche l'observateur à la destruction de l'injecteur", async () => {
       const deconnexion = vi.spyOn(MutationObserver.prototype, 'disconnect');
       try {
@@ -207,6 +234,25 @@ describe('ThemeService', () => {
         }
       });
     }
+
+    it("aucune classe au démarrage, puis l'hôte en pose une avant le premier effect : elle est respectée", async () => {
+      const service = TestBed.inject(ThemeService); // drapeau armé, effect pas encore passé
+      document.documentElement.classList.add('light');
+      await Promise.resolve();
+      TestBed.tick();
+      expect(document.documentElement.className).toBe('light');
+      expect(document.documentElement.style.colorScheme).toBe('');
+      expect(service.theme()).toBe('light');
+    });
+
+    it("aucune classe au démarrage, puis l'hôte pose les deux avant le premier effect : intactes", async () => {
+      TestBed.inject(ThemeService);
+      document.documentElement.classList.add('light', 'dark');
+      await Promise.resolve();
+      TestBed.tick();
+      expect([...document.documentElement.classList].sort()).toEqual(['dark', 'light']);
+      expect(document.documentElement.style.colorScheme).toBe('');
+    });
 
     it('aucune classe (autonome avant le script) : retombe sur le stockage', () => {
       localStorage.setItem(CLE_THEME, 'light');
