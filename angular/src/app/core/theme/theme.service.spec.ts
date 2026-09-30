@@ -140,20 +140,26 @@ describe('ThemeService', () => {
       }
     });
 
-    it("classe retirée par l'hôte : garde le thème courant, sans rien réécrire", async () => {
+    // Règle du CSS (jetons.css : `:root` sombre, `html.light` clair) : `light`
+    // présente -> clair, sinon sombre. Absente -> sombre ; les deux -> clair.
+    it("classe retirée par l'hôte : la page rend sombre, on suit, sans rien écrire", async () => {
       const service = TestBed.inject(ThemeService);
       TestBed.tick();
-      await imposer(['dark'], []);
+      await imposer(['dark'], ['light']);
+      expect(service.theme()).toBe('light');
+      await imposer(['light'], []); // plus aucune classe
       expect(service.theme()).toBe('dark');
+      expect(service.themeApplique()).toBe('dark');
       expect(localStorage.getItem(CLE_THEME)).toBeNull();
     });
 
-    it("les deux classes à la fois : ambigu, garde le thème courant", async () => {
+    it("les deux classes à la fois : la page rend clair, on suit, sans rien écrire", async () => {
       const service = TestBed.inject(ThemeService);
       TestBed.tick();
       await imposer([], ['light']); // dark + light
-      expect(service.theme()).toBe('dark');
-      expect(service.themeApplique()).toBe('dark');
+      expect(service.theme()).toBe('light');
+      expect(service.themeApplique()).toBe('light');
+      expect(localStorage.getItem(CLE_THEME)).toBeNull();
     });
 
     it("débranche l'observateur à la destruction de l'injecteur", async () => {
@@ -170,6 +176,42 @@ describe('ThemeService', () => {
       } finally {
         deconnexion.mockRestore();
       }
+    });
+  });
+
+  describe('démarrage dans un shell dont <html> porte déjà un thème', () => {
+    for (const memorise of [null, 'dark', 'light'] as const) {
+      it(`<html class="light"> + stockage ${memorise ?? 'vide'} : prend le thème de l'hôte, ne le réécrit pas`, () => {
+        document.documentElement.className = 'light';
+        if (memorise) localStorage.setItem(CLE_THEME, memorise);
+        const espion = vi.spyOn(Storage.prototype, 'setItem');
+        try {
+          const service = TestBed.inject(ThemeService);
+          TestBed.tick();
+          expect(service.theme()).toBe('light');
+          expect(service.themeApplique()).toBe('light');
+          expect(document.documentElement.className).toBe('light');
+          expect(document.documentElement.style.colorScheme).toBe('light');
+          expect(espion).not.toHaveBeenCalled();
+        } finally {
+          espion.mockRestore();
+        }
+      });
+    }
+
+    it('aucune classe (autonome avant le script) : retombe sur le stockage', () => {
+      localStorage.setItem(CLE_THEME, 'light');
+      const service = TestBed.inject(ThemeService);
+      TestBed.tick();
+      expect(service.theme()).toBe('light');
+    });
+
+    it('les deux classes au démarrage : ambigu, retombe sur le stockage', () => {
+      document.documentElement.className = 'light dark';
+      localStorage.setItem(CLE_THEME, 'dark');
+      const service = TestBed.inject(ThemeService);
+      TestBed.tick();
+      expect(service.theme()).toBe('dark');
     });
   });
 });

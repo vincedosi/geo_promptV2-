@@ -17,6 +17,18 @@ function stockageDisponible(doc: Document): Storage | null {
 }
 
 /**
+ * Thème lu sur la classe de `<html>`. `strict` : au démarrage, on n'y croit que
+ * si exactement une des deux classes est posée (null sinon). Hors `strict`, on
+ * reproduit le CSS : `light` présente -> clair, sinon sombre.
+ */
+function themeDeLaClasse(doc: Document, strict: boolean): Theme | null {
+  const classes = doc.documentElement.classList;
+  const clair = classes.contains('light');
+  if (strict && clair === classes.contains('dark')) return null;
+  return clair ? 'light' : 'dark';
+}
+
+/**
  * Le thème courant. Les jetons clairs vivent sous `html.light` (styles/jetons.css).
  *
  * RÈGLE : **le shell peut poser la classe, MAGELIAN la suit ; MAGELIAN ne la
@@ -33,8 +45,15 @@ function stockageDisponible(doc: Document): Storage | null {
  * externe remet `themeUtilisateur` à null — ça marche que l'`effect` tourne
  * avant ou après l'observateur, et ça n'avale pas une bascule ultérieure.
  *
- * Classe absente, ou `light` ET `dark` ensemble : ambigu, on GARDE le thème
- * courant et on ne réécrit rien (on ne se bat pas avec l'hôte).
+ * Lecture de la classe = ce que le CSS rend réellement (jetons.css n'a que
+ * `:root`, sombre, et `html.light`) : `light` présente -> clair, sinon sombre.
+ * Classe absente -> sombre ; les deux ensemble -> clair. Jamais persisté.
+ *
+ * Au DÉMARRAGE, le thème initial vient de `<html>` quand UNE SEULE des deux
+ * classes y est (l'hôte a déjà tranché : sans cela, notre premier passage
+ * d'`effect` écraserait son thème par celui de notre stockage). Sinon — aucune
+ * classe, ou les deux — on est en autonome avant le script inline, ou dans un
+ * cas ambigu : repli sur le stockage. Un thème repris de l'hôte n'est pas persisté.
  *
  * Un script inline dans `index.html` pose déjà la classe et `color-scheme`
  * AVANT ce service (sinon fond sombre/blanc le temps du démarrage) ; ce service
@@ -45,9 +64,15 @@ function stockageDisponible(doc: Document): Storage | null {
 export class ThemeService {
   private readonly doc = inject(DOCUMENT);
   private readonly stockage = stockageDisponible(this.doc);
-  private readonly _theme = signal<Theme>(themeInitial(this.stockage));
-  private readonly _themeApplique = signal<Theme>(themeInitial(this.stockage));
-  /** Dernier thème demandé par l'utilisateur de MAGELIAN ; null si le dernier changement vient de l'hôte. */
+  private readonly initial = themeDeLaClasse(this.doc, true) ?? themeInitial(this.stockage);
+  private readonly _theme = signal<Theme>(this.initial);
+  private readonly _themeApplique = signal<Theme>(this.initial);
+  /**
+   * Dernier thème demandé par l'utilisateur de MAGELIAN ; null si le dernier
+   * changement vient de l'hôte (ou du démarrage). Jamais remis à null après une
+   * écriture réussie : tout changement externe le vide déjà, et l'effect
+   * n'écrit que si `theme` lui est égal.
+   */
   private themeUtilisateur: Theme | null = null;
 
   readonly theme = this._theme.asReadonly();
@@ -91,13 +116,9 @@ export class ThemeService {
     this._theme.set(suivant);
   }
 
-  /** Rappel de l'observateur : recopie la classe de `<html>` si elle est sans ambiguïté et nouvelle. */
+  /** Rappel de l'observateur : recopie la classe de `<html>` (règle du CSS) si elle est nouvelle. */
   private suivreLaClasse(): void {
-    const classes = this.doc.documentElement.classList;
-    const clair = classes.contains('light');
-    const sombre = classes.contains('dark');
-    if (clair === sombre) return; // absente ou double : on garde le thème courant
-    const pose: Theme = clair ? 'light' : 'dark';
+    const pose = themeDeLaClasse(this.doc, false)!;
     if (pose === this._theme()) return; // c'est notre propre pose (basculer, effect) : rien à faire
     this.themeUtilisateur = null;
     this._theme.set(pose);
