@@ -88,6 +88,36 @@ export class ThemeService {
    */
   readonly themeApplique = this._themeApplique.asReadonly();
 
+  /**
+   * Éléments hôtes des racines d'ombre MAGELIAN. Les jetons y vivent sous
+   * `:host` / `:host(.light)` (jetons.css) : ce service y RECOPIE la classe
+   * `light`/`dark` au moment même où il pose `themeApplique`, pour que les
+   * couleurs calculées soient justes aussitôt. Ce sont NOS éléments : la règle
+   * de propriété de `<html>` n'en est pas touchée. `:host(.light)` plutôt que
+   * `:host-context(html.light)`, que ni Firefox ni Safari n'implémentent.
+   */
+  private readonly racines = new Set<Element>();
+  private readonly _racine = signal<Element | null>(null);
+  readonly racine = this._racine.asReadonly();
+
+  /** Enregistre une racine ; rend la fonction qui la désenregistre. `racine()` = la dernière montée. */
+  enregistrerRacine(el: Element): () => void {
+    this.racines.add(el);
+    this.poserClasseRacines(this._themeApplique());
+    this._racine.set(el);
+    return () => {
+      this.racines.delete(el);
+      if (this._racine() === el) this._racine.set([...this.racines].at(-1) ?? null);
+    };
+  }
+
+  private poserClasseRacines(t: Theme): void {
+    for (const r of this.racines) {
+      r.classList.toggle('light', t === 'light');
+      r.classList.toggle('dark', t === 'dark');
+    }
+  }
+
   constructor() {
     effect(() => {
       const t = this._theme();
@@ -108,6 +138,7 @@ export class ThemeService {
           // simplement pas retenu au prochain chargement.
         }
       }
+      this.poserClasseRacines(t);
       this._themeApplique.set(t);
     });
 
@@ -136,6 +167,7 @@ export class ThemeService {
     this.themeUtilisateur = null;
     this.ecrireHtml = false; // un changement externe désarme aussi l'écriture (bascule ou démarrage pas encore passés par l'effect)
     this._theme.set(pose);
+    this.poserClasseRacines(pose);
     this._themeApplique.set(pose); // la classe est DÉJÀ là : les couleurs sont justes tout de suite
   }
 }

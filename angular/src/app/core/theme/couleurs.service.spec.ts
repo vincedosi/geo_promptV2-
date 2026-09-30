@@ -79,4 +79,47 @@ describe('CouleursService', () => {
       window.getComputedStyle = original;
     }
   });
+
+  it("lit les valeurs calculées sur l'HÔTE de la racine d'ombre enregistrée, plus sur <html>", () => {
+    const hote = document.createElement('mg-racine-distante');
+    document.body.appendChild(hote);
+    hote.style.setProperty('--essai-a', '#abcdef');
+    try {
+      const theme = TestBed.inject(ThemeService);
+      const p = TestBed.inject(CouleursService).palette({ fond: 'essai-a' });
+      TestBed.tick();
+      expect(p().fond).toBe('#112233'); // aucune racine : repli sur <html>
+      theme.enregistrerRacine(hote);
+      theme.basculer(); // relecture
+      TestBed.tick();
+      expect(p().fond).toBe('#abcdef');
+    } finally {
+      hote.remove();
+    }
+  });
+
+  it("suit un changement de classe du shell par l'hôte de la racine (`:host(.light)`)", async () => {
+    const original = window.getComputedStyle;
+    const hote = document.createElement('mg-racine-distante');
+    const lus: Element[] = [];
+    window.getComputedStyle = ((elt: Element) => {
+      lus.push(elt);
+      return { getPropertyValue: (nom: string) => (nom === '--essai-a' ? (elt.classList.contains('light') ? '#222222' : '#111111') : '') };
+    }) as typeof window.getComputedStyle;
+    try {
+      document.documentElement.className = 'dark';
+      const theme = TestBed.inject(ThemeService);
+      theme.enregistrerRacine(hote);
+      const p = TestBed.inject(CouleursService).palette({ fond: 'essai-a' });
+      TestBed.tick();
+      expect(p().fond).toBe('#111111');
+      document.documentElement.classList.replace('dark', 'light');
+      await Promise.resolve();
+      TestBed.tick();
+      expect(p().fond).toBe('#222222');
+      expect(lus.at(-1)).toBe(hote);
+    } finally {
+      window.getComputedStyle = original;
+    }
+  });
 });

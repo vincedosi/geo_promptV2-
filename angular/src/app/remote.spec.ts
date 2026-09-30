@@ -7,6 +7,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { remoteRoutes } from './app.routes';
 import { AuthService } from './core/auth/auth.service';
 import { BASE_RESSOURCES } from './core/ressources/ressource-distante';
+import { feuillesFactices, ombre, policesChargees, retirerPolices } from './core/ressources/testing/feuilles-factices';
 import { SitesRisqueApi } from './features/risques/data/sites-risque.api';
 
 /** L'application distante est servie AILLEURS que le document de l'hôte. */
@@ -36,6 +37,7 @@ function authFactice(connecte: boolean) {
 
 function hote(connecte = true) {
   const auth = authFactice(connecte);
+  const feuilles = feuillesFactices();
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
@@ -44,9 +46,10 @@ function hote(connecte = true) {
       provideHttpClientTesting(),
       { provide: AuthService, useValue: auth },
       { provide: BASE_RESSOURCES, useValue: BASE },
+      ...feuilles.providers,
     ],
   });
-  return { auth, http: TestBed.inject(HttpTestingController) };
+  return { auth, feuilles, http: TestBed.inject(HttpTestingController) };
 }
 
 const attendre = () => new Promise((r) => setTimeout(r, 0));
@@ -61,8 +64,8 @@ async function monter(connecte = true) {
   });
   const navigation = harness.navigateByUrl('/hote/magelian');
   await attendre();
-  // jsdom ne charge pas les feuilles : on joue le `load` de la feuille globale.
-  document.head.querySelector('link[data-mg-styles]')?.dispatchEvent(new Event('load'));
+  // jsdom ne charge pas les feuilles : on joue le `load` des polices (la feuille globale est lue par un faux).
+  policesChargees();
   await attendre();
   // `match` et non `expectOne` : chaque test doit échouer pour SA raison,
   // pas tous sur l'absence de requête de configuration.
@@ -75,22 +78,36 @@ async function monter(connecte = true) {
 }
 
 describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts', () => {
-  afterEach(() => document.head.querySelector('link[data-mg-styles]')?.remove());
+  afterEach(() => retirerPolices());
 
-  it("feuille globale et configuration sont lues sur l'application distante, pas sur le document de l'hôte", async () => {
-    const { http } = hote();
+  it("polices, feuille globale et configuration sont lues sur l'application distante, pas sur le document de l'hôte", async () => {
+    const { http, feuilles } = hote();
     const harness = await RouterTestingHarness.create();
     const navigation = harness.navigateByUrl('/hote/magelian');
     await attendre();
-    const lien = document.head.querySelector('link[data-mg-styles]');
-    expect(lien?.getAttribute('href')).toBe('https://distante.exemple/remotes/magelian/magelian.css');
+    const polices = document.head.querySelector('link[data-mg-polices]');
+    expect(polices?.getAttribute('href')).toBe('https://distante.exemple/remotes/magelian/magelian-polices.css');
+    expect(feuilles.lectures).toEqual(['https://distante.exemple/remotes/magelian/magelian.css']);
+    // La feuille globale n'est PAS posée dans le document de l'hôte : elle sera adoptée par la racine d'ombre.
+    expect(document.querySelector('link[href$="/magelian.css"]')).toBeNull();
     http.expectNone((r) => r.url.endsWith('config.local.json'));
-    lien!.dispatchEvent(new Event('load'));
+    polices!.dispatchEvent(new Event('load'));
     await attendre();
     http.expectOne('https://distante.exemple/remotes/magelian/config.local.json')
       .flush({ supabaseUrl: 'http://x', supabaseAnonKey: 'k', apiBaseUrl: '' });
     await navigation;
     http.match(() => true).forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
+  });
+
+  it("l'application vit dans la racine d'ombre de RacineDistanteComponent, qui adopte la feuille globale", async () => {
+    const { harness, http, feuilles } = await monter();
+    http.match('/api/risques/sites/compter').forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
+    const conteneur = harness.fixture.nativeElement as HTMLElement;
+    const racine = ombre(conteneur);
+    expect(feuilles.adoptions).toEqual([{ racine, feuille: feuilles.feuille }]);
+    // La coquille est DANS l'ombre : invisible d'un querySelector du document de l'hôte.
+    expect(racine.querySelector('mg-coquille')).not.toBeNull();
+    expect(conteneur.querySelector('mg-coquille')).toBeNull();
   });
 
   it('la configuration et la session sont chargées par la route', async () => {
@@ -109,7 +126,7 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
   it('les liens restent dans le préfixe de l\'hôte', async () => {
     const { harness, http } = await monter();
     http.match('/api/risques/sites/compter').forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
-    const racine = harness.fixture.nativeElement as HTMLElement;
+    const racine = ombre(harness.fixture.nativeElement as HTMLElement);
     const lien = [...racine.querySelectorAll('a')].find((a) => a.textContent?.trim() === 'Catalogue');
     expect(lien?.getAttribute('href')).toBe('/hote/magelian/catalogue');
     lien!.click();
@@ -144,12 +161,12 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     const harness = await RouterTestingHarness.create();
     const navigation = harness.navigateByUrl('/hote/magelian');
     await attendre();
-    document.head.querySelector('link[data-mg-styles]')?.dispatchEvent(new Event('load'));
+    policesChargees();
     await attendre();
     http.expectOne((r) => r.url.endsWith('config.local.json')).flush('absent', { status: 404, statusText: 'Not Found' });
     await navigation;
     await harness.fixture.whenStable();
-    const racine = harness.fixture.nativeElement as HTMLElement;
+    const racine = ombre(harness.fixture.nativeElement as HTMLElement);
     expect(racine.querySelector('[role="alert"]')?.textContent).toMatch(/Configuration locale introuvable.*Rechargez la page pour réessayer\.$/);
     expect(racine.querySelector('mg-coquille')).toBeNull();
     http.expectNone('/api/risques/sites/compter');
@@ -157,7 +174,7 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
 
   describe("sans session dans l'hôte (défaut racine : un message, jamais une navigation)", () => {
     const MESSAGE = 'Session requise — connectez-vous à AIDA pour accéder à MAGELIAN.';
-    const racine = (h: RouterTestingHarness) => h.fixture.nativeElement as HTMLElement;
+    const racine = (h: RouterTestingHarness) => ombre(h.fixture.nativeElement as HTMLElement);
     const appelsApi = (http: HttpTestingController) => http.match((r) => r.url.startsWith('/api/'));
 
     it("(a) affiche « Session requise », reste sur l'URL de l'hôte, ne navigue pas et ne fait aucun appel d'API", async () => {

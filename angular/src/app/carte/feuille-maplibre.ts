@@ -2,8 +2,11 @@ import { chargerFeuille } from '../core/ressources/feuilles';
 import { urlRessourceDistante } from '../core/ressources/ressource-distante';
 
 /**
- * Pose la feuille de style MapLibre dans `<head>`, une seule fois, et attend
- * qu'elle soit appliquée.
+ * Pose la feuille de style MapLibre, une seule fois par cible, et attend
+ * qu'elle soit appliquée. La cible est la racine d'ombre qui porte la carte
+ * (Isolation CSS, tâche 8 du lot AIDA : un `<link>` du document n'atteint pas
+ * une racine d'ombre ; mesuré au navigateur, le `<link>` y fonctionne), ou le
+ * document hors racine.
  *
  * `angular.json` déclare `maplibre-gl.css` avec `inject: false` : Angular
  * l'émet en `maplibre.css` dans le dossier de build, mais ne l'ajoute PAS à
@@ -17,6 +20,6 @@ import { urlRessourceDistante } from '../core/ressources/ressource-distante';
  * le document : dans le shell AIDA, `'maplibre.css'` tout court viserait le
  * dossier du shell. Rejette, en nommant le fichier, si la feuille ne charge pas.
  */
-export function chargerFeuilleMaplibre(doc: Document, base: string): Promise<void> {
-  return chargerFeuille(doc, 'data-mg-maplibre', urlRessourceDistante('maplibre.css', base));
+export function chargerFeuilleMaplibre(cible: Document | ShadowRoot, base: string): Promise<void> {
+  return chargerFeuille(cible, 'data-mg-maplibre', urlRessourceDistante('maplibre.css', base));
 }

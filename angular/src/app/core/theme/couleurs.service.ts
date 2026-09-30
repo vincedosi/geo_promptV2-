@@ -18,7 +18,9 @@ export class CouleursService {
   palette<K extends string>(jetons: Record<K, string>): Signal<Record<K, string>> {
     return computed(() => {
       this.theme.themeApplique();
-      const style = this.doc.defaultView!.getComputedStyle(this.doc.documentElement);
+      // Les jetons vivent sur l'hôte de la racine d'ombre (`:host`), plus sur <html> ;
+      // repli sur <html> tant qu'aucune racine n'est montée (specs, page hors racine).
+      const style = this.doc.defaultView!.getComputedStyle(this.theme.racine() ?? this.doc.documentElement);
       const sortie = {} as Record<K, string>;
       for (const cle of Object.keys(jetons) as K[]) {
         const nom = `--${jetons[cle]}`;

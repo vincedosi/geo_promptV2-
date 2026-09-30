@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, Injector, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Injector, ViewEncapsulation, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { cibleDeRedirection } from '../../core/auth/messages';
 import { DemarrageService } from '../../core/demarrage/demarrage.service';
+import { monterRacineOmbre } from '../../layout/racine-ombre';
 import { LogoComponent } from '../../ui/logo/logo.component';
 
 @Component({
@@ -11,6 +12,10 @@ import { LogoComponent } from '../../ui/logo/logo.component';
   imports: [FormsModule, LogoComponent],
   templateUrl: './connexion.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Lancement autonome seulement, HORS de RacineDistanteComponent : elle porte
+  // donc sa propre racine d'ombre, pour que l'application n'ait qu'un chemin de
+  // style (la feuille adoptée), dans les deux modes.
+  encapsulation: ViewEncapsulation.ShadowDom,
 })
 export class ConnexionPage {
   // AuthService n'est PAS injecté à la construction : démarrage en échec, son
@@ -23,6 +28,10 @@ export class ConnexionPage {
 
   protected readonly email = signal('');
   protected readonly motDePasse = signal('');
+
+  constructor() {
+    monterRacineOmbre();
+  }
   protected readonly erreur = signal<string | null>(null);
   protected readonly enCours = signal(false);
 

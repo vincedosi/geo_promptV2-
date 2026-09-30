@@ -14,10 +14,22 @@ import path from 'node:path';
 
 const RACINE = path.resolve(__dirname, '../../..');
 
-/** Les déclarations `--nom: valeur;` du PREMIER bloc qui suit `selecteur {`. */
+/**
+ * La liste de sélecteurs du PREMIER bloc dont la liste contient `selecteur`
+ * (`:root {` côté React, `:root, :host {` côté Angular — Isolation CSS).
+ */
+function trouver(css: string, selecteur: string): { debut: number; liste: string[] } {
+  const sansCommentaires = css.replace(/\/\*[\s\S]*?\*\//g, (c) => ' '.repeat(c.length));
+  for (const m of sansCommentaires.matchAll(/(^|[}\s])([^{};]+)\{/g)) {
+    const liste = m[2].split(',').map((x) => x.trim());
+    if (liste.includes(selecteur)) return { debut: m.index! + m[1].length, liste };
+  }
+  throw new Error(`bloc ${selecteur} introuvable`);
+}
+
+/** Les déclarations `--nom: valeur;` du PREMIER bloc dont la liste de sélecteurs contient `selecteur`. */
 function bloc(css: string, selecteur: string): Map<string, string> {
-  const debut = css.indexOf(`${selecteur} {`);
-  if (debut < 0) throw new Error(`bloc ${selecteur} introuvable`);
+  const { debut } = trouver(css, selecteur);
   let profondeur = 0;
   let fin = debut;
   for (let i = css.indexOf('{', debut); i < css.length; i++) {
@@ -38,6 +50,17 @@ const estTripletShadcn = (v: string) => /^\d+(\.\d+)? \d+(\.\d+)?% \d+(\.\d+)?%$
 
 const react = readFileSync(path.join(RACINE, 'app', 'globals.css'), 'utf8');
 const angular = readFileSync(path.join(RACINE, 'angular', 'src', 'styles', 'jetons.css'), 'utf8');
+
+/**
+ * L'interface Angular vit dans des racines d'ombre : un jeton seulement sur
+ * `:root` n'y existe pas (une feuille adoptée n'atteint pas `<html>`), et
+ * `var()` rend alors une valeur vide, en silence.
+ */
+describe("jetons Angular — portée des racines d'ombre", () => {
+  it.each([[':root', ':host'], ['html.light', ':host(.light)']])('le bloc %s porte aussi %s', (selecteur, hote) => {
+    expect(trouver(angular, selecteur).liste).toContain(hote);
+  });
+});
 
 describe.each([':root', 'html.light'])('jetons %s', (selecteur) => {
   const source = bloc(react, selecteur);

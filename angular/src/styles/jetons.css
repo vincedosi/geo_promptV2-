@@ -4,8 +4,14 @@
  * Verrouillé par tests/unit/angular/jetons-paritaires.test.ts :
  * modifier un jeton ici sans le modifier là-bas (ou l'inverse) fait échouer
  * la suite. Source de vérité : DESIGN_SYSTEM.md.
+ *
+ * `:host` / `:host(.light)` en plus de `:root` / `html.light` : l'interface
+ * vit dans des racines d'ombre (Isolation CSS, tâche 8 du lot AIDA), et c'est
+ * sur leur élément hôte que les jetons doivent exister. La classe `light` y
+ * est recopiée par ThemeService. `:root`/`html.light` ne servent plus que le
+ * document autonome (styles/document.css).
  */
-:root {
+:root, :host {
   /* shadcn/ui HSL tokens — dark mode values (default) */
   --radius: 0.375rem;
 
@@ -211,7 +217,7 @@
   --pollen-level-6: #872181; /* extrêmement élevé */
 }
 
-html.light {
+html.light, :host(.light) {
   /* MAGELIAN scale (light mirror) */
   --bg-level-0: #ffffff;
   --bg-level-1: #f5f5f5;

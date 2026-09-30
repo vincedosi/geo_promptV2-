@@ -6,6 +6,7 @@ import { appConfig } from './app.config';
 import { SUPABASE } from './core/auth/supabase';
 import { ConfigService } from './core/config/config.service';
 import { BASE_RESSOURCES } from './core/ressources/ressource-distante';
+import { feuillesFactices, ombre, retirerPolices } from './core/ressources/testing/feuilles-factices';
 
 /**
  * Couvre le VRAI graphe de providers d'appConfig ET de la route — les specs
@@ -34,20 +35,31 @@ const attendre = () => new Promise((r) => setTimeout(r, 0));
 const BASE = 'https://distante.exemple/remotes/magelian/chunk-ABC.js';
 const URL_CONFIG = 'https://distante.exemple/remotes/magelian/config.local.json';
 
-/** jsdom ne charge pas les feuilles : on joue le `load` de la feuille globale. */
+/**
+ * Feuilles simulées (jsdom ne sert ni `fetch` distant ni `adoptedStyleSheets`) :
+ * une nouvelle trace par test, pour vérifier ce qui a été lu.
+ */
+let feuilles = feuillesFactices();
+
+/**
+ * jsdom ne charge pas les feuilles : on joue le `load` des polices, et on
+ * vérifie que la feuille globale a bien été LUE sur l'application distante.
+ */
 async function feuilleGlobaleChargee(): Promise<void> {
-  const lien = document.head.querySelector('link[data-mg-styles]');
-  expect(lien?.getAttribute('href')).toBe('https://distante.exemple/remotes/magelian/magelian.css');
+  expect(feuilles.lectures).toEqual(['https://distante.exemple/remotes/magelian/magelian.css']);
+  const lien = document.head.querySelector('link[data-mg-polices]');
+  expect(lien?.getAttribute('href')).toBe('https://distante.exemple/remotes/magelian/magelian-polices.css');
   lien!.dispatchEvent(new Event('load'));
   await attendre();
 }
 
 describe('appConfig — démarrage réel, lancement autonome', () => {
-  afterEach(() => document.head.querySelector('link[data-mg-styles]')?.remove());
+  beforeEach(() => (feuilles = feuillesFactices()));
+  afterEach(() => retirerPolices());
 
   it('`/` mène à `/app`, la configuration étant chargée PAR LA ROUTE (sans Bearer), puis l\'API reçoit le Bearer', async () => {
     TestBed.configureTestingModule({
-      providers: [...appConfig.providers, provideHttpClientTesting(), { provide: SUPABASE, useValue: fauxSupabase() }, { provide: BASE_RESSOURCES, useValue: BASE }],
+      providers: [...appConfig.providers, provideHttpClientTesting(), { provide: SUPABASE, useValue: fauxSupabase() }, { provide: BASE_RESSOURCES, useValue: BASE }, ...feuilles.providers],
     });
     const http = TestBed.inject(HttpTestingController);
     const harness = await RouterTestingHarness.create();
@@ -75,7 +87,7 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
 
   it('une ancienne adresse (`/catalogue`) retombe dans l\'application via `**` → `app`', async () => {
     TestBed.configureTestingModule({
-      providers: [...appConfig.providers, provideHttpClientTesting(), { provide: SUPABASE, useValue: fauxSupabase() }, { provide: BASE_RESSOURCES, useValue: BASE }],
+      providers: [...appConfig.providers, provideHttpClientTesting(), { provide: SUPABASE, useValue: fauxSupabase() }, { provide: BASE_RESSOURCES, useValue: BASE }, ...feuilles.providers],
     });
     const http = TestBed.inject(HttpTestingController);
     const harness = await RouterTestingHarness.create();
@@ -119,7 +131,7 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
     async function demarrer(url: string, connecte: boolean) {
       const client = supabaseAvecSession(connecte);
       TestBed.configureTestingModule({
-        providers: [...appConfig.providers, provideHttpClientTesting(), { provide: SUPABASE, useValue: client }, { provide: BASE_RESSOURCES, useValue: BASE }],
+        providers: [...appConfig.providers, provideHttpClientTesting(), { provide: SUPABASE, useValue: client }, { provide: BASE_RESSOURCES, useValue: BASE }, ...feuilles.providers],
       });
       const http = TestBed.inject(HttpTestingController);
       const harness = await RouterTestingHarness.create();
@@ -150,7 +162,7 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
     it('« Se déconnecter » mène à /connexion, sans paramètre de reprise', async () => {
       const { router, http, harness, client } = await demarrer('/app', true);
       http.expectOne('/api/risques/sites/compter').flush({ retenus: 1, total: 1, par_nature: {} });
-      const bouton = [...(harness.fixture.nativeElement as HTMLElement).querySelectorAll('button')]
+      const bouton = [...ombre(harness.fixture.nativeElement as HTMLElement).querySelectorAll('button')]
         .find((b) => b.textContent?.trim() === 'Se déconnecter')!;
       bouton.click();
       await stabiliser(harness);
@@ -176,7 +188,7 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
 
     it("démarrage en échec : la racine affiche l'erreur et ne redirige pas", async () => {
       TestBed.configureTestingModule({
-        providers: [...appConfig.providers, provideHttpClientTesting(), { provide: SUPABASE, useValue: supabaseAvecSession(false) }, { provide: BASE_RESSOURCES, useValue: BASE }],
+        providers: [...appConfig.providers, provideHttpClientTesting(), { provide: SUPABASE, useValue: supabaseAvecSession(false) }, { provide: BASE_RESSOURCES, useValue: BASE }, ...feuilles.providers],
       });
       const http = TestBed.inject(HttpTestingController);
       const harness = await RouterTestingHarness.create();
@@ -187,7 +199,7 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       await navigation;
       await stabiliser(harness);
       expect(TestBed.inject(Router).url).toBe('/app');
-      expect((harness.fixture.nativeElement as HTMLElement).querySelector('[role="alert"]')).not.toBeNull();
+      expect(ombre(harness.fixture.nativeElement as HTMLElement).querySelector('[role="alert"]')).not.toBeNull();
     });
   });
 });

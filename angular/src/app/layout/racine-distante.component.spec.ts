@@ -5,6 +5,8 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { AuthService } from '../core/auth/auth.service';
 import { STRATEGIE_AUTONOME, STRATEGIE_SANS_SESSION } from '../core/auth/strategie-sans-session';
 import { DemarrageService } from '../core/demarrage/demarrage.service';
+import { feuillesFactices, ombre } from '../core/ressources/testing/feuilles-factices';
+import { ThemeService } from '../core/theme/theme.service';
 import { RacineDistanteComponent } from './racine-distante.component';
 
 @Component({ selector: 'mg-vide', template: '<p>page</p>' })
@@ -37,11 +39,13 @@ function preparer(opts: { erreur?: string; authCassee?: boolean } = {}) {
     { path: 'connexion', component: PageVide },
   ];
   const constructions = { auth: 0 };
+  const feuilles = feuillesFactices();
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
       provideRouter(routes),
-      { provide: DemarrageService, useValue: { erreur: signal(opts.erreur ?? null) } },
+      ...feuilles.providers,
+      { provide: DemarrageService, useValue: { erreur: signal(opts.erreur ?? null), feuille: signal(feuilles.feuille) } },
       {
         provide: AuthService,
         useFactory: () => {
@@ -57,8 +61,32 @@ function preparer(opts: { erreur?: string; authCassee?: boolean } = {}) {
   TestBed.inject(Router).events.subscribe((e) => {
     if (e instanceof NavigationStart) navigations.push(e.url);
   });
-  return { connecte, debloquer: () => debloquer(true), navigations, constructions };
+  return { connecte, debloquer: () => debloquer(true), navigations, constructions, feuilles };
 }
+
+describe('RacineDistanteComponent — racine d\'ombre (isolation CSS)', () => {
+  it('rend dans SA racine d\'ombre, adopte la feuille globale et y reflète le thème sur son hôte', async () => {
+    const { feuilles } = preparer();
+    const harness = await RouterTestingHarness.create('/');
+    await laisserTourner(harness);
+    const hote = (harness.fixture.nativeElement as HTMLElement).querySelector('mg-racine-distante')!;
+    const racine = ombre(harness.fixture.nativeElement as HTMLElement);
+    expect(racine.querySelector('mg-vide')).not.toBeNull();
+    expect(feuilles.adoptions).toEqual([{ racine, feuille: feuilles.feuille }]);
+    const theme = TestBed.inject(ThemeService);
+    expect(theme.racine()).toBe(hote);
+    expect(hote.classList.contains(theme.themeApplique())).toBe(true);
+  });
+
+  it('démontée, elle se désenregistre : CouleursService ne lit plus un élément détaché', async () => {
+    preparer();
+    const harness = await RouterTestingHarness.create('/');
+    await laisserTourner(harness);
+    expect(TestBed.inject(ThemeService).racine()).not.toBeNull();
+    harness.fixture.destroy();
+    expect(TestBed.inject(ThemeService).racine()).toBeNull();
+  });
+});
 
 describe('RacineDistanteComponent — mode rediriger (lancement autonome)', () => {
   it("n'interrompt pas une navigation en cours : attend sa fin, puis renvoie vers la connexion avec la page atteinte", async () => {
@@ -88,7 +116,7 @@ describe('RacineDistanteComponent — mode rediriger (lancement autonome)', () =
 
     expect(navigations).toEqual(['/']);
     expect(constructions.auth).toBe(0);
-    const racine = harness.fixture.nativeElement as HTMLElement;
+    const racine = ombre(harness.fixture.nativeElement as HTMLElement);
     expect(racine.querySelector('[role="alert"]')?.textContent).toContain('Configuration locale introuvable.');
     expect(racine.querySelector('[role="status"]')).toBeNull();
   });
@@ -99,7 +127,7 @@ describe('RacineDistanteComponent — mode rediriger (lancement autonome)', () =
     void TestBed.inject(Router).navigateByUrl('/lent');
     connecte.set(false);
     await laisserTourner(harness);
-    expect((harness.fixture.nativeElement as HTMLElement).querySelector('[role="status"]')).toBeNull();
+    expect(ombre(harness.fixture.nativeElement as HTMLElement).querySelector('[role="status"]')).toBeNull();
     debloquer();
     await laisserTourner(harness);
   });

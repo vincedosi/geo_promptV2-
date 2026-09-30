@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, Injector, computed, effect, inject, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Injector, ViewEncapsulation, computed, effect, inject, untracked } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth/auth.service';
 import { MESSAGE_SANS_SESSION, STRATEGIE_SANS_SESSION } from '../core/auth/strategie-sans-session';
 import { DemarrageService } from '../core/demarrage/demarrage.service';
+import { monterRacineOmbre } from './racine-ombre';
 
 /**
  * Racine de `remoteRoutes` — le « BuilderShell » de la doc AIDA : le premier
@@ -37,6 +38,8 @@ import { DemarrageService } from '../core/demarrage/demarrage.service';
   selector: 'mg-racine-distante',
   imports: [RouterOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Isolation CSS : toute l'application vit dans cette racine d'ombre (voir racine-ombre.ts).
+  encapsulation: ViewEncapsulation.ShadowDom,
   template: `
     @if (demarrage.erreur(); as message) {
       <p role="alert" class="m-6 rounded border border-danger bg-surface p-4 text-sm text-danger">{{ message }}</p>
@@ -61,6 +64,7 @@ export class RacineDistanteComponent {
   protected readonly afficherMessage = computed(() => this.strategie.mode === 'message' && this.sansSession());
 
   constructor() {
+    monterRacineOmbre();
     const strategie = this.strategie;
     if (strategie.mode !== 'rediriger') return;
     effect(() => {

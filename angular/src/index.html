@@ -7,12 +7,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <!--
-    Ni feuille de style ni polices ici : le shell AIDA, qui possède index.html,
-    ne l'exécuterait pas. La feuille globale (qui importe les polices) est
-    posée par DemarrageService, résolue contre l'application distante. Le preconnect,
+    Ni feuille globale ni polices ici : le shell AIDA, qui possède index.html,
+    ne l'exécuterait pas. Polices et feuille globale sont chargées par
+    DemarrageService, résolues contre l'application distante. Le preconnect,
     sans effet dans AIDA, fait gagner la poignée de main en autonome.
   -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
+  <!--
+    Isolation CSS : l'interface vit dans des racines d'ombre qui ADOPTENT
+    magelian.css. Ce lien-ci ne pose que le fond et la hauteur du document
+    autonome (styles/document.css) ; le shell AIDA ne l'exécute jamais.
+  -->
+  <link rel="stylesheet" href="magelian-document.css">
   <!--
     Thème posé AVANT le premier affichage, comme themeInitScript côté React
     (app/layout.tsx) : ThemeService (core/theme/) n'applique la classe

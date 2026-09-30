@@ -1,0 +1,14 @@
+/*
+ * Lancement AUTONOME seulement : posée par index.html, que le shell AIDA
+ * n'exécute jamais. L'interface vit dans des racines d'ombre (feuille adoptée) ;
+ * ce fichier ne sert que le DOCUMENT autonome, avant que la première racine ne
+ * monte : pleine hauteur et fond du thème (le script inline d'index.html pose
+ * déjà la classe et `color-scheme`). Rien d'autre ici.
+ */
+@import './jetons.css';
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg-level-0);
+}

@@ -293,4 +293,69 @@ describe('ThemeService', () => {
       espion.mockRestore();
     }
   });
+
+  describe("racines d'ombre : la classe est recopiée sur NOTRE hôte (`:host(.light)`)", () => {
+    const racine = () => document.createElement('mg-racine-distante');
+
+    it("à l'enregistrement, l'hôte reçoit aussitôt la classe du thème appliqué", () => {
+      document.documentElement.className = 'light';
+      const theme = TestBed.inject(ThemeService);
+      TestBed.tick();
+      const el = racine();
+      theme.enregistrerRacine(el);
+      expect(el.className).toBe('light');
+      expect(theme.racine()).toBe(el);
+    });
+
+    it("suit une bascule de l'utilisateur", () => {
+      const theme = TestBed.inject(ThemeService);
+      TestBed.tick();
+      const el = racine();
+      theme.enregistrerRacine(el);
+      expect(el.className).toBe('dark');
+      theme.basculer();
+      TestBed.tick();
+      expect(el.className).toBe('light');
+    });
+
+    it("suit un changement EXTERNE de la classe de <html> (le shell), sans écrire <html>", async () => {
+      document.documentElement.className = 'dark';
+      const theme = TestBed.inject(ThemeService);
+      TestBed.tick();
+      const el = racine();
+      theme.enregistrerRacine(el);
+      document.documentElement.classList.replace('dark', 'light');
+      await Promise.resolve(); // MutationObserver
+      expect(el.className).toBe('light');
+      TestBed.tick();
+      // Règle de propriété intacte : c'est la classe de l'hôte, MAGELIAN n'a rien réécrit.
+      expect(document.documentElement.className).toBe('light');
+      expect(document.documentElement.style.colorScheme).toBe('');
+      expect(localStorage.getItem(CLE_THEME)).toBeNull();
+    });
+
+    it("désenregistrée, elle n'est plus suivie et `racine()` retombe sur la précédente", () => {
+      const theme = TestBed.inject(ThemeService);
+      TestBed.tick();
+      const a = racine();
+      const b = racine();
+      theme.enregistrerRacine(a);
+      const retirerB = theme.enregistrerRacine(b);
+      expect(theme.racine()).toBe(b);
+      retirerB();
+      expect(theme.racine()).toBe(a);
+      theme.basculer();
+      TestBed.tick();
+      expect(a.className).toBe('light');
+      expect(b.className).toBe('dark');
+    });
+
+    it("n'écrit <html> que dans les deux cas de la règle, racine enregistrée ou non", () => {
+      document.documentElement.className = 'dark';
+      const theme = TestBed.inject(ThemeService);
+      theme.enregistrerRacine(racine());
+      TestBed.tick();
+      expect(document.documentElement.style.colorScheme).toBe(''); // l'hôte a tranché : rien écrit au démarrage
+    });
+  });
 });

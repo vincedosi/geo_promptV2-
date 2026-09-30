@@ -1,10 +1,18 @@
 /*
- * Polices : ici et plus dans index.html, que le shell AIDA n'exécute pas.
- * ⚠ DOIT rester le PREMIER énoncé du fichier — un @import placé après une
- * autre règle est ignoré par le navigateur, sans erreur. Vérifié dans le
- * magelian.css émis (tâche 4 du lot AIDA).
+ * Feuille globale MAGELIAN — ADOPTÉE par chaque racine d'ombre, jamais posée
+ * dans le document (Isolation CSS, tâche 8 du lot AIDA ; voir
+ * core/ressources/feuille-ombre.ts et layout/racine-ombre.ts).
+ * - Pas de polices ici : une `@font-face` est ignorée dans une racine d'ombre.
+ *   Elles sont dans styles/polices.css (paquet `magelian-polices`), posé au
+ *   niveau du document par DemarrageService.
+ * - Pas d'`@import` d'URL : `CSSStyleSheet.replace()` les refuse (ils sont
+ *   retirés à la lecture, `preparerFeuilleOmbre`).
+ * - Les `@property` de Tailwind sont ignorées dans une racine d'ombre : elles
+ *   sont réécrites à la lecture (`proprietesEnVariables`).
+ * - `html` et `body` n'existent pas ici : ce qui les stylait porte sur `:host`.
+ *   Le fond du document autonome, AVANT que la racine ne monte, est dans
+ *   styles/document.css (posé par index.html, jamais par le shell).
  */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;700&display=swap');
 @import 'tailwindcss';
 @import './styles/jetons.css';
 
@@ -35,12 +43,20 @@
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 
-html, body {
+/*
+ * L'hôte de la racine d'ombre. `all: initial` EN PREMIER : les propriétés
+ * héritées (letter-spacing, text-transform, cursor, text-align, direction…)
+ * posées par un ancêtre du shell traversent sinon la frontière de l'ombre.
+ * Il ne touche pas aux propriétés personnalisées : nos jetons, redéclarés sur
+ * `:host` (jetons.css), masquent ceux qu'un shell poserait sur `:root`.
+ * `direction` est exclue de `all` par la spécification CSS (mesuré : un
+ * `direction: rtl` du shell traversait encore) : elle est donc fixée à part.
+ */
+:host {
+  all: initial;
+  direction: ltr;
+  display: block;
   height: 100%;
-  margin: 0;
-}
-
-body {
   background: var(--bg-level-0);
   color: var(--text-primary);
   font-family: var(--font-sans);
@@ -56,9 +72,10 @@ body {
 /*
  * Surcharges de la feuille MapLibre (portées de app/globals.css côté React).
  * Ici et non dans le paquet paresseux `maplibre.css` : ~600 o, et `maplibre.css`
- * est un artefact node_modules qu'on ne modifie pas. Comme elle se charge APRÈS
- * ce fichier (injectée à la première carte), il faut `!important` pour gagner
- * sur `.maplibregl-popup-content { background: #fff }`.
+ * est un artefact node_modules qu'on ne modifie pas. `maplibre.css` est un
+ * `<link>` posé dans la racine d'ombre à la première carte ; `!important` pour
+ * gagner sur `.maplibregl-popup-content { background: #fff }` quel que soit
+ * l'ordre entre ce lien et cette feuille adoptée.
  */
 .maplibregl-popup-content {
   background: var(--bg-surface) !important;

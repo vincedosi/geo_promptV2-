@@ -26,9 +26,11 @@ import { FABRIQUE_CARTE, FOND_POSITRON } from './fabrique-carte';
  *   Angular l'émet en `maplibre.css` dans le dossier de build mais ne
  *   l'ajoute PAS à `index.html`, donc elle ne pèse JAMAIS sur le paquet
  *   initial — même première charge de page, même sans aucune carte montée.
- *   `chargerFeuilleMaplibre()` (`feuille-maplibre.ts`) l'injecte dans
- *   `<head>` ici, à la demande, la première fois qu'une carte existe —
- *   résolue contre l'application DISTANTE, pas contre le document du shell.
+ *   `chargerFeuilleMaplibre()` (`feuille-maplibre.ts`) la pose ici, à la
+ *   demande, la première fois qu'une carte existe — DANS la racine d'ombre qui
+ *   porte la carte (Isolation CSS : une feuille du document ne l'atteindrait
+ *   pas), dans le `<head>` seulement hors racine — résolue contre
+ *   l'application DISTANTE, pas contre le document du shell.
  *   Si elle ne charge pas, `erreur` le dit : une carte sans sa feuille a ses
  *   contrôles et ses popups en vrac, ce n'est pas un état silencieux. Un
  *   `styleUrl` pointant vers cette feuille de 69,5 kB avait été tenté
@@ -76,7 +78,10 @@ export class CarteComponent {
     afterNextRender(() => {
       // Sans `await` : MapLibre peut créer la carte pendant que sa feuille
       // arrive. Une sortie ne s'émet plus après destruction (NG0953).
-      chargerFeuilleMaplibre(this.document, this.base).catch(() => {
+      // Dans la racine d'ombre qui porte la carte (Isolation CSS) ; dans le document hors racine (specs).
+      const racine = this.conteneur().nativeElement.getRootNode();
+      const cible = racine instanceof ShadowRoot ? racine : this.document;
+      chargerFeuilleMaplibre(cible, this.base).catch(() => {
         if (!this.destruction.destroyed) this.erreur.emit("La feuille de style de la carte n'a pas pu être chargée.");
       });
       const element = this.conteneur().nativeElement;

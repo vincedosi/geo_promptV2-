@@ -1,3 +1,4 @@
+import { Component, ViewEncapsulation } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { CarteComponent } from './carte.component';
 import { FABRIQUE_CARTE } from './fabrique-carte';
@@ -118,5 +119,46 @@ describe('CarteComponent', () => {
     document.head.querySelector('link[data-mg-maplibre]')!.dispatchEvent(new Event('error'));
     await new Promise((r) => setTimeout(r, 0));
     expect(erreurs).toEqual(["La feuille de style de la carte n'a pas pu être chargée."]);
+  });
+
+  describe("dans une racine d'ombre (isolation CSS : toute l'application y vit)", () => {
+    /** Un hôte en ViewEncapsulation.ShadowDom, comme RacineDistanteComponent. */
+    @Component({
+      selector: 'mg-hote-ombre',
+      imports: [CarteComponent],
+      encapsulation: ViewEncapsulation.ShadowDom,
+      template: '<mg-carte [cadre]="cadre" (erreur)="erreurs.push($event)" />',
+    })
+    class HoteOmbre {
+      cadre = [4.75, 43.35, 5.3, 43.6] as const;
+      erreurs: string[] = [];
+    }
+
+    async function rendreDansOmbre() {
+      (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: FABRIQUE_CARTE, useValue: (o: never) => new CarteFactice(o) },
+          { provide: BASE_RESSOURCES, useValue: BASE },
+        ],
+      });
+      const f = TestBed.createComponent(HoteOmbre);
+      await f.whenStable();
+      return { f, ombre: (f.nativeElement as HTMLElement).shadowRoot! };
+    }
+
+    it("pose maplibre.css DANS la racine d'ombre de la carte, jamais dans le <head> du document", async () => {
+      const { ombre } = await rendreDansOmbre();
+      const lien = ombre.querySelector('link[data-mg-maplibre]');
+      expect(lien?.getAttribute('href')).toBe('https://distante.exemple/remotes/magelian/maplibre.css');
+      expect(document.head.querySelector('link[data-mg-maplibre]')).toBeNull();
+    });
+
+    it('signale toujours une feuille MapLibre qui ne charge pas', async () => {
+      const { f, ombre } = await rendreDansOmbre();
+      ombre.querySelector('link[data-mg-maplibre]')!.dispatchEvent(new Event('error'));
+      await new Promise((r) => setTimeout(r, 0));
+      expect(f.componentInstance.erreurs).toEqual(["La feuille de style de la carte n'a pas pu être chargée."]);
+    });
   });
 });

@@ -65,9 +65,9 @@ qu'on bâtisse quoi que ce soit dessus.
 | **0 — Socle** | Espace de travail Angular, jetons du design system, authentification, client HTTP, coquille (barre latérale, routes), outillage (tests, lint, build), doc | Se connecter sur `:4200`, voir le nombre de sites à risque lu dans `/api/risques/sites/compter` ET une tuile `/api/tiles/...` servie en 200 | — |
 | **1 — Composants de base** ✅ 2026-09-29 | Portés depuis les primitives MAISON du module risque (l'inventaire a montré qu'il n'utilise aucun composant shadcn) : tuile KPI, pastille, champ, cellules de tableau, fil d'étapes, fil d'Ariane, réglette validée au relâchement, barre de progression unique et valeurs périmées. Plus : thème clair/sombre, 3 appels API simultanés au plus pour toute l'application, garde inverse de la connexion. Fenêtre modale et notifications reportées aux lots 5-6, seuls à s'en servir | Page `/catalogue` (`/app/catalogue` en autonome depuis le lot AIDA), vérifiée au navigateur dans les deux thèmes | 0 |
 | **2 — Carte et graphiques** ✅ 2026-09-30 | `mg-carte` (cycle de vie MapLibre), chargement par cadre visible, caméras liées, popups sûres ; `mg-courbe` sur Apache ECharts (P7 confirmé, sans `ngx-echarts`) ; couleurs lues dans les jetons (plus de tables d'hexadécimaux) | Page `/essai-carte` (`/app/essai-carte` en autonome depuis le lot AIDA) : vraies zones, vrais sites, vraie courbe, KPI égal à la base | 0, 1 |
-| **AIDA — Conformité Native Federation** ⚠ Partiel 2026-09-30 — conforme avec un hôte PAR DÉFAUT (`ignoreUnusedDeps: true`), en développement et en production, depuis le lot « Robustesse dans l'hôte ». Restent ouverts : l'isolation CSS et l'authentification dans AIDA. | Native Federation 21.2.1, `federation.config.js`, `environment.ts`, services qui héritent de `HttpBaseService`, `remoteRoutes` autonome (démarrage, intercepteurs et services portés par la route, liens relatifs), ressources et thème indépendants du shell | Épreuve dans un shell hôte jetable : page stylée, API authentifiée, KPI égal à la base, thème piloté par l'hôte — d'abord avec un hôte qui partage les entrées secondaires d'Angular (NG0203 avec l'hôte par défaut), puis rejouée avec l'hôte par défaut (lot suivant) | 0, 1, 2 |
+| **AIDA — Conformité Native Federation** ✅ 2026-09-30 côté MAGELIAN — conforme avec un hôte PAR DÉFAUT (`ignoreUnusedDeps: true`), en développement et en production, depuis les lots « Robustesse dans l'hôte » et « Isolation CSS ». Restent ouvertes les seules questions au siège AIDA : l'authentification dans le shell, le slug, le jeton `read:packages` (`NPM_GITHUB_TOKEN`) et la doc de `mecha-lib-ui`. | Native Federation 21.2.1, `federation.config.js`, `environment.ts`, services qui héritent de `HttpBaseService`, `remoteRoutes` autonome (démarrage, intercepteurs et services portés par la route, liens relatifs), ressources et thème indépendants du shell | Épreuve dans un shell hôte jetable : page stylée, API authentifiée, KPI égal à la base, thème piloté par l'hôte — d'abord avec un hôte qui partage les entrées secondaires d'Angular (NG0203 avec l'hôte par défaut), puis rejouée avec l'hôte par défaut (lot suivant) | 0, 1, 2 |
 | **AIDA — Robustesse dans l'hôte** ✅ 2026-09-30 | Retrait de `@angular/core/rxjs-interop` du remote (`versEtat` sur `signal` + `DestroyRef`, désabonnement explicite dans l'essai de carte) et garde des imports partagés (`tests/unit/angular/imports-partages.test.ts`) ; sans session dans l'hôte, message « Session requise… » au lieu d'une navigation vers `/connexion` (`STRATEGIE_SANS_SESSION`, défaut racine `message`, `rediriger` fourni par la route `app` du lancement autonome) ; limiteur de 3 appels mesuré dans l'hôte | Épreuve rejouée avec un hôte PAR DÉFAUT (`ignoreUnusedDeps: true`) et en build de production : les six vérifications fonctionnelles passent aux deux passes (la 7e, la fuite de styles, reste constatée : lot « Isolation CSS »), accueil et essai de carte sans erreur en console, message sans session sans navigation, limiteur mesuré (3 en vol, la 4e après la 1re réponse) | AIDA — Conformité |
-| **AIDA — Isolation CSS** (à planifier) | `magelian.css` restyle TOUT le document du shell (preflight Tailwind, règles `html`/`body`, 123 propriétés sur `:root` dont des noms génériques) et n'est jamais retirée — mesuré élément par élément dans l'hôte jetable (`ARCHITECTURE.md` § Application Angular) | Mêmes styles calculés des éléments de l'hôte avant et après le chargement de MAGELIAN | AIDA — Conformité |
+| **AIDA — Isolation CSS** ✅ 2026-09-30 | Toute l'interface dans des racines d'ombre (`RacineDistanteComponent`, `ConnexionPage`) qui ADOPTENT `magelian.css`, lue et construite au démarrage, jamais posée dans le document ; `@property` réécrites, `@import` retirés ; polices seules au niveau du document ; `:host { all: initial; direction: ltr }` ; jetons sur `:host`/`:host(.light)`, classe recopiée par `ThemeService`, lue par `CouleursService` ; `maplibre.css` dans la racine de la carte ; garde « rien hors de l'ombre » (`tests/unit/angular/portails-hors-ombre.test.ts`). Retenue contre une CSS confinée après épreuve comparée (rapport de la tâche 8) | Dans l'hôte PAR DÉFAUT, prod et dev : 0 différence sur le tableau de la tâche 6, 0 propriété personnalisée sur `<html>`, feuille d'hôte hostile sans effet sur MAGELIAN, héritage d'un ancêtre coupé, 11 vérifications fonctionnelles sur 11 ; autonome dans les deux thèmes, connexion → page → déconnexion | AIDA — Conformité |
 | **3 — Module risque** | Les cinq étapes ① Sites › ② Rayon › ③ Couverture › ④ Zones › ⑤ Campagne, l'état dans l'URL, les exports, la barre de progression unique. Gel P5 à l'ouverture | Chaque étape comparée à l'écran React sur le même état d'URL, chiffres identiques. ⚠ **Le module React N'EST PAS retiré au lot 3** (arbitrage de Vincent, 2026-09-30) : les deux écrans cohabitent jusqu'à la fin de la migration, et Next.js ne perd ses pages qu'au lot 7 | 0, 1, 2 |
 | **4 — Carte principale** | `/map`, rail des cinq thèmes, panneaux Filtre/Calques/Analyse/Zones | Parcours complet du rail | 3 |
 | **5 — Campagnes** | Overlay MAGELIAN : Stratégie (wizard), Activation, Suivi V2, Aperçu | Une campagne créée, activée (pré-vol) et suivie depuis Angular | 4 |
@@ -84,8 +84,8 @@ génère le schématique (`ignoreUnusedDeps: true`), la page plantait en
 du remote importe les morceaux PRIVÉS de `@angular/core`. **Levée par le lot
 « Robustesse dans l'hôte »** : rxjs-interop retiré, interdit par une garde,
 et l'épreuve rejouée avec l'hôte PAR DÉFAUT en développement ET en
-production, limiteur compris. Reste bloquante pour l'intégration : la fuite
-de styles, tant que la tâche « Isolation CSS » n'est pas faite.
+production, limiteur compris. La fuite de styles, qui restait bloquante, est
+levée par le lot « Isolation CSS » (racines d'ombre, mesuré dans le même hôte).
 
 ## Règles de chantier (valent pour chaque tâche de chaque lot)
 
@@ -124,19 +124,20 @@ Conformité », vérifié dans un shell hôte jetable (détail : `ARCHITECTURE.m
 | Une constante `remoteRoutes` exposée par `app.routes.ts` | `remoteRoutes` AUTONOME : démarrage, intercepteurs et services d'API portés par la route racine, liens relatifs. Prouvé sous `/outils/magelian` dans un hôte PAR DÉFAUT (`ignoreUnusedDeps: true`), remote en développement et en production ; sans session, message « Session requise… » sans navigation |
 | Un `slug` dans l'environnement | `environment.ts`, `slug: ''` tant que le siège ne l'a pas fourni |
 | Rien dans `index.html` ni `app.config.ts` (le shell ne les exécute pas) | Styles, configuration et polices résolus contre l'application distante ; thème qui SUIT la classe que le shell pose sur `<html>` |
+| Ne pas restyler le shell, ne pas être restylé par lui | Interface en racines d'ombre (lot « Isolation CSS ») : 0 différence mesurée sur les éléments de l'hôte, 0 propriété sur `<html>` ; seules les `@font-face` des polices vont au document |
 
-Ouvert après l'épreuve : l'isolation CSS (fuite mesurée de `magelian.css`
-dans tout le document du shell) et l'authentification dans AIDA (sans
-session, le remote affiche « Session requise… » ; la connexion elle-même
-relève du shell). Le retrait de `@angular/core/rxjs-interop` et le
-comportement sans session sont faits (lot « Robustesse dans l'hôte »).
+Ouvert côté MAGELIAN après l'épreuve : rien. Le retrait de
+`@angular/core/rxjs-interop`, le comportement sans session (lot « Robustesse
+dans l'hôte ») et l'isolation CSS sont faits. L'authentification dans AIDA
+reste une question AU SIÈGE : sans session, le remote affiche « Session
+requise… » ; la connexion elle-même relève du shell.
 
 ⚠ **Doc AIDA relue en entier le 2026-09-30** : le socle ne suivait PAS la doc sur cinq points (services qui injectent au lieu d'hériter, slug hors d'`environment.ts`, forme d'`appRoutes`, fédération absente, et surtout tout ce que porte `app.config.ts` — intercepteurs, démarrage, styles — que le shell n'exécute pas). D'où le lot « AIDA — Conformité » inséré avant le lot 3.
 
 Ce qui manque et que seul le siège peut fournir : le jeton `read:packages`
 (`NPM_GITHUB_TOKEN`), la doc de `mecha-lib-ui`, le slug, et le fonctionnement
-de l'authentification dans AIDA (sans session, notre garde renvoie vers
-`/connexion`, que le shell n'a pas).
+de l'authentification dans AIDA (sans session, le remote affiche « Session
+requise… » sans naviguer ; la connexion elle-même relève du shell).
 
 ## Risques suivis
 

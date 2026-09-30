@@ -61,6 +61,16 @@
                 "inject": false
               },
               {
+                "input": "src/styles/document.css",
+                "bundleName": "magelian-document",
+                "inject": false
+              },
+              {
+                "input": "src/styles/polices.css",
+                "bundleName": "magelian-polices",
+                "inject": false
+              },
+              {
                 "input": "node_modules/maplibre-gl/dist/maplibre-gl.css",
                 "bundleName": "maplibre",
                 "inject": false

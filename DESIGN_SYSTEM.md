@@ -44,6 +44,12 @@ Style inspiré de Linear, Vercel, Raycast. Monochrome par défaut, couleur avec 
 > **transparent**, sans erreur console, sans rien de rouge. Un `var()` inconnu
 > n'échoue pas — la déclaration est simplement ignorée.
 
+> **Côté Angular** (`angular/src/styles/jetons.css`, copie verrouillée par
+> `tests/unit/angular/jetons-paritaires.test.ts`), les mêmes jetons sont
+> aussi déclarés sur `:host` et `:host(.light)` : l'interface Angular vit dans
+> des racines d'ombre (isolation CSS du lot AIDA), et c'est sur leur élément
+> hôte que `var(--x)` doit les trouver. Mêmes noms, mêmes valeurs.
+
 ### ⚠ Deux familles de jetons, à ne pas confondre
 
 `app/globals.css` porte **deux** jeux de variables, et ils ne s'emploient pas
