@@ -8,7 +8,7 @@ describe('SitesRisqueApi', () => {
   it('lit /api/risques/sites/compter', () => {
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(), provideHttpClientTesting(),
+        provideHttpClient(), provideHttpClientTesting(), SitesRisqueApi,
         { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       ],
     });

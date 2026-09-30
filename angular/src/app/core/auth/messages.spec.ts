@@ -20,15 +20,15 @@ describe('cibleDeRedirection', () => {
     expect(cibleDeRedirection('/risques?etape=2')).toBe('/risques?etape=2');
   });
   it('refuse une URL absolue', () => {
-    expect(cibleDeRedirection('https://exemple.test/piege')).toBe('/');
+    expect(cibleDeRedirection('https://exemple.test/piege')).toBe('/app');
   });
   it('refuse un chemin à double barre (URL relative au protocole)', () => {
-    expect(cibleDeRedirection('//exemple.test')).toBe('/');
+    expect(cibleDeRedirection('//exemple.test')).toBe('/app');
   });
   it('refuse de revenir sur la page de connexion', () => {
-    expect(cibleDeRedirection('/connexion')).toBe('/');
+    expect(cibleDeRedirection('/connexion')).toBe('/app');
   });
   it('rend l\'accueil quand rien n\'est demandé', () => {
-    expect(cibleDeRedirection(null)).toBe('/');
+    expect(cibleDeRedirection(null)).toBe('/app');
   });
 });

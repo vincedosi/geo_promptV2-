@@ -17,8 +17,8 @@ describe('sansSessionGuard', () => {
   it('laisse la page de connexion à un visiteur non connecté', () => {
     expect(executer(false)).toBe(true);
   });
-  it('renvoie un utilisateur connecté vers l\'accueil', () => {
+  it('renvoie un utilisateur connecté vers l\'accueil de l\'application (/app)', () => {
     const r = executer(true) as UrlTree;
-    expect(TestBed.inject(Router).serializeUrl(r)).toBe('/');
+    expect(TestBed.inject(Router).serializeUrl(r)).toBe('/app');
   });
 });

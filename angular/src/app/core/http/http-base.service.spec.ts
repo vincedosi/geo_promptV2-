@@ -33,6 +33,8 @@ describe('HttpBaseService', () => {
     expect(TestBed.inject(HttpBaseService).baseUrl).toBe('/api');
   });
 
+  // ⚠ Lit le champ `slug` de la DOUBLURE provisoire : rien ne dit que le vrai
+  // `MechaRemoteAppHttpBaseService` l'expose sous ce nom. À revoir au remplacement.
   it("transmet le slug d'environment au service parent", () => {
     configurer({ apiBaseUrl: '' });
     expect((TestBed.inject(HttpBaseService) as unknown as { slug: string }).slug).toBe(environment.slug);

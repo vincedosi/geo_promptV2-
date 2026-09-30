@@ -11,7 +11,10 @@ export interface CompteSites {
   par_nature: Record<string, number>;
 }
 
-@Injectable({ providedIn: 'root' })
+// Fourni par la ROUTE (FOURNISSEURS_DISTANTS, app.routes.ts) et non à la
+// racine : un service racine recevrait le HttpClient de l'hôte, sans nos
+// intercepteurs (jeton, limiteur, session expirée).
+@Injectable()
 export class SitesRisqueApi extends HttpBaseService {
   compter(): Observable<CompteSites> {
     return this.httpClient.get<CompteSites>(`${this.baseUrl}/risques/sites/compter`);

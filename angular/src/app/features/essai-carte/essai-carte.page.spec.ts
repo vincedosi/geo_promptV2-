@@ -7,6 +7,7 @@ import { CarteFactice } from '../../carte/testing/carte-factice';
 import { ConfigService } from '../../core/config/config.service';
 import { CouleursService } from '../../core/theme/couleurs.service';
 import { FABRIQUE_GRAPHIQUE } from '../../graphiques/fabrique-graphique';
+import { ZonesRisqueApi } from '../risques/data/zones-risque.api';
 import { CODE_PROFIL_DEFAUT, EssaiCartePage } from './essai-carte.page';
 
 class ObservateurFactice {
@@ -28,7 +29,7 @@ async function rendre() {
   (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(), provideHttpClientTesting(),
+      provideHttpClient(), provideHttpClientTesting(), ZonesRisqueApi,
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       { provide: FABRIQUE_CARTE, useValue: (o: never) => (carte = new CarteFactice(o)) },
       {

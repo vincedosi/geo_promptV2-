@@ -27,21 +27,49 @@ function servicesApi(dossier: string): string[] {
   return sortie;
 }
 
-describe('modèle AIDA des services d\'API', () => {
-  const fichiers = servicesApi(APP);
+/**
+ * Retire commentaires de bloc et de ligne AVANT toute recherche : un
+ * `extends HttpBaseService` écrit seulement dans un commentaire passait sinon
+ * le premier garde. Approximation volontaire (pas un vrai analyseur) : un `//`
+ * dans une chaîne, comme `'https://…'`, coupe la fin de sa ligne — sans
+ * conséquence ici, ces fichiers ne portent pas d'URL absolue.
+ */
+function sansCommentaires(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+}
 
-  it('trouve des services d\'API (le garde ne passe pas à vide)', () => {
+/** Lignes d'import retirées : un nom importé n'est pas un usage. */
+function sansImports(code: string): string {
+  return code.replace(/^\s*import\s[\s\S]*?;\s*$/gm, '');
+}
+
+describe("modèle AIDA des services d'API", () => {
+  const fichiers = servicesApi(APP);
+  const code = (f: string) => sansCommentaires(readFileSync(f, 'utf8'));
+
+  it("trouve des services d'API (le garde ne passe pas à vide)", () => {
     expect(fichiers.length).toBeGreaterThan(0);
   });
 
-  it('chaque *.api.ts étend HttpBaseService', () => {
-    const fautifs = fichiers.filter((f) => !/extends HttpBaseService\b/.test(readFileSync(f, 'utf8')));
+  it('chaque *.api.ts étend HttpBaseService (hors commentaires)', () => {
+    const fautifs = fichiers.filter((f) => !/\bextends\s+HttpBaseService\b/.test(code(f)));
     expect(fautifs.map((f) => path.relative(RACINE, f))).toEqual([]);
   });
 
-  it('aucun *.api.ts n\'injecte HttpClient ni HttpBaseService', () => {
-    const fautifs = fichiers.filter((f) =>
-      /inject\(\s*(HttpClient|HttpBaseService)\s*\)/.test(readFileSync(f, 'utf8')));
+  it('aucun *.api.ts ne nomme HttpClient, sous quelque forme que ce soit', () => {
+    // `inject(HttpClient)`, `inject<HttpClient>(…)`, un paramètre de
+    // constructeur `private http: HttpClient`, un import : tous nomment le
+    // symbole. Le service passe par `this.httpClient`, hérité — il n'a jamais
+    // à écrire `HttpClient`.
+    const fautifs = fichiers.filter((f) => /\bHttpClient\b/.test(code(f)));
+    expect(fautifs.map((f) => path.relative(RACINE, f))).toEqual([]);
+  });
+
+  it("HttpBaseService n'apparaît que dans son import et la clause extends", () => {
+    const fautifs = fichiers.filter((f) => {
+      const usages = sansImports(code(f)).replace(/\bextends\s+HttpBaseService\b/g, '');
+      return /\bHttpBaseService\b/.test(usages);
+    });
     expect(fautifs.map((f) => path.relative(RACINE, f))).toEqual([]);
   });
 });

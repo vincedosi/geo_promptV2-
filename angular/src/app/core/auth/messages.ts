@@ -12,9 +12,14 @@ export function messageErreurConnexion(brut: string): string {
  * La page où renvoyer après connexion. Un chemin INTERNE seulement : un
  * paramètre `redirection` pointant ailleurs ferait de la page de connexion un
  * tremplin vers un site tiers.
+ *
+ * Repli : `/app`, l'accueil de l'application en lancement autonome — `/` ne
+ * fait que rediriger vers `app` (appRoutes), autant y aller directement.
  */
+export const CIBLE_PAR_DEFAUT = '/app';
+
 export function cibleDeRedirection(brut: string | null): string {
-  if (!brut || !brut.startsWith('/') || brut.startsWith('//')) return '/';
-  if (brut === '/connexion' || brut.startsWith('/connexion?')) return '/';
+  if (!brut || !brut.startsWith('/') || brut.startsWith('//')) return CIBLE_PAR_DEFAUT;
+  if (brut === '/connexion' || brut.startsWith('/connexion?')) return CIBLE_PAR_DEFAUT;
   return brut;
 }

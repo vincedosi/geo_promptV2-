@@ -1,51 +1,72 @@
-import { ApplicationInitStatus } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Router } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { appConfig } from './app.config';
 import { SUPABASE } from './core/auth/supabase';
 import { ConfigService } from './core/config/config.service';
 
 /**
- * Couvre le VRAI graphe de providers d'appConfig — les specs unitaires de
- * ConfigService et jetonInterceptor mockent chacune l'autre bout de la
- * dépendance circulaire (config -> intercepteur -> HttpBaseService ->
- * ConfigService.valeur) et ne l'auraient donc jamais attrapée, pas plus que
- * le inject() après await de provideAppInitializer (NG0203). Ce test
- * démarre l'application EXACTEMENT comme main.ts, sans rien mocker du côté
- * config/HTTP — seul le client Supabase est remplacé.
+ * Couvre le VRAI graphe de providers d'appConfig ET de la route — les specs
+ * unitaires de ConfigService et jetonInterceptor mockent chacune l'autre bout
+ * de la dépendance circulaire (config -> intercepteur -> HttpBaseService ->
+ * ConfigService.valeur) et ne l'auraient donc jamais attrapée, pas plus qu'un
+ * inject() après await (NG0203). Le démarrage ne vit plus dans un
+ * APP_INITIALIZER mais dans la route racine de `remoteRoutes` (le shell AIDA
+ * n'exécute pas app.config.ts) : ce test lance donc l'application comme
+ * bootstrap.ts puis navigue sur `/`, sans rien mocker du côté config/HTTP —
+ * seul le client Supabase est remplacé.
  */
 function fauxSupabase() {
+  const session = { access_token: 'jeton-demarrage', user: { email: 'a@exemple.test' } };
   return {
     auth: {
-      getSession: async () => ({ data: { session: null }, error: null }),
+      getSession: async () => ({ data: { session }, error: null }),
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
     },
   };
 }
 
-describe('appConfig — démarrage réel', () => {
-  it('charge /config.local.json sans Bearer puis résout l\'initialisation (pas de NG0203)', async () => {
+const attendre = () => new Promise((r) => setTimeout(r, 0));
+
+describe('appConfig — démarrage réel, lancement autonome', () => {
+  it('`/` mène à `/app`, la configuration étant chargée PAR LA ROUTE (sans Bearer), puis l\'API reçoit le Bearer', async () => {
     TestBed.configureTestingModule({
       providers: [...appConfig.providers, provideHttpClientTesting(), { provide: SUPABASE, useValue: fauxSupabase() }],
     });
-
-    // Premier TestBed.inject(...) : déclenche TestBed.finalize(), qui appelle
-    // ApplicationInitStatus.runInitializers() — donc le provideAppInitializer
-    // d'appConfig, qui lance ConfigService.charger() synchronement jusqu'à
-    // son premier await (le GET part donc déjà vers HttpTestingController).
     const http = TestBed.inject(HttpTestingController);
-    const statut = TestBed.inject(ApplicationInitStatus);
+    const harness = await RouterTestingHarness.create();
 
+    // Aucune requête avant la première navigation : plus d'APP_INITIALIZER.
+    http.expectNone('/config.local.json');
+
+    const navigation = harness.navigateByUrl('/');
+    await attendre();
     const requete = http.expectOne('/config.local.json');
     expect(requete.request.headers.has('Authorization')).toBe(false);
-    requete.flush({
-      supabaseUrl: 'http://127.0.0.1:54321',
-      supabaseAnonKey: 'cle-de-test',
-      apiBaseUrl: '',
-    });
+    requete.flush({ supabaseUrl: 'http://127.0.0.1:54321', supabaseAnonKey: 'cle-de-test', apiBaseUrl: '' });
+    await navigation;
+    await attendre();
 
-    await statut.donePromise;
-
+    expect(TestBed.inject(Router).url).toBe('/app');
     expect(TestBed.inject(ConfigService).valeur.supabaseUrl).toBe('http://127.0.0.1:54321');
+    const api = http.expectOne('/api/risques/sites/compter');
+    expect(api.request.headers.get('Authorization')).toBe('Bearer jeton-demarrage');
+    api.flush({ retenus: 1, total: 1, par_nature: {} });
+  });
+
+  it('une ancienne adresse (`/catalogue`) retombe dans l\'application via `**` → `app`', async () => {
+    TestBed.configureTestingModule({
+      providers: [...appConfig.providers, provideHttpClientTesting(), { provide: SUPABASE, useValue: fauxSupabase() }],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const harness = await RouterTestingHarness.create();
+    const navigation = harness.navigateByUrl('/catalogue');
+    await attendre();
+    http.expectOne('/config.local.json').flush({ supabaseUrl: 'http://x', supabaseAnonKey: 'k', apiBaseUrl: '' });
+    await navigation;
+    await attendre();
+    expect(TestBed.inject(Router).url).toBe('/app');
+    http.match(() => true).forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
   });
 });

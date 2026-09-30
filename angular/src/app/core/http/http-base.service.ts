@@ -1,6 +1,8 @@
 import { DOCUMENT, Injectable, inject } from '@angular/core';
 import { environment } from '../../../environments/environment';
-import { MechaRemoteAppHttpBaseServiceProvisoire } from './mecha-remote-app-http-base.provisoire';
+// Le jour où `@gdo-rd-france/mecha-lib-ui` est installé, CETTE ligne seule
+// change : `import { MechaRemoteAppHttpBaseService } from '@gdo-rd-france/mecha-lib-ui';`
+import { MechaRemoteAppHttpBaseServiceProvisoire as MechaRemoteAppHttpBaseService } from './mecha-remote-app-http-base.provisoire';
 
 /**
  * Base de TOUS les services d'API (doc AIDA §4.2-4.3) : un service métier
@@ -8,7 +10,7 @@ import { MechaRemoteAppHttpBaseServiceProvisoire } from './mecha-remote-app-http
  * jamais un `HttpClient` injecté à part ni une URL recomposée.
  */
 @Injectable({ providedIn: 'root' })
-export class HttpBaseService extends MechaRemoteAppHttpBaseServiceProvisoire {
+export class HttpBaseService extends MechaRemoteAppHttpBaseService {
   private readonly document = inject(DOCUMENT);
 
   constructor() {

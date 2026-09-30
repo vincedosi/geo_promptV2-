@@ -8,7 +8,7 @@ describe('ZonesRisqueApi', () => {
   function preparer() {
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(), provideHttpClientTesting(),
+        provideHttpClient(), provideHttpClientTesting(), ZonesRisqueApi,
         { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       ],
     });

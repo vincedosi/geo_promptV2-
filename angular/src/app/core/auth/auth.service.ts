@@ -1,6 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import type { Session } from '@supabase/supabase-js';
+import { CHEMIN_CONNEXION } from './chemin-connexion';
 import { messageErreurConnexion } from './messages';
 import { SUPABASE } from './supabase';
 
@@ -9,6 +10,7 @@ import { SUPABASE } from './supabase';
 export class AuthService {
   private readonly supabase = inject(SUPABASE);
   private readonly router = inject(Router);
+  private readonly cheminConnexion = inject(CHEMIN_CONNEXION);
   private readonly _session = signal<Session | null>(null);
   private renvoiEnCours: Promise<void> | null = null;
   private redirectionEnCours: Promise<void> | null = null;
@@ -104,10 +106,12 @@ export class AuthService {
    */
   private redirigerVersConnexion(): Promise<void> {
     if (this.redirectionEnCours) return this.redirectionEnCours;
-    if (this.router.url.startsWith('/connexion')) return Promise.resolve();
+    if (this.router.url.startsWith(this.cheminConnexion)) return Promise.resolve();
     const p = (async () => {
       try {
-        await this.router.navigate(['/connexion'], { queryParams: { redirection: this.router.url } });
+        // `this.router.url` est l'URL COMPLÈTE (`/app/essai-carte?…` en autonome,
+        // préfixe de l'hôte compris dans AIDA) : c'est elle qu'on reprendra.
+        await this.router.navigate([this.cheminConnexion], { queryParams: { redirection: this.router.url } });
       } finally {
         this.redirectionEnCours = null;
       }

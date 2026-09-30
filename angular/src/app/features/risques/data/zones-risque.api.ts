@@ -10,7 +10,10 @@ export interface ReponseCourbe {
   courbes: { cle: string; total: number; points: { r: number; p: number; i: number }[] }[];
 }
 
-@Injectable({ providedIn: 'root' })
+// Fourni par la ROUTE (FOURNISSEURS_DISTANTS, app.routes.ts) et non à la
+// racine : un service racine recevrait le HttpClient de l'hôte, sans nos
+// intercepteurs (jeton, limiteur, session expirée).
+@Injectable()
 export class ZonesRisqueApi extends HttpBaseService {
   /** Construit (ou retrouve) la géométrie des zones d'un profil, AVANT d'allumer les tuiles. */
   preparer(codeProfil: string): Observable<unknown> {

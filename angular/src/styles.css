@@ -77,3 +77,17 @@ body {
   color: var(--text-tertiary) !important;
   text-decoration: none !important;
 }
+
+/*
+ * Logotype MAGELIAN : le wordmark SVG est dessiné en QUASI-NOIR (avec des
+ * accents teal) — lisible sur fond clair, presque invisible sur le fond sombre
+ * (constat du 2026-09-30). Pas de hex ajouté : en thème sombre on inverse la
+ * luminance, et la rotation de teinte de 180° ramène les accents inversés
+ * (rouge) vers le teal. Thème sombre = défaut (`:root`), comme les jetons.
+ */
+.mg-logo {
+  filter: invert(1) hue-rotate(180deg);
+}
+html.light .mg-logo {
+  filter: none;
+}
