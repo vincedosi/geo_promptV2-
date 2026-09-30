@@ -1,4 +1,4 @@
-import { DOCUMENT, DestroyRef, Injectable, effect, inject, signal } from '@angular/core';
+import { DOCUMENT, DestroyRef, Injectable, InjectionToken, effect, inject, signal } from '@angular/core';
 import { CLE_THEME, type Theme, themeInitial, themeSuivant } from './theme';
 
 /**
@@ -29,9 +29,44 @@ function themeDeLaClasse(doc: Document, strict: boolean): Theme | null {
 }
 
 /**
- * Le thème courant. Les jetons clairs vivent sous `html.light` (styles/jetons.css).
+ * MAGELIAN a-t-il le droit d'écrire `<html>` (classes `light`/`dark` et
+ * `style.colorScheme`) ? **Défaut racine : `false`** — c'est le cas d'un hôte
+ * AIDA, qui ne fournit rien : son `<html>` lui appartient. Seul le lancement
+ * AUTONOME (`app.config.ts`) le fournit à `true`, parce que le document y est
+ * le nôtre (barres de défilement du document, fond avant le montage).
+ * Revue finale du lot AIDA (I1) : la règle « on n'écrit qu'au démarrage sans
+ * classe ou sur une bascule » écrivait encore dans un hôte sans classe, et
+ * réécrivait la classe du shell à chaque bascule.
+ */
+export const ECRIRE_HTML = new InjectionToken<boolean>('ECRIRE_HTML', {
+  providedIn: 'root',
+  factory: () => false,
+});
+
+/** Le thème que l'hôte EXPRIME par la classe de `<html>` : null s'il n'en pose aucune (`light` l'emporte si les deux). */
+function themeExprime(doc: Document): Theme | null {
+  const classes = doc.documentElement.classList;
+  if (classes.contains('light')) return 'light';
+  return classes.contains('dark') ? 'dark' : null;
+}
+
+/**
+ * Le thème courant. Les jetons clairs vivent sous `:host(.light)` de NOS
+ * racines d'ombre, et sous `html.light` pour le document autonome (styles/jetons.css).
  *
- * RÈGLE DE PROPRIÉTÉ : **le shell peut poser la classe, MAGELIAN la suit.**
+ * DANS UN HÔTE (`ECRIRE_HTML` = `false`, défaut) : **MAGELIAN n'écrit JAMAIS
+ * `<html>`**, ni classe ni `color-scheme`, ni au démarrage ni sur `basculer()`.
+ *  - Démarrage : thème de l'hôte s'il pose exactement une classe, sinon le
+ *    stockage.
+ *  - `basculer()` agit sur nos racines d'ombre (`:host(.light)`, dont le
+ *    `color-scheme` suit) et sur le stockage — jamais sur `<html>`.
+ *  - Suivi : quand le thème EXPRIMÉ par l'hôte change (il pose `light` ou
+ *    `dark`), on l'adopte. Une mutation de `<html>` qui ne le change pas (une
+ *    classe étrangère au thème) ne défait pas une bascule ; un hôte qui RETIRE
+ *    sa classe n'exprime plus rien, et on garde le thème courant.
+ *
+ * EN AUTONOME (`ECRIRE_HTML` = `true`), RÈGLE DE PROPRIÉTÉ de la tâche 5 :
+ * **le shell peut poser la classe, MAGELIAN la suit.**
  * MAGELIAN n'écrit `<html>` (classes ET `style.colorScheme`) que dans DEUX cas :
  *  (a) son utilisateur bascule, via `basculer()` ;
  *  (b) au tout premier passage, quand `<html>` ne porte NI `light` NI `dark`
@@ -42,9 +77,10 @@ function themeDeLaClasse(doc: Document, strict: boolean): Theme | null {
  *
  * Un `MutationObserver` (attributeFilter `class`) recopie la classe de l'hôte
  * dans `theme` ET `themeApplique`, pour que les couleurs calculées (carte,
- * courbes) se repeignent. Lecture = ce que le CSS rend (jetons.css n'a que
- * `:root`, sombre, et `html.light`) : `light` présente -> clair, sinon sombre ;
- * classe absente -> sombre, les deux -> clair. Le `color-scheme` de `<html>` reste à
+ * courbes) se repeignent. En autonome, lecture = ce que le CSS du document
+ * rend (`:root` sombre, `html.light` clair, jetons.css) : `light` présente ->
+ * clair, sinon sombre ; classe absente -> sombre, les deux -> clair. Dans un
+ * hôte, seul un CHANGEMENT du thème exprimé compte (voir plus haut). Le `color-scheme` de `<html>` reste à
  * l'hôte ; DANS les racines d'ombre, il suit le thème de MAGELIAN (`:host` /
  * `:host(.light)`, styles.css), grâce à la classe que ce service y recopie.
  *
@@ -60,7 +96,7 @@ function themeDeLaClasse(doc: Document, strict: boolean): Theme | null {
  * Au DÉMARRAGE, le thème initial vient de `<html>` quand UNE SEULE des deux
  * classes y est ; sinon repli sur le stockage.
  *
- * Un script inline dans `index.html` pose déjà la classe et `color-scheme`
+ * En autonome, un script inline dans `index.html` pose déjà la classe et `color-scheme`
  * AVANT ce service (sinon fond sombre/blanc le temps du démarrage) ; ce service
  * reste ensuite la source de vérité côté MAGELIAN. Une seule instance (racine),
  * donc un seul observateur, même si `App` est montée deux fois.
@@ -79,9 +115,12 @@ export class ThemeService {
    * n'écrit que si `theme` lui est égal.
    */
   private themeUtilisateur: Theme | null = null;
-  /** Autorise l'effect à écrire classes et color-scheme sur `<html>` : cas (a) et (b) de la JSDoc. */
-  private ecrireHtml = !this.doc.documentElement.classList.contains('light')
-    && !this.doc.documentElement.classList.contains('dark');
+  /** `<html>` est-il à nous ? `false` dans un hôte : on n'y écrit jamais. */
+  private readonly proprietaireHtml = inject(ECRIRE_HTML);
+  /** Autorise l'effect à écrire classes et color-scheme sur `<html>` : cas (a) et (b) de la JSDoc, autonome seulement. */
+  private ecrireHtml = this.proprietaireHtml && themeExprime(this.doc) === null;
+  /** Dans un hôte : le dernier thème exprimé par sa classe, pour ne réagir qu'à un CHANGEMENT de celui-ci. */
+  private dernierHote = themeExprime(this.doc);
 
   readonly theme = this._theme.asReadonly();
   /**
@@ -156,21 +195,34 @@ export class ThemeService {
   basculer(): void {
     const suivant = themeSuivant(this._theme());
     this.themeUtilisateur = suivant;
-    this.ecrireHtml = true;
+    this.ecrireHtml = this.proprietaireHtml;
     this._theme.set(suivant);
   }
 
   /** Rappel de l'observateur : recopie la classe de `<html>` (règle du CSS) si elle est nouvelle. */
   private suivreLaClasse(): void {
+    if (!this.proprietaireHtml) {
+      const exprime = themeExprime(this.doc);
+      if (exprime === this.dernierHote) return; // classe étrangère au thème : rien n'a changé
+      this.dernierHote = exprime;
+      if (exprime === null) return; // l'hôte n'exprime plus de thème : on garde le nôtre
+      this.adopter(exprime);
+      return;
+    }
     const pose = themeDeLaClasse(this.doc, false)!;
     // Drapeau armé = l'effect n'a pas encore écrit : la mutation ne peut être que celle de l'hôte,
     // même si elle donne le même thème que le nôtre (l'effect écraserait sinon ses classes).
     const externe = this.ecrireHtml;
     if (pose === this._theme() && !externe) return; // notre propre pose (l'effect a écrit) : rien à faire
-    this.themeUtilisateur = null;
     this.ecrireHtml = false; // un changement externe désarme aussi l'écriture (bascule ou démarrage pas encore passés par l'effect)
-    this._theme.set(pose);
-    this.poserClasseRacines(pose);
-    this._themeApplique.set(pose); // la classe est DÉJÀ là : les couleurs sont justes tout de suite
+    this.adopter(pose);
+  }
+
+  /** Adopte le thème posé par l'hôte : ni mémorisé, ni réécrit sur `<html>`. */
+  private adopter(t: Theme): void {
+    this.themeUtilisateur = null;
+    this._theme.set(t);
+    this.poserClasseRacines(t);
+    this._themeApplique.set(t); // la classe est DÉJÀ là : les couleurs sont justes tout de suite
   }
 }

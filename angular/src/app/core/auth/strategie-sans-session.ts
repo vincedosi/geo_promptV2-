@@ -15,8 +15,10 @@ export type StrategieSansSession = { mode: 'message' } | { mode: 'rediriger'; ch
  * ⚠ **Le défaut RACINE est `message`** : un hôte ne fournit rien, et c'est
  * dans l'hôte que la redirection est fausse. Le lancement autonome fournit
  * `rediriger` sur sa route `app` (`appRoutes`), dont `remoteRoutes` sont les
- * enfants — les gardes, l'intercepteur de session expirée, la coquille et
- * `RacineDistanteComponent` le lisent donc dans l'injecteur de LEUR route.
+ * enfants — `authGuard`, la coquille et `RacineDistanteComponent` le lisent
+ * donc dans l'injecteur de LEUR route. L'intercepteur de session expirée ne
+ * le lit PAS : il met seulement fin à la session, et c'est
+ * `RacineDistanteComponent` qui décide ensuite (message ou redirection).
  *
  * Rien de fourni `providedIn: 'root'` ne doit le lire : un service racine
  * verrait toujours le défaut. C'est pourquoi `AuthService` ne navigue plus.

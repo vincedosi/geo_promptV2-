@@ -22,7 +22,10 @@ import { RacineDistanteComponent } from './layout/racine-distante.component';
  *   passent donc en premier, ceux de l'hôte ensuite.
  * - Les services d'API sont fournis ICI et non en `providedIn: 'root'` : un
  *   service racine recevrait le HttpClient de l'hôte, sans nos intercepteurs.
- * Ordre des intercepteurs : limiteur en premier, session expirée après le jeton.
+ * Ordre de NOS intercepteurs : limiteur, puis jeton, puis session expirée
+ * (après le jeton). « En premier » ne vaut que parmi les nôtres : Angular fait
+ * passer son intercepteur XSRF (`xsrfInterceptorFn`, ajouté par
+ * `provideHttpClient`) avant eux.
  */
 const FOURNISSEURS_DISTANTS: (Provider | EnvironmentProviders)[] = [
   provideHttpClient(
@@ -45,6 +48,11 @@ export const remoteRoutes: Routes = [
     component: RacineDistanteComponent,
     providers: FOURNISSEURS_DISTANTS,
     canActivate: [demarrageGuard],
+    // Après un ÉCHEC de démarrage, une navigation vers une page enfant (menu du
+    // shell) réutilise cette route : sans `always`, son garde ne repartirait
+    // pas et l'erreur resterait affichée. `demarrer()` est idempotent — une
+    // fois réussi, le garde ne fait que relire une promesse résolue.
+    runGuardsAndResolvers: 'always',
     children: [
       {
         path: '',

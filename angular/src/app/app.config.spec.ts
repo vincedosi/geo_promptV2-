@@ -5,6 +5,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { appConfig } from './app.config';
 import { SUPABASE } from './core/auth/supabase';
 import { ConfigService } from './core/config/config.service';
+import { ECRIRE_HTML } from './core/theme/theme.service';
 import { BASE_RESSOURCES } from './core/ressources/ressource-distante';
 import { feuillesFactices, ombre, retirerPolices } from './core/ressources/testing/feuilles-factices';
 
@@ -56,6 +57,13 @@ async function feuilleGlobaleChargee(): Promise<void> {
 describe('appConfig — démarrage réel, lancement autonome', () => {
   beforeEach(() => (feuilles = feuillesFactices()));
   afterEach(() => retirerPolices());
+
+  it("le lancement autonome — et lui seul — autorise ThemeService à écrire <html> (ECRIRE_HTML = true)", () => {
+    const fourni = appConfig.providers.find(
+      (p) => typeof p === 'object' && p !== null && 'provide' in p && p.provide === ECRIRE_HTML,
+    ) as { useValue?: unknown } | undefined;
+    expect(fourni?.useValue).toBe(true);
+  });
 
   it('`/` mène à `/app`, la configuration étant chargée PAR LA ROUTE (sans Bearer), puis l\'API reçoit le Bearer', async () => {
     TestBed.configureTestingModule({

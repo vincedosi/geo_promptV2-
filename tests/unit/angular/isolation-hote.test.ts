@@ -49,6 +49,10 @@ const HERITEES_MINIMUM = [
   'direction', 'color', 'font-family', 'font-size', 'line-height', 'letter-spacing',
   'color-scheme', 'text-transform', 'text-align', 'cursor', 'word-spacing', 'white-space',
   'font-weight', 'font-style', 'text-indent', 'text-shadow', 'list-style-type',
+  // Revue finale du lot AIDA : un `pointer-events: none` du shell (voile de
+  // menu, écran de chargement) rendrait MAGELIAN inerte ; la surbrillance au
+  // toucher du shell teinterait nos boutons sur mobile.
+  'pointer-events', '-webkit-tap-highlight-color',
 ];
 
 describe(":host — ce que le shell ne peut plus changer dans MAGELIAN", () => {

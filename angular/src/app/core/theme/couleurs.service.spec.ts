@@ -1,9 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { CouleursService } from './couleurs.service';
-import { ThemeService } from './theme.service';
+import { ECRIRE_HTML, ThemeService } from './theme.service';
 
 describe('CouleursService', () => {
   beforeEach(() => {
+    // Ces specs raisonnent sur la classe de <html> écrite en autonome.
+    TestBed.configureTestingModule({ providers: [{ provide: ECRIRE_HTML, useValue: true }] });
     localStorage.clear();
     document.documentElement.className = '';
     document.documentElement.style.setProperty('--essai-a', '#112233');

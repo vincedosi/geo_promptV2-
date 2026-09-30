@@ -13,13 +13,21 @@ class SansOmbre {
 
 function preparer(feuillePresente: boolean) {
   const feuilles = feuillesFactices();
+  const feuille = signal<CSSStyleSheet | null>(feuillePresente ? feuilles.feuille : null);
   TestBed.configureTestingModule({
     providers: [
       ...feuilles.providers,
-      { provide: DemarrageService, useValue: { erreur: signal(null), feuille: signal(feuillePresente ? feuilles.feuille : null) } },
+      { provide: DemarrageService, useValue: { erreur: signal(null), feuille } },
     ],
   });
-  return feuilles;
+  return { ...feuilles, feuilleDemarrage: feuille };
+}
+
+@Component({ selector: 'mg-ombre-vide', template: '<p>x</p>', encapsulation: ViewEncapsulation.ShadowDom })
+class OmbreVide {
+  constructor() {
+    monterRacineOmbre();
+  }
 }
 
 describe('monterRacineOmbre', () => {
@@ -32,13 +40,20 @@ describe('monterRacineOmbre', () => {
 
   it("sans feuille (démarrage en échec sur elle), ne lève pas : le message d'erreur doit pouvoir s'afficher", () => {
     const feuilles = preparer(false);
-    @Component({ selector: 'mg-ombre-vide', template: '<p>x</p>', encapsulation: ViewEncapsulation.ShadowDom })
-    class OmbreVide {
-      constructor() {
-        monterRacineOmbre();
-      }
-    }
     expect(() => TestBed.createComponent(OmbreVide)).not.toThrow();
     expect(feuilles.adoptions).toEqual([]);
+  });
+
+  it("une racine créée PENDANT l'échec adopte la feuille quand elle arrive (relance réussie), une seule fois", () => {
+    const feuilles = preparer(false);
+    const fixture = TestBed.createComponent(OmbreVide);
+    TestBed.tick();
+    expect(feuilles.adoptions).toEqual([]);
+    feuilles.feuilleDemarrage.set(feuilles.feuille);
+    TestBed.tick();
+    const racine = (fixture.nativeElement as HTMLElement).shadowRoot!;
+    expect(feuilles.adoptions).toEqual([{ racine, feuille: feuilles.feuille }]);
+    TestBed.tick();
+    expect(feuilles.adoptions.length).toBe(1);
   });
 });

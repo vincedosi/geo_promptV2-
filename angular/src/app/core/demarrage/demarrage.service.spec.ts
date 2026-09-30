@@ -107,14 +107,22 @@ describe('DemarrageService', () => {
     expect(auth.initialiser).not.toHaveBeenCalled();
   });
 
-  it('échec des polices : erreur() nomme magelian-polices.css, ni configuration ni session', async () => {
-    const { service, config, auth } = preparer();
-    const p = service.demarrer();
-    await feuilles('erreur-polices');
-    await p;
-    expect(service.erreur()).toMatch(/magelian-polices\.css/);
-    expect(config.charger).not.toHaveBeenCalled();
-    expect(auth.initialiser).not.toHaveBeenCalled();
+  it("échec des polices : NON bloquant — repli sur les polices système, avertissement console qui nomme le fichier, démarrage mené à bien", async () => {
+    const avertir = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const { service, config, auth, construite } = preparer();
+      const p = service.demarrer();
+      await feuilles('erreur-polices');
+      await p;
+      expect(service.erreur()).toBeNull();
+      expect(service.feuille()).toBe(construite);
+      expect(config.charger).toHaveBeenCalledTimes(1);
+      expect(auth.initialiser).toHaveBeenCalledTimes(1);
+      expect(avertir).toHaveBeenCalledTimes(1);
+      expect(String(avertir.mock.calls[0][0])).toMatch(/magelian-polices\.css/);
+    } finally {
+      avertir.mockRestore();
+    }
   });
 
   it('échec de la configuration : erreur() porte le message ET dit comment réessayer ; la session n\'est jamais initialisée', async () => {

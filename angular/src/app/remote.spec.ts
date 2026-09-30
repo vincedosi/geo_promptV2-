@@ -110,6 +110,31 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     expect(conteneur.querySelector('mg-coquille')).toBeNull();
   });
 
+  it("le <html> de l'hôte (ici SANS classe) n'est jamais écrit : ni au montage, ni par la bascule de thème", async () => {
+    const html = document.documentElement;
+    html.className = '';
+    html.removeAttribute('style');
+    try {
+      const { harness, http } = await monter();
+      http.match('/api/risques/sites/compter').forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
+      expect(html.className).toBe('');
+      expect(html.getAttribute('style')).toBeNull();
+      const hoteRacine = (harness.fixture.nativeElement as HTMLElement).querySelector('mg-racine-distante')!;
+      const theme = hoteRacine.classList.contains('light') ? 'light' : 'dark';
+      const bouton = [...ombre(harness.fixture.nativeElement as HTMLElement).querySelectorAll('button')]
+        .find((b) => /^Thème (clair|sombre)$/.test(b.textContent?.trim() ?? ''));
+      bouton!.click();
+      await attendre();
+      await harness.fixture.whenStable();
+      expect(html.className).toBe('');
+      expect(html.getAttribute('style')).toBeNull();
+      // Seule NOTRE racine a basculé (`:host(.light)`).
+      expect(hoteRacine.classList.contains(theme === 'light' ? 'dark' : 'light')).toBe(true);
+    } finally {
+      localStorage.clear();
+    }
+  });
+
   it('la configuration et la session sont chargées par la route', async () => {
     const { auth, configDemandee } = await monter();
     expect(configDemandee).toBe(1);
@@ -172,6 +197,33 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     http.expectNone('/api/risques/sites/compter');
   });
 
+  it("après un échec, une navigation ENFANT (menu du shell) relance le démarrage, et l'application s'affiche", async () => {
+    hote();
+    const http = TestBed.inject(HttpTestingController);
+    const harness = await RouterTestingHarness.create();
+    const navigation = harness.navigateByUrl('/hote/magelian');
+    await attendre();
+    policesChargees();
+    await attendre();
+    http.expectOne((r) => r.url.endsWith('config.local.json')).flush('absent', { status: 404, statusText: 'Not Found' });
+    await navigation;
+    await harness.fixture.whenStable();
+    expect(ombre(harness.fixture.nativeElement as HTMLElement).querySelector('[role="alert"]')).not.toBeNull();
+
+    // Le shell navigue vers une page enfant : la route racine est RÉUTILISÉE, son garde doit tout de même repartir.
+    const relance = harness.navigateByUrl('/hote/magelian/catalogue');
+    await attendre();
+    http.expectOne((r) => r.url.endsWith('config.local.json'))
+      .flush({ supabaseUrl: 'http://x', supabaseAnonKey: 'k', apiBaseUrl: '' });
+    await relance;
+    await attendre();
+    await harness.fixture.whenStable();
+    const racine = ombre(harness.fixture.nativeElement as HTMLElement);
+    expect(racine.querySelector('[role="alert"]')).toBeNull();
+    expect(racine.querySelector('mg-coquille')).not.toBeNull();
+    expect(TestBed.inject(Router).url).toBe('/hote/magelian/catalogue');
+  });
+
   describe("sans session dans l'hôte (défaut racine : un message, jamais une navigation)", () => {
     const MESSAGE = 'Session requise — connectez-vous à AIDA pour accéder à MAGELIAN.';
     const racine = (h: RouterTestingHarness) => ombre(h.fixture.nativeElement as HTMLElement);
@@ -202,6 +254,21 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
       const req = http.expectOne('/api/risques/sites/compter');
       expect(req.request.headers.get('Authorization')).toBe('Bearer jeton-test');
       req.flush({ retenus: 1, total: 1, par_nature: {} });
+    });
+
+    it("(d) « Se déconnecter » : le même message, sans aucune navigation", async () => {
+      const { auth, harness, http, navigations } = await monter(true);
+      http.expectOne('/api/risques/sites/compter').flush({ retenus: 1, total: 1, par_nature: {} });
+      const bouton = [...racine(harness).querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Se déconnecter');
+      bouton!.click();
+      await attendre();
+      await harness.fixture.whenStable();
+
+      expect(auth.deconnecter).toHaveBeenCalledTimes(1);
+      expect(racine(harness).querySelector('[role="status"]')?.textContent?.trim()).toBe(MESSAGE);
+      expect(racine(harness).querySelector('mg-coquille')).toBeNull();
+      expect(navigations).toEqual(['/hote/magelian']);
+      expect(TestBed.inject(Router).url).toBe('/hote/magelian');
     });
 
     it("(c) un 401 de l'API fait apparaître le même message, sans navigation ni nouvel appel", async () => {

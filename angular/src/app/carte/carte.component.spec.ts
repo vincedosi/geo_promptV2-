@@ -1,4 +1,4 @@
-import { Component, ViewEncapsulation } from '@angular/core';
+import { Component, NgZone, ViewEncapsulation } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { CarteComponent } from './carte.component';
 import { FABRIQUE_CARTE } from './fabrique-carte';
@@ -40,6 +40,31 @@ describe('CarteComponent', () => {
     ObservateurFactice.instances = [];
     // Le document est partagé entre les tests : chaque test repart sans feuille posée.
     document.head.querySelectorAll('link[data-mg-maplibre]').forEach((l) => l.remove());
+  });
+
+  it("crée la carte HORS de la zone Angular (NgZone.runOutsideAngular) : un shell sous zone.js ne détecte pas à chaque mouvement de souris", async () => {
+    // Règle des lots suivants (revue finale du lot AIDA). Tenue AUJOURD'HUI par
+    // `afterNextRender`, qu'Angular exécute via `ngZone.runOutsideAngular`
+    // (AfterRenderManager) : ce test verrouille la propriété si la création
+    // quittait un jour `afterNextRender`. Indifférent en zoneless.
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
+    const appels: boolean[] = [];
+    let dehors = false;
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: FABRIQUE_CARTE, useValue: (o: never) => { appels.push(dehors); return new CarteFactice(o); } },
+        { provide: BASE_RESSOURCES, useValue: BASE },
+      ],
+    });
+    const zone = TestBed.inject(NgZone);
+    vi.spyOn(zone, 'runOutsideAngular').mockImplementation((fn) => {
+      dehors = true;
+      try { return fn(); } finally { dehors = false; }
+    });
+    const f = TestBed.createComponent(CarteComponent);
+    f.componentRef.setInput('cadre', [4.75, 43.35, 5.3, 43.6]);
+    await f.whenStable();
+    expect(appels).toEqual([true]);
   });
 
   it('crée la carte dans son conteneur, sur le fond et le cadre demandés', async () => {

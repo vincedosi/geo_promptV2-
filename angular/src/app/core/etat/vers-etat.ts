@@ -1,4 +1,4 @@
-import { DestroyRef, assertInInjectionContext, inject, signal } from '@angular/core';
+import { DestroyRef, assertInInjectionContext, assertNotInReactiveContext, inject, signal } from '@angular/core';
 import type { Signal } from '@angular/core';
 import type { Observable } from 'rxjs';
 import { messageErreurApi } from '../http/erreurs';
@@ -14,7 +14,9 @@ import type { EtatChargement } from './etat-chargement';
  * Doit être appelé dans un CONTEXTE D'INJECTION (constructeur, initialiseur
  * de champ de composant/service, ou `runInInjectionContext`) : il s'y
  * raccroche pour se désabonner à la destruction. Hors contexte, il lève
- * `NG0203` en nommant `versEtat` — le contrat de l'ancien `toSignal`.
+ * `NG0203` en nommant `versEtat` — le contrat de l'ancien `toSignal`. Et
+ * JAMAIS dans un contexte réactif (`computed`, `effect`, gabarit) : il y lève
+ * `NG0602`, comme `toSignal`.
  *
  * ⚠ **Pas de `toSignal`** (ni rien de `@angular/core/rxjs-interop`) : un hôte
  * AIDA par défaut ne partage pas cette entrée secondaire, et la copie du
@@ -30,6 +32,9 @@ import type { EtatChargement } from './etat-chargement';
  * changement zoneless.
  */
 export function versEtat<T>(source$: Observable<T>): Signal<EtatChargement<T>> {
+  // Jamais dans un `computed`, un `effect` ou un gabarit : chaque réévaluation
+  // ouvrirait un nouvel abonnement HTTP. `NG0602` nomme `versEtat`, comme `toSignal`.
+  assertNotInReactiveContext(versEtat);
   assertInInjectionContext(versEtat);
   // Pris AVANT l'abonnement : hors contexte, rien n'est abonné, rien ne fuit.
   const destruction = inject(DestroyRef);

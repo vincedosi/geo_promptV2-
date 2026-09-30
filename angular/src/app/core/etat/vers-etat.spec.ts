@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { EnvironmentInjector, createEnvironmentInjector } from '@angular/core';
+import { EnvironmentInjector, computed, createEnvironmentInjector } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { versEtat } from './vers-etat';
@@ -55,6 +55,12 @@ describe('versEtat', () => {
     injecteur.destroy();
     expect(desabonnes).toBe(1);
     expect(etat()).toEqual({ statut: 'chargement' });
+  });
+
+  it("lève une erreur claire DANS un contexte réactif (computed, effect, gabarit) — comme l'ancien toSignal", () => {
+    // Dans un `computed`, chaque réévaluation créerait un nouvel abonnement HTTP.
+    const derive = computed(() => TestBed.runInInjectionContext(() => versEtat(of(1))));
+    expect(() => derive()).toThrowError(/NG0602.*versEtat\(\)/);
   });
 
   it("lève une erreur claire hors d'un contexte d'injection", () => {

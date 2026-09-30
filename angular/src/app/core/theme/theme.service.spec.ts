@@ -1,9 +1,12 @@
 import { TestBed } from '@angular/core/testing';
 import { CLE_THEME } from './theme';
-import { ThemeService } from './theme.service';
+import { ECRIRE_HTML, ThemeService } from './theme.service';
 
-describe('ThemeService', () => {
+// Lancement AUTONOME (`app.config.ts` fournit ECRIRE_HTML = true) : règle de
+// propriété de la tâche 5, inchangée. Le cas de l'hôte est plus bas.
+describe('ThemeService en autonome (ECRIRE_HTML = true)', () => {
   beforeEach(() => {
+    TestBed.configureTestingModule({ providers: [{ provide: ECRIRE_HTML, useValue: true }] });
     localStorage.clear();
     document.documentElement.className = '';
     document.documentElement.style.colorScheme = '';
@@ -357,5 +360,126 @@ describe('ThemeService', () => {
       TestBed.tick();
       expect(document.documentElement.style.colorScheme).toBe(''); // l'hôte a tranché : rien écrit au démarrage
     });
+  });
+});
+
+/**
+ * I1 (revue finale du lot AIDA) : dans un hôte, `ECRIRE_HTML` vaut son défaut
+ * racine `false` — MAGELIAN n'écrit JAMAIS le `<html>` du shell, ni classe ni
+ * `color-scheme`, ni au démarrage ni sur `basculer()`. Le thème ne vit que sur
+ * NOS racines d'ombre (`:host(.light)`) et dans le stockage.
+ */
+describe("ThemeService dans un hôte (ECRIRE_HTML par défaut : false)", () => {
+  const racine = () => document.createElement('mg-racine-distante');
+
+  beforeEach(() => {
+    localStorage.clear();
+    document.documentElement.className = '';
+    document.documentElement.removeAttribute('style');
+  });
+
+  it("hôte sans classe : <html> intact (classe ET style), racines dans le thème stocké", () => {
+    localStorage.setItem(CLE_THEME, 'light');
+    const theme = TestBed.inject(ThemeService);
+    const el = racine();
+    theme.enregistrerRacine(el);
+    TestBed.tick();
+    expect(document.documentElement.className).toBe('');
+    expect(document.documentElement.getAttribute('style')).toBeNull();
+    expect(theme.theme()).toBe('light');
+    expect(theme.themeApplique()).toBe('light');
+    expect(el.className).toBe('light');
+  });
+
+  it("hôte sans classe, stockage vide : racines en sombre, <html> intact", () => {
+    const theme = TestBed.inject(ThemeService);
+    const el = racine();
+    theme.enregistrerRacine(el);
+    TestBed.tick();
+    expect(document.documentElement.className).toBe('');
+    expect(document.documentElement.getAttribute('style')).toBeNull();
+    expect(el.className).toBe('dark');
+  });
+
+  it("hôte sans classe + bascule : <html> intact, racines basculées, stockage écrit", async () => {
+    const theme = TestBed.inject(ThemeService);
+    const el = racine();
+    theme.enregistrerRacine(el);
+    TestBed.tick();
+    theme.basculer();
+    TestBed.tick();
+    await Promise.resolve();
+    TestBed.tick();
+    expect(document.documentElement.className).toBe('');
+    expect(document.documentElement.getAttribute('style')).toBeNull();
+    expect(theme.theme()).toBe('light');
+    expect(theme.themeApplique()).toBe('light');
+    expect(el.className).toBe('light');
+    expect(localStorage.getItem(CLE_THEME)).toBe('light');
+  });
+
+  it("hôte avec classe : la classe est suivie (démarrage puis changement), jamais réécrite", async () => {
+    document.documentElement.className = 'light';
+    const theme = TestBed.inject(ThemeService);
+    const el = racine();
+    theme.enregistrerRacine(el);
+    TestBed.tick();
+    expect(theme.theme()).toBe('light');
+    expect(el.className).toBe('light');
+    document.documentElement.classList.replace('light', 'dark');
+    await Promise.resolve();
+    TestBed.tick();
+    expect(theme.theme()).toBe('dark');
+    expect(el.className).toBe('dark');
+    expect(document.documentElement.className).toBe('dark');
+    expect(document.documentElement.getAttribute('style')).toBeNull();
+    expect(localStorage.getItem(CLE_THEME)).toBeNull();
+  });
+
+  it("hôte avec classe + bascule : <html> garde la classe de l'hôte, seules nos racines basculent", async () => {
+    document.documentElement.className = 'light';
+    const theme = TestBed.inject(ThemeService);
+    const el = racine();
+    theme.enregistrerRacine(el);
+    TestBed.tick();
+    theme.basculer();
+    TestBed.tick();
+    await Promise.resolve();
+    TestBed.tick();
+    expect(document.documentElement.className).toBe('light');
+    expect(document.documentElement.getAttribute('style')).toBeNull();
+    expect(theme.theme()).toBe('dark');
+    expect(el.className).toBe('dark');
+    expect(localStorage.getItem(CLE_THEME)).toBe('dark');
+  });
+
+  it("une mutation de <html> qui ne change PAS le thème exprimé par l'hôte ne défait pas la bascule", async () => {
+    const theme = TestBed.inject(ThemeService);
+    const el = racine();
+    theme.enregistrerRacine(el);
+    TestBed.tick();
+    theme.basculer(); // -> clair, <html> toujours sans classe
+    TestBed.tick();
+    document.documentElement.classList.add('menu-ouvert'); // classe étrangère au thème
+    await Promise.resolve();
+    TestBed.tick();
+    expect(theme.theme()).toBe('light');
+    expect(el.className).toBe('light');
+    expect(document.documentElement.className).toBe('menu-ouvert');
+  });
+
+  it("l'hôte retire sa classe : il n'exprime plus de thème, on garde le nôtre sans rien écrire", async () => {
+    document.documentElement.className = 'light';
+    const theme = TestBed.inject(ThemeService);
+    const el = racine();
+    theme.enregistrerRacine(el);
+    TestBed.tick();
+    document.documentElement.classList.remove('light');
+    await Promise.resolve();
+    TestBed.tick();
+    expect(theme.theme()).toBe('light');
+    expect(el.className).toBe('light');
+    expect(document.documentElement.className).toBe('');
+    expect(document.documentElement.getAttribute('style')).toBeNull();
   });
 });

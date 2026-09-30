@@ -21,10 +21,14 @@ const CONSIGNE = 'Rechargez la page pour réessayer.';
  *     (`feuille`), jamais posée dans le document : chaque racine d'ombre
  *     MAGELIAN l'adopte (`monterRacineOmbre`). Isolation CSS, tâche 8.
  *   Rien ne s'affiche avant elles — une page sans ses jetons est illisible,
- *   et même le message d'erreur en a besoin. Si c'est la feuille qui échoue,
+ *   et même le message d'erreur en a besoin. **Seule `magelian.css` est
+ *   bloquante** : un échec des polices n'arrête rien — repli sur les polices
+ *   système (`system-ui`, `ui-monospace`, fin des piles de styles.css) et un
+ *   `console.warn` qui nomme le fichier. Si c'est la feuille qui échoue,
  *   le message s'affiche sans style : accepté, c'est le seul cas où il ne peut
  *   pas en être autrement. Une feuille construite n'est pas reconstruite à la
- *   tentative suivante.
+ *   tentative suivante ; une racine d'ombre créée PENDANT l'échec l'adopte
+ *   quand elle arrive (`monterRacineOmbre`).
  * - Le client Supabase lit la configuration à sa construction, d'où
  *   configuration avant session.
  *
@@ -32,9 +36,11 @@ const CONSIGNE = 'Rechargez la page pour réessayer.';
  * pas d'APP_INITIALIZER), donc dans les deux modes. Une seule promesse tant
  * que le démarrage réussit ou est en cours : naviguer dix fois ne recharge
  * rien. **Un ÉCHEC n'est pas gardé** : la promesse est oubliée, et la
- * navigation suivante retente — dans AIDA, recharger la page, c'est recharger
- * tout le shell, alors qu'une coupure passagère se rattrape d'un clic dans le
- * menu. Le message garde sa consigne de rechargement, qui reste le geste sûr
+ * navigation suivante retente — y compris vers une page ENFANT, la route
+ * racine portant `runGuardsAndResolvers: 'always'` (app.routes.ts) : sans
+ * cela le routeur la réutilise sans rejouer son garde. Dans AIDA, recharger
+ * la page, c'est recharger tout le shell, alors qu'une coupure passagère se
+ * rattrape d'un clic dans le menu. Le message garde sa consigne de rechargement, qui reste le geste sûr
  * en lancement autonome ; il n'est effacé que par un démarrage réussi (le
  * vider au début de la tentative ferait afficher une racine vide pendant
  * qu'elle se joue).
@@ -70,7 +76,14 @@ export class DemarrageService {
   private async tenter(): Promise<boolean> {
     try {
       const [, feuille] = await Promise.all([
-        chargerFeuille(this.document, 'data-mg-polices', urlRessourceDistante('magelian-polices.css', this.base)),
+        // Polices NON bloquantes, à l'inverse de magelian.css : sans elles, les
+        // piles `--font-sans` / `--font-mono` retombent sur les polices système
+        // (system-ui, ui-monospace) — l'écran reste lisible, on avertit seulement.
+        chargerFeuille(this.document, 'data-mg-polices', urlRessourceDistante('magelian-polices.css', this.base))
+          .catch((e: unknown) => {
+            const raison = e instanceof Error ? e.message : "La feuille de style magelian-polices.css n'a pas pu être chargée.";
+            console.warn(`MAGELIAN : ${raison} Repli sur les polices système.`);
+          }),
         this._feuille() ?? chargerFeuilleConstruite(urlRessourceDistante('magelian.css', this.base), this.lire, this.construire),
       ]);
       this._feuille.set(feuille);

@@ -122,6 +122,8 @@
   -webkit-text-fill-color: currentcolor !important;
   -webkit-text-stroke: 0 currentcolor !important;
   -webkit-font-smoothing: auto !important;
+  pointer-events: auto !important;
+  -webkit-tap-highlight-color: initial !important;
 }
 
 :host(.light) {

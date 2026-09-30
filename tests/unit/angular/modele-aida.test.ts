@@ -5,6 +5,14 @@
  * `HttpBaseService` : ce serait revenir au modèle « service + base injectée »
  * que le siège n'attend pas d'une remote app.
  *
+ * FOURNITURE (revue finale du lot AIDA, I2) : tout `*.api.ts` est
+ * `@Injectable()` SANS `providedIn`, et fourni par une route sous
+ * `remoteRoutes` (`FOURNISSEURS_DISTANTS`, app.routes.ts). Un service
+ * `providedIn: 'root'` serait construit dans l'injecteur RACINE — celui du
+ * shell AIDA — et recevrait son `HttpClient` : sans aucun de nos intercepteurs
+ * (jeton, limiteur à 3 appels, session expirée). Rien ne le signalerait :
+ * les appels partiraient simplement sans `Authorization`.
+ *
  * Écrit à la racine (Node + fs, comme `isolement.test.ts`) : `import.meta.glob`
  * est une primitive de Vite, absente du constructeur de tests de l'Angular CLI
  * (esbuild) — un test qui l'utiliserait n'y verrait aucun fichier et passerait
@@ -43,6 +51,16 @@ function sansImports(code: string): string {
   return code.replace(/^\s*import\s[\s\S]*?;\s*$/gm, '');
 }
 
+/**
+ * Vrai si le code déclare `@Injectable()` SANS argument — donc sans
+ * `providedIn`, quelle qu'en soit la valeur (`'root'`, `'any'`, `'platform'`).
+ * Tout `@Injectable(` suivi d'autre chose qu'une parenthèse fermante est fautif.
+ */
+function injectableSansProvidedIn(code: string): boolean {
+  const decorateurs = [...code.matchAll(/@Injectable\s*\(([^)]*)\)/g)];
+  return decorateurs.length > 0 && decorateurs.every((m) => m[1].trim() === '');
+}
+
 describe("modèle AIDA des services d'API", () => {
   const fichiers = servicesApi(APP);
   const code = (f: string) => sansCommentaires(readFileSync(f, 'utf8'));
@@ -63,6 +81,29 @@ describe("modèle AIDA des services d'API", () => {
     // à écrire `HttpClient`.
     const fautifs = fichiers.filter((f) => /\bHttpClient\b/.test(code(f)));
     expect(fautifs.map((f) => path.relative(RACINE, f))).toEqual([]);
+  });
+
+  it("chaque *.api.ts est `@Injectable()` SANS providedIn (sinon il reçoit le HttpClient de l'hôte, sans nos intercepteurs)", () => {
+    const fautifs = fichiers.filter((f) => !injectableSansProvidedIn(code(f)));
+    expect(fautifs.map((f) => path.relative(RACINE, f))).toEqual([]);
+  });
+
+  it('auto-test : le garde de fourniture reconnaît les cas fautifs', () => {
+    expect(injectableSansProvidedIn(`@Injectable()
+export class A extends HttpBaseService {}`)).toBe(true);
+    expect(injectableSansProvidedIn(`@Injectable({ providedIn: 'root' })
+export class A {}`)).toBe(false);
+    expect(injectableSansProvidedIn(`@Injectable({
+  providedIn: 'any',
+})
+export class A {}`)).toBe(false);
+    expect(injectableSansProvidedIn(`@Injectable({})
+export class A {}`)).toBe(false);
+    // Pas de décorateur du tout : le service ne serait fourni nulle part — fautif aussi.
+    expect(injectableSansProvidedIn('export class A extends HttpBaseService {}')).toBe(false);
+    // Commentaires retirés avant : un `@Injectable()` en commentaire ne compte pas.
+    expect(injectableSansProvidedIn(sansCommentaires(`// @Injectable()
+@Injectable({ providedIn: 'root' })`))).toBe(false);
   });
 
   it("HttpBaseService n'apparaît que dans son import et la clause extends", () => {

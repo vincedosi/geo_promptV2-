@@ -95,12 +95,20 @@ export function preparerFeuilleOmbre(css: string): string {
  * tout MAGELIAN : Tailwind exprime en `rem` espacements, tailles de texte et
  * rayons. Mesuré à la revue de la tâche 8 : un `* { font-size: 20px }` du shell
  * faisait passer le titre de page de 18 à 22,5 px. Chaque `rem` des VALEURS est
- * donc converti en px, base 16 (identique tant que `<html>` reste à 16 px, donc
- * rien ne change en autonome). Seulement devant un séparateur de valeur :
- * un sélecteur échappé (`.p-\[1rem\]`) n'est pas touché.
+ * donc converti en px, base 16. Seulement une valeur ISOLÉE : devant un
+ * séparateur de valeur (un sélecteur échappé, `.p-\[1rem\]`, n'est pas
+ * touché), et jamais collée à un nom (`var(--gap-2rem)`, `.x-1rem` : le
+ * lookbehind `(?<![\w-])`).
+ *
+ * ⚠ COMPROMIS, en autonome aussi : le rendu est identique pour qui garde la
+ * taille de police par défaut du navigateur (16 px). Mais un utilisateur qui
+ * l'a AGRANDIE (réglage d'accessibilité du navigateur) perd la mise à
+ * l'échelle que `rem` lui aurait donnée — il ne lui reste que le zoom de page,
+ * qui, lui, agrandit tout. Pris ainsi parce que la même feuille sert l'hôte,
+ * où `<html>` n'est pas à nous.
  */
 export function remEnPx(css: string): string {
-  return css.replace(/(-?(?:\d+\.?\d*|\.\d+))rem(?=[;}\s),!/])/g, (_, n: string) => `${+(Number(n) * 16).toFixed(4)}px`);
+  return css.replace(/(?<![\w-])(-?(?:\d+\.?\d*|\.\d+))rem(?=[;}\s),!/])/g, (_, n: string) => `${+(Number(n) * 16).toFixed(4)}px`);
 }
 
 /**

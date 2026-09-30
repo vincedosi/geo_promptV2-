@@ -146,6 +146,14 @@ describe('preparerFeuilleOmbre', () => {
 });
 
 describe('remEnPx', () => {
+  it("ne touche pas un rem collé à un nom (propriété personnalisée, classe) : seulement une VALEUR isolée", () => {
+    expect(remEnPx('.a{gap:var(--gap-2rem)}')).toBe('.a{gap:var(--gap-2rem)}');
+    expect(remEnPx('.x-1rem {color:red}')).toBe('.x-1rem {color:red}');
+    expect(remEnPx('.b{--taille_3rem: 1}')).toBe('.b{--taille_3rem: 1}');
+    // Toujours converti : un signe moins de VALEUR, précédé d'un séparateur.
+    expect(remEnPx('.m{margin:-0.5rem 12rem}')).toBe('.m{margin:-8px 192px}');
+  });
+
   it("convertit les rem des VALEURS en px (base 16) : la taille de police de <html> appartient au shell, pas à MAGELIAN", () => {
     expect(remEnPx(':host{--spacing: .25rem;--text-lg: 1.125rem}.m{margin:-0.5rem 2rem;width:calc(100% - 1rem)}.i{top:0rem!important}'))
       .toBe(':host{--spacing: 4px;--text-lg: 18px}.m{margin:-8px 32px;width:calc(100% - 16px)}.i{top:0px!important}');

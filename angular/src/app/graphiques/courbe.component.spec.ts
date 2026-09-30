@@ -1,4 +1,4 @@
-import { signal } from '@angular/core';
+import { NgZone, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { CouleursService } from '../core/theme/couleurs.service';
 import { CourbeComponent } from './courbe.component';
@@ -56,6 +56,32 @@ async function rendre(series: SerieCourbe[] = SERIES, jetonsInconnus: string[] =
 }
 
 describe('CourbeComponent', () => {
+  it("crée le graphique HORS de la zone Angular (NgZone.runOutsideAngular)", async () => {
+    // Règle des lots suivants (revue finale du lot AIDA). Tenue AUJOURD'HUI par
+    // `afterNextRender`, qu'Angular exécute via `ngZone.runOutsideAngular`
+    // (AfterRenderManager) : ce test verrouille la propriété si la création
+    // quittait un jour `afterNextRender`. Indifférent en zoneless.
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver = class { observe() {} disconnect() {} };
+    const appels: boolean[] = [];
+    let dehors = false;
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: FABRIQUE_GRAPHIQUE, useValue: () => { appels.push(dehors); return new GraphiqueFactice(); } },
+        { provide: CouleursService, useValue: { palette: (j: Record<string, string>) => () => ({ ...j }) } },
+      ],
+    });
+    const zone = TestBed.inject(NgZone);
+    vi.spyOn(zone, 'runOutsideAngular').mockImplementation((fn) => {
+      dehors = true;
+      try { return fn(); } finally { dehors = false; }
+    });
+    const f = TestBed.createComponent(CourbeComponent);
+    f.componentRef.setInput('series', SERIES);
+    f.componentRef.setInput('libelle', 'Population par rayon');
+    await f.whenStable();
+    expect(appels).toEqual([true]);
+  });
+
   it('redimensionne le graphique quand son conteneur change de taille', async () => {
     const { graphique } = await rendre();
     expect(rappelsObservateur.length).toBe(1);
