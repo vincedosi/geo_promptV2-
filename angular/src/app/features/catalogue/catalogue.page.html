@@ -52,6 +52,18 @@
   </div>
 
   <div class="flex flex-col gap-3">
+    <h2 class="text-xs font-medium text-primary">Icônes</h2>
+    <div class="grid grid-cols-[auto_repeat(3,auto)] gap-x-6 gap-y-2 items-center text-secondary w-fit" data-testid="planche-icones">
+      @for (nom of iconesPortees; track nom) {
+        <span class="font-mono text-[11px] text-tertiary">{{ nom }}</span>
+        @for (t of taillesIcones; track t) {
+          <mg-icone [nom]="nom" [taille]="t" />
+        }
+      }
+    </div>
+  </div>
+
+  <div class="flex flex-col gap-3">
     <h2 class="text-xs font-medium text-primary">Cellules de tableau</h2>
     <table class="w-96 border-collapse">
       <thead><tr>

@@ -3,6 +3,8 @@ import { ChargementService } from '../../core/chargement/chargement.service';
 import { BarreProgressionComponent } from '../../ui/barre-progression/barre-progression.component';
 import { ChampComponent } from '../../ui/champ/champ.component';
 import { type EtapeAffichee, FilEtapesComponent } from '../../ui/fil-etapes/fil-etapes.component';
+import { IconeComponent } from '../../ui/icone/icone.component';
+import { ICONES, type NomIcone } from '../../ui/icone/icones';
 import { FilArianeComponent, type SegmentAriane } from '../../ui/fil-ariane/fil-ariane.component';
 import { KpiComponent } from '../../ui/kpi/kpi.component';
 import { PastilleComponent } from '../../ui/pastille/pastille.component';
@@ -19,7 +21,7 @@ import { Cellule, EnteteCellule } from '../../ui/tableau/cellules';
   selector: 'mg-catalogue',
   imports: [
     BarreProgressionComponent, ChampComponent, FilEtapesComponent, FilArianeComponent,
-    KpiComponent, PastilleComponent, PerimeDirective, RegletteComponent, Cellule, EnteteCellule,
+    IconeComponent, KpiComponent, PastilleComponent, PerimeDirective, RegletteComponent, Cellule, EnteteCellule,
   ],
   providers: [ChargementService],
   templateUrl: './catalogue.page.html',
@@ -28,6 +30,8 @@ import { Cellule, EnteteCellule } from '../../ui/tableau/cellules';
 export class CataloguePage {
   private readonly chargement = inject(ChargementService);
 
+  protected readonly iconesPortees = Object.keys(ICONES) as NomIcone[];
+  protected readonly taillesIcones = [14, 16, 20];
   protected readonly enCalcul = signal(false);
   protected readonly pastilles = signal<Record<string, boolean>>({ premier: true, second: false });
   protected readonly etapeCourante = signal('deux');
