@@ -1,34 +1,32 @@
 import { DOCUMENT, Injectable, inject } from '@angular/core';
-import { ConfigService } from '../config/config.service';
+import { environment } from '../../../environments/environment';
+import { MechaRemoteAppHttpBaseServiceProvisoire } from './mecha-remote-app-http-base.provisoire';
 
 /**
- * Construit TOUTES les adresses de l'API. Aucun service ne compose une URL
- * lui-même : le jour de l'intégration AIDA, cette classe héritera de
- * `MechaRemoteAppHttpBaseService` (qui résout l'origine depuis le slug) et
- * aucun service métier ne changera.
+ * Base de TOUS les services d'API (doc AIDA §4.2-4.3) : un service métier
+ * HÉRITE de cette classe et appelle `this.httpClient` avec `${this.baseUrl}/…`,
+ * jamais un `HttpClient` injecté à part ni une URL recomposée.
  */
 @Injectable({ providedIn: 'root' })
-export class HttpBaseService {
-  private readonly config = inject(ConfigService);
+export class HttpBaseService extends MechaRemoteAppHttpBaseServiceProvisoire {
   private readonly document = inject(DOCUMENT);
 
-  get apiUrl(): string {
-    return `${this.config.valeur.apiBaseUrl.replace(/\/+$/, '')}/api`;
+  constructor() {
+    super(environment.slug);
   }
 
-  url(chemin: string): string {
-    return `${this.apiUrl}/${chemin.replace(/^\/+/, '')}`;
+  public override get baseUrl(): string {
+    return super.baseUrl + '/api';
   }
 
   /**
-   * Comme `url()`, mais toujours ABSOLUE : MapLibre lit ses tuiles dans un
+   * Adresse ABSOLUE d'une ressource de l'API : MapLibre lit ses tuiles dans un
    * worker, où une adresse relative ne se résout contre rien. Résolue contre
-   * `document.baseURI` (et non `location`), pour suivre un éventuel `<base>`
-   * de l'intégration. Les jetons `{z}/{x}/{y}` sont rétablis : `URL` encode
-   * les accolades du chemin en `%7B…%7D`, et MapLibre ne les reconnaîtrait plus.
+   * `document.baseURI` ; les jetons `{z}/{x}/{y}` sont rétablis (`URL` les
+   * encode en `%7B…%7D`, et MapLibre ne les reconnaîtrait plus).
    */
-  urlAbsolue(chemin: string): string {
-    return new URL(this.url(chemin), this.document.baseURI).href
+  protected urlAbsolue(chemin: string): string {
+    return new URL(`${this.baseUrl}/${chemin.replace(/^\/+/, '')}`, this.document.baseURI).href
       .replace(/%7B(z|x|y)%7D/gi, (_, c: string) => `{${c.toLowerCase()}}`);
   }
 }

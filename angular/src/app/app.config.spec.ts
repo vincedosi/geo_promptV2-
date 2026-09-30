@@ -42,7 +42,6 @@ describe('appConfig — démarrage réel', () => {
       supabaseUrl: 'http://127.0.0.1:54321',
       supabaseAnonKey: 'cle-de-test',
       apiBaseUrl: '',
-      slug: '',
     });
 
     await statut.donePromise;

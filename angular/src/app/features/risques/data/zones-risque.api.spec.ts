@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { HttpBaseService } from '../../../core/http/http-base.service';
+import { ConfigService } from '../../../core/config/config.service';
 import { ZonesRisqueApi } from './zones-risque.api';
 
 describe('ZonesRisqueApi', () => {
@@ -9,7 +9,7 @@ describe('ZonesRisqueApi', () => {
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(), provideHttpClientTesting(),
-        { provide: HttpBaseService, useValue: { url: (c: string) => `/api/${c}`, urlAbsolue: (c: string) => `https://hote.test/api/${c}` } },
+        { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       ],
     });
     return { api: TestBed.inject(ZonesRisqueApi), http: TestBed.inject(HttpTestingController) };
@@ -51,6 +51,6 @@ describe('ZonesRisqueApi', () => {
   it('donne une adresse ABSOLUE des tuiles de zones, {z}/{x}/{y} intacts et profil encodé', () => {
     const { api } = preparer();
     expect(api.urlTuilesZones('h1000_b 5'))
-      .toBe('https://hote.test/api/tiles/zones-risque/{z}/{x}/{y}?profil=h1000_b%205');
+      .toBe(`${new URL(document.baseURI).origin}/api/tiles/zones-risque/{z}/{x}/{y}?profil=h1000_b%205`);
   });
 });

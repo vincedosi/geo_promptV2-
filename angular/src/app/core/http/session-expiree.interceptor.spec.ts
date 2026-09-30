@@ -12,7 +12,7 @@ function preparer() {
       provideHttpClient(withInterceptors([sessionExpireeInterceptor])),
       provideHttpClientTesting(),
       { provide: AuthService, useValue: { renvoyerVersConnexion } },
-      { provide: HttpBaseService, useValue: { apiUrl: '/api' } },
+      { provide: HttpBaseService, useValue: { baseUrl: '/api' } },
     ],
   });
   return {

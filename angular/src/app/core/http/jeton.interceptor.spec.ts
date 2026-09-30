@@ -13,7 +13,7 @@ function preparer(jeton: string | null) {
       provideHttpClient(withInterceptors([jetonInterceptor])),
       provideHttpClientTesting(),
       { provide: AuthService, useValue: { jeton: async () => jeton } },
-      { provide: HttpBaseService, useValue: { apiUrl: '/api' } },
+      { provide: HttpBaseService, useValue: { baseUrl: '/api' } },
     ],
   });
   return { http: TestBed.inject(HttpClient), ctrl: TestBed.inject(HttpTestingController) };
@@ -48,7 +48,7 @@ describe('jetonInterceptor', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: AuthService, useValue: { jeton: async () => { appels++; return 'jeton-a'; } } },
-        { provide: HttpBaseService, useValue: { apiUrl: '/api' } },
+        { provide: HttpBaseService, useValue: { baseUrl: '/api' } },
       ],
     });
     const req = new HttpRequest('GET', '/api/risques/sites/compter');

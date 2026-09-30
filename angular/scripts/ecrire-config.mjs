@@ -38,7 +38,6 @@ const config = {
   supabaseUrl: vars.NEXT_PUBLIC_SUPABASE_URL,
   supabaseAnonKey: vars.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   apiBaseUrl: '',
-  slug: '',
 };
 writeFileSync(cible, JSON.stringify(config, null, 2) + '\n');
 console.log('✓ public/config.local.json écrit');

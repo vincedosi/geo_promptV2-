@@ -6,16 +6,14 @@ import { firstValueFrom } from 'rxjs';
 export interface ConfigApplication {
   supabaseUrl: string;
   supabaseAnonKey: string;
-  /** Origine de l'API ; vide = même origine (proxy de dev). AIDA la résoudra depuis le slug. */
+  /** Origine de l'API ; vide = même origine (proxy de dev). AIDA la résoudra depuis le slug (environment.ts). */
   apiBaseUrl: string;
-  /** Identifiant de l'application dans AIDA ; vide tant que le groupe ne l'a pas fourni. */
-  slug: string;
 }
 
 @Injectable({ providedIn: 'root' })
 export class ConfigService {
   // HttpBackend et non HttpClient : cette requête précède le chargement de la
-  // configuration elle-même, et jetonInterceptor lit HttpBaseService.apiUrl,
+  // configuration elle-même, et jetonInterceptor lit HttpBaseService.baseUrl,
   // qui lit ConfigService.valeur — appeler http.get() ici via le pipeline
   // d'intercepteurs lèverait donc AVANT même de partir (config pas chargée).
   private readonly http = new HttpClient(inject(HttpBackend));
@@ -38,7 +36,6 @@ export class ConfigService {
       supabaseUrl: brut.supabaseUrl,
       supabaseAnonKey: brut.supabaseAnonKey,
       apiBaseUrl: brut.apiBaseUrl ?? '',
-      slug: brut.slug ?? '',
     };
   }
 

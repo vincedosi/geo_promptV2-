@@ -16,7 +16,7 @@ describe('ConfigService', () => {
   it('charge config.local.json', async () => {
     const promesse = service.charger();
     http.expectOne('/config.local.json').flush({
-      supabaseUrl: 'http://127.0.0.1:54321', supabaseAnonKey: 'cle', apiBaseUrl: '', slug: '',
+      supabaseUrl: 'http://127.0.0.1:54321', supabaseAnonKey: 'cle', apiBaseUrl: '',
     });
     await promesse;
     expect(service.valeur.supabaseUrl).toBe('http://127.0.0.1:54321');

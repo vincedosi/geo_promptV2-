@@ -4,7 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { signal } from '@angular/core';
 import { FABRIQUE_CARTE } from '../../carte/fabrique-carte';
 import { CarteFactice } from '../../carte/testing/carte-factice';
-import { HttpBaseService } from '../../core/http/http-base.service';
+import { ConfigService } from '../../core/config/config.service';
 import { CouleursService } from '../../core/theme/couleurs.service';
 import { FABRIQUE_GRAPHIQUE } from '../../graphiques/fabrique-graphique';
 import { CODE_PROFIL_DEFAUT, EssaiCartePage } from './essai-carte.page';
@@ -29,7 +29,7 @@ async function rendre() {
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(), provideHttpClientTesting(),
-      { provide: HttpBaseService, useValue: { url: (c: string) => `/api/${c}`, urlAbsolue: (c: string) => `https://hote.test/api/${c}` } },
+      { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       { provide: FABRIQUE_CARTE, useValue: (o: never) => (carte = new CarteFactice(o)) },
       {
         provide: FABRIQUE_GRAPHIQUE,
@@ -70,7 +70,7 @@ describe('EssaiCartePage', () => {
     expect(carte().sources.has('zones')).toBe(false);
     req.flush({ deja_construit: true });
     const zones = carte().sources.get('zones')!.spec as { tiles: string[]; minzoom: number };
-    expect(zones.tiles[0]).toMatch(/^https:\/\/hote\.test\/api\/tiles\/zones-risque\/\{z\}\/\{x\}\/\{y\}\?profil=/);
+    expect(zones.tiles[0]).toMatch(/^https?:\/\/[^/]+\/api\/tiles\/zones-risque\/\{z\}\/\{x\}\/\{y\}\?profil=/);
     expect(zones.minzoom).toBe(4);
     const fond = carte().couches.find((c) => c.couche['id'] === 'zones-fond')!;
     expect(fond.couche['source-layer']).toBe('zones_risque');

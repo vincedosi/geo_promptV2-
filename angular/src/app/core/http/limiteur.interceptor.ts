@@ -16,7 +16,7 @@ import { SEMAPHORE_API } from './semaphore';
  * ferait plus aucun appel.
  */
 export const limiteurInterceptor: HttpInterceptorFn = (req, next) => {
-  const apiUrl = inject(HttpBaseService).apiUrl;
+  const apiUrl = inject(HttpBaseService).baseUrl;
   if (!req.url.startsWith(`${apiUrl}/`)) return next(req);
   const semaphore = inject(SEMAPHORE_API);
 

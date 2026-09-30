@@ -12,7 +12,7 @@ function preparer() {
     providers: [
       provideHttpClient(withInterceptors([limiteurInterceptor])),
       provideHttpClientTesting(),
-      { provide: HttpBaseService, useValue: { apiUrl: '/api' } },
+      { provide: HttpBaseService, useValue: { baseUrl: '/api' } },
       { provide: SEMAPHORE_API, useValue: creerSemaphore(3) },
     ],
   });

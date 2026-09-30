@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { HttpBaseService } from '../../../core/http/http-base.service';
+import { ConfigService } from '../../../core/config/config.service';
 import { SitesRisqueApi } from './sites-risque.api';
 
 describe('SitesRisqueApi', () => {
@@ -9,7 +9,7 @@ describe('SitesRisqueApi', () => {
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(), provideHttpClientTesting(),
-        { provide: HttpBaseService, useValue: { url: (c: string) => `/api/${c}` } },
+        { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       ],
     });
     let lu: unknown;

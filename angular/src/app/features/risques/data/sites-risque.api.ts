@@ -1,5 +1,4 @@
-import { HttpClient } from '@angular/common/http';
-import { Injectable, inject } from '@angular/core';
+import { Injectable } from '@angular/core';
 import type { Observable } from 'rxjs';
 import { HttpBaseService } from '../../../core/http/http-base.service';
 
@@ -13,11 +12,8 @@ export interface CompteSites {
 }
 
 @Injectable({ providedIn: 'root' })
-export class SitesRisqueApi {
-  private readonly http = inject(HttpClient);
-  private readonly base = inject(HttpBaseService);
-
+export class SitesRisqueApi extends HttpBaseService {
   compter(): Observable<CompteSites> {
-    return this.http.get<CompteSites>(this.base.url('risques/sites/compter'));
+    return this.httpClient.get<CompteSites>(`${this.baseUrl}/risques/sites/compter`);
   }
 }

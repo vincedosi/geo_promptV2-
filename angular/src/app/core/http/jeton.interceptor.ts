@@ -17,7 +17,7 @@ import { HttpBaseService } from './http-base.service';
  * `defer` relit `auth.jeton()` à chaque abonnement.
  */
 export const jetonInterceptor: HttpInterceptorFn = (req, next) => {
-  const apiUrl = inject(HttpBaseService).apiUrl;
+  const apiUrl = inject(HttpBaseService).baseUrl;
   if (!req.url.startsWith(`${apiUrl}/`)) return next(req);
   const auth = inject(AuthService);
   return defer(() => auth.jeton()).pipe(
