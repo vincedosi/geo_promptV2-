@@ -108,6 +108,8 @@ neuf, il dit ce que l'élément EST.
 | --brand-teal-30 | rgba(78,205,196,0.3) | rgba(78,205,196,0.3) | Borders hover subtiles, badges |
 | --brand-teal-50 | rgba(78,205,196,0.5) | rgba(78,205,196,0.5) | Focus ring des inputs |
 | --brand-teal-fg | #050505 | #050505 | Texte/icône POSÉ SUR un aplat teal — **invariant**, comme le teal lui-même |
+| --logo-accent | #2aa9a8 | #2aa9a8 | Accents du logotype (vert du fichier `magelian-icon.svg`, plus sombre que le teal de marque) — **invariant** |
+| --logo-lettre | var(--text-primary) | #0d1316 | Lettres du logotype : #0D1316 du fichier en clair ; en sombre la couleur du texte, le fichier noir y étant invisible |
 
 Le teal ne bascule pas avec le thème : c'est l'accent de marque, pas une
 surface. `--brand-teal-fg` est invariant pour la même raison — le dériver de
@@ -293,7 +295,7 @@ Pas de violet (#a855f7) nulle part. Pas de vert fluo (#3dffa0) sauf indicateur d
 - Sentence case TOUJOURS : "Analyse spatiale" pas "ANALYSE SPATIALE"
 - Exceptions uppercase : acronymes métier (OOH, DOOH, IRIS, POI, TMJA, DROM)
 - Letter-spacing : 0 par défaut, -0.02em sur les titres 18px+
-- Line-height : 1.4 pour les labels, 1.6 pour le corps de texte
+- Line-height : 1.4 pour les labels, 1.6 pour le corps de texte — ⚠ **le line-height effectif est 1,5**, tel que React le rend via le préflight de Tailwind (`app/globals.css` n'en pose aucun) et qu'Angular l'aligne ; le 1,6 de ce document n'est rendu par aucune des deux applications
 
 ---
 

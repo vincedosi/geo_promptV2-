@@ -25,7 +25,7 @@ describe('LogoComponent', () => {
     expect(accents.length).toBe(3);
     expect(lettres.length).toBe(7);
     accents.forEach((p) => expect(p.getAttribute('class')).toContain('fill-logo-accent'));
-    lettres.forEach((p) => expect(p.getAttribute('fill')).toBe('currentColor'));
+    lettres.forEach((p) => expect(p.getAttribute('class')).toContain('fill-logo-lettre'));
     expect(el.querySelector('svg')!.getAttribute('style') ?? '').not.toContain('filter');
     // Aucune couleur écrite en dur dans le dessin.
     expect(el.innerHTML).not.toMatch(/#[0-9a-f]{6}/i);

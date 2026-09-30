@@ -22,7 +22,7 @@ describe('MarqueComponent (en-tête de barre, AppSidebar.tsx:164-204)', () => {
     const p = el.querySelector('p')!;
     const cls = p.getAttribute('class')!;
     expect(cls).toContain('text-[11px]');
-    expect(cls).toContain('text-tertiary');
+    expect(cls).toContain('text-tertiary');
     expect(cls).toContain('font-normal');
     expect(cls).toContain('mt-1.5');
     expect(cls).toContain('pl-[36px]');
