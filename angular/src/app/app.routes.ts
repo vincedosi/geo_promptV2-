@@ -10,6 +10,7 @@ import { jetonInterceptor } from './core/http/jeton.interceptor';
 import { limiteurInterceptor } from './core/http/limiteur.interceptor';
 import { sessionExpireeInterceptor } from './core/http/session-expiree.interceptor';
 import { SitesRisqueApi } from './features/risques/data/sites-risque.api';
+import { OrganisationsApi } from './features/session/data/organisations.api';
 import { ZonesRisqueApi } from './features/risques/data/zones-risque.api';
 import { RacineDistanteComponent } from './layout/racine-distante.component';
 
@@ -34,6 +35,7 @@ const FOURNISSEURS_DISTANTS: (Provider | EnvironmentProviders)[] = [
   ),
   SitesRisqueApi,
   ZonesRisqueApi,
+  OrganisationsApi,
 ];
 
 /**

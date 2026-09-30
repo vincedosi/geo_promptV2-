@@ -74,6 +74,24 @@ export class AuthService {
   }
 
   /**
+   * Le rôle du profil en base (`profiles.role`, lecture autorisée par la RLS
+   * `id = auth.uid()`), comme `fetchProfileEnrichment` de `lib/auth-client.ts`
+   * côté React. `null` si la lecture échoue ou ne rend rien : l'appelant se
+   * replie sur le rôle du jeton — l'écran ne reste jamais bloqué dessus.
+   */
+  async lireRole(): Promise<string | null> {
+    const id = this._session()?.user?.id;
+    if (!id) return null;
+    try {
+      const { data, error } = await this.supabase.from('profiles').select('role').eq('id', id).single();
+      if (error || !data) return null;
+      return (data as { role?: string | null }).role ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Le jeton d'accès courant. getSession() lit la session en LOCAL et
    * n'appelle GoTrue que si le jeton a expiré, pour le rafraîchir. C'est la
    * DÉ-DUPLICATION des rafraîchissements concurrents par supabase-js — et non

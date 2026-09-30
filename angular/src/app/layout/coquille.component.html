@@ -1,34 +1,60 @@
-<div class="flex h-full">
-  <nav class="w-60 shrink-0 flex flex-col bg-surface border-r-fin border-subtle" aria-label="Navigation principale">
-    <div class="px-4 py-4">
-      <mg-logo class="h-[18px]" />
+<div class="relative flex h-full">
+  <!-- Grand écran : colonne de 240 px (AppSidebar.tsx:355-363). En flux et non `fixed` (isolation). -->
+  <aside class="hidden w-60 shrink-0 border-r-fin border-subtle md:flex md:flex-col">
+    <mg-barre-laterale />
+  </aside>
+
+  <main class="relative h-full min-w-0 flex-1">
+    <div class="h-full overflow-auto bg-page">
+      <!-- MainPadding.tsx : p-8. Une génération nouvelle recrée la page (changement d'organisation). -->
+      @for (g of [generation()]; track g) {
+        <div class="p-8">
+          <router-outlet />
+        </div>
+      }
     </div>
-    <a routerLink="./" routerLinkActive="bg-overlay text-primary border-l-2 border-primary"
-       [routerLinkActiveOptions]="{ exact: true }"
-       class="px-4 py-2 text-[13px] text-secondary border-l-2 border-transparent">
-      Accueil
-    </a>
-    <a routerLink="catalogue" routerLinkActive="bg-overlay text-primary border-l-2 border-primary"
-       class="px-4 py-2 text-[13px] text-secondary border-l-2 border-transparent">
-      Catalogue
-    </a>
-    <a routerLink="essai-carte" routerLinkActive="bg-overlay text-primary border-l-2 border-primary"
-       class="px-4 py-2 text-[13px] text-secondary border-l-2 border-transparent">
-      Essai carte
-    </a>
-    <div class="mt-auto px-4 py-3 border-t-fin border-subtle flex flex-col gap-2">
-      <span class="font-mono text-[11px] text-tertiary truncate">{{ email() }}</span>
-      <button type="button" (click)="theme.basculer()"
-              class="self-start text-xs text-secondary hover:text-primary">
-        {{ theme.theme() === 'dark' ? 'Thème clair' : 'Thème sombre' }}
-      </button>
-      <button type="button" (click)="deconnecter()"
-              class="self-start text-xs text-secondary hover:text-primary">
-        Se déconnecter
-      </button>
-    </div>
-  </nav>
-  <main class="flex-1 min-w-0 overflow-auto bg-page">
-    <router-outlet />
+    <mg-chrome-haut class="absolute right-0 top-0 z-[200]" (orgChangee)="actualiser()" />
   </main>
+
+  <!-- Petit écran : bouton Menu (AppSidebar.tsx:316-325), `absolute` et non `fixed`.
+       z 201 et non 50 : à 375 px le chrome (z 200, plus large que l'écran) le recouvre, et dans
+       React le bouton devient INCLIQUABLE (défaut objectif, mesuré). Ici il reste au-dessus ;
+       tiroir ouvert, il repasse SOUS le voile, comme dans React. -->
+  <button
+    #declencheur
+    type="button"
+    aria-label="Ouvrir la navigation"
+    [attr.aria-expanded]="tiroirOuvert()"
+    aria-controls="mg-tiroir-navigation"
+    (click)="ouvrirTiroir()"
+    class="absolute left-3 top-3 inline-flex size-9 items-center justify-center rounded-[4px] border-fin border-subtle bg-surface md:hidden"
+    [class]="tiroirOuvert() ? 'z-40' : 'z-[201]'"
+  >
+    <mg-icone nom="menu" [taille]="16" class="text-secondary" />
+  </button>
+
+  @if (tiroirOuvert()) {
+    <!-- Sheet Radix (components/ui/sheet.tsx) : voile noir 80 %, panneau de 240 px à gauche, bouton Fermer. -->
+    <div data-voile class="voile absolute inset-0 z-50 bg-black/80"></div>
+    <div
+      #tiroir
+      id="mg-tiroir-navigation"
+      data-tiroir
+      role="dialog"
+      aria-modal="true"
+      aria-label="Navigation"
+      (keydown)="pieger($event)"
+      class="tiroir absolute inset-y-0 left-0 z-50 h-full w-60 border-r-fin border-subtle bg-surface"
+    >
+      <mg-barre-laterale (naviguer)="fermerTiroir(false)" />
+      <button
+        type="button"
+        aria-label="Fermer"
+        (click)="fermerTiroir(true)"
+        class="absolute right-4 top-4 rounded-[2px] text-primary opacity-70 transition-opacity hover:opacity-100 focus:outline-none"
+      >
+        <mg-icone nom="croix" [taille]="16" />
+      </button>
+    </div>
+  }
 </div>

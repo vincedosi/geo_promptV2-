@@ -18,7 +18,7 @@ describe('LogoComponent', () => {
     expect(svg.getAttribute('aria-label')).toBe('MAGELIAN');
   });
 
-  it('accents au vert du fichier du logotype (--logo-accent), lettres à la couleur du texte — sans filtre ni dépendance à html.light', async () => {
+  it('accents au vert du fichier du logotype (--logo-accent), lettres au jeton --logo-lettre (texte primaire en sombre, #0d1316 du fichier en clair) — sans filtre ni dépendance à html.light', async () => {
     const el = await rendre();
     const accents = el.querySelectorAll('path[data-role="accent"]');
     const lettres = el.querySelectorAll('path[data-role="lettre"]');

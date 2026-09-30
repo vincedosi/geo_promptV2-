@@ -99,7 +99,7 @@ describe('RacineDistanteComponent — mode rediriger (lancement autonome)', () =
     connecte.set(false);
     await laisserTourner(harness);
     // Pendant la navigation : l'effet s'abstient — sinon il annulerait celle
-    // de la coquille (« Se déconnecter » → /connexion sans page à reprendre).
+    // du badge de session (« Deconnexion » → /connexion sans page à reprendre).
     expect(navigations).toEqual(['/', '/lent']);
 
     debloquer();

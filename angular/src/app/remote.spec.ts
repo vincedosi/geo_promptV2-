@@ -30,6 +30,7 @@ function authFactice(connecte: boolean) {
     email: computed(() => session()?.user.email ?? null),
     jeton: async () => session()?.access_token ?? null,
     initialiser: vi.fn(async () => undefined),
+    lireRole: vi.fn(async () => null),
     // Comme le vrai : une fin de session, même locale, met la session à null.
     deconnecter: vi.fn(async (_portee?: string) => session.set(null)),
   };
@@ -74,6 +75,10 @@ async function monter(connecte = true) {
   await navigation;
   await attendre();
   await harness.fixture.whenStable();
+  // Le badge de session lit les organisations au montage de la coquille : soldé ici, pour que
+  // chaque test ne voie que SES appels (et que le limiteur reparte de zéro place prise).
+  ctx.http.match('/api/user/organizations').forEach((r) => r.flush({ organizations: [], active_org_id: null, is_super_admin: false }));
+  await attendre();
   return { ...ctx, harness, navigations, configDemandee: config.length };
 }
 
@@ -122,7 +127,7 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
       const hoteRacine = (harness.fixture.nativeElement as HTMLElement).querySelector('mg-racine-distante')!;
       const theme = hoteRacine.classList.contains('light') ? 'light' : 'dark';
       const bouton = [...ombre(harness.fixture.nativeElement as HTMLElement).querySelectorAll('button')]
-        .find((b) => /^Thème (clair|sombre)$/.test(b.textContent?.trim() ?? ''));
+        .find((b) => /^Basculer le thème/.test(b.getAttribute('aria-label') ?? ''));
       bouton!.click();
       await attendre();
       await harness.fixture.whenStable();
@@ -256,10 +261,13 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
       req.flush({ retenus: 1, total: 1, par_nature: {} });
     });
 
-    it("(d) « Se déconnecter » : le même message, sans aucune navigation", async () => {
+    it("(d) « Deconnexion » : le même message, sans aucune navigation", async () => {
       const { auth, harness, http, navigations } = await monter(true);
       http.expectOne('/api/risques/sites/compter').flush({ retenus: 1, total: 1, par_nature: {} });
-      const bouton = [...racine(harness).querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Se déconnecter');
+      racine(harness).querySelector<HTMLButtonElement>('[data-declencheur="utilisateur"]')!.click();
+      await attendre();
+      await harness.fixture.whenStable();
+      const bouton = [...racine(harness).querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Deconnexion');
       bouton!.click();
       await attendre();
       await harness.fixture.whenStable();

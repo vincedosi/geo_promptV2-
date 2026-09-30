@@ -1,0 +1,88 @@
+import type { NomIcone } from '../ui/icone/icones';
+
+/**
+ * Une entrée de la barre latérale.
+ * `cible` : chemin RELATIF d'une route Angular qui existe (contrat AIDA : le
+ * préfixe appartient au shell). `null` = écran pas encore porté : l'entrée est
+ * rendue à l'identique de React mais INERTE (`aria-disabled`, « Disponible
+ * prochainement »). Le jour où l'écran est porté, on renseigne `cible`.
+ * `href` : le chemin React d'origine, gardé pour la traçabilité du portage.
+ */
+export interface EntreeNavigation {
+  libelle: string;
+  icone: NomIcone;
+  href: string;
+  cible: string | null;
+  badge?: 'Admin' | 'Sys';
+  /** Actif seulement sur le chemin exact (l'accueil, sinon actif partout). */
+  exact?: boolean;
+}
+
+export interface SectionNavigation {
+  section: string;
+  entrees: EntreeNavigation[];
+}
+
+/**
+ * Recopie de `navItems` (`components/AppSidebar.tsx:43-82`) : mêmes sections,
+ * même ordre, mêmes libellés (orthographe de React comprise : « Systeme »,
+ * « Qualite des donnees »), mêmes icônes, mêmes badges.
+ * ⚠ React ne filtre AUCUNE entrée par rôle : toutes s'affichent pour tous, le
+ * contrôle d'accès vit dans les routes (`requireAdmin`). Les badges « Admin » /
+ * « Sys » ne sont que des étiquettes. On garde la même règle — un filtre ici
+ * serait une différence de comportement avec React.
+ */
+export const SECTIONS_NAVIGATION: readonly SectionNavigation[] = [
+  {
+    section: 'Campagnes',
+    entrees: [{ href: '/map?tab=suivi', libelle: 'Gestion campagnes', icone: 'cible', cible: null }],
+  },
+  {
+    section: 'Carte',
+    entrees: [
+      { href: '/map', libelle: 'Explorer', icone: 'epingle-carte', cible: null },
+      { href: '/map/custom-geo', libelle: 'Zones custom', icone: 'calques', cible: null },
+    ],
+  },
+  {
+    section: 'Administration',
+    entrees: [
+      { href: '/admin/carreaux-import', libelle: 'Import Shapefile', icone: 'televerser', badge: 'Admin', cible: null },
+      { href: '/admin/import', libelle: 'Import POI', icone: 'fichier-haut', badge: 'Admin', cible: null },
+      { href: '/admin/ooh-import', libelle: 'Import OOH', icone: 'ecran', badge: 'Admin', cible: null },
+      { href: '/dashboard/iris-crawler', libelle: 'IRIS Crawler', icone: 'calques', badge: 'Admin', cible: null },
+      { href: '/admin/radio', libelle: 'Radio FM/DAB+', icone: 'radio', badge: 'Admin', cible: null },
+      { href: '/admin/api', libelle: 'Connexions API', icone: 'prise', badge: 'Admin', cible: null },
+    ],
+  },
+  {
+    section: 'Systeme',
+    entrees: [
+      { href: '/admin/sources', libelle: 'Sources', icone: 'base-de-donnees', cible: null },
+      { href: '/admin/users', libelle: 'Users', icone: 'utilisateurs', cible: null },
+      { href: '/admin/organizations', libelle: 'Organisations', icone: 'utilisateurs', cible: null },
+      { href: '/admin/imports', libelle: 'Imports', icone: 'televerser', cible: null },
+      { href: '/admin/health', libelle: 'Health check', icone: 'activite', badge: 'Sys', cible: null },
+      { href: '/admin/qualite-donnees', libelle: 'Qualite des donnees', icone: 'bouclier-coche', badge: 'Sys', cible: null },
+    ],
+  },
+];
+
+/**
+ * Pages propres à Angular (pas d'équivalent React), affichées SEULEMENT hors
+ * production (`MODE_DEVELOPPEMENT`), comme le pied « Online » de React.
+ * L'accueil y figure parce que React n'a aucune entrée vers `/dashboard` : en
+ * production, l'accueil n'est atteint que par la racine de la remote (menu du
+ * shell), exactement comme `/dashboard` côté React.
+ */
+export const SECTION_DEVELOPPEMENT: SectionNavigation = {
+  section: 'Développement',
+  entrees: [
+    { href: '', libelle: 'Accueil', icone: 'hexagone', cible: './', exact: true },
+    { href: '', libelle: 'Catalogue', icone: 'calques', cible: 'catalogue' },
+    { href: '', libelle: 'Essai carte', icone: 'carte', cible: 'essai-carte' },
+  ],
+};
+
+/** Libellé de l'infobulle d'une entrée inerte (et du bouton « MAGELIAN »). */
+export const DISPONIBLE_PROCHAINEMENT = 'Disponible prochainement';

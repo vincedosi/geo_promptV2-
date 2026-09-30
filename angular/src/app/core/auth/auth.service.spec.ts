@@ -76,6 +76,47 @@ describe('AuthService', () => {
     expect(await auth.jeton()).toBe('jeton-a');
   });
 
+  describe('lireRole — profiles.role, comme fetchProfileEnrichment de React', () => {
+    const avecId = { access_token: 'j', user: { id: 'u1', email: 'a@exemple.test' } } as unknown as Session;
+    function clientProfil(reponse: () => Promise<unknown>) {
+      const client = fauxClient({ session: avecId });
+      const appels: unknown[][] = [];
+      const requete = {
+        select: (...a: unknown[]) => (appels.push(['select', ...a]), requete),
+        eq: (...a: unknown[]) => (appels.push(['eq', ...a]), requete),
+        single: () => reponse(),
+      };
+      return { client: { ...client, from: (t: string) => (appels.push(['from', t]), requete) }, appels };
+    }
+
+    it('lit le rôle du profil de la session', async () => {
+      const { client, appels } = clientProfil(async () => ({ data: { role: 'super_admin' }, error: null }));
+      const auth = creer(client as never);
+      await auth.initialiser();
+      expect(await auth.lireRole()).toBe('super_admin');
+      expect(appels).toEqual([['from', 'profiles'], ['select', 'role'], ['eq', 'id', 'u1']]);
+    });
+
+    it('rend null sur une erreur, une absence ou une exception — jamais ne lève', async () => {
+      for (const reponse of [
+        async () => ({ data: null, error: { message: 'refus' } }),
+        async () => ({ data: null, error: null }),
+        async () => { throw new Error('réseau'); },
+      ]) {
+        TestBed.resetTestingModule();
+        const auth = creer(clientProfil(reponse).client as never);
+        await auth.initialiser();
+        expect(await auth.lireRole()).toBeNull();
+      }
+    });
+
+    it('rend null sans session, sans rien demander', async () => {
+      const auth = creer(fauxClient());
+      await auth.initialiser();
+      expect(await auth.lireRole()).toBeNull();
+    });
+  });
+
   it('n\'est pas connecté sans session', async () => {
     const auth = creer(fauxClient());
     await auth.initialiser();

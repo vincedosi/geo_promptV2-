@@ -167,11 +167,14 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       http.expectNone('/api/risques/sites/compter');
     });
 
-    it('« Se déconnecter » mène à /connexion, sans paramètre de reprise', async () => {
+    it('« Deconnexion » (menu utilisateur) mène à /connexion, sans paramètre de reprise', async () => {
       const { router, http, harness, client } = await demarrer('/app', true);
       http.expectOne('/api/risques/sites/compter').flush({ retenus: 1, total: 1, par_nature: {} });
+      http.match('/api/user/organizations').forEach((r) => r.flush({ organizations: [], active_org_id: null, is_super_admin: false }));
+      ombre(harness.fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-declencheur="utilisateur"]')!.click();
+      await stabiliser(harness);
       const bouton = [...ombre(harness.fixture.nativeElement as HTMLElement).querySelectorAll('button')]
-        .find((b) => b.textContent?.trim() === 'Se déconnecter')!;
+        .find((b) => b.textContent?.trim() === 'Deconnexion')!;
       bouton.click();
       await stabiliser(harness);
       expect(client.signOut).toHaveBeenCalled();
