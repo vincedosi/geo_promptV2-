@@ -733,3 +733,150 @@ export PATH="/c/GENESIS/PortableGit/cmd:$PATH"
 git add ARCHITECTURE.md docs/superpowers/plans/2026-09-29-transition-angular-feuille-de-route.md
 git commit -m "docs(angular): conformité AIDA prouvée dans un shell hôte, lot documenté"
 ```
+
+---
+
+## Tâches ajoutées le 2026-09-30 après l'épreuve de la tâche 6
+
+> L'épreuve dans un shell réel a trouvé ce qu'aucun test ne voyait :
+> - avec un hôte GÉNÉRÉ PAR DÉFAUT (`ignoreUnusedDeps: true`), la remote plante (NG0203) : `@angular/core/rxjs-interop` importe des morceaux PRIVÉS de `@angular/core`, donc une copie non partagée tourne avec son propre injecteur ;
+> - sans session, la remote navigue vers `/connexion`, que l'hôte n'a pas (écran vide, NG04002) ;
+> - `magelian.css` restyle toute la page de l'hôte (marges, fond, police, listes, liens, boutons, champs, `h1`) et pose 123 propriétés sur `:root`, dont des noms génériques (`--surface`, `--radius`, `--spacing`, `--danger`).
+>
+> Le lot n'est pas clos tant que ces trois points ne le sont pas.
+
+### Task 7: Robustesse dans l'hôte — sans rxjs-interop, sans session, en production
+
+**Files:**
+- Modify: `angular/src/app/core/etat/vers-etat.ts` + spec, `angular/src/app/features/essai-carte/essai-carte.page.ts` + spec, `angular/src/app/core/auth/chemin-connexion.ts` (remplacé), `auth.guard.ts`, `auth.service.ts`, `session-expiree.interceptor.ts`, `layout/coquille.component.ts`, `layout/racine-distante.component.ts`, `app.routes.ts` + leurs specs, `angular/src/app/remote.spec.ts`
+- Create: `tests/unit/angular/imports-partages.test.ts`
+- Modify: `ARCHITECTURE.md`, feuille de route (ligne « Robustesse dans l'hôte »)
+
+**Interfaces:**
+- Produces:
+  - `versEtat(source$)` : même signature, même comportement, SANS `toSignal`. Il s'appuie sur un `signal` + `subscribe` + `inject(DestroyRef).onDestroy(() => abonnement.unsubscribe())`, et garde l'émission synchrone de `{ statut: 'chargement' }`.
+  - `STRATEGIE_SANS_SESSION: InjectionToken<StrategieSansSession>` avec `type StrategieSansSession = { mode: 'message' } | { mode: 'rediriger'; chemin: string }`. **Défaut racine = `{ mode: 'message' }`**, car l'hôte ne fournit rien. La route `app` d'`appRoutes` (mode autonome) fournit `{ mode: 'rediriger', chemin: '/connexion' }`. `CHEMIN_CONNEXION` disparaît.
+  - `AuthService` n'expose plus que des signaux et des actions (`session`, `connecte`, `email`, `connecter`, `deconnecter`, `jeton`, `initialiser`) : il ne NAVIGUE plus. Les décisions de navigation vivent dans le code à portée de route (garde, intercepteur de session expirée, coquille, `RacineDistanteComponent`), qui lit `STRATEGIE_SANS_SESSION` dans l'injecteur de route.
+
+- [ ] **Step 1: Garde des imports partagés — test d'abord**
+
+Créer `tests/unit/angular/imports-partages.test.ts` (Node `fs`, sur le modèle de `isolement.test.ts`). Pour tout `angular/src/**/*.ts` hors `*.spec.ts`, les imports à l'exécution vers `@angular/*` (`import … from '…'`, pas `import type`) sont limités à :
+- `@angular/core`, `@angular/common`, `@angular/common/http`, `@angular/router`, `@angular/platform-browser` ;
+- `@angular/forms`, dans `features/connexion/` seulement.
+
+Motif : une entrée secondaire que l'hôte ne partage pas est chargée en double. Celles de la liste sont partagées par tout hôte navigateur (vérifié à la tâche 6 dans `node_modules` : `common/http` via `platform-browser` ; `router` et `forms` n'importent que `@angular/core` nu). Le commentaire du test le dit. RED attendu : `rxjs-interop` dans deux fichiers.
+
+- [ ] **Step 2: Retirer rxjs-interop**
+
+- `versEtat` : écrire d'abord deux tests en RED, « se désabonne à la destruction de l'injecteur » et « émet chargement de façon synchrone », puis réécrire.
+- `essai-carte.page.ts` : remplacer `takeUntilDestroyed(...)` par un désabonnement explicite via la `DestroyRef` déjà injectée (`this.destruction`).
+- Vérifier que la garde du step 1 passe au vert.
+
+- [ ] **Step 3: Sans session dans l'hôte — un message, jamais une navigation**
+
+Tests d'abord, dans `remote.spec.ts` (hôte simulé, SANS la route `app`) :
+- (a) sans session, `RacineDistanteComponent` affiche le texte exact « Session requise — connectez-vous à AIDA pour accéder à MAGELIAN. » (`role="status"`). L'URL reste `/hote/magelian…`, AUCUNE navigation n'a lieu et aucun appel d'API ne part ;
+- (b) quand la session apparaît (la `session` du faux `AuthService` passe à non nul), la page demandée s'affiche sans renavigation ;
+- (c) un 401 d'API dans l'hôte fait apparaître le même message.
+
+En mode autonome (spec de `app.config.spec.ts`, specs de garde), le comportement actuel reste inchangé :
+- redirection vers `/connexion?redirection=…` ;
+- déconnexion → `/connexion` ;
+- 401 → `/connexion`.
+
+Implémentation :
+- Créer le jeton `STRATEGIE_SANS_SESSION` : défaut racine `message`, `rediriger` fourni par la route `app`.
+- `authGuard` : en mode `message`, renvoyer `true`.
+- `RacineDistanteComponent` : `@if (erreur) … @else if (strategie.mode === 'message' && !auth.connecte()) { message } @else { <router-outlet /> }`.
+- `AuthService` : retirer `CHEMIN_CONNEXION` et toute navigation. Son écoute de `SIGNED_OUT` ne fait plus que mettre la session à jour.
+- La redirection de fin de session en mode autonome passe par un `effect` de `RacineDistanteComponent`, en mode `rediriger`.
+- `sessionExpireeInterceptor` et la coquille lisent la stratégie.
+- Faire lire à `messages.ts` et `sans-session.guard.ts` la nouvelle stratégie à la place de `CHEMIN_CONNEXION`, qui disparaît.
+
+- [ ] **Step 4: Épreuve rejouée — hôte PAR DÉFAUT, build de PRODUCTION**
+
+Reprendre le même hôte jetable que la tâche 6, hors dépôt, mais avec sa configuration GÉNÉRÉE : `ignoreUnusedDeps: true`, rien partagé à la main. Deux passes :
+1. remote servie par `ng serve --port 4201` ;
+2. remote en build de production : `npm run build`, puis servie statiquement sur :4201 avec CORS (ex. `npx http-server dist/magelian/browser -p 4201 --cors -c-1`, outil lancé hors dépôt).
+
+À chaque passe, refaire les 7 vérifications de la tâche 6, plus :
+- (8) accueil ET essai-carte s'affichent sans NG0203 : console vide d'erreurs ;
+- (9) sans session (cookies effacés), le message « Session requise… » s'affiche dans le cadre de l'hôte, et l'URL de l'hôte ne change pas ;
+- (10) en passe `ng serve`, le limiteur fonctionne DANS l'hôte. Depuis la console, lancer 4 appels simultanés à l'API des sites (via `ng.getInjector` sur l'élément de la page) : on doit voir 3 requêtes en vol, puis la 4e après la première réponse (onglet réseau, horodatage).
+
+Consigner chaque point avec sa preuve, et ranger les captures dans le dossier du chantier. Arrêter tous les serveurs.
+
+- [ ] **Step 5: Documentation et commit**
+
+`ARCHITECTURE.md` (§ Application Angular) :
+- la garde des imports partagés et sa raison ;
+- `STRATEGIE_SANS_SESSION` et le comportement dans l'hôte ;
+- le résultat de l'épreuve par défaut et en production.
+
+Feuille de route :
+- ligne « Robustesse dans l'hôte » : ✅ si les deux passes réussissent, sinon ce qui a échoué ;
+- ligne « AIDA — Conformité » mise à jour en conséquence : elle ne reste « ⚠ Partiel » que pour l'isolation CSS et l'authentification AIDA.
+
+```bash
+git add angular/src tests/unit/angular/imports-partages.test.ts ARCHITECTURE.md docs/superpowers/plans/2026-09-29-transition-angular-feuille-de-route.md
+git commit -m "feat(angular): remote robuste dans un hôte par défaut — sans rxjs-interop, message sans session, épreuve en production"
+```
+
+---
+
+### Task 8: Isolation CSS — MAGELIAN ne restyle plus l'hôte, l'hôte ne restyle pas MAGELIAN
+
+**Files:**
+- Décidés au step 2 (voir ci-dessous). Au minimum : `angular/src/styles.css`, `angular/src/styles/jetons.css`, `angular/src/app/layout/racine-distante.component.ts`, `angular/src/app/core/ressources/feuilles.ts`, `angular/src/app/core/theme/couleurs.service.ts`, et leurs specs.
+- `ARCHITECTURE.md`, `DESIGN_SYSTEM.md` si les jetons changent de forme, et la feuille de route.
+
+**Interfaces:**
+- Consumes: le tableau de fuite de la tâche 6 (`task-6-report.md`), `chargerFeuille`, `CouleursService.palette`, `ThemeService` (règle de propriété de `<html>`).
+- Produces: une feuille MAGELIAN qui, chargée dans l'hôte, laisse STRICTEMENT inchangés les styles calculés des éléments de l'hôte mesurés à la tâche 6, et n'ajoute aucune propriété personnalisée sur `:root` au nom générique.
+
+- [ ] **Step 1: Inventaire complet (avant toute décision)**
+
+Sur le `magelian.css` de production, lister :
+- (a) chaque sélecteur global, hors couche ou en couche `base` : `html`, `body`, `*`, `::before/::after`, `:focus-visible`, `::selection`, barres de défilement, `@font-face` ;
+- (b) les `@property --tw-*` enregistrées par Tailwind 4 (non redéfinissables si l'hôte utilise aussi Tailwind) ;
+- (c) les `@keyframes` ;
+- (d) les 123 propriétés sur `:root` et `html.light` ;
+- (e) le sens INVERSE : une feuille d'hôte générique (Tailwind + une remise à zéro type Material, écrite dans l'hôte jetable) change-t-elle l'affichage de MAGELIAN (`.flex`, `.hidden`, `h1`, `button`…) ?
+- (f) les éléments rendus hors du cadre de la remote : infobulle ECharts, popups MapLibre, tout `position: fixed`.
+
+Rassembler le tout dans un tableau du rapport.
+
+- [ ] **Step 2: Épreuve comparative de deux approches, dans l'hôte**
+
+Préparer deux copies de travail jetables (`git worktree add` sous le dossier du chantier, jamais commitées), une par approche.
+
+**A — Racine en Shadow DOM**
+- `RacineDistanteComponent` passe en `ViewEncapsulation.ShadowDom`.
+- `magelian.css` et `maplibre.css` sont chargés DANS la racine d'ombre : `chargerFeuille` reçoit une cible.
+- Les jetons passent sous `:host` et `:host-context(html.light)`.
+- `CouleursService` lit les valeurs calculées sur l'élément hôte de la racine d'ombre, et non plus sur `documentElement`.
+- Vérifier que les styles des composants enfants fonctionnent (Angular les ajoute aux racines d'ombre enregistrées), ainsi que les polices : `@font-face` doit rester au niveau document.
+
+**B — CSS confinée**
+- Tailwind sans preflight global : `@import "tailwindcss/theme"` + `utilities`, avec une remise à zéro réécrite sous `.mg-racine`.
+- Les règles `html`/`body` sont déplacées sur `.mg-racine`.
+- Les jetons sont préfixés `--mg-`, et `CouleursService`, les specs et `DESIGN_SYSTEM.md` sont adaptés en conséquence.
+
+Pour chacune, vérifier dans l'hôte par défaut :
+- le tableau de fuite de la tâche 6 rejoué, avec pour objectif zéro différence ;
+- la fuite inverse du step 1(e) ;
+- carte, popups, courbe, infobulle et thème piloté par l'hôte ;
+- le KPI 13 841 288 ;
+- les budgets de build.
+
+Consigner l'ampleur du changement (fichiers, lignes) et les risques. **Recommander une approche avec ses preuves, sans l'appliquer avant l'arbitrage du chef de projet** : rendre le statut `NEEDS_CONTEXT` avec la recommandation.
+
+- [ ] **Step 3: Appliquer l'approche retenue**
+
+Écrire d'abord les tests pour ce qui est testable : portée des jetons, lecture des couleurs, chargement des feuilles dans la bonne cible. Faire ensuite la preuve au navigateur en mode autonome dans les deux thèmes, puis dans l'hôte par défaut.
+
+- [ ] **Step 4: Documentation et commit**
+
+Mettre à jour `ARCHITECTURE.md`, `DESIGN_SYSTEM.md` si nécessaire, et la feuille de route :
+- ligne « Isolation CSS » : ✅ ;
+- ligne « AIDA — Conformité » : ✅ si plus rien n'est ouvert côté MAGELIAN. L'authentification AIDA reste une question au siège, et doit être dite comme telle.
