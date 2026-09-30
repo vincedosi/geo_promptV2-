@@ -2,6 +2,9 @@ import { TestBed } from '@angular/core/testing';
 import { CarteComponent } from './carte.component';
 import { FABRIQUE_CARTE } from './fabrique-carte';
 import { CarteFactice } from './testing/carte-factice';
+import { BASE_RESSOURCES } from '../core/ressources/ressource-distante';
+
+const BASE = 'https://distante.exemple/remotes/magelian/chunk-ABC.js';
 
 class ObservateurFactice {
   static instances: ObservateurFactice[] = [];
@@ -14,7 +17,10 @@ async function rendre() {
   let carte!: CarteFactice;
   (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
   TestBed.configureTestingModule({
-    providers: [{ provide: FABRIQUE_CARTE, useValue: (o: never) => (carte = new CarteFactice(o)) }],
+    providers: [
+      { provide: FABRIQUE_CARTE, useValue: (o: never) => (carte = new CarteFactice(o)) },
+      { provide: BASE_RESSOURCES, useValue: BASE },
+    ],
   });
   const f = TestBed.createComponent(CarteComponent);
   f.componentRef.setInput('cadre', [4.75, 43.35, 5.3, 43.6]);
@@ -29,7 +35,11 @@ async function rendre() {
 }
 
 describe('CarteComponent', () => {
-  afterEach(() => { ObservateurFactice.instances = []; });
+  afterEach(() => {
+    ObservateurFactice.instances = [];
+    // Le document est partagé entre les tests : chaque test repart sans feuille posée.
+    document.head.querySelectorAll('link[data-mg-maplibre]').forEach((l) => l.remove());
+  });
 
   it('crée la carte dans son conteneur, sur le fond et le cadre demandés', async () => {
     const { carte } = await rendre();
@@ -96,10 +106,17 @@ describe('CarteComponent', () => {
     expect(carte().cadrages).toEqual([{ cadre: [2, 48, 3, 49], options: { padding: 40, animate: false } }]);
   });
 
-  it('pose la feuille de style MapLibre dans <head>', async () => {
+  it('pose la feuille de style MapLibre dans <head>, résolue contre l\'application distante', async () => {
     await rendre();
     const lien = document.head.querySelector('link[data-mg-maplibre]');
     expect(lien).not.toBeNull();
-    expect(lien?.getAttribute('href')).toBe('maplibre.css');
+    expect(lien?.getAttribute('href')).toBe('https://distante.exemple/remotes/magelian/maplibre.css');
+  });
+
+  it('signale une feuille de style MapLibre qui ne charge pas', async () => {
+    const { erreurs } = await rendre();
+    document.head.querySelector('link[data-mg-maplibre]')!.dispatchEvent(new Event('error'));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(erreurs).toEqual(["La feuille de style de la carte n'a pas pu être chargée."]);
   });
 });

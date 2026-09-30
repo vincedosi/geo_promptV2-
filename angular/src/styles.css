@@ -1,3 +1,10 @@
+/*
+ * Polices : ici et plus dans index.html, que le shell AIDA n'exécute pas.
+ * ⚠ DOIT rester le PREMIER énoncé du fichier — un @import placé après une
+ * autre règle est ignoré par le navigateur, sans erreur. Vérifié dans le
+ * magelian.css émis (tâche 4 du lot AIDA).
+ */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;700&display=swap');
 @import 'tailwindcss';
 @import './styles/jetons.css';
 
@@ -76,18 +83,4 @@ body {
 .maplibregl-ctrl-attrib-inner {
   color: var(--text-tertiary) !important;
   text-decoration: none !important;
-}
-
-/*
- * Logotype MAGELIAN : le wordmark SVG est dessiné en QUASI-NOIR (avec des
- * accents teal) — lisible sur fond clair, presque invisible sur le fond sombre
- * (constat du 2026-09-30). Pas de hex ajouté : en thème sombre on inverse la
- * luminance, et la rotation de teinte de 180° ramène les accents inversés
- * (rouge) vers le teal. Thème sombre = défaut (`:root`), comme les jetons.
- */
-.mg-logo {
-  filter: invert(1) hue-rotate(180deg);
-}
-html.light .mg-logo {
-  filter: none;
 }

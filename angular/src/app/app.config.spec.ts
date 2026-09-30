@@ -5,6 +5,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { appConfig } from './app.config';
 import { SUPABASE } from './core/auth/supabase';
 import { ConfigService } from './core/config/config.service';
+import { BASE_RESSOURCES } from './core/ressources/ressource-distante';
 
 /**
  * Couvre le VRAI graphe de providers d'appConfig ET de la route — les specs
@@ -29,20 +30,37 @@ function fauxSupabase() {
 
 const attendre = () => new Promise((r) => setTimeout(r, 0));
 
+/** Base où l'application est servie — distincte du document, comme dans le shell. */
+const BASE = 'https://distante.exemple/remotes/magelian/chunk-ABC.js';
+const URL_CONFIG = 'https://distante.exemple/remotes/magelian/config.local.json';
+
+/** jsdom ne charge pas les feuilles : on joue le `load` de la feuille globale. */
+async function feuilleGlobaleChargee(): Promise<void> {
+  const lien = document.head.querySelector('link[data-mg-styles]');
+  expect(lien?.getAttribute('href')).toBe('https://distante.exemple/remotes/magelian/magelian.css');
+  lien!.dispatchEvent(new Event('load'));
+  await attendre();
+}
+
 describe('appConfig — démarrage réel, lancement autonome', () => {
+  afterEach(() => document.head.querySelector('link[data-mg-styles]')?.remove());
+
   it('`/` mène à `/app`, la configuration étant chargée PAR LA ROUTE (sans Bearer), puis l\'API reçoit le Bearer', async () => {
     TestBed.configureTestingModule({
-      providers: [...appConfig.providers, provideHttpClientTesting(), { provide: SUPABASE, useValue: fauxSupabase() }],
+      providers: [...appConfig.providers, provideHttpClientTesting(), { provide: SUPABASE, useValue: fauxSupabase() }, { provide: BASE_RESSOURCES, useValue: BASE }],
     });
     const http = TestBed.inject(HttpTestingController);
     const harness = await RouterTestingHarness.create();
 
     // Aucune requête avant la première navigation : plus d'APP_INITIALIZER.
-    http.expectNone('/config.local.json');
+    http.expectNone(URL_CONFIG);
 
     const navigation = harness.navigateByUrl('/');
     await attendre();
-    const requete = http.expectOne('/config.local.json');
+    // La configuration ne part qu'une fois la page stylée.
+    http.expectNone(URL_CONFIG);
+    await feuilleGlobaleChargee();
+    const requete = http.expectOne(URL_CONFIG);
     expect(requete.request.headers.has('Authorization')).toBe(false);
     requete.flush({ supabaseUrl: 'http://127.0.0.1:54321', supabaseAnonKey: 'cle-de-test', apiBaseUrl: '' });
     await navigation;
@@ -57,13 +75,14 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
 
   it('une ancienne adresse (`/catalogue`) retombe dans l\'application via `**` → `app`', async () => {
     TestBed.configureTestingModule({
-      providers: [...appConfig.providers, provideHttpClientTesting(), { provide: SUPABASE, useValue: fauxSupabase() }],
+      providers: [...appConfig.providers, provideHttpClientTesting(), { provide: SUPABASE, useValue: fauxSupabase() }, { provide: BASE_RESSOURCES, useValue: BASE }],
     });
     const http = TestBed.inject(HttpTestingController);
     const harness = await RouterTestingHarness.create();
     const navigation = harness.navigateByUrl('/catalogue');
     await attendre();
-    http.expectOne('/config.local.json').flush({ supabaseUrl: 'http://x', supabaseAnonKey: 'k', apiBaseUrl: '' });
+    await feuilleGlobaleChargee();
+    http.expectOne(URL_CONFIG).flush({ supabaseUrl: 'http://x', supabaseAnonKey: 'k', apiBaseUrl: '' });
     await navigation;
     await attendre();
     expect(TestBed.inject(Router).url).toBe('/app');

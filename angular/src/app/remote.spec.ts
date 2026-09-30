@@ -6,7 +6,11 @@ import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { remoteRoutes } from './app.routes';
 import { AuthService } from './core/auth/auth.service';
+import { BASE_RESSOURCES } from './core/ressources/ressource-distante';
 import { SitesRisqueApi } from './features/risques/data/sites-risque.api';
+
+/** L'application distante est servie AILLEURS que le document de l'hôte. */
+const BASE = 'https://distante.exemple/remotes/magelian/chunk-ABC.js';
 
 /**
  * Le shell AIDA ne charge QUE `remoteRoutes` (doc §4.4-4.5) : ni app.config.ts,
@@ -35,6 +39,7 @@ function hote() {
       provideHttpClient(),
       provideHttpClientTesting(),
       { provide: AuthService, useValue: auth },
+      { provide: BASE_RESSOURCES, useValue: BASE },
     ],
   });
   return { auth, http: TestBed.inject(HttpTestingController) };
@@ -48,6 +53,9 @@ async function monter() {
   const harness = await RouterTestingHarness.create();
   const navigation = harness.navigateByUrl('/hote/magelian');
   await attendre();
+  // jsdom ne charge pas les feuilles : on joue le `load` de la feuille globale.
+  document.head.querySelector('link[data-mg-styles]')?.dispatchEvent(new Event('load'));
+  await attendre();
   // `match` et non `expectOne` : chaque test doit échouer pour SA raison,
   // pas tous sur l'absence de requête de configuration.
   const config = ctx.http.match((r) => r.url.endsWith('config.local.json'));
@@ -59,6 +67,24 @@ async function monter() {
 }
 
 describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts', () => {
+  afterEach(() => document.head.querySelector('link[data-mg-styles]')?.remove());
+
+  it("feuille globale et configuration sont lues sur l'application distante, pas sur le document de l'hôte", async () => {
+    const { http } = hote();
+    const harness = await RouterTestingHarness.create();
+    const navigation = harness.navigateByUrl('/hote/magelian');
+    await attendre();
+    const lien = document.head.querySelector('link[data-mg-styles]');
+    expect(lien?.getAttribute('href')).toBe('https://distante.exemple/remotes/magelian/magelian.css');
+    http.expectNone((r) => r.url.endsWith('config.local.json'));
+    lien!.dispatchEvent(new Event('load'));
+    await attendre();
+    http.expectOne('https://distante.exemple/remotes/magelian/config.local.json')
+      .flush({ supabaseUrl: 'http://x', supabaseAnonKey: 'k', apiBaseUrl: '' });
+    await navigation;
+    http.match(() => true).forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
+  });
+
   it('la configuration et la session sont chargées par la route', async () => {
     const { auth, configDemandee } = await monter();
     expect(configDemandee).toBe(1);
@@ -110,11 +136,13 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     const harness = await RouterTestingHarness.create();
     const navigation = harness.navigateByUrl('/hote/magelian');
     await attendre();
+    document.head.querySelector('link[data-mg-styles]')?.dispatchEvent(new Event('load'));
+    await attendre();
     http.expectOne((r) => r.url.endsWith('config.local.json')).flush('absent', { status: 404, statusText: 'Not Found' });
     await navigation;
     await harness.fixture.whenStable();
     const racine = harness.fixture.nativeElement as HTMLElement;
-    expect(racine.querySelector('[role="alert"]')?.textContent).toMatch(/Configuration locale introuvable/);
+    expect(racine.querySelector('[role="alert"]')?.textContent).toMatch(/Configuration locale introuvable.*Rechargez la page pour réessayer\.$/);
     expect(racine.querySelector('mg-coquille')).toBeNull();
     http.expectNone('/api/risques/sites/compter');
   });

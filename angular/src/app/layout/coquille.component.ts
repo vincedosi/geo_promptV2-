@@ -3,6 +3,7 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 import { AuthService } from '../core/auth/auth.service';
 import { CHEMIN_CONNEXION } from '../core/auth/chemin-connexion';
 import { ThemeService } from '../core/theme/theme.service';
+import { LogoComponent } from '../ui/logo/logo.component';
 
 /**
  * Barre latérale MAGELIAN (DESIGN_SYSTEM.md § 6) autour des pages métier.
@@ -12,7 +13,7 @@ import { ThemeService } from '../core/theme/theme.service';
  */
 @Component({
   selector: 'mg-coquille',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, LogoComponent],
   templateUrl: './coquille.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

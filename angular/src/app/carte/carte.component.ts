@@ -4,7 +4,8 @@ import {
 } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
 import { type Bbox, bboxDeCarte } from './bbox';
-import { assurerFeuilleMaplibre } from './feuille-maplibre';
+import { BASE_RESSOURCES } from '../core/ressources/ressource-distante';
+import { chargerFeuilleMaplibre } from './feuille-maplibre';
 import { FABRIQUE_CARTE, FOND_POSITRON } from './fabrique-carte';
 
 /**
@@ -25,8 +26,11 @@ import { FABRIQUE_CARTE, FOND_POSITRON } from './fabrique-carte';
  *   Angular l'émet en `maplibre.css` dans le dossier de build mais ne
  *   l'ajoute PAS à `index.html`, donc elle ne pèse JAMAIS sur le paquet
  *   initial — même première charge de page, même sans aucune carte montée.
- *   `assurerFeuilleMaplibre()` (`feuille-maplibre.ts`) l'injecte dans
- *   `<head>` ici, à la demande, la première fois qu'une carte existe. Un
+ *   `chargerFeuilleMaplibre()` (`feuille-maplibre.ts`) l'injecte dans
+ *   `<head>` ici, à la demande, la première fois qu'une carte existe —
+ *   résolue contre l'application DISTANTE, pas contre le document du shell.
+ *   Si elle ne charge pas, `erreur` le dit : une carte sans sa feuille a ses
+ *   contrôles et ses popups en vrac, ce n'est pas un état silencieux. Un
  *   `styleUrl` pointant vers cette feuille de 69,5 kB avait été tenté
  *   (fix round 1) mais forçait à ÉLARGIR le budget `anyComponentStyle` — la
  *   protection de TOUS les futurs composants du lot, pas seulement de
@@ -47,13 +51,15 @@ export class CarteComponent {
   readonly prete = output<maplibregl.Map>();
   readonly deplacee = output<Bbox>();
   /** Émise si le FOND lui-même échoue avant le premier `load` — pas les
-   *  erreurs de tuile ordinaires qui suivent un chargement réussi. */
+   *  erreurs de tuile ordinaires qui suivent un chargement réussi —, ou si la
+   *  feuille de style MapLibre ne charge pas. */
   readonly erreur = output<string>();
 
   private readonly conteneur = viewChild.required<ElementRef<HTMLDivElement>>('conteneur');
   private readonly fabrique = inject(FABRIQUE_CARTE);
   private readonly destruction = inject(DestroyRef);
   private readonly document = inject(DOCUMENT);
+  private readonly base = inject(BASE_RESSOURCES);
   private readonly instance = signal<maplibregl.Map | null>(null);
   private cadreApplique: Bbox | null = null;
 
@@ -68,7 +74,11 @@ export class CarteComponent {
       carte.fitBounds([...cadre] as [number, number, number, number], { padding: 40, animate: false });
     });
     afterNextRender(() => {
-      assurerFeuilleMaplibre(this.document);
+      // Sans `await` : MapLibre peut créer la carte pendant que sa feuille
+      // arrive. Une sortie ne s'émet plus après destruction (NG0953).
+      chargerFeuilleMaplibre(this.document, this.base).catch(() => {
+        if (!this.destruction.destroyed) this.erreur.emit("La feuille de style de la carte n'a pas pu être chargée.");
+      });
       const element = this.conteneur().nativeElement;
       const carte = this.fabrique({
         container: element,
