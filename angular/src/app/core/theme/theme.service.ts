@@ -44,7 +44,9 @@ function themeDeLaClasse(doc: Document, strict: boolean): Theme | null {
  * dans `theme` ET `themeApplique`, pour que les couleurs calculées (carte,
  * courbes) se repeignent. Lecture = ce que le CSS rend (jetons.css n'a que
  * `:root`, sombre, et `html.light`) : `light` présente -> clair, sinon sombre ;
- * classe absente -> sombre, les deux -> clair. `color-scheme` reste à l'hôte.
+ * classe absente -> sombre, les deux -> clair. Le `color-scheme` de `<html>` reste à
+ * l'hôte ; DANS les racines d'ombre, il suit le thème de MAGELIAN (`:host` /
+ * `:host(.light)`, styles.css), grâce à la classe que ce service y recopie.
  *
  * Persistance : seul un geste de l'utilisateur de MAGELIAN est écrit dans
  * `localStorage`. `themeUtilisateur` n'est renseigné que par `basculer()` ; l'effect
@@ -126,8 +128,9 @@ export class ThemeService {
         this.ecrireHtml = false;
         racine.classList.toggle('light', t === 'light');
         racine.classList.toggle('dark', t === 'dark');
-        // Sans cela, une bascule laisse des barres de défilement et des champs
-        // de formulaire dans l'ancien thème.
+        // Sans cela, une bascule laisse les barres de défilement du DOCUMENT
+        // autonome dans l'ancien thème (dans les racines d'ombre, c'est `:host`
+        // qui fixe `color-scheme`, styles.css).
         racine.style.colorScheme = t;
       }
       if (t === this.themeUtilisateur) {

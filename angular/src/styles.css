@@ -44,24 +44,88 @@
 }
 
 /*
- * L'hôte de la racine d'ombre. `all: initial` EN PREMIER : les propriétés
- * héritées (letter-spacing, text-transform, cursor, text-align, direction…)
- * posées par un ancêtre du shell traversent sinon la frontière de l'ombre.
- * Il ne touche pas aux propriétés personnalisées : nos jetons, redéclarés sur
- * `:host` (jetons.css), masquent ceux qu'un shell poserait sur `:root`.
- * `direction` est exclue de `all` par la spécification CSS (mesuré : un
- * `direction: rtl` du shell traversait encore) : elle est donc fixée à part.
+ * L'hôte de la racine d'ombre — la SEULE prise que le shell garde sur MAGELIAN :
+ * ses sélecteurs n'entrent pas dans l'ombre, mais ils atteignent cet élément,
+ * et tout ce qui s'hérite descend de lui. Deux règles de la cascade :
+ * - déclarations NORMALES : le contexte EXTÉRIEUR l'emporte sur `:host`. Un
+ *   `* { font-family: Georgia; color: red }` du shell bat notre `all: initial`
+ *   et descend sur tout MAGELIAN (constaté à la revue de la tâche 8) ;
+ * - déclarations `!important` : c'est l'INVERSE, le contexte INTÉRIEUR gagne.
+ * D'où : `all: initial` NORMAL (il remet à zéro ce que le shell ne cible pas
+ * nommément ; en `!important` il figerait aussi `display` et `height`, et le
+ * shell ne pourrait plus dimensionner le cadre), puis chaque propriété
+ * HÉRITÉE en `!important`. Restent normaux, exprès : `display`, `height` (le
+ * shell dimensionne) et `visibility` (le shell peut cacher un onglet).
+ * `direction` et `unicode-bidi` sont exclues de `all` par la spécification
+ * (mesuré : un `direction: rtl` du shell traversait) : fixées ici aussi.
+ * `color-scheme` : `all` le remet à `normal` — barres de défilement, champs et
+ * remplissage automatique passeraient en CLAIR dans le thème sombre. Il suit
+ * le thème de MAGELIAN (`:host(.light)` plus bas), jamais celui du shell.
+ * Les propriétés personnalisées ne sont pas touchées par `all` : nos jetons,
+ * redéclarés sur `:host` (jetons.css), masquent ceux d'un `:root` du shell.
  */
 :host {
   all: initial;
-  direction: ltr;
   display: block;
   height: 100%;
-  background: var(--bg-level-0);
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-  font-size: 13px;
-  line-height: 1.6;
+  background: var(--bg-level-0) !important;
+  color-scheme: dark !important;
+  direction: ltr !important;
+  unicode-bidi: isolate !important;
+  color: var(--text-primary) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 13px !important;
+  font-style: normal !important;
+  font-weight: 400 !important;
+  font-variant: normal !important;
+  font-stretch: normal !important;
+  font-kerning: auto !important;
+  font-feature-settings: normal !important;
+  font-variation-settings: normal !important;
+  font-size-adjust: none !important;
+  font-synthesis: weight style small-caps !important;
+  font-optical-sizing: auto !important;
+  line-height: 1.6 !important;
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+  text-transform: none !important;
+  text-align: start !important;
+  text-align-last: auto !important;
+  text-indent: 0 !important;
+  text-shadow: none !important;
+  text-rendering: auto !important;
+  text-underline-position: auto !important;
+  text-underline-offset: auto !important;
+  text-decoration-skip-ink: auto !important;
+  text-emphasis: none !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  hyphens: manual !important;
+  tab-size: 8 !important;
+  line-break: auto !important;
+  writing-mode: horizontal-tb !important;
+  text-orientation: mixed !important;
+  cursor: auto !important;
+  caret-color: auto !important;
+  accent-color: auto !important;
+  quotes: auto !important;
+  list-style-type: disc !important;
+  list-style-position: outside !important;
+  list-style-image: none !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  caption-side: top !important;
+  empty-cells: show !important;
+  image-rendering: auto !important;
+  paint-order: normal !important;
+  -webkit-text-fill-color: currentcolor !important;
+  -webkit-text-stroke: 0 currentcolor !important;
+  -webkit-font-smoothing: auto !important;
+}
+
+:host(.light) {
+  color-scheme: light !important;
 }
 
 :focus-visible {

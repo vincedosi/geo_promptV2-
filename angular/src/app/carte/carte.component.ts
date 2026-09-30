@@ -80,7 +80,9 @@ export class CarteComponent {
       // arrive. Une sortie ne s'émet plus après destruction (NG0953).
       // Dans la racine d'ombre qui porte la carte (Isolation CSS) ; dans le document hors racine (specs).
       const racine = this.conteneur().nativeElement.getRootNode();
-      const cible = racine instanceof ShadowRoot ? racine : this.document;
+      // nodeType et non `instanceof` (même règle que `estDocument`, feuilles.ts) :
+      // `instanceof` échoue d'un domaine de JavaScript à l'autre. 11 = DOCUMENT_FRAGMENT_NODE.
+      const cible = racine.nodeType === 11 ? (racine as ShadowRoot) : this.document;
       chargerFeuilleMaplibre(cible, this.base).catch(() => {
         if (!this.destruction.destroyed) this.erreur.emit("La feuille de style de la carte n'a pas pu être chargée.");
       });

@@ -82,27 +82,55 @@ export async function chargerFeuilleConstruite(
  * - `@import` retirés : `CSSStyleSheet.replace()` les refuse. Les polices, seul
  *   `@import` du projet, sont dans `magelian-polices.css`, posée au niveau du
  *   DOCUMENT (une `@font-face` est ignorée dans une racine d'ombre).
- * - `@property` réécrites, voir `proprietesEnVariables`.
+ * - `@property` réécrites, voir `proprietesEnVariables` ;
+ * - `rem` convertis en px, voir `remEnPx`.
  */
 export function preparerFeuilleOmbre(css: string): string {
-  return proprietesEnVariables(css.replace(/@import[^;]+;/g, ''));
+  return remEnPx(proprietesEnVariables(css.replace(/@import[^;]+;/g, '')));
+}
+
+/**
+ * `rem` renvoie à la taille de police de `<html>` — l'élément du SHELL. Un
+ * shell qui la change (`html { font-size: 62.5% }`, courant) redimensionnerait
+ * tout MAGELIAN : Tailwind exprime en `rem` espacements, tailles de texte et
+ * rayons. Mesuré à la revue de la tâche 8 : un `* { font-size: 20px }` du shell
+ * faisait passer le titre de page de 18 à 22,5 px. Chaque `rem` des VALEURS est
+ * donc converti en px, base 16 (identique tant que `<html>` reste à 16 px, donc
+ * rien ne change en autonome). Seulement devant un séparateur de valeur :
+ * un sélecteur échappé (`.p-\[1rem\]`) n'est pas touché.
+ */
+export function remEnPx(css: string): string {
+  return css.replace(/(-?(?:\d+\.?\d*|\.\d+))rem(?=[;}\s),!/])/g, (_, n: string) => `${+(Number(n) * 16).toFixed(4)}px`);
 }
 
 /**
  * Chrome ignore `@property` dans une racine d'ombre (mesuré à la tâche 8 :
  * `border-r` y rendait `border-right-style: none`). Tailwind 4 s'y fie pour la
  * valeur initiale ET le non-héritage de ses `--tw-*`. Chaque enregistrement est
- * donc réécrit en déclaration posée sur CHAQUE élément — exactement le repli
- * que Tailwind émet déjà, sous `@supports`, pour les navigateurs sans
- * `@property` — en couche `properties`, la plus faible. S'adapte seul aux
- * utilitaires ajoutés : la liste vient de la feuille elle-même.
+ * donc réécrit en déclaration, en couche `properties` (la plus faible) :
+ * - `inherits: false` (toutes celles de Tailwind) → posée sur CHAQUE élément
+ *   (`*`, `:before`, `:after`, `::backdrop`) : un enfant a sa propre valeur et
+ *   ne reçoit jamais celle de son parent — exactement le repli que Tailwind émet
+ *   déjà, sous `@supports`, pour les navigateurs sans `@property` ;
+ * - `inherits: true` → posée sur `:host` seul, d'où elle descend.
+ * Les règles `@property` d'origine sont RETIRÉES : un navigateur qui les
+ * honorerait depuis une racine d'ombre les enregistrerait pour TOUT le
+ * document, donc pour le shell. La liste vient de la feuille elle-même :
+ * s'adapte seule aux utilitaires ajoutés.
  */
 export function proprietesEnVariables(css: string): string {
-  const declarations: string[] = [];
-  for (const m of css.matchAll(/@property\s+(--[\w-]+)\s*\{([^}]*)\}/g)) {
+  const locales: string[] = [];
+  const heritees: string[] = [];
+  const motif = /@property\s+(--[\w-]+)\s*\{([^}]*)\}/g;
+  for (const m of css.matchAll(motif)) {
     const initiale = /initial-value\s*:\s*([^;]+)/.exec(m[2]);
-    declarations.push(`${m[1]}:${initiale ? initiale[1].trim() : 'initial'}`);
+    const declaration = `${m[1]}:${initiale ? initiale[1].trim() : 'initial'}`;
+    (/inherits\s*:\s*true/.test(m[2]) ? heritees : locales).push(declaration);
   }
-  if (!declarations.length) return css;
-  return `${css}\n@layer properties{*,:before,:after,::backdrop{${declarations.join(';')}}}`;
+  if (!locales.length && !heritees.length) return css;
+  const blocs = [
+    heritees.length ? `:host{${heritees.join(';')}}` : '',
+    locales.length ? `*,:before,:after,::backdrop{${locales.join(';')}}` : '',
+  ].join('');
+  return `${css.replace(motif, '')}\n@layer properties{${blocs}}`;
 }

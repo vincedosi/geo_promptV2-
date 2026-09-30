@@ -1,4 +1,4 @@
-import { chargerFeuille, chargerFeuilleConstruite, preparerFeuilleOmbre, proprietesEnVariables } from './feuilles';
+import { chargerFeuille, chargerFeuilleConstruite, preparerFeuilleOmbre, proprietesEnVariables, remEnPx } from './feuilles';
 
 function nouveauDocument(): Document {
   return document.implementation.createHTMLDocument('test');
@@ -97,7 +97,20 @@ describe('proprietesEnVariables', () => {
       '--tw-drop-shadow-alpha': '100%',
     });
     // Le reste de la feuille est intact.
-    expect(sortie.startsWith(EXTRAIT_TAILWIND)).toBe(true);
+    expect(sortie).toContain('.border-r{border-right-style:var(--tw-border-style);border-right-width:1px}');
+    expect(sortie).toContain('.blur{--tw-blur: blur(8px);filter:var(--tw-blur,) var(--tw-brightness,)}');
+  });
+
+  it("RETIRE les @property réécrites : un navigateur qui les honorerait dans l'ombre les enregistrerait pour tout le document", () => {
+    expect(proprietesEnVariables(EXTRAIT_TAILWIND)).not.toMatch(/@property/);
+  });
+
+  it("une @property qui S'HÉRITE (`inherits: true`) est posée sur :host seul, d'où elle descend — jamais sur chaque élément", () => {
+    const sortie = proprietesEnVariables(
+      '.a{color:red}@property --x-herite{syntax:"*";inherits:true;initial-value:4px;}@property --x-local{syntax:"*";inherits:false;initial-value:1px;}',
+    );
+    expect(sortie).toContain('@layer properties{:host{--x-herite:4px}*,:before,:after,::backdrop{--x-local:1px}}');
+    expect(sortie).not.toMatch(/@property/);
   });
 
   it('ne touche pas une feuille sans @property', () => {
@@ -110,10 +123,11 @@ describe('proprietesEnVariables', () => {
     // Une déclaration posée par `*` sur l'enfant lui-même l'emporte sur l'héritage du parent : c'est ce
     // qui remplace `inherits: false`, que `@property` ne peut plus garantir dans une racine d'ombre.
     const sortie = proprietesEnVariables(EXTRAIT_TAILWIND);
-    const selecteur = /@layer properties\{([^{]*)\{/.exec(sortie.slice(EXTRAIT_TAILWIND.length))![1];
+    const bloc = sortie.slice(sortie.indexOf('@layer properties'));
+    const selecteur = /@layer properties\{([^{]*)\{/.exec(bloc)![1];
     expect(selecteur.split(',').map((x) => x.trim())).toEqual(['*', ':before', ':after', '::backdrop']);
     for (const nom of ['--tw-rotate-x', '--tw-border-style', '--tw-blur', '--tw-drop-shadow-alpha']) {
-      expect(sortie.slice(EXTRAIT_TAILWIND.length)).toContain(`${nom}:`);
+      expect(bloc).toContain(`${nom}:`);
     }
   });
 });
@@ -124,6 +138,22 @@ describe('preparerFeuilleOmbre', () => {
     expect(sortie).not.toMatch(/@import/);
     expect(sortie).toMatch(/\.a\{color:red\}/);
     expect(sortie).toMatch(/--tw-x:1px/);
+  });
+
+  it('convertit les rem en px (voir remEnPx)', () => {
+    expect(preparerFeuilleOmbre('.a{padding:1rem}')).toBe('.a{padding:16px}');
+  });
+});
+
+describe('remEnPx', () => {
+  it("convertit les rem des VALEURS en px (base 16) : la taille de police de <html> appartient au shell, pas à MAGELIAN", () => {
+    expect(remEnPx(':host{--spacing: .25rem;--text-lg: 1.125rem}.m{margin:-0.5rem 2rem;width:calc(100% - 1rem)}.i{top:0rem!important}'))
+      .toBe(':host{--spacing: 4px;--text-lg: 18px}.m{margin:-8px 32px;width:calc(100% - 16px)}.i{top:0px!important}');
+  });
+
+  it('ne touche ni un sélecteur échappé (`.p-\[1rem\]`), ni un rapport sans unité, ni un nom qui contient « rem »', () => {
+    const css = '.p-\[1rem\]{padding:1rem}.l{line-height:calc(1 / .75)}.remise{--premier:1}';
+    expect(remEnPx(css)).toBe('.p-\[1rem\]{padding:16px}.l{line-height:calc(1 / .75)}.remise{--premier:1}');
   });
 });
 

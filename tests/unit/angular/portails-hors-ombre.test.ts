@@ -16,7 +16,14 @@
  * - `appendTo` / `appendToBody` (ECharts, bibliothèques d'infobulles) ;
  * - les entrées du CDK qui portent un portail (`overlay`, `portal`, `dialog`,
  *   `menu`) ;
- * - `position: fixed` et la classe Tailwind `fixed`. Aucun cas légitime
+ * - `document.querySelector('body')` / `getElementsByTagName('body')` ;
+ * - `::ng-deep` et `ViewEncapsulation.None` : Angular (SharedStylesHost)
+ *   recopie aussi les styles des composants dans le `<head>` du DOCUMENT ; ils
+ *   n'y sont inoffensifs que parce qu'ils sont confinés par attribut
+ *   (`_ngcontent-…`) — ces deux-là lèvent le confinement ;
+ * - `position: fixed` (feuille, `.style.position`, `setProperty`,
+ *   `[style.position]`) et la classe Tailwind `fixed` (attribut `class`,
+ *   `host: { class }`, `[class.fixed]`). Aucun cas légitime
  *   aujourd'hui : un élément fixe resterait certes dans l'arbre, mais se
  *   positionne par rapport à la fenêtre de l'HÔTE — par-dessus son menu. Si un
  *   besoin apparaît, montrer qu'il reste dans la racine et l'autoriser ICI,
@@ -45,10 +52,19 @@ const APP = path.join(RACINE, 'angular', 'src', 'app');
 
 const INTERDITS: Array<[string, RegExp]> = [
   ['document.body', /\b(?:document|doc|ownerDocument)\s*\??\.\s*body\b/],
+  ['sélection de <body>', /\b(?:querySelector(?:All)?|getElementsByTagName)\s*\(\s*['"`]body['"`]/],
   ['appendTo / appendToBody', /\bappendTo(?:Body)?\b/],
   ['portail du CDK', /@angular\/cdk\/(?:overlay|portal|dialog|menu)\b/],
-  ['position: fixed', /position\s*:\s*fixed\b/],
-  ['classe Tailwind `fixed`', /(?:\bclass(?:Name)?\s*=\s*["'`][^"'`]*|\[class\.)(?<![\w:-])fixed(?![\w-])/],
+  [
+    'position: fixed',
+    /position\s*:\s*fixed\b|\.style\.position\s*=\s*['"`]fixed|setProperty\(\s*['"`]position['"`]\s*,\s*['"`]fixed|\[style\.position\]\s*=\s*"\s*'fixed'/,
+  ],
+  ['classe Tailwind `fixed`', /(?:\bclass(?:Name)?\s*[=:]\s*["'`][^"'`]*|\[class\.)(?<![\w:-])fixed(?![\w-])/],
+  // Ces deux-là sortent un style de son composant : or SharedStylesHost recopie
+  // AUSSI les styles des composants dans le <head> du document — un sélecteur
+  // non confiné y atteindrait le shell.
+  ['::ng-deep', /::ng-deep\b/],
+  ['ViewEncapsulation.None', /\bViewEncapsulation\s*\.\s*None\b/],
 ];
 
 /** Fichier (relatif à angular/src/app) → interdits qu'il peut porter, avec la raison dans l'en-tête ci-dessus. */
@@ -94,6 +110,16 @@ describe('garde : aucun rendu hors de la racine d\'ombre', () => {
     expect(infractions('a.html', '<div class="inset-0 fixed z-50"></div>')).toEqual(['classe Tailwind `fixed`']);
     expect(infractions('a.ts', "racine.className = 'fixed top-0';")).toEqual(['classe Tailwind `fixed`']);
     expect(infractions('a.html', '<div [class.fixed]="ouvert()"></div>')).toEqual(['classe Tailwind `fixed`']);
+    expect(infractions('a.ts', "el.style.position = 'fixed';")).toEqual(['position: fixed']);
+    expect(infractions('a.ts', "el.style.setProperty('position', 'fixed');")).toEqual(['position: fixed']);
+    expect(infractions('a.html', `<div [style.position]="'fixed'"></div>`)).toEqual(['position: fixed']);
+    expect(infractions('a.ts', "@Component({ host: { class: 'block fixed inset-0' } }) class A {}")).toEqual(['classe Tailwind `fixed`']);
+    expect(infractions('a.ts', "@Component({ host: { '[class.fixed]': 'ouvert()' } }) class A {}")).toEqual(['classe Tailwind `fixed`']);
+    expect(infractions('a.ts', "doc.querySelector('body')!.append(x);")).toEqual(['sélection de <body>']);
+    expect(infractions('a.ts', 'document.getElementsByTagName("body")[0];')).toEqual(['sélection de <body>']);
+    expect(infractions('a.css', ':host ::ng-deep .x { color: red; }')).toEqual(['::ng-deep']);
+    expect(infractions('a.ts', "styles: [':host ::ng-deep p { margin: 0 }']")).toEqual(['::ng-deep']);
+    expect(infractions('a.ts', 'encapsulation: ViewEncapsulation.None,')).toEqual(['ViewEncapsulation.None']);
     // Cités en commentaire : ne comptent pas.
     expect(infractions('a.ts', '// document.body interdit\n/* appendTo: body */\nconst x = 1;')).toEqual([]);
     expect(infractions('a.html', '<!-- class="fixed" --><p></p>')).toEqual([]);
