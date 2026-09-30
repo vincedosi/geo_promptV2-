@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth/auth.service';
-import { CHEMIN_CONNEXION } from '../core/auth/chemin-connexion';
+import { STRATEGIE_SANS_SESSION } from '../core/auth/strategie-sans-session';
 import { ThemeService } from '../core/theme/theme.service';
 import { LogoComponent } from '../ui/logo/logo.component';
 
@@ -20,12 +20,19 @@ import { LogoComponent } from '../ui/logo/logo.component';
 export class CoquilleComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-  private readonly cheminConnexion = inject(CHEMIN_CONNEXION);
+  private readonly strategie = inject(STRATEGIE_SANS_SESSION);
   protected readonly email = this.auth.email;
   protected readonly theme = inject(ThemeService);
 
+  /**
+   * Autonome : vers la page de connexion, SANS page à reprendre — l'utilisateur
+   * a choisi de partir. Cette navigation démarre avant que l'effet de
+   * `RacineDistanteComponent` ne voie la session à null : il la trouve en
+   * cours et s'abstient, sans quoi il ajouterait `?redirection=…`.
+   * Dans un hôte : pas de navigation, la racine affiche « Session requise… ».
+   */
   protected async deconnecter(): Promise<void> {
     await this.auth.deconnecter();
-    await this.router.navigateByUrl(this.cheminConnexion);
+    if (this.strategie.mode === 'rediriger') await this.router.navigateByUrl(this.strategie.chemin);
   }
 }

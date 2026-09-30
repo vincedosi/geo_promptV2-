@@ -118,36 +118,40 @@ describe('AuthService', () => {
     expect(client.appelsSignOut).toEqual([undefined]);
   });
 
-  describe('renvoyerVersConnexion (item 1)', () => {
-    it('efface la session localement et renvoie vers /connexion avec la page courante', async () => {
+  describe('fin de session sans navigation (hôte comme autonome)', () => {
+    it("deconnecter('locale') efface la session par un signOut LOCAL, sans appel réseau", async () => {
       const client = fauxClient({ session });
-      const routeur = fauxRouteur('/risques?etape=3');
-      const auth = creer(client, routeur);
+      const auth = creer(client);
       await auth.initialiser();
 
-      await auth.renvoyerVersConnexion();
+      await auth.deconnecter('locale');
 
       expect(auth.connecte()).toBe(false);
       expect(client.appelsSignOut).toEqual([{ scope: 'local' }]);
-      expect(routeur.appels).toEqual([
-        [['/connexion'], { queryParams: { redirection: '/risques?etape=3' } }],
-      ]);
     });
 
-    it('ne navigue pas quand on est déjà sur /connexion, mais efface quand même la session', async () => {
+    it("deux fins de session locales simultanées (deux 401) ne font qu'un signOut", async () => {
       const client = fauxClient({ session });
-      const routeur = fauxRouteur('/connexion');
-      const auth = creer(client, routeur);
+      const auth = creer(client);
       await auth.initialiser();
 
-      await auth.renvoyerVersConnexion();
+      await Promise.all([auth.deconnecter('locale'), auth.deconnecter('locale')]);
 
-      expect(auth.connecte()).toBe(false);
       expect(client.appelsSignOut).toEqual([{ scope: 'local' }]);
-      expect(routeur.appels).toEqual([]);
     });
 
-    it('un événement SIGNED_OUT de GoTrue renvoie vers /connexion sans rappeler signOut', async () => {
+    it('une seconde fin de session locale, plus tard, rappelle signOut', async () => {
+      const client = fauxClient({ session });
+      const auth = creer(client);
+      await auth.initialiser();
+
+      await auth.deconnecter('locale');
+      await auth.deconnecter('locale');
+
+      expect(client.appelsSignOut).toEqual([{ scope: 'local' }, { scope: 'local' }]);
+    });
+
+    it('un SIGNED_OUT de GoTrue met la session à null, sans rappeler signOut ni naviguer', async () => {
       const client = fauxClient({ session });
       const routeur = fauxRouteur('/risques');
       const auth = creer(client, routeur);
@@ -156,52 +160,23 @@ describe('AuthService', () => {
       client.emettre(null, 'SIGNED_OUT');
       await Promise.resolve();
 
+      expect(auth.connecte()).toBe(false);
       expect(client.appelsSignOut).toEqual([]);
-      expect(routeur.appels).toEqual([
-        [['/connexion'], { queryParams: { redirection: '/risques' } }],
-      ]);
+      expect(routeur.appels).toEqual([]);
     });
 
-    it('deux fins de session simultanées ne redirigent qu\'une fois', async () => {
+    it('aucune action de AuthService ne navigue : la décision appartient au code à portée de route', async () => {
       const client = fauxClient({ session });
-      const routeur = fauxRouteur('/risques?etape=3');
+      const routeur = fauxRouteur('/risques');
       const auth = creer(client, routeur);
       await auth.initialiser();
 
-      await Promise.all([auth.renvoyerVersConnexion(), auth.renvoyerVersConnexion()]);
+      await auth.deconnecter();
+      await auth.deconnecter('locale');
+      client.emettre(null, 'SIGNED_OUT');
+      await Promise.resolve();
 
-      expect(routeur.appels.length).toBe(1);
-      expect(client.appelsSignOut).toEqual([{ scope: 'local' }]);
-    });
-
-    it('un seul renvoi malgré le SIGNED_OUT que signOut() émet lui-même', async () => {
-      // signOut({scope:'local'}) émet SIGNED_OUT, dont le handler de
-      // initialiser() appelle AUSSI le renvoi vers /connexion — en même temps
-      // que l'appel explicite qui suit dans renvoyerVersConnexion(). Sans la
-      // dé-duplication de la redirection elle-même (et pas seulement de
-      // l'appel externe renvoyerVersConnexion), ces deux chemins navigueraient
-      // chacun de leur côté.
-      const client = fauxClient({ session });
-      const routeur = fauxRouteur('/risques?etape=3');
-      const auth = creer(client, routeur);
-      await auth.initialiser();
-
-      await auth.renvoyerVersConnexion();
-
-      expect(routeur.appels.length).toBe(1);
-    });
-
-    it('une seconde fin de session, plus tard, renvoie à nouveau', async () => {
-      const client = fauxClient({ session });
-      const routeur = fauxRouteur('/risques?etape=3');
-      const auth = creer(client, routeur);
-      await auth.initialiser();
-
-      await auth.renvoyerVersConnexion();
-      await auth.renvoyerVersConnexion();
-
-      expect(routeur.appels.length).toBe(2);
-      expect(client.appelsSignOut).toEqual([{ scope: 'local' }, { scope: 'local' }]);
+      expect(routeur.appels).toEqual([]);
     });
   });
 });

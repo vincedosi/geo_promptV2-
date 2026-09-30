@@ -1,8 +1,8 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { computed, provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Router, provideRouter } from '@angular/router';
+import { NavigationStart, Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { remoteRoutes } from './app.routes';
 import { AuthService } from './core/auth/auth.service';
@@ -18,20 +18,24 @@ const BASE = 'https://distante.exemple/remotes/magelian/chunk-ABC.js';
  * fournit a priori — un routeur, un HttpClient SANS nos intercepteurs — et
  * monte l'application sous un préfixe qu'elle ne connaît pas.
  */
-function authFactice() {
+const SESSION_FACTICE = { access_token: 'jeton-test', user: { email: 'test@exemple.fr' } };
+
+/** Une session factice qu'un test peut faire apparaître ou disparaître. */
+function authFactice(connecte: boolean) {
+  const session = signal<typeof SESSION_FACTICE | null>(connecte ? SESSION_FACTICE : null);
   return {
-    connecte: signal(true),
-    email: signal<string | null>('test@exemple.fr'),
-    session: signal(null),
-    jeton: async () => 'jeton-test',
+    session,
+    connecte: computed(() => session() !== null),
+    email: computed(() => session()?.user.email ?? null),
+    jeton: async () => session()?.access_token ?? null,
     initialiser: vi.fn(async () => undefined),
-    deconnecter: vi.fn(async () => undefined),
-    renvoyerVersConnexion: vi.fn(async () => undefined),
+    // Comme le vrai : une fin de session, même locale, met la session à null.
+    deconnecter: vi.fn(async (_portee?: string) => session.set(null)),
   };
 }
 
-function hote() {
-  const auth = authFactice();
+function hote(connecte = true) {
+  const auth = authFactice(connecte);
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
@@ -48,9 +52,13 @@ function hote() {
 const attendre = () => new Promise((r) => setTimeout(r, 0));
 
 /** Monte l'application sous le préfixe de l'hôte ; la configuration est servie par l'hôte factice. */
-async function monter() {
-  const ctx = hote();
+async function monter(connecte = true) {
+  const ctx = hote(connecte);
   const harness = await RouterTestingHarness.create();
+  const navigations: string[] = [];
+  TestBed.inject(Router).events.subscribe((e) => {
+    if (e instanceof NavigationStart) navigations.push(e.url);
+  });
   const navigation = harness.navigateByUrl('/hote/magelian');
   await attendre();
   // jsdom ne charge pas les feuilles : on joue le `load` de la feuille globale.
@@ -63,7 +71,7 @@ async function monter() {
   await navigation;
   await attendre();
   await harness.fixture.whenStable();
-  return { ...ctx, harness, configDemandee: config.length };
+  return { ...ctx, harness, navigations, configDemandee: config.length };
 }
 
 describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts', () => {
@@ -145,5 +153,55 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     expect(racine.querySelector('[role="alert"]')?.textContent).toMatch(/Configuration locale introuvable.*Rechargez la page pour réessayer\.$/);
     expect(racine.querySelector('mg-coquille')).toBeNull();
     http.expectNone('/api/risques/sites/compter');
+  });
+
+  describe("sans session dans l'hôte (défaut racine : un message, jamais une navigation)", () => {
+    const MESSAGE = 'Session requise — connectez-vous à AIDA pour accéder à MAGELIAN.';
+    const racine = (h: RouterTestingHarness) => h.fixture.nativeElement as HTMLElement;
+    const appelsApi = (http: HttpTestingController) => http.match((r) => r.url.startsWith('/api/'));
+
+    it("(a) affiche « Session requise », reste sur l'URL de l'hôte, ne navigue pas et ne fait aucun appel d'API", async () => {
+      const { harness, http, navigations } = await monter(false);
+
+      expect(racine(harness).querySelector('[role="status"]')?.textContent?.trim()).toBe(MESSAGE);
+      expect(racine(harness).querySelector('mg-coquille')).toBeNull();
+      expect(TestBed.inject(Router).url).toBe('/hote/magelian');
+      expect(navigations).toEqual(['/hote/magelian']);
+      expect(appelsApi(http)).toEqual([]);
+    });
+
+    it("(b) quand la session apparaît, la page demandée s'affiche sans renavigation", async () => {
+      const { auth, harness, http, navigations } = await monter(false);
+
+      auth.session.set(SESSION_FACTICE);
+      await attendre();
+      await harness.fixture.whenStable();
+
+      expect(racine(harness).querySelector('[role="status"]')).toBeNull();
+      expect(racine(harness).querySelector('mg-coquille')).not.toBeNull();
+      expect(navigations).toEqual(['/hote/magelian']);
+      expect(TestBed.inject(Router).url).toBe('/hote/magelian');
+      // L'accueil part enfin — avec le jeton de la session apparue.
+      const req = http.expectOne('/api/risques/sites/compter');
+      expect(req.request.headers.get('Authorization')).toBe('Bearer jeton-test');
+      req.flush({ retenus: 1, total: 1, par_nature: {} });
+    });
+
+    it("(c) un 401 de l'API fait apparaître le même message, sans navigation ni nouvel appel", async () => {
+      const { auth, harness, http, navigations } = await monter(true);
+
+      http.expectOne('/api/risques/sites/compter').flush('non autorisé', { status: 401, statusText: 'Unauthorized' });
+      await attendre();
+      await harness.fixture.whenStable();
+
+      expect(auth.deconnecter).toHaveBeenCalledWith('locale');
+      expect(racine(harness).querySelector('[role="status"]')?.textContent?.trim()).toBe(MESSAGE);
+      expect(racine(harness).querySelector('mg-coquille')).toBeNull();
+      expect(navigations).toEqual(['/hote/magelian']);
+      expect(TestBed.inject(Router).url).toBe('/hote/magelian');
+      // Pas de boucle : la page détruite n'émet plus rien.
+      await attendre();
+      expect(appelsApi(http)).toEqual([]);
+    });
   });
 });

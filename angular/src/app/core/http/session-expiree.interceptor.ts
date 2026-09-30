@@ -10,16 +10,24 @@ import { HttpBaseService } from './http-base.service';
  * révoqué, cookie expiré) laissait l'utilisateur bloqué sur l'écran d'erreur
  * « Votre session a expiré » sans aucun moyen d'en sortir : le garde de route
  * (`authGuard`) ne s'exécute qu'À LA NAVIGATION, jamais sur une page déjà
- * ouverte. Un 401 sur l'API renvoie donc directement vers /connexion, avec la
- * page à reprendre.
+ * ouverte. Un 401 sur l'API termine donc la session LOCALEMENT.
+ *
+ * Cet intercepteur ne NAVIGUE PAS, dans aucun des deux modes : la session à
+ * null suffit. `RacineDistanteComponent` en tire la conséquence selon
+ * `STRATEGIE_SANS_SESSION` — renvoi vers `/connexion` avec la page à reprendre
+ * en lancement autonome, message « Session requise… » dans un hôte AIDA (qui
+ * n'a pas de page de connexion). Un seul endroit décide, pour les trois
+ * causes de fin de session (401, `SIGNED_OUT` de GoTrue, déconnexion).
+ * Pas de boucle de 401 : dans l'hôte, la racine retire ses pages, qui
+ * n'émettent donc plus d'appel ; en autonome, on quitte la route.
  *
  * SEULEMENT sur l'API (même périmètre que jetonInterceptor, après lequel cet
  * intercepteur est enregistré) : un 401 hors API n'a rien à voir avec la
  * session applicative.
  *
- * L'erreur est TOUJOURS relayée (`throwError`) après la redirection : la page
- * qui a émis l'appel doit pouvoir résoudre son propre état d'échec
- * (`versEtat`, `EtatChargement`) plutôt que rester en chargement indéfini.
+ * L'erreur est TOUJOURS relayée (`throwError`) : la page qui a émis l'appel
+ * doit pouvoir résoudre son propre état d'échec (`versEtat`,
+ * `EtatChargement`) plutôt que rester en chargement indéfini.
  */
 export const sessionExpireeInterceptor: HttpInterceptorFn = (req, next) => {
   const apiUrl = inject(HttpBaseService).baseUrl;
@@ -28,7 +36,7 @@ export const sessionExpireeInterceptor: HttpInterceptorFn = (req, next) => {
   return next(req).pipe(
     catchError((erreur: unknown) => {
       if (erreur instanceof HttpErrorResponse && erreur.status === 401) {
-        void auth.renvoyerVersConnexion();
+        void auth.deconnecter('locale');
       }
       return throwError(() => erreur);
     }),

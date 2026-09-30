@@ -99,6 +99,18 @@ describe('EssaiCartePage', () => {
     expect(valeur.replace(/\s/g, '')).toBe('1234567');
   });
 
+  it('annule la courbe et la préparation des zones encore en vol quand la page est détruite', async () => {
+    const { f, http, carte } = await rendre();
+    const courbe = http.expectOne('/api/risques/exposition/rayon?gravites=seveso_haut');
+    carte().emettre('load');
+    const preparer = http.expectOne('/api/risques/zones/preparer');
+    expect(courbe.cancelled).toBe(false);
+    expect(preparer.cancelled).toBe(false);
+    f.destroy();
+    expect(courbe.cancelled).toBe(true);
+    expect(preparer.cancelled).toBe(true);
+  });
+
   it('affiche un message français quand la courbe échoue', async () => {
     const { f, http } = await rendre();
     http.expectOne('/api/risques/exposition/rayon?gravites=seveso_haut')

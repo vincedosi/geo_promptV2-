@@ -2540,11 +2540,14 @@ Migration progressive de l'interface, module par module, sans toucher à l'API
   s'exécute qu'À LA NAVIGATION : un jeton de rafraîchissement révoqué ou un
   cookie expiré PENDANT qu'une page est déjà ouverte la laissait bloquée sur
   son état d'erreur, sans aucun moyen d'en sortir. Un 401 de l'API
-  (`sessionExpireeInterceptor`, enregistré après `jetonInterceptor`) ou un
-  événement `SIGNED_OUT` de GoTrue (`AuthService.initialiser()`) renvoient
-  désormais vers `/connexion` avec la page courante à reprendre
-  (`AuthService.renvoyerVersConnexion()`), et l'erreur continue de remonter
-  vers la page pour que son état de chargement se résolve.
+  (`sessionExpireeInterceptor`, enregistré après `jetonInterceptor`) termine
+  la session LOCALEMENT (`AuthService.deconnecter('locale')`), sans naviguer ;
+  un `SIGNED_OUT` de GoTrue la met à null. **`AuthService` ne navigue plus**
+  (lot AIDA, 2026-09-30) : c'est `RacineDistanteComponent` qui en tire la
+  conséquence selon `STRATEGIE_SANS_SESSION` (voir « Sans session » plus
+  bas) — renvoi vers `/connexion` avec la page à reprendre en autonome,
+  message dans un hôte. L'erreur continue de remonter vers la page pour que
+  son état de chargement se résolve.
 - **La clé anon n'est dans aucun fichier suivi** : `npm start` (et
   `npm run config`) écrit `angular/public/config.local.json` depuis
   `.env.development.local`, lu à l'exécution par `ConfigService`.
@@ -2591,14 +2594,51 @@ Migration progressive de l'interface, module par module, sans toucher à l'API
     withRequestsMadeViaParent())` et les services d'API — nos intercepteurs
     passent d'abord, puis la requête continue par le `HttpClient` de l'hôte —
     et en `canActivate` `demarrageGuard`. Tous les liens internes sont
-    RELATIFS (le préfixe de montage est inconnu) ; `CHEMIN_CONNEXION` dit où
-    renvoyer un utilisateur sans session : `/connexion` dans les deux modes à
-    ce jour (fabrique racine, rien ne la surcharge dans l'hôte) — question
-    AIDA ouverte ; sans session dans l'hôte, l'écran reste vide (NG04002, la
-    route `/connexion` n'existant pas chez lui). Le lancement autonome
+    RELATIFS (le préfixe de montage est inconnu). Le lancement autonome
     (`appRoutes`) monte les mêmes routes sous `app` — pages `/app`,
     `/app/catalogue`, `/app/essai-carte` depuis le lot AIDA — plus
     `connexion`, qui n'existe que dans ce mode.
+  - **Sans session : `STRATEGIE_SANS_SESSION`** (`core/auth/strategie-sans-session.ts`,
+    2026-09-30, remplace `CHEMIN_CONNEXION`). `{ mode: 'message' }` ou
+    `{ mode: 'rediriger', chemin }`. ⚠ **Le défaut RACINE est `message`**,
+    parce qu'un hôte ne fournit rien ; la route `app` d'`appRoutes` fournit
+    `rediriger` vers `/connexion`. Le jeton est donc lu dans l'injecteur de
+    ROUTE — `authGuard`, la coquille (« Se déconnecter »),
+    `RacineDistanteComponent` — et par rien de `providedIn: 'root'`, qui ne
+    verrait que le défaut : c'est pourquoi `AuthService` ne navigue plus.
+    La page `/connexion` et `sans-session.guard.ts`, hors de la route `app`,
+    ne le lisent pas : ils n'existent qu'en autonome.
+    - **Dans un hôte** : `authGuard` laisse passer, et `RacineDistanteComponent`
+      affiche « Session requise — connectez-vous à AIDA pour accéder à
+      MAGELIAN. » (`role="status"`) À LA PLACE de son `<router-outlet />`.
+      Aucune page n'est créée, donc aucun appel d'API ne part, et l'URL de
+      l'hôte ne bouge pas. Quand la session apparaît, l'outlet revient et monte
+      la route DÉJÀ activée : la page demandée s'affiche sans renavigation. Un
+      401 fait apparaître le même message, sans boucle (les pages sont
+      retirées). Verrouillé par `remote.spec.ts`.
+    - **En autonome** : comportement inchangé — sans session, une page
+      protégée renvoie vers `/connexion?redirection=…` ; « Se déconnecter »
+      vers `/connexion` ; un 401 ou un `SIGNED_OUT` de GoTrue vers
+      `/connexion?redirection=<page courante>`. Ces deux derniers passent par
+      UN `effect` de `RacineDistanteComponent`, qui ne part jamais PENDANT une
+      navigation (`router.currentNavigation()`, suivie) : ni au démarrage, ni
+      pendant la déconnexion de la coquille, qui navigue elle-même sans page à
+      reprendre ; il réévalue à la fin de la navigation. Démarrage en échec :
+      ni message ni redirection, l'erreur prime. Verrouillé par
+      `app.config.spec.ts` (routes réelles) et `racine-distante.component.spec.ts`.
+  - **Garde des imports partagés** (`tests/unit/angular/imports-partages.test.ts`,
+    2026-09-30). Hors `*.spec.ts`, les imports À L'EXÉCUTION vers `@angular/*`
+    sont limités à `core`, `common`, `common/http`, `router`,
+    `platform-browser`, plus `forms` dans `features/connexion/` seulement.
+    Raison : un hôte généré par défaut (`ignoreUnusedDeps: true`) ne partage
+    que ce qu'il utilise, et une entrée secondaire qu'il n'utilise pas est
+    chargée depuis le remote avec sa propre copie des morceaux privés de
+    `@angular/core` — c'est ce qui faisait lever `NG0203` à
+    `@angular/core/rxjs-interop`. Analyse par l'AST TypeScript (commentaires
+    et `import type` ignorés, `import()` dynamiques inclus). **rxjs-interop
+    est retiré** : `versEtat` repose sur `signal` + `subscribe` +
+    `DestroyRef.onDestroy` (même comportement, `NG0203` nommant `versEtat`
+    hors contexte d'injection), l'essai de carte se désabonne explicitement.
   - **Ressources résolues contre l'application distante, jamais contre le
     document** : `urlRessourceDistante()` + `BASE_RESSOURCES`
     (`core/ressources/`), base = `import.meta.url` — valable parce que le build
@@ -2626,11 +2666,11 @@ Migration progressive de l'interface, module par module, sans toucher à l'API
 - ⚠ **`.maplibregl-map` impose `position: relative`** et la feuille MapLibre (chargée à la demande) passe après Tailwind : un conteneur posé en `absolute inset-0` perdait son étirement et la carte restait à 300 px de haut, canevas noir. `mg-carte` ajoute `h-full w-full` ; le parent donne la hauteur à `<mg-carte>`. Trouvé au navigateur, invisible en test (carte factice).
 - Les tuiles MVT restent chargées par MapLibre lui-même (cookie, via le proxy) ; les GeoJSON passent par `HttpClient`, donc par le limiteur de 3 appels et le jeton. Vérifié au navigateur le 2026-09-30 : tuiles `zones-risque` en 200, une seule requête de sites après un panoramique rapide sans inertie (un coup de doigt avec inertie peut en émettre deux, le premier `moveend` et celui de la fin d'inertie étant espacés de plus de 350 ms), KPI « habitants à moins de 5 km » égal à `lire_couverture_rayon` (13 841 288).
 - **Épreuve dans un shell hôte jetable (2026-09-30).** Un hôte Angular 21.2.4 + Native Federation 21.2.1 `dynamic-host`, HORS du dépôt, sur `:4300`, manifeste `{ "magelian": "http://localhost:4201/remoteEntry.json" }`, route `outils/magelian` → `loadRemoteModule('magelian', './Routes')` → `remoteRoutes`, proxy `/api` → `:3000`, un bouton qui bascule `light`/`dark` sur `<html>`. Constaté au navigateur, sur `/outils/magelian/essai-carte` : page stylée dans le cadre de l'hôte, Inter et JetBrains Mono chargées ; `magelian.css`, `config.local.json` et `maplibre.css` demandés sur **:4201**, jamais sur :4300 ; API sur l'origine de l'hôte (`:4300/api/…`) avec `Authorization: Bearer`, `/api/map/risques-industriels?bbox=…` et tuiles `zones-risque` en 200 ; lien « Catalogue » → `/outils/magelian/catalogue` ; KPI **13 841 288** ; bouton de thème de l'HÔTE → carte et courbe repeintes, rien écrit dans `localStorage`, classe de l'hôte jamais réécrite. CORS : le serveur de dev du remote répond `Access-Control-Allow-Origin` à `:4300` sans aucun réglage. Session : le cookie `@supabase/ssr` posé en se connectant sur `:4201/connexion` est lu sur `:4300` (les cookies de `localhost` ignorent le port).
-  - ⚠ **Ce qui a échoué : NON CONFORME avec un hôte par défaut.** Avec l'hôte tel que le génère le schématique (`ignoreUnusedDeps: true`), la page plante en `NG0203` sur `takeUntilDestroyed()`. L'hôte ne partage pas `@angular/core/rxjs-interop`, qu'il n'utilise pas : c'est donc la copie du REMOTE qui est chargée, et elle importe les morceaux PRIVÉS de `@angular/core` par des chemins RELATIFS (`./_effect-chunk2.mjs` dans `@angular/core/fesm2022/rxjs-interop.mjs`), que le build fédéré du remote embarque (`@nf-internal/chunk-…` servis par :4201) — son `inject()` n'est pas celui de l'hôte, deux contextes d'injection. **Le défaut est structurel, pas propre au mode développement** : l'assertion de `toSignal` est bien réservée au développement, mais `inject(DestroyRef)`, qui suit, s'exécute aussi en production et lève `NG0203`. **Tout le remote est exposé, pas seulement la page mesurée** : l'accueil passe par `versEtat` → `toSignal` (`core/etat/vers-etat.ts`) ; seule `/essai-carte` (`takeUntilDestroyed`) a été observée en échec. L'épreuve n'est passée qu'en réglant l'HÔTE (`ignoreUnusedDeps: false`, qui partage toutes les entrées secondaires d'Angular). **Correctif côté MAGELIAN, prioritaire : retirer `@angular/core/rxjs-interop`** (`toSignal`, `takeUntilDestroyed`) du remote. Demander au siège de partager le paquet n'est qu'un recours secondaire. Toucher `federation.config.js` ne marche pas : le passer en `skip` rend un import non résolu. `@angular/forms`, lui aussi absent de l'hôte par défaut, ne sert qu'à `/connexion`, en autonome.
+  - **Épreuve rejouée avec l'hôte PAR DÉFAUT, en développement ET en production (2026-09-30, tâche 7).** Le 1er passage avait échoué avec l'hôte tel que le génère le schématique (`ignoreUnusedDeps: true`) : `NG0203` sur `takeUntilDestroyed()`, parce que l'hôte ne partageait pas `@angular/core/rxjs-interop` et que la copie du remote importe les morceaux PRIVÉS de `@angular/core` par des chemins relatifs (`./_effect-chunk2.mjs`) — deux contextes d'injection, en production aussi (`inject(DestroyRef)` n'est pas réservé au développement). Correctif côté MAGELIAN : rxjs-interop retiré et interdit par la garde des imports partagés (plus haut). Rejoué avec la configuration GÉNÉRÉE de l'hôte (`ignoreUnusedDeps: true`, rien partagé à la main — son `remoteEntry.json` ne partage ni rxjs-interop ni `@angular/forms`), en deux passes : remote en `ng serve`, puis remote en build de PRODUCTION servi statiquement avec CORS (`http-server --cors`, hors dépôt ; l'hôte reste en `ng serve`). Aux deux passes : les sept vérifications ci-dessus refaites (page stylée, ressources sur :4201, API Bearer en 200, lien Catalogue, KPI **13 841 288**, thème de l'hôte suivi, fuite de styles toujours présente — tâche « isolation CSS ») ; accueil (**1 259** sites) ET essai de carte **sans aucune erreur en console** ; aucune ressource `rxjs-interop` chargée, `_angular_core` servi par l'hôte seul. **Sans session** (cookies effacés) : « Session requise… » dans le cadre, URL de l'hôte inchangée, aucun appel `/api/`, puis une connexion faite en place (`AuthService.connecter`, depuis la console) fait apparaître l'essai de carte **sans aucun événement de routeur** — ses appels d'API ne partent qu'à ce moment. **Limiteur mesuré DANS l'hôte** : quatre `compter()` simultanés sur l'instance de `SitesRisqueApi` du composant d'accueil (`ng.getComponent`, identique à `ng.getInjector(…).get`) → trois requêtes lancées à t≈2-7 ms, la quatrième à t≈4 620 ms, juste après la fin de la première (4 614 ms) ; même profil sur le build de production. Captures : `.superpowers/sdd/2026-09-30-angular-lot-aida-conformite/task-7-hote-*.png`.
   - **Hôte SANS `provideHttpClient()`** : fonctionne. En Angular 21, `HttpHandler` est `providedIn: 'root'`, donc `withRequestsMadeViaParent()` trouve toujours un gestionnaire parent et son erreur de développement ne se déclenche pas.
-  - **Sans session**, `authGuard` renvoie vers `/connexion`, que l'hôte n'a pas : `NG04002`, cadre vide. Attendu tant que l'authentification dans AIDA n'est pas connue.
+  - **Sans session**, au 1er passage, `authGuard` renvoyait vers `/connexion`, que l'hôte n'a pas (`NG04002`, cadre vide) : remplacé par le message « Session requise… » (`STRATEGIE_SANS_SESSION`, plus haut). La connexion elle-même dans AIDA reste une question ouverte.
   - ⚠ **Fuite de styles, mesurée** : `magelian.css` restyle TOUT le document hôte, et le lien n'est jamais retiré (il reste après être revenu sur une page de l'hôte). `body` : marge 12 px → 0, fond → `--bg-level-0`, police Georgia → Inter, 15 px → 13 px ; `html` : police et `line-height` de Tailwind ; `ul` : puces et marges supprimées ; `a` : couleur et soulignement supprimés ; `button`/`input` sans classe : fond, bordure et padding remis à zéro ; `h1` : graisse 700 → 400 (sa taille et sa marge, posées par une règle NON étagée de l'hôte, résistent : le preflight de Tailwind 4 vit dans `@layer base`). Un bouton stylé par classe garde ses couleurs mais prend la police. Et **123 propriétés personnalisées** posées sur `:root`, dont des noms génériques (`--surface`, `--overlay`, `--elevated`, `--radius`, `--spacing`, `--danger`, `--success`, `--warning`, `--info`, `--font-sans`, `--text-*`, `--ease-*`, `--tw-*`). Tâche « isolation CSS » à suivre.
-  - Mesuré en `ng serve` (développement) des deux côtés ; le build de production n'a pas été rejoué dans l'hôte.
+  - Le 1er passage avait été mesuré en `ng serve` seul ; le rejeu de la tâche 7 couvre aussi le build de production du remote (l'hôte, lui, reste en développement).
 
 ---
 

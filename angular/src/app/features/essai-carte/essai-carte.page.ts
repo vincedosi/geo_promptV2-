@@ -1,7 +1,6 @@
 import {
   ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import maplibregl from 'maplibre-gl';
 import { finalize } from 'rxjs';
 import { type Bbox, bboxEnParametre } from '../../carte/bbox';
@@ -112,12 +111,16 @@ export class EssaiCartePage {
     this.chargement.suivre('sites', 'Sites visibles', () => this.sitesEnCours());
     this.chargement.suivre('courbe', 'Courbe de couverture', () => this.courbeEnCours());
 
-    this.api.courbe('seveso_haut')
-      .pipe(finalize(() => this.courbeEnCours.set(false)), takeUntilDestroyed())
+    // Désabonnement EXPLICITE et non `takeUntilDestroyed` : `@angular/core/rxjs-interop`
+    // n'est pas partagé par un hôte AIDA par défaut, et sa copie lève NG0203
+    // (tests/unit/angular/imports-partages.test.ts).
+    const courbe = this.api.courbe('seveso_haut')
+      .pipe(finalize(() => this.courbeEnCours.set(false)))
       .subscribe({
         next: (r) => this.reponseCourbe.set(r),
         error: (e: unknown) => this.erreurCourbe.set(messageErreurApi(e)),
       });
+    this.destruction.onDestroy(() => courbe.unsubscribe());
 
     // Bascule de thème : on REPOSE les couleurs, on ne recrée ni la carte ni les sources
     // (les tuiles ne sont donc pas redemandées).
@@ -138,13 +141,14 @@ export class EssaiCartePage {
     this.carte.set(carte);
     this.poserSites(carte);
     this.zonesEnCours.set(true);
-    this.api.preparer(CODE_PROFIL_DEFAUT)
-      .pipe(finalize(() => this.zonesEnCours.set(false)), takeUntilDestroyed(this.destruction))
+    const preparation = this.api.preparer(CODE_PROFIL_DEFAUT)
+      .pipe(finalize(() => this.zonesEnCours.set(false)))
       .subscribe({
         // Les tuiles ne sont demandées QU'APRÈS la construction de la géométrie.
         next: () => this.poserZones(carte),
         error: (e: unknown) => this.erreurZones.set(messageErreurApi(e)),
       });
+    this.destruction.onDestroy(() => preparation.unsubscribe());
   }
 
   private poserZones(carte: maplibregl.Map): void {

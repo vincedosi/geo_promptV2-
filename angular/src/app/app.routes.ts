@@ -4,6 +4,7 @@ import type { Routes } from '@angular/router';
 import { App } from './app';
 import { authGuard } from './core/auth/auth.guard';
 import { sansSessionGuard } from './core/auth/sans-session.guard';
+import { STRATEGIE_AUTONOME, STRATEGIE_SANS_SESSION } from './core/auth/strategie-sans-session';
 import { demarrageGuard } from './core/demarrage/demarrage.guard';
 import { jetonInterceptor } from './core/http/jeton.interceptor';
 import { limiteurInterceptor } from './core/http/limiteur.interceptor';
@@ -61,6 +62,10 @@ export const remoteRoutes: Routes = [
 
 /**
  * Lancement autonome, hors AIDA (doc §4.4) — `/connexion` n'existe que dans ce mode.
+ * La route `app` fournit donc `STRATEGIE_SANS_SESSION = rediriger` : sans
+ * session, gardes, coquille et racine renvoient vers `/connexion`. Un hôte ne
+ * la fournit pas, et le défaut racine (`message`) s'applique — voir
+ * `strategie-sans-session.ts`.
  * `App` est monté deux fois, comme dans l'exemple de la doc : composant
  * d'amorçage, puis composant de la route `app`. Sans effet : il n'injecte que
  * `ThemeService`, un singleton racine, et son gabarit n'est qu'un `<router-outlet />`.
@@ -72,6 +77,11 @@ export const appRoutes: Routes = [
     canActivate: [demarrageGuard, sansSessionGuard],
     loadComponent: () => import('./features/connexion/connexion.page').then((m) => m.ConnexionPage),
   },
-  { path: 'app', component: App, children: remoteRoutes },
+  {
+    path: 'app',
+    component: App,
+    providers: [{ provide: STRATEGIE_SANS_SESSION, useValue: STRATEGIE_AUTONOME }],
+    children: remoteRoutes,
+  },
   { path: '**', redirectTo: 'app' },
 ];
