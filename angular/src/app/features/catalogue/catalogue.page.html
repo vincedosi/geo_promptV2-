@@ -51,6 +51,20 @@
     </p>
   </div>
 
+  <div class="flex flex-col gap-3" data-testid="planche-marque">
+    <h2 class="text-xs font-medium text-primary">Marque : en-tête de barre (fond surface, 240 px), hexagones, logo 18 px de haut et 240 px de large</h2>
+    <div class="flex flex-wrap items-start gap-6">
+      <div class="w-60 bg-surface" data-testid="marque-entete"><mg-marque /></div>
+      <div class="flex items-center gap-4 text-primary" data-testid="marque-hexagones">
+        <mg-hexagone variante="marque" />
+        <span class="inline-flex items-center gap-2.5 rounded-md bg-primary px-3 py-2 text-[12.5px] font-medium text-page">
+          <mg-hexagone variante="cta" /> MAGELIAN
+        </span>
+      </div>
+      <div data-testid="marque-logo-240"><mg-logo [largeur]="240" /></div>
+    </div>
+  </div>
+
   <div class="flex flex-col gap-3">
     <h2 class="text-xs font-medium text-primary">Icônes (14, 16 et 20 px : trait 1,5 comme la barre latérale React, puis trait 2, défaut lucide)</h2>
     <div class="grid grid-cols-[auto_repeat(6,auto)] gap-x-6 gap-y-2 items-center text-secondary w-fit" data-testid="planche-icones">

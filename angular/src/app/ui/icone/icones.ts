@@ -61,7 +61,11 @@
  *
  * ---
  *
- * Les icônes marquées `feather: true` sont dérivées du projet Feather :
+ * The following Lucide icons are derived from the Feather project:
+ *
+ * (sous-ensemble employé ici, marqué `feather: true` : alert-circle, arrow-up-right, clock,
+ * database, download, monitor, moon, radio, target, upload, x)
+ *
  *
  * The MIT License (MIT) (for the icons listed above)
  *

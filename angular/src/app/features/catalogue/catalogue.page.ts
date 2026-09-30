@@ -3,6 +3,9 @@ import { ChargementService } from '../../core/chargement/chargement.service';
 import { BarreProgressionComponent } from '../../ui/barre-progression/barre-progression.component';
 import { ChampComponent } from '../../ui/champ/champ.component';
 import { type EtapeAffichee, FilEtapesComponent } from '../../ui/fil-etapes/fil-etapes.component';
+import { HexagoneComponent } from '../../ui/hexagone/hexagone.component';
+import { LogoComponent } from '../../ui/logo/logo.component';
+import { MarqueComponent } from '../../ui/marque/marque.component';
 import { IconeComponent } from '../../ui/icone/icone.component';
 import { ICONES, type NomIcone } from '../../ui/icone/icones';
 import { FilArianeComponent, type SegmentAriane } from '../../ui/fil-ariane/fil-ariane.component';
@@ -21,7 +24,7 @@ import { Cellule, EnteteCellule } from '../../ui/tableau/cellules';
   selector: 'mg-catalogue',
   imports: [
     BarreProgressionComponent, ChampComponent, FilEtapesComponent, FilArianeComponent,
-    IconeComponent, KpiComponent, PastilleComponent, PerimeDirective, RegletteComponent, Cellule, EnteteCellule,
+    HexagoneComponent, IconeComponent, KpiComponent, LogoComponent, MarqueComponent, PastilleComponent, PerimeDirective, RegletteComponent, Cellule, EnteteCellule,
   ],
   providers: [ChargementService],
   templateUrl: './catalogue.page.html',

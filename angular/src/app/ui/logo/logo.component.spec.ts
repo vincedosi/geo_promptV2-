@@ -30,4 +30,24 @@ describe('LogoComponent', () => {
     // Aucune couleur écrite en dur dans le dessin.
     expect(el.innerHTML).not.toMatch(/#[0-9a-f]{6}/i);
   });
+
+  it('taille par la hauteur : 18 px de haut, largeur suivant le rapport (barre latérale, AppSidebar.tsx:195)', async () => {
+    const f = TestBed.createComponent(LogoComponent);
+    f.componentRef.setInput('hauteur', 18);
+    await f.whenStable();
+    const host = f.nativeElement as HTMLElement;
+    expect(host.style.height).toBe('18px');
+    expect(host.style.width).toBe('');
+    expect(host.querySelector('svg')!.getAttribute('class')).toContain('h-full');
+  });
+
+  it('taille par la largeur : 240 px de large, hauteur suivant le rapport (connexion, login/page.tsx:102)', async () => {
+    const f = TestBed.createComponent(LogoComponent);
+    f.componentRef.setInput('largeur', 240);
+    await f.whenStable();
+    const host = f.nativeElement as HTMLElement;
+    expect(host.style.width).toBe('240px');
+    expect(host.style.height).toBe('');
+    expect(host.querySelector('svg')!.getAttribute('class')).toContain('w-full');
+  });
 });
