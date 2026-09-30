@@ -1,6 +1,6 @@
 import {
   ChangeDetectionStrategy, Component, DestroyRef, DOCUMENT, type ElementRef,
-  afterNextRender, inject, input, output, viewChild,
+  afterNextRender, effect, inject, input, output, signal, viewChild,
 } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
 import { type Bbox, bboxDeCarte } from './bbox';
@@ -54,8 +54,19 @@ export class CarteComponent {
   private readonly fabrique = inject(FABRIQUE_CARTE);
   private readonly destruction = inject(DestroyRef);
   private readonly document = inject(DOCUMENT);
+  private readonly instance = signal<maplibregl.Map | null>(null);
+  private cadreApplique: Bbox | null = null;
 
   constructor() {
+    // Un `cadre` qui change APRÈS la création recadre la carte, sans animation.
+    // La valeur initiale est déjà posée par `bounds` à la création : on la saute.
+    effect(() => {
+      const cadre = this.cadre();
+      const carte = this.instance();
+      if (!carte || cadre === this.cadreApplique) return;
+      this.cadreApplique = cadre;
+      carte.fitBounds([...cadre] as [number, number, number, number], { padding: 40, animate: false });
+    });
     afterNextRender(() => {
       assurerFeuilleMaplibre(this.document);
       const element = this.conteneur().nativeElement;
@@ -66,19 +77,27 @@ export class CarteComponent {
         fitBoundsOptions: { padding: 40 },
         attributionControl: { compact: true },
       });
+      this.cadreApplique = this.cadre();
+      this.instance.set(carte);
       let chargee = false;
       carte.on('load', () => {
         chargee = true;
         this.prete.emit(carte);
       });
       carte.on('moveend', () => this.deplacee.emit(bboxDeCarte(carte)));
-      carte.on('error', () => {
-        if (!chargee) this.erreur.emit("Le fond de carte n'a pas pu être chargé.");
+      // Seul l'échec du STYLE est fatal : un glyphe, un sprite ou une tuile en 404
+      // (OpenFreeMap en sert de façon récurrente) laisse une carte qui fonctionne.
+      // Ceux-là portent une source/tuile, ou surviennent une fois le style chargé
+      // (`getStyle()` ne rend rien tant que le style n'est pas chargé).
+      carte.on('error', (e: { sourceId?: string; tile?: unknown }) => {
+        if (chargee || e?.sourceId || e?.tile || carte.getStyle()) return;
+        this.erreur.emit("Le fond de carte n'a pas pu être chargé.");
       });
       const observateur = new ResizeObserver(() => carte.resize());
       observateur.observe(element);
       this.destruction.onDestroy(() => {
         observateur.disconnect();
+        this.instance.set(null);
         carte.remove();
       });
     });

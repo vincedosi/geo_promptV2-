@@ -20,6 +20,11 @@ export class ZonesRisqueApi {
     return this.http.post(this.base.url('risques/zones/preparer'), { profil: codeProfil });
   }
 
+  /** Modèle d'adresse des tuiles MVT des zones d'un profil (absolue, `{z}/{x}/{y}` laissés à MapLibre). */
+  urlTuilesZones(codeProfil: string): string {
+    return `${this.base.urlAbsolue('tiles/zones-risque/{z}/{x}/{y}')}?profil=${encodeURIComponent(codeProfil)}`;
+  }
+
   /** Sites de la bbox visible — jamais sans bbox (règle I/O de CLAUDE.md). */
   sites(bbox: string): Observable<GeoJSON.FeatureCollection> {
     const params = new HttpParams().set('bbox', bbox).set('limite', '800');

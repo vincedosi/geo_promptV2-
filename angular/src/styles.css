@@ -45,3 +45,35 @@ body {
   outline: 1px solid var(--brand-teal-50);
   outline-offset: 1px;
 }
+
+/*
+ * Surcharges de la feuille MapLibre (portées de app/globals.css côté React).
+ * Ici et non dans le paquet paresseux `maplibre.css` : ~600 o, et `maplibre.css`
+ * est un artefact node_modules qu'on ne modifie pas. Comme elle se charge APRÈS
+ * ce fichier (injectée à la première carte), il faut `!important` pour gagner
+ * sur `.maplibregl-popup-content { background: #fff }`.
+ */
+.maplibregl-popup-content {
+  background: var(--bg-surface) !important;
+  border: 0.5px solid var(--border-default) !important;
+  padding: 8px 10px !important;
+  border-radius: 6px !important;
+}
+.maplibregl-popup-tip {
+  border-top-color: var(--bg-surface) !important;
+  border-bottom-color: var(--bg-surface) !important;
+}
+/* Attribution : le texte (licence OpenFreeMap/OSM) reste, très discret, sans bouton « i ». */
+.maplibregl-ctrl-attrib-button { display: none !important; }
+.maplibregl-ctrl-attrib {
+  pointer-events: none !important;
+  background: transparent !important;
+  padding: 1px 6px !important;
+  font-size: 9px !important;
+  opacity: 0.5 !important;
+}
+.maplibregl-ctrl-attrib a,
+.maplibregl-ctrl-attrib-inner {
+  color: var(--text-tertiary) !important;
+  text-decoration: none !important;
+}

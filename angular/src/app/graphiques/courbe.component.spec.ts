@@ -20,6 +20,7 @@ const SERIES: SerieCourbe[] = [
 ];
 
 let observateursDeconnectes = 0;
+let rappelsObservateur: (() => void)[] = [];
 const observerOrigine = (globalThis as { ResizeObserver?: unknown }).ResizeObserver;
 
 afterEach(() => {
@@ -28,9 +29,10 @@ afterEach(() => {
 
 async function rendre(series: SerieCourbe[] = SERIES, jetonsInconnus: string[] = []) {
   observateursDeconnectes = 0;
+  rappelsObservateur = [];
   const graphique = new GraphiqueFactice();
   const teinte = signal('#111111');
-  (globalThis as { ResizeObserver?: unknown }).ResizeObserver = class { observe() {} disconnect() { observateursDeconnectes++; } };
+  (globalThis as { ResizeObserver?: unknown }).ResizeObserver = class { constructor(rappel: () => void) { rappelsObservateur.push(rappel); } observe() {} disconnect() { observateursDeconnectes++; } };
   TestBed.configureTestingModule({
     providers: [
       { provide: FABRIQUE_GRAPHIQUE, useValue: () => graphique },
@@ -54,6 +56,13 @@ async function rendre(series: SerieCourbe[] = SERIES, jetonsInconnus: string[] =
 }
 
 describe('CourbeComponent', () => {
+  it('redimensionne le graphique quand son conteneur change de taille', async () => {
+    const { graphique } = await rendre();
+    expect(rappelsObservateur.length).toBe(1);
+    rappelsObservateur[0]();
+    expect(graphique.redimensionnements).toBe(1);
+  });
+
   it('pose les options et décrit le graphique aux lecteurs d\'écran', async () => {
     const { graphique, el } = await rendre();
     expect(graphique.options.length).toBeGreaterThan(0);

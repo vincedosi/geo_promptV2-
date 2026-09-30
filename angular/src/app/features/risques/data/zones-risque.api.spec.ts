@@ -9,7 +9,7 @@ describe('ZonesRisqueApi', () => {
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(), provideHttpClientTesting(),
-        { provide: HttpBaseService, useValue: { url: (c: string) => `/api/${c}` } },
+        { provide: HttpBaseService, useValue: { url: (c: string) => `/api/${c}`, urlAbsolue: (c: string) => `https://hote.test/api/${c}` } },
       ],
     });
     return { api: TestBed.inject(ZonesRisqueApi), http: TestBed.inject(HttpTestingController) };
@@ -46,5 +46,11 @@ describe('ZonesRisqueApi', () => {
     expect(req.request.method).toBe('GET');
     req.flush(rep);
     expect(lu).toEqual(rep);
+  });
+
+  it('donne une adresse ABSOLUE des tuiles de zones, {z}/{x}/{y} intacts et profil encodé', () => {
+    const { api } = preparer();
+    expect(api.urlTuilesZones('h1000_b 5'))
+      .toBe('https://hote.test/api/tiles/zones-risque/{z}/{x}/{y}?profil=h1000_b%205');
   });
 });

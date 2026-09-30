@@ -29,7 +29,7 @@ async function rendre() {
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(), provideHttpClientTesting(),
-      { provide: HttpBaseService, useValue: { url: (c: string) => `/api/${c}` } },
+      { provide: HttpBaseService, useValue: { url: (c: string) => `/api/${c}`, urlAbsolue: (c: string) => `https://hote.test/api/${c}` } },
       { provide: FABRIQUE_CARTE, useValue: (o: never) => (carte = new CarteFactice(o)) },
       {
         provide: FABRIQUE_GRAPHIQUE,
@@ -70,7 +70,7 @@ describe('EssaiCartePage', () => {
     expect(carte().sources.has('zones')).toBe(false);
     req.flush({ deja_construit: true });
     const zones = carte().sources.get('zones')!.spec as { tiles: string[]; minzoom: number };
-    expect(zones.tiles[0]).toContain('/api/tiles/zones-risque/{z}/{x}/{y}?profil=');
+    expect(zones.tiles[0]).toMatch(/^https:\/\/hote\.test\/api\/tiles\/zones-risque\/\{z\}\/\{x\}\/\{y\}\?profil=/);
     expect(zones.minzoom).toBe(4);
     const fond = carte().couches.find((c) => c.couche['id'] === 'zones-fond')!;
     expect(fond.couche['source-layer']).toBe('zones_risque');

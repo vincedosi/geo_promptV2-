@@ -13,6 +13,9 @@ export class CarteFactice {
   pitch = 0;
   cadre: [number, number, number, number] = [4.75, 43.35, 5.3, 43.6];
   readonly sauts: unknown[] = [];
+  readonly cadrages: { cadre: unknown; options: unknown }[] = [];
+  /** Faux tant que le style n'est pas chargé : `getStyle()` rend alors `undefined`, comme MapLibre. */
+  styleCharge = false;
   private readonly rappels = new Map<string, Set<Rappel>>();
 
   constructor(options: maplibregl.MapOptions | null = null) {
@@ -38,8 +41,9 @@ export class CarteFactice {
     this.rappels.get(evt)?.delete(rappel);
     return this;
   }
-  emettre(evt: string): void {
-    for (const r of [...(this.rappels.get(evt) ?? [])]) r();
+  emettre(evt: string, charge?: unknown): void {
+    if (evt === 'load') this.styleCharge = true;
+    for (const r of [...(this.rappels.get(evt) ?? [])]) r(charge);
   }
   /** Déclenche une écoute de couche (`click` sur un site), avec l'événement fourni. */
   emettreSurCouche(evt: string, couche: string, evenement: unknown): void {
@@ -64,6 +68,8 @@ export class CarteFactice {
     this.peintures.push({ couche, propriete, valeur });
     return this;
   }
+  getStyle(): object | undefined { return this.styleCharge ? {} : undefined; }
+  fitBounds(cadre: unknown, options?: unknown): this { this.cadrages.push({ cadre, options }); return this; }
   remove(): void { this.retiree = true; }
   resize(): this { this.appelsResize++; return this; }
   getBounds() {

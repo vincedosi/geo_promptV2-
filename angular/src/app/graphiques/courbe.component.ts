@@ -10,6 +10,8 @@ import { type RepereCourbe, type SerieCourbe, optionCourbe } from './option-cour
  * Une ou plusieurs courbes, avec un repère vertical optionnel et une légende
  * cliquable (portée d'OngletRayonInfluence.tsx). Les couleurs viennent des
  * jetons par CouleursService : elles suivent le thème sans recharger.
+ * Un jeton inconnu LÈVE dans le `computed` des options : le graphique reste
+ * alors non peint et l'erreur remonte par l'ErrorHandler.
  */
 @Component({
   selector: 'mg-courbe',

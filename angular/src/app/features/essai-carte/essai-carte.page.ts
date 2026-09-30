@@ -151,7 +151,7 @@ export class EssaiCartePage {
     const c = this.couleurs();
     carte.addSource(SOURCE_ZONES, {
       type: 'vector',
-      tiles: [`${location.origin}/api/tiles/zones-risque/{z}/{x}/{y}?profil=${encodeURIComponent(CODE_PROFIL_DEFAUT)}`],
+      tiles: [this.api.urlTuilesZones(CODE_PROFIL_DEFAUT)],
       minzoom: 4,
       maxzoom: 14,
     });

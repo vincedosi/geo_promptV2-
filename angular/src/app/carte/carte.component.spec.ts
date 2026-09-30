@@ -60,17 +60,40 @@ describe('CarteComponent', () => {
     expect(carte().retiree).toBe(true);
   });
 
-  it('signale un fond de carte qui échoue AVANT le chargement', async () => {
+  it('signale un style qui échoue AVANT le chargement', async () => {
     const { carte, erreurs } = await rendre();
-    carte().emettre('error');
+    carte().emettre('error', { error: new Error('style introuvable') });
     expect(erreurs).toEqual(["Le fond de carte n'a pas pu être chargé."]);
   });
 
   it('ne signale PAS une erreur de tuile survenue APRÈS le chargement', async () => {
     const { carte, erreurs } = await rendre();
     carte().emettre('load');
-    carte().emettre('error');
+    carte().emettre('error', { error: new Error('tuile 404') });
     expect(erreurs).toEqual([]);
+  });
+
+  it('ne signale PAS un glyphe, un sprite ou une tuile en 404 survenu avant le chargement', async () => {
+    const { carte, erreurs } = await rendre();
+    carte().styleCharge = true; // le JSON du style est là, ses dépendances échouent
+    carte().emettre('error', { error: new Error('glyphe 404') });
+    carte().emettre('error', { error: new Error('tuile 404'), sourceId: 'zones', tile: {} });
+    carte().emettre('load');
+    expect(erreurs).toEqual([]);
+  });
+
+  it('ne signale PAS une erreur de tuile même si le style est encore en chargement', async () => {
+    const { carte, erreurs } = await rendre();
+    carte().emettre('error', { error: new Error('tuile 404'), sourceId: 'openmaptiles' });
+    expect(erreurs).toEqual([]);
+  });
+
+  it('recadre une seule fois quand `cadre` change, et pas au rendu initial', async () => {
+    const { f, carte } = await rendre();
+    expect(carte().cadrages).toEqual([]);
+    f.componentRef.setInput('cadre', [2, 48, 3, 49]);
+    await f.whenStable();
+    expect(carte().cadrages).toEqual([{ cadre: [2, 48, 3, 49], options: { padding: 40, animate: false } }]);
   });
 
   it('pose la feuille de style MapLibre dans <head>', async () => {
