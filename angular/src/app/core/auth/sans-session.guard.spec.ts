@@ -11,6 +11,9 @@ function executer(connecte: boolean, opts: { erreur?: string } = {}) {
   const demarrage = {
     erreur,
     demarrer: vi.fn(async () => {
+      // Asynchrone pour de vrai : un garde qui n'ATTEND pas `demarrer()` lirait
+      // la session avant que ceci n'ait rien enregistré ni posé l'erreur.
+      await Promise.resolve();
       ordre.push('demarrage');
       erreur.set(opts.erreur ?? null);
     }),

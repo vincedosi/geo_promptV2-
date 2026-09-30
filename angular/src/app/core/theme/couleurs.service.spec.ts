@@ -57,4 +57,26 @@ describe('CouleursService', () => {
       window.getComputedStyle = original;
     }
   });
+
+  it('repeint quand le shell hôte change la classe de <html> (sans passer par basculer)', async () => {
+    const original = window.getComputedStyle;
+    window.getComputedStyle = ((_elt: Element) => ({
+      getPropertyValue: (nom: string) =>
+        nom === '--essai-a'
+          ? (document.documentElement.classList.contains('light') ? '#222222' : '#111111')
+          : '',
+    })) as typeof window.getComputedStyle;
+    try {
+      TestBed.inject(ThemeService);
+      const p = TestBed.inject(CouleursService).palette({ fond: 'essai-a' });
+      TestBed.tick();
+      expect(p().fond).toBe('#111111');
+      document.documentElement.classList.replace('dark', 'light');
+      await Promise.resolve();
+      TestBed.tick();
+      expect(p().fond).toBe('#222222');
+    } finally {
+      window.getComputedStyle = original;
+    }
+  });
 });

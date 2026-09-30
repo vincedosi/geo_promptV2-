@@ -69,4 +69,107 @@ describe('ThemeService', () => {
     expect(theme.themeApplique()).toBe('light');
     expect(document.documentElement.classList.contains('light')).toBe(true);
   });
+
+  it("tient `color-scheme` de <html> d'accord avec le thème, aussi après une bascule", () => {
+    const theme = TestBed.inject(ThemeService);
+    TestBed.tick();
+    expect(document.documentElement.style.colorScheme).toBe('dark');
+    theme.basculer();
+    TestBed.tick();
+    expect(document.documentElement.style.colorScheme).toBe('light');
+  });
+
+  describe('classe posée par le shell hôte', () => {
+    const imposer = async (retirer: string[], ajouter: string[]) => {
+      document.documentElement.classList.remove(...retirer);
+      document.documentElement.classList.add(...ajouter);
+      await Promise.resolve(); // les MutationObserver sont des micro-tâches
+      TestBed.tick();
+    };
+
+    it("suit une classe posée par le shell hôte", async () => {
+      const service = TestBed.inject(ThemeService);
+      TestBed.tick();
+      await imposer(['dark'], ['light']);
+      expect(service.theme()).toBe('light');
+      expect(service.themeApplique()).toBe('light');
+      expect(document.documentElement.style.colorScheme).toBe('light');
+    });
+
+    it("ne mémorise pas un thème imposé par le shell", async () => {
+      const espion = vi.spyOn(Storage.prototype, 'setItem');
+      try {
+        TestBed.inject(ThemeService);
+        TestBed.tick();
+        await imposer(['dark'], ['light']);
+        TestBed.tick();
+        expect(espion).not.toHaveBeenCalled();
+        expect(localStorage.getItem(CLE_THEME)).toBeNull();
+      } finally {
+        espion.mockRestore();
+      }
+    });
+
+    it("une bascule de l'utilisateur APRÈS un thème imposé est bien mémorisée", async () => {
+      const service = TestBed.inject(ThemeService);
+      TestBed.tick();
+      await imposer(['dark'], ['light']);
+      service.basculer(); // light -> dark, geste de l'utilisateur
+      TestBed.tick();
+      await Promise.resolve();
+      expect(service.theme()).toBe('dark');
+      expect(localStorage.getItem(CLE_THEME)).toBe('dark');
+    });
+
+    it("basculer() ne boucle pas avec l'observateur : une bascule, un setItem", async () => {
+      const espion = vi.spyOn(Storage.prototype, 'setItem');
+      try {
+        const service = TestBed.inject(ThemeService);
+        TestBed.tick();
+        service.basculer();
+        TestBed.tick();
+        await Promise.resolve(); // l'observateur voit la classe qu'on vient de poser
+        TestBed.tick();
+        await Promise.resolve();
+        TestBed.tick();
+        expect(espion).toHaveBeenCalledTimes(1);
+        expect(service.theme()).toBe('light');
+        expect(service.themeApplique()).toBe('light');
+      } finally {
+        espion.mockRestore();
+      }
+    });
+
+    it("classe retirée par l'hôte : garde le thème courant, sans rien réécrire", async () => {
+      const service = TestBed.inject(ThemeService);
+      TestBed.tick();
+      await imposer(['dark'], []);
+      expect(service.theme()).toBe('dark');
+      expect(localStorage.getItem(CLE_THEME)).toBeNull();
+    });
+
+    it("les deux classes à la fois : ambigu, garde le thème courant", async () => {
+      const service = TestBed.inject(ThemeService);
+      TestBed.tick();
+      await imposer([], ['light']); // dark + light
+      expect(service.theme()).toBe('dark');
+      expect(service.themeApplique()).toBe('dark');
+    });
+
+    it("débranche l'observateur à la destruction de l'injecteur", async () => {
+      const deconnexion = vi.spyOn(MutationObserver.prototype, 'disconnect');
+      try {
+        const service = TestBed.inject(ThemeService);
+        TestBed.tick();
+        TestBed.resetTestingModule();
+        expect(deconnexion).toHaveBeenCalled();
+        document.documentElement.classList.remove('dark');
+        document.documentElement.classList.add('light');
+        await Promise.resolve();
+        expect(service.theme()).toBe('dark'); // plus personne n'écoute
+      } finally {
+        deconnexion.mockRestore();
+      }
+    });
+  });
 });

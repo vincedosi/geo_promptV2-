@@ -21,18 +21,19 @@
     démarrage. ThemeService reste la source de vérité ENSUITE — ce script ne
     fait que l'anticiper, avec la même clé de stockage (magelian-theme) et le
     même défaut (dark) qu'elle. ⚠ Dans le shell AIDA, c'est LUI qui possède
-    index.html : ce script ne s'exécutera pas, et la question « qui décide du
-    thème » sera à trancher à cette intégration (voir ARCHITECTURE.md
-    § Application Angular).
+    index.html : ce script ne s'exécutera pas, et l'hôte pose lui-même la classe
+    que ThemeService suit (voir sa JSDoc).
   -->
   <script>
     (function () {
+      // `color-scheme` suit la classe : la feuille globale arrive en différé, et
+      // sans lui le navigateur peint son canevas BLANC en thème sombre.
+      var theme = 'dark';
       try {
-        var t = localStorage.getItem('magelian-theme');
-        document.documentElement.classList.add(t === 'light' ? 'light' : 'dark');
-      } catch (e) {
-        document.documentElement.classList.add('dark');
-      }
+        theme = localStorage.getItem('magelian-theme') === 'light' ? 'light' : 'dark';
+      } catch (e) {}
+      document.documentElement.classList.add(theme);
+      document.documentElement.style.colorScheme = theme;
     })();
   </script>
 </head>
