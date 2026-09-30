@@ -19,21 +19,35 @@ const SERIES: SerieCourbe[] = [
   { cle: 'a', libelle: 'Nature A', jeton: 'nature-1', points: [[100, 4]] },
 ];
 
-async function rendre() {
+let observateursDeconnectes = 0;
+const observerOrigine = (globalThis as { ResizeObserver?: unknown }).ResizeObserver;
+
+afterEach(() => {
+  (globalThis as { ResizeObserver?: unknown }).ResizeObserver = observerOrigine;
+});
+
+async function rendre(series: SerieCourbe[] = SERIES, jetonsInconnus: string[] = []) {
+  observateursDeconnectes = 0;
   const graphique = new GraphiqueFactice();
   const teinte = signal('#111111');
-  (globalThis as { ResizeObserver?: unknown }).ResizeObserver = class { observe() {} disconnect() {} };
+  (globalThis as { ResizeObserver?: unknown }).ResizeObserver = class { observe() {} disconnect() { observateursDeconnectes++; } };
   TestBed.configureTestingModule({
     providers: [
       { provide: FABRIQUE_GRAPHIQUE, useValue: () => graphique },
       {
         provide: CouleursService,
-        useValue: { palette: (j: Record<string, string>) => () => Object.fromEntries(Object.keys(j).map((k) => [k, teinte()])) },
+        useValue: {
+          palette: (j: Record<string, string>) => () =>
+            Object.fromEntries(Object.keys(j).map((k) => {
+              if (jetonsInconnus.includes(k)) throw new Error(`Jeton de couleur inconnu : --${k}`);
+              return [k, `${teinte()}:${k}`];
+            })),
+        },
       },
     ],
   });
   const f = TestBed.createComponent(CourbeComponent);
-  f.componentRef.setInput('series', SERIES);
+  f.componentRef.setInput('series', series);
   f.componentRef.setInput('libelle', 'Population par rayon');
   await f.whenStable();
   return { f, graphique, teinte, el: f.nativeElement as HTMLElement };
@@ -65,9 +79,22 @@ describe('CourbeComponent', () => {
     expect(graphique.options.length).toBeGreaterThan(avant);
   });
 
-  it('libère le graphique à la destruction', async () => {
+  it("libère le graphique et débranche l'observateur à la destruction", async () => {
     const { f, graphique } = await rendre();
     f.destroy();
     expect(graphique.detruit).toBe(true);
+    expect(observateursDeconnectes).toBe(1);
+  });
+
+  it('un jeton hors brand-teal/nature-* donne SA couleur, pas un repli', async () => {
+    const { graphique } = await rendre([{ cle: 'x', libelle: 'X', jeton: 'success', points: [[1, 1]] }]);
+    const o = graphique.options.at(-1) as { series: { lineStyle: { color: string } }[] };
+    expect(o.series[0].lineStyle.color).toBe('#111111:success');
+  });
+
+  it("un jeton inconnu échoue bruyamment au lieu de s'afficher", async () => {
+    await expect(
+      rendre([{ cle: 'x', libelle: 'X', jeton: 'fautif', points: [[1, 1]] }], ['fautif']),
+    ).rejects.toThrow(/Jeton de couleur inconnu/);
   });
 });

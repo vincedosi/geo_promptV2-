@@ -1,13 +1,10 @@
 import {
   ChangeDetectionStrategy, Component, DestroyRef, type ElementRef, afterNextRender,
-  computed, effect, inject, input, signal, viewChild,
+  computed, effect, inject, input, signal, viewChild, type Signal,
 } from '@angular/core';
 import { CouleursService } from '../core/theme/couleurs.service';
 import { FABRIQUE_GRAPHIQUE, type GraphiqueMinimal } from './fabrique-graphique';
 import { type RepereCourbe, type SerieCourbe, optionCourbe } from './option-courbe';
-
-/** Les jetons qu'une série peut porter : lus UNE fois, sans signal de signal. */
-const JETONS_SERIES = ['brand-teal', ...Array.from({ length: 8 }, (_, i) => `nature-${i + 1}`)];
 
 /**
  * Une ou plusieurs courbes, avec un repère vertical optionnel et une légende
@@ -51,9 +48,22 @@ export class CourbeComponent {
   private readonly destruction = inject(DestroyRef);
   private readonly graphique = signal<GraphiqueMinimal | null>(null);
 
-  private readonly teintesJetons = this.couleursService.palette(
-    Object.fromEntries(JETONS_SERIES.map((j) => [j, j])),
-  );
+  /**
+   * Une palette par ENSEMBLE de jetons présents dans les séries, mémoïsée : le
+   * composant reste générique, et aucun signal n'est renvoyé par un signal.
+   * Un jeton inconnu fait lever CouleursService à la lecture : jamais de repli.
+   */
+  private readonly palettesParJetons = new Map<string, Signal<Record<string, string>>>();
+  private readonly teintesJetons = computed(() => {
+    const jetons = [...new Set(this.series().map((s) => s.jeton))].sort();
+    const cle = jetons.join('|');
+    let palette = this.palettesParJetons.get(cle);
+    if (!palette) {
+      palette = this.couleursService.palette(Object.fromEntries(jetons.map((j) => [j, j])));
+      this.palettesParJetons.set(cle, palette);
+    }
+    return palette();
+  });
   private readonly teintesCadre = this.couleursService.palette({
     texte: 'text-tertiary', grille: 'border-subtle', fondInfobulle: 'bg-level-1',
     bordInfobulle: 'border-default', repere: 'text-secondary',
@@ -63,7 +73,7 @@ export class CourbeComponent {
     const cadre = this.teintesCadre();
     const jetons = this.teintesJetons();
     const series = Object.fromEntries(
-      this.series().map((s) => [s.cle, jetons[s.jeton] ?? cadre.texte]),
+      this.series().map((s) => [s.cle, jetons[s.jeton]]),
     );
     return optionCourbe({
       series: this.series(),
