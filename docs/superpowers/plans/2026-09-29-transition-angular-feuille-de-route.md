@@ -121,13 +121,19 @@ Conformité », vérifié dans un shell hôte jetable (détail : `ARCHITECTURE.m
 |---|---|
 | Angular 21.2.4 | P1 ; l'hôte jetable était lui aussi épinglé en 21.2.4 |
 | Native Federation, `remoteEntry.json` exposant `./Routes` | NF 21.2.1 (+ `es-module-shims` 1.10.1), `federation.config.js` (`name: 'magelian'`, `exposes['./Routes']`) ; l'hôte charge `remoteRoutes` par `loadRemoteModule` |
-| Tous les appels passent par un service de base qui construit l'adresse de l'API | Les services HÉRITENT de `HttpBaseService`, qui hérite d'une doublure provisoire de `MechaRemoteAppHttpBaseService` — une ligne d'import à changer quand le paquet sera accessible |
+| Tous les appels passent par un service de base qui construit l'adresse de l'API | Les services HÉRITENT de `HttpBaseService`, qui hérite d'une doublure provisoire de `MechaRemoteAppHttpBaseService` — la bascule vers le vrai paquet suit une liste de dix points (`ARCHITECTURE.md` § Application Angular, « Liste de bascule »), dont l'import n'est qu'un seul |
 | Une constante `remoteRoutes` exposée par `app.routes.ts` | `remoteRoutes` AUTONOME : démarrage, intercepteurs et services d'API portés par la route racine, liens relatifs. Prouvé sous `/outils/magelian` dans un hôte PAR DÉFAUT (`ignoreUnusedDeps: true`), remote en développement et en production ; sans session, message « Session requise… » sans navigation |
 | Un `slug` dans l'environnement | `environment.ts`, `slug: ''` tant que le siège ne l'a pas fourni |
-| Rien dans `index.html` ni `app.config.ts` (le shell ne les exécute pas) | Styles, configuration et polices résolus contre l'application distante ; thème qui SUIT la classe que le shell pose sur `<html>` |
-| Ne pas restyler le shell, ne pas être restylé par lui | Interface en racines d'ombre (lot « Isolation CSS ») : 0 différence mesurée sur les éléments de l'hôte, 0 propriété sur `<html>`. Vont au document : les `@font-face` des polices, et les `<style>` des composants qu'Angular (SharedStylesHost) y recopie, confinés par attribut (`::ng-deep` et `ViewEncapsulation.None` interdits par une garde). ⚠ Exigence de déploiement : `magelian.css` est LUE par `fetch`, le serveur du remote doit répondre `Access-Control-Allow-Origin` pour l'origine du shell |
+| Rien dans `index.html` ni `app.config.ts` (le shell ne les exécute pas) | Styles, configuration et polices résolus contre l'application distante ; thème qui SUIT la classe que le shell pose sur `<html>` et n'y écrit JAMAIS dans un hôte (`ECRIRE_HTML`, revue finale — prouvé dans l'hôte par défaut avec un `<html>` sans classe) |
+| Ne pas restyler le shell, ne pas être restylé par lui | Interface en racines d'ombre (lot « Isolation CSS ») : 0 différence mesurée sur les éléments de l'hôte, 0 propriété sur `<html>`. Vont au document : les `@font-face` des polices, et les `<style>` des composants qu'Angular (SharedStylesHost) y recopie, confinés par attribut (`::ng-deep` et `ViewEncapsulation.None` interdits par une garde). ⚠ Exigences de déploiement (CORS, revalidation, CSP des polices) : voir ci-dessous |
 
-Ouvert côté MAGELIAN après l'épreuve : rien. Le retrait de
+Ouvert côté MAGELIAN après l'épreuve : les **exigences de déploiement**,
+à tenir au premier déploiement (aucun n'existe) — `ARCHITECTURE.md`
+§ Application Angular, « Exigences de déploiement » : `Cache-Control: no-cache`
+sur `magelian.css`, `magelian-polices.css`, `maplibre.css`,
+`config.local.json` et `remoteEntry.json` (chargés sans empreinte dans leur
+nom) ; CORS sur ces fichiers et sur les chunks ; CSP du shell ouverte à
+`fonts.googleapis.com` / `fonts.gstatic.com`. Le retrait de
 `@angular/core/rxjs-interop`, le comportement sans session (lot « Robustesse
 dans l'hôte ») et l'isolation CSS sont faits. L'authentification dans AIDA
 reste une question AU SIÈGE : sans session, le remote affiche « Session
@@ -186,8 +192,10 @@ requise… » sans naviguer ; la connexion elle-même relève du shell).
   propriété du thème (qui pose la classe en premier : le script inline de
   `index.html`, ou `ThemeService`, ou le shell lui-même) est à décider AVANT
   cette intégration, pas pendant. **Tranché au lot AIDA (2026-09-30)** : le
-  shell pose la classe, MAGELIAN la suit et n'écrit `<html>` que sur un geste
-  de son utilisateur ou quand aucune classe n'est posée (`ARCHITECTURE.md`).
+  shell pose la classe, MAGELIAN la suit ; **et depuis la revue finale du lot,
+  MAGELIAN n'écrit JAMAIS `<html>` dans un hôte** — seul le lancement autonome
+  l'y autorise (`ECRIRE_HTML`, voir la section du lot AIDA ci-dessous et
+  `ARCHITECTURE.md`).
 - **La limite de 3 appels simultanés ne couvre que `HttpClient`.** Les tuiles
   et le GeoJSON de MapLibre lui échappent (déjà noté au lot 0) — la
   discipline « bbox = carte visible » reste donc la responsabilité du
@@ -198,3 +206,49 @@ Reporté au lot 3 : `button[mgPastille]` fixe `type="button"` en dur dans son
 futur usage voulant un VRAI bouton de soumission (`type="submit"`) à
 l'intérieur d'un formulaire se heurtera à ce `type` figé. À vérifier au
 premier usage réel dans un `<form>`, pas avant.
+
+### À savoir pour les lots suivants (revue finale du lot AIDA)
+
+Chaque règle ci-dessous a coûté une correction pendant le lot AIDA ; la plupart
+sont verrouillées par une garde (`tests/unit/angular/`), les autres ne tiennent
+que par la revue. Détail : `ARCHITECTURE.md` § Application Angular.
+
+- **Services d'API** : `@Injectable()` SANS `providedIn`, fournis par une
+  route sous `remoteRoutes` (aujourd'hui `FOURNISSEURS_DISTANTS` de la route
+  racine), héritant de `HttpBaseService`. Un service racine recevrait le
+  `HttpClient` du shell, sans jeton ni limiteur. Garde : `modele-aida.test.ts`.
+- **Dépendances** : aucune entrée `@angular/*` hors de la liste de
+  `imports-partages.test.ts`. Toute NOUVELLE dépendance à l'exécution impose
+  de rejouer l'épreuve dans l'hôte PAR DÉFAUT (`ignoreUnusedDeps: true`) :
+  c'est ainsi que `rxjs-interop` faisait lever `NG0203`, et une dépendance
+  transitive échappe à la garde.
+- **Navigation** : liens et navigations RELATIFS ; jamais `/connexion` (ni
+  aucun chemin absolu) en dur — le préfixe de montage appartient au shell, et
+  la redirection sans session passe par `STRATEGIE_SANS_SESSION`.
+- **Ressources et icônes** : tout fichier servi par l'application passe par
+  `urlRessourceDistante` (jamais une adresse relative au document, qui viserait
+  le shell) ; les icônes sont des SVG en ligne.
+- **Racine d'ombre** : rien ne s'affiche hors de la racine — une fenêtre
+  modale ou un menu flottant = `<dialog>` natif ou API popover, jamais un
+  portail vers `document.body` ni un overlay du CDK. Aucun `rem` dans les
+  styles de composant (`gardes-styles.test.ts`) : la taille de police de
+  `<html>` appartient au shell. Gardes : `portails-hors-ombre.test.ts`,
+  `gardes-styles.test.ts`.
+- **Couleurs** : MapLibre et ECharts reçoivent leurs couleurs par
+  `CouleursService.palette()` — jamais un hexadécimal recopié, jamais `var()`
+  dans une expression `paint`.
+- **`<html>`** : ne jamais l'écrire hors du lancement autonome. Tout code qui
+  voudrait y poser une classe, un style ou un attribut passe par
+  `ECRIRE_HTML` (défaut `false` dans un hôte).
+- **Zone** : MapLibre et ECharts sont créés via `NgZone.runOutsideAngular`
+  quand une zone existe — indifférent en zoneless, mais cela protège un shell
+  qui tournerait encore sous zone.js d'une détection de changement à chaque
+  mouvement de souris. Tenu aujourd'hui par `afterNextRender`, qu'Angular
+  exécute lui-même via `runOutsideAngular` ; verrouillé par
+  `carte.component.spec.ts` et `courbe.component.spec.ts`. Une création qui
+  sortirait d'`afterNextRender` devra l'envelopper elle-même.
+- **Appels** : au plus 3 appels `HttpClient` simultanés (limiteur) ; le trafic
+  de MapLibre y échappe, donc la discipline « bbox = carte visible » reste
+  dans le composant de carte.
+- **`versEtat`** : toujours appelé en contexte d'injection et HORS de tout
+  contexte réactif (`computed`, `effect`, gabarit) — il lève `NG0602` sinon.
