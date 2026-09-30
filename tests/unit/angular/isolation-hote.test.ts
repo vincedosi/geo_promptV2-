@@ -90,7 +90,10 @@ describe('base globale alignée sur React (lot Rendu, R0)', () => {
   });
 
   it('la sélection est teal à 20 % (G3) et la barre de défilement fait 6 px (G2), sur des sélecteurs universels', () => {
-    expect(regle('::selection').get('background')).toBe('rgba(78, 205, 196, 0.2)');
+    expect(regle('::selection').get('background')).toBe('color-mix(in srgb, var(--brand-teal) 20%, transparent)');
+    expect(regle('::selection').get('color')).toBe('var(--text-primary)');
+    expect(regle('::-webkit-scrollbar-track').get('background')).toBe('var(--bg-primary)');
+    expect(regle('::-webkit-scrollbar-thumb').get('border-radius')).toBe('3px');
     expect(regle('::-webkit-scrollbar').get('width')).toBe('6px');
     expect(regle('::-webkit-scrollbar').get('height')).toBe('6px');
     expect(regle('::-webkit-scrollbar-thumb').get('background')).toBe('var(--border-default)');
@@ -98,7 +101,7 @@ describe('base globale alignée sur React (lot Rendu, R0)', () => {
   });
 
   it('le changement de thème est adouci sur :host (G5)', () => {
-    expect(regle(':host').get('transition')).toContain('background-color 200ms');
+    expect(regle(':host').get('transition')).toBe('background-color 200ms var(--ease-out), color 200ms var(--ease-out)');
   });
 
   it('les utilitaires de bord fin valent 0,5 px (DESIGN_SYSTEM § 7.8)', () => {
@@ -112,6 +115,16 @@ describe('base globale alignée sur React (lot Rendu, R0)', () => {
       const m = CSS.match(new RegExp(String.raw`@utility ${nom}\s*\{([^}]*)\}`));
       expect(m, `@utility ${nom} absent`).not.toBeNull();
       expect(m![1]).toContain(`${propriete}: 0.5px`);
+    }
+  });
+
+  it("scrollbar-color est épinglée sur :host (héritée : un `* { scrollbar-color }` du shell ferait ignorer ::-webkit-scrollbar)", () => {
+    expect(regle(':host').get('scrollbar-color')).toBe('auto !important');
+  });
+
+  it('aucune couleur littérale dans les règles de sélection et de défilement', () => {
+    for (const sel of ['::selection', '::-webkit-scrollbar-track', '::-webkit-scrollbar-thumb', '::-webkit-scrollbar-thumb:hover']) {
+      for (const [p, v] of regle(sel)) expect(v, `${sel} ${p}`).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(/i);
     }
   });
 });

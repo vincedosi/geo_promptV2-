@@ -42,9 +42,9 @@ import { monterRacineOmbre } from './racine-ombre';
   encapsulation: ViewEncapsulation.ShadowDom,
   template: `
     @if (demarrage.erreur(); as message) {
-      <p role="alert" class="m-6 rounded border border-danger bg-surface p-4 text-sm text-danger">{{ message }}</p>
+      <p role="alert" class="m-6 rounded border-fin border-danger bg-surface p-4 text-sm text-danger">{{ message }}</p>
     } @else if (afficherMessage()) {
-      <p role="status" class="m-6 rounded border border-subtle bg-surface p-4 text-sm text-secondary">{{ messageSansSession }}</p>
+      <p role="status" class="m-6 rounded border-fin border-subtle bg-surface p-4 text-sm text-secondary">{{ messageSansSession }}</p>
     } @else {
       <router-outlet />
     }
