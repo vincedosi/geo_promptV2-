@@ -65,7 +65,8 @@ qu'on bâtisse quoi que ce soit dessus.
 | **0 — Socle** | Espace de travail Angular, jetons du design system, authentification, client HTTP, coquille (barre latérale, routes), outillage (tests, lint, build), doc | Se connecter sur `:4200`, voir le nombre de sites à risque lu dans `/api/risques/sites/compter` ET une tuile `/api/tiles/...` servie en 200 | — |
 | **1 — Composants de base** ✅ 2026-09-29 | Portés depuis les primitives MAISON du module risque (l'inventaire a montré qu'il n'utilise aucun composant shadcn) : tuile KPI, pastille, champ, cellules de tableau, fil d'étapes, fil d'Ariane, réglette validée au relâchement, barre de progression unique et valeurs périmées. Plus : thème clair/sombre, 3 appels API simultanés au plus pour toute l'application, garde inverse de la connexion. Fenêtre modale et notifications reportées aux lots 5-6, seuls à s'en servir | Page `/catalogue`, vérifiée au navigateur dans les deux thèmes | 0 |
 | **2 — Carte et graphiques** ✅ 2026-09-30 | `mg-carte` (cycle de vie MapLibre), chargement par cadre visible, caméras liées, popups sûres ; `mg-courbe` sur Apache ECharts (P7 confirmé, sans `ngx-echarts`) ; couleurs lues dans les jetons (plus de tables d'hexadécimaux) | Page `/essai-carte` : vraies zones, vrais sites, vraie courbe, KPI égal à la base | 0, 1 |
-| **AIDA — Conformité Native Federation** (en cours, ouvert le 2026-09-30) | Mise en conformité avec la doc AIDA AVANT le lot 3 : Native Federation 21.2.1, `federation.config.js`, `environment.ts` (slug), services qui héritent de `HttpBaseService`, `remoteRoutes` autonome (le shell ne charge que lui), ressources et thème indépendants du shell. Plan : `docs/superpowers/plans/2026-09-30-angular-lot-aida-conformite.md` | Épreuve dans un shell hôte jetable | 0, 1, 2 |
+| **AIDA — Conformité Native Federation** ✅ 2026-09-30 (sous réserve, voir sous le tableau) | Native Federation 21.2.1, `federation.config.js`, `environment.ts`, services qui héritent de `HttpBaseService`, `remoteRoutes` autonome (démarrage, intercepteurs et services portés par la route, liens relatifs), ressources et thème indépendants du shell | Épreuve dans un shell hôte jetable : page stylée, API authentifiée et limitée, KPI égal à la base, thème piloté par l'hôte | 0, 1, 2 |
+| **AIDA — Isolation CSS** (à planifier) | `magelian.css` restyle TOUT le document du shell (preflight Tailwind, règles `html`/`body`, 123 propriétés sur `:root` dont des noms génériques) et n'est jamais retirée — mesuré élément par élément dans l'hôte jetable (`ARCHITECTURE.md` § Application Angular) | Mêmes styles calculés des éléments de l'hôte avant et après le chargement de MAGELIAN | AIDA — Conformité |
 | **3 — Module risque** | Les cinq étapes ① Sites › ② Rayon › ③ Couverture › ④ Zones › ⑤ Campagne, l'état dans l'URL, les exports, la barre de progression unique. Gel P5 à l'ouverture | Chaque étape comparée à l'écran React sur le même état d'URL, chiffres identiques. ⚠ **Le module React N'EST PAS retiré au lot 3** (arbitrage de Vincent, 2026-09-30) : les deux écrans cohabitent jusqu'à la fin de la migration, et Next.js ne perd ses pages qu'au lot 7 | 0, 1, 2 |
 | **4 — Carte principale** | `/map`, rail des cinq thèmes, panneaux Filtre/Calques/Analyse/Zones | Parcours complet du rail | 3 |
 | **5 — Campagnes** | Overlay MAGELIAN : Stratégie (wizard), Activation, Suivi V2, Aperçu | Une campagne créée, activée (pré-vol) et suivie depuis Angular | 4 |
@@ -73,6 +74,16 @@ qu'on bâtisse quoi que ce soit dessus.
 | **7 — Bascule** | Retrait de l'interface React ; Next.js ne sert plus que l'API. Intégration AIDA (federation) si le jeton et le slug sont arrivés | `npm run build` côté Next ne contient plus aucune page ; `ng build` produit l'application complète | tous |
 
 Le lot 6 peut tourner en parallèle des lots 3 à 5 : il ne partage que le socle.
+
+**Réserve sur le lot « AIDA — Conformité » (épreuve du 2026-09-30).** Les sept
+vérifications passent dans un hôte qui partage les entrées secondaires
+d'Angular (`ignoreUnusedDeps: false`). Avec l'hôte tel que le génère le
+schématique (`ignoreUnusedDeps: true`), la page plante en `NG0203` : l'hôte ne
+partage pas `@angular/core/rxjs-interop`, la copie du remote est chargée avec
+les morceaux internes de SON propre `@angular/core`. Question posée au siège ;
+à défaut, le remote devra se passer de `@angular/core/rxjs-interop`. Et la
+fuite de styles bloque l'intégration tant que la tâche « Isolation CSS »
+n'est pas faite.
 
 ## Règles de chantier (valent pour chaque tâche de chaque lot)
 
@@ -96,23 +107,33 @@ Le lot 6 peut tourner en parallèle des lots 3 à 5 : il ne partage que le socle
 8. **Rien n'est poussé sur GitHub par un agent** : Vincent pousse (ce poste n'a
    pas d'identifiants git en ligne de commande).
 
-## Compatibilité AIDA — ce que le socle prépare sans l'activer
+## Compatibilité AIDA — état constaté le 2026-09-30
 
 La doc AIDA (`docs/documentation-remote-app-native-federation-aida.pdf`) impose
-quatre choses à une application intégrée. Le socle les prépare pour que
-l'intégration du lot 7 soit un ajout, pas une réécriture :
+ses exigences à une application intégrée. État après le lot « AIDA —
+Conformité », vérifié dans un shell hôte jetable (détail : `ARCHITECTURE.md`
+§ Application Angular) :
 
-| Exigence AIDA | Ce que fait le socle |
+| Exigence AIDA | État constaté |
 |---|---|
-| Angular 21.2.4 | P1 |
-| Tous les appels passent par un service de base qui construit l'adresse de l'API | `HttpBaseService` maison ; le jour venu, il héritera de `MechaRemoteAppHttpBaseService` sans qu'aucun service métier ne change |
-| Une constante `remoteRoutes` exposée par `app.routes.ts` | Les routes métier vivent dans `remoteRoutes` dès maintenant ; `appRoutes` les enveloppe pour le lancement autonome |
-| Un `slug` dans l'environnement | Champ `slug` prévu dans l'environnement, vide tant que le groupe ne l'a pas fourni |
+| Angular 21.2.4 | P1 ; l'hôte jetable était lui aussi épinglé en 21.2.4 |
+| Native Federation, `remoteEntry.json` exposant `./Routes` | NF 21.2.1 (+ `es-module-shims` 1.10.1), `federation.config.js` (`name: 'magelian'`, `exposes['./Routes']`) ; l'hôte charge `remoteRoutes` par `loadRemoteModule` |
+| Tous les appels passent par un service de base qui construit l'adresse de l'API | Les services HÉRITENT de `HttpBaseService`, qui hérite d'une doublure provisoire de `MechaRemoteAppHttpBaseService` — une ligne d'import à changer quand le paquet sera accessible |
+| Une constante `remoteRoutes` exposée par `app.routes.ts` | `remoteRoutes` AUTONOME : démarrage, intercepteurs et services d'API portés par la route racine, liens relatifs. Prouvé sous `/outils/magelian` dans l'hôte |
+| Un `slug` dans l'environnement | `environment.ts`, `slug: ''` tant que le siège ne l'a pas fourni |
+| Rien dans `index.html` ni `app.config.ts` (le shell ne les exécute pas) | Styles, configuration et polices résolus contre l'application distante ; thème qui SUIT la classe que le shell pose sur `<html>` |
+
+Ouvert après l'épreuve : le partage des entrées secondaires d'Angular par le
+shell (`@angular/core/rxjs-interop`, voir la réserve sous le tableau des lots),
+et l'isolation CSS (fuite mesurée de `magelian.css` dans tout le document du
+shell).
 
 ⚠ **Doc AIDA relue en entier le 2026-09-30** : le socle ne suivait PAS la doc sur cinq points (services qui injectent au lieu d'hériter, slug hors d'`environment.ts`, forme d'`appRoutes`, fédération absente, et surtout tout ce que porte `app.config.ts` — intercepteurs, démarrage, styles — que le shell n'exécute pas). D'où le lot « AIDA — Conformité » inséré avant le lot 3.
 
 Ce qui manque et que seul le siège peut fournir : le jeton `read:packages`
-(`NPM_GITHUB_TOKEN`), la doc de `mecha-lib-ui`, le slug.
+(`NPM_GITHUB_TOKEN`), la doc de `mecha-lib-ui`, le slug, et le fonctionnement
+de l'authentification dans AIDA (sans session, notre garde renvoie vers
+`/connexion`, que le shell n'a pas).
 
 ## Risques suivis
 
@@ -134,7 +155,7 @@ Ce qui manque et que seul le siège peut fournir : le jeton `read:packages`
   avec toute requête `fetch` de même origine.
 - **`ConfigService` doit garder son client bâti sur `HttpBackend`.** Le faire
   passer par le `HttpClient` intercepté recréerait le cycle
-  `jetonInterceptor` → `HttpBaseService.apiUrl` → `ConfigService.valeur`
+  `jetonInterceptor` → `HttpBaseService.baseUrl` (ex-`apiUrl`) → `ConfigService.valeur`
   décrit dans `ARCHITECTURE.md` § Application Angular — voir aussi
   `angular/src/app/app.config.spec.ts`.
 - **`@supabase/ssr` se met à jour à la racine ET dans `angular/` ENSEMBLE.**
@@ -159,7 +180,9 @@ Ce qui manque et que seul le siège peut fournir : le jeton `read:packages`
   AIDA, ce sera le `<html>` DU SHELL, pas celui d'un Angular isolé. La
   propriété du thème (qui pose la classe en premier : le script inline de
   `index.html`, ou `ThemeService`, ou le shell lui-même) est à décider AVANT
-  cette intégration, pas pendant.
+  cette intégration, pas pendant. **Tranché au lot AIDA (2026-09-30)** : le
+  shell pose la classe, MAGELIAN la suit et n'écrit `<html>` que sur un geste
+  de son utilisateur ou quand aucune classe n'est posée (`ARCHITECTURE.md`).
 - **La limite de 3 appels simultanés ne couvre que `HttpClient`.** Les tuiles
   et le GeoJSON de MapLibre lui échappent (déjà noté au lot 0) — la
   discipline « bbox = carte visible » reste donc la responsabilité du

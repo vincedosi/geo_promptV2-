@@ -2512,18 +2512,24 @@ Migration progressive de l'interface, module par module, sans toucher à l'API
   il ne répond 200 dans la page que parce que `jetonInterceptor` l'ajoute. Les
   deux routes sont donc bien protégées par des mécanismes DIFFÉRENTS, chacun
   nécessaire.
-- ⚠ **Ordre de démarrage.** `ConfigService` lit `/config.local.json` par un
-  `HttpClient` construit sur `HttpBackend` et non sur le `HttpClient` injecté :
-  le faire passer par le pipeline d'intercepteurs recréerait le cycle
-  `jetonInterceptor` → `HttpBaseService.apiUrl` → `ConfigService.valeur`, qui
-  n'est pas encore chargée à cet instant précis. Et `provideAppInitializer`
-  attend `configService.charger()` avant de construire `AuthService` : un
-  `inject()` posé après cet `await` est hors contexte d'injection (NG0203),
-  d'où l'injecteur capturé avant l'`await` et rejoué via
-  `runInInjectionContext`. Les deux pièges sont couverts par
-  `angular/src/app/app.config.spec.ts`, qui démarre l'application EXACTEMENT
-  comme `main.ts` plutôt que de mocker chaque bout de la dépendance
-  circulaire séparément.
+- ⚠ **Ordre de démarrage (état du 2026-09-30).** Il n'y a PLUS
+  d'`APP_INITIALIZER` : le shell AIDA n'exécute pas `app.config.ts`. Le
+  démarrage vit dans `DemarrageService` (`core/demarrage/`), déclenché par le
+  garde `demarrageGuard` de la route racine de `remoteRoutes`, donc dans les
+  deux modes : feuille globale `magelian.css`, PUIS configuration, PUIS
+  session. `ConfigService` lit `config.local.json` À CÔTÉ de l'application
+  distante (voir « ressources » plus bas), par un `HttpClient` construit sur
+  `HttpBackend` et non sur le `HttpClient` injecté : le faire passer par le
+  pipeline d'intercepteurs recréerait le cycle `jetonInterceptor` →
+  `HttpBaseService.baseUrl` → `ConfigService.valeur`, qui n'est pas encore
+  chargée à cet instant précis. `AuthService` n'est construit qu'après la
+  configuration : un `inject()` posé après cet `await` est hors contexte
+  d'injection (NG0203), d'où l'injecteur capturé à la construction de
+  `DemarrageService` et rejoué via `runInInjectionContext`. Un démarrage en
+  ÉCHEC n'est pas gardé : la navigation suivante retente. Couvert par
+  `angular/src/app/app.config.spec.ts` (lancement autonome, sans rien mocker
+  côté configuration/HTTP) et `angular/src/app/remote.spec.ts` (`remoteRoutes`
+  seules, sans `app.config`).
 - ⚠ **Fin de session en cours de page.** Le garde de route (`authGuard`) ne
   s'exécute qu'À LA NAVIGATION : un jeton de rafraîchissement révoqué ou un
   cookie expiré PENDANT qu'une page est déjà ouverte la laissait bloquée sur
@@ -2533,12 +2539,66 @@ Migration progressive de l'interface, module par module, sans toucher à l'API
   désormais vers `/connexion` avec la page courante à reprendre
   (`AuthService.renvoyerVersConnexion()`), et l'erreur continue de remonter
   vers la page pour que son état de chargement se résolve.
-- **La clé anon n'est dans aucun fichier suivi** : `npm start` écrit
-  `angular/public/config.local.json` depuis `.env.development.local`, lu à
-  l'exécution par `ConfigService`.
-- **Préparé pour AIDA sans l'activer** : `HttpBaseService` construit toutes les
-  adresses (il héritera de `MechaRemoteAppHttpBaseService`), et les routes
-  métier vivent dans `remoteRoutes` (`angular/src/app/app.routes.ts`).
+- **La clé anon n'est dans aucun fichier suivi** : `npm start` (et
+  `npm run config`) écrit `angular/public/config.local.json` depuis
+  `.env.development.local`, lu à l'exécution par `ConfigService`.
+- **Remote app AIDA — Native Federation (lot « AIDA — Conformité »,
+  2026-09-30).** L'application est une *remote app* au sens de la doc AIDA :
+  - **Dépendances.** `@angular-architects/native-federation` **21.2.1** et
+    `es-module-shims` **1.10.1**, épinglés exacts — le second est exigé par le
+    runtime de fédération (polyfill des import maps, `type=module-shim`).
+    `@softarc/native-federation-node` (ajouté par le schématique, SSR seul) a
+    été retiré.
+  - **`angular/federation.config.js`** : `name: 'magelian'` (à aligner sur le
+    nom attendu par AIDA), `exposes: { './Routes': './src/app/app.routes.ts' }`,
+    `shareAll({ singleton: true, strictVersion: false })`, `rxjs/ajax|fetch|
+    testing|webSocket` en `skip`, `ignoreUnusedDeps`. Le build publie
+    `remoteEntry.json`, que le shell référence dans son manifeste.
+  - **Cibles d'`angular.json`** : `build` et `serve` passent par le builder
+    fédéré, qui délègue à `esbuild` (`@angular/build:application`, la vraie
+    configuration du bundle) et à `serve-original` (`@angular/build:dev-server`,
+    proxy `/api`). ⚠ `test` pointe `buildTarget: magelian:esbuild:development`
+    et NON la cible `build` : le builder de tests unitaires ne sait pas lire le
+    builder fédéré, et le laisser par défaut ne produisait qu'un avertissement,
+    les tests tournant alors sans les vraies options.
+  - **`main.ts` → `initFederation()` puis `import('./bootstrap')`** ; un échec
+    de chargement du chunk d'amorçage affiche `afficherErreurDemarrage` au lieu
+    d'une page blanche.
+  - **`angular/.npmrc`** (registre `@gdo-rd-france` sur GitHub Packages,
+    `${NPM_GITHUB_TOKEN}`) : conservé, il fonctionne SANS le jeton — `npm ls`,
+    `npm ci --dry-run` et `npm run config` passent (mesuré le 2026-09-30) tant
+    qu'aucun paquet `@gdo-rd-france` n'est installé.
+  - **`src/environments/environment.ts`** : `slug: ''`. Le slug est FOURNI par
+    le siège et ne s'invente pas.
+  - **Services d'API** : chacun HÉRITE de `HttpBaseService`
+    (`core/http/http-base.service.ts`), qui hérite de
+    `MechaRemoteAppHttpBaseService` — pour l'instant une DOUBLURE PROVISOIRE
+    (`mecha-remote-app-http-base.provisoire.ts`, importée sous l'alias
+    `MechaRemoteAppHttpBaseService`), le paquet `@gdo-rd-france/mecha-lib-ui`
+    exigeant le jeton. `baseUrl` = origine de l'API (`config.local.json`, vide
+    = origine du document) + `/api` ; `urlAbsolue()` pour MapLibre, dont le
+    worker ne résout pas une adresse relative. Le jour où le paquet est
+    installé, UNE ligne d'import change. Garde : `tests/unit/angular/modele-aida.test.ts`.
+  - **`remoteRoutes` autonome** : le shell ne charge QUE cette constante. Sa
+    route racine (`RacineDistanteComponent`) porte en `providers`
+    `provideHttpClient(withInterceptors([limiteur, jeton, sessionExpiree]),
+    withRequestsMadeViaParent())` et les services d'API — nos intercepteurs
+    passent d'abord, puis la requête continue par le `HttpClient` de l'hôte —
+    et en `canActivate` `demarrageGuard`. Tous les liens internes sont
+    RELATIFS (le préfixe de montage est inconnu) ; `CHEMIN_CONNEXION` dit où
+    renvoyer un utilisateur sans session (`/connexion` en autonome). Le
+    lancement autonome (`appRoutes`) monte les mêmes routes sous `app`, plus
+    `connexion`, qui n'existe que dans ce mode.
+  - **Ressources résolues contre l'application distante, jamais contre le
+    document** : `urlRessourceDistante()` + `BASE_RESSOURCES`
+    (`core/ressources/`), base = `import.meta.url` — valable parce que le build
+    est PLAT (chunks, `magelian.css`, `maplibre.css`, `config.local.json` dans
+    le même dossier). `magelian.css` (Tailwind + jetons + polices, `@import`
+    Google Fonts en tête de `styles.css`) est émise en paquet paresseux
+    `inject: false` et posée par `chargerFeuille()` au démarrage ; le logo est
+    un SVG inline, en teal exact.
+  - **Thème** : voir la puce « Thème » plus bas — il SUIT la classe de
+    `<html>`, y compris posée par le shell.
 - Le `tsconfig.json` et l'`.eslintrc.json` de la racine EXCLUENT `angular/` :
   leur `**/*.ts` compilait sinon le projet Angular avec la configuration Next.
 - ⚠ **Le `.gitignore` racine porte une exception pour `angular/`** :
@@ -2548,12 +2608,19 @@ Migration progressive de l'interface, module par module, sans toucher à l'API
 - **Composants de base (lot 1, 2026-09-29)** dans `angular/src/app/ui/` : `mg-kpi`, `button[mgPastille]`, `mg-champ`, `th[mgTh]`/`td[mgTd]`, `mg-fil-etapes`, `mg-fil-ariane`, `mg-reglette` (validée au RELÂCHEMENT, jamais par pixel), `mg-barre-progression` + `[mgPerime]` alimentées par un `ChargementService` fourni par l'écran. Tous GÉNÉRIQUES : le vocabulaire du risque arrive au lot 3 en les configurant. Démonstration : page `/catalogue`. ⚠ **Portés depuis les primitives MAISON du module risque, pas depuis shadcn/ui** — inventaire du 2026-09-29 : aucun des 35 fichiers de `components/risques/` n'importe un composant shadcn.
 - **3 appels API simultanés au plus, pour toute l'application** (`limiteurInterceptor` + `SEMAPHORE_API`, `core/http/`), enregistré en PREMIER. Côté React la règle était tenue écran par écran ; ici elle ne dépend plus de la discipline de chaque écran. ⚠ Il ne voit que `HttpClient` : les requêtes de MapLibre (tuiles, GeoJSON) lui échappent.
 - **Thème** : `ThemeService` (`core/theme/`), classe `light`/`dark` sur `<html>`, même clé de stockage que React (`magelian-theme`), tolérant à un stockage bloqué.
-- ⚠ **Thème posé avant le premier affichage (lot 1, 2026-09-29)** : `ThemeService` n'applique sa classe qu'après l'`APP_INITIALIZER` (config + session), donc un utilisateur en thème clair voyait le fond sombre pendant tout le démarrage. Un script inline dans `angular/src/index.html` (même patron que `themeInitScript` d'`app/layout.tsx` côté React) lit `localStorage['magelian-theme']` en `try/catch` et pose la classe avant que quoi que ce soit d'Angular ne s'exécute ; `ThemeService` reste la seule source de vérité ensuite. **Ce script ne survivra PAS à l'intégration AIDA** : le shell AIDA possède `index.html`, donc la propriété du thème (qui pose la classe en premier) sera à trancher à cette intégration, pas ici.
+- ⚠ **Règle de propriété du thème (lot AIDA, 2026-09-30) : le shell pose la classe, MAGELIAN la SUIT.** Un `MutationObserver` (filtre `class` sur `<html>`) recopie la classe dans `theme` et `themeApplique`, donc carte et courbes se repeignent sur un changement de l'hôte. MAGELIAN n'ÉCRIT `<html>` (classes ET `style.colorScheme`) que dans deux cas : son utilisateur bascule (`basculer()`), ou au premier passage quand `<html>` ne porte NI `light` NI `dark`. Au démarrage, une classe unique posée par l'hôte l'emporte sur le stockage. Seul un geste de l'utilisateur de MAGELIAN est persisté ; un changement de l'hôte ne l'est jamais, et un geste supplanté par l'hôte avant écriture est abandonné. `color-scheme` reste à l'hôte. Lecture = ce que rend le CSS : `light` présente → clair, sinon sombre.
+- ⚠ **Thème posé avant le premier affichage (lot 1, 2026-09-29)** : `ThemeService` n'appliquait sa classe qu'après le démarrage (config + session), donc un utilisateur en thème clair voyait le fond sombre pendant tout le démarrage. Un script inline dans `angular/src/index.html` (même patron que `themeInitScript` d'`app/layout.tsx` côté React) lit `localStorage['magelian-theme']` en `try/catch` et pose la classe ET `color-scheme` avant que quoi que ce soit d'Angular ne s'exécute ; `ThemeService` reste la source de vérité ensuite. **Ce script ne sert qu'en AUTONOME** : dans AIDA, le shell possède `index.html` et pose lui-même la classe — tranché le 2026-09-30 par la règle de propriété ci-dessus.
 - **Carte et graphiques (lot 2, 2026-09-30)** : `mg-carte` (`angular/src/app/carte/`) ne porte que le CYCLE DE VIE de MapLibre — création après rendu, `ResizeObserver`, destruction — et rend la carte au parent, qui pose ses sources. `chargerParCadre` charge une donnée sur la bbox VISIBLE au `moveend` après 350 ms de calme et annule la requête précédente ; `lierCameras` porte le verrou de réentrance de `VueCartesZones.tsx` ; `contenuPopup` construit les popups par `textContent`. `mg-courbe` (`angular/src/app/graphiques/`) repose sur **Apache ECharts** en import modulaire (courbe, grille, infobulle, repère, rendu SVG), utilisé directement, sans `ngx-echarts`. MapLibre et ECharts sont dans des chunks PARESSEUX (chunk de la page `/essai-carte` : 1,56 Mo brut, 383 kB transféré ; paquet initial 463 kB brut).
 - ⚠ **Plus de couleurs recopiées en hexadécimal pour MapLibre et ECharts** : `CouleursService.palette()` lit la valeur CALCULÉE des jetons de `styles/jetons.css`, et suit le thème par `ThemeService.themeApplique` (qui ne change qu'une fois la classe posée sur `<html>`). Côté React, ces valeurs vivaient en double (`lib/carte/palette-*.ts`) sous garde de tests de parité. Un nom de jeton inconnu LÈVE au lieu de peindre en noir.
-- **Feuille MapLibre paresseuse (lot 2)** : `angular.json` déclare `maplibre-gl.css` en `styles` avec `inject: false` + `bundleName: 'maplibre'` ; Angular l'émet en `maplibre.css` sans l'ajouter à `index.html`, et `assurerFeuilleMaplibre()` injecte un `<link>` dans `<head>` à la création de la PREMIÈRE carte. Elle ne pèse donc jamais sur le paquet initial. ⚠ Son `href` est RELATIF (`maplibre.css`) : il devra être revu au lot AIDA, où la base de l'application n'est plus la racine. Les surcharges de popup et d'attribution portées de `app/globals.css` (fond `--bg-surface`, bordure `--border-default`, pointe, attribution discrète) vivent dans `angular/src/styles.css`, avec `!important` : la feuille paresseuse se charge après et l'emporterait sinon (fond de popup blanc `#fff`, texte clair illisible en thème sombre).
+- **Feuille MapLibre paresseuse (lot 2)** : `angular.json` déclare `maplibre-gl.css` en `styles` avec `inject: false` + `bundleName: 'maplibre'` ; Angular l'émet en `maplibre.css` sans l'ajouter à `index.html`, et `chargerFeuilleMaplibre()` (ex-`assurerFeuilleMaplibre`) pose un `<link>` dans `<head>` à la création de la PREMIÈRE carte. Elle ne pèse donc jamais sur le paquet initial. Son `href` est résolu contre l'application distante (`urlRessourceDistante('maplibre.css')`, lot AIDA, 2026-09-30) et non plus relatif au document : dans le shell, il vise bien le serveur de MAGELIAN (vérifié dans l'hôte jetable, voir plus bas). Les surcharges de popup et d'attribution portées de `app/globals.css` (fond `--bg-surface`, bordure `--border-default`, pointe, attribution discrète) vivent dans `angular/src/styles.css`, avec `!important` : la feuille paresseuse se charge après et l'emporterait sinon (fond de popup blanc `#fff`, texte clair illisible en thème sombre).
 - ⚠ **`.maplibregl-map` impose `position: relative`** et la feuille MapLibre (chargée à la demande) passe après Tailwind : un conteneur posé en `absolute inset-0` perdait son étirement et la carte restait à 300 px de haut, canevas noir. `mg-carte` ajoute `h-full w-full` ; le parent donne la hauteur à `<mg-carte>`. Trouvé au navigateur, invisible en test (carte factice).
 - Les tuiles MVT restent chargées par MapLibre lui-même (cookie, via le proxy) ; les GeoJSON passent par `HttpClient`, donc par le limiteur de 3 appels et le jeton. Vérifié au navigateur le 2026-09-30 : tuiles `zones-risque` en 200, une seule requête de sites après un panoramique rapide sans inertie (un coup de doigt avec inertie peut en émettre deux, le premier `moveend` et celui de la fin d'inertie étant espacés de plus de 350 ms), KPI « habitants à moins de 5 km » égal à `lire_couverture_rayon` (13 841 288).
+- **Épreuve dans un shell hôte jetable (2026-09-30).** Un hôte Angular 21.2.4 + Native Federation 21.2.1 `dynamic-host`, HORS du dépôt, sur `:4300`, manifeste `{ "magelian": "http://localhost:4201/remoteEntry.json" }`, route `outils/magelian` → `loadRemoteModule('magelian', './Routes')` → `remoteRoutes`, proxy `/api` → `:3000`, un bouton qui bascule `light`/`dark` sur `<html>`. Constaté au navigateur, sur `/outils/magelian/essai-carte` : page stylée dans le cadre de l'hôte, Inter et JetBrains Mono chargées ; `magelian.css`, `config.local.json` et `maplibre.css` demandés sur **:4201**, jamais sur :4300 ; API sur l'origine de l'hôte (`:4300/api/…`) avec `Authorization: Bearer`, `/api/map/risques-industriels?bbox=…` et tuiles `zones-risque` en 200 ; lien « Catalogue » → `/outils/magelian/catalogue` ; KPI **13 841 288** ; bouton de thème de l'HÔTE → carte et courbe repeintes, rien écrit dans `localStorage`, classe de l'hôte jamais réécrite. CORS : le serveur de dev du remote répond `Access-Control-Allow-Origin` à `:4300` sans aucun réglage. Session : le cookie `@supabase/ssr` posé en se connectant sur `:4201/connexion` est lu sur `:4300` (les cookies de `localhost` ignorent le port).
+  - ⚠ **Ce qui a échoué, et ce que ça exige du shell.** Avec l'hôte tel que le génère le schématique (`ignoreUnusedDeps: true`), la page plante en `NG0203` sur `takeUntilDestroyed()` : l'hôte ne partage pas `@angular/core/rxjs-interop`, qu'il n'utilise pas, donc c'est la copie du REMOTE qui est chargée — et elle importe les morceaux internes de `@angular/core` de SON build (`@nf-internal/chunk-…` servis par :4201), pas le cœur de l'hôte : deux contextes d'injection. Passer ce point en `skip` côté remote rend un import non résolu. Réglé pour l'épreuve côté HÔTE (`ignoreUnusedDeps: false`, qui partage toutes les entrées secondaires d'Angular). Le remote utilise `@angular/core/rxjs-interop` (`toSignal`, `takeUntilDestroyed`) et, en autonome seulement, `@angular/forms` : question posée au siège — le shell AIDA partage-t-il les entrées secondaires d'Angular ?
+  - **Hôte SANS `provideHttpClient()`** : fonctionne. En Angular 21, `HttpHandler` est `providedIn: 'root'`, donc `withRequestsMadeViaParent()` trouve toujours un gestionnaire parent et son erreur de développement ne se déclenche pas.
+  - **Sans session**, `authGuard` renvoie vers `/connexion`, que l'hôte n'a pas : `NG04002`, cadre vide. Attendu tant que l'authentification dans AIDA n'est pas connue.
+  - ⚠ **Fuite de styles, mesurée** : `magelian.css` restyle TOUT le document hôte, et le lien n'est jamais retiré (il reste après être revenu sur une page de l'hôte). `body` : marge 12 px → 0, fond → `--bg-level-0`, police Georgia → Inter, 15 px → 13 px ; `html` : police et `line-height` de Tailwind ; `ul` : puces et marges supprimées ; `a` : couleur et soulignement supprimés ; `button`/`input` sans classe : fond, bordure et padding remis à zéro ; `h1` : graisse 700 → 400 (sa taille et sa marge, posées par une règle NON étagée de l'hôte, résistent : le preflight de Tailwind 4 vit dans `@layer base`). Un bouton stylé par classe garde ses couleurs mais prend la police. Et **123 propriétés personnalisées** posées sur `:root`, dont des noms génériques (`--surface`, `--overlay`, `--elevated`, `--radius`, `--spacing`, `--danger`, `--success`, `--warning`, `--info`, `--font-sans`, `--text-*`, `--ease-*`, `--tw-*`). Tâche « isolation CSS » à suivre.
+  - Mesuré en `ng serve` (développement) des deux côtés ; le build de production n'a pas été rejoué dans l'hôte.
 
 ---
 
