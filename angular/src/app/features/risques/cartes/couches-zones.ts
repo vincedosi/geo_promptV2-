@@ -55,6 +55,12 @@ export interface OptionsZones {
   profil: ProfilRayons;
   /** Visibilité À LA CRÉATION (l'équivalent de `fusionnerRef` de React). La bascule passe par `basculerCouchesZones`. */
   visible: boolean;
+  /**
+   * Couche AVANT laquelle insérer les zones (`addLayer(…, avant)`). La carte du module y passe la plus basse des
+   * couches de sites : les zones restent SOUS les points et les cercles, même recréées après eux à un changement
+   * de profil — sans quoi l'aplat recouvrirait les points à chaque anneau déplacé.
+   */
+  avant?: string;
 }
 
 /** La couleur d'une zone d'après sa propriété `niveau` (`expressionCouleurNiveau`, palette-zones-risque.ts). */
@@ -118,7 +124,7 @@ export function poserCouchesZones(carte: maplibregl.Map, o: OptionsZones): void 
       // Aplat uni par niveau de loin, bandes détaillées de près.
       'fill-opacity': expressionOpaciteSelonZoom(ZONES_RISQUE_ZOOM_DETAIL) as never,
     },
-  });
+  }, o.avant);
 
   // Tireté = zone CALCULÉE par nous, et seulement au DÉTAIL : sous ce zoom les anneaux sont fondus, leurs
   // contours y dessineraient des cernes entre des teintes identiques.
@@ -136,7 +142,7 @@ export function poserCouchesZones(carte: maplibregl.Map, o: OptionsZones): void 
       'line-dasharray': [...TIRETE_ZONE_CALCULEE] as never,
       'line-opacity': 0.9,
     },
-  });
+  }, o.avant);
 
   // Plein = servitude PUBLIÉE par l'État, visible dès que les zones le sont : la fondre au dézoom effacerait
   // la distinction entre l'opposable et le calculé.
@@ -153,7 +159,7 @@ export function poserCouchesZones(carte: maplibregl.Map, o: OptionsZones): void 
       'line-width': LARGEUR_TRAIT_ZONE + 0.5,
       'line-opacity': 1,
     },
-  });
+  }, o.avant);
 
   // L'étiquette du rayon court le long du contour (`symbol-placement: line`) : posée au centre, celles des
   // bandes concentriques s'empileraient.
@@ -178,7 +184,7 @@ export function poserCouchesZones(carte: maplibregl.Map, o: OptionsZones): void 
       'text-halo-color': o.teintes.halo,
       'text-halo-width': 1.4,
     },
-  });
+  }, o.avant);
 }
 
 /**

@@ -3,8 +3,12 @@ import {
 } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
 import type { Subscription } from 'rxjs';
-import type { Bbox } from '../../../carte/bbox';
+import { type Bbox, bboxEnParametre } from '../../../carte/bbox';
 import { CarteComponent } from '../../../carte/carte.component';
+import { chargerParCadre } from '../../../carte/charger-par-cadre';
+import { contenuPopup } from '../../../carte/contenu-popup';
+import { FABRIQUE_POPUP } from '../../../carte/fabrique-carte';
+import { formaterNombre } from '../../../core/format/nombre';
 import { LegendeComponent } from '../../../carte/legende/legende.component';
 import { LegendeNiveauxComponent, type NiveauLegende } from '../../../carte/legende/legende-niveaux.component';
 import { ChargementService } from '../../../core/chargement/chargement.service';
@@ -16,8 +20,10 @@ import { codeProfil, codeZonesRisque } from '../logique/code-profil';
 import { LIBELLE_NIVEAU, NIVEAUX, type ProfilRayons, anneauxDuNiveau } from '../logique/profil';
 import { ZONES_RISQUE_ZOOM_LISIBLE } from '../logique/zooms';
 import {
-  type TeintesZones, basculerCouchesZones, poserCouchesZones, repeindreCouchesZones,
-} from './couches-zones';
+  ID_CERCLES, ID_SITES, SOURCE_APERCU, SOURCE_CERCLES, SOURCE_SITES, SOURCE_SURVOL, basculerCerclesSites,
+  cerclesApercu, cerclesDesSites, cerclesSurvol, ecrireSource, poserCouchesSites, repeindreCouchesSites,
+} from './couches-sites';
+import { basculerCouchesZones, poserCouchesZones, repeindreCouchesZones } from './couches-zones';
 
 /**
  * Les trois grappes industrielles denses (`CarteRisque.tsx:154-161`) : une vue France entière ne montre JAMAIS
@@ -62,6 +68,15 @@ const JETON_NIVEAU = { haut: 'niveau-haut', bas: 'niveau-bas', autres: 'niveau-a
  *
  * Les tuiles échappent au limiteur de `HttpClient` : la discipline (plancher de source 4, `minzoom` des
  * couches 7 et 10, préparation une fois par code) est donc ICI.
+ *
+ * ── LES SITES (T8, `couches-sites.ts`) ────────────────────────────────────
+ *
+ * 4. Les points viennent de `/api/map/risques-industriels` sur la bbox VISIBLE (`chargerParCadre` : anti-rebond
+ *    350 ms, requête précédente annulée, `limite=800`), rechargés quand `gravites` ou `natures` changent ; jamais
+ *    avant que la carte existe, donc jamais la France entière.
+ * 5. Les cercles du site par site et 6. l'aperçu de rayon DÉRIVENT des sites déjà chargés ; le survol aussi, dans
+ *    un écouteur de couche. Aucun de ces trois dessins ne fait de requête.
+ * Les couches de sites sont posées au `load`, AVANT les zones, qui s'insèrent dessous.
  */
 @Component({
   selector: 'mg-carte-risque',
@@ -82,7 +97,7 @@ const JETON_NIVEAU = { haut: 'niveau-haut', bas: 'niveau-bas', autres: 'niveau-a
       <mg-legende class="absolute bottom-2.5 left-2.5 z-[2]">
         <mg-legende-niveaux [niveaux]="niveauxLegende()" />
         <div class="mt-0.5 text-[9.5px] leading-[1.5] text-tertiary">
-          Trait plein : périmètre publié par l’État. Tireté : rayon que nous calculons.
+          Trait plein : périmètre publié par l’État. Tireté : rayon que nous calculons.{{ texteNbSites() }}
         </div>
       </mg-legende>
       <!-- Sous le seuil LISIBLE et non sous le plancher : entre z4 et z7 la carte ne peint rien, et sans ce bandeau
@@ -99,7 +114,7 @@ const JETON_NIVEAU = { haut: 'niveau-haut', bas: 'niveau-bas', autres: 'niveau-a
         </div>
       }
     </mg-carte>
-    @if (erreurCarte() ?? erreurZones(); as message) {
+    @if (erreurCarte() ?? erreurZones() ?? erreurSites(); as message) {
       <p role="alert" class="absolute right-2.5 bottom-[34px] z-[3] m-0 max-w-[300px] rounded-lg border-fin border-danger/25 bg-card-overlay px-[11px] py-[7px] text-[11px] leading-[1.5] text-danger">
         {{ message }}
       </p>
@@ -111,18 +126,20 @@ export class CarteRisqueComponent {
   readonly profil = input.required<ProfilRayons>();
   /** Natures de risque retenues, vide = toutes : elles entrent dans la clé de cache des zones. */
   readonly natures = input<readonly string[]>([]);
-  /** Niveaux réglementaires retenus — les sites (T8). */
+  /** Niveaux réglementaires retenus : ils filtrent les SITES chargés (`gravites=`). */
   readonly gravites = input<readonly string[]>([]);
-  /** Zones fusionnées (défaut) ou un cercle par site (T8) : ici, la seule visibilité des couches de zones. */
+  /** Zones fusionnées (défaut), ou un cercle tireté par site et par anneau — les couches de zones sont alors masquées. */
   readonly fusionner = input(true);
-  /** Le rayon en cours de glissement d'une réglette — les cercles d'aperçu (T8). */
+  /** Le rayon en cours de glissement d'une réglette — les cercles d'aperçu, sans requête. */
   readonly apercu = input<ApercuRayon | null>(null);
   /** L'instance MapLibre, à son premier `load` — pour la liaison des caméras (T15). */
   readonly carte = output<maplibregl.Map>();
 
   private readonly api = inject(ZonesRisqueApi);
+  private readonly fabriquePopup = inject(FABRIQUE_POPUP);
+  /** UNE palette pour les zones et les sites : une seule lecture du CSS par bascule de thème. */
   private readonly teintes = inject(CouleursService).palette({
-    haut: 'niveau-haut', bas: 'niveau-bas', autres: 'niveau-autres', halo: 'halo-carte',
+    haut: 'niveau-haut', bas: 'niveau-bas', autres: 'niveau-autres', halo: 'halo-carte', contourPoint: 'contour-point',
   });
 
   protected readonly vueInitiale = VUE_INITIALE_RISQUE;
@@ -133,6 +150,21 @@ export class CarteRisqueComponent {
   protected readonly preparation = signal(false);
   protected readonly erreurCarte = signal<string | null>(null);
   protected readonly erreurZones = signal<string | null>(null);
+  protected readonly erreurSites = signal<string | null>(null);
+
+  /**
+   * Les sites de la dernière vue chargée — la source des cercles du site par site et de l'aperçu, qu'on ne
+   * redemande jamais. Un NOUVEL objet à chaque chargement : deux vues voisines au même nombre de sites
+   * redessinent quand même leurs cercles (React tenait un compteur `versionSites` pour la même raison).
+   */
+  private readonly sites = signal<GeoJSON.FeatureCollection | null>(null, { equal: () => false });
+  /** « N sites affichés » ; vide tant qu'aucune vue n'est arrivée (React : `nSites === null`). */
+  protected readonly texteNbSites = computed(() => {
+    const fc = this.sites();
+    return Array.isArray(fc?.features) ? ` · ${formaterNombre(fc.features.length)} sites affichés` : '';
+  });
+  /** Formes SÉRIALISÉES des filtres de sites : un nouveau tableau au même contenu ne relance aucun chargement. */
+  private readonly cleGravites = computed(() => this.gravites().join(','));
 
   private readonly instance = signal<maplibregl.Map | null>(null);
   /** La clé du profil SEUL : la route ne relit qu'un profil, les natures voyagent à part. */
@@ -176,20 +208,72 @@ export class CarteRisqueComponent {
       untracked(() => this.poser(carte, code));
     });
 
-    // 2. Le thème change → on repeint. `carte` d'abord : la palette n'est lue qu'une fois la carte là.
+    // 2. Le thème change → on repeint zones ET sites. `carte` d'abord : la palette n'est lue qu'une fois la carte là.
     effect(() => {
       const carte = this.instance();
       if (!carte) return;
       const t = this.teintes();
-      untracked(() => repeindreCouchesZones(carte, t));
+      untracked(() => {
+        repeindreCouchesZones(carte, t);
+        repeindreCouchesSites(carte, t);
+      });
     });
 
-    // 3. « Lecture des zones » → visibilité seule.
+    // 3. « Lecture des zones » → visibilité seule : les zones OU les cercles du site par site.
     effect(() => {
       const carte = this.instance();
       const visible = this.fusionner();
       if (!carte) return;
-      untracked(() => basculerCouchesZones(carte, visible));
+      untracked(() => {
+        basculerCouchesZones(carte, visible);
+        basculerCerclesSites(carte, !visible);
+      });
+    });
+
+    // 4. Les sites de la bbox VISIBLE : au départ puis à chaque `moveend`, après 350 ms de calme, la requête
+    //    précédente ANNULÉE (`chargerParCadre`). Relancé quand les niveaux ou les natures changent — jamais sur le
+    //    thème (React le faisait : une requête de plus à chaque bascule, pour les mêmes points).
+    effect((surNettoyage) => {
+      const carte = this.instance();
+      const gravites = this.cleGravites();
+      const natures = this.cleNatures();
+      if (!carte) return;
+      const arreter = untracked(() => chargerParCadre(
+        carte,
+        (b) => this.api.sites(bboxEnParametre(b), {
+          gravites: gravites ? gravites.split(',') : [],
+          natures: natures ? natures.split(',') : [],
+        }),
+        (fc) => {
+          this.erreurSites.set(null);
+          ecrireSource(carte, SOURCE_SITES, fc);
+          this.sites.set(fc);
+        },
+        // React se taisait (« une carte sans ses points reste lisible ») : on garde les points précédents, mais on
+        // DIT que la vue n'a pas pu être rechargée.
+        { surEchec: (e) => this.erreurSites.set(messageErreurApi(e)) },
+      ));
+      surNettoyage(arreter);
+    });
+
+    // 5. Les cercles du site par site, dérivés des sites DÉJÀ chargés — rien n'est construit tant que les zones
+    //    sont fusionnées : 400 cercles de 64 segments pour une couche masquée, reconstruits à chaque panoramique.
+    effect(() => {
+      const carte = this.instance();
+      const fusionner = this.fusionner();
+      const sites = this.sites();
+      const profil = this.profil();
+      if (!carte) return;
+      untracked(() => ecrireSource(carte, SOURCE_CERCLES, fusionner ? [] : cerclesDesSites(sites, profil)));
+    });
+
+    // 6. L'aperçu pendant le glissement d'une réglette : un cercle par site au rayon réglé, `null` → vidé.
+    effect(() => {
+      const carte = this.instance();
+      const apercu = this.apercu();
+      const sites = this.sites();
+      if (!carte) return;
+      untracked(() => ecrireSource(carte, SOURCE_APERCU, apercu ? cerclesApercu(sites, apercu) : []));
     });
   }
 
@@ -198,9 +282,44 @@ export class CarteRisqueComponent {
     this.instance()?.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 40, duration: 800 });
   }
 
+  /**
+   * La carte est chargée : les couches de sites sont posées TOUT DE SUITE (sources vides), avant les zones — qui
+   * s'insèrent dessous (`avant: ID_CERCLES`). Les écoutes de couche sont posées UNE fois : MapLibre les garde à
+   * travers les `setData`, et la carte n'est jamais recréée.
+   */
   protected surPrete(carte: maplibregl.Map): void {
+    poserCouchesSites(carte, this.teintes(), !this.fusionner());
+    this.ecouterSites(carte);
     this.instance.set(carte);
     this.carte.emit(carte);
+  }
+
+  /**
+   * Clic → popup ; survol → anneaux du site, curseur ; sortie → effacés. AUCUNE requête : position et niveau sont
+   * dans le GeoJSON déjà chargé, les rayons dans le profil COURANT (lu à chaque mouvement, comme `profilRef`).
+   */
+  private ecouterSites(carte: maplibregl.Map): void {
+    // Au clic et non au survol : sur une grappe dense les points se touchent, un survol ferait clignoter l'écran.
+    carte.on('click', ID_SITES, (e: maplibregl.MapLayerMouseEvent) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      const p = (f.properties ?? {}) as Record<string, unknown>;
+      // Statut · ville · nature, dans l'ordre de React (`CarteRisque.tsx:666`) ; `textContent`, jamais du HTML.
+      const details = [p['statut_seveso'], p['ville'], p['libelle_nature']].map((v) => (v ? String(v) : null));
+      this.fabriquePopup({ closeButton: true, maxWidth: '260px' })
+        .setLngLat(e.lngLat)
+        .setDOMContent(contenuPopup(String(p['nom'] ?? 'Site sans nom'), details))
+        .addTo(carte);
+    });
+    carte.on('mousemove', ID_SITES, (e: maplibregl.MapLayerMouseEvent) => {
+      const f = e.features?.[0];
+      if (f) ecrireSource(carte, SOURCE_SURVOL, cerclesSurvol(f, this.profil()));
+    });
+    carte.on('mouseenter', ID_SITES, () => { carte.getCanvas().style.cursor = 'pointer'; });
+    carte.on('mouseleave', ID_SITES, () => {
+      carte.getCanvas().style.cursor = '';
+      ecrireSource(carte, SOURCE_SURVOL, []);
+    });
   }
 
   private listeNatures(): string[] {
@@ -245,6 +364,8 @@ export class CarteRisqueComponent {
       teintes: this.teintes(),
       profil: this.profil(),
       visible: this.fusionner(),
+      // SOUS les sites : recréées à un changement de profil, les zones recouvriraient sinon points et cercles.
+      avant: carte.getLayer(ID_CERCLES) ? ID_CERCLES : undefined,
     });
   }
 }

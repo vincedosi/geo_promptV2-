@@ -15,3 +15,21 @@ export const FABRIQUE_CARTE = new InjectionToken<FabriqueCarte>('FABRIQUE_CARTE'
   providedIn: 'root',
   factory: () => (options) => new maplibregl.Map(options),
 });
+
+/** Ce qu'une popup de carte doit savoir faire ici : la surface de `maplibregl.Popup` employée par le projet. */
+export interface PopupCarte {
+  setLngLat(lngLat: maplibregl.LngLatLike): PopupCarte;
+  setDOMContent(contenu: Node): PopupCarte;
+  addTo(carte: maplibregl.Map): PopupCarte;
+}
+
+export type FabriquePopup = (options: maplibregl.PopupOptions) => PopupCarte;
+
+/**
+ * Qui crée une popup. Même raison que `FABRIQUE_CARTE` : sans WebGL, les tests fournissent une popup factice et
+ * relisent son contenu. La popup vit DANS le conteneur de la carte, donc dans la racine d'ombre (jamais un portail).
+ */
+export const FABRIQUE_POPUP = new InjectionToken<FabriquePopup>('FABRIQUE_POPUP', {
+  providedIn: 'root',
+  factory: () => (options) => new maplibregl.Popup(options),
+});

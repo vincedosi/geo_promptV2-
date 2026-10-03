@@ -96,6 +96,9 @@ export class CarteFactice {
     return this;
   }
   isStyleLoaded(): boolean { return this.styleCharge; }
+  /** Le canevas, pour le curseur posé au survol d'une couche. */
+  private readonly canevas = { style: { cursor: '' } };
+  getCanvas() { return this.canevas; }
   setPaintProperty(couche: string, propriete: string, valeur: unknown): this {
     this.peintures.push({ couche, propriete, valeur });
     return this;

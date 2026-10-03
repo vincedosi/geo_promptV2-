@@ -180,6 +180,9 @@
        continue. */
     --contour-carte: rgba(255, 255, 255, 0.16);
     --halo-carte:    rgba(0, 0, 0, 0.75);
+    /* Cerne des points de site a risque : la valeur de CONTOUR_POINT
+       (lib/carte/palette-risques.ts), lue par l'interface Angular. Inverse. */
+    --contour-point: rgba(255,255,255,0.9);
 
     --sidebar-width: 240px;
 
@@ -359,6 +362,7 @@
        contour s'inverse : du noir translucide sur un fond clair. */
     --contour-carte: rgba(0, 0, 0, 0.22);
     --halo-carte:    rgba(255, 255, 255, 0.85);
+    --contour-point: rgba(26,26,26,0.85);
 
     /* Overlay flottant (light) */
     --card-overlay: rgba(248, 248, 248, 0.90);

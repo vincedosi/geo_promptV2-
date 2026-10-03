@@ -41,6 +41,7 @@ async function ouvrir(url = '/risques') {
       } },
       { provide: ZonesRisqueApi, useValue: {
         courbe: () => NEVER,
+        sites: () => NEVER,
         preparer: (profil: string) => { preparations.push(profil); return of({ deja_construit: true }); },
         urlTuilesZones: (profil: string) => `http://api/tiles/zones-risque/{z}/{x}/{y}?profil=${profil}`,
       } },

@@ -266,6 +266,7 @@ teinte dit lequel, l'opacité dit combien on s'en éloigne.
 | Token | Valeur (dark) | Valeur (light) | Usage |
 |-------|---------------|----------------|-------|
 | `CONTOUR_POINT` (`lib/carte/palette-risques.ts`) | rgba(255,255,255,0.9) | rgba(26,26,26,0.85) | Cerne du point ICPE sur la carte |
+| --contour-point | rgba(255,255,255,0.9) | rgba(26,26,26,0.85) | La même valeur en jeton CSS, que l'interface Angular lit par `CouleursService` (cerne des points et cercles de survol de la carte du module risque) |
 
 **Inversé** entre thèmes, comme `--contour-carte` et `--halo-carte`. Il valait
 `rgba(255,255,255,0.9)` en dur : sur fond clair, un cerne blanc ne détoure plus
