@@ -22,10 +22,10 @@ import { IconeComponent } from '../ui/icone/icone.component';
       (click)="basculer()"
       [attr.title]="'Passer en ' + (suivant() === 'dark' ? 'mode sombre' : 'mode clair')"
       [attr.aria-label]="'Basculer le thème (actuel : ' + theme.theme() + ')'"
-      class="inline-flex size-[30px] cursor-pointer items-center justify-center rounded-[6px] border-fin border-transparent bg-transparent p-0 text-secondary transition-[background-color,border-color,color,transform] duration-150 ease-[var(--ease-hover)] hover:border-default hover:bg-elevated hover:text-primary active:scale-[0.92]"
+      class="inline-flex size-[30px] cursor-pointer items-center justify-center rounded-[6px] border-fin border-transparent bg-transparent p-0 text-secondary transition-[background-color,border-color,color,scale] duration-150 ease-[var(--ease-hover)] hover:border-default hover:bg-elevated hover:text-primary active:scale-[0.92]"
     >
       <span
-        class="inline-flex size-[15px] transition-[opacity,transform] duration-[220ms] ease-[var(--ease-out)]"
+        class="inline-flex size-[15px] transition-[opacity,rotate,scale] duration-[220ms] ease-[var(--ease-out)]"
         [class]="echange() ? 'opacity-55 -rotate-[18deg] scale-90' : 'opacity-100 rotate-0 scale-100'"
       >
         <mg-icone [nom]="theme.theme() === 'dark' ? 'soleil' : 'lune'" [taille]="15" [trait]="1.5" />

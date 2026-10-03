@@ -4,7 +4,7 @@ import { MODE_DEVELOPPEMENT } from '../core/environnement/mode-developpement';
 import { HexagoneComponent } from '../ui/hexagone/hexagone.component';
 import { IconeComponent } from '../ui/icone/icone.component';
 import { MarqueComponent } from '../ui/marque/marque.component';
-import { DISPONIBLE_PROCHAINEMENT, type EntreeNavigation, SECTIONS_NAVIGATION, SECTION_DEVELOPPEMENT } from './navigation';
+import { DISPONIBLE_PROCHAINEMENT, type EntreeNavigation, LIENS_DEVELOPPEMENT, SECTIONS_NAVIGATION } from './navigation';
 
 interface EntreeIndexee extends EntreeNavigation {
   /** Rang global, pour l'apparition échelonnée (40 ms par entrée, `AppSidebar.tsx:248-256`). */
@@ -15,11 +15,11 @@ interface EntreeIndexee extends EntreeNavigation {
  * Contenu de la barre latérale — `SidebarContent` de `components/AppSidebar.tsx:139-309`,
  * partagé comme en React entre la colonne fixe (grand écran) et le tiroir (petit écran).
  * Classes recopiées une à une de React ; seules différences, voulues :
- * - ⚠ `rounded-md` de React vaut 4 px et non 6 : `tailwind.config` le redéfinit
- *   (`calc(var(--radius) - 2px)`, `--radius` 0,375rem). Écrit ici `rounded-[4px]` ;
+ * - `rounded-md` vaut 4 px comme dans React : l'échelle des rayons est alignée dans `styles.css` ;
  * - les écrans pas encore portés sont INERTES (`aria-disabled`, infobulle
  *   « Disponible prochainement ») — rendus à l'identique, survol compris ;
- * - une section « Développement » (pages propres à Angular), hors production seulement.
+ * - des liens d'icônes vers les pages propres à Angular, dans le pied « Online » (hors production
+ *   seulement) : en section du `nav`, ils le faisaient déborder et apparaître une barre de défilement.
  * Liens RELATIFS : le `RouterLink` se résout contre la route de la coquille, donc sous le
  * préfixe de l'hôte.
  */
@@ -39,7 +39,7 @@ interface EntreeIndexee extends EntreeNavigation {
           type="button"
           aria-disabled="true"
           [attr.title]="prochainement"
-          class="group flex w-full items-center gap-2.5 rounded-[4px] border-0 bg-primary px-3 py-2 text-[12.5px] font-medium tracking-[0.03em] text-page transition-opacity duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--brand-teal-50)]"
+          class="group flex w-full items-center gap-2.5 rounded-md border-0 bg-primary px-3 py-2 text-[12.5px] font-medium tracking-[0.03em] text-page transition-opacity duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--brand-teal-50)]"
         >
           <mg-hexagone variante="cta" />
           <span class="flex-1 text-left leading-none">MAGELIAN</span>
@@ -73,7 +73,7 @@ interface EntreeIndexee extends EntreeNavigation {
                       #actif="routerLinkActive"
                       [routerLinkActiveOptions]="{ exact: !!e.exact }"
                       (click)="naviguer.emit()"
-                      class="group flex items-center gap-2.5 rounded-[4px] border-l-2 px-3 py-[9px] pl-[10px] text-[13px] font-normal transition-all duration-150 ease-[cubic-bezier(0,0,0.2,1)]"
+                      class="group flex items-center gap-2.5 rounded-md border-l-2 px-3 py-[9px] pl-[10px] text-[13px] font-normal transition-all duration-150 ease-[cubic-bezier(0,0,0.2,1)]"
                       [class]="actif.isActive ? lienActif : lienInactif"
                     >
                       <mg-icone
@@ -94,7 +94,7 @@ interface EntreeIndexee extends EntreeNavigation {
                       aria-disabled="true"
                       tabindex="0"
                       [attr.title]="prochainement"
-                      class="group flex cursor-default items-center gap-2.5 rounded-[4px] border-l-2 border-transparent px-3 py-[9px] pl-[10px] text-[13px] font-normal text-secondary transition-all duration-150 ease-[cubic-bezier(0,0,0.2,1)] hover:translate-x-[2px] hover:bg-elevated hover:text-primary"
+                      class="group flex cursor-default items-center gap-2.5 rounded-md border-l-2 border-transparent px-3 py-[9px] pl-[10px] text-[13px] font-normal text-secondary transition-all duration-150 ease-[cubic-bezier(0,0,0.2,1)] hover:translate-x-[2px] hover:bg-elevated hover:text-primary"
                     >
                       <mg-icone
                         [nom]="e.icone"
@@ -124,8 +124,26 @@ interface EntreeIndexee extends EntreeNavigation {
               <span class="relative inline-flex size-[6px] rounded-full bg-success"></span>
             </span>
             <span class="font-mono text-[11px] text-tertiary">Online</span>
+            <!-- Pages propres à Angular, en icônes (voir LIENS_DEVELOPPEMENT) : titre et nom accessible = libellé. -->
+            <span data-liens-dev class="ml-auto flex items-center gap-0.5">
+              @for (l of liensDev; track l.libelle) {
+                <a
+                  [routerLink]="l.cible"
+                  routerLinkActive
+                  #actif="routerLinkActive"
+                  [routerLinkActiveOptions]="{ exact: !!l.exact }"
+                  [attr.title]="l.libelle"
+                  [attr.aria-label]="l.libelle"
+                  (click)="naviguer.emit()"
+                  class="inline-flex size-6 items-center justify-center rounded-md transition-colors duration-150 hover:bg-elevated hover:text-primary"
+                  [class]="actif.isActive ? 'bg-overlay text-primary' : 'text-tertiary'"
+                >
+                  <mg-icone [nom]="l.icone" [taille]="14" [trait]="1.5" />
+                </a>
+              }
+            </span>
             @if (heure()) {
-              <span class="ml-auto font-mono text-[10px] text-hover">{{ heure() }}</span>
+              <span class="font-mono text-[10px] text-hover">{{ heure() }}</span>
             }
           </div>
         </div>
@@ -135,6 +153,7 @@ interface EntreeIndexee extends EntreeNavigation {
 })
 export class BarreLateraleComponent {
   protected readonly dev = inject(MODE_DEVELOPPEMENT);
+  protected readonly liensDev = LIENS_DEVELOPPEMENT;
   protected readonly prochainement = DISPONIBLE_PROCHAINEMENT;
   // États d'un lien, `AppSidebar.tsx:106-108` et `:117-120` (icône).
   protected readonly lienActif = 'bg-overlay text-primary border-primary';
@@ -148,8 +167,7 @@ export class BarreLateraleComponent {
 
   protected readonly sections = computed(() => {
     let rang = 0;
-    const toutes = this.dev ? [...SECTIONS_NAVIGATION, SECTION_DEVELOPPEMENT] : SECTIONS_NAVIGATION;
-    return toutes.map((s) => ({ section: s.section, entrees: s.entrees.map((e): EntreeIndexee => ({ ...e, rang: rang++ })) }));
+    return SECTIONS_NAVIGATION.map((s) => ({ section: s.section, entrees: s.entrees.map((e): EntreeIndexee => ({ ...e, rang: rang++ })) }));
   });
 
   /** Apparition échelonnée : faux au premier rendu, vrai à l'image suivante (`requestAnimationFrame`, comme React). */

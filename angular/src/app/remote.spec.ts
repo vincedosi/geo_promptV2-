@@ -157,14 +157,14 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     const { harness, http } = await monter();
     http.match('/api/risques/sites/compter').forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
     const racine = ombre(harness.fixture.nativeElement as HTMLElement);
-    const lien = [...racine.querySelectorAll('a')].find((a) => a.textContent?.trim() === 'Catalogue');
+    const lien = [...racine.querySelectorAll('a')].find((a) => a.getAttribute('aria-label') === 'Catalogue');
     expect(lien?.getAttribute('href')).toBe('/hote/magelian/catalogue');
     lien!.click();
     await attendre();
     await harness.fixture.whenStable();
     expect(TestBed.inject(Router).url).toBe('/hote/magelian/catalogue');
     // L'accueil (exact) ne reste pas actif sur une page enfant.
-    const accueil = [...racine.querySelectorAll('a')].find((a) => a.textContent?.trim() === 'Accueil');
+    const accueil = [...racine.querySelectorAll('a')].find((a) => a.getAttribute('aria-label') === 'Accueil');
     expect(accueil?.getAttribute('href')).toBe('/hote/magelian');
     expect(accueil?.classList.contains('bg-overlay')).toBe(false);
     expect(lien!.classList.contains('bg-overlay')).toBe(true);

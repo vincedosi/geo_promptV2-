@@ -69,20 +69,19 @@ export const SECTIONS_NAVIGATION: readonly SectionNavigation[] = [
 ];
 
 /**
- * Pages propres à Angular (pas d'équivalent React), affichées SEULEMENT hors
- * production (`MODE_DEVELOPPEMENT`), comme le pied « Online » de React.
+ * Liens vers les pages propres à Angular (pas d'équivalent React), affichés
+ * SEULEMENT hors production (`MODE_DEVELOPPEMENT`), en icônes dans le pied
+ * « Online » : une section de plus dans le `nav` le faisait déborder et
+ * apparaître une barre de défilement que React n'a pas (mesuré 1440 × 900).
  * L'accueil y figure parce que React n'a aucune entrée vers `/dashboard` : en
  * production, l'accueil n'est atteint que par la racine de la remote (menu du
  * shell), exactement comme `/dashboard` côté React.
  */
-export const SECTION_DEVELOPPEMENT: SectionNavigation = {
-  section: 'Développement',
-  entrees: [
-    { href: '', libelle: 'Accueil', icone: 'hexagone', cible: './', exact: true },
-    { href: '', libelle: 'Catalogue', icone: 'calques', cible: 'catalogue' },
-    { href: '', libelle: 'Essai carte', icone: 'carte', cible: 'essai-carte' },
-  ],
-};
+export const LIENS_DEVELOPPEMENT: readonly { libelle: string; icone: NomIcone; cible: string; exact?: boolean }[] = [
+  { libelle: 'Accueil', icone: 'hexagone', cible: './', exact: true },
+  { libelle: 'Catalogue', icone: 'calques', cible: 'catalogue' },
+  { libelle: 'Essai carte', icone: 'carte', cible: 'essai-carte' },
+];
 
 /** Libellé de l'infobulle d'une entrée inerte (et du bouton « MAGELIAN »). */
 export const DISPONIBLE_PROCHAINEMENT = 'Disponible prochainement';

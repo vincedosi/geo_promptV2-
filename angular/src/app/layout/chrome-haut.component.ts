@@ -5,8 +5,8 @@ import { BasculeThemeComponent } from './bascule-theme.component';
 /**
  * `components/layout/TopRightChrome.tsx` porté : bascule de thème puis badge de
  * session, `gap 8px`, `padding 8px 12px`. React le pose en `position: fixed`
- * (haut-droite de la fenêtre, z 200) ; ici la COQUILLE le place en `absolute`
- * dans son `main` (interdit de l'isolation : un élément fixe se positionnerait
+ * (haut-droite de la fenêtre, z 200) ; ici la COQUILLE le place dans une rangée
+ * `sticky` de hauteur nulle, en tête de son conteneur défilant (`fixed` interdit de l'isolation : un élément fixe se positionnerait
  * sur la fenêtre de l'HÔTE, par-dessus son menu).
  */
 @Component({

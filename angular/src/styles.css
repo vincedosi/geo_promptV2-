@@ -41,6 +41,11 @@
   --color-danger: var(--danger);
   --color-warning: var(--warning);
   --color-success: var(--success);
+  /* Échelle des rayons de React (tailwind.config.ts:88-90, `--radius` 0,375rem = 6 px) :
+     lg 6 px, md 4 px, sm 2 px — et non 8/6/4 comme Tailwind 4 par défaut. */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }

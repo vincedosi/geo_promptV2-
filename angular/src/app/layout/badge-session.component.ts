@@ -151,7 +151,7 @@ type Menu = 'org' | 'utilisateur';
           <button
             type="button"
             (click)="deconnecter()"
-            class="w-full cursor-pointer rounded-[4px] border-0 bg-transparent px-2 py-1.5 text-left font-sans text-[11px] text-tertiary transition-colors duration-150 ease-[var(--ease-hover)] hover:bg-[color-mix(in_srgb,var(--danger)_6%,transparent)] hover:text-danger"
+            class="w-full cursor-pointer rounded-md border-0 bg-transparent px-2 py-1.5 text-left font-sans text-[11px] text-tertiary transition-colors duration-150 ease-[var(--ease-hover)] hover:bg-[color-mix(in_srgb,var(--danger)_6%,transparent)] hover:text-danger"
           >Deconnexion</button>
         </div>
       }

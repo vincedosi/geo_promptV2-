@@ -76,20 +76,23 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     expect(el.querySelector('mg-marque + [data-filet]')).not.toBeNull();
   });
 
-  it('hors production : section « Développement » (liens RELATIFS) et pied « Online »', async () => {
+  it('hors production : liens de développement en icônes dans le pied (RELATIFS), pas de section dans le nav', async () => {
     const el = await rendre({ dev: true });
-    expect(titres(el).at(-1)).toBe('Développement');
-    const liens = [...el.querySelectorAll('[data-section="Développement"] a')];
-    expect(liens.map((a) => texte(a.querySelector('span')))).toEqual(['Accueil', 'Catalogue', 'Essai carte']);
+    expect(titres(el)).not.toContain('Développement');
+    expect(el.querySelectorAll('nav a').length).toBe(15);
+    const liens = [...el.querySelectorAll('[data-pied] [data-liens-dev] a')];
+    expect(liens.map((a) => a.getAttribute('aria-label'))).toEqual(['Accueil', 'Catalogue', 'Essai carte']);
+    expect(liens.map((a) => a.getAttribute('title'))).toEqual(['Accueil', 'Catalogue', 'Essai carte']);
     expect(liens.map((a) => a.getAttribute('href'))).toEqual(['/', '/catalogue', '/essai-carte']);
     for (const a of liens) expect(a.hasAttribute('aria-disabled')).toBe(false);
     expect(texte(el.querySelector('[data-pied]'))).toMatch(/^Online/);
   });
 
-  it('en production : ni section « Développement » ni pied « Online »', async () => {
+  it('en production : ni liens de développement ni pied « Online »', async () => {
     const el = await rendre({ dev: false });
     expect(titres(el)).not.toContain('Développement');
     expect(el.querySelector('[data-pied]')).toBeNull();
+    expect(el.querySelector('[data-liens-dev]')).toBeNull();
     expect(el.textContent).not.toContain('Online');
   });
 

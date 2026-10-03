@@ -86,12 +86,14 @@ describe('CoquilleComponent — AppSidebar + TopRightChrome + MainPadding', () =
     expect(page.parentElement!.className).toContain('p-8');
   });
 
-  it('chrome haut-droite : en `absolute` dans le `main`, jamais `fixed`', async () => {
+  it('chrome haut-droite : rangée `sticky` de hauteur nulle dans le défilement, jamais `fixed`', async () => {
     const { el } = await monter();
-    const chrome = el.querySelector('main mg-chrome-haut')!;
+    const chrome = el.querySelector('main .overflow-auto > .sticky > mg-chrome-haut')!;
     expect(chrome).not.toBeNull();
-    expect(chrome.className).toContain('absolute');
-    expect(chrome.className).not.toMatch(/(^|\s)fixed(\s|$)/);
+    const rangee = chrome.parentElement!;
+    expect(rangee.className).toContain('sticky');
+    expect(rangee.className).toContain('h-0');
+    expect(rangee.className).not.toMatch(/(^|\s)fixed(\s|$)/);
   });
 
   it('petit écran : le bouton Menu (md:hidden) ouvre le tiroir, et le focus y entre', async () => {
@@ -156,7 +158,7 @@ describe('CoquilleComponent — AppSidebar + TopRightChrome + MainPadding', () =
     const { el, stable, harness } = await monter();
     declencheur(el).click();
     await stable();
-    const lien = [...tiroir(el)!.querySelectorAll('a[href]')].find((a) => a.textContent?.trim() === 'Catalogue') as HTMLAnchorElement;
+    const lien = [...tiroir(el)!.querySelectorAll('a[href]')].find((a) => a.getAttribute('aria-label') === 'Catalogue') as HTMLAnchorElement;
     lien.click();
     await stable();
     expect(TestBed.inject(Router).url).toBe('/catalogue');

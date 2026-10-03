@@ -27,9 +27,10 @@ const FOCUSABLES = 'a[href], button:not([disabled]), [tabindex="0"]';
  *
  * - Grand écran (≥ 768 px) : barre de 240 px à gauche, dans le flux (React la
  *   pose en `fixed` : interdit ici, un élément fixe se positionnerait sur la
- *   fenêtre de l'HÔTE). Le contenu défile dans le `main`, qui porte le chrome
- *   haut-droite en `absolute` — il reste donc en place pendant le défilement,
- *   comme le `fixed` de React.
+ *   fenêtre de l'HÔTE). Le contenu défile dans un conteneur dont la
+ *   première ligne, collante et de hauteur nulle, porte le chrome haut-droite :
+ *   il reste en place pendant le défilement et s'arrête avant la barre de
+ *   défilement, comme le `fixed` de React.
  * - Petit écran : bouton Menu en haut à gauche, qui ouvre la barre dans un
  *   TIROIR (la `Sheet` Radix de React) rendu DANS l'arbre : voile, Échap, clic
  *   extérieur, bouton Fermer, piège de Tab, focus rendu au bouton Menu.
