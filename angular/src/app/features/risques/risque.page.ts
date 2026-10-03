@@ -9,6 +9,8 @@ import { FilEtapesComponent } from '../../ui/fil-etapes/fil-etapes.component';
 import { IconeComponent } from '../../ui/icone/icone.component';
 import { PerimeDirective } from '../../ui/perime/perime.directive';
 import { VueCartesComponent } from './cartes/vue-cartes.component';
+import { EtapeRayonComponent } from './etapes/rayon/etape-rayon.component';
+import { PanneauSitesComponent } from './etapes/sites/panneau-sites.component';
 import { BandeauKpiRisqueComponent } from './commandes/bandeau-kpi-risque.component';
 import { BarreCommuneComponent } from './commandes/barre-commune.component';
 import { PanneauProfilComponent } from './commandes/panneau-profil.component';
@@ -51,9 +53,9 @@ const LARGEUR_PANNEAU_DEFAUT = 480;
 @Component({
   selector: 'mg-risque',
   imports: [
-    BandeauKpiRisqueComponent, BarreCommuneComponent, BarreProgressionComponent, FilArianeComponent,
-    FilEtapesComponent, IconeComponent, PanneauProfilComponent, PerimeDirective, RegletteRayonsComponent,
-    ResumeProfilComponent, VueCartesComponent,
+    BandeauKpiRisqueComponent, BarreCommuneComponent, BarreProgressionComponent, EtapeRayonComponent,
+    FilArianeComponent, FilEtapesComponent, IconeComponent, PanneauProfilComponent, PanneauSitesComponent,
+    PerimeDirective, RegletteRayonsComponent, ResumeProfilComponent, VueCartesComponent,
   ],
   // Services d'ÉTAT fournis par l'écran (A13) : détruits avec lui, requêtes en cours comprises. T6-T16 y ajoutent les leurs.
   providers: [ChargementService, EtatRisqueService, DonneesRisqueService],
@@ -91,6 +93,12 @@ export class RisquePage {
       titre: `${s.niveau === 'region' ? 'Région' : 'Département'} ${s.code}`,
     })),
   ]);
+  /**
+   * Le territoire regardé, nommé pour les panneaux — DEUX formes, comme React : ① dit « sur la France entière »
+   * (`AnalysePopulationOverlay.tsx:1333`), ② « France entière, carroyage INSEE 200 m » (l.1369).
+   */
+  protected readonly libelleTerritoire = computed(() => this.donnees.chemin().at(-1)?.nom ?? 'la France entière');
+  protected readonly nomPerimetre = computed(() => this.donnees.chemin().at(-1)?.nom ?? 'France entière');
   /** La maille LISTÉE, en minuscules comme `FilAriane` (elements.tsx:119). */
   protected readonly precisionAriane = computed(() => LIBELLE_DIMENSION[this.donnees.dimension()].toLowerCase());
 

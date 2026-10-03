@@ -24,7 +24,7 @@ class ObservateurFactice {
 const attendre = () => new Promise((r) => setTimeout(r, 0));
 
 /** L'écran sous un vrai routeur de test, avec une carte factice qui compte ses créations. */
-async function ouvrir(url = '/risques') {
+async function ouvrir(url = '/risques', reponses: { compter?: () => unknown; bandes?: () => unknown } = {}) {
   (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
   const cartes: CarteFactice[] = [];
   const preparations: string[] = [];
@@ -36,7 +36,7 @@ async function ouvrir(url = '/risques') {
       ]),
       // Les API du module (fournies par la route en vrai) : catalogue et référentiel répondent, les calculs jamais.
       { provide: ProfilRisqueApi, useValue: {
-        bandes: () => NEVER,
+        bandes: reponses.bandes ?? (() => NEVER),
         cibles: () => of({ cibles: [{ code: 'pop_65_plus', libelle: '65 ans et plus', famille: 'Âge' }] }),
       } },
       { provide: ZonesRisqueApi, useValue: {
@@ -48,7 +48,7 @@ async function ouvrir(url = '/risques') {
       { provide: CouleursService, useValue: {
         palette: (j: Record<string, string>) => signal(Object.fromEntries(Object.keys(j).map((k) => [k, `rgb(${k.length}, 0, 0)`]))),
       } },
-      { provide: SitesRisqueApi, useValue: { compter: () => NEVER } },
+      { provide: SitesRisqueApi, useValue: { compter: reponses.compter ?? (() => NEVER) } },
       { provide: ReferentielApi, useValue: {
         geo: () => of({ regions: [{ code_region: '93', nom_region: 'Provence-Alpes-Côte d’Azur', depts: [{ code_dept: '13', nom_dept: 'Bouches-du-Rhône' }] }] }),
         contours: () => NEVER,
@@ -274,6 +274,51 @@ describe('RisquePage', () => {
     chip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     await stabiliser(harness);
     expect(router.url).toBe('/');
+  });
+
+  it('T9 : ① lit le compte PARTAGÉ — un seul appel, le même chiffre que le bandeau ; « — » puis le message pendant le comptage', async () => {
+    let appels = 0;
+    const { el } = await ouvrir('/risques', {
+      compter: () => { appels += 1; return of({ retenus: 1259, total: 1259, par_nature: { 'Toxicité aiguë': 1259 } }); },
+    });
+    const panneau = el().querySelector('[data-panneau="sites"] mg-panneau-sites')!;
+    const n = (s: string | null | undefined) => (s ?? '').replace(/\s/g, ' ').trim();
+    expect(n(panneau.querySelector('[data-role="valeur"]')?.textContent)).toBe('1 259 / 1 259');
+    expect(panneau.textContent).toContain('sur la France entière — le total porte le même territoire');
+    const bandeau = [...el().querySelectorAll('mg-bandeau-kpi-risque [data-role="valeur"]')].map((v) => n(v.textContent));
+    expect(bandeau[2]).toBe('1 259 / 1 259');
+    expect(appels).toBe(1);
+  });
+
+  it('T9 : ① sans réponse affiche « Comptage des sites… », jamais un zéro', async () => {
+    const { el } = await ouvrir();
+    expect(el().querySelector('[data-panneau="sites"]')?.textContent?.trim()).toBe('Comptage des sites…');
+  });
+
+  it('T9 : ② lit les bandes PARTAGÉES — le tableau et le bandeau portent le même total ; bascule ① ↔ ② sans nouvel appel', async () => {
+    // Les bandes attendent 400 ms (anti-rebond) : on laisse passer le délai réel.
+    const delai = () => new Promise((r) => setTimeout(r, 450));
+    let appels = 0;
+    const bandes = {
+      total: 14103578, hors_zone: 26980106, n_carreaux: 215646, n_codes_postaux: 1927,
+      population_reference: 63783569, pop_unites_touchees: 63783571, unites: [],
+      par_classe: { 'bas:1': 106419, 'bas:2': 410641, 'haut:1': 526874, 'haut:2': 2337495, 'haut:3': 10482317, 'bas:pprt': 701, 'haut:pprt': 239131 },
+    };
+    const { harness, el } = await ouvrir('/risques?risque=etape%3Drayon', { bandes: () => { appels += 1; return of(bandes); } });
+    await delai();
+    await stabiliser(harness);
+    const n = (s: string | null | undefined) => (s ?? '').replace(/\s/g, ' ').replace(/ +/g, ' ').trim();
+    const total = () => [...el().querySelectorAll('[data-panneau="rayon"] [data-role="total"] span')].map((s) => n(s.textContent)).join(' ');
+    expect(total()).toBe('Total, tous niveaux 14 103 578');
+    expect(n(el().querySelector('mg-bandeau-kpi-risque [data-role="valeur"]')?.textContent)).toBe('14 103 578');
+    expect(appels).toBe(1);
+    etape(el(), 'Sites').click();
+    await stabiliser(harness);
+    etape(el(), 'Rayon').click();
+    await delai();
+    await stabiliser(harness);
+    expect(total()).toBe('Total, tous niveaux 14 103 578');
+    expect(appels).toBe(1);
   });
 
   it("T6 : la réglette du seuil haut ne touche l'URL qu'au RELÂCHEMENT ; le tiroir montre le nouveau profil", async () => {

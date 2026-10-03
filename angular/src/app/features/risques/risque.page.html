@@ -55,11 +55,19 @@
   <aside class="flex min-w-0 shrink-0 flex-col overflow-hidden"
          [style.width.px]="panneauReplie() ? 0 : largeurPanneau()"
          [style.visibility]="panneauReplie() ? 'hidden' : 'visible'">
-    <div class="min-w-0 flex-1 overflow-auto px-5 py-4" [attr.data-panneau]="etat().etape">
-      <!-- Textes provisoires : les panneaux d'étape arrivent en T9 (①, ②), T11-T12 (③), T13-T14 (④), T16 (⑤). -->
+    <!-- Le panneau porte lui aussi des chiffres (décomptes de ①, bandes de ②…) : ils périment avec le bandeau. -->
+    <div class="min-w-0 flex-1 overflow-auto px-5 py-4" [attr.data-panneau]="etat().etape" [mgPerime]="donnees.perime()">
+      <!-- Textes provisoires : les panneaux d'étape arrivent en T11-T12 (③), T13-T14 (④), T16 (⑤). -->
       @switch (etat().etape) {
-        @case ('sites') { <p class="m-0 text-[13px] text-tertiary">Sites retenus — disponible prochainement.</p> }
-        @case ('rayon') { <p class="m-0 text-[13px] text-tertiary">Rayon d’influence — disponible prochainement.</p> }
+        @case ('sites') {
+          <mg-panneau-sites [compte]="donnees.compteSites().compte" [chargement]="donnees.compteSites().chargement"
+                            [libelleTerritoire]="libelleTerritoire()" />
+        }
+        @case ('rayon') {
+          <!-- L'emplacement [courbe] de mg-etape-rayon reçoit la courbe de couverture en T10. -->
+          <mg-etape-rayon [profil]="donnees.profilCalcul()" [resultat]="donnees.bandes()"
+                          [libelleCible]="donnees.libelleCible()" [nomPerimetre]="nomPerimetre()" />
+        }
         @case ('couverture') { <p class="m-0 text-[13px] text-tertiary">Couverture par territoire — disponible prochainement.</p> }
         @case ('zones') { <p class="m-0 text-[13px] text-tertiary">Jeux de zones — disponible prochainement.</p> }
         @case ('campagne') { <p class="m-0 text-[13px] text-tertiary">Campagne simulée — disponible prochainement.</p> }
