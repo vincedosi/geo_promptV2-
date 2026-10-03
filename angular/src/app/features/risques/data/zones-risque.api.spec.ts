@@ -53,4 +53,36 @@ describe('ZonesRisqueApi', () => {
     expect(api.urlTuilesZones('h1000_b 5'))
       .toBe(`${new URL(document.baseURI).origin}/api/tiles/zones-risque/{z}/{x}/{y}?profil=h1000_b%205`);
   });
+
+  it('prépare avec des natures : corps { profil, natures }', () => {
+    const { api, http } = preparer();
+    api.preparer('p', ['Explosibles']).subscribe();
+    const req = http.expectOne('/api/risques/zones/preparer');
+    expect(req.request.body).toEqual({ profil: 'p', natures: ['Explosibles'] });
+    req.flush({});
+  });
+
+  it('tuiles avec natures : suffixe &natures= encodé comme React', () => {
+    const { api } = preparer();
+    expect(api.urlTuilesZones('p', ['Toxicité aiguë', 'Explosibles']))
+      .toBe(`${new URL(document.baseURI).origin}/api/tiles/zones-risque/{z}/{x}/{y}?profil=p&natures=Toxicit%C3%A9%20aigu%C3%AB%2CExplosibles`);
+  });
+
+  it('sites avec filtres : bbox, limite, gravites, natures (ordre de CarteRisque.tsx)', () => {
+    const { api, http } = preparer();
+    api.sites('1,2,3,4', { gravites: ['seveso_haut'], natures: ['Explosibles', 'Déchets'] }).subscribe();
+    const req = http.expectOne((r) => r.url === '/api/map/risques-industriels');
+    expect(req.request.params.keys()).toEqual(['bbox', 'limite', 'gravites', 'natures']);
+    expect(req.request.params.get('natures')).toBe('Explosibles,Déchets');
+    req.flush({ type: 'FeatureCollection', features: [] });
+  });
+
+  it('courbe avec filtres : cible, gravites, natures, perim_niveau, perim_codes', () => {
+    const { api, http } = preparer();
+    api.courbe('seveso_haut,seveso_bas', { cible: 'ind', natures: ['GPL'], perimNiveau: 'departement', perimCode: '13' }).subscribe();
+    const req = http.expectOne((r) => r.url === '/api/risques/exposition/rayon');
+    expect(req.request.params.keys()).toEqual(['cible', 'gravites', 'natures', 'perim_niveau', 'perim_codes']);
+    expect(req.request.params.get('perim_codes')).toBe('13');
+    req.flush({ rayon_max_m: 0, n_sites: 0, courbes: [] });
+  });
 });

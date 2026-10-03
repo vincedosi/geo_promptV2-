@@ -12,6 +12,10 @@ import { sessionExpireeInterceptor } from './core/http/session-expiree.intercept
 import { SitesRisqueApi } from './features/risques/data/sites-risque.api';
 import { OrganisationsApi } from './features/session/data/organisations.api';
 import { ZonesRisqueApi } from './features/risques/data/zones-risque.api';
+import { ProfilRisqueApi } from './features/risques/data/profil-risque.api';
+import { ReferentielApi } from './features/risques/data/referentiel.api';
+import { JeuxZonesApi } from './features/risques/data/jeux-zones.api';
+import { SimulationApi } from './features/risques/data/simulation.api';
 import { RacineDistanteComponent } from './layout/racine-distante.component';
 
 /**
@@ -35,6 +39,10 @@ const FOURNISSEURS_DISTANTS: (Provider | EnvironmentProviders)[] = [
   ),
   SitesRisqueApi,
   ZonesRisqueApi,
+  ProfilRisqueApi,
+  ReferentielApi,
+  JeuxZonesApi,
+  SimulationApi,
   OrganisationsApi,
 ];
 
