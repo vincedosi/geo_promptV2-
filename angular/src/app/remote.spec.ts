@@ -253,8 +253,8 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     expect(racine.querySelector('mg-coquille')).toBeNull();
     expect(racine.querySelector('mg-barre-laterale')).toBeNull();
     expect(TestBed.inject(Router).url).toBe('/hote/magelian/essai-carte');
-    // Le lien de retour est RELATIF : le préfixe de montage est inconnu.
-    const retour = [...racine.querySelectorAll('a')].find((a) => a.textContent?.trim() === 'Accueil');
+    // Le lien de retour (la croix « Fermer » de l'en-tête, comme React) est RELATIF : le préfixe de montage est inconnu.
+    const retour = racine.querySelector('a[aria-label="Fermer"]');
     expect(retour?.getAttribute('href')).toBe('/hote/magelian');
     http.match(() => true);
   });

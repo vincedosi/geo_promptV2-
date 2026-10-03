@@ -256,3 +256,27 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/*
+ * Mouvement réduit, porté de app/globals.css (« Reduced motion », ~l. 1186-1205) :
+ * réduire n'est pas supprimer — on garde les fondus d'opacité et de couleur (ils
+ * aident à comprendre un changement d'état) et on retire le mouvement par
+ * transformation. Seule la partie générique est portée : les sélecteurs
+ * `.topbar-tab`, `.overlay-panel` et `.results-panel` de React n'ont pas
+ * d'équivalent ici. `*` vise les éléments de la racine d'ombre qui adopte la
+ * feuille ; `:host` garde sa propre transition de fond et de texte (G5), qui
+ * n'est déjà qu'un fondu de couleur.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 200ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+  * {
+    transition-property: opacity, color, background-color, border-color, fill, stroke !important;
+    transition-duration: 150ms !important;
+  }
+}

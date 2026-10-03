@@ -7,6 +7,8 @@ import { HttpBaseService } from '../../../core/http/http-base.service';
 export interface ReponseCourbe {
   rayon_max_m: number;
   n_sites: number;
+  /** Départements où se trouvent les sites retenus (sous-titre du KPI « sites concernés »). */
+  n_departements: number;
   courbes: { cle: string; total: number; points: { r: number; p: number; i: number }[] }[];
 }
 

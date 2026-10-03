@@ -24,7 +24,7 @@ export class CarteFactice {
   }
 
   /** Ce qu'on a posé sur la carte, dans l'ordre — pour que les tests le relisent. */
-  readonly sources = new Map<string, { spec: unknown; donnees: unknown[] }>();
+  readonly sources = new Map<string, { spec: unknown; donnees: unknown[]; tuiles: unknown[] }>();
   readonly couches: { couche: Record<string, unknown>; avant?: string }[] = [];
   readonly peintures: { couche: string; propriete: string; valeur: unknown }[] = [];
 
@@ -54,12 +54,14 @@ export class CarteFactice {
     return this.rappels.get(evt)?.size ?? 0;
   }
   addSource(id: string, spec: unknown): this {
-    this.sources.set(id, { spec, donnees: [] });
+    this.sources.set(id, { spec, donnees: [], tuiles: [] });
     return this;
   }
   getSource(id: string) {
     const s = this.sources.get(id);
-    return s ? { setData: (d: unknown) => { s.donnees.push(d); } } : undefined;
+    return s
+      ? { setData: (d: unknown) => { s.donnees.push(d); }, setTiles: (t: unknown) => { s.tuiles.push(t); } }
+      : undefined;
   }
   addLayer(couche: Record<string, unknown>, avant?: string): this {
     this.couches.push({ couche, avant });

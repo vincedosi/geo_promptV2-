@@ -39,8 +39,8 @@ describe('icones.ts reste identique à lucide-react', () => {
   });
 
   it('a comparé exactement 29 icônes (pas de passage à vide)', () => {
-    expect(entrees.length).toBe(29);
-    expect(compares).toBe(29);
+    expect(entrees.length).toBe(34);
+    expect(compares).toBe(34);
   });
 
   it('marque Feather exactement les icônes de la liste de la LICENSE', () => {

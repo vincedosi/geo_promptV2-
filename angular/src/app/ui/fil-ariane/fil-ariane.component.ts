@@ -12,7 +12,7 @@ export interface SegmentAriane {
   selector: 'mg-fil-ariane',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <nav aria-label="Fil d’Ariane" class="flex items-center gap-[7px] text-xs">
+    <nav aria-label="Fil d’Ariane" class="flex items-center gap-[7px] text-[12px]">
       @for (s of segments(); track s.cle; let i = $index, dernier = $last) {
         @if (i > 0) { <span aria-hidden="true" class="text-tertiary">&rsaquo;</span> }
         <button type="button" [disabled]="dernier" (click)="remonter.emit(i)"

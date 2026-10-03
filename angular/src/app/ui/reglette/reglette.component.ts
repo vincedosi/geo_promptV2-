@@ -23,7 +23,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output, signal } f
         @if (complement(); as c) {
           <span class="font-mono text-[11px] text-tertiary">{{ c }}</span>
         }
-        <span class="font-mono text-xs text-teal">{{ formater()(affiche()) }}</span>
+        <span class="font-mono text-[12px] text-teal">{{ formater()(affiche()) }}</span>
       </div>
       <input type="range" class="w-full accent-[var(--brand-teal)]"
              [min]="min()" [max]="max()" [step]="pas()" [value]="affiche()"

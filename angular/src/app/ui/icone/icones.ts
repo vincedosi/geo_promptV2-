@@ -38,6 +38,11 @@
  * | Map                        | carte                |
  * | ChevronDown                | chevron-bas          | Feather (MIT)
  * | ChevronUp                  | chevron-haut         | Feather (MIT)
+ * | Lock                       | cadenas              | Feather (MIT)
+ * | Unlock = LockOpen          | cadenas-ouvert       |
+ * | Maximize2                  | agrandir             |
+ * | Minimize2                  | reduire              | Feather (MIT)
+ * | Grid3x3                    | grille               |
  *
  * Pour ajouter une icône : lire `__iconNode` de `<lucide>.js`, ajouter une entrée (nom français en
  * kebab-case ; `feather: true` si le nom figure dans la liste Feather de la LICENSE de lucide-react),
@@ -342,6 +347,48 @@ export const ICONES = {
     lucide: 'chevron-up', feather: true,
     el: [
       { t: 'path', d: 'm18 15-6-6-6 6' },
+    ],
+  },
+  'cadenas': {
+    lucide: 'lock', feather: true,
+    el: [
+      { t: 'rect', width: '18', height: '11', x: '3', y: '11', rx: '2', ry: '2' },
+      { t: 'path', d: 'M7 11V7a5 5 0 0 1 10 0v4' },
+    ],
+  },
+  'cadenas-ouvert': {
+    lucide: 'lock-open',
+    el: [
+      { t: 'rect', width: '18', height: '11', x: '3', y: '11', rx: '2', ry: '2' },
+      { t: 'path', d: 'M7 11V7a5 5 0 0 1 9.9-1' },
+    ],
+  },
+  'agrandir': {
+    lucide: 'maximize-2',
+    el: [
+      { t: 'path', d: 'M15 3h6v6' },
+      { t: 'path', d: 'm21 3-7 7' },
+      { t: 'path', d: 'm3 21 7-7' },
+      { t: 'path', d: 'M9 21H3v-6' },
+    ],
+  },
+  'grille': {
+    lucide: 'grid-3x3',
+    el: [
+      { t: 'rect', width: '18', height: '18', x: '3', y: '3', rx: '2' },
+      { t: 'path', d: 'M3 9h18' },
+      { t: 'path', d: 'M3 15h18' },
+      { t: 'path', d: 'M9 3v18' },
+      { t: 'path', d: 'M15 3v18' },
+    ],
+  },
+  'reduire': {
+    lucide: 'minimize-2', feather: true,
+    el: [
+      { t: 'path', d: 'm14 10 7-7' },
+      { t: 'path', d: 'M20 10h-6V4' },
+      { t: 'path', d: 'm3 21 7-7' },
+      { t: 'path', d: 'M4 14h6v6' },
     ],
   },
 } as const satisfies Record<string, DefinitionIcone>;

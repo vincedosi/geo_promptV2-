@@ -1,78 +1,258 @@
-<!-- Plein écran, hors coquille (comme /map en React) : toute la hauteur de la racine, qui défile si l'écran est court. -->
-<div class="flex h-full flex-col overflow-auto bg-page">
-  <mg-barre-progression />
-  <!-- Pleine largeur SOUS la barre de progression, au-dessus du corps (K4). Valeurs périmées estompées pendant le chargement (K5). -->
-  @if (!erreurCourbe()) {
-    <mg-bandeau-kpi [consigne]="consigneBandeau">
-      <mg-kpi [mgPerime]="chargementCourbe()" accent libelle="habitants à moins de 5 km" [valeur]="habitants5km()"
-              note="pré-calcul carroyé INSEE, seuil haut seul" />
-      <mg-kpi [mgPerime]="chargementCourbe()" libelle="sites seveso seuil haut" [valeur]="nbSites()"
-              note="ne s’additionne pas avec la population" />
-    </mg-bandeau-kpi>
-  }
-  <div class="flex flex-1 flex-col gap-4 p-6">
-    <header class="flex items-start justify-between gap-4">
-      <div>
-        <mg-entete-page titre="Essai carte" sousTitre="Zones de risque, sites et courbe de couverture, sur les vraies données." class="mb-0!" />
-      </div>
-      <!-- Sans barre latérale, il faut un chemin de retour. Lien RELATIF : le préfixe de montage est inconnu.
-           Échafaudage de la PAGE D'ESSAI, pas un patron : les vraies routes carte/risque n'auront pas de lien « Accueil ». -->
-      <a routerLink=".." class="rounded-md border-fin border-default px-3 py-1.5 text-xs text-secondary transition-colors hover:border-hover hover:bg-elevated hover:text-primary">Accueil</a>
-    </header>
+<!--
+  Squelette de l'écran risque React à l'étape ② Rayon (AnalysePopulationOverlay.tsx:896-1320) :
+  en-tête, barre commune (deux rangées), barre de progression, bandeau KPI, puis panneau d'étape à gauche
+  et carte permanente à droite. Plein écran, hors coquille (comme /map en React) : toute la hauteur de la racine.
+-->
+<div class="flex h-full flex-col overflow-hidden bg-page">
+  <!-- ── En-tête (E2) ──────────────────────────────────────────────────── -->
+  <header class="flex items-center gap-3 border-b-fin border-subtle bg-surface px-5 py-[14px]">
+    <span aria-hidden="true" class="size-[7px] shrink-0 rounded-full bg-teal"></span>
+    <h2 class="m-0 text-[15px] font-medium text-primary">Population à risque industriel</h2>
+    <!-- DEUX fils sur cet en-tête, et ce n'est pas un doublon : celui-ci dit OÙ JE REGARDE, le suivant OÙ J'EN SUIS. -->
+    <mg-fil-ariane [segments]="segmentsAriane" precision="région" />
+    <!-- Seule l'étape ② existe sur la page d'essai : les autres arrivent au lot 3, choisir ne fait rien. -->
+    <mg-fil-etapes [etapes]="etapes" courante="rayon" />
+    <span class="font-mono text-[11px] text-tertiary">Population totale</span>
+    <!-- Le résumé du profil (ResumeProfil.tsx). L'atelier des anneaux qu'il ouvre arrive au lot 3 : puces inertes. -->
+    <div class="flex flex-wrap items-center gap-[6px]">
+      @for (l of resumeProfil().lignes; track l.libelle) {
+        <button type="button" aria-disabled="true" [attr.title]="prochainement"
+                class="inline-flex cursor-pointer items-center gap-[6px] rounded-md border-fin border-default bg-overlay px-2 py-[2px] text-[11px] text-secondary">
+          <span>{{ l.libelle }}</span>
+          <span class="font-mono text-primary">{{ l.anneaux }}</span>
+        </button>
+      }
+      @if (profil().lie) {
+        <span title="Tous les niveaux partagent les mêmes anneaux." class="text-[11px] text-teal">liés</span>
+      }
+      <span title="Les périmètres PPRT publiés par l’État forment une classe à part, avant toute bande."
+            class="font-mono text-[11px] text-tertiary">PPRT à part · {{ resumeProfil().classes }} classes</span>
+    </div>
+    <div class="flex-1"></div>
+    <!-- Exports et « Voir sur la carte » : rendus comme React, inertes sur la page d'essai. -->
+    <button type="button" aria-disabled="true" [attr.title]="prochainement"
+            class="inline-flex cursor-pointer items-center gap-[6px] rounded-lg border-fin border-default bg-transparent px-3 py-[6px] text-[12px] text-secondary">
+      <mg-icone nom="telecharger" [taille]="13" />
+      Exporter le profil
+    </button>
+    <button type="button" aria-disabled="true" [attr.title]="prochainement"
+            class="inline-flex cursor-pointer items-center gap-[6px] rounded-lg border-fin border-teal bg-transparent px-3 py-[6px] text-[12px] font-medium text-teal">
+      <mg-icone nom="carte" [taille]="13" />
+      Voir sur la carte
+    </button>
+    <!-- Fermer : retour RELATIF (le préfixe de montage est inconnu). -->
+    <a routerLink=".." aria-label="Fermer" title="Fermer"
+       class="flex cursor-pointer border-0 bg-transparent p-[6px] text-secondary">
+      <mg-icone nom="croix" [taille]="18" />
+    </a>
+  </header>
 
-    @if (erreurCarte(); as message) {
-      <p role="alert" class="text-xs text-danger">{{ message }}</p>
-    }
-    <mg-carte [cadre]="cadre" (prete)="surCartePrete($event)" (erreur)="erreurCarte.set($event)" (zoom)="zoom.set($event)"
-              class="block min-h-[320px] w-full flex-1 border-fin border-subtle">
-      <!-- Aller voir une grappe (CarteRisque.tsx:972) : 11 px, --card-overlay, bord 0,5 --border-default, rayon 6. -->
-      <div class="absolute top-2.5 left-2.5 z-[2] flex max-w-[calc(100%-100px)] flex-wrap gap-[6px]">
-        @for (g of grappes; track g.nom) {
-          <button type="button" (click)="allerA(g.bbox)"
-                  class="cursor-pointer rounded-md border-fin border-default bg-[var(--card-overlay)] px-[10px] py-[5px] text-[11px] text-secondary">{{ g.nom }}</button>
+  <!-- ── Barre commune, première rangée : ce qu'on REGARDE (E3) ─────────── -->
+  <div class="flex flex-wrap items-end gap-[18px] px-5 py-3">
+    <mg-champ libelle="Cible">
+      <!-- Le catalogue des cibles arrive au lot 3 : la page d'essai ne calcule que la population totale. -->
+      <select class="min-w-[200px] rounded-lg border-fin border-subtle bg-elevated px-[10px] py-[6px] text-[12px] text-primary">
+        <option value="ind">Population totale</option>
+      </select>
+    </mg-champ>
+    <mg-champ libelle="Lister par">
+      <div class="flex gap-1">
+        @for (m of mailles; track m) {
+          <button type="button" mgPastille [actif]="m === 'Région'" aria-disabled="true" [attr.title]="prochainement">{{ m }}</button>
         }
       </div>
-      <mg-legende class="absolute bottom-2.5 left-2.5 z-[2]">
-        <mg-legende-niveaux [niveaux]="niveauxLegende" />
-        <div class="mt-0.5 text-[9.5px] leading-[1.5] text-tertiary">
-          Trait plein : périmètre publié par l’État. Tireté : rayon que nous calculons.{{ texteNbSites() }}
-        </div>
-      </mg-legende>
-      @if (sousLeSeuilLisible()) {
-        <div class="absolute top-[50px] left-2.5 z-[2] max-w-[300px] rounded-md border-fin border-warning/25 bg-warning/12 px-[11px] py-[7px] text-[11px] leading-[1.5] text-warning">
-          Zoomez pour voir les zones : à cette échelle, un rayon de 2 km fait moins d’un pixel.
-        </div>
+    </mg-champ>
+    <mg-champ libelle="Territoire">
+      <!-- La courbe est nationale : seul « France entière » est proposé sur la page d'essai. -->
+      <select class="min-w-[226px] rounded-lg border-fin border-subtle bg-elevated px-[10px] py-[6px] text-[12px] text-primary">
+        <option value="">France entière</option>
+      </select>
+    </mg-champ>
+    <!-- LE RAYON : une réglette par niveau (RegletteRayons.tsx). Le calcul ne part qu'au RELÂCHEMENT. -->
+    <div class="flex flex-wrap items-end gap-4">
+      @for (r of reglettes(); track r.niveau) {
+        <mg-reglette [libelle]="r.libelle" [valeur]="r.bord" [min]="rayonMin" [max]="rayonMax" [pas]="pasRayon"
+                     [formater]="libelleRayon" [complement]="r.interieurs" [descriptionAccessible]="r.description"
+                     (valider)="validerBord(r.niveau, $event)" />
       }
-      @if (zonesEnCours()) {
-        <!-- Pastille de préparation (CarteRisque.tsx:1067) : 10,5 px secondaire, --card-overlay, bord 0,5 subtil, rayon 6. -->
-        <div class="absolute top-2.5 right-[56px] z-[2] rounded-md border-fin border-subtle bg-[var(--card-overlay)] px-[10px] py-[6px] text-[10.5px] text-secondary">
-          Découpage des zones…
+      <button type="button" (click)="basculerCadenas()" [attr.aria-pressed]="profil().lie"
+              [attr.title]="profil().lie
+                ? 'Les niveaux partagent les mêmes anneaux. Cliquez pour leur en donner de propres — c’est ce qui permet le bidding différencié.'
+                : 'Donner à tous les niveaux les anneaux du seuil haut, pour comparer à périmètre égal. ⚠ Les anneaux propres du seuil bas sont alors écrasés, et les délier ne les restaure pas.'"
+              class="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent px-0 pt-0 pb-[6px] text-[11px]"
+              [class.text-teal]="profil().lie" [class.text-tertiary]="!profil().lie">
+        <mg-icone [nom]="profil().lie ? 'cadenas' : 'cadenas-ouvert'" [taille]="12" />
+        {{ profil().lie ? 'niveaux liés' : 'lier les niveaux' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Barre commune, seconde rangée : ce qu'on RETIENT ─────────────────── -->
+  <!-- Filtres rendus dans l'état par défaut de React, INERTES : la page d'essai ne les branche pas (lot 3). -->
+  <div class="flex flex-wrap items-center gap-5 border-b-fin border-subtle px-5 pt-0 pb-3">
+    <mg-champ libelle="Nature de la zone">
+      <div class="flex gap-1">
+        @for (m of modesZone; track m.libelle) {
+          <button type="button" mgPastille [actif]="true" aria-disabled="true" [attr.title]="prochainement">{{ m.libelle }}</button>
+        }
+      </div>
+    </mg-champ>
+    <mg-champ libelle="Niveau réglementaire">
+      <div class="flex flex-wrap gap-1">
+        @for (n of niveauxReglementaires; track n) {
+          <button type="button" mgPastille [actif]="niveauxRetenus.has(n)" aria-disabled="true" [attr.title]="prochainement">{{ n }}</button>
+        }
+      </div>
+    </mg-champ>
+    <mg-champ libelle="Lecture des zones">
+      <div class="flex gap-1">
+        <button type="button" mgPastille [actif]="true" aria-disabled="true" [attr.title]="prochainement">Fusionnées</button>
+        <button type="button" mgPastille [actif]="false" aria-disabled="true" [attr.title]="prochainement">Site par site</button>
+      </div>
+    </mg-champ>
+  </div>
+
+  <!-- La barre de progression ENTRE les réglages et les chiffres (E4) : le geste du dessus déclenche, les chiffres du dessous attendent. -->
+  <mg-barre-progression />
+
+  <!-- Le bandeau reste en place sur un échec de la courbe : ses tuiles affichent « — », comme React. Valeurs périmées estompées (K5). -->
+  <mg-bandeau-kpi [consigne]="consigneBandeau">
+    <mg-kpi [mgPerime]="chargementCourbe()" accent [libelle]="libelleBandeau()" [valeur]="habitantsBandeau()"
+            note="pré-calcul carroyé INSEE, seuil haut seul" />
+    <mg-kpi [mgPerime]="chargementCourbe()" libelle="sites seveso seuil haut" [valeur]="nbSites()"
+            note="ne s’additionne pas avec la population" />
+  </mg-bandeau-kpi>
+
+  <!-- ── Corps (E6) : panneau de l'étape à gauche, carte permanente à droite ── -->
+  <div class="flex min-h-0 flex-1">
+    <!-- `visibility` et non `display: none` : replié, le panneau reste monté (React). -->
+    <aside class="flex min-w-0 shrink-0 flex-col overflow-hidden"
+           [style.width.px]="carteSeule() ? 0 : largeurPanneau()"
+           [style.visibility]="carteSeule() ? 'hidden' : 'visible'">
+      <div [mgPerime]="chargementCourbe()" class="flex min-h-0 flex-1 flex-col">
+        <div class="min-w-0 flex-1 overflow-auto px-5 py-4">
+          @if (erreurCourbe(); as message) {
+            <div class="p-7 text-[13px] leading-[1.6] text-secondary">
+              <p role="alert" class="m-0 text-danger">{{ message }}</p>
+            </div>
+          } @else if (lecture(); as l) {
+            <!-- OngletRayonInfluence.tsx : quatre chiffres au rayon du curseur, le curseur, la courbe, sa légende. -->
+            <div class="flex flex-col">
+              <div class="flex items-end gap-[34px] px-5 pt-4 pb-3">
+                <mg-kpi [taille]="22" accent [valeur]="l.population" [libelle]="l.libelle" note="population totale · France entière" />
+                <mg-kpi [taille]="22" [valeur]="l.part" libelle="du total à 10 km" [note]="l.total" />
+                <mg-kpi [taille]="22" [valeur]="l.sites" libelle="sites concernés" [note]="l.departements" />
+                <mg-kpi [taille]="22" [valeur]="l.increment" libelle="au palier suivant" note="habitants gagnés par 100 m de plus" />
+              </div>
+              <div class="flex flex-wrap items-center gap-3 px-5 pt-0 pb-[14px]">
+                <input type="range" class="flex-1 accent-teal" [min]="100" [max]="rayonMaxCourbe()" [step]="100"
+                       [value]="rayonLecture()" (input)="lireRayon($event)" aria-label="Rayon retenu, en mètres" />
+                <span class="min-w-[66px] font-mono text-[12px] text-primary">{{ rayonLectureKm() }}</span>
+                <!-- Le déplacement ne déclenche AUCUN appel : la série entière est déjà en mémoire. -->
+                <span class="text-[10px] text-tertiary">lecture immédiate, sans recalcul</span>
+                <label class="flex cursor-pointer items-center gap-[6px] text-[11px] whitespace-nowrap text-secondary">
+                  <input type="checkbox" class="accent-teal" [checked]="etiquettes()" (change)="etiquettes.set($any($event.target).checked)" />
+                  Afficher les étiquettes (tous les 1 km)
+                </label>
+                <button type="button" aria-disabled="true" [attr.title]="prochainement"
+                        class="inline-flex cursor-pointer items-center gap-[6px] rounded-lg border-fin border-teal bg-transparent px-3 py-[5px] text-[12px] font-medium whitespace-nowrap text-teal">
+                  <mg-icone nom="telecharger" [taille]="13" />
+                  Export Excel
+                </button>
+              </div>
+              <mg-courbe libelle="Population couverte selon le rayon autour des sites Seveso seuil haut"
+                         [series]="series()" [formaterX]="formaterX" [formaterY]="formaterY"
+                         [repere]="repere()" [domaineX]="domaineX()" [graduationsX]="graduationsX"
+                         [formaterValeur]="formaterValeur" [formaterTitre]="formaterTitre" [etiquettes]="etiquettes()">
+                <p mgNote class="m-0 px-5 pt-0 pb-[14px] text-[10px] leading-[1.5] text-tertiary">
+                  Distance au <strong class="font-medium">site</strong> le plus proche, jamais au périmètre PPRT : un rayon d’influence se mesure autour de l’installation.
+                  <strong class="font-medium">« Toutes natures » n’est pas la somme des autres courbes</strong> — un habitant proche de deux natures compte dans les deux, ce qui est juste pour chacune et faux pour leur addition.
+                </p>
+              </mg-courbe>
+            </div>
+          } @else {
+            <!-- Squelette pendant le premier chargement (OngletRayonInfluence.tsx, `Squelette`). -->
+            <div class="flex flex-col gap-[14px] p-5" aria-hidden="true">
+              <div class="flex gap-[34px]">
+                @for (i of [0, 1, 2]; track i) {
+                  <div class="flex flex-col gap-[5px]">
+                    <div class="h-[22px] w-[90px] rounded-md bg-elevated"></div>
+                    <div class="h-[10px] w-[120px] rounded-[3px] bg-elevated"></div>
+                  </div>
+                }
+              </div>
+              <div class="h-2 rounded-md bg-elevated"></div>
+              <div class="h-[240px] rounded-lg bg-elevated"></div>
+            </div>
+          }
         </div>
-      }
-    </mg-carte>
-    @if (erreurZones(); as message) {
-      <p role="alert" class="text-xs text-danger">{{ message }}</p>
-    }
-    @if (erreurSites(); as message) {
-      <p role="alert" class="text-xs text-danger">{{ message }}</p>
+      </div>
+    </aside>
+
+    <!-- La poignée (React : 5 px, `--border-subtle`, bornée 320-900 px). -->
+    @if (!carteSeule()) {
+      <div role="separator" aria-orientation="vertical" aria-label="Largeur du panneau"
+           class="w-[5px] shrink-0 cursor-col-resize touch-none bg-[var(--border-subtle)]"
+           (pointerdown)="saisirPoignee($event)"></div>
     }
 
-    @if (erreurCourbe(); as message) {
-      <p role="alert" class="text-xs text-danger">{{ message }}</p>
-    } @else {
-      <mg-courbe libelle="Population couverte selon le rayon autour des sites Seveso seuil haut"
-                 [series]="series()" [formaterX]="formaterX" [formaterY]="formaterY"
-                 [repere]="repere" [domaineX]="domaineX()" [graduationsX]="graduationsX"
-                 [formaterValeur]="formaterValeur" [formaterTitre]="formaterTitre" [etiquettes]="etiquettes()">
-        <p mgNote class="m-0 px-5 pt-0 pb-[14px] text-[10px] leading-[1.5] text-tertiary">
-          Distance au <strong class="font-medium">site</strong> le plus proche, jamais au périmètre PPRT : un rayon d’influence se mesure autour de l’installation.
-          <strong class="font-medium">« Toutes natures » n’est pas la somme des autres courbes</strong> — un habitant proche de deux natures compte dans les deux, ce qui est juste pour chacune et faux pour leur addition.
+    <div class="relative flex min-w-0 flex-1">
+      <!-- La carte suit les changements de largeur (poignée, « Carte seule ») par le ResizeObserver de mg-carte. -->
+      <mg-carte [cadre]="cadre" (prete)="surCartePrete($event)" (erreur)="erreurCarte.set($event)" (zoom)="zoom.set($event)"
+                class="min-h-0 flex-1">
+        <!-- Aller voir une grappe (CarteRisque.tsx:972) : 11 px, --card-overlay, bord 0,5 --border-default, rayon 6. -->
+        <div class="absolute top-2.5 left-2.5 z-[2] flex max-w-[calc(100%-100px)] flex-wrap gap-[6px]">
+          @for (g of grappes; track g.nom) {
+            <button type="button" (click)="allerA(g.bbox)"
+                    class="cursor-pointer rounded-lg border-fin border-default bg-[var(--card-overlay)] px-[10px] py-[5px] text-[11px] text-secondary">{{ g.nom }}</button>
+          }
+        </div>
+        <mg-legende class="absolute bottom-2.5 left-2.5 z-[2]">
+          <mg-legende-niveaux [niveaux]="niveauxLegende()" />
+          <div class="mt-0.5 text-[9.5px] leading-[1.5] text-tertiary">
+            Trait plein : périmètre publié par l’État. Tireté : rayon que nous calculons.{{ texteNbSites() }}
+          </div>
+        </mg-legende>
+        @if (sousLeSeuilLisible()) {
+          <div class="absolute top-[50px] left-2.5 z-[2] max-w-[300px] rounded-lg border-fin border-warning/25 bg-warning/12 px-[11px] py-[7px] text-[11px] leading-[1.5] text-warning">
+            Zoomez pour voir les zones : à cette échelle, un rayon de 2 km fait moins d’un pixel.
+          </div>
+        }
+        @if (zonesEnCours()) {
+          <!-- Pastille de préparation (CarteRisque.tsx:1067) : 10,5 px secondaire, --card-overlay, bord 0,5 subtil, rayon 6.
+               Même place et même plan que React (z 2, sous « Carte seule » en z 4) : React la recouvre, on garde la parité. -->
+          <div class="absolute top-2.5 right-[56px] z-[2] rounded-lg border-fin border-subtle bg-[var(--card-overlay)] px-[10px] py-[6px] text-[10.5px] text-secondary">
+            Découpage des zones…
+          </div>
+        }
+      </mg-carte>
+
+      <!-- Rayons / Codes postaux (VueCartesZones.tsx:228) : la carte des codes postaux n'existe que pour un jeu de zones,
+           désactivée sans jeu — comme React à l'étape ②. -->
+      <div class="absolute top-2.5 right-[190px] z-[3] flex gap-0.5 rounded-lg border-fin border-default bg-[var(--card-overlay)] p-0.5">
+        <button type="button" aria-pressed="true" title="Rayons"
+                class="inline-flex cursor-pointer items-center gap-[5px] rounded-md border-0 bg-teal-10 px-2 py-1 text-[10px] text-teal">
+          <mg-icone nom="carte" [taille]="11" />Rayons
+        </button>
+        <button type="button" disabled aria-pressed="false" title="Construisez d’abord un jeu de zones"
+                class="inline-flex cursor-not-allowed items-center gap-[5px] rounded-md border-0 bg-transparent px-2 py-1 text-[10px] text-secondary opacity-45">
+          <mg-icone nom="grille" [taille]="11" />Codes postaux
+        </button>
+      </div>
+      <!-- Carte seule : REPLIE le panneau, sans passer par l'API plein écran (React). -->
+      <button type="button" (click)="carteSeule.set(!carteSeule())" [attr.aria-pressed]="carteSeule()"
+              [attr.title]="carteSeule() ? 'Réafficher le panneau de l’étape' : 'Masquer le panneau et n’afficher que la carte'"
+              class="absolute top-2.5 right-[56px] z-[4] inline-flex cursor-pointer items-center gap-[5px] rounded-lg border-fin border-default bg-[var(--card-overlay)] px-[10px] py-[5px] text-[11px]"
+              [class.text-teal]="carteSeule()" [class.text-secondary]="!carteSeule()">
+        <mg-icone [nom]="carteSeule() ? 'reduire' : 'agrandir'" [taille]="12" />
+        {{ carteSeule() ? 'Afficher le panneau' : 'Carte seule' }}
+      </button>
+
+      @if (erreurCarte() ?? erreurZones() ?? erreurSites(); as message) {
+        <p role="alert" class="absolute right-2.5 bottom-2.5 z-[3] m-0 max-w-[300px] rounded-lg border-fin border-danger/25 bg-[var(--card-overlay)] px-[11px] py-[7px] text-[11px] leading-[1.5] text-danger">
+          {{ message }}
         </p>
-      </mg-courbe>
-      <label class="flex cursor-pointer items-center gap-[6px] text-[11px] whitespace-nowrap text-secondary">
-        <input type="checkbox" class="accent-teal" [checked]="etiquettes()" (change)="etiquettes.set($any($event.target).checked)" />
-        Afficher les étiquettes (tous les 1 km)
-      </label>
-    }
+      }
+    </div>
   </div>
 </div>

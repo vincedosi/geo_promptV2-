@@ -23,7 +23,7 @@ export interface EtapeAffichee {
         <button #bouton type="button"
                 (click)="choisir.emit(e.cle)" (keydown)="auClavier($event, i)"
                 [attr.aria-current]="e.cle === courante() ? 'step' : null"
-                class="inline-flex items-center gap-[5px] px-2.5 pt-1 pb-1.5 text-xs cursor-pointer border-b-2"
+                class="inline-flex items-center gap-[5px] px-2.5 pt-1 pb-1.5 text-[12px] cursor-pointer border-b-2"
                 [class.font-medium]="e.cle === courante()"
                 [class.text-primary]="e.cle === courante()"
                 [class.border-teal]="e.cle === courante()"
