@@ -52,6 +52,16 @@ describe('ProfilRisqueApi', () => {
     expect(rep?.headers.get('content-disposition')).toContain('a.xlsx');
   });
 
+  it("exportProfil : un « + » littéral d'une valeur part en %2B, jamais lu comme un espace", () => {
+    const { api, http } = preparer();
+    const q = new URLSearchParams({ profil: 'p', cible: 'ind', maille: 'departement', libelle_cible: '0-3 ans + 65 ans' });
+    api.exportProfil(q).subscribe();
+    const req = http.expectOne((r) => r.url === '/api/risques/profil/export');
+    expect(req.request.params.get('libelle_cible')).toBe('0-3 ans + 65 ans');
+    expect(req.request.urlWithParams).toContain('libelle_cible=0-3%20ans%20%2B%2065%20ans');
+    req.flush(new Blob(['x']));
+  });
+
   it('exportRayon : GET /api/risques/exposition/rayon/export?…', () => {
     const { api, http } = preparer();
     api.exportRayon(new URLSearchParams({ rayon_m: '5000', gravites: 'seveso_haut' })).subscribe();

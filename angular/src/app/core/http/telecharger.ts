@@ -17,6 +17,9 @@ export function nomDeFichier(reponse: HttpResponse<Blob>, repli: string): string
   }
 }
 
+/** Délai avant de révoquer l'URL d'objet d'un téléchargement (voir `enregistrerFichier`). */
+const DELAI_REVOCATION_MS = 1000;
+
 /**
  * Enregistre un fichier binaire rendu par une route `requireAuth` (Bearer) :
  * jamais un `<a href>` nu, qui partirait sans jeton.
@@ -24,7 +27,11 @@ export function nomDeFichier(reponse: HttpResponse<Blob>, repli: string): string
  * L'ancre n'est JAMAIS insérée dans `document.body` (rien ne doit s'afficher
  * hors d'une racine d'ombre) : détachée, elle déclenche tout de même le
  * téléchargement. L'URL d'objet est révoquée juste après le clic, pour ne pas
- * garder le classeur en mémoire jusqu'au rechargement.
+ * garder le classeur en mémoire jusqu'au rechargement — mais APRÈS une
+ * seconde et non au tour suivant de la boucle d'événements : le clic lance le
+ * téléchargement de façon ASYNCHRONE, et certains navigateurs (Firefox, Safari)
+ * lisent l'URL d'objet après le retour de `click()`. Révoquée trop tôt, elle
+ * rendrait un téléchargement vide ou en échec.
  */
 export function enregistrerFichier(doc: Document, reponse: HttpResponse<Blob>, repli: string): void {
   const corps = reponse.body;
@@ -34,5 +41,5 @@ export function enregistrerFichier(doc: Document, reponse: HttpResponse<Blob>, r
   a.href = url;
   a.download = nomDeFichier(reponse, repli);
   a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  setTimeout(() => URL.revokeObjectURL(url), DELAI_REVOCATION_MS);
 }

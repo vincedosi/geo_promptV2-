@@ -34,7 +34,10 @@ describe('enregistrerFichier', () => {
     expect(ancres[0].isConnected).toBe(false);
     expect(ancres[0].download).toBe('a.xlsx');
     expect(ancres[0].href).toBe('blob:x');
-    vi.runAllTimers();
+    // Pas au tour suivant : le navigateur peut lire l'URL après le retour de click().
+    vi.advanceTimersByTime(999);
+    expect(revoquer).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
     expect(revoquer).toHaveBeenCalledWith('blob:x');
     vi.useRealTimers();
     vi.restoreAllMocks();

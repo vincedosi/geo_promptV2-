@@ -38,4 +38,28 @@ describe('lignesNdjson', () => {
     flux.error(new Error('coupé'));
     expect((err as Error).message).toBe('coupé');
   });
+
+  it("se désabonner annule : la source n'est plus observée et plus rien n'est émis", () => {
+    const flux = new Subject<HttpEvent<string>>();
+    const lus: unknown[] = [];
+    const abonnement = lignesNdjson(flux).subscribe((v) => lus.push(v));
+    expect(flux.observed).toBe(true);
+    flux.next({ type: HttpEventType.DownloadProgress, loaded: 8, partialText: '{"n":1}\n' });
+    abonnement.unsubscribe();
+    // C'est ce désabonnement qui annule la requête HTTP sous-jacente (HttpClient l'interrompt).
+    expect(flux.observed).toBe(false);
+    flux.next({ type: HttpEventType.DownloadProgress, loaded: 16, partialText: '{"n":1}\n{"n":2}\n' });
+    expect(lus).toEqual([{ n: 1 }]);
+  });
+
+  it("une erreur après des lignes partielles : les lignes déjà lues restent émises, l'erreur suit", () => {
+    const flux = new Subject<HttpEvent<string>>();
+    const lus: unknown[] = [];
+    let err: unknown;
+    lignesNdjson(flux).subscribe({ next: (v) => lus.push(v), error: (e) => (err = e) });
+    flux.next({ type: HttpEventType.DownloadProgress, loaded: 20, partialText: '{"n":1}\n{"n":2}\n{"n"' });
+    flux.error(new Error('coupé en route'));
+    expect(lus).toEqual([{ n: 1 }, { n: 2 }]);
+    expect((err as Error).message).toBe('coupé en route');
+  });
 });
