@@ -173,6 +173,12 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       http.expectNone((r) => r.url.startsWith('/api/'));
     });
 
+    it("sans session : l'écran plein écran risques renvoie vers /connexion avec son état d'URL, sans aucun appel d'API", async () => {
+      const { router, http } = await demarrer('/app/risques?risque=etape%3Drayon', false);
+      expect(router.url).toBe('/connexion?redirection=%2Fapp%2Frisques%3Frisque%3Detape%253Drayon');
+      http.expectNone((r) => r.url.startsWith('/api/'));
+    });
+
     it('« Deconnexion » (menu utilisateur) mène à /connexion, sans paramètre de reprise', async () => {
       const { router, http, harness, client } = await demarrer('/app', true);
       http.expectOne('/api/risques/sites/compter').flush({ retenus: 1, total: 1, par_nature: {} });

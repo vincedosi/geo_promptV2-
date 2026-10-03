@@ -13,6 +13,7 @@ import { CarteFactice } from './carte/testing/carte-factice';
 import { CouleursService } from './core/theme/couleurs.service';
 import { FABRIQUE_GRAPHIQUE } from './graphiques/fabrique-graphique';
 import { SitesRisqueApi } from './features/risques/data/sites-risque.api';
+import { authGuard } from './core/auth/auth.guard';
 
 /** L'application distante est servie AILLEURS que le document de l'hôte. */
 const BASE = 'https://distante.exemple/remotes/magelian/chunk-ABC.js';
@@ -289,6 +290,63 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     const racine = ombre(harness.fixture.nativeElement as HTMLElement);
     expect(racine.querySelector('[role="status"]')).not.toBeNull();
     expect(racine.querySelector('mg-essai-carte')).toBeNull();
+    expect(http.match((r) => r.url.startsWith('/api/'))).toEqual([]);
+  });
+
+  it("risques est une route PLEIN ÉCRAN sœur de la coquille, gardée par authGuard", () => {
+    const racine = remoteRoutes[0];
+    const risques = racine.children?.find((r) => r.path === 'risques');
+    expect(risques?.canActivate).toEqual([authGuard]);
+    expect(risques?.loadComponent).toBeDefined();
+    // Hors de la coquille : la route de chemin vide (coquille) ne la porte pas parmi ses enfants.
+    const coquille = racine.children?.find((r) => r.path === '');
+    expect(coquille?.children?.some((r) => r.path === 'risques')).toBe(false);
+  });
+
+  it("risques : monté sans coquille ; changer d'étape réécrit `?risque=` sous le préfixe de l'hôte SANS recréer l'écran ni la carte", async () => {
+    class Observateur { observe = vi.fn(); disconnect = vi.fn(); }
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver = Observateur;
+    const cartes: CarteFactice[] = [];
+    const factices: Provider[] = [
+      { provide: FABRIQUE_CARTE, useValue: (o: never) => { const c = new CarteFactice(o); cartes.push(c); return c; } },
+    ];
+    const { harness, http, auth } = await monter(true, factices);
+    http.match('/api/risques/sites/compter').forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
+    await harness.navigateByUrl('/hote/magelian/risques');
+    for (let i = 0; i < 3; i++) { await attendre(); await harness.fixture.whenStable(); }
+    const racine = ombre(harness.fixture.nativeElement as HTMLElement);
+    const page = racine.querySelector('mg-risque');
+    expect(page).not.toBeNull();
+    expect(racine.querySelector('mg-coquille')).toBeNull();
+    expect(cartes).toHaveLength(1);
+    const initialiser = auth.initialiser.mock.calls.length;
+
+    for (const libelle of ['Rayon', 'Couverture', 'Sites']) {
+      const bouton = [...racine.querySelectorAll<HTMLButtonElement>('nav[aria-label="Étapes du parcours"] button')]
+        .find((b) => b.textContent?.includes(libelle))!;
+      bouton.click();
+      for (let i = 0; i < 3; i++) { await attendre(); await harness.fixture.whenStable(); }
+    }
+    // `runGuardsAndResolvers: 'always'` rejoue le garde de démarrage à chaque navigation de requête :
+    // `demarrer()` est idempotent — aucun redémarrage, aucun écran recréé, aucune carte remontée.
+    expect(auth.initialiser.mock.calls.length).toBe(initialiser);
+    expect(http.match((r) => r.url.endsWith('config.local.json'))).toEqual([]);
+    expect(racine.querySelector('mg-risque')).toBe(page);
+    expect(cartes).toHaveLength(1);
+    expect(cartes[0].retiree).toBe(false);
+    expect(racine.querySelector('[role="alert"]')).toBeNull();
+    // Retour à l'étape par défaut : le paramètre disparaît, l'URL de l'hôte reste.
+    expect(TestBed.inject(Router).url).toBe('/hote/magelian/risques');
+    http.match(() => true);
+  });
+
+  it("risques sans session : le message de session, jamais l'écran ni un appel d'API", async () => {
+    const { harness, http } = await monter(false);
+    await harness.navigateByUrl('/hote/magelian/risques?risque=etape%3Drayon');
+    await attendre();
+    const racine = ombre(harness.fixture.nativeElement as HTMLElement);
+    expect(racine.querySelector('[role="status"]')).not.toBeNull();
+    expect(racine.querySelector('mg-risque')).toBeNull();
     expect(http.match((r) => r.url.startsWith('/api/'))).toEqual([]);
   });
 

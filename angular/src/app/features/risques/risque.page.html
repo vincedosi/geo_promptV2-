@@ -1,0 +1,54 @@
+<!--
+  L'écran du module risque (AnalysePopulationOverlay.tsx:896-1638) : en-tête, [barre commune — T5],
+  barre de progression, [bandeau KPI — T5], puis panneau de l'étape à gauche et carte permanente à droite.
+  Plein écran, hors coquille : toute la hauteur de la racine, jamais `position: fixed` (racine d'ombre).
+-->
+<!-- ── En-tête ─────────────────────────────────────────────────────────── -->
+<header class="flex items-center gap-3 border-b-fin border-subtle bg-surface px-5 py-[14px]">
+  <span aria-hidden="true" class="size-[7px] shrink-0 rounded-full bg-teal"></span>
+  <h2 class="m-0 text-[15px] font-medium text-primary">Population à risque industriel</h2>
+  <!-- DEUX fils sur cet en-tête, et ce n'est pas un doublon : celui-ci dit OÙ JE REGARDE, le suivant OÙ J'EN SUIS. -->
+  <mg-fil-ariane [segments]="segmentsAriane" [precision]="precisionAriane" />
+  <mg-fil-etapes [etapes]="etapes()" [courante]="etat().etape" (choisir)="choisirEtape($event)" />
+  <span class="font-mono text-[11px] text-tertiary">{{ libelleCible }}</span>
+  <div class="flex-1"></div>
+  <button type="button" (click)="fermer()" aria-label="Fermer" title="Fermer"
+          class="flex cursor-pointer border-0 bg-transparent p-[6px] text-secondary">
+    <mg-icone nom="croix" [taille]="18" />
+  </button>
+</header>
+
+<!-- La barre ENTRE les réglages et les chiffres : le geste du dessus déclenche, les chiffres du dessous attendent. -->
+<mg-barre-progression />
+
+<!-- ── Corps : panneau de l'étape à gauche, carte permanente à droite ─────── -->
+<div class="flex min-h-0 flex-1">
+  <!-- `visibility` et largeur nulle, jamais `display: none` ni `@if` : replié, le panneau reste MONTÉ. -->
+  <aside class="flex min-w-0 shrink-0 flex-col overflow-hidden"
+         [style.width.px]="carteSeule() ? 0 : largeurPanneau()"
+         [style.visibility]="carteSeule() ? 'hidden' : 'visible'">
+    <div class="min-w-0 flex-1 overflow-auto px-5 py-4" [attr.data-panneau]="etat().etape">
+      <!-- Textes provisoires : les panneaux d'étape arrivent en T9 (①, ②), T11-T12 (③), T13-T14 (④), T16 (⑤). -->
+      @switch (etat().etape) {
+        @case ('sites') { <p class="m-0 text-[13px] text-tertiary">Sites retenus — disponible prochainement.</p> }
+        @case ('rayon') { <p class="m-0 text-[13px] text-tertiary">Rayon d’influence — disponible prochainement.</p> }
+        @case ('couverture') { <p class="m-0 text-[13px] text-tertiary">Couverture par territoire — disponible prochainement.</p> }
+        @case ('zones') { <p class="m-0 text-[13px] text-tertiary">Jeux de zones — disponible prochainement.</p> }
+        @case ('campagne') { <p class="m-0 text-[13px] text-tertiary">Campagne simulée — disponible prochainement.</p> }
+      }
+    </div>
+  </aside>
+
+  <!-- La poignée (React : 5 px, `--border-subtle`, bornée 320-900 px). Absente panneau replié, comme React. -->
+  @if (!carteSeule()) {
+    <div role="separator" aria-orientation="vertical" aria-label="Largeur du panneau"
+         [attr.aria-valuenow]="largeurPanneau()" aria-valuemin="320" aria-valuemax="900"
+         class="w-[5px] shrink-0 cursor-col-resize touch-none bg-[var(--border-subtle)]"
+         (pointerdown)="saisirPoignee($event)"></div>
+  }
+
+  <div class="relative flex min-w-0 flex-1">
+    <!-- HORS du @switch des étapes : la carte ne se démonte jamais (aller-retour ② ↔ ③). -->
+    <mg-vue-cartes [etape]="etat().etape" [jeuId]="etat().jeu" [(carteSeule)]="carteSeule" />
+  </div>
+</div>

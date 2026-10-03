@@ -73,6 +73,14 @@ export const remoteRoutes: Routes = [
         canActivate: [authGuard],
         loadComponent: () => import('./features/essai-carte/essai-carte.page').then((m) => m.EssaiCartePage),
       },
+      // Le module « Population à risque industriel » (lot 3) : une route plein écran et non un overlay
+      // `position: fixed` comme React (interdit dans la racine d'ombre, arbitrage A1). Son état vit dans
+      // `?risque=` (A2) — une navigation de requête RÉUTILISE l'écran, elle ne le recrée pas.
+      {
+        path: 'risques',
+        canActivate: [authGuard],
+        loadComponent: () => import('./features/risques/risque.page').then((m) => m.RisquePage),
+      },
       {
         path: '',
         canActivate: [authGuard],
