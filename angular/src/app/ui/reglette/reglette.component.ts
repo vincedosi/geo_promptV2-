@@ -21,7 +21,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRend
       <div class="flex items-baseline gap-1.5">
         <span class="text-[11px] text-tertiary">{{ libelle() }}</span>
         @if (complement(); as c) {
-          <span class="font-mono text-[11px] text-tertiary">{{ c }}</span>
+          <span class="font-mono text-[11px] text-tertiary" [attr.title]="titreComplement() ?? null">{{ c }}</span>
         }
         <span class="font-mono text-[12px] text-teal">{{ formater()(affiche()) }}</span>
       </div>
@@ -42,6 +42,8 @@ export class RegletteComponent {
   readonly formater = input<(n: number) => string>((n) => String(n));
   /** Texte discret à côté du libellé (par exemple des valeurs réglées ailleurs). */
   readonly complement = input<string>();
+  /** Infobulle du complément : ce qu'il désigne et pourquoi la réglette ne le règle pas. */
+  readonly titreComplement = input<string>();
   readonly descriptionAccessible = input<string>();
 
   readonly apercu = output<number | null>();

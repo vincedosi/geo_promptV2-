@@ -43,6 +43,7 @@
  * | Maximize2                  | agrandir             |
  * | Minimize2                  | reduire              | Feather (MIT)
  * | Grid3x3                    | grille               |
+ * | Plus                       | plus                 | Feather (MIT)
  *
  * Pour ajouter une icône : lire `__iconNode` de `<lucide>.js`, ajouter une entrée (nom français en
  * kebab-case ; `feather: true` si le nom figure dans la liste Feather de la LICENSE de lucide-react),
@@ -380,6 +381,13 @@ export const ICONES = {
       { t: 'path', d: 'M3 15h18' },
       { t: 'path', d: 'M9 3v18' },
       { t: 'path', d: 'M15 3v18' },
+    ],
+  },
+  'plus': {
+    lucide: 'plus', feather: true,
+    el: [
+      { t: 'path', d: 'M5 12h14' },
+      { t: 'path', d: 'M12 5v14' },
     ],
   },
   'reduire': {

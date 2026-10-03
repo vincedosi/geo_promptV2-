@@ -216,4 +216,43 @@ describe('RisquePage', () => {
     expect(aside.style.visibility).toBe('hidden');
     expect([...el().querySelectorAll('button')].some((b) => b.textContent?.includes('Afficher le panneau'))).toBe(true);
   });
+
+  it("T6 : le résumé du profil est dans l'en-tête ; une chip déplie le tiroir, Échap DANS le tiroir le referme sans fermer l'écran", async () => {
+    const { harness, router, el } = await ouvrir('/risques?risque=etape%3Drayon');
+    const resume = el().querySelector('header mg-resume-profil')!;
+    expect(resume.querySelector('button')?.textContent).toContain('1 km · 2 km · 5 km');
+    expect(el().querySelector('[data-tiroir="anneaux"]')).toBeNull();
+    (resume.querySelector('button') as HTMLButtonElement).click();
+    await stabiliser(harness);
+    const tiroir = el().querySelector('[data-tiroir="anneaux"]')!;
+    expect(tiroir).not.toBeNull();
+    expect(router.url).toBe('/risques?risque=etape%3Drayon%26atelier%3D1');
+    tiroir.querySelector('input[type="number"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    await stabiliser(harness);
+    expect(el().querySelector('[data-tiroir="anneaux"]')).toBeNull();
+    expect(router.url).toBe('/risques?risque=etape%3Drayon');
+    // Le focus est rendu à l'hôte : un second Échap ferme bien l'écran.
+    expect(document.activeElement).toBe(el());
+    el().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    await stabiliser(harness);
+    expect(router.url).toBe('/');
+  });
+
+  it("T6 : la réglette du seuil haut ne touche l'URL qu'au RELÂCHEMENT ; le tiroir montre le nouveau profil", async () => {
+    const { harness, router, el } = await ouvrir('/risques?risque=atelier%3D1');
+    const haut = el().querySelector<HTMLInputElement>('mg-barre-commune input[type="range"]')!;
+    for (let i = 0; i < 20; i += 1) {
+      haut.value = String(5000 - i * 100);
+      haut.dispatchEvent(new Event('input'));
+      await stabiliser(harness);
+    }
+    expect(router.url).toBe('/risques?risque=atelier%3D1');
+    haut.value = '3000';
+    haut.dispatchEvent(new Event('input'));
+    haut.dispatchEvent(new Event('pointerup'));
+    await stabiliser(harness);
+    expect(decodeURIComponent(router.url)).toContain('profil=');
+    expect(el().querySelector('header mg-resume-profil')?.textContent?.replace(/\s+/g, ' ')).toContain('1 km · 2 km · 3 km');
+    expect(el().querySelector('[data-tiroir="anneaux"] [data-niveau="haut"]')?.textContent).toContain('3 km');
+  });
 });

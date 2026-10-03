@@ -11,23 +11,15 @@ import { PerimeDirective } from '../../ui/perime/perime.directive';
 import { VueCartesComponent } from './cartes/vue-cartes.component';
 import { BandeauKpiRisqueComponent } from './commandes/bandeau-kpi-risque.component';
 import { BarreCommuneComponent } from './commandes/barre-commune.component';
+import { PanneauProfilComponent } from './commandes/panneau-profil.component';
+import { type ApercuRayon, RegletteRayonsComponent } from './commandes/reglette-rayons.component';
+import { ResumeProfilComponent } from './commandes/resume-profil.component';
 import { etapesAffichees } from './commandes/etapes';
 import { DonneesRisqueService } from './etat/donnees-risque.service';
 import { EtatRisqueService } from './etat/etat-risque.service';
 import { LIBELLE_DIMENSION } from './logique/dimensions';
 import { ETAPES, type Etape } from './logique/etape';
-import type { Niveau } from './logique/profil';
-
-/**
- * Ce qu'on est en train de régler, tant que le doigt n'a pas lâché (`RegletteRayons.tsx:63`).
- * ⚠ Ce n'est PAS un profil : une intention sans géométrie en base. La carte s'en sert pour un aperçu,
- * et rien d'autre ne doit le lire — surtout pas un calcul de population.
- */
-export interface ApercuRayon {
-  /** Le niveau dont on déplace le bord, ou `null` quand ils sont liés. */
-  niveau: Niveau | null;
-  rayonM: number;
-}
+import type { ProfilRayons } from './logique/profil';
 
 /** Bornes de la poignée (React : sous 320 px le tableau de ③ devient illisible, au-delà de 900 la carte ne montre plus rien). */
 export const LARGEUR_PANNEAU_MIN = 320;
@@ -60,7 +52,8 @@ const LARGEUR_PANNEAU_DEFAUT = 480;
   selector: 'mg-risque',
   imports: [
     BandeauKpiRisqueComponent, BarreCommuneComponent, BarreProgressionComponent, FilArianeComponent,
-    FilEtapesComponent, IconeComponent, PerimeDirective, VueCartesComponent,
+    FilEtapesComponent, IconeComponent, PanneauProfilComponent, PerimeDirective, RegletteRayonsComponent,
+    ResumeProfilComponent, VueCartesComponent,
   ],
   // Services d'ÉTAT fournis par l'écran (A13) : détruits avec lui, requêtes en cours comprises. T6-T16 y ajoutent les leurs.
   providers: [ChargementService, EtatRisqueService, DonneesRisqueService],
@@ -69,7 +62,7 @@ const LARGEUR_PANNEAU_DEFAUT = 480;
   host: {
     class: 'flex h-full flex-col overflow-hidden bg-[var(--bg-primary)] outline-none',
     // Échap écouté sur l'HÔTE, jamais sur `document` — qui serait celui du shell. Un gestionnaire INTÉRIEUR
-    // qui consomme Échap appelle `preventDefault()` : l'écran ne se ferme alors pas.
+    // (le tiroir des anneaux) qui consomme Échap appelle `preventDefault()` : l'écran ne se ferme alors pas.
     '(keydown.escape)': 'fermer($event)',
     tabindex: '-1',
   },
@@ -114,7 +107,10 @@ export class RisquePage {
     const sansBouton = (e.etape === 'zones' && !!e.jeu) || e.etape === 'campagne';
     return this.carteSeule() && !sansBouton;
   });
-  /** Le rayon en cours de glissement d'une réglette (T6), relayé à la carte (T8). Ni URL, ni état du module. */
+  /**
+   * Le rayon en cours de glissement d'une réglette, relayé à la carte (T8). Ni URL, ni état du module : il ne
+   * dure que le temps d'un geste, et un lien partagé porterait sinon un rayon que personne n'a validé.
+   */
   readonly apercuRayon = signal<ApercuRayon | null>(null);
 
   constructor() {
@@ -139,6 +135,26 @@ export class RisquePage {
   protected fermer(ev?: Event): void {
     if (ev?.defaultPrevented) return;
     void this.router.navigate(['..'], { relativeTo: this.route });
+  }
+
+  /** Le cadenas, une réglette relâchée ou un geste du tiroir : le profil va dans l'état, donc dans l'URL. */
+  protected poserProfil(profil: ProfilRayons): void {
+    this.etatRisque.maj({ profil });
+  }
+
+  /** Une chip du résumé : déplie ou replie le tiroir des anneaux (`AnalysePopulationOverlay.tsx:952`). */
+  protected basculerAtelier(): void {
+    this.etatRisque.maj({ atelier: !this.etat().atelier });
+  }
+
+  /**
+   * Échap DANS le tiroir le referme, sans fermer l'écran (`preventDefault`, lu par `fermer`). Le focus revient à
+   * l'hôte : l'élément focalisé disparaît avec le tiroir, et Échap n'atteindrait plus l'écran ensuite.
+   */
+  protected fermerAtelier(ev: Event): void {
+    ev.preventDefault();
+    this.etatRisque.maj({ atelier: false });
+    this.hote.nativeElement.focus({ preventScroll: true });
   }
 
   /**

@@ -11,6 +11,9 @@
   <mg-fil-ariane [segments]="segmentsAriane()" [precision]="precisionAriane()" (remonter)="donnees.remonter($event)" />
   <mg-fil-etapes [etapes]="etapes()" [courante]="etat().etape" (choisir)="choisirEtape($event)" />
   <span class="font-mono text-[11px] text-tertiary">{{ donnees.libelleCible() }}</span>
+  <!-- Le profil décide de la classe de chaque carreau, donc de TOUS les chiffres : il reste sous les yeux. Une chip
+       DÉPLIE le tiroir des anneaux, où qu'on soit — renvoyer ailleurs pour régler ce qui vaut partout était le défaut. -->
+  <mg-resume-profil [profil]="etat().profil" (ouvrirAtelier)="basculerAtelier()" />
   <div class="flex-1"></div>
   <button type="button" (click)="fermer()" aria-label="Fermer" title="Fermer"
           class="flex cursor-pointer border-0 bg-transparent p-[6px] text-secondary">
@@ -18,8 +21,22 @@
   </button>
 </header>
 
-<!-- ── Barre commune : vaut pour toutes les étapes (réglettes du rayon : T6) ── -->
-<mg-barre-commune />
+<!-- ── Barre commune : vaut pour toutes les étapes ─────────────────────────── -->
+<mg-barre-commune>
+  <!-- LE RAYON : une réglette par niveau. Le calcul ne part qu'au RELÂCHEMENT ; l'aperçu ne va PAS dans l'URL. -->
+  <mg-reglette-rayons [profil]="etat().profil" (profil)="poserProfil($event)" (apercu)="apercuRayon.set($event)" />
+</mg-barre-commune>
+
+<!-- ── Le tiroir des anneaux, commun à toutes les étapes (AnalysePopulationOverlay.tsx:1209-1224) ──
+     Dans le flux, sous la barre : jamais un portail ni un `position: fixed` (racine d'ombre). Échap l'y referme
+     sans fermer l'écran (`preventDefault`, lu par `fermer`). -->
+@if (etat().atelier) {
+  <div data-tiroir="anneaux" class="max-h-[340px] overflow-y-auto border-b-fin border-subtle bg-elevated px-5 py-[14px]"
+       (keydown.escape)="fermerAtelier($event)">
+    <mg-panneau-profil [profil]="etat().profil" [parClasse]="donnees.bandes().bandes?.par_classe ?? {}"
+                       (profil)="poserProfil($event)" />
+  </div>
+}
 
 <!-- La barre ENTRE les réglages et les chiffres : le geste du dessus déclenche, les chiffres du dessous attendent. -->
 <mg-barre-progression />
