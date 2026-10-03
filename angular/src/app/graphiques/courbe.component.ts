@@ -79,7 +79,7 @@ export class CourbeComponent {
   });
   private readonly teintesCadre = this.couleursService.palette({
     texte: 'text-tertiary', textePrincipal: 'text-primary', grille: 'border-subtle', axe: 'border-default',
-    fondInfobulle: 'card-overlay', bordInfobulle: 'border-default', repere: 'brand-teal', halo: 'bg-level-1',
+    fondInfobulle: 'card-overlay', bordInfobulle: 'border-default', repere: 'brand-teal', halo: 'bg-level-1', pointActif: 'point-actif-contour',
   });
 
   private readonly option = computed(() => {
@@ -104,9 +104,10 @@ export class CourbeComponent {
   });
 
   /**
-   * La valeur de la courbe au repère (React : « valeur au rayon » dans la légende) : le point le plus
-   * proche SANS dépasser — la courbe est cumulée, prendre le suivant annoncerait une population non atteinte.
-   * Sans repère, aucune valeur n'est lisible : tiret.
+   * La valeur de la courbe au repère (React : « valeur au rayon » dans la légende) : le dernier point
+   * SANS dépasser le repère — la courbe est cumulée, prendre le suivant annoncerait une population non
+   * atteinte. Repli sur le premier point quand le repère le précède, comme React : la valeur annoncée est
+   * alors celle d'un rayon pas encore atteint. Sans repère, aucune valeur n'est lisible : tiret.
    */
   protected valeurLegende(s: SerieCourbe): string {
     const repere = this.repere();

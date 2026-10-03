@@ -118,8 +118,12 @@ export class EssaiCartePage {
   protected readonly etiquettes = signal(false);
   /** Vrai tant que la courbe se charge : les chiffres du bandeau décrivent alors un état périmé (K5). */
   protected readonly chargementCourbe = this.courbeEnCours.asReadonly();
-  protected readonly consigneBandeau = 'Ces chiffres suivent les filtres et le profil. Survolez-en un pour sa définition.';
-  protected readonly definitionBandeau = 'Habitants et sites sont lus sur la courbe de couverture du seuil haut : la population vit à moins de 5 km d’au moins un site, et ne s’additionne pas avec le compte de sites.';
+  /**
+   * TEXTE DE LA PAGE D'ESSAI, que le lot 3 remplace par celui de l'écran réel : la structure est celle de
+   * `BandeauKpi.tsx` (« Ces six chiffres suivent les filtres et le profil. Survolez-en un pour sa définition. »),
+   * mais ce bandeau n'a que deux tuiles et aucune définition en infobulle — la phrase ne promet donc que ce qui est vrai.
+   */
+  protected readonly consigneBandeau = 'Ces deux chiffres suivent le profil par défaut.';
 
   constructor() {
     this.chargement.suivre('zones', 'Préparation des zones', () => this.zonesEnCours());

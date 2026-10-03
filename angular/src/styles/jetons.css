@@ -57,6 +57,7 @@
      `#050505` cesse d'être retapé à la main (DESIGN_SYSTEM §5, « bouton
      send = cercle #4ecdc4 avec icône #050505 »). */
   --brand-teal-fg: #050505;
+  --point-actif-contour: #ffffff; /* invariant : littéral de Recharts (ActivePoints), blanc dans les deux thèmes */
   --cta-hover: #d4d4d4;
   /* Accents du logotype (`public/magelian-icon.svg` : #2AA9A8, un accent à #2AA8A7 —
      1/255 d'écart, un seul jeton). Plus sombre que le teal de marque ; invariant. */
@@ -254,6 +255,7 @@ html.light, :host(.light) {
   --brand-teal-10: rgba(78,205,196,0.1);
   /* Invariant, comme le teal lui-même — voir le commentaire du bloc :root. */
   --brand-teal-fg: #050505;
+  --point-actif-contour: #ffffff; /* invariant : littéral de Recharts (ActivePoints), blanc dans les deux thèmes */
   --cta-hover: #d4d4d4;
   /* Accents du logotype (`public/magelian-icon.svg` : #2AA9A8, un accent à #2AA8A7 —
      1/255 d'écart, un seul jeton). Plus sombre que le teal de marque ; invariant. */

@@ -8,7 +8,7 @@ export interface SerieCourbe {
   points: ReadonlyArray<readonly [number, number]>;
   /** Épaisseur du trait. Défaut 1,3, celui des courbes par nature de Recharts. */
   epaisseur?: number;
-  /** Porte les étiquettes au kilomètre quand `etiquettes` est vrai (la courbe totale seulement). */
+  /** Porte les étiquettes au kilomètre quand `etiquettes` est vrai (la courbe totale seulement), sur une série invisible à part. */
   etiquetee?: boolean;
 }
 
@@ -35,6 +35,8 @@ export interface CouleursCourbe {
   repere: string;
   /** Halo des étiquettes (`--bg-level-1`). */
   halo: string;
+  /** Contour du point actif au survol (`--point-actif-contour`, invariant : `#fff` de Recharts). */
+  pointActif: string;
 }
 
 /** `fMono` et `fInter` de `lib/design/polices.ts`. */
@@ -43,6 +45,27 @@ const INTER = "'Inter', system-ui, sans-serif";
 
 /** Recharts : `margin` {top 4 (20 avec étiquettes), right 20, bottom 24, left 8} + axe Y de 54 px, axe X de 30 px, +8 px de remplissage à droite du conteneur. */
 const GRILLE = { left: 62, right: 20, bottom: 54 };
+
+/** Identifiant des séries d'étiquettes, écartées de l'infobulle partagée. */
+const PREFIXE_ETIQUETTES = 'etiquettes:';
+
+/** Décalage de l'infobulle par rapport au curseur (Recharts : `offset` 10). */
+const DECALAGE_INFOBULLE = 10;
+
+/**
+ * Position de l'infobulle comme Recharts : à 10 px en bas à droite du curseur, retournée de l'autre côté
+ * quand elle sortirait du graphique.
+ */
+export function positionInfobulle(
+  point: readonly [number, number],
+  contenu: readonly [number, number],
+  vue: readonly [number, number],
+): [number, number] {
+  const [x, y] = point;
+  const gauche = x + DECALAGE_INFOBULLE + contenu[0] > vue[0] ? x - DECALAGE_INFOBULLE - contenu[0] : x + DECALAGE_INFOBULLE;
+  const haut = y + DECALAGE_INFOBULLE + contenu[1] > vue[1] ? y - DECALAGE_INFOBULLE - contenu[1] : y + DECALAGE_INFOBULLE;
+  return [Math.max(0, gauche), Math.max(0, haut)];
+}
 
 /** Échappe le texte injecté dans l'infobulle HTML (les libellés viennent de l'API). */
 export function echapperHtml(texte: string): string {
@@ -112,11 +135,13 @@ export function optionCourbe(e: {
       shadowOffsetY: 0,
       extraCssText: 'box-shadow:none;',
       textStyle: { fontFamily: INTER, fontSize: 11, color: c.textePrincipal },
+      position: (point: [number, number], _p: unknown, _d: unknown, _r: unknown, taille: { contentSize: [number, number]; viewSize: [number, number] }) =>
+        positionInfobulle(point, taille.contentSize, taille.viewSize),
       axisPointer: { lineStyle: { color: c.axe, width: 1, type: 'solid' } },
       formatter: (params: unknown) => {
-        const lignes = (Array.isArray(params) ? params : [params]) as {
-          seriesName: string; value: readonly [number, number]; color: string;
-        }[];
+        const lignes = ((Array.isArray(params) ? params : [params]) as {
+          seriesId?: string; seriesName: string; value: readonly [number, number]; color: string;
+        }[]).filter((l) => !l.seriesId?.startsWith(PREFIXE_ETIQUETTES));
         if (lignes.length === 0) return '';
         // Titre et lignes comme l'infobulle par défaut de Recharts : titre sans marge, une ligne par
         // courbe à 4 px de haut et de bas, texte à la couleur du trait.
@@ -127,37 +152,20 @@ export function optionCourbe(e: {
           + `<ul style="list-style:none;padding:0;margin:0">${items}</ul>`;
       },
     },
-    series: visibles.map((s, i) => {
-      const etiquetee = avecEtiquettes && s.etiquetee === true;
-      return {
+    series: [
+      ...visibles.map((s, i) => ({
         type: 'line',
         name: s.libelle,
         data: s.points.map((p) => [p[0], p[1]]),
         // `monotone` de Recharts : courbe lissée qui ne dépasse jamais ses points.
         smooth: true,
         smoothMonotone: 'x',
-        // Les étiquettes s'accrochent aux symboles : on en pose, de taille nulle, quand elles sont demandées.
-        showSymbol: etiquetee,
-        symbolSize: etiquetee ? 0 : 4,
+        // Point actif au survol comme Recharts : disque plein de rayon 4, bord de 2 px.
+        showSymbol: false,
+        symbol: 'circle',
+        symbolSize: 8,
         lineStyle: { color: c.series[s.cle], width: s.epaisseur ?? 1.3 },
-        itemStyle: { color: c.series[s.cle] },
-        ...(etiquetee
-          ? {
-              label: {
-                show: true,
-                position: 'top',
-                distance: 8,
-                fontFamily: MONO,
-                fontSize: 10,
-                color: c.textePrincipal,
-                textBorderColor: c.halo,
-                textBorderWidth: 3,
-                // Un point tous les 100 m : seuls les kilomètres ronds portent un chiffre.
-                formatter: (p: { value: readonly [number, number] }) =>
-                  p.value[0] % 1000 === 0 ? e.formaterY(p.value[1]) : '',
-              },
-            }
-          : {}),
+        itemStyle: { color: c.series[s.cle], borderWidth: 2, borderColor: c.pointActif },
         ...(i === 0 && e.repere
           ? {
               markLine: {
@@ -171,7 +179,35 @@ export function optionCourbe(e: {
               },
             }
           : {}),
-      };
-    }),
+      })),
+      // Les étiquettes au kilomètre vivent sur une série INVISIBLE, jamais sur la courbe : elles ne peuvent
+      // s'accrocher qu'à des symboles de taille nulle, ce qui ôterait son point de survol à la vraie courbe.
+      ...(avecEtiquettes
+        ? visibles.filter((s) => s.etiquetee === true).map((s) => ({
+            type: 'line',
+            id: `${PREFIXE_ETIQUETTES}${s.cle}`,
+            name: s.libelle,
+            data: s.points.map((p) => [p[0], p[1]]),
+            silent: true,
+            tooltip: { show: false },
+            showSymbol: true,
+            symbolSize: 0,
+            lineStyle: { width: 0, opacity: 0 },
+            label: {
+              show: true,
+              position: 'top',
+              distance: 8,
+              fontFamily: MONO,
+              fontSize: 10,
+              color: c.textePrincipal,
+              textBorderColor: c.halo,
+              textBorderWidth: 3,
+              // Un point tous les 100 m : seuls les kilomètres ronds portent un chiffre.
+              formatter: (p: { value: readonly [number, number] }) =>
+                p.value[0] % 1000 === 0 ? e.formaterY(p.value[1]) : '',
+            },
+          }))
+        : []),
+    ],
   };
 }

@@ -1,7 +1,7 @@
 /**
  * Mise en forme des nombres, portée de `lib/format/nombre.ts` (React) : mêmes
  * sorties, mêmes cas absents. Rien dans `angular/` n'importe hors d'`angular/`,
- * d'où cette copie — à garder identique (tests : `nombre.spec.ts`).
+ * d'où cette copie — gardée identique par `tests/unit/angular/format-paritaire.test.ts` (compare toutes les sorties).
  */
 
 /** Ce qu'on affiche quand il n'y a pas de valeur. */

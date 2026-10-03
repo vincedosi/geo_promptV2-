@@ -3,7 +3,7 @@
   <mg-barre-progression />
   <!-- Pleine largeur SOUS la barre de progression, au-dessus du corps (K4). Valeurs périmées estompées pendant le chargement (K5). -->
   @if (!erreurCourbe()) {
-    <mg-bandeau-kpi [consigne]="consigneBandeau" [definition]="definitionBandeau">
+    <mg-bandeau-kpi [consigne]="consigneBandeau">
       <mg-kpi [mgPerime]="chargementCourbe()" accent libelle="habitants à moins de 5 km" [valeur]="habitants5km()"
               note="pré-calcul carroyé INSEE, seuil haut seul" />
       <mg-kpi [mgPerime]="chargementCourbe()" libelle="sites seveso seuil haut" [valeur]="nbSites()"

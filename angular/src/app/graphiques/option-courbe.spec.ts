@@ -1,9 +1,9 @@
-import { optionCourbe, type SerieCourbe } from './option-courbe';
+import { optionCourbe, positionInfobulle, type SerieCourbe } from './option-courbe';
 
 const COULEURS = {
   series: { total: '#4ecdc4', a: '#e07a3f' },
   texte: '#8a8a8a', textePrincipal: '#f0f0f0', grille: '#1a1a1a', axe: '#262626',
-  fondInfobulle: 'rgba(10,10,10,0.92)', bordInfobulle: '#262626', repere: '#4ecdc4', halo: '#0a0a0a',
+  fondInfobulle: 'rgba(10,10,10,0.92)', bordInfobulle: '#262626', repere: '#4ecdc4', halo: '#0a0a0a', pointActif: '#ffffff',
 };
 const SERIES: SerieCourbe[] = [
   { cle: 'total', libelle: 'Toutes natures', jeton: 'brand-teal', points: [[100, 10], [200, 30]], epaisseur: 2 },
@@ -96,20 +96,54 @@ describe('optionCourbe', () => {
     expect(html).not.toContain('<b>');
   });
 
-  it('étiquettes au kilomètre : sur les séries étiquetées seulement, un chiffre aux kilomètres ronds', () => {
+  it('point actif au survol comme Recharts : disque plein de 8 px à la couleur du trait, bord de 2 px', () => {
+    const o = optionCourbe(base) as {
+      series: { symbol: string; symbolSize: number; showSymbol: boolean; itemStyle: { color: string; borderWidth: number; borderColor: string } }[];
+    };
+    for (const [i, s] of o.series.entries()) {
+      expect(s).toMatchObject({ symbol: 'circle', symbolSize: 8, showSymbol: false });
+      expect(s.itemStyle.borderWidth).toBe(2);
+      expect(s.itemStyle.borderColor).toBe(COULEURS.pointActif);
+      expect(s.itemStyle.color).toBe(Object.values(COULEURS.series)[i]);
+    }
+  });
+
+  it('étiquettes au kilomètre : série invisible à part, la vraie courbe garde son point de survol', () => {
     const series = SERIES.map((s) => (s.cle === 'total' ? { ...s, etiquetee: true } : s));
-    const sans = optionCourbe({ ...base, series }) as { grid: { top: number }; series: { label?: unknown }[] };
-    expect(sans.series.every((s) => s.label === undefined)).toBe(true);
+    const sans = optionCourbe({ ...base, series }) as { grid: { top: number }; series: unknown[] };
+    expect(sans.series.length).toBe(2);
     expect(sans.grid.top).toBe(4);
     const avec = optionCourbe({ ...base, series, etiquettes: true, formaterY: (y) => `<${y}>` }) as {
-      grid: { top: number }; series: { label?: { show: boolean; formatter: (p: unknown) => string; textBorderColor: string } }[];
+      grid: { top: number };
+      series: { id?: string; silent?: boolean; symbolSize: number; showSymbol: boolean; tooltip?: { show: boolean }; data: unknown; lineStyle: { width: number }; label?: { formatter: (p: unknown) => string; textBorderColor: string } }[];
     };
     expect(avec.grid.top).toBe(20);
-    expect(avec.series[1].label).toBeUndefined();
-    const l = avec.series[0].label!;
-    expect(l.textBorderColor).toBe(COULEURS.halo);
-    expect(l.formatter({ value: [2000, 30] })).toBe('<30>');
-    expect(l.formatter({ value: [2100, 31] })).toBe('');
+    expect(avec.series.length).toBe(3);
+    expect(avec.series[0]).toMatchObject({ symbolSize: 8, showSymbol: false });
+    expect(avec.series[0].label).toBeUndefined();
+    const l = avec.series[2];
+    expect(l).toMatchObject({ id: 'etiquettes:total', silent: true, symbolSize: 0, showSymbol: true, tooltip: { show: false } });
+    expect(l.lineStyle.width).toBe(0);
+    expect(l.data).toEqual(avec.series[0].data);
+    expect(l.label!.textBorderColor).toBe(COULEURS.halo);
+    expect(l.label!.formatter({ value: [2000, 30] })).toBe('<30>');
+    expect(l.label!.formatter({ value: [2100, 31] })).toBe('');
+  });
+
+  it("la série d'étiquettes n'apparaît jamais dans l'infobulle partagée", () => {
+    const o = optionCourbe(base) as { tooltip: { formatter: (p: unknown) => string } };
+    const html = o.tooltip.formatter([
+      { seriesId: 'serie0', seriesName: 'Toutes natures', value: [5000, 12], color: '#4ecdc4' },
+      { seriesId: 'etiquettes:total', seriesName: 'Toutes natures', value: [5000, 12], color: '#000000' },
+    ]);
+    expect(html.match(/<li /g)!.length).toBe(1);
+  });
+
+  it('infobulle à 10 px du curseur, retournée quand elle sortirait du graphique', () => {
+    expect(positionInfobulle([100, 50], [200, 120], [1000, 280])).toEqual([110, 60]);
+    expect(positionInfobulle([900, 50], [200, 120], [1000, 280])).toEqual([690, 60]);
+    expect(positionInfobulle([100, 200], [200, 120], [1000, 280])).toEqual([110, 70]);
+    expect(positionInfobulle([5, 5], [2000, 400], [1000, 280])).toEqual([0, 0]);
   });
 
   it('les axes utilisent les formateurs et le domaine donnés', () => {
@@ -126,7 +160,7 @@ describe('optionCourbe', () => {
   it('aucune couleur ne vient d\'ailleurs que de la palette reçue', () => {
     const texte = JSON.stringify(optionCourbe({ ...base, repere: { x: 5000, libelle: 'R' } }));
     const hex = texte.match(/#[0-9a-fA-F]{6}/g) ?? [];
-    const permises = new Set([...Object.values(COULEURS.series), COULEURS.texte, COULEURS.textePrincipal, COULEURS.grille, COULEURS.axe, COULEURS.fondInfobulle, COULEURS.bordInfobulle, COULEURS.repere, COULEURS.halo]);
+    const permises = new Set([...Object.values(COULEURS.series), COULEURS.texte, COULEURS.textePrincipal, COULEURS.grille, COULEURS.axe, COULEURS.fondInfobulle, COULEURS.bordInfobulle, COULEURS.repere, COULEURS.halo, COULEURS.pointActif]);
     expect(hex.filter((h) => !permises.has(h))).toEqual([]);
   });
 });
