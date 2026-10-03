@@ -1,9 +1,9 @@
 <mg-barre-progression />
 <section class="flex flex-col gap-8 max-w-4xl">
-  <h1 class="text-lg font-medium text-primary tracking-tight">Catalogue des composants</h1>
+  <mg-entete-page titre="Catalogue des composants" sousTitre="Chaque composant de ui/, dans son état réel." />
 
   <div class="flex flex-col gap-3">
-    <h2 class="text-xs font-medium text-primary">Barre de progression et valeurs périmées</h2>
+    <mg-entete-section libelle="Barre de progression et valeurs périmées" />
     <button type="button" mgPastille [actif]="enCalcul()" (click)="enCalcul.set(!enCalcul())">
       {{ enCalcul() ? 'Arrêter le calcul' : 'Lancer un calcul' }}
     </button>
@@ -13,7 +13,7 @@
   </div>
 
   <div class="flex flex-col gap-3">
-    <h2 class="text-xs font-medium text-primary">Tuiles de chiffre clé</h2>
+    <mg-entete-section libelle="Tuiles de chiffre clé" />
     <div class="flex gap-8">
       <mg-kpi valeur="1 259" libelle="Taille 24" note="Note obligatoire" />
       <mg-kpi valeur="72,3 %" libelle="Accent" note="Valeur en teal" [accent]="true" />
@@ -22,7 +22,22 @@
   </div>
 
   <div class="flex flex-col gap-3">
-    <h2 class="text-xs font-medium text-primary">Pastilles et champ</h2>
+    <mg-entete-section libelle="Cartes de chiffre du tableau de bord (la seconde est cliquable : survol soulevé)" />
+    <div class="grid w-fit grid-cols-[repeat(2,220px)] gap-3">
+      <mg-tuile-chiffre icone="courrier" valeur="admin" libelle="admin@exemple.fr" />
+      <mg-tuile-chiffre icone="epingle-carte" valeur="geo.prompt" libelle="Copilote IA" cliquable />
+    </div>
+  </div>
+
+  <div class="flex flex-col">
+    <mg-entete-section libelle="Bandeau de section repliable (coins du haut arrondis)" class="rounded-t-lg" repliable [(ouvert)]="sectionOuverte" />
+    @if (sectionOuverte()) {
+      <p class="rounded-b-lg border-fin border-t-0 border-subtle bg-surface p-4 text-[13px] text-secondary">Contenu de la section.</p>
+    }
+  </div>
+
+  <div class="flex flex-col gap-3">
+    <mg-entete-section libelle="Pastilles et champ" />
     <div class="flex gap-2">
       <button type="button" mgPastille [actif]="pastilles()['premier']" (click)="basculerPastille('premier')">Premier choix</button>
       <button type="button" mgPastille [actif]="pastilles()['second']" (click)="basculerPastille('second')">Second choix</button>
@@ -36,13 +51,13 @@
   </div>
 
   <div class="flex flex-col gap-3">
-    <h2 class="text-xs font-medium text-primary">Fil d’étapes et fil d’Ariane</h2>
+    <mg-entete-section libelle="Fil d’étapes et fil d’Ariane" />
     <mg-fil-etapes [etapes]="etapes" [courante]="etapeCourante()" (choisir)="etapeCourante.set($event)" />
     <mg-fil-ariane [segments]="segments()" precision="Détail" (remonter)="remonter($event)" />
   </div>
 
   <div class="flex flex-col gap-3">
-    <h2 class="text-xs font-medium text-primary">Réglette</h2>
+    <mg-entete-section libelle="Réglette" />
     <mg-reglette libelle="Un réglage" [valeur]="valeurReglette()" [min]="100" [max]="10000" [pas]="100"
                  [formater]="formaterMetres" complement="500 m · 1 km ·"
                  (apercu)="apercuReglette.set($event)" (valider)="valeurReglette.set($event)" />
@@ -52,7 +67,7 @@
   </div>
 
   <div class="flex flex-col gap-3" data-testid="planche-marque">
-    <h2 class="text-xs font-medium text-primary">Marque : en-tête de barre (fond surface, 240 px), hexagones, logo 18 px de haut et 240 px de large</h2>
+    <mg-entete-section libelle="Marque : en-tête de barre (fond surface, 240 px), hexagones, logo 18 px de haut et 240 px de large" />
     <div class="flex flex-wrap items-start gap-6">
       <div class="w-60 bg-surface" data-testid="marque-entete"><mg-marque /></div>
       <div class="flex items-center gap-4 text-primary" data-testid="marque-hexagones">
@@ -66,7 +81,7 @@
   </div>
 
   <div class="flex flex-col gap-3">
-    <h2 class="text-xs font-medium text-primary">Icônes (14, 16 et 20 px : trait 1,5 comme la barre latérale React, puis trait 2, défaut lucide)</h2>
+    <mg-entete-section libelle="Icônes (14, 16 et 20 px : trait 1,5 comme la barre latérale React, puis trait 2, défaut lucide)" />
     <div class="grid grid-cols-[auto_repeat(6,auto)] gap-x-6 gap-y-2 items-center text-secondary w-fit" data-testid="planche-icones">
       @for (nom of iconesPortees; track nom) {
         <span class="font-mono text-[11px] text-tertiary">{{ nom }}</span>
@@ -81,7 +96,7 @@
   </div>
 
   <div class="flex flex-col gap-3">
-    <h2 class="text-xs font-medium text-primary">Cellules de tableau</h2>
+    <mg-entete-section libelle="Cellules de tableau" />
     <table class="w-96 border-collapse">
       <thead><tr>
         <th mgTh alignement="gauche">Ligne</th>

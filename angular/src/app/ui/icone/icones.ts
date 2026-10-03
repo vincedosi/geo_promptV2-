@@ -36,6 +36,8 @@
  * | Download                   | telecharger          | Feather (MIT)
  * | Loader2 = LoaderCircle     | chargement           |
  * | Map                        | carte                |
+ * | ChevronDown                | chevron-bas          | Feather (MIT)
+ * | ChevronUp                  | chevron-haut         | Feather (MIT)
  *
  * Pour ajouter une icône : lire `__iconNode` de `<lucide>.js`, ajouter une entrée (nom français en
  * kebab-case ; `feather: true` si le nom figure dans la liste Feather de la LICENSE de lucide-react),
@@ -328,6 +330,18 @@ export const ICONES = {
       { t: 'path', d: 'M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z' },
       { t: 'path', d: 'M15 5.764v15' },
       { t: 'path', d: 'M9 3.236v15' },
+    ],
+  },
+  'chevron-bas': {
+    lucide: 'chevron-down', feather: true,
+    el: [
+      { t: 'path', d: 'm6 9 6 6 6-6' },
+    ],
+  },
+  'chevron-haut': {
+    lucide: 'chevron-up', feather: true,
+    el: [
+      { t: 'path', d: 'm18 15-6-6-6 6' },
     ],
   },
 } as const satisfies Record<string, DefinitionIcone>;

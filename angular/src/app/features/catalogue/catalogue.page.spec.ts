@@ -6,7 +6,7 @@ describe('CataloguePage', () => {
     const f = TestBed.createComponent(CataloguePage);
     await f.whenStable();
     const el = f.nativeElement as HTMLElement;
-    for (const s of ['mg-barre-progression', 'mg-kpi', 'mg-icone', 'button[mgpastille]', 'mg-champ', 'mg-fil-etapes', 'mg-fil-ariane', 'mg-reglette', 'th[mgth]', 'td[mgtd]']) {
+    for (const s of ['mg-barre-progression', 'mg-kpi', 'mg-icone', 'mg-entete-page', 'mg-entete-section', 'mg-tuile-chiffre', 'button[mgpastille]', 'mg-champ', 'mg-fil-etapes', 'mg-fil-ariane', 'mg-reglette', 'th[mgth]', 'td[mgtd]']) {
       expect(el.querySelector(s), s).not.toBeNull();
     }
   });

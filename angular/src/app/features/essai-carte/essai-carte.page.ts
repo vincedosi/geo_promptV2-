@@ -14,6 +14,7 @@ import { CouleursService } from '../../core/theme/couleurs.service';
 import { CourbeComponent } from '../../graphiques/courbe.component';
 import type { SerieCourbe } from '../../graphiques/option-courbe';
 import { BarreProgressionComponent } from '../../ui/barre-progression/barre-progression.component';
+import { EntetePageComponent } from '../../ui/entete-page/entete-page.component';
 import { KpiComponent } from '../../ui/kpi/kpi.component';
 import { type ReponseCourbe, ZonesRisqueApi } from '../risques/data/zones-risque.api';
 
@@ -49,7 +50,7 @@ type Teintes = { haut: string; bas: string; autres: string };
  */
 @Component({
   selector: 'mg-essai-carte',
-  imports: [BarreProgressionComponent, CarteComponent, CourbeComponent, KpiComponent, RouterLink],
+  imports: [EntetePageComponent, BarreProgressionComponent, CarteComponent, CourbeComponent, KpiComponent, RouterLink],
   providers: [ChargementService],
   templateUrl: './essai-carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,

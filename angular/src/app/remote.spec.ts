@@ -35,6 +35,7 @@ function authFactice(connecte: boolean) {
     jeton: async () => session()?.access_token ?? null,
     initialiser: vi.fn(async () => undefined),
     lireRole: vi.fn(async () => null),
+    lireProfil: vi.fn(async () => null),
     // Comme le vrai : une fin de session, même locale, met la session à null.
     deconnecter: vi.fn(async (_portee?: string) => session.set(null)),
   };

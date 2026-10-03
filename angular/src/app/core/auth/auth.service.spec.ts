@@ -115,6 +115,18 @@ describe('AuthService', () => {
       await auth.initialiser();
       expect(await auth.lireRole()).toBeNull();
     });
+
+    it('lireProfil rend le rôle et le nom complet, null en cas d\'échec', async () => {
+      const { client, appels } = clientProfil(async () => ({ data: { role: 'admin', full_name: 'Alice' }, error: null }));
+      const auth = creer(client as never);
+      await auth.initialiser();
+      expect(await auth.lireProfil()).toEqual({ role: 'admin', nom: 'Alice' });
+      expect(appels[1]).toEqual(['select', 'role, full_name']);
+      TestBed.resetTestingModule();
+      const echec = creer(clientProfil(async () => ({ data: null, error: { message: 'refus' } })).client as never);
+      await echec.initialiser();
+      expect(await echec.lireProfil()).toBeNull();
+    });
   });
 
   it('n\'est pas connecté sans session', async () => {

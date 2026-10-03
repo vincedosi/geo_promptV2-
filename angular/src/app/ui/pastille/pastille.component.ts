@@ -8,7 +8,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   host: {
     type: 'button',
     '[attr.aria-pressed]': 'actif()',
-    class: 'rounded-md px-[11px] py-1.5 text-xs cursor-pointer border-fin transition-colors duration-200',
+    class: 'rounded-md px-[11px] py-1.5 text-xs cursor-pointer border-fin transition-colors duration-200 ease-[var(--ease-out)]',
     '[class.bg-teal-10]': 'actif()',
     '[class.border-teal]': 'actif()',
     '[class.text-teal]': 'actif()',

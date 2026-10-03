@@ -92,6 +92,23 @@ export class AuthService {
   }
 
   /**
+   * Rôle ET nom complet du profil (`fetchProfileEnrichment`, `lib/auth-client.ts:93-114`),
+   * en une lecture. Même repli que `lireRole` : `null` si la lecture échoue.
+   */
+  async lireProfil(): Promise<{ role: string | null; nom: string | null } | null> {
+    const id = this._session()?.user?.id;
+    if (!id) return null;
+    try {
+      const { data, error } = await this.supabase.from('profiles').select('role, full_name').eq('id', id).single();
+      if (error || !data) return null;
+      const p = data as { role?: string | null; full_name?: string | null };
+      return { role: p.role ?? null, nom: p.full_name ?? null };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Le jeton d'accès courant. getSession() lit la session en LOCAL et
    * n'appelle GoTrue que si le jeton a expiré, pour le rafraîchir. C'est la
    * DÉ-DUPLICATION des rafraîchissements concurrents par supabase-js — et non

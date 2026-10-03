@@ -1,19 +1,54 @@
-<section class="flex flex-col gap-4">
-  <h1 class="text-lg font-medium text-primary tracking-tight">Accueil</h1>
+<div class="mx-auto max-w-[960px]">
+  <mg-entete-page titre="Dashboard" [sousTitre]="'Bienvenue, ' + nomAffiche()" />
 
-  <div class="w-72 bg-surface border-fin border-subtle rounded-lg p-4">
-    <p class="text-xs text-tertiary">Sites à risque industriel en base</p>
-    @let e = etat();
-    @switch (e.statut) {
-      @case ('chargement') {
-        <p class="font-mono text-base text-secondary">…</p>
-      }
-      @case ('echec') {
-        <p role="alert" class="text-xs text-danger">{{ e.message }}</p>
-      }
-      @case ('pret') {
-        <p class="font-mono text-base text-primary">{{ formater(e.valeur.retenus) }}</p>
-      }
+  <div class="mb-8 grid grid-cols-4 gap-3">
+    @for (c of cartesSession(); track $index) {
+      <!-- Seule « geo.prompt » est cliquable en React (vers /map) ; l'écran n'est pas porté : inerte. -->
+      <mg-tuile-chiffre
+        [icone]="c.icone"
+        [valeur]="c.valeur"
+        [libelle]="c.libelle"
+        [cliquable]="c.lien"
+        [attr.title]="c.lien ? prochainement : null"
+        [style.animation]="'slideUp 0.3s ease ' + $index * 60 + 'ms both'"
+      />
     }
   </div>
-</section>
+
+  <mg-entete-section libelle="Navigation rapide" class="rounded-t-lg" />
+
+  <div class="grid grid-cols-3 overflow-hidden rounded-b-lg border-fin border-t-0 border-subtle">
+    @for (c of cartesNavigation; track c.libelle; let i = $index) {
+      <a
+        role="link"
+        aria-disabled="true"
+        tabindex="0"
+        [attr.title]="prochainement"
+        class="flex cursor-default items-start border-subtle gap-3 bg-surface px-[18px] py-4 transition-colors duration-150 hover:bg-elevated"
+        [class.border-r-fin]="i % 3 !== 2"
+        [class.border-b-fin]="i < 3"
+        [style.animation]="'slideUp 0.3s ease ' + (200 + i * 50) + 'ms both'"
+      >
+        <mg-icone [nom]="c.icone" [taille]="16" [trait]="1.5" class="mt-0.5 block shrink-0 text-tertiary" />
+        <div>
+          <div class="mb-0.5 text-[13px] font-medium text-primary">{{ c.libelle }}</div>
+          <div class="text-[12px] text-tertiary">{{ c.sous }}</div>
+        </div>
+      </a>
+    }
+  </div>
+
+  <!-- Propre à Angular : le compte des sites à risque prouve la chaîne jusqu'à la base. Sous la disposition de React, pour que
+       le haut de la page lui reste identique. -->
+  <div class="mt-8 grid grid-cols-4 gap-3">
+    <mg-tuile-chiffre
+      icone="cercle-alerte"
+      [valeur]="valeurSites()"
+      libelle="Sites à risque industriel en base"
+    />
+  </div>
+  @if (etat().statut === 'echec') {
+    <p role="alert" class="mt-2 text-xs text-danger">{{ messageEchec() }}</p>
+  }
+
+</div>

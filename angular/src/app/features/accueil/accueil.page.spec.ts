@@ -1,13 +1,23 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { of, throwError } from 'rxjs';
+import { AuthService } from '../../core/auth/auth.service';
 import { SitesRisqueApi } from '../risques/data/sites-risque.api';
 import { AccueilPage } from './accueil.page';
 
-async function rendre(api: Partial<SitesRisqueApi>): Promise<HTMLElement> {
+const SESSION = {
+  expires_at: Date.UTC(2026, 9, 3, 12) / 1000,
+  user: { email: 'admin@exemple.fr', email_confirmed_at: '2026-01-01', user_metadata: { full_name: 'Alice Martin' } },
+};
+
+async function rendre(api: Partial<SitesRisqueApi>, profil: { role: string | null; nom: string | null } | null = null) {
   TestBed.configureTestingModule({
     imports: [AccueilPage],
-    providers: [{ provide: SitesRisqueApi, useValue: api }],
+    providers: [
+      { provide: SitesRisqueApi, useValue: api },
+      { provide: AuthService, useValue: { session: signal(SESSION), lireProfil: () => Promise.resolve(profil) } },
+    ],
   });
   const f = TestBed.createComponent(AccueilPage);
   await f.whenStable();
@@ -20,10 +30,28 @@ describe('AccueilPage', () => {
     expect(el.textContent?.replace(/\s/g, ' ')).toContain('1 259');
   });
 
-  it('affiche le message de l\'erreur, jamais un chargement sans fin', async () => {
+  it("affiche le message de l'erreur, jamais un chargement sans fin", async () => {
     const el = await rendre({
       compter: () => throwError(() => new HttpErrorResponse({ status: 504 })),
     });
     expect(el.querySelector('[role="alert"]')?.textContent).toMatch(/API ne répond pas/);
+  });
+
+  it('porte l\'en-tête et les quatre cartes de session du tableau de bord', async () => {
+    const el = await rendre({ compter: () => of({ retenus: 1, total: 2, par_nature: {} }) }, { role: 'super_admin', nom: 'Alice Martin' });
+    expect(el.querySelector('h1')?.textContent).toBe('Dashboard');
+    expect(el.textContent).toContain('Bienvenue, Alice Martin');
+    const textes = Array.from(el.querySelectorAll('mg-tuile-chiffre')).map((t) => t.textContent ?? '');
+    expect(textes.some((t) => t.includes('geo.prompt') && t.includes('Copilote IA'))).toBe(true);
+    expect(textes.some((t) => t.includes('super_admin') && t.includes('Compte vérifié'))).toBe(true);
+    expect(textes.some((t) => t.includes('Expiration session'))).toBe(true);
+  });
+
+  it('rend les six cartes de navigation inertes, avec leur infobulle', async () => {
+    const el = await rendre({ compter: () => of({ retenus: 1, total: 2, par_nature: {} }) });
+    const liens = el.querySelectorAll('a[aria-disabled="true"]');
+    expect(liens.length).toBe(6);
+    expect(liens[0].getAttribute('title')).toBe('Disponible prochainement');
+    expect(el.textContent).toContain('Navigation rapide');
   });
 });

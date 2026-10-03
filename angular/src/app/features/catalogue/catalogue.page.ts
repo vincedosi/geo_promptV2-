@@ -8,6 +8,9 @@ import { LogoComponent } from '../../ui/logo/logo.component';
 import { MarqueComponent } from '../../ui/marque/marque.component';
 import { IconeComponent } from '../../ui/icone/icone.component';
 import { ICONES, type NomIcone } from '../../ui/icone/icones';
+import { EnteteSectionComponent } from '../../ui/entete-section/entete-section.component';
+import { EntetePageComponent } from '../../ui/entete-page/entete-page.component';
+import { TuileChiffreComponent } from '../../ui/tuile-chiffre/tuile-chiffre.component';
 import { FilArianeComponent, type SegmentAriane } from '../../ui/fil-ariane/fil-ariane.component';
 import { KpiComponent } from '../../ui/kpi/kpi.component';
 import { PastilleComponent } from '../../ui/pastille/pastille.component';
@@ -23,6 +26,9 @@ import { Cellule, EnteteCellule } from '../../ui/tableau/cellules';
 @Component({
   selector: 'mg-catalogue',
   imports: [
+    EnteteSectionComponent,
+    EntetePageComponent,
+    TuileChiffreComponent,
     BarreProgressionComponent, ChampComponent, FilEtapesComponent, FilArianeComponent,
     HexagoneComponent, IconeComponent, KpiComponent, LogoComponent, MarqueComponent, PastilleComponent, PerimeDirective, RegletteComponent, Cellule, EnteteCellule,
   ],
@@ -36,6 +42,7 @@ export class CataloguePage {
   protected readonly iconesPortees = Object.keys(ICONES) as NomIcone[];
   protected readonly taillesIcones = [14, 16, 20];
   protected readonly enCalcul = signal(false);
+  protected readonly sectionOuverte = signal(true);
   protected readonly pastilles = signal<Record<string, boolean>>({ premier: true, second: false });
   protected readonly etapeCourante = signal('deux');
   protected readonly etapes: EtapeAffichee[] = [

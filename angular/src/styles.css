@@ -234,6 +234,12 @@
   text-decoration: none !important;
 }
 
+/* Entrée des cartes du tableau de bord (app/globals.css:1012). */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Apparition de la vitrine de connexion (app/globals.css:995, `fadeIn`). `spin` vient de Tailwind (`animate-spin`). */
 @keyframes fadeIn {
   from { opacity: 0; }
