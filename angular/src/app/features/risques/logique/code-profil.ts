@@ -64,7 +64,7 @@ export function codeProfil(p: ProfilRayons): string {
  * tronqué par un client de messagerie casserait la page. L'appelant retombe sur
  * `PROFIL_DEFAUT` quand cette fonction rend `null`.
  *
- * La validation passe par le schéma Zod complet et non par la seule syntaxe :
+ * La validation passe par `normaliserProfil` (toutes les bornes, comme le schéma Zod côté React) et non par la seule syntaxe :
  * `h20000_b500_a_L0_P1` est syntaxiquement irréprochable et pourtant hors
  * bornes, 20 km dépassant le plafond du pré-calcul.
  *

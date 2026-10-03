@@ -46,6 +46,9 @@ const PROFILS_BRUTS: unknown[] = [
   { haut: [100, 200, 300, 400, 500], bas: [], autres: [], lie: false, inclurePPRT: true }, // 5 anneaux
   { haut: [1000], bas: [500], autres: [], lie: 'non', inclurePPRT: true },      // booléen faux
   { haut: [1000] },                                                             // champs manquants
+  { haut: [Infinity], bas: [], autres: [], lie: false, inclurePPRT: true },     // non fini
+  { haut: [NaN], bas: [], autres: [], lie: false, inclurePPRT: true },          // NaN
+  { haut: ['a'], bas: [], autres: [], lie: false, inclurePPRT: true },          // texte
   null, 'h1000', 42,
 ];
 
@@ -144,5 +147,29 @@ describe('logique du risque : Angular = React', () => {
     expect(Ad.LIBELLE_DIMENSION).toEqual(Rd.LIBELLE_DIMENSION);
     expect(Ad.modesValides(['pprt', 'x'])).toEqual(Rd.modesValides(['pprt', 'x']));
     expect(Ag.NIVEAUX_RISQUE).toEqual(Rg.NIVEAUX_RISQUE);
+  });
+  it('exploration — remonter / peutRemonter', () => {
+    const c = [{ niveau: 'region', code: '93', nom: 'PACA' }, { niveau: 'departement', code: '13', nom: 'BdR' }] as Rx.SegmentExploration[];
+    for (const ch of [[], c.slice(0, 1), c]) {
+      expect(Ax.peutRemonter(ch)).toBe(Rx.peutRemonter(ch));
+      expect(Ax.remonter(ch)).toEqual(Rx.remonter(ch));
+    }
+  });
+  it('affectation — idClasse, HORS_ZONE', () => {
+    expect(Aa.HORS_ZONE).toBe(Ra.HORS_ZONE);
+    for (const c of Ra.classesDuProfil(R.PROFIL_DEFAUT)) expect(Aa.idClasse(c)).toBe(Ra.idClasse(c));
+    expect(Aa.idClasse(Ra.HORS_ZONE)).toBe(Ra.idClasse(Ra.HORS_ZONE));
+  });
+  it('palette-natures — teinteNature, NATURES_DISTINGUABLES', () => {
+    expect(An.NATURES_DISTINGUABLES).toBe(Rn.NATURES_DISTINGUABLES);
+    for (const r of [0, 1, 3, 6, 7, 8, 20]) expect(An.teinteNature(r), `rang ${r}`).toBe(Rn.teinteNature(r));
+  });
+  it('étape — rangEtape ; gravités — libelleGravite ; dimensions — DIMENSIONS, MODES_ZONE', () => {
+    for (const e of Re.ETAPES) expect(Ae.rangEtape(e)).toBe(Re.rangEtape(e));
+    for (const g of ['seveso_haut', 'seveso_bas', 'ied', 'autorisation', 'inconnue', '']) {
+      expect(Ag.libelleGravite(g), g).toBe(Rg.libelleGravite(g));
+    }
+    expect(Ad.DIMENSIONS).toEqual(Rd.DIMENSIONS);
+    expect(Ad.MODES_ZONE).toEqual(Rd.MODES_ZONE);
   });
 });

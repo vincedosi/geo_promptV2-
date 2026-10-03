@@ -27,8 +27,8 @@
  * Copie de lib/risques/profil.ts (décision P6 : angular/ n'importe rien hors
  * d'angular/). Parité verrouillée par
  * tests/unit/angular/risques-logique-paritaire.test.ts. Pas de Zod côté Angular
- * (arbitrage A12) : la validation est écrite à la main, mêmes règles, mêmes
- * messages, même ordre de contrôles.
+ * (arbitrage A12) : la validation est écrite à la main, mêmes règles, mêmes messages pour les bornes,
+ * même ordre de contrôles.
  */
 
 /** Plancher d'un anneau, en mètres. En dessous, le pré-calcul n'a pas de palier. */
