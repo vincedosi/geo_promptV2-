@@ -15,13 +15,14 @@ describe('TuileChiffreComponent', () => {
     const textes = Array.from(el.querySelectorAll('div')).map((d) => d.textContent);
     expect(textes).toEqual(['03/10', 'Expiration session']);
   });
-  it('cliquable : curseur main et soulèvement au survol', async () => {
+  it('cliquable : curseur main, sans soulèvement', async () => {
     const el = await rendre({ icone: 'horloge', valeur: 'v', libelle: 'l', cliquable: true });
     expect(el.className).toContain('cursor-pointer');
-    expect(el.className).toContain('hover:-translate-y-px');
+    expect(el.className).not.toContain('translate');
   });
   it('sinon, ni curseur ni soulèvement', async () => {
     const el = await rendre({ icone: 'horloge', valeur: 'v', libelle: 'l' });
     expect(el.className).not.toContain('cursor-pointer');
+    expect(el.className).toContain('cursor-default');
   });
 });

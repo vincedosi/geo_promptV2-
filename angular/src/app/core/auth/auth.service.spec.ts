@@ -94,7 +94,7 @@ describe('AuthService', () => {
       const auth = creer(client as never);
       await auth.initialiser();
       expect(await auth.lireRole()).toBe('super_admin');
-      expect(appels).toEqual([['from', 'profiles'], ['select', 'role'], ['eq', 'id', 'u1']]);
+      expect(appels).toEqual([['from', 'profiles'], ['select', 'role, full_name'], ['eq', 'id', 'u1']]);
     });
 
     it('rend null sur une erreur, une absence ou une exception — jamais ne lève', async () => {

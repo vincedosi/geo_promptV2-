@@ -54,4 +54,29 @@ describe('AccueilPage', () => {
     expect(liens[0].getAttribute('title')).toBe('Disponible prochainement');
     expect(el.textContent).toContain('Navigation rapide');
   });
+
+  it('« geo.prompt » suit le patron inerte de la barre latérale', async () => {
+    const el = await rendre({ compter: () => of({ retenus: 1, total: 2, par_nature: {} }) });
+    const tuile = Array.from(el.querySelectorAll('mg-tuile-chiffre')).find((t) => t.textContent?.includes('geo.prompt'))!;
+    expect(tuile.getAttribute('role')).toBe('link');
+    expect(tuile.getAttribute('aria-disabled')).toBe('true');
+    expect(tuile.getAttribute('tabindex')).toBe('0');
+    expect(tuile.getAttribute('title')).toBe('Disponible prochainement');
+    expect(tuile.className).toContain('cursor-default');
+    expect(tuile.className).not.toContain('cursor-pointer');
+    const autre = Array.from(el.querySelectorAll('mg-tuile-chiffre')).find((t) => t.textContent?.includes('Expiration'))!;
+    expect(autre.getAttribute('role')).toBeNull();
+  });
+
+  it('un profil lu aux champs nuls écrase le jeton, comme { ...user, ...enrich } de React', async () => {
+    const el = await rendre({ compter: () => of({ retenus: 1, total: 2, par_nature: {} }) }, { role: null, nom: null });
+    expect(el.textContent).toContain('Bienvenue, admin');
+    const textes = Array.from(el.querySelectorAll('mg-tuile-chiffre')).map((t) => t.textContent ?? '');
+    expect(textes.some((t) => t.includes('Compte vérifié') && t.includes('user'))).toBe(true);
+  });
+
+  it('sans profil lu, le nom et le rôle du jeton servent', async () => {
+    const el = await rendre({ compter: () => of({ retenus: 1, total: 2, par_nature: {} }) }, null);
+    expect(el.textContent).toContain('Bienvenue, Alice Martin');
+  });
 });

@@ -80,15 +80,7 @@ export class AuthService {
    * replie sur le rôle du jeton — l'écran ne reste jamais bloqué dessus.
    */
   async lireRole(): Promise<string | null> {
-    const id = this._session()?.user?.id;
-    if (!id) return null;
-    try {
-      const { data, error } = await this.supabase.from('profiles').select('role').eq('id', id).single();
-      if (error || !data) return null;
-      return (data as { role?: string | null }).role ?? null;
-    } catch {
-      return null;
-    }
+    return (await this.lireProfil())?.role ?? null;
   }
 
   /**

@@ -53,7 +53,11 @@ export class AccueilPage {
     const u = this.auth.session()?.user;
     const meta = (u?.user_metadata ?? {}) as Record<string, unknown>;
     const nomMeta = (meta['full_name'] as string | undefined) ?? (meta['name'] as string | undefined) ?? null;
-    return this.profil()?.nom || nomMeta || u?.email?.split('@')[0] || '—';
+    // Comme `{ ...user, ...enrich }` de lib/auth-client.ts:139 : un profil LU l'emporte entièrement, même
+    // avec un full_name nul (la clé existe, valeur undefined) — on retombe alors sur l'email, pas sur le jeton.
+    const profil = this.profil();
+    const nom = profil ? profil.nom : nomMeta;
+    return nom || u?.email?.split('@')[0] || '—';
   });
 
   /** Les quatre cartes de `stats` (`page.tsx:61-88`) ; seule la première est un lien. */
@@ -61,7 +65,8 @@ export class AccueilPage {
     const s = this.auth.session();
     const u = s?.user;
     const meta = (u?.user_metadata ?? {}) as Record<string, unknown>;
-    const role = this.profil()?.role ?? (meta['role'] as string | undefined) ?? 'user';
+    const profil = this.profil();
+    const role = (profil ? profil.role : (meta['role'] as string | undefined)) ?? 'user';
     const expiration = s?.expires_at
       ? new Date(s.expires_at * 1000).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
       : new Date(Date.now() + 3_600_000).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });

@@ -146,13 +146,16 @@
 
 /*
  * Focus clavier, porté de app/globals.css:1223 : pas de contour, un anneau de
- * 1 px teal à 50 %. Non étagé comme en React (les utilitaires Tailwind sont
- * dans une couche, donc ne le battent pas) — un champ n'a plus besoin de
- * redéclarer son propre anneau.
+ * 1 px teal à 50 %. Dans `@layer base`, à dessein : en React cette règle (0,1,0)
+ * perd contre `.focus-visible:ring-*` (0,2,0), et ici les utilitaires Tailwind 4
+ * sont dans `@layer utilities` — une règle non étagée les battrait TOUJOURS et
+ * ferait disparaître l'anneau propre d'un composant (bouton « MAGELIAN »).
  */
-:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 1px var(--brand-teal-50);
+@layer base {
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--brand-teal-50);
+  }
 }
 
 /*
