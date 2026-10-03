@@ -144,9 +144,15 @@
   color-scheme: light !important;
 }
 
+/*
+ * Focus clavier, porté de app/globals.css:1223 : pas de contour, un anneau de
+ * 1 px teal à 50 %. Non étagé comme en React (les utilitaires Tailwind sont
+ * dans une couche, donc ne le battent pas) — un champ n'a plus besoin de
+ * redéclarer son propre anneau.
+ */
 :focus-visible {
-  outline: 1px solid var(--brand-teal-50);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: 0 0 0 1px var(--brand-teal-50);
 }
 
 /*

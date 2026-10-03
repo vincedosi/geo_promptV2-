@@ -26,7 +26,7 @@
             <label for="connexion-email" class="mb-1.5 block text-xs/normal font-normal text-tertiary">Email</label>
             <input #champEmail id="connexion-email" type="email" name="email" autocomplete="username" required
                    placeholder="nom@entreprise.com"
-                   class="box-border w-full rounded-lg border-fin border-subtle bg-elevated px-3 py-[9px] text-[13px] text-primary outline-none transition-colors duration-150 focus:border-[var(--brand-teal-50)] focus-visible:outline-none! focus-visible:shadow-[0_0_0_1px_var(--brand-teal-50)]"
+                   class="box-border w-full rounded-lg border-fin border-subtle bg-elevated px-3 py-[9px] text-[13px] text-primary transition-colors duration-150 focus:border-[var(--brand-teal-50)]"
                    [ngModel]="email()" (ngModelChange)="email.set($event)" />
           </div>
 
@@ -49,7 +49,7 @@
             <div class="relative">
               <input id="connexion-mdp" [type]="afficherMdp() ? 'text' : 'password'" name="motDePasse"
                      autocomplete="current-password" required minlength="6" placeholder="••••••••"
-                     class="box-border w-full rounded-lg border-fin border-subtle bg-elevated py-[9px] pl-3 pr-9 text-[13px] text-primary outline-none transition-colors duration-150 focus:border-[var(--brand-teal-50)] focus-visible:outline-none! focus-visible:shadow-[0_0_0_1px_var(--brand-teal-50)]"
+                     class="box-border w-full rounded-lg border-fin border-subtle bg-elevated py-[9px] pl-3 pr-9 text-[13px] text-primary transition-colors duration-150 focus:border-[var(--brand-teal-50)]"
                      [ngModel]="motDePasse()" (ngModelChange)="motDePasse.set($event)" />
               <button type="button" tabindex="-1" (click)="afficherMdp.set(!afficherMdp())"
                       [attr.aria-label]="afficherMdp() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'"
