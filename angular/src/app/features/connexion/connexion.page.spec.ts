@@ -33,6 +33,12 @@ describe('ConnexionPage', () => {
     expect(racine.adoptions).toEqual([{ racine, feuille: racine.feuille }]);
   });
 
+  it("démarrage en échec : ni pied « systèmes opérationnels » ni lien d'inscription", async () => {
+    const el = await rendre({ erreur: 'Configuration locale introuvable.' });
+    expect(el.textContent).not.toContain('Tous les systèmes opérationnels');
+    expect(el.textContent).not.toContain('Pas de compte');
+  });
+
   it('affiche le formulaire quand le démarrage a réussi', async () => {
     const el = await rendre({});
     expect(el.querySelector('form')).not.toBeNull();
