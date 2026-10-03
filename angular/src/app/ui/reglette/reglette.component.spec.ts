@@ -64,6 +64,23 @@ describe('RegletteComponent', () => {
     expect(r.el.textContent).toContain('2.5 km');
   });
 
+  it('le parent GARDE sa valeur (demande refusée) : le curseur natif est recalé sur elle', async () => {
+    const r = await rendre();
+    r.f.componentRef.setInput('valeur', 5000);
+    await r.f.whenStable();
+    // Glisser PUIS relâcher dans la même tâche, sans rendu entre les deux : la valeur LIÉE passe
+    // 5000 → 5000, `[value]` n'est donc jamais réécrit, et seul le recalage remet le curseur natif.
+    r.curseur.value = '150';
+    r.curseur.dispatchEvent(new Event('input'));
+    expect(r.validations).toEqual([]);
+    r.curseur.dispatchEvent(new Event('pointerup'));
+    expect(r.validations).toHaveLength(1);
+    expect(r.curseur.value).not.toBe('5000');
+    await r.f.whenStable();
+    expect(r.curseur.value).toBe('5000');
+    expect(r.el.textContent).toContain('5 km');
+  });
+
   it('un « change » (relâchement hors de la poignée) valide une fois ; le pointerup suivant ne revalide pas', async () => {
     const r = await rendre();
     await r.glisser(4000);

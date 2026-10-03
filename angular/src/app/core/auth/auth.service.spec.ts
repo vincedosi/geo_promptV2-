@@ -107,6 +107,39 @@ describe('AuthService', () => {
       await auth.deconnecter('locale');
     });
 
+    it("un échec ne se mémorise pas : l'appel suivant relit profiles", async () => {
+      for (const echec of [
+        async () => ({ data: null, error: { message: 'refus' } }),
+        async () => { throw new Error('réseau'); },
+      ]) {
+        TestBed.resetTestingModule();
+        let n = 0;
+        const { client, appels } = clientProfil(async () => (++n === 1 ? echec() : { data: { role: 'admin', full_name: 'A' }, error: null }));
+        const auth = creer(client as never);
+        await auth.initialiser();
+        expect(await auth.lireProfil()).toBeNull();
+        expect(await auth.lireProfil()).toEqual({ role: 'admin', nom: 'A' });
+        expect(appels.filter((a) => a[0] === 'from')).toHaveLength(2);
+        // Le succès, lui, est gardé.
+        expect(await auth.lireRole()).toBe('admin');
+        expect(appels.filter((a) => a[0] === 'from')).toHaveLength(2);
+      }
+    });
+
+    it("un changement d'utilisateur relit profiles ; la déconnexion vide le mémo", async () => {
+      const { client, appels } = clientProfil(async () => ({ data: { role: 'admin', full_name: 'A' }, error: null }));
+      const auth = creer(client as never);
+      await auth.initialiser();
+      await auth.lireProfil();
+      client.emettre({ access_token: 'k', user: { id: 'u2', email: 'b@exemple.test' } } as unknown as Session);
+      await auth.lireProfil();
+      expect(appels.filter((a) => a[0] === 'eq').map((a) => a[2])).toEqual(['u1', 'u2']);
+      await auth.deconnecter('locale');
+      client.emettre({ access_token: 'k', user: { id: 'u2', email: 'b@exemple.test' } } as unknown as Session);
+      await auth.lireProfil();
+      expect(appels.filter((a) => a[0] === 'eq').map((a) => a[2])).toEqual(['u1', 'u2', 'u2']);
+    });
+
     it('rend null sur une erreur, une absence ou une exception — jamais ne lève', async () => {
       for (const reponse of [
         async () => ({ data: null, error: { message: 'refus' } }),

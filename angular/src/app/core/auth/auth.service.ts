@@ -97,7 +97,16 @@ export class AuthService {
       return null;
     }
     // Une seule promesse par identifiant : `lireRole()` et `lireProfil()` ne font qu'une requête.
-    if (this.profilMemo?.id !== id) this.profilMemo = { id, promesse: this.chargerProfil(id) };
+    if (this.profilMemo?.id !== id) {
+      const memo = { id, promesse: this.chargerProfil(id) };
+      this.profilMemo = memo;
+      // ⚠ Un ÉCHEC ne se mémorise pas : sans cette éviction, une lecture ratée (réseau, RLS
+      // momentanée) figerait `null` jusqu'à la déconnexion. On ne retire que NOTRE mémo — un
+      // changement d'utilisateur ou une déconnexion a pu le remplacer entre-temps.
+      void memo.promesse.then((p) => {
+        if (p === null && this.profilMemo === memo) this.profilMemo = null;
+      });
+    }
     return this.profilMemo.promesse;
   }
 
