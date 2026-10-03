@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { OPACITE_BANDES } from '../opacites-bandes';
 
 /** Un niveau de la légende : son libellé, le jeton CSS de sa teinte (`niveau-haut`), les rayons de ses anneaux. */
 export interface NiveauLegende {
@@ -8,8 +9,6 @@ export interface NiveauLegende {
   anneaux: readonly number[];
 }
 
-/** Opacité par bande (`OPACITE_BANDE`, lib/carte/palette-zones-risque.ts) : la teinte dit le niveau, l'opacité la distance. */
-export const OPACITE_BANDES_LEGENDE = [0.45, 0.28, 0.16, 0.08] as const;
 
 /** `libelleRayon` de `lib/risques/profil.ts` : `500 m`, `2 km`, `1,5 km`. */
 export function libelleRayon(metres: number): string {
@@ -54,6 +53,6 @@ export class LegendeNiveauxComponent {
   protected readonly niveauxAffiches = computed(() => this.niveaux().filter((n) => n.anneaux.length > 0));
 
   protected opacite(i: number): number {
-    return OPACITE_BANDES_LEGENDE[Math.min(i, OPACITE_BANDES_LEGENDE.length - 1)];
+    return OPACITE_BANDES[Math.min(i, OPACITE_BANDES.length - 1)];
   }
 }

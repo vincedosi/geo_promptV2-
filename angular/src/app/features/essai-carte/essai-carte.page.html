@@ -43,6 +43,12 @@
           Zoomez pour voir les zones : à cette échelle, un rayon de 2 km fait moins d’un pixel.
         </div>
       }
+      @if (zonesEnCours()) {
+        <!-- Pastille de préparation (CarteRisque.tsx:1067) : 10,5 px secondaire, --card-overlay, bord 0,5 subtil, rayon 6. -->
+        <div class="absolute top-2.5 right-[56px] z-[2] rounded-md border-fin border-subtle bg-[var(--card-overlay)] px-[10px] py-[6px] text-[10.5px] text-secondary">
+          Découpage des zones…
+        </div>
+      }
     </mg-carte>
     @if (erreurZones(); as message) {
       <p role="alert" class="text-xs text-danger">{{ message }}</p>

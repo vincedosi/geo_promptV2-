@@ -49,9 +49,13 @@ describe('CarteComponent', () => {
     expect((carte().controles[0].controle as { _showCompass?: boolean; options?: { showCompass?: boolean } }).options?.showCompass).toBe(false);
     const zooms: number[] = [];
     f.componentInstance.zoom.subscribe((z) => zooms.push(z));
+    // Une fois au `load` (valeur de départ), puis à chaque image de zoom.
+    carte().zoom = 9;
+    carte().emettre('load');
+    expect(zooms).toEqual([9]);
     carte().zoom = 6.5;
     carte().emettre('zoom');
-    expect(zooms).toEqual([6.5]);
+    expect(zooms).toEqual([9, 6.5]);
   });
 
   it("crée la carte HORS de la zone Angular (NgZone.runOutsideAngular) : un shell sous zone.js ne détecte pas à chaque mouvement de souris", async () => {

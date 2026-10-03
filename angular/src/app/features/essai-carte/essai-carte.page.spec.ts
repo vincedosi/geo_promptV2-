@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
+import maplibregl from 'maplibre-gl';
 import { provideRouter } from '@angular/router';
 import { FABRIQUE_CARTE } from '../../carte/fabrique-carte';
 import { CarteFactice } from '../../carte/testing/carte-factice';
@@ -132,5 +133,77 @@ describe('EssaiCartePage', () => {
     await f.whenStable();
     f.detectChanges();
     expect((f.nativeElement as HTMLElement).textContent).toContain('Pré-calcul absent.');
+  });
+
+  describe('mobilier de carte', () => {
+    const texte = (f: { nativeElement: unknown }) => (f.nativeElement as HTMLElement).textContent ?? '';
+
+    it("n'affiche l'avertissement de zoom que sous z7", async () => {
+      const { f, http, carte } = await rendre();
+      http.expectOne('/api/risques/exposition/rayon?gravites=seveso_haut').flush(COURBE);
+      carte().emettre('load');
+      carte().zoom = 6.9;
+      carte().emettre('zoom');
+      f.detectChanges();
+      expect(texte(f)).toContain('Zoomez pour voir les zones');
+      carte().zoom = 7;
+      carte().emettre('zoom');
+      f.detectChanges();
+      expect(texte(f)).not.toContain('Zoomez pour voir les zones');
+    });
+
+    it('un bouton de grappe recadre la carte, marge 40, 800 ms', async () => {
+      const { f, http, carte } = await rendre();
+      http.expectOne('/api/risques/exposition/rayon?gravites=seveso_haut').flush(COURBE);
+      carte().emettre('load');
+      f.detectChanges();
+      const bouton = [...(f.nativeElement as HTMLElement).querySelectorAll('button')].find((b) => b.textContent?.includes('Estuaire de la Seine'))!;
+      bouton.click();
+      const dernier = carte().cadrages.at(-1)!;
+      expect(dernier.cadre).toEqual([[0.05, 49.4], [0.55, 49.55]]);
+      expect(dernier.options).toEqual({ padding: 40, duration: 800 });
+    });
+
+    it("la pastille « Découpage des zones… » n'existe que pendant la préparation", async () => {
+      const { f, http, carte } = await rendre();
+      http.expectOne('/api/risques/exposition/rayon?gravites=seveso_haut').flush(COURBE);
+      carte().emettre('load');
+      const req = http.expectOne('/api/risques/zones/preparer');
+      f.detectChanges();
+      expect(texte(f)).toContain('Découpage des zones…');
+      req.flush({ deja_construit: true });
+      f.detectChanges();
+      expect(texte(f)).not.toContain('Découpage des zones…');
+    });
+
+    it('annonce « · N sites affichés » après une réponse de sites', async () => {
+      const { f, http, carte } = await rendre();
+      vi.useFakeTimers();
+      http.expectOne('/api/risques/exposition/rayon?gravites=seveso_haut').flush(COURBE);
+      carte().emettre('load');
+      http.expectOne('/api/risques/zones/preparer');
+      expect(texte(f)).not.toContain('sites affichés');
+      vi.advanceTimersByTime(400);
+      http.expectOne((r) => r.url.startsWith('/api/map/risques-industriels'))
+        .flush({ type: 'FeatureCollection', features: [{}, {}, {}] });
+      f.detectChanges();
+      expect(texte(f)).toContain('· 3 sites affichés');
+    });
+
+    it("la popup d'un site lit statut · ville · nature, dans cet ordre", async () => {
+      const { http, carte } = await rendre();
+      http.expectOne('/api/risques/exposition/rayon?gravites=seveso_haut').flush(COURBE);
+      carte().emettre('load');
+      const contenus: HTMLElement[] = [];
+      const chaine = { setLngLat: () => chaine, setDOMContent: (c: HTMLElement) => { contenus.push(c); return chaine; }, addTo: () => chaine };
+      vi.spyOn(maplibregl, 'Popup').mockImplementation(function () { return chaine; } as never);
+      carte().emettreSurCouche('click', 'sites-points', {
+        lngLat: { lng: 5, lat: 43.5 },
+        features: [{ properties: { nom: 'Site A', ville: 'Martigues', statut_seveso: 'Seveso seuil haut', libelle_nature: 'Explosibles' } }],
+      });
+      expect(contenus).toHaveLength(1);
+      expect(contenus[0].children[0].textContent).toBe('Site A');
+      expect(contenus[0].children[1].textContent).toBe('Seveso seuil haut · Martigues · Explosibles');
+    });
   });
 });

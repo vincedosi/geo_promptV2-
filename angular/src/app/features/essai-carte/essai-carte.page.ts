@@ -8,6 +8,7 @@ import { type Bbox, bboxEnParametre } from '../../carte/bbox';
 import { CarteComponent } from '../../carte/carte.component';
 import { chargerParCadre } from '../../carte/charger-par-cadre';
 import { contenuPopup } from '../../carte/contenu-popup';
+import { OPACITE_BANDES } from '../../carte/opacites-bandes';
 import { LegendeComponent } from '../../carte/legende/legende.component';
 import { LegendeNiveauxComponent, type NiveauLegende } from '../../carte/legende/legende-niveaux.component';
 import { ChargementService } from '../../core/chargement/chargement.service';
@@ -39,7 +40,9 @@ const GRAPPES: ReadonlyArray<{ nom: string; bbox: Bbox }> = [
   { nom: 'Étang de Berre', bbox: CADRE_ETANG_DE_BERRE },
 ];
 
-/** Le profil par défaut, tel que sa légende le montre : seuil haut 1/2/5 km, seuil bas 500 m/1 km, aucun « autres régimes ». */
+/**
+ * Le profil par défaut, tel que sa légende le montre — ÉCRIT EN DUR pour la page d'essai : le lot 3 dérive ces anneaux du
+ * profil (`anneauxDuNiveau(profil, niveau)` côté React). Profil par défaut : seuil haut 1/2/5 km, seuil bas 500 m/1 km, aucun « autres régimes ». */
 const NIVEAUX_LEGENDE: readonly NiveauLegende[] = [
   { libelle: 'Seveso seuil haut', jeton: 'niveau-haut', anneaux: [1000, 2000, 5000] },
   { libelle: 'Seveso seuil bas', jeton: 'niveau-bas', anneaux: [500, 1000] },
@@ -54,8 +57,7 @@ const COUCHE_SITES = 'sites-points';
 /** Nom de la couche dans la tuile : `ST_AsMVT(t, 'zones_risque', …)` (sql/205, zones_risque_tuile). */
 const COUCHE_TUILE = 'zones_risque';
 
-/** Opacité par bande 1 à 4 (`OPACITE_BANDE`, lib/carte/palette-zones-risque.ts) et pour un PPRT (bande nulle). */
-const OPACITE_BANDES = [0.45, 0.28, 0.16, 0.08] as const;
+/** Opacité d'un PPRT (bande nulle) et d'une zone fondue ; celle des bandes 1 à 4 vient de `carte/opacites-bandes`. */
 const OPACITE_PPRT = 0.5;
 const OPACITE_FONDUE = 0.32;
 const ZOOM_DETAIL = 10;
@@ -102,7 +104,7 @@ export class EssaiCartePage {
   protected readonly erreurCourbe = signal<string | null>(null);
   protected readonly reponseCourbe = signal<ReponseCourbe | null>(null);
 
-  private readonly zonesEnCours = signal(false);
+  protected readonly zonesEnCours = signal(false);
   private readonly sitesEnCours = signal(false);
   private readonly courbeEnCours = signal(true);
 
