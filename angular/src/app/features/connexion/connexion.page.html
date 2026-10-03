@@ -18,7 +18,7 @@
         <!-- Démarrage en échec : un formulaire ne pourrait rien faire, on dit pourquoi. Habillé comme l'erreur d'identifiants. -->
         <div class="flex items-start gap-2 rounded-lg border-fin border-danger/20 bg-danger/10 px-3 py-2.5">
           <mg-icone nom="cercle-alerte" [taille]="14" class="mt-px shrink-0 text-danger" />
-          <span role="alert" class="whitespace-pre-wrap text-xs/normal font-normal leading-normal text-danger">{{ message }}</span>
+          <span role="alert" class="whitespace-pre-wrap text-xs/normal font-normal text-danger">{{ message }}</span>
         </div>
       } @else {
         <form ngNativeValidate class="flex flex-col gap-4" (ngSubmit)="envoyer()">
@@ -62,7 +62,7 @@
           @if (erreur(); as message) {
             <div class="flex items-start gap-2 rounded-lg border-fin border-danger/20 bg-danger/10 px-3 py-2.5">
               <mg-icone nom="cercle-alerte" [taille]="14" class="mt-px shrink-0 text-danger" />
-              <span role="alert" class="whitespace-pre-wrap text-xs/normal font-normal leading-normal text-danger">{{ message }}</span>
+              <span role="alert" class="whitespace-pre-wrap text-xs/normal font-normal text-danger">{{ message }}</span>
             </div>
           }
 
@@ -90,7 +90,7 @@
         <div class="mt-4 text-center text-xs/normal text-tertiary">
           <span>
             Pas de compte ?
-            <button type="button" aria-disabled="true" title="Disponible prochainement"
+            <button type="button" aria-disabled="true" [attr.title]="prochainement"
                     class="cursor-not-allowed border-0 bg-transparent p-0 text-xs/normal text-secondary">Inscription</button>
           </span>
         </div>

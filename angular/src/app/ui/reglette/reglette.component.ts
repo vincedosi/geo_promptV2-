@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, input, output, signal, viewChild } from '@angular/core';
 
 /**
  * Une réglette qui PRÉVISUALISE pendant le glissement et ne VALIDE qu'au
@@ -25,7 +25,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output, signal } f
         }
         <span class="font-mono text-[12px] text-teal">{{ formater()(affiche()) }}</span>
       </div>
-      <input type="range" class="w-full accent-[var(--brand-teal)]"
+      <input #curseur type="range" class="w-full accent-teal"
              [min]="min()" [max]="max()" [step]="pas()" [value]="affiche()"
              [attr.aria-label]="descriptionAccessible() ?? libelle() + ', de ' + formater()(min()) + ' à ' + formater()(max())"
              (input)="glisser($event)"
@@ -49,6 +49,8 @@ export class RegletteComponent {
 
   /** `null` = rien en cours de glissement : on affiche la valeur du parent. */
   private readonly glisse = signal<number | null>(null);
+  private readonly curseur = viewChild.required<ElementRef<HTMLInputElement>>('curseur');
+  private readonly injecteur = inject(Injector);
   protected readonly affiche = computed(() => this.glisse() ?? this.valeur());
 
   protected glisser(ev: Event): void {
@@ -65,5 +67,12 @@ export class RegletteComponent {
     // l'ancien et l'aperçu côte à côte montrerait deux valeurs pour un réglage.
     this.apercu.emit(null);
     this.valider.emit(v);
+    // `[value]` ne se relie que si la valeur LIÉE change : si le parent garde sa valeur (il a corrigé
+    // la demande), le curseur natif resterait sur la position glissée. On le recale après le rendu.
+    afterNextRender(() => {
+      const el = this.curseur().nativeElement;
+      const attendu = String(this.valeur());
+      if (el.value !== attendu) el.value = attendu;
+    }, { injector: this.injecteur });
   }
 }

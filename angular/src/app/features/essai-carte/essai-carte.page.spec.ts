@@ -11,7 +11,7 @@ import { CouleursService } from '../../core/theme/couleurs.service';
 import { FABRIQUE_GRAPHIQUE } from '../../graphiques/fabrique-graphique';
 import { ZonesRisqueApi } from '../risques/data/zones-risque.api';
 import {
-  CODE_PROFIL_DEFAUT, EssaiCartePage, PROFIL_DEFAUT, basculerLiaison, codeDuProfil, libelleRayon, poserBord,
+  CODE_PROFIL_DEFAUT, EssaiCartePage, PROFIL_DEFAUT, basculerLiaison, codeDuProfil, poserBord,
 } from './essai-carte.page';
 
 class ObservateurFactice {
@@ -242,9 +242,6 @@ describe('EssaiCartePage', () => {
       expect(codeDuProfil(lie)).toBe('h1000.2000.5000_b1000.2000.5000_a_L1_P1');
       expect(poserBord(lie, 'bas', 8000)).toMatchObject({ haut: [1000, 2000, 8000], bas: [1000, 2000, 8000] });
       expect(basculerLiaison(lie)).toMatchObject({ lie: false, bas: [1000, 2000, 5000] });
-    });
-    it('libelleRayon écrit comme React', () => {
-      expect([500, 1000, 1500, 10_000].map(libelleRayon)).toEqual(['500 m', '1 km', '1,5 km', '10 km']);
     });
   });
 

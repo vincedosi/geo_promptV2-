@@ -97,6 +97,16 @@ describe('AuthService', () => {
       expect(appels).toEqual([['from', 'profiles'], ['select', 'role, full_name'], ['eq', 'id', 'u1']]);
     });
 
+    it('lireRole() puis lireProfil() : UNE seule lecture de profiles', async () => {
+      const { client, appels } = clientProfil(async () => ({ data: { role: 'admin', full_name: 'A B' }, error: null }));
+      const auth = creer(client as never);
+      await auth.initialiser();
+      expect(await auth.lireRole()).toBe('admin');
+      expect(await auth.lireProfil()).toEqual({ role: 'admin', nom: 'A B' });
+      expect(appels.filter((a) => a[0] === 'from')).toHaveLength(1);
+      await auth.deconnecter('locale');
+    });
+
     it('rend null sur une erreur, une absence ou une exception — jamais ne lève', async () => {
       for (const reponse of [
         async () => ({ data: null, error: { message: 'refus' } }),

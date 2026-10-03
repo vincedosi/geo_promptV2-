@@ -27,6 +27,8 @@ import { KpiComponent } from '../../ui/kpi/kpi.component';
 import { PastilleComponent } from '../../ui/pastille/pastille.component';
 import { PerimeDirective } from '../../ui/perime/perime.directive';
 import { RegletteComponent } from '../../ui/reglette/reglette.component';
+import { DISPONIBLE_PROCHAINEMENT } from '../../layout/navigation';
+import { libelleRayon } from '../risques/logique/profil';
 import { type ReponseCourbe, ZonesRisqueApi } from '../risques/data/zones-risque.api';
 
 /** Le profil par défaut du module risque : seuil haut 1/2/5 km, seuil bas 500 m/1 km, PPRT inclus. */
@@ -71,13 +73,6 @@ const LIBELLE_NIVEAU: Record<NiveauReglable | 'autres', string> = {
   bas: 'Seveso seuil bas',
   autres: 'Autres régimes',
 };
-
-/** `libelleRayon` de `lib/risques/profil.ts` : « 500 m », « 5 km », « 1,5 km ». */
-export function libelleRayon(m: number): string {
-  if (m < 1000) return `${m} m`;
-  const km = m / 1000;
-  return `${Number.isInteger(km) ? km : km.toFixed(1).replace('.', ',')} km`;
-}
 
 /** Code de cache des zones (`codeProfil`, `lib/risques/code-profil.ts`) : niveaux, liaison, PPRT à part. */
 export function codeDuProfil(p: ProfilEssai): string {
@@ -173,7 +168,7 @@ export class EssaiCartePage {
 
   protected readonly cadre = CADRE_ETANG_DE_BERRE;
   protected readonly grappes = GRAPPES;
-  protected readonly prochainement = 'Disponible prochainement';
+  protected readonly prochainement = DISPONIBLE_PROCHAINEMENT;
   protected readonly mailles = MAILLES;
   protected readonly modesZone = MODES_ZONE;
   protected readonly niveauxReglementaires = NIVEAUX_REGLEMENTAIRES;
@@ -341,7 +336,7 @@ export class EssaiCartePage {
    * mais ce bandeau n'a que deux tuiles, aucun filtre branché et aucune définition en infobulle — la phrase ne promet
    * donc que ce qui est vrai (le chiffre de population suit le bord du seuil haut).
    */
-  protected readonly consigneBandeau = 'Ces deux chiffres suivent le profil.';
+  protected readonly consigneBandeau = 'Le premier chiffre suit le profil.';
 
   constructor() {
     this.chargement.suivre('zones', 'Préparation des zones', () => this.zonesEnCours());

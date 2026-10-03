@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { cibleDeRedirection } from '../../core/auth/messages';
 import { DemarrageService } from '../../core/demarrage/demarrage.service';
+import { DISPONIBLE_PROCHAINEMENT } from '../../layout/navigation';
 import { monterRacineOmbre } from '../../layout/racine-ombre';
 import { IconeComponent } from '../../ui/icone/icone.component';
 import { LogoComponent } from '../../ui/logo/logo.component';
@@ -34,6 +35,7 @@ export class ConnexionPage {
   protected readonly afficherMdp = signal(false);
   /** Encart d'aide « Mot de passe oublié ? » : pas d'envoi d'e-mail dans le projet, seule la marche réelle est dite. */
   protected readonly aideMdp = signal(false);
+  protected readonly prochainement = DISPONIBLE_PROCHAINEMENT;
   protected readonly vitrine = VITRINE;
   protected readonly grille = GRILLE;
   private readonly champEmail = viewChild<ElementRef<HTMLInputElement>>('champEmail');

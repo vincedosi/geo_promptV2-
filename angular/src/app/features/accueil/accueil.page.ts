@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { AuthService } from '../../core/auth/auth.service';
+import { formaterNombre } from '../../core/format/nombre';
 import { versEtat } from '../../core/etat/vers-etat';
 import { DISPONIBLE_PROCHAINEMENT } from '../../layout/navigation';
 import { EnteteSectionComponent } from '../../ui/entete-section/entete-section.component';
@@ -38,7 +39,6 @@ const CARTES_NAVIGATION: readonly { icone: NomIcone; libelle: string; sous: stri
 export class AccueilPage {
   private readonly api = inject(SitesRisqueApi);
   private readonly auth = inject(AuthService);
-  private readonly nombre = new Intl.NumberFormat('fr-FR');
 
   protected readonly etat = versEtat<CompteSites>(this.api.compter());
   protected readonly prochainement = DISPONIBLE_PROCHAINEMENT;
@@ -80,7 +80,7 @@ export class AccueilPage {
 
   protected readonly valeurSites = computed(() => {
     const e = this.etat();
-    if (e.statut === 'pret') return this.nombre.format(e.valeur.retenus);
+    if (e.statut === 'pret') return formaterNombre(e.valeur.retenus);
     return e.statut === 'echec' ? '—' : '…';
   });
 

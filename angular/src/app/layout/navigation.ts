@@ -83,5 +83,13 @@ export const LIENS_DEVELOPPEMENT: readonly { libelle: string; icone: NomIcone; c
   { libelle: 'Essai carte', icone: 'carte', cible: 'essai-carte' },
 ];
 
-/** Libellé de l'infobulle d'une entrée inerte (et du bouton « MAGELIAN »). */
+/**
+ * Libellé de l'infobulle d'une entrée inerte (et du bouton « MAGELIAN »).
+ *
+ * Règle du curseur d'une entrée inerte : c'est celui que React rend pour cet
+ * élément (parité), sans harmonisation — `cursor-default` pour une entrée de
+ * la barre ou une carte de l'accueil (React ne pose aucun `not-allowed` dessus),
+ * `cursor-not-allowed` là où React le pose (lien d'inscription, boutons
+ * désactivés). Ne pas « uniformiser » : on copie le rendu mesuré.
+ */
 export const DISPONIBLE_PROCHAINEMENT = 'Disponible prochainement';

@@ -32,6 +32,7 @@
   --color-subtle: var(--border-subtle);
   --color-default: var(--border-default);
   --color-hover: var(--border-hover);
+  --color-card-overlay: var(--card-overlay);
   --color-teal: var(--brand-teal);
   --color-teal-hover: var(--brand-teal-hover);
   --color-teal-10: var(--brand-teal-10);

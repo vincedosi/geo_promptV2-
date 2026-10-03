@@ -128,3 +128,29 @@ describe('base globale alignée sur React (lot Rendu, R0)', () => {
     }
   });
 });
+
+describe('base globale — gardes de la revue finale du lot Rendu', () => {
+  const brut = readFileSync(path.join(RACINE, 'angular', 'src', 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  it(':focus-visible vit UNIQUEMENT dans @layer base, avec un anneau de 1 px teal à 50 %', () => {
+    const occurrences = [...brut.matchAll(/:focus-visible\s*\{/g)];
+    expect(occurrences).toHaveLength(1);
+    const couche = brut.match(/@layer base\s*\{([\s\S]*?)\n\}/);
+    expect(couche?.[1]).toMatch(/:focus-visible\s*\{[^}]*box-shadow:\s*0 0 0 1px var\(--brand-teal-50\)/);
+  });
+
+  it("@theme porte l'échelle des rayons de React (2 / 4 / 6 px)", () => {
+    const theme = brut.match(/@theme inline\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    expect(theme).toMatch(/--radius-sm:\s*2px/);
+    expect(theme).toMatch(/--radius-md:\s*4px/);
+    expect(theme).toMatch(/--radius-lg:\s*6px/);
+  });
+
+  it(':host impose line-height 1.5 en !important', () => {
+    expect(regle(':host').get('line-height')).toBe('1.5 !important');
+  });
+
+  it('prefers-reduced-motion : animation-iteration-count 1 en !important', () => {
+    expect(brut).toMatch(/@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?animation-iteration-count:\s*1 !important/);
+  });
+});

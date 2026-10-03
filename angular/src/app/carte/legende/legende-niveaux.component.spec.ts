@@ -1,7 +1,8 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { LegendeComponent } from './legende.component';
-import { LegendeNiveauxComponent, type NiveauLegende, libelleRayon } from './legende-niveaux.component';
+import { libelleRayon } from '../../features/risques/logique/profil';
+import { LegendeNiveauxComponent, type NiveauLegende } from './legende-niveaux.component';
 
 @Component({
   imports: [LegendeComponent, LegendeNiveauxComponent],

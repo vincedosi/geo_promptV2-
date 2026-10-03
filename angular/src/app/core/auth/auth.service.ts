@@ -23,6 +23,8 @@ export class AuthService {
   private readonly _session = signal<Session | null>(null);
   /** Plusieurs appels en 401 au même moment : un seul signOut local. */
   private fermetureLocale: Promise<void> | null = null;
+  /** UNE lecture de `profiles` par utilisateur de session : le rôle et le nom en partagent le résultat. */
+  private profilMemo: { id: string; promesse: Promise<{ role: string | null; nom: string | null } | null> } | null = null;
 
   readonly session = this._session.asReadonly();
   readonly connecte = computed(() => this._session() !== null);
@@ -57,6 +59,7 @@ export class AuthService {
    *   appel ultérieur en refait un.
    */
   async deconnecter(portee: PorteeDeconnexion = 'globale'): Promise<void> {
+    this.profilMemo = null;
     if (portee === 'locale') {
       this.fermetureLocale ??= (async () => {
         try {
@@ -89,7 +92,16 @@ export class AuthService {
    */
   async lireProfil(): Promise<{ role: string | null; nom: string | null } | null> {
     const id = this._session()?.user?.id;
-    if (!id) return null;
+    if (!id) {
+      this.profilMemo = null;
+      return null;
+    }
+    // Une seule promesse par identifiant : `lireRole()` et `lireProfil()` ne font qu'une requête.
+    if (this.profilMemo?.id !== id) this.profilMemo = { id, promesse: this.chargerProfil(id) };
+    return this.profilMemo.promesse;
+  }
+
+  private async chargerProfil(id: string): Promise<{ role: string | null; nom: string | null } | null> {
     try {
       const { data, error } = await this.supabase.from('profiles').select('role, full_name').eq('id', id).single();
       if (error || !data) return null;

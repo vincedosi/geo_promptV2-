@@ -38,7 +38,7 @@ describe('icones.ts reste identique à lucide-react', () => {
     compares += 1;
   });
 
-  it('a comparé exactement 29 icônes (pas de passage à vide)', () => {
+  it('a comparé exactement 34 icônes (pas de passage à vide)', () => {
     expect(entrees.length).toBe(34);
     expect(compares).toBe(34);
   });

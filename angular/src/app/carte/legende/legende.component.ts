@@ -11,6 +11,6 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
   selector: 'mg-legende',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: '<ng-content />',
-  host: { class: 'block max-w-[260px] rounded-lg border-fin border-subtle bg-[var(--card-overlay)] px-[11px] py-[9px]' },
+  host: { class: 'block max-w-[260px] rounded-lg border-fin border-subtle bg-card-overlay px-[11px] py-[9px]' },
 })
 export class LegendeComponent {}

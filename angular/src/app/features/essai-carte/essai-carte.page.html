@@ -192,7 +192,7 @@
     <!-- La poignée (React : 5 px, `--border-subtle`, bornée 320-900 px). -->
     @if (!carteSeule()) {
       <div role="separator" aria-orientation="vertical" aria-label="Largeur du panneau"
-           class="w-[5px] shrink-0 cursor-col-resize touch-none bg-[var(--border-subtle)]"
+           class="w-[5px] shrink-0 cursor-col-resize touch-none bg-subtle"
            (pointerdown)="saisirPoignee($event)"></div>
     }
 
@@ -204,7 +204,7 @@
         <div class="absolute top-2.5 left-2.5 z-[2] flex max-w-[calc(100%-100px)] flex-wrap gap-[6px]">
           @for (g of grappes; track g.nom) {
             <button type="button" (click)="allerA(g.bbox)"
-                    class="cursor-pointer rounded-lg border-fin border-default bg-[var(--card-overlay)] px-[10px] py-[5px] text-[11px] text-secondary">{{ g.nom }}</button>
+                    class="cursor-pointer rounded-lg border-fin border-default bg-card-overlay px-[10px] py-[5px] text-[11px] text-secondary">{{ g.nom }}</button>
           }
         </div>
         <mg-legende class="absolute bottom-2.5 left-2.5 z-[2]">
@@ -221,7 +221,7 @@
         @if (zonesEnCours()) {
           <!-- Pastille de préparation (CarteRisque.tsx:1067) : 10,5 px secondaire, --card-overlay, bord 0,5 subtil, rayon 6.
                Même place et même plan que React (z 2, sous « Carte seule » en z 4) : React la recouvre, on garde la parité. -->
-          <div class="absolute top-2.5 right-[56px] z-[2] rounded-lg border-fin border-subtle bg-[var(--card-overlay)] px-[10px] py-[6px] text-[10.5px] text-secondary">
+          <div class="absolute top-2.5 right-[56px] z-[2] rounded-lg border-fin border-subtle bg-card-overlay px-[10px] py-[6px] text-[10.5px] text-secondary">
             Découpage des zones…
           </div>
         }
@@ -229,7 +229,7 @@
 
       <!-- Rayons / Codes postaux (VueCartesZones.tsx:228) : la carte des codes postaux n'existe que pour un jeu de zones,
            désactivée sans jeu — comme React à l'étape ②. -->
-      <div class="absolute top-2.5 right-[190px] z-[3] flex gap-0.5 rounded-lg border-fin border-default bg-[var(--card-overlay)] p-0.5">
+      <div class="absolute top-2.5 right-[190px] z-[3] flex gap-0.5 rounded-lg border-fin border-default bg-card-overlay p-0.5">
         <button type="button" aria-pressed="true" title="Rayons"
                 class="inline-flex cursor-pointer items-center gap-[5px] rounded-md border-0 bg-teal-10 px-2 py-1 text-[10px] text-teal">
           <mg-icone nom="carte" [taille]="11" />Rayons
@@ -242,14 +242,14 @@
       <!-- Carte seule : REPLIE le panneau, sans passer par l'API plein écran (React). -->
       <button type="button" (click)="carteSeule.set(!carteSeule())" [attr.aria-pressed]="carteSeule()"
               [attr.title]="carteSeule() ? 'Réafficher le panneau de l’étape' : 'Masquer le panneau et n’afficher que la carte'"
-              class="absolute top-2.5 right-[56px] z-[4] inline-flex cursor-pointer items-center gap-[5px] rounded-lg border-fin border-default bg-[var(--card-overlay)] px-[10px] py-[5px] text-[11px]"
+              class="absolute top-2.5 right-[56px] z-[4] inline-flex cursor-pointer items-center gap-[5px] rounded-lg border-fin border-default bg-card-overlay px-[10px] py-[5px] text-[11px]"
               [class.text-teal]="carteSeule()" [class.text-secondary]="!carteSeule()">
         <mg-icone [nom]="carteSeule() ? 'reduire' : 'agrandir'" [taille]="12" />
         {{ carteSeule() ? 'Afficher le panneau' : 'Carte seule' }}
       </button>
 
       @if (erreurCarte() ?? erreurZones() ?? erreurSites(); as message) {
-        <p role="alert" class="absolute right-2.5 bottom-2.5 z-[3] m-0 max-w-[300px] rounded-lg border-fin border-danger/25 bg-[var(--card-overlay)] px-[11px] py-[7px] text-[11px] leading-[1.5] text-danger">
+        <p role="alert" class="absolute right-2.5 bottom-2.5 z-[3] m-0 max-w-[300px] rounded-lg border-fin border-danger/25 bg-card-overlay px-[11px] py-[7px] text-[11px] leading-[1.5] text-danger">
           {{ message }}
         </p>
       }

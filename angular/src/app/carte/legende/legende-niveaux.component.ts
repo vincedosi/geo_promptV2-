@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { libelleRayon } from '../../features/risques/logique/profil';
 import { OPACITE_BANDES } from '../opacites-bandes';
 
 /** Un niveau de la légende : son libellé, le jeton CSS de sa teinte (`niveau-haut`), les rayons de ses anneaux. */
@@ -9,13 +10,6 @@ export interface NiveauLegende {
   anneaux: readonly number[];
 }
 
-
-/** `libelleRayon` de `lib/risques/profil.ts` : `500 m`, `2 km`, `1,5 km`. */
-export function libelleRayon(metres: number): string {
-  if (metres < 1000) return `${metres} m`;
-  const km = metres / 1000;
-  return `${Number.isInteger(km) ? km : km.toFixed(1).replace('.', ',')} km`;
-}
 
 /**
  * Le contenu de légende du module risque : par niveau, un libellé et un carré par
