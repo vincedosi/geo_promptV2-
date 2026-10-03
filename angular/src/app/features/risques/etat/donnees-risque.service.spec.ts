@@ -121,6 +121,66 @@ describe('DonneesRisqueService', () => {
     expect(service.bandes().etat).toBe('pret');
   });
 
+  it('(b) courbe : deux périmètres, réponses en ordre INVERSE → l’écran garde le DERNIER réglage', () => {
+    const { service, geo, courbe } = creer();
+    geo.appels[0].rep.next(REF);
+    service.choisirTerritoire('departement:13');
+    TestBed.tick();
+    const premier = courbe.appels[1];
+    service.choisirTerritoire('departement:84');
+    TestBed.tick();
+    // Le second périmètre annule TOUT DE SUITE la lecture du premier.
+    expect(premier.annule).toBe(true);
+    const second = courbe.appels[2];
+    expect(second.args[1]).toMatchObject({ perimNiveau: 'departement', perimCode: '84' });
+    second.rep.next({ rayon_max_m: 10000, n_sites: 84, n_departements: 1, courbes: [] });
+    premier.rep.next({ rayon_max_m: 10000, n_sites: 13, n_departements: 1, courbes: [] });
+    expect(service.courbe().data?.n_sites).toBe(84);
+    expect(service.courbe().chargement).toBe(false);
+  });
+
+  it('(b) sites : deux périmètres, réponses en ordre INVERSE → l’écran garde le DERNIER réglage', () => {
+    const { service, geo, sites } = creer();
+    geo.appels[0].rep.next(REF);
+    service.choisirTerritoire('departement:13');
+    TestBed.tick();
+    const premier = sites.appels[1];
+    service.choisirTerritoire('departement:84');
+    TestBed.tick();
+    expect(premier.annule).toBe(true);
+    const second = sites.appels[2];
+    expect(second.args).toMatchObject({ perimNiveau: 'departement', perimCode: '84' });
+    second.rep.next({ n: 84, total: 100 });
+    premier.rep.next({ n: 13, total: 100 });
+    expect(service.compteSites().compte).toEqual({ n: 84, total: 100 });
+    expect(service.compteSites().chargement).toBe(false);
+  });
+
+  it('un chemin ENTIÈREMENT mal formé n’attend pas le référentiel : les calculs partent tout de suite', () => {
+    const { geo, bandes, courbe, sites } = creer('chemin=13.commune%3A13055');
+    expect([courbe.appels.length, sites.appels.length]).toEqual([1, 1]);
+    avancer(DELAI_BANDES_MS);
+    expect(bandes.appels).toHaveLength(1);
+    expect(bandes.appels[0].args).toMatchObject({ parent: null, region: null, maille: 'region' });
+    expect(geo.appels).toHaveLength(1); // toujours chargé, pour les menus
+  });
+
+  it('un élément BIEN FORMÉ parmi des illisibles fait attendre le référentiel', () => {
+    const { geo, courbe } = creer('chemin=13.departement%3A13');
+    expect(courbe.appels).toHaveLength(0);
+    geo.appels[0].rep.next(REF);
+    TestBed.tick();
+    expect(courbe.appels).toHaveLength(1);
+  });
+
+  it('référentiel en échec : un code bien formé mais inconnu part TEL QUEL, le serveur le valide', () => {
+    const { service, geo, courbe } = creer('chemin=region%3A99');
+    geo.appels[0].rep.error(new HttpErrorResponse({ status: 500 }));
+    TestBed.tick();
+    expect(service.chemin()).toEqual([{ niveau: 'region', code: '99', nom: '99' }]);
+    expect(courbe.appels[0].args[1]).toMatchObject({ perimNiveau: 'region', perimCode: '99' });
+  });
+
   it('pendant un recalcul, la valeur précédente est GARDÉE (c’est elle qui s’estompe)', () => {
     const { service, etat, bandes } = creer();
     avancer(DELAI_BANDES_MS);

@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import {
-  DestroyRef, Injectable, type Signal, type WritableSignal, computed, effect, inject, signal,
+  DestroyRef, Injectable, type Signal, type WritableSignal, computed, effect, inject, signal, untracked,
 } from '@angular/core';
 import { EMPTY, Observable, Subject, type Subscription, catchError, map, of, switchMap, timer } from 'rxjs';
 import { ChargementService } from '../../../core/chargement/chargement.service';
@@ -107,6 +107,9 @@ export class DonneesRisqueService {
    * ⚠ Le préfixe est obligatoire : 18 codes INSEE désignent une région ET un département (sql/171).
    * Référentiel en échec : on garde l'élément sous son code (repli `?? code` de React, l.1077), plutôt
    * que de faire basculer en silence le calcul sur la France entière.
+   * ⚠ Cas limite de ce repli, assumé : un élément BIEN FORMÉ mais inconnu (`region:99`) ne peut plus être
+   * écarté sans référentiel — il part TEL QUEL vers les routes, et c'est le SERVEUR qui le valide (périmètre
+   * inconnu → réponse vide ou refus explicite, jamais un calcul sur la France entière).
    */
   readonly chemin = computed<Segment[]>(() => {
     const brut = this.cleChemin();
@@ -115,19 +118,23 @@ export class DonneesRisqueService {
     const ref = this._refGeo();
     const segments: Segment[] = [];
     for (const el of brut.split('|')) {
-      const i = el.indexOf(':');
-      if (i < 0) continue;
-      const niveau = el.slice(0, i);
-      const code = el.slice(i + 1);
-      if ((niveau !== 'region' && niveau !== 'departement') || code === '') continue;
+      const lu = lireElementChemin(el);
+      if (!lu) continue;
+      const { niveau, code } = lu;
       const unite = (niveau === 'region' ? ref.regions : ref.departements).find((u) => u.code === code);
       if (unite) segments.push({ niveau, code, nom: unite.nom });
       else if (statut === 'echec') segments.push({ niveau, code, nom: code });
     }
     return segments;
   });
-  /** Un chemin demandé mais pas encore résolu : aucun calcul ne part, il partirait sur la France entière. */
-  private readonly cheminEnAttente = computed(() => this.cleChemin() !== '' && this.refStatut() === 'chargement');
+  /**
+   * Un chemin demandé mais pas encore résolu : aucun calcul ne part, il partirait sur la France entière.
+   * ⚠ On n'attend le référentiel QUE si au moins un élément est BIEN FORMÉ (`region:` / `departement:` suivi
+   * d'un code) : un chemin entièrement illisible (`13`, `commune:13055`) sera ignoré quoi qu'il arrive, et
+   * l'attendre retarderait le premier calcul pour rien.
+   */
+  private readonly cheminEnAttente = computed(() => this.refStatut() === 'chargement'
+    && this.cleChemin() !== '' && this.cleChemin().split('|').some((el) => lireElementChemin(el) !== null));
 
   /** La maille CHOISIE (« Lister par »), locale comme React (A4). `null` = la maille naturelle. */
   readonly mailleChoisie: WritableSignal<Dimension | null> = signal(null);
@@ -299,7 +306,12 @@ export class DonneesRisqueService {
   private relier<T>(cle: Signal<T | null>, appel: (c: T) => Observable<unknown>): Subject<T | null> {
     const flux = new Subject<T | null>();
     this.abonnements.push(flux.pipe(switchMap((c) => (c === null ? EMPTY : appel(c)))).subscribe());
-    effect(() => flux.next(cle()));
+    // `untracked` : seule la CLÉ est une dépendance. Ce que lisent les abonnés synchrones de `flux` (le
+    // `switchMap` appelle aussitôt `appel`, qui lit et écrit des signaux) ne doit pas s'y ajouter.
+    effect(() => {
+      const c = cle();
+      untracked(() => flux.next(c));
+    });
     return flux;
   }
 
@@ -335,6 +347,16 @@ export class DonneesRisqueService {
       });
     }
   }
+}
+
+/** Un élément `niveau:code` de `etat.chemin`, ou `null` s'il est mal formé (préfixe inconnu, code vide). */
+function lireElementChemin(el: string): { niveau: 'region' | 'departement'; code: string } | null {
+  const i = el.indexOf(':');
+  if (i < 0) return null;
+  const niveau = el.slice(0, i);
+  const code = el.slice(i + 1);
+  if ((niveau !== 'region' && niveau !== 'departement') || code === '') return null;
+  return { niveau, code };
 }
 
 /** Le corps JSON d'une réponse d'erreur, ou `null` (réseau, corps illisible) — React passait alors par son `catch`. */
