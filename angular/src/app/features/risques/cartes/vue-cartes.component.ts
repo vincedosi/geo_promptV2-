@@ -1,17 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, input, linkedSignal, model, output, signal } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
-import type { Bbox } from '../../../carte/bbox';
-import { CarteComponent } from '../../../carte/carte.component';
 import { IconeComponent } from '../../../ui/icone/icone.component';
+import type { ApercuRayon } from '../commandes/reglette-rayons.component';
 import type { Etape } from '../logique/etape';
-
-/** La vue d'ouverture de la carte des rayons : l'Étang de Berre (`CarteRisque.tsx:161`, `VUE_INITIALE = GRAPPES[2].bbox`). */
-export const VUE_INITIALE_RISQUE: Bbox = [4.75, 43.35, 5.3, 43.6];
+import type { ProfilRayons } from '../logique/profil';
+import { CarteRisqueComponent } from './carte-risque.component';
 
 /**
  * La zone cartographique du module — portage du CADRE de `VueCartesZones.tsx`
- * (lot 3, T4). Les couches arrivent en T7-T8 (rayons), T15 (codes postaux) et
- * T17 (diffusion) ; ce composant ne décide que de ce qui est MONTÉ et de ce
+ * (lot 3, T4). La carte des rayons est `mg-carte-risque` (T7-T8) ; les autres
+ * arrivent en T15 (codes postaux) et T17 (diffusion) ; ce composant ne décide que de ce qui est MONTÉ et de ce
  * qui est VISIBLE.
  *
  * ── LES CARTES NE SE DÉMONTENT JAMAIS ─────────────────────────────────────
@@ -34,7 +32,7 @@ export const VUE_INITIALE_RISQUE: Bbox = [4.75, 43.35, 5.3, 43.6];
  */
 @Component({
   selector: 'mg-vue-cartes',
-  imports: [CarteComponent, IconeComponent],
+  imports: [CarteRisqueComponent, IconeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full w-full flex-col' },
   template: `
@@ -43,8 +41,8 @@ export const VUE_INITIALE_RISQUE: Bbox = [4.75, 43.35, 5.3, 43.6];
       <div data-vue="rayons" class="relative flex min-w-0"
            [class.flex-1]="montreRayons()" [style.width.px]="montreRayons() ? null : 0"
            [style.visibility]="montreRayons() ? 'visible' : 'hidden'">
-        <mg-carte [cadre]="vueInitiale" (prete)="carteRayons.emit($event)" (erreur)="erreurCarte.set($event)"
-                  class="min-h-0 min-w-0 flex-1" />
+        <mg-carte-risque [profil]="profil()" [natures]="natures()" [gravites]="gravites()" [fusionner]="fusionner()"
+                         [apercu]="apercu()" (carte)="carteRayons.emit($event)" />
         @if (double()) {
           <div class="absolute top-2.5 left-2.5 z-[3] rounded-lg border-fin border-default bg-[var(--card-overlay)] px-[9px] py-1 text-[11px] text-primary">Zones en rayon</div>
         }
@@ -104,11 +102,6 @@ export const VUE_INITIALE_RISQUE: Bbox = [4.75, 43.35, 5.3, 43.6];
         {{ carteSeule() ? 'Afficher le panneau' : 'Carte seule' }}
       </button>
 
-      @if (erreurCarte(); as message) {
-        <p role="alert" class="absolute right-2.5 bottom-2.5 z-[3] m-0 max-w-[300px] rounded-lg border-fin border-danger/25 bg-[var(--card-overlay)] px-[11px] py-[7px] text-[11px] leading-[1.5] text-danger">
-          {{ message }}
-        </p>
-      }
     </div>
   `,
 })
@@ -118,11 +111,15 @@ export class VueCartesComponent {
   readonly jeuId = input<string | null>(null);
   /** Panneau d'étape replié : la carte occupe tout le corps. */
   readonly carteSeule = model(false);
-  /** La carte des rayons, à son premier `load` — T7 y pose zones et sites. */
+  /** Le profil CALCULÉ, les natures, les niveaux, la lecture des zones et l'aperçu : relayés à `mg-carte-risque`. */
+  readonly profil = input.required<ProfilRayons>();
+  readonly natures = input<readonly string[]>([]);
+  readonly gravites = input<readonly string[]>([]);
+  readonly fusionner = input(true);
+  readonly apercu = input<ApercuRayon | null>(null);
+  /** La carte des rayons, à son premier `load` — pour la liaison des caméras (T15). */
   readonly carteRayons = output<maplibregl.Map>();
 
-  protected readonly vueInitiale = VUE_INITIALE_RISQUE;
-  protected readonly erreurCarte = signal<string | null>(null);
   /** Rayons ou codes postaux, hors étape ④ dédoublée. État LOCAL, comme React : il ne change aucun chiffre. */
   protected readonly vue = signal<'rayons' | 'cp'>('rayons');
 

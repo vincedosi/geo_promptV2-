@@ -67,6 +67,35 @@ export class CarteFactice {
     this.couches.push({ couche, avant });
     return this;
   }
+  /** Ce qui a été retiré, dans l'ordre : `couche:<id>` ou `source:<id>`. */
+  readonly retraits: string[] = [];
+  /** Les `setLayoutProperty`, dans l'ordre. */
+  readonly dispositions: { couche: string; propriete: string; valeur: unknown }[] = [];
+  getLayer(id: string): Record<string, unknown> | undefined {
+    return this.couches.find((c) => c.couche['id'] === id)?.couche;
+  }
+  /** Comme MapLibre : retirer une source qu'une couche utilise encore LÈVE. */
+  removeLayer(id: string): this {
+    const i = this.couches.findIndex((c) => c.couche['id'] === id);
+    if (i >= 0) this.couches.splice(i, 1);
+    this.retraits.push(`couche:${id}`);
+    return this;
+  }
+  removeSource(id: string): this {
+    if (this.couches.some((c) => c.couche['source'] === id)) {
+      throw new Error(`Source "${id}" cannot be removed while layer is using it.`);
+    }
+    this.sources.delete(id);
+    this.retraits.push(`source:${id}`);
+    return this;
+  }
+  setLayoutProperty(couche: string, propriete: string, valeur: unknown): this {
+    this.dispositions.push({ couche, propriete, valeur });
+    const c = this.getLayer(couche);
+    if (c) c['layout'] = { ...(c['layout'] as object | undefined), [propriete]: valeur };
+    return this;
+  }
+  isStyleLoaded(): boolean { return this.styleCharge; }
   setPaintProperty(couche: string, propriete: string, valeur: unknown): this {
     this.peintures.push({ couche, propriete, valeur });
     return this;

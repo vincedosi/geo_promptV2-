@@ -77,6 +77,8 @@
 
   <div class="relative flex min-w-0 flex-1">
     <!-- HORS du @switch des étapes : la carte ne se démonte jamais (aller-retour ② ↔ ③). -->
-    <mg-vue-cartes [etape]="etat().etape" [jeuId]="etat().jeu" [(carteSeule)]="carteSeule" />
+    <mg-vue-cartes [etape]="etat().etape" [jeuId]="etat().jeu" [(carteSeule)]="carteSeule"
+                   [profil]="donnees.profilCalcul()" [natures]="donnees.natures()" [gravites]="etat().gravites"
+                   [fusionner]="etat().fusionner" [apercu]="apercuRayon()" />
   </div>
 </div>

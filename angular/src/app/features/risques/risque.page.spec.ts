@@ -4,7 +4,9 @@ import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { FABRIQUE_CARTE } from '../../carte/fabrique-carte';
 import { CarteFactice } from '../../carte/testing/carte-factice';
+import { signal } from '@angular/core';
 import { NEVER, of } from 'rxjs';
+import { CouleursService } from '../../core/theme/couleurs.service';
 import { ProfilRisqueApi } from './data/profil-risque.api';
 import { ReferentielApi } from './data/referentiel.api';
 import { SitesRisqueApi } from './data/sites-risque.api';
@@ -25,6 +27,7 @@ const attendre = () => new Promise((r) => setTimeout(r, 0));
 async function ouvrir(url = '/risques') {
   (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
   const cartes: CarteFactice[] = [];
+  const preparations: string[] = [];
   TestBed.configureTestingModule({
     providers: [
       provideRouter([
@@ -36,7 +39,14 @@ async function ouvrir(url = '/risques') {
         bandes: () => NEVER,
         cibles: () => of({ cibles: [{ code: 'pop_65_plus', libelle: '65 ans et plus', famille: 'Âge' }] }),
       } },
-      { provide: ZonesRisqueApi, useValue: { courbe: () => NEVER } },
+      { provide: ZonesRisqueApi, useValue: {
+        courbe: () => NEVER,
+        preparer: (profil: string) => { preparations.push(profil); return of({ deja_construit: true }); },
+        urlTuilesZones: (profil: string) => `http://api/tiles/zones-risque/{z}/{x}/{y}?profil=${profil}`,
+      } },
+      { provide: CouleursService, useValue: {
+        palette: (j: Record<string, string>) => signal(Object.fromEntries(Object.keys(j).map((k) => [k, `rgb(${k.length}, 0, 0)`]))),
+      } },
       { provide: SitesRisqueApi, useValue: { compter: () => NEVER } },
       { provide: ReferentielApi, useValue: {
         geo: () => of({ regions: [{ code_region: '93', nom_region: 'Provence-Alpes-Côte d’Azur', depts: [{ code_dept: '13', nom_dept: 'Bouches-du-Rhône' }] }] }),
@@ -48,7 +58,7 @@ async function ouvrir(url = '/risques') {
   const harness = await RouterTestingHarness.create();
   const page = await harness.navigateByUrl(url, RisquePage);
   await stabiliser(harness);
-  return { harness, page, cartes, router: TestBed.inject(Router), el: () => harness.routeNativeElement as HTMLElement };
+  return { harness, page, cartes, preparations, router: TestBed.inject(Router), el: () => harness.routeNativeElement as HTMLElement };
 }
 
 async function stabiliser(harness: RouterTestingHarness) {
@@ -130,6 +140,32 @@ describe('RisquePage', () => {
     expect(cartes).toHaveLength(1);
     expect(cartes[0].retiree).toBe(false);
     expect(harness.routeDebugElement?.componentInstance).toBe(page);
+  });
+
+  it('T7 : allers-retours ② ↔ ③ ↔ ④ → UNE préparation des zones, UNE source, aucune couche retirée', async () => {
+    const { harness, cartes, preparations, el } = await ouvrir();
+    cartes[0].emettre('load');
+    await stabiliser(harness);
+    expect(preparations).toEqual(['h1000.2000.5000_b500.1000_a_L0_P1']);
+    const ajouts = cartes[0].couches.length;
+    for (const l of ['Rayon', 'Couverture', 'Rayon', 'Zones', 'Couverture']) {
+      etape(el(), l).click();
+      await stabiliser(harness);
+    }
+    expect(preparations).toHaveLength(1);
+    expect(cartes[0].couches).toHaveLength(ajouts);
+    expect(cartes[0].retraits).toEqual([]);
+  });
+
+  it('T7 : « Lecture des zones » vient de l’URL — `fusion=0` fait naître les couches masquées, sans autre préparation', async () => {
+    const { harness, cartes, preparations } = await ouvrir('/risques?risque=fusion%3D0');
+    cartes[0].emettre('load');
+    await stabiliser(harness);
+    expect(preparations).toHaveLength(1);
+    const visibilites = cartes[0].couches
+      .filter((c) => String(c.couche['id']).startsWith('atelier-zones'))
+      .map((c) => (c.couche['layout'] as Record<string, unknown>)['visibility']);
+    expect(visibilites).toEqual(['none', 'none', 'none', 'none']);
   });
 
   it('une URL malformée ouvre un état partiellement récupéré, jamais un écran blanc', async () => {
