@@ -108,6 +108,7 @@ neuf, il dit ce que l'élément EST.
 | --brand-teal-30 | rgba(78,205,196,0.3) | rgba(78,205,196,0.3) | Borders hover subtiles, badges |
 | --brand-teal-50 | rgba(78,205,196,0.5) | rgba(78,205,196,0.5) | Focus ring des inputs |
 | --brand-teal-fg | #050505 | #050505 | Texte/icône POSÉ SUR un aplat teal — **invariant**, comme le teal lui-même |
+| --cta-hover | #d4d4d4 | #d4d4d4 | Survol du bouton CTA principal (fond `--text-primary`) — **invariant** : React le porte en littéral dans `app/login/page.tsx`, les deux thèmes comprises |
 | --logo-accent | #2aa9a8 | #2aa9a8 | Accents du logotype (vert du fichier `magelian-icon.svg`, plus sombre que le teal de marque) — **invariant** |
 | --logo-lettre | var(--text-primary) | #0d1316 | Lettres du logotype : #0D1316 du fichier en clair ; en sombre la couleur du texte, le fichier noir y étant invisible |
 

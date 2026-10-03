@@ -36,6 +36,7 @@
   --color-teal-hover: var(--brand-teal-hover);
   --color-teal-10: var(--brand-teal-10);
   --color-teal-fg: var(--brand-teal-fg);
+  --color-cta-hover: var(--cta-hover);
   --color-logo-accent: var(--logo-accent);
   --color-logo-lettre: var(--logo-lettre);
   --color-danger: var(--danger);
@@ -225,4 +226,10 @@
 .maplibregl-ctrl-attrib-inner {
   color: var(--text-tertiary) !important;
   text-decoration: none !important;
+}
+
+/* Apparition de la vitrine de connexion (app/globals.css:995, `fadeIn`). `spin` vient de Tailwind (`animate-spin`). */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
