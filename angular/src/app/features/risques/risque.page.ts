@@ -1,7 +1,9 @@
 import {
   ChangeDetectionStrategy, Component, ElementRef, afterNextRender, computed, inject, signal,
 } from '@angular/core';
+import type { HttpResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
+import type { Observable } from 'rxjs';
 import { ChargementService } from '../../core/chargement/chargement.service';
 import { BarreProgressionComponent } from '../../ui/barre-progression/barre-progression.component';
 import { FilArianeComponent, type SegmentAriane } from '../../ui/fil-ariane/fil-ariane.component';
@@ -17,11 +19,15 @@ import { PanneauProfilComponent } from './commandes/panneau-profil.component';
 import { type ApercuRayon, RegletteRayonsComponent } from './commandes/reglette-rayons.component';
 import { ResumeProfilComponent } from './commandes/resume-profil.component';
 import { etapesAffichees } from './commandes/etapes';
+import { ProfilRisqueApi } from './data/profil-risque.api';
+import { CourbeRayonComponent, type PerimetreCourbe } from './etapes/rayon/courbe-rayon.component';
 import { DonneesRisqueService } from './etat/donnees-risque.service';
 import { EtatRisqueService } from './etat/etat-risque.service';
+import { BoutonExportComponent } from './exports/bouton-export.component';
+import { codeProfil } from './logique/code-profil';
 import { LIBELLE_DIMENSION } from './logique/dimensions';
 import { ETAPES, type Etape } from './logique/etape';
-import type { ProfilRayons } from './logique/profil';
+import { NIVEAUX, type ProfilRayons, anneauxDuNiveau } from './logique/profil';
 
 /** Bornes de la poignée (React : sous 320 px le tableau de ③ devient illisible, au-delà de 900 la carte ne montre plus rien). */
 export const LARGEUR_PANNEAU_MIN = 320;
@@ -53,7 +59,8 @@ const LARGEUR_PANNEAU_DEFAUT = 480;
 @Component({
   selector: 'mg-risque',
   imports: [
-    BandeauKpiRisqueComponent, BarreCommuneComponent, BarreProgressionComponent, EtapeRayonComponent,
+    BandeauKpiRisqueComponent, BarreCommuneComponent, BarreProgressionComponent, BoutonExportComponent,
+    CourbeRayonComponent, EtapeRayonComponent,
     FilArianeComponent, FilEtapesComponent, IconeComponent, PanneauProfilComponent, PanneauSitesComponent,
     PerimeDirective, RegletteRayonsComponent, ResumeProfilComponent, VueCartesComponent,
   ],
@@ -99,6 +106,35 @@ export class RisquePage {
    */
   protected readonly libelleTerritoire = computed(() => this.donnees.chemin().at(-1)?.nom ?? 'la France entière');
   protected readonly nomPerimetre = computed(() => this.donnees.chemin().at(-1)?.nom ?? 'France entière');
+  /** Le dernier segment du fil, sous la forme de la courbe et de son export (`AnalysePopulationOverlay.tsx:495`). */
+  protected readonly perim = computed<PerimetreCourbe | null>(() => {
+    const d = this.donnees.chemin().at(-1);
+    return d ? { niveau: d.niveau, code: d.code } : null;
+  });
+
+  private readonly profilApi = inject(ProfilRisqueApi);
+  /** Un profil sans anneau n'a ni bandes ni territoires : le classeur serait vide (`BoutonExportProfil.tsx:49-51`). */
+  protected readonly profilVide = computed(
+    () => NIVEAUX.every((n) => anneauxDuNiveau(this.donnees.profilCalcul(), n).length === 0),
+  );
+  /**
+   * « Exporter le profil » — paramètres de `BoutonExportProfil.tsx:57-64`, lus AU CLIC : profil CALCULÉ, cible, maille
+   * (`commune` ou `departement`, jamais `region`), libellé de la cible, département du fil, campagne.
+   */
+  protected readonly chargerExportProfil = (): Observable<HttpResponse<Blob>> => {
+    const p = new URLSearchParams({
+      profil: codeProfil(this.donnees.profilCalcul()),
+      cible: this.etat().cible,
+      maille: this.donnees.dimension() === 'commune' ? 'commune' : 'departement',
+      libelle_cible: this.donnees.libelleCible(),
+    });
+    const parent = this.donnees.chemin().find((s) => s.niveau === 'departement')?.code;
+    if (parent) p.set('parent', parent);
+    const campagne = this.etat().campagne;
+    if (campagne) p.set('campagne', campagne);
+    return this.profilApi.exportProfil(p);
+  };
+
   /** La maille LISTÉE, en minuscules comme `FilAriane` (elements.tsx:119). */
   protected readonly precisionAriane = computed(() => LIBELLE_DIMENSION[this.donnees.dimension()].toLowerCase());
 

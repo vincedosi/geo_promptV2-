@@ -7,6 +7,8 @@ import { CarteFactice } from '../../carte/testing/carte-factice';
 import { signal } from '@angular/core';
 import { NEVER, of } from 'rxjs';
 import { CouleursService } from '../../core/theme/couleurs.service';
+import { FABRIQUE_GRAPHIQUE } from '../../graphiques/fabrique-graphique';
+import { COURBE_RAYON_REELLE } from './testing/courbe-rayon.fixture';
 import { ProfilRisqueApi } from './data/profil-risque.api';
 import { ReferentielApi } from './data/referentiel.api';
 import { SitesRisqueApi } from './data/sites-risque.api';
@@ -24,7 +26,9 @@ class ObservateurFactice {
 const attendre = () => new Promise((r) => setTimeout(r, 0));
 
 /** L'écran sous un vrai routeur de test, avec une carte factice qui compte ses créations. */
-async function ouvrir(url = '/risques', reponses: { compter?: () => unknown; bandes?: () => unknown } = {}) {
+async function ouvrir(url = '/risques', reponses: {
+  compter?: () => unknown; bandes?: () => unknown; courbe?: () => unknown; exportProfil?: (p: URLSearchParams) => unknown;
+} = {}) {
   (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
   const cartes: CarteFactice[] = [];
   const preparations: string[] = [];
@@ -37,10 +41,12 @@ async function ouvrir(url = '/risques', reponses: { compter?: () => unknown; ban
       // Les API du module (fournies par la route en vrai) : catalogue et référentiel répondent, les calculs jamais.
       { provide: ProfilRisqueApi, useValue: {
         bandes: reponses.bandes ?? (() => NEVER),
-        cibles: () => of({ cibles: [{ code: 'pop_65_plus', libelle: '65 ans et plus', famille: 'Âge' }] }),
+        exportProfil: reponses.exportProfil ?? (() => NEVER),
+        exportRayon: () => NEVER,
+        cibles:() => of({ cibles: [{ code: 'pop_65_plus', libelle: '65 ans et plus', famille: 'Âge' }] }),
       } },
       { provide: ZonesRisqueApi, useValue: {
-        courbe: () => NEVER,
+        courbe: reponses.courbe ?? (() => NEVER),
         sites: () => NEVER,
         preparer: (profil: string) => { preparations.push(profil); return of({ deja_construit: true }); },
         urlTuilesZones: (profil: string) => `http://api/tiles/zones-risque/{z}/{x}/{y}?profil=${profil}`,
@@ -54,6 +60,7 @@ async function ouvrir(url = '/risques', reponses: { compter?: () => unknown; ban
         contours: () => NEVER,
       } },
       { provide: FABRIQUE_CARTE, useValue: (o: never) => { const c = new CarteFactice(o); cartes.push(c); return c; } },
+      { provide: FABRIQUE_GRAPHIQUE, useValue: () => ({ setOption: () => undefined, resize: () => undefined, dispose: () => undefined }) },
     ],
   });
   const harness = await RouterTestingHarness.create();
@@ -360,5 +367,41 @@ describe('RisquePage', () => {
       .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     await stabiliser(harness);
     expect(document.activeElement).toBe(el().querySelector('header mg-resume-profil button'));
+  });
+
+  it('T10 : ② montre la courbe PARTAGÉE (un appel) au rayon 1 km ; ① ↔ ② ne la relance pas', async () => {
+    let appels = 0;
+    const { harness, el } = await ouvrir('/risques?risque=etape%3Drayon', {
+      bandes: () => of({ total: 1, hors_zone: 0, n_carreaux: 1, n_codes_postaux: 1, population_reference: 1, pop_unites_touchees: 1, unites: [], par_classe: { 'haut:1': 1 } }),
+      courbe: () => { appels += 1; return of(COURBE_RAYON_REELLE); },
+    });
+    await new Promise((r) => setTimeout(r, 450)); // l'anti-rebond des bandes
+    await stabiliser(harness);
+    const n = (s: string | null | undefined) => (s ?? '').replace(/\s/g, ' ').trim();
+    const courbe = el().querySelector('[data-panneau="rayon"] [data-role="bloc-courbe"] mg-courbe-rayon')!;
+    expect(courbe).not.toBeNull();
+    expect(n(courbe.querySelector('[data-role="kpis"] [data-role="valeur"]')?.textContent)).toBe('1 647 943');
+    expect(appels).toBe(1);
+    etape(el(), 'Sites').click();
+    await stabiliser(harness);
+    etape(el(), 'Rayon').click();
+    await stabiliser(harness);
+    expect(appels).toBe(1);
+  });
+
+  it('T10 : « Exporter le profil » (en-tête) envoie les paramètres de BoutonExportProfil, profil CALCULÉ compris', async () => {
+    const recues: URLSearchParams[] = [];
+    const { harness, el } = await ouvrir('/risques', { exportProfil: (p) => { recues.push(p); return NEVER; } });
+    const bouton = el().querySelector<HTMLButtonElement>('header mg-bouton-export button')!;
+    expect(bouton.textContent?.trim()).toBe('Exporter le profil');
+    expect(bouton.disabled).toBe(false);
+    bouton.click();
+    await stabiliser(harness);
+    expect(recues).toHaveLength(1);
+    expect([...recues[0].entries()]).toEqual([
+      ['profil', 'h1000.2000.5000_b500.1000_a_L0_P1'], ['cible', 'ind'], ['maille', 'departement'],
+      ['libelle_cible', 'Population totale'],
+    ]);
+    expect(bouton.disabled).toBe(true); // export en cours
   });
 });

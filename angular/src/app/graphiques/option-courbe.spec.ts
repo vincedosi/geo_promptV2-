@@ -1,4 +1,4 @@
-import { optionCourbe, positionInfobulle, type SerieCourbe } from './option-courbe';
+import { graduationsRecharts, optionCourbe, positionInfobulle, type SerieCourbe } from './option-courbe';
 
 const COULEURS = {
   series: { total: '#4ecdc4', a: '#e07a3f' },
@@ -130,6 +130,29 @@ describe('optionCourbe', () => {
     expect(l.label!.formatter({ value: [2100, 31] })).toBe('');
   });
 
+  it("infobulle triée comme Recharts : par CLÉ de série, unité de code par unité de code (`*` d'abord, « GPL » avant « Gaz »)", () => {
+    const series: SerieCourbe[] = [
+      { cle: 'Gaz', libelle: 'Gaz', jeton: 'nature-1', points: [[100, 1]] },
+      { cle: '*', libelle: 'Toutes natures', jeton: 'brand-teal', points: [[100, 9]] },
+      { cle: 'GPL', libelle: 'GPL', jeton: 'nature-2', points: [[100, 2]] },
+      { cle: 'Agro', libelle: 'Agro', jeton: 'nature-3', points: [[100, 3]] },
+    ];
+    const o = optionCourbe({ ...base, series }) as { tooltip: { formatter: (p: unknown) => string } };
+    const html = o.tooltip.formatter(series.map((s, i) => ({ seriesIndex: i, seriesName: s.libelle, value: [100, 1], color: '#000' })));
+    expect([...html.matchAll(/">([^:<]+) :/g)].map((m) => m[1])).toEqual(['Toutes natures', 'Agro', 'GPL', 'Gaz']);
+  });
+
+  it('graduations Y de Recharts (5 graduations rondes) : 0-60 M par 15 M pour la courbe réelle de l’étape ② (max 42 409 940)', () => {
+    expect(graduationsRecharts(42409940)).toEqual({ min: 0, max: 60000000, pas: 15000000 });
+    // Mesuré dans Recharts (React, « Toutes natures » masquée) : 0, 8, 16, 24, 32 M.
+    expect(graduationsRecharts(30731688)).toEqual({ min: 0, max: 32000000, pas: 8000000 });
+    expect(graduationsRecharts(0)).toBeNull();
+    const o = optionCourbe({ ...base, series: [{ cle: '*', libelle: 'T', jeton: 'brand-teal', points: [[100, 42409940]] }] }) as {
+      yAxis: { min: number; max: number; interval: number };
+    };
+    expect([o.yAxis.min, o.yAxis.max, o.yAxis.interval]).toEqual([0, 60000000, 15000000]);
+  });
+
   it("la série d'étiquettes n'apparaît jamais dans l'infobulle partagée", () => {
     const o = optionCourbe(base) as { tooltip: { formatter: (p: unknown) => string } };
     const html = o.tooltip.formatter([
@@ -144,6 +167,8 @@ describe('optionCourbe', () => {
     expect(positionInfobulle([900, 50], [200, 120], [1000, 280])).toEqual([690, 60]);
     expect(positionInfobulle([100, 200], [200, 120], [1000, 280])).toEqual([110, 70]);
     expect(positionInfobulle([5, 5], [2000, 400], [1000, 280])).toEqual([0, 0]);
+    // Retournée, elle s'arrête au coin de la zone de tracé (Recharts : `viewBox.x`, `viewBox.y`), jamais au bord.
+    expect(positionInfobulle([232, 60], [280, 400], [434, 280], [62, 20])).toEqual([62, 20]);
   });
 
   it('les axes utilisent les formateurs et le domaine donnés', () => {

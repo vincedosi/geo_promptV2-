@@ -15,7 +15,7 @@ const ENCADRE_DANGER = `${ENCADRE} border-[color-mix(in_srgb,var(--danger)_20%,t
 
 /**
  * ② Rayon — la CONSÉQUENCE du profil : combien d'habitants tombent dans chaque bande. Portage de `OngletRayons.tsx`
- * (sans la courbe, qui arrive en T10 par l'emplacement `[courbe]`).
+ * (la courbe de T10 arrive par l'emplacement `[emplacement-courbe]`).
  *
  * ── LES BANDES NE SONT PAS CHARGÉES ICI ──────────────────────────────────
  *
@@ -76,7 +76,7 @@ const ENCADRE_DANGER = `${ENCADRE} border-[color-mix(in_srgb,var(--danger)_20%,t
           priorité entre niveaux — un carreau proche des deux y compte deux fois. Ses chiffres ne s’additionnent donc
           pas à ceux du tableau.
         </p>
-        <ng-content select="[courbe]" />
+        <ng-content select="[emplacement-courbe]" />
       </div>
     }
   `,

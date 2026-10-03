@@ -15,6 +15,11 @@
        DÉPLIE le tiroir des anneaux, où qu'on soit — renvoyer ailleurs pour régler ce qui vaut partout était le défaut. -->
   <mg-resume-profil [profil]="etat().profil" (ouvrirAtelier)="basculerAtelier()" />
   <div class="flex-1"></div>
+  <!-- Persistant, dans l'en-tête : le profil vaut pour toutes les étapes (BoutonExportProfil.tsx). « Voir sur la
+       carte » (BoutonVoirCarte.tsx) n'est PAS porté avant le lot 4 (A6) : absent, pas inerte. -->
+  <mg-bouton-export libelle="Exporter le profil" nomRepli="profil-risque.xlsx" variante="neutre"
+                    [desactive]="profilVide()" [charger]="chargerExportProfil"
+                    [titre]="profilVide() ? 'Réglez au moins un anneau : le classeur serait vide.' : 'Classeur Excel : profil, bandes, territoires, diffusion'" />
   <button type="button" (click)="fermer()" aria-label="Fermer" title="Fermer"
           class="flex cursor-pointer border-0 bg-transparent p-[6px] text-secondary">
     <mg-icone nom="croix" [taille]="18" />
@@ -64,9 +69,17 @@
                             [libelleTerritoire]="libelleTerritoire()" />
         }
         @case ('rayon') {
-          <!-- L'emplacement [courbe] de mg-etape-rayon reçoit la courbe de couverture en T10. -->
+          <!-- La courbe est chargée par DonneesRisqueService : revenir sur ② ne relance rien. -->
           <mg-etape-rayon [profil]="donnees.profilCalcul()" [resultat]="donnees.bandes()"
-                          [libelleCible]="donnees.libelleCible()" [nomPerimetre]="nomPerimetre()" />
+                          [libelleCible]="donnees.libelleCible()" [nomPerimetre]="nomPerimetre()">
+            <!-- Sous le même « @if » que l'emplacement : un contenu projeté est CRÉÉ même quand l'emplacement ne l'est pas,
+                 et la courbe s'initialiserait alors détachée du document. -->
+            @if (donnees.bandes().bandes) {
+              <mg-courbe-rayon emplacement-courbe [courbe]="donnees.courbe()" [libelleCible]="donnees.libelleCible()"
+                               [nomPerimetre]="nomPerimetre()" [gravites]="etat().gravites" [natures]="donnees.natures()"
+                               [perim]="perim()" />
+            }
+          </mg-etape-rayon>
         }
         @case ('couverture') { <p class="m-0 text-[13px] text-tertiary">Couverture par territoire — disponible prochainement.</p> }
         @case ('zones') { <p class="m-0 text-[13px] text-tertiary">Jeux de zones — disponible prochainement.</p> }

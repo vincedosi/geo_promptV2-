@@ -16,14 +16,14 @@ const BANDES_MESUREES = {
 
 const n = (s: string | null | undefined) => (s ?? '').replace(/\s/g, ' ').replace(/ +/g, ' ').trim();
 
-/** Un hôte qui remplit l'emplacement `[courbe]`, comme le fera T10. */
+/** Un hôte qui remplit l'emplacement `[emplacement-courbe]`, comme T10. */
 @Component({
   selector: 'mg-hote-etape-rayon',
   imports: [EtapeRayonComponent],
   template: `
     <mg-etape-rayon [profil]="profil()" [resultat]="resultat()" libelleCible="Population totale"
                     [nomPerimetre]="nomPerimetre()">
-      <p courbe data-role="courbe-projetee">courbe</p>
+      <p emplacement-courbe data-role="courbe-projetee">courbe</p>
     </mg-etape-rayon>`,
 })
 class Hote {

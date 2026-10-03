@@ -17,8 +17,11 @@ import { type RepereCourbe, type SerieCourbe, optionCourbe } from './option-cour
   selector: 'mg-courbe',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div role="img" [attr.aria-label]="libelle()" class="relative w-full" [style.height.px]="hauteur()">
-      <div #conteneur class="absolute inset-0 right-2"></div>
+    <div role="img" [attr.aria-label]="libelle()" class="w-full" [style.height.px]="hauteur()">
+      <!-- \`h-full\` et une marge, jamais \`absolute inset-0\` : ECharts pose \`position: relative\` EN LIGNE sur un
+           conteneur dont il lit la position \`static\` — c'est le cas d'un élément encore DÉTACHÉ à l'init (contenu
+           projeté sous un \`@if\`, T10). La classe \`absolute\` perdait alors, et le graphique restait haut de 0 px. -->
+      <div #conteneur class="mr-2 h-full"></div>
     </div>
     <div class="flex flex-wrap gap-x-[14px] gap-y-[6px] border-t-fin border-subtle px-5 pt-[10px] pb-[6px]">
       @for (s of series(); track s.cle) {

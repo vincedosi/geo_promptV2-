@@ -1,4 +1,5 @@
 import type { HttpResponse } from '@angular/common/http';
+import { InjectionToken } from '@angular/core';
 
 /**
  * Nom du fichier annoncé par `Content-Disposition`, ou `repli`.
@@ -43,3 +44,12 @@ export function enregistrerFichier(doc: Document, reponse: HttpResponse<Blob>, r
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), DELAI_REVOCATION_MS);
 }
+
+/**
+ * `enregistrerFichier` derrière un jeton : la couture des specs (une fonction d'un module ESM ne se remplace pas par
+ * `vi.spyOn`). Aucune dépendance HTTP : `providedIn: 'root'` est sans risque dans un hôte, rien du shell n'y est lu.
+ */
+export const ENREGISTRER_FICHIER = new InjectionToken<typeof enregistrerFichier>('ENREGISTRER_FICHIER', {
+  providedIn: 'root',
+  factory: () => enregistrerFichier,
+});

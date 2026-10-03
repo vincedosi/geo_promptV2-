@@ -9,7 +9,21 @@ export interface ReponseCourbe {
   n_sites: number;
   /** Départements où se trouvent les sites retenus (sous-titre du KPI « sites concernés »). */
   n_departements: number;
-  courbes: { cle: string; total: number; points: { r: number; p: number; i: number }[] }[];
+  courbes: { cle: string; total: number; carreaux?: number; points: { r: number; p: number; i: number }[] }[];
+  /*
+   * Champs de `use-courbe-rayon.ts:42-60` lus par l'étape ② (T10). OPTIONNELS ici : la route les envoie toujours, mais
+   * la page d'essai (lot 2) n'en lit aucun et ses doublures ne les portent pas.
+   */
+  cible?: string;
+  gravite?: string;
+  /** Natures filtrées : la courbe `'*'` porte quand même sur l'ensemble (avertissement à l'écran). */
+  total_est_global?: boolean;
+  /** Part de la MÉTROPOLE dont le pré-calcul est fait. 100 = complet (sql/201) ; sous 99, bandeau « partiel ». */
+  couverture_pct?: number;
+  n_bandes_construites?: number;
+  /** Zones d'outre-mer pré-calculées (Martinique, La Réunion) — 2 au plus. */
+  n_zones_lointaines?: number;
+  calcule_le?: string;
 }
 
 /** Filtres de `courbe` (`use-courbe-rayon.ts:106-120`). */

@@ -54,22 +54,47 @@ const DECALAGE_INFOBULLE = 10;
 
 /**
  * Position de l'infobulle comme Recharts : à 10 px en bas à droite du curseur, retournée de l'autre côté
- * quand elle sortirait du graphique.
+ * quand elle sortirait du graphique — et, retournée, jamais au-delà du COIN de la zone de tracé (`min`) : Recharts
+ * borne par `viewBox.x` / `viewBox.y` (marge + axe Y), pas par le bord du conteneur. Mesuré au navigateur (T10) :
+ * une infobulle haute de 14 lignes s'arrête à 62 px du bord gauche et au haut de la grille.
  */
 export function positionInfobulle(
   point: readonly [number, number],
   contenu: readonly [number, number],
   vue: readonly [number, number],
+  min: readonly [number, number] = [0, 0],
 ): [number, number] {
   const [x, y] = point;
   const gauche = x + DECALAGE_INFOBULLE + contenu[0] > vue[0] ? x - DECALAGE_INFOBULLE - contenu[0] : x + DECALAGE_INFOBULLE;
   const haut = y + DECALAGE_INFOBULLE + contenu[1] > vue[1] ? y - DECALAGE_INFOBULLE - contenu[1] : y + DECALAGE_INFOBULLE;
-  return [Math.max(0, gauche), Math.max(0, haut)];
+  return [Math.max(min[0], gauche), Math.max(min[1], haut)];
 }
 
 /** Échappe le texte injecté dans l'infobulle HTML (les libellés viennent de l'API). */
 export function echapperHtml(texte: string): string {
   return texte.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+}
+
+/**
+ * Graduations Y « rondes » de Recharts (`getNiceTickValues`, `tickCount` 5, domaine `[0, auto]`) : pas = 0,05 × 10^n
+ * arrondi au-dessus du pas brut, puis centré sur le milieu du domaine et complété jusqu'à 5 graduations. Sans lui,
+ * ECharts choisit les siennes (0-50 M par 10 M là où Recharts trace 0-60 M par 15 M) et la courbe n'a plus la même
+ * hauteur relative que côté React. `null` sur un domaine vide (ECharts reprend la main).
+ */
+export function graduationsRecharts(max: number, n = 5, correction = 0): { min: number; max: number; pas: number } | null {
+  if (!(max > 0) || !Number.isFinite(max)) return null;
+  const brut = max / (n - 1);
+  const chiffres = Math.floor(Math.log10(brut)) + 1;
+  const puissance = 10 ** chiffres;
+  const echelle = chiffres !== 1 ? 0.05 : 0.1;
+  const pas = Number(((Math.ceil(brut / puissance / echelle) + correction) * echelle * puissance).toPrecision(12));
+  const milieu = max / 2 - ((max / 2) % pas);
+  let dessous = Math.ceil(milieu / pas);
+  let dessus = Math.ceil((max - milieu) / pas);
+  const total = dessous + dessus + 1;
+  if (total > n) return graduationsRecharts(max, n, correction + 1);
+  dessus += n - total;
+  return { min: Number((milieu - dessous * pas).toPrecision(12)), max: Number((milieu + dessus * pas).toPrecision(12)), pas };
 }
 
 /** Construit l'option ECharts d'une courbe. PURE : testée sans ECharts ni DOM. */
@@ -95,6 +120,7 @@ export function optionCourbe(e: {
   const formaterTitre = e.formaterTitre ?? e.formaterX;
   const visibles = e.series.filter((s) => !e.masquees.has(s.cle));
   const avecEtiquettes = e.etiquettes === true;
+  const grilleY = graduationsRecharts(Math.max(0, ...visibles.flatMap((s) => s.points.map((p) => p[1]))));
   const graduation = { fontFamily: MONO, fontSize: 10, color: c.texte };
   const axe = { show: true, lineStyle: { color: c.axe, width: 1 } };
   const tick = { show: true, length: 6, lineStyle: { color: c.axe, width: 1 } };
@@ -116,6 +142,7 @@ export function optionCourbe(e: {
     },
     yAxis: {
       type: 'value',
+      ...(grilleY ? { min: grilleY.min, max: grilleY.max, interval: grilleY.pas } : {}),
       axisLabel: { ...graduation, formatter: e.formaterY },
       axisLine: axe,
       axisTick: tick,
@@ -136,13 +163,18 @@ export function optionCourbe(e: {
       extraCssText: 'box-shadow:none;',
       textStyle: { fontFamily: INTER, fontSize: 11, color: c.textePrincipal },
       position: (point: [number, number], _p: unknown, _d: unknown, _r: unknown, taille: { contentSize: [number, number]; viewSize: [number, number] }) =>
-        positionInfobulle(point, taille.contentSize, taille.viewSize),
+        positionInfobulle(point, taille.contentSize, taille.viewSize, [GRILLE.left, avecEtiquettes ? 20 : 4]),
       axisPointer: { lineStyle: { color: c.axe, width: 1, type: 'solid' } },
       formatter: (params: unknown) => {
         const lignes = ((Array.isArray(params) ? params : [params]) as {
-          seriesId?: string; seriesName: string; value: readonly [number, number]; color: string;
+          seriesId?: string; seriesIndex?: number; seriesName: string; value: readonly [number, number]; color: string;
         }[]).filter((l) => !l.seriesId?.startsWith(PREFIXE_ETIQUETTES));
         if (lignes.length === 0) return '';
+        // Ordre de l'infobulle de Recharts (`itemSorter` par défaut : le NOM de la série, c'est-à-dire sa CLÉ de
+        // données, comparée unité de code par unité de code — « GPL » avant « Gaz », `*` avant tout). Mesuré au
+        // navigateur sur l'étape ② (T10) ; les séries d'étiquettes, écartées plus haut, viennent après `visibles`.
+        const cle = (l: { seriesIndex?: number }) => visibles[l.seriesIndex ?? -1]?.cle ?? '';
+        lignes.sort((a, b) => (cle(a) < cle(b) ? -1 : cle(a) > cle(b) ? 1 : 0));
         // Titre et lignes comme l'infobulle par défaut de Recharts : titre sans marge, une ligne par
         // courbe à 4 px de haut et de bas, texte à la couleur du trait.
         const items = lignes
