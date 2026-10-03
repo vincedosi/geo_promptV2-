@@ -2,7 +2,7 @@ import {
   ChangeDetectionStrategy, Component, DestroyRef, DOCUMENT, type ElementRef,
   afterNextRender, effect, inject, input, output, signal, viewChild,
 } from '@angular/core';
-import type maplibregl from 'maplibre-gl';
+import maplibregl from 'maplibre-gl';
 import { type Bbox, bboxDeCarte } from './bbox';
 import { BASE_RESSOURCES } from '../core/ressources/ressource-distante';
 import { chargerFeuilleMaplibre } from './feuille-maplibre';
@@ -44,7 +44,9 @@ import { FABRIQUE_CARTE, FOND_POSITRON } from './fabrique-carte';
   changeDetection: ChangeDetectionStrategy.OnPush,
   // `h-full w-full` en plus de `inset-0` : `.maplibregl-map` impose `position: relative` (feuille
   // chargée après Tailwind), ce qui annule `inset-0` — la carte gardait 300 px de haut.
-  template: '<div #conteneur class="absolute inset-0 h-full w-full"></div>',
+  // `<ng-content>` : le mobilier posé PAR LE PARENT (légende, raccourcis, avertissement) se range par-dessus la carte ;
+  // il se positionne lui-même (`absolute`), la carte ne connaît ni son contenu ni ses emplacements.
+  template: '<div #conteneur class="absolute inset-0 h-full w-full"></div><ng-content />',
   host: { class: 'block relative' },
 })
 export class CarteComponent {
@@ -52,6 +54,8 @@ export class CarteComponent {
   readonly cadre = input.required<Bbox>();
   readonly prete = output<maplibregl.Map>();
   readonly deplacee = output<Bbox>();
+  /** Le zoom courant, à chaque image de zoom (React : `m.on('zoom', …)`) et une fois à la première pose. */
+  readonly zoom = output<number>();
   /** Émise si le FOND lui-même échoue avant le premier `load` — pas les
    *  erreurs de tuile ordinaires qui suivent un chargement réussi —, ou si la
    *  feuille de style MapLibre ne charge pas. */
@@ -94,11 +98,16 @@ export class CarteComponent {
         fitBoundsOptions: { padding: 40 },
         attributionControl: { compact: true },
       });
+      // Zoom +/− sans boussole en haut à droite, attribution compacte en bas à droite (`attributionControl`
+      // ci-dessus) : la dotation de CarteRisque.tsx. Les contrôles vivent DANS le conteneur, donc dans la racine d'ombre.
+      carte.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+      carte.on('zoom', () => this.zoom.emit(carte.getZoom()));
       this.cadreApplique = this.cadre();
       this.instance.set(carte);
       let chargee = false;
       carte.on('load', () => {
         chargee = true;
+        this.zoom.emit(carte.getZoom());
         this.prete.emit(carte);
       });
       carte.on('moveend', () => this.deplacee.emit(bboxDeCarte(carte)));

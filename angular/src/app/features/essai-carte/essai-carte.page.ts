@@ -7,7 +7,9 @@ import { finalize } from 'rxjs';
 import { type Bbox, bboxEnParametre } from '../../carte/bbox';
 import { CarteComponent } from '../../carte/carte.component';
 import { chargerParCadre } from '../../carte/charger-par-cadre';
-import { contenuPopup, type LignePopup } from '../../carte/contenu-popup';
+import { contenuPopup } from '../../carte/contenu-popup';
+import { LegendeComponent } from '../../carte/legende/legende.component';
+import { LegendeNiveauxComponent, type NiveauLegende } from '../../carte/legende/legende-niveaux.component';
 import { ChargementService } from '../../core/chargement/chargement.service';
 import { messageErreurApi } from '../../core/http/erreurs';
 import { formaterDecimal, formaterNombre, formaterNombreAbrege } from '../../core/format/nombre';
@@ -26,6 +28,23 @@ export const CODE_PROFIL_DEFAUT = 'h1000.2000.5000_b500.1000_a_L0_P1';
 
 /** Étang de Berre : la vue initiale de CarteRisque.tsx. */
 const CADRE_ETANG_DE_BERRE: Bbox = [4.75, 43.35, 5.3, 43.6];
+
+/**
+ * Les trois grappes de `CarteRisque.tsx` (`GRAPPES`) : un bouton chacune, qui recadre la carte. La vue d'ouverture est
+ * la troisième, comme `VUE_INITIALE = GRAPPES[2].bbox`.
+ */
+const GRAPPES: ReadonlyArray<{ nom: string; bbox: Bbox }> = [
+  { nom: 'Vallée de la chimie', bbox: [4.75, 45.6, 5.05, 45.75] },
+  { nom: 'Estuaire de la Seine', bbox: [0.05, 49.4, 0.55, 49.55] },
+  { nom: 'Étang de Berre', bbox: CADRE_ETANG_DE_BERRE },
+];
+
+/** Le profil par défaut, tel que sa légende le montre : seuil haut 1/2/5 km, seuil bas 500 m/1 km, aucun « autres régimes ». */
+const NIVEAUX_LEGENDE: readonly NiveauLegende[] = [
+  { libelle: 'Seveso seuil haut', jeton: 'niveau-haut', anneaux: [1000, 2000, 5000] },
+  { libelle: 'Seveso seuil bas', jeton: 'niveau-bas', anneaux: [500, 1000] },
+  { libelle: 'Autres régimes', jeton: 'niveau-autres', anneaux: [] },
+];
 
 const SOURCE_ZONES = 'zones';
 const SOURCE_SITES = 'sites';
@@ -53,7 +72,7 @@ type Teintes = { haut: string; bas: string; autres: string };
  */
 @Component({
   selector: 'mg-essai-carte',
-  imports: [BandeauKpiComponent, PerimeDirective, EntetePageComponent, BarreProgressionComponent, CarteComponent, CourbeComponent, KpiComponent, RouterLink],
+  imports: [LegendeComponent, LegendeNiveauxComponent, BandeauKpiComponent, PerimeDirective, EntetePageComponent, BarreProgressionComponent, CarteComponent, CourbeComponent, KpiComponent, RouterLink],
   providers: [ChargementService],
   templateUrl: './essai-carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -64,6 +83,18 @@ export class EssaiCartePage {
   private readonly destruction = inject(DestroyRef);
 
   protected readonly cadre = CADRE_ETANG_DE_BERRE;
+  protected readonly grappes = GRAPPES;
+  protected readonly niveauxLegende = NIVEAUX_LEGENDE;
+  /** Le zoom courant (React : `useState(9)`, tenu par `m.on('zoom')`). */
+  protected readonly zoom = signal(9);
+  /** Sous le plancher de lecture, MapLibre ne demande AUCUNE tuile et n'émet aucune erreur : la carte paraîtrait vide sans ce bandeau. */
+  protected readonly sousLeSeuilLisible = computed(() => this.zoom() < ZOOM_LISIBLE);
+  /** Nombre de sites de la dernière vue chargée (React : `nSites`) ; `null` tant qu'aucune n'est arrivée. */
+  protected readonly nbSitesAffiches = signal<number | null>(null);
+  protected readonly texteNbSites = computed(() => {
+    const n = this.nbSitesAffiches();
+    return n === null ? '' : ` · ${formaterNombre(n)} sites affichés`;
+  });
 
   protected readonly erreurCarte = signal<string | null>(null);
   protected readonly erreurZones = signal<string | null>(null);
@@ -156,6 +187,11 @@ export class EssaiCartePage {
     });
   }
 
+  /** Un bouton de grappe recadre la carte avec une animation de 800 ms, marge 40 (`CarteRisque.tsx:980`). */
+  protected allerA(bbox: Bbox): void {
+    this.carte()?.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 40, duration: 800 });
+  }
+
   protected surCartePrete(carte: maplibregl.Map): void {
     this.carte.set(carte);
     this.poserSites(carte);
@@ -225,6 +261,7 @@ export class EssaiCartePage {
       },
       (fc) => {
         this.erreurSites.set(null);
+        this.nbSitesAffiches.set(Array.isArray(fc?.features) ? fc.features.length : null);
         (carte.getSource(SOURCE_SITES) as maplibregl.GeoJSONSource | undefined)?.setData(fc);
       },
       { surEchec: (e) => this.erreurSites.set(messageErreurApi(e)) },
@@ -235,13 +272,11 @@ export class EssaiCartePage {
   /** Propriétés lues dans la réponse réelle de /api/map/risques-industriels : nom, ville, statut_seveso, libelle_nature. */
   private ouvrirPopup(carte: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): void {
     const p = (e.features?.[0]?.properties ?? {}) as Record<string, unknown>;
-    const lignes: LignePopup[] = [];
-    if (p['ville']) lignes.push({ libelle: 'Commune', valeur: String(p['ville']) });
-    if (p['statut_seveso']) lignes.push({ libelle: 'Statut', valeur: String(p['statut_seveso']) });
-    if (p['libelle_nature']) lignes.push({ libelle: 'Nature', valeur: String(p['libelle_nature']) });
+    // Statut · ville · nature, dans l'ordre de React (`CarteRisque.tsx:667`).
+    const details = [p['statut_seveso'], p['ville'], p['libelle_nature']].map((v) => (v ? String(v) : null));
     new maplibregl.Popup({ closeButton: true, maxWidth: '260px' })
       .setLngLat(e.lngLat)
-      .setDOMContent(contenuPopup(String(p['nom'] ?? 'Site sans nom'), lignes))
+      .setDOMContent(contenuPopup(String(p['nom'] ?? 'Site sans nom'), details))
       .addTo(carte);
   }
 

@@ -23,8 +23,27 @@
     @if (erreurCarte(); as message) {
       <p role="alert" class="text-xs text-danger">{{ message }}</p>
     }
-    <mg-carte [cadre]="cadre" (prete)="surCartePrete($event)" (erreur)="erreurCarte.set($event)"
-              class="block min-h-[320px] w-full flex-1 border-fin border-subtle" />
+    <mg-carte [cadre]="cadre" (prete)="surCartePrete($event)" (erreur)="erreurCarte.set($event)" (zoom)="zoom.set($event)"
+              class="block min-h-[320px] w-full flex-1 border-fin border-subtle">
+      <!-- Aller voir une grappe (CarteRisque.tsx:972) : 11 px, --card-overlay, bord 0,5 --border-default, rayon 6. -->
+      <div class="absolute top-2.5 left-2.5 z-[2] flex max-w-[calc(100%-100px)] flex-wrap gap-[6px]">
+        @for (g of grappes; track g.nom) {
+          <button type="button" (click)="allerA(g.bbox)"
+                  class="cursor-pointer rounded-md border-fin border-default bg-[var(--card-overlay)] px-[10px] py-[5px] text-[11px] text-secondary">{{ g.nom }}</button>
+        }
+      </div>
+      <mg-legende class="absolute bottom-2.5 left-2.5 z-[2]">
+        <mg-legende-niveaux [niveaux]="niveauxLegende" />
+        <div class="mt-0.5 text-[9.5px] leading-[1.5] text-tertiary">
+          Trait plein : périmètre publié par l’État. Tireté : rayon que nous calculons.{{ texteNbSites() }}
+        </div>
+      </mg-legende>
+      @if (sousLeSeuilLisible()) {
+        <div class="absolute top-[50px] left-2.5 z-[2] max-w-[300px] rounded-md border-fin border-warning/25 bg-warning/12 px-[11px] py-[7px] text-[11px] leading-[1.5] text-warning">
+          Zoomez pour voir les zones : à cette échelle, un rayon de 2 km fait moins d’un pixel.
+        </div>
+      }
+    </mg-carte>
     @if (erreurZones(); as message) {
       <p role="alert" class="text-xs text-danger">{{ message }}</p>
     }

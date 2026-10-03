@@ -13,6 +13,7 @@ export class CarteFactice {
   pitch = 0;
   cadre: [number, number, number, number] = [4.75, 43.35, 5.3, 43.6];
   readonly sauts: unknown[] = [];
+  readonly controles: { controle: unknown; position?: string }[] = [];
   readonly cadrages: { cadre: unknown; options: unknown }[] = [];
   /** Faux tant que le style n'est pas chargé : `getStyle()` rend alors `undefined`, comme MapLibre. */
   styleCharge = false;
@@ -68,6 +69,7 @@ export class CarteFactice {
     this.peintures.push({ couche, propriete, valeur });
     return this;
   }
+  addControl(controle: unknown, position?: string): this { this.controles.push({ controle, position }); return this; }
   getStyle(): object | undefined { return this.styleCharge ? {} : undefined; }
   fitBounds(cadre: unknown, options?: unknown): this { this.cadrages.push({ cadre, options }); return this; }
   remove(): void { this.retiree = true; }

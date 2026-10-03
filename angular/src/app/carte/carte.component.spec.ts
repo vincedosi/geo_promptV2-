@@ -42,6 +42,18 @@ describe('CarteComponent', () => {
     document.head.querySelectorAll('link[data-mg-maplibre]').forEach((l) => l.remove());
   });
 
+  it('pose le zoom +/− SANS boussole, en haut à droite, et publie le zoom courant', async () => {
+    const { f, carte } = await rendre();
+    expect(carte().controles).toHaveLength(1);
+    expect(carte().controles[0].position).toBe('top-right');
+    expect((carte().controles[0].controle as { _showCompass?: boolean; options?: { showCompass?: boolean } }).options?.showCompass).toBe(false);
+    const zooms: number[] = [];
+    f.componentInstance.zoom.subscribe((z) => zooms.push(z));
+    carte().zoom = 6.5;
+    carte().emettre('zoom');
+    expect(zooms).toEqual([6.5]);
+  });
+
   it("crée la carte HORS de la zone Angular (NgZone.runOutsideAngular) : un shell sous zone.js ne détecte pas à chaque mouvement de souris", async () => {
     // Règle des lots suivants (revue finale du lot AIDA). Tenue AUJOURD'HUI par
     // `afterNextRender`, qu'Angular exécute via `ngZone.runOutsideAngular`
