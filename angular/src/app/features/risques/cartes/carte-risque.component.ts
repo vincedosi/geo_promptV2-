@@ -50,7 +50,8 @@ const JETON_NIVEAU = { haut: 'niveau-haut', bas: 'niveau-bas', autres: 'niveau-a
  *
  * 1. **La clé** → `preparer` PUIS les couches. La géométrie est construite AVANT de poser la source (2,8 s sur
  *    la France, une fois par code) : sinon MapLibre demanderait ses tuiles sous une clé que personne n'a
- *    construite et échouerait en silence. Une nouvelle clé annule la préparation en vol.
+ *    construite et échouerait en silence. Une nouvelle clé annule la préparation en vol. La préparation part DÈS LE
+ *    MONTAGE, en parallèle du chargement du fond (comme React) ; les couches attendent les deux.
  * 2. **Le thème** → `setPaintProperty` seul. React recréait la source à chaque bascule de thème (le thème était
  *    une dépendance de son effet des zones), donc REPRÉPARAIT et redemandait toutes les tuiles pour un
  *    changement de couleur — défaut corrigé, listé au rapport T7.
@@ -99,7 +100,7 @@ const JETON_NIVEAU = { haut: 'niveau-haut', bas: 'niveau-bas', autres: 'niveau-a
       }
     </mg-carte>
     @if (erreurCarte() ?? erreurZones(); as message) {
-      <p role="alert" class="absolute right-2.5 bottom-2.5 z-[3] m-0 max-w-[300px] rounded-lg border-fin border-danger/25 bg-card-overlay px-[11px] py-[7px] text-[11px] leading-[1.5] text-danger">
+      <p role="alert" class="absolute right-2.5 bottom-[34px] z-[3] m-0 max-w-[300px] rounded-lg border-fin border-danger/25 bg-card-overlay px-[11px] py-[7px] text-[11px] leading-[1.5] text-danger">
         {{ message }}
       </p>
     }
@@ -136,6 +137,7 @@ export class CarteRisqueComponent {
   private readonly instance = signal<maplibregl.Map | null>(null);
   /** La clé du profil SEUL : la route ne relit qu'un profil, les natures voyagent à part. */
   private readonly codeSeul = computed(() => codeProfil(this.profil()));
+  /** Jointe par virgules comme React (`cleNatures`) : un libellé contenant une virgule serait coupé en deux, à l'identique (parité). */
   private readonly cleNatures = computed(() => this.natures().join(','));
   /** La clé de cache des zones, par la MÊME fonction que les deux routes serveur. Une chaîne : égale, rien ne bouge. */
   private readonly code = computed(() => codeZonesRisque(this.codeSeul(), this.listeNatures()));
@@ -147,18 +149,31 @@ export class CarteRisqueComponent {
   })));
 
   private preparationEnVol: Subscription | null = null;
+  /** La dernière clé dont la géométrie est construite (ou dont la construction a échoué : on pose quand même). */
+  private readonly codePrepare = signal<string | null>(null);
+  /** La clé dont les couches sont sur la carte : une seule pose par clé. */
+  private codePose: string | null = null;
 
   constructor() {
     // Libellé EXACT de React (`usePiste('zones', 'Découpage des zones…', …)`).
     inject(ChargementService).suivre('zones', 'Découpage des zones…', () => this.preparation());
     inject(DestroyRef).onDestroy(() => this.preparationEnVol?.unsubscribe());
 
-    // 1. La clé change → préparer, PUIS (re)poser source et couches. Rien d'autre n'est une dépendance.
+    // 1a. La clé change → préparer, DÈS LE MONTAGE et sans attendre le fond de carte : React lançait le POST en
+    //     parallèle du chargement du style (relecture T7, I1). Une clé déjà préparée ne repart pas.
+    effect(() => {
+      const code = this.code();
+      untracked(() => this.preparer(code));
+    });
+
+    // 1b. Les couches ne se posent qu'une fois la carte chargée ET la clé COURANTE préparée — jamais une tuile avant
+    //     la construction de sa géométrie. Une seule pose par clé (`codePose`).
     effect(() => {
       const carte = this.instance();
-      this.code(); // la clé décide QUAND on prépare ; ses deux composantes voyagent à part (profil, natures)
-      if (!carte) return;
-      untracked(() => this.preparerPuisPoser(carte));
+      const code = this.code();
+      const prepare = this.codePrepare();
+      if (!carte || prepare !== code || this.codePose === code) return;
+      untracked(() => this.poser(carte, code));
     });
 
     // 2. Le thème change → on repeint. `carte` d'abord : la palette n'est lue qu'une fois la carte là.
@@ -193,31 +208,43 @@ export class CarteRisqueComponent {
     return cle ? cle.split(',') : [];
   }
 
-  private preparerPuisPoser(carte: maplibregl.Map): void {
+  /**
+   * Construit la géométrie de la clé courante, UNE fois par clé. Une nouvelle clé annule la préparation en vol ;
+   * revenir à la clé déjà préparée (donc déjà posée) ne relance rien. Passe par `HttpClient`, donc par le
+   * limiteur de 3 appels : aucune priorité n'est prise sur les autres requêtes de l'écran.
+   */
+  private preparer(code: string): void {
     this.preparationEnVol?.unsubscribe();
+    this.preparationEnVol = null;
+    if (this.codePrepare() === code) {
+      this.preparation.set(false);
+      return;
+    }
     this.erreurZones.set(null);
     this.preparation.set(true);
-    const codeSeul = this.codeSeul();
-    const natures = this.listeNatures();
-    const poser = () => {
+    const fin = () => {
       this.preparation.set(false);
-      // Lus au moment de poser : la préparation d'une clé périmée a déjà été annulée, donc ces valeurs sont
-      // celles de `code`. `fusionner` sans dépendance (voir l'en-tête, effet 3).
-      poserCouchesZones(carte, {
-        url: this.api.urlTuilesZones(codeSeul, natures),
-        teintes: this.teintes(),
-        profil: this.profil(),
-        visible: this.fusionner(),
-      });
+      this.codePrepare.set(code);
     };
-    this.preparationEnVol = this.api.preparer(codeSeul, natures).subscribe({
-      next: () => poser(),
+    this.preparationEnVol = this.api.preparer(this.codeSeul(), this.listeNatures()).subscribe({
+      next: fin,
       // React posait la source MÊME sur un échec de préparation (« la carte reste utilisable »), sans rien dire.
       // On pose de même — le fond reste, l'absence de zones se voit — mais l'échec est AFFICHÉ (défaut corrigé).
       error: (e: unknown) => {
         this.erreurZones.set(messageErreurApi(e));
-        poser();
+        fin();
       },
+    });
+  }
+
+  /** (Re)pose source et couches de la clé courante. Lus sans dépendance : `fusionner` décide à la CRÉATION (effet 3). */
+  private poser(carte: maplibregl.Map, code: string): void {
+    this.codePose = code;
+    poserCouchesZones(carte, {
+      url: this.api.urlTuilesZones(this.codeSeul(), this.listeNatures()),
+      teintes: this.teintes(),
+      profil: this.profil(),
+      visible: this.fusionner(),
     });
   }
 }

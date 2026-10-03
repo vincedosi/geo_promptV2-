@@ -79,16 +79,39 @@ async function rendre() {
 const tuiles = (c: CarteFactice) => (c.sources.get(SOURCE_ZONES)?.spec as { tiles: string[] } | undefined)?.tiles[0];
 
 describe('CarteRisqueComponent', () => {
-  it('(a) au load : préparer UNE fois, PUIS la source `atelier-zones` avec l’URL du code', async () => {
+  it('(a) préparer UNE fois DÈS LE MONTAGE (avant le load du fond), puis la source `atelier-zones` une fois les deux là', async () => {
     const r = await rendre();
-    expect(r.preparations).toHaveLength(0); // rien avant le load
-    await r.charger();
+    // React lançait le POST en parallèle du chargement du style (relecture T7, I1).
     expect(r.preparations.map((p) => [p.profil, p.natures])).toEqual([['h1000.2000.5000_b500.1000_a_L0_P1', []]]);
+    await r.charger();
+    expect(r.preparations).toHaveLength(1);
     expect(r.carte().sources.has(SOURCE_ZONES)).toBe(false); // pas de tuile avant la construction
     await r.repondre(0);
     expect(tuiles(r.carte())).toBe('http://api/tiles/zones-risque/{z}/{x}/{y}?profil=h1000.2000.5000_b500.1000_a_L0_P1');
     expect(r.carte().couches.map((c) => c.couche['id'])).toEqual([...COUCHES_ZONES]);
     expect(r.cartesEmises).toEqual([r.carte()]);
+  });
+
+  it('préparation finie AVANT le load : rien n’est posé tant que le fond n’est pas chargé, puis une seule pose', async () => {
+    const r = await rendre();
+    await r.repondre(0);
+    expect(r.carte().sources.has(SOURCE_ZONES)).toBe(false);
+    await r.charger();
+    expect(tuiles(r.carte())).toContain('profil=h1000.2000.5000_b500.1000_a_L0_P1');
+    expect(r.carte().couches.map((c) => c.couche['id'])).toEqual([...COUCHES_ZONES]);
+    expect(r.preparations).toHaveLength(1);
+  });
+
+  it('revenir à la clé déjà posée pendant qu’une autre se prépare : la préparation en vol est annulée, rien n’est reposé', async () => {
+    const r = await rendre();
+    await r.charger();
+    await r.repondre(0);
+    await r.regler('profil', { ...PROFIL_DEFAUT, haut: [3000] });
+    await r.regler('profil', PROFIL_DEFAUT);
+    expect(r.preparations).toHaveLength(2);
+    expect(r.preparations[1].annulee).toBe(true);
+    expect(r.carte().retraits).toEqual([]);
+    expect(TestBed.inject(ChargementService).etat().actif).toBe(false);
   });
 
   it('(b) entrées inchangées (allers-retours d’étapes, nouveaux tableaux au même contenu) → aucun nouvel appel', async () => {
@@ -161,7 +184,13 @@ describe('CarteRisqueComponent', () => {
     const r = await rendre();
     await r.charger();
     await r.repondre(0);
+    const ajoutSource = vi.spyOn(r.carte(), 'addSource');
+    const ajoutCouche = vi.spyOn(r.carte(), 'addLayer');
     await r.regler('fusionner', false);
+    expect(ajoutSource).not.toHaveBeenCalled();
+    expect(ajoutCouche).not.toHaveBeenCalled();
+    ajoutSource.mockRestore();
+    ajoutCouche.mockRestore();
     expect(r.carte().dispositions).toEqual(COUCHES_ZONES.map((couche) => ({ couche, propriete: 'visibility', valeur: 'none' })));
     expect(r.preparations).toHaveLength(1);
     expect(r.carte().retraits).toEqual([]);
@@ -170,6 +199,18 @@ describe('CarteRisqueComponent', () => {
     await r.repondre(1);
     const visibilites = r.carte().couches.map((c) => (c.couche['layout'] as Record<string, unknown>)['visibility']);
     expect(visibilites).toEqual(['none', 'none', 'none', 'none']);
+  });
+
+  it('bascule de `fusionner` PENDANT une préparation : les couches naissent avec la visibilité COURANTE', async () => {
+    const r = await rendre();
+    await r.charger();
+    await r.regler('fusionner', false);
+    await r.regler('fusionner', true);
+    await r.regler('fusionner', false);
+    await r.repondre(0);
+    const visibilites = r.carte().couches.map((c) => (c.couche['layout'] as Record<string, unknown>)['visibility']);
+    expect(visibilites).toEqual(['none', 'none', 'none', 'none']);
+    expect(r.preparations).toHaveLength(1);
   });
 
   it('(f) aucune chaîne `var(` dans les couleurs posées', async () => {
