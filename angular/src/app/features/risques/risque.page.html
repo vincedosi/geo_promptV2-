@@ -1,6 +1,6 @@
 <!--
-  L'écran du module risque (AnalysePopulationOverlay.tsx:896-1638) : en-tête, [barre commune — T5],
-  barre de progression, [bandeau KPI — T5], puis panneau de l'étape à gauche et carte permanente à droite.
+  L'écran du module risque (AnalysePopulationOverlay.tsx:896-1638) : en-tête, barre commune,
+  barre de progression, bandeau KPI, puis panneau de l'étape à gauche et carte permanente à droite.
   Plein écran, hors coquille : toute la hauteur de la racine, jamais `position: fixed` (racine d'ombre).
 -->
 <!-- ── En-tête ─────────────────────────────────────────────────────────── -->
@@ -8,9 +8,9 @@
   <span aria-hidden="true" class="size-[7px] shrink-0 rounded-full bg-teal"></span>
   <h2 class="m-0 text-[15px] font-medium text-primary">Population à risque industriel</h2>
   <!-- DEUX fils sur cet en-tête, et ce n'est pas un doublon : celui-ci dit OÙ JE REGARDE, le suivant OÙ J'EN SUIS. -->
-  <mg-fil-ariane [segments]="segmentsAriane" [precision]="precisionAriane" />
+  <mg-fil-ariane [segments]="segmentsAriane()" [precision]="precisionAriane()" (remonter)="donnees.remonter($event)" />
   <mg-fil-etapes [etapes]="etapes()" [courante]="etat().etape" (choisir)="choisirEtape($event)" />
-  <span class="font-mono text-[11px] text-tertiary">{{ libelleCible }}</span>
+  <span class="font-mono text-[11px] text-tertiary">{{ donnees.libelleCible() }}</span>
   <div class="flex-1"></div>
   <button type="button" (click)="fermer()" aria-label="Fermer" title="Fermer"
           class="flex cursor-pointer border-0 bg-transparent p-[6px] text-secondary">
@@ -18,8 +18,19 @@
   </button>
 </header>
 
+<!-- ── Barre commune : vaut pour toutes les étapes (réglettes du rayon : T6) ── -->
+<mg-barre-commune />
+
 <!-- La barre ENTRE les réglages et les chiffres : le geste du dessus déclenche, les chiffres du dessous attendent. -->
 <mg-barre-progression />
+
+<!-- Les six chiffres, PERMANENTS. À l'étape ⑤ ils changent de question (BandeauCampagne, T16). -->
+@if (etat().etape !== 'campagne') {
+  <mg-bandeau-kpi-risque [mgPerime]="donnees.perime()"
+                         [bandes]="donnees.bandes().bandes" [sites]="donnees.compteSites().compte"
+                         [courbe]="donnees.courbeTotale()" [rayonMax]="donnees.rayonMaxProfil()"
+                         [maille]="donnees.dimension()" [libelleCible]="donnees.libelleCible()" />
+}
 
 <!-- ── Corps : panneau de l'étape à gauche, carte permanente à droite ─────── -->
 <div class="flex min-h-0 flex-1">

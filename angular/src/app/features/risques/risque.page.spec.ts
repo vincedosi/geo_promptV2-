@@ -4,6 +4,11 @@ import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { FABRIQUE_CARTE } from '../../carte/fabrique-carte';
 import { CarteFactice } from '../../carte/testing/carte-factice';
+import { NEVER, of } from 'rxjs';
+import { ProfilRisqueApi } from './data/profil-risque.api';
+import { ReferentielApi } from './data/referentiel.api';
+import { SitesRisqueApi } from './data/sites-risque.api';
+import { ZonesRisqueApi } from './data/zones-risque.api';
 import { RisquePage } from './risque.page';
 
 @Component({ selector: 'mg-vide', template: '' })
@@ -26,6 +31,17 @@ async function ouvrir(url = '/risques') {
         { path: 'risques', component: RisquePage },
         { path: '', component: Vide },
       ]),
+      // Les API du module (fournies par la route en vrai) : catalogue et référentiel répondent, les calculs jamais.
+      { provide: ProfilRisqueApi, useValue: {
+        bandes: () => NEVER,
+        cibles: () => of({ cibles: [{ code: 'pop_65_plus', libelle: '65 ans et plus', famille: 'Âge' }] }),
+      } },
+      { provide: ZonesRisqueApi, useValue: { courbe: () => NEVER } },
+      { provide: SitesRisqueApi, useValue: { compter: () => NEVER } },
+      { provide: ReferentielApi, useValue: {
+        geo: () => of({ regions: [{ code_region: '93', nom_region: 'Provence-Alpes-Côte d’Azur', depts: [{ code_dept: '13', nom_dept: 'Bouches-du-Rhône' }] }] }),
+        contours: () => NEVER,
+      } },
       { provide: FABRIQUE_CARTE, useValue: (o: never) => { const c = new CarteFactice(o); cartes.push(c); return c; } },
     ],
   });
@@ -161,5 +177,24 @@ describe('RisquePage', () => {
     expect(cp.disabled).toBe(true);
     expect((el().querySelector('[data-vue="codes-postaux"]') as HTMLElement).style.visibility).toBe('hidden');
     expect((el().querySelector('[data-vue="rayons"]') as HTMLElement).style.visibility).toBe('visible');
+  });
+
+  it("T5 : le territoire de l'URL alimente le fil d'Ariane ; remonter le vide ; la cible est lue au catalogue", async () => {
+    const { harness, el, router } = await ouvrir('/risques?risque=cible%3Dpop_65_plus%26chemin%3Ddepartement%253A13');
+    const fil = el().querySelector('nav[aria-label="Fil d’Ariane"]')!;
+    expect(fil.textContent?.replace(/\s+/g, ' ')).toContain('France entière › Bouches-du-Rhône · département');
+    expect(fil.querySelector('button[aria-current="location"]')?.getAttribute('title')).toBe('Département 13');
+    expect(el().querySelector('header')?.textContent).toContain('65 ans et plus');
+    (fil.querySelector('button') as HTMLButtonElement).click();
+    await stabiliser(harness);
+    expect(router.url).toBe('/risques?risque=cible%3Dpop_65_plus');
+    expect(fil.textContent?.replace(/\s+/g, ' ')).toContain('France entière · région');
+  });
+
+  it('T5 : barre commune et bandeau KPI montés ; six « — » tant que rien n’a répondu', async () => {
+    const { el } = await ouvrir();
+    expect(el().querySelector('mg-barre-commune')).not.toBeNull();
+    const valeurs = [...el().querySelectorAll('mg-bandeau-kpi-risque [data-role="valeur"]')].map((v) => v.textContent?.trim());
+    expect(valeurs).toEqual(['—', '—', '—', '—', '—', '—']);
   });
 });

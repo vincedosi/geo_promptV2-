@@ -7,9 +7,14 @@ import { BarreProgressionComponent } from '../../ui/barre-progression/barre-prog
 import { FilArianeComponent, type SegmentAriane } from '../../ui/fil-ariane/fil-ariane.component';
 import { FilEtapesComponent } from '../../ui/fil-etapes/fil-etapes.component';
 import { IconeComponent } from '../../ui/icone/icone.component';
+import { PerimeDirective } from '../../ui/perime/perime.directive';
 import { VueCartesComponent } from './cartes/vue-cartes.component';
+import { BandeauKpiRisqueComponent } from './commandes/bandeau-kpi-risque.component';
+import { BarreCommuneComponent } from './commandes/barre-commune.component';
 import { etapesAffichees } from './commandes/etapes';
+import { DonneesRisqueService } from './etat/donnees-risque.service';
 import { EtatRisqueService } from './etat/etat-risque.service';
+import { LIBELLE_DIMENSION } from './logique/dimensions';
 import { ETAPES, type Etape } from './logique/etape';
 import type { Niveau } from './logique/profil';
 
@@ -53,9 +58,12 @@ const LARGEUR_PANNEAU_DEFAUT = 480;
  */
 @Component({
   selector: 'mg-risque',
-  imports: [BarreProgressionComponent, FilArianeComponent, FilEtapesComponent, IconeComponent, VueCartesComponent],
-  // Services d'ÉTAT fournis par l'écran (A13) : détruits avec lui. T5-T16 y ajoutent les leurs.
-  providers: [ChargementService, EtatRisqueService],
+  imports: [
+    BandeauKpiRisqueComponent, BarreCommuneComponent, BarreProgressionComponent, FilArianeComponent,
+    FilEtapesComponent, IconeComponent, PerimeDirective, VueCartesComponent,
+  ],
+  // Services d'ÉTAT fournis par l'écran (A13) : détruits avec lui, requêtes en cours comprises. T6-T16 y ajoutent les leurs.
+  providers: [ChargementService, EtatRisqueService, DonneesRisqueService],
   templateUrl: './risque.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
@@ -75,12 +83,22 @@ export class RisquePage {
   /** Une campagne simulée sur le jeu ouvert allume l'étape ⑤ — branché en T16. */
   private readonly simulation = signal(false);
   protected readonly etapes = computed(() => etapesAffichees(this.etat(), this.simulation()));
-  /** Le territoire regardé : « France entière » en T4 ; T5 résout `etat.chemin` (A3). */
-  protected readonly segmentsAriane: SegmentAriane[] = [{ cle: 'france', libelle: 'France entière' }];
-  /** La maille listée, en minuscules comme `FilAriane` (elements.tsx) : « région » à la France entière (A4). */
-  protected readonly precisionAriane = 'région';
-  /** Le libellé de la cible : « Population totale » en T4 ; T5 le lit dans le catalogue des cibles. */
-  protected readonly libelleCible = 'Population totale';
+  /** Les données partagées (T5) : bandes, courbe, sites, cibles, référentiel. */
+  protected readonly donnees = inject(DonneesRisqueService);
+  /**
+   * Le territoire regardé, résolu depuis `etat.chemin` (A3). Le titre porte le NIVEAU et le code
+   * (`elements.tsx:104`) : 18 codes INSEE désignent une région ET un département.
+   */
+  protected readonly segmentsAriane = computed<SegmentAriane[]>(() => [
+    { cle: 'france', libelle: 'France entière' },
+    ...this.donnees.chemin().map((s) => ({
+      cle: `${s.niveau}:${s.code}`,
+      libelle: s.nom,
+      titre: `${s.niveau === 'region' ? 'Région' : 'Département'} ${s.code}`,
+    })),
+  ]);
+  /** La maille LISTÉE, en minuscules comme `FilAriane` (elements.tsx:119). */
+  protected readonly precisionAriane = computed(() => LIBELLE_DIMENSION[this.donnees.dimension()].toLowerCase());
 
   /** Panneau d'étape : largeur réglée à la poignée, repli « Carte seule ». Locaux (React l.393-394). */
   readonly largeurPanneau = signal(LARGEUR_PANNEAU_DEFAUT);
