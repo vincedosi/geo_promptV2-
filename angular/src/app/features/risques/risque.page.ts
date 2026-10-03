@@ -152,19 +152,36 @@ export class RisquePage {
 
   /** Une chip du résumé : déplie ou replie le tiroir des anneaux (`AnalysePopulationOverlay.tsx:952`). */
   protected basculerAtelier(): void {
-    this.etatRisque.maj({ atelier: !this.etat().atelier });
+    const ouvrir = !this.etat().atelier;
+    // L'élément qui OUVRE le tiroir (une chip du résumé, en général) : le focus lui reviendra à Échap. Lu par
+    // `getRootNode()` : dans une racine d'ombre, `document.activeElement` serait l'hôte de la racine.
+    if (ouvrir) {
+      const el = this.hote.nativeElement;
+      const actif = (el.getRootNode() as Document | ShadowRoot).activeElement;
+      this.ouvreurAtelier = actif instanceof HTMLElement && actif !== el && el.contains(actif) ? actif : null;
+    }
+    this.etatRisque.maj({ atelier: ouvrir });
   }
 
+  /** L'élément focalisé à l'ouverture du tiroir — `null` s'il a été ouvert par l'URL (`atelier=1`). */
+  private ouvreurAtelier: HTMLElement | null = null;
+
   /**
-   * Échap DANS le tiroir le referme, sans fermer l'écran (`preventDefault`, lu par `fermer`). Le focus revient à la
-   * chip du résumé qui ouvre le tiroir (à défaut, à l'hôte) : l'élément focalisé disparaît avec le tiroir, et Échap
-   * n'atteindrait plus l'écran ensuite. La chip est DANS l'hôte : un second Échap y remonte et ferme l'écran.
+   * Échap DANS le tiroir le referme, sans fermer l'écran (`preventDefault`, lu par `fermer`). Le focus revient à
+   * l'élément qui l'avait OUVERT (la chip réellement cliquée, relecture T8) ; à défaut — tiroir ouvert par l'URL, ou
+   * ouvreur disparu entre-temps —, à la première chip du résumé, puis à l'hôte : l'élément focalisé disparaît avec le
+   * tiroir, et Échap n'atteindrait plus l'écran ensuite. Tous sont DANS l'hôte : un second Échap y remonte et ferme.
    */
   protected fermerAtelier(ev: Event): void {
     ev.preventDefault();
     this.etatRisque.maj({ atelier: false });
-    const chip = this.hote.nativeElement.querySelector<HTMLElement>('mg-resume-profil button');
-    (chip ?? this.hote.nativeElement).focus({ preventScroll: true });
+    const hote = this.hote.nativeElement;
+    const ouvreur = this.ouvreurAtelier;
+    this.ouvreurAtelier = null;
+    const cible = ouvreur && ouvreur.isConnected && hote.contains(ouvreur)
+      ? ouvreur
+      : hote.querySelector<HTMLElement>('mg-resume-profil button') ?? hote;
+    cible.focus({ preventScroll: true });
   }
 
   /**

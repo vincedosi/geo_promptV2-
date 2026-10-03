@@ -71,8 +71,8 @@ const JETON_NIVEAU = { haut: 'niveau-haut', bas: 'niveau-bas', autres: 'niveau-a
  *
  * ── LES SITES (T8, `couches-sites.ts`) ────────────────────────────────────
  *
- * 4. Les points viennent de `/api/map/risques-industriels` sur la bbox VISIBLE (`chargerParCadre` : anti-rebond
- *    350 ms, requête précédente annulée, `limite=800`), rechargés quand `gravites` ou `natures` changent ; jamais
+ * 4. Les points viennent de `/api/map/risques-industriels` sur la bbox VISIBLE (`chargerParCadre` : immédiat au
+ *    départ, anti-rebond 350 ms ensuite, requête précédente annulée, `limite=800`), rechargés quand `gravites` ou `natures` changent ; jamais
  *    avant que la carte existe, donc jamais la France entière.
  * 5. Les cercles du site par site et 6. l'aperçu de rayon DÉRIVENT des sites déjà chargés ; le survol aussi, dans
  *    un écouteur de couche. Aucun de ces trois dessins ne fait de requête.
@@ -230,7 +230,7 @@ export class CarteRisqueComponent {
       });
     });
 
-    // 4. Les sites de la bbox VISIBLE : au départ puis à chaque `moveend`, après 350 ms de calme, la requête
+    // 4. Les sites de la bbox VISIBLE : immédiatement au départ, puis à chaque `moveend` après 350 ms de calme, la requête
     //    précédente ANNULÉE (`chargerParCadre`). Relancé quand les niveaux ou les natures changent — jamais sur le
     //    thème (React le faisait : une requête de plus à chaque bascule, pour les mêmes points).
     effect((surNettoyage) => {

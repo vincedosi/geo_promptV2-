@@ -338,4 +338,27 @@ describe('RisquePage', () => {
     expect(el().querySelector('header mg-resume-profil')?.textContent?.replace(/\s+/g, ' ')).toContain('1 km · 2 km · 3 km');
     expect(el().querySelector('[data-tiroir="anneaux"] [data-niveau="haut"]')?.textContent).toContain('3 km');
   });
+
+  it("relecture T8 : Échap rend le focus à la chip qui a RÉELLEMENT ouvert le tiroir (la seconde), pas à la première", async () => {
+    const { harness, el } = await ouvrir('/risques?risque=etape%3Drayon');
+    const chips = () => [...el().querySelectorAll<HTMLButtonElement>('header mg-resume-profil button')];
+    expect(chips().length).toBe(2);
+    const seconde = chips()[1];
+    seconde.focus();
+    seconde.click();
+    await stabiliser(harness);
+    el().querySelector('[data-tiroir="anneaux"] input[type="number"]')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    await stabiliser(harness);
+    expect(el().querySelector('[data-tiroir="anneaux"]')).toBeNull();
+    expect(document.activeElement).toBe(chips()[1]);
+  });
+
+  it('relecture T8 : tiroir ouvert par l’URL (aucun ouvreur) → Échap rend le focus à la PREMIÈRE chip', async () => {
+    const { harness, el } = await ouvrir('/risques?risque=etape%3Drayon%26atelier%3D1');
+    el().querySelector('[data-tiroir="anneaux"] input[type="number"]')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    await stabiliser(harness);
+    expect(document.activeElement).toBe(el().querySelector('header mg-resume-profil button'));
+  });
 });

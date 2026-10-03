@@ -331,7 +331,7 @@ describe('CarteRisqueComponent — sites (T8)', () => {
   const legende = (r: Awaited<ReturnType<typeof rendre>>) =>
     (r.f.nativeElement as HTMLElement).querySelector('mg-legende')?.textContent?.replace(/\s+/g, ' ') ?? '';
 
-  it('au load : couches des sites posées, zones INSÉRÉES DESSOUS ; UNE requête après l’anti-rebond, sur la bbox VISIBLE', async () => {
+  it('au load : couches des sites posées, zones INSÉRÉES DESSOUS ; UNE requête IMMÉDIATE (sans anti-rebond), sur la bbox VISIBLE', async () => {
     const r = await rendre();
     await r.regler('gravites', ['seveso_haut', 'seveso_bas']);
     expect(r.demandesSites).toHaveLength(0); // jamais avant que la carte existe — donc jamais la France entière
@@ -339,7 +339,8 @@ describe('CarteRisqueComponent — sites (T8)', () => {
     expect(r.carte().couches.map((c) => c.couche['id'])).toEqual([ID_CERCLES, ID_APERCU, ID_SURVOL, ID_SITES]);
     await r.repondre(0);
     expect(r.carte().couches.filter((c) => String(c.couche['id']).startsWith('atelier-zones')).every((c) => c.avant === ID_CERCLES)).toBe(true);
-    expect(r.demandesSites).toHaveLength(0);
+    // Relecture T8 : le PREMIER chargement n'attend pas les 350 ms (rien ne bouge encore) ; il n'y en a qu'un.
+    expect(r.demandesSites).toHaveLength(1);
     await attendreAntiRebond();
     expect(r.demandesSites.map((d) => [d.bbox, d.filtres])).toEqual([
       ['4.7500,43.3500,5.3000,43.6000', { gravites: ['seveso_haut', 'seveso_bas'], natures: [] }],
