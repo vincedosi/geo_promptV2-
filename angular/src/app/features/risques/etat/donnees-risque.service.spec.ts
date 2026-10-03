@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
-import { Observable, Subject } from 'rxjs';
+import { Observable, Subject, of } from 'rxjs';
 import { ChargementService } from '../../../core/chargement/chargement.service';
 import { type Bandes, ProfilRisqueApi, type RequeteBandes } from '../data/profil-risque.api';
 import { ReferentielApi, type ReponseRefGeo } from '../data/referentiel.api';
@@ -47,7 +47,8 @@ function creer(brut?: string) {
   const cibles = fausseApi<void>();
   const geo = fausseApi<void>();
   const contours = fausseApi<string>();
-  const route = { snapshot: { queryParamMap: convertToParamMap(brut === undefined ? {} : { [PARAM_RISQUE]: brut }) } };
+  const parametres = convertToParamMap(brut === undefined ? {} : { [PARAM_RISQUE]: brut });
+  const route = { snapshot: { queryParamMap: parametres }, queryParamMap: of(parametres) };
   TestBed.configureTestingModule({
     providers: [
       ChargementService, EtatRisqueService, DonneesRisqueService,

@@ -68,8 +68,9 @@ const LARGEUR_PANNEAU_DEFAUT = 480;
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'flex h-full flex-col overflow-hidden bg-[var(--bg-primary)] outline-none',
-    // Échap écouté sur l'HÔTE, jamais sur `document` — qui serait celui du shell.
-    '(keydown.escape)': 'fermer()',
+    // Échap écouté sur l'HÔTE, jamais sur `document` — qui serait celui du shell. Un gestionnaire INTÉRIEUR
+    // qui consomme Échap appelle `preventDefault()` : l'écran ne se ferme alors pas.
+    '(keydown.escape)': 'fermer($event)',
     tabindex: '-1',
   },
 })
@@ -103,6 +104,16 @@ export class RisquePage {
   /** Panneau d'étape : largeur réglée à la poignée, repli « Carte seule ». Locaux (React l.393-394). */
   readonly largeurPanneau = signal(LARGEUR_PANNEAU_DEFAUT);
   readonly carteSeule = signal(false);
+  /**
+   * Le panneau réellement replié. « Carte seule » est MASQUÉ à ④ avec un jeu et à ⑤ (`mg-vue-cartes`) : actif en
+   * y entrant, il laissait le panneau replié sans aucun bouton pour le rouvrir. Le repli ne vaut donc que là où le
+   * bouton existe ; `carteSeule` est gardé, et reprend effet en ressortant.
+   */
+  protected readonly panneauReplie = computed(() => {
+    const e = this.etat();
+    const sansBouton = (e.etape === 'zones' && !!e.jeu) || e.etape === 'campagne';
+    return this.carteSeule() && !sansBouton;
+  });
   /** Le rayon en cours de glissement d'une réglette (T6), relayé à la carte (T8). Ni URL, ni état du module. */
   readonly apercuRayon = signal<ApercuRayon | null>(null);
 
@@ -110,7 +121,10 @@ export class RisquePage {
     // Le focus sur l'hôte à l'ouverture : sans lui, Échap ne l'atteint pas avant le premier clic dans l'écran.
     afterNextRender(() => {
       const el = this.hote.nativeElement;
-      if (!el.contains(el.ownerDocument.activeElement)) el.focus({ preventScroll: true });
+      // `getRootNode()` et non `ownerDocument` : dans une racine d'ombre, `document.activeElement` est l'HÔTE
+      // de la racine, jamais l'élément focalisé à l'intérieur.
+      const actif = (el.getRootNode() as Document | ShadowRoot).activeElement;
+      if (!el.contains(actif)) el.focus({ preventScroll: true });
     });
   }
 
@@ -118,8 +132,12 @@ export class RisquePage {
     if ((ETAPES as readonly string[]).includes(cle)) this.etatRisque.maj({ etape: cle as Etape });
   }
 
-  /** Croix et Échap : retour au parent RELATIF (A7) — le préfixe de montage est inconnu. */
-  protected fermer(): void {
+  /**
+   * Croix et Échap : retour au parent RELATIF (A7) — le préfixe de montage est inconnu. Un Échap déjà consommé
+   * par un gestionnaire intérieur (`preventDefault()`) ne ferme pas l'écran.
+   */
+  protected fermer(ev?: Event): void {
+    if (ev?.defaultPrevented) return;
     void this.router.navigate(['..'], { relativeTo: this.route });
   }
 

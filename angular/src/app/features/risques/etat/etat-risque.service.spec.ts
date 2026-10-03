@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
 import { ETAT_DEFAUT } from '../logique/etat-url';
 import { PROFIL_DEFAUT } from '../logique/profil';
 import { EtatRisqueService, PARAM_RISQUE } from './etat-risque.service';
@@ -7,7 +8,10 @@ import { EtatRisqueService, PARAM_RISQUE } from './etat-risque.service';
 /** Le service tel que l'écran le construit, sur une URL donnée (`?risque=<brut>`). */
 function creer(brut?: string) {
   const navigate = vi.fn(async () => true);
-  const route = { snapshot: { queryParamMap: convertToParamMap(brut === undefined ? {} : { [PARAM_RISQUE]: brut }) } };
+  const initial = convertToParamMap(brut === undefined ? {} : { [PARAM_RISQUE]: brut });
+  // Comme le vrai `ActivatedRoute` : une valeur courante (`snapshot`) ET un flux qui la rejoue à l'abonnement.
+  const queryParamMap = new BehaviorSubject(initial);
+  const route = { snapshot: { queryParamMap: initial }, queryParamMap };
   TestBed.configureTestingModule({
     providers: [
       EtatRisqueService,
@@ -17,7 +21,7 @@ function creer(brut?: string) {
   });
   const service = TestBed.inject(EtatRisqueService);
   TestBed.tick();
-  return { service, navigate, route };
+  return { service, navigate, route, queryParamMap };
 }
 
 describe('EtatRisqueService', () => {
@@ -71,6 +75,30 @@ describe('EtatRisqueService', () => {
     expect(navigate).toHaveBeenCalledTimes(1);
     const [, options] = navigate.mock.calls[0] as unknown as [unknown[], { queryParams: Record<string, unknown> }];
     expect(options.queryParams[PARAM_RISQUE]).toBe('etape=couverture');
+  });
+
+  it("l'écran RÉUTILISÉ relit un `?risque=` venu d'ailleurs, et ignore la valeur qu'il vient d'écrire", () => {
+    const { service, navigate, queryParamMap } = creer('etape=rayon');
+    // Notre propre écriture revient par le flux : déjà notée, elle ne relit rien et ne renavigue pas.
+    service.maj({ cible: 'pop_65_plus' });
+    TestBed.tick();
+    expect(navigate).toHaveBeenCalledTimes(1);
+    const [, options] = navigate.mock.calls[0] as unknown as [unknown[], { queryParams: Record<string, string> }];
+    queryParamMap.next(convertToParamMap({ [PARAM_RISQUE]: options.queryParams[PARAM_RISQUE] }));
+    TestBed.tick();
+    expect(service.etat().cible).toBe('pop_65_plus');
+    expect(navigate).toHaveBeenCalledTimes(1);
+    // Un lien suivi depuis l'écran ouvert (retour, shell) : même route, autre `?risque=` → l'état suit.
+    queryParamMap.next(convertToParamMap({ [PARAM_RISQUE]: 'etape=zones' }));
+    TestBed.tick();
+    expect(service.etat().etape).toBe('zones');
+    expect(service.etat().cible).toBe(ETAT_DEFAUT.cible);
+    expect(navigate).toHaveBeenCalledTimes(1);
+    // Le paramètre retiré : retour au défaut, toujours sans navigation.
+    queryParamMap.next(convertToParamMap({}));
+    TestBed.tick();
+    expect(service.etat()).toEqual(ETAT_DEFAUT);
+    expect(navigate).toHaveBeenCalledTimes(1);
   });
 
   it('`fusion=oui` (tronqué ou fantaisiste) retombe sur la lecture fusionnée', () => {

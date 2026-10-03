@@ -14,7 +14,7 @@ async function rendre() {
   TestBed.configureTestingModule({
     providers: [
       ChargementService, EtatRisqueService, DonneesRisqueService,
-      { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({}) } } },
+      { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({}) }, queryParamMap: of(convertToParamMap({})) } },
       { provide: Router, useValue: { navigate: vi.fn(async () => true) } },
       { provide: ProfilRisqueApi, useValue: {
         bandes: () => NEVER,

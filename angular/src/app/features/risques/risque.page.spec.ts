@@ -197,4 +197,23 @@ describe('RisquePage', () => {
     const valeurs = [...el().querySelectorAll('mg-bandeau-kpi-risque [data-role="valeur"]')].map((v) => v.textContent?.trim());
     expect(valeurs).toEqual(['—', '—', '—', '—', '—', '—']);
   });
+
+  it("T4 (mineur) : « Carte seule » actif en entrant à ④ avec un jeu ne laisse pas le panneau replié sans bouton", async () => {
+    const { harness, router, el } = await ouvrir();
+    [...el().querySelectorAll('button')].find((b) => b.textContent?.includes('Carte seule'))!.click();
+    await stabiliser(harness);
+    const aside = el().querySelector('aside')!;
+    expect(aside.style.visibility).toBe('hidden');
+    // Un lien suivi depuis l'écran ouvert : même route, l'état suit l'URL (écran réutilisé).
+    await router.navigateByUrl('/risques?risque=etape%3Dzones%26jeu%3D0b7ece33-4903-4a0b-a57a-f6c54e78a729');
+    await stabiliser(harness);
+    expect(el().querySelector('[data-panneau]')?.getAttribute('data-panneau')).toBe('zones');
+    expect(aside.style.visibility).toBe('visible');
+    expect(aside.style.width).toBe('480px');
+    // Ressorti de ④ : le repli demandé reprend effet, et son bouton est de nouveau là pour le défaire.
+    await router.navigateByUrl('/risques?risque=etape%3Drayon');
+    await stabiliser(harness);
+    expect(aside.style.visibility).toBe('hidden');
+    expect([...el().querySelectorAll('button')].some((b) => b.textContent?.includes('Afficher le panneau'))).toBe(true);
+  });
 });
