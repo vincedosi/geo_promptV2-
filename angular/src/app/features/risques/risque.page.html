@@ -24,7 +24,7 @@
 <!-- ── Barre commune : vaut pour toutes les étapes ─────────────────────────── -->
 <mg-barre-commune>
   <!-- LE RAYON : une réglette par niveau. Le calcul ne part qu'au RELÂCHEMENT ; l'aperçu ne va PAS dans l'URL. -->
-  <mg-reglette-rayons [profil]="etat().profil" (profil)="poserProfil($event)" (apercu)="apercuRayon.set($event)" />
+  <mg-reglette-rayons [profil]="etat().profil" (profilChange)="poserProfil($event)" (apercu)="apercuRayon.set($event)" />
 </mg-barre-commune>
 
 <!-- ── Le tiroir des anneaux, commun à toutes les étapes (AnalysePopulationOverlay.tsx:1209-1224) ──
@@ -34,7 +34,7 @@
   <div data-tiroir="anneaux" class="max-h-[340px] overflow-y-auto border-b-fin border-subtle bg-elevated px-5 py-[14px]"
        (keydown.escape)="fermerAtelier($event)">
     <mg-panneau-profil [profil]="etat().profil" [parClasse]="donnees.bandes().bandes?.par_classe ?? {}"
-                       (profil)="poserProfil($event)" />
+                       (profilChange)="poserProfil($event)" />
   </div>
 }
 

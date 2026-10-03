@@ -148,13 +148,15 @@ export class RisquePage {
   }
 
   /**
-   * Échap DANS le tiroir le referme, sans fermer l'écran (`preventDefault`, lu par `fermer`). Le focus revient à
-   * l'hôte : l'élément focalisé disparaît avec le tiroir, et Échap n'atteindrait plus l'écran ensuite.
+   * Échap DANS le tiroir le referme, sans fermer l'écran (`preventDefault`, lu par `fermer`). Le focus revient à la
+   * chip du résumé qui ouvre le tiroir (à défaut, à l'hôte) : l'élément focalisé disparaît avec le tiroir, et Échap
+   * n'atteindrait plus l'écran ensuite. La chip est DANS l'hôte : un second Échap y remonte et ferme l'écran.
    */
   protected fermerAtelier(ev: Event): void {
     ev.preventDefault();
     this.etatRisque.maj({ atelier: false });
-    this.hote.nativeElement.focus({ preventScroll: true });
+    const chip = this.hote.nativeElement.querySelector<HTMLElement>('mg-resume-profil button');
+    (chip ?? this.hote.nativeElement).focus({ preventScroll: true });
   }
 
   /**

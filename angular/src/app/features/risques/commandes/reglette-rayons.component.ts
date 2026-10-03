@@ -44,7 +44,7 @@ const TITRE_DELIES = 'Donner à tous les niveaux les anneaux du seuil haut, pour
  *
  * `population_par_classe` coûte ~2,8 s sur la France : une requête par position serait l'incident du 28/03.
  * `mg-reglette` prévisualise pendant le glissement (`apercu`, à chaque position, sans aucune requête) et ne
- * valide qu'au relâchement : `profil` n'est émis QUE là.
+ * valide qu’au relâchement : `profilChange` n’est émis QUE là.
  */
 @Component({
   selector: 'mg-reglette-rayons',
@@ -71,7 +71,7 @@ const TITRE_DELIES = 'Donner à tous les niveaux les anneaux du seuil haut, pour
 export class RegletteRayonsComponent {
   readonly profil = input.required<ProfilRayons>();
   /** Le nouveau profil, au RELÂCHEMENT d'une réglette ou au clic du cadenas — jamais pendant un glissement. */
-  readonly changerProfil = output<ProfilRayons>({ alias: 'profil' });
+  readonly profilChange = output<ProfilRayons>();
   /** À chaque position du curseur, puis `null` au relâchement : la carte dessine un aperçu, sans requête. */
   readonly apercu = output<ApercuRayon | null>();
 
@@ -107,11 +107,11 @@ export class RegletteRayonsComponent {
   }
 
   protected poser(niveau: Niveau, rayonM: number): void {
-    this.changerProfil.emit(poserRayonExterieur(this.profil(), niveau, rayonM));
+    this.profilChange.emit(poserRayonExterieur(this.profil(), niveau, rayonM));
   }
 
   protected basculerLiaison(): void {
     const p = this.profil();
-    this.changerProfil.emit(normaliserProfil({ ...p, lie: !p.lie }));
+    this.profilChange.emit(normaliserProfil({ ...p, lie: !p.lie }));
   }
 }

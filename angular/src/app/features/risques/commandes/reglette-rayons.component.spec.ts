@@ -8,7 +8,7 @@ async function rendre(profil: ProfilRayons = PROFIL_DEFAUT) {
   const apercus: (ApercuRayon | null)[] = [];
   const profils: ProfilRayons[] = [];
   f.componentInstance.apercu.subscribe((a) => apercus.push(a));
-  f.componentInstance.changerProfil.subscribe((p) => profils.push(p));
+  f.componentInstance.profilChange.subscribe((p) => profils.push(p));
   await f.whenStable();
   const el = f.nativeElement as HTMLElement;
   const curseurs = () => [...el.querySelectorAll<HTMLInputElement>('input[type="range"]')];

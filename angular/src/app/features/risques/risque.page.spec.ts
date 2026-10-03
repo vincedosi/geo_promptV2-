@@ -267,9 +267,10 @@ describe('RisquePage', () => {
     await stabiliser(harness);
     expect(el().querySelector('[data-tiroir="anneaux"]')).toBeNull();
     expect(router.url).toBe('/risques?risque=etape%3Drayon');
-    // Le focus est rendu à l'hôte : un second Échap ferme bien l'écran.
-    expect(document.activeElement).toBe(el());
-    el().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    // Le focus est rendu à la chip qui avait ouvert le tiroir ; un second Échap y remonte jusqu'à l'hôte et ferme l'écran.
+    const chip = el().querySelector<HTMLButtonElement>('header mg-resume-profil button')!;
+    expect(document.activeElement).toBe(chip);
+    chip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     await stabiliser(harness);
     expect(router.url).toBe('/');
   });

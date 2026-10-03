@@ -7,7 +7,7 @@ async function rendre(profil: ProfilRayons = PROFIL_DEFAUT, parClasse?: Record<s
   f.componentRef.setInput('profil', profil);
   if (parClasse) f.componentRef.setInput('parClasse', parClasse);
   const profils: ProfilRayons[] = [];
-  f.componentInstance.changerProfil.subscribe((p) => {
+  f.componentInstance.profilChange.subscribe((p) => {
     profils.push(p);
     f.componentRef.setInput('profil', p);
   });
@@ -49,6 +49,17 @@ describe('PanneauProfilComponent', () => {
     await r.saisir('bas', '1500.5');
     expect(r.profils).toEqual([]);
     expect(r.saisie('bas').value).toBe('1500.5');
+  });
+
+  it('Échap dans la saisie VIDE le champ : la sortie du champ qui suit (tiroir refermé) ne valide rien', async () => {
+    const r = await rendre();
+    const champ = r.saisie('bas');
+    champ.value = '1500';
+    champ.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    champ.dispatchEvent(new FocusEvent('blur'));
+    await r.f.whenStable();
+    expect(r.profils).toEqual([]);
+    expect(champ.value).toBe('');
   });
 
   it('un cinquième anneau est REFUSÉ, avec un message', async () => {

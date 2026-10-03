@@ -17,7 +17,7 @@ const PRESETS = [500, 1000, 2000, 5000] as const;
  *
  * Chaque geste passe par `normaliserProfil` : l'écran montre exactement l'objet qui servira au calcul (tri,
  * dédoublonnage, liaison appliqués). Rien ne part vers le serveur tant que le geste n'est pas fini : le profil
- * complet voyage en une fois, par `profil`.
+ * complet voyage en une fois, par `profilChange`.
  *
  * « Autres régimes » est DÉSACTIVÉ avec sa raison écrite, jamais absent : le masquer laisserait croire à un
  * oubli.
@@ -81,6 +81,7 @@ const PRESETS = [500, 1000, 2000, 5000] as const;
             <input type="number" [min]="rayonMin" [max]="rayonMax" step="100" placeholder="m"
                    [attr.aria-label]="'Ajouter un anneau, de ' + rayonMin + ' à ' + rayonMax + ' mètres'"
                    (keydown.enter)="$event.preventDefault(); saisir(l.niveau, $event)" (blur)="saisir(l.niveau, $event)"
+                   (keydown.escape)="abandonner($event)"
                    class="w-[58px] rounded-md border-fin border-subtle bg-elevated px-[6px] py-[2px] font-mono text-[11px] text-primary" />
           </div>
         }
@@ -107,7 +108,7 @@ export class PanneauProfilComponent {
   /** Population par classe (`haut:1`…), pour dire ce que chaque anneau apporte. */
   readonly parClasse = input<Record<string, number>>({});
   /** Le profil NORMALISÉ, à chaque geste. */
-  readonly changerProfil = output<ProfilRayons>({ alias: 'profil' });
+  readonly profilChange = output<ProfilRayons>();
 
   protected readonly rayonMin = RAYON_MIN_M;
   protected readonly rayonMax = RAYON_MAX_M;
@@ -142,7 +143,7 @@ export class PanneauProfilComponent {
    */
   protected appliquer(brut: Partial<ProfilRayons>): void {
     try {
-      this.changerProfil.emit(normaliserProfil({ ...this.profil(), ...brut }));
+      this.profilChange.emit(normaliserProfil({ ...this.profil(), ...brut }));
       this.erreur.set(null);
     } catch {
       this.erreur.set('Quatre anneaux au maximum par niveau.');
@@ -174,6 +175,15 @@ export class PanneauProfilComponent {
     if (!Number.isInteger(n) || n < RAYON_MIN_M || n > RAYON_MAX_M) return;
     this.ajouter(niveau, n);
     champ.value = '';
+  }
+
+  /**
+   * Échap ABANDONNE la saisie en cours : le champ est vidé AVANT que le tiroir ne se referme (l'événement continue
+   * de remonter jusqu'à lui). Sans ça, la sortie du champ causée par la fermeture validerait un anneau tapé mais
+   * jamais confirmé — Échap aurait l'effet d'Entrée.
+   */
+  protected abandonner(ev: Event): void {
+    (ev.target as HTMLInputElement).value = '';
   }
 
   protected basculerPprt(ev: Event): void {
