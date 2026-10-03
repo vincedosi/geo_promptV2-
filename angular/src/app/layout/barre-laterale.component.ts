@@ -125,7 +125,7 @@ interface EntreeIndexee extends EntreeNavigation {
             </span>
             <span class="font-mono text-[11px] text-tertiary">Online</span>
             <!-- Pages propres à Angular, en icônes (voir LIENS_DEVELOPPEMENT) : titre et nom accessible = libellé. -->
-            <span data-liens-dev class="ml-auto flex items-center gap-0.5">
+            <span data-liens-dev class="-my-1 ml-auto flex items-center gap-0.5">
               @for (l of liensDev; track l.libelle) {
                 <a
                   [routerLink]="l.cible"

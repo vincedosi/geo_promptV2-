@@ -56,6 +56,15 @@ export const remoteRoutes: Routes = [
     // fois réussi, le garde ne fait que relire une promesse résolue.
     runGuardsAndResolvers: 'always',
     children: [
+      // Écrans PLEIN ÉCRAN, hors de `mg-coquille` : comme `/map` en React (AppSidebar.tsx:348,
+      // MainPadding.tsx, TopRightChrome.tsx : ni barre, ni chrome, ni marge). Ils restent sous
+      // la racine distante, donc sous ses fournisseurs et son `authGuard`. Les routes carte et
+      // risque à venir se rangent ici.
+      {
+        path: 'essai-carte',
+        canActivate: [authGuard],
+        loadComponent: () => import('./features/essai-carte/essai-carte.page').then((m) => m.EssaiCartePage),
+      },
       {
         path: '',
         canActivate: [authGuard],
@@ -63,7 +72,6 @@ export const remoteRoutes: Routes = [
         children: [
           { path: '', loadComponent: () => import('./features/accueil/accueil.page').then((m) => m.AccueilPage) },
           { path: 'catalogue', loadComponent: () => import('./features/catalogue/catalogue.page').then((m) => m.CataloguePage) },
-          { path: 'essai-carte', loadComponent: () => import('./features/essai-carte/essai-carte.page').then((m) => m.EssaiCartePage) },
         ],
       },
     ],

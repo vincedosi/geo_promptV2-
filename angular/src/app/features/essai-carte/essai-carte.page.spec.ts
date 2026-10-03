@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
+import { provideRouter } from '@angular/router';
 import { FABRIQUE_CARTE } from '../../carte/fabrique-carte';
 import { CarteFactice } from '../../carte/testing/carte-factice';
 import { ConfigService } from '../../core/config/config.service';
@@ -29,7 +30,7 @@ async function rendre() {
   (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(), provideHttpClientTesting(), ZonesRisqueApi,
+      provideHttpClient(), provideHttpClientTesting(), provideRouter([]), ZonesRisqueApi,
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       { provide: FABRIQUE_CARTE, useValue: (o: never) => (carte = new CarteFactice(o)) },
       {

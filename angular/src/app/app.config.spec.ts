@@ -167,6 +167,12 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       http.expectNone('/api/risques/sites/compter');
     });
 
+    it("sans session : l'écran plein écran essai-carte renvoie lui aussi vers /connexion, sans aucun appel d'API", async () => {
+      const { router, http } = await demarrer('/app/essai-carte', false);
+      expect(router.url).toBe('/connexion?redirection=%2Fapp%2Fessai-carte');
+      http.expectNone((r) => r.url.startsWith('/api/'));
+    });
+
     it('« Deconnexion » (menu utilisateur) mène à /connexion, sans paramètre de reprise', async () => {
       const { router, http, harness, client } = await demarrer('/app', true);
       http.expectOne('/api/risques/sites/compter').flush({ retenus: 1, total: 1, par_nature: {} });

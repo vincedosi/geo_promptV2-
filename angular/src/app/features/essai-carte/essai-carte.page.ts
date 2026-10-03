@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import maplibregl from 'maplibre-gl';
 import { finalize } from 'rxjs';
 import { type Bbox, bboxEnParametre } from '../../carte/bbox';
@@ -48,7 +49,7 @@ type Teintes = { haut: string; bas: string; autres: string };
  */
 @Component({
   selector: 'mg-essai-carte',
-  imports: [BarreProgressionComponent, CarteComponent, CourbeComponent, KpiComponent],
+  imports: [BarreProgressionComponent, CarteComponent, CourbeComponent, KpiComponent, RouterLink],
   providers: [ChargementService],
   templateUrl: './essai-carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
