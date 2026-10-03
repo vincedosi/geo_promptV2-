@@ -106,6 +106,41 @@ describe('CourbeComponent', () => {
     expect(derniere.series.map((s) => s.name)).toEqual(['Toutes natures']);
   });
 
+  it('la légende donne la valeur de chaque courbe au repère (dernier point sans dépasser), en mono', async () => {
+    const series: SerieCourbe[] = [
+      { cle: 'total', libelle: 'Toutes natures', jeton: 'brand-teal', points: [[100, 10], [200, 30], [300, 50]] },
+    ];
+    TestBed.resetTestingModule();
+    const { f, el } = await rendre(series);
+    f.componentRef.setInput('repere', { x: 250 });
+    f.componentRef.setInput('formaterValeur', (y: number) => `${y} hab.`);
+    await f.whenStable();
+    const valeur = el.querySelector('[data-role="valeur-legende"]')!;
+    expect(valeur.textContent!.trim()).toBe('30 hab.');
+    expect(valeur.classList).toContain('font-mono');
+  });
+
+  it("sans repère la légende ne chiffre rien ; masquée, une courbe passe à 0,5 d’opacité sans être barrée", async () => {
+    const { f, el } = await rendre();
+    expect(el.querySelector('[data-role="valeur-legende"]')!.textContent!.trim()).toBe('—');
+    const bouton = el.querySelectorAll('button')[1];
+    bouton.click();
+    await f.whenStable();
+    expect(bouton.classList).toContain('opacity-50');
+    expect(bouton.classList).not.toContain('line-through');
+    expect(bouton.getAttribute('title')).toBe('Afficher cette courbe');
+  });
+
+  it("transmet les graduations, les étiquettes et les formateurs à l’option", async () => {
+    const { f, graphique } = await rendre();
+    f.componentRef.setInput('graduationsX', [1000, 2000]);
+    f.componentRef.setInput('etiquettes', true);
+    await f.whenStable();
+    const o = graphique.options.at(-1) as { xAxis: { axisLabel: { customValues: number[] } }; grid: { top: number } };
+    expect(o.xAxis.axisLabel.customValues).toEqual([1000, 2000]);
+    expect(o.grid.top).toBe(20);
+  });
+
   it('repose les options quand les couleurs changent (bascule de thème)', async () => {
     const { f, graphique, teinte } = await rendre();
     const avant = graphique.options.length;

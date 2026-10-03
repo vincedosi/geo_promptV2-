@@ -95,9 +95,22 @@ describe('EssaiCartePage', () => {
     await f.whenStable();
     f.detectChanges();
     const kpis = [...(f.nativeElement as HTMLElement).querySelectorAll('mg-kpi')];
-    const habitants = kpis.find((k) => k.textContent?.includes('Habitants à moins de 5 km'))!;
+    const habitants = kpis.find((k) => k.textContent?.includes('habitants à moins de 5 km'))!;
     const valeur = habitants.querySelector('[data-role="valeur"]')!.textContent!;
     expect(valeur.replace(/\s/g, '')).toBe('1234567');
+  });
+
+  it('le chiffre du bandeau est estompé tant que la courbe charge, puis net (valeurs périmées)', async () => {
+    const { f, http } = await rendre();
+    const el = f.nativeElement as HTMLElement;
+    expect(el.querySelector('mg-bandeau-kpi')).not.toBeNull();
+    const kpi = () => el.querySelector<HTMLElement>('mg-bandeau-kpi mg-kpi')!;
+    f.detectChanges();
+    expect(kpi().style.opacity).toBe('0.42');
+    http.expectOne('/api/risques/exposition/rayon?gravites=seveso_haut').flush(COURBE);
+    await f.whenStable();
+    f.detectChanges();
+    expect(kpi().style.opacity).toBe('1');
   });
 
   it('annule la courbe et la préparation des zones encore en vol quand la page est détruite', async () => {

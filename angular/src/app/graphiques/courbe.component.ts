@@ -7,7 +7,7 @@ import { FABRIQUE_GRAPHIQUE, type GraphiqueMinimal } from './fabrique-graphique'
 import { type RepereCourbe, type SerieCourbe, optionCourbe } from './option-courbe';
 
 /**
- * Une ou plusieurs courbes, avec un repère vertical optionnel et une légende
+ * Une ou plusieurs courbes (lissées, rendu de Recharts), avec un repère vertical optionnel et une légende
  * cliquable (portée d'OngletRayonInfluence.tsx). Les couleurs viennent des
  * jetons par CouleursService : elles suivent le thème sans recharger.
  * Un jeton inconnu LÈVE dans le `computed` des options : le graphique reste
@@ -18,19 +18,22 @@ import { type RepereCourbe, type SerieCourbe, optionCourbe } from './option-cour
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div role="img" [attr.aria-label]="libelle()" class="relative w-full" [style.height.px]="hauteur()">
-      <div #conteneur class="absolute inset-0"></div>
+      <div #conteneur class="absolute inset-0 right-2"></div>
     </div>
-    <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+    <div class="flex flex-wrap gap-x-[14px] gap-y-[6px] border-t-fin border-subtle px-5 pt-[10px] pb-[6px]">
       @for (s of series(); track s.cle) {
         <button type="button" (click)="basculer(s.cle)" [attr.aria-pressed]="!masquees().has(s.cle)"
-                class="inline-flex items-center gap-1.5 text-[11px] cursor-pointer"
+                [attr.title]="masquees().has(s.cle) ? 'Afficher cette courbe' : 'Masquer cette courbe'"
+                class="inline-flex cursor-pointer items-center gap-[6px] border-0 bg-transparent p-0 text-[11px]"
                 [class.text-secondary]="!masquees().has(s.cle)" [class.text-tertiary]="masquees().has(s.cle)"
-                [class.line-through]="masquees().has(s.cle)">
-          <span aria-hidden="true" class="inline-block w-3 h-0.5" [style.background]="'var(--' + s.jeton + ')'"></span>
+                [class.opacity-50]="masquees().has(s.cle)">
+          <span aria-hidden="true" class="inline-block h-[2.5px] w-[14px] rounded-[2px]" [style.background]="'var(--' + s.jeton + ')'"></span>
           {{ s.libelle }}
+          <span data-role="valeur-legende" class="font-mono text-[10px] text-tertiary">{{ valeurLegende(s) }}</span>
         </button>
       }
     </div>
+    <ng-content select="[mgNote]" />
   `,
 })
 export class CourbeComponent {
@@ -40,6 +43,14 @@ export class CourbeComponent {
   readonly formaterY = input<(y: number) => string>((y) => String(y));
   readonly repere = input<RepereCourbe>();
   readonly domaineX = input<readonly [number, number]>();
+  /** Valeur complète (infobulle, légende) ; défaut `formaterY`. */
+  readonly formaterValeur = input<(y: number) => string>();
+  /** Titre de l'infobulle pour une abscisse ; défaut `formaterX`. */
+  readonly formaterTitre = input<(x: number) => string>();
+  /** Graduations X imposées. */
+  readonly graduationsX = input<readonly number[]>();
+  /** Étiquettes aux kilomètres ronds sur les séries `etiquetee`. */
+  readonly etiquettes = input(false);
   readonly hauteur = input(280);
 
   protected readonly masquees = signal<ReadonlySet<string>>(new Set());
@@ -67,8 +78,8 @@ export class CourbeComponent {
     return palette();
   });
   private readonly teintesCadre = this.couleursService.palette({
-    texte: 'text-tertiary', grille: 'border-subtle', fondInfobulle: 'bg-level-1',
-    bordInfobulle: 'border-default', repere: 'text-secondary',
+    texte: 'text-tertiary', textePrincipal: 'text-primary', grille: 'border-subtle', axe: 'border-default',
+    fondInfobulle: 'card-overlay', bordInfobulle: 'border-default', repere: 'brand-teal', halo: 'bg-level-1',
   });
 
   private readonly option = computed(() => {
@@ -85,8 +96,25 @@ export class CourbeComponent {
       formaterY: this.formaterY(),
       repere: this.repere(),
       domaineX: this.domaineX(),
+      formaterValeur: this.formaterValeur(),
+      formaterTitre: this.formaterTitre(),
+      graduationsX: this.graduationsX(),
+      etiquettes: this.etiquettes(),
     });
   });
+
+  /**
+   * La valeur de la courbe au repère (React : « valeur au rayon » dans la légende) : le point le plus
+   * proche SANS dépasser — la courbe est cumulée, prendre le suivant annoncerait une population non atteinte.
+   * Sans repère, aucune valeur n'est lisible : tiret.
+   */
+  protected valeurLegende(s: SerieCourbe): string {
+    const repere = this.repere();
+    if (!repere || s.points.length === 0) return '—';
+    let choisi = s.points[0];
+    for (const p of s.points) if (p[0] <= repere.x) choisi = p;
+    return (this.formaterValeur() ?? this.formaterY())(choisi[1]);
+  }
 
   constructor() {
     afterNextRender(() => {

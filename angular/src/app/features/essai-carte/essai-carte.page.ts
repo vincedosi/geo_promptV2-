@@ -10,12 +10,15 @@ import { chargerParCadre } from '../../carte/charger-par-cadre';
 import { contenuPopup, type LignePopup } from '../../carte/contenu-popup';
 import { ChargementService } from '../../core/chargement/chargement.service';
 import { messageErreurApi } from '../../core/http/erreurs';
+import { formaterDecimal, formaterNombre, formaterNombreAbrege } from '../../core/format/nombre';
 import { CouleursService } from '../../core/theme/couleurs.service';
 import { CourbeComponent } from '../../graphiques/courbe.component';
 import type { SerieCourbe } from '../../graphiques/option-courbe';
+import { BandeauKpiComponent } from '../../ui/bandeau-kpi/bandeau-kpi.component';
 import { BarreProgressionComponent } from '../../ui/barre-progression/barre-progression.component';
 import { EntetePageComponent } from '../../ui/entete-page/entete-page.component';
 import { KpiComponent } from '../../ui/kpi/kpi.component';
+import { PerimeDirective } from '../../ui/perime/perime.directive';
 import { type ReponseCourbe, ZonesRisqueApi } from '../risques/data/zones-risque.api';
 
 /** Le profil par défaut du module risque : seuil haut 1/2/5 km, seuil bas 500 m/1 km, PPRT inclus. */
@@ -50,7 +53,7 @@ type Teintes = { haut: string; bas: string; autres: string };
  */
 @Component({
   selector: 'mg-essai-carte',
-  imports: [EntetePageComponent, BarreProgressionComponent, CarteComponent, CourbeComponent, KpiComponent, RouterLink],
+  imports: [BandeauKpiComponent, PerimeDirective, EntetePageComponent, BarreProgressionComponent, CarteComponent, CourbeComponent, KpiComponent, RouterLink],
   providers: [ChargementService],
   templateUrl: './essai-carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -83,7 +86,7 @@ export class EssaiCartePage {
     return (this.reponseCourbe()?.courbes ?? []).map((c) => {
       const points = c.points.map((p) => [p.r, p.p] as const);
       if (c.cle === '*') {
-        return { cle: c.cle, libelle: 'Toutes natures', jeton: 'brand-teal', points, epaisseur: 2 };
+        return { cle: c.cle, libelle: 'Toutes natures', jeton: 'brand-teal', points, epaisseur: 2.2, etiquetee: true };
       }
       const jeton = `nature-${(rang % NB_NATURES) + 1}`;
       rang++;
@@ -97,16 +100,26 @@ export class EssaiCartePage {
   protected readonly habitants5km = computed(() => {
     const totale = this.reponseCourbe()?.courbes.find((c) => c.cle === '*');
     const point = totale?.points.find((p) => p.r === RAYON_KPI_M);
-    return point ? point.p.toLocaleString('fr-FR') : '—';
+    return formaterNombre(point?.p);
   });
   protected readonly nbSites = computed(() => {
     const r = this.reponseCourbe();
-    return r ? r.n_sites.toLocaleString('fr-FR') : '—';
+    return r ? formaterNombre(r.n_sites) : '—';
   });
-  protected readonly repere = { x: RAYON_KPI_M, libelle: 'Rayon 5 km' };
-  protected readonly formaterX = (x: number) => `${(x / 1000).toLocaleString('fr-FR')} km`;
-  protected readonly formaterY = (y: number) =>
-    new Intl.NumberFormat('fr-FR', { notation: 'compact' }).format(y);
+  /** Le repère du rayon retenu : trait teal tireté, SANS libellé (React). */
+  protected readonly repere = { x: RAYON_KPI_M };
+  /** Graduations fixes de 1 à 10 km (Recharts : `ticks`). */
+  protected readonly graduationsX = Array.from({ length: 10 }, (_, i) => (i + 1) * 1000);
+  protected readonly formaterX = (x: number) => `${x / 1000} km`;
+  protected readonly formaterY = formaterNombreAbrege;
+  protected readonly formaterValeur = (y: number) => formaterNombre(y);
+  protected readonly formaterTitre = (x: number) => `à moins de ${formaterDecimal(x / 1000)} km`;
+  /** Étiquettes de population tous les kilomètres, décochées par défaut comme en React. */
+  protected readonly etiquettes = signal(false);
+  /** Vrai tant que la courbe se charge : les chiffres du bandeau décrivent alors un état périmé (K5). */
+  protected readonly chargementCourbe = this.courbeEnCours.asReadonly();
+  protected readonly consigneBandeau = 'Ces chiffres suivent les filtres et le profil. Survolez-en un pour sa définition.';
+  protected readonly definitionBandeau = 'Habitants et sites sont lus sur la courbe de couverture du seuil haut : la population vit à moins de 5 km d’au moins un site, et ne s’additionne pas avec le compte de sites.';
 
   constructor() {
     this.chargement.suivre('zones', 'Préparation des zones', () => this.zonesEnCours());
