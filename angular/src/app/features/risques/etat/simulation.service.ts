@@ -211,9 +211,9 @@ export class SimulationService {
   }
 
   /**
-   * Suit un flux NDJSON jusqu'au bout. ⚠ Le flux n'est PAS annulé à la fermeture de l'écran — React ne l'annulait pas
-   * non plus : couper le POST en cours de route ferait supprimer la campagne entière côté serveur. L'écran fermé
-   * n'écrit simplement plus rien.
+   * Suit un flux NDJSON jusqu'au bout. ⚠ Le flux n'est PAS annulé — React ne l'annulait pas non plus. L'annuler
+   * n'arrêterait rien côté serveur (la route écrit jusqu'au bout une fois la requête reçue), et un retour à ⑤ perdrait
+   * l'affichage de la progression d'un travail qui continue. L'écran fermé n'écrit simplement plus rien.
    */
   private async executer(flux: Observable<EvenementSimulation>, libelle: string): Promise<void> {
     this._progression.set({ message: libelle, pourcentage: null });

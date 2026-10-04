@@ -150,7 +150,6 @@ export class RisquePage {
     const etape = this.etat().etape;
     // ③ empile ses deux blocs ; ⑤ porte son propre cadre défilant (`Cadre`, `PanneauCampagne.tsx:463`).
     if (etape === 'couverture' || etape === 'campagne') return 'flex min-h-0 min-w-0 flex-1 flex-col';
-
     return etape === 'zones' ? 'min-w-0 flex-1 overflow-auto px-[18px] py-4' : 'min-w-0 flex-1 overflow-auto px-5 py-4';
   });
 

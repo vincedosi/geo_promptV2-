@@ -111,6 +111,23 @@ describe('PanneauCampagneComponent', () => {
     expect(n(role('aucune-simulation')?.textContent)).toContain('Aucune campagne simulée sur ce jeu.');
   });
 
+  it('changer de jeu remet la version choisie à zéro : la dernière initiale du NOUVEAU jeu (défaut React corrigé)', async () => {
+    // React garde la version du jeu précédent (`setVersion((v) => v ?? …)`) : Simuler partirait sur une version que le
+    // nouveau jeu n'a peut-être pas.
+    const { f, el, role, etat, extractions, simApi } = await rendre({ reponse: { simulation: null } });
+    expect((role('extraction') as HTMLSelectElement).value).toBe('1');
+    extractions.mockImplementation(() => of({ extractions: [EXTRACTION(5)] }));
+    etat.set({ ...etat(), jeu: 'K' });
+    await f.whenStable();
+    await vider();
+    await f.whenStable();
+    expect([...el.querySelectorAll('option')].map((o) => n(o.textContent))).toEqual(['v5 · initiale · 1 234 CP']);
+    expect((role('extraction') as HTMLSelectElement).value).toBe('5');
+    role('simuler')!.click();
+    await f.whenStable();
+    expect(simApi.simuler).toHaveBeenCalledWith('K', 5, DEFAUTS);
+  });
+
   it('Simuler envoie la version choisie et les réglages ; la barre avance « N % · faites / total lignes », puis disparaît', async () => {
     const { f, role, simApi, flux } = await rendre({ reponse: { simulation: null } });
     role('simuler')!.click();

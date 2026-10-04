@@ -80,7 +80,6 @@ export class DilutionComponent {
   }
 
   protected relacher(): void {
-
     const v = this.local();
     if (v === this.seuil() || v === this.dernierEmis()) return;
     this.dernierEmis.set(v);

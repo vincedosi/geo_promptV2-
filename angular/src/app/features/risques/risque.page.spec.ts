@@ -164,7 +164,6 @@ describe('RisquePage', () => {
   });
 
   it("(g) cliquer l'étape ③ réécrit `?risque=` SANS recréer l'écran", async () => {
-
     const { harness, page, router, el } = await ouvrir();
     etape(el(), 'Couverture').click();
     await stabiliser(harness);

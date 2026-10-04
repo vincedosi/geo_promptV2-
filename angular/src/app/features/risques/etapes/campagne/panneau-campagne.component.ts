@@ -63,7 +63,6 @@ function classeBouton(principal: boolean, desactive: boolean): string {
   return `${BOUTON} ${principal ? 'border-teal text-teal' : 'border-default text-secondary'} ${desactive ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`;
 }
 
-
 /**
  * Le panneau de l'étape ⑤ Campagne — portage de `PanneauCampagne.tsx`.
  *
@@ -458,6 +457,8 @@ export class PanneauCampagneComponent {
   });
 
   private abonnementExtractions: Subscription | null = null;
+  /** Jeu des extractions lues en dernier : la version choisie ne vaut que pour lui. */
+  private jeuLu: string | null = null;
 
   constructor() {
     // Les extractions du jeu : relues quand la simulation change, puisqu'un recalage en crée une
@@ -475,6 +476,10 @@ export class PanneauCampagneComponent {
 
   private lireExtractions(jeu: string | null): void {
     this.abonnementExtractions?.unsubscribe();
+    // Défaut React corrigé : React garde la version du jeu PRÉCÉDENT (`setVersion((v) => v ?? …)`), et Simuler partirait
+    // sur une version que ce jeu n'a peut-être pas. Un autre jeu repart de sa propre version par défaut.
+    if (jeu !== this.jeuLu) this.version.set(null);
+    this.jeuLu = jeu;
     if (!jeu) {
       this.extractions.set(null);
       return;
@@ -491,7 +496,6 @@ export class PanneauCampagneComponent {
       error: () => this.extractions.set([]),
     });
   }
-
 
   protected choisirVersion(ev: Event): void {
     this.version.set(Number((ev.target as HTMLSelectElement).value));

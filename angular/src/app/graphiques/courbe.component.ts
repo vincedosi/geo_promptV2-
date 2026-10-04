@@ -66,7 +66,6 @@ export class CourbeComponent {
    * Marges de la zone de tracé, celles de Recharts (`margin` + largeur des axes). Données, elles REMPLACENT aussi les
    * 8 px que le conteneur réserve à droite pour la courbe de ②, et la zone de tracé ne rétrécit plus pour contenir
    * ses étiquettes (Recharts les laisse déborder) : la marge droite s'écrit donc telle que React la pose.
-
    */
   readonly marges = input<MargesCourbe>();
   /** Grille horizontale pleine plutôt que pointillée. */
