@@ -24,7 +24,7 @@ export const LIBELLE_MODE: Record<ModePlan, { titre: string; aide: string }> = {
   host: { class: 'mb-4 flex flex-wrap gap-[10px]' },
   template: `
     @for (m of modes; track m) {
-      <button type="button" (click)="modeChange.emit(m)" [attr.aria-pressed]="m === mode()"
+      <button type="button" (click)="choisir(m)" [attr.aria-pressed]="m === mode()"
               class="flex-[1_1_240px] cursor-pointer rounded-[8px] border-fin px-3 py-[10px] text-left text-primary"
               [class.bg-teal-10]="m === mode()" [class.border-teal]="m === mode()"
               [class.bg-transparent]="m !== mode()" [class.border-subtle]="m !== mode()">
@@ -40,4 +40,9 @@ export class ModePlanComponent {
 
   protected readonly modes = MODES_PLAN;
   protected readonly libelles = LIBELLE_MODE;
+
+  /** Le mode déjà actif n'émet rien : un clic sur le bouton pressé enverrait un PATCH sans changement. */
+  protected choisir(m: ModePlan): void {
+    if (m !== this.mode()) this.modeChange.emit(m);
+  }
 }

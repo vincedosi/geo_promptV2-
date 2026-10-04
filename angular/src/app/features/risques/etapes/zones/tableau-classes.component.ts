@@ -104,11 +104,17 @@ export class TableauClassesComponent {
    * 0 posé sans l'avoir tapé), et un poids inchangé n'envoie rien (React rejouait un PATCH à chaque sortie du champ).
    */
   protected sortir(classe: string, ev: Event): void {
-    const brut = (ev.target as HTMLInputElement).value;
-    if (brut.trim() === '') return;
+    const champ = ev.target as HTMLInputElement;
+    const courant = this.poids()[classe] ?? 1;
+    const brut = champ.value;
     const v = Number(brut);
-    if (!Number.isFinite(v) || v < POIDS_MIN || v > POIDS_MAX) return;
-    if (v === (this.poids()[classe] ?? 1)) return;
+    if (brut.trim() === '' || !Number.isFinite(v) || v < POIDS_MIN || v > POIDS_MAX) {
+      // Refusé : le champ REVIENT au poids en vigueur. Laisser « 7 » affiché ferait croire à un poids posé, alors que
+      // rien n'est parti — et `[value]` ne se réécrit pas tant que le poids d'entrée ne change pas.
+      champ.value = String(courant);
+      return;
+    }
+    if (v === courant) return;
     this.poidsChange.emit({ classe, valeur: v });
   }
 }

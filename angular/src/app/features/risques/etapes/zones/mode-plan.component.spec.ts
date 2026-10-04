@@ -14,4 +14,14 @@ describe('ModePlanComponent', () => {
     boutons[1].click();
     expect(emis).toEqual(['exclusif']);
   });
+
+  it('un clic sur le mode DÉJÀ actif n’émet rien', async () => {
+    const f = TestBed.createComponent(ModePlanComponent);
+    f.componentRef.setInput('mode', 'pondere');
+    const emis: string[] = [];
+    f.componentInstance.modeChange.subscribe((m) => emis.push(m));
+    await f.whenStable();
+    (f.nativeElement as HTMLElement).querySelector('button')!.click();
+    expect(emis).toEqual([]);
+  });
 });

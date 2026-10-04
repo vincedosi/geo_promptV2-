@@ -39,6 +39,19 @@ describe('DilutionComponent', () => {
     expect(emis).toEqual([25]);
   });
 
+  it('relâché HORS du curseur : `change` émet ; pointerup + change du même geste : UNE émission', async () => {
+    const { curseur, emis } = await rendre();
+    glisser(curseur, 25);
+    curseur.dispatchEvent(new Event('change'));
+    expect(emis).toEqual([25]);
+    curseur.dispatchEvent(new Event('pointerup'));
+    expect(emis).toEqual([25]);
+    glisser(curseur, 40);
+    curseur.dispatchEvent(new Event('pointerup'));
+    curseur.dispatchEvent(new Event('change'));
+    expect(emis).toEqual([25, 40]);
+  });
+
   it('un relâchement sans déplacement n’émet rien', async () => {
     const { curseur, emis } = await rendre();
     curseur.dispatchEvent(new Event('pointerup'));

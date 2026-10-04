@@ -17,6 +17,9 @@ import {
 import { NIVEAUX, type ProfilRayons, anneauxDuNiveau, profilDesGravites } from '../logique/profil';
 import { EtatRisqueService } from './etat-risque.service';
 
+/** Les contours d'une maille : `null` en chargement, `'indisponible'` après un échec (jamais gardé en cache). */
+export type ContoursMaille = GeoJSON.Feature[] | null | 'indisponible';
+
 /** Un territoire du fil d'Ariane, son nom résolu par le référentiel (`AnalysePopulationOverlay.tsx:114`). */
 export interface Segment { niveau: 'region' | 'departement'; code: string; nom: string }
 
@@ -266,7 +269,7 @@ export class DonneesRisqueService {
   readonly encodage = signal<'part' | 'densite' | 'exposee'>('part');
   readonly palette = signal<string>('rouge');
 
-  private readonly cacheContours = new Map<'region' | 'departement', WritableSignal<GeoJSON.Feature[] | null>>();
+  private readonly cacheContours = new Map<'region' | 'departement', WritableSignal<ContoursMaille>>();
 
   constructor() {
     this.abonnements.push(
@@ -329,16 +332,26 @@ export class DonneesRisqueService {
     inject(DestroyRef).onDestroy(() => this.abonnements.forEach((a) => a.unsubscribe()));
   }
 
-  /** Les contours d'une échelle, chargés au premier appel puis gardés (T12). À appeler hors d'un `computed`. */
-  contours(scale: 'region' | 'departement'): Signal<GeoJSON.Feature[] | null> {
+  /**
+   * Les contours d'une échelle, chargés au premier appel puis gardés (T12). À appeler hors d'un `computed`.
+   *
+   * ⚠ Un ÉCHEC n'est pas gardé : le signal passe à `'indisponible'` (l'écran le dit, au lieu d'un « Chargement des
+   * contours… » éternel) et l'entrée est ÉVINCÉE du cache — le prochain appel pour cette échelle, c'est-à-dire le
+   * prochain changement de maille qui y revient, redemande. Garder l'échec ferait d'une panne passagère une carte
+   * absente jusqu'à la fermeture de l'écran. Le tableau, lui, fonctionne dans tous les cas (React, l.567).
+   */
+  contours(scale: 'region' | 'departement'): Signal<ContoursMaille> {
     let s = this.cacheContours.get(scale);
     if (!s) {
-      const cible = signal<GeoJSON.Feature[] | null>(null);
+      const cible = signal<ContoursMaille>(null);
       s = cible;
       this.cacheContours.set(scale, cible);
       this.abonnements.push(this.referentielApi.contours(scale).subscribe({
         next: (fc) => cible.set(fc.features ?? []),
-        error: () => undefined, // la carte reste vide, le tableau fonctionne (React, l.567)
+        error: () => {
+          if (this.cacheContours.get(scale) === cible) this.cacheContours.delete(scale);
+          cible.set('indisponible');
+        },
       }));
     }
     return s.asReadonly();

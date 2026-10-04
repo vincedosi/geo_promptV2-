@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
-import { Observable, Subject, of } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { ChargementService } from '../../../../core/chargement/chargement.service';
 import { ProfilRisqueApi, type RequeteBandes } from '../../data/profil-risque.api';
 import { ReferentielApi, type ReponseRefGeo } from '../../data/referentiel.api';
@@ -241,6 +241,25 @@ describe('mg-etape-couverture', () => {
       await rendu(m.f);
       await descendreDans(m, '11', BANDES_IDF);
       expect(c.demandes).toEqual(['region', 'departement']);
+    });
+
+    it('contours en échec : « Contours indisponibles », jamais gardé — redemandé au changement de maille suivant', async () => {
+      const demandes: string[] = [];
+      const fn = (scale: string) => {
+        demandes.push(scale);
+        if (demandes.length === 1) return throwError(() => new Error('500'));
+        return of({ type: 'FeatureCollection', features: scale === 'region' ? CONTOURS_REGIONS : CONTOURS_DEPARTEMENTS });
+      };
+      const m = await ouvert(fn);
+      expect(n(m.el.querySelector('[data-role="contours-indisponibles"]')?.textContent)).toBe('Contours indisponibles');
+      expect(m.el.textContent).not.toContain('Chargement des contours');
+      expect(dessines(m.el)).toHaveLength(0);
+      await descendreDans(m, '11', BANDES_IDF);
+      (ligne(m.el, '75').querySelector('[data-role="remonter"]') as HTMLButtonElement).click();
+      await rendu(m.f);
+      expect(demandes).toEqual(['region', 'departement', 'region']);
+      expect(m.el.querySelector('[data-role="contours-indisponibles"]')).toBeNull();
+      expect(dessines(m.el)).toHaveLength(15);
     });
 
     it('Effectif : cercles proportionnels sur fond neutre ; Densité : aplat, en hab/km²', async () => {

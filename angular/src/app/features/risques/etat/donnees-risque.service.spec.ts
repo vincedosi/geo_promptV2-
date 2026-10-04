@@ -294,6 +294,20 @@ describe('DonneesRisqueService', () => {
     expect(a()).toHaveLength(1);
   });
 
+  it('les contours : un échec n’est PAS gardé — « indisponible », puis un nouvel appel au changement de maille', () => {
+    const { service, contours } = creer();
+    const a = service.contours('region');
+    contours.appels[0].rep.error(new Error('500'));
+    expect(a()).toBe('indisponible');
+    // Retour sur la même échelle (après un changement de maille) : l'échec a été évincé, on redemande.
+    const b = service.contours('region');
+    expect(contours.appels).toHaveLength(2);
+    contours.appels[1].rep.next({ type: 'FeatureCollection', features: [{ type: 'Feature' }] });
+    expect(b()).toHaveLength(1);
+    service.contours('region');
+    expect(contours.appels).toHaveLength(2);
+  });
+
   it('la courbe et les sites ne dépendent pas du profil ; les sites ne dépendent pas de la cible', () => {
     const { etat, courbe, sites } = creer();
     etat.maj({ profil: { ...PROFIL_DEFAUT, haut: [3000] } });

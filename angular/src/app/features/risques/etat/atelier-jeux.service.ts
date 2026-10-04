@@ -146,7 +146,9 @@ export class AtelierJeuxService {
       // compte et le taux d'utile de CHAQUE classe. Le recalculer ici dupliquerait le calcul du serveur.
       await this.chargerDetail(id, mien);
       if (champs.enregistrer) await this.rafraichirBibliotheque();
-      this._reglage.update((n) => n + 1);
+      // Un cran par réglage AFFICHÉ : un réglage dépassé par un plus récent n'en compte pas. Sinon les écouteurs de
+      // `reglage` (la carte des codes postaux, T15) relisent deux fois pour un seul état final.
+      if (!this.detruit && mien === this.jeton) this._reglage.update((n) => n + 1);
       return true;
     } catch (e) {
       if (!this.detruit && mien === this.jeton) this._erreur.set((e as Error).message);

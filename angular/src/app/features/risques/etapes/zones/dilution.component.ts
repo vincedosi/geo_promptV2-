@@ -24,7 +24,7 @@ import { formaterDecimal, formaterNombre } from '../../../../core/format/nombre'
     </div>
     <input type="range" min="0" max="60" step="5" [value]="local()"
            (input)="local.set(valeurDe($event))"
-           (pointerup)="relacher()" (touchend)="relacher()" (keyup)="relacher()"
+           (pointerup)="relacher()" (touchend)="relacher()" (keyup)="relacher()" (change)="relacher()"
            aria-label="Part minimale de la population du code postal en zone"
            class="w-full accent-teal" />
     <p class="mt-2 mb-0 text-[11.5px] leading-[1.6] text-secondary">
@@ -63,8 +63,17 @@ export class DilutionComponent {
     return Number((ev.target as HTMLInputElement).value);
   }
 
+  /**
+   * La dernière valeur émise depuis la dernière relecture du serveur. `change` est aussi écouté — un `pointerup`
+   * relâché HORS du curseur n'arrive jamais à l'élément, `change` si — et un relâchement à la souris déclenche alors
+   * les deux : sans cette mémoire, le même seuil partirait deux fois.
+   */
+  private readonly dernierEmis = linkedSignal<number, number | null>({ source: this.seuil, computation: () => null });
+
   protected relacher(): void {
     const v = this.local();
-    if (v !== this.seuil()) this.seuilChange.emit(v);
+    if (v === this.seuil() || v === this.dernierEmis()) return;
+    this.dernierEmis.set(v);
+    this.seuilChange.emit(v);
   }
 }

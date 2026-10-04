@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, type Signal, computed, effect, inject, signal, untracked } from '@angular/core';
 import { formaterNombre } from '../../../../core/format/nombre';
 import { PastilleComponent } from '../../../../ui/pastille/pastille.component';
-import { DonneesRisqueService } from '../../etat/donnees-risque.service';
+import { type ContoursMaille, DonneesRisqueService } from '../../etat/donnees-risque.service';
 import type { Dimension } from '../../logique/dimensions';
 import { codesDessines, peutDescendre, peutRemonter } from '../../logique/exploration';
 import type { ZoneGeo } from '../../logique/mini-france';
@@ -115,6 +115,9 @@ const ENCODAGES: { id: Encodage; label: string; aide: string }[] = [
           donneraient une bouillie de traits. Le classement ci-contre reste
           lisible, lui — c’est ce qu’on vient chercher ici.
         </p>
+      } @else if (contoursIndisponibles()) {
+        <!-- Échec du chargement : dit tel quel, et redemandé au prochain changement de maille (jamais gardé). -->
+        <p data-role="contours-indisponibles" class="m-0 text-[11px] text-tertiary">Contours indisponibles</p>
       } @else {
         <p class="m-0 text-[11px] text-tertiary">Chargement des contours…</p>
       }
@@ -172,8 +175,12 @@ export class EtapeCouvertureComponent {
    * Le signal de contours de l'échelle courante, mis en cache PAR ÉCHELLE dans le service : basculer de maille ou
    * d'encodage ne redemande rien. Posé par un `effect` (le service souscrit : jamais dans un `computed`).
    */
-  private readonly sourceContours = signal<Signal<GeoJSON.Feature[] | null> | null>(null);
-  protected readonly zones = computed<ZoneGeo[]>(() => (this.sourceContours()?.() ?? []) as unknown as ZoneGeo[]);
+  private readonly sourceContours = signal<Signal<ContoursMaille> | null>(null);
+  protected readonly contoursIndisponibles = computed(() => this.sourceContours()?.() === 'indisponible');
+  protected readonly zones = computed<ZoneGeo[]>(() => {
+    const c = this.sourceContours()?.();
+    return (Array.isArray(c) ? c : []) as unknown as ZoneGeo[];
+  });
 
   constructor() {
     effect(() => {

@@ -135,7 +135,8 @@ describe('AtelierJeuxService', () => {
     expect(await r1).toBe(true);
     expect(await r2).toBe(true);
     expect(service.detail()?.jeu.seuil_couverture_cp).toBe(35);
-    expect(service.reglage()).toBe(2);
+    // Le premier réglage, dépassé, ne compte pas : UN cran pour un seul état final.
+    expect(service.reglage()).toBe(1);
   });
 
   it('regler sans jeu ouvert ne fait rien ; un échec garde le détail et pose le message', async () => {

@@ -55,6 +55,18 @@ describe('TableauClassesComponent', () => {
     expect(emis).toEqual([{ classe: 'bas:pprt', valeur: 0 }, { classe: 'haut:1', valeur: 4.5 }]);
   });
 
+  it('un poids refusé (vide, hors bornes) : le champ revient au poids en vigueur', async () => {
+    const { el, emis } = await rendre();
+    const [haut] = [...el.querySelectorAll<HTMLInputElement>('input[type="number"]')];
+    sortir(haut, '7');
+    expect(haut.value).toBe('2');
+    sortir(haut, '');
+    expect(haut.value).toBe('2');
+    sortir(haut, '-1');
+    expect(haut.value).toBe('2');
+    expect(emis).toEqual([]);
+  });
+
   it('aucune classe : l’alerte de React', async () => {
     const { el } = await rendre([]);
     expect(el.querySelector('[role="status"]')?.textContent?.trim()).toBe(MESSAGE_AUCUNE_CLASSE);
