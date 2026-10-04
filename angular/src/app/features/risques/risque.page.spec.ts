@@ -62,13 +62,14 @@ async function ouvrir(url = '/risques', reponses: {
       } },
       { provide: CouleursService, useValue: {
         palette: (j: Record<string, string>) => signal(Object.fromEntries(Object.keys(j).map((k) => [k, `rgb(${k.length}, 0, 0)`]))),
+        paletteDuTheme: (j: Record<string, string>) => Object.fromEntries(Object.keys(j).map((k) => [k, `rgb(0, ${k.length}, 0)`])),
       } },
       { provide: SitesRisqueApi, useValue: { compter: reponses.compter ?? (() => NEVER) } },
       // L'atelier des jeux (④) : la bibliothèque n'est lue qu'à la première visite de l'étape.
       { provide: JeuxZonesApi, useValue: {
         lister: reponses.lister ?? (() => NEVER), lire: reponses.lire ?? (() => NEVER),
         construire: () => NEVER, regler: () => NEVER, supprimer: () => NEVER, exportJeu: () => NEVER,
-        extractions: () => NEVER,
+        extractions: () => NEVER, cpGeo: () => NEVER, grappes: () => NEVER,
       } },
       { provide: ReferentielApi, useValue: {
         geo: () => of({ regions: [{ code_region: '93', nom_region: 'Provence-Alpes-Côte d’Azur', depts: [{ code_dept: '13', nom_dept: 'Bouches-du-Rhône' }] }] }),
@@ -156,15 +157,16 @@ describe('RisquePage', () => {
     expect(router.url).toBe('/');
   });
 
-  it('(j) la carte MapLibre est créée UNE fois, même après trois changements d’étape', async () => {
+  it('(j) les cartes MapLibre (rayons, codes postaux) sont créées UNE fois, même après trois changements d’étape', async () => {
     const { harness, cartes, page, el } = await ouvrir();
-    expect(cartes).toHaveLength(1);
+    // Deux instances dès l'ouverture (T15) : la carte des codes postaux est montée à largeur nulle, comme React.
+    expect(cartes).toHaveLength(2);
     for (const l of ['Rayon', 'Couverture', 'Zones', 'Sites']) {
       etape(el(), l).click();
       await stabiliser(harness);
     }
-    expect(cartes).toHaveLength(1);
-    expect(cartes[0].retiree).toBe(false);
+    expect(cartes).toHaveLength(2);
+    expect(cartes.map((c) => c.retiree)).toEqual([false, false]);
     expect(harness.routeDebugElement?.componentInstance).toBe(page);
   });
 

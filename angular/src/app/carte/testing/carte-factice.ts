@@ -96,6 +96,17 @@ export class CarteFactice {
     return this;
   }
   isStyleLoaded(): boolean { return this.styleCharge; }
+  /** Les `setFilter`, dans l'ordre. */
+  readonly filtres: { couche: string; filtre: unknown }[] = [];
+  setFilter(couche: string, filtre: unknown): this {
+    this.filtres.push({ couche, filtre });
+    const c = this.getLayer(couche);
+    if (c) c['filter'] = filtre;
+    return this;
+  }
+  /** Ce que `queryRenderedFeatures` rend : posé par le test. */
+  entitesRendues: unknown[] = [];
+  queryRenderedFeatures(): unknown[] { return this.entitesRendues; }
   /** Le canevas, pour le curseur posé au survol d'une couche. */
   private readonly canevas = { style: { cursor: '' } };
   getCanvas() { return this.canevas; }

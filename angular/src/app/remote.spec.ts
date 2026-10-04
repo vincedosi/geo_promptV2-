@@ -318,7 +318,8 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     const page = racine.querySelector('mg-risque');
     expect(page).not.toBeNull();
     expect(racine.querySelector('mg-coquille')).toBeNull();
-    expect(cartes).toHaveLength(1);
+    // Rayons + codes postaux (T15 : la seconde est montée à largeur nulle dès l'ouverture, comme React).
+    expect(cartes).toHaveLength(2);
     const initialiser = auth.initialiser.mock.calls.length;
 
     for (const libelle of ['Rayon', 'Couverture', 'Sites']) {
@@ -332,8 +333,8 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     expect(auth.initialiser.mock.calls.length).toBe(initialiser);
     expect(http.match((r) => r.url.endsWith('config.local.json'))).toEqual([]);
     expect(racine.querySelector('mg-risque')).toBe(page);
-    expect(cartes).toHaveLength(1);
-    expect(cartes[0].retiree).toBe(false);
+    expect(cartes).toHaveLength(2);
+    expect(cartes.map((c) => c.retiree)).toEqual([false, false]);
     expect(racine.querySelector('[role="alert"]')).toBeNull();
     // Retour à l'étape par défaut : le paramètre disparaît, l'URL de l'hôte reste.
     expect(TestBed.inject(Router).url).toBe('/hote/magelian/risques');

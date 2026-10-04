@@ -21,6 +21,8 @@ export interface PopupCarte {
   setLngLat(lngLat: maplibregl.LngLatLike): PopupCarte;
   setDOMContent(contenu: Node): PopupCarte;
   addTo(carte: maplibregl.Map): PopupCarte;
+  /** Retirer une bulle qui suit la souris (carte des codes postaux, T15). */
+  remove(): PopupCarte;
 }
 
 export type FabriquePopup = (options: maplibregl.PopupOptions) => PopupCarte;
