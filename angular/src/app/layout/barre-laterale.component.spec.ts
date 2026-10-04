@@ -6,7 +6,7 @@ import { BarreLateraleComponent } from './barre-laterale.component';
 async function rendre(options: { dev?: boolean } = {}): Promise<HTMLElement> {
   TestBed.configureTestingModule({
     providers: [
-      provideRouter([{ path: 'catalogue', children: [] }, { path: 'essai-carte', children: [] }]),
+      provideRouter([{ path: 'catalogue', children: [] }, { path: 'essai-carte', children: [] }, { path: 'risques', children: [] }]),
       { provide: MODE_DEVELOPPEMENT, useValue: options.dev ?? true },
     ],
   });
@@ -81,9 +81,9 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     expect(titres(el)).not.toContain('Développement');
     expect(el.querySelectorAll('nav a').length).toBe(15);
     const liens = [...el.querySelectorAll('[data-pied] [data-liens-dev] a')];
-    expect(liens.map((a) => a.getAttribute('aria-label'))).toEqual(['Accueil', 'Catalogue', 'Essai carte']);
-    expect(liens.map((a) => a.getAttribute('title'))).toEqual(['Accueil', 'Catalogue', 'Essai carte']);
-    expect(liens.map((a) => a.getAttribute('href'))).toEqual(['/', '/catalogue', '/essai-carte']);
+    expect(liens.map((a) => a.getAttribute('aria-label'))).toEqual(['Accueil', 'Catalogue', 'Essai carte', 'Module risque']);
+    expect(liens.map((a) => a.getAttribute('title'))).toEqual(['Accueil', 'Catalogue', 'Essai carte', 'Module risque']);
+    expect(liens.map((a) => a.getAttribute('href'))).toEqual(['/', '/catalogue', '/essai-carte', '/risques']);
     for (const a of liens) expect(a.hasAttribute('aria-disabled')).toBe(false);
     expect(texte(el.querySelector('[data-pied]'))).toMatch(/^Online/);
   });

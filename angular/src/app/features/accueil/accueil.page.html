@@ -42,16 +42,19 @@
   </div>
 
   <!-- Propre à Angular : le compte des sites à risque prouve la chaîne jusqu'à la base. Sous la disposition de React, pour que
-       le haut de la page lui reste identique. -->
+       le haut de la page lui reste identique. La tuile ouvre le module risque (lot 3) : lien RELATIF, le préfixe de montage
+       appartient au shell. -->
   <div class="mt-8 grid grid-cols-4 gap-3">
-    <mg-tuile-chiffre
-      icone="cercle-alerte"
-      [valeur]="valeurSites()"
-      libelle="Sites à risque industriel en base"
-    />
+    <a routerLink="risques" class="block rounded-lg">
+      <mg-tuile-chiffre
+        icone="cercle-alerte"
+        [valeur]="valeurSites()"
+        libelle="Sites à risque industriel en base"
+        cliquable
+      />
+    </a>
   </div>
   @if (etat().statut === 'echec') {
     <p role="alert" class="mt-2 text-xs text-danger">{{ messageEchec() }}</p>
   }
-
 </div>

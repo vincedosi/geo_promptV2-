@@ -193,6 +193,18 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       expect(router.url).toBe('/connexion');
     });
 
+    it("les deux entrées du module risque (lien de développement, tuile de l'accueil) mènent à /app/risques", async () => {
+      const { http, harness } = await demarrer('/app', true);
+      http.expectOne('/api/risques/sites/compter').flush({ retenus: 1259, total: 99152, par_nature: {} });
+      http.match('/api/user/organizations').forEach((r) => r.flush({ organizations: [], active_org_id: null, is_super_admin: false }));
+      await stabiliser(harness);
+      const racine = ombre(harness.fixture.nativeElement as HTMLElement);
+      const dev = [...racine.querySelectorAll('a')].find((a) => a.getAttribute('aria-label') === 'Module risque');
+      expect(dev?.getAttribute('href')).toBe('/app/risques');
+      const tuile = [...racine.querySelectorAll('mg-tuile-chiffre')].find((t) => t.textContent?.includes('Sites à risque'))!;
+      expect(tuile.closest('a')?.getAttribute('href')).toBe('/app/risques');
+    });
+
     it("un 401 de l'API renvoie vers /connexion avec la page courante", async () => {
       const { router, http, harness, client } = await demarrer('/app', true);
       http.expectOne('/api/risques/sites/compter').flush('non autorisé', { status: 401, statusText: 'Unauthorized' });

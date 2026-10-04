@@ -69,7 +69,7 @@ qu'on bâtisse quoi que ce soit dessus.
 | **AIDA — Robustesse dans l'hôte** ✅ 2026-09-30 | Retrait de `@angular/core/rxjs-interop` du remote (`versEtat` sur `signal` + `DestroyRef`, désabonnement explicite dans l'essai de carte) et garde des imports partagés (`tests/unit/angular/imports-partages.test.ts`) ; sans session dans l'hôte, message « Session requise… » au lieu d'une navigation vers `/connexion` (`STRATEGIE_SANS_SESSION`, défaut racine `message`, `rediriger` fourni par la route `app` du lancement autonome) ; limiteur de 3 appels mesuré dans l'hôte | Épreuve rejouée avec un hôte PAR DÉFAUT (`ignoreUnusedDeps: true`) et en build de production : les six vérifications fonctionnelles passent aux deux passes (la 7e, la fuite de styles, reste constatée : lot « Isolation CSS »), accueil et essai de carte sans erreur en console, message sans session sans navigation, limiteur mesuré (3 en vol, la 4e après la 1re réponse) | AIDA — Conformité |
 | **AIDA — Isolation CSS** ✅ 2026-09-30 | Toute l'interface dans des racines d'ombre (`RacineDistanteComponent`, `ConnexionPage`) qui ADOPTENT `magelian.css`, lue et construite au démarrage, jamais posée dans le document ; `@property` réécrites et retirées, `@import` retirés, `rem` convertis en px ; polices au niveau du document ; `:host` : `all: initial` puis propriétés héritées et `color-scheme` en `!important` (un `*` du shell ne gagne plus) ; jetons sur `:host`/`:host(.light)`, classe recopiée par `ThemeService`, lue par `CouleursService` ; `maplibre.css` dans la racine de la carte ; garde « rien hors de l'ombre » (`tests/unit/angular/portails-hors-ombre.test.ts`). Retenue contre une CSS confinée après épreuve comparée (rapport de la tâche 8) | Dans l'hôte PAR DÉFAUT, prod et dev : 0 différence sur le tableau de la tâche 6, 0 propriété personnalisée sur `<html>`, feuille d'hôte hostile (y compris `*`, `html { font-size }` et une règle sur l'élément hôte) sans effet sur MAGELIAN dans les deux thèmes, héritage d'un ancêtre coupé, `color-scheme` suivant le thème de MAGELIAN, 11 vérifications fonctionnelles sur 11 plus glisser/clic/fermeture de popup ; autonome dans les deux thèmes, connexion → page → déconnexion | AIDA — Conformité |
 | **Rendu — Parité visuelle avec React** ✅ 2026-10-03 | Objectif fixé par le propriétaire : « la même chose que Next.js mais Angular ». 80 écarts inventoriés (`docs/superpowers/plans/2026-09-30-inventaire-rendu-react-angular.md`) : base globale, icônes sans dépendance, marque, coquille = `AppSidebar`, routes carte/risque plein écran, connexion en écran partagé, en-têtes, accueil, bandeau KPI, mobilier de carte, courbe, écran d'essai — l'écran d'essai est désormais composé sur le SQUELETTE de l'écran risque React à l'étape ② (en-tête et fils, barre commune, progression, bandeau, panneau 480 px réglable / carte permanente, « Carte seule »). Plan : `docs/superpowers/plans/2026-09-30-angular-lot-rendu.md`. **Écarts restants, justifiés** : (1) le bandeau n'a que deux tuiles et le panneau ② ni le tableau des bandes ni ses quatre chiffres (données de `population_par_classe`, portées au lot 3) ; (2) filtres de la barre, autres étapes, exports, « Voir sur la carte » et puces du résumé de profil rendus à l'identique mais INERTES (« Disponible prochainement », patron du bouton « MAGELIAN ») ; (3) courbe et chiffres de l'essai sur le seuil haut seul (KPI 13 841 288 inchangé) quand React lit les deux seuils ; (4) marge intérieure des popups gardée (arbitrage 3) ; (5) réglette native comme React (V10, écart au DESIGN_SYSTEM hérité) ; (6) défauts de React gardés pour la parité et signalés : pastille « Découpage des zones… » recouverte par « Carte seule » (même place, plan inférieur), logotype quasi invisible en sombre corrigé côté Angular (R2) ; (7) le survol d'un site (anneaux dessinés) et l'interrupteur Rayons / Codes postaux actif relèvent du lot 3 | Captures Angular et React côte à côte, deux thèmes, pour chaque écran ; table de fuite du lot AIDA rejouée en R11 dans l'hôte par défaut (prod et dev) : 0 différence, 0 propriété sur `<html>`, feuille hostile sans effet | AIDA |
-| **3 — Module risque** (ouvert le 2026-10-03 — gel P5) | Les cinq étapes ① Sites › ② Rayon › ③ Couverture › ④ Zones › ⑤ Campagne, l'état dans l'URL, les exports, la barre de progression unique. Gel P5 à l'ouverture | Chaque étape comparée à l'écran React sur le même état d'URL, chiffres identiques. ⚠ **Le module React N'EST PAS retiré au lot 3** (arbitrage de Vincent, 2026-09-30) : les deux écrans cohabitent jusqu'à la fin de la migration, et Next.js ne perd ses pages qu'au lot 7 | 0, 1, 2 |
+| **3 — Module risque** ✅ 2026-10-04 (ouvert le 2026-10-03 — gel P5) | Les cinq étapes ① Sites › ② Rayon › ③ Couverture › ④ Zones › ⑤ Campagne, l'état dans l'URL, les exports, la barre de progression unique. Gel P5 à l'ouverture. Plan : `docs/superpowers/plans/2026-10-03-angular-lot3-module-risque.md` (arbitrages A1-A14). Entrées Angular : lien de développement « Module risque » et tuile des sites de l'accueil. **Parité finale** : huit états d'URL, deux thèmes, tous les nombres de l'écran identiques à React. **Écarts restants, justifiés** : (A6) « Voir sur la carte » absent jusqu'au lot 4 — d'où un en-tête plus bas et une carte cadrée un peu autrement, donc « 54 sites affichés » contre « 55 » dans la légende de l'état par défaut (61 contre 62 tiroir ouvert) ; (A7) Fermer ramène à l'accueil, pas à `/map` ; (A5) la mention « Types de risque filtrés depuis le panneau Calques » n'existe pas (les natures viennent de l'URL) ; zones peintes SOUS les sites ; cadre initial stable de la carte de ⑤ ; défauts de React gardés pour la parité et signalés (« Autres régimes » qui reçoit les anneaux du seuil haut quand les niveaux sont liés, accords « régions exposés », libellé de champ englobant ses boutons) | Chaque étape comparée à l'écran React sur le même état d'URL, chiffres identiques. ⚠ **Le module React N'EST PAS retiré au lot 3** (arbitrage de Vincent, 2026-09-30) : les deux écrans cohabitent jusqu'à la fin de la migration, et Next.js ne perd ses pages qu'au lot 7 | 0, 1, 2 |
 | **4 — Carte principale** | `/map`, rail des cinq thèmes, panneaux Filtre/Calques/Analyse/Zones | Parcours complet du rail | 3 |
 | **5 — Campagnes** | Overlay MAGELIAN : Stratégie (wizard), Activation, Suivi V2, Aperçu | Une campagne créée, activée (pré-vol) et suivie depuis Angular | 4 |
 | **6 — Administration** | Pages `/admin/*`, imports avec progression NDJSON | Chaque import rejoué depuis Angular | 0, 1 |
@@ -252,3 +252,34 @@ que par la revue. Détail : `ARCHITECTURE.md` § Application Angular.
   dans le composant de carte.
 - **`versEtat`** : toujours appelé en contexte d'injection et HORS de tout
   contexte réactif (`computed`, `effect`, gabarit) — il lève `NG0602` sinon.
+
+### À savoir pour les lots suivants (revue finale du lot 3)
+
+Le module risque Angular est complet ; ce qui suit est ce que les lots 4 et 5
+devront tenir pour ne pas le casser.
+
+- **Lot 4 — natures** : React passe les natures de risque au module par la
+  prop `typesRisque` du panneau Calques ; Angular les lit dans `etat.natures`
+  (A5). Le panneau Calques porté au lot 4 doit ÉCRIRE `natures` dans
+  `risque=` (par `ecrireEtatUrl`, une URL React se colle telle quelle) AVANT
+  d'ouvrir `risques` — sinon le module s'ouvre sur toutes les natures.
+- **Lot 4 — « Voir sur la carte »** (`BoutonVoirCarte.tsx`, A6) : à porter
+  avec la couche `ZonesRisqueLayer` de `/map`. Il rendra aussi à l'en-tête sa
+  hauteur React, donc le même cadrage initial et le même compte « N sites
+  affichés » dans la légende.
+- **Lot 4 — Fermer** (A7) : la croix et Échap ramènent aujourd'hui au parent
+  RELATIF (l'accueil). Quand `/map` existera, le parent devra être la carte.
+- **État** : un seul paramètre `risque`, écrit par le `Router` en
+  `replaceUrl` (A2). Ne jamais écrire `history` à la main : dans un hôte, le
+  routeur appartient au shell.
+- **Cartes** : trois instances MapLibre au plus, jamais démontées entre les
+  étapes ; une bascule de thème repeint sans recréer de source. Toute couche
+  ajoutée doit suivre la même règle (verrouillée par les specs
+  `risque.page`, `carte-codes-postaux`, `carte-campagne`).
+- **Écritures en base pendant les vérifications** : uniquement sur un jeu
+  jetable « [TEST] … », supprimé en fin de tâche et vérifié par SQL. Les jeux
+  `0b7ece33…` et `d9b81560…` servent de référence en lecture seule.
+- **Flux NDJSON dans un hôte** : mesuré au lot 3, l'hôte jetable (proxy de
+  `ng serve`) ne bufferise pas — la progression avance avant la fin du flux.
+  À revérifier dans le VRAI shell AIDA (sa passerelle peut bufferiser) ; le
+  repli prévu est un `fetch` dans le service d'API, Bearer posé à la main (A9).

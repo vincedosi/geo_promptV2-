@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { formaterNombre } from '../../core/format/nombre';
 import { versEtat } from '../../core/etat/vers-etat';
@@ -28,11 +29,11 @@ const CARTES_NAVIGATION: readonly { icone: NomIcone; libelle: string; sous: stri
  * Tableau de bord (`app/dashboard/page.tsx`) : en-tête, rangée de quatre cartes
  * de session, « Navigation rapide ». S'y ajoute, propre à Angular, le compte des
  * sites à risque — la chaîne entière (session, proxy, Bearer, route Next.js,
- * base locale) y est éprouvée.
+ * base locale) y est éprouvée — et la tuile ouvre le module risque (`risques`).
  */
 @Component({
   selector: 'mg-accueil',
-  imports: [EntetePageComponent, EnteteSectionComponent, TuileChiffreComponent, IconeComponent],
+  imports: [RouterLink, EntetePageComponent, EnteteSectionComponent, TuileChiffreComponent, IconeComponent],
   templateUrl: './accueil.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

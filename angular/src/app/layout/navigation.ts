@@ -81,6 +81,9 @@ export const LIENS_DEVELOPPEMENT: readonly { libelle: string; icone: NomIcone; c
   { libelle: 'Accueil', icone: 'hexagone', cible: './', exact: true },
   { libelle: 'Catalogue', icone: 'calques', cible: 'catalogue' },
   { libelle: 'Essai carte', icone: 'carte', cible: 'essai-carte' },
+  // Lot 3 : le module « Population à risque industriel ». React l'ouvre depuis le panneau Calques de
+  // `/map`, qui n'est porté qu'au lot 4 : d'ici là, ce lien et la tuile de l'accueil sont ses entrées.
+  { libelle: 'Module risque', icone: 'cercle-alerte', cible: 'risques' },
 ];
 
 /**

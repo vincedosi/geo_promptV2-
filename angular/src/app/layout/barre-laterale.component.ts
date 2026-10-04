@@ -124,8 +124,10 @@ interface EntreeIndexee extends EntreeNavigation {
               <span class="relative inline-flex size-[6px] rounded-full bg-success"></span>
             </span>
             <span class="font-mono text-[11px] text-tertiary">Online</span>
-            <!-- Pages propres à Angular, en icônes (voir LIENS_DEVELOPPEMENT) : titre et nom accessible = libellé. -->
-            <span data-liens-dev class="-my-1 ml-auto flex items-center gap-0.5">
+            <!-- Pages propres à Angular, en icônes (voir LIENS_DEVELOPPEMENT) : titre et nom accessible = libellé.
+                 Quatre cases de 20 px sans écart : à 24 px + 2 px, la quatrième (Module risque, lot 3) poussait
+                 l'horloge hors des 208 px du pied (mesuré : 226 px de contenu). -->
+            <span data-liens-dev class="-my-1 ml-auto flex items-center">
               @for (l of liensDev; track l.libelle) {
                 <a
                   [routerLink]="l.cible"
@@ -135,7 +137,7 @@ interface EntreeIndexee extends EntreeNavigation {
                   [attr.title]="l.libelle"
                   [attr.aria-label]="l.libelle"
                   (click)="naviguer.emit()"
-                  class="inline-flex size-6 items-center justify-center rounded-md transition-colors duration-150 hover:bg-elevated hover:text-primary"
+                  class="inline-flex size-5 items-center justify-center rounded-md transition-colors duration-150 hover:bg-elevated hover:text-primary"
                   [class]="actif.isActive ? 'bg-overlay text-primary' : 'text-tertiary'"
                 >
                   <mg-icone [nom]="l.icone" [taille]="14" [trait]="1.5" />
