@@ -17,6 +17,11 @@ export interface NiveauLegende {
  * QUE les niveaux qui portent un anneau : une entrée vide se lirait « aucun habitant
  * à ce niveau », alors qu'elle signifie « ce niveau n'est pas calculé ». Les teintes
  * sont des `var()` DANS le DOM — pas dans un `paint` MapLibre —, donc elles suivent le thème seules.
+ *
+ * Rangé sous `carte/legende/` à côté du cadre générique, mais ce n'est PAS un composant générique : c'est le
+ * contenu de légende PROPRE au module risque (niveaux Seveso, anneaux de rayon). D'où l'import de `libelleRayon`
+ * depuis `features/risques/logique/profil` — le libellé d'un rayon doit être celui du reste du module, pas une
+ * seconde mise en forme.
  */
 @Component({
   selector: 'mg-legende-niveaux',

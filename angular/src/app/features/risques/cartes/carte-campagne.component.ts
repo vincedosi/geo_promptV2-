@@ -353,15 +353,21 @@ export class CarteCampagneComponent {
       surNettoyage(arreter);
     });
 
-    // 2. Premier cadrage sur les zones du jeu, une fois (padding 40, sans animation, zoom 9 au plus).
-    effect(() => {
+    // 2. Premier cadrage sur les zones du jeu, une fois (padding 40, sans animation, zoom 9 au plus) — et SEULEMENT
+    //    quand la carte est à l'écran. La carte reste montée en largeur nulle hors de l'étape ⑤ : un `fitBounds` sur
+    //    ce conteneur-là calcule un zoom absurde, et le drapeau posé empêchait ensuite tout vrai cadrage. D'où
+    //    `afterRenderEffect` (DOM à jour), `resize()` AVANT `fitBounds`, et le drapeau posé APRÈS un vrai cadrage.
+    afterRenderEffect(() => {
       const carte = this.instance();
       const vue = this.vue();
-      if (!carte || !vue || this.cadrageFait) return;
+      if (!carte || !vue || this.cadrageFait || !this.actif()) return;
       const cadre = cadreDesZones(vue.zones);
       if (!cadre) return;
+      untracked(() => {
+        carte.resize();
+        carte.fitBounds([[cadre[0], cadre[1]], [cadre[2], cadre[3]]], { padding: 40, duration: 0, maxZoom: 9 });
+      });
       this.cadrageFait = true;
-      untracked(() => carte.fitBounds([[cadre[0], cadre[1]], [cadre[2], cadre[3]]], { padding: 40, duration: 0, maxZoom: 9 }));
     });
 
     // 3. Recadrage sur la zone choisie dans le tableau (600 ms, zoom 11 au plus, marge proportionnelle).
@@ -376,6 +382,8 @@ export class CarteCampagneComponent {
     });
 
     // 4. Les chiffres fusionnés dans les géométries en mémoire : `setData` et visibilités, aucune requête.
+    //    Sans simulation (purgée, ou jamais lancée), les quatre sources sont VIDÉES : défaut React corrigé — sa carte
+    //    gardait après une purge les bassins colorés et les cercles d'une diffusion qui n'existe plus.
     effect(() => {
       const carte = this.instance();
       const vue = this.vue();
@@ -383,7 +391,15 @@ export class CarteCampagneComponent {
       const zoneActive = this.simulation.zoneActive();
       const mode = this.mode();
       const cercles = this.cercles();
-      if (!carte || !vue) return;
+      if (!carte) return;
+      if (!vue) {
+        untracked(() => {
+          for (const s of [S_BASSINS, S_SITES, S_CERCLES, S_CP]) {
+            (carte.getSource(s) as maplibregl.GeoJSONSource | undefined)?.setData(vide() as GeoJSON.FeatureCollection);
+          }
+        });
+        return;
+      }
       untracked(() => this.peindre(carte, fusionnerDiffusion(geo, vue, zoneActive, mode, cercles, this.teintes()), mode));
     });
 

@@ -211,6 +211,42 @@ describe('CarteCampagneComponent (T17)', () => {
     expect(el.querySelector('[data-sans-simulation]')?.textContent?.trim()).toBe('Lancez une simulation pour voir la diffusion dans les zones.');
   });
 
+  it('premier cadrage : AUCUN `fitBounds` tant que la carte est masquée ; à l’écran, UN seul, après `resize()`', async () => {
+    const { carte, fixture, vue, rep } = await rendre({ actif: false });
+    const ordre: string[] = [];
+    const resize = carte.resize.bind(carte);
+    const fitBounds = carte.fitBounds.bind(carte);
+    carte.resize = () => { ordre.push('resize'); return resize(); };
+    carte.fitBounds = (c: unknown, o?: unknown) => { ordre.push('fitBounds'); return fitBounds(c, o); };
+    // La simulation arrive pendant que la carte est masquée (largeur nulle).
+    vue.set(construireVue(rep(), 'v1'));
+    await fixture.whenStable();
+    expect(carte.cadrages).toHaveLength(0);
+    fixture.componentRef.setInput('actif', true);
+    await fixture.whenStable();
+    expect(carte.cadrages).toHaveLength(1);
+    expect(carte.cadrages[0].options).toEqual({ padding: 40, duration: 0, maxZoom: 9 });
+    expect(ordre.indexOf('resize')).toBeGreaterThanOrEqual(0);
+    expect(ordre.indexOf('resize')).toBeLessThan(ordre.indexOf('fitBounds'));
+    // Masquée puis réaffichée (⑤ → ① → ⑤) : pas de second cadrage.
+    fixture.componentRef.setInput('actif', false);
+    await fixture.whenStable();
+    fixture.componentRef.setInput('actif', true);
+    vue.set(construireVue(rep(), 'tout'));
+    await fixture.whenStable();
+    expect(carte.cadrages).toHaveLength(1);
+  });
+
+  it('simulation PURGÉE (vue nulle) : les quatre sources sont vidées — défaut React corrigé', async () => {
+    const { carte, lectures, fixture, vue } = await rendre();
+    lectures[0].rep.next(GEO);
+    await fixture.whenStable();
+    expect(proprietes(carte, S_BASSINS)).toHaveLength(2);
+    vue.set(null);
+    await fixture.whenStable();
+    for (const s of [S_BASSINS, S_SITES, S_CERCLES, S_CP]) expect(derniere(carte, s).features).toEqual([]);
+  });
+
   it('la légende est peinte avec la MÊME palette claire que la carte (sept tranches, six bornes)', async () => {
     const { el } = await rendre();
     const pastilles = [...el.querySelectorAll<HTMLElement>('[data-legende-campagne] .w-\\[22px\\]')].map((s) => s.style.background);

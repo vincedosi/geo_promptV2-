@@ -278,6 +278,13 @@ différents, pas deux réglages du même.
 
 ⚠ Valeurs littérales et non `var()` : c'est MapLibre qui les consomme.
 
+**Deux écritures, une valeur.** Le jeton `--contour-point` (défini dans
+`app/globals.css` et `angular/src/styles/jetons.css`, mêmes valeurs dans les
+deux thèmes) existe pour l'interface Angular : `CouleursService` en lit la
+valeur CALCULÉE et la passe à MapLibre en littéral, jamais en `var()`. React
+garde sa constante `CONTOUR_POINT` en dur, le module risque React étant gelé
+pendant la migration (P5) ; les deux copies doivent rester égales.
+
 ### RÈGLE D'OR
 Pas de violet (#a855f7) nulle part. Pas de vert fluo (#3dffa0) sauf indicateur de statut système. Pas d'orange sur les boutons.
 

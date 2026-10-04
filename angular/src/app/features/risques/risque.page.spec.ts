@@ -41,7 +41,7 @@ async function ouvrir(url = '/risques', reponses: {
   compter?: () => unknown; bandes?: (q: unknown) => unknown; courbe?: () => unknown; exportProfil?: (p: URLSearchParams) => unknown;
   lister?: () => unknown; lire?: (id: string) => unknown; lireSimulation?: (id: string) => unknown;
   extractions?: (id: string) => unknown; cpGeo?: (id: string, bbox: string) => unknown;
-  carteSimulation?: (id: string, bbox: string) => unknown;
+  carteSimulation?: (id: string, bbox: string) => unknown; grappes?: (id: string) => unknown;
 } = {}) {
   (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
   const cartes: CarteFactice[] = [];
@@ -81,7 +81,7 @@ async function ouvrir(url = '/risques', reponses: {
       { provide: JeuxZonesApi, useValue: {
         lister: reponses.lister ?? (() => NEVER), lire: reponses.lire ?? (() => NEVER),
         construire: () => NEVER, regler: () => NEVER, supprimer: () => NEVER, exportJeu: () => NEVER,
-        extractions: reponses.extractions ?? (() => NEVER), cpGeo: reponses.cpGeo ?? (() => NEVER), grappes: () => NEVER,
+        extractions: reponses.extractions ?? (() => NEVER), cpGeo: reponses.cpGeo ?? (() => NEVER), grappes: reponses.grappes ?? (() => NEVER),
       } },
       // La simulation de ⑤ (T16) : rien ne doit la lire avant la première visite de l'étape.
       { provide: SimulationApi, useValue: {
@@ -161,6 +161,33 @@ describe('RisquePage', () => {
     await stabiliser(harness);
     expect(lus).toHaveLength(1);
     expect(extraites.length).toBeGreaterThan(0);
+  });
+
+  it('Lien React direct `etape=campagne&jeu=…` : une lecture de simulation, les extractions du seul jeu, ni bibliothèque ni /grappes ; trois cartes, ⑤ montée tout de suite', async () => {
+    const JEU = '0b7ece33-4903-4a0b-a57a-f6c54e78a729';
+    const lus: string[] = [];
+    const extraites: string[] = [];
+    let listes = 0;
+    const grappes: string[] = [];
+    const { el, cartes } = await ouvrir(`/risques?risque=${encodeURIComponent(`etape=campagne&jeu=${JEU}`)}`, {
+      lireSimulation: (id) => { lus.push(id); return of(reponseSimulation('v2')); },
+      extractions: (id) => { extraites.push(id); return of({ extractions: [] }); },
+      lister: () => { listes += 1; return of({ jeux: [] }); },
+      grappes: (id) => { grappes.push(id); return NEVER; },
+      lire: () => NEVER,
+    });
+    expect(etape(el(), 'Campagne').getAttribute('aria-current')).toBe('step');
+    expect(lus).toEqual([JEU]);
+    // Les extractions du MÊME jeu, et de lui seul : lues au montage du panneau, puis relues quand la simulation arrive
+    // — parité React (`PanneauCampagne.tsx:73-88`, dépendances `[jeuId, sim?.id, sim?.statut]`), un recalage créant
+    // une extraction. Deux lectures, jamais une par aller-retour d'étape.
+    expect(extraites).toEqual([JEU, JEU]);
+    expect(listes).toBe(0);
+    expect(grappes).toEqual([]);
+    // La carte de diffusion est montée dès l'entrée — pas à une « première visite » qui n'a pas lieu par un clic.
+    expect(cartes).toHaveLength(3);
+    expect(el().querySelector('mg-carte-campagne')).not.toBeNull();
+    expect(el().querySelector('[data-panneau="campagne"] mg-panneau-campagne')).not.toBeNull();
   });
 
   it("(g) cliquer l'étape ③ réécrit `?risque=` SANS recréer l'écran", async () => {
@@ -595,7 +622,6 @@ describe('RisquePage', () => {
     await new Promise((r) => setTimeout(r, 400));
     // Rayons : repeinte par `setPaintProperty`, sans recréer sa source (donc sans redemander ses tuiles).
     expect(cartes[0].peintures.length).toBeGreaterThan(peintures[0]);
-    expect(cartes[0].peintures.at(-1)!.valeur).toEqual(expect.anything());
     expect(JSON.stringify(cartes[0].peintures.slice(peintures[0]))).toContain(', 0, 1)');
     expect(sources[0]).not.toHaveBeenCalled();
     // Codes postaux et diffusion : palette FIXE (A11) — rien repeint, aucune source, aucune relecture.

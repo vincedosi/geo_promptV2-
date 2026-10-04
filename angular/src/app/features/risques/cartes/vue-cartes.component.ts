@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, input, linkedSignal, model, output, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, input, linkedSignal, model, signal, untracked } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
 import type { Bbox } from '../../../carte/bbox';
 import { lierCameras } from '../../../carte/lier-cameras';
@@ -168,8 +168,6 @@ export class VueCartesComponent {
   readonly gravites = input<readonly string[]>([]);
   readonly fusionner = input(true);
   readonly apercu = input<ApercuRayon | null>(null);
-  /** La carte des rayons, à son premier `load` — pour la liaison des caméras (T15). */
-  readonly carteRayons = output<maplibregl.Map>();
 
   /** Rayons ou codes postaux, hors étape ④ dédoublée. État LOCAL, comme React : il ne change aucun chiffre. */
   protected readonly vue = signal<'rayons' | 'cp'>('rayons');
@@ -245,7 +243,6 @@ export class VueCartesComponent {
 
   protected surCarteRayons(carte: maplibregl.Map): void {
     this.carteRayonsInstance.set(carte);
-    this.carteRayons.emit(carte);
   }
 
   /** Un clic sur un bassin recadre les DEUX cartes (600 ms, marge 40 — `VueCartesZones.tsx:131`). */

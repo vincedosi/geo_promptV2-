@@ -32,6 +32,14 @@ function fauxSupabase() {
 
 const attendre = () => new Promise((r) => setTimeout(r, 0));
 
+/**
+ * Délai explicite des tests de ce fichier qui DÉMARRENT VRAIMENT l'application (routeur, garde de démarrage, racine
+ * d'ombre, coquille) : seuls, ils prennent quelques centaines de millisecondes ; dans la suite complète, exécutée en
+ * parallèle sur tous les cœurs, l'un d'eux a été mesuré à 6 170 ms — au-delà des 5 000 ms par défaut de Vitest,
+ * sans le moindre défaut de code. Le délai couvre la charge ; les attentes, elles, portent sur des conditions.
+ */
+const DELAI_DEMARRAGE_REEL = 15_000;
+
 /** Base où l'application est servie — distincte du document, comme dans le shell. */
 const BASE = 'https://distante.exemple/remotes/magelian/chunk-ABC.js';
 const URL_CONFIG = 'https://distante.exemple/remotes/magelian/config.local.json';
@@ -91,7 +99,7 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
     const api = http.expectOne('/api/risques/sites/compter');
     expect(api.request.headers.get('Authorization')).toBe('Bearer jeton-demarrage');
     api.flush({ retenus: 1, total: 1, par_nature: {} });
-  });
+  }, DELAI_DEMARRAGE_REEL);
 
   it('une ancienne adresse (`/catalogue`) retombe dans l\'application via `**` → `app`', async () => {
     TestBed.configureTestingModule({
@@ -107,7 +115,7 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
     await attendre();
     expect(TestBed.inject(Router).url).toBe('/app');
     http.match(() => true).forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
-  });
+  }, DELAI_DEMARRAGE_REEL);
 
   describe('fin de session en lancement autonome — comportement inchangé (redirections vers /connexion)', () => {
     /** Un faux client Supabase qui, comme le vrai, émet SIGNED_OUT à chaque signOut. */
@@ -161,23 +169,31 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       }
     }
 
+    /**
+     * Attend une CONDITION (l'URL attendue) plutôt qu'un nombre fixe de tours : sous charge, la redirection qui suit
+     * un événement de GoTrue peut prendre plus de trois tours de boucle. Borné, pour échouer lisiblement.
+     */
+    async function attendreUrl(router: Router, harness: RouterTestingHarness, attendue: string) {
+      for (let i = 0; i < 50 && router.url !== attendue; i++) await stabiliser(harness);
+    }
+
     it('sans session : une page protégée renvoie vers /connexion avec la page demandée', async () => {
       const { router, http } = await demarrer('/app/catalogue', false);
       expect(router.url).toBe('/connexion?redirection=%2Fapp%2Fcatalogue');
       http.expectNone('/api/risques/sites/compter');
-    });
+    }, DELAI_DEMARRAGE_REEL);
 
     it("sans session : l'écran plein écran essai-carte renvoie lui aussi vers /connexion, sans aucun appel d'API", async () => {
       const { router, http } = await demarrer('/app/essai-carte', false);
       expect(router.url).toBe('/connexion?redirection=%2Fapp%2Fessai-carte');
       http.expectNone((r) => r.url.startsWith('/api/'));
-    });
+    }, DELAI_DEMARRAGE_REEL);
 
     it("sans session : l'écran plein écran risques renvoie vers /connexion avec son état d'URL, sans aucun appel d'API", async () => {
       const { router, http } = await demarrer('/app/risques?risque=etape%3Drayon', false);
       expect(router.url).toBe('/connexion?redirection=%2Fapp%2Frisques%3Frisque%3Detape%253Drayon');
       http.expectNone((r) => r.url.startsWith('/api/'));
-    });
+    }, DELAI_DEMARRAGE_REEL);
 
     it('« Deconnexion » (menu utilisateur) mène à /connexion, sans paramètre de reprise', async () => {
       const { router, http, harness, client } = await demarrer('/app', true);
@@ -191,7 +207,7 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       await stabiliser(harness);
       expect(client.signOut).toHaveBeenCalled();
       expect(router.url).toBe('/connexion');
-    });
+    }, DELAI_DEMARRAGE_REEL);
 
     it("les deux entrées du module risque (lien de développement, tuile de l'accueil) mènent à /app/risques", async () => {
       const { http, harness } = await demarrer('/app', true);
@@ -203,23 +219,23 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       expect(dev?.getAttribute('href')).toBe('/app/risques');
       const tuile = [...racine.querySelectorAll('mg-tuile-chiffre')].find((t) => t.textContent?.includes('Sites à risque'))!;
       expect(tuile.closest('a')?.getAttribute('href')).toBe('/app/risques');
-    });
+    }, DELAI_DEMARRAGE_REEL);
 
     it("un 401 de l'API renvoie vers /connexion avec la page courante", async () => {
       const { router, http, harness, client } = await demarrer('/app', true);
       http.expectOne('/api/risques/sites/compter').flush('non autorisé', { status: 401, statusText: 'Unauthorized' });
-      await stabiliser(harness);
+      await attendreUrl(router, harness, '/connexion?redirection=%2Fapp');
       expect(client.signOut).toHaveBeenCalledWith({ scope: 'local' });
       expect(router.url).toBe('/connexion?redirection=%2Fapp');
-    });
+    }, DELAI_DEMARRAGE_REEL);
 
     it('un SIGNED_OUT de GoTrue en cours de page renvoie vers /connexion avec la page courante', async () => {
       const { router, http, harness, client } = await demarrer('/app/catalogue', true);
       http.match(() => true).forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
       client.emettre('SIGNED_OUT', null);
-      await stabiliser(harness);
+      await attendreUrl(router, harness, '/connexion?redirection=%2Fapp%2Fcatalogue');
       expect(router.url).toBe('/connexion?redirection=%2Fapp%2Fcatalogue');
-    });
+    }, DELAI_DEMARRAGE_REEL);
 
     it("démarrage en échec : la racine affiche l'erreur et ne redirige pas", async () => {
       TestBed.configureTestingModule({
@@ -235,6 +251,6 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       await stabiliser(harness);
       expect(TestBed.inject(Router).url).toBe('/app');
       expect(ombre(harness.fixture.nativeElement as HTMLElement).querySelector('[role="alert"]')).not.toBeNull();
-    });
+    }, DELAI_DEMARRAGE_REEL);
   });
 });
