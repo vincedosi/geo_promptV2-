@@ -9,6 +9,7 @@ import { type ChargementCp, JeuxZonesApi } from '../data/jeux-zones.api';
 import { ZonesRisqueApi } from '../data/zones-risque.api';
 import { AtelierJeuxService } from '../etat/atelier-jeux.service';
 import { codeZonesRisque } from '../logique/code-profil';
+import { ThemeService } from '../../../core/theme/theme.service';
 import {
   CarteCodesPostauxComponent, type ChiffresCp, ID_ECARTES_CP, ID_FOND_CP, ID_RAYONS_CP, ID_SURBRILLANCE_CP,
   SOURCE_CP, SOURCE_RAYONS_CP, contenuBulleCp,
@@ -218,6 +219,20 @@ describe('CarteCodesPostauxComponent (T15)', () => {
     fixture.componentRef.setInput('cleRayonsPrete', PROFIL);
     await fixture.whenStable();
     expect((carte.sources.get(SOURCE_RAYONS_CP)!.spec as { tiles: string[] }).tiles[0]).toContain(`profil=${PROFIL}`);
+  });
+
+  it('bascule de THÈME (vrai ThemeService) : aucun `setPaintProperty`, aucune source, aucune relecture de `/cp-geo`', async () => {
+    const { carte, demandes, fixture, couleurs } = await rendre();
+    demandes[0].rep.next(reponse());
+    await fixture.whenStable();
+    const sources = carte.sources.size;
+    TestBed.inject(ThemeService).basculer();
+    await fixture.whenStable();
+    await attendreAntiRebond();
+    expect(carte.peintures).toEqual([]);
+    expect(carte.sources.size).toBe(sources);
+    expect(demandes).toHaveLength(1);
+    expect(couleurs.paletteDuTheme).toHaveBeenCalledTimes(1);
   });
 
   it('la bulle suit la souris (aucune requête) et s’efface hors d’un code postal', async () => {

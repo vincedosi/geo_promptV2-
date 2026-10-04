@@ -5,7 +5,8 @@ import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { FABRIQUE_CARTE } from '../../carte/fabrique-carte';
 import { CarteFactice } from '../../carte/testing/carte-factice';
-import { signal } from '@angular/core';
+import { computed, signal } from '@angular/core';
+import { ThemeService } from '../../core/theme/theme.service';
 import { NEVER, of, throwError } from 'rxjs';
 import { CouleursService } from '../../core/theme/couleurs.service';
 import { FABRIQUE_GRAPHIQUE } from '../../graphiques/fabrique-graphique';
@@ -39,7 +40,8 @@ const attendre = () => (vi.isFakeTimers() ? vi.advanceTimersByTimeAsync(20) : ne
 async function ouvrir(url = '/risques', reponses: {
   compter?: () => unknown; bandes?: (q: unknown) => unknown; courbe?: () => unknown; exportProfil?: (p: URLSearchParams) => unknown;
   lister?: () => unknown; lire?: (id: string) => unknown; lireSimulation?: (id: string) => unknown;
-  extractions?: (id: string) => unknown;
+  extractions?: (id: string) => unknown; cpGeo?: (id: string, bbox: string) => unknown;
+  carteSimulation?: (id: string, bbox: string) => unknown;
 } = {}) {
   (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
   const cartes: CarteFactice[] = [];
@@ -63,8 +65,15 @@ async function ouvrir(url = '/risques', reponses: {
         preparer: (profil: string) => { preparations.push(profil); return of({ deja_construit: true }); },
         urlTuilesZones: (profil: string) => `http://api/tiles/zones-risque/{z}/{x}/{y}?profil=${profil}`,
       } },
+      // `palette` SUIT le vrai ThemeService (comme le vrai CouleursService) ; `paletteDuTheme` est fixe par construction.
       { provide: CouleursService, useValue: {
-        palette: (j: Record<string, string>) => signal(Object.fromEntries(Object.keys(j).map((k) => [k, `rgb(${k.length}, 0, 0)`]))),
+        palette: (j: Record<string, string>) => {
+          const theme = TestBed.inject(ThemeService);
+          return computed(() => {
+            const clair = theme.themeApplique() === 'light' ? 1 : 0;
+            return Object.fromEntries(Object.keys(j).map((k) => [k, `rgb(${k.length}, 0, ${clair})`]));
+          });
+        },
         paletteDuTheme: (j: Record<string, string>) => Object.fromEntries(Object.keys(j).map((k) => [k, `rgb(0, ${k.length}, 0)`])),
       } },
       { provide: SitesRisqueApi, useValue: { compter: reponses.compter ?? (() => NEVER) } },
@@ -72,12 +81,12 @@ async function ouvrir(url = '/risques', reponses: {
       { provide: JeuxZonesApi, useValue: {
         lister: reponses.lister ?? (() => NEVER), lire: reponses.lire ?? (() => NEVER),
         construire: () => NEVER, regler: () => NEVER, supprimer: () => NEVER, exportJeu: () => NEVER,
-        extractions: reponses.extractions ?? (() => NEVER), cpGeo: () => NEVER, grappes: () => NEVER,
+        extractions: reponses.extractions ?? (() => NEVER), cpGeo: reponses.cpGeo ?? (() => NEVER), grappes: () => NEVER,
       } },
       // La simulation de ⑤ (T16) : rien ne doit la lire avant la première visite de l'étape.
       { provide: SimulationApi, useValue: {
         lire: reponses.lireSimulation ?? (() => NEVER), simuler: () => NEVER, recaler: () => NEVER, purger: () => NEVER,
-        carte: () => NEVER, exportSimulation: () => NEVER,
+        carte: reponses.carteSimulation ?? (() => NEVER), exportSimulation: () => NEVER,
       } },
       { provide: ReferentielApi, useValue: {
         geo: () => of({ regions: [{ code_region: '93', nom_region: 'Provence-Alpes-Côte d’Azur', depts: [{ code_dept: '13', nom_dept: 'Bouches-du-Rhône' }] }] }),
@@ -544,6 +553,70 @@ describe('RisquePage', () => {
     await stabiliser(harness);
     expect(lignes()).toEqual(['13', '06', '83', '84', '04', '05']);
     expect(requetes).toHaveLength(2);
+  });
+
+  it('T17 : trois cartes (la 3e à la première visite de ⑤), jamais détruites ; bascule de THÈME : seule la carte des rayons repeint', async () => {
+    const JEU = '0b7ece33-4903-4a0b-a57a-f6c54e78a729';
+    const cpGeo: string[] = [];
+    const carteSim: string[] = [];
+    const { harness, el, cartes } = await ouvrir(`/risques?risque=${encodeURIComponent(`etape=zones&jeu=${JEU}`)}`, {
+      lire: () => NEVER,
+      lireSimulation: () => of(reponseSimulation('v2')),
+      extractions: () => of({ extractions: [] }),
+      cpGeo: (_id, bbox) => {
+        cpGeo.push(bbox);
+        return of({ type: 'FeatureCollection', features: [], n_total: 0, n_affiches: 0, n_retenus: 0, taux_utile: null });
+      },
+      carteSimulation: (_id, bbox) => { carteSim.push(bbox); return of({ type: 'FeatureCollection', features: [] }); },
+    });
+    expect(cartes).toHaveLength(2);
+    cartes[0].emettre('load');
+    cartes[1].emettre('load');
+    await stabiliser(harness);
+    etape(el(), 'Campagne').click();
+    await stabiliser(harness);
+    expect(cartes).toHaveLength(3);
+    cartes[2].emettre('load');
+    await stabiliser(harness);
+    expect(carteSim).toHaveLength(1);
+    for (const l of ['Rayon', 'Zones']) {
+      etape(el(), l).click();
+      await stabiliser(harness);
+    }
+    expect(cartes).toHaveLength(3);
+    expect(cartes.map((c) => c.retiree)).toEqual([false, false, false]);
+    expect(cpGeo.length).toBeGreaterThan(0);
+
+    // La bascule, avec les trois cartes montées (④ à l'écran : rayons + codes postaux, la diffusion masquée).
+    const sources = cartes.map((c) => vi.spyOn(c, 'addSource'));
+    const peintures = cartes.map((c) => c.peintures.length);
+    const [nCp, nSim] = [cpGeo.length, carteSim.length];
+    TestBed.inject(ThemeService).basculer();
+    await stabiliser(harness);
+    await new Promise((r) => setTimeout(r, 400));
+    // Rayons : repeinte par `setPaintProperty`, sans recréer sa source (donc sans redemander ses tuiles).
+    expect(cartes[0].peintures.length).toBeGreaterThan(peintures[0]);
+    expect(cartes[0].peintures.at(-1)!.valeur).toEqual(expect.anything());
+    expect(JSON.stringify(cartes[0].peintures.slice(peintures[0]))).toContain(', 0, 1)');
+    expect(sources[0]).not.toHaveBeenCalled();
+    // Codes postaux et diffusion : palette FIXE (A11) — rien repeint, aucune source, aucune relecture.
+    expect(cartes[1].peintures).toHaveLength(peintures[1]);
+    expect(cartes[2].peintures).toHaveLength(peintures[2]);
+    expect(sources[1]).not.toHaveBeenCalled();
+    expect(sources[2]).not.toHaveBeenCalled();
+    expect([cpGeo.length, carteSim.length]).toEqual([nCp, nSim]);
+
+    // Même chose à ⑤, la carte de diffusion à l'écran.
+    etape(el(), 'Campagne').click();
+    await stabiliser(harness);
+    const apres = cartes[2].peintures.length;
+    const nSim2 = carteSim.length;
+    TestBed.inject(ThemeService).basculer();
+    await stabiliser(harness);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(cartes[2].peintures).toHaveLength(apres);
+    expect(sources[2]).not.toHaveBeenCalled();
+    expect(carteSim).toHaveLength(nSim2);
   });
 
   it('T13 : ④ lit la bibliothèque à la PREMIÈRE visite seulement, et ouvre le jeu nommé par l’URL', async () => {
