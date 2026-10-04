@@ -53,6 +53,13 @@
  * | PackageCheck               | colis-coche          |
  * | RefreshCw                  | rafraichir           |
  * | Play                       | jouer                |
+ * | Sparkles                   | etincelles           |
+ * | Megaphone                  | porte-voix           |
+ * | Funnel                     | entonnoir            |
+ * | FlaskConical               | fiole                |
+ * | Shapes                     | formes               |
+ * | Settings                   | reglages             |
+ * | CircleHelp = CircleQuestionMark | aide            | Feather (MIT, « help-circle »)
  *
  * Pour ajouter une icône : lire `__iconNode` de `<lucide>.js`, ajouter une entrée (nom français en
  * kebab-case ; `feather: true` si le nom figure dans la liste Feather de la LICENSE de lucide-react),
@@ -105,7 +112,8 @@
  * SOFTWARE.
  *
  * Hors reproduction : sous-ensemble Feather employé ici (`feather: true`) — alert-circle,
- * arrow-up-right, clock, database, download, monitor, moon, radio, target, trash-2, upload, x.
+ * arrow-up-right, clock, database, download, help-circle, monitor, moon, radio, target, trash-2,
+ * upload, x.
  */
 
 /** Un élément SVG d'une icône : sa balise et ses attributs géométriques. */
@@ -474,6 +482,60 @@ export const ICONES = {
     lucide: 'play',
     el: [
       { t: 'path', d: 'M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z' },
+    ],
+  },
+  'etincelles': {
+    lucide: 'sparkles',
+    el: [
+      { t: 'path', d: 'M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z' },
+      { t: 'path', d: 'M20 2v4' },
+      { t: 'path', d: 'M22 4h-4' },
+      { t: 'circle', cx: '4', cy: '20', r: '2' },
+    ],
+  },
+  'porte-voix': {
+    lucide: 'megaphone',
+    el: [
+      { t: 'path', d: 'M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z' },
+      { t: 'path', d: 'M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14' },
+      { t: 'path', d: 'M8 6v8' },
+    ],
+  },
+  'entonnoir': {
+    lucide: 'funnel',
+    el: [
+      { t: 'path', d: 'M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z' },
+    ],
+  },
+  'fiole': {
+    lucide: 'flask-conical',
+    el: [
+      { t: 'path', d: 'M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2' },
+      { t: 'path', d: 'M6.453 15h11.094' },
+      { t: 'path', d: 'M8.5 2h7' },
+    ],
+  },
+  'formes': {
+    lucide: 'shapes',
+    el: [
+      { t: 'path', d: 'M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z' },
+      { t: 'rect', x: '3', y: '14', width: '7', height: '7', rx: '1' },
+      { t: 'circle', cx: '17.5', cy: '17.5', r: '3.5' },
+    ],
+  },
+  'reglages': {
+    lucide: 'settings',
+    el: [
+      { t: 'path', d: 'M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915' },
+      { t: 'circle', cx: '12', cy: '12', r: '3' },
+    ],
+  },
+  'aide': {
+    lucide: 'circle-question-mark', feather: true,
+    el: [
+      { t: 'circle', cx: '12', cy: '12', r: '10' },
+      { t: 'path', d: 'M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3' },
+      { t: 'path', d: 'M12 17h.01' },
     ],
   },
 } as const satisfies Record<string, DefinitionIcone>;
