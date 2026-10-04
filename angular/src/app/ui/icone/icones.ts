@@ -50,6 +50,8 @@
  * | Copy                       | copier               |
  * | Trash2                     | corbeille            | Feather (MIT)
  * | FolderOpen                 | dossier-ouvert       |
+ * | PackageCheck               | colis-coche          |
+ * | RefreshCw                  | rafraichir           |
  *
  * Pour ajouter une icône : lire `__iconNode` de `<lucide>.js`, ajouter une entrée (nom français en
  * kebab-case ; `feather: true` si le nom figure dans la liste Feather de la LICENSE de lucide-react),
@@ -446,6 +448,25 @@ export const ICONES = {
     lucide: 'folder-open',
     el: [
       { t: 'path', d: 'm6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2' },
+    ],
+  },
+  'colis-coche': {
+    lucide: 'package-check',
+    el: [
+      { t: 'path', d: 'M12 22V12' },
+      { t: 'path', d: 'm16 17 2 2 4-4' },
+      { t: 'path', d: 'M21 11.127V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.729l7 4a2 2 0 0 0 2 .001l1.32-.753' },
+      { t: 'path', d: 'M3.29 7 12 12l8.71-5' },
+      { t: 'path', d: 'm7.5 4.27 8.997 5.148' },
+    ],
+  },
+  'rafraichir': {
+    lucide: 'refresh-cw',
+    el: [
+      { t: 'path', d: 'M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8' },
+      { t: 'path', d: 'M21 3v5h-5' },
+      { t: 'path', d: 'M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16' },
+      { t: 'path', d: 'M8 16H3v5' },
     ],
   },
 } as const satisfies Record<string, DefinitionIcone>;

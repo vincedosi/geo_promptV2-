@@ -1,6 +1,6 @@
 import { DOCUMENT } from '@angular/common';
 import { HttpErrorResponse, type HttpResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, DestroyRef, booleanAttribute, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, booleanAttribute, computed, inject, input, signal } from '@angular/core';
 import { type Observable, type Subscription, finalize } from 'rxjs';
 import { ENREGISTRER_FICHIER } from '../../../core/http/telecharger';
 import { IconeComponent } from '../../../ui/icone/icone.component';
@@ -55,24 +55,29 @@ export async function messageExport(erreur: unknown): Promise<string> {
   template: `
     <button type="button" (click)="exporter()" [disabled]="enCours() || desactive()" [attr.title]="titre()"
             [attr.aria-busy]="enCours()"
-            class="inline-flex items-center border-fin bg-transparent text-[12px] whitespace-nowrap"
-            [class.gap-[6px]]="variante() !== 'action'" [class.rounded-lg]="variante() !== 'action'"
-            [class.px-3]="variante() !== 'action'"
+            class="inline-flex items-center bg-transparent text-[12px] whitespace-nowrap"
+            [class.border-fin]="variante() !== 'lien'" [class.border-0]="variante() === 'lien'"
+            [class.p-0]="variante() === 'lien'" [class.gap-[5px]]="variante() === 'lien'"
+            [class.font-sans]="variante() === 'lien'"
+            [class.text-teal]="variante() === 'teal' || variante() === 'lien'"
+            [class.gap-[6px]]="variante() === 'teal' || variante() === 'neutre'"
+            [class.rounded-lg]="variante() === 'teal' || variante() === 'neutre'"
+            [class.px-3]="variante() === 'teal' || variante() === 'neutre'"
             [class.py-[5px]]="variante() === 'teal'" [class.py-[6px]]="variante() === 'neutre'"
             [class.gap-[7px]]="variante() === 'action'" [class.rounded-[6px]]="variante() === 'action'"
             [class.px-4]="variante() === 'action'" [class.py-2]="variante() === 'action'"
-            [class.border-teal]="variante() === 'teal'" [class.text-teal]="variante() === 'teal'"
+            [class.border-teal]="variante() === 'teal'"
             [class.font-medium]="variante() === 'teal'"
-            [class.border-default]="variante() !== 'teal'"
-            [class.text-secondary]="variante() !== 'teal' && !desactive()"
-            [class.text-tertiary]="variante() !== 'teal' && desactive()"
+            [class.border-default]="variante() === 'neutre' || variante() === 'action'"
+            [class.text-secondary]="(variante() === 'neutre' || variante() === 'action') && !desactive()"
+            [class.text-tertiary]="(variante() === 'neutre' || variante() === 'action') && desactive()"
             [class.cursor-pointer]="!enCours() && !desactive()"
-            [class.cursor-wait]="enCours() && variante() === 'teal'"
-            [class.cursor-not-allowed]="desactive() || (enCours() && variante() !== 'teal')">
+            [class.cursor-wait]="enCours() && (variante() === 'teal' || variante() === 'lien')"
+            [class.cursor-not-allowed]="desactive() || (enCours() && variante() !== 'teal' && variante() !== 'lien')">
       @if (enCours()) {
-        <mg-icone nom="chargement" [taille]="13" class="animate-spin" />
+        <mg-icone nom="chargement" [taille]="tailleIcone()" class="animate-spin" />
       } @else {
-        <mg-icone nom="telecharger" [taille]="13" />
+        <mg-icone nom="telecharger" [taille]="tailleIcone()" />
       }
       {{ enCours() ? (libelleEnCours() ?? libelle()) : libelle() }}
     </button>
@@ -92,9 +97,11 @@ export class BoutonExportComponent {
   readonly titre = input<string>();
   /**
    * `teal` : bouton d'action du rayon ; `neutre` : bouton de l'en-tête (profil) ; `action` : bouton neutre d'une
-   * rangée d'actions de panneau (`styleBoutonNeutre` d'`OngletZones.tsx:820` — 8 × 16 px, rayon 6, écart 7).
+   * rangée d'actions de panneau (`styleBoutonNeutre` d'`OngletZones.tsx:820` — 8 × 16 px, rayon 6, écart 7) ; `lien` :
+   * lien teal sans cadre d'une ligne de tableau (`styleLien` de `PanneauExtractions.tsx` — icône 12, écart 5).
    */
-  readonly variante = input<'teal' | 'neutre' | 'action'>('teal');
+  readonly variante = input<'teal' | 'neutre' | 'action' | 'lien'>('teal');
+  protected readonly tailleIcone = computed(() => (this.variante() === 'lien' ? 12 : 13));
   /** Désactivé avant toute requête (profil sans anneau : le classeur serait vide). */
   readonly desactive = input(false, { transform: booleanAttribute });
 

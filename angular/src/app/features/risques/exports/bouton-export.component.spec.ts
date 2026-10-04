@@ -90,6 +90,20 @@ describe('BoutonExportComponent', () => {
     expect(charger).not.toHaveBeenCalled();
   });
 
+  it('variante `lien` : teal, sans cadre ni marge, icône 12 — le lien « Excel » d’une extraction', async () => {
+    const { bouton } = await rendre(() => of(reponse()), { variante: 'lien', libelle: 'Excel', libelleEnCours: undefined });
+    const classes = bouton().classList;
+    expect(classes.contains('text-teal')).toBe(true);
+    expect(classes.contains('border-fin')).toBe(false);
+    expect(classes.contains('border-0')).toBe(true);
+    expect(classes.contains('p-0')).toBe(true);
+    expect(classes.contains('gap-[5px]')).toBe(true);
+    // Inter et non la police de la cellule (mono) : `styleLien` pose `fInter`.
+    expect(classes.contains('font-sans')).toBe(true);
+    expect(classes.contains('text-secondary')).toBe(false);
+    expect(bouton().querySelector('svg')?.getAttribute('width')).toBe('12');
+  });
+
   it('messageExport : corps illisible → message générique ; erreur réseau → « n’a pas répondu »', async () => {
     expect(await messageExport(new HttpErrorResponse({ status: 500, error: new Blob(['<html>']) }))).toBe(MESSAGE_EXPORT_IMPOSSIBLE);
     expect(await messageExport(new HttpErrorResponse({ status: 400, error: { error: 'Paramètres invalides.' } }))).toBe('Paramètres invalides.');

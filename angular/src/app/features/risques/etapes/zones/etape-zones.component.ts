@@ -14,6 +14,7 @@ import { ActionsJeuComponent } from './actions-jeu.component';
 import { BibliothequeComponent } from './bibliotheque.component';
 import { DilutionComponent } from './dilution.component';
 import { type ModePlan, ModePlanComponent } from './mode-plan.component';
+import { PanneauExtractionsComponent } from './panneau-extractions.component';
 import { TableauClassesComponent } from './tableau-classes.component';
 
 /** Les textes de l'atelier, MOT POUR MOT d'`OngletZones.tsx`. */
@@ -50,14 +51,14 @@ const ALERTE = 'm-0 rounded-[6px] border-fin border-danger/20 bg-danger/10 px-3 
  *
  * ── HORS PÉRIMÈTRE DE CETTE TÂCHE ────────────────────────────────────────
  *
- * Les extractions (section « Extractions pour le custom bidding ») arrivent en T14, la double carte en T15. Le
+ * La double carte arrive en T15 ; les extractions (T14) vivent dans `mg-panneau-extractions`. Le
  * rattachement d'un jeu à une campagne n'existe pas dans l'écran React : il n'est pas porté.
  */
 @Component({
   selector: 'mg-etape-zones',
   imports: [
     ActionsJeuComponent, BibliothequeComponent, DilutionComponent, IconeComponent, KpiComponent, ModePlanComponent,
-    TableauClassesComponent,
+    PanneauExtractionsComponent, TableauClassesComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col gap-[18px]' },
@@ -119,6 +120,18 @@ const ALERTE = 'm-0 rounded-[6px] border-fin border-danger/20 bg-danger/10 px-3 
       </div>
     </section>
 
+    <!-- Une SECTION à part et non une ligne de plus dans les actions : extraire ne règle pas le jeu, ça en fige un
+         état (OngletZones.tsx:360-370). La liste se relit quand le jeu est reconstruit (« construit_le »). -->
+    <section>
+      <div class="mb-3 flex items-center gap-2 border-t border-subtle bg-elevated px-[14px] py-[10px]">
+        <span aria-hidden="true" class="size-1.5 rounded-full bg-teal"></span>
+        <h3 class="m-0 text-[12px] font-medium text-primary">Extractions pour le custom bidding</h3>
+      </div>
+      <div class="px-[2px]">
+        <mg-panneau-extractions [jeuId]="jeuExtractible()" [cleFraicheur]="jeu()?.construit_le ?? ''" />
+      </div>
+    </section>
+
     <section>
       <div class="mb-3 flex items-center gap-2 border-t border-subtle bg-elevated px-[14px] py-[10px]">
         <span aria-hidden="true" class="size-1.5 rounded-full bg-teal"></span>
@@ -147,6 +160,11 @@ export class EtapeZonesComponent {
   protected readonly enCoursId = signal<string | null>(null);
 
   protected readonly jeu = computed(() => this.atelier.detail()?.jeu ?? null);
+  /** L'identifiant d'un jeu ENREGISTRÉ ; `null` pour un brouillon ou sans jeu — on n'extrait pas un sans-nom. */
+  protected readonly jeuExtractible = computed(() => {
+    const j = this.jeu();
+    return j && !j.brouillon ? j.id : null;
+  });
   protected readonly classes = computed(() => this.atelier.detail()?.classes ?? []);
   /** Les poids du jeu ; un jeu sans poids enregistré vaut « 1 partout » (`OngletZones.tsx:326`). */
   protected readonly poidsJeu = computed<Record<string, number>>(() => this.jeu()?.poids ?? {});

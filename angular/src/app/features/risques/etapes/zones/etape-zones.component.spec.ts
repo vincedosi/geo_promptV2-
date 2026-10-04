@@ -39,6 +39,7 @@ async function rendre(etatInitial: Partial<EtatRisque> = {}, chemin: { niveau: s
       { provide: JeuxZonesApi, useValue: {
         lister: appeler('lister'), lire: appeler('lire'), construire: appeler('construire'),
         regler: appeler('regler'), supprimer: appeler('supprimer'), exportJeu: appeler('exportJeu'),
+        extractions: appeler('extractions'),
       } },
       { provide: EtatRisqueService, useValue: { etat, maj: (p: Partial<EtatRisque>) => etat.update((e) => ({ ...e, ...p })) } },
       { provide: DonneesRisqueService, useValue: {
@@ -148,5 +149,23 @@ describe('EtapeZonesComponent', () => {
     await vider();
     expect(etat().jeu).toBeNull();
     expect(el.querySelector('[data-role="vide"]')).not.toBeNull();
+  });
+
+  it('extractions d’un jeu ENREGISTRÉ : la section les lit, par son identifiant', async () => {
+    const { el, appels, dernier, repondre } = await rendre({ etape: 'zones', jeu: 'enregistre' });
+    await repondre(dernier('lire'), { ...DETAIL([], false), jeu: { ...DETAIL([], false).jeu, id: 'enregistre' } });
+    expect(appels.filter((a) => a.nom === 'extractions').map((a) => a.args)).toEqual([['enregistre']]);
+    expect(el.textContent).toContain('Extractions pour le custom bidding');
+    expect(el.querySelector('mg-panneau-extractions [data-role="brouillon"]')).toBeNull();
+  });
+
+  it('extractions d’un BROUILLON : « enregistrez d’abord », et aucun appel', async () => {
+    const { el, appels, dernier, repondre } = await rendre();
+    (el.querySelector('[data-role="construire"]') as HTMLButtonElement).click();
+    await vider();
+    await repondre(dernier('construire'), { id: 'brouillon-1' });
+    await repondre(dernier('lire'), DETAIL([], true));
+    expect(appels.filter((a) => a.nom === 'extractions')).toHaveLength(0);
+    expect(el.querySelector('mg-panneau-extractions [data-role="brouillon"]')).not.toBeNull();
   });
 });

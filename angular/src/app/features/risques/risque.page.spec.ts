@@ -68,6 +68,7 @@ async function ouvrir(url = '/risques', reponses: {
       { provide: JeuxZonesApi, useValue: {
         lister: reponses.lister ?? (() => NEVER), lire: reponses.lire ?? (() => NEVER),
         construire: () => NEVER, regler: () => NEVER, supprimer: () => NEVER, exportJeu: () => NEVER,
+        extractions: () => NEVER,
       } },
       { provide: ReferentielApi, useValue: {
         geo: () => of({ regions: [{ code_region: '93', nom_region: 'Provence-Alpes-Côte d’Azur', depts: [{ code_dept: '13', nom_dept: 'Bouches-du-Rhône' }] }] }),
