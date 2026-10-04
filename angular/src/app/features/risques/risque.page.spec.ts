@@ -10,6 +10,7 @@ import { NEVER, of, throwError } from 'rxjs';
 import { CouleursService } from '../../core/theme/couleurs.service';
 import { FABRIQUE_GRAPHIQUE } from '../../graphiques/fabrique-graphique';
 import { COURBE_RAYON_REELLE } from './testing/courbe-rayon.fixture';
+import { BANDES_PACA_REELLES, BANDES_REGIONS_REELLES } from './testing/couverture.fixture';
 import { ProfilRisqueApi } from './data/profil-risque.api';
 import { ReferentielApi } from './data/referentiel.api';
 import { SitesRisqueApi } from './data/sites-risque.api';
@@ -432,5 +433,48 @@ describe('RisquePage', () => {
     expect(encadre.textContent?.trim()).toBe(message);
     expect(encadre.querySelector('p')?.classList).toContain('text-danger');
     expect(encadre.textContent).not.toContain('construire_carreau_risque');
+  });
+
+  it('T11 : ③ — descendre dans une région liste ses départements ; ni l’URL ni le bandeau KPI ne bougent', async () => {
+    vi.useFakeTimers();
+    const requetes: { maille: string; region: string | null }[] = [];
+    const { harness, router, el } = await ouvrir('/risques?risque=etape%3Dcouverture', {
+      bandes: (q) => {
+        const r = q as { maille: string; region: string | null };
+        requetes.push({ maille: r.maille, region: r.region });
+        return of(r.region === '93' ? BANDES_PACA_REELLES : BANDES_REGIONS_REELLES);
+      },
+    });
+    await vi.advanceTimersByTimeAsync(DELAI_BANDES_MS);
+    await stabiliser(harness);
+    const n = (s: string | null | undefined) => (s ?? '').replace(/\s/g, ' ').replace(/ +/g, ' ').trim();
+    const bandeau = () => [...el().querySelectorAll('mg-bandeau-kpi-risque [data-role="valeur"]')].map((v) => n(v.textContent));
+    const lignes = () => [...el().querySelectorAll('[data-panneau="couverture"] tbody tr')].map((t) => t.getAttribute('data-unite'));
+    expect(lignes()).toHaveLength(15);
+    const avant = bandeau();
+    expect(avant[0]).toBe('14 103 578');
+    const url = router.url;
+
+    el().querySelector<HTMLButtonElement>('[data-panneau="couverture"] tr[data-unite="93"] [data-role="descendre"]')!.click();
+    await stabiliser(harness);
+    await vi.advanceTimersByTimeAsync(DELAI_BANDES_MS);
+    await stabiliser(harness);
+
+    expect(lignes()).toEqual(['13', '06', '83', '84', '04', '05']);
+    expect(requetes).toEqual([{ maille: 'region', region: null }, { maille: 'departement', region: '93' }]);
+    expect(router.url).toBe(url);
+    expect(bandeau()).toEqual(avant);
+    expect(el().querySelector('[data-panneau="couverture"] [data-role="fil-exploration"]')?.textContent)
+      .toContain('le filtre Territoire de la barre, lui, n’a pas bougé.');
+
+    // Aller-retour ② ↔ ③ : l'exploration — et son calcul — survivent, comme dans React (état de l'écran).
+    etape(el(), 'Rayon').click();
+    await stabiliser(harness);
+    etape(el(), 'Couverture').click();
+    await stabiliser(harness);
+    await vi.advanceTimersByTimeAsync(5 * DELAI_BANDES_MS);
+    await stabiliser(harness);
+    expect(lignes()).toEqual(['13', '06', '83', '84', '04', '05']);
+    expect(requetes).toHaveLength(2);
   });
 });

@@ -62,7 +62,7 @@
          [style.visibility]="panneauReplie() ? 'hidden' : 'visible'">
     <!-- Le panneau porte lui aussi des chiffres (décomptes de ①, bandes de ②…) : ils périment avec le bandeau. -->
     <div class="min-w-0 flex-1 overflow-auto px-5 py-4" [attr.data-panneau]="etat().etape" [mgPerime]="donnees.perime()">
-      <!-- Textes provisoires : les panneaux d'étape arrivent en T11-T12 (③), T13-T14 (④), T16 (⑤). -->
+      <!-- Textes provisoires : les panneaux d'étape arrivent en T13-T14 (④) et T16 (⑤). -->
       @switch (etat().etape) {
         @case ('sites') {
           <mg-panneau-sites [compte]="donnees.compteSites().compte" [chargement]="donnees.compteSites().chargement"
@@ -81,7 +81,10 @@
             }
           </mg-etape-rayon>
         }
-        @case ('couverture') { <p class="m-0 text-[13px] text-tertiary">Couverture par territoire — disponible prochainement.</p> }
+        @case ('couverture') {
+          <!-- L'exploration du tableau est LOCALE : elle ne touche ni au filtre Territoire, ni à l'URL, ni au bandeau. -->
+          <mg-etape-couverture />
+        }
         @case ('zones') { <p class="m-0 text-[13px] text-tertiary">Jeux de zones — disponible prochainement.</p> }
         @case ('campagne') { <p class="m-0 text-[13px] text-tertiary">Campagne simulée — disponible prochainement.</p> }
       }

@@ -11,6 +11,9 @@ import { type CompteSites, SitesRisqueApi } from '../data/sites-risque.api';
 import { type ReponseCourbe, ZonesRisqueApi } from '../data/zones-risque.api';
 import { codeProfil } from '../logique/code-profil';
 import type { Dimension } from '../logique/dimensions';
+import {
+  type SegmentExploration, descendre, mailleExploree, perimetreExplore, peutDescendre, remonter,
+} from '../logique/exploration';
 import { NIVEAUX, type ProfilRayons, anneauxDuNiveau, profilDesGravites } from '../logique/profil';
 import { EtatRisqueService } from './etat-risque.service';
 
@@ -185,10 +188,54 @@ export class DonneesRisqueService {
   private readonly _bandes = signal<ResultatBandes>(BANDES_INITIALES);
   readonly bandes: Signal<ResultatBandes> = this._bandes.asReadonly();
 
-  /** Second calcul, pour l'exploration de ③ (T11) : actif seulement si la requête est non nulle. */
-  readonly requeteExploree: WritableSignal<RequeteBandes | null> = signal(null);
+  // ── L'exploration LOCALE du tableau de ③ (T11, `AnalysePopulationOverlay.tsx:520-672`) ──────────────────
+  /*
+   * ⚠ LOCALE ne veut pas dire « dans le composant de ③ » : React la tient dans le corps de l'écran (l.540), donc elle
+   * SURVIT à un aller-retour ② ↔ ③ — et son second calcul avec. Le panneau d'étape, lui, est sous un `@switch` et se
+   * démonte. Elle vit donc ici, à l'échelle de l'écran, mais HORS de l'URL et HORS de `etat` : le filtre Territoire
+   * dit ce qu'on ÉTUDIE, l'exploration ce qu'on REGARDE dans le tableau. Elle ne touche JAMAIS à `etat.chemin`.
+   */
+  private readonly _exploration = signal<SegmentExploration[]>([]);
+  readonly exploration: Signal<SegmentExploration[]> = this._exploration.asReadonly();
+  /** L'unité SURVOLÉE (tableau ou mini-carte) : suit la souris et s'efface. */
+  private readonly _actif = signal<string | null>(null);
+  readonly actif: Signal<string | null> = this._actif.asReadonly();
+  /** L'unité sur laquelle la mini-carte se cadre (T12) : tient jusqu'au clic suivant. Distincte du survol. */
+  private readonly _selectionCarte = signal<string | null>(null);
+  readonly selectionCarte: Signal<string | null> = this._selectionCarte.asReadonly();
+
+  /** La maille réellement LISTÉE par ③ — explorée ou non (l.549). */
+  readonly mailleTableau = computed<Dimension>(() => mailleExploree(this._exploration(), this.dimension()));
+
+  /**
+   * Second calcul, pour l'exploration de ③ : `null` — donc AUCUN appel — tant qu'on n'explore pas (l.665-672). Sans
+   * ce garde-fou il doublerait chaque calcul, 2,8 s sur le national, pour un résultat identique au premier.
+   * Le périmètre PART du filtre Territoire, lu seulement (`perimetreExplore`) ; la région dans `region`, jamais
+   * dans `parent` (18 codes INSEE communs, sql/171).
+   */
+  readonly requeteExploree = computed<RequeteBandes | null>(() => {
+    const exploration = this._exploration();
+    if (exploration.length === 0) return null;
+    const c = this.chemin();
+    const perimetre = perimetreExplore(exploration, {
+      region: c.find((s) => s.niveau === 'region')?.code ?? null,
+      parent: c.find((s) => s.niveau === 'departement')?.code ?? null,
+    });
+    return {
+      profil: this.codeCalcul(),
+      cible: this.etat().cible,
+      maille: this.mailleTableau(),
+      parent: perimetre.parent,
+      region: perimetre.region,
+      natures: this.natures(),
+    };
+  });
   private readonly _bandesExplorees = signal<ResultatBandes>(BANDES_INACTIVES);
   readonly bandesExplorees: Signal<ResultatBandes> = this._bandesExplorees.asReadonly();
+  /** Ce que le tableau de ③ (et sa mini-carte) affiche : l'exploré pendant une exploration, sinon le global (l.675). */
+  readonly bandesTableau = computed<ResultatBandes>(
+    () => (this._exploration().length > 0 ? this._bandesExplorees() : this._bandes()),
+  );
 
   // ── La courbe (use-courbe-rayon.ts) ─────────────────────────────────────
   private readonly cleCourbe = computed<string | null>(() => (this.cheminEnAttente()
@@ -289,14 +336,68 @@ export class DonneesRisqueService {
     return s.asReadonly();
   }
 
-  /** Le menu « Territoire » : `''` = France entière, sinon UN segment `niveau:code` (l.1070-1078). */
+  /**
+   * Le menu « Territoire » : `''` = France entière, sinon UN segment `niveau:code` (l.1070-1078). Efface le survol
+   * ET la sélection : la maille change, et le code retenu désignerait au niveau suivant un homonyme (voir
+   * `oublierUnite`). Et l'EXPLORATION du tableau de ③ repart du nouveau territoire.
+   *
+   * ⚠ Défaut de React corrigé (T11, mesuré au navigateur) : React garde l'exploration quand le filtre change.
+   * Explorer l'Île-de-France puis choisir les Bouches-du-Rhône y affichait le fil « Bouches-du-Rhone › Île-de-France »
+   * et un tableau vide — « Aucun carreau habité ne se trouve à moins de 10 km d'un site » —, le second calcul
+   * croisant la région 11 avec le département 13. Une exploration est un chemin DANS le territoire du filtre : quand
+   * le territoire change, ce chemin n'a plus de sens.
+   */
   choisirTerritoire(valeur: '' | `${'region' | 'departement'}:${string}`): void {
+    this.oublierUnite();
+    this._exploration.set([]);
     this.etatRisque.maj({ chemin: valeur === '' ? [] : [valeur] });
   }
 
-  /** Le fil d'Ariane : garder les `n` premiers segments RÉSOLUS (0 = France entière). */
+  /** Le fil d'Ariane : garder les `n` premiers segments RÉSOLUS (0 = France entière). Même effacement. */
   remonter(n: number): void {
+    this.oublierUnite();
+    this._exploration.set([]);
     this.etatRisque.maj({ chemin: this.chemin().slice(0, n).map((s) => `${s.niveau}:${s.code}`) });
+  }
+
+  /** ③, flèche droite d'une ligne : descendre dans l'unité. N'écrit RIEN dans l'état ni dans l'URL. */
+  descendreExploration(code: string, nom: string): void {
+    const maille = this.mailleTableau();
+    if (!peutDescendre(maille)) return;
+    this._exploration.update((c) => descendre(c, maille, code, nom));
+    this.oublierUnite();
+  }
+
+  /** ③, flèche gauche : remonter d'un cran. À la racine, le second calcul s'arrête (requête nulle). */
+  remonterExploration(): void {
+    this._exploration.update(remonter);
+    this.oublierUnite();
+  }
+
+  /** ③, le premier lien du fil local : revenir d'un coup au territoire du filtre. */
+  quitterExploration(): void {
+    this._exploration.set([]);
+    this.oublierUnite();
+  }
+
+  /** ③, survol d'une ligne (ou d'une zone de la mini-carte) ; `null` à la sortie. */
+  survoler(code: string | null): void {
+    this._actif.set(code);
+  }
+
+  /** ③, clic sur une ligne : la mini-carte se cadre dessus. Ne descend pas, ne filtre rien. */
+  selectionner(code: string): void {
+    this._selectionCarte.set(code);
+  }
+
+  /**
+   * L'unité survolée ou sélectionnée appartient au niveau qu'on QUITTE : la garder ferait surligner un code qui
+   * n'existe plus — ou pire un HOMONYME, les nomenclatures INSEE de région et de département se recouvrant sur
+   * 18 codes (sql/171 ; `AnalysePopulationOverlay.tsx:1419-1424`).
+   */
+  private oublierUnite(): void {
+    this._actif.set(null);
+    this._selectionCarte.set(null);
   }
 
   /**

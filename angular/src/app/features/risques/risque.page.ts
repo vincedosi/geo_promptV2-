@@ -11,6 +11,7 @@ import { FilEtapesComponent } from '../../ui/fil-etapes/fil-etapes.component';
 import { IconeComponent } from '../../ui/icone/icone.component';
 import { PerimeDirective } from '../../ui/perime/perime.directive';
 import { VueCartesComponent } from './cartes/vue-cartes.component';
+import { EtapeCouvertureComponent } from './etapes/couverture/etape-couverture.component';
 import { EtapeRayonComponent } from './etapes/rayon/etape-rayon.component';
 import { PanneauSitesComponent } from './etapes/sites/panneau-sites.component';
 import { BandeauKpiRisqueComponent } from './commandes/bandeau-kpi-risque.component';
@@ -60,7 +61,7 @@ const LARGEUR_PANNEAU_DEFAUT = 480;
   selector: 'mg-risque',
   imports: [
     BandeauKpiRisqueComponent, BarreCommuneComponent, BarreProgressionComponent, BoutonExportComponent,
-    CourbeRayonComponent, EtapeRayonComponent,
+    CourbeRayonComponent, EtapeCouvertureComponent, EtapeRayonComponent,
     FilArianeComponent, FilEtapesComponent, IconeComponent, PanneauProfilComponent, PanneauSitesComponent,
     PerimeDirective, RegletteRayonsComponent, ResumeProfilComponent, VueCartesComponent,
   ],

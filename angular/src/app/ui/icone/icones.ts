@@ -38,6 +38,8 @@
  * | Map                        | carte                |
  * | ChevronDown                | chevron-bas          | Feather (MIT)
  * | ChevronUp                  | chevron-haut         | Feather (MIT)
+ * | ChevronLeft                | chevron-gauche       | Feather (MIT)
+ * | ChevronRight               | chevron-droite       | Feather (MIT)
  * | Lock                       | cadenas              | Feather (MIT)
  * | Unlock = LockOpen          | cadenas-ouvert       |
  * | Maximize2                  | agrandir             |
@@ -348,6 +350,18 @@ export const ICONES = {
     lucide: 'chevron-up', feather: true,
     el: [
       { t: 'path', d: 'm18 15-6-6-6 6' },
+    ],
+  },
+  'chevron-gauche': {
+    lucide: 'chevron-left', feather: true,
+    el: [
+      { t: 'path', d: 'm15 18-6-6 6-6' },
+    ],
+  },
+  'chevron-droite': {
+    lucide: 'chevron-right', feather: true,
+    el: [
+      { t: 'path', d: 'm9 18 6-6-6-6' },
     ],
   },
   'cadenas': {

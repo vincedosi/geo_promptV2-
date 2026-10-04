@@ -304,14 +304,141 @@ describe('DonneesRisqueService', () => {
     expect([courbe.appels.length, sites.appels.length]).toEqual([2, 1]);
   });
 
-  it('les bandes explorées ne partent que si la requête est non nulle', () => {
-    const { service, bandes } = creer();
-    avancer(DELAI_BANDES_MS);
-    expect(service.bandesExplorees()).toEqual({ etat: 'pret', bandes: null, erreur: null, aConstruire: false });
-    service.requeteExploree.set({ profil: 'p', cible: 'ind', maille: 'departement', parent: null, region: '93', natures: [] });
-    TestBed.tick();
-    avancer(DELAI_BANDES_MS);
-    expect(bandes.appels).toHaveLength(2);
-    expect(bandes.appels[1].args.region).toBe('93');
+  // ── L'exploration locale de ③ (T11) ───────────────────────────────────
+  describe('exploration de ③', () => {
+    const PROFIL = 'h1000.2000.5000_b500.1000_a_L0_P1';
+
+    /** Un écran ouvert, référentiel chargé, bandes globales répondues (total 7). */
+    function ouvert(brut?: string) {
+      const c = creer(brut);
+      c.geo.appels[0].rep.next(REF);
+      TestBed.tick();
+      avancer(DELAI_BANDES_MS);
+      c.bandes.appels[0].rep.next(BANDES(7));
+      return c;
+    }
+
+    it('hors exploration : requête nulle, AUCUN second appel, le tableau lit le calcul global', () => {
+      const { service, bandes } = ouvert();
+      avancer(5 * DELAI_BANDES_MS);
+      expect(service.requeteExploree()).toBeNull();
+      expect(bandes.appels).toHaveLength(1);
+      expect(service.bandesExplorees()).toEqual({ etat: 'pret', bandes: null, erreur: null, aConstruire: false });
+      expect(service.bandesTableau()).toBe(service.bandes());
+      expect(service.mailleTableau()).toBe('region');
+    });
+
+    it('descendre dans 93 : requête { departement, region 93, parent null }, URL et calcul global INCHANGÉS', () => {
+      const { service, bandes } = ouvert();
+      const router = TestBed.inject(Router) as unknown as { navigate: ReturnType<typeof vi.fn> };
+      const navigations = router.navigate.mock.calls.length;
+      const global = service.bandes();
+      service.descendreExploration('93', 'Provence-Alpes-Côte d’Azur');
+      TestBed.tick();
+      expect(service.requeteExploree()).toEqual({
+        profil: PROFIL, cible: 'ind', maille: 'departement', parent: null, region: '93', natures: [],
+      });
+      expect(service.mailleTableau()).toBe('departement');
+      // Le filtre Territoire n'a pas bougé : ni l'état, ni l'URL, ni le bandeau KPI.
+      expect(router.navigate.mock.calls.length).toBe(navigations);
+      expect(service.chemin()).toEqual([]);
+      expect(service.dimension()).toBe('region');
+      avancer(DELAI_BANDES_MS);
+      expect(bandes.appels).toHaveLength(2);
+      expect(bandes.appels[1].args).toEqual(service.requeteExploree());
+      bandes.appels[1].rep.next(BANDES(3));
+      expect(service.bandes()).toBe(global);
+      expect(service.bandes().bandes?.total).toBe(7);
+      expect(service.bandesTableau().bandes?.total).toBe(3);
+    });
+
+    it('descendre deux fois : commune du département, la région n’est plus envoyée', () => {
+      const { service } = ouvert();
+      service.descendreExploration('93', 'PACA');
+      service.descendreExploration('13', 'Bouches-du-Rhône');
+      expect(service.requeteExploree()).toMatchObject({ maille: 'commune', parent: '13', region: null });
+      // Dernier niveau : la flèche droite ne fait plus rien.
+      service.descendreExploration('13055', 'Marseille');
+      expect(service.exploration()).toHaveLength(2);
+    });
+
+    it('remonter jusqu’à la racine : requête nulle, ZÉRO appel, le tableau relit le global', () => {
+      const { service, bandes } = ouvert();
+      service.descendreExploration('93', 'PACA');
+      TestBed.tick();
+      avancer(DELAI_BANDES_MS);
+      expect(bandes.appels).toHaveLength(2);
+      service.remonterExploration();
+      TestBed.tick();
+      avancer(5 * DELAI_BANDES_MS);
+      expect(service.requeteExploree()).toBeNull();
+      expect(bandes.appels).toHaveLength(2);
+      expect(bandes.appels[1].annule).toBe(true);
+      expect(service.bandesTableau()).toBe(service.bandes());
+    });
+
+    it('l’exploration PART du filtre Territoire, sans l’écrire', () => {
+      const { service, bandes } = ouvert('chemin=region%3A93');
+      expect(service.mailleTableau()).toBe('departement');
+      service.descendreExploration('13', 'Bouches-du-Rhône');
+      expect(service.requeteExploree()).toMatchObject({ maille: 'commune', parent: '13', region: null });
+      expect(service.chemin()).toEqual([{ niveau: 'region', code: '93', nom: 'Provence-Alpes-Côte d’Azur' }]);
+      expect(bandes.appels[0].args).toMatchObject({ maille: 'departement', region: '93', parent: null });
+    });
+
+    it('survol et sélection effacés à chaque changement de niveau — exploration OU filtre Territoire', () => {
+      const { service } = ouvert();
+      const poser = () => { service.survoler('93'); service.selectionner('93'); };
+      const effaces = () => [service.actif(), service.selectionCarte()];
+
+      poser();
+      expect(effaces()).toEqual(['93', '93']);
+      service.descendreExploration('93', 'PACA');
+      expect(effaces()).toEqual([null, null]);
+      poser();
+      service.remonterExploration();
+      expect(effaces()).toEqual([null, null]);
+      poser();
+      service.descendreExploration('93', 'PACA');
+      poser();
+      service.quitterExploration();
+      expect(effaces()).toEqual([null, null]);
+      expect(service.exploration()).toEqual([]);
+      // Le menu Territoire et le fil d'Ariane de l'en-tête : `93` y désignerait la Seine-Saint-Denis.
+      poser();
+      service.choisirTerritoire('region:93');
+      expect(effaces()).toEqual([null, null]);
+      poser();
+      service.remonter(0);
+      expect(effaces()).toEqual([null, null]);
+    });
+
+    it('défaut React corrigé : changer de territoire (menu ou fil) REPART du nouveau territoire, sans exploration', () => {
+      const { service, bandes } = ouvert();
+      service.descendreExploration('93', 'PACA');
+      TestBed.tick();
+      avancer(DELAI_BANDES_MS);
+      expect(bandes.appels).toHaveLength(2);
+      service.choisirTerritoire('departement:13');
+      TestBed.tick();
+      expect(service.exploration()).toEqual([]);
+      expect(service.requeteExploree()).toBeNull();
+      expect(service.bandesTableau()).toBe(service.bandes());
+      service.descendreExploration('13', 'Bouches-du-Rhône');
+      expect(service.exploration()).toHaveLength(1);
+      service.remonter(0);
+      expect(service.exploration()).toEqual([]);
+    });
+
+    it('sélectionner une ligne ne descend pas et n’écrit rien', () => {
+      const { service, bandes } = ouvert();
+      service.selectionner('84');
+      TestBed.tick();
+      avancer(5 * DELAI_BANDES_MS);
+      expect(service.exploration()).toEqual([]);
+      expect(service.requeteExploree()).toBeNull();
+      expect(bandes.appels).toHaveLength(1);
+      expect(service.chemin()).toEqual([]);
+    });
   });
 });
