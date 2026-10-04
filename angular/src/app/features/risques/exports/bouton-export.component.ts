@@ -55,16 +55,20 @@ export async function messageExport(erreur: unknown): Promise<string> {
   template: `
     <button type="button" (click)="exporter()" [disabled]="enCours() || desactive()" [attr.title]="titre()"
             [attr.aria-busy]="enCours()"
-            class="inline-flex items-center gap-[6px] rounded-lg border-fin bg-transparent px-3 text-[12px] whitespace-nowrap"
+            class="inline-flex items-center border-fin bg-transparent text-[12px] whitespace-nowrap"
+            [class.gap-[6px]]="variante() !== 'action'" [class.rounded-lg]="variante() !== 'action'"
+            [class.px-3]="variante() !== 'action'"
             [class.py-[5px]]="variante() === 'teal'" [class.py-[6px]]="variante() === 'neutre'"
+            [class.gap-[7px]]="variante() === 'action'" [class.rounded-[6px]]="variante() === 'action'"
+            [class.px-4]="variante() === 'action'" [class.py-2]="variante() === 'action'"
             [class.border-teal]="variante() === 'teal'" [class.text-teal]="variante() === 'teal'"
             [class.font-medium]="variante() === 'teal'"
-            [class.border-default]="variante() === 'neutre'"
-            [class.text-secondary]="variante() === 'neutre' && !desactive()"
-            [class.text-tertiary]="variante() === 'neutre' && desactive()"
+            [class.border-default]="variante() !== 'teal'"
+            [class.text-secondary]="variante() !== 'teal' && !desactive()"
+            [class.text-tertiary]="variante() !== 'teal' && desactive()"
             [class.cursor-pointer]="!enCours() && !desactive()"
             [class.cursor-wait]="enCours() && variante() === 'teal'"
-            [class.cursor-not-allowed]="desactive() || (enCours() && variante() === 'neutre')">
+            [class.cursor-not-allowed]="desactive() || (enCours() && variante() !== 'teal')">
       @if (enCours()) {
         <mg-icone nom="chargement" [taille]="13" class="animate-spin" />
       } @else {
@@ -86,8 +90,11 @@ export class BoutonExportComponent {
   /** Libellé pendant l'export (« Préparation… » pour le rayon) ; défaut, le libellé lui-même (profil). */
   readonly libelleEnCours = input<string>();
   readonly titre = input<string>();
-  /** `teal` : bouton d'action du rayon ; `neutre` : bouton de l'en-tête (profil). */
-  readonly variante = input<'teal' | 'neutre'>('teal');
+  /**
+   * `teal` : bouton d'action du rayon ; `neutre` : bouton de l'en-tête (profil) ; `action` : bouton neutre d'une
+   * rangée d'actions de panneau (`styleBoutonNeutre` d'`OngletZones.tsx:820` — 8 × 16 px, rayon 6, écart 7).
+   */
+  readonly variante = input<'teal' | 'neutre' | 'action'>('teal');
   /** Désactivé avant toute requête (profil sans anneau : le classeur serait vide). */
   readonly desactive = input(false, { transform: booleanAttribute });
 

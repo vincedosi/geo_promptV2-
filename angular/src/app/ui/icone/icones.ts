@@ -46,6 +46,10 @@
  * | Minimize2                  | reduire              | Feather (MIT)
  * | Grid3x3                    | grille               |
  * | Plus                       | plus                 | Feather (MIT)
+ * | Save                       | enregistrer          |
+ * | Copy                       | copier               |
+ * | Trash2                     | corbeille            | Feather (MIT)
+ * | FolderOpen                 | dossier-ouvert       |
  *
  * Pour ajouter une icône : lire `__iconNode` de `<lucide>.js`, ajouter une entrée (nom français en
  * kebab-case ; `feather: true` si le nom figure dans la liste Feather de la LICENSE de lucide-react),
@@ -98,7 +102,7 @@
  * SOFTWARE.
  *
  * Hors reproduction : sous-ensemble Feather employé ici (`feather: true`) — alert-circle,
- * arrow-up-right, clock, database, download, monitor, moon, radio, target, upload, x.
+ * arrow-up-right, clock, database, download, monitor, moon, radio, target, trash-2, upload, x.
  */
 
 /** Un élément SVG d'une icône : sa balise et ses attributs géométriques. */
@@ -411,6 +415,37 @@ export const ICONES = {
       { t: 'path', d: 'M20 10h-6V4' },
       { t: 'path', d: 'm3 21 7-7' },
       { t: 'path', d: 'M4 14h6v6' },
+    ],
+  },
+  'enregistrer': {
+    lucide: 'save',
+    el: [
+      { t: 'path', d: 'M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z' },
+      { t: 'path', d: 'M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7' },
+      { t: 'path', d: 'M7 3v4a1 1 0 0 0 1 1h7' },
+    ],
+  },
+  'copier': {
+    lucide: 'copy',
+    el: [
+      { t: 'rect', width: '14', height: '14', x: '8', y: '8', rx: '2', ry: '2' },
+      { t: 'path', d: 'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2' },
+    ],
+  },
+  'corbeille': {
+    lucide: 'trash-2', feather: true,
+    el: [
+      { t: 'path', d: 'M10 11v6' },
+      { t: 'path', d: 'M14 11v6' },
+      { t: 'path', d: 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6' },
+      { t: 'path', d: 'M3 6h18' },
+      { t: 'path', d: 'M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2' },
+    ],
+  },
+  'dossier-ouvert': {
+    lucide: 'folder-open',
+    el: [
+      { t: 'path', d: 'm6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2' },
     ],
   },
 } as const satisfies Record<string, DefinitionIcone>;

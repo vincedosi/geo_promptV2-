@@ -15,6 +15,7 @@ import { ProfilRisqueApi } from './data/profil-risque.api';
 import { ReferentielApi } from './data/referentiel.api';
 import { SitesRisqueApi } from './data/sites-risque.api';
 import { ZonesRisqueApi } from './data/zones-risque.api';
+import { JeuxZonesApi } from './data/jeux-zones.api';
 import { DELAI_BANDES_MS } from './etat/donnees-risque.service';
 import { RisquePage } from './risque.page';
 
@@ -35,6 +36,7 @@ const attendre = () => (vi.isFakeTimers() ? vi.advanceTimersByTimeAsync(20) : ne
 /** L'écran sous un vrai routeur de test, avec une carte factice qui compte ses créations. */
 async function ouvrir(url = '/risques', reponses: {
   compter?: () => unknown; bandes?: (q: unknown) => unknown; courbe?: () => unknown; exportProfil?: (p: URLSearchParams) => unknown;
+  lister?: () => unknown; lire?: (id: string) => unknown;
 } = {}) {
   (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
   const cartes: CarteFactice[] = [];
@@ -62,6 +64,11 @@ async function ouvrir(url = '/risques', reponses: {
         palette: (j: Record<string, string>) => signal(Object.fromEntries(Object.keys(j).map((k) => [k, `rgb(${k.length}, 0, 0)`]))),
       } },
       { provide: SitesRisqueApi, useValue: { compter: reponses.compter ?? (() => NEVER) } },
+      // L'atelier des jeux (④) : la bibliothèque n'est lue qu'à la première visite de l'étape.
+      { provide: JeuxZonesApi, useValue: {
+        lister: reponses.lister ?? (() => NEVER), lire: reponses.lire ?? (() => NEVER),
+        construire: () => NEVER, regler: () => NEVER, supprimer: () => NEVER, exportJeu: () => NEVER,
+      } },
       { provide: ReferentielApi, useValue: {
         geo: () => of({ regions: [{ code_region: '93', nom_region: 'Provence-Alpes-Côte d’Azur', depts: [{ code_dept: '13', nom_dept: 'Bouches-du-Rhône' }] }] }),
         contours: () => NEVER,
@@ -494,5 +501,40 @@ describe('RisquePage', () => {
     await stabiliser(harness);
     expect(lignes()).toEqual(['13', '06', '83', '84', '04', '05']);
     expect(requetes).toHaveLength(2);
+  });
+
+  it('T13 : ④ lit la bibliothèque à la PREMIÈRE visite seulement, et ouvre le jeu nommé par l’URL', async () => {
+    const lectures: string[] = [];
+    let listes = 0;
+    const jeu = {
+      jeu: {
+        id: '0b7ece33-4903-4a0b-a57a-f6c54e78a729', nom: 'Seveso France', description: null, version: 1, created_at: '',
+        construit_le: '2026-10-01', population_exposee: null, n_cp_retenus: 1006, taux_utile: 81.6, mode_plan: 'pondere',
+        seuil_couverture_cp: 35, brouillon: false, profil: {}, profil_hash: 'h', poids: {},
+      },
+      classes: [
+        { classe: 'haut:1', n_cp: 100, n_cp_retenus: 60, population_en_zone: 500, population_en_zone_retenue: 400, population_achetee: 600 },
+        { classe: 'bas:1', n_cp: 50, n_cp_retenus: 6, population_en_zone: 50, population_en_zone_retenue: 40, population_achetee: 100 },
+      ],
+    };
+    const { harness, el } = await ouvrir('/risques', {
+      lister: () => { listes += 1; return of({ jeux: [] }); },
+      lire: (id: string) => { lectures.push(id); return of(jeu); },
+    });
+    expect(listes).toBe(0);
+    await harness.navigateByUrl(`/risques?risque=${encodeURIComponent('etape=zones&jeu=0b7ece33-4903-4a0b-a57a-f6c54e78a729')}`);
+    await stabiliser(harness);
+    expect(listes).toBe(1);
+    expect(lectures).toEqual(['0b7ece33-4903-4a0b-a57a-f6c54e78a729']);
+    const valeurs = [...el().querySelectorAll('[data-panneau="zones"] mg-kpi [data-role="valeur"]')].map((v) => v.textContent?.trim());
+    expect(valeurs).toEqual(['440', '62,9 %', '66']);
+
+    // ④ → ① → ④ : ni la bibliothèque ni le jeu ne sont relus.
+    etape(el(), 'Sites').click();
+    await stabiliser(harness);
+    etape(el(), 'Zones').click();
+    await stabiliser(harness);
+    expect(listes).toBe(1);
+    expect(lectures).toHaveLength(1);
   });
 });

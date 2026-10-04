@@ -13,6 +13,7 @@ import { PerimeDirective } from '../../ui/perime/perime.directive';
 import { VueCartesComponent } from './cartes/vue-cartes.component';
 import { EtapeCouvertureComponent } from './etapes/couverture/etape-couverture.component';
 import { EtapeRayonComponent } from './etapes/rayon/etape-rayon.component';
+import { EtapeZonesComponent } from './etapes/zones/etape-zones.component';
 import { PanneauSitesComponent } from './etapes/sites/panneau-sites.component';
 import { BandeauKpiRisqueComponent } from './commandes/bandeau-kpi-risque.component';
 import { BarreCommuneComponent } from './commandes/barre-commune.component';
@@ -22,6 +23,7 @@ import { ResumeProfilComponent } from './commandes/resume-profil.component';
 import { etapesAffichees } from './commandes/etapes';
 import { ProfilRisqueApi } from './data/profil-risque.api';
 import { CourbeRayonComponent, type PerimetreCourbe } from './etapes/rayon/courbe-rayon.component';
+import { AtelierJeuxService } from './etat/atelier-jeux.service';
 import { DonneesRisqueService } from './etat/donnees-risque.service';
 import { EtatRisqueService } from './etat/etat-risque.service';
 import { BoutonExportComponent } from './exports/bouton-export.component';
@@ -61,12 +63,12 @@ const LARGEUR_PANNEAU_DEFAUT = 480;
   selector: 'mg-risque',
   imports: [
     BandeauKpiRisqueComponent, BarreCommuneComponent, BarreProgressionComponent, BoutonExportComponent,
-    CourbeRayonComponent, EtapeCouvertureComponent, EtapeRayonComponent,
+    CourbeRayonComponent, EtapeCouvertureComponent, EtapeRayonComponent, EtapeZonesComponent,
     FilArianeComponent, FilEtapesComponent, IconeComponent, PanneauProfilComponent, PanneauSitesComponent,
     PerimeDirective, RegletteRayonsComponent, ResumeProfilComponent, VueCartesComponent,
   ],
   // Services d'ÉTAT fournis par l'écran (A13) : détruits avec lui, requêtes en cours comprises. T6-T16 y ajoutent les leurs.
-  providers: [ChargementService, EtatRisqueService, DonneesRisqueService],
+  providers: [ChargementService, EtatRisqueService, DonneesRisqueService, AtelierJeuxService],
   templateUrl: './risque.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
@@ -135,6 +137,13 @@ export class RisquePage {
     if (campagne) p.set('campagne', campagne);
     return this.profilApi.exportProfil(p);
   };
+
+  /** Le cadre du panneau d'étape : ③ empile ses deux blocs sans marge ; ④ garde les 16 × 18 px de React. */
+  protected readonly classePanneau = computed(() => {
+    const etape = this.etat().etape;
+    if (etape === 'couverture') return 'flex min-h-0 min-w-0 flex-1 flex-col';
+    return etape === 'zones' ? 'min-w-0 flex-1 overflow-auto px-[18px] py-4' : 'min-w-0 flex-1 overflow-auto px-5 py-4';
+  });
 
   /** La maille LISTÉE, en minuscules comme `FilAriane` (elements.tsx:119). */
   protected readonly precisionAriane = computed(() => LIBELLE_DIMENSION[this.donnees.dimension()].toLowerCase());
