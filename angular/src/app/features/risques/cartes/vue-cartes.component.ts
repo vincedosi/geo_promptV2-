@@ -11,6 +11,8 @@ import type { ProfilRayons } from '../logique/profil';
 import {
   CarteCodesPostauxComponent, type ChiffresCp, type ColorationCp, LIBELLE_COLORATION,
 } from './carte-codes-postaux.component';
+import { TableauZonesCampagneComponent } from '../etapes/campagne/tableau-zones-campagne.component';
+import { CarteCampagneComponent } from './carte-campagne.component';
 import { CarteRisqueComponent } from './carte-risque.component';
 import { TableauGrappesComponent } from './tableau-grappes.component';
 
@@ -18,7 +20,8 @@ import { TableauGrappesComponent } from './tableau-grappes.component';
  * La zone cartographique du module — portage de `VueCartesZones.tsx` (lot 3 : cadre T4, double carte T15).
  * La carte des rayons est `mg-carte-risque` (T7-T8), celle des codes postaux `mg-carte-codes-postaux` (T15,
  * montée dès l'ouverture à largeur nulle, comme React), sous elles le bandeau des quatre chiffres et le tableau
- * des bassins (`mg-tableau-grappes`) ; la diffusion arrive en T17. Ce composant décide de ce qui est MONTÉ, de ce
+ * des bassins (`mg-tableau-grappes`) ; à ⑤, la carte de diffusion `mg-carte-campagne` et le tableau des zones
+ * `mg-tableau-zones-campagne` (T17). Ce composant décide de ce qui est MONTÉ, de ce
  * qui est VISIBLE, et de la LIAISON des caméras (double vue seulement).
  *
  * ── LES CARTES NE SE DÉMONTENT JAMAIS ─────────────────────────────────────
@@ -41,7 +44,10 @@ import { TableauGrappesComponent } from './tableau-grappes.component';
  */
 @Component({
   selector: 'mg-vue-cartes',
-  imports: [CarteCodesPostauxComponent, CarteRisqueComponent, IconeComponent, TableauGrappesComponent],
+  imports: [
+    CarteCampagneComponent, CarteCodesPostauxComponent, CarteRisqueComponent, IconeComponent, TableauGrappesComponent,
+    TableauZonesCampagneComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full w-full flex-col' },
   template: `
@@ -84,12 +90,12 @@ import { TableauGrappesComponent } from './tableau-grappes.component';
         }
       </div>
 
-      <!-- ── La diffusion, à l'étape ⑤ (T17) : montée à la PREMIÈRE visite, puis gardée ── -->
+      <!-- ── La diffusion, à l'étape ⑤ : montée à la PREMIÈRE visite, puis gardée (jamais démontée) ── -->
       @if (campagneMontee()) {
-        <div data-vue="campagne" class="relative flex min-w-0 items-center justify-center bg-[var(--bg-level-2)]"
+        <div data-vue="campagne" class="relative flex min-w-0"
              [class.flex-1]="campagne()" [style.width.px]="campagne() ? null : 0"
              [style.visibility]="campagne() ? 'visible' : 'hidden'">
-          <p class="m-0 px-5 text-center text-[12px] text-tertiary">Carte de diffusion — disponible prochainement.</p>
+          <mg-carte-campagne [actif]="campagne()" />
         </div>
       }
 
@@ -135,6 +141,11 @@ import { TableauGrappesComponent } from './tableau-grappes.component';
           </div>
         }
       </div>
+    }
+
+    <!-- ── Le tableau des zones de la campagne, trié par écart (⑤ seulement, aucune requête) ── -->
+    @if (campagne()) {
+      <mg-tableau-zones-campagne />
     }
 
     <!-- ── Le tableau des bassins : monté au premier jeu, gardé (lu une fois par jeu), visible à ④ dédoublée ── -->

@@ -5,6 +5,8 @@ import type maplibregl from 'maplibre-gl';
 import type { Bbox } from '../../../carte/bbox';
 import { CarteFactice } from '../../../carte/testing/carte-factice';
 import { PROFIL_DEFAUT } from '../logique/profil';
+import { TableauZonesCampagneComponent } from '../etapes/campagne/tableau-zones-campagne.component';
+import { CarteCampagneComponent } from './carte-campagne.component';
 import { CarteCodesPostauxComponent, type ChiffresCp } from './carte-codes-postaux.component';
 import { CarteRisqueComponent } from './carte-risque.component';
 import { TableauGrappesComponent } from './tableau-grappes.component';
@@ -36,6 +38,17 @@ class CarteCpFactice {
   ngOnDestroy() { detruits++; }
 }
 
+let campagnesCreees = 0;
+@Component({ selector: 'mg-carte-campagne', template: '' })
+class CarteCampagneFactice {
+  readonly actif = input(false);
+  constructor() { campagnesCreees++; }
+  ngOnDestroy() { detruits++; }
+}
+
+@Component({ selector: 'mg-tableau-zones-campagne', template: '' })
+class TableauZonesFactice {}
+
 @Component({ selector: 'mg-tableau-grappes', template: '' })
 class TableauFactice {
   readonly jeuId = input<string | null>(null);
@@ -49,9 +62,10 @@ const JEU = '0b7ece33-4903-4a0b-a57a-f6c54e78a729';
 
 async function rendre(etape = 'zones', jeuId: string | null = JEU) {
   detruits = 0;
+  campagnesCreees = 0;
   TestBed.overrideComponent(VueCartesComponent, {
-    remove: { imports: [CarteRisqueComponent, CarteCodesPostauxComponent, TableauGrappesComponent] },
-    add: { imports: [CarteRisqueFactice, CarteCpFactice, TableauFactice] },
+    remove: { imports: [CarteRisqueComponent, CarteCodesPostauxComponent, TableauGrappesComponent, CarteCampagneComponent, TableauZonesCampagneComponent] },
+    add: { imports: [CarteRisqueFactice, CarteCpFactice, TableauFactice, CarteCampagneFactice, TableauZonesFactice] },
   });
   const fixture = TestBed.createComponent(VueCartesComponent);
   fixture.componentRef.setInput('etape', etape);
@@ -149,6 +163,30 @@ describe('VueCartesComponent — double carte (T15)', () => {
     expect(a.nombreEcouteurs('move')).toBe(0);
     expect(el.querySelector('[data-bandeau-cp]')).toBeNull();
     expect(tableau()).toBeUndefined();
+  });
+
+  it('T17 : la carte de diffusion n’est montée qu’à la PREMIÈRE visite de ⑤, puis gardée (jamais démontée)', async () => {
+    const { fixture, el, cp } = await rendre('rayon');
+    expect(el.querySelector('mg-carte-campagne')).toBeNull();
+    expect(campagnesCreees).toBe(0);
+    fixture.componentRef.setInput('etape', 'campagne');
+    await fixture.whenStable();
+    const campagne = fixture.debugElement.query(By.directive(CarteCampagneFactice)).componentInstance as CarteCampagneFactice;
+    expect(campagnesCreees).toBe(1);
+    expect(campagne.actif()).toBe(true);
+    expect(cp.actif()).toBe(false);
+    expect(el.querySelector('mg-tableau-zones-campagne')).not.toBeNull();
+    const vue = () => el.querySelector<HTMLElement>('[data-vue="campagne"]')!;
+    expect(vue().style.visibility).toBe('visible');
+    fixture.componentRef.setInput('etape', 'rayon');
+    await fixture.whenStable();
+    expect([vue().style.visibility, vue().style.width]).toEqual(['hidden', '0px']);
+    expect(campagne.actif()).toBe(false);
+    expect(el.querySelector('mg-tableau-zones-campagne')).toBeNull();
+    fixture.componentRef.setInput('etape', 'campagne');
+    await fixture.whenStable();
+    expect(campagnesCreees).toBe(1);
+    expect(detruits).toBe(0);
   });
 
   it('la coloration choisie est relayée à la carte des codes postaux', async () => {
