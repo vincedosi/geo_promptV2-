@@ -83,6 +83,12 @@ const filtreSurbrillance = (codes: readonly string[] | null) =>
   ['in', ['get', 'code_postal'], ['literal', codes ?? []]] as unknown as maplibregl.FilterSpecification;
 
 /**
+ * Le taux d'exposition tel que la route le rend (arrondi au dixième par sql/230) : `23` reste `23`, `23.4` devient
+ * `23,4` — les mêmes chiffres que React, la virgule en plus.
+ */
+const tauxExposition = (t: number): string => (Number.isInteger(t) ? formaterNombre(t) : formaterDecimal(t, 1));
+
+/**
  * La bulle d'un code postal (`CarteCodesPostaux.tsx:363-382`), par `textContent` et jamais par `innerHTML`.
  * Deux nombres sont écrits à la française, là où React écrivait un point décimal (`23.4 %`, `0.123 %`) — défaut
  * corrigé et listé au rapport T15.
@@ -110,7 +116,7 @@ export function contenuBulleCp(p: Record<string, unknown>, doc: Document = docum
   racine.append(
     titre,
     ligne(`Exposés : ${formaterNombre(Number(p['pop_en_zone'] ?? 0))} / ${formaterNombre(Number(p['pop_totale'] ?? 0))} habitants`),
-    ligne(`Taux d’exposition : ${taux == null ? '—' : Number(taux).toLocaleString('fr-FR')} %`),
+    ligne(`Taux d’exposition : ${taux == null ? '—' : tauxExposition(Number(taux))} %`),
     ligne(`Part du plan : ${formaterDecimal(Number(p['part_plan'] ?? 0) * 100, 3)} %`),
     ligne(p['retenu'] ? 'Acheté' : 'Écarté par le seuil', 'opacity-75'),
   );
@@ -189,6 +195,11 @@ export class CarteCodesPostauxComponent {
   readonly surbrillance = input<readonly string[] | null>(null);
   /** Vrai quand la carte est À L'ÉCRAN : masquée, elle ne lit rien. */
   readonly actif = input(false);
+  /**
+   * La clé de zones dont la carte des rayons a TERMINÉ la préparation (`mg-carte-risque` → `clePrete`). La
+   * surimpression n'est posée que pour cette clé : ses tuiles ne sont jamais demandées avant que la géométrie existe.
+   */
+  readonly cleRayonsPrete = input<string | null>(null);
   /** L'instance, à son premier `load` — pour la liaison des caméras. */
   readonly carte = output<maplibregl.Map>();
   /** Les compteurs du bandeau, `null` sur un échec. */
@@ -271,11 +282,13 @@ export class CarteCodesPostauxComponent {
     });
 
     // 4. La surimpression des rayons : les MÊMES tuiles que la carte de gauche, en CONTOUR seulement. Posée quand la
-    //    carte est visible (React la posait au montage, carte masquée comprise) ; recréée quand la clé change.
+    //    carte est visible (React la posait au montage, carte masquée comprise) ET que la carte des rayons a préparé
+    //    CETTE clé (`cleRayonsPrete`) — jamais une tuile avant sa géométrie ; recréée quand la clé change.
     effect(() => {
       const carte = this.instance();
       const cle = this.cleRayons();
       if (!carte || !this.actif() || cle === this.rayonsPoses) return;
+      if (cle && cle !== this.cleRayonsPrete()) return;
       untracked(() => this.poserRayons(carte, cle));
     });
 

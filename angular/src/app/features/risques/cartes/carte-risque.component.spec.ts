@@ -129,6 +129,16 @@ const zones = (c: CarteFactice) => c.couches.filter((x) => String(x.couche['id']
 const tuiles = (c: CarteFactice) => (c.sources.get(SOURCE_ZONES)?.spec as { tiles: string[] } | undefined)?.tiles[0];
 
 describe('CarteRisqueComponent', () => {
+  it('relecture T15 : `clePrete` dit la clé dont la géométrie est construite — après la réponse, jamais avant', async () => {
+    const { f, preparations, repondre } = await rendre();
+    const pretes: string[] = [];
+    f.componentInstance.clePrete.subscribe((c) => pretes.push(c));
+    expect(preparations).toHaveLength(1);
+    expect(pretes).toEqual([]);
+    await repondre(0);
+    expect(pretes).toEqual(['h1000.2000.5000_b500.1000_a_L0_P1']);
+  });
+
   it('(a) préparer UNE fois DÈS LE MONTAGE (avant le load du fond), puis la source `atelier-zones` une fois les deux là', async () => {
     const r = await rendre();
     // React lançait le POST en parallèle du chargement du style (relecture T7, I1).

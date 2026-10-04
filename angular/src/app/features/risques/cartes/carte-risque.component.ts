@@ -134,6 +134,12 @@ export class CarteRisqueComponent {
   readonly apercu = input<ApercuRayon | null>(null);
   /** L'instance MapLibre, à son premier `load` — pour la liaison des caméras (T15). */
   readonly carte = output<maplibregl.Map>();
+  /**
+   * La clé de zones (`codeZonesRisque`) dont la géométrie vient d'être construite (ou dont la construction a échoué :
+   * la carte pose quand même). La carte des codes postaux attend cette clé avant de demander les MÊMES tuiles en
+   * surimpression — sinon elle les demanderait sous une clé que personne n'a encore construite (relecture T15).
+   */
+  readonly clePrete = output<string>();
 
   private readonly api = inject(ZonesRisqueApi);
   private readonly fabriquePopup = inject(FABRIQUE_POPUP);
@@ -344,6 +350,7 @@ export class CarteRisqueComponent {
     const fin = () => {
       this.preparation.set(false);
       this.codePrepare.set(code);
+      this.clePrete.emit(code);
     };
     this.preparationEnVol = this.api.preparer(this.codeSeul(), this.listeNatures()).subscribe({
       next: fin,

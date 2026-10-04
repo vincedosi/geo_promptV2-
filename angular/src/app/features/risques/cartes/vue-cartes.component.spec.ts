@@ -22,6 +22,7 @@ class CarteRisqueFactice {
   readonly fusionner = input<unknown>();
   readonly apercu = input<unknown>();
   readonly carte = output<maplibregl.Map>();
+  readonly clePrete = output<string>();
   ngOnDestroy() { detruits++; }
 }
 
@@ -33,6 +34,7 @@ class CarteCpFactice {
   readonly coloration = input<unknown>();
   readonly surbrillance = input<readonly string[] | null>(null);
   readonly actif = input(false);
+  readonly cleRayonsPrete = input<string | null>(null);
   readonly carte = output<maplibregl.Map>();
   readonly chiffres = output<ChiffresCp | null>();
   ngOnDestroy() { detruits++; }
@@ -187,6 +189,14 @@ describe('VueCartesComponent — double carte (T15)', () => {
     await fixture.whenStable();
     expect(campagnesCreees).toBe(1);
     expect(detruits).toBe(0);
+  });
+
+  it('relecture T15 : la clé de zones PRÉPARÉE par la carte des rayons est relayée à celle des codes postaux', async () => {
+    const { fixture, rayons, cp } = await rendre();
+    expect(cp.cleRayonsPrete()).toBeNull();
+    rayons.clePrete.emit('h1000.2000.5000_b500.1000_a_L0_P1');
+    await fixture.whenStable();
+    expect(cp.cleRayonsPrete()).toBe('h1000.2000.5000_b500.1000_a_L0_P1');
   });
 
   it('la coloration choisie est relayée à la carte des codes postaux', async () => {

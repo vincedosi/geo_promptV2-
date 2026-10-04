@@ -8,6 +8,7 @@ import { CouleursService } from '../../../core/theme/couleurs.service';
 import { type ChargementCp, JeuxZonesApi } from '../data/jeux-zones.api';
 import { ZonesRisqueApi } from '../data/zones-risque.api';
 import { AtelierJeuxService } from '../etat/atelier-jeux.service';
+import { codeZonesRisque } from '../logique/code-profil';
 import {
   CarteCodesPostauxComponent, type ChiffresCp, ID_ECARTES_CP, ID_FOND_CP, ID_RAYONS_CP, ID_SURBRILLANCE_CP,
   SOURCE_CP, SOURCE_RAYONS_CP, contenuBulleCp,
@@ -24,6 +25,7 @@ const SOMBRE: Record<string, string> = {
   'donnee-absente': '#9aa0a6', 'text-tertiary': '#8a8a8a', 'niveau-haut': '#e0603f', 'brand-teal': '#4ecdc4',
 };
 const JEU = '0b7ece33-4903-4a0b-a57a-f6c54e78a729';
+const PROFIL = 'h1000.2000.5000_b500.1000_a_L0_P1';
 const attendreAntiRebond = () => new Promise((r) => setTimeout(r, 400));
 
 function reponse(n: Partial<ChargementCp> = {}): ChargementCp {
@@ -33,7 +35,7 @@ function reponse(n: Partial<ChargementCp> = {}): ChargementCp {
   };
 }
 
-async function rendre(entrees: { jeuId?: string | null; actif?: boolean } = {}) {
+async function rendre(entrees: { jeuId?: string | null; actif?: boolean; cleRayonsPrete?: string | null } = {}) {
   (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
   let carte!: CarteFactice;
   const demandes: { jeu: string; bbox: string; rep: Subject<ChargementCp>; annulee: boolean }[] = [];
@@ -89,7 +91,8 @@ async function rendre(entrees: { jeuId?: string | null; actif?: boolean } = {}) 
   const chiffres: (ChiffresCp | null)[] = [];
   fixture.componentInstance.chiffres.subscribe((c) => chiffres.push(c));
   fixture.componentRef.setInput('jeuId', entrees.jeuId === undefined ? JEU : entrees.jeuId);
-  fixture.componentRef.setInput('codeProfil', 'h1000.2000.5000_b500.1000_a_L0_P1');
+  fixture.componentRef.setInput('codeProfil', PROFIL);
+  fixture.componentRef.setInput('cleRayonsPrete', entrees.cleRayonsPrete === undefined ? PROFIL : entrees.cleRayonsPrete);
   fixture.componentRef.setInput('actif', entrees.actif ?? true);
   await fixture.whenStable();
   carte.emettre('load');
@@ -198,8 +201,23 @@ describe('CarteCodesPostauxComponent (T15)', () => {
     const { carte, fixture } = await rendre();
     fixture.componentRef.setInput('natures', ['Toxiques']);
     await fixture.whenStable();
+    // La nouvelle clé n'est pas encore préparée par la carte des rayons : rien ne bouge, aucune tuile demandée.
+    expect(carte.retraits).toEqual([]);
+    fixture.componentRef.setInput('cleRayonsPrete', codeZonesRisque(PROFIL, ['Toxiques']));
+    await fixture.whenStable();
     expect(carte.retraits).toEqual([`couche:${ID_RAYONS_CP}`, `source:${SOURCE_RAYONS_CP}`]);
     expect((carte.sources.get(SOURCE_RAYONS_CP)!.spec as { tiles: string[] }).tiles[0]).toContain('&natures=Toxiques');
+  });
+
+  it('relecture T15 : la surimpression attend que la carte des rayons ait PRÉPARÉ la clé — aucune tuile avant', async () => {
+    const { carte, fixture } = await rendre({ cleRayonsPrete: null });
+    expect(carte.sources.has(SOURCE_RAYONS_CP)).toBe(false);
+    fixture.componentRef.setInput('cleRayonsPrete', 'une-autre-cle');
+    await fixture.whenStable();
+    expect(carte.sources.has(SOURCE_RAYONS_CP)).toBe(false);
+    fixture.componentRef.setInput('cleRayonsPrete', PROFIL);
+    await fixture.whenStable();
+    expect((carte.sources.get(SOURCE_RAYONS_CP)!.spec as { tiles: string[] }).tiles[0]).toContain(`profil=${PROFIL}`);
   });
 
   it('la bulle suit la souris (aucune requête) et s’efface hors d’un code postal', async () => {
@@ -224,5 +242,7 @@ describe('contenuBulleCp', () => {
       '13130', 'Exposés : 1 234 / 5 678 habitants', 'Taux d’exposition : 23,4 %', 'Part du plan : 0,123 %', 'Écarté par le seuil',
     ]);
     expect(contenuBulleCp({ code_postal: '1', taux_exposition: null }).children[2].textContent).toBe('Taux d’exposition : — %');
+    // Un entier reste entier, comme React (« 23 % ») : jamais « 23,0 ».
+    expect(contenuBulleCp({ code_postal: '1', taux_exposition: 23 }).children[2].textContent).toBe('Taux d’exposition : 23 %');
   });
 });

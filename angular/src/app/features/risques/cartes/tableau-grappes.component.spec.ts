@@ -55,6 +55,18 @@ describe('TableauGrappesComponent (T15)', () => {
     expect(demandes.map((d) => d.jeu)).toEqual(['jeu-a', 'jeu-b']);
   });
 
+  it('relecture T15 : un créneau de 190 px FIXE dès le chargement (aucun saut de hauteur sous les cartes), aucun masqué', async () => {
+    const { fixture, demandes, el } = await rendre();
+    const hote = el as HTMLElement;
+    expect(hote.style.height).toBe('190px');
+    demandes[0].rep.next({ grappes: GRAPPES });
+    await fixture.whenStable();
+    expect(hote.style.height).toBe('190px');
+    fixture.componentRef.setInput('actif', false);
+    await fixture.whenStable();
+    expect(hote.style.height).toBe('');
+  });
+
   it('rend les colonnes de React, « — » pour un bassin sans code postal, `fr-FR`', async () => {
     const { fixture, demandes, el } = await rendre();
     demandes[0].rep.next({ grappes: GRAPPES });

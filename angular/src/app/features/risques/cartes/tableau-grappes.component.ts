@@ -38,7 +38,10 @@ interface LigneGrappe {
   selector: 'mg-tableau-grappes',
   imports: [IconeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'shrink-0' },
+  // ⚠ Hauteur FIXE tant qu'il est à l'écran (relecture T15) : le chargement (une ligne) puis le tableau (190 px)
+  // changeaient la hauteur des cartes, donc leur cadre, et la carte des codes postaux relisait `/cp-geo` deux fois de
+  // plus à l'ouverture de ④. Le créneau est réservé d'emblée ; écart à React : un jeu à trois bassins garde un vide.
+  host: { class: 'shrink-0 flex-col bg-[var(--bg-level-1)]', '[class.flex]': 'actif()', '[style.height.px]': 'actif() ? 190 : null' },
   template: `
     @switch (etat()) {
       @case ('chargement') {
@@ -55,7 +58,7 @@ interface LigneGrappe {
             <span>Aucun bassin — le profil ne retient aucun site.</span>
           </div>
         } @else {
-          <div class="max-h-[190px] overflow-auto border-t border-subtle bg-[var(--bg-level-1)]">
+          <div class="min-h-0 flex-1 overflow-auto border-t border-subtle bg-[var(--bg-level-1)]">
             <table class="w-full border-collapse text-[11px] text-secondary">
               <thead>
                 <tr class="bg-[var(--bg-level-2)]">

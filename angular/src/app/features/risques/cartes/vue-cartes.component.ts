@@ -57,7 +57,7 @@ import { TableauGrappesComponent } from './tableau-grappes.component';
            [class.flex-1]="montreRayons()" [style.width.px]="montreRayons() ? null : 0"
            [style.visibility]="montreRayons() ? 'visible' : 'hidden'">
         <mg-carte-risque [profil]="profil()" [natures]="natures()" [gravites]="gravites()" [fusionner]="fusionner()"
-                         [apercu]="apercu()" (carte)="surCarteRayons($event)" />
+                         [apercu]="apercu()" (carte)="surCarteRayons($event)" (clePrete)="cleRayonsPrete.set($event)" />
         @if (double()) {
           <div class="absolute top-2.5 left-2.5 z-[3] rounded-lg border-fin border-default bg-[var(--card-overlay)] px-[9px] py-1 text-[11px] text-primary">Zones en rayon</div>
         }
@@ -73,6 +73,7 @@ import { TableauGrappesComponent } from './tableau-grappes.component';
            [style.visibility]="montreCp() ? 'visible' : 'hidden'">
         <mg-carte-codes-postaux [jeuId]="jeuId()" [codeProfil]="codeProfilZones()" [natures]="natures()"
                                 [coloration]="coloration()" [surbrillance]="surbrillance()" [actif]="montreCp()"
+                                [cleRayonsPrete]="cleRayonsPrete()"
                                 (carte)="carteCp.set($event)" (chiffres)="chiffres.set($event)" />
         @if (double()) {
           <div class="absolute top-2.5 left-2.5 z-[3] rounded-lg border-fin border-default bg-[var(--card-overlay)] px-[9px] py-1 text-[11px] text-primary">Zones en codes postaux</div>
@@ -195,6 +196,8 @@ export class VueCartesComponent {
   /** Les codes postaux du bassin survolé dans le tableau. */
   protected readonly surbrillance = signal<string[] | null>(null);
   protected readonly chiffres = signal<ChiffresCp | null>(null);
+  /** La dernière clé de zones préparée par la carte des rayons : la surimpression de droite l'attend. */
+  protected readonly cleRayonsPrete = signal<string | null>(null);
   /** La clé du profil CALCULÉ, la même que la carte des rayons (React : `codeProfil(profilCalcul)`). */
   protected readonly codeProfilZones = computed(() => codeProfil(this.profil()));
   /** Monté au premier jeu, puis gardé : ses bassins ne sont pas redemandés à chaque retour à ④. */
