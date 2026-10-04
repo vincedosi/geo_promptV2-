@@ -23,7 +23,7 @@ import { formaterDecimal, formaterNombre } from '../../../../core/format/nombre'
       <span data-role="seuil" class="font-mono text-[12px] text-teal">seuil {{ local() }} %</span>
     </div>
     <input type="range" min="0" max="60" step="5" [value]="local()"
-           (input)="local.set(valeurDe($event))"
+           (input)="local.set(valeurDe($event))" (pointerdown)="saisir()" (keydown)="saisir()"
            (pointerup)="relacher()" (touchend)="relacher()" (keyup)="relacher()" (change)="relacher()"
            aria-label="Part minimale de la population du code postal en zone"
            class="w-full accent-teal" />
@@ -70,7 +70,17 @@ export class DilutionComponent {
    */
   private readonly dernierEmis = linkedSignal<number, number | null>({ source: this.seuil, computation: () => null });
 
+  /**
+   * Un NOUVEAU geste commence : la mémoire du dernier envoi ne vaut que pour UN relâchement (pointerup + change). Sans
+   * cet oubli, un PATCH refusé laissait `dernierEmis` sur la valeur rejetée — le serveur n'ayant rien changé, `seuil`
+   * ne bougeait pas, et relâcher de nouveau au même cran ne renvoyait plus rien (relecture T14).
+   */
+  protected saisir(): void {
+    this.dernierEmis.set(null);
+  }
+
   protected relacher(): void {
+
     const v = this.local();
     if (v === this.seuil() || v === this.dernierEmis()) return;
     this.dernierEmis.set(v);

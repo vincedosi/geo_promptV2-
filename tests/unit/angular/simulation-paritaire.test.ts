@@ -65,6 +65,44 @@ describe('simulation : Angular = React', () => {
     }
   });
 
+  describe('cas limites (relecture T2, reportés en T16)', () => {
+    it('entrées sans bassin ni centroïde (`cluster_id`, `x`, `y` à null) : mêmes vues, mêmes constats, même courbe', () => {
+      const entrees = ENTREES.map((e, i) => (i % 4 === 0 ? { ...e, cluster_id: null, x: null, y: null } : e));
+      const rep = { ...REP, entrees };
+      for (const p of ['v1', 'v2', 'tout'] as const) {
+        const rv = Rv.construireVue(rep, p);
+        const av = Av.construireVue(rep, p);
+        expect(av).toEqual(rv);
+        expect(av!.cps.filter((c) => c.cluster_id === null).length).toBeGreaterThan(0);
+        expect(Av.constats(av!, entrees)).toEqual(Rv.constats(rv!, entrees));
+      }
+      expect(Av.courbeAlignement(rep)).toEqual(Rv.courbeAlignement(rep));
+      expect(entrees.map(Ae.versCpSimulation)).toEqual(entrees.map(Re.versCpSimulation));
+    });
+
+    it('un code postal RETENU sans ligne `par_cp` en v2 : impressions nulles, indice identique des deux côtés', () => {
+      const retenu = ENTREES.find((e) => e.retenu)!.code_postal;
+      const agregats = { ...REP.agregats!, par_cp: REP.agregats!.par_cp.filter((r) => !(r.cp === retenu && r.v === 2)) };
+      const rep = { ...REP, agregats };
+      for (const p of ['v2', 'tout'] as const) {
+        const av = Av.construireVue(rep, p)!;
+        expect(av).toEqual(Rv.construireVue(rep, p));
+        if (p === 'v2') expect(av.cps.find((c) => c.code_postal === retenu)!.impressions).toBe(0);
+      }
+    });
+
+    it('une simulation NON recalée (`statut` v1, `extraction_v2` null) : courbe limitée aux jours v1, vue v2 repliée sur v1', () => {
+      const sim = { ...REP.simulation!, statut: 'v1' as const, extraction_v2: null };
+      const rep = { ...REP, simulation: sim, multiplicateurs_v2: undefined };
+      const courbe = Av.courbeAlignement(rep);
+      expect(courbe).toEqual(Rv.courbeAlignement(rep));
+      expect(courbe).toHaveLength(sim.jour_recalage - 1);
+      expect(courbe.every((p) => p.version === 1)).toBe(true);
+      expect(Av.construireVue(rep, 'v2')).toEqual(Rv.construireVue(rep, 'v2'));
+      expect(Av.construireVue(rep, 'tout')).toEqual(Rv.construireVue(rep, 'tout'));
+    });
+  });
+
   it('etatSite', () => {
     for (const i of [null, 0, 49, 50, 80, 89.9, 90, 120]) expect(Av.etatSite(i)).toBe(Rv.etatSite(i));
   });

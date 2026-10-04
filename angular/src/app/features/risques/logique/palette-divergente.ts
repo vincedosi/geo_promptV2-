@@ -31,3 +31,16 @@ export function trancheDivergente(ecartPct: number): number {
   while (i < BORNES_DIVERGENTES.length && ecartPct >= BORNES_DIVERGENTES[i]) i++;
   return i;
 }
+
+/**
+ * La tranche d'un INDICE de pression (100 = conforme au plan), ou -1 sans indice — la garde de `tranche`
+ * (`CarteCampagne.tsx:65-66`), à employer partout où l'écart peut manquer (carte de ⑤, T17).
+ *
+ * ⚠ `trancheDivergente(null)` ne lève pas : `null` se compare comme 0 (`null >= -10` vaut `true`, `null >= 10` faux),
+ * et un écart ABSENT tomberait en tranche 3, « conforme ». Un bassin sans plan se peindrait alors comme tenant son plan
+ * — le pire mensonge possible, puisqu'il ne se distingue plus d'une réussite. (Le rapport de T2 annonçait la tranche 6 :
+ * c'est 3, mesuré.)
+ */
+export function trancheIndice(indice: number | null | undefined): number {
+  return indice == null ? -1 : trancheDivergente(indice - 100);
+}

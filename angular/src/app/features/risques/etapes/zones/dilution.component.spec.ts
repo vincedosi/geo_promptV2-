@@ -52,6 +52,24 @@ describe('DilutionComponent', () => {
     expect(emis).toEqual([25, 40]);
   });
 
+  it('après un PATCH REFUSÉ (le seuil du jeu ne bouge pas), relâcher de nouveau au même cran RENVOIE la valeur', async () => {
+    const { curseur, emis } = await rendre();
+    curseur.dispatchEvent(new Event('pointerdown'));
+    glisser(curseur, 30);
+    curseur.dispatchEvent(new Event('pointerup'));
+    curseur.dispatchEvent(new Event('change'));
+    expect(emis).toEqual([30]);
+    // Le serveur a refusé : `seuil` reste 20. Un nouveau geste, relâché au même cran, réessaie — une fois.
+    curseur.dispatchEvent(new Event('pointerdown'));
+    curseur.dispatchEvent(new Event('pointerup'));
+    curseur.dispatchEvent(new Event('change'));
+    expect(emis).toEqual([30, 30]);
+    // Au clavier aussi : la touche enfoncée ouvre un nouveau geste.
+    curseur.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    curseur.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter' }));
+    expect(emis).toEqual([30, 30, 30]);
+  });
+
   it('un relâchement sans déplacement n’émet rien', async () => {
     const { curseur, emis } = await rendre();
     curseur.dispatchEvent(new Event('pointerup'));
