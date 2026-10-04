@@ -1,7 +1,7 @@
 import { DOCUMENT } from '@angular/common';
 import { HttpErrorResponse, type HttpResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, DestroyRef, booleanAttribute, inject, input, signal } from '@angular/core';
-import type { Observable, Subscription } from 'rxjs';
+import { type Observable, type Subscription, finalize } from 'rxjs';
 import { ENREGISTRER_FICHIER } from '../../../core/http/telecharger';
 import { IconeComponent } from '../../../ui/icone/icone.component';
 
@@ -107,15 +107,20 @@ export class BoutonExportComponent {
     this.enCours.set(true);
     this.message.set(null);
     this.abonnement?.unsubscribe();
-    this.abonnement = this.charger()().subscribe({
-      next: (reponse) => this.enregistrer(this.doc, reponse, this.nomRepli()),
-      error: (e: unknown) => {
-        void messageExport(e).then((m) => {
-          this.message.set(m);
-          this.enCours.set(false);
-        });
+    // `finalize` : le bouton se réarme quoi qu'il arrive — réponse, erreur, ou enregistrement qui lève.
+    this.abonnement = this.charger()().pipe(finalize(() => this.enCours.set(false))).subscribe({
+      next: (reponse) => {
+        // Un enregistrement qui LÈVE (fichier illisible, navigateur qui refuse) ne doit pas laisser le bouton bloqué
+        // sur « Préparation… » sans rien dire (relecture T10).
+        try {
+          this.enregistrer(this.doc, reponse, this.nomRepli());
+        } catch {
+          this.message.set(MESSAGE_EXPORT_SANS_REPONSE);
+        }
       },
-      complete: () => this.enCours.set(false),
+      error: (e: unknown) => {
+        void messageExport(e).then((m) => this.message.set(m));
+      },
     });
   }
 }

@@ -77,7 +77,8 @@ export function echapperHtml(texte: string): string {
 
 /**
  * Graduations Y « rondes » de Recharts (`getNiceTickValues`, `tickCount` 5, domaine `[0, auto]`) : pas = 0,05 × 10^n
- * arrondi au-dessus du pas brut, puis centré sur le milieu du domaine et complété jusqu'à 5 graduations. Sans lui,
+ * arrondi au-dessus du pas brut, puis réparti autour d'un milieu et complété jusqu'à 5 graduations — équivalent à Recharts
+ * pour un domaine [0, max] (middle = 0), le seul que ces courbes emploient. Sans lui,
  * ECharts choisit les siennes (0-50 M par 10 M là où Recharts trace 0-60 M par 15 M) et la courbe n'a plus la même
  * hauteur relative que côté React. `null` sur un domaine vide (ECharts reprend la main).
  */
@@ -88,6 +89,7 @@ export function graduationsRecharts(max: number, n = 5, correction = 0): { min: 
   const puissance = 10 ** chiffres;
   const echelle = chiffres !== 1 ? 0.05 : 0.1;
   const pas = Number(((Math.ceil(brut / puissance / echelle) + correction) * echelle * puissance).toPrecision(12));
+  // Équivalent à Recharts pour un domaine [0, max] (middle = 0) : même nombre de pas au-dessus de zéro.
   const milieu = max / 2 - ((max / 2) % pas);
   let dessous = Math.ceil(milieu / pas);
   let dessus = Math.ceil((max - milieu) / pas);

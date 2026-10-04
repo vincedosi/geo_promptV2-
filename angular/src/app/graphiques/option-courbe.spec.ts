@@ -142,6 +142,20 @@ describe('optionCourbe', () => {
     expect([...html.matchAll(/">([^:<]+) :/g)].map((m) => m[1])).toEqual(['Toutes natures', 'Agro', 'GPL', 'Gaz']);
   });
 
+  it('infobulle triée avec une série MASQUÉE : les indices ECharts portent sur les séries VISIBLES', () => {
+    const series: SerieCourbe[] = [
+      { cle: 'Gaz', libelle: 'Gaz', jeton: 'nature-1', points: [[100, 1]] },
+      { cle: '*', libelle: 'Toutes natures', jeton: 'brand-teal', points: [[100, 9]] },
+      { cle: 'GPL', libelle: 'GPL', jeton: 'nature-2', points: [[100, 2]] },
+      { cle: 'Agro', libelle: 'Agro', jeton: 'nature-3', points: [[100, 3]] },
+    ];
+    const o = optionCourbe({ ...base, series, masquees: new Set(['*']) }) as { tooltip: { formatter: (p: unknown) => string } };
+    // ECharts numérote les séries de l'option : Gaz 0, GPL 1, Agro 2 (« Toutes natures » n'y est pas).
+    const visibles = series.filter((s) => s.cle !== '*');
+    const html = o.tooltip.formatter(visibles.map((s, i) => ({ seriesIndex: i, seriesName: s.libelle, value: [100, 1], color: '#000' })));
+    expect([...html.matchAll(/">([^:<]+) :/g)].map((m) => m[1])).toEqual(['Agro', 'GPL', 'Gaz']);
+  });
+
   it('graduations Y de Recharts (5 graduations rondes) : 0-60 M par 15 M pour la courbe réelle de l’étape ② (max 42 409 940)', () => {
     expect(graduationsRecharts(42409940)).toEqual({ min: 0, max: 60000000, pas: 15000000 });
     // Mesuré dans Recharts (React, « Toutes natures » masquée) : 0, 8, 16, 24, 32 M.

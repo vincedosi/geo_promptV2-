@@ -373,6 +373,24 @@ describe('RisquePage', () => {
     expect(document.activeElement).toBe(chips()[1]);
   });
 
+  it('relecture T10 : refermé par la chip, l’ouvreur est oublié — une réouverture par l’URL rend le focus à la PREMIÈRE chip', async () => {
+    const { harness, el, router } = await ouvrir('/risques?risque=etape%3Drayon');
+    const chips = () => [...el().querySelectorAll<HTMLButtonElement>('header mg-resume-profil button')];
+    chips()[1].focus();
+    chips()[1].click();
+    await stabiliser(harness);
+    chips()[1].click(); // referme par la chip
+    await stabiliser(harness);
+    expect(el().querySelector('[data-tiroir="anneaux"]')).toBeNull();
+    await router.navigateByUrl('/risques?risque=etape%3Drayon%26atelier%3D1');
+    await stabiliser(harness);
+    expect(el().querySelector('[data-tiroir="anneaux"]')).not.toBeNull();
+    el().querySelector('[data-tiroir="anneaux"] input[type="number"]')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    await stabiliser(harness);
+    expect(document.activeElement).toBe(chips()[0]);
+  });
+
   it('relecture T8 : tiroir ouvert par l’URL (aucun ouvreur) → Échap rend le focus à la PREMIÈRE chip', async () => {
     const { harness, el } = await ouvrir('/risques?risque=etape%3Drayon%26atelier%3D1');
     el().querySelector('[data-tiroir="anneaux"] input[type="number"]')!

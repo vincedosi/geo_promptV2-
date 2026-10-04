@@ -196,6 +196,10 @@ export class RisquePage {
       const el = this.hote.nativeElement;
       const actif = (el.getRootNode() as Document | ShadowRoot).activeElement;
       this.ouvreurAtelier = actif instanceof HTMLElement && actif !== el && el.contains(actif) ? actif : null;
+    } else {
+      // Refermé par la chip : l'ouvreur ne sert plus. Le garder ferait rendre le focus, à une ouverture ULTÉRIEURE par
+      // l'URL, à une chip qui n'a rien ouvert (relecture T10).
+      this.ouvreurAtelier = null;
     }
     this.etatRisque.maj({ atelier: ouvrir });
   }

@@ -72,6 +72,16 @@ describe('BoutonExportComponent', () => {
     expect(bouton().disabled).toBe(false);
   });
 
+  it('un enregistrement qui LÈVE : message « sans réponse », et le bouton se réarme', async () => {
+    const { f, el, bouton } = await rendre(() => of(reponse()));
+    enregistrer.mockImplementation(() => { throw new Error('refusé'); });
+    bouton().click();
+    await f.whenStable();
+    expect(el.querySelector('[role="alert"]')?.textContent?.trim()).toBe(MESSAGE_EXPORT_SANS_REPONSE);
+    expect(bouton().disabled).toBe(false);
+    expect(bouton().textContent?.trim()).toBe('Export Excel');
+  });
+
   it('`desactive` : bouton inerte, aucun appel', async () => {
     const charger = vi.fn(() => of(reponse()));
     const { bouton } = await rendre(charger, { desactive: true, variante: 'neutre', libelleEnCours: undefined });
