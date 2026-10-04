@@ -151,8 +151,13 @@ export class BarreCommuneComponent {
     this.etatRisque.maj({ cible: (ev.target as HTMLSelectElement).value });
   }
 
-  /** Choisir la maille naturelle REVIENT à `null` : la maille suit alors de nouveau le fil d'Ariane. */
+  /**
+   * Choisir la maille naturelle REVIENT à `null` : la maille suit alors de nouveau le fil d'Ariane.
+   * Le survol et la sélection de ③ sont OUBLIÉS (relecture T11) : un code de région désignerait au niveau suivant un
+   * département homonyme (93 → Seine-Saint-Denis), et la mini-carte se cadrerait dessus.
+   */
   choisirMaille(d: Dimension): void {
+    this.donnees.oublierUnite();
     this.donnees.mailleChoisie.set(d === this.donnees.mailleNaturelle() ? null : d);
   }
 

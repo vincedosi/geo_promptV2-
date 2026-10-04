@@ -185,6 +185,30 @@ describe('mg-tableau-couverture', () => {
     expect(lignes(el)).toHaveLength(15);
   });
 
+  it('recalcul en cours : les lignes PÉRIMÉES restent, mais leurs deux flèches sont grisées', async () => {
+    const { el, f } = await rendre(
+      { etat: 'chargement', bandes: BANDES_REGIONS_REELLES, erreur: null, aConstruire: false },
+      { descendable: true, remontable: true },
+    );
+    const tr = lignes(el)[0];
+    const d = tr.querySelector('[data-role="descendre"]') as HTMLButtonElement;
+    const g = tr.querySelector('[data-role="remonter"]') as HTMLButtonElement;
+    expect(d.disabled).toBe(true);
+    expect(g.disabled).toBe(true);
+    expect(d.className).toContain('cursor-default');
+    f.componentRef.setInput('resultat', PRET(BANDES_REGIONS_REELLES));
+    await f.whenStable();
+    expect((lignes(el)[0].querySelector('[data-role="descendre"]') as HTMLButtonElement).disabled).toBe(false);
+    expect((lignes(el)[0].querySelector('[data-role="remonter"]') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('aucun blanc entre le nom et la flèche droite (écart de 3 px avec React)', async () => {
+    const { el } = await rendre(PRET(BANDES_REGIONS_REELLES));
+    const d = lignes(el)[0].querySelector('[data-role="descendre"]')!;
+    expect(d.previousSibling?.nodeType).toBe(Node.TEXT_NODE);
+    expect(d.previousSibling?.textContent).toBe('Île-de-France');
+  });
+
   it('échec : le message, et la commande de construction SEULEMENT pour un pré-calcul absent', async () => {
     const { el, f } = await rendre({ etat: 'echec', bandes: null, erreur: 'Rien à classer.', aConstruire: false });
     expect(mots(el.querySelector('[data-role="echec"]'))).toBe('Rien à classer.');

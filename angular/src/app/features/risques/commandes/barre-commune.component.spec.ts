@@ -75,6 +75,16 @@ describe('BarreCommuneComponent', () => {
     expect(r.donnees.dimension()).toBe('region');
   });
 
+  it('« Lister par » oublie le survol et la sélection de ③ : la région 93 n’est pas la Seine-Saint-Denis', async () => {
+    const r = await rendre();
+    r.donnees.survoler('93');
+    r.donnees.selectionner('93');
+    await r.cliquer('Département');
+    expect(r.donnees.dimension()).toBe('departement');
+    expect(r.donnees.actif()).toBeNull();
+    expect(r.donnees.selectionCarte()).toBeNull();
+  });
+
   it('les infobulles de « Lister par » sont celles de React, mot pour mot', async () => {
     const r = await rendre();
     expect(r.bouton('Commune').title).toBe('Le carroyage INSEE porte le code commune tel qu’il l’écrit : Paris, Lyon et Marseille y sont par arrondissement.');

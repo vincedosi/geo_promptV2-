@@ -112,14 +112,13 @@ const FLECHE = 'inline-flex size-4 items-center justify-center rounded-[3px] bor
                 (mouseenter)="survol.emit(u.code)" (mouseleave)="survol.emit(null)" (click)="selection.emit(u.code)">
               <td class="px-2 py-[7px] text-primary">
                 <!-- Avant le libellé pour REMONTER, après pour DESCENDRE ; grisées et non masquées aux extrémités. -->
-                <button type="button" data-role="remonter" [class]="classeRemonter()" [disabled]="!remontable()"
+                <button type="button" data-role="remonter" [class]="classeRemonter()" [disabled]="!remonterActif()"
                         [attr.aria-label]="remontable() ? 'Remonter d’un niveau' : 'Déjà au niveau le plus large'"
                         [attr.title]="remontable() ? 'Remonter d’un niveau' : null"
                         (click)="$event.stopPropagation(); remonter.emit()">
                   <mg-icone nom="chevron-gauche" [taille]="12" />
                 </button>
-                <span class="mr-[7px] font-mono text-[10px] text-tertiary">{{ u.code }}</span>{{ u.nom }}
-                <button type="button" data-role="descendre" [class]="classeDescendre()" [disabled]="!descendable()"
+                <span class="mr-[7px] font-mono text-[10px] text-tertiary">{{ u.code }}</span>{{ u.nom }}<button type="button" data-role="descendre" [class]="classeDescendre()" [disabled]="!descendreActif()"
                         [attr.aria-label]="descendable() ? 'Descendre dans ' + u.nomOuCode : 'Dernier niveau — pas de découpage plus fin'"
                         [attr.title]="descendable() ? 'Descendre dans ' + u.nomOuCode : null"
                         (click)="$event.stopPropagation(); descendre.emit({ code: u.code, nom: u.nomOuCode })">
@@ -219,8 +218,16 @@ export class TableauCouvertureComponent {
     ? 'Indisponible au code postal, même raison que la part.'
     : 'Habitants exposés par kilomètre carré de l’unité.'));
 
-  protected readonly classeRemonter = computed(() => `${FLECHE} mr-1 ${etatFleche(this.remontable())}`);
-  protected readonly classeDescendre = computed(() => `${FLECHE} ml-[6px] mr-0 ${etatFleche(this.descendable())}`);
+  /**
+   * ⚠ Pendant un recalcul, les lignes affichées sont celles du réglage PRÉCÉDENT (relecture T11) : sous l'en-tête de
+   * la nouvelle maille, descendre dans l'une d'elles créerait un segment absurde (`departement:13056`). Les deux
+   * flèches sont donc grisées tant que le calcul court.
+   */
+  private readonly enCalcul = computed(() => this.resultat().etat === 'chargement');
+  protected readonly remonterActif = computed(() => this.remontable() && !this.enCalcul());
+  protected readonly descendreActif = computed(() => this.descendable() && !this.enCalcul());
+  protected readonly classeRemonter = computed(() => `${FLECHE} mr-1 ${etatFleche(this.remonterActif())}`);
+  protected readonly classeDescendre = computed(() => `${FLECHE} ml-[6px] mr-0 ${etatFleche(this.descendreActif())}`);
 }
 
 /** Couleur et curseur d'une flèche : `--text-secondary` active, `--border-default` grisée (l.53-54). */
