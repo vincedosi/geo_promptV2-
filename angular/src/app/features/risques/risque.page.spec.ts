@@ -1,11 +1,12 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { FABRIQUE_CARTE } from '../../carte/fabrique-carte';
 import { CarteFactice } from '../../carte/testing/carte-factice';
 import { signal } from '@angular/core';
-import { NEVER, of } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { CouleursService } from '../../core/theme/couleurs.service';
 import { FABRIQUE_GRAPHIQUE } from '../../graphiques/fabrique-graphique';
 import { COURBE_RAYON_REELLE } from './testing/courbe-rayon.fixture';
@@ -13,6 +14,7 @@ import { ProfilRisqueApi } from './data/profil-risque.api';
 import { ReferentielApi } from './data/referentiel.api';
 import { SitesRisqueApi } from './data/sites-risque.api';
 import { ZonesRisqueApi } from './data/zones-risque.api';
+import { DELAI_BANDES_MS } from './etat/donnees-risque.service';
 import { RisquePage } from './risque.page';
 
 @Component({ selector: 'mg-vide', template: '' })
@@ -23,11 +25,15 @@ class ObservateurFactice {
   disconnect = vi.fn();
 }
 
-const attendre = () => new Promise((r) => setTimeout(r, 0));
+/**
+ * Un tour de boucle. Sous horloge FACTICE (tests de l'anti-rebond des bandes), on avance l'horloge au lieu d'attendre
+ * un `setTimeout` qui ne viendrait jamais ; 20 ms couvrent aussi la course `requestAnimationFrame` de l'ordonnanceur.
+ */
+const attendre = () => (vi.isFakeTimers() ? vi.advanceTimersByTimeAsync(20) : new Promise((r) => setTimeout(r, 0)));
 
 /** L'écran sous un vrai routeur de test, avec une carte factice qui compte ses créations. */
 async function ouvrir(url = '/risques', reponses: {
-  compter?: () => unknown; bandes?: () => unknown; courbe?: () => unknown; exportProfil?: (p: URLSearchParams) => unknown;
+  compter?: () => unknown; bandes?: (q: unknown) => unknown; courbe?: () => unknown; exportProfil?: (p: URLSearchParams) => unknown;
 } = {}) {
   (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
   const cartes: CarteFactice[] = [];
@@ -84,6 +90,9 @@ function etape(el: HTMLElement, libelle: string): HTMLButtonElement {
 }
 
 describe('RisquePage', () => {
+  // Les tests de l'anti-rebond passent en horloge factice : la rendre même s'ils échouent.
+  afterEach(() => vi.useRealTimers());
+
   it("(f) l'en-tête porte le titre, le fil d'Ariane du territoire et cinq étapes", async () => {
     const { el } = await ouvrir();
     expect(el().querySelector('h2')?.textContent?.trim()).toBe('Population à risque industriel');
@@ -303,8 +312,9 @@ describe('RisquePage', () => {
   });
 
   it('T9 : ② lit les bandes PARTAGÉES — le tableau et le bandeau portent le même total ; bascule ① ↔ ② sans nouvel appel', async () => {
-    // Les bandes attendent 400 ms (anti-rebond) : on laisse passer le délai réel.
-    const delai = () => new Promise((r) => setTimeout(r, 450));
+    // Les bandes attendent 400 ms (anti-rebond) : horloge FACTICE, jamais le délai réel (relecture T9).
+    vi.useFakeTimers();
+    const delai = () => vi.advanceTimersByTimeAsync(DELAI_BANDES_MS);
     let appels = 0;
     const bandes = {
       total: 14103578, hors_zone: 26980106, n_carreaux: 215646, n_codes_postaux: 1927,
@@ -326,6 +336,7 @@ describe('RisquePage', () => {
     await stabiliser(harness);
     expect(total()).toBe('Total, tous niveaux 14 103 578');
     expect(appels).toBe(1);
+    vi.useRealTimers();
   });
 
   it("T6 : la réglette du seuil haut ne touche l'URL qu'au RELÂCHEMENT ; le tiroir montre le nouveau profil", async () => {
@@ -370,12 +381,13 @@ describe('RisquePage', () => {
   });
 
   it('T10 : ② montre la courbe PARTAGÉE (un appel) au rayon 1 km ; ① ↔ ② ne la relance pas', async () => {
+    vi.useFakeTimers();
     let appels = 0;
     const { harness, el } = await ouvrir('/risques?risque=etape%3Drayon', {
       bandes: () => of({ total: 1, hors_zone: 0, n_carreaux: 1, n_codes_postaux: 1, population_reference: 1, pop_unites_touchees: 1, unites: [], par_classe: { 'haut:1': 1 } }),
       courbe: () => { appels += 1; return of(COURBE_RAYON_REELLE); },
     });
-    await new Promise((r) => setTimeout(r, 450)); // l'anti-rebond des bandes
+    await vi.advanceTimersByTimeAsync(DELAI_BANDES_MS); // l'anti-rebond des bandes, horloge factice
     await stabiliser(harness);
     const n = (s: string | null | undefined) => (s ?? '').replace(/\s/g, ' ').trim();
     const courbe = el().querySelector('[data-panneau="rayon"] [data-role="bloc-courbe"] mg-courbe-rayon')!;
@@ -387,6 +399,7 @@ describe('RisquePage', () => {
     etape(el(), 'Rayon').click();
     await stabiliser(harness);
     expect(appels).toBe(1);
+    vi.useRealTimers();
   });
 
   it('T10 : « Exporter le profil » (en-tête) envoie les paramètres de BoutonExportProfil, profil CALCULÉ compris', async () => {
@@ -403,5 +416,21 @@ describe('RisquePage', () => {
       ['libelle_cible', 'Population totale'],
     ]);
     expect(bouton.disabled).toBe(true); // export en cours
+  });
+
+  it('relecture T9 : ② sur un 409 SANS `a_construire` montre l’encadré qui explique — sans la commande de construction', async () => {
+    vi.useFakeTimers();
+    const message = 'Ce profil ne porte aucun anneau : il ne retient donc aucun carreau. '
+      + 'Ajoutez-en au moins un dans la colonne de gauche.';
+    const { harness, el } = await ouvrir('/risques?risque=etape%3Drayon', {
+      bandes: () => throwError(() => new HttpErrorResponse({ status: 409, error: { error: message, profil_vide: true } })),
+    });
+    await vi.advanceTimersByTimeAsync(DELAI_BANDES_MS);
+    await stabiliser(harness);
+    const encadre = el().querySelector('[data-panneau="rayon"] [data-role="echec"]')!;
+    expect(encadre).not.toBeNull();
+    expect(encadre.textContent?.trim()).toBe(message);
+    expect(encadre.querySelector('p')?.classList).toContain('text-danger');
+    expect(encadre.textContent).not.toContain('construire_carreau_risque');
   });
 });
