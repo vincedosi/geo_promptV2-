@@ -258,6 +258,14 @@ export class DonneesRisqueService {
   /** Chiffres DÉJÀ à l'écran pendant un recalcul : ils décrivent le réglage précédent (`estPerime`). */
   readonly perime = computed(() => estPerime(this.chargement.etat().actif, this._bandes().bandes !== null));
 
+  /**
+   * La mini-carte de ③ : encodage (`part` par défaut) et palette de DONNÉES (`rouge` par défaut,
+   * `AnalysePopulationOverlay.tsx:275,371`). Ici et non dans le panneau, qui se démonte sous le `@switch` des
+   * étapes : React les garde à travers un aller-retour ② ↔ ③, l'overlay restant monté.
+   */
+  readonly encodage = signal<'part' | 'densite' | 'exposee'>('part');
+  readonly palette = signal<string>('rouge');
+
   private readonly cacheContours = new Map<'region' | 'departement', WritableSignal<GeoJSON.Feature[] | null>>();
 
   constructor() {
@@ -385,7 +393,7 @@ export class DonneesRisqueService {
     this._actif.set(code);
   }
 
-  /** ③, clic sur une ligne : la mini-carte se cadre dessus. Ne descend pas, ne filtre rien. */
+  /** ③, clic sur une ligne OU sur la mini-carte : la mini-carte se cadre dessus. Ne descend pas, ne filtre rien. */
   selectionner(code: string): void {
     this._selectionCarte.set(code);
   }
@@ -393,9 +401,10 @@ export class DonneesRisqueService {
   /**
    * L'unité survolée ou sélectionnée appartient au niveau qu'on QUITTE : la garder ferait surligner un code qui
    * n'existe plus — ou pire un HOMONYME, les nomenclatures INSEE de région et de département se recouvrant sur
-   * 18 codes (sql/171 ; `AnalysePopulationOverlay.tsx:1419-1424`).
+   * 18 codes (sql/171 ; `AnalysePopulationOverlay.tsx:1419-1424`). Public : « Lister par » (barre commune) change
+   * aussi la maille, et une région 93 sélectionnée y désignerait la Seine-Saint-Denis.
    */
-  private oublierUnite(): void {
+  oublierUnite(): void {
     this._actif.set(null);
     this._selectionCarte.set(null);
   }

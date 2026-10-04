@@ -61,7 +61,9 @@
          [style.width.px]="panneauReplie() ? 0 : largeurPanneau()"
          [style.visibility]="panneauReplie() ? 'hidden' : 'visible'">
     <!-- Le panneau porte lui aussi des chiffres (décomptes de ①, bandes de ②…) : ils périment avec le bandeau. -->
-    <div class="min-w-0 flex-1 overflow-auto px-5 py-4" [attr.data-panneau]="etat().etape" [mgPerime]="donnees.perime()">
+    <!-- ③ empile tableau ET mini-carte, chacun avec sa marge et son défilement (React, l.1391) : pas de marge ici. -->
+    <div [class]="etat().etape === 'couverture' ? 'flex min-h-0 min-w-0 flex-1 flex-col' : 'min-w-0 flex-1 overflow-auto px-5 py-4'"
+         [attr.data-panneau]="etat().etape" [mgPerime]="donnees.perime()">
       <!-- Textes provisoires : les panneaux d'étape arrivent en T13-T14 (④) et T16 (⑤). -->
       @switch (etat().etape) {
         @case ('sites') {
