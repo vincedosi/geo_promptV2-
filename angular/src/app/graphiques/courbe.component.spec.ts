@@ -141,6 +141,39 @@ describe('CourbeComponent', () => {
     expect(o.grid.top).toBe(20);
   });
 
+  it('sans légende (étape ⑤) : aucun bouton ; domaine, graduations Y, marges, grille et couleurs du repère transmis', async () => {
+    const { f, graphique, el } = await rendre();
+    f.componentRef.setInput('legende', false);
+    f.componentRef.setInput('domaineY', [0, 100]);
+    f.componentRef.setInput('graduationsY', [0, 50, 100]);
+    f.componentRef.setInput('marges', { top: 14, right: 8, bottom: 30, left: 42 });
+    f.componentRef.setInput('grillePleine', true);
+    f.componentRef.setInput('jetonFondInfobulle', 'bg-level-2');
+    f.componentRef.setInput('repere', { x: 15, libelle: 'Recalage v2', jeton: 'text-tertiary', jetonLibelle: 'text-secondary' });
+    await f.whenStable();
+    expect(el.querySelectorAll('button').length).toBe(0);
+    const o = graphique.options.at(-1) as {
+      yAxis: { min: number; max: number; interval: number }; grid: Record<string, number>;
+      tooltip: { backgroundColor: string };
+      series: { markLine: { lineStyle: { color: string }; label: { color: string } } }[];
+    };
+    expect([o.yAxis.min, o.yAxis.max, o.yAxis.interval]).toEqual([0, 100, 50]);
+    expect(o.grid).toEqual({ left: 42, right: 8, bottom: 30, top: 14, outerBoundsMode: 'none' });
+    // Les marges de Recharts remplacent la réserve de 8 px du conteneur.
+    expect(el.querySelector('[role="img"] > div')!.classList.contains('mr-2')).toBe(false);
+    expect(o.tooltip.backgroundColor).toBe('#111111:bg-level-2');
+    expect(o.series[0].markLine.lineStyle.color).toBe('#111111:text-tertiary');
+    expect(o.series[0].markLine.label.color).toBe('#111111:text-secondary');
+  });
+
+  it('la légende ignore les trous (`null`) pour la valeur au repère', async () => {
+    TestBed.resetTestingModule();
+    const { f, el } = await rendre([{ cle: 'v', libelle: 'V', jeton: 'brand-teal', points: [[1, 10], [2, 20], [3, null]] }]);
+    f.componentRef.setInput('repere', { x: 3 });
+    await f.whenStable();
+    expect(el.querySelector('[data-role="valeur-legende"]')!.textContent!.trim()).toBe('20');
+  });
+
   it('repose les options quand les couleurs changent (bascule de thème)', async () => {
     const { f, graphique, teinte } = await rendre();
     const avant = graphique.options.length;

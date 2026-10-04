@@ -9,7 +9,7 @@ import * as angular from '../../../angular/src/app/core/format/nombre';
 
 const VALEURS: unknown[] = [
   null, undefined, NaN, Infinity, -Infinity, 0, -0, 1, 950, 999, 1000, 12300, 12345.678, 999999, 1e6,
-  13841288, 1.2e9, -5, -1234.5, 0.5, 0.05, 1234.56,
+  13841288, 1.2e9, -5, -1234.5, 0.5, 0.05, 1234.56, 9999.6, 10000, -25000, 83977, 2.5e5, '12',
 ];
 
 describe('formateurs de nombres : Angular = React', () => {
@@ -20,7 +20,7 @@ describe('formateurs de nombres : Angular = React', () => {
     for (const nom of communs) expect(typeof (react as Record<string, unknown>)[nom], nom).toBe('function');
   });
 
-  for (const nom of ['formaterNombre', 'formaterNombreAbrege', 'formaterDecimal']) {
+  for (const nom of ['formaterNombre', 'formaterNombreAbrege', 'formaterDecimal', 'formaterNombreCourt']) {
     it(`${nom} rend la même chose sur la table de valeurs`, () => {
       const r = (react as Record<string, (...a: unknown[]) => unknown>)[nom];
       const a = (angular as Record<string, (...a: unknown[]) => unknown>)[nom];

@@ -4,7 +4,7 @@ import {
 } from '@angular/core';
 import { CouleursService } from '../core/theme/couleurs.service';
 import { FABRIQUE_GRAPHIQUE, type GraphiqueMinimal } from './fabrique-graphique';
-import { type RepereCourbe, type SerieCourbe, optionCourbe } from './option-courbe';
+import { type MargesCourbe, type RepereCourbe, type SerieCourbe, optionCourbe } from './option-courbe';
 
 /**
  * Une ou plusieurs courbes (lissées, rendu de Recharts), avec un repère vertical optionnel et une légende
@@ -21,8 +21,9 @@ import { type RepereCourbe, type SerieCourbe, optionCourbe } from './option-cour
       <!-- \`h-full\` et une marge, jamais \`absolute inset-0\` : ECharts pose \`position: relative\` EN LIGNE sur un
            conteneur dont il lit la position \`static\` — c'est le cas d'un élément encore DÉTACHÉ à l'init (contenu
            projeté sous un \`@if\`, T10). La classe \`absolute\` perdait alors, et le graphique restait haut de 0 px. -->
-      <div #conteneur class="mr-2 h-full"></div>
+      <div #conteneur class="h-full" [class.mr-2]="!marges()"></div>
     </div>
+    @if (legende()) {
     <div class="flex flex-wrap gap-x-[14px] gap-y-[6px] border-t-fin border-subtle px-5 pt-[10px] pb-[6px]">
       @for (s of series(); track s.cle) {
         <button type="button" (click)="basculer(s.cle)" [attr.aria-pressed]="!masquees().has(s.cle)"
@@ -36,6 +37,7 @@ import { type RepereCourbe, type SerieCourbe, optionCourbe } from './option-cour
         </button>
       }
     </div>
+    }
     <ng-content select="[mgNote]" />
   `,
 })
@@ -55,6 +57,22 @@ export class CourbeComponent {
   /** Étiquettes aux kilomètres ronds sur les séries `etiquetee`. */
   readonly etiquettes = input(false);
   readonly hauteur = input(280);
+  /** La légende cliquable sous le graphique ; `false` pour une courbe sans légende (alignement de ⑤). */
+  readonly legende = input(true);
+  /** Domaine et graduations Y imposés (voir `optionCourbe`). */
+  readonly domaineY = input<readonly [number, number]>();
+  readonly graduationsY = input<readonly number[]>();
+  /**
+   * Marges de la zone de tracé, celles de Recharts (`margin` + largeur des axes). Données, elles REMPLACENT aussi les
+   * 8 px que le conteneur réserve à droite pour la courbe de ②, et la zone de tracé ne rétrécit plus pour contenir
+   * ses étiquettes (Recharts les laisse déborder) : la marge droite s'écrit donc telle que React la pose.
+
+   */
+  readonly marges = input<MargesCourbe>();
+  /** Grille horizontale pleine plutôt que pointillée. */
+  readonly grillePleine = input(false);
+  /** Jeton du fond de l'infobulle, sans `--` ; défaut `card-overlay`. */
+  readonly jetonFondInfobulle = input<string>();
 
   protected readonly masquees = signal<ReadonlySet<string>>(new Set());
 
@@ -71,7 +89,11 @@ export class CourbeComponent {
    */
   private readonly palettesParJetons = new Map<string, Signal<Record<string, string>>>();
   private readonly teintesJetons = computed(() => {
-    const jetons = [...new Set(this.series().map((s) => s.jeton))].sort();
+    const repere = this.repere();
+    const jetons = [...new Set([
+      ...this.series().map((s) => s.jeton),
+      ...[repere?.jeton, repere?.jetonLibelle, this.jetonFondInfobulle()].filter((j): j is string => !!j),
+    ])].sort();
     const cle = jetons.join('|');
     let palette = this.palettesParJetons.get(cle);
     if (!palette) {
@@ -91,10 +113,18 @@ export class CourbeComponent {
     const series = Object.fromEntries(
       this.series().map((s) => [s.cle, jetons[s.jeton]]),
     );
+    const repere = this.repere();
+    const fond = this.jetonFondInfobulle();
     return optionCourbe({
       series: this.series(),
       masquees: this.masquees(),
-      couleurs: { ...cadre, series },
+      couleurs: {
+        ...cadre,
+        series,
+        ...(repere?.jeton ? { repere: jetons[repere.jeton] } : {}),
+        ...(repere?.jetonLibelle ? { libelleRepere: jetons[repere.jetonLibelle] } : {}),
+        ...(fond ? { fondInfobulle: jetons[fond] } : {}),
+      },
       formaterX: this.formaterX(),
       formaterY: this.formaterY(),
       repere: this.repere(),
@@ -103,6 +133,10 @@ export class CourbeComponent {
       formaterTitre: this.formaterTitre(),
       graduationsX: this.graduationsX(),
       etiquettes: this.etiquettes(),
+      domaineY: this.domaineY(),
+      graduationsY: this.graduationsY(),
+      marges: this.marges(),
+      grillePleine: this.grillePleine(),
     });
   });
 
@@ -114,9 +148,11 @@ export class CourbeComponent {
    */
   protected valeurLegende(s: SerieCourbe): string {
     const repere = this.repere();
-    if (!repere || s.points.length === 0) return '—';
-    let choisi = s.points[0];
-    for (const p of s.points) if (p[0] <= repere.x) choisi = p;
+    // Les trous (`null`) ne se lisent pas : ni la valeur au repère, ni son repli.
+    const points = s.points.filter((p): p is readonly [number, number] => p[1] !== null);
+    if (!repere || points.length === 0) return '—';
+    let choisi = points[0];
+    for (const p of points) if (p[0] <= repere.x) choisi = p;
     return (this.formaterValeur() ?? this.formaterY())(choisi[1]);
   }
 

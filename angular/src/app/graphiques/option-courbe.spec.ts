@@ -196,6 +196,70 @@ describe('optionCourbe', () => {
     expect(o.yAxis.axisLabel.formatter(12)).toBe('12');
   });
 
+  describe('ajouts de l’étape ⑤ (rétrocompatibles)', () => {
+    const TROUEE: SerieCourbe[] = [{ cle: 'v1', libelle: 'Alignement', jeton: 'diverge-sous-2', points: [[1, 60], [2, null], [3, 70]], marqueurs: true, epaisseur: 2 }];
+    type Serie = { data: unknown[]; connectNulls: boolean; showSymbol: boolean; symbolSize: number; itemStyle: Record<string, unknown>; emphasis?: Record<string, unknown> };
+
+    it('un trou (`null`) est émis tel quel et jamais relié (`connectNulls: false`)', () => {
+      const o = optionCourbe({ ...base, series: TROUEE, couleurs: { ...COULEURS, series: { v1: '#ea7c4a' } } }) as { series: Serie[] };
+      expect(o.series[0].connectNulls).toBe(false);
+      expect(o.series[0].data).toEqual([[1, 60], [2, null], [3, 70]]);
+    });
+
+    it('domaine et graduations Y imposés : min/max, étiquettes, traits et grille alignés', () => {
+      const o = optionCourbe({ ...base, series: TROUEE, domaineY: [0, 100], graduationsY: [0, 25, 50, 75, 100] }) as {
+        yAxis: { min: number; max: number; interval: number; axisLabel: { customValues: number[] }; axisTick: { customValues: number[] } };
+      };
+      expect(o.yAxis.min).toBe(0);
+      expect(o.yAxis.max).toBe(100);
+      expect(o.yAxis.interval).toBe(25);
+      expect(o.yAxis.axisLabel.customValues).toEqual([0, 25, 50, 75, 100]);
+      expect(o.yAxis.axisTick.customValues).toEqual([0, 25, 50, 75, 100]);
+    });
+
+    it('sans domaine Y, les trous ne comptent pas dans les graduations « rondes »', () => {
+      const o = optionCourbe({ ...base, series: TROUEE }) as { yAxis: { min: number; max: number } };
+      expect(o.yAxis.min).toBe(0);
+      expect(o.yAxis.max).toBe(80);
+    });
+
+    it('marqueurs (`dot={{ r: 2 }}`) : rayon 2 rempli de blanc, bordé au trait ; au survol, plein au trait', () => {
+      const o = optionCourbe({ ...base, series: TROUEE, couleurs: { ...COULEURS, series: { v1: '#ea7c4a' } } }) as { series: Serie[] };
+      expect(o.series[0]).toMatchObject({ showSymbol: true, symbolSize: 4 });
+      expect(o.series[0].itemStyle).toEqual({ color: COULEURS.pointActif, borderWidth: 2, borderColor: '#ea7c4a' });
+      expect(o.series[0].emphasis).toEqual({ scale: 2, itemStyle: { color: '#ea7c4a', borderColor: COULEURS.pointActif } });
+    });
+
+    it('infobulle : un trou ne s’annonce pas, la ligne prend la couleur du TRAIT (pas le blanc du marqueur)', () => {
+      const series: SerieCourbe[] = [
+        { ...TROUEE[0], cle: 'v1', points: [[1, 60], [2, null]] },
+        { cle: 'v2', libelle: 'Alignement', jeton: 'brand-teal', points: [[1, null], [2, 80]], marqueurs: true },
+      ];
+      const o = optionCourbe({
+        ...base, series, couleurs: { ...COULEURS, series: { v1: '#ea7c4a', v2: '#4ecdc4' } },
+        formaterTitre: (x) => `Jour ${x}`, formaterValeur: (y) => String(Math.round(y)),
+      }) as { tooltip: { formatter: (p: unknown) => string } };
+      const html = o.tooltip.formatter([
+        { seriesIndex: 0, seriesName: 'Alignement', value: [2, null], color: '#ffffff' },
+        { seriesIndex: 1, seriesName: 'Alignement', value: [2, 79.6], color: '#ffffff' },
+      ]);
+      expect(html).toContain('Jour 2');
+      expect(html).toContain('color:#4ecdc4">Alignement : 80');
+      expect(html.match(/<li/g)).toHaveLength(1);
+    });
+
+    it('marges imposées, grille pleine, repère nommé au-dessus du trait avec ses propres couleurs', () => {
+      const o = optionCourbe({
+        ...base, series: TROUEE, marges: { top: 14, right: 8, bottom: 30, left: 42 }, grillePleine: true,
+        repere: { x: 15, libelle: 'Recalage v2' }, couleurs: { ...COULEURS, repere: '#8a8a8a', libelleRepere: '#b0b0b0' },
+      }) as { grid: Record<string, number>; yAxis: { splitLine: { lineStyle: { type: unknown } } }; series: { markLine: { lineStyle: { color: string }; label: { position: string; color: string; formatter: string } } }[] };
+      expect(o.grid).toEqual({ left: 42, right: 8, bottom: 30, top: 14, outerBoundsMode: 'none' });
+      expect(o.yAxis.splitLine.lineStyle.type).toBe('solid');
+      expect(o.series[0].markLine.lineStyle.color).toBe('#8a8a8a');
+      expect(o.series[0].markLine.label).toMatchObject({ position: 'end', color: '#b0b0b0', formatter: 'Recalage v2' });
+    });
+  });
+
   it('aucune couleur ne vient d\'ailleurs que de la palette reçue', () => {
     const texte = JSON.stringify(optionCourbe({ ...base, repere: { x: 5000, libelle: 'R' } }));
     const hex = texte.match(/#[0-9a-fA-F]{6}/g) ?? [];

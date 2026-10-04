@@ -16,6 +16,8 @@ import { ReferentielApi } from './data/referentiel.api';
 import { SitesRisqueApi } from './data/sites-risque.api';
 import { ZonesRisqueApi } from './data/zones-risque.api';
 import { JeuxZonesApi } from './data/jeux-zones.api';
+import { SimulationApi } from './data/simulation.api';
+import { reponseSimulation } from './testing/simulation.fixture';
 import { DELAI_BANDES_MS } from './etat/donnees-risque.service';
 import { RisquePage } from './risque.page';
 
@@ -36,7 +38,8 @@ const attendre = () => (vi.isFakeTimers() ? vi.advanceTimersByTimeAsync(20) : ne
 /** L'écran sous un vrai routeur de test, avec une carte factice qui compte ses créations. */
 async function ouvrir(url = '/risques', reponses: {
   compter?: () => unknown; bandes?: (q: unknown) => unknown; courbe?: () => unknown; exportProfil?: (p: URLSearchParams) => unknown;
-  lister?: () => unknown; lire?: (id: string) => unknown;
+  lister?: () => unknown; lire?: (id: string) => unknown; lireSimulation?: (id: string) => unknown;
+  extractions?: (id: string) => unknown;
 } = {}) {
   (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
   const cartes: CarteFactice[] = [];
@@ -69,7 +72,12 @@ async function ouvrir(url = '/risques', reponses: {
       { provide: JeuxZonesApi, useValue: {
         lister: reponses.lister ?? (() => NEVER), lire: reponses.lire ?? (() => NEVER),
         construire: () => NEVER, regler: () => NEVER, supprimer: () => NEVER, exportJeu: () => NEVER,
-        extractions: () => NEVER, cpGeo: () => NEVER, grappes: () => NEVER,
+        extractions: reponses.extractions ?? (() => NEVER), cpGeo: () => NEVER, grappes: () => NEVER,
+      } },
+      // La simulation de ⑤ (T16) : rien ne doit la lire avant la première visite de l'étape.
+      { provide: SimulationApi, useValue: {
+        lire: reponses.lireSimulation ?? (() => NEVER), simuler: () => NEVER, recaler: () => NEVER, purger: () => NEVER,
+        carte: () => NEVER, exportSimulation: () => NEVER,
       } },
       { provide: ReferentielApi, useValue: {
         geo: () => of({ regions: [{ code_region: '93', nom_region: 'Provence-Alpes-Côte d’Azur', depts: [{ code_dept: '13', nom_dept: 'Bouches-du-Rhône' }] }] }),
@@ -115,7 +123,39 @@ describe('RisquePage', () => {
     expect(el().querySelector('[data-panneau]')?.getAttribute('data-panneau')).toBe('sites');
   });
 
+  it('T16 : ⑤ — rien ne lit la simulation avant la première visite ; une seule lecture ensuite, ①↔⑤ ne relit rien', async () => {
+    const lus: string[] = [];
+    const extraites: string[] = [];
+    const { harness, el } = await ouvrir('/risques?risque=jeu%3D0b7ece33-4903-4a0b-a57a-f6c54e78a729', {
+      lireSimulation: (id) => { lus.push(id); return of(reponseSimulation('v2')); },
+      extractions: (id) => { extraites.push(id); return of({ extractions: [] }); },
+      lire: () => NEVER,
+    });
+    expect(lus).toEqual([]);
+    expect(el().querySelector('mg-bandeau-kpi-risque')).not.toBeNull();
+    expect(etape(el(), 'Campagne').textContent).not.toContain('renseignée');
+    etape(el(), 'Campagne').click();
+    await stabiliser(harness);
+    expect(lus).toEqual(['0b7ece33-4903-4a0b-a57a-f6c54e78a729']);
+    // Le bandeau change de QUESTION à la même place ; le panneau de ⑤ remplace le texte provisoire.
+    expect(el().querySelector('mg-bandeau-kpi-risque')).toBeNull();
+    expect(el().querySelector('mg-bandeau-campagne')).not.toBeNull();
+    expect(el().querySelector('[data-panneau="campagne"] mg-panneau-campagne')).not.toBeNull();
+    etape(el(), 'Sites').click();
+    await stabiliser(harness);
+    expect(el().querySelector('mg-bandeau-kpi-risque')).not.toBeNull();
+    // Une simulation existe : la pastille de ⑤ s'allume (hors de l'étape courante), comme `simulation:
+    // !!reponse?.simulation` de React — et elle reste allumée une fois ⑤ quittée.
+    expect(etape(el(), 'Campagne').textContent).toContain('renseignée');
+
+    etape(el(), 'Campagne').click();
+    await stabiliser(harness);
+    expect(lus).toHaveLength(1);
+    expect(extraites.length).toBeGreaterThan(0);
+  });
+
   it("(g) cliquer l'étape ③ réécrit `?risque=` SANS recréer l'écran", async () => {
+
     const { harness, page, router, el } = await ouvrir();
     etape(el(), 'Couverture').click();
     await stabiliser(harness);

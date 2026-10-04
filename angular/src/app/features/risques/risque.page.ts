@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, ElementRef, afterNextRender, computed, inject, signal,
+  ChangeDetectionStrategy, Component, ElementRef, afterNextRender, computed, effect, inject, signal,
 } from '@angular/core';
 import type { HttpResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -14,6 +14,9 @@ import { VueCartesComponent } from './cartes/vue-cartes.component';
 import { EtapeCouvertureComponent } from './etapes/couverture/etape-couverture.component';
 import { EtapeRayonComponent } from './etapes/rayon/etape-rayon.component';
 import { EtapeZonesComponent } from './etapes/zones/etape-zones.component';
+import { BandeauCampagneComponent } from './etapes/campagne/bandeau-campagne.component';
+import { PanneauCampagneComponent } from './etapes/campagne/panneau-campagne.component';
+import { SimulationService } from './etat/simulation.service';
 import { PanneauSitesComponent } from './etapes/sites/panneau-sites.component';
 import { BandeauKpiRisqueComponent } from './commandes/bandeau-kpi-risque.component';
 import { BarreCommuneComponent } from './commandes/barre-commune.component';
@@ -62,13 +65,13 @@ const LARGEUR_PANNEAU_DEFAUT = 480;
 @Component({
   selector: 'mg-risque',
   imports: [
-    BandeauKpiRisqueComponent, BarreCommuneComponent, BarreProgressionComponent, BoutonExportComponent,
-    CourbeRayonComponent, EtapeCouvertureComponent, EtapeRayonComponent, EtapeZonesComponent,
-    FilArianeComponent, FilEtapesComponent, IconeComponent, PanneauProfilComponent, PanneauSitesComponent,
+    BandeauCampagneComponent, BandeauKpiRisqueComponent, BarreCommuneComponent, BarreProgressionComponent,
+    BoutonExportComponent, CourbeRayonComponent, EtapeCouvertureComponent, EtapeRayonComponent, EtapeZonesComponent,
+    FilArianeComponent, FilEtapesComponent, IconeComponent, PanneauCampagneComponent, PanneauProfilComponent, PanneauSitesComponent,
     PerimeDirective, RegletteRayonsComponent, ResumeProfilComponent, VueCartesComponent,
   ],
   // Services d'ÉTAT fournis par l'écran (A13) : détruits avec lui, requêtes en cours comprises. T6-T16 y ajoutent les leurs.
-  providers: [ChargementService, EtatRisqueService, DonneesRisqueService, AtelierJeuxService],
+  providers: [ChargementService, EtatRisqueService, DonneesRisqueService, AtelierJeuxService, SimulationService],
   templateUrl: './risque.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
@@ -86,9 +89,13 @@ export class RisquePage {
   protected readonly etatRisque = inject(EtatRisqueService);
 
   protected readonly etat = this.etatRisque.etat;
-  /** Une campagne simulée sur le jeu ouvert allume l'étape ⑤ — branché en T16. */
-  private readonly simulation = signal(false);
-  protected readonly etapes = computed(() => etapesAffichees(this.etat(), this.simulation()));
+  /**
+   * La simulation de ⑤ (T16). Fournie par l'écran mais INERTE jusqu'à la première visite de ⑤ (`activer`) : les étapes
+   * ① à ④ ne paient pas une simulation qu'elles n'affichent pas. Une fois lue, elle reste : le fil d'étapes continue de
+   * marquer ⑤ (`AnalysePopulationOverlay.tsx:385,938`), et le retour à ⑤ ne recharge rien.
+   */
+  private readonly simulation = inject(SimulationService);
+  protected readonly etapes = computed(() => etapesAffichees(this.etat(), !!this.simulation.reponse()?.simulation));
   /** Les données partagées (T5) : bandes, courbe, sites, cibles, référentiel. */
   protected readonly donnees = inject(DonneesRisqueService);
   /**
@@ -141,7 +148,9 @@ export class RisquePage {
   /** Le cadre du panneau d'étape : ③ empile ses deux blocs sans marge ; ④ garde les 16 × 18 px de React. */
   protected readonly classePanneau = computed(() => {
     const etape = this.etat().etape;
-    if (etape === 'couverture') return 'flex min-h-0 min-w-0 flex-1 flex-col';
+    // ③ empile ses deux blocs ; ⑤ porte son propre cadre défilant (`Cadre`, `PanneauCampagne.tsx:463`).
+    if (etape === 'couverture' || etape === 'campagne') return 'flex min-h-0 min-w-0 flex-1 flex-col';
+
     return etape === 'zones' ? 'min-w-0 flex-1 overflow-auto px-[18px] py-4' : 'min-w-0 flex-1 overflow-auto px-5 py-4';
   });
 
@@ -168,6 +177,11 @@ export class RisquePage {
   readonly apercuRayon = signal<ApercuRayon | null>(null);
 
   constructor() {
+    // Première visite de ⑤ (`AvecSimulation`, `AnalysePopulationOverlay.tsx:1677-1686`).
+    effect(() => {
+      if (this.etat().etape === 'campagne') this.simulation.activer();
+    });
+
     // Le focus sur l'hôte à l'ouverture : sans lui, Échap ne l'atteint pas avant le premier clic dans l'écran.
     afterNextRender(() => {
       const el = this.hote.nativeElement;

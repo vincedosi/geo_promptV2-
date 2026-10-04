@@ -60,17 +60,17 @@ export async function messageExport(erreur: unknown): Promise<string> {
             [class.p-0]="variante() === 'lien'" [class.gap-[5px]]="variante() === 'lien'"
             [class.font-sans]="variante() === 'lien'"
             [class.text-teal]="variante() === 'teal' || variante() === 'lien'"
-            [class.gap-[6px]]="variante() === 'teal' || variante() === 'neutre'"
+            [class.gap-[6px]]="variante() === 'teal' || variante() === 'neutre' || variante() === 'panneau'"
             [class.rounded-lg]="variante() === 'teal' || variante() === 'neutre'"
-            [class.px-3]="variante() === 'teal' || variante() === 'neutre'"
-            [class.py-[5px]]="variante() === 'teal'" [class.py-[6px]]="variante() === 'neutre'"
-            [class.gap-[7px]]="variante() === 'action'" [class.rounded-[6px]]="variante() === 'action'"
+            [class.px-3]="variante() === 'teal' || variante() === 'neutre' || variante() === 'panneau'"
+            [class.py-[5px]]="variante() === 'teal'" [class.py-[6px]]="variante() === 'neutre' || variante() === 'panneau'"
+            [class.gap-[7px]]="variante() === 'action'" [class.rounded-[6px]]="variante() === 'action' || variante() === 'panneau'"
             [class.px-4]="variante() === 'action'" [class.py-2]="variante() === 'action'"
             [class.border-teal]="variante() === 'teal'"
-            [class.font-medium]="variante() === 'teal'"
-            [class.border-default]="variante() === 'neutre' || variante() === 'action'"
-            [class.text-secondary]="(variante() === 'neutre' || variante() === 'action') && !desactive()"
-            [class.text-tertiary]="(variante() === 'neutre' || variante() === 'action') && desactive()"
+            [class.font-medium]="variante() === 'teal' || variante() === 'panneau'"
+            [class.border-default]="variante() === 'neutre' || variante() === 'action' || variante() === 'panneau'"
+            [class.text-secondary]="(variante() === 'neutre' || variante() === 'action' || variante() === 'panneau') && !desactive()"
+            [class.text-tertiary]="(variante() === 'neutre' || variante() === 'action' || variante() === 'panneau') && desactive()"
             [class.cursor-pointer]="!enCours() && !desactive()"
             [class.cursor-wait]="enCours() && (variante() === 'teal' || variante() === 'lien')"
             [class.cursor-not-allowed]="desactive() || (enCours() && variante() !== 'teal' && variante() !== 'lien')">
@@ -98,10 +98,12 @@ export class BoutonExportComponent {
   /**
    * `teal` : bouton d'action du rayon ; `neutre` : bouton de l'en-tête (profil) ; `action` : bouton neutre d'une
    * rangée d'actions de panneau (`styleBoutonNeutre` d'`OngletZones.tsx:820` — 8 × 16 px, rayon 6, écart 7) ; `lien` :
-   * lien teal sans cadre d'une ligne de tableau (`styleLien` de `PanneauExtractions.tsx` — icône 12, écart 5).
+   * lien teal sans cadre d'une ligne de tableau (`styleLien` de `PanneauExtractions.tsx` — icône 12, écart 5) ;
+   * `panneau` : bouton neutre du panneau de ⑤ (`styleBouton(false)` de `PanneauCampagne.tsx:537` — 6 × 12 px, rayon 6,
+   * écart 6, graisse 500, icône 12).
    */
-  readonly variante = input<'teal' | 'neutre' | 'action' | 'lien'>('teal');
-  protected readonly tailleIcone = computed(() => (this.variante() === 'lien' ? 12 : 13));
+  readonly variante = input<'teal' | 'neutre' | 'action' | 'lien' | 'panneau'>('teal');
+  protected readonly tailleIcone = computed(() => (this.variante() === 'lien' || this.variante() === 'panneau' ? 12 : 13));
   /** Désactivé avant toute requête (profil sans anneau : le classeur serait vide). */
   readonly desactive = input(false, { transform: booleanAttribute });
 

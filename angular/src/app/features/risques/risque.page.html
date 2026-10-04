@@ -46,8 +46,11 @@
 <!-- La barre ENTRE les réglages et les chiffres : le geste du dessus déclenche, les chiffres du dessous attendent. -->
 <mg-barre-progression />
 
-<!-- Les six chiffres, PERMANENTS. À l'étape ⑤ ils changent de question (BandeauCampagne, T16). -->
-@if (etat().etape !== 'campagne') {
+<!-- Les six chiffres, PERMANENTS. À l'étape ⑤ ils changent de question : même emplacement, même `mg-kpi`, on change de
+     sujet, pas d'écran (`BandeauCampagne.tsx`). Ni `mgPerime` ni badge « Simulation » (arbitrage React du 2026-09-24). -->
+@if (etat().etape === 'campagne') {
+  <mg-bandeau-campagne />
+} @else {
   <mg-bandeau-kpi-risque [mgPerime]="donnees.perime()"
                          [bandes]="donnees.bandes().bandes" [sites]="donnees.compteSites().compte"
                          [courbe]="donnees.courbeTotale()" [rayonMax]="donnees.rayonMaxProfil()"
@@ -65,7 +68,6 @@
     <!-- ④ garde la marge de son panneau React (16 × 18 px, OngletZones.tsx:253). -->
     <div [class]="classePanneau()"
          [attr.data-panneau]="etat().etape" [mgPerime]="donnees.perime()">
-      <!-- Texte provisoire : le panneau de ⑤ arrive en T16. -->
       @switch (etat().etape) {
         @case ('sites') {
           <mg-panneau-sites [compte]="donnees.compteSites().compte" [chargement]="donnees.compteSites().chargement"
@@ -92,7 +94,12 @@
           <!-- L'atelier vit dans AtelierJeuxService (fourni par l'écran) : quitter ④ pendant une construction ne la perd pas. -->
           <mg-etape-zones />
         }
-        @case ('campagne') { <p class="m-0 text-[13px] text-tertiary">Campagne simulée — disponible prochainement.</p> }
+        @case ('campagne') {
+          <!-- La simulation vit dans SimulationService (fourni par l'écran) : une seule lecture pour le panneau, le
+               bandeau, la carte et le tableau (T17). Le panneau lui-même relit ses extractions à chaque visite, comme React. -->
+          <mg-panneau-campagne />
+        }
+
       }
     </div>
   </aside>

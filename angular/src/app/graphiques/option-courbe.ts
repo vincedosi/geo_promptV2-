@@ -5,17 +5,41 @@ export interface SerieCourbe {
   libelle: string;
   /** Nom de jeton sans `--` (ex. `brand-teal`, `nature-1`). */
   jeton: string;
-  points: ReadonlyArray<readonly [number, number]>;
+  /**
+   * Les points de la courbe. Une ordonnée `null` est un TROU : la ligne s'interrompt, sans liaison entre ses deux bords
+   * (`connectNulls={false}` de Recharts) — ex. la courbe d'alignement de ⑤, coupée au jour du recalage.
+   */
+  points: ReadonlyArray<readonly [number, number | null]>;
   /** Épaisseur du trait. Défaut 1,3, celui des courbes par nature de Recharts. */
   epaisseur?: number;
+  /**
+   * Un marqueur sur CHAQUE point (Recharts `dot={{ r: 2 }}`) : disque de rayon 2, rempli de blanc (le `fill` par défaut
+   * d'une ligne Recharts), bordé de 2 px à la couleur du trait. Défaut : aucun, le point n'apparaît qu'au survol.
+   */
+  marqueurs?: boolean;
   /** Porte les étiquettes au kilomètre quand `etiquettes` est vrai (la courbe totale seulement), sur une série invisible à part. */
   etiquetee?: boolean;
 }
 
 export interface RepereCourbe {
   x: number;
-  /** Absent côté React (le repère n'est pas nommé) : sans libellé, aucune étiquette n'est posée. */
+  /**
+   * Absent côté React à l'étape ② (le repère n'est pas nommé) : sans libellé, aucune étiquette n'est posée. Nommé
+   * (« Recalage v2 » à l'étape ⑤), il s'écrit AU-DESSUS du trait, centré — `position: 'top'` d'un `ReferenceLine`.
+   */
   libelle?: string;
+  /** Jeton du trait, sans `--` ; défaut `brand-teal`. */
+  jeton?: string;
+  /** Jeton du libellé, sans `--` ; défaut celui des graduations (`text-tertiary`). */
+  jetonLibelle?: string;
+}
+
+/** Marges de la zone de tracé, en px, axes COMPRIS (la `grid` d'ECharts) — chacune remplace celle par défaut. */
+export interface MargesCourbe {
+  top?: number;
+  right?: number;
+  bottom?: number;
+  left?: number;
 }
 
 export interface CouleursCourbe {
@@ -37,6 +61,8 @@ export interface CouleursCourbe {
   halo: string;
   /** Contour du point actif au survol (`--point-actif-contour`, invariant : `#fff` de Recharts). */
   pointActif: string;
+  /** Libellé du repère ; défaut `texte`. */
+  libelleRepere?: string;
 }
 
 /** `fMono` et `fInter` de `lib/design/polices.ts`. */
@@ -116,19 +142,39 @@ export function optionCourbe(e: {
   domaineX?: readonly [number, number];
   /** Étiquettes de population aux kilomètres ronds, sur les séries `etiquetee`. */
   etiquettes?: boolean;
+  /** Domaine Y imposé (Recharts `domain`) ; défaut, les graduations « rondes » de `graduationsRecharts` depuis zéro. */
+  domaineY?: readonly [number, number];
+  /** Graduations Y imposées (Recharts `ticks`) : étiquettes et traits aux seules valeurs données. */
+  graduationsY?: readonly number[];
+  /** Marges de la zone de tracé ; défaut, celles de la courbe de l'étape ②. */
+  marges?: MargesCourbe;
+  /** Grille horizontale en trait PLEIN (`CartesianGrid` sans `strokeDasharray`) ; défaut, pointillée 2 4. */
+  grillePleine?: boolean;
 }): EChartsCoreOption {
   const c = e.couleurs;
   const formaterValeur = e.formaterValeur ?? e.formaterY;
   const formaterTitre = e.formaterTitre ?? e.formaterX;
   const visibles = e.series.filter((s) => !e.masquees.has(s.cle));
   const avecEtiquettes = e.etiquettes === true;
-  const grilleY = graduationsRecharts(Math.max(0, ...visibles.flatMap((s) => s.points.map((p) => p[1]))));
+  // Les trous (`null`) n'entrent pas dans le maximum.
+  const ordonnees = visibles.flatMap((s) => s.points.map((p) => p[1]).filter((y): y is number => y !== null));
+  const grilleY = e.domaineY ? null : graduationsRecharts(Math.max(0, ...ordonnees));
+  // Graduations régulières : l'intervalle aligne AUSSI la grille, que `customValues` ne pilote pas.
+  const pasY = e.graduationsY && e.graduationsY.length > 1 ? e.graduationsY[1] - e.graduationsY[0] : undefined;
   const graduation = { fontFamily: MONO, fontSize: 10, color: c.texte };
   const axe = { show: true, lineStyle: { color: c.axe, width: 1 } };
   const tick = { show: true, length: 6, lineStyle: { color: c.axe, width: 1 } };
+  const grille = {
+    left: e.marges?.left ?? GRILLE.left,
+    right: e.marges?.right ?? GRILLE.right,
+    bottom: e.marges?.bottom ?? GRILLE.bottom,
+    top: e.marges?.top ?? (avecEtiquettes ? 20 : 4),
+  };
   return {
     animation: false,
-    grid: { left: GRILLE.left, right: GRILLE.right, bottom: GRILLE.bottom, top: avecEtiquettes ? 20 : 4 },
+    // Marges imposées : la zone de tracé est celle de Recharts, qui laisse déborder ses étiquettes (« j28 » au bord
+    // droit) — ECharts 6 rétrécirait sinon la grille pour les contenir, et la courbe ne finirait plus au même pixel.
+    grid: e.marges ? { ...grille, outerBoundsMode: 'none' } : grille,
     xAxis: {
       type: 'value',
       min: e.domaineX?.[0],
@@ -145,11 +191,17 @@ export function optionCourbe(e: {
     yAxis: {
       type: 'value',
       ...(grilleY ? { min: grilleY.min, max: grilleY.max, interval: grilleY.pas } : {}),
-      axisLabel: { ...graduation, formatter: e.formaterY },
+      ...(e.domaineY ? { min: e.domaineY[0], max: e.domaineY[1] } : {}),
+      ...(pasY ? { interval: pasY } : {}),
+      axisLabel: {
+        ...graduation,
+        formatter: e.formaterY,
+        ...(e.graduationsY ? { customValues: [...e.graduationsY] } : {}),
+      },
       axisLine: axe,
-      axisTick: tick,
-      // Grille horizontale seule, pointillée 2 4 (`strokeDasharray="2 4"`).
-      splitLine: { show: true, lineStyle: { color: c.grille, type: [2, 4], width: 1 } },
+      axisTick: { ...tick, ...(e.graduationsY ? { customValues: [...e.graduationsY] } : {}) },
+      // Grille horizontale seule, pointillée 2 4 (`strokeDasharray="2 4"`) — ou pleine (`CartesianGrid` nu).
+      splitLine: { show: true, lineStyle: { color: c.grille, type: e.grillePleine ? 'solid' : [2, 4], width: 1 } },
     },
     tooltip: {
       trigger: 'axis',
@@ -165,12 +217,13 @@ export function optionCourbe(e: {
       extraCssText: 'box-shadow:none;',
       textStyle: { fontFamily: INTER, fontSize: 11, color: c.textePrincipal },
       position: (point: [number, number], _p: unknown, _d: unknown, _r: unknown, taille: { contentSize: [number, number]; viewSize: [number, number] }) =>
-        positionInfobulle(point, taille.contentSize, taille.viewSize, [GRILLE.left, avecEtiquettes ? 20 : 4]),
+        positionInfobulle(point, taille.contentSize, taille.viewSize, [grille.left, grille.top]),
       axisPointer: { lineStyle: { color: c.axe, width: 1, type: 'solid' } },
       formatter: (params: unknown) => {
+        // Un TROU (`null`) ne s'annonce pas : Recharts filtre les valeurs nulles (`filterNull`).
         const lignes = ((Array.isArray(params) ? params : [params]) as {
-          seriesId?: string; seriesIndex?: number; seriesName: string; value: readonly [number, number]; color: string;
-        }[]).filter((l) => !l.seriesId?.startsWith(PREFIXE_ETIQUETTES));
+          seriesId?: string; seriesIndex?: number; seriesName: string; value: readonly [number, number | null]; color: string;
+        }[]).filter((l) => !l.seriesId?.startsWith(PREFIXE_ETIQUETTES) && l.value[1] != null);
         if (lignes.length === 0) return '';
         // Ordre de l'infobulle de Recharts (`itemSorter` par défaut : le NOM de la série, c'est-à-dire sa CLÉ de
         // données, comparée unité de code par unité de code — « GPL » avant « Gaz », `*` avant tout). Mesuré au
@@ -180,7 +233,8 @@ export function optionCourbe(e: {
         // Titre et lignes comme l'infobulle par défaut de Recharts : titre sans marge, une ligne par
         // courbe à 4 px de haut et de bas, texte à la couleur du trait.
         const items = lignes
-          .map((l) => `<li style="display:block;padding:4px 0;color:${l.color}">${echapperHtml(l.seriesName)} : ${echapperHtml(formaterValeur(Number(l.value[1])))}</li>`)
+          // La couleur du TRAIT : celle du point vaudrait le blanc d'un marqueur (`marqueurs`).
+          .map((l) => `<li style="display:block;padding:4px 0;color:${c.series[cle(l)] ?? l.color}">${echapperHtml(l.seriesName)} : ${echapperHtml(formaterValeur(Number(l.value[1])))}</li>`)
           .join('');
         return `<p style="margin:0">${echapperHtml(formaterTitre(Number(lignes[0].value[0])))}</p>`
           + `<ul style="list-style:none;padding:0;margin:0">${items}</ul>`;
@@ -191,23 +245,37 @@ export function optionCourbe(e: {
         type: 'line',
         name: s.libelle,
         data: s.points.map((p) => [p[0], p[1]]),
+        // Un trou reste un trou : jamais de liaison entre ses deux bords (Recharts `connectNulls={false}`).
+        connectNulls: false,
         // `monotone` de Recharts : courbe lissée qui ne dépasse jamais ses points.
         smooth: true,
         smoothMonotone: 'x',
-        // Point actif au survol comme Recharts : disque plein de rayon 4, bord de 2 px.
-        showSymbol: false,
         symbol: 'circle',
-        symbolSize: 8,
         lineStyle: { color: c.series[s.cle], width: s.epaisseur ?? 1.3 },
-        itemStyle: { color: c.series[s.cle], borderWidth: 2, borderColor: c.pointActif },
+        ...(s.marqueurs
+          ? {
+              // `dot={{ r: 2 }}` : rayon 2 (taille 4), fond blanc, bord de 2 px au trait. Au survol, le point actif de
+              // Recharts (rayon 4, plein à la couleur du trait, bord blanc) : échelle 2 et couleurs inversées.
+              showSymbol: true,
+              symbolSize: 4,
+              itemStyle: { color: c.pointActif, borderWidth: 2, borderColor: c.series[s.cle] },
+              emphasis: { scale: 2, itemStyle: { color: c.series[s.cle], borderColor: c.pointActif } },
+            }
+          : {
+              // Point actif au survol comme Recharts : disque plein de rayon 4, bord de 2 px.
+              showSymbol: false,
+              symbolSize: 8,
+              itemStyle: { color: c.series[s.cle], borderWidth: 2, borderColor: c.pointActif },
+            }),
         ...(i === 0 && e.repere
           ? {
               markLine: {
                 symbol: 'none',
                 silent: true,
                 lineStyle: { color: c.repere, type: [3, 3], width: 1 },
+                // `position: 'top'` d'un `ReferenceLine` : au-dessus de l'extrémité HAUTE du trait, centré.
                 label: e.repere.libelle
-                  ? { fontFamily: INTER, fontSize: 10, color: c.texte, position: 'insideEndTop', formatter: e.repere.libelle }
+                  ? { fontFamily: INTER, fontSize: 10, color: c.libelleRepere ?? c.texte, position: 'end', formatter: e.repere.libelle }
                   : { show: false },
                 data: [{ xAxis: e.repere.x }],
               },
