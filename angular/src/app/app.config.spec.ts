@@ -189,6 +189,22 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       http.expectNone((r) => r.url.startsWith('/api/'));
     }, DELAI_DEMARRAGE_REEL);
 
+    it("sans session : la carte principale renvoie vers /connexion, sans aucun appel d'API", async () => {
+      const { router, http } = await demarrer('/app/carte', false);
+      expect(router.url).toBe('/connexion?redirection=%2Fapp%2Fcarte');
+      http.expectNone((r) => r.url.startsWith('/api/'));
+    }, DELAI_DEMARRAGE_REEL);
+
+    it("« Explorer » de la barre latérale mène à /app/carte", async () => {
+      const { http, harness } = await demarrer('/app', true);
+      http.expectOne('/api/risques/sites/compter').flush({ retenus: 1, total: 1, par_nature: {} });
+      http.match('/api/user/organizations').forEach((r) => r.flush({ organizations: [], active_org_id: null, is_super_admin: false }));
+      await stabiliser(harness);
+      const racine = ombre(harness.fixture.nativeElement as HTMLElement);
+      const explorer = [...racine.querySelectorAll('mg-barre-laterale a')].find((a) => a.textContent?.includes('Explorer'));
+      expect(explorer?.getAttribute('href')).toBe('/app/carte');
+    }, DELAI_DEMARRAGE_REEL);
+
     it("sans session : l'écran plein écran risques renvoie vers /connexion avec son état d'URL, sans aucun appel d'API", async () => {
       const { router, http } = await demarrer('/app/risques?risque=etape%3Drayon', false);
       expect(router.url).toBe('/connexion?redirection=%2Fapp%2Frisques%3Frisque%3Detape%253Drayon');

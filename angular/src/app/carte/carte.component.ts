@@ -19,7 +19,7 @@ import { FABRIQUE_CARTE, FOND_POSITRON } from './fabrique-carte';
  * - `deplacee` au `moveend`, JAMAIS au `move` : un chargement par image de
  *   panoramique serait la famille de l'incident du 28/03 (CLAUDE.md).
  * - Le composant ne choisit pas de cadre « France entière » par défaut :
- *   `cadre` est requis.
+ *   `cadre` est requis, sauf si `centre` ET `zoomInitial` le remplacent (lot 4, B11).
  * - **La feuille de style MapLibre voyage avec la carte, sans passer par un
  *   `styleUrl` de composant.** `angular.json` déclare
  *   `node_modules/maplibre-gl/dist/maplibre-gl.css` avec `inject: false` :
@@ -51,7 +51,25 @@ import { FABRIQUE_CARTE, FOND_POSITRON } from './fabrique-carte';
 })
 export class CarteComponent {
   readonly fond = input(FOND_POSITRON);
-  readonly cadre = input.required<Bbox>();
+  /**
+   * Le cadre initial (et tout recadrage ultérieur). Requis SAUF si `centre` ET `zoomInitial` sont
+   * fournis : la carte ne choisit jamais d'elle-même un cadre « France entière ».
+   */
+  readonly cadre = input<Bbox | null>(null);
+  /**
+   * Centre et zoom initiaux (lot 4, arbitrage B11) : la carte principale s'ouvre comme React
+   * (`useMapInit.ts:131-145`, `[2.3, 46.6]` à z5,5), pas sur une emprise. Fournis ENSEMBLE, ils
+   * prennent le pas sur `cadre` à la création ; absents, rien ne change.
+   */
+  readonly centre = input<[number, number] | null>(null);
+  readonly zoomInitial = input<number | null>(null);
+  /**
+   * Le contrôle de zoom : haut droite sans boussole par défaut (dotation de `CarteRisque.tsx`) ;
+   * la carte principale le pose en bas à droite AVEC boussole (`useMapInit.ts:189`, contrôle par défaut).
+   */
+  readonly navigation = input<{ position: 'top-right' | 'bottom-right'; boussole: boolean }>(
+    { position: 'top-right', boussole: false },
+  );
   readonly prete = output<maplibregl.Map>();
   readonly deplacee = output<Bbox>();
   /** Le zoom courant, à chaque image de zoom (React : `m.on('zoom', …)`) et une fois à la première pose. */
@@ -75,7 +93,7 @@ export class CarteComponent {
     effect(() => {
       const cadre = this.cadre();
       const carte = this.instance();
-      if (!carte || cadre === this.cadreApplique) return;
+      if (!carte || !cadre || cadre === this.cadreApplique) return;
       this.cadreApplique = cadre;
       carte.fitBounds([...cadre] as [number, number, number, number], { padding: 40, animate: false });
     });
@@ -91,18 +109,25 @@ export class CarteComponent {
         if (!this.destruction.destroyed) this.erreur.emit("La feuille de style de la carte n'a pas pu être chargée.");
       });
       const element = this.conteneur().nativeElement;
+      const centre = this.centre();
+      const zoomInitial = this.zoomInitial();
+      const cadre = this.cadre();
+      let position: Pick<maplibregl.MapOptions, 'center' | 'zoom' | 'bounds' | 'fitBoundsOptions'>;
+      if (centre && zoomInitial !== null) position = { center: centre, zoom: zoomInitial };
+      else if (cadre) position = { bounds: [...cadre] as [number, number, number, number], fitBoundsOptions: { padding: 40 } };
+      else throw new Error('mg-carte : fournir `cadre`, ou `centre` ET `zoomInitial`.');
       const carte = this.fabrique({
         container: element,
         style: this.fond(),
-        bounds: [...this.cadre()] as [number, number, number, number],
-        fitBoundsOptions: { padding: 40 },
+        ...position,
         attributionControl: { compact: true },
       });
-      // Zoom +/− sans boussole en haut à droite, attribution compacte en bas à droite (`attributionControl`
+      // Par défaut, zoom +/− sans boussole en haut à droite, attribution compacte en bas à droite (`attributionControl`
       // ci-dessus) : la dotation de CarteRisque.tsx. Les contrôles vivent DANS le conteneur, donc dans la racine d'ombre.
-      carte.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+      const navigation = this.navigation();
+      carte.addControl(new maplibregl.NavigationControl({ showCompass: navigation.boussole }), navigation.position);
       carte.on('zoom', () => this.zoom.emit(carte.getZoom()));
-      this.cadreApplique = this.cadre();
+      this.cadreApplique = cadre;
       this.instance.set(carte);
       let chargee = false;
       carte.on('load', () => {

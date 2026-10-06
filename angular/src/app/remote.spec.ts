@@ -293,6 +293,47 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     expect(http.match((r) => r.url.startsWith('/api/'))).toEqual([]);
   });
 
+  it("carte est une route PLEIN ÉCRAN sœur de la coquille, gardée par authGuard, avec son outlet enfant", () => {
+    const racine = remoteRoutes[0];
+    const carte = racine.children?.find((r) => r.path === 'carte');
+    expect(carte?.canActivate).toEqual([authGuard]);
+    expect(carte?.loadComponent).toBeDefined();
+    expect(carte?.children).toEqual([]);
+    const coquille = racine.children?.find((r) => r.path === '');
+    expect(coquille?.children?.some((r) => r.path === 'carte')).toBe(false);
+  });
+
+  it("carte : montée sans coquille sous le préfixe de l'hôte ; « Explorer » de la coquille y mène", async () => {
+    class Observateur { observe = vi.fn(); disconnect = vi.fn(); }
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver = Observateur;
+    const cartes: CarteFactice[] = [];
+    const factices: Provider[] = [
+      { provide: FABRIQUE_CARTE, useValue: (o: never) => { const c = new CarteFactice(o); cartes.push(c); return c; } },
+    ];
+    const { harness, http } = await monter(true, factices);
+    http.match('/api/risques/sites/compter').forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
+    const racine = ombre(harness.fixture.nativeElement as HTMLElement);
+    const explorer = [...racine.querySelectorAll('mg-barre-laterale a')].find((a) => a.textContent?.includes('Explorer'))!;
+    expect(explorer.getAttribute('href')).toBe('/hote/magelian/carte');
+    (explorer as HTMLAnchorElement).click();
+    for (let i = 0; i < 3; i++) { await attendre(); await harness.fixture.whenStable(); }
+    expect(TestBed.inject(Router).url).toBe('/hote/magelian/carte');
+    expect(racine.querySelector('mg-carte-principale')).not.toBeNull();
+    expect(racine.querySelector('mg-coquille')).toBeNull();
+    expect(cartes).toHaveLength(1);
+    http.match(() => true);
+  });
+
+  it("carte sans session : le message de session, jamais l'écran ni un appel d'API", async () => {
+    const { harness, http } = await monter(false);
+    await harness.navigateByUrl('/hote/magelian/carte');
+    await attendre();
+    const racine = ombre(harness.fixture.nativeElement as HTMLElement);
+    expect(racine.querySelector('[role="status"]')).not.toBeNull();
+    expect(racine.querySelector('mg-carte-principale')).toBeNull();
+    expect(http.match((r) => r.url.startsWith('/api/'))).toEqual([]);
+  });
+
   it("risques est une route PLEIN ÉCRAN sœur de la coquille, gardée par authGuard", () => {
     const racine = remoteRoutes[0];
     const risques = racine.children?.find((r) => r.path === 'risques');

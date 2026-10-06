@@ -6,7 +6,7 @@ import { BarreLateraleComponent } from './barre-laterale.component';
 async function rendre(options: { dev?: boolean } = {}): Promise<HTMLElement> {
   TestBed.configureTestingModule({
     providers: [
-      provideRouter([{ path: 'catalogue', children: [] }, { path: 'essai-carte', children: [] }, { path: 'risques', children: [] }]),
+      provideRouter([{ path: 'catalogue', children: [] }, { path: 'essai-carte', children: [] }, { path: 'risques', children: [] }, { path: 'carte', children: [] }]),
       { provide: MODE_DEVELOPPEMENT, useValue: options.dev ?? true },
     ],
   });
@@ -50,10 +50,17 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     }
   });
 
+  it('« Explorer » mène à la carte principale (lot 4), par un lien RELATIF', async () => {
+    const el = await rendre({ dev: false });
+    const explorer = [...el.querySelectorAll('[data-section="Carte"] a')].find((a) => texte(a.querySelector('span')) === 'Explorer')!;
+    expect(explorer.getAttribute('href')).toBe('/carte');
+    expect(explorer.hasAttribute('aria-disabled')).toBe(false);
+  });
+
   it('les écrans pas encore portés sont INERTES : aria-disabled, infobulle, aucun lien', async () => {
     const el = await rendre({ dev: false });
-    const liens = [...el.querySelectorAll('nav a')];
-    expect(liens.length).toBe(15);
+    const liens = [...el.querySelectorAll('nav a')].filter((a) => texte(a.querySelector('span')) !== 'Explorer');
+    expect(liens.length).toBe(14);
     for (const a of liens) {
       expect(a.getAttribute('aria-disabled')).toBe('true');
       expect(a.getAttribute('title')).toBe('Disponible prochainement');

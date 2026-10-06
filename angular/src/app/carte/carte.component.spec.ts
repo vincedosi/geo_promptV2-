@@ -202,4 +202,52 @@ describe('CarteComponent', () => {
       expect(f.componentInstance.erreurs).toEqual(["La feuille de style de la carte n'a pas pu être chargée."]);
     });
   });
+  describe('centre et zoom initiaux (lot 4, B11)', () => {
+    async function rendreAvec(entrees: Record<string, unknown>) {
+      let carte!: CarteFactice;
+      (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: FABRIQUE_CARTE, useValue: (o: never) => (carte = new CarteFactice(o)) },
+          { provide: BASE_RESSOURCES, useValue: BASE },
+        ],
+      });
+      const f = TestBed.createComponent(CarteComponent);
+      for (const [cle, valeur] of Object.entries(entrees)) f.componentRef.setInput(cle, valeur);
+      await f.whenStable();
+      return { f, carte: () => carte };
+    }
+
+    it('centre et zoomInitial fournis : passés à la fabrique, cadre ignoré', async () => {
+      const { carte } = await rendreAvec({ centre: [2.3, 46.6], zoomInitial: 5.5, cadre: [4.75, 43.35, 5.3, 43.6] });
+      const o = carte().options as Record<string, unknown>;
+      expect(o['center']).toEqual([2.3, 46.6]);
+      expect(o['zoom']).toBe(5.5);
+      expect(o['bounds']).toBeUndefined();
+      expect(o['fitBoundsOptions']).toBeUndefined();
+    });
+
+    it('sans cadre : centre et zoom suffisent, et un cadre posé ENSUITE recadre la carte', async () => {
+      const { f, carte } = await rendreAvec({ centre: [2.3, 46.6], zoomInitial: 5.5 });
+      expect(carte().cadrages).toEqual([]);
+      f.componentRef.setInput('cadre', [1, 2, 3, 4]);
+      await f.whenStable();
+      expect(carte().cadrages).toHaveLength(1);
+    });
+
+    it('absents : comportement inchangé (bounds + marge 40)', async () => {
+      const { carte } = await rendreAvec({ cadre: [4.75, 43.35, 5.3, 43.6] });
+      const o = carte().options as Record<string, unknown>;
+      expect(o['bounds']).toEqual([4.75, 43.35, 5.3, 43.6]);
+      expect(o['fitBoundsOptions']).toEqual({ padding: 40 });
+      expect(o['center']).toBeUndefined();
+    });
+
+    it('navigation : le contrôle peut se poser en bas à droite AVEC boussole (carte principale, useMapInit.ts:189)', async () => {
+      const { carte } = await rendreAvec({ centre: [2.3, 46.6], zoomInitial: 5.5, navigation: { position: 'bottom-right', boussole: true } });
+      expect(carte().controles).toHaveLength(1);
+      expect(carte().controles[0].position).toBe('bottom-right');
+      expect((carte().controles[0].controle as { options?: { showCompass?: boolean } }).options?.showCompass).toBe(true);
+    });
+  });
 });

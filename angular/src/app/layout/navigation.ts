@@ -40,7 +40,7 @@ export const SECTIONS_NAVIGATION: readonly SectionNavigation[] = [
   {
     section: 'Carte',
     entrees: [
-      { href: '/map', libelle: 'Explorer', icone: 'epingle-carte', cible: null },
+      { href: '/map', libelle: 'Explorer', icone: 'epingle-carte', cible: 'carte' },
       { href: '/map/custom-geo', libelle: 'Zones custom', icone: 'calques', cible: null },
     ],
   },

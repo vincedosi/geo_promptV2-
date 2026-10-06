@@ -66,8 +66,7 @@ export const remoteRoutes: Routes = [
     children: [
       // Écrans PLEIN ÉCRAN, hors de `mg-coquille` : comme `/map` en React (AppSidebar.tsx:348,
       // MainPadding.tsx, TopRightChrome.tsx : ni barre, ni chrome, ni marge). Ils restent sous
-      // la racine distante, donc sous ses fournisseurs et son `authGuard`. Les routes carte et
-      // risque à venir se rangent ici.
+      // la racine distante, donc sous ses fournisseurs et son `authGuard`.
       {
         path: 'essai-carte',
         canActivate: [authGuard],
@@ -80,6 +79,14 @@ export const remoteRoutes: Routes = [
         path: 'risques',
         canActivate: [authGuard],
         loadComponent: () => import('./features/risques/risque.page').then((m) => m.RisquePage),
+      },
+      // La carte principale (lot 4, React `/map`) : route plein écran (arbitrage B1). Son outlet enfant
+      // recevra le module risque (T13) ; une navigation de requête la RÉUTILISE, elle ne la recrée pas.
+      {
+        path: 'carte',
+        canActivate: [authGuard],
+        loadComponent: () => import('./features/carte/carte.page').then((m) => m.CartePage),
+        children: [],
       },
       {
         path: '',

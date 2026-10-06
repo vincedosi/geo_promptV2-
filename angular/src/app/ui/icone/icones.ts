@@ -60,6 +60,7 @@
  * | Shapes                     | formes               |
  * | Settings                   | reglages             |
  * | CircleHelp = CircleQuestionMark | aide            | Feather (MIT, « help-circle »)
+ * | Info                       | info                 | Feather (MIT)
  *
  * Pour ajouter une icône : lire `__iconNode` de `<lucide>.js`, ajouter une entrée (nom français en
  * kebab-case ; `feather: true` si le nom figure dans la liste Feather de la LICENSE de lucide-react),
@@ -536,6 +537,14 @@ export const ICONES = {
       { t: 'circle', cx: '12', cy: '12', r: '10' },
       { t: 'path', d: 'M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3' },
       { t: 'path', d: 'M12 17h.01' },
+    ],
+  },
+  'info': {
+    lucide: 'info', feather: true,
+    el: [
+      { t: 'circle', cx: '12', cy: '12', r: '10' },
+      { t: 'path', d: 'M12 16v-4' },
+      { t: 'path', d: 'M12 8h.01' },
     ],
   },
 } as const satisfies Record<string, DefinitionIcone>;
