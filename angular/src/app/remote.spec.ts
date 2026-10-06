@@ -1,6 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { type Provider, computed, provideZonelessChangeDetection, signal } from '@angular/core';
+import { EnvironmentInjector, Injectable, type Provider, computed, createEnvironmentInjector, getDebugNode, provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { NavigationStart, Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
@@ -14,6 +14,8 @@ import { CouleursService } from './core/theme/couleurs.service';
 import { FABRIQUE_GRAPHIQUE } from './graphiques/fabrique-graphique';
 import { SitesRisqueApi } from './features/risques/data/sites-risque.api';
 import { authGuard } from './core/auth/auth.guard';
+import { HttpBaseService } from './core/http/http-base.service';
+import { RoleAdminService } from './features/admin/etat/role-admin.service';
 
 /** L'application distante est servie AILLEURS que le document de l'hôte. */
 const BASE = 'https://distante.exemple/remotes/magelian/chunk-ABC.js';
@@ -458,5 +460,83 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
       await attendre();
       expect(appelsApi(http)).toEqual([]);
     });
+  });
+});
+
+/** Sonde : un service d'API comme ceux de l'administration, fourni par l'injecteur de la route `admin`. */
+@Injectable()
+class SondeAdminApi extends HttpBaseService {
+  ping() {
+    return this.httpClient.get(`${this.baseUrl}/admin/sonde`);
+  }
+}
+
+describe('administration (lot 6)', () => {
+  afterEach(() => retirerPolices());
+
+  const racineOmbre = (h: RouterTestingHarness) => ombre(h.fixture.nativeElement as HTMLElement);
+  const stabiliser = async (h: RouterTestingHarness) => {
+    for (let i = 0; i < 3; i++) { await attendre(); await h.fixture.whenStable(); }
+  };
+
+  /** Monte l'application, avec une session porteuse d'un identifiant et un profil du rôle demandé. */
+  async function monterAdmin(role: string) {
+    const ctx = await monter();
+    ctx.http.match('/api/risques/sites/compter').forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
+    ctx.auth.session.set(Object.assign({}, SESSION_FACTICE, { user: { email: 'test@exemple.fr', id: 'u-1' } }));
+    ctx.auth.lireProfil.mockResolvedValue({ role, nom: 'Test' } as never);
+    await stabiliser(ctx.harness);
+    return ctx;
+  }
+
+  it('`admin` est le DERNIER enfant de la coquille, en chargement paresseux (C1)', () => {
+    const coquille = remoteRoutes[0].children?.find((r) => r.path === '');
+    const enfants = coquille?.children ?? [];
+    expect(enfants.at(-1)?.path).toBe('admin');
+    expect(enfants.at(-1)?.loadChildren).toBeDefined();
+  });
+
+  it('super_admin : `admin` mène à `admin/health`, dans la coquille, sans changer de préfixe', async () => {
+    const { harness, http } = await monterAdmin('super_admin');
+    await harness.navigateByUrl('/hote/magelian/admin');
+    await stabiliser(harness);
+    expect(TestBed.inject(Router).url).toBe('/hote/magelian/admin/health');
+    expect(racineOmbre(harness).querySelector('mg-coquille mg-cadre-admin mg-health')).not.toBeNull();
+    expect(http.match((r) => r.url.startsWith('/api/'))).toEqual([]);
+  });
+
+  it('un service fourni sous la route `admin` part avec le Bearer et passe par le limiteur (4 appels → 3 en vol)', async () => {
+    const { harness, http } = await monterAdmin('super_admin');
+    await harness.navigateByUrl('/hote/magelian/admin/health');
+    await stabiliser(harness);
+    // L'injecteur d'environnement de la route `admin` (celui qui porte FOURNISSEURS_ADMIN), lu depuis la
+    // page qu'elle a montée — `routeDebugElement` désigne la racine distante, pas la page.
+    const page = racineOmbre(harness).querySelector('mg-health')!;
+    const envAdmin = getDebugNode(page)!.injector.get(EnvironmentInjector);
+    expect(envAdmin.get(RoleAdminService, null)).not.toBeNull();
+    const sonde = createEnvironmentInjector([SondeAdminApi], envAdmin).get(SondeAdminApi);
+    for (let i = 0; i < 4; i++) sonde.ping().subscribe();
+    await attendre();
+    const enVol = http.match('/api/admin/sonde');
+    expect(enVol.length).toBe(3);
+    expect(enVol.every((r) => r.request.headers.get('Authorization') === 'Bearer jeton-test')).toBe(true);
+    enVol[0].flush({});
+    await attendre();
+    http.expectOne('/api/admin/sonde').flush({});
+    enVol.slice(1).forEach((r) => r.flush({}));
+  });
+
+  it("client qui suit `admin/health` : le message de refus, URL inchangée, aucune page ni requête d'API", async () => {
+    const { harness, http, navigations } = await monterAdmin('client');
+    navigations.length = 0;
+    await harness.navigateByUrl('/hote/magelian/admin/health');
+    await stabiliser(harness);
+    const racine = racineOmbre(harness);
+    expect(racine.querySelector('mg-cadre-admin [role="status"]')?.textContent?.trim())
+      .toBe('Accès réservé aux super-administrateurs.');
+    expect(racine.querySelector('mg-health')).toBeNull();
+    expect(TestBed.inject(Router).url).toBe('/hote/magelian/admin/health');
+    expect(navigations).toEqual(['/hote/magelian/admin/health']);
+    expect(http.match((r) => r.url.startsWith('/api/'))).toEqual([]);
   });
 });
