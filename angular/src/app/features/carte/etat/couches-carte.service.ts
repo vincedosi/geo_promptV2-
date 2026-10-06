@@ -11,6 +11,27 @@ import type maplibregl from 'maplibre-gl';
  * - `inscrireEffacement` / `toutEffacer` : « Tout effacer » (`page.tsx:681-765`) appelle la fonction
  *   de CHAQUE couche inscrite, sans connaître aucune d'elles.
  *
+ * ── CONTRAT DE CHAQUE SERVICE DE COUCHE (T6+, arbitrage B11) ─────────────
+ * Changer de fond détruit l'instance MapLibre et toutes ses sources. Une couche se re-pose donc d'elle-même :
+ *
+ * ```ts
+ * constructor() {
+ *   effect((onCleanup) => {
+ *     const carte = this.couches.carteCourante();
+ *     if (!carte || !this.actif()) return;
+ *     onCleanup(quandStyleCharge(carte, () => this.poser(carte)));  // addSource/addLayer IDEMPOTENTS
+ *   });
+ *   this.couches.inscrireEffacement('<id>', () => this.effacer());
+ * }
+ * ```
+ *
+ * - `poser` teste `getSource`/`getLayer` SUR L'INSTANCE COURANTE avant d'ajouter — jamais un drapeau « déjà
+ *   posé » gardé dans le service : il survivrait à l'instance détruite et la couche ne reviendrait pas.
+ * - `carteCourante` passe par `null` dès le choix d'un autre fond (la page le publie avant de recréer) :
+ *   aucun effet n'écrit dans une carte morte.
+ * - `effacer` éteint la couche et vide ses données ; « Tout effacer » l'appelle sans rien annoncer
+ *   (`page.tsx:740-743`).
+ *
  * `@Injectable()` sans `providedIn` : fourni par la page carte, détruit avec elle.
  */
 @Injectable()
@@ -31,4 +52,24 @@ export class CouchesCarteService {
   toutEffacer(): void {
     for (const effacer of [...this.effacements.values()]) effacer();
   }
+}
+
+/** La surface de carte que `quandStyleCharge` emploie. */
+interface CarteChargement {
+  isStyleLoaded(): boolean;
+  once(evt: 'load', rappel: () => void): unknown;
+  off(evt: 'load', rappel: () => void): unknown;
+}
+
+/**
+ * Appelle `poser` tout de suite si le style est chargé, sinon au `load` — et rend de quoi retirer l'écoute
+ * (à passer à `onCleanup`), pour qu'un effet rejoué ou une carte remplacée ne pose pas deux fois.
+ */
+export function quandStyleCharge(carte: CarteChargement, poser: () => void): () => void {
+  if (carte.isStyleLoaded()) {
+    poser();
+    return () => undefined;
+  }
+  carte.once('load', poser);
+  return () => carte.off('load', poser);
 }

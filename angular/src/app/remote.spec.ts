@@ -62,6 +62,13 @@ function hote(connecte = true, extra: Provider[] = []) {
 
 const attendre = () => new Promise((r) => setTimeout(r, 0));
 
+/**
+ * Délai explicite des deux tests qui DÉMARRENT l'application puis naviguent (lien de la coquille, relance après
+ * échec) : lancé seul, ce fichier les a mesurés de 6 741 à 8 284 ms à froid (polices, démarrage, coquille), à la
+ * base comme après — au-delà des 5 000 ms par défaut, sans défaut de code. Même patron que `app.config.spec.ts`.
+ */
+const DELAI_DEMARRAGE_REEL = 15_000;
+
 /** Monte l'application sous le préfixe de l'hôte ; la configuration est servie par l'hôte factice. */
 async function monter(connecte = true, extra: Provider[] = []) {
   const ctx = hote(connecte, extra);
@@ -175,7 +182,7 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     expect(accueil?.getAttribute('href')).toBe('/hote/magelian');
     expect(accueil?.classList.contains('bg-overlay')).toBe(false);
     expect(lien!.classList.contains('bg-overlay')).toBe(true);
-  });
+  }, DELAI_DEMARRAGE_REEL);
 
   it('les services d\'API reçoivent le HttpClient de la route : le limiteur tient à 3 appels', async () => {
     const { harness, http } = await monter();
@@ -234,7 +241,7 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     expect(racine.querySelector('[role="alert"]')).toBeNull();
     expect(racine.querySelector('mg-coquille')).not.toBeNull();
     expect(TestBed.inject(Router).url).toBe('/hote/magelian/catalogue');
-  });
+  }, DELAI_DEMARRAGE_REEL);
 
   it("essai-carte est un écran PLEIN ÉCRAN : sous la racine distante, sans coquille ni barre latérale, et garde de session", async () => {
     class Observateur { observe = vi.fn(); disconnect = vi.fn(); }

@@ -14,52 +14,52 @@
     [decalageHaut]="etat.railMasque() ? 0 : hauteurBarre"
     (fermer)="panneauFerme()"
   >
-    <!-- Contenu provisoire : chaque panneau arrive dans sa tâche (Réglages et Aide T4, Filtre T5,
-         Calques T6-T13, Zones T14-T16, Analyse T17-T20). -->
+    <!-- Contenu provisoire : chaque panneau arrive dans sa tâche (Filtre T5, Calques T6-T13,
+         Zones T14-T16, Analyse T17-T20). -->
     @switch (p.id) {
       @case ('filtre') { <p data-provisoire class="px-4 py-2 text-[12px] text-tertiary">Le filtre unique « où je regarde » arrive avec la tâche 5.</p> }
       @case ('calques') { <p data-provisoire class="px-4 py-2 text-[12px] text-tertiary">Les calques arrivent avec les tâches 6 à 13.</p> }
       @case ('analyse') { <p data-provisoire class="px-4 py-2 text-[12px] text-tertiary">Les outils d'analyse arrivent avec les tâches 17 à 20.</p> }
       @case ('zones') { <p data-provisoire class="px-4 py-2 text-[12px] text-tertiary">Les zones arrivent avec les tâches 14 à 16.</p> }
-      @case ('reglages') { <p data-provisoire class="px-4 py-2 text-[12px] text-tertiary">Les réglages arrivent avec la tâche 4.</p> }
-      @case ('aide') { <p data-provisoire class="px-4 py-2 text-[12px] text-tertiary">L'aide arrive avec la tâche 4.</p> }
+      @case ('reglages') { <mg-reglages [fond]="fond()" (choisirFond)="choisirFond($event)" /> }
+      @case ('aide') { <mg-aide /> }
     }
   </mg-panneau-carte>
 }
 
-<!-- Mode immersif (`page.tsx:1334-1356`) : sous la barre du haut quand elle est affichée, à 10 px du bord. -->
-<button
-  type="button"
-  data-immersif
-  (click)="basculerImmersif()"
-  [attr.title]="etat.railMasque() ? 'Afficher la barre (Escape)' : 'Masquer la barre (mode immersif)'"
-  [attr.aria-pressed]="etat.railMasque()"
-  class="absolute right-[10px] z-50 flex cursor-pointer items-center justify-center rounded-[6px] border-fin border-default bg-surface p-2 text-secondary transition-[top,background-color,border-color,color] duration-200 ease-[var(--ease-out)] hover:border-hover hover:bg-elevated hover:text-primary"
-  [style.top.px]="etat.railMasque() ? 10 : hauteurBarre + 8"
->
-  <mg-icone [nom]="etat.railMasque() ? 'agrandir' : 'reduire'" [taille]="16" [trait]="1.5" />
-</button>
+<!-- Mode immersif puis « Tout effacer » (`page.tsx:1334-1376`) : sous la barre du haut quand elle est affichée. -->
+<mg-boutons-flottants
+  [railMasque]="etat.railMasque()"
+  [haut]="etat.railMasque() ? 10 : hauteurBarre + 8"
+  (basculerImmersif)="basculerImmersif()"
+  (toutEffacer)="toutEffacer()"
+/>
 
 <mg-annonce />
 
 <!-- La carte : `flex: 1`, sous la barre et à droite du rail (padding de l'hôte), comme le panneau droit de React. -->
 <div class="relative flex min-w-0 flex-1 overflow-hidden">
-  <mg-carte
-    class="min-h-0 min-w-0 flex-1"
-    [fond]="fond"
-    [centre]="centre"
-    [zoomInitial]="zoomInitial"
-    [navigation]="navigation"
-    (prete)="cartePrete($event)"
-    (zoom)="zoomChange($event)"
-  >
-    <!-- Badge de zoom (`useMapInit.ts:156-185`, arbitrage B16) : un élément du gabarit, plus un `style.cssText` injecté.
-         Interligne 20 px : en React le badge vit DANS `.maplibregl-map`, qui impose `12px/20px` ; ici il est projeté à côté. -->
-    <div
-      data-badge-zoom
-      class="pointer-events-none absolute left-[10px] top-[10px] z-10 rounded-[4px] border-fin border-default bg-card-overlay px-2 py-[3px] font-mono text-[11px] leading-[20px] tracking-[0.05em] text-secondary"
-    >{{ texteZoom() }}</div>
-  </mg-carte>
+  <!-- Un nouvel id de fond RECRÉE la carte, comme React (arbitrage B11) : `track f` détruit puis recrée `mg-carte`. -->
+  @for (f of [fond()]; track f) {
+    <mg-carte
+      class="min-h-0 min-w-0 flex-1"
+      [fond]="urlFond()"
+      [centre]="centre"
+      [zoomInitial]="zoomInitial"
+      [navigation]="navigation"
+      (prete)="cartePrete($event)"
+      (zoom)="zoomChange($event)"
+    >
+      <!-- Badge de zoom (`useMapInit.ts:156-185`, arbitrage B16) : un élément du gabarit, plus un `style.cssText` injecté.
+           Interligne 20 px : en React le badge vit DANS `.maplibregl-map`, qui impose `12px/20px` ; ici il est projeté à côté. -->
+      <div
+        data-badge-zoom
+        class="pointer-events-none absolute left-[10px] top-[10px] z-10 rounded-[4px] border-fin border-default bg-card-overlay px-2 py-[3px] font-mono text-[11px] leading-[20px] tracking-[0.05em] text-secondary"
+      >{{ texteZoom() }}</div>
+      <!-- Sélecteur compact « FOND » (`MapPanel.tsx:255-287`). -->
+      <mg-fond-compact [fond]="fond()" (choisirFond)="choisirFond($event)" />
+    </mg-carte>
+  }
 </div>
 
 <!-- Le module risque, route enfant (T13). -->

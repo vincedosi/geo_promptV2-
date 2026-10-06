@@ -1,5 +1,6 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, type Injector, computed, effect, inject, runInInjectionContext, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { of } from 'rxjs';
@@ -7,7 +8,11 @@ import { FABRIQUE_CARTE } from '../../carte/fabrique-carte';
 import { CarteFactice } from '../../carte/testing/carte-factice';
 import { AuthService } from '../../core/auth/auth.service';
 import { OrganisationsApi } from '../session/data/organisations.api';
+import { CouleursService } from '../../core/theme/couleurs.service';
 import { CartePage } from './carte.page';
+import { AnnonceService } from './etat/annonce.service';
+import { CouchesCarteService, quandStyleCharge } from './etat/couches-carte.service';
+import { EtatCarteService } from './etat/etat-carte.service';
 import { ENTREES_NAVIGATION } from './logique/navigation';
 
 @Component({ selector: 'mg-vide', template: '' })
@@ -279,5 +284,188 @@ describe('CartePage — squelette de la carte principale', () => {
     expect(harness.fixture.nativeElement.querySelector('mg-carte-principale')).toBe(hote);
     expect(cartes).toHaveLength(1);
     expect(cartes[0].retiree).toBe(false);
+  });
+});
+
+
+/** L'injecteur de la page : celui qui porte ses services d'état (`providers` du composant). */
+const injecteurPage = (harness: RouterTestingHarness): Injector =>
+  harness.fixture.debugElement.query(By.directive(CartePage)).injector;
+
+/** Un service de couche minimal qui suit le contrat B11 de `CouchesCarteService`. */
+class CoucheFactice {
+  private readonly couches = inject(CouchesCarteService);
+  readonly poses: unknown[] = [];
+  constructor() {
+    effect((nettoyer) => {
+      const carte = this.couches.carteCourante();
+      if (!carte) return;
+      nettoyer(quandStyleCharge(carte as never, () => this.poses.push(carte)));
+    });
+    this.couches.inscrireEffacement('factice', () => undefined);
+  }
+}
+
+const URL_POSITRON = 'https://tiles.openfreemap.org/styles/positron';
+const URL_LIBERTY = 'https://tiles.openfreemap.org/styles/liberty';
+const URL_BRIGHT = 'https://tiles.openfreemap.org/styles/bright';
+const styleDe = (c: CarteFactice) => (c.options as Record<string, unknown>)['style'];
+
+async function ouvrirReglages(hote: HTMLElement, stable: () => Promise<void>) {
+  hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="reglages"]')!.click();
+  await stable();
+}
+
+describe('CartePage — fond de carte, recréation, Tout effacer (T4)', () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(() => { localStorage.clear(); vi.restoreAllMocks(); });
+
+  it('choisir « Clair » RECRÉE la carte sur Positron, mémorise le choix, et carteCourante passe par null', async () => {
+    const { harness, hote, cartes, stable } = await ouvrir();
+    const couches = injecteurPage(harness).get(CouchesCarteService);
+    cartes[0].emettre('load');
+    await stable();
+    expect(couches.carteCourante()).toBe(cartes[0]);
+
+    await ouvrirReglages(hote, stable);
+    hote.querySelector<HTMLButtonElement>('mg-reglages button[data-fond="positron"]')!.click();
+    expect(couches.carteCourante()).toBeNull();
+    await stable();
+
+    expect(cartes).toHaveLength(2);
+    expect(cartes[0].retiree).toBe(true);
+    expect(styleDe(cartes[1])).toBe(URL_POSITRON);
+    expect((cartes[1].options as Record<string, unknown>)['center']).toEqual([2.3, 46.6]);
+    expect(localStorage.getItem('genesis_map_style')).toBe('positron');
+    expect(couches.carteCourante()).toBeNull();
+    cartes[1].emettre('load');
+    await stable();
+    expect(couches.carteCourante()).toBe(cartes[1]);
+    // Le fond courant est marqué, dans les Réglages comme dans le sélecteur compact.
+    expect(hote.querySelector('mg-reglages button[data-fond="positron"]')!.getAttribute('aria-pressed')).toBe('true');
+    expect(hote.querySelector('mg-reglages button[data-fond="magelian"]')!.getAttribute('aria-pressed')).toBe('false');
+    expect(hote.querySelector('[data-fond-compact="positron"]')!.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('re-choisir le fond courant ne recrée rien', async () => {
+    const { hote, cartes, stable } = await ouvrir();
+    await ouvrirReglages(hote, stable);
+    hote.querySelector<HTMLButtonElement>('mg-reglages button[data-fond="liberty"]')!.click();
+    await stable();
+    expect(cartes).toHaveLength(1);
+  });
+
+  it('le sélecteur compact « FOND » change de fond lui aussi (Sta / OSM / Cla / MAG)', async () => {
+    const { hote, cartes, stable } = await ouvrir();
+    const boutons = [...hote.querySelectorAll('mg-fond-compact button')].map((b) => b.textContent?.trim());
+    expect(boutons).toEqual(['Sta', 'OSM', 'Cla', 'MAG']);
+    hote.querySelector<HTMLButtonElement>('[data-fond-compact="bright"]')!.click();
+    await stable();
+    expect(styleDe(cartes[1])).toBe(URL_BRIGHT);
+  });
+
+  it('une couche active inscrite est RE-POSÉE sur la nouvelle instance après un changement de fond', async () => {
+    const { harness, hote, cartes, stable } = await ouvrir();
+    const couche = runInInjectionContext(injecteurPage(harness), () => new CoucheFactice());
+    cartes[0].emettre('load');
+    await stable();
+    expect(couche.poses).toEqual([cartes[0]]);
+
+    await ouvrirReglages(hote, stable);
+    hote.querySelector<HTMLButtonElement>('mg-reglages button[data-fond="bright"]')!.click();
+    await stable();
+    expect(couche.poses).toEqual([cartes[0]]);
+    cartes[1].emettre('load');
+    await stable();
+    expect(couche.poses).toEqual([cartes[0], cartes[1]]);
+  });
+
+  it("le fond mémorisé est repris à l'ouverture (id)", async () => {
+    localStorage.setItem('genesis_map_style', 'bright');
+    const { cartes } = await ouvrir();
+    expect(styleDe(cartes[0])).toBe(URL_BRIGHT);
+  });
+
+  it("une URL mémorisée à l'ancienne (valeur de React) est relue comme le premier fond qui la porte", async () => {
+    localStorage.setItem('genesis_map_style', URL_POSITRON);
+    const { cartes } = await ouvrir();
+    expect(styleDe(cartes[0])).toBe(URL_POSITRON);
+  });
+
+  it('un localStorage qui LÈVE : fond par défaut, aucune erreur, et choisir un fond fonctionne quand même', async () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('SecurityError'); });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('SecurityError'); });
+    const { hote, cartes, stable } = await ouvrir();
+    expect(styleDe(cartes[0])).toBe(URL_LIBERTY);
+    await ouvrirReglages(hote, stable);
+    hote.querySelector<HTMLButtonElement>('mg-reglages button[data-fond="positron"]')!.click();
+    await stable();
+    expect(cartes).toHaveLength(2);
+  });
+
+  it('« MAGELIAN » : surcharges posées au load, avec les couleurs de CouleursService, puis ré-appliquées au thème', async () => {
+    const theme = signal(0);
+    const couleurs = {
+      palette: () => computed(() => {
+        const t = theme();
+        return new Proxy({}, { get: (_c, cle) => `c-${String(cle)}-${t}` });
+      }),
+    };
+    TestBed.overrideProvider(CouleursService, { useValue: couleurs });
+    localStorage.setItem('genesis_map_style', 'magelian');
+    const { cartes, stable } = await ouvrir();
+    expect(styleDe(cartes[0])).toBe(URL_POSITRON);
+    cartes[0].styleCouches = [{ id: 'background', type: 'background' }, { id: 'water', type: 'fill' }];
+    cartes[0].emettre('load');
+    await stable();
+    expect(cartes[0].peintures).toContainEqual({ couche: 'background', propriete: 'background-color', valeur: 'c-fond-0' });
+    expect(cartes[0].peintures).toContainEqual({ couche: 'water', propriete: 'fill-color', valeur: 'c-eau-0' });
+    theme.set(1);
+    await stable();
+    expect(cartes[0].peintures).toContainEqual({ couche: 'background', propriete: 'background-color', valeur: 'c-fond-1' });
+    expect(cartes).toHaveLength(1);
+  });
+
+  it('« Clair » ne pose AUCUNE surcharge MAGELIAN (même URL Positron, autre fond)', async () => {
+    localStorage.setItem('genesis_map_style', 'positron');
+    const { cartes, stable } = await ouvrir();
+    cartes[0].styleCouches = [{ id: 'background', type: 'background' }];
+    cartes[0].emettre('load');
+    await stable();
+    expect(cartes[0].peintures).toEqual([]);
+  });
+
+  it('Tout effacer : chaque effacement inscrit appelé UNE fois, dégradé remis à zéro, AUCUNE annonce', async () => {
+    const { harness, hote, stable } = await ouvrir();
+    const injecteur = injecteurPage(harness);
+    const couches = injecteur.get(CouchesCarteService);
+    const etat = injecteur.get(EtatCarteService);
+    const a = vi.fn();
+    const b = vi.fn();
+    couches.inscrireEffacement('a', a);
+    couches.inscrireEffacement('b', b);
+    etat.basculerDegrade('carreaux', true);
+    etat.perimetreScope.set('metro');
+    etat.poiSelectionnes.set(['lycee']);
+    const bouton = hote.querySelector<HTMLButtonElement>('button[data-tout-effacer]')!;
+    expect(bouton.getAttribute('title')).toBe('Tout effacer (couches et zones affichées)');
+    bouton.click();
+    await stable();
+    expect(a).toHaveBeenCalledTimes(1);
+    expect(b).toHaveBeenCalledTimes(1);
+    expect(etat.degradeActif()).toBeNull();
+    expect(etat.perimetreScope()).toBeNull();
+    expect(etat.poiSelectionnes()).toEqual([]);
+    expect(injecteur.get(AnnonceService).annonces()).toEqual([]);
+  });
+
+  it('Réglages et Aide remplacent leur contenu provisoire', async () => {
+    const { hote, stable } = await ouvrir();
+    await ouvrirReglages(hote, stable);
+    expect(hote.querySelector('mg-reglages')).not.toBeNull();
+    expect(hote.querySelector('[data-provisoire]')).toBeNull();
+    hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="aide"]')!.click();
+    await stable();
+    expect(hote.querySelector('mg-aide')).not.toBeNull();
   });
 });

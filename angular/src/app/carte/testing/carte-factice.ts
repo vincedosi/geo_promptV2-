@@ -40,8 +40,17 @@ export class CarteFactice {
   }
   off(evt: string, rappel: Rappel): this {
     this.rappels.get(evt)?.delete(rappel);
+    const enveloppe = this.uniques.get(rappel);
+    if (enveloppe) { this.rappels.get(evt)?.delete(enveloppe); this.uniques.delete(rappel); }
     return this;
   }
+  /** Comme MapLibre : une écoute appelée une seule fois, que `off(evt, rappel)` retire aussi. */
+  once(evt: string, rappel: Rappel): this {
+    const enveloppe: Rappel = (...args) => { this.off(evt, rappel); rappel(...args); };
+    this.uniques.set(rappel, enveloppe);
+    return this.on(evt, enveloppe);
+  }
+  private readonly uniques = new Map<Rappel, Rappel>();
   emettre(evt: string, charge?: unknown): void {
     if (evt === 'load') this.styleCharge = true;
     for (const r of [...(this.rappels.get(evt) ?? [])]) r(charge);
@@ -115,7 +124,9 @@ export class CarteFactice {
     return this;
   }
   addControl(controle: unknown, position?: string): this { this.controles.push({ controle, position }); return this; }
-  getStyle(): object | undefined { return this.styleCharge ? {} : undefined; }
+  /** Les couches du STYLE de fond (Positron, Liberty…), que `getStyle().layers` rend une fois le style chargé. */
+  styleCouches: { id: string; type: string; layout?: Record<string, unknown> }[] = [];
+  getStyle() { return this.styleCharge ? { layers: this.styleCouches } : undefined; }
   fitBounds(cadre: unknown, options?: unknown): this { this.cadrages.push({ cadre, options }); return this; }
   remove(): void { this.retiree = true; }
   resize(): this { this.appelsResize++; return this; }

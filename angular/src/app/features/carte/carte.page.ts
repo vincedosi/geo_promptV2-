@@ -1,19 +1,24 @@
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, viewChild,
+  ChangeDetectionStrategy, Component, DOCUMENT, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, viewChild,
 } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import type maplibregl from 'maplibre-gl';
 import { CarteComponent } from '../../carte/carte.component';
-import { IconeComponent } from '../../ui/icone/icone.component';
+import { CouleursService } from '../../core/theme/couleurs.service';
 import { AnnonceComponent } from './commun/annonce.component';
+import { BoutonsFlottantsComponent } from './commun/boutons-flottants.component';
+import { FondCompactComponent } from './commun/fond-compact.component';
+import { JETONS_STYLE_MAGELIAN, appliquerStyleMagelian } from './couches/style-magelian';
 import { AnnonceService } from './etat/annonce.service';
 import { CouchesCarteService } from './etat/couches-carte.service';
 import { EtatCarteService } from './etat/etat-carte.service';
+import { lireFondMemorise, memoriserFond, urlDuFond } from './etat/fond-carte';
 import { PileEchapService } from './etat/pile-echap.service';
-import { MAP_STYLE } from './logique/fonds';
 import { ignorerRaccourciClavier } from './logique/garde-saisie';
 import { franciserLibelles } from './logique/libelles-fr';
 import { ENTREES_NAVIGATION, LARGEUR_RAIL, type EntreeId, entreeParRaccourci } from './logique/navigation';
+import { AideComponent } from './panneaux/aide.component';
+import { ReglagesComponent } from './panneaux/reglages.component';
 import { BarreHautComponent, HAUTEUR_BARRE_HAUT } from './rail/barre-haut.component';
 import { PanneauComponent } from './rail/panneau.component';
 import { RailComponent } from './rail/rail.component';
@@ -57,12 +62,24 @@ export function palierCarreaux(zoom: number): string {
  * saisie lit la cible COMPOSÉE (`composedPath()[0]`) : dans une racine d'ombre, `document.activeElement`
  * est l'HÔTE de la racine, jamais le champ où l'on tape.
  *
+ * ── CHANGER DE FOND RECRÉE LA CARTE (arbitrage B11, T4) ──────────────────
+ * Comme React (`useMapInit.ts:1083-1089`, dépendance `[mapStyleUrl]`) : `mg-carte` est rendu sous
+ * `@for (f of [fond()]; track f)`, donc un nouvel id détruit l'instance et en crée une autre. `carteCourante`
+ * passe par `null` AVANT la recréation ; chaque couche se re-pose par son `effect` (`CouchesCarteService`).
+ * Le suivi porte sur l'ID du fond et non sur l'URL : « Clair » et « MAGELIAN » partagent Positron, et passer
+ * de l'un à l'autre doit poser — ou retirer — les surcharges MAGELIAN. Défaut React corrigé : là-bas, l'URL
+ * ne contient jamais « magelian », les surcharges ne s'appliquaient donc JAMAIS et les deux boutons
+ * s'allumaient ensemble.
+ *
  * ── LA PILE ÉCHAP EST UN SERVICE DE LA PAGE ──────────────────────────────
  * Panneau et mode immersif s'y empilent : dernier ouvert = premier fermé (`PileEchapService`).
  */
 @Component({
   selector: 'mg-carte-principale',
-  imports: [AnnonceComponent, BarreHautComponent, CarteComponent, IconeComponent, PanneauComponent, RailComponent, RouterOutlet],
+  imports: [
+    AideComponent, AnnonceComponent, BarreHautComponent, BoutonsFlottantsComponent, CarteComponent, FondCompactComponent,
+    PanneauComponent, RailComponent, ReglagesComponent, RouterOutlet,
+  ],
   providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService],
   templateUrl: './carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -81,10 +98,18 @@ export class CartePage {
   private readonly pile = inject(PileEchapService);
   private readonly hote = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injecteur = inject(Injector);
+  private readonly document = inject(DOCUMENT);
 
   protected readonly largeurRail = LARGEUR_RAIL;
   protected readonly hauteurBarre = HAUTEUR_BARRE_HAUT;
-  protected readonly fond = MAP_STYLE;
+  /**
+   * L'id du fond (`MAP_STYLES[].id`), lu dans `localStorage['genesis_map_style']` à l'ouverture et écrit au choix
+   * (B9). Un stockage qui lève rend le fond par défaut.
+   */
+  readonly fond = signal(lireFondMemorise(() => this.document.defaultView?.localStorage));
+  protected readonly urlFond = computed(() => urlDuFond(this.fond()));
+  /** Les couleurs du fond MAGELIAN : un `Signal` qui suit le thème (lu seulement quand ce fond est choisi). */
+  private readonly paletteMagelian = inject(CouleursService).palette(JETONS_STYLE_MAGELIAN);
   protected readonly centre = CENTRE_INITIAL;
   protected readonly zoomInitial = ZOOM_INITIAL;
   protected readonly navigation = { position: 'bottom-right', boussole: true } as const;
@@ -116,6 +141,14 @@ export class CartePage {
 
     inject(DestroyRef).onDestroy(() => this.couches.publier(null));
 
+    // Le fond MAGELIAN : surcharges posées sur la carte prête, ré-appliquées à chaque bascule de thème
+    // (`useMapInit.ts:217-221,1091-1102`). `carteCourante` n'est publiée qu'au `load` : le style est chargé.
+    effect(() => {
+      const carte = this.couches.carteCourante();
+      if (!carte || this.fond() !== 'magelian') return;
+      appliquerStyleMagelian(carte, this.paletteMagelian());
+    });
+
     // Le focus sur l'hôte à l'ouverture : sans lui, aucun raccourci ne l'atteint avant le premier clic.
     afterNextRender(() => this.rendreFocus());
   }
@@ -126,6 +159,27 @@ export class CartePage {
 
   protected basculerImmersif(): void {
     this.etat.railMasque.update((m) => !m);
+  }
+
+  /** Réglages › Fond de carte, et le sélecteur compact. Le même id ne recrée rien. */
+  protected choisirFond(id: string): void {
+    if (id === this.fond()) return;
+    // Avant la recréation : aucun effet de couche n'écrit dans l'instance qui va être détruite.
+    this.couches.publier(null);
+    this.fond.set(id);
+    memoriserFond(() => this.document.defaultView?.localStorage, id);
+  }
+
+  /**
+   * « Tout effacer » (`page.tsx:681-765`) : chaque couche inscrite s'efface, le dégradé actif est remis à zéro
+   * SANS annonce (`page.tsx:740-743`), et le périmètre et les POI sélectionnés repartent à vide. Le filtre unique
+   * reste posé, comme React ; et il n'y a pas d'URL à nettoyer — aucun paramètre de la carte n'y vit encore (B9).
+   */
+  protected toutEffacer(): void {
+    this.couches.toutEffacer();
+    this.etat.reinitialiserDegrade();
+    this.etat.perimetreScope.set(null);
+    this.etat.poiSelectionnes.set([]);
   }
 
   protected cartePrete(carte: maplibregl.Map): void {
