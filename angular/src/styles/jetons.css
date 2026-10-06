@@ -169,6 +169,24 @@
   /* Cerne des points de site a risque : la valeur de CONTOUR_POINT
      (lib/carte/palette-risques.ts), lue par CouleursService. Inverse. */
   --contour-point: rgba(255,255,255,0.9);
+  /* Fond de carte « MAGELIAN » (Positron repeint) : les valeurs EXACTES de
+     MAGELIAN_PALETTE (lib/map/magelian-style.ts), theme sombre. Lues par l'interface
+     Angular (CouleursService) : MapLibre ne resout pas var() dans paint. */
+  --carte-magelian-fond: #0a0a0a;
+  --carte-magelian-eau: #050505;
+  --carte-magelian-contour-eau: #1a1a1a;
+  --carte-magelian-sol: #0a0a0a;
+  --carte-magelian-occupation-sol: #0d0d0d;
+  --carte-magelian-batiment: #111111;
+  --carte-magelian-contour-batiment: #1a1a1a;
+  --carte-magelian-route-principale: #262626;
+  --carte-magelian-route-secondaire: #1a1a1a;
+  --carte-magelian-autoroute: #333333;
+  --carte-magelian-frontiere: #262626;
+  --carte-magelian-libelle-ville: #666666;
+  --carte-magelian-libelle-region: rgba(78,205,196,0.35);
+  --carte-magelian-halo-libelle: #050505;
+  --carte-magelian-libelle-mineur: #333333;
 
   --sidebar-width: 240px;
 
@@ -328,6 +346,24 @@ html.light, :host(.light) {
   --contour-carte: rgba(0, 0, 0, 0.22);
   --halo-carte:    rgba(255, 255, 255, 0.85);
   --contour-point: rgba(26,26,26,0.85);
+  /* Fond de carte « MAGELIAN » (Positron repeint) : les valeurs EXACTES de
+     MAGELIAN_PALETTE (lib/map/magelian-style.ts), theme clair. Lues par l'interface
+     Angular (CouleursService) : MapLibre ne resout pas var() dans paint. */
+  --carte-magelian-fond: #f5f5f5;
+  --carte-magelian-eau: #e6eff5;
+  --carte-magelian-contour-eau: #c8d8e3;
+  --carte-magelian-sol: #f5f5f5;
+  --carte-magelian-occupation-sol: #eeeeee;
+  --carte-magelian-batiment: #e2e2e2;
+  --carte-magelian-contour-batiment: #d0d0d0;
+  --carte-magelian-route-principale: #c4c4c4;
+  --carte-magelian-route-secondaire: #dcdcdc;
+  --carte-magelian-autoroute: #a6a6a6;
+  --carte-magelian-frontiere: #bbbbbb;
+  --carte-magelian-libelle-ville: #4a4a4a;
+  --carte-magelian-libelle-region: rgba(78,205,196,0.6);
+  --carte-magelian-halo-libelle: #ffffff;
+  --carte-magelian-libelle-mineur: #8a8a8a;
 
   /* Overlay flottant (light) */
   --card-overlay: rgba(248, 248, 248, 0.90);

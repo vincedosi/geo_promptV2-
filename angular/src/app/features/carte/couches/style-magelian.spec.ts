@@ -1,4 +1,4 @@
-import { JETONS_STYLE_MAGELIAN, type PaletteStyleMagelian, appliquerStyleMagelian } from './style-magelian';
+import { JETONS_STYLE_MAGELIAN, type PaletteStyleMagelian, appliquerStyleMagelian, couchesDuFond } from './style-magelian';
 
 /** Une palette sentinelle : chaque rôle porte une valeur reconnaissable, comme le rendrait `CouleursService`. */
 const PALETTE = Object.fromEntries(
@@ -22,8 +22,10 @@ const COUCHES = [
   { id: 'place_city', type: 'symbol' },
   { id: 'highway_name_other', type: 'symbol' },
   { id: 'aeroway-area', type: 'fill' },
-  { id: 'carreaux-fill', type: 'fill' },
 ];
+
+/** Le style de fond seul : ce que `couchesDuFond` relève au `load`. */
+const FOND = new Set(COUCHES.map((c) => c.id));
 
 function carte(couches = COUCHES) {
   const peintures: { couche: string; propriete: string; valeur: unknown }[] = [];
@@ -40,7 +42,7 @@ const valeur = (c: ReturnType<typeof carte>, couche: string, propriete: string) 
 describe('appliquerStyleMagelian — portage de applyMagelianStyle', () => {
   it('ne peint QUE des valeurs issues de la palette (ou des constantes de forme), jamais une chaîne var(', () => {
     const c = carte();
-    appliquerStyleMagelian(c, PALETTE);
+    appliquerStyleMagelian(c, PALETTE, FOND);
     expect(c.peintures.length).toBeGreaterThan(0);
     const couleurs = new Set(Object.values(PALETTE));
     for (const p of c.peintures) {
@@ -51,7 +53,7 @@ describe('appliquerStyleMagelian — portage de applyMagelianStyle', () => {
 
   it('reprend les règles de reconnaissance de React, rôle par rôle', () => {
     const c = carte();
-    appliquerStyleMagelian(c, PALETTE);
+    appliquerStyleMagelian(c, PALETTE, FOND);
     expect(valeur(c, 'background', 'background-color')).toBe(PALETTE.fond);
     expect(valeur(c, 'water', 'fill-color')).toBe(PALETTE.eau);
     expect(valeur(c, 'waterway', 'line-color')).toBe(PALETTE.contourEau);
@@ -72,15 +74,32 @@ describe('appliquerStyleMagelian — portage de applyMagelianStyle', () => {
     expect(valeur(c, 'aeroway-area', 'fill-color')).toBe(PALETTE.sol);
   });
 
-  it("n'écrase jamais une couche de données posée par l'application (carreaux, iris, zone…)", () => {
-    const c = carte();
-    appliquerStyleMagelian(c, PALETTE);
-    expect(c.peintures.some((p) => p.couche === 'carreaux-fill')).toBe(false);
+  it("ne repeint QUE les couches du fond : une couche de données posée ensuite (fill, symbol, line) reste intacte", () => {
+    const donnees = [
+      { id: 'meteo-fill', type: 'fill' },
+      { id: 'radio-coverage-fill', type: 'fill' },
+      { id: 'zones-etiquettes', type: 'symbol' },
+      { id: 'admin-contour-zone', type: 'line' },
+      { id: 'carreaux-fill', type: 'fill' },
+    ];
+    const c = carte([...COUCHES, ...donnees]);
+    appliquerStyleMagelian(c, PALETTE, FOND);
+    for (const d of donnees) expect(c.peintures.some((p) => p.couche === d.id), d.id).toBe(false);
+    expect(valeur(c, 'background', 'background-color')).toBe(PALETTE.fond);
+  });
+
+  it("couchesDuFond relève les ids du style chargé (rien si le style ne l'est pas)", () => {
+    expect([...couchesDuFond(carte())]).toEqual(COUCHES.map((x) => x.id));
+    expect(couchesDuFond({ getStyle: () => undefined, setPaintProperty: () => undefined }).size).toBe(0);
+  });
+
+  it('chaque rôle pointe vers un jeton dédié --carte-magelian-*', () => {
+    for (const jeton of Object.values(JETONS_STYLE_MAGELIAN)) expect(jeton).toMatch(/^carte-magelian-[a-z-]+$/);
   });
 
   it('style non chargé : rien, sans lever ; propriété refusée par une couche : ignorée', () => {
-    expect(() => appliquerStyleMagelian({ getStyle: () => undefined, setPaintProperty: () => { throw new Error('x'); } }, PALETTE)).not.toThrow();
+    expect(() => appliquerStyleMagelian({ getStyle: () => undefined, setPaintProperty: () => { throw new Error('x'); } }, PALETTE, FOND)).not.toThrow();
     const leve = { getStyle: () => ({ layers: COUCHES }), setPaintProperty: () => { throw new Error('refus'); } };
-    expect(() => appliquerStyleMagelian(leve, PALETTE)).not.toThrow();
+    expect(() => appliquerStyleMagelian(leve, PALETTE, FOND)).not.toThrow();
   });
 });

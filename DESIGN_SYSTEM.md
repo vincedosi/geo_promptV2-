@@ -261,6 +261,37 @@ L'intensité à l'intérieur d'un niveau ne passe PAS par la teinte mais par
 C'est ce qui permet de lire la distance et le niveau d'un seul coup d'œil : la
 teinte dit lequel, l'opacité dit combien on s'en éloigne.
 
+### Fond de carte « MAGELIAN »
+
+Le fond « MAGELIAN » de la carte principale est le style Positron repeint par
+`applyMagelianStyle` (`lib/map/magelian-style.ts`). Ses quinze rôles sont des
+jetons DÉDIÉS, aux valeurs exactes de `MAGELIAN_PALETTE` dans les deux thèmes :
+la carte ne dépend ainsi d'aucun jeton d'interface (retoucher une bordure d'UI ne
+change pas le fond). L'interface Angular les lit par `CouleursService` et les
+passe à MapLibre en valeurs calculées — jamais `var()` dans `paint`. React garde
+sa table `MAGELIAN_PALETTE` (gel P5) : les deux doivent rester égales.
+
+| Token | Valeur (dark) | Valeur (light) |
+|-------|---------------|----------------|
+| --carte-magelian-fond | #0a0a0a | #f5f5f5 |
+| --carte-magelian-eau | #050505 | #e6eff5 |
+| --carte-magelian-contour-eau | #1a1a1a | #c8d8e3 |
+| --carte-magelian-sol | #0a0a0a | #f5f5f5 |
+| --carte-magelian-occupation-sol | #0d0d0d | #eeeeee |
+| --carte-magelian-batiment | #111111 | #e2e2e2 |
+| --carte-magelian-contour-batiment | #1a1a1a | #d0d0d0 |
+| --carte-magelian-route-principale | #262626 | #c4c4c4 |
+| --carte-magelian-route-secondaire | #1a1a1a | #dcdcdc |
+| --carte-magelian-autoroute | #333333 | #a6a6a6 |
+| --carte-magelian-frontiere | #262626 | #bbbbbb |
+| --carte-magelian-libelle-ville | #666666 | #4a4a4a |
+| --carte-magelian-libelle-region | rgba(78,205,196,0.35) | rgba(78,205,196,0.6) |
+| --carte-magelian-halo-libelle | #050505 | #ffffff |
+| --carte-magelian-libelle-mineur | #333333 | #8a8a8a |
+
+`--carte-magelian-libelle-region` est le teal de marque à 0,35 (sombre) et 0,6
+(clair) : ni `--brand-teal-30` ni `--brand-teal-50`.
+
 ### Contour du point de site à risque
 
 | Token | Valeur (dark) | Valeur (light) | Usage |

@@ -2,56 +2,47 @@
  * Le fond « MAGELIAN » — portage de `applyMagelianStyle` (`lib/map/magelian-style.ts`), appliqué sur le
  * style Positron au `load` et ré-appliqué à chaque bascule de thème (`useMapInit.ts:217-221,1091-1102`).
  *
- * ── COULEURS PAR JETONS, JAMAIS DE HEX ───────────────────────────────────
- * React tenait deux tables d'hexadécimaux (`MAGELIAN_PALETTE.dark` / `.light`). Ici chaque rôle est un
- * JETON de `styles/jetons.css`, lu par `CouleursService.palette(JETONS_STYLE_MAGELIAN)` — un `Signal` qui
- * suit le thème, donc le fond suit la bascule sans table recopiée. MapLibre ne résout pas `var()` dans
- * `paint` : la fonction reçoit des valeurs CALCULÉES.
+ * ── COULEURS PAR JETONS DÉDIÉS, JAMAIS DE HEX ────────────────────────────
+ * React tenait deux tables d'hexadécimaux (`MAGELIAN_PALETTE.dark` / `.light`). Ici chaque rôle a SON jeton,
+ * `--carte-magelian-*` (`styles/jetons.css`, `app/globals.css`, DESIGN_SYSTEM.md), aux valeurs EXACTES de React
+ * dans les deux thèmes, lu par `CouleursService.palette(JETONS_STYLE_MAGELIAN)` — un `Signal` qui suit le thème.
+ * Des jetons dédiés plutôt que des jetons d'interface : retoucher une bordure d'UI ne doit pas changer le fond.
+ * MapLibre ne résout pas `var()` dans `paint` : la fonction reçoit des valeurs CALCULÉES. (`park` n'est lu par
+ * aucune règle de React : il n'est pas repris.)
  *
- * Correspondance retenue (rôle React → jeton) : les jetons existants ne reprennent pas toutes les teintes
- * de React — aucun jeton n'est inventé (`jetons.css` ne peut rien porter qu'`app/globals.css` n'ait déjà).
- * Le thème SOMBRE retombe exactement sur React pour 11 rôles sur 15 ; l'écart est listé dans le rapport T4.
- *
- * | rôle React      | sombre React | clair React | jeton             |
- * |-----------------|--------------|-------------|-------------------|
- * | background      | #0a0a0a      | #f5f5f5     | bg-level-1        |
- * | water           | #050505      | #e6eff5     | bg-level-0        |
- * | waterStroke     | #1a1a1a      | #c8d8e3     | border-subtle     |
- * | land            | #0a0a0a      | #f5f5f5     | bg-level-1        |
- * | landuse         | #0d0d0d      | #eeeeee     | bg-level-2        |
- * | building        | #111111      | #e2e2e2     | bg-level-2        |
- * | buildingStroke  | #1a1a1a      | #d0d0d0     | border-subtle     |
- * | roadMajor       | #262626      | #c4c4c4     | border-default    |
- * | roadMinor       | #1a1a1a      | #dcdcdc     | border-subtle     |
- * | roadHighway     | #333333      | #a6a6a6     | border-hover      |
- * | border          | #262626      | #bbbbbb     | border-default    |
- * | labelCity       | #666666      | #4a4a4a     | text-tertiary     |
- * | labelRegion     | teal 0,35    | teal 0,6    | brand-teal-30     |
- * | labelHalo       | #050505      | #ffffff     | bg-level-0        |
- * | labelMinor      | #333333      | #8a8a8a     | border-hover      |
- * (`park` n'est lu par aucune règle de React : il n'est pas repris.)
+ * ── SEULES LES COUCHES DU FOND SONT REPEINTES ────────────────────────────
+ * Les règles de React reconnaissent les couches par leur id (« water », « road », tout `symbol`, « catch-all
+ * fill »…) : appliquées à TOUTES les couches du style, elles repeindraient aussi les couches de données que
+ * l'application pose ensuite (météo, couverture radio, étiquettes de zones…), et à chaque bascule de thème.
+ * React n'avait pas ce problème que parce que ses surcharges ne s'appliquaient jamais (défaut d'URL). La page
+ * relève donc les ids du style de FOND au `load`, avant toute couche de l'application, et ne passe que ceux-là.
  */
 
-/** Les rôles du fond MAGELIAN et le jeton qui porte chacun (voir la table ci-dessus). */
+/** Les rôles du fond MAGELIAN et le jeton qui porte chacun (`--carte-magelian-*`). */
 export const JETONS_STYLE_MAGELIAN = {
-  fond: 'bg-level-1',
-  eau: 'bg-level-0',
-  contourEau: 'border-subtle',
-  sol: 'bg-level-1',
-  occupationSol: 'bg-level-2',
-  batiment: 'bg-level-2',
-  contourBatiment: 'border-subtle',
-  routePrincipale: 'border-default',
-  routeSecondaire: 'border-subtle',
-  autoroute: 'border-hover',
-  frontiere: 'border-default',
-  libelleVille: 'text-tertiary',
-  libelleRegion: 'brand-teal-30',
-  haloLibelle: 'bg-level-0',
-  libelleMineur: 'border-hover',
+  fond: 'carte-magelian-fond',
+  eau: 'carte-magelian-eau',
+  contourEau: 'carte-magelian-contour-eau',
+  sol: 'carte-magelian-sol',
+  occupationSol: 'carte-magelian-occupation-sol',
+  batiment: 'carte-magelian-batiment',
+  contourBatiment: 'carte-magelian-contour-batiment',
+  routePrincipale: 'carte-magelian-route-principale',
+  routeSecondaire: 'carte-magelian-route-secondaire',
+  autoroute: 'carte-magelian-autoroute',
+  frontiere: 'carte-magelian-frontiere',
+  libelleVille: 'carte-magelian-libelle-ville',
+  libelleRegion: 'carte-magelian-libelle-region',
+  haloLibelle: 'carte-magelian-halo-libelle',
+  libelleMineur: 'carte-magelian-libelle-mineur',
 } as const;
 
 export type PaletteStyleMagelian = Record<keyof typeof JETONS_STYLE_MAGELIAN, string>;
+
+/** Les ids des couches du style de FOND, relevés au `load` avant toute couche de l'application. */
+export function couchesDuFond(carte: CarteStyleMagelian): ReadonlySet<string> {
+  return new Set((carte.getStyle()?.layers ?? []).map((c) => c.id));
+}
 
 /** La surface de carte employée — de quoi lire les couches du style et les repeindre. */
 export interface CarteStyleMagelian {
@@ -60,13 +51,17 @@ export interface CarteStyleMagelian {
 }
 
 /**
- * Repeint chaque couche du style chargé — mêmes règles de reconnaissance par id/type, même ordre et mêmes
- * exclusions que `applyMagelianStyle`. Une propriété absente d'une couche est ignorée, comme React.
+ * Repeint les couches du FOND (`couchesFond`, relevé par `couchesDuFond` au `load`) — mêmes règles de
+ * reconnaissance par id/type, même ordre et mêmes exclusions que `applyMagelianStyle`. Toute autre couche
+ * (posée par l'application) est laissée intacte. Une propriété absente d'une couche est ignorée, comme React.
  */
-export function appliquerStyleMagelian(carte: CarteStyleMagelian, c: PaletteStyleMagelian): void {
+export function appliquerStyleMagelian(
+  carte: CarteStyleMagelian, c: PaletteStyleMagelian, couchesFond: ReadonlySet<string>,
+): void {
   const style = carte.getStyle();
   if (!style?.layers) return;
   for (const couche of style.layers) {
+    if (!couchesFond.has(couche.id)) continue;
     const id = couche.id.toLowerCase();
     const type = couche.type;
     const peindre = (propriete: string, valeur: unknown) => carte.setPaintProperty(couche.id, propriete, valeur);

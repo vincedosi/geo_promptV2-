@@ -420,9 +420,12 @@ describe('CartePage — fond de carte, recréation, Tout effacer (T4)', () => {
     await stable();
     expect(cartes[0].peintures).toContainEqual({ couche: 'background', propriete: 'background-color', valeur: 'c-fond-0' });
     expect(cartes[0].peintures).toContainEqual({ couche: 'water', propriete: 'fill-color', valeur: 'c-eau-0' });
+    // Une couche de DONNÉES posée après le load (météo) n'est jamais repeinte, même à la bascule de thème.
+    cartes[0].styleCouches.push({ id: 'meteo-fill', type: 'fill' }, { id: 'zones-etiquettes', type: 'symbol' });
     theme.set(1);
     await stable();
     expect(cartes[0].peintures).toContainEqual({ couche: 'background', propriete: 'background-color', valeur: 'c-fond-1' });
+    expect(cartes[0].peintures.some((p) => p.couche === 'meteo-fill' || p.couche === 'zones-etiquettes')).toBe(false);
     expect(cartes).toHaveLength(1);
   });
 

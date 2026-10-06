@@ -8,7 +8,7 @@ import { CouleursService } from '../../core/theme/couleurs.service';
 import { AnnonceComponent } from './commun/annonce.component';
 import { BoutonsFlottantsComponent } from './commun/boutons-flottants.component';
 import { FondCompactComponent } from './commun/fond-compact.component';
-import { JETONS_STYLE_MAGELIAN, appliquerStyleMagelian } from './couches/style-magelian';
+import { JETONS_STYLE_MAGELIAN, appliquerStyleMagelian, couchesDuFond } from './couches/style-magelian';
 import { AnnonceService } from './etat/annonce.service';
 import { CouchesCarteService } from './etat/couches-carte.service';
 import { EtatCarteService } from './etat/etat-carte.service';
@@ -110,6 +110,8 @@ export class CartePage {
   protected readonly urlFond = computed(() => urlDuFond(this.fond()));
   /** Les couleurs du fond MAGELIAN : un `Signal` qui suit le thème (lu seulement quand ce fond est choisi). */
   private readonly paletteMagelian = inject(CouleursService).palette(JETONS_STYLE_MAGELIAN);
+  /** Les ids du style de FOND de chaque instance, relevés au `load` avant toute couche de l'application. */
+  private readonly couchesFond = new WeakMap<maplibregl.Map, ReadonlySet<string>>();
   protected readonly centre = CENTRE_INITIAL;
   protected readonly zoomInitial = ZOOM_INITIAL;
   protected readonly navigation = { position: 'bottom-right', boussole: true } as const;
@@ -146,7 +148,8 @@ export class CartePage {
     effect(() => {
       const carte = this.couches.carteCourante();
       if (!carte || this.fond() !== 'magelian') return;
-      appliquerStyleMagelian(carte, this.paletteMagelian());
+      const fond = this.couchesFond.get(carte);
+      if (fond) appliquerStyleMagelian(carte, this.paletteMagelian(), fond);
     });
 
     // Le focus sur l'hôte à l'ouverture : sans lui, aucun raccourci ne l'atteint avant le premier clic.
@@ -185,6 +188,8 @@ export class CartePage {
   protected cartePrete(carte: maplibregl.Map): void {
     // Libellés du fond en français, au `load` comme React (`useMapInit.ts:209-215`).
     franciserLibelles(carte as unknown as Parameters<typeof franciserLibelles>[0]);
+    // AVANT la publication : aucune couche de l'application n'existe encore, le style ne porte que le fond.
+    this.couchesFond.set(carte, couchesDuFond(carte));
     this.couches.publier(carte);
   }
 
