@@ -105,7 +105,7 @@ export class PanneauComponent {
         if (typeof entete.animate !== 'function') return;
         entete.animate(
           [{ opacity: 0, transform: 'translateY(-3px)' }, { opacity: 1, transform: 'translateY(0)' }],
-          { duration: 200, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'both' },
+          { duration: 200, easing: this.jeton(entete, '--ease-out'), fill: 'both' },
         );
         corps.animate(
           [
@@ -113,10 +113,18 @@ export class PanneauComponent {
             { opacity: 1, transform: 'scale(1.005)', offset: 0.6 },
             { opacity: 1, transform: 'scale(1)', offset: 1 },
           ],
-          { duration: 280, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)', fill: 'both' },
+          { duration: 280, easing: this.jeton(corps, '--ease-spring'), fill: 'both' },
         );
       });
     });
+  }
+
+  /**
+   * Une courbe d'accélération lue dans les jetons (`--ease-out`, `--ease-spring`), comme le `var()` des
+   * animations de React : l'API Web Animations ne résout pas `var()`, on passe la valeur calculée.
+   */
+  private jeton(el: HTMLElement, nom: string): string {
+    return getComputedStyle(el).getPropertyValue(nom).trim() || 'ease';
   }
 
   /** Joue la sortie puis émet `fermer`. Une seule fois : un second appel pendant la sortie est ignoré. */

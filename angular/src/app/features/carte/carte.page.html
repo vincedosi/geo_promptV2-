@@ -12,7 +12,7 @@
     [titre]="p.titre"
     [pastille]="p.point"
     [decalageHaut]="etat.railMasque() ? 0 : hauteurBarre"
-    (fermer)="etat.fermerEntree()"
+    (fermer)="panneauFerme()"
   >
     <!-- Contenu provisoire : chaque panneau arrive dans sa tâche (Réglages et Aide T4, Filtre T5,
          Calques T6-T13, Zones T14-T16, Analyse T17-T20). -->

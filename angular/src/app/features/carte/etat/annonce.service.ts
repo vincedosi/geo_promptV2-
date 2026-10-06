@@ -38,6 +38,11 @@ export class AnnonceService {
 
   annoncer(texte: string): void {
     const id = ++this.suivant;
+    // Les annonces poussées hors de l'écran par la limite emportent leur minuterie.
+    for (const ecartee of this.liste().slice(0, -(MAX_VISIBLES - 1) || undefined)) {
+      clearTimeout(this.minuteries.get(ecartee.id));
+      this.minuteries.delete(ecartee.id);
+    }
     this.liste.update((l) => [...l.slice(-(MAX_VISIBLES - 1)), { id, texte, emise: Date.now() }]);
     this.minuteries.set(id, setTimeout(() => this.retirer(id), DUREE_ANNONCE_MS));
   }

@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, signal, viewChild,
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, viewChild,
 } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import type maplibregl from 'maplibre-gl';
@@ -80,6 +80,7 @@ export class CartePage {
   private readonly couches = inject(CouchesCarteService);
   private readonly pile = inject(PileEchapService);
   private readonly hote = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injecteur = inject(Injector);
 
   protected readonly largeurRail = LARGEUR_RAIL;
   protected readonly hauteurBarre = HAUTEUR_BARRE_HAUT;
@@ -116,11 +117,7 @@ export class CartePage {
     inject(DestroyRef).onDestroy(() => this.couches.publier(null));
 
     // Le focus sur l'hôte à l'ouverture : sans lui, aucun raccourci ne l'atteint avant le premier clic.
-    afterNextRender(() => {
-      const el = this.hote.nativeElement;
-      const actif = (el.getRootNode() as Document | ShadowRoot).activeElement;
-      if (!el.contains(actif)) el.focus({ preventScroll: true });
-    });
+    afterNextRender(() => this.rendreFocus());
   }
 
   protected choisir(id: EntreeId): void {
@@ -142,9 +139,36 @@ export class CartePage {
   }
 
   /**
-   * Recopie de `page.tsx:302-318`. Échap n'est JAMAIS filtré par la garde de saisie ; un Échap déjà
-   * consommé par un gestionnaire intérieur (`preventDefault()`, un menu du badge de session) ne ferme
-   * rien de plus. L'Assistant (`Ctrl+K`) n'est pas porté : la frappe n'est pas captée.
+   * Le panneau a fini sa sortie. S'il portait le focus (sa croix vient d'être cliquée, un champ de son
+   * contenu), le retirer du DOM le ferait tomber sur `<body>` du document — hors de l'hôte, donc hors
+   * de l'unique écouteur clavier (B10) : `Alt+1..4` et Échap ne répondraient plus avant un nouveau clic.
+   * React écoute `window` et n'a pas ce problème ; ici, le focus revient à l'hôte de la page.
+   */
+  protected panneauFerme(): void {
+    const cadre = this.cadrePanneau()?.nativeElement;
+    const avaitFocus = !!cadre && cadre.contains(this.elementActif());
+    this.etat.fermerEntree();
+    if (avaitFocus) afterNextRender(() => this.rendreFocus(), { injector: this.injecteur });
+  }
+
+  /** L'élément focalisé, lu dans la racine qui porte la page (`document.activeElement` y serait l'hôte d'ombre). */
+  private elementActif(): Element | null {
+    return (this.hote.nativeElement.getRootNode() as Document | ShadowRoot).activeElement;
+  }
+
+  /** Rend le focus à l'hôte s'il n'est plus nulle part dans la page (élément retiré pendant qu'il le portait). */
+  private rendreFocus(): void {
+    const el = this.hote.nativeElement;
+    const actif = this.elementActif();
+    if (!actif || !el.contains(actif)) el.focus({ preventScroll: true });
+  }
+
+  /**
+   * Recopie de `page.tsx:302-318`. Échap n'est JAMAIS filtré par la garde de saisie. Un Échap déjà
+   * consommé par un gestionnaire INTÉRIEUR (`preventDefault()`) ne ferme rien de plus : c'est le cas
+   * d'un menu ouvert du badge de session, qui consomme Échap sur son propre hôte AVANT que la frappe
+   * ne remonte ici (`BadgeSessionComponent.echap`) — sinon un seul Échap fermerait le menu ET le
+   * panneau. L'Assistant (`Ctrl+K`) n'est pas porté : la frappe n'est pas captée.
    */
   protected clavier(e: KeyboardEvent): void {
     // `nodeType` et non `instanceof Element` : la cible peut venir d'un autre domaine de JavaScript.

@@ -153,6 +153,61 @@ describe('CartePage — squelette de la carte principale', () => {
     expect(titrePanneau(hote)).toBeNull();
   });
 
+  it('fermer le panneau par sa croix RENDRA le focus à l\'hôte : Alt+2 puis Échap répondent encore', async () => {
+    const { hote, stable } = await ouvrir();
+    frapper(hote, { key: '1', altKey: true });
+    await stable();
+    const croix = hote.querySelector<HTMLButtonElement>('mg-panneau-carte button[aria-label="Fermer"]')!;
+    croix.focus();
+    expect(document.activeElement).toBe(croix);
+    croix.click();
+    await new Promise((r) => setTimeout(r, 220));
+    await stable();
+    expect(titrePanneau(hote)).toBeNull();
+    // La croix est partie avec le panneau : sans correctif, le focus serait sur <body>, hors de l'écouteur.
+    expect(document.activeElement).toBe(hote);
+    frapper(document.activeElement as HTMLElement, { key: '2', altKey: true });
+    await stable();
+    expect(titrePanneau(hote)).toBe('Calques');
+    frapper(document.activeElement as HTMLElement, { key: 'Escape' });
+    await new Promise((r) => setTimeout(r, 220));
+    await stable();
+    expect(titrePanneau(hote)).toBeNull();
+  });
+
+  it('fermer le panneau sans que le focus y soit (re-clic du rail) ne déplace pas le focus', async () => {
+    const { hote, stable } = await ouvrir();
+    const bouton = hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="calques"]')!;
+    bouton.click();
+    await stable();
+    bouton.focus();
+    bouton.click();
+    await stable();
+    expect(titrePanneau(hote)).toBeNull();
+    expect(document.activeElement).toBe(bouton);
+  });
+
+  it("Échap dans un menu ouvert du badge de session ferme le MENU seulement, pas le panneau", async () => {
+    const { hote, stable } = await ouvrir();
+    frapper(hote, { key: '3', altKey: true });
+    await stable();
+    hote.querySelector<HTMLButtonElement>('mg-badge-session [data-declencheur="utilisateur"]')!.click();
+    await stable();
+    const option = hote.querySelector<HTMLElement>('mg-badge-session [data-menu="utilisateur"] button')!;
+    expect(option).not.toBeNull();
+    const e = frapper(hote, { key: 'Escape' }, option);
+    await new Promise((r) => setTimeout(r, 220));
+    await stable();
+    expect(e.defaultPrevented).toBe(true);
+    expect(hote.querySelector('mg-badge-session [data-menu="utilisateur"]')).toBeNull();
+    expect(titrePanneau(hote)).toBe('Analyse');
+    // Le menu fermé, l'Échap suivant revient à la pile de la carte.
+    frapper(hote, { key: 'Escape' });
+    await new Promise((r) => setTimeout(r, 220));
+    await stable();
+    expect(titrePanneau(hote)).toBeNull();
+  });
+
   it('(k) mode immersif : rail en translateX(-100%), barre du haut masquée ; Échap ré-affiche', async () => {
     const { hote, stable } = await ouvrir();
     const bouton = hote.querySelector<HTMLButtonElement>('button[data-immersif]')!;

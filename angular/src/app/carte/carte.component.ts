@@ -60,12 +60,14 @@ export class CarteComponent {
    * Centre et zoom initiaux (lot 4, arbitrage B11) : la carte principale s'ouvre comme React
    * (`useMapInit.ts:131-145`, `[2.3, 46.6]` à z5,5), pas sur une emprise. Fournis ENSEMBLE, ils
    * prennent le pas sur `cadre` à la création ; absents, rien ne change.
+   * ⚠ Lus UNE FOIS, à la création : les changer ensuite ne déplace pas la carte (seul `cadre` recadre).
    */
   readonly centre = input<[number, number] | null>(null);
   readonly zoomInitial = input<number | null>(null);
   /**
    * Le contrôle de zoom : haut droite sans boussole par défaut (dotation de `CarteRisque.tsx`) ;
    * la carte principale le pose en bas à droite AVEC boussole (`useMapInit.ts:189`, contrôle par défaut).
+   * ⚠ Lu UNE FOIS, à la création : le changer ensuite ne déplace ni ne recrée le contrôle.
    */
   readonly navigation = input<{ position: 'top-right' | 'bottom-right'; boussole: boolean }>(
     { position: 'top-right', boussole: false },

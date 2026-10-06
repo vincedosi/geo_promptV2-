@@ -45,7 +45,13 @@ type Menu = 'org' | 'utilisateur';
 @Component({
   selector: 'mg-badge-session',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'relative flex shrink-0 items-center gap-1.5' },
+  host: {
+    class: 'relative flex shrink-0 items-center gap-1.5',
+    // Échap CONSOMMÉ sur l'hôte du badge quand un menu est ouvert : la frappe remonte ensuite vers l'écran
+    // (la carte écoute son propre hôte), qui ignore un Échap `defaultPrevented` — un seul Échap ferme donc
+    // le menu, pas aussi le panneau ou l'écran. L'écouteur du document (`ecouterFermeture`) passe APRÈS.
+    '(keydown.escape)': 'echap($event)',
+  },
   styles: `
     @keyframes apparition {
       from { opacity: 0; transform: translateY(-4px); }
@@ -248,6 +254,12 @@ export class BadgeSessionComponent {
       },
       { injector: this.injecteur },
     );
+  }
+
+  protected echap(e: Event): void {
+    if (!this.ouvert()) return;
+    e.preventDefault();
+    this.fermer(true);
   }
 
   private fermer(rendreFocus: boolean): void {
