@@ -21,6 +21,7 @@ function authFactice(roleProfil: string | null, metaRole?: string, email = 'vinc
     email: computed(() => email),
     lireRole: vi.fn(async (): Promise<string | null> => roleProfil),
     deconnecter: vi.fn(async () => session.set(null)),
+    oublierProfil: vi.fn(),
   };
 }
 
@@ -112,7 +113,7 @@ describe('BadgeSessionComponent — SessionBadge.tsx porté', () => {
   });
 
   it('changer d\'organisation : POST, fermeture, relecture de la liste, et `orgChangee` pour rafraîchir la page', async () => {
-    const { el, api, changements, stable } = await rendre();
+    const { el, api, auth, changements, stable } = await rendre();
     declencheurOrg(el).click();
     await stable();
     const carat = [...el.querySelectorAll('[data-menu="org"] button')].find((b) => texte(b) === 'Carat') as HTMLButtonElement;
@@ -122,6 +123,8 @@ describe('BadgeSessionComponent — SessionBadge.tsx porté', () => {
     expect(el.querySelector('[data-menu="org"]')).toBeNull();
     expect(api.lister).toHaveBeenCalledTimes(2);
     expect(changements).toEqual(['o2']);
+    // Le profil mémorisé portait l'ANCIENNE organisation active : il est oublié (React recharge la page).
+    expect(auth.oublierProfil).toHaveBeenCalledTimes(1);
   });
 
   it('« Toutes les organisations » envoie `null`', async () => {

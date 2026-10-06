@@ -7,6 +7,17 @@ import { SUPABASE } from './supabase';
 export type PorteeDeconnexion = 'globale' | 'locale';
 
 /**
+ * Ce que l'application lit dans `profiles` pour l'utilisateur de la session. `organisation` est l'organisation
+ * ACTIVE (`profiles.organization_id`, celle que `/api/user/switch-org` écrit), `null` pour « toutes » ;
+ * c'est le `session.user.organizationId` de React (`lib/auth-client.ts:93-114`).
+ */
+export interface ProfilSession {
+  role: string | null;
+  nom: string | null;
+  organisation: string | null;
+}
+
+/**
  * La session de l'utilisateur, exposée en signals, et les actions qui la
  * changent. **Ce service ne NAVIGUE JAMAIS.**
  *
@@ -23,8 +34,8 @@ export class AuthService {
   private readonly _session = signal<Session | null>(null);
   /** Plusieurs appels en 401 au même moment : un seul signOut local. */
   private fermetureLocale: Promise<void> | null = null;
-  /** UNE lecture de `profiles` par utilisateur de session : le rôle et le nom en partagent le résultat. */
-  private profilMemo: { id: string; promesse: Promise<{ role: string | null; nom: string | null } | null> } | null = null;
+  /** UNE lecture de `profiles` par utilisateur de session : rôle, nom et organisation en partagent le résultat. */
+  private profilMemo: { id: string; promesse: Promise<ProfilSession | null> } | null = null;
 
   readonly session = this._session.asReadonly();
   readonly connecte = computed(() => this._session() !== null);
@@ -90,7 +101,7 @@ export class AuthService {
    * Rôle ET nom complet du profil (`fetchProfileEnrichment`, `lib/auth-client.ts:93-114`),
    * en une lecture. Même repli que `lireRole` : `null` si la lecture échoue.
    */
-  async lireProfil(): Promise<{ role: string | null; nom: string | null } | null> {
+  async lireProfil(): Promise<ProfilSession | null> {
     const id = this._session()?.user?.id;
     if (!id) {
       this.profilMemo = null;
@@ -110,12 +121,20 @@ export class AuthService {
     return this.profilMemo.promesse;
   }
 
-  private async chargerProfil(id: string): Promise<{ role: string | null; nom: string | null } | null> {
+  /**
+   * Oublie le profil lu : la prochaine lecture repart de la base. Appelé après un changement d'organisation
+   * (`BadgeSessionComponent`) — React recharge alors toute la page (`window.location.reload()`), donc relit le profil.
+   */
+  oublierProfil(): void {
+    this.profilMemo = null;
+  }
+
+  private async chargerProfil(id: string): Promise<ProfilSession | null> {
     try {
-      const { data, error } = await this.supabase.from('profiles').select('role, full_name').eq('id', id).single();
+      const { data, error } = await this.supabase.from('profiles').select('role, full_name, organization_id').eq('id', id).single();
       if (error || !data) return null;
-      const p = data as { role?: string | null; full_name?: string | null };
-      return { role: p.role ?? null, nom: p.full_name ?? null };
+      const p = data as { role?: string | null; full_name?: string | null; organization_id?: string | null };
+      return { role: p.role ?? null, nom: p.full_name ?? null, organisation: p.organization_id ?? null };
     } catch {
       return null;
     }

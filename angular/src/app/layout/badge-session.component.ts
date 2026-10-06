@@ -290,6 +290,9 @@ export class BadgeSessionComponent {
       next: () => {
         this.changement.set(false);
         this.orgActive.set(organisationId);
+        // Le profil mémorisé porte l'ANCIENNE organisation active (`AuthService.lireProfil`) : React, lui, recharge
+        // toute la page et relit le profil. La lecture suivante (panneau Filtre de la carte) repart de la base.
+        this.auth.oublierProfil();
         this.ouvert.set(null);
         this.charger();
         this.orgChangee.emit(organisationId);

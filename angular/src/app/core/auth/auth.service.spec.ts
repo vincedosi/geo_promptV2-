@@ -94,7 +94,7 @@ describe('AuthService', () => {
       const auth = creer(client as never);
       await auth.initialiser();
       expect(await auth.lireRole()).toBe('super_admin');
-      expect(appels).toEqual([['from', 'profiles'], ['select', 'role, full_name'], ['eq', 'id', 'u1']]);
+      expect(appels).toEqual([['from', 'profiles'], ['select', 'role, full_name, organization_id'], ['eq', 'id', 'u1']]);
     });
 
     it('lireRole() puis lireProfil() : UNE seule lecture de profiles', async () => {
@@ -102,7 +102,7 @@ describe('AuthService', () => {
       const auth = creer(client as never);
       await auth.initialiser();
       expect(await auth.lireRole()).toBe('admin');
-      expect(await auth.lireProfil()).toEqual({ role: 'admin', nom: 'A B' });
+      expect(await auth.lireProfil()).toEqual({ role: 'admin', nom: 'A B', organisation: null });
       expect(appels.filter((a) => a[0] === 'from')).toHaveLength(1);
       await auth.deconnecter('locale');
     });
@@ -118,7 +118,7 @@ describe('AuthService', () => {
         const auth = creer(client as never);
         await auth.initialiser();
         expect(await auth.lireProfil()).toBeNull();
-        expect(await auth.lireProfil()).toEqual({ role: 'admin', nom: 'A' });
+        expect(await auth.lireProfil()).toEqual({ role: 'admin', nom: 'A', organisation: null });
         expect(appels.filter((a) => a[0] === 'from')).toHaveLength(2);
         // Le succès, lui, est gardé.
         expect(await auth.lireRole()).toBe('admin');
@@ -163,12 +163,25 @@ describe('AuthService', () => {
       const { client, appels } = clientProfil(async () => ({ data: { role: 'admin', full_name: 'Alice' }, error: null }));
       const auth = creer(client as never);
       await auth.initialiser();
-      expect(await auth.lireProfil()).toEqual({ role: 'admin', nom: 'Alice' });
-      expect(appels[1]).toEqual(['select', 'role, full_name']);
+      expect(await auth.lireProfil()).toEqual({ role: 'admin', nom: 'Alice', organisation: null });
+      expect(appels[1]).toEqual(['select', 'role, full_name, organization_id']);
       TestBed.resetTestingModule();
       const echec = creer(clientProfil(async () => ({ data: null, error: { message: 'refus' } })).client as never);
       await echec.initialiser();
       expect(await echec.lireProfil()).toBeNull();
+    });
+
+    it("lireProfil rend l'organisation ACTIVE ; oublierProfil fait relire profiles", async () => {
+      let org = 'o1';
+      const { client, appels } = clientProfil(async () => ({ data: { role: 'admin', full_name: 'A', organization_id: org }, error: null }));
+      const auth = creer(client as never);
+      await auth.initialiser();
+      expect((await auth.lireProfil())?.organisation).toBe('o1');
+      org = 'o2';
+      expect((await auth.lireProfil())?.organisation).toBe('o1');
+      auth.oublierProfil();
+      expect((await auth.lireProfil())?.organisation).toBe('o2');
+      expect(appels.filter((a) => a[0] === 'from')).toHaveLength(2);
     });
   });
 

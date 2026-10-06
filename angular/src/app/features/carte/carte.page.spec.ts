@@ -8,6 +8,8 @@ import { FABRIQUE_CARTE } from '../../carte/fabrique-carte';
 import { CarteFactice } from '../../carte/testing/carte-factice';
 import { AuthService } from '../../core/auth/auth.service';
 import { OrganisationsApi } from '../session/data/organisations.api';
+import { ReferentielApi } from '../risques/data/referentiel.api';
+import { ZonesCustomApi } from './data/zones-custom.api';
 import { CouleursService } from '../../core/theme/couleurs.service';
 import { CartePage } from './carte.page';
 import { AnnonceService } from './etat/annonce.service';
@@ -38,9 +40,12 @@ async function ouvrir() {
           session: signal({ access_token: 'j', user: { email: 'a@exemple.test', user_metadata: {} } }),
           connecte: computed(() => true), email: computed(() => 'a@exemple.test'),
           lireRole: async () => null, deconnecter: async () => undefined,
+          lireProfil: async () => ({ role: null, nom: null, organisation: null }),
         },
       },
       { provide: OrganisationsApi, useValue: { lister: () => of({ organizations: [], active_org_id: null, is_super_admin: false }), changer: () => of() } },
+      { provide: ReferentielApi, useValue: { geo: () => of({ regions: [] }) } },
+      { provide: ZonesCustomApi, useValue: { lister: () => of({ zones: [] }) } },
     ],
   });
   const harness = await RouterTestingHarness.create();
@@ -470,5 +475,40 @@ describe('CartePage — fond de carte, recréation, Tout effacer (T4)', () => {
     hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="aide"]')!.click();
     await stable();
     expect(hote.querySelector('mg-aide')).not.toBeNull();
+  });
+});
+
+describe('CartePage — filtre unique : panneau, puce, pastille du rail (T5)', () => {
+  it('le panneau Filtre monte le vrai panneau ; un filtre posé allume la pastille du rail et la puce ; la croix de la puce le retire', async () => {
+    const { harness, hote, stable } = await ouvrir();
+    const pastille = () => hote.querySelector('mg-rail button[data-entree="filtre"] [data-pastille-filtre]');
+    expect(pastille()).toBeNull();
+    expect(hote.querySelector('mg-puce-filtre')).toBeNull();
+    hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="filtre"]')!.click();
+    await stable();
+    expect(hote.querySelector('mg-panneau-filtre')).not.toBeNull();
+    hote.querySelector<HTMLButtonElement>('mg-panneau-filtre [data-france]')!.click();
+    await stable();
+    const etat = injecteurPage(harness).get(EtatCarteService);
+    expect(etat.filtre()?.type).toBe('france');
+    expect(pastille()).not.toBeNull();
+    // La pastille ne vaut que pour l'entrée Filtre.
+    expect(hote.querySelectorAll('mg-rail [data-pastille-filtre]').length).toBe(1);
+    const puce = hote.querySelector<HTMLElement>('mg-puce-filtre')!;
+    expect(puce.textContent).toContain('France entière');
+    puce.querySelector<HTMLButtonElement>('button[aria-label="Retirer le filtre"]')!.click();
+    await stable();
+    expect(etat.filtre()).toBeNull();
+    expect(pastille()).toBeNull();
+    expect(hote.querySelector('mg-puce-filtre')).toBeNull();
+  });
+
+  it('rouvrir le panneau re-sème depuis le filtre courant : « France entière » reste pressée', async () => {
+    const { harness, hote, stable } = await ouvrir();
+    const etat = injecteurPage(harness).get(EtatCarteService);
+    etat.filtre.set({ type: 'france', code: 'france', label: 'France entière' });
+    hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="filtre"]')!.click();
+    await stable();
+    expect(hote.querySelector('mg-panneau-filtre [data-france]')!.getAttribute('aria-pressed')).toBe('true');
   });
 });

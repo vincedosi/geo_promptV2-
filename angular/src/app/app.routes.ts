@@ -11,6 +11,7 @@ import { limiteurInterceptor } from './core/http/limiteur.interceptor';
 import { sessionExpireeInterceptor } from './core/http/session-expiree.interceptor';
 import { SitesRisqueApi } from './features/risques/data/sites-risque.api';
 import { OrganisationsApi } from './features/session/data/organisations.api';
+import { ZonesCustomApi } from './features/carte/data/zones-custom.api';
 import { ZonesRisqueApi } from './features/risques/data/zones-risque.api';
 import { ProfilRisqueApi } from './features/risques/data/profil-risque.api';
 import { ReferentielApi } from './features/risques/data/referentiel.api';
@@ -44,6 +45,7 @@ const FOURNISSEURS_DISTANTS: (Provider | EnvironmentProviders)[] = [
   JeuxZonesApi,
   SimulationApi,
   OrganisationsApi,
+  ZonesCustomApi,
 ];
 
 /**

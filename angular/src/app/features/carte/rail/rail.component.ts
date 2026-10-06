@@ -81,6 +81,10 @@ const BAS = AFFICHEES.filter((e) => e.position === 'bas');
           }
           <span class="relative flex">
             <mg-icone [nom]="e.icone" [taille]="20" [trait]="1.5" />
+            @if (pastille() && e.id === 'filtre') {
+              <!-- Point teal de 6 px : un filtre est posé (\`RailNavigation.tsx:213-225\`). -->
+              <span data-pastille-filtre class="absolute right-[-2px] top-[-2px] size-1.5 rounded-full bg-teal"></span>
+            }
           </span>
           <span class="text-center text-[10px] leading-[1.2] font-medium tracking-[0.01em]">{{ e.label }}</span>
         </button>
@@ -103,6 +107,8 @@ const BAS = AFFICHEES.filter((e) => e.position === 'bas');
 export class RailComponent {
   readonly actif = input<EntreeId | null>(null);
   readonly masque = input(false);
+  /** Point teal sur l'entrée Filtre : un filtre est posé (`pastille` de `RailNavigation.tsx`). */
+  readonly pastille = input(false);
   readonly choisir = output<EntreeId>();
 
   protected readonly haut = HAUT;

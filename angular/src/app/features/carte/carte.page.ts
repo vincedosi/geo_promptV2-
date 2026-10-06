@@ -14,10 +14,13 @@ import { CouchesCarteService } from './etat/couches-carte.service';
 import { EtatCarteService } from './etat/etat-carte.service';
 import { lireFondMemorise, memoriserFond, urlDuFond } from './etat/fond-carte';
 import { PileEchapService } from './etat/pile-echap.service';
+import { ReferentielGeoService } from './etat/referentiel-geo.service';
+import { PuceFiltreComponent } from './filtre/puce-filtre.component';
 import { ignorerRaccourciClavier } from './logique/garde-saisie';
 import { franciserLibelles } from './logique/libelles-fr';
 import { ENTREES_NAVIGATION, LARGEUR_RAIL, type EntreeId, entreeParRaccourci } from './logique/navigation';
 import { AideComponent } from './panneaux/aide.component';
+import { PanneauFiltreComponent } from './panneaux/filtre/panneau-filtre.component';
 import { ReglagesComponent } from './panneaux/reglages.component';
 import { BarreHautComponent, HAUTEUR_BARRE_HAUT } from './rail/barre-haut.component';
 import { PanneauComponent } from './rail/panneau.component';
@@ -78,9 +81,9 @@ export function palierCarreaux(zoom: number): string {
   selector: 'mg-carte-principale',
   imports: [
     AideComponent, AnnonceComponent, BarreHautComponent, BoutonsFlottantsComponent, CarteComponent, FondCompactComponent,
-    PanneauComponent, RailComponent, ReglagesComponent, RouterOutlet,
+    PanneauComponent, PanneauFiltreComponent, PuceFiltreComponent, RailComponent, ReglagesComponent, RouterOutlet,
   ],
-  providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService],
+  providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService],
   templateUrl: './carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
