@@ -4,11 +4,11 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-09-24 — commit `4cbd1705`.
+> Généré le 2026-10-06 — commit `4a8a11af`.
 
 ## Totaux
 
-- Exports morts : 193
+- Exports morts : 189
 - Fichiers morts : 0
 - Dépendances inutilisées : 2
 
@@ -40,13 +40,11 @@ Trié par nombre d’occurrences décroissant.
 | `app/admin/sources/_hooks/usePoiAdmin.ts` | 3 | emptyPoiForm | PoiForm, PoiModalState |
 | `lib/dsp/report/index.ts` | 3 | selectReporter | DspReportRow, DspReporter |
 | `components/ui/GeoSkeleton.tsx` | 3 | SkeletonCard, SkeletonChart, SkeletonMap | — |
-| `lib/geo/france-admin.ts` | 3 | POI_TYPES, AUDIENCE_METRICS, POI_RAYONS | — |
 | `components/ui/button.tsx` | 2 | buttonVariants | ButtonProps |
 | `components/ui/badge.tsx` | 2 | badgeVariants | BadgeProps |
 | `components/ui/table.tsx` | 2 | TableFooter, TableCaption | — |
 | `app/copilote/_lib/constants.ts` | 2 | applyChoropleth, CATEGORY_COLORS | — |
 | `app/map/_components/CivicIndicatorsLayer.tsx` | 2 | CIVIC_VARIABLES, getCivicLegendStops | — |
-| `lib/meteo/requete.ts` | 2 | ARCHIVE_CUTOFF, daysBetween | — |
 | `lib/campaigns/suivi-chat.ts` | 2 | ChatTurnSchema | CampaignChatBody |
 | `lib/dsp/dv360/auth.ts` | 2 | DV360_SCOPES, buildOAuthClient | — |
 | `lib/prompting/code-generation/adform.ts` | 2 | ADFORM_PROMPT_SECTION | AdformRule |
@@ -71,9 +69,8 @@ Trié par nombre d’occurrences décroissant.
 | `lib/auth.ts` | 1 | createServerClient | — |
 | `lib/geo/region-lookup-server.ts` | 1 | invalidateRegionCache | — |
 | `lib/http/lecture-avec-reprise.ts` | 1 | ATTENTE_MAX_MS | — |
+| `lib/meteo/requete.ts` | 1 | ARCHIVE_CUTOFF | — |
 | `lib/version.ts` | 1 | APP_NAME | — |
-| `lib/auth/roles.ts` | 1 | ROLES_MEMBRE | — |
-| `lib/iris-crawler/db-columns.ts` | 1 | getCoreColumnType | — |
 | `lib/campagne/constats.ts` | 1 | SEUIL_ECART_SIGNALE_PCT | — |
 | `components/campagne/suivi-v2/TableauDeregles.tsx` | 1 | LIGNES_MAX | — |
 | `lib/dsp-mapping/parser.ts` | 1 | parseRow | — |
@@ -82,6 +79,8 @@ Trié par nombre d’occurrences décroissant.
 | `lib/pacing/rebid.ts` | 1 | REBID_EPSILON | — |
 | `lib/geo/dept-lookup-server.ts` | 1 | invalidateDeptCache | — |
 | `lib/prompting/code-generation/dv360.ts` | 1 | DV360_PROMPT_SECTION | — |
+| `lib/auth/roles.ts` | 1 | ROLES_MEMBRE | — |
+| `lib/iris-crawler/db-columns.ts` | 1 | getCoreColumnType | — |
 | `lib/demo/controller.ts` | 1 | latestVersion | — |
 | `lib/api/safe-path.ts` | 1 | isValidUuid | — |
 | `lib/import/column-detector.ts` | 1 | normalizeColumnName | — |
@@ -99,16 +98,16 @@ Trié par nombre d’occurrences décroissant.
 | `lib/supabase/tables.ts` | 1 | — | TableUpdate |
 | `types/admin.ts` | 1 | — | HealthCheck |
 | `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
-| `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
 | `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
 | `lib/campaigns/actor-metrics.ts` | 1 | — | ActorsPayload |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |
+| `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
 | `lib/demo/pilot-types.ts` | 1 | — | PilotItem |
 | `lib/dsp/push/types.ts` | 1 | — | PushStatus |
-| `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
-| `lib/qualite/verdict.ts` | 1 | — | Verdict |
 | `lib/report/types.ts` | 1 | — | ReportHeader |
+| `lib/qualite/verdict.ts` | 1 | — | Verdict |
+| `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
 | `lib/radio/import-logger.ts` | 1 | — | LogEntry |
 | `types/campaign.ts` | 1 | — | DspCampaign |
 | `lib/meteo/use-meteo-data.ts` | 1 | — | MeteoProgress |
