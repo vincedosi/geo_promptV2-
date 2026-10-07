@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { CadreAdminComponent, MESSAGE_ACCES_REFUSE, MESSAGE_ROLE_ILLISIBLE } from './cadre-admin.component';
 import { RoleAdminService, type EtatRoleAdmin } from './etat/role-admin.service';
+import { NotificationsService } from '../../ui/notifications/notifications.service';
 
 let constructions = 0;
 
@@ -39,7 +40,7 @@ async function monter(etat: EtatRoleAdmin) {
 describe('CadreAdminComponent', () => {
   it("refuse : le message, et AUCUNE page enfant instanciée", async () => {
     const { el } = await monter('refuse');
-    expect(el.querySelector('[role="status"]')?.textContent?.trim()).toBe(MESSAGE_ACCES_REFUSE);
+    expect(el.querySelector('[data-refus]')?.textContent?.trim()).toBe(MESSAGE_ACCES_REFUSE);
     expect(el.querySelector('[data-enfant]')).toBeNull();
     expect(constructions).toBe(0);
   });
@@ -48,7 +49,7 @@ describe('CadreAdminComponent', () => {
     const { el } = await monter('super_admin');
     expect(el.querySelector('[data-enfant]')).not.toBeNull();
     expect(constructions).toBe(1);
-    expect(el.querySelector('[role="status"]')).toBeNull();
+    expect(el.querySelector('[data-refus]')).toBeNull();
   });
 
   it('chargement : rien, pas même la page', async () => {
@@ -70,5 +71,24 @@ describe('CadreAdminComponent', () => {
     role._s.set('super_admin');
     await harness.fixture.whenStable();
     expect(el.querySelector('[data-enfant]')).not.toBeNull();
+  });
+
+  it('fournit les notifications aux pages (C7) : rangée collante de 1 px, jamais `fixed`', async () => {
+    const { el, harness } = await monter('super_admin');
+    const rangee = el.querySelector('mg-cadre-admin > [data-rangee-notifications]') as HTMLElement;
+    expect(rangee.className).toContain('sticky');
+    expect(rangee.className).toContain('h-px');
+    expect(rangee.className).not.toContain('fixed');
+    expect(rangee.querySelector('mg-notifications')).not.toBeNull();
+    const injecteur = harness.routeDebugElement!.injector;
+    const service = injecteur.get(NotificationsService);
+    service.info('Bonjour');
+    await harness.fixture.whenStable();
+    expect(rangee.querySelector('[data-notification]')?.textContent).toContain('Bonjour');
+  });
+
+  it('refus et erreur : décalés sous le chrome du haut (réserve T1)', async () => {
+    const { el } = await monter('refuse');
+    expect(el.querySelector('[data-refus]')!.parentElement!.className).toContain('pt-8');
   });
 });

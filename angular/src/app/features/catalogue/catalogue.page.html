@@ -109,4 +109,50 @@
       </tbody>
     </table>
   </div>
+
+  <div class="flex flex-col gap-3" data-testid="planche-administration">
+    <mg-entete-section libelle="Administration — notifications, confirmation, journal, progression, dépôt" />
+
+    <div class="flex flex-wrap gap-2">
+      <button type="button" mgPastille [actif]="false" (click)="notifier('success')">Succès</button>
+      <button type="button" mgPastille [actif]="false" (click)="notifier('error')">Erreur</button>
+      <button type="button" mgPastille [actif]="false" (click)="notifier('warning')">Avertissement</button>
+      <button type="button" mgPastille [actif]="false" (click)="notifier('info')">Information</button>
+    </div>
+    <!-- La pile est posée en place ici ; dans l'admin, le cadre la colle au coin haut-droit. -->
+    <div class="relative min-h-[250px] rounded-lg border-fin border-subtle" data-testid="zone-notifications">
+      <mg-notifications class="absolute top-3 right-3" />
+    </div>
+
+    <div class="flex flex-wrap gap-2">
+      <button type="button" mgPastille [actif]="false" (click)="ouvrirConfirmation('defaut')">Confirmation (défaut)</button>
+      <button type="button" mgPastille [actif]="false" (click)="ouvrirConfirmation('danger')">Confirmation (danger)</button>
+      <button type="button" mgPastille [actif]="false" (click)="ouvrirConfirmation('danger', true)">Danger, en cours</button>
+    </div>
+    <mg-confirmation
+      [ouvert]="confirmation() !== null"
+      [titre]="titreConfirmation()"
+      message="Exemple de message : l’action porte sur un élément d’exemple."
+      [libelleConfirmer]="libelleConfirmation()"
+      [variante]="confirmation()?.variante ?? 'defaut'"
+      [enCours]="confirmation()?.enCours ?? false"
+      (confirmer)="confirmation.set(null)"
+      (annuler)="confirmation.set(null)"
+    />
+
+    <mg-journal [lignes]="lignesJournal()" [filtrable]="true" [copiable]="true" [hauteur]="200" />
+    <button type="button" mgPastille [actif]="false" class="w-fit" (click)="ajouterLigne()">Ajouter une ligne</button>
+
+    <div class="flex flex-col gap-3">
+      <mg-progression-import etape="Analyse" [traitees]="1250" />
+      <mg-progression-import etape="Insertion" [traitees]="250" [total]="1000" />
+      <mg-progression-import etape="Insertion" [traitees]="1000" [total]="1000" [termine]="true" />
+      <mg-progression-import etape="Insertion" [traitees]="300" [total]="1000" echec="Le flux s’est interrompu avant la fin." />
+    </div>
+
+    <mg-depot-fichiers accepter=".csv,.tsv" [multiple]="true" (fichiers)="fichiersDeposes.set($event)">
+      <div class="mb-1.5 text-[13px] text-primary">Glissez un ou plusieurs fichiers ici ou cliquez pour sélectionner</div>
+      <div class="font-mono text-[10px] text-secondary">{{ libelleDepot() }}</div>
+    </mg-depot-fichiers>
+  </div>
 </section>

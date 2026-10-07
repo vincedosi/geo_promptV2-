@@ -38,15 +38,15 @@ describe('icones.ts reste identique à lucide-react', () => {
     compares += 1;
   });
 
-  it('a comparé exactement 52 icônes (pas de passage à vide)', () => {
-    expect(entrees.length).toBe(52);
-    expect(compares).toBe(52);
+  it('a comparé exactement 55 icônes (pas de passage à vide)', () => {
+    expect(entrees.length).toBe(55);
+    expect(compares).toBe(55);
   });
 
   it('marque Feather exactement les icônes de la liste de la LICENSE', () => {
     const licence = readFileSync(join(process.cwd(), 'node_modules', 'lucide-react', 'LICENSE'), 'utf8');
     const liste = licence.slice(licence.indexOf('airplay'), licence.indexOf('The MIT License')).split(',').map((s) => s.trim());
-    const aliasFeather: Record<string, string> = { 'circle-alert': 'alert-circle', 'circle-question-mark': 'help-circle' };
+    const aliasFeather: Record<string, string> = { 'circle-alert': 'alert-circle', 'circle-question-mark': 'help-circle', 'triangle-alert': 'alert-triangle' };
     for (const [nom, def] of entrees) {
       const estFeather = liste.includes(def.lucide) || liste.includes(aliasFeather[def.lucide] ?? '');
       expect(Boolean('feather' in def && def.feather), `${nom} (${def.lucide})`).toBe(estFeather);

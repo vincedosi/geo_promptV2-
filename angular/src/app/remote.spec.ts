@@ -532,7 +532,7 @@ describe('administration (lot 6)', () => {
     await harness.navigateByUrl('/hote/magelian/admin/health');
     await stabiliser(harness);
     const racine = racineOmbre(harness);
-    expect(racine.querySelector('mg-cadre-admin [role="status"]')?.textContent?.trim())
+    expect(racine.querySelector('mg-cadre-admin [data-refus]')?.textContent?.trim())
       .toBe('Accès réservé aux super-administrateurs.');
     expect(racine.querySelector('mg-health')).toBeNull();
     expect(TestBed.inject(Router).url).toBe('/hote/magelian/admin/health');

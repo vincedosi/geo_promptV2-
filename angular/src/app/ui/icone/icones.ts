@@ -61,6 +61,9 @@
  * | Settings                   | reglages             |
  * | CircleHelp = CircleQuestionMark | aide            | Feather (MIT, « help-circle »)
  * | Info                       | info                 | Feather (MIT)
+ * | AlertTriangle = TriangleAlert | triangle-alerte   | Feather (MIT, « alert-triangle »)
+ * | Check                      | coche                | Feather (MIT)
+ * | Search                     | loupe                | Feather (MIT)
  *
  * Pour ajouter une icône : lire `__iconNode` de `<lucide>.js`, ajouter une entrée (nom français en
  * kebab-case ; `feather: true` si le nom figure dans la liste Feather de la LICENSE de lucide-react),
@@ -545,6 +548,27 @@ export const ICONES = {
       { t: 'circle', cx: '12', cy: '12', r: '10' },
       { t: 'path', d: 'M12 16v-4' },
       { t: 'path', d: 'M12 8h.01' },
+    ],
+  },
+  'triangle-alerte': {
+    lucide: 'triangle-alert', feather: true,
+    el: [
+      { t: 'path', d: 'm21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3' },
+      { t: 'path', d: 'M12 9v4' },
+      { t: 'path', d: 'M12 17h.01' },
+    ],
+  },
+  'coche': {
+    lucide: 'check', feather: true,
+    el: [
+      { t: 'path', d: 'M20 6 9 17l-5-5' },
+    ],
+  },
+  'loupe': {
+    lucide: 'search', feather: true,
+    el: [
+      { t: 'path', d: 'm21 21-4.34-4.34' },
+      { t: 'circle', cx: '11', cy: '11', r: '8' },
     ],
   },
 } as const satisfies Record<string, DefinitionIcone>;

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ChargementService } from '../../core/chargement/chargement.service';
 import { BarreProgressionComponent } from '../../ui/barre-progression/barre-progression.component';
 import { ChampComponent } from '../../ui/champ/champ.component';
@@ -17,6 +17,12 @@ import { PastilleComponent } from '../../ui/pastille/pastille.component';
 import { PerimeDirective } from '../../ui/perime/perime.directive';
 import { RegletteComponent } from '../../ui/reglette/reglette.component';
 import { Cellule, EnteteCellule } from '../../ui/tableau/cellules';
+import { ConfirmationComponent } from '../../ui/confirmation/confirmation.component';
+import { NotificationsComponent } from '../../ui/notifications/notifications.component';
+import { NotificationsService, type VarianteNotification } from '../../ui/notifications/notifications.service';
+import { DepotFichiersComponent } from '../admin/commun/depot-fichiers.component';
+import { JournalComponent, type LigneJournal } from '../admin/commun/journal.component';
+import { ProgressionImportComponent } from '../admin/commun/progression-import.component';
 
 /**
  * Chaque composant de ui/, dans son état réel, avec des données d'exemple
@@ -31,8 +37,9 @@ import { Cellule, EnteteCellule } from '../../ui/tableau/cellules';
     TuileChiffreComponent,
     BarreProgressionComponent, ChampComponent, FilEtapesComponent, FilArianeComponent,
     HexagoneComponent, IconeComponent, KpiComponent, LogoComponent, MarqueComponent, PastilleComponent, PerimeDirective, RegletteComponent, Cellule, EnteteCellule,
+    NotificationsComponent, ConfirmationComponent, JournalComponent, ProgressionImportComponent, DepotFichiersComponent,
   ],
-  providers: [ChargementService],
+  providers: [ChargementService, NotificationsService],
   templateUrl: './catalogue.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -58,8 +65,48 @@ export class CataloguePage {
   protected readonly valeurReglette = signal(1000);
   protected readonly apercuReglette = signal<number | null>(null);
 
+  // Planche « Administration » (lot 6, T2).
+  private readonly notifications = inject(NotificationsService);
+  protected readonly confirmation = signal<{ variante: 'danger' | 'defaut'; enCours: boolean } | null>(null);
+  protected readonly titreConfirmation = computed(() =>
+    this.confirmation()?.variante === 'danger' ? 'Supprimer cet élément ?' : 'Appliquer la modification ?');
+  protected readonly libelleConfirmation = computed(() => (this.confirmation()?.variante === 'danger' ? 'Supprimer' : 'Confirmer'));
+  protected readonly lignesJournal = signal<readonly LigneJournal[]>([
+    { message: '[10:02:11] [INFO   ] [parsing     ] Lecture du fichier d’exemple', niveau: 'info' },
+    { message: '[10:02:12] [DEBUG  ] [parsing     ] 12 colonnes détectées', niveau: 'debug' },
+    { message: '[10:02:14] [WARN   ] [insertion   ] 3 lignes sans coordonnées ignorées', niveau: 'warn' },
+    { message: '[10:02:15] [ERROR  ] [insertion   ] Ligne 418 : valeur illisible', niveau: 'error' },
+    { message: '[10:02:19] [SUCCESS] [fin         ] 1 247 lignes écrites', niveau: 'success' },
+  ]);
+  protected readonly fichiersDeposes = signal<File[]>([]);
+  protected readonly libelleDepot = computed(() => {
+    const f = this.fichiersDeposes();
+    return f.length ? f.map((x) => x.name).join(', ') : '// formats : .csv .tsv';
+  });
+
   constructor() {
     this.chargement.suivre('catalogue', 'Calcul d’exemple', () => this.enCalcul());
+  }
+
+  protected notifier(variante: VarianteNotification): void {
+    const exemples: Record<VarianteNotification, [string, string?]> = {
+      success: ['Import terminé', '1 247 lignes écrites.'],
+      error: ['Échec de l’import', 'Le serveur a répondu 500.'],
+      warning: ['Données partielles', '3 lignes ignorées.'],
+      info: ['Logs copiés'],
+    };
+    const [titre, message] = exemples[variante];
+    this.notifications[variante](titre, message);
+  }
+
+  protected ouvrirConfirmation(variante: 'danger' | 'defaut', enCours = false): void {
+    this.confirmation.set({ variante, enCours });
+    // « En cours » bloque tous les gestes de fermeture : on le relâche après 3 s pour ne pas piéger la planche.
+    if (enCours) setTimeout(() => this.confirmation.update((c) => (c ? { ...c, enCours: false } : c)), 3000);
+  }
+
+  protected ajouterLigne(): void {
+    this.lignesJournal.update((l) => [...l, { message: `[10:03:${String(l.length).padStart(2, '0')}] [INFO   ] [insertion   ] Lot ${l.length} écrit`, niveau: 'info' }]);
   }
 
   protected basculerPastille(cle: string): void {
