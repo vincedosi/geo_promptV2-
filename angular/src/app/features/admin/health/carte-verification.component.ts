@@ -26,14 +26,14 @@ import { STYLES_STATUT } from './statut';
     .icone { margin-top: 2px; flex-shrink: 0; display: flex; }
     .corps { flex: 1; min-width: 0; }
     .tete { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
-    .nom { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: var(--text-primary); }
+    .nom { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--text-primary); }
     .badge {
-      font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--c-statut);
+      font-size: 10px; font-family: var(--font-mono); color: var(--c-statut);
       background: var(--badge-statut); padding: 1px 6px; border-radius: 2px; border: 1px solid var(--bord-statut);
     }
     .carte[data-etat='OK'] .badge { background: transparent; border: none; }
-    .valeur { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-secondary); margin-bottom: 3px; }
-    .message { font-size: 12px; color: var(--text-tertiary); line-height: 1.5; font-family: 'Inter', system-ui, sans-serif; }
+    .valeur { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); margin-bottom: 3px; }
+    .message { font-size: 12px; color: var(--text-tertiary); line-height: 1.5; font-family: var(--font-sans); }
   `],
   template: `
     <div data-carte class="carte statut" [attr.data-etat]="check().status">

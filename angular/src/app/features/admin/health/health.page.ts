@@ -4,6 +4,7 @@ import { formaterNombre } from '../../../core/format/nombre';
 import type { Check, HealthResponse } from '../logique/types/admin';
 import { APP_VERSION, BUILD_DATE } from '../logique/version';
 import { CarteVerificationComponent } from './carte-verification.component';
+import { FraicheurComponent } from './fraicheur.component';
 import { HealthApi } from './data/health.api';
 import { STYLES_STATUT } from './statut';
 
@@ -29,7 +30,7 @@ interface TailleBase {
 
 /**
  * Health check, onglet « Diagnostic système » — portage de `app/admin/health/page.tsx`.
- * L'onglet « Fraîcheur données » est porté en T4 (texte provisoire ici).
+ * L'onglet « Fraîcheur données » est `mg-fraicheur` (T4), monté à sa première ouverture puis gardé.
  *
  * Écarts à React, voulus :
  * - erreur HTTP : React fait `res.json()` sans tester `res.ok`. Un corps JSON d'erreur (401
@@ -45,15 +46,16 @@ interface TailleBase {
  */
 @Component({
   selector: 'mg-health',
-  imports: [CarteVerificationComponent],
+  imports: [CarteVerificationComponent, FraicheurComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './health.page.html',
   styles: [STYLES_STATUT, `
     :host { display: block; }
+    [hidden] { display: none !important; }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     .tourne { animation: spin 1s linear infinite; }
-    .mono { font-family: 'JetBrains Mono', monospace; }
+    .mono { font-family: var(--font-mono); }
     .carte { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 2px; overflow: hidden; }
     .carte-tete {
       display: flex; align-items: center; gap: 8px; padding: 10px 16px;
@@ -101,7 +103,7 @@ interface TailleBase {
     .remplissage { height: 100%; border-radius: 2px; background: var(--c-statut); transition: width 0.4s ease; }
     table { width: 100%; font-size: 11px; border-collapse: collapse; }
     thead tr { border-bottom: 1px solid var(--border-subtle); }
-    th { font-family: 'Inter', system-ui, sans-serif; text-align: right; padding: 8px 12px; font-size: 11px; color: var(--text-secondary); font-weight: 400; }
+    th { font-family: var(--font-sans); text-align: right; padding: 8px 12px; font-size: 11px; color: var(--text-secondary); font-weight: 400; }
     th:first-child { text-align: left; }
     tbody tr { border-bottom: 1px solid var(--border-subtle); }
     tbody tr:last-child { border-bottom: none; }
@@ -189,8 +191,12 @@ export class HealthPage {
     this.relire();
   }
 
+  /** Vrai dès la première ouverture de l'onglet Fraîcheur : son panneau reste ensuite monté. */
+  protected readonly fraicheurOuverte = signal(false);
+
   protected choisir(cle: OngletHealth): void {
     this.onglet.set(cle);
+    if (cle === 'fraicheur') this.fraicheurOuverte.set(true);
   }
 
   /** « Re-tester » (`fetchHealth`, `page.tsx:141-152`) : UNE lecture à la fois. */

@@ -4,6 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ConfigService } from '../../../core/config/config.service';
 import { formaterNombre } from '../../../core/format/nombre';
 import type { HealthResponse } from '../logique/types/admin';
+import { FraicheurApi } from './data/fraicheur.api';
 import { HealthApi } from './data/health.api';
 import { HealthPage } from './health.page';
 
@@ -44,7 +45,7 @@ describe('HealthPage', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(), provideHttpClientTesting(), HealthApi,
+        provideHttpClient(), provideHttpClientTesting(), HealthApi, FraicheurApi,
         { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       ],
     });
@@ -162,26 +163,59 @@ describe('HealthPage', () => {
     f.detectChanges();
     const seconde = http.expectOne('/api/admin/health');
     expect(bouton().disabled).toBe(true);
+    // Pendant le re-test, la pastille, les compteurs et Database Overview disparaissent (page.tsx:208,285,422).
+    expect(el.querySelector('[data-statut-global]')).toBeNull();
+    expect(el.querySelector('[data-compte="OK"]')).toBeNull();
+    expect(el.querySelector('[data-section="database"]')).toBeNull();
     // Un clic (ou un appel) pendant la lecture ne part pas.
     bouton().click();
-    (f.componentInstance as unknown as { relire(): void }).relire();
+    f.componentInstance.relire();
     http.expectNone('/api/admin/health');
     seconde.flush(reponse());
     f.detectChanges();
     expect(bouton().disabled).toBe(false);
   });
 
-  it('onglet « Fraîcheur données » : texte provisoire, sous-titre de React, aucune requête', () => {
+  it('onglet « Fraîcheur données » : sous-titre de React, UN GET du relevé, aucun POST ; rôles d’onglets complets', () => {
     http.expectOne('/api/admin/health').flush(reponse());
     f.detectChanges();
     const onglets = [...el.querySelectorAll<HTMLButtonElement>('[data-onglet]')];
     expect(onglets.map((o) => o.textContent!.trim())).toEqual(['Diagnostic système', 'Fraîcheur données']);
+    // Un onglet non ouvert ne lit rien.
+    http.expectNone('/api/admin/fraicheur-donnees');
     onglets[1].click();
     f.detectChanges();
     expect(f.componentInstance.onglet()).toBe('fraicheur');
     expect(texte('[data-sous-titre]')).toBe('D’où vient chaque donnée, comment elle entre, et de quand elle date');
-    expect(texte('[data-fraicheur]')).toBe('Disponible prochainement');
-    expect(el.querySelector('[data-section="env"]')).toBeNull();
+    const req = http.expectOne('/api/admin/fraicheur-donnees');
+    expect(req.request.method).toBe('GET');
+    req.flush({ sources: [], mesureLe: null, dureeMs: null });
+    f.detectChanges();
+    expect(el.querySelector('mg-fraicheur')).not.toBeNull();
+    expect(el.querySelector<HTMLElement>('#health-panneau-systeme')!.hidden).toBe(true);
+    for (const o of onglets) {
+      const panneau = el.querySelector(`#${o.getAttribute('aria-controls')}`)!;
+      expect(panneau.getAttribute('role')).toBe('tabpanel');
+      expect(panneau.getAttribute('aria-labelledby')).toBe(o.id);
+    }
+    http.expectNone('/api/admin/health');
+  });
+
+  it('aller-retour Système ↔ Fraîcheur deux fois : toujours UN seul GET du relevé (cache d’écran)', () => {
+    http.expectOne('/api/admin/health').flush(reponse());
+    f.detectChanges();
+    const onglets = [...el.querySelectorAll<HTMLButtonElement>('[data-onglet]')];
+    onglets[1].click();
+    f.detectChanges();
+    http.expectOne('/api/admin/fraicheur-donnees').flush({ sources: [], mesureLe: null, dureeMs: null });
+    for (let i = 0; i < 2; i++) {
+      onglets[0].click();
+      f.detectChanges();
+      expect(el.querySelector('[data-section="env"]')).not.toBeNull();
+      onglets[1].click();
+      f.detectChanges();
+    }
+    http.expectNone('/api/admin/fraicheur-donnees');
     http.expectNone('/api/admin/health');
   });
 

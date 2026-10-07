@@ -22,12 +22,15 @@
         role="tab"
         data-onglet
         class="onglet"
+        [id]="'health-onglet-' + o.cle"
+        [attr.aria-controls]="'health-panneau-' + o.cle"
         [attr.aria-selected]="onglet() === o.cle"
         (click)="choisir(o.cle)"
       >{{ o.libelle }}</button>
     }
   </div>
 
+  <div id="health-panneau-systeme" role="tabpanel" aria-labelledby="health-onglet-systeme" [hidden]="onglet() !== 'systeme'">
   @if (onglet() === 'systeme') {
     <!-- Statut global (page.tsx:254-319) -->
     <div class="globale statut" [class.en-lecture]="enLecture()" [attr.data-etat]="statutGlobal()">
@@ -279,7 +282,14 @@
         </div>
       </section>
     </div>
-  } @else {
-    <p data-fraicheur class="m-0 text-[13px] text-tertiary">Disponible prochainement</p>
   }
+  </div>
+
+  <!-- Fraîcheur (page.tsx:593) : montée à la PREMIÈRE ouverture de l'onglet, puis gardée — un
+       aller-retour d'onglets ne relit pas le relevé (React démontait le panneau et relisait). -->
+  <div id="health-panneau-fraicheur" role="tabpanel" aria-labelledby="health-onglet-fraicheur" [hidden]="onglet() !== 'fraicheur'">
+    @if (fraicheurOuverte()) {
+      <mg-fraicheur />
+    }
+  </div>
 </div>
