@@ -1,10 +1,11 @@
-import { ChangeDetectionStrategy, Component, DOCUMENT, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { CarreauxService } from '../../couches/carreaux.service';
-import { basculerSection, sectionsInitiales } from '../../etat/sections-filtre';
+import { IrisService } from '../../couches/iris.service';
 import { libelleDegrade } from '../../logique/degrades';
 import { GroupeCalquesComponent } from './groupe-calques.component';
 import { SectionCarreauxComponent } from './section-carreaux.component';
+import { SectionIrisComponent } from './section-iris.component';
 
 type CleGroupe = 'socioDemo' | 'poiMobilite' | 'mediasOffline' | 'environnement' | 'analyses';
 
@@ -22,14 +23,16 @@ interface ActifCalque {
  * mobilité, Médias offline, Environnement, Mes analyses. Tous fermés à l'ouverture, et rien n'est mémorisé : comme
  * React (`useState`, `PanneauCalques.tsx:240-243`), le panneau repart replié à chaque réouverture.
  *
- * Cette tâche (T6) porte le CADRE et les carreaux Filosofi ; chaque groupe se remplit dans sa tâche :
- * IRIS (T7), POI/transport/TMJA (T8-T9), OOH/radio (T8-T9), environnement (T10-T12), « Mes analyses » (T18).
+ * T6 a porté le CADRE et les carreaux Filosofi, T7 les IRIS ; chaque groupe se remplit dans sa tâche :
+ * POI/transport/TMJA (T8-T9), OOH/radio (T8-T9), environnement (T10-T12), « Mes analyses » (T18). Les sections
+ * internes de ces groupes (`useFilterSections(true, …)` en mode overlay) ne mémorisent rien non plus : leur logique
+ * pure attend dans `etat/sections-filtre.ts`, à brancher par la tâche qui en aura l'usage.
  * « Campagne active » n'est pas rendu : il n'existe qu'avec une campagne active, qui relève du lot 5 (arbitrage B6).
  * « Mes analyses » ne lance AUCUNE requête ici — React y chargeait `GET /api/analyses` au premier dépliage.
  */
 @Component({
   selector: 'mg-panneau-calques',
-  imports: [GroupeCalquesComponent, IconeComponent, SectionCarreauxComponent],
+  imports: [GroupeCalquesComponent, IconeComponent, SectionCarreauxComponent, SectionIrisComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full flex-col overflow-y-auto' },
   template: `
@@ -61,6 +64,7 @@ interface ActifCalque {
       @if (groupes().socioDemo) {
         <div class="flex flex-col">
           <mg-section-carreaux />
+          <mg-section-iris />
         </div>
       }
     </mg-groupe-calques>
@@ -92,31 +96,25 @@ interface ActifCalque {
 })
 export class PanneauCalquesComponent {
   private readonly carreaux = inject(CarreauxService);
-  private readonly document = inject(DOCUMENT);
+  private readonly iris = inject(IrisService);
 
   protected readonly groupes = signal<Record<CleGroupe, boolean>>({
     socioDemo: false, poiMobilite: false, mediasOffline: false, environnement: false, analyses: false,
   });
-  /**
-   * Les sections internes (poi, transport, tmja, ooh, radio, civic, civicHealth, meteo), en mode OVERLAY comme
-   * React (`useFilterSections(true, …)`) : rien n'est lu ni écrit dans `localStorage`. Lues par les sections T8-T12.
-   */
-  readonly sections = signal(sectionsInitiales(true, () => this.document.defaultView?.localStorage));
 
-  protected readonly compteSocio = computed(() => (this.carreaux.visible() ? 1 : 0));
+  protected readonly compteSocio = computed(() => (this.carreaux.visible() ? 1 : 0) + (this.iris.visible() ? 1 : 0));
   protected readonly actifs = computed<ActifCalque[]>(() => {
     const liste: ActifCalque[] = [];
     if (this.carreaux.visible()) {
       liste.push({ id: 'carreaux', label: libelleDegrade('carreaux'), retirer: () => this.carreaux.basculer(false) });
+    }
+    if (this.iris.visible()) {
+      liste.push({ id: 'iris', label: libelleDegrade('iris'), retirer: () => this.iris.basculer(false) });
     }
     return liste;
   });
 
   protected basculer(cle: CleGroupe): void {
     this.groupes.update((g) => ({ ...g, [cle]: !g[cle] }));
-  }
-
-  basculerSectionInterne(cle: string): void {
-    this.sections.update((s) => basculerSection(s, cle, true, () => this.document.defaultView?.localStorage));
   }
 }

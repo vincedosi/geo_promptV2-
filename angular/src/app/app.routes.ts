@@ -12,6 +12,7 @@ import { sessionExpireeInterceptor } from './core/http/session-expiree.intercept
 import { SitesRisqueApi } from './features/risques/data/sites-risque.api';
 import { OrganisationsApi } from './features/session/data/organisations.api';
 import { CarreauxApi } from './features/carte/data/carreaux.api';
+import { IrisApi } from './features/carte/data/iris.api';
 import { ZonesCustomApi } from './features/carte/data/zones-custom.api';
 import { ZonesRisqueApi } from './features/risques/data/zones-risque.api';
 import { ProfilRisqueApi } from './features/risques/data/profil-risque.api';
@@ -48,6 +49,7 @@ const FOURNISSEURS_DISTANTS: (Provider | EnvironmentProviders)[] = [
   OrganisationsApi,
   ZonesCustomApi,
   CarreauxApi,
+  IrisApi,
 ];
 
 /**

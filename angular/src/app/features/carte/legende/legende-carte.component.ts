@@ -1,33 +1,36 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { IconeComponent } from '../../../ui/icone/icone.component';
 import { CarreauxService } from '../couches/carreaux.service';
+import { IrisService } from '../couches/iris.service';
 import { formaterValeur, palierEchelle, versValeurReelle } from '../logique/carreaux/bornes';
 import { CARREAUX_INDICATEURS } from '../logique/carreaux/catalogue';
+import { bornesInternes } from '../logique/carreaux/expressions';
+import { echelleDe, uniteIris } from '../logique/iris-echelle';
 import { uniteNormalisee } from '../logique/carreaux/normalisation';
 import { type DegradeId, libelleDegrade } from '../logique/degrades';
 import { ECART_RAIL_PANNEAU, LARGEUR_RAIL } from '../logique/navigation';
-import { CARREAUX_PALETTES } from '../logique/palettes-donnees-carte';
+import { CARREAUX_PALETTES, IRIS_PALETTES } from '../logique/palettes-donnees-carte';
 
 /**
  * Le dégradé actif a-t-il un bloc dans CETTE légende ? — `degradeALegende` de `LegendeCarte.tsx:150-178`, source
  * UNIQUE de la question : la boîte ne s'ouvre jamais vide. Le `switch` est EXHAUSTIF (`never`) : un dégradé ajouté à
  * `DegradeId` sans décision ici fait échouer la compilation.
  *
- * Seuls les carreaux sont portés (T6). Chaque tâche de couche passe SON cas à `true` en ajoutant son bloc :
- * IRIS (T7), indicateurs civiques et santé (T10), météo (T11). `score`, `diffusion` et `zones-risque` portent leur
+ * Carreaux (T6) et IRIS (T7) sont portés. Chaque tâche de couche passe SON cas à `true` en ajoutant son bloc :
+ * indicateurs civiques et santé (T10), météo (T11). `score`, `diffusion` et `zones-risque` portent leur
  * propre légende, comme React.
  */
 export function degradeALegende(d: DegradeId | null): boolean {
   if (!d) return false;
   switch (d) {
     case 'carreaux':
-      return true;
     case 'iris':
+      return true;
     case 'meteo':
     case 'civic-indicateurs':
     case 'civic-sante':
     case 'campagne-impressions':
-      return false; // blocs à venir (T7, T10, T11 ; campagne : lot 5)
+      return false; // blocs à venir (T10, T11 ; campagne : lot 5)
     case 'score':
     case 'diffusion':
     case 'zones-risque':
@@ -115,6 +118,30 @@ interface Palier {
                   }
                 </div>
               }
+              @case ('iris') {
+                <!-- LegendeCarte.tsx:225-256 : les mêmes frontières que la peinture (bornesInternes), non cliquables. -->
+                <div data-bloc="iris">
+                  <div class="mb-1 text-[11px] font-medium text-secondary">
+                    {{ titreIris }}@if (uniteIrisAffichee(); as u) {<span class="font-mono font-normal"> · {{ u }}</span>}
+                  </div>
+                  @if (paliersIris(); as ps) {
+                    <div class="flex flex-col gap-px">
+                      @for (p of ps; track $index) {
+                        <div data-palier-iris class="flex items-center gap-1.5">
+                          <span class="size-[10px] shrink-0 rounded-[2px]" [style.background]="p.couleur"></span>
+                          <span class="font-mono text-[10px] text-tertiary">{{ p.libelle }}</span>
+                        </div>
+                      }
+                    </div>
+                  } @else if (iris.bornesEnErreur()) {
+                    <div class="text-[10px] text-warning">! Bornes indisponibles</div>
+                  } @else if (iris.bornes() === undefined) {
+                    <div class="text-[10px] text-tertiary">Chargement...</div>
+                  } @else {
+                    <div class="text-[10px] text-warning">! Aucune donnée pour cet indicateur</div>
+                  }
+                </div>
+              }
             }
           </div>
         }
@@ -127,6 +154,8 @@ export class LegendeCarteComponent {
   readonly degradeActif = input.required<DegradeId | null>();
 
   private readonly carreaux = inject(CarreauxService);
+  protected readonly iris = inject(IrisService);
+  protected readonly titreIris = libelleDegrade('iris');
   protected readonly gauche = LARGEUR_RAIL + ECART_RAIL_PANNEAU;
   protected readonly ouvert = signal(true);
   protected readonly titreCarreaux = libelleDegrade('carreaux');
@@ -155,6 +184,26 @@ export class LegendeCarteComponent {
         libelle: i === 5 ? `≥ ${formaterValeur(min)}` : `${formaterValeur(min)} – ${formaterValeur(max)}`,
       };
     });
+  });
+
+  /** `uniteIris(classe) || '%'` (`LegendeCarte.tsx:232`) ; rien tant que les bornes manquent. */
+  protected readonly uniteIrisAffichee = computed(() => {
+    const b = this.iris.bornes();
+    return b ? uniteIris(b.classe) || '%' : null;
+  });
+  /** Les six lignes « ≤ a », « a – b », « ≥ z » de `LegendeCarte.tsx:236-248` ; `null` sans bornes. */
+  protected readonly paliersIris = computed(() => {
+    const b = this.iris.bornes();
+    if (!b) return null;
+    const pal = IRIS_PALETTES.find((p) => p.id === this.iris.palette()) ?? IRIS_PALETTES[0];
+    const f = bornesInternes(echelleDe(b), pal.stops.length).map(versValeurReelle);
+    const n = pal.stops.length;
+    return pal.stops.map((couleur, i) => ({
+      couleur,
+      libelle: i === 0 ? `≤ ${formaterValeur(f[0])}`
+        : i === n - 1 ? `≥ ${formaterValeur(f[f.length - 1])}`
+        : `${formaterValeur(f[i - 1])} – ${formaterValeur(f[i])}`,
+    }));
   });
 
   protected choisirPalier(i: number): void {

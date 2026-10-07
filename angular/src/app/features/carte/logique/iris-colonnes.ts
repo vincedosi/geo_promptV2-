@@ -1,0 +1,80 @@
+/**
+ * Copie Angular (lot 4, P6) VERBATIM du catalogue `IRIS_DB_COLUMNS` de `lib/iris-crawler/db-columns.ts` (l.11-80 :
+ * l'interface et le tableau seuls — le classifieur d'import n'a aucun consommateur côté carte), verrouillée par
+ * tests/unit/angular/carte-couches-paritaire.test.ts (gel P5 étendu à /map). Ne pas corriger un défaut ici sans le
+ * corriger dans React.
+ *
+ * C'est la liste que React propose dans le sélecteur d'indicateur IRIS (`IrisSection.tsx:193-205`) et que le panneau
+ * de détail parcourt (`IrisDetailPanel.tsx:142-145`) : la recopier est une PARITÉ. La tuile et `/api/iris/bornes`
+ * restent dynamiques ; une colonne sans bornes s'affiche « ! Aucune donnée pour cet indicateur ».
+ */
+// ── Format existant (conservé pour rétrocompatibilité) ────────────────────────
+export interface IrisDbColumn {
+  name:  string;
+  label: string;
+  type:  'integer' | 'float' | 'boolean';
+  /** Groupe d'affichage (dropdown choroplèthe, system prompt) */
+  group: 'Population' | 'Âge' | 'Revenus' | 'Diplômes' | 'CSP' | 'Emploi' | 'Logement' | 'Mobilité' | 'Familles' | 'Métadonnées';
+}
+
+/** Toutes les colonnes CORE (SQL fixes) de la table iris */
+export const IRIS_DB_COLUMNS: IrisDbColumn[] = [
+  { name: 'population',       label: 'Population totale',          type: 'integer', group: 'Population' },
+  { name: 'nb_menages',       label: 'Nombre de ménages',          type: 'integer', group: 'Population' },
+  { name: 'pop_0_14',         label: 'Pop 0–14 ans',               type: 'integer', group: 'Âge'        },
+  { name: 'pop_15_29',        label: 'Pop 15–29 ans',              type: 'integer', group: 'Âge'        },
+  { name: 'pop_30_44',        label: 'Pop 30–44 ans',              type: 'integer', group: 'Âge'        },
+  { name: 'pop_45_59',        label: 'Pop 45–59 ans',              type: 'integer', group: 'Âge'        },
+  { name: 'pop_60_74',        label: 'Pop 60–74 ans',              type: 'integer', group: 'Âge'        },
+  { name: 'pop_75_plus',      label: 'Pop 75 ans+',                type: 'integer', group: 'Âge'        },
+  { name: 'rev_median',       label: 'Revenu médian (€)',          type: 'float',   group: 'Revenus'    },
+  { name: 'taux_chomage',     label: 'Taux de chômage (%)',        type: 'float',   group: 'Revenus'    },
+  { name: 'taux_proprio',     label: 'Taux de propriétaires (%)',  type: 'float',   group: 'Revenus'    },
+  { name: 'nb_diplome_aucun', label: 'Sans diplôme',               type: 'integer', group: 'Diplômes'   },
+  { name: 'nb_diplome_bac',   label: 'Bac ou équivalent',          type: 'integer', group: 'Diplômes'   },
+  { name: 'nb_diplome_sup',   label: 'Diplôme supérieur',          type: 'integer', group: 'Diplômes'   },
+  { name: 'taux_diplome_sup', label: 'Taux diplôme sup (%)',       type: 'float',   group: 'Diplômes'   },
+  { name: 'nb_csp_cadre',     label: 'CSP — Cadres',               type: 'integer', group: 'CSP'        },
+  { name: 'nb_csp_employe',   label: 'CSP — Employés',             type: 'integer', group: 'CSP'        },
+  { name: 'nb_csp_ouvrier',   label: 'CSP — Ouvriers',             type: 'integer', group: 'CSP'        },
+  // Revenus — indicateurs Filosofi complémentaires
+  { name: 'rev_d1',           label: '1er décile revenus (€)',     type: 'float',   group: 'Revenus'    },
+  { name: 'rev_d9',           label: '9e décile revenus (€)',      type: 'float',   group: 'Revenus'    },
+  { name: 'taux_pauvrete',    label: 'Taux de pauvreté (%)',       type: 'float',   group: 'Revenus'    },
+  { name: 'indice_gini',      label: 'Indice de Gini',             type: 'float',   group: 'Revenus'    },
+  // Emploi
+  // ⚠ `nb_emplois` est VIDE en base (0 / 16 404 IRIS au 2026-09-08), et
+  // `nb_emplois_commune` aussi. Ce n'est pas un defaut du code : le mapping
+  // (auto-map `^P\d{2}_EMPLT$`) et le RPC `update_iris_core_batch` sont corrects.
+  // La source n'a simplement jamais ete importee — le registre ne connait que
+  // BASE_TD_FILO_IRIS_2021_DEC et _DISP (revenus). Les emplois au lieu de
+  // travail sont dans une base INSEE distincte, a importer pour les remplir.
+  { name: 'nb_emplois',       label: 'Emplois au lieu de travail', type: 'integer', group: 'Emploi'     },
+  { name: 'taux_emploi',      label: "Taux d'emploi (%)",          type: 'float',   group: 'Emploi'     },
+  // Démographie dérivée
+  { name: 'densite_pop',               label: 'Densité (hab/km²)',                   type: 'float',   group: 'Population' },
+  { name: 'indice_jeunesse',           label: 'Indice de jeunesse',                  type: 'float',   group: 'Âge'        },
+  { name: 'part_pop_etrangere',        label: 'Pop. étrangère (%)',                  type: 'float',   group: 'Population' },
+  { name: 'part_pop_moins_18',         label: 'Pop. moins de 18 ans (%)',            type: 'float',   group: 'Âge'        },
+  { name: 'part_pop_65_plus',          label: 'Pop. 65 ans et plus (%)',             type: 'float',   group: 'Âge'        },
+  // Logement
+  { name: 'part_residences_principales', label: 'Résidences principales (%)',        type: 'float',   group: 'Logement'   },
+  { name: 'part_appartements',         label: 'Appartements (%)',                    type: 'float',   group: 'Logement'   },
+  { name: 'part_logements_sociaux',    label: 'Logements sociaux HLM (%)',           type: 'float',   group: 'Logement'   },
+  { name: 'part_menages_emmenages_2ans', label: 'Ménagés emménagés < 2 ans (%)',     type: 'float',   group: 'Logement'   },
+  // Familles
+  { name: 'part_familles_monoparentales', label: 'Familles monoparentales (%)',      type: 'float',   group: 'Familles'   },
+  { name: 'part_couples_avec_enfants', label: 'Couples avec enfants (%)',            type: 'float',   group: 'Familles'   },
+  // Mobilité
+  { name: 'part_actifs_marche_velo',   label: 'Actifs marche/vélo (%)',              type: 'float',   group: 'Mobilité'   },
+  { name: 'part_actifs_transport_commun', label: 'Actifs transports en commun (%)', type: 'float',   group: 'Mobilité'   },
+  // Emploi par sexe
+  { name: 'part_hommes_actifs',        label: 'Hommes actifs 15-64 (%)',             type: 'float',   group: 'Emploi'     },
+  { name: 'part_femmes_actives',       label: 'Femmes actives 15-64 (%)',            type: 'float',   group: 'Emploi'     },
+  // Diplômes dérivé
+  { name: 'part_sans_diplome',         label: 'Sans diplôme (%)',                    type: 'float',   group: 'Diplômes'   },
+  // Emploi communal (imputation)
+  { name: 'nb_emplois_commune',        label: 'Emplois commune (imputés)',           type: 'float',   group: 'Emploi'     },
+  // Métadonnées — non choroplèthable
+  { name: 'is_true_iris',              label: 'Vrai IRIS (quartier)',                type: 'boolean', group: 'Métadonnées' },
+];

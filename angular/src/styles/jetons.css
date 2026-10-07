@@ -81,6 +81,11 @@
      littéral #555 de useMapInit.ts que l'interface Angular lit ici (lot 4, T6). */
   --carreaux-contour: #555555;
 
+  /* Contour des IRIS (`iris-border`, useMapInit.ts:872) : le bleu de la palette IRIS
+     à 0,7. Invariant, comme le littéral rgba de React que l'interface Angular lit
+     ici (lot 4, T7). */
+  --iris-contour: rgba(66,146,198,0.7);
+
   /* ── Échelle divergente d'alignement (sous-pression ↔ conforme ↔ sur-pression)
      Le sens se lit AUSSI par la position sur la barre : la teinte seule ne
      suffit pas pour un daltonien. */
@@ -299,6 +304,11 @@ html.light, :host(.light) {
      opacité 0,35). Invariant : le même gris dans les deux thèmes, comme le
      littéral #555 de useMapInit.ts que l'interface Angular lit ici (lot 4, T6). */
   --carreaux-contour: #555555;
+
+  /* Contour des IRIS (`iris-border`, useMapInit.ts:872) : le bleu de la palette IRIS
+     à 0,7. Invariant, comme le littéral rgba de React que l'interface Angular lit
+     ici (lot 4, T7). */
+  --iris-contour: rgba(66,146,198,0.7);
 
   /* ── Échelle divergente d'alignement (sous-pression ↔ conforme ↔ sur-pression)
      Le sens se lit AUSSI par la position sur la barre : la teinte seule ne

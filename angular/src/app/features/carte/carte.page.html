@@ -67,6 +67,9 @@
       <mg-fond-compact [fond]="fond()" (choisirFond)="choisirFond($event)" />
     </mg-carte>
   }
+  <!-- Le détail d'un IRIS cliqué (`page.tsx:1436-1450`) : à droite de la carte, au-dessus d'elle — hors du `@for`,
+       il survit au changement de fond comme l'état React qu'il reprend. -->
+  <mg-detail-iris />
 </div>
 
 <!-- Le module risque, route enfant (T13). -->

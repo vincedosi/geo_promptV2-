@@ -29,6 +29,21 @@ export type { CarreauxPalette } from '../../risques/logique/palettes-donnees';
 export const CARREAUX_PALETTES = PALETTES_DONNEES;
 
 // ---------------------------------------------------------------------------
+// IRIS — palettes de la choroplèthe (`app/copilote/_hooks/useMapLayers.ts:93-101`, verbatim, T7)
+// Défaut React listé, NON corrigé (parité) : la palette `violet` (et `plasma`) porte des teintes violettes.
+// ---------------------------------------------------------------------------
+
+export const IRIS_PALETTES = [
+  { id: 'bleu',    label: 'Bleu',    stops: ['#F7FBFF','#C6DBEF','#9ECAE1','#4292C6','#2171B5','#08306B'] },
+  { id: 'violet',  label: 'Violet',  stops: ['#F2F0F7','#DADAEB','#BCBDDC','#9E9AC8','#756BB1','#54278F'] },
+  { id: 'vert',    label: 'Vert',    stops: ['#F7FCF5','#C7E9C0','#74C476','#41AB5D','#238B45','#00441B'] },
+  { id: 'chaleur', label: 'Chaleur', stops: ['#FAEEDA','#FAC775','#EF9F27','#D85A30','#993C1D','#501313'] },
+  { id: 'rouge',   label: 'Rouge',   stops: ['#FFF5F0','#FEE0D2','#FCBBA1','#FC9272','#DE2D26','#A50F15'] },
+  { id: 'turbo',   label: 'Turbo',   stops: ['#30123b','#4675ed','#1bcfd4','#61fc6c','#f6a91b','#c42503'] },
+  { id: 'plasma',  label: 'Plasma',  stops: ['#0d0887','#6a00a8','#b12a90','#e16462','#fca636','#f0f921'] },
+];
+
+// ---------------------------------------------------------------------------
 // Category colors (cohérent avec MapContainer.tsx)
 // ---------------------------------------------------------------------------
 

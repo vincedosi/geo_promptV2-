@@ -9,6 +9,8 @@ import { AnnonceComponent } from './commun/annonce.component';
 import { BoutonsFlottantsComponent } from './commun/boutons-flottants.component';
 import { FondCompactComponent } from './commun/fond-compact.component';
 import { CarreauxService } from './couches/carreaux.service';
+import { DetailIrisComponent } from './couches/detail-iris.component';
+import { IrisService } from './couches/iris.service';
 import { JETONS_STYLE_MAGELIAN, appliquerStyleMagelian, couchesDuFond } from './couches/style-magelian';
 import { AnnonceService } from './etat/annonce.service';
 import { CouchesCarteService } from './etat/couches-carte.service';
@@ -83,11 +85,13 @@ export function palierCarreaux(zoom: number): string {
 @Component({
   selector: 'mg-carte-principale',
   imports: [
-    AideComponent, AnnonceComponent, BarreHautComponent, BoutonsFlottantsComponent, CarteComponent, FondCompactComponent,
-    LegendeCarteComponent, PanneauCalquesComponent, PanneauComponent, PanneauFiltreComponent, PuceFiltreComponent,
+    AideComponent, AnnonceComponent, BarreHautComponent, BoutonsFlottantsComponent, CarteComponent, DetailIrisComponent,
+    FondCompactComponent, LegendeCarteComponent, PanneauCalquesComponent, PanneauComponent, PanneauFiltreComponent, PuceFiltreComponent,
     RailComponent, ReglagesComponent, RouterOutlet,
   ],
-  providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService],
+  providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
+    IrisService,
+  ],
   templateUrl: './carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {

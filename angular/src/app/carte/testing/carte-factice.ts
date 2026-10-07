@@ -38,7 +38,15 @@ export class CarteFactice {
     this.rappels.get(cle)!.add(rappel);
     return this;
   }
-  off(evt: string, rappel: Rappel): this {
+  /** `off('click', couche, rappel)` comme MapLibre : retire l'écoute rangée sous `evt:couche`. */
+  off(evt: string, rappel: Rappel): this;
+  off(evt: string, couche: string, rappel: Rappel): this;
+  off(evt: string, a: string | Rappel, b?: Rappel): this {
+    if (typeof a === 'string') {
+      this.rappels.get(`${evt}:${a}`)?.delete(b as Rappel);
+      return this;
+    }
+    const rappel = a;
     this.rappels.get(evt)?.delete(rappel);
     const enveloppe = this.uniques.get(rappel);
     if (enveloppe) { this.rappels.get(evt)?.delete(enveloppe); this.uniques.delete(rappel); }

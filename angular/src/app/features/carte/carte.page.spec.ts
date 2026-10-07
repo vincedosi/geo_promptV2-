@@ -10,6 +10,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { OrganisationsApi } from '../session/data/organisations.api';
 import { ReferentielApi } from '../risques/data/referentiel.api';
 import { CarreauxApi } from './data/carreaux.api';
+import { IrisApi } from './data/iris.api';
 import { ZonesCustomApi } from './data/zones-custom.api';
 import { CouleursService } from '../../core/theme/couleurs.service';
 import { CartePage } from './carte.page';
@@ -48,6 +49,7 @@ async function ouvrir() {
       { provide: ReferentielApi, useValue: { geo: () => of({ regions: [] }) } },
       { provide: ZonesCustomApi, useValue: { lister: () => of({ zones: [] }) } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },
+      { provide: IrisApi, useValue: { urlTuiles: () => '/api/tiles/iris/{z}/{x}/{y}?v=2', bornes: () => of({}), detail: () => of() } },
     ],
   });
   const harness = await RouterTestingHarness.create();
@@ -553,5 +555,45 @@ describe('CartePage — panneau Calques, carreaux Filosofi, légende (T6)', () =
     await stable();
     expect((cartes[1].getLayer('carreaux-mvt-fill')!['layout'] as { visibility: string }).visibility).toBe('none');
     expect(hote.querySelector('mg-legende-carte [data-legende]')).toBeNull();
+  });
+});
+
+describe('CartePage — IRIS : section, couche en cascade, panneau de détail (T7)', () => {
+  beforeEach(() => {
+    TestBed.overrideProvider(CouleursService, { useValue: { palette: () => signal({ absente: '#9aa0a6', trait: '#555555' }) } });
+  });
+
+  it('allumer IRIS évince les carreaux (annonce), pose iris-source, légende IRIS ; clic → détail ; Tout effacer le ferme', async () => {
+    const detail = vi.fn(() => of({ code_iris: '751010201', nom_iris: 'Saint-Germain', code_commune: '75101', code_dept: '75', is_true_iris: true, population: 1200 }));
+    const bornes = vi.fn(() => of({ pop_15_29: { colonne: 'pop_15_29', classe: 'effectif', log_min: 0.5, log_max: 4.2, val_min: 3, val_max: 15000 } }));
+    TestBed.overrideProvider(IrisApi, { useValue: { urlTuiles: () => '/api/tiles/iris/{z}/{x}/{y}?v=2', bornes, detail } });
+    const { harness, hote, cartes, stable } = await ouvrir();
+    cartes[0].emettre('load');
+    await stable();
+    hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="calques"]')!.click();
+    await stable();
+    hote.querySelector<HTMLButtonElement>('mg-panneau-calques button[data-groupe]')!.click();
+    await stable();
+    hote.querySelector<HTMLButtonElement>('mg-section-carreaux button[data-entete-carreaux]')!.click();
+    await stable();
+    hote.querySelector<HTMLButtonElement>('mg-section-iris button[data-entete-iris]')!.click();
+    await stable();
+    expect(cartes[0].sources.has('iris-source')).toBe(true);
+    expect((cartes[0].getLayer('carreaux-mvt-fill')!['layout'] as { visibility: string }).visibility).toBe('none');
+    expect(injecteurPage(harness).get(EtatCarteService).degradeActif()).toBe('iris');
+    expect(hote.querySelector('mg-annonce')!.textContent).toContain('Carreaux Filosofi a été masqué');
+    expect(hote.querySelector('mg-legende-carte [data-bloc="iris"]')!.textContent).toContain('IRIS · /km²');
+    expect(bornes).toHaveBeenCalledTimes(1);
+
+    expect(hote.querySelector('[data-detail-iris]')).toBeNull();
+    cartes[0].emettreSurCouche('click', 'iris-fill', { features: [{ properties: { code_iris: '751010201' } }] });
+    await stable();
+    expect(detail).toHaveBeenCalledWith('751010201');
+    expect(hote.querySelector('[data-detail-iris] [data-nom]')!.textContent!.trim()).toBe('Saint-Germain');
+
+    hote.querySelector<HTMLButtonElement>('button[data-tout-effacer]')!.click();
+    await stable();
+    expect(hote.querySelector('[data-detail-iris]')).toBeNull();
+    expect((cartes[0].getLayer('iris-fill')!['layout'] as { visibility: string }).visibility).toBe('none');
   });
 });

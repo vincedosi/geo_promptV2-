@@ -27,6 +27,9 @@ import * as Rcat from '@/lib/carreaux/catalogue';
 import * as Acat from '../../../angular/src/app/features/carte/logique/carreaux/catalogue';
 import * as Ri from '@/lib/iris/echelle';
 import * as Ai from '../../../angular/src/app/features/carte/logique/iris-echelle';
+import * as Rdb from '@/lib/iris-crawler/db-columns';
+import * as Adb from '../../../angular/src/app/features/carte/logique/iris-colonnes';
+import { IRIS_PALETTES as R_IRIS_PALETTES } from '@/app/copilote/_hooks/useMapLayers';
 import * as Rmt from '@/lib/meteo/types';
 import * as Amt from '../../../angular/src/app/features/carte/logique/meteo/types';
 import * as Rmp from '@/lib/meteo/palettes';
@@ -217,6 +220,10 @@ describe('échelle IRIS', () => {
     for (const z of [0, 3.9, 4, 6, 6.5, 6.99, 7, 8.4, 8.99, 9, 12, 18]) {
       expect(Ai.niveauAuZoom(z), String(z)).toEqual(Ri.niveauAuZoom(z));
     }
+  });
+  it('catalogue des colonnes et palettes IRIS (T7) : copies identiques', () => {
+    expect(Adb.IRIS_DB_COLUMNS).toEqual(Rdb.IRIS_DB_COLUMNS);
+    expect(Apal.IRIS_PALETTES).toEqual(R_IRIS_PALETTES);
   });
 });
 
