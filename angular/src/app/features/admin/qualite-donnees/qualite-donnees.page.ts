@@ -328,6 +328,8 @@ export class QualiteDonneesPage {
   constructor() {
     inject(DestroyRef).onDestroy(() => {
       this.lecture?.unsubscribe();
+      // Quitter la page annule la requête côté navigateur, mais le serveur termine sa RPC et persiste
+      // le relevé quand même (et le quota est déjà consommé) : on ne fait qu'ignorer la réponse.
       this.verification?.unsubscribe();
     });
     // Lecture des relevés PERSISTÉS, jamais un calcul.
