@@ -596,4 +596,24 @@ describe('CartePage — IRIS : section, couche en cascade, panneau de détail (T
     expect(hote.querySelector('[data-detail-iris]')).toBeNull();
     expect((cartes[0].getLayer('iris-fill')!['layout'] as { visibility: string }).visibility).toBe('none');
   });
+
+  it('fermer le détail par sa croix rend le focus à l’hôte : Alt+2 ouvre encore Calques (revue 1)', async () => {
+    const detail = vi.fn(() => of({ code_iris: '751010201', nom_iris: 'Saint-Germain', code_commune: null, code_dept: null, is_true_iris: true }));
+    TestBed.overrideProvider(IrisApi, { useValue: { urlTuiles: () => '', bornes: () => of({}), detail } });
+    const { hote, cartes, stable } = await ouvrir();
+    cartes[0].emettre('load');
+    await stable();
+    cartes[0].emettreSurCouche('click', 'iris-fill', { features: [{ properties: { code_iris: '751010201' } }] });
+    await stable();
+    const croix = hote.querySelector<HTMLButtonElement>('[data-detail-iris] button[data-fermer]')!;
+    croix.focus();
+    croix.click();
+    await stable();
+    expect(hote.querySelector('[data-detail-iris]')).toBeNull();
+    const racine = hote.getRootNode() as Document | ShadowRoot;
+    expect(racine.activeElement).toBe(hote);
+    frapper(hote, { key: '2', altKey: true });
+    await stable();
+    expect(titrePanneau(hote)).toBe('Calques');
+  });
 });

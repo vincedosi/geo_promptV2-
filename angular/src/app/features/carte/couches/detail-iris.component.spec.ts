@@ -66,6 +66,10 @@ describe('DetailIrisComponent', () => {
     expect(el.querySelector('[data-detail-iris]')).not.toBeNull();
     expect(el.querySelector('[data-nom]')!.textContent!.trim()).toBe('751010201');
     expect(el.querySelectorAll('[data-squelette-bloc]').length).toBe(4);
+    // Flat total (revue 1) : ni ombre portée, ni dégradé miroitant sur le squelette.
+    expect(el.querySelector('[data-detail-iris]')!.className).not.toContain('shadow');
+    const styles = [...document.querySelectorAll('style')].map((s) => s.textContent).join('\n');
+    expect(styles).not.toMatch(/linear-gradient\(90deg, var\(--bg-level-2\)/);
     flux[0].next(DONNEES);
     await rendre();
     expect(el.querySelector('[data-squelette-bloc]')).toBeNull();

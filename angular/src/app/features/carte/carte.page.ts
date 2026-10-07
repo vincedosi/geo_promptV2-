@@ -109,6 +109,7 @@ export class CartePage {
   private readonly pile = inject(PileEchapService);
   private readonly hote = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injecteur = inject(Injector);
+  private readonly iris = inject(IrisService);
   private readonly document = inject(DOCUMENT);
 
   protected readonly largeurRail = LARGEUR_RAIL;
@@ -161,6 +162,15 @@ export class CartePage {
       if (!carte || this.fond() !== 'magelian') return;
       const fond = this.couchesFond.get(carte);
       if (fond) appliquerStyleMagelian(carte, this.paletteMagelian(), fond);
+    });
+
+    // Le détail IRIS se ferme (sa croix, « Tout effacer ») : s'il portait le focus, son retrait le ferait tomber sur
+    // <body> du document — hors de l'unique écouteur clavier (B10). Même règle que `panneauFerme` (T3).
+    let detailOuvert = false;
+    effect(() => {
+      const ouvert = this.iris.codeSelectionne() !== null;
+      if (detailOuvert && !ouvert) afterNextRender(() => this.rendreFocus(), { injector: this.injecteur });
+      detailOuvert = ouvert;
     });
 
     // Le focus sur l'hôte à l'ouverture : sans lui, aucun raccourci ne l'atteint avant le premier clic.

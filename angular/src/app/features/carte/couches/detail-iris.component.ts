@@ -46,8 +46,9 @@ interface Ligne {
  * Le panneau de détail d'un IRIS cliqué — portage de `app/map/_components/IrisDetailPanel.tsx` et de son cadre de
  * `page.tsx:1436-1450` : `absolute` à droite de la carte, 320 px, au-dessus d'elle.
  *
- * L'ombre portée `-4px 0 24px rgba(0,0,0,0.5)` de React est GARDÉE, pour la parité (décision du brief T7) : c'est un
- * écart au design system (« flat total ») hérité de React, listé au rapport.
+ * Écarts voulus (« flat total », DESIGN_SYSTEM § 7 ; décision du contrôleur, revue 1 de T7, précédent T3) : l'ombre
+ * portée `-4px 0 24px rgba(0,0,0,0.5)` de React est RETIRÉE — le panneau est séparé de la carte par un trait 0,5 px —,
+ * et le squelette est un aplat `--bg-level-3` immobile, sans le dégradé miroitant de `.geo-skeleton`.
  *
  * Écart voulu : un détail qui ne se lit pas (404, réseau) laisse le panneau ouvert sur « Détail indisponible pour cet
  * IRIS. » — React le refermait sans un mot (`useIrisDetail.ts:72`), un clic sans effet visible.
@@ -57,23 +58,12 @@ interface Ligne {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'contents' },
   styles: `
-    .squelette {
-      background: linear-gradient(90deg, var(--bg-level-2) 25%, var(--bg-level-3) 50%, var(--bg-level-2) 75%);
-      background-size: 200% 100%;
-      animation: miroitement 1.5s linear infinite;
-    }
-    @keyframes miroitement {
-      0% { background-position: -200% 0; }
-      100% { background-position: 200% 0; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .squelette { animation: none; }
-    }
+    .squelette { background: var(--bg-level-3); }
     .fermer:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
   `,
   template: `
     @if (i.codeSelectionne(); as code) {
-      <div data-detail-iris class="absolute inset-y-0 right-0 z-50 w-[320px] shadow-[-4px_0_24px_rgb(0_0_0/0.5)]">
+      <div data-detail-iris class="absolute inset-y-0 right-0 z-50 w-[320px] border-l-fin border-subtle">
         <div class="absolute inset-0 z-20 flex flex-col overflow-hidden bg-[var(--bg-level-2)]">
           <div class="shrink-0 border-b-fin border-subtle bg-[var(--bg-surface)] px-[14px] pb-[10px] pt-3">
             <div class="flex items-start justify-between">
