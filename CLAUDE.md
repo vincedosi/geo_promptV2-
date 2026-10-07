@@ -2,8 +2,15 @@
 
 > Chaque ligne ici prévient une erreur réelle. Si tu l'ignores, l'app casse.
 
-@ARCHITECTURE.md
 @DESIGN_SYSTEM.md
+
+**`ARCHITECTURE.md` (racine) est la source de vérité de l'architecture — mais il
+n'est PLUS importé ici.** Il dépasse 460 000 caractères, trois fois la limite
+d'un fichier chargé à chaque session : importé, il était tronqué ou saturait le
+contexte. **Le lire section par section, par `Grep` sur le nom de la route, de
+la table, de la RPC ou du composant, AVANT toute tâche qui y touche** — et le
+mettre à jour dans le même commit (§ Documentation plus bas). Son découpage en
+index + sous-fichiers est à faire après le lot 4 Angular.
 
 ## Projet
 

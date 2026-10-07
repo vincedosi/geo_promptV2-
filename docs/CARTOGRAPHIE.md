@@ -2,7 +2,7 @@
 
 > Produite le 2026-09-11 par l'audit `/audit-refactor`, phase 1.
 > **Ce document n'est pas la source de vérité de l'architecture** : c'est
-> `ARCHITECTURE.md` à la racine, déclaré par `CLAUDE.md` (`@ARCHITECTURE.md`).
+> `ARCHITECTURE.md` à la racine, désigné par `CLAUDE.md`.
 > Celui-ci est un relevé daté, orienté audit — il consigne le graphe réel, les
 > écarts constatés et les chemins de données, avec citations `fichier:ligne`.
 >

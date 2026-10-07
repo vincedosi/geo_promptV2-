@@ -43,7 +43,7 @@ describe('dérive entre ARCHITECTURE.md et le code', () => {
     expect(
       existsSync(concurrent),
       'docs/architecture.md est réapparu. Le document autoritaire est ARCHITECTURE.md à la racine, '
-      + 'déclaré par CLAUDE.md (@ARCHITECTURE.md). Fusionner puis supprimer le doublon.',
+      + 'désigné par CLAUDE.md. Fusionner puis supprimer le doublon.',
     ).toBe(false);
   });
 
