@@ -4,6 +4,7 @@ import { CadreAdminComponent } from './cadre-admin.component';
 import { RoleAdminService, roleResoluGuard } from './etat/role-admin.service';
 import { FraicheurApi } from './health/data/fraicheur.api';
 import { HealthApi } from './health/data/health.api';
+import { QualiteApi } from './qualite-donnees/data/qualite.api';
 
 /**
  * Services de l'administration, fournis par la route `admin` et NON par `FOURNISSEURS_DISTANTS`
@@ -12,7 +13,7 @@ import { HealthApi } from './health/data/health.api';
  * session expirée) — prouvé par `remote.spec.ts`. Les services d'API s'ajoutent tâche par tâche
  * (`@Injectable()` sans `providedIn`, héritiers de `HttpBaseService`).
  */
-export const FOURNISSEURS_ADMIN: Provider[] = [RoleAdminService, HealthApi, FraicheurApi];
+export const FOURNISSEURS_ADMIN: Provider[] = [RoleAdminService, HealthApi, FraicheurApi, QualiteApi];
 
 /**
  * L'administration (lot 6), enfant de la coquille comme `/admin/*` en React (arbitrage C1).
@@ -30,6 +31,10 @@ export const ROUTES_ADMIN: Routes = [
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'health' },
       { path: 'health', loadComponent: () => import('./health/health.page').then((m) => m.HealthPage) },
+      {
+        path: 'qualite-donnees',
+        loadComponent: () => import('./qualite-donnees/qualite-donnees.page').then((m) => m.QualiteDonneesPage),
+      },
     ],
   },
 ];

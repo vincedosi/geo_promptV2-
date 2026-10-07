@@ -63,7 +63,7 @@ export const SECTIONS_NAVIGATION: readonly SectionNavigation[] = [
       { href: '/admin/organizations', libelle: 'Organisations', icone: 'utilisateurs', cible: null },
       { href: '/admin/imports', libelle: 'Imports', icone: 'televerser', cible: null },
       { href: '/admin/health', libelle: 'Health check', icone: 'activite', badge: 'Sys', cible: 'admin/health' },
-      { href: '/admin/qualite-donnees', libelle: 'Qualite des donnees', icone: 'bouclier-coche', badge: 'Sys', cible: null },
+      { href: '/admin/qualite-donnees', libelle: 'Qualite des donnees', icone: 'bouclier-coche', badge: 'Sys', cible: 'admin/qualite-donnees' },
     ],
   },
 ];
