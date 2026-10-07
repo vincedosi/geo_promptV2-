@@ -1,0 +1,285 @@
+<div class="max-w-[900px]">
+  <!-- En-tête (page.tsx:202-226) -->
+  <div class="mb-6">
+    <div class="mb-[6px] flex items-center gap-3">
+      <h1 class="m-0 text-[18px] font-medium text-primary">Santé système</h1>
+      @if (pastilleVisible()) {
+        <span data-statut-global class="mono pastille statut" [attr.data-etat]="statutGlobal()">{{ statutGlobal() }}</span>
+      }
+    </div>
+    <p data-sous-titre class="m-0 text-[13px] text-secondary">
+      {{ onglet() === 'systeme'
+        ? 'Variables d’environnement, connectivité Supabase, tables'
+        : 'D’où vient chaque donnée, comment elle entre, et de quand elle date' }}
+    </p>
+  </div>
+
+  <!-- Onglets (page.tsx:228-250) -->
+  <div role="tablist" class="mb-5 flex gap-1 border-b border-subtle">
+    @for (o of onglets; track o.cle) {
+      <button
+        type="button"
+        role="tab"
+        data-onglet
+        class="onglet"
+        [attr.aria-selected]="onglet() === o.cle"
+        (click)="choisir(o.cle)"
+      >{{ o.libelle }}</button>
+    }
+  </div>
+
+  @if (onglet() === 'systeme') {
+    <!-- Statut global (page.tsx:254-319) -->
+    <div class="globale statut" [class.en-lecture]="enLecture()" [attr.data-etat]="statutGlobal()">
+      @if (enLecture()) {
+        <svg class="tourne shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" style="stroke: var(--text-tertiary)" stroke-width="2">
+          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+        </svg>
+      } @else {
+        @switch (statutGlobal()) {
+          @case ('OK') {
+            <svg class="shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" style="stroke: var(--success)" stroke-width="2.5">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          }
+          @case ('WARN') {
+            <svg class="shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" style="stroke: var(--warning)" stroke-width="2.5">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          }
+          @default {
+            <svg class="shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" style="stroke: var(--danger)" stroke-width="2.5">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="15" y1="9" x2="9" y2="15" />
+              <line x1="9" y1="9" x2="15" y2="15" />
+            </svg>
+          }
+        }
+      }
+      <div class="flex-1">
+        <div data-resume class="mono resume">
+          {{ enLecture() ? 'Diagnostic en cours...' : (health()?.summary || 'Erreur de connexion au serveur') }}
+        </div>
+        @if (pastilleVisible()) {
+          <div class="mono flex gap-4 text-[12px]">
+            <span data-compte="OK" style="color: var(--success)">✓ {{ nbOk() }} OK</span>
+            @if (nbWarn() > 0) {
+              <span data-compte="WARN" style="color: var(--warning)">! {{ nbWarn() }} WARN</span>
+            }
+            @if (nbErr() > 0) {
+              <span data-compte="ERROR" style="color: var(--danger)">✕ {{ nbErr() }} ERROR</span>
+            }
+            <span class="ml-auto text-secondary">{{ heureLecture() }}</span>
+          </div>
+        }
+      </div>
+      <button type="button" data-retester class="retester" [disabled]="enLecture()" (click)="relire()">
+        @if (enLecture()) {
+          <svg class="tourne" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+          </svg>
+        } @else {
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10" />
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+          </svg>
+        }
+        Re-tester
+      </button>
+    </div>
+
+    <div class="flex flex-col gap-4">
+      <!-- Variables d'environnement (page.tsx:323-348) -->
+      <section data-section="env" class="carte">
+        <div class="carte-tete">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+          </svg>
+          <span data-titre class="carte-titre">Variables d'environnement</span>
+          <span class="mono carte-droite">.env.local</span>
+        </div>
+        <div class="carte-corps">
+          @if (enLecture()) {
+            @for (i of [0, 1, 2, 3, 4, 5]; track i) {
+              <div data-squelette class="squelette pulse"></div>
+            }
+          } @else if (envChecks().length === 0) {
+            <div data-vide class="p-5 text-center text-[12px] text-secondary">Impossible de récupérer les données</div>
+          } @else {
+            @for (c of envChecks(); track c.name) {
+              <mg-carte-verification [check]="c" />
+            }
+          }
+        </div>
+      </section>
+
+      <!-- Connectivité Supabase (page.tsx:350-367) -->
+      <section data-section="connexion" class="carte">
+        <div class="carte-tete">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2">
+            <ellipse cx="12" cy="5" rx="9" ry="3" />
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+          </svg>
+          <span data-titre class="carte-titre">Connectivité Supabase</span>
+        </div>
+        <div class="carte-corps">
+          @if (enLecture()) {
+            <div data-squelette class="squelette"></div>
+          } @else {
+            @for (c of connChecks(); track c.name) {
+              <mg-carte-verification [check]="c" />
+            }
+          }
+        </div>
+      </section>
+
+      <!-- Fraîcheur des données (page.tsx:369-383) -->
+      @if (donneesChecks().length > 0) {
+        <section data-section="donnees" class="carte">
+          <div class="carte-tete">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 2" />
+            </svg>
+            <span data-titre class="carte-titre">Fraîcheur des données</span>
+          </div>
+          <div class="carte-corps">
+            @for (c of donneesChecks(); track c.name) {
+              <mg-carte-verification [check]="c" />
+            }
+          </div>
+        </section>
+      }
+
+      <!-- Tables Supabase (page.tsx:385-420) -->
+      <section data-section="tables" class="carte">
+        <div class="carte-tete">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path d="M3 9h18M3 15h18M9 3v18" />
+          </svg>
+          <span data-titre class="carte-titre">Tables Supabase</span>
+          <span class="mono carte-droite">schema: public</span>
+        </div>
+        <div class="carte-corps">
+          @if (enLecture()) {
+            @for (i of [0, 1, 2]; track i) {
+              <div data-squelette class="squelette"></div>
+            }
+          } @else {
+            @for (c of tableChecks(); track c.name) {
+              <mg-carte-verification [check]="c" />
+            }
+            @if (tableEnErreur()) {
+              <div data-fix class="mono encart danger">
+                <span style="color: var(--danger)">// FIX: </span>Ouvrir Supabase Dashboard → SQL Editor → executer le script de migration SQL
+              </div>
+            }
+          }
+        </div>
+      </section>
+
+      <!-- Database Overview (page.tsx:422-555) -->
+      @if (base(); as db) {
+        <section data-section="database" class="carte">
+          <div class="carte-tete">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2">
+              <path d="M3 3h18v18H3z" />
+              <path d="M3 9h18M9 3v18" />
+            </svg>
+            <span data-titre class="carte-titre">Database Overview</span>
+            <span data-entete-droite class="mono carte-droite">{{ db.total_tables }} tables · {{ lignesTotales() }} lignes</span>
+          </div>
+          <div class="p-4">
+            <div class="mb-4 grid grid-cols-3 gap-3">
+              <div data-tuile="tables" class="tuile">
+                <div class="tuile-libelle">Tables</div>
+                <div class="mono tuile-valeur" style="color: var(--brand-teal)">{{ db.total_tables }}</div>
+              </div>
+              <div data-tuile="lignes" class="tuile">
+                <div class="tuile-libelle">Lignes totales</div>
+                <div class="mono tuile-valeur" style="color: var(--success)">{{ lignesTotales() }}</div>
+              </div>
+              <div data-tuile="espace" class="tuile">
+                <div class="tuile-libelle">Espace tables</div>
+                <div class="mono tuile-valeur" style="color: var(--warning)">{{ db.total_size }}</div>
+              </div>
+            </div>
+
+            @if (tailleBase(); as t) {
+              <div class="tuile statut mb-4" [attr.data-etat]="t.etat">
+                <div class="mb-2 flex items-center justify-between">
+                  <span class="text-[11px] text-tertiary">Espace base de données</span>
+                  <span data-taille-base class="mono text-[11px] font-bold" style="color: var(--c-statut)">{{ t.libelle }}<span class="font-normal text-secondary"> {{ pctTexte() }}</span></span>
+                </div>
+                <div class="piste">
+                  <div class="remplissage" [style.width.%]="t.pct"></div>
+                </div>
+                <div data-taille-note class="mono mt-[6px] text-[10px] text-secondary">{{ t.note }}</div>
+              </div>
+            }
+
+            <div class="overflow-x-auto">
+              <table class="mono">
+                <thead>
+                  <tr>
+                    <th>Table</th><th>Lignes</th><th>Taille totale</th><th>Table</th><th>Index</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (t of lignesTables(); track t.table_name) {
+                    <tr>
+                      <td>{{ t.table_name }}</td>
+                      <td>{{ t.lignes }}</td>
+                      <td>{{ t.total_size }}</td>
+                      <td>{{ t.table_size }}</td>
+                      <td>{{ t.indexes_size }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            @if (taillesNA()) {
+              <div data-tailles-na class="mono encart avert">
+                <span style="color: var(--warning)">! </span>Tailles indisponibles — configurez <span style="color: var(--brand-teal)">SUPABASE_DB_URL</span> dans .env.local ou exécutez <span style="color: var(--brand-teal)">sql/004_get_table_sizes_function.sql</span> dans Supabase SQL Editor
+              </div>
+            }
+            @if (taillesEstimees()) {
+              <div data-tailles-estimees class="mono encart info">
+                <span style="color: var(--info)">i </span>Tailles estimées (~200-500 bytes/ligne). Pour les tailles exactes : configurez <span style="color: var(--brand-teal)">SUPABASE_DB_URL</span> dans .env.local
+              </div>
+            }
+          </div>
+        </section>
+      }
+
+      <!-- Build info (page.tsx:557-587) -->
+      <section data-section="build" class="carte">
+        <div class="carte-tete">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          </svg>
+          <span data-titre class="carte-titre">Build info</span>
+        </div>
+        <div class="p-4">
+          <div class="mono build">
+            <div><span class="cle">app: </span><span style="color: var(--brand-teal)">MAGELIAN</span></div>
+            <div><span class="cle">version: </span><span style="color: var(--success)">v{{ version }}</span></div>
+            <div><span class="cle">build: </span><span class="text-primary">{{ dateBuild }}</span></div>
+            <div><span class="cle">stack: </span><span class="text-primary">Next.js 14 · Supabase · PostGIS · Mapbox</span></div>
+            <div><span class="cle">checked: </span><span data-checked class="text-primary">{{ dateLecture() }}</span></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  } @else {
+    <p data-fraicheur class="m-0 text-[13px] text-tertiary">Disponible prochainement</p>
+  }
+</div>

@@ -474,6 +474,9 @@ class SondeAdminApi extends HttpBaseService {
 describe('administration (lot 6)', () => {
   afterEach(() => retirerPolices());
 
+  /** Réponse minimale de GET /api/admin/health, lue par la page Health check (T3). */
+  const DIAGNOSTIC_VIDE = { success: true, status: 'OK', summary: 'OK', checks: [], timestamp: '' };
+
   const racineOmbre = (h: RouterTestingHarness) => ombre(h.fixture.nativeElement as HTMLElement);
   const stabiliser = async (h: RouterTestingHarness) => {
     for (let i = 0; i < 3; i++) { await attendre(); await h.fixture.whenStable(); }
@@ -502,6 +505,10 @@ describe('administration (lot 6)', () => {
     await stabiliser(harness);
     expect(TestBed.inject(Router).url).toBe('/hote/magelian/admin/health');
     expect(racineOmbre(harness).querySelector('mg-coquille mg-cadre-admin mg-health')).not.toBeNull();
+    // La page Health check (T3) lit son diagnostic : UNE requête, avec le Bearer, et rien d'autre.
+    const diagnostic = http.expectOne('/api/admin/health');
+    expect(diagnostic.request.headers.get('Authorization')).toBe('Bearer jeton-test');
+    diagnostic.flush(DIAGNOSTIC_VIDE);
     expect(http.match((r) => r.url.startsWith('/api/'))).toEqual([]);
   });
 
@@ -511,6 +518,9 @@ describe('administration (lot 6)', () => {
     await stabiliser(harness);
     // L'injecteur d'environnement de la route `admin` (celui qui porte FOURNISSEURS_ADMIN), lu depuis la
     // page qu'elle a montée — `routeDebugElement` désigne la racine distante, pas la page.
+    // Libère la place du limiteur prise par la lecture du diagnostic (T3).
+    http.expectOne('/api/admin/health').flush(DIAGNOSTIC_VIDE);
+    await attendre();
     const page = racineOmbre(harness).querySelector('mg-health')!;
     const envAdmin = getDebugNode(page)!.injector.get(EnvironmentInjector);
     expect(envAdmin.get(RoleAdminService, null)).not.toBeNull();

@@ -2,6 +2,7 @@ import type { Provider } from '@angular/core';
 import type { Routes } from '@angular/router';
 import { CadreAdminComponent } from './cadre-admin.component';
 import { RoleAdminService, roleResoluGuard } from './etat/role-admin.service';
+import { HealthApi } from './health/data/health.api';
 
 /**
  * Services de l'administration, fournis par la route `admin` et NON par `FOURNISSEURS_DISTANTS`
@@ -10,7 +11,7 @@ import { RoleAdminService, roleResoluGuard } from './etat/role-admin.service';
  * session expirée) — prouvé par `remote.spec.ts`. Les services d'API s'ajoutent tâche par tâche
  * (`@Injectable()` sans `providedIn`, héritiers de `HttpBaseService`).
  */
-export const FOURNISSEURS_ADMIN: Provider[] = [RoleAdminService];
+export const FOURNISSEURS_ADMIN: Provider[] = [RoleAdminService, HealthApi];
 
 /**
  * L'administration (lot 6), enfant de la coquille comme `/admin/*` en React (arbitrage C1).
@@ -27,7 +28,6 @@ export const ROUTES_ADMIN: Routes = [
     runGuardsAndResolvers: 'always',
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'health' },
-      // Provisoire jusqu'à T3 (portage du Health check).
       { path: 'health', loadComponent: () => import('./health/health.page').then((m) => m.HealthPage) },
     ],
   },
