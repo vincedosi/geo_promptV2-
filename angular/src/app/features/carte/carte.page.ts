@@ -8,6 +8,7 @@ import { CouleursService } from '../../core/theme/couleurs.service';
 import { AnnonceComponent } from './commun/annonce.component';
 import { BoutonsFlottantsComponent } from './commun/boutons-flottants.component';
 import { FondCompactComponent } from './commun/fond-compact.component';
+import { CarreauxService } from './couches/carreaux.service';
 import { JETONS_STYLE_MAGELIAN, appliquerStyleMagelian, couchesDuFond } from './couches/style-magelian';
 import { AnnonceService } from './etat/annonce.service';
 import { CouchesCarteService } from './etat/couches-carte.service';
@@ -16,10 +17,12 @@ import { lireFondMemorise, memoriserFond, urlDuFond } from './etat/fond-carte';
 import { PileEchapService } from './etat/pile-echap.service';
 import { ReferentielGeoService } from './etat/referentiel-geo.service';
 import { PuceFiltreComponent } from './filtre/puce-filtre.component';
+import { LegendeCarteComponent } from './legende/legende-carte.component';
 import { ignorerRaccourciClavier } from './logique/garde-saisie';
 import { franciserLibelles } from './logique/libelles-fr';
 import { ENTREES_NAVIGATION, LARGEUR_RAIL, type EntreeId, entreeParRaccourci } from './logique/navigation';
 import { AideComponent } from './panneaux/aide.component';
+import { PanneauCalquesComponent } from './panneaux/calques/panneau-calques.component';
 import { PanneauFiltreComponent } from './panneaux/filtre/panneau-filtre.component';
 import { ReglagesComponent } from './panneaux/reglages.component';
 import { BarreHautComponent, HAUTEUR_BARRE_HAUT } from './rail/barre-haut.component';
@@ -81,9 +84,10 @@ export function palierCarreaux(zoom: number): string {
   selector: 'mg-carte-principale',
   imports: [
     AideComponent, AnnonceComponent, BarreHautComponent, BoutonsFlottantsComponent, CarteComponent, FondCompactComponent,
-    PanneauComponent, PanneauFiltreComponent, PuceFiltreComponent, RailComponent, ReglagesComponent, RouterOutlet,
+    LegendeCarteComponent, PanneauCalquesComponent, PanneauComponent, PanneauFiltreComponent, PuceFiltreComponent,
+    RailComponent, ReglagesComponent, RouterOutlet,
   ],
-  providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService],
+  providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService],
   templateUrl: './carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {

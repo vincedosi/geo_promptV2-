@@ -138,6 +138,14 @@ export class CarteFactice {
   getZoom() { return this.zoom; }
   getBearing() { return this.bearing; }
   getPitch() { return this.pitch; }
+  /** Les `easeTo`, dans l'ordre ; l'inclinaison demandée est appliquée tout de suite (pas d'animation ici). */
+  readonly animations: { pitch?: number; zoom?: number; duration?: number }[] = [];
+  easeTo(o: { pitch?: number; zoom?: number; duration?: number }): this {
+    this.animations.push(o);
+    if (o.pitch !== undefined) this.pitch = o.pitch;
+    if (o.zoom !== undefined) this.zoom = o.zoom;
+    return this;
+  }
   /** Comme MapLibre : un saut émet `move` de façon synchrone. */
   jumpTo(o: { center?: { lng: number; lat: number } | [number, number]; zoom?: number }): this {
     this.sauts.push(o);

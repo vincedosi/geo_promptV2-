@@ -56,7 +56,8 @@ export class CouchesCarteService {
 
 /** La surface de carte que `quandStyleCharge` emploie. */
 interface CarteChargement {
-  isStyleLoaded(): boolean;
+  /** `boolean | void` : la signature de MapLibre (`maplibregl.Map.isStyleLoaded`). */
+  isStyleLoaded(): boolean | void;
   once(evt: 'load', rappel: () => void): unknown;
   off(evt: 'load', rappel: () => void): unknown;
 }

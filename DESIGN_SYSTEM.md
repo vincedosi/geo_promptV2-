@@ -134,6 +134,7 @@ thème sombre sont illisibles sur blanc.
 | --donnee-absente | #9aa0a6 | #9aa0a6 | Gris NEUTRE d'une valeur absente — jamais une teinte de l'échelle en cours, qui ferait lire « faible » là où il n'y a rien |
 | --contour-carte | rgba(255,255,255,0.16) | rgba(0,0,0,0.22) | Contour des polygones MapLibre — **inversé** entre thèmes |
 | --halo-carte | rgba(0,0,0,0.75) | rgba(255,255,255,0.85) | Halo des étiquettes MapLibre — inversé lui aussi |
+| --carreaux-contour | #555555 | #555555 | Trait de la grille des carreaux Filosofi (opacité 0,35) — **invariant**, le littéral `#555` de `useMapInit.ts` que l'interface Angular lit par `CouleursService` |
 
 ### Échelle divergente (écart au plan média)
 Seule échelle divergente du projet — toutes les autres sont séquentielles. Encode

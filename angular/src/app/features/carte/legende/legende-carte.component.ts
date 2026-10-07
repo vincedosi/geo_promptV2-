@@ -1,0 +1,163 @@
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { IconeComponent } from '../../../ui/icone/icone.component';
+import { CarreauxService } from '../couches/carreaux.service';
+import { formaterValeur, palierEchelle, versValeurReelle } from '../logique/carreaux/bornes';
+import { CARREAUX_INDICATEURS } from '../logique/carreaux/catalogue';
+import { uniteNormalisee } from '../logique/carreaux/normalisation';
+import { type DegradeId, libelleDegrade } from '../logique/degrades';
+import { ECART_RAIL_PANNEAU, LARGEUR_RAIL } from '../logique/navigation';
+import { CARREAUX_PALETTES } from '../logique/palettes-donnees-carte';
+
+/**
+ * Le dégradé actif a-t-il un bloc dans CETTE légende ? — `degradeALegende` de `LegendeCarte.tsx:150-178`, source
+ * UNIQUE de la question : la boîte ne s'ouvre jamais vide. Le `switch` est EXHAUSTIF (`never`) : un dégradé ajouté à
+ * `DegradeId` sans décision ici fait échouer la compilation.
+ *
+ * Seuls les carreaux sont portés (T6). Chaque tâche de couche passe SON cas à `true` en ajoutant son bloc :
+ * IRIS (T7), indicateurs civiques et santé (T10), météo (T11). `score`, `diffusion` et `zones-risque` portent leur
+ * propre légende, comme React.
+ */
+export function degradeALegende(d: DegradeId | null): boolean {
+  if (!d) return false;
+  switch (d) {
+    case 'carreaux':
+      return true;
+    case 'iris':
+    case 'meteo':
+    case 'civic-indicateurs':
+    case 'civic-sante':
+    case 'campagne-impressions':
+      return false; // blocs à venir (T7, T10, T11 ; campagne : lot 5)
+    case 'score':
+    case 'diffusion':
+    case 'zones-risque':
+      return false;
+    default: {
+      const exhaustif: never = d;
+      return exhaustif;
+    }
+  }
+}
+
+/** Un palier de la légende des carreaux : sa teinte, son libellé, s'il est sélectionné. */
+interface Palier {
+  readonly index: number;
+  readonly couleur: string;
+  readonly libelle: string;
+  readonly choisi: boolean;
+}
+
+/**
+ * La légende UNIQUE de la carte — portage de `components/map/LegendeCarte.tsx` (cadre + cas `carreaux`).
+ *
+ * En bas à gauche, à `LARGEUR_RAIL + ECART_RAIL_PANNEAU` du bord, `z-index` 35 : sous les panneaux (40). `absolute`
+ * dans l'hôte de la page (B1). Écart voulu : ni flou (`backdrop-filter`) ni ombre — « flat total ».
+ *
+ * Le bloc des carreaux est cliquable par palier : il pose `seauSelectionne`, et la couche filtre son opacité par le
+ * MÊME découpage (`palierEchelle`) — une tranche cliquée désigne exactement les carreaux qu'elle affiche. Le fond d'un
+ * palier choisi est sa couleur de DONNÉE à 13 % (`${couleur}22` de React).
+ *
+ * Le bloc des figurés (POI, TMJA, radio, OOH) est posé VIDE : chaque couche ponctuelle y ajoutera sa ligne (T8, T9).
+ */
+@Component({
+  selector: 'mg-legende-carte',
+  imports: [IconeComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'contents' },
+  template: `
+    @if (visible()) {
+      <div
+        data-legende
+        class="absolute bottom-3 z-[35] min-w-[180px] max-w-[240px] rounded-[8px] border-fin border-default bg-card-overlay"
+        [style.left.px]="gauche"
+      >
+        <button
+          type="button"
+          [attr.aria-expanded]="ouvert()"
+          (click)="ouvert.set(!ouvert())"
+          class="flex w-full cursor-pointer items-center gap-1.5 border-0 bg-transparent px-[10px] py-2"
+        >
+          <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-[var(--brand-teal)]"></span>
+          <span class="flex-1 text-left text-[11px] font-medium text-primary">Légende</span>
+          <mg-icone [nom]="ouvert() ? 'chevron-bas' : 'chevron-droite'" [taille]="14" class="shrink-0 text-tertiary" />
+        </button>
+        @if (ouvert()) {
+          <div class="flex flex-col gap-[10px] px-[10px] pb-[10px]">
+            @switch (degradeActif()) {
+              @case ('carreaux') {
+                <div data-bloc="carreaux">
+                  <div class="mb-1 text-[11px] font-medium text-secondary">
+                    {{ titreCarreaux }}@if (uniteCarreaux()) {<span class="font-mono font-normal"> · {{ uniteCarreaux() }}</span>}
+                  </div>
+                  @if (paliers(); as ps) {
+                    <div class="flex flex-col gap-px">
+                      @for (p of ps; track p.index) {
+                        <button
+                          type="button"
+                          [attr.data-palier]="p.index"
+                          [attr.aria-pressed]="p.choisi"
+                          (click)="choisirPalier(p.index)"
+                          class="flex w-full cursor-pointer items-center gap-1.5 rounded-[2px] border-fin border-solid px-[3px] py-px text-left"
+                          [style.background]="p.choisi ? p.couleur + '22' : 'none'"
+                          [style.border-color]="p.choisi ? p.couleur : 'transparent'"
+                        >
+                          <span class="size-[10px] shrink-0 rounded-[2px]" [style.background]="p.couleur"></span>
+                          <span class="flex-1 font-mono text-[10px]" [class.text-primary]="p.choisi" [class.text-tertiary]="!p.choisi">{{ p.libelle }}</span>
+                        </button>
+                      }
+                    </div>
+                  } @else {
+                    <div class="flex items-center gap-0.5">
+                      @for (s of arretsCarreaux(); track $index) {
+                        <span class="inline-block h-[7px] flex-1 rounded-[1px]" [style.background]="s"></span>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            }
+          </div>
+        }
+      </div>
+    }
+  `,
+})
+export class LegendeCarteComponent {
+  /** Le dégradé actif (`EtatCarteService.degradeActif`). */
+  readonly degradeActif = input.required<DegradeId | null>();
+
+  private readonly carreaux = inject(CarreauxService);
+  protected readonly gauche = LARGEUR_RAIL + ECART_RAIL_PANNEAU;
+  protected readonly ouvert = signal(true);
+  protected readonly titreCarreaux = libelleDegrade('carreaux');
+
+  /** Les figurés ponctuels n'existent pas encore (T8, T9) : la boîte ne s'ouvre que pour un dégradé qui a son bloc. */
+  protected readonly visible = computed(() => degradeALegende(this.degradeActif()));
+
+  protected readonly uniteCarreaux = computed(() => {
+    const ind = this.carreaux.indicateur();
+    return uniteNormalisee(ind, CARREAUX_INDICATEURS.find((i) => i.id === ind)?.unit ?? '');
+  });
+  protected readonly arretsCarreaux = computed(
+    () => (CARREAUX_PALETTES.find((p) => p.id === this.carreaux.palette()) ?? CARREAUX_PALETTES[0]).stops,
+  );
+  /** Les six paliers (`LegendeCarte.tsx:198-214`) ; `null` sans bornes : la rampe seule. */
+  protected readonly paliers = computed<Palier[] | null>(() => {
+    const bornes = this.carreaux.bornes();
+    if (!bornes) return null;
+    const choisi = this.carreaux.seauSelectionne();
+    return this.arretsCarreaux().map((couleur, i) => {
+      const palier = palierEchelle(bornes, i, 6);
+      const min = versValeurReelle(palier.min);
+      const max = versValeurReelle(palier.max);
+      return {
+        index: i, couleur, choisi: choisi === i,
+        libelle: i === 5 ? `≥ ${formaterValeur(min)}` : `${formaterValeur(min)} – ${formaterValeur(max)}`,
+      };
+    });
+  });
+
+  protected choisirPalier(i: number): void {
+    this.carreaux.seauSelectionne.set(this.carreaux.seauSelectionne() === i ? null : i);
+  }
+}

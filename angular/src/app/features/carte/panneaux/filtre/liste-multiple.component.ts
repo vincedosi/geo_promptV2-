@@ -144,8 +144,10 @@ export class ListeMultipleComponent {
   private readonly hote = inject<ElementRef<HTMLElement>>(ElementRef);
 
   // React : actif `rgba(78,205,196,0.06)` (le teal est invariant, donc exact), survol `rgba(255,255,255,0.04)`.
+  // Le survol passe par `--text-primary` à 4 % (T6, règle « jamais de couleur en dur ») : quasi identique en sombre
+  // (#f0f0f0 contre #fff), et VISIBLE en clair, où un voile blanc sur fond clair ne se voyait pas.
   protected readonly classeActif = 'bg-[color-mix(in_srgb,var(--brand-teal)_6%,transparent)]';
-  protected readonly classeInactif = 'bg-transparent hover:bg-[rgba(255,255,255,0.04)]';
+  protected readonly classeInactif = 'bg-transparent hover:bg-[color-mix(in_srgb,var(--text-primary)_4%,transparent)]';
 
   protected readonly rechercheVisible = computed(() => this.recherchable() || this.items().length > 10);
   protected readonly filtres = computed(() => {

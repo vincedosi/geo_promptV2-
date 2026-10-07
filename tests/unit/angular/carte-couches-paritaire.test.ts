@@ -24,6 +24,7 @@ import * as Abor from '../../../angular/src/app/features/carte/logique/carreaux/
 import * as Rexp from '@/lib/carreaux/expressions';
 import * as Aexp from '../../../angular/src/app/features/carte/logique/carreaux/expressions';
 import * as Rcat from '@/lib/carreaux/catalogue';
+import * as Acat from '../../../angular/src/app/features/carte/logique/carreaux/catalogue';
 import * as Ri from '@/lib/iris/echelle';
 import * as Ai from '../../../angular/src/app/features/carte/logique/iris-echelle';
 import * as Rmt from '@/lib/meteo/types';
@@ -165,14 +166,19 @@ describe('carreaux : normalisation et bornes', () => {
     }
   });
 
-  it('chaque id du catalogue React a des bornes (le catalogue lui-même n’est pas copié)', () => {
+  it('catalogue des indicateurs : copie identique (T6), et chaque id a des bornes', () => {
+    expect(Acat.CARREAUX_INDICATEURS).toEqual(Rcat.CARREAUX_INDICATEURS);
     for (const ind of Rcat.CARREAUX_INDICATEURS) {
       expect(Abor.BORNES_NATIONALES[ind.id], ind.id).toBeDefined();
     }
   });
 
   it('expressions MapLibre : toEqual sur les expressions produites', () => {
-    donneesEgales(Rexp, Aexp, ['COULEUR_DONNEE_ABSENTE']);
+    // COULEUR_DONNEE_ABSENTE n'est pas recopiée (T6) : le jeton --donnee-absente porte la même valeur, deux thèmes.
+    expect('COULEUR_DONNEE_ABSENTE' in Aexp).toBe(false);
+    const jetons = readFileSync('angular/src/styles/jetons.css', 'utf8');
+    const valeurs = [...jetons.matchAll(/--donnee-absente:\s*([^;]+);/g)].map((m) => m[1].trim().toLowerCase());
+    expect(valeurs).toEqual([Rexp.COULEUR_DONNEE_ABSENTE, Rexp.COULEUR_DONNEE_ABSENTE]);
     for (const id of ['population_totale', 'revenu_median', 'logements_inconnus']) {
       const b = Rbor.bornesDe(id);
       expect(Aexp.bornesInternes(b, 6), id).toEqual(Rexp.bornesInternes(b, 6));

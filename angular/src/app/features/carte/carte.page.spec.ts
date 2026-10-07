@@ -9,6 +9,7 @@ import { CarteFactice } from '../../carte/testing/carte-factice';
 import { AuthService } from '../../core/auth/auth.service';
 import { OrganisationsApi } from '../session/data/organisations.api';
 import { ReferentielApi } from '../risques/data/referentiel.api';
+import { CarreauxApi } from './data/carreaux.api';
 import { ZonesCustomApi } from './data/zones-custom.api';
 import { CouleursService } from '../../core/theme/couleurs.service';
 import { CartePage } from './carte.page';
@@ -46,6 +47,7 @@ async function ouvrir() {
       { provide: OrganisationsApi, useValue: { lister: () => of({ organizations: [], active_org_id: null, is_super_admin: false }), changer: () => of() } },
       { provide: ReferentielApi, useValue: { geo: () => of({ regions: [] }) } },
       { provide: ZonesCustomApi, useValue: { lister: () => of({ zones: [] }) } },
+      { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },
     ],
   });
   const harness = await RouterTestingHarness.create();
@@ -510,5 +512,46 @@ describe('CartePage — filtre unique : panneau, puce, pastille du rail (T5)', (
     hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="filtre"]')!.click();
     await stable();
     expect(hote.querySelector('mg-panneau-filtre [data-france]')!.getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+describe('CartePage — panneau Calques, carreaux Filosofi, légende (T6)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    TestBed.overrideProvider(CouleursService, { useValue: { palette: () => signal({ absente: '#9aa0a6', trait: '#555555' }) } });
+  });
+  afterEach(() => localStorage.clear());
+
+  it('Calques : le vrai panneau ; allumer les carreaux pose la couche, ouvre la légende, survit au changement de fond ; Tout effacer les masque', async () => {
+    const { harness, hote, cartes, stable } = await ouvrir();
+    cartes[0].emettre('load');
+    await stable();
+    hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="calques"]')!.click();
+    await stable();
+    expect(hote.querySelector('mg-panneau-calques')).not.toBeNull();
+    expect(hote.querySelector('mg-legende-carte [data-legende]')).toBeNull();
+
+    hote.querySelector<HTMLButtonElement>('mg-panneau-calques button[data-groupe]')!.click();
+    await stable();
+    hote.querySelector<HTMLButtonElement>('mg-section-carreaux button[data-entete-carreaux]')!.click();
+    await stable();
+    expect(cartes[0].sources.has('carreaux-mvt')).toBe(true);
+    expect(injecteurPage(harness).get(EtatCarteService).degradeActif()).toBe('carreaux');
+    expect(hote.querySelector('mg-panneau-calques')!.textContent).toContain('Actifs (1)');
+    expect(hote.querySelector('mg-legende-carte [data-bloc="carreaux"]')!.textContent).toContain('Carreaux Filosofi · pers./km²');
+
+    // Changement de fond : la nouvelle instance reçoit la couche, visible.
+    await ouvrirReglages(hote, stable);
+    hote.querySelector<HTMLButtonElement>('mg-reglages button[data-fond="bright"]')!.click();
+    await stable();
+    cartes[1].emettre('load');
+    await stable();
+    expect(cartes[1].sources.has('carreaux-mvt')).toBe(true);
+    expect((cartes[1].getLayer('carreaux-mvt-fill')!['layout'] as { visibility: string }).visibility).toBe('visible');
+
+    hote.querySelector<HTMLButtonElement>('button[data-tout-effacer]')!.click();
+    await stable();
+    expect((cartes[1].getLayer('carreaux-mvt-fill')!['layout'] as { visibility: string }).visibility).toBe('none');
+    expect(hote.querySelector('mg-legende-carte [data-legende]')).toBeNull();
   });
 });

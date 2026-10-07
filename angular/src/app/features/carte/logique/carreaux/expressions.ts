@@ -1,5 +1,5 @@
 /**
- * Copie Angular (lot 4, P6) VERBATIM de `lib/carreaux/expressions.ts` (imports relatifs seuls changes),
+ * Copie Angular (lot 4, P6) VERBATIM de `lib/carreaux/expressions.ts` (imports relatifs seuls changes ; sans COULEUR_DONNEE_ABSENTE, voir plus bas),
  * verrouillee par tests/unit/angular/carte-couches-paritaire.test.ts (gel P5 etendu a /map).
  * Ne pas corriger un defaut ici sans le corriger dans React.
  */
@@ -27,15 +27,11 @@ export function bornesInternes(bornes: BornesEchelle, nPaliers: number): number[
   return Array.from({ length: nPaliers - 1 }, (_, k) => palierEchelle(bornes, k, nPaliers).max);
 }
 
-/**
- * Couleur des carreaux dont la donnée n'est pas exploitable.
- *
- * Un gris neutre, hors de toute palette : il ne peut être confondu avec aucune
- * valeur de l'échelle. En hexadécimal, comme toute couleur de peinture — le
- * moteur de rendu MapLibre ne résout pas les variables CSS dans les
- * expressions (exception documentée à la règle du DESIGN_SYSTEM).
+/*
+ * `COULEUR_DONNEE_ABSENTE` (le gris `#9aa0a6` de React) n'est PAS recopié (lot 4, T6) : une couleur d'interface ne
+ * vit qu'une fois, dans le jeton `--donnee-absente` de `styles/jetons.css`, que la couche lit par `CouleursService`.
+ * L'égalité du jeton et du littéral React est verrouillée par tests/unit/angular/carte-couches-paritaire.test.ts.
  */
-export const COULEUR_DONNEE_ABSENTE = '#9aa0a6';
 
 /**
  * Prédicat : les deux propriétés nécessaires au quotient normalisé sont-elles

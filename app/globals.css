@@ -90,6 +90,10 @@
        qui est réellement peint sur la carte, verrouillé par
        tests/unit/carreaux/donnee-absente-css.test.ts. */
     --donnee-absente: #9aa0a6;
+    /* Trait de la grille des carreaux Filosofi (couche carreaux-mvt-line,
+       opacité 0,35). Invariant : le même gris dans les deux thèmes, comme le
+       littéral #555 de useMapInit.ts que l'interface Angular lit ici (lot 4, T6). */
+    --carreaux-contour: #555555;
 
     /* ── Échelle divergente d'alignement (sous-pression ↔ conforme ↔ sur-pression)
        Le sens se lit AUSSI par la position sur la barre : la teinte seule ne
@@ -326,6 +330,10 @@
 
     /* Invariant, comme --brand-teal — voir le commentaire du bloc :root. */
     --donnee-absente: #9aa0a6;
+    /* Trait de la grille des carreaux Filosofi (couche carreaux-mvt-line,
+       opacité 0,35). Invariant : le même gris dans les deux thèmes, comme le
+       littéral #555 de useMapInit.ts que l'interface Angular lit ici (lot 4, T6). */
+    --carreaux-contour: #555555;
 
     /* ── Échelle divergente d'alignement (sous-pression ↔ conforme ↔ sur-pression)
        Le sens se lit AUSSI par la position sur la barre : la teinte seule ne

@@ -22,7 +22,7 @@
     <!-- Contenu provisoire : chaque panneau arrive dans sa tâche (Calques T6-T13, Zones T14-T16, Analyse T17-T20). -->
     @switch (p.id) {
       @case ('filtre') { <mg-panneau-filtre /> }
-      @case ('calques') { <p data-provisoire class="px-4 py-2 text-[12px] text-tertiary">Les calques arrivent avec les tâches 6 à 13.</p> }
+      @case ('calques') { <mg-panneau-calques /> }
       @case ('analyse') { <p data-provisoire class="px-4 py-2 text-[12px] text-tertiary">Les outils d'analyse arrivent avec les tâches 17 à 20.</p> }
       @case ('zones') { <p data-provisoire class="px-4 py-2 text-[12px] text-tertiary">Les zones arrivent avec les tâches 14 à 16.</p> }
       @case ('reglages') { <mg-reglages [fond]="fond()" (choisirFond)="choisirFond($event)" /> }
@@ -40,6 +40,9 @@
 />
 
 <mg-annonce />
+
+<!-- La légende unique de la carte (`LegendeCarte.tsx`), en bas à gauche, sous les panneaux. -->
+<mg-legende-carte [degradeActif]="etat.degradeActif()" />
 
 <!-- La carte : `flex: 1`, sous la barre et à droite du rail (padding de l'hôte), comme le panneau droit de React. -->
 <div class="relative flex min-w-0 flex-1 overflow-hidden">
