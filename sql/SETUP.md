@@ -66,8 +66,17 @@ Exécuter dans cet ordre exact depuis le SQL Editor Supabase :
 
 ```
 010_security_hardening.sql          -- RLS policies sur toutes les tables publiques
-                                    -- ⚠ À rejouer après chaque nouvelle migration
+234_cloisonnement_organisations.sql -- Cloisonnement entre organisations : retire toute
+                                    -- écriture PostgREST aux clients, visibilité des
+                                    -- sources (socle/privee), ferme les USING (true)
+235_affectation_sources.sql         -- Données : chaque source rendue à son propriétaire
 ```
+
+> ⚠ **010 recrée des `USING (true)`** sur `isochrones_cache`, `saved_maps` et
+> `panneaux_affichage` — des données de client. Si on le rejoue, il faut
+> rejouer **234 juste après**, sinon tout client connecté relit les données de
+> tous par PostgREST avec la clé publique. `tests/integration/cloisonnement-rls.test.ts`
+> le détecte.
 
 ---
 
