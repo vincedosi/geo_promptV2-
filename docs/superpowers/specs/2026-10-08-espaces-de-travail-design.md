@@ -1,6 +1,8 @@
 # Espaces de travail — une seule page pour administrer les droits
 
 > Spécification validée dans son principe par Vincent le 2026-10-08.
+> ⚠ Le produit s'appelle désormais **dentsu.explore** (décision du 2026-10-08) :
+> « MAGELIAN » dans ce document désigne l'ancien nom.
 > Prérequis : le cloisonnement par organisation (`feat/droits-donnees`,
 > sql/234-235, `lib/auth/perimetre-donnees.ts`) — cette page ADMINISTRE la
 > règle que ce chantier a posée, elle n'en invente pas une autre.
@@ -72,7 +74,7 @@ donnée visible de tous, c'est `visibilite = 'socle'`. La page montre donc :
 - une entrée virtuelle **« Socle MAGELIAN »** en tête : les jeux visibles de
   tous, quel que soit leur propriétaire ;
 - « GENESIS (Global) » comme un espace parmi les autres, renommé à l'affichage
-  **« MAGELIAN (interne) »** — à confirmer (§ 9, Q1).
+  **« dentsu.explore (interne) »** (§ 9, Q1).
 
 ## 4. L'écran
 
@@ -243,8 +245,8 @@ le noter dans chaque route).
 
 | # | Question | Proposition |
 |---|---|---|
-| Q1 | Renommer « GENESIS (Global) » à l'affichage ? | « MAGELIAN (interne) » à l'affichage seulement, sans toucher la base |
-| Q2 | Les trois comptes super_admin (dont `vincent.sidoli@gmail.com`, espace MARINE) sont-ils tous voulus ? | à confirmer par Vincent ; s'il sert à tester la vue Marine, il doit être `client` |
+| Q1 | Renommer « GENESIS (Global) » à l'affichage ? | **Tranché 2026-10-08 : oui**, « dentsu.explore (interne) » à l'affichage seulement, sans toucher la base |
+| Q2 | Les trois comptes super_admin sont-ils tous voulus ? | **Tranché 2026-10-08 :** `vincent.sidoli@gmail.com` était un compte de test — supprimé (base locale, il ne possédait aucune donnée). Restent deux super_admin. |
 
 ## 10. Hors champ
 
