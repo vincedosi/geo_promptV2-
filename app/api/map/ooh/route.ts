@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/auth';
 import type { ZoneData } from '@/types/spatial';
 import { z } from 'zod';
 import { lireCorps } from '@/lib/api/valider-corps';
+import { sourcesVisiblesDeLaRequete, filtrerParSourcesVisibles } from '@/lib/auth/perimetre-donnees';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +43,10 @@ export async function POST(req: NextRequest) {
       const [west, south, east, north] = bbox;
       query = query.gte('lng', west).lte('lng', east).gte('lat', south).lte('lat', north);
     }
+
+    // `panneaux_affichage` porte la source de son import (sql/082) : un
+    // inventaire de régie peut être au socle ou privé à un client.
+    query = filtrerParSourcesVisibles(query, await sourcesVisiblesDeLaRequete(req), { referentiels: true });
 
     const { data, error } = await query.limit(5000);
 

@@ -91,6 +91,7 @@ import type { ClusterGeoJSON } from '../ClusterPanel';
 import type { FilterPanelProps } from '../filter-panel/types';
 import type { FiltreActif } from '@/lib/carte/filtre';
 import { messageGardePerimetre, messageGardeOutil, type OutilAnalyse } from '@/lib/carte/garde-perimetre';
+import { useSession } from '@/lib/auth-client';
 
 export interface PanneauAnalyseProps {
   // ── Territoire — parité stricte avec l'ex-FilterPanel (voir en-tête) ──────
@@ -152,6 +153,13 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
     battleVisible, setBattleVisible,
     battleOuterFillVisible, setBattleOuterFillVisible,
   } = props;
+
+  // Le clustering est réservé au super_admin depuis le 2026-10-08 : ses modèles
+  // portent sur les POI de TOUTES les organisations (lib/auth/perimetre-donnees.ts).
+  // La route le refuse de toute façon ; masquer la section évite d'offrir un
+  // outil qui répondrait 403.
+  const { session } = useSession();
+  const clusteringOuvert = session?.user.role === 'super_admin';
 
   // ── Perimetre territorial — voir en-tete du fichier (parite, non corrige) ─
   const { REF_REGIONS, territoire } = useTerritorySelection({
@@ -449,7 +457,7 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
             REFUSE le périmètre national (jamais mesuré à cette échelle),
             contrairement au score composite ci-dessus — identifiant DISTINCT
             de `verifierPerimetre` pour cette raison. ──────────── */}
-        <ClusteringSection
+        {clusteringOuvert && <ClusteringSection
           analyseOpen={analyseOpen}
           toggleAnalyse={toggleAnalyse}
           clusterGeoJSON={props.clusterGeoJSON}
@@ -464,7 +472,7 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
           onWizardHighlight={props.onWizardHighlight}
           onWizardClose={props.onWizardClose}
           verifierPerimetre={verifierPerimetreClustering}
-        />
+        />}
 
       </div>
     </div>

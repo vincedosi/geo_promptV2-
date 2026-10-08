@@ -3,8 +3,11 @@
  * Lance le script Python --mode generate-analysis --model-version X
  * Retourne immédiatement { job_id } — le client poll GET /api/poi-clusters/run?job_id=...
  */
-import { NextResponse }    from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+// Clustering réservé au super_admin (2026-10-08) : les modèles sont calculés
+// sur TOUS les POI, toutes organisations confondues — voir lib/auth/perimetre-donnees.ts.
+import { reserverAuSuperAdmin } from '@/lib/auth/perimetre-donnees';
 import { spawn }             from 'child_process';
 import path                  from 'path';
 
@@ -14,9 +17,11 @@ const SCRIPT_PATH = path.resolve(process.cwd(), 'scripts', 'clustering_poi_filos
 const LOG_MAX     = 4000;
 
 export async function POST(
-  _req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ version: string }> },
 ) {
+  const refus = await reserverAuSuperAdmin(req);
+  if (refus) return refus;
   const { version: versionParam } = await params;
   const version = parseInt(versionParam, 10);
   if (isNaN(version)) return NextResponse.json({ error: 'Version invalide' }, { status: 400 });

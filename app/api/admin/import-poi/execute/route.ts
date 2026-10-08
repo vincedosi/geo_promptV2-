@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
         let dataSourceId: string | null = null;
         try {
           const supabase = createAdminClient();
-          const { data: ds } = await supabase
+          const { data: ds, error: dsError } = await supabase
             .from('data_sources')
             .insert({
               name: config.sourceName || `Import ${config.dataType} — ${new Date().toLocaleDateString('fr-FR')}`,
@@ -166,22 +166,32 @@ export async function POST(request: NextRequest) {
             })
             .select('id')
             .single();
+          if (dsError) throw new Error(dsError.message);
           dataSourceId = ds?.id || null;
-
-          // Tag all valid rows with data_source_id + organization_id
-          for (const row of result.validRows) {
-            if (dataSourceId) row.data_source_id = dataSourceId;
-            row.organization_id = orgId;
-          }
-
-          send({ type: 'progress', message: `Source "${ds?.id?.slice(0, 8)}" creee`, processed: 0, total: validCount });
         } catch (dsErr) {
           console.warn('Could not create data_source record:', dsErr);
-          // Still tag rows with organization_id even if data_source creation fails
-          for (const row of result.validRows) {
-            row.organization_id = orgId;
-          }
         }
+
+        // ⛔ PAS DE POI SANS SOURCE. Un POI sans `data_source_id` est lu comme
+        // un référentiel système, donc visible de TOUTES les organisations
+        // (lib/auth/perimetre-donnees.ts, sql/234). Jusqu'au 2026-10-08, un
+        // échec de création de la source était avalé ici et l'import
+        // continuait : les POI privés d'un client devenaient publics. On
+        // arrête l'import à la place — un import refusé se relance, une fuite
+        // ne se rattrape pas.
+        if (!dataSourceId) {
+          send({
+            type: 'error',
+            message: 'Impossible de créer la source de données : import arrêté, aucune ligne écrite.',
+          });
+          return; // le `finally` ferme le flux
+        }
+
+        for (const row of result.validRows) {
+          row.data_source_id = dataSourceId;
+          row.organization_id = orgId;
+        }
+        send({ type: 'progress', message: `Source "${dataSourceId.slice(0, 8)}" creee`, processed: 0, total: validCount });
 
         // Insert into database with progress + live logs
         send({ type: 'log', logLevel: 'info', logLine: `Insertion en base Supabase (${validCount} lignes)...` });

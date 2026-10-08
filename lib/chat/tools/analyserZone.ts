@@ -13,7 +13,8 @@ import {
 import {
   CITY_BASE_RADIUS, getCoordsForVille, getCoordsForRegion, normVille, resolveCategory,
 } from '@/lib/geo/locations';
-import { orgContextStorage } from './orgContext';
+import { getOrgSourceIds } from './orgContext';
+import { empreintePerimetre } from '@/lib/auth/perimetre-donnees';
 
 const NATIONAL_TERMS = ['france', 'france entiere', 'france entière', 'national', 'tout', 'tous', 'toute'];
 const SELECT_COLS    = 'id, nom, lat, lng, categorie, sous_categorie, adresse, ville, region, departement';
@@ -53,7 +54,9 @@ export async function analyserZone(
   }
 
   const supabase = createAdminClient();
-  const { orgSourceIds = null } = orgContextStorage.getStore() ?? {};
+  // Par `getOrgSourceIds` et non plus en lisant le contexte ici avec un défaut
+  // à `null` (« tout voir ») : sans contexte, on ferme.
+  const orgSourceIds = getOrgSourceIds();
   const poisMap  = new Map<string, PoiRow>();
 
   // Applique le filtre org (data_source_id) si l'org a des sources restreintes
@@ -198,7 +201,10 @@ export async function analyserZone(
 
   let isochroneGeoJSON: Record<string, unknown> | null = null;
   if (isochrone_minutes && pois.length > 0) {
-    const cacheKey = buildIsochCacheKey(locationLabel, resolvedCategory ?? categorie_poi, isochrone_minutes, isochrone_mode);
+    // Suffixe de périmètre : les isochrones sont calculées sur les POI VISIBLES
+    // de l'appelant. Sans lui, la clé ne dépendait que de la ville et de la
+    // catégorie, et le résultat d'une organisation était resservi à une autre.
+    const cacheKey = buildIsochCacheKey(locationLabel, resolvedCategory ?? categorie_poi, isochrone_minutes, isochrone_mode, `p${empreintePerimetre(orgSourceIds)}`);
     const cacheCtx: IsochroneCacheCtx = {
       cacheKey,
       ville:     locationLabel,

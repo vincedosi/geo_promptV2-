@@ -13,6 +13,7 @@ import { createAdminClient } from '@/lib/auth';
 import { applyAction } from '@/lib/agent/autonomy';
 import type { ProposedAction } from '@/lib/agent/types';
 import { rpcJson } from '@/lib/supabase/rpc-json';
+import { checkStrategyAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,8 +46,13 @@ export async function POST(request: NextRequest) {
   if (aErr || !audit) {
     return NextResponse.json({ error: 'audit row introuvable' }, { status: 404 });
   }
-  if (audit.user_id !== profile.id && profile.role !== 'admin' && profile.role !== 'super_admin') {
-    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  // L'auteur, le super_admin, ou un admin de l'organisation de la stratégie.
+  // Jusqu'au 2026-10-08 le rôle `admin` suffisait, toutes organisations
+  // confondues.
+  if (audit.user_id !== profile.id && profile.role !== 'super_admin') {
+    const autorise = profile.role === 'admin' && !!audit.strategy_id
+      && (await checkStrategyAccess(supabase, profile, audit.strategy_id)) === 'ok';
+    if (!autorise) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
   const recs = rpcJson<ProposedAction[]>(audit.recommendations) ?? [];

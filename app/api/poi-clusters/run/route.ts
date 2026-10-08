@@ -18,6 +18,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z }                 from 'zod';
 import { createAdminClient } from '@/lib/auth';
+// Clustering réservé au super_admin (2026-10-08) : les modèles sont calculés
+// sur TOUS les POI, toutes organisations confondues — voir lib/auth/perimetre-donnees.ts.
+import { reserverAuSuperAdmin } from '@/lib/auth/perimetre-donnees';
 import { lireCorps }         from '@/lib/api/valider-corps';
 import { spawn }             from 'child_process';
 import path                  from 'path';
@@ -59,6 +62,8 @@ const CorpsRunSchema = z.object({
 
 // ── GET — polling statut ────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
+  const refus = await reserverAuSuperAdmin(req);
+  if (refus) return refus;
   const jobId = req.nextUrl.searchParams.get('job_id');
   if (!jobId) return NextResponse.json({ error: 'job_id requis' }, { status: 400 });
 
@@ -78,6 +83,8 @@ export async function GET(req: NextRequest) {
 
 // ── POST — lancer le job ────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const refus = await reserverAuSuperAdmin(req);
+  if (refus) return refus;
   const lecture = await lireCorps(req, CorpsRunSchema);
   if (!lecture.ok) return NextResponse.json({ error: lecture.message }, { status: 400 });
   const { poi_types, geo_filter, params, features } = lecture.valeur;

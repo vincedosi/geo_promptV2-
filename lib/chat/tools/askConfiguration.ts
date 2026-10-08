@@ -9,6 +9,8 @@ import { logger }                                   from '@/lib/logger';
 import { getDistinctCategories }                    from '@/lib/poi/categories';
 import { CHORO_INDICATORS }                         from '@/lib/chat/system-prompt';
 import { getCoordsForVille, getCoordsForRegion }    from '@/lib/geo/locations';
+import { getOrgSourceIds }                          from './orgContext';
+import { filtrerParSourcesVisibles }                from '@/lib/auth/perimetre-donnees';
 
 /** Cibles démographiques utiles pour la planification OOH. */
 const CIBLES_UTILES = [
@@ -58,15 +60,19 @@ export async function askConfiguration(args: Record<string, unknown>) {
   const supabase      = createAdminClient();
 
   const geoField = perimetre_type === 'region' ? 'region' : 'ville';
+  // Les comptes par catégorie révélaient les POI des autres clients — et
+  // jusqu'à l'existence de leurs catégories : on ne compte que le visible.
+  const sources = getOrgSourceIds();
 
   const counts = await Promise.all(
     allCategories.map(async (cat) => {
       try {
-        const { count } = await supabase
+        const requete = supabase
           .from('poi_france')
           .select('id', { count: 'exact', head: true })
           .ilike(geoField, `%${perimetre_value}%`)
           .eq('categorie', cat);
+        const { count } = await filtrerParSourcesVisibles(requete, sources);
         return { cat, count: count ?? 0 };
       } catch {
         return { cat, count: 0 };

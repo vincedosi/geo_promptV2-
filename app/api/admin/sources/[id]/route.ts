@@ -21,6 +21,9 @@ const ModifierSourceSchema = z.object({
   description: z.string().nullable().optional(),
   organization_id: z.string().uuid().nullable().optional(),
   shared_with: z.array(z.string().uuid()).nullable().optional(),
+  // 'socle' = visible de toutes les organisations ; 'privee' = propriétaire
+  // et shared_with (sql/234, lib/auth/getOrgSourceIds.ts).
+  visibilite: z.enum(['socle', 'privee']).optional(),
   status: z.string().optional(),
   ai_summary: z.string().nullable().optional(),
   filter_fields: z.unknown().optional(),
@@ -102,6 +105,7 @@ export async function PATCH(
     if (body.description !== undefined) updates.description = body.description;
     if (body.organization_id !== undefined) updates.organization_id = body.organization_id;
     if (body.shared_with !== undefined) updates.shared_with = body.shared_with;
+    if (body.visibilite !== undefined) updates.visibilite = body.visibilite;
     if (body.status !== undefined) updates.status = body.status;
     if (body.ai_summary !== undefined) updates.ai_summary = body.ai_summary;
     if (body.filter_fields !== undefined) updates.filter_fields = body.filter_fields;
@@ -118,6 +122,19 @@ export async function PATCH(
       .single();
 
     if (error) throw error;
+
+    // Les POI et panneaux recopient l'organisation de leur source (sql/235).
+    // La règle de visibilité ne lit plus cette copie, mais une valeur fausse y
+    // mentirait au prochain lecteur : on la tient à jour au transfert.
+    if (body.organization_id !== undefined) {
+      for (const table of ['poi_france', 'panneaux_affichage'] as const) {
+        const { error: errCopie } = await supabase
+          .from(table)
+          .update({ organization_id: body.organization_id })
+          .eq('data_source_id', id);
+        if (errCopie) throw errCopie;
+      }
+    }
 
     return NextResponse.json({ success: true, source: data });
   } catch (err: unknown) {

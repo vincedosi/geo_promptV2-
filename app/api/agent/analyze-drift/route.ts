@@ -8,6 +8,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { createAdminClient } from '@/lib/auth';
+import { verifierContexteAgent } from '@/lib/agent/acces-contexte';
 import { handleAgentRequest } from '@/lib/agent/orchestrator';
 import { createLLMRateLimiter, enforceLLMRateLimit } from '@/lib/prompting';
 
@@ -35,6 +37,13 @@ export async function POST(request: NextRequest) {
   const corps = await lireCorps(request, AnalyserDeriveSchema);
   if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
   const body = corps.valeur;
+
+  // `drift_event_id` vient du navigateur : la dérive doit appartenir à une
+  // stratégie de l'organisation de l'appelant.
+  const acces = await verifierContexteAgent(createAdminClient(), profile, { drift_event_id: body.drift_event_id });
+  if (acces !== 'ok') {
+    return NextResponse.json({ error: acces }, { status: acces === 'not_found' ? 404 : 403 });
+  }
 
   try {
     const result = await handleAgentRequest({

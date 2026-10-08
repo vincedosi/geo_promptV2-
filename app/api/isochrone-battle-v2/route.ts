@@ -14,6 +14,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient }         from '@/lib/auth';
 import { z } from 'zod';
+import {
+  sourcesVisiblesDeLaRequete, filtrerParSourcesVisibles, empreintePerimetre,
+} from '@/lib/auth/perimetre-donnees';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,6 +109,12 @@ export async function POST(req: NextRequest) {
   const normalizedMode  = MODE_NORMALIZE[String(mode)] ?? 'drive';
   const PALIERS: number[] = [...paliers].sort((a, b) => a - b);
 
+  // Lu AVANT le flux : la session vient de la requête. La battle ne porte que
+  // sur les POI que l'appelant a le droit de voir, et son cache est cloisonné
+  // par l'empreinte de ce périmètre.
+  const sources = await sourcesVisiblesDeLaRequete(req);
+  const perimetre = empreintePerimetre(sources);
+
   const encoder = new TextEncoder();
   const stream  = new ReadableStream({
     async start(controller) {
@@ -123,7 +132,7 @@ export async function POST(req: NextRequest) {
           ? (filtre_regions as string[]) : null;
         const regionKey   = regions ? [...regions].sort().join('+') : metropolitaine ? 'metro' : 'all';
         const deptKey     = deptCodesCanonical ? `__d${[...deptCodesCanonical].sort().join('-')}` : '';
-        const battleCacheKey = `battle_v2_full__${normKey(String(category))}__${normKey(normalizedMode)}__${PALIERS.join('-')}min__${regionKey}${deptKey}${filtre_ville ? '__' + normKey(String(filtre_ville)) : ''}`;
+        const battleCacheKey = `battle_v2_full__${normKey(String(category))}__${normKey(normalizedMode)}__${PALIERS.join('-')}min__${regionKey}${deptKey}${filtre_ville ? '__' + normKey(String(filtre_ville)) : ''}__p${perimetre}`;
 
         if (!force_battle) {
           const { data: cached } = await supabase
@@ -160,6 +169,7 @@ export async function POST(req: NextRequest) {
         if (metropolitaine) q = q.gte('lng', -5.5).lte('lng', 9.6).gte('lat', 41.3).lte('lat', 51.1);
         if (filtre_ville)   q = q.ilike('ville', `%${filtre_ville}%`);
         if (deptFilter)     q = q.in('departement', deptFilter);
+        q = filtrerParSourcesVisibles(q, sources);
 
         const { data: rawRows, error: poiErr } = await q.limit(500);
         if (poiErr) { send({ type: 'error', message: `Erreur chargement POIs : ${poiErr.message}` }); return; }

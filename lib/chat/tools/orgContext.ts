@@ -13,7 +13,15 @@ export interface OrgContext {
 
 export const orgContextStorage = new AsyncLocalStorage<OrgContext>();
 
-/** Raccourci : lit orgSourceIds depuis le contexte courant (null si aucun contexte). */
+/**
+ * Raccourci : lit orgSourceIds depuis le contexte courant.
+ *
+ * SANS contexte, rend `[]` (aucun accès) — et non plus `null` (tout voir),
+ * comme jusqu'au 2026-10-08. Un outil appelé hors de `/api/chat`, qui seul
+ * pose le contexte, ouvrait sinon les données de toutes les organisations.
+ * `null` ne sort d'ici que si le contexte le porte : un super_admin.
+ */
 export function getOrgSourceIds(): string[] | null {
-  return orgContextStorage.getStore()?.orgSourceIds ?? null;
+  const contexte = orgContextStorage.getStore();
+  return contexte ? contexte.orgSourceIds : [];
 }

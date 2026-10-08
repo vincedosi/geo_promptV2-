@@ -27,6 +27,12 @@ import {
 } from '@/lib/isochrones/fetcher';
 import { getRegionNameMap } from '@/lib/geo/region-lookup-server';
 import { toJson } from '@/lib/supabase/rpc-json';
+// Cloisonnement entre organisations (2026-10-08) — seule modification de ce
+// fichier protégé : les POI lus et la clé du cache complet dépendent du
+// périmètre de l'appelant. Le calcul de la battle est inchangé.
+import {
+  sourcesVisiblesDeLaRequete, filtrerParSourcesVisibles, empreintePerimetre,
+} from '@/lib/auth/perimetre-donnees';
 import type { TableInsert } from '@/lib/supabase/tables';
 
 export const maxDuration  = 300;
@@ -229,6 +235,9 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.ORS_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'ORS_API_KEY non configurée' }, { status: 500 });
 
+  const sources = await sourcesVisiblesDeLaRequete(req);
+  const perimetre = empreintePerimetre(sources);
+
   const encoder = new TextEncoder();
   const stream  = new ReadableStream({
     async start(controller) {
@@ -243,7 +252,7 @@ export async function POST(req: NextRequest) {
           ? [...(filtre_regions as string[])].sort().join('+')
           : metropolitaine ? 'metro' : 'all';
         const deptKey        = deptCodesCanonical ? `__d${[...deptCodesCanonical].sort().join('-')}` : '';
-        const battleCacheKey = `battle_full__${normKey(String(category))}__${normKey(normalizedMode)}__${BATTLE_LEVELS.join('-')}min__${regionKey}${deptKey}${filtre_ville ? '__' + normKey(String(filtre_ville)) : ''}`;
+        const battleCacheKey = `battle_full__${normKey(String(category))}__${normKey(normalizedMode)}__${BATTLE_LEVELS.join('-')}min__${regionKey}${deptKey}${filtre_ville ? '__' + normKey(String(filtre_ville)) : ''}__p${perimetre}`;
 
         if (!force_recalculate) {
           const { data: cached } = await supabase
@@ -281,6 +290,7 @@ export async function POST(req: NextRequest) {
         if (metropolitaine) q = q.gte('lng', -5.5).lte('lng', 9.6).gte('lat', 41.3).lte('lat', 51.1);
         if (filtre_ville)   q = q.ilike('ville', `%${filtre_ville}%`);
         if (deptFilter)     q = q.in('departement', deptFilter);
+        q = filtrerParSourcesVisibles(q, sources);
 
         const { data: rawRows, error: poiErr } = await q.limit(MAX_POIS_BATTLE);
         if (poiErr) { send({ type: 'error', message: `Erreur chargement POIs : ${poiErr.message}` }); return; }

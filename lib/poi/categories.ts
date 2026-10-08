@@ -63,6 +63,48 @@ export async function getDistinctCategories(): Promise<string[]> {
 }
 
 /**
+ * Les catégories que l'appelant a le droit de connaître.
+ *
+ * `getDistinctCategories` rend TOUTES les catégories, celles des autres
+ * clients comprises : son résultat sert au contrôle interne (résoudre un nom
+ * de catégorie), jamais à l'affichage. Ce qui est montré ou dicté à l'IA passe
+ * par ici — un nom de catégorie (« bmw ») suffit à révéler qu'un client existe.
+ *
+ * Extrait de `app/api/map/categories/route.ts` le 2026-10-08, à l'identique,
+ * pour que le chat applique la même règle.
+ *
+ * @param sources - Le retour de `getOrgSourceIds` : `null` = super_admin.
+ * @returns Les catégories dans l'ordre de `getDistinctCategories`.
+ */
+export async function getCategoriesVisibles(sources: string[] | null): Promise<string[]> {
+  const toutes = await getDistinctCategories();
+  if (sources === null) return toutes;
+  if (sources.length === 0) return [];
+
+  // Leapfrog restreint aux sources visibles : une requête par catégorie
+  // présente, sur l'index de `categorie`.
+  const supabase = createAdminClient();
+  const visibles = new Set<string>();
+  let lastSeen = '';
+  for (let i = 0; i < 100; i++) {
+    const { data, error } = await supabase
+      .from('poi_france')
+      .select('categorie')
+      .in('data_source_id', sources)
+      .not('categorie', 'is', null)
+      .gt('categorie', lastSeen)
+      .order('categorie', { ascending: true })
+      .limit(1);
+    // Une lecture en échec ferme : on rend ce qu'on a pu vérifier, rien de plus.
+    if (error || !data?.length) break;
+    const cat = data[0].categorie as string;
+    visibles.add(cat);
+    lastSeen = cat;
+  }
+  return toutes.filter((c) => visibles.has(c));
+}
+
+/**
  * Force le rafraîchissement du cache (après un import par exemple).
  */
 export function invalidateCategoriesCache(): void {

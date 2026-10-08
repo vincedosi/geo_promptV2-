@@ -1,12 +1,17 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+// Clustering réservé au super_admin (2026-10-08) : les modèles sont calculés
+// sur TOUS les POI, toutes organisations confondues — voir lib/auth/perimetre-donnees.ts.
+import { reserverAuSuperAdmin } from '@/lib/auth/perimetre-donnees';
 
 export const dynamic = 'force-dynamic';
 
 // GET /api/poi-clusters/poi-types
 // Retourne les types de POI disponibles, avec leur nombre total et leur nb de POI clustérisés.
 // Utilisé par le front et le CLI pour lister les types dynamiquement.
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const refus = await reserverAuSuperAdmin(req);
+  if (refus) return refus;
   const sb = createAdminClient();
 
   // 1. Tous les types de POI en base

@@ -72,6 +72,10 @@ export async function GET(request: NextRequest) {
     .order('created_at', { ascending: false });
   if (profile.organization_id) {
     query = query.eq('organization_id', profile.organization_id);
+  } else if (profile.role !== 'super_admin') {
+    // Un client SANS organisation tombait dans le « super_admin sans org =
+    // tout » ci-dessus et listait les campagnes de tous (2026-10-08).
+    return NextResponse.json({ campaigns: [] });
   }
   const { data, error } = await query;
   if (error) {

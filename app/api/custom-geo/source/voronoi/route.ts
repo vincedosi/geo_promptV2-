@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { sourcesVisiblesDeLaRequete, categorieEntierementVisible } from '@/lib/auth/perimetre-donnees';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 15;
@@ -31,6 +32,12 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: 'invalid_body', issues: parsed.error.issues }, { status: 400 });
 
   const supabase = createAdminClient();
+  // La RPC calcule sur TOUTE la catégorie, sans notion de source : on ne la
+  // lance que si l'appelant voit chacun de ses POI.
+  const sources = await sourcesVisiblesDeLaRequete(request);
+  if (!(await categorieEntierementVisible(supabase, parsed.data.category, sources))) {
+    return NextResponse.json({ error: 'categorie_hors_perimetre' }, { status: 403 });
+  }
   const { data, error } = await supabase.rpc('get_voronoi_capture_geometry', {
     p_category: parsed.data.category,
     p_metropolitaine: parsed.data.metropolitaine,

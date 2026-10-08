@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { getSessionOrg } from '@/lib/auth/getSessionOrg';
-import { getDistinctCategories, invalidateCategoriesCache } from '@/lib/poi/categories';
+import { getDistinctCategories, getCategoriesVisibles, invalidateCategoriesCache } from '@/lib/poi/categories';
 import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
 
 export const dynamic = 'force-dynamic';
@@ -46,13 +46,14 @@ export async function GET(req: NextRequest) {
   const session  = await getSessionOrg(req);
 
   // La règle « quelles sources cette organisation voit-elle » était réécrite ici
-  // en ligne (`DUP-002`). Elle vit désormais à un seul endroit. Les conditions
-  // sont EXACTEMENT celles qui figuraient ici : `getOrgSourceIds` renvoie `null`
-  // quand il n'y a pas de session, que l'appelant est super_admin, ou qu'il n'a
-  // pas d'organisation — donc le cas « tout retourner ».
+  // en ligne (`DUP-002`). Elle vit désormais à un seul endroit. Depuis le
+  // 2026-10-08 elle ferme par défaut : `null` (« tout retourner ») est réservé
+  // au super_admin. Cette route est publique (middleware.ts) : un appelant
+  // SANS session reçoit les catégories du socle, et plus la liste complète —
+  // qui révélait l'existence des catégories privées de chaque client.
   const sourceIds = await getOrgSourceIds(session);
 
-  // null → aucun filtre : tout retourner avec les libellés.
+  // null → super_admin : tout retourner avec les libellés.
   if (sourceIds === null) {
     const labelMap = await buildLabelMap(supabase, allCats);
     return NextResponse.json({ categories: withLabels(allCats, labelMap) });
@@ -63,26 +64,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ categories: [] });
   }
 
-  // Leapfrog sur les catégories restreintes aux sources de l'org
-  const orgCatSet = new Set<string>();
-  let lastSeen = '';
-  for (let i = 0; i < 100; i++) {
-    const { data } = await supabase
-      .from('poi_france')
-      .select('categorie')
-      .in('data_source_id', sourceIds)
-      .not('categorie', 'is', null)
-      .gt('categorie', lastSeen)
-      .order('categorie', { ascending: true })
-      .limit(1);
-    if (!data?.length) break;
-    const cat = data[0].categorie as string;
-    orgCatSet.add(cat);
-    lastSeen = cat;
-  }
-
-  // Conserver l'ordre des catégories globales, filtré + labels
-  const filteredCats = allCats.filter(c => orgCatSet.has(c));
+  // Leapfrog sur les catégories restreintes aux sources de l'org — extrait
+  // dans `getCategoriesVisibles` pour que le chat applique la même règle.
+  const filteredCats = await getCategoriesVisibles(sourceIds);
   const labelMap     = await buildLabelMap(supabase, filteredCats);
   return NextResponse.json({ categories: withLabels(filteredCats, labelMap) });
 }

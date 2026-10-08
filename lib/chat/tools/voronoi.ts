@@ -6,6 +6,8 @@
 import { createAdminClient } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import type { VoronoiFeature } from './types';
+import { getOrgSourceIds } from './orgContext';
+import { categorieEntierementVisible } from '@/lib/auth/perimetre-donnees';
 
 export async function voronoiAnalysis(
   args:            Record<string, unknown>,
@@ -20,6 +22,11 @@ export async function voronoiAnalysis(
   const filtre_dept    = args.departement ? String(args.departement) : null;
 
   const supabase = createAdminClient();
+  // La RPC rend les POI de TOUTE la catégorie (id, nom, coordonnées), sans
+  // notion de source : on ne la lance que si l'appelant les voit tous.
+  if (!(await categorieEntierementVisible(supabase, category, getOrgSourceIds()))) {
+    return { error: `Catégorie « ${category} » hors de votre périmètre de données.`, nb_polygones: 0, category };
+  }
   const { data, error } = await supabase.rpc('get_voronoi_by_category', {
     cat_name: category,
     metropolitaine,

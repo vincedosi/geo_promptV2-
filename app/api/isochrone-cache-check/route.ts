@@ -16,6 +16,7 @@ import { createAdminClient }         from '@/lib/auth';
 import { getRegionNameMap }          from '@/lib/geo/region-lookup-server';
 import { z }                         from 'zod';
 import { lireCorps }                 from '@/lib/api/valider-corps';
+import { sourcesVisiblesDeLaRequete, filtrerParSourcesVisibles } from '@/lib/auth/perimetre-donnees';
 
 export const dynamic = 'force-dynamic';
 
@@ -104,6 +105,9 @@ export async function POST(req: NextRequest) {
     if (metropolitaine) q = q.gte('lng', -5.5).lte('lng', 9.6).gte('lat', 41.3).lte('lat', 51.1);
     if (filtre_ville)   q = q.ilike('ville', `%${filtre_ville}%`);
     if (deptFilter)     q = q.in('departement', deptFilter);
+    // Même périmètre que la battle : sans lui, `missing_list` rendait le nom
+    // des POI d'un autre client.
+    q = filtrerParSourcesVisibles(q, await sourcesVisiblesDeLaRequete(req));
 
     const { data: rawRows, error: poiErr } = await q.limit(MAX_POIS);
     if (poiErr) {

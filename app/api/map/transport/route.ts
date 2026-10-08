@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/auth';
 import type { ZoneData } from '@/types/spatial';
+import { sourcesVisiblesDeLaRequete, filtrerParSourcesVisibles } from '@/lib/auth/perimetre-donnees';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +36,10 @@ export async function GET(req: NextRequest) {
   if (types.length > 0) {
     q = q.in('sous_categorie', types);
   }
+
+  // Les arrêts sont un référentiel système (sans source) : ils passent. Le
+  // filtre écarte un éventuel import client de la même catégorie.
+  q = filtrerParSourcesVisibles(q, await sourcesVisiblesDeLaRequete(req), { referentiels: true });
 
   const { data, error } = await q;
 

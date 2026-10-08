@@ -14,6 +14,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+// Clustering réservé au super_admin (2026-10-08) : les modèles sont calculés
+// sur TOUS les POI, toutes organisations confondues — voir lib/auth/perimetre-donnees.ts.
+import { reserverAuSuperAdmin } from '@/lib/auth/perimetre-donnees';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +24,8 @@ export const dynamic = 'force-dynamic';
 const DROM_COM_DEPTS = new Set(['971', '972', '973', '974', '975', '976']);
 
 export async function GET(req: NextRequest) {
+  const refus = await reserverAuSuperAdmin(req);
+  if (refus) return refus;
   const { searchParams } = req.nextUrl;
 
   const poiTypesParam  = searchParams.get('poi_types');

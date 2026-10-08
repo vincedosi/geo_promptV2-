@@ -10,6 +10,8 @@ import { lireCorps } from '@/lib/api/valider-corps';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { handleAgentRequest } from '@/lib/agent/orchestrator';
 import { createLLMRateLimiter, enforceLLMRateLimit } from '@/lib/prompting';
+import { createAdminClient } from '@/lib/auth';
+import { verifierContexteAgent } from '@/lib/agent/acces-contexte';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +42,13 @@ export async function POST(request: NextRequest) {
   const corps = await lireCorps(request, ConversationAgentSchema);
   if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
   const body = corps.valeur;
+
+  // Les identifiants du contexte viennent du navigateur : on vérifie qu'ils
+  // appartiennent à l'organisation de l'appelant avant que l'agent les lise.
+  const acces = await verifierContexteAgent(createAdminClient(), profile, body.context);
+  if (acces !== 'ok') {
+    return NextResponse.json({ error: acces }, { status: acces === 'not_found' ? 404 : 403 });
+  }
 
   try {
     const result = await handleAgentRequest({

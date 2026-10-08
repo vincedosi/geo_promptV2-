@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { CATEGORIE_ICPE } from '@/lib/import/georisques/classement';
 import { NATURE_NON_PRECISEE } from '@/lib/import/georisques/familles';
+import { sourcesVisiblesDeLaRequete, filtrerParSourcesVisibles } from '@/lib/auth/perimetre-donnees';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,16 +50,20 @@ export async function GET(req: NextRequest) {
   if (categorie === CATEGORIE_ICPE) return naturesDepuisRegistre();
 
   const supabase = createAdminClient();
+  // Sans ce filtre, la liste des natures d'une catégorie révélait le contenu
+  // des POI d'un AUTRE client — et jusqu'à l'existence de la catégorie.
+  const sources = await sourcesVisiblesDeLaRequete(req);
   const PAGE = 1000;
   const naturesSet = new Set<string>();
 
   let from = 0;
   while (true) {
-    const { data, error } = await supabase
+    const requete = supabase
       .from('poi_france')
       .select('metadata')
       .eq('categorie', categorie)
-      .not('metadata', 'is', null)
+      .not('metadata', 'is', null);
+    const { data, error } = await filtrerParSourcesVisibles(requete, sources, { referentiels: true })
       .range(from, from + PAGE - 1);
 
     if (error || !data?.length) break;

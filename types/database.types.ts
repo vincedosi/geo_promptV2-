@@ -2485,6 +2485,7 @@ export type Database = {
           status: string | null
           type: string
           valid_count: number | null
+          visibilite: string
         }
         Insert: {
           ai_summary?: string | null
@@ -2508,6 +2509,7 @@ export type Database = {
           status?: string | null
           type: string
           valid_count?: number | null
+          visibilite?: string
         }
         Update: {
           ai_summary?: string | null
@@ -2531,6 +2533,7 @@ export type Database = {
           status?: string | null
           type?: string
           valid_count?: number | null
+          visibilite?: string
         }
         Relationships: [
           {

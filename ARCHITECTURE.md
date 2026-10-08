@@ -1026,11 +1026,97 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 `poi_france`, `saved_maps`, `profiles`, `organizations`,
 `organization_members`, `campaign_organizations`.
 
-⚠️ **Elles ne s'executent jamais.** Les routes API qui parlent a Supabase le
+⚠️ **Elles ne s'executent jamais POUR L'APPLICATION.** Les routes API qui parlent a Supabase le
 font par `createAdminClient()` (cle `service_role`), qui contourne RLS ; aucune
 n'instancie de client avec la cle anon. L'autorisation reellement appliquee est
 celle du middleware (authentifie ?) plus les guards et le scoping par org
 ecrits dans chaque handler.
+
+⛔ **Mais elles sont la SEULE barriere face a un client qui appelle PostgREST
+lui-meme.** La cle publique est dans le bundle du navigateur : n'importe quel
+compte connecte peut appeler `/rest/v1/<table>` avec son propre jeton. « RLS
+dormantes » s'est longtemps lu « RLS sans importance », et c'est faux. Mesure
+du 2026-10-08, par PostgREST et un vrai compte client, avant `sql/234` :
+
+- `profiles_update` (`id = auth.uid()`, sans restriction de colonne) : un client
+  DRHAT s'est fait **`super_admin` de BMW GROUP**, puis a lu les 177
+  concessions — et toutes les routes `/api/admin` lui etaient ouvertes ;
+- `USING (true)` sur `isochrones_cache`, `geography_zones` (les 93 zones
+  CIRFA) et huit tables `bidding_*` : tout client lisait les donnees de tous ;
+- `organizations` lisible en entier : la liste des clients ;
+- quatre `SECURITY DEFINER` executables **sans connexion**, dont trois qui
+  reconstruisent des tables entieres ;
+- `organization_members` : sa politique se lisait elle-meme, toute lecture par
+  un client levait « infinite recursion ».
+
+## Cloisonnement entre organisations (2026-10-08)
+
+**Le navigateur lit, il n'ecrit jamais par PostgREST.** `sql/234` retire
+`INSERT/UPDATE/DELETE/TRUNCATE` a `anon` et `authenticated` sur toutes les
+tables, et pour les tables futures (`alter default privileges`). Recense ce
+jour : le seul acces direct du navigateur est la LECTURE de son propre profil
+(`lib/auth-client.ts`, `angular/.../auth.service.ts`).
+
+**Trois niveaux de visibilite d'une donnee importee**, portes par
+`data_sources.visibilite` :
+
+| Niveau | Qui voit | Exemple |
+|---|---|---|
+| `socle` | toutes les organisations | lycees, carroyage Filosofi, inventaire Brest Metropole |
+| `privee` | l'organisation proprietaire | CONCESSIONS BMW → BMW GROUP, CIRFA → MARINE |
+| partage | `privee` + les organisations de `shared_with` | `/admin/organizations/[id]/sources` |
+
+Defaut `privee` : une source oubliee reste FERMEE. Un POI **sans source**
+(`data_source_id is null`) est un referentiel systeme charge par script (arrets
+de transport, installations classees) : socle. D'ou la regle dure : **un
+import client n'ecrit jamais un POI sans source** — `import-poi/execute`
+s'arrete si la source n'a pas pu etre creee.
+
+**La regle est ecrite deux fois, a garder egales :**
+
+| Ou | Protege | Fichier |
+|---|---|---|
+| SQL | les acces directs PostgREST | `source_visible()` + politiques de `poi_france`, `panneaux_affichage`, `data_sources` (`sql/234`) |
+| TypeScript | les routes (service_role) | `lib/auth/getOrgSourceIds.ts` (QUOI) + `lib/auth/perimetre-donnees.ts` (l'appliquer) |
+
+`getOrgSourceIds` **ferme par defaut** : `null` (« tout voir ») est reserve au
+super_admin. Jusqu'au 2026-10-08 il rendait `null` sans session et pour un
+compte sans organisation — toute anomalie ouvrait les donnees de tous.
+
+Outils de `lib/auth/perimetre-donnees.ts` :
+
+- `filtrerParSourcesVisibles(q, sources, { referentiels })` — restreint une
+  requete ; `referentiels: true` laisse passer les lignes sans source.
+- `empreintePerimetre(sources)` — a mettre dans **toute cle de cache** d'un
+  resultat calcule sur des POI (battle, isochrones du chat) : sans elle, la
+  battle d'un super_admin sur toutes les concessions etait resservie a la
+  Marine. `cleDeCacheDuPerimetre` controle une cle recue du navigateur.
+- `categorieEntierementVisible` — pour un calcul SQL sur toute une categorie
+  (Voronoi) : refuse si un seul POI appartient a une source invisible.
+- `reserverAuSuperAdmin(req)` — session lue par cookie OU en-tete
+  (`requireAdmin` ne lit que l'en-tete, et les ecrans de la carte appellent par
+  `fetch` nu). Pose sur les 16 handlers de `/api/poi-clusters` : les modeles de
+  clustering portent sur les POI de toutes les organisations, aucun filtrage
+  ligne a ligne n'est possible.
+- `getCategoriesVisibles(sources)` (`lib/poi/categories.ts`) — ce qui est
+  montre ou dicte a l'IA. `getDistinctCategories` reste interne : un nom de
+  categorie (« bmw ») suffit a reveler qu'un client existe.
+
+**Verrous :** `tests/integration/cloisonnement-rls.test.ts` rejoue 26 attaques
+PostgREST avec de vrais comptes MARINE / BMW / DRHAT ;
+`tests/unit/securite/perimetre-routes.test.ts` fait echouer la suite si un
+fichier de `app/api` (hors `/admin`) ou de `lib/` lit une table de donnees
+client sans passer par la regle, ou si un handler clustering perd sa garde.
+
+⚠ **`sql/010_security_hardening.sql` recree des `USING (true)`** : le rejouer
+impose de rejouer `sql/234` juste apres (`sql/SETUP.md`).
+
+**Ce qui n'est pas fait :** pas de mode « voir comme » pour le super_admin (il
+voit tout, il ne peut pas verifier ce que voit un client sans un compte de
+test) ; l'identifiant deterministe d'un POI (`lib/import/identite-poi.ts`)
+n'inclut pas l'organisation, donc deux clients qui importent le MEME fichier
+se percutent : le second voit ses lignes « deja presentes » et ne les recoit
+pas. Pas une fuite, une perte.
 
 > **Recomptage du 2026-09-16.** Cette phrase annoncait « les 146 routes API »
 > depuis des mois, et se lisait comme un recensement exhaustif — 146 sur 146,
@@ -1121,7 +1207,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | Route | Methode | Description |
 |-------|---------|-------------|
 | `/api/map/pois` | GET | POI dans une zone avec filtres categorie. `bbox` optionnelle (Tache 4, `[west,south,east,north]`) : envoyee par la carte uniquement quand un filtre carte est actif (`lib/carte/bbox-requete.ts`) — absente, comportement inchange (scope/regions/depts/ville seuls decident) |
-| `/api/map/categories` | GET | Categories POI distinctes |
+| `/api/map/categories` | GET | Categories POI VISIBLES de l'appelant (`getCategoriesVisibles`) ; route publique : sans session, le socle seul |
 | `/api/map/ooh` | POST | Panneaux OOH. `bbox` optionnelle (Tache 4), meme regle que `/api/map/pois` |
 | `/api/map/transport` | GET | Donnees transport |
 | `/api/map/poi-natures` | GET | Natures de POI. ⚠ Pour `risque_industriel`, les natures sont servies depuis le registre borne `icpe_rubrique_familles` et NON par un balayage des POI : le chemin generique pagine toutes les lignes de la categorie en tirant le jsonb entier, soit ~100 requetes et des centaines de Mo sur 99 152 sites — la famille de l'incident du 28/03 |
@@ -1160,6 +1246,9 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/ref/geo` | GET | Referentiel regions/departements INSEE lu EN BASE (`ref_regions` + `ref_departements`). Remplace `lib/geo/france-admin.ts` partout ou la liste doit etre a jour |
 
 ### Clustering POI x Filosofi (restaure le 2026-09-12)
+
+**Reserve au super_admin depuis le 2026-10-08** (`reserverAuSuperAdmin` sur chaque handler, section masquee dans `PanneauAnalyse` pour les autres) : les modeles portent sur les POI de toutes les organisations.
+
 | Route | Methode | Description |
 |-------|---------|-------------|
 | `/api/poi-clusters` | GET | GeoJSON des POI colories par cluster (`?duration=`) |
@@ -1537,7 +1626,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `import_runs_ooh` | Historique imports OOH | |
 | `poi_categories` | Categories POI | |
 | `poi_accessibility_config` | Parametres sigma accessibilite | |
-| `data_sources` | Sources de donnees importees | |
+| `data_sources` | Sources de donnees importees | `organization_id`, `shared_with`, `visibilite` (`socle`/`privee`, sql/234) |
 
 ### Radio FM/DAB+
 | Table | Description | Notes |

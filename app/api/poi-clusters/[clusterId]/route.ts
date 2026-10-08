@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+// Clustering réservé au super_admin (2026-10-08) : les modèles sont calculés
+// sur TOUS les POI, toutes organisations confondues — voir lib/auth/perimetre-donnees.ts.
+import { reserverAuSuperAdmin } from '@/lib/auth/perimetre-donnees';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,9 +13,11 @@ const CLUSTER_COLORS = [
 ];
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ clusterId: string }> },
 ) {
+  const refus = await reserverAuSuperAdmin(req);
+  if (refus) return refus;
   const { clusterId: clusterIdParam } = await params;
   const clusterId = Number(clusterIdParam);
   if (isNaN(clusterId)) return NextResponse.json({ error: 'ID invalide' }, { status: 400 });

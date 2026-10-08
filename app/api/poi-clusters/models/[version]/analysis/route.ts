@@ -2,15 +2,20 @@
  * GET  /api/poi-clusters/models/[version]/analysis  — retourne l'analyse Gemini
  * DELETE /api/poi-clusters/models/[version]/analysis — supprime l'analyse (re-génération)
  */
-import { NextResponse }    from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+// Clustering réservé au super_admin (2026-10-08) : les modèles sont calculés
+// sur TOUS les POI, toutes organisations confondues — voir lib/auth/perimetre-donnees.ts.
+import { reserverAuSuperAdmin } from '@/lib/auth/perimetre-donnees';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  _req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ version: string }> },
 ) {
+  const refus = await reserverAuSuperAdmin(req);
+  if (refus) return refus;
   const { version: versionParam } = await params;
   const version = parseInt(versionParam, 10);
   if (isNaN(version)) return NextResponse.json({ error: 'Version invalide' }, { status: 400 });
@@ -29,9 +34,11 @@ export async function GET(
 }
 
 export async function DELETE(
-  _req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ version: string }> },
 ) {
+  const refus = await reserverAuSuperAdmin(req);
+  if (refus) return refus;
   const { version: versionParam } = await params;
   const version = parseInt(versionParam, 10);
   if (isNaN(version)) return NextResponse.json({ error: 'Version invalide' }, { status: 400 });

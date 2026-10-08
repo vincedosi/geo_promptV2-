@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { logger } from '@/lib/logger';
 import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from 'ai';
-import { getDistinctCategories } from '@/lib/poi/categories';
+import { getCategoriesVisibles } from '@/lib/poi/categories';
 import { hasDatagouvKeywords, loadDatagouvTools, DATAGOUV_SYSTEM_ADDENDUM } from '@/lib/mcp/datagouv';
 import { createModel, getMaxRetries, type Provider } from '@/lib/chat/providers';
 import { buildSystemPrompt } from '@/lib/chat/system-prompt';
@@ -90,11 +90,7 @@ export async function POST(request: NextRequest) {
   try {
     const t0 = Date.now();
 
-    // ── Session + catégories en parallèle (indépendants) ─────────────────────
-    const [session, categoriesList] = await Promise.all([
-      getSessionOrg(request),
-      getDistinctCategories(),
-    ]);
+    const session = await getSessionOrg(request);
 
     // Rate-limit par utilisateur authentifié (10 req/60s) — vient s'ajouter au
     // rate-limit IP existant ci-dessus (protection coût LLM par compte).
@@ -108,6 +104,10 @@ export async function POST(request: NextRequest) {
 
     // getOrgSourceIds dépend de session — reste séquentiel
     const orgSourceIds = await getOrgSourceIds(session);
+    // Les catégories VISIBLES, et non toutes : cette liste entre dans le prompt
+    // et dans l'énumération des outils, et l'IA la répète. Jusqu'au 2026-10-08
+    // elle portait celles de tous les clients (« bmw », « cirfa »).
+    const categoriesList = await getCategoriesVisibles(orgSourceIds);
 
     logger.debug('CHAT', `pre-LLM ${Date.now() - t0} ms | session: ${session?.orgId ?? 'null'} ${session?.role ?? 'no-session'} | sources: ${orgSourceIds === null ? 'all' : orgSourceIds.length}`);
 

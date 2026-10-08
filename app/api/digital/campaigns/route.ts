@@ -35,6 +35,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Authentification requise.' }, { status: 401 });
   }
 
+  // Un non-super_admin SANS organisation ne voit rien : `p_organization_id`
+  // null veut dire « toutes les campagnes » pour la RPC (sql/094), et ce cas
+  // l'y envoyait jusqu'au 2026-10-08.
+  if (!isSuperAdmin(profile) && !profile.organization_id) {
+    return NextResponse.json([]);
+  }
+
   // Determine org filter
   let orgId: string | null = null;
   if (profile && !isSuperAdmin(profile)) {

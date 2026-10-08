@@ -1,5 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+// Clustering réservé au super_admin (2026-10-08) : les modèles sont calculés
+// sur TOUS les POI, toutes organisations confondues — voir lib/auth/perimetre-donnees.ts.
+import { reserverAuSuperAdmin } from '@/lib/auth/perimetre-donnees';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +12,9 @@ const CLUSTER_COLORS = [
   '#9c755f', '#bab0ac',
 ];
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  const refus = await reserverAuSuperAdmin(request);
+  if (refus) return refus;
   const sb = createAdminClient();
   const { searchParams } = new URL(request.url);
   const duration = parseInt(searchParams.get('duration') ?? '60', 10) || 60;
