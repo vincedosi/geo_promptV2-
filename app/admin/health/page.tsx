@@ -577,7 +577,7 @@ export default function HealthPage() {
               gap: 4,
               lineHeight: 1.7,
             }}>
-              <div><span style={{ color: C.textDim }}>app:     </span><span style={{ color: C.accent }}>MAGELIAN</span></div>
+              <div><span style={{ color: C.textDim }}>app:     </span><span style={{ color: C.accent }}>dentsu.explore</span></div>
               <div><span style={{ color: C.textDim }}>version: </span><span style={{ color: C.green }}>v{APP_VERSION}</span></div>
               <div><span style={{ color: C.textDim }}>build:   </span><span style={{ color: C.text }}>{BUILD_DATE}</span></div>
               <div><span style={{ color: C.textDim }}>stack:   </span><span style={{ color: C.text }}>Next.js 14 · Supabase · PostGIS · Mapbox</span></div>

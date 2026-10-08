@@ -13,7 +13,7 @@ import { MagelianOverlay } from '@/components/magelian/MagelianOverlay'
 import { MagelianDeepLink } from '@/components/magelian/MagelianDeepLink'
 
 export const metadata: Metadata = {
-  title: 'MAGELIAN — Geospatial intelligence',
+  title: 'dentsu.explore — Geospatial intelligence',
   description: 'Plateforme de géomarketing OOH — ciblage, scoring et mesure de campagnes d\'affichage extérieur.',
   icons: [{ rel: 'icon', url: '/magelian-icon.svg', type: 'image/svg+xml' }],
 }

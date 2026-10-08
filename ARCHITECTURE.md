@@ -1,4 +1,4 @@
-# ARCHITECTURE — MAGELIAN
+# ARCHITECTURE — dentsu.explore (ex-MAGELIAN)
 
 > Derniere mise a jour : **2026-09-22** (remesure des chiffres que ce document
 > presente comme mesures : routes API, scripts du stack local, variables

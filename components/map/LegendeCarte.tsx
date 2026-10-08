@@ -582,7 +582,7 @@ function BlocZonesRisque(props: LegendeCarteProps) {
           </div>
         )}
         <div style={{ ...labelStyle, lineHeight: 1.4, color: 'var(--text-tertiary)' }}>
-          Trait plein = publié par l&rsquo;État · tireté = calculé par MAGELIAN
+          Trait plein = publié par l&rsquo;État · tireté = calculé par dentsu.explore
         </div>
       </div>
     </div>

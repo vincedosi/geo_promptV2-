@@ -70,7 +70,7 @@ export async function GET(
     tout: construireVue(rep, 'tout')!,
   };
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'MAGELIAN';
+  wb.creator = 'dentsu.explore';
 
   // ── Extraction ────────────────────────────────────────────────────────────
   const ws1 = wb.addWorksheet('Extraction');

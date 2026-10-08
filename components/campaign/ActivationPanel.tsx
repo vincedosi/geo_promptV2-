@@ -357,7 +357,7 @@ export function ActivationPanel({ campaignId }: ActivationPanelProps) {
               {/* Le geste est SORTANT et additif : le dire avant, pas après. */}
               <div style={{ fontSize: 10, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
                 La poussée ajoute le ciblage aux line items ; elle n’efface rien de ce qui s’y
-                trouve déjà, et ne peut pas être défaite depuis MAGELIAN.
+                trouve déjà, et ne peut pas être défaite depuis dentsu.explore.
               </div>
             </div>
           )}

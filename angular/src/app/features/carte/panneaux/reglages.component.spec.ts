@@ -33,7 +33,7 @@ describe('ReglagesComponent — portage de SettingsOverlay.tsx', () => {
   it('« Fond de carte » : quatre fonds, le courant aria-pressed ; un clic émet son id', async () => {
     const { fixture, el } = await monter();
     const fonds = [...el.querySelectorAll<HTMLButtonElement>('[data-section="fond"] button')];
-    expect(fonds.map((b) => b.textContent?.trim())).toEqual(['Standard', 'OSM', 'Clair', 'MAGELIAN']);
+    expect(fonds.map((b) => b.textContent?.trim())).toEqual(['Standard', 'OSM', 'Clair', 'dentsu']);
     expect(fonds.map((b) => b.getAttribute('aria-pressed'))).toEqual(['true', 'false', 'false', 'false']);
     fonds[3].click();
     expect(fixture.componentInstance.choix).toEqual(['magelian']);

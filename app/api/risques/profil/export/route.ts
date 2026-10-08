@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
   }
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'MAGELIAN';
+  wb.creator = 'dentsu.explore';
   wb.created = new Date();
 
   // ── Onglet 1 : le profil ────────────────────────────────────────────────

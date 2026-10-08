@@ -132,7 +132,7 @@ export async function POST(
     // Dit franchement ce qui n'a PAS été fait — voir l'en-tête.
     retire_du_dsp: false,
     message:
-      'Le lot est marqué annulé dans MAGELIAN. Le ciblage déjà poussé n’a PAS été retiré '
+      'Le lot est marqué annulé dans dentsu.explore. Le ciblage déjà poussé n’a PAS été retiré '
       + 'du DSP : la poussée est additive et la route de push ne rend pas la liste exacte '
       + 'des geo IDs assignés, donc les retirer risquerait d’effacer un ciblage posé '
       + 'ailleurs. Retirez-les depuis l’interface du DSP si nécessaire.',

@@ -90,7 +90,7 @@ export function ImportStep({
                   <option key={org.id} value={org.id}>{org.name}</option>
                 ))
               ) : (
-                <option value={ORG_GLOBALE_FALLBACK}>GENESIS (Global)</option>
+                <option value={ORG_GLOBALE_FALLBACK}>dentsu.explore (interne)</option>
               )}
             </select>
           </div>

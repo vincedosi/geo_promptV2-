@@ -157,7 +157,7 @@ export async function GET(
   const anneauxPar = anneauxParNiveau(profil);
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'MAGELIAN';
+  wb.creator = 'dentsu.explore';
   wb.created = new Date();
 
   // ── Onglet 1 : l'extraction ────────────────────────────────────────────

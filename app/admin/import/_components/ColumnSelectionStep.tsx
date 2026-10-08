@@ -92,7 +92,7 @@ export function ColumnSelectionStep({
       </div>
       <div style={cardBody}>
         <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 10 }}>
-          {'// schema = toujours importe via champs GENESIS · cochez Importer pour metadata · Filtre = filtre carte'}
+          {'// schema = toujours importe via champs dentsu.explore · cochez Importer pour metadata · Filtre = filtre carte'}
         </div>
 
         {/* Table header */}

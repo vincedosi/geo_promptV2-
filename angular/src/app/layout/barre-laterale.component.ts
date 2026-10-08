@@ -42,7 +42,7 @@ interface EntreeIndexee extends EntreeNavigation {
           class="group flex w-full items-center gap-2.5 rounded-md border-0 bg-primary px-3 py-2 text-[12.5px] font-medium tracking-[0.03em] text-page transition-opacity duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--brand-teal-50)]"
         >
           <mg-hexagone variante="cta" />
-          <span class="flex-1 text-left leading-none">MAGELIAN</span>
+          <span class="flex-1 text-left leading-none">Campagnes</span>
           <mg-icone
             nom="fleche-haut-droite"
             [taille]="14"

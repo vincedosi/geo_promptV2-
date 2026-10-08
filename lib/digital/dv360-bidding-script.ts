@@ -56,7 +56,7 @@ export function buildWeightedZoneBiddingScript(
   });
 
   return [
-    `# MAGELIAN — custom bidding pondéré « ${zoneName} »`,
+    `# dentsu.explore — custom bidding pondéré « ${zoneName} »`,
     `# ${sorted.length} zones, scores = répartition du plan média (0-1).`,
     `# À coller dans DV360 : Custom bidding > Scripted > nouvel algorithme.`,
     'return max_aggregate([',
@@ -80,7 +80,7 @@ export function buildZoneBiddingScript(
   const cps = postalCodes.map((cp) => `"${cp.trim()}"`).join(', ');
 
   return [
-    `# MAGELIAN — custom bidding « ${zoneName} »`,
+    `# dentsu.explore — custom bidding « ${zoneName} »`,
     `# Zone : ${postalCodes.length} codes postaux France. Score ${inZone} dans la zone, ${outZone} ailleurs.`,
     `# À coller dans DV360 : Custom bidding > Scripted > nouvel algorithme.`,
     'return max_aggregate([',

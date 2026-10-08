@@ -46,7 +46,7 @@ export async function reserverAuSuperAdmin(req: NextRequest): Promise<NextRespon
   const session = await getSessionOrg(req);
   if (session?.role === 'super_admin') return null;
   return NextResponse.json(
-    { error: 'Réservé aux administrateurs MAGELIAN.' },
+    { error: 'Réservé aux administrateurs dentsu.explore.' },
     { status: 403 },
   );
 }

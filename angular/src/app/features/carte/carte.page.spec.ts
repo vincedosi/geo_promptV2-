@@ -364,10 +364,10 @@ describe('CartePage — fond de carte, recréation, Tout effacer (T4)', () => {
     expect(cartes).toHaveLength(1);
   });
 
-  it('le sélecteur compact « FOND » change de fond lui aussi (Sta / OSM / Cla / MAG)', async () => {
+  it('le sélecteur compact « FOND » change de fond lui aussi (Sta / OSM / Cla / den)', async () => {
     const { hote, cartes, stable } = await ouvrir();
     const boutons = [...hote.querySelectorAll('mg-fond-compact button')].map((b) => b.textContent?.trim());
-    expect(boutons).toEqual(['Sta', 'OSM', 'Cla', 'MAG']);
+    expect(boutons).toEqual(['Sta', 'OSM', 'Cla', 'den']);
     hote.querySelector<HTMLButtonElement>('[data-fond-compact="bright"]')!.click();
     await stable();
     expect(styleDe(cartes[1])).toBe(URL_BRIGHT);

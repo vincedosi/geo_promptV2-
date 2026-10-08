@@ -173,7 +173,7 @@ export async function construireClasseurRayon(
   editeLe: Date = new Date(),
 ): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'MAGELIAN';
+  wb.creator = 'dentsu.explore';
   wb.created = editeLe;
   // Les formules sont écrites SANS résultat : Excel doit tout calculer à
   // l'ouverture, graphique compris, sinon il afficherait des cellules vides.
@@ -720,5 +720,5 @@ function ecrireMethode(ws: ExcelJS.Worksheet): void {
   ligne('Sites à risque', 'Géorisques (ministère de la Transition écologique), API installations classées.');
   ligne('Population', 'INSEE Filosofi, carroyage 200 m, millésime 2021.');
   ligne('Découpage', 'Référentiels INSEE des régions et départements.');
-  ligne('Produit par', 'MAGELIAN — onglet Rayon du module « Population à risque industriel ».');
+  ligne('Produit par', 'dentsu.explore — onglet Rayon du module « Population à risque industriel ».');
 }

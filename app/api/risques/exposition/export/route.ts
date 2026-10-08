@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
   const libDim = LIBELLE_DIMENSION[dimension] ?? dimension;
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'MAGELIAN';
+  wb.creator = 'dentsu.explore';
   wb.created = new Date();
 
   // ── Onglet 1 : les données ──────────────────────────────────────────────

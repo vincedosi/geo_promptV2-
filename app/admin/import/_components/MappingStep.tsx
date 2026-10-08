@@ -104,7 +104,7 @@ export function MappingStep({
             {/* Standard fields */}
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 10 }}>
-                {'// champs GENESIS → colonnes fichier'}
+                {'// champs dentsu.explore → colonnes fichier'}
               </div>
               {genesisFields.map((field) => (
                 <ColSelect

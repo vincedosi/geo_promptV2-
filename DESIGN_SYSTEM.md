@@ -1,4 +1,4 @@
-# MAGELIAN — Design System Reference
+# dentsu.explore — Design System Reference
 
 > Ce fichier est la source de vérité pour TOUT travail frontend.
 > Claude Code DOIT lire et appliquer ces règles avant toute modification UI.
@@ -7,11 +7,22 @@
 
 ## 1. Identité de marque
 
-- **Nom** : MAGELIAN
-- **Tagline** : Geospatial intelligence
-- **Logotype** : Wordmark SVG `MAGELIAN` (public/magelian-icon.svg) — hauteur 18-24px selon contexte
-- **Logo dans le SaaS** : `<img src="/magelian-icon.svg" alt="MAGELIAN" />` partout (sidebar, splash, topbar, login)
-- **geo.prompt** : Nom de la fonctionnalité copilote IA à l'intérieur de la plateforme
+- **Nom** : dentsu.explore — en minuscules, avec le point. Renommé le
+  2026-10-08 : MAGELIAN, GENESIS et GEOMATIK sont des noms abandonnés, à ne
+  plus écrire dans aucun texte visible. Les identifiants internes qui les
+  portent encore (`--carte-magelian-*`, `applyMagelianStyle`,
+  `components/magelian/`, la valeur `'magelian'` de `dsp_source`) restent tels
+  quels pour l'instant : personne ne les voit, et les tests de parité
+  React/Angular les verrouillent.
+- **Tagline** : Geospatial intelligence (conservée)
+- **Logotype** : ⚠ **logo dentsu en cours de remplacement.** Tant que le
+  fichier officiel n'est pas déposé, `public/magelian-icon.svg` (et le SVG
+  inline de `angular/src/app/ui/logo/`) portent encore l'ancien wordmark. Ne
+  jamais redessiner le logo dentsu de mémoire.
+- **Le bouton d'ouverture de l'overlay de campagne** s'appelle « Campagnes »
+  (il s'appelait « MAGELIAN ») ; le fond de carte maison s'appelle « dentsu ».
+- **geo.prompt** : nom du copilote IA, voué à disparaître avec la suppression de
+  l'IA — pas renommé.
 
 ---
 
@@ -102,7 +113,7 @@ neuf, il dit ce que l'élément EST.
 ### Accent de marque
 | Token | Hex (dark) | Hex (light) | Usage |
 |-------|-----------|-------------|-------|
-| --brand-teal | #4ecdc4 | #4ecdc4 | Accent MAGELIAN : tabs actifs, boutons send, dots de section, liens, focus |
+| --brand-teal | #4ecdc4 | #4ecdc4 | Accent de marque : tabs actifs, boutons send, dots de section, liens, focus |
 | --brand-teal-hover | #3dbdb5 | #3dbdb5 | Hover du teal |
 | --brand-teal-10 | rgba(78,205,196,0.1) | rgba(78,205,196,0.1) | Fond d'un élément teal (tag, pastille) |
 | --brand-teal-30 | rgba(78,205,196,0.3) | rgba(78,205,196,0.3) | Borders hover subtiles, badges |
@@ -263,9 +274,9 @@ L'intensité à l'intérieur d'un niveau ne passe PAS par la teinte mais par
 C'est ce qui permet de lire la distance et le niveau d'un seul coup d'œil : la
 teinte dit lequel, l'opacité dit combien on s'en éloigne.
 
-### Fond de carte « MAGELIAN »
+### Fond de carte « dentsu » (identifiant `magelian`)
 
-Le fond « MAGELIAN » de la carte principale est le style Positron repeint par
+Le fond « dentsu » de la carte principale (libellé « MAGELIAN » jusqu'au 2026-10-08) est le style Positron repeint par
 `applyMagelianStyle` (`lib/map/magelian-style.ts`). Ses quinze rôles sont des
 jetons DÉDIÉS, aux valeurs exactes de `MAGELIAN_PALETTE` dans les deux thèmes :
 la carte ne dépend ainsi d'aucun jeton d'interface (retoucher une bordure d'UI ne
@@ -454,7 +465,7 @@ Style obligatoire pour chaque titre de section dans un panel latéral :
 ### Sidebar
 - Largeur : 240px, position fixed left
 - Background : #0a0a0a, border-right 0.5px solid #1a1a1a
-- Logo MAGELIAN en haut : `<img src="/magelian-icon.svg" />` (hauteur 18px)
+- Logo en haut : `<img src="/magelian-icon.svg" />` (hauteur 18px)
 - Items : Inter 400, 13px, #a0a0a0
 - Item actif : background #151515, color #f0f0f0, border-left 2px solid #f0f0f0
 - Sections labels : Inter 400, 11px, #666666, lowercase
@@ -463,7 +474,7 @@ Style obligatoire pour chaque titre de section dans un panel latéral :
 ### Page login
 - Pas de sidebar
 - Split screen : formulaire à gauche, vitrine à droite
-- Logo MAGELIAN complet en haut du formulaire
+- Logo complet en haut du formulaire
 
 ### Page copilote/map
 - Pas de sidebar (plein écran)

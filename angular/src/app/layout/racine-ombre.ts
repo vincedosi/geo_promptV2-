@@ -27,7 +27,7 @@ export function monterRacineOmbre(): void {
     // où aller et l'écran s'afficherait sans aucun style.
     if (!ombre) {
       throw new Error(
-        `MAGELIAN : <${hote.localName}> doit être déclaré en ViewEncapsulation.ShadowDom — ` +
+        `dentsu.explore : <${hote.localName}> doit être déclaré en ViewEncapsulation.ShadowDom — ` +
         "sa feuille de style globale ne peut être adoptée que par une racine d'ombre.",
       );
     }

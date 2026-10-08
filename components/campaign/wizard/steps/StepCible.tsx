@@ -194,7 +194,7 @@ export function StepCible({
       footer={<StandardFooter onPrev={() => {}} isFirst nextLabel="Continuer →" onNext={onNext} />}
     >
       <Lead>
-        Le <B>« où »</B> : construis ta cible depuis les données, ou pioche dans tes zones. MAGELIAN
+        Le <B>« où »</B> : construis ta cible depuis les données, ou pioche dans tes zones. dentsu.explore
         concentre la diffusion dessus.
       </Lead>
 

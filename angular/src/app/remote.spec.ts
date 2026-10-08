@@ -400,7 +400,7 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
   });
 
   describe("sans session dans l'hôte (défaut racine : un message, jamais une navigation)", () => {
-    const MESSAGE = 'Session requise — connectez-vous à AIDA pour accéder à MAGELIAN.';
+    const MESSAGE = 'Session requise — connectez-vous à AIDA pour accéder à dentsu.explore.';
     const racine = (h: RouterTestingHarness) => ombre(h.fixture.nativeElement as HTMLElement);
     const appelsApi = (http: HttpTestingController) => http.match((r) => r.url.startsWith('/api/'));
 

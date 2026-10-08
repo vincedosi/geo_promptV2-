@@ -266,7 +266,7 @@ export default function OrganizationsPage() {
             <div style={{ fontSize: 12, color: C.textSec, lineHeight: 1.6, fontFamily: fontInter }}>
               <p style={{ margin: '0 0 8px' }}><strong style={{ color: C.text }}>Principe :</strong> Chaque organisation ne voit que ses propres donnees.</p>
               <p style={{ margin: '0 0 8px' }}>Quand un admin importe des panneaux pour <strong style={{ color: C.text }}>BMW France</strong>, ces donnees sont taggees avec l&apos;organisation BMW. Un utilisateur <strong style={{ color: C.text }}>Mercedes</strong> ne les verra jamais.</p>
-              <p style={{ margin: 0 }}>L&apos;admin GENESIS (super_admin) peut <strong style={{ color: C.text }}>partager</strong> une source entre organisations depuis la page <em>Sources</em>.</p>
+              <p style={{ margin: 0 }}>Le super_admin dentsu.explore peut <strong style={{ color: C.text }}>partager</strong> une source entre organisations depuis la page <em>Sources</em>.</p>
             </div>
             <div style={{
               marginTop: 12,

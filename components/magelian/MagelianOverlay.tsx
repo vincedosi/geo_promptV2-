@@ -365,7 +365,7 @@ export function MagelianOverlay() {
       className="magelian-overlay-panel"
       data-state={closing ? 'closing' : 'open'}
       role="dialog"
-      aria-label="MAGELIAN"
+      aria-label="Campagnes"
       hidden={masque}
       aria-hidden={masque}
       inert={masque}
@@ -435,7 +435,7 @@ export function MagelianOverlay() {
             flex: 1,
           }}
         >
-          MAGELIAN
+          Campagnes
         </span>
         {canToggleDemo && (
           <label

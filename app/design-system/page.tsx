@@ -233,7 +233,7 @@ export default function DesignSystemPage() {
             </span>
           </div>
           <h1 className="text-2xl font-mono font-bold tracking-tight text-foreground">
-            GENESIS Dark Minimal
+            dentsu.explore Dark Minimal
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             shadcn/ui · New York style · Dark only · Inter + JetBrains Mono
@@ -438,7 +438,7 @@ export default function DesignSystemPage() {
 
         {/* ── Mocks ── */}
         <section>
-          <SectionTitle>Mocks — Composants GENESIS</SectionTitle>
+          <SectionTitle>Mocks — Composants dentsu.explore</SectionTitle>
           <div className="flex gap-6 flex-wrap items-start">
             <ScorePanel />
             <MockSidebar />

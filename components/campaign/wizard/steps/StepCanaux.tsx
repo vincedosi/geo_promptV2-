@@ -163,7 +163,7 @@ export function StepCanaux({
       }
     >
       <Lead>
-        Déclare les plateformes de diffusion, le budget de chacune et la période. MAGELIAN pace la dépense pour ne jamais dépasser.
+        Déclare les plateformes de diffusion, le budget de chacune et la période. dentsu.explore pace la dépense pour ne jamais dépasser.
       </Lead>
 
       {catalog === null && <div style={{ fontFamily: fInter, fontSize: 12, color: C.textDim }}>Chargement…</div>}

@@ -98,7 +98,7 @@ export function buildPressureBiddingScript(
   ].filter(Boolean).join(' · ');
 
   return [
-    `# MAGELIAN — custom bidding « ${strategyName} »`,
+    `# dentsu.explore — custom bidding « ${strategyName} »`,
     ...(metaLine ? [`# ${metaLine}`] : []),
     `# ${tiers.length} paliers de score, ${pyFloat(outZoneScore)} hors zone.`,
     `# À coller dans DV360 : Custom bidding > Scripted > nouvel algorithme.`,

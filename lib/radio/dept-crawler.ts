@@ -119,7 +119,7 @@ export async function crawlAllDepartments(
     try {
       const res = await fetch(url, {
         headers: {
-          'User-Agent': 'MAGELIAN/1.0 (Dentsu France; geospatial research)',
+          'User-Agent': 'dentsu.explore/1.0 (Dentsu France; geospatial research)',
           Accept: 'text/html',
         },
         signal: AbortSignal.timeout(10_000),
@@ -131,7 +131,7 @@ export async function crawlAllDepartments(
         const altSlug = slug.replace(/-fm$/, '').replace(/-radio$/, '');
         if (altSlug !== slug) {
           const altRes = await fetch(`${BASE_URL}/frequence-${altSlug}.html`, {
-            headers: { 'User-Agent': 'MAGELIAN/1.0', Accept: 'text/html' },
+            headers: { 'User-Agent': 'dentsu.explore/1.0', Accept: 'text/html' },
             signal: AbortSignal.timeout(10_000),
           });
           if (altRes.ok) {

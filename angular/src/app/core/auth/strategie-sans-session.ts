@@ -34,4 +34,4 @@ export const STRATEGIE_SANS_SESSION = new InjectionToken<StrategieSansSession>('
 export const STRATEGIE_AUTONOME: StrategieSansSession = { mode: 'rediriger', chemin: '/connexion' };
 
 /** Le texte affiché sans session dans l'hôte. */
-export const MESSAGE_SANS_SESSION = 'Session requise — connectez-vous à AIDA pour accéder à MAGELIAN.';
+export const MESSAGE_SANS_SESSION = 'Session requise — connectez-vous à AIDA pour accéder à dentsu.explore.';

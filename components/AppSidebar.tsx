@@ -224,7 +224,7 @@ function SidebarContent({ pathname }: { pathname: string }) {
             <path d="M14 2L25.5 8.5V19.5L14 26L2.5 19.5V8.5L14 2Z" stroke="currentColor" strokeWidth="1.8" />
             <circle cx="14" cy="14" r="2.5" fill="currentColor" />
           </svg>
-          <span className="flex-1 text-left leading-none">MAGELIAN</span>
+          <span className="flex-1 text-left leading-none">Campagnes</span>
           <ArrowUpRight
             size={14}
             strokeWidth={1.75}

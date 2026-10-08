@@ -34,7 +34,7 @@ describe('monterRacineOmbre', () => {
   it("LÈVE, en le disant, quand le composant n'a pas de racine d'ombre : sa feuille n'aurait nulle part où aller", () => {
     preparer(true);
     expect(() => TestBed.createComponent(SansOmbre)).toThrow(
-      /MAGELIAN : <[a-z-]+> doit être déclaré en ViewEncapsulation\.ShadowDom/,
+      /dentsu\.explore : <[a-z-]+> doit être déclaré en ViewEncapsulation\.ShadowDom/,
     );
   });
 

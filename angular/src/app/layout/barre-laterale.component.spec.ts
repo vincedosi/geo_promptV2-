@@ -68,9 +68,9 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     }
   });
 
-  it('le bouton « MAGELIAN » est présent et inerte (arbitrage 6)', async () => {
+  it('le bouton « Campagnes » est présent et inerte (arbitrage 6)', async () => {
     const el = await rendre();
-    const bouton = [...el.querySelectorAll('button')].find((b) => texte(b) === 'MAGELIAN')!;
+    const bouton = [...el.querySelectorAll('button')].find((b) => texte(b) === 'Campagnes')!;
     expect(bouton).toBeTruthy();
     expect(bouton.getAttribute('aria-disabled')).toBe('true');
     expect(bouton.getAttribute('title')).toBe('Disponible prochainement');

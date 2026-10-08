@@ -685,7 +685,7 @@ function ProvenanceDesZones() {
           <p style={{ ...para, margin: 0 }}>
             <strong style={fort}>Comment les distinguer à l&apos;écran :</strong>{' '}
             trait plein = périmètre publié par l&apos;État, opposable. Trait
-            tireté = zone que MAGELIAN calcule à partir du rayon choisi
+            tireté = zone que dentsu.explore calcule à partir du rayon choisi
             ci-dessus, sans valeur réglementaire.
           </p>
         </div>

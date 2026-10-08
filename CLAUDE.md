@@ -1,4 +1,4 @@
-# CLAUDE.md — MAGELIAN
+# CLAUDE.md — dentsu.explore
 
 > Chaque ligne ici prévient une erreur réelle. Si tu l'ignores, l'app casse.
 
@@ -14,7 +14,7 @@ index + sous-fichiers est à faire après le lot 4 Angular.
 
 ## Projet
 
-**MAGELIAN** — SaaS B2B géomarketing OOH/DOOH. Planification d'affichage extérieur sur données INSEE.
+**dentsu.explore** (anciennement MAGELIAN, et GENESIS avant lui — renommé le 2026-10-08) — SaaS B2B géomarketing OOH/DOOH. Planification d'affichage extérieur sur données INSEE.
 Stack : Next.js 15 App Router · TypeScript strict · Supabase Pro (PostgreSQL **17.6** + PostGIS, compute **Micro**) · MapLibre GL JS · Vercel AI SDK (Gemini 2.5 Flash / Mistral Small) · Tailwind CSS · Inngest · Zod · Vitest
 ### ⛔ BASE : LE LOCAL D'ABORD — la prod ne se touche pas sans accord explicite
 
