@@ -30,6 +30,30 @@ export interface SessionOrg {
 // ── Helpers privés ─────────────────────────────────────────────────────────────
 
 /**
+ * Lit le jeton d'accès dans la valeur d'un cookie de session Supabase.
+ *
+ * Deux formats : `base64-<base64url du JSON>`, celui qu'écrit `@supabase/ssr`
+ * 0.5.x PAR DÉFAUT (`createBrowserClient`, donc le navigateur) ; et le JSON
+ * brut, encodé en URI, des versions précédentes.
+ *
+ * Jusqu'au 2026-10-08 seul le second était lu : la session du navigateur
+ * n'était JAMAIS reconnue par cookie, et toute route appelée par un `fetch`
+ * nu se croyait sans session — ce qui, tant que la règle d'autorisation
+ * ouvrait sans session, servait les données de toutes les organisations.
+ */
+function jetonDuCookie(valeur: string): string | null {
+  try {
+    const json = valeur.startsWith('base64-')
+      ? Buffer.from(valeur.slice('base64-'.length), 'base64url').toString('utf8')
+      : decodeURIComponent(valeur);
+    const parsed = JSON.parse(json) as { access_token?: string };
+    return parsed.access_token ?? null;
+  } catch {
+    return null; // malformé
+  }
+}
+
+/**
  * Extrait le JWT depuis la requête entrante :
  * 1. Header Authorization: Bearer <token>
  * 2. Cookie sb-<projectRef>-auth-token (fallback SSR partiel)
@@ -52,10 +76,8 @@ function extractToken(request: NextRequest): string | null {
     // Cookie simple
     const simple = request.cookies.get(base)?.value;
     if (simple) {
-      try {
-        const parsed = JSON.parse(decodeURIComponent(simple)) as { access_token?: string };
-        if (parsed.access_token) return parsed.access_token;
-      } catch { /* malformé */ }
+      const jeton = jetonDuCookie(simple);
+      if (jeton) return jeton;
     }
 
     // Cookie chunké (.0, .1, ...) — format @supabase/ssr
@@ -66,10 +88,10 @@ function extractToken(request: NextRequest): string | null {
       chunks.push(chunk);
     }
     if (chunks.length > 0) {
-      try {
-        const parsed = JSON.parse(decodeURIComponent(chunks.join(''))) as { access_token?: string };
-        if (parsed.access_token) return parsed.access_token;
-      } catch { /* malformé */ }
+      // @supabase/ssr découpe la valeur ENTIÈRE, préfixe `base64-` compris :
+      // on recolle avant de décoder.
+      const jeton = jetonDuCookie(chunks.join(''));
+      if (jeton) return jeton;
     }
   }
 
