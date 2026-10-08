@@ -4,6 +4,7 @@ import { SessionBadge } from '@/components/SessionBadge';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ENTREES_NAVIGATION, LARGEUR_RAIL } from '@/lib/navigation/config';
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
+import { LogoDentsu } from '@/components/ui/LogoDentsu';
 
 /** Hauteur de la top bar — utilisée par page.tsx pour caler paddingTop. */
 export const MAP_TOPBAR_HEIGHT = 44;
@@ -55,14 +56,9 @@ export function MapTopBar() {
         WebkitBackdropFilter: 'blur(var(--backdrop-blur, 4px))',
       }}
     >
-      {/* ── Logo MAGELIAN ─────────────────────────────────────────── */}
+      {/* ── Logo ─────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- logotype SVG : next/image n'optimise pas le SVG, et DESIGN_SYSTEM.md impose la balise img pour /magelian-icon.svg partout */}
-        <img
-          src="/magelian-icon.svg"
-          alt="MAGELIAN"
-          style={{ height: 18, width: 'auto', display: 'block' }}
-        />
+        <LogoDentsu hauteur={18} />
       </div>
 
       {/* ── Campagne active + bascule Campagne / Carte (Tâche 9) ─────

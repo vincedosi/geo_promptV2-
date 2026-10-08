@@ -25,6 +25,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Menu } from 'lucide-react'
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext'
+import { LogoDentsu } from '@/components/ui/LogoDentsu'
 
 // ─── Nav data ──────────────────────────────────────────────────────────────────
 
@@ -165,39 +166,10 @@ function SidebarContent({ pathname }: { pathname: string }) {
 
       {/* ── Header / Logo ──────────────────────────────────────────────────── */}
       <div className="px-4 pt-5 pb-4">
-        <div className="flex items-center gap-2">
-          {/* Hexagon icon */}
-          <svg
-            width="28"
-            height="28"
-            viewBox="0 0 28 28"
-            fill="none"
-            className="shrink-0"
-          >
-            <path
-              d="M14 2L25.5 8.5V19.5L14 26L2.5 19.5V8.5L14 2Z"
-              stroke="var(--brand-teal)"
-              strokeWidth="1"
-              fill="none"
-            />
-            <path
-              d="M14 7L20.5 10.5V17.5L14 21L7.5 17.5V10.5L14 7Z"
-              stroke="var(--brand-teal)"
-              strokeWidth="0.5"
-              fill="rgba(78,205,196,0.06)"
-            />
-            <circle cx="14" cy="14" r="2" fill="var(--brand-teal)" opacity="0.5" />
-          </svg>
-          {/* eslint-disable-next-line @next/next/no-img-element -- logotype SVG : next/image n'optimise pas le SVG, et DESIGN_SYSTEM.md impose la balise img pour /magelian-icon.svg partout */}
-          <img
-            src="/magelian-icon.svg"
-            alt="MAGELIAN"
-            style={{ height: 18, width: 'auto', display: 'block' }}
-          />
-        </div>
+        <LogoDentsu hauteur={20} />
         <p
           className="mt-1.5 text-[11px]"
-          style={{ color: 'var(--text-tertiary)', fontWeight: 400, paddingLeft: 36 }}
+          style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}
         >
           Geospatial intelligence
         </p>
@@ -205,7 +177,7 @@ function SidebarContent({ pathname }: { pathname: string }) {
 
       <Separator style={{ background: 'var(--border-subtle)', height: '0.5px' }} />
 
-      {/* ── MAGELIAN — CTA principal, ouvre l'overlay cockpit campagne ─────────── */}
+      {/* ── Campagnes — CTA principal, ouvre l'overlay cockpit campagne ─────────── */}
       <div className="px-3 pt-3">
         <button
           type="button"
@@ -219,11 +191,6 @@ function SidebarContent({ pathname }: { pathname: string }) {
             letterSpacing: '0.03em',
           }}
         >
-          {/* Hexagone MAGELIAN — même motif que le logo, en currentColor */}
-          <svg width="15" height="15" viewBox="0 0 28 28" fill="none" aria-hidden className="shrink-0">
-            <path d="M14 2L25.5 8.5V19.5L14 26L2.5 19.5V8.5L14 2Z" stroke="currentColor" strokeWidth="1.8" />
-            <circle cx="14" cy="14" r="2.5" fill="currentColor" />
-          </svg>
           <span className="flex-1 text-left leading-none">Campagnes</span>
           <ArrowUpRight
             size={14}

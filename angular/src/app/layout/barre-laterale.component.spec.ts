@@ -74,10 +74,10 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     expect(bouton).toBeTruthy();
     expect(bouton.getAttribute('aria-disabled')).toBe('true');
     expect(bouton.getAttribute('title')).toBe('Disponible prochainement');
-    expect(bouton.querySelector('mg-hexagone')).not.toBeNull();
+    expect(bouton.querySelector('mg-hexagone')).toBeNull();
   });
 
-  it('marque en tête (hexagone, logotype, signature), séparée par un filet 0,5 px', async () => {
+  it('marque en tête (logo, signature), séparée par un filet 0,5 px', async () => {
     const el = await rendre();
     expect(el.querySelector('mg-marque')).not.toBeNull();
     expect(el.querySelector('mg-marque + [data-filet]')).not.toBeNull();

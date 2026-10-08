@@ -3,7 +3,6 @@ import { ChargementService } from '../../core/chargement/chargement.service';
 import { BarreProgressionComponent } from '../../ui/barre-progression/barre-progression.component';
 import { ChampComponent } from '../../ui/champ/champ.component';
 import { type EtapeAffichee, FilEtapesComponent } from '../../ui/fil-etapes/fil-etapes.component';
-import { HexagoneComponent } from '../../ui/hexagone/hexagone.component';
 import { LogoComponent } from '../../ui/logo/logo.component';
 import { MarqueComponent } from '../../ui/marque/marque.component';
 import { IconeComponent } from '../../ui/icone/icone.component';
@@ -30,7 +29,7 @@ import { Cellule, EnteteCellule } from '../../ui/tableau/cellules';
     EntetePageComponent,
     TuileChiffreComponent,
     BarreProgressionComponent, ChampComponent, FilEtapesComponent, FilArianeComponent,
-    HexagoneComponent, IconeComponent, KpiComponent, LogoComponent, MarqueComponent, PastilleComponent, PerimeDirective, RegletteComponent, Cellule, EnteteCellule,
+    IconeComponent, KpiComponent, LogoComponent, MarqueComponent, PastilleComponent, PerimeDirective, RegletteComponent, Cellule, EnteteCellule,
   ],
   providers: [ChargementService],
   templateUrl: './catalogue.page.html',

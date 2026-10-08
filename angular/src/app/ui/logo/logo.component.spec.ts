@@ -13,25 +13,22 @@ describe('LogoComponent', () => {
     expect(el.querySelector('img')).toBeNull();
     const svg = el.querySelector('svg')!;
     expect(svg).not.toBeNull();
-    expect(svg.getAttribute('viewBox')).toBe('0 0 1600 360');
+    expect(svg.getAttribute('viewBox')).toBe('0 0 3840 812');
     expect(svg.getAttribute('role')).toBe('img');
-    expect(svg.getAttribute('aria-label')).toBe('MAGELIAN');
+    expect(svg.getAttribute('aria-label')).toBe('dentsu.explore');
   });
 
-  it('accents au vert du fichier du logotype (--logo-accent), lettres au jeton --logo-lettre (texte primaire en sombre, #0d1316 du fichier en clair) — sans filtre ni dépendance à html.light', async () => {
+  it('six lettres en currentColor, posé à --text-primary par l’hôte : noir en clair, blanc en sombre — sans filtre ni couleur en dur', async () => {
     const el = await rendre();
-    const accents = el.querySelectorAll('path[data-role="accent"]');
-    const lettres = el.querySelectorAll('path[data-role="lettre"]');
-    expect(accents.length).toBe(3);
-    expect(lettres.length).toBe(7);
-    accents.forEach((p) => expect(p.getAttribute('class')).toContain('fill-logo-accent'));
-    lettres.forEach((p) => expect(p.getAttribute('class')).toContain('fill-logo-lettre'));
+    const lettres = [...el.querySelectorAll('path[data-lettre]')].map((p) => p.getAttribute('data-lettre'));
+    expect(lettres).toEqual(['d', 't', 'e', 'n', 's', 'u']);
+    expect(el.querySelector('g')!.getAttribute('fill')).toBe('currentColor');
+    expect(el.getAttribute('class')).toContain('text-primary');
     expect(el.querySelector('svg')!.getAttribute('style') ?? '').not.toContain('filter');
-    // Aucune couleur écrite en dur dans le dessin.
     expect(el.innerHTML).not.toMatch(/#[0-9a-f]{6}/i);
   });
 
-  it('taille par la hauteur : 18 px de haut, largeur suivant le rapport (barre latérale, AppSidebar.tsx:195)', async () => {
+  it('taille par la hauteur : 18 px de haut, largeur suivant le rapport (barre du haut de la carte, MapTopBar.tsx)', async () => {
     const f = TestBed.createComponent(LogoComponent);
     f.componentRef.setInput('hauteur', 18);
     await f.whenStable();

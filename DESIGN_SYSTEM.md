@@ -15,10 +15,20 @@
   quels pour l'instant : personne ne les voit, et les tests de parité
   React/Angular les verrouillent.
 - **Tagline** : Geospatial intelligence (conservée)
-- **Logotype** : ⚠ **logo dentsu en cours de remplacement.** Tant que le
-  fichier officiel n'est pas déposé, `public/magelian-icon.svg` (et le SVG
-  inline de `angular/src/app/ui/logo/`) portent encore l'ancien wordmark. Ne
-  jamais redessiner le logo dentsu de mémoire.
+- **Logotype** : le logo dentsu officiel, `public/dentsu-logo.svg` (fourni par
+  dentsu, monochrome noir, 3840 × 812). Il est affiché EN LIGNE, jamais en
+  `<img>` : `components/ui/LogoDentsu.tsx` (React) et `mg-logo`
+  (`angular/src/app/ui/logo/`) en recopient les six tracés avec
+  `fill="currentColor"` à la couleur `--text-primary` — noir en thème clair,
+  blanc en thème sombre, sans filtre ni second fichier. Taille par la hauteur
+  (barre latérale 20 px, barre de la carte 18 px, écran de chargement 32 px) ou
+  par la largeur (connexion 240 px). **Ne jamais redessiner ni retoucher un
+  tracé** : `tests/unit/design/logo-dentsu.test.ts` vérifie que les deux copies
+  et le favicon (`public/dentsu-favicon.svg`, le seul « d ») restent identiques
+  au fichier officiel.
+- **Plus d'hexagone** : l'hexagone était le motif de MAGELIAN (en-tête de la
+  barre latérale, bouton de campagne, écran de chargement). Il est retiré
+  partout ; l'icône lucide « Hexagon » de l'entrée Accueil n'est qu'une icône.
 - **Le bouton d'ouverture de l'overlay de campagne** s'appelle « Campagnes »
   (il s'appelait « MAGELIAN ») ; le fond de carte maison s'appelle « dentsu ».
 - **geo.prompt** : nom du copilote IA, voué à disparaître avec la suppression de
@@ -121,8 +131,6 @@ neuf, il dit ce que l'élément EST.
 | --brand-teal-fg | #050505 | #050505 | Texte/icône POSÉ SUR un aplat teal — **invariant**, comme le teal lui-même |
 | --point-actif-contour | #ffffff | #ffffff | Contour du point actif des courbes au survol — **invariant** : Recharts le fixe à `#fff` en dur (`ActivePoints`) dans les deux thèmes, et l'identité de rendu avec React prime |
 | --cta-hover | #d4d4d4 | #d4d4d4 | Survol du bouton CTA principal (fond `--text-primary`) — **invariant** : React le porte en littéral dans `app/login/page.tsx`, les deux thèmes compris |
-| --logo-accent | #2aa9a8 | #2aa9a8 | Accents du logotype (vert du fichier `magelian-icon.svg`, plus sombre que le teal de marque) — **invariant** |
-| --logo-lettre | var(--text-primary) | #0d1316 | Lettres du logotype : #0D1316 du fichier en clair ; en sombre la couleur du texte, le fichier noir y étant invisible |
 
 Le teal ne bascule pas avec le thème : c'est l'accent de marque, pas une
 surface. `--brand-teal-fg` est invariant pour la même raison — le dériver de
@@ -465,7 +473,7 @@ Style obligatoire pour chaque titre de section dans un panel latéral :
 ### Sidebar
 - Largeur : 240px, position fixed left
 - Background : #0a0a0a, border-right 0.5px solid #1a1a1a
-- Logo en haut : `<img src="/magelian-icon.svg" />` (hauteur 18px)
+- Logo dentsu en haut : `<LogoDentsu hauteur={20} />`, signature « Geospatial intelligence » dessous
 - Items : Inter 400, 13px, #a0a0a0
 - Item actif : background #151515, color #f0f0f0, border-left 2px solid #f0f0f0
 - Sections labels : Inter 400, 11px, #666666, lowercase
@@ -474,7 +482,7 @@ Style obligatoire pour chaque titre de section dans un panel latéral :
 ### Page login
 - Pas de sidebar
 - Split screen : formulaire à gauche, vitrine à droite
-- Logo complet en haut du formulaire
+- Logo dentsu en haut du formulaire (`<LogoDentsu largeur={240} />`)
 
 ### Page copilote/map
 - Pas de sidebar (plein écran)

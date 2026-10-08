@@ -8,16 +8,16 @@ async function rendre() {
   return f.nativeElement as HTMLElement;
 }
 
-describe('MarqueComponent (en-tête de barre, AppSidebar.tsx:164-204)', () => {
-  it('assemble hexagone 28 px, logo 18 px de haut et signature', async () => {
+describe('MarqueComponent (en-tête de barre, AppSidebar.tsx)', () => {
+  it('assemble le logo dentsu 20 px de haut et la signature, sans hexagone', async () => {
     const el = await rendre();
-    expect(el.querySelector('mg-hexagone svg')!.getAttribute('width')).toBe('28');
     const logo = el.querySelector('mg-logo') as HTMLElement;
-    expect(logo.style.height).toBe('18px');
+    expect(logo.style.height).toBe('20px');
+    expect(el.querySelector('mg-hexagone')).toBeNull();
     expect(el.querySelector('p')!.textContent!.trim()).toBe('Geospatial intelligence');
   });
 
-  it('signature : 11 px, tertiaire, poids 400, décalée de 36 px, 6 px sous la ligne', async () => {
+  it('signature : 11 px, tertiaire, poids 400, 6 px sous le logo, alignée à gauche', async () => {
     const el = await rendre();
     const p = el.querySelector('p')!;
     const cls = p.getAttribute('class')!;
@@ -25,6 +25,6 @@ describe('MarqueComponent (en-tête de barre, AppSidebar.tsx:164-204)', () => {
     expect(cls).toContain('text-tertiary');
     expect(cls).toContain('font-normal');
     expect(cls).toContain('mt-1.5');
-    expect(cls).toContain('pl-[36px]');
+    expect(cls).not.toContain('pl-[36px]');
   });
 });

@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, DOCUMENT, DestroyRef, afterNextRender, computed, inject, output, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { MODE_DEVELOPPEMENT } from '../core/environnement/mode-developpement';
-import { HexagoneComponent } from '../ui/hexagone/hexagone.component';
 import { IconeComponent } from '../ui/icone/icone.component';
 import { MarqueComponent } from '../ui/marque/marque.component';
 import { DISPONIBLE_PROCHAINEMENT, type EntreeNavigation, LIENS_DEVELOPPEMENT, SECTIONS_NAVIGATION } from './navigation';
@@ -25,7 +24,7 @@ interface EntreeIndexee extends EntreeNavigation {
  */
 @Component({
   selector: 'mg-barre-laterale',
-  imports: [RouterLink, RouterLinkActive, MarqueComponent, HexagoneComponent, IconeComponent],
+  imports: [RouterLink, RouterLinkActive, MarqueComponent, IconeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block h-full' },
   template: `
@@ -33,7 +32,7 @@ interface EntreeIndexee extends EntreeNavigation {
       <mg-marque />
       <div data-filet class="h-[0.5px] w-full shrink-0 bg-subtle"></div>
 
-      <!-- MAGELIAN — ouvrira l'overlay cockpit campagne (lot 5) : inerte d'ici là. -->
+      <!-- Campagnes — ouvrira l'overlay cockpit campagne (lot 5) : inerte d'ici là. -->
       <div class="px-3 pt-3">
         <button
           type="button"
@@ -41,7 +40,6 @@ interface EntreeIndexee extends EntreeNavigation {
           [attr.title]="prochainement"
           class="group flex w-full items-center gap-2.5 rounded-md border-0 bg-primary px-3 py-2 text-[12.5px] font-medium tracking-[0.03em] text-page transition-opacity duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--brand-teal-50)]"
         >
-          <mg-hexagone variante="cta" />
           <span class="flex-1 text-left leading-none">Campagnes</span>
           <mg-icone
             nom="fleche-haut-droite"

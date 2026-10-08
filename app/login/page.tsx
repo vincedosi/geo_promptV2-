@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useSignIn, useSignUp } from '@/lib/auth-client';
+import { LogoDentsu } from '@/components/ui/LogoDentsu';
 
 // ─── Preserved exactly from original ──────────────────────────────────────────
 function formatAuthError(message: string, status?: number): string {
@@ -95,13 +96,7 @@ export default function LoginPage() {
 
           {/* Header */}
           <div style={{ marginBottom: 32 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- logotype SVG : next/image n'optimise pas le SVG, et DESIGN_SYSTEM.md impose la balise img pour /magelian-icon.svg partout */}
-            <img
-              src="/magelian-icon.svg"
-              alt="MAGELIAN"
-              width={240}
-              style={{ display: 'block' }}
-            />
+            <LogoDentsu largeur={240} />
           </div>
 
           {/* Section title */}

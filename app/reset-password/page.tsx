@@ -24,6 +24,7 @@
 import { useState, useEffect } from 'react';
 import { Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { getSupabaseBrowser } from '@/lib/auth-client';
+import { LogoDentsu } from '@/components/ui/LogoDentsu';
 
 const fInter = "'Inter', system-ui, sans-serif";
 
@@ -123,8 +124,7 @@ export default function ResetPasswordPage() {
       <div style={{ width: '100%', maxWidth: 380 }}>
 
         <div style={{ marginBottom: 32 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/magelian-icon.svg" alt="MAGELIAN" width={240} style={{ display: 'block' }} />
+          <LogoDentsu largeur={240} />
         </div>
 
         {etat === 'verification' && (

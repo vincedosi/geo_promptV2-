@@ -67,13 +67,12 @@
   </div>
 
   <div class="flex flex-col gap-3" data-testid="planche-marque">
-    <mg-entete-section libelle="Marque : en-tête de barre (fond surface, 240 px), hexagones, logo 18 px de haut et 240 px de large" />
+    <mg-entete-section libelle="Marque : en-tête de barre (fond surface, 240 px), bouton Campagnes, logo 240 px de large" />
     <div class="flex flex-wrap items-start gap-6">
       <div class="w-60 bg-surface" data-testid="marque-entete"><mg-marque /></div>
-      <div class="flex items-center gap-4 text-primary" data-testid="marque-hexagones">
-        <mg-hexagone variante="marque" />
+      <div class="flex items-center gap-4 text-primary" data-testid="marque-bouton">
         <span class="inline-flex items-center gap-2.5 rounded-md bg-primary px-3 py-2 text-[12.5px] font-medium text-page">
-          <mg-hexagone variante="cta" /> Campagnes
+          Campagnes
         </span>
       </div>
       <div data-testid="marque-logo-240"><mg-logo [largeur]="240" /></div>
