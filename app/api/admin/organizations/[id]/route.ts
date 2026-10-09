@@ -8,7 +8,7 @@ import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { lireCorps } from '@/lib/api/valider-corps';
-import { SLUG_ORGANISATION_INTERNE } from '@/lib/espaces/nom-espace';
+import { ID_ORGANISATION_INTERNE, SLUG_ORGANISATION_INTERNE } from '@/lib/espaces/nom-espace';
 import { FILTRE_SOURCE_NON_SUPPRIMEE } from '@/lib/auth/getOrgSourceIds';
 
 export const dynamic = 'force-dynamic';
@@ -80,6 +80,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     delete body.active;
   }
 
+  // Le slug de l'espace interne est lu par des scripts et la démo : il ne
+  // change pas. Renvoyer le même (formulaire entier) reste accepté.
+  if (id.toLowerCase() === ID_ORGANISATION_INTERNE && body.slug !== undefined && body.slug !== SLUG_ORGANISATION_INTERNE) {
+    return NextResponse.json({ success: false, error: "Le slug de l'espace interne ne se modifie pas." }, { status: 409 });
+  }
+
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = body.name;
   if (body.description !== undefined) updates.description = body.description;
@@ -122,8 +128,9 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return NextResponse.json({ success: false, error: 'Organisation introuvable' }, { status: 404 });
   }
   // L'espace interne porte les données du socle : la page masque le bouton,
-  // mais un appel direct ne doit pas pouvoir le supprimer non plus.
-  if (org.slug === SLUG_ORGANISATION_INTERNE) {
+  // mais un appel direct ne doit pas pouvoir le supprimer non plus. Gardé par
+  // l'IDENTIFIANT : le slug se modifie par PATCH.
+  if (org.id === ID_ORGANISATION_INTERNE) {
     return NextResponse.json({ success: false, error: "L'espace interne porte les données du socle : il ne se supprime pas." }, { status: 409 });
   }
 
