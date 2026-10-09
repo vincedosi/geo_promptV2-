@@ -20,12 +20,13 @@ function espace(id: string, nom: string, nb: number): EspaceResume {
   return { id, nom, nom_affiche: nom, slug: nom.toLowerCase(), actif: true, interne: false, nb_membres: nb, nb_jeux_prives: 0 };
 }
 
-async function monter(etat?: Record<string, unknown>) {
+/** `'reel'` : le vrai `EspacesEtatService` (lit `GET admin/espaces`) au lieu d'un double. */
+async function monter(etat?: Record<string, unknown> | 'reel') {
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(), provideHttpClientTesting(), EspacesApi, NotificationsService,
       provideRouter([{ path: 'espaces/:id', component: FicheEspaceComponent }, { path: 'espaces', children: [] }]),
-      {
+      etat === 'reel' ? EspacesEtatService : {
         provide: EspacesEtatService,
         useValue: etat ?? {
           espaces: signal([espace(A, 'Espace A', 2), espace(B, 'Espace B', 5)]),
@@ -156,5 +157,50 @@ describe('FicheEspaceComponent', () => {
     await harnais.fixture.whenStable();
     expect(el().querySelector('[role="tablist"]')).toBeNull();
     http.expectNone(`/api/admin/espaces/${A}/membres`);
+  });
+
+  it('« Compte créé » survit à une relecture de la liste en échec : onglets et lien d\'usage unique restent', async () => {
+    // jsdom n'implémente ni `showModal` ni `close`.
+    Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+      value: vi.fn(function (this: HTMLDialogElement) { this.setAttribute('open', ''); }), configurable: true, writable: true,
+    });
+    Object.defineProperty(HTMLDialogElement.prototype, 'close', {
+      value: vi.fn(function (this: HTMLDialogElement) {
+        if (!this.hasAttribute('open')) return;
+        this.removeAttribute('open');
+        this.dispatchEvent(new Event('close'));
+      }), configurable: true, writable: true,
+    });
+    const LIEN = 'https://exemple.test/auth/v1/verify?token=usage-unique';
+    const { harnais, http, el } = await monter('reel');
+    TestBed.inject(EspacesEtatService).charger();
+    http.expectOne('/api/admin/espaces').flush({ socle: { nb_jeux: 3 }, espaces: [espace(A, 'Espace A', 2)] });
+    await harnais.navigateByUrl(`/espaces/${A}`, FicheEspaceComponent);
+    http.expectOne(`/api/admin/espaces/${A}/membres`).flush({ membres: [] });
+    await harnais.fixture.whenStable();
+
+    el().querySelector<HTMLButtonElement>('[data-ajouter]')!.click();
+    await harnais.fixture.whenStable();
+    http.expectOne((r) => r.url === '/api/admin/users' && r.method === 'GET').flush([]);
+    el().querySelector<HTMLButtonElement>('[data-mode="nouveau"]')!.click();
+    await harnais.fixture.whenStable();
+    const email = el().querySelector<HTMLInputElement>('[data-email]')!;
+    email.value = 'nom@exemple.fr';
+    email.dispatchEvent(new Event('input'));
+    await harnais.fixture.whenStable();
+    el().querySelector('form[data-nouveau]')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await harnais.fixture.whenStable();
+    http.expectOne((r) => r.url === '/api/admin/users' && r.method === 'POST')
+      .flush({ id: 'n1', email: 'nom@exemple.fr', setup_link: LIEN }, { status: 201, statusText: 'Created' });
+    await harnais.fixture.whenStable();
+
+    // L'ajout relit les membres et la liste de la page ; la liste échoue une fois.
+    http.expectOne(`/api/admin/espaces/${A}/membres`).flush({ membres: [] });
+    http.expectOne('/api/admin/espaces').flush({ error: 'Coupure' }, { status: 500, statusText: 'x' });
+    await harnais.fixture.whenStable();
+
+    expect(el().querySelector('[role="tablist"]')).not.toBeNull();
+    expect(el().textContent).toContain('Compte créé');
+    expect(el().querySelector<HTMLInputElement>('input[data-lien-secret]')!.value).toBe(LIEN);
   });
 });

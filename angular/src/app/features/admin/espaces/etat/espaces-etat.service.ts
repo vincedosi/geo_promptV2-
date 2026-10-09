@@ -1,5 +1,6 @@
 import { DestroyRef, Injectable, type Signal, computed, inject, signal, untracked } from '@angular/core';
 import type { Subscription } from 'rxjs';
+import { NotificationsService } from '../../../../ui/notifications/notifications.service';
 import { EspacesApi } from '../data/espaces.api';
 import { messageErreur } from '../logique/libelles';
 import type { EspaceResume } from '../logique/types';
@@ -12,10 +13,16 @@ import type { EspaceResume } from '../logique/types';
  *
  * `@Injectable()` SANS `providedIn` : fourni par `EspacesPage`, détruit avec elle (sa requête en
  * vol est alors abandonnée). Zoneless : tout passe par des signaux.
+ *
+ * Une relecture en échec APRÈS une lecture réussie garde la liste et le compteur du socle et se
+ * contente d'une notification : vider la liste démonterait la fiche ouverte, ses onglets et ses
+ * dialogues — dont « Compte créé », qui montre un lien d'usage unique. Seul un PREMIER chargement
+ * en échec vide l'état et pose `erreur()` (la colonne affiche alors « Réessayer »).
  */
 @Injectable()
 export class EspacesEtatService {
   private readonly api = inject(EspacesApi);
+  private readonly notifications = inject(NotificationsService);
   private requete: Subscription | null = null;
   /** Vrai après une lecture RÉUSSIE : `charger()` ne relit plus. Une erreur ne compte pas. */
   private charge = false;
@@ -74,10 +81,14 @@ export class EspacesEtatService {
         this.enCours.set(false);
       },
       error: (e: unknown) => {
+        this.enCours.set(false);
+        if (this.charge) {
+          this.notifications.error(messageErreur(e));
+          return;
+        }
         this.liste.set([]);
         this.compteurSocle.set(null);
         this.echec.set(messageErreur(e));
-        this.enCours.set(false);
       },
     });
   }

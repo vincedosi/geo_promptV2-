@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ConfigService } from '../../../../core/config/config.service';
+import { NotificationsService } from '../../../../ui/notifications/notifications.service';
 import { EspacesApi } from '../data/espaces.api';
 import type { EspaceResume, ReponseEspaces } from '../logique/types';
 import { EspacesEtatService } from './espaces-etat.service';
@@ -25,7 +26,7 @@ describe('EspacesEtatService', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(), provideHttpClientTesting(), EspacesApi, EspacesEtatService,
+        provideHttpClient(), provideHttpClientTesting(), EspacesApi, EspacesEtatService, NotificationsService,
         { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       ],
     });
@@ -73,6 +74,24 @@ describe('EspacesEtatService', () => {
     http.expectOne(URL).flush(reponse());
     expect(etat.erreur()).toBeNull();
     expect(etat.espaces()).toHaveLength(2);
+  });
+
+  it('recharger en échec garde la liste et le socle ; l\'erreur est notifiée, pas posée sur la page', () => {
+    const erreurs = vi.spyOn(TestBed.inject(NotificationsService), 'error');
+    etat.charger();
+    http.expectOne(URL).flush(reponse());
+    etat.recharger();
+    http.expectOne(URL).flush({ error: 'Coupure passagère' }, { status: 500, statusText: 'Server Error' });
+    expect(etat.espaces().map((e) => e.id)).toEqual(['a', 'b']);
+    expect(etat.socle()).toEqual({ nb_jeux: 3 });
+    expect(etat.chargement()).toBe(false);
+    // `erreur()` remplacerait la colonne par un bloc d'erreur : réservé au premier chargement.
+    expect(etat.erreur()).toBeNull();
+    expect(erreurs).toHaveBeenCalledWith('Coupure passagère');
+    // Une relecture suivante qui réussit remplace la liste comme d'habitude.
+    etat.recharger();
+    http.expectOne(URL).flush({ socle: { nb_jeux: 4 }, espaces: [espace({ id: 'c' })] });
+    expect(etat.espaces().map((e) => e.id)).toEqual(['c']);
   });
 
   it('espace(id) suit la liste (computed) : null avant, l\'espace après, null s\'il disparaît', () => {
