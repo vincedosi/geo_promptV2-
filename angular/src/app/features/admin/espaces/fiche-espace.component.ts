@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { EspacesEtatService } from './etat/espaces-etat.service';
+import { OngletApercuComponent } from './onglet-apercu.component';
 import { OngletDonneesComponent } from './onglet-donnees.component';
 import { OngletMembresComponent } from './onglet-membres.component';
 
@@ -15,8 +16,8 @@ const ONGLETS: readonly Onglet[] = ['membres', 'donnees', 'apercu', 'reglages'];
  *   ouverts (ils sont démontés, leurs lectures en vol abandonnées) ; l'onglet Membres, lui, relit
  *   pour le nouvel espace (son `espaceId` est un input réactif).
  * - Un onglet n'est créé — et ne lit rien — qu'à sa PREMIÈRE ouverture ; il reste ensuite monté
- *   (caché) pour ne pas relire à chaque aller-retour. Membres (T7) et Données (T8) sont branchés ; Aperçu
- *   et Réglages ne sont encore que des emplacements (T9 et T10).
+ *   (caché) pour ne pas relire à chaque aller-retour. Membres (T7), Données (T8) et Aperçu (T9) sont branchés ;
+ *   Réglages n'est encore qu'un emplacement (T10).
  * - Le nom et le compteur de membres viennent de la liste de la page (`EspacesEtatService`), sans
  *   lecture de plus : à l'ouverture, un seul appel (les membres). Tant que l'espace n'est pas dans
  *   la liste (encore en lecture, en échec, ou inconnu), aucun onglet n'est monté : rien n'est lu.
@@ -24,7 +25,7 @@ const ONGLETS: readonly Onglet[] = ['membres', 'donnees', 'apercu', 'reglages'];
  */
 @Component({
   selector: 'mg-fiche-espace',
-  imports: [RouterLink, OngletMembresComponent, OngletDonneesComponent],
+  imports: [RouterLink, OngletMembresComponent, OngletDonneesComponent, OngletApercuComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (introuvable()) {
@@ -59,6 +60,11 @@ const ONGLETS: readonly Onglet[] = ['membres', 'donnees', 'apercu', 'reglages'];
       @if (ouverts().has('donnees')) {
         <div role="tabpanel" id="panneau-donnees" aria-labelledby="onglet-donnees" [hidden]="onglet() !== 'donnees'">
           <mg-onglet-donnees [espaceId]="e.id" />
+        </div>
+      }
+      @if (ouverts().has('apercu')) {
+        <div role="tabpanel" id="panneau-apercu" aria-labelledby="onglet-apercu" [hidden]="onglet() !== 'apercu'">
+          <mg-onglet-apercu [espaceId]="e.id" />
         </div>
       }
       @for (o of ongletsEnAttente(); track o) {
@@ -123,8 +129,8 @@ export class FicheEspaceComponent {
     return ONGLETS.map((cle) => ({ cle, libelle: libelles[cle], actif: cle === actif }));
   });
 
-  /** Onglets non branchés (T9 et T10), rendus seulement après leur première ouverture. */
-  protected readonly ongletsEnAttente = computed(() => ONGLETS.filter((o) => o !== 'membres' && o !== 'donnees' && this.ouverts().has(o)));
+  /** Onglets non branchés (T10), rendus seulement après leur première ouverture. */
+  protected readonly ongletsEnAttente = computed(() => ONGLETS.filter((o) => o !== 'membres' && o !== 'donnees' && o !== 'apercu' && this.ouverts().has(o)));
 
   constructor() {
     const abonnement = inject(ActivatedRoute).paramMap.subscribe((p) => {

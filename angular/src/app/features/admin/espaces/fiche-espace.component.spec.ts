@@ -92,11 +92,19 @@ describe('FicheEspaceComponent', () => {
       el().querySelector<HTMLButtonElement>(`[data-onglet="${o}"]`)!.click();
       await harnais.fixture.whenStable();
     }
-    for (const o of ['apercu', 'reglages']) {
+    // Aperçu (T9) : un seul GET à la première ouverture, aucun aux ouvertures suivantes.
+    el().querySelector<HTMLButtonElement>('[data-onglet="apercu"]')!.click();
+    await harnais.fixture.whenStable();
+    http.expectOne(`/api/admin/espaces/${A}/apercu`).flush({ jeux: { socle: [], proprietaire: [], partage: [] }, categories: [], nb_campagnes: 0 });
+    await harnais.fixture.whenStable();
+    expect(el().querySelector('mg-onglet-apercu')).not.toBeNull();
+    for (const o of ['membres', 'apercu']) {
       el().querySelector<HTMLButtonElement>(`[data-onglet="${o}"]`)!.click();
       await harnais.fixture.whenStable();
-      expect(el().textContent).toContain('Onglet en cours de construction');
     }
+    el().querySelector<HTMLButtonElement>('[data-onglet="reglages"]')!.click();
+    await harnais.fixture.whenStable();
+    expect(el().textContent).toContain('Onglet en cours de construction');
     http.expectNone(() => true);
     expect(el().querySelector('[role="tablist"]')!.textContent).toMatch(/Membres \(2\)\s*Données\s*Aperçu\s*Réglages/);
   });
