@@ -9,6 +9,7 @@ import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { SLUG_ORGANISATION_INTERNE } from '@/lib/espaces/nom-espace';
+import { FILTRE_SOURCE_NON_SUPPRIMEE } from '@/lib/auth/getOrgSourceIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,11 +39,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const [orgRes, membersRes, sourcesRes, allSourcesRes] = await Promise.all([
     sb.from('organizations').select('*').eq('id', id).single(),
     sb.from('profiles').select('id, email, full_name, role, created_at').eq('organization_id', id),
-    sb.from('data_sources').select('id, name, type, row_count, import_date, status, shared_with').eq('organization_id', id).neq('status', 'deleted'),
+    sb.from('data_sources').select('id, name, type, row_count, import_date, status, shared_with').eq('organization_id', id).or(FILTRE_SOURCE_NON_SUPPRIMEE),
     sb.from('data_sources')
       .select('id, name, type, row_count, import_date, organization_id, shared_with, organizations(name, slug)')
       .neq('organization_id', id)
-      .neq('status', 'deleted')
+      .or(FILTRE_SOURCE_NON_SUPPRIMEE)
       .order('import_date', { ascending: false }),
   ]);
 

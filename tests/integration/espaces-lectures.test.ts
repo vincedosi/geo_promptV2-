@@ -100,3 +100,44 @@ describe('membresDeLEspace', () => {
     for (const m of membres) expect(m.autres_espaces.map((x) => x.id)).not.toContain(marine.id);
   });
 });
+
+describe('source au statut NULL : visible comme en SQL (`is distinct from deleted`)', () => {
+  // `source_visible` (sql/234) écarte `status = 'deleted'` par IS DISTINCT FROM :
+  // un statut NULL reste VISIBLE. `.neq('status','deleted')` de PostgREST, lui,
+  // écarte aussi NULL — la règle TypeScript était plus stricte que la règle SQL.
+  const admin = creerClientTest();
+  let org: string | null = null;
+  let source: string | null = null;
+
+  afterAll(async () => {
+    if (source) {
+      const { error } = await admin.from('data_sources').delete().eq('id', source);
+      if (error) console.error(`nettoyage source ${source} : ${error.message}`);
+    }
+    if (org) {
+      const { error } = await admin.from('organizations').delete().eq('id', org);
+      if (error) console.error(`nettoyage espace ${org} : ${error.message}`);
+    }
+  }, 60_000);
+
+  it('getOrgSourceIds, lireJeux et listerEspaces la comptent', async () => {
+    const { data: o, error: e1 } = await admin.from('organizations')
+      .insert({ name: '[ESSAI lectures] statut null', slug: `essai-statut-null-${Date.now()}` }).select('id').single();
+    if (e1 || !o) throw new Error(`mise en place espace : ${e1?.message}`);
+    org = o.id as string;
+    const { data: s, error: e2 } = await admin.from('data_sources')
+      .insert({ name: '[ESSAI lectures] statut null', type: 'poi', visibilite: 'privee', organization_id: org, status: null })
+      .select('id').single();
+    if (e2 || !s) throw new Error(`mise en place source : ${e2?.message}`);
+    source = s.id as string;
+
+    const ids = await getOrgSourceIds({ role: 'client', orgId: org } as never);
+    expect(ids).toContain(source);
+
+    const { lireJeux } = await import('@/lib/espaces/donnees-espace');
+    expect((await lireJeux(sb)).some((j) => j.id === source)).toBe(true);
+
+    const { espaces } = await listerEspaces(sb);
+    expect(espaces.find((e) => e.id === org)?.nb_jeux_prives).toBe(1);
+  });
+});

@@ -8,6 +8,7 @@ import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { lireCorps } from '@/lib/api/valider-corps';
+import { FILTRE_SOURCE_NON_SUPPRIMEE } from '@/lib/auth/getOrgSourceIds';
 
 /**
  * `name` etait lu par `body.name?.trim()` : un nombre y levait un TypeError
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
       // Une ligne par appartenance ; bornee par (comptes x espaces), quelques
       // dizaines — sous le plafond serveur de 1 000 lignes.
       supabase.from('organization_members').select('organization_id').in('organization_id', orgIds),
-      supabase.from('data_sources').select('organization_id').in('organization_id', orgIds).neq('status', 'deleted'),
+      supabase.from('data_sources').select('organization_id').in('organization_id', orgIds).or(FILTRE_SOURCE_NON_SUPPRIMEE),
       supabase.from('dsp_campaigns').select('organization_id').in('organization_id', orgIds),
     ]);
 

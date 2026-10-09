@@ -29,6 +29,16 @@ import type { SessionOrg } from '@/lib/auth/getSessionOrg';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * « Source non supprimée », au sens de la base : `status IS DISTINCT FROM
+ * 'deleted'` (`source_visible`, `ds_select`, sql/234). À passer à `.or()`.
+ *
+ * `.neq('status', 'deleted')` ne dit PAS la même chose : en SQL `NULL <> x`
+ * n'est pas vrai, il écarte donc aussi un statut NULL (la colonne est
+ * nullable). Plusieurs `.or()` sur une requête se combinent en ET.
+ */
+export const FILTRE_SOURCE_NON_SUPPRIMEE = 'status.is.null,status.neq.deleted';
+
 export async function getOrgSourceIds(
   session: SessionOrg | null,
 ): Promise<string[] | null> {
@@ -46,7 +56,7 @@ export async function getOrgSourceIds(
   const { data: sources, error } = await supabase
     .from('data_sources')
     .select('id')
-    .neq('status', 'deleted')
+    .or(FILTRE_SOURCE_NON_SUPPRIMEE)
     .or(condition);
 
   // Une lecture en échec ne doit pas se lire « aucun filtre » : [] ferme.

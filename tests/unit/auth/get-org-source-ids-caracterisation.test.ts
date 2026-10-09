@@ -24,6 +24,7 @@ type Filtre = { methode: string; argument: unknown };
 const filtresObserves: Filtre[] = [];
 const reponse: { data: { id: string }[] | null; error: { message: string } | null } = { data: [], error: null };
 
+// Chaîne « thenable » : chaque filtre la rend, l'`await` final lit `reponse`.
 function fausseChaine() {
   const chaine = {
     select() { return chaine; },
@@ -33,8 +34,9 @@ function fausseChaine() {
     },
     or(expression: string) {
       filtresObserves.push({ methode: 'or', argument: expression });
-      return Promise.resolve(reponse);
+      return chaine;
     },
+    then<T>(ok: (r: typeof reponse) => T) { return Promise.resolve(reponse).then(ok); },
   };
   return chaine;
 }
@@ -82,7 +84,10 @@ describe('getOrgSourceIds — les trois voies d accès d un client', () => {
     reponse.data = [];
     await getOrgSourceIds(session({ role: 'client', orgId: ORG_UUID }));
 
-    expect(filtresObserves).toContainEqual({ methode: 'neq', argument: 'status=deleted' });
+    // `is distinct from 'deleted'`, comme source_visible : un statut NULL reste
+    // visible (`.neq` l'aurait écarté).
+    expect(filtresObserves).toContainEqual({ methode: 'or', argument: 'status.is.null,status.neq.deleted' });
+    expect(filtresObserves.some((f) => f.methode === 'neq')).toBe(false);
     const ou = dernierOu();
     expect(ou).toContain('visibilite.eq.socle');
     expect(ou).toContain(`organization_id.eq.${ORG_UUID}`);

@@ -8,6 +8,7 @@
  */
 import type { createAdminClient } from '@/lib/auth';
 import { nomAffiche, SLUG_ORGANISATION_INTERNE } from './nom-espace';
+import { FILTRE_SOURCE_NON_SUPPRIMEE } from '@/lib/auth/getOrgSourceIds';
 import type { EspaceResume, MembreEspace, ReponseEspaces, RoleEspace } from './types';
 
 type Sb = ReturnType<typeof createAdminClient>;
@@ -30,7 +31,7 @@ export async function listerEspaces(sb: Sb): Promise<ReponseEspaces> {
   const [espaces, membres, sources] = await Promise.all([
     lireEspacesBruts(sb),
     sb.from('organization_members').select('organization_id'),
-    sb.from('data_sources').select('organization_id, visibilite').neq('status', 'deleted'),
+    sb.from('data_sources').select('organization_id, visibilite').or(FILTRE_SOURCE_NON_SUPPRIMEE),
   ]);
   if (membres.error) throw new Error(`lecture des membres : ${membres.error.message}`);
   if (sources.error) throw new Error(`lecture des sources : ${sources.error.message}`);

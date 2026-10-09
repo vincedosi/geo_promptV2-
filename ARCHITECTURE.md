@@ -1168,6 +1168,9 @@ s'arrete si la source n'a pas pu etre creee.
 `getOrgSourceIds` **ferme par defaut** : `null` (« tout voir ») est reserve au
 super_admin. Jusqu'au 2026-10-08 il rendait `null` sans session et pour un
 compte sans organisation — toute anomalie ouvrait les donnees de tous.
+« Source non supprimee » s'y ecrit `FILTRE_SOURCE_NON_SUPPRIMEE`
+(`status.is.null,status.neq.deleted`), le `is distinct from 'deleted'` du SQL :
+`.neq('status','deleted')` ecartait aussi un statut NULL (2026-10-09).
 
 Outils de `lib/auth/perimetre-donnees.ts` :
 

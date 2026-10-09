@@ -16,6 +16,7 @@
  */
 import type { createAdminClient } from '@/lib/auth';
 import { nomAffiche } from './nom-espace';
+import { FILTRE_SOURCE_NON_SUPPRIMEE } from '@/lib/auth/getOrgSourceIds';
 import type {
   JeuDeDonnees, JeuPourEspace, ProprietaireJeu, ReponseDonneesEspace, ReponseSocle, StatutJeu, TypeJeu, Visibilite,
 } from './types';
@@ -48,7 +49,7 @@ export async function lireJeux(sb: Sb): Promise<Array<JeuDeDonnees & { organizat
   const [{ data: sources, error }, espaces] = await Promise.all([
     sb.from('data_sources')
       .select('id, name, type, category, valid_count, visibilite, organization_id, shared_with')
-      .neq('status', 'deleted')
+      .or(FILTRE_SOURCE_NON_SUPPRIMEE)
       .order('name'),
     lireEspacesBruts(sb),
   ]);
