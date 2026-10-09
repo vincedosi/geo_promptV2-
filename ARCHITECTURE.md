@@ -1081,6 +1081,18 @@ avaient un espace actif sans en etre membres (rattrapes par la migration :
 
 Verrou : `tests/integration/appartenance-espaces.test.ts`.
 
+**Un compte neuf nait sans espace (`sql/237`, 2026-10-09).** Le declencheur
+`on_auth_user_created` (AFTER INSERT sur `auth.users` → `handle_new_user`)
+manquait dans la base locale : pose a la main sur le projet heberge, aucun
+fichier `sql/` ne le creait, et le dump du schema auth est en `--data-only`.
+Sans lui `POST /api/admin/users` rendait 500 « Utilisateur introuvable ». Et
+l'ancienne `handle_new_user` posait GENESIS (Global) comme espace actif SANS
+appartenance, ce que sql/236 refuse. Desormais le profil nait `client`,
+`organization_id` null, aucune appartenance (`on conflict do nothing`) ; la
+route pose l'appartenance puis l'espace actif. Pas d'appartenance automatique
+a l'espace interne : tout client cree en aurait vu les donnees. Verrou :
+`tests/integration/creation-compte.test.ts`.
+
 **Trois niveaux de visibilite d'une donnee importee**, portes par
 `data_sources.visibilite` :
 
@@ -1461,7 +1473,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/admin/sync-iris-system` | POST | Sync systeme IRIS |
 | `/api/admin/trigger-pmtiles` | POST | Declenchement generation PMTiles |
 | `/api/admin/transport-stats` | GET | Stats transport |
-| `/api/admin/users` | GET/POST | CRUD utilisateurs ; POST écrit rôle puis appartenance (`organization_members`, avant l'espace actif) ; si l'écriture échoue le compte Auth est supprimé et la route rend 500 |
+| `/api/admin/users` | GET/POST | CRUD utilisateurs ; POST s'appuie sur le profil créé par `on_auth_user_created` (sql/237, sans espace), puis écrit rôle puis appartenance (`organization_members`, avant l'espace actif) ; si l'écriture échoue le compte Auth est supprimé et la route rend 500 |
 | `/api/admin/users/[id]` | PATCH/DELETE | Modification / suppression utilisateur ; PATCH : un espace actif hors appartenance (23514, sql/236) rend 400 lisible |
 | `/api/admin/imports` | GET | Historique imports |
 | `/api/admin/init-admin` | POST | Init premier admin (protege par ADMIN_INIT_KEY) |
