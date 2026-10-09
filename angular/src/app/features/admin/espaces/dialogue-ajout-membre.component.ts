@@ -5,6 +5,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import type { Subscription } from 'rxjs';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
 import { type CompteAdmin, EspacesApi } from './data/espaces.api';
+import { ROLE_LABELS } from '../logique/roles';
 import { messageErreur } from './logique/libelles';
 import { LienSecretComponent } from './lien-secret.component';
 
@@ -53,7 +54,7 @@ let compteur = 0;
             <p class="avertissement">{{ messageSansLien }}</p>
           }
           <div class="actions">
-            <button type="button" data-terminer class="bouton principal" (click)="fermer.emit()">Terminer</button>
+            <button type="button" data-terminer class="bouton principal" (click)="terminer()">Terminer</button>
           </div>
         } @else {
           <h2 [id]="idTitre" class="titre">Ajouter un membre</h2>
@@ -201,7 +202,7 @@ export class DialogueAjoutMembreComponent {
 
   protected readonly idTitre = `mg-ajout-membre-titre-${++compteur}`;
   protected readonly messageSansLien = MESSAGE_SANS_LIEN;
-  protected readonly libelleClient = 'Client';
+  protected readonly libelleClient = ROLE_LABELS.client;
 
   readonly espaceId = input.required<string>();
   /** Identifiants des comptes déjà membres de l'espace : jamais proposés. */
@@ -311,17 +312,38 @@ export class DialogueAjoutMembreComponent {
     });
   }
 
+  /** Seule sortie de l'écran « Compte créé » : le lien est effacé de l'état, puis le parent démonte. */
+  protected terminer(): void {
+    this.compteCree.set(null);
+    this.fermer.emit();
+  }
+
+  /** Échap : ignoré pendant un envoi et sur « Compte créé » (un lien d'usage unique ne se perd pas par mégarde). */
   protected surAnnulationNative(e: Event): void {
     e.preventDefault();
-    if (!this.enCours()) this.fermer.emit();
+    if (!this.enCours() && this.compteCree() === null) this.fermer.emit();
   }
 
+  /**
+   * Fermeture native qu'on n'a pas pu empêcher (Chrome laisse passer un second Échap).
+   * - Sur « Compte créé » : le dialogue est rouvert, le lien reste lisible jusqu'à « Terminer ».
+   * - Pendant un envoi : l'écriture a pu aboutir côté serveur — `ajoute` est émis pour que le
+   *   parent relise, puis `fermer`.
+   */
   protected surFermeture(): void {
-    if (!this.detruit) this.fermer.emit();
+    if (this.detruit) return;
+    if (this.compteCree() !== null) {
+      const d = this.dialogue().nativeElement;
+      if (!d.open) d.showModal();
+      return;
+    }
+    if (this.enCours()) this.ajoute.emit();
+    this.fermer.emit();
   }
 
+  /** Clic sur le fond : même règle qu'Échap. */
   protected surClic(e: MouseEvent): void {
-    if (e.target === this.dialogue().nativeElement && !this.enCours()) this.fermer.emit();
+    if (e.target === this.dialogue().nativeElement && !this.enCours() && this.compteCree() === null) this.fermer.emit();
   }
 }
 

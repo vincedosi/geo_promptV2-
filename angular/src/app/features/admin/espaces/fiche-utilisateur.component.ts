@@ -68,7 +68,7 @@ let compteur = 0;
           <div class="radios" [attr.title]="estMoi() ? titreSoiMeme : null">
             @for (r of roles(); track r.valeur) {
               <label class="choix">
-                <input type="radio" [name]="nomGroupe" [value]="r.valeur" [checked]="r.coche" (change)="choisirRole($event)" />
+                <input type="radio" [name]="nomGroupe" [value]="r.valeur" [checked]="r.coche" [disabled]="enCours() || estMoi()" (change)="choisirRole($event)" />
                 <span>{{ r.libelle }}</span>
               </label>
             }
@@ -121,12 +121,13 @@ let compteur = 0;
 
     <mg-confirmation
       data-confirmation-role
-      [ouvert]="confirmationRole()"
-      titre="Nommer super-administrateur ?"
-      [message]="messageRole()"
-      libelleConfirmer="Nommer super-administrateur"
+      [ouvert]="roleVise() !== null"
+      [titre]="confirmationRoleTextes().titre"
+      [message]="confirmationRoleTextes().message"
+      [libelleConfirmer]="confirmationRoleTextes().bouton"
+      [variante]="confirmationRoleTextes().variante"
       [enCours]="ecritureRole()"
-      (confirmer)="envoyerRole('super_admin')"
+      (confirmer)="confirmerRole()"
       (annuler)="annulerRole()"
     />
     <mg-confirmation
@@ -234,7 +235,8 @@ export class FicheUtilisateurComponent {
   protected readonly ecritureRole = signal(false);
   private readonly ecritureEspaces = signal(false);
   protected readonly suppression = signal(false);
-  protected readonly confirmationRole = signal(false);
+  /** Rôle en attente de confirmation (les deux sens se confirment), `null` sinon. */
+  protected readonly roleVise = signal<RolePropose | null>(null);
   protected readonly confirmationSuppression = signal(false);
   protected readonly erreurEspaces = signal<string | null>(null);
 
@@ -269,9 +271,22 @@ export class FicheUtilisateurComponent {
   protected readonly aucunActif = computed(() => this.actif() === null);
 
   protected readonly libelleEspaces = computed(() => (this.ecritureEspaces() ? 'Enregistrement…' : 'Enregistrer les espaces'));
-  protected readonly messageRole = computed(
-    () => `${this.membre().email} verra les données de tous les espaces, quel que soit son espace actif.`,
-  );
+  protected readonly confirmationRoleTextes = computed(() => {
+    const email = this.membre().email;
+    return this.roleVise() === 'client'
+      ? {
+        titre: 'Retirer le rôle super-administrateur ?',
+        message: `${email} ne verra plus tous les espaces : il ne gardera que ceux dont il est membre.`,
+        bouton: 'Retirer le rôle',
+        variante: 'danger' as const,
+      }
+      : {
+        titre: 'Nommer super-administrateur ?',
+        message: `${email} verra les données de tous les espaces, quel que soit son espace actif.`,
+        bouton: 'Nommer super-administrateur',
+        variante: 'defaut' as const,
+      };
+  });
   protected readonly titreSuppression = computed(() => `Supprimer définitivement ${this.membre().email} ?`);
 
   private readonly dialogue = viewChild.required<ElementRef<HTMLDialogElement>>('dialogue');
@@ -312,34 +327,37 @@ export class FicheUtilisateurComponent {
 
   /**
    * Le navigateur a déjà coché le bouton cliqué : on remet le DOM sur le rôle accepté, puis on
-   * demande (super_admin) ou on envoie (client). Le bouton ne basculera qu'au succès du PATCH.
+   * demande confirmation, dans les deux sens. Le bouton ne basculera qu'au succès du PATCH ;
+   * une annulation laisse donc le DOM sur le rôle accepté.
    */
   protected choisirRole(e: Event): void {
     const voulu = (e.target as HTMLInputElement).value as RolePropose;
     this.resynchroniserRadios();
     if (voulu === this.role() || this.enCours() || this.estMoi()) return;
-    if (voulu === 'super_admin') this.confirmationRole.set(true);
-    else this.envoyerRole('client');
+    this.roleVise.set(voulu);
   }
 
   protected annulerRole(): void {
-    if (!this.ecritureRole()) this.confirmationRole.set(false);
+    if (this.ecritureRole()) return;
+    this.roleVise.set(null);
+    this.resynchroniserRadios();
   }
 
-  protected envoyerRole(role: RolePropose): void {
-    if (this.ecritureRole()) return;
+  protected confirmerRole(): void {
+    const role = this.roleVise();
+    if (!role || this.ecritureRole()) return;
     this.ecritureRole.set(true);
     this.suivre(this.api.modifierCompte(this.membre().id, { role }).subscribe({
       next: () => {
         this.ecritureRole.set(false);
-        this.confirmationRole.set(false);
+        this.roleVise.set(null);
         this.role.set(role);
         this.ecrit.set(true);
         this.notifications.success('Rôle enregistré', ROLE_LABELS[role]);
       },
       error: (e: unknown) => {
         this.ecritureRole.set(false);
-        this.confirmationRole.set(false);
+        this.roleVise.set(null);
         this.resynchroniserRadios();
         this.notifications.error(messageErreur(e));
       },
@@ -413,8 +431,12 @@ export class FicheUtilisateurComponent {
     this.demanderFermeture();
   }
 
+  /**
+   * Fermeture native qu'on n'a pas pu empêcher (Chrome laisse passer un second Échap). Pendant une
+   * écriture, elle a pu aboutir côté serveur : `fermer(true)` pour que le parent relise.
+   */
   protected surFermeture(): void {
-    if (!this.detruit) this.fermer.emit(this.ecrit());
+    if (!this.detruit) this.fermer.emit(this.ecrit() || this.enCours());
   }
 
   protected surClic(e: MouseEvent): void {

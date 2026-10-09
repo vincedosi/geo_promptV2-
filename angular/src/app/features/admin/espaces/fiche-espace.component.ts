@@ -17,7 +17,8 @@ const ONGLETS: readonly Onglet[] = ['membres', 'donnees', 'apercu', 'reglages'];
  *   (caché) pour ne pas relire à chaque aller-retour. En T7, Données, Aperçu et Réglages ne sont que
  *   des emplacements (T8 à T10 les branchent).
  * - Le nom et le compteur de membres viennent de la liste de la page (`EspacesEtatService`), sans
- *   lecture de plus : à l'ouverture, un seul appel (les membres).
+ *   lecture de plus : à l'ouverture, un seul appel (les membres). Tant que l'espace n'est pas dans
+ *   la liste (encore en lecture, en échec, ou inconnu), aucun onglet n'est monté : rien n'est lu.
  * - Espace absent de la liste CHARGÉE → « Espace introuvable » et un lien relatif vers la page.
  */
 @Component({
@@ -30,9 +31,9 @@ const ONGLETS: readonly Onglet[] = ['membres', 'donnees', 'apercu', 'reglages'];
         <p class="m-0 text-[13px] text-secondary">Espace introuvable</p>
         <a routerLink=".." data-retour class="retour">Retour</a>
       </div>
-    } @else if (id(); as espaceId) {
+    } @else if (espace(); as e) {
       <header class="mb-4">
-        <h2 class="m-0 text-[16px] font-medium text-primary">{{ nom() }}</h2>
+        <h2 class="m-0 text-[16px] font-medium text-primary">{{ e.nom_affiche }}</h2>
       </header>
 
       <div role="tablist" aria-label="Sections de l'espace" class="onglets" (keydown)="clavier($event)">
@@ -52,13 +53,15 @@ const ONGLETS: readonly Onglet[] = ['membres', 'donnees', 'apercu', 'reglages'];
       </div>
 
       <div role="tabpanel" id="panneau-membres" aria-labelledby="onglet-membres" [hidden]="onglet() !== 'membres'">
-        <mg-onglet-membres [espaceId]="espaceId" />
+        <mg-onglet-membres [espaceId]="e.id" />
       </div>
       @for (o of ongletsEnAttente(); track o) {
         <div role="tabpanel" [id]="'panneau-' + o" [attr.aria-labelledby]="'onglet-' + o" [hidden]="onglet() !== o">
           <p class="m-0 text-[13px] text-secondary">Onglet en cours de construction</p>
         </div>
       }
+    } @else if (chargementListe()) {
+      <div data-squelette class="squelette" aria-hidden="true"></div>
     }
   `,
   styles: `
@@ -76,6 +79,9 @@ const ONGLETS: readonly Onglet[] = ['membres', 'donnees', 'apercu', 'reglages'];
     .retour { font-size: 13px; color: var(--brand-teal); text-decoration: none; }
     .retour:hover { text-decoration: underline; }
     .retour:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
+    .squelette { height: 24px; width: 240px; border-radius: 6px; background: var(--bg-level-2); animation: pulse 1.5s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    @media (prefers-reduced-motion: reduce) { .squelette { animation: none; } }
   `,
 })
 export class FicheEspaceComponent {
@@ -86,7 +92,8 @@ export class FicheEspaceComponent {
   /** Onglets déjà ouverts pour l'espace courant : créés une fois, puis gardés. */
   private readonly ouverts = signal<ReadonlySet<Onglet>>(new Set<Onglet>(['membres']));
 
-  private readonly espace = computed(() => {
+  /** L'espace de la liste chargée ; tant qu'il est `null`, aucun onglet n'est monté (donc aucune lecture). */
+  protected readonly espace = computed(() => {
     const id = this.id();
     return id ? this.etat.espaces().find((e) => e.id === id) ?? null : null;
   });
@@ -96,13 +103,13 @@ export class FicheEspaceComponent {
     () => this.id() !== null && this.espace() === null && this.etat.socle() !== null && !this.etat.chargement(),
   );
 
-  protected readonly nom = computed(() => this.espace()?.nom_affiche ?? '');
+  protected readonly chargementListe = computed(() => this.etat.chargement());
 
   protected readonly onglets = computed(() => {
     const actif = this.onglet();
-    const nb = this.espace()?.nb_membres;
+    const nb = this.espace()?.nb_membres ?? 0;
     const libelles: Record<Onglet, string> = {
-      membres: nb === undefined ? 'Membres' : `Membres (${nb})`,
+      membres: `Membres (${nb})`,
       donnees: 'Données',
       apercu: 'Aperçu',
       reglages: 'Réglages',

@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { By } from '@angular/platform-browser';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -171,5 +172,81 @@ describe('DialogueAjoutMembreComponent', () => {
     el.querySelector<HTMLButtonElement>('[data-terminer]')!.click();
     await f.whenStable();
     expect(h.fermetures).toBe(1);
+  });
+
+  it('fermeture native forcée pendant un ajout : le parent relit quand même (ajoute puis fermer)', async () => {
+    const { f, el, h, http } = await monter();
+    http.expectOne(URL_COMPTES).flush(COMPTES);
+    await f.whenStable();
+    el.querySelector<HTMLButtonElement>('[data-compte="u2"]')!.click();
+    await f.whenStable();
+    http.expectOne('/api/admin/organizations/A/members');
+    el.querySelector('dialog')!.dispatchEvent(new Event('close'));
+    await f.whenStable();
+    expect(h.ajouts).toBe(1);
+    expect(h.fermetures).toBe(1);
+  });
+
+  it('fermeture native forcée pendant une création : ajoute est émis', async () => {
+    const { f, el, h, http, saisir, nouveauCompte, soumettreNouveau } = await monter();
+    http.expectOne(URL_COMPTES).flush(COMPTES);
+    await nouveauCompte();
+    await saisir('[data-email]', 'nom@exemple.fr');
+    await soumettreNouveau();
+    http.expectOne((r) => r.url === URL_COMPTES && r.method === 'POST');
+    el.querySelector('dialog')!.dispatchEvent(new Event('close'));
+    await f.whenStable();
+    expect(h.ajouts).toBe(1);
+    expect(h.fermetures).toBe(1);
+  });
+
+  async function versCompteCree() {
+    const m = await monter();
+    m.http.expectOne(URL_COMPTES).flush(COMPTES);
+    await m.nouveauCompte();
+    await m.saisir('[data-email]', 'nom@exemple.fr');
+    await m.soumettreNouveau();
+    m.http.expectOne((r) => r.url === URL_COMPTES && r.method === 'POST')
+      .flush({ id: 'n1', email: 'nom@exemple.fr', setup_link: LIEN }, { status: 201, statusText: 'Created' });
+    await m.f.whenStable();
+    const instance = m.f.debugElement.query(By.directive(DialogueAjoutMembreComponent)).componentInstance as unknown as Record<string, () => unknown>;
+    return { ...m, instance };
+  }
+
+  it('« Compte créé » : ni Échap ni un clic sur le fond ne ferment, le lien reste affiché', async () => {
+    const { f, el, h } = await versCompteCree();
+    const dialog = el.querySelector('dialog')!;
+    const echap = new Event('cancel', { cancelable: true });
+    dialog.dispatchEvent(echap);
+    expect(echap.defaultPrevented).toBe(true);
+    dialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await f.whenStable();
+    expect(h.fermetures).toBe(0);
+    expect(el.querySelector<HTMLInputElement>('input[data-lien-secret]')!.value).toBe(LIEN);
+  });
+
+  it('« Compte créé » : fermeture native forcée → le dialogue se rouvre, le lien reste', async () => {
+    const { f, el, h } = await versCompteCree();
+    const dialog = el.querySelector('dialog')!;
+    dialog.close();
+    await f.whenStable();
+    expect(dialog.hasAttribute('open')).toBe(true);
+    expect(h.fermetures).toBe(0);
+    expect(el.querySelector<HTMLInputElement>('input[data-lien-secret]')!.value).toBe(LIEN);
+  });
+
+  it('« Terminer » efface le lien de l\'état puis émet fermer', async () => {
+    const { f, el, h, instance } = await versCompteCree();
+    el.querySelector<HTMLButtonElement>('[data-terminer]')!.click();
+    await f.whenStable();
+    expect(h.fermetures).toBe(1);
+    expect(instance['compteCree']()).toBeNull();
+  });
+
+  it('la destruction efface le lien de l\'état', async () => {
+    const { f, instance } = await versCompteCree();
+    expect(instance['compteCree']()).not.toBeNull();
+    f.destroy();
+    expect(instance['compteCree']()).toBeNull();
   });
 });

@@ -199,4 +199,56 @@ describe('FicheUtilisateurComponent', () => {
     const { el } = await monter('U');
     expect(el.querySelector<HTMLButtonElement>('[data-supprimer]')!.disabled).toBe(true);
   });
+
+  it('fermeture native forcée pendant une écriture → fermer(true), le parent relit', async () => {
+    const { f, el, http, h } = await monter();
+    el.querySelector<HTMLButtonElement>('[data-enregistrer-espaces]')!.click();
+    await f.whenStable();
+    http.expectOne('/api/admin/users/U/espaces');
+    el.querySelector('mg-fiche-utilisateur > dialog')!.dispatchEvent(new Event('close'));
+    await f.whenStable();
+    expect(h.fermetures).toEqual([true]);
+  });
+
+  it('rétrograder un super_admin : confirmation danger, annuler remet le radio, confirmer → PATCH { role: \'client\' }', async () => {
+    const chef: MembreEspace = { ...MEMBRE, role: 'super_admin' };
+    const { f, el, http } = await monter('moi', chef);
+    const client = el.querySelector<HTMLInputElement>('input[type="radio"][value="client"]')!;
+    const sa = el.querySelector<HTMLInputElement>('input[type="radio"][value="super_admin"]')!;
+    expect(sa.checked).toBe(true);
+    client.checked = true;
+    client.dispatchEvent(new Event('change'));
+    await f.whenStable();
+    http.expectNone('/api/admin/users/U');
+    const conf = el.querySelector('mg-confirmation[data-confirmation-role]')!;
+    expect(conf.querySelector('dialog')!.hasAttribute('open')).toBe(true);
+    expect(conf.textContent).toContain('personne@exemple.fr ne verra plus tous les espaces : il ne gardera que ceux dont il est membre.');
+    expect(conf.querySelector('button.confirmer')!.classList).toContain('danger');
+    expect(sa.checked).toBe(true);
+
+    conf.querySelector<HTMLButtonElement>('button.annuler')!.click();
+    await f.whenStable();
+    expect(conf.querySelector('dialog')!.hasAttribute('open')).toBe(false);
+    expect(sa.checked).toBe(true);
+    expect(client.checked).toBe(false);
+    http.expectNone('/api/admin/users/U');
+
+    client.checked = true;
+    client.dispatchEvent(new Event('change'));
+    await f.whenStable();
+    conf.querySelector<HTMLButtonElement>('button.confirmer')!.click();
+    await f.whenStable();
+    const req = http.expectOne('/api/admin/users/U');
+    expect(req.request.body).toEqual({ role: 'client' });
+    req.flush({ success: true });
+    await f.whenStable();
+    expect(client.checked).toBe(true);
+  });
+
+  it('son propre compte : les radios de rôle sont désactivés', async () => {
+    const { el } = await monter('U');
+    const radios = [...el.querySelectorAll<HTMLInputElement>('input[type="radio"]')];
+    expect(radios).toHaveLength(2);
+    for (const r of radios) expect(r.disabled).toBe(true);
+  });
 });

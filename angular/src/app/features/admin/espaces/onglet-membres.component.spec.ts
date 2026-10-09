@@ -191,7 +191,12 @@ describe('OngletMembresComponent', () => {
 
   it('« Copier » écrit le lien dans le presse-papiers', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
+    const origine = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    onTestFinished(() => {
+      if (origine) Object.defineProperty(navigator, 'clipboard', origine);
+      else delete (navigator as unknown as Record<string, unknown>)['clipboard'];
+    });
     const { f, el, http } = await monter([SEUL]);
     el.querySelector<HTMLButtonElement>('[data-lien="se"]')!.click();
     await f.whenStable();

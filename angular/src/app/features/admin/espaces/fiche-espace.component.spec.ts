@@ -20,14 +20,14 @@ function espace(id: string, nom: string, nb: number): EspaceResume {
   return { id, nom, nom_affiche: nom, slug: nom.toLowerCase(), actif: true, interne: false, nb_membres: nb, nb_jeux_prives: 0 };
 }
 
-async function monter() {
+async function monter(etat?: Record<string, unknown>) {
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(), provideHttpClientTesting(), EspacesApi, NotificationsService,
       provideRouter([{ path: 'espaces/:id', component: FicheEspaceComponent }, { path: 'espaces', children: [] }]),
       {
         provide: EspacesEtatService,
-        useValue: {
+        useValue: etat ?? {
           espaces: signal([espace(A, 'Espace A', 2), espace(B, 'Espace B', 5)]),
           socle: signal({ nb_jeux: 3 }),
           chargement: signal(false),
@@ -100,5 +100,34 @@ describe('FicheEspaceComponent', () => {
     expect(retour.textContent).toContain('Retour');
     expect(retour.getAttribute('href')).toBe('/espaces');
     http.expectNone(() => true);
+  });
+
+  it('liste encore en chargement : ni onglets ni lecture des membres, puis lecture dès que l\'espace est connu', async () => {
+    const espaces = signal<EspaceResume[]>([]);
+    const socle = signal<{ nb_jeux: number } | null>(null);
+    const chargement = signal(true);
+    const { harnais, http, el } = await monter({ espaces, socle, chargement, erreur: signal(null), recharger: vi.fn() });
+    await harnais.navigateByUrl(`/espaces/${A}`, FicheEspaceComponent);
+    await harnais.fixture.whenStable();
+    expect(el().querySelector('[role="tablist"]')).toBeNull();
+    expect(el().textContent).not.toContain('Espace introuvable');
+    http.expectNone(`/api/admin/espaces/${A}/membres`);
+
+    espaces.set([espace(A, 'Espace A', 2)]);
+    socle.set({ nb_jeux: 3 });
+    chargement.set(false);
+    await harnais.fixture.whenStable();
+    expect(el().querySelector('[role="tablist"]')).not.toBeNull();
+    http.expectOne(`/api/admin/espaces/${A}/membres`).flush({ membres: [] });
+  });
+
+  it('lecture de la liste en échec : pas d\'onglets, pas de lecture des membres', async () => {
+    const { harnais, http, el } = await monter({
+      espaces: signal([]), socle: signal(null), chargement: signal(false), erreur: signal('Indisponible'), recharger: vi.fn(),
+    });
+    await harnais.navigateByUrl(`/espaces/${A}`, FicheEspaceComponent);
+    await harnais.fixture.whenStable();
+    expect(el().querySelector('[role="tablist"]')).toBeNull();
+    http.expectNone(`/api/admin/espaces/${A}/membres`);
   });
 });
