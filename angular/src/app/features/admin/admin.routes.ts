@@ -1,6 +1,7 @@
 import type { Provider } from '@angular/core';
 import type { Routes } from '@angular/router';
 import { CadreAdminComponent } from './cadre-admin.component';
+import { EspacesApi } from './espaces/data/espaces.api';
 import { RoleAdminService, roleResoluGuard } from './etat/role-admin.service';
 import { FraicheurApi } from './health/data/fraicheur.api';
 import { HealthApi } from './health/data/health.api';
@@ -13,7 +14,7 @@ import { QualiteApi } from './qualite-donnees/data/qualite.api';
  * session expirée) — prouvé par `remote.spec.ts`. Les services d'API s'ajoutent tâche par tâche
  * (`@Injectable()` sans `providedIn`, héritiers de `HttpBaseService`).
  */
-export const FOURNISSEURS_ADMIN: Provider[] = [RoleAdminService, HealthApi, FraicheurApi, QualiteApi];
+export const FOURNISSEURS_ADMIN: Provider[] = [RoleAdminService, HealthApi, FraicheurApi, QualiteApi, EspacesApi];
 
 /**
  * L'administration (lot 6), enfant de la coquille comme `/admin/*` en React (arbitrage C1).
@@ -34,6 +35,17 @@ export const ROUTES_ADMIN: Routes = [
       {
         path: 'qualite-donnees',
         loadComponent: () => import('./qualite-donnees/qualite-donnees.page').then((m) => m.QualiteDonneesPage),
+      },
+      // Espaces de travail (2026-10-09) : une colonne persistante (la page) et la fiche en enfant.
+      // `EspacesEtatService` est fourni par la page, détruit avec elle.
+      {
+        path: 'espaces',
+        loadComponent: () => import('./espaces/espaces.page').then((m) => m.EspacesPage),
+        children: [
+          { path: '', loadComponent: () => import('./espaces/aucun-espace.component').then((m) => m.AucunEspaceComponent) },
+          { path: 'socle', loadComponent: () => import('./espaces/fiche-socle.component').then((m) => m.FicheSocleComponent) },
+          { path: ':id', loadComponent: () => import('./espaces/fiche-espace.component').then((m) => m.FicheEspaceComponent) },
+        ],
       },
     ],
   },

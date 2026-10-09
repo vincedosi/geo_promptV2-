@@ -29,8 +29,10 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     expect(entrees(el, 'Administration')).toEqual([
       'Import Shapefile', 'Import POI', 'Import OOH', 'IRIS Crawler', 'Radio FM/DAB+', 'Connexions API',
     ]);
+    // « Users » et « Organisations » remplacées par « Espaces de travail » : écart VOULU à React
+    // (spec espaces de travail 2026-10-08 § 6, décision E6).
     expect(entrees(el, 'Systeme')).toEqual([
-      'Sources', 'Users', 'Organisations', 'Imports', 'Health check', 'Qualite des donnees',
+      'Sources', 'Espaces de travail', 'Imports', 'Health check', 'Qualite des donnees',
     ]);
   });
 
@@ -43,7 +45,8 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
   it('chaque entrée porte son icône lucide 16 px, trait 1,5 (comme `size={16} strokeWidth={1.5}`)', async () => {
     const el = await rendre({ dev: false });
     const svgs = [...el.querySelectorAll('nav a mg-icone svg')];
-    expect(svgs.length).toBe(15);
+    // 14 et non 15 : deux entrées React remplacées par une (spec espaces de travail § 6, E6).
+    expect(svgs.length).toBe(14);
     for (const svg of svgs) {
       expect(svg.getAttribute('width')).toBe('16');
       expect(svg.getAttribute('stroke-width')).toBe('1.5');
@@ -71,11 +74,18 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     expect(qualite.hasAttribute('aria-disabled')).toBe(false);
   });
 
+  it('« Espaces de travail » mène à `admin/espaces` (spec espaces de travail § 6, E6), par un lien RELATIF', async () => {
+    const el = await rendre({ dev: false });
+    const espaces = [...el.querySelectorAll('[data-section="Systeme"] a')].find((a) => texte(a.querySelector('span')) === 'Espaces de travail')!;
+    expect(espaces.getAttribute('href')).toBe('/admin/espaces');
+    expect(espaces.hasAttribute('aria-disabled')).toBe(false);
+  });
+
   it('les écrans pas encore portés sont INERTES : aria-disabled, infobulle, aucun lien', async () => {
     const el = await rendre({ dev: false });
-    const portes = ['Explorer', 'Health check', 'Qualite des donnees'];
+    const portes = ['Explorer', 'Health check', 'Qualite des donnees', 'Espaces de travail'];
     const liens = [...el.querySelectorAll('nav a')].filter((a) => !portes.includes(texte(a.querySelector('span'))));
-    expect(liens.length).toBe(12);
+    expect(liens.length).toBe(10);
     for (const a of liens) {
       expect(a.getAttribute('aria-disabled')).toBe('true');
       expect(a.getAttribute('title')).toBe('Disponible prochainement');
@@ -101,7 +111,7 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
   it('hors production : liens de développement en icônes dans le pied (RELATIFS), pas de section dans le nav', async () => {
     const el = await rendre({ dev: true });
     expect(titres(el)).not.toContain('Développement');
-    expect(el.querySelectorAll('nav a').length).toBe(15);
+    expect(el.querySelectorAll('nav a').length).toBe(14); // E6 : 15 − 2 + 1
     const liens = [...el.querySelectorAll('[data-pied] [data-liens-dev] a')];
     expect(liens.map((a) => a.getAttribute('aria-label'))).toEqual(['Accueil', 'Catalogue', 'Essai carte', 'Module risque']);
     expect(liens.map((a) => a.getAttribute('title'))).toEqual(['Accueil', 'Catalogue', 'Essai carte', 'Module risque']);
@@ -121,6 +131,6 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
   it('aucun filtre par rôle : React affiche toutes les entrées à tous (le contrôle vit dans les routes)', async () => {
     // Le composant n'injecte ni session ni rôle : la même liste pour tous, par construction.
     const el = await rendre({ dev: false });
-    expect(el.querySelectorAll('nav a').length).toBe(15);
+    expect(el.querySelectorAll('nav a').length).toBe(14); // E6 : 15 − 2 + 1
   });
 });
