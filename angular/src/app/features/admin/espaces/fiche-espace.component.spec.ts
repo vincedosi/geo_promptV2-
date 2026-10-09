@@ -1,0 +1,104 @@
+import { signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
+import { ConfigService } from '../../../core/config/config.service';
+import { AuthService } from '../../../core/auth/auth.service';
+import { NotificationsService } from '../../../ui/notifications/notifications.service';
+import { EspacesApi } from './data/espaces.api';
+import { EspacesEtatService } from './etat/espaces-etat.service';
+import { FicheEspaceComponent } from './fiche-espace.component';
+import type { EspaceResume } from './logique/types';
+
+const A = '00000000-0000-4000-8000-00000000000a';
+const B = '00000000-0000-4000-8000-00000000000b';
+const INCONNU = '00000000-0000-4000-8000-0000000000ff';
+
+function espace(id: string, nom: string, nb: number): EspaceResume {
+  return { id, nom, nom_affiche: nom, slug: nom.toLowerCase(), actif: true, interne: false, nb_membres: nb, nb_jeux_prives: 0 };
+}
+
+async function monter() {
+  TestBed.configureTestingModule({
+    providers: [
+      provideHttpClient(), provideHttpClientTesting(), EspacesApi, NotificationsService,
+      provideRouter([{ path: 'espaces/:id', component: FicheEspaceComponent }, { path: 'espaces', children: [] }]),
+      {
+        provide: EspacesEtatService,
+        useValue: {
+          espaces: signal([espace(A, 'Espace A', 2), espace(B, 'Espace B', 5)]),
+          socle: signal({ nb_jeux: 3 }),
+          chargement: signal(false),
+          erreur: signal(null),
+          recharger: vi.fn(),
+        },
+      },
+      { provide: AuthService, useValue: { session: signal({ user: { id: 'moi' } }) } },
+      { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
+    ],
+  });
+  const harnais = await RouterTestingHarness.create();
+  const http = TestBed.inject(HttpTestingController);
+  return { harnais, http, el: () => harnais.routeNativeElement as HTMLElement };
+}
+
+describe('FicheEspaceComponent', () => {
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  it(':id = A → un GET membres de A ; B sans recréer le composant → GET membres de B et onglet remis sur Membres', async () => {
+    const { harnais, http, el } = await monter();
+    const instanceA = await harnais.navigateByUrl(`/espaces/${A}`, FicheEspaceComponent);
+    http.expectOne(`/api/admin/espaces/${A}/membres`).flush({ membres: [] });
+    await harnais.fixture.whenStable();
+    expect(el().textContent).toContain('Espace A');
+    expect(el().querySelector('[data-onglet="membres"]')!.textContent).toContain('Membres (2)');
+
+    el().querySelector<HTMLButtonElement>('[data-onglet="donnees"]')!.click();
+    await harnais.fixture.whenStable();
+    expect(el().querySelector('[data-onglet="donnees"]')!.getAttribute('aria-selected')).toBe('true');
+
+    const instanceB = await harnais.navigateByUrl(`/espaces/${B}`, FicheEspaceComponent);
+    expect(instanceB).toBe(instanceA);
+    http.expectOne(`/api/admin/espaces/${B}/membres`).flush({ membres: [] });
+    await harnais.fixture.whenStable();
+    expect(el().textContent).toContain('Espace B');
+    expect(el().querySelector('[data-onglet="membres"]')!.getAttribute('aria-selected')).toBe('true');
+    expect(el().querySelector('[data-onglet="membres"]')!.textContent).toContain('Membres (5)');
+  });
+
+  it('changer d\'espace pendant la lecture annule la lecture en vol', async () => {
+    const { harnais, http } = await monter();
+    await harnais.navigateByUrl(`/espaces/${A}`, FicheEspaceComponent);
+    const enVol = http.expectOne(`/api/admin/espaces/${A}/membres`);
+    await harnais.navigateByUrl(`/espaces/${B}`, FicheEspaceComponent);
+    expect(enVol.cancelled).toBe(true);
+    http.expectOne(`/api/admin/espaces/${B}/membres`).flush({ membres: [] });
+  });
+
+  it('clic « Données » : aucun appel (onglet non branché en T7), texte d\'attente', async () => {
+    const { harnais, http, el } = await monter();
+    await harnais.navigateByUrl(`/espaces/${A}`, FicheEspaceComponent);
+    http.expectOne(`/api/admin/espaces/${A}/membres`).flush({ membres: [] });
+    await harnais.fixture.whenStable();
+    for (const o of ['donnees', 'apercu', 'reglages']) {
+      el().querySelector<HTMLButtonElement>(`[data-onglet="${o}"]`)!.click();
+      await harnais.fixture.whenStable();
+      expect(el().textContent).toContain('Onglet en cours de construction');
+    }
+    http.expectNone(() => true);
+    expect(el().querySelector('[role="tablist"]')!.textContent).toMatch(/Membres \(2\)\s*Données\s*Aperçu\s*Réglages/);
+  });
+
+  it('espace inconnu de la liste chargée : « Espace introuvable » et lien relatif « Retour », aucune lecture', async () => {
+    const { harnais, http, el } = await monter();
+    await harnais.navigateByUrl(`/espaces/${INCONNU}`, FicheEspaceComponent);
+    await harnais.fixture.whenStable();
+    expect(el().textContent).toContain('Espace introuvable');
+    const retour = el().querySelector<HTMLAnchorElement>('a[data-retour]')!;
+    expect(retour.textContent).toContain('Retour');
+    expect(retour.getAttribute('href')).toBe('/espaces');
+    http.expectNone(() => true);
+  });
+});
