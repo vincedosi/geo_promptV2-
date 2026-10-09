@@ -49,12 +49,12 @@ beforeEach(() => {
   });
 });
 
-async function monter(r: ReponseSocle = reponse()) {
+async function monter(r: ReponseSocle = reponse(), espaces: EspaceResume[] = ESPACES) {
   const recharger = vi.fn();
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(), provideHttpClientTesting(), EspacesApi, NotificationsService,
-      { provide: EspacesEtatService, useValue: { espaces: signal(ESPACES), recharger } },
+      { provide: EspacesEtatService, useValue: { espaces: signal(espaces), recharger } },
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
     ],
   });
@@ -132,6 +132,28 @@ describe('FicheSocleComponent', () => {
     bouton('lycee').click();
     await f.whenStable();
     expect(dialogue().textContent).toContain('4 espaces clients ne le verront plus.');
+  });
+
+  it('jeu partagé : les espaces clients du partage le gardent et ne sont pas décomptés (propriétaire compté une fois)', async () => {
+    const r = reponse();
+    r.jeux[0] = {
+      ...r.jeux[0],
+      partage_avec: [
+        { id: 'o3', nom_affiche: 'Espace Trois' },
+        // Le propriétaire répété dans le partage ne doit pas être retranché deux fois.
+        { id: 'o1', nom_affiche: 'Espace Un' },
+        // L'espace interne n'est pas un espace client : il ne change rien au décompte.
+        { id: 'o2', nom_affiche: 'dentsu.explore (interne)' },
+      ],
+    };
+    const { f, bouton, dialogue } = await monter(r, [
+      ...ESPACES,
+      { id: 'o3', nom: 'Espace Trois', nom_affiche: 'Espace Trois', slug: 'trois', actif: true, interne: false, nb_membres: 1, nb_jeux_prives: 0 },
+    ]);
+    bouton('lycee').click();
+    await f.whenStable();
+    // 4 espaces clients − le propriétaire (o1) − o3 qui garde le partage = 2.
+    expect(dialogue().textContent).toContain('2 espaces clients ne le verront plus.');
   });
 
   it('« Mettre au socle » : confirmation par défaut, PATCH socle, notification de succès', async () => {

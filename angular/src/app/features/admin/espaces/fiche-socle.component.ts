@@ -41,9 +41,9 @@ type Sens = 'retirer' | 'mettre';
  *   serveur et laisse les tableaux tels quels.
  * - Après un succès, relecture de la fiche ET de la liste d'espaces (`etat.recharger()`) : le
  *   compteur « Socle » de la colonne doit suivre.
- * - Le décompte « {k} espaces clients ne le verront plus » est `nb_espaces_clients` moins 1 quand
- *   le propriétaire est lui-même un espace client (il garde son propre jeu), jugé sur la liste
- *   d'espaces de la page (`interne === false`).
+ * - Le décompte « {k} espaces clients ne le verront plus » est `nb_espaces_clients` moins les
+ *   espaces clients qui GARDENT le jeu : son propriétaire et ceux de `partage_avec` (sans doublon),
+ *   jugés sur la liste d'espaces de la page (`interne === false`).
  */
 @Component({
   selector: 'mg-fiche-socle',
@@ -199,13 +199,20 @@ export class FicheSocleComponent {
   protected readonly nbSocle = computed(() => this.dansLeSocle().length);
   protected readonly nbPrives = computed(() => this.prives().length);
 
-  /** Espaces clients qui ne verraient plus le jeu retiré : tous, sauf son propriétaire s'il en est un. */
+  /**
+   * Espaces clients qui ne verraient plus le jeu retiré : tous, sauf ceux qui le gardent — son
+   * propriétaire et les espaces de son partage (`partage_avec`), chacun compté UNE fois et seulement
+   * s'il est un espace client.
+   */
   private readonly nbEspacesPerdants = computed(() => {
     const c = this.cible();
     const total = this.reponse()?.nb_espaces_clients ?? 0;
-    const idProprietaire = c?.jeu.proprietaire?.id;
-    const proprietaireClient = !!idProprietaire && this.etat.espaces().some((e) => e.id === idProprietaire && e.interne === false);
-    return Math.max(0, total - (proprietaireClient ? 1 : 0));
+    if (!c) return total;
+    const gardent = new Set<string>();
+    if (c.jeu.proprietaire) gardent.add(c.jeu.proprietaire.id);
+    for (const p of c.jeu.partage_avec ?? []) gardent.add(p.id);
+    const clients = this.etat.espaces().filter((e) => e.interne === false && gardent.has(e.id)).length;
+    return Math.max(0, total - clients);
   });
 
   protected readonly titreConfirmation = computed(() => {
