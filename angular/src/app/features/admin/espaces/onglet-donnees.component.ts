@@ -1,7 +1,4 @@
-import {
-  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, output,
-  signal, untracked, viewChild,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { Subscription } from 'rxjs';
 import { formaterNombre } from '../../../core/format/nombre';
@@ -10,122 +7,10 @@ import { IconeComponent } from '../../../ui/icone/icone.component';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
 import { Cellule, EnteteCellule } from '../../../ui/tableau/cellules';
 import { EspacesApi } from './data/espaces.api';
+import { type Choix, DialogueTransfertComponent } from './dialogue-transfert.component';
 import { EspacesEtatService } from './etat/espaces-etat.service';
 import { LIBELLES_STATUT, LIBELLES_TYPE, messageErreur } from './logique/libelles';
 import type { JeuPourEspace, ReponseDonneesEspace, StatutJeu } from './logique/types';
-
-let compteur = 0;
-
-interface Choix { id: string; nom: string }
-
-/**
- * « Transférer… » : `<dialog>` natif qui liste les AUTRES espaces (patron de
- * `mg-dialogue-nouvel-espace`). Aucune requête n'y part : choisir un espace mène à la confirmation
- * du parent, qui nomme les deux espaces. Le parent le monte par un `@if` ; la fermeture explicite
- * dans `onDestroy` rend le focus au bouton d'origine.
- */
-@Component({
-  selector: 'mg-dialogue-transfert',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <dialog
-      #dialogue
-      [attr.aria-labelledby]="idTitre"
-      (cancel)="surAnnulationNative($event)"
-      (close)="surFermeture()"
-      (click)="surClic($event)"
-      (keydown.escape)="$event.stopPropagation()"
-    >
-      <div class="boite">
-        <h2 [id]="idTitre" class="titre">Transférer « {{ nomJeu() }} »</h2>
-        <p class="aide">Choisissez l'espace qui en devient propriétaire.</p>
-        @if (espaces().length === 0) {
-          <p class="aide">Aucun autre espace.</p>
-        } @else {
-          <ul class="liste">
-            @for (e of espaces(); track e.id) {
-              <li><button type="button" class="choix" [attr.data-cible]="e.id" (click)="choisir.emit(e.id)">{{ e.nom }}</button></li>
-            }
-          </ul>
-        }
-        <div class="actions">
-          <button type="button" data-annuler class="annuler" (click)="annuler.emit()">Annuler</button>
-        </div>
-      </div>
-    </dialog>
-  `,
-  styles: `
-    dialog {
-      margin: auto; padding: 0; max-width: 440px; width: calc(100% - 32px);
-      background: var(--bg-surface); color: inherit; border: 0.5px solid var(--border-default); border-radius: 12px;
-    }
-    dialog[open] { animation: entree 240ms var(--ease-out); }
-    dialog::backdrop {
-      background: color-mix(in srgb, black 85%, transparent);
-      backdrop-filter: blur(4px);
-      animation: voile 220ms var(--ease-out);
-    }
-    @keyframes entree { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
-    @keyframes voile { from { opacity: 0; } to { opacity: 1; } }
-    .boite { padding: 24px; display: flex; flex-direction: column; gap: 12px; font-family: var(--font-sans); }
-    .titre { margin: 0; font-size: 16px; font-weight: 500; color: var(--text-primary); }
-    .aide { margin: 0; font-size: 12px; color: var(--text-tertiary); }
-    .liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; }
-    .choix {
-      width: 100%; text-align: left; background: var(--bg-level-2); border: 0.5px solid var(--border-subtle); border-radius: 6px;
-      padding: 8px 12px; font-family: var(--font-sans); font-size: 13px; color: var(--text-primary); cursor: pointer;
-      transition: border-color 150ms var(--ease-hover), background-color 150ms var(--ease-hover);
-    }
-    .choix:hover { border-color: var(--brand-teal-30); background: var(--bg-level-3); }
-    .choix:focus-visible, .annuler:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
-    .actions { display: flex; justify-content: flex-end; margin-top: 4px; }
-    .annuler {
-      background: transparent; border: 0.5px solid var(--border-default); color: var(--text-secondary); border-radius: 6px;
-      padding: 9px 18px; font-size: 13px; font-weight: 500; font-family: inherit; cursor: pointer;
-      transition: background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover);
-    }
-    .annuler:hover { border-color: var(--border-hover); background: var(--bg-level-2); color: var(--text-primary); }
-    @media (prefers-reduced-motion: reduce) { dialog[open], dialog::backdrop { animation: none; } }
-  `,
-})
-export class DialogueTransfertComponent {
-  private readonly hote = inject<ElementRef<HTMLElement>>(ElementRef);
-  private detruit = false;
-
-  protected readonly idTitre = `mg-transfert-titre-${++compteur}`;
-  readonly nomJeu = input.required<string>();
-  readonly espaces = input.required<readonly Choix[]>();
-  readonly choisir = output<string>();
-  readonly annuler = output<void>();
-
-  private readonly dialogue = viewChild.required<ElementRef<HTMLDialogElement>>('dialogue');
-
-  constructor() {
-    afterNextRender(() => {
-      const d = this.dialogue().nativeElement;
-      if (!d.open) d.showModal();
-    });
-    const noeud = this.hote.nativeElement;
-    inject(DestroyRef).onDestroy(() => {
-      this.detruit = true;
-      const d = noeud.querySelector('dialog');
-      if (d?.open) d.close();
-    });
-  }
-
-  protected surAnnulationNative(e: Event): void {
-    e.preventDefault();
-    this.annuler.emit();
-  }
-
-  protected surFermeture(): void {
-    if (!this.detruit) this.annuler.emit();
-  }
-
-  protected surClic(e: MouseEvent): void {
-    if (e.target === this.dialogue().nativeElement) this.annuler.emit();
-  }
-}
 
 /** Une ligne de tableau, prête pour le gabarit (aucun calcul dans le gabarit). */
 interface LigneJeu {
@@ -211,17 +96,17 @@ interface Cible {
                   <span class="actions">
                     @switch (l.statut) {
                       @case ('proprietaire') {
-                        <button type="button" class="bouton-neutre" [attr.data-action]="l.id" [disabled]="ecriture()" (click)="demander(l.id, 'transfert')">Transférer…</button>
-                        <button type="button" class="bouton-teal" [attr.data-socle]="l.id" [disabled]="ecriture()" (click)="demander(l.id, 'socle')">Mettre au socle</button>
+                        <button type="button" class="bouton-neutre" [attr.data-action]="l.id" [disabled]="occupe()" (click)="demander(l.id, 'transfert')">Transférer…</button>
+                        <button type="button" class="bouton-teal" [attr.data-socle]="l.id" [disabled]="occupe()" (click)="demander(l.id, 'socle')">Mettre au socle</button>
                       }
                       @case ('partage') {
-                        <button type="button" class="bouton-neutre" [attr.data-action]="l.id" [disabled]="ecriture()" (click)="demander(l.id, 'retrait')">Retirer le partage</button>
+                        <button type="button" class="bouton-neutre" [attr.data-action]="l.id" [disabled]="occupe()" (click)="demander(l.id, 'retrait')">Retirer le partage</button>
                       }
                       @case ('socle') {
                         <span class="attenue">Se règle dans le <a routerLink="../socle" class="lien">socle</a></span>
                       }
                       @case ('non_visible') {
-                        <button type="button" class="bouton-teal" [attr.data-action]="l.id" [disabled]="ecriture()" (click)="partager(l.id)">Partager avec cet espace</button>
+                        <button type="button" class="bouton-teal" [attr.data-action]="l.id" [disabled]="occupe()" (click)="partager(l.id)">Partager avec cet espace</button>
                       }
                     }
                   </span>
@@ -254,11 +139,12 @@ interface Cible {
     .vide { margin: 0; padding: 12px 14px; font-size: 12px; color: var(--text-tertiary); }
     .statut {
       display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; white-space: nowrap;
-      background: var(--bg-level-3); border: 0.5px solid var(--border-default); color: var(--text-secondary); font-size: 10px;
+      background: transparent; border: 0.5px solid var(--border-default); color: var(--text-secondary); font-size: 10px;
     }
-    .statut.proprietaire { border-color: var(--brand-teal); color: var(--brand-teal); }
-    .statut.partage { border-color: var(--info); color: var(--info); }
-    .statut.socle, .statut.non_visible { color: var(--text-tertiary); }
+    /* Le bord porte le sens ; le texte garde le contraste de --text-secondary dans les deux thèmes. */
+    .statut.proprietaire { border-color: var(--brand-teal); }
+    .statut.partage { border-color: var(--info); }
+    .statut.socle, .statut.non_visible { border-color: var(--text-tertiary); }
     .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; }
     .attenue { font-family: var(--font-sans); font-size: 11px; color: var(--text-tertiary); }
     .lien { color: var(--brand-teal); text-decoration: none; }
@@ -301,6 +187,10 @@ export class OngletDonneesComponent {
   /** Ce qui attend une confirmation. */
   protected readonly cible = signal<Cible | null>(null);
   protected readonly ecriture = signal(false);
+  /** Une relecture qui suit une écriture est en vol : les lignes affichées peuvent être périmées. */
+  private readonly relecture = signal(false);
+  /** Écriture OU relecture post-écriture en cours : aucune action n'est permise sur des lignes périmées. */
+  protected readonly occupe = computed(() => this.ecriture() || this.relecture());
 
   private lecture: Subscription | null = null;
   private envoi: Subscription | null = null;
@@ -309,7 +199,7 @@ export class OngletDonneesComponent {
   private readonly nomEspace = computed(() => this.nomsEspaces().get(this.espaceId()) ?? '');
 
   protected readonly autresEspaces = computed<Choix[]>(() =>
-    this.etat.espaces().filter((e) => e.id !== this.espaceId()).map((e) => ({ id: e.id, nom: e.nom_affiche })),
+    this.etat.espaces().filter((e) => e.id !== this.espaceId()).map((e) => ({ id: e.id, nom: e.nom_affiche, inactif: !e.actif })),
   );
 
   protected readonly lignes = computed<LigneJeu[]>(() =>
@@ -352,6 +242,7 @@ export class OngletDonneesComponent {
       this.espaceId();
       untracked(() => {
         this.reponse.set(null);
+        this.relecture.set(false);
         this.transfert.set(null);
         this.cible.set(null);
         this.lire();
@@ -368,8 +259,12 @@ export class OngletDonneesComponent {
     this.lecture?.unsubscribe();
     this.erreur.set(null);
     this.lecture = this.api.lireDonnees(this.espaceId()).subscribe({
-      next: (r) => this.reponse.set(r),
+      next: (r) => {
+        this.reponse.set(r);
+        this.relecture.set(false);
+      },
       error: (e: unknown) => {
+        this.relecture.set(false);
         if (this.reponse() === null) this.erreur.set(messageErreur(e));
         else this.notifications.error(messageErreur(e));
       },
@@ -382,7 +277,7 @@ export class OngletDonneesComponent {
 
   protected demander(id: string, intention: Intention): void {
     const jeu = this.jeu(id);
-    if (!jeu || this.ecriture()) return;
+    if (!jeu || this.occupe()) return;
     if (intention === 'transfert') this.transfert.set(jeu);
     else this.cible.set({ intention, jeu, vers: null });
   }
@@ -401,7 +296,7 @@ export class OngletDonneesComponent {
 
   protected confirmer(): void {
     const c = this.cible();
-    if (!c || this.ecriture()) return;
+    if (!c || this.occupe()) return;
     const id = c.jeu.id;
     if (c.intention === 'retrait') {
       this.ecrire(this.api.retirerPartage(this.espaceId(), id), 'Partage retiré', c.jeu.nom);
@@ -415,7 +310,7 @@ export class OngletDonneesComponent {
   /** « Partager avec cet espace » : sans confirmation, l'écriture est réversible. */
   protected partager(id: string): void {
     const jeu = this.jeu(id);
-    if (!jeu || this.ecriture()) return;
+    if (!jeu || this.occupe()) return;
     this.ecrire(this.api.partager(this.espaceId(), id), 'Jeu partagé', jeu.nom);
   }
 
@@ -426,6 +321,7 @@ export class OngletDonneesComponent {
         this.ecriture.set(false);
         this.cible.set(null);
         this.notifications.success(succes, detail);
+        this.relecture.set(true);
         this.lire();
         this.etat.recharger();
       },
@@ -433,6 +329,10 @@ export class OngletDonneesComponent {
         this.ecriture.set(false);
         this.cible.set(null);
         this.notifications.error(messageErreur(e));
+        // Le serveur n'écrit pas de façon atomique (le transfert peut déplacer la propriété puis échouer
+        // sur les POI) : après un refus, le tableau a pu changer. On relit, sans `etat.recharger()`.
+        this.relecture.set(true);
+        this.lire();
       },
     });
   }

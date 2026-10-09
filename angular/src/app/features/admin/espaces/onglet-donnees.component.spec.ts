@@ -19,8 +19,8 @@ const URL_DONNEES = `/api/admin/espaces/${A}/donnees`;
 @Component({ imports: [OngletDonneesComponent], template: '<mg-onglet-donnees [espaceId]="id" />' })
 class Hote { id = A; }
 
-function espace(id: string, nom: string, interne = false): EspaceResume {
-  return { id, nom, nom_affiche: nom, slug: nom, actif: true, interne, nb_membres: 1, nb_jeux_prives: 1 };
+function espace(id: string, nom: string, interne = false, actif = true): EspaceResume {
+  return { id, nom, nom_affiche: nom, slug: nom, actif, interne, nb_membres: 1, nb_jeux_prives: 1 };
 }
 
 function jeu(id: string, nom: string, statut: StatutJeu, p: Partial<JeuPourEspace> = {}): JeuPourEspace {
@@ -62,7 +62,7 @@ function fournisseurs(recharger: () => void) {
     provideRouter([{ path: 'espaces/:id', component: Hote }]),
     {
       provide: EspacesEtatService,
-      useValue: { espaces: signal([espace(A, 'Espace A'), espace(B, 'Espace B'), espace('G', 'dentsu.explore (interne)', true)]), recharger },
+      useValue: { espaces: signal([espace(A, 'Espace A'), espace(B, 'Espace B'), espace('G', 'dentsu.explore (interne)', true), espace('I', 'Dormant', false, false)]), recharger },
     },
     { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
   ];
@@ -133,7 +133,8 @@ describe('OngletDonneesComponent', () => {
   });
 
   it('« Retirer le partage » : confirmation nommant l\'espace et le jeu, puis DELETE au même corps', async () => {
-    const { harnais, el, http, action, confirmer } = await monter();
+    const { harnais, el, http, action, confirmer, recharger, notifs } = await monter();
+    const ok = vi.spyOn(notifs, 'success');
     action('part').click();
     await harnais.fixture.whenStable();
     expect(el.querySelector('mg-confirmation')!.textContent).toContain('Espace A ne verra plus « PARTAGE ».');
@@ -144,11 +145,14 @@ describe('OngletDonneesComponent', () => {
     expect(req.request.body).toEqual({ sourceId: 'part' });
     req.flush({ success: true });
     await harnais.fixture.whenStable();
+    expect(ok).toHaveBeenCalledTimes(1);
+    expect(recharger).toHaveBeenCalledTimes(1);
     http.expectOne(URL_DONNEES).flush(reponse());
   });
 
   it('« Mettre au socle » : confirmation puis PATCH { visibilite: socle }', async () => {
-    const { harnais, el, http, confirmer } = await monter();
+    const { harnais, el, http, confirmer, recharger, notifs } = await monter();
+    const ok = vi.spyOn(notifs, 'success');
     el.querySelector<HTMLButtonElement>('[data-socle="prop"]')!.click();
     await harnais.fixture.whenStable();
     expect(el.querySelector('mg-confirmation')!.textContent).toContain('Il sera visible de tous les espaces clients.');
@@ -159,16 +163,21 @@ describe('OngletDonneesComponent', () => {
     expect(req.request.body).toEqual({ visibilite: 'socle' });
     req.flush({ success: true });
     await harnais.fixture.whenStable();
+    expect(ok).toHaveBeenCalledTimes(1);
+    expect(recharger).toHaveBeenCalledTimes(1);
     http.expectOne(URL_DONNEES).flush(reponse());
   });
 
   it('« Transférer… » : liste des AUTRES espaces, confirmation nommant les deux, PATCH { organization_id } exact', async () => {
-    const { harnais, el, http, action, confirmer } = await monter();
+    const { harnais, el, http, action, confirmer, recharger, notifs } = await monter();
+    const ok = vi.spyOn(notifs, 'success');
     action('prop').click();
     await harnais.fixture.whenStable();
     const dialogue = el.querySelector('mg-dialogue-transfert')!;
     const choix = [...dialogue.querySelectorAll<HTMLButtonElement>('[data-cible]')];
-    expect(choix.map((b) => b.getAttribute('data-cible'))).toEqual([B, 'G']);
+    expect(choix.map((b) => b.getAttribute('data-cible'))).toEqual([B, 'G', 'I']);
+    expect(dialogue.querySelectorAll('[data-inactif]').length).toBe(1);
+    expect(dialogue.querySelector('[data-cible="I"] [data-inactif]')!.textContent).toContain('Inactif');
     expect(dialogue.textContent).not.toContain('Espace A');
     expect(dialogue.textContent).toContain('dentsu.explore (interne)');
     choix[0].click();
@@ -182,10 +191,12 @@ describe('OngletDonneesComponent', () => {
     expect(req.request.body).toEqual({ organization_id: B });
     req.flush({ success: true });
     await harnais.fixture.whenStable();
+    expect(ok).toHaveBeenCalledTimes(1);
+    expect(recharger).toHaveBeenCalledTimes(1);
     http.expectOne(URL_DONNEES).flush(reponse());
   });
 
-  it('écriture en 500 : notification d\'erreur, aucune relecture, ni recharger', async () => {
+  it('écriture en 500 : notification d erreur PUIS une relecture, sans recharger ; relecture en échec : tableau gardé', async () => {
     const { harnais, http, recharger, notifs, el } = await monter();
     const ko = vi.spyOn(notifs, 'error');
     el.querySelector<HTMLButtonElement>('[data-action="nv"]')!.click();
@@ -194,8 +205,34 @@ describe('OngletDonneesComponent', () => {
     await harnais.fixture.whenStable();
     expect(ko).toHaveBeenCalledWith('Refusé');
     expect(recharger).not.toHaveBeenCalled();
-    http.expectNone(URL_DONNEES);
+    http.expectOne(URL_DONNEES).flush({ error: 'Panne' }, { status: 500, statusText: 'x' });
+    await harnais.fixture.whenStable();
+    expect(ko).toHaveBeenCalledWith('Panne');
     expect(el.querySelectorAll('[data-jeu]').length).toBe(4);
+    expect(el.querySelector('[data-action="nv"]')!.hasAttribute('disabled')).toBe(false);
+  });
+
+  it('entre l écriture réussie et la fin de la relecture : boutons désactivés, aucun second envoi', async () => {
+    const { harnais, http, el, action } = await monter();
+    action('prop').click();
+    await harnais.fixture.whenStable();
+    el.querySelector<HTMLButtonElement>('mg-dialogue-transfert [data-cible="B"]')!.click();
+    await harnais.fixture.whenStable();
+    el.querySelector<HTMLButtonElement>('mg-confirmation button.confirmer')!.click();
+    await harnais.fixture.whenStable();
+    http.expectOne('/api/admin/sources/prop').flush({ success: true });
+    await harnais.fixture.whenStable();
+    const relecture = http.expectOne(URL_DONNEES);
+    expect(action('prop').hasAttribute('disabled')).toBe(true);
+    expect(el.querySelector('[data-action="nv"]')!.hasAttribute('disabled')).toBe(true);
+    action('prop').click();
+    el.querySelector<HTMLButtonElement>('[data-action="nv"]')!.click();
+    await harnais.fixture.whenStable();
+    expect(el.querySelector('mg-dialogue-transfert')).toBeNull();
+    http.expectNone(() => true);
+    relecture.flush(reponse());
+    await harnais.fixture.whenStable();
+    expect(action('prop').hasAttribute('disabled')).toBe(false);
   });
 
   it('lecture en échec : message et « Réessayer »', async () => {
