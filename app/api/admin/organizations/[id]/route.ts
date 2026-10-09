@@ -8,6 +8,7 @@ import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { lireCorps } from '@/lib/api/valider-corps';
+import { SLUG_ORGANISATION_INTERNE } from '@/lib/espaces/nom-espace';
 
 export const dynamic = 'force-dynamic';
 
@@ -112,12 +113,17 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   const { error: checkError, data: org } = await sb
     .from('organizations')
-    .select('id')
+    .select('id, slug')
     .eq('id', id)
     .single();
 
   if (checkError || !org) {
     return NextResponse.json({ success: false, error: 'Organisation introuvable' }, { status: 404 });
+  }
+  // L'espace interne porte les données du socle : la page masque le bouton,
+  // mais un appel direct ne doit pas pouvoir le supprimer non plus.
+  if (org.slug === SLUG_ORGANISATION_INTERNE) {
+    return NextResponse.json({ success: false, error: "L'espace interne porte les données du socle : il ne se supprime pas." }, { status: 409 });
   }
 
   const { error } = await sb.from('organizations').delete().eq('id', id);
