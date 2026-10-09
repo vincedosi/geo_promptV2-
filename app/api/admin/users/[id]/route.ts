@@ -32,14 +32,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   // Fetch target user
   const { data: target } = await supabase.from('profiles').select('role, organization_id').eq('id', id).single();
-  if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  if (!target) return NextResponse.json({ error: 'Utilisateur introuvable.' }, { status: 404 });
 
   // Security checks for non-super-admin
   if (profile.role !== 'super_admin') {
-    if (target.role === 'super_admin') return NextResponse.json({ error: 'Cannot modify super_admin' }, { status: 403 });
-    if (target.organization_id !== profile.organization_id) return NextResponse.json({ error: 'Cannot modify user from another org' }, { status: 403 });
-    if (role === 'super_admin') return NextResponse.json({ error: 'Cannot promote to super_admin' }, { status: 403 });
-    if (organization_id && organization_id !== profile.organization_id) return NextResponse.json({ error: 'Cannot move user to another org' }, { status: 403 });
+    if (target.role === 'super_admin') return NextResponse.json({ error: 'Vous ne pouvez pas modifier un compte super_admin.' }, { status: 403 });
+    if (target.organization_id !== profile.organization_id) return NextResponse.json({ error: "Vous ne pouvez pas modifier un utilisateur d'un autre espace." }, { status: 403 });
+    if (role === 'super_admin') return NextResponse.json({ error: 'Vous ne pouvez pas promouvoir un compte en super_admin.' }, { status: 403 });
+    if (organization_id && organization_id !== profile.organization_id) return NextResponse.json({ error: 'Vous ne pouvez pas déplacer un utilisateur vers un autre espace.' }, { status: 403 });
   }
 
   const updates: Record<string, unknown> = {};
@@ -61,15 +61,15 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (!profile) return adminUnauthorized();
 
   const { id } = await params;
-  if (id === profile.id) return NextResponse.json({ error: 'Cannot delete yourself' }, { status: 400 });
+  if (id === profile.id) return NextResponse.json({ error: 'Vous ne pouvez pas supprimer votre propre compte.' }, { status: 400 });
 
   const supabase = createAdminClient();
   const { data: target } = await supabase.from('profiles').select('role, organization_id').eq('id', id).single();
-  if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  if (!target) return NextResponse.json({ error: 'Utilisateur introuvable.' }, { status: 404 });
 
   if (profile.role !== 'super_admin') {
-    if (target.role === 'super_admin' || target.role === 'admin') return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
-    if (target.organization_id !== profile.organization_id) return NextResponse.json({ error: 'Cannot delete user from another org' }, { status: 403 });
+    if (target.role === 'super_admin' || target.role === 'admin') return NextResponse.json({ error: 'Droits insuffisants pour supprimer ce compte.' }, { status: 403 });
+    if (target.organization_id !== profile.organization_id) return NextResponse.json({ error: "Vous ne pouvez pas supprimer un utilisateur d'un autre espace." }, { status: 403 });
   }
 
   const { error } = await supabase.auth.admin.deleteUser(id);

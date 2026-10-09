@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('[ORGS] Insert error:', error.message, error.code);
       if (error.code === '23505') {
-        return NextResponse.json({ success: false, error: 'Une organisation avec ce nom existe deja' }, { status: 409 });
+        return NextResponse.json({ success: false, error: 'Un espace avec ce nom existe déjà.' }, { status: 409 });
       }
       return NextResponse.json({
         success: false,

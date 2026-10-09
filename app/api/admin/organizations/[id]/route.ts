@@ -73,7 +73,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // Non-super_admin can only edit their own org, and cannot touch slug/config/active
   if (profile.role !== 'super_admin') {
     if (id !== profile.organization_id) {
-      return NextResponse.json({ error: 'Cannot edit another organization' }, { status: 403 });
+      return NextResponse.json({ error: 'Vous ne pouvez pas modifier un autre espace.' }, { status: 403 });
     }
     delete body.slug;
     delete body.config;
@@ -112,7 +112,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   // Only super_admin can delete organizations
   if (profile.role !== 'super_admin') {
-    return NextResponse.json({ error: 'Only super_admin can delete organizations' }, { status: 403 });
+    return NextResponse.json({ error: 'Seul un super_admin peut supprimer un espace.' }, { status: 403 });
   }
 
   const sb = createAdminClient();

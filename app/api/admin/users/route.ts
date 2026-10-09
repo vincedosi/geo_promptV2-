@@ -70,12 +70,12 @@ export async function POST(request: NextRequest) {
 
   // Escalation protection
   if (profile.role !== 'super_admin') {
-    if (role === 'super_admin') return NextResponse.json({ error: 'Cannot create super_admin' }, { status: 403 });
-    if (organization_id && organization_id !== profile.organization_id) return NextResponse.json({ error: 'Cannot create in another org' }, { status: 403 });
+    if (role === 'super_admin') return NextResponse.json({ error: 'Vous ne pouvez pas créer de compte super_admin.' }, { status: 403 });
+    if (organization_id && organization_id !== profile.organization_id) return NextResponse.json({ error: 'Vous ne pouvez pas créer de compte dans un autre espace.' }, { status: 403 });
   }
 
   if (role !== 'super_admin' && !organization_id) {
-    return NextResponse.json({ error: 'organization_id required for non-super_admin' }, { status: 400 });
+    return NextResponse.json({ error: "Un espace est obligatoire pour un compte qui n'est pas super_admin." }, { status: 400 });
   }
 
   const supabase = createAdminClient();
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
   // Check org exists and is active
   if (organization_id) {
     const { data: org } = await supabase.from('organizations').select('active').eq('id', organization_id).single();
-    if (!org?.active) return NextResponse.json({ error: 'Organization not found or inactive' }, { status: 400 });
+    if (!org?.active) return NextResponse.json({ error: 'Espace introuvable ou désactivé.' }, { status: 400 });
   }
 
   // Creation du compte.
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (authErr) {
-    if (authErr.message?.includes('already')) return NextResponse.json({ error: 'Email already exists' }, { status: 409 });
+    if (authErr.message?.includes('already')) return NextResponse.json({ error: 'Un compte existe déjà avec cet e-mail.' }, { status: 409 });
     return NextResponse.json({ error: authErr.message }, { status: 500 });
   }
 
