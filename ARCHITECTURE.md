@@ -1086,7 +1086,9 @@ avaient un espace actif sans en etre membres (rattrapes par la migration :
 
 - declencheur `profiles_espace_actif_membre` (BEFORE INSERT OR UPDATE OF
   `organization_id`, `role` sur `profiles`) : refuse en `23514` un espace actif
-  dont un non-super_admin n'est pas membre ;
+  dont un non-super_admin n'est pas membre ; depuis `sql/239` il verrouille la
+  ligne d'appartenance (`FOR KEY SHARE`), si bien qu'un retrait concurrent
+  ATTEND au lieu de laisser un espace actif sans appartenance ;
 - declencheur `organization_members_report_espace_actif` (AFTER DELETE sur
   `organization_members`) : retire de son espace actif, l'utilisateur bascule sur
   son plus ancien autre espace, ou `null` ; un super_admin n'est pas touche ;

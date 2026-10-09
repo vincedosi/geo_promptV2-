@@ -10,6 +10,7 @@
  * Tout est créé jetable (`[ESSAI espaces]`) et supprimé à la fin.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { Client } from 'pg';
 import { creerClientTest } from './_client';
 
 const admin = creerClientTest();
@@ -323,4 +324,36 @@ describe('remplacerEspaces (T4)', () => {
     const r = await remplacerEspaces(admin as never, '00000000-0000-0000-0000-00000000dead', [], null);
     expect(r).toEqual({ ok: false, status: 404, message: 'Utilisateur introuvable.' });
   });
+});
+
+describe('course : retrait concurrent du membre pendant le choix de l espace actif (sql/239)', () => {
+  // Sans verrou, le déclencheur voyait l'appartenance, une transaction
+  // concurrente la supprimait, et les deux validaient : un client se retrouvait
+  // dans un espace dont il n'était plus membre. Le déclencheur verrouille
+  // désormais la ligne d'appartenance (FOR KEY SHARE) : le retrait ATTEND.
+  it('le retrait de l appartenance attend la transaction qui pose l espace actif', async () => {
+    expect(process.env.DATABASE_URL ?? '').toMatch(/127\.0\.0\.1|localhost/);
+    const u = await creerCompte('course');
+    await rendreMembre(u, a);
+
+    const t1 = new Client({ connectionString: process.env.DATABASE_URL });
+    const t2 = new Client({ connectionString: process.env.DATABASE_URL });
+    await t1.connect();
+    await t2.connect();
+    try {
+      await t1.query('begin');
+      await t1.query('update public.profiles set organization_id = $1 where id = $2', [a, u]);
+
+      await t2.query('begin');
+      await t2.query("set local lock_timeout = '1s'");
+      const retrait = t2.query(
+        'delete from public.organization_members where user_id = $1 and organization_id = $2', [u, a]);
+      await expect(retrait).rejects.toMatchObject({ code: '55P03' }); // lock_not_available
+      await t2.query('rollback');
+      await t1.query('rollback');
+    } finally {
+      await t1.end();
+      await t2.end();
+    }
+  }, 30_000);
 });
