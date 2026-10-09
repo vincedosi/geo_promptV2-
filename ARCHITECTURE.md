@@ -1184,7 +1184,12 @@ Outils de `lib/auth/perimetre-donnees.ts` :
   ligne a ligne n'est possible.
 - `getCategoriesVisibles(sources)` (`lib/poi/categories.ts`) — ce qui est
   montre ou dicte a l'IA. `getDistinctCategories` reste interne : un nom de
-  categorie (« bmw ») suffit a reveler qu'un client existe.
+  categorie (« bmw ») suffit a reveler qu'un client existe. Resultat mis en
+  cache 5 min par `empreintePerimetre(sources)` (200 perimetres au plus, une
+  liste partielle n'est jamais cachee, `strict` relit toujours) : sans lui,
+  chaque appel de `/api/map/categories` (route publique) ou du chat lisait
+  ≈ 35 000 pages (≈ 270 Mo, EXPLAIN BUFFERS du 2026-10-09).
+  `invalidateCategoriesCache` vide les deux caches.
 
 **Verrous :** `tests/integration/cloisonnement-rls.test.ts` rejoue 44 attaques
 PostgREST avec de vrais comptes MARINE / BMW / DRHAT (dont un `admin` d'espace

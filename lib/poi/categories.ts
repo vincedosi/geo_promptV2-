@@ -6,10 +6,24 @@
  */
 import { createAdminClient } from '@/lib/auth';
 import { logger } from '@/lib/logger';
+import { empreintePerimetre } from '@/lib/auth/perimetre-donnees';
 
 let cachedCategories: string[] | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL_MS = 300_000; // 5 minutes — les catégories changent rarement en cours de session
+
+/**
+ * Catégories visibles, par empreinte de périmètre (`empreintePerimetre`).
+ *
+ * Sans lui, chaque appel de `getCategoriesVisibles` pour un client ou un
+ * appelant sans session relisait ≈ 35 000 pages (≈ 270 Mo, EXPLAIN BUFFERS du
+ * 2026-10-09) — et `/api/map/categories` est une route PUBLIQUE. Même TTL que
+ * le cache global ; borné à `CACHE_VISIBLES_MAX` entrées, la plus ancienne
+ * évincée d'abord (ordre d'insertion d'une Map). Un cache de processus suffit :
+ * il protège la base de la répétition, il ne compte pas un quota.
+ */
+const cacheVisibles = new Map<string, { categories: string[]; t: number }>();
+const CACHE_VISIBLES_MAX = 200;
 
 /**
  * Récupère toutes les catégories distinctes de la table poi.
@@ -89,10 +103,18 @@ export async function getCategoriesVisibles(
   if (sources === null) return toutes;
   if (sources.length === 0) return [];
 
+  // `strict` (aperçu d'un espace) relit toujours : il doit dire l'état présent.
+  const cle = empreintePerimetre(sources);
+  const enCache = cacheVisibles.get(cle);
+  if (!options.strict && enCache && Date.now() - enCache.t < CACHE_TTL_MS) {
+    return enCache.categories;
+  }
+
   // Leapfrog restreint aux sources visibles : une requête par catégorie
   // présente, sur l'index de `categorie`.
   const supabase = createAdminClient();
   const visibles = new Set<string>();
+  let complet = true;
   let lastSeen = '';
   for (let i = 0; i < 100; i++) {
     const { data, error } = await supabase
@@ -106,12 +128,24 @@ export async function getCategoriesVisibles(
     // Une lecture en échec ferme : on rend ce qu'on a pu vérifier, rien de plus
     // — sauf en mode `strict`, où elle lève (un aperçu ne doit pas mentir).
     if (error && options.strict) throw new Error(`lecture des catégories visibles : ${error.message}`);
-    if (error || !data?.length) break;
+    if (error) { complet = false; break; }
+    if (!data?.length) break;
     const cat = data[0].categorie as string;
     visibles.add(cat);
     lastSeen = cat;
   }
-  return toutes.filter((c) => visibles.has(c));
+  const resultat = toutes.filter((c) => visibles.has(c));
+  // Une liste partielle (lecture en échec) n'est jamais mise en cache.
+  if (complet) {
+    cacheVisibles.delete(cle);
+    cacheVisibles.set(cle, { categories: resultat, t: Date.now() });
+    while (cacheVisibles.size > CACHE_VISIBLES_MAX) {
+      const plusAncienne = cacheVisibles.keys().next().value;
+      if (plusAncienne === undefined) break;
+      cacheVisibles.delete(plusAncienne);
+    }
+  }
+  return resultat;
 }
 
 /**
@@ -120,4 +154,5 @@ export async function getCategoriesVisibles(
 export function invalidateCategoriesCache(): void {
   cachedCategories = null;
   cacheTimestamp = 0;
+  cacheVisibles.clear();
 }
