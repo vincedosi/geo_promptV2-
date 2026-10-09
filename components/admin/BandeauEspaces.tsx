@@ -19,9 +19,10 @@ export function BandeauEspaces() {
         marginBottom: 20,
       }}
     >
-      Les droits se gèrent désormais dans{' '}
+      Cette page reste utilisable mais n&apos;est plus maintenue. La référence pour gérer les droits
+      dans dentsu.explore est désormais la page{' '}
       <strong style={{ color: 'var(--text-primary)', fontWeight: 500 }}>Espaces de travail</strong>{' '}
-      (interface Angular, Administration › Espaces de travail). Cette page reste disponible en lecture.
+      (Administration › Espaces de travail).
     </div>
   )
 }

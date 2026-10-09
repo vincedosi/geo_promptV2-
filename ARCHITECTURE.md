@@ -1116,7 +1116,7 @@ a l'espace interne : tout client cree en aurait vu les donnees. Verrou :
 Une seule page — **Administration › Espaces de travail** (interface Angular,
 `/app/admin/espaces`) — remplace les trois pages React `/admin/users`,
 `/admin/organizations` et `/admin/organizations/[id]` (bandeau de renvoi en tete,
-pages gardees en lecture, administration React gelee). Specification :
+pages toujours utilisables — elles ecrivent encore — mais plus maintenues, administration React gelee). Specification :
 `docs/superpowers/specs/2026-10-08-espaces-de-travail-design.md` ; plan :
 `docs/superpowers/plans/2026-10-09-espaces-de-travail.md`.
 
