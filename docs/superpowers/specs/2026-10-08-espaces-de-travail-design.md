@@ -198,6 +198,8 @@ a relevé six `await adminFetch` React sans lecture de réponse.
 |---|---|---|
 | `GET /api/admin/espaces` | les espaces + compteurs (membres, jeux possédés) + l'entrée socle | une lecture pour la colonne, au lieu de N |
 | `GET /api/admin/espaces/[id]/donnees` | chaque jeu avec son statut pour cet espace | le statut se calcule côté serveur, avec la règle, pas dans l'écran |
+| `GET /api/admin/espaces/socle` | tous les jeux (sans statut) + le nombre d'espaces clients | la fiche Socle dit « combien d'espaces perdent ce jeu » sans le recalculer dans l'écran |
+| `GET /api/admin/espaces/[id]/membres` | les membres de l'espace avec leurs AUTRES espaces | les pastilles de la fiche, sans que l'écran croise appartenances et espaces |
 | `GET /api/admin/espaces/[id]/apercu` | l'aperçu du § 4.5 | appelle `getOrgSourceIds` / `getCategoriesVisibles` |
 | `PUT /api/admin/users/[id]/espaces` | remplace la liste des espaces d'un utilisateur | la fiche utilisateur coche plusieurs cases en une fois |
 

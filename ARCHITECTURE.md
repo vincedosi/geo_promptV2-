@@ -1438,6 +1438,11 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/admin/organizations` | GET/POST | CRUD organisations ; `member_count` = lignes d'`organization_members` (appartenances, pas espace actif) |
 | `/api/admin/organizations/[id]/members` | POST/PATCH/DELETE | Gestion membres via `lib/espaces/appartenance.ts` (sql/236) : POST écrit `organization_members` (idempotent), pose l'espace actif s'il était vide, rôle OPTIONNEL et jamais écrit sur une cible déjà super_admin (E3 : même si l'écran React en envoie un, un super_admin n'est pas rétrogradé ; son rôle se change par PATCH `/api/admin/users/[id]`) ; PATCH change le rôle d'un membre (appartenance vérifiée, pas l'espace actif) ; DELETE supprime l'appartenance, la base reporte l'espace actif, le rôle n'est plus touché |
 | `/api/admin/organizations/[id]/members/reset-password` | POST | Reset password membre |
+| `/api/admin/espaces` | GET | Espaces de travail + compteurs (`nb_membres` depuis `organization_members`, `nb_jeux_prives`) + `socle.nb_jeux` ; `lib/espaces/lister-espaces.ts` ; super_admin seul, bornée (trois lectures de dizaines de lignes, sous `db-max-rows` = 1 000) |
+| `/api/admin/espaces/socle` | GET | Tous les jeux de données + `nb_espaces_clients` (fiche Socle) ; segment fixe à côté de `[id]` |
+| `/api/admin/espaces/[id]/donnees` | GET | Chaque jeu avec son statut POUR l'espace (`proprietaire`/`partage`/`socle`/`non_visible`, `statutPourEspace` = condition de `getOrgSourceIds` / `source_visible`, sql/234) ; 400 id non UUID, 404 espace inconnu |
+| `/api/admin/espaces/[id]/membres` | GET | `{ membres }` avec leurs AUTRES espaces ; 404 espace inconnu |
+| `/api/admin/espaces/[id]/apercu` | GET | « Ce que voit cet espace » : appelle `getOrgSourceIds` (session client simulée) + `getCategoriesVisibles` ; catégories SANS effectif (aucun COUNT sur `poi_france`), `nb_campagnes` ; zones/jeux de zones absents (rattachés à un utilisateur) |
 | `/api/admin/organizations/[id]/sources/assign` | POST/DELETE | Assignation sources |
 | `/api/admin/sources` | GET/POST | CRUD sources |
 | `/api/admin/sources/[id]` | GET/PATCH/DELETE | Detail/modification/suppression source |
