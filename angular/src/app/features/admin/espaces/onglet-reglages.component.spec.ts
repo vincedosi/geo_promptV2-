@@ -174,11 +174,18 @@ describe('OngletReglagesComponent', () => {
     http.expectOne(URL_ORG).flush(org());
   });
 
-  it('bascule « Espace actif » : PATCH { active: false } seul, puis relecture et recharger', async () => {
-    const { harnais, http, q, recharger } = await monter();
+  it('bascule « Espace actif » : confirmation, puis PATCH { active: false } seul, relecture et recharger', async () => {
+    const { harnais, http, q, el, recharger } = await monter();
     const sw = q<HTMLButtonElement>('[data-actif]');
     expect(sw.getAttribute('aria-checked')).toBe('true');
     sw.click();
+    await harnais.fixture.whenStable();
+    // Désactiver coupe les membres : rien ne part avant la confirmation (`afterEach` le vérifierait).
+    http.expectNone(URL_ORG);
+    const boite = el.querySelector('mg-confirmation[data-desactivation]')!;
+    expect(boite.textContent).toContain('Désactiver Espace A ?');
+    expect(boite.textContent).toContain('Ses 3 membres');
+    boite.querySelector<HTMLButtonElement>('button.confirmer')!.click();
     const req = http.expectOne(URL_ORG);
     expect(req.request.method).toBe('PATCH');
     expect(req.request.body).toEqual({ active: false });
@@ -192,10 +199,32 @@ describe('OngletReglagesComponent', () => {
     expect(q('[data-actif]').getAttribute('aria-checked')).toBe('false');
   });
 
+  it('désactivation annulée : aucun PATCH, la boîte se ferme', async () => {
+    const { harnais, q, el } = await monter();
+    q<HTMLButtonElement>('[data-actif]').click();
+    await harnais.fixture.whenStable();
+    el.querySelector<HTMLButtonElement>('mg-confirmation[data-desactivation] button.annuler')!.click();
+    await harnais.fixture.whenStable();
+    expect(el.querySelector('mg-confirmation[data-desactivation] dialog')!.hasAttribute('open')).toBe(false);
+    expect(q('[data-actif]').getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('réactiver un espace inactif : PATCH { active: true } sans confirmation', async () => {
+    const { harnais, http, q } = await monter(false, org({ active: false }));
+    q<HTMLButtonElement>('[data-actif]').click();
+    const req = http.expectOne(URL_ORG);
+    expect(req.request.body).toEqual({ active: true });
+    req.flush({ success: true });
+    await harnais.fixture.whenStable();
+    http.expectOne(URL_ORG).flush(org({ active: true }));
+  });
+
   it("bascule refusée par le serveur : l'interrupteur reste sur sa valeur, erreur notifiée", async () => {
-    const { harnais, http, q, notifs } = await monter();
+    const { harnais, http, q, el, notifs } = await monter();
     const err = vi.spyOn(notifs, 'error');
     q<HTMLButtonElement>('[data-actif]').click();
+    await harnais.fixture.whenStable();
+    el.querySelector<HTMLButtonElement>('mg-confirmation[data-desactivation] button.confirmer')!.click();
     http.expectOne(URL_ORG).flush({ error: 'Refusé' }, { status: 500, statusText: 'x' });
     await harnais.fixture.whenStable();
     expect(q('[data-actif]').getAttribute('aria-checked')).toBe('true');
@@ -207,6 +236,12 @@ describe('OngletReglagesComponent', () => {
     const { el, q } = await monter(true);
     expect(el.querySelector('[data-supprimer]')).toBeNull();
     expect(q('[data-interne]').textContent).toContain("L'espace interne porte les données du socle : il ne se supprime pas.");
+  });
+
+  it("espace interne : l'interrupteur « actif » n'est pas offert (spec § 11)", async () => {
+    const { el } = await monter(true);
+    expect(el.querySelector('[data-actif]')).toBeNull();
+    expect(el.querySelector('[data-statut]')).toBeNull();
   });
 
   it("suppression : confirmation nommant l'espace, ses membres et ses jeux privés, puis DELETE et retour à la fiche vide", async () => {

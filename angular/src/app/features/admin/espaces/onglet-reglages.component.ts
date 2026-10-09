@@ -50,7 +50,8 @@ function quotaEnSaisie(config: Record<string, unknown>, cle: string): string {
  *   avec les quatre clés du formulaire : la route REMPLACE la colonne `config` en bloc, d'autres clés
  *   peuvent y vivre. Quota vide → `null`, quota invalide → message en ligne et AUCUN envoi.
  * - « Espace actif » : `PATCH { active }` seul, sans mise à jour optimiste — l'interrupteur ne bouge
- *   qu'après la relecture, un refus le laisse où il était.
+ *   qu'après la relecture, un refus le laisse où il était. Désactiver passe par une confirmation ;
+ *   l'espace interne n'a pas d'interrupteur (spec § 11).
  * - Une écriture RÉUSSIE notifie, relit puis appelle `etat.recharger()` (le nom et la pastille de la
  *   colonne en dépendent). Tant qu'une écriture ou sa relecture est en vol, tout est désactivé.
  * - Suppression : confirmation `danger` dont les effectifs (membres, jeux privés) viennent de la
@@ -125,18 +126,21 @@ function quotaEnSaisie(config: Record<string, unknown>, cle: string): string {
           <button type="button" data-enregistrer class="bouton teal" [disabled]="occupe()" (click)="enregistrer()">{{ libelleEnregistrer() }}</button>
         </div>
 
-        <section class="section">
-          <h3 class="entete"><span class="point"></span>Statut</h3>
-          <div class="corps rangee-statut">
-            <button
-              type="button" role="switch" data-actif class="interrupteur"
-              [attr.aria-checked]="actif()" aria-labelledby="etiquette-actif"
-              [disabled]="occupe()" (click)="basculer()"
-            ><span class="curseur"></span></button>
-            <span id="etiquette-actif" class="etiquette-actif">Espace actif</span>
-            <span class="note m-0">{{ actif() ? 'Actif' : 'Inactif' }}</span>
-          </div>
-        </section>
+        <!-- Spec § 11 : l'espace interne porte le socle, son interrupteur « actif » n'est pas offert. -->
+        @if (!interne()) {
+          <section class="section" data-statut>
+            <h3 class="entete"><span class="point"></span>Statut</h3>
+            <div class="corps rangee-statut">
+              <button
+                type="button" role="switch" data-actif class="interrupteur"
+                [attr.aria-checked]="actif()" aria-labelledby="etiquette-actif"
+                [disabled]="occupe()" (click)="demanderBascule()"
+              ><span class="curseur"></span></button>
+              <span id="etiquette-actif" class="etiquette-actif">Espace actif</span>
+              <span class="note m-0">{{ actif() ? 'Actif' : 'Inactif' }}</span>
+            </div>
+          </section>
+        }
 
         <section class="danger">
           <div>
@@ -163,6 +167,17 @@ function quotaEnSaisie(config: Record<string, unknown>, cle: string): string {
       [enCours]="suppression()"
       (confirmer)="supprimer()"
       (annuler)="fermerConfirmation()"
+    />
+
+    <mg-confirmation
+      data-desactivation
+      [ouvert]="confirmationDesactivation()"
+      [titre]="titreDesactivation()"
+      [message]="messageDesactivation()"
+      variante="danger"
+      libelleConfirmer="Désactiver l'espace"
+      (confirmer)="desactiver()"
+      (annuler)="confirmationDesactivation.set(false)"
     />
   `,
   styles: `
@@ -262,6 +277,7 @@ export class OngletReglagesComponent {
 
   protected readonly confirmation = signal(false);
   protected readonly suppression = signal(false);
+  protected readonly confirmationDesactivation = signal(false);
   private readonly ecriture = signal(false);
   /** Une relecture qui suit une écriture est en vol : les valeurs affichées peuvent être périmées. */
   private readonly relecture = signal(false);
@@ -282,6 +298,15 @@ export class OngletReglagesComponent {
     const membres = n === 1 ? 'Son 1 membre en est retiré' : `Ses ${n} membres en sont retirés`;
     const jeux = m === 1 ? 'son 1 jeu privé devient sans propriétaire et n\'est' : `ses ${m} jeux privés deviennent sans propriétaire et ne sont`;
     return `${membres} ; ${jeux} plus visible${m === 1 ? '' : 's'} que du super-administrateur.`;
+  });
+
+  protected readonly titreDesactivation = computed(() => `Désactiver ${this.resume()?.nom_affiche ?? 'cet espace'} ?`);
+  protected readonly messageDesactivation = computed(() => {
+    const n = this.resume()?.nb_membres;
+    // Ce que les routes font d'un espace inactif (`admin/users`, `admin/campaigns/[id]`) : plus de
+    // nouveau compte, plus de campagne rattachée. Rien n'est supprimé.
+    const qui = n === undefined ? 'Ses membres' : n === 1 ? 'Son 1 membre' : `Ses ${n} membres`;
+    return `Un espace inactif n'accepte plus de nouveau compte ni de campagne. ${qui} y ${n === 1 ? 'est' : 'sont'} concerné${n === 1 ? '' : 's'}. Rien n'est supprimé : le réactiver suffit.`;
   });
 
   private lecture: Subscription | null = null;
@@ -379,9 +404,25 @@ export class OngletReglagesComponent {
     );
   }
 
+  /**
+   * Clic sur l'interrupteur. Activer part tout de suite ; DÉSACTIVER coupe l'accès de tous les
+   * membres, il passe donc par une confirmation.
+   */
+  protected demanderBascule(): void {
+    if (!this.organisation() || this.occupe() || this.interne()) return;
+    if (this.actif()) this.confirmationDesactivation.set(true);
+    else this.basculer();
+  }
+
+  protected desactiver(): void {
+    this.confirmationDesactivation.set(false);
+    if (this.actif()) this.basculer();
+  }
+
   /** Bascule l'activité : `PATCH { active }` seul ; l'interrupteur ne bouge qu'après la relecture. */
-  protected basculer(): void {
-    if (!this.organisation() || this.occupe()) return;
+  private basculer(): void {
+    // Spec § 11 : jamais sur l'espace interne, même si l'interrupteur venait à être offert.
+    if (!this.organisation() || this.occupe() || this.interne()) return;
     const futur = !this.actif();
     this.ecrire(this.api.modifierEspace(this.espaceId(), { active: futur }), futur ? 'Espace activé' : 'Espace désactivé', this.nom().trim() || undefined, false);
   }
