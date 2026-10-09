@@ -78,7 +78,7 @@ describe('FicheEspaceComponent', () => {
     http.expectOne(`/api/admin/espaces/${B}/membres`).flush({ membres: [] });
   });
 
-  it('clic « Données » : un seul GET des données, une fois ; Aperçu et Réglages : texte en attente, aucun appel', async () => {
+  it('clic « Données » : un seul GET des données, une fois ; Aperçu et Réglages : un GET chacun, à la première ouverture seulement', async () => {
     const { harnais, http, el } = await monter();
     await harnais.navigateByUrl(`/espaces/${A}`, FicheEspaceComponent);
     http.expectOne(`/api/admin/espaces/${A}/membres`).flush({ membres: [] });
@@ -104,7 +104,16 @@ describe('FicheEspaceComponent', () => {
     }
     el().querySelector<HTMLButtonElement>('[data-onglet="reglages"]')!.click();
     await harnais.fixture.whenStable();
-    expect(el().textContent).toContain('Onglet en cours de construction');
+    // Réglages (T10) : un seul GET de l'organisation, à la première ouverture.
+    http.expectOne(`/api/admin/organizations/${A}`).flush({
+      organization: { id: A, name: 'Espace A', description: null, active: true, config: {} },
+    });
+    await harnais.fixture.whenStable();
+    expect(el().querySelector('mg-onglet-reglages')).not.toBeNull();
+    for (const o of ['membres', 'reglages']) {
+      el().querySelector<HTMLButtonElement>(`[data-onglet="${o}"]`)!.click();
+      await harnais.fixture.whenStable();
+    }
     http.expectNone(() => true);
     expect(el().querySelector('[role="tablist"]')!.textContent).toMatch(/Membres \(2\)\s*Données\s*Aperçu\s*Réglages/);
   });
