@@ -245,6 +245,51 @@ describe('FicheUtilisateurComponent', () => {
     expect(client.checked).toBe(true);
   });
 
+  it('membre au rôle admin : son rôle actuel est affiché et coché, entre Client et Super admin', async () => {
+    const { el } = await monter('moi', { ...MEMBRE, role: 'admin' });
+    const radios = [...el.querySelectorAll<HTMLInputElement>('input[type="radio"]')];
+    expect(radios.map((r) => r.value)).toEqual(['client', 'admin', 'super_admin']);
+    expect(radios.map((r) => r.checked)).toEqual([false, true, false]);
+    expect(radios[1].closest('label')!.textContent).toContain('Admin');
+  });
+
+  it('admin → client : confirmation propre à cette transition (pas le texte du super-admin), puis PATCH ; « Admin » disparaît', async () => {
+    const { f, el, http } = await monter('moi', { ...MEMBRE, role: 'admin' });
+    const client = el.querySelector<HTMLInputElement>('input[type="radio"][value="client"]')!;
+    client.checked = true;
+    client.dispatchEvent(new Event('change'));
+    await f.whenStable();
+    http.expectNone('/api/admin/users/U');
+    const conf = el.querySelector('mg-confirmation[data-confirmation-role]')!;
+    expect(conf.textContent).toContain('Passer au rôle Client ?');
+    expect(conf.textContent).toContain('personne@exemple.fr perd le rôle Admin');
+    expect(conf.textContent).not.toContain('super-administrateur');
+    expect(conf.textContent).not.toContain('ne verra plus tous les espaces');
+    expect(el.querySelector<HTMLInputElement>('input[type="radio"][value="admin"]')!.checked).toBe(true);
+    conf.querySelector<HTMLButtonElement>('button.confirmer')!.click();
+    await f.whenStable();
+    const req = http.expectOne('/api/admin/users/U');
+    expect(req.request.body).toEqual({ role: 'client' });
+    req.flush({ success: true });
+    await f.whenStable();
+    // E5 : `admin` n'est jamais proposé ; une fois quitté, il n'est plus affiché.
+    expect([...el.querySelectorAll<HTMLInputElement>('input[type="radio"]')].map((r) => r.value)).toEqual(['client', 'super_admin']);
+    expect(el.querySelector<HTMLInputElement>('input[type="radio"][value="client"]')!.checked).toBe(true);
+  });
+
+  it('admin → super_admin : la confirmation « Nommer super-administrateur »', async () => {
+    const { f, el } = await monter('moi', { ...MEMBRE, role: 'admin' });
+    const sa = el.querySelector<HTMLInputElement>('input[type="radio"][value="super_admin"]')!;
+    sa.checked = true;
+    sa.dispatchEvent(new Event('change'));
+    await f.whenStable();
+    const conf = el.querySelector('mg-confirmation[data-confirmation-role]')!;
+    expect(conf.textContent).toContain('Nommer super-administrateur ?');
+    conf.querySelector<HTMLButtonElement>('button.annuler')!.click();
+    await f.whenStable();
+    expect(el.querySelector<HTMLInputElement>('input[type="radio"][value="admin"]')!.checked).toBe(true);
+  });
+
   it('son propre compte : les radios de rôle sont désactivés', async () => {
     const { el } = await monter('U');
     const radios = [...el.querySelectorAll<HTMLInputElement>('input[type="radio"]')];

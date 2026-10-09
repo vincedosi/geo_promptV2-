@@ -5,15 +5,24 @@ import type { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { ConfirmationComponent } from '../../../ui/confirmation/confirmation.component';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
-import { ROLE_LABELS } from '../logique/roles';
+import { ROLES, ROLE_LABELS, type UserRole } from '../logique/roles';
 import { EspacesApi } from './data/espaces.api';
 import { EspacesEtatService } from './etat/espaces-etat.service';
 import { messageErreur } from './logique/libelles';
 import type { MembreEspace, RoleEspace } from './logique/types';
 
 /** E5 : seuls ces deux rôles sont proposés, jamais `admin`. */
-const ROLES_PROPOSES = ['client', 'super_admin'] as const;
+const ROLES_PROPOSES = ['client', 'super_admin'] as const satisfies readonly UserRole[];
 type RolePropose = (typeof ROLES_PROPOSES)[number];
+
+/**
+ * Les radios affichés : les rôles proposés, plus le rôle ACTUEL s'il ne l'est pas (un membre
+ * `admin` voit son rôle coché, sans qu'on puisse le lui rendre une fois quitté). Ordre de pouvoir
+ * croissant, tiré de `ROLES` (copie de `lib/auth/roles.ts`) : Client, Admin, Super admin.
+ */
+function rolesAffiches(actuel: RoleEspace): UserRole[] {
+  return [...ROLES].reverse().filter((r) => r === actuel || (ROLES_PROPOSES as readonly UserRole[]).includes(r));
+}
 
 let compteur = 0;
 
@@ -249,7 +258,7 @@ export class FicheUtilisateurComponent {
   });
 
   protected readonly roles = computed(() =>
-    ROLES_PROPOSES.map((r) => ({ valeur: r, libelle: ROLE_LABELS[r], coche: this.role() === r })),
+    rolesAffiches(this.role()).map((r) => ({ valeur: r, libelle: ROLE_LABELS[r], coche: this.role() === r })),
   );
 
   /** Ordre de la colonne d'espaces ; un espace coché absent de la liste chargée est gardé en fin. */
@@ -271,21 +280,33 @@ export class FicheUtilisateurComponent {
   protected readonly aucunActif = computed(() => this.actif() === null);
 
   protected readonly libelleEspaces = computed(() => (this.ecritureEspaces() ? 'Enregistrement…' : 'Enregistrer les espaces'));
+  /** Textes de la confirmation, selon la transition (rôle accepté → rôle visé). */
   protected readonly confirmationRoleTextes = computed(() => {
     const email = this.membre().email;
-    return this.roleVise() === 'client'
-      ? {
+    const vise = this.roleVise();
+    const actuel = this.role();
+    if (vise === 'client' && actuel === 'super_admin') {
+      return {
         titre: 'Retirer le rôle super-administrateur ?',
         message: `${email} ne verra plus tous les espaces : il ne gardera que ceux dont il est membre.`,
         bouton: 'Retirer le rôle',
         variante: 'danger' as const,
-      }
-      : {
-        titre: 'Nommer super-administrateur ?',
-        message: `${email} verra les données de tous les espaces, quel que soit son espace actif.`,
-        bouton: 'Nommer super-administrateur',
-        variante: 'defaut' as const,
       };
+    }
+    if (vise === 'client') {
+      return {
+        titre: `Passer au rôle ${ROLE_LABELS.client} ?`,
+        message: `${email} perd le rôle ${ROLE_LABELS[actuel]}. Ce rôle n'est plus attribué depuis cette page : il ne pourra pas lui être rendu ici.`,
+        bouton: `Passer au rôle ${ROLE_LABELS.client}`,
+        variante: 'danger' as const,
+      };
+    }
+    return {
+      titre: 'Nommer super-administrateur ?',
+      message: `${email} verra les données de tous les espaces, quel que soit son espace actif.`,
+      bouton: 'Nommer super-administrateur',
+      variante: 'defaut' as const,
+    };
   });
   protected readonly titreSuppression = computed(() => `Supprimer définitivement ${this.membre().email} ?`);
 
@@ -331,9 +352,10 @@ export class FicheUtilisateurComponent {
    * une annulation laisse donc le DOM sur le rôle accepté.
    */
   protected choisirRole(e: Event): void {
-    const voulu = (e.target as HTMLInputElement).value as RolePropose;
+    const voulu = (e.target as HTMLInputElement).value;
     this.resynchroniserRadios();
     if (voulu === this.role() || this.enCours() || this.estMoi()) return;
+    if (!estPropose(voulu)) return;
     this.roleVise.set(voulu);
   }
 
@@ -453,4 +475,8 @@ export class FicheUtilisateurComponent {
       r.checked = r.value === role;
     }
   }
+}
+
+function estPropose(r: string): r is RolePropose {
+  return (ROLES_PROPOSES as readonly string[]).includes(r);
 }
