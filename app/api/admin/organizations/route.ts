@@ -40,7 +40,9 @@ export async function GET(request: NextRequest) {
     // Enrich with member count + source count — 3 queries total regardless of org count
     const orgIds = (orgs || []).map((o) => o.id);
     const [membersRes, sourcesRes, campaignsRes] = await Promise.all([
-      supabase.from('profiles').select('organization_id').in('organization_id', orgIds),
+      // Une ligne par appartenance ; bornee par (comptes x espaces), quelques
+      // dizaines — sous le plafond serveur de 1 000 lignes.
+      supabase.from('organization_members').select('organization_id').in('organization_id', orgIds),
       supabase.from('data_sources').select('organization_id').in('organization_id', orgIds).neq('status', 'deleted'),
       supabase.from('dsp_campaigns').select('organization_id').in('organization_id', orgIds),
     ]);

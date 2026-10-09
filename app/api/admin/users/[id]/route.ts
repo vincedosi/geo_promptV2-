@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { RoleSchema } from '@/lib/auth/roles';
+import { messageErreurAppartenance } from '@/lib/espaces/appartenance';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,7 +48,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (organization_id !== undefined) updates.organization_id = organization_id;
 
   const { error } = await supabase.from('profiles').update(updates).eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    const e = messageErreurAppartenance(error.code, error.message);
+    return NextResponse.json({ error: e.message }, { status: e.status });
+  }
 
   return NextResponse.json({ success: true });
 }

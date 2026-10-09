@@ -47,6 +47,17 @@ async function espaceActif(userId: string): Promise<string | null> {
   return (data?.organization_id as string | null) ?? null;
 }
 
+/**
+ * Écriture de MISE EN PLACE : lève si elle échoue. Sans ça, un `update` refusé
+ * laisse le cas tourner sur un état qui n'est pas celui qu'il croit tester, et
+ * l'assertion finale peut passer à vide.
+ */
+async function pose<T extends { error: { message: string } | null }>(libelle: string, ecriture: PromiseLike<T>): Promise<T> {
+  const res = await ecriture;
+  if (res.error) throw new Error(`mise en place « ${libelle} » : ${res.error.message}`);
+  return res;
+}
+
 let a: string, b: string;
 
 beforeAll(async () => {
@@ -87,7 +98,7 @@ describe('invariant : espace actif ⊂ appartenance (sql/236)', () => {
 
   it('refuse de rétrograder en client un super_admin placé hors de ses espaces', async () => {
     const u = await creerCompte('retro', 'super_admin');
-    await admin.from('profiles').update({ organization_id: b }).eq('id', u);
+    await pose('mise en place', admin.from('profiles').update({ organization_id: b }).eq('id', u));
     const { error } = await admin.from('profiles').update({ role: 'client' }).eq('id', u);
     expect(error?.code).toBe('23514');
   });
@@ -98,7 +109,7 @@ describe('report de l\'espace actif au retrait (sql/236)', () => {
     const u = await creerCompte('report');
     await rendreMembre(u, a);
     await rendreMembre(u, b);
-    await admin.from('profiles').update({ organization_id: a }).eq('id', u);
+    await pose('mise en place', admin.from('profiles').update({ organization_id: a }).eq('id', u));
     const { error } = await admin.from('organization_members').delete().eq('user_id', u).eq('organization_id', a);
     expect(error).toBeNull();
     expect(await espaceActif(u)).toBe(b);
@@ -107,8 +118,8 @@ describe('report de l\'espace actif au retrait (sql/236)', () => {
   it('retiré de son seul espace, son espace actif devient null', async () => {
     const u = await creerCompte('seul');
     await rendreMembre(u, a);
-    await admin.from('profiles').update({ organization_id: a }).eq('id', u);
-    await admin.from('organization_members').delete().eq('user_id', u).eq('organization_id', a);
+    await pose('mise en place', admin.from('profiles').update({ organization_id: a }).eq('id', u));
+    await pose('mise en place', admin.from('organization_members').delete().eq('user_id', u).eq('organization_id', a));
     expect(await espaceActif(u)).toBeNull();
   });
 
@@ -116,8 +127,18 @@ describe('report de l\'espace actif au retrait (sql/236)', () => {
     const u = await creerCompte('autre');
     await rendreMembre(u, a);
     await rendreMembre(u, b);
-    await admin.from('profiles').update({ organization_id: a }).eq('id', u);
-    await admin.from('organization_members').delete().eq('user_id', u).eq('organization_id', b);
+    await pose('mise en place', admin.from('profiles').update({ organization_id: a }).eq('id', u));
+    await pose('mise en place', admin.from('organization_members').delete().eq('user_id', u).eq('organization_id', b));
+    expect(await espaceActif(u)).toBe(a);
+  });
+});
+
+describe('super_admin et retrait (sql/236)', () => {
+  it('un super_admin retiré de son espace actif le garde', async () => {
+    const u = await creerCompte('super-retrait', 'super_admin');
+    await rendreMembre(u, a);
+    await pose('actif', admin.from('profiles').update({ organization_id: a }).eq('id', u));
+    await pose('retrait', admin.from('organization_members').delete().eq('user_id', u).eq('organization_id', a));
     expect(await espaceActif(u)).toBe(a);
   });
 });
@@ -126,7 +147,7 @@ describe('suppressions en cascade (sql/236)', () => {
   it('supprimer un compte membre de son espace actif ne lève rien', async () => {
     const u = await creerCompte('cascade-compte');
     await rendreMembre(u, a);
-    await admin.from('profiles').update({ organization_id: a }).eq('id', u);
+    await pose('mise en place', admin.from('profiles').update({ organization_id: a }).eq('id', u));
     const { error } = await admin.auth.admin.deleteUser(u);
     expect(error).toBeNull();
     comptes.splice(comptes.indexOf(u), 1);
@@ -137,13 +158,17 @@ describe('suppressions en cascade (sql/236)', () => {
     const u = await creerCompte('cascade-espace');
     await rendreMembre(u, c);
     await rendreMembre(u, a);
-    await admin.from('profiles').update({ organization_id: c }).eq('id', u);
+    await pose('mise en place', admin.from('profiles').update({ organization_id: c }).eq('id', u));
     const { error } = await admin.from('organizations').delete().eq('id', c);
     expect(error).toBeNull();
     espaces.splice(espaces.indexOf(c), 1);
-    // ON DELETE SET NULL de profiles ET report par le déclencheur : l'un ou
-    // l'autre, jamais un espace dont il n'est plus membre.
-    expect([null, a]).toContain(await espaceActif(u));
+    // Mesuré : la FK profiles.organization_id (ON DELETE SET NULL) met l'actif à
+    // null AVANT que la cascade supprime l'appartenance ; le déclencheur de
+    // report ne trouve alors plus rien à reporter. Résultat déterministe : actif
+    // null, appartenance à `a` conservée — invariant tenu, pas d'espace fantôme.
+    expect(await espaceActif(u)).toBeNull();
+    const { data: restant } = await admin.from('organization_members').select('organization_id').eq('user_id', u);
+    expect((restant ?? []).map((m) => m.organization_id)).toEqual([a]);
   });
 });
 
@@ -151,7 +176,7 @@ describe('remplacer_espaces_utilisateur (sql/236)', () => {
   it('remplace la liste et l\'espace actif en une fois', async () => {
     const u = await creerCompte('rpc');
     await rendreMembre(u, a);
-    await admin.from('profiles').update({ organization_id: a }).eq('id', u);
+    await pose('mise en place', admin.from('profiles').update({ organization_id: a }).eq('id', u));
     const { data, error } = await admin.rpc('remplacer_espaces_utilisateur', { p_user: u, p_espaces: [b], p_actif: b });
     expect(error).toBeNull();
     expect(data).toEqual({ espaces: [b], espace_actif: b });
@@ -193,5 +218,54 @@ describe('rattrapage (sql/236)', () => {
         .eq('user_id', p.id).eq('organization_id', p.organization_id as string);
       expect(m?.length, `profil ${p.id}`).toBe(1);
     }
+  });
+});
+
+import { ajouterMembre, retirerMembre } from '@/lib/espaces/appartenance';
+
+describe('ajouterMembre / retirerMembre (T2)', () => {
+  it('ajouter écrit organization_members et place l\'espace actif s\'il était vide', async () => {
+    const u = await creerCompte('ajout');
+    expect(await ajouterMembre(admin as never, a, u)).toEqual({ ok: true });
+    const { data } = await admin.from('organization_members').select('organization_id').eq('user_id', u);
+    expect((data ?? []).map((m) => m.organization_id)).toEqual([a]);
+    expect(await espaceActif(u)).toBe(a);
+  });
+
+  it('ajouter un second espace ne change pas l\'espace actif', async () => {
+    const u = await creerCompte('ajout2');
+    await ajouterMembre(admin as never, a, u);
+    await ajouterMembre(admin as never, b, u);
+    expect(await espaceActif(u)).toBe(a);
+  });
+
+  it('ajouter deux fois est sans effet (pas d\'erreur, pas de doublon)', async () => {
+    const u = await creerCompte('ajout-double');
+    await ajouterMembre(admin as never, a, u);
+    expect(await ajouterMembre(admin as never, a, u)).toEqual({ ok: true });
+    const { data } = await admin.from('organization_members').select('id').eq('user_id', u);
+    expect(data?.length).toBe(1);
+  });
+
+  it('ajouter un super_admin sans rôle fourni le laisse super_admin (E3)', async () => {
+    const u = await creerCompte('ajout-super', 'super_admin');
+    await ajouterMembre(admin as never, a, u);
+    const { data } = await admin.from('profiles').select('role').eq('id', u).single();
+    expect(data?.role).toBe('super_admin');
+  });
+
+  it('retirer supprime l\'appartenance, reporte l\'actif, et ne touche pas au rôle (E3)', async () => {
+    const u = await creerCompte('retrait', 'super_admin');
+    await ajouterMembre(admin as never, a, u);
+    expect(await retirerMembre(admin as never, a, u)).toEqual({ ok: true });
+    const { data } = await admin.from('profiles').select('role').eq('id', u).single();
+    expect(data?.role).toBe('super_admin');
+    const { data: m } = await admin.from('organization_members').select('id').eq('user_id', u).eq('organization_id', a);
+    expect(m?.length).toBe(0);
+  });
+
+  it('retirer quelqu\'un qui n\'est pas membre rend 404', async () => {
+    const u = await creerCompte('retrait-absent');
+    expect(await retirerMembre(admin as never, a, u)).toEqual({ ok: false, status: 404, message: 'Cet utilisateur n\'est pas membre de cet espace.' });
   });
 });

@@ -2,6 +2,9 @@
  * POST   /api/admin/organizations/[id]/members — Inviter un membre
  * PATCH  /api/admin/organizations/[id]/members — Changer le rôle d'un membre
  * DELETE /api/admin/organizations/[id]/members — Retirer un membre
+ *
+ * L'appartenance s'écrit dans organization_members (sql/236) ; profiles.organization_id
+ * n'est que l'espace ACTIF, tenu cohérent par la base.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
@@ -9,6 +12,7 @@ import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { RoleSchema, RoleMembreSchema } from '@/lib/auth/roles';
+import { ajouterMembre, retirerMembre } from '@/lib/espaces/appartenance';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +24,8 @@ export const dynamic = 'force-dynamic';
  */
 const InviterMembreSchema = z.object({
   email: z.string().trim().min(1, 'Email requis'),
-  role: RoleMembreSchema.default('client'),
+  // E3 : sans rôle, on ne le touche pas (ajouter un super_admin ne le rétrograde pas).
+  role: RoleMembreSchema.optional(),
 });
 
 const ChangerRoleSchema = z.object({
@@ -53,14 +58,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: false, error: 'Utilisateur introuvable — il doit d\'abord créer un compte' }, { status: 404 });
   }
 
-  // Assigner l'org et le rôle
-  const { error } = await sb
-    .from('profiles')
-    .update({ organization_id: orgId, role })
-    .eq('id', existing.id);
-
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-
+  const res = await ajouterMembre(sb, orgId, existing.id, role);
+  if (!res.ok) return NextResponse.json({ success: false, error: res.message }, { status: res.status });
   return NextResponse.json({ success: true });
 }
 
@@ -74,11 +73,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!corps.ok) return NextResponse.json({ success: false, error: corps.message }, { status: 400 });
   const { userId, role } = corps.valeur;
 
-  const { error } = await sb
-    .from('profiles')
-    .update({ role })
-    .eq('id', userId)
-    .eq('organization_id', orgId);
+  // Le filtre sur l'espace ACTIF refusait en silence un membre actif ailleurs :
+  // on vérifie l'appartenance.
+  const { data: membre, error: errMembre } = await sb.from('organization_members')
+    .select('id').eq('user_id', userId).eq('organization_id', orgId).maybeSingle();
+  if (errMembre) return NextResponse.json({ success: false, error: errMembre.message }, { status: 500 });
+  if (!membre) return NextResponse.json({ success: false, error: 'Cet utilisateur n\'est pas membre de cet espace.' }, { status: 404 });
+  const { error } = await sb.from('profiles').update({ role }).eq('id', userId);
 
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
@@ -95,14 +96,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (!corps.ok) return NextResponse.json({ success: false, error: corps.message }, { status: 400 });
   const { userId } = corps.valeur;
 
-  // Retirer de l'org (sans supprimer le compte)
-  const { error } = await sb
-    .from('profiles')
-    .update({ organization_id: null, role: 'client' })
-    .eq('id', userId)
-    .eq('organization_id', orgId);
-
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-
+  // Retirer de l'espace (sans supprimer le compte, sans toucher au rôle — E3).
+  const res = await retirerMembre(sb, orgId, userId);
+  if (!res.ok) return NextResponse.json({ success: false, error: res.message }, { status: res.status });
   return NextResponse.json({ success: true });
 }

@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { RoleSchema } from '@/lib/auth/roles';
+import { ajouterMembre } from '@/lib/espaces/appartenance';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,8 @@ export const dynamic = 'force-dynamic';
  * profil echouait sur la contrainte `profiles_role_check` — echec journalise
  * mais NON remonte (`console.error` plus bas). L'appelant recevait un 201 pour
  * un compte au role par defaut. Le valider en amont evite ce succes partiel.
+ * Depuis le 2026-10-09 l'echec d'ecriture du profil ou de l'appartenance est
+ * remonte (500) et le compte Auth est retire.
  */
 const CreerUtilisateurSchema = z.object({
   email: z.string().trim().min(1),
@@ -101,12 +104,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: authErr.message }, { status: 500 });
   }
 
-  // Update profile with role + org
-  const { error: profErr } = await supabase.from('profiles').update({
-    role, organization_id: organization_id || null, full_name: full_name || null,
-  }).eq('id', authUser.user.id);
-
-  if (profErr) console.error('[admin/users POST] profile update:', profErr.message);
+  // Rôle + nom, puis appartenance. L'appartenance s'écrit AVANT l'espace actif
+  // (sql/236 refuse un actif dont l'utilisateur n'est pas membre) : c'est
+  // ajouterMembre qui pose les deux, dans cet ordre.
+  const nouvelId = authUser.user.id;
+  const { error: profErr } = await supabase.from('profiles')
+    .update({ role, full_name: full_name || null }).eq('id', nouvelId);
+  const ajout = !profErr && organization_id
+    ? await ajouterMembre(supabase, organization_id, nouvelId)
+    : { ok: true as const };
+  if (profErr || !ajout.ok) {
+    // Pas de compte à moitié créé : on le retire, et on dit pourquoi.
+    const { error: errSuppr } = await supabase.auth.admin.deleteUser(nouvelId);
+    if (errSuppr) console.error('[admin/users POST] compte orphelin', nouvelId, errSuppr.message);
+    const message = profErr ? profErr.message : (ajout as { message: string }).message;
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 
   // Lien de premiere connexion, a transmettre a la main par l'admin.
   // `generateLink` ne fait que GENERER : il n'envoie rien, il retourne l'URL.
