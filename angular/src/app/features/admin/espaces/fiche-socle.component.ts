@@ -38,7 +38,8 @@ type Sens = 'retirer' | 'mettre';
  *   super_admin change la visibilité d'un jeu (`PATCH admin/sources/:id { visibilite }`).
  * - Aucune mise à jour optimiste : un changement n'apparaît dans les tableaux qu'à la relecture qui
  *   suit une écriture RÉUSSIE. Une écriture refusée ferme la confirmation, notifie le message du
- *   serveur et laisse les tableaux tels quels.
+ *   serveur et laisse les tableaux tels quels. Tant que l'écriture OU sa relecture est en vol, les
+ *   boutons sont désactivés (`occupe()`).
  * - Après un succès, relecture de la fiche ET de la liste d'espaces (`etat.recharger()`) : le
  *   compteur « Socle » de la colonne doit suivre.
  * - Le décompte « {k} espaces clients ne le verront plus » est `nb_espaces_clients` moins les
@@ -115,12 +116,12 @@ type Sens = 'retirer' | 'mettre';
                       type="button"
                       class="bouton-neutre"
                       [attr.data-action]="l.id"
-                      [disabled]="l.sansProprietaire"
+                      [disabled]="l.sansProprietaire || occupe()"
                       [attr.title]="l.sansProprietaire ? titreSansProprietaire : null"
                       (click)="demander(l.id, 'retirer')"
                     >Retirer du socle</button>
                   } @else {
-                    <button type="button" class="bouton-teal" [attr.data-action]="l.id" (click)="demander(l.id, 'mettre')">Mettre au socle</button>
+                    <button type="button" class="bouton-teal" [attr.data-action]="l.id" [disabled]="occupe()" (click)="demander(l.id, 'mettre')">Mettre au socle</button>
                   }
                 </td>
               </tr>
@@ -159,7 +160,8 @@ type Sens = 'retirer' | 'mettre';
     .bouton-neutre:not(:disabled):hover { border-color: var(--border-hover); background: var(--bg-level-2); color: var(--text-primary); }
     .bouton-neutre:disabled { opacity: 0.5; cursor: not-allowed; }
     .bouton-teal { background: transparent; border: 0.5px solid var(--brand-teal); color: var(--brand-teal); }
-    .bouton-teal:hover { background: var(--brand-teal-10); }
+    .bouton-teal:not(:disabled):hover { background: var(--brand-teal-10); }
+    .bouton-teal:disabled { opacity: 0.5; cursor: not-allowed; }
     .bouton-neutre:focus-visible, .bouton-teal:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
     .squelette { height: 36px; margin-bottom: 8px; border-radius: 6px; background: var(--bg-level-2); animation: pulse 1.5s ease-in-out infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
@@ -187,6 +189,10 @@ export class FicheSocleComponent {
   /** Le jeu en attente de confirmation, et le sens du changement. */
   protected readonly cible = signal<{ jeu: JeuDeDonnees; sens: Sens } | null>(null);
   protected readonly ecriture = signal(false);
+  /** Une relecture qui suit une écriture est en vol : les lignes affichées peuvent être périmées. */
+  private readonly relecture = signal(false);
+  /** Écriture OU relecture post-écriture : aucune action sur des lignes périmées (patron de l'onglet Données). */
+  protected readonly occupe = computed(() => this.ecriture() || this.relecture());
 
   private requete: Subscription | null = null;
   private envoi: Subscription | null = null;
@@ -247,9 +253,11 @@ export class FicheSocleComponent {
       next: (r) => {
         this.reponse.set(r);
         this.chargement.set(false);
+        this.relecture.set(false);
       },
       error: (e: unknown) => {
         this.chargement.set(false);
+        this.relecture.set(false);
         if (this.reponse() === null) this.erreur.set(messageErreur(e));
         else this.notifications.error(messageErreur(e));
       },
@@ -258,7 +266,7 @@ export class FicheSocleComponent {
 
   protected demander(id: string, sens: Sens): void {
     const jeu = this.jeux().find((j) => j.id === id);
-    if (!jeu || this.ecriture()) return;
+    if (!jeu || this.occupe()) return;
     if (sens === 'retirer' && !jeu.proprietaire) return;
     this.cible.set({ jeu, sens });
   }
@@ -269,7 +277,7 @@ export class FicheSocleComponent {
 
   protected confirmer(): void {
     const c = this.cible();
-    if (!c || this.ecriture()) return;
+    if (!c || this.occupe()) return;
     this.ecriture.set(true);
     const retirer = c.sens === 'retirer';
     this.envoi = this.api.modifierJeu(c.jeu.id, { visibilite: retirer ? 'privee' : 'socle' }).subscribe({
@@ -277,6 +285,7 @@ export class FicheSocleComponent {
         this.ecriture.set(false);
         this.cible.set(null);
         this.notifications.success(retirer ? 'Jeu retiré du socle' : 'Jeu mis au socle');
+        this.relecture.set(true);
         this.lire();
         this.etat.recharger();
       },

@@ -187,6 +187,40 @@ describe('FicheSocleComponent', () => {
     expect(el.querySelector('dialog')!.hasAttribute('open')).toBe(false);
   });
 
+  it('pendant la relecture qui suit une écriture, les boutons restent bloqués (lignes périmées)', async () => {
+    const { f, http, bouton, confirmer } = await monter();
+    bouton('lycee').click();
+    await f.whenStable();
+    confirmer().click();
+    await f.whenStable();
+    http.expectOne('/api/admin/sources/lycee').flush({ success: true });
+    await f.whenStable();
+    // L'écriture est finie, la relecture est en vol : rien n'est cliquable.
+    const relecture = http.expectOne(URL_SOCLE);
+    expect(bouton('lycee').disabled).toBe(true);
+    expect(bouton('cirfa').disabled).toBe(true);
+    bouton('cirfa').click();
+    await f.whenStable();
+    expect(f.nativeElement.querySelector('dialog')!.hasAttribute('open')).toBe(false);
+    relecture.flush(reponse());
+    await f.whenStable();
+    expect(bouton('lycee').disabled).toBe(false);
+    expect(bouton('cirfa').disabled).toBe(false);
+  });
+
+  it('relecture post-écriture en échec : les boutons se débloquent', async () => {
+    const { f, http, bouton, confirmer } = await monter();
+    bouton('cirfa').click();
+    await f.whenStable();
+    confirmer().click();
+    await f.whenStable();
+    http.expectOne('/api/admin/sources/cirfa').flush({ success: true });
+    await f.whenStable();
+    http.expectOne(URL_SOCLE).flush({ error: 'x' }, { status: 500, statusText: 'x' });
+    await f.whenStable();
+    expect(bouton('cirfa').disabled).toBe(false);
+  });
+
   it('jeu sans propriétaire : « Retirer du socle » désactivé avec son explication', async () => {
     const { bouton } = await monter();
     const b = bouton('orphelin');
