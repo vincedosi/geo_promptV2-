@@ -1057,6 +1057,30 @@ tables, et pour les tables futures (`alter default privileges`). Recense ce
 jour : le seul acces direct du navigateur est la LECTURE de son propre profil
 (`lib/auth-client.ts`, `angular/.../auth.service.ts`).
 
+**Appartenance aux espaces, tenue en base (`sql/236`, 2026-10-09).** Deux
+colonnes, une regle : `organization_members (user_id, organization_id)` dit a
+quels espaces l'utilisateur APPARTIENT (source de verite) ; `profiles.organization_id`
+dit dans lequel il TRAVAILLE (l'espace actif, lu par `getOrgSourceIds` et
+`get_user_org()`). Invariant : pour un non-super_admin, l'espace actif est un
+espace dont il est membre, ou `null` (il ne voit alors que le socle). Constat
+du 2026-10-08 : **aucun code n'ecrivait `organization_members`** — « ajouter un
+membre » ne posait que `profiles.organization_id`, et les deux comptes clients
+avaient un espace actif sans en etre membres (rattrapes par la migration :
+8 → 10 lignes). Trois objets :
+
+- declencheur `profiles_espace_actif_membre` (BEFORE INSERT OR UPDATE OF
+  `organization_id`, `role` sur `profiles`) : refuse en `23514` un espace actif
+  dont un non-super_admin n'est pas membre ;
+- declencheur `organization_members_report_espace_actif` (AFTER DELETE sur
+  `organization_members`) : retire de son espace actif, l'utilisateur bascule sur
+  son plus ancien autre espace, ou `null` ; un super_admin n'est pas touche ;
+- RPC `remplacer_espaces_utilisateur(p_user, p_espaces, p_actif) returns jsonb`
+  (`service_role` seul) : ajoute, place l'espace actif, PUIS retire — l'invariant
+  n'est jamais viole. Erreurs : `P0002` utilisateur introuvable, `22023` espace
+  actif hors de la liste (non-super_admin), `23503` espace inexistant.
+
+Verrou : `tests/integration/appartenance-espaces.test.ts`.
+
 **Trois niveaux de visibilite d'une donnee importee**, portes par
 `data_sources.visibilite` :
 

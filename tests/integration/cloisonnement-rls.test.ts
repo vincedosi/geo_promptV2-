@@ -56,6 +56,12 @@ async function creerCompte(cle: keyof typeof comptes, slug: string): Promise<voi
   });
   if (error || !cree.user) throw new Error(`création ${email} : ${error?.message}`);
 
+  // sql/236 : l'espace actif d'un client doit être un espace dont il est membre.
+  const { error: errMembre } = await admin.from('organization_members').insert({
+    user_id: cree.user.id, organization_id: orgId,
+  });
+  if (errMembre) throw new Error(`appartenance ${email} : ${errMembre.message}`);
+
   const { error: errProfil } = await admin.from('profiles').upsert({
     id: cree.user.id, email, role: 'client', organization_id: orgId,
   });
