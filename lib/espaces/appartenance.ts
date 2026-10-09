@@ -32,8 +32,8 @@ export function messageErreurAppartenance(code: string | undefined, message: str
 
 /**
  * Rend `userId` membre de `orgId`. Idempotent. Pose l'espace actif s'il était
- * vide ; n'écrit le rôle que s'il est FOURNI — ajouter un super_admin à un
- * espace ne doit pas le rétrograder (E3).
+ * vide ; n'écrit le rôle que s'il est FOURNI et que la cible n'est pas
+ * super_admin — ajouter un super_admin à un espace ne doit pas le rétrograder (E3).
  */
 export async function ajouterMembre(sb: Sb, orgId: string, userId: string, role?: UserRole): Promise<ResultatEcriture> {
   const { error: errMembre } = await sb
@@ -42,12 +42,16 @@ export async function ajouterMembre(sb: Sb, orgId: string, userId: string, role?
     .select('id');
   if (errMembre) return { ok: false, ...messageErreurAppartenance(errMembre.code, errMembre.message) };
 
-  const { data: profil, error: errLecture } = await sb.from('profiles').select('organization_id').eq('id', userId).single();
-  if (errLecture || !profil) return { ok: false, status: 404, message: 'Utilisateur introuvable.' };
+  const { data: profil, error: errLecture } = await sb.from('profiles').select('organization_id, role').eq('id', userId).maybeSingle();
+  if (errLecture) return { ok: false, ...messageErreurAppartenance(errLecture.code, errLecture.message) };
+  if (!profil) return { ok: false, status: 404, message: 'Utilisateur introuvable.' };
 
   const maj: { organization_id?: string; role?: UserRole } = {};
   if (profil.organization_id === null) maj.organization_id = orgId;
-  if (role !== undefined) maj.role = role;
+  // E3 : un super_admin n'est jamais rétrogradé par un ajout d'espace, même si
+  // l'appelant (l'écran React envoie toujours un rôle) en fournit un. Changer
+  // le rôle d'un super_admin passe par PATCH /api/admin/users/[id].
+  if (role !== undefined && profil.role !== 'super_admin') maj.role = role;
   if (Object.keys(maj).length === 0) return { ok: true };
 
   const { error } = await sb.from('profiles').update(maj).eq('id', userId);

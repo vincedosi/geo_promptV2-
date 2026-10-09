@@ -12,7 +12,7 @@ import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { RoleSchema, RoleMembreSchema } from '@/lib/auth/roles';
-import { ajouterMembre, retirerMembre } from '@/lib/espaces/appartenance';
+import { ajouterMembre, retirerMembre, messageErreurAppartenance } from '@/lib/espaces/appartenance';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,7 +81,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!membre) return NextResponse.json({ success: false, error: 'Cet utilisateur n\'est pas membre de cet espace.' }, { status: 404 });
   const { error } = await sb.from('profiles').update({ role }).eq('id', userId);
 
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  if (error) {
+    const e = messageErreurAppartenance(error.code, error.message);
+    return NextResponse.json({ success: false, error: e.message }, { status: e.status });
+  }
 
   return NextResponse.json({ success: true });
 }

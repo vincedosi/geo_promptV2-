@@ -234,14 +234,14 @@ describe('ajouterMembre / retirerMembre (T2)', () => {
 
   it('ajouter un second espace ne change pas l\'espace actif', async () => {
     const u = await creerCompte('ajout2');
-    await ajouterMembre(admin as never, a, u);
-    await ajouterMembre(admin as never, b, u);
+    expect(await ajouterMembre(admin as never, a, u)).toEqual({ ok: true });
+    expect(await ajouterMembre(admin as never, b, u)).toEqual({ ok: true });
     expect(await espaceActif(u)).toBe(a);
   });
 
   it('ajouter deux fois est sans effet (pas d\'erreur, pas de doublon)', async () => {
     const u = await creerCompte('ajout-double');
-    await ajouterMembre(admin as never, a, u);
+    expect(await ajouterMembre(admin as never, a, u)).toEqual({ ok: true });
     expect(await ajouterMembre(admin as never, a, u)).toEqual({ ok: true });
     const { data } = await admin.from('organization_members').select('id').eq('user_id', u);
     expect(data?.length).toBe(1);
@@ -249,19 +249,46 @@ describe('ajouterMembre / retirerMembre (T2)', () => {
 
   it('ajouter un super_admin sans rôle fourni le laisse super_admin (E3)', async () => {
     const u = await creerCompte('ajout-super', 'super_admin');
-    await ajouterMembre(admin as never, a, u);
+    expect(await ajouterMembre(admin as never, a, u)).toEqual({ ok: true });
     const { data } = await admin.from('profiles').select('role').eq('id', u).single();
     expect(data?.role).toBe('super_admin');
   });
 
   it('retirer supprime l\'appartenance, reporte l\'actif, et ne touche pas au rôle (E3)', async () => {
     const u = await creerCompte('retrait', 'super_admin');
-    await ajouterMembre(admin as never, a, u);
+    expect(await ajouterMembre(admin as never, a, u)).toEqual({ ok: true });
+    expect(await espaceActif(u)).toBe(a);
     expect(await retirerMembre(admin as never, a, u)).toEqual({ ok: true });
+    // un super_admin n'est jamais déplacé par le report : son actif reste en place
+    expect(await espaceActif(u)).toBe(a);
     const { data } = await admin.from('profiles').select('role').eq('id', u).single();
     expect(data?.role).toBe('super_admin');
     const { data: m } = await admin.from('organization_members').select('id').eq('user_id', u).eq('organization_id', a);
     expect(m?.length).toBe(0);
+  });
+
+  it('retirer un client de son espace actif le reporte sur son autre espace', async () => {
+    const u = await creerCompte('retrait-client');
+    expect(await ajouterMembre(admin as never, a, u)).toEqual({ ok: true });
+    expect(await ajouterMembre(admin as never, b, u)).toEqual({ ok: true });
+    expect(await retirerMembre(admin as never, a, u)).toEqual({ ok: true });
+    expect(await espaceActif(u)).toBe(b);
+  });
+
+  it('un rôle fourni ne rétrograde pas un super_admin, mais l\'appartenance est créée (E3)', async () => {
+    const u = await creerCompte('ajout-super-role', 'super_admin');
+    expect(await ajouterMembre(admin as never, a, u, 'client')).toEqual({ ok: true });
+    const { data } = await admin.from('profiles').select('role').eq('id', u).single();
+    expect(data?.role).toBe('super_admin');
+    const { data: m } = await admin.from('organization_members').select('id').eq('user_id', u).eq('organization_id', a);
+    expect(m?.length).toBe(1);
+  });
+
+  it('un rôle fourni s\'applique à un client', async () => {
+    const u = await creerCompte('ajout-role-client');
+    expect(await ajouterMembre(admin as never, a, u, 'admin')).toEqual({ ok: true });
+    const { data } = await admin.from('profiles').select('role').eq('id', u).single();
+    expect(data?.role).toBe('admin');
   });
 
   it('retirer quelqu\'un qui n\'est pas membre rend 404', async () => {
