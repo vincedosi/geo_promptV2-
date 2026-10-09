@@ -6,7 +6,7 @@ import { ConfirmationComponent } from '../../../ui/confirmation/confirmation.com
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
 import { EspacesApi, type OrganisationComplete } from './data/espaces.api';
 import { EspacesEtatService } from './etat/espaces-etat.service';
-import { messageErreur } from './logique/libelles';
+import { LONGUEUR_MAX_DESCRIPTION, messageErreur } from './logique/libelles';
 
 /** Résultat de la lecture d'un quota saisi : vide → `null`, entier positif ou nul → le nombre, le reste → refus. */
 export type QuotaLu = { ok: true; valeur: number | null } | { ok: false };
@@ -84,7 +84,7 @@ function quotaEnSaisie(config: Record<string, unknown>, cle: string): string {
             </mg-champ>
             @if (erreurNom()) { <p class="erreur-champ" data-erreur-nom>Le nom est obligatoire.</p> }
             <mg-champ libelle="Description">
-              <input data-description type="text" maxlength="500" autocomplete="off" placeholder="Description courte"
+              <input data-description type="text" [attr.maxlength]="longueurMaxDescription" autocomplete="off" placeholder="Description courte"
                 [value]="description()" [disabled]="occupe()" (input)="saisir(description, $event)" />
             </mg-champ>
             <div class="deux">
@@ -259,6 +259,7 @@ export class OngletReglagesComponent {
   readonly espaceId = input.required<string>();
 
   protected readonly messageQuota = MESSAGE_QUOTA;
+  protected readonly longueurMaxDescription = LONGUEUR_MAX_DESCRIPTION;
 
   /** Ce que le serveur a rendu à la dernière lecture : la config à FUSIONNER, et l'état « actif ». */
   protected readonly organisation = signal<OrganisationComplete | null>(null);

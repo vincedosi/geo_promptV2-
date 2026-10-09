@@ -3,7 +3,7 @@ import {
 } from '@angular/core';
 import type { Subscription } from 'rxjs';
 import { DescriptionNonEnregistree, EspacesApi } from './data/espaces.api';
-import { messageErreur } from './logique/libelles';
+import { LONGUEUR_MAX_DESCRIPTION, messageErreur } from './logique/libelles';
 
 /** Ce que le dialogue rend au parent : l'espace créé, et si sa description a été perdue en route. */
 export interface EspaceCree {
@@ -67,7 +67,7 @@ let compteur = 0;
           <textarea
             data-description
             rows="3"
-            maxlength="1000"
+            [attr.maxlength]="longueurMaxDescription"
             [value]="description()"
             [disabled]="enCours()"
             (input)="saisirDescription($event)"
@@ -169,6 +169,7 @@ export class DialogueNouvelEspaceComponent {
 
   protected readonly nom = signal('');
   protected readonly description = signal('');
+  protected readonly longueurMaxDescription = LONGUEUR_MAX_DESCRIPTION;
   protected readonly enCours = signal(false);
   protected readonly erreur = signal<string | null>(null);
 

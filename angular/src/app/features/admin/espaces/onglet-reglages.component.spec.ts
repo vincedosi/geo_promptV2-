@@ -8,6 +8,7 @@ import { ConfigService } from '../../../core/config/config.service';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
 import { EspacesApi, type OrganisationComplete } from './data/espaces.api';
 import { EspacesEtatService } from './etat/espaces-etat.service';
+import { LONGUEUR_MAX_DESCRIPTION } from './logique/libelles';
 import type { EspaceResume } from './logique/types';
 import { OngletReglagesComponent } from './onglet-reglages.component';
 
@@ -93,6 +94,11 @@ describe('OngletReglagesComponent', () => {
     expect(q<HTMLInputElement>('[data-site-cle]').type).toBe('password');
     expect(q('[data-site-cle]').getAttribute('placeholder')).toBe("Clé d'API");
     expect(q('[data-site-url]').getAttribute('placeholder')).toBe('https://…');
+  });
+
+  it('description : même longueur maximale qu\'à la création (une seule constante)', async () => {
+    const { q } = await monter();
+    expect(q('[data-description]').getAttribute('maxlength')).toBe(String(LONGUEUR_MAX_DESCRIPTION));
   });
 
   it('enregistrer : PATCH au corps exact, config FUSIONNÉE (la clé « autre » survit), puis notification, relecture et recharger', async () => {

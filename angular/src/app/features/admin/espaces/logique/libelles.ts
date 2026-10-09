@@ -11,6 +11,14 @@ export const LIBELLES_STATUT: Record<StatutJeu, string> = {
 
 export const LIBELLES_TYPE: Record<TypeJeu, string> = { poi: 'POI', panneaux: 'Panneaux', carreaux: 'Carreaux' };
 
+/**
+ * Longueur maximale de la description d'un espace, à la création comme dans les Réglages. Le
+ * serveur ne borne pas ce champ (`description: z.string().nullable().optional()` dans
+ * `app/api/admin/organizations/[id]/route.ts`, colonne `text`) : la borne est celle de l'interface,
+ * et une seule constante l'empêche de diverger d'un écran à l'autre.
+ */
+export const LONGUEUR_MAX_DESCRIPTION = 1000;
+
 /** E2 : « Socle dentsu.explore », jamais l'ancien nom. */
 export const NOM_SOCLE = 'Socle dentsu.explore';
 

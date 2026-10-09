@@ -5,6 +5,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ConfigService } from '../../../core/config/config.service';
 import { EspacesApi } from './data/espaces.api';
 import { DialogueNouvelEspaceComponent, type EspaceCree } from './dialogue-nouvel-espace.component';
+import { LONGUEUR_MAX_DESCRIPTION } from './logique/libelles';
 
 @Component({
   imports: [DialogueNouvelEspaceComponent],
@@ -71,6 +72,11 @@ describe('DialogueNouvelEspaceComponent', () => {
     expect(el.textContent).toContain('Description');
     expect(el.querySelector('[data-annuler]')?.textContent?.trim()).toBe('Annuler');
     expect(el.querySelector('[data-creer]')?.textContent?.trim()).toBe('Créer l\'espace');
+  });
+
+  it('description : même longueur maximale qu\'à l\'onglet Réglages (une seule constante)', async () => {
+    const { el } = await monter();
+    expect(el.querySelector('[data-description]')!.getAttribute('maxlength')).toBe(String(LONGUEUR_MAX_DESCRIPTION));
   });
 
   it('nom vide ou fait de blancs → « Créer l\'espace » désactivé, et un envoi forcé ne part pas', async () => {
