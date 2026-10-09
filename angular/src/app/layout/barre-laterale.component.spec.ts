@@ -57,10 +57,25 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     expect(explorer.hasAttribute('aria-disabled')).toBe(false);
   });
 
+  it('« Health check » mène à l’administration (lot 6, T3), par un lien RELATIF', async () => {
+    const el = await rendre({ dev: false });
+    const health = [...el.querySelectorAll('[data-section="Systeme"] a')].find((a) => texte(a.querySelector('span')) === 'Health check')!;
+    expect(health.getAttribute('href')).toBe('/admin/health');
+    expect(health.hasAttribute('aria-disabled')).toBe(false);
+  });
+
+  it('« Qualite des donnees » mène à l’administration (lot 6, T5), par un lien RELATIF', async () => {
+    const el = await rendre({ dev: false });
+    const qualite = [...el.querySelectorAll('[data-section="Systeme"] a')].find((a) => texte(a.querySelector('span')) === 'Qualite des donnees')!;
+    expect(qualite.getAttribute('href')).toBe('/admin/qualite-donnees');
+    expect(qualite.hasAttribute('aria-disabled')).toBe(false);
+  });
+
   it('les écrans pas encore portés sont INERTES : aria-disabled, infobulle, aucun lien', async () => {
     const el = await rendre({ dev: false });
-    const liens = [...el.querySelectorAll('nav a')].filter((a) => texte(a.querySelector('span')) !== 'Explorer');
-    expect(liens.length).toBe(14);
+    const portes = ['Explorer', 'Health check', 'Qualite des donnees'];
+    const liens = [...el.querySelectorAll('nav a')].filter((a) => !portes.includes(texte(a.querySelector('span'))));
+    expect(liens.length).toBe(12);
     for (const a of liens) {
       expect(a.getAttribute('aria-disabled')).toBe('true');
       expect(a.getAttribute('title')).toBe('Disponible prochainement');

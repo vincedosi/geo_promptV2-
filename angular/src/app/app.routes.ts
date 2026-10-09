@@ -101,6 +101,7 @@ export const remoteRoutes: Routes = [
         children: [
           { path: '', loadComponent: () => import('./features/accueil/accueil.page').then((m) => m.AccueilPage) },
           { path: 'catalogue', loadComponent: () => import('./features/catalogue/catalogue.page').then((m) => m.CataloguePage) },
+          { path: 'admin', loadChildren: () => import('./features/admin/admin.routes').then((m) => m.ROUTES_ADMIN) },
         ],
       },
     ],

@@ -1,0 +1,176 @@
+<div class="page">
+  <h1>Qualité des données</h1>
+  <p class="intro">
+    Les trous de données ne lèvent aucune erreur : une valeur absente se lit comme
+    un résultat. Cette page les rend visibles. Chaque vérification se lance à la
+    demande — il n’y a pas de bouton « tout vérifier », et rouvrir cette page ne
+    recalcule rien.
+  </p>
+
+  @if (erreur(); as e) {
+    <div data-erreur role="alert" class="erreur">{{ e }}</div>
+  }
+
+  @if (chargement()) {
+    <div data-chargement class="chargement">Chargement des relevés…</div>
+  } @else {
+    <div class="liste">
+      @for (v of vues(); track v.cle) {
+        <section [attr.data-verification]="v.cle">
+          <header>
+            <div class="point"></div>
+            <span class="titre">{{ v.libelle }}</span>
+            <span data-etat-releve class="etat">{{ v.etat }}</span>
+            <button
+              type="button"
+              data-relancer
+              [disabled]="enCours() !== null"
+              [title]="v.titre"
+              (click)="relancer(v.cle)"
+            >{{ v.bouton }}</button>
+          </header>
+
+          <div class="corps">
+            <!-- Le coût est annoncé AVANT de cliquer, pas découvert après (page.tsx:210). -->
+            <div data-cout class="cout" [style.margin-bottom.px]="v.vue ? 12 : 0">coût d’une mesure : {{ v.cout }}</div>
+
+            @if (!v.vue) {
+              <div data-jamais class="jamais">Jamais lancée — ce n’est pas « rien à signaler ».</div>
+            } @else {
+                @if (v.vue.type === 'indicateurs') {
+                    <div data-synthese class="synthese">
+                      @if (v.vue.nProblemes === 0) {
+                        Les {{ v.vue.nTotal }} indicateurs actifs pointent vers des données exploitables.
+                      } @else {
+                        <strong>{{ v.vue.nProblemes }}</strong> indicateur{{ v.vue.nProblemes > 1 ? 's' : '' }} sur {{ v.vue.nTotal }} {{ v.vue.nProblemes > 1 ? 'posent' : 'pose' }} problème,
+                        et {{ v.vue.nProblemes > 1 ? 'sont proposés' : 'est proposé' }} à l’utilisateur.
+                      }
+                    </div>
+                    <div class="defile">
+                      <table style="min-width: 620px">
+                        <thead>
+                          <tr>
+                            <th>Indicateur</th>
+                            <th>Colonne source</th>
+                            <th class="d">IRIS renseignés</th>
+                            <th class="d">Population couverte</th>
+                            <th class="d">CP calculés</th>
+                            <th>Verdict</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <!-- Les problèmes d'abord : on ne fait pas défiler pour les trouver (page.tsx:271). -->
+                          @for (l of v.vue.lignes; track l.code) {
+                            <tr [attr.data-code]="l.code" [attr.data-teinte]="l.teinte">
+                              <td>{{ l.label }}</td>
+                              <td class="m">{{ l.colonne }}</td>
+                              <td class="m d">{{ l.source }}</td>
+                              <td class="m d">{{ l.population }}</td>
+                              <td class="m d">{{ l.cp }}</td>
+                              <td [class]="'petit c-' + l.teinte">{{ l.verdict }}</td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                } @else if (v.vue.type === 'fraicheur') {
+                    <div class="defile">
+                      <table style="min-width: 620px">
+                        <thead>
+                          <tr>
+                            <th>Source</th>
+                            <th class="d">Dernière donnée</th>
+                            <th class="d">Âge</th>
+                            <th class="d">Lignes</th>
+                            <th>Alimentation</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (s of v.vue.lignes; track s.table) {
+                            <tr [attr.data-table]="s.table" [attr.data-perime]="s.perime ? '' : null" [attr.data-teinte]="s.perime ? 'avert' : null">
+                              <td>
+                                {{ s.libelle }}
+                                <div class="sous">{{ s.table }}</div>
+                              </td>
+                              <td class="m d">{{ s.derniere }}</td>
+                              <td class="m d" [class.c-avert]="s.perime">{{ s.age }}</td>
+                              <td class="m d">{{ s.lignes }}</td>
+                              <td class="petit c-neutre">{{ s.alimentation }}</td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                      <!-- LE contresens à éviter (page.tsx:346-347) : une table figée alimentée par un cron
+                           ne dit pas que la source est muette, mais que le cron ne tourne pas. -->
+                      <div data-contresens class="contresens">
+                        Une source alimentée par un cron et figée depuis longtemps signale un cron qui ne
+                        tourne pas, pas une donnée absente à la source — regardez d’abord la colonne
+                        « alimentation » avant de soupçonner le fournisseur.
+                      </div>
+                    </div>
+                } @else if (v.vue.type === 'invariants') {
+                    <div data-synthese class="synthese">
+                      @if (v.vue.nEchecs === 0) {
+                        Les {{ v.vue.nTotal }} invariants tiennent.
+                      } @else {
+                        <strong class="danger">{{ v.vue.nEchecs }} invariant{{ v.vue.nEchecs > 1 ? 's' : '' }} rompu{{ v.vue.nEchecs > 1 ? 's' : '' }}.</strong>
+                      }
+                    </div>
+                    <div class="defile">
+                      <table style="min-width: 560px">
+                        <thead>
+                          <tr>
+                            <th>Contrôle</th>
+                            <th class="d">Attendu</th>
+                            <th class="d">Mesuré</th>
+                            <th class="d">Écart</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (c of v.vue.lignes; track c.cle) {
+                            <tr [attr.data-teinte]="c.ok ? null : 'danger'">
+                              <td>{{ c.libelle }}</td>
+                              <td class="m d">{{ c.attendu }}</td>
+                              <td class="m d" [class.c-danger]="!c.ok">{{ c.mesure }}</td>
+                              <!-- L'écart en unité métier à côté du pourcentage (page.tsx:387-388). -->
+                              <td class="m d" [class.c-neutre]="c.ok" [class.c-danger]="!c.ok">{{ c.ecart }}</td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                } @else if (v.vue.type === 'colonnes') {
+                    <div class="defile">
+                      <div data-synthese class="synthese">
+                        {{ v.vue.nVides }} colonne(s) entièrement vide(s)
+                        sur {{ v.vue.nTotal }}, mesurées sur {{ v.vue.nLignes }} IRIS.
+                      </div>
+                      <table style="min-width: 520px">
+                        <thead>
+                          <tr>
+                            <th>Colonne</th>
+                            <th class="d">Renseignées</th>
+                            <th class="d">Non nulles</th>
+                            <th class="d">Couverture</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (e of v.vue.lignes; track e.nom) {
+                            <tr [attr.data-teinte]="e.teinte === 'danger' ? 'danger' : null">
+                              <td class="m">{{ e.nom }}</td>
+                              <td class="m d">{{ e.renseignes }}</td>
+                              <td class="m d">{{ e.nonNuls }}</td>
+                              <td data-couverture [class]="'m d c-' + e.teinte">{{ e.couverture }}</td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                }
+            }
+          </div>
+        </section>
+      }
+    </div>
+  }
+</div>

@@ -1,0 +1,108 @@
+<!-- Bandeau : ce que l'onglet mesure, et ce qu'il ne mesure pas (FraicheurPanel.tsx:212-248) -->
+<div class="cadre bandeau">
+  <div class="min-w-[260px] flex-1">
+    <div class="mb-1 text-[12px] text-primary">Sources hors socle socio-démographique</div>
+    <div class="petit">POI, IRIS et Filosofi relèvent de la page qualité des données. Cet onglet ne mesure rien à l’ouverture : il lit le dernier relevé.</div>
+  </div>
+  <div class="flex items-center gap-2">
+    @if (enRetard() > 0) {
+      <span data-synthese="en_retard" class="badge" data-t="danger">{{ enRetard() }} en retard</span>
+    }
+    @if (jamais() > 0) {
+      <span data-synthese="jamais_mesure" class="badge" data-t="avert">{{ jamais() }} jamais mesuré</span>
+    }
+    <button type="button" data-relancer class="relancer" [disabled]="occupe()" (click)="mesurer(false)">
+      {{ mesureEnCours() === 'leger' ? 'Mesure en cours…' : 'Relancer la mesure' }}
+    </button>
+  </div>
+</div>
+
+@if (erreur(); as e) {
+  <div data-erreur role="alert" class="erreur">{{ e }}</div>
+}
+
+<!-- Date du relevé (l.264-271) -->
+<div data-releve class="mono text-[11px] text-tertiary">{{ releve() }}</div>
+
+<!-- Tableau (l.273-390) -->
+<div class="cadre tableau">
+  <table>
+    <thead>
+      <tr>
+        <th>Donnée</th>
+        <th>État</th>
+        <th>Stockage</th>
+        <th style="text-align: right">Lignes</th>
+        <th>Millésime</th>
+        <th>Dernière entrée</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (s of lignes(); track s.id) {
+        <tr>
+          <td class="min-w-[200px]">
+            <div class="mb-1 flex flex-wrap items-center gap-2">
+              <span data-libelle class="sans text-[12px] text-primary">{{ s.libelle }}</span>
+              <span data-nature class="badge sans" [attr.data-t]="s.teinteNature">{{ s.nature }}</span>
+            </div>
+            <div class="sans petit">{{ s.provenance }}</div>
+            <div class="sans petit">{{ s.collecte }}</div>
+            @if (s.note) {
+              <div data-note class="sans petit note">{{ s.note }}</div>
+            }
+          </td>
+          <td class="nw">
+            <span data-etat class="badge sans" [attr.data-t]="s.teinteEtat">{{ s.etat }}</span>
+            <!-- La mesure lourde a son propre bouton : elle lit 347 Mo, contre moins de 15 Mo pour toutes les autres réunies. -->
+            @if (s.lourd) {
+              <div class="mt-2">
+                <button
+                  type="button"
+                  data-mesure-lourde
+                  class="lourd"
+                  [disabled]="occupe()"
+                  title="Cette mesure balaye la table : 347 Mo lus, environ 1,8 s"
+                  (click)="mesurer(true)"
+                >{{ mesureEnCours() === 'lourd' ? 'Mesure…' : 'Mesurer' }}</button>
+                <div data-cout-lourd class="sous max-w-[130px] leading-[1.4]" style="margin-top: 4px">347 Mo lus, hors mesure ordinaire</div>
+              </div>
+            }
+          </td>
+          <td data-stockage>
+            @if (s.table) {
+              <span style="word-break: break-word">{{ s.table }}</span>
+            } @else {
+              <span class="text-teal">hors base</span>
+            }
+          </td>
+          <td data-lignes class="nw" style="text-align: right">
+            {{ s.lignes }}
+            @if (s.estime) {
+              <div class="sous">estimé</div>
+            }
+          </td>
+          <td data-millesime class="nw">{{ s.millesime }}</td>
+          <td data-entree class="nw">
+            {{ s.entree }}
+            @if (s.cadence != null) {
+              <div class="sous">attendu tous les {{ s.cadence }} j</div>
+            }
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>
+
+<!-- Légende des natures (l.392-416) -->
+<div data-legende class="cadre flex flex-col gap-2 px-4 py-[14px]">
+  <div class="petit">Ce que la nature dit du stockage</div>
+  @for (n of legende; track n.cle) {
+    <div class="flex items-baseline gap-[10px]">
+      <span class="min-w-[90px] shrink-0">
+        <span data-nature class="badge" [attr.data-t]="n.teinte">{{ n.libelle }}</span>
+      </span>
+      <span class="petit">{{ n.explication }}</span>
+    </div>
+  }
+</div>

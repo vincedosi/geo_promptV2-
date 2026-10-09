@@ -62,6 +62,8 @@
  * | CircleHelp = CircleQuestionMark | aide            | Feather (MIT, « help-circle »)
  * | Info                       | info                 | Feather (MIT)
  * | Eraser                     | gomme                |
+ * | AlertTriangle = TriangleAlert | triangle-alerte   | Feather (MIT, « alert-triangle »)
+ * | Check                      | coche                | Feather (MIT)
  * | Search                     | loupe                | Feather (MIT)
  *
  * Pour ajouter une icône : lire `__iconNode` de `<lucide>.js`, ajouter une entrée (nom français en
@@ -554,6 +556,20 @@ export const ICONES = {
     el: [
       { t: 'path', d: 'M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21' },
       { t: 'path', d: 'm5.082 11.09 8.828 8.828' },
+    ],
+  },
+  'triangle-alerte': {
+    lucide: 'triangle-alert', feather: true,
+    el: [
+      { t: 'path', d: 'm21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3' },
+      { t: 'path', d: 'M12 9v4' },
+      { t: 'path', d: 'M12 17h.01' },
+    ],
+  },
+  'coche': {
+    lucide: 'check', feather: true,
+    el: [
+      { t: 'path', d: 'M20 6 9 17l-5-5' },
     ],
   },
   'loupe': {

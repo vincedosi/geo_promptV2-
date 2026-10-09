@@ -270,3 +270,43 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
     }, DELAI_DEMARRAGE_REEL);
   });
 });
+
+describe('administration (lot 6)', () => {
+  beforeEach(() => (feuilles = feuillesFactices()));
+  afterEach(() => retirerPolices());
+
+  /** Supabase factice : une session porteuse d'un identifiant, un profil `super_admin`. */
+  function supabaseSuperAdmin() {
+    const session = { access_token: 'jeton-admin', user: { id: 'u-admin', email: 'admin@exemple.test' } };
+    const profil = { data: { role: 'super_admin', full_name: 'Admin' }, error: null };
+    return {
+      auth: {
+        getSession: async () => ({ data: { session }, error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+      },
+      from: () => ({ select: () => ({ eq: () => ({ single: async () => profil }) }) }),
+    };
+  }
+
+  it('`/app/admin` mène à `/app/admin/health` (C1 : React répond 404 sur /admin)', async () => {
+    TestBed.configureTestingModule({
+      providers: [...appConfig.providers, provideHttpClientTesting(), { provide: SUPABASE, useValue: supabaseSuperAdmin() }, { provide: BASE_RESSOURCES, useValue: BASE }, ...feuilles.providers],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const harness = await RouterTestingHarness.create();
+    const navigation = harness.navigateByUrl('/app/admin');
+    // La reconnaissance de `/app/admin` charge d'abord le chunk paresseux de l'administration : le garde de
+    // démarrage (qui lit la feuille globale) ne part qu'après. On attend la CONDITION, borné.
+    for (let i = 0; i < 50 && feuilles.lectures.length === 0; i++) await attendre();
+    await feuilleGlobaleChargee();
+    http.expectOne(URL_CONFIG).flush({ supabaseUrl: 'http://x', supabaseAnonKey: 'k', apiBaseUrl: '' });
+    await navigation;
+    for (let i = 0; i < 3; i++) {
+      await attendre();
+      await harness.fixture.whenStable();
+    }
+    expect(TestBed.inject(Router).url).toBe('/app/admin/health');
+    expect(ombre(harness.fixture.nativeElement as HTMLElement).querySelector('mg-cadre-admin mg-health')).not.toBeNull();
+    http.match(() => true);
+  }, DELAI_DEMARRAGE_REEL);
+});
