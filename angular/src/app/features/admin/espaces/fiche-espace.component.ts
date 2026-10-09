@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { EspacesEtatService } from './etat/espaces-etat.service';
+import { OngletDonneesComponent } from './onglet-donnees.component';
 import { OngletMembresComponent } from './onglet-membres.component';
 
 type Onglet = 'membres' | 'donnees' | 'apercu' | 'reglages';
@@ -14,8 +15,8 @@ const ONGLETS: readonly Onglet[] = ['membres', 'donnees', 'apercu', 'reglages'];
  *   ouverts (ils sont démontés, leurs lectures en vol abandonnées) ; l'onglet Membres, lui, relit
  *   pour le nouvel espace (son `espaceId` est un input réactif).
  * - Un onglet n'est créé — et ne lit rien — qu'à sa PREMIÈRE ouverture ; il reste ensuite monté
- *   (caché) pour ne pas relire à chaque aller-retour. En T7, Données, Aperçu et Réglages ne sont que
- *   des emplacements (T8 à T10 les branchent).
+ *   (caché) pour ne pas relire à chaque aller-retour. Membres (T7) et Données (T8) sont branchés ; Aperçu
+ *   et Réglages ne sont encore que des emplacements (T9 et T10).
  * - Le nom et le compteur de membres viennent de la liste de la page (`EspacesEtatService`), sans
  *   lecture de plus : à l'ouverture, un seul appel (les membres). Tant que l'espace n'est pas dans
  *   la liste (encore en lecture, en échec, ou inconnu), aucun onglet n'est monté : rien n'est lu.
@@ -23,7 +24,7 @@ const ONGLETS: readonly Onglet[] = ['membres', 'donnees', 'apercu', 'reglages'];
  */
 @Component({
   selector: 'mg-fiche-espace',
-  imports: [RouterLink, OngletMembresComponent],
+  imports: [RouterLink, OngletMembresComponent, OngletDonneesComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (introuvable()) {
@@ -55,6 +56,11 @@ const ONGLETS: readonly Onglet[] = ['membres', 'donnees', 'apercu', 'reglages'];
       <div role="tabpanel" id="panneau-membres" aria-labelledby="onglet-membres" [hidden]="onglet() !== 'membres'">
         <mg-onglet-membres [espaceId]="e.id" />
       </div>
+      @if (ouverts().has('donnees')) {
+        <div role="tabpanel" id="panneau-donnees" aria-labelledby="onglet-donnees" [hidden]="onglet() !== 'donnees'">
+          <mg-onglet-donnees [espaceId]="e.id" />
+        </div>
+      }
       @for (o of ongletsEnAttente(); track o) {
         <div role="tabpanel" [id]="'panneau-' + o" [attr.aria-labelledby]="'onglet-' + o" [hidden]="onglet() !== o">
           <p class="m-0 text-[13px] text-secondary">Onglet en cours de construction</p>
@@ -90,7 +96,7 @@ export class FicheEspaceComponent {
   protected readonly id = signal<string | null>(null);
   protected readonly onglet = signal<Onglet>('membres');
   /** Onglets déjà ouverts pour l'espace courant : créés une fois, puis gardés. */
-  private readonly ouverts = signal<ReadonlySet<Onglet>>(new Set<Onglet>(['membres']));
+  protected readonly ouverts = signal<ReadonlySet<Onglet>>(new Set<Onglet>(['membres']));
 
   /** L'espace de la liste chargée ; tant qu'il est `null`, aucun onglet n'est monté (donc aucune lecture). */
   protected readonly espace = computed(() => {
@@ -117,8 +123,8 @@ export class FicheEspaceComponent {
     return ONGLETS.map((cle) => ({ cle, libelle: libelles[cle], actif: cle === actif }));
   });
 
-  /** Onglets non branchés en T7, rendus seulement après leur première ouverture. */
-  protected readonly ongletsEnAttente = computed(() => ONGLETS.filter((o) => o !== 'membres' && this.ouverts().has(o)));
+  /** Onglets non branchés (T9 et T10), rendus seulement après leur première ouverture. */
+  protected readonly ongletsEnAttente = computed(() => ONGLETS.filter((o) => o !== 'membres' && o !== 'donnees' && this.ouverts().has(o)));
 
   constructor() {
     const abonnement = inject(ActivatedRoute).paramMap.subscribe((p) => {

@@ -57,6 +57,7 @@ describe('FicheEspaceComponent', () => {
 
     el().querySelector<HTMLButtonElement>('[data-onglet="donnees"]')!.click();
     await harnais.fixture.whenStable();
+    http.expectOne(`/api/admin/espaces/${A}/donnees`).flush({ espace: espace(A, 'Espace A', 2), jeux: [] });
     expect(el().querySelector('[data-onglet="donnees"]')!.getAttribute('aria-selected')).toBe('true');
 
     const instanceB = await harnais.navigateByUrl(`/espaces/${B}`, FicheEspaceComponent);
@@ -77,12 +78,21 @@ describe('FicheEspaceComponent', () => {
     http.expectOne(`/api/admin/espaces/${B}/membres`).flush({ membres: [] });
   });
 
-  it('clic « Données » : aucun appel (onglet non branché en T7), texte d\'attente', async () => {
+  it('clic « Données » : un seul GET des données, une fois ; Aperçu et Réglages : texte en attente, aucun appel', async () => {
     const { harnais, http, el } = await monter();
     await harnais.navigateByUrl(`/espaces/${A}`, FicheEspaceComponent);
     http.expectOne(`/api/admin/espaces/${A}/membres`).flush({ membres: [] });
     await harnais.fixture.whenStable();
-    for (const o of ['donnees', 'apercu', 'reglages']) {
+    el().querySelector<HTMLButtonElement>('[data-onglet="donnees"]')!.click();
+    await harnais.fixture.whenStable();
+    http.expectOne(`/api/admin/espaces/${A}/donnees`).flush({ espace: espace(A, 'Espace A', 2), jeux: [] });
+    await harnais.fixture.whenStable();
+    expect(el().querySelector('mg-onglet-donnees')).not.toBeNull();
+    for (const o of ['membres', 'donnees']) {
+      el().querySelector<HTMLButtonElement>(`[data-onglet="${o}"]`)!.click();
+      await harnais.fixture.whenStable();
+    }
+    for (const o of ['apercu', 'reglages']) {
       el().querySelector<HTMLButtonElement>(`[data-onglet="${o}"]`)!.click();
       await harnais.fixture.whenStable();
       expect(el().textContent).toContain('Onglet en cours de construction');
