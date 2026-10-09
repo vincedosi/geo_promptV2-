@@ -14,8 +14,11 @@ const CACHE_TTL_MS = 300_000; // 5 minutes — les catégories changent rarement
 /**
  * Récupère toutes les catégories distinctes de la table poi.
  * Résultat mis en cache 60s pour éviter de requêter à chaque appel.
+ *
+ * `strict` : une lecture en échec LÈVE (message français) au lieu de rendre le
+ * cache ou []. Sans l'option (chat, carte), le comportement est inchangé.
  */
-export async function getDistinctCategories(): Promise<string[]> {
+export async function getDistinctCategories(options: { strict?: boolean } = {}): Promise<string[]> {
   const now = Date.now();
   if (cachedCategories && now - cacheTimestamp < CACHE_TTL_MS) {
     return cachedCategories;
@@ -46,6 +49,7 @@ export async function getDistinctCategories(): Promise<string[]> {
 
     if (error) {
       console.error('[categories] Supabase error:', error.message);
+      if (options.strict) throw new Error(`lecture des catégories : ${error.message}`);
       return cachedCategories ?? [];
     }
     if (!data?.length) break;
@@ -74,10 +78,14 @@ export async function getDistinctCategories(): Promise<string[]> {
  * pour que le chat applique la même règle.
  *
  * @param sources - Le retour de `getOrgSourceIds` : `null` = super_admin.
+ * @param options.strict - Lever sur une lecture en échec au lieu de rendre une liste partielle.
  * @returns Les catégories dans l'ordre de `getDistinctCategories`.
  */
-export async function getCategoriesVisibles(sources: string[] | null): Promise<string[]> {
-  const toutes = await getDistinctCategories();
+export async function getCategoriesVisibles(
+  sources: string[] | null,
+  options: { strict?: boolean } = {},
+): Promise<string[]> {
+  const toutes = await getDistinctCategories(options);
   if (sources === null) return toutes;
   if (sources.length === 0) return [];
 
@@ -95,7 +103,9 @@ export async function getCategoriesVisibles(sources: string[] | null): Promise<s
       .gt('categorie', lastSeen)
       .order('categorie', { ascending: true })
       .limit(1);
-    // Une lecture en échec ferme : on rend ce qu'on a pu vérifier, rien de plus.
+    // Une lecture en échec ferme : on rend ce qu'on a pu vérifier, rien de plus
+    // — sauf en mode `strict`, où elle lève (un aperçu ne doit pas mentir).
+    if (error && options.strict) throw new Error(`lecture des catégories visibles : ${error.message}`);
     if (error || !data?.length) break;
     const cat = data[0].categorie as string;
     visibles.add(cat);

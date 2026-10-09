@@ -37,7 +37,7 @@ export async function apercuEspace(sb: Sb, orgId: string): Promise<ApercuEspace>
     throw new Error("lecture des sources visibles de l'espace : aucune source rendue alors que le socle en contient");
   }
   const jeux = tousLesJeux.filter((j) => visibles.has(j.id));
-  const categories = await getCategoriesVisibles(sources ?? []);
+  const categories = await getCategoriesVisibles(sources ?? [], { strict: true });
 
   // dsp_campaigns : table de quelques lignes, COUNT autorisé (jamais poi_france).
   const { count, error } = await sb.from('dsp_campaigns')

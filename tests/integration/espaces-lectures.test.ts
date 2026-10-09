@@ -2,13 +2,27 @@
  * Lectures de la page « Espaces de travail » contre la base locale.
  * On vérifie des RELATIONS, pas des effectifs figés.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
 import { creerClientTest } from './_client';
 import { listerEspaces, membresDeLEspace } from '@/lib/espaces/lister-espaces';
 import { donneesDeLEspace, lireSocle } from '@/lib/espaces/donnees-espace';
 import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
 
 const sb = creerClientTest() as never;
+let orgJetable: string | null = null;
+const comptesJetables: string[] = [];
+
+afterAll(async () => {
+  const admin = creerClientTest();
+  for (const id of comptesJetables) {
+    const { error } = await admin.auth.admin.deleteUser(id);
+    if (error) console.error(`nettoyage compte ${id} : ${error.message}`);
+  }
+  if (orgJetable) {
+    const { error } = await admin.from('organizations').delete().eq('id', orgJetable);
+    if (error) console.error(`nettoyage espace ${orgJetable} : ${error.message}`);
+  }
+}, 60_000);
 
 describe('listerEspaces', () => {
   it('rend chaque organisation, l\'interne renommée et rangée en dernier', async () => {
@@ -19,13 +33,27 @@ describe('listerEspaces', () => {
     expect(socle.nb_jeux).toBeGreaterThan(0);
   });
 
+  // Hermétique : un espace jetable et un nombre CONNU de membres. Compter les
+  // espaces de la base serait flaky, d'autres fichiers en créent et en
+  // suppriment en parallèle.
   it('compte les membres par organization_members', async () => {
     const admin = creerClientTest();
-    const { espaces } = await listerEspaces(sb);
-    for (const e of espaces) {
-      const { count } = await admin.from('organization_members').select('id', { count: 'exact', head: true }).eq('organization_id', e.id);
-      expect(e.nb_membres, e.slug).toBe(count ?? 0);
+    const { data: org, error: e1 } = await admin.from('organizations')
+      .insert({ name: '[ESSAI lectures] membres', slug: `essai-lectures-${Date.now()}` }).select('id').single();
+    if (e1 || !org) throw new Error(`mise en place espace : ${e1?.message}`);
+    orgJetable = org.id as string;
+    for (const cle of ['m1', 'm2']) {
+      const email = `essai-lectures-${cle}-${Date.now()}@exemple.test`;
+      const { data, error } = await admin.auth.admin.createUser({ email, email_confirm: true });
+      if (error || !data.user) throw new Error(`mise en place compte ${cle} : ${error?.message}`);
+      comptesJetables.push(data.user.id);
+      const p = await admin.from('profiles').upsert({ id: data.user.id, email, role: 'client', organization_id: null });
+      if (p.error) throw new Error(`mise en place profil ${cle} : ${p.error.message}`);
+      const m = await admin.from('organization_members').insert({ user_id: data.user.id, organization_id: orgJetable });
+      if (m.error) throw new Error(`mise en place membre ${cle} : ${m.error.message}`);
     }
+    const { espaces } = await listerEspaces(sb);
+    expect(espaces.find((e) => e.id === orgJetable)?.nb_membres).toBe(2);
   });
 });
 
