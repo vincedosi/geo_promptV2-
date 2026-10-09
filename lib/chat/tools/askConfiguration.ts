@@ -62,6 +62,8 @@ export async function askConfiguration(args: Record<string, unknown>) {
   const geoField = perimetre_type === 'region' ? 'region' : 'ville';
   // Les comptes par catégorie révélaient les POI des autres clients — et
   // jusqu'à l'existence de leurs catégories : on ne compte que le visible.
+  // `referentiels: true` : un POI sans source (ICPE, arrêts de transport) est
+  // du socle (sql/234) — sans l'option, un client perdait ces catégories.
   const sources = getOrgSourceIds();
 
   const counts = await Promise.all(
@@ -72,7 +74,7 @@ export async function askConfiguration(args: Record<string, unknown>) {
           .select('id', { count: 'exact', head: true })
           .ilike(geoField, `%${perimetre_value}%`)
           .eq('categorie', cat);
-        const { count } = await filtrerParSourcesVisibles(requete, sources);
+        const { count } = await filtrerParSourcesVisibles(requete, sources, { referentiels: true });
         return { cat, count: count ?? 0 };
       } catch {
         return { cat, count: 0 };
