@@ -28,7 +28,15 @@ export async function apercuEspace(sb: Sb, orgId: string): Promise<ApercuEspace>
   const sources = await getOrgSourceIds({ userId: UTILISATEUR_APERCU, orgId, role: 'client' });
   // `null` est réservé au super_admin : impossible ici, le rôle simulé est `client`.
   const visibles = new Set(sources ?? []);
-  const jeux = (await lireJeux(sb)).filter((j) => visibles.has(j.id));
+  const tousLesJeux = await lireJeux(sb);
+  // `getOrgSourceIds` ferme par défaut : une lecture en échec rend [] et non une
+  // erreur. Or tout client voit le socle ; si un jeu du socle existe et que la
+  // règle n'en rend aucun, c'est sa lecture qui a échoué — répondre 200 avec des
+  // listes vides ferait croire que l'espace ne voit rien.
+  if (visibles.size === 0 && tousLesJeux.some((j) => j.visibilite === 'socle')) {
+    throw new Error("lecture des sources visibles de l'espace : aucune source rendue alors que le socle en contient");
+  }
+  const jeux = tousLesJeux.filter((j) => visibles.has(j.id));
   const categories = await getCategoriesVisibles(sources ?? []);
 
   // dsp_campaigns : table de quelques lignes, COUNT autorisé (jamais poi_france).

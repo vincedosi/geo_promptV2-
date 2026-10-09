@@ -7575,6 +7575,10 @@ export type Database = {
         Returns: number
       }
       releve_empreinte_carreaux: { Args: never; Returns: Json }
+      remplacer_espaces_utilisateur: {
+        Args: { p_actif: string; p_espaces: string[]; p_user: string }
+        Returns: Json
+      }
       remplir_code_postal_carreau: { Args: { p_lot?: number }; Returns: Json }
       remplir_cp_population_totale: {
         Args: {

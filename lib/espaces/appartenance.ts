@@ -73,3 +73,21 @@ export async function retirerMembre(sb: Sb, orgId: string, userId: string): Prom
   if (!count) return { ok: false, status: 404, message: 'Cet utilisateur n\'est pas membre de cet espace.' };
   return { ok: true };
 }
+
+/**
+ * Remplace la liste des espaces d'un utilisateur et son espace actif, en UNE
+ * transaction (RPC sql/236) : la fiche utilisateur coche plusieurs cases d'un
+ * coup, et une suite d'appels séparés pourrait s'arrêter au milieu.
+ */
+export async function remplacerEspaces(
+  sb: Sb, userId: string, espaces: string[], espaceActif: string | null,
+): Promise<{ ok: true; espaces: string[]; espace_actif: string | null } | { ok: false; status: number; message: string }> {
+  const { data, error } = await sb.rpc('remplacer_espaces_utilisateur', {
+    // Le générateur de types ne rend jamais un paramètre nullable (`p_actif`
+    // vaut `string`) ; la RPC accepte bien null (« aucun espace actif »).
+    p_user: userId, p_espaces: espaces, p_actif: espaceActif as string,
+  });
+  if (error) return { ok: false, ...messageErreurAppartenance(error.code, error.message) };
+  const r = data as { espaces: string[]; espace_actif: string | null };
+  return { ok: true, espaces: [...r.espaces].sort(), espace_actif: r.espace_actif };
+}

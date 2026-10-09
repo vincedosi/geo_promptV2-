@@ -1443,6 +1443,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/admin/espaces/[id]/donnees` | GET | Chaque jeu avec son statut POUR l'espace (`proprietaire`/`partage`/`socle`/`non_visible`, `statutPourEspace` = condition de `getOrgSourceIds` / `source_visible`, sql/234) ; 400 id non UUID, 404 espace inconnu |
 | `/api/admin/espaces/[id]/membres` | GET | `{ membres }` avec leurs AUTRES espaces ; 404 espace inconnu |
 | `/api/admin/espaces/[id]/apercu` | GET | « Ce que voit cet espace » : appelle `getOrgSourceIds` (session client simulée) + `getCategoriesVisibles` ; catégories SANS effectif (aucun COUNT sur `poi_france`), `nb_campagnes` ; zones/jeux de zones absents (rattachés à un utilisateur) |
+| `/api/admin/users/[id]/espaces` | PUT | Remplace les espaces d'un utilisateur ET son espace actif en UNE transaction (RPC `remplacer_espaces_utilisateur`, sql/236, via `remplacerEspaces` de `lib/espaces/appartenance.ts`) ; corps `{ espaces: uuid[] (50 au plus, sans doublon), espace_actif: uuid \| null }` ; super_admin seul ; 400 corps invalide, espace inconnu ou actif hors liste (client), 404 utilisateur inconnu |
 | `/api/admin/organizations/[id]/sources/assign` | POST/DELETE | Assignation sources |
 | `/api/admin/sources` | GET/POST | CRUD sources |
 | `/api/admin/sources/[id]` | GET/PATCH/DELETE | Detail/modification/suppression source |

@@ -221,7 +221,7 @@ describe('rattrapage (sql/236)', () => {
   });
 });
 
-import { ajouterMembre, retirerMembre } from '@/lib/espaces/appartenance';
+import { ajouterMembre, retirerMembre, remplacerEspaces } from '@/lib/espaces/appartenance';
 
 describe('ajouterMembre / retirerMembre (T2)', () => {
   it('ajouter écrit organization_members et place l\'espace actif s\'il était vide', async () => {
@@ -294,5 +294,33 @@ describe('ajouterMembre / retirerMembre (T2)', () => {
   it('retirer quelqu\'un qui n\'est pas membre rend 404', async () => {
     const u = await creerCompte('retrait-absent');
     expect(await retirerMembre(admin as never, a, u)).toEqual({ ok: false, status: 404, message: 'Cet utilisateur n\'est pas membre de cet espace.' });
+  });
+});
+
+describe('remplacerEspaces (T4)', () => {
+  it("coche deux espaces et choisit l'actif", async () => {
+    const u = await creerCompte('cases');
+    const r = await remplacerEspaces(admin as never, u, [a, b], b);
+    expect(r).toEqual({ ok: true, espaces: [a, b].sort(), espace_actif: b });
+    expect(await espaceActif(u)).toBe(b);
+  });
+
+  it("actif hors des cases → 400 avec le message français, rien d'écrit", async () => {
+    const u = await creerCompte('cases-refus');
+    const r = await remplacerEspaces(admin as never, u, [a], b);
+    expect(r).toEqual({ ok: false, status: 400, message: "L'espace actif doit faire partie des espaces de l'utilisateur." });
+    const { data } = await admin.from('organization_members').select('id').eq('user_id', u);
+    expect(data?.length).toBe(0);
+  });
+
+  it('espace inconnu → 400 « Espace introuvable. »', async () => {
+    const u = await creerCompte('cases-inconnu');
+    const r = await remplacerEspaces(admin as never, u, ['00000000-0000-0000-0000-00000000dead'], null);
+    expect(r).toEqual({ ok: false, status: 400, message: 'Espace introuvable.' });
+  });
+
+  it('utilisateur inconnu → 404', async () => {
+    const r = await remplacerEspaces(admin as never, '00000000-0000-0000-0000-00000000dead', [], null);
+    expect(r).toEqual({ ok: false, status: 404, message: 'Utilisateur introuvable.' });
   });
 });
