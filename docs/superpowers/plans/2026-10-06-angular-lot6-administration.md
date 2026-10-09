@@ -476,6 +476,8 @@ readonly fichiers = output<File[]>();
 
 ### Task 6: Users — liste, invitation, édition, suppression
 
+**REMPLACÉE** (2026-10-09) par la page Espaces de travail — `docs/superpowers/plans/2026-10-09-espaces-de-travail.md`. Ne pas exécuter.
+
 **Files:**
 - Create: `A/users/users.page.{ts,html}` (+ spec), `A/users/dialogue-utilisateur.component.ts` (+ spec), `A/users/data/users.api.ts` (+ spec), `A/commun/data/organisations-liste.api.ts` (lecture `GET /api/admin/organizations`, mise en cache par écran — reprise par T7, T12, T18)
 - Modify: `A/admin.routes.ts`, `layout/navigation.ts` (« Users » → `cible: 'admin/users'`)
@@ -495,6 +497,8 @@ readonly fichiers = output<File[]>();
 
 ### Task 7: Organisations — liste et création
 
+**REMPLACÉE** (2026-10-09) par la page Espaces de travail — `docs/superpowers/plans/2026-10-09-espaces-de-travail.md`. Ne pas exécuter.
+
 **Files:**
 - Create: `A/organizations/organizations.page.{ts,html}` (+ spec), `A/organizations/data/organisations-admin.api.ts` (+ spec)
 - Modify: `A/admin.routes.ts` (enfants `organizations` et `organizations/:id` — ce dernier provisoire jusqu'à T8), `layout/navigation.ts` (« Organisations » → `cible: 'admin/organizations'`)
@@ -513,6 +517,8 @@ readonly fichiers = output<File[]>();
 ---
 
 ### Task 8: Organisation — détail (configuration, membres, sources)
+
+**REMPLACÉE** (2026-10-09) par la page Espaces de travail — `docs/superpowers/plans/2026-10-09-espaces-de-travail.md`. Ne pas exécuter.
 
 **Files:**
 - Create: `A/organizations/organisation.page.{ts,html}` (+ spec), `A/organizations/{membres,sources-organisation}.component.ts` (+ specs)
@@ -721,6 +727,8 @@ readonly fichiers = output<File[]>();
 ---
 
 ### Task 18: Sources I — cadre, onglets, vue « Toutes », liste et détail d'une source
+
+Le partage d'une source n'est PAS porté : lien « Gérer les droits → Espaces de travail » à la place (spec espaces § 6).
 
 **Files:**
 - Create: `A/sources/sources.page.{ts,html}` (+ spec), `A/sources/{liste-sources,detail-source,tuiles-sources}.component.ts` (+ specs), `A/sources/logique/constantes.ts`, `A/sources/data/sources-admin.api.ts` (+ spec)

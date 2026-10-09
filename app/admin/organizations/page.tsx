@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { adminFetch } from '@/lib/admin-fetch';
 import type { Organization } from '@/types/admin';
+import { BandeauEspaces } from '@/components/admin/BandeauEspaces';
 
 const C = {
   bg:          'var(--bg-primary)',
@@ -105,6 +106,8 @@ export default function OrganizationsPage() {
           Gestion des clients — isolation des donnees, partage entre organisations
         </p>
       </div>
+
+      <BandeauEspaces />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 

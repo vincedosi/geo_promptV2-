@@ -1093,6 +1093,38 @@ route pose l'appartenance puis l'espace actif. Pas d'appartenance automatique
 a l'espace interne : tout client cree en aurait vu les donnees. Verrou :
 `tests/integration/creation-compte.test.ts`.
 
+### Espaces de travail (2026-10-09, livre)
+
+Une seule page — **Administration › Espaces de travail** (interface Angular,
+`/app/admin/espaces`) — remplace les trois pages React `/admin/users`,
+`/admin/organizations` et `/admin/organizations/[id]` (bandeau de renvoi en tete,
+pages gardees en lecture, administration React gelee). Specification :
+`docs/superpowers/specs/2026-10-08-espaces-de-travail-design.md` ; plan :
+`docs/superpowers/plans/2026-10-09-espaces-de-travail.md`.
+
+- **Modele a deux colonnes** : `organization_members` = a quels espaces on
+  APPARTIENT (source de verite) ; `profiles.organization_id` = dans lequel on
+  TRAVAILLE (espace actif). Invariant tenu en base par `sql/236` (voir plus haut :
+  declencheurs et RPC `remplacer_espaces_utilisateur`). Un compte neuf nait sans
+  espace (`sql/237`). Seul le super_admin administre (D1) ; le role `admin` n'est
+  jamais propose.
+- **Routes** : `GET /api/admin/espaces`, `…/espaces/socle`, `…/espaces/[id]/donnees`,
+  `…/espaces/[id]/membres`, `…/espaces/[id]/apercu`, `PUT /api/admin/users/[id]/espaces`,
+  plus les routes existantes (organisations, membres, `sources/assign`,
+  `PATCH /api/admin/sources/[id]`, utilisateurs) — detail dans le tableau des routes
+  admin. Logique serveur : `lib/espaces/` (`appartenance.ts`, `lister-espaces.ts`,
+  `nom-espace.ts`, `types.ts`).
+- **Ecran** : colonne « Socle dentsu.explore » + un espace par ligne ; fiche d'un
+  espace a quatre onglets (Membres, Donnees, Apercu, Reglages) et fiche Socle.
+  L'apercu APPELLE la regle des routes (`getOrgSourceIds`, `getCategoriesVisibles`)
+  sur une session client simulee, il ne la recopie pas. Details composant par
+  composant : section Angular « Espaces de travail » (T5 a T10) plus bas.
+- **Garde-fous** : l'espace interne (`genesis-global`) ne se supprime pas (409 par
+  appel direct) et n'a pas d'interrupteur « actif » ; `POST …/members` ignore le
+  role quand la cible est deja super_admin.
+
+Ecarts a la specification : voir la section « Ecarts a la livraison » de la spec.
+
 **Trois niveaux de visibilite d'une donnee importee**, portes par
 `data_sources.visibilite` :
 

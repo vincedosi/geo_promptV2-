@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useToast } from '@/components/ui/geo-toast';
 import { ROLES as ROLES_PAR_POUVOIR } from '@/lib/auth/roles';
+import { BandeauEspaces } from '@/components/admin/BandeauEspaces';
 
 const C = {
   bg:          'var(--bg-primary)',
@@ -428,6 +429,8 @@ export default function WorkspacePage() {
         </div>
         <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textSec, marginTop: 6 }}>id: {org.id}</div>
       </div>
+
+      <BandeauEspaces />
 
       {/* ── Config ── */}
       <Section title="Configuration workspace">

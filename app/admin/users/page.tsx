@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useToast } from '@/components/ui/geo-toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { BandeauEspaces } from '@/components/admin/BandeauEspaces';
 
 const fInter = "'Inter', sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -153,6 +154,8 @@ export default function AdminUsersPage() {
           <button onClick={openInvite} style={{ padding: '7px 14px', fontFamily: fInter, fontSize: 12, fontWeight: 500, cursor: 'pointer', background: 'var(--text-primary)', color: 'var(--bg-primary)', border: 'none', borderRadius: 6 }}>+ Creer un compte</button>
         </div>
       </div>
+
+      <BandeauEspaces />
 
       {loading ? (
         <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: 20 }}>Chargement...</div>

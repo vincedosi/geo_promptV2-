@@ -1,6 +1,7 @@
 # Espaces de travail — une seule page pour administrer les droits
 
 > Spécification validée dans son principe par Vincent le 2026-10-08.
+> **Statut : livrée le 2026-10-09** (branche `feat/espaces-de-travail`, non mergée) ; écarts consignés en fin de document, section « Écarts à la livraison ».
 > ⚠ Le produit s'appelle désormais **dentsu.explore** (décision du 2026-10-08) :
 > « MAGELIAN » dans ce document désigne l'ancien nom.
 > Prérequis : le cloisonnement par organisation (`feat/droits-donnees`,
@@ -258,3 +259,15 @@ le noter dans chaque route).
 - Identifiant de POI incluant l'organisation : jugé sans gravité (imports
   faits par MAGELIAN seule).
 - Interface « Vos données / Données MAGELIAN » côté carte : chantier distinct.
+
+## 11. Écarts à la livraison
+
+| # | Écart | Raison |
+|---|---|---|
+| E2 | **Libellés : « Socle dentsu.explore »** (et non « Socle MAGELIAN » comme au § 4.2) et **« dentsu.explore (interne) »** pour `genesis-global`. Le nom affiché est calculé côté serveur, à un seul endroit (`lib/espaces/nom-espace.ts`). | MAGELIAN ne s'écrit plus dans aucun texte visible (renommage du 2026-10-08). |
+| E4 | **Aperçu sans effectif par catégorie** (catégories listées sans nombre de POI ; les effectifs sont ceux des jeux, `data_sources.valid_count`) et **sans zones personnalisées ni jeux de zones** : `custom_geo_zones` et `zone_sets` n'ont pas d'`organization_id` (rattachées à `created_by`), les compter « par espace » serait inventer une règle que les routes n'appliquent pas. Les campagnes (`dsp_campaigns.organization_id`) sont gardées. | § 7 : aucun `COUNT` sur `poi_france` ; et l'aperçu doit appeler la règle des routes, pas en écrire une. |
+| — | **sql/237 : un compte neuf naît sans espace.** Le déclencheur `on_auth_user_created` manquait en local et l'ancienne `handle_new_user` posait l'espace interne comme actif sans appartenance, ce que sql/236 refuse. | Création de compte inopérante sinon (500). Pas d'appartenance automatique à l'espace interne. |
+| — | **L'espace interne ne se supprime pas, même par appel direct** : `DELETE /api/admin/organizations/[id]` rend 409 (avant : 500 par clé étrangère). Son interrupteur « actif » n'est pas offert non plus. | Il porte les données du socle. |
+| — | **Après une écriture échouée, l'onglet Données relit.** | `PATCH admin/sources/[id]` n'est pas atomique : un 500 peut suivre un transfert de propriété réel. |
+| — | **`POST …/members` ignore le rôle quand la cible est déjà super_admin.** Son rôle se change par `PATCH /api/admin/users/[id]`. | React envoie toujours un rôle ; sans cela, ajouter un super_admin à un espace le rétrogradait. |
+
