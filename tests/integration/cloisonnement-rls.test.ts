@@ -33,7 +33,7 @@ const MOT_DE_PASSE = 'Cloisonnement-test-2026!';
 
 interface Compte { id: string; orgId: string; client: SupabaseClient }
 
-const comptes: Record<'marine' | 'bmw' | 'drhat', Compte> = {} as never;
+const comptes: Record<'marine' | 'bmw' | 'drhat' | 'drhatAdmin', Compte> = {} as never;
 const anonyme = createClient(URL_SB, CLE_PUBLIQUE, { auth: { persistSession: false } });
 
 async function orgParSlug(slug: string): Promise<string> {
@@ -42,7 +42,9 @@ async function orgParSlug(slug: string): Promise<string> {
   return data.id as string;
 }
 
-async function creerCompte(cle: keyof typeof comptes, slug: string): Promise<void> {
+async function creerCompte(
+  cle: keyof typeof comptes, slug: string, role: 'client' | 'admin' = 'client',
+): Promise<void> {
   const orgId = await orgParSlug(slug);
   const email = `test-cloisonnement-${cle}@magelian.test`;
 
@@ -63,7 +65,7 @@ async function creerCompte(cle: keyof typeof comptes, slug: string): Promise<voi
   if (errMembre) throw new Error(`appartenance ${email} : ${errMembre.message}`);
 
   const { error: errProfil } = await admin.from('profiles').upsert({
-    id: cree.user.id, email, role: 'client', organization_id: orgId,
+    id: cree.user.id, email, role, organization_id: orgId,
   });
   if (errProfil) throw new Error(`profil ${email} : ${errProfil.message}`);
 
@@ -78,6 +80,10 @@ beforeAll(async () => {
   await creerCompte('marine', 'marine');
   await creerCompte('bmw', 'bmw-group');
   await creerCompte('drhat', 'drhat');
+  // Un `admin` d'ESPACE (pas super_admin) : le rôle que les vieilles politiques
+  // `FOR ALL USING (get_user_role() in ('super_admin','admin'))` laissaient
+  // tout lire, toutes organisations confondues (sql/238).
+  await creerCompte('drhatAdmin', 'drhat', 'admin');
 }, 60_000);
 
 afterAll(async () => {
@@ -158,6 +164,41 @@ describe('tables qui ne doivent RIEN rendre à un client par PostgREST', () => {
       expect(data ?? []).toEqual([]);
     });
   }
+
+  // Un admin d'espace n'est pas un super_admin. Mesuré le 2026-10-09 avant
+  // sql/238 : ce compte lisait les 13 377 lignes de bidding_zone_configs, toutes
+  // d'une AUTRE organisation, parce qu'une politique FOR ALL vaut aussi pour
+  // SELECT et ne filtrait que sur le rôle.
+  const tablesBidding = [
+    ...tables,
+    'agent_chat_messages', 'agent_recommendations', 'bidding_curve_history',
+    'bidding_agent_actions', 'bidding_strategy_drafts', 'agent_autonomy_settings',
+  ];
+  for (const table of tablesBidding) {
+    it(`${table} : zéro ligne pour un admin d espace`, async () => {
+      const { data, error } = await comptes.drhatAdmin.client.from(table).select('*').limit(1);
+      expect(error).toBeNull();
+      expect(data ?? []).toEqual([]);
+    });
+  }
+
+  it('un admin d espace garde les catalogues partagés (objectifs, algorithmes, métriques)', async () => {
+    for (const table of ['bidding_objectives', 'bidding_algorithms', 'dsp_metrics_registry']) {
+      const { data, error } = await comptes.drhatAdmin.client.from(table).select('*').limit(1);
+      expect(error).toBeNull();
+      expect(data?.length ?? 0).toBeGreaterThan(0);
+    }
+  });
+
+  it('un admin d espace garde son espace et ses POI de socle', async () => {
+    const { drhatAdmin } = comptes;
+    const { data: orgs } = await drhatAdmin.client.from('organizations').select('id');
+    expect((orgs ?? []).map((o) => o.id)).toEqual([drhatAdmin.orgId]);
+    const { data: lycees } = await drhatAdmin.client.from('poi_france').select('id').eq('categorie', 'lycee').limit(5);
+    expect(lycees?.length ?? 0).toBeGreaterThan(0);
+    const { data: prives } = await drhatAdmin.client.from('poi_france').select('id').in('categorie', ['bmw', 'cirfa']).limit(5);
+    expect(prives).toEqual([]);
+  });
 
   it('organizations : un client ne voit que la sienne', async () => {
     const { marine } = comptes;

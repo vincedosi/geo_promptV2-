@@ -1057,6 +1057,22 @@ tables, et pour les tables futures (`alter default privileges`). Recense ce
 jour : le seul acces direct du navigateur est la LECTURE de son propre profil
 (`lib/auth-client.ts`, `angular/.../auth.service.ts`).
 
+**Plus aucune politique `FOR ALL` pour un client (`sql/238`, 2026-10-09).** Une
+politique FOR ALL vaut aussi pour SELECT ; sans droit d'ecriture (sql/234),
+elle ne sert plus QU'A LIRE. Douze tables bidding/agent en portaient une ecrite
+`USING (get_user_role() in ('super_admin','admin'))` sans filtre d'organisation :
+un compte `admin` d'espace lisait les 13 377 lignes de `bidding_zone_configs`,
+toutes d'une autre organisation. `sql/238` eclate toute politique FOR ALL non
+reservee a `service_role` en INSERT/UPDATE/DELETE (22 politiques, 26 → 4 FOR ALL,
+les 4 restantes sont `service_role`) ; supprime les SELECT `*_org_read` de
+`agent_chat_messages`, `agent_recommendations`, `bidding_curve_history` (meme
+clause `admin` ET « infinite recursion » 42P17 pour tout compte) ; ramene
+`bidding_agent_actions`, `bidding_strategy_drafts`, `agent_autonomy_settings` a
+« le mien, ou super_admin ». Les tables bidding se lisent cote serveur
+(service_role), comme `bidding_strategies` depuis sql/234. Verrous :
+`tests/integration/politiques-for-all.test.ts` (lit `pg_policies` par
+`DATABASE_URL`) et le compte `admin` DRHAT de `cloisonnement-rls.test.ts`.
+
 **Appartenance aux espaces, tenue en base (`sql/236`, 2026-10-09).** Deux
 colonnes, une regle : `organization_members (user_id, organization_id)` dit a
 quels espaces l'utilisateur APPARTIENT (source de verite) ; `profiles.organization_id`
@@ -1170,14 +1186,15 @@ Outils de `lib/auth/perimetre-donnees.ts` :
   montre ou dicte a l'IA. `getDistinctCategories` reste interne : un nom de
   categorie (« bmw ») suffit a reveler qu'un client existe.
 
-**Verrous :** `tests/integration/cloisonnement-rls.test.ts` rejoue 26 attaques
-PostgREST avec de vrais comptes MARINE / BMW / DRHAT ;
+**Verrous :** `tests/integration/cloisonnement-rls.test.ts` rejoue 44 attaques
+PostgREST avec de vrais comptes MARINE / BMW / DRHAT (dont un `admin` d'espace
+DRHAT, sql/238) ;
 `tests/unit/securite/perimetre-routes.test.ts` fait echouer la suite si un
 fichier de `app/api` (hors `/admin`) ou de `lib/` lit une table de donnees
 client sans passer par la regle, ou si un handler clustering perd sa garde.
 
 ⚠ **`sql/010_security_hardening.sql` recree des `USING (true)`** : le rejouer
-impose de rejouer `sql/234` juste apres (`sql/SETUP.md`).
+impose de rejouer `sql/234` puis `sql/238` juste apres (`sql/SETUP.md`).
 
 **Ce qui n'est pas fait :** pas de mode « voir comme » pour le super_admin (il
 voit tout, il ne peut pas verifier ce que voit un client sans un compte de
