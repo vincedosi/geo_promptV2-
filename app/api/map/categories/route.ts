@@ -34,16 +34,19 @@ function withLabels(cats: string[], labelMap: Record<string, string>) {
 }
 
 export async function GET(req: NextRequest) {
-  if (req.nextUrl.searchParams.get('refresh') === '1') {
-    // Cache invalidation — tout utilisateur connecté peut rafraîchir
-    // (le middleware a déjà vérifié la session via getSession())
+  const session  = await getSessionOrg(req);
+
+  // Invalidation du cache réservée à un appelant connecté. Cette route est
+  // publique (middleware.ts) : laisser un anonyme vider le cache lui permettait
+  // de forcer à chaque appel la relecture des catégories (≈ 35 000 pages lues,
+  // mesuré le 2026-10-09), la famille d'I/O des trois pannes.
+  if (session && req.nextUrl.searchParams.get('refresh') === '1') {
     invalidateCategoriesCache();
   }
 
   // Catégories globales (cache 5 min)
   const allCats = await getDistinctCategories();
   const supabase = createAdminClient();
-  const session  = await getSessionOrg(req);
 
   // La règle « quelles sources cette organisation voit-elle » était réécrite ici
   // en ligne (`DUP-002`). Elle vit désormais à un seul endroit. Depuis le

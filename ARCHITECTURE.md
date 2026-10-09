@@ -1196,7 +1196,9 @@ Outils de `lib/auth/perimetre-donnees.ts` :
   liste partielle n'est jamais cachee, `strict` relit toujours) : sans lui,
   chaque appel de `/api/map/categories` (route publique) ou du chat lisait
   ≈ 35 000 pages (≈ 270 Mo, EXPLAIN BUFFERS du 2026-10-09).
-  `invalidateCategoriesCache` vide les deux caches.
+  `invalidateCategoriesCache` vide les deux caches ; `?refresh=1` sur la route
+  ne le declenche que pour un appelant connecte (un anonyme pouvait sinon
+  forcer la relecture a chaque appel).
 
 **Verrous :** `tests/integration/cloisonnement-rls.test.ts` rejoue 44 attaques
 PostgREST avec de vrais comptes MARINE / BMW / DRHAT (dont un `admin` d'espace
