@@ -1565,7 +1565,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 ### Multi-tenant utilisateur
 | Route | Methode | Description |
 |-------|---------|-------------|
-| `/api/user/organizations` | GET | Orgs de l'utilisateur courant |
+| `/api/user/organizations` | GET | Orgs de l'utilisateur courant (badge de session React et Angular) ; `name` est le nom AFFICHÉ (`nomAffiche`, `lib/espaces/nom-espace.ts` : « dentsu.explore (interne) » pour `genesis-global`), la base garde son nom |
 | `/api/user/switch-org` | POST | Changement d'org active |
 | `/api/auth/[...auth]` | GET/POST | Catch-all INERTE. L'authentification se fait entierement cote client par le SDK Supabase ; cette route existe pour qu'un appel a `/api/auth/*` reponde autre chose qu'un 404 |
 
