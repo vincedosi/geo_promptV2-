@@ -17,6 +17,7 @@ import { RadioApi } from './data/radio.api';
 import { SitesRisqueApi } from '../risques/data/sites-risque.api';
 import { CiviqueApi } from './data/civique.api';
 import { MeteoApi } from './data/meteo.api';
+import { IsochronesApi } from './data/isochrones.api';
 import { ZonesCustomApi } from './data/zones-custom.api';
 import { JeuxZonesApi } from '../risques/data/jeux-zones.api';
 import { ZonesRisqueApi } from '../risques/data/zones-risque.api';
@@ -93,6 +94,7 @@ async function ouvrir(options: OptionsOuverture = {}) {
       { provide: CarteApi, useValue: { categories: () => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] }), pois: () => of(), ooh: () => of(), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
       { provide: RadioApi, useValue: { optionsFiltre: () => of({}), emetteurs: () => of({ type: 'FeatureCollection', features: [] }), stations: () => of({}) } },
       { provide: MeteoApi, useValue: { donnees: () => of() } },
+      { provide: IsochronesApi, useValue: {} },
       { provide: SitesRisqueApi, useValue: { carte: () => of(), exposition: () => of() } },
       { provide: CiviqueApi, useValue: { geojsonVariable: () => of(), detailCp: () => of(), zones: () => of(), santeDepartement: () => of(), santeCp: () => of(), santeCommune: () => of() } },
     ],

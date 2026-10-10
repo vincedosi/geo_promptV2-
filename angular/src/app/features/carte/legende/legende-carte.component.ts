@@ -10,6 +10,7 @@ import { SanteService } from '../couches/sante.service';
 import { TmjaService } from '../couches/tmja.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
 import { RisqueCarteService } from '../etat/risque-carte.service';
+import { LegendeBatailleComponent } from './legende-bataille.component';
 import { LegendeZonesProfilComponent } from './legende-zones-profil.component';
 import { formaterNombre } from '../../../core/format/nombre';
 import { LARGEUR_TRAIT_PPRT } from '../logique/pprt';
@@ -85,7 +86,7 @@ interface Palier {
  */
 @Component({
   selector: 'mg-legende-carte',
-  imports: [IconeComponent, LegendeZonesProfilComponent],
+  imports: [IconeComponent, LegendeBatailleComponent, LegendeZonesProfilComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'contents' },
   template: `
@@ -130,6 +131,8 @@ interface Palier {
                       <span class="font-mono text-[10px] text-tertiary">R={{ a.rayonPoi }}/POI</span>
                     </div>
                   }
+                  <!-- LegendeCarte.tsx:408-460 : la bataille et sa réglette de palier maximum (T17). -->
+                  <mg-legende-bataille />
                 </div>
               </div>
             }

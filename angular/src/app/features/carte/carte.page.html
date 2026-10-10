@@ -19,11 +19,10 @@
     [decalageHaut]="etat.railMasque() ? 0 : hauteurBarre"
     (fermer)="panneauFerme()"
   >
-    <!-- Contenu provisoire : l'Analyse arrive avec les tâches 17 à 20. -->
     @switch (p.id) {
       @case ('filtre') { <mg-panneau-filtre /> }
       @case ('calques') { <mg-panneau-calques /> }
-      @case ('analyse') { <p data-provisoire class="px-4 py-2 text-[12px] text-tertiary">Les outils d'analyse arrivent avec les tâches 17 à 20.</p> }
+      @case ('analyse') { <mg-panneau-analyse /> }
       @case ('zones') { <mg-panneau-zones /> }
       @case ('reglages') { <mg-reglages [fond]="fond()" (choisirFond)="choisirFond($event)" /> }
       @case ('aide') { <mg-aide /> }

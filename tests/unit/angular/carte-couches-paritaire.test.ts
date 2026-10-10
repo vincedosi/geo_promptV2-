@@ -435,6 +435,14 @@ describe('fonds de carte, palettes de données et constantes de calques', () => 
       .toContain(`battle_opacity: (BATTLE_PALIER_OPACITY as Record<number, number>)[palier] ?? ${Apal.OPACITE_PALIER_INCONNU.toFixed(2)},`);
   });
 
+  it('bataille (T17) : trait des bordures CIRFA et opacité de repli des anneaux bruts', () => {
+    const t = Apal.TRAITS_BATAILLE;
+    expect(readFileSync('app/copilote/_hooks/useMapInit.ts', 'utf8'))
+      .toContain(`paint: { 'line-color': '${t.bordure.couleur}', 'line-width': ${t.bordure.largeur}, 'line-opacity': ${t.bordure.opacite} }`);
+    expect(readFileSync('app/copilote/_hooks/useMapLayers.ts', 'utf8'))
+      .toContain(`battle_opacity: (BATTLE_PALIER_OPACITY as Record<number, number>)[r.palier] ?? ${Apal.OPACITE_PALIER_PARTIEL},`);
+  });
+
   it('zones affichées (T14) : palette et rendu égaux aux littéraux de ZonesOverlay', () => {
     const src = readFileSync('components/map/overlays/ZonesOverlay.tsx', 'utf8');
     expect(src).toContain(`const ZONE_PALETTE = [${Apal.PALETTE_ZONES.map((c) => `'${c}'`).join(', ')}] as const;`);

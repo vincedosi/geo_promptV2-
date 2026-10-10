@@ -29,6 +29,7 @@ import { CARREAUX_PALETTES } from '../logique/palettes-donnees-carte';
 import type { DegradeId } from '../logique/degrades';
 import { LegendeCarteComponent, degradeALegende } from './legende-carte.component';
 import { ZonesRisqueService } from '../couches/zones-risque.service';
+import { BatailleService } from '../couches/bataille.service';
 import { ZonesRisqueApi } from '../../risques/data/zones-risque.api';
 import { PROFIL_DEFAUT } from '../../risques/logique/profil';
 import { CaptureService } from '../etat/capture.service';
@@ -38,7 +39,7 @@ function monter() {
   TestBed.configureTestingModule({
     providers: [CaptureService, 
       provideZonelessChangeDetection(), CarreauxService, IrisService, PoisService, EtatCarteService, CouchesCarteService, AnnonceService,
-      TmjaService, RadioService, SanteService, MeteoService, ContoursZonesService, RisqueCarteService,
+      TmjaService, RadioService, SanteService, MeteoService, ContoursZonesService, RisqueCarteService, BatailleService,
       { provide: MeteoApi, useValue: { donnees: () => new Subject() } },
       { provide: FABRIQUE_POPUP, useValue: () => ({}) },
       { provide: CiviqueApi, useValue: { zones: () => new Subject(), santeDepartement: () => new Subject(), santeCp: () => new Subject() } },
@@ -294,7 +295,7 @@ describe('LegendeCarteComponent — « Zones de risque » (T13)', () => {
     TestBed.configureTestingModule({
       providers: [CaptureService, 
         provideZonelessChangeDetection(), CarreauxService, IrisService, PoisService, EtatCarteService, CouchesCarteService, AnnonceService,
-        TmjaService, RadioService, SanteService, MeteoService, ContoursZonesService, RisqueCarteService, ZonesRisqueService,
+        TmjaService, RadioService, SanteService, MeteoService, ContoursZonesService, RisqueCarteService, ZonesRisqueService, BatailleService,
         { provide: ZonesRisqueApi, useValue: { urlTuilesZones: () => '' } },
         { provide: MeteoApi, useValue: { donnees: () => new Subject() } },
         { provide: FABRIQUE_POPUP, useValue: () => ({}) },

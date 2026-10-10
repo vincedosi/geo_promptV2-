@@ -117,12 +117,15 @@ export const TRAITS_BATAILLE = {
   aplatRepli: '#4e79a7',
   opaciteRepli: 0.5,
   trait: { couleur: 'rgba(0,0,0,0.15)', largeur: 0.5, opacite: 0.6 },
+  bordure: { couleur: '#111827', largeur: 1, opacite: 0.3 },
   point: { rayon: 5, couleur: '#dc2626', cerne: '#ffffff', largeurCerne: 2 },
   halo: { rayon: 12, couleur: '#ffffff', opacite: 0.3, flou: 1 },
 } as const;
 
 /** L'opacité d'un anneau dont le palier n'est pas dans `BATTLE_PALIER_OPACITY` (`useMapLayers.ts:1060`). */
 export const OPACITE_PALIER_INCONNU = 0.20;
+/** La même, pour un anneau BRUT affiché avant la découpe (`addBattlePartialRings`, `useMapLayers.ts:1004`). */
+export const OPACITE_PALIER_PARTIEL = 0.15;
 
 // ---------------------------------------------------------------------------
 // Zones enregistrées affichées (`components/map/overlays/ZonesOverlay.tsx:57-58`, T14)

@@ -53,6 +53,10 @@ import { PanneauCalquesComponent } from './panneaux/calques/panneau-calques.comp
 import { PanneauFiltreComponent } from './panneaux/filtre/panneau-filtre.component';
 import { ReglagesComponent } from './panneaux/reglages.component';
 import { PanneauZonesComponent } from './panneaux/zones/panneau-zones.component';
+import { PanneauAnalyseComponent } from './panneaux/analyse/panneau-analyse.component';
+import { BatailleV1Service } from './etat/bataille-v1.service';
+import { BatailleV2Service } from './etat/bataille-v2.service';
+import { ContexteBatailleService } from './etat/contexte-bataille.service';
 import { LARGEUR_PLAN_MEDIA, PlanMediaComponent } from './panneaux/zones/plan-media.component';
 import { BarreHautComponent, HAUTEUR_BARRE_HAUT } from './rail/barre-haut.component';
 import { PanneauComponent } from './rail/panneau.component';
@@ -113,7 +117,7 @@ export function palierCarreaux(zoom: number): string {
   selector: 'mg-carte-principale',
   imports: [
     AideComponent, AnnonceComponent, BarreHautComponent, BoutonsFlottantsComponent, CarteComponent, DetailIrisComponent, DialogueMeteoComponent,
-    FondCompactComponent, LegendeCarteComponent, PanneauCalquesComponent, PanneauComponent, PanneauFiltreComponent, PanneauZonesComponent, PlanMediaComponent, PuceFiltreComponent,
+    FondCompactComponent, LegendeCarteComponent, PanneauAnalyseComponent, PanneauCalquesComponent, PanneauComponent, PanneauFiltreComponent, PanneauZonesComponent, PlanMediaComponent, PuceFiltreComponent,
     RailComponent, ReglagesComponent, RouterOutlet, TiroirPanneauComponent, ZoneActiveComponent,
   ],
   providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
@@ -121,6 +125,8 @@ export function palierCarreaux(zoom: number): string {
     IndicateursCiviquesService, SanteService, ContoursZonesService, MeteoService, RisqueCarteService, RisquesIndustrielsService,
     PprtService, ZonesRisqueService, BatailleService, ZonesCustomService, LienZoneService, ExportZoneService, PlanMediaService,
     CaptureService, DessinService,
+    // Les batailles d'isochrones (T17) : à la PAGE, pas au panneau — fermer le panneau ne coupe pas un calcul en cours.
+    ContexteBatailleService, BatailleV1Service, BatailleV2Service,
     // Le pont du module risque (B3) : le module, rendu par l'outlet de cette page, le voit par son injecteur d'élément.
     { provide: PONT_CARTE, useExisting: ZonesRisqueService },
   ],

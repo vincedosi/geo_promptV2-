@@ -1,0 +1,97 @@
+import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { Subject } from 'rxjs';
+import { BatailleService } from '../couches/bataille.service';
+import { IsochronesApi, type EvenementFlux } from '../data/isochrones.api';
+import type { ContexteBataille } from '../logique/bataille/parametres';
+import { BatailleV2Service } from './bataille-v2.service';
+import { ContexteBatailleService } from './contexte-bataille.service';
+import { CouchesCarteService } from './couches-carte.service';
+
+const CTX: ContexteBataille = { categorie: 'cirfa', mode: 'drive', territoire: { ville: '', regions: [], depts: ['13'] }, nbRegionsRef: 18 };
+const STATUT_MANQUANT = { total_pois: 2, total_combos: 14, cached_combos: 7, missing_combos: 7, missing_pois: 1, cached_pois: 1 };
+const anneau: GeoJSON.Feature = { type: 'Feature', geometry: { type: 'Polygon', coordinates: [] }, properties: { id: 'a', nom: 'A', palier: 10 } };
+
+function monter() {
+  const flux = { batailleV2: [] as Subject<EvenementFlux>[], bataille: [] as Subject<EvenementFlux>[] };
+  const caches: Subject<unknown>[] = [];
+  const corps: Record<string, unknown[]> = { batailleV2: [], bataille: [], verifierCache: [] };
+  const api = {
+    batailleV2: (c: unknown) => { corps['batailleV2'].push(c); const s = new Subject<EvenementFlux>(); flux.batailleV2.push(s); return s; },
+    bataille: (c: unknown) => { corps['bataille'].push(c); const s = new Subject<EvenementFlux>(); flux.bataille.push(s); return s; },
+    verifierCache: (c: unknown) => { corps['verifierCache'].push(c); const s = new Subject<unknown>(); caches.push(s); return s; },
+  };
+  const bataille = { viderPartiels: vi.fn(), ajouterPartiels: vi.fn(), appliquer: vi.fn() };
+  const contexte = { contexte: signal(CTX), unPoi: signal(true), regions: signal([]), afficherPois: vi.fn() };
+  TestBed.configureTestingModule({
+    providers: [
+      provideZonelessChangeDetection(), BatailleV2Service, CouchesCarteService,
+      { provide: IsochronesApi, useValue: api }, { provide: BatailleService, useValue: bataille },
+      { provide: ContexteBatailleService, useValue: contexte },
+    ],
+  });
+  return { v2: TestBed.inject(BatailleV2Service), flux, caches, corps, bataille, contexte };
+}
+
+describe('BatailleV2Service (use-isochrone-battle.ts handleCheckV2 / handleFillMissingV2 / handleBattleV2)', () => {
+  it('sept paliers par défaut ; en basculer un oublie le statut du cache', () => {
+    const { v2, caches } = monter();
+    expect(v2.paliers()).toEqual([10, 20, 30, 40, 50, 60, 90]);
+    v2.verifierCache();
+    caches[0].next(STATUT_MANQUANT);
+    expect(v2.cache()).toEqual(STATUT_MANQUANT);
+    v2.basculerPalier(90);
+    expect(v2.paliers()).toEqual([10, 20, 30, 40, 50, 60]);
+    expect(v2.cache()).toBeNull();
+  });
+
+  it('lancer : corps V2 exact, journal, résultat appliqué au créneau (sans clé), POI de la bataille affichés', () => {
+    const { v2, flux, corps, bataille, contexte } = monter();
+    v2.lancer(false);
+    expect(corps['batailleV2'][0]).toEqual({
+      category: 'cirfa', mode: 'drive', filtre_ville: undefined, filtre_regions: undefined, filtre_depts: ['13'],
+      metropolitaine: true, paliers: [10, 20, 30, 40, 50, 60, 90], force_battle: false,
+    });
+    expect(v2.journal()).toEqual(['> catégorie : cirfa', '> mode : drive | paliers : 10, 20, 30, 40, 50, 60, 90 min', '> lecture cache isochrones...']);
+    flux.batailleV2[0].next({ type: 'rings_loaded', count: 14, missing: 0 });
+    const pois = [{ id: 'a', nom: 'A', lat: 43, lng: 5 }];
+    flux.batailleV2[0].next({ type: 'result', data: { battleGeoJSON: { type: 'FeatureCollection', features: [anneau] }, poisForMap: pois } });
+    flux.batailleV2[0].complete();
+    expect(bataille.appliquer).toHaveBeenCalledWith({ anneaux: [anneau], pois: [{ ...pois[0], categorie: 'cirfa' }], cle: null, categorie: 'cirfa' });
+    expect(contexte.afficherPois).toHaveBeenCalled();
+    expect(v2.journal().slice(-2)).toEqual(['> 14 anneaux en cache (0 manquants)', '> ✓ Bataille v2 affichée sur la carte']);
+    expect(v2.chargement()).toBe(false);
+  });
+
+  it('réponse sans résultat : « > ✕ Réponse incomplète »', () => {
+    const { v2, flux } = monter();
+    v2.lancer(false);
+    flux.batailleV2[0].complete();
+    expect(v2.journal().at(-1)).toBe('> ✕ Réponse incomplète');
+  });
+
+  it('remplir : flux ORS lu, cache revérifié, puis bataille V2 lancée d’elle-même', () => {
+    const { v2, flux, caches, corps, bataille } = monter();
+    v2.verifierCache();
+    caches[0].next(STATUT_MANQUANT);
+    caches[0].complete();
+    v2.remplir();
+    expect(v2.cache()).toBeNull();
+    expect(bataille.viderPartiels).toHaveBeenCalled();
+    expect(corps['bataille'][0]).toMatchObject({ durations: [10, 20, 30, 40, 50, 60, 90], max_minutes: 90, force_recalculate: false, filtre_depts: ['13'] });
+    flux.bataille[0].next({ type: 'pois_loaded', total: 2 });
+    flux.bataille[0].next({ type: 'partial_rings', rings: [{}, {}, {}] });
+    flux.bataille[0].next({ type: 'progress', completed: 1, total: 2 });
+    expect(v2.remplissageTotal()).toBe(2);
+    expect(v2.remplissageTermines()).toBe(1);
+    expect(v2.remplissagePct()).toBe(50);
+    expect(v2.remplissageAnneaux()).toBe(3);
+    flux.bataille[0].complete();
+    expect(v2.journal()).toContain('> ✓ Cache rempli (3 isochrones) — lancement Bataille V2...');
+    expect(corps['verifierCache']).toHaveLength(2);
+    caches[1].next({ ...STATUT_MANQUANT, missing_combos: 0, missing_pois: 0 });
+    caches[1].complete();
+    expect(v2.remplissage()).toBe(false);
+    expect(corps['batailleV2']).toHaveLength(1);
+  });
+});
