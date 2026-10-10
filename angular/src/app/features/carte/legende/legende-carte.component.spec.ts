@@ -24,6 +24,7 @@ import { formaterValeur, versValeurReelle } from '../logique/carreaux/bornes';
 import { AnnonceService } from '../etat/annonce.service';
 import { CouchesCarteService } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
+import { RisqueCarteService } from '../etat/risque-carte.service';
 import { CARREAUX_PALETTES } from '../logique/palettes-donnees-carte';
 import type { DegradeId } from '../logique/degrades';
 import { LegendeCarteComponent, degradeALegende } from './legende-carte.component';
@@ -33,7 +34,7 @@ function monter() {
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), CarreauxService, IrisService, PoisService, EtatCarteService, CouchesCarteService, AnnonceService,
-      TmjaService, RadioService, SanteService, MeteoService, ContoursZonesService,
+      TmjaService, RadioService, SanteService, MeteoService, ContoursZonesService, RisqueCarteService,
       { provide: MeteoApi, useValue: { donnees: () => new Subject() } },
       { provide: FABRIQUE_POPUP, useValue: () => ({}) },
       { provide: CiviqueApi, useValue: { zones: () => new Subject(), santeDepartement: () => new Subject(), santeCp: () => new Subject() } },
@@ -52,6 +53,7 @@ function monter() {
     pois: TestBed.inject(PoisService), etat: TestBed.inject(EtatCarteService),
     tmja: TestBed.inject(TmjaService), radio: TestBed.inject(RadioService), sante: TestBed.inject(SanteService),
     meteo: TestBed.inject(MeteoService),
+    risque: TestBed.inject(RisqueCarteService),
   };
 }
 
@@ -255,5 +257,29 @@ describe('LegendeCarteComponent', () => {
     const ligne = el.querySelector('[data-figure-radio]')!;
     expect(ligne.textContent!.trim()).toBe('Émetteurs radio');
     expect((ligne.querySelector('span') as HTMLElement).style.background).toBe('rgb(239, 68, 68)');
+  });
+
+  it('« Zones à risque » (T12) : absent sans zone ; PPRT seul ; zone calculée + « N sites sur M ont un périmètre PPRT », avant Figurés', async () => {
+    const { fixture, el, rendre, risque, etat } = monter();
+    fixture.componentRef.setInput('degradeActif', null);
+    risque.actif.set(true);
+    await rendre();
+    expect(el.querySelector('[data-legende]')).toBeNull();
+    risque.pprtActif.set(true);
+    await rendre();
+    expect(el.querySelector('[data-zone-reglementaire]')!.textContent!.trim()).toBe('Périmètre PPRT — réglementaire');
+    expect((el.querySelector('[data-zone-reglementaire] span') as HTMLElement).style.borderTop).toBe('1.5px solid var(--pprt-contour)');
+    expect(el.querySelector('[data-zone-calculee]')).toBeNull();
+    risque.rayonM.set(1000);
+    risque.compte.set({ rendus: 1259, total: 1327, avecPprt: 567 });
+    etat.poiSelectionnes.set(['lycee']);
+    await rendre();
+    expect(el.querySelector('[data-zone-calculee]')!.textContent!.trim()).toBe('Rayon 1 000 m — calculé');
+    expect(el.querySelector('[data-zone-compte]')!.textContent!.trim()).toBe('567 sites sur 1 259 ont un périmètre PPRT');
+    expect(el.querySelector('[data-bloc="zones-risque"]')!.textContent).toContain('Trait plein = publié par l’État · tireté = calculé par dentsu.explore');
+    expect([...el.querySelectorAll('[data-bloc]')].map((b) => b.getAttribute('data-bloc'))).toEqual(['zones-risque', 'figures']);
+    risque.compte.set({ rendus: 3, total: 3, avecPprt: 1 });
+    await rendre();
+    expect(el.querySelector('[data-zone-compte]')!.textContent!.trim()).toBe('1 site sur 3 a un périmètre PPRT');
   });
 });

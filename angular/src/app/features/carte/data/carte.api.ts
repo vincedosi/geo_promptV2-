@@ -84,6 +84,15 @@ export interface CorpsOoh {
 /** Un type de POI du catalogue ; la route rend aussi, dans un vieux format, une simple chaîne. */
 export type CategoriePoi = { id: string; label: string } | string;
 
+/** Réponse de `GET /api/map/pprt` (`PprtLayer.tsx:63-73`). `n_total` est compté AVANT la limite. */
+export interface CollectionPprt {
+  type: 'FeatureCollection';
+  features: GeoJSON.Feature[];
+  n_total?: number;
+  n_rendus?: number;
+  tolerance_deg?: number;
+}
+
 /** Délais de React (`AbortSignal.timeout`, `useMapDirectActions.ts:71,101`). */
 export const DELAI_POIS_MS = 25000;
 export const DELAI_OOH_MS = 15000;
@@ -145,6 +154,18 @@ export class CarteApi extends HttpBaseService {
    */
   urlTuilesTmja(): string {
     return `${this.urlAbsolue('tmja-tiles/{z}/{x}/{y}')}?v=${SOURCE_TMJA.version}`;
+  }
+
+  /**
+   * `GET /api/map/pprt?bbox=[&types=][&limite=]` — périmètres PPRT de la carte VISIBLE (lot 4, T12), `types` omis s'il n'y
+   * en a aucun (`PprtLayer.tsx:128-133`), `limite` seulement si l'appelant la fixe (React n'en envoie pas : défaut 700
+   * de la route). RPC `jsonb` : aucune troncature PostgREST, la borne est `limite` (qui coupe les PLUS PETITES zones).
+   */
+  pprt(bbox: string, types: readonly string[], limite?: number): Observable<CollectionPprt> {
+    let params = new HttpParams().set('bbox', bbox);
+    if (types.length > 0) params = params.set('types', types.join(','));
+    if (limite !== undefined) params = params.set('limite', String(limite));
+    return this.httpClient.get<CollectionPprt>(`${this.baseUrl}/map/pprt`, { params });
   }
 
   /** `POST /api/map/territory-mask` : la géométrie d'un territoire, pour le masque de la carte. */

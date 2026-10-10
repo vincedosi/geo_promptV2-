@@ -17,6 +17,7 @@ import * as Rfam from '@/lib/import/georisques/familles';
 import * as Afam from '../../../angular/src/app/features/carte/logique/familles-icpe';
 import * as Rpp from '@/lib/carte/palette-pprt';
 import * as App from '../../../angular/src/app/features/carte/logique/pprt';
+import * as Acr from '../../../angular/src/app/features/carte/couches/couche-risques';
 import * as Rnorm from '@/lib/carreaux/normalisation';
 import * as Anorm from '../../../angular/src/app/features/carte/logique/carreaux/normalisation';
 import * as Rbor from '@/lib/carreaux/bornes';
@@ -129,6 +130,42 @@ describe('périmètre PPRT (logique seule)', () => {
     expect(App.JETONS_PPRT.map((j) => j.slice(2))).toEqual([App.JETON_PPRT.contour, App.JETON_PPRT.fond]);
     const css = readFileSync('angular/src/styles/jetons.css', 'utf8');
     for (const j of Object.values(App.JETON_PPRT)) expect(css).toContain(`--${j}:`);
+  });
+});
+
+describe('couches ICPE et PPRT de la carte principale (T12)', () => {
+  /** Valeur d'un jeton dans le bloc sombre (`:root, :host`) ou clair (`html.light, :host(.light)`) de jetons.css. */
+  const css = readFileSync('angular/src/styles/jetons.css', 'utf8');
+  const [sombre, clair] = css.split('html.light, :host(.light) {');
+  const jeton = (bloc: string, nom: string) => new RegExp(`--${nom}:\\s*([^;]+);`).exec(bloc)?.[1].trim();
+  /** Un tableau écrit comme dans le source React : `['interpolate', ['linear'], ['zoom'], 4, 6]`. */
+  const commeReact = (v: unknown) => JSON.stringify(v).replace(/"/g, "'").replace(/,/g, ', ');
+
+  it('les teintes lues par CouleursService valent COULEURS_MAPLIBRE et CONTOUR_POINT de React, dans les deux thèmes', () => {
+    for (const [bloc, theme] of [[sombre, 'dark'], [clair, 'light']] as const) {
+      const t = Object.fromEntries(Object.entries(Acr.JETONS_RISQUES).map(([cle, nom]) => [cle, jeton(bloc, nom)])) as Acr.TeintesRisques;
+      expect(t.contour, theme).toBe(Rr.CONTOUR_POINT[theme]);
+      expect(Acr.expressionCouleurRisque(t), theme).toEqual(Rr.expressionCouleurRisque(theme));
+      expect({ contour: jeton(bloc, App.JETON_PPRT.contour), fond: jeton(bloc, App.JETON_PPRT.fond) }, theme)
+        .toEqual(Rpp.couleursPprt(theme));
+    }
+  });
+
+  it('littéraux de rendu repris du source React (opacités, rayons, flou, largeur du périmètre)', () => {
+    const sites = readFileSync('app/map/_components/RisqueIndustrielLayer.tsx', 'utf8');
+    expect(sites).toContain(`'fill-opacity': ${Acr.OPACITE_ZONE_RISQUE},`);
+    expect(sites).toContain(`'line-opacity': ${Acr.OPACITE_CONTOUR_ZONE_RISQUE},`);
+    expect(sites).toContain(`'circle-radius': ${commeReact(Acr.RAYON_HALO_RISQUE)} as never,`);
+    expect(sites).toContain(`'circle-blur': ${Acr.FLOU_HALO_RISQUE},`);
+    expect(sites).toContain(`'circle-opacity': ${Acr.OPACITE_HALO_RISQUE},`);
+    expect(sites).toContain(`'circle-radius': ${commeReact(Acr.RAYON_POINT_RISQUE)} as never,`);
+    expect(sites).toContain(`'circle-stroke-width': ${Acr.TRAIT_POINT_RISQUE},`);
+    for (const id of [Acr.SOURCE_RISQUES_POINTS, Acr.SOURCE_RISQUES_ZONES, Acr.COUCHE_RISQUES_ZONE, Acr.COUCHE_RISQUES_ZONE_CONTOUR,
+      Acr.COUCHE_RISQUES_HALO, Acr.COUCHE_RISQUES_POINT]) expect(sites).toContain(`'${id}'`);
+    const pprt = readFileSync('app/map/_components/PprtLayer.tsx', 'utf8');
+    for (const id of [Acr.SOURCE_PPRT, Acr.COUCHE_PPRT_FOND, Acr.COUCHE_PPRT_CONTOUR]) expect(pprt).toContain(`'${id}'`);
+    expect(Acr.LARGEUR_CONTOUR_PPRT).toEqual(['interpolate', ['linear'], ['zoom'],
+      8, Rpp.LARGEUR_TRAIT_PPRT * 0.8, 12, Rpp.LARGEUR_TRAIT_PPRT, 16, Rpp.LARGEUR_TRAIT_PPRT * 1.4]);
   });
 });
 

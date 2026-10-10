@@ -13,6 +13,7 @@ import { CarreauxApi } from './data/carreaux.api';
 import { IrisApi } from './data/iris.api';
 import { CarteApi } from './data/carte.api';
 import { RadioApi } from './data/radio.api';
+import { SitesRisqueApi } from '../risques/data/sites-risque.api';
 import { CiviqueApi } from './data/civique.api';
 import { MeteoApi } from './data/meteo.api';
 import { ZonesCustomApi } from './data/zones-custom.api';
@@ -59,6 +60,7 @@ async function ouvrir() {
       { provide: CarteApi, useValue: { categories: () => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] }), pois: () => of(), ooh: () => of(), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
       { provide: RadioApi, useValue: { optionsFiltre: () => of({}), emetteurs: () => of({ type: 'FeatureCollection', features: [] }), stations: () => of({}) } },
       { provide: MeteoApi, useValue: { donnees: () => of() } },
+      { provide: SitesRisqueApi, useValue: { carte: () => of(), exposition: () => of() } },
       { provide: CiviqueApi, useValue: { geojsonVariable: () => of(), detailCp: () => of(), zones: () => of(), santeDepartement: () => of(), santeCp: () => of(), santeCommune: () => of() } },
     ],
   });

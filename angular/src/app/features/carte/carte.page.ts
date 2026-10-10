@@ -15,7 +15,9 @@ import { IrisService } from './couches/iris.service';
 import { MeteoService } from './couches/meteo.service';
 import { OohService } from './couches/ooh.service';
 import { PoisService } from './couches/pois.service';
+import { PprtService } from './couches/pprt.service';
 import { RadioService } from './couches/radio.service';
+import { RisquesIndustrielsService } from './couches/risques-industriels.service';
 import { SanteService } from './couches/sante.service';
 import { TiroirPanneauComponent } from './couches/tiroir-panneau.component';
 import { TmjaService } from './couches/tmja.service';
@@ -30,6 +32,7 @@ import { lireFondMemorise, memoriserFond, urlDuFond } from './etat/fond-carte';
 import { PileEchapService } from './etat/pile-echap.service';
 import { ReferentielGeoService } from './etat/referentiel-geo.service';
 import { ContoursZonesService } from './etat/contours-zones.service';
+import { RisqueCarteService } from './etat/risque-carte.service';
 import { PuceFiltreComponent } from './filtre/puce-filtre.component';
 import { LegendeCarteComponent } from './legende/legende-carte.component';
 import { ignorerRaccourciClavier } from './logique/garde-saisie';
@@ -104,7 +107,8 @@ export function palierCarreaux(zoom: number): string {
   ],
   providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
     IrisService, PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService,
-    IndicateursCiviquesService, SanteService, ContoursZonesService, MeteoService,
+    IndicateursCiviquesService, SanteService, ContoursZonesService, MeteoService, RisqueCarteService, RisquesIndustrielsService,
+    PprtService,
   ],
   templateUrl: './carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -175,6 +179,10 @@ export class CartePage {
     // s'inscrivent à l'éviction de leur dégradé et à « Tout effacer » avant tout geste, même panneau Calques fermé.
     inject(IndicateursCiviquesService);
     inject(SanteService);
+    // Les couches de risque (T12) : instanciées ici, elles vivent avec la page et non avec le panneau Calques — sites et
+    // périmètres restent sur la carte panneau fermé, comme les couches React montées par `page.tsx:1187-1214`.
+    inject(RisquesIndustrielsService);
+    inject(PprtService);
 
     // Le fond MAGELIAN : surcharges posées sur la carte prête, ré-appliquées à chaque bascule de thème
     // (`useMapInit.ts:217-221,1091-1102`). `carteCourante` est publiée au `load` : le style

@@ -9,6 +9,9 @@ import { RadioService } from '../couches/radio.service';
 import { SanteService } from '../couches/sante.service';
 import { TmjaService } from '../couches/tmja.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
+import { RisqueCarteService } from '../etat/risque-carte.service';
+import { formaterNombre } from '../../../core/format/nombre';
+import { LARGEUR_TRAIT_PPRT } from '../logique/pprt';
 import { formaterValeur, palierEchelle, versValeurReelle } from '../logique/carreaux/bornes';
 import { CARREAUX_INDICATEURS } from '../logique/carreaux/catalogue';
 import { bornesInternes } from '../logique/carreaux/expressions';
@@ -224,6 +227,30 @@ interface Palier {
                 </div>
               }
             }
+            @if (zonesRisque(); as z) {
+              <!-- BlocZonesRisque (LegendeCarte.tsx:534-590) : laquelle des deux zones vient de l'État, laquelle est calculée. -->
+              <div data-bloc="zones-risque">
+                <div class="mb-1 text-[11px] font-medium text-secondary">Zones à risque</div>
+                <div class="flex flex-col gap-[5px]">
+                  @if (z.reglementaire) {
+                    <div data-zone-reglementaire class="flex items-center gap-1.5">
+                      <span aria-hidden="true" class="h-0 w-4 shrink-0" [style.border-top]="tracePprt"></span>
+                      <span class="text-[10px] text-secondary">Périmètre PPRT — réglementaire</span>
+                    </div>
+                  }
+                  @if (z.calculee; as rayon) {
+                    <div data-zone-calculee class="flex items-center gap-1.5">
+                      <span aria-hidden="true" class="h-0 w-4 shrink-0 border-t border-dashed border-t-[var(--text-secondary)]"></span>
+                      <span class="text-[10px] text-secondary">Rayon {{ rayon }} m — calculé</span>
+                    </div>
+                  }
+                  @if (z.compte; as c) {
+                    <div data-zone-compte class="font-mono text-[10px] leading-[1.4] text-tertiary">{{ c }}</div>
+                  }
+                  <div class="font-mono text-[10px] leading-[1.4] text-tertiary">Trait plein = publié par l’État · tireté = calculé par dentsu.explore</div>
+                </div>
+              </div>
+            }
             @if (figuresVisibles()) {
               <!-- BlocFigures (LegendeCarte.tsx:466-523) : les types de POI choisis, les paliers TMJA, les émetteurs radio. -->
               <div data-bloc="figures">
@@ -317,6 +344,28 @@ export class LegendeCarteComponent {
     return this.etat.poiSelectionnes().map((cat) => ({ cat, couleur: couleurPoi({ categorie: cat }, styles, {}) }));
   });
 
+  private readonly risque = inject(RisqueCarteService);
+  protected readonly tracePprt = `${LARGEUR_TRAIT_PPRT}px solid var(--pprt-contour)`;
+  /**
+   * Le bloc « Zones à risque » (`BlocZonesRisque`, `LegendeCarte.tsx:534-590`) : présent si une zone calculée
+   * (couche allumée ET rayon) ou les périmètres PPRT sont affichés ; « N sites sur M ont un périmètre PPRT » avec la zone
+   * calculée — la part de ce qu'on voit qui repose sur une donnée de l'État. `null` : aucun des deux.
+   */
+  protected readonly zonesRisque = computed(() => {
+    const rayon = this.risque.rayonM();
+    const calculee = this.risque.actif() && rayon > 0;
+    const reglementaire = this.risque.pprtActif();
+    if (!calculee && !reglementaire) return null;
+    const c = this.risque.compte();
+    return {
+      reglementaire,
+      calculee: calculee ? formaterNombre(rayon) : null,
+      compte: calculee && c && c.rendus > 0
+        ? `${formaterNombre(c.avecPprt)} site${c.avecPprt > 1 ? 's' : ''} sur ${formaterNombre(c.rendus)} ${c.avecPprt > 1 ? 'ont' : 'a'} un périmètre PPRT`
+        : null,
+    };
+  });
+
   /** `poiCount > 0 || tmjaVisible || radioVisible` (`LegendeCarte.tsx:599`). */
   protected readonly figuresVisibles = computed(
     () => this.figuresPoi().length > 0 || this.tmja.visible() || this.radio.visible(),
@@ -324,7 +373,7 @@ export class LegendeCarteComponent {
 
   /** La boîte ne s'ouvre que si un bloc rendra quelque chose (`LegendeCarte.tsx:596-606`) — jamais vide. */
   protected readonly visible = computed(
-    () => degradeALegende(this.degradeActif()) || this.analyse() !== null || this.figuresVisibles(),
+    () => degradeALegende(this.degradeActif()) || this.analyse() !== null || this.figuresVisibles() || this.zonesRisque() !== null,
   );
 
   protected readonly uniteCarreaux = computed(() => {

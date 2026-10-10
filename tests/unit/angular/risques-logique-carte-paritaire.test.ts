@@ -85,6 +85,14 @@ describe('opacités et zooms : Angular = React', () => {
     expect(An.LARGEUR_TRAIT_ZONE).toBe(Rn.LARGEUR_TRAIT_ZONE);
   });
 
+  it('statuts de zone et natures (couche ICPE de la carte principale, lot 4 T12)', () => {
+    expect(An.STATUT_ZONE).toEqual(Rn.STATUT_ZONE);
+    expect(An.NATURES_ZONE).toEqual(Rn.NATURES_ZONE);
+    for (const v of ['pprt', 'sans_pprt', 'non_soumis', 'non_concerne', null, undefined, 'inconnu']) {
+      expect(An.descriptionStatut(v)).toEqual(Rn.descriptionStatut(v));
+    }
+  });
+
   it('les trois zooms', () => {
     expect(Av.ZONES_RISQUE_ZOOM_PLANCHER).toBe(Rv.ZONES_RISQUE_ZOOM_PLANCHER);
     expect(Av.ZONES_RISQUE_ZOOM_LISIBLE).toBe(Rv.ZONES_RISQUE_ZOOM_LISIBLE);

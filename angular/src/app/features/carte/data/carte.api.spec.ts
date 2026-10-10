@@ -15,6 +15,15 @@ function preparer() {
 }
 
 describe('CarteApi', () => {
+  it('pprt : bbox seule par défaut (comme React) ; types joints et limite seulement si fournis', () => {
+    const { api, http } = preparer();
+    api.pprt('4.9000,43.3000,5.3000,43.6000', []).subscribe();
+    http.expectOne('/api/map/pprt?bbox=4.9000,43.3000,5.3000,43.6000').flush({ type: 'FeatureCollection', features: [] });
+    api.pprt('1,2,3,4', ['enveloppe', 'indetermine'], 300).subscribe();
+    http.expectOne('/api/map/pprt?bbox=1,2,3,4&types=enveloppe,indetermine&limite=300').flush({ type: 'FeatureCollection', features: [] });
+    http.verify();
+  });
+
   it('pois : POST /api/map/pois (le seul verbe de la route), le corps tel quel', () => {
     const { api, http } = preparer();
     const corps: CorpsPois = {

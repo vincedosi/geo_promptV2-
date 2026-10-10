@@ -27,6 +27,10 @@ import { MeteoApi } from '../../data/meteo.api';
 import { ContoursZonesService } from '../../etat/contours-zones.service';
 import { FABRIQUE_POPUP } from '../../../../carte/fabrique-carte';
 import type { MeteoZoneChunk } from '../../logique/meteo/types';
+import { PprtService } from '../../couches/pprt.service';
+import { RisquesIndustrielsService } from '../../couches/risques-industriels.service';
+import { RisqueCarteService } from '../../etat/risque-carte.service';
+import { SitesRisqueApi } from '../../../risques/data/sites-risque.api';
 import { of } from 'rxjs';
 
 const META_METEO = {
@@ -46,6 +50,8 @@ function monter() {
         provide: CiviqueApi,
         useValue: { geojsonVariable: () => NEVER, zones: () => of({ type: 'FeatureCollection', features: [] }), santeDepartement: () => NEVER, santeCp: () => NEVER, santeCommune: () => NEVER },
       },
+      RisqueCarteService, RisquesIndustrielsService, PprtService,
+      { provide: SitesRisqueApi, useValue: { carte: () => NEVER, exposition: () => NEVER } },
       { provide: CarteApi, useValue: { categories: () => of({ categories: ['lycee'] }), urlTuilesTmja: () => '' } },
       { provide: RadioApi, useValue: { optionsFiltre: () => NEVER, emetteurs: () => NEVER } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },
@@ -67,6 +73,7 @@ function monter() {
     civique: TestBed.inject(IndicateursCiviquesService),
     sante: TestBed.inject(SanteService),
     meteo: TestBed.inject(MeteoService),
+    risque: TestBed.inject(RisqueCarteService),
     titres: () => [...el.querySelectorAll('button[data-groupe]')].map((b) => b.querySelector('span')!.textContent!.trim()),
     groupe: (titre: string) => [...el.querySelectorAll<HTMLButtonElement>('button[data-groupe]')]
       .find((b) => b.textContent!.includes(titre))!,
@@ -259,7 +266,6 @@ describe('PanneauCalquesComponent', () => {
     groupe('Environnement').click();
     await rendre();
     expect(el.querySelector('mg-section-meteo')).not.toBeNull();
-    expect(el.textContent).toContain('Les risques industriels arrivent avec la tâche 12.');
     meteo.appliquer({ variable: 'temperature_2m', startDate: '2026-10-03', endDate: '2026-10-09', scale: 'departement' });
     await rendre();
     expect(etat.degradeActif()).toBe('meteo');
@@ -268,6 +274,28 @@ describe('PanneauCalquesComponent', () => {
     el.querySelector<HTMLButtonElement>('[data-actif="meteo"] button[title="Masquer Météo"]')!.click();
     await rendre();
     expect([meteo.visible(), etat.degradeActif()]).toEqual([false, null]);
+    expect(el.textContent).toContain('Actifs (0)');
+  });
+
+  it('Environnement (T12) : la section risques EN TÊTE du groupe ; sites et PPRT comptés et listés SÉPARÉMENT', async () => {
+    const { el, rendre, groupe, risque } = monter();
+    groupe('Environnement').click();
+    await rendre();
+    const contenu = groupe('Environnement').parentElement!.querySelector('[data-contenu]')!;
+    expect(contenu.firstElementChild!.tagName.toLowerCase()).toBe('mg-section-risque');
+    risque.actif.set(true);
+    risque.pprtActif.set(true);
+    await rendre();
+    expect(groupe('Environnement').querySelector('[data-compte]')!.textContent!.trim()).toBe('2');
+    expect(el.querySelector('[data-actif="risque-industriel"]')!.textContent).toContain('Zones à risque industriel');
+    expect(el.querySelector('[data-actif="pprt"]')!.textContent).toContain('Périmètre PPRT');
+    el.querySelector<HTMLButtonElement>('[data-actif="pprt"] button')!.click();
+    await rendre();
+    expect(risque.pprtActif()).toBe(false);
+    expect(risque.actif()).toBe(true);
+    el.querySelector<HTMLButtonElement>('[data-actif="risque-industriel"] button')!.click();
+    await rendre();
+    expect(risque.actif()).toBe(false);
     expect(el.textContent).toContain('Actifs (0)');
   });
 
