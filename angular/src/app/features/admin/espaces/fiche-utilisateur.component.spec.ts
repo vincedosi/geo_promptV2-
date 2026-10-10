@@ -364,3 +364,60 @@ describe('FicheUtilisateurComponent — sans espace courant (vue « Tous les com
     expect(caseEspace('B').checked).toBe(true);
   });
 });
+
+describe('FicheUtilisateurComponent — lien de mot de passe', () => {
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  const URL_LIEN = '/api/admin/users/U/lien-mot-de-passe';
+  const LIEN = 'http://127.0.0.1:54321/auth/v1/verify?token=secret-de-la-fiche&type=recovery';
+
+  it('pour un compte SANS espace : POST par identifiant, lien affiché ; fermer l\'efface, jamais journalisé', async () => {
+    const espions = (['log', 'error', 'warn', 'info', 'debug'] as const).map((m) => vi.spyOn(console, m));
+    const { f, el, http } = await monterSansEspace({ ...MEMBRE, espace_actif: null, autres_espaces: [] });
+    const bouton = el.querySelector<HTMLButtonElement>('[data-lien-mot-de-passe]')!;
+    expect(bouton.textContent).toContain('Lien de mot de passe');
+    bouton.click();
+    await f.whenStable();
+    expect(bouton.disabled).toBe(true);
+    const req = http.expectOne(URL_LIEN);
+    expect(req.request.method).toBe('POST');
+    req.flush({ lien: LIEN });
+    await f.whenStable();
+    expect(el.querySelector('mg-dialogue-lien')).not.toBeNull();
+    expect(el.querySelector<HTMLInputElement>('mg-dialogue-lien input[data-lien-secret]')!.value).toBe(LIEN);
+    expect(el.querySelector('mg-dialogue-lien')!.textContent).toContain('personne@exemple.fr');
+
+    el.querySelector<HTMLButtonElement>('[data-fermer-lien]')!.click();
+    await f.whenStable();
+    expect(el.querySelector('mg-dialogue-lien')).toBeNull();
+    expect(el.innerHTML).not.toContain('secret-de-la-fiche');
+    // La fiche reste ouverte : seul le dialogue du lien s'est fermé.
+    expect(el.querySelector('mg-fiche-utilisateur > dialog')!.hasAttribute('open')).toBe(true);
+    for (const e of espions) {
+      for (const appel of e.mock.calls) expect(JSON.stringify(appel)).not.toContain('secret-de-la-fiche');
+      e.mockRestore();
+    }
+  });
+
+  it('échec (404) : notification du message du serveur, aucun dialogue, bouton réactivé', async () => {
+    const { f, el, http } = await monterSansEspace(MEMBRE);
+    el.querySelector<HTMLButtonElement>('[data-lien-mot-de-passe]')!.click();
+    await f.whenStable();
+    http.expectOne(URL_LIEN).flush({ error: 'Compte introuvable.' }, { status: 404, statusText: 'Not Found' });
+    await f.whenStable();
+    const notifs = TestBed.inject(NotificationsService).notifications();
+    expect(notifs[0]).toMatchObject({ variante: 'error' });
+    expect(JSON.stringify(notifs[0])).toContain('Compte introuvable.');
+    expect(el.querySelector('mg-dialogue-lien')).toBeNull();
+    expect(el.querySelector<HTMLButtonElement>('[data-lien-mot-de-passe]')!.disabled).toBe(false);
+  });
+
+  it('fermer la fiche pendant la génération abandonne la requête', async () => {
+    const { f, el, http } = await monterSansEspace(MEMBRE);
+    el.querySelector<HTMLButtonElement>('[data-lien-mot-de-passe]')!.click();
+    await f.whenStable();
+    const req = http.expectOne(URL_LIEN);
+    f.destroy();
+    expect(req.cancelled).toBe(true);
+  });
+});

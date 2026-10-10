@@ -7,6 +7,7 @@ import { ConfirmationComponent } from '../../../ui/confirmation/confirmation.com
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
 import { ROLES, ROLE_LABELS, type UserRole } from '../logique/roles';
 import { EspacesApi } from './data/espaces.api';
+import { DialogueLienComponent } from './dialogue-lien.component';
 import { EspacesEtatService } from './etat/espaces-etat.service';
 import { messageErreur } from './logique/libelles';
 import type { MembreEspace, RoleEspace } from './logique/types';
@@ -42,11 +43,16 @@ let compteur = 0;
  * - « Supprimer le compte » : désactivé sur son propre compte (le serveur refuse « Cannot delete
  *   yourself ») ; le rôle de son propre compte n'est pas modifiable non plus (on s'ôterait l'accès
  *   à cette page).
+ * - « Lien de mot de passe » (2026-10-10) : `POST admin/users/:id/lien-mot-de-passe`, pour TOUT
+ *   compte, avec ou sans espace. Le lien s'affiche dans `mg-dialogue-lien` (le même que l'onglet
+ *   Membres) : secret d'usage unique, gardé dans un signal le temps du dialogue puis remis à `null`,
+ *   jamais passé à `console.*` ni à une notification. Ce n'est pas une écriture : `fermer` n'en
+ *   tient pas compte. Fermer la fiche pendant la génération abandonne la requête.
  * - Fermer émet `fermer(ecrit)` : le parent relit membres et liste si une écriture a réussi.
  */
 @Component({
   selector: 'mg-fiche-utilisateur',
-  imports: [ConfirmationComponent],
+  imports: [ConfirmationComponent, DialogueLienComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <dialog
@@ -111,6 +117,18 @@ let compteur = 0;
           </div>
         </fieldset>
 
+        <section class="bloc">
+          <p class="libelle">Mot de passe</p>
+          <div class="rangee entre">
+            <p class="aide">Lien d'usage unique, à transmettre à la personne.</p>
+            <button
+              type="button" data-lien-mot-de-passe class="bouton neutre"
+              [disabled]="enCours() || lienEnCours()"
+              (click)="demanderLien()"
+            >Lien de mot de passe</button>
+          </div>
+        </section>
+
         <section class="danger">
           <div>
             <p class="danger-titre">Zone dangereuse</p>
@@ -152,6 +170,9 @@ let compteur = 0;
       (confirmer)="supprimer()"
       (annuler)="annulerSuppression()"
     />
+    @if (lien(); as l) {
+      <mg-dialogue-lien [lien]="l" [email]="membre().email" (fermer)="lien.set(null)" />
+    }
   `,
   styles: `
     dialog {
@@ -168,6 +189,8 @@ let compteur = 0;
     .libelle { padding: 0; font-size: 12px; color: var(--text-tertiary); }
     .rangee { display: flex; gap: 8px; align-items: center; }
     .rangee.fin { justify-content: flex-end; }
+    .rangee.entre { justify-content: space-between; }
+    .aide { margin: 0; font-size: 12px; color: var(--text-tertiary); }
     input[type='text'], select {
       flex: 1; min-width: 0;
       background: var(--bg-level-2); border: 0.5px solid var(--border-subtle); border-radius: 6px;
@@ -255,6 +278,9 @@ export class FicheUtilisateurComponent {
   protected readonly roleVise = signal<RolePropose | null>(null);
   protected readonly confirmationSuppression = signal(false);
   protected readonly erreurEspaces = signal<string | null>(null);
+  protected readonly lienEnCours = signal(false);
+  /** Le lien affiché : secret d'usage unique, remis à `null` à la fermeture de son dialogue. */
+  protected readonly lien = signal<string | null>(null);
 
   protected readonly enCours = computed(
     () => this.ecritureNom() || this.ecritureRole() || this.ecritureEspaces() || this.suppression(),
@@ -328,6 +354,7 @@ export class FicheUtilisateurComponent {
     inject(DestroyRef).onDestroy(() => {
       this.detruit = true;
       for (const s of this.envois) s.unsubscribe();
+      this.lien.set(null);
       const d = noeud.querySelector('dialog');
       if (d?.open) d.close();
     });
@@ -446,6 +473,22 @@ export class FicheUtilisateurComponent {
       error: (e: unknown) => {
         this.suppression.set(false);
         this.confirmationSuppression.set(false);
+        this.notifications.error(messageErreur(e));
+      },
+    }));
+  }
+
+  protected demanderLien(): void {
+    if (this.lienEnCours() || this.enCours()) return;
+    this.lienEnCours.set(true);
+    this.suivre(this.api.lienMotDePasseCompte(this.membre().id).subscribe({
+      next: (r) => {
+        this.lienEnCours.set(false);
+        if (r.lien) this.lien.set(r.lien);
+        else this.notifications.error('Lien non généré');
+      },
+      error: (e: unknown) => {
+        this.lienEnCours.set(false);
         this.notifications.error(messageErreur(e));
       },
     }));

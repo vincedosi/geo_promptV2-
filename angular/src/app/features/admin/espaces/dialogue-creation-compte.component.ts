@@ -14,7 +14,7 @@ type RolePropose = (typeof ROLES_PROPOSES)[number];
 
 /** La règle de `POST /api/admin/users` : un espace est obligatoire pour tout rôle autre que super_admin. */
 const AIDE_ESPACE = 'Un espace est obligatoire pour un compte client.';
-const MESSAGE_SANS_LIEN = 'Le compte est créé, mais le lien n\'a pas pu être généré. Générez-en un avec « Lien de mot de passe » depuis l\'onglet Membres d\'un de ses espaces.';
+const MESSAGE_SANS_LIEN = 'Le compte est créé, mais le lien n\'a pas pu être généré. Générez-en un avec « Lien de mot de passe » depuis sa fiche (liste « Tous les comptes »).';
 
 let compteur = 0;
 

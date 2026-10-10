@@ -179,6 +179,15 @@ describe('EspacesApi', () => {
     req.flush({ espaces: ['a', 'b'], espace_actif: 'b' });
   });
 
+  it('lienMotDePasseCompte : POST /api/admin/users/:id/lien-mot-de-passe, identifiant encodé', () => {
+    let lu: unknown;
+    api.lienMotDePasseCompte('u 1').subscribe((v) => (lu = v));
+    const req = http.expectOne('/api/admin/users/u%201/lien-mot-de-passe');
+    expect(req.request.method).toBe('POST');
+    req.flush({ lien: 'https://lien' });
+    expect(lu).toEqual({ lien: 'https://lien' });
+  });
+
   it('supprimerCompte : DELETE /api/admin/users/:id, sans corps', () => {
     api.supprimerCompte('u-1').subscribe();
     const req = http.expectOne('/api/admin/users/u-1');

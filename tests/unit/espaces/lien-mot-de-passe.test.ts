@@ -58,6 +58,7 @@ describe('une seule construction du redirectTo', () => {
   it.each([
     'app/api/admin/users/route.ts',
     'app/api/admin/organizations/[id]/members/reset-password/route.ts',
+    'app/api/admin/users/[id]/lien-mot-de-passe/route.ts',
   ])('%s passe par genererLienMotDePasse', (fichier) => {
     const source = readFileSync(fichier, 'utf8');
     expect(source).toContain('genererLienMotDePasse(');

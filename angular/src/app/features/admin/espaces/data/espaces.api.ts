@@ -195,6 +195,14 @@ export class EspacesApi extends HttpBaseService {
     );
   }
 
+  /**
+   * `POST admin/users/:id/lien-mot-de-passe` : lien d'un compte désigné par son IDENTIFIANT, avec
+   * ou sans espace (fiche d'un compte). Secret d'usage unique : jamais journalisé.
+   */
+  lienMotDePasseCompte(userId: string): Observable<{ lien: string }> {
+    return this.httpClient.post<{ lien: string }>(`${this.compte(userId)}/lien-mot-de-passe`, {});
+  }
+
   supprimerCompte(userId: string): Observable<unknown> {
     return this.httpClient.delete(this.compte(userId));
   }
