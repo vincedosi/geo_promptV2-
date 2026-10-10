@@ -7391,6 +7391,19 @@ export type Database = {
         }
         Returns: Json
       }
+      lire_sante_cp_jsonb: {
+        Args: {
+          p_est?: number
+          p_jeu: string
+          p_limite?: number
+          p_metrique?: string
+          p_niveau_min?: number
+          p_nord?: number
+          p_ouest?: number
+          p_sud?: number
+        }
+        Returns: Json
+      }
       list_custom_geo_source_types: {
         Args: { p_org_id: string }
         Returns: Json

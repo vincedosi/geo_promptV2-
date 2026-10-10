@@ -14,14 +14,13 @@
  *     {"type":"done","fetched":100,"failed":4}
  *
  *   scale=cp — lit pollen_map_daily / atmo_map_daily (ingestion bulk WFS
- *   nationale, niveaux max des communes du CP). Filtre SQL min_level sur la
- *   métrique demandée, et `bbox` optionnelle (Tâche 4, corrigée round 1,
- *   2026-09-12) sur les codes postaux resolus par la RPC PostGIS
- *   `codes_postaux_dans_bbox` (sql/144) — PAS un filtre direct sur
- *   `ref_codes_postaux.centroid_lat/centroid_lon`, qui sont NULL sur les
- *   6187 lignes (colonne reellement peuplee : `centroid`, geometry, GIST).
- *   Sans `bbox`, comportement d'avant : lecture nationale complète
- *   (~6 200 lignes, léger). JSON :
+ *   nationale, niveaux max des communes du CP) en UN appel à la RPC
+ *   `lire_sante_cp_jsonb` (sql/244, 2026-10-10) : dernier jour, filtre
+ *   min_level sur la métrique demandée, `bbox` optionnelle par le centroïde
+ *   du CP (`ref_codes_postaux.centroid`, geometry GIST — PAS
+ *   `centroid_lat/centroid_lon`, NULL sur les 6 187 lignes), borne écrite.
+ *   Avant, deux plafonds PostgREST muets à 1 000 (table du jour et
+ *   `codes_postaux_dans_bbox`). JSON :
  *     {"date":"2026-07-03","rows":[{"code_postal":"29200","indice_global":4,...}]}
  *     ou {"date":null,"rows":[],"error":"no_data"} si l'ingestion n'a jamais tourné.
  *
@@ -43,14 +42,13 @@ export const dynamic = 'force-dynamic';
 /** Appels provider simultanés (tiers HTTP, pas la base : le cache est lu et écrit par lots). */
 const CONCURRENCY = 3;
 /**
- * Au-delà, un `.in('code_postal', …)` dépasse la limite d'URL de PostgREST
- * (~8 caractères encodés par code ; 2 000 codes = 16 104 caractères mesurés
- * pour une limite usuelle de 16 384, qui échoue MUETTEMENT). On lit alors la
- * table nationale du jour (~6 200 lignes, « léger » : c'est déjà le chemin
- * sans bbox) et on filtre en mémoire — deux requêtes au plus, quelle que soit
- * la taille de la bbox.
+ * Borne écrite des lignes lues au code postal (`lire_sante_cp_jsonb`, sql/244).
+ * La clé primaire `(date_ech, code_postal)` impose une ligne par CP et par
+ * jour, donc au plus un par CP du pays : 6 187 au référentiel (2026-10-10).
+ * La RPC rend du jsonb, hors plafond PostgREST ; au-delà, elle dit `tronque`
+ * et la route échoue plutôt que de peindre un début.
  */
-const MAX_CODES_DANS_IN = 500;
+const BORNE_LIGNES_CP = 10_000;
 
 const POLLEN_METRICS = ['global', 'ambroisie', 'armoise', 'aulne', 'bouleau', 'graminees', 'olivier'] as const;
 const ATMO_METRICS = ['global', 'no2', 'o3', 'pm10', 'pm25', 'so2'] as const;
@@ -64,18 +62,6 @@ const querySchema = z.object({
   // qu'a scale=cp ; ignore sur scale=departement (echantillon national fixe).
   bbox: z.string().regex(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$/).optional(),
 });
-
-const CP_TABLES = {
-  pollen: {
-    table: 'pollen_map_daily',
-    columns: 'code_postal, indice_global, ambroisie, armoise, aulne, bouleau, graminees, olivier, '
-      + 'conc_ambroisie, conc_armoise, conc_aulne, conc_bouleau, conc_graminees, conc_olivier, alerte, nb_communes',
-  },
-  atmo: {
-    table: 'atmo_map_daily',
-    columns: 'code_postal, indice_global, no2, o3, pm10, pm25, so2, nb_communes',
-  },
-} as const;
 
 interface DeptRow {
   code_dept: string;
@@ -96,71 +82,40 @@ export async function GET(request: NextRequest) {
   if (!validMetrics.includes(metric)) {
     return NextResponse.json({ error: 'invalid_params' }, { status: 400 });
   }
-  const levelColumn = metric === 'global' ? 'indice_global' : metric;
-
   const supabase = createAdminClient();
 
   // ── Échelle code postal : lecture table quotidienne (ingestion bulk WFS) ──
   if (scale === 'cp') {
-    const { table, columns } = CP_TABLES[dataset];
-    // Date la plus récente disponible (aujourd'hui, sinon la veille si le cron
-    // du matin n'a pas encore tourné)
-    const { data: latest, error: latestErr } = await supabase
-      .from(table)
-      .select('date_ech')
-      .order('date_ech', { ascending: false })
-      .limit(1);
-    if (latestErr) {
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    // UN appel (sql/244) : date la plus récente, seuil sur la métrique, bbox
+    // par le centroïde du CP (`ref_codes_postaux.centroid`, GIST — jamais
+    // `centroid_lat/lon`, NULL partout) et borne, tout en base. Avant, la table
+    // du jour passait par PostgREST (`max_rows` = 1 000) et la bbox par
+    // `codes_postaux_dans_bbox` (RETURNS TABLE, 1 000 CP sur 6 051 en
+    // métropole) : deux plafonds muets.
+    const [ouest, sud, est, nord] = bbox ? bbox.split(',').map(Number) : [];
+    const { data: brut, error: rpcErr } = await supabase.rpc('lire_sante_cp_jsonb', {
+      p_jeu: dataset,
+      p_metrique: metric,
+      p_niveau_min: Math.max(min_level, 1), // 0 = indisponible, jamais peint
+      ...(bbox ? { p_ouest: ouest, p_sud: sud, p_est: est, p_nord: nord } : {}),
+      p_limite: BORNE_LIGNES_CP,
+    });
+    const lu = brut as { date: string | null; rows: { code_postal: string }[]; tronque: boolean } | null;
+    if (rpcErr || !lu) {
+      logger.error('civic-health/health-map', `lire_sante_cp_jsonb : ${rpcErr?.message ?? 'sans donnée'}`);
+      return NextResponse.json({ error: 'Lecture de la santé environnementale impossible.' }, { status: 500 });
     }
-    const date = latest?.[0]?.date_ech ?? null;
-    if (!date) {
+    if (!lu.date) {
       return NextResponse.json({ date: null, rows: [], error: 'no_data' });
     }
-
-    // bbox (Tache 4, corrigee round 1) : resout d'abord les codes postaux dont
-    // le centroide tombe dans la bbox via la RPC `codes_postaux_dans_bbox`
-    // (sql/144). `ref_codes_postaux.centroid_lat`/`centroid_lon` sont NULL sur
-    // les 6187 lignes — un `.gte()` dessus ne matche jamais rien et rendait
-    // silencieusement `rows: []` en toutes circonstances. La colonne qui porte
-    // reellement l'information est `centroid` (geometry, indexee GIST) : la
-    // RPC l'interroge en PostGIS (`&&` sur ST_MakeEnvelope). Jamais un masque
-    // cote client.
-    let codesPostauxBbox: string[] | null = null;
-    if (bbox) {
-      const [west, south, east, north] = bbox.split(',').map(Number);
-      const { data: cps, error: cpsErr } = await supabase
-        .rpc('codes_postaux_dans_bbox', { p_ouest: west, p_sud: south, p_est: east, p_nord: north });
-      if (cpsErr) {
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-      }
-      codesPostauxBbox = ((cps ?? []) as { code_postal: string }[]).map(c => c.code_postal);
-      if (codesPostauxBbox.length === 0) {
-        return NextResponse.json({ date, rows: [] }, { headers: { 'Cache-Control': 'no-store' } });
-      }
+    if (lu.tronque) {
+      logger.error('civic-health/health-map', `plus de ${BORNE_LIGNES_CP} lignes au ${lu.date}`);
+      return NextResponse.json(
+        { error: `Plus de ${BORNE_LIGNES_CP} codes postaux à lire : la carte ne peut pas les afficher.` },
+        { status: 500 },
+      );
     }
-
-    let query = supabase
-      .from(table)
-      .select(columns)
-      .eq('date_ech', date)
-      .gte(levelColumn, Math.max(min_level, 1)); // 0 = indisponible, jamais peint
-    const filtrerEnMemoire = !!codesPostauxBbox && codesPostauxBbox.length > MAX_CODES_DANS_IN;
-    if (codesPostauxBbox && !filtrerEnMemoire) {
-      query = query.in('code_postal', codesPostauxBbox);
-    }
-    const { data: rowsBrutes, error: rowsErr } = await query.limit(10_000);
-    if (rowsErr) {
-      logger.error('civic-health/health-map', `${table} : ${rowsErr.message}`);
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-    }
-    // `columns` est une chaîne construite : le générateur ne peut pas typer
-    // la ligne, d'où le passage par `unknown`. Seul `code_postal` est lu ici.
-    let rows = (rowsBrutes ?? []) as unknown as { code_postal: string }[];
-    if (filtrerEnMemoire && codesPostauxBbox) {
-      const retenus = new Set(codesPostauxBbox);
-      rows = rows.filter((r) => retenus.has(r.code_postal));
-    }
+    const { date, rows } = lu;
     return NextResponse.json(
       { date, rows },
       // no-store : le flux no_data → ingestion admin → refetch doit voir la

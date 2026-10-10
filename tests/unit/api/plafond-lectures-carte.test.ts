@@ -62,6 +62,33 @@ vi.mock('@/lib/auth', () => ({
         const limite = Number(args.p_limite ?? 10000);
         return { data: { zones: dedans.slice(0, limite), tronque: dedans.length > limite }, error: null };
       }
+      if (nom === 'codes_postaux_dans_bbox') {
+        const dedans = referentielCp().filter((z) =>
+          z.lon >= Number(args.p_ouest) && z.lon <= Number(args.p_est)
+          && z.lat >= Number(args.p_sud) && z.lat <= Number(args.p_nord));
+        return { data: dedans.slice(0, MAX_ROWS).map((z) => ({ code_postal: z.code })), error: null };
+      }
+      if (nom === 'lire_sante_cp_jsonb') {
+        // Ce que fait sql/244 : date la plus récente, seuil, bbox par le centroïde du CP, borne + `tronque`.
+        if (!lignes.length) return { data: { date: null, rows: [], tronque: false }, error: null };
+        const centroides = new Map(referentielCp().map((z) => [z.code, z]));
+        const avecBbox = args.p_ouest != null;
+        const retenues = lignes.filter((l) => {
+          const z = centroides.get(String(l.code_postal));
+          return Number(l.indice_global) >= Math.max(Number(args.p_niveau_min), 1) && (!avecBbox || (!!z
+            && z.lon >= Number(args.p_ouest) && z.lon <= Number(args.p_est)
+            && z.lat >= Number(args.p_sud) && z.lat <= Number(args.p_nord)));
+        });
+        const limite = Number(args.p_limite);
+        return {
+          data: {
+            date: lignes[0].date_ech,
+            rows: retenues.slice(0, limite).map(({ date_ech: _d, ...l }) => l),
+            tronque: retenues.length > limite,
+          },
+          error: null,
+        };
+      }
       if (nom === 'lire_arrets_transport_bbox') {
         // Ce que fait sql/241 : lit p_limite + 1 lignes, rend p_limite et `tronque`.
         const limite = Number(args.p_limite);
@@ -97,6 +124,7 @@ const transport = await import('@/app/api/map/transport/route');
 const stations = await import('@/app/api/radio/stations/route');
 const emetteurs = await import('@/app/api/radio/emetteurs/route');
 const meteo = await import('@/app/api/meteo-geo/route');
+const santeCarte = await import('@/app/api/civic-indicators/health-map/route');
 
 interface ZoneMeteo { code: string; nom: string; lat: number; lon: number }
 /** Le référentiel : 6 051 CP en métropole (grille), puis 136 ultramarins EN FIN de liste, comme en base. */
@@ -266,5 +294,61 @@ describe('GET /api/meteo-geo?scale=cp', () => {
     const res = await appel('-5.5,41,10,51.5');
     expect(res.status).toBe(500);
     expect((await res.json()).error).toMatch(/codes postaux/);
+  });
+});
+
+describe('GET /api/civic-indicators/health-map?scale=cp', () => {
+  const appel = (suite = '') => santeCarte.GET(new NextRequest(
+    `http://localhost/api/civic-indicators/health-map?dataset=pollen&scale=cp&min_level=0&metric=global${suite}`,
+  ));
+  /** Un jour national : une ligne par CP du référentiel (6 187), toutes peintes. */
+  const jourNational = () => referentielCp().map((z) => ({
+    date_ech: '2026-10-10', code_postal: z.code, indice_global: 3,
+  }));
+
+  it('sans bbox : les 6 187 CP du jour, pas 1 000', async () => {
+    lignes = jourNational();
+    const corps = await (await appel()).json();
+    expect(corps.date).toBe('2026-10-10');
+    expect(corps.rows).toHaveLength(6187);
+  });
+
+  it('bbox métropole : les 6 051 CP, pas les 1 000 premiers codes de la bbox', async () => {
+    lignes = jourNational();
+    const corps = await (await appel('&bbox=-5.5,41,10,51.5')).json();
+    expect(corps.rows).toHaveLength(6051);
+  });
+
+  it('UN appel en base, zéro lecture de table, borne écrite (10 000)', async () => {
+    lignes = jourNational();
+    await appel('&bbox=4.33,45.5,5.1,46.25');
+    expect(requetes).toBe(0);
+    expect(appelsRpc.map((a) => a.nom)).toEqual(['lire_sante_cp_jsonb']);
+    expect(appelsRpc[0].args).toEqual({
+      p_jeu: 'pollen', p_metrique: 'global', p_niveau_min: 1,
+      p_ouest: 4.33, p_sud: 45.5, p_est: 5.1, p_nord: 46.25, p_limite: 10000,
+    });
+  });
+
+  it('table vide : no_data, comme avant', async () => {
+    const corps = await (await appel()).json();
+    expect(corps).toEqual({ date: null, rows: [], error: 'no_data' });
+  });
+
+  it('borne atteinte : échoue en français plutôt que de peindre un début', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    lignes = Array.from({ length: 10001 }, (_, i) => ({ date_ech: '2026-10-10', code_postal: String(i), indice_global: 2 }));
+    const res = await appel();
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toMatch(/codes postaux/);
+  });
+
+  it('échec de la RPC : message français, détail au journal', async () => {
+    const journal = vi.spyOn(console, 'error').mockImplementation(() => {});
+    erreurRpc = { message: 'function lire_sante_cp_jsonb does not exist' };
+    const res = await appel();
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe('Lecture de la santé environnementale impossible.');
+    expect(journal).toHaveBeenCalled();
   });
 });

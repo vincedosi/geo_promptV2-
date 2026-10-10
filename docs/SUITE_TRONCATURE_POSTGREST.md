@@ -89,6 +89,14 @@ que l'erreur qu'il prétend masquer.
 
 ## Défaut B — la carte santé environnementale est incomplète
 
+> **Carte santé corrigée le 2026-10-10 (sql/244).** `health-map?scale=cp` lit
+> tout en UN appel à `lire_sante_cp_jsonb` (date, seuil, bbox par le
+> centroïde du CP, borne écrite, `tronque`) et n'appelle plus
+> `codes_postaux_dans_bbox`. Mesuré ce jour-là : en local, `max_rows` = 1 000
+> mord aussi les RPC tabulaires — la fonction rendait **1 000** CP sur 6 051,
+> pas 5 000. **Reste un appelant : `/api/analyses/score`** (bbox d'une zone
+> enregistrée).
+
 **`app/api/civic-indicators/health-map/route.ts:133`**, via
 `codes_postaux_dans_bbox`.
 

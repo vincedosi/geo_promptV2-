@@ -72,9 +72,10 @@ const BORNES: Record<string, Justification> = {
   codes_postaux_dans_bbox: {
     nature: 'dette',
     raison:
-      "TRONQUÉE AUJOURD'HUI : 6 051 codes postaux dans la bbox métropole, 5 000 rendus. "
-      + "La choroplèthe pollen/ATMO de /api/civic-indicators/health-map est incomplète d'un "
-      + "CP sur six, en silence. Défaut B de docs/SUITE_TRONCATURE_POSTGREST.md.",
+      "TRONQUÉE AUJOURD'HUI : 6 051 codes postaux dans la bbox métropole, 1 000 rendus sous le "
+      + "max_rows local (5 000 sur l'ancienne production). /api/civic-indicators/health-map ne "
+      + "l'appelle plus (sql/244, 2026-10-10) ; reste /api/analyses/score. "
+      + "Défaut B de docs/SUITE_TRONCATURE_POSTGREST.md.",
   },
   compte_poi_par_categorie: {
     nature: 'borne',
