@@ -89,7 +89,8 @@ describe('ZonesCustomApi', () => {
     api.planMedia('c1').subscribe();
     api.enregistrerPlan({ campaign_id: 'c1', plan: { zones: [], budget: null, cpm: null, cible: 'total', weights: {} } }).subscribe();
     api.detacherPlan('c1').subscribe();
-    api.instantane({ campaign_id: 'c1' }).subscribe();
+    const corps = { campaign_id: 'c1', dsp: 'dv360', budget: null, cpm: null, cible: 'total' as const, zones: [] };
+    api.instantane(corps).subscribe();
     expect(http.expectOne((r) => r.urlWithParams === '/api/custom-geo/media-plan' && r.method === 'GET')).toBeTruthy();
     expect(http.expectOne((r) => r.urlWithParams === '/api/custom-geo/media-plan?campaign_id=c1' && r.method === 'GET')).toBeTruthy();
     const post = http.expectOne((r) => r.urlWithParams === '/api/custom-geo/media-plan' && r.method === 'POST');
@@ -97,7 +98,7 @@ describe('ZonesCustomApi', () => {
     expect(http.expectOne((r) => r.method === 'DELETE').request.urlWithParams).toBe('/api/custom-geo/media-plan?campaign_id=c1');
     const snap = http.expectOne('/api/custom-geo/media-plan/snapshot');
     expect(snap.request.method).toBe('POST');
-    expect(snap.request.body).toEqual({ campaign_id: 'c1' });
+    expect(snap.request.body).toEqual(corps);
     http.verify();
   });
 });

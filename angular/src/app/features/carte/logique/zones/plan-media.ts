@@ -1,3 +1,4 @@
+import { formaterDecimal, formaterNombre } from '../../../../core/format/nombre';
 import type { CibleKey } from './cibles';
 import { proportionalShares } from './media-plan';
 
@@ -48,6 +49,8 @@ export interface MetriquesLigne {
 export interface Plan {
   /** La répartition en vigueur : la saisie, ou le prorata du volume cible (`activeRepartition`). */
   repartition: Record<string, number>;
+  /** Une saisie (ou un plan stocké) s’applique aux lignes affichées : bordure teal et « Répartir au prorata ». */
+  repartitionSaisie: boolean;
   totalVolume: number;
   /** Budget ÷ CPM × 1000, `null` tant que l'un des deux n'est pas un nombre positif. */
   impressionsTotales: number | null;
@@ -113,12 +116,35 @@ export interface EntreePlan {
   totaux: Record<string, number> | null;
 }
 
+/**
+ * La répartition saisie RAMENÉE aux lignes affichées — défaut React corrigé (revue 1 de T15). React appliquait les
+ * poids d'un plan stocké tels quels (`activeRepartition[r.id] ?? 0`) : un plan portant sur d'autres zones mettait
+ * chaque ligne à 0 % sous un pied à « 100 % », et « Enregistrer » ou l'instantané d'export réécrivaient ces zéros.
+ * Son propre commentaire (`ZoneMediaPlanPanel.tsx:188`) annonçait l'intention suivie ici :
+ * - aucune clé commune → `null` (prorata) ;
+ * - toutes les lignes couvertes → poids repris tels quels (une saisie, ou un plan complet arrondi au dixième) ;
+ * - lignes partiellement couvertes → les absentes prennent leur prorata, puis le tout est ramené à 100.
+ * Dans tous les cas, seules les clés des lignes restent : le pied ne somme plus des poids de lignes absentes.
+ */
+export function repartitionDesLignes(
+  saisie: Record<string, number>, lignes: readonly LignePlan[], prorata: Record<string, number>,
+): Record<string, number> | null {
+  const couvertes = lignes.filter((r) => r.id in saisie);
+  if (!couvertes.length) return null;
+  const brute = Object.fromEntries(lignes.map((r) => [r.id, r.id in saisie ? saisie[r.id] : (prorata[r.id] ?? 0)]));
+  if (couvertes.length === lignes.length) return brute;
+  const somme = Object.values(brute).reduce((a, b) => a + b, 0);
+  return somme > 0 ? Object.fromEntries(Object.entries(brute).map(([id, v]) => [id, (v / somme) * 100])) : brute;
+}
+
 /** Les volumes, le prorata, les impressions et les métriques par ligne (`ZoneMediaPlanPanel.tsx:197-252`). */
 export function calculerPlan(e: EntreePlan): Plan {
   const volumes = new Map<string, number | null>();
   for (const r of e.lignes) volumes.set(r.id, r.values ? (r.values[e.cible] ?? null) : null);
   const totalVolume = e.lignes.reduce((acc, r) => acc + (volumes.get(r.id) ?? 0), 0);
-  const repartition = e.repartition ?? proportionalShares(e.lignes.map((r) => ({ id: r.id, volume: volumes.get(r.id) ?? null })));
+  const prorata = proportionalShares(e.lignes.map((r) => ({ id: r.id, volume: volumes.get(r.id) ?? null })));
+  const saisie = e.repartition ? repartitionDesLignes(e.repartition, e.lignes, prorata) : null;
+  const repartition = saisie ?? prorata;
   const impressionsTotales = e.budget > 0 && e.cpm > 0 ? (e.budget / e.cpm) * 1000 : null;
   const franceTotal = e.totaux?.[e.cible] ?? null;
 
@@ -136,27 +162,30 @@ export function calculerPlan(e: EntreePlan): Plan {
       costPerMille: budgetLigne != null && vol && vol > 0 ? budgetLigne / (vol / 1000) : null,
     });
   }
-  return { repartition, totalVolume, impressionsTotales, franceTotal, metriques };
+  return { repartition, repartitionSaisie: saisie !== null, totalVolume, impressionsTotales, franceTotal, metriques };
 }
 
-/** `fmtInt` : entier arrondi, milliers à la française. */
+/** `fmtInt` : entier arrondi, milliers à la française (`formaterNombre`, source unique). */
 export function formaterEntier(n: number): string {
-  return Math.round(n).toLocaleString('fr-FR');
+  return formaterNombre(Math.round(n));
 }
 
-/** `fmtPct` : « 75,0 % » (un chiffre par défaut). */
+/** `fmtPct` : « 75,0 % » (un chiffre par défaut) — `formaterDecimal` suivi du signe. */
 export function formaterPct(n: number, chiffres = 1): string {
-  return `${n.toLocaleString('fr-FR', { minimumFractionDigits: chiffres, maximumFractionDigits: chiffres })} %`;
+  return `${formaterDecimal(n, chiffres)} %`;
 }
 
-/** `fmtFreq` : « 4,5× », tiret sans valeur. */
+/**
+ * `fmtFreq` : « 4,5× », tiret sans valeur. Pas d'équivalent dans `core/format/nombre.ts` : React n'impose ici qu'un
+ * MAXIMUM d'une décimale (« 17× », pas « 17,0× »), ce que `formaterDecimal` ne sait pas faire.
+ */
 export function formaterRepetition(n: number | null): string {
   return n != null ? `${n.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}×` : '—';
 }
 
 /** `fmtEur` : « 23 € », tiret sans valeur. */
 export function formaterEuros(n: number | null): string {
-  return n != null ? `${Math.round(n).toLocaleString('fr-FR')} €` : '—';
+  return n != null ? `${formaterEntier(n)} €` : '—';
 }
 
 /** « Enregistré le 10 oct., 14:34 » (`ZoneMediaPlanPanel.tsx:468`). */

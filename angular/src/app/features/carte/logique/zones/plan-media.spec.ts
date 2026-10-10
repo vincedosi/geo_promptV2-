@@ -73,6 +73,39 @@ describe('plan média — calculs recopiés de ZoneMediaPlanPanel.tsx', () => {
     expect(celluleTotal(plan, 10_000).repartition).toBe('100 %');
   });
 
+  it('poids stockés sur D’AUTRES zones (défaut React corrigé) : aucune clé commune → prorata, pas des lignes à 0 %', () => {
+    const plan = calculerPlan({
+      lignes: LIGNES, cible: 'total', repartition: { 'autre:p1': 60, 'autre:p2': 40 }, budget: 10_000, cpm: 5, totaux: TOTAUX,
+    });
+    expect(plan.repartition).toEqual({ 'z1:p1': 75, 'z1:p2': 25, z2: 0 });
+    expect(plan.repartitionSaisie).toBe(false);
+    expect(plan.metriques.get('z1:p1')!.impressions).toBe(1_500_000);
+    expect(corpsPlan({ campagne: 'c', zones: [], lignes: LIGNES, plan, budget: 10_000, cpm: 5, cible: 'total' }).plan.weights)
+      .toEqual({ 'z1:p1': 75, 'z1:p2': 25, z2: 0 });
+  });
+
+  it('poids stockés PARTIELS : les lignes absentes complètent au prorata, puis le tout est ramené à 100', () => {
+    // Rennes stockée à 50 ; Brest absente prend son prorata (25), z2 le sien (0) : 50 + 25 = 75 → × 100/75.
+    const plan = calculerPlan({
+      lignes: LIGNES, cible: 'total', repartition: { 'z1:p1': 50, 'autre:p9': 50 }, budget: 10_000, cpm: 5, totaux: TOTAUX,
+    });
+    expect(plan.repartition['z1:p1']).toBeCloseTo(66.667, 3);
+    expect(plan.repartition['z1:p2']).toBeCloseTo(33.333, 3);
+    expect(plan.repartition['z2']).toBe(0);
+    expect(Object.keys(plan.repartition)).toEqual(['z1:p1', 'z1:p2', 'z2']);
+    expect(plan.repartitionSaisie).toBe(true);
+    expect(celluleTotal(plan, 10_000).repartition).toBe('100 %');
+  });
+
+  it('poids stockés COMPLETS : repris tels quels (arrondis au dixième compris), clés étrangères écartées du pied', () => {
+    const plan = calculerPlan({
+      lignes: LIGNES, cible: 'total', repartition: { 'z1:p1': 20.1, 'z1:p2': 79.8, z2: 0, 'autre:p1': 40 }, budget: 10_000, cpm: 5, totaux: TOTAUX,
+    });
+    expect(plan.repartition).toEqual({ 'z1:p1': 20.1, 'z1:p2': 79.8, z2: 0 });
+    expect(plan.repartitionSaisie).toBe(true);
+    expect(celluleTotal(plan, 10_000).repartition).toBe('100 %');
+  });
+
   it('montants saisis : virgule décimale admise, lecture de parseFloat', () => {
     expect(lireMontant('6,50')).toBe(6.5);
     expect(lireMontant('10000')).toBe(10_000);

@@ -130,10 +130,10 @@ const SAUVEGARDE_VIERGE: EtatSauvegarde = { saving: false, savedAt: null, error:
         @if (service.chargement()) {
           <div class="py-5 text-center text-[12px] text-tertiary">Chargement des audiences…</div>
         } @else {
-          <mg-tableau-plan-media [cellules]="cellules()" [total]="total()" [unite]="unite()" [saisie]="repartition() !== null" (part)="changerPart($event)" />
+          <mg-tableau-plan-media [cellules]="cellules()" [total]="total()" [unite]="unite()" [saisie]="saisie()" (part)="changerPart($event)" />
           @if (service.lignes().length > 0) {
             <div class="flex flex-wrap gap-2">
-              @if (repartition() !== null) {
+              @if (saisie()) {
                 <button type="button" data-prorata [class]="boutonNeutre" (click)="repartition.set(null)">
                   <mg-icone nom="tourner-gauche" [taille]="11" /> Répartir au prorata
                 </button>
@@ -213,6 +213,8 @@ export class PlanMediaComponent {
     lignes: this.service.lignes(), cible: this.cible(), repartition: this.repartition(),
     budget: this.budgetNum(), cpm: this.cpmNum(), totaux: this.service.totaux(),
   }));
+  /** Une répartition saisie s'applique aux lignes (un plan stocké sur d'autres zones n'en est pas une). */
+  protected readonly saisie = computed(() => this.plan().repartitionSaisie);
   protected readonly cellules = computed(() => cellulesPlan(this.service.lignes(), this.plan()));
   protected readonly total = computed(() => celluleTotal(this.plan(), this.budgetNum()));
   protected readonly impressions = computed(() => {
@@ -231,10 +233,13 @@ export class PlanMediaComponent {
 
   private readonly lectures = new Set<Subscription>();
   private lecturePlan: Subscription | null = null;
+  /** Panneau détruit : une série d'exports DSP en cours s'arrête avant la zone suivante. */
+  private detruit = false;
 
   constructor() {
     this.suivre(this.api.campagnesPlan().subscribe({ next: (r) => this.campagnes.set(r?.campaigns ?? []), error: () => undefined }));
     inject(DestroyRef).onDestroy(() => {
+      this.detruit = true;
       for (const s of this.lectures) s.unsubscribe();
       this.lecturePlan?.unsubscribe();
     });
@@ -321,6 +326,7 @@ export class PlanMediaComponent {
     const lignes = this.service.lignes();
     const plan = this.plan();
     for (const z of this.service.zones()) {
+      if (this.detruit) return;
       const poids = poidsDesItems(z.id, lignes, plan.repartition);
       let echec: string | null;
       if (poids) {

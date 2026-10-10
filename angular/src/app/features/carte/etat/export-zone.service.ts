@@ -37,6 +37,7 @@ export class ExportZoneService {
    */
   exporter(id: string, format: FormatExportZone, params?: Record<string, string>): Promise<string | null> {
     return new Promise((resoudre) => {
+      // Sans paramètres, l'appel garde la forme à deux arguments de T14 (ses specs vérifient l'arité exacte).
       const lecture = (params ? this.api.exporter(id, format, params) : this.api.exporter(id, format)).subscribe({
         next: (reponse) => {
           try {

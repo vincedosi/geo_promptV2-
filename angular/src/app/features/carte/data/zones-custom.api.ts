@@ -5,7 +5,7 @@ import { HttpBaseService } from '../../../core/http/http-base.service';
 import type { EntiteZone } from '../logique/zones/zone-du-lien';
 import type { SourceOperation } from '../logique/zones/operations-zones';
 import type { CibleKey } from '../logique/zones/cibles';
-import type { ItemAudience, corpsPlan } from '../logique/zones/plan-media';
+import type { ItemAudience, corpsInstantane, corpsPlan } from '../logique/zones/plan-media';
 
 /**
  * Une zone enregistrée, telle que `GET /api/custom-geo/list` la rend — recopie de `CustomGeoZoneSummary`
@@ -183,7 +183,7 @@ export class ZonesCustomApi extends HttpBaseService {
   }
 
   /** `POST /api/custom-geo/media-plan/snapshot` : fige le plan poussé au DSP (suivi plan-vs-réel). */
-  instantane(corps: Record<string, unknown>): Observable<unknown> {
+  instantane(corps: NonNullable<ReturnType<typeof corpsInstantane>>): Observable<unknown> {
     return this.httpClient.post(`${this.baseUrl}/custom-geo/media-plan/snapshot`, corps);
   }
 }

@@ -134,6 +134,20 @@ describe('PlanMediaComponent — campagne rattachée', () => {
     expect(el.querySelector('[data-etat-plan]')!.textContent).toContain('Enregistré le');
   });
 
+  it('plan stocké sur D’AUTRES zones (revue 1) : les lignes restent au prorata, et « Enregistrer » n’écrit pas de zéros', async () => {
+    const planMedia = vi.fn(() => of({ plan: {
+      zones: [{ id: 'autre', name: 'Autre' }], budget: 2000, cpm: 4, cible: 'total', weights: { 'autre:p1': 60, 'autre:p2': 40 },
+    } }));
+    const enregistrerPlan = vi.fn((_corps: { plan: { weights: unknown } }) => of({ ok: true }));
+    const { el, saisir, stable } = await monter({ planMedia, enregistrerPlan });
+    await saisir('select[data-campagne]', 'c1');
+    expect(el.querySelector<HTMLInputElement>('tr[data-ligne="z1:p1"] input')!.value).toBe('75');
+    expect(el.querySelector('[data-prorata]')).toBeNull();
+    el.querySelector<HTMLButtonElement>('[data-enregistrer]')!.click();
+    await stable();
+    expect(enregistrerPlan.mock.calls[0][0].plan.weights).toEqual({ 'z1:p1': 75, 'z1:p2': 25, z2: 0 });
+  });
+
   it('« Enregistrer » ÉCRIT le plan (poids au dixième), puis « détacher » le retire', async () => {
     const { el, appels, saisir, stable } = await monter();
     await saisir('select[data-campagne]', 'c1');
@@ -186,6 +200,18 @@ describe('PlanMediaComponent — exports', () => {
       ['z2', 'tiktok_geo'],
     ]);
     expect(appels.instantane).toHaveBeenCalledWith(expect.objectContaining({ campaign_id: 'c1', dsp: 'tiktok', budget: 10_000 }));
+  });
+
+  it('panneau fermé pendant « Génération… » : la série s’arrête avant la zone suivante (revue 1)', async () => {
+    const { fixture, el, exporter, stable } = await monter();
+    let liberer!: (v: string | null) => void;
+    exporter.mockImplementationOnce(() => new Promise<string | null>((r) => (liberer = r)));
+    el.querySelector<HTMLButtonElement>('[data-export="bidding_script"]')!.click();
+    await stable();
+    fixture.destroy();
+    liberer(null);
+    await stable();
+    expect(exporter).toHaveBeenCalledTimes(1);
   });
 
   it('un export refusé s’arrête et affiche le message ; aucun instantané sans campagne', async () => {

@@ -1,3 +1,4 @@
+import { formaterDecimal } from '../../../../core/format/nombre';
 import { CIBLE_LABEL, CIBLE_UNIT, type CibleKey } from './cibles';
 import { csvEscapeCell } from './csv-escape';
 import type { LignePlan, Plan } from './plan-media';
@@ -8,7 +9,7 @@ const SEP = ';';
 
 /** Nombre au format fr-FR à `d` décimales exactement, vide sans valeur (`num`). */
 function num(n: number | null, d = 0): string {
-  return n == null ? '' : n.toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
+  return n == null ? '' : formaterDecimal(n, d);
 }
 
 /** Ce que l'export du tableau lit. */
