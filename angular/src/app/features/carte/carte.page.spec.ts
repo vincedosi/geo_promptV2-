@@ -55,7 +55,7 @@ async function ouvrir() {
       { provide: IrisApi, useValue: { urlTuiles: () => '/api/tiles/iris/{z}/{x}/{y}?v=2', bornes: () => of({}), detail: () => of() } },
       { provide: CarteApi, useValue: { categories: () => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] }), pois: () => of(), ooh: () => of(), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
       { provide: RadioApi, useValue: { optionsFiltre: () => of({}), emetteurs: () => of({ type: 'FeatureCollection', features: [] }), stations: () => of({}) } },
-      { provide: CiviqueApi, useValue: { geojsonVariable: () => of(), detailCp: () => of(), zones: () => of(), santeDepartement: () => of(), santeCp: () => of() } },
+      { provide: CiviqueApi, useValue: { geojsonVariable: () => of(), detailCp: () => of(), zones: () => of(), santeDepartement: () => of(), santeCp: () => of(), santeCommune: () => of() } },
     ],
   });
   const harness = await RouterTestingHarness.create();

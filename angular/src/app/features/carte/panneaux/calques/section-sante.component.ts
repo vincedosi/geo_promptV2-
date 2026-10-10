@@ -4,6 +4,7 @@ import { SanteService } from '../../couches/sante.service';
 import type { EchelleSante, JeuSante } from '../../logique/sante';
 import { AGE_MAX_JOURS, ageEnJours } from '../../logique/sante';
 import { EnteteFiltreComponent } from '../filtre/perimetre.component';
+import { FicheSanteComponent } from './fiche-sante.component';
 import { SelectionsCalquesService } from './selections-calques.service';
 
 /** Couches nationales disponibles (`HEALTH_LAYERS`, `CivicHealthSection.tsx:21`). */
@@ -39,12 +40,11 @@ const BOUTON_INGESTION = 'rounded-[6px] border-fin border-teal bg-transparent px
  * PÉRIMÉE (avec le bouton d'ingestion, à la condition EXACTE de React : au code postal seulement, table vide ou donnée
  * de plus de trois jours — la route refuse tout autre qu'un administrateur), métrique, seuil, chargement, source.
  *
- * Écarts : la fiche commune (`HealthIndicatorCard`) n'est portée que dans son état « aucun IRIS » — l'IRIS choisi,
- * une ligne provisoire le dit (rapport T10) ; fonds `rgba(78,205,196,0.1)` et `rgba(247,183,49,…)` en jetons.
+ * La fiche commune est `mg-fiche-sante` (portage de `HealthIndicatorCard`, revue 1). Écarts : fonds `rgba(78,205,196,0.1)` et `rgba(247,183,49,…)` en jetons.
  */
 @Component({
   selector: 'mg-section-sante',
-  imports: [EnteteFiltreComponent],
+  imports: [EnteteFiltreComponent, FicheSanteComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
     @keyframes fondu { from { opacity: 0; } to { opacity: 1; } }
@@ -56,15 +56,7 @@ const BOUTON_INGESTION = 'rounded-[6px] border-fin border-teal bg-transparent px
       (basculer)="selections.basculerSection('civicHealth')" />
     @if (ouvert()) {
       <div class="fondu flex flex-col gap-[10px]">
-        @if (commune(); as cm) {
-          <div data-provisoire class="p-[14px] text-[11px] italic leading-[1.5] text-tertiary">
-            La fiche air et pollens de {{ cm }} arrive avec une tâche ultérieure.
-          </div>
-        } @else {
-          <div data-fiche-vide class="p-[14px] text-[11px] italic leading-[1.5] text-tertiary">
-            Cliquez sur un IRIS pour voir l'air et les pollens du jour.
-          </div>
-        }
+        <mg-fiche-sante [codeCommune]="codeCommune()" [nomCommune]="nomCommune()" />
 
         <div data-couches-sante>
           <div class="mb-1 text-[11px] font-medium text-secondary">Couche nationale</div>
@@ -170,11 +162,8 @@ export class SectionSanteComponent {
   /** `sectionsOpen.civicHealth === true` (`CivicHealthSection.tsx:104`). */
   protected readonly ouvert = computed(() => this.selections.sections()['civicHealth'] === true);
   /** La commune de l'IRIS sélectionné (`selectedIrisData?.code_commune`, `page.tsx:1020`). */
-  private readonly codeCommune = computed(() => this.iris.detail()?.code_commune ?? null);
-  protected readonly commune = computed(() => {
-    const d = this.iris.detail();
-    return d?.code_commune ? (d.nom_commune ?? d.code_commune) : null;
-  });
+  protected readonly codeCommune = computed(() => this.iris.detail()?.code_commune ?? null);
+  protected readonly nomCommune = computed(() => this.iris.detail()?.nom_commune ?? null);
   protected readonly compte = computed(() => (this.codeCommune() ? 1 : 0) + (this.s.jeu() ? 1 : 0));
   protected readonly metriques = computed(() => METRIQUES[this.s.jeu() ?? 'pollen']);
   protected readonly seuils = computed(() => SEUILS[this.s.jeu() ?? 'pollen']);

@@ -29,7 +29,7 @@ function monter() {
     providers: [
       provideZonelessChangeDetection(), CarreauxService, IrisService, EtatCarteService, CouchesCarteService, AnnonceService,
       PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService, IndicateursCiviquesService, SanteService,
-      { provide: CiviqueApi, useValue: { geojsonVariable: () => NEVER, zones: () => NEVER, santeDepartement: () => NEVER, santeCp: () => NEVER } },
+      { provide: CiviqueApi, useValue: { geojsonVariable: () => NEVER, zones: () => NEVER, santeDepartement: () => NEVER, santeCp: () => NEVER, santeCommune: () => NEVER } },
       { provide: CarteApi, useValue: { categories: () => of({ categories: ['lycee'] }), urlTuilesTmja: () => '' } },
       { provide: RadioApi, useValue: { optionsFiltre: () => NEVER, emetteurs: () => NEVER } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },

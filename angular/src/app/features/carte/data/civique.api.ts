@@ -56,6 +56,39 @@ export interface DetailCp {
   communes?: string[];
 }
 
+/** L'indicateur air + pollen d'une commune (`HealthIndicator`, `lib/civic-health/types.ts:66-77`). */
+export interface SanteCommune {
+  code_insee: string;
+  commune: string;
+  air: {
+    date: string;
+    indice: number;
+    qualificatif: string;
+    sous_indices: Partial<Record<'pm10' | 'pm25' | 'no2' | 'o3' | 'so2', number | null>>;
+    previsionJ1?: { indice: number; qualificatif: string };
+  } | null;
+  pollen: {
+    date: string;
+    indice_global: number;
+    especes: Record<string, number>;
+    concentrations?: Record<string, number>;
+    alerte?: boolean;
+    previsionJ1?: { indice: number };
+    previsionJ2?: { indice: number };
+  } | null;
+  fetchedAt: string;
+  source: string;
+  stale: boolean;
+}
+
+/** `GET /api/civic-indicators/health/<commune>` (`HealthApiResponse`). */
+export interface ReponseSanteCommune {
+  data: SanteCommune | null;
+  provider?: string;
+  error?: 'unavailable' | 'invalid_code';
+  message?: string;
+}
+
 /** Une ligne du flux d'ingestion (`use-civic-ingest.ts:374-381`). */
 export interface LigneIngestion {
   type: string;
@@ -94,6 +127,11 @@ export class CiviqueApi extends HttpBaseService {
   /** `GET /api/insee-variables/cp-detail?cp=…` (popup d'un code postal). */
   detailCp(cp: string): Observable<DetailCp> {
     return this.httpClient.get<DetailCp>(`${this.baseUrl}/insee-variables/cp-detail?cp=${encodeURIComponent(cp)}`);
+  }
+
+  /** `GET /api/civic-indicators/health/<commune>` — la fiche air + pollen de la commune de l'IRIS (`HealthIndicatorCard.tsx:72`). */
+  santeCommune(codeCommune: string): Observable<ReponseSanteCommune> {
+    return this.httpClient.get<ReponseSanteCommune>(`${this.baseUrl}/civic-indicators/health/${encodeURIComponent(codeCommune)}`);
   }
 
   /** `GET /api/meteo-geo/zones?scale=…` — polygones des départements ou des codes postaux. */

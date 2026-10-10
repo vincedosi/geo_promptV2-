@@ -30,6 +30,13 @@ describe('CiviqueApi', () => {
     http.verify();
   });
 
+  it('santeCommune : GET /api/civic-indicators/health/<commune> (revue 1)', () => {
+    const { api, http } = preparer();
+    api.santeCommune('13055').subscribe();
+    expect(http.expectOne('/api/civic-indicators/health/13055').request.method).toBe('GET');
+    http.verify();
+  });
+
   it('zones : GET /api/meteo-geo/zones?scale=', () => {
     const { api, http } = preparer();
     api.zones('departement').subscribe();

@@ -2,6 +2,8 @@ import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { IrisService } from '../../couches/iris.service';
 import { SanteService } from '../../couches/sante.service';
+import { NEVER } from 'rxjs';
+import { CiviqueApi } from '../../data/civique.api';
 import type { EchelleSante, JeuSante } from '../../data/civique.api';
 import { SectionSanteComponent } from './section-sante.component';
 import { SelectionsCalquesService } from './selections-calques.service';
@@ -32,6 +34,7 @@ function monter() {
       provideZonelessChangeDetection(), SelectionsCalquesService,
       { provide: SanteService, useValue: sante },
       { provide: IrisService, useValue: { detail } },
+      { provide: CiviqueApi, useValue: { santeCommune: () => NEVER } },
     ],
   });
   const fixture = TestBed.createComponent(SectionSanteComponent);
@@ -178,10 +181,12 @@ describe('SectionSanteComponent', () => {
     expect(m.el.querySelector('[data-erreur-sante]')!.textContent!.trim()).toBe('Erreur 500');
   });
 
-  it('un IRIS sélectionné : compté dans l’en-tête', async () => {
+  it('un IRIS sélectionné : compté dans l’en-tête ; la fiche de SA commune remplace l’invite (revue 1)', async () => {
     const m = monter();
     m.detail.set({ code_commune: '13055', nom_commune: 'Marseille' });
-    await m.rendre();
+    await ouvrir(m);
     expect(m.el.querySelector('[data-compte]')!.textContent!.trim()).toBe('1');
+    expect(m.el.querySelector('mg-fiche-sante [data-fiche-squelette]')).not.toBeNull();
+    expect(m.el.querySelector('[data-provisoire]')).toBeNull();
   });
 });
