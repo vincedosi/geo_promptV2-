@@ -10,6 +10,10 @@
  * Le faux client ci-dessous reproduit le plafond : chaque requête rend au plus
  * 1 000 lignes, quoi qu'on demande.
  *
+ * Le transport ne pagine pas (revue 1) : une page de 1 000 refaisait tout le
+ * parcours de l'index de catégorie. Il lit en UN appel la RPC
+ * `lire_arrets_transport_bbox` (sql/241), qui porte la borne et `tronque`.
+ *
  * Et `/api/radio/emetteurs` : un échec de la RPC ne doit plus afficher le
  * message PostgREST anglais brut (signatures SQL) à l'écran.
  */
@@ -20,6 +24,7 @@ const MAX_ROWS = 1000;
 let lignes: Record<string, unknown>[] = [];
 let erreurRpc: { message: string } | null = null;
 let requetes = 0;
+const appelsRpc: { nom: string; args: Record<string, unknown> }[] = [];
 
 function constructeur() {
   let de = 0;
@@ -39,7 +44,16 @@ function constructeur() {
 vi.mock('@/lib/auth', () => ({
   createAdminClient: () => ({
     from: () => constructeur(),
-    rpc: async () => (erreurRpc ? { data: null, error: erreurRpc } : { data: [], error: null }),
+    rpc: async (nom: string, args: Record<string, unknown> = {}) => {
+      appelsRpc.push({ nom, args });
+      if (erreurRpc) return { data: null, error: erreurRpc };
+      if (nom === 'lire_arrets_transport_bbox') {
+        // Ce que fait sql/241 : lit p_limite + 1 lignes, rend p_limite et `tronque`.
+        const limite = Number(args.p_limite);
+        return { data: { arrets: lignes.slice(0, limite), tronque: lignes.length > limite }, error: null };
+      }
+      return { data: [], error: null };
+    },
   }),
 }));
 vi.mock('@/lib/api/middleware', () => ({
@@ -70,6 +84,7 @@ beforeEach(() => {
   lignes = [];
   erreurRpc = null;
   requetes = 0;
+  appelsRpc.length = 0;
   vi.restoreAllMocks();
 });
 
@@ -106,12 +121,25 @@ describe('GET /api/map/transport', () => {
     expect(corps.tronque).toBe(false);
   });
 
-  it('vue trop large : s arrête à la borne écrite (5 000) et le DIT', async () => {
+  it('vue trop large : UN seul appel en base, borne écrite (5 000), et le DIT', async () => {
     lignes = arrets(12000);
     const corps = await (await appel()).json();
     expect(corps.nb_pois).toBe(5000);
     expect(corps.tronque).toBe(true);
-    expect(requetes).toBe(6);
+    // Aucune requête de table paginée : chaque page refaisait le parcours de
+    // l'index de catégorie (≈ 177 000 buffers sur la vue de Paris).
+    expect(requetes).toBe(0);
+    expect(appelsRpc.map((a) => a.nom)).toEqual(['lire_arrets_transport_bbox']);
+    expect(appelsRpc[0].args).toMatchObject({ p_west: 5.4623, p_south: 43.2782, p_east: 5.9494, p_north: 43.5003, p_limite: 5000 });
+  });
+
+  it('échec de la RPC : message français, détail au journal', async () => {
+    const journal = vi.spyOn(console, 'error').mockImplementation(() => {});
+    erreurRpc = { message: 'function lire_arrets_transport_bbox does not exist' };
+    const res = await appel();
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe('Lecture des arrêts de transport impossible.');
+    expect(journal).toHaveBeenCalled();
   });
 });
 

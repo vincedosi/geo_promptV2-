@@ -7358,6 +7358,18 @@ export type Database = {
         Args: { p_curve: Json; p_x: number }
         Returns: number
       }
+      lire_arrets_transport_bbox: {
+        Args: {
+          p_east: number
+          p_limite?: number
+          p_north: number
+          p_south: number
+          p_sources?: string[]
+          p_types?: string[]
+          p_west: number
+        }
+        Returns: Json
+      }
       lire_couverture_rayon: {
         Args: {
           p_cible?: string

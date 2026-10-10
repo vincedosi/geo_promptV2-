@@ -2,17 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/auth';
 import type { ZoneData } from '@/types/spatial';
-import { sourcesVisiblesDeLaRequete, filtrerParSourcesVisibles } from '@/lib/auth/perimetre-donnees';
-import { lireJusqua } from '@/lib/supabase/lire-tout';
+import { sourcesVisiblesDeLaRequete } from '@/lib/auth/perimetre-donnees';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Nombre maximal d'arrêts rendus pour une vue. Borne I/O voulue : au-delà, la
- * route rend les BORNE_ARRETS premiers (par `id`) et `tronque: true`. Cinq
- * pages de 1 000 au plus, plus une ligne pour savoir s'il en reste.
+ * Nombre maximal d'arrêts rendus pour une vue. Borne I/O voulue (285 015
+ * arrêts en France) : au-delà, la RPC rend les BORNE_ARRETS premiers par `id`
+ * et `tronque: true` — elle lit BORNE_ARRETS + 1 lignes pour le savoir.
+ * Retour `jsonb` : la relever ne réveille aucune troncature PostgREST.
  */
 const BORNE_ARRETS = 5000;
+
+/** Ce que rend `lire_arrets_transport_bbox` (sql/241). */
+interface ReponseArrets {
+  arrets: { id: string; nom: string | null; lat: number; lng: number; sous_categorie: string | null }[];
+  tronque: boolean;
+}
 
 const SOUS_CATS_VALIDES = ['bus', 'tram', 'metro', 'train'] as const;
 
@@ -34,42 +40,35 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminClient();
   const sources = await sourcesVisiblesDeLaRequete(req);
 
-  // Lecture PAGINÉE, bornée à BORNE_ARRETS. PostgREST plafonne toute requête de
-  // table à 1 000 lignes (`db-max-rows`) : l'ancien `.limit(5000)` rendait
-  // 1 000 arrêts sur les 1 626 de la vue de Marseille-Est, sans erreur
-  // (mesuré le 2026-10-10). La borne, elle, est voulue — la France entière
-  // porte 285 015 arrêts — mais elle est désormais DITE (`tronque`).
-  // `order('id')` : sans ordre stable, deux pages pourraient se recouvrir.
-  const construire = (de: number, a: number) => {
-    let q = supabase
-      .from('poi_france')
-      .select('id, nom, lat, lng, sous_categorie')
-      .eq('categorie', 'arret_transport')
-      .gte('lat', south).lte('lat', north)
-      .gte('lng', west).lte('lng', east)
-      .order('id');
+  // UN passage en base (RPC `lire_arrets_transport_bbox`, sql/241, `jsonb`).
+  // Une requête de table plafonnait à 1 000 lignes (`db-max-rows`) : 1 000
+  // arrêts sur les 1 626 de Marseille-Est. La lecture paginée qui avait suivi
+  // refaisait, à CHAQUE page, le parcours de l'index de catégorie (285 015
+  // arrêts) : ≈ 177 000 buffers sur la vue de Paris, contre ≈ 6 800 ici.
+  //
+  // Périmètre : les arrêts sont un référentiel système (sans source), ils
+  // passent ; `p_sources` écarte un éventuel import client de la même
+  // catégorie (`null` = super_admin, tout). Les identifiants viennent de la
+  // base (colonne uuid).
+  const { data, error } = await supabase.rpc('lire_arrets_transport_bbox', {
+    p_west: west,
+    p_south: south,
+    p_east: east,
+    p_north: north,
+    p_types: types.length > 0 ? types : undefined,
+    p_sources: sources ?? undefined,
+    p_limite: BORNE_ARRETS,
+  });
 
-    if (types.length > 0) {
-      q = q.in('sous_categorie', types);
-    }
-
-    // Les arrêts sont un référentiel système (sans source) : ils passent. Le
-    // filtre écarte un éventuel import client de la même catégorie.
-    return filtrerParSourcesVisibles(q, sources, { referentiels: true }).range(de, a);
-  };
-
-  let data: Awaited<ReturnType<typeof construire>>['data'];
-  let tronque: boolean;
-  try {
-    ({ lignes: data, tronque } = await lireJusqua(construire, BORNE_ARRETS));
-  } catch (err) {
-    console.error('[api/map/transport] erreur:', err instanceof Error ? err.message : String(err));
+  if (error) {
+    console.error('[api/map/transport] erreur RPC lire_arrets_transport_bbox:', error.message);
     return NextResponse.json({ error: 'Lecture des arrêts de transport impossible.' }, { status: 500 });
   }
 
-  // Pas de type Row local : la forme vient du `.select()` et des types generes
-  // (`nom` est nullable en base — l'ancien type local le declarait `string`).
-  const pois = (data ?? []).map(r => ({
+  const lu = (data ?? { arrets: [], tronque: false }) as unknown as ReponseArrets;
+  const tronque = lu.tronque === true;
+
+  const pois = (lu.arrets ?? []).map(r => ({
     id:         r.id,
     nom:        r.nom ?? 'Arrêt',
     lat:        r.lat,
