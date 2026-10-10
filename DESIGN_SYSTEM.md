@@ -156,6 +156,7 @@ thème sombre sont illisibles sur blanc.
 | --carreaux-contour | #555555 | #555555 | Trait de la grille des carreaux Filosofi (opacité 0,35) — **invariant**, le littéral `#555` de `useMapInit.ts` que l'interface Angular lit par `CouleursService` |
 | --iris-contour | rgba(66,146,198,0.7) | rgba(66,146,198,0.7) | Contour des IRIS (`iris-border`) — **invariant**, le littéral `rgba(66,146,198,0.7)` de `useMapInit.ts` que l'interface Angular lit par `CouleursService` |
 | --poi-contour | #ffffff | #ffffff | Cerne des points d'intérêt (marqueurs DOM, cercles `pois-circles`, marqueur de ville) — **invariant**, le `#ffffff` / `rgba(255,255,255,0.9)` de `useMapInit.ts` et `useMapMarkers.ts` que l'interface Angular lit par `CouleursService` (MapLibre) ou en `var()` (marqueurs DOM) |
+| --contour-civique | #ffffff | #1a1a1a | Trait des codes postaux de l'indicateur civique (`civic-cps-line`, largeur 0,3, opacité 0,4) — **inversé** entre thèmes : le `#ffffff` de `CivicIndicatorsLayer.tsx`, quasi invisible sur fond clair ; lu par `CouleursService` (lot 4, T10, revue 1) |
 
 ### Échelle divergente (écart au plan média)
 Seule échelle divergente du projet — toutes les autres sont séquentielles. Encode

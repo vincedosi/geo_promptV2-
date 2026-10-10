@@ -38,6 +38,7 @@ function monter() {
   const reponsesDetail: Subject<DetailCp>[] = [];
   const popups: PopupFactice[] = [];
   const annonces: string[] = [];
+  const theme = signal({ absente: '#9aa0a6', trait: '#ffffff' });
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), IndicateursCiviquesService, CouchesCarteService, EtatCarteService, IrisService,
@@ -50,7 +51,7 @@ function monter() {
           detailCp: (cp: string) => { details.push(cp); const s = new Subject<DetailCp>(); reponsesDetail.push(s); return s; },
         },
       },
-      { provide: CouleursService, useValue: { palette: () => signal({ absente: '#9aa0a6', trait: '#4292c6' }) } },
+      { provide: CouleursService, useValue: { palette: () => theme } },
       { provide: FABRIQUE_POPUP, useValue: (o: maplibregl.PopupOptions) => { const p = new PopupFactice(o); popups.push(p); return p; } },
     ],
   });
@@ -61,7 +62,7 @@ function monter() {
   couches.publier(carte as unknown as maplibregl.Map);
   return {
     civique: TestBed.inject(IndicateursCiviquesService), etat: TestBed.inject(EtatCarteService), iris: TestBed.inject(IrisService),
-    couches, carte, bboxes, reponses, details, reponsesDetail, popups, annonces,
+    couches, carte, bboxes, reponses, details, reponsesDetail, popups, annonces, theme,
   };
 }
 
@@ -159,6 +160,28 @@ describe('IndicateursCiviquesService', () => {
     expect(details).toEqual(['13001']);
     expect(popups[0].retiree).toBe(true);
     expect(popups).toHaveLength(2);
+  });
+
+  it('le trait suit le thème : repeint à la bascule (revue 1)', () => {
+    const { civique, reponses, carte, theme } = monter();
+    civique.choisir('abstention_pres_2022');
+    TestBed.tick();
+    reponses[0].next(fc());
+    theme.set({ absente: '#9aa0a6', trait: '#1a1a1a' });
+    TestBed.tick();
+    expect(carte.peintures.filter((p) => p.couche === COUCHE_CIVIQUE_TRAIT).at(-1)?.valeur).toBe('#1a1a1a');
+  });
+
+  it('commune en échec : NON mise en cache, relue au clic suivant (revue 1)', () => {
+    const { civique, reponses, carte, details, reponsesDetail } = monter();
+    civique.choisir('abstention_pres_2022');
+    TestBed.tick();
+    reponses[0].next(fc());
+    const evt = { lngLat: { lng: 5.4, lat: 43.3 }, features: [{ properties: { code_postal: '13001', value: 31, inscrits: 1, code_dept: '13' } }] };
+    carte.emettreSurCouche('click', COUCHE_CIVIQUE_FOND, evt);
+    reponsesDetail[0].error(new HttpErrorResponse({ status: 500 }));
+    carte.emettreSurCouche('click', COUCHE_CIVIQUE_FOND, evt);
+    expect(details).toEqual(['13001', '13001']);
   });
 
   it('échec de lecture : dit, jamais une carte vide muette', () => {

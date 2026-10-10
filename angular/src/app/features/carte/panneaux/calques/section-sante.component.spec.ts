@@ -14,6 +14,7 @@ function monter() {
     seuil: signal(0),
     progression: signal<{ done: number; total: number } | null>(null),
     chargement: signal(false),
+    erreur: signal<string | null>(null),
     statutCp: signal<'ok' | 'no_data' | null>(null),
     dateCp: signal<string | null>(null),
     ingestion: signal<{ running: boolean; message: string | null; error: string | null }>({ running: false, message: null, error: null }),
@@ -167,6 +168,14 @@ describe('SectionSanteComponent', () => {
     m.etat.ingestion.set({ running: false, message: null, error: 'Réservé aux administrateurs.' });
     await m.rendre();
     expect(m.el.querySelector('[data-ingestion]')!.classList).toContain('text-danger');
+  });
+
+  it('un échec de lecture est DIT dans la section (revue 1)', async () => {
+    const m = monter();
+    m.etat.jeu.set('pollen');
+    m.etat.erreur.set('Erreur 500');
+    await ouvrir(m);
+    expect(m.el.querySelector('[data-erreur-sante]')!.textContent!.trim()).toBe('Erreur 500');
   });
 
   it('un IRIS sélectionné : compté dans l’en-tête', async () => {

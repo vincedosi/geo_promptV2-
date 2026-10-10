@@ -267,10 +267,11 @@ export const ABSTENTION_LEGEND_REPERES: readonly [string, string, string] = [
 ];
 
 /**
- * Le contour des codes postaux (`CivicIndicatorsLayer.tsx:243-247`) : blanc dans les DEUX thèmes, comme React — un
- * trait de DONNÉES (B12), large de 0,3 px et à 40 % : il sépare deux aplats voisins, il ne suit pas le thème.
+ * Le contour des codes postaux (`CivicIndicatorsLayer.tsx:243-247`), large de 0,3 px et à 40 %. `couleur` est le
+ * `#ffffff` de React, gardé pour le test de parité : Angular peint le jeton `jeton` (`--contour-civique`, blanc en
+ * sombre, `#1a1a1a` en clair) — le blanc de React était quasi invisible sur fond clair (défaut corrigé, revue 1).
  */
-export const TRAIT_CIVIQUE = { couleur: '#ffffff', largeur: 0.3, opacite: 0.4 } as const;
+export const TRAIT_CIVIQUE = { couleur: '#ffffff', jeton: 'contour-civique', largeur: 0.3, opacite: 0.4 } as const;
 /** Opacité de l'aplat (`opacity = 0.65`, `CivicIndicatorsLayer.tsx:171`). */
 export const OPACITE_CIVIQUE = 0.65;
 /** Valeur peinte quand `value` manque (`['coalesce', …, 25]`, `CivicIndicatorsLayer.tsx:226`). */

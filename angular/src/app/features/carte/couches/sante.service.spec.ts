@@ -166,6 +166,38 @@ describe('SanteService', () => {
     expect(flux).toHaveLength(2);
   });
 
+  it('zones en CACHE : changer de jeu pendant le flux ANNULE ce flux ; ses lignes ne sont jamais peintes (revue 1)', () => {
+    const { sante, carte, reponsesZones, flux } = monter();
+    sante.choisirJeu('pollen');
+    TestBed.tick();
+    reponsesZones[0].next(zones('13', '83'));
+    flux[0].complete();
+    sante.choisirJeu('atmo');
+    TestBed.tick();
+    expect(flux[1].observed).toBe(true);
+    sante.choisirJeu('pollen');
+    TestBed.tick();
+    expect(flux[1].observed).toBe(false);
+    flux[1].next({ type: 'meta', total: 2 });
+    flux[1].next({ type: 'dept', code_dept: '13', air: { indice: 6, sous_indices: {} } });
+    flux[1].complete();
+    expect(indices(carte)).not.toContain(6);
+    expect(sante.chargement()).toBe(true);
+    sante.choisirJeu(null);
+    TestBed.tick();
+    expect(flux[2].observed).toBe(false);
+  });
+
+  it('un échec du flux est DIT (revue 1)', () => {
+    const { sante, reponsesZones, flux } = monter();
+    sante.choisirJeu('pollen');
+    TestBed.tick();
+    reponsesZones[0].next(zones('13'));
+    flux[0].error(new HttpErrorResponse({ status: 500, error: { error: 'boum' } }));
+    expect(sante.erreur()).toBe('boum');
+    expect(sante.chargement()).toBe(false);
+  });
+
   it('code postal SANS filtre : aucune bbox ; filtre département : bbox = BBOX_METRO ; filtre « france » : aucune', () => {
     const { sante, etat, reponsesZones, cp } = monter();
     sante.choisirJeu('pollen');

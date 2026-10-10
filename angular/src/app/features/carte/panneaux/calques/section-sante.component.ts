@@ -144,6 +144,10 @@ const BOUTON_INGESTION = 'rounded-[6px] border-fin border-teal bg-transparent px
             @if (texteChargement(); as t) {
               <div data-chargement-sante class="font-mono text-[10px] text-tertiary">{{ t }}</div>
             }
+            @if (s.erreur(); as e) {
+              <!-- Revue 1 : un échec est DIT (React : console.error, carte vide muette). -->
+              <div data-erreur-sante class="text-[11px] text-danger">{{ e }}</div>
+            }
 
             <div class="font-mono text-[9px] italic text-tertiary">{{ source() }}</div>
           </div>

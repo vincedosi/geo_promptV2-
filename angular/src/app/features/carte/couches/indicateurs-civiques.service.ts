@@ -1,8 +1,9 @@
 import { DOCUMENT, DestroyRef, Injectable, effect, inject, signal, untracked } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
-import { type Observable, type Subscription, catchError, of } from 'rxjs';
+import { type Observable, type Subscription, catchError, of, tap } from 'rxjs';
 import { type Bbox, bboxDeCarte, bboxEnParametre } from '../../../carte/bbox';
 import { FABRIQUE_POPUP, type PopupCarte } from '../../../carte/fabrique-carte';
+import { CouleursService } from '../../../core/theme/couleurs.service';
 import { CiviqueApi, type DetailCp } from '../data/civique.api';
 import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
@@ -12,6 +13,7 @@ import {
 import {
   COUCHE_CIVIQUE_FOND, COUCHE_CIVIQUE_TRAIT, SOURCE_CIVIQUE, bboxContenue, contenuPopupCivique, expressionCivique,
 } from './couche-civique';
+import { peindre } from './couche-carreaux';
 import { messagePoints } from './pois.service';
 import { DELAI_DEPLACEMENT_MS } from './radio.service';
 
@@ -46,6 +48,7 @@ export class IndicateursCiviquesService {
   private readonly api = inject(CiviqueApi);
   private readonly fabriquePopup = inject(FABRIQUE_POPUP);
   private readonly document = inject(DOCUMENT);
+  private readonly couleurs = inject(CouleursService).palette({ trait: TRAIT_CIVIQUE.jeton });
 
   private readonly code = signal<CodeVariableCivique | null>(null);
   /** La variable affichée (`civicVariableCode`), `null` : calque éteint. */
@@ -57,6 +60,8 @@ export class IndicateursCiviquesService {
   private donnees: { code: CodeVariableCivique; bbox: Bbox; fc: GeoJSON.FeatureCollection } | null = null;
   private lecture: Subscription | null = null;
   private lectureDetail: Subscription | null = null;
+  /** Incrémenté à chaque pose des couches : le trait se (re)peint après elle. */
+  private readonly posee = signal(0);
   private readonly communes = new Map<string, DetailCp | null>();
   private popup: PopupCarte | null = null;
 
@@ -66,6 +71,15 @@ export class IndicateursCiviquesService {
     inject(DestroyRef).onDestroy(() => {
       this.lecture?.unsubscribe();
       this.lectureDetail?.unsubscribe();
+    });
+
+    // Le trait suit le thème (`--contour-civique`, revue 1) : repeint à chaque bascule. La couche AVANT le jeton : il
+    // n'est résolu que si la couche existe (même règle que les autres couches).
+    effect(() => {
+      const carte = this.couches.carteCourante();
+      this.code();
+      this.posee();
+      if (carte && carte.getLayer(COUCHE_CIVIQUE_TRAIT)) peindre(carte, COUCHE_CIVIQUE_TRAIT, 'line-color', this.couleurs().trait);
     });
 
     effect((nettoyer) => {
@@ -151,8 +165,9 @@ export class IndicateursCiviquesService {
     });
     carte.addLayer({
       id: COUCHE_CIVIQUE_TRAIT, type: 'line', source: SOURCE_CIVIQUE,
-      paint: { 'line-color': TRAIT_CIVIQUE.couleur, 'line-width': TRAIT_CIVIQUE.largeur, 'line-opacity': TRAIT_CIVIQUE.opacite },
+      paint: { 'line-color': this.couleurs().trait, 'line-width': TRAIT_CIVIQUE.largeur, 'line-opacity': TRAIT_CIVIQUE.opacite },
     });
+    this.posee.update((n) => n + 1);
   }
 
   /** Désactivation (`cleanup`, `CivicIndicatorsLayer.tsx:180-192`) : popup, couches, source ; la lecture en cours est annulée. */
@@ -179,12 +194,12 @@ export class IndicateursCiviquesService {
     const dept = String(props['code_dept'] ?? '');
     const lngLat = e.lngLat;
     const enCache = this.communes.has(cp);
+    // Seule une réponse RÉUSSIE est gardée : un échec passager ne prive pas ce code postal de sa commune (revue 1).
     const detail$: Observable<DetailCp | null> = enCache
       ? of(this.communes.get(cp) ?? null)
-      : this.api.detailCp(cp).pipe(catchError(() => of(null)));
+      : this.api.detailCp(cp).pipe(tap((d) => this.communes.set(cp, d)), catchError(() => of(null)));
     this.lectureDetail?.unsubscribe();
     this.lectureDetail = detail$.subscribe((detail) => {
-      if (!enCache) this.communes.set(cp, detail);
       if (this.code() !== code) return;
       this.popup?.remove();
       const doc = carte.getContainer().ownerDocument ?? this.document;

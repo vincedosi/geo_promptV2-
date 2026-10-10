@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { DOCUMENT, DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
-import { type Observable, type Subscription, of, tap } from 'rxjs';
+import { type Observable, type Subscription, of, switchMap, tap } from 'rxjs';
 import { FABRIQUE_POPUP, type PopupCarte } from '../../../carte/fabrique-carte';
 import { CouleursService } from '../../../core/theme/couleurs.service';
 import { CiviqueApi, type LigneDepartement, type ReponseSanteCp } from '../data/civique.api';
@@ -11,6 +11,7 @@ import { bboxPourRequete } from '../logique/bbox-requete';
 import { JETONS_NIVEAUX_SANTE, OPACITE_SANTE, TRAIT_SANTE } from '../logique/palettes-donnees-carte';
 import { type EchelleSante, type JeuSante, METRIQUES_SANTE } from '../logique/sante';
 import { peindre } from './couche-carreaux';
+import { messagePoints } from './pois.service';
 import {
   COUCHE_SANTE_FOND, COUCHE_SANTE_TRAIT, type EntreeZone, SOURCE_SANTE, type TeintesNiveaux, contenuPopupSante,
   expressionSante, zonesPeintes,
@@ -75,6 +76,8 @@ export class SanteService {
   readonly seuil = signal(0);
   readonly progression = signal<{ done: number; total: number } | null>(null);
   readonly chargement = signal(false);
+  /** Un échec des contours, du flux ou de la lecture CP : la section le dit (React : `console.error`, carte vide muette). */
+  readonly erreur = signal<string | null>(null);
   readonly statutCp = signal<'ok' | 'no_data' | null>(null);
   readonly dateCp = signal<string | null>(null);
   readonly ingestion = signal<EtatIngestion>({ running: false, message: null, error: null });
@@ -223,60 +226,64 @@ export class SanteService {
     }
     this.lecture?.unsubscribe();
     this.chargement.set(true);
+    this.erreur.set(null);
     this.entrees = new Map();
     this.cleComplete = null;
     const enCache = this.zonesParEchelle.get(echelle);
     const zones$: Observable<GeoJSON.FeatureCollection> = enCache
       ? of(enCache)
       : this.api.zones(echelle).pipe(tap((z) => this.zonesParEchelle.set(echelle, z)));
-    this.lecture = zones$.subscribe({
-      next: (zones) => {
+    // UNE chaîne, UN abonnement (revue 1) : les contours en cache répondent de façon SYNCHRONE ; deux abonnements
+    // imbriqués rangés dans le même champ perdaient l'abonnement au flux, que plus rien n'annulait.
+    this.lecture = zones$.pipe(
+      switchMap((zones) => {
         this.zones = zones;
         this.repeindre(carte);
-        this.lecture = echelle === 'cp' ? this.lireCp(carte, jeu, bbox, cle) : this.lireDepartements(carte, jeu, cle);
+        return echelle === 'cp' ? this.lireCp(carte, jeu, cle, bbox) : this.lireDepartements(carte, jeu, cle);
+      }),
+    ).subscribe({
+      error: (e: unknown) => {
+        this.chargement.set(false);
+        this.erreur.set(messagePoints(e, 'Délai dépassé — réessayez dans quelques instants'));
       },
-      error: () => this.chargement.set(false),
     });
   }
 
-  private lireCp(carte: maplibregl.Map, jeu: JeuSante, bbox: string | null, cle: string): Subscription {
-    return this.api.santeCp(jeu, bbox).subscribe({
-      next: (payload: ReponseSanteCp) => {
-        this.chargement.set(false);
-        if (!payload.date) {
-          this.statutCp.set('no_data');
-          this.dateCp.set(null);
-          this.cleComplete = cle;
-          this.repeindre(carte);
-          return;
-        }
-        this.statutCp.set('ok');
-        this.dateCp.set(payload.date);
-        for (const r of payload.rows) {
-          const metrics: Record<string, number> = {};
-          const concentrations: Record<string, number> = {};
-          for (const [k] of METRIQUES_SANTE[jeu]) {
-            metrics[k] = Number(r[k] ?? 0);
-            if (jeu === 'pollen') concentrations[k] = Number(r[`conc_${k}`] ?? 0);
-          }
-          this.entrees.set(r.code_postal, {
-            nom: r.code_postal, indice_global: r.indice_global, metrics,
-            ...(jeu === 'pollen' ? { concentrations, alerte: r.alerte === true } : {}),
-            stale: false, nbCommunes: r.nb_communes,
-          });
-        }
+  private lireCp(carte: maplibregl.Map, jeu: JeuSante, cle: string, bbox: string | null): Observable<unknown> {
+    return this.api.santeCp(jeu, bbox).pipe(tap((payload: ReponseSanteCp) => {
+      this.chargement.set(false);
+      if (!payload.date) {
+        this.statutCp.set('no_data');
+        this.dateCp.set(null);
         this.cleComplete = cle;
         this.repeindre(carte);
-      },
-      error: () => this.chargement.set(false),
-    });
+        return;
+      }
+      this.statutCp.set('ok');
+      this.dateCp.set(payload.date);
+      for (const r of payload.rows) {
+        const metrics: Record<string, number> = {};
+        const concentrations: Record<string, number> = {};
+        for (const [k] of METRIQUES_SANTE[jeu]) {
+          metrics[k] = Number(r[k] ?? 0);
+          if (jeu === 'pollen') concentrations[k] = Number(r[`conc_${k}`] ?? 0);
+        }
+        this.entrees.set(r.code_postal, {
+          nom: r.code_postal, indice_global: r.indice_global, metrics,
+          ...(jeu === 'pollen' ? { concentrations, alerte: r.alerte === true } : {}),
+          stale: false, nbCommunes: r.nb_communes,
+        });
+      }
+      this.cleComplete = cle;
+      this.repeindre(carte);
+    }));
   }
 
-  private lireDepartements(carte: maplibregl.Map, jeu: JeuSante, cle: string): Subscription {
+  private lireDepartements(carte: maplibregl.Map, jeu: JeuSante, cle: string): Observable<unknown> {
     let total = 0;
     let faits = 0;
     let depuisPeinture = 0;
-    return this.api.santeDepartement(jeu).subscribe({
+    return this.api.santeDepartement(jeu).pipe(tap({
       next: (ligne: LigneDepartement) => {
         if (ligne.type === 'meta') {
           total = ligne.total ?? 0;
@@ -303,14 +310,14 @@ export class SanteService {
         }
         this.progression.set({ done: faits, total });
       },
-      error: () => this.chargement.set(false),
+      // `complete` du tap : jamais appelé quand la chaîne est désabonnée (changement de jeu, extinction).
       complete: () => {
         this.repeindre(carte);
         this.progression.set({ done: faits, total: total || faits });
         this.chargement.set(false);
         this.cleComplete = cle;
       },
-    });
+    }));
   }
 
   /** Source vide et deux couches, une fois par instance (`CivicHealthMapLayer.tsx:233-250`), au SOMMET comme React. */
@@ -346,6 +353,7 @@ export class SanteService {
     this.lecture?.unsubscribe();
     this.lecture = null;
     this.chargement.set(false);
+    this.erreur.set(null);
     this.popup?.remove();
     this.popup = null;
     for (const c of [COUCHE_SANTE_TRAIT, COUCHE_SANTE_FOND]) if (carte.getLayer(c)) carte.removeLayer(c);
