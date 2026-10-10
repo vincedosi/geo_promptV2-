@@ -44,8 +44,11 @@ export async function GET(req: NextRequest) {
     p_exclude_categories: excludeCats ?? undefined,
   });
 
+  // Le détail PostgREST (anglais, signatures SQL) reste au journal du serveur :
+  // l'interface affiche `error` tel quel, il lui faut une phrase française.
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[api/radio/emetteurs] erreur RPC get_radio_emetteurs_geojson:', error.message);
+    return NextResponse.json({ error: 'Lecture des émetteurs radio impossible.' }, { status: 500 });
   }
 
   return NextResponse.json(data ?? { type: 'FeatureCollection', features: [] }, {

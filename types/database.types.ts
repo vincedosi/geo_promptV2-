@@ -7175,27 +7175,17 @@ export type Database = {
         Args: { p_radio_id: string; p_transmitter_ids?: string[] }
         Returns: Json
       }
-      get_radio_emetteurs_geojson:
-        | {
-            Args: {
-              p_bbox?: string
-              p_limit?: number
-              p_radio_id?: string
-              p_systeme?: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_bbox?: string
-              p_exclude_categories?: string[]
-              p_limit?: number
-              p_radio_id?: string
-              p_radio_ids?: string[]
-              p_systeme?: string
-            }
-            Returns: Json
-          }
+      get_radio_emetteurs_geojson: {
+        Args: {
+          p_bbox?: string
+          p_exclude_categories?: string[]
+          p_limit?: number
+          p_radio_id?: string
+          p_radio_ids?: string[]
+          p_systeme?: string
+        }
+        Returns: Json
+      }
       get_radio_filter_options: { Args: never; Returns: Json }
       get_radio_stats: { Args: never; Returns: Json }
       get_radios_in_zone: {
