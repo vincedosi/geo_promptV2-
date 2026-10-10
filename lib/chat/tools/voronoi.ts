@@ -8,6 +8,16 @@ import { logger } from '@/lib/logger';
 import type { VoronoiFeature } from './types';
 import { getOrgSourceIds } from './orgContext';
 import { categorieEntierementVisible } from '@/lib/auth/perimetre-donnees';
+import { rpcJson } from '@/lib/supabase/rpc-json';
+
+/**
+ * Borne du nombre de cellules, passée à `get_voronoi_by_category_jsonb`
+ * (sql/246). C'est le `LIMIT 5000` historique de sql/164. La jumelle rend du
+ * jsonb : relever cette borne ne ramène AUCUNE troncature PostgREST, mais
+ * chaque cellule coûte une intersection contre la frontière (14 s pour les
+ * 4 653 cellules des lycées, mesuré le 2026-10-10).
+ */
+const BORNE_CELLULES = 5000;
 
 export async function voronoiAnalysis(
   args:            Record<string, unknown>,
@@ -27,9 +37,15 @@ export async function voronoiAnalysis(
   if (!(await categorieEntierementVisible(supabase, category, getOrgSourceIds()))) {
     return { error: `Catégorie « ${category} » hors de votre périmètre de données.`, nb_polygones: 0, category };
   }
-  const { data, error } = await supabase.rpc('get_voronoi_by_category', {
+  // `_jsonb` et non `get_voronoi_by_category` (RETURNS SETOF json) : PostgREST
+  // coupe à `db-max-rows` = 1 000 lignes toute RPC tabulaire, sans erreur.
+  // Mesuré le 2026-10-10 sur les lycées de métropole : 4 653 cellules en base,
+  // 1 000 rendues par la forme SETOF. La jumelle (sql/246) rend tout, jusqu'à
+  // sa borne `p_limite` — et dit `tronque` quand elle l'atteint.
+  const { data, error } = await supabase.rpc('get_voronoi_by_category_jsonb', {
     cat_name: category,
     metropolitaine,
+    p_limite: BORNE_CELLULES,
     ...(filtre_ville  ? { filtre_ville }                      : {}),
     ...(filtre_region ? { filtre_region }                     : {}),
     ...(filtre_dept   ? { filtre_departement: filtre_dept }   : {}),
@@ -40,8 +56,10 @@ export async function voronoiAnalysis(
     return { error: error.message, nb_polygones: 0, category };
   }
 
-  const features = Array.isArray(data) ? (data as VoronoiFeature[]) : [];
-  logger.debug('chat/voronoi', `"${category}" metro=${metropolitaine} ville=${filtre_ville} region=${filtre_region} dept=${filtre_dept} → ${features.length} polygones`);
+  const reponse = rpcJson<{ features?: VoronoiFeature[]; tronque?: boolean }>(data);
+  const features = Array.isArray(reponse?.features) ? reponse.features : [];
+  const tronque = reponse?.tronque === true;
+  logger.debug('chat/voronoi', `"${category}" metro=${metropolitaine} ville=${filtre_ville} region=${filtre_region} dept=${filtre_dept} → ${features.length} polygones${tronque ? ' (borne atteinte)' : ''}`);
 
   const pois = features
     .map(f => ({
@@ -84,6 +102,8 @@ export async function voronoiAnalysis(
       categories:       { [category]: pois.length },
     },
     nb_polygones: features.length,
+    /** Vrai si la catégorie a plus de cellules que `BORNE_CELLULES` : le compte n'est pas le total. */
+    tronque,
     category,
     metropolitaine,
   };

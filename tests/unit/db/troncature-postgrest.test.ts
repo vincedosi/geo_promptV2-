@@ -120,13 +120,6 @@ const BORNES: Record<string, Justification> = {
     nature: 'borne',
     raison: "Une ligne par table du schéma public — une soixantaine (sql/004).",
   },
-  get_voronoi_by_category: {
-    nature: 'borne',
-    raison:
-      "LIMIT 5000 explicite en fin de corps (sql/164). Borne réelle, mais posée EXACTEMENT "
-      + "au plafond de PostgREST : relever ce LIMIT sans passer la fonction en jsonb "
-      + "rendrait la troncature invisible au lieu de rendre plus de polygones.",
-  },
   smart_demographie_top_villes: {
     nature: 'borne',
     raison:

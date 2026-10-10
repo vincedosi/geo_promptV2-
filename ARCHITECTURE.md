@@ -1826,7 +1826,8 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 ### Voronoi & Stats villes
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
-| `get_voronoi_by_category` | Voronoi par categorie, clippe France | `lib/chat/tools/voronoi.ts` |
+| `get_voronoi_by_category` | Voronoi par categorie, clippe France. **ENVELOPPE MINCE de `get_voronoi_by_category_jsonb` depuis sql/246** (2026-10-10) : `RETURNS SETOF json`, donc coupee a `db-max-rows` = 1 000 par PostgREST — mesure : 4 653 cellules de lycees en base, 1 000 rendues. Meme borne (5 000) qu'en sql/164 ; droits alignes sur la jumelle (service_role seul) | *plus appelee par l'application* |
+| `get_voronoi_by_category_jsonb` | Jumelle `jsonb` (sql/246) qui porte le corps de sql/164 au caractere pres : rend `{ features, tronque }`, lit `p_limite + 1` cellules (defaut 5 000) et DIT quand la borne est atteinte. Identite verifiee contre l'ancienne fonction (ids + aire de chaque cellule, cirfa 95 et lycee 4 653 : 0 ecart). Cout inchange : lycee 14,4 s, `shared hit=318267 read=45946` ; cirfa 0,7 s. Service_role seul | `lib/chat/tools/voronoi.ts` (borne `BORNE_CELLULES` = 5 000) |
 | `refresh_ville_stats_chunk` | Refresh stats villes par batch | *orpheline* (route supprimee 08/2026) |
 
 ### Carreaux & Tuiles

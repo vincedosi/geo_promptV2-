@@ -7286,6 +7286,17 @@ export type Database = {
             }
             Returns: Json[]
           }
+      get_voronoi_by_category_jsonb: {
+        Args: {
+          cat_name: string
+          filtre_departement?: string
+          filtre_region?: string
+          filtre_ville?: string
+          metropolitaine?: boolean
+          p_limite?: number
+        }
+        Returns: Json
+      }
       get_voronoi_capture_geometry: {
         Args: {
           p_category: string
