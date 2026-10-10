@@ -114,6 +114,39 @@ describe('BatailleV1Service (use-isochrone-battle.ts handleBattle / handleCheckO
     expect(v1.applicationPct()).toBe(100);
   });
 
+  /** Une bataille terminée puis une découpe en cours (revue 1). */
+  function decoupeEnCours(m: ReturnType<typeof monter>) {
+    m.v1.lancer(false);
+    m.flux.bataille.next({ type: 'result', data: { battleGeoJSON: { type: 'FeatureCollection', features: [anneau('a', 10)] }, poisForMap: [], nb_pois: 1 } });
+    m.flux.bataille.complete();
+    m.v1.appliquer();
+    expect(m.flux.appliquer.observed).toBe(true);
+  }
+
+  it('« Tout effacer » pendant une découpe : le flux de la découpe est annulé, rien n’est repeint (revue 1)', () => {
+    const m = monter();
+    decoupeEnCours(m);
+    m.couches.toutEffacer();
+    expect(m.flux.appliquer.observed).toBe(false);
+    expect(m.v1.application()).toBe(false);
+  });
+
+  it('destruction de la page pendant une découpe : le flux est annulé (revue 1)', () => {
+    const m = monter();
+    decoupeEnCours(m);
+    TestBed.resetTestingModule();
+    expect(m.flux.appliquer.observed).toBe(false);
+  });
+
+  it('LANCER pendant une découpe annule la découpe : elle ne repeint pas la nouvelle bataille (revue 1)', () => {
+    const m = monter();
+    decoupeEnCours(m);
+    m.flux.bataille = new Subject<EvenementFlux>();
+    m.v1.lancer(false);
+    expect(m.flux.appliquer.observed).toBe(false);
+    expect(m.v1.application()).toBe(false);
+  });
+
   it('« Tout effacer » annule le flux en cours et vide l’outil', () => {
     const { v1, flux, couches } = monter();
     v1.lancer(false);

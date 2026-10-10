@@ -53,7 +53,13 @@ export class BatailleV1Service {
   readonly application = signal(false);
   readonly applicationPct = signal(0);
 
+  /** Le flux de la bataille. */
   private flux: Subscription | null = null;
+  /**
+   * Le flux de la découpe — un champ À PART (revue 1) : partager `flux` avec la bataille rendait la découpe orpheline
+   * dès qu'un LANCER en écrasait la référence (ni « Tout effacer » ni la destruction ne l'annulaient plus).
+   */
+  private decoupe: Subscription | null = null;
   private ticker: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
@@ -89,6 +95,9 @@ export class BatailleV1Service {
     if (!this.ctx.unPoi() || this.durees().length === 0 || this.chargement()) return;
     const ctx = this.ctx.contexte();
     const params = parametresV1(ctx, this.durees(), force);
+    // LANCER reste actif pendant une découpe, comme React (`disabled` ne lit que `battleLoading`) : la découpe des
+    // anneaux PRÉCÉDENTS est abandonnée, sinon elle repeindrait l'ancienne bataille par-dessus la nouvelle.
+    this.annulerDecoupe();
     this.cache.set(null);
     this.progression.set(0);
     this.total.set(0);
@@ -125,7 +134,7 @@ export class BatailleV1Service {
     this.application.set(true);
     this.applicationPct.set(0);
     this.journal.update((j) => [...j, '> [BATAILLE] ST_Difference en cours…']);
-    this.flux = this.api.appliquer(anneaux).pipe(finalize(() => this.application.set(false))).subscribe({
+    this.decoupe = this.api.appliquer(anneaux).pipe(finalize(() => this.application.set(false))).subscribe({
       next: (e) => {
         if (e.type === 'progress') this.noterApplication(String(e['message'] ?? ''), pctApplication(e['step']));
         if (e.type === 'result') {
@@ -189,9 +198,16 @@ export class BatailleV1Service {
     this.ticker = null;
   }
 
+  /** Le désabonnement déclenche `finalize`, qui rend le bouton de découpe. */
+  private annulerDecoupe(): void {
+    this.decoupe?.unsubscribe();
+    this.decoupe = null;
+  }
+
   private arreter(): void {
     this.flux?.unsubscribe();
     this.flux = null;
+    this.annulerDecoupe();
     this.arreterTicker();
   }
 

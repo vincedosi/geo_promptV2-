@@ -70,6 +70,16 @@ describe('BatailleV2Service (use-isochrone-battle.ts handleCheckV2 / handleFillM
     expect(v2.journal().at(-1)).toBe('> ✕ Réponse incomplète');
   });
 
+  it('la V2 enchaînée après le remplissage garde le territoire du LANCEMENT, même si le filtre a changé (revue 1)', () => {
+    const { v2, flux, caches, corps, contexte } = monter();
+    v2.remplir();
+    contexte.contexte.set({ ...CTX, territoire: { ville: '', regions: [], depts: [] } });
+    flux.bataille[0].complete();
+    caches[0].complete();
+    expect(corps['verifierCache'][0]).toMatchObject({ filtre_depts: ['13'] });
+    expect(corps['batailleV2'][0]).toMatchObject({ filtre_depts: ['13'] });
+  });
+
   it('remplir : flux ORS lu, cache revérifié, puis bataille V2 lancée d’elle-même', () => {
     const { v2, flux, caches, corps, bataille } = monter();
     v2.verifierCache();

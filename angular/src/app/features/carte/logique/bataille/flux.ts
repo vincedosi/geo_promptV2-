@@ -9,7 +9,7 @@
  * devient une phrase, le reste est coupé à 200 caractères.
  */
 import type { BattleRing } from '../modes-isochrones';
-import type { PoiBataille } from './anneaux';
+import { type PoiBataille, poisDesAnneaux } from './anneaux';
 
 /** Une ligne de flux : son `type` et ses champs, lus défensivement (rien n'est garanti par la route). */
 export interface EvenementFlux {
@@ -115,23 +115,13 @@ export function anneauxPourDecoupe(features: readonly GeoJSON.Feature[]): Battle
 
 /**
  * Les POI de la bataille (`useMapDirectActions.ts:218-235`) : `poisForMap` quand la route le rend, sinon un par POI
- * des anneaux — les anciens caches v3 ne le portaient pas. La catégorie de la bataille est posée sur chacun.
+ * des anneaux (`poisDesAnneaux`, le repli unique que `applyIsochroneBattle` emploie aussi) — les anciens caches v3 ne
+ * le portaient pas. La catégorie de la bataille est posée sur chacun.
  */
 export function poisDeBataille(
   poisForMap: readonly (PoiBataille & { categorie?: string })[] | null | undefined,
   features: readonly GeoJSON.Feature[], categorie: string,
 ): PoiCategorise[] {
-  if (poisForMap && poisForMap.length > 0) return poisForMap.map((p) => ({ ...p, categorie: p.categorie ?? categorie }));
-  const vus = new Set<string>();
-  const pois: PoiCategorise[] = [];
-  for (const f of features) {
-    const p = proprietes(f);
-    const id = String(p['cirfa_id'] ?? p['id'] ?? '');
-    const lat = Number(p['lat']);
-    const lng = Number(p['lng']);
-    if (!id || vus.has(id) || Number.isNaN(lat) || Number.isNaN(lng) || !lat || !lng) continue;
-    vus.add(id);
-    pois.push({ id, nom: String(p['nom'] ?? ''), lat, lng, categorie, adresse: String(p['adresse'] ?? ''), ville: String(p['ville'] ?? '') });
-  }
-  return pois;
+  const pois = poisForMap && poisForMap.length > 0 ? poisForMap : poisDesAnneaux(features);
+  return pois.map((p) => ({ ...p, categorie: (p as { categorie?: string }).categorie ?? categorie }));
 }

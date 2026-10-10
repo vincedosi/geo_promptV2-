@@ -4,7 +4,9 @@ import { BatailleService } from '../couches/bataille.service';
 import { IsochronesApi, type EvenementFlux, type StatutCache } from '../data/isochrones.api';
 import { anneauxBruts, erreurDeFlux, messageEchecHttp, messageEvenement, messageEvenementV2, poisDeBataille } from '../logique/bataille/flux';
 import { journalInitialRemplissage, journalInitialV2, lireMessageRemplissage } from '../logique/bataille/journal';
-import { basculerPalier, corpsBatailleV1, corpsVerification, parametresRemplissage, parametresV2 } from '../logique/bataille/parametres';
+import {
+  type ContexteBataille, basculerPalier, corpsBatailleV1, corpsVerification, parametresRemplissage, parametresV2,
+} from '../logique/bataille/parametres';
 import { ContexteBatailleService } from './contexte-bataille.service';
 import { CouchesCarteService } from './couches-carte.service';
 
@@ -86,14 +88,15 @@ export class BatailleV2Service {
   remplir(): void {
     if (!this.ctx.unPoi() || this.paliers().length === 0 || this.remplissage()) return;
     const ctx = this.ctx.contexte();
-    const params = parametresRemplissage(ctx, this.paliers());
+    const paliers = this.paliers();
+    const params = parametresRemplissage(ctx, paliers);
     this.remplissage.set(true);
     this.cache.set(null);
     this.remplissageTotal.set(0);
     this.remplissageTermines.set(0);
     this.remplissagePct.set(0);
     this.remplissageAnneaux.set(0);
-    this.journal.set(journalInitialRemplissage(ctx.categorie, ctx.mode, this.paliers()));
+    this.journal.set(journalInitialRemplissage(ctx.categorie, ctx.mode, paliers));
     this.bataille.viderPartiels();
     this.flux = this.api.bataille(corpsBatailleV1(params, false)).subscribe({
       next: (e) => this.lireRemplissage(e),
@@ -104,19 +107,26 @@ export class BatailleV2Service {
       complete: () => {
         this.remplissagePct.set(100);
         this.noter(`> ✓ Cache rempli (${this.remplissageAnneaux() || '?'} isochrones) — lancement Bataille V2...`);
-        // Revérifier, puis enchaîner sur la bataille — même si la vérification échoue, comme React.
-        const enchainer = () => { this.remplissage.set(false); this.lancer(false); };
-        this.relecture = this.lireCache().subscribe({ next: (s) => this.cache.set(s), error: enchainer, complete: enchainer });
+        // Revérifier, puis enchaîner sur la bataille — même si la vérification échoue, comme React. Sur le contexte
+        // FIGÉ au lancement (revue 1) : cet enchaînement ne repasse pas par la garde du panneau, et relire le filtre
+        // courant ferait partir une V2 nationale si l'utilisateur l'a retiré pendant le remplissage.
+        const enchainer = () => { this.remplissage.set(false); this.lancerDans(ctx, paliers, false); };
+        this.relecture = this.lireCache(ctx, paliers).subscribe({ next: (s) => this.cache.set(s), error: enchainer, complete: enchainer });
       },
     });
   }
 
-  /** `handleBattleV2(force)`. */
+  /** `handleBattleV2(force)`, sur le contexte du moment — appelé par le panneau APRÈS sa garde. */
   lancer(force: boolean): void {
-    if (!this.ctx.unPoi() || this.paliers().length === 0 || this.chargement()) return;
-    const params = parametresV2(this.ctx.contexte(), this.paliers(), force);
+    if (!this.ctx.unPoi() || this.paliers().length === 0) return;
+    this.lancerDans(this.ctx.contexte(), this.paliers(), force);
+  }
+
+  private lancerDans(ctx: ContexteBataille, paliers: readonly number[], force: boolean): void {
+    if (this.chargement()) return;
+    const params = parametresV2(ctx, paliers, force);
     this.chargement.set(true);
-    this.journal.set(journalInitialV2(params.category, params.mode, this.paliers()));
+    this.journal.set(journalInitialV2(params.category, params.mode, paliers));
     this.bataille.viderPartiels();
     let resultat: ResultatV2 | null = null;
     this.flux = this.api.batailleV2(params).pipe(finalize(() => this.chargement.set(false))).subscribe({
@@ -164,8 +174,8 @@ export class BatailleV2Service {
     if (lu.anneaux !== undefined) this.remplissageAnneaux.update((n) => n + (lu.anneaux ?? 0));
   }
 
-  private lireCache(): Observable<StatutCache> {
-    return this.api.verifierCache(corpsVerification(this.ctx.contexte(), this.paliers()));
+  private lireCache(ctx: ContexteBataille = this.ctx.contexte(), paliers: readonly number[] = this.paliers()): Observable<StatutCache> {
+    return this.api.verifierCache(corpsVerification(ctx, paliers));
   }
 
   private arreter(): void {
