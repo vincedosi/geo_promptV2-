@@ -1,4 +1,5 @@
 import type maplibregl from 'maplibre-gl';
+import { elementTexte } from '../../../carte/contenu-popup';
 import { avantDe } from '../logique/ordre-couches';
 import { TEINTES_RADIO } from '../logique/palettes-donnees-carte';
 import { rgbDe } from './couche-pois';
@@ -218,13 +219,6 @@ export function empriseEmetteurs(fc: GeoJSON.FeatureCollection): [[number, numbe
   return minLng < maxLng ? [[minLng, minLat], [maxLng, maxLat]] : null;
 }
 
-function texte(doc: Document, valeur: string, style: Partial<CSSStyleDeclaration>): HTMLElement {
-  const el = doc.createElement('div');
-  el.textContent = valeur;
-  Object.assign(el.style, style);
-  return el;
-}
-
 /** La puissance lisible : `1.2 MW`, `3.5 kW`, `500 W`, ou rien (`useMapInit.ts:542`). */
 export function puissanceLisible(w: number): string {
   if (!(w > 0)) return '';
@@ -255,24 +249,24 @@ export function contenuPopupRadio(p: Record<string, unknown>, doc: Document): HT
   const racine = doc.createElement('div');
   racine.setAttribute('data-popup-radio', '');
   Object.assign(racine.style, { padding: '10px 14px', fontFamily: "'Inter',sans-serif", fontSize: '12px', lineHeight: '1.6' });
-  racine.append(texte(doc, nom || 'Radio non associée', {
+  racine.append(elementTexte(doc, 'div', {
     fontSize: '14px', fontWeight: '600', color: nom ? 'var(--text-primary)' : 'var(--text-tertiary)', marginBottom: '2px',
-  }));
+  }, nom || 'Radio non associée'));
   if (nom) {
-    racine.append(texte(doc, [cat, portee, genre].filter(Boolean).join(' · '), {
+    racine.append(elementTexte(doc, 'div', {
       color: 'var(--text-secondary)', fontSize: '11px', marginBottom: '6px',
-    }));
+    }, [cat, portee, genre].filter(Boolean).join(' · ')));
   }
-  if (groupe) racine.append(texte(doc, `Groupe : ${groupe}`, { color: 'var(--text-tertiary)', fontSize: '11px', marginBottom: '6px' }));
+  if (groupe) racine.append(elementTexte(doc, 'div', { color: 'var(--text-tertiary)', fontSize: '11px', marginBottom: '6px' }, `Groupe : ${groupe}`));
   const bloc = doc.createElement('div');
   Object.assign(bloc.style, { borderTop: '0.5px solid var(--border-subtle)', margin: '4px 0', paddingTop: '4px' });
-  bloc.append(texte(doc, freqLisible, { color: 'var(--text-secondary)', fontSize: '11px' }));
-  if (pw) bloc.append(texte(doc, `Puissance : ${pw}`, { color: 'var(--text-tertiary)', fontSize: '11px' }));
-  if (cov) bloc.append(texte(doc, `Couverture : ${cov}`, { color: 'var(--text-tertiary)', fontSize: '11px' }));
-  bloc.append(texte(doc, [s(p['commune']), p['departement'] ? `Dept ${s(p['departement'])}` : ''].filter(Boolean).join(' · '), {
+  bloc.append(elementTexte(doc, 'div', { color: 'var(--text-secondary)', fontSize: '11px' }, freqLisible));
+  if (pw) bloc.append(elementTexte(doc, 'div', { color: 'var(--text-tertiary)', fontSize: '11px' }, `Puissance : ${pw}`));
+  if (cov) bloc.append(elementTexte(doc, 'div', { color: 'var(--text-tertiary)', fontSize: '11px' }, `Couverture : ${cov}`));
+  bloc.append(elementTexte(doc, 'div', {
     color: 'var(--text-tertiary)', fontSize: '11px',
-  }));
-  if (p['exploitant']) bloc.append(texte(doc, `Exploitant : ${s(p['exploitant'])}`, { color: 'var(--text-tertiary)', fontSize: '10px' }));
+  }, [s(p['commune']), p['departement'] ? `Dept ${s(p['departement'])}` : ''].filter(Boolean).join(' · ')));
+  if (p['exploitant']) bloc.append(elementTexte(doc, 'div', { color: 'var(--text-tertiary)', fontSize: '10px' }, `Exploitant : ${s(p['exploitant'])}`));
   racine.append(bloc);
   return racine;
 }

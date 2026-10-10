@@ -1,4 +1,5 @@
 import type maplibregl from 'maplibre-gl';
+import { elementTexte } from '../../../carte/contenu-popup';
 import { avantDe } from '../logique/ordre-couches';
 import { getCatColor } from '../logique/palettes-donnees-carte';
 import { PIN_COLORS, type POIStylesMap } from '../logique/constantes-calques';
@@ -237,14 +238,6 @@ export function panneauDeProprietes(p: Record<string, unknown>, repli: { lat: nu
   };
 }
 
-/** Un `<span>` de texte stylé — jamais `innerHTML` : nom, adresse et catégorie viennent de la base. */
-function texte(doc: Document, valeur: string, style: Partial<CSSStyleDeclaration>, balise = 'span'): HTMLElement {
-  const el = doc.createElement(balise);
-  el.textContent = valeur;
-  Object.assign(el.style, style);
-  return el;
-}
-
 /**
  * La popup d'un MARQUEUR (`useMapMarkers.ts:197-208`), construite par `textContent` : rang, nom, catégorie dans la
  * couleur de l'épingle, sous-catégorie, audience, adresse. Le rang (outil du copilote) prend `--warning` et non
@@ -254,20 +247,20 @@ export function contenuPopupMarqueur(p: POI, couleur: string, doc: Document): HT
   const racine = doc.createElement('div');
   Object.assign(racine.style, { fontSize: '12px', padding: '6px 8px', color: 'var(--text-secondary)' });
   if (p.rank) {
-    racine.append(texte(doc, `#${p.rank}`, { color: 'var(--warning)', fontWeight: '700', fontSize: '13px' }), doc.createTextNode(' '));
+    racine.append(elementTexte(doc, 'span', { color: 'var(--warning)', fontWeight: '700', fontSize: '13px' }, `#${p.rank}`), doc.createTextNode(' '));
   }
-  racine.append(texte(doc, p.nom || 'POI', { color: 'var(--text-primary)', fontSize: '13px' }, 'strong'), doc.createElement('br'));
-  racine.append(texte(doc, p.categorie, { color: couleur, fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }));
+  racine.append(elementTexte(doc, 'strong', { color: 'var(--text-primary)', fontSize: '13px' }, p.nom || 'POI'), doc.createElement('br'));
+  racine.append(elementTexte(doc, 'span', { color: couleur, fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }, p.categorie));
   if (p.sous_categorie) {
-    racine.append(doc.createTextNode(' '), texte(doc, `· ${p.sous_categorie}`, { color: 'var(--text-tertiary)', fontSize: '11px' }));
+    racine.append(doc.createTextNode(' '), elementTexte(doc, 'span', { color: 'var(--text-tertiary)', fontSize: '11px' }, `· ${p.sous_categorie}`));
   }
   if (p.audience != null) {
-    racine.append(doc.createElement('br'), texte(doc, `+${Number(p.audience).toLocaleString('fr-FR')} pers.`, {
+    racine.append(doc.createElement('br'), elementTexte(doc, 'span', {
       color: 'var(--success)', fontSize: '12px', fontWeight: '600',
-    }));
+    }, `+${Number(p.audience).toLocaleString('fr-FR')} pers.`));
   }
   if (p.adresse) {
-    racine.append(doc.createElement('br'), texte(doc, p.adresse, { color: 'var(--text-tertiary)', fontSize: '11px' }));
+    racine.append(doc.createElement('br'), elementTexte(doc, 'span', { color: 'var(--text-tertiary)', fontSize: '11px' }, p.adresse));
   }
   return racine;
 }
@@ -280,15 +273,15 @@ export function contenuPopupCercle(p: Record<string, unknown>, doc: Document): H
   const racine = doc.createElement('div');
   Object.assign(racine.style, { fontSize: '12px', padding: '6px 8px' });
   const s = (v: unknown) => (v === undefined || v === null ? '' : String(v));
-  racine.append(texte(doc, s(p['nom']) || 'POI', {}, 'strong'), doc.createElement('br'));
-  racine.append(texte(doc, s(p['categorie']), {
+  racine.append(elementTexte(doc, 'strong', {}, s(p['nom']) || 'POI'), doc.createElement('br'));
+  racine.append(elementTexte(doc, 'span', {
     color: s(p['color']) || COULEUR_CERCLE_DEFAUT, fontSize: '11px', fontWeight: '600', textTransform: 'uppercase',
-  }));
+  }, s(p['categorie'])));
   if (p['sous_categorie']) {
-    racine.append(doc.createTextNode(' '), texte(doc, `· ${s(p['sous_categorie'])}`, { color: 'var(--text-tertiary)', fontSize: '11px' }));
+    racine.append(doc.createTextNode(' '), elementTexte(doc, 'span', { color: 'var(--text-tertiary)', fontSize: '11px' }, `· ${s(p['sous_categorie'])}`));
   }
   if (p['adresse']) {
-    racine.append(doc.createElement('br'), texte(doc, `📍 ${s(p['adresse'])}`, { color: 'var(--text-tertiary)', fontSize: '11px' }));
+    racine.append(doc.createElement('br'), elementTexte(doc, 'span', { color: 'var(--text-tertiary)', fontSize: '11px' }, `📍 ${s(p['adresse'])}`));
   }
   return racine;
 }

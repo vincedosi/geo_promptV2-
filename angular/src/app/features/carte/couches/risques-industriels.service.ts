@@ -11,10 +11,11 @@ import { type CollectionSitesRisque, SitesRisqueApi } from '../../risques/data/s
 import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.service';
 import { RisqueCarteService } from '../etat/risque-carte.service';
 import {
-  COUCHE_RISQUES_HALO, COUCHE_RISQUES_POINT, COUCHE_RISQUES_ZONE, COUCHE_RISQUES_ZONE_CONTOUR, type DonneesRichesSite,
-  JETONS_RISQUES, SOURCE_RISQUES_POINTS, SOURCE_RISQUES_ZONES, contenuPopupSite, donneesRiches, poserCouchesRisques,
-  remplirExposition, repeindreCouchesRisques, retirerCouchesRisques, zonesDesSites,
+  COUCHE_RISQUES_HALO, COUCHE_RISQUES_POINT, COUCHE_RISQUES_ZONE, COUCHE_RISQUES_ZONE_CONTOUR, JETONS_RISQUES,
+  SOURCE_RISQUES_POINTS, SOURCE_RISQUES_ZONES, poserCouchesRisques, repeindreCouchesRisques, retirerCouchesRisques,
+  zonesDesSites,
 } from './couche-risques';
+import { type DonneesRichesSite, contenuPopupSite, donneesRiches, remplirExposition } from './popups-risques';
 
 /**
  * La couche « Zones à risque industriel » de la carte principale : les sites ICPE de la carte VISIBLE, leur zone
@@ -194,6 +195,9 @@ export class RisquesIndustrielsService {
     this.ecoutes?.retirer();
     this.ecoutes = null;
     this.erreur.set(null);
+    // Défaut React corrigé (revue 1) : le compte n'est pas gardé — rallumée sur une autre vue, la couche montrait
+    // l'ancien « N sites » le temps de la lecture.
+    this.etat.compte.set(null);
     retirerCouchesRisques(carte);
     this.posee.set(null);
   }

@@ -23,3 +23,18 @@ export function contenuPopup(titre: string, details: readonly (string | null | u
   racine.appendChild(detail);
   return racine;
 }
+
+/**
+ * Un élément de popup construit par `textContent` (jamais `innerHTML` : noms, adresses, communes viennent de la base),
+ * avec son style en ligne — l'UNIQUE fabrique des popups DOM de la carte principale (POI, radio, indicateurs civiques,
+ * santé, risques industriels ; revue 1 de T12 : quatre copies locales réunies ici). Sans `texte`, l'élément reste vide
+ * (un conteneur auquel on ajoute des enfants).
+ */
+export function elementTexte(
+  doc: Document, balise: string, style: Partial<CSSStyleDeclaration>, texte?: string,
+): HTMLElement {
+  const el = doc.createElement(balise);
+  Object.assign(el.style, style);
+  if (texte !== undefined) el.textContent = texte;
+  return el;
+}

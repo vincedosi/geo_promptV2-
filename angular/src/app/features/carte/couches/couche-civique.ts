@@ -6,6 +6,7 @@
  * interprété. Leurs couleurs sont des JETONS (`var()` dans le DOM, où il est résolu) ; seules les teintes de niveau,
  * déjà calculées par `CouleursService`, sont des valeurs.
  */
+import { elementTexte } from '../../../carte/contenu-popup';
 import type { Bbox } from '../../../carte/bbox';
 import { formaterNombre } from '../../../core/format/nombre';
 import {
@@ -77,13 +78,6 @@ export function bboxContenue(interieure: Bbox, exterieure: Bbox | null): boolean
     && interieure[2] <= exterieure[2] && interieure[3] <= exterieure[3];
 }
 
-function bloc(doc: Document, valeur: string, style: Partial<CSSStyleDeclaration>, balise = 'div'): HTMLElement {
-  const el = doc.createElement(balise);
-  el.textContent = valeur;
-  Object.assign(el.style, style);
-  return el;
-}
-
 const INTER = "'Inter', system-ui, sans-serif";
 const MONO = "'JetBrains Mono', monospace";
 
@@ -109,19 +103,19 @@ export function contenuPopupCivique(d: DonneesPopupCivique, meta: MetaVariableCi
   const tete = doc.createElement('div');
   Object.assign(tete.style, { display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px' });
   tete.append(
-    bloc(doc, d.cp, { fontFamily: MONO, fontSize: '11px', color: 'var(--text-secondary)' }, 'span'),
-    bloc(doc, `DÉPT ${d.dept}`, { fontFamily: MONO, fontSize: '9px', color: 'var(--text-tertiary)' }, 'span'),
+    elementTexte(doc, 'span', { fontFamily: MONO, fontSize: '11px', color: 'var(--text-secondary)' }, d.cp),
+    elementTexte(doc, 'span', { fontFamily: MONO, fontSize: '9px', color: 'var(--text-tertiary)' }, `DÉPT ${d.dept}`),
   );
   racine.append(tete);
 
   if (d.commune) {
-    const commune = bloc(doc, d.commune, { fontFamily: INTER, fontSize: '12px', color: 'var(--text-primary)', marginBottom: '2px' });
+    const commune = elementTexte(doc, 'div', { fontFamily: INTER, fontSize: '12px', color: 'var(--text-primary)', marginBottom: '2px' }, d.commune);
     commune.setAttribute('data-commune', '');
     if (d.nbCommunes > 1) {
       const autres = d.nbCommunes - 1;
-      commune.append(' ', bloc(doc, `+ ${autres} autre${d.nbCommunes > 2 ? 's' : ''}`, {
+      commune.append(' ', elementTexte(doc, 'span', {
         color: 'var(--text-secondary)', fontSize: '10px',
-      }, 'span'));
+      }, `+ ${autres} autre${d.nbCommunes > 2 ? 's' : ''}`));
     }
     racine.append(commune);
   }
@@ -131,16 +125,16 @@ export function contenuPopupCivique(d: DonneesPopupCivique, meta: MetaVariableCi
     background: 'color-mix(in srgb, var(--brand-teal) 8%, transparent)',
     border: '0.5px solid var(--brand-teal-30)', borderRadius: '4px', padding: '8px 10px', marginTop: '6px',
   });
-  const valeur = bloc(doc, `${d.valeur.toFixed(1)}${meta.unit}`, {
+  const valeur = elementTexte(doc, 'div', {
     fontFamily: MONO, fontSize: '18px', color: 'var(--brand-teal)', fontWeight: '500',
-  });
+  }, `${d.valeur.toFixed(1)}${meta.unit}`);
   valeur.setAttribute('data-valeur', '');
   cadre.append(
-    bloc(doc, meta.label, {
+    elementTexte(doc, 'div', {
       fontSize: '10px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px',
-    }),
+    }, meta.label),
     valeur,
-    bloc(doc, meta.qualifier(d.valeur), { fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }),
+    elementTexte(doc, 'div', { fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }, meta.qualifier(d.valeur)),
   );
   racine.append(cadre);
 
@@ -149,8 +143,8 @@ export function contenuPopupCivique(d: DonneesPopupCivique, meta: MetaVariableCi
     fontSize: '11px', color: 'var(--text-secondary)', marginTop: '8px', display: 'flex', justifyContent: 'space-between',
   });
   pied.append(
-    bloc(doc, 'Inscrits sur les listes', {}, 'span'),
-    bloc(doc, formaterNombre(d.inscrits), { fontFamily: MONO, color: 'var(--text-primary)' }, 'span'),
+    elementTexte(doc, 'span', {}, 'Inscrits sur les listes'),
+    elementTexte(doc, 'span', { fontFamily: MONO, color: 'var(--text-primary)' }, formaterNombre(d.inscrits)),
   );
   racine.append(pied);
   return racine;
@@ -169,9 +163,9 @@ export function contenuPopupSante(
   const racine = doc.createElement('div');
   racine.setAttribute('data-popup-sante', '');
   Object.assign(racine.style, { fontFamily: INTER, lineHeight: '1.5', padding: '4px 2px' });
-  racine.append(bloc(doc, `${args.nom ?? code} (${code})`, {
+  racine.append(elementTexte(doc, 'div', {
     fontSize: '12px', color: 'var(--text-primary)', fontWeight: '500', marginBottom: '4px',
-  }));
+  }, `${args.nom ?? code} (${code})`));
 
   if (entree) {
     const ligne = doc.createElement('div');
@@ -181,19 +175,17 @@ export function contenuPopupSante(
       width: '12px', height: '12px', borderRadius: '50%', background: teinte(entree.indice_global), display: 'inline-block',
     });
     const titre = jeu === 'pollen' ? 'Indice pollen' : 'Indice ATMO';
-    ligne.append(pastille, bloc(doc,
-      `${titre} ${entree.indice_global}/6 — ${libelleNiveau(jeu, entree.indice_global)}${entree.stale ? ' (donnée de la veille)' : ''}`,
-      { fontSize: '12px', color: 'var(--text-primary)' }, 'span'));
+    ligne.append(pastille, elementTexte(doc, 'span', { fontSize: '12px', color: 'var(--text-primary)' }, `${titre} ${entree.indice_global}/6 — ${libelleNiveau(jeu, entree.indice_global)}${entree.stale ? ' (donnée de la veille)' : ''}`));
     ligne.setAttribute('data-indice', '');
     racine.append(ligne);
   }
 
   if (entree?.alerte) {
-    const alerte = bloc(doc, '⚠ Alerte pollen Atmo France', {
+    const alerte = elementTexte(doc, 'div', {
       display: 'inline-block', marginBottom: '6px', padding: '2px 8px', borderRadius: '4px', fontSize: '10px',
       background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
       border: '0.5px solid color-mix(in srgb, var(--danger) 20%, transparent)', color: 'var(--danger)',
-    });
+    }, '⚠ Alerte pollen Atmo France');
     alerte.setAttribute('data-alerte', '');
     racine.append(alerte);
   }
@@ -207,24 +199,24 @@ export function contenuPopupSante(
       Object.assign(ligne.style, {
         display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '11px', color: 'var(--text-secondary)',
       });
-      const valeur = bloc(doc, `${niveau} — ${libelleNiveau(jeu, niveau)}`, { fontFamily: MONO, color: teinte(niveau) }, 'span');
+      const valeur = elementTexte(doc, 'span', { fontFamily: MONO, color: teinte(niveau) }, `${niveau} — ${libelleNiveau(jeu, niveau)}`);
       if (conc && conc > 0) {
-        valeur.append(bloc(doc, ` · ${conc < 10 ? conc.toFixed(1) : Math.round(conc)} grains/m³`, {
+        valeur.append(elementTexte(doc, 'span', {
           color: 'var(--text-tertiary)',
-        }, 'span'));
+        }, ` · ${conc < 10 ? conc.toFixed(1) : Math.round(conc)} grains/m³`));
       }
-      ligne.append(bloc(doc, libelle, {}, 'span'), valeur);
+      ligne.append(elementTexte(doc, 'span', {}, libelle), valeur);
       racine.append(ligne);
     }
   } else {
-    racine.append(bloc(doc, 'Donnée indisponible', { fontSize: '11px', color: 'var(--text-tertiary)' }));
+    racine.append(elementTexte(doc, 'div', { fontSize: '11px', color: 'var(--text-tertiary)' }, 'Donnée indisponible'));
   }
 
   const note = echelle === 'cp'
     ? `max des ${entree?.nbCommunes ?? '?'} commune(s) du code postal`
     : 'échantillon : 1 commune par département';
-  racine.append(bloc(doc, `Source : Atmo France et les AASQA (ODbL) — ${note}`, {
+  racine.append(elementTexte(doc, 'div', {
     fontSize: '9px', color: 'var(--text-tertiary)', marginTop: '8px',
-  }));
+  }, `Source : Atmo France et les AASQA (ODbL) — ${note}`));
   return racine;
 }

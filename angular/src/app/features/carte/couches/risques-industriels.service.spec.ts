@@ -219,18 +219,20 @@ describe('RisquesIndustrielsService', () => {
     });
   });
 
-  it('éteinte : couches et sources retirées, écouteurs du point retirés', () => {
+  it('éteinte : couches et sources retirées, écouteurs du point retirés, compte REMIS à null (défaut React corrigé)', () => {
     const { etat, reponses, carte } = monter();
     etat.actif.set(true);
     TestBed.tick();
     reponses[0].next(collection(1));
     TestBed.tick();
     expect(carte.nombreEcouteurs(`click:${COUCHE_RISQUES_POINT}`)).toBe(1);
+    expect(etat.compte()).not.toBeNull();
     etat.actif.set(false);
     TestBed.tick();
     expect(carte.couches).toHaveLength(0);
     expect(carte.sources.size).toBe(0);
     expect(carte.nombreEcouteurs(`click:${COUCHE_RISQUES_POINT}`)).toBe(0);
+    expect(etat.compte()).toBeNull();
   });
 
   it('décocher / recocher trois fois : UN seul écouteur de clic (défaut R-03 de React)', () => {

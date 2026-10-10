@@ -8,7 +8,8 @@ import { PprtService } from '../../couches/pprt.service';
 import { RisquesIndustrielsService } from '../../couches/risques-industriels.service';
 import { CarteApi } from '../../data/carte.api';
 import { CouchesCarteService } from '../../etat/couches-carte.service';
-import { RisqueCarteService, naturesDesTypes } from '../../etat/risque-carte.service';
+import { RisqueCarteService } from '../../etat/risque-carte.service';
+import { naturesDesTypes } from '../../logique/natures-risque';
 import { SectionRisqueComponent } from './section-risque.component';
 import { SelectionsCalquesService } from './selections-calques.service';
 

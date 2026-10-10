@@ -11,9 +11,8 @@ import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.ser
 import { RisqueCarteService } from '../etat/risque-carte.service';
 import { JETON_PPRT } from '../logique/pprt';
 import { PPRT_ZOOM_PLANCHER } from '../logique/versions';
-import {
-  COUCHE_PPRT_FOND, SOURCE_PPRT, contenuPopupPprt, poserCouchesPprt, repeindreCouchesPprt, retirerCouchesPprt,
-} from './couche-risques';
+import { COUCHE_PPRT_FOND, SOURCE_PPRT, poserCouchesPprt, repeindreCouchesPprt, retirerCouchesPprt } from './couche-risques';
+import { contenuPopupPprt } from './popups-risques';
 
 /** Ce que rend une lecture : la collection, ou « sous le plancher » (aucune requête). */
 type LecturePprt = { sousLePlancher: true } | { sousLePlancher: false; charge: CollectionPprt };

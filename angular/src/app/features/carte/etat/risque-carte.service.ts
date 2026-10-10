@@ -1,6 +1,5 @@
 import { Injectable, type Signal, computed, signal } from '@angular/core';
-import { FAMILLES_ICPE_SEED, NATURE_NON_PRECISEE } from '../logique/familles-icpe';
-import { type TypeRisque, librellesDuType } from '../logique/types-risque';
+import { naturesDesTypes } from '../logique/natures-risque';
 
 /** Ce que la couche des sites consomme — recopie de `FiltresRisque` (`RisqueIndustrielLayer.tsx:66-81`). */
 export interface FiltresRisque {
@@ -28,17 +27,6 @@ export interface EtatCouchePprt {
   sousLePlancher: boolean;
   rendus: number;
   total: number;
-}
-
-/**
- * Les libellés de nature que la route attend pour des types de risque choisis (`RisqueIndustrielLayer.tsx:263-269`) :
- * `librellesDuType` sur le seed des familles — la MÊME fonction que la légende, pour qu'un point filtré « toxique » soit
- * bien celui peint en toxique —, plus « Nature non précisée » quand `non_precise` est retenu.
- */
-export function naturesDesTypes(types: readonly string[]): string[] {
-  const natures = types.flatMap((t) => librellesDuType(t as TypeRisque, FAMILLES_ICPE_SEED));
-  if (types.includes('non_precise')) natures.push(NATURE_NON_PRECISEE);
-  return natures;
 }
 
 /**
