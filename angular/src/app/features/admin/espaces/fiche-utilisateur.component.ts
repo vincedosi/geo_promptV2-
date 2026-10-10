@@ -136,7 +136,7 @@ let compteur = 0;
           </div>
           <button
             type="button" data-supprimer class="bouton supprimer"
-            [disabled]="enCours() || estMoi()"
+            [disabled]="enCours() || lienEnCours() || estMoi()"
             [attr.title]="estMoi() ? titreSoiMeme : null"
             (click)="confirmationSuppression.set(true)"
           >Supprimer le compte</button>

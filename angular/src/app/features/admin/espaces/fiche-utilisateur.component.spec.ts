@@ -414,6 +414,18 @@ describe('FicheUtilisateurComponent — lien de mot de passe', () => {
     expect(el.querySelector<HTMLButtonElement>('[data-lien-mot-de-passe]')!.disabled).toBe(false);
   });
 
+  it('pendant la génération : « Supprimer le compte » désactivé, « Fermer » reste possible', async () => {
+    const { f, el, http } = await monterSansEspace(MEMBRE);
+    el.querySelector<HTMLButtonElement>('[data-lien-mot-de-passe]')!.click();
+    await f.whenStable();
+    const req = http.expectOne(URL_LIEN);
+    expect(el.querySelector<HTMLButtonElement>('[data-supprimer]')!.disabled).toBe(true);
+    expect(el.querySelector<HTMLButtonElement>('[data-fermer]')!.disabled).toBe(false);
+    req.flush({ lien: 'https://exemple.test/lien' });
+    await f.whenStable();
+    expect(el.querySelector<HTMLButtonElement>('[data-supprimer]')!.disabled).toBe(false);
+  });
+
   it('fermer la fiche pendant la génération abandonne la requête', async () => {
     const { f, el, http } = await monterSansEspace(MEMBRE);
     el.querySelector<HTMLButtonElement>('[data-lien-mot-de-passe]')!.click();

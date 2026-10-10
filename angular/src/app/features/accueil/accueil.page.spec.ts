@@ -58,10 +58,14 @@ describe('AccueilPage', () => {
     expect(textes.some((t) => t.includes('Expiration session'))).toBe(true);
   });
 
-  it('rend les six cartes de navigation inertes, avec leur infobulle', async () => {
+  it('rend cinq cartes de navigation inertes, avec leur infobulle, et « Accès » active vers admin/acces', async () => {
     const el = await rendre({ compter: () => of({ retenus: 1, total: 2, par_nature: {} }) });
     const liens = el.querySelectorAll('a[aria-disabled="true"]');
-    expect(liens.length).toBe(6);
+    expect(liens.length).toBe(5);
+    const acces = Array.from(el.querySelectorAll('a')).find((a) => a.textContent?.includes('Accès'))!;
+    expect(acces.hasAttribute('aria-disabled')).toBe(false);
+    expect(acces.getAttribute('href')).toMatch(/\/admin\/acces$/);
+    expect(el.textContent).not.toContain('Organisations');
     expect(liens[0].getAttribute('title')).toBe('Disponible prochainement');
     expect(el.textContent).toContain('Navigation rapide');
   });

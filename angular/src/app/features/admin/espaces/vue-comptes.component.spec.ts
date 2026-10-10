@@ -150,7 +150,7 @@ describe('VueComptesComponent — « Tous les comptes »', () => {
     expect(ligne('c1').hasAttribute('tabindex')).toBe(false);
     const bouton = ligne('c1').querySelector<HTMLButtonElement>('button[data-ouvrir]')!;
     expect(bouton.type).toBe('button');
-    expect(bouton.getAttribute('aria-label')).toBe('Ouvrir la fiche de marin@marine.test');
+    expect(bouton.getAttribute('aria-label')).toBe('Hélène Marin, ouvrir la fiche (marin@marine.test)');
     // Entrée ou Espace sur un <button> déclenchent un clic natif, qui remonte à la ligne.
     bouton.click();
     await stable();

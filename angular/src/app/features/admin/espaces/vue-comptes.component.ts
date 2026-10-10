@@ -185,7 +185,8 @@ function dateFr(iso: string | null): string {
     }
     .bouton:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
     .principal { border: none; background: var(--text-primary); color: var(--bg-primary); }
-    .principal:hover { background: var(--cta-hover); }
+    /* Survol par l'opacité, comme mg-confirmation : --cta-hover est invariant et serait illisible en thème clair. */
+    .principal:hover { opacity: 0.85; }
     .neutre { padding: 7px 14px; font-size: 12px; background: transparent; border: 0.5px solid var(--border-default); color: var(--text-secondary); }
     .neutre:hover { border-color: var(--border-hover); background: var(--bg-level-2); color: var(--text-primary); }
     .squelette { height: 36px; margin-bottom: 8px; border-radius: 6px; background: var(--bg-level-2); animation: pulse 1.5s ease-in-out infinite; }
@@ -226,7 +227,8 @@ export class VueComptesComponent {
         role: ROLE_LABELS[c.role] ?? c.role,
         espaces: c.espaces.map((e) => ({ id: e.id, nom: e.nom_affiche, actif: e.id === c.espace_actif })),
         creeLe: dateFr(c.cree_le),
-        aria: `Ouvrir la fiche de ${c.email}`,
+        // Le libellé accessible CONTIENT le texte visible (WCAG 2.5.3) : le nom, ou l'email s'il n'y en a pas.
+        aria: c.nom ? `${c.nom}, ouvrir la fiche (${c.email})` : `Ouvrir la fiche de ${c.email}`,
       })),
     })),
   );

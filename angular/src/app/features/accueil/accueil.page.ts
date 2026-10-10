@@ -12,17 +12,17 @@ import { TuileChiffreComponent } from '../../ui/tuile-chiffre/tuile-chiffre.comp
 import { SitesRisqueApi, type CompteSites } from '../risques/data/sites-risque.api';
 
 /**
- * Cartes de navigation rapide de `app/dashboard/page.tsx:91-98`. Aucun de ces
- * écrans n'est encore porté : elles se rendent à l'identique, mais INERTES
- * (même règle que la barre latérale).
+ * Cartes de navigation rapide de `app/dashboard/page.tsx:91-98`. Un écran pas encore porté se rend à
+ * l'identique, mais INERTE (`cible: null`, même règle que la barre latérale). « Accès » (2026-10-10)
+ * remplace « Organisations » comme côté React, et ouvre la page Angular (`cible` RELATIVE).
  */
-const CARTES_NAVIGATION: readonly { icone: NomIcone; libelle: string; sous: string }[] = [
-  { icone: 'epingle-carte', libelle: 'geo.prompt', sous: 'Carte + IA' },
-  { icone: 'ecran', libelle: 'Import OOH', sous: 'Panneaux ArcGIS' },
-  { icone: 'fichier-haut', libelle: 'Import POI', sous: 'CSV / XLSX' },
-  { icone: 'base-de-donnees', libelle: 'Sources', sous: 'Data lake' },
-  { icone: 'utilisateurs', libelle: 'Organisations', sous: 'Multi-tenant' },
-  { icone: 'calques', libelle: 'IRIS Crawler', sous: 'Données INSEE' },
+const CARTES_NAVIGATION: readonly { icone: NomIcone; libelle: string; sous: string; cible: string | null }[] = [
+  { icone: 'epingle-carte', libelle: 'geo.prompt', sous: 'Carte + IA', cible: null },
+  { icone: 'ecran', libelle: 'Import OOH', sous: 'Panneaux ArcGIS', cible: null },
+  { icone: 'fichier-haut', libelle: 'Import POI', sous: 'CSV / XLSX', cible: null },
+  { icone: 'base-de-donnees', libelle: 'Sources', sous: 'Data lake', cible: null },
+  { icone: 'utilisateurs', libelle: 'Accès', sous: 'Comptes et espaces', cible: 'admin/acces' },
+  { icone: 'calques', libelle: 'IRIS Crawler', sous: 'Données INSEE', cible: null },
 ];
 
 /**

@@ -22,22 +22,38 @@
 
   <div class="grid grid-cols-3 overflow-hidden rounded-b-lg border-fin border-t-0 border-subtle">
     @for (c of cartesNavigation; track c.libelle; let i = $index) {
-      <a
-        role="link"
-        aria-disabled="true"
-        tabindex="0"
-        [attr.title]="prochainement"
-        class="flex cursor-default items-start border-subtle gap-3 bg-surface px-[18px] py-4 transition-colors duration-150 hover:bg-elevated"
-        [class.border-r-fin]="i % 3 !== 2"
-        [class.border-b-fin]="i < 3"
-        [style.animation]="'slideUp 0.3s ease ' + (200 + i * 50) + 'ms both'"
-      >
-        <mg-icone [nom]="c.icone" [taille]="16" [trait]="1.5" class="mt-0.5 block shrink-0 text-tertiary" />
-        <div>
-          <div class="mb-0.5 text-[13px] font-medium text-primary">{{ c.libelle }}</div>
-          <div class="text-[12px] text-tertiary">{{ c.sous }}</div>
-        </div>
-      </a>
+      @if (c.cible; as cible) {
+        <a
+          [routerLink]="cible"
+          class="flex cursor-pointer items-start border-subtle gap-3 bg-surface px-[18px] py-4 transition-colors duration-150 hover:bg-elevated"
+          [class.border-r-fin]="i % 3 !== 2"
+          [class.border-b-fin]="i < 3"
+          [style.animation]="'slideUp 0.3s ease ' + (200 + i * 50) + 'ms both'"
+        >
+          <mg-icone [nom]="c.icone" [taille]="16" [trait]="1.5" class="mt-0.5 block shrink-0 text-tertiary" />
+          <div>
+            <div class="mb-0.5 text-[13px] font-medium text-primary">{{ c.libelle }}</div>
+            <div class="text-[12px] text-tertiary">{{ c.sous }}</div>
+          </div>
+        </a>
+      } @else {
+        <a
+          role="link"
+          aria-disabled="true"
+          tabindex="0"
+          [attr.title]="prochainement"
+          class="flex cursor-default items-start border-subtle gap-3 bg-surface px-[18px] py-4 transition-colors duration-150 hover:bg-elevated"
+          [class.border-r-fin]="i % 3 !== 2"
+          [class.border-b-fin]="i < 3"
+          [style.animation]="'slideUp 0.3s ease ' + (200 + i * 50) + 'ms both'"
+        >
+          <mg-icone [nom]="c.icone" [taille]="16" [trait]="1.5" class="mt-0.5 block shrink-0 text-tertiary" />
+          <div>
+            <div class="mb-0.5 text-[13px] font-medium text-primary">{{ c.libelle }}</div>
+            <div class="text-[12px] text-tertiary">{{ c.sous }}</div>
+          </div>
+        </a>
+      }
     }
   </div>
 
