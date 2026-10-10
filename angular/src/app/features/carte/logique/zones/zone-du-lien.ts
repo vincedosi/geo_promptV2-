@@ -6,7 +6,7 @@
  * emprise, une clé de cache `cg__<id>`. C'est cette clé qui fait apparaître le bouton « Script bidding DV360 ».
  */
 import type { PoiBataille } from '../bataille/anneaux';
-import type { Bbox } from './zones-affichees';
+import { type Bbox, bboxDeGeometrie } from './zones-affichees';
 
 /** Le paramètre de requête du lien (`searchParams.get('customZone')`). */
 export const PARAM_ZONE_LIEN = 'customZone';
@@ -55,28 +55,10 @@ export function creneauDepuisZone(feature: EntiteZone | null | undefined): Crene
       geometry: { type: 'Polygon' as const, coordinates: coords },
       properties: { id: cid, cirfa_id: cid, nom, palier: 1, _idx: i },
     }));
-  let minLng = Infinity;
-  let minLat = Infinity;
-  let maxLng = -Infinity;
-  let maxLat = -Infinity;
-  for (const anneau of polys) {
-    for (const ligne of anneau) {
-      for (const [lng, lat] of ligne) {
-        if (lng < minLng) minLng = lng;
-        if (lng > maxLng) maxLng = lng;
-        if (lat < minLat) minLat = lat;
-        if (lat > maxLat) maxLat = lat;
-      }
-    }
-  }
-  const aEmprise = Number.isFinite(minLng);
-  const centre = aEmprise ? { lat: (minLat + maxLat) / 2, lng: (minLng + maxLng) / 2 } : CENTRE_PAR_DEFAUT;
-  return {
-    anneaux,
-    poi: { id: cid, nom, ...centre },
-    cle: `${PREFIXE_CLE_ZONE}${cid}`,
-    bbox: aEmprise ? [minLng, minLat, maxLng, maxLat] : null,
-  };
+  // L'emprise des seuls polygones (React ne parcourt qu'eux) : le parcours commun de `bboxDeGeometrie`, sans copie.
+  const bbox = polys.length ? bboxDeGeometrie(geom) : null;
+  const centre = bbox ? { lat: (bbox[1] + bbox[3]) / 2, lng: (bbox[0] + bbox[2]) / 2 } : CENTRE_PAR_DEFAUT;
+  return { anneaux, poi: { id: cid, nom, ...centre }, cle: `${PREFIXE_CLE_ZONE}${cid}`, bbox };
 }
 
 /** L'id de zone porté par une clé de créneau `cg__<id>`, `null` pour toute autre clé (une vraie bataille). */

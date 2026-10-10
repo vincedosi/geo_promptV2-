@@ -4,7 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { FABRIQUE_CARTE } from '../../carte/fabrique-carte';
 import { CarteFactice } from '../../carte/testing/carte-factice';
 import { AuthService } from '../../core/auth/auth.service';
@@ -833,5 +833,36 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     barre.orgChangee.emit('org-3');
     await stable();
     expect(etat.filtre()).toBeNull();
+  });
+
+  it('changement d’organisation AU CLAVIER (aucun mousedown) : le panneau Zones ouvert est fermé — il ne garde pas l’ancienne organisation (revue 1)', async () => {
+    const { harness, hote, stable } = await ouvrir();
+    frapper(hote, { key: '4', altKey: true });
+    await stable();
+    expect(hote.querySelector('mg-mes-zones')).not.toBeNull();
+    const barre = harness.fixture.debugElement.query(By.css('mg-barre-haut')).componentInstance as { orgChangee: { emit(v: string | null): void } };
+    barre.orgChangee.emit('org-2');
+    await new Promise((r) => setTimeout(r, 220));
+    await stable();
+    expect(titrePanneau(hote)).toBeNull();
+    expect(hote.querySelector('mg-mes-zones')).toBeNull();
+  });
+
+  it('lien en échec : une annonce le dit (React : console seulement)', async () => {
+    const { harness } = await carteChargee({ url: `/carte?customZone=${ID}`, zones: { geometrie: () => throwError(() => ({ status: 404 })) } });
+    expect(injecteurPage(harness).get(AnnonceService).annonces().map((a) => a.texte))
+      .toContain('La zone du lien n’a pas pu être chargée (HTTP 404).');
+  });
+
+  it('« Tout effacer » pendant la lecture du lien : la réponse tardive ne remplit plus le créneau (revue 1)', async () => {
+    const vol = new Subject<unknown>();
+    const { hote, cartes, stable } = await carteChargee({ url: `/carte?customZone=${ID}`, zones: { geometrie: () => vol } });
+    hote.querySelector<HTMLButtonElement>('button[data-tout-effacer]')!.click();
+    await stable();
+    expect(vol.observed).toBe(false);
+    vol.next(ENTITE);
+    await stable();
+    expect(cartes[0].getLayer('battle-fill')).toBeUndefined();
+    expect(hote.querySelector('button[data-script-dv360]')).toBeNull();
   });
 });

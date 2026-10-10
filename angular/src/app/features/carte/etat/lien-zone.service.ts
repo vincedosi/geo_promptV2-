@@ -67,7 +67,10 @@ export class LienZoneService {
       untracked(() => this.charger(id));
     });
 
-    this.couches.inscrireEffacement('lien-custom-zone', () => this.retirerDeLUrl());
+    this.couches.inscrireEffacement('lien-custom-zone', () => {
+      this.abandonner();
+      this.retirerDeLUrl();
+    });
 
     inject(DestroyRef).onDestroy(() => {
       parametres.unsubscribe();
@@ -77,13 +80,19 @@ export class LienZoneService {
 
   /** Changement d'organisation : la zone du lien appartient à l'ancienne — le créneau et l'URL la lâchent. */
   oublier(): void {
-    if (!this.zoneDuLien()) return;
-    this.bataille.effacer();
+    this.abandonner();
+    if (this.zoneDuLien()) this.bataille.effacer();
     this.retirerDeLUrl();
   }
 
-  private charger(id: string): void {
+  /** Une lecture en vol ne remplit plus le créneau après « Tout effacer » ou un changement d'organisation (revue 1). */
+  private abandonner(): void {
     this.lecture?.unsubscribe();
+    this.lecture = null;
+  }
+
+  private charger(id: string): void {
+    this.abandonner();
     this.lecture = this.api.geometrie(id).subscribe({
       next: (f) => {
         const c = creneauDepuisZone(f);

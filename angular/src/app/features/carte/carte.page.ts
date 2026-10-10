@@ -261,10 +261,13 @@ export class CartePage {
   /**
    * Changement d'organisation dans la barre du haut. React recharge toute la page (`window.location.reload()`) ;
    * recréer la carte ici perdrait tous les calques, alors que seul ce qui APPARTIENT à l'organisation précédente devient
-   * faux : ses zones affichées, la zone ouverte par le lien et un filtre posé sur l'une d'elles. Le panneau Zones, lui,
-   * vient de se fermer (le clic sur le badge est hors du panneau) : rouvert, il relit la nouvelle organisation.
+   * faux : ses zones affichées, la zone ouverte par le lien et un filtre posé sur l'une d'elles. Le panneau ouvert est
+   * FERMÉ ici, quel que soit le geste : au clavier, aucun clic hors du panneau ne l'a fermé, et « Mes zones » (comme la
+   * liste de zones du Filtre) a lu l'organisation à son ouverture — resté ouvert, il listerait l'ancienne et une
+   * opération y écrirait sa zone. Rouvert, il relit la nouvelle (revue 1).
    */
   protected organisationChangee(): void {
+    if (this.panneauOuvert()) this.panneauFerme();
     this.zonesCustom.effacer();
     this.lienZone.oublier();
     if (this.etat.filtre()?.type === 'zone') this.etat.filtre.set(null);
