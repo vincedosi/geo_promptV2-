@@ -143,32 +143,57 @@ OBLIGATOIRE :
   > Le multi-instance redeviendra vrai le jour où un déploiement remonte. En
   > attendant, on ne recâble rien.
 
-### Troncature PostgREST — 5 000 lignes, sans erreur, sans en-tête
+### Troncature PostgREST — 1 000 lignes, sans erreur, sans en-tête
 
-**PostgREST coupe à 5 000 lignes TOUTE fonction `RETURNS TABLE` ou `SETOF`.**
-Pas d'exception levée, pas d'avertissement, pas d'en-tête : l'appelant reçoit un
-tableau parfaitement valide de 5 000 éléments et n'a aucun moyen de savoir qu'il
-en manquait 1 187. Aucun `if (error)` ne peut voir ça passer. Cinq occurrences
-recensées, dont trois corrigées et **trois encore ouvertes en production** —
+**PostgREST coupe à 1 000 lignes TOUTE requête de table ET toute fonction
+`RETURNS TABLE` ou `SETOF`.** C'est `db-max-rows` : `max_rows = 1000` dans
+`supabase/config.toml`, `PGRST_DB_MAX_ROWS=1000` dans le conteneur
+`supabase_rest_genesis_app`. Pas d'exception levée, pas d'avertissement, pas
+d'en-tête : l'appelant reçoit un tableau parfaitement valide de 1 000 éléments
+et n'a aucun moyen de savoir qu'il en manquait 5 187. Aucun `if (error)` ne
+peut voir ça passer. Aucun `.limit()` client ne lève ce plafond. Six
+occurrences recensées, un défaut et deux dettes encore ouverts —
 `docs/SUITE_TRONCATURE_POSTGREST.md`.
 
+> **Cette section disait « 5 000 lignes » jusqu'au 2026-10-10**, et ne parlait
+> que des RPC. 5 000 était le réglage du projet hébergé, supprimé le
+> 2026-09-21 ; la règle lui a survécu trois semaines sur une base où elle était
+> fausse. Mesuré le 2026-10-10 par des appels PostgREST directs :
+> `get_zone_centroids('cp')` → 1 000 lignes sur 6 187, `calculer_score_composite`
+> sur 1 429 codes postaux → 1 000, `get_voronoi_by_category('lycee')` → 1 000
+> cellules sur 4 653. Toutes les bornes justifiées « sous 5 000 » ne bornaient
+> plus rien, et l'en-tête de `lib/supabase/lire-tout.ts` présentait le plafond
+> des tables comme un AUTRE plafond, « quatre fois plus bas » que celui des RPC
+> — c'est le même. Une règle fausse commande le mauvais geste.
+
 RÈGLE :
-- Une RPC dont le résultat **peut** dépasser 5 000 lignes est `RETURNS jsonb`.
-  `RETURNS TABLE` est réservée aux résultats **bornés par construction** : un
-  `LIMIT` dans le corps, un tableau d'ids fourni par l'appelant, une table de
-  référence dont la taille est connue et petite.
-- Changer le type de retour d'une fonction existante exige un `DROP`, **exclu en
-  production** : on écrit une **jumelle** `_jsonb` qui porte le corps, et
-  l'originale devient une **enveloppe mince** qui l'appelle. Un seul corps, deux
-  formes de retour, dérive impossible. Patron littéral : sql/154, sql/168-169,
-  sql/170.
-- Un plafond côté route (« 1 500 CP maximum ») est une borne acceptable — mais
-  c'est une constante, et le jour où quelqu'un la relève au-dessus de 5 000 la
-  troncature revient **en silence**. L'écrire dans le commentaire de la constante.
+- Une RPC dont le résultat **peut** dépasser 1 000 lignes est `RETURNS jsonb`.
+  `RETURNS TABLE` est réservée aux résultats **bornés par construction sous
+  1 000** : un `LIMIT` dans le corps, un tableau d'ids fourni par l'appelant,
+  une table de référence dont la taille est connue et petite.
+- Changer le type de retour d'une fonction existante exige un `DROP` : on écrit
+  une **jumelle** `_jsonb` qui porte le corps, et l'originale devient une
+  **enveloppe mince** qui l'appelle. Un seul corps, deux formes de retour,
+  dérive impossible. Patron littéral : sql/154, sql/168-169, sql/170, sql/243,
+  sql/246. Quand le résultat peut être tronqué par une borne, la jumelle lit
+  `p_limite + 1` lignes et rend `tronque` — on échoue en le disant plutôt que
+  de peindre un début.
+- Une **table** de plus de 1 000 lignes se lit par `lireTout`
+  (`lib/supabase/lire-tout.ts`), lecture paginée qui échoue au-delà de son
+  plafond au lieu de tronquer — **sauf** quand chaque page re-parcourt un gros
+  index depuis le début (≈ 177 000 buffers pour les arrêts de transport d'une
+  vue) : alors une RPC `jsonb` qui lit en UN passage, avec une borne écrite
+  (sql/241).
+- Un plafond côté route (« 3 000 CP maximum ») n'est une borne que s'il passe
+  par une jumelle `jsonb`. Devant une RPC tabulaire, tout plafond au-dessus de
+  1 000 laisse la troncature passer **en silence** — c'était le cas de
+  `/api/custom-geo/source/score` jusqu'au 2026-10-10. L'écrire dans le
+  commentaire de la constante.
 - `tests/unit/db/troncature-postgrest.test.ts` verrouille la règle : toute RPC
   tabulaire appelée depuis `app/` ou `lib/` doit y avoir une borne écrite, ou
-  être déclarée en dette ET nommée dans le document ci-dessus. Ne pas le
-  désactiver, le compléter.
+  être déclarée en dette ET nommée dans le document ci-dessus. Il lit
+  `max_rows` dans `supabase/config.toml` : si quelqu'un le change, il échoue
+  et renvoie relire cette section. Ne pas le désactiver, le compléter.
 
 ### Auth Middleware
 

@@ -1621,7 +1621,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/cibles/preview` | GET | Apercu `count` / population d'un seuil (`?indicator=&operator=&threshold=`) — COUNT indexe, **jamais de geometrie** : c'est ce qui rend l'apercu utilisable a chaque mouvement de curseur |
 | `/api/bidding/strategies/drafts` | GET/POST | Brouillons de strategie de l'utilisateur courant (`consumed_at IS NULL`) ; POST = upsert appele par l'autosave du wizard |
 | `/api/bidding/strategies/drafts/[id]` | GET/DELETE | Chargement / abandon d'un brouillon, avec verification du proprietaire |
-| `/api/bidding/strategies/[id]/final-report` | POST | Bilan executif Gemini en cinq sections d'une campagne terminee, cache memoire 1 h. ⚠ Lit `get_strategy_comparison_data`, **tronquee a 5 000 lignes par PostgREST** sur une table qui en porte 280 000 — defaut C de `docs/SUITE_TRONCATURE_POSTGREST.md` |
+| `/api/bidding/strategies/[id]/final-report` | POST | Bilan executif Gemini en cinq sections d'une campagne terminee, cache memoire 1 h. ⚠ Lit `get_strategy_comparison_data`, **coupee a 1 000 lignes par PostgREST** (`db-max-rows`) alors que les deux strategies en base en portent 306 150 et 174 780 (mesure du 2026-10-10) — defaut C de `docs/SUITE_TRONCATURE_POSTGREST.md`, ouvert |
 
 ### Agent autonome (bidding)
 | Route | Methode | Description |
@@ -1863,6 +1863,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
 | `get_digital_campaigns_list` | Liste campagnes avec stats | `api/digital/campaigns/` |
+| `get_zone_radius_targets` | Un cercle circonscrit (centroide, rayon 1-50 km, aire) par poche disjointe (`ST_Dump`) d'une zone custom, pour le ciblage TikTok par rayon. **Creee hors migrations** (aucun `CREATE` dans `sql/`), `RETURNS TABLE` sans `LIMIT` : 565 lignes au plus le 2026-10-10, sous le plafond PostgREST de 1 000, mais rien ne l'y tient — **dette E** de `docs/SUITE_TRONCATURE_POSTGREST.md` | `api/custom-geo/[id]/export/` (`tiktok_geo`) |
 | `get_campaign_medias` | Regies distinctes campagne | `api/digital/[id]/ai-analysis/` |
 | `get_digital_geography_map_v2` | Choroplethe CP | `api/digital/[id]/map/` — la v1 `get_digital_campaign_map` a ete supprimee le 2026-09-11 |
 | `get_digital_analysis_breakdown_v2` | Breakdown geo | `api/digital/[id]/analysis/` — la v1 a ete supprimee le 2026-09-11 |
@@ -1895,7 +1896,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `get_radio_filter_options` | Options filtres radio | `api/radio/filter-options/` |
 | `get_radio_stats` | Stats globales radio | `api/radio/stats/` |
 | `get_radio_audit` | Audit matching radio | `api/radio/audit/` |
-| `count_emetteurs_par_radio` | Comptage emetteurs/radio | `api/radio/stations/` |
+| `count_emetteurs_par_radio` | Comptage emetteurs/radio. `RETURNS TABLE`, une ligne par radio ayant un emetteur : 861 le 2026-10-10, sous le plafond PostgREST de 1 000 — mais 1 175 radios en table. **Dette D** de `docs/SUITE_TRONCATURE_POSTGREST.md`, non touchee | `api/radio/stations/` |
 | `archive_and_purge_radio` | Archivage donnees radio | `lib/radio/anfr-import.ts` |
 
 ### Meteo
@@ -2076,25 +2077,33 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 - Batch insert par 50 max (`lib/import/inserter.ts`)
 - `EXPLAIN ANALYZE` sur toute nouvelle requete PostGIS
 
-### PostgREST — troncature a 5 000 lignes, sans erreur
+### PostgREST — troncature a 1 000 lignes (`db-max-rows`), sans erreur
 
-- **Toute** fonction `RETURNS TABLE` ou `SETOF` est coupee a 5 000 lignes par
-  PostgREST, sans exception levee, sans en-tete, sans avertissement. Cinq
-  occurrences recensees dans ce projet, **trois encore ouvertes en
-  production** : `docs/SUITE_TRONCATURE_POSTGREST.md`.
-- Une RPC dont le resultat peut depasser ce seuil est `RETURNS jsonb`. Changer
-  le type de retour d'une fonction existante exige un `DROP`, exclu en
-  production : on ecrit une **jumelle** `_jsonb` porteuse du corps, et
-  l'originale devient une **enveloppe mince** (patron sql/154, 168-169, 170).
-- ⚠ **Sur une requete de TABLE ordinaire, le plafond est `db-max-rows`, et il
-  vaut 1 000 sur le stack local** (`supabase/config.toml:18`,
-  `PGRST_DB_MAX_ROWS=1000`, verifie dans l'environnement du conteneur le
-  2026-09-20). C'est un plafond SERVEUR : `.limit(100000)` ne le leve pas, il
-  demande seulement moins que lui. Passer par `lireTout`
-  (`lib/supabase/lire-tout.ts`), qui pagine et LEVE plutot que de rendre un
-  debut. Ce document affirmait l'inverse jusqu'a cette date.
+- **Toute** requete de table ET **toute** fonction `RETURNS TABLE` ou `SETOF`
+  est coupee a `db-max-rows` par PostgREST, sans exception levee, sans
+  en-tete, sans avertissement. **Ce plafond vaut 1 000** sur le seul
+  environnement qui existe (`supabase/config.toml`, `max_rows = 1000` ;
+  `PGRST_DB_MAX_ROWS=1000` dans le conteneur). C'est un plafond SERVEUR :
+  `.limit(100000)` ne le leve pas.
+- ⚠ **Cette section annoncait « 5 000 lignes » pour les RPC jusqu'au
+  2026-10-10**, et un plafond DISTINCT de 1 000 pour les tables. Le 5 000
+  etait le reglage du projet heberge, supprime le 2026-09-21 ; mesure ce
+  jour-la par des appels PostgREST directs, `get_zone_centroids('cp')` rendait
+  1 000 lignes sur 6 187, `calculer_score_composite` 1 000 sur 1 429,
+  `get_voronoi_by_category('lycee')` 1 000 sur 4 653. C'est le meme plafond.
+- Une RPC dont le resultat peut depasser 1 000 lignes est `RETURNS jsonb`.
+  Changer le type de retour d'une fonction existante exige un `DROP` : on
+  ecrit une **jumelle** `_jsonb` porteuse du corps, et l'originale devient une
+  **enveloppe mince** (patron sql/154, 168-169, 170, 243, 246), avec
+  `p_limite + 1` lu et `tronque` rendu quand une borne s'applique.
+- Une table se lit par `lireTout` (`lib/supabase/lire-tout.ts`), qui pagine et
+  LEVE plutot que de rendre un debut — sauf quand chaque page re-parcourt un
+  gros index : alors une RPC `jsonb` en un passage (sql/241).
 - `tests/unit/db/troncature-postgrest.test.ts` exige une borne ecrite pour
-  chaque RPC tabulaire appelee par l'application.
+  chaque RPC tabulaire appelee par l'application (y compris les deux creees
+  hors migrations), et lit `max_rows` dans `supabase/config.toml`.
+  Recensement du 2026-10-10 et dettes ouvertes (C, D, E) :
+  `docs/SUITE_TRONCATURE_POSTGREST.md`.
 
 ### MapLibre 5.x
 - Gzip obligatoire sur reponses MVT (plante silencieusement sans)

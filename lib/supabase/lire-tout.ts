@@ -8,11 +8,18 @@
  * l'environnement du conteneur le 2026-09-20), et **aucun `.limit()` client ne
  * le dépasse** : c'est un plafond, pas un défaut.
  *
- * ⚠ **Ce n'est PAS la troncature à 5 000 lignes des RPC** que `CLAUDE.md`
- * documente. Celle-là frappe les fonctions `RETURNS TABLE` ; celle-ci frappe
- * TOUTE requête de table ordinaire, et elle est quatre fois plus basse. Les
- * deux se ressemblent par leur symptôme — un tableau parfaitement valide,
- * silencieusement amputé — et se corrigent différemment.
+ * ⚠ **C'est le MÊME plafond que celui des RPC `RETURNS TABLE`/`SETOF`.**
+ * Cet en-tête disait jusqu'au 2026-10-10 qu'il s'agissait d'un autre plafond,
+ * « quatre fois plus bas » que « la troncature à 5 000 des RPC ». Faux : le
+ * 5 000 était le réglage du projet hébergé, supprimé le 2026-09-21. Mesuré le
+ * 2026-10-10 : `get_zone_centroids('cp')` rendait 1 000 lignes sur 6 187. Une
+ * table se lit par pages (cette fonction) ; une RPC tabulaire ne se pagine pas,
+ * elle passe en `RETURNS jsonb` (`CLAUDE.md` § « Troncature PostgREST »).
+ *
+ * ⚠ **Paginer n'est pas toujours la bonne réponse.** Chaque page refait le
+ * parcours de l'index depuis le début : sur un gros index filtré (les arrêts
+ * de transport d'une vue, ≈ 177 000 buffers), une RPC `jsonb` qui lit en UN
+ * passage avec une borne écrite vaut mieux (sql/241).
  *
  * Constaté le 2026-09-20 : `zone_set_cp` portait 1 942 codes postaux,
  * `.select(...).limit(7000)` en rendait **1 000**, et le plan écrit dans

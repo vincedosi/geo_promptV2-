@@ -1,4 +1,8 @@
-# Suite — trois troncatures PostgREST vivantes en production
+# Suite — les troncatures PostgREST (plafond `db-max-rows` = 1 000)
+
+> Titre jusqu'au 2026-10-10 : « trois troncatures PostgREST vivantes en
+> production ». La production n'existe plus depuis le 2026-09-21 ; le
+> plafond qui compte est celui du stack local, 1 000 lignes.
 
 > Écrit le 2026-09-15, pendant la relecture finale de `feat/suivi-v2`.
 > **Ces défauts sont ANTÉRIEURS à cette branche et actifs en production
@@ -16,25 +20,66 @@
 
 ## Le mécanisme, une bonne fois
 
-**PostgREST tronque à 5 000 lignes TOUTE fonction `RETURNS TABLE`, sans
-erreur, sans avertissement, sans en-tête.** L'appelant reçoit un tableau
-parfaitement valide de 5 000 éléments et n'a aucun moyen de savoir qu'il en
-manquait 1 187.
+**PostgREST coupe à `db-max-rows` TOUTE fonction `RETURNS TABLE` ou `SETOF`,
+sans erreur, sans avertissement, sans en-tête** — et toute requête de table
+ordinaire aussi. L'appelant reçoit un tableau parfaitement valide et n'a aucun
+moyen de savoir qu'il en manquait.
 
-Le projet l'a maintenant rencontré **cinq fois** :
+**Ce plafond vaut 1 000 lignes** sur le seul environnement qui existe
+(`supabase/config.toml` : `max_rows = 1000` ; `PGRST_DB_MAX_ROWS=1000` dans le
+conteneur `supabase_rest_genesis_app`).
+
+> **Ce document a dit « 5 000 » du 2026-09-15 au 2026-10-10.** C'était le
+> réglage du projet hébergé `vkkdbygwbrxyogqosten`, supprimé le 2026-09-21 :
+> le chiffre a survécu d'un mois à la seule base où il était vrai. Mesuré le
+> 2026-10-10 par des appels PostgREST directs : `get_zone_centroids('cp')` →
+> 1 000 lignes sur 6 187 ; `codes_postaux_dans_bbox` métropole → 1 000 sur
+> 6 051 ; `calculer_score_composite` sur 1 429 CP → 1 000 ;
+> `get_voronoi_by_category('lycee')` → 1 000 cellules sur 4 653. Toutes les
+> bornes justifiées « sous 5 000 » ont été relues contre 1 000 ce jour-là —
+> recensement plus bas. Le passage historique des défauts A à C garde ses
+> chiffres d'époque (5 000), qui décrivaient la production d'alors.
+
+Le projet l'a maintenant rencontré **six fois** :
 
 | # | Où | Découvert | Corrigé |
 |---|---|---|---|
 | 1 | `correlation_campagne_indicateur` | 2026-09-13 | sql/154 (jumelle `RETURNS jsonb`) |
 | 2 | `codes_postaux_du_perimetre` | 2026-09-15 | sql/168 + sql/169 (jumelle + enveloppe) |
-| 3 | `calculer_score_composite` | 2026-09-15 (relecture finale) | sql/170 (jumelle + enveloppe) |
+| 3 | `calculer_score_composite` | 2026-09-15 (relecture finale) | sql/170 (jumelle + enveloppe) ; `/api/custom-geo/source/score`, qui lisait encore la forme TABLE, passé à la jumelle le 2026-10-10 |
 | 4 | `get_zone_centroids` et `codes_postaux_dans_bbox` | 2026-09-15 (relecture finale) | sql/243 (A), sql/244-245 (B) — 2026-10-10 |
 | 5 | `get_strategy_comparison_data` | 2026-09-16, **par le test de famille** | **ouvert — défaut C ci-dessous** |
+| 6 | `get_voronoi_by_category` | 2026-10-10, recensement contre 1 000 | sql/246 (jumelle + enveloppe) |
 
 Ce n'est plus un piège, c'est une propriété de la plateforme. Le correctif
 ponctuel ne suffit plus : il faut un test qui balaie les fonctions
 `RETURNS TABLE` appelées par l'application et signale celles qui peuvent
-dépasser 5 000 lignes.
+dépasser 1 000 lignes.
+
+## Recensement du 2026-10-10 — contre 1 000, plus contre 5 000
+
+Toutes les RPC `RETURNS TABLE`/`SETOF` appelées depuis `app/` ou `lib/`, lues
+dans `pg_proc` (16 fonctions, dont deux **créées hors migrations** que le test
+ne voyait pas : `get_dept_representative_communes` et
+`get_zone_radius_targets`). Comptes mesurés en `psql` sur la base locale.
+
+| RPC | Lignes aujourd'hui | Peut dépasser 1 000 ? | Suite |
+|---|---:|---|---|
+| `calculer_score_composite` | 1 429 sur une zone AURA + Occitanie (route : jusqu'à 3 000) | **dépassait** | appelant passé à `calculer_score_composite_jsonb` (sql/170) |
+| `get_voronoi_by_category` | 4 653 (lycées, métropole) | **dépassait** | jumelle sql/246, outil `voronoi_analysis` passé dessus |
+| `get_strategy_comparison_data` | 306 150 et 174 780 | **dépasse** | **ouvert — défaut C** ; pas de jumelle jsonb : 306 150 lignes en JSON, c'est l'incident du 08/04 |
+| `count_emetteurs_par_radio` | 861 | **oui** — une ligne par radio ayant un émetteur, 1 175 radios en table | **dette D ci-dessous**, non touchée |
+| `get_zone_radius_targets` | 565 au plus (7 zones) | **oui** — une ligne par poche disjointe d'une zone, sans LIMIT | **dette E ci-dessous**, non touchée |
+| `get_table_sizes` | 119 | non (tables du schéma) | — |
+| `get_dept_representative_communes` | 104 | non (référentiel) | — |
+| `get_iris_fill_status`, `get_iris_metric_columns` | 41 | non (colonnes d'`iris`) | — |
+| `get_active_data_registry` | 13 | non (configuration) | — |
+| `get_dsp_campaign_stats` | 8 | non (une ligne par campagne) | — |
+| `get_campaign_available_metrics` | une vingtaine au plus (12 au registre + 5 colonnes natives) | non (registre des métriques) | — |
+| `get_campaign_last_data_dates` | ≤ nombre d'ids passés | non (ids d'une liste elle-même lue sous le plafond) | — |
+| `classer_territoires` | ≤ 100 | non (`LIMIT` ramené entre 1 et 100) | — |
+| `smart_demographie_top_villes` | ≤ 300 | non (corpus de 300 villes) | — |
+| `compte_poi_par_categorie` | ≤ catégories demandées (5 en base) | non | — |
 
 > **Ce test existe depuis le 2026-09-16 :
 > `tests/unit/db/troncature-postgrest.test.ts`.** Il croise les `.rpc('…')` de
@@ -149,6 +194,35 @@ Aucune lecture du rapport ne peut le deviner.
    `refresh_campaign_rollups` et `campaign_cp_rollup`. La bonne correction est
    une RPC qui rend l'agrégat, pas la fonction actuelle rendue non tronquée.
 
+> **Mesure du 2026-10-10, contre le vrai plafond :** les deux stratégies en
+> base portent **306 150** et **174 780** lignes ; PostgREST en rend
+> **1 000** — 0,3 % de la première. Laissé ouvert ce jour-là, à dessein : la
+> « même jumelle jsonb » que les autres ferait transiter 306 150 lignes en JSON
+> (la famille de l'incident du 08/04), et la route est un bilan Gemini, dans
+> le périmètre de la suppression de l'IA en attente d'arbitrage. La bonne
+> correction reste le point 2 ci-dessus : l'agrégat en base.
+
+## Dette D — `count_emetteurs_par_radio` : sous le plafond, pas par construction
+
+**`app/api/radio/stations/route.ts:56`**. Une ligne par radio AYANT au moins
+un émetteur (`GROUP BY radio_id` sur `emetteur_radio_stations`, sql/078).
+**861** lignes le 2026-10-10 : pas de troncature aujourd'hui. Mais la table
+`radios` en compte **1 175** ; le jour où plus de 1 000 d'entre elles ont un
+émetteur, la liste des radios affiche « 0 émetteur » pour les dernières, en
+silence. **Correction le moment venu :** jumelle `RETURNS jsonb`, ou un
+`count` filtré par les ids de la page affichée (la route n'en montre que
+quelques-unes).
+
+## Dette E — `get_zone_radius_targets` : une ligne par poche, sans LIMIT
+
+**`app/api/custom-geo/[id]/export/route.ts:232`** (export `tiktok_geo`).
+Fonction **créée hors migrations** (aucun `CREATE` dans `sql/`), d'où son
+absence du test jusqu'au 2026-10-10. Une ligne par polygone disjoint de la
+zone (`ST_Dump`), sans `LIMIT` : **565** au plus sur les zones en base. Une
+zone faite de plus de 1 000 poches — un seuil sur 1 500 CP disjoints en
+produit — perdrait des rayons de ciblage TikTok, sans erreur. **Correction le
+moment venu :** la versionner dans `sql/` en jumelle `jsonb` + enveloppe.
+
 ## Ce qui doit accompagner les correctifs
 
 Une correction de plus ne vaut rien sans ce qui empêche la suivante. Au
@@ -167,6 +241,10 @@ minimum :
    sql/243 : aucune zone dans la vue rend une erreur dite, plus la France
    entière.
 
-Le défaut C reste ouvert (A et B corrigés le 2026-10-10) : ce fichier les recense, il ne les
-corrige pas. Le test les tient inscrits — retirer l'un d'eux de ce document
+4. ~~**Le bon plafond**~~ — **FAIT le 2026-10-10** : `CLAUDE.md`, ce fichier,
+   `lib/supabase/lire-tout.ts` et le test disent 1 000, et le test lit
+   `max_rows` dans `supabase/config.toml` au lieu de le supposer.
+
+Le défaut C et les dettes D et E restent ouverts (A et B corrigés le
+2026-10-10) : ce fichier les recense, il ne les corrige pas. Le test les tient inscrits — retirer l'un d'eux de ce document
 sans corriger la fonction fait échouer la suite.
