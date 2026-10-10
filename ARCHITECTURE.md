@@ -1545,7 +1545,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/admin/organizations/[id]/sources/assign` | POST/DELETE | Assignation sources |
 | `/api/admin/sources` | GET/POST | CRUD sources |
 | `/api/admin/sources/[id]` | GET/PATCH/DELETE | Detail/modification/suppression source |
-| `/api/admin/sources/[id]/export` | GET | Export CSV source |
+| `/api/admin/sources/[id]/export` | GET | Export CSV source (POI ou panneaux). **Depuis le 2026-10-11** : pages de 1 000 triees sur `id`, reprise apres le dernier `id` lu (`lireParCleJusqua`, `lib/supabase/lire-tout.ts`), jusqu'a `BORNE_EXPORT_SOURCE` = 50 000 (`lib/csv/export-source.ts`) ; au-dela, derniere ligne `# Export tronqué : N lignes sur M…`, fichier `…_export_tronque.csv` et en-tete `X-Export-Tronque: true` (`X-Export-Lignes` toujours). Avant, `.limit(50000)` en un appel sortait 1 000 lignes sous `db-max-rows` (mesure : 1 000 sur 5 584 POI). Verrou : `tests/unit/api/export-source-borne.test.ts` |
 | `/api/admin/sources/[id]/summary` | POST | Resume IA source |
 | `/api/admin/sources/[id]/meta-keys` | GET | Cles metadata source |
 | `/api/admin/sources-stats` | GET | Stats sources |

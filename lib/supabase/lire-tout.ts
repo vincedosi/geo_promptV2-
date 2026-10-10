@@ -93,3 +93,60 @@ export async function lireTout<T>(
     + `un résultat amputé en silence est pire qu'une erreur.`,
   );
 }
+
+export interface ResultatLectureBornee<T> extends ResultatLecture<T> {
+  /** Vrai si la source portait PLUS que `borne` lignes : `lignes` n'en est que le début. */
+  tronque: boolean;
+}
+
+/**
+ * Lit au plus `borne` lignes, page par page, en reprenant APRÈS la dernière
+ * clé lue (pagination par clé, et non par décalage).
+ *
+ * Diffère de `lireTout` sur un point : au-delà de la borne elle ne lève pas,
+ * elle rend le début ET `tronque: true` — pour un export qu'on veut obtenir
+ * même partiel, à condition que l'appelant le DISE.
+ *
+ * ── POURQUOI PAR CLÉ ──────────────────────────────────────────────────────
+ *
+ * Un `.range()` (décalage) relit et jette toutes les lignes qui précèdent la
+ * page : coût quadratique sur une grosse source. Et sans tri sur une clé
+ * UNIQUE, deux pages peuvent se recouvrir ou laisser un trou. Ici chaque page
+ * est triée sur la clé et filtrée par `clé > dernière lue` : aucune ligne vue
+ * deux fois, aucune sautée.
+ *
+ * @param construire - Fabrique UNE page : triée par la clé, `clé > apres`
+ *   quand `apres` n'est pas nul, au plus `taille` lignes. Appelée une fois par
+ *   page (un `PostgrestFilterBuilder` ne se rejoue pas).
+ * @param cle - La clé UNIQUE de tri d'une ligne.
+ * @param borne - Nombre de lignes au-delà duquel la lecture s'arrête.
+ * @throws {Error} Si une page échoue.
+ */
+export async function lireParCleJusqua<T>(
+  construire: (apres: string | null, taille: number) => PromiseLike<ReponsePage<T>>,
+  cle: (ligne: T) => string,
+  borne: number,
+): Promise<ResultatLectureBornee<T>> {
+  const lignes: T[] = [];
+  let pages = 0;
+  let apres: string | null = null;
+
+  // On cherche UNE ligne de plus que la borne : c'est elle qui prouve que la
+  // source continue. Sans elle, une source de pile `borne` lignes se dirait
+  // tronquée.
+  while (lignes.length <= borne) {
+    const taille = Math.min(PAGE, borne + 1 - lignes.length);
+    const { data, error } = await construire(apres, taille);
+    if (error) {
+      throw new Error(`Lecture paginée interrompue après ${lignes.length} lignes : ${error.message}`);
+    }
+    pages += 1;
+    const page = data ?? [];
+    lignes.push(...page);
+    if (page.length < taille) return { lignes, pages, tronque: false };
+    apres = cle(page[page.length - 1]);
+  }
+
+  lignes.length = borne;
+  return { lignes, pages, tronque: true };
+}
