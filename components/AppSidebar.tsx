@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button'
 import { Menu } from 'lucide-react'
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext'
 import { LogoDentsu } from '@/components/ui/LogoDentsu'
+import { lienPageAcces } from '@/lib/espaces/lien-page-acces'
 
 // ─── Nav data ──────────────────────────────────────────────────────────────────
 
@@ -34,12 +35,20 @@ type NavItem = {
   label: string
   icon: LucideIcon
   badge?: string
+  /** Lien vers l'application Angular, qui tourne à part : un `<a>` simple,
+   *  jamais actif dans la navigation React. */
+  externe?: boolean
 }
 
 type NavSection = {
   section: string
   items: NavItem[]
 }
+
+// La page Angular « Accès » remplace depuis le 10/10 les pages React Users et
+// Organisations (supprimées). Son adresse vient de NEXT_PUBLIC_URL_ANGULAR :
+// sans elle, l'entrée n'est pas rendue — pas de lien mort.
+const URL_ACCES = lienPageAcces()
 
 const navItems: NavSection[] = [
   {
@@ -70,8 +79,7 @@ const navItems: NavSection[] = [
     section: 'Systeme',
     items: [
       { href: '/admin/sources', label: 'Sources', icon: Database },
-      { href: '/admin/users', label: 'Users', icon: Users },
-      { href: '/admin/organizations', label: 'Organisations', icon: Users },
+      ...(URL_ACCES ? [{ href: URL_ACCES, label: 'Accès', icon: Users, externe: true }] : []),
       { href: '/admin/imports', label: 'Imports', icon: Upload },
       { href: '/admin/health', label: 'Health check', icon: Activity, badge: 'Sys' },
       // Distincte de Health check, qui regarde l'infrastructure (variables
@@ -94,8 +102,9 @@ function NavLink({
   index: number
 }) {
   const isActive =
-    pathname === item.href ||
-    (item.href !== '/' && pathname.startsWith(item.href))
+    !item.externe &&
+    (pathname === item.href ||
+      (item.href !== '/' && pathname.startsWith(item.href)))
 
   return (
     <Link

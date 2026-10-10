@@ -49,7 +49,7 @@ export async function ajouterMembre(sb: Sb, orgId: string, userId: string, role?
   const maj: { organization_id?: string; role?: UserRole } = {};
   if (profil.organization_id === null) maj.organization_id = orgId;
   // E3 : un super_admin n'est jamais rétrogradé par un ajout d'espace, même si
-  // l'appelant (l'écran React envoie toujours un rôle) en fournit un. Changer
+  // l'appelant (l'écran React, supprimé le 2026-10-10, envoyait toujours un rôle) en fournit un. Changer
   // le rôle d'un super_admin passe par PATCH /api/admin/users/[id].
   if (role !== undefined && profil.role !== 'super_admin') maj.role = role;
   if (Object.keys(maj).length === 0) return { ok: true };

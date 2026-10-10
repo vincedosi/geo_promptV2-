@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
   // Lien de premiere connexion, a transmettre a la main par l'admin.
   // `generateLink` ne fait que GENERER : il n'envoie rien, il retourne l'URL.
   // Non bloquant — le compte existe meme si la generation echoue, et le lien
-  // se regenere depuis la page de l'organisation.
+  // se regenere depuis la page Accès (onglet Membres d'un de ses espaces).
   const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
     type: 'recovery',
     email,

@@ -26,6 +26,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { COLORS, FONTS } from './_shared/styles';
 import type { Provider, ProviderStatus } from '@/app/copilote/_hooks/useProviderSelector';
+import { lienPageAcces } from '@/lib/espaces/lien-page-acces';
 
 export interface SettingsOverlayProps {
   mapStyles: { id: string; label: string; url: string }[];
@@ -69,7 +70,15 @@ interface NavLink {
   href: string;
   label: string;
   icon: LucideIcon;
+  /** Adresse de l'application Angular, qui tourne à part : navigation
+   *  complète du navigateur, pas `router.push`. */
+  externe?: boolean;
 }
+
+// Page Angular « Accès » (10/10) : remplace « Organisations (workspaces) » et
+// « Utilisateurs », dont les pages React sont supprimées. Sans
+// NEXT_PUBLIC_URL_ANGULAR, l'entrée n'est pas rendue — pas de lien mort.
+const URL_ACCES = lienPageAcces();
 
 /**
  * Back office (admin) — vision 09/07 : le mediaplanner travaille dans les overlays
@@ -77,8 +86,7 @@ interface NavLink {
  * Droits par rôle (user / admin / super admin) à venir.
  */
 const BACK_OFFICE_LINKS: NavLink[] = [
-  { href: '/admin/organizations', label: 'Organisations (workspaces)', icon: Users },
-  { href: '/admin/users', label: 'Utilisateurs', icon: Users },
+  ...(URL_ACCES ? [{ href: URL_ACCES, label: 'Accès', icon: Users, externe: true }] : []),
   { href: '/admin/import', label: 'Import POI', icon: FileUp },
   { href: '/admin/carreaux-import', label: 'Import Shapefile', icon: FileUp },
   { href: '/admin/ooh-import', label: 'Import OOH', icon: FileUp },
@@ -238,7 +246,7 @@ export function SettingsOverlay({
               <button
                 key={link.href}
                 type="button"
-                onClick={() => router.push(link.href)}
+                onClick={() => (link.externe ? window.location.assign(link.href) : router.push(link.href))}
                 style={{
                   display: 'flex',
                   alignItems: 'center',

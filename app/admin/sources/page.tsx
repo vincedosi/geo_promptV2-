@@ -9,7 +9,11 @@
  *
  * @sections internes
  *   1. State + effets de chargement
- *   2. Handlers CRUD source (resume IA, suppression, edition, partage, filtres)
+ *   2. Handlers CRUD source (resume IA, suppression, edition, filtres)
+ *
+ * Le propriétaire et les partages d'une source ne se modifient plus ici
+ * depuis le 2026-10-10 : c'est la page Angular « Accès » (onglet Données d'un
+ * espace) qui les porte. Le détail n'en garde qu'un renvoi (`lienPageAcces`).
  *   3. Rendu : header, tabs, puis un panneau par onglet
  *
  * @maintainers refactor en cours (31/08/2026) — voir docs/known_tech_debt.md.
@@ -19,7 +23,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
-import type { DataSource, Organization } from '@/types/admin';
+import type { DataSource } from '@/types/admin';
+import { lienPageAcces } from '@/lib/espaces/lien-page-acces';
 import { useToast } from '@/components/ui/geo-toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { CustomZonesTab } from './_components/CustomZonesTab';
@@ -29,7 +34,7 @@ import type { SourcesStats, TransportStats } from './_lib/types';
 import { C, fontMono, fontInter, SCHEMA_FILTER_COLS } from './_lib/theme';
 import {
   cardStyle, cardHeaderStyle, sectionLabelStyle, btnGhostStyle,
-  btnPrimaryStyle, btnDangerStyle, inputStyle, selectStyle,
+  btnPrimaryStyle, btnDangerStyle, inputStyle,
 } from './_lib/styles';
 import { Spinner, typeBadge, formatDate } from './_components/ui';
 import { CarreauxPanel } from './_components/CarreauxPanel';
@@ -42,6 +47,9 @@ import { usePoiAdmin } from './_hooks/usePoiAdmin';
 import { DspPanel } from './_components/DspPanel';
 import { useDspImport } from './_hooks/useDspImport';
 
+// Renvoi vers la page Accès (Angular) ; null sans NEXT_PUBLIC_URL_ANGULAR.
+const URL_ACCES = lienPageAcces();
+
 // ============================================================
 // Main Component
 // ============================================================
@@ -49,15 +57,12 @@ import { useDspImport } from './_hooks/useDspImport';
 export default function SourcesPage() {
   const { toast: toastApi } = useToast();
   const [sources, setSources] = useState<DataSource[]>([]);
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSource, setSelectedSource] = useState<DataSource | null>(null);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [shareOrgId, setShareOrgId] = useState('');
   const [editName, setEditName] = useState('');
-  const [editOrg, setEditOrg] = useState('');
   const [showEdit, setShowEdit] = useState(false);
   const [showFilterEdit, setShowFilterEdit] = useState(false);
   const [editFilterFields, setEditFilterFields] = useState<string[]>([]);
@@ -114,14 +119,6 @@ export default function SourcesPage() {
     setIsLoading(false);
   }, []);
 
-  const fetchOrgs = useCallback(async () => {
-    try {
-      const res = await adminFetch('/api/admin/organizations');
-      const data = await res.json();
-      if (data.success) setOrganizations(data.organizations || []);
-    } catch (e: unknown) { console.error('[orgs] fetch error:', e); }
-  }, []);
-
 
   const fetchSourcesStats = useCallback(async () => {
     setSourcesStatsLoading(true);
@@ -149,10 +146,9 @@ export default function SourcesPage() {
 
   useEffect(() => {
     fetchSources();
-    fetchOrgs();
     fetchSourcesStats();
     fetchRadioStats();
-  }, [fetchSources, fetchOrgs, fetchSourcesStats, fetchRadioStats]);
+  }, [fetchSources, fetchSourcesStats, fetchRadioStats]);
 
   const fetchTransportStats = useCallback(async () => {
     setTransportLoading(true);
@@ -215,48 +211,10 @@ export default function SourcesPage() {
     window.open(`/api/admin/sources/${sourceId}/export`, '_blank');
   };
 
-  const handleShare = async (sourceId: string) => {
-    if (!shareOrgId) return;
-    const source = sources.find((s) => s.id === sourceId);
-    if (!source) return;
-
-    const currentShared = source.shared_with || [];
-    if (currentShared.includes(shareOrgId)) return;
-
-    const newShared = [...currentShared, shareOrgId];
-    try {
-      const res = await adminFetch(`/api/admin/sources/${sourceId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shared_with: newShared }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSources((prev) => prev.map((s) => s.id === sourceId ? { ...s, shared_with: newShared } : s));
-        setShareOrgId('');
-      }
-    } catch { /* ignore */ }
-  };
-
-  const handleUnshare = async (sourceId: string, orgIdToRemove: string) => {
-    const source = sources.find((s) => s.id === sourceId);
-    if (!source) return;
-    const newShared = (source.shared_with || []).filter((id) => id !== orgIdToRemove);
-    try {
-      await adminFetch(`/api/admin/sources/${sourceId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shared_with: newShared }),
-      });
-      setSources((prev) => prev.map((s) => s.id === sourceId ? { ...s, shared_with: newShared } : s));
-    } catch { /* ignore */ }
-  };
-
   const handleSaveEdit = async () => {
     if (!selectedSource) return;
     const updates: Record<string, string> = {};
     if (editName.trim()) updates.name = editName.trim();
-    if (editOrg) updates.organization_id = editOrg;
     if (Object.keys(updates).length === 0) return;
 
     try {
@@ -792,51 +750,14 @@ export default function SourcesPage() {
                   )}
                 </div>
 
-                {/* Sharing */}
-                <div>
-                  <div style={{ ...sectionLabelStyle, display: 'block', marginBottom: 8 }}>{'// partage'}</div>
-                  {(selectedSource.shared_with || []).length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
-                      {selectedSource.shared_with!.map((orgId) => {
-                        const org = organizations.find((o) => o.id === orgId);
-                        return (
-                          <span key={orgId} style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 4,
-                            fontFamily: fontInter, fontSize: 9, fontWeight: 500,
-                            color: C.textDim, background: C.bgSurface, border: `0.5px solid ${C.border}`,
-                            padding: '2px 6px', borderRadius: 2,
-                          }}>
-                            {org?.name || orgId.slice(0, 8)}
-                            <button
-                              onClick={() => handleUnshare(selectedSource.id, orgId)}
-                              style={{ background: 'none', border: 'none', color: C.red, cursor: 'pointer', padding: 0, fontSize: 11, lineHeight: 1 }}
-                            >✕</button>
-                          </span>
-                        );
-                      })}
-                    </div>
+                {/* Propriétaire et partages : page Accès (10/10) */}
+                <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim }}>
+                  Propriétaire et partages :{' '}
+                  {URL_ACCES ? (
+                    <a href={URL_ACCES} style={{ color: C.accent, textDecoration: 'none' }}>page Accès</a>
+                  ) : (
+                    'page Accès'
                   )}
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <select
-                      value={shareOrgId}
-                      onChange={(e) => setShareOrgId(e.target.value)}
-                      style={{ ...selectStyle, flex: 1, fontSize: 11 }}
-                      onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)')}
-                      onBlur={(e) => (e.currentTarget.style.borderColor = C.border)}
-                    >
-                      <option value="">Partager avec...</option>
-                      {organizations.filter((o) => o.id !== selectedSource.organization_id && !(selectedSource.shared_with || []).includes(o.id)).map((o) => (
-                        <option key={o.id} value={o.id}>{o.name}</option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => handleShare(selectedSource.id)}
-                      disabled={!shareOrgId}
-                      style={{ ...btnGhostStyle, opacity: shareOrgId ? 1 : 0.4 }}
-                    >
-                      Partager
-                    </button>
-                  </div>
                 </div>
 
                 {/* Edit */}
@@ -851,19 +772,6 @@ export default function SourcesPage() {
                       onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)')}
                       onBlur={(e) => (e.currentTarget.style.borderColor = C.border)}
                     />
-                    <label style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: C.textDim, display: 'block', marginBottom: 4 }}>Organisation</label>
-                    <select
-                      value={editOrg}
-                      onChange={(e) => setEditOrg(e.target.value)}
-                      style={{ ...selectStyle, marginBottom: 10 }}
-                      onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)')}
-                      onBlur={(e) => (e.currentTarget.style.borderColor = C.border)}
-                    >
-                      <option value="">— Ne pas changer —</option>
-                      {organizations.map((o) => (
-                        <option key={o.id} value={o.id}>{o.name}</option>
-                      ))}
-                    </select>
                     <button onClick={handleSaveEdit} style={btnPrimaryStyle}>Sauvegarder</button>
                   </div>
                 )}
@@ -877,7 +785,7 @@ export default function SourcesPage() {
                     Exporter CSV
                   </button>
                   <button
-                    onClick={() => { setShowEdit(!showEdit); setEditName(selectedSource.name); setEditOrg(''); }}
+                    onClick={() => { setShowEdit(!showEdit); setEditName(selectedSource.name); }}
                     style={{ ...btnGhostStyle, width: '100%', justifyContent: 'flex-start' }}
                   >
                     {showEdit ? 'Annuler modification' : 'Modifier'}

@@ -3,7 +3,8 @@
  *
  * Source unique des rôles applicatifs : niveaux, libellés et schémas Zod.
  *
- * La liste était écrite à quatre endroits — `app/api/admin/roles/route.ts`,
+ * La liste était écrite à quatre endroits — `app/api/admin/roles/route.ts`
+ * (supprimée le 2026-10-10 avec la page React Users, son seul appelant),
  * et trois littéraux dans `organizations/[id]/members/route.ts`. Une liste
  * d'autorisation recopiée est une liste qui divergera : `editor` a été retiré
  * du modèle le 2026-09-10 et survivait encore dans des tableaux en dur.

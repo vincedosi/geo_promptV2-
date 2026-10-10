@@ -80,7 +80,7 @@ export interface HealthResponse {
 
 /**
  * Rôles utilisateur — miroir exact de la contrainte CHECK `profiles_role_check`
- * en base et de `ROLE_LEVELS` dans `app/api/admin/roles/route.ts`.
+ * en base et de `ROLE_LEVELS` dans `lib/auth/roles.ts`.
  *
  * ⚠️ `profiles.role` est une colonne `text` + CHECK : le générateur de types
  * Supabase la rend donc en `string`, il ne peut pas produire cette union. Elle

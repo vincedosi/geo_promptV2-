@@ -279,11 +279,11 @@ genesis_app/
 │   │   ├── import/             # Import universel de POI (CSV/XLSX/GeoJSON)
 │   │   ├── imports/            # Historique et gestion des imports
 │   │   ├── ooh-import/         # Import panneaux OOH depuis ArcGIS REST
-│   │   ├── organizations/      # CRUD organisations (clients)
 │   │   ├── profiles/           # Gestion des profils utilisateurs
 │   │   ├── radio/              # Admin emetteurs radio FM/DAB+
-│   │   ├── sources/            # Gestion des sources de donnees
-│   │   └── users/              # Gestion utilisateurs multi-tenant
+│   │   └── sources/            # Gestion des sources de donnees (proprietaire et
+│   │                           # partages : renvoi vers la page Angular Acces)
+│   │   # users/ et organizations/ SUPPRIMES le 2026-10-10 : page Angular « Acces »
 │   ├── copilote/               # Composants/hooks/lib du chat IA + carte, consommes
 │   │                           # par /map (plus de page propre depuis 825af5a)
 │   │   ├── _components/        # ChatPanel, MapPanel, PromptsPanel, ZoneCard...
@@ -989,8 +989,9 @@ Organization (client)
 
 ### Roles et autorisation (audit du 2026-09-10)
 
-Trois roles, declares par la contrainte `profiles_role_check` et exposes par
-`/api/admin/roles`. Le pouvoir REELLEMENT exerce :
+Trois roles, declares par la contrainte `profiles_role_check` et par
+`lib/auth/roles.ts` (`/api/admin/roles`, qui les exposait, est supprimee depuis
+le 2026-10-10 avec la page React Users, son seul appelant). Le pouvoir REELLEMENT exerce :
 
 | | super_admin | admin | client |
 |---|:---:|:---:|:---:|
@@ -1116,8 +1117,18 @@ a l'espace interne : tout client cree en aurait vu les donnees. Verrou :
 Une seule page — **Administration › Accès** (interface Angular, `/app/admin/acces` ;
 elle s'appelait « Espaces de travail », `/app/admin/espaces`, adresse gardée en
 redirection) — LA page unique des droits (comptes, espaces, donnees visibles). Elle remplace les trois pages React `/admin/users`,
-`/admin/organizations` et `/admin/organizations/[id]` (bandeau de renvoi en tete,
-pages toujours utilisables — elles ecrivent encore — mais plus maintenues, administration React gelee). Specification :
+`/admin/organizations` et `/admin/organizations/[id]`, **supprimees le 2026-10-10**
+(decision de Vincent) avec leur bandeau de renvoi `components/admin/BandeauEspaces.tsx`
+et la route `/api/admin/roles` (seul appelant : la page Users). Les ROUTES API
+qu'elles appelaient restent : la page Angular les appelle. Cote React, la barre
+laterale (`components/AppSidebar.tsx`), le panneau Reglages de la carte
+(`components/map/overlays/SettingsOverlay.tsx`) et le tableau de bord portent une
+entree « Accès » vers `${NEXT_PUBLIC_URL_ANGULAR}/admin/acces`
+(`lib/espaces/lien-page-acces.ts`), ABSENTE si la variable manque (pas de lien
+mort) ; le detail d'une source de `/admin/sources` ne modifie plus ni le
+proprietaire ni les partages (ligne « Proprietaire et partages : page Accès »),
+l'organisation proprietaire reste affichee en lecture seule. Garde :
+`tests/unit/espaces/lien-page-acces.test.ts`. Specification :
 `docs/superpowers/specs/2026-10-08-espaces-de-travail-design.md` ; plan :
 `docs/superpowers/plans/2026-10-09-espaces-de-travail.md`.
 
@@ -1155,7 +1166,7 @@ Ecarts a la specification : voir la section « Ecarts a la livraison » de la sp
 |---|---|---|
 | `socle` | toutes les organisations | lycees, carroyage Filosofi, inventaire Brest Metropole |
 | `privee` | l'organisation proprietaire | CONCESSIONS BMW → BMW GROUP, CIRFA → MARINE |
-| partage | `privee` + les organisations de `shared_with` | `/admin/organizations/[id]/sources` |
+| partage | `privee` + les organisations de `shared_with` | `/api/admin/organizations/[id]/sources/assign` (page Accès, onglet Données) |
 
 Defaut `privee` : une source oubliee reste FERMEE. Un POI **sans source**
 (`data_source_id is null`) est un referentiel systeme charge par script (arrets
@@ -2006,6 +2017,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `MODAL_TOKEN_ID` | Token Modal |
 | `MODAL_TOKEN_SECRET` | Secret Modal |
 | `NEXT_PUBLIC_APP_URL` | URL app (defaut localhost:3000) |
+| `NEXT_PUBLIC_URL_ANGULAR` | Adresse de l'application Angular (ex. `http://localhost:4200/app`, sans barre finale). Les liens React vers la page « Accès » en derivent (`${URL}/admin/acces`, `lib/espaces/lien-page-acces.ts`) ; absente, l'entree « Accès » n'est pas rendue (barre laterale, Reglages de la carte, tableau de bord) et `/admin/sources` n'affiche qu'un texte. Inlinee dans le bundle client au build |
 | `ATMO_PROVIDER` | `mock` (defaut) ou `atmofrance`. Backend de l'indicateur sante environnementale |
 | `ATMO_FRANCE_USERNAME` | Email du compte Atmo Data v2 (requis si `ATMO_PROVIDER=atmofrance`) |
 | `ATMO_FRANCE_PASSWORD` | Mot de passe du compte Atmo Data v2 |

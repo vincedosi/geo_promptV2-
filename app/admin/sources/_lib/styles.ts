@@ -98,8 +98,3 @@ export const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box',
   transition: 'border-color 0.3s ease',
 };
-
-export const selectStyle: React.CSSProperties = {
-  ...inputStyle,
-  cursor: 'pointer',
-};

@@ -6,6 +6,9 @@ import {
   MapPin, Layers, FileUp, Monitor, Database, Users,
   Hexagon, Clock, Mail, Shield,
 } from 'lucide-react';
+import { lienPageAcces } from '@/lib/espaces/lien-page-acces';
+
+const URL_ACCES = lienPageAcces();
 
 export default function DashboardPage() {
   const { session, isLoading } = useSession();
@@ -93,7 +96,9 @@ export default function DashboardPage() {
     { href: '/admin/ooh-import',       icon: Monitor,  label: 'Import OOH',       sub: 'Panneaux ArcGIS' },
     { href: '/admin/import',           icon: FileUp,   label: 'Import POI',       sub: 'CSV / XLSX' },
     { href: '/admin/sources',          icon: Database,  label: 'Sources',          sub: 'Data lake' },
-    { href: '/admin/organizations',    icon: Users,    label: 'Organisations',    sub: 'Multi-tenant' },
+    // Page Angular « Accès » (10/10), qui remplace la page React Organisations
+    // supprimée ; absente sans NEXT_PUBLIC_URL_ANGULAR (pas de lien mort).
+    ...(URL_ACCES ? [{ href: URL_ACCES, icon: Users, label: 'Accès', sub: 'Comptes et espaces' }] : []),
     { href: '/dashboard/iris-crawler', icon: Layers,   label: 'IRIS Crawler',     sub: 'Données INSEE' },
   ];
 

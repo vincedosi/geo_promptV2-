@@ -4,8 +4,9 @@
  * /reset-password — definition du mot de passe.
  *
  * Point d'atterrissage des liens generes par l'admin (`generateLink`, type
- * `recovery`) : creation d'un compte dans /admin/users, ou reinitialisation
- * depuis la page d'une organisation.
+ * `recovery`) : creation d'un compte ou reinitialisation, depuis la page
+ * Angular « Acces » (`admin/acces`, qui remplace depuis le 2026-10-10 les
+ * pages React /admin/users et /admin/organizations).
  *
  * Le lien porte une session temporaire — en fragment (`#access_token=…`) ou en
  * code PKCE (`?code=…`) selon le flux. Elle est consommee EXPLICITEMENT ici, et

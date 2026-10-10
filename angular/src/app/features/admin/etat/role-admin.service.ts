@@ -8,7 +8,7 @@ export type EtatRoleAdmin = 'chargement' | 'super_admin' | 'refuse' | 'erreur';
 /**
  * Le rôle de l'utilisateur, lu UNE fois par session pour toute l'administration (arbitrage C2).
  *
- * React ne contrôle RIEN côté client : un `client` ouvre `/admin/users`, la page s'affiche et
+ * React ne contrôle RIEN côté client : un `client` ouvre `/admin/sources`, la page s'affiche et
  * chaque appel répond 401/403 (`requireAdmin` = super_admin STRICT, `lib/api/middleware.ts:19-23`).
  * Ici, `CadreAdminComponent` n'ouvre son `<router-outlet>` qu'au `super_admin`.
  *

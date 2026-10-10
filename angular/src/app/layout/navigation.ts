@@ -61,7 +61,9 @@ export const SECTIONS_NAVIGATION: readonly SectionNavigation[] = [
       { href: '/admin/sources', libelle: 'Sources', icone: 'base-de-donnees', cible: null },
       // Accès (« Espaces de travail » du 2026-10-09 au 2026-10-10) : remplace « Users » et
       // « Organisations » — écart VOULU à la parité avec la barre React (spec espaces de travail
-      // § 6). `href` garde le chemin React d'où vient la fonction, pour la traçabilité.
+      // § 6). `href` garde le chemin React d'où vient la fonction, pour la traçabilité : la page
+      // React `/admin/users` est SUPPRIMÉE depuis le 2026-10-10 (comme `/admin/organizations`) ;
+      // la barre React renvoie désormais elle-même ici, par NEXT_PUBLIC_URL_ANGULAR.
       { href: '/admin/users', libelle: 'Accès', icone: 'utilisateurs', cible: 'admin/acces' },
       { href: '/admin/imports', libelle: 'Imports', icone: 'televerser', cible: null },
       { href: '/admin/health', libelle: 'Health check', icone: 'activite', badge: 'Sys', cible: 'admin/health' },
