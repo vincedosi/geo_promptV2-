@@ -64,4 +64,40 @@ describe('ZonesCustomApi', () => {
     expect(req.request.responseType).toBe('blob');
     http.verify();
   });
+
+  it('exporter pondéré : les paramètres du plan média suivent le format, dans l’ordre de React', () => {
+    const { api, http } = preparer();
+    api.exporter('z1', 'tiktok_geo', { weights: '{"p1":75}', budget: '10000' }).subscribe();
+    http.expectOne('/api/custom-geo/z1/export?format=tiktok_geo&weights=%7B%22p1%22%3A75%7D&budget=10000');
+    http.verify();
+  });
+
+  it('plan média (T15) : totaux nationaux, audience par item, détail de zone', () => {
+    const { api, http } = preparer();
+    api.totauxNationaux().subscribe();
+    api.audienceItems('z1').subscribe();
+    api.zone('z1').subscribe();
+    expect(http.expectOne('/api/custom-geo/national-totals').request.method).toBe('GET');
+    expect(http.expectOne('/api/custom-geo/z1/items-audience').request.method).toBe('GET');
+    expect(http.expectOne('/api/custom-geo/z1').request.method).toBe('GET');
+    http.verify();
+  });
+
+  it('plan média (T15) : campagnes, plan d’une campagne, enregistrement, détachement, instantané', () => {
+    const { api, http } = preparer();
+    api.campagnesPlan().subscribe();
+    api.planMedia('c1').subscribe();
+    api.enregistrerPlan({ campaign_id: 'c1', plan: { zones: [], budget: null, cpm: null, cible: 'total', weights: {} } }).subscribe();
+    api.detacherPlan('c1').subscribe();
+    api.instantane({ campaign_id: 'c1' }).subscribe();
+    expect(http.expectOne((r) => r.urlWithParams === '/api/custom-geo/media-plan' && r.method === 'GET')).toBeTruthy();
+    expect(http.expectOne((r) => r.urlWithParams === '/api/custom-geo/media-plan?campaign_id=c1' && r.method === 'GET')).toBeTruthy();
+    const post = http.expectOne((r) => r.urlWithParams === '/api/custom-geo/media-plan' && r.method === 'POST');
+    expect(post.request.body).toEqual({ campaign_id: 'c1', plan: { zones: [], budget: null, cpm: null, cible: 'total', weights: {} } });
+    expect(http.expectOne((r) => r.method === 'DELETE').request.urlWithParams).toBe('/api/custom-geo/media-plan?campaign_id=c1');
+    const snap = http.expectOne('/api/custom-geo/media-plan/snapshot');
+    expect(snap.request.method).toBe('POST');
+    expect(snap.request.body).toEqual({ campaign_id: 'c1' });
+    http.verify();
+  });
 });

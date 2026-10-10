@@ -31,10 +31,13 @@ export class ExportZoneService {
     });
   }
 
-  /** Télécharge l'export ; rend `null` s'il est enregistré, le message d'échec sinon. */
-  exporter(id: string, format: FormatExportZone): Promise<string | null> {
+  /**
+   * Télécharge l'export ; rend `null` s'il est enregistré, le message d'échec sinon. `params` : les poids et le budget
+   * du plan média (T15), ajoutés après le format.
+   */
+  exporter(id: string, format: FormatExportZone, params?: Record<string, string>): Promise<string | null> {
     return new Promise((resoudre) => {
-      const lecture = this.api.exporter(id, format).subscribe({
+      const lecture = (params ? this.api.exporter(id, format, params) : this.api.exporter(id, format)).subscribe({
         next: (reponse) => {
           try {
             this.enregistrer(this.doc, reponse, `zone_${id}_${format}`);

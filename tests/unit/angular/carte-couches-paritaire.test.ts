@@ -49,6 +49,12 @@ import * as Rco from '@/lib/custom-geo/composition';
 import * as Aco from '../../../angular/src/app/features/carte/logique/zones/composition';
 import * as Rci from '@/lib/custom-geo/cibles';
 import * as Aci from '../../../angular/src/app/features/carte/logique/zones/cibles';
+import * as Rmpl from '@/lib/custom-geo/media-plan';
+import * as Ampl from '../../../angular/src/app/features/carte/logique/zones/media-plan';
+import * as Rslug from '@/lib/custom-geo/slug';
+import * as Aslug from '../../../angular/src/app/features/carte/logique/zones/slug';
+import * as Rcsv from '@/lib/csv/escape';
+import * as Acsv from '../../../angular/src/app/features/carte/logique/zones/csv-escape';
 import * as Rst from '@/lib/custom-geo/source-type-labels';
 import * as Ast from '../../../angular/src/app/features/carte/logique/zones/source-type-labels';
 import * as Rk from '@/app/copilote/_lib/constants';
@@ -384,6 +390,21 @@ describe('zones personnalisées', () => {
     for (const t of ['composite', 'isochrone_battle', 'admin_filter', 'voronoi_cells', 'tmja_routes', 'inconnu']) {
       expect(Ast.getSourceTypeLabel(t)).toEqual(Rst.getSourceTypeLabel(t));
     }
+  });
+
+  it('plan média (T15) : répartition normalisée et prorata, slug de fichier, échappement CSV', () => {
+    const ids = ['a', 'b', 'c'];
+    memeFonction(Rmpl.normalizeShares, Ampl.normalizeShares, [
+      [{ a: 50, b: 30, c: 20 }, 'a', 70, ids], [{ a: 50, b: 0, c: 0 }, 'a', 40, ids], [{ a: 50, b: 30, c: 20 }, 'b', 150, ids],
+      [{ a: 50, b: 30, c: 20 }, 'c', -5, ids], [{ a: 100 }, 'a', 30, ['a']], [{}, 'a', 10, ids],
+    ]);
+    memeFonction(Rmpl.proportionalShares, Ampl.proportionalShares, [
+      [[{ id: 'a', volume: 300 }, { id: 'b', volume: 100 }, { id: 'c', volume: null }]], [[{ id: 'a', volume: 0 }, { id: 'b', volume: null }]], [[]],
+    ]);
+    memeFonction(Rslug.toSlug, Aslug.toSlug, [['Été 2026 — Élections'], ['  '], ['CIRFA BRETAGNE'], ['àéîõü & co']]);
+    memeFonction(Rcsv.csvEscapeCell, Acsv.csvEscapeCell, [
+      ['=HYPERLINK("x")', ';'], ['+33', ';'], ['-1', ';'], ['@a', ';'], ['a;b', ';'], ['a,b', ','], ['ligne\nsuite', ';'], ['simple', ';'], ['\tx', ';'],
+    ]);
   });
 });
 

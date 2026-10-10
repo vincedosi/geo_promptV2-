@@ -22,6 +22,8 @@ import { JeuxZonesApi } from '../risques/data/jeux-zones.api';
 import { ZonesRisqueApi } from '../risques/data/zones-risque.api';
 import { PONT_CARTE } from './etat/pont-carte';
 import { ZonesRisqueService } from './couches/zones-risque.service';
+import { ZonesCustomService } from './couches/zones-custom.service';
+import type { ZoneCustomResume } from './data/zones-custom.api';
 import { CouleursService } from '../../core/theme/couleurs.service';
 import { CartePage } from './carte.page';
 import { AnnonceService } from './etat/annonce.service';
@@ -78,7 +80,11 @@ async function ouvrir(options: OptionsOuverture = {}) {
       { provide: ReferentielApi, useValue: { geo: () => of({ regions: [] }) } },
       {
         provide: ZonesCustomApi,
-        useValue: { lister: () => of({ zones: [] }), stats: () => of({}), geometrie: () => of(), exporter: () => of(), ...options.zones },
+        useValue: {
+          lister: () => of({ zones: [] }), stats: () => of({}), geometrie: () => of(), exporter: () => of(),
+          totauxNationaux: () => of({ totals: {} }), audienceItems: () => of({ items: null }), zone: () => of({}), campagnesPlan: () => of({ campaigns: [] }),
+          ...options.zones,
+        },
       },
       { provide: ZonesRisqueApi, useValue: { urlTuilesZones: () => '/api/tiles/zones-risque/{z}/{x}/{y}?profil=x', preparer: () => of({ classes: 1 }) } },
       { provide: JeuxZonesApi, useValue: { lister: () => of({ jeux: [] }) } },
@@ -864,5 +870,44 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     await stable();
     expect(cartes[0].getLayer('battle-fill')).toBeUndefined();
     expect(hote.querySelector('button[data-script-dv360]')).toBeNull();
+  });
+});
+describe('CartePage — plan média des zones affichées (T15)', () => {
+  const ENTITE = { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[5, 43], [6, 43], [6, 44], [5, 43]]] }, properties: {} };
+  const zone = (id: string, name: string) => ({ id, name, source_type: 'composite', bbox: [5, 43, 6, 44] }) as unknown as ZoneCustomResume;
+
+  it('première zone affichée → panneau ouvert à droite sous la barre, totaux lus UNE fois ; la croix le ferme, « Plan média (n) » le rouvre ; Tout effacer → fermé', async () => {
+    const totauxNationaux = vi.fn(() => of({ totals: { total: 68_000_000 } }));
+    const { harness, hote, cartes, stable } = await ouvrir({ zones: { geometrie: () => of(ENTITE), totauxNationaux } });
+    cartes[0].emettre('load');
+    await stable();
+    expect(hote.querySelector('mg-plan-media')).toBeNull();
+
+    const zones = injecteurPage(harness).get(ZonesCustomService);
+    zones.afficher(zone('a', 'A'));
+    await stable();
+    const panneau = hote.querySelector<HTMLElement>('mg-plan-media [data-plan-media]')!;
+    expect(panneau).not.toBeNull();
+    expect(panneau.style.top).toBe('44px');
+    expect(hote.querySelector('[data-titre]')!.textContent!.trim()).toBe('Plan média — 1 zone');
+    expect(hote.querySelector('button[data-plan-media]')).toBeNull();
+
+    hote.querySelector<HTMLButtonElement>('mg-plan-media button[title="Fermer"]')!.click();
+    await stable();
+    expect(hote.querySelector('mg-plan-media')).toBeNull();
+    zones.afficher(zone('b', 'B'));
+    await stable();
+    expect(hote.querySelector('mg-plan-media')).toBeNull();
+    const rouvrir = hote.querySelector<HTMLButtonElement>('button[data-plan-media]')!;
+    expect(rouvrir.textContent!.trim()).toBe('Plan média (2)');
+    rouvrir.click();
+    await stable();
+    expect(hote.querySelector('[data-titre]')!.textContent!.trim()).toBe('Plan média — 2 zones');
+    expect(totauxNationaux).toHaveBeenCalledTimes(1);
+
+    hote.querySelector<HTMLButtonElement>('button[data-tout-effacer]')!.click();
+    await stable();
+    expect(hote.querySelector('mg-plan-media')).toBeNull();
+    expect(hote.querySelector('button[data-plan-media]')).toBeNull();
   });
 });

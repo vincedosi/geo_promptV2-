@@ -67,6 +67,7 @@
  * | Search                     | loupe                | Feather (MIT)
  * | FileDown                   | fichier-bas          |
  * | Music2                     | musique              |
+ * | RotateCcw                  | tourner-gauche       |
  *
  * Pour ajouter une icône : lire `__iconNode` de `<lucide>.js`, ajouter une entrée (nom français en
  * kebab-case ; `feather: true` si le nom figure dans la liste Feather de la LICENSE de lucide-react),
@@ -595,6 +596,13 @@ export const ICONES = {
     el: [
       { t: 'circle', cx: '8', cy: '18', r: '4' },
       { t: 'path', d: 'M12 18V2l7 4' },
+    ],
+  },
+  'tourner-gauche': {
+    lucide: 'rotate-ccw',
+    el: [
+      { t: 'path', d: 'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8' },
+      { t: 'path', d: 'M3 3v5h5' },
     ],
   },
 } as const satisfies Record<string, DefinitionIcone>;

@@ -35,6 +35,7 @@ import { ExportZoneService } from './etat/export-zone.service';
 import { lireFondMemorise, memoriserFond, urlDuFond } from './etat/fond-carte';
 import { LienZoneService } from './etat/lien-zone.service';
 import { PileEchapService } from './etat/pile-echap.service';
+import { PlanMediaService } from './etat/plan-media.service';
 import { PONT_CARTE } from './etat/pont-carte';
 import { ReferentielGeoService } from './etat/referentiel-geo.service';
 import { ContoursZonesService } from './etat/contours-zones.service';
@@ -50,6 +51,7 @@ import { PanneauCalquesComponent } from './panneaux/calques/panneau-calques.comp
 import { PanneauFiltreComponent } from './panneaux/filtre/panneau-filtre.component';
 import { ReglagesComponent } from './panneaux/reglages.component';
 import { PanneauZonesComponent } from './panneaux/zones/panneau-zones.component';
+import { LARGEUR_PLAN_MEDIA, PlanMediaComponent } from './panneaux/zones/plan-media.component';
 import { BarreHautComponent, HAUTEUR_BARRE_HAUT } from './rail/barre-haut.component';
 import { PanneauComponent } from './rail/panneau.component';
 import { RailComponent } from './rail/rail.component';
@@ -109,13 +111,13 @@ export function palierCarreaux(zoom: number): string {
   selector: 'mg-carte-principale',
   imports: [
     AideComponent, AnnonceComponent, BarreHautComponent, BoutonsFlottantsComponent, CarteComponent, DetailIrisComponent, DialogueMeteoComponent,
-    FondCompactComponent, LegendeCarteComponent, PanneauCalquesComponent, PanneauComponent, PanneauFiltreComponent, PanneauZonesComponent, PuceFiltreComponent,
+    FondCompactComponent, LegendeCarteComponent, PanneauCalquesComponent, PanneauComponent, PanneauFiltreComponent, PanneauZonesComponent, PlanMediaComponent, PuceFiltreComponent,
     RailComponent, ReglagesComponent, RouterOutlet, TiroirPanneauComponent, ZoneActiveComponent,
   ],
   providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
     IrisService, PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService,
     IndicateursCiviquesService, SanteService, ContoursZonesService, MeteoService, RisqueCarteService, RisquesIndustrielsService,
-    PprtService, ZonesRisqueService, BatailleService, ZonesCustomService, LienZoneService, ExportZoneService,
+    PprtService, ZonesRisqueService, BatailleService, ZonesCustomService, LienZoneService, ExportZoneService, PlanMediaService,
     // Le pont du module risque (B3) : le module, rendu par l'outlet de cette page, le voit par son injecteur d'élément.
     { provide: PONT_CARTE, useExisting: ZonesRisqueService },
   ],
@@ -146,6 +148,14 @@ export class CartePage {
   private readonly exports = inject(ExportZoneService);
   /** Le lien `?customZone=` (T14) : lu dès l'ouverture de la carte, même panneau Zones fermé. */
   protected readonly lienZone = inject(LienZoneService);
+  /** Le plan média des zones affichées (T15) : panneau droit, et l'écart des boutons flottants quand il est ouvert. */
+  protected readonly planMedia = inject(PlanMediaService);
+  protected readonly decalageBoutons = computed(() => 10 + (this.planMedia.visible() ? LARGEUR_PLAN_MEDIA + 10 : 0));
+  /** « Plan média (n) » : des zones affichées, panneau fermé (`page.tsx:1222`). */
+  protected readonly zonesPlanFerme = computed(() => {
+    const n = this.planMedia.zones().length;
+    return n > 0 && !this.planMedia.ouvert() ? n : null;
+  });
 
   protected readonly largeurRail = LARGEUR_RAIL;
   protected readonly hauteurBarre = HAUTEUR_BARRE_HAUT;

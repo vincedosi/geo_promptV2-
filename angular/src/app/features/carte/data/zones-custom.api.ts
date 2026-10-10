@@ -4,6 +4,8 @@ import type { Observable } from 'rxjs';
 import { HttpBaseService } from '../../../core/http/http-base.service';
 import type { EntiteZone } from '../logique/zones/zone-du-lien';
 import type { SourceOperation } from '../logique/zones/operations-zones';
+import type { CibleKey } from '../logique/zones/cibles';
+import type { ItemAudience, corpsPlan } from '../logique/zones/plan-media';
 
 /**
  * Une zone enregistrée, telle que `GET /api/custom-geo/list` la rend — recopie de `CustomGeoZoneSummary`
@@ -54,6 +56,25 @@ export interface ZoneEnregistree {
   count_iris?: number;
   count_cp?: number;
   warning?: string;
+}
+
+/** Une campagne du sélecteur de rattachement (`GET /api/custom-geo/media-plan`). */
+export interface CampagnePlan {
+  id: string;
+  name: string;
+  dsp_source: string;
+  /** La campagne porte déjà un plan (`geo_strategy.media_plan.zones` non vide) : « ● » devant son nom. */
+  has_plan: boolean;
+}
+
+/** Le plan stocké dans `dsp_campaigns.geo_strategy.media_plan` (`PlanSchema` de la route, plus l'horodatage). */
+export interface PlanStocke {
+  zones?: Array<{ id: string; name: string }>;
+  budget: number | null;
+  cpm: number | null;
+  cible: CibleKey;
+  weights: Record<string, number>;
+  updated_at?: string;
 }
 
 /** Les formats de `GET /api/custom-geo/[id]/export` — `CustomGeoExportFormat` (`types/custom-geo.ts:84-91`). */
@@ -112,10 +133,57 @@ export class ZonesCustomApi extends HttpBaseService {
    * `GET /api/custom-geo/[id]/export?format=…` en `blob`, réponse complète (`Content-Disposition` donne le nom) —
    * `downloadZoneExport` (`lib/custom-geo/download-export.ts`). Le format part en PREMIER, comme React.
    */
-  exporter(id: string, format: FormatExportZone): Observable<HttpResponse<Blob>> {
-    const p = new URLSearchParams({ format });
+  exporter(id: string, format: FormatExportZone, params?: Record<string, string>): Observable<HttpResponse<Blob>> {
+    const p = new URLSearchParams({ format, ...(params ?? {}) });
     return this.httpClient.get(`${this.baseUrl}/custom-geo/${encodeURIComponent(id)}/export?${p.toString()}`, {
       observe: 'response', responseType: 'blob',
     });
+  }
+
+  // ── Plan média des zones affichées (T15, `ZoneMediaPlanPanel.tsx`) ─────────────────────────────────────────────────
+
+  /** `GET /api/custom-geo/national-totals` : population France par clé de cible (cache serveur 24 h). */
+  totauxNationaux(): Observable<{ totals?: Record<string, number> }> {
+    return this.httpClient.get<{ totals?: Record<string, number> }>(`${this.baseUrl}/custom-geo/national-totals`);
+  }
+
+  /**
+   * `GET /api/custom-geo/[id]/items-audience` : l'audience de chaque item d'une zone (les CIRFA d'une bataille) ;
+   * `items: null` pour une zone non décomposable. Le premier appel peut lancer le calcul serveur (~10 s).
+   */
+  audienceItems(id: string): Observable<{ items: ItemAudience[] | null }> {
+    return this.httpClient.get<{ items: ItemAudience[] | null }>(`${this.baseUrl}/custom-geo/${encodeURIComponent(id)}/items-audience`);
+  }
+
+  /** `GET /api/custom-geo/[id]` : le détail d'une zone, dont `audience_stats` — le repli du plan média sur la zone entière. */
+  zone(id: string): Observable<{ audience_stats?: unknown }> {
+    return this.httpClient.get<{ audience_stats?: unknown }>(`${this.baseUrl}/custom-geo/${encodeURIComponent(id)}`);
+  }
+
+  /** `GET /api/custom-geo/media-plan` : les campagnes de l'organisation, pour le sélecteur de rattachement. */
+  campagnesPlan(): Observable<{ campaigns?: CampagnePlan[] }> {
+    return this.httpClient.get<{ campaigns?: CampagnePlan[] }>(`${this.baseUrl}/custom-geo/media-plan`);
+  }
+
+  /** `GET /api/custom-geo/media-plan?campaign_id=…` : le plan stocké dans `geo_strategy.media_plan`, ou `null`. */
+  planMedia(campagne: string): Observable<{ plan: PlanStocke | null }> {
+    const p = new URLSearchParams({ campaign_id: campagne });
+    return this.httpClient.get<{ plan: PlanStocke | null }>(`${this.baseUrl}/custom-geo/media-plan?${p.toString()}`);
+  }
+
+  /** `POST /api/custom-geo/media-plan` : ÉCRIT le plan dans `geo_strategy` de la campagne (403 hors organisation). */
+  enregistrerPlan(corps: ReturnType<typeof corpsPlan>): Observable<{ ok: boolean; plan?: PlanStocke }> {
+    return this.httpClient.post<{ ok: boolean; plan?: PlanStocke }>(`${this.baseUrl}/custom-geo/media-plan`, corps);
+  }
+
+  /** `DELETE /api/custom-geo/media-plan?campaign_id=…` : retire `media_plan` de la campagne, garde ses autres clés. */
+  detacherPlan(campagne: string): Observable<{ ok: boolean }> {
+    const p = new URLSearchParams({ campaign_id: campagne });
+    return this.httpClient.delete<{ ok: boolean }>(`${this.baseUrl}/custom-geo/media-plan?${p.toString()}`);
+  }
+
+  /** `POST /api/custom-geo/media-plan/snapshot` : fige le plan poussé au DSP (suivi plan-vs-réel). */
+  instantane(corps: Record<string, unknown>): Observable<unknown> {
+    return this.httpClient.post(`${this.baseUrl}/custom-geo/media-plan/snapshot`, corps);
   }
 }
