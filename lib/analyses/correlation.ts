@@ -14,7 +14,8 @@
  * est (campaign_id, postal_code, ACTEUR) et qu'une campagne a jusqu'à cinq
  * acteurs. Deux conséquences : il faut SOMMER par code postal avant toute
  * corrélation (sans quoi un CP pèse cinq fois), et 10 205 lignes dépassent le
- * plafond de troncature de PostgREST (5 000 par défaut, ARCHITECTURE.md) — les
+ * plafond de troncature de PostgREST (`db-max-rows` : 1 000 sur le stack local,
+ * 5 000 sur l'ancien projet hébergé ; CLAUDE.md § Troncature) — les
  * faire descendre dans Node pour les agréger aurait été à la fois plus lourd
  * et silencieusement faux.
  *

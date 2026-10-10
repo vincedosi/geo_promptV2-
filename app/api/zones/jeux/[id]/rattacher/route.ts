@@ -115,9 +115,10 @@ export async function POST(
    * moitié du jeu — un plan partiel qui se présente comme complet, exactement
    * ce que le rollback de lot plus bas existe pour empêcher.
    *
-   * ⚠ À ne pas confondre avec la troncature à 5 000 lignes des RPC
-   * `RETURNS TABLE` que `CLAUDE.md` documente : celle-ci frappe les requêtes de
-   * table ordinaires, et elle est quatre fois plus basse.
+   * C'est le MÊME plafond qui frappe les RPC `RETURNS TABLE` (CLAUDE.md
+   * § Troncature PostgREST). Ce commentaire disait jusqu'au 2026-10-10 qu'il
+   * s'agissait d'un autre plafond, « quatre fois plus bas » qu'un « 5 000 des
+   * RPC » — le réglage de l'ancien projet hébergé.
    */
   let cpRows: Array<{
     code_postal: string; classe: string; pop_en_zone: number;
