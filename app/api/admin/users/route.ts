@@ -5,6 +5,7 @@ import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { RoleSchema } from '@/lib/auth/roles';
 import { ajouterMembre } from '@/lib/espaces/appartenance';
+import { genererLienMotDePasse, origineApplication } from '@/lib/espaces/lien-mot-de-passe';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,16 +26,6 @@ const CreerUtilisateurSchema = z.object({
   role: RoleSchema,
   organization_id: z.string().uuid().nullish(),
 });
-
-/**
- * Origine publique de l'application, pour construire le `redirectTo` des liens
- * d'authentification. `NEXT_PUBLIC_APP_URL` fait autorite (c'est elle qui doit
- * figurer dans les Redirect URLs autorisees de Supabase) ; a defaut on retombe
- * sur l'origine de la requete, ce qui couvre le dev local.
- */
-function appUrl(req: NextRequest): string {
-  return (process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin).replace(/\/$/, '');
-}
 
 export async function GET(request: NextRequest) {
   const profile = await requireAdmin(request);
@@ -124,17 +115,13 @@ export async function POST(request: NextRequest) {
   // Lien de premiere connexion, a transmettre a la main par l'admin.
   // `generateLink` ne fait que GENERER : il n'envoie rien, il retourne l'URL.
   // Non bloquant — le compte existe meme si la generation echoue, et le lien
-  // se regenere depuis la page Accès (onglet Membres d'un de ses espaces).
-  const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
-    type: 'recovery',
-    email,
-    options: { redirectTo: `${appUrl(request)}/reset-password` },
-  });
-  if (linkErr) console.error('[admin/users POST] generateLink:', linkErr.message);
+  // se regenere depuis la page Accès (fiche du compte, « Lien de mot de passe »).
+  const lien = await genererLienMotDePasse(supabase, email, origineApplication(request.url));
+  if (lien.erreur) console.error('[admin/users POST] generateLink:', lien.erreur);
 
   return NextResponse.json({
     id: authUser.user.id,
     email,
-    setup_link: linkData?.properties?.action_link ?? null,
+    setup_link: lien.lien,
   }, { status: 201 });
 }

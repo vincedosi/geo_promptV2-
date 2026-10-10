@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { lireCorps } from '@/lib/api/valider-corps';
+import { genererLienMotDePasse, origineApplication } from '@/lib/espaces/lien-mot-de-passe';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,18 +24,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!corps.ok) return NextResponse.json({ success: false, error: corps.message }, { status: 400 });
   const { email } = corps.valeur;
 
-  // `redirectTo` est indispensable : sans lui, le lien retombe sur le Site URL
-  // par defaut du projet Supabase, ou aucune page ne sait definir un mot de
-  // passe. Il doit figurer dans les Redirect URLs autorisees du projet.
-  const base = (process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin).replace(/\/$/, '');
-  const { data, error } = await sb.auth.admin.generateLink({
-    type: 'recovery',
-    email: email.toLowerCase(),
-    options: { redirectTo: `${base}/reset-password` },
-  });
+  // `redirectTo` (vers /reset-password) est construit par genererLienMotDePasse :
+  // sans lui, le lien retombe sur le Site URL, ou aucune page ne sait definir
+  // un mot de passe.
+  const { lien, erreur } = await genererLienMotDePasse(sb, email, origineApplication(request.url));
+  if (erreur) return NextResponse.json({ success: false, error: erreur }, { status: 500 });
 
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-
-  const linkData = data as { properties?: { action_link?: string } } | null;
-  return NextResponse.json({ success: true, link: linkData?.properties?.action_link ?? null });
+  return NextResponse.json({ success: true, link: lien });
 }

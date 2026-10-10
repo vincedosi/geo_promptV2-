@@ -1527,7 +1527,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/admin/organizations` | GET/POST | CRUD organisations ; `member_count` = lignes d'`organization_members` (appartenances, pas espace actif) |
 | `/api/admin/organizations/[id]` | GET/PATCH/DELETE | Lecture, modification (`config` remplacée en bloc : l'appelant fusionne), suppression ; DELETE refuse en 409 l'espace interne (reconnu par son id `ID_ORGANISATION_INTERNE`, il porte le socle) ; PATCH refuse en 409 un changement de son slug |
 | `/api/admin/organizations/[id]/members` | POST/PATCH/DELETE | Gestion membres via `lib/espaces/appartenance.ts` (sql/236) : POST écrit `organization_members` (idempotent), pose l'espace actif s'il était vide, rôle OPTIONNEL et jamais écrit sur une cible déjà super_admin (E3 : même si l'écran React en envoie un, un super_admin n'est pas rétrogradé ; son rôle se change par PATCH `/api/admin/users/[id]`) ; PATCH change le rôle d'un membre (appartenance vérifiée, pas l'espace actif) ; DELETE supprime l'appartenance, la base reporte l'espace actif, le rôle n'est plus touché |
-| `/api/admin/organizations/[id]/members/reset-password` | POST | Reset password membre |
+| `/api/admin/organizations/[id]/members/reset-password` | POST | Lien de réinitialisation d'un membre (corps `{ email }`) ; lien construit par `genererLienMotDePasse` (`lib/espaces/lien-mot-de-passe.ts`, vers `<origine>/reset-password`) |
 | `/api/admin/espaces` | GET | Espaces de travail + compteurs (`nb_membres` depuis `organization_members`, `nb_jeux_prives`) + `socle.nb_jeux` + `nb_comptes` (décompte `head: true` des profils, APRÈS les trois lectures : jamais plus de 3 requêtes simultanées ; compteur de « Tous les comptes ») ; `lib/espaces/lister-espaces.ts` ; super_admin seul, bornée (trois lectures de dizaines de lignes, sous `db-max-rows` = 1 000) |
 | `/api/admin/espaces/socle` | GET | Tous les jeux de données + `nb_espaces_clients` (fiche Socle) ; segment fixe à côté de `[id]` |
 | `/api/admin/espaces/comptes` | GET | `{ comptes }` : TOUS les profils avec TOUS leurs espaces (`nom_affiche`, E2), espace actif, `cree_le`, tri par email — vue « Tous les comptes » de la page Accès (2026-10-10) ; `lib/espaces/lister-comptes.ts` ; super_admin seul ; profils et appartenances lus PAGE PAR PAGE (`lireTout`, `db-max-rows` = 1 000), au-delà de 10 000 comptes / 50 000 appartenances → 500 plutôt qu'une liste tronquée ; segment fixe à côté de `[id]` |
@@ -2016,7 +2016,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `MODAL_BIDDING_ML_URL` | Prefixe Modal du service d'inference bidding (sans suffixe d'endpoint). `lib/bidding-ml/client.ts` y ajoute `-predict.modal.run`, `-train.modal.run`, `-detect-drift.modal.run`. **Sans elle, `/api/bidding/train` leve** |
 | `MODAL_TOKEN_ID` | Token Modal |
 | `MODAL_TOKEN_SECRET` | Secret Modal |
-| `NEXT_PUBLIC_APP_URL` | URL app (defaut localhost:3000) |
+| `NEXT_PUBLIC_APP_URL` | URL app ; absente, l'origine de la requete. Sert le `redirectTo` des liens de mot de passe (`lib/espaces/lien-mot-de-passe.ts`) : l'origine retenue doit figurer dans la liste blanche de GoTrue |
 | `NEXT_PUBLIC_URL_ANGULAR` | Adresse de l'application Angular (ex. `http://localhost:4200/app`, sans barre finale). Les liens React vers la page « Accès » en derivent (`${URL}/admin/acces`, `lib/espaces/lien-page-acces.ts`) ; absente, l'entree « Accès » n'est pas rendue (barre laterale, Reglages de la carte, tableau de bord) et `/admin/sources` n'affiche qu'un texte. Inlinee dans le bundle client au build |
 | `ATMO_PROVIDER` | `mock` (defaut) ou `atmofrance`. Backend de l'indicateur sante environnementale |
 | `ATMO_FRANCE_USERNAME` | Email du compte Atmo Data v2 (requis si `ATMO_PROVIDER=atmofrance`) |
@@ -2616,6 +2616,16 @@ rejouer — et savoir dans quel ORDRE**, d'ou la liste ci-dessus.
   (les migrations vivantes sont les ~150 fichiers de `sql/`, appliques par le
   MCP Supabase). Corollaire : `supabase db push` ne pousse plus rien tant que
   ces deux options sont a `false`.
+- **Liste blanche des redirections de l'auth locale** (`[auth]
+  additional_redirect_urls` de `supabase/config.toml`) : `http://localhost:3000/**`
+  et `http://127.0.0.1:3000/**` depuis le 2026-10-10. Elle valait
+  `["https://127.0.0.1:3000"]` (https, sans chemin, sans `localhost`) : GoTrue
+  remplacait EN SILENCE le `redirectTo` des liens de mot de passe par
+  `site_url`, et le lien d'un compte cree menait a la racine au lieu de
+  `/reset-password`. `tests/integration/creation-compte.test.ts` lit le
+  `redirect_to` du lien genere. Une modification de `config.toml` ne prend
+  effet qu'apres `npx supabase stop` puis `scripts/local/01-supabase-up.sh` —
+  jamais `--no-backup`, qui efface les volumes.
 - **La CSP devait etre ouverte, et c'est le piege le plus trompeur du lot.**
   `next.config.js` fixe `connect-src 'self' https://*.supabase.co …` : l'origine
   locale `http://127.0.0.1:54321` n'y correspond pas, donc **le navigateur

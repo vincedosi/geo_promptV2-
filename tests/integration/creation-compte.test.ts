@@ -50,6 +50,9 @@ afterAll(async () => {
   if (error) console.error(`nettoyage espace : ${error.message}`);
 }, 60_000);
 
+beforeAll(() => { vi.stubEnv('NEXT_PUBLIC_APP_URL', ''); });
+afterAll(() => { vi.unstubAllEnvs(); });
+
 describe('création de compte (sql/237)', () => {
   it('un compte neuf naît avec un profil client, sans espace actif ni appartenance', async () => {
     const email = `essai-espaces-nu-${Date.now()}@exemple.test`;
@@ -73,6 +76,10 @@ describe('création de compte (sql/237)', () => {
 
     expect(res.status, corps.error).toBe(201);
     expect(typeof corps.setup_link).toBe('string');
+    // GoTrue remplace EN SILENCE un `redirectTo` hors liste blanche par
+    // `site_url` (la racine) : constaté le 2026-10-10. Le lien doit mener au
+    // formulaire (`supabase/config.toml`, `additional_redirect_urls`).
+    expect(new URL(corps.setup_link!).searchParams.get('redirect_to')).toBe('http://localhost:3000/reset-password');
 
     const { data: profil } = await admin.from('profiles')
       .select('role, full_name, organization_id').eq('id', corps.id!).single();
