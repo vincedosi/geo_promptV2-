@@ -11,13 +11,14 @@ import { bornesDe } from '../logique/carreaux/bornes';
 import { CARREAUX_PALETTES } from '../logique/palettes-donnees-carte';
 import { CarreauxService, PITCH_RELIEF } from './carreaux.service';
 import { COUCHE_CARREAUX_FOND, COUCHE_CARREAUX_RELIEF, COUCHE_CARREAUX_TRAIT, SOURCE_CARREAUX } from './couche-carreaux';
+import { CaptureService } from '../etat/capture.service';
 
 const URL_TUILES = 'http://localhost/api/tiles/{z}/{x}/{y}?v=19';
 
 function monter() {
   const theme = signal({ absente: '#9aa0a6', trait: '#555555' });
   TestBed.configureTestingModule({
-    providers: [
+    providers: [CaptureService, 
       provideZonelessChangeDetection(), CarreauxService, EtatCarteService, CouchesCarteService, AnnonceService,
       { provide: CarreauxApi, useValue: { urlTuiles: () => URL_TUILES } },
       { provide: CouleursService, useValue: { palette: () => theme } },

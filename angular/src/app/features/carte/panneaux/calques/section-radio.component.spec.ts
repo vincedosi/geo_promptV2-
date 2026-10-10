@@ -11,13 +11,14 @@ import { CouchesCarteService } from '../../etat/couches-carte.service';
 import { COULEURS_COUVERTURE_RADIO } from '../../logique/palettes-donnees-carte';
 import { SectionRadioComponent } from './section-radio.component';
 import { SelectionsCalquesService } from './selections-calques.service';
+import { CaptureService } from '../../etat/capture.service';
 
 function monter() {
   const requetes: RequeteEmetteurs[] = [];
   const emetteurs = new Subject<GeoJSON.FeatureCollection>();
   const options = new Subject<ReponseOptionsRadio>();
   TestBed.configureTestingModule({
-    providers: [
+    providers: [CaptureService, 
       provideZonelessChangeDetection(), RadioService, CouchesCarteService, SelectionsCalquesService,
       {
         provide: RadioApi,

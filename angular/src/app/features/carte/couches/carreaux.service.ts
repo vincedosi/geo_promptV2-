@@ -1,7 +1,9 @@
 import { Injectable, computed, effect, inject, linkedSignal, signal, untracked } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
+import { bboxDeCarte } from '../../../carte/bbox';
 import { CouleursService } from '../../../core/theme/couleurs.service';
 import { CarreauxApi } from '../data/carreaux.api';
+import { CaptureService } from '../etat/capture.service';
 import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
 import { bornesDe, type BornesEchelle } from '../logique/carreaux/bornes';
@@ -70,6 +72,7 @@ export class CarreauxService {
   constructor() {
     this.etat.surEviction('carreaux', () => this.visible.set(false));
     this.couches.inscrireEffacement('carreaux', () => this.visible.set(false));
+    this.declarerCapture();
 
     // Pose : sur la carte courante, dès que la couche est visible ; rejouée sur chaque nouvelle instance.
     effect((nettoyer) => {
@@ -119,6 +122,30 @@ export class CarreauxService {
       const carte = this.posee();
       if (carte) peindre(carte, COUCHE_CARREAUX_TRAIT, 'line-color', this.couleurs().trait);
     });
+  }
+
+  /**
+   * La source contributive de la capture (`CaptureLayers.tsx:249-275`) : les carreaux 200 m de l'emprise VISIBLE, lue
+   * au moment de la capture. `zoom_level: 14` force la branche « carreaux natifs + LIMIT » de la RPC (rapide), et
+   * `max_rows: 1500` garde la réponse sous 2 Mo. `admin_scope` vaut `null` comme dans React, où aucun module n'appelle
+   * `setActiveScope` sur la carte principale.
+   */
+  private declarerCapture(): void {
+    inject(CaptureService).declarer(computed(() => {
+      const indicateur = this.indicateur();
+      if (!this.visible() || !indicateur) return null;
+      return {
+        id: 'map-carreaux-filosofi', sourceType: 'carreaux_filosofi', label: `Carreaux 200m ${indicateur}`,
+        metadata: { indicateur, selected_bucket: this.seauSelectionne(), admin_scope: null },
+        obtenir: {
+          route: 'carreaux',
+          corps: () => {
+            const carte = this.couches.carteCourante();
+            return carte ? { bbox: bboxDeCarte(carte), zoom_level: 14, indicateur, max_rows: 1500, admin_scope: null } : null;
+          },
+        },
+      };
+    }));
   }
 
   /** Le geste du panneau (« Carreaux », « Actifs ») : l'exclusivité d'abord, la visibilité ensuite. */

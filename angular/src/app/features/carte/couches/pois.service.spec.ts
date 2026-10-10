@@ -16,6 +16,7 @@ import { CarreauxApi } from '../data/carreaux.api';
 import { COUCHE_CARREAUX_FOND } from './couche-carreaux';
 import { COUCHE_POIS_CERCLES, COUCHE_POIS_DENSITE, COUCHE_ZONE_CONTOUR, COUCHE_ZONE_FOND, SOURCE_POIS } from './couche-pois';
 import { CLE_MODE_DENSITE, PoisService } from './pois.service';
+import { CaptureService } from '../etat/capture.service';
 
 /** Un marqueur factice : il garde son élément, sa position, sa popup, et s'il a été retiré. */
 class MarqueurFactice {
@@ -58,7 +59,7 @@ function monter() {
   const palette = signal<Record<string, string>>({ contour: '#ffffff', teal: '#4ecdc4', 'brand-teal': '#4ecdc4', 'bg-level-2': '#111111' });
   localStorage.removeItem(CLE_MODE_DENSITE);
   TestBed.configureTestingModule({
-    providers: [
+    providers: [CaptureService, 
       provideZonelessChangeDetection(), PoisService, EtatCarteService, CouchesCarteService, AnnonceService, CarreauxService,
       { provide: CarreauxApi, useValue: { urlTuiles: () => 'http://localhost/api/tiles/{z}/{x}/{y}' } },
       { provide: CarteApi, useValue: { pois: (c: CorpsPois) => { corps.push(c); return reponses; } } },

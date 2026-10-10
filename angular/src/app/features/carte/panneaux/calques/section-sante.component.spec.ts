@@ -7,6 +7,7 @@ import { CiviqueApi } from '../../data/civique.api';
 import type { EchelleSante, JeuSante } from '../../data/civique.api';
 import { SectionSanteComponent } from './section-sante.component';
 import { SelectionsCalquesService } from './selections-calques.service';
+import { CaptureService } from '../../etat/capture.service';
 
 function monter() {
   const etat = {
@@ -30,7 +31,7 @@ function monter() {
   };
   const detail = signal<{ code_commune: string | null; nom_commune?: string | null } | null>(null);
   TestBed.configureTestingModule({
-    providers: [
+    providers: [CaptureService, 
       provideZonelessChangeDetection(), SelectionsCalquesService,
       { provide: SanteService, useValue: sante },
       { provide: IrisService, useValue: { detail } },

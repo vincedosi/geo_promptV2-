@@ -1,4 +1,5 @@
 import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
+import { CaptureService, type SourceCapture } from '../etat/capture.service';
 import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.service';
 import { type PoiBataille, pointsBataille, stylerAnneaux } from '../logique/bataille/anneaux';
 import { poserBataille, retirerBataille } from './couche-bataille';
@@ -47,6 +48,7 @@ export class BatailleService {
 
   constructor() {
     this.couches.inscrireEffacement('bataille', () => this.effacer());
+    inject(CaptureService).declarer(computed(() => sourceCaptureBataille(this.creneau())));
 
     effect((nettoyer) => {
       const carte = this.couches.carteCourante();
@@ -69,4 +71,25 @@ export class BatailleService {
   effacer(): void {
     this.creneau.set(null);
   }
+}
+
+/**
+ * La source contributive de la capture (`CaptureLayers.tsx:107-158`) : la bataille du créneau, par sa clé de cache.
+ * La métadonnée porte les POI et les anneaux : la capture en tire une sous-zone par POI (`enrichissementBataille`).
+ * Le mode de déplacement se lit dans la clé (`battle_full__<cat>__<mode>__…`).
+ */
+function sourceCaptureBataille(c: CreneauBataille | null): SourceCapture | null {
+  if (!c?.cle) return null;
+  const cle = c.cle;
+  const pois = c.pois.map((p) => ({ poi_id: p.id, poi_name: p.nom, lat: p.lat, lng: p.lng }));
+  const morceaux = cle.split('__');
+  return {
+    id: 'map-battle-isochrone', sourceType: 'isochrone_battle',
+    label: pois.length > 1 ? `Battle isochrones (${pois.length} POI)` : 'Battle isochrones',
+    metadata: {
+      cache_key: cle, poi_count: pois.length, pois, battle_features: c.anneaux, category: c.categorie,
+      mode: morceaux.length >= 3 ? morceaux[2] : null,
+    },
+    obtenir: { route: 'battle', corps: () => ({ cache_keys: [cle] }) },
+  };
 }

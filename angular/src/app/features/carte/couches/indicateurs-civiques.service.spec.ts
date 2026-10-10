@@ -15,6 +15,7 @@ import { IndicateursCiviquesService } from './indicateurs-civiques.service';
 import { IrisService } from './iris.service';
 import { IrisApi } from '../data/iris.api';
 import { DELAI_DEPLACEMENT_MS } from './radio.service';
+import { CaptureService } from '../etat/capture.service';
 
 class PopupFactice {
   contenu: HTMLElement | null = null;
@@ -40,7 +41,7 @@ function monter() {
   const annonces: string[] = [];
   const theme = signal({ absente: '#9aa0a6', trait: '#ffffff' });
   TestBed.configureTestingModule({
-    providers: [
+    providers: [CaptureService, 
       provideZonelessChangeDetection(), IndicateursCiviquesService, CouchesCarteService, EtatCarteService, IrisService,
       { provide: AnnonceService, useValue: { annoncer: (m: string) => annonces.push(m) } },
       { provide: IrisApi, useValue: {} },

@@ -8,6 +8,7 @@ import { CouleursService } from '../../core/theme/couleurs.service';
 import { AnnonceComponent } from './commun/annonce.component';
 import { BoutonsFlottantsComponent } from './commun/boutons-flottants.component';
 import { FondCompactComponent } from './commun/fond-compact.component';
+import { DessinService } from './couches/dessin.service';
 import { BatailleService } from './couches/bataille.service';
 import { CarreauxService } from './couches/carreaux.service';
 import { DetailIrisComponent } from './couches/detail-iris.component';
@@ -29,6 +30,7 @@ import { ZonesCustomService } from './couches/zones-custom.service';
 import { JETONS_STYLE_MAGELIAN, appliquerStyleMagelian, couchesDuFond } from './couches/style-magelian';
 import { AnnonceService } from './etat/annonce.service';
 import { CataloguePoiService } from './etat/catalogue-poi.service';
+import { CaptureService } from './etat/capture.service';
 import { CouchesCarteService } from './etat/couches-carte.service';
 import { EtatCarteService } from './etat/etat-carte.service';
 import { ExportZoneService } from './etat/export-zone.service';
@@ -118,6 +120,7 @@ export function palierCarreaux(zoom: number): string {
     IrisService, PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService,
     IndicateursCiviquesService, SanteService, ContoursZonesService, MeteoService, RisqueCarteService, RisquesIndustrielsService,
     PprtService, ZonesRisqueService, BatailleService, ZonesCustomService, LienZoneService, ExportZoneService, PlanMediaService,
+    CaptureService, DessinService,
     // Le pont du module risque (B3) : le module, rendu par l'outlet de cette page, le voit par son injecteur d'élément.
     { provide: PONT_CARTE, useExisting: ZonesRisqueService },
   ],
@@ -369,7 +372,8 @@ export class CartePage {
    */
   protected pointerHors(e: MouseEvent): void {
     const panneau = this.composantPanneau();
-    if (!panneau) return;
+    // Un outil de « Créer une zone » tient la carte (tracé, pose d'un centre) : ses clics lui appartiennent (T16).
+    if (!panneau || this.etat.carteOccupee()) return;
     const chemin = e.composedPath();
     const cadre = this.cadrePanneau()?.nativeElement;
     const rail = this.rail()?.nativeElement;

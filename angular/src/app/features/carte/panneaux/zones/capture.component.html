@@ -1,0 +1,134 @@
+<dialog #dialogue aria-labelledby="mg-capture-titre" (cancel)="$event.preventDefault(); demanderFermeture()" (keydown.escape)="echap($event)" (click)="surClic($event)">
+  <div class="flex max-h-[90vh] flex-col">
+    <div class="flex shrink-0 items-center gap-2 border-b-fin border-subtle px-5 py-3.5">
+      <div class="h-1.5 w-1.5 rounded-full bg-teal"></div>
+      <span id="mg-capture-titre" class="text-[14px] font-semibold">Sauvegarder la vue comme zone custom</span>
+      <button type="button" data-fermer aria-label="Fermer" class="ml-auto flex cursor-pointer border-0 bg-transparent p-0 text-tertiary" [disabled]="enCours()" (click)="demanderFermeture()">
+        <mg-icone nom="croix" [taille]="16" />
+      </button>
+    </div>
+
+    <div class="flex flex-col gap-4 overflow-auto p-5">
+      @if (resolution()) {
+        <div data-resolution class="encart flex items-center gap-2.5 p-4 text-[12px] text-secondary">
+          <mg-icone nom="chargement" [taille]="14" class="animate-spin text-teal" />
+          Recuperation des geometries...
+        </div>
+      } @else {
+        <div data-apercu class="encart p-3 font-mono text-[11px] leading-[1.8] text-secondary">
+          <div><span class="text-tertiary">Layers</span> : {{ valides().length }} · <span class="text-tertiary">Vertices</span> : {{ sommets() }}</div>
+          <div><span class="text-tertiary">Transformation</span> : {{ transformation() }}</div>
+          <div><span class="text-tertiary">Bbox</span> : {{ bbox() }}</div>
+        </div>
+        @if (echecs(); as e) {
+          <div data-echecs class="alerte-avert rounded-[4px] px-3 py-2 text-[11px] leading-[1.5] text-warning">
+            {{ e.titre }}
+            <div class="mt-1 font-mono text-[10px] text-tertiary">{{ e.detail }}</div>
+          </div>
+        }
+      }
+
+      <div>
+        <div class="etiquette">Transformation</div>
+        <div class="flex flex-col gap-1">
+          @for (t of transformations; track t.valeur) {
+            <button
+              type="button"
+              [attr.data-transformation]="t.valeur"
+              [attr.aria-pressed]="transformation() === t.valeur"
+              class="option"
+              [class.choisie]="transformation() === t.valeur"
+              [disabled]="enCours()"
+              (click)="transformation.set(t.valeur)"
+            >
+              <span class="pastille"></span>
+              <div>
+                <div class="libelle text-[12px]">{{ t.libelle }}</div>
+                <div class="mt-0.5 text-[10px] text-tertiary">{{ t.aide }}</div>
+              </div>
+            </button>
+          }
+        </div>
+      </div>
+
+      <div>
+        <div class="etiquette">Layers inclus ({{ valides().length }})</div>
+        @if (!resolution() && valides().length === 0) {
+          <div class="p-2 text-[11px] text-tertiary">Aucun layer contributif exploitable.</div>
+        } @else {
+          <div class="flex flex-col gap-1">
+            @for (c of valides(); track c.source.id) {
+              <div data-couche class="flex items-center gap-2 rounded-[4px] bg-elevated px-[10px] py-1.5 text-[12px]">
+                <span class="flex-1 truncate text-primary">{{ c.source.label }}</span>
+                <span class="type rounded-[3px] border-fin border-subtle bg-surface px-1.5 py-px font-mono text-[9px] text-tertiary">{{ c.source.sourceType }}</span>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <div>
+        <label for="mg-capture-nom" class="mb-1.5 block text-[11px] text-tertiary">Nom <span class="text-teal">*</span></label>
+        <input
+          id="mg-capture-nom"
+          type="text"
+          data-nom
+          autofocus
+          placeholder="Ex : zone captee le 20/04"
+          class="champ"
+          [disabled]="enCours() || !!succes()"
+          [value]="nom()"
+          (input)="nom.set($any($event.target).value)"
+        />
+      </div>
+
+      @if (poisBataille(); as pois) {
+        <div>
+          <div class="etiquette mb-1.5">{{ pois.length }} POI inclus dans la zone</div>
+          <div class="encart max-h-[110px] overflow-y-auto px-[10px] py-2 font-mono text-[10px] leading-[1.6] text-tertiary">
+            @for (p of pois; track p.poi_id) {
+              <div>→ <span class="text-secondary">{{ p.poi_name }}</span></div>
+            }
+          </div>
+          <div class="mt-1.5 text-[10px] text-tertiary">
+            1 seule zone fusionnée — la liste des POI est conservée dans <span class="font-mono">source_metadata.pois</span> pour le pilotage par POI.
+          </div>
+        </div>
+      }
+
+      <div>
+        <label for="mg-capture-description" class="mb-1.5 block text-[11px] text-tertiary">Description</label>
+        <textarea
+          id="mg-capture-description"
+          rows="2"
+          placeholder="Notes (optionnel)"
+          class="champ resize-y"
+          [disabled]="enCours() || !!succes()"
+          [value]="description()"
+          (input)="description.set($any($event.target).value)"
+        ></textarea>
+      </div>
+
+      <div data-source-type class="text-[11px] text-tertiary">
+        source_type : <span class="font-mono text-secondary">{{ sourceType() }}</span>
+      </div>
+
+      @if (sansOrganisation()) {
+        <div class="alerte-avert rounded-[4px] px-3 py-2 text-[12px] text-warning">
+          Organisation non configurée — contactez votre administrateur pour attacher votre compte à une organisation avant de sauvegarder.
+        </div>
+      }
+      @if (erreur(); as e) {
+        <div data-erreur role="alert" class="alerte-danger rounded-[4px] px-3 py-2 text-[12px] text-danger">{{ e }}</div>
+      }
+      @if (succes(); as s) {
+        <div data-succes role="status" class="alerte-succes rounded-[4px] px-3 py-2 text-[12px] text-success">{{ s }}</div>
+      }
+    </div>
+
+    <div class="flex shrink-0 justify-end gap-2 border-t-fin border-subtle px-5 py-3.5">
+      <button type="button" data-annuler class="bouton border-fin border-default bg-transparent text-secondary" [disabled]="enCours()" (click)="demanderFermeture()">Annuler</button>
+      <button type="button" data-sauver class="bouton sauver font-medium" [class.possible]="possible()" [disabled]="!possible()" (click)="sauver()">{{ libelleSauver() }}</button>
+    </div>
+  </div>
+</dialog>

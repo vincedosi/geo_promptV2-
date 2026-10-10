@@ -16,6 +16,7 @@ import { CarreauxService } from './carreaux.service';
 import { COUCHE_CARREAUX_FOND } from './couche-carreaux';
 import { COUCHE_IRIS_FOND, COUCHE_IRIS_RELIEF, COUCHE_IRIS_TRAIT, OPACITE_TRAIT_IRIS, SOURCE_IRIS } from './couche-iris';
 import { IrisService } from './iris.service';
+import { CaptureService } from '../etat/capture.service';
 
 const URL_TUILES = 'http://localhost/api/tiles/iris/{z}/{x}/{y}?v=2';
 const CATALOGUE: CatalogueBornesIris = {
@@ -33,7 +34,7 @@ function monter() {
     detail: vi.fn((code: string) => { const s = new Subject<IrisDetailData>(); details$.push({ code, flux: s }); return s; }),
   };
   TestBed.configureTestingModule({
-    providers: [
+    providers: [CaptureService, 
       provideZonelessChangeDetection(), IrisService, CarreauxService, EtatCarteService, CouchesCarteService, AnnonceService,
       { provide: IrisApi, useValue: api },
       { provide: CarreauxApi, useValue: { urlTuiles: () => 'http://localhost/api/tiles/{z}/{x}/{y}?v=19' } },

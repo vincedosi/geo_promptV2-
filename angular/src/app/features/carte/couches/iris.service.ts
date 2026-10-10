@@ -3,6 +3,7 @@ import type maplibregl from 'maplibre-gl';
 import type { Subscription } from 'rxjs';
 import { CouleursService } from '../../../core/theme/couleurs.service';
 import { type IrisDetailData, IrisApi } from '../data/iris.api';
+import { CaptureService } from '../etat/capture.service';
 import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
 import { type BornesIris, type CatalogueBornesIris, niveauAuZoom } from '../logique/iris-echelle';
@@ -133,6 +134,17 @@ export class IrisService {
       this.lectureBornes?.unsubscribe();
       this.lectureDetail?.unsubscribe();
     });
+
+    // La source contributive de la capture (`CaptureLayers.tsx:186-198`) : l'IRIS SÉLECTIONNÉ (un clic), pas la couche.
+    inject(CaptureService).declarer(computed(() => {
+      const code = this.code();
+      return code
+        ? {
+          id: 'map-iris-selection', sourceType: 'iris_selection', label: `IRIS ${code}`, metadata: { code_iris: code },
+          obtenir: { route: 'iris', corps: () => ({ iris_codes: [code] }) },
+        }
+        : null;
+    }));
 
     // Les bornes : UNE lecture, à la première visibilité (la couche masquée ne coûte rien).
     effect(() => {

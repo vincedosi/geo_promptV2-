@@ -14,11 +14,12 @@ import { EtatCarteService } from '../../etat/etat-carte.service';
 import { IRIS_DB_COLUMNS } from '../../logique/iris-colonnes';
 import { IRIS_PALETTES } from '../../logique/palettes-donnees-carte';
 import { SectionIrisComponent } from './section-iris.component';
+import { CaptureService } from '../../etat/capture.service';
 
 function monter(zoom = 9) {
   const api = { urlTuiles: () => '/api/tiles/iris/{z}/{x}/{y}?v=2', bornes: vi.fn(() => NEVER), detail: vi.fn(() => NEVER) };
   TestBed.configureTestingModule({
-    providers: [
+    providers: [CaptureService, 
       provideZonelessChangeDetection(), IrisService, CarreauxService, EtatCarteService, CouchesCarteService, AnnonceService,
       { provide: IrisApi, useValue: api },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },

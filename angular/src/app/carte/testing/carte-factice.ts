@@ -2,6 +2,12 @@ import type maplibregl from 'maplibre-gl';
 
 type Rappel = (...args: unknown[]) => void;
 
+/** Un gestionnaire d'interaction MapLibre (`enable`/`disable`/`isEnabled`), actif au départ comme le vrai. */
+function gestionnaireFactice() {
+  let actif = true;
+  return { enable: () => { actif = true; }, disable: () => { actif = false; }, isEnabled: () => actif };
+}
+
 /** Une carte sans WebGL, pour les tests : elle enregistre ce qu'on lui fait. */
 export class CarteFactice {
   readonly options: maplibregl.MapOptions | null;
@@ -163,6 +169,9 @@ export class CarteFactice {
   /** Ce que `queryRenderedFeatures` rend : posé par le test. */
   entitesRendues: unknown[] = [];
   queryRenderedFeatures(): unknown[] { return this.entitesRendues; }
+  /** Les gestionnaires d'interaction que le dessin coupe et rend (`map.dragPan`, `map.doubleClickZoom`). */
+  readonly dragPan = gestionnaireFactice();
+  readonly doubleClickZoom = gestionnaireFactice();
   /** Le canevas, pour le curseur posé au survol d'une couche. */
   private readonly canevas = { style: { cursor: '' } };
   getCanvas() { return this.canevas; }

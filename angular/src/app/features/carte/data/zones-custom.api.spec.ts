@@ -101,4 +101,43 @@ describe('ZonesCustomApi', () => {
     expect(snap.request.body).toEqual(corps);
     http.verify();
   });
+
+  // ── Créer une zone (T16) ─────────────────────────────────────────────────────────────────────────────────────────────
+
+  it('codes postaux collés : POST JSON { saisie } vers /source/codes-postaux', () => {
+    const { api, http } = preparer();
+    api.depuisCodesPostaux('13001, 13002, 99999, abc').subscribe();
+    const req = http.expectOne('/api/custom-geo/source/codes-postaux');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ saisie: '13001, 13002, 99999, abc' });
+    http.verify();
+  });
+
+  it('fichier déposé : multipart, champ `file` (celui que lit `fichierDeFormulaire`), Content-Type laissé au navigateur', () => {
+    const { api, http } = preparer();
+    const fichier = new File(['13001\n13002'], 'liste.csv', { type: 'text/csv' });
+    api.depuisCodesPostaux(fichier).subscribe();
+    const req = http.expectOne('/api/custom-geo/source/codes-postaux');
+    expect(req.request.body).toBeInstanceOf(FormData);
+    expect((req.request.body as FormData).get('file')).toBe(fichier);
+    // Fixer Content-Type à la main perdrait la frontière multipart : la route ne lirait aucun fichier.
+    expect(req.request.headers.has('Content-Type')).toBe(false);
+    http.verify();
+  });
+
+  it('rayon, dessin, capture et sources de couche : chemins et corps tels quels', () => {
+    const { api, http } = preparer();
+    const trace: GeoJSON.Polygon = { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] };
+    api.depuisRayon({ lon: 5.37, lat: 43.3, rayon_m: 20000 }).subscribe();
+    api.depuisDessin(trace).subscribe();
+    api.capturer({ name: 'n' }).subscribe();
+    api.source('carreaux', { bbox: [1, 2, 3, 4] }).subscribe();
+    expect(http.expectOne('/api/custom-geo/source/rayon').request.body).toEqual({ lon: 5.37, lat: 43.3, rayon_m: 20000 });
+    expect(http.expectOne('/api/custom-geo/source/dessin').request.body).toEqual({ geometry: trace });
+    const capture = http.expectOne('/api/custom-geo/capture');
+    expect(capture.request.method).toBe('POST');
+    expect(capture.request.body).toEqual({ name: 'n' });
+    expect(http.expectOne('/api/custom-geo/source/carreaux').request.body).toEqual({ bbox: [1, 2, 3, 4] });
+    http.verify();
+  });
 });

@@ -9,13 +9,14 @@ import { EtatCarteService } from '../etat/etat-carte.service';
 import { IRIS_DB_COLUMNS } from '../logique/iris-colonnes';
 import { DetailIrisComponent, formaterValeurIris } from './detail-iris.component';
 import { IrisService } from './iris.service';
+import { CaptureService } from '../etat/capture.service';
 
 const col = (nom: string) => IRIS_DB_COLUMNS.find((c) => c.name === nom)!;
 
 function monter() {
   const flux: Subject<IrisDetailData>[] = [];
   TestBed.configureTestingModule({
-    providers: [
+    providers: [CaptureService, 
       provideZonelessChangeDetection(), IrisService, EtatCarteService, CouchesCarteService, AnnonceService,
       {
         provide: IrisApi,

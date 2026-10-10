@@ -13,6 +13,7 @@ import {
   COUCHES_RADIO, SOURCE_COUVERTURE, SOURCE_EMETTEURS,
 } from './couche-radio';
 import { DELAI_DEPLACEMENT_MS, RadioService } from './radio.service';
+import { CaptureService } from '../etat/capture.service';
 
 class PopupFactice {
   contenu: Node | null = null;
@@ -34,7 +35,7 @@ function monter() {
   const options = new Subject<ReponseOptionsRadio>();
   const popups: PopupFactice[] = [];
   TestBed.configureTestingModule({
-    providers: [
+    providers: [CaptureService, 
       provideZonelessChangeDetection(), RadioService, CouchesCarteService,
       {
         provide: RadioApi,

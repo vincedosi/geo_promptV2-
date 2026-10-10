@@ -750,6 +750,29 @@ describe('CartePage — le module risque, route ENFANT (T13, B2/B3)', () => {
     expect(hote.querySelector('mg-panneau-carte mg-jeux-de-zones')).not.toBeNull();
     expect(hote.querySelector('mg-jeux-de-zones [data-jeux-vide]')).not.toBeNull();
   });
+
+  it('Zones › Créer une zone (T16) : capture inactive sans couche ; le dessin ouvert, un clic sur la carte NE ferme PAS le panneau', async () => {
+    const { hote, stable } = await ouvrir();
+    frapper(hote, { key: '4', altKey: true });
+    await stable();
+    expect(hote.querySelector('[data-provisoire]')).toBeNull();
+    expect(hote.querySelector<HTMLButtonElement>('[data-capturer]')!.disabled).toBe(true);
+    const outils = [...hote.querySelectorAll('mg-outil-creation [data-repli]')].map((b) => b.textContent!.trim());
+    expect(outils).toEqual(['Importer une liste de codes postaux ▼', 'Zone par rayon ▼', 'Dessiner une zone ▼']);
+    hote.querySelector<HTMLButtonElement>('mg-creer-dessin [data-repli]')!.click();
+    await stable();
+    hote.querySelector('mg-carte')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }));
+    await new Promise((r) => setTimeout(r, 220));
+    await stable();
+    expect(titrePanneau(hote)).toBe('Zones');
+    // L'outil quitté, la carte est rendue : le clic hors du panneau le referme de nouveau.
+    hote.querySelector<HTMLButtonElement>('mg-creer-dessin [data-quitter]')!.click();
+    await stable();
+    hote.querySelector('mg-carte')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }));
+    await new Promise((r) => setTimeout(r, 220));
+    await stable();
+    expect(titrePanneau(hote)).toBeNull();
+  });
 });
 
 describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () => {

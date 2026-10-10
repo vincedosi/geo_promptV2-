@@ -5,6 +5,7 @@ import { CarteFactice } from '../../../carte/testing/carte-factice';
 import { CouchesCarteService } from '../etat/couches-carte.service';
 import { VORONOI_PALETTE } from '../logique/palettes-donnees-carte';
 import { BatailleService, type CreneauBataille } from './bataille.service';
+import { CaptureService } from '../etat/capture.service';
 
 const CRENEAU: CreneauBataille = {
   anneaux: [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] }, properties: { id: 'z', nom: 'Zone', palier: 1 } }],
@@ -14,7 +15,7 @@ const CRENEAU: CreneauBataille = {
 };
 
 function monter() {
-  TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection(), BatailleService, CouchesCarteService] });
+  TestBed.configureTestingModule({ providers: [CaptureService, provideZonelessChangeDetection(), BatailleService, CouchesCarteService] });
   const carte = new CarteFactice();
   carte.styleCharge = true;
   const couches = TestBed.inject(CouchesCarteService);

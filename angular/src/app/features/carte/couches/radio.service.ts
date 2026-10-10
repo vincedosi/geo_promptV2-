@@ -5,6 +5,7 @@ import { bboxDeCarte } from '../../../carte/bbox';
 import { FABRIQUE_POPUP, type PopupCarte } from '../../../carte/fabrique-carte';
 import { CouleursService } from '../../../core/theme/couleurs.service';
 import { type OptionsFiltreRadio, RadioApi } from '../data/radio.api';
+import { CaptureService } from '../etat/capture.service';
 import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.service';
 import { COULEUR_COUVERTURE_DEFAUT } from '../logique/palettes-donnees-carte';
 import {
@@ -91,6 +92,18 @@ export class RadioService {
       this.lecture?.unsubscribe();
       this.lectureOptions?.unsubscribe();
     });
+
+    // La source contributive de la capture (`CaptureLayers.tsx:163-182`) : la couverture de la radio CHOISIE, quand
+    // le mode couverture est allumé.
+    inject(CaptureService).declarer(computed(() => {
+      const radio = this.selection();
+      if (!radio || !this.couverture()) return null;
+      return {
+        id: 'map-radio-coverage', sourceType: 'radio_coverage', label: `Couverture radio ${radio.nom}`,
+        metadata: { radio_id: radio.id, radio_name: radio.nom },
+        obtenir: { route: 'radio', corps: () => ({ radio_id: radio.id }) },
+      };
+    }));
 
     // Options du filtre : à la première visibilité, une fois (cache avant appel).
     effect(() => {

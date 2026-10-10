@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { basculerDegrade as basculerDegradePur } from '../logique/calques-actifs';
 import { type DegradeId, libelleDegrade } from '../logique/degrades';
 import type { FiltreActif } from '../logique/filtre';
@@ -43,6 +43,14 @@ export class EtatCarteService {
   readonly degradeActif = this.degrade.asReadonly();
   private readonly evictions = new Map<DegradeId, () => void>();
 
+  /**
+   * Les outils qui PRENNENT les clics de la carte (dessin d'une zone, pose du centre d'un rayon, T16). Tant qu'il y en
+   * a un, un clic sur la carte appartient à l'outil et ne ferme pas le panneau qui le porte — React le fermait, et
+   * l'outil disparaissait avec son tracé au premier clic (`OverlayPanel.tsx:107-117`).
+   */
+  private readonly outilsCarte = signal<ReadonlySet<string>>(new Set());
+  readonly carteOccupee = computed(() => this.outilsCarte().size > 0);
+
   choisirEntree(id: EntreeId): void {
     const entree = ENTREES_NAVIGATION.find((e) => e.id === id);
     if (!entree) return;
@@ -71,5 +79,17 @@ export class EtatCarteService {
   /** Une couche s'abonne à l'éviction de SON dégradé. Ré-abonner remplace la fonction précédente. */
   surEviction(cible: DegradeId, eteindre: () => void): void {
     this.evictions.set(cible, eteindre);
+  }
+
+  prendreCarte(outil: string): void {
+    this.outilsCarte.update((s) => new Set(s).add(outil));
+  }
+
+  rendreCarte(outil: string): void {
+    this.outilsCarte.update((s) => {
+      const suite = new Set(s);
+      suite.delete(outil);
+      return suite;
+    });
   }
 }

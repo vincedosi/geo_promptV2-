@@ -6,6 +6,8 @@ import type { EntiteZone } from '../logique/zones/zone-du-lien';
 import type { SourceOperation } from '../logique/zones/operations-zones';
 import type { CibleKey } from '../logique/zones/cibles';
 import type { ItemAudience, corpsInstantane, corpsPlan } from '../logique/zones/plan-media';
+import type { GeometrieContribuee } from '../logique/zones/capture';
+import type { ReponseCodesPostaux, ReponseSurface } from '../logique/zones/creation-zone';
 
 /**
  * Une zone enregistrée, telle que `GET /api/custom-geo/list` la rend — recopie de `CustomGeoZoneSummary`
@@ -186,4 +188,54 @@ export class ZonesCustomApi extends HttpBaseService {
   instantane(corps: NonNullable<ReturnType<typeof corpsInstantane>>): Observable<unknown> {
     return this.httpClient.post(`${this.baseUrl}/custom-geo/media-plan/snapshot`, corps);
   }
+
+  // ── Créer une zone (T16, `CreerZone*.tsx`, `CustomGeoCaptureModal.tsx`) ───────────────────────────────────────────────
+
+  /**
+   * `POST /api/custom-geo/source/codes-postaux` : une liste COLLÉE part en JSON (`{ saisie }`), un fichier DÉPOSÉ en
+   * multipart (champ `file`, lu par `fichierDeFormulaire`, plafond serveur 2 Mo). `Content-Type` n'est jamais fixé à
+   * la main : pour un `FormData`, c'est le navigateur qui l'écrit avec sa frontière — la fixer la perdrait.
+   */
+  depuisCodesPostaux(saisie: string | File): Observable<ReponseSourceCodesPostaux> {
+    const url = `${this.baseUrl}/custom-geo/source/codes-postaux`;
+    if (typeof saisie === 'string') return this.httpClient.post<ReponseSourceCodesPostaux>(url, { saisie });
+    const formulaire = new FormData();
+    formulaire.append('file', saisie);
+    return this.httpClient.post<ReponseSourceCodesPostaux>(url, formulaire);
+  }
+
+  /** `POST /api/custom-geo/source/rayon` : le disque clippé sur le territoire (409 en pleine mer). */
+  depuisRayon(corps: { lon: number; lat: number; rayon_m: number }): Observable<ReponseSourceSurface> {
+    return this.httpClient.post<ReponseSourceSurface>(`${this.baseUrl}/custom-geo/source/rayon`, corps);
+  }
+
+  /** `POST /api/custom-geo/source/dessin` : le tracé tel quel ; la base le répare (`corrige`) et le clippe. */
+  depuisDessin(geometry: GeoJSON.Polygon): Observable<ReponseSourceSurface> {
+    return this.httpClient.post<ReponseSourceSurface>(`${this.baseUrl}/custom-geo/source/dessin`, { geometry });
+  }
+
+  /** `POST /api/custom-geo/source/<route>` d'une couche contributive de la capture : sa géométrie (`{ geometry }`). */
+  source(route: RouteSourceCapture, corps: Record<string, unknown>): Observable<{ geometry?: GeometrieContribuee }> {
+    return this.httpClient.post<{ geometry?: GeometrieContribuee }>(`${this.baseUrl}/custom-geo/source/${route}`, corps);
+  }
+
+  /** `POST /api/custom-geo/capture` : ÉCRIT la zone fusionnée des couches capturées. */
+  capturer(corps: Record<string, unknown>): Observable<{ count_iris?: number; count_cp?: number }> {
+    return this.httpClient.post<{ count_iris?: number; count_cp?: number }>(`${this.baseUrl}/custom-geo/capture`, corps);
+  }
 }
+
+/** La réponse de `/source/codes-postaux` : la géométrie et les deux familles de perte, comptées séparément. */
+export interface ReponseSourceCodesPostaux extends ReponseCodesPostaux {
+  geometry: GeoJSON.Geometry;
+  codes_inconnus?: string[];
+  rejetes?: string[];
+}
+
+/** La réponse de `/source/rayon` et `/source/dessin`. */
+export interface ReponseSourceSurface extends ReponseSurface {
+  geometry: GeoJSON.Geometry;
+}
+
+/** Les routes de `/api/custom-geo/source/` qu'une couche contributive de la capture peut appeler. */
+export type RouteSourceCapture = 'carreaux' | 'iris' | 'radio' | 'tmja' | 'battle' | 'voronoi' | 'indicator-threshold' | 'score' | 'composite';

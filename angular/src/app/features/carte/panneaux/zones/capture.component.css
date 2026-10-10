@@ -1,0 +1,37 @@
+/* Le dialogue de capture — styles de `CustomGeoCaptureModal.tsx`, en jetons (flat : pas l'ombre portée de React). */
+dialog {
+  margin: auto; padding: 0; width: 560px; max-width: calc(100% - 32px);
+  background: var(--bg-surface); color: var(--text-primary); border: 0.5px solid var(--border-default); border-radius: 10px;
+  font-family: var(--font-sans);
+}
+/* Le voile de React (`var(--overlay-backdrop, rgba(0,0,0,0.5))`, jeton jamais défini) : noir à 50 %. */
+dialog::backdrop { background: color-mix(in srgb, black 50%, transparent); }
+
+.encart { background: var(--bg-level-2); border: 0.5px solid var(--border-subtle); border-radius: 4px; }
+/* React écrit ces titres en majuscules (`textTransform: uppercase`) : gardé pour la parité visuelle. */
+.etiquette { margin-bottom: 8px; font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; }
+
+.option {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 4px; text-align: left; cursor: pointer;
+  background: transparent; border: 0.5px solid var(--border-subtle); color: var(--text-secondary);
+}
+.option:disabled { cursor: not-allowed; }
+.option.choisie { background: var(--bg-level-2); border-color: var(--brand-teal-30); color: var(--text-primary); }
+.pastille { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; border: 1.5px solid var(--border-default); }
+.option.choisie .pastille { border-color: var(--brand-teal); background: var(--brand-teal); }
+
+.champ {
+  width: 100%; padding: 8px 12px; border-radius: 4px; background: var(--bg-surface); border: 0.5px solid var(--border-subtle);
+  color: var(--text-primary); font-size: 13px; outline: none;
+}
+.champ:focus { border-color: var(--brand-teal-50); }
+
+/* rgba(247,183,49 | 255,87,87 | 61,255,160, 0.1 / 0.2-0.25) : les jetons de statut aux mêmes taux. */
+.alerte-avert { background: color-mix(in srgb, var(--warning) 10%, transparent); border: 0.5px solid color-mix(in srgb, var(--warning) 25%, transparent); }
+.alerte-danger { background: color-mix(in srgb, var(--danger) 10%, transparent); border: 0.5px solid color-mix(in srgb, var(--danger) 20%, transparent); }
+.alerte-succes { background: color-mix(in srgb, var(--success) 10%, transparent); border: 0.5px solid color-mix(in srgb, var(--success) 20%, transparent); }
+
+.bouton { padding: 8px 16px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+.bouton:disabled { cursor: not-allowed; }
+.sauver { border: none; background: var(--brand-teal-30); color: var(--text-tertiary); }
+.sauver.possible { background: var(--brand-teal); color: var(--brand-teal-fg); }

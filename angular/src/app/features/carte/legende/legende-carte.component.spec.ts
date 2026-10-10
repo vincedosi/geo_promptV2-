@@ -31,11 +31,12 @@ import { LegendeCarteComponent, degradeALegende } from './legende-carte.componen
 import { ZonesRisqueService } from '../couches/zones-risque.service';
 import { ZonesRisqueApi } from '../../risques/data/zones-risque.api';
 import { PROFIL_DEFAUT } from '../../risques/logique/profil';
+import { CaptureService } from '../etat/capture.service';
 
 function monter() {
   const bornes$: Subject<CatalogueBornesIris>[] = [];
   TestBed.configureTestingModule({
-    providers: [
+    providers: [CaptureService, 
       provideZonelessChangeDetection(), CarreauxService, IrisService, PoisService, EtatCarteService, CouchesCarteService, AnnonceService,
       TmjaService, RadioService, SanteService, MeteoService, ContoursZonesService, RisqueCarteService,
       { provide: MeteoApi, useValue: { donnees: () => new Subject() } },
@@ -291,7 +292,7 @@ describe('LegendeCarteComponent', () => {
 describe('LegendeCarteComponent — « Zones de risque » (T13)', () => {
   it('les zones ramenées par « Voir sur la carte » : titre, niveaux portant un anneau, natures retenues, convention de trait', async () => {
     TestBed.configureTestingModule({
-      providers: [
+      providers: [CaptureService, 
         provideZonelessChangeDetection(), CarreauxService, IrisService, PoisService, EtatCarteService, CouchesCarteService, AnnonceService,
         TmjaService, RadioService, SanteService, MeteoService, ContoursZonesService, RisqueCarteService, ZonesRisqueService,
         { provide: ZonesRisqueApi, useValue: { urlTuilesZones: () => '' } },

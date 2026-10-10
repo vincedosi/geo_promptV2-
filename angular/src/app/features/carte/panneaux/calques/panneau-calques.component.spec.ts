@@ -33,6 +33,7 @@ import { RisquesIndustrielsService } from '../../couches/risques-industriels.ser
 import { RisqueCarteService } from '../../etat/risque-carte.service';
 import { SitesRisqueApi } from '../../../risques/data/sites-risque.api';
 import { of } from 'rxjs';
+import { CaptureService } from '../../etat/capture.service';
 
 const META_METEO = {
   variable: 'temperature_2m', unit: '°C', startDate: '2026-10-03', endDate: '2026-10-09', scale: 'departement', totalZones: 96, batchesTotal: 1,
@@ -42,7 +43,7 @@ const META_METEO = {
 function monter() {
   TestBed.configureTestingModule({
     providers: [
-      provideZonelessChangeDetection(), provideRouter([]), CarreauxService, IrisService, EtatCarteService, CouchesCarteService, AnnonceService,
+      provideZonelessChangeDetection(), provideRouter([]), CaptureService, CarreauxService, IrisService, EtatCarteService, CouchesCarteService, AnnonceService,
       PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService, IndicateursCiviquesService, SanteService,
       MeteoService, ContoursZonesService,
       { provide: MeteoApi, useValue: { donnees: () => of<MeteoZoneChunk>({ status: 'done', progress: 1, total: 1, data: {}, meta: META_METEO }) } },
