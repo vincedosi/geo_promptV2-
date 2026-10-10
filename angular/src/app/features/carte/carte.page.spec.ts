@@ -12,6 +12,7 @@ import { ReferentielApi } from '../risques/data/referentiel.api';
 import { CarreauxApi } from './data/carreaux.api';
 import { IrisApi } from './data/iris.api';
 import { CarteApi } from './data/carte.api';
+import { RadioApi } from './data/radio.api';
 import { ZonesCustomApi } from './data/zones-custom.api';
 import { CouleursService } from '../../core/theme/couleurs.service';
 import { CartePage } from './carte.page';
@@ -51,7 +52,8 @@ async function ouvrir() {
       { provide: ZonesCustomApi, useValue: { lister: () => of({ zones: [] }) } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },
       { provide: IrisApi, useValue: { urlTuiles: () => '/api/tiles/iris/{z}/{x}/{y}?v=2', bornes: () => of({}), detail: () => of() } },
-      { provide: CarteApi, useValue: { categories: () => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] }), pois: () => of(), ooh: () => of(), transport: () => of() } },
+      { provide: CarteApi, useValue: { categories: () => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] }), pois: () => of(), ooh: () => of(), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
+      { provide: RadioApi, useValue: { optionsFiltre: () => of({}), emetteurs: () => of({ type: 'FeatureCollection', features: [] }), stations: () => of({}) } },
     ],
   });
   const harness = await RouterTestingHarness.create();

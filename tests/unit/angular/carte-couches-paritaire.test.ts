@@ -384,6 +384,32 @@ describe('fonds de carte, palettes de données et constantes de calques', () => 
     expect(src).toContain('1, 3,\n            100, 5,\n            10000, 7,\n            100000, 10,');
     expect(Apal.TEINTES_RADIO.cernePoint).toEqual({ 'DAB+': 1.5, defaut: 0.5 });
     expect(Apal.TEINTES_RADIO.groupement).toEqual({ clusterMaxZoom: 14, clusterRadius: 50 });
+    // T9 : les littéraux restants, nommés (ruling T2) — chacun se retrouve dans le source React.
+    expect(src).toContain(`1, '${Apal.TEINTES_RADIO.coeurChaleur}',`);
+    expect(src).toContain("['interpolate', ['linear'], ['zoom'], 0, 0.5, 9, 2]");
+    expect(src).toContain("['interpolate', ['linear'], ['zoom'], 0, 4, 6, 15, 10, 25]");
+    expect(src).toContain("['interpolate', ['linear'], ['zoom'], 11, 1, 14, 0]");
+    expect(src).toContain('0, 0.1, 1000, 0.5, 100000, 1,');
+    expect(src).toContain("'circle-opacity': 0.85,");
+    expect(src).toContain(`'text-font': ['${Apal.TEINTES_RADIO.grappes.police}'],`);
+    for (const [d, a] of Apal.TEINTES_RADIO.densiteChaleur.slice(1)) expect(src).toContain(`${d}, 'rgba(78,205,196,${a})',`);
+    const hook = readFileSync('app/map/_hooks/useRadioLayer.ts', 'utf8');
+    expect(hook).toContain(`'${Apal.TEINTES_RADIO.pointNonChoisi}',`);
+    expect(hook).toContain("1, 0.35,");
+    expect(hook).toContain(`useState('${Apal.COULEUR_COUVERTURE_DEFAUT}')`);
+    // Le cerne et le texte des grappes : #050505 INVARIANT chez React → --brand-teal-fg (invariant), jamais --bg-level-0.
+    expect(src).toContain("'circle-stroke-color': '#050505'");
+    expect(Apal.TEINTES_RADIO.jetonCernes).toBe('brand-teal-fg');
+    // Les pastilles de couverture : celles de React, la première (`var(--brand-teal)`) résolue en sa valeur.
+    const section = readFileSync('app/map/_components/filter-panel/RadioSection.tsx', 'utf8');
+    expect(section).toContain("['var(--brand-teal)', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6']");
+    expect(Apal.COULEURS_COUVERTURE_RADIO).toEqual(['#4ecdc4', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6']);
+  });
+
+  it('TMJA : la légende garde les libellés de React et prend les couleurs de la CARTE', () => {
+    const src = readFileSync('app/map/_components/filter-panel/TmjaSection.tsx', 'utf8');
+    for (const l of Apal.LEGENDE_TMJA) expect(src).toContain(`label: '${l.libelle}', isLow: ${l.faible}`);
+    expect(Apal.LEGENDE_TMJA.map((l) => l.couleur)).toEqual(Apal.PALIERS_TMJA.map((p) => p.couleur));
   });
 
   it('civique : échelle d’abstention et qualificatifs', () => {

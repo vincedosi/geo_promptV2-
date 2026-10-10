@@ -74,10 +74,17 @@ export class CarteFactice {
     this.sources.set(id, { spec, donnees: [], tuiles: [] });
     return this;
   }
+  /** Ce que rend `getClusterExpansionZoom` (une PROMESSE en MapLibre 5), et les grappes demandées. */
+  zoomExpansion = 10;
+  readonly grappesDemandees: unknown[] = [];
   getSource(id: string) {
     const s = this.sources.get(id);
     return s
-      ? { setData: (d: unknown) => { s.donnees.push(d); }, setTiles: (t: unknown) => { s.tuiles.push(t); } }
+      ? {
+        setData: (d: unknown) => { s.donnees.push(d); },
+        setTiles: (t: unknown) => { s.tuiles.push(t); },
+        getClusterExpansionZoom: (grappe: unknown) => { this.grappesDemandees.push(grappe); return Promise.resolve(this.zoomExpansion); },
+      }
       : undefined;
   }
   addLayer(couche: Record<string, unknown>, avant?: string): this {

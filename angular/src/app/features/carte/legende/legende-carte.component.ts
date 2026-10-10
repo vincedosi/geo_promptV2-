@@ -4,6 +4,8 @@ import { CarreauxService } from '../couches/carreaux.service';
 import { IrisService } from '../couches/iris.service';
 import { couleurPoi } from '../couches/couche-pois';
 import { PoisService } from '../couches/pois.service';
+import { RadioService } from '../couches/radio.service';
+import { TmjaService } from '../couches/tmja.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
 import { formaterValeur, palierEchelle, versValeurReelle } from '../logique/carreaux/bornes';
 import { CARREAUX_INDICATEURS } from '../logique/carreaux/catalogue';
@@ -12,7 +14,7 @@ import { echelleDe, uniteIris } from '../logique/iris-echelle';
 import { uniteNormalisee } from '../logique/carreaux/normalisation';
 import { type DegradeId, libelleDegrade } from '../logique/degrades';
 import { ECART_RAIL_PANNEAU, LARGEUR_RAIL } from '../logique/navigation';
-import { CARREAUX_PALETTES, IRIS_PALETTES } from '../logique/palettes-donnees-carte';
+import { CARREAUX_PALETTES, IRIS_PALETTES, LEGENDE_TMJA } from '../logique/palettes-donnees-carte';
 
 /**
  * Le dégradé actif a-t-il un bloc dans CETTE légende ? — `degradeALegende` de `LegendeCarte.tsx:150-178`, source
@@ -64,9 +66,11 @@ interface Palier {
  * palier choisi est sa couleur de DONNÉE à 13 % (`${couleur}22` de React).
  *
  * T8 ajoute, dans l'ordre de React (`LegendeCarte.tsx:640-645`), le bloc « Analyse spatiale » AVANT le dégradé — les
- * catégories des points affichés, avec leur compte — et le bloc « Figurés » APRÈS — les types de POI choisis ; TMJA et
- * radio y ajouteront leur ligne (T9). Écart, défaut corrigé : la pastille d'une catégorie prend la couleur de son
- * ÉPINGLE quand l'utilisateur en a choisi une ; React gardait la couleur de catégorie, et la légende contredisait la carte.
+ * catégories des points affichés, avec leur compte — et le bloc « Figurés » APRÈS — les types de POI choisis. T9 y
+ * ajoute les quatre paliers du flux routier (le palier faible estompé quand il est masqué) et la ligne des émetteurs
+ * radio. Écarts, défauts corrigés : la pastille d'une catégorie prend la couleur de son ÉPINGLE quand l'utilisateur en a
+ * choisi une ; les paliers TMJA prennent les couleurs de la CARTE (React affichait `#e5a00d` pour un palier peint
+ * `#f97316`) — dans les deux cas, React laissait la légende contredire la carte.
  */
 @Component({
   selector: 'mg-legende-carte',
@@ -175,8 +179,8 @@ interface Palier {
                 </div>
               }
             }
-            @if (figuresPoi().length > 0) {
-              <!-- BlocFigures (LegendeCarte.tsx:466-523) : les types de POI choisis ; TMJA et radio arrivent avec T9. -->
+            @if (figuresVisibles()) {
+              <!-- BlocFigures (LegendeCarte.tsx:466-523) : les types de POI choisis, les paliers TMJA, les émetteurs radio. -->
               <div data-bloc="figures">
                 <div class="mb-1 text-[11px] font-medium text-secondary">Figurés</div>
                 <div class="flex flex-col gap-1">
@@ -184,6 +188,20 @@ interface Palier {
                     <div [attr.data-figure]="f.cat" class="flex items-center gap-1.5">
                       <span class="size-2 shrink-0 rounded-full" [style.background]="f.couleur"></span>
                       <span class="font-mono text-[10px] text-tertiary">{{ f.cat }}</span>
+                    </div>
+                  }
+                  @if (tmja.visible()) {
+                    @for (p of paliersTmja; track p.libelle) {
+                      <div data-figure-tmja class="flex items-center gap-1.5" [style.opacity]="p.faible && tmja.masquerFaible() ? 0.35 : 1">
+                        <span class="h-[3px] w-[14px] shrink-0 rounded-[2px]" [style.background]="p.couleur"></span>
+                        <span class="font-mono text-[10px] text-tertiary">{{ p.libelle }}</span>
+                      </div>
+                    }
+                  }
+                  @if (radio.visible()) {
+                    <div data-figure-radio class="flex items-center gap-1.5">
+                      <span class="size-2 shrink-0 rounded-full" [style.background]="radio.couleurCouverture()"></span>
+                      <span class="font-mono text-[10px] text-tertiary">Émetteurs radio</span>
                     </div>
                   }
                 </div>
@@ -208,6 +226,9 @@ export class LegendeCarteComponent {
 
   private readonly pois = inject(PoisService);
   private readonly etat = inject(EtatCarteService);
+  protected readonly tmja = inject(TmjaService);
+  protected readonly radio = inject(RadioService);
+  protected readonly paliersTmja = LEGENDE_TMJA;
 
   /** Les catégories de la zone affichée, triées, avec leur compte et les rayons (`activeCats`, `page.tsx:843`). */
   protected readonly analyse = computed(() => {
@@ -229,9 +250,14 @@ export class LegendeCarteComponent {
     return this.etat.poiSelectionnes().map((cat) => ({ cat, couleur: couleurPoi({ categorie: cat }, styles, {}) }));
   });
 
+  /** `poiCount > 0 || tmjaVisible || radioVisible` (`LegendeCarte.tsx:599`). */
+  protected readonly figuresVisibles = computed(
+    () => this.figuresPoi().length > 0 || this.tmja.visible() || this.radio.visible(),
+  );
+
   /** La boîte ne s'ouvre que si un bloc rendra quelque chose (`LegendeCarte.tsx:596-606`) — jamais vide. */
   protected readonly visible = computed(
-    () => degradeALegende(this.degradeActif()) || this.analyse() !== null || this.figuresPoi().length > 0,
+    () => degradeALegende(this.degradeActif()) || this.analyse() !== null || this.figuresVisibles(),
   );
 
   protected readonly uniteCarreaux = computed(() => {

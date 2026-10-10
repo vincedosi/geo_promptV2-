@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { CarreauxService } from '../../couches/carreaux.service';
 import { IrisService } from '../../couches/iris.service';
+import { RadioService } from '../../couches/radio.service';
+import { TmjaService } from '../../couches/tmja.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { libelleDegrade } from '../../logique/degrades';
 import { GroupeCalquesComponent } from './groupe-calques.component';
@@ -9,6 +11,8 @@ import { SectionCarreauxComponent } from './section-carreaux.component';
 import { SectionIrisComponent } from './section-iris.component';
 import { SectionOohComponent } from './section-ooh.component';
 import { SectionPoiComponent } from './section-poi.component';
+import { SectionRadioComponent } from './section-radio.component';
+import { SectionTmjaComponent } from './section-tmja.component';
 import { SectionTransportComponent } from './section-transport.component';
 import { SelectionsCalquesService } from './selections-calques.service';
 
@@ -28,8 +32,8 @@ interface ActifCalque {
  * mobilité, Médias offline, Environnement, Mes analyses. Tous fermés à l'ouverture, et rien n'est mémorisé : comme
  * React (`useState`, `PanneauCalques.tsx:240-243`), le panneau repart replié à chaque réouverture.
  *
- * T6 a porté le CADRE et les carreaux Filosofi, T7 les IRIS, T8 les POI, le transport et les panneaux OOH ; chaque
- * groupe se remplit dans sa tâche : TMJA et radio (T9), environnement (T10-T12), « Mes analyses » (T18). Les sections
+ * T6 a porté le CADRE et les carreaux Filosofi, T7 les IRIS, T8 les POI, le transport et les panneaux OOH, T9 le flux
+ * routier (TMJA) et la radio ; chaque groupe se remplit dans sa tâche : environnement (T10-T12), « Mes analyses » (T18). Les sections
  * internes de ces groupes (`useFilterSections(true, …)` en mode overlay) ne mémorisent rien non plus : leur état, les
  * régies OOH et les types de transport choisis vivent dans `SelectionsCalquesService`, fourni par CE composant — il
  * survit au repli d'un groupe et disparaît à la fermeture du panneau, comme l'état React.
@@ -40,7 +44,7 @@ interface ActifCalque {
   selector: 'mg-panneau-calques',
   imports: [
     GroupeCalquesComponent, IconeComponent, SectionCarreauxComponent, SectionIrisComponent, SectionOohComponent, SectionPoiComponent,
-    SectionTransportComponent,
+    SectionRadioComponent, SectionTmjaComponent, SectionTransportComponent,
   ],
   providers: [SelectionsCalquesService],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -81,19 +85,21 @@ interface ActifCalque {
 
     <mg-groupe-calques titre="POI et mobilité" [ouvert]="groupes().poiMobilite" [compte]="comptePoi()" (basculer)="basculer('poiMobilite')">
       @if (groupes().poiMobilite) {
-        <!-- PanneauCalques.tsx:470-525 : padding 16, sections espacées de 16 ; le flux routier arrive avec T9. -->
+        <!-- PanneauCalques.tsx:470-525 : padding 16, sections espacées de 16. -->
         <div class="flex flex-col gap-4 p-4">
           <mg-section-poi />
           <mg-section-transport />
+          <mg-section-tmja />
         </div>
       }
     </mg-groupe-calques>
 
     <mg-groupe-calques titre="Médias offline" [ouvert]="groupes().mediasOffline" [compte]="compteMedias()" (basculer)="basculer('mediasOffline')">
       @if (groupes().mediasOffline) {
-        <!-- PanneauCalques.tsx:527-575 : la radio arrive avec T9. -->
+        <!-- PanneauCalques.tsx:527-575. -->
         <div class="flex flex-col gap-4 p-4">
           <mg-section-ooh />
+          <mg-section-radio />
         </div>
       }
     </mg-groupe-calques>
@@ -116,16 +122,20 @@ export class PanneauCalquesComponent {
   private readonly iris = inject(IrisService);
   private readonly etat = inject(EtatCarteService);
   private readonly selections = inject(SelectionsCalquesService);
+  private readonly tmja = inject(TmjaService);
+  private readonly radio = inject(RadioService);
 
   protected readonly groupes = signal<Record<CleGroupe, boolean>>({
     socioDemo: false, poiMobilite: false, mediasOffline: false, environnement: false, analyses: false,
   });
 
   protected readonly compteSocio = computed(() => (this.carreaux.visible() ? 1 : 0) + (this.iris.visible() ? 1 : 0));
-  /** `selectedPOI.length + selectedTransportTypes.length (+ TMJA, T9)` (`PanneauCalques.tsx:472`). */
-  protected readonly comptePoi = computed(() => this.etat.poiSelectionnes().length + this.selections.typesTransport().length);
-  /** `selectedOOH.length (+ radio, T9)` (`PanneauCalques.tsx:529`). */
-  protected readonly compteMedias = computed(() => this.selections.regiesOoh().length);
+  /** `selectedPOI.length + selectedTransportTypes.length + (tmjaVisible ? 1 : 0)` (`PanneauCalques.tsx:472`). */
+  protected readonly comptePoi = computed(
+    () => this.etat.poiSelectionnes().length + this.selections.typesTransport().length + (this.tmja.visible() ? 1 : 0),
+  );
+  /** `selectedOOH.length + (radioVisible ? 1 : 0)` (`PanneauCalques.tsx:529`). */
+  protected readonly compteMedias = computed(() => this.selections.regiesOoh().length + (this.radio.visible() ? 1 : 0));
   protected readonly actifs = computed<ActifCalque[]>(() => {
     const liste: ActifCalque[] = [];
     if (this.carreaux.visible()) {
@@ -141,8 +151,11 @@ export class PanneauCalquesComponent {
     if (transport > 0) {
       liste.push({ id: 'transport', label: `Transport (${transport})`, retirer: () => this.selections.typesTransport.set([]) });
     }
+    if (this.tmja.visible()) liste.push({ id: 'tmja', label: 'Flux routier (TMJA)', retirer: () => this.tmja.masquer() });
     const ooh = this.selections.regiesOoh().length;
     if (ooh > 0) liste.push({ id: 'ooh', label: `OOH (${ooh} régies)`, retirer: () => this.selections.regiesOoh.set([]) });
+    // `PanneauCalques.tsx:336` : la croix fait `onToggleRadio`, donc ÉTEINT le calque.
+    if (this.radio.visible()) liste.push({ id: 'radio', label: 'Radio FM/DAB+', retirer: () => this.radio.basculer() });
     return liste;
   });
 

@@ -6,6 +6,9 @@ import { CarreauxApi } from '../data/carreaux.api';
 import { IrisApi } from '../data/iris.api';
 import { IrisService } from '../couches/iris.service';
 import { PoisService } from '../couches/pois.service';
+import { RadioService } from '../couches/radio.service';
+import { TmjaService } from '../couches/tmja.service';
+import { RadioApi } from '../data/radio.api';
 import { CarteApi } from '../data/carte.api';
 import { Subject } from 'rxjs';
 import type { CatalogueBornesIris } from '../logique/iris-echelle';
@@ -24,7 +27,9 @@ function monter() {
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), CarreauxService, IrisService, PoisService, EtatCarteService, CouchesCarteService, AnnonceService,
+      TmjaService, RadioService,
       { provide: CarteApi, useValue: {} },
+      { provide: RadioApi, useValue: { optionsFiltre: () => new Subject(), emetteurs: () => new Subject() } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '' } },
       { provide: IrisApi, useValue: { urlTuiles: () => '', detail: vi.fn(), bornes: () => { const f = new Subject<CatalogueBornesIris>(); bornes$.push(f); return f; } } },
       { provide: CouleursService, useValue: { palette: () => signal({ absente: '#9aa0a6', trait: '#555555' }) } },
@@ -36,6 +41,7 @@ function monter() {
   return {
     fixture, el, rendre, bornes$, carreaux: TestBed.inject(CarreauxService), iris: TestBed.inject(IrisService),
     pois: TestBed.inject(PoisService), etat: TestBed.inject(EtatCarteService),
+    tmja: TestBed.inject(TmjaService), radio: TestBed.inject(RadioService),
   };
 }
 
@@ -163,5 +169,34 @@ describe('LegendeCarteComponent', () => {
     });
     await rendre();
     expect([...el.querySelectorAll('[data-bloc]')].map((b) => b.getAttribute('data-bloc'))).toEqual(['analyse', 'carreaux', 'figures']);
+  });
+
+  it('« Figurés » TMJA (T9) : libellés de React, couleurs de la CARTE ; le palier faible estompé quand il est masqué', async () => {
+    const { fixture, el, rendre, tmja } = monter();
+    fixture.componentRef.setInput('degradeActif', null);
+    tmja.afficher();
+    await rendre();
+    const lignes = [...el.querySelectorAll<HTMLElement>('[data-figure-tmja]')];
+    expect(lignes.map((l) => l.textContent!.trim())).toEqual(['< 5 000 véh/j', '5 000 – 15 000 véh/j', '15 000 – 40 000 véh/j', '> 40 000 véh/j']);
+    expect(lignes.map((l) => (l.querySelector('span') as HTMLElement).style.background))
+      .toEqual(['rgb(66, 146, 198)', 'rgb(246, 213, 67)', 'rgb(249, 115, 22)', 'rgb(239, 68, 68)']);
+    expect(lignes.map((l) => l.style.opacity)).toEqual(['0.35', '1', '1', '1']);
+    tmja.masquerFaible.set(false);
+    await rendre();
+    expect(el.querySelector<HTMLElement>('[data-figure-tmja]')!.style.opacity).toBe('1');
+    tmja.masquer();
+    await rendre();
+    expect(el.querySelector('[data-legende]')).toBeNull();
+  });
+
+  it('« Figurés » radio (T9) : « Émetteurs radio » dans la couleur de couverture choisie', async () => {
+    const { fixture, el, rendre, radio } = monter();
+    fixture.componentRef.setInput('degradeActif', null);
+    radio.visible.set(true);
+    radio.couleurCouverture.set('#ef4444');
+    await rendre();
+    const ligne = el.querySelector('[data-figure-radio]')!;
+    expect(ligne.textContent!.trim()).toBe('Émetteurs radio');
+    expect((ligne.querySelector('span') as HTMLElement).style.background).toBe('rgb(239, 68, 68)');
   });
 });

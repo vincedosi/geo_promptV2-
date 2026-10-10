@@ -154,18 +154,63 @@ export const TEINTES_RADIO = {
   cernePoint: { 'DAB+': 1.5, defaut: 0.5 } as Record<string, number>,
   /** Poids de la carte de chaleur par puissance : paires `[puissance, poids]`. */
   poidsChaleur: [[0, 0.1], [1000, 0.5], [100000, 1]] as ReadonlyArray<readonly [number, number]>,
-  /** Valeurs de la carte de chaleur : paires `[densité, opacité du teal]`, la dernière stop est blanche. */
+  /** Valeurs de la carte de chaleur : paires `[densité, opacité du teal]`, la dernière stop est `coeurChaleur`. */
   densiteChaleur: [[0, 0], [0.15, 0.15], [0.35, 0.35], [0.6, 0.6], [0.85, 0.85]] as ReadonlyArray<readonly [number, number]>,
+  /**
+   * Le cœur de la carte de chaleur (densité 1) : `#f0f0f0` dans les DEUX thèmes, comme React — une teinte de DONNÉES
+   * (B12), pas `--text-primary`, qui le rendrait presque noir en thème clair (ruling T2 → T9).
+   */
+  coeurChaleur: '#f0f0f0',
+  /** Intensité, rayon et opacité de la carte de chaleur par zoom : paires `[zoom, valeur]` (`useMapInit.ts:492-503`). */
+  intensiteChaleur: [[0, 0.5], [9, 2]] as ReadonlyArray<readonly [number, number]>,
+  rayonChaleur: [[0, 4], [6, 15], [10, 25]] as ReadonlyArray<readonly [number, number]>,
+  opaciteChaleur: [[11, 1], [14, 0]] as ReadonlyArray<readonly [number, number]>,
+  /** La carte de chaleur s'efface au-delà de ce zoom (`maxzoom`). */
+  zoomMaxChaleur: 14,
   /** Opacité des couvertures. */
   couverture: { fill: 0.06, ligneLargeur: 0.5, ligneOpacite: 0.25 },
+  /** Grappes : opacité, épaisseur du cerne, taille du compte et sa police (`useMapInit.ts:437-454`). */
+  grappes: { opacite: 0.85, cerne: 1, tailleTexte: 11, police: 'Open Sans Bold' },
+  /** Points : opacité hors sélection, et quand une radio est choisie (la sienne, les autres) (`useRadioLayer.ts:180-195`). */
+  opacitePoints: { normale: 0.9, choisie: 1, autres: 0.35 },
+  /** Les émetteurs des AUTRES radios quand une radio est choisie (`useRadioLayer.ts:180`) — gris de données. */
+  pointNonChoisi: '#4b5563',
   /** Grappes (source GeoJSON groupée). */
   groupement: { clusterMaxZoom: 14, clusterRadius: 50 },
-  /** Jetons d'INTERFACE (noms sans `--`, lus par `CouleursService`) : React les écrivait #4ecdc4 / #050505 / #f0f0f0 en dur. */
+  /**
+   * Jetons d'INTERFACE (noms sans `--`, lus par `CouleursService`) : React les écrivait #4ecdc4 / #050505 en dur.
+   * Le sombre `#050505` (cernes, texte des grappes) est INVARIANT chez React : il prend donc `--brand-teal-fg`,
+   * invariant lui aussi, et non `--bg-level-0`, qui passerait au blanc en thème clair (ruling T2 → T9).
+   */
   jetonGrappes: 'brand-teal',
   jetonTexteGrappes: 'brand-teal-fg',
-  jetonCernes: 'bg-level-0',
-  jetonChaleurMax: 'text-primary',
+  jetonCernes: 'brand-teal-fg',
+  /** La radio choisie : React écrivait `'var(--brand-teal)'` dans `paint`, que MapLibre REFUSAIT (défaut corrigé, T9). */
+  jetonChoisie: 'brand-teal',
 } as const;
+
+/**
+ * Les couleurs proposées pour la couverture radio (`RADIO_COVERAGE_COLORS`, `RadioSection.tsx:39`). La couleur choisie
+ * est une DONNÉE de l'utilisateur (B12), passée telle quelle à MapLibre : des hexadécimaux, jamais `var()`. React posait
+ * `'var(--brand-teal)'` en première pastille — MapLibre refusait la couleur, la pastille ne paraissait jamais choisie et
+ * le sélecteur natif ne savait pas l'afficher : elle devient la valeur du teal, `#4ecdc4` (défaut corrigé, T9).
+ * Défaut React listé, NON corrigé (parité) : la dernière pastille `#8b5cf6` est violette.
+ */
+export const COULEURS_COUVERTURE_RADIO: readonly string[] = ['#4ecdc4', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
+/** La couleur de couverture au départ (`useRadioLayer.ts:49`). */
+export const COULEUR_COUVERTURE_DEFAUT = '#4ecdc4';
+
+/**
+ * La légende du flux routier (`TMJA_LEGEND`, `TmjaSection.tsx:20-25`) : libellés de React, mais les COULEURS de la carte
+ * (`PALIERS_TMJA`) — React affichait `#e5a00d` pour le palier 15 000–40 000 que la carte peint `#f97316` : la légende
+ * contredisait la carte (défaut corrigé, T9). `faible` : le palier que « Masquer le trafic faible » estompe.
+ */
+export const LEGENDE_TMJA: ReadonlyArray<{ couleur: string; libelle: string; faible: boolean }> = [
+  { couleur: PALIERS_TMJA[0].couleur, libelle: '< 5 000 véh/j', faible: true },
+  { couleur: PALIERS_TMJA[1].couleur, libelle: '5 000 – 15 000 véh/j', faible: false },
+  { couleur: PALIERS_TMJA[2].couleur, libelle: '15 000 – 40 000 véh/j', faible: false },
+  { couleur: PALIERS_TMJA[3].couleur, libelle: '> 40 000 véh/j', faible: false },
+];
 
 // ---------------------------------------------------------------------------
 // Indicateurs civiques — échelle de l'abstention (CivicIndicatorsLayer.tsx:38-60)

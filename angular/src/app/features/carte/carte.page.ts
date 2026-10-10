@@ -13,7 +13,9 @@ import { DetailIrisComponent } from './couches/detail-iris.component';
 import { IrisService } from './couches/iris.service';
 import { OohService } from './couches/ooh.service';
 import { PoisService } from './couches/pois.service';
+import { RadioService } from './couches/radio.service';
 import { TiroirPanneauComponent } from './couches/tiroir-panneau.component';
+import { TmjaService } from './couches/tmja.service';
 import { TransportService } from './couches/transport.service';
 import { ZoneActiveComponent } from './couches/zone-active.component';
 import { JETONS_STYLE_MAGELIAN, appliquerStyleMagelian, couchesDuFond } from './couches/style-magelian';
@@ -96,7 +98,7 @@ export function palierCarreaux(zoom: number): string {
     RailComponent, ReglagesComponent, RouterOutlet, TiroirPanneauComponent, ZoneActiveComponent,
   ],
   providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
-    IrisService, PoisService, OohService, TransportService, CataloguePoiService,
+    IrisService, PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService,
   ],
   templateUrl: './carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,

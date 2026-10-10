@@ -14,6 +14,9 @@ import { PanneauCalquesComponent } from './panneau-calques.component';
 import { PoisService } from '../../couches/pois.service';
 import { OohService } from '../../couches/ooh.service';
 import { TransportService } from '../../couches/transport.service';
+import { RadioService } from '../../couches/radio.service';
+import { TmjaService } from '../../couches/tmja.service';
+import { RadioApi } from '../../data/radio.api';
 import { CataloguePoiService } from '../../etat/catalogue-poi.service';
 import { CarteApi } from '../../data/carte.api';
 import { of } from 'rxjs';
@@ -22,8 +25,9 @@ function monter() {
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), CarreauxService, IrisService, EtatCarteService, CouchesCarteService, AnnonceService,
-      PoisService, OohService, TransportService, CataloguePoiService,
-      { provide: CarteApi, useValue: { categories: () => of({ categories: ['lycee'] }) } },
+      PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService,
+      { provide: CarteApi, useValue: { categories: () => of({ categories: ['lycee'] }), urlTuilesTmja: () => '' } },
+      { provide: RadioApi, useValue: { optionsFiltre: () => NEVER, emetteurs: () => NEVER } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },
       { provide: IrisApi, useValue: { urlTuiles: () => '', bornes: () => NEVER, detail: () => NEVER } },
       { provide: CouleursService, useValue: { palette: () => signal({ absente: '#9aa0a6', trait: '#555555' }) } },
@@ -38,6 +42,8 @@ function monter() {
     carreaux: TestBed.inject(CarreauxService),
     iris: TestBed.inject(IrisService),
     etat: TestBed.inject(EtatCarteService),
+    tmja: TestBed.inject(TmjaService),
+    radio: TestBed.inject(RadioService),
     titres: () => [...el.querySelectorAll('button[data-groupe]')].map((b) => b.querySelector('span')!.textContent!.trim()),
     groupe: (titre: string) => [...el.querySelectorAll<HTMLButtonElement>('button[data-groupe]')]
       .find((b) => b.textContent!.includes(titre))!,
@@ -181,5 +187,25 @@ describe('PanneauCalquesComponent', () => {
     (el.querySelector('[data-actif="poi"] button') as HTMLButtonElement).click();
     await rendre();
     expect(etat.poiSelectionnes()).toEqual([]);
+  });
+
+  it('T9 : TMJA dans « POI et mobilité », radio dans « Médias offline » ; « Actifs » et comptes de groupe ; les croix éteignent', async () => {
+    const { el, rendre, groupe, tmja, radio } = monter();
+    groupe('POI et mobilité').click();
+    groupe('Médias offline').click();
+    await rendre();
+    expect(el.querySelector('mg-section-tmja')).not.toBeNull();
+    expect(el.querySelector('mg-section-radio')).not.toBeNull();
+    tmja.afficher();
+    radio.basculer();
+    await rendre();
+    expect(el.textContent).toContain('Actifs (2)');
+    expect([...el.querySelectorAll('[data-actif]')].map((a) => a.getAttribute('data-actif'))).toEqual(['tmja', 'radio']);
+    expect(groupe('POI et mobilité').textContent).toContain('1');
+    expect(groupe('Médias offline').textContent).toContain('1');
+    (el.querySelector('[data-actif="tmja"] button') as HTMLButtonElement).click();
+    (el.querySelector('[data-actif="radio"] button') as HTMLButtonElement).click();
+    await rendre();
+    expect([tmja.visible(), radio.visible()]).toEqual([false, false]);
   });
 });

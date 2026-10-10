@@ -14,6 +14,7 @@ import { OrganisationsApi } from './features/session/data/organisations.api';
 import { CarreauxApi } from './features/carte/data/carreaux.api';
 import { CarteApi } from './features/carte/data/carte.api';
 import { IrisApi } from './features/carte/data/iris.api';
+import { RadioApi } from './features/carte/data/radio.api';
 import { ZonesCustomApi } from './features/carte/data/zones-custom.api';
 import { ZonesRisqueApi } from './features/risques/data/zones-risque.api';
 import { ProfilRisqueApi } from './features/risques/data/profil-risque.api';
@@ -52,6 +53,7 @@ const FOURNISSEURS_DISTANTS: (Provider | EnvironmentProviders)[] = [
   CarreauxApi,
   IrisApi,
   CarteApi,
+  RadioApi,
 ];
 
 /**

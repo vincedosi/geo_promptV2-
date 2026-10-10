@@ -3,6 +3,7 @@ import { Injectable } from '@angular/core';
 import { type Observable, timeout } from 'rxjs';
 import type { Bbox } from '../../../carte/bbox';
 import { HttpBaseService } from '../../../core/http/http-base.service';
+import { SOURCE_TMJA } from '../logique/palettes-donnees-carte';
 
 /** Un point d'intérêt — recopie de `POI` (`types/poi.ts`). */
 export interface POI {
@@ -136,6 +137,14 @@ export class CarteApi extends HttpBaseService {
     const [o, s, e, n] = b.map((v) => v.toFixed(4));
     const suite = types.length ? `&types=${types.join(',')}` : '';
     return this.httpClient.get<ZoneData>(`${this.baseUrl}/map/transport?west=${o}&south=${s}&east=${e}&north=${n}${suite}`);
+  }
+
+  /**
+   * Les tuiles MVT du flux routier, `…/api/tmja-tiles/{z}/{x}/{y}?v=v10` (`useMapInit.ts:391-396`, T9) : aucun appel
+   * `HttpClient`, MapLibre les lit dans son worker — d'où l'adresse ABSOLUE, comme `CarreauxApi.urlTuiles`.
+   */
+  urlTuilesTmja(): string {
+    return `${this.urlAbsolue('tmja-tiles/{z}/{x}/{y}')}?v=${SOURCE_TMJA.version}`;
   }
 
   /** `POST /api/map/territory-mask` : la géométrie d'un territoire, pour le masque de la carte. */
