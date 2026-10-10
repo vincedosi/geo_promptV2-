@@ -5,6 +5,7 @@ import { mapPostalCodesToGeoIds, GEO_POSTAL_FR_VERSION } from '@/lib/digital/dv3
 import { buildZoneBiddingScript, buildWeightedZoneBiddingScript } from '@/lib/digital/dv360-bidding-script';
 import { toSlug } from '@/lib/custom-geo/slug';
 import { checkZoneAccess } from '@/lib/campaigns/access';
+import { lireCodesDeZone } from '@/lib/custom-geo/codes-zone';
 
 export const dynamic = 'force-dynamic';
 
@@ -136,19 +137,17 @@ export async function GET(
     const codeType = format === 'csv_cp' ? 'cp' : 'iris';
     const headerName = format === 'csv_cp' ? 'code_postal' : 'code_iris';
 
-    const { data: codes, error } = await supabase
-      .from('custom_geo_zone_codes')
-      .select('code')
-      .eq('zone_id', id)
-      .eq('code_type', codeType)
-      .order('code')
-      .limit(100000); // PostgREST tronque à 5000 rows par défaut (zone France entière : 6 187 CP)
-
-    if (error) {
+    // Lecture paginée : PostgREST coupe une table à 1 000 lignes (`db-max-rows`)
+    // et l'ancien `.limit(100000)` ne levait rien (lib/custom-geo/codes-zone.ts).
+    let codes: string[];
+    try {
+      codes = await lireCodesDeZone(supabase, id, codeType);
+    } catch (e) {
+      console.error('[custom-geo/export] codes', e instanceof Error ? e.message : String(e));
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 
-    const csv = [headerName, ...(codes ?? []).map(r => r.code)].join('\n');
+    const csv = [headerName, ...codes].join('\n');
     const ext = 'csv';
 
     return new Response(csv, {
@@ -160,19 +159,14 @@ export async function GET(
   }
 
   if (format === 'dv360_cp' || format === 'dv360_sdf' || format === 'bidding_script') {
-    const { data: codes, error } = await supabase
-      .from('custom_geo_zone_codes')
-      .select('code')
-      .eq('zone_id', id)
-      .eq('code_type', 'cp')
-      .order('code')
-      .limit(100000); // PostgREST tronque à 5000 rows par défaut
-
-    if (error) {
+    // Lecture paginée, même raison que l'export CSV ci-dessus.
+    let cps: string[];
+    try {
+      cps = await lireCodesDeZone(supabase, id, 'cp');
+    } catch (e) {
+      console.error('[custom-geo/export] codes', e instanceof Error ? e.message : String(e));
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
-
-    const cps = (codes ?? []).map(r => r.code);
 
     if (format === 'dv360_cp') {
       // Un code postal par ligne : prêt à coller dans le ciblage géo DV360

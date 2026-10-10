@@ -14,6 +14,7 @@ import { createAdminClient } from '@/lib/auth';
 import { resolveAccessToken, bulkAssignGeoRegions, type Dv360ConnectionRow } from '@/lib/dsp/dv360/client';
 import { logDspEvent } from '@/lib/dsp/logger';
 import { mapPostalCodesToGeoIds, GEO_POSTAL_FR_VERSION } from '@/lib/digital/dv360-geo';
+import { lireCodesDeZone } from '@/lib/custom-geo/codes-zone';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,18 +59,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Aucune connexion DV360 enregistrée.' }, { status: 404 });
   }
 
-  const { data: codes, error: codesErr } = await supabase
-    .from('custom_geo_zone_codes')
-    .select('code')
-    .eq('zone_id', zone_id)
-    .eq('code_type', 'cp')
-    .order('code')
-    .limit(100000); // PostgREST tronque à 5000 rows par défaut
-  if (codesErr) {
+  // Lecture paginée : PostgREST coupe une table à 1 000 lignes (`db-max-rows`),
+  // l'ancien `.limit(100000)` poussait 1 000 CP d'une zone de 1 641 sans
+  // erreur (lib/custom-geo/codes-zone.ts).
+  let cps: string[];
+  try {
+    cps = await lireCodesDeZone(supabase, zone_id, 'cp');
+  } catch (e) {
+    console.error('[dv360/targeting/push] codes', e instanceof Error ? e.message : String(e));
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-
-  const cps = (codes ?? []).map((r) => r.code);
   if (cps.length === 0) {
     return NextResponse.json({ error: 'Aucun code postal résolu pour cette zone.' }, { status: 400 });
   }
