@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
+import { lireTout } from '@/lib/supabase/lire-tout';
+
 export const dynamic = 'force-dynamic';
+
+/** Borne de la lecture des panneaux (1 434 en base le 2026-10-10), même valeur que `/api/map/ooh`. */
+const PLAFOND_PANNEAUX = 5000;
 
 export async function GET(req: NextRequest) {
   const profile = await requireAdmin(req);
@@ -24,9 +29,26 @@ export async function GET(req: NextRequest) {
   // Flux OSM — COUNT exact
   const osmCount = await supabase
     .from('comptages_routiers').select('*', { count: 'exact', head: true }).eq('source', 'osm_highway_proxy');
-  // Scoring panneaux (3 905 lignes — récupération complète)
-  const panneaux = await supabase
-    .from('panneaux_affichage').select('ville, score_transport, score_flux_routier, score_ooh_total').limit(5000);
+  // Scoring panneaux — lecture PAGINÉE. PostgREST coupe une table à
+  // `db-max-rows` = 1 000 lignes et l'ancien `.limit(5000)` ne levait rien :
+  // 1 000 panneaux comptés sur 1 434 (mesuré le 2026-10-10). `order('id')` :
+  // ordre total, deux pages ne se recouvrent pas. Au-delà de PLAFOND_PANNEAUX,
+  // la lecture échoue au lieu de tronquer.
+  let panneaux: { data: unknown[] };
+  try {
+    const { lignes } = await lireTout(
+      (de, a) => supabase
+        .from('panneaux_affichage')
+        .select('ville, score_transport, score_flux_routier, score_ooh_total')
+        .order('id')
+        .range(de, a),
+      PLAFOND_PANNEAUX,
+    );
+    panneaux = { data: lignes };
+  } catch (e) {
+    console.error('[admin/transport-stats] panneaux', e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ error: 'Lecture des panneaux impossible.' }, { status: 500 });
+  }
 
   // Sources connues — agrégation directe depuis les counts
   const arretsBySource: Record<string, number> = {

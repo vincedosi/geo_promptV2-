@@ -90,6 +90,7 @@ vi.mock('@/lib/dsp/logger', () => ({ logDspEvent: async () => undefined }));
 const exportZone = await import('@/app/api/custom-geo/[id]/export/route');
 const pushCiblage = await import('@/app/api/admin/dsp/dv360/targeting/push/route');
 const pushListe = await import('@/app/api/admin/dsp/dv360/zones/push/route');
+const statsTransport = await import('@/app/api/admin/transport-stats/route');
 
 const cps = (n: number) => Array.from({ length: n }, (_, i) => String(10000 + i));
 const ZONE = '11111111-1111-4111-8111-111111111111';
@@ -143,5 +144,15 @@ describe('POST /api/admin/dsp/dv360/*/push', () => {
     codesZone = cps(1641);
     const res = await pushListe.POST(new NextRequest('http://localhost/x', corps({})));
     expect((await res.json()).assigned_count).toBe(1641);
+  });
+});
+
+describe('GET /api/admin/transport-stats', () => {
+  it('compte les 1 434 panneaux, pas 1 000', async () => {
+    panneaux = Array.from({ length: 1434 }, (_, i) => ({
+      ville: `V${i % 7}`, score_transport: 1, score_flux_routier: 0, score_ooh_total: 2,
+    }));
+    const corps = await (await statsTransport.GET(new NextRequest('http://localhost/x'))).json();
+    expect(corps.panneaux.total).toBe(1434);
   });
 });
