@@ -29,7 +29,7 @@ import { EtatCarteService } from './etat/etat-carte.service';
 import { lireFondMemorise, memoriserFond, urlDuFond } from './etat/fond-carte';
 import { PileEchapService } from './etat/pile-echap.service';
 import { ReferentielGeoService } from './etat/referentiel-geo.service';
-import { ZonesMeteoService } from './etat/zones-meteo.service';
+import { ContoursZonesService } from './etat/contours-zones.service';
 import { PuceFiltreComponent } from './filtre/puce-filtre.component';
 import { LegendeCarteComponent } from './legende/legende-carte.component';
 import { ignorerRaccourciClavier } from './logique/garde-saisie';
@@ -104,7 +104,7 @@ export function palierCarreaux(zoom: number): string {
   ],
   providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
     IrisService, PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService,
-    IndicateursCiviquesService, SanteService, ZonesMeteoService, MeteoService,
+    IndicateursCiviquesService, SanteService, ContoursZonesService, MeteoService,
   ],
   templateUrl: './carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -177,7 +177,8 @@ export class CartePage {
     inject(SanteService);
 
     // Le fond MAGELIAN : surcharges posées sur la carte prête, ré-appliquées à chaque bascule de thème
-    // (`useMapInit.ts:217-221,1091-1102`). `carteCourante` n'est publiée qu'au `load` : le style est chargé.
+    // (`useMapInit.ts:217-221,1091-1102`). `carteCourante` est publiée au `load` : le style
+    // de FOND est chargé (même si `isStyleLoaded()` peut rester faux le temps des tuiles, voir `quandStyleCharge`).
     effect(() => {
       const carte = this.couches.carteCourante();
       if (!carte || this.fond() !== 'magelian') return;
@@ -185,30 +186,12 @@ export class CartePage {
       if (fond) appliquerStyleMagelian(carte, this.paletteMagelian(), fond);
     });
 
-    // Le détail IRIS se ferme (sa croix, « Tout effacer ») : s'il portait le focus, son retrait le ferait tomber sur
-    // <body> du document — hors de l'unique écouteur clavier (B10). Même règle que `panneauFerme` (T3).
-    let detailOuvert = false;
-    effect(() => {
-      const ouvert = this.iris.codeSelectionne() !== null;
-      if (detailOuvert && !ouvert) afterNextRender(() => this.rendreFocus(), { injector: this.injecteur });
-      detailOuvert = ouvert;
-    });
-    // Même règle pour le tiroir Street View d'un panneau (T8) : sa croix retirée, le focus revient à l'hôte.
-    let tiroirOuvert = false;
-    effect(() => {
-      const ouvert = this.pois.panneauSelectionne() !== null;
-      if (tiroirOuvert && !ouvert) afterNextRender(() => this.rendreFocus(), { injector: this.injecteur });
-      tiroirOuvert = ouvert;
-    });
-
-    // Même règle pour le dialogue météo (T11) : retiré pendant qu'il portait le focus, il le laisserait sur <body> —
-    // un second Échap ne fermerait plus le panneau Calques derrière lui (constaté au navigateur).
-    let dialogueMeteoOuvert = false;
-    effect(() => {
-      const ouvert = this.meteo.dialogueOuvert();
-      if (dialogueMeteoOuvert && !ouvert) afterNextRender(() => this.rendreFocus(), { injector: this.injecteur });
-      dialogueMeteoOuvert = ouvert;
-    });
+    // Un élément qui portait le focus et se retire (détail IRIS, tiroir Street View d'un panneau, dialogue météo) le
+    // laisserait sur <body> du document — hors de l'unique écouteur clavier (B10) : Alt+1..4 et Échap ne répondraient
+    // plus. Même règle que `panneauFerme` (T3).
+    this.rendreFocusALaFermeture(() => this.iris.codeSelectionne() !== null);
+    this.rendreFocusALaFermeture(() => this.pois.panneauSelectionne() !== null);
+    this.rendreFocusALaFermeture(this.meteo.dialogueOuvert);
 
     // Le focus sur l'hôte à l'ouverture : sans lui, aucun raccourci ne l'atteint avant le premier clic.
     afterNextRender(() => this.rendreFocus());
@@ -266,6 +249,16 @@ export class CartePage {
     const avaitFocus = !!cadre && cadre.contains(this.elementActif());
     this.etat.fermerEntree();
     if (avaitFocus) afterNextRender(() => this.rendreFocus(), { injector: this.injecteur });
+  }
+
+  /** À chaque passage de `ouvert` de vrai à faux, le focus revient à l'hôte s'il n'est plus dans la page. */
+  private rendreFocusALaFermeture(ouvert: () => boolean): void {
+    let etaitOuvert = false;
+    effect(() => {
+      const o = ouvert();
+      if (etaitOuvert && !o) afterNextRender(() => this.rendreFocus(), { injector: this.injecteur });
+      etaitOuvert = o;
+    });
   }
 
   /** L'élément focalisé, lu dans la racine qui porte la page (`document.activeElement` y serait l'hôte d'ombre). */

@@ -24,7 +24,7 @@ import { IndicateursCiviquesService } from '../../couches/indicateurs-civiques.s
 import { SanteService } from '../../couches/sante.service';
 import { MeteoService } from '../../couches/meteo.service';
 import { MeteoApi } from '../../data/meteo.api';
-import { ZonesMeteoService } from '../../etat/zones-meteo.service';
+import { ContoursZonesService } from '../../etat/contours-zones.service';
 import { FABRIQUE_POPUP } from '../../../../carte/fabrique-carte';
 import type { MeteoZoneChunk } from '../../logique/meteo/types';
 import { of } from 'rxjs';
@@ -39,7 +39,7 @@ function monter() {
     providers: [
       provideZonelessChangeDetection(), CarreauxService, IrisService, EtatCarteService, CouchesCarteService, AnnonceService,
       PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService, IndicateursCiviquesService, SanteService,
-      MeteoService, ZonesMeteoService,
+      MeteoService, ContoursZonesService,
       { provide: MeteoApi, useValue: { donnees: () => of<MeteoZoneChunk>({ status: 'done', progress: 1, total: 1, data: {}, meta: META_METEO }) } },
       { provide: FABRIQUE_POPUP, useValue: () => ({}) },
       {

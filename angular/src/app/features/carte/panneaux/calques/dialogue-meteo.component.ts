@@ -3,6 +3,8 @@ import {
 } from '@angular/core';
 import { MeteoService } from '../../couches/meteo.service';
 import { PileEchapService } from '../../etat/pile-echap.service';
+import { PRESETS, type Preset, periodeParDefaut, validerPeriodeDialogue } from '../../logique/meteo/periode-dialogue';
+import { todayStr } from '../../logique/meteo/requete';
 import type { MeteoMode, MeteoScale, MeteoVariable } from '../../logique/meteo/types';
 
 /** Les quatre variables (`VARIABLES`, `MeteoGeoPanel.tsx:28-33`), icônes comprises. */
@@ -20,59 +22,6 @@ const ECHELLES: ReadonlyArray<{ id: MeteoScale; label: string; hint: string }> =
   { id: 'region', label: 'Région', hint: '13 zones' },
 ];
 
-const MAX_FORECAST_DAYS = 16;
-const MAX_HISTORY_DAYS = 90;
-
-/** Date du jour en ISO, UTC — `todayStr` de `MeteoGeoPanel.tsx:45-47`. */
-function aujourdhui(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function ajouterJours(date: string, jours: number): string {
-  const d = new Date(date);
-  d.setUTCDate(d.getUTCDate() + jours);
-  return d.toISOString().slice(0, 10);
-}
-
-function joursEntre(a: string, b: string): number {
-  return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
-}
-
-interface Preset {
-  readonly label: string;
-  readonly debut: () => string;
-  readonly fin: () => string;
-}
-
-/** `FORECAST_PRESETS` / `HISTORY_PRESETS` (`MeteoGeoPanel.tsx:65-77`). */
-const PRESETS: Record<MeteoMode, readonly Preset[]> = {
-  forecast: [
-    { label: "Aujourd'hui", debut: aujourdhui, fin: aujourdhui },
-    { label: '3 jours', debut: aujourdhui, fin: () => ajouterJours(aujourdhui(), 3) },
-    { label: '7 jours', debut: aujourdhui, fin: () => ajouterJours(aujourdhui(), 7) },
-    { label: '14 jours', debut: aujourdhui, fin: () => ajouterJours(aujourdhui(), 14) },
-  ],
-  history: [
-    { label: 'Hier', debut: () => ajouterJours(aujourdhui(), -1), fin: () => ajouterJours(aujourdhui(), -1) },
-    { label: '7 derniers jours', debut: () => ajouterJours(aujourdhui(), -7), fin: () => ajouterJours(aujourdhui(), -1) },
-    { label: '30 derniers jours', debut: () => ajouterJours(aujourdhui(), -30), fin: () => ajouterJours(aujourdhui(), -1) },
-    { label: '90 derniers jours', debut: () => ajouterJours(aujourdhui(), -90), fin: () => ajouterJours(aujourdhui(), -1) },
-  ],
-};
-
-/** La validation du dialogue (`validation`, `MeteoGeoPanel.tsx:120-131`) : un message, ou `null`. */
-export function validerPeriodeDialogue(mode: MeteoMode, debut: string, fin: string, today: string): string | null {
-  if (debut > fin) return 'Date de début postérieure à la date de fin';
-  if (mode === 'forecast') {
-    if (fin < today) return "En mode prévisions, la date de fin doit être aujourd'hui ou plus tard";
-    if (joursEntre(today, fin) > MAX_FORECAST_DAYS) return `Prévisions limitées à ${MAX_FORECAST_DAYS} jours`;
-  } else {
-    if (fin >= today) return "En mode historique, la date de fin doit être avant aujourd'hui";
-    if (joursEntre(debut, fin) > MAX_HISTORY_DAYS) return `Historique limité à ${MAX_HISTORY_DAYS} jours`;
-  }
-  return null;
-}
-
 let compteur = 0;
 
 /**
@@ -84,12 +33,15 @@ let compteur = 0;
  * 7 jours — React le remontait sans `initialParams`). Il s'inscrit dans la pile Échap (`meteo`) le temps de sa vie ;
  * un Échap tapé dedans est CONSOMMÉ (`preventDefault`) : il ferme le dialogue, pas le panneau derrière.
  *
+ * Le composant ne tient que l'état et le gabarit : validation, préréglages et périodes par défaut sont dans
+ * `logique/meteo/periode-dialogue.ts` (pur, testé), les bornes et la date du jour dans `logique/meteo/requete.ts`.
+ *
  * Il reste ouvert pendant le chargement (bouton « Chargement… », barre quand le serveur annonce plusieurs lots) et en
  * cas d'erreur (le message s'affiche dedans) ; c'est `MeteoService` qui le ferme à la réussite.
  *
  * Écarts à React, défauts corrigés : `#ff5757` en dur → `--danger` (lisible en thème clair) ; `colorScheme: 'dark'` en
  * dur sur les champs de date → hérité du thème (l'icône du calendrier disparaissait en clair) ; ombre portée retirée
- * (flat total). Gardés pour la parité (défauts listés) : libellés de section en capitales (`text-transform`),
+ * (flat total) ; texte d'« Appliquer » en `--brand-teal-fg` (React : `--bg-primary`, blanc sur teal en clair). Gardés pour la parité (défauts listés) : libellés de section en capitales (`text-transform`),
  * statistiques au point décimal (`toFixed`).
  */
 @Component({
@@ -202,6 +154,8 @@ let compteur = 0;
       background: var(--bg-surface); color: var(--text-primary); border: 0.5px solid var(--border-subtle); border-radius: 10px;
       font-family: var(--font-sans);
     }
+    /* Le voile de React (rgba(0,0,0,0.5), page.tsx:1461) : noir dans les deux thèmes, comme lui ; aucun jeton de
+       voile n'existe (le seul autre voile, dialogue-ajout-membre, est aussi en noir). */
     dialog::backdrop { background: color-mix(in srgb, black 50%, transparent); }
     .tete {
       padding: 10px 14px; display: flex; align-items: center; gap: 8px;
@@ -245,7 +199,7 @@ let compteur = 0;
     }
     .appliquer {
       width: 100%; padding: 10px 14px; display: flex; align-items: center; justify-content: center; gap: 8px;
-      background: var(--brand-teal); border: 0.5px solid var(--brand-teal); border-radius: 6px; color: var(--bg-primary);
+      background: var(--brand-teal); border: 0.5px solid var(--brand-teal); border-radius: 6px; color: var(--brand-teal-fg);
       font-family: var(--font-sans); font-size: 12px; font-weight: 500; cursor: pointer; opacity: 1;
       transition: background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover);
     }
@@ -276,11 +230,12 @@ export class DialogueMeteoComponent {
   protected readonly variable = signal<MeteoVariable>('precipitation');
   protected readonly echelle = signal<MeteoScale>('departement');
   protected readonly mode = signal<MeteoMode>('forecast');
-  protected readonly debut = signal(aujourdhui());
-  protected readonly fin = signal(ajouterJours(aujourdhui(), 7));
+  private readonly periodeInitiale = periodeParDefaut('forecast', todayStr());
+  protected readonly debut = signal(this.periodeInitiale.debut);
+  protected readonly fin = signal(this.periodeInitiale.fin);
 
   protected readonly presets = computed(() => PRESETS[this.mode()]);
-  protected readonly validation = computed(() => validerPeriodeDialogue(this.mode(), this.debut(), this.fin(), aujourdhui()));
+  protected readonly validation = computed(() => validerPeriodeDialogue(this.mode(), this.debut(), this.fin(), todayStr()));
   protected readonly bloque = computed(() => this.validation() !== null || this.meteo.chargement());
   /** `loading && progress && progress.total > 1` (`MeteoGeoPanel.tsx:399`). */
   protected readonly progression = computed(() => {
@@ -314,18 +269,16 @@ export class DialogueMeteoComponent {
   /** `applyModeChange` (`MeteoGeoPanel.tsx:138-147`) : chaque mode repart de sa période par défaut. */
   protected changerMode(mode: MeteoMode): void {
     this.mode.set(mode);
-    if (mode === 'forecast') {
-      this.debut.set(aujourdhui());
-      this.fin.set(ajouterJours(aujourdhui(), 7));
-    } else {
-      this.debut.set(ajouterJours(aujourdhui(), -7));
-      this.fin.set(ajouterJours(aujourdhui(), -1));
-    }
+    this.poserPeriode(periodeParDefaut(mode, todayStr()));
   }
 
   protected appliquerPreset(p: Preset): void {
-    this.debut.set(p.debut());
-    this.fin.set(p.fin());
+    this.poserPeriode(p.periode(todayStr()));
+  }
+
+  private poserPeriode(p: { debut: string; fin: string }): void {
+    this.debut.set(p.debut);
+    this.fin.set(p.fin);
   }
 
   /** `handleApply` (`MeteoGeoPanel.tsx:149-152`) — l'échelle est toujours transmise (`scaleSelectable`). */

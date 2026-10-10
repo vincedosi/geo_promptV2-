@@ -13,7 +13,7 @@ import { CiviqueApi } from '../data/civique.api';
 import { SanteService } from '../couches/sante.service';
 import { MeteoService } from '../couches/meteo.service';
 import { MeteoApi } from '../data/meteo.api';
-import { ZonesMeteoService } from '../etat/zones-meteo.service';
+import { ContoursZonesService } from '../etat/contours-zones.service';
 import { FABRIQUE_POPUP } from '../../../carte/fabrique-carte';
 import { CarteApi } from '../data/carte.api';
 import { Subject } from 'rxjs';
@@ -33,7 +33,7 @@ function monter() {
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), CarreauxService, IrisService, PoisService, EtatCarteService, CouchesCarteService, AnnonceService,
-      TmjaService, RadioService, SanteService, MeteoService, ZonesMeteoService,
+      TmjaService, RadioService, SanteService, MeteoService, ContoursZonesService,
       { provide: MeteoApi, useValue: { donnees: () => new Subject() } },
       { provide: FABRIQUE_POPUP, useValue: () => ({}) },
       { provide: CiviqueApi, useValue: { zones: () => new Subject(), santeDepartement: () => new Subject(), santeCp: () => new Subject() } },

@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { MeteoService, type ProgressionMeteo } from '../../couches/meteo.service';
 import { PileEchapService } from '../../etat/pile-echap.service';
 import type { MeteoParams, MeteoZoneMeta } from '../../logique/meteo/types';
-import { DialogueMeteoComponent, validerPeriodeDialogue } from './dialogue-meteo.component';
+import { DialogueMeteoComponent } from './dialogue-meteo.component';
 
 beforeEach(() => {
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
@@ -155,17 +155,5 @@ describe('DialogueMeteoComponent', () => {
     expect(fermetures).toEqual([1]);
     await cliquer('[data-fermer]');
     expect(fermetures).toEqual([1, 1]);
-  });
-});
-
-describe('validerPeriodeDialogue (MeteoGeoPanel.tsx:120-131)', () => {
-  it('les cinq messages de React', () => {
-    const t = '2026-10-10';
-    expect(validerPeriodeDialogue('forecast', '2026-10-12', '2026-10-11', t)).toBe('Date de début postérieure à la date de fin');
-    expect(validerPeriodeDialogue('forecast', '2026-10-01', '2026-10-09', t)).toBe("En mode prévisions, la date de fin doit être aujourd'hui ou plus tard");
-    expect(validerPeriodeDialogue('forecast', t, '2026-10-27', t)).toBe('Prévisions limitées à 16 jours');
-    expect(validerPeriodeDialogue('history', '2026-10-01', t, t)).toBe("En mode historique, la date de fin doit être avant aujourd'hui");
-    expect(validerPeriodeDialogue('history', '2026-06-01', '2026-10-09', t)).toBe('Historique limité à 90 jours');
-    expect(validerPeriodeDialogue('forecast', t, '2026-10-26', t)).toBeNull();
   });
 });

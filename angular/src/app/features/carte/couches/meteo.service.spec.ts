@@ -10,11 +10,12 @@ import { MeteoApi } from '../data/meteo.api';
 import { AnnonceService } from '../etat/annonce.service';
 import { CouchesCarteService } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
-import { ZonesMeteoService } from '../etat/zones-meteo.service';
+import { ContoursZonesService } from '../etat/contours-zones.service';
 import { buildColorExpression } from '../logique/meteo/palettes';
 import type { MeteoParams, MeteoScale, MeteoStats, MeteoZoneChunk, MeteoZoneMeta } from '../logique/meteo/types';
 import { OPACITE_METEO, TRAIT_METEO } from '../logique/palettes-donnees-carte';
-import { COUCHE_METEO_FOND, COUCHE_METEO_TRAIT, MeteoService, SOURCE_METEO } from './meteo.service';
+import { COUCHE_METEO_FOND, COUCHE_METEO_TRAIT, SOURCE_METEO } from './couche-meteo';
+import { MeteoService } from './meteo.service';
 
 class PopupFactice {
   contenu: HTMLElement | null = null;
@@ -49,7 +50,7 @@ function monter() {
   const annonces: string[] = [];
   TestBed.configureTestingModule({
     providers: [
-      provideZonelessChangeDetection(), MeteoService, CouchesCarteService, EtatCarteService, ZonesMeteoService,
+      provideZonelessChangeDetection(), MeteoService, CouchesCarteService, EtatCarteService, ContoursZonesService,
       { provide: AnnonceService, useValue: { annoncer: (m: string) => annonces.push(m) } },
       {
         provide: CiviqueApi,
@@ -162,6 +163,40 @@ describe('MeteoService', () => {
     expect(m.meteo.visible()).toBe(false);
     expect(m.etat.degradeActif()).toBeNull();
     expect(m.carte.getLayer(COUCHE_METEO_FOND)).toBeUndefined();
+  });
+
+  it('échec des POLYGONES, flux réussi : dit, dialogue OUVERT, aucun dégradé, flux annulé (revue 1, I1)', () => {
+    const m = monter();
+    m.meteo.ouvrirDialogue();
+    m.meteo.appliquer(PARAMS);
+    m.reponsesZones[0].error(new HttpErrorResponse({ status: 500, error: '{"error":"boom"}' }));
+    TestBed.tick();
+    expect(m.meteo.erreur()).toBe('Contours des zones indisponibles — réessayez dans quelques instants.');
+    expect([m.meteo.chargement(), m.meteo.dialogueOuvert(), m.meteo.visible(), m.etat.degradeActif()]).toEqual([false, true, false, null]);
+    expect(m.flux[0].observed).toBe(false);
+    expect(m.carte.getLayer(COUCHE_METEO_FOND)).toBeUndefined();
+  });
+
+  it('échec des polygones APRÈS une application réussie : l’ancien affichage n’est pas présenté comme le nouveau', () => {
+    const m = monter();
+    appliquerJusquauBout(m);
+    m.meteo.ouvrirDialogue();
+    m.meteo.appliquer({ ...PARAMS, scale: 'region' });
+    m.flux[1].next(fini('region'));
+    m.flux[1].complete();
+    m.reponsesZones[1].error(new Error('coupure'));
+    TestBed.tick();
+    expect(m.meteo.dialogueOuvert()).toBe(true);
+    expect(m.meteo.libelle()).toBeNull();
+    expect(derniereDonnee(m.carte)!.features).toEqual([]);
+    expect(visibilite(m.carte, COUCHE_METEO_FOND)).toBe('none');
+  });
+
+  it('échec réseau (statut 0) : le message commun de l’application, jamais « HTTP 0 »', () => {
+    const m = monter();
+    m.meteo.appliquer(PARAMS);
+    m.flux[0].error(new HttpErrorResponse({ status: 0, error: new ProgressEvent('error') }));
+    expect(m.meteo.erreur()).toBe('L\'API ne répond pas. Le serveur Next.js (npm run dev, port 3000) est-il démarré ?');
   });
 
   it('échec HTTP (quota 429) : « HTTP 429 » suivi du message de la route, jamais le JSON brut', () => {

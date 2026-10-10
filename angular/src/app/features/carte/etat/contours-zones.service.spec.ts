@@ -2,14 +2,14 @@ import { TestBed } from '@angular/core/testing';
 import { Subject } from 'rxjs';
 import { CiviqueApi } from '../data/civique.api';
 import type { MeteoScale } from '../logique/meteo/types';
-import { ZonesMeteoService } from './zones-meteo.service';
+import { ContoursZonesService } from './contours-zones.service';
 
 function monter() {
   const demandes: MeteoScale[] = [];
   const reponses: Subject<GeoJSON.FeatureCollection>[] = [];
   TestBed.configureTestingModule({
     providers: [
-      ZonesMeteoService,
+      ContoursZonesService,
       {
         provide: CiviqueApi,
         useValue: {
@@ -18,14 +18,14 @@ function monter() {
       },
     ],
   });
-  return { zones: TestBed.inject(ZonesMeteoService), demandes, reponses };
+  return { zones: TestBed.inject(ContoursZonesService), demandes, reponses };
 }
 
 const fc = (code: string): GeoJSON.FeatureCollection => ({
   type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [] }, properties: { code } }],
 });
 
-describe('ZonesMeteoService', () => {
+describe('ContoursZonesService', () => {
   it('une lecture par échelle : deux abonnés (santé, météo) partagent la même requête, même EN VOL', () => {
     const { zones, demandes, reponses } = monter();
     const a: GeoJSON.FeatureCollection[] = [];

@@ -7,7 +7,7 @@ import { CouleursService } from '../../../core/theme/couleurs.service';
 import { CiviqueApi, type LigneDepartement, type ReponseSanteCp } from '../data/civique.api';
 import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
-import { ZonesMeteoService } from '../etat/zones-meteo.service';
+import { ContoursZonesService } from '../etat/contours-zones.service';
 import { bboxPourRequete } from '../logique/bbox-requete';
 import { JETONS_NIVEAUX_SANTE, OPACITE_SANTE, TRAIT_SANTE } from '../logique/palettes-donnees-carte';
 import { type EchelleSante, type JeuSante, METRIQUES_SANTE } from '../logique/sante';
@@ -59,7 +59,7 @@ export class SanteService {
   private readonly etat = inject(EtatCarteService);
   private readonly couches = inject(CouchesCarteService);
   private readonly api = inject(CiviqueApi);
-  private readonly zonesMeteo = inject(ZonesMeteoService);
+  private readonly contours = inject(ContoursZonesService);
   private readonly fabriquePopup = inject(FABRIQUE_POPUP);
   private readonly document = inject(DOCUMENT);
   private readonly palettes = {
@@ -230,8 +230,8 @@ export class SanteService {
     this.erreur.set(null);
     this.entrees = new Map();
     this.cleComplete = null;
-    // Contours en cache pour l'écran, PARTAGÉS avec la météo (T11, `ZonesMeteoService`) : une lecture par échelle.
-    const zones$ = this.zonesMeteo.zones(echelle);
+    // Contours en cache pour l'écran, PARTAGÉS avec la météo (T11, `ContoursZonesService`) : une lecture par échelle.
+    const zones$ = this.contours.zones(echelle);
     // UNE chaîne, UN abonnement (revue 1) : les contours en cache répondent de façon SYNCHRONE ; deux abonnements
     // imbriqués rangés dans le même champ perdaient l'abonnement au flux, que plus rien n'annulait.
     this.lecture = zones$.pipe(

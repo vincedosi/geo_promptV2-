@@ -137,7 +137,7 @@ export class CiviqueApi extends HttpBaseService {
 
   /**
    * `GET /api/meteo-geo/zones?scale=…` — polygones des régions, des départements ou des codes postaux. Lu par la santé
-   * environnementale (T10) et la météo (T11), toujours à travers `ZonesMeteoService`, qui les met en cache pour l'écran.
+   * environnementale (T10) et la météo (T11), toujours à travers `ContoursZonesService`, qui les met en cache pour l'écran.
    */
   zones(echelle: EchelleSante | MeteoScale): Observable<GeoJSON.FeatureCollection> {
     return this.httpClient.get<GeoJSON.FeatureCollection>(`${this.baseUrl}/meteo-geo/zones?scale=${echelle}`);
