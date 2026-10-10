@@ -28,7 +28,7 @@ Le projet l'a maintenant rencontré **cinq fois** :
 | 1 | `correlation_campagne_indicateur` | 2026-09-13 | sql/154 (jumelle `RETURNS jsonb`) |
 | 2 | `codes_postaux_du_perimetre` | 2026-09-15 | sql/168 + sql/169 (jumelle + enveloppe) |
 | 3 | `calculer_score_composite` | 2026-09-15 (relecture finale) | sql/170 (jumelle + enveloppe) |
-| 4 | `get_zone_centroids` et `codes_postaux_dans_bbox` | 2026-09-15 (relecture finale) | **ouverts — défauts A et B ci-dessous** |
+| 4 | `get_zone_centroids` et `codes_postaux_dans_bbox` | 2026-09-15 (relecture finale) | A : sql/243 (2026-10-10) ; **B ouvert ci-dessous** |
 | 5 | `get_strategy_comparison_data` | 2026-09-16, **par le test de famille** | **ouvert — défaut C ci-dessous** |
 
 Ce n'est plus un piège, c'est une propriété de la plateforme. Le correctif
@@ -48,7 +48,19 @@ dépasser 5 000 lignes.
 > ponctuels n'avaient pas empêché le cinquième cas, et aucun humain n'était
 > allé regarder du côté du rapport de fin de campagne.
 
-## Défaut A — la météo efface l'outre-mer
+## Défaut A — la météo efface l'outre-mer — CORRIGÉ le 2026-10-10 (sql/243)
+
+> **Corrigé.** Mesure du 2026-10-10 sur la base locale : `max_rows` y vaut
+> 1 000 et mord AUSSI les RPC tabulaires — `get_zone_centroids('cp')` rendait
+> **1 000** centroïdes sur 6 187, pas 5 000. `/api/meteo-geo` lit désormais
+> `get_zone_centroids_jsonb` (jumelle `RETURNS jsonb`, l'originale devient une
+> enveloppe mince que plus rien n'appelle) : la bbox est filtrée EN BASE par
+> l'index GIST, la borne (10 000) est écrite et `tronque` la dit. Et **le
+> repli « pas de zone → France entière » a disparu** : une vue sans code
+> postal rend « Aucun code postal dans la zone affichée. ». Verrous :
+> `tests/integration/zone-centroids-jsonb.test.ts`,
+> `tests/unit/api/plafond-lectures-carte.test.ts`. Le texte qui suit décrit
+> le défaut tel qu'il était.
 
 **`app/api/meteo-geo/route.ts:258`**, via `get_zone_centroids('cp')`.
 
@@ -141,10 +153,10 @@ minimum :
    `tests/unit/db/troncature-postgrest.test.ts`. Un contrôle automatique plutôt
    que la discipline — c'est déjà la doctrine du projet pour la dérive
    documentaire (`tests/unit/docs/derive-documentation.test.ts`).
-3. **Le repli silencieux de `meteo-geo`** doit être traité comme un défaut à
-   part entière, pas comme un dommage collatéral de la troncature. **RESTE À
-   FAIRE.**
+3. ~~**Le repli silencieux de `meteo-geo`**~~ — **FAIT le 2026-10-10** avec
+   sql/243 : aucune zone dans la vue rend une erreur dite, plus la France
+   entière.
 
-Les trois défauts A, B et C restent ouverts : ce fichier les recense, il ne les
+Les défauts B et C restent ouverts (A corrigé le 2026-10-10) : ce fichier les recense, il ne les
 corrige pas. Le test les tient inscrits — retirer l'un d'eux de ce document
 sans corriger la fonction fait échouer la suite.

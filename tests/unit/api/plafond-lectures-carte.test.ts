@@ -16,6 +16,11 @@
  *
  * Et `/api/radio/emetteurs` : un échec de la RPC ne doit plus afficher le
  * message PostgREST anglais brut (signatures SQL) à l'écran.
+ *
+ * Le même plafond mord AUSSI les RPC `RETURNS TABLE` (`max_rows` local = 1 000,
+ * mesuré le 2026-10-10 : `get_zone_centroids('cp')` → 1 000 sur 6 187,
+ * `codes_postaux_dans_bbox` métropole → 1 000 sur 6 051). Le faux client coupe
+ * donc à 1 000 ces RPC tabulaires ; leurs remplaçantes `jsonb` rendent tout.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
@@ -47,6 +52,16 @@ vi.mock('@/lib/auth', () => ({
     rpc: async (nom: string, args: Record<string, unknown> = {}) => {
       appelsRpc.push({ nom, args });
       if (erreurRpc) return { data: null, error: erreurRpc };
+      if (nom === 'get_zone_centroids') return { data: zonesMeteo.slice(0, MAX_ROWS), error: null };
+      if (nom === 'get_zone_centroids_jsonb') {
+        // Ce que fait sql/243 : filtre la bbox en base, rend au plus p_limite zones et `tronque`.
+        const avecBbox = args.p_ouest != null;
+        const dedans = zonesMeteo.filter((z) => !avecBbox || (
+          z.lon >= Number(args.p_ouest) && z.lon <= Number(args.p_est)
+          && z.lat >= Number(args.p_sud) && z.lat <= Number(args.p_nord)));
+        const limite = Number(args.p_limite ?? 10000);
+        return { data: { zones: dedans.slice(0, limite), tronque: dedans.length > limite }, error: null };
+      }
       if (nom === 'lire_arrets_transport_bbox') {
         // Ce que fait sql/241 : lit p_limite + 1 lignes, rend p_limite et `tronque`.
         const limite = Number(args.p_limite);
@@ -60,6 +75,18 @@ vi.mock('@/lib/api/middleware', () => ({
   requireAuth: async () => ({ id: 'u' }),
   authUnauthorized: () => new Response(null, { status: 401 }),
 }));
+vi.mock('@/lib/api/rate-limit', () => ({
+  createRateLimiter: () => async () => ({ ok: true }),
+  rateLimitResponse: () => new Response(null, { status: 429 }),
+}));
+// Le cache fichier de la météo survit d'une exécution à l'autre : sans ce
+// faux, une seconde exécution lirait le cache et ne toucherait plus la base.
+vi.mock('fs/promises', () => ({
+  readFile: async () => { throw new Error('pas de cache'); },
+  stat: async () => { throw new Error('pas de cache'); },
+  writeFile: async () => undefined,
+  mkdir: async () => undefined,
+}));
 vi.mock('@/lib/auth/perimetre-donnees', () => ({
   sourcesVisiblesDeLaRequete: async () => null,
   filtrerParSourcesVisibles: (q: unknown) => q,
@@ -69,6 +96,21 @@ const ooh = await import('@/app/api/map/ooh/route');
 const transport = await import('@/app/api/map/transport/route');
 const stations = await import('@/app/api/radio/stations/route');
 const emetteurs = await import('@/app/api/radio/emetteurs/route');
+const meteo = await import('@/app/api/meteo-geo/route');
+
+interface ZoneMeteo { code: string; nom: string; lat: number; lon: number }
+/** Le référentiel : 6 051 CP en métropole (grille), puis 136 ultramarins EN FIN de liste, comme en base. */
+const referentielCp = (): ZoneMeteo[] => [
+  ...Array.from({ length: 6051 }, (_, i) => ({
+    code: String(1000 + i).padStart(5, '0'), nom: `CP ${i}`,
+    lat: 42.5 + (i % 80) * 0.1, lon: -4 + Math.floor(i / 80) * 0.15,
+  })),
+  ...Array.from({ length: 136 }, (_, i) => ({
+    code: `974${String(i).padStart(2, '0')}`, nom: `Réunion ${i}`,
+    lat: -21.1 + (i % 10) * 0.02, lon: 55.3 + Math.floor(i / 10) * 0.02,
+  })),
+];
+let zonesMeteo: ZoneMeteo[] = [];
 
 const panneaux = (n: number) => Array.from({ length: n }, (_, i) => ({
   id: `p${i}`, regie: 'R', type_panneau: 'T', adresse: null, ville: null, lat: 45, lng: 5, nb_faces: 1, metadata: null,
@@ -82,6 +124,7 @@ const radios = (n: number) => Array.from({ length: n }, (_, i) => ({
 
 beforeEach(() => {
   lignes = [];
+  zonesMeteo = [];
   erreurRpc = null;
   requetes = 0;
   appelsRpc.length = 0;
@@ -164,5 +207,64 @@ describe('GET /api/radio/emetteurs — message d erreur', () => {
     expect(error).toMatch(/émetteurs radio/);
     expect(journal).toHaveBeenCalled();
     expect(String(journal.mock.calls[0].join(' '))).toMatch(/candidate/);
+  });
+});
+
+describe('GET /api/meteo-geo?scale=cp', () => {
+  const hier = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const appel = (bbox: string) => meteo.GET(new NextRequest(
+    `http://localhost/api/meteo-geo?scale=cp&variable=precipitation&startDate=${hier}&endDate=${hier}&bbox=${bbox}`,
+  ));
+  /** Lit le flux NDJSON jusqu'à sa dernière ligne. */
+  const derniereLigne = async (res: Response) => {
+    const lignesFlux = (await res.text()).trim().split('\n');
+    return JSON.parse(lignesFlux[lignesFlux.length - 1]);
+  };
+
+  beforeEach(() => {
+    zonesMeteo = referentielCp();
+    // Open-Meteo : une série par point demandé (latitude=a,b,c…).
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      const n = new URL(String(url)).searchParams.get('latitude')!.split(',').length;
+      const series = Array.from({ length: n }, () => ({ daily: { time: [hier], precipitation_sum: [2] } }));
+      return new Response(JSON.stringify(series), { status: 200 });
+    });
+  });
+
+  it('France métropole : les 6 051 CP de la bbox, pas 1 000', async () => {
+    const fin = await derniereLigne(await appel('-5.5,41,10,51.5'));
+    expect(fin.status).toBe('done');
+    expect(fin.meta.totalZones).toBe(6051);
+    expect(Object.keys(fin.data)).toHaveLength(6051);
+  });
+
+  it('La Réunion : ses 136 CP, et non la métropole par repli', async () => {
+    const fin = await derniereLigne(await appel('55.2,-21.4,55.9,-20.8'));
+    expect(fin.status).toBe('done');
+    expect(fin.meta.totalZones).toBe(136);
+    expect(Object.keys(fin.data).every((c) => c.startsWith('974'))).toBe(true);
+  });
+
+  it('UN appel en base, bbox arrondie vers l extérieur, borne écrite (10 000)', async () => {
+    await derniereLigne(await appel('4.33,45.5,5.1,46.25'));
+    expect(appelsRpc.map((a) => a.nom)).toEqual(['get_zone_centroids_jsonb']);
+    expect(appelsRpc[0].args).toEqual({
+      p_scale: 'cp', p_ouest: 4, p_sud: 45.5, p_est: 5.5, p_nord: 46.5, p_limite: 10000,
+    });
+  });
+
+  it('vue sans aucun CP : le dit en français, sans repli sur la France entière', async () => {
+    const fin = await derniereLigne(await appel('-30,30,-25,35'));
+    expect(fin.status).toBe('error');
+    expect(fin.error).toMatch(/aucun code postal/i);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('borne atteinte : échoue en français plutôt que de peindre un début', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    zonesMeteo = Array.from({ length: 10001 }, (_, i) => ({ code: String(i), nom: '', lat: 46, lon: 2 }));
+    const res = await appel('-5.5,41,10,51.5');
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toMatch(/codes postaux/);
   });
 });

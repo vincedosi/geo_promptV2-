@@ -7316,6 +7316,17 @@ export type Database = {
           nom: string
         }[]
       }
+      get_zone_centroids_jsonb: {
+        Args: {
+          p_est?: number
+          p_limite?: number
+          p_nord?: number
+          p_ouest?: number
+          p_scale: string
+          p_sud?: number
+        }
+        Returns: Json
+      }
       get_zone_items_export: {
         Args: { p_caller_user_id?: string; p_zone_id: string }
         Returns: Json

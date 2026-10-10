@@ -16,7 +16,8 @@ import { join, sep } from 'node:path';
  *   1. `correlation_campagne_indicateur` — 2026-09-13, corrigée sql/154
  *   2. `codes_postaux_du_perimetre`      — 2026-09-15, corrigée sql/168-169
  *   3. `calculer_score_composite`        — 2026-09-15, corrigée sql/170
- *   4. `get_zone_centroids` + `codes_postaux_dans_bbox` — 2026-09-15, OUVERTES
+ *   4. `get_zone_centroids` + `codes_postaux_dans_bbox` — 2026-09-15 ;
+ *      `get_zone_centroids` corrigée sql/243 (2026-10-10), l'autre OUVERTE
  *      (`docs/SUITE_TRONCATURE_POSTGREST.md`)
  *   5. `get_strategy_comparison_data`    — 2026-09-16, trouvée PAR CE TEST
  *
@@ -142,15 +143,6 @@ const BORNES: Record<string, Justification> = {
       "LIMIT 5000 explicite en fin de corps (sql/164). Borne réelle, mais posée EXACTEMENT "
       + "au plafond de PostgREST : relever ce LIMIT sans passer la fonction en jsonb "
       + "rendrait la troncature invisible au lieu de rendre plus de polygones.",
-  },
-  get_zone_centroids: {
-    nature: 'dette',
-    raison:
-      "TRONQUÉE AUJOURD'HUI : 6 187 codes postaux demandés, 5 000 rendus, et les 136 codes "
-      + "ultramarins sont tous dans la queue perdue. Aggravant : quand la bbox ne rend aucune "
-      + "zone, /api/meteo-geo retombe sur la France entière — une carte cadrée sur La Réunion "
-      + "affiche donc la météo de la métropole au lieu de « aucune donnée ». "
-      + "Défaut A de docs/SUITE_TRONCATURE_POSTGREST.md.",
   },
   smart_demographie_top_villes: {
     nature: 'borne',

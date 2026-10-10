@@ -3,15 +3,19 @@
  *
  * Météo Open-Meteo agrégée par zones admin (régions, départements, codes postaux).
  * Un point par zone = centroïde de ref_regions / ref_departements / ref_codes_postaux
- * (RPC `get_zone_centroids`, corrigée sql/160 : le palier CP rendait 0 ligne).
+ * (RPC `get_zone_centroids_jsonb`, sql/243 — jumelle jsonb de `get_zone_centroids`,
+ * qui rendait 1 000 CP sur 6 187 sous le plafond PostgREST ; sql/160 avait déjà
+ * corrigé un palier CP à 0 ligne).
  *
  * Flow serveur :
  *   1. Auth + quota partagé (20 appels / 60 s par utilisateur — chaque appel
  *      peut consommer jusqu'à 500 unités du quota Open-Meteo gratuit)
  *   2. Validation des params (Zod + `validerPeriode`)
  *   3. Cache filesystem (clé = version+scale+variable+dates+bbox ARRONDIE)
- *   4. RPC get_zone_centroids(scale) → {code, nom, lat, lon}
- *   5. Restriction à la bbox arrondie (mode cp), échantillonnage ≤ 500 points
+ *   4. RPC get_zone_centroids_jsonb(scale, bbox arrondie en mode cp, borne)
+ *      → {zones: [{code, nom, lat, lon}], tronque} ; aucune zone → erreur dite
+ *      (plus de repli silencieux sur la France entière)
+ *   5. Échantillonnage ≤ 500 points
  *   6. Appel Open-Meteo borné et repris (lib/http/lecture-avec-reprise)
  *   7. Flux NDJSON, cache filesystem écrit en arrière-plan
  *
@@ -36,7 +40,7 @@ import { fetchLectureAvecReprise, type CauseReprise } from '@/lib/http/lecture-a
 import { aggregatePeriod, computeStats, qualitativeLabel } from '@/lib/meteo/aggregation';
 import { METEO_DAILY_FIELD, METEO_UNIT } from '@/lib/meteo/types';
 import {
-  arrondirBboxExterieur, buildOpenMeteoUrl, cleCache, dansBbox, parseBbox,
+  arrondirBboxExterieur, buildOpenMeteoUrl, cleCache, parseBbox,
   pickHost, sampleZonePoints, todayStr, validerPeriode,
   MAX_POINTS_PER_BATCH,
   type Bbox, type QueryPoint, type ZoneCentroid,
@@ -86,6 +90,15 @@ const INTER_BATCH_DELAY_MS = 62_000;
 const RATE_LIMIT_BACKOFFS_MS = [10_000, 30_000, 65_000];
 /** Délai par tentative. Mesuré : une réponse de 500 points × 16 jours arrive en 2-4 s. */
 const OPEN_METEO_DELAI_MS = 20_000;
+
+/**
+ * Borne écrite des zones lues en base (`get_zone_centroids_jsonb`, sql/243) :
+ * au-dessus du référentiel complet — 6 187 codes postaux, 104 départements,
+ * 18 régions (mesuré le 2026-10-10). La RPC rend du jsonb, hors troncature
+ * PostgREST ; au-delà de la borne elle dit `tronque` et la route échoue plutôt
+ * que de peindre un début de liste.
+ */
+const BORNE_ZONES = 10_000;
 
 const CACHE_DIR = join(tmpdir(), 'meteo-cache');
 const CACHE_TTL_HISTORY_MS = 24 * 60 * 60 * 1000;
@@ -253,28 +266,46 @@ export async function GET(request: NextRequest): Promise<NextResponse | Response
     return new Response(stream, { headers: { ...NDJSON_HEADERS, 'X-Meteo-Cache': 'hit' } });
   }
 
-  // ── Centroïdes via RPC ───────────────────────────────────────────────
+  // ── Centroïdes de la vue, en UN passage (sql/243) ───────────────────
+  // `get_zone_centroids` (RETURNS TABLE) était coupée par PostgREST : 1 000
+  // centroïdes sur 6 187 en local, et la bbox filtrait ENSUITE ce début en
+  // mémoire. La jumelle jsonb filtre la bbox en base (index GIST) et dit
+  // `tronque` si la borne est atteinte.
   const supabase = createAdminClient();
-  const { data: zonesRaw, error: rpcError } = await supabase.rpc('get_zone_centroids', {
+  const { data: brut, error: rpcError } = await supabase.rpc('get_zone_centroids_jsonb', {
     p_scale: q.scale,
+    ...(bboxArrondie
+      ? { p_ouest: bboxArrondie[0], p_sud: bboxArrondie[1], p_est: bboxArrondie[2], p_nord: bboxArrondie[3] }
+      : {}),
+    p_limite: BORNE_ZONES,
   });
-  if (rpcError || !zonesRaw) {
-    logger.error('meteo-geo', `get_zone_centroids : ${rpcError?.message ?? 'sans donnée'}`);
+  const lu = brut as { zones: ZoneCentroid[]; tronque: boolean } | null;
+  if (rpcError || !lu) {
+    logger.error('meteo-geo', `get_zone_centroids_jsonb : ${rpcError?.message ?? 'sans donnée'}`);
+    return NextResponse.json({ error: 'Lecture des zones météo impossible.' }, { status: 500 });
+  }
+  if (lu.tronque) {
+    logger.error('meteo-geo', `plus de ${BORNE_ZONES} zones au palier ${q.scale}`);
     return NextResponse.json(
-      { error: 'Failed to fetch zone centroids', details: rpcError?.message },
+      { error: `Plus de ${BORNE_ZONES} codes postaux ou zones à lire : la carte ne peut pas les afficher.` },
       { status: 500 },
     );
   }
-  let zones = zonesRaw as ZoneCentroid[];
+  const zones = lu.zones;
   if (zones.length === 0) {
-    return NextResponse.json({ error: 'No zones found for scale' }, { status: 500 });
-  }
-
-  // ── Restriction au viewport (mode cp) ────────────────────────────────
-  // Si la vue est hors de France (aucune zone), on retombe sur la France entière.
-  if (bboxArrondie) {
-    const scoped = zones.filter((z) => dansBbox(z, bboxArrondie));
-    if (scoped.length > 0) zones = scoped;
+    // Plus de repli sur la France entière : il peignait la météo d'un autre
+    // territoire sans signe d'échec (défaut A de docs/SUITE_TRONCATURE_POSTGREST.md).
+    const encoder = new TextEncoder();
+    const vide = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(ndjsonLine({
+          status: 'error',
+          error: bboxArrondie ? 'Aucun code postal dans la zone affichée.' : 'Aucune zone pour cette échelle.',
+        })));
+        controller.close();
+      },
+    });
+    return new Response(vide, { headers: NDJSON_HEADERS });
   }
 
   // ── Échantillonnage spatial → toujours 1 seul batch Open-Meteo ───────
