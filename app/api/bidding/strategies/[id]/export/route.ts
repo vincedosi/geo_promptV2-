@@ -24,6 +24,7 @@ import {
   binScoresIntoTiers, buildPressureBiddingScript, buildPressureCsv, buildTiktokPressureSheet,
 } from '@/lib/digital/bidding-export';
 import { toSlug } from '@/lib/custom-geo/slug';
+import { lireCodesDeZone } from '@/lib/custom-geo/codes-zone';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -91,13 +92,16 @@ export async function GET(
   // ── CP dans le périmètre ──────────────────────────────────────────────────────
   let zoneCps: string[] | null = null; // null = national (toute la table variable)
   if (strategy.scope_type === 'custom_zone' && strategy.zone_id) {
-    const { data: codes, error: zErr } = await supabase
-      .from('custom_geo_zone_codes')
-      .select('code')
-      .eq('zone_id', strategy.zone_id)
-      .eq('code_type', 'cp');
-    if (zErr) return NextResponse.json({ error: zErr.message }, { status: 500 });
-    zoneCps = Array.from(new Set((codes ?? []).map((r) => (r.code as string).trim()).filter(Boolean)));
+    // Lecture paginée : une requête de table est coupée à 1 000 lignes
+    // (`db-max-rows`) ; sans pagination, le fichier d'une zone de 1 641 CP en
+    // portait 1 000, sans erreur (mesuré le 2026-10-10).
+    let codes: string[];
+    try {
+      codes = await lireCodesDeZone(supabase, strategy.zone_id, 'cp');
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    }
+    zoneCps = Array.from(new Set(codes.map((c) => c.trim()).filter(Boolean)));
     if (zoneCps.length === 0) {
       return NextResponse.json({ error: 'zone_without_cps' }, { status: 422 });
     }

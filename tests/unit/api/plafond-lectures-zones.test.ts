@@ -18,6 +18,8 @@ import { NextRequest } from 'next/server';
 
 const MAX_ROWS = 1000;
 let codesZone: string[] = [];
+/** `code_type` des lignes de `custom_geo_zone_codes` rendues par le faux client. */
+let typeCodes = 'cp';
 let panneaux: Record<string, unknown>[] = [];
 const poussesGeo: number[][] = [];
 
@@ -28,7 +30,7 @@ function constructeur(table: string) {
   let unique = false;
   const c: Record<string, unknown> = {};
   c.select = (_cols?: string, opts?: { head?: boolean }) => { tete = !!opts?.head; return c; };
-  for (const m of ['eq', 'in', 'order', 'gte', 'lte']) c[m] = () => c;
+  for (const m of ['eq', 'in', 'order', 'gte', 'lte', 'not']) c[m] = () => c;
   c.limit = (n: number) => { a = Math.min(a, de + n - 1); return c; };
   c.range = (x: number, y: number) => { de = x; a = y; return c; };
   c.single = () => { unique = true; return c; };
@@ -38,10 +40,22 @@ function constructeur(table: string) {
     if (tete) reponse = { count: 0, data: null, error: null };
     else if (unique && table === 'custom_geo_zones') reponse = { data: { id: 'z', name: 'Zone', org_id: 'o' }, error: null };
     else if (unique && table === 'dsp_connections') reponse = { data: { auth_method: 'oauth' }, error: null };
-    else {
+    else if (unique && table === 'bidding_strategies') {
+      reponse = {
+        data: {
+          id: 's', name: 'Strategie', scope_type: 'custom_zone', zone_id: 'z',
+          weighting_mode: 'uniform', in_zone_weights: { value: 1.5 }, out_zone_weights: { mode: 'exclusion' },
+        },
+        error: null,
+      };
+    } else if (unique && table === 'dsp_channel_registry') {
+      reponse = { data: { code: 'autre', label: 'Autre', category: 'x', connection_provider: 'autre' }, error: null };
+    } else {
       const source: unknown[] = table === 'custom_geo_zone_codes'
-        ? codesZone.map((code) => ({ code }))
-        : table === 'panneaux_affichage' ? panneaux : [];
+        ? codesZone.map((code) => ({ code, subzone_id: 'sz1', code_type: typeCodes }))
+        : table === 'custom_geo_zone_subzones'
+          ? [{ id: 'sz1', name: 'Sous-zone', source_ref: null, ordering: 1, default_multiplier: 1 }]
+          : table === 'panneaux_affichage' ? panneaux : [];
       const fin = Math.min(a + 1, de + MAX_ROWS, source.length);
       reponse = { data: source.slice(de, Math.max(de, fin)), error: null };
     }
@@ -63,7 +77,10 @@ vi.mock('@/lib/api/middleware', () => ({
   authUnauthorized: () => new Response(null, { status: 401 }),
   adminUnauthorized: () => new Response(null, { status: 401 }),
 }));
-vi.mock('@/lib/campaigns/access', () => ({ checkZoneAccess: async () => 'ok' }));
+vi.mock('@/lib/campaigns/access', () => ({
+  checkZoneAccess: async () => 'ok',
+  checkStrategyAccess: async () => 'ok',
+}));
 // Un geo ID par code postal : le test porte sur la lecture, pas sur le référentiel Google.
 vi.mock('@/lib/digital/dv360-geo', () => ({
   GEO_POSTAL_FR_VERSION: 'test',
@@ -91,12 +108,13 @@ const exportZone = await import('@/app/api/custom-geo/[id]/export/route');
 const pushCiblage = await import('@/app/api/admin/dsp/dv360/targeting/push/route');
 const pushListe = await import('@/app/api/admin/dsp/dv360/zones/push/route');
 const statsTransport = await import('@/app/api/admin/transport-stats/route');
-
+const exportStrategie = await import('@/app/api/bidding/strategies/[id]/export/route');
 const cps = (n: number) => Array.from({ length: n }, (_, i) => String(10000 + i));
 const ZONE = '11111111-1111-4111-8111-111111111111';
 
 beforeEach(() => {
   codesZone = [];
+  typeCodes = 'cp';
   panneaux = [];
   poussesGeo.length = 0;
 });
@@ -144,6 +162,18 @@ describe('POST /api/admin/dsp/dv360/*/push', () => {
     codesZone = cps(1641);
     const res = await pushListe.POST(new NextRequest('http://localhost/x', corps({})));
     expect((await res.json()).assigned_count).toBe(1641);
+  });
+});
+
+describe('GET /api/bidding/strategies/[id]/export — stratégie sur zone', () => {
+  it('le fichier porte les 1 641 codes postaux de la zone, pas 1 000', async () => {
+    codesZone = cps(1641);
+    const res = await exportStrategie.GET(
+      new NextRequest('http://localhost/api/bidding/strategies/s/export?channel=autre'),
+      { params: Promise.resolve({ id: 's' }) },
+    );
+    const lignes = (await res.text()).split('\n').filter((l) => /^\d/.test(l));
+    expect(lignes).toHaveLength(1641);
   });
 });
 
