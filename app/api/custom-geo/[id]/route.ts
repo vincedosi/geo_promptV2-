@@ -3,8 +3,12 @@ import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { checkZoneAccess } from '@/lib/campaigns/access';
+import { lireTout } from '@/lib/supabase/lire-tout';
 
 export const dynamic = 'force-dynamic';
+
+/** Borne de lecture des codes rattachés aux sous-zones (zone France entière : ~50 000 IRIS). */
+const PLAFOND_CODES_SOUS_ZONES = 60_000;
 
 // GET — detail (sans géométrie) + sous-zones natives + counts par sous-zone
 export async function GET(
@@ -55,16 +59,32 @@ export async function GET(
   }> = [];
 
   if (!szErr && subzonesRaw && subzonesRaw.length > 0) {
-    // Counts par sous-zone via 1 query agrégée
-    const { data: counts, error: countErr } = await supabase
-      .from('custom_geo_zone_codes')
-      .select('subzone_id, code_type')
-      .eq('zone_id', id)
-      .not('subzone_id', 'is', null);
+    // Counts par sous-zone. Lecture PAGINÉE : une requête de table est coupée
+    // à 1 000 lignes (`db-max-rows`) ; une zone porte 9 834 IRIS, et les
+    // comptes s'arrêtaient à 1 000 sans erreur (mesuré le 2026-10-10).
+    // Ordre sur la clé primaire (zone_id, code_type, code) : pages disjointes.
+    let counts: Array<{ subzone_id: string | null; code_type: string }> | null = null;
+    try {
+      ({ lignes: counts } = await lireTout<{ subzone_id: string | null; code_type: string }>(
+        (de, a) => supabase
+          .from('custom_geo_zone_codes')
+          .select('subzone_id, code_type')
+          .eq('zone_id', id)
+          .not('subzone_id', 'is', null)
+          .order('code_type')
+          .order('code')
+          .range(de, a),
+        PLAFOND_CODES_SOUS_ZONES,
+      ));
+    } catch (e) {
+      // Même conduite qu'avant sur erreur : sous-zones rendues sans compte.
+      console.error('[custom-geo/[id]] comptes sous-zones', e instanceof Error ? e.message : String(e));
+    }
 
     const cntMap = new Map<string, { cp: number; iris: number }>();
-    if (!countErr && counts) {
-      for (const row of counts as Array<{ subzone_id: string; code_type: string }>) {
+    if (counts) {
+      for (const row of counts) {
+        if (!row.subzone_id) continue; // exclu par le filtre, typé nullable par la table
         const cur = cntMap.get(row.subzone_id) ?? { cp: 0, iris: 0 };
         if (row.code_type === 'cp') cur.cp++;
         else if (row.code_type === 'iris') cur.iris++;

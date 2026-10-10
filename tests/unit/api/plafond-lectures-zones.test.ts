@@ -109,6 +109,8 @@ const pushCiblage = await import('@/app/api/admin/dsp/dv360/targeting/push/route
 const pushListe = await import('@/app/api/admin/dsp/dv360/zones/push/route');
 const statsTransport = await import('@/app/api/admin/transport-stats/route');
 const exportStrategie = await import('@/app/api/bidding/strategies/[id]/export/route');
+const detailZone = await import('@/app/api/custom-geo/[id]/route');
+
 const cps = (n: number) => Array.from({ length: n }, (_, i) => String(10000 + i));
 const ZONE = '11111111-1111-4111-8111-111111111111';
 
@@ -174,6 +176,19 @@ describe('GET /api/bidding/strategies/[id]/export — stratégie sur zone', () =
     );
     const lignes = (await res.text()).split('\n').filter((l) => /^\d/.test(l));
     expect(lignes).toHaveLength(1641);
+  });
+});
+
+describe('GET /api/custom-geo/[id] — comptes par sous-zone', () => {
+  it('compte les 9 834 IRIS de la sous-zone, pas 1 000', async () => {
+    codesZone = cps(9834);
+    typeCodes = 'iris';
+    const res = await detailZone.GET(
+      new NextRequest(`http://localhost/api/custom-geo/${ZONE}`),
+      { params: Promise.resolve({ id: ZONE }) },
+    );
+    const corps = await res.json();
+    expect(corps.subzones[0].iris_count).toBe(9834);
   });
 });
 

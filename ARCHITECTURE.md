@@ -1597,6 +1597,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/custom-geo/media-plan/snapshot` | POST | Fige un snapshot VERSIONNE du plan pousse au DSP, item par item (`zone_id:poi_id`), expanse en codes postaux via `get_zone_items_export` |
 | `/api/custom-geo/list` | GET | Zones custom de l'org courante |
 | `/api/custom-geo/stats` | GET | Comptages des zones de l'org, pour l'en-tete de la galerie |
+| `/api/custom-geo/[id]` | GET/PATCH/DELETE | Detail d'une zone (sans geometrie) + bbox (`get_zone_bbox_array`) + sous-zones natives avec leurs comptes de CP/IRIS. Les comptes lisent `custom_geo_zone_codes` par `lireTout` (pagine, borne 60 000) depuis le 2026-10-10 : avant, ils s'arretaient a 1 000 (`db-max-rows`) sur une zone de 9 834 IRIS |
 | `/api/custom-geo/[id]/geometry` | GET | Geometrie d'une zone enregistree |
 | `/api/custom-geo/capture` | POST | Recoit N geometries + une transformation, appelle `transform_geometries_for_save` puis enchaine creation et resolution des codes |
 
