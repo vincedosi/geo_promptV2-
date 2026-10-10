@@ -108,6 +108,34 @@ export const BATTLE_PALIER_OPACITY: Record<number, number> = {
   150: 0.08,
 };
 
+/**
+ * Les littéraux de `paint` des couches de bataille (`useMapInit.ts:996-1060`), NOMMÉS — React les écrivait en ligne à
+ * l'initialisation de la carte. Repli d'aplat (`coalesce`), trait des anneaux, point rouge cerné de blanc et son halo :
+ * le rendu d'une bataille (ou d'une zone ouverte par `?customZone=`, T14), le même dans les deux thèmes.
+ */
+export const TRAITS_BATAILLE = {
+  aplatRepli: '#4e79a7',
+  opaciteRepli: 0.5,
+  trait: { couleur: 'rgba(0,0,0,0.15)', largeur: 0.5, opacite: 0.6 },
+  point: { rayon: 5, couleur: '#dc2626', cerne: '#ffffff', largeurCerne: 2 },
+  halo: { rayon: 12, couleur: '#ffffff', opacite: 0.3, flou: 1 },
+} as const;
+
+/** L'opacité d'un anneau dont le palier n'est pas dans `BATTLE_PALIER_OPACITY` (`useMapLayers.ts:1060`). */
+export const OPACITE_PALIER_INCONNU = 0.20;
+
+// ---------------------------------------------------------------------------
+// Zones enregistrées affichées (`components/map/overlays/ZonesOverlay.tsx:57-58`, T14)
+// ---------------------------------------------------------------------------
+
+/**
+ * Teal / cyan / émeraude, une teinte par zone affichée, en cycle. Une DONNÉE (quelle zone est laquelle), pas une
+ * couleur d'interface : la même dans les deux thèmes, comme dans React.
+ */
+export const PALETTE_ZONES = ['#4ecdc4', '#5cc8e0', '#4adfb8', '#7ed6df', '#26c6da'] as const;
+/** Aplat et contour d'une zone affichée (`ZonesOverlay.tsx:235-239`). */
+export const RENDU_ZONE = { opaciteAplat: 0.25, largeurContour: 2.5 } as const;
+
 // ---------------------------------------------------------------------------
 // TMJA — comptages routiers (useMapInit.ts:391-430, littéraux de `paint` NOMMÉS)
 // ---------------------------------------------------------------------------

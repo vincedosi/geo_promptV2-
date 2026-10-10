@@ -32,4 +32,28 @@ describe('BoutonsFlottantsComponent — mode immersif et Tout effacer (page.tsx:
     expect(effacer.style.top).toBe('52px');
     expect(immersif.getAttribute('aria-pressed')).toBe('true');
   });
+
+  it('« Script bidding DV360 » : seulement avec une zone du lien, 84 px sous l’immersif, titre nommé, clic émis', async () => {
+    const fixture = TestBed.createComponent(HoteScript);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('button[data-script-dv360]')).toBeNull();
+    fixture.componentInstance.zone.set('CIRFA BRETAGNE');
+    await fixture.whenStable();
+    const bouton = el.querySelector<HTMLButtonElement>('button[data-script-dv360]')!;
+    expect(bouton.style.top).toBe('136px');
+    expect(bouton.textContent?.trim()).toBe('Script bidding DV360');
+    expect(bouton.getAttribute('title')).toBe('Générer le fichier custom bidding DV360 pour « CIRFA BRETAGNE »');
+    bouton.click();
+    expect(fixture.componentInstance.scripts).toBe(1);
+  });
 });
+
+@Component({
+  imports: [BoutonsFlottantsComponent],
+  template: `<mg-boutons-flottants [railMasque]="false" [haut]="52" [zoneScript]="zone()" (genererScript)="scripts = scripts + 1" />`,
+})
+class HoteScript {
+  readonly zone = signal<string | null>(null);
+  scripts = 0;
+}

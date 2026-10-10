@@ -65,6 +65,8 @@
  * | AlertTriangle = TriangleAlert | triangle-alerte   | Feather (MIT, « alert-triangle »)
  * | Check                      | coche                | Feather (MIT)
  * | Search                     | loupe                | Feather (MIT)
+ * | FileDown                   | fichier-bas          |
+ * | Music2                     | musique              |
  *
  * Pour ajouter une icône : lire `__iconNode` de `<lucide>.js`, ajouter une entrée (nom français en
  * kebab-case ; `feather: true` si le nom figure dans la liste Feather de la LICENSE de lucide-react),
@@ -577,6 +579,22 @@ export const ICONES = {
     el: [
       { t: 'path', d: 'm21 21-4.34-4.34' },
       { t: 'circle', cx: '11', cy: '11', r: '8' },
+    ],
+  },
+  'fichier-bas': {
+    lucide: 'file-down',
+    el: [
+      { t: 'path', d: 'M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z' },
+      { t: 'path', d: 'M14 2v5a1 1 0 0 0 1 1h5' },
+      { t: 'path', d: 'M12 18v-6' },
+      { t: 'path', d: 'm9 15 3 3 3-3' },
+    ],
+  },
+  'musique': {
+    lucide: 'music-2',
+    el: [
+      { t: 'circle', cx: '8', cy: '18', r: '4' },
+      { t: 'path', d: 'M12 18V2l7 4' },
     ],
   },
 } as const satisfies Record<string, DefinitionIcone>;

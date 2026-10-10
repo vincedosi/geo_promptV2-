@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, output } from '@angular/core';
 import { BadgeSessionComponent } from '../../../layout/badge-session.component';
 import { BasculeThemeComponent } from '../../../layout/bascule-theme.component';
 import { LogoComponent } from '../../../ui/logo/logo.component';
@@ -20,7 +20,8 @@ const CAMPAGNE = ENTREES_NAVIGATION.find((e) => e.id === 'campagne')!.label;
  *   campagne ouverte — « Carte » soulignée et pressée —, « Campagne » INERTE (« Disponible
  *   prochainement »). « Carte » ne fait rien, comme en React quand l'overlay est fermé.
  * - Thème et session : `mg-bascule-theme` et `mg-badge-session` de la coquille, les portages de
- *   `ThemeToggle` et `SessionBadge` que React pose ici aussi.
+ *   `ThemeToggle` et `SessionBadge` que React pose ici aussi. Un changement d'organisation remonte par `orgChangee`
+ *   (la carte n'est pas sous la coquille, qui recrée sinon la page courante).
  * - Écart voulu : pas de `backdrop-filter` (le fond est opaque, le flou n'avait aucun effet visible ;
  *   « flat total », DESIGN_SYSTEM § 2).
  */
@@ -62,7 +63,7 @@ const CAMPAGNE = ENTREES_NAVIGATION.find((e) => e.id === 'campagne')!.label;
 
     <div class="flex shrink-0 items-center gap-1.5">
       <mg-bascule-theme />
-      <mg-badge-session />
+      <mg-badge-session (orgChangee)="orgChangee.emit($event)" />
     </div>
   `,
 })
@@ -71,4 +72,6 @@ export class BarreHautComponent {
   protected readonly hauteur = HAUTEUR_BARRE_HAUT;
   protected readonly campagne = CAMPAGNE;
   protected readonly prochainement = PROCHAINEMENT;
+  /** Relais de `mg-badge-session` : la carte lâche ce qui appartenait à l'organisation précédente (T14). */
+  readonly orgChangee = output<string | null>();
 }

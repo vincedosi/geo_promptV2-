@@ -401,6 +401,26 @@ describe('fonds de carte, palettes de données et constantes de calques', () => 
     expect(Apal.VORONOI_PALETTE).toHaveLength(20);
   });
 
+  it('bataille (T14) : littéraux de paint de useMapInit et opacité de repli de useMapLayers', () => {
+    const src = readFileSync('app/copilote/_hooks/useMapInit.ts', 'utf8');
+    const bloc = src.slice(src.indexOf("map.addSource('battle-rings'"), src.indexOf('const onBattlePoisClick'));
+    const t = Apal.TRAITS_BATAILLE;
+    expect(bloc).toContain(`['coalesce', ['get', 'battle_color'],   '${t.aplatRepli}']`);
+    expect(bloc).toContain(`['coalesce', ['get', 'battle_opacity'], ${t.opaciteRepli}]`);
+    expect(bloc).toContain(`paint: { 'line-color': '${t.trait.couleur}', 'line-width': ${t.trait.largeur}, 'line-opacity': ${t.trait.opacite} }`);
+    expect(bloc).toContain(`'circle-radius': ${t.point.rayon}, 'circle-color': '${t.point.couleur}', 'circle-stroke-width': ${t.point.largeurCerne}, 'circle-stroke-color': '${t.point.cerne}'`);
+    expect(bloc).toContain(`'circle-radius': ${t.halo.rayon}, 'circle-color': '${t.halo.couleur}', 'circle-opacity': ${t.halo.opacite}, 'circle-blur': ${t.halo.flou}`);
+    expect(readFileSync('app/copilote/_hooks/useMapLayers.ts', 'utf8'))
+      .toContain(`battle_opacity: (BATTLE_PALIER_OPACITY as Record<number, number>)[palier] ?? ${Apal.OPACITE_PALIER_INCONNU.toFixed(2)},`);
+  });
+
+  it('zones affichées (T14) : palette et rendu égaux aux littéraux de ZonesOverlay', () => {
+    const src = readFileSync('components/map/overlays/ZonesOverlay.tsx', 'utf8');
+    expect(src).toContain(`const ZONE_PALETTE = [${Apal.PALETTE_ZONES.map((c) => `'${c}'`).join(', ')}] as const;`);
+    expect(src).toContain(`'fill-opacity': ${Apal.RENDU_ZONE.opaciteAplat}`);
+    expect(src).toContain(`'line-width': ${Apal.RENDU_ZONE.largeurContour}`);
+  });
+
   it('TMJA : paliers, largeurs et opacités égaux aux littéraux de paint de useMapInit', () => {
     expect(Apal.PALIERS_TMJA.map((p) => p.couleur)).toEqual(['#4292C6', '#f6d543', '#f97316', '#ef4444']);
     expect(Apal.PALIERS_TMJA.map((p) => p.seuil)).toEqual([null, 5000, 15000, 40000]);

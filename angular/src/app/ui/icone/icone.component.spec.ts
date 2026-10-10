@@ -32,8 +32,8 @@ function monter() {
 describe('mg-icone', () => {
   const noms = Object.keys(ICONES) as NomIcone[];
 
-  it('porte les 56 tracés recensés dans les écrans React du lot', () => {
-    expect(noms.length).toBe(56);
+  it('porte les 58 tracés recensés dans les écrans React du lot', () => {
+    expect(noms.length).toBe(58);
   });
 
   it.each(noms)('rend « %s » en svg lucide 24 × 24', (nom) => {

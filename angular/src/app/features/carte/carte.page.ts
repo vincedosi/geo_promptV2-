@@ -8,6 +8,7 @@ import { CouleursService } from '../../core/theme/couleurs.service';
 import { AnnonceComponent } from './commun/annonce.component';
 import { BoutonsFlottantsComponent } from './commun/boutons-flottants.component';
 import { FondCompactComponent } from './commun/fond-compact.component';
+import { BatailleService } from './couches/bataille.service';
 import { CarreauxService } from './couches/carreaux.service';
 import { DetailIrisComponent } from './couches/detail-iris.component';
 import { IndicateursCiviquesService } from './couches/indicateurs-civiques.service';
@@ -24,12 +25,15 @@ import { TmjaService } from './couches/tmja.service';
 import { TransportService } from './couches/transport.service';
 import { ZonesRisqueService } from './couches/zones-risque.service';
 import { ZoneActiveComponent } from './couches/zone-active.component';
+import { ZonesCustomService } from './couches/zones-custom.service';
 import { JETONS_STYLE_MAGELIAN, appliquerStyleMagelian, couchesDuFond } from './couches/style-magelian';
 import { AnnonceService } from './etat/annonce.service';
 import { CataloguePoiService } from './etat/catalogue-poi.service';
 import { CouchesCarteService } from './etat/couches-carte.service';
 import { EtatCarteService } from './etat/etat-carte.service';
+import { ExportZoneService } from './etat/export-zone.service';
 import { lireFondMemorise, memoriserFond, urlDuFond } from './etat/fond-carte';
+import { LienZoneService } from './etat/lien-zone.service';
 import { PileEchapService } from './etat/pile-echap.service';
 import { PONT_CARTE } from './etat/pont-carte';
 import { ReferentielGeoService } from './etat/referentiel-geo.service';
@@ -44,8 +48,8 @@ import { AideComponent } from './panneaux/aide.component';
 import { DialogueMeteoComponent } from './panneaux/calques/dialogue-meteo.component';
 import { PanneauCalquesComponent } from './panneaux/calques/panneau-calques.component';
 import { PanneauFiltreComponent } from './panneaux/filtre/panneau-filtre.component';
-import { JeuxDeZonesComponent } from './panneaux/zones/jeux-de-zones.component';
 import { ReglagesComponent } from './panneaux/reglages.component';
+import { PanneauZonesComponent } from './panneaux/zones/panneau-zones.component';
 import { BarreHautComponent, HAUTEUR_BARRE_HAUT } from './rail/barre-haut.component';
 import { PanneauComponent } from './rail/panneau.component';
 import { RailComponent } from './rail/rail.component';
@@ -105,13 +109,13 @@ export function palierCarreaux(zoom: number): string {
   selector: 'mg-carte-principale',
   imports: [
     AideComponent, AnnonceComponent, BarreHautComponent, BoutonsFlottantsComponent, CarteComponent, DetailIrisComponent, DialogueMeteoComponent,
-    FondCompactComponent, JeuxDeZonesComponent, LegendeCarteComponent, PanneauCalquesComponent, PanneauComponent, PanneauFiltreComponent, PuceFiltreComponent,
+    FondCompactComponent, LegendeCarteComponent, PanneauCalquesComponent, PanneauComponent, PanneauFiltreComponent, PanneauZonesComponent, PuceFiltreComponent,
     RailComponent, ReglagesComponent, RouterOutlet, TiroirPanneauComponent, ZoneActiveComponent,
   ],
   providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
     IrisService, PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService,
     IndicateursCiviquesService, SanteService, ContoursZonesService, MeteoService, RisqueCarteService, RisquesIndustrielsService,
-    PprtService, ZonesRisqueService,
+    PprtService, ZonesRisqueService, BatailleService, ZonesCustomService, LienZoneService, ExportZoneService,
     // Le pont du module risque (B3) : le module, rendu par l'outlet de cette page, le voit par son injecteur d'élément.
     { provide: PONT_CARTE, useExisting: ZonesRisqueService },
   ],
@@ -137,6 +141,11 @@ export class CartePage {
   /** La météo (T11) : la page monte son dialogue, comme la modale de `page.tsx:1456-1488`. */
   protected readonly meteo = inject(MeteoService);
   private readonly document = inject(DOCUMENT);
+  private readonly annonce = inject(AnnonceService);
+  private readonly zonesCustom = inject(ZonesCustomService);
+  private readonly exports = inject(ExportZoneService);
+  /** Le lien `?customZone=` (T14) : lu dès l'ouverture de la carte, même panneau Zones fermé. */
+  protected readonly lienZone = inject(LienZoneService);
 
   protected readonly largeurRail = LARGEUR_RAIL;
   protected readonly hauteurBarre = HAUTEUR_BARRE_HAUT;
@@ -239,13 +248,35 @@ export class CartePage {
   /**
    * « Tout effacer » (`page.tsx:681-765`) : chaque couche inscrite s'efface, le dégradé actif est remis à zéro
    * SANS annonce (`page.tsx:740-743`), et le périmètre et les POI sélectionnés repartent à vide. Le filtre unique
-   * reste posé, comme React ; et il n'y a pas d'URL à nettoyer — aucun paramètre de la carte n'y vit encore (B9).
+   * reste posé, comme React. Le seul paramètre d'URL de la carte, `customZone` (B9), est retiré par l'effacement que
+   * `LienZoneService` inscrit — comme `page.tsx:760-763`, pour qu'un rechargement ne rouvre pas la zone.
    */
   protected toutEffacer(): void {
     this.couches.toutEffacer();
     this.etat.reinitialiserDegrade();
     this.etat.perimetreScope.set(null);
     this.etat.poiSelectionnes.set([]);
+  }
+
+  /**
+   * Changement d'organisation dans la barre du haut. React recharge toute la page (`window.location.reload()`) ;
+   * recréer la carte ici perdrait tous les calques, alors que seul ce qui APPARTIENT à l'organisation précédente devient
+   * faux : ses zones affichées, la zone ouverte par le lien et un filtre posé sur l'une d'elles. Le panneau Zones, lui,
+   * vient de se fermer (le clic sur le badge est hors du panneau) : rouvert, il relit la nouvelle organisation.
+   */
+  protected organisationChangee(): void {
+    this.zonesCustom.effacer();
+    this.lienZone.oublier();
+    if (this.etat.filtre()?.type === 'zone') this.etat.filtre.set(null);
+  }
+
+  /** « Script bidding DV360 » de la zone du lien (`page.tsx:1377-1399`) : un FICHIER, aucun envoi vers DV360. */
+  protected genererScriptDv360(): void {
+    const zone = this.lienZone.zoneDuLien();
+    if (!zone) return;
+    void this.exports.exporter(zone.id, 'bidding_script').then((echec) => {
+      if (echec) this.annonce.annoncer(echec);
+    });
   }
 
   protected cartePrete(carte: maplibregl.Map): void {

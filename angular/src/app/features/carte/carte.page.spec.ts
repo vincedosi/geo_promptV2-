@@ -1,4 +1,5 @@
 import { Component, type Injector, computed, effect, inject, runInInjectionContext, signal } from '@angular/core';
+import type maplibregl from 'maplibre-gl';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Router, provideRouter } from '@angular/router';
@@ -46,7 +47,14 @@ class ObservateurFactice {
 
 const attendre = () => new Promise((r) => setTimeout(r, 0));
 
-async function ouvrir() {
+/** Ce qu'un test peut changer à l'ouverture : l'adresse (un lien `?customZone=`), les zones enregistrées, l'organisation. */
+interface OptionsOuverture {
+  url?: string;
+  zones?: Partial<Record<keyof ZonesCustomApi, unknown>>;
+  organisation?: string | null;
+}
+
+async function ouvrir(options: OptionsOuverture = {}) {
   (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
   const cartes: CarteFactice[] = [];
   TestBed.configureTestingModule({
@@ -62,12 +70,16 @@ async function ouvrir() {
           session: signal({ access_token: 'j', user: { email: 'a@exemple.test', user_metadata: {} } }),
           connecte: computed(() => true), email: computed(() => 'a@exemple.test'),
           lireRole: async () => null, deconnecter: async () => undefined,
-          lireProfil: async () => ({ role: null, nom: null, organisation: null }),
+          lireProfil: async () => ({ role: null, nom: null, organisation: options.organisation ?? null }),
+          oublierProfil: () => undefined,
         },
       },
       { provide: OrganisationsApi, useValue: { lister: () => of({ organizations: [], active_org_id: null, is_super_admin: false }), changer: () => of() } },
       { provide: ReferentielApi, useValue: { geo: () => of({ regions: [] }) } },
-      { provide: ZonesCustomApi, useValue: { lister: () => of({ zones: [] }) } },
+      {
+        provide: ZonesCustomApi,
+        useValue: { lister: () => of({ zones: [] }), stats: () => of({}), geometrie: () => of(), exporter: () => of(), ...options.zones },
+      },
       { provide: ZonesRisqueApi, useValue: { urlTuilesZones: () => '/api/tiles/zones-risque/{z}/{x}/{y}?profil=x', preparer: () => of({ classes: 1 }) } },
       { provide: JeuxZonesApi, useValue: { lister: () => of({ jeux: [] }) } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },
@@ -80,7 +92,7 @@ async function ouvrir() {
     ],
   });
   const harness = await RouterTestingHarness.create();
-  await harness.navigateByUrl('/carte');
+  await harness.navigateByUrl(options.url ?? '/carte');
   const stable = async () => {
     for (let i = 0; i < 3; i++) { await attendre(); await harness.fixture.whenStable(); }
   };
@@ -724,12 +736,102 @@ describe('CartePage — le module risque, route ENFANT (T13, B2/B3)', () => {
     expect(document.activeElement).toBe(hote);
   });
 
-  it("Zones › Jeux de zones : la liste est rendue dans le panneau, avant le contenu provisoire", async () => {
+  it("Zones › Jeux de zones : la liste est rendue dans le panneau", async () => {
     const { hote, stable } = await ouvrir();
     frapper(hote, { key: '4', altKey: true });
     await stable();
     expect(titrePanneau(hote)).toBe('Zones');
     expect(hote.querySelector('mg-panneau-carte mg-jeux-de-zones')).not.toBeNull();
     expect(hote.querySelector('mg-jeux-de-zones [data-jeux-vide]')).not.toBeNull();
+  });
+});
+
+describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () => {
+  const ID = '11111111-2222-3333-4444-555555555555';
+  const ENTITE = {
+    type: 'Feature',
+    geometry: { type: 'Polygon', coordinates: [[[5, 43], [6, 43], [6, 44.5], [5, 44.5], [5, 43]]] },
+    properties: { id: ID, name: 'CIRFA BRETAGNE' },
+  };
+
+  /** La carte publiée au `load` : c'est là que le lien est lu (`mapReady`). */
+  async function carteChargee(options: OptionsOuverture) {
+    const o = await ouvrir(options);
+    o.cartes[0].emettre('load');
+    await o.stable();
+    return o;
+  }
+
+  it('le panneau Zones monte le vrai panneau : créer, jeux de zones, « Mes zones »', async () => {
+    const { hote, stable } = await ouvrir();
+    hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="zones"]')!.click();
+    await stable();
+    const panneau = hote.querySelector('mg-panneau-carte mg-panneau-zones')!;
+    expect(panneau).not.toBeNull();
+    expect([...panneau.querySelectorAll('h4')].map((h) => h.textContent?.trim())).toEqual(['Créer une zone', 'Jeux de zones à risque', 'Mes zones']);
+    expect(panneau.querySelector('mg-mes-zones')).not.toBeNull();
+  });
+
+  it('sans lien : aucune géométrie demandée, aucun bouton DV360', async () => {
+    const geometrie = vi.fn(() => of(ENTITE));
+    const { hote } = await carteChargee({ zones: { geometrie } });
+    expect(geometrie).not.toHaveBeenCalled();
+    expect(hote.querySelector('button[data-script-dv360]')).toBeNull();
+  });
+
+  it('?customZone=<id> : géométrie lue UNE fois carte prête, recadrage sur son emprise (60 px, 1 s), bouton DV360 nommé ; une autre navigation de requête ne relit rien', async () => {
+    const geometrie = vi.fn(() => of(ENTITE));
+    const exporter = vi.fn(() => of());
+    const { harness, hote, cartes, stable } = await carteChargee({ url: `/carte?customZone=${ID}`, zones: { geometrie, exporter } });
+    expect(geometrie).toHaveBeenCalledTimes(1);
+    expect(geometrie).toHaveBeenCalledWith(ID);
+    expect(cartes[0].cadrages.at(-1)).toEqual({ cadre: [[5, 43], [6, 44.5]], options: { padding: 60, duration: 1000 } });
+    // Le créneau de bataille est peint : l'aplat des anneaux et le point au centre.
+    expect(cartes[0].getLayer('battle-fill')).toBeDefined();
+    expect(cartes[0].getLayer('battle-pois-circle')).toBeDefined();
+    const bouton = hote.querySelector<HTMLButtonElement>('button[data-script-dv360]')!;
+    expect(bouton.getAttribute('title')).toBe('Générer le fichier custom bidding DV360 pour « CIRFA BRETAGNE »');
+    expect(bouton.style.top).toBe('136px');
+    bouton.click();
+    expect(exporter).toHaveBeenCalledWith(ID, 'bidding_script');
+
+    await harness.navigateByUrl(`/carte?customZone=${ID}&autre=1`);
+    await stable();
+    expect(geometrie).toHaveBeenCalledTimes(1);
+    // Une carte republiée (changement de fond, B11) ne relit pas la zone : `customZoneLoadedRef`.
+    const couches = injecteurPage(harness).get(CouchesCarteService);
+    couches.publier(null);
+    await stable();
+    couches.publier(cartes[0] as unknown as maplibregl.Map);
+    await stable();
+    expect(geometrie).toHaveBeenCalledTimes(1);
+  });
+
+  it('« Tout effacer » : le créneau se vide, le bouton DV360 disparaît, `customZone` quitte l’URL', async () => {
+    const { hote, cartes, stable } = await carteChargee({ url: `/carte?customZone=${ID}`, zones: { geometrie: () => of(ENTITE) } });
+    expect(hote.querySelector('button[data-script-dv360]')).not.toBeNull();
+    hote.querySelector<HTMLButtonElement>('button[data-tout-effacer]')!.click();
+    await stable();
+    expect(hote.querySelector('button[data-script-dv360]')).toBeNull();
+    expect(cartes[0].getLayer('battle-fill')).toBeUndefined();
+    expect(TestBed.inject(Router).url).toBe('/carte');
+  });
+
+  it('changement d’organisation (badge de la barre) : la zone du lien est lâchée, un filtre de ZONE retiré, un autre filtre gardé', async () => {
+    const { harness, hote, stable } = await carteChargee({ url: `/carte?customZone=${ID}`, zones: { geometrie: () => of(ENTITE) } });
+    const etat = injecteurPage(harness).get(EtatCarteService);
+    const barre = harness.fixture.debugElement.query(By.css('mg-barre-haut')).componentInstance as { orgChangee: { emit(v: string | null): void } };
+
+    etat.filtre.set({ type: 'departement', code: '13', label: 'Bouches-du-Rhône' });
+    barre.orgChangee.emit('org-2');
+    await stable();
+    expect(etat.filtre()?.code).toBe('13');
+    expect(hote.querySelector('button[data-script-dv360]')).toBeNull();
+    expect(TestBed.inject(Router).url).toBe('/carte');
+
+    etat.filtre.set({ type: 'zone', code: ID, label: 'CIRFA BRETAGNE', bbox: [5, 43, 6, 44.5] });
+    barre.orgChangee.emit('org-3');
+    await stable();
+    expect(etat.filtre()).toBeNull();
   });
 });
