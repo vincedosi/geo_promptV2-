@@ -62,11 +62,14 @@ vi.mock('@/lib/auth', () => ({
         const limite = Number(args.p_limite ?? 10000);
         return { data: { zones: dedans.slice(0, limite), tronque: dedans.length > limite }, error: null };
       }
-      if (nom === 'codes_postaux_dans_bbox') {
-        const dedans = referentielCp().filter((z) =>
+      if (nom === 'codes_postaux_dans_bbox' || nom === 'codes_postaux_dans_bbox_jsonb') {
+        const dedans = cpsBboxForces ?? referentielCp().filter((z) =>
           z.lon >= Number(args.p_ouest) && z.lon <= Number(args.p_est)
-          && z.lat >= Number(args.p_sud) && z.lat <= Number(args.p_nord));
-        return { data: dedans.slice(0, MAX_ROWS).map((z) => ({ code_postal: z.code })), error: null };
+          && z.lat >= Number(args.p_sud) && z.lat <= Number(args.p_nord)).map((z) => z.code);
+        // RETURNS TABLE : coupée à 1 000 ; la jumelle jsonb (sql/245) rend tout.
+        return nom === 'codes_postaux_dans_bbox'
+          ? { data: dedans.slice(0, MAX_ROWS).map((code) => ({ code_postal: code })), error: null }
+          : { data: dedans, error: null };
       }
       if (nom === 'lire_sante_cp_jsonb') {
         // Ce que fait sql/244 : date la plus récente, seuil, bbox par le centroïde du CP, borne + `tronque`.
@@ -99,7 +102,7 @@ vi.mock('@/lib/auth', () => ({
   }),
 }));
 vi.mock('@/lib/api/middleware', () => ({
-  requireAuth: async () => ({ id: 'u' }),
+  requireAuth: async () => ({ id: 'u', organization_id: 'o' }),
   authUnauthorized: () => new Response(null, { status: 401 }),
 }));
 vi.mock('@/lib/api/rate-limit', () => ({
@@ -125,6 +128,7 @@ const stations = await import('@/app/api/radio/stations/route');
 const emetteurs = await import('@/app/api/radio/emetteurs/route');
 const meteo = await import('@/app/api/meteo-geo/route');
 const santeCarte = await import('@/app/api/civic-indicators/health-map/route');
+const score = await import('@/app/api/analyses/score/route');
 
 interface ZoneMeteo { code: string; nom: string; lat: number; lon: number }
 /** Le référentiel : 6 051 CP en métropole (grille), puis 136 ultramarins EN FIN de liste, comme en base. */
@@ -139,6 +143,8 @@ const referentielCp = (): ZoneMeteo[] => [
   })),
 ];
 let zonesMeteo: ZoneMeteo[] = [];
+/** Codes rendus pour toute bbox, quand un test veut un périmètre précis. */
+let cpsBboxForces: string[] | null = null;
 
 const panneaux = (n: number) => Array.from({ length: n }, (_, i) => ({
   id: `p${i}`, regie: 'R', type_panneau: 'T', adresse: null, ville: null, lat: 45, lng: 5, nb_faces: 1, metadata: null,
@@ -153,6 +159,7 @@ const radios = (n: number) => Array.from({ length: n }, (_, i) => ({
 beforeEach(() => {
   lignes = [];
   zonesMeteo = [];
+  cpsBboxForces = null;
   erreurRpc = null;
   requetes = 0;
   appelsRpc.length = 0;
@@ -350,5 +357,33 @@ describe('GET /api/civic-indicators/health-map?scale=cp', () => {
     expect(res.status).toBe(500);
     expect((await res.json()).error).toBe('Lecture de la santé environnementale impossible.');
     expect(journal).toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/analyses/score — périmètre par bbox', () => {
+  const appel = () => score.POST(new NextRequest('http://localhost/api/analyses/score', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      indicateurs: [{ code: 'revenu_median', poids: 1, sens: 'croissant' }],
+      bbox: [-5.5, 41, 10, 51.5],
+      enregistrer: false,
+    }),
+  }));
+
+  it('lit la bbox par la jumelle jsonb, jamais par la RPC tabulaire', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await appel();
+    const noms = appelsRpc.map((a) => a.nom);
+    expect(noms).toContain('codes_postaux_dans_bbox_jsonb');
+    expect(noms).not.toContain('codes_postaux_dans_bbox');
+  });
+
+  it('compte TOUS les codes de la bbox : 7 100 dépassent le plafond (7 000), et le disent', async () => {
+    // Avant : 1 000 codes rendus, sous le plafond — un score sur un septième de la zone.
+    cpsBboxForces = Array.from({ length: 7100 }, (_, i) => String(10000 + i));
+    const res = await appel();
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/7100 codes postaux/);
   });
 });

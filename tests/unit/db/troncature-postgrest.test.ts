@@ -16,9 +16,8 @@ import { join, sep } from 'node:path';
  *   1. `correlation_campagne_indicateur` — 2026-09-13, corrigée sql/154
  *   2. `codes_postaux_du_perimetre`      — 2026-09-15, corrigée sql/168-169
  *   3. `calculer_score_composite`        — 2026-09-15, corrigée sql/170
- *   4. `get_zone_centroids` + `codes_postaux_dans_bbox` — 2026-09-15 ;
- *      `get_zone_centroids` corrigée sql/243 (2026-10-10), l'autre OUVERTE
- *      (`docs/SUITE_TRONCATURE_POSTGREST.md`)
+ *   4. `get_zone_centroids` + `codes_postaux_dans_bbox` — 2026-09-15,
+ *      corrigées sql/243-245 (2026-10-10)
  *   5. `get_strategy_comparison_data`    — 2026-09-16, trouvée PAR CE TEST
  *
  * Quatre correctifs ponctuels n'ont pas empêché le cinquième. Ce fichier est la
@@ -68,14 +67,6 @@ const BORNES: Record<string, Justification> = {
     raison:
       "Argument p_limite (défaut 10), appliqué en LIMIT dans le corps (sql/150). "
       + "L'outil copilote classement_territoires ne demande qu'un classement.",
-  },
-  codes_postaux_dans_bbox: {
-    nature: 'dette',
-    raison:
-      "TRONQUÉE AUJOURD'HUI : 6 051 codes postaux dans la bbox métropole, 1 000 rendus sous le "
-      + "max_rows local (5 000 sur l'ancienne production). /api/civic-indicators/health-map ne "
-      + "l'appelle plus (sql/244, 2026-10-10) ; reste /api/analyses/score. "
-      + "Défaut B de docs/SUITE_TRONCATURE_POSTGREST.md.",
   },
   compte_poi_par_categorie: {
     nature: 'borne',

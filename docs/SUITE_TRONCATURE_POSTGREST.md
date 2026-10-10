@@ -28,7 +28,7 @@ Le projet l'a maintenant rencontré **cinq fois** :
 | 1 | `correlation_campagne_indicateur` | 2026-09-13 | sql/154 (jumelle `RETURNS jsonb`) |
 | 2 | `codes_postaux_du_perimetre` | 2026-09-15 | sql/168 + sql/169 (jumelle + enveloppe) |
 | 3 | `calculer_score_composite` | 2026-09-15 (relecture finale) | sql/170 (jumelle + enveloppe) |
-| 4 | `get_zone_centroids` et `codes_postaux_dans_bbox` | 2026-09-15 (relecture finale) | A : sql/243 (2026-10-10) ; **B ouvert ci-dessous** |
+| 4 | `get_zone_centroids` et `codes_postaux_dans_bbox` | 2026-09-15 (relecture finale) | sql/243 (A), sql/244-245 (B) — 2026-10-10 |
 | 5 | `get_strategy_comparison_data` | 2026-09-16, **par le test de famille** | **ouvert — défaut C ci-dessous** |
 
 Ce n'est plus un piège, c'est une propriété de la plateforme. Le correctif
@@ -87,15 +87,17 @@ une enveloppe mince, pour qu'aucune des deux ne puisse dériver). Et surtout :
 visible**. Un repli silencieux qui substitue un territoire à un autre est pire
 que l'erreur qu'il prétend masquer.
 
-## Défaut B — la carte santé environnementale est incomplète
+## Défaut B — la carte santé environnementale est incomplète — CORRIGÉ le 2026-10-10 (sql/244-245)
 
-> **Carte santé corrigée le 2026-10-10 (sql/244).** `health-map?scale=cp` lit
-> tout en UN appel à `lire_sante_cp_jsonb` (date, seuil, bbox par le
-> centroïde du CP, borne écrite, `tronque`) et n'appelle plus
-> `codes_postaux_dans_bbox`. Mesuré ce jour-là : en local, `max_rows` = 1 000
-> mord aussi les RPC tabulaires — la fonction rendait **1 000** CP sur 6 051,
-> pas 5 000. **Reste un appelant : `/api/analyses/score`** (bbox d'une zone
-> enregistrée).
+> **Corrigé.** `health-map?scale=cp` lit tout en UN appel à
+> `lire_sante_cp_jsonb` (sql/244 : date, seuil, bbox par le centroïde du CP,
+> borne écrite, `tronque`) et n'appelle plus `codes_postaux_dans_bbox`. Son
+> autre appelant, `/api/analyses/score` (bbox d'une zone enregistrée — les
+> plus grandes en couvrent 6 165), lit la jumelle `codes_postaux_dans_bbox_jsonb`
+> (sql/245) ; l'originale devient une enveloppe mince que plus rien
+> n'appelle. Mesuré ce jour-là : en local, `max_rows` = 1 000 mord aussi les
+> RPC tabulaires — la fonction rendait **1 000** CP sur 6 051, pas 5 000. Le
+> texte qui suit décrit le défaut tel qu'il était.
 
 **`app/api/civic-indicators/health-map/route.ts:133`**, via
 `codes_postaux_dans_bbox`.
@@ -165,6 +167,6 @@ minimum :
    sql/243 : aucune zone dans la vue rend une erreur dite, plus la France
    entière.
 
-Les défauts B et C restent ouverts (A corrigé le 2026-10-10) : ce fichier les recense, il ne les
+Le défaut C reste ouvert (A et B corrigés le 2026-10-10) : ce fichier les recense, il ne les
 corrige pas. Le test les tient inscrits — retirer l'un d'eux de ce document
 sans corriger la fonction fait échouer la suite.

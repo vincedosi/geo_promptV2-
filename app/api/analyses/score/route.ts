@@ -41,7 +41,8 @@
  *    `codes_postaux` explicites, un `perimetre` de filtre résolu par
  *    `codes_postaux_du_perimetre_jsonb` (sql/168, jumelle `RETURNS jsonb` de
  *    `codes_postaux_du_perimetre`, sql/146/167), ou une `bbox` résolue par
- *    `codes_postaux_dans_bbox` (sql/144, index GIST — `centroid_lat`/
+ *    `codes_postaux_dans_bbox_jsonb` (sql/245, jumelle jsonb de sql/144 —
+ *    l'originale était coupée à 1 000 lignes ; index GIST — `centroid_lat`/
  *    `centroid_lon` sont NULL sur les 6 187 lignes, un filtre direct dessus
  *    rendrait toujours vide).
  *
@@ -212,14 +213,18 @@ export async function POST(request: NextRequest) {
   }
   if (!codesPostaux.length && bbox) {
     const [ouest, sud, est, nord] = bbox;
-    const { data, error } = await supabase.rpc('codes_postaux_dans_bbox', {
+    // `_jsonb` (sql/245) et non `codes_postaux_dans_bbox` (RETURNS TABLE) :
+    // celle-ci rendait 1 000 codes sur 6 051 pour la métropole sous le
+    // `max_rows` local (mesuré le 2026-10-10) — une grande zone était scorée
+    // sur ses 1 000 premiers codes, sous `MAX_CP`, sans erreur.
+    const { data, error } = await supabase.rpc('codes_postaux_dans_bbox_jsonb', {
       p_ouest: ouest, p_sud: sud, p_est: est, p_nord: nord,
     });
     if (error) {
       console.error('[POST /api/analyses/score] bbox:', error.message);
       return NextResponse.json({ error: 'Résolution du périmètre impossible.' }, { status: 500 });
     }
-    codesPostaux = (data ?? []).map((l) => l.code_postal);
+    codesPostaux = rpcJson<string[]>(data) ?? [];
   }
   if (!codesPostaux.length) {
     return NextResponse.json({ error: 'Périmètre vide : aucun code postal à scorer.' }, { status: 400 });

@@ -6328,6 +6328,10 @@ export type Database = {
           code_postal: string
         }[]
       }
+      codes_postaux_dans_bbox_jsonb: {
+        Args: { p_est: number; p_nord: number; p_ouest: number; p_sud: number }
+        Returns: Json
+      }
       codes_postaux_du_perimetre: {
         Args: { p_code: string; p_type: string }
         Returns: {
