@@ -29,7 +29,14 @@ export interface ImportStats {
   total_dab: number;
   inserted: number;
   updated: number;
+  /** Lignes RÉELLEMENT supprimées (`count: 'exact'`), pas la taille des lots demandés. */
   deleted: number;
   errors: number;
+  /** Émetteurs dont la suppression a échoué (chaque échec est aussi journalisé). */
+  delete_errors: number;
+  /** Retirés de l'ANFR mais conservés : liés à au moins une radio (liaisons irremplaçables, CASCADE). */
+  retained_linked: number;
+  /** Vrai si le garde-fou de proportion a annulé toute la phase DELETE. */
+  delete_aborted: boolean;
   duration_ms: number;
 }
