@@ -1,8 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { DOCUMENT, DestroyRef, Injectable, effect, inject, signal, untracked } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
-import { TimeoutError, type Observable, type Subscription } from 'rxjs';
-import { FABRIQUE_MARQUEUR, FABRIQUE_POPUP, type MarqueurCarte } from '../../../carte/fabrique-carte';
+import { TimeoutError, finalize, type Observable, type Subscription } from 'rxjs';
+import { FABRIQUE_MARQUEUR, FABRIQUE_POPUP, type MarqueurCarte, type PopupCarte } from '../../../carte/fabrique-carte';
 import { messageErreurApi } from '../../../core/http/erreurs';
 import { CouleursService } from '../../../core/theme/couleurs.service';
 import { cercleGeoJSON } from '../../risques/logique/cercle';
@@ -97,6 +97,8 @@ export class PoisService {
   private readonly posee = signal<maplibregl.Map | null>(null);
   private marqueurs: MarqueurCarte[] = [];
   private canevas: HTMLCanvasElement | null = null;
+  /** La popup du dernier cercle cliqué, fermée par « Tout effacer » (revue 1). */
+  private popupCercle: PopupCarte | null = null;
   private lecture: Subscription | null = null;
 
   constructor() {
@@ -214,7 +216,9 @@ export class PoisService {
     erreur.set(null);
     this.definirZone(null);
     chargement.set(true);
-    this.lecture = requete.subscribe({
+    // `finalize` : la requête ANNULÉE par une autre (POI ↔ OOH partagent cette lecture) ou par « Tout effacer » rend son
+    // propre bouton — sans lui, son `chargement` restait vrai jusqu'au rechargement (revue 1).
+    this.lecture = requete.pipe(finalize(() => chargement.set(false))).subscribe({
       next: (data) => {
         chargement.set(false);
         const err = (data as ZoneData & { error?: string }).error;
@@ -238,6 +242,8 @@ export class PoisService {
     this.definirZone(null);
     this.panneauSelectionne.set(null);
     this.retirerMarqueurs();
+    this.popupCercle?.remove();
+    this.popupCercle = null;
   }
 
   private retirerMarqueurs(): void {
@@ -303,7 +309,7 @@ export class PoisService {
         return;
       }
       const doc = carte.getContainer().ownerDocument ?? this.document;
-      this.fabriquePopup({ closeButton: true, maxWidth: '260px' })
+      this.popupCercle = this.fabriquePopup({ closeButton: true, maxWidth: '260px' })
         .setLngLat(e.lngLat).setDOMContent(contenuPopupCercle(props, doc)).addTo(carte);
     };
     const survol = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {

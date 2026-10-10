@@ -29,7 +29,7 @@ export function adresseStreetView(cle: string, lat: number, lng: number): string
   template: `
     @if (pois.panneauSelectionne(); as p) {
       <aside data-tiroir-panneau aria-label="Street View"
-        class="absolute bottom-0 right-0 top-0 z-30 flex w-[min(420px,92vw)] flex-col border-l border-subtle bg-[var(--bg-primary)]">
+        class="absolute bottom-0 right-0 top-0 z-30 flex w-[min(420px,92vw)] flex-col border-l-fin border-subtle bg-[var(--bg-primary)]">
         <div class="flex items-center justify-between gap-2 border-b-fin border-subtle px-[14px] py-[10px]">
           <div class="font-mono text-[10px] tracking-[0.06em] text-secondary">STREET_VIEW</div>
           <button type="button" data-fermer aria-label="Fermer" (click)="pois.panneauSelectionne.set(null)"
@@ -45,10 +45,10 @@ export function adresseStreetView(cle: string, lat: number, lng: number): string
           </div>
           @if (adresse(); as src) {
             <iframe data-street-view [title]="'Street View ' + p.nom" width="100%" height="360" loading="lazy" allowfullscreen
-              [src]="src" class="block rounded-[2px] border border-subtle bg-elevated"></iframe>
+              [src]="src" class="block rounded-[2px] border-fin border-subtle bg-elevated"></iframe>
           } @else {
             <div data-cle-manquante
-              class="rounded-[2px] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-[10px] font-mono text-[11px] text-danger">
+              class="rounded-[2px] border-fin border-[color-mix(in_srgb,var(--danger)_30%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-[10px] font-mono text-[11px] text-danger">
               {{ variable }} manquante.
             </div>
           }

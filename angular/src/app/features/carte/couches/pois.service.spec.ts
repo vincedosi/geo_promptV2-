@@ -34,11 +34,12 @@ class MarqueurFactice {
 class PopupFactice {
   contenu: Node | null = null;
   ajoutee = false;
+  retiree = false;
   constructor(readonly options: maplibregl.PopupOptions) {}
   setLngLat() { return this; }
   setDOMContent(n: Node) { this.contenu = n; return this; }
   addTo() { this.ajoutee = true; return this; }
-  remove() { return this; }
+  remove() { this.retiree = true; return this; }
 }
 
 const poi = (i: number, categorie = 'lycee', extra: Partial<POI> = {}): POI =>
@@ -243,6 +244,21 @@ describe('PoisService — rendu sur la carte', () => {
       lngLat: { lat: 1, lng: 2 }, features: [{ properties: { id: 'p9', nom: 'P', categorie: 'panneaux', sous_categorie: '8m2', lat: 3, lng: 4 } }],
     });
     expect(service.panneauSelectionne()).toEqual(expect.objectContaining({ id: 'p9', format: '8m2', lat: 3, lng: 4 }));
+  });
+
+  it('« Tout effacer » ferme la popup d’un cercle cliqué (revue 1)', () => {
+    const { service, couches, popups } = monter();
+    const carte = carteChargee(couches);
+    service.definirZone(zone(400));
+    flush();
+    carte.emettreSurCouche('click', COUCHE_POIS_CERCLES, {
+      lngLat: { lat: 1, lng: 2 }, features: [{ properties: { id: 'p9', nom: 'Lycée', categorie: 'lycee' } }],
+    });
+    const popup = popups.at(-1)!;
+    expect(popup.ajoutee).toBe(true);
+    couches.toutEffacer();
+    flush();
+    expect(popup.retiree).toBe(true);
   });
 
   it('carte recréée (changement de fond) → couches, marqueurs et écoutes re-posés sur la NOUVELLE instance', () => {

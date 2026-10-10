@@ -14,14 +14,15 @@ import { PoisService } from './pois.service';
 function monter() {
   const corps: CorpsOoh[] = [];
   const reponses = new Subject<ZoneData>();
+  const reponsesPois = new Subject<ZoneData>();
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), OohService, PoisService, EtatCarteService, CouchesCarteService, AnnonceService,
-      { provide: CarteApi, useValue: { ooh: (c: CorpsOoh) => { corps.push(c); return reponses; } } },
+      { provide: CarteApi, useValue: { ooh: (c: CorpsOoh) => { corps.push(c); return reponses; }, pois: () => reponsesPois } },
       { provide: CouleursService, useValue: { palette: () => signal({}) } },
     ],
   });
-  return { ooh: TestBed.inject(OohService), pois: TestBed.inject(PoisService), etat: TestBed.inject(EtatCarteService), corps, reponses };
+  return { ooh: TestBed.inject(OohService), pois: TestBed.inject(PoisService), etat: TestBed.inject(EtatCarteService), couches: TestBed.inject(CouchesCarteService), corps, reponses };
 }
 
 const panneaux: ZoneData = {
@@ -54,5 +55,28 @@ describe('OohService', () => {
     expect(pois.zone()).toBeNull();
     reponses.error(new HttpErrorResponse({ status: 404, error: { error: 'Aucun panneau trouvé' } }));
     expect(ooh.erreur()).toBe('Aucun panneau trouvé');
+  });
+
+  // Revue 1 : POI et OOH partagent UNE lecture ; celle qu'on annule doit rendre son bouton.
+  it('POI en cours puis OOH : le chargement POI retombe, « AFFICHER » reste utilisable', () => {
+    const { ooh, pois } = monter();
+    pois.chercher({ poi_types: ['lycee'], scope: null, regions: [], depts: [], ville: '', rayon_poi: null, poi_natures: {} });
+    expect(pois.chargement()).toBe(true);
+    ooh.charger();
+    expect(pois.chargement()).toBe(false);
+    expect(ooh.chargement()).toBe(true);
+  });
+
+  it('OOH en cours puis recherche POI, ou « Tout effacer » : le chargement OOH retombe', () => {
+    const { ooh, pois, couches } = monter();
+    ooh.charger();
+    pois.chercher({ poi_types: ['lycee'], scope: null, regions: [], depts: [], ville: '', rayon_poi: null, poi_natures: {} });
+    expect(ooh.chargement()).toBe(false);
+    expect(pois.chargement()).toBe(true);
+    ooh.charger();
+    expect(ooh.chargement()).toBe(true);
+    couches.toutEffacer();
+    expect(ooh.chargement()).toBe(false);
+    expect(pois.chargement()).toBe(false);
   });
 });
