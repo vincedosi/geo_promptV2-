@@ -248,9 +248,43 @@ export const VARIABLES_CIVIQUES: Record<CodeVariableCivique, MetaVariableCivique
   },
 };
 
+/**
+ * Paliers du dégradé de la légende : `[couleur, poids relatif]` (`ABSTENTION_LEGEND`, `CivicIndicatorsSection.tsx:22-29`,
+ * verbatim) — les mêmes six teintes que la carte, chacune large de l'écart de valeurs qu'elle couvre.
+ */
+export const ABSTENTION_LEGEND: [string, number][] = [
+  ['#16a34a', 0.5],
+  ['#84cc16', 1],
+  ['#eab308', 1],
+  ['#f97316', 1],
+  ['#dc2626', 1.2],
+  ['#7f1d1d', 0.8],
+];
+
+/** Les trois repères sous le dégradé (`ABSTENTION_LEGEND_REPERES`, `CivicIndicatorsSection.tsx:32-34`). */
+export const ABSTENTION_LEGEND_REPERES: readonly [string, string, string] = [
+  '10% (forte particip.)', '30%', '60% (forte abst.)',
+];
+
+/**
+ * Le contour des codes postaux (`CivicIndicatorsLayer.tsx:243-247`) : blanc dans les DEUX thèmes, comme React — un
+ * trait de DONNÉES (B12), large de 0,3 px et à 40 % : il sépare deux aplats voisins, il ne suit pas le thème.
+ */
+export const TRAIT_CIVIQUE = { couleur: '#ffffff', largeur: 0.3, opacite: 0.4 } as const;
+/** Opacité de l'aplat (`opacity = 0.65`, `CivicIndicatorsLayer.tsx:171`). */
+export const OPACITE_CIVIQUE = 0.65;
+/** Valeur peinte quand `value` manque (`['coalesce', …, 25]`, `CivicIndicatorsLayer.tsx:226`). */
+export const VALEUR_CIVIQUE_PAR_DEFAUT = 25;
+
 // ---------------------------------------------------------------------------
 // Santé environnementale (CivicHealthMapLayer.tsx:98-106)
 // ---------------------------------------------------------------------------
+
+/** Opacité de l'aplat (`opacity = 0.55`) et trait des zones (`CivicHealthMapLayer.tsx:150,249`). */
+export const OPACITE_SANTE = 0.55;
+export const TRAIT_SANTE = { largeur: 0.4, opacite: 0.5 } as const;
+/** Sous le seuil ou sans donnée : transparent (valeur par défaut du `match`, `CivicHealthMapLayer.tsx:240`). */
+export const SANTE_TRANSPARENT = 'rgba(0,0,0,0)';
 
 /**
  * Jetons des six niveaux (1 à 6) et du niveau 0 (indisponible) de chaque jeu : ILS VARIENT selon le

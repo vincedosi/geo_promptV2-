@@ -5,6 +5,7 @@ import { IrisService } from '../couches/iris.service';
 import { couleurPoi } from '../couches/couche-pois';
 import { PoisService } from '../couches/pois.service';
 import { RadioService } from '../couches/radio.service';
+import { SanteService } from '../couches/sante.service';
 import { TmjaService } from '../couches/tmja.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
 import { formaterValeur, palierEchelle, versValeurReelle } from '../logique/carreaux/bornes';
@@ -14,15 +15,20 @@ import { echelleDe, uniteIris } from '../logique/iris-echelle';
 import { uniteNormalisee } from '../logique/carreaux/normalisation';
 import { type DegradeId, libelleDegrade } from '../logique/degrades';
 import { ECART_RAIL_PANNEAU, LARGEUR_RAIL } from '../logique/navigation';
-import { CARREAUX_PALETTES, IRIS_PALETTES, LEGENDE_TMJA } from '../logique/palettes-donnees-carte';
+import {
+  ABSTENTION_LEGEND, ABSTENTION_LEGEND_REPERES, CARREAUX_PALETTES, IRIS_PALETTES, JETONS_NIVEAUX_SANTE, LEGENDE_TMJA,
+} from '../logique/palettes-donnees-carte';
+import { ATMO_LEVEL_LABELS, POLLEN_LEVEL_LABELS } from '../logique/sante';
 
 /**
  * Le dégradé actif a-t-il un bloc dans CETTE légende ? — `degradeALegende` de `LegendeCarte.tsx:150-178`, source
  * UNIQUE de la question : la boîte ne s'ouvre jamais vide. Le `switch` est EXHAUSTIF (`never`) : un dégradé ajouté à
  * `DegradeId` sans décision ici fait échouer la compilation.
  *
- * Carreaux (T6) et IRIS (T7) sont portés. Chaque tâche de couche passe SON cas à `true` en ajoutant son bloc :
- * indicateurs civiques et santé (T10), météo (T11). `score`, `diffusion` et `zones-risque` portent leur
+ * Carreaux (T6), IRIS (T7), indicateurs civiques et santé (T10) sont portés. Chaque tâche de couche passe SON cas à
+ * `true` en ajoutant son bloc : météo (T11). Côté React, `civic-indicateurs` et `civic-sante` vérifiaient aussi la
+ * variable / le jeu : ici, le dégradé n'est réclamé QUE par `choisir(code)` / `choisirJeu(jeu)` non nuls, et l'éviction
+ * remet la variable à `null` — l'un ne va pas sans l'autre. `score`, `diffusion` et `zones-risque` portent leur
  * propre légende, comme React.
  */
 export function degradeALegende(d: DegradeId | null): boolean {
@@ -30,12 +36,12 @@ export function degradeALegende(d: DegradeId | null): boolean {
   switch (d) {
     case 'carreaux':
     case 'iris':
-      return true;
-    case 'meteo':
     case 'civic-indicateurs':
     case 'civic-sante':
+      return true;
+    case 'meteo':
     case 'campagne-impressions':
-      return false; // blocs à venir (T10, T11 ; campagne : lot 5)
+      return false; // blocs à venir (T11 ; campagne : lot 5)
     case 'score':
     case 'diffusion':
     case 'zones-risque':
@@ -178,6 +184,38 @@ interface Palier {
                   }
                 </div>
               }
+              @case ('civic-indicateurs') {
+                <!-- LegendeCarte.tsx:259-273 : le dégradé pondéré et ses trois repères. -->
+                <div data-bloc="civique">
+                  <div class="mb-1 text-[11px] font-medium text-secondary">{{ titreCivique }}</div>
+                  <div class="flex h-1.5 overflow-hidden rounded-[3px]">
+                    @for (p of legendeAbstention; track $index) {
+                      <div data-palier-civique [style.flex]="p[1]" [style.background]="p[0]"></div>
+                    }
+                  </div>
+                  <div class="mt-0.5 flex justify-between">
+                    @for (r of reperesAbstention; track r) {
+                      <span class="font-mono text-[10px] text-tertiary">{{ r }}</span>
+                    }
+                  </div>
+                </div>
+              }
+              @case ('civic-sante') {
+                <!-- LegendeCarte.tsx:275-293 : six niveaux sur deux colonnes, estompés sous le seuil. -->
+                @if (niveauxSante(); as ns) {
+                  <div data-bloc="sante">
+                    <div class="mb-1 text-[11px] font-medium text-secondary">{{ ns.titre }}</div>
+                    <div class="grid grid-cols-2 gap-x-[10px] gap-y-1">
+                      @for (n of ns.niveaux; track n.niveau) {
+                        <div data-niveau-sante class="flex items-center gap-1.5" [style.opacity]="n.estompe ? 0.3 : 1">
+                          <span class="size-[10px] shrink-0 rounded-[2px]" [style.background]="n.couleur"></span>
+                          <span class="font-mono text-[10px] text-tertiary">{{ n.libelle }}</span>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+              }
             }
             @if (figuresVisibles()) {
               <!-- BlocFigures (LegendeCarte.tsx:466-523) : les types de POI choisis, les paliers TMJA, les émetteurs radio. -->
@@ -229,6 +267,26 @@ export class LegendeCarteComponent {
   protected readonly tmja = inject(TmjaService);
   protected readonly radio = inject(RadioService);
   protected readonly paliersTmja = LEGENDE_TMJA;
+  private readonly sante = inject(SanteService);
+  protected readonly titreCivique = libelleDegrade('civic-indicateurs');
+  protected readonly legendeAbstention = ABSTENTION_LEGEND;
+  protected readonly reperesAbstention = ABSTENTION_LEGEND_REPERES;
+  /** Les six niveaux du jeu affiché : `var(--pollen-level-N)` / `var(--atmo-level-N)` (DOM : le jeton est résolu). */
+  protected readonly niveauxSante = computed(() => {
+    const jeu = this.sante.jeu();
+    if (!jeu) return null;
+    const libelles: Record<number, string> = jeu === 'pollen' ? POLLEN_LEVEL_LABELS : ATMO_LEVEL_LABELS;
+    const seuil = this.sante.seuil();
+    return {
+      titre: jeu === 'pollen' ? 'Indice pollen' : 'Indice ATMO',
+      niveaux: ([1, 2, 3, 4, 5, 6] as const).map((niveau) => ({
+        niveau,
+        couleur: `var(--${JETONS_NIVEAUX_SANTE[jeu][niveau]})`,
+        libelle: `${niveau} — ${libelles[niveau]}`,
+        estompe: seuil > 0 && niveau < seuil,
+      })),
+    };
+  });
 
   /** Les catégories de la zone affichée, triées, avec leur compte et les rayons (`activeCats`, `page.tsx:843`). */
   protected readonly analyse = computed(() => {

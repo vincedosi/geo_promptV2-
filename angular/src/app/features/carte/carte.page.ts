@@ -10,10 +10,12 @@ import { BoutonsFlottantsComponent } from './commun/boutons-flottants.component'
 import { FondCompactComponent } from './commun/fond-compact.component';
 import { CarreauxService } from './couches/carreaux.service';
 import { DetailIrisComponent } from './couches/detail-iris.component';
+import { IndicateursCiviquesService } from './couches/indicateurs-civiques.service';
 import { IrisService } from './couches/iris.service';
 import { OohService } from './couches/ooh.service';
 import { PoisService } from './couches/pois.service';
 import { RadioService } from './couches/radio.service';
+import { SanteService } from './couches/sante.service';
 import { TiroirPanneauComponent } from './couches/tiroir-panneau.component';
 import { TmjaService } from './couches/tmja.service';
 import { TransportService } from './couches/transport.service';
@@ -99,6 +101,7 @@ export function palierCarreaux(zoom: number): string {
   ],
   providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
     IrisService, PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService,
+    IndicateursCiviquesService, SanteService,
   ],
   templateUrl: './carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -163,6 +166,10 @@ export class CartePage {
     });
 
     inject(DestroyRef).onDestroy(() => this.couches.publier(null));
+    // Les deux choroplèthes « Environnement » (T10) existent dès l'ouverture : elles s'inscrivent à l'éviction de leur
+    // dégradé et à « Tout effacer » avant tout geste, même panneau Calques fermé.
+    inject(IndicateursCiviquesService);
+    inject(SanteService);
 
     // Le fond MAGELIAN : surcharges posées sur la carte prête, ré-appliquées à chaque bascule de thème
     // (`useMapInit.ts:217-221,1091-1102`). `carteCourante` n'est publiée qu'au `load` : le style est chargé.

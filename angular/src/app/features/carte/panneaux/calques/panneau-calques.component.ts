@@ -1,17 +1,21 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { CarreauxService } from '../../couches/carreaux.service';
+import { IndicateursCiviquesService } from '../../couches/indicateurs-civiques.service';
 import { IrisService } from '../../couches/iris.service';
 import { RadioService } from '../../couches/radio.service';
+import { SanteService } from '../../couches/sante.service';
 import { TmjaService } from '../../couches/tmja.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { libelleDegrade } from '../../logique/degrades';
 import { GroupeCalquesComponent } from './groupe-calques.component';
 import { SectionCarreauxComponent } from './section-carreaux.component';
+import { SectionCiviqueComponent } from './section-civique.component';
 import { SectionIrisComponent } from './section-iris.component';
 import { SectionOohComponent } from './section-ooh.component';
 import { SectionPoiComponent } from './section-poi.component';
 import { SectionRadioComponent } from './section-radio.component';
+import { SectionSanteComponent } from './section-sante.component';
 import { SectionTmjaComponent } from './section-tmja.component';
 import { SectionTransportComponent } from './section-transport.component';
 import { SelectionsCalquesService } from './selections-calques.service';
@@ -33,7 +37,8 @@ interface ActifCalque {
  * React (`useState`, `PanneauCalques.tsx:240-243`), le panneau repart replié à chaque réouverture.
  *
  * T6 a porté le CADRE et les carreaux Filosofi, T7 les IRIS, T8 les POI, le transport et les panneaux OOH, T9 le flux
- * routier (TMJA) et la radio ; chaque groupe se remplit dans sa tâche : environnement (T10-T12), « Mes analyses » (T18). Les sections
+ * routier (TMJA) et la radio, T10 les indicateurs civiques et la santé environnementale ; chaque groupe se remplit dans
+ * sa tâche : risques industriels et météo (T11-T12), « Mes analyses » (T18). Les sections
  * internes de ces groupes (`useFilterSections(true, …)` en mode overlay) ne mémorisent rien non plus : leur état, les
  * régies OOH et les types de transport choisis vivent dans `SelectionsCalquesService`, fourni par CE composant — il
  * survit au repli d'un groupe et disparaît à la fermeture du panneau, comme l'état React.
@@ -43,8 +48,9 @@ interface ActifCalque {
 @Component({
   selector: 'mg-panneau-calques',
   imports: [
-    GroupeCalquesComponent, IconeComponent, SectionCarreauxComponent, SectionIrisComponent, SectionOohComponent, SectionPoiComponent,
-    SectionRadioComponent, SectionTmjaComponent, SectionTransportComponent,
+    GroupeCalquesComponent, IconeComponent, SectionCarreauxComponent, SectionCiviqueComponent, SectionIrisComponent,
+    SectionOohComponent, SectionPoiComponent, SectionRadioComponent, SectionSanteComponent, SectionTmjaComponent,
+    SectionTransportComponent,
   ],
   providers: [SelectionsCalquesService],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -104,9 +110,14 @@ interface ActifCalque {
       }
     </mg-groupe-calques>
 
-    <mg-groupe-calques titre="Environnement" [ouvert]="groupes().environnement" (basculer)="basculer('environnement')">
+    <mg-groupe-calques titre="Environnement" [ouvert]="groupes().environnement" [compte]="compteEnvironnement()" (basculer)="basculer('environnement')">
       @if (groupes().environnement) {
-        <p data-provisoire class="px-4 py-2 text-[12px] text-tertiary">Les risques, les indicateurs civiques, la santé environnementale et la météo arrivent avec les tâches 10 à 12.</p>
+        <p data-provisoire class="px-4 pt-2 text-[12px] text-tertiary">Les risques industriels et la météo arrivent avec les tâches 11 et 12.</p>
+        <!-- PanneauCalques.tsx:600-637 : padding 16, sections espacées de 16. -->
+        <div class="flex flex-col gap-4 p-4">
+          <mg-section-civique />
+          <mg-section-sante />
+        </div>
       }
     </mg-groupe-calques>
 
@@ -124,6 +135,8 @@ export class PanneauCalquesComponent {
   private readonly selections = inject(SelectionsCalquesService);
   private readonly tmja = inject(TmjaService);
   private readonly radio = inject(RadioService);
+  private readonly civique = inject(IndicateursCiviquesService);
+  private readonly sante = inject(SanteService);
 
   protected readonly groupes = signal<Record<CleGroupe, boolean>>({
     socioDemo: false, poiMobilite: false, mediasOffline: false, environnement: false, analyses: false,
@@ -136,6 +149,8 @@ export class PanneauCalquesComponent {
   );
   /** `selectedOOH.length + (radioVisible ? 1 : 0)` (`PanneauCalques.tsx:529`). */
   protected readonly compteMedias = computed(() => this.selections.regiesOoh().length + (this.radio.visible() ? 1 : 0));
+  /** `(civicVariableCode ? 1 : 0) + (civicHealthLayer ? 1 : 0)` (`PanneauCalques.tsx:575`) — risques et météo : T11-T12. */
+  protected readonly compteEnvironnement = computed(() => (this.civique.variable() ? 1 : 0) + (this.sante.jeu() ? 1 : 0));
   protected readonly actifs = computed<ActifCalque[]>(() => {
     const liste: ActifCalque[] = [];
     if (this.carreaux.visible()) {
@@ -156,8 +171,26 @@ export class PanneauCalquesComponent {
     if (ooh > 0) liste.push({ id: 'ooh', label: `OOH (${ooh} régies)`, retirer: () => this.selections.regiesOoh.set([]) });
     // `PanneauCalques.tsx:336` : la croix fait `onToggleRadio`, donc ÉTEINT le calque.
     if (this.radio.visible()) liste.push({ id: 'radio', label: 'Radio FM/DAB+', retirer: () => this.radio.basculer() });
+    if (this.civique.variable()) {
+      liste.push({ id: 'civic-indicateurs', label: libelleDegrade('civic-indicateurs'), retirer: () => this.civique.choisir(null) });
+    }
+    if (this.sante.jeu()) liste.push({ id: 'civic-sante', label: libelleDegrade('civic-sante'), retirer: () => this.sante.choisirJeu(null) });
     return liste;
   });
+
+  constructor() {
+    // « Santé environnementale » s'ouvre d'elle-même au PREMIER IRIS sélectionné, une seule fois : refermée ensuite, elle
+    // le reste (`use-filter-sections.ts:85-91`, même durée de vie : celle du panneau).
+    let ouverteAuto = false;
+    effect(() => {
+      const commune = this.iris.detail()?.code_commune;
+      if (!commune || ouverteAuto) return;
+      ouverteAuto = true;
+      untracked(() => {
+        if (!this.selections.sections()['civicHealth']) this.selections.basculerSection('civicHealth');
+      });
+    });
+  }
 
   protected basculer(cle: CleGroupe): void {
     this.groupes.update((g) => ({ ...g, [cle]: !g[cle] }));

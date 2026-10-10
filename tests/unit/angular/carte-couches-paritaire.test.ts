@@ -36,6 +36,8 @@ import * as Rmp from '@/lib/meteo/palettes';
 import * as Amp from '../../../angular/src/app/features/carte/logique/meteo/palettes';
 import * as Rmr from '@/lib/meteo/requete';
 import * as Amr from '../../../angular/src/app/features/carte/logique/meteo/requete';
+import * as Rlv from '@/lib/civic-health/levels';
+import * as Asan from '../../../angular/src/app/features/carte/logique/sante';
 import * as Rma from '@/lib/meteo/aggregation';
 import * as Ama from '../../../angular/src/app/features/carte/logique/meteo/aggregation';
 import * as Rv from '@/lib/version';
@@ -422,6 +424,35 @@ describe('fonds de carte, palettes de données et constantes de calques', () => 
       'Participation moyenne', 'Participation moyenne', 'Abstention élevée', 'Abstention élevée',
       'Abstention très élevée', 'Abstention très élevée',
     ]);
+  });
+
+  it('civique (T10) : légende pondérée, repères, trait et opacité de React', () => {
+    const section = readFileSync('app/map/_components/filter-panel/CivicIndicatorsSection.tsx', 'utf8');
+    for (const [c, w] of Apal.ABSTENTION_LEGEND) expect(section, c).toContain(`['${c}', ${w}]`);
+    expect(Apal.ABSTENTION_LEGEND).toHaveLength(6);
+    expect(section).toContain(`'${Apal.ABSTENTION_LEGEND_REPERES.join("', '")}'`);
+    const couche = readFileSync('app/map/_components/CivicIndicatorsLayer.tsx', 'utf8');
+    expect(couche).toContain(`'line-color': '${Apal.TRAIT_CIVIQUE.couleur}'`);
+    expect(couche).toContain(`'line-width': ${Apal.TRAIT_CIVIQUE.largeur}`);
+    expect(couche).toContain(`'line-opacity': ${Apal.TRAIT_CIVIQUE.opacite}`);
+    expect(couche).toContain(`opacity = ${Apal.OPACITE_CIVIQUE}`);
+    expect(couche).toContain(`['get', 'value']], ${Apal.VALEUR_CIVIQUE_PAR_DEFAUT}]`);
+  });
+
+  it('santé (T10) : libellés de niveaux, métriques, âge maximal, opacité et trait de React', () => {
+    expect(Asan.ATMO_LEVEL_LABELS).toEqual(Rlv.ATMO_LEVEL_LABELS);
+    expect(Asan.POLLEN_LEVEL_LABELS).toEqual(Rlv.POLLEN_LEVEL_LABELS);
+    const couche = readFileSync('app/map/_components/CivicHealthMapLayer.tsx', 'utf8');
+    for (const jeu of ['pollen', 'atmo'] as const) {
+      for (const [k, l] of Asan.METRIQUES_SANTE[jeu]) expect(couche, k).toContain(`['${k}', '${l}']`);
+    }
+    expect(couche).toContain(`opacity = ${Apal.OPACITE_SANTE}`);
+    expect(couche).toContain(`'line-width': ${Apal.TRAIT_SANTE.largeur}, 'line-opacity': ${Apal.TRAIT_SANTE.opacite}`);
+    expect(couche).toContain(`'${Apal.SANTE_TRANSPARENT}'`);
+    const section = readFileSync('app/map/_components/filter-panel/CivicHealthSection.tsx', 'utf8');
+    expect(section).toContain(`const AGE_MAX_JOURS = ${Asan.AGE_MAX_JOURS};`);
+    expect([0, 1, 3, 6, 7].map((n) => Asan.libelleNiveau('atmo', n))).toEqual(['indisponible', 'bon', 'dégradé', 'extrêmement mauvais', 'indisponible']);
+    expect([0, 6, 9].map((n) => Asan.libelleNiveau('pollen', n))).toEqual(['indisponible', 'extrêmement élevé', '—']);
   });
 
   it('santé environnementale : chaque niveau pointe un jeton existant', () => {

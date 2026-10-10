@@ -9,6 +9,8 @@ import { PoisService } from '../couches/pois.service';
 import { RadioService } from '../couches/radio.service';
 import { TmjaService } from '../couches/tmja.service';
 import { RadioApi } from '../data/radio.api';
+import { CiviqueApi } from '../data/civique.api';
+import { SanteService } from '../couches/sante.service';
 import { CarteApi } from '../data/carte.api';
 import { Subject } from 'rxjs';
 import type { CatalogueBornesIris } from '../logique/iris-echelle';
@@ -27,7 +29,8 @@ function monter() {
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), CarreauxService, IrisService, PoisService, EtatCarteService, CouchesCarteService, AnnonceService,
-      TmjaService, RadioService,
+      TmjaService, RadioService, SanteService,
+      { provide: CiviqueApi, useValue: { zones: () => new Subject(), santeDepartement: () => new Subject(), santeCp: () => new Subject() } },
       { provide: CarteApi, useValue: {} },
       { provide: RadioApi, useValue: { optionsFiltre: () => new Subject(), emetteurs: () => new Subject() } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '' } },
@@ -41,7 +44,7 @@ function monter() {
   return {
     fixture, el, rendre, bornes$, carreaux: TestBed.inject(CarreauxService), iris: TestBed.inject(IrisService),
     pois: TestBed.inject(PoisService), etat: TestBed.inject(EtatCarteService),
-    tmja: TestBed.inject(TmjaService), radio: TestBed.inject(RadioService),
+    tmja: TestBed.inject(TmjaService), radio: TestBed.inject(RadioService), sante: TestBed.inject(SanteService),
   };
 }
 
@@ -55,7 +58,39 @@ describe('LegendeCarteComponent', () => {
     await rendre();
     expect(el.querySelector('[data-legende]')).toBeNull();
     const tous: DegradeId[] = ['carreaux', 'iris', 'civic-indicateurs', 'civic-sante', 'meteo', 'campagne-impressions', 'score', 'diffusion', 'zones-risque'];
-    expect(tous.filter((d) => degradeALegende(d))).toEqual(['carreaux', 'iris']);
+    expect(tous.filter((d) => degradeALegende(d))).toEqual(['carreaux', 'iris', 'civic-indicateurs', 'civic-sante']);
+  });
+
+  it('indicateurs civiques (T10) : titre, six teintes pondérées de React, trois repères', async () => {
+    const { fixture, el, rendre } = monter();
+    fixture.componentRef.setInput('degradeActif', 'civic-indicateurs');
+    await rendre();
+    const bloc = el.querySelector('[data-bloc="civique"]')!;
+    expect(bloc.textContent).toContain('Indicateurs civiques');
+    const paliers = [...bloc.querySelectorAll<HTMLElement>('[data-palier-civique]')];
+    expect(paliers.map((p) => p.style.flexGrow)).toEqual(['0.5', '1', '1', '1', '1.2', '0.8']);
+    expect(paliers[0].style.background).toBe('rgb(22, 163, 74)');
+    expect([...bloc.querySelectorAll('span')].map((x) => x.textContent!.trim())).toEqual(['10% (forte particip.)', '30%', '60% (forte abst.)']);
+  });
+
+  it('santé environnementale (T10) : six niveaux en jetons, ceux sous le seuil estompés ; le titre suit le jeu', async () => {
+    const { fixture, el, rendre, sante } = monter();
+    sante.choisirJeu('pollen');
+    sante.seuil.set(4);
+    fixture.componentRef.setInput('degradeActif', 'civic-sante');
+    await rendre();
+    const bloc = el.querySelector('[data-bloc="sante"]')!;
+    expect(bloc.textContent).toContain('Indice pollen');
+    const niveaux = [...bloc.querySelectorAll<HTMLElement>('[data-niveau-sante]')];
+    expect(niveaux.map((n) => n.textContent!.trim())).toEqual([
+      '1 — très faible', '2 — faible', '3 — modéré', '4 — élevé', '5 — très élevé', '6 — extrêmement élevé',
+    ]);
+    expect(niveaux.map((n) => n.style.opacity)).toEqual(['0.3', '0.3', '0.3', '1', '1', '1']);
+    expect(niveaux[0].querySelector('span')!.getAttribute('style')).toContain('var(--pollen-level-1)');
+    sante.choisirJeu('atmo');
+    await rendre();
+    expect(el.querySelector('[data-bloc="sante"]')!.textContent).toContain('Indice ATMO');
+    expect(el.querySelector('[data-bloc="sante"]')!.textContent).toContain('6 — extrêmement mauvais');
   });
 
   it('carreaux : titre, unité normalisée, six paliers de la palette ; « ≥ » sur le dernier', async () => {

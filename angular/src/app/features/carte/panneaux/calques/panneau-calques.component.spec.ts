@@ -19,13 +19,17 @@ import { TmjaService } from '../../couches/tmja.service';
 import { RadioApi } from '../../data/radio.api';
 import { CataloguePoiService } from '../../etat/catalogue-poi.service';
 import { CarteApi } from '../../data/carte.api';
+import { CiviqueApi } from '../../data/civique.api';
+import { IndicateursCiviquesService } from '../../couches/indicateurs-civiques.service';
+import { SanteService } from '../../couches/sante.service';
 import { of } from 'rxjs';
 
 function monter() {
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), CarreauxService, IrisService, EtatCarteService, CouchesCarteService, AnnonceService,
-      PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService,
+      PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService, IndicateursCiviquesService, SanteService,
+      { provide: CiviqueApi, useValue: { geojsonVariable: () => NEVER, zones: () => NEVER, santeDepartement: () => NEVER, santeCp: () => NEVER } },
       { provide: CarteApi, useValue: { categories: () => of({ categories: ['lycee'] }), urlTuilesTmja: () => '' } },
       { provide: RadioApi, useValue: { optionsFiltre: () => NEVER, emetteurs: () => NEVER } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },
@@ -44,6 +48,8 @@ function monter() {
     etat: TestBed.inject(EtatCarteService),
     tmja: TestBed.inject(TmjaService),
     radio: TestBed.inject(RadioService),
+    civique: TestBed.inject(IndicateursCiviquesService),
+    sante: TestBed.inject(SanteService),
     titres: () => [...el.querySelectorAll('button[data-groupe]')].map((b) => b.querySelector('span')!.textContent!.trim()),
     groupe: (titre: string) => [...el.querySelectorAll<HTMLButtonElement>('button[data-groupe]')]
       .find((b) => b.textContent!.includes(titre))!,
@@ -207,5 +213,43 @@ describe('PanneauCalquesComponent', () => {
     (el.querySelector('[data-actif="radio"] button') as HTMLButtonElement).click();
     await rendre();
     expect([tmja.visible(), radio.visible()]).toEqual([false, false]);
+  });
+
+  it('Environnement (T10) : indicateurs civiques et santé ; compte, « Actifs » et croix ; les deux s’évincent', async () => {
+    const { el, rendre, groupe, civique, sante, etat } = monter();
+    groupe('Environnement').click();
+    await rendre();
+    expect(el.querySelector('mg-section-civique')).not.toBeNull();
+    expect(el.querySelector('mg-section-sante')).not.toBeNull();
+    civique.choisir('abstention_pres_2022');
+    await rendre();
+    expect(groupe('Environnement').querySelector('[data-compte]')!.textContent!.trim()).toBe('1');
+    expect(el.querySelector('[data-actif="civic-indicateurs"]')!.textContent).toContain('Indicateurs civiques');
+    sante.choisirJeu('pollen');
+    await rendre();
+    expect(civique.variable()).toBeNull();
+    expect(etat.degradeActif()).toBe('civic-sante');
+    expect(el.querySelector('[data-actif="civic-indicateurs"]')).toBeNull();
+    el.querySelector<HTMLButtonElement>('[data-actif="civic-sante"] button[title="Masquer Santé environnementale"]')!.click();
+    await rendre();
+    expect(sante.jeu()).toBeNull();
+    expect(etat.degradeActif()).toBeNull();
+    expect(el.textContent).toContain('Actifs (0)');
+  });
+
+  it('« Santé environnementale » s’ouvre d’elle-même au PREMIER IRIS sélectionné, une seule fois', async () => {
+    const { el, rendre, groupe, iris } = monter();
+    groupe('Environnement').click();
+    await rendre();
+    expect(el.querySelector('[data-couches-sante]')).toBeNull();
+    (iris as unknown as { donnees: { set(v: unknown): void } }).donnees.set({ code_iris: '130550101', code_commune: '13055', nom_commune: 'Marseille' });
+    await rendre();
+    expect(el.querySelector('[data-couches-sante]')).not.toBeNull();
+    (el.querySelector('mg-section-sante mg-entete-filtre') as HTMLElement).click();
+    await rendre();
+    expect(el.querySelector('[data-couches-sante]')).toBeNull();
+    (iris as unknown as { donnees: { set(v: unknown): void } }).donnees.set({ code_iris: '130550102', code_commune: '13056' });
+    await rendre();
+    expect(el.querySelector('[data-couches-sante]')).toBeNull();
   });
 });
