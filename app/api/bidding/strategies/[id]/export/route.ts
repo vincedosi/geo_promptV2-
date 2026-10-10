@@ -128,12 +128,18 @@ export async function GET(
         }
       }
     } else {
+      // Pages triées sur `postal_code` : avec `indicator_code` fixé, c'est la
+      // clé primaire (indicator_code, postal_code), donc un ordre TOTAL, servi
+      // par l'index sans tri. Sans `order()` (jusqu'au 2026-10-11), rien ne
+      // garantissait le même ordre d'une page à l'autre : pages qui se
+      // recouvrent, codes postaux absents du fichier, sans erreur.
       let from = 0;
       while (true) {
         const { data, error } = await supabase
           .from(source.table)
           .select(`${source.cpCol}, ${source.valCol}`)
           .eq('indicator_code', variableCode)
+          .order(source.cpCol)
           .range(from, from + PAGE - 1);
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
         const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
