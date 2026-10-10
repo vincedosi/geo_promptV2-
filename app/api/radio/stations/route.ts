@@ -7,8 +7,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { lireTout } from '@/lib/supabase/lire-tout';
 
 export const dynamic = 'force-dynamic';
+
+/** Nombre maximal de radios lues (1 175 le 2026-10-10). Borne I/O : au-delà, échec plutôt que troncature. */
+const PLAFOND_RADIOS = 5000;
 
 export async function GET(req: NextRequest) {
   const profile = await requireAuth(req);
@@ -26,23 +30,36 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminClient();
 
   // Fetch radios (no embedded count — unreliable with self-join + supabase-js 2.97)
-  let query = supabase
-    .from('radios')
-    .select('*, parent:radios!parent_radio_id(id, nom)', { count: 'exact' })
-    .limit(5000);
+  // Lecture PAGINÉE : PostgREST plafonne toute requête de table à 1 000 lignes
+  // (`db-max-rows`) ; l'ancien `.limit(5000)` rendait 1 000 radios sur 1 175 et
+  // un `total` faux (mesuré le 2026-10-10). Borne : PLAFOND_RADIOS, au-delà la
+  // lecture échoue au lieu de tronquer. `order('id')` : pages sans recouvrement.
+  const construire = (de: number, a: number) => {
+    let query = supabase
+      .from('radios')
+      .select('*, parent:radios!parent_radio_id(id, nom)')
+      .order('id');
 
-  if (categorie) query = query.eq('categorie_arcom', categorie);
-  if (portee) query = query.eq('portee', portee);
-  if (genre) query = query.eq('genre', genre);
-  if (search) query = query.ilike('nom', `%${search}%`);
+    if (categorie) query = query.eq('categorie_arcom', categorie);
+    if (portee) query = query.eq('portee', portee);
+    if (genre) query = query.eq('genre', genre);
+    if (search) query = query.ilike('nom', `%${search}%`);
+    return query.range(de, a);
+  };
 
   // Fetch emitter counts separately (reliable subquery via RPC-style SQL)
   const [radiosResult, countsResult] = await Promise.all([
-    query,
+    lireTout(construire, PLAFOND_RADIOS).then(
+      ({ lignes }) => ({ data: lignes, error: null }),
+      (err: unknown) => ({ data: null, error: err instanceof Error ? err : new Error(String(err)) }),
+    ),
     supabase.rpc('count_emetteurs_par_radio'),
   ]);
 
-  if (radiosResult.error) return NextResponse.json({ error: radiosResult.error.message }, { status: 500 });
+  if (radiosResult.error) {
+    console.error('[api/radio/stations] erreur:', radiosResult.error.message);
+    return NextResponse.json({ error: 'Lecture des radios impossible.' }, { status: 500 });
+  }
 
   // Build radio_id → count map
   const emCountMap = new Map<string, number>();
