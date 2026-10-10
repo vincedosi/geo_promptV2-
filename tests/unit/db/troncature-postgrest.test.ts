@@ -53,15 +53,6 @@ interface Justification { nature: Nature; raison: string }
  * Les chiffres sont mesurés ou lus dans le corps SQL, jamais supposés.
  */
 const BORNES: Record<string, Justification> = {
-  calculer_score_composite: {
-    nature: 'borne',
-    raison:
-      "Enveloppe TABLE de calculer_score_composite_jsonb (sql/170). Son seul appelant "
-      + "restant, /api/custom-geo/source/score, plafonne à 1 500 codes postaux — un choix "
-      + "produit (zone trop large à créer), pas une contrainte technique. "
-      + "/api/analyses/score, qui va jusqu'aux 6 187 CP de France, appelle la jumelle jsonb. "
-      + "⚠ Relever ce plafond au-dessus de 5 000 ramène la troncature en silence.",
-  },
   classer_territoires: {
     nature: 'borne',
     raison:

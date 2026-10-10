@@ -92,6 +92,19 @@ vi.mock('@/lib/auth', () => ({
           error: null,
         };
       }
+      if (nom === 'calculer_score_composite' || nom === 'calculer_score_composite_jsonb') {
+        // Un score par CP demandé, croissant avec son rang : les meilleurs sont EN FIN de liste.
+        const cps = args.p_codes_postaux as string[];
+        const scores = cps.map((code, i) => ({
+          postal_code: code, score: Math.round((1000 * i) / cps.length) / 10, n_indicateurs: 1,
+        }));
+        // RETURNS TABLE : coupée à 1 000 ; la jumelle jsonb (sql/170) rend tout.
+        return { data: nom === 'calculer_score_composite' ? scores.slice(0, MAX_ROWS) : scores, error: null };
+      }
+      if (nom === 'get_admin_filter_geometry') {
+        const codes = args.p_codes as string[];
+        return { data: { geometry: { type: 'MultiPolygon', coordinates: [], n: codes.length } }, error: null };
+      }
       if (nom === 'lire_arrets_transport_bbox') {
         // Ce que fait sql/241 : lit p_limite + 1 lignes, rend p_limite et `tronque`.
         const limite = Number(args.p_limite);
@@ -135,6 +148,7 @@ const emetteurs = await import('@/app/api/radio/emetteurs/route');
 const meteo = await import('@/app/api/meteo-geo/route');
 const santeCarte = await import('@/app/api/civic-indicators/health-map/route');
 const score = await import('@/app/api/analyses/score/route');
+const sourceScore = await import('@/app/api/custom-geo/source/score/route');
 const ingestion = await import('@/lib/civic-health/civic-ingest');
 
 interface ZoneMeteo { code: string; nom: string; lat: number; lon: number }
@@ -392,6 +406,37 @@ describe('POST /api/analyses/score — périmètre par bbox', () => {
     const res = await appel();
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/7100 codes postaux/);
+  });
+});
+
+describe('POST /api/custom-geo/source/score — zone de plus de 1 000 codes postaux', () => {
+  /** 1 429 CP : Auvergne-Rhône-Alpes + Occitanie, mesuré en base le 2026-10-10. */
+  const zone = Array.from({ length: 1429 }, (_, i) => String(10000 + i));
+  const appel = (seuil: number) => sourceScore.POST(new NextRequest('http://localhost/api/custom-geo/source/score', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      indicateurs: [{ code: 'rev_median', poids: 1, sens: 'croissant' }],
+      codes_postaux: zone,
+      seuil,
+    }),
+  }));
+
+  it('lit le score par la jumelle jsonb, jamais par la RPC tabulaire', async () => {
+    await appel(80);
+    const noms = appelsRpc.map((a) => a.nom);
+    expect(noms).toContain('calculer_score_composite_jsonb');
+    expect(noms).not.toContain('calculer_score_composite');
+  });
+
+  it('retient les CP au-dessus du seuil sur les 1 429, pas sur les 1 000 premiers', async () => {
+    // Avant : les 429 derniers CP — ceux du haut du classement — n'existaient pas,
+    // et la zone « score ≥ 80 » sortait VIDE, sans aucune erreur.
+    const res = await appel(80);
+    expect(res.status).toBe(200);
+    const corps = await res.json();
+    expect(corps.count).toBe(286);
+    expect(corps.codes).toContain(zone[1428]);
   });
 });
 

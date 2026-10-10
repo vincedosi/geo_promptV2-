@@ -27,11 +27,23 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
+import { rpcJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
-/** Mêmes plafonds que `/api/analyses/score` — même périmètre, même calcul. */
+/** Une ligne de `calculer_score_composite_jsonb` (sql/170). */
+interface LigneScore {
+  postal_code: string;
+  score: number;
+  n_indicateurs: number;
+}
+
+/**
+ * Plafond du périmètre envoyé au calcul. Le score est lu par la jumelle
+ * `calculer_score_composite_jsonb` : relever ce plafond ne ramène aucune
+ * troncature PostgREST (`db-max-rows` = 1 000 ne mord pas un scalaire jsonb).
+ */
 const MAX_CP = 3000;
 const MAX_INDICATEURS = 6;
 
@@ -48,7 +60,7 @@ const MAX_CP_ZONE = 1500;
  * celle-ci dans le même bloc — la documentation garantissait une protection
  * qui n'existait pas.
  *
- * Elle enchaîne pourtant `calculer_score_composite` (jusqu'à 3 000 CP) PUIS
+ * Elle enchaîne pourtant `calculer_score_composite_jsonb` (jusqu'à 3 000 CP) PUIS
  * `get_admin_filter_geometry` sur jusqu'à 1 500 CP — l'appel qu'ARCHITECTURE.md
  * chiffre à 540 blocs disque pour 2 000 CP. Un curseur de seuil relié à cette
  * route sans anti-rebond, ou un onglet laissé sur un `setInterval`, et c'est
@@ -85,7 +97,7 @@ export async function POST(request: NextRequest) {
   const auDessus = corps.valeur.au_dessus !== false;
 
   // Même garde que `/api/analyses/score` : deux fois le même code passe deux
-  // fois dans le LATERAL de `calculer_score_composite`, ce qui le compte
+  // fois dans le LATERAL de `calculer_score_composite_jsonb`, ce qui le compte
   // double dans la pondération ET gonfle `n_indicateurs`. L'asymétrie entre
   // deux routes qui appellent la MÊME RPC est un piège en soi.
   const codes = indicateurs.map((i) => i.code);
@@ -95,7 +107,14 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  const { data: lignes, error } = await supabase.rpc('calculer_score_composite', {
+  // `_jsonb` et non `calculer_score_composite` (RETURNS TABLE) : PostgREST
+  // coupe à `db-max-rows` = 1 000 lignes TOUTE RPC tabulaire, sans erreur
+  // (`supabase/config.toml`). Mesuré le 2026-10-10 sur Auvergne-Rhône-Alpes +
+  // Occitanie : 1 429 CP envoyés, 1 000 scores rendus par la forme TABLE,
+  // 1 429 par la jumelle. Les CP perdus étaient ceux de la fin de la liste, et
+  // une zone « score ≥ seuil » sortait amputée — ou vide — sans rien signaler.
+  // La jumelle rend une ligne par CP demandé, donc au plus `MAX_CP`.
+  const { data: donneesScore, error } = await supabase.rpc('calculer_score_composite_jsonb', {
     p_indicateurs: codes,
     p_poids: indicateurs.map((i) => i.poids),
     p_sens: indicateurs.map((i) => i.sens),
@@ -106,7 +125,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'score_failed' }, { status: 500 });
   }
 
-  const retenus = (lignes ?? [])
+  const lignes = rpcJson<LigneScore[]>(donneesScore) ?? [];
+  const retenus = lignes
     .filter((l) => (auDessus ? Number(l.score) >= seuil : Number(l.score) <= seuil))
     .map((l) => l.postal_code);
 
