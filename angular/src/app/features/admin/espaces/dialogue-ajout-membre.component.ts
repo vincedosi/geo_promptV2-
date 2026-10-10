@@ -6,8 +6,8 @@ import type { Subscription } from 'rxjs';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
 import { type CompteAdmin, EspacesApi } from './data/espaces.api';
 import { ROLE_LABELS } from '../logique/roles';
-import { messageErreur } from './logique/libelles';
-import { LienSecretComponent } from './lien-secret.component';
+import { CompteCreeComponent } from './compte-cree.component';
+import { emailValide, messageErreur } from './logique/libelles';
 
 type Mode = 'existant' | 'nouveau';
 
@@ -15,7 +15,6 @@ type Mode = 'existant' | 'nouveau';
 const MAX_PROPOSITIONS = 30;
 
 const MESSAGE_409 = 'Ce compte existe déjà : ajoutez-le depuis « Compte existant ».';
-const MESSAGE_SANS_LIEN = 'Le compte est créé, mais le lien n\'a pas pu être généré. Générez-en un avec « Lien de mot de passe ».';
 
 let compteur = 0;
 
@@ -28,12 +27,13 @@ let compteur = 0;
  *   Choisir un compte → `POST …/members { email }`, SANS rôle (E3) ; succès → `ajoute` puis `fermer`.
  * - « Nouveau compte » : rôle FIXÉ à `client` (E5 ; nommer un super_admin se fait depuis la fiche
  *   utilisateur). 201 → écran « Compte créé » avec le lien d'initialisation, secret d'usage unique :
- *   affiché une fois, jamais journalisé, effacé avec le composant. 409 → message dans le dialogue.
+ *   affiché une fois, jamais journalisé, effacé avec le composant (écran partagé `mg-compte-cree`).
+ *   409 → message dans le dialogue.
  * - Toute écriture refusée reste visible dans le dialogue (`role="alert"`), rien n'est émis.
  */
 @Component({
   selector: 'mg-dialogue-ajout-membre',
-  imports: [LienSecretComponent],
+  imports: [CompteCreeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <dialog
@@ -46,16 +46,7 @@ let compteur = 0;
     >
       <div class="boite">
         @if (compteCree(); as cree) {
-          <h2 [id]="idTitre" class="titre">Compte créé</h2>
-          <p class="texte">{{ cree.email }} est membre de l'espace.</p>
-          @if (cree.lien; as lien) {
-            <mg-lien-secret [lien]="lien" mention="Transmettez ce lien à la personne : il ne sera plus affiché." />
-          } @else {
-            <p class="avertissement">{{ messageSansLien }}</p>
-          }
-          <div class="actions">
-            <button type="button" data-terminer class="bouton principal" (click)="terminer()">Terminer</button>
-          </div>
+          <mg-compte-cree [idTitre]="idTitre" [texte]="texteCree()"[lien]="cree.lien" (terminer)="terminer()" />
         } @else {
           <h2 [id]="idTitre" class="titre">Ajouter un membre</h2>
           <div role="tablist" aria-label="Type de compte" class="onglets">
@@ -140,7 +131,6 @@ let compteur = 0;
     .titre { margin: 0; font-size: 16px; font-weight: 500; color: var(--text-primary); }
     .texte { margin: 0; font-size: 13px; color: var(--text-secondary); }
     .attenue { color: var(--text-tertiary); font-size: 12px; }
-    .avertissement { margin: 0; font-size: 12px; color: var(--warning); }
     .onglets { display: flex; gap: 16px; border-bottom: 0.5px solid var(--border-subtle); }
     .onglet {
       background: transparent; border: none; border-bottom: 2px solid transparent; margin-bottom: -0.5px;
@@ -201,7 +191,6 @@ export class DialogueAjoutMembreComponent {
   private detruit = false;
 
   protected readonly idTitre = `mg-ajout-membre-titre-${++compteur}`;
-  protected readonly messageSansLien = MESSAGE_SANS_LIEN;
   protected readonly libelleClient = ROLE_LABELS.client;
 
   readonly espaceId = input.required<string>();
@@ -232,6 +221,7 @@ export class DialogueAjoutMembreComponent {
       .slice(0, MAX_PROPOSITIONS);
   });
 
+  protected readonly texteCree = computed(() => `${this.compteCree()?.email ?? ''} est membre de l'espace.`);
   protected readonly peutCreer = computed(() => emailValide(this.email()) && !this.enCours());
   protected readonly libelleCreer = computed(() => (this.enCours() ? 'Création…' : 'Créer le compte'));
 
@@ -345,9 +335,4 @@ export class DialogueAjoutMembreComponent {
   protected surClic(e: MouseEvent): void {
     if (e.target === this.dialogue().nativeElement && !this.enCours() && this.compteCree() === null) this.fermer.emit();
   }
-}
-
-/** Forme minimale d'une adresse : le serveur valide pour de bon (Zod `email()`). */
-function emailValide(v: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 }

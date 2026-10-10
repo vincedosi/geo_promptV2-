@@ -10,7 +10,7 @@ type Onglet = 'membres' | 'donnees' | 'apercu' | 'reglages';
 const ONGLETS: readonly Onglet[] = ['membres', 'donnees', 'apercu', 'reglages'];
 
 /**
- * Fiche d'un espace (`admin/espaces/:id`, spec § 4.3, plan T7) : un en-tête et quatre onglets.
+ * Fiche d'un espace (`admin/acces/:id`, spec § 4.3, plan T7) : un en-tête et quatre onglets.
  *
  * - `:id` est lu en S'ABONNANT à `paramMap` : le routeur réutilise ce composant d'un espace à
  *   l'autre. Un changement de paramètre remet l'onglet sur « Membres » et oublie les onglets déjà

@@ -36,17 +36,24 @@ export const ROUTES_ADMIN: Routes = [
         path: 'qualite-donnees',
         loadComponent: () => import('./qualite-donnees/qualite-donnees.page').then((m) => m.QualiteDonneesPage),
       },
-      // Espaces de travail (2026-10-09) : une colonne persistante (la page) et la fiche en enfant.
-      // `EspacesEtatService` est fourni par la page, détruit avec elle.
+      // Accès (« Espaces de travail » du 2026-10-09 au 2026-10-10) : une colonne persistante (la
+      // page) et la fiche en enfant. `EspacesEtatService` est fourni par la page, détruit avec elle.
+      // Les noms internes (dossier `espaces/`, `EspacesPage`) n'ont pas changé. Chemins fixes
+      // (`socle`, `comptes`) AVANT `:id`, qui les avalerait sinon.
       {
-        path: 'espaces',
+        path: 'acces',
         loadComponent: () => import('./espaces/espaces.page').then((m) => m.EspacesPage),
         children: [
           { path: '', loadComponent: () => import('./espaces/aucun-espace.component').then((m) => m.AucunEspaceComponent) },
           { path: 'socle', loadComponent: () => import('./espaces/fiche-socle.component').then((m) => m.FicheSocleComponent) },
+          { path: 'comptes', loadComponent: () => import('./espaces/vue-comptes.component').then((m) => m.VueComptesComponent) },
           { path: ':id', loadComponent: () => import('./espaces/fiche-espace.component').then((m) => m.FicheEspaceComponent) },
         ],
       },
+      // L'ancienne adresse reste valable : un lien ou un favori `espaces/**` ne casse pas.
+      // `redirectTo` RELATIF (sans `/`) : il reste sous le préfixe de montage, qui appartient au shell.
+      { path: 'espaces', pathMatch: 'full', redirectTo: 'acces' },
+      { path: 'espaces/:id', pathMatch: 'full', redirectTo: 'acces/:id' },
     ],
   },
 ];

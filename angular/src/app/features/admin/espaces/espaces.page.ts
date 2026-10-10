@@ -17,18 +17,21 @@ interface LigneEspace {
 }
 
 /**
- * `admin/espaces` — la page « Espaces de travail » (spec 2026-10-08, plan T5). Pas de port : aucun
- * écran React équivalent ; elle remplace `/admin/users` et `/admin/organizations` (E6).
+ * `admin/acces` — la page « Accès » (spec 2026-10-08, plan T5 ; « Espaces de travail » jusqu'au
+ * 2026-10-10). Pas de port : aucun écran React équivalent ; elle remplace `/admin/users` et
+ * `/admin/organizations` (E6). C'est LA page unique des droits : comptes, espaces, données visibles.
  *
- * Une colonne persistante (le socle, puis chaque espace, puis « + Nouvel espace ») et un
- * `<router-outlet>` pour la fiche (`socle`, `:id`, ou l'invite quand rien n'est choisi). La colonne
- * vit avec la page : passer d'une fiche à l'autre ne relit pas la liste.
+ * Une colonne persistante (le socle, « Tous les comptes », puis chaque espace, puis « + Nouvel
+ * espace ») et un `<router-outlet>` pour la fiche (`socle`, `comptes`, `:id`, ou l'invite quand
+ * rien n'est choisi). La colonne vit avec la page : passer d'une fiche à l'autre ne relit pas la
+ * liste. Le compteur de « Tous les comptes » vient du même GET (`nb_comptes`) : aucun appel de plus.
  *
  * - Fournit `EspacesEtatService` (détruit avec la page) et appelle `charger()` UNE fois : un seul
  *   `GET admin/espaces` au montage, rien d'autre.
- * - Liens RELATIFS à la route de la page (`socle`, `<id>`) : le préfixe de montage appartient au
- *   shell (contrat AIDA).
- * - Clavier : flèches haut/bas entre les liens, écouteur posé sur la `<nav>` (jamais sur
+ * - Liens RELATIFS à la route de la page (`socle`, `comptes`, `<id>`) : le préfixe de montage
+ *   appartient au shell (contrat AIDA).
+ * - Clavier : flèches haut/bas entre TOUS les liens de la colonne (« Tous les comptes » compris),
+ *   écouteur posé sur la `<nav>` (jamais sur
  *   `document`, qui appartient au shell) ; Entrée suit le lien nativement.
  * - Le nom affiché vient du serveur (`nom_affiche`, E2) : jamais l'ancien nom de l'application.
  */
@@ -40,10 +43,10 @@ interface LigneEspace {
   template: `
     <!-- En-tête au-dessus de la grille : la fiche commence ainsi à la hauteur de la colonne, sous le
          chrome du haut (badge de session), au lieu de remonter à son niveau. -->
-    <mg-entete-page titre="Espaces de travail" />
+    <mg-entete-page titre="Accès" />
     <div class="grid grid-cols-1 gap-6 md:grid-cols-[260px_1fr]">
       <div class="min-w-0">
-        <nav aria-label="Espaces de travail" class="colonne" (keydown)="clavier($event)">
+        <nav aria-label="Accès" class="colonne" (keydown)="clavier($event)">
           @if (erreur(); as message) {
             <div role="alert" class="erreur">
               <p class="m-0">{{ message }}</p>
@@ -68,6 +71,20 @@ interface LigneEspace {
                       <span data-nom class="nom">{{ nomSocle }}</span>
                     </span>
                     <span data-sous-ligne class="sous-ligne">{{ sous }}</span>
+                  </a>
+                </li>
+                <li>
+                  <a
+                    routerLink="comptes"
+                    routerLinkActive="actif"
+                    ariaCurrentWhenActive="page"
+                    class="ligne"
+                    data-tous-les-comptes
+                  >
+                    <span class="haut">
+                      <span data-nom class="nom">Tous les comptes</span>
+                      <span data-compteurs class="compteurs" [title]="titreComptes()">{{ nbComptes() }}</span>
+                    </span>
                   </a>
                 </li>
                 <li class="separateur" role="presentation"></li>
@@ -176,6 +193,9 @@ export class EspacesPage {
     const s = this.etat.socle();
     return s ? `visible de tous · ${formaterNombre(s.nb_jeux)} jeux` : null;
   });
+
+  protected readonly nbComptes = computed(() => formaterNombre(this.etat.nbComptes() ?? 0));
+  protected readonly titreComptes = computed(() => `${this.nbComptes()} comptes`);
 
   protected readonly lignes = computed<LigneEspace[]>(() =>
     this.etat.espaces().map((e) => ({

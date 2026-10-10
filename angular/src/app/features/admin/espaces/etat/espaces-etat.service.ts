@@ -6,7 +6,7 @@ import { messageErreur } from '../logique/libelles';
 import type { EspaceResume } from '../logique/types';
 
 /**
- * État de la page « Espaces de travail » : la liste des espaces et le compteur du socle, lus
+ * État de la page « Accès » : la liste des espaces, le compteur du socle et celui des comptes, lus
  * UNE fois par `GET admin/espaces` puis gardés (cache avant appel, règle d'I/O du lot 6) tant que
  * la page vit. Passer d'une fiche à l'autre ne relit rien ; seule une écriture qui change un
  * compteur appelle `recharger()`.
@@ -29,11 +29,14 @@ export class EspacesEtatService {
 
   private readonly liste = signal<readonly EspaceResume[]>([]);
   private readonly compteurSocle = signal<{ nb_jeux: number } | null>(null);
+  private readonly compteurComptes = signal<number | null>(null);
   private readonly enCours = signal(false);
   private readonly echec = signal<string | null>(null);
 
   readonly espaces: Signal<readonly EspaceResume[]> = this.liste.asReadonly();
   readonly socle: Signal<{ nb_jeux: number } | null> = this.compteurSocle.asReadonly();
+  /** Nombre de comptes (`nb_comptes`) : le compteur de l'entrée « Tous les comptes ». */
+  readonly nbComptes: Signal<number | null> = this.compteurComptes.asReadonly();
   readonly chargement: Signal<boolean> = this.enCours.asReadonly();
   readonly erreur: Signal<string | null> = this.echec.asReadonly();
 
@@ -77,6 +80,7 @@ export class EspacesEtatService {
       next: (r) => {
         this.liste.set(r.espaces ?? []);
         this.compteurSocle.set(r.socle ?? null);
+        this.compteurComptes.set(r.nb_comptes ?? null);
         this.charge = true;
         this.enCours.set(false);
       },
@@ -88,6 +92,7 @@ export class EspacesEtatService {
         }
         this.liste.set([]);
         this.compteurSocle.set(null);
+        this.compteurComptes.set(null);
         this.echec.set(messageErreur(e));
       },
     });

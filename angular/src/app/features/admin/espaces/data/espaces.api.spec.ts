@@ -34,6 +34,7 @@ describe('EspacesApi', () => {
   }
 
   it('lister : GET /api/admin/espaces', () => lecture(() => api.lister(), '/api/admin/espaces'));
+  it('lireComptes : GET /api/admin/espaces/comptes', () => lecture(() => api.lireComptes(), '/api/admin/espaces/comptes'));
   it('lireSocle : GET /api/admin/espaces/socle', () => lecture(() => api.lireSocle(), '/api/admin/espaces/socle'));
   it('lireDonnees : GET /api/admin/espaces/:id/donnees', () =>
     lecture(() => api.lireDonnees('org-1'), '/api/admin/espaces/org-1/donnees'));

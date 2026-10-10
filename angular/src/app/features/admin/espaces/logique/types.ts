@@ -21,6 +21,7 @@ export interface EspaceResume {
 export interface ReponseEspaces {
   socle: { nb_jeux: number };
   espaces: EspaceResume[];   // tri : nom_affiche, internes en dernier
+  nb_comptes: number;        // tous les profils : compteur de « Tous les comptes »
 }
 
 export interface ProprietaireJeu { id: string; nom_affiche: string }
@@ -56,6 +57,21 @@ export interface MembreEspace {
   role: RoleEspace;
   espace_actif: string | null;
   autres_espaces: ProprietaireJeu[]; // ses AUTRES espaces (pastilles)
+}
+
+/** Un compte de la vue « Tous les comptes » de la page Accès (2026-10-10). */
+export interface CompteResume {
+  id: string;
+  email: string;
+  nom: string | null;
+  role: RoleEspace;
+  espace_actif: string | null;
+  espaces: ProprietaireJeu[]; // TOUS ses espaces, tri : nom_affiche
+  cree_le: string | null;     // profiles.created_at (ISO), colonne nullable
+}
+
+export interface ReponseComptes {
+  comptes: CompteResume[];    // tri : email
 }
 
 export interface ApercuEspace {

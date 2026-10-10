@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { type Observable, catchError, map, of, switchMap, throwError } from 'rxjs';
 import { HttpBaseService } from '../../../../core/http/http-base.service';
 import type {
-  ApercuEspace, MembreEspace, ReponseDonneesEspace, ReponseEspaces, ReponseSocle,
+  ApercuEspace, MembreEspace, ReponseComptes, ReponseDonneesEspace, ReponseEspaces, ReponseSocle,
 } from '../logique/types';
 
 /** Un compte tel que le rend `GET /api/admin/users` (tableau de profils). */
@@ -49,7 +49,7 @@ export class DescriptionNonEnregistree extends Error {
 }
 
 /**
- * Accès aux données de la page « Espaces de travail » (`admin/espaces`).
+ * Accès aux données de la page « Accès » (`admin/acces`, ex-« Espaces de travail »).
  *
  * Lectures de T3 (`/api/admin/espaces/**`) et écritures des routes d'administration existantes,
  * toutes gardées par `requireAdmin` côté serveur. `@Injectable()` SANS `providedIn`, héritier de
@@ -77,6 +77,11 @@ export class EspacesApi extends HttpBaseService {
 
   lister(): Observable<ReponseEspaces> {
     return this.httpClient.get<ReponseEspaces>(`${this.baseUrl}/admin/espaces`);
+  }
+
+  /** Tous les comptes, avec tous leurs espaces (vue « Tous les comptes » de la page Accès). */
+  lireComptes(): Observable<ReponseComptes> {
+    return this.httpClient.get<ReponseComptes>(`${this.baseUrl}/admin/espaces/comptes`);
   }
 
   lireSocle(): Observable<ReponseSocle> {

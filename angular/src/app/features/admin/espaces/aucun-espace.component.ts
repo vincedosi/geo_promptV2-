@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 
-/** `admin/espaces` sans fiche choisie : l'invite à droite de la colonne. Aucun appel. */
+/** `admin/acces` sans fiche choisie : l'invite à droite de la colonne. Aucun appel. */
 @Component({
   selector: 'mg-aucun-espace',
   changeDetection: ChangeDetectionStrategy.OnPush,

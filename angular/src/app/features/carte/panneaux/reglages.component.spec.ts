@@ -1,5 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { ThemeService } from '../../../core/theme/theme.service';
 import { ReglagesComponent } from './reglages.component';
 
@@ -12,15 +14,24 @@ class Hote {
   readonly choix: string[] = [];
 }
 
+@Component({ template: '<p data-acces>accès</p>' })
+class PageAcces {}
+
+/** Monté sous la route `carte`, comme dans l'application : les liens du back office sont RELATIFS. */
 async function monter() {
   const basculer = vi.fn();
   TestBed.configureTestingModule({
-    providers: [{ provide: ThemeService, useValue: { theme: signal('dark'), basculer } }],
+    providers: [
+      { provide: ThemeService, useValue: { theme: signal('dark'), basculer } },
+      provideRouter([{ path: 'carte', component: Hote }, { path: 'admin/acces', component: PageAcces }]),
+    ],
   });
-  const fixture = TestBed.createComponent(Hote);
+  const harness = await RouterTestingHarness.create();
+  const instance = await harness.navigateByUrl('/carte', Hote);
+  const fixture = { componentInstance: instance, whenStable: () => harness.fixture.whenStable() };
   await fixture.whenStable();
-  const el = fixture.nativeElement as HTMLElement;
-  return { fixture, el, basculer };
+  const el = harness.fixture.nativeElement as HTMLElement;
+  return { fixture, el, basculer, harness };
 }
 
 describe('ReglagesComponent — portage de SettingsOverlay.tsx', () => {
@@ -63,13 +74,27 @@ describe('ReglagesComponent — portage de SettingsOverlay.tsx', () => {
     expect(el.querySelector('[data-section="apparence"]')!.textContent).toContain('Thème clair / sombre');
   });
 
-  it('« Back office » : les onze liens de React, inertes', async () => {
+  it('« Back office » : « Accès » en tête (remplace « Organisations (workspaces) » et « Utilisateurs »), puis les neuf autres liens de React, inertes', async () => {
     const { el } = await monter();
-    const liens = [...el.querySelectorAll<HTMLButtonElement>('[data-section="back-office"] button')];
-    expect(liens.map((b) => b.textContent?.trim())).toEqual([
-      'Organisations (workspaces)', 'Utilisateurs', 'Import POI', 'Import Shapefile', 'Import OOH', 'IRIS crawler',
+    const entrees = [...el.querySelectorAll<HTMLElement>('[data-section="back-office"] a, [data-section="back-office"] button')];
+    expect(entrees.map((b) => b.textContent?.trim())).toEqual([
+      'Accès', 'Import POI', 'Import Shapefile', 'Import OOH', 'IRIS crawler',
       'Radio FM/DAB+', 'Connexions API', 'Sources', 'Historique imports', 'Health check',
     ]);
-    expect(liens.every((b) => b.getAttribute('aria-disabled') === 'true' && b.getAttribute('title') === 'Disponible prochainement')).toBe(true);
+    const inertes = [...el.querySelectorAll<HTMLButtonElement>('[data-section="back-office"] button')];
+    expect(inertes).toHaveLength(9);
+    expect(inertes.every((b) => b.getAttribute('aria-disabled') === 'true' && b.getAttribute('title') === 'Disponible prochainement')).toBe(true);
+  });
+
+  it('« Accès » est ACTIF : icône utilisateurs, lien RELATIF vers `admin/acces`, et il y navigue', async () => {
+    const { el, fixture } = await monter();
+    const acces = el.querySelector<HTMLAnchorElement>('[data-section="back-office"] a')!;
+    expect(acces.hasAttribute('aria-disabled')).toBe(false);
+    expect(acces.hasAttribute('title')).toBe(false);
+    expect(acces.querySelector('mg-icone')).not.toBeNull();
+    expect(acces.getAttribute('href')).toBe('/admin/acces');
+    acces.click();
+    await fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/admin/acces');
   });
 });

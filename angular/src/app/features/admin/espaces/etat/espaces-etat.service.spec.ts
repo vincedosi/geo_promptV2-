@@ -16,7 +16,7 @@ function espace(p: Partial<EspaceResume> & { id: string }): EspaceResume {
 }
 
 function reponse(): ReponseEspaces {
-  return { socle: { nb_jeux: 3 }, espaces: [espace({ id: 'a', nb_membres: 2 }), espace({ id: 'b' })] };
+  return { socle: { nb_jeux: 3 }, espaces: [espace({ id: 'a', nb_membres: 2 }), espace({ id: 'b' })], nb_comptes: 5 };
 }
 
 describe('EspacesEtatService', () => {
@@ -39,6 +39,7 @@ describe('EspacesEtatService', () => {
   it('avant tout appel : liste vide, pas de socle, ni chargement ni erreur', () => {
     expect(etat.espaces()).toEqual([]);
     expect(etat.socle()).toBeNull();
+    expect(etat.nbComptes()).toBeNull();
     expect(etat.chargement()).toBe(false);
     expect(etat.erreur()).toBeNull();
   });
@@ -51,6 +52,7 @@ describe('EspacesEtatService', () => {
     expect(etat.chargement()).toBe(false);
     expect(etat.espaces().map((e) => e.id)).toEqual(['a', 'b']);
     expect(etat.socle()).toEqual({ nb_jeux: 3 });
+    expect(etat.nbComptes()).toBe(5);
     etat.charger();
     http.expectNone(URL);
   });
@@ -59,9 +61,10 @@ describe('EspacesEtatService', () => {
     etat.charger();
     http.expectOne(URL).flush(reponse());
     etat.recharger();
-    http.expectOne(URL).flush({ socle: { nb_jeux: 4 }, espaces: [espace({ id: 'c' })] });
+    http.expectOne(URL).flush({ socle: { nb_jeux: 4 }, espaces: [espace({ id: 'c' })], nb_comptes: 6 });
     expect(etat.espaces().map((e) => e.id)).toEqual(['c']);
     expect(etat.socle()).toEqual({ nb_jeux: 4 });
+    expect(etat.nbComptes()).toBe(6);
   });
 
   it('erreur 500 → `erreur()` porte le message du serveur, `espaces()` vide ; charger() relance alors', () => {
@@ -84,6 +87,7 @@ describe('EspacesEtatService', () => {
     http.expectOne(URL).flush({ error: 'Coupure passagère' }, { status: 500, statusText: 'Server Error' });
     expect(etat.espaces().map((e) => e.id)).toEqual(['a', 'b']);
     expect(etat.socle()).toEqual({ nb_jeux: 3 });
+    expect(etat.nbComptes()).toBe(5);
     expect(etat.chargement()).toBe(false);
     // `erreur()` remplacerait la colonne par un bloc d'erreur : réservé au premier chargement.
     expect(etat.erreur()).toBeNull();

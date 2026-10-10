@@ -1,5 +1,5 @@
 /**
- * Les types de la page « Espaces de travail » copiés dans angular/ restent
+ * Les types de la page « Accès » (ex-« Espaces de travail ») copiés dans angular/ restent
  * ceux du serveur. Assignabilité mutuelle vérifiée par `npx tsc --noEmit`
  * (Vitest ne type-vérifie pas) — même patron que admin-logique-paritaire.
  */
@@ -18,7 +18,9 @@ const _verif: [
   Egal<R.MembreEspace, A.MembreEspace>,
   Egal<R.ApercuEspace, A.ApercuEspace>,
   Egal<R.StatutJeu, A.StatutJeu>,
-] = [true, true, true, true, true, true, true, true, true];
+  Egal<R.CompteResume, A.CompteResume>,
+  Egal<R.ReponseComptes, A.ReponseComptes>,
+] = [true, true, true, true, true, true, true, true, true, true, true];
 void _verif;
 
 describe('types des espaces de travail : Angular = serveur', () => {

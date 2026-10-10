@@ -5,6 +5,9 @@
  * Trois lectures, quel que soit le nombre d'espaces (organisations,
  * appartenances, sources). Bornées par construction : quelques dizaines de
  * lignes chacune, sous le plafond serveur de 1 000 (PostgREST db-max-rows).
+ * Puis un décompte des profils (`head: true`, aucune ligne transférée) pour
+ * l'entrée « Tous les comptes » de la page Accès — APRÈS les trois autres,
+ * jamais plus de 3 requêtes simultanées.
  */
 import type { createAdminClient } from '@/lib/auth';
 import { nomAffiche, SLUG_ORGANISATION_INTERNE } from './nom-espace';
@@ -26,7 +29,8 @@ function trier(a: EspaceResume, b: EspaceResume): number {
   return Number(a.interne) - Number(b.interne) || a.nom_affiche.localeCompare(b.nom_affiche, 'fr');
 }
 
-export async function listerEspaces(sb: Sb): Promise<ReponseEspaces> {
+/** Les espaces et le compteur du socle, sans le décompte des comptes (que `resumerEspace` n'a pas à payer). */
+async function resumerTous(sb: Sb): Promise<Omit<ReponseEspaces, 'nb_comptes'>> {
   // 3 requêtes simultanées au plus.
   const [espaces, membres, sources] = await Promise.all([
     lireEspacesBruts(sb),
@@ -54,9 +58,16 @@ export async function listerEspaces(sb: Sb): Promise<ReponseEspaces> {
   };
 }
 
+export async function listerEspaces(sb: Sb): Promise<ReponseEspaces> {
+  const resume = await resumerTous(sb);
+  const profils = await sb.from('profiles').select('id', { count: 'exact', head: true });
+  if (profils.error) throw new Error(`décompte des comptes : ${profils.error.message}`);
+  return { ...resume, nb_comptes: profils.count ?? 0 };
+}
+
 /** Un espace seul, avec ses compteurs ; `null` s'il n'existe pas. */
 export async function resumerEspace(sb: Sb, orgId: string): Promise<EspaceResume | null> {
-  const { espaces } = await listerEspaces(sb);
+  const { espaces } = await resumerTous(sb);
   return espaces.find((e) => e.id === orgId) ?? null;
 }
 

@@ -42,3 +42,11 @@ export function messageErreur(e: unknown): string {
   }
   return 'Erreur inattendue.';
 }
+
+/**
+ * Forme minimale d'une adresse, partagée par « Ajouter un membre » et « Créer un compte » : le
+ * serveur valide pour de bon.
+ */
+export function emailValide(v: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+}

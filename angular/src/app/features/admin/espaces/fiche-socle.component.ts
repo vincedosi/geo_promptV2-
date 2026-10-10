@@ -30,7 +30,7 @@ const TITRE_SANS_PROPRIETAIRE = 'Ce jeu n\'a pas de propriétaire : il ne peut r
 type Sens = 'retirer' | 'mettre';
 
 /**
- * Fiche « Socle dentsu.explore » (`admin/espaces/socle`, spec § 4.2, plan T6). Pas de port : aucun
+ * Fiche « Socle dentsu.explore » (`admin/acces/socle`, spec § 4.2, plan T6). Pas de port : aucun
  * écran React équivalent.
  *
  * - Un seul `GET admin/espaces/socle` au montage ; il rend TOUS les jeux (socle et privés), que la

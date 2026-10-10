@@ -297,3 +297,70 @@ describe('FicheUtilisateurComponent', () => {
     for (const r of radios) expect(r.disabled).toBe(true);
   });
 });
+
+/** Ouverte depuis « Tous les comptes » : AUCUN espace courant, `autres_espaces` = tous ses espaces. */
+@Component({
+  imports: [FicheUtilisateurComponent],
+  template: `<mg-fiche-utilisateur [membre]="membre" (fermer)="fermetures.push($event)" />`,
+})
+class HoteSansEspace {
+  membre: MembreEspace = MEMBRE;
+  fermetures: boolean[] = [];
+}
+
+async function monterSansEspace(membre: MembreEspace) {
+  TestBed.configureTestingModule({
+    providers: [
+      provideHttpClient(), provideHttpClientTesting(), EspacesApi, NotificationsService,
+      { provide: EspacesEtatService, useValue: { espaces: signal(ESPACES), recharger: vi.fn() } },
+      { provide: AuthService, useValue: { session: signal({ user: { id: 'moi' } }) } },
+      { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
+    ],
+  });
+  const f = TestBed.createComponent(HoteSansEspace);
+  f.componentInstance.membre = membre;
+  await f.whenStable();
+  const el = f.nativeElement as HTMLElement;
+  return {
+    f, el, http: TestBed.inject(HttpTestingController),
+    caseEspace: (id: string) => el.querySelector<HTMLInputElement>(`input[data-espace="${id}"]`)!,
+    selectActif: () => el.querySelector<HTMLSelectElement>('select[data-actif]')!,
+  };
+}
+
+describe('FicheUtilisateurComponent — sans espace courant (vue « Tous les comptes »)', () => {
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  it('compte rattaché à AUCUN espace : aucune case cochée, « Aucun (socle seul) » choisi', async () => {
+    const { el, caseEspace, selectActif } = await monterSansEspace({ ...MEMBRE, espace_actif: null, autres_espaces: [] });
+    expect(el.querySelector('mg-fiche-utilisateur > dialog[open]')).not.toBeNull();
+    for (const id of ['A', 'B', 'C']) expect(caseEspace(id).checked).toBe(false);
+    expect([...selectActif().options].map((o) => o.textContent!.trim())).toEqual(['Aucun (socle seul)']);
+    expect(selectActif().selectedOptions[0].value).toBe('');
+  });
+
+  it('les cases cochées viennent de la liste COMPLÈTE de ses espaces ; l\'espace actif est le sien', async () => {
+    const { caseEspace, selectActif } = await monterSansEspace({
+      ...MEMBRE, espace_actif: 'C', autres_espaces: [{ id: 'B', nom_affiche: 'Espace B' }, { id: 'C', nom_affiche: 'Espace C' }],
+    });
+    expect(caseEspace('A').checked).toBe(false);
+    expect(caseEspace('B').checked).toBe(true);
+    expect(caseEspace('C').checked).toBe(true);
+    expect(selectActif().selectedOptions[0].value).toBe('C');
+  });
+
+  it('rattacher un compte sans espace : PUT au corps EXACT (le seul espace coché, actif « Aucun »)', async () => {
+    const { f, el, http, caseEspace } = await monterSansEspace({ ...MEMBRE, espace_actif: null, autres_espaces: [] });
+    const c = caseEspace('B');
+    c.checked = true;
+    c.dispatchEvent(new Event('change'));
+    await f.whenStable();
+    el.querySelector<HTMLButtonElement>('[data-enregistrer-espaces]')!.click();
+    await f.whenStable();
+    const req = http.expectOne('/api/admin/users/U/espaces');
+    expect(req.request.body).toEqual({ espaces: ['B'], espace_actif: null });
+    req.flush({ espaces: ['B'], espace_actif: 'B' });
+    await f.whenStable();
+    expect(caseEspace('B').checked).toBe(true);
+  });
+});

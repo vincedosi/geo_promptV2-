@@ -29,10 +29,10 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     expect(entrees(el, 'Administration')).toEqual([
       'Import Shapefile', 'Import POI', 'Import OOH', 'IRIS Crawler', 'Radio FM/DAB+', 'Connexions API',
     ]);
-    // « Users » et « Organisations » remplacées par « Espaces de travail » : écart VOULU à React
+    // « Users » et « Organisations » remplacées par « Accès » : écart VOULU à React
     // (spec espaces de travail 2026-10-08 § 6, décision E6).
     expect(entrees(el, 'Systeme')).toEqual([
-      'Sources', 'Espaces de travail', 'Imports', 'Health check', 'Qualite des donnees',
+      'Sources', 'Accès', 'Imports', 'Health check', 'Qualite des donnees',
     ]);
   });
 
@@ -74,16 +74,16 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     expect(qualite.hasAttribute('aria-disabled')).toBe(false);
   });
 
-  it('« Espaces de travail » mène à `admin/espaces` (spec espaces de travail § 6, E6), par un lien RELATIF', async () => {
+  it('« Accès » mène à `admin/acces` (spec espaces de travail § 6 et § 11, E6), par un lien RELATIF', async () => {
     const el = await rendre({ dev: false });
-    const espaces = [...el.querySelectorAll('[data-section="Systeme"] a')].find((a) => texte(a.querySelector('span')) === 'Espaces de travail')!;
-    expect(espaces.getAttribute('href')).toBe('/admin/espaces');
+    const espaces = [...el.querySelectorAll('[data-section="Systeme"] a')].find((a) => texte(a.querySelector('span')) === 'Accès')!;
+    expect(espaces.getAttribute('href')).toBe('/admin/acces');
     expect(espaces.hasAttribute('aria-disabled')).toBe(false);
   });
 
   it('les écrans pas encore portés sont INERTES : aria-disabled, infobulle, aucun lien', async () => {
     const el = await rendre({ dev: false });
-    const portes = ['Explorer', 'Health check', 'Qualite des donnees', 'Espaces de travail'];
+    const portes = ['Explorer', 'Health check', 'Qualite des donnees', 'Accès'];
     const liens = [...el.querySelectorAll('nav a')].filter((a) => !portes.includes(texte(a.querySelector('span'))));
     expect(liens.length).toBe(10);
     for (const a of liens) {

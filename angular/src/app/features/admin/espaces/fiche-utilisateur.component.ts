@@ -27,11 +27,13 @@ function rolesAffiches(actuel: RoleEspace): UserRole[] {
 let compteur = 0;
 
 /**
- * Fiche d'un utilisateur, ouverte depuis l'onglet Membres (plan T7) : `<dialog>` natif large
- * (560 px), monté par un `@if` du parent.
+ * Fiche d'un utilisateur, ouverte depuis l'onglet Membres (plan T7) ou depuis la vue « Tous les
+ * comptes » de la page Accès (2026-10-10) : `<dialog>` natif large (560 px), monté par un `@if` du
+ * parent.
  *
- * - L'état initial vient du membre (`lireMembres`) : `linkedSignal` sur l'input, la fiche suit donc
- *   un changement de membre. Les espaces cochés = l'espace courant + `autres_espaces`.
+ * - L'état initial vient du membre (`lireMembres`, ou un compte de `lireComptes`) : `linkedSignal`
+ *   sur l'input, la fiche suit donc un changement de membre. Les espaces cochés = l'espace courant
+ *   (s'il y en a un) + `autres_espaces`.
  * - Aucune mise à jour optimiste : le rôle affiché est celui que le SERVEUR a accepté. Un bouton
  *   radio coché par l'utilisateur est aussitôt remis d'aplomb dans le DOM, puis ne bascule qu'après
  *   un PATCH réussi. Passer à super_admin demande confirmation.
@@ -226,17 +228,22 @@ export class FicheUtilisateurComponent {
   protected readonly titreSoiMeme = 'Impossible sur votre propre compte.';
 
   readonly membre = input.required<MembreEspace>();
-  /** L'espace dont l'onglet Membres a ouvert la fiche : il fait partie des espaces cochés. */
-  readonly espaceId = input.required<string>();
+  /**
+   * L'espace dont l'onglet Membres a ouvert la fiche : il fait partie des espaces cochés. `null`
+   * (défaut) quand la fiche est ouverte hors de tout espace — vue « Tous les comptes » : `membre`
+   * porte alors TOUS ses espaces dans `autres_espaces`, et un compte sans espace n'en coche aucun.
+   */
+  readonly espaceId = input<string | null>(null);
   /** `true` si au moins une écriture a réussi pendant que la fiche était ouverte. */
   readonly fermer = output<boolean>();
 
   protected readonly nom = linkedSignal(() => this.membre().nom ?? '');
   /** Rôle ACCEPTÉ par le serveur (jamais celui qu'on vient de cliquer). */
   private readonly role = linkedSignal<RoleEspace>(() => this.membre().role);
-  private readonly coches = linkedSignal<ReadonlySet<string>>(
-    () => new Set([this.espaceId(), ...this.membre().autres_espaces.map((e) => e.id)]),
-  );
+  private readonly coches = linkedSignal<ReadonlySet<string>>(() => {
+    const ici = this.espaceId();
+    return new Set([...(ici === null ? [] : [ici]), ...this.membre().autres_espaces.map((e) => e.id)]);
+  });
   private readonly actif = linkedSignal<string | null>(() => this.membre().espace_actif);
 
   private readonly ecrit = signal(false);

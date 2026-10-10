@@ -1,14 +1,19 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { BasculeThemeComponent } from '../../../layout/bascule-theme.component';
 import { DISPONIBLE_PROCHAINEMENT } from '../../../layout/navigation';
 import { IconeComponent } from '../../../ui/icone/icone.component';
 import type { NomIcone } from '../../../ui/icone/icones';
 import { MAP_STYLES } from '../logique/fonds';
 
-/** Liens du back office — `BACK_OFFICE_LINKS` de `SettingsOverlay.tsx:83-95`, même ordre, mêmes libellés et icônes. */
-const LIENS_BACK_OFFICE: readonly { libelle: string; icone: NomIcone }[] = [
-  { libelle: 'Organisations (workspaces)', icone: 'utilisateurs' },
-  { libelle: 'Utilisateurs', icone: 'utilisateurs' },
+/**
+ * Liens du back office — `BACK_OFFICE_LINKS` de `SettingsOverlay.tsx:83-95`, même ordre, mêmes libellés et icônes,
+ * à un écart VOULU près (2026-10-10) : « Organisations (workspaces) » et « Utilisateurs » sont remplacés par UNE
+ * entrée « Accès », la page Angular qui les réunit. `cible` : chemin RELATIF à la route `carte` qui monte ce
+ * panneau (le préfixe appartient au shell) ; sans `cible`, l'entrée est inerte.
+ */
+const LIENS_BACK_OFFICE: readonly { libelle: string; icone: NomIcone; cible?: string }[] = [
+  { libelle: 'Accès', icone: 'utilisateurs', cible: '../admin/acces' },
   { libelle: 'Import POI', icone: 'fichier-haut' },
   { libelle: 'Import Shapefile', icone: 'fichier-haut' },
   { libelle: 'Import OOH', icone: 'fichier-haut' },
@@ -30,12 +35,12 @@ const LIENS_BACK_OFFICE: readonly { libelle: string; icone: NomIcone }[] = [
  *   il interrogerait `/api/providers/status` pour un modèle qui ne sert à rien ici.
  * - **Fond de carte** est actif : il émet l'id choisi ; la page recrée la carte (B11).
  * - **Apparence** reprend `mg-bascule-theme`, qui passe par `ThemeService.basculer()` seul (`ECRIRE_HTML`).
- * - **Back office** : les onze liens INERTES (« Disponible prochainement », patron de la barre latérale)
- *   tant que les pages d'administration ne sont pas portées.
+ * - **Back office** : « Accès » est ACTIF (lien relatif vers `admin/acces`) ; les neuf autres liens restent
+ *   INERTES (« Disponible prochainement », patron de la barre latérale) tant que leurs pages ne sont pas portées.
  */
 @Component({
   selector: 'mg-reglages',
-  imports: [BasculeThemeComponent, IconeComponent],
+  imports: [BasculeThemeComponent, IconeComponent, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col gap-5 px-4 py-3 font-sans' },
   template: `
@@ -95,15 +100,25 @@ const LIENS_BACK_OFFICE: readonly { libelle: string; icone: NomIcone }[] = [
       <h4 class="mb-2 mt-0 text-[11px] font-medium tracking-[0.04em] text-secondary">Back office</h4>
       <div class="flex flex-col gap-0.5">
         @for (lien of liens; track lien.libelle) {
-          <button
-            type="button"
-            aria-disabled="true"
-            [attr.title]="indisponible"
-            class="flex cursor-default items-center gap-2.5 rounded-[6px] border-0 bg-transparent px-1.5 py-2 text-left font-sans text-[12px] text-secondary transition-[background-color,color] duration-[120ms] ease-[var(--ease-hover)] hover:bg-elevated hover:text-primary"
-          >
-            <mg-icone [nom]="lien.icone" [taille]="14" [trait]="1.5" />
-            {{ lien.libelle }}
-          </button>
+          @if (lien.cible) {
+            <a
+              [routerLink]="lien.cible"
+              class="flex cursor-pointer items-center gap-2.5 rounded-[6px] px-1.5 py-2 text-left font-sans text-[12px] text-secondary no-underline transition-[background-color,color] duration-[120ms] ease-[var(--ease-hover)] hover:bg-elevated hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--brand-teal-50)]"
+            >
+              <mg-icone [nom]="lien.icone" [taille]="14" [trait]="1.5" />
+              {{ lien.libelle }}
+            </a>
+          } @else {
+            <button
+              type="button"
+              aria-disabled="true"
+              [attr.title]="indisponible"
+              class="flex cursor-default items-center gap-2.5 rounded-[6px] border-0 bg-transparent px-1.5 py-2 text-left font-sans text-[12px] text-secondary transition-[background-color,color] duration-[120ms] ease-[var(--ease-hover)] hover:bg-elevated hover:text-primary"
+            >
+              <mg-icone [nom]="lien.icone" [taille]="14" [trait]="1.5" />
+              {{ lien.libelle }}
+            </button>
+          }
         }
       </div>
     </section>
