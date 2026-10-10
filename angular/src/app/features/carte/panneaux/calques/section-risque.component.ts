@@ -1,10 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { formaterNombre } from '../../../../core/format/nombre';
+import { PARAM_RISQUE } from '../../../risques/etat/etat-risque.service';
 import { NIVEAUX_RISQUE } from '../../../risques/logique/gravites';
 import { LARGEUR_TRAIT_ZONE, TIRETE_ZONE_CALCULEE } from '../../../risques/logique/nature-zone';
 import { PprtService } from '../../couches/pprt.service';
 import { RisquesIndustrielsService } from '../../couches/risques-industriels.service';
 import { RisqueCarteService } from '../../etat/risque-carte.service';
+import { risqueDepuisCalques } from '../../logique/entree-module-risque';
 import { LARGEUR_TRAIT_PPRT, LIBELLE_TYPE_ZONE_PPRT } from '../../logique/pprt';
 import { JETON_TYPE, LIBELLE_TYPE, ORDRE_TYPES } from '../../logique/types-risque';
 import { PPRT_ZOOM_PLANCHER } from '../../logique/versions';
@@ -149,8 +152,9 @@ export class ProvenanceZonesComponent {
  * calculée). Chaque carte porte son tracé : plein pour le réglementaire, tireté pour le calculé. Les réglages (niveau,
  * type, halo, sites à l'arrêt) descendent dans des replis.
  *
- * « Analyser la population à risque → » est posé mais DÉSACTIVÉ (« Disponible prochainement ») : il ouvre le module
- * risque, câblé à la tâche 13.
+ * « Analyser la population à risque → » ouvre le module risque (T13) : route ENFANT de la carte (`risques`, B2), dont
+ * l'état `?risque=` garde ce qui était déjà réglé et reçoit en `natures` les types cochés ici (`risqueDepuisCalques`,
+ * B4) — React les passait en prop à l'overlay.
  *
  * Écarts, défauts React corrigés : la section s'ouvre ET se replie au premier clic (React : `sectionsOpen` sans clé
  * `risqueIndustriel`, `!undefined` = `true`, le premier clic ne repliait rien) ; un échec de lecture (sites, PPRT) est
@@ -239,9 +243,10 @@ export class ProvenanceZonesComponent {
           </mg-carte-zone>
         }
 
-        <!-- L'analyse : ouvre le module risque, câblé à la tâche 13. -->
-        <button type="button" data-analyser disabled title="Disponible prochainement"
-          class="flex w-full cursor-not-allowed items-center justify-center gap-[7px] rounded-[8px] border-fin border-teal bg-transparent px-3 py-[9px] text-[12px] font-medium text-teal opacity-55">
+        <!-- L'analyse : APRÈS les deux cartes de zone, dont elle dépend. Ouvre le module risque, route enfant de la carte (B2),
+             avec les types cochés ici devenus ses natures (B4) — on ne redemande pas ce à quoi on vient de répondre. -->
+        <button type="button" data-analyser (click)="analyser()"
+          class="flex w-full cursor-pointer items-center justify-center gap-[7px] rounded-[8px] border-fin border-teal bg-transparent px-3 py-[9px] text-[12px] font-medium text-teal transition-[background-color] duration-200 ease-[var(--ease-out)] hover:bg-teal-10">
           Analyser la population à risque
           <span aria-hidden="true">&rarr;</span>
         </button>
@@ -296,6 +301,9 @@ export class ProvenanceZonesComponent {
 })
 export class SectionRisqueComponent {
   private readonly selections = inject(SelectionsCalquesService);
+  private readonly router = inject(Router);
+  /** La route de la carte : le panneau vit dans `CartePage`, le module est son enfant. */
+  private readonly route = inject(ActivatedRoute);
   protected readonly r = inject(RisqueCarteService);
   protected readonly sites = inject(RisquesIndustrielsService);
   protected readonly pprt = inject(PprtService);
@@ -352,6 +360,15 @@ export class SectionRisqueComponent {
       retenu: types.length === 0 || types.includes(t),
     }));
   });
+
+  /** Ouvre le module : `risques` relatif à la carte, le `?risque=` courant gardé, ses natures celles de Calques. */
+  protected analyser(): void {
+    const brut = this.route.snapshot.queryParamMap.get(PARAM_RISQUE);
+    void this.router.navigate(['risques'], {
+      relativeTo: this.route,
+      queryParams: { [PARAM_RISQUE]: risqueDepuisCalques(brut, this.r.typesRisque()) },
+    });
+  }
 
   protected basculerSection(): void {
     this.selections.sections.update((s) => ({ ...s, risqueIndustriel: s['risqueIndustriel'] === false }));

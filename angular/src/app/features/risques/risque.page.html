@@ -15,11 +15,14 @@
        DÉPLIE le tiroir des anneaux, où qu'on soit — renvoyer ailleurs pour régler ce qui vaut partout était le défaut. -->
   <mg-resume-profil [profil]="etat().profil" (ouvrirAtelier)="basculerAtelier()" />
   <div class="flex-1"></div>
-  <!-- Persistant, dans l'en-tête : le profil vaut pour toutes les étapes (BoutonExportProfil.tsx). « Voir sur la
-       carte » (BoutonVoirCarte.tsx) n'est PAS porté avant le lot 4 (A6) : absent, pas inerte. -->
+  <!-- Persistant, dans l'en-tête : le profil vaut pour toutes les étapes (BoutonExportProfil.tsx), puis « Voir sur la
+       carte » (BoutonVoirCarte.tsx), présent seulement sous la carte principale (pont B3). -->
   <mg-bouton-export libelle="Exporter le profil" nomRepli="profil-risque.xlsx" variante="neutre"
                     [desactive]="profilVide()" [charger]="chargerExportProfil"
                     [titre]="profilVide() ? 'Réglez au moins un anneau : le classeur serait vide.' : 'Classeur Excel : profil, bandes, territoires, diffusion'" />
+  @if (pont) {
+    <mg-bouton-voir-carte [profil]="donnees.profilCalcul()" [natures]="donnees.natures()" (affiche)="fermer()" />
+  }
   <button type="button" (click)="fermer()" aria-label="Fermer" title="Fermer"
           class="flex cursor-pointer border-0 bg-transparent p-[6px] text-secondary">
     <mg-icone nom="croix" [taille]="18" />

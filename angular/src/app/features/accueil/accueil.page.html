@@ -58,10 +58,10 @@
   </div>
 
   <!-- Propre à Angular : le compte des sites à risque prouve la chaîne jusqu'à la base. Sous la disposition de React, pour que
-       le haut de la page lui reste identique. La tuile ouvre le module risque (lot 3) : lien RELATIF, le préfixe de montage
-       appartient au shell. -->
+       le haut de la page lui reste identique. La tuile ouvre le module risque (lot 3), route enfant de la carte depuis le lot 4 :
+       lien RELATIF, le préfixe de montage appartient au shell. -->
   <div class="mt-8 grid grid-cols-4 gap-3">
-    <a routerLink="risques" class="block rounded-lg">
+    <a routerLink="carte/risques" class="block rounded-lg">
       <mg-tuile-chiffre
         icone="cercle-alerte"
         [valeur]="valeurSites()"

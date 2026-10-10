@@ -86,21 +86,21 @@ export const remoteRoutes: Routes = [
         canActivate: [authGuard],
         loadComponent: () => import('./features/essai-carte/essai-carte.page').then((m) => m.EssaiCartePage),
       },
-      // Le module « Population à risque industriel » (lot 3) : une route plein écran et non un overlay
-      // `position: fixed` comme React (interdit dans la racine d'ombre, arbitrage A1). Son état vit dans
-      // `?risque=` (A2) — une navigation de requête RÉUTILISE l'écran, elle ne le recrée pas.
-      {
-        path: 'risques',
-        canActivate: [authGuard],
-        loadComponent: () => import('./features/risques/risque.page').then((m) => m.RisquePage),
-      },
-      // La carte principale (lot 4, React `/map`) : route plein écran (arbitrage B1). Son outlet enfant
-      // recevra le module risque (T13) ; une navigation de requête la RÉUTILISE, elle ne la recrée pas.
+      // L'ancienne adresse du module risque (lot 3). Il vit désormais SOUS la carte (ci-dessous) ; la redirection est
+      // RELATIVE, donc reste sous le préfixe de l'hôte, et garde `?risque=` — un lien partagé au lot 3 marche encore.
+      { path: 'risques', redirectTo: 'carte/risques' },
+      // La carte principale (lot 4, React `/map`) : route plein écran (arbitrage B1) ; une navigation de requête la
+      // RÉUTILISE, elle ne la recrée pas. Son enfant `risques` est le module « Population à risque industriel »
+      // (lot 3), rendu par l'outlet de la carte EN SURIMPRESSION, la carte intacte dessous — comme l'overlay React
+      // monté au-dessus de `/map` (arbitrage B2). Ouvrir puis fermer le module ne recrée jamais la carte. Son état
+      // vit dans `?risque=` (A2) ; une navigation de requête RÉUTILISE l'écran.
       {
         path: 'carte',
         canActivate: [authGuard],
         loadComponent: () => import('./features/carte/carte.page').then((m) => m.CartePage),
-        children: [],
+        children: [
+          { path: 'risques', loadComponent: () => import('./features/risques/risque.page').then((m) => m.RisquePage) },
+        ],
       },
       {
         path: '',

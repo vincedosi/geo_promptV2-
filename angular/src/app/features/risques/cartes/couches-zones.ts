@@ -61,7 +61,24 @@ export interface OptionsZones {
    * de profil — sans quoi l'aplat recouvrirait les points à chaque anneau déplacé.
    */
   avant?: string;
+  /**
+   * Les deux seuils de zoom (défaut : ceux du module, `REGIME_MODULE`). La carte PRINCIPALE passe `REGIME_CARTE` :
+   * React y peint chaque bande dès le plancher des tuiles (`ZonesRisqueLayer.tsx`, ni `minzoom` de couche ni fondu),
+   * et « Voir sur la carte » ramène sur une France à z5,5 — avec les seuils du module, elle resterait vide.
+   */
+  regime?: RegimeZoom;
 }
+
+/** Sous `lisible`, rien n'est peint ; de `lisible` à `detail`, un aplat uni par niveau ; au-delà, chaque bande. */
+export interface RegimeZoom {
+  lisible: number;
+  detail: number;
+}
+
+/** La carte du module : rien sous z7, aplat fondu jusqu'à z10, bandes, contours tiretés et étiquettes au-delà. */
+export const REGIME_MODULE: RegimeZoom = { lisible: ZONES_RISQUE_ZOOM_LISIBLE, detail: ZONES_RISQUE_ZOOM_DETAIL };
+/** La carte principale : tout dès le plancher des tuiles, comme `ZonesRisqueLayer.tsx` (aucun `minzoom` de couche). */
+export const REGIME_CARTE: RegimeZoom = { lisible: ZONES_RISQUE_ZOOM_PLANCHER, detail: ZONES_RISQUE_ZOOM_PLANCHER };
 
 /** La couleur d'une zone d'après sa propriété `niveau` (`expressionCouleurNiveau`, palette-zones-risque.ts). */
 export function expressionCouleurNiveau(t: TeintesZones): unknown[] {
@@ -109,6 +126,7 @@ export function poserCouchesZones(carte: maplibregl.Map, o: OptionsZones): void 
     maxzoom: 14,
   });
   const couleur = expressionCouleurNiveau(o.teintes);
+  const { lisible, detail } = o.regime ?? REGIME_MODULE;
   const visibilite = o.visible ? 'visible' : 'none';
 
   // `minzoom` sur la COUCHE et pas sur la source : les tuiles existent dès z4, on ne peint qu'à partir de z7.
@@ -117,12 +135,12 @@ export function poserCouchesZones(carte: maplibregl.Map, o: OptionsZones): void 
     type: 'fill',
     source: SOURCE_ZONES,
     'source-layer': COUCHE_TUILE,
-    minzoom: ZONES_RISQUE_ZOOM_LISIBLE,
+    minzoom: lisible,
     layout: { visibility: visibilite },
     paint: {
       'fill-color': couleur as never,
       // Aplat uni par niveau de loin, bandes détaillées de près.
-      'fill-opacity': expressionOpaciteSelonZoom(ZONES_RISQUE_ZOOM_DETAIL) as never,
+      'fill-opacity': expressionOpaciteSelonZoom(detail) as never,
     },
   }, o.avant);
 
@@ -133,7 +151,7 @@ export function poserCouchesZones(carte: maplibregl.Map, o: OptionsZones): void 
     type: 'line',
     source: SOURCE_ZONES,
     'source-layer': COUCHE_TUILE,
-    minzoom: ZONES_RISQUE_ZOOM_DETAIL,
+    minzoom: detail,
     filter: ['!=', ['get', 'bande'], null],
     layout: { visibility: visibilite },
     paint: {
@@ -151,7 +169,7 @@ export function poserCouchesZones(carte: maplibregl.Map, o: OptionsZones): void 
     type: 'line',
     source: SOURCE_ZONES,
     'source-layer': COUCHE_TUILE,
-    minzoom: ZONES_RISQUE_ZOOM_LISIBLE,
+    minzoom: lisible,
     filter: ['==', ['get', 'bande'], null],
     layout: { visibility: visibilite },
     paint: {
@@ -168,7 +186,7 @@ export function poserCouchesZones(carte: maplibregl.Map, o: OptionsZones): void 
     type: 'symbol',
     source: SOURCE_ZONES,
     'source-layer': COUCHE_TUILE,
-    minzoom: ZONES_RISQUE_ZOOM_DETAIL,
+    minzoom: detail,
     layout: {
       visibility: visibilite,
       'symbol-placement': 'line',

@@ -22,6 +22,7 @@ import { SanteService } from './couches/sante.service';
 import { TiroirPanneauComponent } from './couches/tiroir-panneau.component';
 import { TmjaService } from './couches/tmja.service';
 import { TransportService } from './couches/transport.service';
+import { ZonesRisqueService } from './couches/zones-risque.service';
 import { ZoneActiveComponent } from './couches/zone-active.component';
 import { JETONS_STYLE_MAGELIAN, appliquerStyleMagelian, couchesDuFond } from './couches/style-magelian';
 import { AnnonceService } from './etat/annonce.service';
@@ -30,6 +31,7 @@ import { CouchesCarteService } from './etat/couches-carte.service';
 import { EtatCarteService } from './etat/etat-carte.service';
 import { lireFondMemorise, memoriserFond, urlDuFond } from './etat/fond-carte';
 import { PileEchapService } from './etat/pile-echap.service';
+import { PONT_CARTE } from './etat/pont-carte';
 import { ReferentielGeoService } from './etat/referentiel-geo.service';
 import { ContoursZonesService } from './etat/contours-zones.service';
 import { RisqueCarteService } from './etat/risque-carte.service';
@@ -42,6 +44,7 @@ import { AideComponent } from './panneaux/aide.component';
 import { DialogueMeteoComponent } from './panneaux/calques/dialogue-meteo.component';
 import { PanneauCalquesComponent } from './panneaux/calques/panneau-calques.component';
 import { PanneauFiltreComponent } from './panneaux/filtre/panneau-filtre.component';
+import { JeuxDeZonesComponent } from './panneaux/zones/jeux-de-zones.component';
 import { ReglagesComponent } from './panneaux/reglages.component';
 import { BarreHautComponent, HAUTEUR_BARRE_HAUT } from './rail/barre-haut.component';
 import { PanneauComponent } from './rail/panneau.component';
@@ -102,13 +105,15 @@ export function palierCarreaux(zoom: number): string {
   selector: 'mg-carte-principale',
   imports: [
     AideComponent, AnnonceComponent, BarreHautComponent, BoutonsFlottantsComponent, CarteComponent, DetailIrisComponent, DialogueMeteoComponent,
-    FondCompactComponent, LegendeCarteComponent, PanneauCalquesComponent, PanneauComponent, PanneauFiltreComponent, PuceFiltreComponent,
+    FondCompactComponent, JeuxDeZonesComponent, LegendeCarteComponent, PanneauCalquesComponent, PanneauComponent, PanneauFiltreComponent, PuceFiltreComponent,
     RailComponent, ReglagesComponent, RouterOutlet, TiroirPanneauComponent, ZoneActiveComponent,
   ],
   providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
     IrisService, PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService,
     IndicateursCiviquesService, SanteService, ContoursZonesService, MeteoService, RisqueCarteService, RisquesIndustrielsService,
-    PprtService,
+    PprtService, ZonesRisqueService,
+    // Le pont du module risque (B3) : le module, rendu par l'outlet de cette page, le voit par son injecteur d'élément.
+    { provide: PONT_CARTE, useExisting: ZonesRisqueService },
   ],
   templateUrl: './carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -164,6 +169,11 @@ export class CartePage {
 
   /** Zoom courant ; le badge s'affiche dès l'ouverture, avant le `load` du fond, comme React. */
   private readonly zoom = signal(ZOOM_INITIAL);
+  /**
+   * Le module risque est-il rendu par l'outlet (route enfant `risques`, B2) ? Tenu par `activate`/`deactivate` de
+   * l'outlet : le calque qui le porte n'occupe la page que pendant ce temps — sinon il intercepterait les clics sur la carte.
+   */
+  protected readonly moduleOuvert = signal(false);
   protected readonly texteZoom = computed(() => `z${Math.floor(this.zoom())}  ${palierCarreaux(this.zoom())}`);
 
   constructor() {
@@ -183,6 +193,8 @@ export class CartePage {
     // périmètres restent sur la carte panneau fermé, comme les couches React montées par `page.tsx:1187-1214`.
     inject(RisquesIndustrielsService);
     inject(PprtService);
+    // Les zones d'un profil (T13) : inscrites à l'éviction de leur dégradé dès l'ouverture, avant tout « Voir sur la carte ».
+    inject(ZonesRisqueService);
 
     // Le fond MAGELIAN : surcharges posées sur la carte prête, ré-appliquées à chaque bascule de thème
     // (`useMapInit.ts:217-221,1091-1102`). `carteCourante` est publiée au `load` : le style
@@ -200,6 +212,8 @@ export class CartePage {
     this.rendreFocusALaFermeture(() => this.iris.codeSelectionne() !== null);
     this.rendreFocusALaFermeture(() => this.pois.panneauSelectionne() !== null);
     this.rendreFocusALaFermeture(this.meteo.dialogueOuvert);
+    // Le module risque (T13) : il portait le focus, il disparaît avec l'outlet.
+    this.rendreFocusALaFermeture(this.moduleOuvert);
 
     // Le focus sur l'hôte à l'ouverture : sans lui, aucun raccourci ne l'atteint avant le premier clic.
     afterNextRender(() => this.rendreFocus());

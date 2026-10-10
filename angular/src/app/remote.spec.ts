@@ -65,6 +65,20 @@ function hote(connecte = true, extra: Provider[] = []) {
 const attendre = () => new Promise((r) => setTimeout(r, 0));
 
 /**
+ * Carte principale ET module risque montés ensemble (T13) : plus de trois lectures au montage, le limiteur en garde en
+ * FILE. `http.match` seul ne les solde pas : la fin du test les annule, libère des places, et la file lance les
+ * suivantes APRÈS la destruction de l'injecteur (NG0205 dans `jetonInterceptor`). On les fait échouer — chaque
+ * service sait dire un échec — jusqu'à ce que la file soit vide.
+ */
+async function solderLaFile(http: HttpTestingController): Promise<void> {
+  for (let i = 0; i < 10; i++) {
+    const enVol = http.match(() => true);
+    if (enVol.length === 0) return;
+    enVol.forEach((r) => r.error(new ProgressEvent('error')));
+    await attendre();
+  }
+}
+/**
  * Délai explicite des deux tests qui DÉMARRENT l'application puis naviguent (lien de la coquille, relance après
  * échec) : lancé seul, ce fichier les a mesurés de 6 741 à 8 284 ms à froid (polices, démarrage, coquille), à la
  * base comme après — au-delà des 5 000 ms par défaut, sans défaut de code. Même patron que `app.config.spec.ts`.
@@ -307,7 +321,8 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     const carte = racine.children?.find((r) => r.path === 'carte');
     expect(carte?.canActivate).toEqual([authGuard]);
     expect(carte?.loadComponent).toBeDefined();
-    expect(carte?.children).toEqual([]);
+    // Son outlet porte le module risque (T13, B2).
+    expect(carte?.children?.map((r) => r.path)).toEqual(['risques']);
     const coquille = racine.children?.find((r) => r.path === '');
     expect(coquille?.children?.some((r) => r.path === 'carte')).toBe(false);
   });
@@ -343,17 +358,35 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     expect(http.match((r) => r.url.startsWith('/api/'))).toEqual([]);
   });
 
-  it("risques est une route PLEIN ÉCRAN sœur de la coquille, gardée par authGuard", () => {
+  it("risques (T13) : l'ancienne adresse REDIRIGE, relativement, vers l'enfant `risques` de la carte ; hors de la coquille", () => {
     const racine = remoteRoutes[0];
     const risques = racine.children?.find((r) => r.path === 'risques');
-    expect(risques?.canActivate).toEqual([authGuard]);
-    expect(risques?.loadComponent).toBeDefined();
-    // Hors de la coquille : la route de chemin vide (coquille) ne la porte pas parmi ses enfants.
+    expect(risques?.redirectTo).toBe('carte/risques');
+    expect(risques?.loadComponent).toBeUndefined();
+    const carte = racine.children?.find((r) => r.path === 'carte');
+    const module = carte?.children?.find((r) => r.path === 'risques');
+    expect(module?.loadComponent).toBeDefined();
+    // Gardé par la carte, son parent : aucun garde à recopier sur l'enfant.
+    expect(carte?.canActivate).toEqual([authGuard]);
     const coquille = racine.children?.find((r) => r.path === '');
     expect(coquille?.children?.some((r) => r.path === 'risques')).toBe(false);
   });
 
-  it("risques : monté sans coquille ; changer d'étape réécrit `?risque=` sous le préfixe de l'hôte SANS recréer l'écran ni la carte", async () => {
+  it("risques : `/risques?risque=etape%3Dzones` → redirigé vers `carte/risques`, préfixe de l'hôte ET paramètre gardés", async () => {
+    class Observateur { observe = vi.fn(); disconnect = vi.fn(); }
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver = Observateur;
+    const factices: Provider[] = [{ provide: FABRIQUE_CARTE, useValue: (o: never) => new CarteFactice(o) }];
+    const { harness, http } = await monter(true, factices);
+    http.match('/api/risques/sites/compter').forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
+    await harness.navigateByUrl('/hote/magelian/risques?risque=etape%3Dzones');
+    for (let i = 0; i < 3; i++) { await attendre(); await harness.fixture.whenStable(); }
+    expect(TestBed.inject(Router).url).toBe('/hote/magelian/carte/risques?risque=etape%3Dzones');
+    const racine = ombre(harness.fixture.nativeElement as HTMLElement);
+    expect(racine.querySelector('mg-carte-principale mg-risque')).not.toBeNull();
+    await solderLaFile(http);
+  });
+
+  it("risques : monté SUR la carte, sans coquille ; changer d'étape réécrit `?risque=` sous le préfixe de l'hôte SANS recréer l'écran ni aucune carte", async () => {
     class Observateur { observe = vi.fn(); disconnect = vi.fn(); }
     (globalThis as { ResizeObserver?: unknown }).ResizeObserver = Observateur;
     const cartes: CarteFactice[] = [];
@@ -368,8 +401,9 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     const page = racine.querySelector('mg-risque');
     expect(page).not.toBeNull();
     expect(racine.querySelector('mg-coquille')).toBeNull();
-    // Rayons + codes postaux (T15 : la seconde est montée à largeur nulle dès l'ouverture, comme React).
-    expect(cartes).toHaveLength(2);
+    // Carte principale dessous (T13), puis rayons + codes postaux (T15 : la seconde est montée à largeur nulle dès
+    // l'ouverture, comme React).
+    expect(cartes).toHaveLength(3);
     const initialiser = auth.initialiser.mock.calls.length;
 
     for (const libelle of ['Rayon', 'Couverture', 'Sites']) {
@@ -383,12 +417,12 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     expect(auth.initialiser.mock.calls.length).toBe(initialiser);
     expect(http.match((r) => r.url.endsWith('config.local.json'))).toEqual([]);
     expect(racine.querySelector('mg-risque')).toBe(page);
-    expect(cartes).toHaveLength(2);
-    expect(cartes.map((c) => c.retiree)).toEqual([false, false]);
-    expect(racine.querySelector('[role="alert"]')).toBeNull();
+    expect(cartes).toHaveLength(3);
+    expect(cartes.map((c) => c.retiree)).toEqual([false, false, false]);
+    expect(racine.querySelector('mg-risque [role="alert"]')).toBeNull();
     // Retour à l'étape par défaut : le paramètre disparaît, l'URL de l'hôte reste.
-    expect(TestBed.inject(Router).url).toBe('/hote/magelian/risques');
-    http.match(() => true);
+    expect(TestBed.inject(Router).url).toBe('/hote/magelian/carte/risques');
+    await solderLaFile(http);
   });
 
   it("risques sans session : le message de session, jamais l'écran ni un appel d'API", async () => {

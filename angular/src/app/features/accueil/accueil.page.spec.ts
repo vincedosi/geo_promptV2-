@@ -16,7 +16,7 @@ async function rendre(api: Partial<SitesRisqueApi>, profil: { role: string | nul
   TestBed.configureTestingModule({
     imports: [AccueilPage],
     providers: [
-      provideRouter([{ path: 'risques', children: [] }]),
+      provideRouter([{ path: 'carte', children: [{ path: 'risques', children: [] }] }]),
       { provide: SitesRisqueApi, useValue: api },
       { provide: AuthService, useValue: { session: signal(SESSION), lireProfil: () => Promise.resolve(profil) } },
     ],
@@ -32,11 +32,11 @@ describe('AccueilPage', () => {
     expect(el.textContent?.replace(/\s/g, ' ')).toContain('1 259');
   });
 
-  it('la tuile des sites à risque mène au module risque : lien RELATIF `risques`, tuile cliquable', async () => {
+  it('la tuile des sites à risque mène au module risque : lien RELATIF `carte/risques`, tuile cliquable', async () => {
     const el = await rendre({ compter: () => of({ retenus: 1259, total: 99152, par_nature: {} }) });
     const tuile = Array.from(el.querySelectorAll('mg-tuile-chiffre')).find((t) => t.textContent?.includes('Sites à risque'))!;
     const lien = tuile.closest('a');
-    expect(lien?.getAttribute('href')).toBe('/risques');
+    expect(lien?.getAttribute('href')).toBe('/carte/risques');
     expect(lien?.hasAttribute('aria-disabled')).toBe(false);
     expect(tuile.className).toContain('cursor-pointer');
   });

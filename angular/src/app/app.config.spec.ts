@@ -205,9 +205,10 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       expect(explorer?.getAttribute('href')).toBe('/app/carte');
     }, DELAI_DEMARRAGE_REEL);
 
-    it("sans session : l'écran plein écran risques renvoie vers /connexion avec son état d'URL, sans aucun appel d'API", async () => {
+    it("sans session : l'ancienne adresse risques, redirigée vers carte/risques, renvoie vers /connexion avec son état d'URL, sans aucun appel d'API", async () => {
       const { router, http } = await demarrer('/app/risques?risque=etape%3Drayon', false);
-      expect(router.url).toBe('/connexion?redirection=%2Fapp%2Frisques%3Frisque%3Detape%253Drayon');
+      // La redirection (T13) passe AVANT le garde : la reprise vise la nouvelle adresse, paramètre `risque` compris.
+      expect(router.url).toBe('/connexion?redirection=%2Fapp%2Fcarte%2Frisques%3Frisque%3Detape%253Drayon');
       http.expectNone((r) => r.url.startsWith('/api/'));
     }, DELAI_DEMARRAGE_REEL);
 
@@ -225,16 +226,16 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       expect(router.url).toBe('/connexion');
     }, DELAI_DEMARRAGE_REEL);
 
-    it("les deux entrées du module risque (lien de développement, tuile de l'accueil) mènent à /app/risques", async () => {
+    it("les deux entrées du module risque (lien de développement, tuile de l'accueil) mènent à /app/carte/risques", async () => {
       const { http, harness } = await demarrer('/app', true);
       http.expectOne('/api/risques/sites/compter').flush({ retenus: 1259, total: 99152, par_nature: {} });
       http.match('/api/user/organizations').forEach((r) => r.flush({ organizations: [], active_org_id: null, is_super_admin: false }));
       await stabiliser(harness);
       const racine = ombre(harness.fixture.nativeElement as HTMLElement);
       const dev = [...racine.querySelectorAll('a')].find((a) => a.getAttribute('aria-label') === 'Module risque');
-      expect(dev?.getAttribute('href')).toBe('/app/risques');
+      expect(dev?.getAttribute('href')).toBe('/app/carte/risques');
       const tuile = [...racine.querySelectorAll('mg-tuile-chiffre')].find((t) => t.textContent?.includes('Sites à risque'))!;
-      expect(tuile.closest('a')?.getAttribute('href')).toBe('/app/risques');
+      expect(tuile.closest('a')?.getAttribute('href')).toBe('/app/carte/risques');
     }, DELAI_DEMARRAGE_REEL);
 
     it("un 401 de l'API renvoie vers /connexion avec la page courante", async () => {

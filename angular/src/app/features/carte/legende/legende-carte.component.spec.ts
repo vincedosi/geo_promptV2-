@@ -28,6 +28,9 @@ import { RisqueCarteService } from '../etat/risque-carte.service';
 import { CARREAUX_PALETTES } from '../logique/palettes-donnees-carte';
 import type { DegradeId } from '../logique/degrades';
 import { LegendeCarteComponent, degradeALegende } from './legende-carte.component';
+import { ZonesRisqueService } from '../couches/zones-risque.service';
+import { ZonesRisqueApi } from '../../risques/data/zones-risque.api';
+import { PROFIL_DEFAUT } from '../../risques/logique/profil';
 
 function monter() {
   const bornes$: Subject<CatalogueBornesIris>[] = [];
@@ -67,7 +70,8 @@ describe('LegendeCarteComponent', () => {
     await rendre();
     expect(el.querySelector('[data-legende]')).toBeNull();
     const tous: DegradeId[] = ['carreaux', 'iris', 'civic-indicateurs', 'civic-sante', 'meteo', 'campagne-impressions', 'score', 'diffusion', 'zones-risque'];
-    expect(tous.filter((d) => degradeALegende(d))).toEqual(['carreaux', 'iris', 'civic-indicateurs', 'civic-sante', 'meteo']);
+    // `zones-risque` a son bloc depuis T13 (défaut React corrigé : renvoyée à une couche qui n'en dessinait aucune).
+    expect(tous.filter((d) => degradeALegende(d))).toEqual(['carreaux', 'iris', 'civic-indicateurs', 'civic-sante', 'meteo', 'zones-risque']);
   });
 
   it('indicateurs civiques (T10) : titre, six teintes pondérées de React, trois repères', async () => {
@@ -281,5 +285,38 @@ describe('LegendeCarteComponent', () => {
     risque.compte.set({ rendus: 3, total: 3, avecPprt: 1 });
     await rendre();
     expect(el.querySelector('[data-zone-compte]')!.textContent!.trim()).toBe('1 site sur 3 a un périmètre PPRT');
+  });
+});
+
+describe('LegendeCarteComponent — « Zones de risque » (T13)', () => {
+  it('les zones ramenées par « Voir sur la carte » : titre, niveaux portant un anneau, natures retenues, convention de trait', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(), CarreauxService, IrisService, PoisService, EtatCarteService, CouchesCarteService, AnnonceService,
+        TmjaService, RadioService, SanteService, MeteoService, ContoursZonesService, RisqueCarteService, ZonesRisqueService,
+        { provide: ZonesRisqueApi, useValue: { urlTuilesZones: () => '' } },
+        { provide: MeteoApi, useValue: { donnees: () => new Subject() } },
+        { provide: FABRIQUE_POPUP, useValue: () => ({}) },
+        { provide: CiviqueApi, useValue: { zones: () => new Subject() } },
+        { provide: CarteApi, useValue: {} },
+        { provide: RadioApi, useValue: { optionsFiltre: () => new Subject(), emetteurs: () => new Subject() } },
+        { provide: CarreauxApi, useValue: { urlTuiles: () => '' } },
+        { provide: IrisApi, useValue: { urlTuiles: () => '', detail: vi.fn(), bornes: () => new Subject() } },
+        { provide: CouleursService, useValue: { palette: () => signal({}) } },
+      ],
+    });
+    TestBed.inject(ZonesRisqueService).afficherZonesRisque({ profil: PROFIL_DEFAUT, natures: ['Toxicité aiguë'] });
+    const fixture = TestBed.createComponent(LegendeCarteComponent);
+    fixture.componentRef.setInput('degradeActif', TestBed.inject(EtatCarteService).degradeActif());
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const bloc = (fixture.nativeElement as HTMLElement).querySelector('[data-bloc="zones-profil"]')!;
+    expect(bloc.querySelector('div')!.textContent!.trim()).toBe('Zones de risque');
+    // Le profil par défaut n'a pas d'anneau « Autres régimes » : le niveau n'est pas listé (mg-legende-niveaux).
+    expect(bloc.textContent).toContain('Seveso seuil haut');
+    expect(bloc.textContent).toContain('Seveso seuil bas');
+    expect(bloc.textContent).not.toContain('Autres régimes');
+    expect(bloc.querySelector('[data-natures]')!.textContent!.trim()).toBe('1 nature de risque retenue');
+    expect(bloc.textContent).toContain('Trait plein : périmètre publié par l’État. Tireté : rayon que nous calculons.');
   });
 });

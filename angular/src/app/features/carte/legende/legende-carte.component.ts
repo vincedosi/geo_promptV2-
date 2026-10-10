@@ -10,6 +10,7 @@ import { SanteService } from '../couches/sante.service';
 import { TmjaService } from '../couches/tmja.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
 import { RisqueCarteService } from '../etat/risque-carte.service';
+import { LegendeZonesProfilComponent } from './legende-zones-profil.component';
 import { formaterNombre } from '../../../core/format/nombre';
 import { LARGEUR_TRAIT_PPRT } from '../logique/pprt';
 import { formaterValeur, palierEchelle, versValeurReelle } from '../logique/carreaux/bornes';
@@ -31,8 +32,9 @@ import { ATMO_LEVEL_LABELS, POLLEN_LEVEL_LABELS } from '../logique/sante';
  *
  * Carreaux (T6), IRIS (T7), indicateurs civiques et santé (T10), météo (T11) sont portés. Côté React, `civic-indicateurs` et `civic-sante` vérifiaient aussi la
  * variable / le jeu : ici, le dégradé n'est réclamé QUE par `choisir(code)` / `choisirJeu(jeu)` non nuls, et l'éviction
- * remet la variable à `null` — l'un ne va pas sans l'autre. `score`, `diffusion` et `zones-risque` portent leur
- * propre légende, comme React.
+ * remet la variable à `null` — l'un ne va pas sans l'autre. `score` et `diffusion` portent leur propre légende, comme
+ * React. `zones-risque` a ici SON bloc (T13, `mg-legende-zones-profil`) : React la renvoyait à `ZonesRisqueLayer`, qui
+ * n'en dessinait aucune — défaut corrigé.
  */
 export function degradeALegende(d: DegradeId | null): boolean {
   if (!d) return false;
@@ -42,12 +44,12 @@ export function degradeALegende(d: DegradeId | null): boolean {
     case 'civic-indicateurs':
     case 'civic-sante':
     case 'meteo':
+    case 'zones-risque':
       return true;
     case 'campagne-impressions':
       return false; // bloc à venir (lot 5)
     case 'score':
     case 'diffusion':
-    case 'zones-risque':
       return false;
     default: {
       const exhaustif: never = d;
@@ -83,7 +85,7 @@ interface Palier {
  */
 @Component({
   selector: 'mg-legende-carte',
-  imports: [IconeComponent],
+  imports: [IconeComponent, LegendeZonesProfilComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'contents' },
   template: `
@@ -225,6 +227,9 @@ interface Palier {
                   <div class="mb-1 text-[11px] font-medium text-secondary">{{ titreMeteo }}</div>
                   <div class="font-mono text-[10px] text-tertiary">{{ meteo.libelle() ?? 'Couche active' }}</div>
                 </div>
+              }
+              @case ('zones-risque') {
+                <mg-legende-zones-profil />
               }
             }
             @if (zonesRisque(); as z) {

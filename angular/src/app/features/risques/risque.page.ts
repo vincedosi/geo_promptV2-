@@ -30,6 +30,8 @@ import { AtelierJeuxService } from './etat/atelier-jeux.service';
 import { DonneesRisqueService } from './etat/donnees-risque.service';
 import { EtatRisqueService } from './etat/etat-risque.service';
 import { BoutonExportComponent } from './exports/bouton-export.component';
+import { BoutonVoirCarteComponent } from './exports/bouton-voir-carte.component';
+import { PONT_CARTE } from '../carte/etat/pont-carte';
 import { codeProfil } from './logique/code-profil';
 import { LIBELLE_DIMENSION } from './logique/dimensions';
 import { ETAPES, type Etape } from './logique/etape';
@@ -46,9 +48,13 @@ const LARGEUR_PANNEAU_DEFAUT = 480;
  * ── UNE ROUTE PLEIN ÉCRAN, PAS UN OVERLAY (arbitrage A1) ─────────────────
  *
  * React montait un `role="dialog"` en `position: fixed` au-dessus de `/map`. `position: fixed` est interdit dans
- * la racine d'ombre : l'écran est donc la route `risques`, sœur de `essai-carte` sous `remoteRoutes`, hors
- * coquille, gardée par `authGuard`. Même rendu (plein cadre), même en-tête. Fermer (croix ou Échap, A7) navigue
- * vers le parent RELATIF, l'accueil — `/map` n'existe pas encore en Angular.
+ * la racine d'ombre : l'écran est donc une ROUTE, ENFANT de la carte principale depuis le lot 4 (`carte/risques`,
+ * arbitrage B2) — rendue par l'outlet de `CartePage` en surimpression, la carte intacte dessous, comme l'overlay
+ * React. Même rendu (plein cadre), même en-tête. Fermer (croix ou Échap) navigue vers le parent RELATIF : la carte
+ * (A7 du lot 3 levé). L'ancienne adresse `risques` redirige vers `carte/risques`, paramètres compris.
+ *
+ * « Voir sur la carte » n'existe que si la carte principale fournit son pont (`PONT_CARTE`, B3) : sous un autre
+ * parent, le bouton est ABSENT plutôt qu'inerte.
  *
  * ── CE QUE L'ÉCRAN PORTE, ET CE QUI RESTE LOCAL ──────────────────────────
  *
@@ -66,7 +72,7 @@ const LARGEUR_PANNEAU_DEFAUT = 480;
   selector: 'mg-risque',
   imports: [
     BandeauCampagneComponent, BandeauKpiRisqueComponent, BarreCommuneComponent, BarreProgressionComponent,
-    BoutonExportComponent, CourbeRayonComponent, EtapeCouvertureComponent, EtapeRayonComponent, EtapeZonesComponent,
+    BoutonExportComponent, BoutonVoirCarteComponent, CourbeRayonComponent, EtapeCouvertureComponent, EtapeRayonComponent, EtapeZonesComponent,
     FilArianeComponent, FilEtapesComponent, IconeComponent, PanneauCampagneComponent, PanneauProfilComponent, PanneauSitesComponent,
     PerimeDirective, RegletteRayonsComponent, ResumeProfilComponent, VueCartesComponent,
   ],
@@ -87,6 +93,8 @@ export class RisquePage {
   private readonly route = inject(ActivatedRoute);
   private readonly hote = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly etatRisque = inject(EtatRisqueService);
+  /** Le pont vers la carte principale qui porte l'écran (B3) ; `null` hors de la carte. */
+  protected readonly pont = inject(PONT_CARTE, { optional: true });
 
   protected readonly etat = this.etatRisque.etat;
   /**
@@ -196,11 +204,14 @@ export class RisquePage {
   }
 
   /**
-   * Croix et Échap : retour au parent RELATIF (A7) — le préfixe de montage est inconnu. Un Échap déjà consommé
-   * par un gestionnaire intérieur (`preventDefault()`) ne ferme pas l'écran.
+   * Croix, Échap et « Voir sur la carte » : retour au parent RELATIF — la carte principale (B2) ; le préfixe de montage
+   * est inconnu. Un Échap déjà consommé par un gestionnaire intérieur (`preventDefault()`) ne ferme pas l'écran. Celui
+   * qui le ferme est CONSOMMÉ à son tour : il remonte jusqu'à l'hôte de la carte, dont la pile Échap fermerait en plus
+   * le panneau resté ouvert dessous.
    */
   protected fermer(ev?: Event): void {
     if (ev?.defaultPrevented) return;
+    ev?.preventDefault();
     void this.router.navigate(['..'], { relativeTo: this.route });
   }
 

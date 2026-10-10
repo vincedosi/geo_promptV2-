@@ -1,5 +1,6 @@
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { CouleursService } from '../../../../core/theme/couleurs.service';
 import { CarreauxService } from '../../couches/carreaux.service';
 import { CarreauxApi } from '../../data/carreaux.api';
@@ -41,7 +42,7 @@ const META_METEO = {
 function monter() {
   TestBed.configureTestingModule({
     providers: [
-      provideZonelessChangeDetection(), CarreauxService, IrisService, EtatCarteService, CouchesCarteService, AnnonceService,
+      provideZonelessChangeDetection(), provideRouter([]), CarreauxService, IrisService, EtatCarteService, CouchesCarteService, AnnonceService,
       PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService, IndicateursCiviquesService, SanteService,
       MeteoService, ContoursZonesService,
       { provide: MeteoApi, useValue: { donnees: () => of<MeteoZoneChunk>({ status: 'done', progress: 1, total: 1, data: {}, meta: META_METEO }) } },

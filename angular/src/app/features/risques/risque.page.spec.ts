@@ -21,6 +21,9 @@ import { SimulationApi } from './data/simulation.api';
 import { reponseSimulation } from './testing/simulation.fixture';
 import { DELAI_BANDES_MS } from './etat/donnees-risque.service';
 import { RisquePage } from './risque.page';
+import { PONT_CARTE, type PontCarte } from '../carte/etat/pont-carte';
+import { codeProfil } from './logique/code-profil';
+import type { ProfilRayons } from './logique/profil';
 
 @Component({ selector: 'mg-vide', template: '' })
 class Vide {}
@@ -42,6 +45,8 @@ async function ouvrir(url = '/risques', reponses: {
   lister?: () => unknown; lire?: (id: string) => unknown; lireSimulation?: (id: string) => unknown;
   extractions?: (id: string) => unknown; cpGeo?: (id: string, bbox: string) => unknown;
   carteSimulation?: (id: string, bbox: string) => unknown; grappes?: (id: string) => unknown;
+  /** Le pont de la carte principale (T13) : fourni, l'écran est « sous la carte ». */
+  pont?: PontCarte; preparer?: (profil: string, natures: string[]) => unknown;
 } = {}) {
   (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
   const cartes: CarteFactice[] = [];
@@ -62,7 +67,10 @@ async function ouvrir(url = '/risques', reponses: {
       { provide: ZonesRisqueApi, useValue: {
         courbe: reponses.courbe ?? (() => NEVER),
         sites: () => NEVER,
-        preparer: (profil: string) => { preparations.push(profil); return of({ deja_construit: true }); },
+        preparer: (profil: string, natures: string[] = []) => {
+          preparations.push(profil);
+          return reponses.preparer ? reponses.preparer(profil, natures) : of({ deja_construit: true });
+        },
         urlTuilesZones: (profil: string) => `http://api/tiles/zones-risque/{z}/{x}/{y}?profil=${profil}`,
       } },
       // `palette` SUIT le vrai ThemeService (comme le vrai CouleursService) ; `paletteDuTheme` est fixe par construction.
@@ -94,6 +102,7 @@ async function ouvrir(url = '/risques', reponses: {
       } },
       { provide: FABRIQUE_CARTE, useValue: (o: never) => { const c = new CarteFactice(o); cartes.push(c); return c; } },
       { provide: FABRIQUE_GRAPHIQUE, useValue: () => ({ setOption: () => undefined, resize: () => undefined, dispose: () => undefined }) },
+      ...(reponses.pont ? [{ provide: PONT_CARTE, useValue: reponses.pont }] : []),
     ],
   });
   const harness = await RouterTestingHarness.create();
@@ -222,6 +231,43 @@ describe('RisquePage', () => {
     const { harness, router, el } = await ouvrir('/risques?risque=etape%3Drayon');
     el().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await stabiliser(harness);
+    expect(router.url).toBe('/');
+  });
+
+  it('(i ter, T13) Échap qui ferme l’écran est CONSOMMÉ : il ne fermera pas en plus le panneau de la carte dessous', async () => {
+    const { harness, router, el } = await ouvrir('/risques?risque=etape%3Drayon');
+    const e = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    el().dispatchEvent(e);
+    await stabiliser(harness);
+    expect(e.defaultPrevented).toBe(true);
+    expect(router.url).toBe('/');
+  });
+
+  it('T13 : sans pont (écran hors de la carte principale), « Voir sur la carte » est ABSENT', async () => {
+    const { el } = await ouvrir();
+    expect(el().querySelector('mg-bouton-voir-carte')).toBeNull();
+  });
+
+  it('T13 : sous la carte — présent dans l’en-tête ; clic → preparer(code, natures) PUIS afficherZonesRisque PUIS retour à la carte', async () => {
+    const ordre: string[] = [];
+    const pont: PontCarte = { afficherZonesRisque: vi.fn(() => { ordre.push('afficher'); }) };
+    const natures = encodeURIComponent('natures=D%C3%A9chets');
+    const { harness, router, el } = await ouvrir(`/risques?risque=${natures}`, {
+      pont,
+      preparer: (profil, n) => { ordre.push(`preparer:${profil}:${n.join(',')}`); return of({ classes: 5 }); },
+    });
+    const bouton = el().querySelector<HTMLButtonElement>('header mg-bouton-voir-carte button')!;
+    expect(bouton.textContent?.trim()).toBe('Voir sur la carte');
+    // Entre « Exporter le profil » et la croix, comme React (AnalysePopulationOverlay.tsx:960-975).
+    const enTete = [...el().querySelectorAll('header > *')].map((n) => n.tagName.toLowerCase());
+    expect(enTete.slice(-3)).toEqual(['mg-bouton-export', 'mg-bouton-voir-carte', 'button']);
+    ordre.length = 0;
+    bouton.click();
+    await stabiliser(harness);
+    // Le profil préparé est celui qu'on allume : le profil CALCULÉ du module.
+    const allume = (pont.afficherZonesRisque as ReturnType<typeof vi.fn>).mock.calls[0][0] as { profil: ProfilRayons };
+    expect(ordre).toEqual([`preparer:${codeProfil(allume.profil)}:Déchets`, 'afficher']);
+    expect(pont.afficherZonesRisque).toHaveBeenCalledWith({ profil: expect.any(Object), natures: ['Déchets'] });
     expect(router.url).toBe('/');
   });
 

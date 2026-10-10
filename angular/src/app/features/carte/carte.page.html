@@ -24,7 +24,11 @@
       @case ('filtre') { <mg-panneau-filtre /> }
       @case ('calques') { <mg-panneau-calques /> }
       @case ('analyse') { <p data-provisoire class="px-4 py-2 text-[12px] text-tertiary">Les outils d'analyse arrivent avec les tâches 17 à 20.</p> }
-      @case ('zones') { <p data-provisoire class="px-4 py-2 text-[12px] text-tertiary">Les zones arrivent avec les tâches 14 à 16.</p> }
+      @case ('zones') {
+        <!-- Les jeux de zones à risque (T13) ; créer une zone et « Mes zones » arrivent avec les tâches 14 à 16. -->
+        <mg-jeux-de-zones />
+        <p data-provisoire class="px-4 py-2 text-[12px] text-tertiary">Les zones arrivent avec les tâches 14 à 16.</p>
+      }
       @case ('reglages') { <mg-reglages [fond]="fond()" (choisirFond)="choisirFond($event)" /> }
       @case ('aide') { <mg-aide /> }
     }
@@ -82,5 +86,9 @@
   <mg-tiroir-panneau />
 </div>
 
-<!-- Le module risque, route enfant (T13). -->
-<router-outlet />
+<!-- Le module risque, route enfant `risques` (T13, arbitrage B2) : en surimpression de TOUTE la page — rail et barre
+     compris, comme l'overlay plein écran de React —, la carte intacte dessous. `absolute` et jamais `fixed` (racine
+     d'ombre). Le calque n'est affiché que module ouvert : vide, il intercepterait les clics sur la carte. -->
+<div class="absolute inset-0 z-[60]" [class.hidden]="!moduleOuvert()" data-module-risque>
+  <router-outlet (activate)="moduleOuvert.set(true)" (deactivate)="moduleOuvert.set(false)" />
+</div>

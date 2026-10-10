@@ -29,7 +29,7 @@ const CARTES_NAVIGATION: readonly { icone: NomIcone; libelle: string; sous: stri
  * Tableau de bord (`app/dashboard/page.tsx`) : en-tête, rangée de quatre cartes
  * de session, « Navigation rapide ». S'y ajoute, propre à Angular, le compte des
  * sites à risque — la chaîne entière (session, proxy, Bearer, route Next.js,
- * base locale) y est éprouvée — et la tuile ouvre le module risque (`risques`).
+ * base locale) y est éprouvée — et la tuile ouvre le module risque (`carte/risques`).
  */
 @Component({
   selector: 'mg-accueil',

@@ -17,6 +17,10 @@ import { SitesRisqueApi } from '../risques/data/sites-risque.api';
 import { CiviqueApi } from './data/civique.api';
 import { MeteoApi } from './data/meteo.api';
 import { ZonesCustomApi } from './data/zones-custom.api';
+import { JeuxZonesApi } from '../risques/data/jeux-zones.api';
+import { ZonesRisqueApi } from '../risques/data/zones-risque.api';
+import { PONT_CARTE } from './etat/pont-carte';
+import { ZonesRisqueService } from './couches/zones-risque.service';
 import { CouleursService } from '../../core/theme/couleurs.service';
 import { CartePage } from './carte.page';
 import { AnnonceService } from './etat/annonce.service';
@@ -28,6 +32,12 @@ import { ENTREES_NAVIGATION } from './logique/navigation';
 
 @Component({ selector: 'mg-vide', template: '' })
 class Vide {}
+
+/** Le module risque, réduit à ce que la carte doit lui offrir : le pont (B3), vu par l'injecteur de l'outlet. */
+@Component({ selector: 'mg-module-factice', template: '' })
+class ModuleFactice {
+  readonly pont = inject(PONT_CARTE, { optional: true });
+}
 
 class ObservateurFactice {
   observe = vi.fn();
@@ -41,7 +51,10 @@ async function ouvrir() {
   const cartes: CarteFactice[] = [];
   TestBed.configureTestingModule({
     providers: [
-      provideRouter([{ path: 'carte', component: CartePage }, { path: '', component: Vide }]),
+      provideRouter([
+        { path: 'carte', component: CartePage, children: [{ path: 'risques', component: ModuleFactice }] },
+        { path: '', component: Vide },
+      ]),
       { provide: FABRIQUE_CARTE, useValue: (o: never) => { const c = new CarteFactice(o); cartes.push(c); return c; } },
       {
         provide: AuthService,
@@ -55,6 +68,8 @@ async function ouvrir() {
       { provide: OrganisationsApi, useValue: { lister: () => of({ organizations: [], active_org_id: null, is_super_admin: false }), changer: () => of() } },
       { provide: ReferentielApi, useValue: { geo: () => of({ regions: [] }) } },
       { provide: ZonesCustomApi, useValue: { lister: () => of({ zones: [] }) } },
+      { provide: ZonesRisqueApi, useValue: { urlTuilesZones: () => '/api/tiles/zones-risque/{z}/{x}/{y}?profil=x', preparer: () => of({ classes: 1 }) } },
+      { provide: JeuxZonesApi, useValue: { lister: () => of({ jeux: [] }) } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },
       { provide: IrisApi, useValue: { urlTuiles: () => '/api/tiles/iris/{z}/{x}/{y}?v=2', bornes: () => of({}), detail: () => of() } },
       { provide: CarteApi, useValue: { categories: () => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] }), pois: () => of(), ooh: () => of(), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
@@ -660,5 +675,58 @@ describe('CartePage — météo (T11)', () => {
     expect(cartes[0].retiree).toBe(false);
     // Le focus est revenu à l'hôte : un second Échap ferme le panneau (sinon il tomberait sur <body>).
     expect(document.activeElement).toBe(hote);
+  });
+});
+
+describe('CartePage — le module risque, route ENFANT (T13, B2/B3)', () => {
+  it("ouvrir puis fermer le module : MÊME instance de CartePage, carte principale créée UNE fois, calque masqué hors module", async () => {
+    const { harness, hote, cartes, stable } = await ouvrir();
+    const page = harness.fixture.debugElement.query(By.directive(CartePage)).componentInstance;
+    const calque = hote.querySelector<HTMLElement>('[data-module-risque]')!;
+    expect(calque.classList).toContain('hidden');
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/carte/risques?risque=etape%3Drayon');
+    await stable();
+    // Le module est rendu DANS l'hôte de la carte, en surimpression ; la carte est toujours là, dessous.
+    expect(hote.querySelector('[data-module-risque] mg-module-factice')).not.toBeNull();
+    expect(calque.classList).not.toContain('hidden');
+    expect(calque.className).toContain('absolute inset-0 z-[60]');
+    expect(harness.fixture.debugElement.query(By.directive(CartePage)).componentInstance).toBe(page);
+    await router.navigateByUrl('/carte');
+    await stable();
+    expect(hote.querySelector('mg-module-factice')).toBeNull();
+    expect(calque.classList).toContain('hidden');
+    expect(harness.fixture.debugElement.query(By.directive(CartePage)).componentInstance).toBe(page);
+    expect(cartes).toHaveLength(1);
+    expect(cartes[0].retiree).toBe(false);
+  });
+
+  it('le module, rendu par l’outlet, voit le pont de la carte : `ZonesRisqueService` de CETTE page (B3)', async () => {
+    const { harness, stable } = await ouvrir();
+    await TestBed.inject(Router).navigateByUrl('/carte/risques');
+    await stable();
+    const module = harness.fixture.debugElement.query(By.directive(ModuleFactice)).componentInstance as ModuleFactice;
+    expect(module.pont).toBe(injecteurPage(harness).get(ZonesRisqueService));
+  });
+
+  it('module fermé alors qu’il portait le focus : le focus revient à l’hôte (raccourcis et Échap répondent encore)', async () => {
+    const { hote, stable } = await ouvrir();
+    await TestBed.inject(Router).navigateByUrl('/carte/risques');
+    await stable();
+    const champ = document.createElement('button');
+    hote.querySelector('mg-module-factice')!.appendChild(champ);
+    champ.focus();
+    await TestBed.inject(Router).navigateByUrl('/carte');
+    await stable();
+    expect(document.activeElement).toBe(hote);
+  });
+
+  it("Zones › Jeux de zones : la liste est rendue dans le panneau, avant le contenu provisoire", async () => {
+    const { hote, stable } = await ouvrir();
+    frapper(hote, { key: '4', altKey: true });
+    await stable();
+    expect(titrePanneau(hote)).toBe('Zones');
+    expect(hote.querySelector('mg-panneau-carte mg-jeux-de-zones')).not.toBeNull();
+    expect(hote.querySelector('mg-jeux-de-zones [data-jeux-vide]')).not.toBeNull();
   });
 });

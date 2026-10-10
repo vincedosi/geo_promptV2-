@@ -1,9 +1,9 @@
 import type maplibregl from 'maplibre-gl';
 import { CarteFactice } from '../../../carte/testing/carte-factice';
-import { expressionOpaciteSelonZoom } from '../logique/opacites-zones';
+import { expressionOpaciteBande, expressionOpaciteSelonZoom } from '../logique/opacites-zones';
 import { PROFIL_DEFAUT } from '../logique/profil';
 import {
-  COUCHES_ZONES, ID_CONTOUR, ID_ETIQUETTES, ID_FOND, ID_PPRT, SOURCE_ZONES, type TeintesZones,
+  COUCHES_ZONES, ID_CONTOUR, ID_ETIQUETTES, ID_FOND, ID_PPRT, REGIME_CARTE, REGIME_MODULE, SOURCE_ZONES, type TeintesZones,
   basculerCouchesZones, expressionEtiquetteClasse, poserCouchesZones, repeindreCouchesZones, retirerCouchesZones,
 } from './couches-zones';
 
@@ -39,6 +39,16 @@ describe('couches-zones', () => {
   it('minzoom sur les COUCHES : fond et PPRT à 7 (lisible), contour et étiquettes à 10 (détail)', () => {
     const { couche } = poser();
     expect([ID_FOND, ID_PPRT, ID_CONTOUR, ID_ETIQUETTES].map((id) => couche(id).minzoom)).toEqual([7, 7, 10, 10]);
+  });
+
+  it('régime de la carte PRINCIPALE (T13) : tout dès le plancher 4, chaque bande à son opacité — ZonesRisqueLayer.tsx', () => {
+    const f = new CarteFactice();
+    poserCouchesZones(f as unknown as maplibregl.Map, { url: URL, teintes: TEINTES, profil: PROFIL_DEFAUT, visible: true, regime: REGIME_CARTE });
+    const couche = (id: string) => f.getLayer(id) as { minzoom?: number; paint: Record<string, unknown> };
+    expect([ID_FOND, ID_PPRT, ID_CONTOUR, ID_ETIQUETTES].map((id) => couche(id).minzoom)).toEqual([4, 4, 4, 4]);
+    // `step` à 4 = le plancher de la source : sous lui rien n'est servi, au-dessus c'est l'opacité par bande de React.
+    expect(couche(ID_FOND).paint['fill-opacity']).toEqual(['step', ['zoom'], 0.32, 4, expressionOpaciteBande()]);
+    expect(REGIME_MODULE).toEqual({ lisible: 7, detail: 10 });
   });
 
   it('opacité du fond selon le zoom = expressionOpaciteSelonZoom(10) : aplat fondu, puis bandes', () => {

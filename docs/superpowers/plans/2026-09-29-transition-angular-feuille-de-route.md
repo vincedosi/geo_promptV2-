@@ -263,12 +263,15 @@ devront tenir pour ne pas le casser.
   (A5). Le panneau Calques porté au lot 4 doit ÉCRIRE `natures` dans
   `risque=` (par `ecrireEtatUrl`, une URL React se colle telle quelle) AVANT
   d'ouvrir `risques` — sinon le module s'ouvre sur toutes les natures.
-- **Lot 4 — « Voir sur la carte »** (`BoutonVoirCarte.tsx`, A6) : à porter
-  avec la couche `ZonesRisqueLayer` de `/map`. Il rendra aussi à l'en-tête sa
-  hauteur React, donc le même cadrage initial et le même compte « N sites
-  affichés » dans la légende.
-- **Lot 4 — Fermer** (A7) : la croix et Échap ramènent aujourd'hui au parent
-  RELATIF (l'accueil). Quand `/map` existera, le parent devra être la carte.
+- **Lot 4 — « Voir sur la carte »** (`BoutonVoirCarte.tsx`, A6) : ✅ LEVÉ au
+  lot 4, T13 (2026-10-10) — bouton dans l'en-tête (`mg-bouton-voir-carte`),
+  présent seulement sous la carte principale (jeton `PONT_CARTE`), couche
+  `ZonesRisqueService` sur `/app/carte`, natures transmises (défaut React
+  corrigé). Le compte « N sites affichés » de la légende du module est mesuré
+  identique à React (13 contre 13, type « Toxique »).
+- **Lot 4 — Fermer** (A7) : ✅ LEVÉ au lot 4, T13 — le module est la route
+  ENFANT `carte/risques` ; la croix et Échap ramènent au parent relatif, donc
+  à la carte. `risques` redirige vers `carte/risques`, paramètres compris.
 - **État** : un seul paramètre `risque`, écrit par le `Router` en
   `replaceUrl` (A2). Ne jamais écrire `history` à la main : dans un hôte, le
   routeur appartient au shell.

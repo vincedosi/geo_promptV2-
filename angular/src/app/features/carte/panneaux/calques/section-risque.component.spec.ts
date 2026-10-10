@@ -1,5 +1,7 @@
-import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { Component, provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { NEVER } from 'rxjs';
 import { FABRIQUE_POPUP } from '../../../../carte/fabrique-carte';
 import { CouleursService } from '../../../../core/theme/couleurs.service';
@@ -10,6 +12,7 @@ import { CarteApi } from '../../data/carte.api';
 import { CouchesCarteService } from '../../etat/couches-carte.service';
 import { RisqueCarteService } from '../../etat/risque-carte.service';
 import { naturesDesTypes } from '../../logique/natures-risque';
+import { ecrireEtatUrl, ETAT_DEFAUT } from '../../../risques/logique/etat-url';
 import { SectionRisqueComponent } from './section-risque.component';
 import { SelectionsCalquesService } from './selections-calques.service';
 
@@ -17,7 +20,7 @@ function monter() {
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), SelectionsCalquesService, RisqueCarteService, RisquesIndustrielsService, PprtService,
-      CouchesCarteService,
+      CouchesCarteService, provideRouter([]),
       { provide: SitesRisqueApi, useValue: { carte: () => NEVER, exposition: () => NEVER } },
       { provide: CarteApi, useValue: { pprt: () => NEVER } },
       { provide: CouleursService, useValue: { palette: () => signal({}) } },
@@ -67,15 +70,15 @@ describe('SectionRisqueComponent', () => {
     expect(el.querySelector('[data-contenu-risque]')).not.toBeNull();
   });
 
-  it('éteinte : seule la case, la carte PPRT, l’analyse désactivée et la provenance ; pas de zone calculée ni de réglages', async () => {
+  it('éteinte : seule la case, la carte PPRT, l’analyse ACTIVE (T13) et la provenance ; pas de zone calculée ni de réglages', async () => {
     const { el, rendre } = monter();
     await rendre();
     expect(el.querySelector('[data-carte-pprt]')).not.toBeNull();
     expect(el.querySelector('[data-carte-calculee]')).toBeNull();
     expect(el.querySelector('mg-repli-risque')).toBeNull();
     const analyser = el.querySelector('[data-analyser]') as HTMLButtonElement;
-    expect(analyser.disabled).toBe(true);
-    expect(analyser.title).toBe('Disponible prochainement');
+    expect(analyser.disabled).toBe(false);
+    expect(analyser.hasAttribute('title')).toBe(false);
     expect(texte(analyser)).toBe('Analyser la population à risque →');
     expect(texte(el.querySelector('[data-provenance]'))).toBe("+ D'où viennent ces zones ?");
   });
@@ -157,5 +160,40 @@ describe('SectionRisqueComponent', () => {
     expect(toxique.style.opacity).toBe('1');
     expect(autres.style.opacity).toBe('0.35');
     expect((toxique.firstElementChild as HTMLElement).style.background).toBe('var(--risque-toxique)');
+  });
+});
+
+/** La carte qui porte le panneau : la section y vit, le module est l'enfant `risques` de sa route. */
+@Component({ selector: 'mg-hote-carte', imports: [SectionRisqueComponent], template: '<mg-section-risque />' })
+class HoteCarte {}
+
+@Component({ selector: 'mg-module', template: '' })
+class Module {}
+
+describe('SectionRisqueComponent — « Analyser la population à risque → » (T13, B4)', () => {
+  it("Calques › « Toxique » coché, `?risque=etape%3Drayon` dans l'URL → `carte/risques`, état gardé, natures du type", async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(), SelectionsCalquesService, RisqueCarteService, RisquesIndustrielsService, PprtService,
+        CouchesCarteService,
+        provideRouter([{ path: 'carte', component: HoteCarte, children: [{ path: 'risques', component: Module }] }]),
+        { provide: SitesRisqueApi, useValue: { carte: () => NEVER, exposition: () => NEVER } },
+        { provide: CarteApi, useValue: { pprt: () => NEVER } },
+        { provide: CouleursService, useValue: { palette: () => signal({}) } },
+        { provide: FABRIQUE_POPUP, useValue: () => ({}) },
+      ],
+    });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/carte?risque=etape%3Drayon');
+    TestBed.inject(RisqueCarteService).typesRisque.set(['toxique']);
+    await harness.fixture.whenStable();
+    const el = harness.fixture.nativeElement as HTMLElement;
+    (el.querySelector('[data-analyser]') as HTMLButtonElement).click();
+    await harness.fixture.whenStable();
+    const attendu = ecrireEtatUrl({ ...ETAT_DEFAUT, etape: 'rayon', natures: naturesDesTypes(['toxique']) });
+    expect(TestBed.inject(Router).url).toBe(`/carte/risques?risque=${encodeURIComponent(attendu)}`);
+    // `ecrireEtatUrl` écrit `natures` avant `etape` : l'ordre de React, que l'URL partagée doit garder.
+    expect(attendu.endsWith('&etape=rayon')).toBe(true);
+    expect(TestBed.inject(Router).url.startsWith('/carte/risques?risque=natures%3DToxicit')).toBe(true);
   });
 });
