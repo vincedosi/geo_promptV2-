@@ -11,8 +11,14 @@ import { FondCompactComponent } from './commun/fond-compact.component';
 import { CarreauxService } from './couches/carreaux.service';
 import { DetailIrisComponent } from './couches/detail-iris.component';
 import { IrisService } from './couches/iris.service';
+import { OohService } from './couches/ooh.service';
+import { PoisService } from './couches/pois.service';
+import { TiroirPanneauComponent } from './couches/tiroir-panneau.component';
+import { TransportService } from './couches/transport.service';
+import { ZoneActiveComponent } from './couches/zone-active.component';
 import { JETONS_STYLE_MAGELIAN, appliquerStyleMagelian, couchesDuFond } from './couches/style-magelian';
 import { AnnonceService } from './etat/annonce.service';
+import { CataloguePoiService } from './etat/catalogue-poi.service';
 import { CouchesCarteService } from './etat/couches-carte.service';
 import { EtatCarteService } from './etat/etat-carte.service';
 import { lireFondMemorise, memoriserFond, urlDuFond } from './etat/fond-carte';
@@ -87,10 +93,10 @@ export function palierCarreaux(zoom: number): string {
   imports: [
     AideComponent, AnnonceComponent, BarreHautComponent, BoutonsFlottantsComponent, CarteComponent, DetailIrisComponent,
     FondCompactComponent, LegendeCarteComponent, PanneauCalquesComponent, PanneauComponent, PanneauFiltreComponent, PuceFiltreComponent,
-    RailComponent, ReglagesComponent, RouterOutlet,
+    RailComponent, ReglagesComponent, RouterOutlet, TiroirPanneauComponent, ZoneActiveComponent,
   ],
   providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
-    IrisService,
+    IrisService, PoisService, OohService, TransportService, CataloguePoiService,
   ],
   templateUrl: './carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -110,6 +116,7 @@ export class CartePage {
   private readonly hote = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injecteur = inject(Injector);
   private readonly iris = inject(IrisService);
+  private readonly pois = inject(PoisService);
   private readonly document = inject(DOCUMENT);
 
   protected readonly largeurRail = LARGEUR_RAIL;
@@ -171,6 +178,13 @@ export class CartePage {
       const ouvert = this.iris.codeSelectionne() !== null;
       if (detailOuvert && !ouvert) afterNextRender(() => this.rendreFocus(), { injector: this.injecteur });
       detailOuvert = ouvert;
+    });
+    // Même règle pour le tiroir Street View d'un panneau (T8) : sa croix retirée, le focus revient à l'hôte.
+    let tiroirOuvert = false;
+    effect(() => {
+      const ouvert = this.pois.panneauSelectionne() !== null;
+      if (tiroirOuvert && !ouvert) afterNextRender(() => this.rendreFocus(), { injector: this.injecteur });
+      tiroirOuvert = ouvert;
     });
 
     // Le focus sur l'hôte à l'ouverture : sans lui, aucun raccourci ne l'atteint avant le premier clic.

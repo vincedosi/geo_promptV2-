@@ -9,6 +9,11 @@ export interface ConfigApplication {
   supabaseAnonKey: string;
   /** Origine de l'API ; vide = même origine (proxy de dev). AIDA la résoudra depuis le slug (environment.ts). */
   apiBaseUrl: string;
+  /**
+   * Clé Google Maps de la vue Street View (lot 4, T8, B17) — FACULTATIVE : absente, le tiroir d'un panneau affiche un
+   * bandeau qui nomme la variable manquante. Écrite par `npm run config` depuis `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`.
+   */
+  googleMapsKey?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -42,6 +47,7 @@ export class ConfigService {
       supabaseUrl: brut.supabaseUrl,
       supabaseAnonKey: brut.supabaseAnonKey,
       apiBaseUrl: brut.apiBaseUrl ?? '',
+      ...(brut.googleMapsKey ? { googleMapsKey: brut.googleMapsKey } : {}),
     };
   }
 

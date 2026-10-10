@@ -3,7 +3,7 @@ import { bornesInternes, hauteurExtrusionExpr } from '../logique/carreaux/expres
 import { type BornesIris, donneeIrisExploitableExpr, echelleDe, echelleLogExpr } from '../logique/iris-echelle';
 import { IRIS_PALETTES } from '../logique/palettes-donnees-carte';
 import { IRIS_ZOOM_PLANCHER } from '../logique/versions';
-import { COUCHE_CARREAUX_FOND } from './couche-carreaux';
+import { avantDe } from '../logique/ordre-couches';
 
 /**
  * La couche des IRIS — fonctions PURES sur l'instance MapLibre, testées sur la carte factice (même patron que
@@ -116,11 +116,11 @@ export interface PeintureIris {
 
 /**
  * Pose la source et ses trois couches (`useMapInit.ts:851-907`), IDEMPOTENT : chaque ajout teste l'instance COURANTE.
- * Insérées SOUS les carreaux quand ceux-ci existent — l'ordre de React (« IRIS sous carreaux sous POIs »).
+ * Chacune s'insère à SA place dans l'ordre de React (`avantDe`, `logique/ordre-couches.ts`, T8) : SOUS les carreaux, et
+ * AU-DESSUS des POI rendus par MapLibre (`useMapInit.ts` pose les POI en premier).
  */
 export function poserCouchesIris(carte: CarteIris, urlTuiles: string, p: PeintureIris): void {
   const v = visibilitesIris(p.visible, p.relief);
-  const avant = carte.getLayer(COUCHE_CARREAUX_FOND) ? COUCHE_CARREAUX_FOND : undefined;
   if (!carte.getSource(SOURCE_IRIS)) {
     carte.addSource(SOURCE_IRIS, {
       type: 'vector', tiles: [urlTuiles], minzoom: IRIS_ZOOM_PLANCHER, maxzoom: 14, attribution: 'IGN — IRIS 2023',
@@ -131,14 +131,14 @@ export function poserCouchesIris(carte: CarteIris, urlTuiles: string, p: Peintur
     carte.addLayer({
       id: COUCHE_IRIS_FOND, type: 'fill', source: SOURCE_IRIS, 'source-layer': 'iris', minzoom: IRIS_ZOOM_PLANCHER,
       paint: { 'fill-color': p.couleur, 'fill-opacity': p.opacite }, layout: { visibility: v.plat }, ...filtre,
-    } as maplibregl.LayerSpecification, avant);
+    } as maplibregl.LayerSpecification, avantDe(carte, COUCHE_IRIS_FOND));
   }
   if (!carte.getLayer(COUCHE_IRIS_TRAIT)) {
     carte.addLayer({
       id: COUCHE_IRIS_TRAIT, type: 'line', source: SOURCE_IRIS, 'source-layer': 'iris', minzoom: IRIS_ZOOM_PLANCHER,
       paint: { 'line-color': p.trait, 'line-width': LARGEUR_TRAIT_IRIS, 'line-opacity': p.traitOpacite },
       layout: { visibility: v.plat }, ...filtre,
-    } as maplibregl.LayerSpecification, avant);
+    } as maplibregl.LayerSpecification, avantDe(carte, COUCHE_IRIS_TRAIT));
   }
   if (!carte.getLayer(COUCHE_IRIS_RELIEF)) {
     carte.addLayer({
@@ -148,7 +148,7 @@ export function poserCouchesIris(carte: CarteIris, urlTuiles: string, p: Peintur
         'fill-extrusion-height': p.hauteur, 'fill-extrusion-base': 0,
       },
       layout: { visibility: v.relief }, ...filtre,
-    } as maplibregl.LayerSpecification, avant);
+    } as maplibregl.LayerSpecification, avantDe(carte, COUCHE_IRIS_RELIEF));
   }
 }
 

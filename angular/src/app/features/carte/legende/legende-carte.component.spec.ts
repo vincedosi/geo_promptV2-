@@ -5,6 +5,8 @@ import { CarreauxService } from '../couches/carreaux.service';
 import { CarreauxApi } from '../data/carreaux.api';
 import { IrisApi } from '../data/iris.api';
 import { IrisService } from '../couches/iris.service';
+import { PoisService } from '../couches/pois.service';
+import { CarteApi } from '../data/carte.api';
 import { Subject } from 'rxjs';
 import type { CatalogueBornesIris } from '../logique/iris-echelle';
 import { echelleDe } from '../logique/iris-echelle';
@@ -21,7 +23,8 @@ function monter() {
   const bornes$: Subject<CatalogueBornesIris>[] = [];
   TestBed.configureTestingModule({
     providers: [
-      provideZonelessChangeDetection(), CarreauxService, IrisService, EtatCarteService, CouchesCarteService, AnnonceService,
+      provideZonelessChangeDetection(), CarreauxService, IrisService, PoisService, EtatCarteService, CouchesCarteService, AnnonceService,
+      { provide: CarteApi, useValue: {} },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '' } },
       { provide: IrisApi, useValue: { urlTuiles: () => '', detail: vi.fn(), bornes: () => { const f = new Subject<CatalogueBornesIris>(); bornes$.push(f); return f; } } },
       { provide: CouleursService, useValue: { palette: () => signal({ absente: '#9aa0a6', trait: '#555555' }) } },
@@ -30,7 +33,10 @@ function monter() {
   const fixture = TestBed.createComponent(LegendeCarteComponent);
   const el = fixture.nativeElement as HTMLElement;
   const rendre = async () => { fixture.detectChanges(); await fixture.whenStable(); };
-  return { fixture, el, rendre, bornes$, carreaux: TestBed.inject(CarreauxService), iris: TestBed.inject(IrisService) };
+  return {
+    fixture, el, rendre, bornes$, carreaux: TestBed.inject(CarreauxService), iris: TestBed.inject(IrisService),
+    pois: TestBed.inject(PoisService), etat: TestBed.inject(EtatCarteService),
+  };
 }
 
 describe('LegendeCarteComponent', () => {
@@ -119,5 +125,43 @@ describe('LegendeCarteComponent', () => {
     bornes$[0].error(new Error('500'));
     await rendre();
     expect(el.querySelector('[data-bloc="iris"]')!.textContent).toContain('! Bornes indisponibles');
+  });
+
+  it('« Analyse spatiale » : catégories des points affichés, triées, comptées, dans la couleur de leur épingle (T8)', async () => {
+    const { fixture, el, rendre, pois } = monter();
+    fixture.componentRef.setInput('degradeActif', null);
+    pois.definirZone({
+      ville: 'France', rayon_metres: null, rayon_poi_metres: null, coordonnees: { lat: 0, lng: 0 }, pois: [], nb_pois: 0,
+      categories: { lycee: 241, college: 12 },
+    });
+    pois.reglerStyle('lycee', { color: '#ff4444' });
+    await rendre();
+    const bloc = el.querySelector('[data-bloc="analyse"]')!;
+    expect(bloc.textContent).toContain('Analyse spatiale');
+    expect([...bloc.querySelectorAll('[data-categorie]')].map((c) => c.textContent!.replace(/\s+/g, ' ').trim())).toEqual(['college (12)', 'lycee (241)']);
+    const point = bloc.querySelector('[data-categorie="lycee"] span') as HTMLElement;
+    expect(point.style.background).toBe('rgb(255, 68, 68)');
+  });
+
+  it('« Figurés » : les types de POI choisis — la boîte s’ouvre sans dégradé, et se ferme sans rien', async () => {
+    const { fixture, el, rendre, etat } = monter();
+    fixture.componentRef.setInput('degradeActif', null);
+    etat.poiSelectionnes.set(['lycee']);
+    await rendre();
+    expect(el.querySelector('[data-bloc="figures"]')!.textContent).toContain('lycee');
+    etat.poiSelectionnes.set([]);
+    await rendre();
+    expect(el.querySelector('[data-legende]')).toBeNull();
+  });
+
+  it('ordre des blocs de React : Analyse, dégradé, Figurés', async () => {
+    const { fixture, el, rendre, etat, pois } = monter();
+    fixture.componentRef.setInput('degradeActif', 'carreaux');
+    etat.poiSelectionnes.set(['lycee']);
+    pois.definirZone({
+      ville: 'F', rayon_metres: null, rayon_poi_metres: null, coordonnees: { lat: 0, lng: 0 }, pois: [], nb_pois: 0, categories: { lycee: 1 },
+    });
+    await rendre();
+    expect([...el.querySelectorAll('[data-bloc]')].map((b) => b.getAttribute('data-bloc'))).toEqual(['analyse', 'carreaux', 'figures']);
   });
 });

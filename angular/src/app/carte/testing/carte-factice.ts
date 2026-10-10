@@ -84,6 +84,34 @@ export class CarteFactice {
     this.couches.push({ couche, avant });
     return this;
   }
+  /**
+   * L'ordre d'EMPILEMENT effectif, du dessous vers le dessus, comme MapLibre le rend : chaque couche est rejouée,
+   * insérée devant son `avant` s'il existe déjà, ajoutée au sommet sinon (`couches` garde, lui, l'ordre des appels).
+   */
+  ordreRendu(): string[] {
+    const ordre: string[] = [];
+    for (const { couche, avant } of this.couches) {
+      const id = String(couche['id']);
+      const i = avant ? ordre.indexOf(avant) : -1;
+      if (i >= 0) ordre.splice(i, 0, id);
+      else ordre.push(id);
+    }
+    return ordre;
+  }
+  /** Le conteneur de la carte (MapLibre y range ses marqueurs ; la couche POI y pose son canevas des rayons). */
+  private conteneur: HTMLElement | null = null;
+  getContainer(): HTMLElement {
+    this.conteneur ??= document.createElement('div');
+    return this.conteneur;
+  }
+  /** Projection factice : la longitude et la latitude en pixels, telles quelles. */
+  project(lngLat: [number, number]): { x: number; y: number } {
+    return { x: lngLat[0], y: lngLat[1] };
+  }
+  /** Les `flyTo`, dans l'ordre. */
+  readonly vols: unknown[] = [];
+  flyTo(o: unknown): this { this.vols.push(o); return this; }
+  triggerRepaint(): void { /* rien à repeindre sans WebGL */ }
   /** Ce qui a été retiré, dans l'ordre : `couche:<id>` ou `source:<id>`. */
   readonly retraits: string[] = [];
   /** Les `setLayoutProperty`, dans l'ordre. */

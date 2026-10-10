@@ -9,9 +9,9 @@ export type PerimetreScope = 'metro' | 'all' | null;
 export type SectionPerimetre = 'perimetre' | 'regions' | 'departements' | 'recherche';
 
 /**
- * En-tête de section repliable — portage de `FilterSectionHeader.tsx` (sans l'infobulle ni le surlignage de
- * recherche : le panneau Filtre n'en passe aucun). Bandeau collant, débordant de 16 px de chaque côté pour
- * couvrir le retrait de son conteneur (`margin: 0 -16px`).
+ * En-tête de section repliable — portage de `FilterSectionHeader.tsx` (sans le surlignage de recherche : aucun panneau
+ * n'en passe). Bandeau collant, débordant de 16 px de chaque côté pour couvrir le retrait de son conteneur
+ * (`margin: 0 -16px`). `infobulle` (T8, section POI) pose l'icône d'aide et son `title`, sans replier la section au clic.
  */
 @Component({
   selector: 'mg-entete-filtre',
@@ -28,6 +28,11 @@ export type SectionPerimetre = 'perimetre' | 'regions' | 'departements' | 'reche
   },
   template: `
     <span class="flex-1 text-[12px] font-medium text-primary">{{ libelle() }}</span>
+    @if (infobulle(); as aide) {
+      <span data-infobulle [title]="aide" (click)="$event.stopPropagation()" class="inline-flex shrink-0 cursor-help">
+        <mg-icone nom="aide" [taille]="12" class="text-tertiary" />
+      </span>
+    }
     @if (compte() > 0) {
       <span
         data-compte
@@ -46,6 +51,8 @@ export class EnteteFiltreComponent {
   readonly libelle = input.required<string>();
   readonly ouvert = input.required<boolean>();
   readonly compte = input(0);
+  /** Le texte d'aide de `TOOLTIPS` (`FilterSectionHeader.tsx:16-22`), ou rien. */
+  readonly infobulle = input<string | null>(null);
   readonly basculer = output<void>();
 }
 

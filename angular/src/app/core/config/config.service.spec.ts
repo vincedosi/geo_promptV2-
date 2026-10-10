@@ -30,6 +30,17 @@ describe('ConfigService', () => {
     expect(service.valeur.supabaseUrl).toBe('http://127.0.0.1:54321');
   });
 
+  it('googleMapsKey est FACULTATIVE : absente ou vide, le champ n’existe pas ; présente, il est repris (lot 4, T8)', async () => {
+    let promesse = service.charger();
+    http.expectOne(URL_CONFIG).flush({ supabaseUrl: 'u', supabaseAnonKey: 'k', apiBaseUrl: '', googleMapsKey: '' });
+    await promesse;
+    expect('googleMapsKey' in service.valeur).toBe(false);
+    promesse = service.charger();
+    http.expectOne(URL_CONFIG).flush({ supabaseUrl: 'u', supabaseAnonKey: 'k', apiBaseUrl: '', googleMapsKey: 'cle-g' });
+    await promesse;
+    expect(service.valeur.googleMapsKey).toBe('cle-g');
+  });
+
   it('nomme la commande à lancer quand le fichier est absent', async () => {
     const promesse = service.charger();
     http.expectOne(URL_CONFIG).flush('', { status: 404, statusText: 'Not Found' });

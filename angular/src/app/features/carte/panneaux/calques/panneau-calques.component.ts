@@ -2,10 +2,15 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { CarreauxService } from '../../couches/carreaux.service';
 import { IrisService } from '../../couches/iris.service';
+import { EtatCarteService } from '../../etat/etat-carte.service';
 import { libelleDegrade } from '../../logique/degrades';
 import { GroupeCalquesComponent } from './groupe-calques.component';
 import { SectionCarreauxComponent } from './section-carreaux.component';
 import { SectionIrisComponent } from './section-iris.component';
+import { SectionOohComponent } from './section-ooh.component';
+import { SectionPoiComponent } from './section-poi.component';
+import { SectionTransportComponent } from './section-transport.component';
+import { SelectionsCalquesService } from './selections-calques.service';
 
 type CleGroupe = 'socioDemo' | 'poiMobilite' | 'mediasOffline' | 'environnement' | 'analyses';
 
@@ -23,16 +28,21 @@ interface ActifCalque {
  * mobilité, Médias offline, Environnement, Mes analyses. Tous fermés à l'ouverture, et rien n'est mémorisé : comme
  * React (`useState`, `PanneauCalques.tsx:240-243`), le panneau repart replié à chaque réouverture.
  *
- * T6 a porté le CADRE et les carreaux Filosofi, T7 les IRIS ; chaque groupe se remplit dans sa tâche :
- * POI/transport/TMJA (T8-T9), OOH/radio (T8-T9), environnement (T10-T12), « Mes analyses » (T18). Les sections
- * internes de ces groupes (`useFilterSections(true, …)` en mode overlay) ne mémorisent rien non plus : leur logique
- * pure attend dans `etat/sections-filtre.ts`, à brancher par la tâche qui en aura l'usage.
+ * T6 a porté le CADRE et les carreaux Filosofi, T7 les IRIS, T8 les POI, le transport et les panneaux OOH ; chaque
+ * groupe se remplit dans sa tâche : TMJA et radio (T9), environnement (T10-T12), « Mes analyses » (T18). Les sections
+ * internes de ces groupes (`useFilterSections(true, …)` en mode overlay) ne mémorisent rien non plus : leur état, les
+ * régies OOH et les types de transport choisis vivent dans `SelectionsCalquesService`, fourni par CE composant — il
+ * survit au repli d'un groupe et disparaît à la fermeture du panneau, comme l'état React.
  * « Campagne active » n'est pas rendu : il n'existe qu'avec une campagne active, qui relève du lot 5 (arbitrage B6).
  * « Mes analyses » ne lance AUCUNE requête ici — React y chargeait `GET /api/analyses` au premier dépliage.
  */
 @Component({
   selector: 'mg-panneau-calques',
-  imports: [GroupeCalquesComponent, IconeComponent, SectionCarreauxComponent, SectionIrisComponent],
+  imports: [
+    GroupeCalquesComponent, IconeComponent, SectionCarreauxComponent, SectionIrisComponent, SectionOohComponent, SectionPoiComponent,
+    SectionTransportComponent,
+  ],
+  providers: [SelectionsCalquesService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full flex-col overflow-y-auto' },
   template: `
@@ -69,15 +79,22 @@ interface ActifCalque {
       }
     </mg-groupe-calques>
 
-    <mg-groupe-calques titre="POI et mobilité" [ouvert]="groupes().poiMobilite" (basculer)="basculer('poiMobilite')">
+    <mg-groupe-calques titre="POI et mobilité" [ouvert]="groupes().poiMobilite" [compte]="comptePoi()" (basculer)="basculer('poiMobilite')">
       @if (groupes().poiMobilite) {
-        <p data-provisoire class="px-4 py-2 text-[12px] text-tertiary">Les POI, le transport et le flux routier arrivent avec les tâches 8 et 9.</p>
+        <!-- PanneauCalques.tsx:470-525 : padding 16, sections espacées de 16 ; le flux routier arrive avec T9. -->
+        <div class="flex flex-col gap-4 p-4">
+          <mg-section-poi />
+          <mg-section-transport />
+        </div>
       }
     </mg-groupe-calques>
 
-    <mg-groupe-calques titre="Médias offline" [ouvert]="groupes().mediasOffline" (basculer)="basculer('mediasOffline')">
+    <mg-groupe-calques titre="Médias offline" [ouvert]="groupes().mediasOffline" [compte]="compteMedias()" (basculer)="basculer('mediasOffline')">
       @if (groupes().mediasOffline) {
-        <p data-provisoire class="px-4 py-2 text-[12px] text-tertiary">Les panneaux OOH et la radio arrivent avec les tâches 8 et 9.</p>
+        <!-- PanneauCalques.tsx:527-575 : la radio arrive avec T9. -->
+        <div class="flex flex-col gap-4 p-4">
+          <mg-section-ooh />
+        </div>
       }
     </mg-groupe-calques>
 
@@ -97,12 +114,18 @@ interface ActifCalque {
 export class PanneauCalquesComponent {
   private readonly carreaux = inject(CarreauxService);
   private readonly iris = inject(IrisService);
+  private readonly etat = inject(EtatCarteService);
+  private readonly selections = inject(SelectionsCalquesService);
 
   protected readonly groupes = signal<Record<CleGroupe, boolean>>({
     socioDemo: false, poiMobilite: false, mediasOffline: false, environnement: false, analyses: false,
   });
 
   protected readonly compteSocio = computed(() => (this.carreaux.visible() ? 1 : 0) + (this.iris.visible() ? 1 : 0));
+  /** `selectedPOI.length + selectedTransportTypes.length (+ TMJA, T9)` (`PanneauCalques.tsx:472`). */
+  protected readonly comptePoi = computed(() => this.etat.poiSelectionnes().length + this.selections.typesTransport().length);
+  /** `selectedOOH.length (+ radio, T9)` (`PanneauCalques.tsx:529`). */
+  protected readonly compteMedias = computed(() => this.selections.regiesOoh().length);
   protected readonly actifs = computed<ActifCalque[]>(() => {
     const liste: ActifCalque[] = [];
     if (this.carreaux.visible()) {
@@ -111,6 +134,15 @@ export class PanneauCalquesComponent {
     if (this.iris.visible()) {
       liste.push({ id: 'iris', label: libelleDegrade('iris'), retirer: () => this.iris.basculer(false) });
     }
+    // `PanneauCalques.tsx:332-335` : la croix vide la SÉLECTION, elle n'efface pas les points affichés (comme React).
+    const poi = this.etat.poiSelectionnes().length;
+    if (poi > 0) liste.push({ id: 'poi', label: `POI (${poi})`, retirer: () => this.etat.poiSelectionnes.set([]) });
+    const transport = this.selections.typesTransport().length;
+    if (transport > 0) {
+      liste.push({ id: 'transport', label: `Transport (${transport})`, retirer: () => this.selections.typesTransport.set([]) });
+    }
+    const ooh = this.selections.regiesOoh().length;
+    if (ooh > 0) liste.push({ id: 'ooh', label: `OOH (${ooh} régies)`, retirer: () => this.selections.regiesOoh.set([]) });
     return liste;
   });
 

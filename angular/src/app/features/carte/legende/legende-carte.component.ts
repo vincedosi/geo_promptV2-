@@ -2,6 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, signal } f
 import { IconeComponent } from '../../../ui/icone/icone.component';
 import { CarreauxService } from '../couches/carreaux.service';
 import { IrisService } from '../couches/iris.service';
+import { couleurPoi } from '../couches/couche-pois';
+import { PoisService } from '../couches/pois.service';
+import { EtatCarteService } from '../etat/etat-carte.service';
 import { formaterValeur, palierEchelle, versValeurReelle } from '../logique/carreaux/bornes';
 import { CARREAUX_INDICATEURS } from '../logique/carreaux/catalogue';
 import { bornesInternes } from '../logique/carreaux/expressions';
@@ -60,7 +63,10 @@ interface Palier {
  * MÊME découpage (`palierEchelle`) — une tranche cliquée désigne exactement les carreaux qu'elle affiche. Le fond d'un
  * palier choisi est sa couleur de DONNÉE à 13 % (`${couleur}22` de React).
  *
- * Le bloc des figurés (POI, TMJA, radio, OOH) est posé VIDE : chaque couche ponctuelle y ajoutera sa ligne (T8, T9).
+ * T8 ajoute, dans l'ordre de React (`LegendeCarte.tsx:640-645`), le bloc « Analyse spatiale » AVANT le dégradé — les
+ * catégories des points affichés, avec leur compte — et le bloc « Figurés » APRÈS — les types de POI choisis ; TMJA et
+ * radio y ajouteront leur ligne (T9). Écart, défaut corrigé : la pastille d'une catégorie prend la couleur de son
+ * ÉPINGLE quand l'utilisateur en a choisi une ; React gardait la couleur de catégorie, et la légende contredisait la carte.
  */
 @Component({
   selector: 'mg-legende-carte',
@@ -86,6 +92,32 @@ interface Palier {
         </button>
         @if (ouvert()) {
           <div class="flex flex-col gap-[10px] px-[10px] pb-[10px]">
+            @if (analyse(); as a) {
+              <!-- BlocAnalyse (LegendeCarte.tsx:332-376) : les catégories des points affichés. -->
+              <div data-bloc="analyse">
+                <div class="mb-1 text-[11px] font-medium text-secondary">Analyse spatiale</div>
+                <div class="flex flex-col gap-[5px]">
+                  @for (c of a.categories; track c.cat) {
+                    <div [attr.data-categorie]="c.cat" class="flex items-center gap-1.5">
+                      <span class="size-[10px] shrink-0 rounded-full" [style.background]="c.couleur"></span>
+                      <span class="font-mono text-[10px] text-tertiary">{{ c.cat }} <span class="text-tertiary">({{ c.n }})</span></span>
+                    </div>
+                  }
+                  @if (a.rayonZone) {
+                    <div class="mt-[3px] flex items-center gap-1.5 border-t border-subtle pt-[5px]">
+                      <span class="size-[9px] shrink-0 rounded-[1px] border-[1.5px] border-dashed border-hover bg-[color-mix(in_srgb,var(--text-primary)_5%,transparent)]"></span>
+                      <span class="font-mono text-[10px] text-tertiary">Zone {{ a.rayonZone }} km</span>
+                    </div>
+                  }
+                  @if (a.rayonPoi) {
+                    <div class="mt-[3px] flex items-center gap-1.5 border-t border-subtle pt-[5px]">
+                      <span class="size-[9px] shrink-0 rounded-full border-[1.5px] border-solid border-success bg-[color-mix(in_srgb,var(--success)_12%,transparent)]"></span>
+                      <span class="font-mono text-[10px] text-tertiary">R={{ a.rayonPoi }}/POI</span>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
             @switch (degradeActif()) {
               @case ('carreaux') {
                 <div data-bloc="carreaux">
@@ -143,6 +175,20 @@ interface Palier {
                 </div>
               }
             }
+            @if (figuresPoi().length > 0) {
+              <!-- BlocFigures (LegendeCarte.tsx:466-523) : les types de POI choisis ; TMJA et radio arrivent avec T9. -->
+              <div data-bloc="figures">
+                <div class="mb-1 text-[11px] font-medium text-secondary">Figurés</div>
+                <div class="flex flex-col gap-1">
+                  @for (f of figuresPoi(); track f.cat) {
+                    <div [attr.data-figure]="f.cat" class="flex items-center gap-1.5">
+                      <span class="size-2 shrink-0 rounded-full" [style.background]="f.couleur"></span>
+                      <span class="font-mono text-[10px] text-tertiary">{{ f.cat }}</span>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
           </div>
         }
       </div>
@@ -160,8 +206,33 @@ export class LegendeCarteComponent {
   protected readonly ouvert = signal(true);
   protected readonly titreCarreaux = libelleDegrade('carreaux');
 
-  /** Les figurés ponctuels n'existent pas encore (T8, T9) : la boîte ne s'ouvre que pour un dégradé qui a son bloc. */
-  protected readonly visible = computed(() => degradeALegende(this.degradeActif()));
+  private readonly pois = inject(PoisService);
+  private readonly etat = inject(EtatCarteService);
+
+  /** Les catégories de la zone affichée, triées, avec leur compte et les rayons (`activeCats`, `page.tsx:843`). */
+  protected readonly analyse = computed(() => {
+    const zone = this.pois.zone();
+    if (!zone?.categories) return null;
+    const cats = Object.keys(zone.categories).sort();
+    if (cats.length === 0) return null;
+    const styles = this.pois.styles();
+    const rPoi = zone.rayon_poi_metres;
+    return {
+      categories: cats.map((cat) => ({ cat, n: zone.categories[cat], couleur: couleurPoi({ categorie: cat }, styles, zone) })),
+      rayonZone: zone.rayon_metres ? (zone.rayon_metres / 1000).toFixed(1) : null,
+      rayonPoi: rPoi ? (rPoi >= 1000 ? `${(rPoi / 1000).toFixed(1)}km` : `${rPoi}m`) : null,
+    };
+  });
+  /** Les types de POI choisis (`selectedPOI`), dans la couleur de leur épingle. */
+  protected readonly figuresPoi = computed(() => {
+    const styles = this.pois.styles();
+    return this.etat.poiSelectionnes().map((cat) => ({ cat, couleur: couleurPoi({ categorie: cat }, styles, {}) }));
+  });
+
+  /** La boîte ne s'ouvre que si un bloc rendra quelque chose (`LegendeCarte.tsx:596-606`) — jamais vide. */
+  protected readonly visible = computed(
+    () => degradeALegende(this.degradeActif()) || this.analyse() !== null || this.figuresPoi().length > 0,
+  );
 
   protected readonly uniteCarreaux = computed(() => {
     const ind = this.carreaux.indicateur();

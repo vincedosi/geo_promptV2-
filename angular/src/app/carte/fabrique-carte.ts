@@ -35,3 +35,23 @@ export const FABRIQUE_POPUP = new InjectionToken<FabriquePopup>('FABRIQUE_POPUP'
   providedIn: 'root',
   factory: () => (options) => new maplibregl.Popup(options),
 });
+
+/** Ce qu'un marqueur DOM doit savoir faire ici : la surface de `maplibregl.Marker` employée par la carte principale. */
+export interface MarqueurCarte {
+  setLngLat(lngLat: maplibregl.LngLatLike): MarqueurCarte;
+  setPopup(popup: PopupCarte): MarqueurCarte;
+  addTo(carte: maplibregl.Map): MarqueurCarte;
+  remove(): MarqueurCarte;
+}
+
+export type FabriqueMarqueur = (options: maplibregl.MarkerOptions) => MarqueurCarte;
+
+/**
+ * Qui crée un marqueur (lot 4, T8). Même raison que les deux jetons ci-dessus. L'ÉLÉMENT du marqueur est créé par
+ * l'appelant avec le document de la carte (`getContainer().ownerDocument`), jamais un composant Angular dynamique :
+ * MapLibre le range dans son conteneur, donc dans la racine d'ombre.
+ */
+export const FABRIQUE_MARQUEUR = new InjectionToken<FabriqueMarqueur>('FABRIQUE_MARQUEUR', {
+  providedIn: 'root',
+  factory: () => (options) => new maplibregl.Marker(options) as unknown as MarqueurCarte,
+});

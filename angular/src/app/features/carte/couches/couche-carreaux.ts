@@ -2,6 +2,7 @@ import type maplibregl from 'maplibre-gl';
 import { PLANCHER_LOG, palierEchelle, type BornesEchelle } from '../logique/carreaux/bornes';
 import { bornesInternes, donneeExploitableExpr, hauteurExtrusionExpr } from '../logique/carreaux/expressions';
 import { denominateurDe } from '../logique/carreaux/normalisation';
+import { avantDe } from '../logique/ordre-couches';
 import { CARREAUX_PALETTES } from '../logique/palettes-donnees-carte';
 
 /**
@@ -105,6 +106,7 @@ export interface PeintureCarreaux {
 /**
  * Pose la source et ses trois couches (`useMapInit.ts:924-975`), IDEMPOTENT : chaque ajout teste l'instance
  * COURANTE, jamais un drapeau gardé hors d'elle — une carte recréée par un changement de fond n'a plus rien.
+ * Chaque couche s'insère à SA place dans l'ordre de React (`avantDe`, `logique/ordre-couches.ts`, T8).
  * `minzoom: 4` et non 6 : sous son minzoom, MapLibre ne DEMANDE pas les tuiles.
  */
 export function poserCouchesCarreaux(carte: CarteCarreaux, urlTuiles: string, p: PeintureCarreaux): void {
@@ -120,7 +122,7 @@ export function poserCouchesCarreaux(carte: CarteCarreaux, urlTuiles: string, p:
     carte.addLayer({
       id: COUCHE_CARREAUX_FOND, type: 'fill', source: SOURCE_CARREAUX, 'source-layer': 'carreaux', minzoom: 4,
       paint, layout: { visibility: v.fond },
-    } as maplibregl.LayerSpecification);
+    } as maplibregl.LayerSpecification, avantDe(carte, COUCHE_CARREAUX_FOND));
   }
   if (!carte.getLayer(COUCHE_CARREAUX_RELIEF)) {
     const paint: Record<string, unknown> = {
@@ -130,7 +132,7 @@ export function poserCouchesCarreaux(carte: CarteCarreaux, urlTuiles: string, p:
     carte.addLayer({
       id: COUCHE_CARREAUX_RELIEF, type: 'fill-extrusion', source: SOURCE_CARREAUX, 'source-layer': 'carreaux', minzoom: 4,
       paint, layout: { visibility: v.relief },
-    } as maplibregl.LayerSpecification);
+    } as maplibregl.LayerSpecification, avantDe(carte, COUCHE_CARREAUX_RELIEF));
   }
   if (!carte.getLayer(COUCHE_CARREAUX_TRAIT)) {
     carte.addLayer({
@@ -141,7 +143,7 @@ export function poserCouchesCarreaux(carte: CarteCarreaux, urlTuiles: string, p:
         'line-opacity': p.opacite.trait,
       },
       layout: { visibility: v.fond },
-    } as maplibregl.LayerSpecification);
+    } as maplibregl.LayerSpecification, avantDe(carte, COUCHE_CARREAUX_TRAIT));
   }
 }
 

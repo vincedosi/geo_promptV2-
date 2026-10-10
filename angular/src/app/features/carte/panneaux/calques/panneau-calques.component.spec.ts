@@ -11,11 +11,19 @@ import { CouchesCarteService } from '../../etat/couches-carte.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { CARREAUX_INDICATEURS } from '../../logique/carreaux/catalogue';
 import { PanneauCalquesComponent } from './panneau-calques.component';
+import { PoisService } from '../../couches/pois.service';
+import { OohService } from '../../couches/ooh.service';
+import { TransportService } from '../../couches/transport.service';
+import { CataloguePoiService } from '../../etat/catalogue-poi.service';
+import { CarteApi } from '../../data/carte.api';
+import { of } from 'rxjs';
 
 function monter() {
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), CarreauxService, IrisService, EtatCarteService, CouchesCarteService, AnnonceService,
+      PoisService, OohService, TransportService, CataloguePoiService,
+      { provide: CarteApi, useValue: { categories: () => of({ categories: ['lycee'] }) } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },
       { provide: IrisApi, useValue: { urlTuiles: () => '', bornes: () => NEVER, detail: () => NEVER } },
       { provide: CouleursService, useValue: { palette: () => signal({ absente: '#9aa0a6', trait: '#555555' }) } },
@@ -133,5 +141,45 @@ describe('PanneauCalquesComponent', () => {
     expect(carreaux.relief()).toBe(true);
     expect(el.querySelector('button[data-relief]')!.textContent!.trim()).toBe('Relief 3D ✓');
     expect(el.textContent).toContain('×1.5');
+  });
+
+  it('POI et mobilité, Médias offline : les vraies sections (T8) ; badges et « Actifs » suivent les sélections', async () => {
+    const { el, rendre, etat, groupe } = monter();
+    groupe('POI et mobilité').click();
+    await rendre();
+    expect(el.querySelector('mg-section-poi')).not.toBeNull();
+    expect(el.querySelector('mg-section-transport')).not.toBeNull();
+    expect(el.querySelector('[data-provisoire]')?.textContent ?? '').not.toContain('POI');
+    etat.poiSelectionnes.set(['lycee', 'college']);
+    groupe('POI et mobilité').querySelector('span')!.click();
+    await rendre();
+    // Le contenu reste rendu le temps d'un geste ; les sélections de transport vivent dans le panneau.
+    groupe('POI et mobilité').click();
+    await rendre();
+    (el.querySelector('mg-section-transport mg-entete-filtre') as HTMLElement).click();
+    await rendre();
+    (el.querySelector('[data-type="bus"]') as HTMLButtonElement).click();
+    await rendre();
+    expect(groupe('POI et mobilité').querySelector('[data-compte]')!.textContent!.trim()).toBe('3');
+    // Replier puis rouvrir le groupe GARDE les types de transport (état du panneau, pas de la section).
+    groupe('POI et mobilité').click();
+    await rendre();
+    groupe('POI et mobilité').click();
+    await rendre();
+    expect(el.querySelector('[data-type="bus"]')!.getAttribute('aria-pressed')).toBe('true');
+    expect(el.textContent).toContain('POI (2)');
+    expect(el.textContent).toContain('Transport (1)');
+    groupe('Médias offline').click();
+    await rendre();
+    expect(el.querySelector('mg-section-ooh')).not.toBeNull();
+    (el.querySelector('mg-section-ooh mg-entete-filtre') as HTMLElement).click();
+    await rendre();
+    (el.querySelector('[data-tout]') as HTMLButtonElement).click();
+    await rendre();
+    expect(el.textContent).toContain('OOH (8 régies)');
+    expect(groupe('Médias offline').querySelector('[data-compte]')!.textContent!.trim()).toBe('8');
+    (el.querySelector('[data-actif="poi"] button') as HTMLButtonElement).click();
+    await rendre();
+    expect(etat.poiSelectionnes()).toEqual([]);
   });
 });
