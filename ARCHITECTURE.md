@@ -1470,7 +1470,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/radio/stats` | GET | Stats radios |
 | `/api/radio/audit` | GET | Audit matching radio |
 | `/api/radio/data` | DELETE | ⚠️ **Suppression** des donnees radio (`{ target: 'emetteurs' \| 'radios' \| 'all', confirm }`, `requireAdmin()`) — et NON un GET « donnees radio », comme ce tableau l'annoncait jusqu'au 2026-09-16. **Le fichier n'est pas suivi par git** (motif `data/` de `.gitignore:45`) : il n'existe donc pas en production, ou le bouton de `/admin/radio` repond 404. Voir la note de la section « RLS — DORMANTES » |
-| `/api/radio/import-anfr` | POST | Import ANFR (requireAdmin) |
+| `/api/radio/import-anfr` | POST | Import ANFR (requireAdmin). Phase DIFF : les emetteurs deja en base sont lus par `lireTout` (pagine, borne 100 000) depuis le 2026-10-10 — l'ancienne boucle paginait par 5 000 et s'arretait sur une page de moins de 5 000, donc APRES LA PREMIERE PAGE de 1 000 (`db-max-rows`) : 11 704 des 12 704 emetteurs echappaient au diff (jamais supprimes, comptes nouveaux) |
 | `/api/radio/import-arcom-ods` | POST | Import Arcom ODS (requireAdmin) |
 | `/api/radio/crawl-arcom` | POST | Crawl + matching Arcom (requireAdmin) |
 | `/api/radio/imports-history` | GET | Historique imports |

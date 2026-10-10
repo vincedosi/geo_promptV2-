@@ -7,8 +7,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { downloadAndParseAnfr } from './anfr-parser';
 import { ImportLogger } from './import-logger';
 import type { ImportStats } from './types';
+import { lireTout } from '@/lib/supabase/lire-tout';
 
 const BATCH = 500;
+
+/** Borne de la lecture des émetteurs en base (12 704 le 2026-10-10) : au-delà, l'import échoue au lieu de tronquer. */
+const PLAFOND_EMETTEURS = 100_000;
 
 type ProgressCallback = (event: Record<string, unknown>) => void;
 
@@ -66,17 +70,18 @@ export async function importAnfrData(
 
     // ── Phase DIFF ──────────────────────────────────────────────────────────
     const { existingSet, toDelete } = await logger.phase('DIFF', async () => {
-      // Paginate to avoid PostgREST 5000 row limit
-      const allExisting: string[] = [];
-      let off = 0;
-      while (true) {
-        const { data } = await supabase.from('emetteurs_radio').select('sta_nm_anfr').range(off, off + 4999);
-        if (!data || data.length === 0) break;
-        allExisting.push(...data.map((e: { sta_nm_anfr: string }) => e.sta_nm_anfr));
-        if (data.length < 5000) break;
-        off += 5000;
-      }
-      const existingSet = new Set(allExisting);
+      // Lecture PAGINÉE de tous les émetteurs en base. L'ancienne boucle
+      // paginait par 5 000 et s'arrêtait sur une page de moins de 5 000 ; or
+      // PostgREST coupe toute requête de table à `db-max-rows` = 1 000 : elle
+      // s'arrêtait donc APRÈS LA PREMIÈRE PAGE, et 11 704 des 12 704 émetteurs
+      // (2026-10-10) échappaient au diff — jamais supprimés, comptés nouveaux.
+      // `lireTout` pagine sous le plafond et échoue au-delà de sa borne ;
+      // `order('sta_nm_anfr')` (clé unique) : deux pages ne se recouvrent pas.
+      const { lignes } = await lireTout<{ sta_nm_anfr: string }>(
+        (de, a) => supabase.from('emetteurs_radio').select('sta_nm_anfr').order('sta_nm_anfr').range(de, a),
+        PLAFOND_EMETTEURS,
+      );
+      const existingSet = new Set(lignes.map((e) => e.sta_nm_anfr));
       const newSet = new Set(emetteurs.map(e => e.sta_nm_anfr));
       const toDelete = [...existingSet].filter(k => !newSet.has(k));
       const newCount = emetteurs.filter(e => !existingSet.has(e.sta_nm_anfr)).length;
