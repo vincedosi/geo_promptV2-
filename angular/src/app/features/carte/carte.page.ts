@@ -12,6 +12,7 @@ import { CarreauxService } from './couches/carreaux.service';
 import { DetailIrisComponent } from './couches/detail-iris.component';
 import { IndicateursCiviquesService } from './couches/indicateurs-civiques.service';
 import { IrisService } from './couches/iris.service';
+import { MeteoService } from './couches/meteo.service';
 import { OohService } from './couches/ooh.service';
 import { PoisService } from './couches/pois.service';
 import { RadioService } from './couches/radio.service';
@@ -28,12 +29,14 @@ import { EtatCarteService } from './etat/etat-carte.service';
 import { lireFondMemorise, memoriserFond, urlDuFond } from './etat/fond-carte';
 import { PileEchapService } from './etat/pile-echap.service';
 import { ReferentielGeoService } from './etat/referentiel-geo.service';
+import { ZonesMeteoService } from './etat/zones-meteo.service';
 import { PuceFiltreComponent } from './filtre/puce-filtre.component';
 import { LegendeCarteComponent } from './legende/legende-carte.component';
 import { ignorerRaccourciClavier } from './logique/garde-saisie';
 import { franciserLibelles } from './logique/libelles-fr';
 import { ENTREES_NAVIGATION, LARGEUR_RAIL, type EntreeId, entreeParRaccourci } from './logique/navigation';
 import { AideComponent } from './panneaux/aide.component';
+import { DialogueMeteoComponent } from './panneaux/calques/dialogue-meteo.component';
 import { PanneauCalquesComponent } from './panneaux/calques/panneau-calques.component';
 import { PanneauFiltreComponent } from './panneaux/filtre/panneau-filtre.component';
 import { ReglagesComponent } from './panneaux/reglages.component';
@@ -95,13 +98,13 @@ export function palierCarreaux(zoom: number): string {
 @Component({
   selector: 'mg-carte-principale',
   imports: [
-    AideComponent, AnnonceComponent, BarreHautComponent, BoutonsFlottantsComponent, CarteComponent, DetailIrisComponent,
+    AideComponent, AnnonceComponent, BarreHautComponent, BoutonsFlottantsComponent, CarteComponent, DetailIrisComponent, DialogueMeteoComponent,
     FondCompactComponent, LegendeCarteComponent, PanneauCalquesComponent, PanneauComponent, PanneauFiltreComponent, PuceFiltreComponent,
     RailComponent, ReglagesComponent, RouterOutlet, TiroirPanneauComponent, ZoneActiveComponent,
   ],
   providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
     IrisService, PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService,
-    IndicateursCiviquesService, SanteService,
+    IndicateursCiviquesService, SanteService, ZonesMeteoService, MeteoService,
   ],
   templateUrl: './carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -122,6 +125,8 @@ export class CartePage {
   private readonly injecteur = inject(Injector);
   private readonly iris = inject(IrisService);
   private readonly pois = inject(PoisService);
+  /** La météo (T11) : la page monte son dialogue, comme la modale de `page.tsx:1456-1488`. */
+  protected readonly meteo = inject(MeteoService);
   private readonly document = inject(DOCUMENT);
 
   protected readonly largeurRail = LARGEUR_RAIL;
@@ -166,8 +171,8 @@ export class CartePage {
     });
 
     inject(DestroyRef).onDestroy(() => this.couches.publier(null));
-    // Les deux choroplèthes « Environnement » (T10) existent dès l'ouverture : elles s'inscrivent à l'éviction de leur
-    // dégradé et à « Tout effacer » avant tout geste, même panneau Calques fermé.
+    // Les choroplèthes « Environnement » (T10, et la météo T11, injectée plus haut) existent dès l'ouverture : elles
+    // s'inscrivent à l'éviction de leur dégradé et à « Tout effacer » avant tout geste, même panneau Calques fermé.
     inject(IndicateursCiviquesService);
     inject(SanteService);
 
@@ -194,6 +199,15 @@ export class CartePage {
       const ouvert = this.pois.panneauSelectionne() !== null;
       if (tiroirOuvert && !ouvert) afterNextRender(() => this.rendreFocus(), { injector: this.injecteur });
       tiroirOuvert = ouvert;
+    });
+
+    // Même règle pour le dialogue météo (T11) : retiré pendant qu'il portait le focus, il le laisserait sur <body> —
+    // un second Échap ne fermerait plus le panneau Calques derrière lui (constaté au navigateur).
+    let dialogueMeteoOuvert = false;
+    effect(() => {
+      const ouvert = this.meteo.dialogueOuvert();
+      if (dialogueMeteoOuvert && !ouvert) afterNextRender(() => this.rendreFocus(), { injector: this.injecteur });
+      dialogueMeteoOuvert = ouvert;
     });
 
     // Le focus sur l'hôte à l'ouverture : sans lui, aucun raccourci ne l'atteint avant le premier clic.

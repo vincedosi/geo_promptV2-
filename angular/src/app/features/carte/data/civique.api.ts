@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import type { Observable } from 'rxjs';
 import { HttpBaseService } from '../../../core/http/http-base.service';
 import { lignesNdjson } from '../../../core/http/ndjson';
+import type { MeteoScale } from '../logique/meteo/types';
 import type { CodeVariableCivique } from '../logique/palettes-donnees-carte';
 import type { EchelleSante, JeuSante } from '../logique/sante';
 
@@ -134,8 +135,11 @@ export class CiviqueApi extends HttpBaseService {
     return this.httpClient.get<ReponseSanteCommune>(`${this.baseUrl}/civic-indicators/health/${encodeURIComponent(codeCommune)}`);
   }
 
-  /** `GET /api/meteo-geo/zones?scale=…` — polygones des départements ou des codes postaux. */
-  zones(echelle: EchelleSante): Observable<GeoJSON.FeatureCollection> {
+  /**
+   * `GET /api/meteo-geo/zones?scale=…` — polygones des régions, des départements ou des codes postaux. Lu par la santé
+   * environnementale (T10) et la météo (T11), toujours à travers `ZonesMeteoService`, qui les met en cache pour l'écran.
+   */
+  zones(echelle: EchelleSante | MeteoScale): Observable<GeoJSON.FeatureCollection> {
     return this.httpClient.get<GeoJSON.FeatureCollection>(`${this.baseUrl}/meteo-geo/zones?scale=${echelle}`);
   }
 

@@ -3,6 +3,7 @@ import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { CarreauxService } from '../../couches/carreaux.service';
 import { IndicateursCiviquesService } from '../../couches/indicateurs-civiques.service';
 import { IrisService } from '../../couches/iris.service';
+import { MeteoService } from '../../couches/meteo.service';
 import { RadioService } from '../../couches/radio.service';
 import { SanteService } from '../../couches/sante.service';
 import { TmjaService } from '../../couches/tmja.service';
@@ -12,6 +13,7 @@ import { GroupeCalquesComponent } from './groupe-calques.component';
 import { SectionCarreauxComponent } from './section-carreaux.component';
 import { SectionCiviqueComponent } from './section-civique.component';
 import { SectionIrisComponent } from './section-iris.component';
+import { SectionMeteoComponent } from './section-meteo.component';
 import { SectionOohComponent } from './section-ooh.component';
 import { SectionPoiComponent } from './section-poi.component';
 import { SectionRadioComponent } from './section-radio.component';
@@ -37,8 +39,8 @@ interface ActifCalque {
  * React (`useState`, `PanneauCalques.tsx:240-243`), le panneau repart replié à chaque réouverture.
  *
  * T6 a porté le CADRE et les carreaux Filosofi, T7 les IRIS, T8 les POI, le transport et les panneaux OOH, T9 le flux
- * routier (TMJA) et la radio, T10 les indicateurs civiques et la santé environnementale ; chaque groupe se remplit dans
- * sa tâche : risques industriels et météo (T11-T12), « Mes analyses » (T18). Les sections
+ * routier (TMJA) et la radio, T10 les indicateurs civiques et la santé environnementale, T11 la météo ; chaque groupe se
+ * remplit dans sa tâche : risques industriels (T12), « Mes analyses » (T18). Les sections
  * internes de ces groupes (`useFilterSections(true, …)` en mode overlay) ne mémorisent rien non plus : leur état, les
  * régies OOH et les types de transport choisis vivent dans `SelectionsCalquesService`, fourni par CE composant — il
  * survit au repli d'un groupe et disparaît à la fermeture du panneau, comme l'état React.
@@ -48,7 +50,7 @@ interface ActifCalque {
 @Component({
   selector: 'mg-panneau-calques',
   imports: [
-    GroupeCalquesComponent, IconeComponent, SectionCarreauxComponent, SectionCiviqueComponent, SectionIrisComponent,
+    GroupeCalquesComponent, IconeComponent, SectionCarreauxComponent, SectionCiviqueComponent, SectionIrisComponent, SectionMeteoComponent,
     SectionOohComponent, SectionPoiComponent, SectionRadioComponent, SectionSanteComponent, SectionTmjaComponent,
     SectionTransportComponent,
   ],
@@ -112,11 +114,12 @@ interface ActifCalque {
 
     <mg-groupe-calques titre="Environnement" [ouvert]="groupes().environnement" [compte]="compteEnvironnement()" (basculer)="basculer('environnement')">
       @if (groupes().environnement) {
-        <p data-provisoire class="px-4 pt-2 text-[12px] text-tertiary">Les risques industriels et la météo arrivent avec les tâches 11 et 12.</p>
+        <p data-provisoire class="px-4 pt-2 text-[12px] text-tertiary">Les risques industriels arrivent avec la tâche 12.</p>
         <!-- PanneauCalques.tsx:600-637 : padding 16, sections espacées de 16. -->
         <div class="flex flex-col gap-4 p-4">
           <mg-section-civique />
           <mg-section-sante />
+          <mg-section-meteo />
         </div>
       }
     </mg-groupe-calques>
@@ -137,6 +140,7 @@ export class PanneauCalquesComponent {
   private readonly radio = inject(RadioService);
   private readonly civique = inject(IndicateursCiviquesService);
   private readonly sante = inject(SanteService);
+  private readonly meteo = inject(MeteoService);
 
   protected readonly groupes = signal<Record<CleGroupe, boolean>>({
     socioDemo: false, poiMobilite: false, mediasOffline: false, environnement: false, analyses: false,
@@ -149,8 +153,10 @@ export class PanneauCalquesComponent {
   );
   /** `selectedOOH.length + (radioVisible ? 1 : 0)` (`PanneauCalques.tsx:529`). */
   protected readonly compteMedias = computed(() => this.selections.regiesOoh().length + (this.radio.visible() ? 1 : 0));
-  /** `(civicVariableCode ? 1 : 0) + (civicHealthLayer ? 1 : 0)` (`PanneauCalques.tsx:575`) — risques et météo : T11-T12. */
-  protected readonly compteEnvironnement = computed(() => (this.civique.variable() ? 1 : 0) + (this.sante.jeu() ? 1 : 0));
+  /** `(civicVariableCode ? 1 : 0) + (civicHealthLayer ? 1 : 0) + (meteoVisible ? 1 : 0)` (`PanneauCalques.tsx:575`) — risques : T12. */
+  protected readonly compteEnvironnement = computed(
+    () => (this.civique.variable() ? 1 : 0) + (this.sante.jeu() ? 1 : 0) + (this.meteo.visible() ? 1 : 0),
+  );
   protected readonly actifs = computed<ActifCalque[]>(() => {
     const liste: ActifCalque[] = [];
     if (this.carreaux.visible()) {
@@ -175,6 +181,8 @@ export class PanneauCalquesComponent {
       liste.push({ id: 'civic-indicateurs', label: libelleDegrade('civic-indicateurs'), retirer: () => this.civique.choisir(null) });
     }
     if (this.sante.jeu()) liste.push({ id: 'civic-sante', label: libelleDegrade('civic-sante'), retirer: () => this.sante.choisirJeu(null) });
+    // `PanneauCalques.tsx:339` : la croix fait `onClearMeteo` — dégradé rendu ET couche vidée.
+    if (this.meteo.visible()) liste.push({ id: 'meteo', label: libelleDegrade('meteo'), retirer: () => this.meteo.masquer() });
     return liste;
   });
 

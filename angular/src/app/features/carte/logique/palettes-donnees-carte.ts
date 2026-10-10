@@ -303,3 +303,17 @@ export const JETONS_NIVEAUX_SANTE: Record<'pollen' | 'atmo', Record<0 | 1 | 2 | 
     4: 'atmo-level-4', 5: 'atmo-level-5', 6: 'atmo-level-6',
   },
 };
+
+// ---------------------------------------------------------------------------
+// Météo (T11) — `app/copilote/_hooks/useMapInit.ts:368-383`
+// ---------------------------------------------------------------------------
+
+/**
+ * Opacité de l'aplat (`'fill-opacity': 0.55`) et trait des zones (`'line-color': 'rgba(0,0,0,0.45)'`,
+ * `'line-width': 0.8`) de `meteo-fill` / `meteo-outline`. Le trait est un NOIR translucide dans les deux
+ * thèmes chez React : gardé (B12), il cerne des teintes de DONNÉES qui ne basculent pas non plus. Les teintes
+ * de l'aplat sont `METEO_PALETTES` (`logique/meteo/palettes.ts`, B12) ; le `#4ecdc4` de React n'était qu'une
+ * valeur de départ « overridée dynamiquement » — la couche Angular naît avec l'expression de la variable.
+ */
+export const OPACITE_METEO = 0.55;
+export const TRAIT_METEO = { couleur: 'rgba(0,0,0,0.45)', largeur: 0.8 } as const;

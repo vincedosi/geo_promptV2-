@@ -2,7 +2,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type maplibregl from 'maplibre-gl';
 import { CarteFactice } from '../../../carte/testing/carte-factice';
-import { CouchesCarteService } from './couches-carte.service';
+import { CouchesCarteService, quandStyleCharge } from './couches-carte.service';
 
 function monter() {
   TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection(), CouchesCarteService] });
@@ -32,5 +32,43 @@ describe('CouchesCarteService', () => {
     expect(a).toHaveBeenCalledTimes(1);
     expect(b1).not.toHaveBeenCalled();
     expect(b2).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('quandStyleCharge', () => {
+  it('style chargé : posé tout de suite', () => {
+    const carte = new CarteFactice();
+    carte.styleCharge = true;
+    let n = 0;
+    quandStyleCharge(carte, () => n++);
+    expect(n).toBe(1);
+  });
+
+  it('carte recréée publiée au `load` mais tuiles en cours (isStyleLoaded faux) : posé au premier `idle`, UNE fois', () => {
+    const carte = new CarteFactice();
+    let n = 0;
+    quandStyleCharge(carte, () => n++);
+    expect(n).toBe(0);
+    carte.emettre('idle');
+    expect(n).toBe(1);
+    carte.emettre('load');
+    carte.emettre('idle');
+    expect(n).toBe(1);
+  });
+
+  it('`load` d’abord : posé une fois ; écoute retirée avant tout événement : jamais posé', () => {
+    const carte = new CarteFactice();
+    let n = 0;
+    quandStyleCharge(carte, () => n++);
+    carte.emettre('load');
+    carte.emettre('idle');
+    expect(n).toBe(1);
+    const autre = new CarteFactice();
+    let m = 0;
+    const annuler = quandStyleCharge(autre, () => m++);
+    annuler();
+    autre.emettre('load');
+    autre.emettre('idle');
+    expect(m).toBe(0);
   });
 });

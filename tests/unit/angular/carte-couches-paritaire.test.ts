@@ -377,6 +377,16 @@ describe('fonds de carte, palettes de données et constantes de calques', () => 
     }
   });
 
+  it('météo (T11) : opacité de l’aplat et trait égaux aux littéraux de paint de useMapInit', () => {
+    expect(Apal.OPACITE_METEO).toBe(0.55);
+    expect(Apal.TRAIT_METEO).toEqual({ couleur: 'rgba(0,0,0,0.45)', largeur: 0.8 });
+    const src = readFileSync('app/copilote/_hooks/useMapInit.ts', 'utf8');
+    const bloc = src.slice(src.indexOf("map.addSource('meteo-source'"), src.indexOf("map.addSource('tmja-source'"));
+    expect(bloc).toContain(`'fill-opacity': ${Apal.OPACITE_METEO},`);
+    expect(bloc).toContain(`'line-color': '${Apal.TRAIT_METEO.couleur}',`);
+    expect(bloc).toContain(`'line-width': ${Apal.TRAIT_METEO.largeur},`);
+  });
+
   it('radio : teintes égales aux littéraux de paint de useMapInit', () => {
     const src = readFileSync('app/copilote/_hooks/useMapInit.ts', 'utf8');
     for (const [p, c] of Object.entries(Apal.TEINTES_RADIO.portee)) expect(src, p).toContain(`'${p}', '${c}'`);

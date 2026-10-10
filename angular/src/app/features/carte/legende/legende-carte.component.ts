@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, signal } f
 import { IconeComponent } from '../../../ui/icone/icone.component';
 import { CarreauxService } from '../couches/carreaux.service';
 import { IrisService } from '../couches/iris.service';
+import { MeteoService } from '../couches/meteo.service';
 import { couleurPoi } from '../couches/couche-pois';
 import { PoisService } from '../couches/pois.service';
 import { RadioService } from '../couches/radio.service';
@@ -25,8 +26,7 @@ import { ATMO_LEVEL_LABELS, POLLEN_LEVEL_LABELS } from '../logique/sante';
  * UNIQUE de la question : la boîte ne s'ouvre jamais vide. Le `switch` est EXHAUSTIF (`never`) : un dégradé ajouté à
  * `DegradeId` sans décision ici fait échouer la compilation.
  *
- * Carreaux (T6), IRIS (T7), indicateurs civiques et santé (T10) sont portés. Chaque tâche de couche passe SON cas à
- * `true` en ajoutant son bloc : météo (T11). Côté React, `civic-indicateurs` et `civic-sante` vérifiaient aussi la
+ * Carreaux (T6), IRIS (T7), indicateurs civiques et santé (T10), météo (T11) sont portés. Côté React, `civic-indicateurs` et `civic-sante` vérifiaient aussi la
  * variable / le jeu : ici, le dégradé n'est réclamé QUE par `choisir(code)` / `choisirJeu(jeu)` non nuls, et l'éviction
  * remet la variable à `null` — l'un ne va pas sans l'autre. `score`, `diffusion` et `zones-risque` portent leur
  * propre légende, comme React.
@@ -38,10 +38,10 @@ export function degradeALegende(d: DegradeId | null): boolean {
     case 'iris':
     case 'civic-indicateurs':
     case 'civic-sante':
-      return true;
     case 'meteo':
+      return true;
     case 'campagne-impressions':
-      return false; // blocs à venir (T11 ; campagne : lot 5)
+      return false; // bloc à venir (lot 5)
     case 'score':
     case 'diffusion':
     case 'zones-risque':
@@ -216,6 +216,13 @@ interface Palier {
                   </div>
                 }
               }
+              @case ('meteo') {
+                <!-- LegendeCarte.tsx:297-304 : le titre et la variable affichée — React ne montre pas la rampe. -->
+                <div data-bloc="meteo">
+                  <div class="mb-1 text-[11px] font-medium text-secondary">{{ titreMeteo }}</div>
+                  <div class="font-mono text-[10px] text-tertiary">{{ meteo.libelle() ?? 'Couche active' }}</div>
+                </div>
+              }
             }
             @if (figuresVisibles()) {
               <!-- BlocFigures (LegendeCarte.tsx:466-523) : les types de POI choisis, les paliers TMJA, les émetteurs radio. -->
@@ -269,6 +276,8 @@ export class LegendeCarteComponent {
   protected readonly paliersTmja = LEGENDE_TMJA;
   private readonly sante = inject(SanteService);
   protected readonly titreCivique = libelleDegrade('civic-indicateurs');
+  protected readonly meteo = inject(MeteoService);
+  protected readonly titreMeteo = libelleDegrade('meteo');
   protected readonly legendeAbstention = ABSTENTION_LEGEND;
   protected readonly reperesAbstention = ABSTENTION_LEGEND_REPERES;
   /** Les six niveaux du jeu affiché : `var(--pollen-level-N)` / `var(--atmo-level-N)` (DOM : le jeton est résolu). */

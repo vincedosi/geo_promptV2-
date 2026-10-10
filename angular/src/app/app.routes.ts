@@ -16,6 +16,7 @@ import { CarteApi } from './features/carte/data/carte.api';
 import { IrisApi } from './features/carte/data/iris.api';
 import { RadioApi } from './features/carte/data/radio.api';
 import { CiviqueApi } from './features/carte/data/civique.api';
+import { MeteoApi } from './features/carte/data/meteo.api';
 import { ZonesCustomApi } from './features/carte/data/zones-custom.api';
 import { ZonesRisqueApi } from './features/risques/data/zones-risque.api';
 import { ProfilRisqueApi } from './features/risques/data/profil-risque.api';
@@ -56,6 +57,7 @@ const FOURNISSEURS_DISTANTS: (Provider | EnvironmentProviders)[] = [
   CarteApi,
   RadioApi,
   CiviqueApi,
+  MeteoApi,
 ];
 
 /**

@@ -12,6 +12,7 @@ import {
 import { AnnonceService } from '../etat/annonce.service';
 import { CouchesCarteService } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
+import { ZonesMeteoService } from '../etat/zones-meteo.service';
 import { BBOX_METRO } from '../logique/filtre';
 import { COUCHE_SANTE_FOND, COUCHE_SANTE_TRAIT, SOURCE_SANTE } from './couche-civique';
 import { SanteService } from './sante.service';
@@ -50,7 +51,7 @@ function monter() {
   const theme = signal<Record<number, string>>(POLLEN);
   TestBed.configureTestingModule({
     providers: [
-      provideZonelessChangeDetection(), SanteService, CouchesCarteService, EtatCarteService,
+      provideZonelessChangeDetection(), SanteService, CouchesCarteService, EtatCarteService, ZonesMeteoService,
       { provide: AnnonceService, useValue: { annoncer: () => undefined } },
       {
         provide: CiviqueApi,

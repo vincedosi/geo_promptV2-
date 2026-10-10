@@ -1,12 +1,13 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { DOCUMENT, DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
-import { type Observable, type Subscription, of, switchMap, tap } from 'rxjs';
+import { type Observable, type Subscription, switchMap, tap } from 'rxjs';
 import { FABRIQUE_POPUP, type PopupCarte } from '../../../carte/fabrique-carte';
 import { CouleursService } from '../../../core/theme/couleurs.service';
 import { CiviqueApi, type LigneDepartement, type ReponseSanteCp } from '../data/civique.api';
 import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
+import { ZonesMeteoService } from '../etat/zones-meteo.service';
 import { bboxPourRequete } from '../logique/bbox-requete';
 import { JETONS_NIVEAUX_SANTE, OPACITE_SANTE, TRAIT_SANTE } from '../logique/palettes-donnees-carte';
 import { type EchelleSante, type JeuSante, METRIQUES_SANTE } from '../logique/sante';
@@ -58,6 +59,7 @@ export class SanteService {
   private readonly etat = inject(EtatCarteService);
   private readonly couches = inject(CouchesCarteService);
   private readonly api = inject(CiviqueApi);
+  private readonly zonesMeteo = inject(ZonesMeteoService);
   private readonly fabriquePopup = inject(FABRIQUE_POPUP);
   private readonly document = inject(DOCUMENT);
   private readonly palettes = {
@@ -96,7 +98,6 @@ export class SanteService {
 
   /** L'instance où la couche est POSÉE. */
   private readonly posee = signal<maplibregl.Map | null>(null);
-  private readonly zonesParEchelle = new Map<EchelleSante, GeoJSON.FeatureCollection>();
   private zones: GeoJSON.FeatureCollection | null = null;
   private entrees = new Map<string, EntreeZone>();
   /** La clé de la dernière lecture COMPLÈTE : la même clé sur une carte recréée se re-pose sans relire. */
@@ -229,10 +230,8 @@ export class SanteService {
     this.erreur.set(null);
     this.entrees = new Map();
     this.cleComplete = null;
-    const enCache = this.zonesParEchelle.get(echelle);
-    const zones$: Observable<GeoJSON.FeatureCollection> = enCache
-      ? of(enCache)
-      : this.api.zones(echelle).pipe(tap((z) => this.zonesParEchelle.set(echelle, z)));
+    // Contours en cache pour l'écran, PARTAGÉS avec la météo (T11, `ZonesMeteoService`) : une lecture par échelle.
+    const zones$ = this.zonesMeteo.zones(echelle);
     // UNE chaîne, UN abonnement (revue 1) : les contours en cache répondent de façon SYNCHRONE ; deux abonnements
     // imbriqués rangés dans le même champ perdaient l'abonnement au flux, que plus rien n'annulait.
     this.lecture = zones$.pipe(

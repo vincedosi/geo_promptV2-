@@ -22,14 +22,30 @@ import { CarteApi } from '../../data/carte.api';
 import { CiviqueApi } from '../../data/civique.api';
 import { IndicateursCiviquesService } from '../../couches/indicateurs-civiques.service';
 import { SanteService } from '../../couches/sante.service';
+import { MeteoService } from '../../couches/meteo.service';
+import { MeteoApi } from '../../data/meteo.api';
+import { ZonesMeteoService } from '../../etat/zones-meteo.service';
+import { FABRIQUE_POPUP } from '../../../../carte/fabrique-carte';
+import type { MeteoZoneChunk } from '../../logique/meteo/types';
 import { of } from 'rxjs';
+
+const META_METEO = {
+  variable: 'temperature_2m', unit: '°C', startDate: '2026-10-03', endDate: '2026-10-09', scale: 'departement', totalZones: 96, batchesTotal: 1,
+  cachedAt: null, stats: { min: 8, max: 16, mean: 12, p20: 0, p40: 0, p60: 0, p80: 0, unit: '°C' },
+} as const;
 
 function monter() {
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), CarreauxService, IrisService, EtatCarteService, CouchesCarteService, AnnonceService,
       PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService, IndicateursCiviquesService, SanteService,
-      { provide: CiviqueApi, useValue: { geojsonVariable: () => NEVER, zones: () => NEVER, santeDepartement: () => NEVER, santeCp: () => NEVER, santeCommune: () => NEVER } },
+      MeteoService, ZonesMeteoService,
+      { provide: MeteoApi, useValue: { donnees: () => of<MeteoZoneChunk>({ status: 'done', progress: 1, total: 1, data: {}, meta: META_METEO }) } },
+      { provide: FABRIQUE_POPUP, useValue: () => ({}) },
+      {
+        provide: CiviqueApi,
+        useValue: { geojsonVariable: () => NEVER, zones: () => of({ type: 'FeatureCollection', features: [] }), santeDepartement: () => NEVER, santeCp: () => NEVER, santeCommune: () => NEVER },
+      },
       { provide: CarteApi, useValue: { categories: () => of({ categories: ['lycee'] }), urlTuilesTmja: () => '' } },
       { provide: RadioApi, useValue: { optionsFiltre: () => NEVER, emetteurs: () => NEVER } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },
@@ -50,6 +66,7 @@ function monter() {
     radio: TestBed.inject(RadioService),
     civique: TestBed.inject(IndicateursCiviquesService),
     sante: TestBed.inject(SanteService),
+    meteo: TestBed.inject(MeteoService),
     titres: () => [...el.querySelectorAll('button[data-groupe]')].map((b) => b.querySelector('span')!.textContent!.trim()),
     groupe: (titre: string) => [...el.querySelectorAll<HTMLButtonElement>('button[data-groupe]')]
       .find((b) => b.textContent!.includes(titre))!,
@@ -234,6 +251,23 @@ describe('PanneauCalquesComponent', () => {
     await rendre();
     expect(sante.jeu()).toBeNull();
     expect(etat.degradeActif()).toBeNull();
+    expect(el.textContent).toContain('Actifs (0)');
+  });
+
+  it('Environnement (T11) : la section météo ; appliquée → compte, « Actifs » « Météo » ; la croix rend le dégradé et vide', async () => {
+    const { el, rendre, groupe, meteo, etat } = monter();
+    groupe('Environnement').click();
+    await rendre();
+    expect(el.querySelector('mg-section-meteo')).not.toBeNull();
+    expect(el.textContent).toContain('Les risques industriels arrivent avec la tâche 12.');
+    meteo.appliquer({ variable: 'temperature_2m', startDate: '2026-10-03', endDate: '2026-10-09', scale: 'departement' });
+    await rendre();
+    expect(etat.degradeActif()).toBe('meteo');
+    expect(groupe('Environnement').querySelector('[data-compte]')!.textContent!.trim()).toBe('1');
+    expect(el.querySelector('[data-actif="meteo"]')!.textContent).toContain('Météo');
+    el.querySelector<HTMLButtonElement>('[data-actif="meteo"] button[title="Masquer Météo"]')!.click();
+    await rendre();
+    expect([meteo.visible(), etat.degradeActif()]).toEqual([false, null]);
     expect(el.textContent).toContain('Actifs (0)');
   });
 

@@ -58,19 +58,33 @@ export class CouchesCarteService {
 interface CarteChargement {
   /** `boolean | void` : la signature de MapLibre (`maplibregl.Map.isStyleLoaded`). */
   isStyleLoaded(): boolean | void;
-  once(evt: 'load', rappel: () => void): unknown;
-  off(evt: 'load', rappel: () => void): unknown;
+  once(evt: 'load' | 'idle', rappel: () => void): unknown;
+  off(evt: 'load' | 'idle', rappel: () => void): unknown;
 }
 
 /**
- * Appelle `poser` tout de suite si le style est chargé, sinon au `load` — et rend de quoi retirer l'écoute
- * (à passer à `onCleanup`), pour qu'un effet rejoué ou une carte remplacée ne pose pas deux fois.
+ * Appelle `poser` tout de suite si le style est chargé, sinon au premier `load` OU `idle` — et rend de quoi retirer
+ * l'écoute (à passer à `onCleanup`), pour qu'un effet rejoué ou une carte remplacée ne pose pas deux fois.
+ *
+ * ⚠ `idle`, et pas seulement `load` (constaté au navigateur, T11) : `carteCourante` est publiée AU `load`, mais
+ * `isStyleLoaded()` de MapLibre rend `false` tant qu'une SOURCE charge encore ses tuiles — ce qui est le cas juste
+ * après la recréation de la carte par un changement de fond. Attendre `load`, déjà passé, laissait la couche
+ * jamais re-posée ; `idle` vient toujours, une fois les tuiles reçues.
  */
 export function quandStyleCharge(carte: CarteChargement, poser: () => void): () => void {
   if (carte.isStyleLoaded()) {
     poser();
     return () => undefined;
   }
-  carte.once('load', poser);
-  return () => carte.off('load', poser);
+  const retirer = () => {
+    carte.off('load', une);
+    carte.off('idle', une);
+  };
+  const une = () => {
+    retirer();
+    poser();
+  };
+  carte.once('load', une);
+  carte.once('idle', une);
+  return retirer;
 }

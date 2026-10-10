@@ -11,6 +11,10 @@ import { TmjaService } from '../couches/tmja.service';
 import { RadioApi } from '../data/radio.api';
 import { CiviqueApi } from '../data/civique.api';
 import { SanteService } from '../couches/sante.service';
+import { MeteoService } from '../couches/meteo.service';
+import { MeteoApi } from '../data/meteo.api';
+import { ZonesMeteoService } from '../etat/zones-meteo.service';
+import { FABRIQUE_POPUP } from '../../../carte/fabrique-carte';
 import { CarteApi } from '../data/carte.api';
 import { Subject } from 'rxjs';
 import type { CatalogueBornesIris } from '../logique/iris-echelle';
@@ -29,7 +33,9 @@ function monter() {
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), CarreauxService, IrisService, PoisService, EtatCarteService, CouchesCarteService, AnnonceService,
-      TmjaService, RadioService, SanteService,
+      TmjaService, RadioService, SanteService, MeteoService, ZonesMeteoService,
+      { provide: MeteoApi, useValue: { donnees: () => new Subject() } },
+      { provide: FABRIQUE_POPUP, useValue: () => ({}) },
       { provide: CiviqueApi, useValue: { zones: () => new Subject(), santeDepartement: () => new Subject(), santeCp: () => new Subject() } },
       { provide: CarteApi, useValue: {} },
       { provide: RadioApi, useValue: { optionsFiltre: () => new Subject(), emetteurs: () => new Subject() } },
@@ -45,6 +51,7 @@ function monter() {
     fixture, el, rendre, bornes$, carreaux: TestBed.inject(CarreauxService), iris: TestBed.inject(IrisService),
     pois: TestBed.inject(PoisService), etat: TestBed.inject(EtatCarteService),
     tmja: TestBed.inject(TmjaService), radio: TestBed.inject(RadioService), sante: TestBed.inject(SanteService),
+    meteo: TestBed.inject(MeteoService),
   };
 }
 
@@ -58,7 +65,7 @@ describe('LegendeCarteComponent', () => {
     await rendre();
     expect(el.querySelector('[data-legende]')).toBeNull();
     const tous: DegradeId[] = ['carreaux', 'iris', 'civic-indicateurs', 'civic-sante', 'meteo', 'campagne-impressions', 'score', 'diffusion', 'zones-risque'];
-    expect(tous.filter((d) => degradeALegende(d))).toEqual(['carreaux', 'iris', 'civic-indicateurs', 'civic-sante']);
+    expect(tous.filter((d) => degradeALegende(d))).toEqual(['carreaux', 'iris', 'civic-indicateurs', 'civic-sante', 'meteo']);
   });
 
   it('indicateurs civiques (T10) : titre, six teintes pondérées de React, trois repères', async () => {
@@ -71,6 +78,21 @@ describe('LegendeCarteComponent', () => {
     expect(paliers.map((p) => p.style.flexGrow)).toEqual(['0.5', '1', '1', '1', '1.2', '0.8']);
     expect(paliers[0].style.background).toBe('rgb(22, 163, 74)');
     expect([...bloc.querySelectorAll('span')].map((x) => x.textContent!.trim())).toEqual(['10% (forte particip.)', '30%', '60% (forte abst.)']);
+  });
+
+  it('météo (T11) : « Météo » et la variable affichée ; « Couche active » sans métadonnées (LegendeCarte.tsx:297-304)', async () => {
+    const { fixture, el, rendre, meteo } = monter();
+    fixture.componentRef.setInput('degradeActif', 'meteo');
+    await rendre();
+    const lignes = () => [...el.querySelector('[data-bloc="meteo"]')!.children].map((d) => d.textContent!.trim());
+    expect(lignes()).toEqual(['Météo', 'Couche active']);
+    (meteo as unknown as { affichage: { set(v: unknown): void } }).affichage.set({
+      donnees: {}, zones: { type: 'FeatureCollection', features: [] },
+      meta: { variable: 'temperature_2m', unit: '°C', startDate: '', endDate: '', scale: 'departement', totalZones: 0, batchesTotal: 1, cachedAt: null,
+        stats: { min: 0, max: 1, mean: 0, p20: 0, p40: 0, p60: 0, p80: 0, unit: '°C' } },
+    });
+    await rendre();
+    expect(lignes()).toEqual(['Météo', 'Température']);
   });
 
   it('santé environnementale (T10) : six niveaux en jetons, ceux sous le seuil estompés ; le titre suit le jeu', async () => {

@@ -41,6 +41,12 @@
 
 <mg-annonce />
 
+<!-- Le dialogue « Zones météo » (`page.tsx:1456-1488`) : un <dialog> natif DANS la racine d'ombre (B13), monté à
+     l'ouverture et détruit à la fermeture (chaque ouverture repart des défauts de React). -->
+@if (meteo.dialogueOuvert()) {
+  <mg-dialogue-meteo />
+}
+
 <!-- La légende unique de la carte (`LegendeCarte.tsx`), en bas à gauche, sous les panneaux. -->
 <mg-legende-carte [degradeActif]="etat.degradeActif()" />
 

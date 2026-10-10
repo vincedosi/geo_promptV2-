@@ -14,12 +14,15 @@ import { IrisApi } from './data/iris.api';
 import { CarteApi } from './data/carte.api';
 import { RadioApi } from './data/radio.api';
 import { CiviqueApi } from './data/civique.api';
+import { MeteoApi } from './data/meteo.api';
 import { ZonesCustomApi } from './data/zones-custom.api';
 import { CouleursService } from '../../core/theme/couleurs.service';
 import { CartePage } from './carte.page';
 import { AnnonceService } from './etat/annonce.service';
 import { CouchesCarteService, quandStyleCharge } from './etat/couches-carte.service';
 import { EtatCarteService } from './etat/etat-carte.service';
+import { MeteoService } from './couches/meteo.service';
+import { PileEchapService } from './etat/pile-echap.service';
 import { ENTREES_NAVIGATION } from './logique/navigation';
 
 @Component({ selector: 'mg-vide', template: '' })
@@ -55,6 +58,7 @@ async function ouvrir() {
       { provide: IrisApi, useValue: { urlTuiles: () => '/api/tiles/iris/{z}/{x}/{y}?v=2', bornes: () => of({}), detail: () => of() } },
       { provide: CarteApi, useValue: { categories: () => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] }), pois: () => of(), ooh: () => of(), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
       { provide: RadioApi, useValue: { optionsFiltre: () => of({}), emetteurs: () => of({ type: 'FeatureCollection', features: [] }), stations: () => of({}) } },
+      { provide: MeteoApi, useValue: { donnees: () => of() } },
       { provide: CiviqueApi, useValue: { geojsonVariable: () => of(), detailCp: () => of(), zones: () => of(), santeDepartement: () => of(), santeCp: () => of(), santeCommune: () => of() } },
     ],
   });
@@ -621,5 +625,38 @@ describe('CartePage — IRIS : section, couche en cascade, panneau de détail (T
     frapper(hote, { key: '2', altKey: true });
     await stable();
     expect(titrePanneau(hote)).toBe('Calques');
+  });
+});
+
+describe('CartePage — météo (T11)', () => {
+  it('le dialogue météo est un <dialog> DANS la page ; Échap dedans le ferme, le panneau Calques et la carte restent', async () => {
+    Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+      value: function (this: HTMLDialogElement) { this.setAttribute('open', ''); }, configurable: true, writable: true,
+    });
+    Object.defineProperty(HTMLDialogElement.prototype, 'close', {
+      value: function (this: HTMLDialogElement) { this.removeAttribute('open'); }, configurable: true, writable: true,
+    });
+    const { harness, hote, cartes, stable } = await ouvrir();
+    frapper(hote, { key: '2', altKey: true });
+    await stable();
+    const meteo = injecteurPage(harness).get(MeteoService);
+    meteo.ouvrirDialogue();
+    await stable();
+    const dialogue = hote.querySelector('mg-dialogue-meteo dialog')!;
+    expect(dialogue.hasAttribute('open')).toBe(true);
+    expect(injecteurPage(harness).get(PileEchapService).etat().at(-1)!.id).toBe('meteo');
+    const bouton = dialogue.querySelector<HTMLButtonElement>('[data-variable="temperature_2m"]')!;
+    bouton.focus();
+    const e = frapper(hote, { key: 'Escape' }, bouton);
+    expect(e.defaultPrevented).toBe(true);
+    await new Promise((r) => setTimeout(r, 220));
+    await stable();
+    expect(hote.querySelector('mg-dialogue-meteo')).toBeNull();
+    expect(injecteurPage(harness).get(PileEchapService).etat().map((x) => x.id)).not.toContain('meteo');
+    expect(titrePanneau(hote)).toBe('Calques');
+    expect(cartes).toHaveLength(1);
+    expect(cartes[0].retiree).toBe(false);
+    // Le focus est revenu à l'hôte : un second Échap ferme le panneau (sinon il tomberait sur <body>).
+    expect(document.activeElement).toBe(hote);
   });
 });

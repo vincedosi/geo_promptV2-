@@ -48,17 +48,21 @@ export class CarteFactice {
     }
     const rappel = a;
     this.rappels.get(evt)?.delete(rappel);
-    const enveloppe = this.uniques.get(rappel);
-    if (enveloppe) { this.rappels.get(evt)?.delete(enveloppe); this.uniques.delete(rappel); }
+    const enveloppe = this.uniques.get(evt)?.get(rappel);
+    if (enveloppe) { this.rappels.get(evt)?.delete(enveloppe); this.uniques.get(evt)!.delete(rappel); }
     return this;
   }
-  /** Comme MapLibre : une écoute appelée une seule fois, que `off(evt, rappel)` retire aussi. */
+  /**
+   * Comme MapLibre : une écoute appelée une seule fois, que `off(evt, rappel)` retire aussi — rangée PAR ÉVÉNEMENT
+   * (le même rappel peut attendre `load` et `idle` à la fois, `quandStyleCharge`).
+   */
   once(evt: string, rappel: Rappel): this {
     const enveloppe: Rappel = (...args) => { this.off(evt, rappel); rappel(...args); };
-    this.uniques.set(rappel, enveloppe);
+    if (!this.uniques.has(evt)) this.uniques.set(evt, new Map());
+    this.uniques.get(evt)!.set(rappel, enveloppe);
     return this.on(evt, enveloppe);
   }
-  private readonly uniques = new Map<Rappel, Rappel>();
+  private readonly uniques = new Map<string, Map<Rappel, Rappel>>();
   emettre(evt: string, charge?: unknown): void {
     if (evt === 'load') this.styleCharge = true;
     for (const r of [...(this.rappels.get(evt) ?? [])]) r(charge);
