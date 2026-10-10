@@ -1552,7 +1552,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/admin/poi-categories` | GET/POST | CRUD categories POI |
 | `/api/admin/poi-manage` | GET/POST/DELETE | Gestion POI |
 | `/api/admin/poi-samples` | GET | Echantillons POI |
-| `/api/admin/civic-ingest` | POST | Ingestion nationale pollen + qualite de l'air → `pollen_map_daily` + `atmo_map_daily` (WFS public Atmo, NDJSON streaming) — aussi cron Inngest `civic-daily-ingest` 05h30 |
+| `/api/admin/civic-ingest` | POST | Ingestion nationale pollen + qualite de l'air → `pollen_map_daily` + `atmo_map_daily` (WFS public Atmo, NDJSON streaming) — aussi cron Inngest `civic-daily-ingest` 05h30. **Corrigee le 2026-10-10** : le referentiel `postal_code_commune` (35 358 liaisons) etait lu par pages de 5 000 que `db-max-rows` ramenait a 1 000, et la boucle s'arretait sur cette « page incomplete » — l'ingestion ne couvrait que 1 000 liaisons (departements 01-02 : les 100 CP de `pollen_map_daily` au 2026-09-17). `lib/civic-health/civic-ingest.ts` lit desormais par `lireTout` (tri sur la cle primaire entiere, borne `MAPPING_PLAFOND` = 60 000) |
 | `/api/admin/sync-iris-system` | POST | Sync systeme IRIS |
 | `/api/admin/trigger-pmtiles` | POST | Declenchement generation PMTiles |
 | `/api/admin/transport-stats` | GET | Stats transport |

@@ -2,7 +2,7 @@
  * Ingestion nationale santé environnementale → pollen_map_daily + atmo_map_daily.
  *
  * Pipeline (étapes nommées, progression obligatoire — règle projet) :
- *   mapping   — charge postal_code_commune (~35k lignes, paginé par 5 000)
+ *   mapping   — charge postal_code_commune (~35k lignes, `lireTout` par 1 000)
  *   fetch     — WFS public Atmo (sans creds) ; repli provider pour le pollen
  *               (API authentifiée ou mock selon ATMO_PROVIDER)
  *   aggregate — MAX des communes par code postal (conservateur zones à risque)
@@ -13,14 +13,20 @@
  * POST /api/admin/civic-ingest (NDJSON streaming).
  */
 import { createAdminClient } from '@/lib/auth';
+import { lireTout } from '@/lib/supabase/lire-tout';
 import { getProvider } from './provider';
 import { fetchAtmoBulkWfs, fetchPollenBulkWfs } from './wfs-civic';
 import type { AtmoBulkEntry, AtmoPolluant, PollenBulkEntry, PollenSpecies } from './types';
 import type { TableInsert } from '@/lib/supabase/tables';
 
 const BATCH_SIZE = 50;
-/** PostgREST tronque à 5 000 lignes quel que soit le .limit() → pagination .range(). */
-const MAPPING_PAGE = 5_000;
+/**
+ * Borne écrite du référentiel `postal_code_commune` : 35 358 liaisons
+ * mesurées le 2026-10-10. Au-delà, `lireTout` échoue plutôt que de rendre un
+ * début — une ingestion sur un référentiel amputé peindrait une France
+ * partielle en se disant complète.
+ */
+const MAPPING_PLAFOND = 60_000;
 
 export interface CivicIngestProgress {
   step: 'mapping' | 'fetch' | 'aggregate' | 'insert' | 'purge' | 'done';
@@ -157,17 +163,28 @@ async function loadMapping(
   emit: (p: CivicIngestProgress) => void,
 ): Promise<Mapping> {
   emit({ step: 'mapping', message: 'Chargement du référentiel codes postaux ↔ communes…' });
-  const mapping: Mapping = [];
-  for (let offset = 0; ; offset += MAPPING_PAGE) {
-    const { data: page, error } = await supabase
-      .from('postal_code_commune')
-      .select('code_postal, code_commune')
-      .order('code_postal')
-      .range(offset, offset + MAPPING_PAGE - 1);
-    if (error) throw new Error(`mapping_failed:${error.message}`);
-    if (page?.length) mapping.push(...page);
-    emit({ step: 'mapping', message: `${mapping.length} liaisons chargées…`, current: mapping.length });
-    if (!page || page.length < MAPPING_PAGE) break;
+  // Pages de 1 000 par `lireTout` : `db-max-rows` ramène TOUTE page à 1 000,
+  // et l'ancienne boucle (pages de 5 000, arrêt sur une page incomplète)
+  // s'arrêtait donc après la première — 1 000 liaisons sur 35 358, soit les
+  // départements 01-02 seulement (les 100 CP de `pollen_map_daily` au
+  // 2026-09-17). Tri sur la clé primaire entière : un ordre stable d'une
+  // page à l'autre (`code_postal` seul ne l'est pas). Coût mesuré : parcours
+  // d'index seul, 138 pages pour la dernière page, ≈ 2 500 lectures en cache
+  // pour les 36 pages — une ingestion d'administrateur, pas une vue de carte.
+  let mapping: Mapping;
+  try {
+    ({ lignes: mapping } = await lireTout<Mapping[number]>(async (de, a) => {
+      const page = await supabase
+        .from('postal_code_commune')
+        .select('code_postal, code_commune')
+        .order('code_postal')
+        .order('code_commune')
+        .range(de, a);
+      emit({ step: 'mapping', message: `${de + (page.data?.length ?? 0)} liaisons chargées…`, current: de + (page.data?.length ?? 0) });
+      return page;
+    }, MAPPING_PLAFOND));
+  } catch (err) {
+    throw new Error(`mapping_failed:${err instanceof Error ? err.message : 'unknown'}`);
   }
   if (!mapping.length) throw new Error('mapping_failed:empty');
   return mapping;

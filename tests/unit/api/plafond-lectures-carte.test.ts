@@ -117,6 +117,12 @@ vi.mock('fs/promises', () => ({
   writeFile: async () => undefined,
   mkdir: async () => undefined,
 }));
+// Ingestion santé : aucun appel réseau, seul le chargement du référentiel compte ici.
+vi.mock('@/lib/civic-health/wfs-civic', () => ({
+  fetchPollenBulkWfs: async () => null,
+  fetchAtmoBulkWfs: async () => null,
+}));
+vi.mock('@/lib/civic-health/provider', () => ({ getProvider: () => ({ name: 'aucun' }) }));
 vi.mock('@/lib/auth/perimetre-donnees', () => ({
   sourcesVisiblesDeLaRequete: async () => null,
   filtrerParSourcesVisibles: (q: unknown) => q,
@@ -129,6 +135,7 @@ const emetteurs = await import('@/app/api/radio/emetteurs/route');
 const meteo = await import('@/app/api/meteo-geo/route');
 const santeCarte = await import('@/app/api/civic-indicators/health-map/route');
 const score = await import('@/app/api/analyses/score/route');
+const ingestion = await import('@/lib/civic-health/civic-ingest');
 
 interface ZoneMeteo { code: string; nom: string; lat: number; lon: number }
 /** Le référentiel : 6 051 CP en métropole (grille), puis 136 ultramarins EN FIN de liste, comme en base. */
@@ -385,5 +392,25 @@ describe('POST /api/analyses/score — périmètre par bbox', () => {
     const res = await appel();
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/7100 codes postaux/);
+  });
+});
+
+describe('POST /api/admin/civic-ingest — référentiel codes postaux ↔ communes', () => {
+  /** 35 358 liaisons en base (mesuré le 2026-10-10), une commune distincte par liaison ici. */
+  const liaisons = (n: number) => Array.from({ length: n }, (_, i) => ({
+    code_postal: String(1000 + Math.floor(i / 6)).padStart(5, '0'), code_commune: `C${i}`,
+  }));
+
+  it('charge les 35 358 liaisons, pas les 1 000 premières', async () => {
+    lignes = liaisons(35358);
+    const etapes: string[] = [];
+    const bilan = await ingestion.runCivicIngest((p) => etapes.push(p.message));
+    expect(bilan.communes_mapping).toBe(35358);
+    expect(etapes.some((m) => m.startsWith('35358 liaisons'))).toBe(true);
+  });
+
+  it('au-delà de la borne écrite (60 000), échoue plutôt que d ingérer un début', async () => {
+    lignes = liaisons(60001);
+    await expect(ingestion.runCivicIngest()).rejects.toThrow(/mapping_failed/);
   });
 });
