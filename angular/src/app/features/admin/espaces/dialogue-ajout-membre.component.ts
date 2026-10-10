@@ -46,7 +46,7 @@ let compteur = 0;
     >
       <div class="boite">
         @if (compteCree(); as cree) {
-          <mg-compte-cree [idTitre]="idTitre" [texte]="texteCree()"[lien]="cree.lien" (terminer)="terminer()" />
+          <mg-compte-cree [idTitre]="idTitre" [texte]="texteCree()" [lien]="cree.lien" (terminer)="terminer()" />
         } @else {
           <h2 [id]="idTitre" class="titre">Ajouter un membre</h2>
           <div role="tablist" aria-label="Type de compte" class="onglets">

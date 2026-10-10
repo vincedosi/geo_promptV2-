@@ -393,6 +393,8 @@ describe('FicheUtilisateurComponent — lien de mot de passe', () => {
     expect(el.innerHTML).not.toContain('secret-de-la-fiche');
     // La fiche reste ouverte : seul le dialogue du lien s'est fermé.
     expect(el.querySelector('mg-fiche-utilisateur > dialog')!.hasAttribute('open')).toBe(true);
+    // Le dialogue du lien est retiré du DOM : le focus revient au bouton, pas au <body>.
+    expect(document.activeElement).toBe(bouton);
     for (const e of espions) {
       for (const appel of e.mock.calls) expect(JSON.stringify(appel)).not.toContain('secret-de-la-fiche');
       e.mockRestore();

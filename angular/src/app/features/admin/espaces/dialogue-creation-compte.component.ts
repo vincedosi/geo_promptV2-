@@ -142,7 +142,7 @@ let compteur = 0;
     .neutre { background: transparent; border: 0.5px solid var(--border-default); color: var(--text-secondary); }
     .neutre:not(:disabled):hover { border-color: var(--border-hover); background: var(--bg-level-2); color: var(--text-primary); }
     .principal { border: none; background: var(--text-primary); color: var(--bg-primary); }
-    .principal:not(:disabled):hover { opacity: 0.85; }
+    .principal:not(:disabled):hover { background: var(--cta-hover); }
     .bouton:disabled { cursor: not-allowed; opacity: 0.5; }
     @media (prefers-reduced-motion: reduce) { dialog[open] { animation: none; } }
   `,

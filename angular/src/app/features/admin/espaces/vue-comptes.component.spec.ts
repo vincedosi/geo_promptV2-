@@ -102,6 +102,7 @@ describe('VueComptesComponent — « Tous les comptes »', () => {
     const cellules = [...marin.querySelectorAll('td')];
     expect(texte(cellules[0])).toBe('Hélène Marin');
     expect(texte(cellules[1])).toBe('marin@marine.test');
+    expect(cellules[1].classList.contains('email')).toBe(true);
     expect(texte(cellules[2].querySelector('.badge'))).toBe('Client');
     const pastilles = [...cellules[3].querySelectorAll('.pastille')];
     expect(pastilles.map((p) => texte(p))).toEqual(['BMW GROUP', 'MARINE']);
@@ -142,11 +143,18 @@ describe('VueComptesComponent — « Tous les comptes »', () => {
     expect(cases.every((c) => !c.checked)).toBe(true);
   });
 
-  it('Entrée sur une ligne → la fiche, cochée de TOUS les espaces du compte', async () => {
+  it('le nom est un VRAI bouton (Entrée et Espace natifs, rôle accessible) → la fiche, cochée de TOUS les espaces du compte', async () => {
     const { el, charger, ligne, stable } = await monter();
     await charger();
-    ligne('c1').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    // La ligne n'est plus un faux bouton focalisable : le focus clavier va au bouton du nom.
+    expect(ligne('c1').hasAttribute('tabindex')).toBe(false);
+    const bouton = ligne('c1').querySelector<HTMLButtonElement>('button[data-ouvrir]')!;
+    expect(bouton.type).toBe('button');
+    expect(bouton.getAttribute('aria-label')).toBe('Ouvrir la fiche de marin@marine.test');
+    // Entrée ou Espace sur un <button> déclenchent un clic natif, qui remonte à la ligne.
+    bouton.click();
     await stable();
+    expect(el.querySelectorAll('mg-fiche-utilisateur')).toHaveLength(1);
     const coches = [...el.querySelectorAll<HTMLInputElement>('mg-fiche-utilisateur input[type="checkbox"]:checked')];
     expect(coches.map((c) => c.getAttribute('data-espace'))).toEqual(['org-b', 'org-m']);
     expect(el.querySelector<HTMLSelectElement>('mg-fiche-utilisateur select[data-actif]')!.selectedOptions[0].value).toBe('org-m');

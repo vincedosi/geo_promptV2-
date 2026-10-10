@@ -41,7 +41,7 @@ function quotaEnSaisie(config: Record<string, unknown>, cle: string): string {
 
 /**
  * Onglet « Réglages » de la fiche d'un espace (spec § 4.6, plan T10) : reprend les champs de
- * `app/admin/organizations/[id]/page.tsx` (Nom, Description, quotas, Site Centric) et y ajoute le
+ * `app/admin/organizations/[id]/page.tsx` (supprimée le 2026-10-10, voir dc3c5ee7 ; Nom, Description, quotas, Site Centric) et y ajoute le
  * statut et la suppression.
  *
  * - `espaceId` est un input RÉACTIF : chaque changement relit `GET admin/organizations/:id` et oublie

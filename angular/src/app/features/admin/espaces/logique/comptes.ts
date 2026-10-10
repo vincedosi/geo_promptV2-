@@ -27,7 +27,7 @@ export function filtrerComptes(comptes: readonly CompteResume[], filtre: string)
 }
 
 /**
- * Regroupement de la page React Users (`app/admin/users/page.tsx`, `groupedUsers`) : Super admins,
+ * Regroupement de la page React Users (`app/admin/users/page.tsx`, `groupedUsers` ; supprimée le 2026-10-10, voir dc3c5ee7) : Super admins,
  * puis un groupe par espace ACTIF du compte (nom affiché, ordre alphabétique `fr`), puis « Sans
  * espace » en dernier. Écart voulu : un membre sans espace actif n'est PAS rangé « Sans espace »
  * (il en a), mais dans « Aucun espace actif », avant lui. Un groupe vide n'est pas rendu ; l'ordre

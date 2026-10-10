@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, inject, input, linkedSignal, output, signal, viewChild,
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, inject, input, linkedSignal, output, signal, viewChild,
 } from '@angular/core';
 import type { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -122,7 +122,7 @@ let compteur = 0;
           <div class="rangee entre">
             <p class="aide">Lien d'usage unique, à transmettre à la personne.</p>
             <button
-              type="button" data-lien-mot-de-passe class="bouton neutre"
+              #boutonLien type="button" data-lien-mot-de-passe class="bouton neutre"
               [disabled]="enCours() || lienEnCours()"
               (click)="demanderLien()"
             >Lien de mot de passe</button>
@@ -171,7 +171,7 @@ let compteur = 0;
       (annuler)="annulerSuppression()"
     />
     @if (lien(); as l) {
-      <mg-dialogue-lien [lien]="l" [email]="membre().email" (fermer)="lien.set(null)" />
+      <mg-dialogue-lien [lien]="l" [email]="membre().email" (fermer)="fermerLien()" />
     }
   `,
   styles: `
@@ -190,7 +190,8 @@ let compteur = 0;
     .rangee { display: flex; gap: 8px; align-items: center; }
     .rangee.fin { justify-content: flex-end; }
     .rangee.entre { justify-content: space-between; }
-    .aide { margin: 0; font-size: 12px; color: var(--text-tertiary); }
+    .aide, p.libelle { margin: 0; }
+    .aide { font-size: 12px; color: var(--text-tertiary); }
     input[type='text'], select {
       flex: 1; min-width: 0;
       background: var(--bg-level-2); border: 0.5px solid var(--border-subtle); border-radius: 6px;
@@ -344,6 +345,8 @@ export class FicheUtilisateurComponent {
   protected readonly titreSuppression = computed(() => `Supprimer définitivement ${this.membre().email} ?`);
 
   private readonly dialogue = viewChild.required<ElementRef<HTMLDialogElement>>('dialogue');
+  private readonly boutonLien = viewChild<ElementRef<HTMLButtonElement>>('boutonLien');
+  private readonly injector = inject(Injector);
 
   constructor() {
     afterNextRender(() => {
@@ -492,6 +495,17 @@ export class FicheUtilisateurComponent {
         this.notifications.error(messageErreur(e));
       },
     }));
+  }
+
+  /**
+   * Le lien quitte l'état, puis — une fois son `<dialog>` retiré du DOM, au rendu suivant — le
+   * focus revient au bouton. Tant que ce dialogue modal est ouvert, la fiche est inerte : un
+   * `focus()` immédiat serait ignoré et le focus tomberait sur le `<body>` (constaté au navigateur).
+   */
+  protected fermerLien(): void {
+    this.lien.set(null);
+    const bouton = this.boutonLien();
+    afterNextRender(() => bouton?.nativeElement.focus(), { injector: this.injector });
   }
 
   protected demanderFermeture(): void {

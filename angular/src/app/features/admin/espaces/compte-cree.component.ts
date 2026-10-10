@@ -43,7 +43,7 @@ export const MESSAGE_SANS_LIEN = 'Le compte est créé, mais le lien n\'a pas pu
     }
     .bouton:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
     .principal { border: none; background: var(--text-primary); color: var(--bg-primary); }
-    .principal:hover { opacity: 0.85; }
+    .principal:hover { background: var(--cta-hover); }
   `,
 })
 export class CompteCreeComponent {

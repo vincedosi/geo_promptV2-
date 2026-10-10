@@ -40,7 +40,7 @@ function dateFr(iso: string | null): string {
 
 /**
  * Vue « Tous les comptes » de la page Accès (`admin/acces/comptes`, 2026-10-10). Elle reprend ce
- * que seule la page React Users (`app/admin/users/page.tsx`) offrait : la liste de TOUS les comptes,
+ * que seule la page React Users (`app/admin/users/page.tsx`, supprimée le 2026-10-10, voir dc3c5ee7) offrait : la liste de TOUS les comptes,
  * y compris les super_admin et les comptes rattachés à aucun espace — invisibles depuis l'onglet
  * Membres d'un espace.
  *
@@ -51,8 +51,10 @@ function dateFr(iso: string | null): string {
  *   actif, « Sans espace » en dernier. Filtre LOCAL nom/email, sans accents ni casse : aucun appel.
  * - Rôle en badge du design system, PAS les couleurs rouge/orange/bleu de React (`ROLE_COLORS`), qui
  *   sortent de la charte (écart consigné, spec § 11).
- * - Clic ou Entrée sur une ligne → la fiche utilisateur existante, SANS espace courant : ses cases
- *   viennent de la liste complète des espaces du compte.
+ * - Clic sur une ligne → la fiche utilisateur existante, SANS espace courant : ses cases viennent
+ *   de la liste complète des espaces du compte. Au clavier, le NOM est un vrai `<button>` (rôle
+ *   accessible, Entrée ET Espace natifs) dont le clic remonte à la ligne ; la ligne elle-même
+ *   n'est plus focalisable (2026-10-10, relecture de T1).
  */
 @Component({
   selector: 'mg-vue-comptes',
@@ -107,16 +109,11 @@ function dateFr(iso: string | null): string {
                   </td>
                 </tr>
                 @for (l of g.lignes; track l.id) {
-                  <tr
-                    class="ligne border-b-fin border-subtle"
-                    tabindex="0"
-                    [attr.data-compte]="l.id"
-                    [attr.aria-label]="l.aria"
-                    (click)="ouvrirFiche(l.id)"
-                    (keydown.enter)="ouvrirFiche(l.id)"
-                  >
-                    <td mgTd alignement="gauche" class="!font-sans !text-[13px] !text-primary">{{ l.nom }}</td>
-                    <td mgTd alignement="gauche" class="whitespace-nowrap !text-[12px]">{{ l.email }}</td>
+                  <tr class="ligne border-b-fin border-subtle" [attr.data-compte]="l.id" (click)="ouvrirFiche(l.id)">
+                    <td mgTd alignement="gauche" class="!font-sans !text-[13px] !text-primary">
+                      <button type="button" data-ouvrir class="ouvrir" [attr.aria-label]="l.aria">{{ l.nom }}</button>
+                    </td>
+                    <td mgTd alignement="gauche" class="email !text-[12px]">{{ l.email }}</td>
                     <td mgTd alignement="gauche" class="!font-sans"><span class="badge">{{ l.role }}</span></td>
                     <td mgTd alignement="gauche" class="!font-sans">
                       @for (e of l.espaces; track e.id) {
@@ -160,7 +157,12 @@ function dateFr(iso: string | null): string {
     .effectif { font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); }
     .ligne { cursor: pointer; transition: background-color 150ms var(--ease-hover); }
     .ligne:hover { background: var(--bg-level-2); }
-    .ligne:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: -2px; }
+    .ligne:focus-within { background: var(--bg-level-2); }
+    .ouvrir {
+      all: unset; cursor: pointer; border-radius: 4px;
+      font: inherit; color: inherit; text-align: left;
+    }
+    .ouvrir:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
     .badge {
       display: inline-block; white-space: nowrap;
       background: var(--bg-level-3); border: 0.5px solid var(--border-default); color: var(--text-secondary);
@@ -172,6 +174,9 @@ function dateFr(iso: string | null): string {
     }
     .pastille.actif { background: var(--brand-teal-10); border-color: var(--brand-teal-30); color: var(--brand-teal); }
     .attenue { color: var(--text-tertiary); }
+    /* Jamais de retour à la ligne : un email se coupe sinon aux traits d'union (capture T1-06). Règle
+       du composant, pas l'utilitaire Tailwind, pour ne pas dépendre de la feuille générée. */
+    .email { white-space: nowrap; }
     .vide { margin: 0; padding: 12px 14px; font-size: 12px; color: var(--text-tertiary); }
     .bouton {
       flex-shrink: 0; border-radius: 6px; padding: 10px 16px; font-family: var(--font-sans); font-size: 13px; font-weight: 500;

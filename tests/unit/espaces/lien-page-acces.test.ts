@@ -27,6 +27,14 @@ describe('lienPageAcces', () => {
     expect(lienPageAcces('')).toBeNull();
     expect(lienPageAcces('   ')).toBeNull();
   });
+
+  it('rend null si la base n est pas une adresse http(s) : pas de lien relatif ni de schéma exotique', () => {
+    expect(lienPageAcces('localhost:4200/app')).toBeNull();
+    expect(lienPageAcces('/app')).toBeNull();
+    expect(lienPageAcces('javascript:alert(1)')).toBeNull();
+    expect(lienPageAcces('ftp://exemple.test/app')).toBeNull();
+    expect(lienPageAcces('HTTPS://exemple.test/app')).toBe('HTTPS://exemple.test/app/admin/acces');
+  });
 });
 
 describe('pages React des droits retirées', () => {
