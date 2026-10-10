@@ -5,6 +5,7 @@ import { CarteFactice } from '../../../carte/testing/carte-factice';
 import { CouleursService } from '../../../core/theme/couleurs.service';
 import { AnnonceService } from '../etat/annonce.service';
 import { CouchesCarteService } from '../etat/couches-carte.service';
+import { PileEchapService } from '../etat/pile-echap.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
 import { COUCHES_DESSIN, DessinService, SOURCE_DESSIN } from './dessin.service';
 
@@ -12,7 +13,7 @@ function monter() {
   const theme = signal({ teal: '#4ecdc4' });
   TestBed.configureTestingModule({
     providers: [
-      provideZonelessChangeDetection(), DessinService, CouchesCarteService, EtatCarteService, AnnonceService,
+      provideZonelessChangeDetection(), DessinService, CouchesCarteService, EtatCarteService, AnnonceService, PileEchapService,
       { provide: CouleursService, useValue: { palette: () => theme } },
     ],
   });
@@ -88,6 +89,34 @@ describe('DessinService — tracé libre maison (B8)', () => {
     expect(dessin.aide()).toBe('1 sommet tracé');
     touche(carte, 'Backspace');
     expect(touche(carte, 'Backspace').defaultPrevented).toBe(false);
+  });
+
+  it('Échap annule le tracé EN COURS sans rien d’autre ; tracé vide, il n’est plus dans la pile (revue 1)', () => {
+    const { dessin, carte } = monter();
+    const pile = TestBed.inject(PileEchapService);
+    pile.empiler('panneau', () => undefined);
+    dessin.demarrer();
+    flush();
+    clic(carte, 0, 0);
+    clic(carte, 100, 0);
+    flush();
+    expect(pile.etat().map((e) => e.id)).toEqual(['panneau', 'dessin-trace']);
+    pile.fermerLePlusHaut();
+    flush();
+    expect(dessin.nombreSommets()).toBe(0);
+    expect(pile.etat().map((e) => e.id)).toEqual(['panneau']);
+  });
+
+  it('un seul outil reçoit les clics : la carte prise par le rayon, le dessin ignore le clic ; rendue, il le reprend (revue 1)', () => {
+    const { dessin, carte, etat } = monter();
+    dessin.demarrer();
+    flush();
+    etat.prendreCarte('rayon');
+    clic(carte, 0, 0);
+    expect(dessin.nombreSommets()).toBe(0);
+    etat.rendreCarte('rayon');
+    clic(carte, 0, 0);
+    expect(dessin.nombreSommets()).toBe(1);
   });
 
   it('rectangle : deux clics → 5 positions', () => {

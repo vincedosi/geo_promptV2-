@@ -11,6 +11,7 @@ import { ZonesCustomApi } from '../../data/zones-custom.api';
 import { AnnonceService } from '../../etat/annonce.service';
 import { CouchesCarteService } from '../../etat/couches-carte.service';
 import { CreationZoneService } from '../../etat/creation-zone.service';
+import { PileEchapService } from '../../etat/pile-echap.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { CreerDessinComponent } from './creer-dessin.component';
 
@@ -24,7 +25,7 @@ function monter() {
   };
   TestBed.configureTestingModule({
     providers: [
-      CreationZoneService, DessinService, CouchesCarteService, EtatCarteService, AnnonceService,
+      CreationZoneService, DessinService, CouchesCarteService, EtatCarteService, AnnonceService, PileEchapService,
       { provide: ZonesCustomApi, useValue: api },
       { provide: CouleursService, useValue: { palette: () => signal({ teal: '#4ecdc4' }) } },
       { provide: AuthService, useValue: { lireProfil: async () => ({ role: null, nom: null, organisation: 'org-1' }) } },

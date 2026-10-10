@@ -22,6 +22,23 @@ describe('dessin — logique pure du tracé maison (B8, sans terra-draw)', () =>
     expect(nombreSommets(e)).toBe(3);
   });
 
+  it('double-clic sur le PREMIER sommet : le premier clic ferme, le second ne recommence PAS un tracé (revue 1)', () => {
+    let e = polygoneDe([[0, 0], [100, 0], [100, 100]]);
+    e = clic(e, 2, 2);
+    e = clic(e, 2, 2);
+    e = doubleCliquer(e);
+    expect(e.ferme).toEqual({ type: 'Polygon', coordinates: [[[0, 0], [100, 0], [100, 100], [0, 0]]] });
+    expect(nombreSommets(e)).toBe(3);
+  });
+
+  it('rectangle : double-clic sur le second coin — le rectangle fermé reste (revue 1)', () => {
+    let e = clic(traceVide('rectangle'), 0, 0);
+    e = clic(e, 100, 50);
+    e = clic(e, 100, 50);
+    e = doubleCliquer(e);
+    expect(e.ferme!.coordinates[0]).toEqual([[0, 0], [100, 0], [100, 50], [0, 50], [0, 0]]);
+  });
+
   it('double-clic AILLEURS : son premier clic pose le dernier sommet, puis ferme (5 positions)', () => {
     let e = polygoneDe([[0, 0], [100, 0], [100, 100]]);
     e = clic(e, 0, 100);

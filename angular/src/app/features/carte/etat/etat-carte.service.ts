@@ -48,8 +48,13 @@ export class EtatCarteService {
    * a un, un clic sur la carte appartient à l'outil et ne ferme pas le panneau qui le porte — React le fermait, et
    * l'outil disparaissait avec son tracé au premier clic (`OverlayPanel.tsx:107-117`).
    */
-  private readonly outilsCarte = signal<ReadonlySet<string>>(new Set());
-  readonly carteOccupee = computed(() => this.outilsCarte().size > 0);
+  private readonly outilsCarte = signal<readonly string[]>([]);
+  readonly carteOccupee = computed(() => this.outilsCarte().length > 0);
+  /**
+   * L'outil qui reçoit les clics : le DERNIER à avoir pris la carte (revue 1). Un seul à la fois — sans quoi un même
+   * clic posait à la fois le centre d'un rayon et un sommet du dessin. Rendre la carte la redonne au précédent.
+   */
+  readonly outilCarte = computed(() => this.outilsCarte().at(-1) ?? null);
 
   choisirEntree(id: EntreeId): void {
     const entree = ENTREES_NAVIGATION.find((e) => e.id === id);
@@ -82,14 +87,10 @@ export class EtatCarteService {
   }
 
   prendreCarte(outil: string): void {
-    this.outilsCarte.update((s) => new Set(s).add(outil));
+    this.outilsCarte.update((l) => [...l.filter((o) => o !== outil), outil]);
   }
 
   rendreCarte(outil: string): void {
-    this.outilsCarte.update((s) => {
-      const suite = new Set(s);
-      suite.delete(outil);
-      return suite;
-    });
+    this.outilsCarte.update((l) => l.filter((o) => o !== outil));
   }
 }

@@ -1,7 +1,7 @@
 import {
   ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, inject, output, signal, viewChild,
 } from '@angular/core';
-import { type Observable, type Subscription, catchError, defer, forkJoin, map, of, timeout } from 'rxjs';
+import { type Observable, type Subscription, catchError, defer, forkJoin, map, of, throwError, timeout } from 'rxjs';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { ZonesCustomApi } from '../../data/zones-custom.api';
 import { AnnonceService } from '../../etat/annonce.service';
@@ -185,7 +185,7 @@ export class CaptureComponent {
         return corps ? this.api.source(o.route, corps).pipe(map((r) => r.geometry ?? null)) : of(null);
       });
     return geometrie$.pipe(
-      timeout({ first: DELAI_GEOMETRIE_MS, with: () => { throw new Error(`Timeout ${DELAI_GEOMETRIE_MS}ms — ${source.label}`); } }),
+      timeout({ first: DELAI_GEOMETRIE_MS, with: () => throwError(() => new Error(`Timeout ${DELAI_GEOMETRIE_MS}ms — ${source.label}`)) }),
       map((g): Collecte => {
         const geometries = aplatir(g);
         return { source, geometries, erreur: geometries.length ? null : 'Aucune géométrie retournée' };

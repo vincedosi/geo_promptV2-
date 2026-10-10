@@ -120,7 +120,10 @@ export class CreerRayonComponent {
       if (!carte || !this.enPose()) return;
       const canevas = carte.getCanvas();
       canevas.style.cursor = 'crosshair';
-      nettoyer(() => (canevas.style.cursor = ''));
+      // Le viseur reste si le dessin tient encore la carte.
+      nettoyer(() => {
+        if (!this.etat.carteOccupee()) canevas.style.cursor = '';
+      });
     });
 
     // L'aperçu : posé tant que l'outil est ouvert avec un centre, redessiné à chaque rayon et au changement de thème.
@@ -194,7 +197,8 @@ export class CreerRayonComponent {
   /** Le clic de pose sur une instance : il devient le centre, en pose seulement ; rend de quoi retirer l'écoute. */
   private ecouterPose(carte: maplibregl.Map): () => void {
     const clic = (e: maplibregl.MapMouseEvent) => {
-      if (!this.enPose()) return;
+      // En pose ET maître des clics : si le dessin a repris la carte, ce clic est un sommet, pas un centre.
+      if (!this.enPose() || this.etat.outilCarte() !== OUTIL) return;
       this.centre.set({ lon: e.lngLat.lng, lat: e.lngLat.lat });
       this.arreterPose();
     };

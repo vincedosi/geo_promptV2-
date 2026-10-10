@@ -105,6 +105,24 @@ describe('CreerRayonComponent (CreerZoneRayon.tsx)', () => {
     expect(carte.sources.has(SOURCE_APERCU_RAYON)).toBe(false);
   });
 
+  it('en pose, mais la carte reprise par le dessin : le clic n’est PAS pris pour centre ; le viseur reste au dessin (revue 1)', async () => {
+    const { el, carte, stable, etat } = monter();
+    await stable();
+    bouton(el, '[data-repli]').click();
+    await stable();
+    bouton(el, '[data-poser]').click();
+    await stable();
+    etat.prendreCarte('dessin');
+    carte.emettre('click', { lngLat: { lng: 5.37, lat: 43.3 }, point: { x: 0, y: 0 } });
+    await stable();
+    expect(el.querySelector('[data-centre]')).toBeNull();
+    bouton(el, '[data-poser]').click();
+    await stable();
+    // La pose quittée, la carte reste prise par le dessin : son viseur n'est pas effacé.
+    expect(etat.carteOccupee()).toBe(true);
+    expect(carte.getCanvas().style.cursor).toBe('crosshair');
+  });
+
   it('centre en mer (409) : le message de la route, rien d’enregistré', async () => {
     const { el, carte, api, stable } = monter({
       depuisRayon: vi.fn(() => throwError(() => new HttpErrorResponse({ status: 409, error: { error: 'rayon_vide', message: 'Ce rayon ne recouvre aucun territoire français — le centre est-il en mer ?' } }))),

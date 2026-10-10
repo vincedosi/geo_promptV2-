@@ -52,6 +52,9 @@ function anneauRectangle(a: Position, b: Position): Position[] {
 
 /** Un clic sur la carte. Après un tracé fermé, il en commence un NOUVEAU : une zone = une géométrie. */
 export function cliquer(etat: EtatTrace, position: Position, pixel: Pixel, projeter: Projeter): EtatTrace {
+  // Le second `click` d'un double-clic qui vient de fermer le tracé (sur le premier sommet, ou sur le second coin d'un
+  // rectangle) tombe sur un sommet de l'anneau : il ne doit pas en commencer un nouveau, qui effacerait le tracé fermé.
+  if (etat.ferme?.coordinates[0].some((p) => touche(pixel, p as Position, projeter))) return etat;
   const sommets = etat.ferme ? [] : etat.sommets;
   if (etat.mode === 'rectangle') {
     if (sommets.length === 0) return { mode: etat.mode, sommets: [position], ferme: null };

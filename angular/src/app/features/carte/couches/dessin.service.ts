@@ -3,6 +3,7 @@ import type maplibregl from 'maplibre-gl';
 import { CouleursService } from '../../../core/theme/couleurs.service';
 import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
+import { PileEchapService } from '../etat/pile-echap.service';
 import {
   type ModeDessin, type Position, apercuTrace, cliquer, doubleCliquer, messageAideDessin, nombreSommets, retirerDernier,
   traceVide,
@@ -13,6 +14,8 @@ export const COUCHES_DESSIN = ['dessin-trace-fill', 'dessin-trace-line', 'dessin
 const [REMPLISSAGE, LIGNE, POINTS] = COUCHES_DESSIN;
 /** L'identifiant sous lequel le dessin PREND la carte (`EtatCarteService.prendreCarte`). */
 const OUTIL = 'dessin';
+/** L'entrée de la pile Échap tant qu'un tracé est en cours : Échap l'annule, le suivant ferme le panneau. */
+const ECHAP_TRACE = 'dessin-trace';
 
 type CarteDessin = Pick<maplibregl.Map,
   'getSource' | 'addSource' | 'getLayer' | 'addLayer' | 'removeLayer' | 'removeSource' | 'setPaintProperty'>;
@@ -40,6 +43,7 @@ type CarteDessin = Pick<maplibregl.Map,
 export class DessinService {
   private readonly couches = inject(CouchesCarteService);
   private readonly etat = inject(EtatCarteService);
+  private readonly pile = inject(PileEchapService);
   private readonly couleurs = inject(CouleursService).palette({ teal: 'brand-teal' });
 
   private readonly actif = signal(false);
@@ -92,6 +96,11 @@ export class DessinService {
       carte.setPaintProperty(LIGNE, 'line-color', teal);
       carte.setPaintProperty(POINTS, 'circle-color', teal);
     });
+    // Échap annule le tracé EN COURS (revue 1) : l'entrée n'est dans la pile que pendant un tracé, au-dessus du panneau.
+    effect(() => {
+      if (this.enCours()) this.pile.empiler(ECHAP_TRACE, () => this.effacer());
+      else this.pile.depiler(ECHAP_TRACE);
+    });
     // dragPan coupé pendant un tracé en cours, rendu à la fin.
     effect(() => {
       const carte = this.posee();
@@ -114,6 +123,7 @@ export class DessinService {
     this.trace.set(traceVide('polygone'));
     this.curseur.set(null);
     this.etat.rendreCarte(OUTIL);
+    this.pile.depiler(ECHAP_TRACE);
   }
 
   /** Changer de mode repart d'un tracé vide. */
@@ -129,10 +139,14 @@ export class DessinService {
   private brancher(carte: maplibregl.Map): () => void {
     const projeter = (p: Position) => carte.project(p);
     const position = (e: maplibregl.MapMouseEvent): Position => [e.lngLat.lng, e.lngLat.lat];
-    const clic = (e: maplibregl.MapMouseEvent) => this.trace.update((t) => cliquer(t, position(e), e.point, projeter));
+    // Un seul outil reçoit les clics : si la pose d'un rayon a repris la carte, le dessin les laisse passer.
+    const aLaMain = () => this.etat.outilCarte() === OUTIL;
+    const clic = (e: maplibregl.MapMouseEvent) => {
+      if (aLaMain()) this.trace.update((t) => cliquer(t, position(e), e.point, projeter));
+    };
     const double = (e: maplibregl.MapMouseEvent) => {
       e.preventDefault();
-      this.trace.update(doubleCliquer);
+      if (aLaMain()) this.trace.update(doubleCliquer);
     };
     const survol = (e: maplibregl.MapMouseEvent) => {
       if (untracked(this.enCours)) this.curseur.set(position(e));
@@ -157,7 +171,8 @@ export class DessinService {
       conteneur.removeEventListener('keydown', touche);
       carte.doubleClickZoom.enable();
       carte.dragPan.enable();
-      canevas.style.cursor = '';
+      // Le viseur reste si un autre outil tient encore la carte.
+      if (!this.etat.carteOccupee()) canevas.style.cursor = '';
     };
   }
 }
