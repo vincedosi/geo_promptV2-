@@ -54,8 +54,9 @@
 <!-- La légende unique de la carte (`LegendeCarte.tsx`), en bas à gauche, sous les panneaux. -->
 <mg-legende-carte [degradeActif]="etat.degradeActif()" />
 
-<!-- La carte : `flex: 1`, sous la barre et à droite du rail (padding de l'hôte), comme le panneau droit de React. -->
-<div class="relative flex min-w-0 flex-1 overflow-hidden">
+<!-- La carte : `flex: 1`, sous la barre et à droite du rail (padding de l'hôte), comme le panneau droit de React.
+     `inert` pendant le module risque (T13) : recouverte, elle ne doit plus prendre ni focus clavier ni lecteur d'écran. -->
+<div class="relative flex min-w-0 flex-1 overflow-hidden" data-zone-carte [attr.inert]="moduleOuvert() ? '' : null">
   <!-- Un nouvel id de fond RECRÉE la carte, comme React (arbitrage B11) : `track f` détruit puis recrée `mg-carte`. -->
   @for (f of [fond()]; track f) {
     <mg-carte

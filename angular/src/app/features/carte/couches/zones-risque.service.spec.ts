@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import type maplibregl from 'maplibre-gl';
 import { CarteFactice } from '../../../carte/testing/carte-factice';
 import { CouleursService } from '../../../core/theme/couleurs.service';
-import { COUCHES_ZONES, ID_FOND, SOURCE_ZONES } from '../../risques/cartes/couches-zones';
+import { COUCHES_ZONES, ID_CONTOUR, ID_ETIQUETTES, ID_FOND, ID_PPRT, SOURCE_ZONES } from '../../risques/cartes/couches-zones';
 import { ZonesRisqueApi } from '../../risques/data/zones-risque.api';
 import { codeProfil } from '../../risques/logique/code-profil';
 import { PROFIL_DEFAUT, type ProfilRayons } from '../../risques/logique/profil';
@@ -46,12 +46,14 @@ describe('ZonesRisqueService (pont de la carte, B3)', () => {
     expect(etat.degradeActif()).toBeNull();
   });
 
-  it('afficher → addSource avec `urlTuilesZones(code, natures)` (natures COMPRISES, défaut React corrigé) et 4 couches', () => {
+  it('afficher → addSource avec `urlTuilesZones(code, natures)` (natures COMPRISES, défaut React corrigé) et TROIS couches, sans étiquette', () => {
     const { service, carte } = monter();
     service.afficherZonesRisque({ profil: PROFIL_DEFAUT, natures: ['Toxicité aiguë'] });
     TestBed.tick();
     expect(tuilesPosees(carte)).toBe(urlTuiles(codeProfil(PROFIL_DEFAUT), ['Toxicité aiguë']));
-    expect(COUCHES_ZONES.every((id) => carte.getLayer(id))).toBe(true);
+    // Parité ZonesRisqueLayer.tsx : fond, contour tireté, contour PPRT — aucune étiquette de rayon (revue 1).
+    expect(carte.couches.map((c) => c.couche['id'])).toEqual([ID_FOND, ID_CONTOUR, ID_PPRT]);
+    expect(carte.getLayer(ID_ETIQUETTES)).toBeUndefined();
     // Régime de la carte principale : peint dès le plancher des tuiles, comme ZonesRisqueLayer.tsx.
     expect((carte.getLayer(ID_FOND) as { minzoom?: number }).minzoom).toBe(4);
   });

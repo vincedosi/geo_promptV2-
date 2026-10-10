@@ -10,14 +10,15 @@ import { contenuPopup } from '../../../carte/contenu-popup';
 import { FABRIQUE_POPUP } from '../../../carte/fabrique-carte';
 import { formaterNombre } from '../../../core/format/nombre';
 import { LegendeComponent } from '../../../carte/legende/legende.component';
-import { LegendeNiveauxComponent, type NiveauLegende } from '../../../carte/legende/legende-niveaux.component';
+import { LegendeNiveauxComponent } from '../../../carte/legende/legende-niveaux.component';
 import { ChargementService } from '../../../core/chargement/chargement.service';
 import { messageErreurApi } from '../../../core/http/erreurs';
 import { CouleursService } from '../../../core/theme/couleurs.service';
 import type { ApercuRayon } from '../commandes/reglette-rayons.component';
 import { ZonesRisqueApi } from '../data/zones-risque.api';
 import { codeProfil, codeZonesRisque } from '../logique/code-profil';
-import { LIBELLE_NIVEAU, NIVEAUX, type ProfilRayons, anneauxDuNiveau } from '../logique/profil';
+import { CONVENTION_TRAIT, JETONS_TEINTES_ZONES, niveauxLegende } from '../logique/legende-niveaux';
+import type { ProfilRayons } from '../logique/profil';
 import { ZONES_RISQUE_ZOOM_LISIBLE } from '../logique/zooms';
 import {
   ID_CERCLES, ID_SITES, SOURCE_APERCU, SOURCE_CERCLES, SOURCE_SITES, SOURCE_SURVOL, basculerCerclesSites,
@@ -37,9 +38,6 @@ export const GRAPPES: ReadonlyArray<{ nom: string; bbox: Bbox }> = [
 
 /** La vue d'ouverture : l'Étang de Berre, la grappe la plus dense (`VUE_INITIALE = GRAPPES[2].bbox`). */
 export const VUE_INITIALE_RISQUE: Bbox = GRAPPES[2].bbox;
-
-/** Le jeton de chaque niveau, pour la légende (DOM : `var()` y est permis). */
-const JETON_NIVEAU = { haut: 'niveau-haut', bas: 'niveau-bas', autres: 'niveau-autres' } as const;
 
 /**
  * La carte permanente du module risque — portage de `CarteRisque.tsx` (lot 3, T7 : les ZONES ; T8 : les sites,
@@ -97,7 +95,7 @@ const JETON_NIVEAU = { haut: 'niveau-haut', bas: 'niveau-bas', autres: 'niveau-a
       <mg-legende class="absolute bottom-2.5 left-2.5 z-[2]">
         <mg-legende-niveaux [niveaux]="niveauxLegende()" />
         <div class="mt-0.5 text-[9.5px] leading-[1.5] text-tertiary">
-          Trait plein : périmètre publié par l’État. Tireté : rayon que nous calculons.{{ texteNbSites() }}
+          {{ conventionTrait }}{{ texteNbSites() }}
         </div>
       </mg-legende>
       <!-- Sous le seuil LISIBLE et non sous le plancher : entre z4 et z7 la carte ne peint rien, et sans ce bandeau
@@ -145,7 +143,7 @@ export class CarteRisqueComponent {
   private readonly fabriquePopup = inject(FABRIQUE_POPUP);
   /** UNE palette pour les zones et les sites : une seule lecture du CSS par bascule de thème. */
   private readonly teintes = inject(CouleursService).palette({
-    haut: 'niveau-haut', bas: 'niveau-bas', autres: 'niveau-autres', halo: 'halo-carte', contourPoint: 'contour-point',
+    ...JETONS_TEINTES_ZONES, contourPoint: 'contour-point',
   });
 
   protected readonly vueInitiale = VUE_INITIALE_RISQUE;
@@ -180,11 +178,9 @@ export class CarteRisqueComponent {
   /** La clé de cache des zones, par la MÊME fonction que les deux routes serveur. Une chaîne : égale, rien ne bouge. */
   private readonly code = computed(() => codeZonesRisque(this.codeSeul(), this.listeNatures()));
 
-  protected readonly niveauxLegende = computed<NiveauLegende[]>(() => NIVEAUX.map((n) => ({
-    libelle: LIBELLE_NIVEAU[n],
-    jeton: JETON_NIVEAU[n],
-    anneaux: anneauxDuNiveau(this.profil(), n),
-  })));
+  /** Niveaux et convention de trait : la MÊME source que la légende de la carte principale (`logique/legende-niveaux.ts`). */
+  protected readonly niveauxLegende = computed(() => niveauxLegende(this.profil()));
+  protected readonly conventionTrait = CONVENTION_TRAIT;
 
   private preparationEnVol: Subscription | null = null;
   /** La dernière clé dont la géométrie est construite (ou dont la construction a échoué : on pose quand même). */

@@ -67,6 +67,11 @@ export interface OptionsZones {
    * et « Voir sur la carte » ramène sur une France à z5,5 — avec les seuils du module, elle resterait vide.
    */
   regime?: RegimeZoom;
+  /**
+   * Les étiquettes de rayon le long des contours (défaut : oui, la carte du module). La carte PRINCIPALE passe `false` :
+   * `ZonesRisqueLayer.tsx` n'y pose que trois couches, sans étiquette (parité, décision du chef de projet, T13).
+   */
+  etiquettes?: boolean;
 }
 
 /** Sous `lisible`, rien n'est peint ; de `lisible` à `detail`, un aplat uni par niveau ; au-delà, chaque bande. */
@@ -179,6 +184,7 @@ export function poserCouchesZones(carte: maplibregl.Map, o: OptionsZones): void 
     },
   }, o.avant);
 
+  if (o.etiquettes === false) return;
   // L'étiquette du rayon court le long du contour (`symbol-placement: line`) : posée au centre, celles des
   // bandes concentriques s'empileraient.
   carte.addLayer({

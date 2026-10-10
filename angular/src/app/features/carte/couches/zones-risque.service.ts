@@ -6,12 +6,10 @@ import {
 } from '../../risques/cartes/couches-zones';
 import { ZonesRisqueApi } from '../../risques/data/zones-risque.api';
 import { codeProfil } from '../../risques/logique/code-profil';
+import { JETONS_TEINTES_ZONES } from '../../risques/logique/legende-niveaux';
 import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
 import type { PontCarte, ZonesAAfficher } from '../etat/pont-carte';
-
-/** Les teintes des zones : une par niveau, plus le halo des étiquettes (inversé entre thèmes). */
-const JETONS_ZONES = { haut: 'niveau-haut', bas: 'niveau-bas', autres: 'niveau-autres', halo: 'halo-carte' } as const;
 
 /** Marge du recadrage (`ZonesRisqueLayer.tsx:118-121`) : collées au cadre, on ne verrait plus que les zones s'arrêtent. */
 const RECADRAGE = { padding: 48, duration: 900 } as const;
@@ -23,8 +21,9 @@ const RECADRAGE = { padding: 48, duration: 900 } as const;
  *
  * ── RIEN N'EST RECOPIÉ DU MODULE ─────────────────────────────────────────
  * Source, couches, repeinture : `couches-zones.ts` du lot 3, tel quel, avec le régime de zoom de la carte principale
- * (`REGIME_CARTE` : chaque bande dès le plancher des tuiles, comme React). Les tuiles viennent de la MÊME adresse que
- * la carte du module (`urlTuilesZones`), natures comprises.
+ * (`REGIME_CARTE` : chaque bande dès le plancher des tuiles) et SANS les étiquettes de rayon — trois couches, comme
+ * `ZonesRisqueLayer.tsx` (décision du chef de projet, revue 1). Les tuiles viennent de la MÊME adresse que la carte du
+ * module (`urlTuilesZones`), natures comprises.
  *
  * ── DEUX DÉFAUTS DE REACT CORRIGÉS ───────────────────────────────────────
  * - Les natures : `ZonesRisqueLayer` demandait les tuiles du profil SEUL — la carte montrait les anneaux de toutes les
@@ -45,7 +44,7 @@ export class ZonesRisqueService implements PontCarte {
   private readonly etat = inject(EtatCarteService);
   private readonly couches = inject(CouchesCarteService);
   private readonly api = inject(ZonesRisqueApi);
-  private readonly teintes = inject(CouleursService).palette(JETONS_ZONES);
+  private readonly teintes = inject(CouleursService).palette(JETONS_TEINTES_ZONES);
 
   private readonly zones = signal<ZonesAAfficher | null>(null);
   /** Les zones affichées (profil et natures), `null` couche éteinte — lu par la légende. */
@@ -78,7 +77,7 @@ export class ZonesRisqueService implements PontCarte {
       }
       nettoyer(quandStyleCharge(carte, () => untracked(() => {
         poserCouchesZones(carte, {
-          url, teintes: this.teintes(), profil: this.zones()!.profil, visible: true, regime: REGIME_CARTE,
+          url, teintes: this.teintes(), profil: this.zones()!.profil, visible: true, regime: REGIME_CARTE, etiquettes: false,
         });
         this.posee.set(carte);
       })));

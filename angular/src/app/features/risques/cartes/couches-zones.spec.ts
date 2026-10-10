@@ -51,6 +51,17 @@ describe('couches-zones', () => {
     expect(REGIME_MODULE).toEqual({ lisible: 7, detail: 10 });
   });
 
+  it('`etiquettes: false` (carte principale, T13) : trois couches, aucune étiquette — retrait et repeinture l’ignorent', () => {
+    const f = new CarteFactice();
+    const carte = f as unknown as maplibregl.Map;
+    poserCouchesZones(carte, { url: URL, teintes: TEINTES, profil: PROFIL_DEFAUT, visible: true, regime: REGIME_CARTE, etiquettes: false });
+    expect(f.couches.map((c) => c.couche['id'])).toEqual([ID_FOND, ID_CONTOUR, ID_PPRT]);
+    repeindreCouchesZones(carte, TEINTES);
+    expect(f.peintures.some((p) => p.couche === ID_ETIQUETTES)).toBe(false);
+    retirerCouchesZones(carte);
+    expect(f.sources.has(SOURCE_ZONES)).toBe(false);
+  });
+
   it('opacité du fond selon le zoom = expressionOpaciteSelonZoom(10) : aplat fondu, puis bandes', () => {
     const { couche } = poser();
     expect(couche(ID_FOND).paint['fill-opacity']).toEqual(expressionOpaciteSelonZoom(10));

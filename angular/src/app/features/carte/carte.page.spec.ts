@@ -691,11 +691,14 @@ describe('CartePage — le module risque, route ENFANT (T13, B2/B3)', () => {
     expect(hote.querySelector('[data-module-risque] mg-module-factice')).not.toBeNull();
     expect(calque.classList).not.toContain('hidden');
     expect(calque.className).toContain('absolute inset-0 z-[60]');
+    // La carte recouverte sort du parcours clavier (revue 1), et y revient à la fermeture.
+    expect(hote.querySelector('[data-zone-carte]')!.hasAttribute('inert')).toBe(true);
     expect(harness.fixture.debugElement.query(By.directive(CartePage)).componentInstance).toBe(page);
     await router.navigateByUrl('/carte');
     await stable();
     expect(hote.querySelector('mg-module-factice')).toBeNull();
     expect(calque.classList).toContain('hidden');
+    expect(hote.querySelector('[data-zone-carte]')!.hasAttribute('inert')).toBe(false);
     expect(harness.fixture.debugElement.query(By.directive(CartePage)).componentInstance).toBe(page);
     expect(cartes).toHaveLength(1);
     expect(cartes[0].retiree).toBe(false);
