@@ -171,10 +171,13 @@ RÈGLE :
   `RETURNS TABLE` est réservée aux résultats **bornés par construction sous
   1 000** : un `LIMIT` dans le corps, un tableau d'ids fourni par l'appelant,
   une table de référence dont la taille est connue et petite.
-- Changer le type de retour d'une fonction existante exige un `DROP` : on écrit
-  une **jumelle** `_jsonb` qui porte le corps, et l'originale devient une
-  **enveloppe mince** qui l'appelle. Un seul corps, deux formes de retour,
-  dérive impossible. Patron littéral : sql/154, sql/168-169, sql/170, sql/243,
+- Changer le type de retour d'une fonction existante exige un `DROP`, et on
+  n'en fait pas, même sans production : la base locale est PARTAGÉE (d'autres
+  agents, d'autres worktrees appellent la fonction pendant qu'on travaille), un
+  `DROP` casse leurs appels et les fonctions qui en dépendent, et une migration
+  `CREATE OR REPLACE` se rejoue sans dégât. On écrit donc une **jumelle**
+  `_jsonb` qui porte le corps, et l'originale devient une **enveloppe mince**
+  qui l'appelle. Un seul corps, deux formes de retour, dérive impossible. Patron littéral : sql/154, sql/168-169, sql/170, sql/243,
   sql/246. Quand le résultat peut être tronqué par une borne, la jumelle lit
   `p_limite + 1` lignes et rend `tronque` — on échoue en le disant plutôt que
   de peindre un début.

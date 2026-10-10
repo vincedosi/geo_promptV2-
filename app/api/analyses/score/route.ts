@@ -49,7 +49,8 @@
  * 4. **`'france'` (2026-09-15, spec-filtre-france.md).** `PerimetreSchema`
  *    accepte ce type au même titre que les autres. `codes_postaux_du_perimetre`
  *    (`RETURNS TABLE`) rend bien les 6 187 CP en SQL direct, mais PostgREST
- *    tronque à 5 000 lignes TOUTE RPC `RETURNS TABLE` — mesuré ici en testant
+ *    tronque à `db-max-rows` TOUTE RPC `RETURNS TABLE` (5 000 sur l'ancien
+ *    projet hébergé, 1 000 sur le stack local) — mesuré ici en testant
  *    le parcours réel (navigateur) : la première version de ce périmètre
  *    affichait « 1 462 codes postaux scorés sur 5 000 », pas 6 187, sans
  *    erreur. Même piège déjà documenté pour `correlation_campagne_indicateur`
@@ -197,9 +198,10 @@ export async function POST(request: NextRequest) {
       }
     }
     // `_jsonb` et non `codes_postaux_du_perimetre` (RETURNS TABLE, sql/146/167) :
-    // PostgREST tronque À 5 000 LIGNES même une RPC RETURNS TABLE — mesuré ici
-    // (2026-09-15) sur le périmètre `'france'`, 6 187 CP réels rendus comme
-    // 5 000 sans erreur, comme documenté pour `correlation_campagne_indicateur`
+    // PostgREST tronque à `db-max-rows` même une RPC RETURNS TABLE (1 000 sur
+    // le stack local ; 5 000 sur l'ancien projet hébergé) — mesuré ici
+    // (2026-09-15, projet hébergé) sur le périmètre `'france'`, 6 187 CP réels
+    // rendus comme 5 000 sans erreur, comme documenté pour `correlation_campagne_indicateur`
     // (sql/154). `codes_postaux_du_perimetre_jsonb` (sql/168) est la jumelle
     // `RETURNS jsonb`, jamais tronquée par PostgREST.
     const { data, error } = await supabase.rpc('codes_postaux_du_perimetre_jsonb', {
@@ -275,8 +277,9 @@ export async function POST(request: NextRequest) {
 
   // ── 4. Le score ───────────────────────────────────────────────────────
   // `_jsonb` et non `calculer_score_composite` (RETURNS TABLE, sql/146) : la
-  // RPC rend UNE LIGNE PAR CODE POSTAL et PostgREST tronque à 5 000 lignes
-  // même une RPC RETURNS TABLE. Mesuré le 2026-09-15 : 6 186 lignes pour les
+  // RPC rend UNE LIGNE PAR CODE POSTAL et PostgREST tronque à `db-max-rows`
+  // même une RPC RETURNS TABLE (1 000 sur le stack local ; 5 000 sur l'ancien
+  // projet hébergé). Mesuré le 2026-09-15 sur ce dernier : 6 186 lignes pour les
   // 6 187 CP du référentiel, donc 1 186 codes postaux perdus SANS ERREUR sur
   // le périmètre national — la choroplèthe les laissait non coloriés et
   // `analyses.resultat` figeait `n_scores: 5000`. Même piège que le point 4

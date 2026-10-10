@@ -107,10 +107,11 @@ export async function GET(request: NextRequest) {
   }
 
   // La RPC rend du `jsonb` et non un `TABLE`, et ce n'est pas cosmétique :
-  // PostgREST tronque à 5 000 lignes AUSSI les RPC `RETURNS TABLE` — mesuré
-  // sur ce projet, `codes_postaux_dans_bbox` rend 5 000 lignes pour 6 051
-  // réelles, sans erreur ni en-tête exploitable. Une campagne nationale
-  // dépassant 5 000 CP (le référentiel en compte 6 187, et
+  // PostgREST tronque à `db-max-rows` AUSSI les RPC `RETURNS TABLE` : 1 000
+  // lignes sur le stack local (`supabase/config.toml`), 5 000 sur l'ancien
+  // projet hébergé, où `codes_postaux_dans_bbox` rendait 5 000 lignes pour
+  // 6 051 réelles, sans erreur ni en-tête exploitable. Une campagne
+  // dépassant ce plafond en CP (le référentiel en compte 6 187, et
   // `abstention_pres_2022` en couvre 6 186) aurait vu son coefficient calculé
   // sur la moitié nord-est de la France — la RPC trie par code postal — avec
   // un `n` faux, un statut « terminé », et une couverture partielle qui se

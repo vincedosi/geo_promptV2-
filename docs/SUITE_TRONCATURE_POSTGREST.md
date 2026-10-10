@@ -230,8 +230,9 @@ minimum :
 
 1. ~~**Une règle dans `CLAUDE.md`**~~ — **FAIT le 2026-09-16** : section
    « Troncature PostgREST », au même rang que les autres règles d'I/O. Toute
-   RPC appelée par l'application dont le résultat peut dépasser 5 000 lignes
-   est `RETURNS jsonb` ; la forme `RETURNS TABLE` reste réservée aux résultats
+   RPC appelée par l'application dont le résultat peut dépasser le plafond
+   (écrit 5 000 à l'époque, **1 000** depuis le 2026-10-10) est
+   `RETURNS jsonb` ; la forme `RETURNS TABLE` reste réservée aux résultats
    bornés par construction, et le patron jumelle + enveloppe y est écrit.
 2. ~~**Un test qui balaie**~~ — **FAIT le 2026-09-16** :
    `tests/unit/db/troncature-postgrest.test.ts`. Un contrôle automatique plutôt
@@ -246,5 +247,6 @@ minimum :
    `max_rows` dans `supabase/config.toml` au lieu de le supposer.
 
 Le défaut C et les dettes D et E restent ouverts (A et B corrigés le
-2026-10-10) : ce fichier les recense, il ne les corrige pas. Le test les tient inscrits — retirer l'un d'eux de ce document
-sans corriger la fonction fait échouer la suite.
+2026-10-10) : ce fichier les recense, il ne les corrige pas. Le test les
+tient inscrits — retirer l'un d'eux de ce document sans corriger la fonction
+fait échouer la suite.

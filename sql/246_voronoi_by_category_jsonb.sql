@@ -16,9 +16,16 @@
 --
 -- ── Le correctif : patron jumelle + enveloppe (sql/154, 168-170, 243) ───────
 --
--- `get_voronoi_by_category_jsonb` porte le corps de sql/164 AU CARACTÈRE PRÈS
+-- `get_voronoi_by_category_jsonb` porte le calcul de sql/164 inchangé
 -- (valeurs canoniques résolues une fois, `geom <->`, CTE MATERIALIZED), et rend
 -- `{ features, tronque }` — un scalaire jsonb, que PostgREST ne coupe pas.
+-- Seule différence de forme : `jsonb_build_object` au lieu de
+-- `json_build_object`, donc l'ordre des clés et la représentation sont ceux
+-- de jsonb — le CONTENU est identique (vérifié cellule par cellule), pas le
+-- texte JSON octet pour octet.
+--
+-- Non gardé : `p_limite` NULL ou négatif (`limit null` = aucune borne,
+-- `tronque` NULL). Seul service_role l'appelle et l'outil passe 5 000.
 --
 -- Borne : `p_limite` (défaut 5 000, le `LIMIT 5000` de sql/164). On lit
 -- `p_limite + 1` cellules et `tronque` le DIT, au lieu d'une borne muette.

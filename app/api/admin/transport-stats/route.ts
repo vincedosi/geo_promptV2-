@@ -14,7 +14,8 @@ export async function GET(req: NextRequest) {
   // en parallele est exactement le motif de l'incident du 08/04 consigne dans
   // CLAUDE.md (3 COUNT sur 280k lignes -> timeout). On les SEQUENCE donc :
   // memes requetes, memes resultats, concurrence ramenee a 1.
-  // Arrêts transport — COUNT exact (évite le plafond PostgREST 5 000 lignes)
+  // Arrêts transport — COUNT exact (évite le plafond PostgREST `db-max-rows`,
+  // 1 000 lignes sur le stack local)
   const arretTotal = await supabase
     .from('poi_france').select('*', { count: 'exact', head: true }).eq('categorie', 'arret_transport');
   // Flux CEREMA — COUNT exact
