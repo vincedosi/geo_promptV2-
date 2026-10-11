@@ -75,6 +75,17 @@ describe('ApercuClusteringService (page.tsx:410-436, useMapInit.ts:746-760)', ()
     expect(visibilite(carte).at(-1)).toBe('none');
   });
 
+  it('rang de React (`avantDe`) : posée SOUS les clusters et au-dessus des isochrones, quel que soit l’ordre des gestes', () => {
+    const { service, http, carte } = monter();
+    carte.addLayer({ id: 'isochrones-line' });
+    carte.addLayer({ id: 'clusters-layer' });
+    service.afficher(['bmw'], true);
+    http.expectOne('/api/map/pois').flush(POIS);
+    TestBed.tick();
+    expect(carte.couches.find((c) => c.couche['id'] === COUCHE_APERCU)!.avant).toBe('clusters-layer');
+    expect(carte.ordreRendu()).toEqual(['isochrones-line', COUCHE_APERCU, 'clusters-layer']);
+  });
+
   it('un échec n’affiche rien et ne lève pas (best effort)', () => {
     const { service, http, carte } = monter();
     service.afficher(['bmw'], true);

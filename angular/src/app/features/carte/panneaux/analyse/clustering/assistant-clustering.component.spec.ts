@@ -195,4 +195,112 @@ describe('mg-assistant-clustering (ClusteringWizard.tsx)', () => {
       vi.useRealTimers();
     }
   });
+
+  // ── Revue 1 ──────────────────────────────────────────────────────────────
+
+  it('durée frappée chiffre par chiffre « 1 », « 2 », « 0 » : le champ n’est jamais réécrit, la durée finit à 120', async () => {
+    const m = await monter();
+    await jusquAuxParametres(m);
+    const champ = m.el.querySelector<HTMLInputElement>('[data-duree]')!;
+    for (const texte of ['1', '12', '120']) {
+      champ.value = texte;
+      champ.dispatchEvent(new Event('input'));
+      await m.fixture.whenStable();
+      expect(champ.value).toBe(texte);
+    }
+    champ.dispatchEvent(new Event('change'));
+    await m.fixture.whenStable();
+    expect(champ.value).toBe('120');
+    await m.cliquer('[data-lancer]');
+    expect(m.lances.at(-1)!.params.duration).toBe(120);
+  });
+
+  it('durée hors bornes : bornée à la validation (sortie du champ), pas pendant la frappe', async () => {
+    const m = await monter();
+    await jusquAuxParametres(m);
+    const champ = m.el.querySelector<HTMLInputElement>('[data-duree]')!;
+    const valider = async (texte: string) => {
+      champ.value = texte;
+      champ.dispatchEvent(new Event('input'));
+      await m.fixture.whenStable();
+      expect(champ.value).toBe(texte);
+      champ.dispatchEvent(new Event('change'));
+      await m.fixture.whenStable();
+    };
+    await valider('200');
+    expect(champ.value).toBe('120');
+    await valider('2');
+    expect(champ.value).toBe('5');
+    await m.cliquer('[data-lancer]');
+    expect(m.lances.at(-1)!.params.duration).toBe(5);
+  });
+
+  it('refus retenu au clic : un refus posé ENSUITE par un autre outil ne le remplace pas ; filtre posé ou « Retour » l’effacent', async () => {
+    const m = await monter();
+    await jusquAuxParametres(m);
+    const clustering = 'Le clustering ne peut pas être calculé sur la France entière — choisissez une région ou un département.';
+    // Le panneau Analyse refuse PENDANT l'émission (synchrone) : on joue son rôle.
+    m.fixture.componentInstance.lancer.subscribe(() => m.fixture.componentRef.setInput('refus', clustering));
+    await m.cliquer('[data-lancer]');
+    await m.fixture.whenStable();
+    expect(m.texte('[data-erreur-lancement]')).toBe(`! ${clustering}`);
+    m.fixture.componentRef.setInput('refus', 'La bataille isochrone ne peut pas être calculée sur la France entière — choisissez une région ou un département.');
+    await m.fixture.whenStable();
+    expect(m.texte('[data-erreur-lancement]')).toBe(`! ${clustering}`);
+    m.fixture.componentRef.setInput('refus', null);
+    await m.fixture.whenStable();
+    expect(m.el.querySelector('[data-erreur-lancement]')).toBeNull();
+    m.fixture.componentRef.setInput('refus', 'Choisissez un périmètre (filtre ou zone) avant de lancer un calcul');
+    await m.fixture.whenStable();
+    expect(m.el.querySelector('[data-erreur-lancement]')).toBeNull();
+    await m.cliquer('[data-lancer]');
+    await m.fixture.whenStable();
+    expect(m.texte('[data-erreur-lancement]')).toBe(`! ${clustering}`);
+    await m.cliquer('[data-retour]');
+    await m.cliquer('[data-suivant]');
+    m.http.expectOne((r) => r.url === '/api/poi-clusters/count').flush({ count: 6 });
+    await m.fixture.whenStable();
+    expect(m.el.querySelector('[data-erreur-lancement]')).toBeNull();
+  });
+
+  it('refus au clic avec le MÊME texte qu’avant (la garde générique) : retenu quand même', async () => {
+    const m = await monter();
+    const generique = 'Choisissez un périmètre (filtre ou zone) avant de lancer un calcul';
+    m.fixture.componentRef.setInput('refus', generique);
+    await jusquAuxParametres(m);
+    expect(m.el.querySelector('[data-erreur-lancement]')).toBeNull();
+    await m.cliquer('[data-lancer]');
+    await m.fixture.whenStable();
+    expect(m.texte('[data-erreur-lancement]')).toBe(`! ${generique}`);
+  });
+
+  it('lancement admis : aucun refus affiché, même si la garde refusait avant', async () => {
+    const m = await monter();
+    m.fixture.componentRef.setInput('refus', 'Choisissez un périmètre (filtre ou zone) avant de lancer un calcul');
+    await jusquAuxParametres(m);
+    m.fixture.componentInstance.lancer.subscribe((c) => { m.fixture.componentRef.setInput('refus', null); m.calcul.lancer(c); });
+    await m.cliquer('[data-lancer]');
+    expect(m.calcul.lancement()).toBe(true);
+    expect(m.el.querySelector('[data-erreur-lancement]')).toBeNull();
+    m.http.expectOne('/api/poi-clusters/run');
+  });
+
+  it('fin d’un job lancé sur une SÉLECTION de variables : « modèle entraîné », sans « Lancez --mode full-retrain »', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      const m = await monter();
+      await jusquAuxParametres(m);
+      await m.cliquer('[data-prereglage="habitat"]');
+      await m.cliquer('[data-lancer]');
+      m.calcul.lancer(m.lances[0]);
+      m.http.expectOne('/api/poi-clusters/run').flush({ job_id: 'job-s' }, { status: 201, statusText: 'Created' });
+      m.http.expectOne('/api/poi-clusters/run?job_id=job-s').flush({ status: 'done' });
+      m.http.expectOne('/api/poi-clusters/models').flush({ models: [] });
+      await m.fixture.whenStable();
+      expect(m.texte('[data-fin="done"]')).toBe('✓ Isochrones mis en cache et modèle entraîné sur la sélection de variables. voir les résultats →');
+      expect(m.el.textContent).not.toContain('full-retrain');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

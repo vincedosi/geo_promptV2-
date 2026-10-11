@@ -112,10 +112,31 @@ export function peutLancer(e: { types: number; duree: number; variables: number;
   return e.types > 0 && e.duree >= DUREE_MIN && e.duree <= DUREE_MAX && !e.enCours && e.variables >= 2;
 }
 
-/** La saisie de la durée : un entier borné à [5, 120], `null` si illisible (React ignorait alors la frappe). */
+/** La saisie VALIDÉE de la durée (sortie du champ, Entrée) : un entier borné à [5, 120], `null` si illisible. */
 export function dureeSaisie(texte: string): number | null {
   const v = parseInt(texte, 10);
   return Number.isNaN(v) ? null : Math.min(DUREE_MAX, Math.max(DUREE_MIN, v));
+}
+
+/**
+ * Une frappe dans le champ de durée : la valeur si elle est DÉJÀ dans [5, 120], `null` sinon. On ne borne pas pendant
+ * la frappe — taper « 120 » passe par « 1 » et « 12 », et borner « 1 » en « 5 » réécrirait le champ (le défaut React).
+ */
+export function dureeEnCours(texte: string): number | null {
+  const v = Number(texte.trim());
+  return texte.trim() !== '' && Number.isInteger(v) && v >= DUREE_MIN && v <= DUREE_MAX ? v : null;
+}
+
+/**
+ * Le message de fin d'un job réussi, selon ce que le script a RÉELLEMENT fait (`--mode cache-isochrones`) :
+ * - dry-run : rien n'est écrit ;
+ * - une sélection de variables (`features` non nul) : le script enchaîne `full-retrain`, un modèle est entraîné ;
+ * - toutes les variables (`features: null`) : isochrones en cache seulement — le texte de React, exact dans ce seul cas.
+ */
+export function messageFinJob(corps: CorpsLancementClustering): { texte: string; commande: boolean } {
+  if (corps.params.dry_run) return { texte: '✓ Simulation terminée — aucune écriture en base.', commande: false };
+  if (corps.features !== null) return { texte: '✓ Isochrones mis en cache et modèle entraîné sur la sélection de variables.', commande: false };
+  return { texte: '✓ Isochrones mis en cache.', commande: true };
 }
 
 /** Les variables d'un préréglage (« Toutes », « Socio-démo », « Habitat »). */

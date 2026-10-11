@@ -32,7 +32,7 @@ import { STYLES_CLUSTERS } from './styles-clusters';
   imports: [AssistantClusteringComponent, ComparaisonDureesComponent, ComparaisonPoiComponent, FichePoiClusterComponent, RadarComponent],
   providers: [EtatPanneauClustersService],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'relative flex h-full flex-col', '[style.min-height.px]': 'assistantOuvert() ? hauteurAssistant : null' },
+  host: { class: 'relative flex h-full flex-col', '[style.min-height]': 'assistantOuvert() ? hauteurAssistant : null' },
   template: `
     @if (assistantOuvert()) {
       <mg-assistant-clustering [refus]="refusCalcul()" (lancer)="lancerCalcul.emit($event)" (fermer)="assistantOuvert.set(false)" (voirModeles)="revenirAuxModeles()" />
@@ -204,9 +204,11 @@ export class PanneauClustersComponent {
   protected readonly assistantOuvert = signal(false);
   /**
    * La hauteur réservée à l'assistant, posé en `absolute inset-0` sur ce panneau. Sans elle il prend la hauteur du
-   * panneau VIDE (≈ 190 px, mesuré au navigateur, React compris) : l'étape 3 tenait dans une lucarne à faire défiler.
+   * panneau VIDE (≈ 190 px, mesuré au navigateur, React compris) : l'étape 3 tenait dans une lucarne. 520 px laissent
+   * voir l'étape 3 repliée d'un coup d'œil ; `70vh` borne cette réserve sur un petit écran pour que le pied (« Lancer »)
+   * reste joignable. Au-delà (thématiques dépliées), c'est le CORPS de l'assistant qui défile, en-tête et pied fixes.
    */
-  protected readonly hauteurAssistant = 520;
+  protected readonly hauteurAssistant = 'min(520px, 70vh)';
 
   protected readonly durees = DUREES_CLUSTERS;
   protected readonly dureesTexte = DUREES_CLUSTERS.join('/');

@@ -46,7 +46,8 @@ const HANDLERS_GARDE_GENERIQUE: Array<[nom: string, appel: string]> = [
 
 /** Les composants du clustering : ils ÉMETTENT `charger`, jamais ne l'appellent sur le service. */
 const CLUSTERING = ['clustering/section-clustering.component.ts', 'clustering/panneau-clusters.component.ts', 'clustering/etat-panneau-clusters.service.ts',
-  'clustering/assistant-clustering.component.ts', 'clustering/assistant/etat-assistant-clustering.service.ts', 'clustering/assistant/etape-parametres.component.ts',
+  'clustering/assistant-clustering.component.ts', 'clustering/assistant/etat-assistant-clustering.service.ts', 'clustering/assistant/etape-types.component.ts',
+  'clustering/assistant/etape-perimetre.component.ts', 'clustering/assistant/etape-parametres.component.ts', 'clustering/assistant/choix-variables.component.ts',
   'clustering/assistant/etape-execution.component.ts'];
 
 /** [balise de l'outil, sortie, appel attendu dans le gabarit]. */

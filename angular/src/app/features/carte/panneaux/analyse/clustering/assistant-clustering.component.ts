@@ -1,4 +1,6 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, Injector, afterNextRender, computed, effect, inject, input, linkedSignal, output, untracked,
+} from '@angular/core';
 import { ApercuClusteringService } from '../../../couches/apercu-clustering.service';
 import type { CorpsLancementClustering } from '../../../logique/clustering/assistant';
 import { EtapeExecutionComponent } from './assistant/etape-execution.component';
@@ -17,8 +19,9 @@ import { CalculClusteringService } from './calcul-clustering.service';
  * « Lancer » ÉMET le corps du POST (`lancer`) ; il remonte jusqu'à `mg-panneau-analyse`, qui passe par
  * `verifierPerimetreOutil('clustering')` (refus de la France entière, NOMMÉ) avant d'appeler
  * `CalculClusteringService.lancer` — verrou structurel `panneau-analyse-garde.test.ts`. Le refus redescend par `refus`
- * (le message de garde du panneau) et s'affiche dans l'étape 3, où React l'affichait (`launchError`). Il n'est montré
- * qu'après un clic sur « Lancer » : avant, un refus posé par un AUTRE outil n'a rien à faire ici.
+ * (le message de garde du panneau) et s'affiche dans l'étape 3, où React l'affichait (`launchError`). Seul le refus
+ * opposé à CE clic est retenu (`refusCapte`) : un refus posé ensuite par un AUTRE outil (bataille, score) ne le remplace
+ * pas, et il s'efface dès que la garde ne refuse plus rien (filtre posé), au « Retour » et au lancement admis.
  *
  * ── CE QUE LA FERMETURE ARRÊTE ───────────────────────────────────────────
  * Détruit (✕, « Fermer », panneau fermé), l'assistant arrête le sondage du job et efface l'aperçu des POI sur la carte
@@ -45,7 +48,7 @@ import { CalculClusteringService } from './calcul-clustering.service';
       <button type="button" data-fermer aria-label="Fermer l'assistant" class="fermer text-[14px] text-secondary" (click)="fermer.emit()">✕</button>
     </div>
 
-    <div class="flex-1 overflow-y-auto px-4 pb-3 pt-4">
+    <div data-corps class="min-h-0 flex-1 overflow-y-auto px-4 pb-3 pt-4">
       @switch (etat.etape()) {
         @case (1) { <mg-etape-types /> }
         @case (2) { <mg-etape-perimetre /> }
@@ -56,7 +59,7 @@ import { CalculClusteringService } from './calcul-clustering.service';
 
     <div class="flex shrink-0 justify-between gap-2 border-t-fin border-default px-4 py-3">
       @if (etat.etape() === 2 || etat.etape() === 3) {
-        <button type="button" data-retour class="pied neutre" (click)="etat.retour()">Retour</button>
+        <button type="button" data-retour class="pied neutre" (click)="revenir()">Retour</button>
       } @else { <div></div> }
 
       @if (etat.etape() === 1 || etat.etape() === 2) {
@@ -105,10 +108,26 @@ export class AssistantClusteringComponent {
   /** « Voir résultats » : retour à la liste des modèles (React : un lien vers `/clusters`, page inexistante). */
   readonly voirModeles = output<void>();
 
-  /** Un clic sur « Lancer » a eu lieu : le refus de la garde devient le SIEN. */
-  private readonly tentative = signal(false);
-  /** Le refus affiché : celui de la garde après un clic, sinon celui du serveur (503 « script absent »…). */
-  protected readonly erreur = computed(() => (this.tentative() && this.refus()) || this.calcul.erreur());
+  private readonly injecteur = inject(Injector);
+  /**
+   * Le refus de la garde opposé au DERNIER clic sur « Lancer ». `attente` : le clic vient d'être refusé, le message
+   * redescend au rendu suivant par `refus` — le premier message reçu est le nôtre ; ensuite, un changement de `refus`
+   * vient d'un autre outil et ne le remplace pas. `refus` à `null` (filtre posé) efface tout.
+   */
+  private readonly refusCapte = linkedSignal<string | null, RefusCapte>({
+    source: this.refus,
+    computation: (r, precedent) => {
+      const p = precedent?.value ?? null;
+      if (r === null) return null;
+      return p?.attente ? { attente: false, texte: r } : p;
+    },
+  });
+  /** Le refus affiché : celui de la garde opposé au clic, sinon celui du serveur (503 « script absent »…). */
+  protected readonly erreur = computed(() => {
+    const c = this.refusCapte();
+    const garde = c === null ? null : c.attente ? this.refus() : c.texte;
+    return garde ?? this.calcul.erreur();
+  });
 
   protected readonly pastilles = computed(() => {
     const e = this.etat.etape();
@@ -130,7 +149,27 @@ export class AssistantClusteringComponent {
   }
 
   protected demanderLancement(): void {
-    this.tentative.set(true);
     this.lancer.emit(this.etat.corps());
+    // Garde passée ⇔ le panneau a appelé `CalculClusteringService.lancer`, SYNCHRONE : `lancement` est vrai dès ici.
+    if (this.calcul.lancement()) {
+      this.refusCapte.set(null);
+      return;
+    }
+    this.refusCapte.set({ attente: true });
+    // Refusé avec le MÊME texte qu'avant le clic, `refus` ne change pas : on retient alors la valeur après rendu.
+    afterNextRender(() => this.refusCapte.update((c) => {
+      if (!c?.attente) return c;
+      const r = this.refus();
+      return r === null ? null : { attente: false, texte: r };
+    }), { injector: this.injecteur });
+  }
+
+  /** « Retour » : l'étape change, le refus du dernier clic n'a plus d'objet. */
+  protected revenir(): void {
+    this.refusCapte.set(null);
+    this.etat.retour();
   }
 }
+
+/** `attente` : un clic vient d'être refusé, son message n'est pas encore redescendu ; sinon, le message retenu. */
+type RefusCapte = { attente: true } | { attente: false; texte: string } | null;

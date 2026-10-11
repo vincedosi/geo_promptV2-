@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output } from '@angular/core';
-import { libellePerimetre } from '../../../../logique/clustering/assistant';
+import { libellePerimetre, messageFinJob } from '../../../../logique/clustering/assistant';
 import { featureSelectionLabel } from '../../../../logique/clustering/feature-themes';
 import { CalculClusteringService } from '../calcul-clustering.service';
 import { EtatAssistantClusteringService } from './etat-assistant-clustering.service';
@@ -16,7 +16,9 @@ const JOURNAL_MAX = 3000;
  * - le message de fin d'un job RÉUSSI n'était jamais vu : `onJobStarted` refermait le wizard dans le même tic que
  *   l'arrivée de `done`. Il reste affiché ici, la liste des modèles est relue derrière ;
  * - son lien « voir les résultats → » menait à `/clusters`, une page qui n'existe pas (404) : il ramène à la liste des
- *   modèles de la section (`voirModeles`).
+ *   modèles de la section (`voirModeles`) ;
+ * - son texte (« Lancez --mode full-retrain pour entraîner le modèle ») n'est vrai qu'avec TOUTES les variables : une
+ *   sélection fait enchaîner l'entraînement au script, un dry-run n'écrit rien — `messageFinJob` dit ce que le job a fait.
  */
 @Component({
   selector: 'mg-etape-execution',
@@ -47,7 +49,8 @@ const JOURNAL_MAX = 3000;
 
         @if (calcul.termine() && calcul.statut() === 'done') {
           <div data-fin="done" role="status" class="encart succes mono px-3 py-[10px] text-[11px]!">
-            ✓ Isochrones mis en cache. Lancez <code class="mono text-[10px]">--mode full-retrain</code> pour entraîner le modèle, puis
+            {{ fin().texte }}
+            @if (fin().commande) { Lancez <code class="mono text-[10px]">--mode full-retrain</code> pour entraîner le modèle, puis }
             <button type="button" class="lien" (click)="voirModeles.emit()">voir les résultats →</button>
           </div>
         }
@@ -72,6 +75,8 @@ export class EtapeExecutionComponent {
   protected readonly perimetre = computed(() => libellePerimetre(this.etat.metropolitaine(), this.etat.regions().length));
   protected readonly variables = computed(() => featureSelectionLabel(this.etat.variables()));
   protected readonly journal = computed(() => this.calcul.journal().slice(-JOURNAL_MAX));
+  /** Ce que le job a fait, d'après le corps lancé (l'assistant est figé à l'étape 4 : ses réglages SONT ceux du job). */
+  protected readonly fin = computed(() => messageFinJob(this.etat.corps()));
   /** Vert terminé, rouge échoué, ambre sinon (en attente, en cours). */
   protected readonly teinteStatut = computed(() => {
     const s = this.calcul.statut();

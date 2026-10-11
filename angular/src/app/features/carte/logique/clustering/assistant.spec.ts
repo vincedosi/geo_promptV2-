@@ -1,7 +1,7 @@
 import type { RegionRef } from '../../etat/referentiel-geo.service';
 import {
-  avisVariables, basculer, basculerTheme, corpsLancement, departementsChoisis, dureeSaisie, etatTheme, libellePerimetre,
-  libelleRegionsChoisies, libelleTypesChoisis, peutLancer, prereglageActif, regionsProposees, variablesDuPrereglage,
+  avisVariables, basculer, basculerTheme, corpsLancement, departementsChoisis, dureeEnCours, dureeSaisie, etatTheme, libellePerimetre,
+  libelleRegionsChoisies, libelleTypesChoisis, messageFinJob, peutLancer, prereglageActif, regionsProposees, variablesDuPrereglage,
 } from './assistant';
 import { ALL_FEATURES } from './feature-themes';
 
@@ -72,5 +72,23 @@ describe('logique de l’assistant de clustering (ClusteringWizard.tsx)', () => 
     expect(libelleTypesChoisis(1)).toBe('1 type sélectionné');
     expect(libelleTypesChoisis(2)).toBe('2 types sélectionnés');
     expect(libelleRegionsChoisies(1, 5)).toBe('1 région — 5 départements');
+  });
+
+  it('frappe en cours : retenue seulement DANS les bornes, jamais bornée', () => {
+    expect(dureeEnCours('1')).toBeNull();
+    expect(dureeEnCours('12')).toBe(12);
+    expect(dureeEnCours('120')).toBe(120);
+    expect(dureeEnCours('200')).toBeNull();
+    expect(dureeEnCours('')).toBeNull();
+    expect(dureeEnCours('7.5')).toBeNull();
+  });
+
+  it('message de fin : ce que le job a réellement fait', () => {
+    const corps = corpsLancement({ types: ['bmw'], metropolitaine: true, regions: [], depts: [], duree: 15, transport: 'drive', dryRun: false, variables: ALL_FEATURES });
+    expect(messageFinJob(corps)).toEqual({ texte: '✓ Isochrones mis en cache.', commande: true });
+    expect(messageFinJob({ ...corps, features: ['pct_0_17', 'revenu_moyen'] })).toEqual({
+      texte: '✓ Isochrones mis en cache et modèle entraîné sur la sélection de variables.', commande: false,
+    });
+    expect(messageFinJob({ ...corps, params: { ...corps.params, dry_run: true } }).texte).toBe('✓ Simulation terminée — aucune écriture en base.');
   });
 });

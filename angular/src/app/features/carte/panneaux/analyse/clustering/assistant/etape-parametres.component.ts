@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { formaterNombre } from '../../../../../../core/format/nombre';
-import { DUREE_MAX, DUREE_MIN, RACCOURCIS_DUREE, TRANSPORTS, dureeSaisie } from '../../../../logique/clustering/assistant';
+import { DUREE_MAX, DUREE_MIN, RACCOURCIS_DUREE, TRANSPORTS, dureeEnCours, dureeSaisie } from '../../../../logique/clustering/assistant';
 import { ChoixVariablesComponent } from './choix-variables.component';
 import { EtatAssistantClusteringService } from './etat-assistant-clustering.service';
 import { STYLES_ASSISTANT } from './styles-assistant';
@@ -37,7 +37,7 @@ import { STYLES_ASSISTANT } from './styles-assistant';
       <div class="intertitre mb-1.5 text-[9px]!">Durée isochrone (minutes)</div>
       <div class="flex items-center gap-2">
         <input type="number" data-duree [min]="min" [max]="max" [value]="etat.duree()" aria-label="Durée isochrone (minutes)"
-               (input)="saisir($any($event.target).value)" (change)="recaler($any($event.target))"
+               (input)="saisir($any($event.target).value)" (change)="valider($any($event.target))"
                class="champ mono w-20 rounded-[2px] bg-elevated px-[10px] py-[7px] text-[13px] text-primary outline-none" />
         <span class="mono text-[10px] text-secondary">min (5 – 120)</span>
         @for (d of raccourcis; track d) {
@@ -87,17 +87,19 @@ export class EtapeParametresComponent {
     return n === null ? null : formaterNombre(n);
   });
 
-  /** Une frappe illisible ne change rien ; une valeur hors bornes est ramenée dans [5, 120] (`onChange` de React). */
+  /**
+   * Une frappe : la durée n'est retenue que si elle est DÉJÀ dans [5, 120]. Borner ici réécrirait le champ par la liaison
+   * `[value]` — taper « 120 » passerait par « 5 » au premier chiffre (le défaut React, `onChange` qui bornait).
+   */
   protected saisir(texte: string): void {
-    const v = dureeSaisie(texte);
+    const v = dureeEnCours(texte);
     if (v !== null) this.etat.duree.set(v);
   }
 
-  /**
-   * La saisie validée (sortie du champ, Entrée) affiche la durée RETENUE. React réécrivait le champ à chaque frappe —
-   * taper « 120 » passait par « 5 » au premier chiffre ; ici on tape librement, et « 200 » se lit « 120 » en sortant.
-   */
-  protected recaler(champ: HTMLInputElement): void {
+  /** La saisie validée (sortie du champ, Entrée) : bornée à [5, 120], et le champ affiche la durée RETENUE. */
+  protected valider(champ: HTMLInputElement): void {
+    const v = dureeSaisie(champ.value);
+    if (v !== null) this.etat.duree.set(v);
     champ.value = String(this.etat.duree());
   }
 }
