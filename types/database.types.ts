@@ -8325,6 +8325,7 @@ export type Database = {
         Returns: Json
       }
       truncate_laposte_hexasmal: { Args: never; Returns: undefined }
+      types_poi_clustering: { Args: never; Returns: Json }
       unaccent: { Args: { "": string }; Returns: string }
       unlockrows: { Args: { "": string }; Returns: number }
       update_iris_core_batch: { Args: { p_rows: Json }; Returns: number }

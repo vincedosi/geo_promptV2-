@@ -1381,7 +1381,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/poi-clusters/poi/[poiId]` | GET | Clusters d'un POI, toutes durees |
 | `/api/poi-clusters/history/[poiId]` | GET | Historique des assignations d'un POI |
 | `/api/poi-clusters/count` | GET | Nombre de POI du périmètre de l'assistant de calcul (types, `metropolitaine`, `depts`), compté avant le lancement — pas les POI déjà clusterisés |
-| `/api/poi-clusters/poi-types` | GET | Types de POI disponibles, avec total et nombre deja clusterise. ⚠ Lit `poi_france` SANS pagination : coupé à 1 000 lignes par `db-max-rows` (390 029 en local) — liste et totaux faux, dette relevée au lot 4 T20 |
+| `/api/poi-clusters/poi-types` | GET | Types de POI disponibles, avec total et nombre deja clusterise. **Comptes en base par `types_poi_clustering` (sql/248) depuis le 2026-10-11** : la route lisait `poi_france` sans pagination et comptait 1 000 POI sur 390 029 |
 | `/api/poi-clusters/france-averages` | GET | Moyennes nationales Filosofi (reference du radar de clustering) |
 | `/api/poi-clusters/model` | GET | Modele courant |
 
@@ -2003,6 +2003,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `consommer_quota` | Consomme une unite de quota et dit si l'appel passe (sql/135) | `lib/api/rate-limit.ts` — tous les limiteurs |
 | `compute_filosofi_profiles_batch_2km` | **Profilage Filosofi par defaut depuis le 2026-09-12.** Variante sur `carreaux_2km` (colonnes typees, sans jsonb) — **7,8x plus rapide** (19 818 ms -> 2 543 ms pour 5 POI) et 6x moins de lectures disque. Les 16 variables du modele derivent de moins de 3,5 % ; seule `population_totale` derive de 11,8 %, et elle n'entre PAS dans le modele. Mesure sur le meme calcul (95 CIRFA) : profilage ~6 min -> 6,5 s, K 7 -> 4. Le 200 m reste joignable par `--palier 200m`. Voir docs/PLAN_CLUSTERING.md (sql/142, sql/143) | `scripts/clustering_poi_filosofi.py` |
 | `compute_filosofi_profiles_batch` | Profil sociodemographique Filosofi d'un lot de POI, par intersection avec leur isochrone. **~4 s par POI** : joint `carreaux_filosofi` (2,3 M lignes) et extrait 26 champs d'un jsonb par carreau | `scripts/clustering_poi_filosofi.py` |
+| `types_poi_clustering` | Types de POI de l'assistant de clustering, comptes EN BASE (sql/248, 2026-10-11) : `[{ type, total, clustered }]` trie par total decroissant, `RETURNS jsonb`. `clustered` = POI DISTINCTS presents dans `poi_clusters`, tous modeles confondus. Remplace la lecture non paginee de `poi_france` par la route, coupee a 1 000 lignes sur 390 029 (l'assistant ne proposait qu'« arret_transport 1 000 POIs »). Index Only Scan `idx_poi_france_categorie`, ≈ 7 000 buffers, ≈ 25-38 ms. service_role seul | `api/poi-clusters/poi-types` |
 | `compte_poi_par_categorie` | Comptage des POI par categorie dans une ville ou une region, en UNE requete groupee (sql/136). `p_champ` limite a 'ville'/'region' | `lib/chat/tools/analyseComplete.ts` |
 | `smart_demographie_stats` | Stats demo smart prompt | `lib/smart-prompt/` |
 | `smart_demographie_top_villes` | Top villes smart prompt | `lib/smart-prompt/` |
