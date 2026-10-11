@@ -11,6 +11,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { creerClientTest } from './_client';
+import { lireTout } from '@/lib/supabase/lire-tout';
 
 const sb = creerClientTest();
 
@@ -50,11 +51,12 @@ describe('types_poi_clustering', () => {
   it('clustered = POI distincts présents dans poi_clusters, tous modèles confondus', async () => {
     const { data } = await sb.rpc('types_poi_clustering');
     const somme = (data as Type[]).reduce((s, t) => s + t.clustered, 0);
-    const lus = await sb.from('poi_clusters').select('poi_id').range(0, 999);
-    expect(lus.error).toBeNull();
-    // Base locale : 95 lignes aujourd'hui, sous le plafond — la lecture est complète.
-    if ((lus.data ?? []).length < 1000) {
-      expect(somme).toBe(new Set((lus.data ?? []).map((r) => r.poi_id)).size);
-    }
+    // Lecture COMPLÈTE par lireTout (pages de 1 000, triées sur la clé) : au-delà
+    // de 1 000 lignes le test vérifie toujours, il ne se tait pas (revue 1, M-4).
+    const { lignes } = await lireTout<{ poi_id: string }>(
+      (de, a) => sb.from('poi_clusters').select('poi_id').order('id', { ascending: true }).range(de, a),
+      500_000,
+    );
+    expect(somme).toBe(new Set(lignes.map((r) => r.poi_id)).size);
   });
 });
