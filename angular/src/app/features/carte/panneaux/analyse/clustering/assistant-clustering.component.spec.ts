@@ -157,7 +157,7 @@ describe('mg-assistant-clustering (ClusteringWizard.tsx)', () => {
       m.http.expectOne('/api/poi-clusters/run?job_id=abcdef1234567890').flush({ status: 'done', log_tail: 'fini' });
       m.http.expectOne('/api/poi-clusters/models').flush({ models: [] });
       await m.fixture.whenStable();
-      expect(m.texte('[data-fin="done"]')).toContain('✓ Isochrones mis en cache.');
+      expect(m.texte('[data-fin="done"]')).toContain('✓ Isochrones mis en cache, entraînement lancé —');
       await m.cliquer('[data-voir-resultats]');
       expect(voir).toBe(1);
     } finally {
@@ -285,7 +285,7 @@ describe('mg-assistant-clustering (ClusteringWizard.tsx)', () => {
     m.http.expectOne('/api/poi-clusters/run');
   });
 
-  it('fin d’un job lancé sur une SÉLECTION de variables : « modèle entraîné », sans « Lancez --mode full-retrain »', async () => {
+  it('fin d’un job lancé sur une SÉLECTION de variables : « entraînement lancé », sans « Lancez --mode full-retrain »', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
     try {
       const m = await monter();
@@ -297,7 +297,27 @@ describe('mg-assistant-clustering (ClusteringWizard.tsx)', () => {
       m.http.expectOne('/api/poi-clusters/run?job_id=job-s').flush({ status: 'done' });
       m.http.expectOne('/api/poi-clusters/models').flush({ models: [] });
       await m.fixture.whenStable();
-      expect(m.texte('[data-fin="done"]')).toBe('✓ Isochrones mis en cache et modèle entraîné sur la sélection de variables. voir les résultats →');
+      expect(m.texte('[data-fin="done"]')).toBe('✓ Isochrones mis en cache, entraînement lancé — voir les résultats →');
+      expect(m.el.textContent).not.toContain('full-retrain');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('fin d’un job lancé sur TOUTES les variables (features: null) : même message, sans « Lancez --mode full-retrain »', async () => {
+    // Depuis T-serveur 5 la route passe les 16 variables en `--features` : l'entraînement est enchaîné aussi ici.
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      const m = await monter();
+      await jusquAuxParametres(m);
+      await m.cliquer('[data-lancer]');
+      expect(m.lances[0].features).toBeNull();
+      m.calcul.lancer(m.lances[0]);
+      m.http.expectOne('/api/poi-clusters/run').flush({ job_id: 'job-t' }, { status: 201, statusText: 'Created' });
+      m.http.expectOne('/api/poi-clusters/run?job_id=job-t').flush({ status: 'done' });
+      m.http.expectOne('/api/poi-clusters/models').flush({ models: [] });
+      await m.fixture.whenStable();
+      expect(m.texte('[data-fin="done"]')).toBe('✓ Isochrones mis en cache, entraînement lancé — voir les résultats →');
       expect(m.el.textContent).not.toContain('full-retrain');
     } finally {
       vi.useRealTimers();

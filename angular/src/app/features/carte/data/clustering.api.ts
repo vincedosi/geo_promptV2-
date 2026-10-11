@@ -19,16 +19,16 @@ import type {
  *
  * ── LE LANCEMENT ÉCRIT EN BASE ET APPELLE ORS ────────────────────────────
  * `POST …/run` crée une ligne `clustering_jobs` et lance `scripts/clustering_poi_filosofi.py --mode cache-isochrones`
- * en processus fils : appels ORS, lignes `isochrones_cache`, et — si une SÉLECTION de variables est passée — un
- * `full-retrain` qui écrit un nouveau modèle. N'appeler `lancer` qu'APRÈS la garde du panneau Analyse
+ * en processus fils : appels ORS, lignes `isochrones_cache`, puis TOUJOURS un `full-retrain` (la route passe
+ * `--features`, les 16 variables quand `features` est nul — T-serveur 5) qui écrit un nouveau modèle ; en dry-run,
+ * il tourne sans rien persister. N'appeler `lancer` qu'APRÈS la garde du panneau Analyse
  * (`verifierPerimetreOutil('clustering')`). Script absent : 503, dont le message est affiché tel quel.
  *
- * ⚠ `…/poi-types` lit `poi_france` SANS pagination : au-delà de 1 000 lignes (390 029 en local), le plafond PostgREST
- * coupe en silence — totaux et liste de types faux (route non modifiée, dette consignée au rapport de T20).
+ * `…/poi-types` : totaux comptés en base par `types_poi_clustering` (sql/248), plus de plafond à 1 000 lignes.
  *
  * ── TRONCATURE ───────────────────────────────────────────────────────────
- * `GET /api/poi-clusters` et `…/models/[version]` lisent `poi_clusters` SANS pagination : au-delà de 1 000 POI par
- * modèle, le plafond PostgREST local (`db-max-rows`) les couperait en silence. Les deux modèles en base en ont 95.
+ * `GET /api/poi-clusters` et `…/models/[version]` lisent `poi_clusters` paginée par `lireTout`, plafond 20 000 au-delà
+ * duquel la route répond 500 plutôt que de tronquer (`lib/clustering/lire-clusters.ts`).
  *
  * Fourni par la ROUTE (`FOURNISSEURS_DISTANTS`), comme tout service d'API (garde `modele-aida.test.ts`).
  */

@@ -22,7 +22,7 @@ export interface CorpsLancementClustering {
   poi_types: string[];
   geo_filter: { metropolitaine: boolean; regions: string[]; depts: string[] };
   params: { duration: number; transport: Transport; dry_run: boolean };
-  /** `null` = toutes les variables (le script prend alors ses 16 variables par défaut). */
+  /** `null` = toutes les variables : la route le normalise en les 16, passées explicitement, ce qui enchaîne `full-retrain`. */
   features: string[] | null;
 }
 
@@ -130,13 +130,16 @@ export function dureeEnCours(texte: string): number | null {
 /**
  * Le message de fin d'un job réussi, selon ce que le script a RÉELLEMENT fait (`--mode cache-isochrones`) :
  * - dry-run : rien n'est écrit ;
- * - une sélection de variables (`features` non nul) : le script enchaîne `full-retrain`, un modèle est entraîné ;
- * - toutes les variables (`features: null`) : isochrones en cache seulement — le texte de React, exact dans ce seul cas.
+ * - sinon, quelles que soient les variables : la route passe TOUJOURS `--features` (`null` = les 16, T-serveur 5),
+ *   donc le script enchaîne `full-retrain`.
+ *
+ * Prudent à dessein : « entraînement lancé », pas « modèle entraîné ». `run_full_retrain` sort sans erreur (job `done`)
+ * quand aucune isochrone n'est en cache ou que moins de 3 profils sont valides, et `result_meta.latest_model_version`
+ * ne prouve rien d'un nouveau modèle. C'est la liste des modèles, relue derrière, qui le dit.
  */
-export function messageFinJob(corps: CorpsLancementClustering): { texte: string; commande: boolean } {
-  if (corps.params.dry_run) return { texte: '✓ Simulation terminée — aucune écriture en base.', commande: false };
-  if (corps.features !== null) return { texte: '✓ Isochrones mis en cache et modèle entraîné sur la sélection de variables.', commande: false };
-  return { texte: '✓ Isochrones mis en cache.', commande: true };
+export function messageFinJob(corps: CorpsLancementClustering): { texte: string } {
+  if (corps.params.dry_run) return { texte: '✓ Simulation terminée — aucune écriture en base.' };
+  return { texte: '✓ Isochrones mis en cache, entraînement lancé —' };
 }
 
 /** Les variables d'un préréglage (« Toutes », « Socio-démo », « Habitat »). */

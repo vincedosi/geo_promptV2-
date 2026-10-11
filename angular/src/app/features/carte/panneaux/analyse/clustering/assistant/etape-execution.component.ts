@@ -17,8 +17,9 @@ const JOURNAL_MAX = 3000;
  *   l'arrivée de `done`. Il reste affiché ici, la liste des modèles est relue derrière ;
  * - son lien « voir les résultats → » menait à `/clusters`, une page qui n'existe pas (404) : il ramène à la liste des
  *   modèles de la section (`voirModeles`) ;
- * - son texte (« Lancez --mode full-retrain pour entraîner le modèle ») n'est vrai qu'avec TOUTES les variables : une
- *   sélection fait enchaîner l'entraînement au script, un dry-run n'écrit rien — `messageFinJob` dit ce que le job a fait.
+ * - son texte (« Lancez --mode full-retrain pour entraîner le modèle ») est faux : la route passe toujours `--features`
+ *   (T-serveur 5), le script enchaîne donc l'entraînement, et un dry-run n'écrit rien — `messageFinJob` dit ce que le
+ *   job a fait, sans promettre un modèle que le script peut ne pas produire.
  */
 @Component({
   selector: 'mg-etape-execution',
@@ -50,7 +51,6 @@ const JOURNAL_MAX = 3000;
         @if (calcul.termine() && calcul.statut() === 'done') {
           <div data-fin="done" role="status" class="encart succes mono px-3 py-[10px] text-[11px]!">
             {{ fin().texte }}
-            @if (fin().commande) { Lancez <code class="mono text-[10px]">--mode full-retrain</code> pour entraîner le modèle, puis }
             <button type="button" class="lien" (click)="voirModeles.emit()">voir les résultats →</button>
           </div>
         }

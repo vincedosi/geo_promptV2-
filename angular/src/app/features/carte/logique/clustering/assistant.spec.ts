@@ -85,10 +85,10 @@ describe('logique de l’assistant de clustering (ClusteringWizard.tsx)', () => 
 
   it('message de fin : ce que le job a réellement fait', () => {
     const corps = corpsLancement({ types: ['bmw'], metropolitaine: true, regions: [], depts: [], duree: 15, transport: 'drive', dryRun: false, variables: ALL_FEATURES });
-    expect(messageFinJob(corps)).toEqual({ texte: '✓ Isochrones mis en cache.', commande: true });
-    expect(messageFinJob({ ...corps, features: ['pct_0_17', 'revenu_moyen'] })).toEqual({
-      texte: '✓ Isochrones mis en cache et modèle entraîné sur la sélection de variables.', commande: false,
-    });
+    // Toutes (`features: null`) comme une sélection : la route passe toujours `--features`, l'entraînement est enchaîné.
+    expect(corps.features).toBeNull();
+    expect(messageFinJob(corps)).toEqual({ texte: '✓ Isochrones mis en cache, entraînement lancé —' });
+    expect(messageFinJob({ ...corps, features: ['pct_0_17', 'revenu_moyen'] })).toEqual(messageFinJob(corps));
     expect(messageFinJob({ ...corps, params: { ...corps.params, dry_run: true } }).texte).toBe('✓ Simulation terminée — aucune écriture en base.');
   });
 });
