@@ -33,6 +33,9 @@ export function messagePreparation(e: unknown): string {
  * module filtré sur une seule. Ici `natures` part dans la préparation ET dans l'adresse des tuiles — la même clé que
  * la carte du module. Sans nature retenue (le défaut), la requête est celle de React à l'octet près.
  *
+ * Le libellé passe à la ligne comme React (pas de `nowrap`, icône non rétrécissable) : l'interdire faisait grandir
+ * l'en-tête du module, rétrécir la carte de l'étape et changer son cadrage (revue T21).
+ *
  * Rendu seulement quand le pont existe (module monté sous la carte principale) : `RisquePage` le teste. Un profil sans
  * anneau désactive le bouton AVANT toute requête — un aller-retour qui rend « zéro classe » se lirait comme une panne.
  */
@@ -44,14 +47,14 @@ export function messagePreparation(e: unknown): string {
   template: `
     <button type="button" data-voir-carte (click)="voir()" [disabled]="enCours() || vide()" [attr.aria-busy]="enCours()"
             [attr.title]="vide() ? 'Réglez au moins un anneau pour délimiter une zone.' : 'Afficher les zones de ce profil sur la carte'"
-            class="inline-flex items-center gap-[6px] whitespace-nowrap rounded-[6px] border-fin bg-transparent px-3 py-[6px] text-[12px] font-medium"
+            class="inline-flex items-center gap-[6px] rounded-[6px] border-fin bg-transparent px-3 py-[6px] text-[12px] font-medium"
             [class.border-teal]="!vide()" [class.text-teal]="!vide()"
             [class.border-default]="vide()" [class.text-tertiary]="vide()"
             [class.cursor-pointer]="!enCours() && !vide()" [class.cursor-not-allowed]="enCours() || vide()">
       @if (enCours()) {
-        <mg-icone nom="chargement" [taille]="13" class="animate-spin" />
+        <mg-icone nom="chargement" [taille]="13" class="shrink-0 animate-spin" />
       } @else {
-        <mg-icone nom="carte" [taille]="13" />
+        <mg-icone nom="carte" [taille]="13" class="shrink-0" />
       }
       Voir sur la carte
     </button>

@@ -43,6 +43,14 @@ describe('BoutonVoirCarteComponent', () => {
     expect(ordre).toEqual(['preparer', 'afficher', 'affiche']);
   });
 
+  // Revue T21 : `BoutonVoirCarte.tsx` n'interdit pas le retour à la ligne ; l'interdire faisait grandir l'en-tête du
+  // module et changeait le cadrage de la carte de l'étape (compte de sites, étiquettes au km).
+  it('le libellé passe à la ligne comme React ; l’icône ne rétrécit jamais', async () => {
+    const { bouton } = await rendre(() => of({ classes: 4 }));
+    expect(bouton().classList.contains('whitespace-nowrap')).toBe(false);
+    expect(bouton().querySelector('mg-icone')!.classList.contains('shrink-0')).toBe(true);
+  });
+
   it('pendant la préparation : désactivé, icône qui tourne ; un second clic ne relance rien', async () => {
     const flux = new Subject<unknown>();
     const preparer = vi.fn(() => flux);

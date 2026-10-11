@@ -44,6 +44,10 @@ export async function messageExport(erreur: unknown): Promise<string> {
  * (`nomDeFichier`), `nomRepli` sinon. L'ancre de téléchargement n'est jamais posée dans `document.body`
  * (`enregistrerFichier`) : rien ne s'affiche hors de la racine d'ombre.
  *
+ * Retour à la ligne : interdit pour la seule variante `teal` (`BoutonExportRayon.tsx` pose `whiteSpace: 'nowrap'`) ;
+ * les autres libellés se coupent comme React (« Exporter le profil » dans l'en-tête du module) — l'icône, elle, ne
+ * rétrécit jamais.
+ *
  * Pendant l'export : bouton désactivé, icône qui tourne, `libelleEnCours`. Un échec affiche le message de la route à
  * côté du bouton, en rouge ; un nouveau clic l'efface.
  */
@@ -55,7 +59,8 @@ export async function messageExport(erreur: unknown): Promise<string> {
   template: `
     <button type="button" (click)="exporter()" [disabled]="enCours() || desactive()" [attr.title]="titre()"
             [attr.aria-busy]="enCours()"
-            class="inline-flex items-center bg-transparent text-[12px] whitespace-nowrap"
+            class="inline-flex items-center bg-transparent text-[12px]"
+            [class.whitespace-nowrap]="variante() === 'teal'"
             [class.border-fin]="variante() !== 'lien'" [class.border-0]="variante() === 'lien'"
             [class.p-0]="variante() === 'lien'" [class.gap-[5px]]="variante() === 'lien'"
             [class.font-sans]="variante() === 'lien'"
@@ -75,9 +80,9 @@ export async function messageExport(erreur: unknown): Promise<string> {
             [class.cursor-wait]="enCours() && (variante() === 'teal' || variante() === 'lien')"
             [class.cursor-not-allowed]="desactive() || (enCours() && variante() !== 'teal' && variante() !== 'lien')">
       @if (enCours()) {
-        <mg-icone nom="chargement" [taille]="tailleIcone()" class="animate-spin" />
+        <mg-icone nom="chargement" [taille]="tailleIcone()" class="shrink-0 animate-spin" />
       } @else {
-        <mg-icone nom="telecharger" [taille]="tailleIcone()" />
+        <mg-icone nom="telecharger" [taille]="tailleIcone()" class="shrink-0" />
       }
       {{ enCours() ? (libelleEnCours() ?? libelle()) : libelle() }}
     </button>
