@@ -23,7 +23,11 @@ async function monter() {
   TestBed.configureTestingModule({
     providers: [
       { provide: ThemeService, useValue: { theme: signal('dark'), basculer } },
-      provideRouter([{ path: 'carte', component: Hote }, { path: 'admin/acces', component: PageAcces }]),
+      provideRouter([
+        { path: 'carte', component: Hote },
+        { path: 'admin/acces', component: PageAcces },
+        { path: 'admin/health', component: PageAcces },
+      ]),
     ],
   });
   const harness = await RouterTestingHarness.create();
@@ -74,7 +78,7 @@ describe('ReglagesComponent — portage de SettingsOverlay.tsx', () => {
     expect(el.querySelector('[data-section="apparence"]')!.textContent).toContain('Thème clair / sombre');
   });
 
-  it('« Back office » : « Accès » en tête (remplace « Organisations (workspaces) » et « Utilisateurs »), puis les neuf autres liens de React, inertes', async () => {
+  it('« Back office » : « Accès » en tête (remplace « Organisations (workspaces) » et « Utilisateurs »), puis les neuf autres liens de React ; seules les pages non portées restent inertes', async () => {
     const { el } = await monter();
     const entrees = [...el.querySelectorAll<HTMLElement>('[data-section="back-office"] a, [data-section="back-office"] button')];
     expect(entrees.map((b) => b.textContent?.trim())).toEqual([
@@ -82,8 +86,24 @@ describe('ReglagesComponent — portage de SettingsOverlay.tsx', () => {
       'Radio FM/DAB+', 'Connexions API', 'Sources', 'Historique imports', 'Health check',
     ]);
     const inertes = [...el.querySelectorAll<HTMLButtonElement>('[data-section="back-office"] button')];
-    expect(inertes).toHaveLength(9);
+    expect(inertes.map((b) => b.textContent?.trim())).toEqual([
+      'Import POI', 'Import Shapefile', 'Import OOH', 'IRIS crawler', 'Radio FM/DAB+', 'Connexions API', 'Sources', 'Historique imports',
+    ]);
     expect(inertes.every((b) => b.getAttribute('aria-disabled') === 'true' && b.getAttribute('title') === 'Disponible prochainement')).toBe(true);
+  });
+
+  // Parcours T21 : la page Health check est portée (lot 6, T3-T4, `admin/health`) mais l'entrée restait inerte,
+  // alors que la règle de ce panneau est « inerte TANT QUE la page n'est pas portée ». Cible de React : `/admin/health`.
+  it('« Health check » est ACTIF : lien RELATIF vers `admin/health`, et il y navigue', async () => {
+    const { el, fixture } = await monter();
+    const liens = [...el.querySelectorAll<HTMLAnchorElement>('[data-section="back-office"] a')];
+    const sante = liens.find((a) => a.textContent?.trim() === 'Health check')!;
+    expect(sante).toBeDefined();
+    expect(sante.hasAttribute('aria-disabled')).toBe(false);
+    expect(sante.getAttribute('href')).toBe('/admin/health');
+    sante.click();
+    await fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/admin/health');
   });
 
   it('« Accès » est ACTIF : icône utilisateurs, lien RELATIF vers `admin/acces`, et il y navigue', async () => {

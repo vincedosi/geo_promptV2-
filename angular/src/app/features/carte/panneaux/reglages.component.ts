@@ -22,7 +22,8 @@ const LIENS_BACK_OFFICE: readonly { libelle: string; icone: NomIcone; cible?: st
   { libelle: 'Connexions API', icone: 'prise' },
   { libelle: 'Sources', icone: 'base-de-donnees' },
   { libelle: 'Historique imports', icone: 'fichier-haut' },
-  { libelle: 'Health check', icone: 'activite' },
+  // Page portée au lot 6 (T3-T4) : l'entrée suit la règle « inerte tant que la page n'est pas portée » (parcours T21).
+  { libelle: 'Health check', icone: 'activite', cible: '../admin/health' },
 ];
 
 /**
@@ -35,8 +36,9 @@ const LIENS_BACK_OFFICE: readonly { libelle: string; icone: NomIcone; cible?: st
  *   il interrogerait `/api/providers/status` pour un modèle qui ne sert à rien ici.
  * - **Fond de carte** est actif : il émet l'id choisi ; la page recrée la carte (B11).
  * - **Apparence** reprend `mg-bascule-theme`, qui passe par `ThemeService.basculer()` seul (`ECRIRE_HTML`).
- * - **Back office** : « Accès » est ACTIF (lien relatif vers `admin/acces`) ; les neuf autres liens restent
- *   INERTES (« Disponible prochainement », patron de la barre latérale) tant que leurs pages ne sont pas portées.
+ * - **Back office** : « Accès » et « Health check » sont ACTIFS (liens relatifs vers `admin/acces` et `admin/health`) ;
+ *   les huit autres restent INERTES (« Disponible prochainement », patron de la barre latérale) tant que leurs pages
+ *   ne sont pas portées.
  */
 @Component({
   selector: 'mg-reglages',
