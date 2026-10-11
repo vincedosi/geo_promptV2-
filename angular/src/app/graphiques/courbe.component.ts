@@ -1,9 +1,8 @@
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, type ElementRef, afterNextRender,
-  computed, effect, inject, input, signal, viewChild, type Signal,
+  ChangeDetectionStrategy, Component, type ElementRef, computed, inject, input, signal, viewChild, type Signal,
 } from '@angular/core';
 import { CouleursService } from '../core/theme/couleurs.service';
-import { FABRIQUE_GRAPHIQUE, type GraphiqueMinimal } from './fabrique-graphique';
+import { monterGraphique } from './monter-graphique';
 import { type MargesCourbe, type RepereCourbe, type SerieCourbe, optionCourbe } from './option-courbe';
 
 /**
@@ -76,10 +75,7 @@ export class CourbeComponent {
   protected readonly masquees = signal<ReadonlySet<string>>(new Set());
 
   private readonly conteneur = viewChild.required<ElementRef<HTMLDivElement>>('conteneur');
-  private readonly fabrique = inject(FABRIQUE_GRAPHIQUE);
   private readonly couleursService = inject(CouleursService);
-  private readonly destruction = inject(DestroyRef);
-  private readonly graphique = signal<GraphiqueMinimal | null>(null);
 
   /**
    * Une palette par ENSEMBLE de jetons présents dans les séries, mémoïsée : le
@@ -156,21 +152,8 @@ export class CourbeComponent {
   }
 
   constructor() {
-    afterNextRender(() => {
-      const element = this.conteneur().nativeElement;
-      const g = this.fabrique(element);
-      this.graphique.set(g);
-      const observateur = new ResizeObserver(() => g.resize());
-      observateur.observe(element);
-      this.destruction.onDestroy(() => {
-        observateur.disconnect();
-        g.dispose();
-      });
-    });
-    effect(() => {
-      const g = this.graphique();
-      if (g) g.setOption(this.option(), { notMerge: true });
-    });
+    // Création après rendu, suivi de taille, libération, options posées en `notMerge` : `monterGraphique`.
+    monterGraphique(this.conteneur, this.option);
   }
 
   protected basculer(cle: string): void {

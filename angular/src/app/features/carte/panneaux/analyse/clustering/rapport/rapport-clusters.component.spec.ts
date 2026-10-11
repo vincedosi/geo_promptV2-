@@ -90,4 +90,16 @@ describe('mg-rapport-clusters (ClusterResultsOverlay + ClusterDetails.tsx)', () 
     expect(exports.map((b) => [b.textContent!.trim(), b.disabled])).toEqual([['↓ XLSX', true], ['↓ PDF', true]]);
     expect(exports[0].title).toContain('Export non restauré');
   });
+
+  it('une teinte de cluster invalide retombe sur la donnée absente (valeur calculée), jamais sur une couleur vide', async () => {
+    const { el, http, fixture, onglet } = await monter();
+    const resume = { ...DETAIL_MODELE.cluster_summary, '1': { ...DETAIL_MODELE.cluster_summary['1'], color: 'red;x' } };
+    http.expectOne('/api/poi-clusters/models/3').flush({ ...DETAIL_MODELE, cluster_summary: resume });
+    http.expectOne('/api/poi-clusters/france-averages').flush(FRANCE);
+    await fixture.whenStable();
+    await onglet('Comparaison');
+    const entetes = [...el.querySelectorAll<HTMLElement>('mg-onglet-comparaison th')].map((t) => t.style.color);
+    // Feature, Moy. Fr, puis les deux clusters : le second, invalide, prend le gris calculé (#123456 du banc).
+    expect(entetes.slice(2)).toEqual(['rgb(78, 121, 167)', 'rgb(18, 52, 86)']);
+  });
 });

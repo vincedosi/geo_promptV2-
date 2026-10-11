@@ -4,7 +4,7 @@ import { libelleCourt } from '../../../../logique/clustering/libelles';
 import { optionBarresGroupees } from '../../../../logique/clustering/options-graphiques';
 import { formaterValeur, jetonEcart, profilReference, variables } from '../../../../logique/clustering/rapport';
 import { RadarComponent } from '../radar.component';
-import { STYLES_RAPPORT, cadreGraphique, type DonneesRapport } from './commun-rapport';
+import { STYLES_RAPPORT, cadreGraphique, couleurCluster, type DonneesRapport } from './commun-rapport';
 
 /**
  * Onglet « Comparaison » (`TabComparaison`, `ClusterDetails.tsx:575-702`) : radar superposé de tous les clusters
@@ -64,7 +64,7 @@ export class OngletComparaisonComponent {
 
   protected readonly vars = computed(() => variables(this.d().modele));
   protected readonly entetes = computed(() => this.d().cids.map((cid) => ({
-    cid, label: this.d().resume[cid]?.label ?? `C${cid}`, couleur: this.d().resume[cid]?.color ?? '',
+    cid, label: this.d().resume[cid]?.label ?? `C${cid}`, couleur: couleurCluster(this.d(), cid, this.cadre().absente),
   })));
   protected readonly radar = computed(() => ({
     profils: this.d().cids.map((c) => this.d().resume[c]?.avg_profile ?? {}),

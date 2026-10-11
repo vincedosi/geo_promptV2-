@@ -384,8 +384,9 @@ export class CartePage {
    */
   protected pointerHors(e: MouseEvent): void {
     const panneau = this.composantPanneau();
-    // Un outil de « Créer une zone » tient la carte (tracé, pose d'un centre) : ses clics lui appartiennent (T16).
-    if (!panneau || this.etat.carteOccupee()) return;
+    // Un outil de « Créer une zone » tient la carte (tracé, pose d'un centre) : ses clics lui appartiennent (T16) ; un
+    // clic sur un point des clusters appartient au panneau de clusters (fiche, POI B — T19).
+    if (!panneau || this.etat.carteOccupee() || this.etat.clicReserve(e)) return;
     const chemin = e.composedPath();
     const cadre = this.cadrePanneau()?.nativeElement;
     const rail = this.rail()?.nativeElement;

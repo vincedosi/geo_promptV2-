@@ -5,6 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { ConfigService } from '../../../../core/config/config.service';
 import { BatailleService } from '../../couches/bataille.service';
+import { ClustersService } from '../../couches/clusters.service';
 import { PoisService } from '../../couches/pois.service';
 import { ScoreService } from '../../couches/score.service';
 import { AnalysesApi } from '../../data/analyses.api';
@@ -45,7 +46,9 @@ async function monter(filtre: FiltreActif | null) {
       EtatCarteService, AnnonceService, CouchesCarteService, CaptureService, BatailleService, IsochronesApi, AnalysesApi, ZonesCustomApi,
       ContexteBatailleService, BatailleV1Service, BatailleV2Service,
       { provide: ScoreService, useValue: score },
-      { provide: AuthService, useValue: { lireProfil: () => Promise.resolve({ organisation: 'org-1' }) } },
+      { provide: AuthService, useValue: { session: signal(null), lireProfil: () => Promise.resolve({ organisation: 'org-1' }) } },
+      // Le clustering (T19) : section absente pour ce compte (aucune session de super admin).
+      { provide: ClustersService, useValue: { charger: vi.fn() } },
       { provide: PoisService, useValue: { definirZone: vi.fn() } },
       { provide: ReferentielGeoService, useValue: { regions: signal([]), charger: vi.fn() } },
     ],

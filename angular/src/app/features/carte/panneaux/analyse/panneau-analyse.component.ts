@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, linkedSignal, signal, untracked } from '@angular/core';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { ClustersService } from '../../couches/clusters.service';
 import { BatailleV1Service } from '../../etat/bataille-v1.service';
@@ -138,11 +138,24 @@ export class PanneauAnalyseComponent {
     computation: (filtre, precedent) => (filtre ? null : (precedent?.value ?? null)),
   });
 
-  /** Le clustering est réservé au super admin (`session?.user.role === 'super_admin'`) : lu une fois, à l'ouverture. */
-  protected readonly clusteringOuvert = signal(false);
+  private readonly auth = inject(AuthService);
+  /** Le rôle de la session COURANTE, relu à chaque changement de compte (`session?.user.role` de React). */
+  private readonly role = signal<string | null>(null);
+  /** Le clustering est réservé au super admin (`clusteringOuvert = session?.user.role === 'super_admin'`). */
+  protected readonly clusteringOuvert = computed(() => this.role() === 'super_admin');
 
   constructor() {
-    void inject(AuthService).lireProfil().then((p) => this.clusteringOuvert.set(p?.role === 'super_admin'));
+    // Une lecture par identifiant de session (`lireProfil` est mémoïsé) ; une réponse d'un compte quitté est ignorée.
+    effect(() => {
+      const id = this.auth.session()?.user?.id ?? null;
+      untracked(() => {
+        this.role.set(null);
+        if (!id) return;
+        void this.auth.lireProfil().then((p) => {
+          if ((this.auth.session()?.user?.id ?? null) === id) this.role.set(p?.role ?? null);
+        });
+      });
+    });
     // Le nom des régions dans le journal et la règle « toutes les régions » : lu une fois par écran (cache).
     inject(ReferentielGeoService).charger();
   }

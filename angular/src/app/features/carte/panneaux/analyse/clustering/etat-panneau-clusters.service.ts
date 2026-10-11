@@ -1,5 +1,6 @@
 import { DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import type { Subscription } from 'rxjs';
+import { messageErreurApi } from '../../../../../core/http/erreurs';
 import { ClustersService } from '../../../couches/clusters.service';
 import { ClusteringApi } from '../../../data/clustering.api';
 import { EtatCarteService } from '../../../etat/etat-carte.service';
@@ -12,8 +13,8 @@ export type ModeComparaison = 'idle' | 'selecting' | 'comparing';
 
 /** L'identifiant du mode comparaison dans la pile Échap (`PILE_ID_COMPARE`, `ClusterPanel.tsx:9`). */
 export const PILE_COMPARAISON = 'cluster-compare';
-/** L'identifiant sous lequel le panneau PREND la carte (`EtatCarteService.prendreCarte`). */
-const OUTIL_CARTE = 'clusters';
+/** L'identifiant sous lequel le panneau RÉSERVE les clics sur les points (`EtatCarteService.reserverClics`). */
+const RESERVATION = 'clusters';
 
 /**
  * L'état du panneau de clusters — les `useState` de `ClusterPanel.tsx:223-235` et leurs fonctions (comparaison,
@@ -25,8 +26,9 @@ const OUTIL_CARTE = 'clusters';
  *
  * Défaut React corrigé : un clic sur la carte ferme le panneau d'outils (clic « hors » du panneau) — le clic sur un
  * point, qui devait ouvrir sa fiche ou désigner le POI B, démontait le panneau et son état : fiche, historique,
- * durées et comparaison étaient injoignables. Clusters chargés, le panneau PREND la carte (précédent T16, outils de
- * création de zone) ; il la rend à sa destruction ou quand les clusters sont effacés.
+ * durées et comparaison étaient injoignables. Clusters chargés, le panneau RÉSERVE les seuls clics sur un point des
+ * clusters (`reserverClics`) — tout autre clic sur la carte le ferme comme avant (revue 1 : la première version prenait
+ * la carte entière) ; il les libère à sa destruction ou quand les clusters sont effacés.
  */
 @Injectable()
 export class EtatPanneauClustersService {
@@ -46,11 +48,15 @@ export class EtatPanneauClustersService {
   /** Le POI dont l'historique a été demandé ; affiché si `historiqueVisible`. */
   readonly historiquePoi = signal<string | null>(null);
   readonly historiqueVisible = signal(false);
+  /** Pourquoi l'historique n'a pas pu être lu (React avalait l'erreur : le bouton restait sans effet). */
+  readonly historiqueErreur = signal<string | null>(null);
 
   /** Le POI dont on compare les durées ; `null` = vue fermée. */
   readonly dureesPoi = signal<string | null>(null);
   readonly dureesChargement = signal(false);
   readonly dureesDonnees = signal<Record<number, Record<string, number>> | null>(null);
+  /** Pourquoi les profils n'ont pas pu être lus — distinct de « aucune donnée multi-durée » (React les confondait). */
+  readonly dureesErreur = signal<string | null>(null);
 
   /** Les six premières variables du modèle (`featKeys`). */
   readonly cles = computed(() => (this.clusters.donnees()?.metadata.feature_names ?? []).slice(0, 6));
@@ -59,6 +65,7 @@ export class EtatPanneauClustersService {
   readonly lignes = computed(() => lignesPoi(this.clusters.donnees(), this.filtreCluster()));
 
   private lectureDurees: Subscription | null = null;
+  private lectureHistorique: Subscription | null = null;
 
   constructor() {
     const desinscrire = this.clusters.ecouterSelection((p) => this.surClicCarte(p));
@@ -66,6 +73,7 @@ export class EtatPanneauClustersService {
     destruction.onDestroy(() => {
       desinscrire();
       this.lectureDurees?.unsubscribe();
+      this.lectureHistorique?.unsubscribe();
     });
 
     // Échap ferme la comparaison avant le panneau qui la contient (`ClusterPanel.tsx:256-260`).
@@ -76,12 +84,12 @@ export class EtatPanneauClustersService {
     });
     destruction.onDestroy(() => this.pile.depiler(PILE_COMPARAISON));
 
-    // Clusters chargés : les clics sur la carte appartiennent au panneau (fiche, POI B), ils ne le ferment pas.
+    // Clusters chargés : un clic sur un POINT appartient au panneau (fiche, POI B), il ne le ferme pas.
     effect(() => {
-      if (this.clusters.donnees()) untracked(() => this.etatCarte.prendreCarte(OUTIL_CARTE));
-      else untracked(() => this.etatCarte.rendreCarte(OUTIL_CARTE));
+      if (this.clusters.donnees()) untracked(() => this.etatCarte.reserverClics(RESERVATION, (e) => this.clusters.pointSous(e)));
+      else untracked(() => this.etatCarte.libererClics(RESERVATION));
     });
-    destruction.onDestroy(() => this.etatCarte.rendreCarte(OUTIL_CARTE));
+    destruction.onDestroy(() => this.etatCarte.libererClics(RESERVATION));
   }
 
   /** « Comparer » dans la fiche : le POI sélectionné devient A, on attend un clic sur la carte. */
@@ -107,20 +115,28 @@ export class EtatPanneauClustersService {
     this.onglet.set('table');
   }
 
-  /** « Historique » : relu à chaque demande ; un second clic sur le même POI le replie (`loadHistory`). */
+  /**
+   * « Historique » : relu à chaque demande ; un second clic sur le même POI le replie (`loadHistory`). La lecture
+   * précédente est ANNULÉE (revue 1) : sans cela, la réponse tardive d'un POI A s'affichait dans la fiche d'un POI B.
+   */
   basculerHistorique(poiId: string): void {
     if (this.historiquePoi() === poiId && this.historiqueVisible()) {
       this.historiqueVisible.set(false);
       return;
     }
+    this.lectureHistorique?.unsubscribe();
     this.historiquePoi.set(poiId);
     this.historiqueVisible.set(false);
-    this.api.historique(poiId).subscribe({
+    this.historiqueErreur.set(null);
+    this.lectureHistorique = this.api.historique(poiId).subscribe({
       next: (h) => {
+        if (this.historiquePoi() !== poiId) return;
         this.historique.set(h);
         this.historiqueVisible.set(true);
       },
-      error: () => undefined, // React : `catch { /* ignore */ }` — l'historique reste replié.
+      error: (e: unknown) => {
+        if (this.historiquePoi() === poiId) this.historiqueErreur.set(`Historique indisponible — ${messageErreurApi(e)}`);
+      },
     });
   }
 
@@ -133,6 +149,7 @@ export class EtatPanneauClustersService {
     this.dureesPoi.set(poiId);
     this.dureesChargement.set(true);
     this.dureesDonnees.set(null);
+    this.dureesErreur.set(null);
     this.onglet.set('compare');
     this.lectureDurees?.unsubscribe();
     this.lectureDurees = this.api.profilsPoi(poiId).subscribe({
@@ -140,7 +157,10 @@ export class EtatPanneauClustersService {
         this.dureesDonnees.set(profilsParDuree(r));
         this.dureesChargement.set(false);
       },
-      error: () => this.dureesChargement.set(false),
+      error: (e: unknown) => {
+        this.dureesChargement.set(false);
+        this.dureesErreur.set(`Profils multi-durées indisponibles — ${messageErreurApi(e)}`);
+      },
     });
   }
 
@@ -150,6 +170,7 @@ export class EtatPanneauClustersService {
     this.dureesPoi.set(null);
     this.dureesChargement.set(false);
     this.dureesDonnees.set(null);
+    this.dureesErreur.set(null);
     if (versLegende) this.onglet.set('legend');
   }
 

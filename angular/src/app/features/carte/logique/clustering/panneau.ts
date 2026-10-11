@@ -5,6 +5,9 @@
 import { libelleCourt } from './libelles';
 import type { ClustersGeoJSON, PoiCluster, ProfilsPoi, ResumeCluster } from './types';
 
+/** Les durées d'exposition proposées par le sélecteur (`[30, 45, 60]`, `ClusterPanel.tsx:461`) : la seule écriture. */
+export const DUREES_CLUSTERS = [30, 45, 60] as const;
+
 /** Une emprise `[[ouest, sud], [est, nord]]`, la forme de `onFitBounds`. */
 export type Emprise = [[number, number], [number, number]];
 

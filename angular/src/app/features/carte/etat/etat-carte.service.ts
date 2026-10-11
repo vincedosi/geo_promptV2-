@@ -55,6 +55,12 @@ export class EtatCarteService {
    * clic posait à la fois le centre d'un rayon et un sommet du dessin. Rendre la carte la redonne au précédent.
    */
   readonly outilCarte = computed(() => this.outilsCarte().at(-1) ?? null);
+  /**
+   * Les clics RÉSERVÉS, plus étroits que `prendreCarte` (T19, revue 1) : une couche déclare quels clics lui
+   * appartiennent (un point des clusters sous le pointeur) ; ceux-là seuls ne ferment pas le panneau, tout autre clic
+   * sur la carte le ferme comme avant. N'élit aucun outil : `outilCarte` reste celui des outils de zone.
+   */
+  private readonly reservations = new Map<string, (e: MouseEvent) => boolean>();
 
   choisirEntree(id: EntreeId): void {
     const entree = ENTREES_NAVIGATION.find((e) => e.id === id);
@@ -92,5 +98,20 @@ export class EtatCarteService {
 
   rendreCarte(outil: string): void {
     this.outilsCarte.update((l) => l.filter((o) => o !== outil));
+  }
+
+  /** Réserve à `id` les clics que `predicat` reconnaît (remplace une réservation du même id). */
+  reserverClics(id: string, predicat: (e: MouseEvent) => boolean): void {
+    this.reservations.set(id, predicat);
+  }
+
+  libererClics(id: string): void {
+    this.reservations.delete(id);
+  }
+
+  /** Ce clic appartient-il à une couche qui l'a réservé ? */
+  clicReserve(e: MouseEvent): boolean {
+    for (const predicat of this.reservations.values()) if (predicat(e)) return true;
+    return false;
   }
 }

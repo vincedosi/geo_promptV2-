@@ -3,7 +3,7 @@ import { GraphiqueComponent } from '../../../../../../graphiques/graphique.compo
 import { optionBarres, optionNuagePca } from '../../../../logique/clustering/options-graphiques';
 import { jetonSilhouette, pourcent1 } from '../../../../logique/clustering/panneau';
 import { imputesParCluster, libelleSilhouette } from '../../../../logique/clustering/rapport';
-import { STYLES_RAPPORT, cadreGraphique, type DonneesRapport } from './commun-rapport';
+import { STYLES_RAPPORT, cadreGraphique, couleurCluster, type DonneesRapport } from './commun-rapport';
 
 /**
  * Onglet « Qualité » (`TabQualite`, `ClusterDetails.tsx:705-872`) : silhouette, réduction PCA, taille des clusters
@@ -74,7 +74,7 @@ export class OngletQualiteComponent {
   protected readonly variance = computed(() => pourcent1(this.d().modele.variance_explained));
 
   private readonly clusters = computed(() => this.d().cids.map((cid) => ({
-    cid, label: this.d().resume[cid]?.label ?? `C${cid}`, couleur: this.d().resume[cid]?.color ?? '', count: this.d().resume[cid]?.count ?? 0,
+    cid, label: this.d().resume[cid]?.label ?? `C${cid}`, couleur: couleurCluster(this.d(), cid, this.cadre().absente), count: this.d().resume[cid]?.count ?? 0,
   })));
   /** `total / cids.length` : React arrondit le repère (`Math.round`) et l'affiche en `toFixed(0)`. */
   protected readonly ideal = computed(() => (this.d().pois.length / this.d().cids.length).toFixed(0));

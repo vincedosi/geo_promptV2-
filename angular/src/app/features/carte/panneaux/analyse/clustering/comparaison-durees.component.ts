@@ -32,6 +32,8 @@ const teinte = (d: number) => TEINTES_DUREES[d] ?? 'var(--text-secondary)';
       </div>
       @if (etat.dureesChargement()) {
         <div class="mono text-[10px] text-teal"><span class="opacity-70">◈</span> Chargement des profils multi-durées...</div>
+      } @else if (etat.dureesErreur(); as e) {
+        <div data-erreur-durees role="alert" class="mono text-[10px] text-danger">{{ e }}</div>
       } @else if (!pret()) {
         <div class="mono text-[10px] text-tertiary">Aucune donnée multi-durée disponible pour ce POI.</div>
       } @else {

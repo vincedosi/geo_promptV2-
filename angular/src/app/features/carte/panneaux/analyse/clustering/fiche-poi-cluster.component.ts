@@ -34,6 +34,7 @@ import { STYLES_CLUSTERS } from './styles-clusters';
         <button type="button" data-historique class="bouton flex-1 text-[7px]!" style="--teinte: var(--success)"
                 [class.actif]="historiqueVisible()" (click)="etat.basculerHistorique(poi().poi_id)">Historique</button>
       </div>
+      @if (historiqueErreur(); as e) { <div data-erreur-historique role="alert" class="mono mt-2 text-[9px] text-danger">{{ e }}</div> }
       @if (historiqueVisible()) {
         <div class="mt-2 flex flex-col gap-1">
           <div class="etiquette">Historique</div>
@@ -65,5 +66,6 @@ export class FichePoiClusterComponent {
   protected readonly couleur = computed(() => couleurBadge(this.poi().cluster_color));
   protected readonly dureesActives = computed(() => this.etat.dureesPoi() === this.poi().poi_id);
   protected readonly historiqueVisible = computed(() => this.etat.historiqueVisible() && this.etat.historiquePoi() === this.poi().poi_id);
+  protected readonly historiqueErreur = computed(() => (this.etat.historiquePoi() === this.poi().poi_id ? this.etat.historiqueErreur() : null));
   protected readonly historique = computed(() => this.etat.historique().map((h) => ({ ...h, date: dateJourMois(h.created_at) })));
 }

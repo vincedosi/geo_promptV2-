@@ -173,7 +173,7 @@ export class CarteFactice {
   readonly dragPan = gestionnaireFactice();
   readonly doubleClickZoom = gestionnaireFactice();
   /** Le canevas, pour le curseur posé au survol d'une couche. */
-  private readonly canevas = { style: { cursor: '' } };
+  private readonly canevas = { style: { cursor: '' }, getBoundingClientRect: () => ({ left: 0, top: 0 }) };
   getCanvas() { return this.canevas; }
   setPaintProperty(couche: string, propriete: string, valeur: unknown): this {
     this.peintures.push({ couche, propriete, valeur });

@@ -17,7 +17,9 @@ import { join } from 'node:path';
  *
  * ⚠️ Tout nouveau point de lancement (assistant de clustering T20) s'ajoute à `HANDLERS_GARDE_OUTIL`. Le score composite
  * (T18) y est. Pour une RELECTURE gardée sans refus national (chargement des clusters, T19) : `HANDLERS_GARDE_GENERIQUE`.
- * La corrélation n'y est PAS, délibérément : bornée par une campagne, elle ne balaie aucun territoire (dernier test).
+ * Absences de garde ASSUMÉES : la corrélation (bornée par une campagne, elle ne balaie aucun territoire — dernier test) ;
+ * le changement de durée des clusters (`ClustersService.changerDuree`, relecture GET d'un autre modèle, sans garde chez
+ * React — `onClusterDurationChange` — et seulement joignable une fois des clusters chargés sous garde).
  */
 const RACINE = join(process.cwd(), 'angular/src/app/features/carte/panneaux/analyse');
 const lire = (f: string) => readFileSync(join(RACINE, f), 'utf-8');
@@ -41,7 +43,7 @@ const HANDLERS_GARDE_GENERIQUE: Array<[nom: string, appel: string]> = [
 ];
 
 /** Les composants du clustering : ils ÉMETTENT `charger`, jamais ne l'appellent sur le service. */
-const CLUSTERING = ['clustering/section-clustering.component.ts', 'clustering/panneau-clusters.component.ts'];
+const CLUSTERING = ['clustering/section-clustering.component.ts', 'clustering/panneau-clusters.component.ts', 'clustering/etat-panneau-clusters.service.ts'];
 
 /** [balise de l'outil, sortie, appel attendu dans le gabarit]. */
 const SORTIES: Array<[balise: string, sortie: string, appel: string]> = [

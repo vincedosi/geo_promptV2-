@@ -63,4 +63,12 @@ describe('options ECharts du rapport (les graphiques Recharts de ClusterDetails.
     const o = optionNuagePca([{ nom: 'A', couleur: '#4e79a7', points: [{ x: 0, y: 0, nom: '<img src=x onerror=alert(1)>', ville: '' }] }], CADRE) as Opt;
     expect(o['tooltip'].formatter({ data: o['series'][0].data[0] })).not.toContain('<img');
   });
+
+  it('une teinte venue de la base n’entre dans le HTML de l’infobulle que validée (hexadécimal, sinon donnée absente)', () => {
+    const o = optionDonut([{ nom: 'A', valeur: 1, couleur: '#4e79a7' }], CADRE) as Opt;
+    const html = o['tooltip'].formatter({ name: 'A', value: 1, color: 'red;background:url(x)' });
+    expect(html).not.toContain('url(x)');
+    expect(html).toContain('var(--donnee-absente)');
+    expect(o['tooltip'].formatter({ name: 'A', value: 1, color: '#4e79a7' })).toContain('color:#4e79a7');
+  });
 });

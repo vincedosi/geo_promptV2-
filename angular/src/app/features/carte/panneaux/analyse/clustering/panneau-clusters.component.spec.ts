@@ -68,7 +68,7 @@ describe('mg-panneau-clusters (ClusterPanel.tsx)', () => {
     expect([...el.querySelectorAll('[data-duree]')].map((b) => b.textContent!.trim())).toEqual(['30 min', '45 min', '60 min']);
     expect(el.querySelector('[data-duree="60"]')!.getAttribute('aria-pressed')).toBe('true');
     expect([...el.querySelectorAll('[data-onglet]')].map((b) => b.textContent!.trim())).toEqual(['Légende', 'POI (3)', 'Comparer']);
-    expect(texte()).toContain('2 CLUSTERS · 3 POI');
+    expect(texte()).toContain('2 clusters · 3 POI');
   });
 
   it('changer de durée → nouvelle requête ; « Visible » → bascule sans requête', async () => {
@@ -124,16 +124,64 @@ describe('mg-panneau-clusters (ClusterPanel.tsx)', () => {
     expect(texte()).not.toContain('Clusters distincts.');
   });
 
-  it('clusters chargés : le panneau PREND la carte (un clic sur un point ne le ferme pas) ; il la rend à sa destruction', async () => {
-    const { fixture } = await monter({ charge: true });
+  it('clusters chargés : seuls les clics sur un POINT sont réservés au panneau ; la carte n’est pas prise', async () => {
+    const { fixture, carte } = await monter({ charge: true });
     const etat = TestBed.inject(EtatCarteService);
-    expect(etat.carteOccupee()).toBe(true);
-    fixture.destroy();
+    const clic = new MouseEvent('mousedown', { clientX: 10, clientY: 20 });
     expect(etat.carteOccupee()).toBe(false);
+    carte.entitesRendues = [];
+    expect(etat.clicReserve(clic)).toBe(false);
+    carte.entitesRendues = [{ properties: CLUSTERS.features[0].properties }];
+    expect(etat.clicReserve(clic)).toBe(true);
+    fixture.destroy();
+    expect(etat.clicReserve(clic)).toBe(false);
   });
 
-  it('sans clusters : la carte reste libre', async () => {
-    await monter();
-    expect(TestBed.inject(EtatCarteService).carteOccupee()).toBe(false);
+  it('sans clusters : aucun clic réservé', async () => {
+    const { carte } = await monter();
+    carte.entitesRendues = [{ properties: {} }];
+    expect(TestBed.inject(EtatCarteService).clicReserve(new MouseEvent('mousedown'))).toBe(false);
+  });
+
+  it('historique de A puis de B : la réponse tardive de A est ANNULÉE, la fiche de B ne montre que B', async () => {
+    const { cliquerPoint, cliquer, http, texte, fixture } = await monter({ charge: true });
+    await cliquerPoint(0);
+    await cliquer('[data-historique]');
+    const reqA = http.expectOne('/api/poi-clusters/history/p1');
+    await cliquerPoint(1);
+    await cliquer('[data-historique]');
+    const reqB = http.expectOne('/api/poi-clusters/history/p2');
+    expect(reqA.cancelled).toBe(true);
+    reqB.flush([{ id: 2, cluster_id: 7, cluster_label: null, model_version: 3, action: 'full-retrain', previous_cluster_id: null, changed: false, created_at: '2026-09-12T09:52:57Z' }]);
+    await fixture.whenStable();
+    expect(texte()).toContain('Cluster 7');
+    expect(texte()).toContain('Lycée du Parc');
+  });
+
+  it('historique en échec : un message, au lieu d’un bouton sans effet', async () => {
+    const { cliquerPoint, cliquer, http, el, fixture } = await monter({ charge: true });
+    await cliquerPoint(0);
+    await cliquer('[data-historique]');
+    http.expectOne('/api/poi-clusters/history/p1').flush({ error: 'panne' }, { status: 500, statusText: 'Server Error' });
+    await fixture.whenStable();
+    expect(el.querySelector('[data-erreur-historique]')!.textContent).toContain('Historique indisponible — panne');
+  });
+
+  it('durées en échec : un message d’erreur, DISTINCT de « Aucune donnée multi-durée disponible »', async () => {
+    const { cliquerPoint, cliquer, http, el, texte, fixture } = await monter({ charge: true });
+    await cliquerPoint(0);
+    await cliquer('[data-durees]');
+    http.expectOne('/api/poi-clusters/poi/p1').flush({ error: 'panne' }, { status: 500, statusText: 'Server Error' });
+    await fixture.whenStable();
+    expect(el.querySelector('[data-erreur-durees]')!.textContent).toContain('Profils multi-durées indisponibles — panne');
+    expect(texte()).not.toContain('Aucune donnée multi-durée disponible');
+  });
+
+  it('instructions : sentence case, et les vrais boutons « Comparer » / « Durées », durées de la constante', async () => {
+    const { cliquer, texte } = await monter({ charge: true });
+    await cliquer('[data-onglet]:nth-child(3)');
+    expect(texte()).toContain('Cliquez « Comparer » dans sa fiche');
+    expect(texte()).toContain('cliquez « Durées » pour voir comment son bassin évolue à 30/45/60 min.');
+    expect(texte()).not.toMatch(/COMPARER|DURÉES/);
   });
 });

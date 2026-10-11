@@ -4,8 +4,9 @@ import {
 } from '@angular/core';
 import { catchError, forkJoin, of } from 'rxjs';
 import { messageErreurApi } from '../../../../../../core/http/erreurs';
+import { CouleursService } from '../../../../../../core/theme/couleurs.service';
 import { ClusteringApi } from '../../../../data/clustering.api';
-import { jetonSilhouette } from '../../../../logique/clustering/panneau';
+import { couleurBadge, jetonSilhouette } from '../../../../logique/clustering/panneau';
 import { themesBadge } from '../../../../logique/clustering/rapport';
 import type { DonneesRapport } from './commun-rapport';
 import { OngletCarteComponent } from './onglet-carte.component';
@@ -102,8 +103,9 @@ const EXPORTS_INDISPONIBLES = 'Export non restauré — dépendance retirée du 
       background: var(--bg-primary); color: var(--text-primary); border: 0; border-left: 0.5px solid var(--border-subtle);
       font-family: var(--font-sans); overflow: hidden;
     }
-    /* Le voile de React (rgba(0,0,0,0.4)) : noir dans les deux thèmes, sans le flou (DESIGN_SYSTEM : flat total). */
-    dialog::backdrop { background: color-mix(in srgb, black 40%, transparent); }
+    /* Le voile de React (rgba(0,0,0,0.4)) : noir à 40 % dans les deux thèmes — le jeton invariant --brand-teal-fg
+       (#050505) —, sans le flou (DESIGN_SYSTEM : flat total). */
+    dialog::backdrop { background: color-mix(in srgb, var(--brand-teal-fg) 40%, transparent); }
     .alerte { background: color-mix(in srgb, var(--danger) 6%, transparent); border: 0.5px solid color-mix(in srgb, var(--danger) 19%, transparent); }
     .silhouette { color: var(--teinte); border: 0.5px solid currentColor; opacity: 0.8; }
     .themes { color: var(--brand-teal); border: 0.5px solid color-mix(in srgb, var(--brand-teal) 25%, transparent); opacity: 0.9; }
@@ -123,6 +125,8 @@ export class RapportClustersComponent {
   readonly fermer = output<void>();
 
   private readonly api = inject(ClusteringApi);
+  /** Le gris de la donnée absente, en valeur calculée : repli d'une teinte de cluster invalide. */
+  private readonly absente = inject(CouleursService).palette({ absente: 'donnee-absente' });
   private readonly dialogue = viewChild.required<ElementRef<HTMLDialogElement>>('dialogue');
 
   protected readonly onglets = ONGLETS;
@@ -151,7 +155,12 @@ export class RapportClustersComponent {
       }).subscribe({
         next: ({ r, france }) => {
           const cids = Object.keys(r.cluster_summary ?? {}).sort((a, b) => Number(a) - Number(b));
-          this.donnees.set({ modele: r.model, resume: r.cluster_summary, pois: r.poi_list, france, cids });
+          // Les teintes viennent de la base : validées UNE fois ici, pour les sept onglets (SVG, DOM, ECharts).
+          const absente = untracked(this.absente).absente;
+          const resume = Object.fromEntries(Object.entries(r.cluster_summary ?? {}).map(([cid, c]) => [
+            cid, { ...c, color: couleurBadge(c.color) === c.color ? c.color : absente },
+          ]));
+          this.donnees.set({ modele: r.model, resume, pois: r.poi_list, france, cids });
           this.chargement.set(false);
         },
         error: (e: unknown) => {

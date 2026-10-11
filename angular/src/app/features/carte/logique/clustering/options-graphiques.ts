@@ -11,6 +11,7 @@
  * données — un axe catégoriel ECharts monte de bas en haut : `inverse`).
  */
 import { echapperHtml } from '../../../../graphiques/option-courbe';
+import { couleurBadge } from './panneau';
 
 /** Les couleurs d'interface des graphiques, déjà résolues. */
 export interface CadreGraphique {
@@ -51,9 +52,13 @@ function infobulle(c: CadreGraphique, formatter: unknown, declencheur: 'item' | 
   };
 }
 
-/** Une ligne de l'infobulle : « nom: valeur », la valeur dans la teinte de la série. */
+/**
+ * Une ligne de l'infobulle : « nom: valeur », la valeur dans la teinte de la série. La teinte d'un cluster vient de la
+ * base et entre dans du HTML (l'infobulle ECharts est posée en `innerHTML`) : elle passe par `couleurBadge` — un
+ * hexadécimal, ou le gris de la donnée absente (revue 1).
+ */
 function ligne(c: CadreGraphique, nom: string, valeur: string, couleur: string): string {
-  return `<div style="display:flex;gap:8px"><span style="color:${c.texte}">${echapperHtml(nom)}:</span><span style="color:${couleur}">${echapperHtml(valeur)}</span></div>`;
+  return `<div style="display:flex;gap:8px"><span style="color:${c.texte}">${echapperHtml(nom)}:</span><span style="color:${couleurBadge(couleur)}">${echapperHtml(valeur)}</span></div>`;
 }
 
 const legende = (c: CadreGraphique) => ({

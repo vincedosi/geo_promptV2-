@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output } from '@angular/core';
 import { ClustersService } from '../../../couches/clusters.service';
-import { etiquetteRadarCluster } from '../../../logique/clustering/panneau';
+import { DUREES_CLUSTERS, etiquetteRadarCluster } from '../../../logique/clustering/panneau';
 import { ComparaisonDureesComponent } from './comparaison-durees.component';
 import { ComparaisonPoiComponent } from './comparaison-poi.component';
 import { EtatPanneauClustersService, type OngletClusters } from './etat-panneau-clusters.service';
@@ -20,7 +20,9 @@ const ASSISTANT_A_VENIR = 'Disponible prochainement';
  * (`handleLoadClustersGarde`, `PanneauAnalyse.tsx:278`) — verrou structurel `panneau-analyse-garde.test.ts`. La durée et
  * la visibilité vont droit au service, comme `onDurationChange` / `onToggle` en React.
  *
- * Défaut React corrigé : une durée sans modèle ne disait rien (voir `ClustersService`) — le message s'affiche ici.
+ * Défauts React corrigés : une durée sans modèle ne disait rien (voir `ClustersService`) — le message s'affiche ici ;
+ * « N CLUSTERS » en capitales et des instructions qui citaient des boutons inexistants (« ⇄ COMPARER », « ⧖ DURÉES »)
+ * — sentence case, et les vrais libellés « Comparer » / « Durées » (revue 1).
  */
 @Component({
   selector: 'mg-panneau-clusters',
@@ -96,7 +98,7 @@ const ASSISTANT_A_VENIR = 'Disponible prochainement';
                 <div class="etiquette">
                   @if (etat.filtreCluster() !== null) {
                     <button type="button" class="lien-tous" (click)="etat.filtreCluster.set(null)">Tous</button> · Cluster {{ etat.filtreCluster() }}
-                  } @else { {{ m.k }} CLUSTERS · {{ nombrePoi() }} POI }
+                  } @else { {{ m.k }} clusters · {{ nombrePoi() }} POI }
                 </div>
                 <div class="flex flex-col gap-1">
                   @for (c of listeClusters(); track c.cid) {
@@ -154,11 +156,11 @@ const ASSISTANT_A_VENIR = 'Disponible prochainement';
                 <div class="flex flex-col gap-3">
                   <div class="etiquette">Comparer deux POI</div>
                   <div class="mono text-[9px] leading-[1.7] text-tertiary">
-                    1. Cliquez sur un POI sur la carte (onglet Légende)<br />2. Cliquez "⇄ COMPARER" dans sa fiche<br />3. Cliquez sur un second POI
+                    1. Cliquez sur un POI sur la carte (onglet Légende)<br />2. Cliquez « Comparer » dans sa fiche<br />3. Cliquez sur un second POI
                   </div>
                   <div class="etiquette mt-1">Comparaison de durées</div>
                   <div class="mono text-[9px] leading-[1.7] text-tertiary">
-                    Sélectionnez un POI (Légende), puis cliquez "⧖ DURÉES" pour voir comment son bassin évolue à 30/45/60 min.
+                    Sélectionnez un POI (Légende), puis cliquez « Durées » pour voir comment son bassin évolue à {{ dureesTexte }} min.
                   </div>
                 </div>
               }
@@ -187,7 +189,8 @@ export class PanneauClustersComponent {
   /** « Charger les clusters » : le parent garde le périmètre, puis charge. */
   readonly charger = output<void>();
 
-  protected readonly durees = [30, 45, 60] as const;
+  protected readonly durees = DUREES_CLUSTERS;
+  protected readonly dureesTexte = DUREES_CLUSTERS.join('/');
   protected readonly aVenir = ASSISTANT_A_VENIR;
   protected readonly donnees = this.clusters.donnees;
   protected readonly meta = computed(() => this.donnees()?.metadata ?? null);

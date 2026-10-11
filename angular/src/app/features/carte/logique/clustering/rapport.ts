@@ -137,7 +137,7 @@ export function lignesTableauProfils(
       libelle: libelleCourt(variable),
       valeurs: cids.map((cid, i) => ({
         cid,
-        couleur: summary[cid]?.color ?? '',
+        couleur: summary[cid]?.color ?? 'var(--donnee-absente)',
         largeur: Math.min(100, (brutes[i] / max) * 100),
         texte: formaterValeurCompacte(variable, brutes[i]),
         index: variable === 'revenu_moyen' && refRevenu ? revenusIndex(brutes[i], refRevenu) : null,

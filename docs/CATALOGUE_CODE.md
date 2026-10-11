@@ -4,7 +4,7 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-10-11 — commit `63e72022`.
+> Généré le 2026-10-11 — commit `915656c3`.
 
 ## Totaux
 
@@ -40,11 +40,11 @@ Trié par nombre d’occurrences décroissant.
 | `app/admin/sources/_hooks/usePoiAdmin.ts` | 3 | emptyPoiForm | PoiForm, PoiModalState |
 | `lib/dsp/report/index.ts` | 3 | selectReporter | DspReportRow, DspReporter |
 | `components/ui/GeoSkeleton.tsx` | 3 | SkeletonCard, SkeletonChart, SkeletonMap | — |
-| `app/copilote/_lib/constants.ts` | 2 | applyChoropleth, CATEGORY_COLORS | — |
-| `app/map/_components/CivicIndicatorsLayer.tsx` | 2 | CIVIC_VARIABLES, getCivicLegendStops | — |
 | `components/ui/button.tsx` | 2 | buttonVariants | ButtonProps |
 | `components/ui/badge.tsx` | 2 | badgeVariants | BadgeProps |
 | `components/ui/table.tsx` | 2 | TableFooter, TableCaption | — |
+| `app/copilote/_lib/constants.ts` | 2 | applyChoropleth, CATEGORY_COLORS | — |
+| `app/map/_components/CivicIndicatorsLayer.tsx` | 2 | CIVIC_VARIABLES, getCivicLegendStops | — |
 | `lib/campaigns/suivi-chat.ts` | 2 | ChatTurnSchema | CampaignChatBody |
 | `lib/dsp/dv360/auth.ts` | 2 | DV360_SCOPES, buildOAuthClient | — |
 | `lib/prompting/code-generation/adform.ts` | 2 | ADFORM_PROMPT_SECTION | AdformRule |
@@ -91,22 +91,22 @@ Trié par nombre d’occurrences décroissant.
 | `lib/import/sheet-common.ts` | 1 | dedupeHeaders | — |
 | `lib/metrics-display/types.ts` | 1 | UnknownMetricError | — |
 | `components/campaign/_shared.tsx` | 1 | SH | — |
-| `lib/logger.ts` | 1 | — | Logger |
 | `components/ui/input.tsx` | 1 | — | InputProps |
+| `lib/logger.ts` | 1 | — | Logger |
 | `types/admin.ts` | 1 | — | HealthCheck |
 | `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
 | `lib/supabase/tables.ts` | 1 | — | TableUpdate |
 | `types/campaign.ts` | 1 | — | DspCampaign |
+| `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
 | `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
 | `lib/campaigns/actor-metrics.ts` | 1 | — | ActorsPayload |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |
-| `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
 | `lib/demo/pilot-types.ts` | 1 | — | PilotItem |
 | `lib/dsp/push/types.ts` | 1 | — | PushStatus |
+| `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
 | `lib/qualite/verdict.ts` | 1 | — | Verdict |
 | `lib/report/types.ts` | 1 | — | ReportHeader |
-| `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
 | `lib/radio/import-logger.ts` | 1 | — | LogEntry |
 | `lib/meteo/use-meteo-data.ts` | 1 | — | MeteoProgress |
 | `app/map/_components/filter-panel/use-poi-catalog.ts` | 1 | — | PoiType |

@@ -3,7 +3,7 @@ import { GraphiqueComponent } from '../../../../../../graphiques/graphique.compo
 import { optionBarres, optionDonut } from '../../../../logique/clustering/options-graphiques';
 import { lignesModele, profilReference, variables } from '../../../../logique/clustering/rapport';
 import { RadarComponent } from '../radar.component';
-import { STYLES_RAPPORT, cadreGraphique, type DonneesRapport } from './commun-rapport';
+import { STYLES_RAPPORT, cadreGraphique, couleurCluster, type DonneesRapport } from './commun-rapport';
 
 /**
  * Onglet « Résumé » (`TabResume`, `ClusterDetails.tsx:256-366`) : le modèle en chiffres, la répartition (anneau), la
@@ -54,7 +54,7 @@ export class OngletResumeComponent {
 
   protected readonly lignes = computed(() => lignesModele(this.d().modele));
   private readonly parts = computed(() => this.d().cids.map((c) => ({
-    nom: this.d().resume[c]?.label ?? `C${c}`, valeur: this.d().resume[c]?.count ?? 0, couleur: this.d().resume[c]?.color ?? '',
+    nom: this.d().resume[c]?.label ?? `C${c}`, valeur: this.d().resume[c]?.count ?? 0, couleur: couleurCluster(this.d(), c, this.cadre().absente),
   })));
   protected readonly total = computed(() => this.parts().reduce((s, p) => s + p.valeur, 0));
   protected readonly donut = computed(() => optionDonut(this.parts(), this.cadre()));
@@ -62,7 +62,7 @@ export class OngletResumeComponent {
   protected readonly hauteurBarres = computed(() => Math.max(120, this.d().cids.length * 36 + 20));
   protected readonly radar = computed(() => ({
     profils: this.d().cids.map((c) => this.d().resume[c]?.avg_profile ?? {}),
-    couleurs: this.d().cids.map((c) => this.d().resume[c]?.color ?? ''),
+    couleurs: this.d().cids.map((c) => couleurCluster(this.d(), c, this.cadre().absente)),
     libelles: this.d().cids.map((c) => this.d().resume[c]?.label ?? `C${c}`),
     cles: variables(this.d().modele),
     reference: profilReference(this.d().france),

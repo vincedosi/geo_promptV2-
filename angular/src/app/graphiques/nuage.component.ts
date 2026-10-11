@@ -1,8 +1,8 @@
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, type ElementRef, afterNextRender, computed, effect, inject, input, signal, viewChild,
+  ChangeDetectionStrategy, Component, type ElementRef, computed, inject, input, viewChild,
 } from '@angular/core';
 import { CouleursService } from '../core/theme/couleurs.service';
-import { FABRIQUE_GRAPHIQUE, type GraphiqueMinimal } from './fabrique-graphique';
+import { monterGraphique } from './monter-graphique';
 import { type PointNuage, optionNuage } from './option-nuage';
 
 /**
@@ -25,9 +25,6 @@ export class NuageComponent {
   readonly hauteur = input(220);
 
   private readonly conteneur = viewChild.required<ElementRef<HTMLDivElement>>('conteneur');
-  private readonly fabrique = inject(FABRIQUE_GRAPHIQUE);
-  private readonly destruction = inject(DestroyRef);
-  private readonly graphique = signal<GraphiqueMinimal | null>(null);
   private readonly couleurs = inject(CouleursService).palette({
     point: 'brand-teal', texte: 'text-tertiary', axe: 'border-subtle', fondInfobulle: 'surface',
     textePrincipal: 'text-primary', texteSecondaire: 'text-secondary',
@@ -38,20 +35,7 @@ export class NuageComponent {
   }));
 
   constructor() {
-    afterNextRender(() => {
-      const element = this.conteneur().nativeElement;
-      const g = this.fabrique(element);
-      this.graphique.set(g);
-      const observateur = new ResizeObserver(() => g.resize());
-      observateur.observe(element);
-      this.destruction.onDestroy(() => {
-        observateur.disconnect();
-        g.dispose();
-      });
-    });
-    effect(() => {
-      const g = this.graphique();
-      if (g) g.setOption(this.option(), { notMerge: true });
-    });
+    // Création après rendu, suivi de taille, libération, options posées en `notMerge` : `monterGraphique`.
+    monterGraphique(this.conteneur, this.option);
   }
 }

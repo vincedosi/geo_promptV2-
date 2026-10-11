@@ -28,7 +28,7 @@ import { ZonesCustomApi } from '../../data/zones-custom.api';
 const DEPT_13: FiltreActif = { type: 'departement', code: '13', label: 'Bouches-du-Rhône' };
 const FRANCE: FiltreActif = { type: 'france', code: 'france', label: 'France entière' };
 
-async function monter(o: { filtre?: FiltreActif | null; pois?: string[]; role?: string | null } = {}) {
+async function monter(o: { filtre?: FiltreActif | null; pois?: string[]; role?: string | null; auth?: unknown } = {}) {
   TestBed.configureTestingModule({
     providers: [CaptureService,
       provideHttpClient(), provideHttpClientTesting(),
@@ -40,7 +40,7 @@ async function monter(o: { filtre?: FiltreActif | null; pois?: string[]; role?: 
       { provide: ScoreService, useValue: { afficher: vi.fn(), eteindre: vi.fn() } },
       { provide: PoisService, useValue: { definirZone: vi.fn() } },
       { provide: ReferentielGeoService, useValue: { regions: signal([]), charger: vi.fn() } },
-      { provide: AuthService, useValue: { lireProfil: async () => ({ role: o.role ?? 'client', nom: null, organisation: 'org-1' }) } },
+      { provide: AuthService, useValue: o.auth ?? { session: signal({ user: { id: 'u-1' } }), lireProfil: async () => ({ role: o.role ?? 'client', nom: null, organisation: 'org-1' }) } },
       { provide: CouleursService, useValue: { palette: (j: Record<string, string>) => () => Object.fromEntries(Object.keys(j).map((k) => [k, '#123456'])) } },
     ],
   });
@@ -182,6 +182,18 @@ describe('PanneauAnalyseComponent — clustering (T19)', () => {
     await charger(m);
     m.http.expectOne('/api/poi-clusters?duration=60');
     expect(m.el.querySelector('[data-garde]')).toBeNull();
+  });
+
+  it('le rôle suit la SESSION : un changement de compte (super admin → client) retire la section sans remonter le panneau', async () => {
+    const session = signal<{ user: { id: string } } | null>({ user: { id: 'admin' } });
+    const roles: Record<string, string> = { admin: 'super_admin', autre: 'client' };
+    const m = await monter({ auth: { session, lireProfil: async () => ({ role: roles[session()!.user.id], nom: null, organisation: 'org-1' }) } });
+    await m.fixture.whenStable();
+    expect(m.el.querySelector('mg-section-clustering')).not.toBeNull();
+    session.set({ user: { id: 'autre' } });
+    await m.fixture.whenStable();
+    await m.fixture.whenStable();
+    expect(m.el.querySelector('mg-section-clustering')).toBeNull();
   });
 
   async function monterAdmin(o: { filtre?: FiltreActif | null } = {}) {
