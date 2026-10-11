@@ -9,7 +9,9 @@
  *   poi_types    string[]   — types de POI à clustériser (ex: ["cirfa","lycee"])
  *   geo_filter   object     — { metropolitaine: boolean, regions: string[], depts: string[] }
  *   params       object     — { duration: number, transport: string, force_k?: number, dry_run?: boolean }
- *   features     string[]|null — features/thématiques à utiliser (null = toutes, ex: ["demographie","revenus"])
+ *   features     string[]|null — features/thématiques à utiliser (null, absent ou [] = les 16,
+ *                passées EXPLICITEMENT au script ; ex: ["demographie","revenus"]). Toujours
+ *                transmis en --features : c'est ce qui enchaîne l'entraînement (full-retrain).
  *
  * POST Response: { job_id: string }
  * GET  Response: { job_id, status, started_at, finished_at, log_tail, error, result_meta }
@@ -22,6 +24,7 @@ import { createAdminClient } from '@/lib/auth';
 // sur TOUS les POI, toutes organisations confondues — voir lib/auth/perimetre-donnees.ts.
 import { reserverAuSuperAdmin } from '@/lib/auth/perimetre-donnees';
 import { lireCorps }         from '@/lib/api/valider-corps';
+import { ALL_FEATURES }      from '@/lib/clustering/feature-themes';
 import { spawn }             from 'child_process';
 import path                  from 'path';
 import { existsSync }        from 'fs';
@@ -143,12 +146,20 @@ export async function POST(req: NextRequest) {
   if (params.dry_run) {
     pythonArgs.push('--dry-run');
   }
-  // --features : passe la sélection au script Python
-  // features=null/undefined → omis = toutes les variables (comportement par défaut)
-  // features=['demographie'] → chaîne cache-isochrones → full-retrain avec ces features
-  if (features && features.length > 0) {
-    pythonArgs.push('--features', features.join(','));
-  }
+  // --features : TOUJOURS passé. C'est lui, et lui seul, qui fait enchaîner au
+  // script `cache-isochrones` → `full-retrain` (« Chainage automatique » de
+  // `run_cache_isochrones`) : sans lui, le job met les isochrones en cache et
+  // n'entraîne AUCUN modèle.
+  //
+  // features=null/absent/[] = toutes les variables. L'assistant envoie `null`
+  // quand les 16 sont cochées. Jusqu'au 2026-10-11 la route omettait alors
+  // `--features` en annonçant « toutes les variables » : le run réel du lot 4
+  // (T20) a fini `done` sans modèle. On normalise donc en la liste complète,
+  // lue à la source unique (`lib/clustering/feature-themes.ts`, miroir de
+  // FEATURE_THEMES du script) — jamais recopiée ici.
+  // features=['demographie'] → full-retrain avec ces variables.
+  const variables = features && features.length > 0 ? features : ALL_FEATURES;
+  pythonArgs.push('--features', variables.join(','));
 
   // Spawn Python en arrière-plan (non-bloquant)
   const python = process.platform === 'win32' ? 'python' : 'python3';

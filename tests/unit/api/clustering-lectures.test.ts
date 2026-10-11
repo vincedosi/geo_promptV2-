@@ -163,3 +163,47 @@ describe('GET /api/poi-clusters/poi-types — compté en base, pas sur 1 000 lig
     expect(appelsRpc).toEqual(['types_poi_clustering']);
   });
 });
+
+describe('POST /api/poi-clusters/run — « toutes les variables » entraîne un modèle', () => {
+  async function lancer(features: unknown) {
+    const { POST } = await import('@/app/api/poi-clusters/run/route');
+    return POST(new NextRequest('http://x/api/poi-clusters/run', {
+      method: 'POST',
+      body: JSON.stringify({
+        poi_types: ['bmw'],
+        params: { duration: 15, transport: 'drive' },
+        features,
+      }),
+    }));
+  }
+  function valeurDe(args: string[], option: string): string | undefined {
+    const i = args.indexOf(option);
+    return i < 0 ? undefined : args[i + 1];
+  }
+
+  it('features null : passe les 16 variables, ce qui enchaîne full-retrain', async () => {
+    const res = await lancer(null);
+    expect(res.status).toBe(201);
+    expect(spawns).toHaveLength(1);
+    expect(valeurDe(spawns[0].args, '--features')).toBe(ALL_FEATURES.join(','));
+  });
+
+  it('features absent : même chose que null', async () => {
+    await lancer(undefined);
+    expect(valeurDe(spawns[0].args, '--features')).toBe(ALL_FEATURES.join(','));
+  });
+
+  it('features [] : même chose que null (aucune sélection = toutes)', async () => {
+    await lancer([]);
+    expect(valeurDe(spawns[0].args, '--features')).toBe(ALL_FEATURES.join(','));
+  });
+
+  it('une sélection explicite part telle quelle', async () => {
+    await lancer(['demographie', 'revenu_moyen']);
+    expect(valeurDe(spawns[0].args, '--features')).toBe('demographie,revenu_moyen');
+  });
+
+  it('la liste complète vient de la source unique et compte 16 variables', () => {
+    expect(ALL_FEATURES).toHaveLength(16);
+  });
+});

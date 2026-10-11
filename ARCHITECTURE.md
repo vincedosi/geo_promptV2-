@@ -1372,7 +1372,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | Route | Methode | Description |
 |-------|---------|-------------|
 | `/api/poi-clusters` | GET | GeoJSON des POI colories par cluster (`?duration=`) |
-| `/api/poi-clusters/run` | POST/GET | Lance un job (corps valide par Zod) / polling du statut. **Le moteur est un script Python lance en processus fils : il n'y a aucun runtime Python sur Vercel.** La route repond 503 explicite si le script est absent. Portage Modal : `docs/PLAN_CLUSTERING.md` |
+| `/api/poi-clusters/run` | POST/GET | Lance un job (corps valide par Zod) / polling du statut. **`features` null, absent ou `[]` = les 16 variables, passees EXPLICITEMENT en `--features`** (liste lue dans `lib/clustering/feature-themes.ts`) : c'est `--features` seul qui fait enchainer `cache-isochrones` -> `full-retrain` au script. Jusqu'au 2026-10-11, « toutes les variables » omettait l'option et le job finissait `done` sans aucun modele. **Le moteur est un script Python lance en processus fils : il n'y a aucun runtime Python sur Vercel.** La route repond 503 explicite si le script est absent. Portage Modal : `docs/PLAN_CLUSTERING.md` |
 | `/api/poi-clusters/models` | GET | Liste des modeles calcules |
 | `/api/poi-clusters/models/[version]` | GET/DELETE | Detail d'un modele (resume par cluster + POI) / suppression |
 | `/api/poi-clusters/models/[version]/analysis` | GET/DELETE | Analyse Gemini du modele |
