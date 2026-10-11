@@ -20,6 +20,10 @@ import * as Rg from '@/lib/carte/garde-perimetre';
 import * as Ag from '../../../angular/src/app/features/carte/logique/garde-perimetre';
 import * as Rp from '@/app/map/_components/panneaux/panneau-filtre-logique';
 import * as Ap from '../../../angular/src/app/features/carte/logique/panneau-filtre-logique';
+import * as Rft from '@/lib/clustering/feature-themes';
+import * as Aft from '../../../angular/src/app/features/carte/logique/clustering/feature-themes';
+import { FEAT_LABEL as R_FEAT_LABEL, FEAT_SHORT as R_FEAT_SHORT } from '@/components/ClusterRadar';
+import * as Al from '../../../angular/src/app/features/carte/logique/clustering/libelles';
 import { ICONES as ICONES_ANGULAR } from '../../../angular/src/app/ui/icone/icones';
 
 const ICONES: Record<string, string> = {
@@ -121,5 +125,19 @@ describe('logique de navigation et de carte : Angular = React', () => {
         expect(Ap.composerFiltreCodePostal(f, v)).toEqual(Rp.composerFiltreCodePostal(f, v));
       }
     }
+  });
+  it('clustering (T19) — thématiques de variables et libellés des radars', () => {
+    expect(Aft.FEATURE_THEMES).toEqual(Rft.FEATURE_THEMES);
+    expect(Aft.ALL_THEME_IDS).toEqual(Rft.ALL_THEME_IDS);
+    expect(Aft.ALL_FEATURES).toEqual(Rft.ALL_FEATURES);
+    expect(Aft.FEATURE_PRESETS).toEqual(Rft.FEATURE_PRESETS);
+    expect(Aft.FEATURE_LABELS).toEqual(Rft.FEATURE_LABELS);
+    const selections = [[], Rft.ALL_FEATURES, ['pct_0_17', 'pct_18_39', 'pct_40_54', 'pct_55_79', 'pct_80p'], ['revenu_moyen', 'taux_hlm'], ['taux_hlm']];
+    for (const s of selections) {
+      expect(Aft.featureSelectionLabel(s)).toBe(Rft.featureSelectionLabel(s));
+      expect(Aft.resolveThemesFromFeatures(s)).toEqual(Rft.resolveThemesFromFeatures(s));
+    }
+    expect(Al.FEAT_SHORT).toEqual(R_FEAT_SHORT);
+    expect(Al.FEAT_LABEL).toEqual(R_FEAT_LABEL);
   });
 });

@@ -15,8 +15,9 @@ import { join } from 'node:path';
  *   3. les outils n'appellent JAMAIS eux-mêmes une méthode de lancement d'un service : ils émettent, le panneau garde ;
  *   4. les méthodes de lancement des services ne sont appelées QUE depuis un gestionnaire gardé.
  *
- * ⚠️ Tout nouveau point de lancement (clustering T19-T20) s'ajoute à `HANDLERS_GARDE_OUTIL`. Le score composite (T18) y est ;
- * la corrélation n'y est PAS, délibérément : bornée par une campagne, elle ne balaie aucun territoire (dernier test).
+ * ⚠️ Tout nouveau point de lancement (assistant de clustering T20) s'ajoute à `HANDLERS_GARDE_OUTIL`. Le score composite
+ * (T18) y est. Pour une RELECTURE gardée sans refus national (chargement des clusters, T19) : `HANDLERS_GARDE_GENERIQUE`.
+ * La corrélation n'y est PAS, délibérément : bornée par une campagne, elle ne balaie aucun territoire (dernier test).
  */
 const RACINE = join(process.cwd(), 'angular/src/app/features/carte/panneaux/analyse');
 const lire = (f: string) => readFileSync(join(RACINE, f), 'utf-8');
@@ -33,6 +34,14 @@ const HANDLERS_GARDE_OUTIL: Array<[nom: string, outil: string, appel: string]> =
   ['lancerV2', 'bataille_v2', 'this.v2.lancer('],
   ['lancerScore', 'score_composite', 'this.scoreComposite.lancer('],
 ];
+
+/** [gestionnaire du panneau, appel de service] gardés par la garde GÉNÉRIQUE (sans refus national). */
+const HANDLERS_GARDE_GENERIQUE: Array<[nom: string, appel: string]> = [
+  ['chargerClusters', 'this.clusters.charger('],
+];
+
+/** Les composants du clustering : ils ÉMETTENT `charger`, jamais ne l'appellent sur le service. */
+const CLUSTERING = ['clustering/section-clustering.component.ts', 'clustering/panneau-clusters.component.ts'];
 
 /** [balise de l'outil, sortie, appel attendu dans le gabarit]. */
 const SORTIES: Array<[balise: string, sortie: string, appel: string]> = [
@@ -92,6 +101,28 @@ describe('Panneau Analyse Angular — verrou structurel de la garde de périmèt
 
   it('verifierPerimetreOutil lit messageGardeOutil(outil, filtre) — la logique pure, jamais une copie', () => {
     expect(corpsDeMethode('verifierPerimetreOutil')).toContain('messageGardeOutil(outil, this.etat.filtre())');
+  });
+
+  // ── Clustering (T19) : la RELECTURE d'un modèle déjà calculé (`GET /api/poi-clusters?duration=`) passe par la garde
+  // GÉNÉRIQUE, sans refus national — `handleLoadClustersGarde` de `PanneauAnalyse.tsx:278` (« pas le calcul lourd »).
+  // Le calcul lourd (`POST /api/poi-clusters/run`, T20) s'ajoutera à `HANDLERS_GARDE_OUTIL` avec l'outil `clustering`.
+  it.each(HANDLERS_GARDE_GENERIQUE)('« %s » commence par verifierPerimetre(), puis appelle %s', (nom, appel) => {
+    const corps = corpsDeMethode(nom).trim();
+    expect(corps.startsWith('if (!this.verifierPerimetre()) return;'), `premier énoncé de ${nom} :\n${corps}`).toBe(true);
+    expect(corps).toContain(appel);
+    expect(PANNEAU.split(appel).length - 1, `${appel} appelé hors de ${nom}`).toBe(1);
+  });
+
+  it('verifierPerimetre lit messageGardePerimetre(this.etat.filtre()) — la logique pure', () => {
+    expect(corpsDeMethode('verifierPerimetre')).toContain('messageGardePerimetre(this.etat.filtre())');
+  });
+
+  it('<mg-section-clustering> : la sortie (charger) est câblée sur chargerClusters()', () => {
+    expect(baliseOuvrante('mg-section-clustering')).toContain('(charger)="chargerClusters()"');
+  });
+
+  it.each(CLUSTERING)('%s ne charge jamais les clusters lui-même (il émet, le panneau garde)', (f) => {
+    expect(lire(f)).not.toMatch(/\.charger\(/);
   });
 
   it('le Voronoï est ABSENT du panneau (décision du propriétaire : il n’existait que par l’Assistant)', () => {

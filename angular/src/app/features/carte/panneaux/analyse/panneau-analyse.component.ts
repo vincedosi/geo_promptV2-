@@ -1,4 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal, signal } from '@angular/core';
+import { AuthService } from '../../../../core/auth/auth.service';
+import { ClustersService } from '../../couches/clusters.service';
 import { BatailleV1Service } from '../../etat/bataille-v1.service';
 import { BatailleV2Service } from '../../etat/bataille-v2.service';
 import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
@@ -8,8 +10,9 @@ import { EtatCarteService } from '../../etat/etat-carte.service';
 import { ReferentielGeoService } from '../../etat/referentiel-geo.service';
 import { ScoreCompositeService } from '../../etat/score-composite.service';
 import type { FiltreActif } from '../../logique/filtre';
-import { type OutilAnalyse, messageGardeOutil } from '../../logique/garde-perimetre';
+import { type OutilAnalyse, messageGardeOutil, messageGardePerimetre } from '../../logique/garde-perimetre';
 import { ISO_MODES } from '../../logique/modes-isochrones';
+import { SectionClusteringComponent } from './clustering/section-clustering.component';
 import { IntroAnalyseComponent } from './intro-analyse.component';
 import { OutilBatailleV2Component } from './outil-bataille-v2.component';
 import { OutilCorrelationComponent } from './outil-correlation.component';
@@ -23,15 +26,17 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
 /**
  * Le panneau « Analyse » de la carte — portage de `app/map/_components/panneaux/PanneauAnalyse.tsx` (lot 4, T17) :
  * le message de garde, puis l'accordéon « Analyse spatiale » (encarts d'accueil, mode de transport, Bataille V2,
- * Isochrones routiers), puis les accordéons « Score composite » et « Corrélation » (T18). Le clustering (T19-T20)
- * s'y ajoutera.
+ * Isochrones routiers), puis les accordéons « Score composite » et « Corrélation » (T18), puis « Clustering » (T19,
+ * super admin seulement — `clusteringOuvert`, `PanneauAnalyse.tsx:162`, dans l'ordre de React).
  *
  * ── GARDE DE PÉRIMÈTRE (spec §5, incidents du 28/03 et du 08/04) ─────────
  * Chaque lancement passe par `verifierPerimetreOutil('<outil>')` AVANT d'appeler son service : sans filtre, « Choisissez
  * un périmètre… » ; sur la France entière, un refus qui NOMME l'outil — et aucune requête dans les deux cas. Les outils
  * ÉMETTENT, ce panneau garde : verrou structurel `tests/unit/angular/panneau-analyse-garde.test.ts`, qui lit CE source.
  * Le message vit au niveau du panneau (un refus de n'importe quel outil s'y affiche) et s'efface dès qu'un filtre est
- * posé.
+ * posé. La RELECTURE d'un modèle de clustering (`chargerClusters`) passe par la garde GÉNÉRIQUE `verifierPerimetre`,
+ * sans refus national : ce n'est pas le calcul lourd (`handleLoadClustersGarde`, `PanneauAnalyse.tsx:278`) — celui-ci,
+ * l'assistant de T20, passera par `verifierPerimetreOutil('clustering')`.
  *
  * ── VORONOÏ ABSENT ───────────────────────────────────────────────────────
  * Décision du propriétaire : le Voronoï ne se lançait que par un message à l'Assistant, jamais porté. Il n'est ni
@@ -48,7 +53,7 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
  */
 @Component({
   selector: 'mg-panneau-analyse',
-  imports: [IntroAnalyseComponent, OutilBatailleV2Component, OutilCorrelationComponent, OutilIsochronesComponent, OutilScoreComponent],
+  imports: [IntroAnalyseComponent, OutilBatailleV2Component, OutilCorrelationComponent, OutilIsochronesComponent, OutilScoreComponent, SectionClusteringComponent],
   providers: [ScoreCompositeService, CatalogueIndicateursService, CreationZoneService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full flex-col overflow-y-auto' },
@@ -103,9 +108,10 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
       }
     </div>
 
-    <!-- PanneauAnalyse.tsx:430-451 : le score composite (gardé, France admise), puis la corrélation (non gardée). -->
+    <!-- PanneauAnalyse.tsx:430-475 : le score composite (gardé, France admise), la corrélation (non gardée), le clustering. -->
     <mg-outil-score (lancer)="lancerScore()" />
     <mg-outil-correlation />
+    @if (clusteringOuvert()) { <mg-section-clustering (charger)="chargerClusters()" /> }
   `,
 })
 export class PanneauAnalyseComponent {
@@ -113,6 +119,7 @@ export class PanneauAnalyseComponent {
   protected readonly contexte = inject(ContexteBatailleService);
   private readonly v1 = inject(BatailleV1Service);
   private readonly v2 = inject(BatailleV2Service);
+  private readonly clusters = inject(ClustersService);
 
   private readonly scoreComposite = inject(ScoreCompositeService);
 
@@ -131,7 +138,11 @@ export class PanneauAnalyseComponent {
     computation: (filtre, precedent) => (filtre ? null : (precedent?.value ?? null)),
   });
 
+  /** Le clustering est réservé au super admin (`session?.user.role === 'super_admin'`) : lu une fois, à l'ouverture. */
+  protected readonly clusteringOuvert = signal(false);
+
   constructor() {
+    void inject(AuthService).lireProfil().then((p) => this.clusteringOuvert.set(p?.role === 'super_admin'));
     // Le nom des régions dans le journal et la règle « toutes les régions » : lu une fois par écran (cache).
     inject(ReferentielGeoService).charger();
   }
@@ -145,6 +156,19 @@ export class PanneauAnalyseComponent {
     const message = messageGardeOutil(outil, this.etat.filtre());
     this.gardeMessage.set(message);
     return message === null;
+  }
+
+  /** La garde GÉNÉRIQUE (`verifierPerimetre` de React) : un périmètre, n'importe lequel — la France entière comprise. */
+  protected verifierPerimetre(): boolean {
+    const message = messageGardePerimetre(this.etat.filtre());
+    this.gardeMessage.set(message);
+    return message === null;
+  }
+
+  /** « Charger les clusters » : relire un modèle déjà calculé, une fois un périmètre choisi. */
+  protected chargerClusters(): void {
+    if (!this.verifierPerimetre()) return;
+    this.clusters.charger();
   }
 
   protected verifierCacheV1(): void {

@@ -1,4 +1,9 @@
 import { CaptureService } from '../../etat/capture.service';
+import { AuthService } from '../../../../core/auth/auth.service';
+import { CouleursService } from '../../../../core/theme/couleurs.service';
+import { ClustersService } from '../../couches/clusters.service';
+import { ClusteringApi } from '../../data/clustering.api';
+import { PileEchapService } from '../../etat/pile-echap.service';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
@@ -16,7 +21,6 @@ import { EtatCarteService } from '../../etat/etat-carte.service';
 import { ReferentielGeoService } from '../../etat/referentiel-geo.service';
 import type { FiltreActif } from '../../logique/filtre';
 import { PanneauAnalyseComponent } from './panneau-analyse.component';
-import { AuthService } from '../../../../core/auth/auth.service';
 import { ScoreService } from '../../couches/score.service';
 import { AnalysesApi } from '../../data/analyses.api';
 import { ZonesCustomApi } from '../../data/zones-custom.api';
@@ -24,19 +28,20 @@ import { ZonesCustomApi } from '../../data/zones-custom.api';
 const DEPT_13: FiltreActif = { type: 'departement', code: '13', label: 'Bouches-du-Rhône' };
 const FRANCE: FiltreActif = { type: 'france', code: 'france', label: 'France entière' };
 
-async function monter(o: { filtre?: FiltreActif | null; pois?: string[] } = {}) {
+async function monter(o: { filtre?: FiltreActif | null; pois?: string[]; role?: string | null } = {}) {
   TestBed.configureTestingModule({
-    providers: [CaptureService, 
+    providers: [CaptureService,
       provideHttpClient(), provideHttpClientTesting(),
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       EtatCarteService, AnnonceService, CouchesCarteService, BatailleService, IsochronesApi,
-      ContexteBatailleService, BatailleV1Service, BatailleV2Service,
+      ContexteBatailleService, BatailleV1Service, BatailleV2Service, ClusteringApi, ClustersService, PileEchapService,
       // Score composite et corrélation (T18) : présents dans le panneau, sans requête tant qu'ils restent fermés.
       AnalysesApi, ZonesCustomApi,
       { provide: ScoreService, useValue: { afficher: vi.fn(), eteindre: vi.fn() } },
-      { provide: AuthService, useValue: { lireProfil: () => Promise.resolve(null) } },
       { provide: PoisService, useValue: { definirZone: vi.fn() } },
       { provide: ReferentielGeoService, useValue: { regions: signal([]), charger: vi.fn() } },
+      { provide: AuthService, useValue: { lireProfil: async () => ({ role: o.role ?? 'client', nom: null, organisation: 'org-1' }) } },
+      { provide: CouleursService, useValue: { palette: (j: Record<string, string>) => () => Object.fromEntries(Object.keys(j).map((k) => [k, '#123456'])) } },
     ],
   });
   const etat = TestBed.inject(EtatCarteService);
@@ -146,4 +151,43 @@ describe('PanneauAnalyseComponent (PanneauAnalyse.tsx, T17)', () => {
     await m.cliquer('mg-outil-bataille-v2 [data-verifier-cache]');
     expect(m.http.expectOne('/api/isochrone-cache-check').request.body).toMatchObject({ paliers: [10, 20, 30, 40, 50, 60, 90], filtre_depts: ['13'] });
   });
+});
+
+describe('PanneauAnalyseComponent — clustering (T19)', () => {
+  /** Ouvre la section, puis le panneau de clusters (« + Nouveau clustering »), et clique « Charger les clusters ». */
+  async function charger(m: Awaited<ReturnType<typeof monter>>) {
+    await m.cliquer('[data-accordeon="clustering"]');
+    m.http.expectOne('/api/poi-clusters/models').flush({ models: [] });
+    await m.fixture.whenStable();
+    await m.cliquer('[data-nouveau]');
+    await m.cliquer('[data-charger]');
+  }
+
+  it('réservé au super admin : la section n’existe pas pour un client', async () => {
+    const m = await monter({ role: 'client' });
+    expect(m.el.querySelector('mg-section-clustering')).toBeNull();
+    const admin = await monterAdmin();
+    expect(admin.el.querySelector('mg-section-clustering')).not.toBeNull();
+  });
+
+  it('« Charger les clusters » sans périmètre : « Choisissez un périmètre… », aucune requête de clusters', async () => {
+    const m = await monterAdmin({ filtre: null });
+    await charger(m);
+    expect(m.el.querySelector('[data-garde]')!.textContent!.trim()).toBe('! Choisissez un périmètre (filtre ou zone) avant de lancer un calcul');
+    m.http.expectNone('/api/poi-clusters?duration=60');
+  });
+
+  it('« Charger les clusters » sur la France entière : la relecture d’un modèle n’est PAS refusée (garde générique, comme React)', async () => {
+    const m = await monterAdmin({ filtre: FRANCE });
+    await charger(m);
+    m.http.expectOne('/api/poi-clusters?duration=60');
+    expect(m.el.querySelector('[data-garde]')).toBeNull();
+  });
+
+  async function monterAdmin(o: { filtre?: FiltreActif | null } = {}) {
+    TestBed.resetTestingModule();
+    const m = await monter({ ...o, role: 'super_admin' });
+    await m.fixture.whenStable();
+    return m;
+  }
 });

@@ -19,6 +19,7 @@ import { CiviqueApi } from './data/civique.api';
 import { MeteoApi } from './data/meteo.api';
 import { IsochronesApi } from './data/isochrones.api';
 import { AnalysesApi } from './data/analyses.api';
+import { ClusteringApi } from './data/clustering.api';
 import { ZonesCustomApi } from './data/zones-custom.api';
 import { JeuxZonesApi } from '../risques/data/jeux-zones.api';
 import { ZonesRisqueApi } from '../risques/data/zones-risque.api';
@@ -98,6 +99,7 @@ async function ouvrir(options: OptionsOuverture = {}) {
       { provide: IsochronesApi, useValue: {} },
       // Mes analyses (T18) : le groupe reste replié dans ces essais — la liste n'est jamais lue.
       { provide: AnalysesApi, useValue: {} },
+      { provide: ClusteringApi, useValue: {} },
       { provide: SitesRisqueApi, useValue: { carte: () => of(), exposition: () => of() } },
       { provide: CiviqueApi, useValue: { geojsonVariable: () => of(), detailCp: () => of(), zones: () => of(), santeDepartement: () => of(), santeCp: () => of(), santeCommune: () => of() } },
     ],
