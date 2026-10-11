@@ -60,6 +60,7 @@ export class MesAnalysesService {
     });
   }
 
+  /** Pas de garde de périmètre : le rejeu relit la liste de CP ENREGISTRÉE (≤ 7 000, plafond de la route score). */
   rejouer(id: string): void {
     if (this.lignes()[id]?.action) return;
     this.poser(id, { action: 'rejeu', message: null });

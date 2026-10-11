@@ -114,4 +114,22 @@ describe('Outil « Corrélation » (CorrelationTool.tsx, T18)', () => {
     await m.rendre();
     expect(m.el.querySelector('[data-erreur]')!.textContent!.trim()).toBe('Campagne introuvable.');
   });
+
+  it('replier puis rouvrir garde les choix AFFICHÉS (revue 1 : `[selected]` par option, jamais `[value]` sur le select)', async () => {
+    const m = await monter();
+    await m.ouvrir();
+    await m.choisir('[data-campagne]', 'c-rentree');
+    await m.choisir('[data-variable]', 'rev_median');
+    const entete = m.el.querySelector<HTMLButtonElement>('[data-entete-outil]')!;
+    entete.click();
+    await m.rendre();
+    entete.click();
+    await m.rendre();
+    const campagne = m.el.querySelector<HTMLSelectElement>('[data-campagne]')!;
+    const variable = m.el.querySelector<HTMLSelectElement>('[data-variable]')!;
+    expect([campagne.value, campagne.selectedOptions[0].textContent!.trim()]).toEqual(['c-rentree', 'Rentrée']);
+    expect([variable.value, variable.selectedOptions[0].textContent!.trim()]).toEqual(['rev_median', 'Revenus — Revenu médian']);
+    expect(m.el.querySelector<HTMLButtonElement>('[data-calculer]')!.disabled).toBe(false);
+    m.http.verify();
+  });
 });

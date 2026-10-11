@@ -17,8 +17,9 @@ export type IssueCreation<G> = { geo: G; countCp: number | undefined } | { erreu
  * un échec de la sauvegarde dit « Sauvegarde de la zone échouée. ». Un 207 (codes non résolus) reste une réussite,
  * comme React (`saveRes.ok`).
  *
- * L'organisation est celle du profil ACTIF, lue à la construction : le service est fourni par le panneau Zones, donc
- * relu à chaque ouverture — un changement d'organisation ferme le panneau (T14).
+ * L'organisation est celle du profil ACTIF, lue à la construction : le service est fourni par le panneau Zones ET par
+ * le panneau Analyse (« Créer la zone » du score composite, T18), donc relu à chaque ouverture de l'un ou de l'autre —
+ * un changement d'organisation ferme le panneau (T14).
  */
 @Injectable()
 export class CreationZoneService {

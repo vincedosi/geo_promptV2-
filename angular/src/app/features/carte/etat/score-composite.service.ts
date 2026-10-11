@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { catchError, throwError } from 'rxjs';
+import { type Subscription, catchError, throwError } from 'rxjs';
 import { formaterNombre } from '../../../core/format/nombre';
 import { ScoreService } from '../couches/score.service';
 import { AnalysesApi } from '../data/analyses.api';
@@ -53,6 +53,9 @@ export class ScoreCompositeService {
   /** L'organisation active : sans elle, « Créer la zone » reste inactif (`!orgId`). */
   readonly org = this.creation.org;
 
+  /** Le calcul en vol : un réglage modifié l'ANNULE, sans quoi l'ancien résultat reviendrait repeindre la carte. */
+  private calculEnVol: Subscription | null = null;
+
   readonly disponibles = computed(() => this.catalogue().filter((i) => !this.choisis().some((c) => c.code === i.indicator_code)));
   readonly auDessusDuSeuil = computed(() => compteAuDessus(this.resultat()?.scores ?? [], this.seuil()));
 
@@ -99,7 +102,7 @@ export class ScoreCompositeService {
     this.calcul.set(true);
     this.erreur.set(null);
     this.messageZone.set(null);
-    this.api.score(corpsScore(choisis, filtre, this.enregistrer())).subscribe({
+    this.calculEnVol = this.api.score(corpsScore(choisis, filtre, this.enregistrer())).subscribe({
       next: (r) => {
         this.resultat.set(r);
         this.carte.afficher({ scores: r.scores, libelle: libelleScore(choisis.map((c) => c.label)), nIndicateurs: choisis.length });
@@ -140,6 +143,9 @@ export class ScoreCompositeService {
   }
 
   private perimer(): void {
+    this.calculEnVol?.unsubscribe();
+    this.calculEnVol = null;
+    this.calcul.set(false);
     this.resultat.set(null);
     this.messageZone.set(null);
     this.carte.eteindre();

@@ -206,4 +206,16 @@ describe('Outil « Score composite » (ScoreCompositeTool.tsx, T18)', () => {
     expect(m.el.querySelector('mg-outil-score [data-message-zone]')!.textContent!.trim()).toBe('Sélection trop large (1 834 CP). Remontez le seuil.');
     m.http.verify();
   });
+
+  it('un réglage modifié PENDANT le calcul l’annule : l’ancien résultat ne revient pas (revue 1)', async () => {
+    const m = await monter(DEPT_13);
+    await m.preparer();
+    await m.cliquer('mg-outil-score [data-calculer]');
+    const req = m.http.expectOne((r) => r.url.endsWith('/api/analyses/score'));
+    await m.cliquer('mg-outil-score [data-indicateur="part_15_29"] [data-sens="decroissant"]');
+    expect(req.cancelled).toBe(true);
+    expect(m.el.querySelector('mg-outil-score [data-calculer]')!.textContent!.trim()).toBe('Calculer le score');
+    expect(m.el.querySelector('mg-outil-score [data-resume]')).toBeNull();
+    expect(m.score.afficher).not.toHaveBeenCalled();
+  });
 });

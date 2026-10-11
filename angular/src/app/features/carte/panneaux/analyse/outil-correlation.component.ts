@@ -52,20 +52,22 @@ import {
         } @else {
           <div>
             <div [class]="libelleChamp">Campagne</div>
-            <!-- Le résultat est PÉRIMÉ dès qu'un champ change : sinon le r, le n et le nuage de la précédente restaient. -->
-            <select data-campagne [class]="liste" [value]="campagneId()" (change)="choisirCampagne($event)">
-              <option value="">Choisir une campagne…</option>
+            <!-- Le résultat est PÉRIMÉ dès qu'un champ change : sinon le r, le n et le nuage de la précédente restaient.
+                 « selected » sur CHAQUE option, jamais « value » sur le select : les options sont recréées au dépliage, après
+                 la liaison du select, qui retombait sur le libellé d'attente alors que le choix restait en mémoire. -->
+            <select data-campagne [class]="liste" (change)="choisirCampagne($event)">
+              <option value="" [selected]="!campagneId()">Choisir une campagne…</option>
               @for (c of campagnes(); track c.id) {
-                <option [value]="c.id">{{ c.name ?? c.nom ?? c.id }}</option>
+                <option [value]="c.id" [selected]="c.id === campagneId()">{{ c.name ?? c.nom ?? c.id }}</option>
               }
             </select>
           </div>
           <div>
             <div [class]="libelleChamp">Indicateur</div>
-            <select data-variable [class]="liste" [value]="variable()" (change)="choisirVariable($event)">
-              <option value="">Choisir un indicateur…</option>
+            <select data-variable [class]="liste" (change)="choisirVariable($event)">
+              <option value="" [selected]="!variable()">Choisir un indicateur…</option>
               @for (i of indicateurs(); track i.indicator_code) {
-                <option [value]="i.indicator_code">{{ libelleIndicateur(i) }}</option>
+                <option [value]="i.indicator_code" [selected]="i.indicator_code === variable()">{{ libelleIndicateur(i) }}</option>
               }
             </select>
           </div>
