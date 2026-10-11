@@ -1,0 +1,209 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { AuthService } from '../../../../core/auth/auth.service';
+import { ConfigService } from '../../../../core/config/config.service';
+import { BatailleService } from '../../couches/bataille.service';
+import { PoisService } from '../../couches/pois.service';
+import { ScoreService } from '../../couches/score.service';
+import { AnalysesApi } from '../../data/analyses.api';
+import { IsochronesApi } from '../../data/isochrones.api';
+import { ZonesCustomApi } from '../../data/zones-custom.api';
+import { AnnonceService } from '../../etat/annonce.service';
+import { BatailleV1Service } from '../../etat/bataille-v1.service';
+import { BatailleV2Service } from '../../etat/bataille-v2.service';
+import { CaptureService } from '../../etat/capture.service';
+import { ContexteBatailleService } from '../../etat/contexte-bataille.service';
+import { CouchesCarteService } from '../../etat/couches-carte.service';
+import { EtatCarteService } from '../../etat/etat-carte.service';
+import { ReferentielGeoService } from '../../etat/referentiel-geo.service';
+import type { FiltreActif } from '../../logique/filtre';
+import { PanneauAnalyseComponent } from './panneau-analyse.component';
+
+const DEPT_13: FiltreActif = { type: 'departement', code: '13', label: 'Bouches-du-Rhône' };
+const FRANCE: FiltreActif = { type: 'france', code: 'france', label: 'France entière' };
+const CATALOGUE = [
+  { indicator_code: 'rev_median', label: 'Revenu médian', famille: 'Revenus', unit: '€' },
+  { indicator_code: 'part_15_29', label: 'Part des 15-29 ans', famille: 'Âge', unit: '%' },
+];
+const RESULTAT_13 = {
+  scores: [{ code: '13001', score: 82.5, n_indicateurs: 2 }, { code: '13002', score: 64, n_indicateurs: 2 }, { code: '13003', score: 71, n_indicateurs: 1 }],
+  indicateurs: [
+    { code: 'rev_median', label: 'Revenu médian', calcule_le: '2026-09-13T10:00:00Z' },
+    { code: 'part_15_29', label: 'Part des 15-29 ans', calcule_le: null },
+  ],
+  perimetre: { n_codes_postaux: 127, n_scores: 127, n_complets: 120 },
+};
+
+async function monter(filtre: FiltreActif | null) {
+  const score = { afficher: vi.fn(), eteindre: vi.fn() };
+  TestBed.configureTestingModule({
+    providers: [
+      provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting(),
+      { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
+      EtatCarteService, AnnonceService, CouchesCarteService, CaptureService, BatailleService, IsochronesApi, AnalysesApi, ZonesCustomApi,
+      ContexteBatailleService, BatailleV1Service, BatailleV2Service,
+      { provide: ScoreService, useValue: score },
+      { provide: AuthService, useValue: { lireProfil: () => Promise.resolve({ organisation: 'org-1' }) } },
+      { provide: PoisService, useValue: { definirZone: vi.fn() } },
+      { provide: ReferentielGeoService, useValue: { regions: signal([]), charger: vi.fn() } },
+    ],
+  });
+  TestBed.inject(EtatCarteService).filtre.set(filtre);
+  const fixture = TestBed.createComponent(PanneauAnalyseComponent);
+  const el = fixture.nativeElement as HTMLElement;
+  const http = TestBed.inject(HttpTestingController);
+  const rendre = () => fixture.whenStable();
+  const cliquer = async (sel: string) => {
+    const b = el.querySelector<HTMLButtonElement>(sel);
+    expect(b, `introuvable : ${sel}`).not.toBeNull();
+    b!.click();
+    await rendre();
+  };
+  const choisir = async (sel: string, valeur: string) => {
+    const s = el.querySelector<HTMLSelectElement>(sel)!;
+    s.value = valeur;
+    s.dispatchEvent(new Event('change'));
+    await rendre();
+  };
+  /** Ouvre l'outil, sert le catalogue, ajoute rev_median et part_15_29. */
+  const preparer = async () => {
+    await rendre();
+    await cliquer('mg-outil-score [data-entete-outil]');
+    http.expectOne((r) => r.url.endsWith('/api/cibles/indicators')).flush({ indicators: CATALOGUE });
+    await rendre();
+    await choisir('mg-outil-score [data-ajouter]', 'rev_median');
+    await choisir('mg-outil-score [data-ajouter]', 'part_15_29');
+  };
+  return { el, http, score, rendre, cliquer, choisir, preparer, etat: TestBed.inject(EtatCarteService) };
+}
+
+describe('Outil « Score composite » (ScoreCompositeTool.tsx, T18)', () => {
+  it('fermé : aucune requête ; ouvert : le catalogue UNE fois, même après repli et réouverture', async () => {
+    const m = await monter(DEPT_13);
+    await m.rendre();
+    m.http.verify();
+    await m.preparer();
+    expect([...m.el.querySelectorAll('mg-outil-score [data-indicateur]')].map((e) => e.getAttribute('data-indicateur'))).toEqual(['rev_median', 'part_15_29']);
+    expect(m.el.querySelector('mg-outil-score')!.textContent).toContain('Indicateurs (2/6)');
+    await m.cliquer('mg-outil-score [data-entete-outil]');
+    await m.cliquer('mg-outil-score [data-entete-outil]');
+    m.http.verify();
+  });
+
+  it('département 13, deux indicateurs : corps exact, couche peinte, résumé « scorés sur » et partiels', async () => {
+    const m = await monter(DEPT_13);
+    await m.preparer();
+    await m.cliquer('mg-outil-score [data-calculer]');
+    const req = m.http.expectOne((r) => r.url.endsWith('/api/analyses/score'));
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({
+      indicateurs: [{ code: 'rev_median', poids: 1, sens: 'croissant' }, { code: 'part_15_29', poids: 1, sens: 'croissant' }],
+      perimetre: { type: 'departement', code: '13' },
+      enregistrer: false,
+      nom: 'Score composite — Bouches-du-Rhône',
+    });
+    expect(m.el.querySelector('mg-outil-score [data-calculer]')!.textContent!.trim()).toBe('Calcul…');
+    req.flush(RESULTAT_13);
+    await m.rendre();
+    expect(m.score.afficher).toHaveBeenCalledWith({
+      scores: RESULTAT_13.scores, libelle: 'Revenu médian × Part des 15-29 ans', nIndicateurs: 2,
+    });
+    const resume = m.el.querySelector('mg-outil-score [data-resume]')!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(resume).toBe('127 codes postaux scorés sur 127 7 partiels (indicateur manquant sur ces CP)');
+    expect([...m.el.querySelectorAll('mg-outil-score [data-dates] > div')].map((d) => d.textContent!.trim()))
+      .toEqual(['Revenu médian · 13/09/2026', 'Part des 15-29 ans · —']);
+    // Seuil par défaut 70 : 82,5 et 71.
+    expect(m.el.querySelector('mg-outil-score [data-retenus]')!.textContent!.trim()).toBe('2 codes postaux retenus');
+    m.http.verify();
+  });
+
+  it('« Enregistrer dans Mes analyses » coché : `enregistrer: true`', async () => {
+    const m = await monter(DEPT_13);
+    await m.preparer();
+    await m.cliquer('mg-outil-score [data-enregistrer]');
+    await m.cliquer('mg-outil-score [data-calculer]');
+    expect(m.http.expectOne((r) => r.url.endsWith('/api/analyses/score')).request.body.enregistrer).toBe(true);
+  });
+
+  it('filtre France : ADMIS (seul outil national), périmètre `france` envoyé', async () => {
+    const m = await monter(FRANCE);
+    await m.preparer();
+    await m.cliquer('mg-outil-score [data-calculer]');
+    expect(m.el.querySelector('[data-garde]')).toBeNull();
+    expect(m.http.expectOne((r) => r.url.endsWith('/api/analyses/score')).request.body.perimetre).toEqual({ type: 'france', code: 'france' });
+  });
+
+  it('sans filtre : le message de garde du panneau, aucune requête de calcul', async () => {
+    const m = await monter(null);
+    await m.preparer();
+    await m.cliquer('mg-outil-score [data-calculer]');
+    expect(m.el.querySelector('[data-garde]')!.textContent!.trim()).toBe('! Choisissez un périmètre (filtre ou zone) avant de lancer un calcul');
+    m.http.verify();
+  });
+
+  it('un réglage modifié PÉRIME le résultat : résumé retiré, score éteint', async () => {
+    const m = await monter(DEPT_13);
+    await m.preparer();
+    await m.cliquer('mg-outil-score [data-calculer]');
+    m.http.expectOne((r) => r.url.endsWith('/api/analyses/score')).flush(RESULTAT_13);
+    await m.rendre();
+    m.score.eteindre.mockClear();
+    await m.cliquer('mg-outil-score [data-indicateur="part_15_29"] [data-sens="decroissant"]');
+    expect(m.el.querySelector('mg-outil-score [data-resume]')).toBeNull();
+    expect(m.score.eteindre).toHaveBeenCalledTimes(1);
+  });
+
+  it('erreur de la route : son message, en rouge', async () => {
+    const m = await monter(DEPT_13);
+    await m.preparer();
+    await m.cliquer('mg-outil-score [data-calculer]');
+    m.http.expectOne((r) => r.url.endsWith('/api/analyses/score'))
+      .flush({ error: 'Périmètre vide : aucun code postal à scorer.' }, { status: 400, statusText: 'Bad Request' });
+    await m.rendre();
+    expect(m.el.querySelector('mg-outil-score [data-erreur]')!.textContent!.trim()).toBe('Périmètre vide : aucun code postal à scorer.');
+  });
+
+  it('« Créer la zone » : route source puis sauvegarde, message « Zone créée — N codes postaux. »', async () => {
+    const m = await monter(DEPT_13);
+    await m.preparer();
+    await m.cliquer('mg-outil-score [data-calculer]');
+    m.http.expectOne((r) => r.url.endsWith('/api/analyses/score')).flush(RESULTAT_13);
+    await m.rendre();
+    await m.cliquer('mg-outil-score [data-creer-zone]');
+    const source = m.http.expectOne((r) => r.url.endsWith('/api/custom-geo/source/score'));
+    expect(source.request.body).toEqual({
+      indicateurs: [{ code: 'rev_median', poids: 1, sens: 'croissant' }, { code: 'part_15_29', poids: 1, sens: 'croissant' }],
+      codes_postaux: ['13001', '13002', '13003'],
+      seuil: 70,
+    });
+    const geometrie = { type: 'MultiPolygon', coordinates: [] };
+    source.flush({ geometry: geometrie, count: 2, codes: ['13001', '13003'], scale: 'cp' });
+    const save = m.http.expectOne((r) => r.url.endsWith('/api/custom-geo/save'));
+    expect(save.request.body).toEqual({
+      name: 'Score ≥ 70 — Revenu médian × Part des 15-29 ans',
+      source_type: 'score_composite',
+      source_metadata: { indicateurs: source.request.body.indicateurs, seuil: 70, n_codes_postaux: 2 },
+      geometry: geometrie,
+      org_id: 'org-1',
+    });
+    save.flush({ zone_id: 'z1', count_cp: 2 });
+    await m.rendre();
+    expect(m.el.querySelector('mg-outil-score [data-message-zone]')!.textContent!.trim()).toBe('Zone créée — 2 codes postaux.');
+  });
+
+  it('« Créer la zone » refusée : « Sélection trop large (N CP). Remontez le seuil. »', async () => {
+    const m = await monter(DEPT_13);
+    await m.preparer();
+    await m.cliquer('mg-outil-score [data-calculer]');
+    m.http.expectOne((r) => r.url.endsWith('/api/analyses/score')).flush(RESULTAT_13);
+    await m.rendre();
+    await m.cliquer('mg-outil-score [data-creer-zone]');
+    m.http.expectOne((r) => r.url.endsWith('/api/custom-geo/source/score'))
+      .flush({ error: 'selection_too_large', count: 1834, max: 1500 }, { status: 400, statusText: 'Bad Request' });
+    await m.rendre();
+    expect(m.el.querySelector('mg-outil-score [data-message-zone]')!.textContent!.trim()).toBe('Sélection trop large (1 834 CP). Remontez le seuil.');
+    m.http.verify();
+  });
+});

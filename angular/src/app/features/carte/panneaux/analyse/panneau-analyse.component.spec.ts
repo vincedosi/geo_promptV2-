@@ -16,6 +16,10 @@ import { EtatCarteService } from '../../etat/etat-carte.service';
 import { ReferentielGeoService } from '../../etat/referentiel-geo.service';
 import type { FiltreActif } from '../../logique/filtre';
 import { PanneauAnalyseComponent } from './panneau-analyse.component';
+import { AuthService } from '../../../../core/auth/auth.service';
+import { ScoreService } from '../../couches/score.service';
+import { AnalysesApi } from '../../data/analyses.api';
+import { ZonesCustomApi } from '../../data/zones-custom.api';
 
 const DEPT_13: FiltreActif = { type: 'departement', code: '13', label: 'Bouches-du-Rhône' };
 const FRANCE: FiltreActif = { type: 'france', code: 'france', label: 'France entière' };
@@ -27,6 +31,10 @@ async function monter(o: { filtre?: FiltreActif | null; pois?: string[] } = {}) 
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       EtatCarteService, AnnonceService, CouchesCarteService, BatailleService, IsochronesApi,
       ContexteBatailleService, BatailleV1Service, BatailleV2Service,
+      // Score composite et corrélation (T18) : présents dans le panneau, sans requête tant qu'ils restent fermés.
+      AnalysesApi, ZonesCustomApi,
+      { provide: ScoreService, useValue: { afficher: vi.fn(), eteindre: vi.fn() } },
+      { provide: AuthService, useValue: { lireProfil: () => Promise.resolve(null) } },
       { provide: PoisService, useValue: { definirZone: vi.fn() } },
       { provide: ReferentielGeoService, useValue: { regions: signal([]), charger: vi.fn() } },
     ],

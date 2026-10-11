@@ -348,3 +348,24 @@ export const JETONS_NIVEAUX_SANTE: Record<'pollen' | 'atmo', Record<0 | 1 | 2 | 
  */
 export const OPACITE_METEO = 0.55;
 export const TRAIT_METEO = { couleur: 'rgba(0,0,0,0.45)', largeur: 0.8 } as const;
+
+// ---------------------------------------------------------------------------
+// Score composite (T18) — `app/map/_components/ScoreMapLayer.tsx:81-104, 193-196`
+// ---------------------------------------------------------------------------
+
+/**
+ * Les quatre premiers paliers de l'aplat 0-100 : le teal de marque (`--brand-teal`, invariant entre thèmes) à opacité
+ * croissante, littéraux de React. Le palier 100 est le teal PLEIN, lu par `CouleursService` — React le lisait par
+ * `getComputedStyle`. Ce n'est PAS l'échelle `--seq-*` de la carte flottante : React peint l'une et légende l'autre,
+ * les deux sont gardées telles quelles (parité).
+ */
+export const PALIERS_SCORE: ReadonlyArray<readonly [number, string]> = [
+  [0, 'rgba(78,205,196,0.10)'],
+  [25, 'rgba(78,205,196,0.28)'],
+  [50, 'rgba(78,205,196,0.48)'],
+  [75, 'rgba(78,205,196,0.70)'],
+];
+/** Opacité d'un score complet, et d'un score PARTIEL (moins d'indicateurs que demandé), peint en retrait. */
+export const OPACITE_SCORE = { complet: 0.85, partiel: 0.32 } as const;
+/** Le contour des codes postaux : un blanc translucide dans les deux thèmes, comme React. */
+export const TRAIT_SCORE = { couleur: 'rgba(255,255,255,0.12)', largeur: 0.5 } as const;

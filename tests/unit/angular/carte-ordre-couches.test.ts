@@ -6,7 +6,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ORDRE_COUCHES, avantDe } from '../../../angular/src/app/features/carte/logique/ordre-couches';
+import { COUCHES_APRES_LOAD, ORDRE_COUCHES, avantDe } from '../../../angular/src/app/features/carte/logique/ordre-couches';
 
 describe('ORDRE_COUCHES (lot 4, T8)', () => {
   it('reprend, dans le même ordre, toutes les couches que useMapInit.ts ajoute', () => {
@@ -14,7 +14,16 @@ describe('ORDRE_COUCHES (lot 4, T8)', () => {
     const ids: string[] = [];
     for (const m of source.matchAll(/addLayer\(\{\s*id:\s*'([^']+)'/g)) ids.push(m[1]);
     expect(ids.length).toBeGreaterThan(20);
-    expect(ORDRE_COUCHES).toEqual(ids);
+    expect(ORDRE_COUCHES).toEqual([...ids, ...COUCHES_APRES_LOAD]);
+  });
+
+  it('les couches posées APRÈS le load (T18) existent dans leur source React et nulle part dans useMapInit.ts', () => {
+    const init = readFileSync('app/copilote/_hooks/useMapInit.ts', 'utf8');
+    const score = readFileSync('app/map/_components/ScoreMapLayer.tsx', 'utf8');
+    for (const id of COUCHES_APRES_LOAD) {
+      expect(init).not.toContain(`'${id}'`);
+      expect(score).toContain(`'${id}'`);
+    }
   });
 
   it('avantDe : la première couche PLUS HAUTE déjà posée ; rien au-dessus ou hors liste → sommet', () => {

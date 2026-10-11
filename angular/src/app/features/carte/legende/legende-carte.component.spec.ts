@@ -33,11 +33,14 @@ import { BatailleService } from '../couches/bataille.service';
 import { ZonesRisqueApi } from '../../risques/data/zones-risque.api';
 import { PROFIL_DEFAUT } from '../../risques/logique/profil';
 import { CaptureService } from '../etat/capture.service';
+import { ScoreService } from '../couches/score.service';
 
 function monter() {
   const bornes$: Subject<CatalogueBornesIris>[] = [];
   TestBed.configureTestingModule({
     providers: [CaptureService, 
+      // La carte flottante du score (T18) : montée par la légende, éteinte ici.
+      { provide: ScoreService, useValue: { affiche: signal(null), chargement: signal(false), echec: signal(false), partiels: signal(0) } },
       provideZonelessChangeDetection(), CarreauxService, IrisService, PoisService, EtatCarteService, CouchesCarteService, AnnonceService,
       TmjaService, RadioService, SanteService, MeteoService, ContoursZonesService, RisqueCarteService, BatailleService,
       { provide: MeteoApi, useValue: { donnees: () => new Subject() } },
@@ -293,7 +296,8 @@ describe('LegendeCarteComponent', () => {
 describe('LegendeCarteComponent — « Zones de risque » (T13)', () => {
   it('les zones ramenées par « Voir sur la carte » : titre, niveaux portant un anneau, natures retenues, convention de trait', async () => {
     TestBed.configureTestingModule({
-      providers: [CaptureService, 
+      providers: [CaptureService,
+        { provide: ScoreService, useValue: { affiche: signal(null), chargement: signal(false), echec: signal(false), partiels: signal(0) } }, 
         provideZonelessChangeDetection(), CarreauxService, IrisService, PoisService, EtatCarteService, CouchesCarteService, AnnonceService,
         TmjaService, RadioService, SanteService, MeteoService, ContoursZonesService, RisqueCarteService, ZonesRisqueService, BatailleService,
         { provide: ZonesRisqueApi, useValue: { urlTuilesZones: () => '' } },

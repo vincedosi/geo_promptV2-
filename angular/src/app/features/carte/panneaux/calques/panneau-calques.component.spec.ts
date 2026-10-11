@@ -34,13 +34,19 @@ import { RisqueCarteService } from '../../etat/risque-carte.service';
 import { SitesRisqueApi } from '../../../risques/data/sites-risque.api';
 import { of } from 'rxjs';
 import { CaptureService } from '../../etat/capture.service';
+import { AnalysesApi } from '../../data/analyses.api';
+import { ScoreService } from '../../couches/score.service';
 
 const META_METEO = {
   variable: 'temperature_2m', unit: '°C', startDate: '2026-10-03', endDate: '2026-10-09', scale: 'departement', totalZones: 96, batchesTotal: 1,
   cachedAt: null, stats: { min: 8, max: 16, mean: 12, p20: 0, p40: 0, p60: 0, p80: 0, unit: '°C' },
 } as const;
 
+/** `GET /api/analyses` (T18) : compté, pour vérifier « premier dépliage → un appel, second → aucun ». */
+const listerAnalyses = vi.fn(() => of({ analyses: [] as unknown[] }));
+
 function monter() {
+  listerAnalyses.mockClear();
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), provideRouter([]), CaptureService, CarreauxService, IrisService, EtatCarteService, CouchesCarteService, AnnonceService,
@@ -59,6 +65,8 @@ function monter() {
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },
       { provide: IrisApi, useValue: { urlTuiles: () => '', bornes: () => NEVER, detail: () => NEVER } },
       { provide: CouleursService, useValue: { palette: () => signal({ absente: '#9aa0a6', trait: '#555555' }) } },
+      { provide: AnalysesApi, useValue: { lister: listerAnalyses } },
+      { provide: ScoreService, useValue: { afficher: vi.fn(), eteindre: vi.fn() } },
     ],
   });
   const fixture = TestBed.createComponent(PanneauCalquesComponent);
@@ -315,5 +323,19 @@ describe('PanneauCalquesComponent', () => {
     (iris as unknown as { donnees: { set(v: unknown): void } }).donnees.set({ code_iris: '130550102', code_commune: '13056' });
     await rendre();
     expect(el.querySelector('[data-couches-sante]')).toBeNull();
+  });
+
+  it('« Mes analyses » (T18) : premier dépliage → UN appel, replier puis rouvrir → aucun ; replier ne charge pas', async () => {
+    const { el, rendre, groupe } = monter();
+    expect(listerAnalyses).not.toHaveBeenCalled();
+    groupe('Mes analyses').click();
+    await rendre();
+    expect(listerAnalyses).toHaveBeenCalledTimes(1);
+    expect(el.querySelector('mg-mes-analyses')!.textContent).toContain('Aucune analyse enregistrée');
+    groupe('Mes analyses').click();
+    await rendre();
+    groupe('Mes analyses').click();
+    await rendre();
+    expect(listerAnalyses).toHaveBeenCalledTimes(1);
   });
 });

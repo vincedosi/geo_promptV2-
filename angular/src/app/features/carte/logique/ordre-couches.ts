@@ -1,4 +1,11 @@
 /**
+ * Les couches que React ajoute APRÈS le `load`, hors de `useMapInit.ts`, sans `beforeId` — donc au-dessus de toutes
+ * celles du `load`. Score composite (T18, `ScoreMapLayer.tsx:188-196`) : rangé en dernier, une couche posée APRÈS lui
+ * côté Angular passe dessous, comme chez React où toutes les autres existaient déjà.
+ */
+export const COUCHES_APRES_LOAD: readonly string[] = ['score-composite-cp-fill', 'score-composite-cp-line'];
+
+/**
  * L'ORDRE D'EMPILEMENT des couches de la carte principale — celui de React, où toutes les couches naissent au `load`
  * dans un ordre FIXE (`app/copilote/_hooks/useMapInit.ts:223-1060`, ordre des `addLayer`, aucun `beforeId`), du
  * dessous vers le dessus.
@@ -39,6 +46,7 @@ export const ORDRE_COUCHES: readonly string[] = [
   'test-iso-fill', 'test-iso-line',
   // Bataille (T17) — `:1002-1060`
   'battle-fill', 'battle-ring-line', 'battle-cirfa-border', 'battle-pois-circle', 'battle-pois-halo',
+  ...COUCHES_APRES_LOAD,
 ];
 
 /**

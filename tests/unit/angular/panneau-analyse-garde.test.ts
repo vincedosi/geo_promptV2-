@@ -15,12 +15,13 @@ import { join } from 'node:path';
  *   3. les outils n'appellent JAMAIS eux-mêmes une méthode de lancement d'un service : ils émettent, le panneau garde ;
  *   4. les méthodes de lancement des services ne sont appelées QUE depuis un gestionnaire gardé.
  *
- * ⚠️ Tout nouveau point de lancement (score composite T18, clustering T19-T20) s'ajoute à `HANDLERS_GARDE_OUTIL`.
+ * ⚠️ Tout nouveau point de lancement (clustering T19-T20) s'ajoute à `HANDLERS_GARDE_OUTIL`. Le score composite (T18) y est ;
+ * la corrélation n'y est PAS, délibérément : bornée par une campagne, elle ne balaie aucun territoire (dernier test).
  */
 const RACINE = join(process.cwd(), 'angular/src/app/features/carte/panneaux/analyse');
 const lire = (f: string) => readFileSync(join(RACINE, f), 'utf-8');
 const PANNEAU = lire('panneau-analyse.component.ts');
-const OUTILS = ['outil-isochrones.component.ts', 'outil-bataille-v2.component.ts'];
+const OUTILS = ['outil-isochrones.component.ts', 'outil-bataille-v2.component.ts', 'outil-score.component.ts'];
 
 /** [gestionnaire du panneau, outil de `garde-perimetre.ts`, appel de service qu'il garde]. */
 const HANDLERS_GARDE_OUTIL: Array<[nom: string, outil: string, appel: string]> = [
@@ -30,6 +31,7 @@ const HANDLERS_GARDE_OUTIL: Array<[nom: string, outil: string, appel: string]> =
   ['verifierCacheV2', 'bataille_v2', 'this.v2.verifierCache('],
   ['remplirV2', 'bataille_v2', 'this.v2.remplir('],
   ['lancerV2', 'bataille_v2', 'this.v2.lancer('],
+  ['lancerScore', 'score_composite', 'this.scoreComposite.lancer('],
 ];
 
 /** [balise de l'outil, sortie, appel attendu dans le gabarit]. */
@@ -40,6 +42,7 @@ const SORTIES: Array<[balise: string, sortie: string, appel: string]> = [
   ['mg-outil-bataille-v2', 'verifierCache', 'verifierCacheV2()'],
   ['mg-outil-bataille-v2', 'remplir', 'remplirV2()'],
   ['mg-outil-bataille-v2', 'lancer', 'lancerV2($event)'],
+  ['mg-outil-score', 'lancer', 'lancerScore()'],
 ];
 
 /** Le corps d'une méthode de classe `nom(…) … {`, par comptage d'accolades — exactement une déclaration. */
@@ -93,5 +96,9 @@ describe('Panneau Analyse Angular — verrou structurel de la garde de périmèt
 
   it('le Voronoï est ABSENT du panneau (décision du propriétaire : il n’existait que par l’Assistant)', () => {
     expect(PANNEAU).not.toMatch(/voronoi'|VoronoiTool|Voronoï géométrique/);
+  });
+
+  it('la corrélation n’est PAS gardée, délibérément (PanneauAnalyse.tsx:442-450) : aucune sortie de lancement', () => {
+    expect(baliseOuvrante('mg-outil-correlation')).toBe('<mg-outil-correlation />');
   });
 });

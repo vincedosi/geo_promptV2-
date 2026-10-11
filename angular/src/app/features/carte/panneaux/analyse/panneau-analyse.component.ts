@@ -1,16 +1,21 @@
 import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal, signal } from '@angular/core';
 import { BatailleV1Service } from '../../etat/bataille-v1.service';
 import { BatailleV2Service } from '../../etat/bataille-v2.service';
+import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { ContexteBatailleService } from '../../etat/contexte-bataille.service';
+import { CreationZoneService } from '../../etat/creation-zone.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { ReferentielGeoService } from '../../etat/referentiel-geo.service';
+import { ScoreCompositeService } from '../../etat/score-composite.service';
 import type { FiltreActif } from '../../logique/filtre';
 import { type OutilAnalyse, messageGardeOutil } from '../../logique/garde-perimetre';
 import { ISO_MODES } from '../../logique/modes-isochrones';
 import { IntroAnalyseComponent } from './intro-analyse.component';
 import { OutilBatailleV2Component } from './outil-bataille-v2.component';
+import { OutilCorrelationComponent } from './outil-correlation.component';
 import { OutilIsochronesComponent } from './outil-isochrones.component';
-import { PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } from './styles-analyse';
+import { OutilScoreComponent } from './outil-score.component';
+import { ENTETE_ACCORDEON, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } from './styles-analyse';
 
 /** L'outil déplié : les deux s'excluent (chacun ferme l'autre, `PanneauAnalyse.tsx:176-179`). */
 type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
@@ -18,7 +23,8 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
 /**
  * Le panneau « Analyse » de la carte — portage de `app/map/_components/panneaux/PanneauAnalyse.tsx` (lot 4, T17) :
  * le message de garde, puis l'accordéon « Analyse spatiale » (encarts d'accueil, mode de transport, Bataille V2,
- * Isochrones routiers). Score composite et corrélation (T18), clustering (T19-T20) s'y ajouteront.
+ * Isochrones routiers), puis les accordéons « Score composite » et « Corrélation » (T18). Le clustering (T19-T20)
+ * s'y ajoutera.
  *
  * ── GARDE DE PÉRIMÈTRE (spec §5, incidents du 28/03 et du 08/04) ─────────
  * Chaque lancement passe par `verifierPerimetreOutil('<outil>')` AVANT d'appeler son service : sans filtre, « Choisissez
@@ -31,12 +37,19 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
  * Décision du propriétaire : le Voronoï ne se lançait que par un message à l'Assistant, jamais porté. Il n'est ni
  * rendu ni gardé ici (React l'affichait entre le mode de transport et la Bataille V2).
  *
+ * ── SCORE COMPOSITE ET CORRÉLATION (T18) ─────────────────────────────────
+ * Le score est le SEUL outil qui admet la France entière (`messageGardeOutil('score_composite', …)`, 159 ms mesurés) :
+ * il passe par la même garde, qui ne refuse chez lui que l'absence de filtre. La corrélation n'est PAS gardée,
+ * délibérément : bornée par une campagne, elle ne balaie aucun territoire. Leur état (réglages, catalogue partagé) est
+ * fourni ICI : fermer le panneau les perd, comme React ; le score peint reste sur la carte (`ScoreService`, page).
+ *
  * Le territoire des batailles vient du FILTRE (`ContexteBatailleService`), pas du sélecteur de périmètre, code mort
  * côté React depuis la refonte du panneau Filtre.
  */
 @Component({
   selector: 'mg-panneau-analyse',
-  imports: [IntroAnalyseComponent, OutilBatailleV2Component, OutilIsochronesComponent],
+  imports: [IntroAnalyseComponent, OutilBatailleV2Component, OutilCorrelationComponent, OutilIsochronesComponent, OutilScoreComponent],
+  providers: [ScoreCompositeService, CatalogueIndicateursService, CreationZoneService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full flex-col overflow-y-auto' },
   template: `
@@ -49,7 +62,7 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
 
     <div class="flex flex-col">
       <button type="button" data-accordeon="spatiale" [attr.aria-expanded]="spatialeOuverte()" (click)="spatialeOuverte.set(!spatialeOuverte())"
-        class="flex w-full cursor-pointer items-center gap-2 border-b-fin border-l-2 border-t border-b-subtle border-l-[color-mix(in_srgb,var(--brand-teal)_25%,transparent)] border-t-subtle bg-elevated px-[14px] py-[10px] transition-[background-color] duration-[180ms] ease-[var(--ease-out)]">
+        [class]="entete">
         <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-teal"></span>
         <span class="flex-1 text-left text-[12px] font-medium text-primary">Analyse spatiale</span>
         <span class="text-[10px] text-tertiary">{{ spatialeOuverte() ? '▲' : '▼' }}</span>
@@ -89,6 +102,10 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
         </div>
       }
     </div>
+
+    <!-- PanneauAnalyse.tsx:430-451 : le score composite (gardé, France admise), puis la corrélation (non gardée). -->
+    <mg-outil-score (lancer)="lancerScore()" />
+    <mg-outil-correlation />
   `,
 })
 export class PanneauAnalyseComponent {
@@ -97,7 +114,10 @@ export class PanneauAnalyseComponent {
   private readonly v1 = inject(BatailleV1Service);
   private readonly v2 = inject(BatailleV2Service);
 
+  private readonly scoreComposite = inject(ScoreCompositeService);
+
   protected readonly modes = ISO_MODES;
+  protected readonly entete = ENTETE_ACCORDEON;
   protected readonly pastille = PASTILLE;
   protected readonly pastillePrimaire = PASTILLE_PRIMAIRE_ACTIVE;
   protected readonly pastilleInactive = PASTILLE_INACTIVE;
@@ -156,5 +176,11 @@ export class PanneauAnalyseComponent {
   protected lancerV2(force: boolean): void {
     if (!this.verifierPerimetreOutil('bataille_v2')) return;
     this.v2.lancer(force);
+  }
+
+  /** « Calculer le score » : la garde n'y refuse que l'absence de filtre — la France entière est admise. */
+  protected lancerScore(): void {
+    if (!this.verifierPerimetreOutil('score_composite')) return;
+    this.scoreComposite.lancer();
   }
 }

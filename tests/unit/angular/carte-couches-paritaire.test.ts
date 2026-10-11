@@ -567,3 +567,13 @@ describe('fonds de carte, palettes de données et constantes de calques', () => 
     expect(Ami.ISO_MODES.map((m) => m.id)).toEqual(['walk', 'bike', 'drive']);
   });
 });
+
+describe('Score composite (T18) — les littéraux de ScoreMapLayer.tsx, nommés côté Angular', () => {
+  it('paliers, opacités et trait : chacun présent tel quel dans la source React', () => {
+    const src = readFileSync('app/map/_components/ScoreMapLayer.tsx', 'utf8');
+    const compacte = src.replace(/\s+/g, ' ');
+    for (const [seuil, couleur] of Apal.PALIERS_SCORE) expect(compacte).toContain(`${seuil}, '${couleur}'`);
+    expect(src).toContain(`['case', ['==', ['get', 'partiel'], true], ${Apal.OPACITE_SCORE.partiel}, ${Apal.OPACITE_SCORE.complet}]`);
+    expect(src).toContain(`'line-color': '${Apal.TRAIT_SCORE.couleur}', 'line-width': ${Apal.TRAIT_SCORE.largeur}`);
+  });
+});

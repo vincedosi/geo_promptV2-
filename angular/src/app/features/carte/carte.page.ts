@@ -21,6 +21,7 @@ import { PprtService } from './couches/pprt.service';
 import { RadioService } from './couches/radio.service';
 import { RisquesIndustrielsService } from './couches/risques-industriels.service';
 import { SanteService } from './couches/sante.service';
+import { ScoreService } from './couches/score.service';
 import { TiroirPanneauComponent } from './couches/tiroir-panneau.component';
 import { TmjaService } from './couches/tmja.service';
 import { TransportService } from './couches/transport.service';
@@ -125,6 +126,8 @@ export function palierCarreaux(zoom: number): string {
     IndicateursCiviquesService, SanteService, ContoursZonesService, MeteoService, RisqueCarteService, RisquesIndustrielsService,
     PprtService, ZonesRisqueService, BatailleService, ZonesCustomService, LienZoneService, ExportZoneService, PlanMediaService,
     CaptureService, DessinService,
+    // Le score composite peint (T18) : à la PAGE — fermer le panneau Analyse ne l'éteint pas, comme React.
+    ScoreService,
     // Les batailles d'isochrones (T17) : à la PAGE, pas au panneau — fermer le panneau ne coupe pas un calcul en cours.
     ContexteBatailleService, BatailleV1Service, BatailleV2Service,
     // Le pont du module risque (B3) : le module, rendu par l'outlet de cette page, le voit par son injecteur d'élément.
