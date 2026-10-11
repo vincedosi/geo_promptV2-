@@ -11,6 +11,7 @@ import { FondCompactComponent } from './commun/fond-compact.component';
 import { DessinService } from './couches/dessin.service';
 import { BatailleService } from './couches/bataille.service';
 import { CarreauxService } from './couches/carreaux.service';
+import { ApercuClusteringService } from './couches/apercu-clustering.service';
 import { ClustersService } from './couches/clusters.service';
 import { DetailIrisComponent } from './couches/detail-iris.component';
 import { IndicateursCiviquesService } from './couches/indicateurs-civiques.service';
@@ -133,6 +134,8 @@ export function palierCarreaux(zoom: number): string {
     ContexteBatailleService, BatailleV1Service, BatailleV2Service,
     // Le clustering (T19) : à la PAGE — fermer le panneau Analyse laisse les clusters sur la carte, comme React (`page.tsx:245`).
     ClustersService,
+    // L'aperçu des POI de l'assistant de clustering (T20) : une couche de la carte, pilotée par l'assistant.
+    ApercuClusteringService,
     // Le pont du module risque (B3) : le module, rendu par l'outlet de cette page, le voit par son injecteur d'élément.
     { provide: PONT_CARTE, useExisting: ZonesRisqueService },
   ],

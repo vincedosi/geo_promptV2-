@@ -1,17 +1,27 @@
 import { provideHttpClient } from '@angular/common/http';
-import type { EnvironmentProviders, Provider } from '@angular/core';
+import { type EnvironmentProviders, type Provider, signal } from '@angular/core';
 import { ConfigService } from '../../../../../../core/config/config.service';
 import { CouleursService } from '../../../../../../core/theme/couleurs.service';
 import { FABRIQUE_POPUP } from '../../../../../../carte/fabrique-carte';
 import { FABRIQUE_GRAPHIQUE } from '../../../../../../graphiques/fabrique-graphique';
+import { ApercuClusteringService } from '../../../../couches/apercu-clustering.service';
 import { ClustersService } from '../../../../couches/clusters.service';
+import { CarteApi } from '../../../../data/carte.api';
 import { ClusteringApi } from '../../../../data/clustering.api';
 import { CaptureService } from '../../../../etat/capture.service';
 import { CouchesCarteService } from '../../../../etat/couches-carte.service';
 import { AnnonceService } from '../../../../etat/annonce.service';
 import { EtatCarteService } from '../../../../etat/etat-carte.service';
 import { PileEchapService } from '../../../../etat/pile-echap.service';
+import { ReferentielGeoService } from '../../../../etat/referentiel-geo.service';
+import { CalculClusteringService } from '../calcul-clustering.service';
 import type { ClustersGeoJSON, ReponseModele, ResumeModele } from '../../../../logique/clustering/types';
+
+/** Deux régions du référentiel : une de métropole (deux départements), une DROM (masquée en métropole). */
+export const REGIONS = [
+  { code_region: '32', nom_region: 'Hauts-de-France', depts: [{ code_dept: '59', nom_dept: 'Nord' }, { code_dept: '62', nom_dept: 'Pas-de-Calais' }] },
+  { code_region: '04', nom_region: 'La Réunion', depts: [{ code_dept: '974', nom_dept: 'La Réunion' }] },
+];
 
 /** Les deux modèles de la base locale (versions 2 et 3, 15 min en voiture). */
 export const MODELES: ResumeModele[] = [
@@ -95,6 +105,9 @@ export function fournisseursClustering(): (Provider | EnvironmentProviders)[] {
     provideHttpClient(),
     { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
     ClusteringApi, ClustersService, CouchesCarteService, CaptureService, PileEchapService, EtatCarteService, AnnonceService,
+    // L'assistant de calcul (T20) : le job, l'aperçu des POI, et un référentiel à deux régions (une DROM).
+    CalculClusteringService, ApercuClusteringService, CarteApi,
+    { provide: ReferentielGeoService, useValue: { regions: signal(REGIONS), charger: () => undefined } },
     { provide: CouleursService, useValue: { palette: (j: Record<string, string>) => () => Object.fromEntries(Object.keys(j).map((k) => [k, '#123456'])) } },
     { provide: FABRIQUE_GRAPHIQUE, useValue: () => ({ setOption: () => undefined, resize: () => undefined, dispose: () => undefined }) },
   ];

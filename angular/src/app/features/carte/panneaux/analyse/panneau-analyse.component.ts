@@ -12,6 +12,8 @@ import { ScoreCompositeService } from '../../etat/score-composite.service';
 import type { FiltreActif } from '../../logique/filtre';
 import { type OutilAnalyse, messageGardeOutil, messageGardePerimetre } from '../../logique/garde-perimetre';
 import { ISO_MODES } from '../../logique/modes-isochrones';
+import type { CorpsLancementClustering } from '../../logique/clustering/assistant';
+import { CalculClusteringService } from './clustering/calcul-clustering.service';
 import { SectionClusteringComponent } from './clustering/section-clustering.component';
 import { IntroAnalyseComponent } from './intro-analyse.component';
 import { OutilBatailleV2Component } from './outil-bataille-v2.component';
@@ -35,8 +37,10 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
  * ÉMETTENT, ce panneau garde : verrou structurel `tests/unit/angular/panneau-analyse-garde.test.ts`, qui lit CE source.
  * Le message vit au niveau du panneau (un refus de n'importe quel outil s'y affiche) et s'efface dès qu'un filtre est
  * posé. La RELECTURE d'un modèle de clustering (`chargerClusters`) passe par la garde GÉNÉRIQUE `verifierPerimetre`,
- * sans refus national : ce n'est pas le calcul lourd (`handleLoadClustersGarde`, `PanneauAnalyse.tsx:278`) — celui-ci,
- * l'assistant de T20, passera par `verifierPerimetreOutil('clustering')`.
+ * sans refus national : ce n'est pas le calcul lourd (`handleLoadClustersGarde`, `PanneauAnalyse.tsx:278`). Le calcul
+ * lourd — le `POST /api/poi-clusters/run` de l'assistant (T20) — passe par `verifierPerimetreOutil('clustering')`
+ * (`lancerClustering`), qui REFUSE la France entière ; son job (`CalculClusteringService`) est fourni ici, et le message
+ * de garde redescend jusqu'à l'assistant (`[refusCalcul]`), qui l'affiche à l'endroit du clic.
  *
  * ── VORONOÏ ABSENT ───────────────────────────────────────────────────────
  * Décision du propriétaire : le Voronoï ne se lançait que par un message à l'Assistant, jamais porté. Il n'est ni
@@ -54,7 +58,7 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
 @Component({
   selector: 'mg-panneau-analyse',
   imports: [IntroAnalyseComponent, OutilBatailleV2Component, OutilCorrelationComponent, OutilIsochronesComponent, OutilScoreComponent, SectionClusteringComponent],
-  providers: [ScoreCompositeService, CatalogueIndicateursService, CreationZoneService],
+  providers: [ScoreCompositeService, CatalogueIndicateursService, CreationZoneService, CalculClusteringService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full flex-col overflow-y-auto' },
   template: `
@@ -111,7 +115,7 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
     <!-- PanneauAnalyse.tsx:430-475 : le score composite (gardé, France admise), la corrélation (non gardée), le clustering. -->
     <mg-outil-score (lancer)="lancerScore()" />
     <mg-outil-correlation />
-    @if (clusteringOuvert()) { <mg-section-clustering (charger)="chargerClusters()" /> }
+    @if (clusteringOuvert()) { <mg-section-clustering [refusCalcul]="gardeMessage()" (charger)="chargerClusters()" (lancerCalcul)="lancerClustering($event)" /> }
   `,
 })
 export class PanneauAnalyseComponent {
@@ -120,6 +124,7 @@ export class PanneauAnalyseComponent {
   private readonly v1 = inject(BatailleV1Service);
   private readonly v2 = inject(BatailleV2Service);
   private readonly clusters = inject(ClustersService);
+  private readonly calculClustering = inject(CalculClusteringService);
 
   private readonly scoreComposite = inject(ScoreCompositeService);
 
@@ -182,6 +187,12 @@ export class PanneauAnalyseComponent {
   protected chargerClusters(): void {
     if (!this.verifierPerimetre()) return;
     this.clusters.charger();
+  }
+
+  /** « Lancer » de l'assistant de clustering : le calcul LOURD — refusé sans filtre et sur la France entière. */
+  protected lancerClustering(corps: CorpsLancementClustering): void {
+    if (!this.verifierPerimetreOutil('clustering')) return;
+    this.calculClustering.lancer(corps);
   }
 
   protected verifierCacheV1(): void {

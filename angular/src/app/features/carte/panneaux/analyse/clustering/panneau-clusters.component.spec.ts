@@ -40,7 +40,7 @@ async function monter(o: { charge?: boolean } = {}) {
 }
 
 describe('mg-panneau-clusters (ClusterPanel.tsx)', () => {
-  it('sans données : texte d’accueil, « Charger les clusters » ÉMET (le parent garde), « Nouveau clustering » en attente de T20', async () => {
+  it('sans données : texte d’accueil, « Charger les clusters » ÉMET (le parent garde), « Nouveau clustering » ouvre l’assistant (T20)', async () => {
     const { el, fixture, http, texte } = await monter();
     let emis = 0;
     fixture.componentInstance.charger.subscribe(() => emis++);
@@ -48,7 +48,10 @@ describe('mg-panneau-clusters (ClusterPanel.tsx)', () => {
     el.querySelector<HTMLButtonElement>('[data-charger]')!.click();
     expect(emis).toBe(1);
     http.expectNone('/api/poi-clusters?duration=60');
-    expect(el.querySelector<HTMLButtonElement>('[data-assistant]')!.disabled).toBe(true);
+    el.querySelector<HTMLButtonElement>('[data-assistant]')!.click();
+    await fixture.whenStable();
+    expect(el.querySelector('mg-assistant-clustering')).not.toBeNull();
+    http.expectOne('/api/poi-clusters/poi-types');
   });
 
   it('sans données, après un 404 : le message s’affiche', async () => {

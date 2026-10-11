@@ -9,6 +9,7 @@ import { ClustersService } from '../../couches/clusters.service';
 import { PoisService } from '../../couches/pois.service';
 import { ScoreService } from '../../couches/score.service';
 import { AnalysesApi } from '../../data/analyses.api';
+import { ClusteringApi } from '../../data/clustering.api';
 import { IsochronesApi } from '../../data/isochrones.api';
 import { ZonesCustomApi } from '../../data/zones-custom.api';
 import { AnnonceService } from '../../etat/annonce.service';
@@ -49,6 +50,8 @@ async function monter(filtre: FiltreActif | null) {
       { provide: AuthService, useValue: { session: signal(null), lireProfil: () => Promise.resolve({ organisation: 'org-1' }) } },
       // Le clustering (T19) : section absente pour ce compte (aucune session de super admin).
       { provide: ClustersService, useValue: { charger: vi.fn() } },
+      // Le job de l'assistant de clustering (T20), fourni par le panneau : jamais lancé ici.
+      { provide: ClusteringApi, useValue: {} },
       { provide: PoisService, useValue: { definirZone: vi.fn() } },
       { provide: ReferentielGeoService, useValue: { regions: signal([]), charger: vi.fn() } },
     ],

@@ -1,7 +1,9 @@
 import { CaptureService } from '../../etat/capture.service';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { CouleursService } from '../../../../core/theme/couleurs.service';
+import { ApercuClusteringService } from '../../couches/apercu-clustering.service';
 import { ClustersService } from '../../couches/clusters.service';
+import { CarteApi } from '../../data/carte.api';
 import { ClusteringApi } from '../../data/clustering.api';
 import { PileEchapService } from '../../etat/pile-echap.service';
 import { provideHttpClient } from '@angular/common/http';
@@ -37,6 +39,8 @@ async function monter(o: { filtre?: FiltreActif | null; pois?: string[]; role?: 
       ContexteBatailleService, BatailleV1Service, BatailleV2Service, ClusteringApi, ClustersService, PileEchapService,
       // Score composite et corrélation (T18) : présents dans le panneau, sans requête tant qu'ils restent fermés.
       AnalysesApi, ZonesCustomApi,
+      // L'assistant de clustering (T20) : son aperçu sur la carte, neutralisé (aucune carte ici).
+      CarteApi, { provide: ApercuClusteringService, useValue: { afficher: vi.fn(), effacer: vi.fn() } },
       { provide: ScoreService, useValue: { afficher: vi.fn(), eteindre: vi.fn() } },
       { provide: PoisService, useValue: { definirZone: vi.fn() } },
       { provide: ReferentielGeoService, useValue: { regions: signal([]), charger: vi.fn() } },
@@ -202,4 +206,62 @@ describe('PanneauAnalyseComponent — clustering (T19)', () => {
     await m.fixture.whenStable();
     return m;
   }
+});
+
+describe('PanneauAnalyseComponent — assistant de clustering (T20)', () => {
+  /** Ouvre l'assistant, coche « bmw », passe le périmètre (aucune région), et clique « Lancer » à l'étape 3. */
+  async function lancerAssistant(m: Awaited<ReturnType<typeof monter>>) {
+    await m.cliquer('[data-accordeon="clustering"]');
+    m.http.expectOne('/api/poi-clusters/models').flush({ models: [] });
+    await m.fixture.whenStable();
+    await m.cliquer('[data-nouveau]');
+    await m.cliquer('[data-assistant]');
+    m.http.expectOne('/api/poi-clusters/poi-types').flush({ types: [{ type: 'bmw', total: 177, clustered: 0, has_clusters: false }] });
+    await m.fixture.whenStable();
+    await m.cliquer('[data-type-poi="bmw"]');
+    await m.cliquer('[data-suivant]');
+    await m.cliquer('[data-suivant]');
+    m.http.expectOne((r) => r.url === '/api/poi-clusters/count').flush({ count: 177 });
+    await m.fixture.whenStable();
+    await m.cliquer('[data-lancer]');
+  }
+
+  async function monterAdmin(filtre: FiltreActif | null) {
+    const m = await monter({ filtre, role: 'super_admin' });
+    await m.fixture.whenStable();
+    return m;
+  }
+
+  it('filtre « France entière » : refus NOMMÉ, affiché dans l’assistant et en tête du panneau — zéro POST', async () => {
+    const m = await monterAdmin(FRANCE);
+    await lancerAssistant(m);
+    const refus = '! Le clustering ne peut pas être calculé sur la France entière — choisissez une région ou un département.';
+    expect(m.el.querySelector('[data-erreur-lancement]')!.textContent!.trim()).toBe(refus);
+    expect(m.el.querySelector('[data-garde]')!.textContent!.trim()).toBe(refus);
+    m.http.expectNone('/api/poi-clusters/run');
+  });
+
+  it('sans filtre : « Choisissez un périmètre… », zéro POST', async () => {
+    const m = await monterAdmin(null);
+    await lancerAssistant(m);
+    expect(m.el.querySelector('[data-erreur-lancement]')!.textContent!.trim()).toBe('! Choisissez un périmètre (filtre ou zone) avant de lancer un calcul');
+    m.http.expectNone('/api/poi-clusters/run');
+  });
+
+  it('filtre département : le POST part, au corps de React, et l’assistant passe à l’étape 4', async () => {
+    const m = await monterAdmin(DEPT_13);
+    await lancerAssistant(m);
+    const req = m.http.expectOne('/api/poi-clusters/run');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({
+      poi_types: ['bmw'], geo_filter: { metropolitaine: true, regions: [], depts: [] },
+      params: { duration: 60, transport: 'drive', dry_run: false }, features: null,
+    });
+    req.flush({ job_id: 'job-1' }, { status: 201, statusText: 'Created' });
+    m.http.expectOne('/api/poi-clusters/run?job_id=job-1').flush({ status: 'pending' });
+    await m.fixture.whenStable();
+    expect(m.el.textContent).toContain('4 / 4 — Exécution');
+    expect(m.el.querySelector('[data-garde]')).toBeNull();
+    m.fixture.destroy();
+  });
 });

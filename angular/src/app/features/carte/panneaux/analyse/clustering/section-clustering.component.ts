@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { ClustersService } from '../../../couches/clusters.service';
+import type { CorpsLancementClustering } from '../../../logique/clustering/assistant';
 import { dateCourte, jetonSilhouette } from '../../../logique/clustering/panneau';
 import { PanneauClustersComponent } from './panneau-clusters.component';
 import { RapportClustersComponent } from './rapport/rapport-clusters.component';
@@ -9,7 +10,9 @@ import { RapportClustersComponent } from './rapport/rapport-clusters.component';
  * liste des modèles calculés (lue à CHAQUE ouverture, jamais au montage), le rapport d'un modèle au clic, et le
  * panneau de clusters sous « + Nouveau clustering ».
  *
- * « Charger les clusters » est RELAYÉ (`charger`) : le panneau Analyse garde le périmètre, puis charge.
+ * « Charger les clusters » est RELAYÉ (`charger`) : le panneau Analyse garde le périmètre, puis charge. Le lancement d'un
+ * calcul par l'assistant (T20) aussi (`lancerCalcul`), et son refus redescend (`refusCalcul`) — le relais de
+ * `verifierPerimetreClustering` que React passait en prop jusqu'au wizard.
  *
  * Défaut React corrigé : une liste en échec (403, panne) s'affichait « Aucun modèle calculé » — le message de la route
  * s'affiche à la place. La bordure du badge SIL (`${couleur}40`, couleur invalide pour un `var()`) devient la teinte à
@@ -64,7 +67,7 @@ import { RapportClustersComponent } from './rapport/rapport-clusters.component';
               class="block w-full cursor-pointer border-0 border-b-fin border-subtle bg-transparent px-3 py-2 text-left font-mono text-[11px] text-tertiary">
               ← Liste des modèles
             </button>
-            <div class="min-h-[400px]"><mg-panneau-clusters (charger)="charger.emit()" /></div>
+            <div class="min-h-[400px]"><mg-panneau-clusters [refusCalcul]="refusCalcul()" (charger)="charger.emit()" (lancerCalcul)="lancerCalcul.emit($event)" (voirModeles)="nouveauCalcul.set(false)" /></div>
           </div>
         }
       </div>
@@ -82,6 +85,10 @@ export class SectionClusteringComponent {
   protected readonly clusters = inject(ClustersService);
   /** « Charger les clusters », relayé au panneau Analyse qui garde le périmètre. */
   readonly charger = output<void>();
+  /** Le refus de la garde du calcul (panneau Analyse), relayé jusqu'à l'assistant. */
+  readonly refusCalcul = input<string | null>(null);
+  /** Le lancement d'un calcul par l'assistant, relayé au panneau Analyse qui le garde. */
+  readonly lancerCalcul = output<CorpsLancementClustering>();
 
   /** Fermée à l'ouverture du panneau (`analyseOpen.clustering: false`). */
   protected readonly ouverte = signal(false);

@@ -1,15 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, inject, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { ClustersService } from '../../../couches/clusters.service';
+import type { CorpsLancementClustering } from '../../../logique/clustering/assistant';
 import { DUREES_CLUSTERS, etiquetteRadarCluster } from '../../../logique/clustering/panneau';
+import { AssistantClusteringComponent } from './assistant-clustering.component';
 import { ComparaisonDureesComponent } from './comparaison-durees.component';
 import { ComparaisonPoiComponent } from './comparaison-poi.component';
 import { EtatPanneauClustersService, type OngletClusters } from './etat-panneau-clusters.service';
 import { FichePoiClusterComponent } from './fiche-poi-cluster.component';
 import { RadarComponent } from './radar.component';
 import { STYLES_CLUSTERS } from './styles-clusters';
-
-/** L'assistant de calcul arrive avec la tâche 20 : bouton visible, inactif, qui le dit (précédent T12 → T13). */
-const ASSISTANT_A_VENIR = 'Disponible prochainement';
 
 /**
  * Le panneau de clusters — portage de `app/map/_components/ClusterPanel.tsx` (lot 4, T19) : en-tête (version, K,
@@ -20,17 +19,24 @@ const ASSISTANT_A_VENIR = 'Disponible prochainement';
  * (`handleLoadClustersGarde`, `PanneauAnalyse.tsx:278`) — verrou structurel `panneau-analyse-garde.test.ts`. La durée et
  * la visibilité vont droit au service, comme `onDurationChange` / `onToggle` en React.
  *
+ * « Nouveau clustering » / « Nouveau » ouvrent l'assistant de calcul (T20) PAR-DESSUS le panneau, comme React
+ * (`wizardOpen`). Son lancement est RELAYÉ (`lancerCalcul`) jusqu'au panneau Analyse, qui le garde ; le refus de la
+ * garde redescend par `refusCalcul`.
+ *
  * Défauts React corrigés : une durée sans modèle ne disait rien (voir `ClustersService`) — le message s'affiche ici ;
  * « N CLUSTERS » en capitales et des instructions qui citaient des boutons inexistants (« ⇄ COMPARER », « ⧖ DURÉES »)
  * — sentence case, et les vrais libellés « Comparer » / « Durées » (revue 1).
  */
 @Component({
   selector: 'mg-panneau-clusters',
-  imports: [ComparaisonDureesComponent, ComparaisonPoiComponent, FichePoiClusterComponent, RadarComponent],
+  imports: [AssistantClusteringComponent, ComparaisonDureesComponent, ComparaisonPoiComponent, FichePoiClusterComponent, RadarComponent],
   providers: [EtatPanneauClustersService],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'flex h-full flex-col' },
+  host: { class: 'relative flex h-full flex-col', '[style.min-height.px]': 'assistantOuvert() ? hauteurAssistant : null' },
   template: `
+    @if (assistantOuvert()) {
+      <mg-assistant-clustering [refus]="refusCalcul()" (lancer)="lancerCalcul.emit($event)" (fermer)="assistantOuvert.set(false)" (voirModeles)="revenirAuxModeles()" />
+    }
     @if (!donnees()) {
       <div class="flex flex-col gap-4 p-5">
         <div class="etiquette mb-0!">Clustering POI</div>
@@ -44,7 +50,7 @@ const ASSISTANT_A_VENIR = 'Disponible prochainement';
           <button type="button" data-charger class="bouton teinte px-[14px]! py-2! text-[8px]!" style="--teinte: var(--success)" (click)="charger.emit()">Charger les clusters</button>
         }
         @if (clusters.erreur(); as e) { <div data-erreur role="alert" class="mono text-[10px] leading-[1.6] text-danger">{{ e }}</div> }
-        <button type="button" data-assistant class="bouton teinte px-[14px]! py-2! text-[8px]!" style="--teinte: var(--warning)" disabled [title]="aVenir">Nouveau clustering</button>
+        <button type="button" data-assistant class="bouton teinte px-[14px]! py-2! text-[8px]!" style="--teinte: var(--warning)" (click)="assistantOuvert.set(true)">Nouveau clustering</button>
       </div>
     } @else if (etat.modeComparaison() === 'selecting') {
       <div class="flex flex-col gap-[14px] p-4">
@@ -77,7 +83,7 @@ const ASSISTANT_A_VENIR = 'Disponible prochainement';
                     [attr.aria-pressed]="clusters.duree() === d" (click)="clusters.changerDuree(d)">{{ d }} min</button>
           }
           @if (clusters.chargement()) { <span class="mono ml-1 self-center text-[8px] text-teal">...</span> }
-          <button type="button" data-assistant class="bouton nouveau ml-auto px-2! py-[3px]! text-[6.5px]! tracking-[0.08em]!" disabled [title]="aVenir">Nouveau</button>
+          <button type="button" data-assistant class="bouton nouveau ml-auto px-2! py-[3px]! text-[6.5px]! tracking-[0.08em]!" (click)="assistantOuvert.set(true)">Nouveau</button>
         </div>
         @if (clusters.erreur(); as e) { <div data-erreur role="alert" class="mono mt-2 text-[9px] leading-[1.6] text-danger">{{ e }}</div> }
       </div>
@@ -188,10 +194,22 @@ export class PanneauClustersComponent {
   protected readonly etat = inject(EtatPanneauClustersService);
   /** « Charger les clusters » : le parent garde le périmètre, puis charge. */
   readonly charger = output<void>();
+  /** Le refus de la garde du calcul, relayé du panneau Analyse jusqu'à l'assistant. */
+  readonly refusCalcul = input<string | null>(null);
+  /** « Lancer » de l'assistant : le panneau Analyse garde, puis lance. */
+  readonly lancerCalcul = output<CorpsLancementClustering>();
+  /** « Voir résultats » de l'assistant : la section revient à la liste des modèles. */
+  readonly voirModeles = output<void>();
+  /** L'assistant de calcul est ouvert par-dessus le panneau (`wizardOpen`). */
+  protected readonly assistantOuvert = signal(false);
+  /**
+   * La hauteur réservée à l'assistant, posé en `absolute inset-0` sur ce panneau. Sans elle il prend la hauteur du
+   * panneau VIDE (≈ 190 px, mesuré au navigateur, React compris) : l'étape 3 tenait dans une lucarne à faire défiler.
+   */
+  protected readonly hauteurAssistant = 520;
 
   protected readonly durees = DUREES_CLUSTERS;
   protected readonly dureesTexte = DUREES_CLUSTERS.join('/');
-  protected readonly aVenir = ASSISTANT_A_VENIR;
   protected readonly donnees = this.clusters.donnees;
   protected readonly meta = computed(() => this.donnees()?.metadata ?? null);
   protected readonly nombrePoi = computed(() => this.donnees()?.features.length ?? 0);
@@ -216,4 +234,9 @@ export class PanneauClustersComponent {
       libelles: tries.map(([cid, c]) => etiquetteRadarCluster(cid, c.label)),
     };
   });
+
+  protected revenirAuxModeles(): void {
+    this.assistantOuvert.set(false);
+    this.voirModeles.emit();
+  }
 }
