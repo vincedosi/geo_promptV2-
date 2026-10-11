@@ -19,9 +19,11 @@ export const PILE_PANNEAU = 'panneau';
  *   l'en-tête et le corps rejouent la petite animation de « morph » de React (état des enfants gardé).
  * - Fermer (croix, Échap via la pile, clic hors du panneau relayé par la page) joue la sortie de
  *   200 ms PUIS émet `fermer`. Il s'empile dans la pile Échap UNE fois, au montage (`'panneau'`).
- * - Écarts voulus (« flat total », DESIGN_SYSTEM § 2) : ni `box-shadow` ni `backdrop-filter` ; le
- *   fond `--card-overlay` garde sa translucidité. Le bouton « Agrandir » (`expandable`) n'est passé
- *   par aucun appelant de React : non porté.
+ * - Écarts voulus (« flat total », DESIGN_SYSTEM § 2) : ni `box-shadow` ni `backdrop-filter`. Le fond
+ *   est OPAQUE (`--surface`) et non le `--card-overlay` translucide de React : React floute ce qui
+ *   passe dessous (`blur(4px)`) ; sans ce flou, la légende de la carte, ouverte SOUS le panneau, se
+ *   lisait au travers de son corps, texte sur texte (parcours T21). Même teinte à 0,92 près.
+ *   Le bouton « Agrandir » (`expandable`) n'est passé par aucun appelant de React : non porté.
  */
 @Component({
   selector: 'mg-panneau-carte',
@@ -34,7 +36,7 @@ export const PILE_PANNEAU = 'panneau';
     :host([data-state='closing']) { animation: sortie var(--duration-exit) var(--ease-exit) both; }
   `,
   host: {
-    class: 'panneau-carte absolute z-40 flex flex-col overflow-hidden rounded-[12px] border-fin border-default bg-card-overlay',
+    class: 'panneau-carte absolute z-40 flex flex-col overflow-hidden rounded-[12px] border-fin border-default bg-surface',
     role: 'dialog',
     '[attr.aria-label]': 'titre()',
     '[attr.data-categorie]': 'categorie()',
