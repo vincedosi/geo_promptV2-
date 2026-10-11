@@ -2134,6 +2134,7 @@ def run_sanity_checks(
 
         # ── CHECK 7 ───────────────────────────────────────────────────────────
         NEAR_KM = 50.0
+        _feat_names_chk = list(model.get('feature_names') or FEATURE_NAMES)
         geo_list = [(pid, poi_coords[pid]) for pid in poi_ids if pid in poi_coords]
         close_pairs: List[Tuple] = []
         for ii in range(len(geo_list)):
@@ -2149,12 +2150,16 @@ def run_sanity_checks(
                 ib = poi_idx_map.get(pid_b)
                 if ia is None or ib is None:
                     continue
+                # Les colonnes de X_orig suivent model['feature_names'] (la selection,
+                # dans l'ordre recu), PAS l'ordre canonique de FEATURE_NAMES : etiqueter
+                # par position canonique donnait des noms faux, et une IndexError des
+                # qu'une selection comptait moins de 16 variables (T-serveur 5, revue 1).
                 feat_deltas = sorted(
-                    [(FEATURE_NAMES[fi],
+                    [(_feat_names_chk[fi],
                       float(X_orig[ia, fi]),
                       float(X_orig[ib, fi]),
                       abs(float(X_orig[ia, fi]) - float(X_orig[ib, fi])))
-                     for fi in range(len(FEATURE_NAMES))],
+                     for fi in range(len(_feat_names_chk))],
                     key=lambda x: -x[3],
                 )
                 close_pairs.append((d_km, pid_a, pid_b,
@@ -2946,58 +2951,74 @@ def run_cache_isochrones(
     if n_fail > 0:
         log.warning(f"  {n_fail} isochrones non calculés — relancez pour les retenter")
 
-    # Mise à jour du job en base si --job-id fourni
-    if job_id and not dry_run:
+    def _derniere_version_modele() -> Optional[int]:
+        """Version du modele le plus recent, ou None (lecture best effort)."""
         try:
-            # Récupérer la version du modèle le plus récent pour la lier au job
-            latest_model_version: Optional[int] = None
-            try:
-                mv_res = sb.table('clustering_models') \
-                    .select('version') \
-                    .order('version', desc=True) \
-                    .limit(1) \
-                    .execute()
-                if mv_res.data:
-                    latest_model_version = int(mv_res.data[0]['version'])
-            except Exception:
-                pass
+            mv_res = sb.table('clustering_models') \
+                .select('version') \
+                .order('version', desc=True) \
+                .limit(1) \
+                .execute()
+            if mv_res.data:
+                return int(mv_res.data[0]['version'])
+        except Exception:
+            pass
+        return None
 
-            sb.table('clustering_jobs').update({
-                'result_meta': {
-                    'poi_count':            total,
-                    'n_cached':             n_cached,
-                    'n_ok':                 n_ok,
-                    'n_fail':               n_fail,
-                    'n_skip':               n_skip,
-                    'latest_model_version': latest_model_version,
-                },
-            }).eq('id', job_id).execute()
-        except Exception as exc:
-            log.warning(f"Impossible de mettre à jour clustering_jobs ({job_id}): {exc}")
+    # Version la plus recente AVANT l'entrainement enchaine : la comparaison
+    # avant/apres dit si un modele a ete produit (run_full_retrain peut sortir
+    # sans erreur et sans modele : pas de cache, moins de 3 profils valides).
+    version_avant: Optional[int] = (
+        _derniere_version_modele() if (job_id and not dry_run) else None
+    )
 
-    # -- Chainage automatique vers full-retrain --------------------------------
-    # Déclenché quand feature_names est fourni (sélection thématique via wizard)
-    # ou quand feature_names=[] signifie "toutes les variables"
-    # (None = pas de chainage, comportement historique)
-    if feature_names is not None:
-        feat_label = ', '.join(feature_names) if feature_names else 'toutes (16)'
-        log.info(
-            f"\n{'='*60}\n"
-            f"  AUTO-RETRAIN apres cache-isochrones\n"
-            f"  Features : {feat_label}\n"
-            f"{'='*60}"
-        )
-        _ft = feature_names if feature_names else None
-        for dur in durations:
-            if len(durations) > 1:
-                log.info(f"\n  full-retrain {dur}min/{mode}\n")
-            run_full_retrain(
-                duration=dur, mode=mode,
-                force_k=force_k, dry_run=dry_run,
-                verbose=False, limit=None, log=log,
-                poi_types=poi_types,
-                feature_names=_ft,
+    try:
+        # -- Chainage automatique vers full-retrain ----------------------------
+        # Declenche des que feature_names est fourni. La route
+        # /api/poi-clusters/run passe TOUJOURS --features (les 16 variables
+        # quand l'assistant envoie features: null) — T-serveur 5.
+        # (None = pas de chainage : appel CLI sans --features)
+        if feature_names is not None:
+            feat_label = ', '.join(feature_names) if feature_names else 'toutes (16)'
+            log.info(
+                f"\n{'='*60}\n"
+                f"  AUTO-RETRAIN apres cache-isochrones\n"
+                f"  Features : {feat_label}\n"
+                f"{'='*60}"
             )
+            _ft = feature_names if feature_names else None
+            for dur in durations:
+                if len(durations) > 1:
+                    log.info(f"\n  full-retrain {dur}min/{mode}\n")
+                run_full_retrain(
+                    duration=dur, mode=mode,
+                    force_k=force_k, dry_run=dry_run,
+                    verbose=False, limit=None, log=log,
+                    poi_types=poi_types,
+                    feature_names=_ft,
+                )
+    finally:
+        # Mise a jour du job en base si --job-id fourni — APRES l'entrainement
+        # enchaine (T-serveur 5, revue 1). Jusque-la latest_model_version etait
+        # lu AVANT et designait donc l'ANCIEN modele. Ecrit aussi si
+        # l'entrainement leve, pour garder les compteurs du cache.
+        if job_id and not dry_run:
+            try:
+                version_apres = _derniere_version_modele()
+                sb.table('clustering_jobs').update({
+                    'result_meta': {
+                        'poi_count':            total,
+                        'n_cached':             n_cached,
+                        'n_ok':                 n_ok,
+                        'n_fail':               n_fail,
+                        'n_skip':               n_skip,
+                        'latest_model_version': version_apres,
+                        'modele_entraine':      (version_apres is not None
+                                                 and version_apres != version_avant),
+                    },
+                }).eq('id', job_id).execute()
+            except Exception as exc:
+                log.warning(f"Impossible de mettre à jour clustering_jobs ({job_id}): {exc}")
 
 
 # -- CLI ----------------------------------------------------------------------
