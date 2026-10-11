@@ -207,3 +207,55 @@ describe('POST /api/poi-clusters/run — « toutes les variables » entraîne un
     expect(ALL_FEATURES).toHaveLength(16);
   });
 });
+
+describe('lectures de poi_clusters — paginées, plus coupées à 1 000', () => {
+  it('GET /api/poi-clusters rend les 1 500 POI d un modèle', async () => {
+    const pois = poi('lycee', 1500);
+    tables.poi_france = pois;
+    tables.poi_clusters = clusters(pois, 7);
+    tables.clustering_models = [{
+      version: 7, k: 3, duration_minutes: 15, mode: 'drive',
+      cluster_labels: {}, cluster_avg_profiles: {}, feature_names: [],
+    }];
+
+    const { GET } = await import('@/app/api/poi-clusters/route');
+    const res = await GET(new NextRequest('http://x/api/poi-clusters?duration=15'));
+    expect(res.status).toBe(200);
+    const corps = await res.json();
+    expect(corps.features).toHaveLength(1500);
+    const total = Object.values(corps.metadata.cluster_summary as Record<string, { count: number }>)
+      .reduce((s, c) => s + c.count, 0);
+    expect(total).toBe(1500);
+  });
+
+  it('GET /api/poi-clusters/models/[version] rend les 1 500 POI, avec leurs coordonnées', async () => {
+    const pois = poi('lycee', 1500);
+    tables.poi_france = pois;
+    tables.poi_clusters = clusters(pois, 7);
+    tables.clustering_models = [{
+      version: 7, k: 3, duration_minutes: 15, mode: 'drive',
+      cluster_labels: {}, cluster_avg_profiles: {}, feature_names: [],
+    }];
+
+    const { GET } = await import('@/app/api/poi-clusters/models/[version]/route');
+    const res = await GET(new NextRequest('http://x/api/poi-clusters/models/7'), { params: Promise.resolve({ version: '7' }) });
+    expect(res.status).toBe(200);
+    const corps = await res.json();
+    expect(corps.poi_list).toHaveLength(1500);
+    expect(corps.poi_list.every((p: { lat?: number }) => typeof p.lat === 'number')).toBe(true);
+  });
+
+  it('GET /api/poi-clusters/[clusterId] rend les 1 200 POI d un cluster, avec leurs noms', async () => {
+    const pois = poi('lycee', 1200);
+    tables.poi_france = pois;
+    tables.poi_clusters = clusters(pois, 7).map((c) => ({ ...c, cluster_id: 2 }));
+    tables.clustering_models = [{ version: 7, cluster_labels: {}, cluster_avg_profiles: {}, feature_names: [] }];
+
+    const { GET } = await import('@/app/api/poi-clusters/[clusterId]/route');
+    const res = await GET(new NextRequest('http://x/api/poi-clusters/2'), { params: Promise.resolve({ clusterId: '2' }) });
+    expect(res.status).toBe(200);
+    const corps = await res.json();
+    expect(corps.pois).toHaveLength(1200);
+    expect(corps.pois.every((p: { nom?: string }) => typeof p.nom === 'string')).toBe(true);
+  });
+});

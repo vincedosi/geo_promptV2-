@@ -4,7 +4,25 @@ import { createAdminClient } from '@/lib/auth';
 // sur TOUS les POI, toutes organisations confondues — voir lib/auth/perimetre-donnees.ts.
 import { reserverAuSuperAdmin } from '@/lib/auth/perimetre-donnees';
 
+import { lirePoiClusters, lirePoiParIds } from '@/lib/clustering/lire-clusters';
+
 export const dynamic = 'force-dynamic';
+
+interface PoiClusterLu {
+  poi_id: string;
+  cluster_id: number;
+  cluster_label: string | null;
+  profile_features: unknown;
+  pca_components: unknown;
+}
+interface PoiLu {
+  id: string;
+  nom: string | null;
+  lat: number | null;
+  lng: number | null;
+  categorie: string | null;
+  ville: string | null;
+}
 
 const CLUSTER_COLORS = [
   '#4e79a7', '#f28e2b', '#59a14f', '#e15759',
@@ -32,23 +50,22 @@ export async function GET(request: NextRequest) {
   }
   const model = models[0];
 
-  // Clusters POI pour ce modèle
-  const { data: clusters, error: cErr } = await sb
-    .from('poi_clusters')
-    .select('poi_id,cluster_id,cluster_label,profile_features,pca_components')
-    .eq('model_version', model.version)
-    .eq('duration_minutes', model.duration_minutes)
-    .eq('mode', model.mode);
+  // Clusters POI pour ce modèle, puis leurs POI (lat/lng/nom) — lectures
+  // paginées : une requête de table est coupée à 1 000 lignes (lib/clustering/lire-clusters.ts).
+  let clusters: PoiClusterLu[];
+  let pois: PoiLu[];
+  try {
+    clusters = await lirePoiClusters<PoiClusterLu>(
+      sb,
+      'poi_id,cluster_id,cluster_label,profile_features,pca_components',
+      { model_version: model.version, duration_minutes: model.duration_minutes, mode: model.mode },
+    );
+    pois = await lirePoiParIds<PoiLu>(sb, 'id,nom,lat,lng,categorie,ville', clusters.map(c => c.poi_id));
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
 
-  if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
-
-  // POI info (lat/lng/nom)
-  const poiIds = (clusters ?? []).map(c => c.poi_id);
-  const { data: pois } = poiIds.length
-    ? await sb.from('poi_france').select('id,nom,lat,lng,categorie,ville').in('id', poiIds)
-    : { data: [] };
-
-  const poiMap = new Map((pois ?? []).map(p => [p.id, p]));
+  const poiMap = new Map(pois.map(p => [p.id, p]));
   const clusterLabels  = (model.cluster_labels        as Record<string, string>)                  ?? {};
   const clusterAvgProf = (model.cluster_avg_profiles  as Record<string, Record<string, number>>) ?? {};
 
@@ -66,7 +83,7 @@ export async function GET(request: NextRequest) {
 
   // GeoJSON features
   const features: object[] = [];
-  for (const c of clusters ?? []) {
+  for (const c of clusters) {
     const poi = poiMap.get(c.poi_id);
     if (!poi?.lat || !poi?.lng) continue;
     const cid = String(c.cluster_id);

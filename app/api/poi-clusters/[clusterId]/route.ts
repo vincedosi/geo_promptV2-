@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/auth';
 // Clustering réservé au super_admin (2026-10-08) : les modèles sont calculés
 // sur TOUS les POI, toutes organisations confondues — voir lib/auth/perimetre-donnees.ts.
 import { reserverAuSuperAdmin } from '@/lib/auth/perimetre-donnees';
+import { lirePoiClusters, lirePoiParIds } from '@/lib/clustering/lire-clusters';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,20 +32,22 @@ export async function GET(
     .limit(1);
   const model = models?.[0];
 
-  const { data: clusters, error } = await sb
-    .from('poi_clusters')
-    .select('poi_id,cluster_label,profile_features')
-    .eq('cluster_id', clusterId)
-    .eq('model_version', model?.version ?? 1);
+  // POI du cluster, puis leurs fiches — lectures paginées : une requête de table
+  // est coupée à 1 000 lignes (lib/clustering/lire-clusters.ts).
+  let clusters: { poi_id: string; cluster_label: string | null; profile_features: unknown }[];
+  let pois: { id: string; nom: string | null; lat: number | null; lng: number | null; ville: string | null; categorie: string | null }[];
+  try {
+    clusters = await lirePoiClusters(
+      sb,
+      'poi_id,cluster_label,profile_features',
+      { cluster_id: clusterId, model_version: model?.version ?? 1 },
+    );
+    pois = await lirePoiParIds(sb, 'id,nom,lat,lng,ville,categorie', clusters.map(c => c.poi_id));
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  const poiIds = (clusters ?? []).map(c => c.poi_id);
-  const { data: pois } = poiIds.length
-    ? await sb.from('poi_france').select('id,nom,lat,lng,ville,categorie').in('id', poiIds)
-    : { data: [] };
-
-  const poiMap  = new Map((pois ?? []).map(p => [p.id, p]));
+  const poiMap  = new Map(pois.map(p => [p.id, p]));
   const labels  = (model?.cluster_labels        as Record<string, string>)                  ?? {};
   const avgProf = (model?.cluster_avg_profiles  as Record<string, Record<string, number>>) ?? {};
 
@@ -54,7 +57,7 @@ export async function GET(
     cluster_color: CLUSTER_COLORS[clusterId % CLUSTER_COLORS.length],
     avg_profile:   avgProf[String(clusterId)] ?? {},
     feature_names: (model?.feature_names as string[]) ?? [],
-    pois: (clusters ?? []).map(c => ({
+    pois: clusters.map(c => ({
       ...(poiMap.get(c.poi_id) ?? {}),
       cluster_label:    c.cluster_label,
       profile_features: c.profile_features,

@@ -8,6 +8,8 @@ import { createAdminClient } from '@/lib/auth';
 // sur TOUS les POI, toutes organisations confondues — voir lib/auth/perimetre-donnees.ts.
 import { reserverAuSuperAdmin } from '@/lib/auth/perimetre-donnees';
 
+import { lirePoiClusters, lirePoiParIds } from '@/lib/clustering/lire-clusters';
+
 export const dynamic = 'force-dynamic';
 
 export const revalidate = 300;
@@ -66,18 +68,6 @@ export async function GET(
   }
   const m = model as unknown as ClusteringModelRow;
 
-  // POI clusters
-  const { data: clusters, error: cErr } = await sb
-    .from('poi_clusters')
-    .select(
-      'poi_id, cluster_id, cluster_label, profile_features, pca_components, ' +
-      'n_carreaux_intersected, population_totale_couverte, imputed_features, ' +
-      'duration_minutes, mode'
-    )
-    .eq('model_version', version);
-
-  if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
-
   interface PoiClusterRow {
     poi_id: string;
     cluster_id: number;
@@ -90,13 +80,33 @@ export async function GET(
     duration_minutes: number | null;
     mode: string | null;
   }
-  const clusterRows = (clusters ?? []) as unknown as PoiClusterRow[];
-  const poiIds = clusterRows.map(c => c.poi_id);
-  const { data: pois } = poiIds.length
-    ? await sb.from('poi_france').select('id, nom, lat, lng, categorie, ville').in('id', poiIds)
-    : { data: [] };
+  interface PoiRow {
+    id: string;
+    nom: string | null;
+    lat: number | null;
+    lng: number | null;
+    categorie: string | null;
+    ville: string | null;
+  }
 
-  const poiMap = new Map((pois ?? []).map(p => [p.id, p]));
+  // POI clusters, puis leurs POI — lectures paginées : une requête de table est
+  // coupée à 1 000 lignes (lib/clustering/lire-clusters.ts).
+  let clusterRows: PoiClusterRow[];
+  let pois: PoiRow[];
+  try {
+    clusterRows = await lirePoiClusters<PoiClusterRow>(
+      sb,
+      'poi_id, cluster_id, cluster_label, profile_features, pca_components, ' +
+      'n_carreaux_intersected, population_totale_couverte, imputed_features, ' +
+      'duration_minutes, mode',
+      { model_version: version },
+    );
+    pois = await lirePoiParIds<PoiRow>(sb, 'id, nom, lat, lng, categorie, ville', clusterRows.map(c => c.poi_id));
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
+
+  const poiMap = new Map(pois.map(p => [p.id, p]));
 
   const clusterLabels  = m.cluster_labels       ?? {};
   const clusterAvgProf = m.cluster_avg_profiles ?? {};

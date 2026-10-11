@@ -35,7 +35,7 @@ const RACINE = process.cwd();
 /** Tables et RPC dont le contenu appartient à une organisation. */
 const LECTURE_CLIENT = new RegExp(
   String.raw`from\(\s*'(poi_france|panneaux_affichage|isochrones_cache|poi_clusters|poi_cluster_history|clustering_models|clustering_jobs|geography_zones)'\s*\)`
-  + String.raw`|rpc\(\s*'(get_voronoi[a-z_]*|get_battle_geometry|compte_poi_par_categorie|poi_count_by_categorie|get_poi_near_panneau|panneaux_near_point|count_poi_by_categorie_source|get_poi_categories)'`,
+  + String.raw`|rpc\(\s*'(get_voronoi[a-z_]*|get_battle_geometry|compte_poi_par_categorie|poi_count_by_categorie|get_poi_near_panneau|panneaux_near_point|count_poi_by_categorie_source|get_poi_categories|types_poi_clustering)'`,
 );
 
 const REGLE = /from '@\/lib\/auth\/(perimetre-donnees|getOrgSourceIds)'|from '\.\/orgContext'/;
@@ -58,6 +58,9 @@ const ASSUMEES = new Map<string, string>([
    + 'référentiel public) ; le jeu de zones est déjà contrôlé par org_id.'],
   ['app/api/zones/jeux/[id]/extractions/[version]/export/route.ts',
    'Même raison que l\'export du jeu : sites ICPE publics, jeu contrôlé par org_id.'],
+  ['lib/clustering/lire-clusters.ts',
+   'Lectures paginées de poi_clusters / poi_france pour les routes /api/poi-clusters, '
+   + 'qui appellent reserverAuSuperAdmin AVANT (clustering réservé au super_admin, 2026-10-08).'],
 ]);
 
 function fichiers(dossier: string): string[] {
