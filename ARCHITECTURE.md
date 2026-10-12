@@ -1379,6 +1379,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/tiles/[z]/[x]/[y]` | GET | Tuiles MVT carreaux (gzip obligatoire). **Cascade `get_tile` calee sur la taille apparente des mailles** (une choroplethe se lit entre 10 et 40 px par carreau) : `z<=6` 20 km · `z7` 5 km · `z8` 2 km · `z9-11` **1 km** · `z>=12` 200 m (sql/129). Ne PAS redescendre le seuil du 200 m sans avoir d'abord donne des colonnes typees a `carreaux_filosofi` : ses 4,6 Go et son jsonb de 806 o/ligne imposent un plancher d'environ 4 s par tuile froide (mesure faite quand le compute etait annonce Nano ; le palier reel est Micro, voir « Budget I/O Supabase » plus bas — le plancher, lui, a ete chronometre et reste vrai). Chaque feature porte `superficie_km2` (sql/122), consomme par `lib/carreaux/normalisation.ts` pour rendre les indicateurs comparables entre paliers de zoom. **Tout changement du schema de tuile (colonnes ajoutees/retirees) impose de bumper `CARREAUX_TILE_VERSION` dans `lib/version.ts`** — sinon une tuile en cache (jusqu'a 1 h) reste servie avec l'ancien schema pendant que le front attend le nouveau. |
 | `/api/tiles/iris/[z]/[x]/[y]` | GET | Tuiles MVT IRIS (RPC `get_iris_tile`, sql/139) — cascade departement/commune/IRIS, plancher `IRIS_ZOOM_PLANCHER`. Placee sous `/api/tiles/` a dessein : le matcher de `middleware.ts` raisonne par SEGMENT. Voir la section « IRIS : tuiles MVT servies par Postgres » |
 | `/api/tmja-tiles/[z]/[x]/[y]` | GET | Tuiles MVT du flux routier (`comptages_routiers`), pipeline calque sur celui des carreaux. La table ne porte plus que les **1 100** comptages MESURÉS (le proxy OSM, 99,7 % de l'ancienne table, a été abandonné au rapatriement du 2026-09-19 ; recompté le 2026-10-10). Lue par la carte React et par `CarteApi.urlTuilesTmja()` (Angular, lot 4, T9) |
+| `/api/voronoi` | GET | **Cellules de Voronoi d'une categorie** (`?categorie=`, `metropolitaine`, `ville` / `departement` / `region`) — le bouton « Lancer le calcul » du panneau Analyse, SANS le chat (2026-10-12). RPC `get_voronoi_by_category_jsonb` (borne 5 000, `tronque`), session exigee DANS la route par `requireAuth` + `adminFetch` (hors matcher de `middleware.ts`), quota 6 / 60 s, garde `categorieEntierementVisible`. Detail : section « Voronoi & Stats villes » |
 | `/api/map/territory-mask` | POST | Geometrie d'un territoire (region/departement/CP) pour le masque MapLibre cote client — meme union admin que `/api/custom-geo/source/admin` |
 | `/api/insee-variables/[code]/geojson` | GET | Polygones CP d'une bbox enrichis de la valeur d'une variable INSEE (couche indicateurs). React demande le monde (`-180,-90,180,90` : 6 186 polygones, 21,6 Mo de jsonb) ; Angular (lot 4, T10) la carte VISIBLE |
 | `/api/insee-variables/cp-detail` | GET | Commune principale d'un code postal + nombre de communes associees — popup de la couche ci-dessus |
@@ -1843,8 +1844,30 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
 | `get_voronoi_by_category` | Voronoi par categorie, clippe France. **ENVELOPPE MINCE de `get_voronoi_by_category_jsonb` depuis sql/246** (2026-10-10) : `RETURNS SETOF json`, donc coupee a `db-max-rows` = 1 000 par PostgREST — mesure : 4 653 cellules de lycees en base, 1 000 rendues. Meme borne (5 000) qu'en sql/164 ; droits alignes sur la jumelle (service_role seul) | *plus appelee par l'application* |
-| `get_voronoi_by_category_jsonb` | Jumelle `jsonb` (sql/246) qui porte le calcul de sql/164 inchange (seule la forme passe de `json_build_object` a `jsonb_build_object` : ordre des cles normalise par jsonb, contenu identique ; `p_limite` NULL ou negatif non garde, seul service_role l'appelle) : rend `{ features, tronque }`, lit `p_limite + 1` cellules (defaut 5 000) et DIT quand la borne est atteinte. Identite verifiee contre l'ancienne fonction (ids + aire de chaque cellule, cirfa 95 et lycee 4 653 : 0 ecart). Cout inchange : lycee 14,4 s, `shared hit=318267 read=45946` ; cirfa 0,7 s. Service_role seul | `lib/chat/tools/voronoi.ts` (borne `BORNE_CELLULES` = 5 000) |
+| `get_voronoi_by_category_jsonb` | Jumelle `jsonb` (sql/246) qui porte le calcul de sql/164 inchange (seule la forme passe de `json_build_object` a `jsonb_build_object` : ordre des cles normalise par jsonb, contenu identique ; `p_limite` NULL ou negatif non garde, seul service_role l'appelle) : rend `{ features, tronque }`, lit `p_limite + 1` cellules (defaut 5 000) et DIT quand la borne est atteinte. Identite verifiee contre l'ancienne fonction (ids + aire de chaque cellule, cirfa 95 et lycee 4 653 : 0 ecart). Cout inchange : lycee 14,4 s, `shared hit=318267 read=45946` ; cirfa 0,7 s. Service_role seul | `GET /api/voronoi` (bouton « Lancer le calcul » du panneau Analyse, depuis le 2026-10-12) et `lib/chat/tools/voronoi.ts` (retire au lot 5) — borne `BORNE_CELLULES` = 5 000 dans les deux |
 | `refresh_ville_stats_chunk` | Refresh stats villes par batch | *orpheline* (route supprimee 08/2026) |
+
+**`GET /api/voronoi?categorie=…[&metropolitaine=false][&ville=…|&departement=…|&region=…]`**
+(2026-10-12, suppression de l'IA, lot 4) — le Voronoi du panneau Analyse SANS
+le chat. Jusque-la, « Lancer le calcul » ecrivait « Fais le Voronoi des … » au
+copilote, et seul l'outil `voronoi_analysis` appelait la RPC. La route rend la
+MEME forme que l'outil (`voronoiGeoJSON` avec `_meta`, `poisForMap`,
+`nb_polygones`, `tronque`, `category`, `metropolitaine`), affichee par
+`lib/carte/voronoi-direct.ts` (`appliquerResultatVoronoi` = la branche
+`voronoi_analysis` de `useToolProcessor` : `applyVoronoi` puis `setZoneData`) via
+`app/map/_hooks/useVoronoiDirect.ts`. `requeteVoronoi` traduit le territoire du
+panneau comme la phrase le formulait (ville > UN departement > UNE region par son
+NOM > etendue ; plusieurs regions/departements retombent sur l'etendue).
+Gardes : **session exigee dans la route** par `requireAuth` (en-tete
+`Authorization`, pose par `adminFetch` cote client — 401 sinon ; la route n'est
+PAS dans le matcher de `middleware.ts`, fichier protege, meme patron que
+`/api/custom-geo/source/voronoi`), quota partage 6 / 60 s par compte
+(`geo:rl:voronoi`), puis `categorieEntierementVisible` avec
+`sourcesVisiblesDeLaRequete` (vue espace) : 403 et RPC jamais lancee si un seul
+POI de la categorie echappe a l'appelant. Erreur RPC : 500 dans
+l'enveloppe `{ error, nb_polygones: 0, category }`. `maxDuration` 60 s (lycees :
+14 s). Verrous : `tests/unit/api/voronoi-route.test.ts`,
+`tests/unit/carte/voronoi-direct.test.ts`.
 
 ### Carreaux & Tuiles
 | RPC | Description | Appelee depuis |

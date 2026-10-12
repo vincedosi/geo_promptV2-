@@ -28,7 +28,7 @@
  * `FiltreActif` n'est posé. Câblage vérifié structurellement par
  * `tests/unit/carte/panneau-analyse-garde.test.ts` (lit le SOURCE de ce
  * fichier) — SIX points de lancement, à CINQ endroits distincts :
- *   1. Voronoï (`VoronoiTool` → geo.prompt)
+ *   1. Voronoï (`VoronoiTool` → `GET /api/voronoi`, route directe depuis le 2026-10-12)
  *   2. Bataille isochrone V1 (`IsochronesTool` → vérif. cache/lancement)
  *   3. Bataille isochrone V2 (`BattleV2Tool` → vérif. cache/remplissage ORS/lancement)
  *   4. Application de la bataille — bouton « BATAILLE (ST_Difference) »
@@ -92,6 +92,7 @@ import type { FilterPanelProps } from '../filter-panel/types';
 import type { FiltreActif } from '@/lib/carte/filtre';
 import { messageGardePerimetre, messageGardeOutil, type OutilAnalyse } from '@/lib/carte/garde-perimetre';
 import { useSession } from '@/lib/auth-client';
+import { requeteVoronoi } from '@/lib/carte/voronoi-direct';
 
 export interface PanneauAnalyseProps {
   // ── Territoire — parité stricte avec l'ex-FilterPanel (voir en-tête) ──────
@@ -110,9 +111,14 @@ export interface PanneauAnalyseProps {
   /** POI sélectionnés (lifted à page.tsx, partagé avec PanneauCalques). */
   selectedPOI: string[];
 
-  /** Voronoï passe par le chat geo.prompt (function calling), pas un appel direct. */
-  sendMessage: (text: string) => void;
-  isLoading: boolean;
+  /**
+   * Voronoï : lance `GET /api/voronoi` avec la chaîne de `requeteVoronoi`
+   * (`app/map/_hooks/useVoronoiDirect.ts`). Il passait par le chat geo.prompt
+   * jusqu'au 2026-10-12.
+   */
+  onDirectVoronoi: (requete: string) => void;
+  /** Calcul de Voronoï en cours : désactive le bouton (rôle d'`isLoading` du chat). */
+  voronoiChargement: boolean;
 
   onDirectBattle: FilterPanelProps['onDirectBattle'];
   onDirectBattleV2: FilterPanelProps['onDirectBattleV2'];
@@ -147,7 +153,7 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
     selectedDepts: selectedDeptsProp, onSelectedDeptsChange,
     ville: villeProp, onVilleChange,
     filtre, selectedPOI,
-    sendMessage, isLoading,
+    onDirectVoronoi, voronoiChargement,
     onDirectBattle, onDirectBattleV2, onFillIsochroneCache, onApplyBattle,
     voronoiVisible, setVoronoiVisible,
     battleVisible, setBattleVisible,
@@ -162,7 +168,7 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
   const clusteringOuvert = session?.user.role === 'super_admin';
 
   // ── Perimetre territorial — voir en-tete du fichier (parite, non corrige) ─
-  const { REF_REGIONS, territoire } = useTerritorySelection({
+  const { REF_REGIONS, scope, selectedRegions, selectedDepts, ville } = useTerritorySelection({
     scope: scopeProp, onScopeChange,
     selectedRegions: selectedRegionsProp, onSelectedRegionsChange,
     selectedDepts: selectedDeptsProp, onSelectedDeptsChange,
@@ -215,8 +221,6 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
     onDirectBattle, onDirectBattleV2, onFillIsochroneCache,
   });
 
-  const send = (text: string) => { if (!isLoading) sendMessage(text); };
-
   // ── Garde de perimetre (spec §5) — logique pure dans garde-perimetre.ts,
   // ce composant se contente d'appeler la fonction et d'afficher son message
   // avant tout lancement. Cablage verifie structurellement par
@@ -257,7 +261,13 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
 
   const handleVoronoi = () => {
     if (!exactlyOnePOI || !verifierPerimetreOutil('voronoi')) return;
-    send(`Fais le Voronoi des ${selectedPOI[0]} ${territoire}`);
+    if (voronoiChargement) return;
+    // Le territoire que la phrase au chat portait (« … de France
+    // métropolitaine »), traduit en paramètres de la route — voir
+    // lib/carte/voronoi-direct.ts.
+    onDirectVoronoi(requeteVoronoi(selectedPOI[0], {
+      scope, selectedRegions, selectedDepts, ville, refRegions: REF_REGIONS,
+    }));
   };
   const handleCheckORSGarde = () => { if (verifierPerimetreOutil('bataille_v1')) handleCheckORS(); };
   const handleBattleGarde = (force = false) => { if (verifierPerimetreOutil('bataille_v1')) handleBattle(force); };
@@ -361,7 +371,7 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
                 setShowVoronoi={setShowVoronoi}
                 setShowBattle={setShowBattle}
                 setShowBattleV2={setShowBattleV2}
-                isLoading={isLoading}
+                isLoading={voronoiChargement}
                 voronoiVisible={voronoiVisible}
                 setVoronoiVisible={setVoronoiVisible}
                 handleVoronoi={handleVoronoi}

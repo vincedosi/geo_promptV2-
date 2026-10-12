@@ -47,6 +47,7 @@ const MeteoGeoPanel = dynamic(
   { ssr: false },
 );
 import { useSavedMaps }        from '@/app/map/_hooks/useSavedMaps';
+import { useVoronoiDirect }    from '@/app/map/_hooks/useVoronoiDirect';
 import { useMapLayers }        from '@/app/map/_hooks/useMapLayers';
 import { useChatControls }     from '@/app/copilote/_hooks/useChatControls';
 import { useRateLimitHandler } from '@/app/copilote/_hooks/useRateLimitHandler';
@@ -642,6 +643,9 @@ export default function MapPage() {
     handleDirectBattleV2,
   } = useMapDirectActions(mapRef, mapLayers, setZoneData, setError, filtre);
 
+  // ── Voronoï du panneau Analyse par la route directe (cf _hooks/useVoronoiDirect)
+  const { lancerVoronoi, voronoiChargement } = useVoronoiDirect(mapLayers.applyVoronoi, setZoneData, setError);
+
   // ── Marqueurs POI + cadrage (cf _hooks/useMapMarkers) ─────────────────────
   useMapMarkers(mapRef, markersRef, mapReady, zoneData, densityMode, poiStyles, setSelectedBillboard);
   const providerSelector = useProviderSelector();
@@ -1053,8 +1057,8 @@ export default function MapPage() {
         onVilleChange={setPerimeterVille}
         filtre={filtre}
         selectedPOI={selectedPOI}
-        sendMessage={chat.sendMessage}
-        isLoading={chat.isLoading}
+        onDirectVoronoi={lancerVoronoi}
+        voronoiChargement={voronoiChargement}
         onDirectBattle={handleDirectBattle}
         onDirectBattleV2={handleDirectBattleV2}
         onFillIsochroneCache={handleFillIsochroneCache}
