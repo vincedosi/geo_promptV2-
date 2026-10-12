@@ -1,0 +1,203 @@
+@if (visible()) {
+  <div
+    data-legende
+    class="absolute bottom-3 z-[35] min-w-[180px] max-w-[240px] rounded-[8px] border-fin border-default bg-card-overlay"
+    [style.left.px]="gauche"
+  >
+    <button
+      type="button"
+      [attr.aria-expanded]="ouvert()"
+      (click)="ouvert.set(!ouvert())"
+      class="flex w-full cursor-pointer items-center gap-1.5 border-0 bg-transparent px-[10px] py-2"
+    >
+      <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-[var(--brand-teal)]"></span>
+      <span class="flex-1 text-left text-[11px] font-medium text-primary">Légende</span>
+      <mg-icone [nom]="ouvert() ? 'chevron-bas' : 'chevron-droite'" [taille]="14" class="shrink-0 text-tertiary" />
+    </button>
+    @if (ouvert()) {
+      <div class="flex flex-col gap-[10px] px-[10px] pb-[10px]">
+        @if (analyse(); as a) {
+          <!-- BlocAnalyse (LegendeCarte.tsx:332-376) : les catégories des points affichés. -->
+          <div data-bloc="analyse">
+            <div class="mb-1 text-[11px] font-medium text-secondary">Analyse spatiale</div>
+            <div class="flex flex-col gap-[5px]">
+              @for (c of a.categories; track c.cat) {
+                <div [attr.data-categorie]="c.cat" class="flex items-center gap-1.5">
+                  <span class="size-[10px] shrink-0 rounded-full" [style.background]="c.couleur"></span>
+                  <span class="font-mono text-[10px] text-tertiary">{{ c.cat }} <span class="text-tertiary">({{ c.n }})</span></span>
+                </div>
+              }
+              @if (a.rayonZone) {
+                <div class="mt-[3px] flex items-center gap-1.5 border-t border-subtle pt-[5px]">
+                  <span class="size-[9px] shrink-0 rounded-[1px] border-[1.5px] border-dashed border-hover bg-[color-mix(in_srgb,var(--text-primary)_5%,transparent)]"></span>
+                  <span class="font-mono text-[10px] text-tertiary">Zone {{ a.rayonZone }} km</span>
+                </div>
+              }
+              @if (a.rayonPoi) {
+                <div class="mt-[3px] flex items-center gap-1.5 border-t border-subtle pt-[5px]">
+                  <span class="size-[9px] shrink-0 rounded-full border-[1.5px] border-solid border-success bg-[color-mix(in_srgb,var(--success)_12%,transparent)]"></span>
+                  <span class="font-mono text-[10px] text-tertiary">R={{ a.rayonPoi }}/POI</span>
+                </div>
+              }
+              <!-- LegendeCarte.tsx:408-460 : la bataille et sa réglette de palier maximum (T17). -->
+              <mg-legende-bataille />
+            </div>
+          </div>
+        }
+        @switch (degradeActif()) {
+          @case ('carreaux') {
+            <div data-bloc="carreaux">
+              <div class="mb-1 text-[11px] font-medium text-secondary">
+                {{ titreCarreaux }}@if (uniteCarreaux()) {<span class="font-mono font-normal"> · {{ uniteCarreaux() }}</span>}
+              </div>
+              @if (paliers(); as ps) {
+                <div class="flex flex-col gap-px">
+                  @for (p of ps; track p.index) {
+                    <button
+                      type="button"
+                      [attr.data-palier]="p.index"
+                      [attr.aria-pressed]="p.choisi"
+                      (click)="choisirPalier(p.index)"
+                      class="flex w-full cursor-pointer items-center gap-1.5 rounded-[2px] border-fin border-solid px-[3px] py-px text-left"
+                      [style.background]="p.choisi ? p.couleur + '22' : 'none'"
+                      [style.border-color]="p.choisi ? p.couleur : 'transparent'"
+                    >
+                      <span class="size-[10px] shrink-0 rounded-[2px]" [style.background]="p.couleur"></span>
+                      <span class="flex-1 font-mono text-[10px]" [class.text-primary]="p.choisi" [class.text-tertiary]="!p.choisi">{{ p.libelle }}</span>
+                    </button>
+                  }
+                </div>
+              } @else {
+                <div class="flex items-center gap-0.5">
+                  @for (s of arretsCarreaux(); track $index) {
+                    <span class="inline-block h-[7px] flex-1 rounded-[1px]" [style.background]="s"></span>
+                  }
+                </div>
+              }
+            </div>
+          }
+          @case ('iris') {
+            <!-- LegendeCarte.tsx:225-256 : les mêmes frontières que la peinture (bornesInternes), non cliquables. -->
+            <div data-bloc="iris">
+              <div class="mb-1 text-[11px] font-medium text-secondary">
+                {{ titreIris }}@if (uniteIrisAffichee(); as u) {<span class="font-mono font-normal"> · {{ u }}</span>}
+              </div>
+              @if (paliersIris(); as ps) {
+                <div class="flex flex-col gap-px">
+                  @for (p of ps; track $index) {
+                    <div data-palier-iris class="flex items-center gap-1.5">
+                      <span class="size-[10px] shrink-0 rounded-[2px]" [style.background]="p.couleur"></span>
+                      <span class="font-mono text-[10px] text-tertiary">{{ p.libelle }}</span>
+                    </div>
+                  }
+                </div>
+              } @else if (iris.bornesEnErreur()) {
+                <div class="text-[10px] text-warning">! Bornes indisponibles</div>
+              } @else if (iris.bornes() === undefined) {
+                <div class="text-[10px] text-tertiary">Chargement...</div>
+              } @else {
+                <div class="text-[10px] text-warning">! Aucune donnée pour cet indicateur</div>
+              }
+            </div>
+          }
+          @case ('civic-indicateurs') {
+            <!-- LegendeCarte.tsx:259-273 : le dégradé pondéré et ses trois repères. -->
+            <div data-bloc="civique">
+              <div class="mb-1 text-[11px] font-medium text-secondary">{{ titreCivique }}</div>
+              <div class="flex h-1.5 overflow-hidden rounded-[3px]">
+                @for (p of legendeAbstention; track $index) {
+                  <div data-palier-civique [style.flex]="p[1]" [style.background]="p[0]"></div>
+                }
+              </div>
+              <div class="mt-0.5 flex justify-between">
+                @for (r of reperesAbstention; track r) {
+                  <span class="font-mono text-[10px] text-tertiary">{{ r }}</span>
+                }
+              </div>
+            </div>
+          }
+          @case ('civic-sante') {
+            <!-- LegendeCarte.tsx:275-293 : six niveaux sur deux colonnes, estompés sous le seuil. -->
+            @if (niveauxSante(); as ns) {
+              <div data-bloc="sante">
+                <div class="mb-1 text-[11px] font-medium text-secondary">{{ ns.titre }}</div>
+                <div class="grid grid-cols-2 gap-x-[10px] gap-y-1">
+                  @for (n of ns.niveaux; track n.niveau) {
+                    <div data-niveau-sante class="flex items-center gap-1.5" [style.opacity]="n.estompe ? 0.3 : 1">
+                      <span class="size-[10px] shrink-0 rounded-[2px]" [style.background]="n.couleur"></span>
+                      <span class="font-mono text-[10px] text-tertiary">{{ n.libelle }}</span>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          }
+          @case ('meteo') {
+            <!-- LegendeCarte.tsx:297-304 : le titre et la variable affichée — React ne montre pas la rampe. -->
+            <div data-bloc="meteo">
+              <div class="mb-1 text-[11px] font-medium text-secondary">{{ titreMeteo }}</div>
+              <div class="font-mono text-[10px] text-tertiary">{{ meteo.libelle() ?? 'Couche active' }}</div>
+            </div>
+          }
+          @case ('zones-risque') {
+            <mg-legende-zones-profil />
+          }
+        }
+        @if (zonesRisque(); as z) {
+          <!-- BlocZonesRisque (LegendeCarte.tsx:534-590) : laquelle des deux zones vient de l'État, laquelle est calculée. -->
+          <div data-bloc="zones-risque">
+            <div class="mb-1 text-[11px] font-medium text-secondary">Zones à risque</div>
+            <div class="flex flex-col gap-[5px]">
+              @if (z.reglementaire) {
+                <div data-zone-reglementaire class="flex items-center gap-1.5">
+                  <span aria-hidden="true" class="h-0 w-4 shrink-0" [style.border-top]="tracePprt"></span>
+                  <span class="text-[10px] text-secondary">Périmètre PPRT — réglementaire</span>
+                </div>
+              }
+              @if (z.calculee; as rayon) {
+                <div data-zone-calculee class="flex items-center gap-1.5">
+                  <span aria-hidden="true" class="h-0 w-4 shrink-0 border-t border-dashed border-t-[var(--text-secondary)]"></span>
+                  <span class="text-[10px] text-secondary">Rayon {{ rayon }} m — calculé</span>
+                </div>
+              }
+              @if (z.compte; as c) {
+                <div data-zone-compte class="font-mono text-[10px] leading-[1.4] text-tertiary">{{ c }}</div>
+              }
+              <div class="font-mono text-[10px] leading-[1.4] text-tertiary">Trait plein = publié par l’État · tireté = calculé par dentsu.explore</div>
+            </div>
+          </div>
+        }
+        @if (figuresVisibles()) {
+          <!-- BlocFigures (LegendeCarte.tsx:466-523) : les types de POI choisis, les paliers TMJA, les émetteurs radio. -->
+          <div data-bloc="figures">
+            <div class="mb-1 text-[11px] font-medium text-secondary">Figurés</div>
+            <div class="flex flex-col gap-1">
+              @for (f of figuresPoi(); track f.cat) {
+                <div [attr.data-figure]="f.cat" class="flex items-center gap-1.5">
+                  <span class="size-2 shrink-0 rounded-full" [style.background]="f.couleur"></span>
+                  <span class="font-mono text-[10px] text-tertiary">{{ f.cat }}</span>
+                </div>
+              }
+              @if (tmja.visible()) {
+                @for (p of paliersTmja; track p.libelle) {
+                  <div data-figure-tmja class="flex items-center gap-1.5" [style.opacity]="p.faible && tmja.masquerFaible() ? 0.35 : 1">
+                    <span class="h-[3px] w-[14px] shrink-0 rounded-[2px]" [style.background]="p.couleur"></span>
+                    <span class="font-mono text-[10px] text-tertiary">{{ p.libelle }}</span>
+                  </div>
+                }
+              }
+              @if (radio.visible()) {
+                <div data-figure-radio class="flex items-center gap-1.5">
+                  <span class="size-2 shrink-0 rounded-full" [style.background]="radio.couleurCouverture()"></span>
+                  <span class="font-mono text-[10px] text-tertiary">Émetteurs radio</span>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+}
+<!-- ScoreMapLayer.tsx:241-303 : la carte du score, à part, en bas à droite (elle ne s'ouvre pas dans cette boîte). -->
+<mg-legende-score />
