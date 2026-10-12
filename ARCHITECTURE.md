@@ -2756,6 +2756,12 @@ rejouer — et savoir dans quel ORDRE**, d'ou la liste ci-dessus.
 Migration progressive de l'interface, module par module, sans toucher à l'API
 (feuille de route : `docs/superpowers/plans/2026-09-29-transition-angular-feuille-de-route.md`).
 
+- **Guide de reprise (lot 4, T22, 2026-10-12)** : `angular/README.md` (démarrer, arborescence, patrons avec
+  un fichier exemple chacun, contraintes AIDA, gardes structurelles, pièges) et un `README.md` court par
+  dossier de `angular/src/app/features/`. Ce document reste la source de vérité ; les README n'en sont que
+  l'entrée. ⚠ **Plafond de 400 lignes** par `.ts` non-spec d'`angular/src`
+  (`tests/unit/angular/taille-fichiers.test.ts`, seule exception nommée : `ui/icone/icones.ts`, table de
+  données) : un fichier qui grossit se découpe — logique pure dans `logique/`, gabarit long en `.html`.
 - **Deux applications, une API.** React sur `:3000`, Angular sur `:4200` ; le
   proxy de dev d'Angular redirige `/api` vers `:3000`.
 - ⚠ **L'authentification est DOUBLE, et c'est ce qui a imposé `@supabase/ssr`.**
