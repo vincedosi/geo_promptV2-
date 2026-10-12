@@ -4,11 +4,11 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-10-11 — commit `915656c3`.
+> Généré le 2026-10-12 — commit `e8666179`.
 
 ## Totaux
 
-- Exports morts : 187
+- Exports morts : 189
 - Fichiers morts : 0
 - Dépendances inutilisées : 2
 
@@ -31,6 +31,7 @@ Trié par nombre d’occurrences décroissant.
 | `lib/campaigns/channels.ts` | 6 | PlatformLinksSchema, linksComplete, linksSummary | LinkLevel, PlatformLinks, ChannelCategory |
 | `components/ui/dialog.tsx` | 6 | DialogPortal, DialogOverlay, DialogTrigger, DialogClose, DialogFooter, DialogDescription | — |
 | `lib/bidding-ml/client.ts` | 5 | predictForStrategy, detectDrift | ExecutionMode, PredictResponse, DriftResponse |
+| `lib/demo/constants.ts` | 5 | PERIOD_LEN_DAYS, CALENDAR_START, MAX_ROUNDS, STEP_CAP_GUIDE, STEP_CAP_AUTONOME | — |
 | `lib/meteo/types.ts` | 5 | — | GridPoint, MeteoSquare, MeteoMeta, MeteoSummary, MeteoApiResponse |
 | `lib/import/types.ts` | 4 | INSEE_CARREAUX_INDICATORS | ImportConfig, DryRunStats, LogLevel |
 | `types/spatial.ts` | 4 | — | BattleData, ChatMessage, GeoJSONFeatureCollection, SpatialResult |
@@ -45,11 +46,10 @@ Trié par nombre d’occurrences décroissant.
 | `components/ui/table.tsx` | 2 | TableFooter, TableCaption | — |
 | `app/copilote/_lib/constants.ts` | 2 | applyChoropleth, CATEGORY_COLORS | — |
 | `app/map/_components/CivicIndicatorsLayer.tsx` | 2 | CIVIC_VARIABLES, getCivicLegendStops | — |
-| `lib/campaigns/suivi-chat.ts` | 2 | ChatTurnSchema | CampaignChatBody |
 | `lib/dsp/dv360/auth.ts` | 2 | DV360_SCOPES, buildOAuthClient | — |
 | `lib/prompting/code-generation/adform.ts` | 2 | ADFORM_PROMPT_SECTION | AdformRule |
 | `lib/prompting/code-generation/ttd.ts` | 2 | TTD_PROMPT_SECTION | TTDLine |
-| `lib/demo/constants.ts` | 2 | PERIOD_LEN_DAYS, CALENDAR_START | — |
+| `lib/demo/controller.ts` | 2 | latestVersion, readDemoPacing | — |
 | `lib/geo/locations.ts` | 2 | VILLES, REGIONS | — |
 | `lib/dsp-mapping/loader.ts` | 2 | listAvailableDsps, invalidateMappingsCache | — |
 | `lib/import/schemas.ts` | 2 | MappageChampsSchema, ConfigGeoSchema | — |
@@ -80,7 +80,6 @@ Trié par nombre d’occurrences décroissant.
 | `lib/pacing/rebid.ts` | 1 | REBID_EPSILON | — |
 | `lib/geo/dept-lookup-server.ts` | 1 | invalidateDeptCache | — |
 | `lib/prompting/code-generation/dv360.ts` | 1 | DV360_PROMPT_SECTION | — |
-| `lib/demo/controller.ts` | 1 | latestVersion | — |
 | `lib/api/safe-path.ts` | 1 | isValidUuid | — |
 | `lib/import/column-detector.ts` | 1 | normalizeColumnName | — |
 | `lib/civic-health/provider.ts` | 1 | _resetProvider | — |
@@ -104,9 +103,9 @@ Trié par nombre d’occurrences décroissant.
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |
 | `lib/demo/pilot-types.ts` | 1 | — | PilotItem |
 | `lib/dsp/push/types.ts` | 1 | — | PushStatus |
-| `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
 | `lib/qualite/verdict.ts` | 1 | — | Verdict |
 | `lib/report/types.ts` | 1 | — | ReportHeader |
+| `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
 | `lib/radio/import-logger.ts` | 1 | — | LogEntry |
 | `lib/meteo/use-meteo-data.ts` | 1 | — | MeteoProgress |
 | `app/map/_components/filter-panel/use-poi-catalog.ts` | 1 | — | PoiType |

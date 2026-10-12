@@ -1450,7 +1450,6 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/digital/[campaignId]/pacing` | GET | Diagnostic plan-vs-reel PAR ITEM de zone (`?version=`) : parts intra-zone, ecart, statut, spillover. Distinct de `/suivi`, qui agrege au niveau campagne |
 | `/api/digital/[campaignId]/custom-zone/[zoneId]` | GET | Croisement campagne x zone custom → GeoJSON + resume, meme forme que `/map` |
 | `/api/digital/[campaignId]/ai-analysis` | POST | Analyse Gemini performances geo |
-| `/api/digital/[campaignId]/campaign-chat` | POST | Chat IA « Suivi campagne » — streaming Gemini, historique ephemere cote client, contexte serveur borne (stats geo RPC 098 + journal strategie 25/15/10 + breakdown IRIS 30) |
 | `/api/digital/[campaignId]/suivi` | GET | Payload complet du cockpit de suivi (pacing, CPM, pression tenue, alertes, depts, quotidien) — lit les rollups uniquement, backfill lazy si absents (campagnes avec strategie). Route KEPT (Tache 16) : `pacing.total_budget` + `daily` alimentent la trajectoire budget de `suivi-v2/DetailTechnique.tsx` |
 | `/api/digital/[campaignId]/suivi/map` | GET | Choroplethe CP du suivi (`?metric=hold\|cpm&bbox=`) — features GeoJSON pour SuiviMapLayer |
 | `/api/digital/[campaignId]/reconcile` | GET | Payload de reconciliation DSP ⇔ ad server (taux de mesure global, composition de l'achat par canal, tendance) — lit campaign_dsp_report + rollups |
@@ -1652,11 +1651,10 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/agent/chat` | POST | Pipeline complet : detection d'intention → handler → application des regles → trace d'audit |
 | `/api/agent/analyze-drift` | POST | Force l'intention `analyze_drift` sur un evenement de derive donne |
 | `/api/agent/apply-recommendation` | POST | Applique ou rejette une recommandation de l'agent et trace la decision |
-| `/api/pilot` | POST | Point d'entree du pilote automatique |
 
 ### Mode demo (bac a sable)
 
-Sept routes qui montent, font vivre et demontent un jeu de donnees de
+Six routes qui montent, font vivre et demontent un jeu de donnees de
 demonstration. Elles ecrivent en base comme les vraies — le mode demo est un
 jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 
@@ -1668,7 +1666,6 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `/api/demo/simulate-period` | POST | Fait avancer la campagne de demonstration d'une periode |
 | `/api/demo/apply-rebid` | POST | Applique un rebid sur la campagne de demonstration |
 | `/api/demo/report` | GET | Rapport de demonstration |
-| `/api/demo/report/narrative` | POST | Version redigee du rapport ci-dessus |
 
 ### Analyses enregistrees (Tache 11, 2026-09-12)
 | Route | Methode | Description |
@@ -1896,7 +1893,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `get_digital_available_indicators` | Indicateurs disponibles | `api/digital/[id]/analysis/` |
 | `match_campaign_postal_to_iris` | Matching postal -> commune -> IRIS | `api/admin/campaigns/import/` |
 | `get_dsp_campaign_stats` | Stats agregees campagne | `api/admin/campaigns/` |
-| `get_campaign_stats_by_field` | Stats par champ (jsonb, creee sql/098 — n'existait pas avant 07/2026, la route admin utilisait son fallback) | `api/admin/campaigns/[id]/`, `api/digital/[id]/campaign-chat/` |
+| `get_campaign_stats_by_field` | Stats par champ (jsonb, creee sql/098 — n'existait pas avant 07/2026, la route admin utilisait son fallback) | `api/admin/campaigns/[id]/` |
 | `materialiser_indicateur_cp` | Enveloppe instrumentee de `materialize_indicator_cp_values` : journalise le nombre de lignes ecrites et la date de la donnee (pollen/atmo) | `lib/analyses/indicateurs.ts` (sql/148) |
 | `etat_indicateur_cp` | Dit si un indicateur est calculable, deja calcule, VIDE ou perime — sans rien recalculer. `perime` ne vaut true que pour les sources quotidiennes `pollen`/`atmo`, dont `indicator_cp_values` fige le `max(date_ech)` du jour de la materialisation | `lib/analyses/indicateurs.ts` (sql/148) |
 | `materialize_indicator_cp_values` | Materialise un indicateur du registre IRIS en valeurs par CP (agregation ponderee + fallback communal), table `indicator_cp_values`. **sql/249 (2026-10-12)** : verrou consultatif PAR INDICATEUR (`pg_advisory_xact_lock`) en tete et `ON CONFLICT (indicator_code, postal_code) DO UPDATE` sur chaque INSERT — deux premiers calculs simultanes (correlation, score) levaient `indicator_cp_values_pkey` et la route repondait 500 (revue finale du lot 4, I-2a). La seconde requete attend la premiere puis recalcule ; verrouille par `tests/unit/db/materialisation-indicateur-course.test.ts` | Lancement wizard (matérialisation lazy), `api/bidding/strategies/`, `lib/analyses/indicateurs.ts` via `materialiser_indicateur_cp` |
