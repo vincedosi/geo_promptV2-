@@ -111,6 +111,12 @@ describe('Panneau Analyse Angular — verrou structurel de la garde de périmèt
     expect(corpsDeMethode('verifierPerimetreOutil')).toContain('messageGardeOutil(outil, this.etat.filtre())');
   });
 
+  it('les deux batailles refusent EN PLUS un filtre code postal ou zone, qu’elles ne transmettent pas (registre, ligne 71)', () => {
+    const corps = corpsDeMethode('verifierPerimetreOutil');
+    expect(corps).toContain("outil === 'bataille_v1' || outil === 'bataille_v2'");
+    expect(corps).toContain('messageRefusTerritoireBataille(this.etat.filtre())');
+  });
+
   // ── Clustering (T19) : la RELECTURE d'un modèle déjà calculé (`GET /api/poi-clusters?duration=`) passe par la garde
   // GÉNÉRIQUE, sans refus national — `handleLoadClustersGarde` de `PanneauAnalyse.tsx:278` (« pas le calcul lourd »).
   // Le calcul lourd (`POST /api/poi-clusters/run`, T20) s'ajoutera à `HANDLERS_GARDE_OUTIL` avec l'outil `clustering`.

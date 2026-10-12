@@ -179,9 +179,9 @@ export class PanneauAnalyseComponent {
    * bataille n'est pas concernée : elle découpe des anneaux déjà calculés, sans territoire.
    */
   protected verifierPerimetreOutil(outil: OutilAnalyse): boolean {
-    const filtre = this.etat.filtre();
     const bataille = outil === 'bataille_v1' || outil === 'bataille_v2';
-    const message = messageGardeOutil(outil, filtre) ?? (bataille ? messageRefusTerritoireBataille(filtre) : null);
+    const message = messageGardeOutil(outil, this.etat.filtre())
+      ?? (bataille ? messageRefusTerritoireBataille(this.etat.filtre()) : null);
     this.gardeMessage.set(message);
     return message === null;
   }
