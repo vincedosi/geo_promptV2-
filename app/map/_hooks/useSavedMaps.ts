@@ -2,6 +2,7 @@
 import { logger } from '@/lib/logger';
 
 import { useRef, useState } from 'react';
+import { adminFetch } from '@/lib/admin-fetch';
 import type { ZoneData, IsochroneData, VoronoiData, CarreauxData, SavedMap } from '@/types/spatial';
 
 interface UseSavedMapsOpts {
@@ -29,13 +30,17 @@ export function useSavedMaps({ zoneData, setZoneData }: UseSavedMapsOpts) {
   const applyVoronoiRef    = useRef<((d: VoronoiData) => void) | null>(null);
   const loadCarreauxRef    = useRef<((cd: CarreauxData) => Promise<void>) | null>(null);
 
+  // `adminFetch` et non `fetch` nu (2026-10-12) : les quatre routes
+  // /api/saved-maps exigent l'en-tête `Authorization` (`requireAuth`), que
+  // `fetch` n'envoie pas — toute sauvegarde et toute lecture répondaient 401,
+  // constaté à la preuve navigateur du lot 4 (suppression de l'IA).
   const saveCurrentMap = async () => {
     if (!saveName.trim()) { setSaveError('Entrez un nom pour cette carte'); return; }
     setSaveLoading(true);
     setSaveError(null);
 
     try {
-      const res = await fetch('/api/saved-maps', {
+      const res = await adminFetch('/api/saved-maps', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -64,7 +69,7 @@ export function useSavedMaps({ zoneData, setZoneData }: UseSavedMapsOpts) {
 
   const loadSavedMaps = async () => {
     try {
-      const res = await fetch('/api/saved-maps');
+      const res = await adminFetch('/api/saved-maps');
       const data = await res.json();
       setSavedMaps(data.maps ?? []);
     } catch { /* silencieux */ }
@@ -72,7 +77,7 @@ export function useSavedMaps({ zoneData, setZoneData }: UseSavedMapsOpts) {
 
   const loadMap = async (id: string) => {
     try {
-      const res = await fetch(`/api/saved-maps/${id}`);
+      const res = await adminFetch(`/api/saved-maps/${id}`);
       const data = await res.json();
       if (data.error) return;
 
@@ -103,7 +108,7 @@ export function useSavedMaps({ zoneData, setZoneData }: UseSavedMapsOpts) {
   };
 
   const deleteMap = async (id: string) => {
-    await fetch(`/api/saved-maps?id=${id}`, { method: 'DELETE' });
+    await adminFetch(`/api/saved-maps?id=${id}`, { method: 'DELETE' });
     setSavedMaps(prev => prev.filter(m => m.id !== id));
   };
 

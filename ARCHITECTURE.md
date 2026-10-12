@@ -1677,7 +1677,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 ### Export & Sauvegarde
 | Route | Methode | Description |
 |-------|---------|-------------|
-| `/api/saved-maps` | GET/POST/DELETE | Sauvegarde/charge etat carte |
+| `/api/saved-maps` | GET/POST/DELETE | Sauvegarde/charge etat carte. ⚠ **Jamais fonctionnelle en local, constate le 2026-10-12** (preuve navigateur du lot 4 de la suppression de l'IA) : (1) les routes exigent l'en-tete `Authorization` (`requireAuth`) mais `useSavedMaps` appelait par `fetch` nu → 401 sur tout ; corrige (`adminFetch`). (2) **POST rend toujours 500** : la route ecrit `voronoi_data`, colonne ABSENTE de la table `saved_maps` locale (aucune migration ne la cree ; 0 ligne en table). Non corrige — c'est une migration. La relecture (GET + chargement) marche. Le seul ecran de sauvegarde/chargement vit dans `ChatPanel` (geo.prompt) : il disparait au lot 5 |
 | `/api/saved-maps/[id]` | GET/PUT/DELETE | Acces/modification/suppression |
 | `/api/inngest` | POST | Webhook Inngest |
 
