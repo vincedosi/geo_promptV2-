@@ -4,6 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ConfigService } from '../../../core/config/config.service';
 import { formaterNombre } from '../../../core/format/nombre';
 import { FraicheurApi, type ReponseFraicheur, type SourceAffichee } from './data/fraicheur.api';
+import { FraicheurEtatService } from './etat/fraicheur-etat.service';
 import { FraicheurComponent } from './fraicheur.component';
 
 const URL = '/api/admin/fraicheur-donnees';
@@ -45,7 +46,7 @@ describe('FraicheurComponent', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(), provideHttpClientTesting(), FraicheurApi,
+        provideHttpClient(), provideHttpClientTesting(), FraicheurApi, FraicheurEtatService,
         { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       ],
     });
@@ -96,6 +97,32 @@ describe('FraicheurComponent', () => {
     expect(texte('tbody tr:nth-child(5) [data-etat]')).toBe('il y a 4 mois');
     expect(texte('tbody tr:nth-child(5) [data-lignes]')).toBe('—');
     expect(el.querySelectorAll('[data-legende] [data-nature]').length).toBe(4);
+  });
+
+  it('sous-titre de React en tête de l’onglet (remonté de l’en-tête du Health check)', () => {
+    charge();
+    expect(texte('[data-sous-titre]')).toBe('D’où vient chaque donnée, comment elle entre, et de quand elle date');
+  });
+
+  it('écran détruit puis recréé (retour sur l’onglet) : le relevé est réaffiché sans nouveau GET', () => {
+    charge();
+    f.destroy();
+    const retour = TestBed.createComponent(FraicheurComponent);
+    retour.detectChanges();
+    http.expectNone(URL);
+    expect((retour.nativeElement as HTMLElement).querySelectorAll('tbody tr').length).toBe(5);
+  });
+
+  it('une mesure lancée survit au changement d’onglet : son résultat est affiché au retour', () => {
+    charge();
+    relancer().click();
+    const req = http.expectOne(URL);
+    f.destroy();
+    req.flush({ ...reponse(), dureeMs: 88, persiste: true });
+    const retour = TestBed.createComponent(FraicheurComponent);
+    retour.detectChanges();
+    http.expectNone(URL);
+    expect((retour.nativeElement as HTMLElement).querySelector('[data-releve]')?.textContent).toContain('· 88 ms');
   });
 
   it('aucun relevé : phrase de React', () => {

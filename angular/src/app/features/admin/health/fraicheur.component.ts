@@ -1,9 +1,8 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
-import type { Subscription } from 'rxjs';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { formaterNombre } from '../../../core/format/nombre';
 import type { EtatFraicheur, NatureSource } from '../logique/types/fraicheur';
-import { FraicheurApi, type ReponseFraicheur, type SourceAffichee } from './data/fraicheur.api';
+import type { SourceAffichee } from './data/fraicheur.api';
+import { FraicheurEtatService } from './etat/fraicheur-etat.service';
 
 /** `LIBELLE_NATURE` (`FraicheurPanel.tsx:67-72`), dans l'ordre de la légende. */
 const LIBELLE_NATURE: Record<NatureSource, string> = {
@@ -53,12 +52,6 @@ function formaterDate(valeur: string | null): string {
   return d.toLocaleDateString('fr-FR');
 }
 
-/** Message d'un échec : le `error` du corps (celui du SERVEUR, 429 compris), sinon le repli de React. */
-function messageEchec(e: unknown, repli: string): string {
-  const corps = e instanceof HttpErrorResponse ? (e.error as { error?: unknown } | null) : null;
-  return corps && typeof corps === 'object' && typeof corps.error === 'string' && corps.error ? corps.error : repli;
-}
-
 interface LigneAffichee {
   id: string;
   libelle: string;
@@ -102,8 +95,12 @@ function ligne(s: SourceAffichee): LigneAffichee {
 }
 
 /**
- * Onglet « Fraîcheur données » de `/admin/health` — portage de
- * `app/admin/health/_components/FraicheurPanel.tsx`.
+ * Onglet « Fraîcheur des données » de la page Système (`admin/systeme/fraicheur`, lot 6 T6 ;
+ * onglet « Fraîcheur données » de `/admin/health` en React) — portage de
+ * `app/admin/health/_components/FraicheurPanel.tsx`, précédé du sous-titre que React affiche
+ * sous l'en-tête de la page quand cet onglet est ouvert (`page.tsx:217-224`).
+ * Son état (relevé, mesure en cours, erreur) est porté par `FraicheurEtatService`, fourni par la
+ * page Système : l'écran est détruit à chaque changement d'onglet, le relevé ne l'est pas.
  *
  * À l'ouverture : UNE lecture du relevé persisté (GET), aucune mesure. Deux boutons, comme
  * React : « Relancer la mesure » (passe légère, < 15 Mo) et « Mesurer » sur la ligne du flux
@@ -161,16 +158,13 @@ function ligne(s: SourceAffichee): LigneAffichee {
   `],
 })
 export class FraicheurComponent {
-  private readonly api = inject(FraicheurApi);
-  private appel: Subscription | null = null;
+  private readonly etat = inject(FraicheurEtatService);
 
-  protected readonly donnees = signal<ReponseFraicheur | null>(null);
-  protected readonly chargement = signal(true);
-  protected readonly mesureEnCours = signal<'leger' | 'lourd' | null>(null);
-  protected readonly erreur = signal<string | null>(null);
-
-  /** Boutons désactivés : `mesureEnCours !== null || chargement` (l.237, l.335). */
-  protected readonly occupe = computed(() => this.mesureEnCours() !== null || this.chargement());
+  protected readonly donnees = this.etat.donnees;
+  protected readonly chargement = this.etat.chargement;
+  protected readonly mesureEnCours = this.etat.mesureEnCours;
+  protected readonly erreur = this.etat.erreur;
+  protected readonly occupe = this.etat.occupe;
   protected readonly lignes = computed(() => (this.donnees()?.sources ?? []).map(ligne));
   protected readonly enRetard = computed(() => (this.donnees()?.sources ?? []).filter((s) => s.etat === 'en_retard').length);
   protected readonly jamais = computed(() => (this.donnees()?.sources ?? []).filter((s) => s.etat === 'jamais_mesure').length);
@@ -188,36 +182,13 @@ export class FraicheurComponent {
   }));
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.appel?.unsubscribe());
-    this.appel = this.api.lire().subscribe({
-      next: (r) => {
-        this.donnees.set(r);
-        this.chargement.set(false);
-      },
-      error: (e: unknown) => {
-        this.erreur.set(messageEchec(e, 'Lecture impossible.'));
-        this.chargement.set(false);
-      },
-    });
+    // Le relevé vit dans `FraicheurEtatService` (fourni par la page Système) : lu à la PREMIÈRE
+    // ouverture de l'onglet, gardé ensuite — revenir sur l'onglet ne le relit pas.
+    this.etat.assurer();
   }
 
-  /** `mesurer` (l.157-176) : UNE mesure à la fois ; jamais de relance automatique. */
+  /** « Relancer la mesure » / « Mesurer » : délégué à l'état (UNE mesure à la fois). */
   protected mesurer(inclureLourd: boolean): void {
-    if (this.occupe()) return;
-    this.mesureEnCours.set(inclureLourd ? 'lourd' : 'leger');
-    this.erreur.set(null);
-    this.appel = this.api.mesurer(inclureLourd).subscribe({
-      next: (r) => {
-        this.donnees.set(r);
-        if (r.persiste === false) {
-          this.erreur.set('Mesure faite, mais elle n’a pas pu être enregistrée : elle sera perdue au rechargement.');
-        }
-        this.mesureEnCours.set(null);
-      },
-      error: (e: unknown) => {
-        this.erreur.set(messageEchec(e, 'La mesure a échoué.'));
-        this.mesureEnCours.set(null);
-      },
-    });
+    this.etat.mesurer(inclureLourd);
   }
 }

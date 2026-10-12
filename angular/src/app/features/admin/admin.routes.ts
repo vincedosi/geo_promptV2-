@@ -18,7 +18,7 @@ export const FOURNISSEURS_ADMIN: Provider[] = [RoleAdminService, HealthApi, Frai
 
 /**
  * L'administration (lot 6), enfant de la coquille comme `/admin/*` en React (arbitrage C1).
- * `admin` seul mène à `health` (React répond 404 sur `/admin` : une page vide dans un hôte serait
+ * `admin` seul mène à `systeme` (React répond 404 sur `/admin` : une page vide dans un hôte serait
  * pire). `runGuardsAndResolvers: 'always'` : le garde rejoue `charger()` à chaque navigation —
  * idempotent pour une même session, il relit le rôle si l'utilisateur a changé.
  */
@@ -30,12 +30,34 @@ export const ROUTES_ADMIN: Routes = [
     canActivate: [roleResoluGuard],
     runGuardsAndResolvers: 'always',
     children: [
-      { path: '', pathMatch: 'full', redirectTo: 'health' },
-      { path: 'health', loadComponent: () => import('./health/health.page').then((m) => m.HealthPage) },
+      { path: '', pathMatch: 'full', redirectTo: 'systeme' },
+      // Trois pages à onglets (amendement du 2026-10-12) : Accès, Données, Système. Chaque onglet est
+      // une sous-route RELATIVE de sa page (lien partageable, retour arrière juste) ; un onglet
+      // n'existe que lorsque son écran est porté.
       {
-        path: 'qualite-donnees',
-        loadComponent: () => import('./qualite-donnees/qualite-donnees.page').then((m) => m.QualiteDonneesPage),
+        path: 'systeme',
+        loadComponent: () => import('./systeme/systeme.page').then((m) => m.SystemePage),
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'sante' },
+          { path: 'sante', loadComponent: () => import('./health/health.page').then((m) => m.HealthPage) },
+          { path: 'fraicheur', loadComponent: () => import('./health/fraicheur.component').then((m) => m.FraicheurComponent) },
+        ],
       },
+      {
+        path: 'donnees',
+        loadComponent: () => import('./donnees/donnees.page').then((m) => m.DonneesPage),
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'qualite' },
+          {
+            path: 'qualite',
+            loadComponent: () => import('./qualite-donnees/qualite-donnees.page').then((m) => m.QualiteDonneesPage),
+          },
+        ],
+      },
+      // Les anciennes adresses (segments recopiés de React, C1) restent valables. `redirectTo` RELATIF
+      // (sans `/`) : il reste sous le préfixe de montage, qui appartient au shell.
+      { path: 'health', pathMatch: 'full', redirectTo: 'systeme' },
+      { path: 'qualite-donnees', pathMatch: 'full', redirectTo: 'donnees/qualite' },
       // Accès (« Espaces de travail » du 2026-10-09 au 2026-10-10) : une colonne persistante (la
       // page) et la fiche en enfant. `EspacesEtatService` est fourni par la page, détruit avec elle.
       // Les noms internes (dossier `espaces/`, `EspacesPage`) n'ont pas changé. Chemins fixes

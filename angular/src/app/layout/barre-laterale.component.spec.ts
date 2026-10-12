@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { MODE_DEVELOPPEMENT } from '../core/environnement/mode-developpement';
 import { BarreLateraleComponent } from './barre-laterale.component';
+import { PAGES_ADMINISTRATION, SECTIONS_NAVIGATION, sectionsRendues } from './navigation';
 
 async function rendre(options: { dev?: boolean } = {}): Promise<HTMLElement> {
   TestBed.configureTestingModule({
@@ -21,31 +22,31 @@ const entrees = (el: HTMLElement, section: string) =>
   [...el.querySelectorAll(`[data-section="${section}"] a`)].map((a) => texte(a.querySelector('span')));
 
 describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
-  it('reprend les sections de React, dans l\'ordre, avec les libellés exacts', async () => {
+  it('reprend les sections de React, dans l\'ordre, avec les libellés exacts — administration regroupée au rendu', async () => {
     const el = await rendre({ dev: false });
     expect(titres(el)).toEqual(['Campagnes', 'Carte', 'Administration', 'Systeme']);
     expect(entrees(el, 'Campagnes')).toEqual(['Gestion campagnes']);
     expect(entrees(el, 'Carte')).toEqual(['Explorer', 'Zones custom']);
+    // Lot 6, T6 (amendement du 2026-10-12) : les trois pages à onglets en tête, puis les écrans React
+    // pas encore portés, inchangés. « Accès » (E6) quitte « Systeme » pour rejoindre ses deux sœurs.
     expect(entrees(el, 'Administration')).toEqual([
+      'Accès', 'Données', 'Système',
       'Import Shapefile', 'Import POI', 'Import OOH', 'IRIS Crawler', 'Radio FM/DAB+', 'Connexions API',
     ]);
-    // « Users » et « Organisations » remplacées par « Accès » : écart VOULU à React
-    // (spec espaces de travail 2026-10-08 § 6, décision E6).
-    expect(entrees(el, 'Systeme')).toEqual([
-      'Sources', 'Accès', 'Imports', 'Health check', 'Qualite des donnees',
-    ]);
+    // « Health check » et « Qualite des donnees » ne sont plus rendues : onglets de Système et Données.
+    expect(entrees(el, 'Systeme')).toEqual(['Sources', 'Imports']);
   });
 
-  it('badges « Admin » sur les six entrées d\'administration, « Sys » sur les deux dernières du système', async () => {
+  it('badges « Admin » sur les six écrans d\'administration non portés ; aucun sur les trois pages ; plus de « Sys »', async () => {
     const el = await rendre({ dev: false });
     const badges = [...el.querySelectorAll('[data-badge]')].map((b) => texte(b));
-    expect(badges).toEqual(['Admin', 'Admin', 'Admin', 'Admin', 'Admin', 'Admin', 'Sys', 'Sys']);
+    expect(badges).toEqual(['Admin', 'Admin', 'Admin', 'Admin', 'Admin', 'Admin']);
   });
 
   it('chaque entrée porte son icône lucide 16 px, trait 1,5 (comme `size={16} strokeWidth={1.5}`)', async () => {
     const el = await rendre({ dev: false });
     const svgs = [...el.querySelectorAll('nav a mg-icone svg')];
-    // 14 et non 15 : deux entrées React remplacées par une (spec espaces de travail § 6, E6).
+    // 14 : 15 de React − Users − Organisations − Health check − Qualité + Accès, Données, Système.
     expect(svgs.length).toBe(14);
     for (const svg of svgs) {
       expect(svg.getAttribute('width')).toBe('16');
@@ -60,30 +61,40 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     expect(explorer.hasAttribute('aria-disabled')).toBe(false);
   });
 
-  it('« Health check » mène à l’administration (lot 6, T3), par un lien RELATIF', async () => {
+  it('« Accès », « Données », « Système » mènent à leurs pages (lot 6, T6), par des liens RELATIFS', async () => {
     const el = await rendre({ dev: false });
-    const health = [...el.querySelectorAll('[data-section="Systeme"] a')].find((a) => texte(a.querySelector('span')) === 'Health check')!;
-    expect(health.getAttribute('href')).toBe('/admin/health');
-    expect(health.hasAttribute('aria-disabled')).toBe(false);
+    const lien = (libelle: string) =>
+      [...el.querySelectorAll('[data-section="Administration"] a')].find((a) => texte(a.querySelector('span')) === libelle)!;
+    expect(lien('Accès').getAttribute('href')).toBe('/admin/acces');
+    expect(lien('Données').getAttribute('href')).toBe('/admin/donnees');
+    expect(lien('Système').getAttribute('href')).toBe('/admin/systeme');
+    for (const l of ['Accès', 'Données', 'Système']) expect(lien(l).hasAttribute('aria-disabled')).toBe(false);
   });
 
-  it('« Qualite des donnees » mène à l’administration (lot 6, T5), par un lien RELATIF', async () => {
-    const el = await rendre({ dev: false });
-    const qualite = [...el.querySelectorAll('[data-section="Systeme"] a')].find((a) => texte(a.querySelector('span')) === 'Qualite des donnees')!;
-    expect(qualite.getAttribute('href')).toBe('/admin/qualite-donnees');
-    expect(qualite.hasAttribute('aria-disabled')).toBe(false);
+  it('icônes des trois pages : utilisateurs (Accès), base de données (Données), activité (Système)', () => {
+    expect(PAGES_ADMINISTRATION.map((p) => [p.libelle, p.icone, p.badge])).toEqual([
+      ['Accès', 'utilisateurs', undefined], ['Données', 'base-de-donnees', undefined], ['Système', 'activite', undefined],
+    ]);
   });
 
-  it('« Accès » mène à `admin/acces` (spec espaces de travail § 6 et § 11, E6), par un lien RELATIF', async () => {
-    const el = await rendre({ dev: false });
-    const espaces = [...el.querySelectorAll('[data-section="Systeme"] a')].find((a) => texte(a.querySelector('span')) === 'Accès')!;
-    expect(espaces.getAttribute('href')).toBe('/admin/acces');
-    expect(espaces.hasAttribute('aria-disabled')).toBe(false);
+  it('regroupement : une entrée qui reçoit sa `cible` quitte la barre (son écran devient un onglet), une section vidée disparaît', () => {
+    const rendu = sectionsRendues([
+      { section: 'Administration', entrees: [{ href: '/admin/x', libelle: 'X', icone: 'radio', cible: 'admin/donnees/x' }] },
+      { section: 'Systeme', entrees: [{ href: '/admin/y', libelle: 'Y', icone: 'radio', cible: 'admin/systeme/y' }] },
+      { section: 'Carte', entrees: [{ href: '/map', libelle: 'Explorer', icone: 'epingle-carte', cible: 'carte' }] },
+    ]);
+    expect(rendu.map((s) => [s.section, s.entrees.map((e) => e.libelle)])).toEqual([
+      ['Administration', ['Accès', 'Données', 'Système']],
+      ['Carte', ['Explorer']],
+    ]);
+    // La copie verbatim de React n'est PAS modifiée : Health check et Qualité y sont toujours.
+    const systeme = SECTIONS_NAVIGATION.find((s) => s.section === 'Systeme')!;
+    expect(systeme.entrees.map((e) => e.libelle)).toEqual(['Sources', 'Accès', 'Imports', 'Health check', 'Qualite des donnees']);
   });
 
   it('les écrans pas encore portés sont INERTES : aria-disabled, infobulle, aucun lien', async () => {
     const el = await rendre({ dev: false });
-    const portes = ['Explorer', 'Health check', 'Qualite des donnees', 'Accès'];
+    const portes = ['Explorer', 'Accès', 'Données', 'Système'];
     const liens = [...el.querySelectorAll('nav a')].filter((a) => !portes.includes(texte(a.querySelector('span'))));
     expect(liens.length).toBe(10);
     for (const a of liens) {
