@@ -179,7 +179,7 @@ export class Dv360Page {
     return new Promise<T>((resoudre, rejeter) => {
       const s = source.subscribe({
         next: (v) => resoudre(v),
-        error: (e: unknown) => { this.lectures.delete(s); rejeter(e); },
+        error: (e: unknown) => { rejeter(e); this.lectures.delete(s); },
         complete: () => this.lectures.delete(s),
       });
       if (!s.closed) this.lectures.add(s);

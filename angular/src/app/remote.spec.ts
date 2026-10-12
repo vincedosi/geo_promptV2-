@@ -575,4 +575,3 @@ describe('administration (lot 6)', () => {
     expect(TestBed.inject(Router).url).toBe('/hote/magelian/admin/systeme/api/ttd');
   });
 });
-
