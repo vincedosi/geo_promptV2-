@@ -130,6 +130,31 @@ describe('PanneauAnalyseComponent (PanneauAnalyse.tsx, T17)', () => {
     m.http.verify();
   });
 
+  it('filtre code postal ou zone : les deux batailles sont REFUSÉES, zéro requête (défaut React corrigé, registre ligne 71)', async () => {
+    const m = await monter({ filtre: { type: 'cp', code: '13001', label: '13001' } });
+    await ouvrirOutil(m, 'mg-outil-isochrones');
+    await m.cliquer('mg-outil-isochrones [data-lancer]');
+    expect(m.el.querySelector('[data-garde]')!.textContent!.trim()).toBe(
+      '! La bataille isochrone ne sait pas encore se borner à un code postal — choisissez une commune, un département ou une région.',
+    );
+    await m.cliquer('mg-outil-isochrones [data-verifier-cache]');
+    await m.cliquer('mg-outil-bataille-v2 [data-entete-outil]');
+    await m.cliquer('mg-outil-bataille-v2 [data-lancer]');
+    await m.cliquer('mg-outil-bataille-v2 [data-verifier-cache]');
+    m.http.verify();
+
+    m.etat.filtre.set({ type: 'zone', code: 'z-1', label: 'Ma zone' });
+    await m.fixture.whenStable();
+    await m.cliquer('mg-outil-bataille-v2 [data-lancer]');
+    expect(m.el.querySelector('[data-garde]')!.textContent).toContain('ne sait pas encore se borner à une zone enregistrée');
+    m.http.verify();
+
+    // Un filtre que la bataille transmet lève le refus.
+    m.etat.filtre.set(DEPT_13);
+    await m.fixture.whenStable();
+    expect(m.el.querySelector('[data-garde]')).toBeNull();
+  });
+
   it('le message de garde s’efface dès qu’un filtre est posé', async () => {
     const m = await monter({ filtre: null });
     await ouvrirOutil(m, 'mg-outil-isochrones');

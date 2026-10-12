@@ -1,6 +1,6 @@
 import {
   basculerPalier, corpsBatailleV1, corpsVerification, libelleTerritoire, parametresRemplissage, parametresV1, parametresV2,
-  territoireDuFiltre, type ContexteBataille,
+  messageRefusTerritoireBataille, territoireDuFiltre, type ContexteBataille,
 } from './parametres';
 
 const DEPT_13: ContexteBataille = {
@@ -14,6 +14,15 @@ describe('paramètres de bataille (use-isochrone-battle.ts)', () => {
     expect(territoireDuFiltre({ type: 'commune', code: '13055', label: 'Marseille' })).toEqual({ ville: 'Marseille', regions: [], depts: [] });
     expect(territoireDuFiltre({ type: 'cp', code: '13001', label: '13001' })).toEqual({ ville: '', regions: [], depts: [] });
     expect(territoireDuFiltre(null)).toEqual({ ville: '', regions: [], depts: [] });
+  });
+
+  it('refus d’un filtre non transmis : code postal et zone refusés, nommés ; les filtres transmis et les autres → null', () => {
+    expect(messageRefusTerritoireBataille({ type: 'cp', code: '13001', label: '13001' })).toContain('à un code postal');
+    expect(messageRefusTerritoireBataille({ type: 'zone', code: 'z', label: 'Z' })).toContain('à une zone enregistrée');
+    for (const type of ['commune', 'departement', 'region', 'france'] as const) {
+      expect(messageRefusTerritoireBataille({ type, code: 'x', label: 'x' })).toBeNull();
+    }
+    expect(messageRefusTerritoireBataille(null)).toBeNull();
   });
 
   it('corps de vérification du cache : mêmes clés que buildCheckParams, les absentes non envoyées', () => {

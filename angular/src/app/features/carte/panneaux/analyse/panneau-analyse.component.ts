@@ -10,6 +10,7 @@ import { EtatCarteService } from '../../etat/etat-carte.service';
 import { ReferentielGeoService } from '../../etat/referentiel-geo.service';
 import { ScoreCompositeService } from '../../etat/score-composite.service';
 import type { FiltreActif } from '../../logique/filtre';
+import { messageRefusTerritoireBataille } from '../../logique/bataille/parametres';
 import { type OutilAnalyse, messageGardeOutil, messageGardePerimetre } from '../../logique/garde-perimetre';
 import { ISO_MODES } from '../../logique/modes-isochrones';
 import type { CorpsLancementClustering } from '../../logique/clustering/assistant';
@@ -53,7 +54,9 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
  * fourni ICI : fermer le panneau les perd, comme React ; le score peint reste sur la carte (`ScoreService`, page).
  *
  * Le territoire des batailles vient du FILTRE (`ContexteBatailleService`), pas du sélecteur de périmètre, code mort
- * côté React depuis la refonte du panneau Filtre.
+ * côté React depuis la refonte du panneau Filtre. Un filtre code postal ou zone passe la garde mais n'est PAS transmis
+ * à la bataille : React la lançait alors sur toute la métropole. Ici, elle est REFUSÉE avec un message
+ * (`messageRefusTerritoireBataille`) — défaut React corrigé, revue finale du lot 4 (registre, ligne 71).
  */
 @Component({
   selector: 'mg-panneau-analyse',
@@ -169,9 +172,16 @@ export class PanneauAnalyseComponent {
     this.outilOuvert.update((o) => (o === outil ? null : outil));
   }
 
-  /** La garde, pour UN outil : le message affiché, `true` si le calcul peut partir (`messageGardeOutil`). */
+  /**
+   * La garde, pour UN outil : le message affiché, `true` si le calcul peut partir (`messageGardeOutil`). Les deux
+   * batailles refusent EN PLUS un filtre qu'elles ne savent pas transmettre (code postal, zone) : sans lui, elles
+   * partiraient sur toute la métropole (`messageRefusTerritoireBataille`, défaut React corrigé). L'application de la
+   * bataille n'est pas concernée : elle découpe des anneaux déjà calculés, sans territoire.
+   */
   protected verifierPerimetreOutil(outil: OutilAnalyse): boolean {
-    const message = messageGardeOutil(outil, this.etat.filtre());
+    const filtre = this.etat.filtre();
+    const bataille = outil === 'bataille_v1' || outil === 'bataille_v2';
+    const message = messageGardeOutil(outil, filtre) ?? (bataille ? messageRefusTerritoireBataille(filtre) : null);
     this.gardeMessage.set(message);
     return message === null;
   }

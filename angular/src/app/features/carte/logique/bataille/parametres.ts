@@ -4,7 +4,9 @@
  *
  * Le territoire de la bataille ne vient PAS du sélecteur de périmètre (code mort depuis la refonte du panneau Filtre,
  * `PanneauAnalyse.tsx:66-75`) mais du FILTRE UNIQUE : une commune donne la ville, une région ou un département leur
- * code. Les autres filtres (code postal, zone, France) ne restreignent rien — comme React.
+ * code. Les autres filtres (code postal, zone, France) ne restreignent rien — comme React. Mais un code postal ou une
+ * zone sont un périmètre CHOISI, qui passe la garde : la bataille partait alors sur toute la métropole, un calcul national
+ * (appels ORS, I/O) que l'utilisateur croyait local. `messageRefusTerritoireBataille` le refuse (écart voulu, ci-dessous).
  */
 import type { FiltreActif } from '../filtre';
 import type { DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams } from '../modes-isochrones';
@@ -37,6 +39,24 @@ export function territoireDuFiltre(filtre: FiltreActif | null): TerritoireBatail
     regions: filtre?.type === 'region' ? [filtre.code] : [],
     depts: filtre?.type === 'departement' ? [filtre.code] : [],
   };
+}
+
+/**
+ * Le refus d'un filtre que la bataille ne sait PAS transmettre — code postal ou zone enregistrée — `null` si le filtre
+ * est transmis (commune, département, région) ou déjà jugé par `messageGardeOutil` (absent, France entière).
+ *
+ * DÉFAUT REACT CORRIGÉ (revue finale du lot 4, arbitrage de la ligne 71 du registre inversé par le contrôleur) : React
+ * laissait ce filtre passer la garde puis l'ignorait — `territoireDuFiltre` ne rend alors aucun territoire, et la
+ * bataille portait sur toute la métropole. Le refus le dit au lieu de calculer autre chose que ce qui est demandé.
+ */
+export function messageRefusTerritoireBataille(filtre: FiltreActif | null): string | null {
+  if (filtre?.type === 'cp') {
+    return 'La bataille isochrone ne sait pas encore se borner à un code postal — choisissez une commune, un département ou une région.';
+  }
+  if (filtre?.type === 'zone') {
+    return 'La bataille isochrone ne sait pas encore se borner à une zone enregistrée — choisissez une commune, un département ou une région.';
+  }
+  return null;
 }
 
 /** Une copie triée par ordre croissant (`[...x].sort((a, b) => a - b)`). */
