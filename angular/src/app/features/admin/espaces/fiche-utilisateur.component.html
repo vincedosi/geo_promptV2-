@@ -1,0 +1,118 @@
+<dialog
+  #dialogue
+  [attr.aria-labelledby]="idTitre"
+  (cancel)="surAnnulationNative($event)"
+  (close)="surFermeture()"
+  (click)="surClic($event)"
+  (keydown.escape)="$event.stopPropagation()"
+>
+  <div class="boite">
+    <header>
+      <p class="surtitre">Fiche utilisateur</p>
+      <h2 [id]="idTitre" class="titre">{{ membre().email }}</h2>
+    </header>
+
+    <section class="bloc">
+      <label class="libelle" [for]="idNom">Nom</label>
+      <div class="rangee">
+        <input
+          [id]="idNom" data-nom type="text" maxlength="200" autocomplete="off"
+          [value]="nom()" [disabled]="enCours()" (input)="saisirNom($event)"
+        />
+        <button type="button" data-enregistrer-nom class="bouton neutre" [disabled]="enCours()" (click)="enregistrerNom()">Enregistrer</button>
+      </div>
+    </section>
+
+    <fieldset class="bloc" [disabled]="enCours() || estMoi()">
+      <legend class="libelle">Rôle</legend>
+      <div class="radios" [attr.title]="estMoi() ? titreSoiMeme : null">
+        @for (r of roles(); track r.valeur) {
+          <label class="choix">
+            <input type="radio" [name]="nomGroupe" [value]="r.valeur" [checked]="r.coche" [disabled]="enCours() || estMoi()" (change)="choisirRole($event)" />
+            <span>{{ r.libelle }}</span>
+          </label>
+        }
+      </div>
+    </fieldset>
+
+    <fieldset class="bloc" [disabled]="enCours()">
+      <legend class="libelle">Espaces</legend>
+      <div class="cases">
+        @for (e of lignesEspaces(); track e.id) {
+          <label class="choix">
+            <input type="checkbox" [attr.data-espace]="e.id" [checked]="e.coche" (change)="basculer(e.id, $event)" />
+            <span>{{ e.nom }}</span>
+          </label>
+        }
+      </div>
+      <label class="libelle" [for]="idActif">Espace actif</label>
+      <select [id]="idActif" data-actif (change)="choisirActif($event)">
+        @for (o of optionsActif(); track o.id) {
+          <option [value]="o.id" [selected]="o.choisi">{{ o.nom }}</option>
+        }
+        <option value="" [selected]="aucunActif()">Aucun (socle seul)</option>
+      </select>
+      @if (erreurEspaces(); as m) {
+        <p role="alert" data-erreur-espaces class="erreur">{{ m }}</p>
+      }
+      <div class="rangee fin">
+        <button type="button" data-enregistrer-espaces class="bouton teal" (click)="enregistrerEspaces()">{{ libelleEspaces() }}</button>
+      </div>
+    </fieldset>
+
+    <section class="bloc">
+      <p class="libelle">Mot de passe</p>
+      <div class="rangee entre">
+        <p class="aide">Lien d'usage unique, à transmettre à la personne.</p>
+        <button
+          #boutonLien type="button" data-lien-mot-de-passe class="bouton neutre"
+          [disabled]="enCours() || lienEnCours()"
+          (click)="demanderLien()"
+        >Lien de mot de passe</button>
+      </div>
+    </section>
+
+    <section class="danger">
+      <div>
+        <p class="danger-titre">Zone dangereuse</p>
+        <p class="danger-texte">La suppression du compte est définitive.</p>
+      </div>
+      <button
+        type="button" data-supprimer class="bouton supprimer"
+        [disabled]="enCours() || lienEnCours() || estMoi()"
+        [attr.title]="estMoi() ? titreSoiMeme : null"
+        (click)="confirmationSuppression.set(true)"
+      >Supprimer le compte</button>
+    </section>
+
+    <div class="rangee fin">
+      <button type="button" data-fermer class="bouton neutre" [disabled]="enCours()" (click)="demanderFermeture()">Fermer</button>
+    </div>
+  </div>
+</dialog>
+
+<mg-confirmation
+  data-confirmation-role
+  [ouvert]="roleVise() !== null"
+  [titre]="confirmationRoleTextes().titre"
+  [message]="confirmationRoleTextes().message"
+  [libelleConfirmer]="confirmationRoleTextes().bouton"
+  [variante]="confirmationRoleTextes().variante"
+  [enCours]="ecritureRole()"
+  (confirmer)="confirmerRole()"
+  (annuler)="annulerRole()"
+/>
+<mg-confirmation
+  data-confirmation-suppression
+  variante="danger"
+  [ouvert]="confirmationSuppression()"
+  [titre]="titreSuppression()"
+  message="Ses zones et jeux de zones restent en base, sans auteur."
+  libelleConfirmer="Supprimer le compte"
+  [enCours]="suppression()"
+  (confirmer)="supprimer()"
+  (annuler)="annulerSuppression()"
+/>
+@if (lien(); as l) {
+  <mg-dialogue-lien [lien]="l" [email]="membre().email" (fermer)="fermerLien()" />
+}

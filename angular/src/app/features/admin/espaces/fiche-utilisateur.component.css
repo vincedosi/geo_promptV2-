@@ -1,0 +1,38 @@
+dialog {
+  margin: auto; padding: 0; max-width: 560px; width: calc(100% - 32px); max-height: calc(100% - 32px);
+  background: var(--bg-surface); color: inherit; border: 0.5px solid var(--border-default); border-radius: 12px;
+}
+dialog[open] { animation: entree 240ms var(--ease-out); }
+dialog::backdrop { background: color-mix(in srgb, black 85%, transparent); backdrop-filter: blur(4px); }
+@keyframes entree { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+.boite { padding: 24px; display: flex; flex-direction: column; gap: 18px; font-family: var(--font-sans); }
+.surtitre { margin: 0 0 2px; font-size: 11px; color: var(--text-tertiary); }
+.titre { margin: 0; font-size: 16px; font-weight: 500; color: var(--text-primary); word-break: break-all; }
+.bloc { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; border: none; min-width: 0; }
+.libelle { padding: 0; font-size: 12px; color: var(--text-tertiary); }
+.rangee { display: flex; gap: 8px; align-items: center; }
+.rangee.fin { justify-content: flex-end; }
+.rangee.entre { justify-content: space-between; }
+.aide, p.libelle { margin: 0; }
+.aide { font-size: 12px; color: var(--text-tertiary); }
+input[type='text'], select {
+  flex: 1; min-width: 0;
+  background: var(--bg-level-2); border: 0.5px solid var(--border-subtle); border-radius: 6px;
+  padding: 8px 12px; font-family: var(--font-sans); font-size: 13px; color: var(--text-primary); outline: none;
+}
+input[type='text']:focus, select:focus { border-color: var(--brand-teal-50); }
+input:disabled, select:disabled { opacity: 0.6; }
+.radios { display: flex; gap: 20px; }
+.cases {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 16px;
+  max-height: 180px; overflow-y: auto;
+}
+.choix { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer; }
+.choix input { accent-color: var(--brand-teal); margin: 0; }
+fieldset:disabled .choix { cursor: not-allowed; opacity: 0.6; }
+.erreur {
+  margin: 0; padding: 10px 12px; border-radius: 6px; font-size: 12px; color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  border: 0.5px solid color-mix(in srgb, var(--danger) 20%, transparent);
+}
+@media (prefers-reduced-motion: reduce) { dialog[open] { animation: none; } }
