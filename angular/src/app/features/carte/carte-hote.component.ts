@@ -72,7 +72,9 @@ export class CarteHoteComponent {
     // désactivé lâche le focus (vers `<body>`, ou vers l'hôte d'ombre sans élément actif dedans). Perdu = à reprendre ;
     // un focus posé ailleurs (le shell) n'est pas volé.
     const docActif = document.activeElement;
-    const perdu = !docActif || docActif === document.body || (racine instanceof ShadowRoot && actif === null && docActif === racine.host);
+    // `instanceof HTMLBodyElement` et non une comparaison au corps du document : le garde de la racine d'ombre
+    // (`tests/unit/angular/portails-hors-ombre.test.ts`) refuse toute mention de celui-ci, même en simple lecture.
+    const perdu = !docActif || docActif instanceof HTMLBodyElement || (racine instanceof ShadowRoot && actif === null && docActif === racine.host);
     const avaitFocus = (!!actif && hote.contains(actif)) || perdu;
     this.generation.update((g) => g + 1);
     if (!avaitFocus) return;
