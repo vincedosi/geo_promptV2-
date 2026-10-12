@@ -30,7 +30,6 @@ export const N_PALIERS = 6;
 
 /** Les jetons d'interface de la couche, lus par `CouleursService.palette`. */
 export const JETONS_CARREAUX = { absente: 'donnee-absente', trait: 'carreaux-contour' } as const;
-export type CouleursCarreaux = Record<keyof typeof JETONS_CARREAUX, string>;
 
 /** La surface de MapLibre que la couche emploie. */
 export type CarteCarreaux = Pick<

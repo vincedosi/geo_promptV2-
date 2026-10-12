@@ -34,7 +34,6 @@ export const COULEUR_PROVISOIRE_IRIS = IRIS_PALETTES[0].stops[3];
 
 /** Les jetons d'interface de la couche. */
 export const JETONS_IRIS = { absente: 'donnee-absente', trait: 'iris-contour' } as const;
-export type CouleursIris = Record<keyof typeof JETONS_IRIS, string>;
 
 /** La surface de MapLibre que la couche emploie. */
 export type CarteIris = Pick<
