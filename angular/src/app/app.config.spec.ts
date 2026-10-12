@@ -37,8 +37,12 @@ const attendre = () => new Promise((r) => setTimeout(r, 0));
  * d'ombre, coquille) : seuls, ils prennent quelques centaines de millisecondes ; dans la suite complète, exécutée en
  * parallèle sur tous les cœurs, l'un d'eux a été mesuré à 6 170 ms — au-delà des 5 000 ms par défaut de Vitest,
  * sans le moindre défaut de code. Le délai couvre la charge ; les attentes, elles, portent sur des conditions.
+ *
+ * 30 s depuis la revue finale du lot 4 (M-1, 2026-10-12) : à 15 s, « un SIGNED_OUT de GoTrue… renvoie vers /connexion »
+ * a dépassé le délai dans la suite complète sur un hôte à court de RAM (« environment 9 186 s » au rapport Vitest),
+ * alors qu'il passe seul. C'est la CHARGE DE L'HÔTE qui est couverte, pas un défaut : ne pas redescendre ce délai.
  */
-const DELAI_DEMARRAGE_REEL = 15_000;
+const DELAI_DEMARRAGE_REEL = 30_000;
 
 /** Base où l'application est servie — distincte du document, comme dans le shell. */
 const BASE = 'https://distante.exemple/remotes/magelian/chunk-ABC.js';

@@ -82,8 +82,12 @@ async function solderLaFile(http: HttpTestingController): Promise<void> {
  * Délai explicite des deux tests qui DÉMARRENT l'application puis naviguent (lien de la coquille, relance après
  * échec) : lancé seul, ce fichier les a mesurés de 6 741 à 8 284 ms à froid (polices, démarrage, coquille), à la
  * base comme après — au-delà des 5 000 ms par défaut, sans défaut de code. Même patron que `app.config.spec.ts`.
+ *
+ * 30 s depuis la revue finale du lot 4 (M-1, 2026-10-12) : à 15 s, « les liens restent dans le préfixe de l'hôte »
+ * a dépassé le délai dans la suite complète sur un hôte à court de RAM, alors qu'il passe seul. C'est la CHARGE DE
+ * L'HÔTE qui est couverte, pas un défaut : ne pas redescendre ce délai.
  */
-const DELAI_DEMARRAGE_REEL = 15_000;
+const DELAI_DEMARRAGE_REEL = 30_000;
 
 /** Monte l'application sous le préfixe de l'hôte ; la configuration est servie par l'hôte factice. */
 async function monter(connecte = true, extra: Provider[] = []) {
