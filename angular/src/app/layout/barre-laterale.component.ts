@@ -123,8 +123,9 @@ interface EntreeIndexee extends EntreeNavigation {
             </span>
             <span class="font-mono text-[11px] text-tertiary">Online</span>
             <!-- Pages propres à Angular, en icônes (voir LIENS_DEVELOPPEMENT) : titre et nom accessible = libellé.
-                 Quatre cases de 20 px sans écart : à 24 px + 2 px, la quatrième (Module risque, lot 3) poussait
-                 l'horloge hors des 208 px du pied (mesuré : 226 px de contenu). -->
+                 Cases de 20 px sans écart : quand elles étaient quatre, à 24 px + 2 px, la dernière poussait
+                 l'horloge hors des 208 px du pied (mesuré : 226 px de contenu). « Essai carte » est retiré
+                 depuis le lot 4 (T22) : elles sont trois, la taille est gardée. -->
             <span data-liens-dev class="-my-1 ml-auto flex items-center">
               @for (l of liensDev; track l.libelle) {
                 <a

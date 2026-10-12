@@ -183,12 +183,6 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       http.expectNone('/api/risques/sites/compter');
     }, DELAI_DEMARRAGE_REEL);
 
-    it("sans session : l'écran plein écran essai-carte renvoie lui aussi vers /connexion, sans aucun appel d'API", async () => {
-      const { router, http } = await demarrer('/app/essai-carte', false);
-      expect(router.url).toBe('/connexion?redirection=%2Fapp%2Fessai-carte');
-      http.expectNone((r) => r.url.startsWith('/api/'));
-    }, DELAI_DEMARRAGE_REEL);
-
     it("sans session : la carte principale renvoie vers /connexion, sans aucun appel d'API", async () => {
       const { router, http } = await demarrer('/app/carte', false);
       expect(router.url).toBe('/connexion?redirection=%2Fapp%2Fcarte');

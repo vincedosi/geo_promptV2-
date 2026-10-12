@@ -87,11 +87,6 @@ export const remoteRoutes: Routes = [
       // Écrans PLEIN ÉCRAN, hors de `mg-coquille` : comme `/map` en React (AppSidebar.tsx:348,
       // MainPadding.tsx, TopRightChrome.tsx : ni barre, ni chrome, ni marge). Ils restent sous
       // la racine distante, donc sous ses fournisseurs et son `authGuard`.
-      {
-        path: 'essai-carte',
-        canActivate: [authGuard],
-        loadComponent: () => import('./features/essai-carte/essai-carte.page').then((m) => m.EssaiCartePage),
-      },
       // L'ancienne adresse du module risque (lot 3). Il vit désormais SOUS la carte (ci-dessous) ; la redirection est
       // RELATIVE, donc reste sous le préfixe de l'hôte, et garde `?risque=` — un lien partagé au lot 3 marche encore.
       { path: 'risques', redirectTo: 'carte/risques' },

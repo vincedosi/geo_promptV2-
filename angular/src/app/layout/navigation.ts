@@ -84,7 +84,6 @@ export const SECTIONS_NAVIGATION: readonly SectionNavigation[] = [
 export const LIENS_DEVELOPPEMENT: readonly { libelle: string; icone: NomIcone; cible: string; exact?: boolean }[] = [
   { libelle: 'Accueil', icone: 'hexagone', cible: './', exact: true },
   { libelle: 'Catalogue', icone: 'calques', cible: 'catalogue' },
-  { libelle: 'Essai carte', icone: 'carte', cible: 'essai-carte' },
   // Lot 3 : le module « Population à risque industriel ». Depuis le lot 4 (T13) il est une route ENFANT de la carte
   // (`carte/risques`) et s'ouvre aussi, comme en React, depuis le panneau Calques ; ce lien y mène directement.
   { libelle: 'Module risque', icone: 'cercle-alerte', cible: 'carte/risques' },

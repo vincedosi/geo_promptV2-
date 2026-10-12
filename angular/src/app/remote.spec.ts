@@ -259,63 +259,6 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     expect(TestBed.inject(Router).url).toBe('/hote/magelian/catalogue');
   }, DELAI_DEMARRAGE_REEL);
 
-  it("essai-carte est un écran PLEIN ÉCRAN : sous la racine distante, sans coquille ni barre latérale, et garde de session", async () => {
-    class Observateur { observe = vi.fn(); disconnect = vi.fn(); }
-    (globalThis as { ResizeObserver?: unknown }).ResizeObserver = Observateur;
-    const factices: Provider[] = [
-      { provide: FABRIQUE_CARTE, useValue: (o: never) => new CarteFactice(o) },
-      { provide: CouleursService, useValue: { palette: (j: Record<string, string>) => signal(Object.fromEntries(Object.keys(j).map((k) => [k, `teinte-${k}`]))) } },
-      { provide: FABRIQUE_GRAPHIQUE, useValue: () => ({ setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn() }) },
-    ];
-    const { harness, http } = await monter(true, factices);
-    http.match('/api/risques/sites/compter').forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
-    await harness.navigateByUrl('/hote/magelian/essai-carte');
-    await attendre();
-    await harness.fixture.whenStable();
-    const racine = ombre(harness.fixture.nativeElement as HTMLElement);
-    expect(racine.querySelector('mg-essai-carte')).not.toBeNull();
-    expect(racine.querySelector('mg-coquille')).toBeNull();
-    expect(racine.querySelector('mg-barre-laterale')).toBeNull();
-    expect(TestBed.inject(Router).url).toBe('/hote/magelian/essai-carte');
-    // Le lien de retour (la croix « Fermer » de l'en-tête, comme React) est RELATIF : le préfixe de montage est inconnu.
-    const retour = racine.querySelector('a[aria-label="Fermer"]');
-    expect(retour?.getAttribute('href')).toBe('/hote/magelian');
-    http.match(() => true);
-  });
-
-  it("le lien « Essai carte » de la coquille mène à l'écran plein écran : mg-essai-carte monté, plus aucune coquille", async () => {
-    class Observateur { observe = vi.fn(); disconnect = vi.fn(); }
-    (globalThis as { ResizeObserver?: unknown }).ResizeObserver = Observateur;
-    const factices: Provider[] = [
-      { provide: FABRIQUE_CARTE, useValue: (o: never) => new CarteFactice(o) },
-      { provide: CouleursService, useValue: { palette: (j: Record<string, string>) => signal(Object.fromEntries(Object.keys(j).map((k) => [k, `teinte-${k}`]))) } },
-      { provide: FABRIQUE_GRAPHIQUE, useValue: () => ({ setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn() }) },
-    ];
-    const { harness, http } = await monter(true, factices);
-    http.match('/api/risques/sites/compter').forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
-    const racine = ombre(harness.fixture.nativeElement as HTMLElement);
-    expect(racine.querySelector('mg-coquille')).not.toBeNull();
-    const lien = [...racine.querySelectorAll('a')].find((a) => a.getAttribute('aria-label') === 'Essai carte');
-    expect(lien?.getAttribute('href')).toBe('/hote/magelian/essai-carte');
-    lien!.click();
-    await attendre();
-    await harness.fixture.whenStable();
-    expect(TestBed.inject(Router).url).toBe('/hote/magelian/essai-carte');
-    expect(racine.querySelector('mg-essai-carte')).not.toBeNull();
-    expect(racine.querySelector('mg-coquille')).toBeNull();
-    http.match(() => true);
-  });
-
-  it("essai-carte sans session : le message de session, jamais la page ni un appel d'API", async () => {
-    const { harness, http } = await monter(false);
-    await harness.navigateByUrl('/hote/magelian/essai-carte');
-    await attendre();
-    const racine = ombre(harness.fixture.nativeElement as HTMLElement);
-    expect(racine.querySelector('[role="status"]')).not.toBeNull();
-    expect(racine.querySelector('mg-essai-carte')).toBeNull();
-    expect(http.match((r) => r.url.startsWith('/api/'))).toEqual([]);
-  });
-
   it("carte est une route PLEIN ÉCRAN sœur de la coquille, gardée par authGuard, avec son outlet enfant", () => {
     const racine = remoteRoutes[0];
     const carte = racine.children?.find((r) => r.path === 'carte');
