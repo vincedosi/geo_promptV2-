@@ -73,3 +73,17 @@ Tests : unitaires sur la nouvelle option de `getOrgSourceIds` et sur l'origine d
 - **I/O** : le calcul d'origine des catégories ajoute une lecture de `data_sources` (quelques dizaines de lignes) par appel au catalogue — négligeable ; à mesurer par `EXPLAIN ANALYZE` si une jointure sur `poi_france` est nécessaire.
 - **Rechargement** : invalider sans rafale — respecter le limiteur à 3 et le chargement à la demande.
 - **Caches de battle** sous empreinte `tout` : devenus inaccessibles au super_admin sur la carte (recalcul) ; pas de purge.
+
+## 7. Écarts à la livraison (2026-10-12, T5)
+
+Preuve faite sur la base locale, Angular et Next du chantier, deux thèmes, compte super_admin et un compte client jetable de BMW GROUP (créé puis supprimé, vérifié en SQL). Ce qui diffère du texte ci-dessus :
+
+- **Ordre et forme des groupes (§ 4.2).** Livré : « Données de l'espace » PUIS « Données communes », sous-titres `text-[11px] font-medium text-secondary` et non `mg-groupe-calques` — arbitrage du plan (T4), ce que le client a importé passe en tête. Chaque groupe porte `role="group"` + `aria-label`.
+- **Panneau Filtre (§ 4.2).** Non traité : il liste des zones et des territoires, pas des jeux de données ; rien à y grouper.
+- **Espace sans donnée propre (§ 5, interne).** Quand tout est commun, la section POI garde sa liste unique SANS sous-titre « Données communes » (un groupe seul ne se titre pas, Review Focus 4). Lycées : dans cette liste. Filosofi : couche socio-démographique, hors liste POI. Brest : panneaux « Médias offline » (1 434, socle), hors liste POI.
+- **Panneaux (§ 3.2).** `map/ooh` ne porte pas de champ `origine` : la carte ne liste pas les panneaux par source, ils restent communs, comme le texte le permettait.
+- **`risque_industriel`.** Absent du catalogue POI de tous les espaces (POI sans source, écartés par `getCategoriesVisibles`) ; il a sa couche propre dans Environnement. Gardé tel quel pour ce chantier, à reprendre dans la refonte du parcours carte.
+- **Vue gardée « si l'URL la porte » (§ 4.1).** Centre et zoom ne sont pas dans l'URL : après un changement d'espace la vue revient au cadrage d'ouverture, comme le `reload` de React.
+- **Zones (R5).** Tenue à l'écran : la liste lit l'espace actif. Par appel direct, `/api/custom-geo/list?org_id=` reste ouvert au super_admin pour n'importe quel espace (droit d'administration) ; un client reçoit 403 hors de son espace (vérifié).
+
+Chiffres relevés : voir `ARCHITECTURE.md`, paragraphe « Sur la carte, le super_admin voit comme son espace actif ».
