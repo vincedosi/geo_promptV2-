@@ -509,3 +509,13 @@ d'`ARCHITECTURE.md` (routes, tables, RPC) dans le même commit.
 | Q3 | La couverture par rayon généralisée garde-t-elle le **profil d'anneaux par niveau** (Seveso haut/bas) ? | **Oui, mais par valeur d'un champ du type de POI** (gravité pour l'ICPE, aucune pour les lycées → un seul niveau) : on garde la puissance, on perd le cas particulier. |
 | Q4 | Une campagne = **un seul plan** aujourd'hui. Faut-il plusieurs extractions par campagne (une par zone, ex. Marseille + Lille) ? | **Non en v1** : un jeu de zones peut déjà contenir plusieurs zones ; plusieurs plans exigeraient de réécrire `refresh_campaign_rollups`. |
 | Q5 | Quand **retirer la campagne React** (`MagelianOverlay`) et `/map` React ? | **Geler dès le lot 3, retirer après le lot 7**, une fois la boucle ① → ⑦ prouvée en navigateur sur BMW GROUP et Marine nationale. |
+
+## 14. Décisions (2026-10-13)
+
+Vincent, à la lecture de la maquette (https://claude.ai/artifact/TXJjsdhCEnzrDZwVsCThK1) :
+« ah oui il faut sélectionner une campagne, je te laisse faire ». Les cinq
+recommandations du § 13 sont donc retenues telles quelles : corrélation en ⑦ ;
+sélecteur de campagne dans la barre aux étapes ⑤-⑦ (création seulement si
+l'espace n'en a aucune) ; anneaux par valeur d'un champ du type de POI ; un
+plan par campagne en v1 ; React gelé au lot 3, retiré après le lot 7. La spec
+est validée ; les arbitrages de détail sont délégués au chef de projet.
