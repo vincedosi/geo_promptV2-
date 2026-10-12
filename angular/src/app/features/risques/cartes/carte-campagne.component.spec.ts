@@ -11,9 +11,10 @@ import { SimulationService } from '../etat/simulation.service';
 import { type Periode, type VueSimulation, construireVue } from '../logique/simulation/vue';
 import { reponseSimulation } from '../testing/simulation.fixture';
 import {
-  CarteCampagneComponent, JETONS_CAMPAGNE, L_BASSINS, L_BASSINS_ETIQUETTE, L_CERCLES, L_CP, L_SITES, S_BASSINS, S_CERCLES,
+  JETONS_CAMPAGNE, L_BASSINS, L_BASSINS_ETIQUETTE, L_CERCLES, L_CP, L_SITES, S_BASSINS, S_CERCLES,
   S_CP, S_SITES, cadreDesZones, contenuBulleCampagne, couleurIndice, fusionnerDiffusion,
-} from './carte-campagne.component';
+} from '../logique/carte-campagne';
+import { CarteCampagneComponent } from './carte-campagne.component';
 
 class ObservateurFactice {
   observe = vi.fn();
