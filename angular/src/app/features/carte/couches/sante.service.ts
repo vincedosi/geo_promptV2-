@@ -9,6 +9,7 @@ import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.ser
 import { EtatCarteService } from '../etat/etat-carte.service';
 import { ContoursZonesService } from '../etat/contours-zones.service';
 import { bboxPourRequete } from '../logique/bbox-requete';
+import { avantDe } from '../logique/ordre-couches';
 import { JETONS_NIVEAUX_SANTE, OPACITE_SANTE, TRAIT_SANTE } from '../logique/palettes-donnees-carte';
 import { type EchelleSante, type JeuSante, METRIQUES_SANTE } from '../logique/sante';
 import { peindre } from './couche-carreaux';
@@ -319,7 +320,7 @@ export class SanteService {
     }));
   }
 
-  /** Source vide et deux couches, une fois par instance (`CivicHealthMapLayer.tsx:233-250`), au SOMMET comme React. */
+  /** Source vide et deux couches, une fois par instance (`CivicHealthMapLayer.tsx:233-250`), à leur rang de React (`avantDe`, revue finale I-1). */
   private poser(carte: maplibregl.Map): void {
     const t = this.teintes();
     if (!t) return;
@@ -330,13 +331,13 @@ export class SanteService {
       carte.addLayer({
         id: COUCHE_SANTE_FOND, type: 'fill', source: SOURCE_SANTE,
         paint: { 'fill-color': expressionSante(t) as maplibregl.ExpressionSpecification, 'fill-opacity': OPACITE_SANTE },
-      });
+      }, avantDe(carte, COUCHE_SANTE_FOND));
     }
     if (!carte.getLayer(COUCHE_SANTE_TRAIT)) {
       carte.addLayer({
         id: COUCHE_SANTE_TRAIT, type: 'line', source: SOURCE_SANTE,
         paint: { 'line-color': t[0], 'line-width': TRAIT_SANTE.largeur, 'line-opacity': TRAIT_SANTE.opacite },
-      });
+      }, avantDe(carte, COUCHE_SANTE_TRAIT));
     }
     this.posee.set(carte);
   }

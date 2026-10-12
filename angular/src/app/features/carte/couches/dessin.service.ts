@@ -9,6 +9,7 @@ import { CouleursService } from '../../../core/theme/couleurs.service';
 import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
 import { PileEchapService } from '../etat/pile-echap.service';
+import { avantDe } from '../logique/ordre-couches';
 import {
   type ModeDessin, type Position, apercuTrace, cliquer, doubleCliquer, messageAideDessin, nombreSommets, retirerDernier,
   traceVide,
@@ -23,7 +24,7 @@ const OUTIL = 'dessin';
 const ECHAP_TRACE = 'dessin-trace';
 
 type CarteDessin = Pick<maplibregl.Map,
-  'getSource' | 'addSource' | 'getLayer' | 'addLayer' | 'removeLayer' | 'removeSource' | 'setPaintProperty'>;
+  'getSource' | 'addSource' | 'getLayer' | 'addLayer' | 'removeLayer' | 'removeSource' | 'setPaintProperty' | 'getStyle'>;
 
 /**
  * Le tracé libre d'une zone, ÉCRIT À LA MAIN sur MapLibre (lot 4, T16) — ce que `DessinLibre.tsx` confiait à
@@ -182,7 +183,10 @@ export class DessinService {
   }
 }
 
-/** Source et couches du tracé, idempotentes ; la donnée arrive ensuite par `setData`. */
+/**
+ * Source et couches du tracé, idempotentes ; la donnée arrive ensuite par `setData`. Au SOMMET de l'ordre de React
+ * (`avantDe` : rien n'est rangé au-dessus) — une couche de données allumée pendant le tracé passe dessous (revue finale I-1).
+ */
 function poserDessin(carte: CarteDessin, teal: string): void {
   if (!carte.getSource(SOURCE_DESSIN)) {
     carte.addSource(SOURCE_DESSIN, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -191,19 +195,19 @@ function poserDessin(carte: CarteDessin, teal: string): void {
     carte.addLayer({
       id: REMPLISSAGE, type: 'fill', source: SOURCE_DESSIN, filter: ['==', ['geometry-type'], 'Polygon'],
       paint: { 'fill-color': teal, 'fill-opacity': 0.12 },
-    });
+    }, avantDe(carte, REMPLISSAGE));
   }
   if (!carte.getLayer(LIGNE)) {
     carte.addLayer({
       id: LIGNE, type: 'line', source: SOURCE_DESSIN, filter: ['!=', ['geometry-type'], 'Point'],
       paint: { 'line-color': teal, 'line-width': 2 },
-    });
+    }, avantDe(carte, LIGNE));
   }
   if (!carte.getLayer(POINTS)) {
     carte.addLayer({
       id: POINTS, type: 'circle', source: SOURCE_DESSIN, filter: ['==', ['geometry-type'], 'Point'],
       paint: { 'circle-color': teal, 'circle-radius': 4 },
-    });
+    }, avantDe(carte, POINTS));
   }
 }
 

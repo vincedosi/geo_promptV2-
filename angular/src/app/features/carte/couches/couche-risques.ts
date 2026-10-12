@@ -2,6 +2,7 @@ import type maplibregl from 'maplibre-gl';
 import type { CollectionSitesRisque } from '../../risques/data/sites-risque.api';
 import { LARGEUR_TRAIT_ZONE, TIRETE_ZONE_CALCULEE } from '../../risques/logique/nature-zone';
 import { LARGEUR_TRAIT_PPRT } from '../logique/pprt';
+import { avantDe } from '../logique/ordre-couches';
 import { JETON_TYPE } from '../logique/types-risque';
 
 /**
@@ -51,7 +52,7 @@ export function expressionCouleurRisque(t: TeintesRisques): unknown[] {
 
 const VIDE: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 
-type CarteCouches = Pick<maplibregl.Map, 'getSource' | 'addSource' | 'getLayer' | 'addLayer' | 'setPaintProperty'>;
+type CarteCouches = Pick<maplibregl.Map, 'getSource' | 'addSource' | 'getLayer' | 'addLayer' | 'setPaintProperty' | 'getStyle'>;
 
 /** Les zones calculées : un jeu SÉPARÉ de polygones, pour que le point reste un point (`RisqueIndustrielLayer.tsx:318-327`). */
 export function zonesDesSites(charge: CollectionSitesRisque): GeoJSON.FeatureCollection {
@@ -68,9 +69,10 @@ export function zonesDesSites(charge: CollectionSitesRisque): GeoJSON.FeatureCol
 }
 
 /**
- * Sources et couches des sites, IDEMPOTENT (`getSource`/`getLayer` sur l'instance), au SOMMET comme React (aucun
- * `beforeId` : ces couches naissent après le chargement de la carte, hors de `ORDRE_COUCHES`) : zone, contour tireté,
- * halo, point.
+ * Sources et couches des sites, IDEMPOTENT (`getSource`/`getLayer` sur l'instance) : zone, contour tireté, halo, point.
+ * React les pose après le chargement de la carte, sans `beforeId` : elles sont donc TOUJOURS au-dessus d'IRIS, des
+ * carreaux et des POI. Ici, chacune à son rang (`avantDe`, `COUCHES_APRES_LOAD`, revue finale I-1) : un IRIS allumé
+ * APRÈS elles passe dessous, comme chez React.
  */
 export function poserCouchesRisques(carte: CarteCouches, t: TeintesRisques): void {
   const couleur = expressionCouleurRisque(t) as maplibregl.ExpressionSpecification;
@@ -80,7 +82,7 @@ export function poserCouchesRisques(carte: CarteCouches, t: TeintesRisques): voi
     carte.addLayer({
       id: COUCHE_RISQUES_ZONE, type: 'fill', source: SOURCE_RISQUES_ZONES,
       paint: { 'fill-color': couleur, 'fill-opacity': OPACITE_ZONE_RISQUE },
-    });
+    }, avantDe(carte, COUCHE_RISQUES_ZONE));
     carte.addLayer({
       id: COUCHE_RISQUES_ZONE_CONTOUR, type: 'line', source: SOURCE_RISQUES_ZONES,
       paint: {
@@ -90,7 +92,7 @@ export function poserCouchesRisques(carte: CarteCouches, t: TeintesRisques): voi
         'line-opacity': OPACITE_CONTOUR_ZONE_RISQUE,
         'line-dasharray': [...TIRETE_ZONE_CALCULEE],
       },
-    });
+    }, avantDe(carte, COUCHE_RISQUES_ZONE_CONTOUR));
   }
   if (!carte.getLayer(COUCHE_RISQUES_HALO)) {
     carte.addLayer({
@@ -102,7 +104,7 @@ export function poserCouchesRisques(carte: CarteCouches, t: TeintesRisques): voi
         'circle-blur': FLOU_HALO_RISQUE,
         'circle-opacity': OPACITE_HALO_RISQUE,
       },
-    });
+    }, avantDe(carte, COUCHE_RISQUES_HALO));
   }
   if (!carte.getLayer(COUCHE_RISQUES_POINT)) {
     carte.addLayer({
@@ -113,7 +115,7 @@ export function poserCouchesRisques(carte: CarteCouches, t: TeintesRisques): voi
         'circle-stroke-width': TRAIT_POINT_RISQUE,
         'circle-stroke-color': t.contour,
       },
-    });
+    }, avantDe(carte, COUCHE_RISQUES_POINT));
   }
 }
 
@@ -152,7 +154,7 @@ export const LARGEUR_CONTOUR_PPRT = [
   16, LARGEUR_TRAIT_PPRT * 1.4,
 ] as const;
 
-/** Source et couches des périmètres, IDEMPOTENT, au sommet (`PprtLayer.tsx:161-203`). */
+/** Source et couches des périmètres, IDEMPOTENT (`PprtLayer.tsx:161-203`), à leur rang de React (`avantDe`, revue finale I-1). */
 export function poserCouchesPprt(carte: CarteCouches, t: TeintesPprt): void {
   if (!carte.getSource(SOURCE_PPRT)) carte.addSource(SOURCE_PPRT, { type: 'geojson', data: VIDE });
   if (!carte.getLayer(COUCHE_PPRT_FOND)) {
@@ -160,7 +162,7 @@ export function poserCouchesPprt(carte: CarteCouches, t: TeintesPprt): void {
       id: COUCHE_PPRT_FOND, type: 'fill', source: SOURCE_PPRT,
       // Le fond n'est presque pas visible : il sert surtout de cible de clic.
       paint: { 'fill-color': t.fond, 'fill-opacity': 1 },
-    });
+    }, avantDe(carte, COUCHE_PPRT_FOND));
   }
   if (!carte.getLayer(COUCHE_PPRT_CONTOUR)) {
     carte.addLayer({
@@ -169,7 +171,7 @@ export function poserCouchesPprt(carte: CarteCouches, t: TeintesPprt): void {
         'line-color': t.contour,
         'line-width': [...LARGEUR_CONTOUR_PPRT] as unknown as maplibregl.ExpressionSpecification,
       },
-    });
+    }, avantDe(carte, COUCHE_PPRT_CONTOUR));
   }
 }
 

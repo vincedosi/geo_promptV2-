@@ -180,9 +180,17 @@ export class CarteFactice {
     return this;
   }
   addControl(controle: unknown, position?: string): this { this.controles.push({ controle, position }); return this; }
-  /** Les couches du STYLE de fond (Positron, Liberty…), que `getStyle().layers` rend une fois le style chargé. */
+  /**
+   * Les couches du STYLE de fond (Positron, Liberty…), que `getStyle().layers` rend une fois le style chargé — suivies,
+   * comme chez MapLibre, des couches posées par `addLayer` dans leur ordre d'empilement (`avantDe` y cherche les
+   * groupes à préfixe, revue finale I-1).
+   */
   styleCouches: { id: string; type: string; layout?: Record<string, unknown> }[] = [];
-  getStyle() { return this.styleCharge ? { layers: this.styleCouches } : undefined; }
+  getStyle() {
+    if (!this.styleCharge) return undefined;
+    const posees = this.ordreRendu().map((id) => this.getLayer(id) as { id: string; type: string; layout?: Record<string, unknown> });
+    return { layers: [...this.styleCouches, ...posees] };
+  }
   fitBounds(cadre: unknown, options?: unknown): this { this.cadrages.push({ cadre, options }); return this; }
   remove(): void { this.retiree = true; }
   resize(): this { this.appelsResize++; return this; }

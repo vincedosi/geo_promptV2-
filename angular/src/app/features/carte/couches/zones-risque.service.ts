@@ -2,13 +2,14 @@ import { Injectable, computed, effect, inject, signal, untracked } from '@angula
 import type maplibregl from 'maplibre-gl';
 import { CouleursService } from '../../../core/theme/couleurs.service';
 import {
-  REGIME_CARTE, poserCouchesZones, repeindreCouchesZones, retirerCouchesZones,
+  ID_FOND, REGIME_CARTE, poserCouchesZones, repeindreCouchesZones, retirerCouchesZones,
 } from '../../risques/cartes/couches-zones';
 import { ZonesRisqueApi } from '../../risques/data/zones-risque.api';
 import { codeProfil } from '../../risques/logique/code-profil';
 import { JETONS_TEINTES_ZONES } from '../../risques/logique/legende-niveaux';
 import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
+import { avantDe } from '../logique/ordre-couches';
 import type { PontCarte, ZonesAAfficher } from '../etat/pont-carte';
 
 /** Marge du recadrage (`ZonesRisqueLayer.tsx:118-121`) : collées au cadre, on ne verrait plus que les zones s'arrêtent. */
@@ -76,8 +77,13 @@ export class ZonesRisqueService implements PontCarte {
         return;
       }
       nettoyer(quandStyleCharge(carte, () => untracked(() => {
+        // Retirer AVANT de chercher le rang : sinon `avantDe` pourrait désigner une couche des zones elles-mêmes, que
+        // `poserCouchesZones` retire aussitôt — et MapLibre refuse une insertion devant une couche absente.
+        retirerCouchesZones(carte);
         poserCouchesZones(carte, {
           url, teintes: this.teintes(), profil: this.zones()!.profil, visible: true, regime: REGIME_CARTE, etiquettes: false,
+          // À leur rang de React (revue finale I-1) : les trois couches s'insèrent devant la même, dans leur ordre.
+          avant: avantDe(carte, ID_FOND),
         });
         this.posee.set(carte);
       })));

@@ -7,6 +7,7 @@ import { CouleursService } from '../../../core/theme/couleurs.service';
 import { CiviqueApi, type DetailCp } from '../data/civique.api';
 import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
+import { avantDe } from '../logique/ordre-couches';
 import {
   type CodeVariableCivique, OPACITE_CIVIQUE, TRAIT_CIVIQUE, VARIABLES_CIVIQUES,
 } from '../logique/palettes-donnees-carte';
@@ -33,7 +34,8 @@ import { DELAI_DEPLACEMENT_MS } from './radio.service';
  *
  * ── CONTRAT DU REGISTRE (B11) ────────────────────────────────────────────
  * La donnée lue est gardée : une carte recréée (changement de fond) retrouve source et couches SANS nouvelle requête.
- * Couches au SOMMET (`addLayer` sans `beforeId`), comme React qui les y forçait par `moveLayer`.
+ * Couches à leur rang de React (`avantDe`, revue finale I-1) : au-dessus de toutes celles du `load`, où React les forçait
+ * par `moveLayer` au moment de leur pose ; sous les sites ICPE, PPRT et zones posés après (ordre de montage de `page.tsx`).
  *
  * Écarts à React, défauts corrigés : un échec de lecture est DIT dans la section (React : `console.error`, carte vide
  * muette) ; la commune d'un code postal est lue une fois par écran (cache) ; la popup est construite en DOM et ses
@@ -162,11 +164,11 @@ export class IndicateursCiviquesService {
         'fill-color': expressionCivique(VARIABLES_CIVIQUES[code]) as maplibregl.ExpressionSpecification,
         'fill-opacity': OPACITE_CIVIQUE,
       },
-    });
+    }, avantDe(carte, COUCHE_CIVIQUE_FOND));
     carte.addLayer({
       id: COUCHE_CIVIQUE_TRAIT, type: 'line', source: SOURCE_CIVIQUE,
       paint: { 'line-color': this.couleurs().trait, 'line-width': TRAIT_CIVIQUE.largeur, 'line-opacity': TRAIT_CIVIQUE.opacite },
-    });
+    }, avantDe(carte, COUCHE_CIVIQUE_TRAIT));
     this.posee.update((n) => n + 1);
   }
 
