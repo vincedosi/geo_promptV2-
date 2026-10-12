@@ -1,0 +1,115 @@
+@if (erreur(); as message) {
+  <div role="alert" class="erreur">
+    <p class="m-0">{{ message }}</p>
+    <button type="button" data-reessayer class="bouton neutre" (click)="lire(true)">Réessayer</button>
+  </div>
+} @else if (organisation() === null) {
+  @for (i of [1, 2, 3]; track i) {
+    <div data-squelette class="squelette" aria-hidden="true"></div>
+  }
+} @else {
+  <div class="colonne">
+    <section class="section">
+      <h3 class="entete"><span class="point"></span>Configuration</h3>
+      <div class="corps">
+        <mg-champ libelle="Nom">
+          <input data-nom type="text" maxlength="200" autocomplete="off" placeholder="Nom de l'espace"
+            [value]="nom()" [disabled]="occupe()" (input)="saisir(nom, $event)" />
+        </mg-champ>
+        @if (erreurNom()) { <p class="erreur-champ" data-erreur-nom>Le nom est obligatoire.</p> }
+        <mg-champ libelle="Description">
+          <input data-description type="text" [attr.maxlength]="longueurMaxDescription" autocomplete="off" placeholder="Description courte"
+            [value]="description()" [disabled]="occupe()" (input)="saisir(description, $event)" />
+        </mg-champ>
+        <div class="deux">
+          <div>
+            <mg-champ libelle="Quota de POI (vide = illimité)">
+              <input data-max-poi type="text" inputmode="numeric" autocomplete="off" placeholder="Illimité"
+                [value]="maxPoi()" [disabled]="occupe()" (input)="saisir(maxPoi, $event)" />
+            </mg-champ>
+            @if (erreurPoi()) { <p class="erreur-champ" data-erreur-poi>{{ messageQuota }}</p> }
+          </div>
+          <div>
+            <mg-champ libelle="Quota de requêtes IA par mois (vide = illimité)">
+              <input data-max-ai type="text" inputmode="numeric" autocomplete="off" placeholder="Illimité"
+                [value]="maxAi()" [disabled]="occupe()" (input)="saisir(maxAi, $event)" />
+            </mg-champ>
+            @if (erreurAi()) { <p class="erreur-champ" data-erreur-ai>{{ messageQuota }}</p> }
+            <p class="note">Disparaîtra avec la suppression de l'IA.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h3 class="entete"><span class="point"></span>Intégration Site Centric</h3>
+      <div class="corps">
+        <p class="note">Point d'accès propre à cet espace : ses données ne sont jamais partagées avec les autres.</p>
+        <mg-champ libelle="Adresse du point d'accès">
+          <input data-site-url type="text" autocomplete="off" placeholder="https://…"
+            [value]="siteUrl()" [disabled]="occupe()" (input)="saisir(siteUrl, $event)" />
+        </mg-champ>
+        <mg-champ libelle="Clé d'API (facultative)">
+          <input data-site-cle type="password" autocomplete="new-password" placeholder="Clé d'API"
+            [value]="siteCle()" [disabled]="occupe()" (input)="saisir(siteCle, $event)" />
+        </mg-champ>
+      </div>
+    </section>
+
+    <div class="rangee">
+      <button type="button" data-enregistrer class="bouton teal" [disabled]="occupe()" (click)="enregistrer()">{{ libelleEnregistrer() }}</button>
+    </div>
+
+    <!-- Spec § 11 : l'espace interne porte le socle, son interrupteur « actif » n'est pas offert. -->
+    @if (!interne()) {
+      <section class="section" data-statut>
+        <h3 class="entete"><span class="point"></span>Statut</h3>
+        <div class="corps rangee-statut">
+          <button
+            type="button" role="switch" data-actif class="interrupteur"
+            [attr.aria-checked]="actif()" aria-labelledby="etiquette-actif"
+            [disabled]="occupe()" (click)="demanderBascule()"
+          ><span class="curseur"></span></button>
+          <span id="etiquette-actif" class="etiquette-actif">Espace actif</span>
+          <span class="note m-0">{{ actif() ? 'Actif' : 'Inactif' }}</span>
+        </div>
+      </section>
+    }
+
+    <section class="danger">
+      <div>
+        <p class="danger-titre">Zone dangereuse</p>
+        @if (interne()) {
+          <p class="danger-texte" data-interne>L'espace interne porte les données du socle : il ne se supprime pas.</p>
+        } @else {
+          <p class="danger-texte">La suppression de l'espace est définitive.</p>
+        }
+      </div>
+      @if (!interne()) {
+        <button type="button" data-supprimer class="bouton supprimer" [disabled]="occupe()" (click)="confirmation.set(true)">Supprimer l'espace</button>
+      }
+    </section>
+  </div>
+}
+
+<mg-confirmation
+  [ouvert]="confirmation()"
+  [titre]="titreSuppression()"
+  [message]="messageSuppression()"
+  variante="danger"
+  libelleConfirmer="Supprimer l'espace"
+  [enCours]="suppression()"
+  (confirmer)="supprimer()"
+  (annuler)="fermerConfirmation()"
+/>
+
+<mg-confirmation
+  data-desactivation
+  [ouvert]="confirmationDesactivation()"
+  [titre]="titreDesactivation()"
+  [message]="messageDesactivation()"
+  variante="danger"
+  libelleConfirmer="Désactiver l'espace"
+  (confirmer)="desactiver()"
+  (annuler)="confirmationDesactivation.set(false)"
+/>

@@ -7,37 +7,9 @@ import { NotificationsService } from '../../../ui/notifications/notifications.se
 import { EspacesApi, type OrganisationComplete } from './data/espaces.api';
 import { EspacesEtatService } from './etat/espaces-etat.service';
 import { LONGUEUR_MAX_DESCRIPTION, messageErreur } from './logique/libelles';
-
-/** Résultat de la lecture d'un quota saisi : vide → `null`, entier positif ou nul → le nombre, le reste → refus. */
-export type QuotaLu = { ok: true; valeur: number | null } | { ok: false };
-
-/**
- * Lit un quota saisi (« Quota de POI », « Quota de requêtes IA »). Vide → `null` (illimité) ; une
- * suite de chiffres → l'entier ; tout le reste (négatif, décimal, lettres, notation scientifique,
- * espace au milieu, entier hors plage sûre) est REFUSÉ. React se contentait de `parseInt`, qui
- * lisait « 1.5 » comme 1 et « 12abc » comme 12 : un nombre que l'admin n'avait pas tapé.
- */
-export function lireQuota(saisie: string): QuotaLu {
-  const s = saisie.trim();
-  if (s === '') return { ok: true, valeur: null };
-  if (!/^\d+$/.test(s)) return { ok: false };
-  const n = Number(s);
-  return Number.isSafeInteger(n) ? { ok: true, valeur: n } : { ok: false };
-}
-
-const MESSAGE_QUOTA = 'Saisissez un entier positif ou nul, ou laissez vide pour ne pas limiter.';
-
-/** Une chaîne de la config lue, ou '' (la valeur peut être absente, `null` ou d'un autre type). */
-function texte(config: Record<string, unknown>, cle: string): string {
-  const v = config[cle];
-  return typeof v === 'string' ? v : '';
-}
-
-/** Un quota de la config lue, en saisie. */
-function quotaEnSaisie(config: Record<string, unknown>, cle: string): string {
-  const v = config[cle];
-  return typeof v === 'number' ? String(v) : '';
-}
+import {
+  MESSAGE_QUOTA, lireQuota, messageDesactivation, messageSuppression, quotaEnSaisie, texteDeConfig,
+} from './logique/reglages';
 
 /**
  * Onglet « Réglages » de la fiche d'un espace (spec § 4.6, plan T10) : reprend les champs de
@@ -63,191 +35,8 @@ function quotaEnSaisie(config: Record<string, unknown>, cle: string): string {
   selector: 'mg-onglet-reglages',
   imports: [ChampComponent, ConfirmationComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    @if (erreur(); as message) {
-      <div role="alert" class="erreur">
-        <p class="m-0">{{ message }}</p>
-        <button type="button" data-reessayer class="bouton neutre" (click)="lire(true)">Réessayer</button>
-      </div>
-    } @else if (organisation() === null) {
-      @for (i of [1, 2, 3]; track i) {
-        <div data-squelette class="squelette" aria-hidden="true"></div>
-      }
-    } @else {
-      <div class="colonne">
-        <section class="section">
-          <h3 class="entete"><span class="point"></span>Configuration</h3>
-          <div class="corps">
-            <mg-champ libelle="Nom">
-              <input data-nom type="text" maxlength="200" autocomplete="off" placeholder="Nom de l'espace"
-                [value]="nom()" [disabled]="occupe()" (input)="saisir(nom, $event)" />
-            </mg-champ>
-            @if (erreurNom()) { <p class="erreur-champ" data-erreur-nom>Le nom est obligatoire.</p> }
-            <mg-champ libelle="Description">
-              <input data-description type="text" [attr.maxlength]="longueurMaxDescription" autocomplete="off" placeholder="Description courte"
-                [value]="description()" [disabled]="occupe()" (input)="saisir(description, $event)" />
-            </mg-champ>
-            <div class="deux">
-              <div>
-                <mg-champ libelle="Quota de POI (vide = illimité)">
-                  <input data-max-poi type="text" inputmode="numeric" autocomplete="off" placeholder="Illimité"
-                    [value]="maxPoi()" [disabled]="occupe()" (input)="saisir(maxPoi, $event)" />
-                </mg-champ>
-                @if (erreurPoi()) { <p class="erreur-champ" data-erreur-poi>{{ messageQuota }}</p> }
-              </div>
-              <div>
-                <mg-champ libelle="Quota de requêtes IA par mois (vide = illimité)">
-                  <input data-max-ai type="text" inputmode="numeric" autocomplete="off" placeholder="Illimité"
-                    [value]="maxAi()" [disabled]="occupe()" (input)="saisir(maxAi, $event)" />
-                </mg-champ>
-                @if (erreurAi()) { <p class="erreur-champ" data-erreur-ai>{{ messageQuota }}</p> }
-                <p class="note">Disparaîtra avec la suppression de l'IA.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="section">
-          <h3 class="entete"><span class="point"></span>Intégration Site Centric</h3>
-          <div class="corps">
-            <p class="note">Point d'accès propre à cet espace : ses données ne sont jamais partagées avec les autres.</p>
-            <mg-champ libelle="Adresse du point d'accès">
-              <input data-site-url type="text" autocomplete="off" placeholder="https://…"
-                [value]="siteUrl()" [disabled]="occupe()" (input)="saisir(siteUrl, $event)" />
-            </mg-champ>
-            <mg-champ libelle="Clé d'API (facultative)">
-              <input data-site-cle type="password" autocomplete="new-password" placeholder="Clé d'API"
-                [value]="siteCle()" [disabled]="occupe()" (input)="saisir(siteCle, $event)" />
-            </mg-champ>
-          </div>
-        </section>
-
-        <div class="rangee">
-          <button type="button" data-enregistrer class="bouton teal" [disabled]="occupe()" (click)="enregistrer()">{{ libelleEnregistrer() }}</button>
-        </div>
-
-        <!-- Spec § 11 : l'espace interne porte le socle, son interrupteur « actif » n'est pas offert. -->
-        @if (!interne()) {
-          <section class="section" data-statut>
-            <h3 class="entete"><span class="point"></span>Statut</h3>
-            <div class="corps rangee-statut">
-              <button
-                type="button" role="switch" data-actif class="interrupteur"
-                [attr.aria-checked]="actif()" aria-labelledby="etiquette-actif"
-                [disabled]="occupe()" (click)="demanderBascule()"
-              ><span class="curseur"></span></button>
-              <span id="etiquette-actif" class="etiquette-actif">Espace actif</span>
-              <span class="note m-0">{{ actif() ? 'Actif' : 'Inactif' }}</span>
-            </div>
-          </section>
-        }
-
-        <section class="danger">
-          <div>
-            <p class="danger-titre">Zone dangereuse</p>
-            @if (interne()) {
-              <p class="danger-texte" data-interne>L'espace interne porte les données du socle : il ne se supprime pas.</p>
-            } @else {
-              <p class="danger-texte">La suppression de l'espace est définitive.</p>
-            }
-          </div>
-          @if (!interne()) {
-            <button type="button" data-supprimer class="bouton supprimer" [disabled]="occupe()" (click)="confirmation.set(true)">Supprimer l'espace</button>
-          }
-        </section>
-      </div>
-    }
-
-    <mg-confirmation
-      [ouvert]="confirmation()"
-      [titre]="titreSuppression()"
-      [message]="messageSuppression()"
-      variante="danger"
-      libelleConfirmer="Supprimer l'espace"
-      [enCours]="suppression()"
-      (confirmer)="supprimer()"
-      (annuler)="fermerConfirmation()"
-    />
-
-    <mg-confirmation
-      data-desactivation
-      [ouvert]="confirmationDesactivation()"
-      [titre]="titreDesactivation()"
-      [message]="messageDesactivation()"
-      variante="danger"
-      libelleConfirmer="Désactiver l'espace"
-      (confirmer)="desactiver()"
-      (annuler)="confirmationDesactivation.set(false)"
-    />
-  `,
-  styles: `
-    :host { display: block; font-family: var(--font-sans); max-width: 640px; }
-    .colonne { display: flex; flex-direction: column; gap: 16px; }
-    .section { border: 0.5px solid var(--border-subtle); border-radius: 8px; background: var(--bg-surface); overflow: hidden; }
-    .entete {
-      display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 14px;
-      background: var(--bg-level-2); border-bottom: 0.5px solid var(--border-subtle);
-      font-size: 12px; font-weight: 500; color: var(--text-primary);
-    }
-    .point { width: 6px; height: 6px; border-radius: 50%; background: var(--brand-teal); }
-    .corps { display: flex; flex-direction: column; gap: 12px; padding: 14px; }
-    .deux { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
-    input[type='text'], input[type='password'] {
-      width: 100%; box-sizing: border-box;
-      background: var(--bg-level-2); border: 0.5px solid var(--border-subtle); border-radius: 6px;
-      padding: 8px 12px; font-family: var(--font-sans); font-size: 13px; color: var(--text-primary); outline: none;
-    }
-    input::placeholder { color: var(--text-tertiary); }
-    input:focus { border-color: var(--brand-teal-50); }
-    input:disabled { opacity: 0.6; }
-    .note { margin: 4px 0 0; font-size: 11px; color: var(--text-tertiary); }
-    .erreur-champ { margin: 0; font-size: 12px; color: var(--danger); }
-    .rangee { display: flex; align-items: center; gap: 12px; }
-    .rangee-statut { flex-direction: row; align-items: center; }
-    .etiquette-actif { font-size: 13px; color: var(--text-primary); }
-    .interrupteur {
-      position: relative; width: 34px; height: 20px; flex-shrink: 0; padding: 0; cursor: pointer;
-      border-radius: 10px; border: 0.5px solid var(--border-default); background: var(--bg-level-3);
-      transition: background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover);
-    }
-    .curseur {
-      position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
-      background: var(--text-tertiary); transition: transform 150ms var(--ease-hover), background-color 150ms var(--ease-hover);
-    }
-    .interrupteur[aria-checked='true'] { background: var(--brand-teal); border-color: var(--brand-teal); }
-    .interrupteur[aria-checked='true'] .curseur { transform: translateX(14px); background: var(--brand-teal-fg); }
-    .interrupteur:disabled { opacity: 0.5; cursor: not-allowed; }
-    .interrupteur:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
-    .bouton {
-      flex-shrink: 0; border-radius: 6px; padding: 8px 16px; font-family: var(--font-sans); font-size: 12px; font-weight: 500;
-      cursor: pointer; white-space: nowrap;
-      transition: background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover);
-    }
-    .bouton:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
-    .bouton:disabled { cursor: not-allowed; opacity: 0.5; }
-    .neutre { background: transparent; border: 0.5px solid var(--border-default); color: var(--text-secondary); }
-    .neutre:not(:disabled):hover { border-color: var(--border-hover); background: var(--bg-level-2); color: var(--text-primary); }
-    .teal { background: transparent; border: 0.5px solid var(--brand-teal); color: var(--brand-teal); }
-    .teal:not(:disabled):hover { background: var(--brand-teal-10); }
-    .supprimer { background: transparent; border: 0.5px solid var(--danger); color: var(--danger); }
-    .supprimer:not(:disabled):hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
-    .danger {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      padding: 12px 14px; border-radius: 8px;
-      border: 0.5px solid color-mix(in srgb, var(--danger) 30%, transparent);
-    }
-    .danger-titre { margin: 0; font-size: 12px; font-weight: 500; color: var(--danger); }
-    .danger-texte { margin: 2px 0 0; font-size: 12px; color: var(--text-tertiary); }
-    .squelette { height: 36px; margin-bottom: 8px; border-radius: 6px; background: var(--bg-level-2); animation: pulse 1.5s ease-in-out infinite; }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-    .erreur {
-      display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
-      padding: 12px; border-radius: 6px; font-size: 12px; color: var(--danger);
-      background: color-mix(in srgb, var(--danger) 10%, transparent);
-      border: 0.5px solid color-mix(in srgb, var(--danger) 20%, transparent);
-    }
-    @media (prefers-reduced-motion: reduce) { .squelette, .interrupteur, .curseur { animation: none; transition: none; } }
-  `,
+  templateUrl: './onglet-reglages.component.html',
+  styleUrls: ['./fiche-commune.css', './onglet-reglages.component.css'],
 })
 export class OngletReglagesComponent {
   private readonly api = inject(EspacesApi);
@@ -293,22 +82,11 @@ export class OngletReglagesComponent {
   protected readonly titreSuppression = computed(() => `Supprimer ${this.resume()?.nom_affiche ?? 'cet espace'} ?`);
   protected readonly messageSuppression = computed(() => {
     const r = this.resume();
-    if (!r) return '';
-    const n = r.nb_membres;
-    const m = r.nb_jeux_prives;
-    const membres = n === 1 ? 'Son 1 membre en est retiré' : `Ses ${n} membres en sont retirés`;
-    const jeux = m === 1 ? 'son 1 jeu privé devient sans propriétaire et n\'est' : `ses ${m} jeux privés deviennent sans propriétaire et ne sont`;
-    return `${membres} ; ${jeux} plus visible${m === 1 ? '' : 's'} que du super-administrateur.`;
+    return r ? messageSuppression(r.nb_membres, r.nb_jeux_prives) : '';
   });
 
   protected readonly titreDesactivation = computed(() => `Désactiver ${this.resume()?.nom_affiche ?? 'cet espace'} ?`);
-  protected readonly messageDesactivation = computed(() => {
-    const n = this.resume()?.nb_membres;
-    // Ce que les routes font d'un espace inactif (`admin/users`, `admin/campaigns/[id]`) : plus de
-    // nouveau compte, plus de campagne rattachée. Rien n'est supprimé.
-    const qui = n === undefined ? 'Ses membres' : n === 1 ? 'Son 1 membre' : `Ses ${n} membres`;
-    return `Un espace inactif n'accepte plus de nouveau compte ni de campagne. ${qui} y ${n === 1 ? 'est' : 'sont'} concerné${n === 1 ? '' : 's'}. Rien n'est supprimé : le réactiver suffit.`;
-  });
+  protected readonly messageDesactivation = computed(() => messageDesactivation(this.resume()?.nb_membres));
 
   private lecture: Subscription | null = null;
   private envoi: Subscription | null = null;
@@ -361,8 +139,8 @@ export class OngletReglagesComponent {
     this.description.set(o.description ?? '');
     this.maxPoi.set(quotaEnSaisie(config, 'max_poi'));
     this.maxAi.set(quotaEnSaisie(config, 'max_ai_requests'));
-    this.siteUrl.set(texte(config, 'site_centric_url'));
-    this.siteCle.set(texte(config, 'site_centric_key'));
+    this.siteUrl.set(texteDeConfig(config, 'site_centric_url'));
+    this.siteCle.set(texteDeConfig(config, 'site_centric_key'));
     this.erreurNom.set(false);
     this.erreurPoi.set(false);
     this.erreurAi.set(false);
