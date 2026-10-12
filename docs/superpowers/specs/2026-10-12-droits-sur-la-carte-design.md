@@ -49,7 +49,7 @@ Pour faire les deux groupes (R6), les réponses qui listent des jeux disent leur
 
 Défaut actuel : `carte.page.ts` (`organisationChangee`) ferme le panneau ouvert et retire les zones, mais **ne relit ni le catalogue POI (`etat/catalogue-poi.service.ts`), ni les points/panneaux affichés, ni les sélections**. Après un changement d'espace, la carte montre encore les données de l'espace précédent.
 
-Changement : un changement d'espace **invalide tout ce qui dépend du périmètre** — catalogue POI, natures, POI et panneaux affichés, sélections de types devenus invisibles, zones, jeux de zones, analyses, caches `useRef`-équivalents — puis relit ce qui est affiché, **au plus 3 appels simultanés** (limiteur), une colonne à la fois (règles I/O). Les sélections encore valides dans le nouvel espace sont gardées ; les autres sont retirées et le panneau le dit.
+Changement (arbitré à l'écriture du plan, 2026-10-12) : un changement d'espace **recrée la page carte**, exactement comme la coquille recrée la page courante (`layout/coquille.component.ts`, `generation`) et comme React fait `window.location.reload()`. Tous les services d'état de la carte sont fournis par la page : les recréer remet à zéro TOUT ce qui dépend du périmètre (catalogue POI, points, panneaux, batailles, clusters, zones, analyses, plan média) sans liste à tenir à jour — une liste d'invalidations manuelles oublierait le prochain service ajouté. Rien n'est relu automatiquement au-delà de ce qu'une ouverture de carte lit déjà (règles I/O inchangées). Les sélections en cours sont perdues, comme en React ; la vue (centre, zoom, fond) est gardée si l'URL la porte.
 
 ### 4.2 Deux groupes
 
