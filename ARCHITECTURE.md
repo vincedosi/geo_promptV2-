@@ -132,10 +132,10 @@
 >
 > Ce qui reste de la plomberie bidding sert le wizard de campagne :
 > `/api/bidding/strategies` (GET/POST), `/strategies/[id]` (GET/PATCH/DELETE),
-> `/strategies/[id]/export`, `/strategies/[id]/final-report`,
-> `/strategies/drafts` + `/drafts/[id]`. `/api/bidding/train` (appele par
-> `lib/agent/autonomy.ts`) est retire le 2026-10-12 avec l'agent et Modal.
-> `FinalReport` a migre vers `components/campaign/`.
+> `/strategies/[id]/export`, `/strategies/drafts` + `/drafts/[id]`.
+> `/api/bidding/train` (appele par `lib/agent/autonomy.ts`) est retire le
+> 2026-10-12 avec l'agent et Modal ; `/strategies/[id]/final-report` et son
+> composant `FinalReport` (bilan Gemini) le meme jour, au lot 3.
 > Les tables `bidding_daily_state`, `bidding_simulations` et `bidding_curve_history`
 > n'ont plus d'ecrivain applicatif — a trancher en seconde passe.
 > `bidding_zone_configs` reste utile (lue par `refresh_campaign_rollups`).
@@ -167,8 +167,39 @@
 > `bidding_algorithms`) RESTENT, sans ecrivain applicatif : leur sort est remis
 > au proprietaire. `/api/bidding/strategies` ne lit ni n'ecrit plus
 > `agent_autonomy_settings` (le champ `agent_autonomy_override` disparait de la
-> creation et de la lecture) ; la lecture garde `active_model`
-> (`adaptive_model_state`, alimentee par `scripts/benchmarking/`).
+> creation et de la lecture). Au lot 3, la lecture ne rend plus non plus
+> `active_model` : `adaptive_model_state` (le modele entraine par Modal, 0 ligne)
+> n'est plus lue par l'application ; aucun ecran ne lisait ce champ. La table
+> reste en base et `scripts/benchmarking/` peut encore l'ecrire.
+
+---
+
+> **Bilans et analyses Gemini/Mistral hors carte : RETIRES le 2026-10-12**
+> (chantier « suppression de toute l'IA », lot 3). Partis du code :
+> - le bilan executif de fin de campagne : `/api/bidding/strategies/[id]/final-report`,
+>   `components/campaign/FinalReport.tsx` (monte par `suivi-v2/DetailTechnique`,
+>   qui ne lit donc plus `GET /api/bidding/strategies`), et ses calculs
+>   `lib/bidding-ml/{comparison,targeting-kpis}.ts`. `metric-labels.ts` est
+>   garde et deplace dans `lib/bidding/` ; le dossier `lib/bidding-ml/` n'existe
+>   plus. `get_strategy_comparison_data` n'a plus d'appelant (defaut C de
+>   `docs/SUITE_TRONCATURE_POSTGREST.md` clos par retrait) ;
+> - le diagnostic geo de l'analyse digitale : `/api/digital/[campaignId]/ai-analysis`
+>   et `AiAnalysisBlock.tsx`, retires d'`AnalysisPanel` (V1) et d'`AnalyseV2`,
+>   dont l'onglet « IA » devient « Score qualite » (le score, calcule
+>   localement, reste) ;
+> - l'analyse d'un modele de clustering : `/api/poi-clusters/models/[version]/{analysis,generate-analysis}`,
+>   le bloc « Analyser » de `components/ClusterDetails.tsx`, le type
+>   `lib/clustering/types.ts` (`GeminiAnalysis`, seul contenu du fichier), et
+>   dans `scripts/clustering_poi_filosofi.py` la phase 11, le mode
+>   `generate-analysis` et les options `--no-analysis` / `--model-version`. Le
+>   k-means est inchange ;
+> - le resume Mistral d'une source : `/api/admin/sources/[id]/summary`, son
+>   bouton, son bloc et l'apercu en liste de `/admin/sources`.
+>
+> En base, rien n'est supprime : la colonne `clustering_models.analysis`, la
+> colonne `ai_summary` des sources et la RPC `get_strategy_comparison_data`
+> restent, sans ecrivain ni lecteur applicatif ; leur sort est remis au
+> proprietaire.
 
 ## Stack technique
 
@@ -294,7 +325,6 @@ genesis_app/
 │   │   ├── CampaignCockpit.tsx # Fil d'Ariane + wizard prog (Cible→Canaux & budgets→Pression→Strategie→Lancement)
 │   │   ├── CampaignOverview.tsx# Apercu campagne + actions (Pause/Cloturer/Archiver/Supprimer) —
 │   │   │                       # la modification passe par l'onglet Strategie (wizard)
-│   │   ├── FinalReport.tsx     # Bilan executif Gemini fin de campagne — consomme par suivi-v2/DetailTechnique
 │   │   ├── suivi/              # Tache 16 (2026-09-15) : ne contient plus que ReconciliationPanel.tsx,
 │   │   │                       # reutilise TEL QUEL par suivi-v2/DetailTechnique (reconciliation DSP ⇔ mesure).
 │   │   │                       # CampaignSuivi.tsx et le reste de suivi/ (SuiviCockpit/SuiviCharts/SuiviTable/
@@ -316,7 +346,7 @@ genesis_app/
 │   │                           # ConstatsCorrection (deregles), QuiADiffuse (vue par acteur,
 │   │                           # lib/campaigns/actor-metrics.ts), DetailTechnique (bloc technique
 │   │                           # replie — budget vs trajectoire + ReconciliationPanel reutilise de
-│   │                           # components/campaign/suivi/ + FinalReport), BandeauAvancement/
+│   │                           # components/campaign/suivi/), BandeauAvancement/
 │   │                           # BarreMaille/CoutEtRythme/TroisComposantes (etat/maille/cout),
 │   │                           # PressionParClasse (part des impressions contre part
 │   │                           # du PLAN, par classe de zone — n'apparait QUE si le plan
@@ -670,7 +700,7 @@ genesis_app/
 │   ├── digital/                # google-ads-geo-ids.json
 │   ├── dsp-mapping/            # loader.ts — mappings de colonnes DSP dynamiques (table dsp_source_mappings)
 │   ├── metrics-display/        # loader + formateur dynamique des metriques (dsp_metrics_registry)
-│   ├── bidding-ml/             # comparison / metric-labels / targeting-kpis (client Modal retire le 2026-10-12)
+│   ├── bidding/                # metric-labels.ts (ex-lib/bidding-ml/, dossier retire le 2026-10-12 avec le ML et le bilan Gemini)
 │   ├── format/                 # nombre.ts — source unique de la mise en forme des nombres
 │   │                           #   (DUP-001 : 15 fmtNum locaux remplaces)
 │   ├── geo/                    # france-admin.ts, locations.ts
@@ -1348,8 +1378,6 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/poi-clusters/run` | POST/GET | Lance un job (corps valide par Zod) / polling du statut. **`features` null, absent ou `[]` = les 16 variables, passees EXPLICITEMENT en `--features`** (liste lue dans `lib/clustering/feature-themes.ts`) : c'est `--features` seul qui fait enchainer `cache-isochrones` -> `full-retrain` au script. Jusqu'au 2026-10-11, « toutes les variables » omettait l'option et le job finissait `done` sans aucun modele. **Effet de bord : un `dry_run` enchaine lui aussi un `full-retrain` a blanc** — rien n'est ecrit, mais le profilage Filosofi (`compute_filosofi_profiles_batch_2km`) tourne sur TOUTES les isochrones en cache du type, France entiere (`_load_all_cached_isochrones` ignore `geo_filter` : 160 bmw profiles pour 6 selectionnes, mesure le 2026-10-11) ; un vrai lancement entraine de meme sur tout le cache du type. `result_meta.latest_model_version` est lu APRES l'entrainement enchaine, et `result_meta.modele_entraine` dit si une nouvelle version est apparue (`run_full_retrain` peut finir sans erreur et sans modele) **Le moteur est un script Python lance en processus fils : il n'y a aucun runtime Python sur Vercel.** La route repond 503 explicite si le script est absent. Portage Modal : `docs/PLAN_CLUSTERING.md` |
 | `/api/poi-clusters/models` | GET | Liste des modeles calcules |
 | `/api/poi-clusters/models/[version]` | GET/DELETE | Detail d'un modele (resume par cluster + POI) / suppression |
-| `/api/poi-clusters/models/[version]/analysis` | GET/DELETE | Analyse Gemini du modele |
-| `/api/poi-clusters/models/[version]/generate-analysis` | POST | (Re)genere l'analyse Gemini |
 | `/api/poi-clusters/[clusterId]` | GET | Detail d'un cluster |
 | `/api/poi-clusters/poi/[poiId]` | GET | Clusters d'un POI, toutes durees |
 | `/api/poi-clusters/history/[poiId]` | GET | Historique des assignations d'un POI |
@@ -1404,7 +1432,6 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/digital/[campaignId]/actors` | GET | Acteurs de la campagne (DSP / social / regie) avec livre, depense, CPM, part et atteinte d'objectif — alimente « Qui a diffuse » du Suivi V2 (RPC `get_campaign_actors`) |
 | `/api/digital/[campaignId]/pacing` | GET | Diagnostic plan-vs-reel PAR ITEM de zone (`?version=`) : parts intra-zone, ecart, statut, spillover. Distinct de `/suivi`, qui agrege au niveau campagne |
 | `/api/digital/[campaignId]/custom-zone/[zoneId]` | GET | Croisement campagne x zone custom → GeoJSON + resume, meme forme que `/map` |
-| `/api/digital/[campaignId]/ai-analysis` | POST | Analyse Gemini performances geo |
 | `/api/digital/[campaignId]/suivi` | GET | Payload complet du cockpit de suivi (pacing, CPM, pression tenue, alertes, depts, quotidien) — lit les rollups uniquement, backfill lazy si absents (campagnes avec strategie). Route KEPT (Tache 16) : `pacing.total_budget` + `daily` alimentent la trajectoire budget de `suivi-v2/DetailTechnique.tsx` |
 | `/api/digital/[campaignId]/suivi/map` | GET | Choroplethe CP du suivi (`?metric=hold\|cpm&bbox=`) — features GeoJSON pour SuiviMapLayer |
 | `/api/digital/[campaignId]/reconcile` | GET | Payload de reconciliation DSP ⇔ ad server (taux de mesure global, composition de l'achat par canal, tendance) — lit campaign_dsp_report + rollups |
@@ -1518,7 +1545,6 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/admin/sources` | GET/POST | CRUD sources |
 | `/api/admin/sources/[id]` | GET/PATCH/DELETE | Detail/modification/suppression source |
 | `/api/admin/sources/[id]/export` | GET | Export CSV source (POI ou panneaux). **Depuis le 2026-10-11** : pages de 1 000 triees sur `id`, reprise apres le dernier `id` lu (`lireParCleJusqua`, `lib/supabase/lire-tout.ts`), jusqu'a `BORNE_EXPORT_SOURCE` = 50 000 (`lib/csv/export-source.ts`) ; au-dela, derniere ligne `# Export tronqué : N lignes sur M…`, fichier `…_export_tronque.csv` et en-tete `X-Export-Tronque: true` (`X-Export-Lignes` toujours). Avant, `.limit(50000)` en un appel sortait 1 000 lignes sous `db-max-rows` (mesure : 1 000 sur 5 584 POI). Verrou : `tests/unit/api/export-source-borne.test.ts` |
-| `/api/admin/sources/[id]/summary` | POST | Resume IA source |
 | `/api/admin/sources/[id]/meta-keys` | GET | Cles metadata source |
 | `/api/admin/sources-stats` | GET | Stats sources |
 | `/api/admin/iris/stats` | GET | Stats admin IRIS |
@@ -1598,7 +1624,6 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/cibles/preview` | GET | Apercu `count` / population d'un seuil (`?indicator=&operator=&threshold=`) — COUNT indexe, **jamais de geometrie** : c'est ce qui rend l'apercu utilisable a chaque mouvement de curseur |
 | `/api/bidding/strategies/drafts` | GET/POST | Brouillons de strategie de l'utilisateur courant (`consumed_at IS NULL`) ; POST = upsert appele par l'autosave du wizard |
 | `/api/bidding/strategies/drafts/[id]` | GET/DELETE | Chargement / abandon d'un brouillon, avec verification du proprietaire |
-| `/api/bidding/strategies/[id]/final-report` | POST | Bilan executif Gemini en cinq sections d'une campagne terminee, cache memoire 1 h. ⚠ Lit `get_strategy_comparison_data`, **coupee a 1 000 lignes par PostgREST** (`db-max-rows`) alors que les deux strategies en base en portent 306 150 et 174 780 (mesure du 2026-10-10) — defaut C de `docs/SUITE_TRONCATURE_POSTGREST.md`, ouvert |
 
 ### Agent autonome (bidding) — RETIRE le 2026-10-12
 
@@ -1841,7 +1866,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `create_custom_geo_zone` | Cree une zone custom depuis un GeoJSON Polygon/MultiPolygon ; une geometrie invalide passe par `ST_MakeValid` **puis `ST_CollectionExtract(…, 3)` depuis sql/247 (2026-10-11)** : `ST_MakeValid` (methode `linework`) gardait l'anneau effondre d'un trou degenere en LIGNE et rendait une GEOMETRYCOLLECTION, refusee par la colonne `geometry(MultiPolygon)`. Cause mesuree : `get_admin_filter_geometry` serialise en GeoJSON a 9 decimales, et 470 des 6 187 codes postaux (13002, 75001…) portent un trou de 4 sommets dont deux ne different qu'a la 15e decimale — l'aller-retour par le client le rend invalide. Les residus jetes sont des lignes sans aire (ecart < 2e-7 km2 avec l'union exacte) ; une reparation sans surface leve « Géométrie sans surface après réparation ». Geometrie deja valide : chemin inchange (surfaces et comptes IRIS/CP identiques avant/apres, verifie sur 2 listes et les 7 zones existantes) | `api/custom-geo/save/`, `api/custom-geo/capture/` |
 | `create_custom_geo_zone_with_subzones` | Zone parente + N sous-zones (sans sous-zones : delegue a `create_custom_geo_zone`). Meme correctif sql/247, sur la parente ET chaque sous-zone | `api/custom-geo/capture/` |
 | `get_zone_radius_targets` | Un cercle circonscrit (centroide, rayon 1-50 km, aire) par poche disjointe (`ST_Dump`) d'une zone custom, pour le ciblage TikTok par rayon. **Creee hors migrations** (aucun `CREATE` dans `sql/`), `RETURNS TABLE` sans `LIMIT` : 565 lignes au plus le 2026-10-10, sous le plafond PostgREST de 1 000, mais rien ne l'y tient — **dette E** de `docs/SUITE_TRONCATURE_POSTGREST.md` | `api/custom-geo/[id]/export/` (`tiktok_geo`) |
-| `get_campaign_medias` | Regies distinctes campagne | `api/digital/[id]/ai-analysis/` |
+| `get_campaign_medias` | Regies distinctes campagne | `api/digital/[id]/analysis/` |
 | `get_digital_geography_map_v2` | Choroplethe CP | `api/digital/[id]/map/` — la v1 `get_digital_campaign_map` a ete supprimee le 2026-09-11 |
 | `get_digital_analysis_breakdown_v2` | Breakdown geo | `api/digital/[id]/analysis/` — la v1 a ete supprimee le 2026-09-11 |
 | `get_digital_media_heatmap_v2` | Heatmap regies x zones | `api/digital/[id]/analysis/` — la v1 a ete supprimee le 2026-09-11 |

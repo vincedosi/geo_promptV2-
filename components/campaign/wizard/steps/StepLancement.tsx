@@ -286,7 +286,7 @@ export function StepLancement({
       // Courbe sur l'indicateur réellement ciblé (ou uniforme sans indicateur,
       // abstention en national pur — voir buildInZoneWeights). weighting_mode
       // DOIT suivre le mode réel de la courbe : sinon resolveWeightingTarget()
-      // (lib/bidding-ml/metric-labels.ts) cherche un variable_code absent en
+      // (lib/bidding/metric-labels.ts) cherche un variable_code absent en
       // mode uniform et le Pilotage perd le ciblage sans erreur visible.
       const inZoneWeights = buildInZoneWeights(draft);
       const weightingMode = (inZoneWeights as { mode?: string }).mode === 'uniform' ? 'uniform' as const : 'by_insee_variable' as const;

@@ -7,7 +7,6 @@ import { KpiSummary } from './KpiSummary';
 import { BreakdownChart } from './BreakdownChart';
 import { ActionListTable } from './ActionListTable';
 import { MediaHeatmap } from './MediaHeatmap';
-import { AiAnalysisBlock } from './AiAnalysisBlock';
 import { BiddingRecommendation } from './BiddingRecommendation';
 import { PacingPanel } from './PacingPanel';
 
@@ -269,16 +268,6 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
             {/* Col 2: Bidding Recommendation */}
             <div style={{ background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden' }}>
               <BiddingRecommendation data={breakdownData} aggregation={currentAggregation} />
-            </div>
-
-            {/* Full width: AI Analysis */}
-            <div style={{ gridColumn: '1 / -1' }}>
-              <AiAnalysisBlock
-                campaignId={campaignId}
-                indicator={popField}
-                kpi={{ totalImpressions: totalImp, totalPop, ratioMoyen, couverturePct: breakdownData.length > 0 ? 100 : 0, concentrationTop10 }}
-                breakdown={breakdownData}
-              />
             </div>
           </div>
         )}

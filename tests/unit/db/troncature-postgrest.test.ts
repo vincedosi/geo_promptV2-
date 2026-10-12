@@ -29,7 +29,8 @@ import { join, sep } from 'node:path';
  *      jumelle le 2026-10-10
  *   4. `get_zone_centroids` + `codes_postaux_dans_bbox` — 2026-09-15,
  *      corrigées sql/243-245 (2026-10-10)
- *   5. `get_strategy_comparison_data`    — 2026-09-16, trouvée PAR CE TEST
+ *   5. `get_strategy_comparison_data`    — 2026-09-16, trouvée PAR CE TEST ;
+ *      close le 2026-10-12 par retrait de son unique appelant (bilan Gemini)
  *   6. `get_voronoi_by_category`         — 2026-10-10, 4 653 cellules → 1 000,
  *      corrigée sql/246
  *
@@ -127,17 +128,6 @@ const BORNES: Record<string, Justification> = {
     raison:
       "Idem : une ligne par colonne métrique d'`iris`, lue dans information_schema — 41 "
       + "aujourd'hui, 51 indicateurs déclarés au registre donc 51 au plafond prévisible.",
-  },
-  get_strategy_comparison_data: {
-    nature: 'dette',
-    raison:
-      "AUCUNE BORNE, et c'est ce test qui l'a trouvée (2026-09-16). La fonction rend UNE "
-      + "LIGNE PAR LIGNE de dsp_campaign_data pour la campagne de la stratégie — ni GROUP BY, "
-      + "ni LIMIT, et ses deux arguments de date sont passés `undefined` par son unique "
-      + "appelant (/api/bidding/strategies/[id]/final-report). Mesuré le 2026-10-10 : "
-      + "306 150 et 174 780 lignes pour les deux stratégies en base : le bilan exécutif Gemini "
-      + "est donc calculé sur les 1 000 premières (0,3 %), et rend un rapport partiel mais "
-      + "parfaitement plausible. Défaut C de docs/SUITE_TRONCATURE_POSTGREST.md.",
   },
   get_table_sizes: {
     nature: 'borne',

@@ -9,9 +9,10 @@
  * IDENTIQUES hors ce seul champ : même statut, mêmes clés de réponse, mêmes
  * écritures — et plus aucun accès à `agent_autonomy_settings`.
  *
- * `active_model` (table `adaptive_model_state`) est GARDÉ : la table reste en
- * base et les scripts de benchmark des algorithmes d'enchères l'alimentent ;
- * ce n'est pas l'agent.
+ * `active_model` (table `adaptive_model_state`, le modèle ML entraîné par
+ * Modal) a été retiré de la lecture au lot 3 : aucun écran ne le lisait, et
+ * « plus rien d'IA dans le code ». La table reste en base (liste remise au
+ * propriétaire en fin de chantier) ; la route ne la lit plus.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
@@ -95,16 +96,17 @@ describe('stratégie d enchères sans l agent autonome', () => {
     expect(rpcAppelees).toEqual(['apply_zone_weights_to_strategy', 'log_strategy_change', 'refresh_campaign_rollups']);
   });
 
-  it('lecture : mêmes clés moins agent_autonomy_override, sans lire agent_autonomy_settings', async () => {
+  it('lecture : mêmes clés moins agent_autonomy_override et active_model, sans lire les tables de l agent ni du ML', async () => {
     const res = await GET(
       new NextRequest('http://localhost/api/bidding/strategies/strat-1'),
       { params: Promise.resolve({ id: 'strat-1' }) },
     );
     expect(res.status).toBe(200);
     const corps = await res.json();
-    expect(Object.keys(corps).sort()).toEqual(['active_model', 'campaign', 'objective', 'strategy', 'subzones']);
+    expect(Object.keys(corps).sort()).toEqual(['campaign', 'objective', 'strategy', 'subzones']);
     expect(corps.strategy.id).toBe('strat-1');
     expect(tablesTouchees).not.toContain('agent_autonomy_settings');
-    expect(tablesTouchees).toContain('adaptive_model_state');
+    expect(tablesTouchees).not.toContain('adaptive_model_state');
+    expect(tablesTouchees).toEqual(expect.arrayContaining(['bidding_strategies', 'dsp_campaigns', 'bidding_objectives', 'bidding_strategy_subzones']));
   });
 });

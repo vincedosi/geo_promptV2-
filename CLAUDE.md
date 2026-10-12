@@ -152,7 +152,8 @@ OBLIGATOIRE :
 d'en-tête : l'appelant reçoit un tableau parfaitement valide de 1 000 éléments
 et n'a aucun moyen de savoir qu'il en manquait 5 187. Aucun `if (error)` ne
 peut voir ça passer. Aucun `.limit()` client ne lève ce plafond. Six
-occurrences recensées, un défaut et deux dettes encore ouverts —
+occurrences recensées, deux dettes encore ouvertes (le défaut C est clos par
+retrait de son appelant IA le 2026-10-12) —
 `docs/SUITE_TRONCATURE_POSTGREST.md`.
 
 > **Cette section disait « 5 000 lignes » jusqu'au 2026-10-10**, et ne parlait

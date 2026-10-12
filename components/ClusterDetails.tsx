@@ -9,7 +9,6 @@ import {
   ScatterChart, Scatter, ZAxis,
 } from 'recharts';
 import { ClusterRadar, FEAT_SHORT, FEAT_LABEL } from '@/components/ClusterRadar';
-import type { GeminiAnalysis } from '@/lib/clustering/types';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -986,10 +985,6 @@ export function ClusterDetails({ version: versionProp, onClose }: { version: str
   const [poiList,    setPoiList]    = useState<PoiRecord[]>([]);
   const [franceAvg,  setFranceAvg]  = useState<FranceAverages | null>(null);
   const [exporting,         setExporting]         = useState(false);
-  const [analysis,          setAnalysis]          = useState<GeminiAnalysis | null>(null);
-  const [generatingAnalysis, setGeneratingAnalysis] = useState(false);
-  const [analysisJobId,     setAnalysisJobId]     = useState<string | null>(null);
-  const [analysisError,     setAnalysisError]     = useState<string | null>(null);
 
   useEffect(() => {
     if (!version) return;
@@ -999,56 +994,15 @@ export function ClusterDetails({ version: versionProp, onClose }: { version: str
     Promise.all([
       fetch(`/api/poi-clusters/models/${version}`).then(r => r.json()),
       fetch('/api/poi-clusters/france-averages').then(r => r.json()),
-      fetch(`/api/poi-clusters/models/${version}/analysis`).then(r => r.ok ? r.json() : null),
-    ]).then(([modelData, avgData, analysisData]) => {
+    ]).then(([modelData, avgData]) => {
       if (modelData.error) { setError(modelData.error); return; }
       setModel(modelData.model);
       setSummary(modelData.cluster_summary);
       setPoiList(modelData.poi_list);
       if (!avgData.error) setFranceAvg(avgData.averages);
-      if (analysisData && !analysisData.error) setAnalysis(analysisData);
     }).catch(e => setError(String(e)))
       .finally(() => setLoading(false));
   }, [version]);
-
-  // Poll job de génération d'analyse
-  useEffect(() => {
-    if (!analysisJobId) return;
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/poi-clusters/run?job_id=${analysisJobId}`);
-        const data = await res.json();
-        if (data.status === 'done') {
-          clearInterval(interval);
-          setAnalysisJobId(null);
-          setGeneratingAnalysis(false);
-          // Recharger l'analyse depuis la base
-          const ar = await fetch(`/api/poi-clusters/models/${version}/analysis`);
-          if (ar.ok) setAnalysis(await ar.json());
-        } else if (data.status === 'failed') {
-          clearInterval(interval);
-          setAnalysisJobId(null);
-          setGeneratingAnalysis(false);
-          setAnalysisError(data.error ?? 'Erreur lors de la génération');
-        }
-      } catch { /* réseau temporairement indispo */ }
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [analysisJobId, version]);
-
-  const handleGenerateAnalysis = async () => {
-    setGeneratingAnalysis(true);
-    setAnalysisError(null);
-    try {
-      const res = await fetch(`/api/poi-clusters/models/${version}/generate-analysis`, { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? `Erreur ${res.status}`);
-      setAnalysisJobId(data.job_id);
-    } catch (e: unknown) {
-      setGeneratingAnalysis(false);
-      setAnalysisError(String(e));
-    }
-  };
 
   if (loading) return (
     <div style={{ padding: 40, fontFamily: fMono, fontSize: 12, color: C.muted, textAlign: 'center' }}>
@@ -1116,46 +1070,6 @@ export function ClusterDetails({ version: versionProp, onClose }: { version: str
 
           {/* Export buttons */}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-            {/* Analyse Gemini */}
-            {analysisError && (
-              <span style={{ fontFamily: fMono, fontSize: 9, color: C.red }}>! {analysisError}</span>
-            )}
-            {!analysis && !generatingAnalysis && (
-              <button
-                onClick={handleGenerateAnalysis}
-                style={{
-                  background: 'none', border: `1px solid ${C.accent}50`, borderRadius: 2,
-                  padding: '4px 10px', cursor: 'pointer',
-                  fontFamily: fInter, fontSize: 11, color: C.accent,
-                }}
-                title="Générer l'analyse Gemini (rapport PDF enrichi)"
-              >
-                + Analyser
-              </button>
-            )}
-            {generatingAnalysis && (
-              <span style={{
-                fontFamily: fInter, fontSize: 11,
-                color: C.accent, border: `1px solid ${C.accent}40`, borderRadius: 2,
-                padding: '4px 10px', opacity: 0.7,
-              }}>
-                … Gemini
-              </span>
-            )}
-            {analysis && !generatingAnalysis && (
-              <button
-                onClick={handleGenerateAnalysis}
-                title="Regénérer l'analyse Gemini"
-                style={{
-                  background: 'none', border: `1px solid ${C.border}`, borderRadius: 2,
-                  padding: '4px 8px', cursor: 'pointer',
-                  fontFamily: fInter, fontSize: 11, color: C.dim,
-                }}
-              >
-                ↺ IA
-              </button>
-            )}
-
             <button
               disabled
               title={EXPORTS_INDISPONIBLES}

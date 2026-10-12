@@ -281,336 +281,6 @@ _LBL_NEG = {
     'surface_moyenne':    'Petits logements',
 }
 
-# -- Gemini analysis ----------------------------------------------------------
-
-GEMINI_API_KEY = (
-    os.getenv('GEMINI_API_KEY') or
-    os.getenv('GOOGLE_API_KEY') or
-    os.getenv('GOOGLE_GENERATIVE_AI_API_KEY') or
-    ''
-)
-
-# Labels lisibles pour chaque feature (envoyés à Gemini)
-FEATURE_LABELS: Dict[str, str] = {
-    'pct_0_17':           '% enfants et adolescents (0-17 ans)',
-    'pct_18_39':          '% jeunes adultes (18-39 ans)',
-    'pct_40_54':          '% adultes actifs (40-54 ans)',
-    'pct_55_79':          '% seniors (55-79 ans)',
-    'pct_80p':            '% très âgés (80 ans et plus)',
-    'revenu_moyen':       'revenu moyen par individu',
-    'taux_pauvrete':      'taux de pauvreté des ménages',
-    'taux_proprietaires': 'taux de propriétaires',
-    'taux_collectif':     'taux de logements collectifs',
-    'taux_hlm':           'taux de logements sociaux (HLM)',
-    'taux_isoles':        'taux de ménages isolés (1 personne)',
-    'taux_grandes_fam':   'taux de grandes familles (5+ personnes)',
-    'taux_mono_parental': 'taux de familles monoparentales',
-    'taux_ancien':        'taux de logements anciens (avant 1945)',
-    'taux_recent':        'taux de logements récents (après 1990)',
-    'surface_moyenne':    'surface moyenne des logements (m²)',
-}
-
-GEMINI_SYSTEM_PROMPT = """Tu es un analyste senior en géomarketing chez Dentsu, \
-spécialisé dans l'analyse sociodémographique des zones de chalandise.
-
-Tu rédiges des dossiers d'analyse pour des clients (annonceurs, ministères, \
-collectivités). Ton style est :
-- Professionnel mais accessible (pas de jargon ML)
-- Factuel et chiffré (toujours citer les données)
-- Orienté action (chaque constat mène à une recommandation)
-- En français courant, phrases courtes
-
-Tu reçois les résultats d'un clustering sociodémographique : des points d'intérêt \
-(magasins, centres, agences) ont été regroupés selon le profil de population \
-dans leur zone de chalandise (isochrone en voiture). Les données sont issues \
-de l'INSEE Filosofi (carrés de 200m).
-
-Tu dois produire un dossier d'analyse structuré en JSON avec les sections suivantes."""
-
-GEMINI_USER_PROMPT = """\
-Voici les résultats du clustering. Analyse-les et produis le dossier complet.
-
-DONNÉES :
-{payload_json}
-
-LABELS DES FEATURES :
-{feature_labels_json}
-
-Produis un JSON avec exactement ces clés :
-
-{{
-  "titre": "Titre du dossier (ex: Analyse sociodémographique du réseau BMW France)",
-
-  "synthese_executive": "1 paragraphe de 4-5 phrases résumant les principaux enseignements. Citer le nombre de clusters, le trait distinctif principal de chaque cluster, et la recommandation clé.",
-
-  "clusters": [
-    {{
-      "id": 0,
-      "titre": "Titre parlant du cluster (pas le label technique)",
-      "analyse": "2-3 paragraphes analysant le profil du cluster : quel type de bassin de population (chiffres vs France), où se trouvent ces POI (citer les noms des plus typiques), qu'est-ce qui distingue ce cluster des autres.",
-      "recommandation": "1-2 paragraphes de recommandations stratégiques : quel type de communication/média privilégier, quel message adapter à ce bassin, quelles opportunités ou risques.",
-      "atypiques": "Si des POI atypiques existent dans ce cluster, expliquer pourquoi ils sont différents et ce que ça implique. Sinon null."
-    }}
-  ],
-
-  "comparaison_france": "1-2 paragraphes positionnant l'ensemble du réseau par rapport à la moyenne nationale. Le réseau couvre-t-il un échantillon représentatif de la France ou est-il biaisé vers certains profils ?",
-
-  "points_attention": [
-    "Liste de 3-5 points d'attention ou recommandations transversales"
-  ],
-
-  "methodologie_resume": "1 paragraphe résumant la méthodologie en langage accessible (pour le client qui veut comprendre comment c'est fait)"
-}}
-
-RÈGLES :
-- Réponds UNIQUEMENT en JSON valide, sans markdown autour, sans ```json
-- Tous les textes en français
-- Cite des chiffres précis (ex: "+12% de 18-39 ans vs la moyenne nationale")
-- Les recommandations doivent être actionnables et spécifiques au contexte
-- Ne mentionne jamais "K-Means", "PCA", "silhouette" — parle de "regroupement statistique", "analyse", "score de qualité"
-- Le titre doit mentionner le type de POI et la thématique d'analyse
-"""
-
-
-def load_france_averages(sb: SupabaseClient) -> Dict[str, float]:
-    """Charge les moyennes nationales Filosofi depuis filosofi_national_averages."""
-    try:
-        res = sb.from_('filosofi_national_averages') \
-            .select('feature_name, avg_value') \
-            .execute()
-        return {row['feature_name']: float(row['avg_value'] or 0) for row in (res.data or [])}
-    except Exception as exc:
-        print(f"  WARN: impossible de charger les moyennes France: {exc}")
-        return {}
-
-
-def load_poi_names(sb: SupabaseClient, poi_ids: List[str]) -> Dict[str, Dict]:
-    """Charge nom + ville pour une liste de poi_ids depuis poi_france."""
-    if not poi_ids:
-        return {}
-    result: Dict[str, Dict] = {}
-    # Requêtes par batch de 200
-    for i in range(0, len(poi_ids), 200):
-        chunk = poi_ids[i:i + 200]
-        try:
-            res = sb.table(TABLE_POI).select('id, nom, ville').in_('id', chunk).execute()
-            for row in (res.data or []):
-                result[row['id']] = {'nom': row.get('nom') or '', 'ville': row.get('ville') or ''}
-        except Exception as exc:
-            print(f"  WARN: load_poi_names batch {i}: {exc}")
-    return result
-
-
-def build_gemini_payload(
-    cluster_labels: Dict,
-    cluster_avg_profiles: Dict,
-    feature_names: List[str],
-    feature_themes: List[str],
-    poi_ids: List[str],
-    cluster_ids_arr,         # numpy array
-    X_pca,                   # numpy array
-    centroids: List,
-    france_averages: Dict[str, float],
-    poi_name_map: Dict[str, Dict],
-    duration: int,
-    mode: str,
-    quality_metrics: Dict,
-) -> Dict:
-    """Construit le payload JSON compact pour Gemini (<2500 tokens)."""
-    import numpy as _np
-
-    clusters_summary: Dict[str, Any] = {}
-
-    for cid_key, profile in cluster_avg_profiles.items():
-        cid = str(cid_key)
-        cid_int = int(cid_key)
-
-        # Profil filtré sur les features sélectionnées
-        filtered_profile = {k: round(float(v), 4) for k, v in profile.items() if k in feature_names}
-
-        # Écarts vs France
-        deltas: Dict[str, float] = {}
-        for feat, val in filtered_profile.items():
-            fr_val = france_averages.get(feat, 0.0)
-            if fr_val != 0:
-                deltas[feat] = round((val - fr_val) / fr_val * 100, 1)
-            else:
-                deltas[feat] = 0.0
-
-        # POI du cluster avec distance au centroïde
-        centroid_arr = _np.array(centroids[cid_int], dtype=float) if cid_int < len(centroids) else None
-        cluster_pois = []
-        for idx, pid in enumerate(poi_ids):
-            if int(cluster_ids_arr[idx]) != cid_int:
-                continue
-            poi_info = poi_name_map.get(pid, {})
-            nom = poi_info.get('nom') or pid[:8]
-            ville = poi_info.get('ville') or ''
-            dist = 0.0
-            if centroid_arr is not None:
-                pt = X_pca[idx].astype(float)
-                dist = float(_np.linalg.norm(pt - centroid_arr))
-            cluster_pois.append({'name': f"{nom} ({ville})" if ville else nom, 'dist': round(dist, 4)})
-
-        cluster_pois.sort(key=lambda x: x['dist'])
-
-        # POI atypiques : distance > 2× médiane
-        atypiques = []
-        if cluster_pois:
-            dists = [p['dist'] for p in cluster_pois]
-            median_dist = sorted(dists)[len(dists) // 2]
-            atypiques = [p for p in cluster_pois if p['dist'] > 2 * median_dist][:3]
-
-        clusters_summary[cid] = {
-            'label':            cluster_labels.get(cid_int) or cluster_labels.get(str(cid_int)) or f'Cluster {cid}',
-            'n_poi':            len(cluster_pois),
-            'profile':          filtered_profile,
-            'deltas_vs_france': deltas,
-            'top_pois':         [{'name': p['name']} for p in cluster_pois[:5]],
-            'atypiques':        [{'name': p['name']} for p in atypiques],
-        }
-
-    return {
-        'config': {
-            'duration_min':    duration,
-            'transport':       mode,
-            'feature_themes':  feature_themes,
-            'n_features':      len(feature_names),
-            'feature_names':   feature_names,
-        },
-        'quality': {
-            'k':            quality_metrics.get('k', len(clusters_summary)),
-            'silhouette':   round(float(quality_metrics.get('silhouette_score', 0)), 3),
-            'pca_variance': round(float(quality_metrics.get('variance_explained', 0)), 3),
-            'n_poi_total':  sum(c['n_poi'] for c in clusters_summary.values()),
-        },
-        'france_averages': {k: round(float(v), 4) for k, v in france_averages.items() if k in feature_names},
-        'clusters':        clusters_summary,
-    }
-
-
-def call_gemini_analysis(payload: Dict, feature_labels: Dict[str, str]) -> Optional[Dict]:
-    """Appelle Google Gemini pour générer l'analyse du clustering.
-    Retourne le dossier structuré en dict, ou None si erreur/pas de clé."""
-    if not GEMINI_API_KEY:
-        print("  WARN: GEMINI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY non configuree -- analyse ignoree")
-        return None
-
-    user_content = GEMINI_USER_PROMPT.format(
-        payload_json=json.dumps(payload, ensure_ascii=False, indent=2),
-        feature_labels_json=json.dumps(
-            {k: v for k, v in feature_labels.items() if k in payload['config']['feature_names']},
-            ensure_ascii=False, indent=2
-        ),
-    )
-
-    content: Optional[str] = None
-
-    try:
-        import google.generativeai as genai  # type: ignore
-        genai.configure(api_key=GEMINI_API_KEY)
-        gem_model = genai.GenerativeModel(
-            model_name='gemini-2.0-flash',
-            system_instruction=GEMINI_SYSTEM_PROMPT,
-            generation_config={
-                'temperature': 0.3,
-                'max_output_tokens': 4096,
-                'response_mime_type': 'application/json',
-            },
-        )
-        response = gem_model.generate_content(user_content)
-        content = response.text
-        # Log tokens
-        try:
-            u = response.usage_metadata
-            print(f"  Gemini tokens -- input: {u.prompt_token_count}, output: {u.candidates_token_count}")
-        except Exception:
-            pass
-
-    except ImportError:
-        # Fallback REST
-        import requests as _req  # noqa
-        resp = _req.post(
-            f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}',
-            headers={'Content-Type': 'application/json'},
-            json={
-                'system_instruction': {'parts': [{'text': GEMINI_SYSTEM_PROMPT}]},
-                'contents': [{'parts': [{'text': user_content}]}],
-                'generationConfig': {
-                    'temperature': 0.3,
-                    'maxOutputTokens': 4096,
-                    'responseMimeType': 'application/json',
-                },
-            },
-            timeout=60,
-        )
-        if resp.status_code != 200:
-            print(f"  WARN: Gemini REST {resp.status_code}: {resp.text[:300]}")
-            return None
-        content = resp.json()['candidates'][0]['content']['parts'][0]['text']
-
-    except Exception as exc:
-        print(f"  WARN: Erreur appel Gemini: {exc}")
-        return None
-
-    if content is None:
-        return None
-
-    try:
-        analysis = json.loads(content)
-    except json.JSONDecodeError as e:
-        print(f"  WARN: Reponse Gemini non parseable: {e} -- debut: {content[:300]}")
-        return None
-
-    required_keys = ['titre', 'synthese_executive', 'clusters', 'comparaison_france', 'points_attention']
-    missing = [k for k in required_keys if k not in analysis]
-    if missing:
-        print(f"  WARN: Cles manquantes dans la reponse Gemini: {missing}")
-        return None
-
-    return analysis
-
-
-def _run_gemini_for_model(
-    model: Dict,
-    poi_ids: List[str],
-    cluster_ids_arr,
-    X_pca,
-    sb: SupabaseClient,
-    duration: int,
-    mode: str,
-    log: logging.Logger,
-) -> Optional[Dict]:
-    """Helper : charge les données nécessaires et appelle Gemini pour un modèle."""
-    log.info("Gemini : chargement des donnees supplementaires...")
-
-    france_avg = load_france_averages(sb)
-    poi_name_map = load_poi_names(sb, poi_ids)
-
-    _feat_names = model.get('feature_names') or list(FEATURE_NAMES)
-    _feat_themes = model.get('feature_themes') or []
-
-    payload = build_gemini_payload(
-        cluster_labels=model.get('cluster_labels', {}),
-        cluster_avg_profiles=model.get('cluster_avg_profiles', {}),
-        feature_names=_feat_names,
-        feature_themes=_feat_themes,
-        poi_ids=poi_ids,
-        cluster_ids_arr=cluster_ids_arr,
-        X_pca=X_pca,
-        centroids=model.get('centroids', []),
-        france_averages=france_avg,
-        poi_name_map=poi_name_map,
-        duration=duration,
-        mode=mode,
-        quality_metrics=model,
-    )
-
-    log.info("Gemini : appel API (gemini-2.0-flash)...")
-    analysis = call_gemini_analysis(payload, FEATURE_LABELS)
-    return analysis
-
-
 # -- Logging ------------------------------------------------------------------
 
 def setup_logging(verbose: bool) -> logging.Logger:
@@ -1438,7 +1108,6 @@ def run_full_retrain(
     log: logging.Logger,
     poi_types: Optional[List[str]] = None,
     feature_names: Optional[List[str]] = None,
-    no_analysis: bool = False,
 ) -> None:
     sb = get_supabase()
 
@@ -1646,28 +1315,6 @@ def run_full_retrain(
         dry_run=dry_run,
         log=log,
     )
-
-    # Phase 11 : Analyse Gemini
-    if not dry_run and not no_analysis and GEMINI_API_KEY:
-        log.info("\n=== Gemini : generation de l'analyse ===")
-        analysis = _run_gemini_for_model(
-            model=model,
-            poi_ids=list(poi_ids),
-            cluster_ids_arr=cluster_ids_arr,
-            X_pca=X_pca,
-            sb=sb,
-            duration=duration,
-            mode=mode,
-            log=log,
-        )
-        if analysis:
-            log.info(f"  Analyse generee : {analysis.get('titre', '?')}")
-            sb.table(TABLE_MODELS).update({'analysis': analysis}).eq('version', version).execute()
-            log.info(f"  Analyse sauvegardee dans clustering_models v{version}")
-        else:
-            log.warning("  Analyse Gemini non generee (voir warnings ci-dessus)")
-    elif not GEMINI_API_KEY and not no_analysis:
-        log.info("  Gemini : cle API absente -- analyse ignoree")
 
 
 # -- Mode: assign-new ---------------------------------------------------------
@@ -3064,84 +2711,6 @@ def run_compute_france_averages(log: logging.Logger) -> None:
             )
 
 
-def run_generate_analysis(
-    log: logging.Logger,
-    model_version: Optional[int] = None,
-    duration: int = 60,
-    mode: str = 'drive',
-) -> None:
-    """Génère (ou re-génère) l'analyse Gemini pour un modèle existant.
-    Utile pour re-lancer l'analyse sans refaire le clustering."""
-
-    if not GEMINI_API_KEY:
-        log.error("GEMINI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY non configuree -- impossible de generer l'analyse")
-        return
-
-    sb = get_supabase()
-
-    # Charger le modèle cible
-    if model_version is not None:
-        res = sb.table(TABLE_MODELS).select('*').eq('version', model_version).single().execute()
-        if not res.data:
-            log.error(f"Modele v{model_version} introuvable")
-            return
-        m = res.data
-    else:
-        m = load_latest_model(sb, duration, mode)
-        if not m:
-            log.error(f"Aucun modele pour {duration}min/{mode}")
-            return
-
-    version = int(m['version'])
-    log.info(f"Modele v{version} charge (K={m.get('k')}, sil={m.get('silhouette_score', 0):.4f})")
-
-    # Charger les poi_clusters pour ce modèle
-    res_pc = sb.table(TABLE_CLUSTERS).select('poi_id, cluster_id, pca_components') \
-        .eq('model_version', version).execute()
-    rows = res_pc.data or []
-    if not rows:
-        log.error(f"Aucun poi_clusters pour le modele v{version}")
-        return
-
-    poi_ids_list = [r['poi_id'] for r in rows]
-    cluster_ids_arr = np.array([int(r['cluster_id']) for r in rows])
-    # Reconstruire X_pca depuis les coordonnées stockées
-    pca_list = [r.get('pca_components') or [] for r in rows]
-    max_dim = max((len(p) for p in pca_list), default=0)
-    X_pca_loaded = np.zeros((len(rows), max_dim), dtype=float)
-    for i, p in enumerate(pca_list):
-        if p:
-            X_pca_loaded[i, :len(p)] = p
-
-    # Normaliser les cluster_labels / cluster_avg_profiles (int keys)
-    raw_labels = m.get('cluster_labels') or {}
-    raw_profiles = m.get('cluster_avg_profiles') or {}
-    model_dict = dict(m)
-    model_dict['cluster_labels'] = {int(k): v for k, v in raw_labels.items()}
-    model_dict['cluster_avg_profiles'] = {int(k): v for k, v in raw_profiles.items()}
-    model_dict['feature_names'] = m.get('feature_names') or list(FEATURE_NAMES)
-    model_dict['feature_themes'] = m.get('feature_themes') or []
-
-    log.info("=== Gemini : generation de l'analyse ===")
-    analysis = _run_gemini_for_model(
-        model=model_dict,
-        poi_ids=poi_ids_list,
-        cluster_ids_arr=cluster_ids_arr,
-        X_pca=X_pca_loaded,
-        sb=sb,
-        duration=int(m.get('duration_minutes', duration)),
-        mode=m.get('mode', mode),
-        log=log,
-    )
-
-    if analysis:
-        log.info(f"  Titre : {analysis.get('titre', '?')}")
-        sb.table(TABLE_MODELS).update({'analysis': analysis}).eq('version', version).execute()
-        log.info(f"  Analyse sauvegardee pour le modele v{version}")
-    else:
-        log.error("  Echec de la generation -- voir warnings ci-dessus")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description='GENESIS -- Clustering POI par profil Filosofi',
@@ -3153,7 +2722,6 @@ def main() -> None:
             'full-retrain', 'assign-new', 'update-affected',
             'pipeline-new', 'fix-geometries', 'recon-secret-stat',
             'list-poi-types', 'cache-isochrones', 'compute-france-averages',
-            'generate-analysis',
         ],
     )
     parser.add_argument('--since',     help='Date ISO pour update-affected (ex: 2025-03-01)')
@@ -3194,10 +2762,6 @@ def main() -> None:
         ),
     )
     parser.add_argument('--dry-run',   action='store_true')
-    parser.add_argument('--no-analysis', action='store_true',
-        help='Desactiver la generation Gemini apres le clustering')
-    parser.add_argument('--model-version', type=int, default=None,
-        help='Version du modele pour --mode generate-analysis (defaut: le plus recent)')
     parser.add_argument('--verbose', '-v', action='store_true')
     parser.add_argument('--limit',     type=int, help='Limiter nb POI (tests)')
     parser.add_argument(
@@ -3286,7 +2850,6 @@ def main() -> None:
                 verbose=args.verbose, limit=args.limit, log=log,
                 poi_types=poi_types,
                 feature_names=resolved_features,
-                no_analysis=args.no_analysis,
             )
     elif args.mode == 'assign-new':
         for dur in durations:
@@ -3339,13 +2902,6 @@ def main() -> None:
             job_id=job_id,
             feature_names=resolved_features,
             force_k=args.force_k,
-        )
-    elif args.mode == 'generate-analysis':
-        run_generate_analysis(
-            log=log,
-            model_version=args.model_version,
-            duration=durations[0],
-            mode=args.transport,
         )
     elif args.mode == 'compute-france-averages':
         run_compute_france_averages(log)

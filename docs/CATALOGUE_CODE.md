@@ -4,11 +4,11 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-10-12 — commit `4cdf98f1`.
+> Généré le 2026-10-12 — commit `c03cd0fd`.
 
 ## Totaux
 
-- Exports morts : 151
+- Exports morts : 147
 - Fichiers morts : 0
 - Dépendances inutilisées : 2
 
@@ -47,8 +47,6 @@ Trié par nombre d’occurrences décroissant.
 | `lib/geo/locations.ts` | 2 | VILLES, REGIONS | — |
 | `lib/dsp-mapping/loader.ts` | 2 | listAvailableDsps, invalidateMappingsCache | — |
 | `lib/import/schemas.ts` | 2 | MappageChampsSchema, ConfigGeoSchema | — |
-| `lib/bidding-ml/comparison.ts` | 2 | aggregateByDate | DailyComparison |
-| `lib/bidding-ml/targeting-kpis.ts` | 2 | quantile, selectTargetZones | — |
 | `lib/iris-crawler/parser.ts` | 2 | GEO_COLUMNS, classifyColumns | — |
 | `lib/smart-prompt/geo-resolver.ts` | 2 | resolveZoneToBbox | ZoneResolution |
 | `lib/donnees/registre-fraicheur.ts` | 2 | — | CoutMesure, JournalSource |
@@ -62,13 +60,13 @@ Trié par nombre d’occurrences décroissant.
 | `lib/geo/region-lookup-server.ts` | 1 | invalidateRegionCache | — |
 | `lib/http/lecture-avec-reprise.ts` | 1 | ATTENTE_MAX_MS | — |
 | `lib/meteo/requete.ts` | 1 | ARCHIVE_CUTOFF | — |
-| `lib/iris-crawler/db-columns.ts` | 1 | getCoreColumnType | — |
 | `lib/campagne/constats.ts` | 1 | SEUIL_ECART_SIGNALE_PCT | — |
 | `components/campagne/suivi-v2/TableauDeregles.tsx` | 1 | LIGNES_MAX | — |
 | `lib/dsp-mapping/parser.ts` | 1 | parseRow | — |
 | `lib/campaigns/platform-links.ts` | 1 | PlatformLinksSchema | — |
-| `lib/pacing/rebid.ts` | 1 | REBID_EPSILON | — |
+| `lib/iris-crawler/db-columns.ts` | 1 | getCoreColumnType | — |
 | `lib/civic-health/atmofrance-client.ts` | 1 | AASQA_REGION_CODES | — |
+| `lib/pacing/rebid.ts` | 1 | REBID_EPSILON | — |
 | `lib/geo/dept-lookup-server.ts` | 1 | invalidateDeptCache | — |
 | `lib/api/safe-path.ts` | 1 | isValidUuid | — |
 | `lib/import/column-detector.ts` | 1 | normalizeColumnName | — |
@@ -82,15 +80,15 @@ Trié par nombre d’occurrences décroissant.
 | `components/campaign/_shared.tsx` | 1 | SH | — |
 | `components/ui/input.tsx` | 1 | — | InputProps |
 | `lib/logger.ts` | 1 | — | Logger |
-| `types/admin.ts` | 1 | — | HealthCheck |
 | `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
+| `types/admin.ts` | 1 | — | HealthCheck |
 | `lib/supabase/tables.ts` | 1 | — | TableUpdate |
-| `types/campaign.ts` | 1 | — | DspCampaign |
 | `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
 | `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
 | `lib/campaigns/actor-metrics.ts` | 1 | — | ActorsPayload |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |
+| `types/campaign.ts` | 1 | — | DspCampaign |
 | `lib/demo/pilot-types.ts` | 1 | — | PilotItem |
 | `lib/dsp/push/types.ts` | 1 | — | PushStatus |
 | `lib/qualite/verdict.ts` | 1 | — | Verdict |

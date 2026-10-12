@@ -48,7 +48,7 @@ Le projet l'a maintenant rencontré **six fois** :
 | 2 | `codes_postaux_du_perimetre` | 2026-09-15 | sql/168 + sql/169 (jumelle + enveloppe) |
 | 3 | `calculer_score_composite` | 2026-09-15 (relecture finale) | sql/170 (jumelle + enveloppe) ; `/api/custom-geo/source/score`, qui lisait encore la forme TABLE, passé à la jumelle le 2026-10-10 |
 | 4 | `get_zone_centroids` et `codes_postaux_dans_bbox` | 2026-09-15 (relecture finale) | sql/243 (A), sql/244-245 (B) — 2026-10-10 |
-| 5 | `get_strategy_comparison_data` | 2026-09-16, **par le test de famille** | **ouvert — défaut C ci-dessous** |
+| 5 | `get_strategy_comparison_data` | 2026-09-16, **par le test de famille** | **clos par retrait le 2026-10-12** : son unique appelant (`final-report`, bilan Gemini) supprimé avec l'IA — défaut C ci-dessous |
 | 6 | `get_voronoi_by_category` | 2026-10-10, recensement contre 1 000 | sql/246 (jumelle + enveloppe) |
 
 Ce n'est plus un piège, c'est une propriété de la plateforme. Le correctif
@@ -67,7 +67,7 @@ ne voyait pas : `get_dept_representative_communes` et
 |---|---:|---|---|
 | `calculer_score_composite` | 1 429 sur une zone AURA + Occitanie (route : jusqu'à 3 000) | **dépassait** | appelant passé à `calculer_score_composite_jsonb` (sql/170) |
 | `get_voronoi_by_category` | 4 653 (lycées, métropole) | **dépassait** | jumelle sql/246, outil `voronoi_analysis` passé dessus |
-| `get_strategy_comparison_data` | 306 150 et 174 780 | **dépasse** | **ouvert — défaut C** ; pas de jumelle jsonb : 306 150 lignes en JSON, c'est l'incident du 08/04 |
+| `get_strategy_comparison_data` | 306 150 et 174 780 | **dépasse** | **clos le 2026-10-12** : plus appelée par l'application (défaut C) ; la fonction reste en base, sans appelant |
 | `count_emetteurs_par_radio` | 861 | **oui** — une ligne par radio ayant un émetteur, 1 175 radios en table | **dette D ci-dessous**, non touchée |
 | `get_zone_radius_targets` | 565 au plus (7 zones) | **oui** — une ligne par poche disjointe d'une zone, sans LIMIT | **dette E ci-dessous**, non touchée |
 | `get_table_sizes` | 119 | non (tables du schéma) | — |
@@ -159,7 +159,17 @@ conclusion, et nous ne l'avons pas appliquée là où elle valait aussi.
 
 **Correction attendue :** même patron de jumelle `RETURNS jsonb`.
 
-## Défaut C — le bilan exécutif est écrit sur moins de 2 % des données
+## Défaut C — le bilan exécutif est écrit sur moins de 2 % des données — CLOS PAR RETRAIT le 2026-10-12
+
+> **Clos sans correctif, par suppression de l'appelant.** Le 2026-10-12, le
+> chantier « suppression de toute l'IA » (lot 3) a retiré la route
+> `final-report` et le composant `FinalReport` : le bilan exécutif était
+> rédigé par Gemini. `get_strategy_comparison_data` n'a plus aucun appelant
+> dans `app/` ni `lib/`, et sort donc du verrou de
+> `tests/unit/db/troncature-postgrest.test.ts`. La fonction reste en base
+> (liste des objets IA remise au propriétaire). **Si un bilan de fin de
+> campagne revient un jour, la leçon ci-dessous tient** : l'agrégat se calcule
+> en base, il ne transite pas ligne à ligne.
 
 **`app/api/bidding/strategies/[id]/final-report/route.ts:80`**, via
 `get_strategy_comparison_data`.
@@ -246,7 +256,7 @@ minimum :
    `lib/supabase/lire-tout.ts` et le test disent 1 000, et le test lit
    `max_rows` dans `supabase/config.toml` au lieu de le supposer.
 
-Le défaut C et les dettes D et E restent ouverts (A et B corrigés le
-2026-10-10) : ce fichier les recense, il ne les corrige pas. Le test les
+Les dettes D et E restent ouvertes (A et B corrigés le 2026-10-10, C clos
+par retrait de son appelant le 2026-10-12) : ce fichier les recense, il ne les corrige pas. Le test les
 tient inscrits — retirer l'un d'eux de ce document sans corriger la fonction
 fait échouer la suite.
