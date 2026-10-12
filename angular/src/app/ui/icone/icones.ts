@@ -7,6 +7,10 @@
  * rien hors d'`angular/`. Le test `tests/unit/angular/icones-lucide.test.ts` compare chaque entrée
  * au fichier lucide, attribut par attribut : toute dérive fait échouer la suite.
  *
+ * C'est une TABLE DE DONNÉES, pas de la logique : seule exception nommée au plafond de 400 lignes
+ * des fichiers Angular (`tests/unit/angular/taille-fichiers.test.ts`). La découper n'apporterait
+ * rien qu'un second endroit où chercher une icône.
+ *
  * | lucide-react (PascalCase)  | Nom Angular          |
  * |----------------------------|----------------------|
  * | Activity                   | activite             |
