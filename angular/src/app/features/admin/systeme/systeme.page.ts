@@ -6,12 +6,14 @@ import { FraicheurEtatService } from '../health/etat/fraicheur-etat.service';
 import { SanteService } from '../health/etat/sante.service';
 
 /**
- * Onglets de la page Système, dans l'ordre. « Connexions API » s'ajoutera ici quand son écran sera
- * porté (T9-T10) — jamais d'onglet « bientôt » (amendement du 2026-10-12).
+ * Onglets de la page Système, dans l'ordre. « Connexions API » (T9) porte ses propres sous-onglets
+ * (DV360, Meta, TikTok, The Trade Desk, Logs) — jamais d'onglet « bientôt » au niveau de la page
+ * (amendement du 2026-10-12).
  */
 export const ONGLETS_SYSTEME: readonly OngletRoute[] = [
   { chemin: 'sante', libelle: 'Santé' },
   { chemin: 'fraicheur', libelle: 'Fraîcheur des données' },
+  { chemin: 'api', libelle: 'Connexions API' },
 ];
 
 /**
@@ -27,7 +29,10 @@ export const ONGLETS_SYSTEME: readonly OngletRoute[] = [
  * Fournit l'état des deux onglets (`SanteService`, `FraicheurEtatService`), détruits avec la page :
  * un écran d'onglet est détruit quand on en change, ses données non — chaque lecture est faite à la
  * PREMIÈRE ouverture de son onglet, et un aller-retour ne relit rien.
- * Largeur 900 px : celle du Health check React (`page.tsx:199`), pour les deux onglets.
+ * Largeur 900 px, pour la barre ET chaque onglet (même borne, minor T6) : celle du Health check
+ * React (`page.tsx:199`). Connexions API s'y range : React ne borne pas `layout.tsx` (barre pleine
+ * largeur), mais son contenu ne dépasse jamais 640 px (`dv360/page.tsx:188`) ; seule la ligne de sa
+ * barre de sous-onglets s'arrête donc à 900 px au lieu de courir jusqu'au bord.
  */
 @Component({
   selector: 'mg-systeme',

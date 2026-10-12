@@ -40,15 +40,15 @@ async function monter(url: string) {
 describe('SystemePage — page Système à onglets (lot 6, T6)', () => {
   afterEach(() => TestBed.inject(HttpTestingController).verify());
 
-  it('`systeme` mène à `systeme/sante` : titre « Système », deux onglets, Santé actif, UNE lecture du diagnostic', async () => {
+  it('`systeme` mène à `systeme/sante` : titre « Système », trois onglets, Santé actif, UNE lecture du diagnostic', async () => {
     const { el, http, router, onglets, harness } = await monter('/hote/app/admin/systeme');
     expect(router.url).toBe('/hote/app/admin/systeme/sante');
     expect(harness.routeNativeElement).toBeTruthy();
     expect(el.querySelector('mg-systeme h1')?.textContent?.trim()).toBe('Système');
-    expect(onglets().map((a) => a.textContent!.trim())).toEqual(['Santé', 'Fraîcheur des données']);
-    expect(onglets().map((a) => a.getAttribute('aria-selected'))).toEqual(['true', 'false']);
+    expect(onglets().map((a) => a.textContent!.trim())).toEqual(['Santé', 'Fraîcheur des données', 'Connexions API']);
+    expect(onglets().map((a) => a.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false']);
     expect(onglets().map((a) => a.getAttribute('href'))).toEqual([
-      '/hote/app/admin/systeme/sante', '/hote/app/admin/systeme/fraicheur',
+      '/hote/app/admin/systeme/sante', '/hote/app/admin/systeme/fraicheur', '/hote/app/admin/systeme/api',
     ]);
     // Une seule barre : l'ancienne barre interne du Health check a disparu.
     expect(el.querySelectorAll('[role="tablist"]').length).toBe(1);
@@ -59,7 +59,7 @@ describe('SystemePage — page Système à onglets (lot 6, T6)', () => {
 
   it('chargement DIRECT sur `systeme/fraicheur` : Fraîcheur aria-selected, UN GET du relevé, aucun diagnostic lu', async () => {
     const { el, http, onglets } = await monter('/hote/app/admin/systeme/fraicheur');
-    expect(onglets().map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'true']);
+    expect(onglets().map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false']);
     expect(el.querySelector('mg-fraicheur')).not.toBeNull();
     const req = http.expectOne('/api/admin/fraicheur-donnees');
     expect(req.request.method).toBe('GET');

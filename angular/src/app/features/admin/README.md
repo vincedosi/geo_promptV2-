@@ -2,7 +2,7 @@
 
 **Rôle** : les écrans d'administration portés de `/admin/*` (lot 6). Cible validée par le propriétaire :
 trois pages à onglets — **Accès**, **Données**, **Système** (en place depuis le 2026-10-12, T6). Aujourd'hui :
-Accès (comptes et espaces de travail) ; Données → Qualité ; Système → Santé, Fraîcheur des données.
+Accès (comptes et espaces de travail) ; Données → Qualité ; Système → Santé, Fraîcheur des données, Connexions API.
 
 **Routes** (`admin.routes.ts`, `ROUTES_ADMIN`, enfant de la coquille) :
 
@@ -12,9 +12,13 @@ Accès (comptes et espaces de travail) ; Données → Qualité ; Système → Sa
 | `admin/systeme` | `systeme/systeme.page.ts` — cadre : titre, `mg-onglets-routes`, outlet ; `''` → `sante` |
 | `admin/systeme/sante` | `health/health.page.ts` — vérifications d'infrastructure (ex-onglet « Diagnostic système ») |
 | `admin/systeme/fraicheur` | `health/fraicheur.component.ts` — fraîcheur des sources hors socle |
+| `admin/systeme/api` | `api/connexions-api.page.ts` — en-tête de section et SOUS-onglets de l'écran React ; `''` → `dv360` |
+| `admin/systeme/api/dv360` | `api/dv360.page.ts` — connexion DV360 (diagnostic, méthode, OAuth, test, purge, journal) |
+| `admin/systeme/api/{meta,ttd}` | `api/fournisseur-a-venir.component.ts` — « bientôt disponible » (`data.fournisseur`) |
+| `admin/systeme/api/{tiktok,logs}` | `api/ecran-provisoire.component.ts` — provisoires jusqu'à T10 |
 | `admin/donnees` | `donnees/donnees.page.ts` — cadre ; `''` → `qualite` |
 | `admin/donnees/qualite` | `qualite-donnees/qualite-donnees.page.ts` — contenu des données (absente, partielle, périmée, fausse) |
-| `admin/health`, `admin/qualite-donnees` | anciennes adresses, redirigées (RELATIVEMENT) vers `systeme`, `donnees/qualite` |
+| `admin/health`, `admin/qualite-donnees`, `admin/api[/<x>]` | anciennes adresses, redirigées (RELATIVEMENT) vers `systeme`, `donnees/qualite`, `systeme/api[/<x>]` |
 | `admin/acces` | `espaces/espaces.page.ts` — colonne des espaces, puis `socle`, `comptes` ou `:id` (fiche d'un espace) |
 | `admin/espaces[/:id]` | anciennes adresses, redirigées vers `admin/acces` |
 
@@ -30,6 +34,10 @@ la route reçoit nos intercepteurs. État : `etat/role-admin.service.ts` ; pour 
 - `commun/` — barre d'onglets liée au routeur (`onglets-routes`, partagée par Données et Système), dépôt de
   fichiers, journal temps réel, barre de progression d'import (règle « jamais de
   traitement DB silencieux »).
+- `api/` — Connexions API : `data/dsp.api.ts` (routes `app/api/admin/dsp/**`, fournisseur en paramètre),
+  `logique/fournisseurs.ts` (copie de `PROVIDERS`, logos `angular/public/logos/` copiés à l'octet),
+  `naviguer-hors-application.ts` (seule navigation hors application, consentement OAuth) et
+  `retour-oauth.ts` (`?oauth=` lu dans la route puis retiré, partagé avec TikTok en T10).
 - `logique/` — rôles (`roles.ts`, copie de `lib/auth/roles.ts`, seule source des libellés de rôle) et types
   copiés du serveur, verrouillés par `admin-logique-paritaire.test.ts`.
 - `espaces/` — page Accès : fiches (`fiche-espace`, `fiche-socle`, `fiche-utilisateur`), onglets (Membres,

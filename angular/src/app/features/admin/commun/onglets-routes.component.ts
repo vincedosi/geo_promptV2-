@@ -28,7 +28,7 @@ export interface OngletRoute {
   imports: [RouterLink, RouterLinkActive],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div role="tablist" class="liste" [attr.aria-label]="libelle()" (keydown)="clavier($event)">
+    <div role="tablist" class="liste" [attr.data-variante]="variante()" [attr.aria-label]="libelle()" (keydown)="clavier($event)">
       @for (o of onglets(); track o.chemin) {
         <a
           role="tab"
@@ -54,12 +54,24 @@ export interface OngletRoute {
     .onglet:hover { color: var(--text-secondary); }
     .onglet[aria-selected='true'] { border-bottom-color: var(--brand-teal); color: var(--text-primary); }
     .onglet:focus-visible { outline: 1px solid var(--brand-teal-50); outline-offset: -1px; }
+    /* Variante « ecran » : la barre propre à un écran React (app/admin/api/layout.tsx:23-44) —
+       12 px de marge latérale, pas de survol, pas de marge basse (l'écran pose la sienne), retour à
+       la ligne permis. */
+    .liste[data-variante='ecran'] { margin-bottom: 0; flex-wrap: wrap; }
+    .liste[data-variante='ecran'] .onglet { padding: 8px 12px; transition: none; }
+    .liste[data-variante='ecran'] .onglet:hover { color: var(--text-tertiary); }
+    .liste[data-variante='ecran'] .onglet[aria-selected='true']:hover { color: var(--text-primary); }
   `],
 })
 export class OngletsRoutesComponent {
   readonly onglets = input.required<readonly OngletRoute[]>();
   /** Nom accessible de la liste (le titre du cadre). */
   readonly libelle = input.required<string>();
+  /**
+   * `cadre` (défaut) : barre d'une page à onglets (Données, Système), rendu du Health check.
+   * `ecran` : sous-onglets propres à un écran React monté dans un onglet (Connexions API, T9).
+   */
+  readonly variante = input<'cadre' | 'ecran'>('cadre');
 
   protected clavier(e: KeyboardEvent): void {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;

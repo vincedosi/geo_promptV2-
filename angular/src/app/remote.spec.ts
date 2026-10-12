@@ -508,9 +508,9 @@ describe('administration (lot 6)', () => {
     http.expectOne('/api/admin/health').flush(DIAGNOSTIC_VIDE);
     const onglets = [...racineOmbre(harness).querySelectorAll('mg-systeme [role="tab"]')];
     expect(onglets.map((a) => a.getAttribute('href'))).toEqual([
-      '/hote/magelian/admin/systeme/sante', '/hote/magelian/admin/systeme/fraicheur',
+      '/hote/magelian/admin/systeme/sante', '/hote/magelian/admin/systeme/fraicheur', '/hote/magelian/admin/systeme/api',
     ]);
-    expect(onglets.map((a) => a.getAttribute('aria-selected'))).toEqual(['true', 'false']);
+    expect(onglets.map((a) => a.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false']);
   });
 
   it('un service fourni sous la route `admin` part avec le Bearer et passe par le limiteur (4 appels → 3 en vol)', async () => {
@@ -551,4 +551,28 @@ describe('administration (lot 6)', () => {
     expect(navigations).toEqual(['/hote/magelian/admin/systeme/sante']);
     expect(http.match((r) => r.url.startsWith('/api/'))).toEqual([]);
   });
+
+  it('T9 : `admin/systeme/api/meta` chargée directement SOUS le préfixe — Connexions API ET Meta actifs, liens dans le préfixe ; `admin/api/ttd` redirigée', async () => {
+    const { harness, http } = await monterAdmin('super_admin');
+    await harness.navigateByUrl('/hote/magelian/admin/systeme/api/meta');
+    await stabiliser(harness);
+    expect(TestBed.inject(Router).url).toBe('/hote/magelian/admin/systeme/api/meta');
+    const racine = racineOmbre(harness);
+    const page = [...racine.querySelectorAll('mg-systeme > div > mg-onglets-routes [role="tab"]')];
+    expect(page.map((a) => [a.getAttribute('href'), a.getAttribute('aria-selected')])).toEqual([
+      ['/hote/magelian/admin/systeme/sante', 'false'],
+      ['/hote/magelian/admin/systeme/fraicheur', 'false'],
+      ['/hote/magelian/admin/systeme/api', 'true'],
+    ]);
+    const sous = [...racine.querySelectorAll('mg-connexions-api [role="tab"]')];
+    expect(sous.map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false', 'false', 'false']);
+    expect(sous.every((a) => a.getAttribute('href')!.startsWith('/hote/magelian/admin/systeme/api/'))).toBe(true);
+    expect(racine.querySelector('mg-fournisseur-a-venir')).not.toBeNull();
+    expect(http.match((r) => r.url.startsWith('/api/admin/dsp'))).toEqual([]);
+
+    await harness.navigateByUrl('/hote/magelian/admin/api/ttd');
+    await stabiliser(harness);
+    expect(TestBed.inject(Router).url).toBe('/hote/magelian/admin/systeme/api/ttd');
+  });
 });
+

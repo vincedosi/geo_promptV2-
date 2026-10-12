@@ -19,15 +19,19 @@ export const ONGLETS_DONNEES: readonly OngletRoute[] = [
  * (« Qualité » = `/admin/qualite-donnees`, T5, inchangé).
  *
  * Aucun état propre : la page Qualité lit ses relevés à son ouverture, comme React.
+ * Largeur 1 100 px pour la barre ET le contenu (minor T6 : la barre courait sur toute la largeur
+ * au-dessus d'un contenu borné) : celle de Qualité React (`qualite-donnees/page.tsx:152`).
  */
 @Component({
   selector: 'mg-donnees',
   imports: [EntetePageComponent, OngletsRoutesComponent, RouterOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <mg-entete-page titre="Données" />
-    <mg-onglets-routes [onglets]="onglets" libelle="Données" />
-    <router-outlet />
+    <div class="max-w-[1100px]">
+      <mg-entete-page titre="Données" />
+      <mg-onglets-routes [onglets]="onglets" libelle="Données" />
+      <router-outlet />
+    </div>
   `,
 })
 export class DonneesPage {

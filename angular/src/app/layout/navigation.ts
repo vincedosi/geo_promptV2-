@@ -52,7 +52,7 @@ export const SECTIONS_NAVIGATION: readonly SectionNavigation[] = [
       { href: '/admin/ooh-import', libelle: 'Import OOH', icone: 'ecran', badge: 'Admin', cible: null },
       { href: '/dashboard/iris-crawler', libelle: 'IRIS Crawler', icone: 'calques', badge: 'Admin', cible: null },
       { href: '/admin/radio', libelle: 'Radio FM/DAB+', icone: 'radio', badge: 'Admin', cible: null },
-      { href: '/admin/api', libelle: 'Connexions API', icone: 'prise', badge: 'Admin', cible: null },
+      { href: '/admin/api', libelle: 'Connexions API', icone: 'prise', badge: 'Admin', cible: 'admin/systeme/api' },
     ],
   },
   {

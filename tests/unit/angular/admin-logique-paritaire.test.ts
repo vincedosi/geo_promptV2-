@@ -3,6 +3,8 @@
  * React. Les modules copiés servent aussi l'API et ne sont pas gelés : ce test est ce qui
  * oblige la copie à suivre (feuille de route, lot 6).
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import * as Rr from '@/lib/auth/roles';
 import * as Ar from '../../../angular/src/app/features/admin/logique/roles';
@@ -10,6 +12,8 @@ import * as Rv from '@/lib/version';
 import * as Av from '../../../angular/src/app/features/admin/logique/version';
 import * as Rf from '@/app/admin/carreaux-import/_components/shared';
 import * as Af from '../../../angular/src/app/features/admin/logique/formats';
+import * as Rp from '@/app/admin/api/_lib/constants';
+import * as Ap from '../../../angular/src/app/features/admin/api/logique/fournisseurs';
 import type * as RtA from '@/types/admin';
 import type * as AtA from '../../../angular/src/app/features/admin/logique/types/admin';
 import type * as RtD from '@/types/dsp';
@@ -64,5 +68,18 @@ describe("logique de l'administration : Angular = React", () => {
   it('formats de taille et de durée', () => {
     for (const b of [0, 1, 1023, 1024, 1_048_575, 1_048_576, 5_368_709_120]) expect(Af.fmtBytes(b)).toBe(Rf.fmtBytes(b));
     for (const s of [0, 59, 60, 61, 3599, 3600, 86_400]) expect(Af.fmtTime(s)).toBe(Rf.fmtTime(s));
+  });
+
+  it('fournisseurs des Connexions API (T9) : mêmes clés, libellés, disponibilité ; logos copiés À L’OCTET (C15)', () => {
+    const sansLogo = (l: readonly { logo: string }[]) => l.map(({ logo: _l, ...r }) => r);
+    expect(sansLogo(Ap.PROVIDERS)).toEqual(sansLogo(Rp.PROVIDERS));
+    // React : `/logos/<p>.svg` (absolu, origine de Next) ; Angular : `logos/<p>.svg` (relatif à la remote).
+    Rp.PROVIDERS.forEach((r, i) => expect(`/${Ap.PROVIDERS[i].logo}`).toBe(r.logo));
+    for (const p of Rp.PROVIDERS) {
+      const nom = p.logo.replace(/^\//, '');
+      const react = readFileSync(join(process.cwd(), 'public', nom));
+      const angular = readFileSync(join(process.cwd(), 'angular', 'public', nom));
+      expect(angular.equals(react), nom).toBe(true);
+    }
   });
 });

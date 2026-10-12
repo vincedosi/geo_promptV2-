@@ -13,7 +13,7 @@ describe('ROUTES_ADMIN — pages Système et Données (lot 6, T6)', () => {
   it('`systeme` porte `sante` et `fraicheur`, `donnees` porte `qualite` ; chaque page redirige sa racine vers son premier onglet', () => {
     const systeme = enfants().find((r) => r.path === 'systeme');
     const donnees = enfants().find((r) => r.path === 'donnees');
-    expect(systeme?.children?.map((r) => r.path)).toEqual(['', 'sante', 'fraicheur']);
+    expect(systeme?.children?.map((r) => r.path)).toEqual(['', 'sante', 'fraicheur', 'api']);
     expect(systeme?.children?.[0].redirectTo).toBe('sante');
     expect(donnees?.children?.map((r) => r.path)).toEqual(['', 'qualite']);
     expect(donnees?.children?.[0].redirectTo).toBe('qualite');
@@ -42,6 +42,49 @@ describe('ROUTES_ADMIN — pages Système et Données (lot 6, T6)', () => {
       ['/hote/app/admin', '/hote/app/admin/systeme/sante'],
       ['/hote/app/admin/health', '/hote/app/admin/systeme/sante'],
       ['/hote/app/admin/qualite-donnees', '/hote/app/admin/donnees/qualite'],
+    ]) {
+      await harness.navigateByUrl(avant);
+      expect(router.url, avant).toBe(apres);
+    }
+  });
+});
+
+describe('ROUTES_ADMIN — Connexions API, onglet de Système (lot 6, T9)', () => {
+  it('`systeme/api` porte les sous-onglets de React, dans l’ordre ; sa racine mène à `dv360` ; Meta et TTD disent leur fournisseur', () => {
+    const systeme = enfants().find((r) => r.path === 'systeme');
+    const api = systeme?.children?.find((r) => r.path === 'api');
+    expect(api?.loadComponent).toBeTypeOf('function');
+    expect(api?.children?.map((r) => r.path)).toEqual(['', 'dv360', 'meta', 'tiktok', 'ttd', 'logs']);
+    expect(api?.children?.[0].redirectTo).toBe('dv360');
+    expect(api?.children?.filter((r) => r.data).map((r) => [r.path, r.data?.['fournisseur']])).toEqual([['meta', 'meta'], ['ttd', 'ttd']]);
+  });
+
+  it('les anciennes adresses `api` et `api/<x>` redirigent, RELATIVEMENT, vers `systeme/api/**` (paramètres gardés)', async () => {
+    const redirections = enfants().filter((r) => r.path === 'api' || r.path === 'api/:sous');
+    expect(redirections.length).toBe(2);
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([{
+          path: 'hote/app/admin',
+          children: [
+            ...redirections,
+            {
+              path: 'systeme',
+              children: [{
+                path: 'api',
+                children: [{ path: '', pathMatch: 'full', redirectTo: 'dv360' }, { path: ':x', component: Factice }],
+              }],
+            },
+          ],
+        }]),
+      ],
+    });
+    const harness = await RouterTestingHarness.create();
+    const router = TestBed.inject(Router);
+    for (const [avant, apres] of [
+      ['/hote/app/admin/api', '/hote/app/admin/systeme/api/dv360'],
+      ['/hote/app/admin/api/ttd', '/hote/app/admin/systeme/api/ttd'],
+      ['/hote/app/admin/api/dv360?oauth=success', '/hote/app/admin/systeme/api/dv360?oauth=success'],
     ]) {
       await harness.navigateByUrl(avant);
       expect(router.url, avant).toBe(apres);

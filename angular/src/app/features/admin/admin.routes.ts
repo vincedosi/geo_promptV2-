@@ -1,5 +1,6 @@
 import type { Provider } from '@angular/core';
 import type { Routes } from '@angular/router';
+import { DspApi } from './api/data/dsp.api';
 import { CadreAdminComponent } from './cadre-admin.component';
 import { EspacesApi } from './espaces/data/espaces.api';
 import { RoleAdminService, roleResoluGuard } from './etat/role-admin.service';
@@ -14,7 +15,7 @@ import { QualiteApi } from './qualite-donnees/data/qualite.api';
  * session expirée) — prouvé par `remote.spec.ts`. Les services d'API s'ajoutent tâche par tâche
  * (`@Injectable()` sans `providedIn`, héritiers de `HttpBaseService`).
  */
-export const FOURNISSEURS_ADMIN: Provider[] = [RoleAdminService, HealthApi, FraicheurApi, QualiteApi, EspacesApi];
+export const FOURNISSEURS_ADMIN: Provider[] = [RoleAdminService, HealthApi, FraicheurApi, QualiteApi, EspacesApi, DspApi];
 
 /**
  * L'administration (lot 6), enfant de la coquille comme `/admin/*` en React (arbitrage C1).
@@ -41,6 +42,27 @@ export const ROUTES_ADMIN: Routes = [
           { path: '', pathMatch: 'full', redirectTo: 'sante' },
           { path: 'sante', loadComponent: () => import('./health/health.page').then((m) => m.HealthPage) },
           { path: 'fraicheur', loadComponent: () => import('./health/fraicheur.component').then((m) => m.FraicheurComponent) },
+          // Connexions API (T9) : l'écran garde SES sous-onglets (`app/admin/api/layout.tsx`), en
+          // sous-routes relatives ; sa racine mène à `dv360` comme `app/admin/api/page.tsx`.
+          // `tiktok` et `logs` sont provisoires jusqu'à T10.
+          {
+            path: 'api',
+            loadComponent: () => import('./api/connexions-api.page').then((m) => m.ConnexionsApiPage),
+            children: [
+              { path: '', pathMatch: 'full', redirectTo: 'dv360' },
+              { path: 'dv360', loadComponent: () => import('./api/dv360.page').then((m) => m.Dv360Page) },
+              {
+                path: 'meta', data: { fournisseur: 'meta' },
+                loadComponent: () => import('./api/fournisseur-a-venir.component').then((m) => m.FournisseurAVenirComponent),
+              },
+              { path: 'tiktok', loadComponent: () => import('./api/ecran-provisoire.component').then((m) => m.EcranProvisoireComponent) },
+              {
+                path: 'ttd', data: { fournisseur: 'ttd' },
+                loadComponent: () => import('./api/fournisseur-a-venir.component').then((m) => m.FournisseurAVenirComponent),
+              },
+              { path: 'logs', loadComponent: () => import('./api/ecran-provisoire.component').then((m) => m.EcranProvisoireComponent) },
+            ],
+          },
         ],
       },
       {
@@ -58,6 +80,8 @@ export const ROUTES_ADMIN: Routes = [
       // (sans `/`) : il reste sous le préfixe de montage, qui appartient au shell.
       { path: 'health', pathMatch: 'full', redirectTo: 'systeme' },
       { path: 'qualite-donnees', pathMatch: 'full', redirectTo: 'donnees/qualite' },
+      { path: 'api', pathMatch: 'full', redirectTo: 'systeme/api' },
+      { path: 'api/:sous', pathMatch: 'full', redirectTo: 'systeme/api/:sous' },
       // Accès (« Espaces de travail » du 2026-10-09 au 2026-10-10) : une colonne persistante (la
       // page) et la fiche en enfant. `EspacesEtatService` est fourni par la page, détruit avec elle.
       // Les noms internes (dossier `espaces/`, `EspacesPage`) n'ont pas changé. Chemins fixes

@@ -99,4 +99,20 @@ describe('OngletsRoutesComponent — barre d’onglets liée au routeur', () => 
     await harness.fixture.whenStable();
     expect(router.url).toBe('/hote/app/admin/systeme/sante');
   });
+
+  it('variante : `cadre` par défaut ; `ecran` (sous-onglets d’un écran, T9) posée sur la liste, comportement inchangé', async () => {
+    const { el } = await monter('/hote/app/admin/systeme/sante');
+    expect(el.querySelector('[role="tablist"]')?.getAttribute('data-variante')).toBe('cadre');
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [provideRouter([])] });
+    const f = TestBed.createComponent(OngletsRoutesComponent);
+    f.componentRef.setInput('onglets', ONGLETS);
+    f.componentRef.setInput('libelle', 'Connexions API');
+    f.componentRef.setInput('variante', 'ecran');
+    await f.whenStable();
+    const liste = (f.nativeElement as HTMLElement).querySelector('[role="tablist"]')!;
+    expect(liste.getAttribute('data-variante')).toBe('ecran');
+    expect(liste.getAttribute('aria-label')).toBe('Connexions API');
+    expect(liste.querySelectorAll('[role="tab"]').length).toBe(2);
+  });
 });
