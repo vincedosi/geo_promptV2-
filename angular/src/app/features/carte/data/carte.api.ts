@@ -86,8 +86,15 @@ export interface CorpsOoh {
   bbox?: readonly [number, number, number, number];
 }
 
-/** Un type de POI du catalogue ; la route rend aussi, dans un vieux format, une simple chaîne. */
-export type CategoriePoi = { id: string; label: string } | string;
+/** D'où vient une catégorie (droits sur la carte, T2) : du socle commun à tous les espaces, ou de l'espace actif. */
+export type OrigineCategorie = 'commune' | 'espace';
+
+/**
+ * Un type de POI du catalogue ; la route rend aussi, dans un vieux format, une simple chaîne. `origine` : une catégorie
+ * dont au moins un POI visible vient d'une source privée de l'espace actif (ou partagée avec lui) est « espace » ;
+ * « commune » sinon. Absent d'une réponse ancienne : lu « commune » (`typeDePoi`).
+ */
+export type CategoriePoi = { id: string; label: string; origine?: OrigineCategorie } | string;
 
 /** Réponse de `GET /api/map/pprt` (`PprtLayer.tsx:63-73`). `n_total` est compté AVANT la limite. */
 export interface CollectionPprt {

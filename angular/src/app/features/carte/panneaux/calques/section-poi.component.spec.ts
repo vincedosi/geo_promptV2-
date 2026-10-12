@@ -11,7 +11,9 @@ import { EtatCarteService } from '../../etat/etat-carte.service';
 import { AIDE_POI, SectionPoiComponent } from './section-poi.component';
 import { SelectionsCalquesService } from './selections-calques.service';
 
-function monter() {
+const CATALOGUE_DEFAUT: CategoriePoi[] = [{ id: 'lycee', label: 'Lycées' }, 'arret_transport', 'risque_industriel'];
+
+function monter(categories: CategoriePoi[] = CATALOGUE_DEFAUT) {
   const lectures: boolean[] = [];
   const corps: CorpsPois[] = [];
   const recherche = new Subject<ZoneData>();
@@ -23,7 +25,7 @@ function monter() {
         provide: CarteApi, useValue: {
           categories: (r: boolean) => {
             lectures.push(r);
-            return of({ categories: [{ id: 'lycee', label: 'Lycées' }, 'arret_transport', 'risque_industriel'] as CategoriePoi[] });
+            return of({ categories });
           },
           pois: (c: CorpsPois) => { corps.push(c); return recherche; },
         },
@@ -111,5 +113,72 @@ describe('SectionPoiComponent', () => {
     (s.el.querySelector('[data-carte-poi="lycee"] [data-retirer]') as HTMLButtonElement).click();
     expect(etat.poiSelectionnes()).toEqual(['college']);
     expect(pois.styles()['lycee']).toBeUndefined();
+  });
+
+  describe('deux groupes (droits sur la carte, T4)', () => {
+    const MIXTE: CategoriePoi[] = [
+      { id: 'lycee', label: 'Lycées', origine: 'commune' }, { id: 'bmw', label: 'BMW', origine: 'espace' }, 'risque_industriel',
+    ];
+    const groupes = (el: HTMLElement) => [...el.querySelectorAll('[data-groupe-poi]')] as HTMLElement[];
+
+    it('« Données de l’espace » puis « Données communes », chacun sa liste ; bmw sous le premier', async () => {
+      const { creer, rendre, selections } = monter(MIXTE);
+      selections.basculerSection('poi');
+      const s = creer();
+      await rendre(s.fixture);
+      const g = groupes(s.el);
+      expect(g.map((x) => x.getAttribute('data-groupe-poi'))).toEqual(['espace', 'commune']);
+      expect(g.map((x) => x.querySelector('[data-sous-titre]')!.textContent!.trim())).toEqual(["Données de l'espace", 'Données communes']);
+      for (const x of g) (x.querySelector('[data-declencheur]') as HTMLButtonElement).click();
+      await rendre(s.fixture);
+      const ids = (x: HTMLElement) => [...x.querySelectorAll('[data-element]')].map((e) => e.getAttribute('data-element'));
+      expect(ids(g[0])).toEqual(['bmw']);
+      expect(ids(g[1])).toEqual(['lycee']);
+      expect(s.el.querySelector('[data-nb-types]')!.textContent).toContain('(2)');
+    });
+
+    it('tout commun (espace interne) : aucun sous-titre, une seule liste — le rendu d’avant', async () => {
+      const { creer, rendre, selections } = monter([{ id: 'lycee', label: 'Lycées', origine: 'commune' }, 'arret_transport']);
+      selections.basculerSection('poi');
+      const s = creer();
+      await rendre(s.fixture);
+      expect(s.el.querySelector('[data-sous-titre]')).toBeNull();
+      expect(groupes(s.el)).toEqual([]);
+      expect(s.el.querySelectorAll('mg-liste-multiple').length).toBe(1);
+    });
+
+    it('tout de l’espace : le seul groupe « Données de l’espace », pas de groupe commun vide', async () => {
+      const { creer, rendre, selections } = monter([{ id: 'bmw', label: 'BMW', origine: 'espace' }]);
+      selections.basculerSection('poi');
+      const s = creer();
+      await rendre(s.fixture);
+      expect(groupes(s.el).map((x) => x.getAttribute('data-groupe-poi'))).toEqual(['espace']);
+    });
+
+    it('UNE sélection : cocher bmw puis lycee donne [bmw, lycee] ; décocher dans un groupe n’efface pas l’autre', async () => {
+      const { creer, rendre, selections, etat } = monter(MIXTE);
+      selections.basculerSection('poi');
+      const s = creer();
+      await rendre(s.fixture);
+      const [espace, commune] = groupes(s.el);
+      for (const x of [espace, commune]) (x.querySelector('[data-declencheur]') as HTMLButtonElement).click();
+      await rendre(s.fixture);
+      (espace.querySelector('[data-element="bmw"]') as HTMLButtonElement).click();
+      await rendre(s.fixture);
+      (commune.querySelector('[data-element="lycee"]') as HTMLButtonElement).click();
+      await rendre(s.fixture);
+      expect(etat.poiSelectionnes()).toEqual(['bmw', 'lycee']);
+      // Chaque liste ne compte que les siens.
+      expect(espace.querySelector('[data-deroulant]')!.textContent).toContain('1/1');
+      expect(commune.querySelector('[data-deroulant]')!.textContent).toContain('1/1');
+      (espace.querySelector('[data-element="bmw"]') as HTMLButtonElement).click();
+      await rendre(s.fixture);
+      expect(etat.poiSelectionnes()).toEqual(['lycee']);
+      // « Tout désélectionner » et la croix d'un groupe ne touchent que ce groupe.
+      etat.poiSelectionnes.set(['bmw', 'lycee']);
+      await rendre(s.fixture);
+      (commune.querySelector('[data-effacer]') as HTMLElement).click();
+      expect(etat.poiSelectionnes()).toEqual(['bmw']);
+    });
   });
 });

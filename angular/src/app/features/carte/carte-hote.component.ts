@@ -1,7 +1,10 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CartePage } from './carte.page';
 import { PARAM_ZONE_LIEN } from './logique/zones/zone-du-lien';
+
+/** Le bouton d'espace du badge de session (`layout/badge-session.component.ts`), dans la barre du haut de la page. */
+const BADGE_ESPACE = '[data-declencheur="org"]';
 
 /**
  * Le composant de la ROUTE `carte` (droits sur la carte, T3) : il rend la page carte et la RECRÉE à chaque changement
@@ -34,18 +37,45 @@ import { PARAM_ZONE_LIEN } from './logique/zones/zone-du-lien';
 export class CarteHoteComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly hote = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injecteur = inject(Injector);
 
   /** Changer de génération détruit la page carte et en crée une autre. */
   protected readonly generation = signal(0);
 
-  /** Un changement d'espace : `customZone` quitte l'URL s'il y est, puis la page est recréée. */
+  /**
+   * Un changement d'espace : `customZone` quitte l'URL s'il y est, puis la page est recréée. Une navigation REJETÉE
+   * (garde en erreur…) est interceptée — sans quoi elle remonterait en rejet non géré — et la page est recréée quand
+   * même : l'espace a changé côté serveur, garder l'ancienne page montrerait l'ancien espace.
+   */
   protected actualiser(): void {
     if (!this.route.snapshot.queryParamMap.has(PARAM_ZONE_LIEN)) {
-      this.generation.update((g) => g + 1);
+      this.recreer();
       return;
     }
+    const recreer = () => this.recreer();
     void this.router
       .navigate([], { relativeTo: this.route, queryParams: { [PARAM_ZONE_LIEN]: null }, queryParamsHandling: 'merge', replaceUrl: true })
-      .finally(() => this.generation.update((g) => g + 1));
+      .then(recreer, recreer);
+  }
+
+  /**
+   * Recrée la page. Si le focus était DANS l'ancienne page (le badge d'espace, d'où part le changement), il est rendu
+   * au badge d'espace de la nouvelle — l'élément que l'utilisateur vient de manier — plutôt qu'à l'hôte de la page
+   * (son repli d'ouverture, `rendreFocus` de `CartePage`) : au clavier, on reprend là où l'on était.
+   */
+  private recreer(): void {
+    const hote = this.hote.nativeElement;
+    const racine = hote.getRootNode() as Document | ShadowRoot;
+    const actif = racine.activeElement;
+    // Le focus est souvent DÉJÀ perdu à ce moment : le badge désactive ses options pendant le `POST`, et un bouton
+    // désactivé lâche le focus (vers `<body>`, ou vers l'hôte d'ombre sans élément actif dedans). Perdu = à reprendre ;
+    // un focus posé ailleurs (le shell) n'est pas volé.
+    const docActif = document.activeElement;
+    const perdu = !docActif || docActif === document.body || (racine instanceof ShadowRoot && actif === null && docActif === racine.host);
+    const avaitFocus = (!!actif && hote.contains(actif)) || perdu;
+    this.generation.update((g) => g + 1);
+    if (!avaitFocus) return;
+    afterNextRender(() => hote.querySelector<HTMLElement>(BADGE_ESPACE)?.focus({ preventScroll: true }), { injector: this.injecteur });
   }
 }

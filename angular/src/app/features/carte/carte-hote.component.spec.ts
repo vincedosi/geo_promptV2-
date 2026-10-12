@@ -217,4 +217,61 @@ describe('CarteHoteComponent — changer d’espace recrée la page carte', () =
     expect(harness.fixture.nativeElement.querySelectorAll('mg-module-factice').length).toBe(1);
     expect(harness.fixture.nativeElement.querySelector('mg-carte-principale mg-module-factice')).not.toBeNull();
   });
+
+  it('(f) le focus, perdu avec le badge détruit, est rendu au badge d’espace de la NOUVELLE page — jamais à <body>', async () => {
+    const { harness, stable, changerEspace } = await ouvrir();
+    const el = harness.fixture.nativeElement as HTMLElement;
+    const ancien = el.querySelector<HTMLButtonElement>('mg-carte-principale [data-declencheur="org"]')!;
+    ancien.focus();
+    expect(document.activeElement).toBe(ancien);
+
+    changerEspace('org-2');
+    await stable();
+
+    const nouveau = el.querySelector<HTMLButtonElement>('mg-carte-principale [data-declencheur="org"]')!;
+    expect(nouveau).not.toBe(ancien);
+    expect(document.activeElement).toBe(nouveau);
+  });
+
+  it('(f bis) focus DÉJÀ perdu au changement (option du badge désactivée pendant le POST) : rendu au badge, pas à l’hôte', async () => {
+    const { harness, stable, changerEspace } = await ouvrir();
+    const el = harness.fixture.nativeElement as HTMLElement;
+    el.querySelector<HTMLButtonElement>('mg-carte-principale [data-declencheur="org"]')!.focus();
+    (document.activeElement as HTMLElement).blur();
+    expect(document.activeElement).toBe(document.body);
+
+    changerEspace('org-2');
+    await stable();
+
+    expect(document.activeElement).toBe(el.querySelector('mg-carte-principale [data-declencheur="org"]'));
+  });
+
+  it('(f ter) un focus posé HORS de la carte n’est pas déplacé vers le badge', async () => {
+    const { harness, stable, changerEspace } = await ouvrir();
+    const dehors = document.createElement('input');
+    document.body.appendChild(dehors);
+    dehors.focus();
+    changerEspace('org-2');
+    await stable();
+    expect(document.activeElement).not.toBe((harness.fixture.nativeElement as HTMLElement).querySelector('[data-declencheur="org"]'));
+    dehors.remove();
+  });
+
+  it('(g) une navigation REJETÉE (retrait de customZone) est interceptée : aucun rejet non géré, la page est quand même recréée', async () => {
+    const { stable, page, changerEspace } = await ouvrir(`/carte?customZone=${ID}`);
+    const router = TestBed.inject(Router);
+    const navigation = vi.spyOn(router, 'navigate').mockReturnValue(Promise.reject(new Error('garde')));
+    const rejets: unknown[] = [];
+    const surRejet = (e: PromiseRejectionEvent) => { rejets.push(e.reason); e.preventDefault(); };
+    window.addEventListener('unhandledrejection', surRejet);
+    const avant = page().componentInstance;
+
+    changerEspace('org-2');
+    await stable();
+
+    window.removeEventListener('unhandledrejection', surRejet);
+    expect(navigation).toHaveBeenCalledTimes(1);
+    expect(rejets).toEqual([]);
+    expect(page().componentInstance).not.toBe(avant);
+  });
 });

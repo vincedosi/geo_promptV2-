@@ -1,11 +1,25 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { PoisService } from '../../couches/pois.service';
-import { CataloguePoiService } from '../../etat/catalogue-poi.service';
+import { CataloguePoiService, type TypePoi } from '../../etat/catalogue-poi.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { PIN_COLORS, PIN_SIZES } from '../../logique/constantes-calques';
 import { EnteteFiltreComponent } from '../filtre/perimetre.component';
 import { ListeMultipleComponent } from '../filtre/liste-multiple.component';
 import { SelectionsCalquesService } from './selections-calques.service';
+
+/** Un groupe de la section (droits sur la carte, T4) : ses types et la part de LA sélection qui lui revient. */
+interface GroupePoi {
+  readonly origine: TypePoi['origine'];
+  readonly titre: string;
+  readonly types: readonly TypePoi[];
+  readonly selection: readonly string[];
+}
+
+/** Les sous-titres, dans l'ordre d'affichage : ce que l'espace a importé d'abord. Libellés provisoires (spec § 4.2). */
+const TITRES_GROUPES: readonly (readonly [TypePoi['origine'], string])[] = [
+  ['espace', "Données de l'espace"],
+  ['commune', 'Données communes'],
+];
 
 /** L'aide de l'en-tête (`TOOLTIPS.poi`, `FilterSectionHeader.tsx:21`). */
 export const AIDE_POI = 'Point d\'Intérêt — commerce, service, lieu public';
@@ -23,6 +37,14 @@ export const AIDE_POI = 'Point d\'Intérêt — commerce, service, lieu public';
  * lire `var(--success)` et retombe sur ce gris) deviennent `--text-primary` au même pourcentage : identiques en sombre,
  * visibles en clair. Le sélecteur « Nature » n'est pas porté : React ne le remplit jamais (voir `CataloguePoiService`).
  * Écart, défaut corrigé : l'échec d'une recherche est dit ICI — React l'écrivait dans le panneau de l'Assistant.
+ *
+ * ── DEUX GROUPES (droits sur la carte, T4) ───────────────────────────────
+ * Dès qu'un type vient de l'espace actif (`origine: 'espace'`, `/api/map/categories`), la liste se coupe en
+ * « Données de l'espace » puis « Données communes », une `mg-liste-multiple` chacune ; un groupe vide n'est pas rendu.
+ * Tout commun (l'espace interne aujourd'hui) : le rendu d'avant, sans sous-titre. La sélection reste UNE
+ * (`poiSelectionnes`) : chaque liste reçoit la part qui est à elle, et ce qu'elle émet ne remplace que cette part
+ * (`changerGroupe`) — sa croix ou « Tout deselectionner » n'effacent pas l'autre groupe. `mg-liste-multiple` n'est pas
+ * modifiée : sans ce filtrage, elle compterait dans son « n/N » des choix qui ne sont pas dans sa liste.
  */
 @Component({
   selector: 'mg-section-poi',
@@ -52,8 +74,20 @@ export const AIDE_POI = 'Point d\'Intérêt — commerce, service, lieu public';
                 class="cursor-pointer border-0 bg-transparent p-0 font-mono text-[10px] text-warning">réessayer</button>
             </div>
           }
-          <mg-liste-multiple libelle="Aucun type selectionne" [items]="types()" [selection]="selection()"
-            (changer)="etat.poiSelectionnes.set($event)" />
+          @if (groupes(); as gs) {
+            <div class="flex flex-col gap-2">
+              @for (g of gs; track g.origine) {
+                <div [attr.data-groupe-poi]="g.origine">
+                  <div data-sous-titre class="mb-1 text-[11px] font-medium text-secondary">{{ g.titre }}</div>
+                  <mg-liste-multiple libelle="Aucun type selectionne" [items]="g.types" [selection]="g.selection"
+                    (changer)="changerGroupe(g.types, $event)" />
+                </div>
+              }
+            </div>
+          } @else {
+            <mg-liste-multiple libelle="Aucun type selectionne" [items]="types()" [selection]="selection()"
+              (changer)="etat.poiSelectionnes.set($event)" />
+          }
           @if (cartes().length > 0) {
             <div class="mt-2 flex flex-col gap-1.5">
               @for (c of cartes(); track c.id) {
@@ -131,6 +165,17 @@ export class SectionPoiComponent {
   protected readonly ouvert = computed(() => this.selections.sections()['poi'] !== false);
   protected readonly selection = this.etat.poiSelectionnes;
   protected readonly types = computed(() => this.catalogue.types().filter((t) => t.id !== 'risque_industriel'));
+  /** `null` quand rien ne vient de l'espace : une seule liste, sans sous-titre. */
+  protected readonly groupes = computed<readonly GroupePoi[] | null>(() => {
+    const types = this.types();
+    if (!types.some((t) => t.origine === 'espace')) return null;
+    const selection = this.selection();
+    return TITRES_GROUPES.map(([origine, titre]) => {
+      const siens = types.filter((t) => t.origine === origine);
+      const ids = new Set(siens.map((t) => t.id));
+      return { origine, titre, types: siens, selection: selection.filter((id) => ids.has(id)) };
+    }).filter((g) => g.types.length > 0);
+  });
   protected readonly cartes = computed(() => {
     const styles = this.pois.styles();
     return this.selection().map((id) => {
@@ -144,6 +189,19 @@ export class SectionPoiComponent {
     effect(() => {
       if (this.ouvert()) this.catalogue.chargerUneFois();
     });
+  }
+
+  /**
+   * Ce qu'une liste de groupe émet remplace la part de la sélection qui est à ce groupe, et elle seule : l'ordre des
+   * types déjà choisis est gardé, les nouveaux s'ajoutent à la fin (cocher bmw puis lycee → `['bmw', 'lycee']`).
+   */
+  protected changerGroupe(types: readonly TypePoi[], emis: readonly string[]): void {
+    const duGroupe = new Set(types.map((t) => t.id));
+    const gardes = new Set(emis);
+    this.etat.poiSelectionnes.update((avant) => [
+      ...avant.filter((id) => !duGroupe.has(id) || gardes.has(id)),
+      ...emis.filter((id) => !avant.includes(id)),
+    ]);
   }
 
   protected retirer(id: string): void {

@@ -46,6 +46,16 @@ describe('CarteApi', () => {
     http.verify();
   });
 
+  it('categories : l’origine de chaque catégorie (droits sur la carte, T2) arrive telle quelle', () => {
+    const { api, http } = preparer();
+    let recu: unknown;
+    api.categories().subscribe((r) => (recu = r));
+    const corps = { categories: [{ id: 'bmw', label: 'BMW', origine: 'espace' }, { id: 'lycee', label: 'Lycées', origine: 'commune' }] };
+    http.expectOne('/api/map/categories').flush(corps);
+    expect(recu).toEqual(corps);
+    http.verify();
+  });
+
   it('ooh : POST /api/map/ooh', () => {
     const { api, http } = preparer();
     api.ooh({ regies: [] }).subscribe();
