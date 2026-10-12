@@ -47,7 +47,7 @@ export const FILTRE_SOURCE_NON_SUPPRIMEE = 'status.is.null,status.neq.deleted';
  * @param options.vueEspace - Vue de la CARTE : le super_admin voit comme son
  *   espace actif, exactement comme un client de cet espace (socle seul s'il
  *   n'en a pas). Avec cette option, la fonction ne rend JAMAIS `null`. Sans
- *   elle (administration : `lib/espaces/*`, `app/api/admin/**`, chat), le
+ *   elle (administration : `lib/espaces/*`, `app/api/admin/**`), le
  *   contrat historique tient : `null` pour le super_admin.
  */
 export async function getOrgSourceIds(

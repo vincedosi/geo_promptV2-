@@ -1190,7 +1190,8 @@ s'arrete si la source n'a pas pu etre creee.
 
 `getOrgSourceIds` **ferme par defaut** : `null` (« tout voir ») est reserve au
 super_admin, et seulement SANS l'option `vueEspace` — c'est-a-dire en
-administration ; sur la carte il n'existe plus (paragraphe suivant). Jusqu'au 2026-10-08 il rendait `null` sans session et pour un
+administration ; sur la carte il n'existe plus (paragraphe suivant).
+Jusqu'au 2026-10-08 il rendait `null` sans session et pour un
 compte sans organisation — toute anomalie ouvrait les donnees de tous.
 « Source non supprimee » s'y ecrit `FILTRE_SOURCE_NON_SUPPRIMEE`
 (`status.is.null,status.neq.deleted`), le `is distinct from 'deleted'` du SQL :
@@ -1220,6 +1221,12 @@ dans l'interne = `lycee` seul, 0 et 0, panneaux de Brest (1 434, socle)
 proposes ; un compte client de BMW rend exactement les memes chiffres ; une zone
 creee dans BMW n'apparait ni dans Marine ni dans l'interne ; la page Acces
 (onglet Donnees d'un espace) montre toujours les cinq jeux au super_admin.
+Les deux LISTES DE CAMPAGNES lues par la carte suivent la meme regle depuis la
+revue finale (2026-10-12) : `/api/digital/campaigns` et la liste de
+`/api/custom-geo/media-plan` rendent les campagnes de l'espace actif, super_admin
+compris, et rien sans espace actif (verrou :
+`tests/unit/auth/campagnes-vue-espace.test.ts`). L'administration des campagnes
+passe par `/api/admin/campaigns`, inchangee.
 
 **L'origine d'une categorie (2026-10-12, meme spec, R6).** Chaque categorie
 rendue par `/api/map/categories` porte `origine: 'commune' | 'espace'`.
@@ -1464,7 +1471,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 ### Digital / Campagnes DSP (protegees par `requireAuth()`)
 | Route | Methode | Description |
 |-------|---------|-------------|
-| `/api/digital/campaigns` | GET | Liste campagnes avec stats (RPC) |
+| `/api/digital/campaigns` | GET | Liste campagnes avec stats (RPC) — celles de l'ESPACE ACTIF, super_admin compris ; `[]` sans espace actif (R3/R5, 2026-10-12 ; jusque-la le super_admin recevait tout) |
 | `/api/digital/[campaignId]/analysis` | GET | Breakdown/medias/indicators/heatmap |
 | `/api/digital/[campaignId]/map` | GET | Choroplethe CP campagne (GeoJSON) |
 | `/api/digital/[campaignId]/media` | GET | Regies distinctes campagne |
@@ -1633,7 +1640,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/custom-geo/source/dessin` | POST | **Trace libre** (Tache 18, sql/156) : recoit le polygone dessine, le valide par `ST_MakeValid` — un trace a main levee croise souvent son propre chemin, et le « noeud papillon » resultant ferait lever toute operation PostGIS ulterieure — puis le clippe sur `france_borders`. 409 sur un trace sans surface exploitable. Rend `corrige` (le trace a du etre repare, la zone n'est pas exactement celle dessinee) et `part_retenue` |
 | `/api/custom-geo/source/intersection` | POST | **Ce que 2 a 20 zones ont en commun** (Tache 14, sql/151) : la premiere zone intersectee avec l'UNION des autres — et non une reduction deux a deux, qui repondrait a une autre question. Repond **409** sur une intersection vide plutot que de creer une zone a zero code postal, qui partirait ensuite au DSP. `checkZoneAccess` par lots de 3 |
 | `/api/custom-geo/source/difference` | POST | **Une zone moins d'autres** (Tache 14, sql/151). `zone_base` et `zones_retirees` sont deux champs distincts et non une liste : l'operation n'est PAS symetrique, et rien dans le resultat ne dirait qu'on s'est trompe d'ordre. 409 si rien ne reste |
-| `/api/custom-geo/media-plan` | GET/POST/DELETE | Rattachement du plan media a une campagne DSP — persiste budget/CPM/cible/poids dans `dsp_campaigns.geo_strategy.media_plan` (sous-cle namespacee, scope org) |
+| `/api/custom-geo/media-plan` | GET/POST/DELETE | Rattachement du plan media a une campagne DSP — persiste budget/CPM/cible/poids dans `dsp_campaigns.geo_strategy.media_plan` (sous-cle namespacee, scope org). La LISTE (GET sans `campaign_id`) suit l'espace actif pour tous, `{ campaigns: [] }` sans espace actif, super_admin compris (2026-10-12) ; detail et ecriture d'une campagne nommee : `scopeGuard` inchange (super_admin sans espace autorise) |
 | `/api/custom-geo/media-plan/snapshot` | POST | Fige un snapshot VERSIONNE du plan pousse au DSP, item par item (`zone_id:poi_id`), expanse en codes postaux via `get_zone_items_export` |
 | `/api/custom-geo/list` | GET | Zones custom de l'org courante |
 | `/api/custom-geo/stats` | GET | Comptages des zones de l'org, pour l'en-tete de la galerie |

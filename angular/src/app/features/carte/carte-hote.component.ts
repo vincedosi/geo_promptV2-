@@ -73,7 +73,8 @@ export class CarteHoteComponent {
     // un focus posé ailleurs (le shell) n'est pas volé.
     const docActif = document.activeElement;
     // `instanceof HTMLBodyElement` et non une comparaison au corps du document : le garde de la racine d'ombre
-    // (`tests/unit/angular/portails-hors-ombre.test.ts`) refuse toute mention de celui-ci, même en simple lecture.
+    // (`tests/unit/angular/portails-hors-ombre.test.ts`) est LEXICAL et refuse toute mention de celui-ci. Ici ce n'est
+    // qu'une lecture de l'élément actif, pas un rendu hors de la racine : le garde n'a rien à protéger, pas une esquive.
     const perdu = !docActif || docActif instanceof HTMLBodyElement || (racine instanceof ShadowRoot && actif === null && docActif === racine.host);
     const avaitFocus = (!!actif && hote.contains(actif)) || perdu;
     this.generation.update((g) => g + 1);
