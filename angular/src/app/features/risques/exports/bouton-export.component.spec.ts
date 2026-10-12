@@ -90,6 +90,18 @@ describe('BoutonExportComponent', () => {
     expect(charger).not.toHaveBeenCalled();
   });
 
+  // Revue T21 : seul `BoutonExportRayon.tsx` (variante teal) pose `whiteSpace: 'nowrap'`. « Exporter le profil »
+  // (`BoutonExportProfil.tsx`) passe à la ligne dans l'en-tête du module : sans cela l'en-tête grandit, la carte de
+  // l'étape rétrécit et son cadrage (compte de sites, étiquettes au km) diffère de React.
+  it('retour à la ligne comme React : `nowrap` pour la seule variante teal ; icône jamais rétrécie', async () => {
+    const teal = await rendre(() => of(reponse()));
+    expect(teal.bouton().classList.contains('whitespace-nowrap')).toBe(true);
+    TestBed.resetTestingModule();
+    const neutre = await rendre(() => of(reponse()), { variante: 'neutre', libelle: 'Exporter le profil' });
+    expect(neutre.bouton().classList.contains('whitespace-nowrap')).toBe(false);
+    expect(neutre.bouton().querySelector('mg-icone')!.classList.contains('shrink-0')).toBe(true);
+  });
+
   it('variante `lien` : teal, sans cadre ni marge, icône 12 — le lien « Excel » d’une extraction', async () => {
     const { bouton } = await rendre(() => of(reponse()), { variante: 'lien', libelle: 'Excel', libelleEnCours: undefined });
     const classes = bouton().classList;

@@ -43,6 +43,20 @@ describe('BoutonVoirCarteComponent', () => {
     expect(ordre).toEqual(['preparer', 'afficher', 'affiche']);
   });
 
+  // Revue T21 : `BoutonVoirCarte.tsx` n'interdit pas le retour à la ligne ; l'interdire faisait grandir l'en-tête du
+  // module et changeait le cadrage de la carte de l'étape (compte de sites, étiquettes au km). Mesuré (ronde 1) : dans
+  // l'en-tête, React coupe « Voir sur / la carte » sur deux lignes, mais parce que son icône lucide RÉTRÉCIT à 6,6 px.
+  // Icône tenue à 13 px, le libellé libre se coupait sur TROIS lignes (« Voir / sur la / carte », en-tête 97 px) : il
+  // ne se coupe donc qu'entre « Voir sur » et « la carte », d'où une largeur minimale intrinsèque de deux lignes.
+  it('le libellé se coupe comme React, entre « Voir sur » et « la carte » ; l’icône ne rétrécit jamais', async () => {
+    const { bouton } = await rendre(() => of({ classes: 4 }));
+    expect(bouton().classList.contains('whitespace-nowrap')).toBe(false);
+    expect(bouton().querySelector('mg-icone')!.classList.contains('shrink-0')).toBe(true);
+    const morceaux = [...bouton().querySelectorAll('span.whitespace-nowrap')].map((s) => s.textContent);
+    expect(morceaux).toEqual(['Voir sur', 'la carte']);
+    expect(bouton().textContent?.trim()).toBe('Voir sur la carte');
+  });
+
   it('pendant la préparation : désactivé, icône qui tourne ; un second clic ne relance rien', async () => {
     const flux = new Subject<unknown>();
     const preparer = vi.fn(() => flux);

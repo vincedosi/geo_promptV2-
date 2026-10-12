@@ -33,6 +33,12 @@ export function messagePreparation(e: unknown): string {
  * module filtré sur une seule. Ici `natures` part dans la préparation ET dans l'adresse des tuiles — la même clé que
  * la carte du module. Sans nature retenue (le défaut), la requête est celle de React à l'octet près.
  *
+ * Le libellé passe à la ligne comme React (pas de `nowrap` sur le bouton) : l'interdire faisait grandir l'en-tête du
+ * module, rétrécir la carte de l'étape et changer son cadrage (revue T21). Il ne se coupe qu'entre « Voir sur » et
+ * « la carte » : React tient ces deux lignes parce que son icône lucide RÉTRÉCIT (6,6 px mesurés au lieu de 13) ; icône
+ * tenue à 13 px (`shrink-0`), le libellé libre tombait sur trois lignes et l'en-tête passait de 80 à 97 px. Les deux
+ * morceaux insécables donnent au bouton une largeur minimale de deux lignes, sans largeur en dur.
+ *
  * Rendu seulement quand le pont existe (module monté sous la carte principale) : `RisquePage` le teste. Un profil sans
  * anneau désactive le bouton AVANT toute requête — un aller-retour qui rend « zéro classe » se lirait comme une panne.
  */
@@ -44,16 +50,16 @@ export function messagePreparation(e: unknown): string {
   template: `
     <button type="button" data-voir-carte (click)="voir()" [disabled]="enCours() || vide()" [attr.aria-busy]="enCours()"
             [attr.title]="vide() ? 'Réglez au moins un anneau pour délimiter une zone.' : 'Afficher les zones de ce profil sur la carte'"
-            class="inline-flex items-center gap-[6px] whitespace-nowrap rounded-[6px] border-fin bg-transparent px-3 py-[6px] text-[12px] font-medium"
+            class="inline-flex items-center gap-[6px] rounded-[6px] border-fin bg-transparent px-3 py-[6px] text-[12px] font-medium"
             [class.border-teal]="!vide()" [class.text-teal]="!vide()"
             [class.border-default]="vide()" [class.text-tertiary]="vide()"
             [class.cursor-pointer]="!enCours() && !vide()" [class.cursor-not-allowed]="enCours() || vide()">
       @if (enCours()) {
-        <mg-icone nom="chargement" [taille]="13" class="animate-spin" />
+        <mg-icone nom="chargement" [taille]="13" class="shrink-0 animate-spin" />
       } @else {
-        <mg-icone nom="carte" [taille]="13" />
+        <mg-icone nom="carte" [taille]="13" class="shrink-0" />
       }
-      Voir sur la carte
+      <span><span class="whitespace-nowrap">Voir sur</span>&ngsp;<span class="whitespace-nowrap">la carte</span></span>
     </button>
     @if (message(); as m) {
       <span role="alert" class="text-[11px] text-danger">{{ m }}</span>
