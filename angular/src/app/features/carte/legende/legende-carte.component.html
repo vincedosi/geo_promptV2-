@@ -27,6 +27,10 @@
                   <span class="font-mono text-[10px] text-tertiary">{{ c.cat }} <span class="text-tertiary">({{ c.n }})</span></span>
                 </div>
               }
+              @if (a.tronque) {
+                <!-- Absent de React (défaut corrigé, revue finale I-2b) : la route a coupé la liste d'arrêts, on le dit. -->
+                <div data-tronque role="status" class="font-mono text-[10px] text-warning">{{ a.tronque }}</div>
+              }
               @if (a.rayonZone) {
                 <div class="mt-[3px] flex items-center gap-1.5 border-t border-subtle pt-[5px]">
                   <span class="size-[9px] shrink-0 rounded-[1px] border-[1.5px] border-dashed border-hover bg-[color-mix(in_srgb,var(--text-primary)_5%,transparent)]"></span>

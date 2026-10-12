@@ -45,6 +45,11 @@ export interface ZoneData {
   categories: Record<string, number>;
   /** Couleurs propres par catégorie, ex. `{ lycee: '#000000' }`. */
   couleur_overrides?: Record<string, string>;
+  /**
+   * `/api/map/transport` seulement : la borne de la route (5 000 arrêts, `BORNE_ARRETS`) est atteinte et la liste est
+   * COUPÉE (sql/241 lit `p_limite + 1` lignes pour le savoir). Absent des autres routes. Lu par la légende.
+   */
+  tronque?: boolean;
 }
 
 /** Le panneau cliqué, ouvert dans le tiroir Street View — recopie de `SelectedBillboard` (`types/map.ts`). */

@@ -8,6 +8,7 @@ import { PoisService } from '../couches/pois.service';
 import { RadioService } from '../couches/radio.service';
 import { SanteService } from '../couches/sante.service';
 import { TmjaService } from '../couches/tmja.service';
+import { mentionArretsTronques } from '../couches/transport.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
 import { RisqueCarteService } from '../etat/risque-carte.service';
 import { LegendeBatailleComponent } from './legende-bataille.component';
@@ -90,6 +91,8 @@ export class LegendeCarteComponent {
       categories: cats.map((cat) => ({ cat, n: zone.categories[cat], couleur: couleurPoi({ categorie: cat }, styles, zone) })),
       rayonZone: zone.rayon_metres ? (zone.rayon_metres / 1000).toFixed(1) : null,
       rayonPoi: libelleRayonPoi(zone.rayon_poi_metres),
+      // Liste d'arrêts coupée par la route : dit sous le compte (défaut React corrigé, revue finale I-2b).
+      tronque: mentionArretsTronques(zone),
     };
   });
   /** Les types de POI choisis (`selectedPOI`), dans la couleur de leur épingle. */

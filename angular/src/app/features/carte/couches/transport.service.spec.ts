@@ -11,7 +11,7 @@ import { AnnonceService } from '../etat/annonce.service';
 import { CouchesCarteService } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
 import { PoisService } from './pois.service';
-import { TransportService } from './transport.service';
+import { TransportService, mentionArretsTronques } from './transport.service';
 
 function monter() {
   const appels: { b: Bbox; types: readonly string[] }[] = [];
@@ -58,5 +58,21 @@ describe('TransportService', () => {
     reponses.error(new HttpErrorResponse({ status: 500, error: { error: 'Paramètres bbox invalides' } }));
     expect(transport.erreur()).toBe('Paramètres bbox invalides');
     expect(pois.zone()).toBe(avant);
+  });
+});
+
+describe('mentionArretsTronques (revue finale I-2b : `tronque` lu, défaut React corrigé)', () => {
+  const zone = (z: Partial<ZoneData>) => ({ categorie_poi: 'arret_transport', nb_pois: 5000, ...z }) as ZoneData;
+
+  it('liste coupée par la route : le nombre affiché, formaté fr-FR, et la consigne', () => {
+    expect(mentionArretsTronques(zone({ tronque: true }))!.replace(/\s/g, ' '))
+      .toBe('5 000 arrêts affichés, liste tronquée — zoomez pour tout voir');
+  });
+
+  it('liste complète, champ absent, autre zone que des arrêts, ou aucune zone : rien', () => {
+    expect(mentionArretsTronques(zone({ tronque: false }))).toBeNull();
+    expect(mentionArretsTronques(zone({}))).toBeNull();
+    expect(mentionArretsTronques(zone({ tronque: true, categorie_poi: 'lycee' }))).toBeNull();
+    expect(mentionArretsTronques(null)).toBeNull();
   });
 });

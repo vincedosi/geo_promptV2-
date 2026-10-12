@@ -1,9 +1,23 @@
 import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import type { Subscription } from 'rxjs';
 import { bboxDeCarte } from '../../../carte/bbox';
-import { CarteApi } from '../data/carte.api';
+import { formaterNombre } from '../../../core/format/nombre';
+import { CarteApi, type ZoneData } from '../data/carte.api';
 import { CouchesCarteService } from '../etat/couches-carte.service';
 import { messagePoints, PoisService } from './pois.service';
+
+/**
+ * La mention d'une liste d'arrêts COUPÉE par la route (`tronque`, `/api/map/transport` : 5 000 arrêts au plus), affichée
+ * par la légende sous le compte d'arrêts ; `null` si la liste est complète ou si la zone n'est pas une zone d'arrêts.
+ *
+ * DÉFAUT REACT CORRIGÉ (revue finale du lot 4, I-2b) : React ne lisait pas `tronque` — la légende affichait
+ * « arret_transport (5000) » sans dire qu'il en manquait. Contraire au principe « échouer en le disant » (CLAUDE.md,
+ * § Troncature) : ce n'est pas une parité réussie, c'est un manque dit.
+ */
+export function mentionArretsTronques(zone: ZoneData | null): string | null {
+  if (!zone?.tronque || zone.categorie_poi !== 'arret_transport') return null;
+  return `${formaterNombre(zone.nb_pois)} arrêts affichés, liste tronquée — zoomez pour tout voir`;
+}
 
 /**
  * Les arrêts de transport en commun (`handleLoadTransport`, `page.tsx:486-496`) : chargés pour la carte VISIBLE, bbox à

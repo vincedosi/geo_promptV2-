@@ -218,6 +218,29 @@ describe('LegendeCarteComponent', () => {
     expect(point.style.background).toBe('rgb(255, 68, 68)');
   });
 
+  it('arrêts de transport TRONQUÉS par la route : la mention suit le compte (défaut React corrigé, revue finale I-2b)', async () => {
+    const { fixture, el, rendre, pois } = monter();
+    fixture.componentRef.setInput('degradeActif', null);
+    pois.definirZone({
+      ville: 'Zone visible', categorie_poi: 'arret_transport', rayon_metres: null, rayon_poi_metres: null,
+      coordonnees: { lat: 0, lng: 0 }, pois: [], nb_pois: 5000, categories: { arret_transport: 5000 }, tronque: true,
+    });
+    await rendre();
+    const bloc = el.querySelector('[data-bloc="analyse"]')!;
+    const mention = bloc.querySelector('[data-tronque]')!;
+    expect(mention.textContent!.replace(/\s+/g, ' ').trim()).toBe('5 000 arrêts affichés, liste tronquée — zoomez pour tout voir');
+    expect(mention.classList).toContain('text-warning');
+    expect(mention.getAttribute('role')).toBe('status');
+    expect(bloc.querySelector('[data-categorie="arret_transport"]')!.nextElementSibling).toBe(mention);
+
+    pois.definirZone({
+      ville: 'Zone visible', categorie_poi: 'arret_transport', rayon_metres: null, rayon_poi_metres: null,
+      coordonnees: { lat: 0, lng: 0 }, pois: [], nb_pois: 1626, categories: { arret_transport: 1626 }, tronque: false,
+    });
+    await rendre();
+    expect(el.querySelector('[data-tronque]')).toBeNull();
+  });
+
   it('« Figurés » : les types de POI choisis — la boîte s’ouvre sans dégradé, et se ferme sans rien', async () => {
     const { fixture, el, rendre, etat } = monter();
     fixture.componentRef.setInput('degradeActif', null);
