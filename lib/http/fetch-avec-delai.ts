@@ -8,13 +8,12 @@
  * L'audit du 2026-09-11 (`ECH-002`) a relevé **13 appels vers des tiers sans
  * aucun délai d'expiration** : 11 vers `displayvideo.googleapis.com`
  * (`lib/dsp/dv360/client.ts`), 2 vers `business-api.tiktok.com`
- * (`lib/dsp/tiktok/client.ts`), 1 vers `*.modal.run`
- * (`lib/bidding-ml/client.ts`).
+ * (`lib/dsp/tiktok/client.ts`), 1 vers `*.modal.run` (`lib/bidding-ml/client.ts`,
+ * retiré le 2026-10-12 avec le ML Modal).
  *
  * Sur une plateforme serverless, un tiers qui ne répond pas ne rend pas la main :
- * l'invocation reste bloquée jusqu'au délai de la plateforme. Une panne de
- * Modal fige le pilote automatique quotidien ; une lenteur de Google bloque un
- * push de ciblage sans que l'utilisateur sache pourquoi.
+ * l'invocation reste bloquée jusqu'au délai de la plateforme. Une lenteur de
+ * Google bloque un push de ciblage sans que l'utilisateur sache pourquoi.
  *
  * Le savoir-faire existait déjà dans le projet — `lib/isochrones/fetcher.ts` et
  * `lib/civic-health/utils.ts` bornent correctement leurs appels. Ce module ne

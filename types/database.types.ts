@@ -238,44 +238,6 @@ export type Database = {
           },
         ]
       }
-      agent_chat_messages: {
-        Row: {
-          content: string
-          created_at: string
-          id: string
-          role: string
-          strategy_id: string
-          tool_calls: Json | null
-          user_id: string | null
-        }
-        Insert: {
-          content: string
-          created_at?: string
-          id?: string
-          role: string
-          strategy_id: string
-          tool_calls?: Json | null
-          user_id?: string | null
-        }
-        Update: {
-          content?: string
-          created_at?: string
-          id?: string
-          role?: string
-          strategy_id?: string
-          tool_calls?: Json | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "agent_chat_messages_strategy_id_fkey"
-            columns: ["strategy_id"]
-            isOneToOne: false
-            referencedRelation: "bidding_strategies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       agent_recommendations: {
         Row: {
           applied_at: string | null
@@ -7593,7 +7555,6 @@ export type Database = {
         }
         Returns: Json
       }
-      purge_old_agent_chat_messages: { Args: never; Returns: number }
       purger_brouillons_zone_set: {
         Args: { p_age_heures?: number }
         Returns: Json

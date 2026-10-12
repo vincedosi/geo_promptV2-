@@ -6,7 +6,7 @@
  * ── Pourquoi un second module, et pas une option de plus ───────────────────
  *
  * `fetch-avec-delai.ts` refuse la reprise à dessein : la plupart de ses
- * appelants (DV360, TikTok, Modal) ne sont PAS idempotents, et rejouer un
+ * appelants (DV360, TikTok) ne sont PAS idempotents, et rejouer un
  * push de ciblage peut produire deux fois l'effet. Ce module ne sert QUE les
  * lectures pures, pour lesquelles rejouer est sans conséquence : Open-Meteo,
  * ORS (un isochrone est un calcul, pas une écriture), la BAN, geo.api.gouv.fr,

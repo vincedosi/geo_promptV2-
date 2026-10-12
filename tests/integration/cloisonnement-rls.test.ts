@@ -171,7 +171,7 @@ describe('tables qui ne doivent RIEN rendre à un client par PostgREST', () => {
   // SELECT et ne filtrait que sur le rôle.
   const tablesBidding = [
     ...tables,
-    'agent_chat_messages', 'agent_recommendations', 'bidding_curve_history',
+    'agent_recommendations', 'bidding_curve_history',
     'bidding_agent_actions', 'bidding_strategy_drafts', 'agent_autonomy_settings',
   ];
   for (const table of tablesBidding) {

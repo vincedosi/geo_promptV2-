@@ -103,8 +103,8 @@ export async function GET(
     return NextResponse.json({ error: 'Stratégie introuvable' }, { status: 404 });
   }
 
-  // ⛔ Nano : max 3 appels Supabase simultanes (CLAUDE.md). Ces 5 lectures sont
-  // unitaires et indexees, mais la limite est absolue -> deux lots de 3 puis 2.
+  // ⛔ Nano : max 3 appels Supabase simultanes (CLAUDE.md). Ces 4 lectures sont
+  // unitaires et indexees, mais la limite est absolue -> un lot de 3 puis 1.
   const [campaignResp, objectiveResp, activeModelResp] = await Promise.all([
     supabase
       .from('dsp_campaigns')
@@ -124,19 +124,11 @@ export async function GET(
       .maybeSingle(),
   ]);
 
-  const [subzonesResp, autonomyResp] = await Promise.all([
-    supabase
-      .from('bidding_strategy_subzones')
-      .select('id, name, postal_codes, multiplier, display_order')
-      .eq('strategy_id', id)
-      .order('display_order'),
-    supabase
-      .from('agent_autonomy_settings')
-      .select('autonomy_level')
-      .eq('scope_type', 'strategy')
-      .eq('strategy_id', id)
-      .maybeSingle(),
-  ]);
+  const subzonesResp = await supabase
+    .from('bidding_strategy_subzones')
+    .select('id, name, postal_codes, multiplier, display_order')
+    .eq('strategy_id', id)
+    .order('display_order');
 
   return NextResponse.json({
     strategy,
@@ -144,7 +136,6 @@ export async function GET(
     objective: objectiveResp.data ?? null,
     active_model: activeModelResp.data ?? null,
     subzones: subzonesResp.data ?? [],
-    agent_autonomy_override: autonomyResp.data?.autonomy_level ?? null,
   });
 }
 

@@ -53,7 +53,7 @@ describe('dérive entre ARCHITECTURE.md et le code', () => {
     const exemple = lire('.env.example');
     const declarees = Array.from(exemple.matchAll(/^([A-Z][A-Z0-9_]+)=/gm)).map(m => m[1]);
     const critiques = declarees.filter(v =>
-      /^(SUPABASE|NEXT_PUBLIC_SUPABASE|MODAL|ORS|GOOGLE_GENERATIVE|DSP_ENC)/.test(v));
+      /^(SUPABASE|NEXT_PUBLIC_SUPABASE|ORS|GOOGLE_GENERATIVE|DSP_ENC)/.test(v));
 
     const absentes = critiques.filter(v => !archi.includes(v));
     expect(
@@ -66,8 +66,9 @@ describe('dérive entre ARCHITECTURE.md et le code', () => {
   it('toute dépendance externe appelée par le code est documentée', () => {
     // Modal manquait : lib/bidding-ml/client.ts appelait un serverless Python
     // tiers, invisible dans le doc autoritaire. Seul le doc PÉRIMÉ en parlait.
+    // Modal est retiré depuis le 2026-10-12 (suppression de l'IA) : plus
+    // aucun appel, donc plus d'entrée ici.
     const hotesExternes: Array<[string, string]> = [
-      ['modal.run', 'Modal'],
       ['openrouteservice', 'OpenRouteService'],
       ['open-meteo', 'Open-Meteo'],
     ];

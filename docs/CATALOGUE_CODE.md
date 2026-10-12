@@ -4,11 +4,11 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-10-12 — commit `e8666179`.
+> Généré le 2026-10-12 — commit `4cdf98f1`.
 
 ## Totaux
 
-- Exports morts : 189
+- Exports morts : 151
 - Fichiers morts : 0
 - Dépendances inutilisées : 2
 
@@ -25,18 +25,14 @@ Trié par nombre d’occurrences décroissant.
 | Fichier | Occurrences | Exports | Types |
 |---|---|---|---|
 | `lib/strategy-wizard/multiplier.ts` | 14 | computeMultiplier, inferTier, MULTIPLIER_COLOR_SCALE, colorForMultiplier, labelForMultiplier, plainFrenchForMultiplier, TIER_LABELS_FR, TIER_COLORS | Tier, WeightingMode, InZoneWeights, OutZoneWeights, SubzoneInput, MultiplierColorStop |
-| `lib/prompting/code-generation/index.ts` | 11 | DV360_PROMPT_SECTION, validateDV360Code, ADFORM_PROMPT_SECTION, validateAdformJSON, TTD_PROMPT_SECTION, validateTTDJSON | DV360Validation, AdformRule, AdformValidation, TTDLine, TTDValidation |
 | `components/ui/sheet.tsx` | 7 | SheetPortal, SheetOverlay, SheetClose, SheetHeader, SheetFooter, SheetTitle, SheetDescription | — |
-| `lib/prompting/chat-ui/index.ts` | 7 | CodeTabs, DownloadButton | MessageListProps, MessageInputProps, CodeTab, CodeTabsProps, DownloadButtonProps |
 | `lib/campaigns/channels.ts` | 6 | PlatformLinksSchema, linksComplete, linksSummary | LinkLevel, PlatformLinks, ChannelCategory |
 | `components/ui/dialog.tsx` | 6 | DialogPortal, DialogOverlay, DialogTrigger, DialogClose, DialogFooter, DialogDescription | — |
-| `lib/bidding-ml/client.ts` | 5 | predictForStrategy, detectDrift | ExecutionMode, PredictResponse, DriftResponse |
 | `lib/demo/constants.ts` | 5 | PERIOD_LEN_DAYS, CALENDAR_START, MAX_ROUNDS, STEP_CAP_GUIDE, STEP_CAP_AUTONOME | — |
 | `lib/meteo/types.ts` | 5 | — | GridPoint, MeteoSquare, MeteoMeta, MeteoSummary, MeteoApiResponse |
 | `lib/import/types.ts` | 4 | INSEE_CARREAUX_INDICATORS | ImportConfig, DryRunStats, LogLevel |
 | `types/spatial.ts` | 4 | — | BattleData, ChatMessage, GeoJSONFeatureCollection, SpatialResult |
 | `lib/campaigns/suivi-metrics.ts` | 4 | — | SuiviAlert, SuiviLevel1Row, SuiviDeptRow, SuiviMedia |
-| `app/_components/agent/index.ts` | 3 | useAgent, AgentRecommendationCard, AgentAutonomyBadge | — |
 | `lib/isochrones/fetcher.ts` | 3 | ORS_MAX_RETRIES, ORS_RETRY_DELAY, ORS_DELAI_MS | — |
 | `app/admin/sources/_hooks/usePoiAdmin.ts` | 3 | emptyPoiForm | PoiForm, PoiModalState |
 | `lib/dsp/report/index.ts` | 3 | selectReporter | DspReportRow, DspReporter |
@@ -47,20 +43,15 @@ Trié par nombre d’occurrences décroissant.
 | `app/copilote/_lib/constants.ts` | 2 | applyChoropleth, CATEGORY_COLORS | — |
 | `app/map/_components/CivicIndicatorsLayer.tsx` | 2 | CIVIC_VARIABLES, getCivicLegendStops | — |
 | `lib/dsp/dv360/auth.ts` | 2 | DV360_SCOPES, buildOAuthClient | — |
-| `lib/prompting/code-generation/adform.ts` | 2 | ADFORM_PROMPT_SECTION | AdformRule |
-| `lib/prompting/code-generation/ttd.ts` | 2 | TTD_PROMPT_SECTION | TTDLine |
 | `lib/demo/controller.ts` | 2 | latestVersion, readDemoPacing | — |
 | `lib/geo/locations.ts` | 2 | VILLES, REGIONS | — |
 | `lib/dsp-mapping/loader.ts` | 2 | listAvailableDsps, invalidateMappingsCache | — |
 | `lib/import/schemas.ts` | 2 | MappageChampsSchema, ConfigGeoSchema | — |
 | `lib/bidding-ml/comparison.ts` | 2 | aggregateByDate | DailyComparison |
 | `lib/bidding-ml/targeting-kpis.ts` | 2 | quantile, selectTargetZones | — |
-| `lib/agent/intents/index.ts` | 2 | getIntent, listIntents | — |
-| `lib/prompting/rate-limiter.ts` | 2 | getClientKey, rateLimitResponse | — |
 | `lib/iris-crawler/parser.ts` | 2 | GEO_COLUMNS, classifyColumns | — |
 | `lib/smart-prompt/geo-resolver.ts` | 2 | resolveZoneToBbox | ZoneResolution |
 | `lib/donnees/registre-fraicheur.ts` | 2 | — | CoutMesure, JournalSource |
-| `lib/agent/types.ts` | 2 | — | ActionRisk, ActionType |
 | `lib/dsp/validation.ts` | 2 | — | Dv360ConnectInput, Dv360OAuthConfigInput |
 | `lib/smart-prompt/types.ts` | 2 | — | GeoParams, PoiStats |
 | `lib/chat/tools/types.ts` | 2 | — | BillboardRaw, CarreauRow |
@@ -76,10 +67,9 @@ Trié par nombre d’occurrences décroissant.
 | `components/campagne/suivi-v2/TableauDeregles.tsx` | 1 | LIGNES_MAX | — |
 | `lib/dsp-mapping/parser.ts` | 1 | parseRow | — |
 | `lib/campaigns/platform-links.ts` | 1 | PlatformLinksSchema | — |
-| `lib/civic-health/atmofrance-client.ts` | 1 | AASQA_REGION_CODES | — |
 | `lib/pacing/rebid.ts` | 1 | REBID_EPSILON | — |
+| `lib/civic-health/atmofrance-client.ts` | 1 | AASQA_REGION_CODES | — |
 | `lib/geo/dept-lookup-server.ts` | 1 | invalidateDeptCache | — |
-| `lib/prompting/code-generation/dv360.ts` | 1 | DV360_PROMPT_SECTION | — |
 | `lib/api/safe-path.ts` | 1 | isValidUuid | — |
 | `lib/import/column-detector.ts` | 1 | normalizeColumnName | — |
 | `lib/civic-health/provider.ts` | 1 | _resetProvider | — |
@@ -105,7 +95,6 @@ Trié par nombre d’occurrences décroissant.
 | `lib/dsp/push/types.ts` | 1 | — | PushStatus |
 | `lib/qualite/verdict.ts` | 1 | — | Verdict |
 | `lib/report/types.ts` | 1 | — | ReportHeader |
-| `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
 | `lib/radio/import-logger.ts` | 1 | — | LogEntry |
 | `lib/meteo/use-meteo-data.ts` | 1 | — | MeteoProgress |
 | `app/map/_components/filter-panel/use-poi-catalog.ts` | 1 | — | PoiType |

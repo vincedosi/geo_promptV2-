@@ -1,5 +1,10 @@
 # Cartographie — reconstituée depuis le code
 
+> ⚠ **2026-10-12 — Modal, l'agent d'enchères et `/api/agent/*` sont RETIRÉS**
+> (chantier « suppression de toute l'IA », lot 2). Tout ce qui concerne
+> `modal/bidding_ml/`, `MODAL_*`, `/api/bidding/train` ou l'agent dans ce
+> document est historique. Source de vérité : `ARCHITECTURE.md`.
+
 > Produite le 2026-09-11 par l'audit `/audit-refactor`, phase 1.
 > **Ce document n'est pas la source de vérité de l'architecture** : c'est
 > `ARCHITECTURE.md` à la racine, désigné par `CLAUDE.md`.

@@ -133,78 +133,42 @@
 > Ce qui reste de la plomberie bidding sert le wizard de campagne :
 > `/api/bidding/strategies` (GET/POST), `/strategies/[id]` (GET/PATCH/DELETE),
 > `/strategies/[id]/export`, `/strategies/[id]/final-report`,
-> `/strategies/drafts` + `/drafts/[id]`, et `/api/bidding/train` (appele par
-> `lib/agent/autonomy.ts`). `FinalReport` a migre vers `components/campaign/`.
+> `/strategies/drafts` + `/drafts/[id]`. `/api/bidding/train` (appele par
+> `lib/agent/autonomy.ts`) est retire le 2026-10-12 avec l'agent et Modal.
+> `FinalReport` a migre vers `components/campaign/`.
 > Les tables `bidding_daily_state`, `bidding_simulations` et `bidding_curve_history`
 > n'ont plus d'ecrivain applicatif — a trancher en seconde passe.
 > `bidding_zone_configs` reste utile (lue par `refresh_campaign_rollups`).
 
 ---
 
-> **Dependance externe non documentee jusqu'au 2026-09-11 : Modal.**
-> `lib/bidding-ml/client.ts` appelle un service serverless Python tiers sur
-> `*.modal.run` (endpoints `-predict`, `-train`, `-detect-drift`), pilote par
-> `MODAL_BIDDING_ML_URL`. Chemin d'appel vivant :
-> `lib/agent/autonomy.ts:147` → `POST /api/bidding/train` → `trainModel()` → Modal.
-> Le service lui-meme vit DANS LE DEPOT : `modal/bidding_ml/` (16 fichiers
-> suivis par git, tests compris), deploye sur Modal et non sur Vercel — c'est le
-> seul composant du projet qui ne tourne pas dans Next.js.
+> **Agent d'encheres, ML Modal et historique de chat : RETIRES le 2026-10-12**
+> (chantier « suppression de toute l'IA », lot 2 ; AIDA, le shell dentsu,
+> devient l'IA). Partis du code : `app/_components/agent/**` (le panneau
+> `AgentPanel` et son declencheur, montes dans `app/layout.tsx`), `lib/agent/**`,
+> `lib/prompting/**`, `/api/agent/{chat,analyze-drift,apply-recommendation}`,
+> `/api/bidding/train`, `lib/bidding-ml/client.ts` (seul client de `*.modal.run`),
+> les crons Inngest `agentAutoPilotDaily` et `agentChatPurgeWeekly`, et le
+> service Python `modal/bidding_ml/` avec ses variables `MODAL_*`. Plus aucun
+> appel vers Modal.
 >
-> Seul `docs/architecture.md` (perime, 30/04) en parlait ; ce document l'ignorait,
-> arborescence et tableau des variables d'environnement compris. Corrige le
-> 2026-09-11, et desormais garde par `tests/unit/docs/derive-documentation.test.ts`.
-
-> ## ⛔ Modal n'est PAS branchable — audit du 2026-09-22
+> Pourquoi Modal pouvait partir sans perte (audit du 2026-09-22) : il n'avait
+> jamais ete branchable. `dsp_campaign_data.metrics` etait vide sur 477 879
+> lignes, donc son reward se reduisait a `- spend/12,5` ; `adaptive_model_state`
+> comptait 0 ligne (aucun modele entraine) ; et son mode `auto` aurait ecrase le
+> plan des jeux de zones (meme table `bidding_zone_configs`, meme cle). Les
+> encheres par code postal restent produites par le GENERATEUR LOCAL
+> (`genererPlanCp`, `lib/zones/plan.ts`).
 >
-> **Decision : les enchheres par code postal restent produites par un
-> GENERATEUR LOCAL. Ne pas appeler ce service.** Arbitrage de Vincent, sur
-> l'audit ci-dessous.
->
-> **Le blocage n'est pas la plomberie, c'est la DONNEE.** Le modele
-> (`river.HoeffdingAdaptiveTreeRegressor`) apprend sur 8 features tirees du
-> jsonb `dsp_campaign_data.metrics`, et son reward vaut `leads - spend/12,5`.
-> Or, mesure ce jour : **477 879 lignes, ZERO avec un `metrics` non vide**, et
-> aucune colonne `leads`/`visits`/`conversions`/`bid_requests`/`bid_won`/`tier`
-> n'existe. Consequence : 4 features sur 8 sont constantes, et le reward se
-> reduit a **`- spend/12,5`**. Le modele n'apprendrait qu'une chose — depenser
-> est mauvais — et rendrait des multiplicateurs a l'air savant, derives d'un
-> signal inexistant.
->
-> ⚠ **Sa sortie ecraserait le plan des jeux de zones.** Le mode `auto`
-> (`persistence.py:34`) fait un `upsert` sur `bidding_zone_configs`
-> `(strategy_id, postal_code, country_code)` — **exactement la cle et la table**
-> ou `genererPlanCp` ecrit le plan d'un jeu de zones (`lib/zones/plan.ts`).
-> Rien dans le schema ne distingue les deux origines : une passe de prediction
-> remplacerait « ce qu'on a decide d'acheter » par « ce que le modele predit »,
-> en silence.
->
-> **Etat mesure le 2026-09-22 :**
-> - `MODAL_BIDDING_ML_URL` vaut `""` (vide) et aucun `MODAL_TOKEN_*` n'est
->   pose : `getModalPrefix()` LEVE avant tout appel reseau. Le service est donc
->   injoignable, et son deploiement invérifiable.
-> - `adaptive_model_state` : **0 ligne** — aucun modele n'a jamais ete entraine,
->   donc `/predict` repondrait « Lance /train d'abord ».
-> - `bidding_daily_state`, `bidding_drift_events` : 0. La boucle n'a JAMAIS
->   rien produit dans cette base.
-> - `bidding_zone_config_proposals` (cible du mode `suggest`) : **table
->   inexistante**.
-> - Les **11 435** lignes de `bidding_zone_configs` viennent du wizard et des
->   jeux de zones, jamais de Modal.
-> - La sortie ne part vers AUCUN DSP : le push DV360 lit `custom_geo_zones` et
->   `custom_geo_zone_codes`. Le seul pont est le FICHIER d'`/export`, depose a
->   la main.
->
-> **Code vestigial recense** (non supprime, signale) : `predictForStrategy` et
-> `detectDrift` exportes sans appelant ; `agentAutoPilotDaily` (cron 06h00,
-> enregistre dans `app/api/inngest/route.ts`) appelle **deux routes supprimees
-> le 08/09** — `drift-detect-local` et `recommendations` — donc tomberait en 404
-> meme si un ordonnanceur existait ; `apply_proposal_to_config` sans appelant.
->
-> **Ce qu'il faudrait pour rouvrir la question**, dans cet ordre : que
-> `dsp_campaign_data.metrics` porte enfin les conversions et les signaux
-> d'enchere (sujet d'INGESTION DSP, pas de ML) ; qu'un mode d'execution separe
-> les ecritures du modele de celles du plan ; et que Modal soit redeploye avec
-> une URL.
+> En base, seule la table `agent_chat_messages` et sa purge
+> `purge_old_agent_chat_messages()` sont supprimees (sql/250, en local). Les
+> autres tables de l'agent (`agent_autonomy_settings`, `agent_recommendations`,
+> `adaptive_model_state`, `bidding_agent_actions`, `bidding_drift_events`,
+> `bidding_algorithms`) RESTENT, sans ecrivain applicatif : leur sort est remis
+> au proprietaire. `/api/bidding/strategies` ne lit ni n'ecrit plus
+> `agent_autonomy_settings` (le champ `agent_autonomy_override` disparait de la
+> creation et de la lecture) ; la lecture garde `active_model`
+> (`adaptive_model_state`, alimentee par `scripts/benchmarking/`).
 
 ## Stack technique
 
@@ -222,8 +186,7 @@
 | Risques industriels | **Georisques** (ministere de la Transition ecologique) — `api/v1/installations_classees`, **sans jeton**. 138 423 installations classees. Aussi `api/v1/gaspar/pprt` : **415 procedures PPRT**, sans geometrie | — |
 | Perimetres PPRT (polygones) | **Geoplateforme IGN** — WFS `wfs_sup:assiette_sup_s`, filtre `suptype='pm3'` (servitude d'utilite publique PM3 = PPRT), alimente par le Geoportail de l'Urbanisme. **664 polygones**, GeoJSON, `CQL_FILTER` honore, `numberMatched` exact. Voir « Perimetres PPRT » plus bas pour la comparaison mesuree avec le WFS Georisques, qui ne convient PAS | — |
 | Meteo | Open-Meteo API (temperature, precipitation, ensoleillement) | — |
-| Inference ML bidding | **Modal** (serverless Python, HTTPS) — `-predict` / `-train` / `-detect-drift`. **Le seul composant qui ne tourne pas dans Next.js**, et le seul code Python deploye. Bibliotheques : `river` (apprentissage EN LIGNE, incremental — c'est ce qui permet de reprendre un modele sans tout rejouer), `scikit-learn`, `numpy`, `pandas`, client `supabase` | — |
-| Scripts Python hors ligne | 38 fichiers dans `scripts/` et `modal/` (imports INSEE/OSM/GTFS/TMJA, clustering POI x Filosofi, rescoring) : `supabase`, `requests`, `pandas`, `numpy`, `scikit-learn`, `pyproj`, `matplotlib`, `dotenv`. **Aucun runtime Python sur Vercel** — d'ou le 503 explicite de `/api/poi-clusters/run` quand le script est absent | — |
+| Scripts Python hors ligne | 24 fichiers dans `scripts/` — `modal/` retire le 2026-10-12 (imports INSEE/OSM/GTFS/TMJA, clustering POI x Filosofi, rescoring) : `supabase`, `requests`, `pandas`, `numpy`, `scikit-learn`, `pyproj`, `matplotlib`, `dotenv`. **Aucun runtime Python sur Vercel** — d'ou le 503 explicite de `/api/poi-clusters/run` quand le script est absent | — |
 | Jobs asynchrones | Inngest (serverless queue) — ⚠ **plus d'ordonnanceur depuis la coupure du 2026-09-19** : Inngest appelle `/api/inngest` sur l'URL publique de l'application, et il n'y a plus de deploiement. Le cron `civic-daily-ingest` ne tourne donc plus (§ 2.1 de `docs/PLAN_REPRISE.md`) | ^3.54 |
 | Rate limiting | Upstash Redis — **declare mais NON configure** : `lib/api/rate-limit.ts` l'importe, aucune variable `UPSTASH_*` n'est posee, et le limiteur retombe sur le compteur **en base** (`consommer_quota`, sql/135). C'est ce compteur partage qui protege reellement le budget d'I/O — une `Map` en memoire de processus ne limite RIEN sur Vercel | ^2.0 |
 | PDF export | @react-pdf/renderer — **plus installe** : retire en dommage collateral de la suppression du clustering (commit 7192c68), son seul consommateur. A reinstaller le jour ou le rapport PDF est restaure (docs/PLAN_CLUSTERING.md) | — |
@@ -707,7 +670,7 @@ genesis_app/
 │   ├── digital/                # google-ads-geo-ids.json
 │   ├── dsp-mapping/            # loader.ts — mappings de colonnes DSP dynamiques (table dsp_source_mappings)
 │   ├── metrics-display/        # loader + formateur dynamique des metriques (dsp_metrics_registry)
-│   ├── bidding-ml/             # client HTTP vers Modal + comparison / metric-labels / targeting-kpis
+│   ├── bidding-ml/             # comparison / metric-labels / targeting-kpis (client Modal retire le 2026-10-12)
 │   ├── format/                 # nombre.ts — source unique de la mise en forme des nombres
 │   │                           #   (DUP-001 : 15 fmtNum locaux remplaces)
 │   ├── geo/                    # france-admin.ts, locations.ts
@@ -787,14 +750,6 @@ genesis_app/
 │   ├── populate_geom_3857.ts        # Reprojection geom
 │   └── export_iris_geojson.py       # Export GeoJSON IRIS
 │
-├── modal/                      # Service ML serverless Python (deploye sur Modal, HORS Vercel)
-│   └── bidding_ml/             # app.py = 3 endpoints HTTPS predict/train/detect-drift
-│       ├── algos/              # registry.py (pluggable) + hoeffding.py (river)
-│       ├── data_loader.py      # lecture Supabase en HTTPS
-│       ├── persistence.py      # UPSERT bidding_zone_configs / proposals / daily_state
-│       ├── drift_detection.py  # scan CPL/CTR par CP sur 2 fenetres
-│       ├── serialization.py    # pickle + base64 du modele river
-│       └── tests/              # test_predict / test_train / test_drift
 ├── sql/                        # Migrations SQL (Supabase Dashboard)
 ├── supabase/migrations/        # Migrations Supabase CLI
 ├── tests/                      # unit/ + integration/
@@ -1073,7 +1028,7 @@ un compte `admin` d'espace lisait les 13 377 lignes de `bidding_zone_configs`,
 toutes d'une autre organisation. `sql/238` eclate toute politique FOR ALL non
 reservee a `service_role` en INSERT/UPDATE/DELETE (22 politiques, 26 → 4 FOR ALL,
 les 4 restantes sont `service_role`) ; supprime les SELECT `*_org_read` de
-`agent_chat_messages`, `agent_recommendations`, `bidding_curve_history` (meme
+`agent_chat_messages` (table supprimee le 2026-10-12, sql/250), `agent_recommendations`, `bidding_curve_history` (meme
 clause `admin` ET « infinite recursion » 42P17 pour tout compte) ; ramene
 `bidding_agent_actions`, `bidding_strategy_drafts`, `agent_autonomy_settings` a
 « le mien, ou super_admin ». Les tables bidding se lisent cote serveur
@@ -1645,12 +1600,12 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/bidding/strategies/drafts/[id]` | GET/DELETE | Chargement / abandon d'un brouillon, avec verification du proprietaire |
 | `/api/bidding/strategies/[id]/final-report` | POST | Bilan executif Gemini en cinq sections d'une campagne terminee, cache memoire 1 h. ⚠ Lit `get_strategy_comparison_data`, **coupee a 1 000 lignes par PostgREST** (`db-max-rows`) alors que les deux strategies en base en portent 306 150 et 174 780 (mesure du 2026-10-10) — defaut C de `docs/SUITE_TRONCATURE_POSTGREST.md`, ouvert |
 
-### Agent autonome (bidding)
-| Route | Methode | Description |
-|-------|---------|-------------|
-| `/api/agent/chat` | POST | Pipeline complet : detection d'intention → handler → application des regles → trace d'audit |
-| `/api/agent/analyze-drift` | POST | Force l'intention `analyze_drift` sur un evenement de derive donne |
-| `/api/agent/apply-recommendation` | POST | Applique ou rejette une recommandation de l'agent et trace la decision |
+### Agent autonome (bidding) — RETIRE le 2026-10-12
+
+`/api/agent/chat`, `/api/agent/analyze-drift`, `/api/agent/apply-recommendation`
+et `/api/bidding/train` sont supprimees avec l'agent, son panneau et le ML
+Modal (chantier « suppression de toute l'IA », lot 2 — voir l'encadre en tete
+de ce document). Aucune route ne les remplace.
 
 ### Mode demo (bac a sable)
 
@@ -2047,9 +2002,6 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `ADMIN_INIT_KEY` | Cle init admin |
 | `INNGEST_EVENT_KEY` | Jobs async |
 | `INNGEST_SIGNING_KEY` | Signing jobs |
-| `MODAL_BIDDING_ML_URL` | Prefixe Modal du service d'inference bidding (sans suffixe d'endpoint). `lib/bidding-ml/client.ts` y ajoute `-predict.modal.run`, `-train.modal.run`, `-detect-drift.modal.run`. **Sans elle, `/api/bidding/train` leve** |
-| `MODAL_TOKEN_ID` | Token Modal |
-| `MODAL_TOKEN_SECRET` | Secret Modal |
 | `NEXT_PUBLIC_APP_URL` | URL app ; absente, l'origine de la requete. Sert le `redirectTo` des liens de mot de passe (`lib/espaces/lien-mot-de-passe.ts`) : l'origine retenue doit figurer dans la liste blanche de GoTrue |
 | `NEXT_PUBLIC_URL_ANGULAR` | Adresse de l'application Angular (ex. `http://localhost:4200/app`, sans barre finale). Les liens React vers la page « Accès » en derivent (`${URL}/admin/acces`, `lib/espaces/lien-page-acces.ts`) ; absente, l'entree « Accès » n'est pas rendue (barre laterale, Reglages de la carte, tableau de bord) et `/admin/sources` n'affiche qu'un texte. Inlinee dans le bundle client au build |
 | `ATMO_PROVIDER` | `mock` (defaut) ou `atmofrance`. Backend de l'indicateur sante environnementale |
