@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { formaterNombre } from '../../../../core/format/nombre';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { KpiComponent } from '../../../../ui/kpi/kpi.component';
-import type { ResultatBandes } from '../../etat/donnees-risque.service';
+import type { ResultatBandes } from '../../logique/donnees-risque';
 import { LIBELLE_NIVEAU, NIVEAUX, type ProfilRayons, anneauxDuNiveau } from '../../logique/profil';
 import { TableauBandesComponent } from './tableau-bandes.component';
 

@@ -4,7 +4,7 @@ import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { KpiComponent } from '../../../../ui/kpi/kpi.component';
 import { Cellule, EnteteCellule } from '../../../../ui/tableau/cellules';
 import type { UniteBandes } from '../../data/profil-risque.api';
-import type { ResultatBandes } from '../../etat/donnees-risque.service';
+import type { ResultatBandes } from '../../logique/donnees-risque';
 import { type Dimension, LIBELLE_DIMENSION } from '../../logique/dimensions';
 import { anneauxParNiveau, libelleClasse } from '../../logique/libelle-classe';
 import type { ProfilRayons } from '../../logique/profil';

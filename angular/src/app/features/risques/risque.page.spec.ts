@@ -19,7 +19,7 @@ import { ZonesRisqueApi } from './data/zones-risque.api';
 import { JeuxZonesApi } from './data/jeux-zones.api';
 import { SimulationApi } from './data/simulation.api';
 import { reponseSimulation } from './testing/simulation.fixture';
-import { DELAI_BANDES_MS } from './etat/donnees-risque.service';
+import { DELAI_BANDES_MS } from './logique/donnees-risque';
 import { RisquePage } from './risque.page';
 import { PONT_CARTE, type PontCarte } from '../carte/etat/pont-carte';
 import { codeProfil } from './logique/code-profil';

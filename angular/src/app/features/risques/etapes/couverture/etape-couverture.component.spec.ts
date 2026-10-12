@@ -6,7 +6,8 @@ import { ProfilRisqueApi, type RequeteBandes } from '../../data/profil-risque.ap
 import { ReferentielApi, type ReponseRefGeo } from '../../data/referentiel.api';
 import { SitesRisqueApi } from '../../data/sites-risque.api';
 import { ZonesRisqueApi } from '../../data/zones-risque.api';
-import { DELAI_BANDES_MS, DonneesRisqueService } from '../../etat/donnees-risque.service';
+import { DonneesRisqueService } from '../../etat/donnees-risque.service';
+import { DELAI_BANDES_MS } from '../../logique/donnees-risque';
 import { EtatRisqueService } from '../../etat/etat-risque.service';
 import { BANDES_PACA_REELLES, BANDES_REGIONS_REELLES } from '../../testing/couverture.fixture';
 import { BANDES_CODES_POSTAUX, BANDES_IDF, CONTOURS_DEPARTEMENTS, CONTOURS_REGIONS, DEPTS_IDF } from '../../testing/mini-france.fixture';

@@ -4,7 +4,7 @@ import { BandeauKpiComponent } from '../../../ui/bandeau-kpi/bandeau-kpi.compone
 import { KpiComponent } from '../../../ui/kpi/kpi.component';
 import type { Bandes } from '../data/profil-risque.api';
 import type { CompteSites } from '../data/sites-risque.api';
-import type { PointCourbe } from '../etat/donnees-risque.service';
+import type { PointCourbe } from '../logique/donnees-risque';
 import { LIBELLE_DIMENSION, type Dimension } from '../logique/dimensions';
 import { partExposee, tauxUtile } from '../logique/kpi';
 

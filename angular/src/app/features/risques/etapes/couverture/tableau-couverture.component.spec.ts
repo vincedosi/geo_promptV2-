@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import type { Bandes } from '../../data/profil-risque.api';
-import type { ResultatBandes } from '../../etat/donnees-risque.service';
+import type { ResultatBandes } from '../../logique/donnees-risque';
 import type { Dimension } from '../../logique/dimensions';
 import { PROFIL_DEFAUT } from '../../logique/profil';
 import { BANDES_REGIONS_REELLES } from '../../testing/couverture.fixture';

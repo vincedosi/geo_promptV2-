@@ -5,7 +5,7 @@ import { ENREGISTRER_FICHIER } from '../../../../core/http/telecharger';
 import { FABRIQUE_GRAPHIQUE, type GraphiqueMinimal } from '../../../../graphiques/fabrique-graphique';
 import { ProfilRisqueApi } from '../../data/profil-risque.api';
 import { ZonesRisqueApi } from '../../data/zones-risque.api';
-import type { ResultatCourbe } from '../../etat/donnees-risque.service';
+import type { ResultatCourbe } from '../../logique/donnees-risque';
 import { COURBE_RAYON_REELLE } from '../../testing/courbe-rayon.fixture';
 import { CLE_TOUTES, COMMANDE_COUVERTURE, CourbeRayonComponent, jetonNature } from './courbe-rayon.component';
 

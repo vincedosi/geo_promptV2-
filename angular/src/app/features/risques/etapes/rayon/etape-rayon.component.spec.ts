@@ -1,7 +1,7 @@
 import { Component, input } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { Bandes } from '../../data/profil-risque.api';
-import type { ResultatBandes } from '../../etat/donnees-risque.service';
+import type { ResultatBandes } from '../../logique/donnees-risque';
 import { PROFIL_DEFAUT, type ProfilRayons } from '../../logique/profil';
 import { EtapeRayonComponent } from './etape-rayon.component';
 

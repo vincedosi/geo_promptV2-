@@ -6,7 +6,7 @@ import { CourbeComponent } from '../../../../graphiques/courbe.component';
 import type { SerieCourbe } from '../../../../graphiques/option-courbe';
 import { KpiComponent } from '../../../../ui/kpi/kpi.component';
 import { ProfilRisqueApi } from '../../data/profil-risque.api';
-import type { ResultatCourbe } from '../../etat/donnees-risque.service';
+import type { ResultatCourbe } from '../../logique/donnees-risque';
 import { BoutonExportComponent } from '../../exports/bouton-export.component';
 import { TEINTES_NATURE } from '../../logique/palette-natures';
 

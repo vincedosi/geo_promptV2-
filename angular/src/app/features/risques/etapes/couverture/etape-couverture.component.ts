@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, type Signal, computed, effect, inject, signal, untracked } from '@angular/core';
 import { formaterNombre } from '../../../../core/format/nombre';
 import { PastilleComponent } from '../../../../ui/pastille/pastille.component';
-import { type ContoursMaille, DonneesRisqueService } from '../../etat/donnees-risque.service';
+import { DonneesRisqueService } from '../../etat/donnees-risque.service';
+import type { ContoursMaille } from '../../logique/donnees-risque';
 import type { Dimension } from '../../logique/dimensions';
 import { codesDessines, peutDescendre, peutRemonter } from '../../logique/exploration';
 import type { ZoneGeo } from '../../logique/mini-france';

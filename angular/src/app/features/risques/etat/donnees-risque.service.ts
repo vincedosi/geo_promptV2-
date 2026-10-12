@@ -1,65 +1,25 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import {
   DestroyRef, Injectable, type Signal, type WritableSignal, computed, effect, inject, signal, untracked,
 } from '@angular/core';
 import { EMPTY, Observable, Subject, type Subscription, catchError, map, of, switchMap, timer } from 'rxjs';
 import { ChargementService } from '../../../core/chargement/chargement.service';
 import { estPerime } from '../../../core/chargement/chargement';
-import { type Bandes, type Cible, ProfilRisqueApi, type RequeteBandes } from '../data/profil-risque.api';
-import { ReferentielApi, type ReponseRefGeo } from '../data/referentiel.api';
+import { type Cible, ProfilRisqueApi, type RequeteBandes } from '../data/profil-risque.api';
+import { ReferentielApi } from '../data/referentiel.api';
 import { type CompteSites, SitesRisqueApi } from '../data/sites-risque.api';
-import { type ReponseCourbe, ZonesRisqueApi } from '../data/zones-risque.api';
+import { ZonesRisqueApi } from '../data/zones-risque.api';
 import { codeProfil } from '../logique/code-profil';
 import type { Dimension } from '../logique/dimensions';
+import {
+  BANDES_INACTIVES, BANDES_INITIALES, type ContoursMaille, DELAI_BANDES_MS, type PointCourbe, REF_VIDE, type RefGeo,
+  type ResultatBandes, type ResultatCourbe, type Segment, aplatirRef, bandesEnEchec, cheminBienForme, courbeEnEchec,
+  filtresSites, parametresCourbe, resoudreChemin,
+} from '../logique/donnees-risque';
 import {
   type SegmentExploration, descendre, mailleExploree, perimetreExplore, peutDescendre, remonter,
 } from '../logique/exploration';
 import { NIVEAUX, type ProfilRayons, anneauxDuNiveau, profilDesGravites } from '../logique/profil';
 import { EtatRisqueService } from './etat-risque.service';
-
-/** Les contours d'une maille : `null` en chargement, `'indisponible'` après un échec (jamais gardé en cache). */
-export type ContoursMaille = GeoJSON.Feature[] | null | 'indisponible';
-
-/** Un territoire du fil d'Ariane, son nom résolu par le référentiel (`AnalysePopulationOverlay.tsx:114`). */
-export interface Segment { niveau: 'region' | 'departement'; code: string; nom: string }
-
-/** Un code de territoire et son libellé, pour les menus de périmètre. */
-export interface UniteRef { code: string; nom: string }
-
-export interface RefGeo {
-  regions: UniteRef[];
-  departements: UniteRef[];
-  /** Les départements de chaque région : la route les rend IMBRIQUÉS, l'aplatir perdrait le rattachement. */
-  deptsParRegion: Record<string, string[]>;
-}
-
-export type EtatChargementBandes = 'chargement' | 'echec' | 'pret';
-
-/** Résultat de `use-bandes.ts` : l'état VOYAGE avec la donnée — un tableau vide confondait les trois. */
-export interface ResultatBandes {
-  etat: EtatChargementBandes;
-  bandes: Bandes | null;
-  erreur: string | null;
-  /** 409 « pré-calcul absent » : seul cas où l'écran doit dire de lancer le script. */
-  aConstruire: boolean;
-}
-
-/** Résultat de `use-courbe-rayon.ts`. */
-export interface ResultatCourbe {
-  data: ReponseCourbe | null;
-  chargement: boolean;
-  erreur: string | null;
-  aConstruire: boolean;
-}
-
-export type PointCourbe = ReponseCourbe['courbes'][number]['points'][number];
-
-/** Anti-rebond des bandes (`use-bandes.ts:112`) : un calcul national coûte 2,8 s, un geste en émet plusieurs. */
-export const DELAI_BANDES_MS = 400;
-
-const REF_VIDE: RefGeo = { regions: [], departements: [], deptsParRegion: {} };
-const BANDES_INITIALES: ResultatBandes = { etat: 'chargement', bandes: null, erreur: null, aConstruire: false };
-const BANDES_INACTIVES: ResultatBandes = { etat: 'pret', bandes: null, erreur: null, aConstruire: false };
 
 /**
  * Les données PARTAGÉES de l'écran risque — portage des chargements de `AnalysePopulationOverlay.tsx`
@@ -117,30 +77,14 @@ export class DonneesRisqueService {
    * écarté sans référentiel — il part TEL QUEL vers les routes, et c'est le SERVEUR qui le valide (périmètre
    * inconnu → réponse vide ou refus explicite, jamais un calcul sur la France entière).
    */
-  readonly chemin = computed<Segment[]>(() => {
-    const brut = this.cleChemin();
-    if (brut === '') return [];
-    const statut = this.refStatut();
-    const ref = this._refGeo();
-    const segments: Segment[] = [];
-    for (const el of brut.split('|')) {
-      const lu = lireElementChemin(el);
-      if (!lu) continue;
-      const { niveau, code } = lu;
-      const unite = (niveau === 'region' ? ref.regions : ref.departements).find((u) => u.code === code);
-      if (unite) segments.push({ niveau, code, nom: unite.nom });
-      else if (statut === 'echec') segments.push({ niveau, code, nom: code });
-    }
-    return segments;
-  });
+  readonly chemin = computed<Segment[]>(() => resoudreChemin(this.cleChemin(), this.refStatut(), this._refGeo()));
   /**
    * Un chemin demandé mais pas encore résolu : aucun calcul ne part, il partirait sur la France entière.
    * ⚠ On n'attend le référentiel QUE si au moins un élément est BIEN FORMÉ (`region:` / `departement:` suivi
    * d'un code) : un chemin entièrement illisible (`13`, `commune:13055`) sera ignoré quoi qu'il arrive, et
    * l'attendre retarderait le premier calcul pour rien.
    */
-  private readonly cheminEnAttente = computed(() => this.refStatut() === 'chargement'
-    && this.cleChemin() !== '' && this.cleChemin().split('|').some((el) => lireElementChemin(el) !== null));
+  private readonly cheminEnAttente = computed(() => this.refStatut() === 'chargement' && cheminBienForme(this.cleChemin()));
 
   /** La maille CHOISIE (« Lister par »), locale comme React (A4). `null` = la maille naturelle. */
   readonly mailleChoisie: WritableSignal<Dimension | null> = signal(null);
@@ -291,33 +235,18 @@ export class DonneesRisqueService {
 
     // Courbe : sans anti-rebond, comme React — la lecture est pré-agrégée, en millisecondes.
     this.relier(this.cleCourbe, (cle) => {
-      const [cible, gravites, natures, perim] = JSON.parse(cle) as [string, string, string, string];
-      const [niveau, code] = perim ? perim.split(':') : [null, null];
+      const { gravites, filtres } = parametresCourbe(cle);
       this._courbe.update((p) => ({ ...p, chargement: true, erreur: null, aConstruire: false }));
-      return this.zonesApi.courbe(gravites, {
-        cible, natures: natures ? natures.split(',') : [], perimNiveau: niveau, perimCode: code,
-      }).pipe(
+      return this.zonesApi.courbe(gravites, filtres).pipe(
         map((data) => ({ data, chargement: false, erreur: null, aConstruire: false })),
-        catchError((e: unknown) => {
-          const corps = corpsErreur(e);
-          return of({
-            data: null, chargement: false, aConstruire: Boolean(corps?.['a_construire']),
-            erreur: typeof corps?.['error'] === 'string' ? (corps['error'] as string) : 'Courbe indisponible.',
-          });
-        }),
+        catchError((e: unknown) => of(courbeEnEchec(e))),
         map((r) => this._courbe.set(r)),
       );
     });
 
     this.relier(this.cleSites, (cle) => {
-      const [gravites, natures, perim] = JSON.parse(cle) as [string, string, string];
-      const [niveau, code] = perim ? perim.split(':') : [null, null];
       this._compteSites.update((p) => ({ ...p, chargement: true }));
-      return this.sitesApi.compter({
-        gravites: gravites ? gravites.split(',') : [],
-        natures: natures ? natures.split(',') : [],
-        perimNiveau: niveau as 'region' | 'departement' | null, perimCode: code,
-      }).pipe(
+      return this.sitesApi.compter(filtresSites(cle)).pipe(
         map((compte) => ({ compte, chargement: false })),
         catchError(() => of({ compte: null, chargement: false })),
         map((r) => this._compteSites.set(r)),
@@ -451,15 +380,7 @@ export class DonneesRisqueService {
       return timer(DELAI_BANDES_MS).pipe(
         switchMap(() => this.profilApi.bandes(q)),
         map((bandes): ResultatBandes => ({ etat: 'pret', bandes, erreur: null, aConstruire: false })),
-        catchError((e: unknown) => {
-          const corps = corpsErreur(e);
-          return of<ResultatBandes>(corps === null
-            ? { etat: 'echec', bandes: null, aConstruire: false, erreur: 'Le calcul des bandes n’a pas répondu.' }
-            : {
-              etat: 'echec', bandes: null, aConstruire: corps['a_construire'] === true,
-              erreur: typeof corps['error'] === 'string' ? corps['error'] : 'Calcul des bandes indisponible.',
-            });
-        }),
+        catchError((e: unknown) => of(bandesEnEchec(e))),
         map((r) => cible.set(r)),
       );
     });
@@ -470,29 +391,4 @@ export class DonneesRisqueService {
       });
     }
   }
-}
-
-/** Un élément `niveau:code` de `etat.chemin`, ou `null` s'il est mal formé (préfixe inconnu, code vide). */
-function lireElementChemin(el: string): { niveau: 'region' | 'departement'; code: string } | null {
-  const i = el.indexOf(':');
-  if (i < 0) return null;
-  const niveau = el.slice(0, i);
-  const code = el.slice(i + 1);
-  if ((niveau !== 'region' && niveau !== 'departement') || code === '') return null;
-  return { niveau, code };
-}
-
-/** Le corps JSON d'une réponse d'erreur, ou `null` (réseau, corps illisible) — React passait alors par son `catch`. */
-function corpsErreur(e: unknown): Record<string, unknown> | null {
-  if (!(e instanceof HttpErrorResponse) || e.status === 0) return null;
-  return e.error && typeof e.error === 'object' ? (e.error as Record<string, unknown>) : null;
-}
-
-/** La route rend les départements IMBRIQUÉS dans leur région : on aplatit sans perdre le rattachement (l.452-466). */
-function aplatirRef(j: ReponseRefGeo): RefGeo {
-  const regions = (j.regions ?? []).map((x) => ({ code: x.code_region, nom: x.nom_region }));
-  const departements = (j.regions ?? []).flatMap((x) => (x.depts ?? []).map((d) => ({ code: d.code_dept, nom: d.nom_dept })));
-  const deptsParRegion: Record<string, string[]> = {};
-  for (const x of j.regions ?? []) deptsParRegion[x.code_region] = (x.depts ?? []).map((d) => d.code_dept);
-  return { regions, departements, deptsParRegion };
 }

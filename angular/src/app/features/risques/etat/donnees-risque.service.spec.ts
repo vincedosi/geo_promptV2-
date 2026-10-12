@@ -8,7 +8,8 @@ import { ReferentielApi, type ReponseRefGeo } from '../data/referentiel.api';
 import { SitesRisqueApi } from '../data/sites-risque.api';
 import { ZonesRisqueApi } from '../data/zones-risque.api';
 import { PROFIL_DEFAUT } from '../logique/profil';
-import { DELAI_BANDES_MS, DonneesRisqueService } from './donnees-risque.service';
+import { DELAI_BANDES_MS } from '../logique/donnees-risque';
+import { DonneesRisqueService } from './donnees-risque.service';
 import { EtatRisqueService, PARAM_RISQUE } from './etat-risque.service';
 
 /** Un appel d'API factice : ses arguments, et le `Subject` par lequel le test répond quand il veut. */
