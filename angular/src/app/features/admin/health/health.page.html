@@ -1,37 +1,14 @@
 <div class="max-w-[900px]">
-  <!-- En-tête (page.tsx:202-226) -->
-  <div class="mb-6">
-    <div class="mb-[6px] flex items-center gap-3">
-      <h1 class="m-0 text-[18px] font-medium text-primary">Santé système</h1>
-      @if (pastilleVisible()) {
-        <span data-statut-global class="mono pastille statut" [attr.data-etat]="statutGlobal()">{{ statutGlobal() }}</span>
-      }
-    </div>
-    <p data-sous-titre class="m-0 text-[13px] text-secondary">
-      {{ onglet() === 'systeme'
-        ? 'Variables d’environnement, connectivité Supabase, tables'
-        : 'D’où vient chaque donnée, comment elle entre, et de quand elle date' }}
-    </p>
-  </div>
-
-  <!-- Onglets (page.tsx:228-250) -->
-  <div role="tablist" class="mb-5 flex gap-1 border-b border-subtle">
-    @for (o of onglets; track o.cle) {
-      <button
-        type="button"
-        role="tab"
-        data-onglet
-        class="onglet"
-        [id]="'health-onglet-' + o.cle"
-        [attr.aria-controls]="'health-panneau-' + o.cle"
-        [attr.aria-selected]="onglet() === o.cle"
-        (click)="choisir(o.cle)"
-      >{{ o.libelle }}</button>
+  <!-- En-tête de l'onglet. Le titre de page « Santé système » et la barre d'onglets de React
+       (page.tsx:202-250) sont remontés dans le cadre Système (lot 6, T6) : il reste ici le
+       sous-titre de l'onglet et la pastille du statut global (page.tsx:207-224). -->
+  <div class="mb-5 flex items-center gap-3">
+    <p data-sous-titre class="m-0 text-[13px] text-secondary">Variables d’environnement, connectivité Supabase, tables</p>
+    @if (pastilleVisible()) {
+      <span data-statut-global class="mono pastille statut" [attr.data-etat]="statutGlobal()">{{ statutGlobal() }}</span>
     }
   </div>
 
-  <div id="health-panneau-systeme" role="tabpanel" aria-labelledby="health-onglet-systeme" [hidden]="onglet() !== 'systeme'">
-  @if (onglet() === 'systeme') {
     <!-- Statut global (page.tsx:254-319) -->
     <div class="globale statut" [class.en-lecture]="enLecture()" [attr.data-etat]="statutGlobal()">
       @if (enLecture()) {
@@ -273,7 +250,7 @@
         </div>
         <div class="p-4">
           <div class="mono build">
-            <div><span class="cle">app: </span><span style="color: var(--brand-teal)">MAGELIAN</span></div>
+            <div><span class="cle">app: </span><span style="color: var(--brand-teal)">dentsu.explore</span></div>
             <div><span class="cle">version: </span><span style="color: var(--success)">v{{ version }}</span></div>
             <div><span class="cle">build: </span><span class="text-primary">{{ dateBuild }}</span></div>
             <div><span class="cle">stack: </span><span class="text-primary">Next.js 14 · Supabase · PostGIS · Mapbox</span></div>
@@ -282,14 +259,4 @@
         </div>
       </section>
     </div>
-  }
-  </div>
-
-  <!-- Fraîcheur (page.tsx:593) : montée à la PREMIÈRE ouverture de l'onglet, puis gardée — un
-       aller-retour d'onglets ne relit pas le relevé (React démontait le panneau et relisait). -->
-  <div id="health-panneau-fraicheur" role="tabpanel" aria-labelledby="health-onglet-fraicheur" [hidden]="onglet() !== 'fraicheur'">
-    @if (fraicheurOuverte()) {
-      <mg-fraicheur />
-    }
-  </div>
 </div>

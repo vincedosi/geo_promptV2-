@@ -245,9 +245,10 @@ function messageLecture(e: unknown): string {
   templateUrl: './qualite-donnees.page.html',
   styles: [`
     :host { display: block; }
-    .page { padding: 32px 40px; max-width: 1100px; font-family: var(--font-sans); color: var(--text-secondary); }
-    h1 { font-size: 20px; font-weight: 500; color: var(--text-primary); letter-spacing: -0.02em; margin: 0; }
-    .intro { font-size: 13px; line-height: 1.6; margin: 8px 0 28px; max-width: 720px; }
+    /* Monté comme onglet du cadre Données (lot 6, T6) : le cadre pose déjà la marge de page et le titre ;
+       le « padding: 32px 40px » et le h1 de React les doubleraient. */
+    .page { max-width: 1100px; font-family: var(--font-sans); color: var(--text-secondary); }
+    .intro { font-size: 13px; line-height: 1.6; margin: 0 0 28px; max-width: 720px; }
     .erreur {
       padding: 10px 12px; border-radius: 6px; margin-bottom: 20px; font-size: 12px; color: var(--danger);
       background: color-mix(in srgb, var(--danger) 8%, transparent);

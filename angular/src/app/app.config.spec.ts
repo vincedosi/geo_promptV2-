@@ -287,7 +287,7 @@ describe('administration (lot 6)', () => {
     };
   }
 
-  it('`/app/admin` mène à `/app/admin/health` (C1 : React répond 404 sur /admin)', async () => {
+  it('`/app/admin` mène à `/app/admin/systeme/sante` (C1 : React répond 404 sur /admin ; T6 : page Système)', async () => {
     TestBed.configureTestingModule({
       providers: [...appConfig.providers, provideHttpClientTesting(), { provide: SUPABASE, useValue: supabaseSuperAdmin() }, { provide: BASE_RESSOURCES, useValue: BASE }, ...feuilles.providers],
     });
@@ -304,8 +304,8 @@ describe('administration (lot 6)', () => {
       await attendre();
       await harness.fixture.whenStable();
     }
-    expect(TestBed.inject(Router).url).toBe('/app/admin/health');
-    expect(ombre(harness.fixture.nativeElement as HTMLElement).querySelector('mg-cadre-admin mg-health')).not.toBeNull();
+    expect(TestBed.inject(Router).url).toBe('/app/admin/systeme/sante');
+    expect(ombre(harness.fixture.nativeElement as HTMLElement).querySelector('mg-cadre-admin mg-systeme mg-health')).not.toBeNull();
     http.match(() => true);
   }, DELAI_DEMARRAGE_REEL);
 });

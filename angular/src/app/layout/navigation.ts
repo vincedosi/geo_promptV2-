@@ -66,11 +66,45 @@ export const SECTIONS_NAVIGATION: readonly SectionNavigation[] = [
       // la barre React renvoie désormais elle-même ici, par NEXT_PUBLIC_URL_ANGULAR.
       { href: '/admin/users', libelle: 'Accès', icone: 'utilisateurs', cible: 'admin/acces' },
       { href: '/admin/imports', libelle: 'Imports', icone: 'televerser', cible: null },
-      { href: '/admin/health', libelle: 'Health check', icone: 'activite', badge: 'Sys', cible: 'admin/health' },
-      { href: '/admin/qualite-donnees', libelle: 'Qualite des donnees', icone: 'bouclier-coche', badge: 'Sys', cible: 'admin/qualite-donnees' },
+      { href: '/admin/health', libelle: 'Health check', icone: 'activite', badge: 'Sys', cible: 'admin/systeme/sante' },
+      { href: '/admin/qualite-donnees', libelle: 'Qualite des donnees', icone: 'bouclier-coche', badge: 'Sys', cible: 'admin/donnees/qualite' },
     ],
   },
 ];
+
+/**
+ * Les trois pages à onglets de l'administration Angular (amendement du 2026-10-12, lot 6 T6),
+ * rendues EN TÊTE de la section « Administration » à la place des écrans qu'elles regroupent.
+ * Sans badge : les badges « Admin » / « Sys » de React étiquetaient des pages qui n'existent plus
+ * côté Angular. `href` : la page React d'où vient la première fonction regroupée (traçabilité).
+ */
+export const PAGES_ADMINISTRATION: readonly EntreeNavigation[] = [
+  { href: '/admin/users', libelle: 'Accès', icone: 'utilisateurs', cible: 'admin/acces' },
+  { href: '/admin/qualite-donnees', libelle: 'Données', icone: 'base-de-donnees', cible: 'admin/donnees' },
+  { href: '/admin/health', libelle: 'Système', icone: 'activite', cible: 'admin/systeme' },
+];
+
+/** Sections dont les écrans PORTÉS sont regroupés dans les trois pages ci-dessus. */
+const SECTIONS_REGROUPEES = ['Administration', 'Systeme'];
+
+/**
+ * La barre telle qu'elle est RENDUE : `SECTIONS_NAVIGATION` (copie de React, inchangée) regroupée.
+ * Dans « Administration » et « Systeme », une entrée PORTÉE (`cible` non nulle) n'est plus rendue :
+ * son écran est un onglet d'Accès, de Données ou de Système, qui prennent la tête de
+ * « Administration ». Les entrées pas encore portées restent à leur place, inchangées (inertes) ;
+ * elles disparaîtront une à une quand leur onglet arrivera (il suffit de renseigner leur `cible`).
+ * Une section vidée n'est pas rendue. Même principe que le retrait de l'Assistant du rail de la
+ * carte : un écart de RENDU, la copie de React reste verbatim.
+ */
+export function sectionsRendues(sections: readonly SectionNavigation[] = SECTIONS_NAVIGATION): SectionNavigation[] {
+  return sections
+    .map((s) => {
+      if (!SECTIONS_REGROUPEES.includes(s.section)) return s;
+      const restantes = s.entrees.filter((e) => e.cible === null);
+      return { section: s.section, entrees: s.section === 'Administration' ? [...PAGES_ADMINISTRATION, ...restantes] : restantes };
+    })
+    .filter((s) => s.entrees.length > 0);
+}
 
 /**
  * Liens vers les pages propres à Angular (pas d'équivalent React), affichés

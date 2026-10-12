@@ -3,7 +3,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import { MODE_DEVELOPPEMENT } from '../core/environnement/mode-developpement';
 import { IconeComponent } from '../ui/icone/icone.component';
 import { MarqueComponent } from '../ui/marque/marque.component';
-import { DISPONIBLE_PROCHAINEMENT, type EntreeNavigation, LIENS_DEVELOPPEMENT, SECTIONS_NAVIGATION } from './navigation';
+import { DISPONIBLE_PROCHAINEMENT, type EntreeNavigation, LIENS_DEVELOPPEMENT, SECTIONS_NAVIGATION, sectionsRendues } from './navigation';
 
 interface EntreeIndexee extends EntreeNavigation {
   /** Rang global, pour l'apparition échelonnée (40 ms par entrée, `AppSidebar.tsx:248-256`). */
@@ -17,6 +17,8 @@ interface EntreeIndexee extends EntreeNavigation {
  * - `rounded-md` vaut 4 px comme dans React : l'échelle des rayons est alignée dans `styles.css` ;
  * - les écrans pas encore portés sont INERTES (`aria-disabled`, infobulle
  *   « Disponible prochainement ») — rendus à l'identique, survol compris ;
+ * - l'administration est REGROUPÉE au rendu (`sectionsRendues`, lot 6 T6) : « Accès », « Données »,
+ *   « Système » en tête de « Administration », à la place des écrans portés qu'elles contiennent ;
  * - des liens d'icônes vers les pages propres à Angular, dans le pied « Online » (hors production
  *   seulement) : en section du `nav`, ils le faisaient déborder et apparaître une barre de défilement.
  * Liens RELATIFS : le `RouterLink` se résout contre la route de la coquille, donc sous le
@@ -168,7 +170,7 @@ export class BarreLateraleComponent {
 
   protected readonly sections = computed(() => {
     let rang = 0;
-    return SECTIONS_NAVIGATION.map((s) => ({ section: s.section, entrees: s.entrees.map((e): EntreeIndexee => ({ ...e, rang: rang++ })) }));
+    return sectionsRendues(SECTIONS_NAVIGATION).map((s) => ({ section: s.section, entrees: s.entrees.map((e): EntreeIndexee => ({ ...e, rang: rang++ })) }));
   });
 
   /** Apparition échelonnée : faux au premier rendu, vrai à l'image suivante (`requestAnimationFrame`, comme React). */
