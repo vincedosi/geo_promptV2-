@@ -118,3 +118,24 @@ describe('getOrgSourceIds — garde sur la valeur interpolée (SEC-002)', () => 
     }
   });
 });
+
+describe('getOrgSourceIds — vue espace (carte) : le super_admin voit comme son espace', () => {
+  it('super_admin + vueEspace → filtre de son espace actif, pas null', async () => {
+    reponse.data = [{ id: 'a' }]; reponse.error = null;
+    const r = await getOrgSourceIds(session({ role: 'super_admin', orgId: ORG_UUID }), { vueEspace: true });
+    expect(r).toEqual(['a']);
+    expect(dernierOu()).toBe(`visibilite.eq.socle,organization_id.eq.${ORG_UUID},shared_with.cs.{${ORG_UUID}}`);
+  });
+  it('super_admin sans espace actif + vueEspace → le socle seul', async () => {
+    reponse.data = [{ id: 's' }]; reponse.error = null;
+    expect(await getOrgSourceIds(session({ role: 'super_admin', orgId: null }), { vueEspace: true })).toEqual(['s']);
+    expect(dernierOu()).toBe('visibilite.eq.socle');
+  });
+  it('sans option, super_admin → null (administration inchangée)', async () => {
+    expect(await getOrgSourceIds(session({ role: 'super_admin', orgId: ORG_UUID }))).toBeNull();
+  });
+  it('client + vueEspace → même règle que sans option', async () => {
+    reponse.data = [{ id: 'c' }]; reponse.error = null;
+    expect(await getOrgSourceIds(session({ role: 'client', orgId: ORG_UUID }), { vueEspace: true })).toEqual(['c']);
+  });
+});

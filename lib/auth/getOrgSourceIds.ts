@@ -3,7 +3,9 @@
  * La règle d'AUTORISATION des données importées : quelles sources une
  * session voit-elle ?
  *
- *   null  = aucun filtre — super_admin, et LUI SEUL
+ *   null  = aucun filtre — super_admin, et LUI SEUL, HORS vue espace (la
+ *           carte passe `{ vueEspace: true }` : le super_admin y voit comme
+ *           son espace actif, depuis le 2026-10-12)
  *   [...] = filtre `.in('data_source_id', ids)` : le socle, plus les sources
  *           de l'organisation, plus celles qu'on lui a partagées
  *   []    = rien (impossible en pratique dès qu'une source est au socle)
@@ -39,10 +41,23 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  */
 export const FILTRE_SOURCE_NON_SUPPRIMEE = 'status.is.null,status.neq.deleted';
 
+/**
+ * Les sources visibles d'une session.
+ *
+ * @param options.vueEspace - Vue de la CARTE : le super_admin voit comme son
+ *   espace actif, exactement comme un client de cet espace (socle seul s'il
+ *   n'en a pas). Avec cette option, la fonction ne rend JAMAIS `null`. Sans
+ *   elle (administration : `lib/espaces/*`, `app/api/admin/**`, chat), le
+ *   contrat historique tient : `null` pour le super_admin.
+ */
 export async function getOrgSourceIds(
   session: SessionOrg | null,
+  options: { vueEspace?: boolean } = {},
 ): Promise<string[] | null> {
-  if (session?.role === 'super_admin') return null;
+  // Administration : le super_admin voit tout. Carte (`vueEspace`) : il voit
+  // comme son espace actif, exactement comme un client de cet espace
+  // (décision de Vincent du 2026-10-12, spec droits-sur-la-carte R3/R4).
+  if (session?.role === 'super_admin' && !options.vueEspace) return null;
 
   // `SEC-002` — `.or()` de postgrest-js prend une CHAINE de filtre, sans forme
   // paramétrée. On n'y interpole donc qu'un UUID vérifié. Une organisation

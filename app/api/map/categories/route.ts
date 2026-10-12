@@ -54,9 +54,13 @@ export async function GET(req: NextRequest) {
   // au super_admin. Cette route est publique (middleware.ts) : un appelant
   // SANS session reçoit les catégories du socle, et plus la liste complète —
   // qui révélait l'existence des catégories privées de chaque client.
-  const sourceIds = await getOrgSourceIds(session);
+  //
+  // Vue espace (2026-10-12) : le super_admin voit la carte comme son espace
+  // actif, exactement comme un client de cet espace — jamais « tout ».
+  const sourceIds = await getOrgSourceIds(session, { vueEspace: true });
 
-  // null → super_admin : tout retourner avec les libellés.
+  // null → impossible avec `vueEspace` (branche gardée pour un appelant futur
+  // qui retirerait l'option) : tout retourner avec les libellés.
   if (sourceIds === null) {
     const labelMap = await buildLabelMap(supabase, allCats);
     return NextResponse.json({ categories: withLabels(allCats, labelMap) });
