@@ -8,9 +8,8 @@ import type { ApercuRayon } from '../commandes/reglette-rayons.component';
 import type { Etape } from '../logique/etape';
 import { codeProfil } from '../logique/code-profil';
 import type { ProfilRayons } from '../logique/profil';
-import {
-  CarteCodesPostauxComponent, type ChiffresCp, type ColorationCp, LIBELLE_COLORATION,
-} from './carte-codes-postaux.component';
+import { type ChiffresCp, type ColorationCp, LIBELLE_COLORATION } from '../logique/carte-codes-postaux';
+import { CarteCodesPostauxComponent } from './carte-codes-postaux.component';
 import { TableauZonesCampagneComponent } from '../etapes/campagne/tableau-zones-campagne.component';
 import { CarteCampagneComponent } from './carte-campagne.component';
 import { CarteRisqueComponent } from './carte-risque.component';

@@ -11,9 +11,9 @@ import { AtelierJeuxService } from '../etat/atelier-jeux.service';
 import { codeZonesRisque } from '../logique/code-profil';
 import { ThemeService } from '../../../core/theme/theme.service';
 import {
-  CarteCodesPostauxComponent, type ChiffresCp, ID_ECARTES_CP, ID_FOND_CP, ID_RAYONS_CP, ID_SURBRILLANCE_CP,
-  SOURCE_CP, SOURCE_RAYONS_CP, contenuBulleCp,
-} from './carte-codes-postaux.component';
+  type ChiffresCp, ID_ECARTES_CP, ID_FOND_CP, ID_RAYONS_CP, ID_SURBRILLANCE_CP, SOURCE_CP, SOURCE_RAYONS_CP, contenuBulleCp,
+} from '../logique/carte-codes-postaux';
+import { CarteCodesPostauxComponent } from './carte-codes-postaux.component';
 
 class ObservateurFactice {
   observe = vi.fn();
