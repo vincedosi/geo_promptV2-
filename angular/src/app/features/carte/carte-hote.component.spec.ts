@@ -246,7 +246,7 @@ describe('CarteHoteComponent — changer d’espace recrée la page carte', () =
     expect(document.activeElement).toBe(el.querySelector('mg-carte-principale [data-declencheur="org"]'));
   });
 
-  it('(f ter) un focus posé HORS de la carte n’est pas déplacé vers le badge', async () => {
+  it('(f ter) un focus posé HORS de la carte n’est pas envoyé au badge (la page peut le reprendre à son ouverture, B10)', async () => {
     const { harness, stable, changerEspace } = await ouvrir();
     const dehors = document.createElement('input');
     document.body.appendChild(dehors);

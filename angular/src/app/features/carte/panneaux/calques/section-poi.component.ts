@@ -77,7 +77,7 @@ export const AIDE_POI = 'Point d\'Intérêt — commerce, service, lieu public';
           @if (groupes(); as gs) {
             <div class="flex flex-col gap-2">
               @for (g of gs; track g.origine) {
-                <div [attr.data-groupe-poi]="g.origine">
+                <div [attr.data-groupe-poi]="g.origine" role="group" [attr.aria-label]="g.titre">
                   <div data-sous-titre class="mb-1 text-[11px] font-medium text-secondary">{{ g.titre }}</div>
                   <mg-liste-multiple libelle="Aucun type selectionne" [items]="g.types" [selection]="g.selection"
                     (changer)="changerGroupe(g.types, $event)" />

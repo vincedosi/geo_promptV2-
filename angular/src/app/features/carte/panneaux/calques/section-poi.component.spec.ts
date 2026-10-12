@@ -129,6 +129,8 @@ describe('SectionPoiComponent', () => {
       const g = groupes(s.el);
       expect(g.map((x) => x.getAttribute('data-groupe-poi'))).toEqual(['espace', 'commune']);
       expect(g.map((x) => x.querySelector('[data-sous-titre]')!.textContent!.trim())).toEqual(["Données de l'espace", 'Données communes']);
+      // Un lecteur d'écran distingue les deux listes (même libellé « Aucun type selectionne ») par leur groupe nommé.
+      expect(g.map((x) => [x.getAttribute('role'), x.getAttribute('aria-label')])).toEqual([['group', "Données de l'espace"], ['group', 'Données communes']]);
       for (const x of g) (x.querySelector('[data-declencheur]') as HTMLButtonElement).click();
       await rendre(s.fixture);
       const ids = (x: HTMLElement) => [...x.querySelectorAll('[data-element]')].map((e) => e.getAttribute('data-element'));
