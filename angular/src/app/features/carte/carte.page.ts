@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, DOCUMENT, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, viewChild,
+  ChangeDetectionStrategy, Component, DOCUMENT, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, output, signal, viewChild,
 } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import type maplibregl from 'maplibre-gl';
@@ -151,6 +151,8 @@ export function palierCarreaux(zoom: number): string {
   },
 })
 export class CartePage {
+  /** Émis après un changement d'espace réussi : l'hôte de la route recrée la page (droits sur la carte, T3). */
+  readonly espaceChange = output<void>();
   protected readonly etat = inject(EtatCarteService);
   private readonly couches = inject(CouchesCarteService);
   private readonly pile = inject(PileEchapService);
@@ -162,7 +164,6 @@ export class CartePage {
   protected readonly meteo = inject(MeteoService);
   private readonly document = inject(DOCUMENT);
   private readonly annonce = inject(AnnonceService);
-  private readonly zonesCustom = inject(ZonesCustomService);
   private readonly exports = inject(ExportZoneService);
   /** Le lien `?customZone=` (T14) : lu dès l'ouverture de la carte, même panneau Zones fermé. */
   protected readonly lienZone = inject(LienZoneService);
@@ -232,6 +233,9 @@ export class CartePage {
     inject(PprtService);
     // Les zones d'un profil (T13) : inscrites à l'éviction de leur dégradé dès l'ouverture, avant tout « Voir sur la carte ».
     inject(ZonesRisqueService);
+    // Les zones custom (T14-T15) : instanciées dès l'ouverture, comme avant la tâche 3 des droits sur la carte, qui a retiré
+    // le seul appel direct de la page (`effacer()` au changement d'espace).
+    inject(ZonesCustomService);
 
     // Le fond MAGELIAN : surcharges posées sur la carte prête, ré-appliquées à chaque bascule de thème
     // (`useMapInit.ts:217-221,1091-1102`). `carteCourante` est publiée au `load` : le style
@@ -287,18 +291,15 @@ export class CartePage {
   }
 
   /**
-   * Changement d'organisation dans la barre du haut. React recharge toute la page (`window.location.reload()`) ;
-   * recréer la carte ici perdrait tous les calques, alors que seul ce qui APPARTIENT à l'organisation précédente devient
-   * faux : ses zones affichées, la zone ouverte par le lien et un filtre posé sur l'une d'elles. Le panneau ouvert est
-   * FERMÉ ici, quel que soit le geste : au clavier, aucun clic hors du panneau ne l'a fermé, et « Mes zones » (comme la
-   * liste de zones du Filtre) a lu l'organisation à son ouverture — resté ouvert, il listerait l'ancienne et une
-   * opération y écrirait sa zone. Rouvert, il relit la nouvelle (revue 1).
+   * Changement d'espace (organisation active) dans la barre du haut : la page le signale à son hôte
+   * (`CarteHoteComponent`), qui la RECRÉE — l'équivalent du `window.location.reload()` de React (droits sur la carte,
+   * T3). Tous les services d'état de la carte sont fournis ici (`providers`) : la recréation remet à zéro TOUT ce qui
+   * dépend du périmètre (catalogue POI, points, panneaux, batailles, zones, analyses, plan média), sans liste
+   * d'invalidations à tenir à jour. Jusqu'à cette tâche, la page fermait le panneau et retirait les zones à la main,
+   * et laissait le catalogue, les points et les sélections de l'espace précédent à l'écran.
    */
   protected organisationChangee(): void {
-    if (this.panneauOuvert()) this.panneauFerme();
-    this.zonesCustom.effacer();
-    this.lienZone.oublier();
-    if (this.etat.filtre()?.type === 'zone') this.etat.filtre.set(null);
+    this.espaceChange.emit();
   }
 
   /** « Script bidding DV360 » de la zone du lien (`page.tsx:1377-1399`) : un FICHIER, aucun envoi vers DV360. */

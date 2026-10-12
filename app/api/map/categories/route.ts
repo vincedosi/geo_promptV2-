@@ -1,13 +1,16 @@
 /**
  * GET /api/map/categories
- * Retourne les catégories de POI distinctes présentes dans la base.
- * Filtrées par les data_sources de l'organisation si la session le requiert.
+ * Retourne les catégories de POI visibles de l'espace actif, chacune avec son
+ * origine : `{ categories: { id, label, origine: 'commune' | 'espace' }[] }`.
+ * « espace » = au moins un POI visible vient d'une source propre à l'espace
+ * (privée, possédée ou partagée) ; « commune » sinon (spec
+ * droits-sur-la-carte R6, 2026-10-12).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { getSessionOrg } from '@/lib/auth/getSessionOrg';
 import { getDistinctCategories, getCategoriesVisibles, invalidateCategoriesCache } from '@/lib/poi/categories';
-import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
+import { getOrgSourceIds, getSourcesPropresEspace } from '@/lib/auth/getOrgSourceIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,7 +66,9 @@ export async function GET(req: NextRequest) {
   // qui retirerait l'option) : tout retourner avec les libellés.
   if (sourceIds === null) {
     const labelMap = await buildLabelMap(supabase, allCats);
-    return NextResponse.json({ categories: withLabels(allCats, labelMap) });
+    return NextResponse.json({
+      categories: withLabels(allCats, labelMap).map((c) => ({ ...c, origine: 'commune' as const })),
+    });
   }
 
   // [] → organisation connue mais sans aucune source : aucun accès.
@@ -75,5 +80,18 @@ export async function GET(req: NextRequest) {
   // dans `getCategoriesVisibles` pour que le chat applique la même règle.
   const filteredCats = await getCategoriesVisibles(sourceIds);
   const labelMap     = await buildLabelMap(supabase, filteredCats);
-  return NextResponse.json({ categories: withLabels(filteredCats, labelMap) });
+
+  // « Données de l'espace » : au moins un POI visible vient d'une source propre
+  // à l'espace. Une catégorie mixte est rangée « espace » (ce que le client a
+  // importé prime). Un leapfrog de plus, sur les seules sources propres, en
+  // cache par empreinte comme le premier ; aucun s'il n'y en a pas. Les deux
+  // lectures sont SÉQUENTIELLES — jamais de Promise.all ici (règles I/O).
+  const propres    = await getSourcesPropresEspace(session);
+  const catsEspace = new Set(propres.length > 0 ? await getCategoriesVisibles(propres) : []);
+  return NextResponse.json({
+    categories: withLabels(filteredCats, labelMap).map((c) => ({
+      ...c,
+      origine: catsEspace.has(c.id) ? ('espace' as const) : ('commune' as const),
+    })),
+  });
 }
