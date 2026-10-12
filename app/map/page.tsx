@@ -34,8 +34,8 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { adminFetch } from '@/lib/admin-fetch';
 import { downloadZoneExport } from '@/lib/custom-geo/download-export';
-import { MAP_STYLES, MAP_STYLE } from '@/app/copilote/_lib/constants';
-import { useMapInit }          from '@/app/copilote/_hooks/useMapInit';
+import { MAP_STYLES, MAP_STYLE } from '@/app/map/_lib/constants';
+import { useMapInit }          from '@/app/map/_hooks/useMapInit';
 import { useRadioLayer } from './_hooks/useRadioLayer';
 import { useMeteoLayer } from './_hooks/useMeteoLayer';
 import { useIrisDetail } from './_hooks/useIrisDetail';
@@ -46,13 +46,13 @@ const MeteoGeoPanel = dynamic(
   () => import('@/app/map/analyse/digital/_components/MeteoGeoPanel').then(m => ({ default: m.MeteoGeoPanel })),
   { ssr: false },
 );
-import { useSavedMaps }        from '@/app/copilote/_hooks/useSavedMaps';
-import { useMapLayers }        from '@/app/copilote/_hooks/useMapLayers';
+import { useSavedMaps }        from '@/app/map/_hooks/useSavedMaps';
+import { useMapLayers }        from '@/app/map/_hooks/useMapLayers';
 import { useChatControls }     from '@/app/copilote/_hooks/useChatControls';
 import { useRateLimitHandler } from '@/app/copilote/_hooks/useRateLimitHandler';
 import { useToolProcessor } from '@/app/copilote/_hooks/useToolProcessor';
 import { useProviderSelector } from '@/app/copilote/_hooks/useProviderSelector';
-import { MapPanel }            from '@/app/copilote/_components/MapPanel';
+import { MapPanel }            from '@/app/map/_components/MapPanel';
 import type { POIStylesMap } from '@/app/map/_components/filter-panel/poi-style';
 import { IrisDetailPanel }    from '@/app/map/_components/IrisDetailPanel';
 import type { IrisDetailData } from '@/app/map/_components/IrisDetailPanel';
@@ -675,7 +675,6 @@ export default function MapPage() {
   savedMaps.applyIsochronesRef.current = mapLayers.applyIsochrones;
   savedMaps.applyVoronoiRef.current    = mapLayers.applyVoronoi;
   savedMaps.loadCarreauxRef.current    = mapLayers.loadCarreauxFromAI;
-  savedMaps.setMessagesRef.current     = chat.setMessages;
 
   // ── Tout effacer : vide toutes les couches et zones affichées sur la carte ──
   const handleClearAllLayers = useCallback(() => {
@@ -1408,8 +1407,6 @@ export default function MapPage() {
         isochroneFromCache={mapLayers.isochroneFromCache}
         isochroneCachedAt={mapLayers.isochroneCachedAt}
         setIsochroneVisible={mapLayers.setIsochroneVisible}
-        recalculerIsochrone={chat.recalculerIsochrone}
-        isLoading={chat.isLoading}
         voronoiVisible={mapLayers.voronoiVisible}
         voronoiCategory={mapLayers.voronoiCategory}
         setVoronoiVisible={mapLayers.setVoronoiVisible}

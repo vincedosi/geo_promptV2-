@@ -2,7 +2,6 @@
 import { logger } from '@/lib/logger';
 
 import { useRef, useState } from 'react';
-import type { UIMessage } from 'ai';
 import type { ZoneData, IsochroneData, VoronoiData, CarreauxData, SavedMap } from '@/types/spatial';
 
 interface UseSavedMapsOpts {
@@ -25,11 +24,10 @@ export function useSavedMaps({ zoneData, setZoneData }: UseSavedMapsOpts) {
   } | null>(null);
   const voronoiDataForSaveRef = useRef<VoronoiData | null>(null);
 
-  // Refs wired by page.tsx to break circular dependency with useMapLayers / useChatControls
+  // Refs wired by page.tsx to break circular dependency with useMapLayers
   const applyIsochronesRef = useRef<((d: IsochroneData) => void) | null>(null);
   const applyVoronoiRef    = useRef<((d: VoronoiData) => void) | null>(null);
   const loadCarreauxRef    = useRef<((cd: CarreauxData) => Promise<void>) | null>(null);
-  const setMessagesRef     = useRef<((msgs: UIMessage[]) => void) | null>(null);
 
   const saveCurrentMap = async () => {
     if (!saveName.trim()) { setSaveError('Entrez un nom pour cette carte'); return; }
@@ -78,16 +76,6 @@ export function useSavedMaps({ zoneData, setZoneData }: UseSavedMapsOpts) {
       const data = await res.json();
       if (data.error) return;
 
-      // Restaurer messages
-      if (Array.isArray(data.messages) && setMessagesRef.current) {
-        setMessagesRef.current(
-          data.messages.map((m: { role: string; content: string }, i: number) => ({
-            id: `restored-${i}`,
-            role: m.role as 'user' | 'assistant',
-            parts: [{ type: 'text' as const, text: m.content ?? '' }],
-          })) as UIMessage[]
-        );
-      }
       if (data.zone_data) setZoneData(data.zone_data);
 
       if (data.carreaux_config) {
@@ -139,6 +127,5 @@ export function useSavedMaps({ zoneData, setZoneData }: UseSavedMapsOpts) {
     applyIsochronesRef,
     applyVoronoiRef,
     loadCarreauxRef,
-    setMessagesRef,
   };
 }

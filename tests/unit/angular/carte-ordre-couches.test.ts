@@ -1,6 +1,6 @@
 /**
  * L'ordre d'empilement des couches de la carte principale Angular (`logique/ordre-couches.ts`) est EXACTEMENT celui
- * dans lequel React les pose au `load` (`app/copilote/_hooks/useMapInit.ts`, ordre des `addLayer`, aucun `beforeId`),
+ * dans lequel React les pose au `load` (`app/map/_hooks/useMapInit.ts`, ordre des `addLayer`, aucun `beforeId`),
  * suivi des couches que React pose APRÈS le `load` (`COUCHES_APRES_LOAD`), toujours au-dessus.
  * Ruling du lot 4, T8 : côté Angular les couches sont posées à la demande, donc l'ordre doit être écrit — et ce test
  * empêche qu'il dérive de celui de React (gel P5 étendu à /map). Revue finale I-1 : la liste des couches d'après le
@@ -74,7 +74,7 @@ function carteSimulee() {
 
 describe('ORDRE_COUCHES (lot 4, T8 ; revue finale I-1)', () => {
   it('reprend, dans le même ordre, toutes les couches que useMapInit.ts ajoute', () => {
-    const source = readFileSync('app/copilote/_hooks/useMapInit.ts', 'utf8');
+    const source = readFileSync('app/map/_hooks/useMapInit.ts', 'utf8');
     const ids: string[] = [];
     for (const m of source.matchAll(/addLayer\(\{\s*id:\s*'([^']+)'/g)) ids.push(m[1]);
     expect(ids.length).toBeGreaterThan(20);
@@ -82,7 +82,7 @@ describe('ORDRE_COUCHES (lot 4, T8 ; revue finale I-1)', () => {
   });
 
   it('chaque couche d’après le load a sa source React (ou un écart de nom écrit), et nulle n’est dans useMapInit.ts', () => {
-    const init = readFileSync('app/copilote/_hooks/useMapInit.ts', 'utf8');
+    const init = readFileSync('app/map/_hooks/useMapInit.ts', 'utf8');
     expect(Object.keys(SOURCES_REACT)).toEqual([...COUCHES_APRES_LOAD]);
     for (const id of COUCHES_APRES_LOAD) {
       const s = SOURCES_REACT[id];

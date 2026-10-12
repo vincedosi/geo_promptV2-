@@ -16,8 +16,6 @@ interface MapPanelProps {
   isochroneFromCache: boolean;
   isochroneCachedAt: string;
   setIsochroneVisible: (v: boolean) => void;
-  recalculerIsochrone: () => void;
-  isLoading: boolean;
   voronoiVisible: boolean;
   voronoiCategory: string;
   setVoronoiVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
@@ -103,7 +101,7 @@ const toggleBtnBase = (active: boolean, activeColor: string): React.CSSPropertie
 export function MapPanel({
   mapContainerRef, mapRef, mapReady, zoneData,
   isochroneVisible, isochroneMinutes, isochroneMode, isochroneFromCache, isochroneCachedAt,
-  setIsochroneVisible, recalculerIsochrone, isLoading,
+  setIsochroneVisible,
   voronoiVisible, voronoiCategory, setVoronoiVisible,
   battleVisible, battleCategory, setBattleVisible,
   carreauxRange, carreauxSelectedBucket,
@@ -193,11 +191,6 @@ export function MapPanel({
               <span style={{ color: C.textDim, fontSize: 9 }}>
                 {new Date(isochroneCachedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
               </span>
-              <button
-                onClick={recalculerIsochrone}
-                disabled={isLoading}
-                style={{ background: 'var(--border-subtle)', border: '0.5px solid var(--border-default)', borderRadius: 4, padding: '2px 8px', color: C.textSec, cursor: 'pointer', fontSize: 9, fontFamily: fontInter }}
-              >RECALC</button>
             </div>
           )}
         </div>

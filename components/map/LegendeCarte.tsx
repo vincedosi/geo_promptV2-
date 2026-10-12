@@ -21,7 +21,7 @@
  * tâche pour cette divergence assumée).
  *
  * Absorption du 2026-09-12 (Tâche 7) : la légende catégories POI / isochrone /
- * Voronoï / bataille d'`app/copilote/_components/MapPanel.tsx` (ex-lignes
+ * Voronoï / bataille d'`app/map/_components/MapPanel.tsx` (ex-lignes
  * ~267-393, boîte titrée « LEGENDE ») a été RAPATRIÉE ici (`BlocAnalyse`) et
  * retirée de `MapPanel.tsx` — avant cette tâche, deux légendes pouvaient
  * coexister à l'écran dans deux coins opposés. Les actions embarquées dans la
@@ -43,12 +43,12 @@ import { uniteNormalisee } from '@/lib/carreaux/normalisation';
 import { palierEchelle, versValeurReelle, formaterValeur, type BornesEchelle } from '@/lib/carreaux/bornes';
 import { bornesInternes } from '@/lib/carreaux/expressions';
 import { echelleDe, uniteIris, type BornesIris } from '@/lib/iris/echelle';
-import { IRIS_PALETTES } from '@/app/copilote/_hooks/useMapLayers';
+import { IRIS_PALETTES } from '@/app/map/_hooks/useMapLayers';
 import { ABSTENTION_LEGEND, ABSTENTION_LEGEND_REPERES } from '@/app/map/_components/filter-panel/CivicIndicatorsSection';
 import { ATMO_LEVEL_LABELS, POLLEN_LEVEL_LABELS } from '@/lib/civic-health/levels';
 import { TMJA_LEGEND } from '@/app/map/_components/filter-panel/TmjaSection';
 import { legendePourMetrique, type SuiviMapEventDetail } from '@/app/map/_components/SuiviMapLayer';
-import { getCatColor, ISOCHRONE_COLORS, ISOCHRONE_MODE_LABELS, BATTLE_PALIER_OPACITY } from '@/app/copilote/_lib/constants';
+import { getCatColor, ISOCHRONE_COLORS, ISOCHRONE_MODE_LABELS, BATTLE_PALIER_OPACITY } from '@/app/map/_lib/constants';
 import { LARGEUR_TRAIT_PPRT } from '@/lib/carte/palette-pprt';
 import { formaterNombre } from '@/lib/format/nombre';
 import type { ZoneData, VoronoiData } from '@/types/spatial';

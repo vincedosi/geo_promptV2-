@@ -150,7 +150,7 @@ sequenceDiagram
 Points clés : `app/api/tiles/[z]/[x]/[y]/route.ts:14-15` (cache par instance),
 cascade à cinq paliers dans `get_tile` (`sql/129`), normalisation et bornes dans
 `lib/carreaux/` (`normalisation.ts`, `bornes.ts`, `expressions.ts`), application
-de la peinture dans `app/copilote/_hooks/useMapLayers.ts`.
+de la peinture dans `app/map/_hooks/useMapLayers.ts`.
 
 ### Flux 2 — Import universel de POI
 

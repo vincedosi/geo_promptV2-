@@ -1,4 +1,4 @@
-import { getCatColor } from '../_lib/constants';
+import { getCatColor } from '@/app/map/_lib/constants';
 import { Stat } from './Stat';
 import type { ZoneData } from '@/types/spatial';
 

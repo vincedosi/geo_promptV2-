@@ -210,7 +210,7 @@
 | Langage | TypeScript (strict) | ^5.3 |
 | Base de donnees | Supabase (PostgreSQL **17.6** + **PostGIS 3.3.7**) — les docs annoncaient 15 jusqu'au 2026-09-13, soit deux versions majeures d'ecart. **L'environnement de reference est le stack LOCAL depuis le 2026-09-19** (conteneurs Docker, § « Environnement de developpement local ») ; le projet heberge portait un compute **Micro** et non Nano (shared_buffers 256 Mo, effective_cache_size 768 Mo, soit ~1 Go de RAM), et ses contraintes d'I/O restent la regle de codage. Neuf extensions actives, mesurees le 2026-09-19 : `postgis`, `http` 1.6, `pg_net`, `pg_trgm`, `pgcrypto`, `unaccent`, `uuid-ossp`, `pg_stat_statements`, `supabase_vault`. Acces applicatif par `@supabase/supabase-js` + `@supabase/ssr` (^0.5.2) | ^2.97 |
 | Cartographie | MapLibre GL JS | ^5.18 |
-| Tuiles vectorielles | MVT servies par PostGIS (`ST_AsMVT`) — **pour TOUT**, carreaux compris. Le paquet `pmtiles` (4.4.0) reste declare dans `package.json` mais **plus rien ne l'importe** : `npm run catalogue` le liste en dependance jamais importee, le protocole n'est plus enregistre (`app/copilote/_hooks/useMapInit.ts:136`) et aucune couche PMTiles ne subsiste. Ce document annoncait « PMTiles conserve pour les carreaux uniquement » jusqu'au 2026-09-16 : c'etait faux, les carreaux passent par `/api/tiles/[z]/[x]/[y]` (documente comme tel plus bas). Le desinstaller est un geste sans risque, laisse a une passe de nettoyage | — |
+| Tuiles vectorielles | MVT servies par PostGIS (`ST_AsMVT`) — **pour TOUT**, carreaux compris. Le paquet `pmtiles` (4.4.0) reste declare dans `package.json` mais **plus rien ne l'importe** : `npm run catalogue` le liste en dependance jamais importee, le protocole n'est plus enregistre (`app/map/_hooks/useMapInit.ts:136`) et aucune couche PMTiles ne subsiste. Ce document annoncait « PMTiles conserve pour les carreaux uniquement » jusqu'au 2026-09-16 : c'etait faux, les carreaux passent par `/api/tiles/[z]/[x]/[y]` (documente comme tel plus bas). Le desinstaller est un geste sans risque, laisse a une passe de nettoyage | — |
 | LLM / Copilote | Vercel AI SDK + Gemini 2.5 Flash / Mistral Small | ai ^6.0 |
 | Fonds de carte | OpenFreeMap (Liberty / Positron / Bright) + MAGELIAN dark style | — |
 | Isochrones | OpenRouteService (ORS) REST API | — |
@@ -278,11 +278,14 @@ genesis_app/
 │   │   └── sources/            # Gestion des sources de donnees (proprietaire et
 │   │                           # partages : renvoi vers la page Angular Acces)
 │   │   # users/ et organizations/ SUPPRIMES le 2026-10-10 : page Angular « Acces »
-│   ├── copilote/               # Composants/hooks/lib du chat IA + carte, consommes
-│   │                           # par /map (plus de page propre depuis 825af5a)
-│   │   ├── _components/        # ChatPanel, MapPanel, PromptsPanel, ZoneCard...
-│   │   ├── _hooks/             # useMapInit, useMapLayers, useChatControls...
-│   │   └── _lib/               # constants.ts (circleGeoJSON, getCatColor)
+│   ├── copilote/               # Composants/hooks du chat IA SEULEMENT, consommes
+│   │                           # par /map (plus de page propre depuis 825af5a).
+│   │                           # Le moteur de la carte (useMapInit, useMapLayers,
+│   │                           # useSavedMaps, MapPanel, _lib/constants.ts) en est
+│   │                           # sorti le 2026-10-12 vers app/map/ (suppression de
+│   │                           # l'IA, lot 4) ; ce qui reste part au lot 5.
+│   │   ├── _components/        # ChatPanel, PromptsPanel, ZoneCard...
+│   │   └── _hooks/             # useChatControls, useToolProcessor...
 │   ├── dashboard/              # Page d'accueil apres login
 │   │   └── iris-crawler/       # Interface crawler INSEE IRIS
 │   ├── login/                  # Page de connexion Supabase Auth
@@ -297,6 +300,9 @@ genesis_app/
 │   │   │                       # et les couches de carte : CivicHealthMapLayer,
 │   │   │                       # CivicIndicatorsLayer, ScoreMapLayer,
 │   │   │                       # DiffusionMapLayer, SuiviMapLayer.
+│   │   │                       # MapPanel.tsx (badges ZONE_ACTIVE / isochrone /
+│   │   │                       # Voronoi / bataille, fond compact, tiroir Street
+│   │   │                       # View), venu d'app/copilote le 2026-10-12.
 │   │   │                       # FilterPanel.tsx (l'ancien monolithe) supprime le
 │   │   │                       # 2026-09-12, vide par les taches 2 a 7 — mais
 │   │   │                       # ⚠ le repertoire filter-panel/ VIT TOUJOURS
@@ -306,6 +312,16 @@ genesis_app/
 │   │   │                       # use-analyses.ts ajoutes par la Tache 11-12.
 │   │   │                       # Ne pas le supprimer en lisant « FilterPanel
 │   │   │                       # supprime » : ce sont deux choses differentes.
+│   │   ├── _hooks/             # Moteur de la carte : useMapInit (sources et
+│   │   │                       # couches posees au load), useMapLayers (peinture,
+│   │   │                       # Voronoi, bataille, carreaux, IRIS), useSavedMaps
+│   │   │                       # (cartes sauvegardees, sans messages de chat),
+│   │   │                       # useMapMarkers, useMapDirectActions... —
+│   │   │                       # useMapInit/useMapLayers/useSavedMaps venus
+│   │   │                       # d'app/copilote le 2026-10-12.
+│   │   ├── _lib/               # constants.ts (MAP_STYLES, circleGeoJSON,
+│   │   │                       # getCatColor, ISOCHRONE_COLORS), venu
+│   │   │                       # d'app/copilote le 2026-10-12.
 │   │   └── analyse/digital/    # Analyse campagnes digitales
 │   │       ├── _components/    # AnalysisPanel, SyncMap, BiddingCopilot,
 │   │       │                   # MeteoGeoPanel, MediaHeatmap, KpiSummary...
@@ -2045,7 +2061,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `GITHUB_ACTIONS_TOKEN` | Jeton de declenchement du workflow PMTiles depuis `/api/admin/trigger-pmtiles` |
 | `GITHUB_REPO` | Depot vise par ce declenchement, au format `owner/repo`. ⚠ Ces deux variables pilotent le workflow `generate-iris-pmtiles`, qui **n'alimente plus rien** depuis le passage des IRIS aux tuiles MVT servies par Postgres (voir la section dediee) : elles survivent a leur usage et partiront avec lui |
 | `DATABASE_URL` / `POSTGRES_URL` | Replis de `SUPABASE_DB_URL` dans `scripts/populate_geom_3857.ts`, seul consommateur. Les trois noms y sont essayes dans cet ordre |
-| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Vue Street View d'un panneau dans `app/copilote/_components/MapPanel.tsx` — l'unique consommateur, et **la seule dependance Google Maps du produit** (la cartographie est MapLibre + OpenFreeMap). `NEXT_PUBLIC_`, donc **inlinee dans le bundle client** : restreindre la cle par referent cote console Google, elle est lisible par tout visiteur. Absente, le composant remplace l'iframe par un bandeau rouge qui NOMME la variable (`MapPanel.tsx:331`) — verifie, pas de plantage |
+| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Vue Street View d'un panneau dans `app/map/_components/MapPanel.tsx` — l'unique consommateur, et **la seule dependance Google Maps du produit** (la cartographie est MapLibre + OpenFreeMap). `NEXT_PUBLIC_`, donc **inlinee dans le bundle client** : restreindre la cle par referent cote console Google, elle est lisible par tout visiteur. Absente, le composant remplace l'iframe par un bandeau rouge qui NOMME la variable (`MapPanel.tsx:331`) — verifie, pas de plantage |
 
 ---
 
