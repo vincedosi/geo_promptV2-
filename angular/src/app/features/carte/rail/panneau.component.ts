@@ -22,7 +22,8 @@ export const PILE_PANNEAU = 'panneau';
  * - Écarts voulus (« flat total », DESIGN_SYSTEM § 2) : ni `box-shadow` ni `backdrop-filter`. Le fond
  *   est OPAQUE (`--surface`) et non le `--card-overlay` translucide de React : React floute ce qui
  *   passe dessous (`blur(4px)`) ; sans ce flou, la légende de la carte, ouverte SOUS le panneau, se
- *   lisait au travers de son corps, texte sur texte (parcours T21). Même teinte à 0,92 près.
+ *   lisait au travers de son corps, texte sur texte (parcours T21). Teinte voisine : en sombre la même
+ *   (#0a0a0a contre rgba(10,10,10,0.92)), en clair #f5f5f5 contre rgba(248,248,248,0.90).
  *   Le bouton « Agrandir » (`expandable`) n'est passé par aucun appelant de React : non porté.
  */
 @Component({
