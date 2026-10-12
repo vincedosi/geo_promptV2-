@@ -48,7 +48,9 @@ export async function GET(req: NextRequest) {
   //
   // Périmètre : les arrêts sont un référentiel système (sans source), ils
   // passent ; `p_sources` écarte un éventuel import client de la même
-  // catégorie (`null` = super_admin, tout). Les identifiants viennent de la
+  // catégorie. `sources` n'est jamais `null` depuis le 2026-10-12 (vue espace :
+  // le super_admin voit comme son espace actif) ; le `?? undefined` ne sert
+  // plus qu'à un appelant futur sans filtre. Les identifiants viennent de la
   // base (colonne uuid).
   const { data, error } = await supabase.rpc('lire_arrets_transport_bbox', {
     p_west: west,

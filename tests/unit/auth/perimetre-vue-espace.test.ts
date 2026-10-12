@@ -45,9 +45,13 @@ describe('sourcesVisiblesDeLaRequete — la vue espace, toujours', () => {
 });
 
 describe('routes de la carte qui appellent getOrgSourceIds directement', () => {
-  for (const f of ['app/api/map/categories/route.ts', 'app/api/map/pois/route.ts']) {
+  for (const f of [
+    'app/api/map/categories/route.ts',
+    'app/api/map/pois/route.ts',
+    'app/api/chat/route.ts',
+  ]) {
     it(`${f} passe vueEspace`, () => {
-      expect(readFileSync(f, 'utf8')).toMatch(/getOrgSourceIds\(session,\s*\{\s*vueEspace:\s*true\s*\}\)/);
+      expect(readFileSync(f, 'utf8')).toMatch(/getOrgSourceIds\([^)]*\{\s*vueEspace:\s*true\s*\}\)/);
     });
   }
 });

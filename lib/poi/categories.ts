@@ -91,7 +91,9 @@ export async function getDistinctCategories(options: { strict?: boolean } = {}):
  * Extrait de `app/api/map/categories/route.ts` le 2026-10-08, à l'identique,
  * pour que le chat applique la même règle.
  *
- * @param sources - Le retour de `getOrgSourceIds` : `null` = super_admin.
+ * @param sources - Le retour de `getOrgSourceIds` : `null` = aucun filtre
+ *   (super_admin HORS vue espace, c'est-à-dire administration seulement ; la
+ *   carte et le chat passent `{ vueEspace: true }` et n'envoient jamais `null`).
  * @param options.strict - Lever sur une lecture en échec au lieu de rendre une liste partielle.
  * @returns Les catégories dans l'ordre de `getDistinctCategories`.
  */

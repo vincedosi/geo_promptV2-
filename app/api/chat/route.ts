@@ -102,8 +102,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // getOrgSourceIds dépend de session — reste séquentiel
-    const orgSourceIds = await getOrgSourceIds(session);
+    // getOrgSourceIds dépend de session — reste séquentiel. Vue espace
+    // (2026-10-12) : le chat de la carte voit comme l'espace actif, super_admin
+    // compris — jamais « tout ». Ce tableau est aussi celui que les outils
+    // lisent par `orgContext`.
+    const orgSourceIds = await getOrgSourceIds(session, { vueEspace: true });
     // Les catégories VISIBLES, et non toutes : cette liste entre dans le prompt
     // et dans l'énumération des outils, et l'IA la répète. Jusqu'au 2026-10-08
     // elle portait celles de tous les clients (« bmw », « cirfa »).

@@ -1201,9 +1201,10 @@ compte sans organisation — toute anomalie ouvrait les donnees de tous.
 client de son espace actif (socle + sources de l'espace + partages ; socle seul
 sans espace actif) et ne rend JAMAIS `null`. Sans l'option, le contrat
 d'administration tient : `null` pour le super_admin (`lib/espaces/*`,
-`app/api/admin/**`, chat). `sourcesVisiblesDeLaRequete(req)` — point d'entree
+`app/api/admin/**`). `sourcesVisiblesDeLaRequete(req)` — point d'entree
 de toutes les routes hors `/api/admin` — passe toujours l'option et rend
-toujours un tableau ; `/api/map/categories` et `/api/map/pois`, qui appellent
+toujours un tableau ; `/api/map/categories`, `/api/map/pois` et `/api/chat`
+(dont les outils lisent le meme tableau par `orgContext`), qui appellent
 `getOrgSourceIds` directement, la passent aussi (verrou :
 `tests/unit/auth/perimetre-vue-espace.test.ts`). Consequences : l'empreinte de
 cache d'un super_admin sur la carte est celle de son espace (les battles
