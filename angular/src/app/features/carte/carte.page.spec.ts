@@ -853,35 +853,22 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     expect(TestBed.inject(Router).url).toBe('/carte');
   });
 
-  it('changement d’organisation (badge de la barre) : la zone du lien est lâchée, un filtre de ZONE retiré, un autre filtre gardé', async () => {
+  it('changement d’organisation (badge de la barre) : la page émet `espaceChange` UNE fois et ne nettoie plus rien à la main — l’hôte la recrée (droits sur la carte, T3)', async () => {
     const { harness, hote, stable } = await carteChargee({ url: `/carte?customZone=${ID}`, zones: { geometrie: () => of(ENTITE) } });
+    const page = harness.fixture.debugElement.query(By.directive(CartePage)).componentInstance as CartePage;
+    const emis = vi.fn();
+    page.espaceChange.subscribe(emis);
     const etat = injecteurPage(harness).get(EtatCarteService);
     const barre = harness.fixture.debugElement.query(By.css('mg-barre-haut')).componentInstance as { orgChangee: { emit(v: string | null): void } };
 
-    etat.filtre.set({ type: 'departement', code: '13', label: 'Bouches-du-Rhône' });
-    barre.orgChangee.emit('org-2');
-    await stable();
-    expect(etat.filtre()?.code).toBe('13');
-    expect(hote.querySelector('button[data-script-dv360]')).toBeNull();
-    expect(TestBed.inject(Router).url).toBe('/carte');
-
     etat.filtre.set({ type: 'zone', code: ID, label: 'CIRFA BRETAGNE', bbox: [5, 43, 6, 44.5] });
-    barre.orgChangee.emit('org-3');
-    await stable();
-    expect(etat.filtre()).toBeNull();
-  });
-
-  it('changement d’organisation AU CLAVIER (aucun mousedown) : le panneau Zones ouvert est fermé — il ne garde pas l’ancienne organisation (revue 1)', async () => {
-    const { harness, hote, stable } = await ouvrir();
-    frapper(hote, { key: '4', altKey: true });
-    await stable();
-    expect(hote.querySelector('mg-mes-zones')).not.toBeNull();
-    const barre = harness.fixture.debugElement.query(By.css('mg-barre-haut')).componentInstance as { orgChangee: { emit(v: string | null): void } };
     barre.orgChangee.emit('org-2');
-    await new Promise((r) => setTimeout(r, 220));
     await stable();
-    expect(titrePanneau(hote)).toBeNull();
-    expect(hote.querySelector('mg-mes-zones')).toBeNull();
+    expect(emis).toHaveBeenCalledTimes(1);
+    // Plus de nettoyage manuel : filtre, zone du lien et URL restent tels quels — c'est la recréation qui les remet à zéro.
+    expect(etat.filtre()?.code).toBe(ID);
+    expect(hote.querySelector('button[data-script-dv360]')).not.toBeNull();
+    expect(TestBed.inject(Router).url).toBe(`/carte?customZone=${ID}`);
   });
 
   it('lien en échec : une annonce le dit (React : console seulement)', async () => {

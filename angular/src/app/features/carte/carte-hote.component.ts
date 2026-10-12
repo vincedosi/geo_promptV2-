@@ -1,0 +1,51 @@
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
+import { CartePage } from './carte.page';
+import { PARAM_ZONE_LIEN } from './logique/zones/zone-du-lien';
+
+/**
+ * Le composant de la ROUTE `carte` (droits sur la carte, T3) : il rend la page carte et la RECRÉE à chaque changement
+ * d'espace — l'équivalent du `window.location.reload()` de React, et le patron exact de la coquille
+ * (`layout/coquille.component.ts`, `generation`).
+ *
+ * ── POURQUOI RECRÉER, ET PAS INVALIDER ───────────────────────────────────
+ * Tous les services d'état de la carte sont fournis par la page (`providers` de `CartePage`) : la détruire les détruit,
+ * avec leurs lectures en vol (désabonnées, donc ANNULÉES — une réponse de l'ancien espace n'atteint jamais le nouveau)
+ * et la carte MapLibre (`DestroyRef` de `mg-carte`). La nouvelle page repart de zéro et ne lit que ce qu'une ouverture
+ * de carte lit déjà (règles I/O). Une liste d'invalidations manuelles oublierait le prochain service ajouté.
+ * Les services fournis AILLEURS que la page (API de `FOURNISSEURS_DISTANTS`, services racine) ne gardent aucun état
+ * qui dépende du périmètre ; le profil mémorisé (`AuthService`) est oublié par le badge de session lui-même.
+ *
+ * ── L'URL ────────────────────────────────────────────────────────────────
+ * Elle est gardée (le module risque, enfant de la route, est rendu par l'outlet de la page recréée), SAUF `customZone` :
+ * la zone du lien appartient à l'ancien espace. Il est retiré AVANT la recréation, sinon la nouvelle page la relirait.
+ */
+@Component({
+  selector: 'mg-carte-hote',
+  imports: [CartePage],
+  template: `
+    @for (g of [generation()]; track g) {
+      <mg-carte-principale (espaceChange)="actualiser()" />
+    }
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'block h-full' },
+})
+export class CarteHoteComponent {
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+
+  /** Changer de génération détruit la page carte et en crée une autre. */
+  protected readonly generation = signal(0);
+
+  /** Un changement d'espace : `customZone` quitte l'URL s'il y est, puis la page est recréée. */
+  protected actualiser(): void {
+    if (!this.route.snapshot.queryParamMap.has(PARAM_ZONE_LIEN)) {
+      this.generation.update((g) => g + 1);
+      return;
+    }
+    void this.router
+      .navigate([], { relativeTo: this.route, queryParams: { [PARAM_ZONE_LIEN]: null }, queryParamsHandling: 'merge', replaceUrl: true })
+      .finally(() => this.generation.update((g) => g + 1));
+  }
+}

@@ -94,11 +94,12 @@ export const remoteRoutes: Routes = [
       // RÉUTILISE, elle ne la recrée pas. Son enfant `risques` est le module « Population à risque industriel »
       // (lot 3), rendu par l'outlet de la carte EN SURIMPRESSION, la carte intacte dessous — comme l'overlay React
       // monté au-dessus de `/map` (arbitrage B2). Ouvrir puis fermer le module ne recrée jamais la carte. Son état
-      // vit dans `?risque=` (A2) ; une navigation de requête RÉUTILISE l'écran.
+      // vit dans `?risque=` (A2) ; une navigation de requête RÉUTILISE l'écran. La route charge l'HÔTE de la page
+      // (`CarteHoteComponent`), qui la recrée à chaque changement d'espace (droits sur la carte, T3).
       {
         path: 'carte',
         canActivate: [authGuard],
-        loadComponent: () => import('./features/carte/carte.page').then((m) => m.CartePage),
+        loadComponent: () => import('./features/carte/carte-hote.component').then((m) => m.CarteHoteComponent),
         children: [
           { path: 'risques', loadComponent: () => import('./features/risques/risque.page').then((m) => m.RisquePage) },
         ],
