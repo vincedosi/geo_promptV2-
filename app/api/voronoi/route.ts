@@ -4,14 +4,14 @@
  * Cellules de Voronoï d'une catégorie de POI — la zone d'influence de chaque
  * point. Route directe créée le 2026-10-12 (chantier « suppression de toute
  * l'IA », lot 4) : jusque-là, ce calcul n'était accessible QUE par l'outil
- * copilote `voronoi_analysis` (`lib/chat/tools/voronoi.ts`), que le bouton
- * « Lancer le calcul » du panneau Analyse déclenchait en écrivant une phrase
- * au chat. Le chat part ; le calcul reste.
+ * `voronoi_analysis` du copilote, que le bouton « Lancer le calcul » du
+ * panneau Analyse déclenchait en écrivant une phrase au chat. Le chat est
+ * retiré (lot 5) ; cette route est désormais la SEULE copie du calcul.
  *
- * La réponse a la forme exacte du résultat que l'outil rendait à l'écran
+ * La réponse garde la forme du résultat que l'outil rendait à l'écran
  * (`voronoiGeoJSON`, `poisForMap`, `nb_polygones`, `tronque`, `category`,
- * `metropolitaine`), et `lib/carte/voronoi-direct.ts` l'affiche par le même
- * chemin que `useToolProcessor` : `applyVoronoi` puis `setZoneData`.
+ * `metropolitaine`), et `lib/carte/voronoi-direct.ts` l'affiche :
+ * `applyVoronoi` puis `setZoneData`.
  *
  * ── Garde ───────────────────────────────────────────────────────────────────
  *
@@ -86,15 +86,17 @@ interface CelluleVoronoi {
 }
 
 export async function GET(request: NextRequest) {
+  // L'authentification AVANT la validation : un appelant anonyme reçoit 401,
+  // jamais un 400 qui lui décrirait les paramètres attendus.
+  const profile = await requireAuth(request);
+  if (!profile) return authUnauthorized();
+
   const parsed = QuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
   if (!parsed.success) {
     return NextResponse.json({ error: messageAnomalies(parsed.error) }, { status: 400 });
   }
   const { categorie: category, ville, region, departement } = parsed.data;
   const metropolitaine = parsed.data.metropolitaine === 'true';
-
-  const profile = await requireAuth(request);
-  if (!profile) return authUnauthorized();
 
   const quota = await limiteur(profile.id);
   if (!quota.ok) return rateLimitResponse(quota.retrySec);
@@ -129,8 +131,10 @@ export async function GET(request: NextRequest) {
   logger.debug('api/voronoi', `"${category}" metro=${metropolitaine} ville=${ville} region=${region} dept=${departement} → ${features.length} polygones${tronque ? ' (borne atteinte)' : ''}`);
 
   const pois = features
-    .map((f) => ({
-      id:        f.properties?.id        ?? String(Math.random()),
+    // Id de repli DÉTERMINISTE (catégorie + rang) : la RPC rend toujours
+    // `id`, mais un repli aléatoire changerait la clé à chaque appel.
+    .map((f, rang) => ({
+      id:        f.properties?.id        ?? `${category}-${rang}`,
       nom:       f.properties?.nom       ?? 'Inconnu',
       lat:       Number(f.properties?.lat ?? 0),
       lng:       Number(f.properties?.lng ?? 0),

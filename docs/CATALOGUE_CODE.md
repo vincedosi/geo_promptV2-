@@ -4,7 +4,7 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-10-12 — commit `395cd4ab`.
+> Généré le 2026-10-12 — commit `fcd95b96`.
 
 ## Totaux
 
@@ -28,12 +28,13 @@ Trié par nombre d’occurrences décroissant.
 | `components/ui/sheet.tsx` | 7 | SheetPortal, SheetOverlay, SheetClose, SheetHeader, SheetFooter, SheetTitle, SheetDescription | — |
 | `lib/campaigns/channels.ts` | 6 | PlatformLinksSchema, linksComplete, linksSummary | LinkLevel, PlatformLinks, ChannelCategory |
 | `components/ui/dialog.tsx` | 6 | DialogPortal, DialogOverlay, DialogTrigger, DialogClose, DialogFooter, DialogDescription | — |
+| `lib/isochrones/fetcher.ts` | 5 | ORS_MAX_RETRIES, ORS_RETRY_DELAY, ORS_DELAI_MS, fetchIsochrones | IsochroneCacheCtx |
 | `lib/demo/constants.ts` | 5 | PERIOD_LEN_DAYS, CALENDAR_START, MAX_ROUNDS, STEP_CAP_GUIDE, STEP_CAP_AUTONOME | — |
+| `lib/geo/locations.ts` | 5 | VILLES, CITY_BASE_RADIUS, REGIONS, getCoordsForVille, getCoordsForRegion | — |
 | `lib/meteo/types.ts` | 5 | — | GridPoint, MeteoSquare, MeteoMeta, MeteoSummary, MeteoApiResponse |
 | `lib/import/types.ts` | 4 | INSEE_CARREAUX_INDICATORS | ImportConfig, DryRunStats, LogLevel |
-| `types/spatial.ts` | 4 | — | BattleData, ChatMessage, GeoJSONFeatureCollection, SpatialResult |
+| `types/spatial.ts` | 4 | — | BattleData, SavedMap, GeoJSONFeatureCollection, SpatialResult |
 | `lib/campaigns/suivi-metrics.ts` | 4 | — | SuiviAlert, SuiviLevel1Row, SuiviDeptRow, SuiviMedia |
-| `lib/isochrones/fetcher.ts` | 3 | ORS_MAX_RETRIES, ORS_RETRY_DELAY, ORS_DELAI_MS | — |
 | `app/admin/sources/_hooks/usePoiAdmin.ts` | 3 | emptyPoiForm | PoiForm, PoiModalState |
 | `lib/dsp/report/index.ts` | 3 | selectReporter | DspReportRow, DspReporter |
 | `components/ui/GeoSkeleton.tsx` | 3 | SkeletonCard, SkeletonChart, SkeletonMap | — |
@@ -44,25 +45,22 @@ Trié par nombre d’occurrences décroissant.
 | `app/map/_components/CivicIndicatorsLayer.tsx` | 2 | CIVIC_VARIABLES, getCivicLegendStops | — |
 | `lib/dsp/dv360/auth.ts` | 2 | DV360_SCOPES, buildOAuthClient | — |
 | `lib/demo/controller.ts` | 2 | latestVersion, readDemoPacing | — |
-| `lib/geo/locations.ts` | 2 | VILLES, REGIONS | — |
 | `lib/dsp-mapping/loader.ts` | 2 | listAvailableDsps, invalidateMappingsCache | — |
 | `lib/import/schemas.ts` | 2 | MappageChampsSchema, ConfigGeoSchema | — |
 | `lib/iris-crawler/parser.ts` | 2 | GEO_COLUMNS, classifyColumns | — |
-| `lib/smart-prompt/geo-resolver.ts` | 2 | resolveZoneToBbox | ZoneResolution |
 | `lib/donnees/registre-fraicheur.ts` | 2 | — | CoutMesure, JournalSource |
 | `lib/dsp/validation.ts` | 2 | — | Dv360ConnectInput, Dv360OAuthConfigInput |
-| `lib/smart-prompt/types.ts` | 2 | — | GeoParams, PoiStats |
-| `lib/chat/tools/types.ts` | 2 | — | BillboardRaw, CarreauRow |
 | `lib/dsp/report/types.ts` | 2 | — | ReportStatus, DspReportRow |
 | `components/campagne/BarreContexteCampagne.tsx` | 1 | libellePeriode | — |
+| `lib/version.ts` | 1 | APP_NAME | — |
 | `lib/auth.ts` | 1 | createServerClient | — |
+| `lib/api/rate-limit.ts` | 1 | getClientKey | — |
 | `lib/geo/region-lookup-server.ts` | 1 | invalidateRegionCache | — |
 | `lib/http/lecture-avec-reprise.ts` | 1 | ATTENTE_MAX_MS | — |
 | `lib/meteo/requete.ts` | 1 | ARCHIVE_CUTOFF | — |
-| `lib/version.ts` | 1 | APP_NAME | — |
-| `lib/iris-crawler/db-columns.ts` | 1 | getCoreColumnType | — |
 | `lib/campagne/constats.ts` | 1 | SEUIL_ECART_SIGNALE_PCT | — |
 | `components/campagne/suivi-v2/TableauDeregles.tsx` | 1 | LIGNES_MAX | — |
+| `lib/iris-crawler/db-columns.ts` | 1 | getCoreColumnType | — |
 | `lib/dsp-mapping/parser.ts` | 1 | parseRow | — |
 | `lib/campaigns/platform-links.ts` | 1 | PlatformLinksSchema | — |
 | `lib/civic-health/atmofrance-client.ts` | 1 | AASQA_REGION_CODES | — |
@@ -80,12 +78,12 @@ Trié par nombre d’occurrences décroissant.
 | `components/campaign/_shared.tsx` | 1 | SH | — |
 | `components/ui/input.tsx` | 1 | — | InputProps |
 | `lib/logger.ts` | 1 | — | Logger |
-| `lib/supabase/tables.ts` | 1 | — | TableUpdate |
 | `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
 | `types/admin.ts` | 1 | — | HealthCheck |
-| `types/campaign.ts` | 1 | — | DspCampaign |
+| `lib/supabase/tables.ts` | 1 | — | TableUpdate |
 | `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
 | `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
+| `types/campaign.ts` | 1 | — | DspCampaign |
 | `lib/campaigns/actor-metrics.ts` | 1 | — | ActorsPayload |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |

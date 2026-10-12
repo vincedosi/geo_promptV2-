@@ -12,7 +12,6 @@ import { AnnonceService } from './annonce.service';
  * ── ENTRÉES DU RAIL ──────────────────────────────────────────────────────
  * `choisirEntree` route selon le TYPE de l'entrée (`page.tsx:180-196`), jamais selon son id :
  * - `overlay-plein-ecran` (Campagne) : rien — l'overlay MAGELIAN relève du lot 5 (arbitrage B6) ;
- * - l'Assistant (`tiroir-droit`) : rien — décision du propriétaire (2026-10-04), il n'est JAMAIS porté ;
  * - le reste bascule : re-choisir l'entrée ouverte la referme.
  *
  * ── UN SEUL DÉGRADÉ DE COULEUR À LA FOIS ─────────────────────────────────
@@ -65,7 +64,7 @@ export class EtatCarteService {
   choisirEntree(id: EntreeId): void {
     const entree = ENTREES_NAVIGATION.find((e) => e.id === id);
     if (!entree) return;
-    if (entree.type === 'overlay-plein-ecran' || entree.type === 'tiroir-droit') return;
+    if (entree.type === 'overlay-plein-ecran') return;
     this.entree.update((courante) => (courante === id ? null : id));
   }
 

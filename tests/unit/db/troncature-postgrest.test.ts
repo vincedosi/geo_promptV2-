@@ -34,7 +34,7 @@ import { join, sep } from 'node:path';
  *   6. `get_voronoi_by_category`         — 2026-10-10, 4 653 cellules → 1 000,
  *      corrigée sql/246 ; la jumelle `_jsonb` est lue depuis le 2026-10-12 par
  *      la route directe `GET /api/voronoi` (`app/api/voronoi/route.ts`, borne
- *      5 000, `tronque`), qui remplace l'outil copilote
+ *      5 000, `tronque`), qui remplace l'outil copilote (retiré au lot 5)
  *
  * Quatre correctifs ponctuels n'ont pas empêché le cinquième. Ce fichier est la
  * réponse structurelle demandée par `docs/SUITE_TRONCATURE_POSTGREST.md` §2 et
@@ -68,19 +68,11 @@ interface Justification { nature: Nature; raison: string }
  * La borne de chaque RPC `RETURNS TABLE` appelée par l'application.
  * Les chiffres sont mesurés ou lus dans le corps SQL, jamais supposés.
  */
+// Quatre entrées retirées le 2026-10-12 (lot 5 de la suppression de l'IA) :
+// `classer_territoires`, `compte_poi_par_categorie`, `get_active_data_registry`
+// et `smart_demographie_top_villes` n'étaient appelées que par le chat et le
+// smart-prompt, supprimés. Les fonctions restent en base (liste du propriétaire).
 const BORNES: Record<string, Justification> = {
-  classer_territoires: {
-    nature: 'borne',
-    raison:
-      "Argument p_limite (défaut 10), ramené entre 1 et 100 dans le corps et appliqué en "
-      + "LIMIT (sql/150) ; l'outil copilote le borne aussi à 100 (resoudreLimite).",
-  },
-  compte_poi_par_categorie: {
-    nature: 'borne',
-    raison:
-      "GROUP BY categorie sur la liste de catégories passée en argument (p_categories text[]) : "
-      + "une ligne par catégorie demandée, quelques dizaines au plus (sql/136).",
-  },
   count_emetteurs_par_radio: {
     nature: 'dette',
     raison:
@@ -94,10 +86,6 @@ const BORNES: Record<string, Justification> = {
     raison:
       "Une ligne par département de ref_departements ayant un centroïde — 104 mesurées le "
       + "2026-10-10, table de référence (définie hors migrations, cf. TABULAIRES_HORS_MIGRATIONS).",
-  },
-  get_active_data_registry: {
-    nature: 'borne',
-    raison: "Une ligne par entrée active de `data_registry`, table de configuration (sql/058).",
   },
   get_campaign_available_metrics: {
     nature: 'borne',
@@ -142,12 +130,6 @@ const BORNES: Record<string, Justification> = {
       + "migrations, cf. TABULAIRES_HORS_MIGRATIONS). 565 au plus mesurées le 2026-10-10, sous "
       + "le plafond de 1 000 ; mais une zone faite de plus de 1 000 poches (1 500 CP disjoints "
       + "en admettent) ferait perdre des rayons à l'export tiktok_geo, en silence.",
-  },
-  smart_demographie_top_villes: {
-    nature: 'borne',
-    raison:
-      "Argument p_limit (défaut 10) appliqué en LIMIT, sur un corpus lui-même plafonné aux "
-      + "300 premières villes par nombre de POI (sql/059).",
   },
 };
 

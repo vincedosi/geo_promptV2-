@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 import { MAP_STYLES } from '../logique/fonds';
 
 /**
- * Le sélecteur compact « FOND » posé sur la carte — portage de `app/copilote/_components/MapPanel.tsx:255-287`
+ * Le sélecteur compact « FOND » posé sur la carte — portage de `app/map/_components/MapPanel.tsx:255-287`
  * (bas droite, au-dessus du contrôle de zoom). Projeté DANS `mg-carte`, en `absolute`, comme le badge de zoom.
  * Libellés : les trois premières lettres de chaque fond (« Sta », « OSM », « Cla », « MAG »).
  *

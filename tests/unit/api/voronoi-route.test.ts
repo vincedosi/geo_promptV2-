@@ -3,7 +3,8 @@
  * suppression de l'IA, lot 4).
  *
  * Ce que la route doit tenir, et que l'outil copilote `voronoi_analysis`
- * tenait avant elle (`tests/unit/chat/voronoi-troncature.test.ts`) :
+ * tenait avant elle (son test, `voronoi-troncature`, est parti avec le chat
+ * au lot 5 — celui-ci le remplace) :
  *   - la garde de périmètre AVANT le calcul : une catégorie dont un seul POI
  *     échappe aux sources de l'appelant n'est pas calculée (403, RPC jamais
  *     appelée) ;
@@ -29,6 +30,8 @@ let quotaOk = true;
 const appels: { nom: string; args: Record<string, unknown> }[] = [];
 const gardes: { categorie: string; sources: string[] | null }[] = [];
 let sourcesLues = 0;
+/** Cellules rendues telles quelles par la jumelle (pour un cas sans `id`). */
+let featuresForcees: unknown[] | null = null;
 
 const feature = (i: number) => ({
   type: 'Feature',
@@ -44,6 +47,7 @@ vi.mock('@/lib/auth', () => ({
       const toutes = Array.from({ length: cellules }, (_, i) => feature(i));
       if (nom === 'get_voronoi_by_category') return { data: toutes.slice(0, MAX_ROWS), error: null };
       if (nom === 'get_voronoi_by_category_jsonb') {
+        if (featuresForcees) return { data: { features: featuresForcees, tronque: false }, error: null };
         const limite = Number(args.p_limite ?? 5000);
         return { data: { features: toutes.slice(0, limite), tronque: toutes.length > limite }, error: null };
       }
@@ -82,6 +86,7 @@ beforeEach(() => {
   appels.length = 0;
   gardes.length = 0;
   sourcesLues = 0;
+  featuresForcees = null;
 });
 
 describe('GET /api/voronoi — accès', () => {
@@ -89,6 +94,12 @@ describe('GET /api/voronoi — accès', () => {
     const r = await appeler('');
     expect(r.status).toBe(400);
     expect((await r.json()).error).toMatch(/categorie/);
+    expect(appels).toEqual([]);
+  });
+
+  it('anonyme SANS catégorie : 401 et non 400 — l’authentification passe avant la validation', async () => {
+    const r = await appeler('', {});
+    expect(r.status).toBe(401);
     expect(appels).toEqual([]);
   });
 
@@ -166,6 +177,21 @@ describe('GET /api/voronoi — plafond PostgREST', () => {
 });
 
 describe('GET /api/voronoi — paramètres et forme de la réponse', () => {
+  it('cellule sans id : repli DÉTERMINISTE (catégorie + rang), identique d’un appel à l’autre', async () => {
+    cellules = 0;
+    const sansId = { type: 'Feature', geometry: { type: 'Polygon', coordinates: [] },
+      properties: { nom: 'X', categorie: 'lycee', lat: 45, lng: 4 } };
+    const ids: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      featuresForcees = [sansId, sansId];
+      const corps = await (await appeler('categorie=lycee')).json();
+      ids.push(corps.poisForMap.pois.map((p: { id: string }) => p.id).join(','));
+    }
+    featuresForcees = null;
+    expect(ids[0]).toBe('lycee-0,lycee-1');
+    expect(ids[1]).toBe(ids[0]);
+  });
+
   it('territoire : France entière, ville, département, région passent aux arguments de la RPC', async () => {
     cellules = 2;
     await appeler('categorie=lycee&metropolitaine=false');

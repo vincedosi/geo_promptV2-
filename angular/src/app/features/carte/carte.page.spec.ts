@@ -124,18 +124,18 @@ function frapper(hote: HTMLElement, init: KeyboardEventInit, cible: Element = ho
 const titrePanneau = (hote: HTMLElement) => hote.querySelector('mg-panneau-carte')?.getAttribute('aria-label') ?? null;
 
 describe('CartePage — squelette de la carte principale', () => {
-  it("(f) le rail rend les entrées de ENTREES_NAVIGATION dans l'ordre, SANS l'Assistant : 5 en haut, 2 en bas", async () => {
+  it("(f) le rail rend les entrées de ENTREES_NAVIGATION dans l'ordre (l'Assistant retiré le 2026-10-12) : 5 en haut, 2 en bas", async () => {
     const { hote } = await ouvrir();
     const rail = hote.querySelector('mg-rail')!;
     const ids = [...rail.querySelectorAll('button[data-entree]')].map((b) => b.getAttribute('data-entree'));
-    expect(ids).toEqual(ENTREES_NAVIGATION.filter((e) => e.id !== 'assistant').map((e) => e.id));
+    expect(ids).toEqual(ENTREES_NAVIGATION.map((e) => e.id));
     expect(rail.querySelectorAll('[data-bas] button[data-entree]').length).toBe(2);
     expect(ids.length - 2).toBe(5);
     // Libellés et infobulles de la source unique.
     const filtre = rail.querySelector('button[data-entree="filtre"]')!;
     expect(filtre.textContent?.trim()).toBe('Filtre');
     expect(filtre.getAttribute('title')).toBe('Où je regarde');
-    // Un seul séparateur : celui qui suit Campagne (celui de l'Assistant part avec lui).
+    // Un seul séparateur : celui qui suit Campagne (celui de l'Assistant est parti avec lui).
     expect(rail.querySelectorAll('[data-separateur]').length).toBe(1);
   });
 

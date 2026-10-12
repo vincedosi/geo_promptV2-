@@ -46,13 +46,8 @@ const MeteoGeoPanel = dynamic(
   () => import('@/app/map/analyse/digital/_components/MeteoGeoPanel').then(m => ({ default: m.MeteoGeoPanel })),
   { ssr: false },
 );
-import { useSavedMaps }        from '@/app/map/_hooks/useSavedMaps';
 import { useVoronoiDirect }    from '@/app/map/_hooks/useVoronoiDirect';
 import { useMapLayers }        from '@/app/map/_hooks/useMapLayers';
-import { useChatControls }     from '@/app/copilote/_hooks/useChatControls';
-import { useRateLimitHandler } from '@/app/copilote/_hooks/useRateLimitHandler';
-import { useToolProcessor } from '@/app/copilote/_hooks/useToolProcessor';
-import { useProviderSelector } from '@/app/copilote/_hooks/useProviderSelector';
 import { MapPanel }            from '@/app/map/_components/MapPanel';
 import type { POIStylesMap } from '@/app/map/_components/filter-panel/poi-style';
 import { IrisDetailPanel }    from '@/app/map/_components/IrisDetailPanel';
@@ -67,11 +62,9 @@ import { ZoneMediaPlanPanel, PANEL_WIDTH } from '@/app/map/_components/ZoneMedia
 import dynamic from 'next/dynamic';
 import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import type { ZoneData, BattleResult } from '@/types/spatial';
-import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
 import { RailNavigation } from '@/components/map/RailNavigation';
 import { MapTopBar, MAP_TOPBAR_HEIGHT } from '@/components/map/MapTopBar';
 import { OverlayPanel } from '@/components/map/OverlayPanel';
-import { AIOverlay, LARGEUR_TIROIR_ASSISTANT } from '@/components/map/overlays/AIOverlay';
 import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
 import { HelpOverlay } from '@/components/map/overlays/HelpOverlay';
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
@@ -108,9 +101,7 @@ import type { SelectedBillboard } from '@/types/map';
 
 /**
  * Couleur du dot de l'en-tête de l'OverlayPanel, par entrée du rail.
- * L'Assistant n'y figure plus depuis la Tâche 8 : ce n'est plus un
- * `OverlayPanel` (panneau gauche) mais un tiroir droit autonome (`AIOverlay`),
- * qui porte son propre dot. Le titre, lui, vient directement de
+ * Le titre, lui, vient directement de
  * `ENTREES_NAVIGATION` (source unique de la navigation, cf
  * lib/navigation/config.ts) — plus d'override local à synchroniser.
  */
@@ -176,7 +167,7 @@ export default function MapPage() {
   // Route selon le TYPE de l'entrée (lib/navigation/config.ts), pas selon son
   // id : une entrée `overlay-plein-ecran` (Campagne) ouvre l'overlay MAGELIAN
   // via son propre contexte et ne devient donc jamais `entreeActive` — les
-  // autres (tiroir droit, panneau gauche, lien) basculent `entreeActive`, et
+  // autres (panneau gauche, lien) basculent `entreeActive`, et
   // c'est le JSX de rendu qui décide où chacune s'affiche.
   const handleEntree = useCallback((id: EntreeId) => {
     const entree = ENTREES_NAVIGATION.find(e => e.id === id);
@@ -296,7 +287,7 @@ export default function MapPage() {
   // ── Un seul listener clavier global : raccourcis du rail (entreeParRaccourci,
   // lib/navigation/config.ts) + Escape (fermerLePlusHaut, lib/carte/pile-echap.ts).
   // La garde de saisie (lib/navigation/garde-saisie.ts, round de correction 1)
-  // ne s'applique JAMAIS à Echap : taper dans l'Assistant ou une recherche de
+  // ne s'applique JAMAIS à Echap : taper dans une recherche de
   // panneau ne doit pas désactiver la touche qui les ferme. Elle ne filtre que
   // les raccourcis à modificateur, portée reprise de l'ancien IconBar.tsx:57-59
   // (supprimé Tâche 2), qui ne scopait sa garde qu'au seul raccourci `/`. ──
@@ -504,14 +495,7 @@ export default function MapPage() {
     setTmjaGeoJSON({ type: 'FeatureCollection', features: [] });
   };
 
-  const savedMaps = useSavedMaps({ zoneData, setZoneData });
-  const mapLayers = useMapLayers({
-    mapRef, mapReady,
-    isochroneDataForSaveRef:  savedMaps.isochroneDataForSaveRef,
-    carreauxConfigForSaveRef: savedMaps.carreauxConfigForSaveRef,
-    voronoiDataForSaveRef:    savedMaps.voronoiDataForSaveRef,
-    setSaveName:              savedMaps.setSaveName,
-  });
+  const mapLayers = useMapLayers({ mapRef, mapReady });
 
   // Etat du calque de score, en REF : lu et ecrit dans la meme pile
   // synchrone que `onDegrade` (voir le deroule detaille plus bas).
@@ -648,37 +632,6 @@ export default function MapPage() {
 
   // ── Marqueurs POI + cadrage (cf _hooks/useMapMarkers) ─────────────────────
   useMapMarkers(mapRef, markersRef, mapReady, zoneData, densityMode, poiStyles, setSelectedBillboard);
-  const providerSelector = useProviderSelector();
-  const chat = useChatControls({
-    setError,
-    setZoneData,
-    setIsochroneFromCache: mapLayers.setIsochroneFromCache,
-    provider: providerSelector.provider,
-  });
-  const rateLimit = useRateLimitHandler({
-    chatError:          chat.chatError,
-    setError,
-    sendChatMessage:    chat.sendChatMessage,
-    lastUserMessageRef: chat.lastUserMessageRef,
-  });
-  useToolProcessor({
-    messages:                chat.messages,
-    setZoneData,
-    setError,
-    applyIsochrones:          mapLayers.applyIsochrones,
-    applyVoronoi:             mapLayers.applyVoronoi,
-    applyIsochroneBattle:     mapLayers.applyIsochroneBattle,
-    loadCarreauxFromAI:       mapLayers.loadCarreauxFromAI,
-    carreauxSourcesRef:       mapLayers.carreauxSourcesRef,
-    carreauxConfigForSaveRef: savedMaps.carreauxConfigForSaveRef,
-    flyToCoords: (lat, lng) => {
-      if (mapRef.current && mapReady) mapRef.current.flyTo({ center: [lng, lat], zoom: 11, duration: 1200 });
-    },
-  });
-
-  savedMaps.applyIsochronesRef.current = mapLayers.applyIsochrones;
-  savedMaps.applyVoronoiRef.current    = mapLayers.applyVoronoi;
-  savedMaps.loadCarreauxRef.current    = mapLayers.loadCarreauxFromAI;
 
   // ── Tout effacer : vide toutes les couches et zones affichées sur la carte ──
   const handleClearAllLayers = useCallback(() => {
@@ -845,84 +798,10 @@ export default function MapPage() {
 
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];
 
-  // Chat slot : rendu par AIOverlay (entrée « Assistant » du rail). FilterPanel
-  // ne le monte plus depuis la Tâche 7 (son unique appelant, l'entrée « Analyse »,
-  // a migré vers PanneauAnalyse).
-  const chatSlotContent = (
-    <ChatPanel
-      containerStyle={{ width: '100%', minWidth: 0, flex: 1, borderRight: 'none', minHeight: 0 }}
-      hideHeader={true}
-      messages={chat.messages}
-      isLoading={chat.isLoading}
-      input={chat.input}
-      setInput={chat.setInput}
-      handleSubmit={chat.handleSubmit}
-      handleKeyDown={chat.handleKeyDown}
-      sendMessage={chat.sendMessage}
-      messagesEndRef={chat.messagesEndRef}
-      rateLimitCooldown={rateLimit.rateLimitCooldown}
-      cancelCooldown={rateLimit.cancelCooldown}
-      error={error}
-      showSavePanel={savedMaps.showSavePanel}
-      showLoadPanel={savedMaps.showLoadPanel}
-      setShowSavePanel={savedMaps.setShowSavePanel}
-      setShowLoadPanel={savedMaps.setShowLoadPanel}
-      saveName={savedMaps.saveName}
-      setSaveName={savedMaps.setSaveName}
-      saveLoading={savedMaps.saveLoading}
-      saveError={savedMaps.saveError}
-      setSaveError={savedMaps.setSaveError}
-      savedMaps={savedMaps.savedMaps}
-      saveCurrentMap={savedMaps.saveCurrentMap}
-      loadSavedMaps={savedMaps.loadSavedMaps}
-      loadMap={savedMaps.loadMap}
-      deleteMap={savedMaps.deleteMap}
-      zoneData={zoneData}
-      provider={providerSelector.provider}
-      sessionTokens={chat.sessionTokens}
-      onFlyTo={handleFlyTo}
-      onHighlightIris={(codeIris: string | null) => {
-        const map = mapRef.current;
-        if (!map || !mapReady) return;
-        if (!codeIris) {
-          try { map.setFilter('iris-fill',   null); } catch { /* ok */ }
-          try { map.setFilter('iris-border', null); } catch { /* ok */ }
-          if (!mapLayers.irisVisible) {
-            try { map.setLayoutProperty('iris-fill',   'visibility', 'none'); } catch { /* ok */ }
-            try { map.setLayoutProperty('iris-border', 'visibility', 'none'); } catch { /* ok */ }
-          }
-        } else {
-          const filter: maplibregl.FilterSpecification = ['==', ['get', 'code_iris'], codeIris];
-          try { map.setLayoutProperty('iris-fill',   'visibility', 'visible'); } catch { /* ok */ }
-          try { map.setLayoutProperty('iris-border', 'visibility', 'visible'); } catch { /* ok */ }
-          try { map.setFilter('iris-fill',   filter); } catch { /* ok */ }
-          try { map.setFilter('iris-border', filter); } catch { /* ok */ }
-          const idleTimeout = setTimeout(() => map.off('idle', onIdle), 5000);
-          const onIdle = () => {
-            clearTimeout(idleTimeout);
-            try {
-              const features = map.queryRenderedFeatures(undefined, {
-                layers: ['iris-fill'],
-                filter: filter as maplibregl.FilterSpecification,
-              });
-              if (!features.length) {
-                setError('Cet IRIS n\'est pas disponible à ce niveau de zoom');
-                setTimeout(() => setError(null), 3000);
-              }
-            } catch { /* ok — layer peut ne pas exister encore */ }
-          };
-          map.once('idle', onIdle);
-        }
-      }}
-    />
-  );
-
   // Table de routage des quatre panneaux du rail (+ Réglages, + Aide) : plus
   // aucun ternaire `entreeActive === 'x' && (...)` dans le JSX de rendu — un
-  // id se résout en un composant, un point c'est tout. « Assistant » n'y
-  // figure pas : depuis la Tâche 8 c'est un tiroir droit autonome
-  // (`AIOverlay`), pas un enfant d'`OverlayPanel`. « Campagne » n'y figure
-  // pas non plus : `handleEntree` (ci-dessus) ne la laisse jamais devenir
+  // id se résout en un composant, un point c'est tout. « Campagne » n'y
+  // figure pas : `handleEntree` (ci-dessus) ne la laisse jamais devenir
   // `entreeActive`.
   const PANNEAUX: Partial<Record<EntreeId, () => ReactNode>> = {
     filtre: () => (
@@ -1094,13 +973,6 @@ export default function MapPage() {
         mapStyles={MAP_STYLES as unknown as { id: string; label: string; url: string }[]}
         currentMapStyleUrl={mapStyleUrl}
         onMapStyleChange={handleMapStyleChange}
-        onSaveCurrentView={() => savedMaps.setShowSavePanel(true)}
-        saveLoading={savedMaps.saveLoading}
-        provider={providerSelector.provider}
-        setProvider={providerSelector.setProvider}
-        providerStatus={providerSelector.providerStatus}
-        statusLoading={providerSelector.statusLoading}
-        refreshProviderStatus={providerSelector.refreshStatus}
       />
     ),
     aide: () => <HelpOverlay />,
@@ -1108,23 +980,17 @@ export default function MapPage() {
 
   // Définition de l'entrée active — source unique pour savoir OÙ elle
   // s'affiche (round de correction 1, Tâche 8) : lire `type` depuis
-  // `ENTREES_NAVIGATION` au lieu de comparer l'id à `'assistant'` en dur,
-  // précisément pour ne pas reproduire la dette que cette tâche referme
-  // (une seule entrée porte aujourd'hui `'tiroir-droit'`, mais le jour où une
-  // deuxième apparaît, une comparaison d'id ne la verrait pas).
+  // `ENTREES_NAVIGATION` au lieu de comparer un id en dur.
   const entreeActiveDef = entreeActive ? ENTREES_NAVIGATION.find(e => e.id === entreeActive) : undefined;
 
   // Décalage horizontal des boutons flottants de la carte (immersif, tout
-  // effacer, script bidding, rouvrir le plan média) : ils s'écartaient déjà du
-  // plan média (`PANEL_WIDTH`) ; ils doivent s'écarter du tiroir Assistant
-  // aussi maintenant qu'il s'ouvre à droite (Tâche 8), sans quoi il flotte
-  // par-dessus le chat (les deux sont ancrés `right: 0`). Plafonné à
-  // `calc(100vw - 60px)` (round de correction 1) : plan média (600) + tiroir
-  // (380) ouverts ensemble poussaient les boutons hors d'un écran étroit.
+  // effacer, script bidding, rouvrir le plan média) : ils s'écartent du
+  // plan média (`PANEL_WIDTH`, ancré `right: 0`). Plafonné à
+  // `calc(100vw - 60px)` (round de correction 1) pour un écran étroit. Le
+  // tiroir droit de l'Assistant, qui s'y ajoutait, est retiré (2026-10-12).
   const railBoutonsRight = `min(${
     10
     + (planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 0)
-    + (entreeActiveDef?.type === 'tiroir-droit' ? LARGEUR_TIROIR_ASSISTANT + 10 : 0)
   }px, calc(100vw - 60px))`;
 
   return (
@@ -1168,13 +1034,6 @@ export default function MapPage() {
         decalageHaut={monte && campagneSession.vue === 'carte' ? hauteurBarreContexte : 0}
       />
       {!(monte && campagneSession.vue === 'carte') && <CampagneActiveCard />}
-      {entreeActiveDef?.type === 'tiroir-droit' && (
-        <AIOverlay
-          chatSlot={chatSlotContent}
-          onClose={() => setEntreeActive(null)}
-          topOffset={railMasque ? 0 : MAP_TOPBAR_HEIGHT}
-        />
-      )}
       {entreeActive && entreeActiveDef?.type === 'panneau-gauche' && (
         <OverlayPanel
           topOffset={railMasque ? 0 : MAP_TOPBAR_HEIGHT}
@@ -1298,9 +1157,7 @@ export default function MapPage() {
         voronoiVisible={mapLayers.voronoiVisible}
         voronoiCategory={mapLayers.voronoiCategory}
         voronoiPois={mapLayers.voronoiPois}
-        voronoiDataForSaveRef={savedMaps.voronoiDataForSaveRef}
-        setShowSavePanel={savedMaps.setShowSavePanel}
-        setSaveError={savedMaps.setSaveError}
+        voronoiDataRef={mapLayers.voronoiDataRef}
         battleVisible={mapLayers.battleVisible}
         battleCategory={mapLayers.battleCategory}
         battlePois={mapLayers.battlePois}

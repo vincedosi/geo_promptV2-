@@ -66,20 +66,20 @@ ne voyait pas : `get_dept_representative_communes` et
 | RPC | Lignes aujourd'hui | Peut dépasser 1 000 ? | Suite |
 |---|---:|---|---|
 | `calculer_score_composite` | 1 429 sur une zone AURA + Occitanie (route : jusqu'à 3 000) | **dépassait** | appelant passé à `calculer_score_composite_jsonb` (sql/170) |
-| `get_voronoi_by_category` | 4 653 (lycées, métropole) | **dépassait** | jumelle sql/246, outil `voronoi_analysis` passé dessus ; depuis le 2026-10-12, appelée aussi par la route directe `GET /api/voronoi` (panneau Analyse, sans le chat) |
+| `get_voronoi_by_category` | 4 653 (lycées, métropole) | **dépassait** | jumelle sql/246 ; depuis le 2026-10-12, appelée par la seule route directe `GET /api/voronoi` (panneau Analyse) — l'outil `voronoi_analysis` qui la lisait est supprimé avec le chat (lot 5) |
 | `get_strategy_comparison_data` | 306 150 et 174 780 | **dépasse** | **clos le 2026-10-12** : plus appelée par l'application (défaut C) ; la fonction reste en base, sans appelant |
 | `count_emetteurs_par_radio` | 861 | **oui** — une ligne par radio ayant un émetteur, 1 175 radios en table | **dette D ci-dessous**, non touchée |
 | `get_zone_radius_targets` | 565 au plus (7 zones) | **oui** — une ligne par poche disjointe d'une zone, sans LIMIT | **dette E ci-dessous**, non touchée |
 | `get_table_sizes` | 119 | non (tables du schéma) | — |
 | `get_dept_representative_communes` | 104 | non (référentiel) | — |
 | `get_iris_fill_status`, `get_iris_metric_columns` | 41 | non (colonnes d'`iris`) | — |
-| `get_active_data_registry` | 13 | non (configuration) | — |
+| `get_active_data_registry` | 13 | non (configuration) | **plus appelée depuis le 2026-10-12** (chat / smart-prompt supprimés, lot 5 de la suppression de l'IA) ; la fonction reste en base |
 | `get_dsp_campaign_stats` | 8 | non (une ligne par campagne) | — |
 | `get_campaign_available_metrics` | une vingtaine au plus (12 au registre + 5 colonnes natives) | non (registre des métriques) | — |
 | `get_campaign_last_data_dates` | ≤ nombre d'ids passés | non (ids d'une liste elle-même lue sous le plafond) | — |
-| `classer_territoires` | ≤ 100 | non (`LIMIT` ramené entre 1 et 100) | — |
-| `smart_demographie_top_villes` | ≤ 300 | non (corpus de 300 villes) | — |
-| `compte_poi_par_categorie` | ≤ catégories demandées (5 en base) | non | — |
+| `classer_territoires` | ≤ 100 | non (`LIMIT` ramené entre 1 et 100) | **plus appelée depuis le 2026-10-12** (chat / smart-prompt supprimés, lot 5 de la suppression de l'IA) ; la fonction reste en base |
+| `smart_demographie_top_villes` | ≤ 300 | non (corpus de 300 villes) | **plus appelée depuis le 2026-10-12** (chat / smart-prompt supprimés, lot 5 de la suppression de l'IA) ; la fonction reste en base |
+| `compte_poi_par_categorie` | ≤ catégories demandées (5 en base) | non | **plus appelée depuis le 2026-10-12** (chat / smart-prompt supprimés, lot 5 de la suppression de l'IA) ; la fonction reste en base |
 
 > **Ce test existe depuis le 2026-09-16 :
 > `tests/unit/db/troncature-postgrest.test.ts`.** Il croise les `.rpc('…')` de

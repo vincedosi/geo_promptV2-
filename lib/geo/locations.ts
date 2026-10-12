@@ -2,7 +2,7 @@
  * GENESIS — lib/geo/locations.ts
  *
  * Coordonnées de référence des villes et régions françaises.
- * Utilisé par /api/chat pour résoudre les localisations textuelles
+ * Utilisé par /api/map/pois (et jadis par /api/chat, supprimé le 2026-10-12) pour résoudre les localisations textuelles
  * en coordonnées lat/lng.
  */
 

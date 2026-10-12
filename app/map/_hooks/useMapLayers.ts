@@ -103,23 +103,17 @@ export const IRIS_PALETTES = [
 interface UseMapLayersOpts {
   mapRef: React.MutableRefObject<maplibregl.Map | null>;
   mapReady: boolean;
-  isochroneDataForSaveRef: React.MutableRefObject<IsochroneData | null>;
-  carreauxConfigForSaveRef: React.MutableRefObject<{
-    tableName: string; indicateur: string; indicateur_label: string; coordonnees: { lat: number; lng: number };
-  } | null>;
-  voronoiDataForSaveRef: React.MutableRefObject<VoronoiData | null>;
-  setSaveName: (name: string) => void;
 }
 
 export function useMapLayers({
   mapRef,
   mapReady,
-  isochroneDataForSaveRef,
-  carreauxConfigForSaveRef,
-  voronoiDataForSaveRef,
-  setSaveName,
 }: UseMapLayersOpts) {
   // Voronoï
+  // Dernier Voronoï affiché : la légende en lit le territoire (`_meta`). Il
+  // vivait dans `useSavedMaps` (« voronoiDataForSaveRef »), retiré avec le
+  // chat le 2026-10-12 (seul l'écran de sauvegarde du chat l'ouvrait).
+  const voronoiDataRef = useRef<VoronoiData | null>(null);
   const [voronoiVisible,  setVoronoiVisible]  = useState(false);
   const [voronoiCategory, setVoronoiCategory] = useState('');
   const [voronoiPois,   setVoronoiPois]   = useState<{ id: string; nom: string; color: string }[]>([]);
@@ -870,10 +864,7 @@ export function useMapLayers({
     const map = mapRef.current;
     if (!map || !mapReady) return;
 
-    voronoiDataForSaveRef.current = vData;
-    const meta = vData._meta;
-    const geo  = meta?.filtre_region ?? meta?.filtre_ville ?? meta?.filtre_dept ?? '';
-    setSaveName(`Voronoï ${meta?.category ?? ''} ${geo}`.trim().replace(/\s+/g, ' '));
+    voronoiDataRef.current = vData;
 
     const poiColorMap = new Map<string, string>();
     let _colorIdx = 0;
@@ -1180,8 +1171,7 @@ export function useMapLayers({
     setIsochroneCachedAt(isoData._cachedAt ?? '');
     setIsochroneVisible(true);
 
-    lastIsochroneDataRef.current    = isoData;
-    isochroneDataForSaveRef.current = isoData;
+    lastIsochroneDataRef.current = isoData;
   };
 
   const loadCarreauxFromAI = async (cd: CarreauxData) => {
@@ -1275,6 +1265,7 @@ export function useMapLayers({
     voronoiVisible, setVoronoiVisible,
     voronoiCategory,
     voronoiPois,
+    voronoiDataRef,
     // Bataille
     battleVisible, setBattleVisible,
     battleCategory,

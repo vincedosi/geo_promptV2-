@@ -48,7 +48,8 @@ describe('routes de la carte qui appellent getOrgSourceIds directement', () => {
   for (const f of [
     'app/api/map/categories/route.ts',
     'app/api/map/pois/route.ts',
-    'app/api/chat/route.ts',
+    // `app/api/chat/route.ts` en faisait partie jusqu'au 2026-10-12 : la
+    // route du chat est supprimée avec toute l'IA (lot 5).
   ]) {
     it(`${f} passe vueEspace`, () => {
       expect(readFileSync(f, 'utf8')).toMatch(/getOrgSourceIds\([^)]*\{\s*vueEspace:\s*true\s*\}\)/);

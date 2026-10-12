@@ -6,9 +6,9 @@ import {
 } from '@/lib/navigation/config';
 
 interface RailNavigationProps {
-  /** Entree actuellement ouverte (panneau ou tiroir). null = rien d'ouvert. */
+  /** Entree actuellement ouverte (panneau). null = rien d'ouvert. */
   entreeActive: EntreeId | null;
-  /** Appele au clic sur n'importe quelle entree — le routage (panneau, tiroir,
+  /** Appele au clic sur n'importe quelle entree — le routage (panneau,
    *  overlay plein ecran) est decide par l'appelant (voir app/map/page.tsx). */
   onEntree: (id: EntreeId) => void;
   /** Masque le rail (mode immersif). */
@@ -20,10 +20,11 @@ interface RailNavigationProps {
 }
 
 /**
- * Rail de navigation vertical de /map — cinq themes (Assistant, Campagne,
- * Filtre, Calques, Analyse, Zones, Reglages, Aide), source unique dans
+ * Rail de navigation vertical de /map — cinq themes (Campagne, Filtre,
+ * Calques, Analyse, Zones) puis Reglages et Aide, source unique dans
  * `lib/navigation/config.ts`. Remplace `IconBar.tsx` (2026-09-12) : largeur
  * passee de 48 a `LARGEUR_RAIL` (76) pour ne plus tronquer aucun libelle.
+ * L'entree Assistant (chat IA, Ctrl+K) est retiree depuis le 2026-10-12.
  */
 export function RailNavigation({
   entreeActive,

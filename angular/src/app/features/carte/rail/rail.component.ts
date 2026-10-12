@@ -7,8 +7,8 @@ import { ENTREES_NAVIGATION, LARGEUR_RAIL, type EntreeId, type EntreeNavigation 
 export const PROCHAINEMENT = 'Disponible prochainement';
 
 /**
- * L'Assistant n'est JAMAIS porté (décision du propriétaire, 2026-10-04) : son entrée est retirée AU
- * RENDU, et la copie `logique/navigation.ts` reste verbatim (verrou de parité avec React).
+ * L'Assistant n'a jamais été porté (décision du propriétaire, 2026-10-04) ; depuis le 2026-10-12 son entrée est
+ * retirée de la navigation elle-même, React et Angular ensemble (suppression de toute l'IA, lot 5).
  */
 /**
  * Entrées présentes mais INERTES : Campagne relève du lot 5 (arbitrage B6) — rendue à l'identique
@@ -18,7 +18,6 @@ const INERTES: ReadonlySet<EntreeId> = new Set(['campagne']);
 
 type EntreeRail = EntreeNavigation & { readonly inerte: boolean };
 const AFFICHEES: readonly EntreeRail[] = ENTREES_NAVIGATION
-  .filter((e) => e.id !== 'assistant')
   .map((e) => ({ ...e, inerte: INERTES.has(e.id) }));
 const HAUT = AFFICHEES.filter((e) => e.position === 'haut');
 const BAS = AFFICHEES.filter((e) => e.position === 'bas');

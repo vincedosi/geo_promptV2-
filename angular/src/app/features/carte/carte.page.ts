@@ -363,7 +363,7 @@ export class CartePage {
    * consommé par un gestionnaire INTÉRIEUR (`preventDefault()`) ne ferme rien de plus : c'est le cas
    * d'un menu ouvert du badge de session, qui consomme Échap sur son propre hôte AVANT que la frappe
    * ne remonte ici (`BadgeSessionComponent.echap`) — sinon un seul Échap fermerait le menu ET le
-   * panneau. L'Assistant (`Ctrl+K`) n'est pas porté : la frappe n'est pas captée.
+   * panneau. Ctrl+K (l'Assistant, retiré le 2026-10-12) ne mène plus à aucune entrée : la frappe n'est pas captée.
    */
   protected clavier(e: KeyboardEvent): void {
     // `nodeType` et non `instanceof Element` : la cible peut venir d'un autre domaine de JavaScript.
@@ -377,7 +377,7 @@ export class CartePage {
       return;
     }
     const entree = entreeParRaccourci(e);
-    if (!entree || entree === 'assistant') return;
+    if (!entree) return;
     e.preventDefault();
     this.etat.choisirEntree(entree);
   }

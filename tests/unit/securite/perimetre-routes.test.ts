@@ -22,8 +22,8 @@ import { join, relative, sep } from 'node:path';
  *
  * Tout fichier de `app/api` (hors `/api/admin`, réservé au super_admin) et de
  * `lib/` qui lit une table de données client doit passer par la règle :
- * `lib/auth/perimetre-donnees.ts`, `lib/auth/getOrgSourceIds.ts` ou, pour les
- * outils du chat, `lib/chat/tools/orgContext.ts`.
+ * `lib/auth/perimetre-donnees.ts` ou `lib/auth/getOrgSourceIds.ts` (les outils
+ * du chat et leur `orgContext.ts` sont supprimés depuis le 2026-10-12).
  *
  * Quand ce test échoue : brancher `filtrerParSourcesVisibles` (ou
  * `reserverAuSuperAdmin`). Si la lecture est vraiment sans risque, l'inscrire
@@ -38,7 +38,7 @@ const LECTURE_CLIENT = new RegExp(
   + String.raw`|rpc\(\s*'(get_voronoi[a-z_]*|get_battle_geometry|compte_poi_par_categorie|poi_count_by_categorie|get_poi_near_panneau|panneaux_near_point|count_poi_by_categorie_source|get_poi_categories|types_poi_clustering)'`,
 );
 
-const REGLE = /from '@\/lib\/auth\/(perimetre-donnees|getOrgSourceIds)'|from '\.\/orgContext'/;
+const REGLE = /from '@\/lib\/auth\/(perimetre-donnees|getOrgSourceIds)'/;
 
 const ASSUMEES = new Map<string, string>([
   ['lib/auth/perimetre-donnees.ts', 'L\'application de la règle elle-même.'],
@@ -48,8 +48,8 @@ const ASSUMEES = new Map<string, string>([
    'Enrichissement des imports, appelé seulement depuis /api/admin (super_admin).'],
   ['lib/supabase/tables.ts', 'Types et commentaires : aucune requête exécutée.'],
   ['lib/isochrones/fetcher.ts',
-   'Lit et écrit le cache par la clé que lui passe l\'appelant ; l\'appelant '
-   + '(analyserZone) y met l\'empreinte du périmètre.'],
+   'Lit et écrit le cache par la clé que lui passe l\'appelant '
+   + '(/api/isochrone-battle, seul appelant depuis le retrait du chat).'],
   ['lib/poi/categories.ts',
    'getDistinctCategories sert au contrôle interne ; ce qui est montré passe par '
    + 'getCategoriesVisibles, dans le même fichier, qui prend le périmètre.'],

@@ -27,7 +27,7 @@ import * as Al from '../../../angular/src/app/features/carte/logique/clustering/
 import { ICONES as ICONES_ANGULAR } from '../../../angular/src/app/ui/icone/icones';
 
 const ICONES: Record<string, string> = {
-  assistant: 'etincelles', campagne: 'porte-voix', filtre: 'entonnoir', calques: 'calques',
+  campagne: 'porte-voix', filtre: 'entonnoir', calques: 'calques',
   analyse: 'fiole', zones: 'formes', reglages: 'reglages', aide: 'aide',
 };
 
@@ -64,9 +64,9 @@ describe('logique de navigation et de carte : Angular = React', () => {
     expect(sans(An.ENTREES_NAVIGATION)).toEqual(sans(Rn.ENTREES_NAVIGATION));
     for (const e of An.ENTREES_NAVIGATION) expect(e.icone, e.id).toBe(ICONES[e.id]);
   });
-  it('navigation — chaque NomIcone porte le MÊME tracé lucide que le composant React (8 entrées)', () => {
+  it('navigation — chaque NomIcone porte le MÊME tracé lucide que le composant React (7 entrées, l’Assistant retiré le 2026-10-12)', () => {
     const kebab = (pascal: string) => pascal.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
-    expect(An.ENTREES_NAVIGATION).toHaveLength(8);
+    expect(An.ENTREES_NAVIGATION).toHaveLength(7);
     Rn.ENTREES_NAVIGATION.forEach((r, i) => {
       const a = An.ENTREES_NAVIGATION[i];
       const nomReact = (r.icone as unknown as { displayName: string }).displayName;

@@ -29,11 +29,10 @@ const LIENS_BACK_OFFICE: readonly { libelle: string; icone: NomIcone; cible?: st
 /**
  * Le panneau « Réglages » du rail — portage de `components/map/overlays/SettingsOverlay.tsx`.
  *
- * Cinq sections, dans l'ordre de React : Modèle IA, Fond de carte, Vues sauvegardées, Apparence, Back office.
- * - **Modèle IA** et **Vues sauvegardées** sont rendus à l'identique mais INERTES (arbitrage B5) : le premier
- *   règle l'Assistant, jamais porté (décision du propriétaire du 2026-10-04) ; le second ouvre le panneau de
- *   sauvegarde, qui vit DANS l'Assistant (`page.tsx:863-876`). Le badge d'état de la clé n'est pas rendu :
- *   il interrogerait `/api/providers/status` pour un modèle qui ne sert à rien ici.
+ * Trois sections, dans l'ordre de React : Fond de carte, Apparence, Back office. « Modèle IA » (Mistral/Gemini) et
+ * « Vues sauvegardées », rendues INERTES jusque-là (arbitrage B5), sont retirées le 2026-10-12, React et Angular
+ * ensemble (suppression de toute l'IA, lot 5) : la première réglait le chat, la seconde ouvrait l'écran de
+ * sauvegarde qui ne vivait que dans le chat.
  * - **Fond de carte** est actif : il émet l'id choisi ; la page recrée la carte (B11).
  * - **Apparence** reprend `mg-bascule-theme`, qui passe par `ThemeService.basculer()` seul (`ECRIRE_HTML`).
  * - **Back office** : « Accès » et « Health check » sont ACTIFS (liens relatifs vers `admin/acces` et `admin/health`) ;
@@ -46,22 +45,6 @@ const LIENS_BACK_OFFICE: readonly { libelle: string; icone: NomIcone; cible?: st
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col gap-5 px-4 py-3 font-sans' },
   template: `
-    <section data-section="modele-ia">
-      <h4 class="mb-2 mt-0 text-[11px] font-medium tracking-[0.04em] text-secondary">Modèle IA</h4>
-      <div class="mb-2 flex items-center gap-1.5">
-        @for (p of modeles; track p.id) {
-          <button
-            type="button"
-            aria-disabled="true"
-            [attr.title]="indisponible"
-            [attr.data-modele]="p.id"
-            class="cursor-default rounded-[4px] border-fin px-2.5 py-1 font-sans text-[11px]"
-            [class]="p.id === 'mistral' ? 'border-teal bg-[color-mix(in_srgb,var(--brand-teal)_8%,transparent)] font-medium text-teal' : 'border-default bg-transparent font-normal text-secondary'"
-          >{{ p.libelle }}</button>
-        }
-      </div>
-    </section>
-
     <section data-section="fond">
       <h4 class="mb-2 mt-0 text-[11px] font-medium tracking-[0.04em] text-secondary">Fond de carte</h4>
       <div class="grid grid-cols-2 gap-1.5">
@@ -75,18 +58,6 @@ const LIENS_BACK_OFFICE: readonly { libelle: string; icone: NomIcone; cible?: st
             [class]="s.id === fond() ? 'border-teal bg-teal-10 text-teal' : 'border-default bg-transparent text-secondary'"
           >{{ s.label }}</button>
         }
-      </div>
-    </section>
-
-    <section data-section="vues">
-      <h4 class="mb-2 mt-0 text-[11px] font-medium tracking-[0.04em] text-secondary">Vues sauvegardées</h4>
-      <div class="flex flex-col gap-2">
-        <button
-          type="button"
-          aria-disabled="true"
-          [attr.title]="indisponible"
-          class="w-full cursor-default rounded-[6px] border-fin border-teal bg-transparent px-4 py-2 font-sans text-[12px] font-medium text-teal"
-        >Sauvegarder la vue actuelle</button>
       </div>
     </section>
 
@@ -132,7 +103,6 @@ export class ReglagesComponent {
   readonly choisirFond = output<string>();
 
   protected readonly fonds = MAP_STYLES;
-  protected readonly modeles = [{ id: 'mistral', libelle: 'Mistral' }, { id: 'gemini', libelle: 'Gemini' }] as const;
   protected readonly liens = LIENS_BACK_OFFICE;
   protected readonly indisponible = DISPONIBLE_PROCHAINEMENT;
 }

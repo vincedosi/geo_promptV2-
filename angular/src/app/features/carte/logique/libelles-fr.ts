@@ -1,6 +1,6 @@
 /**
  * Libellés du fond de carte en FRANÇAIS — copie Angular (lot 4) de `patchLabelFrValeur` et de la boucle
- * `map.on('load')` de `app/copilote/_hooks/useMapInit.ts:16-33,209-215`. React ne les exporte pas
+ * `map.on('load')` de `app/map/_hooks/useMapInit.ts:16-33,209-215`. React ne les exporte pas
  * (fonctions locales du crochet) : la copie est verrouillée par `libelles-fr.spec.ts` sur les formes
  * d'expression que le style Liberty porte réellement.
  *

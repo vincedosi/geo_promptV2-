@@ -14,9 +14,8 @@ export function formaterRaccourci(raccourci: string): string {
  * Le panneau « Aide » du rail — portage de `components/map/overlays/HelpOverlay.tsx` : la liste des
  * raccourcis clavier, DÉRIVÉE de `ENTREES_NAVIGATION` (jamais recopiée à la main).
  *
- * Seul écart : l'Assistant n'y figure pas. Il n'est jamais porté (décision du propriétaire du 2026-10-04) :
- * le rail ne le rend pas et `Ctrl+K` n'est pas capté — l'annoncer ici documenterait un raccourci mort.
- * Campagne (`Alt+C`) reste listée : son entrée est rendue dans le rail, inerte (B6), comme ici.
+ * L'Assistant (`Ctrl+K`) n'y figure plus : son entrée est retirée de la navigation le 2026-10-12, React et
+ * Angular ensemble (suppression de toute l'IA, lot 5). Campagne (`Alt+C`) reste listée : son entrée est rendue dans le rail, inerte (B6), comme ici.
  */
 @Component({
   selector: 'mg-aide',
@@ -38,6 +37,6 @@ export function formaterRaccourci(raccourci: string): string {
 })
 export class AideComponent {
   protected readonly entrees = ENTREES_NAVIGATION
-    .filter((e) => e.raccourci && e.id !== 'assistant')
+    .filter((e) => e.raccourci)
     .map((e) => ({ id: e.id, label: e.label, icone: e.icone, touches: formaterRaccourci(e.raccourci as string) }));
 }

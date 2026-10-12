@@ -1,18 +1,12 @@
 <div class="mx-auto max-w-[960px]">
   <mg-entete-page titre="Dashboard" [sousTitre]="'Bienvenue, ' + nomAffiche()" />
 
-  <div class="mb-8 grid grid-cols-4 gap-3">
+  <div class="mb-8 grid grid-cols-3 gap-3">
     @for (c of cartesSession(); track $index) {
-      <!-- Seule « geo.prompt » est un lien en React (vers /map) ; l'écran n'est pas porté : inerte, comme les
-           entrées de la barre latérale (role link, aria-disabled, tabindex, infobulle), jamais `cliquable`. -->
       <mg-tuile-chiffre
         [icone]="c.icone"
         [valeur]="c.valeur"
         [libelle]="c.libelle"
-        [attr.role]="c.lien ? 'link' : null"
-        [attr.aria-disabled]="c.lien ? 'true' : null"
-        [attr.tabindex]="c.lien ? 0 : null"
-        [attr.title]="c.lien ? prochainement : null"
         [style.animation]="'slideUp 0.3s ease ' + $index * 60 + 'ms both'"
       />
     }

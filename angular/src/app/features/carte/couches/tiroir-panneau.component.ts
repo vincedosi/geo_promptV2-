@@ -12,7 +12,7 @@ export function adresseStreetView(cle: string, lat: number, lng: number): string
 }
 
 /**
- * Le tiroir Street View d'un panneau cliqué — portage de `app/copilote/_components/MapPanel.tsx:291-339`.
+ * Le tiroir Street View d'un panneau cliqué — portage de `app/map/_components/MapPanel.tsx:291-339`.
  *
  * À droite de la carte, sur toute sa hauteur (`min(420px, 92vw)`, `z-index` 30), DANS le conteneur de la carte : la
  * vue Google est un `<iframe>` de la racine d'ombre, jamais un portail. La clé vient de `config.local.json`

@@ -187,12 +187,12 @@ describe('dérive entre ARCHITECTURE.md et le code', () => {
       const raccourci = bloc.match(/raccourci:\s*'([^']+)'/)?.[1] ?? null;
       raccourcisReels.set(id, raccourci);
     }
-    expect(raccourcisReels.size, 'aucune entrée extraite de ENTREES_NAVIGATION — le motif d\'extraction a-t-il divergé du style du fichier ?').toBeGreaterThanOrEqual(8);
+    expect(raccourcisReels.size, 'aucune entrée extraite de ENTREES_NAVIGATION — le motif d\'extraction a-t-il divergé du style du fichier ?').toBeGreaterThanOrEqual(7);
 
     // Table doc : | Nom francais | ... | `Raccourci` (ou —) | ... |
     const idParLabel: Record<string, string> = {
       Filtre: 'filtre', Calques: 'calques', Analyse: 'analyse', Zones: 'zones',
-      Campagne: 'campagne', Assistant: 'assistant',
+      Campagne: 'campagne',
     };
     const divergences: string[] = [];
     for (const [label, id] of Object.entries(idParLabel)) {

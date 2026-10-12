@@ -9,7 +9,9 @@
  *
  * ⚠ Lit la base locale. On joue la catégorie `cirfa` (95 cellules, 0,7 s) et
  * pas `lycee` (14 s, ≈ 46 000 blocs lus) : la preuve au-delà de 1 000 lignes
- * est dans le rapport de la tâche et dans le test unitaire de l'outil.
+ * est dans le rapport de la tâche et dans le test de la route directe
+ * (`tests/unit/api/voronoi-route.test.ts`, 4 653 cellules) — l'outil du chat
+ * et son test sont supprimés depuis le 2026-10-12.
  */
 import { describe, it, expect } from 'vitest';
 import { creerClientTest } from './_client';

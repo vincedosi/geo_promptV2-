@@ -99,13 +99,6 @@ export interface SavedMap {
   created_at: string;
 }
 
-export interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  zoneData?: ZoneData;
-  carreauxData?: CarreauxData;
-}
-
 // ---------------------------------------------------------------------------
 // Service spatial (lib/spatial/engine.ts)
 // ---------------------------------------------------------------------------

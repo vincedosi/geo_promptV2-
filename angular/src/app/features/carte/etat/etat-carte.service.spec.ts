@@ -2,6 +2,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { AnnonceService } from './annonce.service';
 import { EtatCarteService } from './etat-carte.service';
+import type { EntreeId } from '../logique/navigation';
 
 function monter() {
   TestBed.configureTestingModule({
@@ -37,9 +38,9 @@ describe('EtatCarteService', () => {
     expect(etat.entreeActive()).toBe('calques');
   });
 
-  it("l'Assistant (jamais porté) ne devient jamais l'entrée active", () => {
+  it("un id hors de la navigation (l'ancien « assistant », retiré le 2026-10-12) ne devient jamais l'entrée active", () => {
     const { etat } = monter();
-    etat.choisirEntree('assistant');
+    etat.choisirEntree('assistant' as EntreeId);
     expect(etat.entreeActive()).toBeNull();
   });
 

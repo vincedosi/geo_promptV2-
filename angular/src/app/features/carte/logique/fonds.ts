@@ -1,5 +1,5 @@
 /**
- * Copie Angular (lot 4, P6) VERBATIM de `app/copilote/_lib/constants.ts:131-145` (fonds de
+ * Copie Angular (lot 4, P6) VERBATIM de `app/map/_lib/constants.ts:131-145` (fonds de
  * carte), verrouillee par tests/unit/angular/carte-couches-paritaire.test.ts (gel P5 etendu a /map).
  *
  * Map style — OpenFreeMap Liberty (vecteur, gratuit, sans API key, labels FR).

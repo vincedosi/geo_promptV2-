@@ -44,7 +44,7 @@ export const COUCHES_APRES_LOAD: readonly string[] = [
 
 /**
  * L'ORDRE D'EMPILEMENT des couches de la carte principale — celui de React, où les couches du `load` naissent dans
- * un ordre FIXE (`app/copilote/_hooks/useMapInit.ts:223-1060`, ordre des `addLayer`, aucun `beforeId`), du dessous
+ * un ordre FIXE (`app/map/_hooks/useMapInit.ts:223-1060`, ordre des `addLayer`, aucun `beforeId`), du dessous
  * vers le dessus, puis celles posées après le `load` (`COUCHES_APRES_LOAD`), toujours au-dessus.
  *
  * Côté Angular, chaque couche est posée À LA DEMANDE (première visibilité, première donnée) et re-posée sur la carte

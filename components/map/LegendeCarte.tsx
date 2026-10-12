@@ -103,9 +103,7 @@ export interface LegendeCarteProps {
   voronoiVisible?: boolean;
   voronoiCategory?: string;
   voronoiPois?: { id: string; nom: string; color: string }[];
-  voronoiDataForSaveRef?: React.MutableRefObject<VoronoiData | null>;
-  setShowSavePanel?: (v: boolean | ((prev: boolean) => boolean)) => void;
-  setSaveError?: (v: string | null) => void;
+  voronoiDataRef?: React.MutableRefObject<VoronoiData | null>;
   battleVisible?: boolean;
   battleCategory?: string;
   battlePois?: { id: string; nom: string; color: string }[];
@@ -375,9 +373,9 @@ function BlocAnalyse(props: LegendeCarteProps) {
         )}
 
         {!!props.voronoiVisible && !!props.voronoiCategory && (() => {
-          const regionLabel = props.voronoiDataForSaveRef?.current?._meta?.filtre_region
-            ?? props.voronoiDataForSaveRef?.current?._meta?.filtre_ville
-            ?? props.voronoiDataForSaveRef?.current?._meta?.filtre_dept
+          const regionLabel = props.voronoiDataRef?.current?._meta?.filtre_region
+            ?? props.voronoiDataRef?.current?._meta?.filtre_ville
+            ?? props.voronoiDataRef?.current?._meta?.filtre_dept
             ?? null;
           return (
             <div style={{ marginTop: 3, paddingTop: 5, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -388,12 +386,6 @@ function BlocAnalyse(props: LegendeCarteProps) {
                     VORONOI{regionLabel ? ` · ${regionLabel}` : ''}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { props.setShowSavePanel?.(true); props.setSaveError?.(null); }}
-                  title="Sauvegarder ce Voronoï"
-                  style={{ background: 'var(--border-subtle)', border: '0.5px solid var(--border-default)', borderRadius: 4, padding: '2px 8px', fontSize: 9, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: fInter }}
-                >SAVE</button>
               </div>
               {voronoiPois.map(c => (
                 <div key={c.id} style={swatchRow}>

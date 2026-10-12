@@ -39,10 +39,13 @@ async function monter() {
 }
 
 describe('ReglagesComponent — portage de SettingsOverlay.tsx', () => {
-  it("cinq sections dans l'ordre de React : Modèle IA, Fond de carte, Vues sauvegardées, Apparence, Back office", async () => {
+  it("trois sections dans l'ordre de React : Fond de carte, Apparence, Back office (Modèle IA et Vues sauvegardées retirées le 2026-10-12)", async () => {
     const { el } = await monter();
     const titres = [...el.querySelectorAll('section h4')].map((h) => h.textContent?.trim());
-    expect(titres).toEqual(['Modèle IA', 'Fond de carte', 'Vues sauvegardées', 'Apparence', 'Back office']);
+    expect(titres).toEqual(['Fond de carte', 'Apparence', 'Back office']);
+    expect(el.textContent).not.toContain('Mistral');
+    expect(el.textContent).not.toContain('Gemini');
+    expect(el.textContent).not.toContain('Sauvegarder la vue actuelle');
   });
 
   it('« Fond de carte » : quatre fonds, le courant aria-pressed ; un clic émet son id', async () => {
@@ -56,19 +59,6 @@ describe('ReglagesComponent — portage de SettingsOverlay.tsx', () => {
     await fixture.whenStable();
     // Clair et MAGELIAN partagent l'URL de Positron : un seul des deux est pressé (défaut React corrigé).
     expect(fonds.map((b) => b.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'false', 'true']);
-  });
-
-  it('« Modèle IA » et « Vues sauvegardées » sont INERTES (aria-disabled, Disponible prochainement)', async () => {
-    const { el } = await monter();
-    const inertes = [
-      ...el.querySelectorAll<HTMLButtonElement>('[data-section="modele-ia"] button'),
-      ...el.querySelectorAll<HTMLButtonElement>('[data-section="vues"] button'),
-    ];
-    expect(inertes.map((b) => b.textContent?.trim())).toEqual(['Mistral', 'Gemini', 'Sauvegarder la vue actuelle']);
-    for (const b of inertes) {
-      expect(b.getAttribute('aria-disabled')).toBe('true');
-      expect(b.getAttribute('title')).toBe('Disponible prochainement');
-    }
   });
 
   it('« Apparence » bascule le thème par ThemeService.basculer() seul', async () => {
