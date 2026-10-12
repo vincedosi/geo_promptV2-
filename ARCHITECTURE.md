@@ -1213,6 +1213,20 @@ purge) ; `categorieEntierementVisible` lui refuse, dans l'espace BMW, un
 Voronoi sur une categorie contenant des POI de la Marine. `source_visible()`
 (SQL) n'est pas modifiee.
 
+**L'origine d'une categorie (2026-10-12, meme spec, R6).** Chaque categorie
+rendue par `/api/map/categories` porte `origine: 'commune' | 'espace'`.
+`getSourcesPropresEspace(session)` (`lib/auth/getOrgSourceIds.ts`) liste les
+sources PROPRES a l'espace actif : `visibilite = 'privee'`, possedees par lui
+ou partagees avec lui, non supprimees, jamais le socle ; `[]` sans espace
+actif (meme garde UUID que `SEC-002`) ou sur une lecture en echec. Une
+categorie est « espace » si `getCategoriesVisibles(propres)` la contient —
+une categorie mixte (socle + espace) est donc « espace » —, « commune »
+sinon. Ce n'est PAS une regle d'autorisation : elle ne fait que ranger ce que
+`getOrgSourceIds` autorise deja. Cout : une lecture de `data_sources` puis,
+s'il y a des sources propres, un second leapfrog sur l'index de
+`poi_france.categorie`, en cache par empreinte comme le premier, lu APRES lui
+(jamais en parallele).
+
 Outils de `lib/auth/perimetre-donnees.ts` :
 
 - `filtrerParSourcesVisibles(q, sources, { referentiels })` — restreint une
@@ -1345,7 +1359,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | Route | Methode | Description |
 |-------|---------|-------------|
 | `/api/map/pois` | POST | POI dans une zone avec filtres categorie. ⚠ **POST et non GET** : la route n'exporte que `POST` (`app/api/map/pois/route.ts:67`) ; ce tableau annoncait GET jusqu'au lot 4, T8 (2026-10-07). `bbox` optionnelle (Tache 4, `[west,south,east,north]`) : envoyee par la carte uniquement quand un filtre carte est actif (`lib/carte/bbox-requete.ts`) — absente, comportement inchange (scope/regions/depts/ville seuls decident) |
-| `/api/map/categories` | GET | Categories POI VISIBLES de l'appelant (`getCategoriesVisibles`) ; route publique : sans session, le socle seul. Super_admin compris : celles de son espace actif (`vueEspace`, 2026-10-12), plus « tout » |
+| `/api/map/categories` | GET | Categories POI VISIBLES de l'appelant (`getCategoriesVisibles`) ; route publique : sans session, le socle seul. Super_admin compris : celles de son espace actif (`vueEspace`, 2026-10-12), plus « tout ». Reponse `{ categories: { id, label, origine: 'commune' \| 'espace' }[] }` : « espace » si au moins un POI visible vient d'une source propre a l'espace (`getSourcesPropresEspace`), categorie mixte comprise |
 | `/api/map/ooh` | POST | Panneaux OOH. `bbox` optionnelle (Tache 4), meme regle que `/api/map/pois`. Lecture PAGINEE par `lireTout` (borne `PLAFOND_PANNEAUX` = 5 000, au-dela 500 en français plutot qu'un debut) : l'ancien `.limit(5000)` rendait 1 000 panneaux sur 1 434 actifs, plafond `db-max-rows` (corrige le 2026-10-10, mesure : 1 000 → 1 434) |
 | `/api/map/transport` | GET | Arrets de transport de la vue (`west/south/east/north`, `types`). UN appel a la RPC `lire_arrets_transport_bbox` (sql/241, `jsonb`, index GIST), borne VOULUE `BORNE_ARRETS` = 5 000 (285 015 arrets en France) : au-dela, les 5 000 premiers par `id` et **`tronque: true`** dans la reponse — lu par l'interface Angular depuis le 2026-10-12 (revue finale du lot 4, I-2b) : la legende de la carte dit « N arrêts affichés, liste tronquée — zoomez pour tout voir » sous le compte (`mentionArretsTronques`, `couches/transport.service.ts`) ; React ne l'affiche toujours pas (gel P5). L'ancien `.limit(5000)` rendait 1 000 arrets (plafond `db-max-rows` ; Marseille-Est : 1 000 → 1 626). ⚠ Une lecture PAGINEE a ete essayee puis retiree le meme jour : chaque page de 1 000 refaisait le parcours de l'index de categorie, ≈ 177 000 buffers sur la vue de Paris contre ≈ 6 800 pour la RPC |
 | `/api/map/poi-natures` | GET | Natures de POI. ⚠ Pour `risque_industriel`, les natures sont servies depuis le registre borne `icpe_rubrique_familles` et NON par un balayage des POI : le chemin generique pagine toutes les lignes de la categorie en tirant le jsonb entier, soit ~100 requetes et des centaines de Mo sur 99 152 sites — la famille de l'incident du 28/03 |

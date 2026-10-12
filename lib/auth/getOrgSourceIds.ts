@@ -78,3 +78,26 @@ export async function getOrgSourceIds(
   if (error) return [];
   return sources?.map((s: { id: string }) => s.id) ?? [];
 }
+
+/**
+ * Les sources PROPRES à l'espace actif : privées, possédées par lui ou
+ * partagées avec lui — jamais le socle. Sert à ranger un jeu dans « Données de
+ * l'espace » sur la carte (spec droits-sur-la-carte R6). Ce n'est PAS une
+ * règle d'autorisation : `getOrgSourceIds` le reste.
+ *
+ * Même garde SEC-002 que `getOrgSourceIds` : seul un UUID vérifié s'interpole
+ * dans `.or()`. Sans espace actif, ou sur une lecture en échec : `[]` — tout
+ * se range alors en « commune », ce qui ne découvre rien.
+ */
+export async function getSourcesPropresEspace(session: SessionOrg | null): Promise<string[]> {
+  const orgId = session?.orgId && UUID.test(session.orgId) ? session.orgId : null;
+  if (!orgId) return [];
+  const { data, error } = await createAdminClient()
+    .from('data_sources')
+    .select('id')
+    .eq('visibilite', 'privee')
+    .or(FILTRE_SOURCE_NON_SUPPRIMEE)
+    .or(`organization_id.eq.${orgId},shared_with.cs.{${orgId}}`);
+  if (error) return [];
+  return data?.map((s: { id: string }) => s.id) ?? [];
+}
