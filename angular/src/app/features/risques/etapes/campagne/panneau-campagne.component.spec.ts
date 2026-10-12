@@ -12,7 +12,8 @@ import { SimulationService } from '../../etat/simulation.service';
 import { ETAT_DEFAUT, type EtatRisque } from '../../logique/etat-url';
 import type { ReponseSimulation } from '../../logique/simulation/payload';
 import { reponseSimulation } from '../../testing/simulation.fixture';
-import { DEFAUTS, PanneauCampagneComponent } from './panneau-campagne.component';
+import { DEFAUTS } from '../../logique/panneau-campagne';
+import { PanneauCampagneComponent } from './panneau-campagne.component';
 
 class GraphiqueFactice implements GraphiqueMinimal {
   options: Record<string, unknown>[] = [];
