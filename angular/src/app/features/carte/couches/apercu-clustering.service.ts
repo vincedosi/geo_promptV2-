@@ -1,3 +1,7 @@
+/**
+ * La couche d'aperçu des POI que l'assistant de clustering va traiter (lot 4, T20) : son service, fourni par la
+ * page carte, et ses identifiants de source et de couche.
+ */
 import { DestroyRef, Injectable, effect, inject, signal, untracked } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
 import { type Subscription, timeout } from 'rxjs';

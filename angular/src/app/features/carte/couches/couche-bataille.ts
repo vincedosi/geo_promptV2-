@@ -1,3 +1,7 @@
+/**
+ * Rendu MapLibre PUR des batailles d'isochrones (lot 4, T17) : sources, couches, visibilité et popups, appelés par
+ * `BatailleService`. Séparé du service pour se tester sur une carte factice.
+ */
 import type maplibregl from 'maplibre-gl';
 import { elementTexte } from '../../../carte/contenu-popup';
 import { avantDe } from '../logique/ordre-couches';

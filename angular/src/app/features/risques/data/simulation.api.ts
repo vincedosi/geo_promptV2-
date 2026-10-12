@@ -1,3 +1,7 @@
+/**
+ * Service d'API de la simulation de l'étape ⑤ (lot 3, T17) : lire, simuler et recaler (flux NDJSON), purger,
+ * géométries de la carte de diffusion, export Excel.
+ */
 import { HttpParams, type HttpResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import type { Observable } from 'rxjs';

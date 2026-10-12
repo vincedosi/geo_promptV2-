@@ -1,3 +1,7 @@
+/**
+ * L'état de l'assistant de clustering en quatre étapes (lot 4, T20), partagé par ses étapes et oublié à sa
+ * fermeture.
+ */
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import type { Subscription } from 'rxjs';
 import { ClusteringApi } from '../../../../data/clustering.api';

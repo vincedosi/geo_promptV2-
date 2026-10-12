@@ -17,9 +17,9 @@ import type { MeteoParams, MeteoScale, MeteoZoneChunk } from '../logique/meteo/t
  * La route consomme le quota partagé `geo:rl:meteo-geo` (20 appels par minute et par utilisateur) : un appel n'est
  * lancé QUE par « Appliquer », jamais par un déplacement de la carte (React n'en fait pas non plus).
  *
- * ⚠ Plafond PostgREST, MESURÉ le 2026-10-10 : au palier `cp`, la réponse ne porte que 1 000 codes postaux sur 6 187 —
- * les centroïdes viennent de `get_zone_centroids` (RPC `RETURNS TABLE`), plafonnée à 1 000 lignes par `db-max-rows`,
- * sans erreur. Voir ARCHITECTURE.md (tableau des routes, `/api/meteo-geo`) ; le correctif est côté serveur.
+ * Les centroïdes viennent de `get_zone_centroids_jsonb` (sql/243, jumelle `jsonb` : plus de coupure PostgREST à
+ * 1 000 lignes), bornée par la route à 10 000 zones : au-delà elle échoue en le disant (500, message français) ; sans
+ * aucun code postal dans la zone, elle rend une ligne `{status:'error'}`, que l'écran affiche. Rien à compenser ici.
  *
  * Les polygones des zones (`/api/meteo-geo/zones`) ne sont PAS lus ici : `CiviqueApi.zones` (T10) les sert déjà, et
  * `ContoursZonesService` les met en cache pour l'écran — une seule lecture par échelle, partagée avec la santé

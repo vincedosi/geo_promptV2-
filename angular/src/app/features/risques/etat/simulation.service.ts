@@ -1,3 +1,7 @@
+/**
+ * L'état de l'étape ⑤ Campagne (lot 3, T17) : la simulation lue, la période choisie et les gestes qui écrivent
+ * (simuler, recaler, purger), partagés par le panneau, le bandeau, la carte et le tableau.
+ */
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   DestroyRef, Injectable, type Signal, type WritableSignal, computed, effect, inject, signal, untracked,

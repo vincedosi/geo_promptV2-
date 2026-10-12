@@ -1,3 +1,7 @@
+/**
+ * Service d'API des indicateurs civiques et de santé environnementale (pollen, ATMO) de la carte principale
+ * (lot 4, T10), et les formes de ce que rendent leurs routes.
+ */
 import { Injectable } from '@angular/core';
 import type { Observable } from 'rxjs';
 import { HttpBaseService } from '../../../core/http/http-base.service';
@@ -110,9 +114,9 @@ export interface LigneIngestion {
  *   0,6 Mo, 34 ms.
  * - Santé au code postal : `bbox` SEULEMENT si un filtre est actif (`bboxPourRequete`), comme React.
  * - Santé au département : flux NDJSON (`lignesNdjson`) — la progression avance ligne à ligne.
- * - Aucune de ces routes n'est une requête de TABLE plafonnée à 1 000 lignes par `db-max-rows` côté carte : les deux
- *   GeoJSON sont des RPC `jsonb` ; la lecture CP (`pollen_map_daily`, requête de table `.limit(10 000)`) rendrait au plus
- *   1 000 lignes, mais n'en porte que 100 par jour en base locale (mesuré le 2026-10-10) — voir le rapport T10.
+ * - Aucune de ces lectures n'est coupée par le plafond PostgREST de 1 000 lignes (`db-max-rows`) : les deux GeoJSON
+ *   sont des RPC `jsonb`, et la lecture CP passe depuis sql/244 par `lire_sante_cp_jsonb` (un appel, borne écrite côté
+ *   route) — elle était auparavant une requête de table, qui aurait été coupée à 1 000.
  *
  * Fourni par la ROUTE (`FOURNISSEURS_DISTANTS`), comme tout service d'API (garde `modele-aida.test.ts`).
  */

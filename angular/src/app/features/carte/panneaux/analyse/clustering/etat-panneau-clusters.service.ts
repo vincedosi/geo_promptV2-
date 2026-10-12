@@ -1,3 +1,7 @@
+/**
+ * L'état du panneau de résultats du clustering (lot 4, T19) : onglet, comparaison, historique, durées, filtre —
+ * partagé par le panneau et ses sous-composants.
+ */
 import { DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import type { Subscription } from 'rxjs';
 import { messageErreurApi } from '../../../../../core/http/erreurs';

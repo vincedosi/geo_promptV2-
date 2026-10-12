@@ -1,3 +1,7 @@
+/**
+ * La couche du flux routier (TMJA) de la carte principale (lot 4, T9) : état, lecture sur la carte visible,
+ * pose, filtre « Masquer le trafic faible » et peinture par paliers.
+ */
 import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
 import { CarteApi } from '../data/carte.api';

@@ -1,3 +1,8 @@
+/**
+ * Le tracé libre d'une zone sur la carte (lot 4, T16), écrit à la main sur MapLibre, sans terra-draw (arbitrage
+ * B8 : aucune nouvelle dépendance). Branche les événements de la carte et peint le tracé ; les gestes sont dans
+ * `logique/zones/dessin.ts`.
+ */
 import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
 import { CouleursService } from '../../../core/theme/couleurs.service';

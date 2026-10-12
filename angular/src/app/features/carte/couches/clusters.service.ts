@@ -1,3 +1,7 @@
+/**
+ * La couche des clusters POI × Filosofi de la carte principale (lot 4, T19) : état, lecture des modèles et des
+ * résultats, pose et visibilité. Fournie par la page : fermer le panneau Analyse laisse les clusters affichés.
+ */
 import { DOCUMENT, DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
 import type { Subscription } from 'rxjs';

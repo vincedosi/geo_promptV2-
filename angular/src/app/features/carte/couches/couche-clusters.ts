@@ -1,3 +1,6 @@
+/**
+ * Rendu MapLibre PUR des clusters (lot 4, T19) : source, couche, peinture et popup, appelés par `ClustersService`.
+ */
 import type maplibregl from 'maplibre-gl';
 import { elementTexte } from '../../../carte/contenu-popup';
 import { avantDe } from '../logique/ordre-couches';

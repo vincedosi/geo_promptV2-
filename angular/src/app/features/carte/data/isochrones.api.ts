@@ -1,3 +1,6 @@
+/**
+ * Service d'API des batailles d'isochrones (lot 4, T17) et les types de leurs flux NDJSON.
+ */
 import { Injectable } from '@angular/core';
 import { map, type Observable } from 'rxjs';
 import { HttpBaseService } from '../../../core/http/http-base.service';

@@ -1,3 +1,7 @@
+/**
+ * Le choix du mode de plan d'un jeu de zones à l'étape ④ (lot 3) : comment le jeu se traduit en plan de codes
+ * postaux, avec ce que chaque mode engage.
+ */
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { MODES_PLAN } from '../../logique/jeu';
 
