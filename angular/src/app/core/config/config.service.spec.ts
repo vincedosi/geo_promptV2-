@@ -41,6 +41,17 @@ describe('ConfigService', () => {
     expect(service.valeur.googleMapsKey).toBe('cle-g');
   });
 
+  it('urlApplicationReact est FACULTATIVE : absente, le champ n’existe pas ; présente, il est repris', async () => {
+    let promesse = service.charger();
+    http.expectOne(URL_CONFIG).flush({ supabaseUrl: 'u', supabaseAnonKey: 'k', apiBaseUrl: '' });
+    await promesse;
+    expect('urlApplicationReact' in service.valeur).toBe(false);
+    promesse = service.charger();
+    http.expectOne(URL_CONFIG).flush({ supabaseUrl: 'u', supabaseAnonKey: 'k', apiBaseUrl: '', urlApplicationReact: 'http://localhost:3000' });
+    await promesse;
+    expect(service.valeur.urlApplicationReact).toBe('http://localhost:3000');
+  });
+
   it('nomme la commande à lancer quand le fichier est absent', async () => {
     const promesse = service.charger();
     http.expectOne(URL_CONFIG).flush('', { status: 404, statusText: 'Not Found' });

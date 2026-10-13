@@ -47,5 +47,9 @@ const config = {
 const cleGoogle = vars.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   || (existsSync(sourceSecours) ? lire(sourceSecours).NEXT_PUBLIC_GOOGLE_MAPS_API_KEY : '');
 if (cleGoogle) config.googleMapsKey = cleGoogle;
+// Origine de l'application React, facultative (parcours de la carte, étapes ⑤-⑦) : la même variable que Next.
+const urlReact = vars.NEXT_PUBLIC_APP_URL
+  || (existsSync(sourceSecours) ? lire(sourceSecours).NEXT_PUBLIC_APP_URL : '');
+if (urlReact) config.urlApplicationReact = urlReact.replace(/\/+$/, '');
 writeFileSync(cible, JSON.stringify(config, null, 2) + '\n');
 console.log('✓ public/config.local.json écrit');
