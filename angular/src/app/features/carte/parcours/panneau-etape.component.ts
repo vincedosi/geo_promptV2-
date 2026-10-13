@@ -1,14 +1,17 @@
 import { ChangeDetectionStrategy, Component, computed, input, model, signal } from '@angular/core';
 import { IconeComponent } from '../../../ui/icone/icone.component';
 import { CONSIGNE_ETAPE, type EtapeCarte, LARGEUR_PANNEAU_ETAPE, LIBELLE_ETAPE_CARTE, rangEtapeCarte } from '../logique/parcours';
+import { ECART_TIROIR } from '../outils/boite-outils.component';
 
 /** La marge de la carte flottante au conteneur carte, en haut, à gauche et en bas (l'ancien panneau du rail). */
 export const MARGE_PANNEAU_ETAPE = 12;
+/** La place du badge de zoom, qui suit le bord droit du panneau (`z5  20km` : 68 px, plus son écart de 10). */
+const PLACE_BADGE_ZOOM = 80;
 /**
  * Ce que le panneau laisse libre à sa droite, EN PLUS de `reserveDroite` (l'écart de la boîte à outils) : la colonne
- * d'outils (48 px, l'`ECART_TIROIR` de `boite-outils.component.ts`) et 80 px pour le badge de zoom qui le suit.
+ * d'outils (`ECART_TIROIR` de `boite-outils.component.ts`, 48 px) et la place du badge de zoom — 128 px.
  */
-export const JOUR_DROIT_PANNEAU = 128;
+export const JOUR_DROIT_PANNEAU = ECART_TIROIR + PLACE_BADGE_ZOOM;
 
 /**
  * Le panneau de l'étape courante (spec § 3) : une carte FLOTTANTE au-dessus de la carte, posée dans le conteneur carte
@@ -69,7 +72,14 @@ export class PanneauEtapeComponent {
 
   protected readonly bornes = LARGEUR_PANNEAU_ETAPE;
   readonly largeur = signal<number>(LARGEUR_PANNEAU_ETAPE.defaut);
+  /** La largeur au dernier RELÂCHER de la poignée : la marge de la carte ne suit pas chaque pixel du glissement. */
+  private readonly largeurPosee = signal<number>(LARGEUR_PANNEAU_ETAPE.defaut);
   protected readonly cache = computed(() => this.masque() || this.replie());
+  /**
+   * Ce que le panneau ouvert couvre au bord gauche de la carte, en px (marge + largeur posée) ; 0 caché. La page le passe
+   * à MapLibre en `padding.left` (`couches/marge-carte.ts`) : centrage et recadrages se font dans la partie visible.
+   */
+  readonly decalageCarte = computed(() => this.cache() ? 0 : MARGE_PANNEAU_ETAPE + this.largeurPosee());
   /** Le bord droit libre le plus lointain du panneau : tout le conteneur, moins la réserve droite et le jour. */
   private readonly bordMax = computed(() => `100% - ${this.reserveDroite() + JOUR_DROIT_PANNEAU + MARGE_PANNEAU_ETAPE}px`);
   protected readonly largeurMax = computed(() => `calc(${this.bordMax()} - ${MARGE_PANNEAU_ETAPE}px)`);
@@ -78,10 +88,16 @@ export class PanneauEtapeComponent {
   protected readonly titre = computed(() => `Étape ${rangEtapeCarte(this.etape())} — ${LIBELLE_ETAPE_CARTE[this.etape()]}`);
   protected readonly consigne = computed(() => CONSIGNE_ETAPE[this.etape()]);
 
-  /** Capture du pointeur sur la POIGNÉE elle-même, jamais `window` (celui du shell) — recopie de `RisquePage.saisirPoignee`. */
+  /**
+   * Capture du pointeur sur la POIGNÉE elle-même, jamais `window` (celui du shell) — recopie de `RisquePage.saisirPoignee`.
+   * La largeur est ramenée à la largeur RENDUE (bornée par `max-width`) à la saisie et au relâcher : sans quoi elle
+   * dépassait ce qui s'affiche — `aria-valuenow` mentait, et revenir en arrière ne faisait rien tant qu'on n'était pas
+   * repassé sous la borne (relecture T4b, m1).
+   */
   protected saisirPoignee(ev: PointerEvent): void {
     const poignee = ev.currentTarget as HTMLElement;
     poignee.setPointerCapture?.(ev.pointerId);
+    this.ramenerALaLargeurRendue(poignee);
     const depart = ev.clientX;
     const initiale = this.largeur();
     const deplacer = (e: PointerEvent) => {
@@ -91,9 +107,17 @@ export class PanneauEtapeComponent {
       poignee.removeEventListener('pointermove', deplacer);
       poignee.removeEventListener('pointerup', relacher);
       poignee.removeEventListener('pointercancel', relacher);
+      this.ramenerALaLargeurRendue(poignee);
+      this.largeurPosee.set(this.largeur());
     };
     poignee.addEventListener('pointermove', deplacer);
     poignee.addEventListener('pointerup', relacher);
     poignee.addEventListener('pointercancel', relacher);
+  }
+
+  /** La poignée est l'enfant de l'`aside` ; une largeur rendue nulle (pas de mise en page, jsdom) ne change rien. */
+  private ramenerALaLargeurRendue(poignee: HTMLElement): void {
+    const rendue = Math.round(poignee.parentElement?.getBoundingClientRect().width ?? 0);
+    if (rendue > 0 && rendue < this.largeur()) this.largeur.set(Math.max(this.bornes.min, rendue));
   }
 }

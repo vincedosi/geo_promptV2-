@@ -127,4 +127,55 @@ describe('PanneauEtapeComponent', () => {
     expect(aside().style.maxWidth).toBe('calc(100% - 772px)');
     expect(panneau.emprise()).toBe('min(492px, 100% - 760px)');
   });
+
+  it('round 1 (I-1) : decalageCarte = 12 + largeur POSÉE — inchangé pendant le glissement, posé au relâcher ; 0 caché', async () => {
+    const { fixture, el, hote, panneau } = await monter();
+    expect(panneau.decalageCarte()).toBe(492);
+    const poignee = el.querySelector<HTMLElement>('[role="separator"]')!;
+    poignee.setPointerCapture = vi.fn();
+    poignee.dispatchEvent(pointeur('pointerdown', 500));
+    poignee.dispatchEvent(pointeur('pointermove', 650));
+    await fixture.whenStable();
+    expect(panneau.largeur()).toBe(630);
+    expect(panneau.decalageCarte()).toBe(492);
+    poignee.dispatchEvent(pointeur('pointerup', 650));
+    await fixture.whenStable();
+    expect(panneau.decalageCarte()).toBe(642);
+    hote.replie.set(true);
+    await fixture.whenStable();
+    expect(panneau.decalageCarte()).toBe(0);
+    hote.replie.set(false);
+    hote.masque.set(true);
+    await fixture.whenStable();
+    expect(panneau.decalageCarte()).toBe(0);
+  });
+
+  it('round 1 (m1) : bornée par max-width, la largeur est ramenée à la largeur RENDUE à la saisie et au relâcher — plus de zone morte', async () => {
+    const { fixture, el, panneau, aside } = await monter();
+    const poignee = el.querySelector<HTMLElement>('[role="separator"]')!;
+    poignee.setPointerCapture = vi.fn();
+    // Élargie à 900, mais la place libre n'en laisse que 668 (le plan média s'est ouvert) : le rendu est de 668.
+    poignee.dispatchEvent(pointeur('pointerdown', 500));
+    poignee.dispatchEvent(pointeur('pointermove', 1000));
+    await fixture.whenStable();
+    expect(panneau.largeur()).toBe(900);
+    aside().getBoundingClientRect = () => ({ width: 668 }) as DOMRect;
+    poignee.dispatchEvent(pointeur('pointerup', 1000));
+    await fixture.whenStable();
+    expect(panneau.largeur()).toBe(668);
+    expect(poignee.getAttribute('aria-valuenow')).toBe('668');
+    expect(panneau.decalageCarte()).toBe(680);
+    // Revenir en arrière agit dès le premier pixel.
+    poignee.dispatchEvent(pointeur('pointerdown', 500));
+    poignee.dispatchEvent(pointeur('pointermove', 480));
+    await fixture.whenStable();
+    expect(panneau.largeur()).toBe(648);
+    poignee.dispatchEvent(pointeur('pointerup', 480));
+    // Une largeur rendue sous le minimum (fenêtre étroite) ne descend pas sous 320.
+    aside().getBoundingClientRect = () => ({ width: 200 }) as DOMRect;
+    poignee.dispatchEvent(pointeur('pointerdown', 500));
+    poignee.dispatchEvent(pointeur('pointerup', 500));
+    await fixture.whenStable();
+    expect(panneau.largeur()).toBe(320);
+  });
 });

@@ -1,6 +1,6 @@
 import {
   ChangeDetectionStrategy, Component, DOCUMENT, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, output, signal,
-  untracked,
+  untracked, viewChild,
 } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import type maplibregl from 'maplibre-gl';
@@ -65,6 +65,7 @@ import { BoiteOutilsComponent, ecartOutils } from './outils/boite-outils.compone
 import { OutilsCarteService } from './outils/outils-carte.service';
 import { EtapeBientotComponent } from './parcours/etape-bientot.component';
 import { PanneauEtapeComponent } from './parcours/panneau-etape.component';
+import { suivreMargeCarte } from './couches/marge-carte';
 
 /** Centre et zoom d'ouverture de React (`useMapInit.ts:131-132`). */
 const CENTRE_INITIAL: [number, number] = [2.3, 46.6];
@@ -178,6 +179,7 @@ export class CartePage {
 
   /** « Carte seule » : local, jamais dans l'URL (comme le risque). */
   protected readonly panneauReplie = signal(false);
+  private readonly panneauEtape = viewChild(PanneauEtapeComponent);
   /** Les panneaux montés, dans l'ordre du parcours. */
   protected readonly etapesMontees = computed(() => ETAPES_CARTE.filter((e) => this.parcours.visitees().has(e)));
   /**
@@ -237,6 +239,7 @@ export class CartePage {
     // Les zones custom (T14-T15) : instanciées dès l'ouverture, comme avant la tâche 3 des droits sur la carte, qui a retiré
     // le seul appel direct de la page (`effacer()` au changement d'espace).
     inject(ZonesCustomService);
+    suivreMargeCarte(this.couches.carteCourante, () => this.panneauEtape()?.decalageCarte() ?? 0, this.decalageOutils); // I-1 de T4b
 
     // Le fond MAGELIAN : surcharges posées sur la carte prête, ré-appliquées à chaque bascule de thème
     // (`useMapInit.ts:217-221,1091-1102`). `carteCourante` est publiée au `load` : le style

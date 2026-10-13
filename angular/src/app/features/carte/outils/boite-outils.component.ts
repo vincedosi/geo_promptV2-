@@ -28,8 +28,11 @@ export const OUTILS: readonly EntreeOutil[] = [
   { id: 'reglages', libelle: 'Réglages', icone: 'reglages' },
 ];
 
-/** Écart du tiroir à la colonne : colonne de 41 px (bouton 32 + marge 2 × 4 + bord 2 × 0,5), puis 7 px de jour. */
-const ECART_TIROIR = 48;
+/**
+ * Écart du tiroir à la colonne : colonne de 41 px (bouton 32 + marge 2 × 4 + bord 2 × 0,5), puis 7 px de jour. Exporté :
+ * le panneau d'étape s'en sert pour laisser la colonne libre (`JOUR_DROIT_PANNEAU`).
+ */
+export const ECART_TIROIR = 48;
 /** La marge gardée à gauche de la colonne et de ses annonces, dans le conteneur carte. */
 const JOUR_GAUCHE = 10;
 

@@ -257,9 +257,10 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     // Une carte posée DANS le conteneur carte, hors du flux : elle ne lui prend aucune largeur.
     expect(zone.contains(aside(hote))).toBe(true);
     expect(aside(hote).classList).toContain('absolute');
-    // Le conteneur carte est seul dans sa rangée : aucun frère dans le flux ne lui dispute la largeur.
-    expect([...zone.parentElement!.children].filter((c) => c !== zone && c.tagName !== 'MG-BARRE-PARCOURS'
-      && !c.hasAttribute('data-module-risque') && c.tagName !== 'MG-DIALOGUE-METEO')).toEqual([]);
+    // Le conteneur carte est un enfant direct de l'hôte, qui est une COLONNE : ses frères (barre, module risque, dialogue)
+    // s'empilent au-dessus, en dessous ou par-dessus — aucun ne lui dispute la largeur, quels qu'ils soient (relecture m4).
+    expect(zone.parentElement).toBe(hote);
+    expect(hote.classList).toContain('flex-col');
     const gabarit = () => [zone.getAttribute('class'), zone.style.width, zone.style.flex, zone.style.marginLeft];
     const avant = gabarit();
     // Élargi à la poignée, puis replié, puis rouvert : le conteneur carte ne bouge pas.
@@ -308,6 +309,56 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     hote.querySelector<HTMLButtonElement>('mg-barre-parcours [data-immersif]')!.click();
     await stable();
     expect(emprise()).toBe('0px');
+  });
+
+  it('T4b round 1 (I-1) : la marge MapLibre suit le panneau — 492 ouvert, 0 replié ou immersif, au relâcher seulement, re-posée sur la carte recréée', async () => {
+    const { hote, cartes, stable } = await ouvrir();
+    cartes[0].emettre('load');
+    await stable();
+    const derniere = (i = 0) => cartes[i].marges.at(-1);
+    // Ouverture : 12 + 480 à gauche ; à droite, l'écart de la boîte à outils (10, rien d'ouvert au bord droit).
+    expect(derniere()).toEqual({ top: 0, bottom: 0, left: 492, right: 10 });
+    hote.querySelector<HTMLButtonElement>('mg-panneau-etape [data-replier]')!.click();
+    await stable();
+    expect(derniere()).toEqual({ top: 0, bottom: 0, left: 0, right: 10 });
+    hote.querySelector<HTMLButtonElement>('[data-afficher-panneau]')!.click();
+    await stable();
+    expect(derniere()).toEqual({ top: 0, bottom: 0, left: 492, right: 10 });
+
+    // Glisser la poignée : AUCUNE marge pendant le glissement, une seule au relâcher.
+    const poignee = hote.querySelector<HTMLElement>('mg-panneau-etape [role="separator"]')!;
+    poignee.setPointerCapture = vi.fn();
+    const pointeur = (type: string, x: number) => {
+      const e = new MouseEvent(type, { clientX: x, bubbles: true });
+      Object.defineProperty(e, 'pointerId', { value: 4 });
+      return e;
+    };
+    const avant = cartes[0].marges.length;
+    poignee.dispatchEvent(pointeur('pointerdown', 500));
+    for (const x of [550, 600, 650, 700]) {
+      poignee.dispatchEvent(pointeur('pointermove', x));
+      await stable();
+    }
+    expect(cartes[0].marges).toHaveLength(avant);
+    poignee.dispatchEvent(pointeur('pointerup', 700));
+    await stable();
+    expect(cartes[0].marges).toHaveLength(avant + 1);
+    expect(derniere()).toEqual({ top: 0, bottom: 0, left: 692, right: 10 });
+
+    hote.querySelector<HTMLButtonElement>('mg-barre-parcours [data-immersif]')!.click();
+    await stable();
+    expect(derniere()).toEqual({ top: 0, bottom: 0, left: 0, right: 10 });
+    frapper(hote, { key: 'Escape' });
+    await stable();
+    expect(derniere()).toEqual({ top: 0, bottom: 0, left: 692, right: 10 });
+
+    // Un autre fond RECRÉE la carte (B11) : la marge est re-posée sur la nouvelle instance, dès sa publication.
+    await choisirFondOutil(hote, stable, 'positron');
+    await stable();
+    cartes[1].emettre('load');
+    await stable();
+    expect(derniere(1)).toEqual({ top: 0, bottom: 0, left: 692, right: 10 });
+    localStorage.removeItem('genesis_map_style');
   });
 
   it('replier puis rouvrir le panneau garde les panneaux montés ; le focus revient à l’hôte et Alt+2 répond encore', async () => {
