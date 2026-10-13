@@ -1746,6 +1746,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `profiles` | Profils utilisateurs | role: super_admin/admin/client, organization_id |
 | `organizations` | Clients/organisations | name, slug |
 | `organization_members` | Liaison N:N users/orgs | user_id, organization_id, role |
+| `espace_jeux_recommandes` | **Sélection recommandée de jeux de la carte par espace** (étape ② : « Données communes » s'ouvre sur elle, le reste va dans « Autres données communes »). Une ligne = `(organization_id, cle_jeu)`, clé `famille:nom` (référentiel, ex. `iris:socio-demo`, ou `poi:<categorie>`), CHECK `^[a-z]+:[a-z0-9_-]{1,64}$`. ⚠ **Range, ne donne aucun droit** : les droits restent ceux de `data_sources` / `getOrgSourceIds`, et la recommandation ne précharge aucun calque. Écrite UNIQUEMENT par la RPC `remplacer_jeux_recommandes` (remplacement en une transaction) ; ≤ 200 lignes par espace, donc une lecture par espace est bornée sous le plafond PostgREST de 1 000 par construction. Lecture par la clé primaire (`organization_id` en tête). `ON DELETE CASCADE` depuis `organizations` | sql/251 (2026-10-13). RLS activée sans politique, droits `service_role` seuls |
 
 ### Campagnes DSP
 | Table | Description | Notes |
@@ -2004,6 +2005,7 @@ l'enveloppe `{ error, nb_polygones: 0, category }`. `maxDuration` 60 s (lycees :
 ### Admin & Monitoring
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
+| `remplacer_jeux_recommandes` | Remplace la sélection recommandée d'un espace (`espace_jeux_recommandes`) en UNE transaction : `(p_organization_id uuid, p_cles text[])` → `RETURNS jsonb` `{ cles: [...] }`, triées et dédoublonnées ; liste vide = tout effacer. Erreurs : `22023` au-delà de 200 clés, `23514` sur une clé mal formée (la liste précédente reste intacte). Range, ne donne aucun droit. `SECURITY INVOKER`, `service_role` seul. Un DELETE puis un INSERT côté route doublerait ou viderait sur une erreur à moitié — d'où la RPC | aucun appelant à ce jour (route d'admin à venir, chantier « carte en parcours ») (sql/251, 2026-10-13) |
 | `get_table_sizes` | Taille tables (monitoring) | `api/admin/health/` |
 | `qualite_colonnes_iris` | Remplissage de CHAQUE colonne numerique d'`iris` en UN SEUL balayage (~220 Mo, 1,4 s). Se distingue de `get_iris_fill_status`, qui fait un COUNT par colonne (~40 balayages, ~8,8 Go) et confond une colonne vide avec une colonne pleine de zeros | `api/admin/qualite-donnees/` (sql/149) |
 | `qualite_indicateurs` | Quels indicateurs ACTIFS du registre pointent vers une colonne vide, partielle ou absente. La verification la plus rentable du lot : elle aurait attrape `part_couples_enfants` (0 renseigne sur 49 448 IRIS, actif donc propose a l'utilisateur) avant qu'un score ne soit calcule dessus | `api/admin/qualite-donnees/` (sql/149) |

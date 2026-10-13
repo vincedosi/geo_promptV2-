@@ -119,6 +119,7 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `dsp_campaigns` | migrations/20260408 | Campagnes DSP (Adform, DV360…) |
 | `dsp_campaign_data` | migrations/20260408 | Lignes d'impressions DSP (~280k/campagne), CASCADE |
 | `postal_code_commune` | migrations/20260408 | Référentiel La Poste (~35k), peuplé via geo.api.gouv.fr |
+| `espace_jeux_recommandes` | 251 | Sélection recommandée de jeux de la carte par espace (range, ne donne aucun droit ; ≤ 200 par espace) |
 
 ## Fonctions RPC actives (état final)
 
@@ -136,6 +137,7 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `notify_pgrst_reload()` | 005_upsert | Reload cache PostgREST |
 | `match_campaign_postal_to_iris()` | migrations/20260408 | Matching DSP postal → commune → IRIS |
 | `get_dsp_campaign_stats()` | migrations/20260408 | Stats agrégées par campagne (COUNT FILTER) |
+| `remplacer_jeux_recommandes()` | 251 | Remplace la sélection recommandée d'un espace en une transaction (jsonb `{cles}`, ≤ 200) |
 
 ---
 

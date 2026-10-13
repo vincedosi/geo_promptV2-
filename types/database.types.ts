@@ -3120,6 +3120,32 @@ export type Database = {
           },
         ]
       }
+      espace_jeux_recommandes: {
+        Row: {
+          cle_jeu: string
+          cree_le: string
+          organization_id: string
+        }
+        Insert: {
+          cle_jeu: string
+          cree_le?: string
+          organization_id: string
+        }
+        Update: {
+          cle_jeu?: string
+          cree_le?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "espace_jeux_recommandes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       etalon_alignement: {
         Row: {
           calcule_le: string
@@ -7579,6 +7605,10 @@ export type Database = {
       releve_empreinte_carreaux: { Args: never; Returns: Json }
       remplacer_espaces_utilisateur: {
         Args: { p_actif: string; p_espaces: string[]; p_user: string }
+        Returns: Json
+      }
+      remplacer_jeux_recommandes: {
+        Args: { p_cles: string[]; p_organization_id: string }
         Returns: Json
       }
       remplir_code_postal_carreau: { Args: { p_lot?: number }; Returns: Json }
