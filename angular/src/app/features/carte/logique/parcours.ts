@@ -34,9 +34,6 @@ export const CONSIGNE_ETAPE: Readonly<Record<EtapeCarte, string>> = {
   live: 'Le suivi de la campagne en vol arrive dans le parcours. En attendant, il se consulte dans l’application actuelle.',
 };
 
-/** Étapes dont le contenu n'est pas encore porté (lots 3, 6, 7 de la spec). */
-export const ETAPES_BIENTOT: ReadonlySet<EtapeCarte> = new Set<EtapeCarte>(['plan', 'activation', 'live']);
-
 /** L'onglet de l'overlay campagne React qui porte aujourd'hui l'étape (`components/magelian/deep-link.ts`, `TABS`). */
 const ONGLET_REACT: Partial<Record<EtapeCarte, 'strategie' | 'activation' | 'suivi'>> = {
   plan: 'strategie', activation: 'activation', live: 'suivi',

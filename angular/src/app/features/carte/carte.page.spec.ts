@@ -35,7 +35,7 @@ import { EtatCarteService } from './etat/etat-carte.service';
 import { MeteoService } from './couches/meteo.service';
 import { PileEchapService } from './etat/pile-echap.service';
 import { PanneauFiltreComponent } from './panneaux/filtre/panneau-filtre.component';
-import { ETAPES_CARTE, LIBELLE_ETAPE_CARTE } from './logique/parcours';
+import { CONSIGNE_ETAPE, ETAPES_CARTE, LIBELLE_ETAPE_CARTE } from './logique/parcours';
 
 @Component({ selector: 'mg-vide', template: '' })
 class Vide {}
@@ -290,6 +290,30 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     frapper(hote, altChiffre('3'));
     await stable();
     expect(panneauCourant(hote)).toBe('analyse');
+  });
+
+  it('un ?etape= écrit de l’extérieur pendant que le focus est HORS de la page (shell AIDA) ne vole pas le focus', async () => {
+    const { hote, stable } = await ouvrir();
+    const dehors = document.createElement('button');
+    document.body.appendChild(dehors);
+    dehors.focus();
+    expect(document.activeElement).toBe(dehors);
+    await routeur().navigateByUrl('/carte?etape=analyse');
+    await stable();
+    expect(panneauCourant(hote)).toBe('analyse');
+    expect(document.activeElement).toBe(dehors);
+    dehors.remove();
+  });
+
+  it('⑤ ⑥ ⑦ : la consigne de l’étape n’est dite qu’UNE fois (en-tête du panneau d’étape)', async () => {
+    const { hote, stable } = await ouvrir();
+    const occurrences = (texte: string) => hote.textContent!.split(texte).length - 1;
+    for (const [n, e] of [['5', 'plan'], ['6', 'activation'], ['7', 'live']] as const) {
+      frapper(hote, altChiffre(n));
+      await stable();
+      expect(occurrences(CONSIGNE_ETAPE[e]), e).toBe(1);
+      expect(hote.querySelector('mg-panneau-etape [data-consigne]')!.textContent!.trim()).toBe(CONSIGNE_ETAPE[e]);
+    }
   });
 
   it("Échap dans un menu ouvert du badge de session ferme le MENU seulement : la pile de la carte n'est pas appelée", async () => {

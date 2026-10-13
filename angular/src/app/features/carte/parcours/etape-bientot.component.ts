@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { ConfigService } from '../../../core/config/config.service';
-import { CONSIGNE_ETAPE, type EtapeCarte, lienApplicationReact } from '../logique/parcours';
+import { type EtapeCarte, lienApplicationReact } from '../logique/parcours';
 
 /**
- * Le panneau d'une étape pas encore portée (⑤ Plan, ⑥ Activation, ⑦ Live — spec § 12, lot 1) : ce qu'elle fera, et un
- * lien vers l'écran React qui le fait aujourd'hui (`/map?tab=…`, nouvel onglet). Sans origine React connue — hôte AIDA,
+ * Le panneau d'une étape pas encore portée (⑤ Plan, ⑥ Activation, ⑦ Live — spec § 12, lot 1) : un lien vers l'écran
+ * React qui le fait aujourd'hui. Ce qu'elle fera (sa consigne) est dit UNE fois, par l'en-tête du panneau d'étape
+ * (`mg-panneau-etape`) — le répéter ici l'affichait deux fois (relecture T4). (`/map?tab=…`, nouvel onglet). Sans origine React connue — hôte AIDA,
  * configuration pas encore lue — aucun lien : on n'invente pas une adresse.
  */
 @Component({
@@ -13,7 +14,6 @@ import { CONSIGNE_ETAPE, type EtapeCarte, lienApplicationReact } from '../logiqu
   host: { class: 'flex flex-col gap-3 px-5 py-4' },
   template: `
     <div [attr.data-etape-bientot]="etape()" class="flex flex-col gap-3">
-      <p class="m-0 text-[13px] leading-[1.5] text-secondary">{{ consigne() }}</p>
       @if (lien(); as href) {
         <a [href]="href" target="_blank" rel="noopener noreferrer"
            class="self-start rounded-[6px] border-fin border-teal px-4 py-2 text-[12px] font-medium text-teal no-underline transition-colors duration-150 ease-[var(--ease-hover)] hover:bg-teal-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--brand-teal-50)]">
@@ -28,7 +28,6 @@ import { CONSIGNE_ETAPE, type EtapeCarte, lienApplicationReact } from '../logiqu
 export class EtapeBientotComponent {
   readonly etape = input.required<EtapeCarte>();
   private readonly config = inject(ConfigService);
-  protected readonly consigne = computed(() => CONSIGNE_ETAPE[this.etape()]);
   protected readonly lien = computed(() => lienApplicationReact(this.origine(), this.etape()));
 
   /** `valeur` lève tant que la configuration n'est pas chargée : pas d'origine, pas de lien. */

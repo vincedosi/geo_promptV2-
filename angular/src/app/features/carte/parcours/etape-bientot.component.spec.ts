@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { ConfigService } from '../../../core/config/config.service';
+import { CONSIGNE_ETAPE } from '../logique/parcours';
 import { EtapeBientotComponent } from './etape-bientot.component';
 
 function rendre(etape: string, valeur: unknown) {
@@ -11,9 +12,10 @@ function rendre(etape: string, valeur: unknown) {
 }
 
 describe('EtapeBientotComponent', () => {
-  it('⑤ avec une origine React : la consigne et un lien vers l’onglet Stratégie, nouvel onglet', () => {
+  it('⑤ avec une origine React : un lien vers l’onglet Stratégie, nouvel onglet — et PAS la consigne (dite par l’en-tête du panneau d’étape)', () => {
     const el = rendre('plan', { urlApplicationReact: 'http://localhost:3000' });
     expect(el.querySelector('[data-etape-bientot="plan"]')).not.toBeNull();
+    expect(el.textContent).not.toContain(CONSIGNE_ETAPE.plan);
     const a = el.querySelector('a') as HTMLAnchorElement;
     expect(a.getAttribute('href')).toBe('http://localhost:3000/map?tab=strategie');
     expect(a.target).toBe('_blank');
@@ -26,6 +28,7 @@ describe('EtapeBientotComponent', () => {
     const el = rendre('activation', {});
     expect(el.querySelector('a')).toBeNull();
     expect(el.textContent).toContain('Bientôt dans le parcours.');
+    expect(el.textContent).not.toContain(CONSIGNE_ETAPE.activation);
   });
   it('configuration pas encore chargée : aucun lien, aucune exception', () => {
     expect(rendre('plan', new Error('pas chargée')).querySelector('a')).toBeNull();

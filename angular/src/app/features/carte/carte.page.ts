@@ -1,5 +1,6 @@
 import {
   ChangeDetectionStrategy, Component, DOCUMENT, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, output, signal,
+  untracked,
 } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import type maplibregl from 'maplibre-gl';
@@ -251,12 +252,18 @@ export class CartePage {
 
     // Le focus sur l'hôte à l'ouverture (sans lui, aucun raccourci ne l'atteint avant le premier clic), puis après
     // chaque geste qui CACHE ce qui le portait : l'étape quittée devient inerte, le panneau replié et la barre de
-    // l'immersif disparaissent — le bouton cliqué, ou le champ du panneau quitté, ne peut plus le garder.
+    // l'immersif disparaissent — le bouton cliqué, ou le champ du panneau quitté, ne peut plus le garder. Seulement si
+    // le focus était DANS la page au moment du geste (relevé avant le rendu) : un `?etape=` écrit de l'extérieur
+    // pendant que le focus est dans le shell AIDA ne le lui vole pas (relecture T4, m3).
+    let ouverture = true;
     effect(() => {
       this.parcours.etape();
       this.panneauReplie();
       this.etat.immersif();
-      afterNextRender(() => this.rendreFocus(), { injector: this.injecteur });
+      const actif = untracked(() => this.elementActif());
+      const dansLaPage = ouverture || (!!actif && this.hote.nativeElement.contains(actif));
+      ouverture = false;
+      if (dansLaPage) afterNextRender(() => this.rendreFocus(), { injector: this.injecteur });
     });
   }
 
