@@ -26,8 +26,8 @@ export const OUTILS: readonly EntreeOutil[] = [
 
 /** Écart du tiroir à la colonne : colonne de 41 px (bouton 32 + marge 2 × 4 + bord 2 × 0,5), puis 7 px de jour. */
 const ECART_TIROIR = 48;
-/** Largeur du tiroir (`w-[320px]` du gabarit). */
-const LARGEUR_TIROIR = 320;
+/** La marge gardée à gauche de la colonne et de ses annonces, dans le conteneur carte. */
+const JOUR_GAUCHE = 10;
 
 /**
  * Les panneaux ancrés au bord DROIT du conteneur carte que la boîte à outils ne doit pas recouvrir (ruling AT-3), avec
@@ -47,11 +47,12 @@ export function ecartOutils(ouverts: Readonly<Record<keyof typeof LARGEURS_BORD_
 }
 
 /**
- * L'écart des annonces au bord droit (ruling AT-3) : à GAUCHE de la colonne, et du tiroir quand il est ouvert — jamais
- * par-dessus un outil. En haut à droite, elles recouvraient la boîte à outils pendant leurs 4 s.
+ * La place laissée, dans le conteneur carte, à ce qui s'aligne à `droite` px de son bord droit : tout le conteneur moins
+ * cet écart et 10 px de jour à gauche. Bornés ainsi, le tiroir et les annonces projetées sous la colonne (280 à 380 px)
+ * rétrécissent au lieu de sortir du conteneur, qui les couperait (relecture T5, I-1).
  */
-export function droiteAnnonces(droite: number, tiroirOuvert: boolean): number {
-  return droite + ECART_TIROIR + (tiroirOuvert ? LARGEUR_TIROIR + 8 : 0);
+export function largeurMaxADroite(droite: number): string {
+  return `calc(100% - ${droite + JOUR_GAUCHE}px)`;
 }
 
 /**
@@ -59,6 +60,10 @@ export function droiteAnnonces(droite: number, tiroirOuvert: boolean): number {
  * tiroir à sa gauche. Tout est `absolute` dans le conteneur carte (jamais `fixed`, racine d'ombre) ; `droite` écarte la
  * colonne des panneaux ouverts au bord droit (`ecartOutils`). Échap ferme le tiroir (pile, `OutilsCarteService`). En
  * mode immersif, la colonne porte aussi le bouton qui en sort.
+ *
+ * Les annonces de la page sont PROJETÉES sous la colonne (`<ng-content />`, ruling AT-3 « below it ») : même bord
+ * droit, dans le flux de la colonne — elles descendent avec elle, quel que soit le nombre d'outils —, au-dessus du
+ * tiroir (`z-[46]`), et bornées à gauche : la colonne est large de `largeurMaxADroite(droite)`.
  *
  * Le contenu d'un outil est monté à sa PREMIÈRE ouverture, puis GARDÉ (ruling AT-6, patron A1 des panneaux d'étape) :
  * le tiroir fermé est invisible et inerte, l'outil quitté masqué et inerte — jamais `@if` sur l'outil courant. Une
@@ -70,26 +75,30 @@ export function droiteAnnonces(droite: number, tiroirOuvert: boolean): number {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'contents' },
   template: `
-    <div role="toolbar" aria-label="Boîte à outils" aria-orientation="vertical" data-boite-outils
-         class="absolute top-[10px] z-[45] flex flex-col gap-1 rounded-[8px] border-fin border-subtle bg-card-overlay p-1"
-         [style.right.px]="droite()">
-      @for (o of liste; track o.id) {
-        @if (o.separeAvant) { <div aria-hidden="true" class="mx-1 my-0.5 h-[0.5px] bg-subtle"></div> }
-        <button type="button" [attr.data-outil]="o.id" [attr.title]="o.libelle" [attr.aria-label]="o.libelle"
-                [attr.aria-pressed]="o.id === 'legende' ? outils.legendeVisible() : outils.outil() === o.id"
-                (click)="cliquer(o.id)"
-                class="grid size-8 cursor-pointer place-items-center rounded-[6px] border-0 bg-transparent text-secondary hover:bg-[var(--overlay)] hover:text-primary aria-pressed:bg-teal-10 aria-pressed:text-teal">
-          <mg-icone [nom]="o.icone" [taille]="16" [trait]="1.5" />
-        </button>
-      }
-      @if (immersif()) {
-        <div aria-hidden="true" class="mx-1 my-0.5 h-[0.5px] bg-subtle"></div>
-        <button type="button" data-quitter-immersif (click)="quitterImmersif.emit()" aria-label="Quitter le mode immersif"
-                title="Afficher la barre et le panneau (Échap)"
-                class="grid size-8 cursor-pointer place-items-center rounded-[6px] border-0 bg-transparent text-secondary hover:bg-[var(--overlay)] hover:text-primary">
-          <mg-icone nom="agrandir" [taille]="16" [trait]="1.5" />
-        </button>
-      }
+    <div data-colonne-outils class="pointer-events-none absolute top-[10px] z-[46] flex flex-col items-end gap-2"
+         [style.right.px]="droite()" [style.width]="largeurColonne()">
+      <div role="toolbar" aria-label="Boîte à outils" aria-orientation="vertical" data-boite-outils
+           class="pointer-events-auto flex flex-col gap-1 rounded-[8px] border-fin border-subtle bg-card-overlay p-1">
+        @for (o of liste; track o.id) {
+          @if (o.separeAvant) { <div aria-hidden="true" class="mx-1 my-0.5 h-[0.5px] bg-subtle"></div> }
+          <button type="button" [attr.data-outil]="o.id" [attr.title]="o.libelle" [attr.aria-label]="o.libelle"
+                  [attr.aria-pressed]="o.id === 'legende' ? outils.legendeVisible() : outils.outil() === o.id"
+                  (click)="cliquer(o.id)"
+                  class="grid size-8 cursor-pointer place-items-center rounded-[6px] border-0 bg-transparent text-secondary hover:bg-[var(--overlay)] hover:text-primary aria-pressed:bg-teal-10 aria-pressed:text-teal">
+            <mg-icone [nom]="o.icone" [taille]="16" [trait]="1.5" />
+          </button>
+        }
+        @if (immersif()) {
+          <div aria-hidden="true" class="mx-1 my-0.5 h-[0.5px] bg-subtle"></div>
+          <button type="button" data-quitter-immersif (click)="quitterImmersif.emit()" aria-label="Quitter le mode immersif"
+                  title="Afficher la barre et le panneau (Échap)"
+                  class="grid size-8 cursor-pointer place-items-center rounded-[6px] border-0 bg-transparent text-secondary hover:bg-[var(--overlay)] hover:text-primary">
+            <mg-icone nom="agrandir" [taille]="16" [trait]="1.5" />
+          </button>
+        }
+      </div>
+      <!-- Les annonces de la page, sous la colonne (ruling AT-3). -->
+      <ng-content />
     </div>
 
     @if (montes().length > 0) {
@@ -142,7 +151,14 @@ export class BoiteOutilsComponent {
    * Le tiroir ne déborde jamais à gauche du conteneur carte (qui coupe ce qui dépasse) : plan média ouvert sur un écran de
    * 1 440 px, il ne reste que 960 px de carte, et 668 + 320 n'y tiennent pas — le tiroir rétrécit, 10 px de jour gardés.
    */
-  protected readonly largeurMaxTiroir = computed(() => `calc(100% - ${this.droite() + ECART_TIROIR + 10}px)`);
+  protected readonly largeurMaxTiroir = computed(() => largeurMaxADroite(this.droite() + ECART_TIROIR));
+  /**
+   * La colonne occupe TOUTE la place à gauche de son bord droit (transparente aux clics, `pointer-events-none` ; seuls la
+   * barre et les annonces les prennent) : une largeur DÉFINIE, contre laquelle le `min(280px, 100%)` des annonces se
+   * résout. Bornée par un simple `max-width`, la colonne prenait la largeur de son contenu, et une annonce courte
+   * tombait sous ses 280 px.
+   */
+  protected readonly largeurColonne = computed(() => largeurMaxADroite(this.droite()));
   /** Le titre du tiroir ouvert ; tiroir fermé, aucun (il est invisible et inerte). */
   protected readonly titre = computed(() => OUTILS.find((x) => x.id === this.outils.outil())?.libelle ?? null);
 

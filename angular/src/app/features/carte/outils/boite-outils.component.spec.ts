@@ -4,14 +4,16 @@ import { provideRouter } from '@angular/router';
 import { ThemeService } from '../../../core/theme/theme.service';
 import { PileEchapService } from '../etat/pile-echap.service';
 import type { EtapeCarte } from '../logique/parcours';
-import { BoiteOutilsComponent, droiteAnnonces, ecartOutils } from './boite-outils.component';
+import { BoiteOutilsComponent, ecartOutils, largeurMaxADroite } from './boite-outils.component';
 import { OutilsCarteService } from './outils-carte.service';
 
 @Component({
   imports: [BoiteOutilsComponent],
   providers: [OutilsCarteService, PileEchapService],
   template: `<mg-boite-outils [droite]="droite()" [fond]="fond()" [etape]="etape()" [immersif]="immersif()"
-                              (choisirFond)="fonds.push($event)" (quitterImmersif)="quitter = quitter + 1" />`,
+                              (choisirFond)="fonds.push($event)" (quitterImmersif)="quitter = quitter + 1">
+               <p data-annonce-projetee>annonce</p>
+             </mg-boite-outils>`,
 })
 class Hote {
   readonly droite = signal(10);
@@ -124,12 +126,12 @@ describe('BoiteOutilsComponent — la boîte à outils de la carte (spec § 6)',
     expect(fixture.componentInstance.quitter).toBe(1);
   });
 
-  it('droite = 620 (plan média ouvert) : la barre à 620 px du bord, le tiroir à 668 px', async () => {
+  it('droite = 620 (plan média ouvert) : la colonne à 620 px du bord, le tiroir à 668 px', async () => {
     const { fixture, el, tiroir, cliquer } = await monter();
     fixture.componentInstance.droite.set(620);
     await fixture.whenStable();
     await cliquer('fond');
-    expect(el.querySelector<HTMLElement>('[role="toolbar"]')!.style.right).toBe('620px');
+    expect(el.querySelector<HTMLElement>('[data-colonne-outils]')!.style.right).toBe('620px');
     expect(tiroir()!.style.right).toBe('668px');
     // Plan média ouvert sur un écran étroit : le tiroir rétrécit plutôt que d'être coupé à gauche du conteneur carte.
     expect(tiroir()!.style.maxWidth).toBe('calc(100% - 678px)');
@@ -146,9 +148,60 @@ describe('BoiteOutilsComponent — la boîte à outils de la carte (spec § 6)',
     expect(ecartOutils({ ...rien, detailIris: true, streetView: true })).toBe(440);
   });
 
-  it('droiteAnnonces : les annonces passent à gauche de la barre, et du tiroir quand il est ouvert (ruling AT-3)', () => {
-    expect(droiteAnnonces(10, false)).toBe(58);
-    expect(droiteAnnonces(10, true)).toBe(386);
-    expect(droiteAnnonces(620, false)).toBe(668);
+  it('les annonces projetées sont SOUS la colonne, sur son bord droit (ruling AT-3), et le tiroir n’y change rien', async () => {
+    const { el, cliquer } = await monter();
+    const colonne = el.querySelector<HTMLElement>('[data-colonne-outils]')!;
+    const enfants = [...colonne.children];
+    // Dans le flux de la colonne, après la barre : elles descendent avec elle, quel que soit le nombre d'outils.
+    expect(enfants.indexOf(colonne.querySelector('[role="toolbar"]')!)).toBe(0);
+    expect(enfants.indexOf(colonne.querySelector('[data-annonce-projetee]')!)).toBe(1);
+    expect(colonne.classList).toContain('items-end');
+    const avant = [colonne.style.right, colonne.style.width];
+    await cliquer('fond');
+    expect([colonne.style.right, colonne.style.width]).toEqual(avant);
+    // Au-dessus du tiroir, qu'elles peuvent chevaucher pendant leurs 4 s.
+    expect(colonne.classList).toContain('z-[46]');
+    expect(el.querySelector('[data-tiroir-outil]')!.classList).toContain('z-[45]');
+  });
+
+  /**
+   * La position des annonces, CALCULÉE depuis les styles réellement posés, pour les conteneurs carte du poste (fenêtre de
+   * 1 440 px moins l'étape : 480 par défaut, 900 au plus, 0 repliée ; et une fenêtre de 1 024 px) et chaque panneau du
+   * bord droit : le bord droit des annonces est à `right` du conteneur, leur largeur va de min(280, place) à
+   * min(380, place), place = largeur de la colonne. Elles doivent tenir ENTIÈREMENT dans le conteneur (relecture T5,
+   * I-1 : à 996 px du bord, elles sortaient d'un conteneur de 955 px).
+   */
+  it('relecture I-1 : les annonces restent entièrement dans le conteneur carte, tiroir ouvert ou fermé, avec chaque panneau du bord droit', async () => {
+    const { fixture, el, cliquer } = await monter();
+    const colonne = el.querySelector<HTMLElement>('[data-colonne-outils]')!;
+    /** `calc(100% - Npx)` résolu pour un conteneur de `w` px. */
+    const resoudre = (calc: string, w: number) => w - Number(/^calc\(100% - (\d+(?:\.\d+)?)px\)$/.exec(calc)![1]);
+    const rien = { planMedia: false, detailIris: false, streetView: false };
+    const etats = [rien, { ...rien, planMedia: true }, { ...rien, detailIris: true }, { ...rien, streetView: true },
+      { planMedia: true, detailIris: true, streetView: true }];
+    const conteneurs = [1440 - 480, 1440 - 900, 1440, 1024 - 480, 1024 - 900];
+    let cas = 0;
+    for (const tiroirOuvert of [false, true]) {
+      if (tiroirOuvert) await cliquer('aide');
+      for (const etat of etats) {
+        fixture.componentInstance.droite.set(ecartOutils(etat));
+        await fixture.whenStable();
+        const droite = parseFloat(colonne.style.right);
+        for (const w of conteneurs) {
+          if (droite + 41 > w) continue; // la colonne elle-même ne tient pas : conteneur hors d'usage, pas un cas d'annonce
+          const place = resoudre(colonne.style.width, w);
+          const largeurMax = Math.min(380, place);
+          const bordDroit = w - droite;
+          const bordGauche = bordDroit - largeurMax;
+          expect(bordDroit, `w=${w} ${JSON.stringify(etat)}`).toBeLessThanOrEqual(w);
+          expect(bordGauche, `w=${w} ${JSON.stringify(etat)}`).toBeGreaterThanOrEqual(0);
+          expect(largeurMax).toBeGreaterThan(0);
+          cas++;
+        }
+      }
+    }
+    expect(cas).toBeGreaterThan(30);
+    // Le cas de la relecture : 1 440 px, plan média et tiroir ouverts — 325 px de place, bord gauche à 10 px.
+    expect(resoudre(largeurMaxADroite(620), 955)).toBe(325);
   });
 });

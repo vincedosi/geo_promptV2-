@@ -63,10 +63,11 @@
     }
     <!-- La boîte à outils (spec § 6, T5) : fond, légende, aide, réglages — et, en immersif, la sortie à la souris (Échap
          aussi). Écartée des panneaux ouverts au bord droit (ruling AT-3) ; hors du `@for` du fond, elle survit à la
-         recréation de la carte. Les annonces passent à sa gauche. -->
+         recréation de la carte. Les annonces y sont projetées, SOUS la colonne. -->
     <mg-boite-outils [droite]="decalageOutils()" [fond]="fond()" [etape]="parcours.etape()" [immersif]="etat.immersif()"
-                     (choisirFond)="choisirFond($event)" (quitterImmersif)="basculerImmersif()" />
-    <mg-annonce [style.right.px]="droiteAnnonces()" />
+                     (choisirFond)="choisirFond($event)" (quitterImmersif)="basculerImmersif()">
+      <mg-annonce />
+    </mg-boite-outils>
   </div>
 </div>
 

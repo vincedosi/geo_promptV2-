@@ -61,7 +61,7 @@ import { BatailleV2Service } from './etat/bataille-v2.service';
 import { ContexteBatailleService } from './etat/contexte-bataille.service';
 import { PlanMediaComponent } from './panneaux/zones/plan-media.component';
 import { BarreParcoursComponent } from './parcours/barre-parcours.component';
-import { BoiteOutilsComponent, droiteAnnonces, ecartOutils } from './outils/boite-outils.component';
+import { BoiteOutilsComponent, ecartOutils } from './outils/boite-outils.component';
 import { OutilsCarteService } from './outils/outils-carte.service';
 import { EtapeBientotComponent } from './parcours/etape-bientot.component';
 import { PanneauEtapeComponent } from './parcours/panneau-etape.component';
@@ -166,11 +166,10 @@ export class CartePage {
   protected readonly planMedia = inject(PlanMediaService);
   /** La boîte à outils (T5) : l'outil ouvert, la légende affichée. */
   protected readonly outils = inject(OutilsCarteService);
-  /** Écartée du plan média, du détail IRIS et du tiroir Street View ouverts (ruling AT-3) ; les annonces à sa gauche. */
+  /** Écartée du plan média, du détail IRIS et du tiroir Street View ouverts (ruling AT-3) ; les annonces sous elle. */
   protected readonly decalageOutils = computed(() => ecartOutils({
     planMedia: this.planMedia.visible(), detailIris: this.iris.codeSelectionne() !== null, streetView: this.pois.panneauSelectionne() !== null,
   }));
-  protected readonly droiteAnnonces = computed(() => droiteAnnonces(this.decalageOutils(), this.outils.outil() !== null));
   /** « Plan média (n) » : des zones affichées, panneau fermé (`page.tsx:1222`). */
   protected readonly zonesPlanFerme = computed(() => {
     const n = this.planMedia.zones().length;

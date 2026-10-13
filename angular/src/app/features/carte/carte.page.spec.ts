@@ -532,7 +532,7 @@ describe('CartePage — la boîte à outils : fond, légende, aide, réglages (T
     expect(hote.querySelector('mg-legende-carte')).not.toBeNull();
   });
 
-  it('Réglages : Apparence et Back office, « Accès » mène à admin/acces (accès rétabli depuis la carte)', async () => {
+  it('Réglages : Apparence et Back office ; « Accès » est un lien RELATIF à la route carte (le préfixe du shell n’est pas éprouvé ici)', async () => {
     const { hote, stable } = await ouvrir();
     outil(hote, 'reglages').click();
     await stable();
@@ -556,14 +556,17 @@ describe('CartePage — la boîte à outils : fond, légende, aide, réglages (T
     expect(panneauCourant(hote)).toBe('donnees');
   });
 
-  it('ruling AT-3 : le détail IRIS ouvert écarte la boîte à outils (340 px) ; les annonces passent à sa gauche', async () => {
+  it('ruling AT-3 : le détail IRIS ouvert écarte la boîte à outils (340 px) ; les annonces sont SOUS elle, et y restent tiroir ouvert', async () => {
     const detail = vi.fn(() => of({ code_iris: '751010201', nom_iris: 'Saint-Germain', code_commune: null, code_dept: null, is_true_iris: true }));
     TestBed.overrideProvider(IrisApi, { useValue: { urlTuiles: () => '', bornes: () => of({}), detail } });
     const { hote, cartes, stable } = await ouvrir();
-    const barre = () => hote.querySelector<HTMLElement>('mg-boite-outils [role="toolbar"]')!;
-    const annonces = () => hote.querySelector<HTMLElement>('mg-annonce')!;
+    const barre = () => hote.querySelector<HTMLElement>('mg-boite-outils [data-colonne-outils]')!;
+    // Les annonces de la page sont projetées dans la colonne, après la barre d'outils (relecture T5, I-1).
+    const annonces = hote.querySelector<HTMLElement>('[data-zone-carte] mg-boite-outils [data-colonne-outils] > mg-annonce')!;
+    expect(annonces).not.toBeNull();
+    expect(annonces.previousElementSibling!.getAttribute('role')).toBe('toolbar');
     expect(barre().style.right).toBe('10px');
-    expect(annonces().style.right).toBe('58px');
+    expect(barre().style.width).toBe('calc(100% - 20px)');
     cartes[0].emettre('load');
     await stable();
     cartes[0].emettreSurCouche('click', 'iris-fill', { features: [{ properties: { code_iris: '751010201' } }] });
@@ -573,7 +576,9 @@ describe('CartePage — la boîte à outils : fond, légende, aide, réglages (T
     outil(hote, 'fond').click();
     await stable();
     expect(tiroir(hote)!.style.right).toBe('388px');
-    expect(annonces().style.right).toBe('716px');
+    expect(barre().style.right).toBe('340px');
+    expect(barre().style.width).toBe('calc(100% - 350px)');
+    expect(hote.querySelector('mg-annonce')).toBe(annonces);
   });
 });
 
