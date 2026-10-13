@@ -43,7 +43,7 @@ describe('PanneauEtapeComponent', () => {
     hote.etape.set('zones');
     await fixture.whenStable();
     expect(aside()).toBe(avant);
-    expect(avant.getAttribute('aria-label')).toBe('Étape 4 — Zones');
+    expect(avant.getAttribute('aria-label')).toBe('Étape 3 — Zones');
     expect(el.querySelector('[data-consigne]')!.textContent!.trim()).toBe(CONSIGNE_ETAPE.zones);
   });
 

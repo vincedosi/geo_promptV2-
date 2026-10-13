@@ -31,7 +31,7 @@ async function monter() {
   return { fixture, el: fixture.nativeElement as HTMLElement, outils: TestBed.inject(OutilsCarteService) };
 }
 
-describe('PanneauZonesComponent — ④ garde « Créer une zone » ; « Mes zones » est dans la boîte à outils (2026-10-13)', () => {
+describe('PanneauZonesComponent — ③ garde « Créer une zone » ; « Mes zones » est dans la boîte à outils (2026-10-13)', () => {
   it('ni jeux de zones ni « Mes zones » dans le panneau : « Créer une zone », puis le renvoi vers l’outil', async () => {
     const { el } = await monter();
     expect(el.querySelector('mg-jeux-de-zones')).toBeNull();

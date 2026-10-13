@@ -9,10 +9,11 @@ const ETAPES: EtapeAffichee[] = [
 
 let monte: HTMLElement | null = null;
 
-async function rendre(courante: string) {
+async function rendre(courante: string, compact?: boolean) {
   const f = TestBed.createComponent(FilEtapesComponent);
   f.componentRef.setInput('etapes', ETAPES);
   f.componentRef.setInput('courante', courante);
+  if (compact !== undefined) f.componentRef.setInput('compact', compact);
   const choix: string[] = [];
   f.componentInstance.choisir.subscribe((c) => choix.push(c));
   await f.whenStable();
@@ -38,6 +39,26 @@ describe('FilEtapesComponent', () => {
     expect(boutons[0].textContent).toContain('(renseignée)');
     expect(boutons[1].textContent).not.toContain('(renseignée)');
     expect(boutons[2].textContent).not.toContain('(renseignée)');
+  });
+
+  it('par défaut (module risque, catalogue) : rien ne change — ni nowrap, ni libellé masquable, ni infobulle', async () => {
+    const { el } = await rendre('b');
+    const boutons = [...el.querySelectorAll('button')];
+    expect(boutons.every((b) => !b.classList.contains('whitespace-nowrap') && b.classList.contains('px-2.5'))).toBe(true);
+    expect(boutons.every((b) => !b.hasAttribute('title'))).toBe(true);
+    expect(el.querySelector('[data-libelle-etape]')!.className).toBe('');
+  });
+
+  it('compact (barre du parcours de la carte, 8 étapes) : une ligne par étape ; les libellés des étapes NON courantes se replient en numéro quand la barre est étroite, lus quand même et en infobulle', async () => {
+    const { el } = await rendre('b', true);
+    const boutons = [...el.querySelectorAll('button')];
+    expect(boutons.every((b) => b.classList.contains('whitespace-nowrap') && b.classList.contains('shrink-0') && b.classList.contains('px-1.5'))).toBe(true);
+    const libelles = [...el.querySelectorAll('[data-libelle-etape]')];
+    // Requête de CONTENEUR (`@container` posé par la barre) : la largeur de la barre décide, pas celle de la fenêtre.
+    expect(libelles.map((l) => l.classList.contains('@max-[640px]:sr-only'))).toEqual([true, false, true]);
+    // Le texte reste dans le bouton (lecteur d'écran, tests) ; l'infobulle le redit à la souris.
+    expect(boutons.map((b) => b.textContent!.replace(/\s+/g, ' ').trim())).toEqual(['1 Premier (renseignée)', '2 Deuxième', '3 Troisième']);
+    expect(boutons.map((b) => b.getAttribute('title'))).toEqual(['Premier', null, 'Troisième']);
   });
 
   it('chaque étape reste cliquable, dans les deux sens', async () => {

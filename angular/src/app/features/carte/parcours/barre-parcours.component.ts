@@ -31,8 +31,8 @@ const BOUTON_NEUTRE = 'flex shrink-0 cursor-pointer items-center gap-1.5 rounded
   template: `
     <mg-logo [hauteur]="18" class="block shrink-0" />
     <mg-fil-ariane class="shrink-0" [segments]="segments()" [precision]="precision()" (remonter)="remonter.emit($event)" />
-    <div class="min-w-0 flex-1 overflow-x-auto">
-      <mg-fil-etapes [etapes]="etapes()" [courante]="courante()" (choisir)="choisir.emit($event)" />
+    <div class="@container min-w-0 flex-1 overflow-x-auto">
+      <mg-fil-etapes [compact]="true" [etapes]="etapes()" [courante]="courante()" (choisir)="choisir.emit($event)" />
     </div>
     @if (zoneScript(); as nom) {
       <button type="button" data-script-dv360 (click)="genererScript.emit()" [class]="boutonTeal"

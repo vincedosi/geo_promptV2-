@@ -9,7 +9,7 @@ import { CreerDessinComponent } from './creer-dessin.component';
 import { CreerRayonComponent } from './creer-rayon.component';
 
 /**
- * Le panneau de l'étape ④ Zones — `app/map/_components/panneaux/PanneauZones.tsx` (lot 4, T14-T16) : « Ce que je
+ * Le panneau de l'étape ③ Zones — `app/map/_components/panneaux/PanneauZones.tsx` (lot 4, T14-T16) : « Ce que je
  * fabrique ». Créer une zone, puis le renvoi vers l'outil Mes zones (2026-10-13) :
  *
  *   - « Créer une zone » (T16) : la capture des couches actives (`mg-capture`, badge = nombre de couches

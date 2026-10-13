@@ -8,13 +8,13 @@ describe('AideComponent — l’aide de l’étape et les raccourcis du parcours
     expect(formaterRaccourci('ctrl+k')).toBe('Ctrl + K');
   });
 
-  it('l’aide suit l’étape : « 4. Zones » et sa consigne ; puis 8 raccourcis, ①…⑦ et Échap, dérivés du parcours', async () => {
+  it('l’aide suit l’étape : « 3. Zones » et sa consigne ; puis 9 raccourcis, ①…⑧ et Échap, dérivés du parcours', async () => {
     const fixture = TestBed.createComponent(AideComponent);
     fixture.componentRef.setInput('etape', 'zones');
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
     const aide = el.querySelector('[data-aide-etape]')!;
-    expect(aide.querySelector('h4')!.textContent!.replace(/\s+/g, ' ').trim()).toBe('4. Zones');
+    expect(aide.querySelector('h4')!.textContent!.replace(/\s+/g, ' ').trim()).toBe('3. Zones');
     expect(aide.textContent).toContain(CONSIGNE_ETAPE.zones);
     const lignes = [...el.querySelectorAll('[data-raccourci]')].map((l) => {
       const [nom, touches] = l.querySelectorAll(':scope > span');
@@ -23,11 +23,12 @@ describe('AideComponent — l’aide de l’étape et les raccourcis du parcours
     expect(lignes).toEqual([
       ['1. Périmètre', 'Alt + 1'],
       ['2. Données', 'Alt + 2'],
-      ['3. Analyse', 'Alt + 3'],
-      ['4. Zones', 'Alt + 4'],
-      ['5. Plan', 'Alt + 5'],
-      ['6. Activation', 'Alt + 6'],
-      ['7. Live', 'Alt + 7'],
+      ['3. Zones', 'Alt + 3'],
+      ['4. Analyse', 'Alt + 4'],
+      ['5. Jeu de zones', 'Alt + 5'],
+      ['6. Plan', 'Alt + 6'],
+      ['7. Activation', 'Alt + 7'],
+      ['8. Live', 'Alt + 8'],
       ['Fermer le tiroir, quitter le mode immersif', 'Échap'],
     ]);
     fixture.componentRef.setInput('etape', 'perimetre');

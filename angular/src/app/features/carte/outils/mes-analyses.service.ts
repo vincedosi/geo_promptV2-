@@ -25,7 +25,7 @@ export interface EtatLigne {
  * ── REJOUER ──────────────────────────────────────────────────────────────
  * `POST /api/analyses/[id]/rejouer` n'écrit rien : il rend les paramètres. Pour un score, ils repartent tels quels vers
  * `POST /api/analyses/score` (la LISTE de CP enregistrée, `enregistrer: false`), la carte peint le résultat, et l'étape
- * ③ Analyse s'ouvre (ruling AT-7) — à la réussite seulement : un échec reste dit sur la ligne, l'étape ne bouge pas.
+ * ④ Analyse s'ouvre (ruling AT-7) — à la réussite seulement : un échec reste dit sur la ligne, l'étape ne bouge pas.
  *
  * ── SUPPRIMER ÉCRIT ──────────────────────────────────────────────────────
  * Confirmation sur la ligne, puis `DELETE /api/analyses/[id]` ; la ligne quitte la liste à la réussite seulement —

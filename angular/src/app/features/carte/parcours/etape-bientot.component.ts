@@ -3,9 +3,10 @@ import { ConfigService } from '../../../core/config/config.service';
 import { type EtapeCarte, lienApplicationReact } from '../logique/parcours';
 
 /**
- * Le panneau d'une étape pas encore portée (⑤ Plan, ⑥ Activation, ⑦ Live — spec § 12, lot 1) : un lien vers l'écran
- * React qui le fait aujourd'hui (`/map?tab=…`, nouvel onglet). Sans origine React connue — hôte AIDA, configuration pas
- * encore lue — aucun lien : on n'invente pas une adresse. Ce que l'étape fera (sa consigne) est dit UNE fois, par
+ * Le panneau d'une étape pas encore portée (⑤ Jeu de zones, ⑥ Plan, ⑦ Activation, ⑧ Live — spec § 12 et § 15) : un lien
+ * vers l'écran React qui le fait aujourd'hui (`/map?tab=…`, nouvel onglet). Sans origine React connue — hôte AIDA,
+ * configuration pas encore lue — aucun lien : on n'invente pas une adresse. ⑤ n'a pas d'écran React équivalent (hors
+ * module risque) : jamais de lien, « Bientôt dans le parcours. » (`lienApplicationReact` rend `null`). Ce que l'étape fera (sa consigne) est dit UNE fois, par
  * l'en-tête du panneau d'étape (`mg-panneau-etape`) — le répéter ici l'affichait deux fois (relecture T4).
  */
 @Component({

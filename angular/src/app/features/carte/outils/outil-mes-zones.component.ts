@@ -6,7 +6,7 @@ import { OutilsCarteService } from './outils-carte.service';
 /**
  * Le tiroir « Mes zones » (spec § 6) : les jeux de zones, puis « Mes zones » (recherche, puces, opérations, affichage,
  * export, suppression) — sortis du panneau Zones, qui garde « Créer une zone ». Monté à la première ouverture du tiroir
- * puis gardé (ruling AT-6) : une opération en vol survit à un Échap, et la sélection aussi. Une zone créée à ④ relit la
+ * puis gardé (ruling AT-6) : une opération en vol survit à un Échap, et la sélection aussi. Une zone créée à ③ relit la
  * liste (`revisionZones`) sans recréer le composant. « Afficher » une zone ne change pas d'étape (ruling AT-7).
  */
 @Component({

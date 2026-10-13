@@ -61,7 +61,7 @@ describe('ParcoursService — l’étape dans l’URL', () => {
     expect(router.url).toBe('/carte');
     expect(vi.mocked(router.navigate)).toHaveBeenCalledTimes(1);
   });
-  it('?customZone=z sans etape : ④, etape=zones écrit, customZone gardé', async () => {
+  it('?customZone=z sans etape : ③, etape=zones écrit, customZone gardé', async () => {
     const { hote, router } = await ouvrir('/carte?customZone=z');
     expect(hote.parcours.etape()).toBe('zones');
     expect(router.url).toContain('customZone=z');

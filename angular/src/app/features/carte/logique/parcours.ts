@@ -1,6 +1,8 @@
 /**
- * Le parcours de la carte — ① Périmètre › ② Données › ③ Analyse › ④ Zones › ⑤ Plan › ⑥ Activation › ⑦ Live
- * (spec `docs/superpowers/specs/2026-10-13-carte-en-parcours-design.md`, V1-V2, § 5).
+ * Le parcours de la carte — ① Périmètre › ② Données › ③ Zones › ④ Analyse › ⑤ Jeu de zones › ⑥ Plan › ⑦ Activation ›
+ * ⑧ Live (spec `docs/superpowers/specs/2026-10-13-carte-en-parcours-design.md`, V1-V2, § 5 ; ordre du § 15).
+ * L'ordre est celui du module risque (Vincent, 13/10) : on définit des zones, on calcule SUR elles, puis on les convertit
+ * en codes postaux achetables — comme Rayon › Couverture › Zones. Il était ③ Analyse › ④ Zones jusqu'au 13/10.
  *
  * Logique PURE : le fil, l'URL, le clavier et l'aide lisent tous cette définition, jamais une copie.
  * Ce n'est pas un tunnel : rien ici ne vérifie qu'une étape est « validée » avant la suivante, et rien ne doit le faire.
@@ -10,8 +12,11 @@ import type { SegmentAriane } from '../../../ui/fil-ariane/fil-ariane.component'
 import type { FiltreActif } from './filtre';
 import { PARAM_ZONE_LIEN } from './zones/zone-du-lien';
 
-/** Les sept étapes, dans l'ordre. L'ordre EST la numérotation ; ce sont aussi les valeurs de `?etape=`. */
-export const ETAPES_CARTE = ['perimetre', 'donnees', 'analyse', 'zones', 'plan', 'activation', 'live'] as const;
+/**
+ * Les huit étapes, dans l'ordre. L'ordre EST la numérotation ; les IDENTIFIANTS sont les valeurs de `?etape=` — un ancien
+ * lien (`?etape=analyse`) reste valide quand l'ordre change, et il n'existe pas d'alias numérique.
+ */
+export const ETAPES_CARTE = ['perimetre', 'donnees', 'zones', 'analyse', 'jeu', 'plan', 'activation', 'live'] as const;
 export type EtapeCarte = (typeof ETAPES_CARTE)[number];
 
 export const ETAPE_PAR_DEFAUT: EtapeCarte = 'perimetre';
@@ -19,7 +24,7 @@ export const ETAPE_PAR_DEFAUT: EtapeCarte = 'perimetre';
 export const PARAM_ETAPE = 'etape';
 
 export const LIBELLE_ETAPE_CARTE: Readonly<Record<EtapeCarte, string>> = {
-  perimetre: 'Périmètre', donnees: 'Données', analyse: 'Analyse', zones: 'Zones',
+  perimetre: 'Périmètre', donnees: 'Données', zones: 'Zones', analyse: 'Analyse', jeu: 'Jeu de zones',
   plan: 'Plan', activation: 'Activation', live: 'Live',
 };
 
@@ -27,14 +32,19 @@ export const LIBELLE_ETAPE_CARTE: Readonly<Record<EtapeCarte, string>> = {
 export const CONSIGNE_ETAPE: Readonly<Record<EtapeCarte, string>> = {
   perimetre: 'Choisissez où regarder : région, département, ville, code postal ou zone enregistrée. Ce périmètre borne les calculs des étapes suivantes.',
   donnees: 'Allumez ce que vous voulez voir. Rien n’est chargé tant que vous ne l’allumez pas.',
-  analyse: 'Calculez : score, corrélation, isochrones, bataille, clustering. Chaque résultat s’affiche sur la carte.',
-  zones: 'Fabriquez une zone : capture de ce qui est affiché, codes postaux, rayon, dessin. Vos zones enregistrées sont dans la boîte à outils, « Mes zones ».',
+  // ③ dit ce que le panneau offre AUJOURD'HUI : rayons et isochrones comme types de zone arrivent aux lots 4-5.
+  zones: 'Définissez vos zones : codes postaux, rayon, dessin, ou capture de ce qui est affiché. Vos zones enregistrées sont dans la boîte à outils, « Mes zones ».',
+  analyse: 'Calculez sur ces zones : score, corrélation, isochrones, bataille, clustering. Chaque résultat s’affiche sur la carte.',
+  jeu: 'Convertissez vos zones en codes postaux achetables : seuil de couverture, CP retenus, taux d’utile, extraction. Cette étape arrive dans le parcours.',
   plan: 'Le plan de campagne arrive dans le parcours. En attendant, il se prépare dans l’application actuelle.',
   activation: 'L’activation plateforme par plateforme arrive dans le parcours. En attendant, elle se fait dans l’application actuelle.',
   live: 'Le suivi de la campagne en vol arrive dans le parcours. En attendant, il se consulte dans l’application actuelle.',
 };
 
-/** L'onglet de l'overlay campagne React qui porte aujourd'hui l'étape (`components/magelian/deep-link.ts`, `TABS`). */
+/**
+ * L'onglet de l'overlay campagne React qui porte aujourd'hui l'étape (`components/magelian/deep-link.ts`, `TABS`).
+ * ⑤ Jeu de zones n'y est pas : rien d'équivalent côté React hors du module risque — « bientôt », sans lien.
+ */
 const ONGLET_REACT: Partial<Record<EtapeCarte, 'strategie' | 'activation' | 'suivi'>> = {
   plan: 'strategie', activation: 'activation', live: 'suivi',
 };
@@ -52,7 +62,7 @@ export function lireEtape(brut: string | null | undefined): EtapeCarte | null {
 }
 
 /**
- * L'étape d'ouverture : `?etape=` s'il est lisible ; sinon ④ si l'URL porte une zone (`?customZone=`, le lien
+ * L'étape d'ouverture : `?etape=` s'il est lisible ; sinon ③ Zones si l'URL porte une zone (`?customZone=`, le lien
  * historique d'une zone enregistrée — sa redirection vers `jeu=` attend le lot 5) ; sinon ①.
  */
 export function etapeInitiale(params: { get(nom: string): string | null }): EtapeCarte {
@@ -67,7 +77,7 @@ export function ecrireEtape(e: EtapeCarte): string {
 type FrappeClavier = Pick<KeyboardEvent, 'key' | 'code' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey'>;
 
 /**
- * Alt+1…Alt+7 → ①…⑦. Alt SEUL (ni Ctrl, ni Méta, ni Maj). Le chiffre est lu sur la touche PHYSIQUE (`code` :
+ * Alt+1…Alt+8 → ①…⑧ (Alt+9 : rien). Alt SEUL (ni Ctrl, ni Méta, ni Maj). Le chiffre est lu sur la touche PHYSIQUE (`code` :
  * `Digit1`, `Numpad1`) puis, à défaut, sur `key` : en AZERTY, Alt+1 rend `key` = « & » — l'ancien raccourci du rail
  * (`entreeParRaccourci`, lu sur `key`) n'y marchait pas.
  */

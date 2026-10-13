@@ -60,7 +60,7 @@ interface OptionsOuverture {
   organisation?: string | null;
   /** `ReferentielApi.geo` (panneau ①). */
   referentiel?: () => unknown;
-  /** `JeuxZonesApi.lister` (panneau ④). */
+  /** `JeuxZonesApi.lister` (outil « Mes zones »). */
   jeux?: () => unknown;
   /** `CarteApi.categories` (catalogue des types de POI, ②). */
   categories?: () => unknown;
@@ -138,7 +138,7 @@ const etapeDuFil = (hote: HTMLElement) =>
   hote.querySelector('mg-barre-parcours mg-fil-etapes [aria-current="step"]')?.textContent?.replace(/\s+/g, ' ').trim() ?? null;
 const routeur = () => TestBed.inject(Router);
 /** Alt+n tel que l'envoie un clavier AZERTY : la touche physique dans `code`, le caractère dans `key`. */
-const AZERTY: Record<string, string> = { '1': '&', '2': 'é', '3': '"', '4': "'", '5': '(', '6': '-', '7': 'è' };
+const AZERTY: Record<string, string> = { '1': '&', '2': 'é', '3': '"', '4': "'", '5': '(', '6': '-', '7': 'è', '8': '_' };
 const altChiffre = (n: string): KeyboardEventInit => ({ key: AZERTY[n], code: `Digit${n}`, altKey: true });
 /** L'aside du panneau d'étape. */
 const aside = (hote: HTMLElement) => hote.querySelector<HTMLElement>('mg-panneau-etape aside')!;
@@ -152,9 +152,11 @@ const ZONE_DU_LIEN = {
 };
 
 describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, clavier', () => {
-  it("(f) la barre rend ① à ⑦ dans l'ordre, ① courante ; plus aucun rail, ni barre du haut, ni boutons flottants", async () => {
+  it("(f) la barre rend ① à ⑧ dans l'ordre du module risque, ① courante ; plus aucun rail, ni barre du haut, ni boutons flottants", async () => {
     const { hote } = await ouvrir();
     const boutons = [...hote.querySelectorAll('mg-barre-parcours mg-fil-etapes nav button')];
+    expect(boutons.map((b) => b.textContent!.replace(/\s+/g, ' ').trim()))
+      .toEqual(['1 Périmètre', '2 Données', '3 Zones', '4 Analyse', '5 Jeu de zones', '6 Plan', '7 Activation', '8 Live']);
     expect(boutons.map((b) => b.textContent!.replace(/\s+/g, ' ').trim()))
       .toEqual(ETAPES_CARTE.map((e, i) => `${i + 1} ${LIBELLE_ETAPE_CARTE[e]}`));
     expect(boutons[0].getAttribute('aria-current')).toBe('step');
@@ -189,11 +191,18 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     expect(routeur().url).toBe('/carte?etape=donnees');
   });
 
-  it('Alt+pavé numérique 4 passe aussi à ④', async () => {
+  it('Alt+pavé numérique 4 passe aussi à ④ Analyse ; Alt+pavé 8 à ⑧ Live ; Alt+9 ne fait rien', async () => {
     const { hote, stable } = await ouvrir();
     frapper(hote, { key: '4', code: 'Numpad4', altKey: true });
     await stable();
-    expect(panneauCourant(hote)).toBe('zones');
+    expect(panneauCourant(hote)).toBe('analyse');
+    frapper(hote, { key: '8', code: 'Numpad8', altKey: true });
+    await stable();
+    expect(panneauCourant(hote)).toBe('live');
+    const neuf = frapper(hote, { key: 'ç', code: 'Digit9', altKey: true });
+    await stable();
+    expect(neuf.defaultPrevented).toBe(false);
+    expect(panneauCourant(hote)).toBe('live');
   });
 
   it("(h) Alt+2 dont la cible composée est un <input> : l'étape reste ①", async () => {
@@ -218,29 +227,31 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     expect(hote.querySelector('mg-barre-parcours')).not.toBeNull();
   });
 
-  it('(j) Alt+5 ouvre ⑤ « bientôt » ; Alt+C et Ctrl+K ne changent pas l’étape et ne sont pas consommés', async () => {
+  it('(j) Alt+5 ouvre ⑤ Jeu de zones « bientôt » ; Alt+C et Ctrl+K ne changent pas l’étape et ne sont pas consommés', async () => {
     const { hote, stable } = await ouvrir();
     frapper(hote, altChiffre('5'));
     await stable();
-    expect(panneauCourant(hote)).toBe('plan');
-    expect(hote.querySelector('[data-panneau-etape="plan"] mg-etape-bientot [data-etape-bientot="plan"]')).not.toBeNull();
+    expect(panneauCourant(hote)).toBe('jeu');
+    expect(hote.querySelector('[data-panneau-etape="jeu"] mg-etape-bientot [data-etape-bientot="jeu"]')).not.toBeNull();
+    expect(aside(hote).getAttribute('aria-label')).toBe('Étape 5 — Jeu de zones');
+    expect(routeur().url).toBe('/carte?etape=jeu');
     const c = frapper(hote, { key: 'c', code: 'KeyC', altKey: true });
     const k = frapper(hote, { key: 'k', code: 'KeyK', ctrlKey: true });
     await stable();
     expect(c.defaultPrevented).toBe(false);
     expect(k.defaultPrevented).toBe(false);
-    expect(panneauCourant(hote)).toBe('plan');
+    expect(panneauCourant(hote)).toBe('jeu');
   });
 
-  it('cliquer ③ dans le fil la rend courante ; revenir à ① retrouve la MÊME instance du panneau Filtre', async () => {
+  it('cliquer ④ dans le fil la rend courante ; revenir à ① retrouve la MÊME instance du panneau Filtre', async () => {
     const { harness, hote, stable } = await ouvrir();
     const filtre = harness.fixture.debugElement.query(By.directive(PanneauFiltreComponent)).componentInstance;
     const bouton = (n: number) => hote.querySelectorAll<HTMLButtonElement>('mg-barre-parcours mg-fil-etapes nav button')[n];
-    bouton(2).click();
+    bouton(3).click();
     await stable();
     expect(panneauCourant(hote)).toBe('analyse');
     expect(hote.querySelector('[data-panneau-etape="analyse"] mg-panneau-analyse')).not.toBeNull();
-    expect(aside(hote).getAttribute('aria-label')).toBe('Étape 3 — Analyse');
+    expect(aside(hote).getAttribute('aria-label')).toBe('Étape 4 — Analyse');
     expect(routeur().url).toBe('/carte?etape=analyse');
     bouton(0).click();
     await stable();
@@ -251,7 +262,7 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
 
   it('un clic sur la carte ne replie ni ne change rien', async () => {
     const { hote, stable } = await ouvrir();
-    frapper(hote, altChiffre('3'));
+    frapper(hote, altChiffre('4'));
     await stable();
     hote.querySelector('mg-carte')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }));
     hote.querySelector('mg-carte')!.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
@@ -294,7 +305,7 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     await stable();
     expect(gabarit()).toEqual(avant);
     // Hauteur au contenu : l'étape courante seule dans le flux, l'étape quittée montée, `absolute` et invisible (A1).
-    frapper(hote, altChiffre('4'));
+    frapper(hote, altChiffre('3'));
     await stable();
     const etape = (e: string) => hote.querySelector<HTMLElement>(`[data-panneau-etape="${e}"]`)!.classList;
     expect(etape('zones').contains('absolute')).toBe(false);
@@ -373,7 +384,7 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
 
   it('replier puis rouvrir le panneau garde les panneaux montés ; le focus revient à l’hôte et Alt+2 répond encore', async () => {
     const { hote, stable } = await ouvrir();
-    frapper(hote, altChiffre('3'));
+    frapper(hote, altChiffre('4'));
     await stable();
     const analyse = hote.querySelector('mg-panneau-analyse');
     const replier = hote.querySelector<HTMLButtonElement>('mg-panneau-etape [data-replier]')!;
@@ -406,7 +417,7 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     await stable();
     expect(panneauCourant(hote)).toBe('donnees');
     expect(document.activeElement).toBe(hote);
-    frapper(hote, altChiffre('3'));
+    frapper(hote, altChiffre('4'));
     await stable();
     expect(panneauCourant(hote)).toBe('analyse');
   });
@@ -424,10 +435,10 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     dehors.remove();
   });
 
-  it('⑤ ⑥ ⑦ : la consigne de l’étape n’est dite qu’UNE fois (en-tête du panneau d’étape)', async () => {
+  it('⑤ ⑥ ⑦ ⑧ : la consigne de l’étape n’est dite qu’UNE fois (en-tête du panneau d’étape)', async () => {
     const { hote, stable } = await ouvrir();
     const occurrences = (texte: string) => hote.textContent!.split(texte).length - 1;
-    for (const [n, e] of [['5', 'plan'], ['6', 'activation'], ['7', 'live']] as const) {
+    for (const [n, e] of [['5', 'jeu'], ['6', 'plan'], ['7', 'activation'], ['8', 'live']] as const) {
       frapper(hote, altChiffre(n));
       await stable();
       expect(occurrences(CONSIGNE_ETAPE[e]), e).toBe(1);
@@ -518,7 +529,7 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     }
   });
 
-  it("une navigation de requête RÉUTILISE l'écran : ni page ni carte recréées ; ?etape=analyse passe à ③", async () => {
+  it("une navigation de requête RÉUTILISE l'écran : ni page ni carte recréées ; ?etape=analyse passe à ④", async () => {
     const { harness, hote, cartes, stable } = await ouvrir();
     await routeur().navigateByUrl('/carte?etape=analyse');
     await stable();
@@ -528,7 +539,7 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     expect(panneauCourant(hote)).toBe('analyse');
   });
 
-  it('?etape=zones à l’ouverture : ④ courante, et ① n’est pas monté (première visite seulement)', async () => {
+  it('?etape=zones à l’ouverture : ③ courante, et ① n’est pas monté (première visite seulement)', async () => {
     const { hote } = await ouvrir({ url: '/carte?etape=zones' });
     expect(panneauCourant(hote)).toBe('zones');
     expect(hote.querySelector('[data-panneau-etape="perimetre"]')).toBeNull();
@@ -543,7 +554,7 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     for (const n of ['2', '3', '4', '1']) {
       frapper(hote, altChiffre(n));
       await stable();
-      if (n === '4') {
+      if (n === '3') {
         // « Mes zones » et les jeux de zones vivent dans la boîte à outils depuis T6 : ils ne sont lus qu'à son ouverture.
         hote.querySelector<HTMLButtonElement>('mg-boite-outils [data-outil="zones"]')!.click();
         await stable();
@@ -637,16 +648,16 @@ describe('CartePage — la boîte à outils : fond, légende, aide, réglages (T
     expect(injecteurPage(harness).get(PileEchapService).etat()).toEqual([]);
   });
 
-  it('le tiroir Aide suit l’étape : ② puis ④ → « 4. Zones » et sa consigne', async () => {
+  it('le tiroir Aide suit l’étape : ② puis ③ → « 3. Zones » et sa consigne', async () => {
     const { hote, stable } = await ouvrir();
     frapper(hote, altChiffre('2'));
     await stable();
     outil(hote, 'aide').click();
     await stable();
     expect(titreAide(hote)).toBe('2. Données');
-    frapper(hote, altChiffre('4'));
+    frapper(hote, altChiffre('3'));
     await stable();
-    expect(titreAide(hote)).toBe('4. Zones');
+    expect(titreAide(hote)).toBe('3. Zones');
     expect(tiroir(hote)!.textContent).toContain(CONSIGNE_ETAPE.zones);
   });
 
@@ -1093,14 +1104,14 @@ describe('CartePage — le module risque, route ENFANT (T13, B2/B3)', () => {
     expect(document.activeElement).toBe(hote);
   });
 
-  it('module ouvert : Alt+3 ne change ni l’étape ni l’URL, et ne ferme pas le module (Review Focus 2)', async () => {
+  it('module ouvert : Alt+4 ne change ni l’étape ni l’URL, et ne ferme pas le module (Review Focus 2)', async () => {
     const { hote, stable } = await ouvrir({ url: '/carte?etape=donnees' });
     const router = TestBed.inject(Router);
     await router.navigateByUrl('/carte/risques?etape=donnees&risque=etape%3Drayon');
     await stable();
     const avant = router.url;
     expect(avant.startsWith('/carte/risques')).toBe(true);
-    const e = frapper(hote, altChiffre('3'));
+    const e = frapper(hote, altChiffre('4'));
     await stable();
     expect(e.defaultPrevented).toBe(false);
     expect(router.url).toBe(avant);
@@ -1119,9 +1130,9 @@ describe('CartePage — le module risque, route ENFANT (T13, B2/B3)', () => {
     expect(hote.querySelector('mg-jeux-de-zones [data-jeux-vide]')).not.toBeNull();
   });
 
-  it('Zones › Créer une zone (T16) : capture inactive sans couche ; le dessin ouvert, un clic sur la carte laisse l’étape ④', async () => {
+  it('Zones › Créer une zone (T16) : capture inactive sans couche ; le dessin ouvert, un clic sur la carte laisse l’étape ③', async () => {
     const { hote, stable } = await ouvrir();
-    frapper(hote, altChiffre('4'));
+    frapper(hote, altChiffre('3'));
     await stable();
     expect(hote.querySelector('[data-provisoire]')).toBeNull();
     expect(hote.querySelector<HTMLButtonElement>('[data-capturer]')!.disabled).toBe(true);
@@ -1149,9 +1160,9 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     return o;
   }
 
-  it('le panneau Zones monte le vrai panneau : créer à ④ ; jeux de zones et « Mes zones » dans l’outil', async () => {
+  it('le panneau Zones monte le vrai panneau : créer à ③ ; jeux de zones et « Mes zones » dans l’outil', async () => {
     const { hote, stable } = await ouvrir();
-    frapper(hote, altChiffre('4'));
+    frapper(hote, altChiffre('3'));
     await stable();
     const panneau = hote.querySelector('[data-panneau-etape="zones"] mg-panneau-zones')!;
     expect(panneau).not.toBeNull();
@@ -1173,7 +1184,7 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     expect(hote.querySelector('button[data-script-dv360]')).toBeNull();
   });
 
-  it('?customZone=<id> : ④ courante ; géométrie lue UNE fois carte prête, recadrage sur son emprise (60 px, 1 s), bouton DV360 nommé ; une autre navigation de requête ne relit rien', async () => {
+  it('?customZone=<id> : ③ courante ; géométrie lue UNE fois carte prête, recadrage sur son emprise (60 px, 1 s), bouton DV360 nommé ; une autre navigation de requête ne relit rien', async () => {
     const geometrie = vi.fn(() => of(ENTITE));
     const exporter = vi.fn(() => of());
     const { harness, hote, cartes, stable } = await carteChargee({ url: `/carte?customZone=${ID}`, zones: { geometrie, exporter } });
@@ -1209,7 +1220,7 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     await stable();
     expect(hote.querySelector('button[data-script-dv360]')).toBeNull();
     expect(cartes[0].getLayer('battle-fill')).toBeUndefined();
-    // `customZone` parti, l'étape ④ qu'il avait ouverte reste (elle est dans l'URL depuis l'ouverture).
+    // `customZone` parti, l'étape ③ qu'il avait ouverte reste (elle est dans l'URL depuis l'ouverture).
     expect(TestBed.inject(Router).url).toBe('/carte?etape=zones');
   });
 
@@ -1291,7 +1302,7 @@ describe('CartePage — plan média des zones affichées (T15)', () => {
   });
 });
 
-type Lieu = { etape?: 1 | 2 | 3 | 4 | 5; outil?: 'analyses' | 'zones' | 'fond' | 'legende' | 'aide' | 'reglages' };
+type Lieu = { etape?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8; outil?: 'analyses' | 'zones' | 'fond' | 'legende' | 'aide' | 'reglages' };
 interface LigneInventaire {
   n: number;
   fonction: string;
@@ -1306,25 +1317,34 @@ interface LigneInventaire {
 
 /**
  * Spec § 12 : « sans aucune perte ». Une ligne par fonction de l'ancienne carte (rail, barre du haut, boutons
- * flottants), avec sa nouvelle place dans le parcours. Trois lignes du tableau sont prouvées ailleurs dans ce fichier :
- * - 2. Pastille « filtre posé » → describe « filtre unique : panneau ①, pastille, fil d'Ariane » (`(renseignée)`) ;
- * - 5. Zones à risque industriel → module : describe « le module risque, route ENFANT (T13, B2/B3) » ;
- * - 19. Plan média (n) → describe « plan média des zones affichées (T15) » (`[data-rouvrir-plan]`, zone affichée, panneau fermé).
+ * flottants), avec sa nouvelle place dans le parcours (l'ordre en 8 étapes du 13/10 : ③ Zones, ④ Analyse, ⑥ Plan).
+ * Ce que ce tableau ne prouve PAS lui-même, et où la preuve vit vraiment :
+ * - 2. Pastille « filtre posé » → ce fichier, describe « filtre unique : panneau ①, pastille, fil d’Ariane (T5) » (`(renseignée)`) ;
+ * - 5. Zones à risque industriel → le point d'entrée dans ② (`mg-section-risque`, en tête du groupe Environnement) :
+ *   `panneaux/calques/panneau-calques.component.spec.ts`, « Environnement (T12) » ; le module lui-même, ouvert par
+ *   `navigateByUrl` (`[data-module-risque]`, carte inerte, retour à l'étape quittée) : ce fichier, describe « le module
+ *   risque, route ENFANT (T13, B2/B3) » ;
+ * - 13. Back office → ici seulement « Accès » (`admin/acces`) ; « Health check » : `panneaux/reglages.component.spec.ts`
+ *   (« « Health check » est ACTIF ») ;
+ * - 19. Plan média (n) → ce fichier, describe « plan média des zones affichées (T15) » (`[data-rouvrir-plan]`, zone
+ *   affichée, panneau fermé) ;
+ * - 22. Badge de zoom → ici seulement `[data-badge-zoom]` ; détail IRIS, zone active et tiroir Street View : ce fichier,
+ *   test « la barre porte logo, fil d’Ariane… » ; la météo : describe « météo (T11) ».
  * Une ligne qui échoue veut dire qu'une fonction a été PERDUE : la rétablir, jamais retirer la ligne.
  */
 const INVENTAIRE: readonly LigneInventaire[] = [
   { n: 1, fonction: 'Filtre', lieu: { etape: 1 }, preuves: ['[data-panneau-etape="perimetre"] mg-panneau-filtre'] },
   { n: 3, fonction: 'Puce du filtre', lieu: {}, preuves: ['mg-barre-parcours mg-fil-ariane'] },
   { n: 4, fonction: 'Calques', lieu: { etape: 2 }, preuves: ['[data-panneau-etape="donnees"] mg-panneau-calques'] },
-  { n: 6, fonction: 'Analyse', lieu: { etape: 3 }, preuves: ['[data-panneau-etape="analyse"] mg-panneau-analyse'] },
-  { n: 7, fonction: 'Créer une zone', lieu: { etape: 4 }, preuves: ['[data-panneau-etape="zones"] [data-section="creer"]'] },
+  { n: 6, fonction: 'Analyse', lieu: { etape: 4 }, preuves: ['[data-panneau-etape="analyse"] mg-panneau-analyse'] },
+  { n: 7, fonction: 'Créer une zone', lieu: { etape: 3 }, preuves: ['[data-panneau-etape="zones"] [data-section="creer"]'] },
   { n: 8, fonction: 'Jeux de zones', lieu: { outil: 'zones' }, preuves: ['[data-tiroir-outil] mg-jeux-de-zones'] },
   { n: 9, fonction: 'Mes zones', lieu: { outil: 'zones' }, preuves: ['[data-tiroir-outil] mg-mes-zones'] },
   { n: 10, fonction: 'Mes analyses', lieu: { outil: 'analyses' }, preuves: ['[data-tiroir-outil] mg-mes-analyses'] },
   { n: 11, fonction: 'Fond de carte', lieu: { outil: 'fond' }, preuves: ['[data-tiroir-outil] mg-choix-fond'] },
   { n: 12, fonction: 'Apparence', lieu: { outil: 'reglages' }, preuves: ['mg-reglages [data-section="apparence"]', 'mg-barre-parcours mg-bascule-theme'] },
   { n: 13, fonction: 'Back office', lieu: { outil: 'reglages' }, preuves: ['mg-reglages a[href*="admin/acces"]'] },
-  { n: 14, fonction: 'Raccourcis', lieu: { outil: 'aide' }, preuves: ['[data-tiroir-outil] mg-aide [data-raccourci]', '[data-aide-etape]'], nombre: 8 },
+  { n: 14, fonction: 'Raccourcis', lieu: { outil: 'aide' }, preuves: ['[data-tiroir-outil] mg-aide [data-raccourci]', '[data-aide-etape]'], nombre: 9 },
   { n: 15, fonction: 'Légende', lieu: {}, preuves: ['mg-legende-carte', 'mg-boite-outils [data-outil="legende"]'] },
   { n: 16, fonction: 'Tout effacer', lieu: {}, preuves: ['mg-barre-parcours [data-tout-effacer]'] },
   {
@@ -1337,7 +1357,7 @@ const INVENTAIRE: readonly LigneInventaire[] = [
     avant: async ({ cartes, stable }) => { cartes[0].emettre('load'); await stable(); },
   },
   { n: 20, fonction: 'Session', lieu: {}, preuves: ['mg-barre-parcours mg-badge-session'] },
-  { n: 21, fonction: 'Campagne', lieu: { etape: 5 }, preuves: ['[data-etape-bientot="plan"]'] },
+  { n: 21, fonction: 'Campagne', lieu: { etape: 6 }, preuves: ['[data-etape-bientot="plan"]'] },
   { n: 22, fonction: 'Badge de zoom', lieu: {}, preuves: ['[data-badge-zoom]'] },
 ];
 

@@ -23,7 +23,7 @@ export const JOUR_DROIT_PANNEAU = ECART_TIROIR + PLACE_BADGE_ZOOM;
  *   le `--card-overlay` translucide : sans le flou de React (« flat total », ni ombre ni `backdrop-filter`), la légende
  *   ou les étiquettes de la carte se liraient AU TRAVERS du panneau, texte sur texte (parcours T21 du lot 4).
  * - Hauteur AJUSTÉE au contenu de l'étape courante, bornée à `calc(100% - 24px)` (au-delà, le panneau défile) — comme
- *   l'ancien panneau : une étape courte (④, ⑤-⑦) ne pose plus un grand pan vide sur la carte. La page ne laisse que
+ *   l'ancien panneau : une étape courte (③, ⑤-⑧) ne pose plus un grand pan vide sur la carte. La page ne laisse que
  *   l'étape courante dans le flux ; les étapes quittées restent montées, `absolute` et invisibles (arbitrage A1).
  * - La poignée (320-900 px) est le bord DROIT de la carte flottante. La largeur est bornée par la place libre : le
  *   conteneur moins `reserveDroite` (l'écart de la boîte à outils, qui suit le plan média, le détail IRIS et Street

@@ -23,19 +23,21 @@ export interface EtapeAffichee {
         <button #bouton type="button"
                 (click)="choisir.emit(e.cle)" (keydown)="auClavier($event, i)"
                 [attr.aria-current]="e.cle === courante() ? 'step' : null"
-                class="inline-flex items-center gap-[5px] px-2.5 pt-1 pb-1.5 text-[12px] cursor-pointer border-b-2"
+                [attr.title]="compact() && e.cle !== courante() ? e.libelle : null"
+                class="inline-flex items-center gap-[5px] pt-1 pb-1.5 text-[12px] cursor-pointer border-b-2"
+                [class]="compact() ? boutonCompact : boutonNormal"
                 [class.font-medium]="e.cle === courante()"
                 [class.text-primary]="e.cle === courante()"
                 [class.border-teal]="e.cle === courante()"
                 [class.text-tertiary]="e.cle !== courante()"
                 [class.border-transparent]="e.cle !== courante()">
           <span aria-hidden="true" class="text-[10px]"
-                [class.text-teal]="e.cle === courante()">{{ e.rang }}</span>
-          {{ e.libelle }}
+                [class.text-teal]="e.cle === courante()">{{ e.rang }}</span>&ngsp;
+          <span data-libelle-etape [class]="compact() && e.cle !== courante() ? repli : ''">{{ e.libelle }}</span>
           @if (e.renseignee && e.cle !== courante()) {
             <span aria-hidden="true" title="Vous avez posé un choix à cette étape."
                   class="size-[5px] rounded-full bg-teal"></span>
-            <span class="sr-only">(renseignée)</span>
+            <span class="sr-only">&ngsp;(renseignée)</span>
           }
         </button>
       }
@@ -45,6 +47,16 @@ export interface EtapeAffichee {
 export class FilEtapesComponent {
   readonly etapes = input.required<EtapeAffichee[]>();
   readonly courante = input.required<string>();
+  /**
+   * Fil COMPACT (barre du parcours de la carte, 8 étapes — T4c) : une ligne par étape, padding réduit, et sous
+   * le seuil `repli` (largeur de CONTENEUR : le parent porte `@container`), les étapes non courantes ne montrent plus que
+   * leur numéro — libellé gardé pour le lecteur d'écran (`sr-only`) et redit en infobulle. Défaut : inchangé.
+   */
+  readonly compact = input(false);
+  protected readonly boutonNormal = 'px-2.5';
+  protected readonly boutonCompact = 'h-[30px] px-1.5 whitespace-nowrap shrink-0';
+  /** Littéral : Tailwind lit les classes dans le source. Seuil = largeur du fil complet en compact (8 étapes : 638 px mesurés à 1 440 px, T4c) : 1 440 px tout lisible, 1 280 px replié. */
+  protected readonly repli = '@max-[640px]:sr-only';
   readonly choisir = output<string>();
 
   private readonly boutons = viewChildren<ElementRef<HTMLButtonElement>>('bouton');

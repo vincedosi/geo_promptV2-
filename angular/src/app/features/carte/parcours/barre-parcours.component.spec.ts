@@ -37,18 +37,21 @@ async function monter(entrees: { zoneScript?: string | null; planMedia?: number 
 }
 
 describe('BarreParcoursComponent', () => {
-  it('rend le logo, le fil d’Ariane, les sept étapes dans l’ordre, Tout effacer, le mode immersif, le thème, la session', async () => {
+  it('rend le logo, le fil d’Ariane, les huit étapes dans l’ordre (celui du module risque, 13/10), Tout effacer, le mode immersif, le thème, la session', async () => {
     const { el } = await monter();
     expect(el.getAttribute('role')).toBe('banner');
     expect(el.style.height).toBe(`${HAUTEUR_BARRE_PARCOURS}px`);
     expect(el.querySelector('mg-logo')).not.toBeNull();
     expect(el.querySelector('mg-fil-ariane')).not.toBeNull();
     const etapes = [...el.querySelectorAll('mg-fil-etapes nav button')];
-    expect(etapes).toHaveLength(7);
+    expect(etapes).toHaveLength(8);
     // L'ordre ET les libellés exacts (Global Constraints) ; le rang précède le libellé.
     expect(etapes.map((b) => b.textContent!.replace(/\s+/g, ' ').trim()))
       .toEqual(ETAPES_CARTE.map((e, i) => `${i + 1} ${LIBELLE_ETAPE_CARTE[e]}`));
-    expect(etapes.map((b) => b.getAttribute('aria-current'))).toEqual(['step', null, null, null, null, null, null]);
+    expect(etapes.map((b) => b.getAttribute('aria-current'))).toEqual(['step', null, null, null, null, null, null, null]);
+    // Huit étapes tiennent dans la barre (T4c) : fil COMPACT, une ligne par étape, replié selon la largeur du conteneur.
+    expect(el.querySelector('mg-fil-etapes')!.parentElement!.classList).toContain('@container');
+    expect(etapes.every((b) => b.classList.contains('whitespace-nowrap'))).toBe(true);
     expect(el.querySelector('[data-tout-effacer]')!.textContent!.trim()).toBe('Tout effacer');
     expect(el.querySelector('[data-immersif]')!.getAttribute('aria-label')).toBe('Mode immersif');
     expect(el.querySelector('mg-bascule-theme')).not.toBeNull();
@@ -107,7 +110,8 @@ describe('BarreParcoursComponent', () => {
     (fixture.debugElement.query(By.css('mg-badge-session')).componentInstance as { orgChangee: { emit(v: string | null): void } })
       .orgChangee.emit('org-2');
 
-    expect(espions.choisir.mock.calls).toEqual([['analyse']]);
+    // Le TROISIÈME bouton est ③ Zones depuis le 13/10 (Analyse est descendue à ④).
+    expect(espions.choisir.mock.calls).toEqual([['zones']]);
     expect(espions.remonter.mock.calls).toEqual([[0]]);
     expect(espions.toutEffacer).toHaveBeenCalledTimes(1);
     expect(espions.genererScript).toHaveBeenCalledTimes(1);

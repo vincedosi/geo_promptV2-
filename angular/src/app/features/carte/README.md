@@ -1,7 +1,8 @@
 # carte — la carte principale
 
-**Rôle** : portage de `/map` (lot 4), devenu un PARCOURS le 2026-10-13 — ① Périmètre › ② Données › ③ Analyse ›
-④ Zones › ⑤ Plan › ⑥ Activation › ⑦ Live. La barre du parcours, puis la carte sur toute la largeur, avec le panneau
+**Rôle** : portage de `/map` (lot 4), devenu un PARCOURS le 2026-10-13 — ① Périmètre › ② Données › ③ Zones ›
+④ Analyse › ⑤ Jeu de zones › ⑥ Plan › ⑦ Activation › ⑧ Live, dans l'ordre du module risque (Vincent, 13/10 ; spec
+§ 15 — sept étapes, ③ Analyse avant ④ Zones, jusqu'à la tâche 4c). La barre du parcours, puis la carte sur toute la largeur, avec le panneau
 de l'étape courante qui FLOTTE au-dessus d'elle en haut à gauche et sa boîte à outils en haut à droite ; l'étape vit
 dans `?etape=`. Le module risque s'y ouvre en surimpression.
 
@@ -15,21 +16,25 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 
 | Dossier | Contenu |
 |---|---|
-| `parcours/` | la barre du parcours (`mg-barre-parcours` : fil d'Ariane, fil d'étapes, actions), le panneau d'étape (`mg-panneau-etape` : poignée, repli « carte seule »), les étapes « bientôt » ⑤-⑦ |
+| `parcours/` | la barre du parcours (`mg-barre-parcours` : fil d'Ariane, fil d'étapes, actions), le panneau d'étape (`mg-panneau-etape` : poignée, repli « carte seule »), les étapes « bientôt » ⑤-⑧ |
 | `outils/` | la boîte à outils (`mg-boite-outils`, `OutilsCarteService` : Mes analyses, Mes zones, Fond de carte, Légende, Aide, Réglages ; un tiroir à la fois, dans la pile Échap ; contenu monté à la première ouverture puis gardé) |
 | `panneaux/` | le contenu de chaque étape : `filtre/`, `calques/` (une section par couche), `analyse/` (bataille d'isochrones, corrélation, score, clustering), `zones/` (création ; « Mes zones » et les jeux de zones, montés par l'outil Mes zones ; plan média) ; `aide` et `reglages`, contenus des tiroirs de la boîte à outils |
 | `couches/` | une couche = un service (`*.service.ts` : état, lectures, pose) + ses fonctions pures (`couche-*.ts` : sources, couches, peintures, popups) |
 | `etat/` | état de l'écran : `parcours.service.ts` (étape courante, étapes visitées, `?etape=`), `etat-carte.service.ts` (mode immersif, filtre, dégradé actif…), `couches-carte.service.ts` (registre des couches, `carteCourante`), pile Échap, annonces, zones, bataille, score… |
 | `data/` | services d'API de la carte (`*.api.ts`) |
-| `logique/` | fonctions pures : `parcours.ts` (les sept étapes, l'URL, les raccourcis), copies de la logique React (`palettes-donnees-carte.ts`, `carreaux/`, `meteo/`…, verrouillées par les tests `carte-*-paritaire`), ordre des couches, gardes, règles de la légende |
+| `logique/` | fonctions pures : `parcours.ts` (les huit étapes, l'URL, les raccourcis), copies de la logique React (`palettes-donnees-carte.ts`, `carreaux/`, `meteo/`…, verrouillées par les tests `carte-*-paritaire`), ordre des couches, gardes, règles de la légende |
 | `legende/` | la légende unique (`legende-carte`) et ses blocs propres (score, bataille, zones du profil) |
 | `commun/` | annonce, choix du fond (`mg-choix-fond`, tiroir « Fond de carte ») |
 
 ## La navigation : le parcours (lot 1, 2026-10-13)
 
-- **Où j'en suis** : `mg-fil-etapes` dans `mg-barre-parcours`, ou `Alt+1…Alt+7` (lus sur `KeyboardEvent.code`, donc
-  valables en AZERTY ; inertes sous le module risque et dans un champ de saisie). L'étape s'écrit dans `?etape=` par
+- **Où j'en suis** : `mg-fil-etapes` dans `mg-barre-parcours`, ou `Alt+1…Alt+8` (lus sur `KeyboardEvent.code`, pavé numérique
+  compris, donc valables en AZERTY ; inertes sous le module risque et dans un champ de saisie). L'étape s'écrit dans `?etape=` par
   `ParcoursService` (`replaceUrl`, `merge`) ; ① n'est pas écrite. Pas un tunnel : chaque étape reste ouverte.
+  `?etape=` porte un IDENTIFIANT (`perimetre`, `donnees`, `zones`, `analyse`, `jeu`, `plan`, `activation`, `live`),
+  jamais un numéro : les liens d'avant le passage à 8 étapes restent valides, et il n'y a pas d'alias numérique.
+  Le fil est COMPACT (`[compact]="true"`, conteneur `@container`) : une ligne par étape, et sous 640 px de conteneur
+  les étapes non courantes se replient en numéro (libellé en `sr-only` et en infobulle) — 1 440 px tout lisible, 1 280 px replié.
 - **Où je regarde** : le fil d'Ariane de la barre, nourri par le filtre de ① ; « France entière » le retire.
 - **Le panneau d'étape** (`mg-panneau-etape`) est une carte flottante `absolute` dans `[data-zone-carte]` : la carte
   garde toute sa largeur, `couches/marge-carte.ts` lui pose un `setPadding` pour que centrage et recadrages visent la
@@ -39,7 +44,10 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   l'étape courante + raccourcis), Réglages (apparence, back office). Un tiroir à la fois, Échap le ferme.
 - **Dans la barre** : « Script bidding DV360 » (lien `?customZone=`) et « Plan média (n) » quand ils ont un objet,
   « Tout effacer », mode immersif (sortie : bouton de la boîte à outils ou Échap), thème, session et espace.
-- ⑤-⑦ affichent « Bientôt dans le parcours. » (lien vers l'écran React si `urlApplicationReact` est posé).
+- ⑤ Jeu de zones (le convertisseur zones → codes postaux achetables, lot 5) affiche « Bientôt dans le parcours. »,
+  sans lien : React n'a rien d'équivalent hors du module risque. ⑥-⑧ aussi, avec un lien vers l'écran React si
+  `urlApplicationReact` est posé. Les outils de ③ et ④ n'ont pas bougé : rayons et isochrones comme types de zone de
+  ③, couverture par territoire dans ④, c'est aux lots 4-5.
 - **Aucune fonction perdue** : le describe « aucune fonction perdue (spec § 12, lot 1) » de `carte.page.spec.ts`
   (`INVENTAIRE`) dit où vit chaque fonction de l'ancienne carte. Une ligne rouge = une fonction perdue : la rétablir.
 

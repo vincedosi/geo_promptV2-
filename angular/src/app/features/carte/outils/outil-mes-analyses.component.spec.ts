@@ -83,7 +83,7 @@ describe('OutilMesAnalysesComponent — le tiroir « Mes analyses » (spec § 6)
     expect(api.lister).toHaveBeenCalledTimes(2);
   });
 
-  it('« Rejouer » un score : la carte peint le résultat, et l’étape ③ Analyse s’ouvre (ruling AT-7)', async () => {
+  it('« Rejouer » un score : la carte peint le résultat, et l’étape ④ Analyse s’ouvre (ruling AT-7)', async () => {
     const { el, fixture, api, score, parcours } = await monter();
     expect(parcours.choisir).not.toHaveBeenCalled();
     el.querySelector<HTMLButtonElement>(`[data-analyse="${SCORE.id}"] [data-rejouer]`)!.click();

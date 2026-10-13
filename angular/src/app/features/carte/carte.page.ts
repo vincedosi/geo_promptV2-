@@ -81,8 +81,8 @@ export function palierCarreaux(zoom: number): string {
 }
 
 /**
- * La carte principale, en PARCOURS (spec 2026-10-13, lot 1) — ① Périmètre › ② Données › ③ Analyse › ④ Zones ›
- * ⑤ Plan › ⑥ Activation › ⑦ Live. Portage d'origine : `app/map/page.tsx` (lot 4 Angular).
+ * La carte principale, en PARCOURS (spec 2026-10-13, lot 1 ; ordre du § 15) — ① Périmètre › ② Données › ③ Zones ›
+ * ④ Analyse › ⑤ Jeu de zones › ⑥ Plan › ⑦ Activation › ⑧ Live. Portage d'origine : `app/map/page.tsx` (lot 4 Angular).
  *
  * ── BARRE DU PARCOURS, PUIS LA CARTE ; LE PANNEAU D'ÉTAPE FLOTTE DESSUS ───
  * Une colonne : la barre (`mg-barre-parcours`), puis le conteneur de la carte, seul dans sa rangée. Le panneau de l'étape
@@ -374,7 +374,7 @@ export class CartePage {
   /**
    * Échap n'est JAMAIS filtré par la garde de saisie. Un Échap déjà consommé par un gestionnaire INTÉRIEUR
    * (`preventDefault()`) ne ferme rien de plus : c'est le cas d'un menu ouvert du badge de session, qui consomme Échap
-   * sur son propre hôte AVANT que la frappe ne remonte ici (`BadgeSessionComponent.echap`). Alt+1…Alt+7 choisissent
+   * sur son propre hôte AVANT que la frappe ne remonte ici (`BadgeSessionComponent.echap`). Alt+1…Alt+8 choisissent
    * l'étape (`etapeParRaccourci`, lu sur la touche physique : Alt+1 marche en AZERTY). Alt+C (l'ancienne Campagne) et
    * Ctrl+K (l'Assistant, retiré le 2026-10-12) ne mènent plus à rien : la frappe n'est pas captée.
    */

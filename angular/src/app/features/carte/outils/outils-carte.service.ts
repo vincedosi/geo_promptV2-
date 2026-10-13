@@ -8,7 +8,7 @@ export const PILE_OUTIL = 'outil';
 
 /**
  * La boîte à outils de la carte (spec § 6) : l'outil ouvert, les outils déjà ouverts une fois (leur contenu reste monté,
- * ruling AT-6), l'affichage de la légende, et un compteur que « Créer une zone » (④) incrémente pour que « Mes zones »,
+ * ruling AT-6), l'affichage de la légende, et un compteur que « Créer une zone » (③) incrémente pour que « Mes zones »,
  * ouvert dans le tiroir, se relise sans être recréé.
  * `@Injectable()` sans `providedIn` : fourni par la page carte.
  */

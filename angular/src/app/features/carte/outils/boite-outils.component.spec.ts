@@ -145,7 +145,7 @@ describe('BoiteOutilsComponent — la boîte à outils de la carte (spec § 6)',
     await cliquer('aide');
     fixture.componentInstance.etape.set('zones');
     await fixture.whenStable();
-    expect(tiroir()!.querySelector('[data-aide-etape] h4')!.textContent!.replace(/\s+/g, ' ').trim()).toBe('4. Zones');
+    expect(tiroir()!.querySelector('[data-aide-etape] h4')!.textContent!.replace(/\s+/g, ' ').trim()).toBe('3. Zones');
   });
 
   it('immersif : le bouton « quitter le mode immersif » est dans la barre, et relayé', async () => {

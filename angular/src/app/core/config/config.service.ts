@@ -15,7 +15,7 @@ export interface ConfigApplication {
    */
   googleMapsKey?: string;
   /**
-   * Origine de l'application React (Next.js), FACULTATIVE : les étapes ⑤-⑦ du parcours de la carte y renvoient tant
+   * Origine de l'application React (Next.js), FACULTATIVE : les étapes ⑥-⑧ du parcours de la carte y renvoient tant
    * qu'elles ne sont pas portées (arbitrage A7). Écrite par `npm run config` depuis `NEXT_PUBLIC_APP_URL` ; absente
    * dans un hôte AIDA, où aucun lien n'est affiché.
    */
