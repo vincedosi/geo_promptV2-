@@ -64,6 +64,8 @@ interface OptionsOuverture {
   jeux?: () => unknown;
   /** `CarteApi.categories` (catalogue des types de POI, ②). */
   categories?: () => unknown;
+  /** `AnalysesApi.lister` (outil « Mes analyses », lu à la première ouverture du tiroir). */
+  analyses?: () => unknown;
 }
 
 async function ouvrir(options: OptionsOuverture = {}) {
@@ -104,8 +106,8 @@ async function ouvrir(options: OptionsOuverture = {}) {
       { provide: RadioApi, useValue: { optionsFiltre: () => of({}), emetteurs: () => of({ type: 'FeatureCollection', features: [] }), stations: () => of({}) } },
       { provide: MeteoApi, useValue: { donnees: () => of() } },
       { provide: IsochronesApi, useValue: {} },
-      // Mes analyses (boîte à outils, T6) : l'outil reste fermé dans ces essais — la liste n'est jamais lue.
-      { provide: AnalysesApi, useValue: {} },
+      // Mes analyses (boîte à outils, T6) : la liste n'est lue qu'à l'ouverture de l'outil (inventaire, T7).
+      { provide: AnalysesApi, useValue: { lister: options.analyses ?? (() => of({ analyses: [] })) } },
       { provide: ClusteringApi, useValue: {} },
       { provide: SitesRisqueApi, useValue: { carte: () => of(), exposition: () => of() } },
       { provide: CiviqueApi, useValue: { geojsonVariable: () => of(), detailCp: () => of(), zones: () => of(), santeDepartement: () => of(), santeCp: () => of(), santeCommune: () => of() } },
@@ -140,6 +142,14 @@ const AZERTY: Record<string, string> = { '1': '&', '2': 'é', '3': '"', '4': "'"
 const altChiffre = (n: string): KeyboardEventInit => ({ key: AZERTY[n], code: `Digit${n}`, altKey: true });
 /** L'aside du panneau d'étape. */
 const aside = (hote: HTMLElement) => hote.querySelector<HTMLElement>('mg-panneau-etape aside')!;
+
+/** La zone d'un lien `/carte?customZone=<id>` : partagée par les essais T14 et l'inventaire des fonctions (T7). */
+const ID_ZONE_DU_LIEN = '11111111-2222-3333-4444-555555555555';
+const ZONE_DU_LIEN = {
+  type: 'Feature',
+  geometry: { type: 'Polygon', coordinates: [[[5, 43], [6, 43], [6, 44.5], [5, 44.5], [5, 43]]] },
+  properties: { id: ID_ZONE_DU_LIEN, name: 'CIRFA BRETAGNE' },
+};
 
 describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, clavier', () => {
   it("(f) la barre rend ① à ⑦ dans l'ordre, ① courante ; plus aucun rail, ni barre du haut, ni boutons flottants", async () => {
@@ -1128,12 +1138,8 @@ describe('CartePage — le module risque, route ENFANT (T13, B2/B3)', () => {
 });
 
 describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () => {
-  const ID = '11111111-2222-3333-4444-555555555555';
-  const ENTITE = {
-    type: 'Feature',
-    geometry: { type: 'Polygon', coordinates: [[[5, 43], [6, 43], [6, 44.5], [5, 44.5], [5, 43]]] },
-    properties: { id: ID, name: 'CIRFA BRETAGNE' },
-  };
+  const ID = ID_ZONE_DU_LIEN;
+  const ENTITE = ZONE_DU_LIEN;
 
   /** La carte publiée au `load` : c'est là que le lien est lu (`mapReady`). */
   async function carteChargee(options: OptionsOuverture) {
@@ -1282,5 +1288,66 @@ describe('CartePage — plan média des zones affichées (T15)', () => {
     await stable();
     expect(hote.querySelector('mg-plan-media')).toBeNull();
     expect(hote.querySelector('mg-barre-parcours [data-rouvrir-plan]')).toBeNull();
+  });
+});
+
+type Lieu = { etape?: 1 | 2 | 3 | 4 | 5; outil?: 'analyses' | 'zones' | 'fond' | 'legende' | 'aide' | 'reglages' };
+interface LigneInventaire {
+  n: number;
+  fonction: string;
+  lieu: Lieu;
+  /** Chaque sélecteur doit trouver au moins un élément ; `nombre` exige le compte exact du PREMIER. */
+  preuves: readonly string[];
+  nombre?: number;
+  url?: string;
+  /** Ce qu'il faut faire avant de chercher la preuve (B4) : publier la carte, cliquer un bouton. */
+  avant?: (o: { hote: HTMLElement; cartes: CarteFactice[]; stable: () => Promise<void> }) => Promise<void>;
+}
+
+/**
+ * Spec § 12 : « sans aucune perte ». Une ligne par fonction de l'ancienne carte (rail, barre du haut, boutons
+ * flottants), avec sa nouvelle place dans le parcours. Trois lignes du tableau sont prouvées ailleurs dans ce fichier :
+ * - 2. Pastille « filtre posé » → describe « filtre unique : panneau ①, pastille, fil d'Ariane » (`(renseignée)`) ;
+ * - 5. Zones à risque industriel → module : describe « le module risque, route ENFANT (T13, B2/B3) » ;
+ * - 19. Plan média (n) → describe « plan média des zones affichées (T15) » (`[data-rouvrir-plan]`, zone affichée, panneau fermé).
+ * Une ligne qui échoue veut dire qu'une fonction a été PERDUE : la rétablir, jamais retirer la ligne.
+ */
+const INVENTAIRE: readonly LigneInventaire[] = [
+  { n: 1, fonction: 'Filtre', lieu: { etape: 1 }, preuves: ['[data-panneau-etape="perimetre"] mg-panneau-filtre'] },
+  { n: 3, fonction: 'Puce du filtre', lieu: {}, preuves: ['mg-barre-parcours mg-fil-ariane'] },
+  { n: 4, fonction: 'Calques', lieu: { etape: 2 }, preuves: ['[data-panneau-etape="donnees"] mg-panneau-calques'] },
+  { n: 6, fonction: 'Analyse', lieu: { etape: 3 }, preuves: ['[data-panneau-etape="analyse"] mg-panneau-analyse'] },
+  { n: 7, fonction: 'Créer une zone', lieu: { etape: 4 }, preuves: ['[data-panneau-etape="zones"] [data-section="creer"]'] },
+  { n: 8, fonction: 'Jeux de zones', lieu: { outil: 'zones' }, preuves: ['[data-tiroir-outil] mg-jeux-de-zones'] },
+  { n: 9, fonction: 'Mes zones', lieu: { outil: 'zones' }, preuves: ['[data-tiroir-outil] mg-mes-zones'] },
+  { n: 10, fonction: 'Mes analyses', lieu: { outil: 'analyses' }, preuves: ['[data-tiroir-outil] mg-mes-analyses'] },
+  { n: 11, fonction: 'Fond de carte', lieu: { outil: 'fond' }, preuves: ['[data-tiroir-outil] mg-choix-fond'] },
+  { n: 12, fonction: 'Apparence', lieu: { outil: 'reglages' }, preuves: ['mg-reglages [data-section="apparence"]', 'mg-barre-parcours mg-bascule-theme'] },
+  { n: 13, fonction: 'Back office', lieu: { outil: 'reglages' }, preuves: ['mg-reglages a[href*="admin/acces"]'] },
+  { n: 14, fonction: 'Raccourcis', lieu: { outil: 'aide' }, preuves: ['[data-tiroir-outil] mg-aide [data-raccourci]', '[data-aide-etape]'], nombre: 8 },
+  { n: 15, fonction: 'Légende', lieu: {}, preuves: ['mg-legende-carte', 'mg-boite-outils [data-outil="legende"]'] },
+  { n: 16, fonction: 'Tout effacer', lieu: {}, preuves: ['mg-barre-parcours [data-tout-effacer]'] },
+  {
+    n: 17, fonction: 'Mode immersif', lieu: {}, preuves: ['mg-boite-outils [data-quitter-immersif]'],
+    avant: async ({ hote, stable }) => { hote.querySelector<HTMLButtonElement>('mg-barre-parcours [data-immersif]')!.click(); await stable(); },
+  },
+  {
+    n: 18, fonction: 'Script bidding DV360', lieu: {}, preuves: ['mg-barre-parcours [data-script-dv360]'], url: `/carte?customZone=${ID_ZONE_DU_LIEN}`,
+    // Le lien n'est lu qu'une fois la carte prête (`mapReady`) : publier la carte d'abord (B4).
+    avant: async ({ cartes, stable }) => { cartes[0].emettre('load'); await stable(); },
+  },
+  { n: 20, fonction: 'Session', lieu: {}, preuves: ['mg-barre-parcours mg-badge-session'] },
+  { n: 21, fonction: 'Campagne', lieu: { etape: 5 }, preuves: ['[data-etape-bientot="plan"]'] },
+  { n: 22, fonction: 'Badge de zoom', lieu: {}, preuves: ['[data-badge-zoom]'] },
+];
+
+describe('CartePage — aucune fonction perdue (spec § 12, lot 1)', () => {
+  it.each(INVENTAIRE)('ligne $n : $fonction', async (l) => {
+    const { hote, cartes, stable } = await ouvrir({ url: l.url, zones: l.url ? { geometrie: () => of(ZONE_DU_LIEN) } : undefined });
+    if (l.avant) await l.avant({ hote, cartes, stable });
+    if (l.lieu.etape) { frapper(hote, altChiffre(String(l.lieu.etape))); await stable(); }
+    if (l.lieu.outil) { hote.querySelector<HTMLButtonElement>(`mg-boite-outils [data-outil="${l.lieu.outil}"]`)!.click(); await stable(); }
+    for (const preuve of l.preuves) expect(hote.querySelector(preuve), `${l.n}. ${l.fonction} → ${preuve}`).not.toBeNull();
+    if (l.nombre !== undefined) expect(hote.querySelectorAll(l.preuves[0]).length, `${l.n}. ${l.fonction}`).toBe(l.nombre);
   });
 });

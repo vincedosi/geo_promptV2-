@@ -1,8 +1,9 @@
 # carte — la carte principale
 
 **Rôle** : portage de `/map` (lot 4), devenu un PARCOURS le 2026-10-13 — ① Périmètre › ② Données › ③ Analyse ›
-④ Zones › ⑤ Plan › ⑥ Activation › ⑦ Live. La barre du parcours, le panneau de l'étape courante (dans le flux, à
-gauche) et la carte, sa boîte à outils en haut à droite ; l'étape vit dans `?etape=`. Le module risque s'y ouvre en surimpression.
+④ Zones › ⑤ Plan › ⑥ Activation › ⑦ Live. La barre du parcours, puis la carte sur toute la largeur, avec le panneau
+de l'étape courante qui FLOTTE au-dessus d'elle en haut à gauche et sa boîte à outils en haut à droite ; l'étape vit
+dans `?etape=`. Le module risque s'y ouvre en surimpression.
 
 **Route** : `carte` (`/app/carte`), plein écran, sœur de la coquille, `authGuard`. Son outlet enfant porte
 `risques` (voir `features/risques/README.md`) : ouvrir puis fermer le module ne recrée jamais la carte.
@@ -23,6 +24,24 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 | `logique/` | fonctions pures : `parcours.ts` (les sept étapes, l'URL, les raccourcis), copies de la logique React (`palettes-donnees-carte.ts`, `carreaux/`, `meteo/`…, verrouillées par les tests `carte-*-paritaire`), ordre des couches, gardes, règles de la légende |
 | `legende/` | la légende unique (`legende-carte`) et ses blocs propres (score, bataille, zones du profil) |
 | `commun/` | annonce, choix du fond (`mg-choix-fond`, tiroir « Fond de carte ») |
+
+## La navigation : le parcours (lot 1, 2026-10-13)
+
+- **Où j'en suis** : `mg-fil-etapes` dans `mg-barre-parcours`, ou `Alt+1…Alt+7` (lus sur `KeyboardEvent.code`, donc
+  valables en AZERTY ; inertes sous le module risque et dans un champ de saisie). L'étape s'écrit dans `?etape=` par
+  `ParcoursService` (`replaceUrl`, `merge`) ; ① n'est pas écrite. Pas un tunnel : chaque étape reste ouverte.
+- **Où je regarde** : le fil d'Ariane de la barre, nourri par le filtre de ① ; « France entière » le retire.
+- **Le panneau d'étape** (`mg-panneau-etape`) est une carte flottante `absolute` dans `[data-zone-carte]` : la carte
+  garde toute sa largeur, `couches/marge-carte.ts` lui pose un `setPadding` pour que centrage et recadrages visent la
+  partie que le panneau laisse libre. Poignée 320-900 px, repli « carte seule », largeur et repli jamais dans l'URL.
+  Chaque panneau est monté à la PREMIÈRE visite de son étape puis gardé (`invisible` + `inert`) : revenir ne relit rien.
+- **La boîte à outils** (`mg-boite-outils`) : Mes analyses, Mes zones, Fond de carte, Légende (bascule), Aide (celle de
+  l'étape courante + raccourcis), Réglages (apparence, back office). Un tiroir à la fois, Échap le ferme.
+- **Dans la barre** : « Script bidding DV360 » (lien `?customZone=`) et « Plan média (n) » quand ils ont un objet,
+  « Tout effacer », mode immersif (sortie : bouton de la boîte à outils ou Échap), thème, session et espace.
+- ⑤-⑦ affichent « Bientôt dans le parcours. » (lien vers l'écran React si `urlApplicationReact` est posé).
+- **Aucune fonction perdue** : le describe « aucune fonction perdue (spec § 12, lot 1) » de `carte.page.spec.ts`
+  (`INVENTAIRE`) dit où vit chaque fonction de l'ancienne carte. Une ligne rouge = une fonction perdue : la rétablir.
 
 ## Cycle de vie d'une couche
 
