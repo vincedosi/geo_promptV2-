@@ -1,16 +1,15 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { BasculeThemeComponent } from '../../../layout/bascule-theme.component';
 import { DISPONIBLE_PROCHAINEMENT } from '../../../layout/navigation';
 import { IconeComponent } from '../../../ui/icone/icone.component';
 import type { NomIcone } from '../../../ui/icone/icones';
-import { MAP_STYLES } from '../logique/fonds';
 
 /**
  * Liens du back office — `BACK_OFFICE_LINKS` de `SettingsOverlay.tsx:83-95`, même ordre, mêmes libellés et icônes,
  * à un écart VOULU près (2026-10-10) : « Organisations (workspaces) » et « Utilisateurs » sont remplacés par UNE
- * entrée « Accès », la page Angular qui les réunit. `cible` : chemin RELATIF à la route `carte` qui monte ce
- * panneau (le préfixe appartient au shell) ; sans `cible`, l'entrée est inerte.
+ * entrée « Accès », la page Angular qui les réunit. `cible` : chemin RELATIF à la route `carte`, dont la page rend
+ * le tiroir qui monte ce panneau (le préfixe appartient au shell) ; sans `cible`, l'entrée est inerte.
  */
 const LIENS_BACK_OFFICE: readonly { libelle: string; icone: NomIcone; cible?: string }[] = [
   { libelle: 'Accès', icone: 'utilisateurs', cible: '../admin/acces' },
@@ -27,13 +26,12 @@ const LIENS_BACK_OFFICE: readonly { libelle: string; icone: NomIcone; cible?: st
 ];
 
 /**
- * Le panneau « Réglages » du rail — portage de `components/map/overlays/SettingsOverlay.tsx`.
+ * Le tiroir « Réglages » de la boîte à outils de la carte (T5) — portage de `components/map/overlays/SettingsOverlay.tsx`.
  *
- * Trois sections, dans l'ordre de React : Fond de carte, Apparence, Back office. « Modèle IA » (Mistral/Gemini) et
- * « Vues sauvegardées », rendues INERTES jusque-là (arbitrage B5), sont retirées le 2026-10-12, React et Angular
- * ensemble (suppression de toute l'IA, lot 5) : la première réglait le chat, la seconde ouvrait l'écran de
- * sauvegarde qui ne vivait que dans le chat.
- * - **Fond de carte** est actif : il émet l'id choisi ; la page recrée la carte (B11).
+ * Deux sections : Apparence, Back office. Le fond de carte a son propre outil (tiroir « Fond de carte », 2026-10-13,
+ * `commun/choix-fond.component.ts`). « Modèle IA » (Mistral/Gemini) et « Vues sauvegardées », rendues INERTES jusque-là
+ * (arbitrage B5), sont retirées le 2026-10-12, React et Angular ensemble (suppression de toute l'IA, lot 5) : la
+ * première réglait le chat, la seconde ouvrait l'écran de sauvegarde qui ne vivait que dans le chat.
  * - **Apparence** reprend `mg-bascule-theme`, qui passe par `ThemeService.basculer()` seul (`ECRIRE_HTML`).
  * - **Back office** : « Accès » et « Health check » sont ACTIFS (liens relatifs vers `admin/acces` et `admin/health`) ;
  *   les huit autres restent INERTES (« Disponible prochainement », patron de la barre latérale) tant que leurs pages
@@ -45,22 +43,6 @@ const LIENS_BACK_OFFICE: readonly { libelle: string; icone: NomIcone; cible?: st
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col gap-5 px-4 py-3 font-sans' },
   template: `
-    <section data-section="fond">
-      <h4 class="mb-2 mt-0 text-[11px] font-medium tracking-[0.04em] text-secondary">Fond de carte</h4>
-      <div class="grid grid-cols-2 gap-1.5">
-        @for (s of fonds; track s.id) {
-          <button
-            type="button"
-            [attr.data-fond]="s.id"
-            [attr.aria-pressed]="s.id === fond()"
-            (click)="choisirFond.emit(s.id)"
-            class="cursor-pointer rounded-[6px] border-fin px-2.5 py-2 font-sans text-[11px] transition-[background-color,border-color,color] duration-150 ease-[var(--ease-hover)]"
-            [class]="s.id === fond() ? 'border-teal bg-teal-10 text-teal' : 'border-default bg-transparent text-secondary'"
-          >{{ s.label }}</button>
-        }
-      </div>
-    </section>
-
     <section data-section="apparence">
       <h4 class="mb-2 mt-0 text-[11px] font-medium tracking-[0.04em] text-secondary">Apparence</h4>
       <div class="flex items-center gap-2.5">
@@ -98,11 +80,6 @@ const LIENS_BACK_OFFICE: readonly { libelle: string; icone: NomIcone; cible?: st
   `,
 })
 export class ReglagesComponent {
-  /** L'id du fond courant (`MAP_STYLES[].id`). */
-  readonly fond = input.required<string>();
-  readonly choisirFond = output<string>();
-
-  protected readonly fonds = MAP_STYLES;
   protected readonly liens = LIENS_BACK_OFFICE;
   protected readonly indisponible = DISPONIBLE_PROCHAINEMENT;
 }

@@ -9,7 +9,6 @@ import { CouleursService } from '../../core/theme/couleurs.service';
 import type { SegmentAriane } from '../../ui/fil-ariane/fil-ariane.component';
 import { IconeComponent } from '../../ui/icone/icone.component';
 import { AnnonceComponent } from './commun/annonce.component';
-import { FondCompactComponent } from './commun/fond-compact.component';
 import { DessinService } from './couches/dessin.service';
 import { BatailleService } from './couches/bataille.service';
 import { CarreauxService } from './couches/carreaux.service';
@@ -60,8 +59,10 @@ import { PanneauAnalyseComponent } from './panneaux/analyse/panneau-analyse.comp
 import { BatailleV1Service } from './etat/bataille-v1.service';
 import { BatailleV2Service } from './etat/bataille-v2.service';
 import { ContexteBatailleService } from './etat/contexte-bataille.service';
-import { LARGEUR_PLAN_MEDIA, PlanMediaComponent } from './panneaux/zones/plan-media.component';
+import { PlanMediaComponent } from './panneaux/zones/plan-media.component';
 import { BarreParcoursComponent } from './parcours/barre-parcours.component';
+import { BoiteOutilsComponent, droiteAnnonces, ecartOutils } from './outils/boite-outils.component';
+import { OutilsCarteService } from './outils/outils-carte.service';
 import { EtapeBientotComponent } from './parcours/etape-bientot.component';
 import { PanneauEtapeComponent } from './parcours/panneau-etape.component';
 
@@ -105,17 +106,17 @@ export function palierCarreaux(zoom: number): string {
  * s'allumaient ensemble.
  *
  * ── LA PILE ÉCHAP EST UN SERVICE DE LA PAGE ──────────────────────────────
- * Le mode immersif (et ce que les panneaux y empilent) : dernier ouvert = premier fermé (`PileEchapService`). Le
- * panneau d'étape n'y est pas : il ne se ferme pas, il se replie.
+ * Le mode immersif, le tiroir de la boîte à outils (`OutilsCarteService`, T5) et ce que les panneaux y empilent : dernier
+ * ouvert = premier fermé (`PileEchapService`). Le panneau d'étape n'y est pas : il ne se ferme pas, il se replie.
  */
 @Component({
   selector: 'mg-carte-principale',
   imports: [
-    AnnonceComponent, BarreParcoursComponent, CarteComponent, DetailIrisComponent, DialogueMeteoComponent, EtapeBientotComponent,
-    FondCompactComponent, IconeComponent, LegendeCarteComponent, PanneauAnalyseComponent, PanneauCalquesComponent, PanneauEtapeComponent,
+    AnnonceComponent, BarreParcoursComponent, BoiteOutilsComponent, CarteComponent, DetailIrisComponent, DialogueMeteoComponent,
+    EtapeBientotComponent, IconeComponent, LegendeCarteComponent, PanneauAnalyseComponent, PanneauCalquesComponent, PanneauEtapeComponent,
     PanneauFiltreComponent, PanneauZonesComponent, PlanMediaComponent, RouterOutlet, TiroirPanneauComponent, ZoneActiveComponent,
   ],
-  providers: [ParcoursService, EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
+  providers: [ParcoursService, OutilsCarteService, EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
     IrisService, PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService,
     IndicateursCiviquesService, SanteService, ContoursZonesService, MeteoService, RisqueCarteService, RisquesIndustrielsService,
     PprtService, ZonesRisqueService, BatailleService, ZonesCustomService, LienZoneService, ExportZoneService, PlanMediaService,
@@ -163,7 +164,13 @@ export class CartePage {
   protected readonly lienZone = inject(LienZoneService);
   /** Le plan média des zones affichées (T15) : panneau droit du conteneur carte, et l'écart des outils quand il est ouvert. */
   protected readonly planMedia = inject(PlanMediaService);
-  protected readonly decalageOutils = computed(() => 10 + (this.planMedia.visible() ? LARGEUR_PLAN_MEDIA + 10 : 0));
+  /** La boîte à outils (T5) : l'outil ouvert, la légende affichée. */
+  protected readonly outils = inject(OutilsCarteService);
+  /** Écartée du plan média, du détail IRIS et du tiroir Street View ouverts (ruling AT-3) ; les annonces à sa gauche. */
+  protected readonly decalageOutils = computed(() => ecartOutils({
+    planMedia: this.planMedia.visible(), detailIris: this.iris.codeSelectionne() !== null, streetView: this.pois.panneauSelectionne() !== null,
+  }));
+  protected readonly droiteAnnonces = computed(() => droiteAnnonces(this.decalageOutils(), this.outils.outil() !== null));
   /** « Plan média (n) » : des zones affichées, panneau fermé (`page.tsx:1222`). */
   protected readonly zonesPlanFerme = computed(() => {
     const n = this.planMedia.zones().length;
@@ -247,8 +254,9 @@ export class CartePage {
     this.rendreFocusALaFermeture(() => this.iris.codeSelectionne() !== null);
     this.rendreFocusALaFermeture(() => this.pois.panneauSelectionne() !== null);
     this.rendreFocusALaFermeture(this.meteo.dialogueOuvert);
-    // Le module risque (T13) : il portait le focus, il disparaît avec l'outlet.
+    // Le module risque (T13) : il portait le focus, il disparaît avec l'outlet. Le tiroir de la boîte à outils (T5) : inerte.
     this.rendreFocusALaFermeture(this.moduleOuvert);
+    this.rendreFocusALaFermeture(() => this.outils.outil() !== null);
 
     // Le focus sur l'hôte à l'ouverture (sans lui, aucun raccourci ne l'atteint avant le premier clic), puis après
     // chaque geste qui CACHE ce qui le portait : l'étape quittée devient inerte, le panneau replié et la barre de
@@ -281,7 +289,7 @@ export class CartePage {
     this.etat.immersif.update((m) => !m);
   }
 
-  /** Le sélecteur compact (puis l'outil « Fond de carte », T5). Le même id ne recrée rien. */
+  /** L'outil « Fond de carte » de la boîte à outils (T5). Le même id ne recrée rien. */
   protected choisirFond(id: string): void {
     if (id === this.fond()) return;
     // Avant la recréation : aucun effet de couche n'écrit dans l'instance qui va être détruite.

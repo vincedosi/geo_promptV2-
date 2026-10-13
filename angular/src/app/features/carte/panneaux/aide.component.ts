@@ -14,7 +14,7 @@ const RACCOURCIS = [
 /**
  * Le tiroir « Aide » de la boîte à outils (spec § 6) : l'aide de l'ÉTAPE COURANTE, puis les raccourcis du parcours,
  * DÉRIVÉS de `ETAPES_CARTE` (jamais recopiés). L'ancienne liste dérivait de la navigation du rail, retirée le
- * 2026-10-13 (réécrite à la tâche 4, qui supprime `logique/navigation.ts` ; la tâche 5 la monte dans le tiroir).
+ * 2026-10-13 (réécrite à la tâche 4, qui supprime `logique/navigation.ts` ; montée dans le tiroir à la tâche 5).
  */
 @Component({
   selector: 'mg-aide',

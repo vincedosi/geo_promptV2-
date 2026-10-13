@@ -347,7 +347,8 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     // Ni l'onglet « carte seule » (le repli n'est pas posé), ni le focus perdu (le bouton est parti avec la barre).
     expect(hote.querySelector('[data-afficher-panneau]')).toBeNull();
     expect(document.activeElement).toBe(hote);
-    const quitter = hote.querySelector<HTMLButtonElement>('[data-zone-carte] [data-quitter-immersif]')!;
+    // La sortie à la souris est rangée dans la boîte à outils (T5).
+    const quitter = hote.querySelector<HTMLButtonElement>('[data-zone-carte] mg-boite-outils [role="toolbar"] [data-quitter-immersif]')!;
     expect(quitter.getAttribute('aria-label')).toBe('Quitter le mode immersif');
     frapper(hote, { key: 'Escape' });
     await stable();
@@ -394,7 +395,7 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     }
     expect(barre.querySelector('mg-fil-ariane')!.textContent).toContain('France entière');
     const carte = hote.querySelector('[data-zone-carte]')!;
-    for (const s of ['mg-legende-carte', '[data-badge-zoom]', 'mg-annonce', 'mg-detail-iris', 'mg-tiroir-panneau', 'mg-zone-active', 'mg-fond-compact']) {
+    for (const s of ['mg-legende-carte', '[data-badge-zoom]', 'mg-annonce', 'mg-detail-iris', 'mg-tiroir-panneau', 'mg-zone-active', 'mg-boite-outils']) {
       expect(carte.querySelector(s), s).not.toBeNull();
     }
   });
@@ -463,6 +464,118 @@ const URL_POSITRON = 'https://tiles.openfreemap.org/styles/positron';
 const URL_LIBERTY = 'https://tiles.openfreemap.org/styles/liberty';
 const URL_BRIGHT = 'https://tiles.openfreemap.org/styles/bright';
 const styleDe = (c: CarteFactice) => (c.options as Record<string, unknown>)['style'];
+/** Un fond choisi dans l'outil « Fond de carte » de la boîte à outils (T5) : ouvre le tiroir s'il ne l'est pas, puis clique. */
+async function choisirFondOutil(hote: HTMLElement, stable: () => Promise<void>, id: string): Promise<void> {
+  const bouton = hote.querySelector<HTMLButtonElement>('mg-boite-outils [data-outil="fond"]')!;
+  if (bouton.getAttribute('aria-pressed') !== 'true') {
+    bouton.click();
+    await stable();
+  }
+  hote.querySelector<HTMLButtonElement>(`[data-tiroir-outil] [data-fond="${id}"]`)!.click();
+}
+
+describe('CartePage — la boîte à outils : fond, légende, aide, réglages (T5)', () => {
+  beforeEach(() => {
+    TestBed.overrideProvider(CouleursService, { useValue: { palette: () => signal({ absente: '#9aa0a6', trait: '#555555' }) } });
+  });
+
+  const outil = (hote: HTMLElement, id: string) => hote.querySelector<HTMLButtonElement>(`mg-boite-outils [data-outil="${id}"]`)!;
+  /** Le tiroir VISIBLE : un tiroir fermé reste monté, invisible et inerte (ruling AT-6). */
+  const tiroir = (hote: HTMLElement) => hote.querySelector<HTMLElement>('[data-tiroir-outil]:not([inert])');
+  const titreAide = (hote: HTMLElement) => tiroir(hote)!.querySelector('[data-aide-etape] h4')!.textContent!.replace(/\s+/g, ' ').trim();
+
+  it('la boîte à outils vit dans le conteneur carte : Fond de carte, Légende, Aide, Réglages', async () => {
+    const { hote } = await ouvrir();
+    const barre = hote.querySelector('[data-zone-carte] mg-boite-outils [role="toolbar"]')!;
+    expect([...barre.querySelectorAll('[data-outil]')].map((b) => b.getAttribute('aria-label'))).toEqual(['Fond de carte', 'Légende', 'Aide', 'Réglages']);
+  });
+
+  it('Échap ferme le DERNIER ouvert : immersif puis tiroir Aide → le tiroir d’abord, puis l’immersif', async () => {
+    const { harness, hote, stable } = await ouvrir();
+    hote.querySelector<HTMLButtonElement>('mg-barre-parcours [data-immersif]')!.click();
+    await stable();
+    outil(hote, 'aide').click();
+    await stable();
+    expect(injecteurPage(harness).get(PileEchapService).etat().map((x) => x.id)).toEqual(['immersif', 'outil']);
+    frapper(hote, { key: 'Escape' });
+    await stable();
+    expect(tiroir(hote)).toBeNull();
+    expect(hote.querySelector('mg-barre-parcours')).toBeNull();
+    frapper(hote, { key: 'Escape' });
+    await stable();
+    expect(hote.querySelector('mg-barre-parcours')).not.toBeNull();
+    expect(injecteurPage(harness).get(PileEchapService).etat()).toEqual([]);
+  });
+
+  it('le tiroir Aide suit l’étape : ② puis ④ → « 4. Zones » et sa consigne', async () => {
+    const { hote, stable } = await ouvrir();
+    frapper(hote, altChiffre('2'));
+    await stable();
+    outil(hote, 'aide').click();
+    await stable();
+    expect(titreAide(hote)).toBe('2. Données');
+    frapper(hote, altChiffre('4'));
+    await stable();
+    expect(titreAide(hote)).toBe('4. Zones');
+    expect(tiroir(hote)!.textContent).toContain(CONSIGNE_ETAPE.zones);
+  });
+
+  it('Légende masque mg-legende-carte, puis la rend', async () => {
+    const { hote, stable } = await ouvrir();
+    expect(hote.querySelector('mg-legende-carte')).not.toBeNull();
+    outil(hote, 'legende').click();
+    await stable();
+    expect(hote.querySelector('mg-legende-carte')).toBeNull();
+    expect(tiroir(hote)).toBeNull();
+    outil(hote, 'legende').click();
+    await stable();
+    expect(hote.querySelector('mg-legende-carte')).not.toBeNull();
+  });
+
+  it('Réglages : Apparence et Back office, « Accès » mène à admin/acces (accès rétabli depuis la carte)', async () => {
+    const { hote, stable } = await ouvrir();
+    outil(hote, 'reglages').click();
+    await stable();
+    const reglages = tiroir(hote)!.querySelector('mg-reglages')!;
+    expect([...reglages.querySelectorAll('section h4')].map((h) => h.textContent?.trim())).toEqual(['Apparence', 'Back office']);
+    expect(reglages.querySelector<HTMLAnchorElement>('[data-section="back-office"] a')!.getAttribute('href')).toBe('/admin/acces');
+  });
+
+  it('fermer le tiroir qui portait le focus le rend à l’hôte : Alt+2 répond encore', async () => {
+    const { hote, stable } = await ouvrir();
+    outil(hote, 'aide').click();
+    await stable();
+    const croix = tiroir(hote)!.querySelector<HTMLButtonElement>('header button[aria-label="Fermer"]')!;
+    croix.focus();
+    croix.click();
+    await stable();
+    expect(tiroir(hote)).toBeNull();
+    expect((hote.getRootNode() as Document | ShadowRoot).activeElement).toBe(hote);
+    frapper(hote, altChiffre('2'));
+    await stable();
+    expect(panneauCourant(hote)).toBe('donnees');
+  });
+
+  it('ruling AT-3 : le détail IRIS ouvert écarte la boîte à outils (340 px) ; les annonces passent à sa gauche', async () => {
+    const detail = vi.fn(() => of({ code_iris: '751010201', nom_iris: 'Saint-Germain', code_commune: null, code_dept: null, is_true_iris: true }));
+    TestBed.overrideProvider(IrisApi, { useValue: { urlTuiles: () => '', bornes: () => of({}), detail } });
+    const { hote, cartes, stable } = await ouvrir();
+    const barre = () => hote.querySelector<HTMLElement>('mg-boite-outils [role="toolbar"]')!;
+    const annonces = () => hote.querySelector<HTMLElement>('mg-annonce')!;
+    expect(barre().style.right).toBe('10px');
+    expect(annonces().style.right).toBe('58px');
+    cartes[0].emettre('load');
+    await stable();
+    cartes[0].emettreSurCouche('click', 'iris-fill', { features: [{ properties: { code_iris: '751010201' } }] });
+    await stable();
+    expect(hote.querySelector('[data-detail-iris]')).not.toBeNull();
+    expect(barre().style.right).toBe('340px');
+    outil(hote, 'fond').click();
+    await stable();
+    expect(tiroir(hote)!.style.right).toBe('388px');
+    expect(annonces().style.right).toBe('716px');
+  });
+});
 
 describe('CartePage — fond de carte, recréation, Tout effacer (T4)', () => {
   beforeEach(() => localStorage.clear());
@@ -475,7 +588,8 @@ describe('CartePage — fond de carte, recréation, Tout effacer (T4)', () => {
     await stable();
     expect(couches.carteCourante()).toBe(cartes[0]);
 
-    hote.querySelector<HTMLButtonElement>('[data-fond-compact="positron"]')!.click();
+    // Rejoué depuis le tiroir « Fond de carte » de la boîte à outils (T5) — le sélecteur compact est retiré.
+    await choisirFondOutil(hote, stable, 'positron');
     expect(couches.carteCourante()).toBeNull();
     await stable();
 
@@ -488,25 +602,16 @@ describe('CartePage — fond de carte, recréation, Tout effacer (T4)', () => {
     cartes[1].emettre('load');
     await stable();
     expect(couches.carteCourante()).toBe(cartes[1]);
-    // Le fond courant est marqué dans le sélecteur compact (les Réglages reviennent dans la boîte à outils, T5).
-    expect(hote.querySelector('[data-fond-compact="magelian"]')!.getAttribute('aria-pressed')).toBe('false');
-    expect(hote.querySelector('[data-fond-compact="positron"]')!.getAttribute('aria-pressed')).toBe('true');
+    // Le fond courant est marqué dans le tiroir, resté ouvert : il vit hors de la carte recréée.
+    expect(hote.querySelector('[data-tiroir-outil] [data-fond="magelian"]')!.getAttribute('aria-pressed')).toBe('false');
+    expect(hote.querySelector('[data-tiroir-outil] [data-fond="positron"]')!.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('re-choisir le fond courant ne recrée rien', async () => {
     const { hote, cartes, stable } = await ouvrir();
-    hote.querySelector<HTMLButtonElement>('[data-fond-compact="liberty"]')!.click();
+    await choisirFondOutil(hote, stable, 'liberty');
     await stable();
     expect(cartes).toHaveLength(1);
-  });
-
-  it('le sélecteur compact « FOND » change de fond lui aussi (Sta / OSM / Cla / den)', async () => {
-    const { hote, cartes, stable } = await ouvrir();
-    const boutons = [...hote.querySelectorAll('mg-fond-compact button')].map((b) => b.textContent?.trim());
-    expect(boutons).toEqual(['Sta', 'OSM', 'Cla', 'den']);
-    hote.querySelector<HTMLButtonElement>('[data-fond-compact="bright"]')!.click();
-    await stable();
-    expect(styleDe(cartes[1])).toBe(URL_BRIGHT);
   });
 
   it('une couche active inscrite est RE-POSÉE sur la nouvelle instance après un changement de fond', async () => {
@@ -516,7 +621,7 @@ describe('CartePage — fond de carte, recréation, Tout effacer (T4)', () => {
     await stable();
     expect(couche.poses).toEqual([cartes[0]]);
 
-    hote.querySelector<HTMLButtonElement>('[data-fond-compact="bright"]')!.click();
+    await choisirFondOutil(hote, stable, 'bright');
     await stable();
     expect(couche.poses).toEqual([cartes[0]]);
     cartes[1].emettre('load');
@@ -541,7 +646,7 @@ describe('CartePage — fond de carte, recréation, Tout effacer (T4)', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('SecurityError'); });
     const { hote, cartes, stable } = await ouvrir();
     expect(styleDe(cartes[0])).toBe(URL_LIBERTY);
-    hote.querySelector<HTMLButtonElement>('[data-fond-compact="positron"]')!.click();
+    await choisirFondOutil(hote, stable, 'positron');
     await stable();
     expect(cartes).toHaveLength(2);
   });
@@ -697,7 +802,7 @@ describe('CartePage — panneau Calques, carreaux Filosofi, légende (T6)', () =
     expect(hote.querySelector('mg-legende-carte [data-bloc="carreaux"]')!.textContent).toContain('Carreaux Filosofi · pers./km²');
 
     // Changement de fond : la nouvelle instance reçoit la couche, visible.
-    hote.querySelector<HTMLButtonElement>('[data-fond-compact="bright"]')!.click();
+    await choisirFondOutil(hote, stable, 'bright');
     await stable();
     cartes[1].emettre('load');
     await stable();

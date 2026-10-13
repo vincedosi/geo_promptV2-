@@ -4,9 +4,9 @@ import { type EtapeCarte, lienApplicationReact } from '../logique/parcours';
 
 /**
  * Le panneau d'une étape pas encore portée (⑤ Plan, ⑥ Activation, ⑦ Live — spec § 12, lot 1) : un lien vers l'écran
- * React qui le fait aujourd'hui. Ce qu'elle fera (sa consigne) est dit UNE fois, par l'en-tête du panneau d'étape
- * (`mg-panneau-etape`) — le répéter ici l'affichait deux fois (relecture T4). (`/map?tab=…`, nouvel onglet). Sans origine React connue — hôte AIDA,
- * configuration pas encore lue — aucun lien : on n'invente pas une adresse.
+ * React qui le fait aujourd'hui (`/map?tab=…`, nouvel onglet). Sans origine React connue — hôte AIDA, configuration pas
+ * encore lue — aucun lien : on n'invente pas une adresse. Ce que l'étape fera (sa consigne) est dit UNE fois, par
+ * l'en-tête du panneau d'étape (`mg-panneau-etape`) — le répéter ici l'affichait deux fois (relecture T4).
  */
 @Component({
   selector: 'mg-etape-bientot',

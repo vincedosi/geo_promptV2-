@@ -2,7 +2,7 @@
 
 **Rôle** : portage de `/map` (lot 4), devenu un PARCOURS le 2026-10-13 — ① Périmètre › ② Données › ③ Analyse ›
 ④ Zones › ⑤ Plan › ⑥ Activation › ⑦ Live. La barre du parcours, le panneau de l'étape courante (dans le flux, à
-gauche) et la carte ; l'étape vit dans `?etape=`. Le module risque s'y ouvre en surimpression.
+gauche) et la carte, sa boîte à outils en haut à droite ; l'étape vit dans `?etape=`. Le module risque s'y ouvre en surimpression.
 
 **Route** : `carte` (`/app/carte`), plein écran, sœur de la coquille, `authGuard`. Son outlet enfant porte
 `risques` (voir `features/risques/README.md`) : ouvrir puis fermer le module ne recrée jamais la carte.
@@ -15,13 +15,14 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 | Dossier | Contenu |
 |---|---|
 | `parcours/` | la barre du parcours (`mg-barre-parcours` : fil d'Ariane, fil d'étapes, actions), le panneau d'étape (`mg-panneau-etape` : poignée, repli « carte seule »), les étapes « bientôt » ⑤-⑦ |
-| `panneaux/` | le contenu de chaque étape : `filtre/`, `calques/` (une section par couche), `analyse/` (bataille d'isochrones, corrélation, score, clustering), `zones/` (création, mes zones, jeux, plan média), `aide`, `reglages` |
+| `outils/` | la boîte à outils (`mg-boite-outils`, `OutilsCarteService` : Fond de carte, Légende, Aide, Réglages ; un tiroir à la fois, dans la pile Échap ; contenu monté à la première ouverture puis gardé) |
+| `panneaux/` | le contenu de chaque étape : `filtre/`, `calques/` (une section par couche), `analyse/` (bataille d'isochrones, corrélation, score, clustering), `zones/` (création, mes zones, jeux, plan média) ; `aide` et `reglages`, contenus des tiroirs de la boîte à outils |
 | `couches/` | une couche = un service (`*.service.ts` : état, lectures, pose) + ses fonctions pures (`couche-*.ts` : sources, couches, peintures, popups) |
 | `etat/` | état de l'écran : `parcours.service.ts` (étape courante, étapes visitées, `?etape=`), `etat-carte.service.ts` (mode immersif, filtre, dégradé actif…), `couches-carte.service.ts` (registre des couches, `carteCourante`), pile Échap, annonces, zones, bataille, score… |
 | `data/` | services d'API de la carte (`*.api.ts`) |
 | `logique/` | fonctions pures : `parcours.ts` (les sept étapes, l'URL, les raccourcis), copies de la logique React (`palettes-donnees-carte.ts`, `carreaux/`, `meteo/`…, verrouillées par les tests `carte-*-paritaire`), ordre des couches, gardes, règles de la légende |
 | `legende/` | la légende unique (`legende-carte`) et ses blocs propres (score, bataille, zones du profil) |
-| `commun/` | annonce, sélecteur de fond compact |
+| `commun/` | annonce, choix du fond (`mg-choix-fond`, tiroir « Fond de carte ») |
 
 ## Cycle de vie d'une couche
 
@@ -45,6 +46,9 @@ Un seul dégradé de couleur à la fois (carreaux, IRIS, civique, santé, mété
 - **une couche** : `couches/<nom>.service.ts` + `couches/couche-<nom>.ts`, le service dans les `providers` de
   `carte.page.ts`, ses identifiants dans `logique/ordre-couches.ts` (`carte-ordre-couches.test.ts`), sa
   section dans `panneaux/calques/`, son bloc éventuel dans `logique/legende.ts` + `legende/`.
+- **un outil de la boîte à outils** : une entrée dans `OUTILS` (`outils/boite-outils.component.ts`), son id dans
+  `OutilCarte`, son contenu dans le `@switch` du tiroir. Une bascule sans tiroir (comme la Légende) est un signal
+  d'`OutilsCarteService`.
 - **un outil d'analyse** : un composant dans `panneaux/analyse/`, son lancement gardé par
   `verifierPerimetreOutil('<outil>')` et déclaré dans `panneau-analyse-garde.test.ts`.
 - **une étape du parcours** : `logique/parcours.ts` (`ETAPES_CARTE`, libellés, consignes) est la seule définition —
