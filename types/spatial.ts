@@ -1,8 +1,8 @@
 /**
- * GENESIS — Spatial & Copilote types
+ * GENESIS — Spatial & carte types
  *
  * Types partagés pour les données géospatiales (isochrones, voronoï,
- * zones, carreaux) et les structures de l'interface copilote.
+ * zones, carreaux) et les structures de l'interface carte.
  */
 import type { POI } from './poi';
 
@@ -62,7 +62,7 @@ export interface BattleResult {
 }
 
 // ---------------------------------------------------------------------------
-// Copilote session
+// Session carte
 // ---------------------------------------------------------------------------
 
 export interface ZoneData {

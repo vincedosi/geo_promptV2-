@@ -674,7 +674,7 @@ export default function MapPage() {
       }
     }
 
-    // Couches tuiles vectorielles (visibilité) et couches copilote
+    // Couches tuiles vectorielles (visibilité) et couches de la carte
     mapLayers.setVoronoiVisible(false);
     mapLayers.setBattleVisible(false);
     mapLayers.setIsochroneVisible(false);

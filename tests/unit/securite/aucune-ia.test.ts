@@ -29,7 +29,15 @@ const IGNORES = [/^docs\//, /^\.superpowers\//, /^sql\//, /\.md$/];
 const TOLERES = new Set<string>(['tests/unit/securite/aucune-ia.test.ts']);
 
 /** Paquets d'IA que `package.json` ne doit plus déclarer. */
-const PAQUETS_INTERDITS = [/^ai$/, /^@ai-sdk\//];
+const PAQUETS_INTERDITS = [
+  /^ai$/,
+  /^@ai-sdk\//,
+  /^openai$/,
+  /^mistralai$/,
+  /^@anthropic-ai\//,
+  /^@google\/generative-ai$/,
+  /^@mistralai\//,
+];
 
 const FORMES: { nom: string; detecte: RegExp }[] = [
   {
@@ -42,7 +50,15 @@ const FORMES: { nom: string; detecte: RegExp }[] = [
   },
   {
     nom: "appel réseau vers un fournisseur d'IA",
-    detecte: /generativelanguage\.googleapis\.com|api\.mistral\.ai/,
+    detecte: /generativelanguage\.googleapis\.com|api\.mistral\.ai|\bmodal\.run\b/,
+  },
+  {
+    nom: "import d'un autre SDK d'IA (openai, mistralai, @anthropic-ai/*, @google/generative-ai, @mistralai/*)",
+    detecte: /(?:\bfrom|\bimport|\brequire\s*\()\s*\(?\s*['"](?:openai|mistralai|@anthropic-ai\/[^'"]+|@google\/generative-ai|@mistralai\/[^'"]+)['"]/,
+  },
+  {
+    nom: "appel d'une route d'IA supprimée (/api/chat, /api/smart-prompt, /api/providers)",
+    detecte: /['"`]\/api\/(?:chat|smart-prompt|providers)\b/,
   },
 ];
 
@@ -106,9 +122,15 @@ describe("aucune IA dans le code", () => {
 
   it("package-lock.json ne résout aucun paquet d'IA", () => {
     // Lu directement : le lockfile dépasse la borne de taille de `lireTexte`.
-    const brut = readFileSync(join(RACINE, 'package-lock.json'), 'utf8');
-    const lock = JSON.parse(brut) as { packages?: Record<string, unknown> };
-    const fautifs = Object.keys(lock.packages ?? {}).filter((k) => /(^|\/)node_modules\/(ai|@ai-sdk\/[^/]+)$/.test(k));
+    const fautifs: string[] = [];
+    for (const p of ['package-lock.json', 'angular/package-lock.json']) {
+      const brut = readFileSync(join(RACINE, p), 'utf8');
+      const lock = JSON.parse(brut) as { packages?: Record<string, unknown> };
+      for (const k of Object.keys(lock.packages ?? {})) {
+        const nom = k.split('node_modules/').pop() ?? '';
+        if (PAQUETS_INTERDITS.some((re) => re.test(nom))) fautifs.push(`${p} › ${k}`);
+      }
+    }
     expect(fautifs).toEqual([]);
   });
 });

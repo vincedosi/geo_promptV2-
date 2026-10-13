@@ -23,11 +23,11 @@ export interface POI {
   organization_id?: string;
   data_source_id?: string;
   metadata?: unknown;
-  /** Classement OOH (outil du copilote). */
+  /** Classement OOH (copilote retiré : plus aucun producteur ; champ lu seulement). */
   rank?: number | null;
-  /** Audience estimée (outil du copilote). */
+  /** Audience estimée (copilote retiré : plus aucun producteur). */
   audience?: number | null;
-  /** Score OOH composite (outil du copilote). */
+  /** Score OOH composite (copilote retiré : plus aucun producteur). */
   score_ooh?: number | null;
 }
 

@@ -1,5 +1,5 @@
 /**
- * GENESIS — Copilote shared constants & pure helpers
+ * GENESIS — Carte shared constants & pure helpers
  * No React, no side-effects — safe to import anywhere.
  */
 import maplibregl from 'maplibre-gl';

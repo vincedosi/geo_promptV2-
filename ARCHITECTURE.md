@@ -645,8 +645,8 @@ genesis_app/
 │   │                           # n'encoderait que la couleur deja affichee
 │   │                           # sous l'apparence d'une mesure.
 │   │                           # ⚠ Le SURVOL d'un site dessine ses anneaux
-│   │                           # (64 segments, `circleGeoJSON` reutilise du
-│   │                           # copilote, AUCUNE requete) : l'aplat etant
+│   │                           # (64 segments, `circleGeoJSON` defini dans
+│   │                           # app/map/_lib/constants.ts, AUCUNE requete) : l'aplat etant
 │   │                           # exclusif, il ne dit pas de quel site vient la
 │   │                           # zone qu'on regarde. La population par site
 │   │                           # reste hors du survol — elle demande un appel

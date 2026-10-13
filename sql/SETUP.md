@@ -139,6 +139,10 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 
 ---
 
+## Rejouer sql/238 et sql/162 APRES sql/250
+
+`sql/250` supprime la table `agent_chat_messages` (suppression de l'IA, 2026-10-12). Deux anciennes migrations la nomment encore et ECHOUENT si on les rejoue sur une base deja passee par 250 : `sql/238_politiques_for_all.sql` (`drop policy if exists agent_chat_org_read on public.agent_chat_messages` -> `relation does not exist`, le `if exists` ne couvre pas la table) et `sql/162` (index de `agent_chat_messages`, lignes 78-79). Une reconstruction dans l'ordre (162, puis 238, puis 250) passe. Pour rejouer 238 ou 162 sur une base deja a jour : sauter les instructions qui visent `agent_chat_messages` (les migrations ne sont pas modifiees, elles portent l'histoire de la base).
+
 ## Dossier archive/
 
 Les scripts dans `sql/archive/` sont des **versions intermédiaires déjà appliquées** en production, conservées pour référence historique uniquement. Ne pas les réappliquer.

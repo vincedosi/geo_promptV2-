@@ -3,7 +3,7 @@ name: geomatik-product-vision
 description: >
   Vision produit et architecture UX cible de GEOMATIK. Source de vérité pour toute
   décision structurelle : layout, navigation, layer manager, intégration Digital,
-  thème light/dark, geo.prompt. Utilise cette skill quand le prompt touche à la
+  thème light/dark. Utilise cette skill quand le prompt touche à la
   navigation, au layout global, aux tabs, au panel Expert, à l'intégration de pages,
   au thème, ou à toute réorganisation de l'interface.
 ---
@@ -37,8 +37,8 @@ Si un module affiche des données géographiques, il s'intègre comme un layer s
 │ 260px  │              flex: 1                                │
 │ scroll │                                                     │
 │        │                                                     │
-│        │                                      [geo.prompt]   │
-│        │                                       FAB teal      │
+│        │                                                     │
+│        │                                                     │
 ├────────┴─────────────────────────────────────────────────────┤
 │ (optionnel) Drawer bas : analyse détaillée (heatmap, tables) │
 └──────────────────────────────────────────────────────────────┘
@@ -46,7 +46,6 @@ Si un module affiche des données géographiques, il s'intègre comme un layer s
 
 - Panel Expert : côté gauche, 260px, scrollable
 - Carte : centre, flex 1, plein écran
-- Geo.prompt : bouton flottant bas-droite (FAB), ouvre un drawer
 - Drawer bas (optionnel) : pour les analyses détaillées (heatmap, tables bidding)
 
 ---
@@ -140,24 +139,11 @@ Le drawer est dismissable, ne remplace pas la carte.
 
 ---
 
-## 5. Geo.prompt — Intégration progressive
+## 5. Geo.prompt — SUPPRIMÉ
 
-### Phase actuelle (chat non prêt)
-- Le tab Geo.Prompt reste tel quel en haut du panel
-- Toggle Geo.Prompt / Expert comme aujourd'hui
-- Pas de modification
-
-### Phase future (chat prêt)
-- La barre de recherche devient la Smart Bar (recherche + chat unifié)
-- Le tab Geo.Prompt disparaît
-- Les réponses apparaissent en cartes éphémères sous la barre
-- Suggestions contextuelles basées sur les layers actifs
-- Les 6 agents Mistral reçoivent le contexte carte (layers, zoom, bbox)
-
-### Transition
-L'architecture actuelle (barre de recherche fixe en haut du panel) est
-déjà compatible avec la Smart Bar. Le jour du switch, seul le comportement
-de la barre change, pas le layout.
+Le copilote IA (geo.prompt, chat, Smart Bar, agents) a été retiré du produit le
+2026-10-12 : il n'y a plus d'IA dans le code. Ne pas prévoir de tab, de FAB ni
+de barre de chat dans une réorganisation de l'interface.
 
 ---
 
@@ -209,7 +195,6 @@ La préférence est sauvegardée en localStorage et respecte prefers-color-schem
 
 ## 8. Ce qui reste
 
-- Le toggle Geo.Prompt / Expert (tant que le chat n'est pas intégré)
 - Le tab Carte / Étude dans le header
 - La sidebar avec sections Analyse / Administration / Système
 - Les 3 cartes côte à côte quand Digital est actif (toggle on par défaut)
