@@ -364,8 +364,10 @@ export class SectionRisqueComponent {
   /** Ouvre le module : `risques` relatif à la carte, le `?risque=` courant gardé, ses natures celles de Calques. */
   protected analyser(): void {
     const brut = this.route.snapshot.queryParamMap.get(PARAM_RISQUE);
+    // `merge` : l'étape du parcours (`etape`) suit dans l'URL du module ; le `risque` passé ici l'emporte sur l'ancien.
     void this.router.navigate(['risques'], {
       relativeTo: this.route,
+      queryParamsHandling: 'merge',
       queryParams: { [PARAM_RISQUE]: risqueDepuisCalques(brut, this.r.typesRisque()) },
     });
   }

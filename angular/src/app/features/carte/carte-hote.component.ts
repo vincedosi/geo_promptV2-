@@ -1,7 +1,11 @@
 import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CartePage } from './carte.page';
+import { PARAM_ETAPE } from './logique/parcours';
 import { PARAM_ZONE_LIEN } from './logique/zones/zone-du-lien';
+
+/** Ce qui appartient à l'ancien espace et quitte l'URL avant la recréation : sa zone, et l'étape (retour à ①, spec § 3). */
+const PARAMS_DE_L_ESPACE = [PARAM_ZONE_LIEN, PARAM_ETAPE] as const;
 
 /** Le bouton d'espace du badge de session (`layout/badge-session.component.ts`), dans la barre du haut de la page. */
 const BADGE_ESPACE = '[data-declencheur="org"]';
@@ -20,8 +24,8 @@ const BADGE_ESPACE = '[data-declencheur="org"]';
  * qui dépende du périmètre ; le profil mémorisé (`AuthService`) est oublié par le badge de session lui-même.
  *
  * ── L'URL ────────────────────────────────────────────────────────────────
- * Elle est gardée (le module risque, enfant de la route, est rendu par l'outlet de la page recréée), SAUF `customZone` :
- * la zone du lien appartient à l'ancien espace. Il est retiré AVANT la recréation, sinon la nouvelle page la relirait.
+ * Elle est gardée (le module risque, enfant de la route, est rendu par l'outlet de la page recréée), SAUF `customZone` ET `etape` :
+ * la zone du lien appartient à l'ancien espace, et changer d'espace remet le parcours à ① (spec § 3). Ils sont retirés AVANT la recréation, sinon la nouvelle page la relirait.
  */
 @Component({
   selector: 'mg-carte-hote',
@@ -44,18 +48,25 @@ export class CarteHoteComponent {
   protected readonly generation = signal(0);
 
   /**
-   * Un changement d'espace : `customZone` quitte l'URL s'il y est, puis la page est recréée. Une navigation REJETÉE
+   * Un changement d'espace : `customZone` et `etape` quittent l'URL s'ils y sont, en UNE navigation, puis la page est recréée. Une navigation REJETÉE
    * (garde en erreur…) est interceptée — sans quoi elle remonterait en rejet non géré — et la page est recréée quand
    * même : l'espace a changé côté serveur, garder l'ancienne page montrerait l'ancien espace.
    */
   protected actualiser(): void {
-    if (!this.route.snapshot.queryParamMap.has(PARAM_ZONE_LIEN)) {
+    const q = this.route.snapshot.queryParamMap;
+    const aRetirer = PARAMS_DE_L_ESPACE.filter((p) => q.has(p));
+    if (aRetirer.length === 0) {
       this.recreer();
       return;
     }
     const recreer = () => this.recreer();
     void this.router
-      .navigate([], { relativeTo: this.route, queryParams: { [PARAM_ZONE_LIEN]: null }, queryParamsHandling: 'merge', replaceUrl: true })
+      .navigate([], {
+        relativeTo: this.route,
+        queryParams: Object.fromEntries(aRetirer.map((p) => [p, null])),
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      })
       .then(recreer, recreer);
   }
 

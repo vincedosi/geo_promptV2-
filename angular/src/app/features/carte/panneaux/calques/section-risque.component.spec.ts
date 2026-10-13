@@ -196,4 +196,26 @@ describe('SectionRisqueComponent — « Analyser la population à risque → » 
     expect(attendu.endsWith('&etape=rayon')).toBe(true);
     expect(TestBed.inject(Router).url.startsWith('/carte/risques?risque=natures%3DToxicit')).toBe(true);
   });
+
+  it('depuis `/carte?etape=donnees` : l’étape du parcours est gardée dans l’URL du module', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(), SelectionsCalquesService, RisqueCarteService, RisquesIndustrielsService, PprtService,
+        CouchesCarteService,
+        provideRouter([{ path: 'carte', component: HoteCarte, children: [{ path: 'risques', component: Module }] }]),
+        { provide: SitesRisqueApi, useValue: { carte: () => NEVER, exposition: () => NEVER } },
+        { provide: CarteApi, useValue: { pprt: () => NEVER } },
+        { provide: CouleursService, useValue: { palette: () => signal({}) } },
+        { provide: FABRIQUE_POPUP, useValue: () => ({}) },
+      ],
+    });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/carte?etape=donnees');
+    await harness.fixture.whenStable();
+    ((harness.fixture.nativeElement as HTMLElement).querySelector('[data-analyser]') as HTMLButtonElement).click();
+    await harness.fixture.whenStable();
+    const url = TestBed.inject(Router).url;
+    expect(url.startsWith('/carte/risques?')).toBe(true);
+    expect(url).toContain('etape=donnees');
+  });
 });

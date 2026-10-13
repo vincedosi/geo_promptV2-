@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Router, provideRouter } from '@angular/router';
+import { Router, RouterOutlet, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { FABRIQUE_CARTE } from '../../carte/fabrique-carte';
 import { CarteFactice } from '../../carte/testing/carte-factice';
@@ -27,6 +27,10 @@ import type { ProfilRayons } from './logique/profil';
 
 @Component({ selector: 'mg-vide', template: '' })
 class Vide {}
+
+/** La route `carte` parente du module (T2) : une coque avec son outlet. */
+@Component({ selector: 'mg-carte-parente', template: '<router-outlet />', imports: [RouterOutlet] })
+class CarteParente {}
 
 class ObservateurFactice {
   observe = vi.fn();
@@ -55,6 +59,8 @@ async function ouvrir(url = '/risques', reponses: {
     providers: [
       provideRouter([
         { path: 'risques', component: RisquePage },
+        // La carte parente (T2) : le module y est un enfant, comme dans `app.routes.ts`.
+        { path: 'carte', component: CarteParente, children: [{ path: 'risques', component: RisquePage }] },
         { path: '', component: Vide },
       ]),
       // Les API du module (fournies par la route en vrai) : catalogue et référentiel répondent, les calculs jamais.
@@ -106,7 +112,7 @@ async function ouvrir(url = '/risques', reponses: {
     ],
   });
   const harness = await RouterTestingHarness.create();
-  const page = await harness.navigateByUrl(url, RisquePage);
+  const page = (await harness.navigateByUrl(url, url.startsWith('/carte') ? CarteParente : RisquePage)) as unknown as RisquePage;
   await stabiliser(harness);
   return { harness, page, cartes, preparations, router: TestBed.inject(Router), el: () => harness.routeNativeElement as HTMLElement };
 }
@@ -276,6 +282,13 @@ describe('RisquePage', () => {
     el().querySelector<HTMLButtonElement>('button[aria-label="Fermer"]')!.click();
     await stabiliser(harness);
     expect(router.url).toBe('/');
+  });
+
+  it('(i ter bis, T2) la croix garde les paramètres de la carte (etape) ; seul `risque` part', async () => {
+    const { harness, router, el } = await ouvrir('/carte/risques?risque=etape%3Drayon&etape=donnees');
+    el().querySelector<HTMLButtonElement>('button[aria-label="Fermer"]')!.click();
+    await stabiliser(harness);
+    expect(router.url).toBe('/carte?etape=donnees');
   });
 
   it('(j) les cartes MapLibre (rayons, codes postaux) sont créées UNE fois, même après trois changements d’étape', async () => {

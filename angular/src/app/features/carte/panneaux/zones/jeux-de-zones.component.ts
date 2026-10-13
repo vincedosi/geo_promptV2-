@@ -92,6 +92,11 @@ export class JeuxDeZonesComponent {
 
   /** L'URL du module est écrite PAR la navigation même : le module naît sur ④ et ce jeu, jamais sur l'étape par défaut. */
   protected ouvrir(id: string): void {
-    void this.router.navigate(['risques'], { relativeTo: this.route, queryParams: { [PARAM_RISQUE]: risqueDuJeu(id) } });
+    // `merge` : l'étape du parcours (`etape`) suit dans l'URL du module ; le `risque` passé ici l'emporte sur l'ancien.
+    void this.router.navigate(['risques'], {
+      relativeTo: this.route,
+      queryParams: { [PARAM_RISQUE]: risqueDuJeu(id) },
+      queryParamsHandling: 'merge',
+    });
   }
 }

@@ -274,4 +274,29 @@ describe('CarteHoteComponent — changer d’espace recrée la page carte', () =
     expect(rejets).toEqual([]);
     expect(page().componentInstance).not.toBe(avant);
   });
+
+  it('(h) changer d’espace depuis ?etape=analyse&customZone= : UNE navigation, URL sans etape ni customZone, page recréée (Review Focus 3)', async () => {
+    const { stable, page, changerEspace } = await ouvrir(`/carte?etape=analyse&customZone=${ID}`);
+    const router = TestBed.inject(Router);
+    const navigation = vi.spyOn(router, 'navigate');
+    const avant = page().componentInstance;
+
+    changerEspace('org-2');
+    await stable();
+
+    expect(navigation).toHaveBeenCalledTimes(1);
+    expect(router.url).toBe('/carte');
+    expect(page().componentInstance).not.toBe(avant);
+  });
+
+  it('(h bis) ?etape=zones seul : retiré lui aussi au changement d’espace (retour à ①)', async () => {
+    const { stable, page, changerEspace } = await ouvrir('/carte?etape=zones');
+    const avant = page().componentInstance;
+
+    changerEspace('org-2');
+    await stable();
+
+    expect(TestBed.inject(Router).url).toBe('/carte');
+    expect(page().componentInstance).not.toBe(avant);
+  });
 });
