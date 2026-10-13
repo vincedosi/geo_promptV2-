@@ -2,29 +2,28 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { CaptureService } from '../../etat/capture.service';
 import { CreationZoneService } from '../../etat/creation-zone.service';
+import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { CaptureComponent } from './capture.component';
 import { CreerCodesPostauxComponent } from './creer-codes-postaux.component';
 import { CreerDessinComponent } from './creer-dessin.component';
 import { CreerRayonComponent } from './creer-rayon.component';
-import { JeuxDeZonesComponent } from './jeux-de-zones.component';
-import { MesZonesComponent } from './mes-zones.component';
 
 /**
- * Le panneau « Zones » du rail — `app/map/_components/panneaux/PanneauZones.tsx` (lot 4, T14-T16) : « Ce que je
- * fabrique ». Trois sections, dans l'ordre de React :
+ * Le panneau de l'étape ④ Zones — `app/map/_components/panneaux/PanneauZones.tsx` (lot 4, T14-T16) : « Ce que je
+ * fabrique ». Créer une zone, puis le renvoi vers l'outil Mes zones (2026-10-13) :
  *
  *   - « Créer une zone » (T16) : la capture des couches actives (`mg-capture`, badge = nombre de couches
  *     contributives allumées, déclarées par leurs services au `CaptureService`), puis les codes postaux, le rayon et
- *     le dessin. Chaque création relit « Mes zones » (`rafraichir`) — la capture aussi, ce que React ne faisait pas.
- *   - « Jeux de zones à risque » (T13, `mg-jeux-de-zones`) : AVANT « Mes zones », comme React — peu nombreux, ils
- *     portent un plan de campagne, là où « Mes zones » se parcourt en défilant.
- *   - « Mes zones » (`mg-mes-zones`).
+ *     le dessin. Chaque création relit « Mes zones » (`OutilsCarteService.zonesModifiees`) — la capture aussi, ce que
+ *     React ne faisait pas.
+ *   - Le renvoi : les jeux de zones et « Mes zones » vivent dans la boîte à outils (`outils/outil-mes-zones`, spec § 6) ;
+ *     un bouton l'ouvre sans changer d'étape.
  *
  * `CreationZoneService` est fourni ICI : l'organisation active est relue à chaque ouverture du panneau.
  */
 @Component({
   selector: 'mg-panneau-zones',
-  imports: [CaptureComponent, CreerCodesPostauxComponent, CreerDessinComponent, CreerRayonComponent, IconeComponent, JeuxDeZonesComponent, MesZonesComponent],
+  imports: [CaptureComponent, CreerCodesPostauxComponent, CreerDessinComponent, CreerRayonComponent, IconeComponent],
   providers: [CreationZoneService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full flex-col overflow-y-auto' },
@@ -55,11 +54,10 @@ import { MesZonesComponent } from './mes-zones.component';
       <mg-capture (fermer)="captureOuverte.set(false)" (cree)="relire()" />
     }
 
-    <mg-jeux-de-zones />
-
-    <section data-section="mes-zones" class="pt-3">
-      <h4 class="mb-2 mt-0 px-4 text-[11px] font-medium tracking-[0.04em] text-secondary">Mes zones</h4>
-      <mg-mes-zones [rafraichir]="rafraichir()" />
+    <section data-section="vers-mes-zones" class="px-4 py-3">
+      <p class="m-0 text-[12px] leading-[1.5] text-tertiary">Vos zones et jeux de zones enregistrés sont dans la boîte à outils.</p>
+      <button type="button" data-ouvrir-mes-zones (click)="outils.ouvrir('zones')"
+              class="mt-2 cursor-pointer rounded-[6px] border-fin border-default bg-transparent px-3 py-1.5 text-[12px] text-secondary hover:border-hover hover:bg-elevated hover:text-primary">Ouvrir « Mes zones »</button>
     </section>
   `,
   styles: `
@@ -73,10 +71,10 @@ export class PanneauZonesComponent {
   protected readonly compte = inject(CaptureService).compte;
   protected readonly captureInactive = computed(() => this.compte() === 0);
   protected readonly captureOuverte = signal(false);
-  /** Incrémenté à chaque zone créée : « Mes zones » se relit sans être recréé (sa sélection survit). */
-  protected readonly rafraichir = signal(0);
+  protected readonly outils = inject(OutilsCarteService);
 
+  /** Une zone créée : « Mes zones », dans la boîte à outils, se relit sans être recréé (sa sélection survit). */
   protected relire(): void {
-    this.rafraichir.update((n) => n + 1);
+    this.outils.zonesModifiees();
   }
 }

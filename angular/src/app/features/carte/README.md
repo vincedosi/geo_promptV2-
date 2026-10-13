@@ -15,8 +15,8 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 | Dossier | Contenu |
 |---|---|
 | `parcours/` | la barre du parcours (`mg-barre-parcours` : fil d'Ariane, fil d'étapes, actions), le panneau d'étape (`mg-panneau-etape` : poignée, repli « carte seule »), les étapes « bientôt » ⑤-⑦ |
-| `outils/` | la boîte à outils (`mg-boite-outils`, `OutilsCarteService` : Fond de carte, Légende, Aide, Réglages ; un tiroir à la fois, dans la pile Échap ; contenu monté à la première ouverture puis gardé) |
-| `panneaux/` | le contenu de chaque étape : `filtre/`, `calques/` (une section par couche), `analyse/` (bataille d'isochrones, corrélation, score, clustering), `zones/` (création, mes zones, jeux, plan média) ; `aide` et `reglages`, contenus des tiroirs de la boîte à outils |
+| `outils/` | la boîte à outils (`mg-boite-outils`, `OutilsCarteService` : Mes analyses, Mes zones, Fond de carte, Légende, Aide, Réglages ; un tiroir à la fois, dans la pile Échap ; contenu monté à la première ouverture puis gardé) |
+| `panneaux/` | le contenu de chaque étape : `filtre/`, `calques/` (une section par couche), `analyse/` (bataille d'isochrones, corrélation, score, clustering), `zones/` (création ; « Mes zones » et les jeux de zones, montés par l'outil Mes zones ; plan média) ; `aide` et `reglages`, contenus des tiroirs de la boîte à outils |
 | `couches/` | une couche = un service (`*.service.ts` : état, lectures, pose) + ses fonctions pures (`couche-*.ts` : sources, couches, peintures, popups) |
 | `etat/` | état de l'écran : `parcours.service.ts` (étape courante, étapes visitées, `?etape=`), `etat-carte.service.ts` (mode immersif, filtre, dégradé actif…), `couches-carte.service.ts` (registre des couches, `carteCourante`), pile Échap, annonces, zones, bataille, score… |
 | `data/` | services d'API de la carte (`*.api.ts`) |

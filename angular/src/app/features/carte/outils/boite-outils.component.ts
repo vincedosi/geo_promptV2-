@@ -6,6 +6,8 @@ import type { EtapeCarte } from '../logique/parcours';
 import { AideComponent } from '../panneaux/aide.component';
 import { LARGEUR_PLAN_MEDIA } from '../panneaux/zones/plan-media.component';
 import { ReglagesComponent } from '../panneaux/reglages.component';
+import { OutilMesAnalysesComponent } from './outil-mes-analyses.component';
+import { OutilMesZonesComponent } from './outil-mes-zones.component';
 import { type OutilCarte, OutilsCarteService } from './outils-carte.service';
 
 export interface EntreeOutil {
@@ -16,8 +18,10 @@ export interface EntreeOutil {
   readonly separeAvant?: boolean;
 }
 
-/** Les boutons, dans l'ordre de la maquette. T6 ajoute « Mes analyses » et « Mes zones » en tête. */
+/** Les boutons, dans l'ordre de la maquette : « Mes analyses » et « Mes zones » (T6) en tête, puis fond et légende. */
 export const OUTILS: readonly EntreeOutil[] = [
+  { id: 'analyses', libelle: 'Mes analyses', icone: 'fiole' },
+  { id: 'zones', libelle: 'Mes zones', icone: 'formes' },
   { id: 'fond', libelle: 'Fond de carte', icone: 'carte' },
   { id: 'legende', libelle: 'Légende', icone: 'menu' },
   { id: 'aide', libelle: 'Aide', icone: 'aide', separeAvant: true },
@@ -71,7 +75,7 @@ export function largeurMaxADroite(droite: number): string {
  */
 @Component({
   selector: 'mg-boite-outils',
-  imports: [AideComponent, ChoixFondComponent, IconeComponent, ReglagesComponent],
+  imports: [AideComponent, ChoixFondComponent, IconeComponent, OutilMesAnalysesComponent, OutilMesZonesComponent, ReglagesComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'contents' },
   template: `
@@ -118,6 +122,8 @@ export function largeurMaxADroite(droite: number): string {
           @for (m of montes(); track m) {
             <div [attr.data-contenu-outil]="m" [class.hidden]="m !== outils.outil()" [attr.inert]="m !== outils.outil() ? '' : null">
               @switch (m) {
+                @case ('analyses') { <mg-outil-mes-analyses /> }
+                @case ('zones') { <mg-outil-mes-zones /> }
                 @case ('fond') { <mg-choix-fond [fond]="fond()" (choisirFond)="choisirFond.emit($event)" /> }
                 @case ('aide') { <mg-aide [etape]="etape()" /> }
                 @case ('reglages') { <mg-reglages /> }

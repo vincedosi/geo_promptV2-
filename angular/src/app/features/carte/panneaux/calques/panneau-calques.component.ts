@@ -11,8 +11,6 @@ import { RisqueCarteService } from '../../etat/risque-carte.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { libelleDegrade } from '../../logique/degrades';
 import { GroupeCalquesComponent } from './groupe-calques.component';
-import { MesAnalysesComponent } from './mes-analyses.component';
-import { MesAnalysesService } from './mes-analyses.service';
 import { SectionCarreauxComponent } from './section-carreaux.component';
 import { SectionCiviqueComponent } from './section-civique.component';
 import { SectionIrisComponent } from './section-iris.component';
@@ -26,7 +24,7 @@ import { SectionTmjaComponent } from './section-tmja.component';
 import { SectionTransportComponent } from './section-transport.component';
 import { SelectionsCalquesService } from './selections-calques.service';
 
-type CleGroupe = 'socioDemo' | 'poiMobilite' | 'mediasOffline' | 'environnement' | 'analyses';
+type CleGroupe = 'socioDemo' | 'poiMobilite' | 'mediasOffline' | 'environnement';
 
 /** Un calque affiché, dans « Actifs (n) », avec la croix qui l'éteint (`PanneauCalques.tsx:327-358`). */
 interface ActifCalque {
@@ -39,27 +37,27 @@ interface ActifCalque {
  * Le panneau « Calques » du rail (« ce que je vois ») — portage de `app/map/_components/panneaux/PanneauCalques.tsx`.
  *
  * « Actifs (n) » puis les groupes repliables, dans l'ordre de React : Socio-démographie, [Campagne active], POI et
- * mobilité, Médias offline, Environnement, Mes analyses. Tous fermés à l'ouverture, et rien n'est mémorisé : comme
+ * mobilité, Médias offline, Environnement. Tous fermés à l'ouverture, et rien n'est mémorisé : comme
  * React (`useState`, `PanneauCalques.tsx:240-243`), le panneau repart replié à chaque réouverture.
  *
  * T6 a porté le CADRE et les carreaux Filosofi, T7 les IRIS, T8 les POI, le transport et les panneaux OOH, T9 le flux
  * routier (TMJA) et la radio, T10 les indicateurs civiques et la santé environnementale, T11 la météo, T12 les risques
- * industriels, T18 « Mes analyses ». Les sections
+ * industriels, T18 « Mes analyses » (sorti vers la boîte à outils le 2026-10-13). Les sections
  * internes de ces groupes (`useFilterSections(true, …)` en mode overlay) ne mémorisent rien non plus : leur état, les
  * régies OOH et les types de transport choisis vivent dans `SelectionsCalquesService`, fourni par CE composant — il
  * survit au repli d'un groupe et disparaît à la fermeture du panneau, comme l'état React.
  * « Campagne active » n'est pas rendu : il n'existe qu'avec une campagne active, qui relève du lot 5 (arbitrage B6).
- * « Mes analyses » lit `GET /api/analyses` au PREMIER dépliage du groupe, jamais au montage ni au repli
- * (`PanneauCalques.tsx:645-654`) ; sa liste vit dans `MesAnalysesService`, fourni ICI, et survit donc au repli.
+ * « Mes analyses » vit dans la boîte à outils depuis le 2026-10-13 (spec § 6, `outils/outil-mes-analyses`) : il n'est
+ * plus un groupe de ce panneau.
  */
 @Component({
   selector: 'mg-panneau-calques',
   imports: [
-    GroupeCalquesComponent, IconeComponent, MesAnalysesComponent, SectionCarreauxComponent, SectionCiviqueComponent, SectionIrisComponent, SectionMeteoComponent,
+    GroupeCalquesComponent, IconeComponent, SectionCarreauxComponent, SectionCiviqueComponent, SectionIrisComponent, SectionMeteoComponent,
     SectionOohComponent, SectionPoiComponent, SectionRadioComponent, SectionRisqueComponent, SectionSanteComponent, SectionTmjaComponent,
     SectionTransportComponent,
   ],
-  providers: [SelectionsCalquesService, MesAnalysesService],
+  providers: [SelectionsCalquesService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full flex-col overflow-y-auto' },
   template: `
@@ -129,12 +127,6 @@ interface ActifCalque {
         </div>
       }
     </mg-groupe-calques>
-
-    <mg-groupe-calques titre="Mes analyses" [ouvert]="groupes().analyses" (basculer)="basculerAnalyses()">
-      @if (groupes().analyses) {
-        <mg-mes-analyses />
-      }
-    </mg-groupe-calques>
   `,
 })
 export class PanneauCalquesComponent {
@@ -148,10 +140,9 @@ export class PanneauCalquesComponent {
   private readonly sante = inject(SanteService);
   private readonly meteo = inject(MeteoService);
   private readonly risque = inject(RisqueCarteService);
-  private readonly mesAnalyses = inject(MesAnalysesService);
 
   protected readonly groupes = signal<Record<CleGroupe, boolean>>({
-    socioDemo: false, poiMobilite: false, mediasOffline: false, environnement: false, analyses: false,
+    socioDemo: false, poiMobilite: false, mediasOffline: false, environnement: false,
   });
 
   protected readonly compteSocio = computed(() => (this.carreaux.visible() ? 1 : 0) + (this.iris.visible() ? 1 : 0));
@@ -214,12 +205,5 @@ export class PanneauCalquesComponent {
 
   protected basculer(cle: CleGroupe): void {
     this.groupes.update((g) => ({ ...g, [cle]: !g[cle] }));
-  }
-
-  /** Charger à l'OUVERTURE seulement : replier ne lance rien (relecture React du 2026-09-13). */
-  protected basculerAnalyses(): void {
-    const ouvrir = !this.groupes().analyses;
-    this.basculer('analyses');
-    if (ouvrir) this.mesAnalyses.demanderChargement();
   }
 }

@@ -1,9 +1,10 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { EMPTY, map, switchMap } from 'rxjs';
-import { ScoreService } from '../../couches/score.service';
-import { type AnalyseResume, AnalysesApi } from '../../data/analyses.api';
-import { messageErreurRequete } from '../../logique/analyses/commun';
-import { corpsRejeuScore, libelleScore } from '../../logique/analyses/score';
+import { ScoreService } from '../couches/score.service';
+import { type AnalyseResume, AnalysesApi } from '../data/analyses.api';
+import { ParcoursService } from '../etat/parcours.service';
+import { messageErreurRequete } from '../logique/analyses/commun';
+import { corpsRejeuScore, libelleScore } from '../logique/analyses/score';
 
 /** Une action en cours ou échouée sur UNE ligne : rejouer, demander à supprimer, supprimer. */
 export interface EtatLigne {
@@ -12,29 +13,31 @@ export interface EtatLigne {
 }
 
 /**
- * « Mes analyses » du panneau Calques — `filter-panel/use-analyses.ts` (lot 4, T18), plus deux gestes que React
- * n'offrait pas sur des routes qui existaient déjà : REJOUER un score, SUPPRIMER une analyse.
+ * « Mes analyses » — `filter-panel/use-analyses.ts` (lot 4, T18), plus deux gestes que React n'offrait pas sur des
+ * routes qui existaient déjà : REJOUER un score, SUPPRIMER une analyse. Groupe du panneau Calques jusqu'au 2026-10-13,
+ * outil de la boîte à outils depuis (spec § 6, `outil-mes-analyses.component.ts`).
  *
- * ── UNE LECTURE PAR OUVERTURE DU PANNEAU ─────────────────────────────────
- * `demanderChargement` est appelé au PREMIER dépliage du groupe, jamais au montage ; replier puis rouvrir ne relit
- * rien (le contenu du groupe est détruit au repli, cet état vit un cran plus haut — fourni par le panneau Calques).
- * Fermer le panneau oublie la liste, comme React (`page.tsx` démonte le panneau). Un échec laisse un nouveau dépliage
- * relire.
+ * ── UNE LECTURE, À LA PREMIÈRE OUVERTURE DE L'OUTIL ──────────────────────
+ * `demanderChargement` est appelé à chaque ouverture de l'outil, jamais au chargement de la carte ; il ne lit qu'UNE
+ * fois (l'outil est gardé, ruling AT-6). Un échec laisse la réouverture suivante relire. Changer d'espace recrée la
+ * page, donc oublie la liste.
  *
  * ── REJOUER ──────────────────────────────────────────────────────────────
  * `POST /api/analyses/[id]/rejouer` n'écrit rien : il rend les paramètres. Pour un score, ils repartent tels quels vers
- * `POST /api/analyses/score` (la LISTE de CP enregistrée, `enregistrer: false`) et la carte peint le résultat.
+ * `POST /api/analyses/score` (la LISTE de CP enregistrée, `enregistrer: false`), la carte peint le résultat, et l'étape
+ * ③ Analyse s'ouvre (ruling AT-7) — à la réussite seulement : un échec reste dit sur la ligne, l'étape ne bouge pas.
  *
  * ── SUPPRIMER ÉCRIT ──────────────────────────────────────────────────────
  * Confirmation sur la ligne, puis `DELETE /api/analyses/[id]` ; la ligne quitte la liste à la réussite seulement —
  * jamais d'effacement optimiste d'une analyse que la base a gardée.
  *
- * `@Injectable()` sans `providedIn` : fourni par le panneau Calques.
+ * `@Injectable()` sans `providedIn` : fourni par l'outil « Mes analyses ».
  */
 @Injectable()
 export class MesAnalysesService {
   private readonly api = inject(AnalysesApi);
   private readonly score = inject(ScoreService);
+  private readonly parcours = inject(ParcoursService);
 
   readonly analyses = signal<AnalyseResume[]>([]);
   readonly chargement = signal(false);
@@ -77,6 +80,7 @@ export class MesAnalysesService {
       next: ({ r, n }) => {
         this.score.afficher({ scores: r.scores, libelle: libelleScore(r.indicateurs.map((i) => i.label)), nIndicateurs: n });
         this.poser(id, { action: null, message: null });
+        this.parcours.choisir('analyse');
       },
       error: (e: unknown) => this.poser(id, { action: null, message: messageErreurRequete(e) }),
     });

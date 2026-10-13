@@ -2,9 +2,10 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ConfigService } from '../../../../core/config/config.service';
-import { ScoreService } from '../../couches/score.service';
-import { AnalysesApi } from '../../data/analyses.api';
+import { ConfigService } from '../../../core/config/config.service';
+import { ScoreService } from '../couches/score.service';
+import { AnalysesApi } from '../data/analyses.api';
+import { ParcoursService } from '../etat/parcours.service';
 import { MesAnalysesComponent } from './mes-analyses.component';
 import { MesAnalysesService } from './mes-analyses.service';
 
@@ -24,6 +25,7 @@ async function monter() {
       provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting(), AnalysesApi, MesAnalysesService,
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       { provide: ScoreService, useValue: score },
+      { provide: ParcoursService, useValue: { choisir: vi.fn() } },
     ],
   });
   const service = TestBed.inject(MesAnalysesService);
@@ -40,7 +42,7 @@ async function monter() {
   return { el, http, score, service, rendre, ligne, charger };
 }
 
-describe('Mes analyses (PanneauCalques.tsx:641-711, use-analyses.ts)', () => {
+describe('Mes analyses (PanneauCalques.tsx:641-711, use-analyses.ts ; boîte à outils depuis le 2026-10-13)', () => {
   it('un seul chargement : un second appel ne relit rien', async () => {
     const m = await monter();
     await m.charger();

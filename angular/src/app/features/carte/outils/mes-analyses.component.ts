@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { ligneMetaAnalyse } from '../../logique/analyses/commun';
+import { ligneMetaAnalyse } from '../logique/analyses/commun';
 import { MesAnalysesService } from './mes-analyses.service';
 
 /** Le petit bouton d'action d'une ligne (outline neutre, `DESIGN_SYSTEM` § Bouton outline) ; la confirmation, en danger. */
@@ -8,10 +8,11 @@ const ACTION = `${ACTION_BASE} border-default text-secondary`;
 const ACTION_DANGER = `${ACTION_BASE} border-danger text-danger`;
 
 /**
- * Le contenu du groupe « Mes analyses » du panneau Calques — le rendu de `PanneauCalques.tsx:656-710` (lot 4, T18) :
+ * Le contenu de l'outil « Mes analyses » (boîte à outils depuis le 2026-10-13 ; groupe du panneau Calques avant) — le
+ * rendu de `PanneauCalques.tsx:656-710` (lot 4, T18) :
  * chargement, erreur, liste vide, puis une ligne par analyse (nom, date · maillage · statut, badge du type). S'y
  * ajoutent « Rejouer » (un score seulement : c'est le seul type dont le résultat se PEINT sur la carte) et
- * « Supprimer », confirmé sur la ligne même. L'état vit dans `MesAnalysesService`, fourni par le panneau.
+ * « Supprimer », confirmé sur la ligne même. L'état vit dans `MesAnalysesService`, fourni par l'outil.
  */
 @Component({
   selector: 'mg-mes-analyses',

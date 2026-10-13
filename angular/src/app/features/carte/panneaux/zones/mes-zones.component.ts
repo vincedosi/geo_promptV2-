@@ -21,9 +21,10 @@ const ANTI_REBOND_RECHERCHE_MS = 200;
  * puces par type de source, opérations booléennes, cartes des zones, dialogue de suppression.
  *
  * ── CE QUI VIT ICI, CE QUI VIT AILLEURS ──────────────────────────────────
- * Recréé à chaque ouverture du panneau, comme l'overlay de React : liste, recherche, puces et sélection repartent de
- * zéro. Les zones AFFICHÉES, elles, vivent dans `ZonesCustomService` (page) : elles restent sur la carte panneau fermé
- * et chaque carte les retrouve à la réouverture.
+ * Monté dans l'outil « Mes zones » de la boîte à outils (depuis le 2026-10-13), à sa PREMIÈRE ouverture, puis gardé
+ * (ruling AT-6) : liste, recherche, puces et sélection survivent à la fermeture du tiroir — React, lui, les remettait à
+ * zéro à chaque ouverture de l'overlay. Les zones AFFICHÉES vivent dans `ZonesCustomService` (page) : elles restent sur
+ * la carte tiroir fermé.
  *
  * ── LECTURES ─────────────────────────────────────────────────────────────
  * Liste ET chiffres ensemble (`Promise.all`, deux appels), avec l'organisation ACTIVE du profil (même source que le

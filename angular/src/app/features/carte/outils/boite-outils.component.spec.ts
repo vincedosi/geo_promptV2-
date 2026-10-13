@@ -5,7 +5,15 @@ import { ThemeService } from '../../../core/theme/theme.service';
 import { PileEchapService } from '../etat/pile-echap.service';
 import type { EtapeCarte } from '../logique/parcours';
 import { BoiteOutilsComponent, ecartOutils, largeurMaxADroite } from './boite-outils.component';
+import { OutilMesAnalysesComponent } from './outil-mes-analyses.component';
+import { OutilMesZonesComponent } from './outil-mes-zones.component';
 import { OutilsCarteService } from './outils-carte.service';
+
+/** « Mes analyses » et « Mes zones » réduits à leur sélecteur : leurs specs vérifient leur contenu, celui-ci le tiroir. */
+@Component({ selector: 'mg-outil-mes-analyses', template: '' })
+class AnalysesFactice {}
+@Component({ selector: 'mg-outil-mes-zones', template: '' })
+class ZonesFactice {}
 
 @Component({
   imports: [BoiteOutilsComponent],
@@ -28,6 +36,10 @@ async function monter() {
   TestBed.configureTestingModule({
     providers: [provideRouter([]), { provide: ThemeService, useValue: { theme: signal('dark'), basculer: vi.fn() } }],
   });
+  TestBed.overrideComponent(BoiteOutilsComponent, {
+    remove: { imports: [OutilMesAnalysesComponent, OutilMesZonesComponent] },
+    add: { imports: [AnalysesFactice, ZonesFactice] },
+  });
   const fixture = TestBed.createComponent(Hote);
   await fixture.whenStable();
   const el = fixture.nativeElement as HTMLElement;
@@ -40,13 +52,34 @@ async function monter() {
 }
 
 describe('BoiteOutilsComponent — la boîte à outils de la carte (spec § 6)', () => {
-  it('une barre role="toolbar" : Fond de carte, Légende, Aide, Réglages, dans cet ordre', async () => {
+  it('une barre role="toolbar" : Mes analyses, Mes zones, Fond de carte, Légende, Aide, Réglages, dans cet ordre', async () => {
     const { el } = await monter();
     const barre = el.querySelector('[role="toolbar"]')!;
     const boutons = [...barre.querySelectorAll<HTMLButtonElement>('button[data-outil]')];
-    expect(boutons.map((b) => b.getAttribute('data-outil'))).toEqual(['fond', 'legende', 'aide', 'reglages']);
-    expect(boutons.map((b) => b.getAttribute('aria-label'))).toEqual(['Fond de carte', 'Légende', 'Aide', 'Réglages']);
+    expect(boutons.map((b) => b.getAttribute('data-outil'))).toEqual(['analyses', 'zones', 'fond', 'legende', 'aide', 'reglages']);
+    expect(boutons.map((b) => b.getAttribute('aria-label'))).toEqual(['Mes analyses', 'Mes zones', 'Fond de carte', 'Légende', 'Aide', 'Réglages']);
     expect(el.querySelector('[data-tiroir-outil]')).toBeNull();
+  });
+
+  it('Mes analyses et Mes zones : un tiroir chacun, monté à la première ouverture puis gardé (ruling AT-6)', async () => {
+    const { el, tiroir, cliquer } = await monter();
+    expect(el.querySelector('mg-outil-mes-analyses')).toBeNull();
+    expect(el.querySelector('mg-outil-mes-zones')).toBeNull();
+    await cliquer('analyses');
+    expect(tiroir()!.getAttribute('aria-label')).toBe('Mes analyses');
+    const analyses = tiroir()!.querySelector('mg-outil-mes-analyses');
+    expect(analyses).not.toBeNull();
+    await cliquer('zones');
+    expect(tiroir()!.getAttribute('aria-label')).toBe('Mes zones');
+    const zones = tiroir()!.querySelector('mg-outil-mes-zones');
+    expect(zones).not.toBeNull();
+    expect(analyses!.closest('[inert]')).not.toBeNull();
+    await cliquer('zones');
+    expect(tiroir()).toBeNull();
+    await cliquer('analyses');
+    expect(el.querySelector('mg-outil-mes-analyses')).toBe(analyses);
+    expect(el.querySelector('mg-outil-mes-zones')).toBe(zones);
+    expect(analyses!.closest('[inert]')).toBeNull();
   });
 
   it('Fond : un tiroir « Fond de carte » qui porte mg-choix-fond, bouton pressé ; un fond choisi est relayé', async () => {

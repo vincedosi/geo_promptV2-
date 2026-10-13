@@ -104,7 +104,7 @@ async function ouvrir(options: OptionsOuverture = {}) {
       { provide: RadioApi, useValue: { optionsFiltre: () => of({}), emetteurs: () => of({ type: 'FeatureCollection', features: [] }), stations: () => of({}) } },
       { provide: MeteoApi, useValue: { donnees: () => of() } },
       { provide: IsochronesApi, useValue: {} },
-      // Mes analyses (T18) : le groupe reste replié dans ces essais — la liste n'est jamais lue.
+      // Mes analyses (boîte à outils, T6) : l'outil reste fermé dans ces essais — la liste n'est jamais lue.
       { provide: AnalysesApi, useValue: {} },
       { provide: ClusteringApi, useValue: {} },
       { provide: SitesRisqueApi, useValue: { carte: () => of(), exposition: () => of() } },
@@ -416,7 +416,7 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     expect(hote.querySelector('[data-panneau-etape="perimetre"]')).toBeNull();
   });
 
-  it('zéro relecture : après une visite de ① à ④, cinq bascules ne relisent rien', async () => {
+  it('zéro relecture : après une visite de ① à ④ et de l’outil Mes zones, cinq bascules ne relisent rien', async () => {
     const geo = vi.fn(() => of({ regions: [] }));
     const lister = vi.fn(() => of({ zones: [] }));
     const jeux = vi.fn(() => of({ jeux: [] }));
@@ -425,6 +425,11 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     for (const n of ['2', '3', '4', '1']) {
       frapper(hote, altChiffre(n));
       await stable();
+      if (n === '4') {
+        // « Mes zones » et les jeux de zones vivent dans la boîte à outils depuis T6 : ils ne sont lus qu'à son ouverture.
+        hote.querySelector<HTMLButtonElement>('mg-boite-outils [data-outil="zones"]')!.click();
+        await stable();
+      }
       if (n !== '2') continue;
       // À ②, ouvrir la section POI : le catalogue des types n'est lu qu'à sa première ouverture.
       [...hote.querySelectorAll<HTMLButtonElement>('mg-panneau-calques button[data-groupe]')].find((b) => b.textContent!.includes('POI et mobilité'))!.click();
@@ -436,7 +441,13 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     const avant = lectures();
     // Chaque lecture a bien eu lieu UNE fois aux premières visites : l'assertion qui suit ne compare pas des zéros.
     expect(avant.map((n) => n >= 1), `géo, zones, jeux, catégories : ${avant}`).toEqual([true, true, true, true]);
-    for (const n of ['3', '1', '4', '2', '1']) { frapper(hote, altChiffre(n)); await stable(); }
+    for (const n of ['3', '1', '4', '2', '1']) {
+      frapper(hote, altChiffre(n));
+      await stable();
+      // Fermer puis rouvrir l'outil ne relit rien non plus : son contenu est gardé (ruling AT-6).
+      hote.querySelector<HTMLButtonElement>('mg-boite-outils [data-outil="zones"]')!.click();
+      await stable();
+    }
     expect(lectures()).toEqual(avant);
     expect(hote.querySelectorAll('[data-panneau-etape]').length).toBe(4);
   });
@@ -484,10 +495,11 @@ describe('CartePage — la boîte à outils : fond, légende, aide, réglages (T
   const tiroir = (hote: HTMLElement) => hote.querySelector<HTMLElement>('[data-tiroir-outil]:not([inert])');
   const titreAide = (hote: HTMLElement) => tiroir(hote)!.querySelector('[data-aide-etape] h4')!.textContent!.replace(/\s+/g, ' ').trim();
 
-  it('la boîte à outils vit dans le conteneur carte : Fond de carte, Légende, Aide, Réglages', async () => {
+  it('la boîte à outils vit dans le conteneur carte : Mes analyses, Mes zones, Fond de carte, Légende, Aide, Réglages', async () => {
     const { hote } = await ouvrir();
     const barre = hote.querySelector('[data-zone-carte] mg-boite-outils [role="toolbar"]')!;
-    expect([...barre.querySelectorAll('[data-outil]')].map((b) => b.getAttribute('aria-label'))).toEqual(['Fond de carte', 'Légende', 'Aide', 'Réglages']);
+    expect([...barre.querySelectorAll('[data-outil]')].map((b) => b.getAttribute('aria-label')))
+      .toEqual(['Mes analyses', 'Mes zones', 'Fond de carte', 'Légende', 'Aide', 'Réglages']);
   });
 
   it('Échap ferme le DERNIER ouvert : immersif puis tiroir Aide → le tiroir d’abord, puis l’immersif', async () => {
@@ -976,12 +988,13 @@ describe('CartePage — le module risque, route ENFANT (T13, B2/B3)', () => {
     expect(hote.querySelector('[data-panneau-etape="analyse"]')).toBeNull();
   });
 
-  it("Zones › Jeux de zones : la liste est rendue dans le panneau ④", async () => {
+  it('outil Mes zones : la liste des jeux est rendue dans le tiroir', async () => {
     const { hote, stable } = await ouvrir();
-    frapper(hote, altChiffre('4'));
+    hote.querySelector<HTMLButtonElement>('mg-boite-outils [data-outil="zones"]')!.click();
     await stable();
-    expect(panneauCourant(hote)).toBe('zones');
-    expect(hote.querySelector('[data-panneau-etape="zones"] mg-jeux-de-zones')).not.toBeNull();
+    // Aucun changement d'étape : l'outil s'ouvre au-dessus de l'étape courante.
+    expect(panneauCourant(hote)).toBe('perimetre');
+    expect(hote.querySelector('[data-tiroir-outil] mg-outil-mes-zones mg-jeux-de-zones')).not.toBeNull();
     expect(hote.querySelector('mg-jeux-de-zones [data-jeux-vide]')).not.toBeNull();
   });
 
@@ -1019,14 +1032,21 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     return o;
   }
 
-  it('le panneau Zones monte le vrai panneau : créer, jeux de zones, « Mes zones »', async () => {
+  it('le panneau Zones monte le vrai panneau : créer à ④ ; jeux de zones et « Mes zones » dans l’outil', async () => {
     const { hote, stable } = await ouvrir();
     frapper(hote, altChiffre('4'));
     await stable();
     const panneau = hote.querySelector('[data-panneau-etape="zones"] mg-panneau-zones')!;
     expect(panneau).not.toBeNull();
-    expect([...panneau.querySelectorAll('h4')].map((h) => h.textContent?.trim())).toEqual(['Créer une zone', 'Jeux de zones à risque', 'Mes zones']);
-    expect(panneau.querySelector('mg-mes-zones')).not.toBeNull();
+    expect([...panneau.querySelectorAll('h4')].map((h) => h.textContent?.trim())).toEqual(['Créer une zone']);
+    expect(panneau.querySelector('mg-mes-zones')).toBeNull();
+    panneau.querySelector<HTMLButtonElement>('[data-ouvrir-mes-zones]')!.click();
+    await stable();
+    expect(panneauCourant(hote)).toBe('zones');
+    const outil = hote.querySelector('[data-tiroir-outil]:not([inert]) mg-outil-mes-zones')!;
+    expect(outil).not.toBeNull();
+    expect([...outil.querySelectorAll('h4')].map((h) => h.textContent?.trim())).toEqual(['Jeux de zones à risque', 'Mes zones']);
+    expect(outil.querySelector('mg-mes-zones')).not.toBeNull();
   });
 
   it('sans lien : aucune géométrie demandée, aucun bouton DV360', async () => {
