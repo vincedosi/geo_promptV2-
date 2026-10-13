@@ -519,3 +519,34 @@ sélecteur de campagne dans la barre aux étapes ⑤-⑦ (création seulement si
 l'espace n'en a aucune) ; anneaux par valeur d'un champ du type de POI ; un
 plan par campagne en v1 ; React gelé au lot 3, retiré après le lot 7. La spec
 est validée ; les arbitrages de détail sont délégués au chef de projet.
+
+## 15. Décisions (2026-10-13, après-midi) — le fil suit le module risque
+
+Vincent, après avoir manipulé le lot 1 sur :4202 : « le fil d'Ariane devait
+suivre la logique des zones à risque […] on doit définir un type de zones, soit
+des rayons, des isochrones, etc […] l'onglet couverture doit être intégré dans
+analyses […] garder la logique de ce qu'on a fait pour les zones Seveso à
+partir de couverture ». Proposition retenue (8 étapes) :
+
+| # | Étape | Contenu | Équivalent risque |
+|---|---|---|---|
+| ① | Périmètre | inchangé | — |
+| ② | Données | inchangé ; les POI y jouent le rôle des « sites » | Sites |
+| ③ | Zones | on choisit un **type de zone** : rayons autour d'un type de POI, isochrones, dessin, codes postaux, seuil d'indicateur | Rayon |
+| ④ | Analyse | sur ces zones : **couverture par territoire**, clustering, score | Couverture |
+| ⑤ | Jeu de zones | la logique Seveso telle quelle : seuil de couverture, CP retenus, taux d'utile, extraction (le convertisseur du § 4 ④) | Zones |
+| ⑥ | Plan | ex-⑤ | Campagne |
+| ⑦ | Activation | ex-⑥ | — |
+| ⑧ | Live | ex-⑦ | — |
+
+Ce qui change par rapport aux §§ 4 et 12 :
+
+- **Ordre** : Zones passe AVANT Analyse ; l'analyse porte sur des zones déjà
+  définies, comme la couverture porte sur un rayon dans le module risque.
+- **Couverture par rayon** (lot 4) se découpe en deux : le rayon devient un
+  *type de zone* de ③ (avec les isochrones, qui quittent ③ Analyse), la
+  couverture par territoire devient une analyse de ④.
+- **Convertisseur** (lot 5) devient l'étape ⑤ Jeu de zones à part entière, au
+  lieu du bas de l'étape Zones.
+- Le lot 1 est réordonné tout de suite (8 étapes, ⑤ « bientôt » jusqu'au
+  lot 5, Alt+1…8) ; le déplacement des outils entre ③ et ④ se fait aux lots 4-5.
