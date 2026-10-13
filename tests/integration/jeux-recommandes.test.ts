@@ -49,6 +49,10 @@ describe('remplacer_jeux_recommandes', () => {
     const { error } = await remplacer(Array.from({ length: 201 }, (_, i) => `poi:c${i}`));
     expect(error?.code).toBe('22023');
   });
+  it('un espace absent (null) est refusé, même avec une liste vide', async () => {
+    const { error } = await admin.rpc('remplacer_jeux_recommandes', { p_organization_id: null, p_cles: [] });
+    expect(error?.code).toBe('22004');
+  });
   it('une liste vide efface tout', async () => {
     await remplacer([]);
     expect(await lire()).toEqual([]);

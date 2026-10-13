@@ -38,6 +38,15 @@ security invoker
 set search_path to 'public', 'pg_catalog'
 as $function$
 begin
+  if p_organization_id is null then
+    raise exception 'espace absent' using errcode = '22004';
+  end if;
+  -- Deux remplacements simultanés du même espace : sans ce verrou, le second DELETE (READ COMMITTED) ne voit pas
+  -- les lignes que le premier vient d'insérer, et l'état final est l'UNION des deux listes (ou 23505 si elles se
+  -- recoupent). Le verrou sur la ligne de l'espace les met en file : le dernier arrivé remplace tout. NO KEY UPDATE et
+  -- non UPDATE : n'empêche pas les FK des autres tables de pointer sur l'espace pendant ce temps. Espace inexistant :
+  -- rien à verrouiller, l'INSERT lève 23503 (FK).
+  perform 1 from public.organizations where id = p_organization_id for no key update;
   if cardinality(coalesce(p_cles, '{}'::text[])) > 200 then
     raise exception 'au plus 200 jeux recommandes par espace' using errcode = '22023';
   end if;

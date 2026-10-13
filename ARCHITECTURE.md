@@ -2005,7 +2005,7 @@ l'enveloppe `{ error, nb_polygones: 0, category }`. `maxDuration` 60 s (lycees :
 ### Admin & Monitoring
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
-| `remplacer_jeux_recommandes` | Remplace la sélection recommandée d'un espace (`espace_jeux_recommandes`) en UNE transaction : `(p_organization_id uuid, p_cles text[])` → `RETURNS jsonb` `{ cles: [...] }`, triées et dédoublonnées ; liste vide = tout effacer. Erreurs : `22023` au-delà de 200 clés, `23514` sur une clé mal formée (la liste précédente reste intacte). Range, ne donne aucun droit. `SECURITY INVOKER`, `service_role` seul. Un DELETE puis un INSERT côté route doublerait ou viderait sur une erreur à moitié — d'où la RPC | aucun appelant à ce jour (route d'admin à venir, chantier « carte en parcours ») (sql/251, 2026-10-13) |
+| `remplacer_jeux_recommandes` | Remplace la sélection recommandée d'un espace (`espace_jeux_recommandes`) en UNE transaction : `(p_organization_id uuid, p_cles text[])` → `RETURNS jsonb` `{ cles: [...] }`, triées et dédoublonnées ; liste vide = tout effacer. Erreurs : `22004` espace `null`, `22023` au-delà de 200 clés, `23514` sur une clé mal formée (la liste précédente reste intacte), `23503` espace inexistant. Verrouille d'abord la ligne de l'espace (`FOR NO KEY UPDATE`) : sans ce verrou, deux remplacements simultanés aux listes disjointes laissaient leur UNION (mesuré le 2026-10-13, deux sessions psql) ; ils passent désormais en file, le dernier remplace tout. Range, ne donne aucun droit. `SECURITY INVOKER`, `service_role` seul. Un DELETE puis un INSERT côté route doublerait ou viderait sur une erreur à moitié — d'où la RPC | aucun appelant à ce jour (route d'admin à venir, chantier « carte en parcours ») (sql/251, 2026-10-13) |
 | `get_table_sizes` | Taille tables (monitoring) | `api/admin/health/` |
 | `qualite_colonnes_iris` | Remplissage de CHAQUE colonne numerique d'`iris` en UN SEUL balayage (~220 Mo, 1,4 s). Se distingue de `get_iris_fill_status`, qui fait un COUNT par colonne (~40 balayages, ~8,8 Go) et confond une colonne vide avec une colonne pleine de zeros | `api/admin/qualite-donnees/` (sql/149) |
 | `qualite_indicateurs` | Quels indicateurs ACTIFS du registre pointent vers une colonne vide, partielle ou absente. La verification la plus rentable du lot : elle aurait attrape `part_couples_enfants` (0 renseigne sur 49 448 IRIS, actif donc propose a l'utilisateur) avant qu'un score ne soit calcule dessus | `api/admin/qualite-donnees/` (sql/149) |
@@ -3185,7 +3185,11 @@ npx supabase db push     # Appliquer migrations
 # ⚠ La generation des types visait le projet HEBERGE, SUPPRIME le 2026-09-21 :
 #    `--project-id vkkdbygwbrxyogqosten` rend desormais une erreur d'authentification.
 #    Le schema de reference est le stack LOCAL.
-npx supabase gen types typescript --local > types/database.types.ts
+# ⚠ `--local` echoue sur ce poste (2026-10-13) : « SASL: client password must be a
+#    string ». L'URL explicite du conteneur marche (mot de passe par defaut, public,
+#    du stack local). Puis ne reporter que SES ajouts : le fichier suivi derive deja
+#    (`source_visible`, sql/234, en est absente).
+npx supabase gen types typescript --db-url "postgresql://postgres:postgres@127.0.0.1:54322/postgres" > types/database.types.ts
 ```
 
 ---
