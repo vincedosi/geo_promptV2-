@@ -31,8 +31,8 @@
   partout ; l'icône lucide « Hexagon » de l'entrée Accueil n'est qu'une icône.
 - **Le bouton d'ouverture de l'overlay de campagne** s'appelle « Campagnes »
   (il s'appelait « MAGELIAN ») ; le fond de carte maison s'appelle « dentsu ».
-- **geo.prompt** : nom du copilote IA, voué à disparaître avec la suppression de
-  l'IA — pas renommé.
+- **geo.prompt** : nom de l'ancien copilote IA, DISPARU : le copilote a été supprimé avec toute
+  l'IA (lots 5 et 6 de la suppression de l'IA, 2026-10-13). Ne plus l'écrire.
 
 ---
 

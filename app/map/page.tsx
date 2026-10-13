@@ -1187,7 +1187,8 @@ export default function MapPage() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
 
         {/* Erreurs des actions directes et du Voronoï (ex-ChatPanel) */}
-        <div style={{ position: 'absolute', top: railMasque ? 8 : MAP_TOPBAR_HEIGHT + 8, left: 12, right: 64, zIndex: 40 }}>
+        {/* En bas au centre : ni le panneau (en haut à gauche), ni la légende (en bas à gauche), ni les contrôles (à droite) ne le recouvrent. */}
+        <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', width: 'min(560px, calc(100% - 520px))', minWidth: 280, zIndex: 40 }}>
           <BandeauErreur message={error} onFermer={() => setError(null)} />
         </div>
 

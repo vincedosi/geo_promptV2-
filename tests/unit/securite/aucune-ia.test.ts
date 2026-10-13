@@ -14,8 +14,10 @@ import { join } from 'node:path';
  *
  * Il balaie TOUS les fichiers suivis par git, tous langages confondus, sauf :
  * `docs/` et `.superpowers/` (historique et plans), `sql/` (migrations
- * historiques rejouables), les `.md` (la doc raconte ce qui a été retiré) et ce
- * fichier, qui cite les motifs qu'il traque.
+ * historiques REJOUABLES : elles portent l'histoire de la base, où des tables
+ * et RPC d'IA subsistent volontairement — liste du propriétaire ; les réécrire
+ * changerait ce qu'une base neuve reconstruit), les `.md` (la doc raconte ce
+ * qui a été retiré) et ce fichier, qui cite les motifs qu'il traque.
  *
  * Ce qui reste volontairement en base (tables et RPC d'IA, liste remise au
  * propriétaire) n'est pas du code : aucune règle ici ne les vise.
@@ -35,8 +37,8 @@ const FORMES: { nom: string; detecte: RegExp }[] = [
     detecte: /(?:\bfrom|\bimport|\brequire\s*\()\s*\(?\s*['"](?:ai|@ai-sdk\/[^'"]+)['"]/,
   },
   {
-    nom: "clé de fournisseur d'IA (Gemini, Mistral) ou variable MODAL_*",
-    detecte: /GOOGLE_GENERATIVE_AI_API_KEY|MISTRAL_API_KEY|\bMODAL_[A-Z_]+/,
+    nom: "clé de fournisseur d'IA (Gemini, Mistral) ou variable Modal",
+    detecte: /GOOGLE_GENERATIVE_AI_API_KEY|MISTRAL_API_KEY|MODAL_BIDDING_ML_URL|MODAL_CLUSTERING_URL|MODAL_TOKEN_ID|MODAL_TOKEN_SECRET/,
   },
   {
     nom: "appel réseau vers un fournisseur d'IA",
@@ -99,6 +101,14 @@ describe("aucune IA dans le code", () => {
         }
       }
     }
+    expect(fautifs).toEqual([]);
+  });
+
+  it("package-lock.json ne résout aucun paquet d'IA", () => {
+    // Lu directement : le lockfile dépasse la borne de taille de `lireTexte`.
+    const brut = readFileSync(join(RACINE, 'package-lock.json'), 'utf8');
+    const lock = JSON.parse(brut) as { packages?: Record<string, unknown> };
+    const fautifs = Object.keys(lock.packages ?? {}).filter((k) => /(^|\/)node_modules\/(ai|@ai-sdk\/[^/]+)$/.test(k));
     expect(fautifs).toEqual([]);
   });
 });
