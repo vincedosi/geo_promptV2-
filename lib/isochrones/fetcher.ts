@@ -30,8 +30,8 @@ export const ORS_DELAI_MS    = 12_000;
 const ORS_ATTENTE_DELAI_MS   = 5_000;
 const ORS_URL = 'https://api.openrouteservice.org/v2/isochrones';
 
-// Limite de POIs par défaut (héritée du chat, retiré le 2026-10-12 ; timeout 120s)
-export const ORS_MAX_POIS_CHAT = 50;
+// Limite de POIs par défaut de `fetchIsochrones` (timeout 120s)
+export const ORS_MAX_POIS_DEFAUT = 50;
 // Limite pour /api/isochrone-battle (timeout étendu, cache prioritaire)
 export const ORS_MAX_POIS_ROUTIER = 300;
 
@@ -77,7 +77,7 @@ export async function fetchIsochrones(
   minutes: number,
   mode: string,
   cacheCtx: IsochroneCacheCtx,
-  maxPois = ORS_MAX_POIS_CHAT,
+  maxPois = ORS_MAX_POIS_DEFAUT,
   forceRecalculate = false
 ): Promise<Record<string, unknown> | null> {
   const apiKey = process.env.ORS_API_KEY;

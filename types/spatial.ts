@@ -91,14 +91,6 @@ export interface CarreauxData {
 }
 
 
-export interface SavedMap {
-  id: string;
-  name: string;
-  ville?: string;
-  nb_pois: number;
-  created_at: string;
-}
-
 // ---------------------------------------------------------------------------
 // Service spatial (lib/spatial/engine.ts)
 // ---------------------------------------------------------------------------

@@ -16,9 +16,9 @@
  * Ce qui N'A PAS été restauré, et c'est délibéré :
  *   · la page autonome `/clusters` — la règle du projet est « tout passe par
  *     /map et ses overlays, pas de page métier standalone » ;
- *   · l'agent smart-prompt `poi_clustering` — `detectSmartMode()` rend `false`
- *     sans condition depuis la V2 : c'était du code mort avant même la
- *     suppression.
+ *   · l'ancien agent smart-prompt `poi_clustering` (supprimé avec toute l'IA) —
+ *     `detectSmartMode()` rendait `false` sans condition depuis la V2 : du
+ *     code mort avant même la suppression.
  */
 
 import React, { useEffect, useState } from 'react';

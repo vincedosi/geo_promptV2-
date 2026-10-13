@@ -23,8 +23,8 @@
  *     perdait un lot entier ;
  *   - `lib/import/geocoder.ts` : reprise aveugle sur TOUT échec, y compris un
  *     400 que rejouer ne corrigera jamais ;
- *   - `lib/smart-prompt/geo-resolver.ts` : aucune reprise, aucune lecture de
- *     `Retry-After`.
+ *   - l'ancien `lib/smart-prompt/geo-resolver.ts` (supprimé au lot 5 de la
+ *     suppression de l'IA) : aucune reprise, aucune lecture de `Retry-After`.
  *
  * ── Contrat ─────────────────────────────────────────────────────────────────
  *

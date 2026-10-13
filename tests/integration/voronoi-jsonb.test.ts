@@ -8,10 +8,12 @@
  * quand sa borne est atteinte ; l'originale en est une enveloppe mince.
  *
  * ⚠ Lit la base locale. On joue la catégorie `cirfa` (95 cellules, 0,7 s) et
- * pas `lycee` (14 s, ≈ 46 000 blocs lus) : la preuve au-delà de 1 000 lignes
- * est dans le rapport de la tâche et dans le test de la route directe
- * (`tests/unit/api/voronoi-route.test.ts`, 4 653 cellules) — l'outil du chat
- * et son test sont supprimés depuis le 2026-10-12.
+ * pas `lycee` (14 s, ≈ 46 000 blocs lus) : la lecture réelle au-delà de 1 000
+ * lignes n'est PAS rejouée ici : elle a été mesurée à la main (rapport de la
+ * tâche). Le test de la route directe (`tests/unit/api/voronoi-route.test.ts`,
+ * 4 653 cellules) ne la prouve pas : ses cellules sont SIMULÉES, il vérifie
+ * seulement que la route ne tronque pas ce qu'elle reçoit. L'outil du chat et
+ * son test sont supprimés depuis le 2026-10-12.
  */
 import { describe, it, expect } from 'vitest';
 import { creerClientTest } from './_client';

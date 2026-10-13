@@ -318,7 +318,7 @@ export function MagelianOverlay() {
   // exactement l'exception documentée et vérifiée par
   // tests/unit/carte/pile-echap-usage.test.ts (cette instance persiste tout
   // au long des cycles ouverture/fermeture, contrairement à OverlayPanel /
-  // AIOverlay / ClusterResultsOverlay qui montent et démontent).
+  // ClusterResultsOverlay qui montent et démontent).
   useEffect(() => {
     if (!open) return;
     empiler(PILE_ID, fermerPourPile);
