@@ -64,6 +64,7 @@ import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import type { ZoneData, BattleResult } from '@/types/spatial';
 import { RailNavigation } from '@/components/map/RailNavigation';
 import { MapTopBar, MAP_TOPBAR_HEIGHT } from '@/components/map/MapTopBar';
+import { BandeauErreur } from '@/components/map/BandeauErreur';
 import { OverlayPanel } from '@/components/map/OverlayPanel';
 import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
 import { HelpOverlay } from '@/components/map/overlays/HelpOverlay';
@@ -1184,6 +1185,11 @@ export default function MapPage() {
       />
       {/* ── Right panel: map ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+
+        {/* Erreurs des actions directes et du Voronoï (ex-ChatPanel) */}
+        <div style={{ position: 'absolute', top: railMasque ? 8 : MAP_TOPBAR_HEIGHT + 8, left: 12, right: 64, zIndex: 40 }}>
+          <BandeauErreur message={error} onFermer={() => setError(null)} />
+        </div>
 
         {/* Map area */}
         <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
