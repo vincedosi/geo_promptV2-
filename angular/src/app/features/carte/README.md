@@ -1,7 +1,8 @@
 # carte — la carte principale
 
-**Rôle** : portage de `/map` (lot 4) — la carte plein écran, son rail d'outils (Filtre, Calques, Analyse, Zones,
-Réglages, Aide), sa barre du haut et ses couches. Le module risque s'y ouvre en surimpression.
+**Rôle** : portage de `/map` (lot 4), devenu un PARCOURS le 2026-10-13 — ① Périmètre › ② Données › ③ Analyse ›
+④ Zones › ⑤ Plan › ⑥ Activation › ⑦ Live. La barre du parcours, le panneau de l'étape courante (dans le flux, à
+gauche) et la carte ; l'étape vit dans `?etape=`. Le module risque s'y ouvre en surimpression.
 
 **Route** : `carte` (`/app/carte`), plein écran, sœur de la coquille, `authGuard`. Son outlet enfant porte
 `risques` (voir `features/risques/README.md`) : ouvrir puis fermer le module ne recrée jamais la carte.
@@ -13,14 +14,14 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 
 | Dossier | Contenu |
 |---|---|
-| `rail/` | rail d'outils, barre du haut, cadre du panneau (`mg-panneau-carte`, 340 px, empilé dans la pile Échap) |
-| `panneaux/` | le contenu de chaque outil du rail : `filtre/`, `calques/` (une section par couche), `analyse/` (bataille d'isochrones, corrélation, score, clustering), `zones/` (création, mes zones, jeux, plan média), `aide`, `reglages` |
+| `parcours/` | la barre du parcours (`mg-barre-parcours` : fil d'Ariane, fil d'étapes, actions), le panneau d'étape (`mg-panneau-etape` : poignée, repli « carte seule »), les étapes « bientôt » ⑤-⑦ |
+| `panneaux/` | le contenu de chaque étape : `filtre/`, `calques/` (une section par couche), `analyse/` (bataille d'isochrones, corrélation, score, clustering), `zones/` (création, mes zones, jeux, plan média), `aide`, `reglages` |
 | `couches/` | une couche = un service (`*.service.ts` : état, lectures, pose) + ses fonctions pures (`couche-*.ts` : sources, couches, peintures, popups) |
-| `etat/` | état de l'écran : `etat-carte.service.ts` (entrée active, filtre, dégradé actif…), `couches-carte.service.ts` (registre des couches, `carteCourante`), pile Échap, annonces, zones, bataille, score… |
+| `etat/` | état de l'écran : `parcours.service.ts` (étape courante, étapes visitées, `?etape=`), `etat-carte.service.ts` (mode immersif, filtre, dégradé actif…), `couches-carte.service.ts` (registre des couches, `carteCourante`), pile Échap, annonces, zones, bataille, score… |
 | `data/` | services d'API de la carte (`*.api.ts`) |
-| `logique/` | fonctions pures : copies de la logique React (`navigation.ts`, `palettes-donnees-carte.ts`, `carreaux/`, `meteo/`…, verrouillées par les tests `carte-*-paritaire`), ordre des couches, gardes, règles de la légende |
+| `logique/` | fonctions pures : `parcours.ts` (les sept étapes, l'URL, les raccourcis), copies de la logique React (`palettes-donnees-carte.ts`, `carreaux/`, `meteo/`…, verrouillées par les tests `carte-*-paritaire`), ordre des couches, gardes, règles de la légende |
 | `legende/` | la légende unique (`legende-carte`) et ses blocs propres (score, bataille, zones du profil) |
-| `filtre/`, `commun/` | puce du filtre actif ; annonce, boutons flottants, sélecteur de fond compact |
+| `commun/` | annonce, sélecteur de fond compact |
 
 ## Cycle de vie d'une couche
 
@@ -46,5 +47,6 @@ Un seul dégradé de couleur à la fois (carreaux, IRIS, civique, santé, mété
   section dans `panneaux/calques/`, son bloc éventuel dans `logique/legende.ts` + `legende/`.
 - **un outil d'analyse** : un composant dans `panneaux/analyse/`, son lancement gardé par
   `verifierPerimetreOutil('<outil>')` et déclaré dans `panneau-analyse-garde.test.ts`.
-- **un onglet ou une entrée du rail** : `logique/navigation.ts` est une copie VERBATIM de React — on y touche
-  avec React ; le rendu (entrée retirée, inerte) se décide dans `rail/rail.component.ts`.
+- **une étape du parcours** : `logique/parcours.ts` (`ETAPES_CARTE`, libellés, consignes) est la seule définition —
+  le fil, l'URL, le clavier et l'aide la lisent ; son panneau se branche dans le `@switch` de `carte.page.html`.
+  Il n'y a plus de rail (2026-10-13) : la copie de `lib/navigation/config.ts` est supprimée, React garde la sienne.

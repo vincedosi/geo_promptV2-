@@ -23,7 +23,6 @@ import { type DegradeId, libelleDegrade } from '../logique/degrades';
 import {
   type Palier, degradeALegende, libelleRayonPoi, niveauxDuJeuSante, paliersCarreaux, paliersIris, texteComptePprt,
 } from '../logique/legende';
-import { ECART_RAIL_PANNEAU, LARGEUR_RAIL } from '../logique/navigation';
 import {
   ABSTENTION_LEGEND, ABSTENTION_LEGEND_REPERES, CARREAUX_PALETTES, IRIS_PALETTES, LEGENDE_TMJA,
 } from '../logique/palettes-donnees-carte';
@@ -31,8 +30,8 @@ import {
 /**
  * La légende UNIQUE de la carte — portage de `components/map/LegendeCarte.tsx` (cadre + cas `carreaux`).
  *
- * En bas à gauche, à `LARGEUR_RAIL + ECART_RAIL_PANNEAU` du bord, `z-index` 35 : sous les panneaux (40). `absolute`
- * dans l'hôte de la page (B1). Écart voulu : ni flou (`backdrop-filter`) ni ombre — « flat total ».
+ * En bas à gauche du conteneur de la carte, à 12 px de son bord, `z-index` 35. `absolute` dans ce conteneur, jamais
+ * `fixed` (B1) ; depuis le parcours (2026-10-13), le panneau d'étape est à gauche DANS le flux, plus par-dessus la carte. Écart voulu : ni flou (`backdrop-filter`) ni ombre — « flat total ».
  *
  * Le bloc des carreaux est cliquable par palier : il pose `seauSelectionne`, et la couche filtre son opacité par le
  * MÊME découpage (`palierEchelle`) — une tranche cliquée désigne exactement les carreaux qu'elle affiche. Le fond d'un
@@ -59,7 +58,8 @@ export class LegendeCarteComponent {
   private readonly carreaux = inject(CarreauxService);
   protected readonly iris = inject(IrisService);
   protected readonly titreIris = libelleDegrade('iris');
-  protected readonly gauche = LARGEUR_RAIL + ECART_RAIL_PANNEAU;
+  /** À 12 px du bord du conteneur carte (le panneau d'étape est dans le flux, à gauche). */
+  protected readonly gauche = 12;
   protected readonly ouvert = signal(true);
   protected readonly titreCarreaux = libelleDegrade('carreaux');
 

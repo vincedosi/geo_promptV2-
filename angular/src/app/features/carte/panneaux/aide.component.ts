@@ -1,42 +1,46 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { IconeComponent } from '../../../ui/icone/icone.component';
-import { ENTREES_NAVIGATION } from '../logique/navigation';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { CONSIGNE_ETAPE, ETAPES_CARTE, type EtapeCarte, LIBELLE_ETAPE_CARTE, rangEtapeCarte } from '../logique/parcours';
 
-/** 'ctrl+k' -> 'Ctrl + K', 'alt+1' -> 'Alt + 1' — `formaterRaccourci` de `HelpOverlay.tsx:7-12`. */
+/** 'alt+1' -> 'Alt + 1' — `formaterRaccourci` de `HelpOverlay.tsx:7-12`. */
 export function formaterRaccourci(raccourci: string): string {
-  return raccourci
-    .split('+')
-    .map((partie) => partie.charAt(0).toUpperCase() + partie.slice(1))
-    .join(' + ');
+  return raccourci.split('+').map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(' + ');
 }
 
+const RACCOURCIS = [
+  ...ETAPES_CARTE.map((e) => ({ libelle: `${rangEtapeCarte(e)}. ${LIBELLE_ETAPE_CARTE[e]}`, touches: formaterRaccourci(`alt+${rangEtapeCarte(e)}`) })),
+  { libelle: 'Fermer le tiroir, quitter le mode immersif', touches: 'Échap' },
+];
+
 /**
- * Le panneau « Aide » du rail — portage de `components/map/overlays/HelpOverlay.tsx` : la liste des
- * raccourcis clavier, DÉRIVÉE de `ENTREES_NAVIGATION` (jamais recopiée à la main).
- *
- * L'Assistant (`Ctrl+K`) n'y figure plus : son entrée est retirée de la navigation le 2026-10-12, React et
- * Angular ensemble (suppression de toute l'IA, lot 5). Campagne (`Alt+C`) reste listée : son entrée est rendue dans le rail, inerte (B6), comme ici.
+ * Le tiroir « Aide » de la boîte à outils (spec § 6) : l'aide de l'ÉTAPE COURANTE, puis les raccourcis du parcours,
+ * DÉRIVÉS de `ETAPES_CARTE` (jamais recopiés). L'ancienne liste dérivait de la navigation du rail, retirée le
+ * 2026-10-13 (réécrite à la tâche 4, qui supprime `logique/navigation.ts` ; la tâche 5 la monte dans le tiroir).
  */
 @Component({
   selector: 'mg-aide',
-  imports: [IconeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'flex flex-col gap-1 px-4 py-3 font-sans' },
+  host: { class: 'flex flex-col gap-4 px-4 py-3 font-sans' },
   template: `
-    <h4 class="mb-2 mt-0 text-[11px] font-medium tracking-[0.04em] text-secondary">Raccourcis clavier</h4>
-    @for (entree of entrees; track entree.id) {
-      <div data-raccourci class="flex items-center justify-between border-b-fin border-subtle px-1.5 py-2">
-        <span class="flex items-center gap-2 text-[12px] text-primary">
-          <mg-icone [nom]="entree.icone" [taille]="14" [trait]="1.5" />
-          {{ entree.label }}
-        </span>
-        <span class="rounded-[4px] border-fin border-default bg-elevated px-2 py-0.5 font-mono text-[11px] text-secondary">{{ entree.touches }}</span>
-      </div>
-    }
+    <section data-aide-etape>
+      <h4 class="m-0 text-[12px] font-medium text-primary">{{ rang() }}. {{ libelle() }}</h4>
+      <p class="mb-0 mt-1 text-[12px] leading-[1.5] text-secondary">{{ consigne() }}</p>
+      <p class="mb-0 mt-1 text-[11px] leading-[1.5] text-tertiary">Le parcours n’est pas un tunnel : chaque étape reste ouverte, dans les deux sens.</p>
+    </section>
+    <section>
+      <h4 class="mb-2 mt-0 text-[11px] font-medium text-secondary">Raccourcis clavier</h4>
+      @for (r of raccourcis; track r.touches) {
+        <div data-raccourci class="flex items-center justify-between border-b-fin border-subtle px-1.5 py-2">
+          <span class="text-[12px] text-primary">{{ r.libelle }}</span>
+          <span class="rounded-[4px] border-fin border-default bg-elevated px-2 py-0.5 font-mono text-[11px] text-secondary">{{ r.touches }}</span>
+        </div>
+      }
+    </section>
   `,
 })
 export class AideComponent {
-  protected readonly entrees = ENTREES_NAVIGATION
-    .filter((e) => e.raccourci)
-    .map((e) => ({ id: e.id, label: e.label, icone: e.icone, touches: formaterRaccourci(e.raccourci as string) }));
+  readonly etape = input.required<EtapeCarte>();
+  protected readonly rang = computed(() => rangEtapeCarte(this.etape()));
+  protected readonly libelle = computed(() => LIBELLE_ETAPE_CARTE[this.etape()]);
+  protected readonly consigne = computed(() => CONSIGNE_ETAPE[this.etape()]);
+  protected readonly raccourcis = RACCOURCIS;
 }

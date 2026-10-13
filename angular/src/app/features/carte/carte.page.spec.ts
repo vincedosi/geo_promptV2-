@@ -34,7 +34,8 @@ import { CouchesCarteService, quandStyleCharge } from './etat/couches-carte.serv
 import { EtatCarteService } from './etat/etat-carte.service';
 import { MeteoService } from './couches/meteo.service';
 import { PileEchapService } from './etat/pile-echap.service';
-import { ENTREES_NAVIGATION } from './logique/navigation';
+import { PanneauFiltreComponent } from './panneaux/filtre/panneau-filtre.component';
+import { ETAPES_CARTE, LIBELLE_ETAPE_CARTE } from './logique/parcours';
 
 @Component({ selector: 'mg-vide', template: '' })
 class Vide {}
@@ -57,6 +58,12 @@ interface OptionsOuverture {
   url?: string;
   zones?: Partial<Record<keyof ZonesCustomApi, unknown>>;
   organisation?: string | null;
+  /** `ReferentielApi.geo` (panneau ①). */
+  referentiel?: () => unknown;
+  /** `JeuxZonesApi.lister` (panneau ④). */
+  jeux?: () => unknown;
+  /** `CarteApi.categories` (catalogue des types de POI, ②). */
+  categories?: () => unknown;
 }
 
 async function ouvrir(options: OptionsOuverture = {}) {
@@ -80,7 +87,7 @@ async function ouvrir(options: OptionsOuverture = {}) {
         },
       },
       { provide: OrganisationsApi, useValue: { lister: () => of({ organizations: [], active_org_id: null, is_super_admin: false }), changer: () => of() } },
-      { provide: ReferentielApi, useValue: { geo: () => of({ regions: [] }) } },
+      { provide: ReferentielApi, useValue: { geo: options.referentiel ?? (() => of({ regions: [] })) } },
       {
         provide: ZonesCustomApi,
         useValue: {
@@ -90,10 +97,10 @@ async function ouvrir(options: OptionsOuverture = {}) {
         },
       },
       { provide: ZonesRisqueApi, useValue: { urlTuilesZones: () => '/api/tiles/zones-risque/{z}/{x}/{y}?profil=x', preparer: () => of({ classes: 1 }) } },
-      { provide: JeuxZonesApi, useValue: { lister: () => of({ jeux: [] }) } },
+      { provide: JeuxZonesApi, useValue: { lister: options.jeux ?? (() => of({ jeux: [] })) } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },
       { provide: IrisApi, useValue: { urlTuiles: () => '/api/tiles/iris/{z}/{x}/{y}?v=2', bornes: () => of({}), detail: () => of() } },
-      { provide: CarteApi, useValue: { categories: () => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] }), pois: () => of(), ooh: () => of(), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
+      { provide: CarteApi, useValue: { categories: options.categories ?? (() => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] })), pois: () => of(), ooh: () => of(), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
       { provide: RadioApi, useValue: { optionsFiltre: () => of({}), emetteurs: () => of({ type: 'FeatureCollection', features: [] }), stations: () => of({}) } },
       { provide: MeteoApi, useValue: { donnees: () => of() } },
       { provide: IsochronesApi, useValue: {} },
@@ -121,189 +128,216 @@ function frapper(hote: HTMLElement, init: KeyboardEventInit, cible: Element = ho
   return e;
 }
 
-const titrePanneau = (hote: HTMLElement) => hote.querySelector('mg-panneau-carte')?.getAttribute('aria-label') ?? null;
+/** L'étape dont le panneau est visible (le seul `[data-panneau-etape]` qui n'est pas inerte), `null` sinon. */
+const panneauCourant = (hote: HTMLElement) =>
+  hote.querySelector('[data-panneau-etape]:not([inert])')?.getAttribute('data-panneau-etape') ?? null;
+/** L'étape marquée courante dans le fil de la barre. */
+const etapeDuFil = (hote: HTMLElement) =>
+  hote.querySelector('mg-barre-parcours mg-fil-etapes [aria-current="step"]')?.textContent?.replace(/\s+/g, ' ').trim() ?? null;
+const routeur = () => TestBed.inject(Router);
+/** Alt+n tel que l'envoie un clavier AZERTY : la touche physique dans `code`, le caractère dans `key`. */
+const AZERTY: Record<string, string> = { '1': '&', '2': 'é', '3': '"', '4': "'", '5': '(', '6': '-', '7': 'è' };
+const altChiffre = (n: string): KeyboardEventInit => ({ key: AZERTY[n], code: `Digit${n}`, altKey: true });
+/** L'aside du panneau d'étape. */
+const aside = (hote: HTMLElement) => hote.querySelector<HTMLElement>('mg-panneau-etape aside')!;
 
-describe('CartePage — squelette de la carte principale', () => {
-  it("(f) le rail rend les entrées de ENTREES_NAVIGATION dans l'ordre (l'Assistant retiré le 2026-10-12) : 5 en haut, 2 en bas", async () => {
+describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, clavier', () => {
+  it("(f) la barre rend ① à ⑦ dans l'ordre, ① courante ; plus aucun rail, ni barre du haut, ni boutons flottants", async () => {
     const { hote } = await ouvrir();
-    const rail = hote.querySelector('mg-rail')!;
-    const ids = [...rail.querySelectorAll('button[data-entree]')].map((b) => b.getAttribute('data-entree'));
-    expect(ids).toEqual(ENTREES_NAVIGATION.map((e) => e.id));
-    expect(rail.querySelectorAll('[data-bas] button[data-entree]').length).toBe(2);
-    expect(ids.length - 2).toBe(5);
-    // Libellés et infobulles de la source unique.
-    const filtre = rail.querySelector('button[data-entree="filtre"]')!;
-    expect(filtre.textContent?.trim()).toBe('Filtre');
-    expect(filtre.getAttribute('title')).toBe('Où je regarde');
-    // Un seul séparateur : celui qui suit Campagne (celui de l'Assistant est parti avec lui).
-    expect(rail.querySelectorAll('[data-separateur]').length).toBe(1);
+    const boutons = [...hote.querySelectorAll('mg-barre-parcours mg-fil-etapes nav button')];
+    expect(boutons.map((b) => b.textContent!.replace(/\s+/g, ' ').trim()))
+      .toEqual(ETAPES_CARTE.map((e, i) => `${i + 1} ${LIBELLE_ETAPE_CARTE[e]}`));
+    expect(boutons[0].getAttribute('aria-current')).toBe('step');
+    expect(boutons.slice(1).every((b) => !b.hasAttribute('aria-current'))).toBe(true);
+    expect(panneauCourant(hote)).toBe('perimetre');
+    expect(aside(hote).getAttribute('aria-label')).toBe('Étape 1 — Périmètre');
+    for (const ancien of ['mg-rail', 'mg-barre-haut', 'mg-panneau-carte', 'mg-puce-filtre', 'mg-boutons-flottants']) {
+      expect(hote.querySelector(ancien), ancien).toBeNull();
+    }
+    // Monté à la première visite seulement (arbitrage A1) : à l'ouverture, ① et lui seul.
+    expect(hote.querySelectorAll('[data-panneau-etape]').length).toBe(1);
+    expect(routeur().url).toBe('/carte');
   });
 
-  it('(g) Alt+2 sur l\'hôte ouvre « Calques », Échap le ferme (après la sortie de 200 ms)', async () => {
+  it('(g) Alt+2 (AZERTY : code Digit2, key « é ») passe à ② : Calques dans son panneau, ?etape=donnees ; Échap ne le ferme pas', async () => {
     const { hote, stable } = await ouvrir();
-    const e = frapper(hote, { key: '2', altKey: true });
+    const e = frapper(hote, altChiffre('2'));
     await stable();
     expect(e.defaultPrevented).toBe(true);
-    expect(titrePanneau(hote)).toBe('Calques');
+    expect(panneauCourant(hote)).toBe('donnees');
+    expect(hote.querySelector('[data-panneau-etape="donnees"] mg-panneau-calques')).not.toBeNull();
+    expect(etapeDuFil(hote)).toBe('2 Données');
+    expect(routeur().url).toBe('/carte?etape=donnees');
+    // ① reste monté, invisible et inerte.
+    const premier = hote.querySelector<HTMLElement>('[data-panneau-etape="perimetre"]')!;
+    expect(premier.hasAttribute('inert')).toBe(true);
+    expect(premier.getAttribute('aria-hidden')).toBe('true');
+    expect(premier.classList).toContain('invisible');
     frapper(hote, { key: 'Escape' });
-    await new Promise((r) => setTimeout(r, 220));
     await stable();
-    expect(titrePanneau(hote)).toBeNull();
+    expect(panneauCourant(hote)).toBe('donnees');
+    expect(routeur().url).toBe('/carte?etape=donnees');
   });
 
-  it("(h) Alt+2 dont la cible composée est un <input> : rien", async () => {
+  it('Alt+pavé numérique 4 passe aussi à ④', async () => {
+    const { hote, stable } = await ouvrir();
+    frapper(hote, { key: '4', code: 'Numpad4', altKey: true });
+    await stable();
+    expect(panneauCourant(hote)).toBe('zones');
+  });
+
+  it("(h) Alt+2 dont la cible composée est un <input> : l'étape reste ①", async () => {
     const { hote, stable } = await ouvrir();
     const champ = document.createElement('input');
     hote.appendChild(champ);
-    frapper(hote, { key: '2', altKey: true }, champ);
+    const e = frapper(hote, altChiffre('2'), champ);
     await stable();
-    expect(titrePanneau(hote)).toBeNull();
+    expect(e.defaultPrevented).toBe(false);
+    expect(panneauCourant(hote)).toBe('perimetre');
   });
 
-  it('(i) Échap depuis un <input> ferme quand même', async () => {
+  it('(i) Échap depuis un <input> quitte quand même le mode immersif', async () => {
     const { hote, stable } = await ouvrir();
-    frapper(hote, { key: '1', altKey: true });
+    hote.querySelector<HTMLButtonElement>('[data-immersif]')!.click();
     await stable();
-    expect(titrePanneau(hote)).toBe('Filtre');
+    expect(hote.querySelector('mg-barre-parcours')).toBeNull();
     const champ = document.createElement('input');
     hote.appendChild(champ);
     frapper(hote, { key: 'Escape' }, champ);
-    await new Promise((r) => setTimeout(r, 220));
     await stable();
-    expect(titrePanneau(hote)).toBeNull();
+    expect(hote.querySelector('mg-barre-parcours')).not.toBeNull();
   });
 
-  it('(j) Campagne est inerte : clic et Alt+C n\'ouvrent rien ; Ctrl+K (Assistant) n\'est pas capté', async () => {
+  it('(j) Alt+5 ouvre ⑤ « bientôt » ; Alt+C et Ctrl+K ne changent pas l’étape et ne sont pas consommés', async () => {
     const { hote, stable } = await ouvrir();
-    const campagne = hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="campagne"]')!;
-    expect(campagne.getAttribute('aria-disabled')).toBe('true');
-    expect(campagne.getAttribute('title')).toBe('Disponible prochainement');
-    campagne.click();
-    frapper(hote, { key: 'c', altKey: true });
-    const k = frapper(hote, { key: 'k', ctrlKey: true });
+    frapper(hote, altChiffre('5'));
     await stable();
-    expect(titrePanneau(hote)).toBeNull();
-    expect(hote.querySelector('mg-rail [aria-pressed="true"]')).toBeNull();
+    expect(panneauCourant(hote)).toBe('plan');
+    expect(hote.querySelector('[data-panneau-etape="plan"] mg-etape-bientot [data-etape-bientot="plan"]')).not.toBeNull();
+    const c = frapper(hote, { key: 'c', code: 'KeyC', altKey: true });
+    const k = frapper(hote, { key: 'k', code: 'KeyK', ctrlKey: true });
+    await stable();
+    expect(c.defaultPrevented).toBe(false);
     expect(k.defaultPrevented).toBe(false);
+    expect(panneauCourant(hote)).toBe('plan');
   });
 
-  it('un clic sur une entrée ouvre son panneau (titre, point de couleur), re-cliquer le ferme ; un autre outil garde le MÊME panneau', async () => {
-    const { hote, stable } = await ouvrir();
-    const bouton = (id: string) => hote.querySelector<HTMLButtonElement>(`mg-rail button[data-entree="${id}"]`)!;
-    bouton('analyse').click();
+  it('cliquer ③ dans le fil la rend courante ; revenir à ① retrouve la MÊME instance du panneau Filtre', async () => {
+    const { harness, hote, stable } = await ouvrir();
+    const filtre = harness.fixture.debugElement.query(By.directive(PanneauFiltreComponent)).componentInstance;
+    const bouton = (n: number) => hote.querySelectorAll<HTMLButtonElement>('mg-barre-parcours mg-fil-etapes nav button')[n];
+    bouton(2).click();
     await stable();
-    const panneau = hote.querySelector('mg-panneau-carte')!;
-    expect(titrePanneau(hote)).toBe('Analyse');
-    expect(panneau.querySelector<HTMLElement>('[data-pastille]')!.style.background).toBe('var(--cat-analysis)');
-    expect(bouton('analyse').getAttribute('aria-pressed')).toBe('true');
-    bouton('zones').click();
+    expect(panneauCourant(hote)).toBe('analyse');
+    expect(hote.querySelector('[data-panneau-etape="analyse"] mg-panneau-analyse')).not.toBeNull();
+    expect(aside(hote).getAttribute('aria-label')).toBe('Étape 3 — Analyse');
+    expect(routeur().url).toBe('/carte?etape=analyse');
+    bouton(0).click();
     await stable();
-    expect(hote.querySelector('mg-panneau-carte')).toBe(panneau);
-    expect(titrePanneau(hote)).toBe('Zones');
-    bouton('zones').click();
-    await stable();
-    expect(titrePanneau(hote)).toBeNull();
+    expect(panneauCourant(hote)).toBe('perimetre');
+    expect(harness.fixture.debugElement.query(By.directive(PanneauFiltreComponent)).componentInstance).toBe(filtre);
+    expect(routeur().url).toBe('/carte');
   });
 
-  it('un clic HORS du panneau et du rail le ferme ; dans le panneau, non', async () => {
+  it('un clic sur la carte ne replie ni ne change rien', async () => {
     const { hote, stable } = await ouvrir();
-    frapper(hote, { key: '3', altKey: true });
+    frapper(hote, altChiffre('3'));
     await stable();
-    hote.querySelector('mg-panneau-carte')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }));
-    await new Promise((r) => setTimeout(r, 220));
-    await stable();
-    expect(titrePanneau(hote)).toBe('Analyse');
     hote.querySelector('mg-carte')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }));
+    hote.querySelector('mg-carte')!.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
     await new Promise((r) => setTimeout(r, 220));
     await stable();
-    expect(titrePanneau(hote)).toBeNull();
+    expect(panneauCourant(hote)).toBe('analyse');
+    expect(aside(hote).style.visibility).toBe('visible');
   });
 
-  it('fermer le panneau par sa croix RENDRA le focus à l\'hôte : Alt+2 puis Échap répondent encore', async () => {
+  it('replier puis rouvrir le panneau garde les panneaux montés ; le focus revient à l’hôte et Alt+2 répond encore', async () => {
     const { hote, stable } = await ouvrir();
-    frapper(hote, { key: '1', altKey: true });
+    frapper(hote, altChiffre('3'));
     await stable();
-    const croix = hote.querySelector<HTMLButtonElement>('mg-panneau-carte button[aria-label="Fermer"]')!;
-    croix.focus();
-    expect(document.activeElement).toBe(croix);
-    croix.click();
-    await new Promise((r) => setTimeout(r, 220));
+    const analyse = hote.querySelector('mg-panneau-analyse');
+    const replier = hote.querySelector<HTMLButtonElement>('mg-panneau-etape [data-replier]')!;
+    replier.focus();
+    replier.click();
     await stable();
-    expect(titrePanneau(hote)).toBeNull();
-    // La croix est partie avec le panneau : sans correctif, le focus serait sur <body>, hors de l'écouteur.
+    expect(aside(hote).style.visibility).toBe('hidden');
+    expect(aside(hote).style.width).toBe('0px');
+    expect(hote.querySelector('mg-panneau-analyse')).toBe(analyse);
+    // Le bouton qui portait le focus est caché : le focus revient à l'hôte, sinon il tomberait hors de l'écouteur (B10).
     expect(document.activeElement).toBe(hote);
-    frapper(document.activeElement as HTMLElement, { key: '2', altKey: true });
+    frapper(hote, altChiffre('2'));
     await stable();
-    expect(titrePanneau(hote)).toBe('Calques');
-    frapper(document.activeElement as HTMLElement, { key: 'Escape' });
-    await new Promise((r) => setTimeout(r, 220));
+    expect(panneauCourant(hote)).toBe('donnees');
+    const afficher = hote.querySelector<HTMLButtonElement>('[data-zone-carte] [data-afficher-panneau]')!;
+    expect(afficher.getAttribute('aria-label')).toBe('Afficher le panneau de l’étape');
+    afficher.click();
     await stable();
-    expect(titrePanneau(hote)).toBeNull();
+    expect(aside(hote).style.visibility).toBe('visible');
+    expect(hote.querySelector('[data-afficher-panneau]')).toBeNull();
+    expect(hote.querySelector('mg-panneau-analyse')).toBe(analyse);
+    expect(hote.querySelectorAll('[data-panneau-etape]').length).toBe(3);
   });
 
-  it('fermer le panneau sans que le focus y soit (re-clic du rail) ne déplace pas le focus', async () => {
+  it('changer d’étape alors que le focus est dans le panneau quitté : le focus revient à l’hôte', async () => {
     const { hote, stable } = await ouvrir();
-    const bouton = hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="calques"]')!;
-    bouton.click();
-    await stable();
+    const bouton = hote.querySelector<HTMLButtonElement>('[data-panneau-etape="perimetre"] mg-panneau-filtre [data-france]')!;
     bouton.focus();
-    bouton.click();
-    await stable();
-    expect(titrePanneau(hote)).toBeNull();
     expect(document.activeElement).toBe(bouton);
+    frapper(bouton, altChiffre('2'));
+    await stable();
+    expect(panneauCourant(hote)).toBe('donnees');
+    expect(document.activeElement).toBe(hote);
+    frapper(hote, altChiffre('3'));
+    await stable();
+    expect(panneauCourant(hote)).toBe('analyse');
   });
 
-  it("Échap dans un menu ouvert du badge de session ferme le MENU seulement, pas le panneau", async () => {
-    const { hote, stable } = await ouvrir();
-    frapper(hote, { key: '3', altKey: true });
-    await stable();
+  it("Échap dans un menu ouvert du badge de session ferme le MENU seulement : la pile de la carte n'est pas appelée", async () => {
+    const { harness, hote, stable } = await ouvrir();
+    const fermer = vi.spyOn(injecteurPage(harness).get(PileEchapService), 'fermerLePlusHaut');
     hote.querySelector<HTMLButtonElement>('mg-badge-session [data-declencheur="utilisateur"]')!.click();
     await stable();
     const option = hote.querySelector<HTMLElement>('mg-badge-session [data-menu="utilisateur"] button')!;
     expect(option).not.toBeNull();
     const e = frapper(hote, { key: 'Escape' }, option);
-    await new Promise((r) => setTimeout(r, 220));
     await stable();
     expect(e.defaultPrevented).toBe(true);
     expect(hote.querySelector('mg-badge-session [data-menu="utilisateur"]')).toBeNull();
-    expect(titrePanneau(hote)).toBe('Analyse');
+    expect(fermer).not.toHaveBeenCalled();
     // Le menu fermé, l'Échap suivant revient à la pile de la carte.
     frapper(hote, { key: 'Escape' });
-    await new Promise((r) => setTimeout(r, 220));
-    await stable();
-    expect(titrePanneau(hote)).toBeNull();
+    expect(fermer).toHaveBeenCalledTimes(1);
   });
 
-  it('(k) mode immersif : rail en translateX(-100%), barre du haut masquée ; Échap ré-affiche', async () => {
-    const { hote, stable } = await ouvrir();
-    const bouton = hote.querySelector<HTMLButtonElement>('button[data-immersif]')!;
-    expect(bouton.getAttribute('title')).toBe('Masquer la barre (mode immersif)');
-    bouton.click();
+  it('(k) mode immersif : barre retirée, aside caché, panneaux montés ; Échap rétablit ; le bouton « quitter » aussi', async () => {
+    const { harness, hote, stable } = await ouvrir();
+    frapper(hote, altChiffre('2'));
     await stable();
-    expect(hote.querySelector<HTMLElement>('mg-rail')!.style.transform).toBe('translateX(-100%)');
-    expect(hote.querySelector('mg-barre-haut')).toBeNull();
-    expect(bouton.getAttribute('aria-pressed')).toBe('true');
-    expect(bouton.getAttribute('title')).toBe('Afficher la barre (Escape)');
+    const calques = hote.querySelector('mg-panneau-calques');
+    hote.querySelector<HTMLButtonElement>('mg-barre-parcours [data-immersif]')!.click();
+    await stable();
+    expect(hote.querySelector('mg-barre-parcours')).toBeNull();
+    expect(aside(hote).style.visibility).toBe('hidden');
+    expect(aside(hote).style.width).toBe('0px');
+    expect(hote.querySelector('mg-panneau-calques')).toBe(calques);
+    // Ni l'onglet « carte seule » (le repli n'est pas posé), ni le focus perdu (le bouton est parti avec la barre).
+    expect(hote.querySelector('[data-afficher-panneau]')).toBeNull();
+    expect(document.activeElement).toBe(hote);
+    const quitter = hote.querySelector<HTMLButtonElement>('[data-zone-carte] [data-quitter-immersif]')!;
+    expect(quitter.getAttribute('aria-label')).toBe('Quitter le mode immersif');
     frapper(hote, { key: 'Escape' });
     await stable();
-    expect(hote.querySelector<HTMLElement>('mg-rail')!.style.transform).toBe('translateX(0)');
-    expect(hote.querySelector('mg-barre-haut')).not.toBeNull();
-  });
+    expect(hote.querySelector('mg-barre-parcours')).not.toBeNull();
+    expect(aside(hote).style.visibility).toBe('visible');
+    expect(hote.querySelector('[data-quitter-immersif]')).toBeNull();
+    expect(panneauCourant(hote)).toBe('donnees');
 
-  it('Échap ferme le DERNIER ouvert : panneau ouvert après le mode immersif → panneau d\'abord', async () => {
-    const { hote, stable } = await ouvrir();
-    hote.querySelector<HTMLButtonElement>('button[data-immersif]')!.click();
+    hote.querySelector<HTMLButtonElement>('mg-barre-parcours [data-immersif]')!.click();
     await stable();
-    frapper(hote, { key: '1', altKey: true });
+    hote.querySelector<HTMLButtonElement>('[data-quitter-immersif]')!.click();
     await stable();
-    frapper(hote, { key: 'Escape' });
-    await new Promise((r) => setTimeout(r, 220));
-    await stable();
-    expect(titrePanneau(hote)).toBeNull();
-    expect(hote.querySelector<HTMLElement>('mg-rail')!.style.transform).toBe('translateX(-100%)');
-    frapper(hote, { key: 'Escape' });
-    await stable();
-    expect(hote.querySelector<HTMLElement>('mg-rail')!.style.transform).toBe('translateX(0)');
+    expect(hote.querySelector('mg-barre-parcours')).not.toBeNull();
+    expect(injecteurPage(harness).get(PileEchapService).etat().map((x) => x.id)).not.toContain('immersif');
   });
 
   it('(l) la carte est créée UNE fois, au centre et au zoom de React, fond Liberty, zoom en bas à droite avec boussole', async () => {
@@ -328,26 +362,60 @@ describe('CartePage — squelette de la carte principale', () => {
     }
   });
 
-  it('la barre du haut porte le logo, la bascule Campagne (inerte) / Carte (pressée), le thème et la session', async () => {
+  it('la barre porte logo, fil d’Ariane, fil d’étapes, Tout effacer, immersif, thème, session ; la légende et le badge vivent dans la carte', async () => {
     const { hote } = await ouvrir();
-    const barre = hote.querySelector('mg-barre-haut')!;
-    expect(barre.querySelector('mg-logo')).not.toBeNull();
-    expect(barre.querySelector('[data-bascule="campagne"]')!.getAttribute('aria-disabled')).toBe('true');
-    expect(barre.querySelector('[data-bascule="carte"]')!.getAttribute('aria-pressed')).toBe('true');
-    expect(barre.querySelector('mg-bascule-theme')).not.toBeNull();
-    expect(barre.querySelector('mg-badge-session')).not.toBeNull();
+    const barre = hote.querySelector('mg-barre-parcours')!;
+    for (const s of ['mg-logo', 'mg-fil-ariane', 'mg-fil-etapes', '[data-tout-effacer]', '[data-immersif]', 'mg-bascule-theme', 'mg-badge-session']) {
+      expect(barre.querySelector(s), s).not.toBeNull();
+    }
+    expect(barre.querySelector('mg-fil-ariane')!.textContent).toContain('France entière');
+    const carte = hote.querySelector('[data-zone-carte]')!;
+    for (const s of ['mg-legende-carte', '[data-badge-zoom]', 'mg-annonce', 'mg-detail-iris', 'mg-tiroir-panneau', 'mg-zone-active', 'mg-fond-compact']) {
+      expect(carte.querySelector(s), s).not.toBeNull();
+    }
   });
 
-  it("une navigation de requête RÉUTILISE l'écran : ni page ni carte recréées", async () => {
+  it("une navigation de requête RÉUTILISE l'écran : ni page ni carte recréées ; ?etape=analyse passe à ③", async () => {
     const { harness, hote, cartes, stable } = await ouvrir();
-    await TestBed.inject(Router).navigateByUrl('/carte?risque=etape%3Drayon');
+    await routeur().navigateByUrl('/carte?etape=analyse');
     await stable();
     expect(harness.fixture.nativeElement.querySelector('mg-carte-principale')).toBe(hote);
     expect(cartes).toHaveLength(1);
     expect(cartes[0].retiree).toBe(false);
+    expect(panneauCourant(hote)).toBe('analyse');
+  });
+
+  it('?etape=zones à l’ouverture : ④ courante, et ① n’est pas monté (première visite seulement)', async () => {
+    const { hote } = await ouvrir({ url: '/carte?etape=zones' });
+    expect(panneauCourant(hote)).toBe('zones');
+    expect(hote.querySelector('[data-panneau-etape="perimetre"]')).toBeNull();
+  });
+
+  it('zéro relecture : après une visite de ① à ④, cinq bascules ne relisent rien', async () => {
+    const geo = vi.fn(() => of({ regions: [] }));
+    const lister = vi.fn(() => of({ zones: [] }));
+    const jeux = vi.fn(() => of({ jeux: [] }));
+    const categories = vi.fn(() => of({ categories: ['lycee'] }));
+    const { hote, stable } = await ouvrir({ referentiel: geo, zones: { lister }, jeux, categories, organisation: 'org-1' });
+    for (const n of ['2', '3', '4', '1']) {
+      frapper(hote, altChiffre(n));
+      await stable();
+      if (n !== '2') continue;
+      // À ②, ouvrir la section POI : le catalogue des types n'est lu qu'à sa première ouverture.
+      [...hote.querySelectorAll<HTMLButtonElement>('mg-panneau-calques button[data-groupe]')].find((b) => b.textContent!.includes('POI et mobilité'))!.click();
+      await stable();
+      hote.querySelector<HTMLElement>('mg-section-poi mg-entete-filtre')!.click();
+      await stable();
+    }
+    const lectures = () => [geo.mock.calls.length, lister.mock.calls.length, jeux.mock.calls.length, categories.mock.calls.length];
+    const avant = lectures();
+    // Chaque lecture a bien eu lieu UNE fois aux premières visites : l'assertion qui suit ne compare pas des zéros.
+    expect(avant.map((n) => n >= 1), `géo, zones, jeux, catégories : ${avant}`).toEqual([true, true, true, true]);
+    for (const n of ['3', '1', '4', '2', '1']) { frapper(hote, altChiffre(n)); await stable(); }
+    expect(lectures()).toEqual(avant);
+    expect(hote.querySelectorAll('[data-panneau-etape]').length).toBe(4);
   });
 });
-
 
 /** L'injecteur de la page : celui qui porte ses services d'état (`providers` du composant). */
 const injecteurPage = (harness: RouterTestingHarness): Injector =>
@@ -372,11 +440,6 @@ const URL_LIBERTY = 'https://tiles.openfreemap.org/styles/liberty';
 const URL_BRIGHT = 'https://tiles.openfreemap.org/styles/bright';
 const styleDe = (c: CarteFactice) => (c.options as Record<string, unknown>)['style'];
 
-async function ouvrirReglages(hote: HTMLElement, stable: () => Promise<void>) {
-  hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="reglages"]')!.click();
-  await stable();
-}
-
 describe('CartePage — fond de carte, recréation, Tout effacer (T4)', () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => { localStorage.clear(); vi.restoreAllMocks(); });
@@ -388,8 +451,7 @@ describe('CartePage — fond de carte, recréation, Tout effacer (T4)', () => {
     await stable();
     expect(couches.carteCourante()).toBe(cartes[0]);
 
-    await ouvrirReglages(hote, stable);
-    hote.querySelector<HTMLButtonElement>('mg-reglages button[data-fond="positron"]')!.click();
+    hote.querySelector<HTMLButtonElement>('[data-fond-compact="positron"]')!.click();
     expect(couches.carteCourante()).toBeNull();
     await stable();
 
@@ -402,16 +464,14 @@ describe('CartePage — fond de carte, recréation, Tout effacer (T4)', () => {
     cartes[1].emettre('load');
     await stable();
     expect(couches.carteCourante()).toBe(cartes[1]);
-    // Le fond courant est marqué, dans les Réglages comme dans le sélecteur compact.
-    expect(hote.querySelector('mg-reglages button[data-fond="positron"]')!.getAttribute('aria-pressed')).toBe('true');
-    expect(hote.querySelector('mg-reglages button[data-fond="magelian"]')!.getAttribute('aria-pressed')).toBe('false');
+    // Le fond courant est marqué dans le sélecteur compact (les Réglages reviennent dans la boîte à outils, T5).
+    expect(hote.querySelector('[data-fond-compact="magelian"]')!.getAttribute('aria-pressed')).toBe('false');
     expect(hote.querySelector('[data-fond-compact="positron"]')!.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('re-choisir le fond courant ne recrée rien', async () => {
     const { hote, cartes, stable } = await ouvrir();
-    await ouvrirReglages(hote, stable);
-    hote.querySelector<HTMLButtonElement>('mg-reglages button[data-fond="liberty"]')!.click();
+    hote.querySelector<HTMLButtonElement>('[data-fond-compact="liberty"]')!.click();
     await stable();
     expect(cartes).toHaveLength(1);
   });
@@ -432,8 +492,7 @@ describe('CartePage — fond de carte, recréation, Tout effacer (T4)', () => {
     await stable();
     expect(couche.poses).toEqual([cartes[0]]);
 
-    await ouvrirReglages(hote, stable);
-    hote.querySelector<HTMLButtonElement>('mg-reglages button[data-fond="bright"]')!.click();
+    hote.querySelector<HTMLButtonElement>('[data-fond-compact="bright"]')!.click();
     await stable();
     expect(couche.poses).toEqual([cartes[0]]);
     cartes[1].emettre('load');
@@ -458,8 +517,7 @@ describe('CartePage — fond de carte, recréation, Tout effacer (T4)', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('SecurityError'); });
     const { hote, cartes, stable } = await ouvrir();
     expect(styleDe(cartes[0])).toBe(URL_LIBERTY);
-    await ouvrirReglages(hote, stable);
-    hote.querySelector<HTMLButtonElement>('mg-reglages button[data-fond="positron"]')!.click();
+    hote.querySelector<HTMLButtonElement>('[data-fond-compact="positron"]')!.click();
     await stable();
     expect(cartes).toHaveLength(2);
   });
@@ -511,7 +569,7 @@ describe('CartePage — fond de carte, recréation, Tout effacer (T4)', () => {
     etat.basculerDegrade('carreaux', true);
     etat.perimetreScope.set('metro');
     etat.poiSelectionnes.set(['lycee']);
-    const bouton = hote.querySelector<HTMLButtonElement>('button[data-tout-effacer]')!;
+    const bouton = hote.querySelector<HTMLButtonElement>('mg-barre-parcours button[data-tout-effacer]')!;
     expect(bouton.getAttribute('title')).toBe('Tout effacer (couches et zones affichées)');
     bouton.click();
     await stable();
@@ -522,50 +580,70 @@ describe('CartePage — fond de carte, recréation, Tout effacer (T4)', () => {
     expect(etat.poiSelectionnes()).toEqual([]);
     expect(injecteur.get(AnnonceService).annonces()).toEqual([]);
   });
-
-  it('Réglages et Aide remplacent leur contenu provisoire', async () => {
-    const { hote, stable } = await ouvrir();
-    await ouvrirReglages(hote, stable);
-    expect(hote.querySelector('mg-reglages')).not.toBeNull();
-    expect(hote.querySelector('[data-provisoire]')).toBeNull();
-    hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="aide"]')!.click();
-    await stable();
-    expect(hote.querySelector('mg-aide')).not.toBeNull();
-  });
 });
 
-describe('CartePage — filtre unique : panneau, puce, pastille du rail (T5)', () => {
-  it('le panneau Filtre monte le vrai panneau ; un filtre posé allume la pastille du rail et la puce ; la croix de la puce le retire', async () => {
+describe('CartePage — filtre unique : panneau ①, pastille, fil d’Ariane (T5)', () => {
+  const pastilles = (hote: HTMLElement) =>
+    [...hote.querySelectorAll('mg-barre-parcours mg-fil-etapes nav button')].filter((b) => b.querySelector('.sr-only')).map((b) => b.textContent!.replace(/\s+/g, ' ').trim());
+  const ariane = (hote: HTMLElement) =>
+    [...hote.querySelectorAll('mg-barre-parcours mg-fil-ariane button')].map((b) => b.textContent!.trim());
+
+  it('① monte le panneau Filtre ; un filtre posé allume la pastille de ① et ajoute son segment au fil d’Ariane ; « France entière » le retire', async () => {
     const { harness, hote, stable } = await ouvrir();
-    const pastille = () => hote.querySelector('mg-rail button[data-entree="filtre"] [data-pastille-filtre]');
-    expect(pastille()).toBeNull();
-    expect(hote.querySelector('mg-puce-filtre')).toBeNull();
-    hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="filtre"]')!.click();
-    await stable();
-    expect(hote.querySelector('mg-panneau-filtre')).not.toBeNull();
+    const etat = injecteurPage(harness).get(EtatCarteService);
+    expect(hote.querySelector('[data-panneau-etape="perimetre"] mg-panneau-filtre')).not.toBeNull();
     hote.querySelector<HTMLButtonElement>('mg-panneau-filtre [data-france]')!.click();
     await stable();
-    const etat = injecteurPage(harness).get(EtatCarteService);
     expect(etat.filtre()?.type).toBe('france');
-    expect(pastille()).not.toBeNull();
-    // La pastille ne vaut que pour l'entrée Filtre.
-    expect(hote.querySelectorAll('mg-rail [data-pastille-filtre]').length).toBe(1);
-    const puce = hote.querySelector<HTMLElement>('mg-puce-filtre')!;
-    expect(puce.textContent).toContain('France entière');
-    puce.querySelector<HTMLButtonElement>('button[aria-label="Retirer le filtre"]')!.click();
+    // Étape courante : pas de pastille (`mg-fil-etapes`). À ②, ① la porte, avec son texte pour les lecteurs d'écran.
+    expect(pastilles(hote)).toEqual([]);
+    frapper(hote, altChiffre('2'));
+    await stable();
+    expect(pastilles(hote)).toEqual(['1 Périmètre (renseignée)']);
+    expect(ariane(hote)).toEqual(['France entière']);
+
+    etat.filtre.set({ type: 'region', code: '53', label: 'Bretagne' });
+    await stable();
+    expect(ariane(hote)).toEqual(['France entière', 'Bretagne']);
+    expect(hote.querySelector('mg-fil-ariane button[title="Région 53"]')).not.toBeNull();
+    hote.querySelector<HTMLButtonElement>('mg-fil-ariane button')!.click();
     await stable();
     expect(etat.filtre()).toBeNull();
-    expect(pastille()).toBeNull();
-    expect(hote.querySelector('mg-puce-filtre')).toBeNull();
+    expect(ariane(hote)).toEqual(['France entière']);
+    expect(pastilles(hote)).toEqual([]);
   });
 
-  it('rouvrir le panneau re-sème depuis le filtre courant : « France entière » reste pressée', async () => {
+  it('les pastilles Métro / +DROM de ① allument la pastille et précisent le fil d’Ariane', async () => {
+    const { harness, hote, stable } = await ouvrir({ url: '/carte?etape=donnees' });
+    injecteurPage(harness).get(EtatCarteService).perimetreScope.set('metro');
+    await stable();
+    expect(pastilles(hote)).toEqual(['1 Périmètre (renseignée)']);
+    expect(hote.querySelector('mg-fil-ariane')!.textContent).toContain('· métropole');
+  });
+
+  it('un calque allumé allume la pastille de ② (dégradé ou POI choisis)', async () => {
     const { harness, hote, stable } = await ouvrir();
     const etat = injecteurPage(harness).get(EtatCarteService);
-    etat.filtre.set({ type: 'france', code: 'france', label: 'France entière' });
-    hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="filtre"]')!.click();
+    etat.poiSelectionnes.set(['lycee']);
+    await stable();
+    expect(pastilles(hote)).toEqual(['2 Données (renseignée)']);
+    etat.poiSelectionnes.set([]);
+    etat.basculerDegrade('carreaux', true);
+    await stable();
+    expect(pastilles(hote)).toEqual(['2 Données (renseignée)']);
+  });
+
+  it('revenir à ① garde « France entière » pressée : panneau monté, aucune relecture du référentiel', async () => {
+    const geo = vi.fn(() => of({ regions: [] }));
+    const { hote, stable } = await ouvrir({ referentiel: geo });
+    hote.querySelector<HTMLButtonElement>('mg-panneau-filtre [data-france]')!.click();
+    await stable();
+    frapper(hote, altChiffre('2'));
+    await stable();
+    frapper(hote, altChiffre('1'));
     await stable();
     expect(hote.querySelector('mg-panneau-filtre [data-france]')!.getAttribute('aria-pressed')).toBe('true');
+    expect(geo).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -580,7 +658,7 @@ describe('CartePage — panneau Calques, carreaux Filosofi, légende (T6)', () =
     const { harness, hote, cartes, stable } = await ouvrir();
     cartes[0].emettre('load');
     await stable();
-    hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="calques"]')!.click();
+    frapper(hote, altChiffre('2'));
     await stable();
     expect(hote.querySelector('mg-panneau-calques')).not.toBeNull();
     expect(hote.querySelector('mg-legende-carte [data-legende]')).toBeNull();
@@ -595,8 +673,7 @@ describe('CartePage — panneau Calques, carreaux Filosofi, légende (T6)', () =
     expect(hote.querySelector('mg-legende-carte [data-bloc="carreaux"]')!.textContent).toContain('Carreaux Filosofi · pers./km²');
 
     // Changement de fond : la nouvelle instance reçoit la couche, visible.
-    await ouvrirReglages(hote, stable);
-    hote.querySelector<HTMLButtonElement>('mg-reglages button[data-fond="bright"]')!.click();
+    hote.querySelector<HTMLButtonElement>('[data-fond-compact="bright"]')!.click();
     await stable();
     cartes[1].emettre('load');
     await stable();
@@ -622,7 +699,7 @@ describe('CartePage — IRIS : section, couche en cascade, panneau de détail (T
     const { harness, hote, cartes, stable } = await ouvrir();
     cartes[0].emettre('load');
     await stable();
-    hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="calques"]')!.click();
+    frapper(hote, altChiffre('2'));
     await stable();
     hote.querySelector<HTMLButtonElement>('mg-panneau-calques button[data-groupe]')!.click();
     await stable();
@@ -649,7 +726,7 @@ describe('CartePage — IRIS : section, couche en cascade, panneau de détail (T
     expect((cartes[0].getLayer('iris-fill')!['layout'] as { visibility: string }).visibility).toBe('none');
   });
 
-  it('fermer le détail par sa croix rend le focus à l’hôte : Alt+2 ouvre encore Calques (revue 1)', async () => {
+  it('fermer le détail par sa croix rend le focus à l’hôte : Alt+2 répond encore (revue 1)', async () => {
     const detail = vi.fn(() => of({ code_iris: '751010201', nom_iris: 'Saint-Germain', code_commune: null, code_dept: null, is_true_iris: true }));
     TestBed.overrideProvider(IrisApi, { useValue: { urlTuiles: () => '', bornes: () => of({}), detail } });
     const { hote, cartes, stable } = await ouvrir();
@@ -664,14 +741,14 @@ describe('CartePage — IRIS : section, couche en cascade, panneau de détail (T
     expect(hote.querySelector('[data-detail-iris]')).toBeNull();
     const racine = hote.getRootNode() as Document | ShadowRoot;
     expect(racine.activeElement).toBe(hote);
-    frapper(hote, { key: '2', altKey: true });
+    frapper(hote, altChiffre('2'));
     await stable();
-    expect(titrePanneau(hote)).toBe('Calques');
+    expect(panneauCourant(hote)).toBe('donnees');
   });
 });
 
 describe('CartePage — météo (T11)', () => {
-  it('le dialogue météo est un <dialog> DANS la page ; Échap dedans le ferme, le panneau Calques et la carte restent', async () => {
+  it('le dialogue météo est un <dialog> DANS la page ; Échap dedans le ferme, l’étape ② et la carte restent', async () => {
     Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
       value: function (this: HTMLDialogElement) { this.setAttribute('open', ''); }, configurable: true, writable: true,
     });
@@ -679,7 +756,7 @@ describe('CartePage — météo (T11)', () => {
       value: function (this: HTMLDialogElement) { this.removeAttribute('open'); }, configurable: true, writable: true,
     });
     const { harness, hote, cartes, stable } = await ouvrir();
-    frapper(hote, { key: '2', altKey: true });
+    frapper(hote, altChiffre('2'));
     await stable();
     const meteo = injecteurPage(harness).get(MeteoService);
     meteo.ouvrirDialogue();
@@ -695,10 +772,10 @@ describe('CartePage — météo (T11)', () => {
     await stable();
     expect(hote.querySelector('mg-dialogue-meteo')).toBeNull();
     expect(injecteurPage(harness).get(PileEchapService).etat().map((x) => x.id)).not.toContain('meteo');
-    expect(titrePanneau(hote)).toBe('Calques');
+    expect(panneauCourant(hote)).toBe('donnees');
     expect(cartes).toHaveLength(1);
     expect(cartes[0].retiree).toBe(false);
-    // Le focus est revenu à l'hôte : un second Échap ferme le panneau (sinon il tomberait sur <body>).
+    // Le focus est revenu à l'hôte : les raccourcis répondent encore (sinon il tomberait sur <body>).
     expect(document.activeElement).toBe(hote);
   });
 });
@@ -749,18 +826,34 @@ describe('CartePage — le module risque, route ENFANT (T13, B2/B3)', () => {
     expect(document.activeElement).toBe(hote);
   });
 
-  it("Zones › Jeux de zones : la liste est rendue dans le panneau", async () => {
-    const { hote, stable } = await ouvrir();
-    frapper(hote, { key: '4', altKey: true });
+  it('module ouvert : Alt+3 ne change ni l’étape ni l’URL, et ne ferme pas le module (Review Focus 2)', async () => {
+    const { hote, stable } = await ouvrir({ url: '/carte?etape=donnees' });
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/carte/risques?etape=donnees&risque=etape%3Drayon');
     await stable();
-    expect(titrePanneau(hote)).toBe('Zones');
-    expect(hote.querySelector('mg-panneau-carte mg-jeux-de-zones')).not.toBeNull();
+    const avant = router.url;
+    expect(avant.startsWith('/carte/risques')).toBe(true);
+    const e = frapper(hote, altChiffre('3'));
+    await stable();
+    expect(e.defaultPrevented).toBe(false);
+    expect(router.url).toBe(avant);
+    expect(panneauCourant(hote)).toBe('donnees');
+    expect(hote.querySelector('[data-module-risque] mg-module-factice')).not.toBeNull();
+    expect(hote.querySelector('[data-panneau-etape="analyse"]')).toBeNull();
+  });
+
+  it("Zones › Jeux de zones : la liste est rendue dans le panneau ④", async () => {
+    const { hote, stable } = await ouvrir();
+    frapper(hote, altChiffre('4'));
+    await stable();
+    expect(panneauCourant(hote)).toBe('zones');
+    expect(hote.querySelector('[data-panneau-etape="zones"] mg-jeux-de-zones')).not.toBeNull();
     expect(hote.querySelector('mg-jeux-de-zones [data-jeux-vide]')).not.toBeNull();
   });
 
-  it('Zones › Créer une zone (T16) : capture inactive sans couche ; le dessin ouvert, un clic sur la carte NE ferme PAS le panneau', async () => {
+  it('Zones › Créer une zone (T16) : capture inactive sans couche ; le dessin ouvert, un clic sur la carte laisse l’étape ④', async () => {
     const { hote, stable } = await ouvrir();
-    frapper(hote, { key: '4', altKey: true });
+    frapper(hote, altChiffre('4'));
     await stable();
     expect(hote.querySelector('[data-provisoire]')).toBeNull();
     expect(hote.querySelector<HTMLButtonElement>('[data-capturer]')!.disabled).toBe(true);
@@ -771,14 +864,8 @@ describe('CartePage — le module risque, route ENFANT (T13, B2/B3)', () => {
     hote.querySelector('mg-carte')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }));
     await new Promise((r) => setTimeout(r, 220));
     await stable();
-    expect(titrePanneau(hote)).toBe('Zones');
-    // L'outil quitté, la carte est rendue : le clic hors du panneau le referme de nouveau.
-    hote.querySelector<HTMLButtonElement>('mg-creer-dessin [data-quitter]')!.click();
-    await stable();
-    hote.querySelector('mg-carte')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }));
-    await new Promise((r) => setTimeout(r, 220));
-    await stable();
-    expect(titrePanneau(hote)).toBeNull();
+    expect(panneauCourant(hote)).toBe('zones');
+    expect(hote.querySelector('mg-creer-dessin [data-quitter]')).not.toBeNull();
   });
 });
 
@@ -800,9 +887,9 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
 
   it('le panneau Zones monte le vrai panneau : créer, jeux de zones, « Mes zones »', async () => {
     const { hote, stable } = await ouvrir();
-    hote.querySelector<HTMLButtonElement>('mg-rail button[data-entree="zones"]')!.click();
+    frapper(hote, altChiffre('4'));
     await stable();
-    const panneau = hote.querySelector('mg-panneau-carte mg-panneau-zones')!;
+    const panneau = hote.querySelector('[data-panneau-etape="zones"] mg-panneau-zones')!;
     expect(panneau).not.toBeNull();
     expect([...panneau.querySelectorAll('h4')].map((h) => h.textContent?.trim())).toEqual(['Créer une zone', 'Jeux de zones à risque', 'Mes zones']);
     expect(panneau.querySelector('mg-mes-zones')).not.toBeNull();
@@ -815,10 +902,11 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     expect(hote.querySelector('button[data-script-dv360]')).toBeNull();
   });
 
-  it('?customZone=<id> : géométrie lue UNE fois carte prête, recadrage sur son emprise (60 px, 1 s), bouton DV360 nommé ; une autre navigation de requête ne relit rien', async () => {
+  it('?customZone=<id> : ④ courante ; géométrie lue UNE fois carte prête, recadrage sur son emprise (60 px, 1 s), bouton DV360 nommé ; une autre navigation de requête ne relit rien', async () => {
     const geometrie = vi.fn(() => of(ENTITE));
     const exporter = vi.fn(() => of());
     const { harness, hote, cartes, stable } = await carteChargee({ url: `/carte?customZone=${ID}`, zones: { geometrie, exporter } });
+    expect(panneauCourant(hote)).toBe('zones');
     expect(geometrie).toHaveBeenCalledTimes(1);
     expect(geometrie).toHaveBeenCalledWith(ID);
     expect(cartes[0].cadrages.at(-1)).toEqual({ cadre: [[5, 43], [6, 44.5]], options: { padding: 60, duration: 1000 } });
@@ -827,7 +915,7 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     expect(cartes[0].getLayer('battle-pois-circle')).toBeDefined();
     const bouton = hote.querySelector<HTMLButtonElement>('button[data-script-dv360]')!;
     expect(bouton.getAttribute('title')).toBe('Générer le fichier custom bidding DV360 pour « CIRFA BRETAGNE »');
-    expect(bouton.style.top).toBe('136px');
+    expect(bouton.closest('mg-barre-parcours')).not.toBeNull();
     bouton.click();
     expect(exporter).toHaveBeenCalledWith(ID, 'bidding_script');
 
@@ -850,7 +938,8 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     await stable();
     expect(hote.querySelector('button[data-script-dv360]')).toBeNull();
     expect(cartes[0].getLayer('battle-fill')).toBeUndefined();
-    expect(TestBed.inject(Router).url).toBe('/carte');
+    // `customZone` parti, l'étape ④ qu'il avait ouverte reste (elle est dans l'URL depuis l'ouverture).
+    expect(TestBed.inject(Router).url).toBe('/carte?etape=zones');
   });
 
   it('changement d’organisation (badge de la barre) : la page émet `espaceChange` UNE fois et ne nettoie plus rien à la main — l’hôte la recrée (droits sur la carte, T3)', async () => {
@@ -859,7 +948,7 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     const emis = vi.fn();
     page.espaceChange.subscribe(emis);
     const etat = injecteurPage(harness).get(EtatCarteService);
-    const barre = harness.fixture.debugElement.query(By.css('mg-barre-haut')).componentInstance as { orgChangee: { emit(v: string | null): void } };
+    const barre = harness.fixture.debugElement.query(By.css('mg-barre-parcours')).componentInstance as { orgChangee: { emit(v: string | null): void } };
 
     etat.filtre.set({ type: 'zone', code: ID, label: 'CIRFA BRETAGNE', bbox: [5, 43, 6, 44.5] });
     barre.orgChangee.emit('org-2');
@@ -868,7 +957,7 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     // Plus de nettoyage manuel : filtre, zone du lien et URL restent tels quels — c'est la recréation qui les remet à zéro.
     expect(etat.filtre()?.code).toBe(ID);
     expect(hote.querySelector('button[data-script-dv360]')).not.toBeNull();
-    expect(TestBed.inject(Router).url).toBe(`/carte?customZone=${ID}`);
+    expect(TestBed.inject(Router).url).toBe(`/carte?customZone=${ID}&etape=zones`);
   });
 
   it('lien en échec : une annonce le dit (React : console seulement)', async () => {
@@ -893,7 +982,7 @@ describe('CartePage — plan média des zones affichées (T15)', () => {
   const ENTITE = { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[5, 43], [6, 43], [6, 44], [5, 43]]] }, properties: {} };
   const zone = (id: string, name: string) => ({ id, name, source_type: 'composite', bbox: [5, 43, 6, 44] }) as unknown as ZoneCustomResume;
 
-  it('première zone affichée → panneau ouvert à droite sous la barre, totaux lus UNE fois ; la croix le ferme, « Plan média (n) » le rouvre ; Tout effacer → fermé', async () => {
+  it('première zone affichée → panneau ouvert à droite de la carte, totaux lus UNE fois ; la croix le ferme, « Plan média (n) » le rouvre ; Tout effacer → fermé', async () => {
     const totauxNationaux = vi.fn(() => of({ totals: { total: 68_000_000 } }));
     const { harness, hote, cartes, stable } = await ouvrir({ zones: { geometrie: () => of(ENTITE), totauxNationaux } });
     cartes[0].emettre('load');
@@ -905,9 +994,11 @@ describe('CartePage — plan média des zones affichées (T15)', () => {
     await stable();
     const panneau = hote.querySelector<HTMLElement>('mg-plan-media [data-plan-media]')!;
     expect(panneau).not.toBeNull();
-    expect(panneau.style.top).toBe('44px');
+    // Dans le conteneur de la carte, sous la barre du parcours : plus de décalage à porter.
+    expect(panneau.style.top).toBe('0px');
+    expect(panneau.closest('[data-zone-carte]')).not.toBeNull();
     expect(hote.querySelector('[data-titre]')!.textContent!.trim()).toBe('Plan média — 1 zone');
-    expect(hote.querySelector('button[data-plan-media]')).toBeNull();
+    expect(hote.querySelector('mg-barre-parcours [data-rouvrir-plan]')).toBeNull();
 
     hote.querySelector<HTMLButtonElement>('mg-plan-media button[title="Fermer"]')!.click();
     await stable();
@@ -915,7 +1006,7 @@ describe('CartePage — plan média des zones affichées (T15)', () => {
     zones.afficher(zone('b', 'B'));
     await stable();
     expect(hote.querySelector('mg-plan-media')).toBeNull();
-    const rouvrir = hote.querySelector<HTMLButtonElement>('button[data-plan-media]')!;
+    const rouvrir = hote.querySelector<HTMLButtonElement>('mg-barre-parcours [data-rouvrir-plan]')!;
     expect(rouvrir.textContent!.trim()).toBe('Plan média (2)');
     rouvrir.click();
     await stable();
@@ -925,6 +1016,6 @@ describe('CartePage — plan média des zones affichées (T15)', () => {
     hote.querySelector<HTMLButtonElement>('button[data-tout-effacer]')!.click();
     await stable();
     expect(hote.querySelector('mg-plan-media')).toBeNull();
-    expect(hote.querySelector('button[data-plan-media]')).toBeNull();
+    expect(hote.querySelector('mg-barre-parcours [data-rouvrir-plan]')).toBeNull();
   });
 });

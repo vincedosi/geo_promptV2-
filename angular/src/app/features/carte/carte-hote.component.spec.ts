@@ -132,9 +132,9 @@ async function ouvrir(url = '/carte') {
     return r;
   };
   const page = () => harness.fixture.debugElement.query(By.directive(CartePage));
-  /** Le changement d'espace tel que la page le reçoit : le badge de SA barre du haut. */
+  /** Le changement d'espace tel que la page le reçoit : le badge de SA barre du parcours. */
   const changerEspace = (org: string | null) =>
-    (page().query(By.css('mg-barre-haut')).componentInstance as { orgChangee: { emit(v: string | null): void } }).orgChangee.emit(org);
+    (page().query(By.css('mg-barre-parcours')).componentInstance as { orgChangee: { emit(v: string | null): void } }).orgChangee.emit(org);
   return { harness, cartes, stable, appels, page, changerEspace, http: TestBed.inject(HttpTestingController) };
 }
 
