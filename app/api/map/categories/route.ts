@@ -10,31 +10,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { getSessionOrg } from '@/lib/auth/getSessionOrg';
 import { getDistinctCategories, getCategoriesVisibles, invalidateCategoriesCache } from '@/lib/poi/categories';
+import { libellesCategories, avecLibelles } from '@/lib/poi/libelles-categories';
 import { getOrgSourceIds, getSourcesPropresEspace } from '@/lib/auth/getOrgSourceIds';
 
 export const dynamic = 'force-dynamic';
-
-// Construit la map categorie → label_fr depuis poi_categories (1 requête légère)
-async function buildLabelMap(supabase: ReturnType<typeof createAdminClient>, cats: string[]): Promise<Record<string, string>> {
-  if (cats.length === 0) return {};
-  const { data } = await supabase
-    .from('poi_categories')
-    .select('categorie, label_fr')
-    .in('categorie', cats);
-  const map: Record<string, string> = {};
-  for (const row of data ?? []) {
-    if (row.label_fr) map[row.categorie] = row.label_fr;
-  }
-  return map;
-}
-
-// Transforme string[] → {id, label}[] en utilisant label_fr si disponible
-function withLabels(cats: string[], labelMap: Record<string, string>) {
-  return cats.map(c => ({
-    id: c,
-    label: labelMap[c] ?? (c.charAt(0).toUpperCase() + c.slice(1).replace(/_/g, ' ')),
-  }));
-}
 
 export async function GET(req: NextRequest) {
   const session  = await getSessionOrg(req);
@@ -65,9 +44,9 @@ export async function GET(req: NextRequest) {
   // null → impossible avec `vueEspace` (branche gardée pour un appelant futur
   // qui retirerait l'option) : tout retourner avec les libellés.
   if (sourceIds === null) {
-    const labelMap = await buildLabelMap(supabase, allCats);
+    const labelMap = await libellesCategories(supabase, allCats);
     return NextResponse.json({
-      categories: withLabels(allCats, labelMap).map((c) => ({ ...c, origine: 'commune' as const })),
+      categories: avecLibelles(allCats, labelMap).map((c) => ({ ...c, origine: 'commune' as const })),
     });
   }
 
@@ -79,7 +58,7 @@ export async function GET(req: NextRequest) {
   // Leapfrog sur les catégories restreintes aux sources de l'org — extrait
   // dans `getCategoriesVisibles` pour que le chat applique la même règle.
   const filteredCats = await getCategoriesVisibles(sourceIds);
-  const labelMap     = await buildLabelMap(supabase, filteredCats);
+  const labelMap     = await libellesCategories(supabase, filteredCats);
 
   // « Données de l'espace » : au moins un POI visible vient d'une source propre
   // à l'espace. Une catégorie mixte est rangée « espace » (ce que le client a
@@ -89,7 +68,7 @@ export async function GET(req: NextRequest) {
   const propres    = await getSourcesPropresEspace(session);
   const catsEspace = new Set(propres.length > 0 ? await getCategoriesVisibles(propres) : []);
   return NextResponse.json({
-    categories: withLabels(filteredCats, labelMap).map((c) => ({
+    categories: avecLibelles(filteredCats, labelMap).map((c) => ({
       ...c,
       origine: catsEspace.has(c.id) ? ('espace' as const) : ('commune' as const),
     })),
