@@ -33,6 +33,8 @@ describe('ZoneActiveComponent', () => {
     // Trois lignes, trois `<div>` (`MapPanel.tsx:158-167`) : lues une à une, le gabarit n'ayant aucun blanc entre elles.
     expect([...badge.children].map((l) => l.textContent!.replace(/\s+/g, ' ').trim()))
       .toEqual(['ZONE_ACTIVE', 'Tous les panneaux OOH', 'r=2.5km · 1000 POI']);
+    // T4b : à 12 px à droite du panneau d'étape flottant (`--emprise-panneau`, posé par la page), jamais dessous.
+    expect(badge.parentElement!.classList).toContain('left-[calc(var(--emprise-panneau,0px)+12px)]');
   });
 
   it('« Bataille » (MapPanel.tsx:238-246) : présent dès qu’une bataille a une catégorie, bascule la visibilité', async () => {

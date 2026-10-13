@@ -5,19 +5,21 @@ import { PanneauEtapeComponent } from './panneau-etape.component';
 
 @Component({
   imports: [PanneauEtapeComponent],
-  template: `<mg-panneau-etape [etape]="etape()" [masque]="masque()" [(replie)]="replie"><div data-contenu>contenu</div></mg-panneau-etape>`,
+  template: `<mg-panneau-etape [etape]="etape()" [masque]="masque()" [reserveDroite]="reserve()" [(replie)]="replie"><div data-contenu>contenu</div></mg-panneau-etape>`,
 })
 class Hote {
   readonly etape = signal<EtapeCarte>('donnees');
   readonly masque = signal(false);
   readonly replie = signal(false);
+  readonly reserve = signal(0);
 }
 
 async function monter() {
   const fixture = TestBed.createComponent(Hote);
   await fixture.whenStable();
   const el = fixture.nativeElement as HTMLElement;
-  return { fixture, el, hote: fixture.componentInstance, aside: () => el.querySelector('aside')! };
+  const panneau = fixture.debugElement.children[0].componentInstance as PanneauEtapeComponent;
+  return { fixture, el, hote: fixture.componentInstance, panneau, aside: () => el.querySelector('aside')! };
 }
 
 /** Un `PointerEvent` de test : jsdom n'en fabrique pas avec `pointerId`. */
@@ -45,10 +47,25 @@ describe('PanneauEtapeComponent', () => {
     expect(el.querySelector('[data-consigne]')!.textContent!.trim()).toBe(CONSIGNE_ETAPE.zones);
   });
 
-  it('largeur 480 par défaut ; la poignée, capturée sur ELLE-MÊME, la règle entre 320 et 900', async () => {
-    const { fixture, el, aside } = await monter();
+  it('T4b : une carte FLOTTANTE (absolute, z-40, 12 px du haut et de la gauche, hauteur au contenu bornée, coins 12, bord fin, fond opaque), sans ombre ni flou', async () => {
+    const { aside } = await monter();
+    for (const c of ['absolute', 'z-40', 'top-3', 'left-3', 'max-h-[calc(100%-24px)]',
+      'rounded-[12px]', 'border-fin', 'border-default', 'bg-surface', 'overflow-hidden']) {
+      expect(aside().classList, c).toContain(c);
+    }
+    expect(aside().classList).not.toContain('bottom-3');
+    // Sans réserve à droite : la place libre est le conteneur moins le jour des outils et du badge (128) et les marges.
+    expect(aside().style.maxWidth).toBe('calc(100% - 152px)');
+    expect([...aside().classList].filter((c) => /shadow|blur|backdrop|card-overlay/.test(c))).toEqual([]);
+  });
+
+  it('largeur 480 par défaut ; la poignée, BORD DROIT de la carte flottante et capturée sur ELLE-MÊME, la règle entre 320 et 900', async () => {
+    const { fixture, el, panneau, aside } = await monter();
     expect(aside().style.width).toBe('480px');
+    expect(panneau.emprise()).toBe('min(492px, 100% - 140px)');
     const poignee = el.querySelector<HTMLElement>('[role="separator"]')!;
+    expect(poignee.parentElement).toBe(aside());
+    expect(poignee.classList).toContain('right-0');
     expect(poignee.getAttribute('aria-valuenow')).toBe('480');
     poignee.setPointerCapture = vi.fn();
     poignee.dispatchEvent(pointeur('pointerdown', 500));
@@ -56,6 +73,7 @@ describe('PanneauEtapeComponent', () => {
     poignee.dispatchEvent(pointeur('pointermove', 700));
     await fixture.whenStable();
     expect(aside().style.width).toBe('680px');
+    expect(panneau.emprise()).toBe('min(692px, 100% - 140px)');
     poignee.dispatchEvent(pointeur('pointermove', 2500));
     await fixture.whenStable();
     expect(aside().style.width).toBe('900px');
@@ -69,15 +87,15 @@ describe('PanneauEtapeComponent', () => {
     expect(aside().style.width).toBe('320px');
   });
 
-  it('« Replier » : replie vrai, aside caché et sans largeur, contenu TOUJOURS dans le DOM, poignée absente ; et retour', async () => {
-    const { fixture, el, hote, aside } = await monter();
+  it('« Replier » : replie vrai, aside caché et sans emprise, contenu TOUJOURS dans le DOM, poignée absente ; et retour', async () => {
+    const { fixture, el, hote, panneau, aside } = await monter();
     const avant = aside();
     el.querySelector<HTMLButtonElement>('[data-replier]')!.click();
     await fixture.whenStable();
     expect(hote.replie()).toBe(true);
     expect(aside()).toBe(avant);
     expect(avant.style.visibility).toBe('hidden');
-    expect(avant.style.width).toBe('0px');
+    expect(panneau.emprise()).toBe('0px');
     expect(avant.querySelector('[data-contenu]')).not.toBeNull();
     expect(el.querySelector('[role="separator"]')).toBeNull();
     hote.replie.set(false);
@@ -85,19 +103,28 @@ describe('PanneauEtapeComponent', () => {
     expect(aside()).toBe(avant);
     expect(avant.style.visibility).toBe('visible');
     expect(avant.style.width).toBe('480px');
+    expect(panneau.emprise()).toBe('min(492px, 100% - 140px)');
   });
 
   it('masque (mode immersif) : même chose, sans toucher au repli', async () => {
-    const { fixture, el, hote, aside } = await monter();
+    const { fixture, el, hote, panneau, aside } = await monter();
     hote.masque.set(true);
     await fixture.whenStable();
     expect(aside().style.visibility).toBe('hidden');
-    expect(aside().style.width).toBe('0px');
+    expect(panneau.emprise()).toBe('0px');
     expect(aside().querySelector('[data-contenu]')).not.toBeNull();
     expect(el.querySelector('[role="separator"]')).toBeNull();
     expect(hote.replie()).toBe(false);
     hote.masque.set(false);
     await fixture.whenStable();
     expect(aside().style.visibility).toBe('visible');
+  });
+
+  it('T4b : la réserve droite (plan média ouvert : 620) borne la largeur ET l’emprise — le panneau rétrécit au lieu de passer dessous', async () => {
+    const { fixture, hote, panneau, aside } = await monter();
+    hote.reserve.set(620);
+    await fixture.whenStable();
+    expect(aside().style.maxWidth).toBe('calc(100% - 772px)');
+    expect(panneau.emprise()).toBe('min(492px, 100% - 760px)');
   });
 });

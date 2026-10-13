@@ -83,12 +83,12 @@ export function palierCarreaux(zoom: number): string {
  * La carte principale, en PARCOURS (spec 2026-10-13, lot 1) — ① Périmètre › ② Données › ③ Analyse › ④ Zones ›
  * ⑤ Plan › ⑥ Activation › ⑦ Live. Portage d'origine : `app/map/page.tsx` (lot 4 Angular).
  *
- * ── BARRE DU PARCOURS + PANNEAU D'ÉTAPE + CARTE, TOUT DANS LE FLUX ────────
- * Une colonne : la barre (`mg-barre-parcours`), puis une rangée — le panneau de l'étape courante (`mg-panneau-etape`,
- * poignée, repli « carte seule ») et le conteneur de la carte. Rien en `fixed` (dans la racine d'ombre, il se poserait
- * sur la fenêtre du SHELL), et plus rien qui flotte au-dessus de la carte pour la recouvrir : le rail, la barre du haut
- * et les boutons flottants sont retirés. L'étape vit dans `?etape=` (`ParcoursService`) ; un panneau visité reste MONTÉ
- * (invisible et inerte quand on le quitte, arbitrage A1) — un calcul en cours lui survit, et revenir ne relit rien.
+ * ── BARRE DU PARCOURS, PUIS LA CARTE ; LE PANNEAU D'ÉTAPE FLOTTE DESSUS ───
+ * Une colonne : la barre (`mg-barre-parcours`), puis le conteneur de la carte, seul dans sa rangée. Le panneau de l'étape
+ * courante (`mg-panneau-etape`, poignée, repli « carte seule ») FLOTTE dans ce conteneur (T4b, Vincent 13/10) : la carte
+ * garde toute sa largeur ; son bord droit (`--emprise-panneau`) écarte badge de zoom, zone active et légende. Rien en
+ * `fixed` (racine d'ombre : il se poserait sur la fenêtre du SHELL). L'étape vit dans `?etape=` (`ParcoursService`) ; un
+ * panneau visité reste MONTÉ (invisible et inerte quitté, arbitrage A1) — un calcul lui survit, revenir ne relit rien.
  *
  * ── UN SEUL ÉCOUTEUR CLAVIER, SUR L'HÔTE (arbitrage B10) ─────────────────
  * Jamais `window`/`document` (ceux du shell). L'hôte est focalisable (`tabindex="-1"`) et focalisé

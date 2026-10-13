@@ -30,8 +30,10 @@ import {
 /**
  * La légende UNIQUE de la carte — portage de `components/map/LegendeCarte.tsx` (cadre + cas `carreaux`).
  *
- * En bas à gauche du conteneur de la carte, à 12 px de son bord, `z-index` 35. `absolute` dans ce conteneur, jamais
- * `fixed` (B1) ; depuis le parcours (2026-10-13), le panneau d'étape est à gauche DANS le flux, plus par-dessus la carte. Écart voulu : ni flou (`backdrop-filter`) ni ombre — « flat total ».
+ * En bas à gauche du conteneur de la carte, `z-index` 35. `absolute` dans ce conteneur, jamais `fixed` (B1) ; à 12 px à
+ * droite du panneau d'étape, qui FLOTTE sur la carte (T4b) : la page pose son bord droit en `--emprise-panneau` (`0px`
+ * replié ou en immersif), la légende ne passe donc jamais dessous. Écart voulu : ni flou (`backdrop-filter`) ni ombre —
+ * « flat total ».
  *
  * Le bloc des carreaux est cliquable par palier : il pose `seauSelectionne`, et la couche filtre son opacité par le
  * MÊME découpage (`palierEchelle`) — une tranche cliquée désigne exactement les carreaux qu'elle affiche. Le fond d'un
@@ -58,8 +60,6 @@ export class LegendeCarteComponent {
   private readonly carreaux = inject(CarreauxService);
   protected readonly iris = inject(IrisService);
   protected readonly titreIris = libelleDegrade('iris');
-  /** À 12 px du bord du conteneur carte (le panneau d'étape est dans le flux, à gauche). */
-  protected readonly gauche = 12;
   protected readonly ouvert = signal(true);
   protected readonly titreCarreaux = libelleDegrade('carreaux');
 

@@ -251,6 +251,65 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     expect(aside(hote).style.visibility).toBe('visible');
   });
 
+  it('T4b (Vincent, 13/10) : le panneau d’étape FLOTTE sur la carte — la zone carte ne dépend ni de son ouverture ni de sa largeur', async () => {
+    const { hote, stable } = await ouvrir();
+    const zone = hote.querySelector<HTMLElement>('[data-zone-carte]')!;
+    // Une carte posée DANS le conteneur carte, hors du flux : elle ne lui prend aucune largeur.
+    expect(zone.contains(aside(hote))).toBe(true);
+    expect(aside(hote).classList).toContain('absolute');
+    // Le conteneur carte est seul dans sa rangée : aucun frère dans le flux ne lui dispute la largeur.
+    expect([...zone.parentElement!.children].filter((c) => c !== zone && c.tagName !== 'MG-BARRE-PARCOURS'
+      && !c.hasAttribute('data-module-risque') && c.tagName !== 'MG-DIALOGUE-METEO')).toEqual([]);
+    const gabarit = () => [zone.getAttribute('class'), zone.style.width, zone.style.flex, zone.style.marginLeft];
+    const avant = gabarit();
+    // Élargi à la poignée, puis replié, puis rouvert : le conteneur carte ne bouge pas.
+    const poignee = hote.querySelector<HTMLElement>('mg-panneau-etape [role="separator"]')!;
+    poignee.setPointerCapture = vi.fn();
+    const pointeur = (type: string, x: number) => {
+      const e = new MouseEvent(type, { clientX: x, bubbles: true });
+      Object.defineProperty(e, 'pointerId', { value: 3 });
+      return e;
+    };
+    poignee.dispatchEvent(pointeur('pointerdown', 500));
+    poignee.dispatchEvent(pointeur('pointermove', 720));
+    poignee.dispatchEvent(pointeur('pointerup', 720));
+    await stable();
+    expect(aside(hote).style.width).toBe('700px');
+    expect(gabarit()).toEqual(avant);
+    hote.querySelector<HTMLButtonElement>('mg-panneau-etape [data-replier]')!.click();
+    await stable();
+    expect(gabarit()).toEqual(avant);
+    hote.querySelector<HTMLButtonElement>('[data-afficher-panneau]')!.click();
+    await stable();
+    expect(gabarit()).toEqual(avant);
+    // Hauteur au contenu : l'étape courante seule dans le flux, l'étape quittée montée, `absolute` et invisible (A1).
+    frapper(hote, altChiffre('4'));
+    await stable();
+    const etape = (e: string) => hote.querySelector<HTMLElement>(`[data-panneau-etape="${e}"]`)!.classList;
+    expect(etape('zones').contains('absolute')).toBe(false);
+    expect(etape('perimetre').contains('absolute')).toBe(true);
+    expect(etape('perimetre').contains('invisible')).toBe(true);
+    expect(gabarit()).toEqual(avant);
+  });
+
+  it('T4b : le badge de zoom (et, par leur propre spec, zone active et légende) se décale à droite du panneau OUVERT', async () => {
+    const { hote, stable } = await ouvrir();
+    const zone = hote.querySelector<HTMLElement>('[data-zone-carte]')!;
+    const emprise = () => zone.style.getPropertyValue('--emprise-panneau');
+    // 12 px de marge + 480 px de panneau : le bord droit de la carte flottante, borné à la place libre (outils à 10 px).
+    expect(emprise()).toBe('min(492px, 100% - 150px)');
+    expect(hote.querySelector('[data-badge-zoom]')!.classList).toContain('left-[calc(var(--emprise-panneau,0px)+10px)]');
+    hote.querySelector<HTMLButtonElement>('mg-panneau-etape [data-replier]')!.click();
+    await stable();
+    expect(emprise()).toBe('0px');
+    hote.querySelector<HTMLButtonElement>('[data-afficher-panneau]')!.click();
+    await stable();
+    expect(emprise()).toBe('min(492px, 100% - 150px)');
+    hote.querySelector<HTMLButtonElement>('mg-barre-parcours [data-immersif]')!.click();
+    await stable();
+    expect(emprise()).toBe('0px');
+  });
+
   it('replier puis rouvrir le panneau garde les panneaux montés ; le focus revient à l’hôte et Alt+2 répond encore', async () => {
     const { hote, stable } = await ouvrir();
     frapper(hote, altChiffre('3'));
@@ -261,7 +320,6 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     replier.click();
     await stable();
     expect(aside(hote).style.visibility).toBe('hidden');
-    expect(aside(hote).style.width).toBe('0px');
     expect(hote.querySelector('mg-panneau-analyse')).toBe(analyse);
     // Le bouton qui portait le focus est caché : le focus revient à l'hôte, sinon il tomberait hors de l'écouteur (B10).
     expect(document.activeElement).toBe(hote);
@@ -342,7 +400,6 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     await stable();
     expect(hote.querySelector('mg-barre-parcours')).toBeNull();
     expect(aside(hote).style.visibility).toBe('hidden');
-    expect(aside(hote).style.width).toBe('0px');
     expect(hote.querySelector('mg-panneau-calques')).toBe(calques);
     // Ni l'onglet « carte seule » (le repli n'est pas posé), ni le focus perdu (le bouton est parti avec la barre).
     expect(hote.querySelector('[data-afficher-panneau]')).toBeNull();
@@ -585,6 +642,9 @@ describe('CartePage — la boîte à outils : fond, légende, aide, réglages (T
     await stable();
     expect(hote.querySelector('[data-detail-iris]')).not.toBeNull();
     expect(barre().style.right).toBe('340px');
+    // T4b : le panneau d'étape suit — sa place libre recule de la même largeur, son emprise avec.
+    expect(aside(hote).style.maxWidth).toBe('calc(100% - 492px)');
+    expect(hote.querySelector<HTMLElement>('[data-zone-carte]')!.style.getPropertyValue('--emprise-panneau')).toBe('min(492px, 100% - 480px)');
     outil(hote, 'fond').click();
     await stable();
     expect(tiroir(hote)!.style.right).toBe('388px');
