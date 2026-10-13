@@ -1,6 +1,6 @@
 # MAGELIAN
 
-> SaaS B2B de géomarketing OOH/DOOH + Custom Bidding ML pour campagnes DSP. Planification d'affichage extérieur sur données INSEE, ciblage carto temps réel, export des multiplicateurs d'enchères par code postal.
+> SaaS B2B de géomarketing OOH/DOOH + Custom Bidding pour campagnes DSP. Planification d'affichage extérieur sur données INSEE, ciblage carto temps réel, export des multiplicateurs d'enchères par code postal.
 
 ## Stack
 
@@ -9,7 +9,6 @@
 | Frontend | Next.js 14 App Router · TypeScript strict · Tailwind |
 | Cartographie | MapLibre GL JS · PMTiles (IRIS via GitHub Releases) · OpenFreeMap |
 | Backend | Supabase Pro (PostgreSQL 15 + PostGIS, compute Nano) |
-| LLM | Vercel AI SDK · Gemini 2.5 Flash (default) · Mistral Small (fallback) |
 | Jobs async | Inngest |
 | Hosting | Vercel |
 
@@ -20,7 +19,6 @@
 - Node.js 20+
 - npm (ou pnpm)
 - Compte [Supabase](https://supabase.com) (free tier OK)
-- Clé API [Gemini](https://aistudio.google.com/app/apikey) (free tier OK)
 
 ### Étapes
 
@@ -45,7 +43,7 @@
    ```bash
    npx tsx scripts/setup-check.ts
    ```
-   Le script vérifie connexion Supabase et clé Gemini.
+   Le script vérifie les variables obligatoires et la connexion Supabase.
 
 5. **Migrations DB**
    Les migrations sont déjà appliquées sur le projet Supabase de dev. Pour un nouveau projet, voir [docs/deployment.md](docs/deployment.md).
@@ -62,10 +60,8 @@ Voir [`.env.example`](.env.example) pour la liste exhaustive et documentée.
 
 **Obligatoires** :
 - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY`
-- `GOOGLE_GENERATIVE_AI_API_KEY` (Gemini)
 
 **Optionnelles** :
-- `MISTRAL_API_KEY` (fallback LLM)
 - `ORS_API_KEY` (isochrones)
 - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` (rate limiting prod)
 - `GITHUB_TOKEN` (proxy PMTiles si dépôt privé)
@@ -79,7 +75,6 @@ Voir [`.env.example`](.env.example) pour la liste exhaustive et documentée.
 
 ## Documentation
 
-- [`docs/architecture.md`](docs/architecture.md) — vue d'ensemble + responsabilités modules
 - [`docs/deployment.md`](docs/deployment.md) — procédure prod (périmée : Supabase hébergé, Vercel et Modal ne sont plus utilisés)
 - [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) — guide dev (ajouter feature/RPC/intent/algo)
 - [`docs/decisions.md`](docs/decisions.md) — Architecture Decision Records (10 ADRs)

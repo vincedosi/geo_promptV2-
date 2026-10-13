@@ -79,5 +79,4 @@ export interface CampaignReport {
   zones: ZoneBeforeAfter[];
   budget: BudgetSummary;
   kpis: ReportKpis;
-  narrative?: string | null;
 }

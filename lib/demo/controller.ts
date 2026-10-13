@@ -17,7 +17,7 @@ export async function assertDemo(supabase: SupabaseClient, campaignId: string): 
 }
 
 /** Dernière version de snapshot de la campagne démo (0 si aucune). */
-export async function latestVersion(supabase: SupabaseClient): Promise<number> {
+async function latestVersion(supabase: SupabaseClient): Promise<number> {
   const { data } = await supabase.from('campaign_plan_snapshot').select('version')
     .eq('campaign_id', DEMO_CAMPAIGN_ID).order('version', { ascending: false }).limit(1);
   return (data?.[0]?.version as number | undefined) ?? 0;
@@ -128,7 +128,7 @@ export async function purgeDemo(supabase: SupabaseClient): Promise<void> {
 }
 
 /** Lit le diagnostic de pilotage de la campagne démo (dernière version si version omise). */
-export async function readDemoPacing(
+async function readDemoPacing(
   supabase: SupabaseClient, version?: number | null,
 ): Promise<PilotPacing | null> {
   const { data } = await supabase.rpc('get_campaign_pacing', {

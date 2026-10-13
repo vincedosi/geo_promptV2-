@@ -50,7 +50,9 @@ import { lancerKnip, construireRapport } from '../../../scripts/catalogue.mjs';
 // devenir un plafond decoratif.
 // Descendu a 193 le 2026-09-24 : l'etape 5 (simulation de campagne) a
 // branche `lib/campagne/alignement.ts`, jusque-la importe par ses seuls tests.
-const CLIQUET_EXPORTS_MORTS = 193;
+// Descendu a 141 le 2026-10-12 : la suppression de l'IA (lots 1 a 6) a retire
+// les exports que seuls le chat, l'agent et les bilans consommaient.
+const CLIQUET_EXPORTS_MORTS = 141;
 
 describe('catalogue du code', () => {
   it('existe et se declare genere', () => {

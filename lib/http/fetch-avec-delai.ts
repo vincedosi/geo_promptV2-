@@ -8,8 +8,8 @@
  * L'audit du 2026-09-11 (`ECH-002`) a relevé **13 appels vers des tiers sans
  * aucun délai d'expiration** : 11 vers `displayvideo.googleapis.com`
  * (`lib/dsp/dv360/client.ts`), 2 vers `business-api.tiktok.com`
- * (`lib/dsp/tiktok/client.ts`), 1 vers `*.modal.run` (`lib/bidding-ml/client.ts`,
- * retiré le 2026-10-12 avec le ML Modal).
+ * (`lib/dsp/tiktok/client.ts`), 1 vers un serverless Python (ML Modal, retiré le
+ * 2026-10-12 avec le reste de l'IA).
  *
  * Sur une plateforme serverless, un tiers qui ne répond pas ne rend pas la main :
  * l'invocation reste bloquée jusqu'au délai de la plateforme. Une lenteur de

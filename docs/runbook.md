@@ -1,8 +1,10 @@
 # Runbook — opérations courantes MAGELIAN
 
-> ⚠ **2026-10-12 — Modal, l'agent d'enchères et `/api/agent/*` sont RETIRÉS**
-> (chantier « suppression de toute l'IA », lot 2). Tout ce qui concerne
-> `modal/bidding_ml/`, `MODAL_*`, `/api/bidding/train` ou l'agent dans ce
+> ⚠ **2026-10-12 — plus aucune IA dans dentsu.explore** (chantier « suppression
+> de toute l'IA », lots 1 à 6). Modal, l'agent d'enchères, `/api/agent/*`, le
+> copilote et le chat (`/api/chat`, `/api/smart-prompt`, `/api/providers`),
+> Gemini, Mistral et leurs clés (`GOOGLE_GENERATIVE_AI_API_KEY`,
+> `MISTRAL_API_KEY`, `MODAL_*`) sont RETIRÉS : tout ce qui les concerne dans ce
 > document est historique. Source de vérité : `ARCHITECTURE.md`.
 
 ## Lancer le benchmark Custom Bidding

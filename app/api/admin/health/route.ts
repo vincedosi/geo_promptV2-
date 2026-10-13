@@ -82,15 +82,6 @@ export async function GET(req: NextRequest) {
       : 'Optionnel — les tailles exactes seront obtenues via get_table_sizes() RPC si installé',
   });
 
-  // MISTRAL_API_KEY
-  const mistralKey = process.env.MISTRAL_API_KEY;
-  checks.push({
-    name: 'MISTRAL_API_KEY',
-    status: mistralKey && mistralKey.length > 10 ? 'OK' : 'WARN',
-    value: mistralKey ? `${mistralKey.slice(0, 6)}...` : '(vide)',
-    message: mistralKey ? 'Cle Mistral presente (resumes IA)' : 'MANQUANT — les resumes IA ne fonctionneront pas',
-  });
-
   // ============================================================
   // 2. Test connectivité Supabase
   // ============================================================
