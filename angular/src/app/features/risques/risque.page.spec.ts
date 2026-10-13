@@ -112,7 +112,8 @@ async function ouvrir(url = '/risques', reponses: {
     ],
   });
   const harness = await RouterTestingHarness.create();
-  const page = (await harness.navigateByUrl(url, url.startsWith('/carte') ? CarteParente : RisquePage)) as unknown as RisquePage;
+  // Sous `/carte…` la route racine est la coque parente : `page` n'est alors PAS l'écran (on le dit par le type).
+  const page: RisquePage | CarteParente = await harness.navigateByUrl(url, url.startsWith('/carte') ? CarteParente : RisquePage);
   await stabiliser(harness);
   return { harness, page, cartes, preparations, router: TestBed.inject(Router), el: () => harness.routeNativeElement as HTMLElement };
 }

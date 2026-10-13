@@ -11,11 +11,12 @@ class Hote { readonly parcours = inject(ParcoursService); }
 
 const attendre = () => new Promise((r) => setTimeout(r, 0));
 
-async function ouvrir(url: string) {
+async function ouvrir(url: string, espionner = false) {
   TestBed.configureTestingModule({
     providers: [provideRouter([{ path: 'carte', component: Hote, children: [{ path: 'risques', component: Module }] }])],
   });
   const harness = await RouterTestingHarness.create();
+  if (espionner) vi.spyOn(TestBed.inject(Router), 'navigate');
   const hote = await harness.navigateByUrl(url, Hote);
   await attendre(); await harness.fixture.whenStable();
   const router = TestBed.inject(Router);
@@ -40,9 +41,25 @@ describe('ParcoursService — l’étape dans l’URL', () => {
     expect(router.url).toBe('/carte');
   });
   it('?etape=inconnue : ① et URL nettoyée une fois (Review Focus 1)', async () => {
-    const { hote, router } = await ouvrir('/carte?etape=inconnue');
+    const { hote, router, stable } = await ouvrir('/carte?etape=inconnue', true);
     expect(hote.parcours.etape()).toBe('perimetre');
     expect(router.url).toBe('/carte');
+    await stable();
+    expect(vi.mocked(router.navigate)).toHaveBeenCalledTimes(1);
+  });
+  it('?etape= VIDE : réécrit en /carte, en UNE navigation', async () => {
+    const { hote, router, stable } = await ouvrir('/carte?etape=', true);
+    expect(hote.parcours.etape()).toBe('perimetre');
+    await stable();
+    expect(router.url).toBe('/carte');
+    expect(vi.mocked(router.navigate)).toHaveBeenCalledTimes(1);
+  });
+  it('lien ?etape=inconnue collé alors que la carte est déjà à ① : nettoyé, en UNE navigation', async () => {
+    const { router, stable } = await ouvrir('/carte', true);
+    await router.navigateByUrl('/carte?etape=inconnue');
+    await stable(); await stable();
+    expect(router.url).toBe('/carte');
+    expect(vi.mocked(router.navigate)).toHaveBeenCalledTimes(1);
   });
   it('?customZone=z sans etape : ④, etape=zones écrit, customZone gardé', async () => {
     const { hote, router } = await ouvrir('/carte?customZone=z');

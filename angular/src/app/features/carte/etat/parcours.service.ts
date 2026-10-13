@@ -24,28 +24,41 @@ export class ParcoursService {
   readonly etape: Signal<EtapeCarte> = this.courante.asReadonly();
   private readonly _visitees = signal<ReadonlySet<EtapeCarte>>(new Set([this.courante()]));
   readonly visitees: Signal<ReadonlySet<EtapeCarte>> = this._visitees.asReadonly();
-  /** Le dernier `?etape=` écrit OU lu : sans lui, chaque passe réécrirait l'URL. Une valeur illisible est réécrite une fois. */
-  private dernier = this.route.snapshot.queryParamMap.get(PARAM_ETAPE) ?? '';
+  /**
+   * Le dernier `?etape=` écrit OU lu, tel que l'URL le porte : `null` = paramètre ABSENT, `''` = présent mais vide.
+   * La distinction est le point : `/carte?etape=` (vide) est lu comme ① mais n'est pas la forme canonique `/carte`,
+   * il doit être réécrit une fois. Sans ce mémo, chaque passe réécrirait l'URL.
+   */
+  private dernier: string | null = this.route.snapshot.queryParamMap.get(PARAM_ETAPE);
 
   constructor() {
     const abonnement = this.route.queryParamMap.subscribe((p) => {
-      const brut = p.get(PARAM_ETAPE) ?? '';
+      const brut = p.get(PARAM_ETAPE);
       if (brut === this.dernier) return;
       this.dernier = brut;
       this.poser(lireEtape(brut) ?? ETAPE_PAR_DEFAUT);
+      // Une valeur illisible alors que l'étape est DÉJÀ ① ne fait pas bouger le signal : l'effet ne repasserait pas.
+      this.ecrire();
     });
     inject(DestroyRef).onDestroy(() => abonnement.unsubscribe());
 
     effect(() => {
-      const encode = ecrireEtape(this.courante());
-      if (encode === this.dernier) return;
-      this.dernier = encode;
-      void this.router.navigate([], {
-        relativeTo: this.route.firstChild ?? this.route,
-        queryParams: { [PARAM_ETAPE]: encode === '' ? null : encode },
-        queryParamsHandling: 'merge',
-        replaceUrl: true,
-      });
+      this.courante();
+      this.ecrire();
+    });
+  }
+
+  /** Écrit l'étape courante sous sa forme canonique (défaut = paramètre absent), si l'URL n'est pas déjà celle-là. */
+  private ecrire(): void {
+    const encode = ecrireEtape(this.courante());
+    const canonique = encode === '' ? null : encode;
+    if (canonique === this.dernier) return;
+    this.dernier = canonique;
+    void this.router.navigate([], {
+      relativeTo: this.route.firstChild ?? this.route,
+      queryParams: { [PARAM_ETAPE]: canonique },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
     });
   }
 

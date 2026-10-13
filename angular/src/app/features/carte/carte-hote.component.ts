@@ -25,7 +25,7 @@ const BADGE_ESPACE = '[data-declencheur="org"]';
  *
  * ── L'URL ────────────────────────────────────────────────────────────────
  * Elle est gardée (le module risque, enfant de la route, est rendu par l'outlet de la page recréée), SAUF `customZone` ET `etape` :
- * la zone du lien appartient à l'ancien espace, et changer d'espace remet le parcours à ① (spec § 3). Ils sont retirés AVANT la recréation, sinon la nouvelle page la relirait.
+ * la zone du lien appartient à l'ancien espace, et changer d'espace remet le parcours à ① (spec § 3). Ils sont retirés AVANT la recréation, sinon la nouvelle page les relirait.
  */
 @Component({
   selector: 'mg-carte-hote',
