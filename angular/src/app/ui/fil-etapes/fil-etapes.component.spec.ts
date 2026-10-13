@@ -52,7 +52,9 @@ describe('FilEtapesComponent', () => {
   it('compact (barre du parcours de la carte, 8 étapes) : une ligne par étape ; les libellés des étapes NON courantes se replient en numéro quand la barre est étroite, lus quand même et en infobulle', async () => {
     const { el } = await rendre('b', true);
     const boutons = [...el.querySelectorAll('button')];
-    expect(boutons.every((b) => b.classList.contains('whitespace-nowrap') && b.classList.contains('shrink-0') && b.classList.contains('px-1.5'))).toBe(true);
+    expect(boutons.every((b) => b.classList.contains('whitespace-nowrap') && b.classList.contains('shrink-0') && b.classList.contains('px-1'))).toBe(true);
+    // Cible d'au moins 24 × 24 px même repliée en numéro (WCAG 2.5.8) : 30 px de haut, 24 px de large au minimum.
+    expect(boutons.every((b) => b.classList.contains('min-w-6') && b.classList.contains('h-[30px]') && b.classList.contains('justify-center'))).toBe(true);
     const libelles = [...el.querySelectorAll('[data-libelle-etape]')];
     // Requête de CONTENEUR (`@container` posé par la barre) : la largeur de la barre décide, pas celle de la fenêtre.
     expect(libelles.map((l) => l.classList.contains('@max-[640px]:sr-only'))).toEqual([true, false, true]);

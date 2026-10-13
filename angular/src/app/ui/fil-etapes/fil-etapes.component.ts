@@ -54,8 +54,13 @@ export class FilEtapesComponent {
    */
   readonly compact = input(false);
   protected readonly boutonNormal = 'px-2.5';
-  protected readonly boutonCompact = 'h-[30px] px-1.5 whitespace-nowrap shrink-0';
-  /** Littéral : Tailwind lit les classes dans le source. Seuil = largeur du fil complet en compact (8 étapes : 638 px mesurés à 1 440 px, T4c) : 1 440 px tout lisible, 1 280 px replié. */
+  protected readonly boutonCompact = 'h-[30px] min-w-6 justify-center px-1 whitespace-nowrap shrink-0';
+  /**
+   * Littéral : Tailwind lit les classes dans le source. Seuil = le fil complet en compact au PIRE du lot 1 : ≈ 606 px
+   * sans pastille (`px-1`, mesuré au round 1), plus ① et ② « renseignées » (≈ 10 px chacune) et le `font-medium` de
+   * l'étape courante — sous 640 px il se replie au lieu de défiler. À 1 440 px la barre offre 642 à 702 px selon la
+   * largeur du badge de session : tout lisible ; à 1 280 px (482 px) : replié.
+   */
   protected readonly repli = '@max-[640px]:sr-only';
   readonly choisir = output<string>();
 
