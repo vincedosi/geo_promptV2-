@@ -5,7 +5,8 @@ import { basculerSection, sectionsInitiales } from '../../etat/sections-filtre';
  * L'état LOCAL du panneau Calques que React gardait dans `PanneauCalques.tsx` (`useState`, `useFilterSections(true, …)`) :
  * les sections internes ouvertes, les régies OOH et les types de transport choisis.
  *
- * Fourni par `mg-panneau-calques` lui-même : il survit au repli d'un groupe (les sections, rendues sous `@if`, sont
+ * Fourni par `mg-panneau-calques` ET, depuis T11b, par `mg-panneau-autres` (sections OOH et radio, régies OOH) : une
+ * instance par panneau. Chacune est fournie par son panneau lui-même : il survit au repli d'un groupe (les sections, rendues sous `@if`, sont
  * recréées) et disparaît à la fermeture du panneau, comme l'état React. Mode OVERLAY : rien n'est lu ni écrit dans
  * `localStorage`, et seules les sections territoriales démarrent ouvertes — POI, transport et OOH sont repliées.
  */

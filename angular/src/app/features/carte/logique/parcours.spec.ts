@@ -1,6 +1,6 @@
 import {
-  CONSIGNE_ETAPE, ETAPES_CARTE, LIBELLE_ETAPE_CARTE, ecrireEtape, etapeInitiale, etapeParRaccourci, etapesDuFil, lienApplicationReact,
-  lireEtape, precisionDuPerimetre, rangEtapeCarte, segmentsDuFiltre,
+  CONSIGNE_AUTRES, CONSIGNE_ETAPE, ETAPES_CARTE, LIBELLE_AUTRES, LIBELLE_ETAPE_CARTE, VUE_AUTRES, ecrireEtape, etapeInitiale, etapeParRaccourci,
+  etapesDuFil, lienApplicationReact, lireEtape, lireVue, precisionDuPerimetre, rangEtapeCarte, segmentsDuFiltre,
 } from './parcours';
 
 const params = (q: string) => new URLSearchParams(q);
@@ -21,6 +21,22 @@ describe('parcours de la carte — logique pure', () => {
     expect(CONSIGNE_ETAPE.analyse).toContain('sur ces zones');
     expect(CONSIGNE_ETAPE.jeu).toContain('codes postaux achetables');
     for (const mot of ['seuil de couverture', 'CP retenus', 'taux d’utile', 'extraction']) expect(CONSIGNE_ETAPE.jeu).toContain(mot);
+  });
+  it('T11b « Autres » : hors du fil — ni étape, ni rang, ni raccourci ; `?etape=autres` se lit par lireVue seulement', () => {
+    expect(VUE_AUTRES).toBe('autres');
+    expect(LIBELLE_AUTRES).toBe('Autres');
+    expect(CONSIGNE_AUTRES).toContain('pas encore');
+    expect((ETAPES_CARTE as readonly string[]).includes(VUE_AUTRES)).toBe(false);
+    expect(etapesDuFil({ filtrePose: false, calquesActifs: false }).map((e) => e.cle)).not.toContain(VUE_AUTRES);
+    expect(lireEtape('autres')).toBeNull();
+    expect(lireVue('autres')).toBe('autres');
+    expect(lireVue('zones')).toBe('zones');
+    for (const illisible of ['Autres', 'autre', '', null, undefined, '9']) expect(lireVue(illisible)).toBeNull();
+    // ?etape=autres à l'ouverture : l'étape SOUS « Autres » est celle d'un lien sans étape (① ; ③ avec customZone).
+    expect(etapeInitiale(params('etape=autres'))).toBe('perimetre');
+    expect(etapeInitiale(params('etape=autres&customZone=z'))).toBe('zones');
+    // Aucun Alt+N ne mène à « Autres » : Alt+9 ne fait toujours rien.
+    expect(etapeParRaccourci(alt('Digit9', '9'))).toBeNull();
   });
   it('lireEtape : une valeur connue, sinon null — jamais d’exception ; les anciens liens restent valides (identifiants, pas numéros)', () => {
     expect(lireEtape('zones')).toBe('zones');

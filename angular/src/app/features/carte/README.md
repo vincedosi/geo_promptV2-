@@ -16,9 +16,9 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 
 | Dossier | Contenu |
 |---|---|
-| `parcours/` | la barre du parcours (`mg-barre-parcours` : fil d'Ariane, fil d'étapes, actions), le panneau d'étape (`mg-panneau-etape` : poignée, repli « carte seule »), les étapes « bientôt » ⑤-⑧ |
+| `parcours/` | la barre du parcours (`mg-barre-parcours` : fil d'Ariane, fil d'étapes, bouton « Autres » hors du fil, actions), le panneau d'étape (`mg-panneau-etape` : poignée, repli « carte seule »), les étapes « bientôt » ⑤-⑧ |
 | `outils/` | la boîte à outils (`mg-boite-outils`, `OutilsCarteService` : Mes analyses, Mes zones, Fond de carte, Légende, Aide, Réglages ; un tiroir à la fois, dans la pile Échap ; contenu monté à la première ouverture puis gardé) |
-| `panneaux/` | le contenu de chaque étape : `filtre/`, `calques/` (une section par couche), `analyse/` (bataille d'isochrones, corrélation, score, clustering), `zones/` (création ; « Mes zones » et les jeux de zones, montés par l'outil Mes zones ; plan média) ; `aide` et `reglages`, contenus des tiroirs de la boîte à outils |
+| `panneaux/` | le contenu de chaque étape : `filtre/`, `calques/` (une section par couche), `analyse/` (bataille d'isochrones, corrélation, score, clustering), `zones/` (création ; « Mes zones » et les jeux de zones, montés par l'outil Mes zones ; plan média), `autres/` (le panneau « Autres » : panneaux OOH et radio, hors du fil) ; `aide` et `reglages`, contenus des tiroirs de la boîte à outils |
 | `couches/` | une couche = un service (`*.service.ts` : état, lectures, pose) + ses fonctions pures (`couche-*.ts` : sources, couches, peintures, popups) |
 | `etat/` | état de l'écran : `parcours.service.ts` (étape courante, étapes visitées, `?etape=`), `etat-carte.service.ts` (mode immersif, filtre, dégradé actif…), `couches-carte.service.ts` (registre des couches, `carteCourante`), pile Échap, annonces, zones, bataille, score… |
 | `data/` | services d'API de la carte (`*.api.ts`) |
@@ -33,8 +33,15 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   `ParcoursService` (`replaceUrl`, `merge`) ; ① n'est pas écrite. Pas un tunnel : chaque étape reste ouverte.
   `?etape=` porte un IDENTIFIANT (`perimetre`, `donnees`, `zones`, `analyse`, `jeu`, `plan`, `activation`, `live`),
   jamais un numéro : les liens d'avant le passage à 8 étapes restent valides, et il n'y a pas d'alias numérique.
-  Le fil est COMPACT (`[compact]="true"`, conteneur `@container`) : une ligne par étape, et sous 640 px de conteneur
-  les étapes non courantes se replient en numéro (libellé en `sr-only` et en infobulle) — 1 440 px tout lisible, 1 280 px replié.
+  Le fil est COMPACT (`[compact]="true"`, conteneur `@container`) : une ligne par étape, et sous 660 px de conteneur (« Autres » compris, T11b)
+  les étapes non courantes se replient en numéro (libellé en `sr-only` et en infobulle) — 1 440 px lisible si le badge de session le permet, 1 280 px replié.
+- **« Autres »** (T11b, Vincent 14/10) : un bouton de la barre, juste après le fil et séparé de lui par un filet — au
+  niveau des étapes mais HORS du parcours : ni numéro, ni `Alt+N`, hors de la liste `nav` des étapes (« Autres, hors
+  parcours » pour le lecteur d'écran). Il ouvre `mg-panneau-autres` dans le cadre du panneau d'étape et s'écrit
+  `?etape=autres` (l'étape d'en dessous ne change pas ; choisir une étape le referme ; `?etape=Autres` ou toute autre
+  valeur inconnue est nettoyée comme d'habitude). Contenu : les sections Panneaux OOH et Radio, sorties de ② (on n'en
+  construit pas de zones) ; leurs couches restent dans `OohService`/`RadioService` (page), leurs sections et régies dans
+  le `SelectionsCalquesService` du panneau Autres, monté à la première ouverture puis gardé.
 - **Où je regarde** : le fil d'Ariane de la barre, nourri par le filtre de ① ; « France entière » le retire.
 - **Le panneau d'étape** (`mg-panneau-etape`) est une carte flottante `absolute` dans `[data-zone-carte]` : la carte
   garde toute sa largeur, `couches/marge-carte.ts` lui pose un `setPadding` pour que centrage et recadrages visent la

@@ -58,10 +58,13 @@ export class FilEtapesComponent {
   /**
    * Littéral : Tailwind lit les classes dans le source. Seuil = le fil complet en compact au PIRE du lot 1 : ≈ 606 px
    * sans pastille (`px-1`, mesuré au round 1), plus ① et ② « renseignées » (≈ 10 px chacune) et le `font-medium` de
-   * l'étape courante — sous 640 px il se replie au lieu de défiler. À 1 440 px la barre offre 642 à 702 px selon la
-   * largeur du badge de session : tout lisible ; à 1 280 px (482 px) : replié.
+   * l'étape courante, plus le bouton « Autres » que la barre pose dans le MÊME conteneur depuis T11b. Mesuré le 14/10 au
+   * navigateur : fil complet 579 px sans pastille (≈ 599 avec ① et ② renseignées), « Autres » 45 px, filet 1 px, deux
+   * écarts de 6 px — ≈ 657 px au pire : sous 660 px il se replie au lieu de défiler. Seule la barre du parcours pose
+   * `compact`. À 1 280 px : replié ; à 1 440 px, lisible si le badge de session laisse 660 px (un badge super_admin long
+   * — 367 px, « dentsu.explore (interne) » — n'en laisse que 642 : replié).
    */
-  protected readonly repli = '@max-[640px]:sr-only';
+  protected readonly repli = '@max-[660px]:sr-only';
   readonly choisir = output<string>();
 
   private readonly boutons = viewChildren<ElementRef<HTMLButtonElement>>('bouton');

@@ -28,6 +28,18 @@ export const LIBELLE_ETAPE_CARTE: Readonly<Record<EtapeCarte, string>> = {
   plan: 'Plan', activation: 'Activation', live: 'Live',
 };
 
+/**
+ * « Autres » (T11b, Vincent 14/10) : ce qui n'a pas encore sa place dans le parcours — d'abord les panneaux OOH et la
+ * radio, dont on ne construit pas de zones. Un bouton AU NIVEAU des étapes mais HORS du fil : ni rang, ni raccourci
+ * Alt+N, jamais dans `ETAPES_CARTE`. Il s'écrit `?etape=autres` (même paramètre : une seule chose ouverte à la fois,
+ * et revenir à une étape le referme) ; l'étape d'en dessous reste celle qu'on a quittée.
+ */
+export const VUE_AUTRES = 'autres';
+/** Ce que montre le panneau flottant : une étape, ou « Autres ». */
+export type VueParcours = EtapeCarte | typeof VUE_AUTRES;
+export const LIBELLE_AUTRES = 'Autres';
+export const CONSIGNE_AUTRES = 'Hors parcours : ce qui n’a pas encore sa place dans les étapes. Revenez à une étape par le fil.';
+
 /** Ce que chaque panneau attend, en une ligne (spec § 11 : « le parcours peut se lire comme un tunnel »). */
 export const CONSIGNE_ETAPE: Readonly<Record<EtapeCarte, string>> = {
   perimetre: 'Choisissez où regarder : région, département, ville, code postal ou zone enregistrée. Ce périmètre borne les calculs des étapes suivantes.',
@@ -59,6 +71,11 @@ export function rangEtapeCarte(e: EtapeCarte): number {
 /** Une valeur d'URL connue, sinon `null`. Ne lève jamais : l'URL vient de l'extérieur. */
 export function lireEtape(brut: string | null | undefined): EtapeCarte | null {
   return (ETAPES_CARTE as readonly string[]).includes(brut ?? '') ? (brut as EtapeCarte) : null;
+}
+
+/** `?etape=` lu comme une vue : une étape connue, « Autres », sinon `null`. Ne lève jamais. */
+export function lireVue(brut: string | null | undefined): VueParcours | null {
+  return brut === VUE_AUTRES ? VUE_AUTRES : lireEtape(brut);
 }
 
 /**

@@ -80,6 +80,54 @@ describe('ParcoursService — l’étape dans l’URL', () => {
     hote.parcours.choisir('zones'); await stable();
     expect([...hote.parcours.visitees()].sort()).toEqual(['donnees', 'perimetre', 'zones']);
   });
+  it('T11b : ouvrirAutres écrit ?etape=autres, sans étape courante ; choisir une étape referme « Autres » et réécrit l’étape', async () => {
+    const { hote, router, stable } = await ouvrir('/carte?etape=zones');
+    expect(hote.parcours.autres()).toBe(false);
+    expect(hote.parcours.vue()).toBe('zones');
+    const nav = vi.spyOn(router, 'navigate');
+    hote.parcours.ouvrirAutres();
+    await stable();
+    expect(router.url).toBe('/carte?etape=autres');
+    expect(nav.mock.calls[0][1]).toMatchObject({ replaceUrl: true, queryParamsHandling: 'merge' });
+    expect(hote.parcours.autres()).toBe(true);
+    expect(hote.parcours.vue()).toBe('autres');
+    // L'étape quittée reste celle d'en dessous (rien n'est démonté), « Autres » rejoint les vues montées.
+    expect(hote.parcours.etape()).toBe('zones');
+    expect([...hote.parcours.visitees()].sort()).toEqual(['autres', 'zones']);
+    hote.parcours.ouvrirAutres();
+    await stable();
+    expect(nav).toHaveBeenCalledTimes(1);
+    hote.parcours.choisir('donnees');
+    await stable();
+    expect(hote.parcours.autres()).toBe(false);
+    expect(router.url).toBe('/carte?etape=donnees');
+    hote.parcours.ouvrirAutres(); await stable();
+    hote.parcours.choisir('perimetre'); await stable();
+    expect(router.url).toBe('/carte');
+  });
+  it('T11b : /carte?etape=autres s’ouvre sur « Autres » sans réécrire l’URL ; une navigation extérieure l’ouvre et le referme', async () => {
+    const { hote, router, stable } = await ouvrir('/carte?etape=autres', true);
+    expect(hote.parcours.autres()).toBe(true);
+    expect(hote.parcours.etape()).toBe('perimetre');
+    expect([...hote.parcours.visitees()]).toEqual(['autres']);
+    await stable();
+    expect(router.url).toBe('/carte?etape=autres');
+    expect(vi.mocked(router.navigate)).not.toHaveBeenCalled();
+    await router.navigateByUrl('/carte?etape=analyse');
+    await stable();
+    expect(hote.parcours.autres()).toBe(false);
+    expect(hote.parcours.etape()).toBe('analyse');
+    await router.navigateByUrl('/carte?etape=autres');
+    await stable();
+    expect(hote.parcours.autres()).toBe(true);
+    expect(hote.parcours.etape()).toBe('analyse');
+    // Une valeur voisine illisible (« Autres ») : ① et URL nettoyée, comme toute valeur inconnue.
+    await router.navigateByUrl('/carte?etape=Autres');
+    await stable(); await stable();
+    expect(hote.parcours.autres()).toBe(false);
+    expect(hote.parcours.etape()).toBe('perimetre');
+    expect(router.url).toBe('/carte');
+  });
   it('module enfant ouvert : écrire l’étape garde /carte/risques et ?risque= (Review Focus 2)', async () => {
     const { hote, router, stable } = await ouvrir('/carte/risques?risque=etape%3Drayon');
     hote.parcours.choisir('zones');

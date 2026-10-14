@@ -1302,7 +1302,73 @@ describe('CartePage — plan média des zones affichées (T15)', () => {
   });
 });
 
-type Lieu = { etape?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8; outil?: 'analyses' | 'zones' | 'fond' | 'legende' | 'aide' | 'reglages' };
+describe('CartePage — le bouton « Autres », hors du fil (T11b, Vincent 14/10)', () => {
+  const autres = (hote: HTMLElement) => hote.querySelector<HTMLButtonElement>('mg-barre-parcours [data-autres]')!;
+  const panneauAutres = (hote: HTMLElement) => hote.querySelector<HTMLElement>('[data-panneau-autres]');
+
+  it('ouvre « Autres » dans le cadre du panneau d’étape : ?etape=autres, aucune étape courante ; une étape le referme', async () => {
+    const { hote, stable } = await ouvrir({ url: '/carte?etape=zones' });
+    expect(panneauAutres(hote)).toBeNull();
+    autres(hote).click();
+    await stable();
+    expect(routeur().url).toBe('/carte?etape=autres');
+    const cadre = hote.querySelector('mg-panneau-etape aside')!;
+    expect(panneauAutres(hote)!.closest('mg-panneau-etape aside')).toBe(cadre);
+    expect(panneauAutres(hote)!.hasAttribute('inert')).toBe(false);
+    expect(panneauAutres(hote)!.querySelector('mg-panneau-autres')).not.toBeNull();
+    expect(cadre.getAttribute('aria-label')).toBe('Autres, hors parcours');
+    expect(panneauCourant(hote)).toBeNull();
+    expect(etapeDuFil(hote)).toBeNull();
+    expect(autres(hote).getAttribute('aria-current')).toBe('true');
+    // L'étape quittée est montée, inerte (A1) ; « Autres » aussi une fois quitté.
+    expect(hote.querySelector('[data-panneau-etape="zones"]')!.hasAttribute('inert')).toBe(true);
+    hote.querySelectorAll<HTMLButtonElement>('mg-fil-etapes nav button')[1].click();
+    await stable();
+    expect(routeur().url).toBe('/carte?etape=donnees');
+    expect(panneauCourant(hote)).toBe('donnees');
+    expect(panneauAutres(hote)!.hasAttribute('inert')).toBe(true);
+    expect(panneauAutres(hote)!.classList).toContain('invisible');
+    expect(autres(hote).getAttribute('aria-current')).toBeNull();
+    // Alt+N referme « Autres » comme un clic sur l'étape.
+    autres(hote).click();
+    await stable();
+    frapper(hote, altChiffre('4'));
+    await stable();
+    expect(routeur().url).toBe('/carte?etape=analyse');
+    expect(panneauAutres(hote)!.hasAttribute('inert')).toBe(true);
+  });
+
+  it('/carte?etape=autres s’ouvre sur « Autres » ; les états OOH et radio survivent à la fermeture et à la réouverture', async () => {
+    const { hote, stable } = await ouvrir({ url: '/carte?etape=autres' });
+    expect(panneauAutres(hote)!.hasAttribute('inert')).toBe(false);
+    expect(hote.querySelectorAll('[data-panneau-etape]')).toHaveLength(0);
+    (hote.querySelector('mg-section-ooh mg-entete-filtre') as HTMLElement).click();
+    await stable();
+    hote.querySelector<HTMLButtonElement>('mg-section-ooh [data-tout]')!.click();
+    (hote.querySelector('mg-section-radio mg-entete-filtre') as HTMLElement).click();
+    await stable();
+    hote.querySelector<HTMLButtonElement>('[data-basculer-radio]')!.click();
+    await stable();
+    expect(hote.querySelector('[data-afficher-ooh]')!.textContent!.trim()).toBe('Afficher — 8 régies');
+    expect(hote.querySelector('[data-basculer-radio]')!.getAttribute('aria-pressed')).toBe('true');
+    const section = hote.querySelector('mg-section-ooh');
+    frapper(hote, altChiffre('2'));
+    await stable();
+    // ② ne porte plus ni OOH ni radio, et la radio allumée n'y est pas un calque actif.
+    const donnees = hote.querySelector('[data-panneau-etape="donnees"]')!;
+    expect(donnees.querySelector('mg-section-ooh, mg-section-radio')).toBeNull();
+    expect(donnees.textContent).not.toContain('Médias offline');
+    expect(donnees.querySelector('[data-actif="radio"]')).toBeNull();
+    autres(hote).click();
+    await stable();
+    expect(hote.querySelector('mg-section-ooh')).toBe(section);
+    expect(hote.querySelector('[data-afficher-ooh]')!.textContent!.trim()).toBe('Afficher — 8 régies');
+    expect(hote.querySelector('[data-basculer-radio]')!.getAttribute('aria-pressed')).toBe('true');
+    expect(routeur().url).toBe('/carte?etape=autres');
+  });
+});
+
+type Lieu = { autres?: true; etape?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8; outil?: 'analyses' | 'zones' | 'fond' | 'legende' | 'aide' | 'reglages' };
 interface LigneInventaire {
   n: number;
   fonction: string;
@@ -1330,6 +1396,8 @@ interface LigneInventaire {
  *   affichée, panneau fermé) ;
  * - 22. Badge de zoom → ici seulement `[data-badge-zoom]` ; détail IRIS, zone active et tiroir Street View : ce fichier,
  *   test « la barre porte logo, fil d’Ariane… » ; la météo : describe « météo (T11) ».
+ * - 23-24. Panneaux OOH et Radio (anciennement Calques › Médias offline) : dans le panneau « Autres » de la barre, hors du
+ *   fil (T11b, Vincent 14/10) — ces lignes échouent si l'une des deux sections quitte ce panneau.
  * Une ligne qui échoue veut dire qu'une fonction a été PERDUE : la rétablir, jamais retirer la ligne.
  */
 const INVENTAIRE: readonly LigneInventaire[] = [
@@ -1359,6 +1427,8 @@ const INVENTAIRE: readonly LigneInventaire[] = [
   { n: 20, fonction: 'Session', lieu: {}, preuves: ['mg-barre-parcours mg-badge-session'] },
   { n: 21, fonction: 'Campagne', lieu: { etape: 6 }, preuves: ['[data-etape-bientot="plan"]'] },
   { n: 22, fonction: 'Badge de zoom', lieu: {}, preuves: ['[data-badge-zoom]'] },
+  { n: 23, fonction: 'Panneaux OOH (bouton « Autres »)', lieu: { autres: true }, preuves: ['[data-panneau-autres]:not([inert]) mg-panneau-autres mg-section-ooh'] },
+  { n: 24, fonction: 'Radio FM/DAB+ (bouton « Autres »)', lieu: { autres: true }, preuves: ['[data-panneau-autres]:not([inert]) mg-panneau-autres mg-section-radio'] },
 ];
 
 describe('CartePage — aucune fonction perdue (spec § 12, lot 1)', () => {
@@ -1366,6 +1436,7 @@ describe('CartePage — aucune fonction perdue (spec § 12, lot 1)', () => {
     const { hote, cartes, stable } = await ouvrir({ url: l.url, zones: l.url ? { geometrie: () => of(ZONE_DU_LIEN) } : undefined });
     if (l.avant) await l.avant({ hote, cartes, stable });
     if (l.lieu.etape) { frapper(hote, altChiffre(String(l.lieu.etape))); await stable(); }
+    if (l.lieu.autres) { hote.querySelector<HTMLButtonElement>('mg-barre-parcours [data-autres]')!.click(); await stable(); }
     if (l.lieu.outil) { hote.querySelector<HTMLButtonElement>(`mg-boite-outils [data-outil="${l.lieu.outil}"]`)!.click(); await stable(); }
     for (const preuve of l.preuves) expect(hote.querySelector(preuve), `${l.n}. ${l.fonction} → ${preuve}`).not.toBeNull();
     if (l.nombre !== undefined) expect(hote.querySelectorAll(l.preuves[0]).length, `${l.n}. ${l.fonction}`).toBe(l.nombre);

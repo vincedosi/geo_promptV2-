@@ -4,7 +4,6 @@ import { CarreauxService } from '../../couches/carreaux.service';
 import { IndicateursCiviquesService } from '../../couches/indicateurs-civiques.service';
 import { IrisService } from '../../couches/iris.service';
 import { MeteoService } from '../../couches/meteo.service';
-import { RadioService } from '../../couches/radio.service';
 import { SanteService } from '../../couches/sante.service';
 import { TmjaService } from '../../couches/tmja.service';
 import { RisqueCarteService } from '../../etat/risque-carte.service';
@@ -15,16 +14,14 @@ import { SectionCarreauxComponent } from './section-carreaux.component';
 import { SectionCiviqueComponent } from './section-civique.component';
 import { SectionIrisComponent } from './section-iris.component';
 import { SectionMeteoComponent } from './section-meteo.component';
-import { SectionOohComponent } from './section-ooh.component';
 import { SectionPoiComponent } from './section-poi.component';
-import { SectionRadioComponent } from './section-radio.component';
 import { SectionRisqueComponent } from './section-risque.component';
 import { SectionSanteComponent } from './section-sante.component';
 import { SectionTmjaComponent } from './section-tmja.component';
 import { SectionTransportComponent } from './section-transport.component';
 import { SelectionsCalquesService } from './selections-calques.service';
 
-type CleGroupe = 'socioDemo' | 'poiMobilite' | 'mediasOffline' | 'environnement';
+type CleGroupe = 'socioDemo' | 'poiMobilite' | 'environnement';
 
 /** Un calque affiché, dans « Actifs (n) », avec la croix qui l'éteint (`PanneauCalques.tsx:327-358`). */
 interface ActifCalque {
@@ -37,14 +34,16 @@ interface ActifCalque {
  * Le panneau « Calques » du rail (« ce que je vois ») — portage de `app/map/_components/panneaux/PanneauCalques.tsx`.
  *
  * « Actifs (n) » puis les groupes repliables, dans l'ordre de React : Socio-démographie, [Campagne active], POI et
- * mobilité, Médias offline, Environnement. Tous fermés à l'ouverture, et rien n'est mémorisé : comme
+ * mobilité, Environnement. « Médias offline » (panneaux OOH, radio) n'y est plus depuis le 2026-10-14 : ses deux
+ * sections vivent dans le panneau « Autres », hors du fil (T11b, Vincent — on n'en construit pas de zones) ; ni leurs
+ * comptes ni leurs croix d'« Actifs » ne sont restés ici. Tous fermés à l'ouverture, et rien n'est mémorisé : comme
  * React (`useState`, `PanneauCalques.tsx:240-243`), le panneau repart replié à chaque réouverture.
  *
  * T6 a porté le CADRE et les carreaux Filosofi, T7 les IRIS, T8 les POI, le transport et les panneaux OOH, T9 le flux
  * routier (TMJA) et la radio, T10 les indicateurs civiques et la santé environnementale, T11 la météo, T12 les risques
  * industriels, T18 « Mes analyses » (sorti vers la boîte à outils le 2026-10-13). Les sections
- * internes de ces groupes (`useFilterSections(true, …)` en mode overlay) ne mémorisent rien non plus : leur état, les
- * régies OOH et les types de transport choisis vivent dans `SelectionsCalquesService`, fourni par CE composant — il
+ * internes de ces groupes (`useFilterSections(true, …)` en mode overlay) ne mémorisent rien non plus : leur état et
+ * les types de transport choisis vivent dans `SelectionsCalquesService`, fourni par CE composant — il
  * survit au repli d'un groupe et disparaît à la fermeture du panneau, comme l'état React.
  * « Campagne active » n'est pas rendu : il n'existe qu'avec une campagne active, qui relève du lot 5 (arbitrage B6).
  * « Mes analyses » vit dans la boîte à outils depuis le 2026-10-13 (spec § 6, `outils/outil-mes-analyses`) : il n'est
@@ -54,8 +53,7 @@ interface ActifCalque {
   selector: 'mg-panneau-calques',
   imports: [
     GroupeCalquesComponent, IconeComponent, SectionCarreauxComponent, SectionCiviqueComponent, SectionIrisComponent, SectionMeteoComponent,
-    SectionOohComponent, SectionPoiComponent, SectionRadioComponent, SectionRisqueComponent, SectionSanteComponent, SectionTmjaComponent,
-    SectionTransportComponent,
+    SectionPoiComponent, SectionRisqueComponent, SectionSanteComponent, SectionTmjaComponent, SectionTransportComponent,
   ],
   providers: [SelectionsCalquesService],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -105,16 +103,6 @@ interface ActifCalque {
       }
     </mg-groupe-calques>
 
-    <mg-groupe-calques titre="Médias offline" [ouvert]="groupes().mediasOffline" [compte]="compteMedias()" (basculer)="basculer('mediasOffline')">
-      @if (groupes().mediasOffline) {
-        <!-- PanneauCalques.tsx:527-575. -->
-        <div class="flex flex-col gap-4 p-4">
-          <mg-section-ooh />
-          <mg-section-radio />
-        </div>
-      }
-    </mg-groupe-calques>
-
     <mg-groupe-calques titre="Environnement" [ouvert]="groupes().environnement" [compte]="compteEnvironnement()" (basculer)="basculer('environnement')">
       @if (groupes().environnement) {
         <!-- PanneauCalques.tsx:576-599 : la section risques DIRECTEMENT dans le groupe, hors du bloc à 16 px. -->
@@ -135,14 +123,13 @@ export class PanneauCalquesComponent {
   private readonly etat = inject(EtatCarteService);
   private readonly selections = inject(SelectionsCalquesService);
   private readonly tmja = inject(TmjaService);
-  private readonly radio = inject(RadioService);
   private readonly civique = inject(IndicateursCiviquesService);
   private readonly sante = inject(SanteService);
   private readonly meteo = inject(MeteoService);
   private readonly risque = inject(RisqueCarteService);
 
   protected readonly groupes = signal<Record<CleGroupe, boolean>>({
-    socioDemo: false, poiMobilite: false, mediasOffline: false, environnement: false,
+    socioDemo: false, poiMobilite: false, environnement: false,
   });
 
   protected readonly compteSocio = computed(() => (this.carreaux.visible() ? 1 : 0) + (this.iris.visible() ? 1 : 0));
@@ -150,8 +137,6 @@ export class PanneauCalquesComponent {
   protected readonly comptePoi = computed(
     () => this.etat.poiSelectionnes().length + this.selections.typesTransport().length + (this.tmja.visible() ? 1 : 0),
   );
-  /** `selectedOOH.length + (radioVisible ? 1 : 0)` (`PanneauCalques.tsx:529`). */
-  protected readonly compteMedias = computed(() => this.selections.regiesOoh().length + (this.radio.visible() ? 1 : 0));
   /** `risque + pprt + civique + santé + météo` (`PanneauCalques.tsx:575`). */
   protected readonly compteEnvironnement = computed(() => (this.risque.actif() ? 1 : 0) + (this.risque.pprtActif() ? 1 : 0)
     + (this.civique.variable() ? 1 : 0) + (this.sante.jeu() ? 1 : 0) + (this.meteo.visible() ? 1 : 0));
@@ -171,10 +156,6 @@ export class PanneauCalquesComponent {
       liste.push({ id: 'transport', label: `Transport (${transport})`, retirer: () => this.selections.typesTransport.set([]) });
     }
     if (this.tmja.visible()) liste.push({ id: 'tmja', label: 'Flux routier (TMJA)', retirer: () => this.tmja.masquer() });
-    const ooh = this.selections.regiesOoh().length;
-    if (ooh > 0) liste.push({ id: 'ooh', label: `OOH (${ooh} régies)`, retirer: () => this.selections.regiesOoh.set([]) });
-    // `PanneauCalques.tsx:336` : la croix fait `onToggleRadio`, donc ÉTEINT le calque.
-    if (this.radio.visible()) liste.push({ id: 'radio', label: 'Radio FM/DAB+', retirer: () => this.radio.basculer() });
     if (this.civique.variable()) {
       liste.push({ id: 'civic-indicateurs', label: libelleDegrade('civic-indicateurs'), retirer: () => this.civique.choisir(null) });
     }

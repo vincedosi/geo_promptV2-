@@ -56,6 +56,7 @@ import { PanneauCalquesComponent } from './panneaux/calques/panneau-calques.comp
 import { PanneauFiltreComponent } from './panneaux/filtre/panneau-filtre.component';
 import { PanneauZonesComponent } from './panneaux/zones/panneau-zones.component';
 import { PanneauAnalyseComponent } from './panneaux/analyse/panneau-analyse.component';
+import { PanneauAutresComponent } from './panneaux/autres/panneau-autres.component';
 import { BatailleV1Service } from './etat/bataille-v1.service';
 import { BatailleV2Service } from './etat/bataille-v2.service';
 import { ContexteBatailleService } from './etat/contexte-bataille.service';
@@ -114,7 +115,7 @@ export function palierCarreaux(zoom: number): string {
   selector: 'mg-carte-principale',
   imports: [
     AnnonceComponent, BarreParcoursComponent, BoiteOutilsComponent, CarteComponent, DetailIrisComponent, DialogueMeteoComponent,
-    EtapeBientotComponent, IconeComponent, LegendeCarteComponent, PanneauAnalyseComponent, PanneauCalquesComponent, PanneauEtapeComponent,
+    EtapeBientotComponent, IconeComponent, LegendeCarteComponent, PanneauAnalyseComponent, PanneauAutresComponent, PanneauCalquesComponent, PanneauEtapeComponent,
     PanneauFiltreComponent, PanneauZonesComponent, PlanMediaComponent, RouterOutlet, TiroirPanneauComponent, ZoneActiveComponent,
   ],
   providers: [ParcoursService, OutilsCarteService, EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
@@ -154,7 +155,6 @@ export class CartePage {
   private readonly iris = inject(IrisService);
   private readonly pois = inject(PoisService);
   private readonly tmja = inject(TmjaService);
-  private readonly radio = inject(RadioService);
   private readonly risqueCarte = inject(RisqueCarteService);
   /** La météo (T11) : la page monte son dialogue, comme la modale de `page.tsx:1456-1488`. */
   protected readonly meteo = inject(MeteoService);
@@ -183,13 +183,13 @@ export class CartePage {
   /** Les panneaux montés, dans l'ordre du parcours. */
   protected readonly etapesMontees = computed(() => ETAPES_CARTE.filter((e) => this.parcours.visitees().has(e)));
   /**
-   * Les pastilles « renseignée » (arbitrage A2). Celle de ② est PARTIELLE jusqu'à la tâche 13 (ruling AT-4) : l'OOH et
-   * le transport tiennent leur état dans un service fourni par le panneau Calques, invisible de la page.
+   * Les pastilles « renseignée » (A2). Celle de ② est PARTIELLE jusqu'à T13 (AT-4) : le transport vit dans le panneau Calques,
+   * invisible de la page. Ni OOH ni radio : hors de ② depuis T11b (panneau « Autres »).
    */
   protected readonly etapes = computed(() => etapesDuFil({
     filtrePose: this.etat.filtre() !== null || this.etat.perimetreScope() !== null,
     calquesActifs: this.etat.degradeActif() !== null || this.etat.poiSelectionnes().length > 0 || this.tmja.visible()
-      || this.radio.visible() || this.risqueCarte.actif() || this.risqueCarte.pprtActif(),
+      || this.risqueCarte.actif() || this.risqueCarte.pprtActif(),
   }));
   protected readonly segmentsAriane = computed<SegmentAriane[]>(() => segmentsDuFiltre(this.etat.filtre()));
   protected readonly precisionAriane = computed(() => precisionDuPerimetre(this.etat.perimetreScope()));
@@ -267,7 +267,7 @@ export class CartePage {
     // pendant que le focus est dans le shell AIDA ne le lui vole pas (relecture T4, m3).
     let ouverture = true;
     effect(() => {
-      this.parcours.etape();
+      this.parcours.vue();
       this.panneauReplie();
       this.etat.immersif();
       const actif = untracked(() => this.elementActif());

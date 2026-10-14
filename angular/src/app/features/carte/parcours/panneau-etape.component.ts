@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, input, model, signal } from '@angular/core';
 import { IconeComponent } from '../../../ui/icone/icone.component';
-import { CONSIGNE_ETAPE, type EtapeCarte, LARGEUR_PANNEAU_ETAPE, LIBELLE_ETAPE_CARTE, rangEtapeCarte } from '../logique/parcours';
+import {
+  CONSIGNE_AUTRES, CONSIGNE_ETAPE, LARGEUR_PANNEAU_ETAPE, LIBELLE_AUTRES, LIBELLE_ETAPE_CARTE, VUE_AUTRES, type VueParcours, rangEtapeCarte,
+} from '../logique/parcours';
 import { ECART_TIROIR } from '../outils/boite-outils.component';
 
 /** La marge de la carte flottante au conteneur carte, en haut, à gauche et en bas (l'ancien panneau du rail). */
@@ -35,6 +37,8 @@ export const JOUR_DROIT_PANNEAU = ECART_TIROIR + PLACE_BADGE_ZOOM;
  *   expression CSS `min(…)`, dont le `100%` se résout contre le conteneur à l'endroit où elle sert. La page le pose en
  *   `--emprise-panneau` sur le conteneur ; le badge de zoom, la zone active et la légende s'y alignent
  *   (leur `left` vaut `calc(var(--emprise-panneau, 0px) + 10 ou 12 px)`) pour ne jamais rester dessous.
+ * - « Autres » (T11b) s'ouvre dans CE cadre : même carte, poignée et repli ; son nom est « Autres, hors parcours », sans
+ *   numéro d'étape.
  */
 @Component({
   selector: 'mg-panneau-etape',
@@ -63,7 +67,8 @@ export const JOUR_DROIT_PANNEAU = ECART_TIROIR + PLACE_BADGE_ZOOM;
   `,
 })
 export class PanneauEtapeComponent {
-  readonly etape = input.required<EtapeCarte>();
+  /** L'étape courante, ou « Autres » (`ParcoursService.vue`). */
+  readonly etape = input.required<VueParcours>();
   /** Mode immersif : caché sans toucher au repli choisi. */
   readonly masque = input(false);
   readonly replie = model(false);
@@ -85,8 +90,14 @@ export class PanneauEtapeComponent {
   protected readonly largeurMax = computed(() => `calc(${this.bordMax()} - ${MARGE_PANNEAU_ETAPE}px)`);
   /** Le bord droit du panneau dans le conteneur carte, borné comme lui ; `0px` caché — `--emprise-panneau` de la page. */
   readonly emprise = computed(() => this.cache() ? '0px' : `min(${MARGE_PANNEAU_ETAPE + this.largeur()}px, ${this.bordMax()})`);
-  protected readonly titre = computed(() => `Étape ${rangEtapeCarte(this.etape())} — ${LIBELLE_ETAPE_CARTE[this.etape()]}`);
-  protected readonly consigne = computed(() => CONSIGNE_ETAPE[this.etape()]);
+  protected readonly titre = computed(() => {
+    const e = this.etape();
+    return e === VUE_AUTRES ? `${LIBELLE_AUTRES}, hors parcours` : `Étape ${rangEtapeCarte(e)} — ${LIBELLE_ETAPE_CARTE[e]}`;
+  });
+  protected readonly consigne = computed(() => {
+    const e = this.etape();
+    return e === VUE_AUTRES ? CONSIGNE_AUTRES : CONSIGNE_ETAPE[e];
+  });
 
   /**
    * Capture du pointeur sur la POIGNÉE elle-même, jamais `window` (celui du shell) — recopie de `RisquePage.saisirPoignee`.

@@ -1,6 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { CONSIGNE_ETAPE, type EtapeCarte } from '../logique/parcours';
+import { CONSIGNE_AUTRES, CONSIGNE_ETAPE, type VueParcours } from '../logique/parcours';
 import { PanneauEtapeComponent } from './panneau-etape.component';
 
 @Component({
@@ -8,7 +8,7 @@ import { PanneauEtapeComponent } from './panneau-etape.component';
   template: `<mg-panneau-etape [etape]="etape()" [masque]="masque()" [reserveDroite]="reserve()" [(replie)]="replie"><div data-contenu>contenu</div></mg-panneau-etape>`,
 })
 class Hote {
-  readonly etape = signal<EtapeCarte>('donnees');
+  readonly etape = signal<VueParcours>('donnees');
   readonly masque = signal(false);
   readonly replie = signal(false);
   readonly reserve = signal(0);
@@ -45,6 +45,18 @@ describe('PanneauEtapeComponent', () => {
     expect(aside()).toBe(avant);
     expect(avant.getAttribute('aria-label')).toBe('Étape 3 — Zones');
     expect(el.querySelector('[data-consigne]')!.textContent!.trim()).toBe(CONSIGNE_ETAPE.zones);
+  });
+
+  it('T11b « Autres » : même cadre, nom « Autres, hors parcours » sans numéro d’étape, consigne propre', async () => {
+    const { fixture, el, hote, aside } = await monter();
+    const avant = aside();
+    hote.etape.set('autres');
+    await fixture.whenStable();
+    expect(aside()).toBe(avant);
+    expect(avant.getAttribute('aria-label')).toBe('Autres, hors parcours');
+    expect(el.querySelector('[data-consigne]')!.textContent!.trim()).toBe(CONSIGNE_AUTRES);
+    expect(el.querySelector('[data-replier]')).not.toBeNull();
+    expect(el.querySelector('[role="separator"]')).not.toBeNull();
   });
 
   it('T4b : une carte FLOTTANTE (absolute, z-40, 12 px du haut et de la gauche, hauteur au contenu bornée, coins 12, bord fin, fond opaque), sans ombre ni flou', async () => {

@@ -57,7 +57,7 @@ describe('FilEtapesComponent', () => {
     expect(boutons.every((b) => b.classList.contains('min-w-6') && b.classList.contains('h-[30px]') && b.classList.contains('justify-center'))).toBe(true);
     const libelles = [...el.querySelectorAll('[data-libelle-etape]')];
     // Requête de CONTENEUR (`@container` posé par la barre) : la largeur de la barre décide, pas celle de la fenêtre.
-    expect(libelles.map((l) => l.classList.contains('@max-[640px]:sr-only'))).toEqual([true, false, true]);
+    expect(libelles.map((l) => l.classList.contains('@max-[660px]:sr-only'))).toEqual([true, false, true]);
     // Le texte reste dans le bouton (lecteur d'écran, tests) ; l'infobulle le redit à la souris.
     expect(boutons.map((b) => b.textContent!.replace(/\s+/g, ' ').trim())).toEqual(['1 Premier (renseignée)', '2 Deuxième', '3 Troisième']);
     expect(boutons.map((b) => b.getAttribute('title'))).toEqual(['Premier', null, 'Troisième']);

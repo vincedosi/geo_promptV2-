@@ -3,8 +3,8 @@
   <mg-barre-parcours
     [etapes]="etapes()" [courante]="parcours.etape()"
     [segments]="segmentsAriane()" [precision]="precisionAriane()"
-    [zoneScript]="lienZone.zoneDuLien()?.nom ?? null" [planMedia]="zonesPlanFerme()"
-    (choisir)="choisirEtape($event)" (remonter)="remonterAriane($event)"
+    [zoneScript]="lienZone.zoneDuLien()?.nom ?? null" [planMedia]="zonesPlanFerme()" [autresOuvert]="parcours.autres()"
+    (choisir)="choisirEtape($event)" (remonter)="remonterAriane($event)" (ouvrirAutres)="parcours.ouvrirAutres()"
     (toutEffacer)="toutEffacer()" (genererScript)="genererScriptDv360()" (rouvrirPlan)="planMedia.ouvert.set(true)"
     (basculerImmersif)="basculerImmersif()" (orgChangee)="organisationChangee()"
   />
@@ -28,12 +28,12 @@
   <!-- Les panneaux d'étape : MONTÉS à la première visite, puis gardés (arbitrage A1). L'étape quittée devient
        invisible, inerte et `absolute` — jamais @if : un calcul en cours (bataille, clustering, zone en création) lui
        survit. L'étape courante est seule DANS le flux : la carte flottante prend sa hauteur (T4b). -->
-  <mg-panneau-etape #panneau [etape]="parcours.etape()" [masque]="etat.immersif()" [reserveDroite]="decalageOutils()" [(replie)]="panneauReplie">
+  <mg-panneau-etape #panneau [etape]="parcours.vue()" [masque]="etat.immersif()" [reserveDroite]="decalageOutils()" [(replie)]="panneauReplie">
     @for (e of etapesMontees(); track e) {
       <div [attr.data-panneau-etape]="e" class="flex min-h-0 flex-col overflow-y-auto overflow-x-hidden py-2"
-           [class.invisible]="e !== parcours.etape()" [class.absolute]="e !== parcours.etape()" [class.inset-0]="e !== parcours.etape()"
-           [attr.inert]="e !== parcours.etape() ? '' : null"
-           [attr.aria-hidden]="e !== parcours.etape() ? 'true' : null">
+           [class.invisible]="e !== parcours.vue()" [class.absolute]="e !== parcours.vue()" [class.inset-0]="e !== parcours.vue()"
+           [attr.inert]="e !== parcours.vue() ? '' : null"
+           [attr.aria-hidden]="e !== parcours.vue() ? 'true' : null">
         @switch (e) {
           @case ('perimetre') { <mg-panneau-filtre /> }
           @case ('donnees') { <mg-panneau-calques /> }
@@ -41,6 +41,14 @@
           @case ('zones') { <mg-panneau-zones /> }
           @default { <mg-etape-bientot [etape]="e" /> }
         }
+      </div>
+    }
+    <!-- « Autres » (T11b) : hors du fil, dans le MÊME cadre ; monté à la première ouverture puis gardé, comme une étape. -->
+    @if (parcours.visitees().has('autres')) {
+      <div data-panneau-autres class="flex min-h-0 flex-col overflow-y-auto overflow-x-hidden py-2"
+           [class.invisible]="!parcours.autres()" [class.absolute]="!parcours.autres()" [class.inset-0]="!parcours.autres()"
+           [attr.inert]="parcours.autres() ? null : ''" [attr.aria-hidden]="parcours.autres() ? null : 'true'">
+        <mg-panneau-autres />
       </div>
     }
   </mg-panneau-etape>

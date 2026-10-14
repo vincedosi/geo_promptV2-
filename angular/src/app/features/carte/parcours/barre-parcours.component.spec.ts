@@ -9,7 +9,7 @@ import { ETAPES_CARTE, LIBELLE_ETAPE_CARTE, etapesDuFil } from '../logique/parco
 import { BarreParcoursComponent, HAUTEUR_BARRE_PARCOURS } from './barre-parcours.component';
 
 /** Les fausses dépendances de `mg-badge-session`, comme `carte.page.spec.ts`. */
-async function monter(entrees: { zoneScript?: string | null; planMedia?: number | null } = {}) {
+async function monter(entrees: { zoneScript?: string | null; planMedia?: number | null; autresOuvert?: boolean } = {}) {
   TestBed.configureTestingModule({
     providers: [
       provideRouter([]),
@@ -32,6 +32,7 @@ async function monter(entrees: { zoneScript?: string | null; planMedia?: number 
   fixture.componentRef.setInput('segments', [{ cle: 'france', libelle: 'France entière' }, { cle: 'region:53', libelle: 'Bretagne' }]);
   if (entrees.zoneScript !== undefined) fixture.componentRef.setInput('zoneScript', entrees.zoneScript);
   if (entrees.planMedia !== undefined) fixture.componentRef.setInput('planMedia', entrees.planMedia);
+  if (entrees.autresOuvert !== undefined) fixture.componentRef.setInput('autresOuvert', entrees.autresOuvert);
   await fixture.whenStable();
   return { fixture, el: fixture.nativeElement as HTMLElement };
 }
@@ -58,8 +59,53 @@ describe('BarreParcoursComponent', () => {
     expect(el.querySelector('mg-badge-session')).not.toBeNull();
     // L'ordre des blocs dans la barre : où je regarde, où j'en suis, puis ce qui vaut à toute étape.
     const blocs = [...el.children].map((c) =>
-      c.hasAttribute('data-tout-effacer') ? 'effacer' : c.hasAttribute('data-immersif') ? 'immersif' : c.tagName.toLowerCase());
+      c.hasAttribute('data-tout-effacer') ? 'effacer' : c.hasAttribute('data-immersif') ? 'immersif'
+        : c.tagName.toLowerCase());
     expect(blocs).toEqual(['mg-logo', 'mg-fil-ariane', 'div', 'effacer', 'immersif', 'mg-bascule-theme', 'mg-badge-session']);
+    // « Autres » suit le fil DANS son conteneur (T11b) : fil, filet, bouton — à côté des étapes, pas des actions.
+    const conteneur = el.querySelector('mg-fil-etapes')!.parentElement!;
+    expect([...conteneur.children].map((c) => c.hasAttribute('data-separateur-autres') ? 'filet' : c.hasAttribute('data-autres') ? 'autres' : c.tagName.toLowerCase()))
+      .toEqual(['mg-fil-etapes', 'filet', 'autres']);
+  });
+
+  it('T11b « Autres » : au niveau des étapes mais HORS du fil — filet, pas de numéro, pas dans la liste des étapes', async () => {
+    const { el } = await monter();
+    const autres = el.querySelector<HTMLButtonElement>('[data-autres]')!;
+    expect(autres.textContent!.trim()).toBe('Autres');
+    expect(autres.getAttribute('aria-label')).toBe('Autres, hors parcours');
+    expect(autres.getAttribute('type')).toBe('button');
+    expect(autres.closest('nav')).toBeNull();
+    expect(autres.closest('mg-fil-etapes')).toBeNull();
+    expect(el.querySelectorAll('mg-fil-etapes nav button')).toHaveLength(8);
+    expect(autres.getAttribute('aria-current')).toBeNull();
+    expect(autres.getAttribute('aria-keyshortcuts')).toBeNull();
+    // Le filet vertical : décoratif, `--border-subtle`.
+    const filet = el.querySelector('[data-separateur-autres]')!;
+    expect(filet.getAttribute('aria-hidden')).toBe('true');
+    expect(filet.classList).toContain('bg-[var(--border-subtle)]');
+    expect(filet.classList).toContain('w-px');
+    // Le gabarit d'un bouton d'étape compact (hauteur 30, cible de 24 px au moins, 12 px, soulignement de 2 px).
+    const etape = el.querySelectorAll<HTMLButtonElement>('mg-fil-etapes nav button')[1];
+    for (const c of ['h-[30px]', 'min-w-6', 'text-[12px]', 'border-b-2', 'whitespace-nowrap', 'shrink-0', 'cursor-pointer']) {
+      expect(etape.classList, `étape ${c}`).toContain(c);
+      expect(autres.classList, `autres ${c}`).toContain(c);
+    }
+    // Fermé : l'apparence d'une étape non courante.
+    expect(autres.classList).toContain('text-tertiary');
+    expect(autres.classList).toContain('border-transparent');
+  });
+
+  it('T11b : « Autres » ouvert — état actif d’une étape courante, et AUCUNE étape n’est courante', async () => {
+    const { el, fixture } = await monter({ autresOuvert: true });
+    const autres = el.querySelector<HTMLButtonElement>('[data-autres]')!;
+    expect(autres.getAttribute('aria-current')).toBe('true');
+    for (const c of ['text-primary', 'border-teal', 'font-medium']) expect(autres.classList, c).toContain(c);
+    expect(autres.classList).not.toContain('text-tertiary');
+    expect([...el.querySelectorAll('mg-fil-etapes nav button')].map((b) => b.getAttribute('aria-current')).filter(Boolean)).toEqual([]);
+    fixture.componentRef.setInput('autresOuvert', false);
+    await fixture.whenStable();
+    expect(autres.getAttribute('aria-current')).toBeNull();
+    expect(el.querySelectorAll('mg-fil-etapes nav button')[0].getAttribute('aria-current')).toBe('step');
   });
 
   it('Script bidding DV360 et Plan média (n) n’existent que s’ils ont un objet', async () => {
@@ -85,14 +131,15 @@ describe('BarreParcoursComponent', () => {
     expect(avec.el.querySelector('[data-rouvrir-plan]')).toBeNull();
   });
 
-  it('relaie choisir, remonter, toutEffacer, genererScript, rouvrirPlan, basculerImmersif, orgChangee', async () => {
+  it('relaie choisir, remonter, toutEffacer, genererScript, rouvrirPlan, basculerImmersif, orgChangee, ouvrirAutres', async () => {
     const { fixture, el } = await monter({ zoneScript: 'Brest', planMedia: 2 });
     const barre = fixture.componentInstance;
     // UN abonnement par sortie : chaque espion ne voit que la sienne.
     const espions = {
       choisir: vi.fn(), remonter: vi.fn(), toutEffacer: vi.fn(), genererScript: vi.fn(),
-      rouvrirPlan: vi.fn(), basculerImmersif: vi.fn(), orgChangee: vi.fn(),
+      rouvrirPlan: vi.fn(), basculerImmersif: vi.fn(), orgChangee: vi.fn(), ouvrirAutres: vi.fn(),
     };
+    barre.ouvrirAutres.subscribe(espions.ouvrirAutres);
     barre.choisir.subscribe(espions.choisir);
     barre.remonter.subscribe(espions.remonter);
     barre.toutEffacer.subscribe(espions.toutEffacer);
@@ -107,6 +154,7 @@ describe('BarreParcoursComponent', () => {
     el.querySelector<HTMLButtonElement>('[data-script-dv360]')!.click();
     el.querySelector<HTMLButtonElement>('[data-rouvrir-plan]')!.click();
     el.querySelector<HTMLButtonElement>('[data-immersif]')!.click();
+    el.querySelector<HTMLButtonElement>('[data-autres]')!.click();
     (fixture.debugElement.query(By.css('mg-badge-session')).componentInstance as { orgChangee: { emit(v: string | null): void } })
       .orgChangee.emit('org-2');
 
@@ -118,5 +166,6 @@ describe('BarreParcoursComponent', () => {
     expect(espions.rouvrirPlan).toHaveBeenCalledTimes(1);
     expect(espions.basculerImmersif).toHaveBeenCalledTimes(1);
     expect(espions.orgChangee.mock.calls).toEqual([['org-2']]);
+    expect(espions.ouvrirAutres).toHaveBeenCalledTimes(1);
   });
 });

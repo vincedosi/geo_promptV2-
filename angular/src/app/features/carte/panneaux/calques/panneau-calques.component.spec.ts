@@ -85,9 +85,9 @@ function monter() {
 describe('PanneauCalquesComponent', () => {
   afterEach(() => localStorage.clear());
 
-  it('les groupes dans l’ordre de React, « Campagne active » absent sans campagne, tous repliés', () => {
+  it('les groupes dans l’ordre de React, « Campagne active » absent sans campagne, tous repliés ; « Médias offline » parti dans « Autres » (T11b)', () => {
     const { el, titres } = monter();
-    expect(titres()).toEqual(['Socio-démographie', 'POI et mobilité', 'Médias offline', 'Environnement']);
+    expect(titres()).toEqual(['Socio-démographie', 'POI et mobilité', 'Environnement']);
     expect([...el.querySelectorAll('button[data-groupe]')].every((b) => b.getAttribute('aria-expanded') === 'false')).toBe(true);
     expect(el.textContent).toContain('Actifs (0)');
     expect(el.textContent).toContain('Aucun calque affiché');
@@ -181,7 +181,7 @@ describe('PanneauCalquesComponent', () => {
     expect(el.textContent).toContain('×1.5');
   });
 
-  it('POI et mobilité, Médias offline : les vraies sections (T8) ; badges et « Actifs » suivent les sélections', async () => {
+  it('POI et mobilité : les vraies sections (T8) ; badges et « Actifs » suivent les sélections', async () => {
     const { el, rendre, etat, groupe } = monter();
     groupe('POI et mobilité').click();
     await rendre();
@@ -207,38 +207,37 @@ describe('PanneauCalquesComponent', () => {
     expect(el.querySelector('[data-type="bus"]')!.getAttribute('aria-pressed')).toBe('true');
     expect(el.textContent).toContain('POI (2)');
     expect(el.textContent).toContain('Transport (1)');
-    groupe('Médias offline').click();
-    await rendre();
-    expect(el.querySelector('mg-section-ooh')).not.toBeNull();
-    (el.querySelector('mg-section-ooh mg-entete-filtre') as HTMLElement).click();
-    await rendre();
-    (el.querySelector('[data-tout]') as HTMLButtonElement).click();
-    await rendre();
-    expect(el.textContent).toContain('OOH (8 régies)');
-    expect(groupe('Médias offline').querySelector('[data-compte]')!.textContent!.trim()).toBe('8');
     (el.querySelector('[data-actif="poi"] button') as HTMLButtonElement).click();
     await rendre();
     expect(etat.poiSelectionnes()).toEqual([]);
   });
 
-  it('T9 : TMJA dans « POI et mobilité », radio dans « Médias offline » ; « Actifs » et comptes de groupe ; les croix éteignent', async () => {
-    const { el, rendre, groupe, tmja, radio } = monter();
+  it('T9 : TMJA dans « POI et mobilité » ; « Actifs » et compte de groupe ; la croix éteint', async () => {
+    const { el, rendre, groupe, tmja } = monter();
     groupe('POI et mobilité').click();
-    groupe('Médias offline').click();
     await rendre();
     expect(el.querySelector('mg-section-tmja')).not.toBeNull();
-    expect(el.querySelector('mg-section-radio')).not.toBeNull();
     tmja.afficher();
+    await rendre();
+    expect(el.textContent).toContain('Actifs (1)');
+    expect([...el.querySelectorAll('[data-actif]')].map((a) => a.getAttribute('data-actif'))).toEqual(['tmja']);
+    expect(groupe('POI et mobilité').textContent).toContain('1');
+    (el.querySelector('[data-actif="tmja"] button') as HTMLButtonElement).click();
+    await rendre();
+    expect(tmja.visible()).toBe(false);
+  });
+
+  it('T11b (Vincent, 14/10) : ni panneaux OOH ni radio dans ② — ils vivent dans « Autres » ; la radio allumée n’est pas un calque actif de ②', async () => {
+    const { el, rendre, groupe, radio } = monter();
+    for (const g of ['Socio-démographie', 'POI et mobilité', 'Environnement']) groupe(g).click();
+    await rendre();
+    expect(el.querySelector('mg-section-ooh')).toBeNull();
+    expect(el.querySelector('mg-section-radio')).toBeNull();
+    expect(el.textContent).not.toContain('Médias offline');
     radio.basculer();
     await rendre();
-    expect(el.textContent).toContain('Actifs (2)');
-    expect([...el.querySelectorAll('[data-actif]')].map((a) => a.getAttribute('data-actif'))).toEqual(['tmja', 'radio']);
-    expect(groupe('POI et mobilité').textContent).toContain('1');
-    expect(groupe('Médias offline').textContent).toContain('1');
-    (el.querySelector('[data-actif="tmja"] button') as HTMLButtonElement).click();
-    (el.querySelector('[data-actif="radio"] button') as HTMLButtonElement).click();
-    await rendre();
-    expect([tmja.visible(), radio.visible()]).toEqual([false, false]);
+    expect(el.querySelector('[data-actif="radio"]')).toBeNull();
+    expect(el.textContent).toContain('Actifs (0)');
   });
 
   it('Environnement (T10) : indicateurs civiques et santé ; compte, « Actifs » et croix ; les deux s’évincent', async () => {
