@@ -1,11 +1,21 @@
 import { TestBed } from '@angular/core/testing';
-import { CONSIGNE_ETAPE } from '../logique/parcours';
+import { CONSIGNE_AUTRES, CONSIGNE_ETAPE } from '../logique/parcours';
 import { AideComponent, formaterRaccourci } from './aide.component';
 
 describe('AideComponent — l’aide de l’étape et les raccourcis du parcours', () => {
   it('formaterRaccourci : « alt+1 » → « Alt + 1 »', () => {
     expect(formaterRaccourci('alt+1')).toBe('Alt + 1');
     expect(formaterRaccourci('ctrl+k')).toBe('Ctrl + K');
+  });
+
+  it('T11b : « Autres » ouvert → l’aide de « Autres » (hors parcours, sans numéro), pas celle de l’étape d’en dessous', async () => {
+    const fixture = TestBed.createComponent(AideComponent);
+    fixture.componentRef.setInput('etape', 'autres');
+    await fixture.whenStable();
+    const aide = (fixture.nativeElement as HTMLElement).querySelector('[data-aide-etape]')!;
+    expect(aide.querySelector('h4')!.textContent!.trim()).toBe('Autres, hors parcours');
+    expect(aide.textContent).toContain(CONSIGNE_AUTRES);
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('[data-raccourci]')).toHaveLength(9);
   });
 
   it('l’aide suit l’étape : « 3. Zones » et sa consigne ; puis 9 raccourcis, ①…⑧ et Échap, dérivés du parcours', async () => {

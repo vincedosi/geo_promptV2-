@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { CONSIGNE_ETAPE, ETAPES_CARTE, type EtapeCarte, LIBELLE_ETAPE_CARTE, rangEtapeCarte } from '../logique/parcours';
+import {
+  CONSIGNE_AUTRES, CONSIGNE_ETAPE, ETAPES_CARTE, LIBELLE_AUTRES, LIBELLE_ETAPE_CARTE, VUE_AUTRES, type VueParcours, rangEtapeCarte,
+} from '../logique/parcours';
 
 /** 'alt+1' -> 'Alt + 1' — `formaterRaccourci` de `HelpOverlay.tsx:7-12`. */
 export function formaterRaccourci(raccourci: string): string {
@@ -22,7 +24,7 @@ const RACCOURCIS = [
   host: { class: 'flex flex-col gap-4 px-4 py-3 font-sans' },
   template: `
     <section data-aide-etape>
-      <h4 class="m-0 text-[12px] font-medium text-primary">{{ rang() }}. {{ libelle() }}</h4>
+      <h4 class="m-0 text-[12px] font-medium text-primary">{{ titre() }}</h4>
       <p class="mb-0 mt-1 text-[12px] leading-[1.5] text-secondary">{{ consigne() }}</p>
       <p class="mb-0 mt-1 text-[11px] leading-[1.5] text-tertiary">Le parcours n’est pas un tunnel : chaque étape reste ouverte, dans les deux sens.</p>
     </section>
@@ -38,9 +40,15 @@ const RACCOURCIS = [
   `,
 })
 export class AideComponent {
-  readonly etape = input.required<EtapeCarte>();
-  protected readonly rang = computed(() => rangEtapeCarte(this.etape()));
-  protected readonly libelle = computed(() => LIBELLE_ETAPE_CARTE[this.etape()]);
-  protected readonly consigne = computed(() => CONSIGNE_ETAPE[this.etape()]);
+  /** L'étape courante, ou « Autres » (T11b) — hors parcours, sans numéro. */
+  readonly etape = input.required<VueParcours>();
+  protected readonly titre = computed(() => {
+    const e = this.etape();
+    return e === VUE_AUTRES ? `${LIBELLE_AUTRES}, hors parcours` : `${rangEtapeCarte(e)}. ${LIBELLE_ETAPE_CARTE[e]}`;
+  });
+  protected readonly consigne = computed(() => {
+    const e = this.etape();
+    return e === VUE_AUTRES ? CONSIGNE_AUTRES : CONSIGNE_ETAPE[e];
+  });
   protected readonly raccourcis = RACCOURCIS;
 }

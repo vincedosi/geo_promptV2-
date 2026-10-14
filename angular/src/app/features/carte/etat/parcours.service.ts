@@ -34,6 +34,8 @@ export class ParcoursService {
   readonly vue: Signal<VueParcours> = computed(() => (this._autres() ? VUE_AUTRES : this.courante()));
   private readonly _visitees = signal<ReadonlySet<VueParcours>>(new Set([this.vue()]));
   readonly visitees: Signal<ReadonlySet<VueParcours>> = this._visitees.asReadonly();
+  /** « Autres » a-t-il déjà été ouvert ? Son panneau est alors monté, et gardé (A1). */
+  readonly autresMonte: Signal<boolean> = computed(() => this._visitees().has(VUE_AUTRES));
   /**
    * Le dernier `?etape=` écrit OU lu, tel que l'URL le porte : `null` = paramètre ABSENT, `''` = présent mais vide.
    * La distinction est le point : `/carte?etape=` (vide) est lu comme ① mais n'est pas la forme canonique `/carte`,

@@ -44,7 +44,7 @@
       </div>
     }
     <!-- « Autres » (T11b) : hors du fil, dans le MÊME cadre ; monté à la première ouverture puis gardé, comme une étape. -->
-    @if (parcours.visitees().has('autres')) {
+    @if (parcours.autresMonte()) {
       <div data-panneau-autres class="flex min-h-0 flex-col overflow-y-auto overflow-x-hidden py-2"
            [class.invisible]="!parcours.autres()" [class.absolute]="!parcours.autres()" [class.inset-0]="!parcours.autres()"
            [attr.inert]="parcours.autres() ? null : ''" [attr.aria-hidden]="parcours.autres() ? null : 'true'">
@@ -73,7 +73,7 @@
   <!-- La boîte à outils (spec § 6, T5) : fond, légende, aide, réglages — et, en immersif, la sortie à la souris (Échap
        aussi). Écartée des panneaux ouverts au bord droit (ruling AT-3) ; hors du `@for` du fond, elle survit à la
        recréation de la carte. Les annonces y sont projetées, SOUS la colonne. -->
-  <mg-boite-outils [droite]="decalageOutils()" [fond]="fond()" [etape]="parcours.etape()" [immersif]="etat.immersif()"
+  <mg-boite-outils [droite]="decalageOutils()" [fond]="fond()" [etape]="parcours.vue()" [immersif]="etat.immersif()"
                    (choisirFond)="choisirFond($event)" (quitterImmersif)="basculerImmersif()">
     <mg-annonce />
   </mg-boite-outils>

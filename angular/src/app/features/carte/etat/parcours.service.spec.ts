@@ -83,6 +83,7 @@ describe('ParcoursService — l’étape dans l’URL', () => {
   it('T11b : ouvrirAutres écrit ?etape=autres, sans étape courante ; choisir une étape referme « Autres » et réécrit l’étape', async () => {
     const { hote, router, stable } = await ouvrir('/carte?etape=zones');
     expect(hote.parcours.autres()).toBe(false);
+    expect(hote.parcours.autresMonte()).toBe(false);
     expect(hote.parcours.vue()).toBe('zones');
     const nav = vi.spyOn(router, 'navigate');
     hote.parcours.ouvrirAutres();
@@ -94,6 +95,7 @@ describe('ParcoursService — l’étape dans l’URL', () => {
     // L'étape quittée reste celle d'en dessous (rien n'est démonté), « Autres » rejoint les vues montées.
     expect(hote.parcours.etape()).toBe('zones');
     expect([...hote.parcours.visitees()].sort()).toEqual(['autres', 'zones']);
+    expect(hote.parcours.autresMonte()).toBe(true);
     hote.parcours.ouvrirAutres();
     await stable();
     expect(nav).toHaveBeenCalledTimes(1);

@@ -17,7 +17,7 @@ export interface EtapeAffichee {
   selector: 'mg-fil-etapes',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <nav aria-label="Étapes du parcours" class="flex items-center gap-0.5 ml-1">
+    <nav aria-label="Étapes du parcours" class="flex items-center ml-1" [class]="compact() ? 'gap-0' : 'gap-0.5'">
       @for (e of etapes(); track e.cle; let i = $index) {
         @if (i > 0) { <span aria-hidden="true" class="text-[11px] text-tertiary">›</span> }
         <button #bouton type="button"
@@ -58,13 +58,15 @@ export class FilEtapesComponent {
   /**
    * Littéral : Tailwind lit les classes dans le source. Seuil = le fil complet en compact au PIRE du lot 1 : ≈ 606 px
    * sans pastille (`px-1`, mesuré au round 1), plus ① et ② « renseignées » (≈ 10 px chacune) et le `font-medium` de
-   * l'étape courante, plus le bouton « Autres » que la barre pose dans le MÊME conteneur depuis T11b. Mesuré le 14/10 au
-   * navigateur : fil complet 579 px sans pastille (≈ 599 avec ① et ② renseignées), « Autres » 45 px, filet 1 px, deux
-   * écarts de 6 px — ≈ 657 px au pire : sous 660 px il se replie au lieu de défiler. Seule la barre du parcours pose
-   * `compact`. À 1 280 px : replié ; à 1 440 px, lisible si le badge de session laisse 660 px (un badge super_admin long
-   * — 367 px, « dentsu.explore (interne) » — n'en laisse que 642 : replié).
+   * l'étape courante, plus le bouton « Autres » que la barre pose dans le MÊME conteneur depuis T11b. En compact, le `nav`
+   * n'a AUCUN écart (`gap-0`, −28 px ; les `px-1` des boutons séparent déjà les chevrons). Mesuré le 14/10 au navigateur
+   * (round 1 de T11b), au pire — ① et ② renseignées, « 5 Jeu de zones » courante en gras : fil 571 px, filet 1, « Autres »
+   * 45, deux écarts de 4 px = 625 px. Sous 630 px il se replie au lieu de défiler. Seule la barre du parcours pose
+   * `compact`. À 1 440 px, fil d'Ariane « France entière » : 646 px offerts avec le badge super_admin long (367 px,
+   * « dentsu.explore (interne) »), tout lisible ; à 1 280 px (≈ 486 px) : replié. Une précision au fil d'Ariane
+   * (« métropole ») ou un filtre posé réduit la place comme avant T11b.
    */
-  protected readonly repli = '@max-[660px]:sr-only';
+  protected readonly repli = '@max-[630px]:sr-only';
   readonly choisir = output<string>();
 
   private readonly boutons = viewChildren<ElementRef<HTMLButtonElement>>('bouton');

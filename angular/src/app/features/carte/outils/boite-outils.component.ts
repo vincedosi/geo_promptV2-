@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, output } f
 import { IconeComponent } from '../../../ui/icone/icone.component';
 import type { NomIcone } from '../../../ui/icone/icones';
 import { ChoixFondComponent } from '../commun/choix-fond.component';
-import type { EtapeCarte } from '../logique/parcours';
+import type { VueParcours } from '../logique/parcours';
 import { AideComponent } from '../panneaux/aide.component';
 import { LARGEUR_PLAN_MEDIA } from '../panneaux/zones/plan-media.component';
 import { ReglagesComponent } from '../panneaux/reglages.component';
@@ -146,7 +146,8 @@ export class BoiteOutilsComponent {
   /** Écart au bord droit du conteneur carte : `ecartOutils` (10 px, plus les panneaux ouverts au bord droit). */
   readonly droite = input(10);
   readonly fond = input.required<string>();
-  readonly etape = input.required<EtapeCarte>();
+  /** L'étape courante, ou « Autres » (`ParcoursService.vue`) : l'Aide dit celle qu'on regarde. */
+  readonly etape = input.required<VueParcours>();
   readonly immersif = input(false);
   readonly choisirFond = output<string>();
   readonly quitterImmersif = output<void>();

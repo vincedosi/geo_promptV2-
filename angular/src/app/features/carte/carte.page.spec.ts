@@ -1320,6 +1320,12 @@ describe('CartePage — le bouton « Autres », hors du fil (T11b, Vincent 14/10
     expect(panneauCourant(hote)).toBeNull();
     expect(etapeDuFil(hote)).toBeNull();
     expect(autres(hote).getAttribute('aria-current')).toBe('true');
+    // L'Aide de la boîte à outils dit « Autres », pas l'étape d'en dessous (round 1, mineur 3).
+    hote.querySelector<HTMLButtonElement>('mg-boite-outils [data-outil="aide"]')!.click();
+    await stable();
+    expect(hote.querySelector('[data-tiroir-outil] [data-aide-etape] h4')!.textContent!.trim()).toBe('Autres, hors parcours');
+    hote.querySelector<HTMLButtonElement>('mg-boite-outils [data-outil="aide"]')!.click();
+    await stable();
     // L'étape quittée est montée, inerte (A1) ; « Autres » aussi une fois quitté.
     expect(hote.querySelector('[data-panneau-etape="zones"]')!.hasAttribute('inert')).toBe(true);
     hote.querySelectorAll<HTMLButtonElement>('mg-fil-etapes nav button')[1].click();

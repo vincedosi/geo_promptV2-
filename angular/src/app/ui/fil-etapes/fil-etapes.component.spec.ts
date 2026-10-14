@@ -47,6 +47,7 @@ describe('FilEtapesComponent', () => {
     expect(boutons.every((b) => !b.classList.contains('whitespace-nowrap') && b.classList.contains('px-2.5'))).toBe(true);
     expect(boutons.every((b) => !b.hasAttribute('title'))).toBe(true);
     expect(el.querySelector('[data-libelle-etape]')!.className).toBe('');
+    expect(el.querySelector('nav')!.classList).toContain('gap-0.5');
   });
 
   it('compact (barre du parcours de la carte, 8 étapes) : une ligne par étape ; les libellés des étapes NON courantes se replient en numéro quand la barre est étroite, lus quand même et en infobulle', async () => {
@@ -57,7 +58,12 @@ describe('FilEtapesComponent', () => {
     expect(boutons.every((b) => b.classList.contains('min-w-6') && b.classList.contains('h-[30px]') && b.classList.contains('justify-center'))).toBe(true);
     const libelles = [...el.querySelectorAll('[data-libelle-etape]')];
     // Requête de CONTENEUR (`@container` posé par la barre) : la largeur de la barre décide, pas celle de la fenêtre.
-    expect(libelles.map((l) => l.classList.contains('@max-[660px]:sr-only'))).toEqual([true, false, true]);
+    expect(libelles.map((l) => l.classList.contains('@max-[630px]:sr-only'))).toEqual([true, false, true]);
+    // T11b round 1 : en compact, aucun écart entre boutons et chevrons (−28 px sur 8 étapes) — les 8 libellés tiennent
+    // à 1 440 px avec « Autres » dans le même conteneur, badge de session long compris.
+    const nav = el.querySelector('nav')!;
+    expect(nav.classList).toContain('gap-0');
+    expect(nav.classList).not.toContain('gap-0.5');
     // Le texte reste dans le bouton (lecteur d'écran, tests) ; l'infobulle le redit à la souris.
     expect(boutons.map((b) => b.textContent!.replace(/\s+/g, ' ').trim())).toEqual(['1 Premier (renseignée)', '2 Deuxième', '3 Troisième']);
     expect(boutons.map((b) => b.getAttribute('title'))).toEqual(['Premier', null, 'Troisième']);

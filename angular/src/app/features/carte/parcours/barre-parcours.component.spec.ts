@@ -64,6 +64,9 @@ describe('BarreParcoursComponent', () => {
     expect(blocs).toEqual(['mg-logo', 'mg-fil-ariane', 'div', 'effacer', 'immersif', 'mg-bascule-theme', 'mg-badge-session']);
     // « Autres » suit le fil DANS son conteneur (T11b) : fil, filet, bouton — à côté des étapes, pas des actions.
     const conteneur = el.querySelector('mg-fil-etapes')!.parentElement!;
+    // Écart serré (round 1 de T11b) : chaque pixel compte pour garder les 8 libellés à 1 440 px.
+    expect(conteneur.classList).toContain('gap-1');
+    expect(conteneur.classList).not.toContain('gap-1.5');
     expect([...conteneur.children].map((c) => c.hasAttribute('data-separateur-autres') ? 'filet' : c.hasAttribute('data-autres') ? 'autres' : c.tagName.toLowerCase()))
       .toEqual(['mg-fil-etapes', 'filet', 'autres']);
   });

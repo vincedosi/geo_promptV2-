@@ -33,8 +33,8 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   `ParcoursService` (`replaceUrl`, `merge`) ; ① n'est pas écrite. Pas un tunnel : chaque étape reste ouverte.
   `?etape=` porte un IDENTIFIANT (`perimetre`, `donnees`, `zones`, `analyse`, `jeu`, `plan`, `activation`, `live`),
   jamais un numéro : les liens d'avant le passage à 8 étapes restent valides, et il n'y a pas d'alias numérique.
-  Le fil est COMPACT (`[compact]="true"`, conteneur `@container`) : une ligne par étape, et sous 660 px de conteneur (« Autres » compris, T11b)
-  les étapes non courantes se replient en numéro (libellé en `sr-only` et en infobulle) — 1 440 px lisible si le badge de session le permet, 1 280 px replié.
+  Le fil est COMPACT (`[compact]="true"`, conteneur `@container`) : une ligne par étape, et sous 630 px de conteneur (« Autres » compris ; `nav` compact sans écart, T11b)
+  les étapes non courantes se replient en numéro (libellé en `sr-only` et en infobulle) — 1 440 px tout lisible (fil d'Ariane « France entière », badge super_admin long compris), 1 280 px replié.
 - **« Autres »** (T11b, Vincent 14/10) : un bouton de la barre, juste après le fil et séparé de lui par un filet — au
   niveau des étapes mais HORS du parcours : ni numéro, ni `Alt+N`, hors de la liste `nav` des étapes (« Autres, hors
   parcours » pour le lecteur d'écran). Il ouvre `mg-panneau-autres` dans le cadre du panneau d'étape et s'écrit
