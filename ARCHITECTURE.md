@@ -1142,6 +1142,7 @@ l'organisation proprietaire reste affichee en lecture seule. Garde :
   jamais propose.
 - **Routes** : `GET /api/admin/espaces`, `…/espaces/socle`, `…/espaces/comptes`,
   `…/espaces/[id]/donnees`, `…/espaces/[id]/membres`, `…/espaces/[id]/apercu`,
+  `GET`/`PUT …/espaces/[id]/jeux-recommandes` (sélection recommandée, 2026-10-14),
   `PUT /api/admin/users/[id]/espaces`,
   plus les routes existantes (organisations, membres, `sources/assign`,
   `PATCH /api/admin/sources/[id]`, utilisateurs) — detail dans le tableau des routes
@@ -1262,6 +1263,29 @@ Outils de `lib/auth/perimetre-donnees.ts` :
   `invalidateCategoriesCache` vide les deux caches ; `?refresh=1` sur la route
   ne le declenche que pour un appelant connecte (un anonyme pouvait sinon
   forcer la relecture a chaque appel).
+- `libellesCategories` / `avecLibelles` (`lib/poi/libelles-categories.ts`,
+  extraits de `/api/map/categories` le 2026-10-13, comportement identique) —
+  libelle `label_fr` de `poi_categories` (une requete `in`), sinon la
+  categorie capitalisee, `_` → espace.
+- **Registre des jeux de la carte** (`lib/carte/jeux-carte.ts`, chantier
+  « carte en parcours », 2026-10-13 ; copie Angular verrouillee
+  `features/carte/logique/jeux-carte.ts`) : les dix referentiels communs
+  (`JEUX_REFERENTIELS`, ordre de l'etape ②), la cle `famille:nom` d'un jeu
+  (`RE_CLE_JEU` = le CHECK de `espace_jeux_recommandes`, sql/251), `cleJeuPoi`
+  (`poi:<categorie>`, `null` si la categorie ne donne pas une cle conforme),
+  `CATEGORIES_HORS_POI` (`risque_industriel`, range dans `risques:icpe-pprt`)
+  et `estCleJeuConnue` — qui ne verifie que la FORME d'une cle `poi:`, pas
+  l'existence de la categorie.
+- **Jeux recommandables** (`lib/carte/jeux-recommandables.ts`, 2026-10-14) :
+  `jeuxRecommandables(supabase, orgId)` rend les referentiels puis les types de
+  POI du SOCLE (`getOrgSourceIds(null, { vueEspace: true })` puis
+  `getCategoriesVisibles` — meme empreinte de cache que `/api/map/categories`
+  sans session, donc aucune lecture leapfrog de plus), hors
+  `CATEGORIES_HORS_POI` et hors cles non conformes, chacun avec `recommande` ;
+  `null` = espace introuvable (aucune categorie lue). `clesPoiInconnues(cles)`
+  rend les cles `poi:` hors de ces types (rien n'est lu sans cle `poi:`) : c'est
+  la verification d'EXISTENCE que `estCleJeuConnue` ne fait pas. Lectures
+  sequentielles.
 
 **Verrous :** `tests/integration/cloisonnement-rls.test.ts` rejoue 44 attaques
 PostgREST avec de vrais comptes MARINE / BMW / DRHAT (dont un `admin` d'espace
@@ -1375,6 +1399,7 @@ le Voronoi, a sa route directe `GET /api/voronoi` (lot 4).
 |-------|---------|-------------|
 | `/api/map/pois` | POST | POI dans une zone avec filtres categorie. ⚠ **POST et non GET** : la route n'exporte que `POST` (`app/api/map/pois/route.ts:67`) ; ce tableau annoncait GET jusqu'au lot 4, T8 (2026-10-07). `bbox` optionnelle (Tache 4, `[west,south,east,north]`) : envoyee par la carte uniquement quand un filtre carte est actif (`lib/carte/bbox-requete.ts`) — absente, comportement inchange (scope/regions/depts/ville seuls decident) |
 | `/api/map/categories` | GET | Categories POI VISIBLES de l'appelant (`getCategoriesVisibles`) ; route publique : sans session, le socle seul. Super_admin compris : celles de son espace actif (`vueEspace`, 2026-10-12), plus « tout ». Reponse `{ categories: { id, label, origine: 'commune' \| 'espace' }[] }` : « espace » si au moins un POI visible vient d'une source propre a l'espace (`getSourcesPropresEspace`), categorie mixte comprise |
+| `/api/map/jeux-recommandes` | GET | Sélection recommandée de l'espace ACTIF pour l'étape ② (spec carte-en-parcours § 7.2) : `{ cles: string[] }` triées, lues dans `espace_jeux_recommandes` (≤ 200 lignes par espace, sql/251 — bornée sous `db-max-rows`). Super_admin compris (la carte voit comme l'espace choisi). Sans session, sans espace ou espace non UUID : `{ cles: [] }` SANS lecture. 500 `{ error: 'Sélection recommandée indisponible.' }`, détail en console serveur. Route publique ASSUMÉE comme `/api/map/categories` (`routes-publiques.test.ts`, `middleware.ts` inchangé). ⚠ **Range, n'ouvre aucun droit et ne précharge rien** |
 | `/api/map/ooh` | POST | Panneaux OOH. `bbox` optionnelle (Tache 4), meme regle que `/api/map/pois`. Lecture PAGINEE par `lireTout` (borne `PLAFOND_PANNEAUX` = 5 000, au-dela 500 en français plutot qu'un debut) : l'ancien `.limit(5000)` rendait 1 000 panneaux sur 1 434 actifs, plafond `db-max-rows` (corrige le 2026-10-10, mesure : 1 000 → 1 434) |
 | `/api/map/transport` | GET | Arrets de transport de la vue (`west/south/east/north`, `types`). UN appel a la RPC `lire_arrets_transport_bbox` (sql/241, `jsonb`, index GIST), borne VOULUE `BORNE_ARRETS` = 5 000 (285 015 arrets en France) : au-dela, les 5 000 premiers par `id` et **`tronque: true`** dans la reponse — lu par l'interface Angular depuis le 2026-10-12 (revue finale du lot 4, I-2b) : la legende de la carte dit « N arrêts affichés, liste tronquée — zoomez pour tout voir » sous le compte (`mentionArretsTronques`, `couches/transport.service.ts`) ; React ne l'affiche toujours pas (gel P5). L'ancien `.limit(5000)` rendait 1 000 arrets (plafond `db-max-rows` ; Marseille-Est : 1 000 → 1 626). ⚠ Une lecture PAGINEE a ete essayee puis retiree le meme jour : chaque page de 1 000 refaisait le parcours de l'index de categorie, ≈ 177 000 buffers sur la vue de Paris contre ≈ 6 800 pour la RPC |
 | `/api/map/poi-natures` | GET | Natures de POI. ⚠ Pour `risque_industriel`, les natures sont servies depuis le registre borne `icpe_rubrique_familles` et NON par un balayage des POI : le chemin generique pagine toutes les lignes de la categorie en tirant le jsonb entier, soit ~100 requetes et des centaines de Mo sur 99 152 sites — la famille de l'incident du 28/03 |
@@ -1583,6 +1608,7 @@ le Voronoi, a sa route directe `GET /api/voronoi` (lot 4).
 | `/api/admin/espaces/socle` | GET | Tous les jeux de données + `nb_espaces_clients` (fiche Socle) ; segment fixe à côté de `[id]` |
 | `/api/admin/espaces/comptes` | GET | `{ comptes }` : TOUS les profils avec TOUS leurs espaces (`nom_affiche`, E2), espace actif, `cree_le`, tri par email — vue « Tous les comptes » de la page Accès (2026-10-10) ; `lib/espaces/lister-comptes.ts` ; super_admin seul ; profils et appartenances lus PAGE PAR PAGE (`lireTout`, `db-max-rows` = 1 000), au-delà de 10 000 comptes / 50 000 appartenances → 500 plutôt qu'une liste tronquée ; segment fixe à côté de `[id]` |
 | `/api/admin/espaces/[id]/donnees` | GET | Chaque jeu avec son statut POUR l'espace (`proprietaire`/`partage`/`socle`/`non_visible`, `statutPourEspace` = condition de `getOrgSourceIds` / `source_visible`, sql/234) ; 400 id non UUID, 404 espace inconnu |
+| `/api/admin/espaces/[id]/jeux-recommandes` | GET/PUT | **Sélection recommandée** de l'espace (spec carte-en-parcours § 7.2 ; bloc « Données » de la fiche espace). GET → `{ jeux: { cle, nom, nature, maille, recommande }[] }` : les dix référentiels du registre puis les types de POI du SOCLE (`jeuxRecommandables`, `lib/carte/jeux-recommandables.ts`). PUT corps `{ cles: string[] }` (200 au plus, chacune un référentiel ou un type de POI du socle ; `[]` vide la sélection) → `{ cles: string[] }` triées, écrit par la RPC `remplacer_jeux_recommandes` (sql/251, une transaction ; jamais DELETE + INSERT côté route). super_admin seul (403 sinon) ; 400 id non UUID, corps illisible, clé hors registre, type de POI absent des données communes (`clesPoiInconnues`, la liste est nommée) — la sélection reste alors intacte ; 404 espace inconnu ; 500 message français fixe, détail Postgres en console serveur seulement. ⚠ **Range, ne donne ni ne retire aucun droit** |
 | `/api/admin/espaces/[id]/membres` | GET | `{ membres }` avec leurs AUTRES espaces ; 404 espace inconnu |
 | `/api/admin/espaces/[id]/apercu` | GET | « Ce que voit cet espace » : appelle `getOrgSourceIds` (session client simulée) + `getCategoriesVisibles` ; catégories SANS effectif (aucun COUNT sur `poi_france`), `nb_campagnes` ; zones/jeux de zones absents (rattachés à un utilisateur) |
 | `/api/admin/users/[id]/espaces` | PUT | Remplace les espaces d'un utilisateur ET son espace actif en UNE transaction (RPC `remplacer_espaces_utilisateur`, sql/236, via `remplacerEspaces` de `lib/espaces/appartenance.ts`) ; corps `{ espaces: uuid[] (50 au plus, sans doublon), espace_actif: uuid \| null }` ; super_admin seul ; 400 corps invalide, espace inconnu ou actif hors liste (client), 404 utilisateur inconnu |
@@ -2005,7 +2031,7 @@ l'enveloppe `{ error, nb_polygones: 0, category }`. `maxDuration` 60 s (lycees :
 ### Admin & Monitoring
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
-| `remplacer_jeux_recommandes` | Remplace la sélection recommandée d'un espace (`espace_jeux_recommandes`) en UNE transaction : `(p_organization_id uuid, p_cles text[])` → `RETURNS jsonb` `{ cles: [...] }`, triées et dédoublonnées ; liste vide = tout effacer. Erreurs : `22004` espace `null`, `22023` au-delà de 200 clés, `23514` sur une clé mal formée (la liste précédente reste intacte), `23503` espace inexistant. Verrouille d'abord la ligne de l'espace (`FOR NO KEY UPDATE`) : sans ce verrou, deux remplacements simultanés aux listes disjointes laissaient leur UNION (mesuré le 2026-10-13, deux sessions psql) ; ils passent désormais en file, le dernier remplace tout. Range, ne donne aucun droit. `SECURITY INVOKER`, `service_role` seul. Un DELETE puis un INSERT côté route doublerait ou viderait sur une erreur à moitié — d'où la RPC | aucun appelant à ce jour (route d'admin à venir, chantier « carte en parcours ») (sql/251, 2026-10-13) |
+| `remplacer_jeux_recommandes` | Remplace la sélection recommandée d'un espace (`espace_jeux_recommandes`) en UNE transaction : `(p_organization_id uuid, p_cles text[])` → `RETURNS jsonb` `{ cles: [...] }`, triées et dédoublonnées ; liste vide = tout effacer. Erreurs : `22004` espace `null`, `22023` au-delà de 200 clés, `23514` sur une clé mal formée (la liste précédente reste intacte), `23503` espace inexistant. Verrouille d'abord la ligne de l'espace (`FOR NO KEY UPDATE`) : sans ce verrou, deux remplacements simultanés aux listes disjointes laissaient leur UNION (mesuré le 2026-10-13, deux sessions psql) ; ils passent désormais en file, le dernier remplace tout. Range, ne donne aucun droit. `SECURITY INVOKER`, `service_role` seul. Un DELETE puis un INSERT côté route doublerait ou viderait sur une erreur à moitié — d'où la RPC | `PUT /api/admin/espaces/[id]/jeux-recommandes` (2026-10-14) (sql/251, 2026-10-13) |
 | `get_table_sizes` | Taille tables (monitoring) | `api/admin/health/` |
 | `qualite_colonnes_iris` | Remplissage de CHAQUE colonne numerique d'`iris` en UN SEUL balayage (~220 Mo, 1,4 s). Se distingue de `get_iris_fill_status`, qui fait un COUNT par colonne (~40 balayages, ~8,8 Go) et confond une colonne vide avec une colonne pleine de zeros | `api/admin/qualite-donnees/` (sql/149) |
 | `qualite_indicateurs` | Quels indicateurs ACTIFS du registre pointent vers une colonne vide, partielle ou absente. La verification la plus rentable du lot : elle aurait attrape `part_couples_enfants` (0 renseigne sur 49 448 IRIS, actif donc propose a l'utilisateur) avant qu'un score ne soit calcule dessus | `api/admin/qualite-donnees/` (sql/149) |
