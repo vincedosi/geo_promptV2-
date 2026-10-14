@@ -1257,7 +1257,9 @@ Outils de `lib/auth/perimetre-donnees.ts` :
   montre ou dicte a l'IA. `getDistinctCategories` reste interne : un nom de
   categorie (« bmw ») suffit a reveler qu'un client existe. Resultat mis en
   cache 5 min par `empreintePerimetre(sources)` (200 perimetres au plus, une
-  liste partielle n'est jamais cachee, `strict` relit toujours) : sans lui,
+  liste partielle n'est jamais cachee, `strict` relit toujours ; `surEchec`,
+  optionnel, est appele quand une lecture echoue sans `strict` — il dit que la
+  liste rendue est peut-etre partielle sans contourner le cache, 2026-10-14) : sans lui,
   chaque appel de `/api/map/categories` (route publique) ou du chat lisait
   ≈ 35 000 pages (≈ 270 Mo, EXPLAIN BUFFERS du 2026-10-09).
   `invalidateCategoriesCache` vide les deux caches ; `?refresh=1` sur la route
@@ -1282,10 +1284,15 @@ Outils de `lib/auth/perimetre-donnees.ts` :
   `getCategoriesVisibles` — meme empreinte de cache que `/api/map/categories`
   sans session, donc aucune lecture leapfrog de plus), hors
   `CATEGORIES_HORS_POI` et hors cles non conformes, chacun avec `recommande` ;
-  `null` = espace introuvable (aucune categorie lue). `clesPoiInconnues(cles)`
+  `null` = espace introuvable (aucune categorie lue). `socleIncomplet` : vrai si
+  la lecture des sources du socle a rendu `[]` ou si `getCategoriesVisibles` a
+  signale un echec (`surEchec`) — l'ecran Acces refuse alors d'enregistrer,
+  une liste lue pendant une panne effacerait les `poi:` deja recommandes
+  (relecture T10, 2026-10-14). `clesPoiInconnues(cles)`
   rend les cles `poi:` hors de ces types (rien n'est lu sans cle `poi:`) : c'est
-  la verification d'EXISTENCE que `estCleJeuConnue` ne fait pas. Lectures
-  sequentielles.
+  la verification d'EXISTENCE que `estCleJeuConnue` ne fait pas ; sur une lecture
+  incomplete elle LEVE (500) plutot que de declarer « absente » une categorie
+  non lue. Lectures sequentielles.
 
 **Verrous :** `tests/integration/cloisonnement-rls.test.ts` rejoue 44 attaques
 PostgREST avec de vrais comptes MARINE / BMW / DRHAT (dont un `admin` d'espace
@@ -1608,7 +1615,7 @@ le Voronoi, a sa route directe `GET /api/voronoi` (lot 4).
 | `/api/admin/espaces/socle` | GET | Tous les jeux de données + `nb_espaces_clients` (fiche Socle) ; segment fixe à côté de `[id]` |
 | `/api/admin/espaces/comptes` | GET | `{ comptes }` : TOUS les profils avec TOUS leurs espaces (`nom_affiche`, E2), espace actif, `cree_le`, tri par email — vue « Tous les comptes » de la page Accès (2026-10-10) ; `lib/espaces/lister-comptes.ts` ; super_admin seul ; profils et appartenances lus PAGE PAR PAGE (`lireTout`, `db-max-rows` = 1 000), au-delà de 10 000 comptes / 50 000 appartenances → 500 plutôt qu'une liste tronquée ; segment fixe à côté de `[id]` |
 | `/api/admin/espaces/[id]/donnees` | GET | Chaque jeu avec son statut POUR l'espace (`proprietaire`/`partage`/`socle`/`non_visible`, `statutPourEspace` = condition de `getOrgSourceIds` / `source_visible`, sql/234) ; 400 id non UUID, 404 espace inconnu |
-| `/api/admin/espaces/[id]/jeux-recommandes` | GET/PUT | **Sélection recommandée** de l'espace (spec carte-en-parcours § 7.2 ; bloc « Données » de la fiche espace). GET → `{ jeux: { cle, nom, nature, maille, recommande }[] }` : les dix référentiels du registre puis les types de POI du SOCLE (`jeuxRecommandables`, `lib/carte/jeux-recommandables.ts`). PUT corps `{ cles: string[] }` (200 au plus, chacune un référentiel ou un type de POI du socle ; `[]` vide la sélection) → `{ cles: string[] }` triées, écrit par la RPC `remplacer_jeux_recommandes` (sql/251, une transaction ; jamais DELETE + INSERT côté route). super_admin seul (403 sinon) ; 400 id non UUID, corps illisible, clé hors registre, type de POI absent des données communes (`clesPoiInconnues`, la liste est nommée) — la sélection reste alors intacte ; 404 espace inconnu ; 500 message français fixe, détail Postgres en console serveur seulement. ⚠ **Range, ne donne ni ne retire aucun droit** |
+| `/api/admin/espaces/[id]/jeux-recommandes` | GET/PUT | **Sélection recommandée** de l'espace (spec carte-en-parcours § 7.2 ; bloc « Données » de la fiche espace). GET → `{ jeux: { cle, nom, nature, maille, recommande }[], socleIncomplet: boolean }` : les dix référentiels du registre puis les types de POI du SOCLE (`jeuxRecommandables`, `lib/carte/jeux-recommandables.ts`) ; `socleIncomplet` vrai = types de POI lus en partie seulement (l'écran Accès n'enregistre pas). PUT corps `{ cles: string[] }` (200 au plus, chacune un référentiel ou un type de POI du socle ; `[]` vide la sélection) → `{ cles: string[] }` triées, écrit par la RPC `remplacer_jeux_recommandes` (sql/251, une transaction ; jamais DELETE + INSERT côté route). super_admin seul (403 sinon) ; 400 id non UUID, corps illisible, clé hors registre, type de POI absent des données communes (`clesPoiInconnues`, la liste est nommée) — la sélection reste alors intacte ; 404 espace inconnu ; 500 message français fixe, détail Postgres en console serveur seulement — aussi pour un PUT `poi:` pendant une lecture incomplète des types de POI du socle. ⚠ **Range, ne donne ni ne retire aucun droit** |
 | `/api/admin/espaces/[id]/membres` | GET | `{ membres }` avec leurs AUTRES espaces ; 404 espace inconnu |
 | `/api/admin/espaces/[id]/apercu` | GET | « Ce que voit cet espace » : appelle `getOrgSourceIds` (session client simulée) + `getCategoriesVisibles` ; catégories SANS effectif (aucun COUNT sur `poi_france`), `nb_campagnes` ; zones/jeux de zones absents (rattachés à un utilisateur) |
 | `/api/admin/users/[id]/espaces` | PUT | Remplace les espaces d'un utilisateur ET son espace actif en UNE transaction (RPC `remplacer_espaces_utilisateur`, sql/236, via `remplacerEspaces` de `lib/espaces/appartenance.ts`) ; corps `{ espaces: uuid[] (50 au plus, sans doublon), espace_actif: uuid \| null }` ; super_admin seul ; 400 corps invalide, espace inconnu ou actif hors liste (client), 404 utilisateur inconnu |

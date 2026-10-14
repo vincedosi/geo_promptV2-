@@ -62,4 +62,6 @@ export interface JeuRecommandable extends JeuReferentiel {
 /** `GET /api/admin/espaces/[id]/jeux-recommandes`. */
 export interface ReponseJeuxRecommandables {
   jeux: JeuRecommandable[];
+  /** Vrai : les types de POI du socle n'ont pas pu être lus en entier — ne pas réenregistrer cette liste. */
+  socleIncomplet: boolean;
 }

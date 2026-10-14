@@ -33,4 +33,24 @@ describe('categories : mode strict', () => {
     expect(await getCategoriesVisibles(['s1'])).toEqual([]);
     await expect(getCategoriesVisibles(['s1'], { strict: true })).rejects.toThrow(/catégories visibles : coupe/);
   });
+
+  it('surEchec : signalé quand une lecture échoue sans strict, jamais sur une lecture réussie', async () => {
+    const echec = vi.fn();
+    reponse = { data: null, error: { message: 'boum' } };
+    expect(await getDistinctCategories({ surEchec: echec })).toEqual([]);
+    expect(echec).toHaveBeenCalledTimes(1);
+
+    invalidateCategoriesCache();
+    reponse = { data: [], error: null };
+    await getDistinctCategories(); // cache à []
+    const echec2 = vi.fn();
+    reponse = { data: null, error: { message: 'coupe' } };
+    expect(await getCategoriesVisibles(['s1'], { surEchec: echec2 })).toEqual([]);
+    expect(echec2).toHaveBeenCalledTimes(1);
+
+    const ok = vi.fn();
+    reponse = { data: [], error: null };
+    await getCategoriesVisibles(['s1'], { surEchec: ok });
+    expect(ok).not.toHaveBeenCalled();
+  });
 });

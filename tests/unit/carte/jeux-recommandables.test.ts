@@ -7,16 +7,22 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  */
 
 const sourcesDemandees = vi.fn();
-const visibles = vi.fn(async (_s: string[] | null): Promise<string[]> => ['lycee', 'risque_industriel', 'Lycée Pro', 'panneaux']);
+let sourcesSocle: string[] = ['s1'];
+/** Vrai : la lecture des catégories échoue en cours de route (signalée par `surEchec`, liste partielle rendue). */
+let lectureEchoue = false;
+const visibles = vi.fn(async (_s: string[] | null, options?: { surEchec?: () => void }): Promise<string[]> => {
+  if (lectureEchoue) { options?.surEchec?.(); return ['lycee']; }
+  return ['lycee', 'risque_industriel', 'Lycée Pro', 'panneaux'];
+});
 
 vi.mock('@/lib/auth/getOrgSourceIds', () => ({
   getOrgSourceIds: async (session: unknown, options: unknown) => {
     sourcesDemandees(session, options);
-    return ['s1'];
+    return sourcesSocle;
   },
 }));
 vi.mock('@/lib/poi/categories', () => ({
-  getCategoriesVisibles: (s: string[] | null) => visibles(s),
+  getCategoriesVisibles: (s: string[] | null, options?: { surEchec?: () => void }) => visibles(s, options),
 }));
 vi.mock('@/lib/poi/libelles-categories', async (original) => ({
   ...(await original<typeof import('@/lib/poi/libelles-categories')>()),
@@ -51,7 +57,26 @@ function client(espace: { id: string } | null) {
 }
 
 describe('jeuxRecommandables', () => {
-  beforeEach(() => { visibles.mockClear(); sourcesDemandees.mockClear(); });
+  beforeEach(() => { visibles.mockClear(); sourcesDemandees.mockClear(); sourcesSocle = ['s1']; lectureEchoue = false; });
+
+  it('lecture complète : socleIncomplet = false', async () => {
+    const { sb } = client({ id: ORG });
+    expect((await jeuxRecommandables(sb, ORG))!.socleIncomplet).toBe(false);
+  });
+
+  it('lecture des catégories en échec (liste partielle) : socleIncomplet = true, jamais mise en cache stricte', async () => {
+    lectureEchoue = true;
+    const { sb } = client({ id: ORG });
+    const rep = (await jeuxRecommandables(sb, ORG))!;
+    expect(rep.socleIncomplet).toBe(true);
+    expect(visibles.mock.calls[0][1]).not.toHaveProperty('strict');
+  });
+
+  it('aucune source au socle (lecture des sources en échec) : socleIncomplet = true', async () => {
+    sourcesSocle = [];
+    const { sb } = client({ id: ORG });
+    expect((await jeuxRecommandables(sb, ORG))!.socleIncomplet).toBe(true);
+  });
 
   it('les 10 référentiels dans l ordre du registre, puis les types de POI du socle', async () => {
     const { sb } = client({ id: ORG });
@@ -89,12 +114,17 @@ describe('jeuxRecommandables', () => {
     const { sb } = client({ id: ORG });
     await jeuxRecommandables(sb, ORG);
     expect(sourcesDemandees).toHaveBeenCalledWith(null, { vueEspace: true });
-    expect(visibles).toHaveBeenCalledWith(['s1']);
+    expect(visibles).toHaveBeenCalledWith(['s1'], { surEchec: expect.any(Function) });
   });
 });
 
 describe('clesPoiInconnues', () => {
-  beforeEach(() => visibles.mockClear());
+  beforeEach(() => { visibles.mockClear(); sourcesSocle = ['s1']; lectureEchoue = false; });
+
+  it('lecture des catégories en échec : lève au lieu de déclarer les clés inconnues', async () => {
+    lectureEchoue = true;
+    await expect(clesPoiInconnues(['poi:panneaux'])).rejects.toThrow(/incompl/);
+  });
 
   it('rend les clés poi: hors des types de POI recommandables, dans l ordre', async () => {
     expect(await clesPoiInconnues(['iris:socio-demo', 'poi:lycee', 'poi:bmw', 'poi:disparue']))

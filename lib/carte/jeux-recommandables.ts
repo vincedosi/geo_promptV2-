@@ -23,16 +23,26 @@ import {
 
 type Sb = ReturnType<typeof createAdminClient>;
 
-/** Les catégories de POI du socle qu'on peut recommander : hors catégories rangées ailleurs, à clé conforme. */
-async function categoriesRecommandables(): Promise<string[]> {
+/**
+ * Les catégories de POI du socle qu'on peut recommander : hors catégories rangées ailleurs, à clé conforme.
+ *
+ * `complet` est faux quand une lecture a échoué : `getOrgSourceIds` rend alors `[]` (aucune source au socle, ce qui
+ * n'arrive pas en régime normal) et `getCategoriesVisibles` une liste partielle, signalée par `surEchec`. On ne passe
+ * PAS `strict`, qui contournerait le cache 5 min partagé avec `GET /api/map/categories`. Sans cet indicateur, un écran
+ * qui renverrait la liste lue pendant une panne effacerait en silence les `poi:` déjà recommandés (relecture T10).
+ */
+async function categoriesRecommandables(): Promise<{ categories: string[]; complet: boolean }> {
   // Le socle seul : une session absente, en vue espace, rend `visibilite = socle` (getOrgSourceIds).
   const socle = (await getOrgSourceIds(null, { vueEspace: true })) ?? [];
-  return (await getCategoriesVisibles(socle))
+  let complet = socle.length > 0;
+  const categories = (await getCategoriesVisibles(socle, { surEchec: () => { complet = false; } }))
     .filter((c) => !CATEGORIES_HORS_POI.includes(c) && cleJeuPoi(c) !== null);
+  return { categories, complet };
 }
 
 /**
- * Les jeux recommandables de l'espace, chacun avec `recommande`.
+ * Les jeux recommandables de l'espace, chacun avec `recommande`, et `socleIncomplet` : vrai si les types de POI du
+ * socle n'ont pas pu être lus en entier — la liste rendue ne doit alors pas servir à réenregistrer la sélection.
  * @returns `null` si l'espace n'existe pas (aucune catégorie n'est alors lue).
  * @throws Error — lecture en échec (message technique, à journaliser, jamais à afficher).
  */
@@ -41,7 +51,7 @@ export async function jeuxRecommandables(supabase: Sb, orgId: string): Promise<R
   if (eOrg) throw new Error(`lecture de l'espace : ${eOrg.message}`);
   if (!org) return null;
 
-  const categories = await categoriesRecommandables();
+  const { categories, complet } = await categoriesRecommandables();
   const libelles = await libellesCategories(supabase, categories);
 
   const { data: lignes, error } = await supabase
@@ -57,17 +67,21 @@ export async function jeuxRecommandables(supabase: Sb, orgId: string): Promise<R
       return [{ cle, nom: c.label, nature: 'poi' as const, maille: 'point', recommande: choisies.has(cle) }];
     }),
   ];
-  return { jeux };
+  return { jeux, socleIncomplet: !complet };
 }
 
 /**
  * Les clés `poi:` qui ne désignent AUCUN type de POI recommandable (catégorie absente du socle, ou disparue).
  * `estCleJeuConnue` ne vérifie que la forme : sans ce contrôle, `poi:<n'importe quoi>` s'enregistrerait.
  * Ne lit rien si aucune clé n'est `poi:`.
+ * @throws Error — types de POI du socle lus en partie seulement : on ne déclare pas « absente » une catégorie qu'on
+ *   n'a pas pu lire (la route rend alors 500, pas un 400 trompeur).
  */
 export async function clesPoiInconnues(cles: readonly string[]): Promise<string[]> {
   const poi = cles.filter((c) => c.startsWith(PREFIXE_POI));
   if (poi.length === 0) return [];
-  const connues = new Set((await categoriesRecommandables()).map((c) => cleJeuPoi(c)));
+  const { categories, complet } = await categoriesRecommandables();
+  if (!complet) throw new Error('lecture des types de POI du socle incomplète');
+  const connues = new Set(categories.map((c) => cleJeuPoi(c)));
   return poi.filter((c) => !connues.has(c));
 }

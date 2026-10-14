@@ -57,7 +57,8 @@ describe('sélection recommandée d un espace (admin)', () => {
 
     const lu = await lire(espace);
     expect(lu.status).toBe(200);
-    const { jeux } = (await lu.json()) as { jeux: { cle: string; recommande: boolean }[] };
+    const { jeux, socleIncomplet } = (await lu.json()) as { jeux: { cle: string; recommande: boolean }[]; socleIncomplet: boolean };
+    expect(socleIncomplet).toBe(false);
     expect(jeux.filter((j) => j.recommande).map((j) => j.cle).sort()).toEqual(['iris:socio-demo', 'poi:lycee']);
     expect(jeux.length).toBeGreaterThan(10);
   });

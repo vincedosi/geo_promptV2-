@@ -1,12 +1,15 @@
 /**
  * GET /api/admin/espaces/[id]/jeux-recommandes — les jeux communs recommandables de l'espace, chacun avec
- *     `recommande` : `{ jeux: JeuRecommandable[] }` (référentiels du registre, puis types de POI du socle).
+ *     `recommande` : `{ jeux: JeuRecommandable[], socleIncomplet }` (référentiels du registre, puis types de POI du
+ *     socle). `socleIncomplet` vrai = types de POI lus en partie seulement (lecture en échec) : l'écran Accès refuse
+ *     alors d'enregistrer, une liste lue pendant une panne effacerait les `poi:` déjà recommandés.
  * PUT /api/admin/espaces/[id]/jeux-recommandes — remplace la sélection. Corps `{ cles: string[] }` (≤ 200 clés,
  *     chacune un référentiel du registre ou un type de POI du SOCLE) → `{ cles: string[] }` triées.
  *
  * super_admin seul (403 sinon, `adminUnauthorized`). 400 : identifiant, corps illisible, clé inconnue — un type de POI
  * absent des données communes est refusé ici, `estCleJeuConnue` ne vérifiant que la forme. 404 : espace inexistant.
- * 500 : message français fixe, le détail Postgres va en console serveur seulement.
+ * 500 : message français fixe, le détail Postgres va en console serveur seulement — y compris un PUT `poi:` pendant
+ * une lecture incomplète des types de POI du socle (on ne les déclare pas « absents » sans les avoir lus).
  *
  * L'écriture passe par la RPC `remplacer_jeux_recommandes` (sql/251) : une transaction, jamais un DELETE suivi d'un
  * INSERT côté route. Une recommandation RANGE ; elle ne donne ni ne retire aucun droit.
