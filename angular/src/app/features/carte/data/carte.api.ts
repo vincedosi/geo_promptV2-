@@ -131,6 +131,11 @@ export class CarteApi extends HttpBaseService {
     return this.httpClient.post<ZoneData>(`${this.baseUrl}/map/pois`, corps).pipe(timeout(DELAI_POIS_MS));
   }
 
+  /** `GET /api/map/jeux-recommandes` — la sélection recommandée de l'espace actif (parcours, lot 2). Ne précharge rien. */
+  jeuxRecommandes(): Observable<{ cles?: string[]; error?: string }> {
+    return this.httpClient.get<{ cles?: string[]; error?: string }>(`${this.baseUrl}/map/jeux-recommandes`);
+  }
+
   /** `GET /api/map/categories` ; `rafraichir` rejoue le DISTINCT côté serveur (`?refresh=1`, `use-poi-catalog.ts:63-66`). */
   categories(rafraichir = false): Observable<{ categories?: CategoriePoi[]; error?: string }> {
     return this.httpClient.get<{ categories?: CategoriePoi[]; error?: string }>(

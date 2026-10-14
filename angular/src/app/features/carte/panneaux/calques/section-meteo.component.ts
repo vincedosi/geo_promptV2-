@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { MeteoService } from '../../couches/meteo.service';
 import { EnteteFiltreComponent } from '../filtre/perimetre.component';
 import { SelectionsCalquesService } from './selections-calques.service';
@@ -23,8 +23,10 @@ import { BOUTON_TEAL_ACTIF, PASTILLE_INACTIVE } from './section-transport.compon
   `,
   host: { class: 'flex flex-col gap-[10px]' },
   template: `
-    <mg-entete-filtre libelle="Météo" [ouvert]="ouvert()" [compte]="meteo.visible() ? 1 : 0"
-      (basculer)="selections.basculerSection('meteo')" />
+    @if (!integre()) {
+      <mg-entete-filtre libelle="Météo" [ouvert]="ouvert()" [compte]="meteo.visible() ? 1 : 0"
+        (basculer)="selections.basculerSection('meteo')" />
+    }
     @if (ouvert()) {
       <div class="fondu" data-contenu-meteo>
         <div class="mb-2 text-[11px] leading-[1.45] text-tertiary">
@@ -52,7 +54,9 @@ export class SectionMeteoComponent {
   protected readonly meteo = inject(MeteoService);
   protected readonly actif = BOUTON_TEAL_ACTIF;
   protected readonly pastille = PASTILLE_INACTIVE;
-  protected readonly ouvert = computed(() => this.selections.sections()['meteo'] !== false);
+  /** Rendue dans une ligne de ② (parcours, lot 2) : la ligne porte déjà le nom, l'en-tête interne n'est pas rendu et le contenu reste ouvert. */
+  readonly integre = input(false);
+  protected readonly ouvert = computed(() => this.integre() || this.selections.sections()['meteo'] !== false);
   /** `{meteoVisible && meteoLabel && <div>{meteoLabel} actif</div>}` (`MeteoSection.tsx:50-62`). */
   protected readonly badge = computed(() => {
     const l = this.meteo.libelle();

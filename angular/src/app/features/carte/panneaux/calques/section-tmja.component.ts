@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { TmjaService } from '../../couches/tmja.service';
 import { EnteteFiltreComponent } from '../filtre/perimetre.component';
 import { SelectionsCalquesService } from './selections-calques.service';
@@ -25,8 +25,10 @@ export const AIDE_TMJA = 'Trafic Moyen Journalier Annuel — nombre de véhicule
   `,
   host: { class: 'flex flex-col gap-[10px]' },
   template: `
-    <mg-entete-filtre libelle="Flux routier (TMJA)" [ouvert]="ouvert()" [compte]="tmja.visible() ? 1 : 0" [infobulle]="aide"
-      (basculer)="selections.basculerSection('tmja')" />
+    @if (!integre()) {
+      <mg-entete-filtre libelle="Flux routier (TMJA)" [ouvert]="ouvert()" [compte]="tmja.visible() ? 1 : 0" [infobulle]="aide"
+        (basculer)="selections.basculerSection('tmja')" />
+    }
     @if (ouvert()) {
       <div class="fondu" data-contenu-tmja>
         <label title="Cache les tronçons à moins de 5 000 véh/j (allège le rendu)"
@@ -56,5 +58,7 @@ export class SectionTmjaComponent {
   protected readonly aide = AIDE_TMJA;
   protected readonly actif = BOUTON_TEAL_ACTIF;
   protected readonly pastille = PASTILLE_INACTIVE;
-  protected readonly ouvert = computed(() => this.selections.sections()['tmja'] !== false);
+  /** Rendue dans une ligne de ② (parcours, lot 2) : la ligne porte déjà le nom, l'en-tête interne n'est pas rendu et le contenu reste ouvert. */
+  readonly integre = input(false);
+  protected readonly ouvert = computed(() => this.integre() || this.selections.sections()['tmja'] !== false);
 }

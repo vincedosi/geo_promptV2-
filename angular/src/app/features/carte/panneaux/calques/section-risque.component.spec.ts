@@ -30,7 +30,7 @@ function monter() {
   const fixture = TestBed.createComponent(SectionRisqueComponent);
   const el = fixture.nativeElement as HTMLElement;
   const rendre = async () => { fixture.detectChanges(); await fixture.whenStable(); };
-  return { el, rendre, r: TestBed.inject(RisqueCarteService) };
+  return { fixture, el, rendre, r: TestBed.inject(RisqueCarteService), selections: TestBed.inject(SelectionsCalquesService) };
 }
 
 /** Espaces ordinaires réduits ; l'espace fine insécable de `fr-FR` (U+202F) est GARDÉE. */
@@ -58,6 +58,15 @@ describe('RisqueCarteService', () => {
 });
 
 describe('SectionRisqueComponent', () => {
+  it('intégrée à une ligne de ② : aucun en-tête interne, contenu rendu même section repliée', async () => {
+    const { fixture, el, rendre, selections } = monter();
+    fixture.componentRef.setInput('integre', true);
+    selections.sections.update((s) => ({ ...s, risqueIndustriel: false }));
+    await rendre();
+    expect(el.querySelector('mg-entete-filtre')).toBeNull();
+    expect(el.querySelector('[data-contenu-risque]')).not.toBeNull();
+  });
+
   it('ouverte d’emblée (comme React) ; le PREMIER clic sur l’en-tête la replie (défaut React corrigé)', async () => {
     const { el, rendre } = monter();
     await rendre();

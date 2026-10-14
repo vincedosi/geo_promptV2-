@@ -170,8 +170,10 @@ export class ProvenanceZonesComponent {
   `,
   host: { class: 'block pb-1' },
   template: `
-    <mg-entete-filtre libelle="Zones à risque industriel" [ouvert]="ouvert()" [compte]="r.actif() ? r.niveaux().length : 0"
-      (basculer)="basculerSection()" />
+    @if (!integre()) {
+      <mg-entete-filtre libelle="Zones à risque industriel" [ouvert]="ouvert()" [compte]="r.actif() ? r.niveaux().length : 0"
+        (basculer)="basculerSection()" />
+    }
     @if (ouvert()) {
       <div class="fondu flex flex-col gap-[10px] px-[14px] pb-3 pt-2" data-contenu-risque>
         <!-- 1. Ce que je vois -->
@@ -319,8 +321,10 @@ export class SectionRisqueComponent {
   protected readonly recensementSites = `${formaterNombre(RECENSEMENT.seveso)} sites Seveso en France sur `
     + `${formaterNombre(RECENSEMENT.icpe)} installations classées — recensé le ${RECENSEMENT.date}.`;
 
+  /** Rendue dans une ligne de ② (parcours, lot 2) : la ligne porte déjà le nom, l'en-tête interne n'est pas rendu et le contenu reste ouvert. */
+  readonly integre = input(false);
   /** `sectionsOpen.risqueIndustriel !== false` : ouverte à l'ouverture du panneau, comme React. */
-  protected readonly ouvert = computed(() => this.selections.sections()['risqueIndustriel'] !== false);
+  protected readonly ouvert = computed(() => this.integre() || this.selections.sections()['risqueIndustriel'] !== false);
   protected readonly indiceNiveaux = computed(() => `${this.r.niveaux().length}/${NIVEAUX_RISQUE.length}`);
 
   /** Le compte mis en mots (`RisqueIndustrielSection.tsx:316-385`) ; `null` sans compte. */

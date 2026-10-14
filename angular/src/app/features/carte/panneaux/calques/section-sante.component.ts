@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { IrisService } from '../../couches/iris.service';
 import { SanteService } from '../../couches/sante.service';
 import type { EchelleSante, JeuSante } from '../../logique/sante';
@@ -52,8 +52,10 @@ const BOUTON_INGESTION = 'rounded-[6px] border-fin border-teal bg-transparent px
   `,
   host: { class: 'flex flex-col gap-[10px]' },
   template: `
-    <mg-entete-filtre libelle="Santé environnementale" [ouvert]="ouvert()" [compte]="compte()"
-      (basculer)="selections.basculerSection('civicHealth')" />
+    @if (!integre()) {
+      <mg-entete-filtre libelle="Santé environnementale" [ouvert]="ouvert()" [compte]="compte()"
+        (basculer)="selections.basculerSection('civicHealth')" />
+    }
     @if (ouvert()) {
       <div class="fondu flex flex-col gap-[10px]">
         <mg-fiche-sante [codeCommune]="codeCommune()" [nomCommune]="nomCommune()" />
@@ -159,8 +161,10 @@ export class SectionSanteComponent {
   protected readonly bandeau = BANDEAU;
   protected readonly boutonIngestion = BOUTON_INGESTION;
 
+  /** Rendue dans une ligne de ② (parcours, lot 2) : la ligne porte déjà le nom, l'en-tête interne n'est pas rendu et le contenu reste ouvert. */
+  readonly integre = input(false);
   /** `sectionsOpen.civicHealth === true` (`CivicHealthSection.tsx:104`). */
-  protected readonly ouvert = computed(() => this.selections.sections()['civicHealth'] === true);
+  protected readonly ouvert = computed(() => this.integre() || this.selections.sections()['civicHealth'] === true);
   /** La commune de l'IRIS sélectionné (`selectedIrisData?.code_commune`, `page.tsx:1020`). */
   protected readonly codeCommune = computed(() => this.iris.detail()?.code_commune ?? null);
   protected readonly nomCommune = computed(() => this.iris.detail()?.nom_commune ?? null);
