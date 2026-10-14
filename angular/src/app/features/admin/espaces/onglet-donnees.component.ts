@@ -9,6 +9,7 @@ import { Cellule, EnteteCellule } from '../../../ui/tableau/cellules';
 import { EspacesApi } from './data/espaces.api';
 import { type Choix, DialogueTransfertComponent } from './dialogue-transfert.component';
 import { EspacesEtatService } from './etat/espaces-etat.service';
+import { JeuxRecommandesComponent } from './jeux-recommandes.component';
 import { LIBELLES_STATUT, LIBELLES_TYPE, messageErreur } from './logique/libelles';
 import type { JeuPourEspace, ReponseDonneesEspace, StatutJeu } from './logique/types';
 
@@ -33,7 +34,8 @@ interface Cible {
 
 /**
  * Onglet « Données » de la fiche d'un espace (spec § 4.4, plan T8) : les jeux, tels que CET espace
- * les voit, et les gestes du super_admin pour changer cette vue.
+ * les voit, et les gestes du super_admin pour changer cette vue ; puis la sélection recommandée sur
+ * la carte (`mg-jeux-recommandes`, spec carte-en-parcours § 7.2), rendue quel que soit l'état du tableau.
  *
  * - `espaceId` est un input RÉACTIF (la fiche réutilise l'onglet d'un espace à l'autre) : chaque
  *   changement relit `GET admin/espaces/:id/donnees` et abandonne la lecture en vol. Le tri est celui
@@ -50,7 +52,7 @@ interface Cible {
  */
 @Component({
   selector: 'mg-onglet-donnees',
-  imports: [RouterLink, ConfirmationComponent, IconeComponent, Cellule, EnteteCellule, DialogueTransfertComponent],
+  imports: [RouterLink, ConfirmationComponent, IconeComponent, Cellule, EnteteCellule, DialogueTransfertComponent, JeuxRecommandesComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (erreur(); as message) {
@@ -117,6 +119,9 @@ interface Cible {
         </table>
       </div>
     }
+
+    <!-- Toujours rendu, quel que soit l'état du tableau : il a sa propre lecture. -->
+    <mg-jeux-recommandes [espaceId]="espaceId()" />
 
     @if (transfert(); as j) {
       <mg-dialogue-transfert [nomJeu]="j.nom" [espaces]="autresEspaces()" (choisir)="choisirCible($event)" (annuler)="transfert.set(null)" />
