@@ -32,6 +32,8 @@ import { CartePage } from './carte.page';
 import { AnnonceService } from './etat/annonce.service';
 import { CouchesCarteService, quandStyleCharge } from './etat/couches-carte.service';
 import { EtatCarteService } from './etat/etat-carte.service';
+import { CarreauxService } from './couches/carreaux.service';
+import { JEUX_REFERENTIELS } from './logique/jeux-carte';
 import { MeteoService } from './couches/meteo.service';
 import { PileEchapService } from './etat/pile-echap.service';
 import { PanneauFiltreComponent } from './panneaux/filtre/panneau-filtre.component';
@@ -64,6 +66,8 @@ interface OptionsOuverture {
   jeux?: () => unknown;
   /** `CarteApi.categories` (catalogue des types de POI, ②). */
   categories?: () => unknown;
+  /** `CarteApi.jeuxRecommandes` (sélection recommandée, lue à la première visite de ②). */
+  jeuxRecommandes?: () => unknown;
   /** `AnalysesApi.lister` (outil « Mes analyses », lu à la première ouverture du tiroir). */
   analyses?: () => unknown;
 }
@@ -102,7 +106,7 @@ async function ouvrir(options: OptionsOuverture = {}) {
       { provide: JeuxZonesApi, useValue: { lister: options.jeux ?? (() => of({ jeux: [] })) } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },
       { provide: IrisApi, useValue: { urlTuiles: () => '/api/tiles/iris/{z}/{x}/{y}?v=2', bornes: () => of({}), detail: () => of() } },
-      { provide: CarteApi, useValue: { categories: options.categories ?? (() => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] })), pois: () => of(), ooh: () => of(), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
+      { provide: CarteApi, useValue: { categories: options.categories ?? (() => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] })), jeuxRecommandes: options.jeuxRecommandes ?? (() => of({ cles: [] })), pois: () => of(), ooh: () => of(), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
       { provide: RadioApi, useValue: { optionsFiltre: () => of({}), emetteurs: () => of({ type: 'FeatureCollection', features: [] }), stations: () => of({}) } },
       { provide: MeteoApi, useValue: { donnees: () => of() } },
       { provide: IsochronesApi, useValue: {} },
@@ -171,13 +175,13 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     expect(routeur().url).toBe('/carte');
   });
 
-  it('(g) Alt+2 (AZERTY : code Digit2, key « é ») passe à ② : Calques dans son panneau, ?etape=donnees ; Échap ne le ferme pas', async () => {
+  it('(g) Alt+2 (AZERTY : code Digit2, key « é ») passe à ② : Données dans son panneau, ?etape=donnees ; Échap ne le ferme pas', async () => {
     const { hote, stable } = await ouvrir();
     const e = frapper(hote, altChiffre('2'));
     await stable();
     expect(e.defaultPrevented).toBe(true);
     expect(panneauCourant(hote)).toBe('donnees');
-    expect(hote.querySelector('[data-panneau-etape="donnees"] mg-panneau-calques')).not.toBeNull();
+    expect(hote.querySelector('[data-panneau-etape="donnees"] mg-panneau-donnees')).not.toBeNull();
     expect(etapeDuFil(hote)).toBe('2 Données');
     expect(routeur().url).toBe('/carte?etape=donnees');
     // ① reste monté, invisible et inerte.
@@ -467,12 +471,12 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     const { harness, hote, stable } = await ouvrir();
     frapper(hote, altChiffre('2'));
     await stable();
-    const calques = hote.querySelector('mg-panneau-calques');
+    const donnees = hote.querySelector('mg-panneau-donnees');
     hote.querySelector<HTMLButtonElement>('mg-barre-parcours [data-immersif]')!.click();
     await stable();
     expect(hote.querySelector('mg-barre-parcours')).toBeNull();
     expect(aside(hote).style.visibility).toBe('hidden');
-    expect(hote.querySelector('mg-panneau-calques')).toBe(calques);
+    expect(hote.querySelector('mg-panneau-donnees')).toBe(donnees);
     // Ni l'onglet « carte seule » (le repli n'est pas posé), ni le focus perdu (le bouton est parti avec la barre).
     expect(hote.querySelector('[data-afficher-panneau]')).toBeNull();
     expect(document.activeElement).toBe(hote);
@@ -550,7 +554,8 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     const lister = vi.fn(() => of({ zones: [] }));
     const jeux = vi.fn(() => of({ jeux: [] }));
     const categories = vi.fn(() => of({ categories: ['lycee'] }));
-    const { hote, stable } = await ouvrir({ referentiel: geo, zones: { lister }, jeux, categories, organisation: 'org-1' });
+    const jeuxRecommandes = vi.fn(() => of({ cles: ['tmja:comptages'] }));
+    const { hote, stable } = await ouvrir({ referentiel: geo, zones: { lister }, jeux, categories, jeuxRecommandes, organisation: 'org-1' });
     for (const n of ['2', '3', '4', '1']) {
       frapper(hote, altChiffre(n));
       await stable();
@@ -559,17 +564,15 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
         hote.querySelector<HTMLButtonElement>('mg-boite-outils [data-outil="zones"]')!.click();
         await stable();
       }
-      if (n !== '2') continue;
-      // À ②, ouvrir la section POI : le catalogue des types n'est lu qu'à sa première ouverture.
-      [...hote.querySelectorAll<HTMLButtonElement>('mg-panneau-calques button[data-groupe]')].find((b) => b.textContent!.includes('POI et mobilité'))!.click();
-      await stable();
-      hote.querySelector<HTMLElement>('mg-section-poi mg-entete-filtre')!.click();
-      await stable();
+      // À ②, le catalogue des types de POI et la sélection recommandée sont lus à la première visite (T13).
     }
-    const lectures = () => [geo.mock.calls.length, lister.mock.calls.length, jeux.mock.calls.length, categories.mock.calls.length];
+    const lectures = () => [
+      geo.mock.calls.length, lister.mock.calls.length, jeux.mock.calls.length, categories.mock.calls.length, jeuxRecommandes.mock.calls.length,
+    ];
     const avant = lectures();
     // Chaque lecture a bien eu lieu UNE fois aux premières visites : l'assertion qui suit ne compare pas des zéros.
-    expect(avant.map((n) => n >= 1), `géo, zones, jeux, catégories : ${avant}`).toEqual([true, true, true, true]);
+    expect(avant.map((n) => n >= 1), `géo, zones, jeux, catégories, sélection : ${avant}`).toEqual([true, true, true, true, true]);
+    expect(avant.slice(3), 'catégories et sélection, une fois chacune').toEqual([1, 1]);
     for (const n of ['3', '1', '4', '2', '1']) {
       frapper(hote, altChiffre(n));
       await stable();
@@ -899,16 +902,21 @@ describe('CartePage — filtre unique : panneau ①, pastille, fil d’Ariane (T
     expect(hote.querySelector('mg-fil-ariane')!.textContent).toContain('· métropole');
   });
 
-  it('un calque allumé allume la pastille de ② (dégradé ou POI choisis)', async () => {
+  it('un jeu de ② affiché allume sa pastille (POI choisis, carreaux allumés) ; un dégradé d’une AUTRE étape ne l’allume pas (T13, AT-4)', async () => {
     const { harness, hote, stable } = await ouvrir();
     const etat = injecteurPage(harness).get(EtatCarteService);
     etat.poiSelectionnes.set(['lycee']);
     await stable();
     expect(pastilles(hote)).toEqual(['2 Données (renseignée)']);
     etat.poiSelectionnes.set([]);
-    etat.basculerDegrade('carreaux', true);
+    injecteurPage(harness).get(CarreauxService).basculer(true);
     await stable();
     expect(pastilles(hote)).toEqual(['2 Données (renseignée)']);
+    injecteurPage(harness).get(CarreauxService).basculer(false);
+    // Le score composite (④) est un dégradé, pas un jeu de ② : il ne renseigne pas ②.
+    etat.basculerDegrade('score', true);
+    await stable();
+    expect(pastilles(hote)).toEqual([]);
   });
 
   it('revenir à ① garde « France entière » pressée : panneau monté, aucune relecture du référentiel', async () => {
@@ -925,29 +933,29 @@ describe('CartePage — filtre unique : panneau ①, pastille, fil d’Ariane (T
   });
 });
 
-describe('CartePage — panneau Calques, carreaux Filosofi, légende (T6)', () => {
+describe('CartePage — panneau Données, carreaux Filosofi, légende (T6)', () => {
   beforeEach(() => {
     localStorage.clear();
     TestBed.overrideProvider(CouleursService, { useValue: { palette: () => signal({ absente: '#9aa0a6', trait: '#555555' }) } });
   });
   afterEach(() => localStorage.clear());
 
-  it('Calques : le vrai panneau ; allumer les carreaux pose la couche, ouvre la légende, survit au changement de fond ; Tout effacer les masque', async () => {
+  it('Données : le vrai panneau ; allumer les carreaux pose la couche, ouvre la légende, survit au changement de fond ; Tout effacer les masque', async () => {
     const { harness, hote, cartes, stable } = await ouvrir();
     cartes[0].emettre('load');
     await stable();
     frapper(hote, altChiffre('2'));
     await stable();
-    expect(hote.querySelector('mg-panneau-calques')).not.toBeNull();
+    expect(hote.querySelector('mg-panneau-donnees')).not.toBeNull();
     expect(hote.querySelector('mg-legende-carte [data-legende]')).toBeNull();
 
-    hote.querySelector<HTMLButtonElement>('mg-panneau-calques button[data-groupe]')!.click();
+    hote.querySelector<HTMLButtonElement>('mg-panneau-donnees [data-jeu="carreaux:filosofi"] button[aria-expanded]')!.click();
     await stable();
     hote.querySelector<HTMLButtonElement>('mg-section-carreaux button[data-entete-carreaux]')!.click();
     await stable();
     expect(cartes[0].sources.has('carreaux-mvt')).toBe(true);
     expect(injecteurPage(harness).get(EtatCarteService).degradeActif()).toBe('carreaux');
-    expect(hote.querySelector('mg-panneau-calques')!.textContent).toContain('Actifs (1)');
+    expect(hote.querySelector('mg-panneau-donnees')!.textContent).toContain('Actifs (1)');
     expect(hote.querySelector('mg-legende-carte [data-bloc="carreaux"]')!.textContent).toContain('Carreaux Filosofi · pers./km²');
 
     // Changement de fond : la nouvelle instance reçoit la couche, visible.
@@ -979,7 +987,9 @@ describe('CartePage — IRIS : section, couche en cascade, panneau de détail (T
     await stable();
     frapper(hote, altChiffre('2'));
     await stable();
-    hote.querySelector<HTMLButtonElement>('mg-panneau-calques button[data-groupe]')!.click();
+    hote.querySelector<HTMLButtonElement>('mg-panneau-donnees [data-jeu="carreaux:filosofi"] button[aria-expanded]')!.click();
+    await stable();
+    hote.querySelector<HTMLButtonElement>('mg-panneau-donnees [data-jeu="iris:socio-demo"] button[aria-expanded]')!.click();
     await stable();
     hote.querySelector<HTMLButtonElement>('mg-section-carreaux button[data-entete-carreaux]')!.click();
     await stable();
@@ -1385,6 +1395,8 @@ interface LigneInventaire {
   url?: string;
   /** Ce qu'il faut faire avant de chercher la preuve (B4) : publier la carte, cliquer un bouton. */
   avant?: (o: { hote: HTMLElement; cartes: CarteFactice[]; stable: () => Promise<void> }) => Promise<void>;
+  /** Ce qu'il faut faire une fois RENDU au lieu (étape, « Autres », outil) : déplier une ligne de ②. */
+  apres?: (o: { hote: HTMLElement; stable: () => Promise<void> }) => Promise<void>;
 }
 
 /**
@@ -1392,8 +1404,8 @@ interface LigneInventaire {
  * flottants), avec sa nouvelle place dans le parcours (l'ordre en 8 étapes du 13/10 : ③ Zones, ④ Analyse, ⑥ Plan).
  * Ce que ce tableau ne prouve PAS lui-même, et où la preuve vit vraiment :
  * - 2. Pastille « filtre posé » → ce fichier, describe « filtre unique : panneau ①, pastille, fil d’Ariane (T5) » (`(renseignée)`) ;
- * - 5. Zones à risque industriel → le point d'entrée dans ② (`mg-section-risque`, en tête du groupe Environnement) :
- *   `panneaux/calques/panneau-calques.component.spec.ts`, « Environnement (T12) » ; le module lui-même, ouvert par
+ * - 5. Zones à risque industriel → ici, le point d'entrée dans ② (`mg-section-risque`, sous la ligne « Sites industriels
+ *   (ICPE) et périmètres PPRT » dépliée ; croix et pastille : `panneaux/donnees/panneau-donnees.component.spec.ts`) ; le module lui-même, ouvert par
  *   `navigateByUrl` (`[data-module-risque]`, carte inerte, retour à l'étape quittée) : ce fichier, describe « le module
  *   risque, route ENFANT (T13, B2/B3) » ;
  * - 13. Back office → ici seulement « Accès » (`admin/acces`) ; « Health check » : `panneaux/reglages.component.spec.ts`
@@ -1404,12 +1416,22 @@ interface LigneInventaire {
  *   test « la barre porte logo, fil d’Ariane… » ; la météo : describe « météo (T11) ».
  * - 23-24. Panneaux OOH et Radio (anciennement Calques › Médias offline) : dans le panneau « Autres » de la barre, hors du
  *   fil (T11b, Vincent 14/10) — ces lignes échouent si l'une des deux sections quitte ce panneau.
+ * - 25-32. Les 8 référentiels de ② (T13) : une ligne chacun dans le panneau Données, qu'une sélection recommandée range
+ *   mais ne cache jamais (« Plus de données communes ») ; leur section dépliée : `panneau-donnees.component.spec.ts`.
  * Une ligne qui échoue veut dire qu'une fonction a été PERDUE : la rétablir, jamais retirer la ligne.
  */
 const INVENTAIRE: readonly LigneInventaire[] = [
   { n: 1, fonction: 'Filtre', lieu: { etape: 1 }, preuves: ['[data-panneau-etape="perimetre"] mg-panneau-filtre'] },
   { n: 3, fonction: 'Puce du filtre', lieu: {}, preuves: ['mg-barre-parcours mg-fil-ariane'] },
-  { n: 4, fonction: 'Calques', lieu: { etape: 2 }, preuves: ['[data-panneau-etape="donnees"] mg-panneau-calques'] },
+  { n: 4, fonction: 'Calques → Données', lieu: { etape: 2 }, preuves: ['[data-panneau-etape="donnees"] mg-panneau-donnees'] },
+  {
+    n: 5, fonction: 'Zones à risque industriel (entrée dans ②)', lieu: { etape: 2 },
+    preuves: ['[data-panneau-etape="donnees"] [data-jeu="risques:icpe-pprt"] mg-section-risque'],
+    apres: async ({ hote, stable }) => {
+      hote.querySelector<HTMLButtonElement>('[data-panneau-etape="donnees"] [data-jeu="risques:icpe-pprt"] button[aria-expanded]')!.click();
+      await stable();
+    },
+  },
   { n: 6, fonction: 'Analyse', lieu: { etape: 4 }, preuves: ['[data-panneau-etape="analyse"] mg-panneau-analyse'] },
   { n: 7, fonction: 'Créer une zone', lieu: { etape: 3 }, preuves: ['[data-panneau-etape="zones"] [data-section="creer"]'] },
   { n: 8, fonction: 'Jeux de zones', lieu: { outil: 'zones' }, preuves: ['[data-tiroir-outil] mg-jeux-de-zones'] },
@@ -1435,6 +1457,9 @@ const INVENTAIRE: readonly LigneInventaire[] = [
   { n: 22, fonction: 'Badge de zoom', lieu: {}, preuves: ['[data-badge-zoom]'] },
   { n: 23, fonction: 'Panneaux OOH (bouton « Autres »)', lieu: { autres: true }, preuves: ['[data-panneau-autres]:not([inert]) mg-panneau-autres mg-section-ooh'] },
   { n: 24, fonction: 'Radio FM/DAB+ (bouton « Autres »)', lieu: { autres: true }, preuves: ['[data-panneau-autres]:not([inert]) mg-panneau-autres mg-section-radio'] },
+  ...JEUX_REFERENTIELS.map((j, i): LigneInventaire => ({
+    n: 25 + i, fonction: `② › ${j.nom}`, lieu: { etape: 2 }, preuves: [`[data-panneau-etape="donnees"] [data-jeu="${j.cle}"]`],
+  })),
 ];
 
 describe('CartePage — aucune fonction perdue (spec § 12, lot 1)', () => {
@@ -1444,6 +1469,7 @@ describe('CartePage — aucune fonction perdue (spec § 12, lot 1)', () => {
     if (l.lieu.etape) { frapper(hote, altChiffre(String(l.lieu.etape))); await stable(); }
     if (l.lieu.autres) { hote.querySelector<HTMLButtonElement>('mg-barre-parcours [data-autres]')!.click(); await stable(); }
     if (l.lieu.outil) { hote.querySelector<HTMLButtonElement>(`mg-boite-outils [data-outil="${l.lieu.outil}"]`)!.click(); await stable(); }
+    if (l.apres) await l.apres({ hote, stable });
     for (const preuve of l.preuves) expect(hote.querySelector(preuve), `${l.n}. ${l.fonction} → ${preuve}`).not.toBeNull();
     if (l.nombre !== undefined) expect(hote.querySelectorAll(l.preuves[0]).length, `${l.n}. ${l.fonction}`).toBe(l.nombre);
   });

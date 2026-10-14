@@ -52,7 +52,8 @@ import { ignorerRaccourciClavier } from './logique/garde-saisie';
 import { franciserLibelles } from './logique/libelles-fr';
 import { ETAPES_CARTE, etapeParRaccourci, etapesDuFil, lireEtape, precisionDuPerimetre, segmentsDuFiltre } from './logique/parcours';
 import { DialogueMeteoComponent } from './panneaux/calques/dialogue-meteo.component';
-import { PanneauCalquesComponent } from './panneaux/calques/panneau-calques.component';
+import { PanneauDonneesComponent } from './panneaux/donnees/panneau-donnees.component';
+import { DonneesAfficheesService } from './etat/donnees-affichees.service';
 import { PanneauFiltreComponent } from './panneaux/filtre/panneau-filtre.component';
 import { PanneauZonesComponent } from './panneaux/zones/panneau-zones.component';
 import { PanneauAnalyseComponent } from './panneaux/analyse/panneau-analyse.component';
@@ -115,14 +116,14 @@ export function palierCarreaux(zoom: number): string {
   selector: 'mg-carte-principale',
   imports: [
     AnnonceComponent, BarreParcoursComponent, BoiteOutilsComponent, CarteComponent, DetailIrisComponent, DialogueMeteoComponent,
-    EtapeBientotComponent, IconeComponent, LegendeCarteComponent, PanneauAnalyseComponent, PanneauAutresComponent, PanneauCalquesComponent, PanneauEtapeComponent,
+    EtapeBientotComponent, IconeComponent, LegendeCarteComponent, PanneauAnalyseComponent, PanneauAutresComponent, PanneauDonneesComponent, PanneauEtapeComponent,
     PanneauFiltreComponent, PanneauZonesComponent, PlanMediaComponent, RouterOutlet, TiroirPanneauComponent, ZoneActiveComponent,
   ],
   providers: [ParcoursService, OutilsCarteService, EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
     IrisService, PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService,
     IndicateursCiviquesService, SanteService, ContoursZonesService, MeteoService, RisqueCarteService, RisquesIndustrielsService,
     PprtService, ZonesRisqueService, BatailleService, ZonesCustomService, LienZoneService, ExportZoneService, PlanMediaService,
-    CaptureService, DessinService,
+    CaptureService, DessinService, DonneesAfficheesService,
     // Le score composite peint (T18) : à la PAGE — quitter l'étape Analyse ne l'éteint pas, comme React.
     ScoreService,
     // Les batailles d'isochrones (T17) : à la PAGE, pas au panneau — changer d'étape ne coupe pas un calcul en cours.
@@ -154,8 +155,8 @@ export class CartePage {
   private readonly injecteur = inject(Injector);
   private readonly iris = inject(IrisService);
   private readonly pois = inject(PoisService);
-  private readonly tmja = inject(TmjaService);
-  private readonly risqueCarte = inject(RisqueCarteService);
+  /** « Affiché » pour ② : la pastille de l'étape et celles des lignes du panneau Données, une seule source (AT-4). */
+  private readonly donnees = inject(DonneesAfficheesService);
   /** La météo (T11) : la page monte son dialogue, comme la modale de `page.tsx:1456-1488`. */
   protected readonly meteo = inject(MeteoService);
   private readonly document = inject(DOCUMENT);
@@ -182,14 +183,9 @@ export class CartePage {
   private readonly panneauEtape = viewChild(PanneauEtapeComponent);
   /** Les panneaux montés, dans l'ordre du parcours. */
   protected readonly etapesMontees = computed(() => ETAPES_CARTE.filter((e) => this.parcours.visitees().has(e)));
-  /**
-   * Les pastilles « renseignée » (A2). Celle de ② est PARTIELLE jusqu'à T13 (AT-4) : le transport vit dans le panneau Calques,
-   * invisible de la page. Ni OOH ni radio : hors de ② depuis T11b (panneau « Autres »).
-   */
+  /** Les pastilles « renseignée » (A2) ; celle de ② = un jeu de ② affiché (T13, AT-4), ni OOH ni radio (T11b). */
   protected readonly etapes = computed(() => etapesDuFil({
-    filtrePose: this.etat.filtre() !== null || this.etat.perimetreScope() !== null,
-    calquesActifs: this.etat.degradeActif() !== null || this.etat.poiSelectionnes().length > 0 || this.tmja.visible()
-      || this.risqueCarte.actif() || this.risqueCarte.pprtActif(),
+    filtrePose: this.etat.filtre() !== null || this.etat.perimetreScope() !== null, calquesActifs: this.donnees.renseignee(),
   }));
   protected readonly segmentsAriane = computed<SegmentAriane[]>(() => segmentsDuFiltre(this.etat.filtre()));
   protected readonly precisionAriane = computed(() => precisionDuPerimetre(this.etat.perimetreScope()));
@@ -230,7 +226,7 @@ export class CartePage {
     // s'inscrivent à l'éviction de leur dégradé et à « Tout effacer » avant tout geste, même étape ② jamais visitée.
     inject(IndicateursCiviquesService);
     inject(SanteService);
-    // Les couches de risque (T12) : instanciées ici, elles vivent avec la page et non avec le panneau Calques — sites et
+    // Les couches de risque (T12) : instanciées ici, elles vivent avec la page et non avec le panneau Données — sites et
     // périmètres restent sur la carte à toute étape, comme les couches React montées par `page.tsx:1187-1214`.
     inject(RisquesIndustrielsService);
     inject(PprtService);

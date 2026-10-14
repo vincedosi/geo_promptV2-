@@ -15,7 +15,7 @@ import type { JeuAffichable } from '../../logique/rangement-jeux';
   template: `
     <div class="flex items-center gap-2 px-[14px] py-2">
       @if (mode() === 'case') {
-        <input type="checkbox" class="case shrink-0" [checked]="coche()" [attr.aria-label]="'Choisir ' + jeu().nom" (change)="cocher.emit()" />
+        <input type="checkbox" class="case shrink-0" [checked]="coche()" [attr.aria-label]="'Choisir ' + jeu().nom" (change)="surCocher($event)" />
       }
       <div class="min-w-0 flex-1">
         <div class="truncate text-[12px] text-primary">{{ jeu().nom }}</div>
@@ -27,7 +27,7 @@ import type { JeuAffichable } from '../../logique/rangement-jeux';
       }
       @if (mode() === 'reglages') {
         <button type="button" [attr.aria-expanded]="deplie()" [attr.aria-label]="(deplie() ? 'Replier ' : 'Régler ') + jeu().nom"
-                (click)="basculer.emit()" class="flex shrink-0 cursor-pointer border-0 bg-transparent p-1 text-tertiary hover:text-primary">
+                (click)="basculer.emit()" class="flex min-h-6 min-w-6 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-1 text-tertiary hover:text-primary">
           <mg-icone [nom]="deplie() ? 'chevron-bas' : 'chevron-droite'" [taille]="14" [trait]="1.5" />
         </button>
       }
@@ -47,4 +47,13 @@ export class LigneJeuComponent {
   readonly cocher = output<void>();
   readonly basculer = output<void>();
   protected readonly meta = computed(() => `${LIBELLE_NATURE[this.jeu().nature]} · ${this.jeu().maille}`);
+
+  /**
+   * La case reflète TOUJOURS `coche` (relecture T12, m1) : le navigateur l'a déjà basculée, on la remet à l'état reçu
+   * avant d'émettre. Si le parent accepte, `coche` change et la liaison la rebascule ; s'il refuse, elle reste juste.
+   */
+  protected surCocher(e: Event): void {
+    (e.target as HTMLInputElement).checked = this.coche();
+    this.cocher.emit();
+  }
 }

@@ -36,7 +36,7 @@
            [attr.aria-hidden]="e !== parcours.vue() ? 'true' : null">
         @switch (e) {
           @case ('perimetre') { <mg-panneau-filtre /> }
-          @case ('donnees') { <mg-panneau-calques /> }
+          @case ('donnees') { <mg-panneau-donnees /> }
           @case ('analyse') { <mg-panneau-analyse /> }
           @case ('zones') { <mg-panneau-zones /> }
           @default { <mg-etape-bientot [etape]="e" /> }

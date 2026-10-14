@@ -71,4 +71,27 @@ describe('LigneJeuComponent', () => {
     expect(b.getAttribute('aria-label')).toBe('Replier Flux routier (TMJA)');
     expect(el.querySelector('[data-reglages] [data-projete]')).not.toBeNull();
   });
+
+  it('la case reflète TOUJOURS `coche` : un geste que le parent refuse ne la laisse pas cochée (relecture T12, m1)', async () => {
+    const { el, rendre, hote } = await monter();
+    hote.mode.set('case');
+    await rendre();
+    const c = el.querySelector('input[type=checkbox]') as HTMLInputElement;
+    c.click();
+    await rendre();
+    expect(hote.cochages).toBe(1);
+    expect(c.checked).toBe(false);
+    // Le parent accepte le geste suivant : la case suit.
+    c.click();
+    hote.coche.set(true);
+    await rendre();
+    expect(c.checked).toBe(true);
+  });
+
+  it('le chevron offre une cible d’au moins 24 × 24 px (WCAG 2.5.8, relecture T12, m2)', async () => {
+    const { el } = await monter();
+    const b = el.querySelector('button[aria-expanded]') as HTMLButtonElement;
+    expect(b.classList).toContain('min-h-6');
+    expect(b.classList).toContain('min-w-6');
+  });
 });

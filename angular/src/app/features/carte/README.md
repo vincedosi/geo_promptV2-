@@ -18,9 +18,9 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 |---|---|
 | `parcours/` | la barre du parcours (`mg-barre-parcours` : fil d'Ariane, fil d'étapes, bouton « Autres » hors du fil, actions), le panneau d'étape (`mg-panneau-etape` : poignée, repli « carte seule »), les étapes « bientôt » ⑤-⑧ |
 | `outils/` | la boîte à outils (`mg-boite-outils`, `OutilsCarteService` : Mes analyses, Mes zones, Fond de carte, Légende, Aide, Réglages ; un tiroir à la fois, dans la pile Échap ; contenu monté à la première ouverture puis gardé) |
-| `panneaux/` | le contenu de chaque étape : `filtre/`, `calques/` (une section par couche), `analyse/` (bataille d'isochrones, corrélation, score, clustering), `zones/` (création ; « Mes zones » et les jeux de zones, montés par l'outil Mes zones ; plan média), `autres/` (le panneau « Autres » : panneaux OOH et radio, hors du fil), `donnees/` (② : la ligne uniforme d'un jeu, `mg-ligne-jeu`, T12) ; `aide` et `reglages`, contenus des tiroirs de la boîte à outils |
+| `panneaux/` | le contenu de chaque étape : `filtre/`, `calques/` (une section par couche, dépliée dans une ligne de ② ou dans « Autres »), `analyse/` (bataille d'isochrones, corrélation, score, clustering), `zones/` (création ; « Mes zones » et les jeux de zones, montés par l'outil Mes zones ; plan média), `autres/` (le panneau « Autres » : panneaux OOH et radio, hors du fil), `donnees/` (② « Données », T13 : `mg-panneau-donnees` — « Actifs », `mg-actions-poi`, « Chercher un jeu », données de l'espace, données communes recommandées, « Plus de données communes » — et la ligne uniforme d'un jeu, `mg-ligne-jeu`, T12) ; `aide` et `reglages`, contenus des tiroirs de la boîte à outils |
 | `couches/` | une couche = un service (`*.service.ts` : état, lectures, pose) + ses fonctions pures (`couche-*.ts` : sources, couches, peintures, popups) |
-| `etat/` | état de l'écran : `parcours.service.ts` (étape courante, étapes visitées, `?etape=`), `etat-carte.service.ts` (mode immersif, filtre, dégradé actif…), `couches-carte.service.ts` (registre des couches, `carteCourante`), pile Échap, annonces, zones, bataille, score…, `jeux-recommandes.service.ts` (la sélection recommandée de l'espace, lue une fois par ②) |
+| `etat/` | état de l'écran : `parcours.service.ts` (étape courante, étapes visitées, `?etape=`), `etat-carte.service.ts` (mode immersif, filtre, dégradé actif…), `couches-carte.service.ts` (registre des couches, `carteCourante`), pile Échap, annonces, zones, bataille, score…, `jeux-recommandes.service.ts` (la sélection recommandée de l'espace, lue une fois par ②, fourni par le panneau Données), `donnees-affichees.service.ts` (« affiché » pour ② : pastilles des lignes ET de l'étape, une seule source, fourni par la page) |
 | `data/` | services d'API de la carte (`*.api.ts`) |
 | `logique/` | fonctions pures : `parcours.ts` (les huit étapes, l'URL, les raccourcis), `jeux-carte.ts` (le registre des jeux) et `rangement-jeux.ts` (le rangement de ② : espace, recommandés, « Plus de données communes »), copies de la logique React (`palettes-donnees-carte.ts`, `carreaux/`, `meteo/`…, verrouillées par les tests `carte-*-paritaire`), ordre des couches, gardes, règles de la légende |
 | `legende/` | la légende unique (`legende-carte`) et ses blocs propres (score, bataille, zones du profil) |
@@ -60,7 +60,7 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 
 ## Cycle de vie d'une couche
 
-1. **Allumée** par sa section de `panneaux/calques/` (ou un outil) : le service passe `visible` à vrai.
+1. **Allumée** par sa section de `panneaux/calques/`, dépliée dans sa ligne de ② (ou un outil) : le service passe `visible` à vrai.
 2. **Posée** par un `effect` du service sur `CouchesCarteService.carteCourante()` : `quandStyleCharge`, puis
    `addSource` / `addLayer` IDEMPOTENTS (on teste `getSource` / `getLayer` sur l'instance courante, jamais un
    drapeau gardé), à sa place d'empilement (`avantDe`, ordre de `logique/ordre-couches.ts`).

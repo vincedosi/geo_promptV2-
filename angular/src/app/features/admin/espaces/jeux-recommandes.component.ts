@@ -33,7 +33,7 @@ const SOCLE_INCOMPLET =
   template: `
     <mg-entete-section libelle="Sélection recommandée sur la carte" class="rounded-t-lg" />
     <p class="intro">Les jeux cochés s’affichent d’abord dans « Données communes » à l’étape ② ; les autres se rangent dans
-      « Autres données communes ». Une recommandation range : elle ne donne ni ne retire aucun droit. Aucune case cochée :
+      « Plus de données communes ». Une recommandation range : elle ne donne ni ne retire aucun droit. Aucune case cochée :
       l’espace voit tout, déplié.</p>
     @if (erreur(); as m) {
       <div role="alert" class="erreur">
