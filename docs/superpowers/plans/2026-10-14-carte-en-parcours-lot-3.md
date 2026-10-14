@@ -28,16 +28,17 @@ Les numéros de migration de ce plan (252 à 256) sont ceux du 14/10 : prendre �
 
 ## Global Constraints
 
-- Les huit étapes et leurs valeurs d'URL sont celles du lot 1 (`perimetre` · `donnees` · `zones` · `analyse` · `jeu` · `plan` · `activation` · `live`) ; ce lot ne touche qu'à ③ `zones` et, pour retirer les isochrones, à ④ `analyse`. « Autres » (OOH, radio) reste hors fil (Task 11b du lot 2), non replanifié.
+- Les huit étapes et leurs valeurs d'URL sont celles du lot 1 (`perimetre` · `donnees` · `zones` · `analyse` · `jeu` · `plan` · `activation` · `live`) ; ce lot ne touche qu'à ③ `zones` ; **rien n'est retiré de ④** (bataille et comparaison d'isochrones y restent, spec § 16.1 et § 16.4 — arbitrage du contrôleur, C3). « Autres » (OOH, radio) reste hors fil (Task 11b du lot 2), non replanifié.
 - **Un seul objet zone** : toute création de ③ écrit `custom_geo_zones` avec une `recette` (spec § 16.2-1). Aucune table de zone neuve.
 - **La forme exacte est la vérité** : ③ ne convertit jamais en CP ; `resolve_custom_geo_zone_codes` reste appelé après écriture pour les compteurs de « Mes zones » (affichage historique, spec § 4 ④), il n'achète rien.
-- **① borne tout calcul lourd** : `rayon_poi`, `seuil_carreaux`, `seuil_territoire` refusent le périmètre `france` et tout périmètre de plus de **100 000 km²** ; plafonds écrits : **5 000 POI**, **20 000 carreaux**, **5 000 territoires**, **20 000 sommets** à l'import (spec § 16.8 A-4). Un refus est une RÉPONSE (`{ refus }` → HTTP 422 en français), jamais une exception muette ni un résultat tronqué.
+- **① borne tout calcul lourd** : `rayon_poi` et `seuil_territoire` refusent le périmètre `france` et tout périmètre de plus de **100 000 km²** (garde qui ne refuse en pratique que la France : la plus grande région fait 84 617 km²) ; `seuil_carreaux` n'admet que **département, commune, code postal ou zone ≤ 12 000 km²** (la région est refusée : 433 000 buffers lus au pire contre 69 000 pour la Gironde, spec § 16.6, question Q-G). Plafonds écrits : **5 000 POI**, **20 000 carreaux retenus**, **5 000 territoires**, **20 000 sommets** à l'import (spec § 16.8 A-4). Un refus est une RÉPONSE (`{ refus }` → HTTP 422 en français), jamais une exception muette ni un résultat tronqué.
+- **Le périmètre se résout EN BASE, par une seule fonction** (`resoudre_perimetre`, Task 3). La commune de ① est un texte libre (`panneau-filtre-logique.ts:59`, copie verrouillée de React — on ne la change pas) : elle est résolue PAR SON NOM normalisé (`lower(unaccent(…))`) ; un code INSEE à 5 caractères est accepté aussi ; plusieurs communes du même nom → refus `commune_ambigue` (« précisez le département ») ; Paris, Lyon, Marseille → l'union de leurs arrondissements (`ref_communes` ne porte que `75101`…, `69381`…, `13201`…). Question Q-F pour Vincent.
 - PostgREST coupe à 1 000 lignes : toute RPC neuve rend `jsonb` (pas de `RETURNS TABLE`) ; aucune lecture de table neuve sans borne écrite.
-- I/O (CLAUDE.md § Disk I/O) : `EXPLAIN (ANALYZE, BUFFERS)` en LOCAL sur chaque RPC neuve, chiffres reportés dans le rapport ; quotas par `lib/api/rate-limit.ts` (`createRateLimiter`, compteur en base) — jamais une `Map` ; ≤ 3 appels Supabase simultanés ; aucune lecture déclenchée par l'ouverture de ③ hors les catalogues déjà chargés (catégories POI, indicateurs).
-- `carreaux_filosofi.geom_centroid` est NULL partout en local : le centroïde d'un carreau se calcule `ST_Centroid(geom_3857)` (index GIST `idx_carreaux_filosofi_geom_3857`). Ne pas remplir la colonne (question Q-E de Vincent).
+- I/O (CLAUDE.md § Disk I/O) : `EXPLAIN (ANALYZE, BUFFERS)` en LOCAL sur chaque RPC neuve, chiffres reportés dans le rapport ; quotas par `lib/api/rate-limit.ts` (`createRateLimiter`, compteur en base) — jamais une `Map` ; ≤ 3 appels Supabase simultanés ; aucune lecture déclenchée par l'ouverture de ③ hors les catalogues déjà chargés (catégories POI, indicateurs). **Un seul quota** pour les trois routes de calcul (aperçu, écriture, recalcul) : 12 appels / 60 s / compte, préfixe `geo:rl:zones` (spec A-7 : un aperçu + un enregistrement = 2 jetons, soit 6 zones par minute ; au pire mesuré, 69 000 buffers par appel → ≤ 830 000 buffers / minute / compte).
+- `carreaux_filosofi.geom_centroid` est NULL partout en local, et ce n'est PAS un défaut (aucune fonction ne rend zéro, spec § 16.6) : le centroïde d'un carreau se calcule `ST_Centroid(geom_3857)` (index GIST `idx_carreaux_filosofi_geom_3857`). **Ne jamais lancer `populate_geom_centroid_async`** (un `UPDATE` de 2,3 M lignes d'un seul passage, interdit par la règle Disk I/O).
 - **Aucun `DROP`** de fonction ni de table (base locale partagée) ; `create or replace`, `add column if not exists`, migrations rejouables (appliquées DEUX fois).
 - Huit RPC vivantes sans source sont rapatriées À L'IDENTIQUE (Task 1) avant toute autre tâche ; ce lot n'en modifie aucune.
-- Routes API : `export const dynamic = 'force-dynamic'`, Zod, `lireCorps()` (jamais `request.json()` nu), `getSessionOrg` (jamais `getUser()`), espace = `session.orgId` (vue espace, spec droits), `createAdminClient()` depuis `@/lib/auth`, messages d'erreur en français, détail Postgres seulement dans `console.error`.
+- Routes API : `export const dynamic = 'force-dynamic'`, Zod, `lireCorps()` (jamais `request.json()` nu), **garde `requireAuth(request)` dans le SOURCE de la route** (arbitrage L3-7 : c'est un garde que `tests/unit/api/routes-publiques.test.ts:114` reconnaît, et le patron de `/api/zones/jeux/*` que l'Angular appelle déjà ; `middleware.ts` est protégé et N'EST PAS TOUCHÉ, et la liste `GARDES` du test n'est pas élargie), espace = `profile.organization_id` (l'espace actif : `/api/user/switch-org` met à jour ce champ ; c'est aussi ce que `getSessionOrg` lit), sources visibles = `getOrgSourceIds({ userId, orgId, role }, { vueEspace: true })` ; `createAdminClient()` depuis `@/lib/auth`, messages d'erreur en français, détail Postgres seulement dans `console.error`. Jamais `getUser()` côté route.
 - Types : `types/database.types.ts` régénéré dans le commit de chaque migration (`npx supabase gen types typescript --db-url "postgresql://postgres:postgres@127.0.0.1:54322/postgres" > types/database.types.ts`) ; le diff n'ajoute QUE les objets de la migration.
 - Angular / AIDA (skill `porting-react-to-angular`) : aucun `position: fixed`, aucun écouteur sur `window`/`document`, services d'état fournis par la page ou le panneau (jamais `providedIn: 'root'`), services d'API dans `FOURNISSEURS_DISTANTS` (`angular/src/app/app.routes.ts`), pas de `@angular/core/rxjs-interop`, couleurs par jetons — MapLibre reçoit des couleurs CALCULÉES (`CouleursService.palette`), jamais `var()` dans `paint`.
 - Le panneau d'une étape reste MONTÉ quand on en change (lot 1, A1) : l'aperçu d'une zone survit à un aller-retour ③ → ① → ③.
@@ -51,23 +52,25 @@ Les numéros de migration de ce plan (252 à 256) sont ceux du 14/10 : prendre �
 
 ## Review Focus
 
-1. **Périmètre absent, national ou trop grand pour une recette lourde** (aucun filtre à ①, filtre « France », filtre « zone » d'un autre espace, région ARA à 10 %) : ③ dit en une ligne ce qu'il faut faire (« Choisissez un périmètre à l'étape ① » / « Resserrez le périmètre ou relevez le seuil — plus de 20 000 carreaux »), AUCUNE requête lourde ne part, rien n'est tronqué en silence. → tests T5 (`refus` SQL), T7 (exécuteur → 422), T9 (`perimetreDeFiltre`, garde côté écran).
-2. **Recalculer une zone qu'un plan achète** (stratégie de bidding, jeu de zones, composite, combinaison qui la cite) : refus 409 « Cette zone est utilisée par … : dupliquez-la » — la forme ne change jamais sous une campagne. → tests T3 (`remplacer_geometrie_zone`) et T8 (route).
+1. **Périmètre absent, national, trop grand ou introuvable pour une recette lourde** (aucun filtre à ①, filtre « France », région pour un seuil sur carreaux, filtre « zone » d'un autre espace, commune tapée « saint-sauveur » (11 homonymes), commune « marseille ») : ③ dit en une ligne ce qu'il faut faire (« Choisissez un périmètre à l'étape ① » / « Le seuil sur carreaux se calcule sur un département au plus » / « Plusieurs communes portent ce nom : précisez le département »), Marseille donne l'union de ses 16 arrondissements, AUCUNE requête lourde ne part sur un refus, rien n'est tronqué en silence. → tests T3 (`resoudre_perimetre`), T5 (`refus` SQL), T7 (exécuteur → 422), T9 (`perimetreDeFiltre`, garde côté écran).
+2. **Recalculer une zone qu'un plan achète** (stratégie de bidding, jeu de zones, composite, combinaison qui la cite, recette qui la prend pour périmètre) : refus 409 « Cette zone est utilisée par un plan : dupliquez-la » AVANT tout calcul (aucune RPC lourde ne part) — la forme ne change jamais sous une campagne. → tests T3 (`zone_referencee`, `remplacer_geometrie_zone`) et T8 (route : aucune exécution sur un 409).
 3. **Import d'un fichier hostile ou maladroit** (KML avec trous, GeoJSON `FeatureCollection` mêlant points et polygones, polygone auto-intersecté, 80 000 sommets, fichier vide, encodage latin-1, coordonnées inversées lat/lon hors France) : on garde les polygones, on dit combien d'éléments sont ignorés, on répare (`ST_MakeValid`), on refuse au-delà de 20 000 sommets, on refuse une forme entièrement hors du territoire — jamais une zone vide enregistrée. → tests T9 (`lireForme`) et T7 (exécuteur, `vide` → 409).
 4. **Changer d'espace ou d'étape pendant un aperçu en vol** : la réponse de l'ancien espace n'est jamais dessinée ni enregistrée dans le nouveau ; un aperçu reste dessiné après ③ → ① → ③ ; « Enregistrer » ré-exécute la recette côté serveur (le client ne fournit une géométrie que pour une forme figée). → tests T9 (`AtelierZoneService` : jeton de requête, page recréée) et T8 (la route ignore une géométrie fournie pour une recette recalculable).
-5. **Super admin dans un espace dont il n'est pas membre** (vue espace) : la zone s'écrit dans l'espace ACTIF, et si `resolve_custom_geo_zone_codes` refuse le compte appelant (« Access denied »), la réponse est 207 « zone créée, codes postaux non résolus » — la zone n'est jamais perdue ni écrite dans l'espace du compte. → test T8 (route `POST /api/zones`, résolution en échec).
+5. **Super admin qui a basculé d'espace, ou résolution des codes en échec** : la zone s'écrit dans l'espace ACTIF (`profile.organization_id`, mis à jour par `switch-org`), jamais dans un autre ; si `resolve_custom_geo_zone_codes` échoue (délai, accès), la réponse est 207 « zone créée, codes postaux non résolus » — la zone n'est jamais perdue. Un second clic sur « Enregistrer » après un succès ne crée pas de doublon. → tests T8 (route `POST /api/zones`, résolution en échec) et T9 (atelier vidé après succès).
 
 ## Arbitrages du chef de projet
 
-Ceux de la spec § 16.8 (A-1 à A-6) s'appliquent. Ajoutés par ce plan :
+Ceux de la spec § 16.8 (A-1 à A-7) s’appliquent ; questions ouvertes de Vincent qui touchent ce lot : Q-F (commune), Q-G (département ou région), Q-H (demi-cercles), spec § 16.7. Ajoutés par ce plan :
 
 | # | Point | Tranché | Coût si faux |
 |---|---|---|---|
-| L3-1 | Une zone « rayon autour des POI d'un type » sort-elle du périmètre ? | **Non** : elle est découpée par le périmètre (`part_retenue` rendue). Le périmètre BORNE, et une zone qui le déborde ne serait plus bornée au recalcul. | un paramètre « découper » à ajouter |
+| L3-1 | Une zone « rayon autour des POI d'un type » sort-elle du périmètre ? | **Non** : elle est découpée par le périmètre (`part_retenue` rendue). Le périmètre BORNE, et une zone qui le déborde ne serait plus bornée au recalcul. Effet visible : un lycée au bord du département donne un demi-cercle — **question Q-H pour Vincent**. | un paramètre « découper » à ajouter |
 | L3-2 | Seuil sur carreaux : un carreau est-il retenu par son centroïde ou par intersection ? | **Centroïde dans le périmètre** (la règle de `cp_du_point`, sql/228) ; la zone est l'union des carreaux ENTIERS (débord ≤ 100 m au bord du périmètre). | un clip final : une ligne |
 | L3-3 | Indicateurs de seuil carreaux | Une liste FERMÉE de 13 indicateurs (parts en % et densité d'habitants), écrite deux fois — `INDICATEURS_SEUIL_CARREAUX` (TS) et le `case` SQL — et verrouillée par un test qui lit la migration. | ajouter une ligne aux deux |
-| L3-4 | Aperçu puis enregistrement : deux exécutions ? | **Oui** : `POST /api/zones` ré-exécute la recette (on ne fait pas confiance à une géométrie cliente pour une recette recalculable). Coût mesuré du cas le plus lourd : 2,6 s ; quotas 20 aperçus et 20 écritures par minute. | une signature de l'aperçu à ajouter |
-| L3-5 | Où vivent les isochrones et la bataille ? | Le bloc « Analyse spatiale » du panneau ④ est EXTRAIT tel quel en `mg-section-isochrones` et monté dans ③ (famille « Autour des POI ») ; la capture de leur résultat écrit une recette `isochrone` (forme figée) par la route existante `/api/custom-geo/capture`, qui accepte un champ `recette` facultatif (React ne l'envoie pas). | remonter le bloc dans ④ |
+| L3-4 | Aperçu puis enregistrement : deux exécutions ? | **Oui** : `POST /api/zones` ré-exécute la recette (on ne fait pas confiance à une géométrie cliente pour une recette recalculable). Coût mesuré du cas le plus lourd après la borne au département : 69 000 buffers, 0,26 s à chaud ; le quota unique (12 / min, A-7) compte les deux appels. | une signature de l'aperçu à ajouter |
+| L3-5 | Où vivent les isochrones et la bataille ? | **En ④, inchangées** (arbitrage du contrôleur, C3 : spec § 16.1 « rien de l'existant n'est retiré »). ③ en fait une RECETTE : la capture de leur résultat écrit `{ type: 'isochrone' }` (forme figée) par la route existante `/api/custom-geo/capture`, qui accepte un champ `recette` facultatif (React ne l'envoie pas) ; la famille « Autour des POI » de ③ renvoie vers ④ pour les lancer. | — |
+| L3-7 | Garde des trois routes neuves | `requireAuth(request)` dans la route (garde reconnu par `routes-publiques.test.ts`, patron de `/api/zones/jeux`). Écarté : élargir `GARDES` à `getSessionOrg(` — ce test est un verrou de sécurité, l'élargir pour une seule famille de routes affaiblirait ce qu'il prouve, alors qu'un garde déjà reconnu fait le même travail (même source de l'espace : `profiles.organization_id`). `middleware.ts` n'est pas touché. | une ligne par route |
+| L3-8 | La commune de ① est un texte libre | Résolue par son nom en base (`resoudre_perimetre`), homonymes refusés, arrondissements unis pour Paris/Lyon/Marseille ; la saisie de ① (copie React verrouillée) n'est pas changée — question Q-F. | une liste à choix dans ① |
 | L3-6 | Les trois créateurs existants (CP, rayon, dessin) | Gardés, mais ils ENREGISTRENT par `POST /api/zones` avec leur recette (`codes_postaux`, `rayon_point`, `dessin`) ; leurs routes source restent l'aperçu. Les opérations (union/intersection/différence) de « Mes zones » enregistrent une recette `combinaison`. | — |
 
 ## File Structure
@@ -75,7 +78,7 @@ Ceux de la spec § 16.8 (A-1 à A-6) s'appliquent. Ajoutés par ce plan :
 | Fichier | Responsabilité |
 |---|---|
 | `sql/252_rapatriement_rpc_zones.sql` (créé) | Huit RPC vivantes sans source, À L'IDENTIQUE + leurs droits. |
-| `sql/253_zones_a_recette.sql` (créé) | Colonne `recette` + CHECK, `geometrie_perimetre`, `refus_perimetre`, `creer_zone_recette`, `remplacer_geometrie_zone`. |
+| `sql/253_zones_a_recette.sql` (créé) | Colonne `recette` + CHECK, `resoudre_perimetre`, `zone_referencee`, `creer_zone_recette`, `remplacer_geometrie_zone`. |
 | `sql/254_zone_rayon_poi.sql`, `sql/255_zone_seuil_carreaux.sql`, `sql/256_zone_seuil_territoire.sql` (créés) | Les trois RPC de recette, `jsonb`, bornées. |
 | `lib/zones/recette.ts` + `angular/src/app/features/carte/logique/zones/recette.ts` (créés, parité) | Types, constantes, plafonds, libellés, messages de refus. Pur. |
 | `lib/zones/recette-schema.ts` (créé) | Schéma Zod de la recette (serveur seul). |
@@ -83,8 +86,8 @@ Ceux de la spec § 16.8 (A-1 à A-6) s'appliquent. Ajoutés par ce plan :
 | `app/api/zones/route.ts`, `app/api/zones/apercu/route.ts`, `app/api/zones/[id]/recalculer/route.ts` (créés) | Écrire, aperçu, recalcul. |
 | `app/api/custom-geo/list/route.ts`, `app/api/custom-geo/capture/route.ts` (modifiés) | `recette` lue ; `recette` facultative à la capture. |
 | `angular/.../data/zones.api.ts`, `etat/atelier-zone.service.ts`, `couches/apercu-zone.ts`, `logique/zones/perimetre-recette.ts`, `logique/zones/import-forme.ts` (créés) | Angular : API, état d'atelier, aperçu carte, périmètre, lecture GeoJSON/KML. |
-| `angular/.../panneaux/zones/recette-rayon-poi.component.ts`, `recette-seuil-carreaux.component.ts`, `recette-seuil-territoire.component.ts`, `recette-import.component.ts`, `pied-recette.component.ts`, `section-isochrones.component.ts` (créés) | Formulaires de recette, pied commun (aperçu, nom, enregistrer), isochrones déplacées. |
-| `angular/.../panneaux/zones/panneau-zones.component.ts`, `etat/creation-zone.service.ts`, `panneaux/zones/operations-zones.component.ts`, `panneaux/zones/carte-zone.component.ts`, `panneaux/zones/mes-zones.component.ts`, `panneaux/analyse/panneau-analyse.component.ts`, `data/zones-custom.api.ts`, `app.routes.ts` (modifiés) | |
+| `angular/.../panneaux/zones/recette-rayon-poi.component.ts`, `recette-seuil-carreaux.component.ts`, `recette-seuil-territoire.component.ts`, `recette-import.component.ts`, `pied-recette.component.ts`, `styles-recette.ts` (créés) | Formulaires de recette, pied commun (aperçu, nom, enregistrer). |
+| `angular/.../panneaux/zones/panneau-zones.component.ts`, `etat/creation-zone.service.ts`, `panneaux/zones/operations-zones.component.ts`, `panneaux/zones/carte-zone.component.ts`, `panneaux/zones/mes-zones.component.ts`, `panneaux/zones/capture.component.ts`, `data/zones-custom.api.ts`, `app.routes.ts`, `carte.page.ts/.html` (modifiés) — `panneaux/analyse/*` NON modifié | |
 | Tests : `tests/unit/db/rpc-chemin-zones-sources.test.ts`, `tests/unit/zones/recette.test.ts`, `tests/unit/angular/recette-paritaire.test.ts`, `tests/integration/zones-recette.test.ts`, `tests/integration/zone-rayon-poi.test.ts`, `tests/integration/zone-seuil-carreaux.test.ts`, `tests/integration/zone-seuil-territoire.test.ts`, `tests/unit/zones/executer-recette.test.ts`, `tests/unit/api/zones-routes.test.ts` (créés) ; specs Angular à côté de chaque fichier | |
 
 ---
@@ -136,13 +139,19 @@ describe('RPC du chemin des zones : une source dans sql/', () => {
 
 - [ ] **Step 3: Extraire les définitions de la base locale** (lecture seule) :
 
+L'ordre par fonction est **créer, PUIS régler les droits** : sur une base vide (la restauration après sinistre est la raison même de ce fichier), un `revoke` sur une fonction qui n'existe pas encore échoue. Les droits sont recopiés EXACTEMENT, PUBLIC compris : `aclexplode` rend le bénéficiaire PUBLIC avec l'oid 0, qu'une jointure à `pg_roles` perdrait — c'est le cas de `get_carreaux_by_zoom` (`{=X/postgres,…}`, vérifié le 14/10). D'où la jointure EXTERNE et le `revoke` de TOUS les rôles avant de re-donner la liste extraite (sur une base neuve, les privilèges par défaut de Supabase donnent `anon`/`authenticated`/`service_role`, que la liste doit écraser).
+
 ```bash
 docker exec supabase_db_genesis_app psql -U postgres -At -c "
   select pg_get_functiondef(p.oid) || ';' || E'\n'
-    || coalesce((select string_agg(format('grant execute on function public.%I(%s) to %I;', p.proname,
-                    pg_get_function_identity_arguments(p.oid), r.rolname), E'\n')
-               from aclexplode(p.proacl) a join pg_roles r on r.oid = a.grantee
-              where a.privilege_type = 'EXECUTE' and r.rolname <> 'postgres'), '') || E'\n'
+    || format('revoke all on function public.%I(%s) from public, anon, authenticated, service_role;', p.proname,
+              pg_get_function_identity_arguments(p.oid)) || E'\n'
+    || coalesce((select string_agg(format('grant execute on function public.%I(%s) to %s;', p.proname,
+                    pg_get_function_identity_arguments(p.oid),
+                    case when a.grantee = 0 then 'public' else quote_ident(r.rolname) end), E'\n'
+                    order by coalesce(r.rolname, ''))
+               from aclexplode(p.proacl) a left join pg_roles r on r.oid = a.grantee
+              where a.privilege_type = 'EXECUTE' and coalesce(r.rolname, '') <> 'postgres'), '') || E'\n'
   from pg_proc p
   where p.pronamespace = 'public'::regnamespace
     and p.proname in ('get_carreaux_capture_geometry','get_carreaux_by_zoom','get_admin_filter_geometry',
@@ -150,9 +159,10 @@ docker exec supabase_db_genesis_app psql -U postgres -At -c "
                       'resolve_custom_geo_zone_codes_with_subzones','transform_geometries_for_save',
                       'compute_zone_audience_stats')
   order by p.proname, pg_get_function_identity_arguments(p.oid);" > /tmp/rpc-zones.sql
+grep -c "to public;" /tmp/rpc-zones.sql   # ≥ 1 : get_carreaux_by_zoom garde PUBLIC
 ```
 
-Composer `sql/252_rapatriement_rpc_zones.sql` : l'en-tête ci-dessous, `begin;`, pour chaque fonction un `revoke all on function public.<nom>(<args>) from public;` puis sa définition et ses `grant` tels qu'extraits, `commit;`. **Ne rien reformater dans les corps** (le diff doit rester une copie).
+Composer `sql/252_rapatriement_rpc_zones.sql` : l'en-tête ci-dessous, `begin;`, le contenu de `/tmp/rpc-zones.sql` tel quel (définition, `revoke`, `grant`, fonction par fonction), `commit;`. **Ne rien reformater dans les corps** (le diff doit rester une copie).
 
 ```sql
 -- 252 — Rapatriement À L'IDENTIQUE de huit RPC vivantes sans source (2026-10-14)
@@ -161,23 +171,46 @@ Composer `sql/252_rapatriement_rpc_zones.sql` : l'en-tête ci-dessous, `begin;`,
 -- Ces fonctions n'existaient que dans la base locale et son dump. Elles sont recopiées par pg_get_functiondef,
 -- droits compris, SANS AUCUNE CORRECTION — y compris get_carreaux_capture_geometry (48 s par appel,
 -- docs/audit/SCALE_MODEL.md:107), que le lot 3 remplace pour l'étape ③ par zone_seuil_carreaux (sql/255) sans la
--- toucher, React la gardant. Rejouable (create or replace).
+-- toucher, React la gardant. Rejouable (create or replace), et rejouable sur une BASE VIDE : chaque fonction est
+-- créée AVANT que ses droits soient réglés.
+--
+-- Droits recopiés EXACTEMENT, PUBLIC compris (get_carreaux_by_zoom l'a : {=X/postgres,…}) : revoke de tous les
+-- rôles puis grant de la liste extraite par aclexplode (jointure externe — PUBLIC a l'oid 0).
 --
 -- Fonctions : get_carreaux_capture_geometry, get_carreaux_by_zoom, get_admin_filter_geometry,
 -- get_iris_selection_geometry, resolve_custom_geo_zone_codes (uuid) et (uuid, uuid),
 -- resolve_custom_geo_zone_codes_with_subzones, transform_geometries_for_save, compute_zone_audience_stats.
+-- ⚠ get_carreaux_by_zoom a une version ANCIENNE dans supabase/migrations/008_carreaux_multiresolution.sql,
+-- peut-être divergente : la version ci-dessous est la VIVANTE (14/10) et fait foi. Elle est RETURNS TABLE (déjà
+-- couverte par tests/unit/db/troncature-postgrest.test.ts, qui balaie aussi supabase/migrations).
 ```
 
-- [ ] **Step 4: Rejouer sans changer la base** — appliquer DEUX fois, puis vérifier que les définitions sont inchangées :
+- [ ] **Step 4: Rejouer sans changer la base — corps ET droits** — noter l'empreinte AVANT, appliquer DEUX fois, comparer :
 
 ```bash
-docker exec supabase_db_genesis_app psql -U postgres -At -c "select md5(string_agg(pg_get_functiondef(oid), '' order by oid)) from pg_proc where pronamespace='public'::regnamespace and proname in ('get_carreaux_capture_geometry','get_carreaux_by_zoom','get_admin_filter_geometry','get_iris_selection_geometry','resolve_custom_geo_zone_codes','resolve_custom_geo_zone_codes_with_subzones','transform_geometries_for_save','compute_zone_audience_stats')"   # noter AVANT
+EMPREINTE="select md5(string_agg(pg_get_functiondef(oid) || coalesce(proacl::text, '∅'), '|' order by proname, pg_get_function_identity_arguments(oid))) from pg_proc where pronamespace='public'::regnamespace and proname in ('get_carreaux_capture_geometry','get_carreaux_by_zoom','get_admin_filter_geometry','get_iris_selection_geometry','resolve_custom_geo_zone_codes','resolve_custom_geo_zone_codes_with_subzones','transform_geometries_for_save','compute_zone_audience_stats')"
+docker exec supabase_db_genesis_app psql -U postgres -At -c "$EMPREINTE"     # noter AVANT
+docker exec supabase_db_genesis_app psql -U postgres -At -c "select proname, proacl from pg_proc where proname = 'get_carreaux_by_zoom'"   # {=X/postgres,…} AVANT
 docker exec -i supabase_db_genesis_app psql -U postgres -d postgres -v ON_ERROR_STOP=1 < sql/252_rapatriement_rpc_zones.sql
 docker exec -i supabase_db_genesis_app psql -U postgres -d postgres -v ON_ERROR_STOP=1 < sql/252_rapatriement_rpc_zones.sql
-# relancer la requête md5 : MÊME empreinte qu'avant. Sinon s'arrêter : le fichier n'est pas une copie.
+docker exec supabase_db_genesis_app psql -U postgres -At -c "$EMPREINTE"     # MÊME empreinte (corps + droits). Sinon s'arrêter.
 ```
 
-- [ ] **Step 5: PASS** — le test du Step 1 ; `npx vitest run --project unit tests/unit/db` (la troncature ne doit pas bouger : ces fonctions rendent `jsonb`).
+Puis la preuve « base vide », sans toucher la base partagée : dans une base JETABLE du même conteneur, créer PostGIS et les rôles déjà présents, appliquer le fichier, comparer les `proacl`, détruire la base :
+
+```bash
+docker exec supabase_db_genesis_app psql -U postgres -c "create database essai_rapatriement"
+docker exec supabase_db_genesis_app psql -U postgres -d essai_rapatriement -c "create extension postgis; create extension unaccent;"
+# les tables lues par les corps n'existent pas : les fonctions plpgsql se créent quand même (corps validés à l'appel) ;
+# une fonction `language sql` qui cite une table absente échoue — la noter dans le rapport et la créer après ses tables
+docker exec -i supabase_db_genesis_app psql -U postgres -d essai_rapatriement -v ON_ERROR_STOP=1 < sql/252_rapatriement_rpc_zones.sql
+docker exec supabase_db_genesis_app psql -U postgres -d essai_rapatriement -At -c "select proname, proacl from pg_proc where pronamespace='public'::regnamespace and proname like any (array['get_carreaux%','get_admin%','get_iris_sel%','resolve_custom%','transform_geo%','compute_zone%']) order by 1"
+docker exec supabase_db_genesis_app psql -U postgres -c "drop database essai_rapatriement"
+```
+
+(Ce `drop database` porte sur la base jetable créée trois lignes plus haut, jamais sur `postgres` : la règle « aucun DROP » vise la base partagée.)
+
+- [ ] **Step 5: PASS** — le test du Step 1 ; `npx vitest run --project unit tests/unit/db` (la troncature ne doit pas bouger : sept de ces fonctions rendent `jsonb`, `get_carreaux_by_zoom` est `RETURNS TABLE` et déjà connue du test).
 - [ ] **Step 6: Doc + commit** — `ARCHITECTURE.md` (une ligne sous `## Fonctions RPC PostGIS`) ; `git add sql/252_rapatriement_rpc_zones.sql tests/unit/db/rpc-chemin-zones-sources.test.ts ARCHITECTURE.md` ; `chore(db): rapatrier à l'identique huit RPC du chemin des zones (sql/252)`.
 
 ---
@@ -192,7 +225,7 @@ docker exec -i supabase_db_genesis_app psql -U postgres -d postgres -v ON_ERROR_
 - Produces (identiques dans les deux copies) :
   - `VERSION_RECETTE = 1` ; `TYPES_RECETTE` (10 valeurs, ci-dessous) ; `type TypeRecette` ; `TYPES_RECALCULABLES` ; `TYPES_BORNES_PAR_PERIMETRE`.
   - `TYPES_PERIMETRE = ['region','departement','commune','cp','zone','france']` ; `interface PerimetreRecette { type; code }`.
-  - Plafonds : `RAYON_POI_MIN_M = 100`, `RAYON_POI_MAX_M = 50_000`, `MAX_POI_RAYON = 5_000`, `MAX_CARREAUX_SEUIL = 20_000`, `MAX_TERRITOIRES_SEUIL = 5_000`, `MAX_SOMMETS_FORME = 20_000`, `MAX_CODES_POSTAUX = 3_000`, `SURFACE_MAX_PERIMETRE_KM2 = 100_000`.
+  - Plafonds : `RAYON_POI_MIN_M = 100`, `RAYON_POI_MAX_M = 50_000`, `MAX_POI_RAYON = 5_000`, `MAX_CARREAUX_SEUIL = 20_000`, `MAX_TERRITOIRES_SEUIL = 5_000`, `MAX_SOMMETS_FORME = 20_000`, `MAX_CODES_POSTAUX = 3_000`, `SURFACE_MAX_PERIMETRE_KM2 = 100_000`, `SURFACE_MAX_PERIMETRE_CARREAUX_KM2 = 12_000` ; `PERIMETRES_ADMIS` (seuil sur carreaux : département, commune, CP, zone ; les deux autres : région en plus).
   - `INDICATEURS_SEUIL_CARREAUX: readonly { id; libelle; unite: '%' | 'hab./km²' }[]` (13 entrées).
   - `type Recette` (union discriminée par `type`, 10 variantes) ; `type RefusRecette` ; `MESSAGES_REFUS: Record<RefusRecette, string>`.
   - `estRecalculable(r: Recette): boolean` ; `exigePerimetre(r: Recette): boolean` ; `refusPerimetreLocal(r: Recette): RefusRecette | null` ; `libelleRecette(r: Recette): string`.
@@ -203,8 +236,8 @@ docker exec -i supabase_db_genesis_app psql -U postgres -d postgres -v ON_ERROR_
 ```ts
 import { describe, it, expect } from 'vitest';
 import {
-  INDICATEURS_SEUIL_CARREAUX, MESSAGES_REFUS, TYPES_RECETTE, estRecalculable, exigePerimetre, libelleRecette,
-  refusPerimetreLocal, type Recette,
+  INDICATEURS_SEUIL_CARREAUX, MESSAGES_REFUS, PERIMETRES_ADMIS, TYPES_RECETTE, estRecalculable, exigePerimetre,
+  libelleRecette, refusPerimetreLocal, type Recette,
 } from '@/lib/zones/recette';
 import { lireRecette } from '@/lib/zones/recette-schema';
 
@@ -233,6 +266,21 @@ describe('la recette d’une zone', () => {
     expect(refusPerimetreLocal({ ...lourde, perimetre: null })).toBe('perimetre_absent');
     expect(refusPerimetreLocal({ ...lourde, perimetre: PER })).toBeNull();
     expect(refusPerimetreLocal({ v: 1, type: 'codes_postaux', codes: ['13001'] })).toBeNull();
+  });
+
+  it('le seuil sur carreaux s’arrête au département ; les deux autres admettent la région', () => {
+    const region = { type: 'region', code: '84' } as const;
+    expect(refusPerimetreLocal({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: region })).toBe('perimetre_non_admis');
+    expect(refusPerimetreLocal({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: { type: 'commune', code: 'marseille' } })).toBeNull();
+    expect(refusPerimetreLocal({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 5000, perimetre: region })).toBeNull();
+    expect(refusPerimetreLocal({ v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre: region })).toBeNull();
+  });
+
+  it('PERIMETRES_ADMIS est la liste écrite dans les RPC (sql/254-256)', async () => {
+    const { readFileSync, readdirSync } = await import('node:fs');
+    const f = readdirSync('sql').find((n) => /_zone_seuil_carreaux\.sql$/.test(n));
+    if (!f) return; // la migration arrive en Task 5 ; ce test redevient strict ensuite
+    expect(readFileSync(`sql/${f}`, 'utf8')).toContain(`array[${PERIMETRES_ADMIS.seuil_carreaux!.map((t) => `'${t}'`).join(', ')}]`);
   });
 
   it('un message français pour chaque refus', () => {
@@ -284,7 +332,8 @@ describe('recette de zone : Angular = serveur', () => {
   it('mêmes constantes', () => {
     for (const k of ['VERSION_RECETTE', 'TYPES_RECETTE', 'TYPES_RECALCULABLES', 'TYPES_BORNES_PAR_PERIMETRE', 'TYPES_PERIMETRE',
       'RAYON_POI_MIN_M', 'RAYON_POI_MAX_M', 'MAX_POI_RAYON', 'MAX_CARREAUX_SEUIL', 'MAX_TERRITOIRES_SEUIL', 'MAX_SOMMETS_FORME',
-      'MAX_CODES_POSTAUX', 'SURFACE_MAX_PERIMETRE_KM2', 'INDICATEURS_SEUIL_CARREAUX', 'MESSAGES_REFUS'] as const) {
+      'MAX_CODES_POSTAUX', 'SURFACE_MAX_PERIMETRE_KM2', 'SURFACE_MAX_PERIMETRE_CARREAUX_KM2', 'PERIMETRES_ADMIS',
+      'INDICATEURS_SEUIL_CARREAUX', 'MESSAGES_REFUS'] as const) {
       expect((A as unknown as Record<string, unknown>)[k], k).toEqual((R as unknown as Record<string, unknown>)[k]);
     }
   });
@@ -349,7 +398,22 @@ export const MAX_CARREAUX_SEUIL = 20_000;
 export const MAX_TERRITOIRES_SEUIL = 5_000;
 export const MAX_SOMMETS_FORME = 20_000;
 export const MAX_CODES_POSTAUX = 3_000;
+/** Ne refuse en pratique que la France entière (la plus grande région : 84 617 km²). */
 export const SURFACE_MAX_PERIMETRE_KM2 = 100_000;
+/** Seuil sur carreaux : une zone-périmètre au plus grande qu'un département (Gironde : 10 000 km²). */
+export const SURFACE_MAX_PERIMETRE_CARREAUX_KM2 = 12_000;
+
+/**
+ * Les types de périmètre qu'admet chaque recette bornée. Le seuil sur carreaux s'arrête au DÉPARTEMENT : il lit le
+ * jsonb de chaque carreau du périmètre, 433 000 buffers sur une région contre 69 000 sur la Gironde (mesure du
+ * 14/10, spec § 16.6 ; l'ouverture à la région est la question Q-G de Vincent). La même liste est écrite dans les RPC
+ * (sql/254-256) : la base refait la garde.
+ */
+export const PERIMETRES_ADMIS: Readonly<Partial<Record<TypeRecette, readonly TypePerimetre[]>>> = {
+  rayon_poi: ['region', 'departement', 'commune', 'cp', 'zone'],
+  seuil_territoire: ['region', 'departement', 'commune', 'cp', 'zone'],
+  seuil_carreaux: ['departement', 'commune', 'cp', 'zone'],
+};
 
 export type OperateurSeuil = '>=' | '<=';
 
@@ -389,6 +453,7 @@ export type Recette =
 /** Les refus que rend une RPC de recette (`{ refus }`) ou que l'écran pose avant d'appeler. */
 export type RefusRecette =
   | 'perimetre_absent' | 'perimetre_national_refuse' | 'perimetre_inconnu' | 'perimetre_trop_grand'
+  | 'perimetre_non_admis' | 'commune_ambigue'
   | 'trop_de_poi' | 'trop_de_carreaux' | 'trop_de_territoires' | 'trop_de_sommets'
   | 'indicateur_inconnu' | 'zone_introuvable' | 'zone_referencee' | 'forme_vide' | 'forme_figee';
 
@@ -396,7 +461,9 @@ export const MESSAGES_REFUS: Readonly<Record<RefusRecette, string>> = {
   perimetre_absent: 'Choisissez un périmètre à l’étape ① avant ce calcul.',
   perimetre_national_refuse: 'Ce calcul ne se lance pas sur la France entière : choisissez une région, un département ou une zone à l’étape ①.',
   perimetre_inconnu: 'Le périmètre de l’étape ① est introuvable ou n’appartient pas à cet espace.',
-  perimetre_trop_grand: 'Le périmètre dépasse 100 000 km² : resserrez-le à l’étape ①.',
+  perimetre_trop_grand: 'Le périmètre est trop grand pour ce calcul : resserrez-le à l’étape ①.',
+  perimetre_non_admis: 'Ce calcul se fait sur un département au plus : choisissez un département, une commune, un code postal ou une zone à l’étape ①.',
+  commune_ambigue: 'Plusieurs communes portent ce nom : précisez le département ou le code postal à l’étape ①.',
   trop_de_poi: 'Plus de 5 000 POI dans le périmètre : resserrez le périmètre.',
   trop_de_carreaux: 'Plus de 20 000 carreaux retenus : resserrez le périmètre ou relevez le seuil.',
   trop_de_territoires: 'Plus de 5 000 territoires retenus : resserrez le périmètre ou relevez le seuil.',
@@ -416,11 +483,16 @@ export function exigePerimetre(r: Recette): boolean {
   return TYPES_BORNES_PAR_PERIMETRE.includes(r.type);
 }
 
-/** Le refus que l'écran pose AVANT tout appel ; la surface et l'appartenance d'une zone se vérifient en base. */
+/**
+ * Le refus que l'écran pose AVANT tout appel ; la surface, l'appartenance d'une zone et la résolution d'une commune
+ * se vérifient en base (`resoudre_perimetre`, sql/253).
+ */
 export function refusPerimetreLocal(r: Recette): RefusRecette | null {
   if (!exigePerimetre(r) || !('perimetre' in r)) return null;
   if (!r.perimetre) return 'perimetre_absent';
   if (r.perimetre.type === 'france') return 'perimetre_national_refuse';
+  const admis = PERIMETRES_ADMIS[r.type];
+  if (admis && !admis.includes(r.perimetre.type)) return 'perimetre_non_admis';
   return null;
 }
 
@@ -509,10 +581,10 @@ export function lireRecette(v: unknown): { ok: true; recette: Recette } | { ok: 
 - Consumes: `create_custom_geo_zone(p_name, p_description, p_org_id, p_source_type, p_source_metadata, p_geometry_geojson) → uuid` (sql/247).
 - Produces:
   - colonne `custom_geo_zones.recette jsonb null`, CHECK `custom_geo_zones_recette_forme` (`v = 1`, `type` ∈ les 10 de `TYPES_RECETTE`).
-  - `geometrie_perimetre(p_type text, p_code text, p_org_id uuid) → geometry` (NULL si inconnu ou zone d'un autre espace ; `france` → NULL).
-  - `refus_perimetre(p_type text, p_geom geometry, p_max_km2 numeric) → text` (`perimetre_national_refuse` · `perimetre_inconnu` · `perimetre_trop_grand` · NULL).
+  - `resoudre_perimetre(p_type text, p_code text, p_org_id uuid, p_max_km2 numeric, p_types_admis text[], out g geometry, out refus text)` — LA résolution du périmètre de ① (une ligne ; `g` NULL dès que `refus` est posé). Refus : `perimetre_national_refuse` (`france`) · `perimetre_non_admis` (type hors `p_types_admis`) · `perimetre_inconnu` · `commune_ambigue` · `perimetre_trop_grand` (> `p_max_km2`). Commune : code INSEE si `p_code` en a la forme (`^[0-9][0-9AB][0-9]{3}$`), sinon NOM normalisé `lower(unaccent(nom_commune)) = lower(unaccent(trim(p_code)))` ; 2 communes ou plus → `commune_ambigue` ; aucune → arrondissements `^<nom> [0-9]+(er|e) arrondissement$` unis (Paris 20, Lyon 9, Marseille 16) ; sinon `perimetre_inconnu`. Zone : UUID de l'espace `p_org_id` seulement.
+  - `zone_referencee(p_zone_id uuid) → text` : `strategie` · `jeu_de_zones` · `composite` · `combinaison` · `perimetre` (une recette la prend pour périmètre) · NULL. Lecture seule, appelée AVANT tout calcul par la route de recalcul (I3).
   - `creer_zone_recette(p_nom text, p_org_id uuid, p_cree_par uuid, p_recette jsonb, p_geometry_geojson text) → jsonb {id}` ; `source_type = 'recette_' || type`.
-  - `remplacer_geometrie_zone(p_zone_id uuid, p_org_id uuid, p_geometry_geojson text) → jsonb` : `{remplace: true}` | `{refus: 'zone_introuvable'}` | `{refus: 'zone_referencee', par: 'strategie'|'jeu_de_zones'|'composite'|'combinaison'}`.
+  - `remplacer_geometrie_zone(p_zone_id uuid, p_org_id uuid, p_geometry_geojson text) → jsonb` : `{remplace: true}` | `{refus: 'zone_introuvable'}` | `{refus: 'zone_referencee', par}` — refait la vérification de `zone_referencee` SOUS VERROU (une stratégie a pu se rattacher pendant le calcul).
   - Droits : `service_role` seul pour les quatre.
 
 - [ ] **Step 1: Test d'intégration (échec)** — `tests/integration/zones-recette.test.ts` :
@@ -567,8 +639,58 @@ describe('creer_zone_recette', () => {
   });
 });
 
-// geometrie_perimetre / refus_perimetre rendent un `geometry` et un texte appelés de SQL à SQL : ils se vérifient
-// en psql (Step 4) et à travers les RPC des Tasks 4-6 — aucune fonction d'essai n'est créée en base pour eux.
+describe('resoudre_perimetre', () => {
+  const TOUS = ['region', 'departement', 'commune', 'cp', 'zone'];
+  const resoudre = (p_type: string, p_code: string, p_types_admis = TOUS, p_max_km2 = 100000) =>
+    admin.rpc('resoudre_perimetre', { p_type, p_code, p_org_id: org, p_max_km2, p_types_admis });
+  const lu = async (...a: Parameters<typeof resoudre>) => {
+    const { data, error } = await resoudre(...a);
+    if (error) throw new Error(error.message);
+    return (Array.isArray(data) ? data[0] : data) as { g: unknown; refus: string | null };
+  };
+
+  it.each([
+    ['departement', '13'], ['region', '84'], ['cp', '13001'],
+    ['commune', '13056'],           // code INSEE (Martigues)
+    ['commune', 'martigues'],       // le texte tapé dans ① (panneau-filtre-logique.ts:59 : minuscules)
+    ['commune', 'saint-etienne'],   // sans accent → Saint-Étienne (42218)
+    ['commune', 'marseille'],       // 16 arrondissements unis
+    ['commune', 'paris'],           // 20 arrondissements unis
+    ['commune', 'lyon'],            // 9 arrondissements unis
+  ])('%s %s : une géométrie, aucun refus', async (t, c) => {
+    const r = await lu(t, c);
+    expect(r.refus).toBeNull();
+    expect(r.g).not.toBeNull();
+  });
+
+  it.each([
+    ['france', 'FR', TOUS, 'perimetre_national_refuse'],
+    ['region', '84', ['departement', 'commune', 'cp', 'zone'], 'perimetre_non_admis'],
+    ['commune', 'saint-sauveur', TOUS, 'commune_ambigue'],   // 11 communes de ce nom
+    ['commune', 'nullepart-sur-rien', TOUS, 'perimetre_inconnu'],
+    ['departement', '00', TOUS, 'perimetre_inconnu'],
+    ['zone', 'pas-un-uuid', TOUS, 'perimetre_inconnu'],
+  ] as const)('%s %s : refus %s', async (t, c, admis, refus) => {
+    expect(await lu(t, c, [...admis])).toEqual({ g: null, refus });
+  });
+
+  it('une zone d’un autre espace : inconnue ; une zone de l’espace : résolue ; trop grande : refusée', async () => {
+    const autre = ((await creer(RECETTE, autreOrg)).data as { id: string }).id;
+    expect((await lu('zone', autre)).refus).toBe('perimetre_inconnu');
+    const mienne = ((await creer()).data as { id: string }).id;
+    expect((await lu('zone', mienne)).refus).toBeNull();
+    expect((await lu('zone', mienne, TOUS, 1)).refus).toBe('perimetre_trop_grand');
+  });
+});
+
+describe('zone_referencee', () => {
+  it('libre : null ; prise pour périmètre par une recette : perimetre', async () => {
+    const z = ((await creer()).data as { id: string }).id;
+    expect((await admin.rpc('zone_referencee', { p_zone_id: z })).data).toBeNull();
+    await creer({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 1000, perimetre: { type: 'zone', code: z } });
+    expect((await admin.rpc('zone_referencee', { p_zone_id: z })).data).toBe('perimetre');
+  });
+});
 
 describe('remplacer_geometrie_zone', () => {
   it('remplace la forme d’une zone libre et efface ses statistiques', async () => {
@@ -580,6 +702,12 @@ describe('remplacer_geometrie_zone', () => {
     expect(data).toEqual({ remplace: true });
     const { data: z } = await admin.from('custom_geo_zones').select('audience_stats, resolved_at').eq('id', id).single();
     expect(z).toEqual({ audience_stats: {}, resolved_at: null });
+  });
+  it('une zone prise pour périmètre par une autre recette : refus « perimetre »', async () => {
+    const z = ((await creer()).data as { id: string }).id;
+    await creer({ v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre: { type: 'zone', code: z } });
+    const { data } = await admin.rpc('remplacer_geometrie_zone', { p_zone_id: z, p_org_id: org, p_geometry_geojson: CARRE });
+    expect(data).toEqual({ refus: 'zone_referencee', par: 'perimetre' });
   });
   it('une zone d’un autre espace : introuvable, rien ne change', async () => {
     const id = ((await creer(RECETTE, autreOrg)).data as { id: string }).id;
@@ -616,15 +744,24 @@ describe('remplacer_geometrie_zone', () => {
 -- À l'étape ③, toute sélection devient UNE zone de custom_geo_zones qui garde sa RECETTE (lib/zones/recette.ts),
 -- pour être recalculée. Une zone d'avant le 14/10 a recette NULL : forme figée.
 --
--- geometrie_perimetre : le périmètre de l'étape ① résolu EN BASE (jamais une géométrie fournie par le client) ; une
---   zone d'un autre espace rend NULL. `france` rend NULL exprès : les recettes lourdes le refusent (refus_perimetre).
--- refus_perimetre : la garde commune des recettes lourdes (sql/254-256) — national refusé, inconnu, > p_max_km2.
---   Mesuré : ST_Area(geography) de la région ARA (la plus lourde à résoudre) en < 60 ms.
+-- resoudre_perimetre : LA résolution du périmètre de l'étape ①, EN BASE (jamais une géométrie fournie par le client),
+--   et la garde commune des recettes lourdes (sql/254-256) : national refusé, type non admis par la recette, inconnu,
+--   commune ambiguë, surface > p_max_km2. Mesuré : ST_Area(geography) de la région ARA en < 60 ms.
+--   ⚠ La COMMUNE de ① est un texte libre (le nom tapé, en minuscules : panneau-filtre-logique.ts:59, copie React
+--   verrouillée). On la résout : code INSEE si p_code en a la forme ; sinon nom normalisé lower(unaccent()) — seq scan
+--   de ref_communes, ~40 ms par passage (34 921 lignes ; deux passages pour Paris/Lyon/Marseille), assumé : une fois
+--   par calcul ; 2 communes ou plus du même nom
+--   (« Saint-Sauveur » : 11) → commune_ambigue ; aucune → les arrondissements « <nom> Ne Arrondissement » unis
+--   (ref_communes ne porte ni 75056, ni 69123, ni 13055 : Paris 20, Lyon 9, Marseille 16 arrondissements).
+--   Limite connue : « saint etienne » (espace au lieu du tiret) ne résout pas — perimetre_inconnu, dit à l'écran.
+-- zone_referencee : qui cite une zone (stratégie de bidding, jeu de zones miroir, composite React, combinaison, recette
+--   qui la prend pour PÉRIMÈTRE). Appelée par la route de recalcul AVANT de lancer le calcul (une zone citée ne paie
+--   pas un calcul lourd pour recevoir un 409), puis refaite sous verrou par remplacer_geometrie_zone.
+--   Non vérifié, assumé : campaign_plan_snapshot.zone_id (texte, vide au 14/10) — l'instantané fige des CP, pas la forme.
+--   Au lot 5, zone_sets généralisé aura une zone SOURCE : cette fonction devra la lire.
 -- creer_zone_recette : create_custom_geo_zone (sql/247 : validation, réparation, ST_Multi) PUIS la recette et l'auteur,
 --   dans la MÊME transaction — une recette refusée par le CHECK n'écrit aucune zone.
--- remplacer_geometrie_zone : le recalcul (A-2). Refusé dès qu'un plan cite la zone : stratégie de bidding, jeu de zones
---   (miroir), composite React (source_metadata.member_zone_ids), combinaison (recette.zones). Verrou FOR UPDATE sur la
---   ligne : deux recalculs simultanés se suivent.
+-- remplacer_geometrie_zone : le recalcul (A-2). Verrou FOR UPDATE sur la ligne, zone_referencee refaite sous ce verrou.
 -- Droits : service_role seul (les routes passent par createAdminClient). Rejouable. Aucun DROP.
 
 begin;
@@ -651,46 +788,94 @@ comment on column public.custom_geo_zones.recette is
 create index if not exists idx_custom_geo_zones_recette_zones
   on public.custom_geo_zones using gin ((recette->'zones')) where recette->>'type' = 'combinaison';
 
-create or replace function public.geometrie_perimetre(p_type text, p_code text, p_org_id uuid)
-returns geometry
+create or replace function public.resoudre_perimetre(
+  p_type text, p_code text, p_org_id uuid, p_max_km2 numeric, p_types_admis text[],
+  out g geometry, out refus text
+)
 language plpgsql
 stable
 set search_path to 'public', 'pg_catalog'
 as $fn$
 declare
-  v geometry;
+  v_nom text;
+  v_n integer;
 begin
+  g := null;
+  refus := null;
+  if p_type = 'france' then
+    refus := 'perimetre_national_refuse';
+    return;
+  end if;
+  if p_type is null or not (p_type = any (coalesce(p_types_admis, '{}'::text[]))) then
+    refus := 'perimetre_non_admis';
+    return;
+  end if;
+
   case p_type
     when 'region' then
-      select ST_Multi(geom) into v from public.ref_regions where code_region = p_code;
+      select ST_Multi(geom) into g from public.ref_regions where code_region = p_code;
     when 'departement' then
-      select ST_Multi(geom) into v from public.ref_departements where code_dept = p_code;
-    when 'commune' then
-      select ST_Multi(geom) into v from public.ref_communes where code_commune = p_code;
+      select ST_Multi(geom) into g from public.ref_departements where code_dept = p_code;
     when 'cp' then
-      select ST_Multi(geom) into v from public.ref_codes_postaux where code_postal = p_code limit 1;
+      select ST_Multi(geom) into g from public.ref_codes_postaux where code_postal = p_code limit 1;
+    when 'commune' then
+      if p_code ~ '^[0-9][0-9AB][0-9]{3}$' then
+        select ST_Multi(geom) into g from public.ref_communes where code_commune = p_code;
+      else
+        v_nom := lower(unaccent(trim(p_code)));
+        select count(*), ST_Multi(ST_Union(geom)) into v_n, g
+          from public.ref_communes where lower(unaccent(nom_commune)) = v_nom;
+        if v_n > 1 then
+          g := null;
+          refus := 'commune_ambigue';
+          return;
+        end if;
+        if v_n = 0 then
+          -- Paris, Lyon, Marseille : ref_communes ne porte que leurs arrondissements.
+          -- Préfixe comparé par `left()` et non par une regex construite sur la saisie : aucun échappement à écrire.
+          -- Vérifié le 14/10 (SELECT) : marseille 16 / 235 km², paris 20 / 105 km², lyon 9 / 48 km².
+          select ST_Multi(ST_Union(geom)) into g
+            from public.ref_communes
+           where left(lower(unaccent(nom_commune)), length(v_nom) + 1) = v_nom || ' '
+             and lower(unaccent(nom_commune)) ~ '^[^0-9]+ [0-9]+(er|e) arrondissement$';
+        end if;
+      end if;
     when 'zone' then
       -- plpgsql et non sql : un cast ::uuid d'un code invalide lèverait, même derrière un CASE replié à la planification.
       if p_code ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
-        select z.geometry into v from public.custom_geo_zones z where z.id = p_code::uuid and z.org_id = p_org_id;
+        select z.geometry into g from public.custom_geo_zones z where z.id = p_code::uuid and z.org_id = p_org_id;
       end if;
     else
-      v := null;
+      g := null;
   end case;
-  return v;
+
+  if g is null or ST_IsEmpty(g) then
+    g := null;
+    refus := 'perimetre_inconnu';
+  elsif ST_Area(g::geography) / 1e6 > p_max_km2 then
+    g := null;
+    refus := 'perimetre_trop_grand';
+  end if;
 end
 $fn$;
 
-create or replace function public.refus_perimetre(p_type text, p_geom geometry, p_max_km2 numeric)
+create or replace function public.zone_referencee(p_zone_id uuid)
 returns text
 language sql
 stable
 set search_path to 'public', 'pg_catalog'
 as $fn$
   select case
-    when p_type = 'france' then 'perimetre_national_refuse'
-    when p_geom is null or ST_IsEmpty(p_geom) then 'perimetre_inconnu'
-    when ST_Area(p_geom::geography) / 1e6 > p_max_km2 then 'perimetre_trop_grand'
+    when exists (select 1 from public.bidding_strategies where zone_id = p_zone_id) then 'strategie'
+    when exists (select 1 from public.zone_sets where custom_geo_zone_id = p_zone_id) then 'jeu_de_zones'
+    when exists (select 1 from public.custom_geo_zones
+                  where source_metadata @> jsonb_build_object('member_zone_ids', jsonb_build_array(p_zone_id))) then 'composite'
+    when exists (select 1 from public.custom_geo_zones
+                  where recette->>'type' = 'combinaison'
+                    and recette->'zones' @> jsonb_build_array(p_zone_id)) then 'combinaison'
+    when exists (select 1 from public.custom_geo_zones
+                  where recette->'perimetre'->>'type' = 'zone'
+                    and recette->'perimetre'->>'code' = p_zone_id::text) then 'perimetre'
   end
 $fn$;
 
@@ -728,15 +913,8 @@ begin
     return jsonb_build_object('refus', 'zone_introuvable');
   end if;
 
-  v_par := case
-    when exists (select 1 from public.bidding_strategies where zone_id = p_zone_id) then 'strategie'
-    when exists (select 1 from public.zone_sets where custom_geo_zone_id = p_zone_id) then 'jeu_de_zones'
-    when exists (select 1 from public.custom_geo_zones
-                  where source_metadata @> jsonb_build_object('member_zone_ids', jsonb_build_array(p_zone_id))) then 'composite'
-    when exists (select 1 from public.custom_geo_zones
-                  where recette->>'type' = 'combinaison'
-                    and recette->'zones' @> jsonb_build_array(p_zone_id)) then 'combinaison'
-  end;
+  -- Refaite SOUS le verrou : la route l'a déjà vérifiée avant le calcul, mais une stratégie a pu se rattacher depuis.
+  v_par := public.zone_referencee(p_zone_id);
   if v_par is not null then
     return jsonb_build_object('refus', 'zone_referencee', 'par', v_par);
   end if;
@@ -761,12 +939,12 @@ begin
 end
 $fn$;
 
-revoke all on function public.geometrie_perimetre(text, text, uuid) from public, anon, authenticated;
-revoke all on function public.refus_perimetre(text, geometry, numeric) from public, anon, authenticated;
+revoke all on function public.resoudre_perimetre(text, text, uuid, numeric, text[]) from public, anon, authenticated;
+revoke all on function public.zone_referencee(uuid) from public, anon, authenticated;
 revoke all on function public.creer_zone_recette(text, uuid, uuid, jsonb, text) from public, anon, authenticated;
 revoke all on function public.remplacer_geometrie_zone(uuid, uuid, text) from public, anon, authenticated;
-grant execute on function public.geometrie_perimetre(text, text, uuid) to service_role;
-grant execute on function public.refus_perimetre(text, geometry, numeric) to service_role;
+grant execute on function public.resoudre_perimetre(text, text, uuid, numeric, text[]) to service_role;
+grant execute on function public.zone_referencee(uuid) to service_role;
 grant execute on function public.creer_zone_recette(text, uuid, uuid, jsonb, text) to service_role;
 grant execute on function public.remplacer_geometrie_zone(uuid, uuid, text) to service_role;
 
@@ -787,13 +965,18 @@ git diff --stat types/database.types.ts   # seulement recette + les quatre fonct
 
 ```bash
 docker exec supabase_db_genesis_app psql -U postgres -At -c "
-  select t, c, public.refus_perimetre(t, public.geometrie_perimetre(t, c, null), 100000)
-  from (values ('departement','13'),('region','84'),('commune','13055'),('cp','13001'),('region','99'),('france','FR'),('zone','pas-un-uuid')) v(t, c);"
-# attendu : 13 / 84 / 13055 / 13001 → vide ; 99 → perimetre_inconnu ; FR → perimetre_national_refuse ; pas-un-uuid → perimetre_inconnu (sans exception)
-docker exec supabase_db_genesis_app psql -U postgres -c "EXPLAIN (ANALYZE, BUFFERS) select public.refus_perimetre('region', public.geometrie_perimetre('region','84',null), 100000);"
+  select t, c, r.refus, round((ST_Area(r.g::geography) / 1e6)::numeric) as km2
+  from (values ('departement','13'),('region','84'),('commune','martigues'),('commune','13056'),('commune','marseille'),
+               ('commune','paris'),('commune','lyon'),('commune','saint-sauveur'),('cp','13001'),('region','99'),
+               ('france','FR'),('zone','pas-un-uuid')) v(t, c),
+       lateral public.resoudre_perimetre(t, c, null, 100000, array['region','departement','commune','cp','zone']) r;"
+# attendu : 13, 84, martigues, 13056, cp 13001 → refus vide ; marseille 235 km², paris 105 km², lyon 48 km² (arrondissements unis, mesuré le 14/10) ;
+#           saint-sauveur → commune_ambigue ; 99 et pas-un-uuid → perimetre_inconnu (sans exception) ; FR → perimetre_national_refuse
+docker exec supabase_db_genesis_app psql -U postgres -c "EXPLAIN (ANALYZE, BUFFERS) select * from public.resoudre_perimetre('region','84',null,100000,array['region']);"
+docker exec supabase_db_genesis_app psql -U postgres -c "EXPLAIN (ANALYZE, BUFFERS) select * from public.resoudre_perimetre('commune','marseille',null,100000,array['commune']);"
 ```
 
-Reporter le temps et les buffers dans le rapport (attendu < 100 ms).
+Reporter temps et buffers (attendu < 100 ms chacun). Les surfaces des trois villes sont des ordres de grandeur : un écart d'un facteur 2 signale une union incomplète — s'arrêter.
 
 - [ ] **Step 5: Doc + commit** — `ARCHITECTURE.md` ; `git add sql/253_zones_a_recette.sql types/database.types.ts tests/integration/zones-recette.test.ts ARCHITECTURE.md` ; `feat(db): zones à recette — colonne recette, périmètre en base, écrire et remplacer (sql/253)`.
 
@@ -808,10 +991,10 @@ Reporter le temps et les buffers dans le rapport (attendu < 100 ms).
 - Doc: `ARCHITECTURE.md` (`## Fonctions RPC PostGIS`)
 
 **Interfaces:**
-- Consumes: `geometrie_perimetre`, `refus_perimetre` (Task 3).
+- Consumes: `resoudre_perimetre` (Task 3).
 - Produces: `zone_rayon_poi(p_categorie text, p_rayon_m integer, p_perimetre_type text, p_perimetre_code text, p_org_id uuid, p_sources uuid[], p_max_poi integer default 5000) → jsonb` :
   `{ vide, compte, geometry (MultiPolygon 4326 | null), surface_km2, part_retenue }` ou `{ refus, plafond? }` ; rayon hors [100, 50 000] ou plafond hors [1, 5 000] → exception `22023`.
-  Visibilité des POI : `data_source_id is null or data_source_id = any(p_sources)` — la règle de `source_visible` (sql/234) ; `p_sources` = `sourcesVisiblesDeLaRequete`.
+  Visibilité des POI : `data_source_id is null or data_source_id = any(p_sources)` — la règle de `source_visible` (sql/234) ; `p_sources` = `getOrgSourceIds(…, { vueEspace: true })` (la règle de `sourcesVisiblesDeLaRequete`).
 
 - [ ] **Step 1: Test d'intégration (échec)** — `tests/integration/zone-rayon-poi.test.ts` :
 
@@ -883,7 +1066,7 @@ describe('zone_rayon_poi', () => {
 -- zone_rayon (sql/155) ne fait qu'UN point ; ceci fait tous les POI d'une catégorie.
 --
 -- Visibilité : la règle de source_visible (sql/234) — un POI sans source est commun, sinon sa source doit être dans
--- p_sources (sourcesVisiblesDeLaRequete côté route).
+-- p_sources (getOrgSourceIds en vue espace, côté route).
 -- Plafond : on lit p_max_poi + 1 points ; au-delà, refus (jamais une zone partielle).
 -- Buffer en geography (rayon en MÈTRES sur la sphère), comme zone_rayon.
 -- Mesuré le 2026-10-14 (EXPLAIN ANALYZE local) : lycées × 5 km × région 84 → 0,8 s, 834 buffers ;
@@ -917,8 +1100,9 @@ begin
     raise exception 'plafond de POI hors bornes (1 a 5 000) : %', p_max_poi using errcode = '22023';
   end if;
 
-  v_per := public.geometrie_perimetre(p_perimetre_type, p_perimetre_code, p_org_id);
-  v_refus := public.refus_perimetre(p_perimetre_type, v_per, 100000);
+  select r.g, r.refus into v_per, v_refus
+    from public.resoudre_perimetre(p_perimetre_type, p_perimetre_code, p_org_id, 100000,
+                                   array['region', 'departement', 'commune', 'cp', 'zone']) r;
   if v_refus is not null then
     return jsonb_build_object('refus', v_refus);
   end if;
@@ -985,7 +1169,7 @@ Reporter temps et buffers. Si le premier dépasse 3 s ou 10 000 buffers, s'arrê
 - Doc: `ARCHITECTURE.md`
 
 **Interfaces:**
-- Consumes: `geometrie_perimetre`, `refus_perimetre` ; `INDICATEURS_SEUIL_CARREAUX` (Task 2).
+- Consumes: `resoudre_perimetre` (Task 3) ; `INDICATEURS_SEUIL_CARREAUX`, `PERIMETRES_ADMIS` (Task 2).
 - Produces: `zone_seuil_carreaux(p_indicateur text, p_operateur text, p_seuil numeric, p_perimetre_type text, p_perimetre_code text, p_org_id uuid, p_max_carreaux integer default 20000) → jsonb` :
   `{ vide, compte, population, geometry, surface_km2 }` ou `{ refus, plafond? }` ; opérateur ∉ {`>=`,`<=`}, seuil NULL, plafond hors [1, 20 000] → `22023`.
 
@@ -996,7 +1180,8 @@ Reporter temps et buffers. Si le premier dépasse 3 s ou 10 000 buffers, s'arrê
  * Seuil sur carreaux Filosofi 200 m (spec § 16.3 : « indicateur > 40 % → l'union des carreaux = un polygone »).
  * Un carreau est retenu par son CENTROÏDE dans le périmètre (L3-2), calculé sur geom_3857 : geom_centroid est NULL
  * partout en local (spec § 16.6). Mesures du 2026-10-14 : Bouches-du-Rhône, ménages pauvres ≥ 40 % → 505 carreaux,
- * 1,7 s ; ARA à 10 % → 144 088 carreaux (d'où le plafond de 20 000, refus en 1,2 s).
+ * 1,7 s ; un seuil sélectif lit 69 000 buffers sur la Gironde et 433 000 sur la région 75 (d'où la borne au
+ * département).
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -1028,9 +1213,12 @@ describe('zone_seuil_carreaux', () => {
     // un carreau 200 m = 0,04 km² ; l'union ne peut pas dépasser compte × 0,04
     expect(r.surface_km2).toBeLessThanOrEqual(r.compte * 0.04 + 0.01);
   });
-  it('densité ≥ 20 000 hab./km² à Paris (commune 75056) : non vide', async () => {
-    const { data } = await appeler({ p_indicateur: 'densite_ind', p_seuil: 20000, p_perimetre_type: 'commune', p_perimetre_code: '75056' });
+  it('densité ≥ 20 000 hab./km² à Paris (commune « paris » tapée dans ① = ses 20 arrondissements) : non vide', async () => {
+    const { data } = await appeler({ p_indicateur: 'densite_ind', p_seuil: 20000, p_perimetre_type: 'commune', p_perimetre_code: 'paris' });
     expect((data as { compte: number }).compte).toBeGreaterThan(0);
+  });
+  it('région : refusée (borne au département, A-4) — en lecture de garde seulement, aucun carreau lu', async () => {
+    expect((await appeler({ p_perimetre_type: 'region', p_perimetre_code: '75' })).data).toEqual({ refus: 'perimetre_non_admis' });
   });
   it('plus de carreaux que le plafond : refus, jamais une zone partielle', async () => {
     const { data } = await appeler({ p_seuil: 1, p_max_carreaux: 50 });
@@ -1055,8 +1243,13 @@ describe('zone_seuil_carreaux', () => {
 ```sql
 -- 255 — Zone : l'union des carreaux Filosofi 200 m au-dessus (ou au-dessous) d'un seuil (2026-10-14)
 --
--- Spec : carte-en-parcours § 16.3 ; arbitrages A-4 (périmètre ≤ 100 000 km², national refusé, plafond 20 000
--- carreaux) et L3-2 (carreau retenu par son CENTROÏDE dans le périmètre ; zone = union des carreaux ENTIERS).
+-- Spec : carte-en-parcours § 16.3 ; arbitrages A-4 (périmètre ≤ DÉPARTEMENT : département, commune, CP ou zone
+-- ≤ 12 000 km² ; région et national refusés ; plafond 20 000 carreaux RETENUS) et L3-2 (carreau retenu par son
+-- CENTROÏDE dans le périmètre ; zone = union des carreaux ENTIERS).
+-- Pourquoi le département : le plafond borne les carreaux RETENUS, pas les carreaux LUS — tout carreau du périmètre
+-- est lu (son jsonb). Mesure de la relecture (14/10), seuil sélectif ≥ 99 % (zéro retenu) : région 75 → 433 000
+-- buffers dont 110 000 hors cache, 10,4 s à froid ; Gironde → 69 000 buffers, 0,26 s. L'ouverture à la région est la
+-- question Q-G de Vincent.
 -- Remplace, POUR L'ÉTAPE ③ SEULEMENT, get_carreaux_capture_geometry (sql/252, 48 s par appel : elle reparse du
 -- GeoJSON produit par get_carreaux_by_zoom) — qui reste pour React.
 --
@@ -1069,10 +1262,9 @@ describe('zone_seuil_carreaux', () => {
 --
 -- Mesuré le 2026-10-14 (EXPLAIN ANALYZE local, cache tiède) :
 --   Bouches-du-Rhône, part_men_pauv ≥ 40 %  → 505 carreaux,    1,7 s,  46 000 buffers
---   Île-de-France,    part_men_pauv ≥ 40 %  → 730 carreaux,    3,0 s,  90 000 buffers
---   ARA,              part_men_pauv ≥ 35 %  → 9 839 carreaux,  2,6 s, 351 000 buffers, 39 271 sommets, 843 Ko GeoJSON
---   ARA,              part_men_pauv ≥ 10 %  → refus à 20 001,  1,2 s,  37 000 buffers (sans plafond : 21,8 s)
--- Le coût est la lecture du jsonb metadata (811 o par carreau, sql/229) : c'est pourquoi la route a un quota de 6/min.
+--   Gironde,          part_men_pauv ≥ 99 %  → 0 carreau,       0,26 s, 69 000 buffers (pire cas admis : tout est lu)
+--   (régions, désormais REFUSÉES : IDF ≥ 40 % 3,0 s / 90 000 ; ARA ≥ 35 % 2,6 s / 351 000 ; région 75 ≥ 99 % 433 000)
+-- Le coût est la lecture du jsonb metadata (811 o par carreau, sql/229) : quota unique des routes de zone, 12/min (A-7).
 -- Rend jsonb. Droits : service_role. Rejouable.
 
 begin;
@@ -1125,8 +1317,11 @@ begin
     else return jsonb_build_object('refus', 'indicateur_inconnu');
   end case;
 
-  v_per := public.geometrie_perimetre(p_perimetre_type, p_perimetre_code, p_org_id);
-  v_refus := public.refus_perimetre(p_perimetre_type, v_per, 100000);
+  -- Borne au DÉPARTEMENT (A-4, question Q-G) : la région est refusée, une zone-périmètre ≤ 12 000 km².
+  -- La liste est EXACTEMENT PERIMETRES_ADMIS.seuil_carreaux (lib/zones/recette.ts, test qui lit ce fichier).
+  select r.g, r.refus into v_per, v_refus
+    from public.resoudre_perimetre(p_perimetre_type, p_perimetre_code, p_org_id, 12000,
+                                   array['departement', 'commune', 'cp', 'zone']) r;
   if v_refus is not null then
     return jsonb_build_object('refus', v_refus);
   end if;
@@ -1178,15 +1373,15 @@ commit;
 
 Appliquer deux fois, `NOTIFY pgrst`, types.
 
-- [ ] **Step 4: PASS + EXPLAIN** — le test, puis les quatre mesures de l'en-tête :
+- [ ] **Step 4: PASS + EXPLAIN** — le test, puis les mesures de l'en-tête, dont le PIRE CAS admis (seuil sélectif : tout le périmètre est lu, rien n'est retenu) et la région refusée sans lecture :
 
 ```bash
-for args in "'part_men_pauv','>=',40,'departement','13'" "'part_men_pauv','>=',40,'region','11'" "'part_men_pauv','>=',35,'region','84'" "'part_men_pauv','>=',10,'region','84'"; do
+for args in "'part_men_pauv','>=',40,'departement','13'" "'part_men_pauv','>=',99,'departement','33'" "'part_men_pauv','>=',99,'departement','59'" "'part_men_pauv','>=',99,'region','75'"; do
   docker exec supabase_db_genesis_app psql -U postgres -c "EXPLAIN (ANALYZE, BUFFERS) select public.zone_seuil_carreaux($args, null, 20000);"
 done
 ```
 
-Reporter les quatre temps et buffers. Écart > 2× sur l'un d'eux : s'arrêter et le signaler.
+Attendu : 13 ≈ 46 000 buffers ; Gironde (33) ≈ 69 000 ; Nord (59, le département le plus peuplé) ≈ 53 000 buffers dont 13 400 lus hors cache, 5,0 s à froid (mesuré le 14/10 sur la requête équivalente) ; région 75 → refus, < 100 buffers (aucun carreau lu). Reporter les temps et buffers ; au-delà de 150 000 buffers sur un département, s'arrêter et le signaler (la borne « département » ne tiendrait plus son chiffre).
 
 - [ ] **Step 5: Doc + commit** — `feat(db): zone par seuil sur les carreaux Filosofi, centroïde dans le périmètre (sql/255)`.
 
@@ -1201,8 +1396,7 @@ Reporter les quatre temps et buffers. Écart > 2× sur l'un d'eux : s'arrêter e
 - Doc: `ARCHITECTURE.md`
 
 **Interfaces:**
-- Consumes: `cible_indicator_registry` (`indicator_code`, `data_source` ∈ `iris_column|abstention|pollen|atmo`, `data_column`, `normalize`, `scale`, `active`) — la dérivation de `get_indicator_threshold_selection` (sql/100:79), RECOPIÉE et non appelée (elle n'a pas de périmètre et sa borne est 10 000) ; `geometrie_perimetre`, `refus_perimetre`.
-- Produces: `zone_seuil_territoire(p_indicateur text, p_operateur text, p_seuil numeric, p_perimetre_type text, p_perimetre_code text, p_org_id uuid, p_max_territoires integer default 5000) → jsonb` : `{ vide, compte, maille: 'iris'|'cp', geometry, surface_km2 }` ou `{ refus, plafond? }`.
+- Consumes: `cible_indicator_registry` (`indicator_code`, `data_source` ∈ `iris_column|abstention|pollen|atmo`, `data_column`, `normalize`, `scale`, `active`) — la dérivation de `get_indicator_threshold_selection` (sql/100:79), RECOPIÉE et non appelée (elle n'a pas de périmètre et sa borne est 10 000) ; `resoudre_perimetre` (Task 3).- Produces: `zone_seuil_territoire(p_indicateur text, p_operateur text, p_seuil numeric, p_perimetre_type text, p_perimetre_code text, p_org_id uuid, p_max_territoires integer default 5000) → jsonb` : `{ vide, compte, maille: 'iris'|'cp', geometry, surface_km2 }` ou `{ refus, plafond? }`.
 
 - [ ] **Step 1: Test d'intégration (échec)** — `tests/integration/zone-seuil-territoire.test.ts` :
 
@@ -1258,7 +1452,7 @@ describe('zone_seuil_territoire', () => {
 -- La valeur est dérivée du registre cible_indicator_registry EXACTEMENT comme get_indicator_threshold_selection
 -- (sql/100:79) — recopiée et non appelée : celle-ci n'a pas de périmètre et rend jusqu'à 10 000 codes à l'échelle
 -- nationale. Toute évolution de la dérivation se fait DANS LES DEUX.
--- Périmètre : IRIS filtrés par leurs codes (region/departement/commune) quand c'est possible, sinon par
+-- Périmètre : IRIS filtrés par leurs codes (region/departement) quand c'est possible, sinon (commune, cp, zone) par
 -- ST_PointOnSurface dans la géométrie ; CP toujours par ST_PointOnSurface de leur contour (ref_codes_postaux).
 -- SQL dynamique : noms de table et de colonne TOUJOURS venus du registre (%I), opérateur validé, valeurs en USING.
 -- Mesuré le 2026-10-14 : taux_pauvrete ≥ 20 % sur la région 84 → 472 IRIS, 0,55 s, 3 766 buffers.
@@ -1303,8 +1497,9 @@ begin
     return jsonb_build_object('refus', 'indicateur_inconnu');
   end if;
 
-  v_per := public.geometrie_perimetre(p_perimetre_type, p_perimetre_code, p_org_id);
-  v_refus := public.refus_perimetre(p_perimetre_type, v_per, 100000);
+  select r.g, r.refus into v_per, v_refus
+    from public.resoudre_perimetre(p_perimetre_type, p_perimetre_code, p_org_id, 100000,
+                                   array['region', 'departement', 'commune', 'cp', 'zone']) r;
   if v_refus is not null then
     return jsonb_build_object('refus', v_refus);
   end if;
@@ -1316,7 +1511,8 @@ begin
     v_filtre := case p_perimetre_type
       when 'region'      then 't.code_region = $4'
       when 'departement' then 't.code_dept = $4'
-      when 'commune'     then 't.code_commune = $4'
+      -- pas de `code_commune = $4` : la commune de ① est un NOM (résolu par resoudre_perimetre) — on passe par la
+      -- géométrie, ce qui couvre aussi Paris, Lyon et Marseille (arrondissements unis)
       else 't.geom && $1 and ST_Intersects(ST_PointOnSurface(t.geom), $1)'
     end;
     execute format(
@@ -1445,8 +1641,8 @@ describe('executerRecette', () => {
     } }]);
   });
 
-  it('périmètre absent ou national : 422 SANS appel', async () => {
-    for (const perimetre of [null, { type: 'france', code: 'FR' } as const]) {
+  it('périmètre absent, national, ou région pour un seuil sur carreaux : 422 SANS appel', async () => {
+    for (const perimetre of [null, { type: 'france', code: 'FR' } as const, { type: 'region', code: '75' } as const]) {
       const r = await exec({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre });
       expect(r).toMatchObject({ ok: false, statut: 422 });
     }
@@ -1537,7 +1733,7 @@ export type FormeZone = GeoJSON.Polygon | GeoJSON.MultiPolygon;
 
 export interface ContexteRecette {
   orgId: string;
-  /** `sourcesVisiblesDeLaRequete` : les sources de POI que l'espace voit. */
+  /** `getOrgSourceIds(…, { vueEspace: true })` : les sources de POI que l’espace voit. */
   sources: string[];
   /** La forme d'une recette figée ; ignorée pour une recette recalculable. */
   geometrie?: unknown;
@@ -1654,12 +1850,14 @@ export async function executerRecette(supabase: ClientAdmin, recette: Recette, c
 - Doc: `ARCHITECTURE.md` (table des routes : Grep `/api/zones/jeux` ; ligne `custom_geo_zones`)
 
 **Interfaces:**
-- Consumes: `lireRecette` (Task 2), `executerRecette` (Task 7), `creer_zone_recette`, `remplacer_geometrie_zone` (Task 3), `resolve_custom_geo_zone_codes(p_zone_id, p_caller_user_id)` (sql/252), `getSessionOrg`, `sourcesVisiblesDeLaRequete` (`lib/auth/perimetre-donnees.ts`), `createRateLimiter`/`rateLimitResponse`, `lireCorps`.
+- Consumes: `lireRecette` (Task 2), `executerRecette` (Task 7), `creer_zone_recette`, `zone_referencee`, `remplacer_geometrie_zone` (Task 3), `resolve_custom_geo_zone_codes(p_zone_id, p_caller_user_id)` (sql/252), `requireAuth`/`authUnauthorized` (`lib/api/middleware.ts`), `getOrgSourceIds` (`lib/auth/getOrgSourceIds.ts`), `createRateLimiter`/`rateLimitResponse`, `lireCorps`.
+- Garde (arbitrage L3-7, C2) : chaque route appelle **`requireAuth(request)` dans son propre source** — garde reconnu par `tests/unit/api/routes-publiques.test.ts:114` (`GARDES`), même patron que `/api/zones/jeux/*`. On n'élargit PAS `GARDES` (c'est un verrou de sécurité) et on ne touche PAS `middleware.ts` (protégé). L'espace est `profile.organization_id` (l'espace actif, que `switch-org` écrit ; la source que `getSessionOrg` lit aussi).
+- Quota (A-7, I6) : UN limiteur partagé par les trois routes, `limiteurZones = createRateLimiter({ max: 12, window: '60 s', prefix: 'geo:rl:zones' })`, exporté par `lib/zones/session-zones.ts`. Un aperçu + un enregistrement = 2 jetons → 6 zones/min/compte ; au pire mesuré (Nord/Gironde, ≈ 69 000 buffers par appel) ≤ 830 000 buffers/min/compte.
 - Produces:
-  - `POST /api/zones/apercu` `{ recette, geometrie? }` → 200 `{ geometry, surface_km2, compte, part_retenue, population }` | 400 | 401 | 403 | 404 | 409 | 422 `{ error, refus }` | 429 | 500. Quota 20/60 s (`geo:rl:zones-apercu`), 6/60 s pour `seuil_carreaux` (`geo:rl:zones-carreaux`).
-  - `POST /api/zones` `{ nom (1-200), recette, geometrie? }` → 200 `{ zone_id, count_cp, count_iris, surface_km2 }` | 207 `{ zone_id, warning: 'codes_non_resolus' }` | erreurs comme l'aperçu. Quota 20/60 s (`geo:rl:zones-ecrire`) + 6/60 s pour `seuil_carreaux`.
-  - `POST /api/zones/[id]/recalculer` (sans corps) → 200 `{ zone_id, count_cp, count_iris, surface_km2 }` | 207 | 404 `zone_introuvable` | 409 `forme_figee` ou `zone_referencee` (`par`) | 422. Quota 6/60 s (`geo:rl:zones-recalcul`).
-  - `lib/zones/session-zones.ts` : `async function sessionDeZone(req): Promise<{ ok: true; userId: string; orgId: string } | { ok: false; reponse: NextResponse }>` (401 sans session, 403 sans espace) ; `async function repondreResolue(supabase, zoneId: string, userId: string, surface: number | null): Promise<NextResponse>` (200 avec compteurs, 207 `codes_non_resolus`).
+  - `POST /api/zones/apercu` `{ recette, geometrie? }` → 200 `{ geometry, surface_km2, compte, part_retenue, population }` | 400 | 401 | 403 | 404 | 409 | 422 `{ error, refus }` | 429 | 500.
+  - `POST /api/zones` `{ nom (1-200), recette, geometrie? }` → 200 `{ zone_id, count_cp, count_iris, surface_km2 }` | 207 `{ zone_id, warning: 'codes_non_resolus', message }` | erreurs comme l'aperçu.
+  - `POST /api/zones/[id]/recalculer` (sans corps) → 200 `{ zone_id, count_cp, count_iris, surface_km2 }` | 207 | 404 `zone_introuvable` | 409 `forme_figee` ou `zone_referencee` (`par`) | 422. **Ordre (I3)** : lecture de la zone → forme figée ? → `zone_referencee` → SEULEMENT ALORS le calcul → `remplacer_geometrie_zone` (qui revérifie sous verrou).
+  - `lib/zones/session-zones.ts` : `limiteurZones` ; `async function espaceDeZone(req): Promise<{ ok: true; userId: string; orgId: string; sources: string[] } | { ok: false; reponse: Response }>` (401 sans profil, 403 sans espace) ; `async function repondreResolue(supabase, zoneId: string, userId: string, surface: number | null): Promise<NextResponse>` (200 avec compteurs, 207 `codes_non_resolus`).
   - `GET /api/custom-geo/list` : chaque zone porte `recette` (`null` pour une zone d'avant le lot).
 
 - [ ] **Step 1: Tests (échec)** — `tests/unit/api/zones-routes.test.ts` :
@@ -1670,10 +1868,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 /**
  * Routes des zones à recette (spec carte-en-parcours § 16 ; Review Focus 2, 4, 5).
  */
-type Session = { userId: string; role: string; orgId: string | null } | null;
-let session: Session = { userId: 'u1', role: 'super_admin', orgId: '3f2504e0-4f89-11d3-9a0c-0305e82c3301' };
-vi.mock('@/lib/auth/getSessionOrg', () => ({ getSessionOrg: async () => session }));
-vi.mock('@/lib/auth/perimetre-donnees', () => ({ sourcesVisiblesDeLaRequete: async () => ['s1'] }));
+type Profil = { id: string; role: string; organization_id: string | null } | null;
+let profil: Profil = { id: 'u1', role: 'super_admin', organization_id: '3f2504e0-4f89-11d3-9a0c-0305e82c3301' };
+vi.mock('@/lib/api/middleware', () => ({
+  requireAuth: async () => profil,
+  authUnauthorized: () => new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }),
+}));
+const sessionsSources: unknown[] = [];
+vi.mock('@/lib/auth/getOrgSourceIds', () => ({ getOrgSourceIds: async (s: unknown, o: unknown) => { sessionsSources.push([s, o]); return ['s1']; } }));
 let quotaOk = true;
 vi.mock('@/lib/api/rate-limit', () => ({
   createRateLimiter: () => async () => (quotaOk ? { ok: true, retrySec: 0 } : { ok: false, retrySec: 30 }),
@@ -1708,23 +1910,33 @@ const req = (corps: unknown) => new Request('http://localhost/api/zones', { meth
 const RAYON = { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 5000, perimetre: { type: 'departement', code: '13' } };
 
 beforeEach(() => {
-  session = { userId: 'u1', role: 'super_admin', orgId: ORG }; quotaOk = true;
+  profil = { id: 'u1', role: 'super_admin', organization_id: ORG }; quotaOk = true;
   issue = { ok: true, geometry: CARRE, surface_km2: 3, compte: 4, part_retenue: 1, population: null };
-  executions.length = 0; rpcs.length = 0; reponsesRpc = {}; zoneLue = null;
+  executions.length = 0; rpcs.length = 0; reponsesRpc = {}; zoneLue = null; sessionsSources.length = 0;
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
+describe('garde des trois routes', () => {
+  it('chaque source appelle requireAuth( — reconnu par routes-publiques.test.ts, middleware.ts intouché', async () => {
+    const { readFileSync } = await import('node:fs');
+    for (const f of ['app/api/zones/apercu/route.ts', 'app/api/zones/route.ts', 'app/api/zones/[id]/recalculer/route.ts']) {
+      expect(readFileSync(f, 'utf8'), f).toContain('requireAuth(');
+    }
+  });
+});
+
 describe('POST /api/zones/apercu', () => {
-  it('exécute la recette dans l’espace ACTIF avec ses sources', async () => {
+  it('exécute la recette dans l’espace ACTIF avec ses sources (vue espace)', async () => {
     const res = await apercu(req({ recette: RAYON }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ geometry: CARRE, surface_km2: 3, compte: 4, part_retenue: 1, population: null });
     expect(executions[0].ctx).toEqual({ orgId: ORG, sources: ['s1'], geometrie: undefined });
+    expect(sessionsSources[0]).toEqual([{ userId: 'u1', orgId: ORG, role: 'super_admin' }, { vueEspace: true }]);
   });
-  it('sans session : 401 ; sans espace : 403 ; recette invalide : 400 français', async () => {
-    session = null; expect((await apercu(req({ recette: RAYON }))).status).toBe(401);
-    session = { userId: 'u1', role: 'client', orgId: null }; expect((await apercu(req({ recette: RAYON }))).status).toBe(403);
-    session = { userId: 'u1', role: 'client', orgId: ORG };
+  it('sans profil : 401 ; sans espace : 403 ; recette invalide : 400 français', async () => {
+    profil = null; expect((await apercu(req({ recette: RAYON }))).status).toBe(401);
+    profil = { id: 'u1', role: 'client', organization_id: null }; expect((await apercu(req({ recette: RAYON }))).status).toBe(403);
+    profil = { id: 'u1', role: 'client', organization_id: ORG };
     const r = await apercu(req({ recette: { v: 1, type: 'pluie' } }));
     expect(r.status).toBe(400);
     expect((await r.json()).error).toMatch(/^Recette invalide/);
@@ -1754,7 +1966,7 @@ describe('POST /api/zones', () => {
     } });
     expect(rpcs[1]).toEqual({ nom: 'resolve_custom_geo_zone_codes', args: { p_zone_id: ZONE, p_caller_user_id: 'u1' } });
   });
-  it('résolution refusée (super_admin non membre de l’espace) : 207, la zone est créée', async () => {
+  it('résolution en échec (délai, accès) : 207, la zone est créée', async () => {
     reponsesRpc.creer_zone_recette = { data: { id: ZONE }, error: null };
     reponsesRpc.resolve_custom_geo_zone_codes = { data: null, error: { message: 'Access denied to zone' } };
     const res = await ecrire(req({ nom: 'Z', recette: RAYON }));
@@ -1782,15 +1994,26 @@ describe('POST /api/zones/[id]/recalculer', () => {
     }
     expect(executions).toEqual([]);
   });
-  it('zone citée par un plan : 409 zone_referencee, le message nomme le référent', async () => {
+  it('zone citée par un plan : 409 AVANT tout calcul (I3) — aucune exécution, aucun remplacement', async () => {
     zoneLue = { id: ZONE, recette: RAYON };
-    reponsesRpc.remplacer_geometrie_zone = { data: { refus: 'zone_referencee', par: 'strategie' }, error: null };
+    reponsesRpc.zone_referencee = { data: 'strategie', error: null };
     const r = await appel();
     expect(r.status).toBe(409);
     expect(await r.json()).toEqual({ error: 'Cette zone est utilisée par un plan : dupliquez-la avant de la recalculer.', refus: 'zone_referencee', par: 'strategie' });
+    expect(executions).toEqual([]);
+    expect(rpcs.map((c) => c.nom)).toEqual(['zone_referencee']);
+  });
+  it('citée PENDANT le calcul (course) : le refus sous verrou de remplacer_geometrie_zone passe aussi en 409', async () => {
+    zoneLue = { id: ZONE, recette: RAYON };
+    reponsesRpc.zone_referencee = { data: null, error: null };
+    reponsesRpc.remplacer_geometrie_zone = { data: { refus: 'zone_referencee', par: 'jeu_de_zones' }, error: null };
+    const r = await appel();
+    expect(r.status).toBe(409);
+    expect((await r.json()).par).toBe('jeu_de_zones');
   });
   it('zone libre : remplacée puis résolue', async () => {
     zoneLue = { id: ZONE, recette: RAYON };
+    reponsesRpc.zone_referencee = { data: null, error: null };
     reponsesRpc.remplacer_geometrie_zone = { data: { remplace: true }, error: null };
     reponsesRpc.resolve_custom_geo_zone_codes = { data: { count_cp: 3, count_iris: 9 }, error: null };
     const r = await appel();
@@ -1809,22 +2032,36 @@ describe('POST /api/zones/[id]/recalculer', () => {
 
 ```ts
 /**
- * @file lib/zones/session-zones.ts — la session des routes de zones : JWT local (`getSessionOrg`, jamais `getUser()`),
- * espace ACTIF (vue espace : un super_admin écrit dans l'espace choisi, spec droits § 4).
+ * @file lib/zones/session-zones.ts — ce que les trois routes de zones partagent (lot 3).
+ *
+ * L'espace : `profile.organization_id` du profil rendu par `requireAuth` — l'espace ACTIF (`/api/user/switch-org`
+ * l'écrit ; `getSessionOrg` lit le même champ). Le garde `requireAuth(` reste écrit DANS chaque route : c'est ce que
+ * `tests/unit/api/routes-publiques.test.ts` reconnaît (arbitrage L3-7) ; `middleware.ts`, protégé, n'est pas touché.
+ * Les sources de POI visibles : `getOrgSourceIds(…, { vueEspace: true })`, la règle de `sourcesVisiblesDeLaRequete`.
+ *
+ * Le quota : UN limiteur pour l'aperçu, l'écriture et le recalcul (A-7) — 12 / min / compte. Un aperçu suivi d'un
+ * enregistrement coûte 2 jetons (6 zones / min au plus) ; au pire mesuré (≈ 69 000 buffers par appel, seuil sélectif
+ * sur la Gironde ou le Nord), ≤ 830 000 buffers / min / compte — l'ordre de deux appels régionaux non bornés.
  */
-import { NextResponse, type NextRequest } from 'next/server';
-import { getSessionOrg } from '@/lib/auth/getSessionOrg';
+import { NextResponse } from 'next/server';
+import type { UserProfile, createAdminClient } from '@/lib/auth';
+import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
+import { createRateLimiter } from '@/lib/api/rate-limit';
 
-export async function sessionDeZone(req: NextRequest): Promise<{ ok: true; userId: string; orgId: string } | { ok: false; reponse: NextResponse }> {
-  const s = await getSessionOrg(req);
-  if (!s) return { ok: false, reponse: NextResponse.json({ error: 'Session expirée.' }, { status: 401 }) };
-  if (!s.orgId) return { ok: false, reponse: NextResponse.json({ error: 'Aucun espace actif.' }, { status: 403 }) };
-  return { ok: true, userId: s.userId, orgId: s.orgId };
+export const limiteurZones = createRateLimiter({ max: 12, window: '60 s', prefix: 'geo:rl:zones' });
+
+export async function espaceDeZone(profil: UserProfile | null): Promise<
+  { ok: true; userId: string; orgId: string; sources: string[] } | { ok: false; reponse: Response }
+> {
+  if (!profil) return { ok: false, reponse: NextResponse.json({ error: 'Session expirée.' }, { status: 401 }) };
+  if (!profil.organization_id) return { ok: false, reponse: NextResponse.json({ error: 'Aucun espace actif.' }, { status: 403 }) };
+  const sources = await getOrgSourceIds({ userId: profil.id, orgId: profil.organization_id, role: profil.role }, { vueEspace: true });
+  return { ok: true, userId: profil.id, orgId: profil.organization_id, sources: sources ?? [] };
 }
 
 /**
- * Résout les codes de la zone (compteurs de « Mes zones » ; n'achète rien) ; 207 si la résolution échoue — la zone
- * existe (Review Focus 5 : un super_admin non membre de l'espace actif est refusé par la fonction). Partagé par
+ * Résout les codes de la zone (compteurs de « Mes zones » ; n'achète rien) ; 207 si la résolution échoue (délai,
+ * accès) — la zone existe (Review Focus 5). Partagé par
  * l'écriture et le recalcul : un fichier `route.ts` ne peut exporter que ses verbes HTTP.
  */
 export async function repondreResolue(supabase: ReturnType<typeof createAdminClient>, zoneId: string, userId: string, surface: number | null) {
@@ -1838,46 +2075,44 @@ export async function repondreResolue(supabase: ReturnType<typeof createAdminCli
 }
 ```
 
-(En tête du fichier : `import type { createAdminClient } from '@/lib/auth';`.)
+Les routes appellent `espaceDeZone(await requireAuth(req))` (le profil passe en paramètre pour que l'appel `requireAuth(` reste lisible dans le SOURCE de la route). Le message 207 parle de résolution, jamais de droits.
 
 `app/api/zones/apercu/route.ts` :
 
 ```ts
 /**
  * POST /api/zones/apercu — la forme d'une recette, SANS l'écrire (étape ③, spec carte-en-parcours § 16).
- * Corps : `{ recette, geometrie? }` (géométrie : recettes figées seulement). Quotas en base (`consommer_quota`) :
- * 20 aperçus/min, 6/min pour un seuil sur carreaux (jusqu'à 351 000 buffers par appel, sql/255).
+ * Corps : `{ recette, geometrie? }` (géométrie : recettes figées seulement). Quota unique des routes de zone
+ * (`limiteurZones`, 12/min, compteur en base `consommer_quota`).
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
-import { sourcesVisiblesDeLaRequete } from '@/lib/auth/perimetre-donnees';
-import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
+import { requireAuth } from '@/lib/api/middleware';
+import { rateLimitResponse } from '@/lib/api/rate-limit';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { executerRecette } from '@/lib/zones/executer-recette';
 import { lireRecette } from '@/lib/zones/recette-schema';
-import { sessionDeZone } from '@/lib/zones/session-zones';
+import { espaceDeZone, limiteurZones } from '@/lib/zones/session-zones';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const limiteur = createRateLimiter({ max: 20, window: '60 s', prefix: 'geo:rl:zones-apercu' });
-const limiteurCarreaux = createRateLimiter({ max: 6, window: '60 s', prefix: 'geo:rl:zones-carreaux' });
 const Corps = z.object({ recette: z.unknown(), geometrie: z.unknown().optional() }).strict();
 
 export async function POST(req: NextRequest) {
-  const s = await sessionDeZone(req);
+  const s = await espaceDeZone(await requireAuth(req));
   if (!s.ok) return s.reponse;
   const corps = await lireCorps(req, Corps);
   if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
   const lue = lireRecette(corps.valeur.recette);
   if (!lue.ok) return NextResponse.json({ error: lue.message }, { status: 400 });
 
-  const quota = await (lue.recette.type === 'seuil_carreaux' ? limiteurCarreaux : limiteur)(s.userId);
+  const quota = await limiteurZones(s.userId);
   if (!quota.ok) return rateLimitResponse(quota.retrySec);
 
   const r = await executerRecette(createAdminClient(), lue.recette, {
-    orgId: s.orgId, sources: await sourcesVisiblesDeLaRequete(req), geometrie: corps.valeur.geometrie,
+    orgId: s.orgId, sources: s.sources, geometrie: corps.valeur.geometrie,
   });
   if (!r.ok) return NextResponse.json({ error: r.message, ...(r.refus ? { refus: r.refus } : {}) }, { status: r.statut });
   return NextResponse.json({ geometry: r.geometry, surface_km2: r.surface_km2, compte: r.compte, part_retenue: r.part_retenue, population: r.population });
@@ -1897,35 +2132,33 @@ export async function POST(req: NextRequest) {
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
-import { sourcesVisiblesDeLaRequete } from '@/lib/auth/perimetre-donnees';
-import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
+import { requireAuth } from '@/lib/api/middleware';
+import { rateLimitResponse } from '@/lib/api/rate-limit';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { toJson } from '@/lib/supabase/rpc-json';
 import { executerRecette } from '@/lib/zones/executer-recette';
 import { lireRecette } from '@/lib/zones/recette-schema';
-import { sessionDeZone } from '@/lib/zones/session-zones';
+import { espaceDeZone, limiteurZones, repondreResolue } from '@/lib/zones/session-zones';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const limiteur = createRateLimiter({ max: 20, window: '60 s', prefix: 'geo:rl:zones-ecrire' });
-const limiteurCarreaux = createRateLimiter({ max: 6, window: '60 s', prefix: 'geo:rl:zones-carreaux' });
 const Corps = z.object({ nom: z.string().trim().min(1).max(200), recette: z.unknown(), geometrie: z.unknown().optional() }).strict();
 
 export async function POST(req: NextRequest) {
-  const s = await sessionDeZone(req);
+  const s = await espaceDeZone(await requireAuth(req));
   if (!s.ok) return s.reponse;
   const corps = await lireCorps(req, Corps);
   if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
   const lue = lireRecette(corps.valeur.recette);
   if (!lue.ok) return NextResponse.json({ error: lue.message }, { status: 400 });
 
-  const quota = await (lue.recette.type === 'seuil_carreaux' ? limiteurCarreaux : limiteur)(s.userId);
+  const quota = await limiteurZones(s.userId);
   if (!quota.ok) return rateLimitResponse(quota.retrySec);
 
   const supabase = createAdminClient();
   const r = await executerRecette(supabase, lue.recette, {
-    orgId: s.orgId, sources: await sourcesVisiblesDeLaRequete(req), geometrie: corps.valeur.geometrie,
+    orgId: s.orgId, sources: s.sources, geometrie: corps.valeur.geometrie,
   });
   if (!r.ok) return NextResponse.json({ error: r.message, ...(r.refus ? { refus: r.refus } : {}) }, { status: r.statut });
 
@@ -1942,39 +2175,40 @@ export async function POST(req: NextRequest) {
 }
 ```
 
-(Import en tête : `import { repondreResolue, sessionDeZone } from '@/lib/zones/session-zones';` à la place du seul `sessionDeZone`.)
-
 `app/api/zones/[id]/recalculer/route.ts` :
 
 ```ts
 /**
  * POST /api/zones/[id]/recalculer — rejouer la recette d'une zone de l'espace actif et remplacer sa forme EN PLACE
  * (arbitrage A-2). Refusé pour une forme figée (409 forme_figee) et pour une zone qu'un plan cite (409
- * zone_referencee, `par` : strategie · jeu_de_zones · composite · combinaison). Quota 6/min.
+ * zone_referencee, `par` : strategie · jeu_de_zones · composite · combinaison · perimetre) — vérifié AVANT le calcul
+ * (I3 : une zone citée ne paie pas un calcul lourd pour un 409), puis revérifié sous verrou par
+ * remplacer_geometrie_zone. Quota unique des routes de zone (12/min).
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
-import { sourcesVisiblesDeLaRequete } from '@/lib/auth/perimetre-donnees';
-import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
+import { requireAuth } from '@/lib/api/middleware';
+import { rateLimitResponse } from '@/lib/api/rate-limit';
 import { executerRecette } from '@/lib/zones/executer-recette';
 import { MESSAGES_REFUS, estRecalculable } from '@/lib/zones/recette';
 import { lireRecette } from '@/lib/zones/recette-schema';
-import { repondreResolue, sessionDeZone } from '@/lib/zones/session-zones';
+import { espaceDeZone, limiteurZones, repondreResolue } from '@/lib/zones/session-zones';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const limiteur = createRateLimiter({ max: 6, window: '60 s', prefix: 'geo:rl:zones-recalcul' });
 const Uuid = z.string().uuid();
 const introuvable = () => NextResponse.json({ error: MESSAGES_REFUS.zone_introuvable, refus: 'zone_introuvable' }, { status: 404 });
+const referencee = (par: unknown) =>
+  NextResponse.json({ error: MESSAGES_REFUS.zone_referencee, refus: 'zone_referencee', par }, { status: 409 });
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const s = await sessionDeZone(req);
+  const s = await espaceDeZone(await requireAuth(req));
   if (!s.ok) return s.reponse;
   const { id } = await params;
   if (!Uuid.safeParse(id).success) return introuvable();
-  const quota = await limiteur(s.userId);
+  const quota = await limiteurZones(s.userId);
   if (!quota.ok) return rateLimitResponse(quota.retrySec);
 
   const supabase = createAdminClient();
@@ -1989,7 +2223,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: MESSAGES_REFUS.forme_figee, refus: 'forme_figee' }, { status: 409 });
   }
 
-  const r = await executerRecette(supabase, lue.recette, { orgId: s.orgId, sources: await sourcesVisiblesDeLaRequete(req) });
+  // I3 : les références AVANT le calcul — une lecture légère contre jusqu'à 69 000 buffers.
+  const ref = await supabase.rpc('zone_referencee', { p_zone_id: id });
+  if (ref.error) {
+    console.error('[zones/recalculer] références :', ref.error.message);
+    return NextResponse.json({ error: 'Lecture de la zone impossible.' }, { status: 500 });
+  }
+  if (ref.data) return referencee(ref.data);
+
+  const r = await executerRecette(supabase, lue.recette, { orgId: s.orgId, sources: s.sources });
   if (!r.ok) return NextResponse.json({ error: r.message, ...(r.refus ? { refus: r.refus } : {}) }, { status: r.statut });
 
   const rem = await supabase.rpc('remplacer_geometrie_zone', { p_zone_id: id, p_org_id: s.orgId, p_geometry_geojson: JSON.stringify(r.geometry) });
@@ -1999,17 +2241,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   const sortie = (rem.data ?? {}) as { remplace?: boolean; refus?: 'zone_introuvable' | 'zone_referencee'; par?: string };
   if (sortie.refus === 'zone_introuvable') return introuvable();
-  if (sortie.refus === 'zone_referencee') {
-    return NextResponse.json({ error: MESSAGES_REFUS.zone_referencee, refus: 'zone_referencee', par: sortie.par }, { status: 409 });
-  }
+  if (sortie.refus === 'zone_referencee') return referencee(sortie.par);
   return repondreResolue(supabase, id, s.userId, r.surface_km2);
 }
 ```
 
 `app/api/custom-geo/list/route.ts:49` : `.select('id, name, description, source_type, source_metadata, recette, feature_count_iris, feature_count_cp, created_at, created_by, bbox')` (ajout seul ; React ignore le champ).
 
-- [ ] **Step 4: PASS** — `npx vitest run --project unit tests/unit/api tests/unit/zones` (dont `validation-corps`, `routes-publiques`, `quotas-partages`) ; `npx tsc --noEmit`.
-- [ ] **Step 5: Preuve curl** (serveur `:3000`, compte local de la mémoire `reference_geomatik_credentials`, cookie de session) : un aperçu `seuil_carreaux` 13 → 200 ; le même en `france` → 422 français ; une écriture → 200 et la ligne en base (`select recette from custom_geo_zones where id = …`). Reporter dans le rapport.
+- [ ] **Step 4: PASS** — `npx vitest run --project unit tests/unit/api tests/unit/zones` (dont `validation-corps`, `routes-publiques` — VERT SANS exemption ni élargissement de `GARDES`, `quotas-partages`) ; `npx tsc --noEmit` ; `git diff --stat middleware.ts tests/unit/api/routes-publiques.test.ts` → vide.
+- [ ] **Step 5: Preuve curl** (serveur `:3000`, compte local de la mémoire `reference_geomatik_credentials`, en-tête `Authorization: Bearer <jeton>` comme l'Angular) : un aperçu `seuil_carreaux` 13 → 200 ; le même en `france` → 422 français ; une écriture → 200 et la ligne en base (`select recette from custom_geo_zones where id = …`). Reporter dans le rapport.
 - [ ] **Step 6: Doc + commit** — `ARCHITECTURE.md` (3 routes, `recette` dans la liste) ; `feat(api): zones à recette — aperçu, écriture, recalcul`.
 
 ---
@@ -2039,7 +2279,8 @@ describe('perimetreDeFiltre', () => {
   it.each([
     [{ type: 'departement', code: '13', label: 'Bouches-du-Rhône' }, { type: 'departement', code: '13' }],
     [{ type: 'region', code: '84', label: 'ARA' }, { type: 'region', code: '84' }],
-    [{ type: 'commune', code: '13055', label: 'Marseille' }, { type: 'commune', code: '13055' }],
+    // le format RÉEL du filtre commune : le nom tapé, en minuscules (panneau-filtre-logique.ts:59) — résolu en base
+    [{ type: 'commune', code: 'marseille', label: 'Marseille' }, { type: 'commune', code: 'marseille' }],
     [{ type: 'cp', code: '13001', label: '13001' }, { type: 'cp', code: '13001' }],
     [{ type: 'zone', code: '3f2504e0-4f89-11d3-9a0c-0305e82c3301', label: 'Ma zone' }, { type: 'zone', code: '3f2504e0-4f89-11d3-9a0c-0305e82c3301' }],
     [{ type: 'france', code: 'france', label: 'France' }, { type: 'france', code: 'FR' }],
@@ -2062,6 +2303,7 @@ describe('messageErreurZone', () => {
 `logique/zones/import-forme.spec.ts` :
 
 ```ts
+import { formaterNombre } from '../../../../core/format/nombre';
 import { lireForme } from './import-forme';
 
 const CARRE = [[5, 43], [5.1, 43], [5.1, 43.1], [5, 43.1], [5, 43]];
@@ -2092,12 +2334,17 @@ describe('lireForme — GeoJSON', () => {
   it('plus de 20 000 sommets : refusé avec le compte', () => {
     const anneau = Array.from({ length: 20_001 }, (_, i) => [5 + i * 1e-6, 43]);
     const r = lireForme(JSON.stringify({ type: 'Polygon', coordinates: [anneau] }), 'a.geojson');
-    expect(r).toEqual({ ok: false, message: 'La forme compte 20 001 sommets, au-delà de 20 000 : simplifiez-la avant de l’importer.' });
+    // formaterNombre (core/format/nombre.ts, toLocaleString fr-FR) : le séparateur est celui du navigateur, pas une espace écrite ici
+    expect(r).toEqual({ ok: false, message: `La forme compte ${formaterNombre(20_001)} sommets, au-delà de ${formaterNombre(20_000)} : simplifiez-la avant de l’importer.` });
   });
   it('coordonnées manifestement inversées (lat, lon) : dit, pas corrigé en silence', () => {
     const inverse = CARRE.map(([x, y]) => [y, x]);
     const r = lireForme(JSON.stringify({ type: 'Polygon', coordinates: [inverse] }), 'a.geojson');
     expect(r).toEqual({ ok: false, message: 'Coordonnées hors des bornes longitude/latitude : le fichier inverse-t-il latitude et longitude ?' });
+  });
+  it('Mayotte (lon 45, lat −12,8) n’est jamais prise pour une forme inversée', () => {
+    const mayotte = [[45.1, -12.8], [45.2, -12.8], [45.2, -12.7], [45.1, -12.8]];
+    expect(lireForme(JSON.stringify({ type: 'Polygon', coordinates: [mayotte] }), 'a.geojson')).toMatchObject({ ok: true, polygones: 1 });
   });
 });
 
@@ -2111,6 +2358,16 @@ describe('lireForme — KML', () => {
       </MultiGeometry></Placemark></Document></kml>`;
     expect(lireForme(kml, 'zones.kml')).toEqual({ ok: true, format: 'kml', polygones: 1, ignores: 1, sommets: 9,
       geometrie: { type: 'MultiPolygon', coordinates: [[CARRE, TROU]] } });
+  });
+  it('KML à préfixe (`kml:Polygon`) : lu comme sans préfixe', () => {
+    const kml = `<kml:kml xmlns:kml="http://www.opengis.net/kml/2.2"><kml:Placemark><kml:Polygon><kml:outerBoundaryIs><kml:LinearRing>
+      <kml:coordinates>5,43 5.1,43 5.1,43.1 5,43.1 5,43</kml:coordinates></kml:LinearRing></kml:outerBoundaryIs></kml:Polygon></kml:Placemark></kml:kml>`;
+    expect(lireForme(kml, 'a.kml')).toMatchObject({ ok: true, polygones: 1, sommets: 5 });
+  });
+  it('KML déclaré ISO-8859-1, lu par file.text() en UTF-8 : les noms abîmés (�) ne gênent pas les coordonnées', () => {
+    const kml = `<?xml version="1.0" encoding="ISO-8859-1"?><kml><Placemark><name>Zone march�</name><Polygon><outerBoundaryIs><LinearRing>
+      <coordinates>5,43 5.1,43 5.1,43.1 5,43.1 5,43</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark></kml>`;
+    expect(lireForme(kml, 'a.kml')).toMatchObject({ ok: true, polygones: 1, sommets: 5 });
   });
   it('KML sans polygone', () => {
     expect(lireForme('<kml><Placemark><Point><coordinates>5,43</coordinates></Point></Placemark></kml>', 'a.kml'))
@@ -2158,6 +2415,20 @@ describe('AtelierZoneService', () => {
     expect(enregistrer).toHaveBeenCalledWith({ nom: 'Lycées 13', recette: RECETTE });
     expect(creees).toEqual(['z1']);
     expect(s.message()).toBe('Zone « Lycées 13 » enregistrée — 12 codes postaux touchés.');
+    // second clic après succès : rien ne part (pas de doublon)
+    s.enregistrer('Lycées 13');
+    expect(enregistrer).toHaveBeenCalledTimes(1);
+    expect(s.apercu()).toBeNull();
+  });
+
+  it('un seul code postal : « 1 code postal touché » (pluriel)', () => {
+    const s = monter({
+      apercu: () => of({ geometry: CARRE, surface_km2: 1, compte: 1, part_retenue: 1, population: null }),
+      enregistrer: () => of(new HttpResponse({ status: 200, body: { zone_id: 'z9', count_cp: 1 } })),
+    });
+    s.apercevoir(RECETTE);
+    s.enregistrer('Petite');
+    expect(s.message()).toBe('Zone « Petite » enregistrée — 1 code postal touché.');
   });
 
   it('une recette lourde sans périmètre : refus local, AUCUN appel', () => {
@@ -2286,6 +2557,7 @@ export function messageErreurZone(e: { status?: number; error?: unknown }): stri
  * signale des coordonnées hors bornes (lat/lon inversées) au lieu de les corriger. La réparation géométrique
  * (auto-intersection) et le découpage sur la France sont faits par le serveur (`zone_dessin`, sql/156).
  */
+import { formaterNombre } from '../../../../core/format/nombre';
 import { MAX_SOMMETS_FORME } from './recette';
 
 type Anneau = number[][];
@@ -2294,13 +2566,12 @@ export type FormeLue =
   | { ok: true; format: 'geojson' | 'kml'; geometrie: GeoJSON.MultiPolygon; polygones: number; ignores: number; sommets: number }
   | { ok: false; message: string };
 
-const nombre = (n: number) => n.toLocaleString('fr-FR').replace(/ /g, ' ');
 
 function terminer(format: 'geojson' | 'kml', polys: Poly[], ignores: number): FormeLue {
   if (polys.length === 0) return { ok: false, message: 'Aucun polygone dans ce fichier.' };
   const sommets = polys.reduce((n, p) => n + p.reduce((m, a) => m + a.length, 0), 0);
   if (sommets > MAX_SOMMETS_FORME) {
-    return { ok: false, message: `La forme compte ${nombre(sommets)} sommets, au-delà de ${nombre(MAX_SOMMETS_FORME)} : simplifiez-la avant de l’importer.` };
+    return { ok: false, message: `La forme compte ${formaterNombre(sommets)} sommets, au-delà de ${formaterNombre(MAX_SOMMETS_FORME)} : simplifiez-la avant de l’importer.` };
   }
   const horsBornes = polys.some((p) => p.some((a) => a.some(([x, y]) => !(Math.abs(x) <= 180 && Math.abs(y) <= 90))));
   // La métropole INVERSÉE : « longitude » entre 41 et 51,5 et « latitude » entre −5,5 et 10. Mayotte (lon 45,
@@ -2329,8 +2600,13 @@ function depuisGeoJson(v: unknown): FormeLue {
   return terminer('geojson', polys, ignores);
 }
 
+/** Par nom LOCAL, quel que soit le préfixe : un KML écrit `<kml:Polygon>` se lit comme `<Polygon>`. */
+function balises(n: Element | Document, nom: string): Element[] {
+  return Array.from(n.getElementsByTagNameNS('*', nom));
+}
+
 function anneauKml(el: Element | null): Anneau | null {
-  const txt = el?.getElementsByTagName('coordinates')[0]?.textContent?.trim();
+  const txt = el ? balises(el, 'coordinates')[0]?.textContent?.trim() : undefined;
   if (!txt) return null;
   return txt.split(/\s+/).map((t) => t.split(',').slice(0, 2).map(Number)).filter((p) => p.length === 2 && p.every(Number.isFinite));
 }
@@ -2339,18 +2615,18 @@ function depuisKml(texte: string): FormeLue {
   const doc = new DOMParser().parseFromString(texte, 'application/xml');
   if (doc.getElementsByTagName('parsererror').length > 0) return { ok: false, message: 'Fichier illisible : ni GeoJSON ni KML.' };
   const polys: Poly[] = [];
-  for (const p of Array.from(doc.getElementsByTagName('Polygon'))) {
-    const ext = anneauKml(p.getElementsByTagName('outerBoundaryIs')[0] ?? null);
+  for (const p of balises(doc, 'Polygon')) {
+    const ext = anneauKml(balises(p, 'outerBoundaryIs')[0] ?? null);
     if (!ext) continue;
-    const trous = Array.from(p.getElementsByTagName('innerBoundaryIs')).map((i) => anneauKml(i)).filter((a): a is Anneau => !!a);
+    const trous = balises(p, 'innerBoundaryIs').map((i) => anneauKml(i)).filter((a): a is Anneau => !!a);
     polys.push([ext, ...trous]);
   }
-  const ignores = ['Point', 'LineString'].reduce((n, t) => n + doc.getElementsByTagName(t).length, 0);
+  const ignores = ['Point', 'LineString'].reduce((n, t) => n + balises(doc, t).length, 0);
   return terminer('kml', polys, ignores);
 }
 
 export function lireForme(texte: string, nomFichier: string): FormeLue {
-  const t = texte.replace(/^﻿/, '').trim();
+  const t = texte.replace(/^\uFEFF/, '').trim();
   if (t.length === 0) return { ok: false, message: 'Fichier vide.' };
   if (t.startsWith('<') || /\.kml$/i.test(nomFichier)) return depuisKml(t);
   try {
@@ -2361,7 +2637,7 @@ export function lireForme(texte: string, nomFichier: string): FormeLue {
 }
 ```
 
-La règle « inversé » est un heuristique pour la métropole : ajouter au spec un cas Mayotte (`[[45.1, -12.8], [45.2, -12.8], [45.2, -12.7], [45.1, -12.8]]`) qui doit rester `ok: true`. Le test des sommets du KML compte 5 + 4 = 9.
+La règle « inversé » est un heuristique pour la métropole (le cas Mayotte du spec la garde honnête). Le test des sommets du KML compte 5 + 4 = 9.
 
 `couches/apercu-zone.ts` : copie de `couches/apercu-rayon.ts` avec les identifiants `apercu-zone`, `apercu-zone-fill`, `apercu-zone-line`, une forme (`GeoJSON.Geometry`) au lieu d'un cercle, opacité de remplissage `0.15`, contour plein `1.5` (la zone est CALCULÉE : `line-dasharray: [2, 2]`, convention `lib/carte/nature-zone.ts`). Ajouter `apercu-zone-fill` et `apercu-zone-line` à `logique/ordre-couches.ts` à côté des deux identifiants `apercu-rayon-*`, et à `tests/unit/angular/carte-ordre-couches.test.ts` si ce test énumère les identifiants.
 
@@ -2500,9 +2776,14 @@ export class AtelierZoneService {
         this.enCours.set(false);
         const b = r.body;
         if (!b?.zone_id) { this.erreur.set('Enregistrement de la zone impossible.'); return; }
+        const cp = b.count_cp ?? 0;
         this.message.set(r.status === 207
           ? (b.message ?? 'Zone créée ; ses codes postaux n’ont pas pu être résolus.')
-          : `Zone « ${n} » enregistrée — ${b.count_cp ?? 0} codes postaux touchés.`);
+          : `Zone « ${n} » enregistrée — ${cp} code${cp > 1 ? 's' : ''} postal${cp > 1 ? 'aux' : ''} touché${cp > 1 ? 's' : ''}.`);
+        // Un second clic ne doit pas créer un doublon : l'aperçu et la recette sont vidés (le message reste).
+        this.recette.set(null);
+        this.apercu.set(null);
+        this.geometrieFigee = undefined;
         this.zoneCreee.next(b.zone_id);
       },
       error: (e: { status?: number; error?: unknown }) => { this.erreur.set(messageErreurZone(e)); this.enCours.set(false); },
@@ -2543,7 +2824,7 @@ export class AtelierZoneService {
   - `mg-pied-recette` : entrées `pret: boolean` ; affiche les chiffres de `atelier.apercu()` (surface, compte, population, part retenue), le champ « Nom de la zone », « Aperçu » (sortie `apercevoir`) et « Enregistrer la zone » (`atelier.enregistrer(nom)`), l'erreur et le message ; nom par défaut = `libelleRecette(recette)` tronqué à 200.
   - `mg-recette-rayon-poi`, `mg-recette-seuil-carreaux`, `mg-recette-seuil-territoire`, `mg-recette-import` : chacun compose SA recette depuis ses champs et le périmètre de ①, et appelle `atelier.apercevoir(recette[, geometrie])`.
   - `CreationZoneService.creer(source, zone, recette: (geo) => Recette)` : la troisième fonction donne la recette ; l'écriture passe par `ZonesApi.enregistrer({ nom, recette, geometrie? })` (géométrie seulement pour `dessin`).
-  - Panneau ③ : quatre sections `mg-entete-section` repliables — « Autour des POI » (rayon autour d'un point, rayon autour d'un type de POI ; les isochrones arrivent en Task 11), « Par seuil » (carreaux, IRIS ou CP), « À la main » (dessin, import, codes postaux), « Capture » (le bouton existant) ; une ligne d'état du périmètre en tête (« Périmètre : Bouches-du-Rhône » ou « Aucun périmètre : les calculs par seuil et autour des POI sont désactivés. Choisissez-en un à l'étape ① ») ; puis le renvoi existant vers « Mes zones ».
+  - Panneau ③ : quatre sections `mg-entete-section` repliables — « Autour des POI » (rayon autour d'un point, rayon autour d'un type de POI ; une ligne « Isochrones et bataille : lancez-les à l'étape ④, puis capturez le résultat ici » avec un bouton qui ouvre ④ — Task 11), « Par seuil » (carreaux, IRIS ou CP), « À la main » (dessin, import, codes postaux), « Capture » (le bouton existant) ; une ligne d'état du périmètre en tête (« Périmètre : Bouches-du-Rhône » ou « Aucun périmètre : les calculs par seuil et autour des POI sont désactivés. Choisissez-en un à l'étape ① ») ; puis le renvoi existant vers « Mes zones ».
 
 - [ ] **Step 1: Specs (échec)** — pour chaque formulaire, sur le modèle de `creer-codes-postaux.component.spec.ts` (TestBed, faux services, `stable()`), au minimum :
 
@@ -2593,6 +2874,12 @@ describe('RecetteSeuilCarreauxComponent', () => {
     f.detectChanges(); await attendre();
     expect(el.querySelector<HTMLButtonElement>('[data-apercu]')!.disabled).toBe(true);
     expect(el.querySelector('[data-garde]')!.textContent).toContain('France entière');
+  });
+  it('une région à ① : désactivé, « un département au plus » (A-4)', async () => {
+    const { f, el } = monter({ type: 'region', code: '84', label: 'Auvergne-Rhône-Alpes' });
+    f.detectChanges(); await attendre();
+    expect(el.querySelector<HTMLButtonElement>('[data-apercu]')!.disabled).toBe(true);
+    expect(el.querySelector('[data-garde]')!.textContent).toContain('un département au plus');
   });
 });
 ```
@@ -2718,20 +3005,22 @@ Les styles `.champ` / `.cta-teal` sont répétés dans les quatre formulaires : 
 
 ---
 
-### Task 11: Isochrones et bataille quittent ④ pour ③ ; la capture garde une recette
+### Task 11: La capture garde une recette — isochrones et bataille restent en ④ et deviennent des zones par ③
+
+Arbitrage du contrôleur (C3) : **rien n'est retiré de ④** — la bataille V1/V2 et la comparaison d'isochrones y restent telles quelles (spec § 16.1 « rien de l'existant n'est retiré », § 16.4). ③ ne porte que la RECETTE : capturer le résultat d'une bataille écrit une zone `{ type: 'isochrone' }` (forme figée), et la famille « Autour des POI » de ③ renvoie vers ④ pour les lancer.
 
 **Files:**
-- Create: `angular/src/app/features/carte/panneaux/zones/section-isochrones.component.ts` (+ spec)
-- Modify: `panneaux/analyse/panneau-analyse.component.ts` (+ spec), `panneaux/zones/panneau-zones.component.ts`, `panneaux/zones/capture.component.ts` (+ spec), `data/zones-custom.api.ts` (`capturer` : champ `recette` facultatif), `app/api/custom-geo/capture/route.ts`, `tests/unit/angular/panneau-analyse-garde.test.ts`, `logique/parcours.ts` (consigne de ④)
+- Modify: `app/api/custom-geo/capture/route.ts`, `angular/src/app/features/carte/panneaux/zones/capture.component.ts` (+ spec), `panneaux/zones/panneau-zones.component.ts` (+ spec : la ligne de renvoi vers ④)
+- NON modifiés (vérifié par `git diff --stat` au Step 4) : `panneaux/analyse/**`, `tests/unit/angular/panneau-analyse-garde.test.ts`, la consigne de ④ dans `logique/parcours.ts`
 - Test: `tests/unit/api/capture-recette.test.ts` (créé)
 - Doc: `ARCHITECTURE.md` (route capture), README carte
 
 **Interfaces:**
-- Consumes: le bloc « Analyse spatiale » de `panneau-analyse.component.ts:75-110` (mode de transport, `mg-outil-bataille-v2`, `mg-outil-isochrones`) et ses gestionnaires (`verifierCacheV1/V2`, `remplirV2`, `lancerV1/V2`, `appliquerBataille`, `verifierPerimetreOutil` pour les deux batailles), `ContexteBatailleService`, `BatailleV1Service`, `BatailleV2Service` (fournis par la page — vérifier dans `carte.page.ts` ; s'ils étaient fournis par le panneau Analyse, les déplacer au même niveau que le nouveau composant).
+- Consumes: `ZonesCustomApi.capturer(corps)` (`data/zones-custom.api.ts:223`, corps libre — aucun changement de signature) ; dans `mg-capture`, la couche bataille (`valides().find((v) => v.source.sourceType === 'isochrone_battle')`, `capture.component.ts:76`) et son `enrichissement` ; `ParcoursService.choisir('analyse')` (lot 1) pour le renvoi.
 - Produces:
-  - `mg-section-isochrones` : le bloc et ses gestionnaires DÉPLACÉS tels quels (garde comprise), monté dans la section « Autour des POI » de ③ ; `mg-panneau-analyse` ne garde que score, corrélation, clustering.
   - `POST /api/custom-geo/capture` accepte `recette` facultative (`lireRecette`, types autorisés : `isochrone` et `capture` seulement — sinon 400) ; si présente, `update custom_geo_zones set recette = … where id = zoneId` après la création, erreur LUE (`console.error`, la réponse garde la zone : `warning: 'recette_non_enregistree'`, statut 207). React n'envoie pas le champ : comportement inchangé pour lui.
-  - `mg-capture` envoie `recette: { v: 1, type: 'isochrone', parametres: { mode, minutes, version } }` quand la couche capturée est une bataille, sinon `{ v: 1, type: 'capture', source_type }`.
+  - `mg-capture` ajoute au corps `recette: { v: 1, type: 'isochrone', parametres: { mode, minutes, version } }` (lus dans l'`enrichissement` de la couche bataille : clés présentes seulement, ≤ 20) quand une couche capturée est une bataille, sinon `{ v: 1, type: 'capture', source_type: this.sourceType() }`.
+  - `mg-panneau-zones`, section « Autour des POI » : une ligne `data-renvoi-analyse` « Isochrones et bataille : lancez-les à l'étape ④, puis capturez le résultat ici. » et un bouton « Aller à ④ Analyse » → `parcours.choisir('analyse')`.
 
 - [ ] **Step 1: Tests (échec).** `tests/unit/api/capture-recette.test.ts` :
 
@@ -2800,15 +3089,40 @@ describe('POST /api/custom-geo/capture — recette facultative', () => {
 });
 ```
 
-`tests/unit/angular/panneau-analyse-garde.test.ts` : il lit le SOURCE de `panneau-analyse.component.ts` pour vérifier le câblage de la garde sur les batailles ; le faire lire AUSSI `panneaux/zones/section-isochrones.component.ts` et exiger que `verifierPerimetreOutil('bataille_v1')` / `('bataille_v2')` y figurent avant `lancerV1`/`lancerV2` (même assertion, autre fichier) ; et que `panneau-analyse.component.ts` ne contienne PLUS `mg-outil-isochrones` ni `mg-outil-bataille-v2`.
+`capture.component.spec.ts` (ajouts au spec existant, mêmes faux) : une capture dont une couche contributive a `sourceType: 'isochrone_battle'` et `enrichissement: { mode: 'drive', minutes: 15, version: 'v2', pois: [...] }` envoie `recette: { v: 1, type: 'isochrone', parametres: { mode: 'drive', minutes: 15, version: 'v2' } }` (les `pois` ne vont PAS dans la recette : ils sont déjà dans `source_metadata` et `subzones`) ; une capture de Voronoï envoie `recette: { v: 1, type: 'capture', source_type: 'voronoi_cells' }`.
 
-`section-isochrones.component.spec.ts` : reprendre À L'IDENTIQUE les cas « bataille » et « isochrones » de `panneau-analyse.component.spec.ts` (Grep `bataille` / `isochrones` dans cette spec), en montant `SectionIsochronesComponent` ; les retirer de la spec du panneau Analyse.
+`panneau-zones.component.spec.ts` (ajout) : la section « Autour des POI » contient `[data-renvoi-analyse]` ; son bouton appelle `ParcoursService.choisir('analyse')` (faux `{ choisir: vi.fn() }`) ; le panneau Zones ne monte NI `mg-outil-isochrones` NI `mg-outil-bataille-v2`.
 
-`capture.component.spec.ts` : une capture dont la couche contributive est une bataille envoie `recette.type === 'isochrone'` ; une capture de Voronoï envoie `{ v: 1, type: 'capture', source_type: 'voronoi_cells' }`.
+- [ ] **Step 2: FAIL** — `npx vitest run --project unit tests/unit/api/capture-recette.test.ts` ; `cd angular && npx ng test --watch=false --include='**/capture.component.spec.ts' --include='**/panneau-zones.component.spec.ts'`.
 
-- [ ] **Step 2: FAIL** — `npx vitest run --project unit tests/unit/api/capture-recette.test.ts tests/unit/angular/panneau-analyse-garde.test.ts` ; `cd angular && npx ng test --watch=false --include='**/section-isochrones.component.spec.ts' --include='**/panneau-analyse.component.spec.ts' --include='**/capture.component.spec.ts'`.
+- [ ] **Step 3: Implémenter.** Dans `capture.component.ts`, à la composition du corps (`capture.component.ts:113-127`) :
 
-- [ ] **Step 3: Implémenter** — DÉPLACER (couper-coller, pas réécrire) le bloc et ses méthodes ; `mg-section-isochrones` affiche son propre bandeau de garde (`gardeMessage`, même `linkedSignal` que le panneau Analyse).
+```ts
+    const bataille = this.bataille();
+    const parametres = Object.fromEntries(
+      (['mode', 'minutes', 'version'] as const)
+        .map((k) => [k, bataille?.enrichissement[k]] as const)
+        .filter(([, v]) => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'),
+    );
+    const recette: Recette = bataille
+      ? { v: 1, type: 'isochrone', parametres }
+      : { v: 1, type: 'capture', source_type: this.sourceType() };
+    // … puis `recette` ajoutée au corps existant, à côté de `source_type`.
+```
+
+(`import type { Recette } from '../../logique/zones/recette';`. Si l'`enrichissement` de la bataille ne porte pas ces clés sous ces noms, lire `logique/zones/capture.ts` et prendre les noms réels ; une recette `isochrone` aux `parametres` vides reste valide.)
+
+Dans `panneau-zones.component.ts`, section « Autour des POI », après les deux formulaires :
+
+```html
+<p data-renvoi-analyse class="m-0 px-3.5 pt-2 text-[12px] leading-[1.5] text-tertiary">
+  Isochrones et bataille : lancez-les à l’étape ④, puis capturez le résultat ici.
+</p>
+<button type="button" (click)="parcours.choisir('analyse')"
+  class="mx-3.5 mb-3 mt-1 cursor-pointer rounded-[6px] border-fin border-default bg-transparent px-3 py-1.5 text-[12px] text-secondary hover:border-hover hover:bg-elevated hover:text-primary">Aller à ④ Analyse</button>
+```
+
+(`protected readonly parcours = inject(ParcoursService);` — le service est fourni par la page, lot 1.)
 
 Dans `app/api/custom-geo/capture/route.ts` : ajouter `recette: z.unknown().optional(),` à `CaptureSchema`, puis, juste après le contrôle `resolveOrgWriteAccess` (AVANT toute RPC) :
 
@@ -2841,18 +3155,18 @@ et, juste avant le `return NextResponse.json({ zone_id: zoneId, … })` final :
 
 Imports : `import { lireRecette } from '@/lib/zones/recette-schema';` et `import type { Recette } from '@/lib/zones/recette';`. Cette route lit son corps par `request.json()` puis `safeParse` : elle satisfait déjà `tests/unit/api/validation-corps.test.ts` ; ne pas la réécrire en `lireCorps` dans ce lot (React l'emploie, hors sujet).
 
-Consigne de ④ (`logique/parcours.ts`) : « Calculez sur vos zones : score, corrélation, clustering. Chaque résultat s'affiche sur la carte. »
+La consigne de ④ (`logique/parcours.ts`) est INCHANGÉE.
 
-- [ ] **Step 4: PASS** — suites unitaires racine et Angular entières ; build Angular (sortie séparée).
-- [ ] **Step 5: Preuve navigateur** — ③ « Autour des POI » : bataille V2 sur les CIRFA (espace Marine nationale, périmètre une région) → capture → la zone porte la recette `isochrone` (`select recette from custom_geo_zones order by created_at desc limit 1`) ; ④ n'a plus le bloc ; la garde « Choisissez un périmètre » s'affiche dans ③ sans filtre.
-- [ ] **Step 6: Doc + commit** — `refactor(angular): isochrones et bataille passent de ④ à ③ ; la capture garde sa recette`.
+- [ ] **Step 4: PASS** — suites unitaires racine et Angular entières ; build Angular (sortie séparée) ; `git diff --stat -- angular/src/app/features/carte/panneaux/analyse tests/unit/angular/panneau-analyse-garde.test.ts` → vide.
+- [ ] **Step 5: Preuve navigateur** — ④ : bataille V2 sur les CIRFA (espace Marine nationale, périmètre une région), bloc « Analyse spatiale » intact → ③ « Capture » → la zone porte la recette `isochrone` (`select recette from custom_geo_zones order by created_at desc limit 1`) ; ③ « Autour des POI » → « Aller à ④ Analyse » ouvre ④.
+- [ ] **Step 6: Doc + commit** — `feat(zones): la capture garde sa recette ; isochrones et bataille restent en ④`.
 
 ---
 
 ### Task 12: « Mes zones » montre la recette et recalcule ; preuve et documentation du lot
 
 **Files:**
-- Modify: `angular/src/app/features/carte/panneaux/zones/carte-zone.component.ts` (+ spec), `panneaux/zones/mes-zones.component.ts` (+ spec), `ARCHITECTURE.md`, `angular/src/app/features/carte/README.md`, l'inventaire « aucune fonction perdue » du lot 1 (Grep `INVENTAIRE` dans `angular/src/app/features/carte` : ajouter les entrées des recettes et retirer isochrones/bataille de ④ pour les placer en ③)
+- Modify: `angular/src/app/features/carte/panneaux/zones/carte-zone.component.ts` (+ spec), `panneaux/zones/mes-zones.component.ts` (+ spec), `ARCHITECTURE.md`, `angular/src/app/features/carte/README.md`, l'inventaire « aucune fonction perdue » du lot 1 (Grep `INVENTAIRE` dans `angular/src/app/features/carte` : ajouter les entrées des recettes ; isochrones et bataille restent inventoriées en ④, rien n'en est retiré)
 - Test: specs ci-dessus ; inventaire
 
 **Interfaces:**
@@ -2895,7 +3209,7 @@ avec `protected readonly recette = computed(() => { const r = this.zone().recett
 (`enCours` de la ligne : `l.enCours || recalculs().has(l.zone.id)` dans `lignes()`.) Le fichier reste < 400 lignes.
 
 - [ ] **Step 4: PASS + vérification complète** — sans pipe : `npx tsc --noEmit` ; `npm run test:unit` ; `npm run test:integration` ; `cd angular && npx ng test --watch=false` ; `cd angular && npm run build -- --output-path=/tmp/ng-lot3` ; `npm run lint`.
-- [ ] **Step 5: Preuve navigateur du lot** (`:4202`, BMW GROUP puis Marine nationale, deux thèmes) — les cinq cas du Review Focus, un par un, chacun capturé : (1) France → refus dit, aucune requête lourde (onglet Réseau) ; (2) recalcul d'une zone rattachée à une stratégie → 409 dit ; (3) KML avec trou + point, puis GeoJSON de 25 000 sommets → message ; (4) aperçu lancé puis changement d'espace → rien de l'ancien espace ; ③ → ① → ③ → aperçu gardé ; (5) super admin dans un espace non membre → 207 dit. Puis : « Recalculer » une zone `seuil_carreaux` libre → la forme se redessine.
+- [ ] **Step 5: Preuve navigateur du lot** (`:4202`, BMW GROUP puis Marine nationale, deux thèmes) — les cinq cas du Review Focus, un par un, chacun capturé : (1) France, puis une région pour un seuil sur carreaux, puis « saint-sauveur » → refus dits, aucune requête lourde (onglet Réseau) ; « marseille » → l'union des 16 arrondissements ; (2) recalcul d'une zone rattachée à une stratégie → 409 dit ; (3) KML avec trou + point, puis GeoJSON de 25 000 sommets → message ; (4) aperçu lancé puis changement d'espace → rien de l'ancien espace ; ③ → ① → ③ → aperçu gardé ; (5) super admin basculé sur un autre espace → la zone s'écrit dans cet espace ; second clic sur « Enregistrer » → aucun doublon. Puis : « Recalculer » une zone `seuil_carreaux` libre → la forme se redessine.
 - [ ] **Step 6: Doc + commit** — `ARCHITECTURE.md` (§ zones custom : « une zone = une recette », les trois routes, la colonne, les cinq RPC, les plafonds, le constat `geom_centroid`) ; README carte (③ par familles, `AtelierZoneService`) ; spec : ajouter « Écarts à la livraison du lot 3 » à la fin du § 16 (sur `feat/angular-lot0`, commit `docs(spec)` séparé par le contrôleur) ; `feat(angular): Mes zones — la recette affichée, recalculer ; preuve du lot 3`.
 
 ---
@@ -2912,8 +3226,9 @@ Objectif : chiffrer N'IMPORTE QUELLE zone (population, cible) sur sa forme TELLE
 3. Route `GET /api/zones/[id]/couverture?cible=&decoupage=` (quota, cache par `updated_at` de la zone).
 4. Angular : `mg-analyse-couverture` en ④ (sélecteur de zone, de cible, de découpage ; tableau par territoire ; vignette carte).
 5. Couverture par rayon du risque généralisée à tout type de POI (anneaux par valeur d'un champ, Q3) ; `carte/risques` redirige vers ③/④ quand la parité est prouvée.
-6. Score, clustering, Voronoï, corrélation : entrée « zone choisie » en plus du périmètre (aucun retrait).
-7. Preuve, doc, inventaire.
+6. Score, clustering, Voronoï, corrélation, isochrones comparées (bataille) : entrée « zone choisie » en plus du périmètre (aucun retrait).
+7. Croisements radio / trafic (TMJA) / météo sur une zone (spec § 16.1 ④) : couverture radio, trafic traversant, météo de la zone — par les couches existantes de ②, lues sur la forme.
+8. Preuve, doc, inventaire.
 
 ### Lot 5 — ⑤ Jeu de zones multi-plateformes (dépend du lot 4)
 
