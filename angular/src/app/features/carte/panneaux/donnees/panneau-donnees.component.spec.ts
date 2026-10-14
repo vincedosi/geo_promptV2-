@@ -18,7 +18,7 @@ import { SanteService } from '../../couches/sante.service';
 import { TmjaService } from '../../couches/tmja.service';
 import { TransportService } from '../../couches/transport.service';
 import { CarreauxApi } from '../../data/carreaux.api';
-import { CarteApi, type CategoriePoi } from '../../data/carte.api';
+import { CarteApi, type CategoriePoi, type ZoneData } from '../../data/carte.api';
 import { CiviqueApi } from '../../data/civique.api';
 import { IrisApi } from '../../data/iris.api';
 import { MeteoApi } from '../../data/meteo.api';
@@ -32,6 +32,7 @@ import { DonneesAfficheesService } from '../../etat/donnees-affichees.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { PileEchapService } from '../../etat/pile-echap.service';
 import { RisqueCarteService } from '../../etat/risque-carte.service';
+import { CARREAUX_INDICATEURS } from '../../logique/carreaux/catalogue';
 import type { MeteoZoneChunk } from '../../logique/meteo/types';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { PanneauDonneesComponent } from './panneau-donnees.component';
@@ -57,6 +58,8 @@ function monter(o: Options = {}) {
     pois: vi.fn(() => NEVER), ooh: vi.fn(() => NEVER), transport: vi.fn(() => NEVER), pprt: vi.fn(() => NEVER),
     urlTuilesTmja: vi.fn(() => ''), poiNatures: vi.fn(() => NEVER), territoryMask: vi.fn(() => NEVER),
   };
+  // La fiche santé d'une commune (`mg-fiche-sante`) : AUCUNE lecture sans geste sur la ligne santé (relecture T13, m1).
+  const santeCommune = vi.fn(() => NEVER);
   const tuiles = { carreaux: vi.fn(() => '/api/tiles/{z}/{x}/{y}?v=19'), iris: vi.fn(() => ''), bornes: vi.fn(() => NEVER), detail: vi.fn(() => NEVER) };
   TestBed.configureTestingModule({
     providers: [
@@ -68,7 +71,7 @@ function monter(o: Options = {}) {
       { provide: FABRIQUE_POPUP, useValue: () => ({}) },
       {
         provide: CiviqueApi,
-        useValue: { geojsonVariable: () => NEVER, zones: () => of({ type: 'FeatureCollection', features: [] }), santeDepartement: () => NEVER, santeCp: () => NEVER, santeCommune: () => NEVER },
+        useValue: { geojsonVariable: () => NEVER, zones: () => of({ type: 'FeatureCollection', features: [] }), santeDepartement: () => NEVER, santeCp: () => NEVER, santeCommune: santeCommune },
       },
       { provide: SitesRisqueApi, useValue: { carte: () => NEVER, exposition: () => NEVER } },
       { provide: CarteApi, useValue: carteApi },
@@ -88,7 +91,8 @@ function monter(o: Options = {}) {
     await rendre();
   };
   return {
-    el, rendre, cles, deplier, carteApi, tuiles,
+    el, rendre, cles, deplier, carteApi, tuiles, santeCommune,
+    pois: TestBed.inject(PoisService),
     carreaux: TestBed.inject(CarreauxService),
     iris: TestBed.inject(IrisService),
     etat: TestBed.inject(EtatCarteService),
@@ -122,7 +126,7 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
     await rendre();
     expect(cles('espace')).toEqual(['poi:bmw']);
     expect(cles('commun')).toEqual(['iris:socio-demo', 'poi:lycee']);
-    expect(el.querySelector('[data-bloc="commun"] [data-precision]')!.textContent!.trim()).toBe('sélection recommandée');
+    expect(el.querySelector('[data-bloc="commun"] [data-precision]')!.textContent!.trim()).toBe('Sélection recommandée');
     const repli = el.querySelector<HTMLButtonElement>('[data-repli-autres]')!;
     expect(repli.textContent!.replace(/\s+/g, ' ').trim()).toBe('▸ Plus de données communes (7)');
     expect(repli.getAttribute('aria-expanded')).toBe('false');
@@ -137,12 +141,12 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
     expect(el.querySelector('[data-jeu="ooh:panneaux"], [data-jeu="radio:emetteurs"]')).toBeNull();
   });
 
-  it('sélection vide : 9 lignes communes, aucun repli, « aucune sélection : tout est visible »', async () => {
+  it('sélection vide : 9 lignes communes, aucun repli, « Aucune sélection : tout est visible »', async () => {
     const { el, rendre, cles } = monter();
     await rendre();
     expect(cles('commun')).toHaveLength(9);
     expect(el.querySelector('[data-repli-autres]')).toBeNull();
-    expect(el.querySelector('[data-precision]')!.textContent!.trim()).toBe('aucune sélection : tout est visible');
+    expect(el.querySelector('[data-precision]')!.textContent!.trim()).toBe('Aucune sélection : tout est visible');
   });
 
   it('lecture de la sélection en échec : 9 lignes et « Sélection recommandée indisponible : tout est visible. »', async () => {
@@ -240,7 +244,7 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
     expect(cles('espace')).toEqual([]);
     // Météo n'est pas recommandée : elle reste rangée dans « Plus de données communes », que la recherche déplie.
     expect(cles('commun')).toEqual(['meteo:zones']);
-    expect(el.querySelector('[data-precision]')!.textContent!.trim()).toBe('sélection recommandée');
+    expect(el.querySelector('[data-precision]')!.textContent!.trim()).toBe('Sélection recommandée');
     expect(el.querySelector('[data-bloc="espace"]')!.textContent).toContain("Aucun jeu de l'espace ne correspond.");
     champ.value = '';
     champ.dispatchEvent(new Event('input'));
@@ -249,18 +253,94 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
     expect(cles('commun')).toEqual(['iris:socio-demo', 'poi:lycee']);
   });
 
-  it('« Santé environnementale » se déplie d’elle-même au PREMIER IRIS sélectionné, une seule fois', async () => {
-    const { el, rendre, iris, deplier } = monter();
+  it('premier IRIS sélectionné : la ligne santé est SIGNALÉE, pas dépliée — aucune lecture de fiche sans geste ; le dépliage la lit et éteint le signal', async () => {
+    const { el, rendre, iris, deplier, santeCommune } = monter();
+    await rendre();
+    const donnees = (iris as unknown as { donnees: { set(v: unknown): void } }).donnees;
+    expect(el.querySelector('[data-jeu="sante:air-pollen"] [data-indice]')).toBeNull();
+    donnees.set({ code_iris: '130550101', code_commune: '13055', nom_commune: 'Marseille' });
     await rendre();
     expect(el.querySelector('mg-section-sante')).toBeNull();
-    (iris as unknown as { donnees: { set(v: unknown): void } }).donnees.set({ code_iris: '130550101', code_commune: '13055', nom_commune: 'Marseille' });
+    expect(santeCommune).not.toHaveBeenCalled();
+    expect(el.querySelector('[data-jeu="sante:air-pollen"] [data-indice]')!.textContent).toContain('Marseille');
+    // Une autre commune ne lit toujours rien.
+    donnees.set({ code_iris: '130560101', code_commune: '13056', nom_commune: 'Martigues' });
     await rendre();
-    expect(el.querySelector('[data-jeu="sante:air-pollen"] mg-section-sante')).not.toBeNull();
+    expect(santeCommune).not.toHaveBeenCalled();
+    // Le geste : déplier la ligne lit la fiche de la commune courante, et le signal s'éteint.
     await deplier('sante:air-pollen');
-    expect(el.querySelector('mg-section-sante')).toBeNull();
-    (iris as unknown as { donnees: { set(v: unknown): void } }).donnees.set({ code_iris: '130550102', code_commune: '13056' });
+    expect(el.querySelector('[data-jeu="sante:air-pollen"] mg-section-sante')).not.toBeNull();
+    expect(santeCommune).toHaveBeenCalledTimes(1);
+    expect(santeCommune).toHaveBeenCalledWith('13056');
+    expect(el.querySelector('[data-jeu="sante:air-pollen"] [data-indice]')).toBeNull();
+  });
+
+  it('réglages des carreaux (I-1, repris de panneau-calques) : visibles couche active seulement ; indicateur, palette, opacité, relief', async () => {
+    const { el, rendre, carreaux, deplier } = monter();
     await rendre();
-    expect(el.querySelector('mg-section-sante')).toBeNull();
+    await deplier('carreaux:filosofi');
+    expect(el.querySelector('mg-section-carreaux [data-reglages]')).toBeNull();
+    carreaux.basculer(true);
+    await rendre();
+    const select = el.querySelector<HTMLSelectElement>('select[data-indicateur]')!;
+    expect([...select.querySelectorAll('optgroup')].map((g) => g.label)).toEqual(['Population', 'Ménages', 'Revenus', 'Logements']);
+    expect(select.querySelectorAll('option').length).toBe(CARREAUX_INDICATEURS.length);
+    select.value = 'revenu_median';
+    select.dispatchEvent(new Event('change'));
+    expect(carreaux.indicateur()).toBe('revenu_median');
+    el.querySelector<HTMLButtonElement>('button[data-palette="plasma"]')!.click();
+    expect(carreaux.palette()).toBe('plasma');
+    const opacite = el.querySelector<HTMLInputElement>('input[data-opacite]')!;
+    opacite.value = '0.5';
+    opacite.dispatchEvent(new Event('input'));
+    await rendre();
+    expect(carreaux.opacite()).toBe(0.5);
+    expect(el.querySelector('mg-section-carreaux')!.textContent).toContain('50%');
+    expect(el.querySelector('input[data-hauteur]')).toBeNull();
+    el.querySelector<HTMLButtonElement>('button[data-relief]')!.click();
+    await rendre();
+    expect(carreaux.relief()).toBe(true);
+    expect(el.querySelector('button[data-relief]')!.textContent!.trim()).toBe('Relief 3D ✓');
+    expect(el.querySelector('mg-section-carreaux')!.textContent).toContain('×1.5');
+  });
+
+  it('les types de transport choisis survivent au repli de leur ligne (I-1, repris de panneau-calques) ; la pastille suit les arrêts SUR la carte (R1)', async () => {
+    const { el, rendre, deplier, pois } = monter();
+    await rendre();
+    await deplier('transport:arrets');
+    el.querySelector<HTMLButtonElement>('[data-type="bus"]')!.click();
+    await rendre();
+    expect(el.querySelector('[data-type="bus"]')!.getAttribute('aria-pressed')).toBe('true');
+    await deplier('transport:arrets');
+    expect(el.querySelector('mg-section-transport')).toBeNull();
+    await deplier('transport:arrets');
+    expect(el.querySelector('[data-type="bus"]')!.getAttribute('aria-pressed')).toBe('true');
+    // Des types choisis ne chargent rien : pas de pastille tant qu'aucun arrêt n'est peint.
+    expect(el.querySelector('[data-jeu="transport:arrets"] [data-affiche]')).toBeNull();
+    pois.definirZone({ categorie_poi: 'arret_transport', pois: [], nb_pois: 0, categories: {} } as unknown as ZoneData);
+    await rendre();
+    expect(el.querySelector('[data-jeu="transport:arrets"] [data-affiche]')).not.toBeNull();
+  });
+
+  it('recherche sans jeu commun : « Aucun jeu commun ne correspond. », pas de repli vide (m3)', async () => {
+    const { el, rendre } = monter({ reco: of({ cles: ['iris:socio-demo'] }) });
+    await rendre();
+    const champ = el.querySelector<HTMLInputElement>('input[data-recherche]')!;
+    champ.value = 'bmw';
+    champ.dispatchEvent(new Event('input'));
+    await rendre();
+    expect(el.querySelector('[data-bloc="commun"]')!.textContent).toContain('Aucun jeu commun ne correspond.');
+    expect(el.querySelector('[data-repli-autres]')).toBeNull();
+  });
+
+  it('« Chercher un jeu » reste collé en haut de la zone qui défile ; « Actifs » défile avec le reste (R4)', async () => {
+    const { el, rendre } = monter();
+    await rendre();
+    const bandeau = el.querySelector('input[data-recherche]')!.parentElement!;
+    expect(bandeau.classList).toContain('sticky');
+    expect(bandeau.classList).toContain('top-0');
+    expect(bandeau.classList).toContain('bg-surface');
+    expect(el.querySelector('[data-actifs]')!.classList).not.toContain('sticky');
   });
 
   describe('« Actifs (n) » — repris de panneau-calques', () => {
@@ -274,6 +354,13 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
     it('carreaux : « Carreaux Filosofi », la croix les éteint ; IRIS les évince', async () => {
       const { el, rendre, carreaux, iris, etat } = monter();
       await rendre();
+      carreaux.basculer(true);
+      await rendre();
+      iris.basculer(true);
+      await rendre();
+      expect([carreaux.visible(), iris.visible(), etat.degradeActif()]).toEqual([false, true, 'iris']);
+      expect(el.querySelector('[data-jeu="carreaux:filosofi"] [data-affiche]')).toBeNull();
+      iris.basculer(false);
       carreaux.basculer(true);
       await rendre();
       expect(el.textContent).toContain('Actifs (1)');

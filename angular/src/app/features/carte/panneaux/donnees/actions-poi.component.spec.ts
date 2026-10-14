@@ -68,6 +68,11 @@ describe('ActionsPoiComponent — ce que ② fait des types de POI cochés', () 
     await rendre();
     expect(el.querySelector('[data-titre-poi]')!.textContent!.trim()).toBe("Points d'intérêt — 1 sélectionné");
     expect(el.querySelector('[data-carte-poi="lycee"]')).not.toBeNull();
+    // Avant le catalogue : l'identifiant ; une fois lu, le LIBELLÉ du type (relecture T13, m6).
+    expect(el.querySelector('[data-carte-poi="lycee"] [data-nom-type]')!.textContent!.trim()).toBe('lycee');
+    TestBed.inject(CataloguePoiService).chargerUneFois();
+    await rendre();
+    expect(el.querySelector('[data-carte-poi="lycee"] [data-nom-type]')!.textContent!.trim()).toBe('Lycées');
     const couleur = el.querySelector('select[data-couleur]') as HTMLSelectElement;
     couleur.value = '#ff4444';
     couleur.dispatchEvent(new Event('change'));
@@ -78,6 +83,10 @@ describe('ActionsPoiComponent — ce que ② fait des types de POI cochés', () 
     expect(pois.styleDe('lycee').size).toBe('Large');
     const bouton = el.querySelector('[data-afficher-poi]') as HTMLButtonElement;
     expect(bouton.textContent!.trim()).toBe('Afficher les POI sur la carte');
+    // CTA métier teal (DESIGN_SYSTEM § 5) : le vert est réservé au statut (relecture T13, m6).
+    expect(bouton.className).toContain('border-teal');
+    expect(bouton.className).toContain('text-teal');
+    expect(bouton.className).not.toMatch(/success/);
     bouton.click();
     expect(corps[0]).toEqual({ poi_types: ['lycee'], scope: 'metro', regions: [], depts: [], ville: '', rayon_poi: null, poi_natures: {} });
     await rendre();

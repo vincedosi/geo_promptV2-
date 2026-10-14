@@ -20,6 +20,9 @@ import type { JeuAffichable } from '../../logique/rangement-jeux';
       <div class="min-w-0 flex-1">
         <div class="truncate text-[12px] text-primary">{{ jeu().nom }}</div>
         <div class="text-[11px] text-tertiary">{{ meta() }}</div>
+        @if (indice(); as i) {
+          <div data-indice class="text-[11px] text-teal">{{ i }}</div>
+        }
       </div>
       @if (affiche()) {
         <span data-affiche title="Affiché sur la carte" class="size-1.5 shrink-0 rounded-full bg-teal"></span>
@@ -44,6 +47,8 @@ export class LigneJeuComponent {
   readonly mode = input<'case' | 'reglages'>('reglages');
   readonly coche = input(false);
   readonly deplie = input(false);
+  /** Une invite d'une ligne sous « nature · maille » (la fiche santé d'une commune à lire, par exemple) ; rien si `null`. */
+  readonly indice = input<string | null>(null);
   readonly cocher = output<void>();
   readonly basculer = output<void>();
   protected readonly meta = computed(() => `${LIBELLE_NATURE[this.jeu().nature]} · ${this.jeu().maille}`);

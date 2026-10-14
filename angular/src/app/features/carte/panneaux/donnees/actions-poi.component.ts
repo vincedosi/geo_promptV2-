@@ -14,7 +14,7 @@ export const AIDE_POI = "Point d'Intérêt — commerce, service, lieu public";
  *
  * Repris tels quels : la ligne « Points d'intérêt — n sélectionné(s) » et « ↻ » (`?refresh=1`), l'erreur du catalogue
  * et son « réessayer », une carte de style par type choisi (épingle, couleur, croix qui retire le type ET son épingle),
- * « Afficher les POI sur la carte » (un geste explicite, arbitrage A12) et « Densité », l'erreur de recherche. Le corps
+ * « Afficher les POI sur la carte » (un geste explicite, arbitrage A12 ; CTA teal, plus vert) et « Densité », l'erreur de recherche. Le corps
  * de la recherche est celui de React : régions, départements et ville vides (`PanneauCalques.tsx:272-285`).
  *
  * Écart, ruling AT-5 : les libellés du bouton passent en sentence case (« Afficher les POI sur la carte »,
@@ -45,14 +45,14 @@ export const AIDE_POI = "Point d'Intérêt — commerce, service, lieu public";
           <div [attr.data-carte-poi]="c.id"
             class="flex flex-col gap-[7px] rounded-[4px] border-fin border-subtle bg-[color-mix(in_srgb,var(--text-primary)_2%,transparent)] px-[10px] py-2">
             <div class="flex items-center justify-between">
-              <span class="text-[12px] font-medium text-primary">{{ c.id }}</span>
+              <span data-nom-type class="text-[12px] font-medium text-primary">{{ c.nom }}</span>
               <button type="button" data-retirer title="Retirer ce POI" (click)="retirer(c.id)"
                 class="cursor-pointer border-0 bg-transparent px-[2px] py-0 font-mono text-[11px] leading-none text-tertiary">✕</button>
             </div>
             <div class="flex items-center gap-2">
               <span class="w-[50px] whitespace-nowrap text-[11px] text-tertiary">Épingle</span>
               <div class="relative flex flex-1 items-center">
-                <select data-taille [attr.aria-label]="'Épingle ' + c.id" (change)="pois.reglerStyle(c.id, { size: $any($event.target).value })"
+                <select data-taille [attr.aria-label]="'Épingle ' + c.nom" (change)="pois.reglerStyle(c.id, { size: $any($event.target).value })"
                   class="w-full flex-1 cursor-pointer appearance-none rounded-[4px] border-fin border-subtle bg-elevated py-1 pl-2 pr-[22px] text-[13px] text-primary outline-none">
                   @for (t of tailles; track t) { <option [value]="t" [selected]="t === c.taille">{{ t }}</option> }
                 </select>
@@ -64,7 +64,7 @@ export const AIDE_POI = "Point d'Intérêt — commerce, service, lieu public";
               <div class="relative flex flex-1 items-center">
                 <div class="pointer-events-none absolute left-[7px] z-[1] size-[10px] shrink-0 rounded-full border border-[color-mix(in_srgb,var(--text-primary)_15%,transparent)]"
                   [style.background]="c.couleur"></div>
-                <select data-couleur [attr.aria-label]="'Couleur ' + c.id" (change)="pois.reglerStyle(c.id, { color: $any($event.target).value })"
+                <select data-couleur [attr.aria-label]="'Couleur ' + c.nom" (change)="pois.reglerStyle(c.id, { color: $any($event.target).value })"
                   class="w-full flex-1 cursor-pointer appearance-none rounded-[4px] border-fin border-subtle bg-elevated py-1 pl-6 pr-[22px] text-[13px] text-primary outline-none">
                   @for (p of couleurs; track p.hex) { <option [value]="p.hex" [selected]="p.hex === c.couleur">{{ p.label }}</option> }
                 </select>
@@ -102,8 +102,11 @@ export class ActionsPoiComponent {
   protected readonly aide = AIDE_POI;
   protected readonly tailles = PIN_SIZES;
   protected readonly couleurs = PIN_COLORS;
-  /** `primaryBtn(C.green)` (`styles.ts:23-30`), actif puis désactivé. */
-  protected readonly actif = 'cursor-pointer border-success text-success bg-[color-mix(in_srgb,var(--text-primary)_10%,transparent)]';
+  /**
+   * CTA métier teal (DESIGN_SYSTEM § 5, « afficher, charger, appliquer »), actif puis désactivé. Écart à React
+   * (`primaryBtn(C.green)`) corrigé à la relecture T13 : le vert est réservé au statut système.
+   */
+  protected readonly actif = 'cursor-pointer border-teal text-teal bg-transparent font-medium hover:bg-teal-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--brand-teal-50)]';
   protected readonly desactive = 'cursor-not-allowed border-subtle text-tertiary opacity-55 bg-[color-mix(in_srgb,var(--text-primary)_3%,transparent)]';
   /** Le bouton « Densité » (`PoiSection.tsx:209-221`), actif puis inactif. */
   protected readonly densiteActive = 'border-primary text-primary bg-[color-mix(in_srgb,var(--text-primary)_8%,transparent)]';
@@ -112,9 +115,12 @@ export class ActionsPoiComponent {
   protected readonly selection = this.etat.poiSelectionnes;
   protected readonly cartes = computed(() => {
     const styles = this.pois.styles();
+    // Le titre d'une carte est le LIBELLÉ du type (« Tous les lycées »), comme sa ligne ; l'identifiant tant que le
+    // catalogue n'est pas lu (relecture T13 : React titrait l'identifiant brut).
+    const libelles = new Map(this.catalogue.types().map((t) => [t.id, t.label]));
     return this.selection().map((id) => {
       const s = styles[id] ?? this.pois.styleDe(id);
-      return { id, taille: s.size, couleur: s.color };
+      return { id, nom: libelles.get(id) ?? id, taille: s.size, couleur: s.color };
     });
   });
 

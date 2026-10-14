@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { EnteteSectionComponent } from '../../../../ui/entete-section/entete-section.component';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { CarreauxService } from '../../couches/carreaux.service';
@@ -43,6 +43,7 @@ interface LigneVue {
   readonly affiche: boolean;
   readonly coche: boolean;
   readonly deplie: boolean;
+  readonly indice: string | null;
 }
 
 const SANTE = 'sante:air-pollen';
@@ -115,7 +116,8 @@ const estPoi = (cle: string) => cle.startsWith(PREFIXE_POI);
 
     <mg-actions-poi />
 
-    <div class="px-[14px] pb-[10px]">
+    <!-- Seul élément collant (R4, relecture T13) : « Actifs » et les cartes de style défilent, la recherche reste à portée. -->
+    <div class="sticky top-0 z-[1] bg-surface px-[14px] pb-[10px] pt-2">
       <input data-recherche type="search" placeholder="Chercher un jeu" aria-label="Chercher un jeu" [value]="recherche()"
         (input)="recherche.set($any($event.target).value)"
         class="w-full rounded-[6px] border-fin border-subtle bg-elevated px-3 py-2 text-[13px] text-primary outline-none transition-[border-color] duration-150 ease-[var(--ease-hover)] placeholder:text-tertiary focus:border-[var(--brand-teal-50)]" />
@@ -144,7 +146,9 @@ const estPoi = (cle: string) => cle.startsWith(PREFIXE_POI);
         @for (l of vue().recommandes; track l.jeu.cle) {
           <ng-container [ngTemplateOutlet]="ligne" [ngTemplateOutletContext]="{ $implicit: l }" />
         }
-        @if (!vue().sansSelection) {
+        @if (aucunCommun()) {
+          <p data-commun-vide class="m-0 px-[14px] py-2 text-[12px] text-tertiary">Aucun jeu commun ne correspond.</p>
+        } @else if (!vue().sansSelection) {
           <button type="button" data-repli-autres [attr.aria-expanded]="plusVisibles()" (click)="plusOuverts.set(!plusOuverts())"
             class="flex w-full cursor-pointer items-center gap-1.5 border-0 border-t-fin border-subtle bg-transparent px-[14px] py-2 text-left text-[12px] text-secondary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--brand-teal-50)]">
             <span aria-hidden="true" class="w-2.5 text-tertiary">{{ plusVisibles() ? '▾' : '▸' }}</span>
@@ -160,7 +164,7 @@ const estPoi = (cle: string) => cle.startsWith(PREFIXE_POI);
     </section>
 
     <ng-template #ligne let-l>
-      <mg-ligne-jeu [jeu]="l.jeu" [mode]="l.mode" [affiche]="l.affiche" [coche]="l.coche" [deplie]="l.deplie"
+      <mg-ligne-jeu [jeu]="l.jeu" [mode]="l.mode" [affiche]="l.affiche" [coche]="l.coche" [deplie]="l.deplie" [indice]="l.indice"
         (cocher)="cocher(l.jeu.cle)" (basculer)="deplier(l.jeu.cle)">
         @if (l.deplie) {
           @switch (l.jeu.cle) {
@@ -198,17 +202,34 @@ export class PanneauDonneesComponent {
   protected readonly plusOuverts = signal(false);
   /** Les référentiels dépliés — local au panneau, gardé avec lui (A1). */
   private readonly deplies = signal<ReadonlySet<string>>(new Set());
+  /** Vrai dès que l'utilisateur a déplié la ligne santé une fois : l'invite « fiche santé » ne revient plus. */
+  private readonly santeTouchee = signal(false);
 
   protected readonly lecture = computed(() => this.reco.cles() === null);
   protected readonly plusVisibles = computed(() => this.plusOuverts() || this.recherche().trim() !== '');
   protected readonly precision = computed(() => {
     if (this.reco.indisponible()) return 'Sélection recommandée indisponible : tout est visible.';
-    return this.rangement().sansSelection ? 'aucune sélection : tout est visible' : 'sélection recommandée';
+    return this.rangement().sansSelection ? 'Aucune sélection : tout est visible' : 'Sélection recommandée';
   });
   private readonly rangement = computed(() => rangerJeux(jeuxDeLaCarte(this.catalogue.types()), this.reco.cles() ?? []));
   protected readonly videEspace = computed(() => {
     if (this.rangement().espace.length > 0) return "Aucun jeu de l'espace ne correspond.";
     return this.catalogue.chargement() ? 'Lecture des types de POI…' : "Cet espace n'a importé aucune donnée.";
+  });
+  /**
+   * L'IRIS sélectionné SIGNALE la ligne santé au lieu de la déplier (relecture T13, m1 — Disk I/O) : déplier instancie
+   * la fiche de la commune, qui la lit. Dans l'ancien panneau, le groupe Environnement replié empêchait cette lecture ;
+   * elle n'a donc lieu qu'au geste de l'utilisateur sur la ligne.
+   */
+  private readonly indiceSante = computed(() => {
+    const d = this.iris.detail();
+    if (this.santeTouchee() || !d?.code_commune) return null;
+    return `Fiche santé de ${d.nom_commune ?? d.code_commune} : dépliez pour la lire`;
+  });
+  /** Une recherche qui ne laisse aucun jeu commun : un message, jamais un repli vide (relecture T13, m3). */
+  protected readonly aucunCommun = computed(() => {
+    const v = this.vue();
+    return this.recherche().trim() !== '' && v.recommandes.length === 0 && v.autres.length === 0;
   });
   protected readonly vue = computed(() => {
     const r = this.rangement();
@@ -216,9 +237,10 @@ export class PanneauDonneesComponent {
     const affiches = this.affiches.cles();
     const choisis = new Set(this.etat.poiSelectionnes().map((id) => `${PREFIXE_POI}${id}`));
     const deplies = this.deplies();
+    const indiceSante = this.indiceSante();
     const lignes = (jeux: readonly JeuAffichable[]): LigneVue[] => filtrerJeux(jeux, q).map((jeu) => ({
       jeu, mode: estPoi(jeu.cle) ? 'case' : 'reglages', affiche: affiches.has(jeu.cle), coche: choisis.has(jeu.cle),
-      deplie: !estPoi(jeu.cle) && deplies.has(jeu.cle),
+      deplie: !estPoi(jeu.cle) && deplies.has(jeu.cle), indice: jeu.cle === SANTE ? indiceSante : null,
     }));
     return { espace: lignes(r.espace), recommandes: lignes(r.recommandes), autres: lignes(r.autres), sansSelection: r.sansSelection };
   });
@@ -256,17 +278,6 @@ export class PanneauDonneesComponent {
   constructor() {
     // Le catalogue n'attend plus l'ouverture d'une section : chaque type de POI est une ligne de ②.
     this.catalogue.chargerUneFois();
-    // « Santé environnementale » se déplie d'elle-même au PREMIER IRIS sélectionné, une seule fois : repliée ensuite,
-    // elle le reste (`use-filter-sections.ts:85-91`, même durée de vie : celle du panneau).
-    let deplieeAuto = false;
-    effect(() => {
-      const commune = this.iris.detail()?.code_commune;
-      if (!commune || deplieeAuto) return;
-      deplieeAuto = true;
-      untracked(() => {
-        if (!this.deplies().has(SANTE)) this.deplier(SANTE);
-      });
-    });
   }
 
   /** La case d'un type de POI : l'ajoute à la fin de la sélection, ou l'en retire (l'ordre des autres est gardé). */
@@ -276,6 +287,7 @@ export class PanneauDonneesComponent {
   }
 
   protected deplier(cle: string): void {
+    if (cle === SANTE) this.santeTouchee.set(true);
     this.deplies.update((d) => {
       const n = new Set(d);
       if (n.has(cle)) n.delete(cle);
