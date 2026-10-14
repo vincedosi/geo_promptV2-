@@ -61,12 +61,14 @@ export class FilEtapesComponent {
    * l'étape courante, plus le bouton « Autres » que la barre pose dans le MÊME conteneur depuis T11b. En compact, le `nav`
    * n'a AUCUN écart (`gap-0`, −28 px ; les `px-1` des boutons séparent déjà les chevrons). Mesuré le 14/10 au navigateur
    * (round 1 de T11b), au pire — ① et ② renseignées, « 5 Jeu de zones » courante en gras : fil 571 px, filet 1, « Autres »
-   * 45, deux écarts de 4 px = 625 px. Sous 630 px il se replie au lieu de défiler. Seule la barre du parcours pose
-   * `compact`. À 1 440 px, fil d'Ariane « France entière » : 642 px offerts avec le badge super_admin long (367 px,
-   * « dentsu.explore (interne) »), tout lisible ; à 1 280 px (482 px) : replié. Une précision au fil d'Ariane
-   * (« métropole ») ou un filtre posé réduit la place comme avant T11b.
+   * 45, deux écarts de 4 px = 625 px. Depuis T14, ④ s'allume aussi (score composite ou zones à risque) : au pire —
+   * ①, ② et ④ renseignées, « 5 Jeu de zones » courante — fil 581 px, conteneur 635 px (mesuré le 14/10 ; à 632 px de
+   * conteneur, libellés affichés, `scrollWidth` 635 : il défilait). Seuil 640 px : il se replie au lieu de défiler. Seule
+   * la barre du parcours pose `compact`. À 1 440 px, fil d'Ariane « France entière » : 642 px offerts avec le badge
+   * super_admin long (367 px, « dentsu.explore (interne) »), tout lisible ; à 1 280 px (482 px) : replié. Une précision
+   * au fil d'Ariane (« métropole ») ou un filtre posé réduit la place comme avant T11b.
    */
-  protected readonly repli = '@max-[630px]:sr-only';
+  protected readonly repli = '@max-[640px]:sr-only';
   readonly choisir = output<string>();
 
   private readonly boutons = viewChildren<ElementRef<HTMLButtonElement>>('bouton');

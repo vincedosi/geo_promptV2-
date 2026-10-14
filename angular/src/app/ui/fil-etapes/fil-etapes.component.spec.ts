@@ -58,7 +58,7 @@ describe('FilEtapesComponent', () => {
     expect(boutons.every((b) => b.classList.contains('min-w-6') && b.classList.contains('h-[30px]') && b.classList.contains('justify-center'))).toBe(true);
     const libelles = [...el.querySelectorAll('[data-libelle-etape]')];
     // Requête de CONTENEUR (`@container` posé par la barre) : la largeur de la barre décide, pas celle de la fenêtre.
-    expect(libelles.map((l) => l.classList.contains('@max-[630px]:sr-only'))).toEqual([true, false, true]);
+    expect(libelles.map((l) => l.classList.contains('@max-[640px]:sr-only'))).toEqual([true, false, true]);
     // T11b round 1 : en compact, aucun écart entre boutons et chevrons (−28 px sur 8 étapes) — les 8 libellés tiennent
     // à 1 440 px avec « Autres » dans le même conteneur, badge de session long compris.
     const nav = el.querySelector('nav')!;
