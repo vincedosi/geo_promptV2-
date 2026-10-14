@@ -183,9 +183,13 @@ export class CartePage {
   private readonly panneauEtape = viewChild(PanneauEtapeComponent);
   /** Les panneaux montés, dans l'ordre du parcours. */
   protected readonly etapesMontees = computed(() => ETAPES_CARTE.filter((e) => this.parcours.visitees().has(e)));
-  /** Les pastilles « renseignée » (A2) ; celle de ② = un jeu de ② affiché (T13, AT-4), ni OOH ni radio (T11b). */
+  private readonly score = inject(ScoreService);
+  /** Les zones d'un profil (T13) : injectées ici, inscrites à l'éviction de leur dégradé dès l'ouverture. */
+  private readonly zonesRisque = inject(ZonesRisqueService);
+  /** Les pastilles « renseignée » (A2) : ② = un jeu de ② affiché (T13, AT-4) ; ④ = score composite ou zones à risque (T14). */
   protected readonly etapes = computed(() => etapesDuFil({
     filtrePose: this.etat.filtre() !== null || this.etat.perimetreScope() !== null, calquesActifs: this.donnees.renseignee(),
+    analyseAffichee: this.score.affiche() !== null || this.zonesRisque.affichees() !== null,
   }));
   protected readonly segmentsAriane = computed<SegmentAriane[]>(() => segmentsDuFiltre(this.etat.filtre()));
   protected readonly precisionAriane = computed(() => precisionDuPerimetre(this.etat.perimetreScope()));
@@ -230,8 +234,6 @@ export class CartePage {
     // périmètres restent sur la carte à toute étape, comme les couches React montées par `page.tsx:1187-1214`.
     inject(RisquesIndustrielsService);
     inject(PprtService);
-    // Les zones d'un profil (T13) : inscrites à l'éviction de leur dégradé dès l'ouverture, avant tout « Voir sur la carte ».
-    inject(ZonesRisqueService);
     // Les zones custom (T14-T15) : instanciées dès l'ouverture, comme avant la tâche 3 des droits sur la carte, qui a retiré
     // le seul appel direct de la page (`effacer()` au changement d'espace).
     inject(ZonesCustomService);

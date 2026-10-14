@@ -106,19 +106,25 @@ export function etapeParRaccourci(e: FrappeClavier): EtapeCarte | null {
   return ETAPES_CARTE[Number(chiffre) - 1] ?? null;
 }
 
-/** Ce qui allume la pastille « renseignée » au lot 1 (arbitrage A2). Les autres étapes s'allument avec leur paramètre d'URL. */
+/**
+ * Ce qui allume la pastille « renseignée » (arbitrage A2) : ① un filtre posé, ② un jeu affiché, ④ une analyse sur la
+ * carte — le score composite ou les zones à risque (T14). Les autres étapes s'allumeront avec leur paramètre d'URL.
+ */
 export interface EtatRenseigne {
   readonly filtrePose: boolean;
   readonly calquesActifs: boolean;
+  readonly analyseAffichee: boolean;
 }
 
+const RENSEIGNEE_PAR: Partial<Readonly<Record<EtapeCarte, keyof EtatRenseigne>>> = {
+  perimetre: 'filtrePose', donnees: 'calquesActifs', analyse: 'analyseAffichee',
+};
+
 export function etapesDuFil(r: EtatRenseigne): EtapeAffichee[] {
-  return ETAPES_CARTE.map((e) => ({
-    cle: e,
-    rang: rangEtapeCarte(e),
-    libelle: LIBELLE_ETAPE_CARTE[e],
-    renseignee: e === 'perimetre' ? r.filtrePose : e === 'donnees' ? r.calquesActifs : false,
-  }));
+  return ETAPES_CARTE.map((e) => {
+    const champ = RENSEIGNEE_PAR[e];
+    return { cle: e, rang: rangEtapeCarte(e), libelle: LIBELLE_ETAPE_CARTE[e], renseignee: champ ? r[champ] : false };
+  });
 }
 
 const TITRE_TYPE_FILTRE: Readonly<Record<FiltreActif['type'], string>> = {

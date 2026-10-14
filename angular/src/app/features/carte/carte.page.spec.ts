@@ -25,6 +25,8 @@ import { JeuxZonesApi } from '../risques/data/jeux-zones.api';
 import { ZonesRisqueApi } from '../risques/data/zones-risque.api';
 import { PONT_CARTE } from './etat/pont-carte';
 import { ZonesRisqueService } from './couches/zones-risque.service';
+import { ScoreService } from './couches/score.service';
+import { PROFIL_DEFAUT } from '../risques/logique/profil';
 import { ZonesCustomService } from './couches/zones-custom.service';
 import type { ZoneCustomResume } from './data/zones-custom.api';
 import { CouleursService } from '../../core/theme/couleurs.service';
@@ -917,6 +919,26 @@ describe('CartePage — filtre unique : panneau ①, pastille, fil d’Ariane (T
     etat.basculerDegrade('score', true);
     await stable();
     expect(pastilles(hote)).toEqual([]);
+  });
+
+  it('④ s’allume quand le score composite OU les zones à risque sont sur la carte, s’éteint avec eux (T14)', async () => {
+    const { harness, hote, stable } = await ouvrir();
+    const score = injecteurPage(harness).get(ScoreService);
+    const zones = injecteurPage(harness).get(ZonesRisqueService);
+    expect(pastilles(hote)).toEqual([]);
+    score.afficher({ scores: [{ code: '13001', score: 82.5, n_indicateurs: 1 }], libelle: 'Score test', nIndicateurs: 1 });
+    await stable();
+    expect(pastilles(hote)).toEqual(['4 Analyse (renseignée)']);
+    score.eteindre();
+    await stable();
+    expect(pastilles(hote)).toEqual([]);
+    zones.afficherZonesRisque({ profil: PROFIL_DEFAUT, natures: [] });
+    await stable();
+    expect(pastilles(hote)).toEqual(['4 Analyse (renseignée)']);
+    // Un autre dégradé évince les zones (exclusivité) : la pastille suit la carte, pas le geste.
+    injecteurPage(harness).get(CarreauxService).basculer(true);
+    await stable();
+    expect(pastilles(hote)).toEqual(['2 Données (renseignée)']);
   });
 
   it('revenir à ① garde « France entière » pressée : panneau monté, aucune relecture du référentiel', async () => {

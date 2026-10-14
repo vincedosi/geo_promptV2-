@@ -27,7 +27,7 @@ describe('parcours de la carte — logique pure', () => {
     expect(LIBELLE_AUTRES).toBe('Autres');
     expect(CONSIGNE_AUTRES).toContain('pas encore');
     expect((ETAPES_CARTE as readonly string[]).includes(VUE_AUTRES)).toBe(false);
-    expect(etapesDuFil({ filtrePose: false, calquesActifs: false }).map((e) => e.cle)).not.toContain(VUE_AUTRES);
+    expect(etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: false }).map((e) => e.cle)).not.toContain(VUE_AUTRES);
     expect(lireEtape('autres')).toBeNull();
     expect(lireVue('autres')).toBe('autres');
     expect(lireVue('zones')).toBe('zones');
@@ -80,12 +80,16 @@ describe('parcours de la carte — logique pure', () => {
     expect(etapeParRaccourci(alt('KeyC', 'c'))).toBeNull();
   });
   it('etapesDuFil : ① renseignée par le filtre, ② par un calque, les autres jamais (lot 1)', () => {
-    const fil = etapesDuFil({ filtrePose: true, calquesActifs: false });
+    const fil = etapesDuFil({ filtrePose: true, calquesActifs: false, analyseAffichee: false });
     expect(fil.map((e) => [e.cle, e.rang, e.renseignee])).toEqual([
       ['perimetre', 1, true], ['donnees', 2, false], ['zones', 3, false], ['analyse', 4, false],
       ['jeu', 5, false], ['plan', 6, false], ['activation', 7, false], ['live', 8, false],
     ]);
-    expect(etapesDuFil({ filtrePose: false, calquesActifs: true })[1].renseignee).toBe(true);
+    expect(etapesDuFil({ filtrePose: false, calquesActifs: true, analyseAffichee: false })[1].renseignee).toBe(true);
+  });
+  it('etapesDuFil : ④ renseignée par une analyse affichée (score composite ou zones à risque), et elle seule (T14)', () => {
+    const fil = etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: true });
+    expect(fil.filter((e) => e.renseignee).map((e) => e.cle)).toEqual(['analyse']);
   });
   it('segmentsDuFiltre : « France entière » puis le filtre ; une zone ne montre pas son uuid', () => {
     expect(segmentsDuFiltre(null)).toEqual([{ cle: 'france', libelle: 'France entière' }]);
