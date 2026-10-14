@@ -1257,7 +1257,7 @@ Outils de `lib/auth/perimetre-donnees.ts` :
   montre ou dicte a l'IA. `getDistinctCategories` reste interne : un nom de
   categorie (« bmw ») suffit a reveler qu'un client existe. Resultat mis en
   cache 5 min par `empreintePerimetre(sources)` (200 perimetres au plus, une
-  liste partielle n'est jamais cachee, `strict` relit toujours ; `surEchec`,
+  liste partielle n'est jamais cachee — y compris celle calculee sur une lecture GLOBALE en echec (`getDistinctCategories` a froid), corrige le 2026-10-14 : elle etait cachee 5 min comme juste —, `strict` relit toujours ; `surEchec`,
   optionnel, est appele quand une lecture echoue sans `strict` — il dit que la
   liste rendue est peut-etre partielle sans contourner le cache, 2026-10-14) : sans lui,
   chaque appel de `/api/map/categories` (route publique) ou du chat lisait

@@ -64,7 +64,7 @@ describe('jeuxRecommandables', () => {
     expect((await jeuxRecommandables(sb, ORG))!.socleIncomplet).toBe(false);
   });
 
-  it('lecture des catégories en échec (liste partielle) : socleIncomplet = true, jamais mise en cache stricte', async () => {
+  it('lecture des catégories en échec (liste partielle) : socleIncomplet = true, sans passer strict (le cache est gardé)', async () => {
     lectureEchoue = true;
     const { sb } = client({ id: ORG });
     const rep = (await jeuxRecommandables(sb, ORG))!;

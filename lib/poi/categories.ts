@@ -108,7 +108,15 @@ export async function getCategoriesVisibles(
   sources: string[] | null,
   options: { strict?: boolean; surEchec?: () => void } = {},
 ): Promise<string[]> {
-  const toutes = await getDistinctCategories(options);
+  // `complet` couvre AUSSI la lecture globale : si elle échoue (à froid, `toutes` vaut `[]`), le filtre plus bas
+  // rendrait `[]` même avec des visibles lues sans faute — et ce `[]` mis en cache serait servi 5 min comme une liste
+  // juste, sans plus rien signaler (relecture T11, Important 1). Un résultat calculé sur une lecture en échec, globale
+  // ou restreinte, n'est donc jamais caché ; le régime normal (aucun échec) n'en change pas.
+  let complet = true;
+  const toutes = await getDistinctCategories({
+    ...options,
+    surEchec: () => { complet = false; options.surEchec?.(); },
+  });
   if (sources === null) return toutes;
   if (sources.length === 0) return [];
 
@@ -123,7 +131,6 @@ export async function getCategoriesVisibles(
   // présente, sur l'index de `categorie`.
   const supabase = createAdminClient();
   const visibles = new Set<string>();
-  let complet = true;
   let lastSeen = '';
   for (let i = 0; i < 100; i++) {
     const { data, error } = await supabase
@@ -144,7 +151,7 @@ export async function getCategoriesVisibles(
     lastSeen = cat;
   }
   const resultat = toutes.filter((c) => visibles.has(c));
-  // Une liste partielle (lecture en échec) n'est jamais mise en cache.
+  // Une liste partielle (lecture globale ou restreinte en échec) n'est jamais mise en cache.
   if (complet) {
     cacheVisibles.delete(cle);
     cacheVisibles.set(cle, { categories: resultat, t: Date.now() });
