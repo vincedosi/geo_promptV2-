@@ -35,7 +35,7 @@ const BOUTON_INGESTION = 'rounded-[6px] border-fin border-teal bg-transparent px
  * La section « Santé environnementale » du groupe Environnement — portage de `filter-panel/CivicHealthSection.tsx`.
  *
  * Repliée à l'ouverture du panneau (`DEFAULT_CLOSED`), elle s'ouvre d'elle-même au premier IRIS sélectionné (règle de
- * `use-filter-sections.ts`, portée dans `mg-panneau-calques`). En tête, la fiche de la commune de l'IRIS ; puis le choix
+ * `use-filter-sections.ts`, portée dans `mg-panneau-donnees`, qui déplie la ligne de la section). En tête, la fiche de la commune de l'IRIS ; puis le choix
  * de la couche nationale (re-cliquer masque), et, la couche active : échelle, avertissements de donnée absente ou
  * PÉRIMÉE (avec le bouton d'ingestion, à la condition EXACTE de React : au code postal seulement, table vide ou donnée
  * de plus de trois jours — la route refuse tout autre qu'un administrateur), métrique, seuil, chargement, source.
