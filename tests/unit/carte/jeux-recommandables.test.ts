@@ -78,7 +78,7 @@ describe('jeuxRecommandables', () => {
     expect((await jeuxRecommandables(sb, ORG))!.socleIncomplet).toBe(true);
   });
 
-  it('les 10 référentiels dans l ordre du registre, puis les types de POI du socle', async () => {
+  it('les 8 référentiels dans l ordre du registre, puis les types de POI du socle ; ni OOH ni radio (T11b)', async () => {
     const { sb } = client({ id: ORG });
     const rep = await jeuxRecommandables(sb, ORG);
     expect(rep).not.toBeNull();
@@ -86,6 +86,9 @@ describe('jeuxRecommandables', () => {
     expect(cles).toEqual([...JEUX_REFERENTIELS.map((j) => j.cle), 'poi:lycee', 'poi:panneaux']);
     expect(rep!.jeux.find((j) => j.cle === 'poi:lycee')).toMatchObject({ nom: 'Lycées', nature: 'poi', maille: 'point' });
     expect(rep!.jeux.find((j) => j.cle === 'poi:panneaux')?.nom).toBe('Panneaux');
+    expect(cles).toHaveLength(10);
+    expect(cles).not.toContain('ooh:panneaux');
+    expect(cles).not.toContain('radio:emetteurs');
   });
 
   it('une catégorie rangée ailleurs ou au nom non conforme n est pas proposée', async () => {
@@ -132,7 +135,7 @@ describe('clesPoiInconnues', () => {
   });
 
   it('sans clé poi:, ne lit aucune catégorie', async () => {
-    expect(await clesPoiInconnues(['iris:socio-demo', 'ooh:panneaux'])).toEqual([]);
+    expect(await clesPoiInconnues(['iris:socio-demo', 'tmja:comptages'])).toEqual([]);
     expect(visibles).not.toHaveBeenCalled();
   });
 });

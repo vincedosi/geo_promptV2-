@@ -66,11 +66,13 @@ describe('JeuxRecommandesComponent', () => {
     expect(api.lectures.map((l) => l.id)).toEqual(['e1']);
   });
 
-  it('lecture → 12 lignes (10 référentiels + 2 POI), nature en libellé, iris:socio-demo cochée', async () => {
+  it('lecture → 10 lignes (8 référentiels + 2 POI ; ni OOH ni radio depuis T11b), nature en libellé, iris:socio-demo cochée', async () => {
     const { el, lire, caseDe } = await monter();
     await lire();
     const lignes = el.querySelectorAll('[data-jeu-recommandable]');
-    expect(lignes.length).toBe(12);
+    expect(lignes.length).toBe(10);
+    expect(el.querySelector('[data-jeu-recommandable="ooh:panneaux"]')).toBeNull();
+    expect(el.querySelector('[data-jeu-recommandable="radio:emetteurs"]')).toBeNull();
     expect(el.querySelectorAll('[data-squelette]').length).toBe(0);
     expect(caseDe('iris:socio-demo').checked).toBe(true);
     expect(caseDe('poi:lycee').checked).toBe(false);
@@ -156,7 +158,7 @@ describe('JeuxRecommandesComponent', () => {
     expect(el.querySelectorAll('[data-squelette]').length).toBe(3);
     api.lectures[1].flux.next(reponse());
     await fixture.whenStable();
-    expect(el.querySelectorAll('[data-jeu-recommandable]').length).toBe(12);
+    expect(el.querySelectorAll('[data-jeu-recommandable]').length).toBe(10);
   });
 
   it('lecture en erreur : message et « Réessayer » qui relit', async () => {
@@ -181,7 +183,7 @@ describe('JeuxRecommandesComponent', () => {
     expect(api.lectures.length).toBe(2);
     await lire();
     expect(el.querySelector('[role="alert"]')).toBeNull();
-    expect(el.querySelectorAll('[data-jeu-recommandable]').length).toBe(12);
+    expect(el.querySelectorAll('[data-jeu-recommandable]').length).toBe(10);
     expect(api.ecritures.length).toBe(0);
   });
 });

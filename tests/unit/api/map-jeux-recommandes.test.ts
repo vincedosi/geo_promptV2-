@@ -23,7 +23,7 @@ vi.mock('@/lib/auth', () => ({
         then<T>(ok: (r: { data: unknown; error: unknown }) => T) {
           return Promise.resolve(echec
             ? { data: null, error: { message: 'relation does not exist' } }
-            : { data: [{ cle_jeu: 'iris:socio-demo' }, { cle_jeu: 'poi:lycee' }], error: null }).then(ok);
+            : { data: [{ cle_jeu: 'iris:socio-demo' }, { cle_jeu: 'ooh:panneaux' }, { cle_jeu: 'poi:lycee' }, { cle_jeu: 'radio:emetteurs' }], error: null }).then(ok);
         },
       };
       return chaine;
@@ -43,7 +43,7 @@ async function appeler() {
 describe('GET /api/map/jeux-recommandes', () => {
   beforeEach(() => { lues.length = 0; filtres.length = 0; echec = false; session = null; });
 
-  it('session avec un espace : les clés de cet espace', async () => {
+  it('session avec un espace : les clés de cet espace ; une clé que la carte ne sait plus recommander (OOH, radio — T11b) est ignorée', async () => {
     session = { userId: 'u', role: 'client', orgId: ORG };
     const { status, corps } = await appeler();
     expect(status).toBe(200);

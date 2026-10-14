@@ -60,13 +60,22 @@ describe('sélection recommandée d un espace (admin)', () => {
     const { jeux, socleIncomplet } = (await lu.json()) as { jeux: { cle: string; recommande: boolean }[]; socleIncomplet: boolean };
     expect(socleIncomplet).toBe(false);
     expect(jeux.filter((j) => j.recommande).map((j) => j.cle).sort()).toEqual(['iris:socio-demo', 'poi:lycee']);
-    expect(jeux.length).toBeGreaterThan(10);
+    // 8 référentiels (OOH et radio sont dans « Autres » depuis T11b), puis au moins un type de POI du socle.
+    expect(jeux.length).toBeGreaterThan(8);
   });
 
   it('clé inconnue du registre : 400, sélection inchangée', async () => {
     const res = await ecrire(espace, JSON.stringify({ cles: ['iris:inconnu'] }));
     expect(res.status).toBe(400);
     expect(await enBase()).toEqual(['iris:socio-demo', 'poi:lycee']);
+  });
+
+  it.each(['ooh:panneaux', 'radio:emetteurs'])('T11b : %s n est plus recommandable (bouton « Autres ») — 400, sélection inchangée', async (cle) => {
+    const res = await ecrire(espace, JSON.stringify({ cles: ['iris:socio-demo', cle] }));
+    expect(res.status).toBe(400);
+    expect(await enBase()).toEqual(['iris:socio-demo', 'poi:lycee']);
+    const { jeux } = (await (await lire(espace)).json()) as { jeux: { cle: string }[] };
+    expect(jeux.map((j) => j.cle)).not.toContain(cle);
   });
 
   it('type de POI absent des données communes : 400 qui le nomme, sélection inchangée', async () => {

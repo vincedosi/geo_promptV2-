@@ -7,12 +7,14 @@
  *
  * Route publique ASSUMÉE (tests/unit/api/routes-publiques.test.ts), comme `/api/map/categories` : un appelant sans
  * espace reçoit `[]` sans aucune lecture, et une clé de jeu n'est pas une donnée sensible.
- * La recommandation RANGE : elle n'ouvre aucun droit et ne précharge rien.
+ * La recommandation RANGE : elle n'ouvre aucun droit et ne précharge rien. Une clé que la carte ne sait plus
+ * recommander (`estCleJeuConnue` faux : un jeu passé dans « Autres », T11b) est ignorée — une ligne ancienne ne ressort pas.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { getSessionOrg } from '@/lib/auth/getSessionOrg';
+import { estCleJeuConnue } from '@/lib/carte/jeux-carte';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,5 +31,5 @@ export async function GET(req: NextRequest) {
     console.error('[map/jeux-recommandes] lecture :', error.message);
     return NextResponse.json({ error: 'Sélection recommandée indisponible.' }, { status: 500 });
   }
-  return NextResponse.json({ cles: (data ?? []).map((l: { cle_jeu: string }) => l.cle_jeu) });
+  return NextResponse.json({ cles: (data ?? []).map((l: { cle_jeu: string }) => l.cle_jeu).filter(estCleJeuConnue) });
 }
