@@ -626,8 +626,9 @@ prime sur les §§ 2, 4, 8, 9, 10, 12 et 15** là où ils divergent.
   couverture **générique** (polygone tel quel, CP ou IRIS) servie à ④.
 - **§ 4 ③ Analyse** : la couverture n'est plus « par rayon » seulement ; elle
   porte sur n'importe quelle zone, avec trois découpages (tel quel / CP / IRIS).
-  Isochrones et bataille quittent ④ pour ③ comme recettes, mais leur
-  **comparaison** reste une analyse de ④.
+  Isochrones et bataille **restent en ④** (leur comparaison est une analyse,
+  rien n'est retiré) ; ③ en fait une **recette** en capturant leur résultat
+  (forme figée `isochrone`).
 - **§ 4 ⑥ Activation, § 8 (tableau natures × plateformes)** : le tableau devient
   la table de référence des plateformes (règle 3). Le mode d'envoi passe par la
   connexion de l'espace actif (règle 4). Les colonnes « à vérifier » restent à
@@ -648,7 +649,7 @@ prime sur les §§ 2, 4, 8, 9, 10, 12 et 15** là où ils divergent.
 
 | Lot | Contenu | Valeur | Dépend de |
 |---|---|---|---|
-| **3. ③ Zones à recette** | rapatriement des RPC vivantes sans source, colonne `recette`, rayon autour des POI d'un type, seuil sur carreaux, seuil IRIS/CP borné, import GeoJSON/KML, exécuteur de recettes et recalcul, panneau ③ par familles, isochrones/bataille déplacées en ③ | toute sélection devient une zone nommée et rejouable | lots 1-2 |
+| **3. ③ Zones à recette** | rapatriement des RPC vivantes sans source, colonne `recette`, rayon autour des POI d'un type, seuil sur carreaux, seuil IRIS/CP borné, import GeoJSON/KML, exécuteur de recettes et recalcul, panneau ③ par familles, capture des isochrones et de la bataille en recette (elles restent en ④) | toute sélection devient une zone nommée et rejouable | lots 1-2 |
 | **4. ④ Couverture générique** | `couverture_geometrie` jsonb (carreaux par centroïde, `ST_Subdivide`, CP par `cp_des_points`, IRIS), trois découpages, analyses existantes branchées sur « la zone choisie », couverture par rayon du risque généralisée (anneaux par champ, Q3) | chiffrer n'importe quelle zone sans la convertir | 3 |
 | **5. ⑤ Jeu de zones multi-plateformes** | table `plateformes_geo`, caractérisation Seveso PUIS `zone_sets` généralisé, choix de maille par plateforme, perte chiffrée, pavage polygone → N cercles sous contraintes | figer ce qui sera acheté, plateforme par plateforme | 4 |
 | **6. Exports natifs** | depuis le jeu de zones, sans campagne : TTD (polygones / points + rayon / CP), Meta (≤ 200 cercles), DV360 cercles, TikTok communes ; pré-vol réglementaire | des fichiers prêts pour les quatre plateformes | 5 |
@@ -672,13 +673,20 @@ Plan du lot 3 et sommaire des lots 4 à 11 :
 ### 16.6 Constats du 14/10 qui pèsent sur le lot 3
 
 - **`carreaux_filosofi.geom_centroid` est NULL sur les 2 324 577 lignes locales**
-  (le rechargement depuis le CSV INSEE du 17/09 ne l'a pas rempli), alors que
-  son index GIST existe. Quatre fonctions vivantes le lisent et rendent donc
-  **zéro sans erreur** : `get_filosofi_profile_for_isochrone`,
-  `population_exposee_agregee`, `compute_filosofi_profiles_batch`,
-  `populate_geom_centroid_async`. Le lot 3 ne s'en sert pas
-  (`ST_Centroid(geom_3857)`) ; la réparation est la question Q-E.
-- **Huit RPC vivantes du chemin des zones n'ont aucune source dans `sql/`** :
+  (le rechargement depuis le CSV INSEE du 17/09 ne l'a pas rempli). **Rien n'est
+  cassé** (corrigé après relecture le 14/10 : la première version de ce
+  paragraphe disait le contraire) : `get_filosofi_profile_for_isochrone` et
+  `compute_filosofi_profiles_batch` lisent `COALESCE(geom_centroid,
+  ST_Centroid(geom))`, `population_exposee_agregee` calcule déjà
+  `ST_Centroid(geom_3857)` ; seul l'index GIST du centroïde ne sert à rien.
+  `populate_geom_centroid_async` est la fonction qui REMPLIRAIT la colonne, en
+  un `UPDATE` de 2,3 M lignes d'un seul passage : **interdit par la règle Disk
+  I/O, ne jamais la lancer.** Le lot 3 emploie `ST_Centroid(geom_3857)`. Il n'y
+  a rien à décider (l'ancienne question Q-E est retirée).
+- **Huit RPC vivantes du chemin des zones n'ont aucune source dans `sql/`**
+  (`get_carreaux_by_zoom` a une version ancienne dans
+  `supabase/migrations/008_carreaux_multiresolution.sql`, peut-être divergente
+  de la version vivante) :
   `get_carreaux_capture_geometry` (48 s par appel, docs/audit/SCALE_MODEL.md:107),
   `get_carreaux_by_zoom`, `get_admin_filter_geometry`, `get_iris_selection_geometry`,
   `resolve_custom_geo_zone_codes`, `resolve_custom_geo_zone_codes_with_subzones`,
@@ -696,6 +704,17 @@ Plan du lot 3 et sommaire des lots 4 à 11 :
   GeoJSON) ; rayon de 5 km autour des 5 584 lycées limité à ARA **0,8 s** ;
   2 km autour des sites ICPE d'ARA plafonnés à 5 000 **2,0 s** ; seuil IRIS
   (taux de pauvreté ≥ 20 %) sur ARA **0,55 s**.
+- Mesure de la relecture (14/10) : le plafond de 20 000 borne les carreaux
+  RETENUS, pas les carreaux LUS. Un seuil sélectif (ménages pauvres ≥ 99 %, zéro
+  retenu) lit **433 000 buffers sur la région 75** (110 000 hors cache, 10,4 s à
+  froid) contre **69 000 sur la Gironde** (0,26 s). D'où la borne du seuil sur
+  carreaux au **département** (A-4, Q-G) : la garde « ≤ 100 000 km² » ne refuse
+  que la France entière (Nouvelle-Aquitaine, la plus grande région, fait
+  84 617 km²).
+- Le filtre « commune » de ① est un **texte libre** (`code` = le nom tapé, en
+  minuscules, `panneau-filtre-logique.ts:59`), et `ref_communes` porte les
+  arrondissements de Paris, Lyon et Marseille (`75101`, `13201`…), pas
+  `75056`/`13055`. Le lot 3 résout donc la commune PAR SON NOM en base (Q-F).
 
 ### 16.7 Questions OUVERTES pour Vincent
 
@@ -705,15 +724,18 @@ Plan du lot 3 et sommaire des lots 4 à 11 :
 | Q-B | **TikTok** : le ciblage point + rayon existe-t-il en France (absent de la doc officielle, 1 km min. selon des blogs) ? | lot 5, lot 6 | supposer « non » : communes / départements en paliers |
 | Q-C | **Meta** : les CP français (`zips`, clé `FR:75001`) sont-ils acceptés ? | lot 5, lot 6 | supposer « non » : cercles (≤ 200, 1-80 km) |
 | Q-D | **Zones météo dynamiques** : restent hors champ (§ 10), ou entrent comme lot 10 ? | lot 10 | hors champ tant que ⑧ n'est pas au-delà du CP (lot 9) |
-| Q-E | **`geom_centroid` NULL** (§ 16.6) : le remplir (2,3 M lignes) ou réécrire les quatre fonctions sur `ST_Centroid(geom_3857)` ? | profils Filosofi d'isochrone, population exposée agrégée | réécrire sur `geom_3857` (pas de colonne à tenir à jour) |
+| Q-F | **Commune de ①** : le filtre commune est un texte libre. Le résoudre par son nom en base (le plan le fait : nom normalisé sans accents ; homonymes refusés avec « précisez le département » ; Paris, Lyon et Marseille = l'union de leurs arrondissements), ou remplacer la saisie par une liste à choix qui porte le code INSEE ? | lot 3 (recettes lourdes sur une commune) | garder la résolution par nom au lot 3 ; liste à choix en finition de ① |
+| Q-G | **Seuil sur carreaux** : limité au département (≈ 69 000 buffers par appel au pire, Gironde), ou admis sur une région (≈ 433 000 buffers par appel au pire, région 75, 10 s à froid) ? | lot 3 (A-4) | département ; la région plus tard, par une table pré-agrégée |
+| Q-H | **Rayon autour des POI au bord du périmètre** : la zone est coupée net par le périmètre de ① (un lycée au bord du département donne un demi-cercle). L'accepter, ou laisser les cercles déborder du périmètre ? | lot 3 (L3-1) | couper (le périmètre borne le calcul et le recalcul) |
 
 ### 16.8 Arbitrages du chef de projet (délégués le 14/10)
 
 | # | Tranché | Coût si faux |
 |---|---|---|
 | A-1 | La recette vit dans une colonne **`custom_geo_zones.recette jsonb`** (versionnée `v: 1`), pas dans `source_metadata` (libre, hétérogène, lu par React). Une zone d'avant le 14/10 a `recette = null` : « forme figée ». | une migration de données si l'on veut la fusionner plus tard |
-| A-2 | **Recalculer** remplace la forme EN PLACE, et refuse (409) si la zone est référencée par une stratégie, un jeu de zones ou un composite : on n'altère jamais une forme qu'un plan achète. | un « enregistrer comme nouvelle zone » à ajouter |
+| A-2 | **Recalculer** remplace la forme EN PLACE, et refuse (409) si la zone est référencée par une stratégie, un jeu de zones, un composite, une combinaison ou une recette qui la prend pour périmètre — vérifié AVANT tout calcul : on n'altère jamais une forme qu'un plan achète. | un « enregistrer comme nouvelle zone » à ajouter |
 | A-3 | Isochrones, dessin, import, capture = **forme figée** au lot 3 : la recette est gardée, pas rejouée (ORS est externe et à quota). | brancher ORS dans l'exécuteur |
-| A-4 | Seuil sur carreaux : périmètre ≤ **région**, plafond **20 000 carreaux** (≈ 800 km²), refus du national ; rayon autour des POI d'un type : plafond **5 000 POI**, refus du national. | relever une constante écrite |
+| A-4 | Seuil sur carreaux : périmètre ≤ **département** (région refusée, zone-périmètre ≤ 12 000 km² ; question Q-G), plafond **20 000 carreaux retenus** ; rayon autour des POI d'un type et seuil IRIS/CP : plafonds **5 000 POI / 5 000 territoires**, région admise, national refusé. | ouvrir la région : une liste de types admis |
 | A-5 | L'Angular de ③ écrit par les routes neuves (`/api/zones`) ; React gelé garde `/api/custom-geo/save`. Les deux écrivent la même table. | aucun |
 | A-6 | Les exports (lot 6) passent AVANT le portage du plan (lot 7), parce qu'ils partent du jeu de zones sans campagne. | réordonner deux lots |
+| A-7 | **Un seul quota** pour les trois routes de calcul de zone (aperçu, écriture, recalcul) : 12 appels par minute et par compte, préfixe `geo:rl:zones`. Un aperçu suivi d'un enregistrement coûte 2 jetons, soit 6 zones par minute au plus. Ce qu'il protège : au pire mesuré après la borne au département (69 000 buffers par appel), ≤ 830 000 buffers par minute et par compte, l'ordre de DEUX appels régionaux non bornés. | une constante |
