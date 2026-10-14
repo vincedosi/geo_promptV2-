@@ -550,3 +550,170 @@ Ce qui change par rapport aux §§ 4 et 12 :
   lieu du bas de l'étape Zones.
 - Le lot 1 est réordonné tout de suite (8 étapes, ⑤ « bientôt » jusqu'au
   lot 5, Alt+1…8) ; le déplacement des outils entre ③ et ④ se fait aux lots 4-5.
+
+## 16. Décisions du 14/10 — un seul objet zone, la maille choisie plateforme par plateforme
+
+Vincent, le 14/10 au matin, en corrigeant le tableau du parcours : « Analyse on
+travaille pas que sur des CP ou IRIS attention !! ça peut être des polygones…
+idem pour Jeu de zones, The Trade Desk le DSP peut travailler sur des zones bien
+définies comme des polygones » ; puis : « tu peux lancer la modification du fil
+d'Ariane, tout ce que l'on a validé ensemble ». **Ce paragraphe fait foi et
+prime sur les §§ 2, 4, 8, 9, 10, 12 et 15** là où ils divergent.
+
+### 16.1 Le fil validé (8 étapes, inchangé en nombre depuis le § 15)
+
+| # | Étape | Ce qu'elle fait | Ce qui existe le 14/10 |
+|---|---|---|---|
+| ① | Périmètre | l'emprise qui **borne tous les calculs lourds** | panneau Filtre, `garde-perimetre.ts` |
+| ② | Données | POI, carreaux Filosofi 200 m, IRIS, CP, variables INSEE, flux routier (TMJA), transport, civique, santé (pollen/air), météo (pluie, température, prévisions) ; sélection recommandée par espace | lot 2 (en livraison) |
+| — | **Autres** (hors fil) | bouton de la barre du parcours, au même niveau que les étapes mais séparé, **non numéroté, sans Alt+N** : Panneaux OOH et Radio — on ne construit pas de zone avec | Task 11b du lot 2 |
+| ③ | Zones | **toute sélection devient une forme** (polygone), un SEUL objet « zone » quelle que soit sa recette, nommé, enregistré, qui **garde sa recette** pour être recalculé | rayon autour d'UN point, dessin (Polygon ≤ 5 000 sommets), liste de CP, capture, union/intersection/différence |
+| ④ | Analyse | plusieurs analyses au choix sur les zones : couverture (population et cible, sur le polygone **tel quel** ou découpé par CP ou IRIS), clustering des POI, score composite, Voronoï, isochrones comparées, croisements radio/trafic/météo. **Rien de l'existant n'est retiré.** | outils du panneau Analyse ; couverture = module risque seul |
+| ⑤ | Jeu de zones | on fige ce qui sera acheté ; **l'utilisateur choisit la maille plateforme par plateforme** (rien n'est forcé au plus fin) ; l'écran montre pour chaque plateforme ce qu'elle accepte, un **lien vers sa doc officielle**, et **ce que la maille choisie fait perdre** (diffusion hors zone, habitants manqués) | jeux de zones Seveso au CP |
+| ⑥ | Plan | le jeu de zones devient le plan média (budget, pression, CPM) | au CP seulement (React) |
+| ⑦ | Activation | export ou push dans le format natif de chaque plateforme, avec la connexion API de l'**espace actif** | DV360 CP/SDF/script + push ; TikTok fichier |
+| ⑧ | Live | suivi de campagne **dans la même unité que le plan** ; zones météo recalculées | au CP seulement (React) — la partie la plus lourde |
+
+### 16.2 Les cinq règles transverses
+
+1. **Un seul objet zone.** `custom_geo_zones` porte toutes les zones, quelle
+   que soit leur recette ; il n'y a plus de « nature » de zone à choisir à ③
+   (V5 et le § 8 sont amendés : la nature devient une propriété de la RECETTE,
+   lue par ⑤).
+2. **La forme exacte est la vérité.** Elle n'est traduite qu'à ⑤, maille par
+   maille, avec la perte chiffrée. ③ et ④ ne convertissent jamais en CP de leur
+   propre chef.
+3. **Les règles des plateformes vivent dans une table** (capacités, limites,
+   lien vers la doc officielle, date du relevé, statut « à vérifier »), jamais
+   en dur. Relevé du 14/10 (mémoire `reference_dsp_maille_geo`) : TTD polygone
+   (via partenaire, à confirmer) / points GPS + rayon / CP ; DV360 CP (seuil de
+   couverture, taux d'utile, logique Seveso) ou cercles ≥ 1 km et ≥ 1 000
+   habitants ; Meta ≤ 200 cercles de 1 à 80 km, CP France à vérifier ; TikTok
+   communes/départements, pas de CP en France, point + rayon à vérifier.
+4. **Une connexion API par espace.** `dsp_connections` est déjà unique par
+   `(organization_id, provider)` ; deux espaces qui partagent les mêmes
+   identifiants (Marine, Armée de terre) ont deux lignes. L'écran Connexions API
+   (admin, lot 6 Angular) gagne « Dupliquer vers un autre espace ».
+5. **① borne tout calcul lourd.** Une recette coûteuse (seuil sur carreaux,
+   rayon autour de tous les POI d'un type) refuse le périmètre « France
+   entière » et porte un plafond écrit ; la recette enregistre le périmètre
+   pour qu'un recalcul donne la même forme.
+
+### 16.3 Les recettes de zone (③)
+
+| Famille | Recette | Recalculable |
+|---|---|---|
+| Autour des POI | rayon autour d'un point ; rayon autour de **tous les POI d'un type** (dans le périmètre) ; isochrones / bataille | oui ; oui ; **forme figée** au lot 3 (ORS externe, quota) |
+| Par seuil | carreaux Filosofi (ex. part de ménages pauvres > 40 % → union des carreaux retenus) ; IRIS ou CP au-dessus d'un seuil d'indicateur ; zone pluvieuse (météo) | oui ; oui ; lot météo (§ 16.5, lot 10) |
+| À la main | dessin ; **import de polygone GeoJSON / KML** ; liste de CP | forme figée ; forme figée ; oui |
+| Combinaisons | union, intersection, différence de zones enregistrées | oui (sur la forme actuelle des opérandes) |
+| Capture (existant) | ce qui est affiché (Voronoï, radio, TMJA, score…) | forme figée |
+
+### 16.4 Ce que ce paragraphe remplace, section par section
+
+- **§ 2, V5 (natures de zones)** : la nature n'est plus choisie à ③ ni
+  « gardée » comme attribut de zone ; elle se déduit de la recette (une zone
+  « liste de CP » est exacte au CP, une zone « rayon » est exacte en cercle).
+  La colonne `nature` sur `custom_geo_zones` (§ 4 ④) est abandonnée au profit de
+  `recette`.
+- **§ 2, vision du 25/09 « toujours au plus fin »** : remplacé par « l'utilisateur
+  choisit la maille par plateforme, la perte est affichée ». Le côte à côte par
+  plateforme reste.
+- **§ 4 ④ Zones (le convertisseur)** : scindé. La **source** devient l'étape ③
+  (recettes, § 16.3) ; la **conversion et le tableau par plateforme** deviennent
+  l'étape ⑤ Jeu de zones ; la maille d'achat « CP par défaut » disparaît au
+  profit du choix par plateforme. `cp_couverture_geometrie` devient une
+  couverture **générique** (polygone tel quel, CP ou IRIS) servie à ④.
+- **§ 4 ③ Analyse** : la couverture n'est plus « par rayon » seulement ; elle
+  porte sur n'importe quelle zone, avec trois découpages (tel quel / CP / IRIS).
+  Isochrones et bataille quittent ④ pour ③ comme recettes, mais leur
+  **comparaison** reste une analyse de ④.
+- **§ 4 ⑥ Activation, § 8 (tableau natures × plateformes)** : le tableau devient
+  la table de référence des plateformes (règle 3). Le mode d'envoi passe par la
+  connexion de l'espace actif (règle 4). Les colonnes « à vérifier » restent à
+  vérifier (§ 16.7).
+- **§ 9 (retiré)** : inchangé, plus une ligne — « la nature de zone choisie à la
+  création » est retirée, remplacée par la recette.
+- **§ 10 (hors champ)** : la poussée API vers TTD, Meta, TikTok reste hors
+  champ ; les **exports fichier** TTD / Meta / DV360 cercles / TikTok communes
+  entrent dans le champ (lot 6 ci-dessous). Les zones météo dynamiques : voir
+  Q-D, § 16.7.
+- **§ 12 (découpage en lots)** : les lots 3 à 8 sont **remplacés** par les lots
+  3 à 11 du § 16.5. Le lot 8 (catalogue et groupes) devient le lot 11, inchangé.
+- **§ 15** : l'ordre des étapes est confirmé ; « le rayon devient un type de
+  zone » est élargi à toutes les recettes du § 16.3 ; « le convertisseur devient
+  ⑤ » est confirmé, avec le choix de maille par plateforme.
+
+### 16.5 Le découpage en lots (remplace § 12, lots 3 à 8)
+
+| Lot | Contenu | Valeur | Dépend de |
+|---|---|---|---|
+| **3. ③ Zones à recette** | rapatriement des RPC vivantes sans source, colonne `recette`, rayon autour des POI d'un type, seuil sur carreaux, seuil IRIS/CP borné, import GeoJSON/KML, exécuteur de recettes et recalcul, panneau ③ par familles, isochrones/bataille déplacées en ③ | toute sélection devient une zone nommée et rejouable | lots 1-2 |
+| **4. ④ Couverture générique** | `couverture_geometrie` jsonb (carreaux par centroïde, `ST_Subdivide`, CP par `cp_des_points`, IRIS), trois découpages, analyses existantes branchées sur « la zone choisie », couverture par rayon du risque généralisée (anneaux par champ, Q3) | chiffrer n'importe quelle zone sans la convertir | 3 |
+| **5. ⑤ Jeu de zones multi-plateformes** | table `plateformes_geo`, caractérisation Seveso PUIS `zone_sets` généralisé, choix de maille par plateforme, perte chiffrée, pavage polygone → N cercles sous contraintes | figer ce qui sera acheté, plateforme par plateforme | 4 |
+| **6. Exports natifs** | depuis le jeu de zones, sans campagne : TTD (polygones / points + rayon / CP), Meta (≤ 200 cercles), DV360 cercles, TikTok communes ; pré-vol réglementaire | des fichiers prêts pour les quatre plateformes | 5 |
+| **7. ⑥ Plan + ⑦ Activation en Angular** | portage du wizard en sections et d'ActivationPanel, au CP comme aujourd'hui ; connexion de l'espace actif ; dupliquer une connexion | la boucle ① → ⑦ en Angular | 6 |
+| **8. ⑧ Live** | portage du Suivi V2 (CP), sélecteur de campagne | le pilotage sans React | 7 (peut démarrer après 1) |
+| **9. Plan et suivi au-delà du CP** | unité du plan = unité du jeu (polygone, cercle, commune), rollups et alignement par unité | ⑥ et ⑧ dans la même unité que ⑤ | 7, 8 |
+| **10. Zones météo dynamiques** | si Q-D les sort du hors champ : météo stockée, recette « zone pluvieuse » recalculée par cycle, extraction v+1 | zones qui suivent la météo | 3, 5, 9 |
+| **11. Catalogue et groupes** | ex-lot 8, inchangé | données privées au-delà des POI | 2 |
+
+Pourquoi cet ordre : chaque lot consomme l'objet du précédent (zone → chiffres
+→ jeu → fichiers → campagne). Les **exports passent avant le plan** parce
+qu'ils n'ont pas besoin de campagne (`/api/zones/jeux/[id]/export` existe) :
+ils donnent de la valeur aux quatre plateformes sans attendre le portage du
+wizard, qui est le plus gros chantier. Le **plan et le suivi au-delà du CP**
+sont isolés dans le lot 9 parce que ce n'est pas un portage mais une refonte de
+`refresh_campaign_rollups` et de l'alignement — un autre risque.
+
+Plan du lot 3 et sommaire des lots 4 à 11 :
+`docs/superpowers/plans/2026-10-14-carte-en-parcours-lot-3.md`.
+
+### 16.6 Constats du 14/10 qui pèsent sur le lot 3
+
+- **`carreaux_filosofi.geom_centroid` est NULL sur les 2 324 577 lignes locales**
+  (le rechargement depuis le CSV INSEE du 17/09 ne l'a pas rempli), alors que
+  son index GIST existe. Quatre fonctions vivantes le lisent et rendent donc
+  **zéro sans erreur** : `get_filosofi_profile_for_isochrone`,
+  `population_exposee_agregee`, `compute_filosofi_profiles_batch`,
+  `populate_geom_centroid_async`. Le lot 3 ne s'en sert pas
+  (`ST_Centroid(geom_3857)`) ; la réparation est la question Q-E.
+- **Huit RPC vivantes du chemin des zones n'ont aucune source dans `sql/`** :
+  `get_carreaux_capture_geometry` (48 s par appel, docs/audit/SCALE_MODEL.md:107),
+  `get_carreaux_by_zoom`, `get_admin_filter_geometry`, `get_iris_selection_geometry`,
+  `resolve_custom_geo_zone_codes`, `resolve_custom_geo_zone_codes_with_subzones`,
+  `transform_geometries_for_save`, `compute_zone_audience_stats`. Après
+  l'incident Docker du 22/09, le dump est leur seule copie : le lot 3 les
+  rapatrie À L'IDENTIQUE avant toute autre tâche (`get_zone_radius_targets`
+  n'a qu'un `ALTER` dans sql/099, hors du chemin du lot 3). Le lot 3 n'en modifie aucune ;
+  `get_carreaux_capture_geometry` est remplacée pour ③ par une fonction neuve,
+  pas réécrite (React la garde).
+- Mesures locales (EXPLAIN ANALYZE, 14/10) : seuil « part de ménages pauvres
+  > 40 % » sur les Bouches-du-Rhône **1,7 s / 46 000 buffers / 505 carreaux** ;
+  Île-de-France 3,0 s / 90 000 buffers ; Auvergne-Rhône-Alpes à 10 % **21,8 s /
+  351 000 buffers / 144 088 carreaux** — d'où le plafond de 20 000 carreaux
+  (refus en 1,2 s ; 9 839 carreaux unis en 2,6 s, 39 271 sommets, 843 Ko de
+  GeoJSON) ; rayon de 5 km autour des 5 584 lycées limité à ARA **0,8 s** ;
+  2 km autour des sites ICPE d'ARA plafonnés à 5 000 **2,0 s** ; seuil IRIS
+  (taux de pauvreté ≥ 20 %) sur ARA **0,55 s**.
+
+### 16.7 Questions OUVERTES pour Vincent
+
+| # | Question | Ce qui en dépend | Recommandation |
+|---|---|---|---|
+| Q-A | **TTD** : polygone natif dans notre compte, ou polygones via Foursquare (surcoût CPM) et, sinon, points + rayon minimal ? | lot 5 (capacités), lot 6 (export) | vérifier dans le compte dentsu avant le lot 5 ; d'ici là la table porte « à vérifier » |
+| Q-B | **TikTok** : le ciblage point + rayon existe-t-il en France (absent de la doc officielle, 1 km min. selon des blogs) ? | lot 5, lot 6 | supposer « non » : communes / départements en paliers |
+| Q-C | **Meta** : les CP français (`zips`, clé `FR:75001`) sont-ils acceptés ? | lot 5, lot 6 | supposer « non » : cercles (≤ 200, 1-80 km) |
+| Q-D | **Zones météo dynamiques** : restent hors champ (§ 10), ou entrent comme lot 10 ? | lot 10 | hors champ tant que ⑧ n'est pas au-delà du CP (lot 9) |
+| Q-E | **`geom_centroid` NULL** (§ 16.6) : le remplir (2,3 M lignes) ou réécrire les quatre fonctions sur `ST_Centroid(geom_3857)` ? | profils Filosofi d'isochrone, population exposée agrégée | réécrire sur `geom_3857` (pas de colonne à tenir à jour) |
+
+### 16.8 Arbitrages du chef de projet (délégués le 14/10)
+
+| # | Tranché | Coût si faux |
+|---|---|---|
+| A-1 | La recette vit dans une colonne **`custom_geo_zones.recette jsonb`** (versionnée `v: 1`), pas dans `source_metadata` (libre, hétérogène, lu par React). Une zone d'avant le 14/10 a `recette = null` : « forme figée ». | une migration de données si l'on veut la fusionner plus tard |
+| A-2 | **Recalculer** remplace la forme EN PLACE, et refuse (409) si la zone est référencée par une stratégie, un jeu de zones ou un composite : on n'altère jamais une forme qu'un plan achète. | un « enregistrer comme nouvelle zone » à ajouter |
+| A-3 | Isochrones, dessin, import, capture = **forme figée** au lot 3 : la recette est gardée, pas rejouée (ORS est externe et à quota). | brancher ORS dans l'exécuteur |
+| A-4 | Seuil sur carreaux : périmètre ≤ **région**, plafond **20 000 carreaux** (≈ 800 km²), refus du national ; rayon autour des POI d'un type : plafond **5 000 POI**, refus du national. | relever une constante écrite |
+| A-5 | L'Angular de ③ écrit par les routes neuves (`/api/zones`) ; React gelé garde `/api/custom-geo/save`. Les deux écrivent la même table. | aucun |
+| A-6 | Les exports (lot 6) passent AVANT le portage du plan (lot 7), parce qu'ils partent du jeu de zones sans campagne. | réordonner deux lots |
