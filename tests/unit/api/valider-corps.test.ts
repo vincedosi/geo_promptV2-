@@ -142,6 +142,28 @@ describe('messageAnomalies — messages en francais', () => {
     if (!e3.success) expect(messageAnomalies(e3.error)).toContain('ne peut pas être vide');
   });
 
+  it('traduit aussi le discriminant, les cles en trop, le litteral, le format, le non-fini et le refine nu', () => {
+    const anglais = /Expected|Invalid|must be|Unrecognized|Required/;
+    const cas: [z.ZodTypeAny, unknown, string][] = [
+      [z.discriminatedUnion('t', [z.object({ t: z.literal('a') }), z.object({ t: z.literal('b') })]), { t: 'c' }, "t : valeur inattendue (attendu : a, b)"],
+      [z.object({ a: z.string() }).strict(), { a: 'x', geometrie: {} }, 'clé inattendue : geometrie'],
+      [z.object({ v: z.literal(1) }), { v: 2 }, 'v : valeur inattendue (attendu : 1)'],
+      [z.object({ s: z.string().regex(/^\d+$/) }), { s: 'x' }, 's : format invalide'],
+      [z.object({ n: z.number().finite() }), { n: Infinity }, 'n : doit être un nombre fini'],
+      [z.object({ o: z.string().refine(() => false) }), { o: 'x' }, 'o : valeur invalide'],
+      [z.object({ n: z.number().max(5) }), { n: 6 }, 'n : trop grand (maximum 5)'],
+    ];
+    for (const [schema, valeur, attendu] of cas) {
+      const e = schema.safeParse(valeur);
+      expect(e.success).toBe(false);
+      if (!e.success) {
+        const m = messageAnomalies(e.error);
+        expect(m).toBe(attendu);
+        expect(m).not.toMatch(anglais);
+      }
+    }
+  });
+
   it('laisse intact un message ecrit a la main dans le schema', async () => {
     const e = z.object({ name: z.string().trim().min(1, 'Nom requis') }).safeParse({ name: ' ' });
     if (!e.success) expect(messageAnomalies(e.error)).toBe('name : Nom requis');

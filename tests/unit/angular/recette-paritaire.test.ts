@@ -6,7 +6,7 @@ import * as A from '../../../angular/src/app/features/carte/logique/zones/recett
 describe('recette de zone : Angular = serveur', () => {
   it('mêmes constantes', () => {
     for (const k of ['VERSION_RECETTE', 'TYPES_RECETTE', 'TYPES_RECALCULABLES', 'TYPES_BORNES_PAR_PERIMETRE', 'TYPES_PERIMETRE',
-      'RAYON_POI_MIN_M', 'RAYON_POI_MAX_M', 'MAX_POI_RAYON', 'MAX_CARREAUX_SEUIL', 'MAX_TERRITOIRES_SEUIL', 'MAX_SOMMETS_FORME',
+      'RAYON_POI_MIN_M', 'RAYON_POI_MAX_M', 'RAYON_POINT_MAX_M', 'SEUIL_CARREAUX_MAX', 'SEUIL_TERRITOIRE_MAX_ABS','MAX_POI_RAYON', 'MAX_CARREAUX_SEUIL', 'MAX_TERRITOIRES_SEUIL', 'MAX_SOMMETS_FORME',
       'MAX_CODES_POSTAUX', 'SURFACE_MAX_PERIMETRE_KM2', 'SURFACE_MAX_PERIMETRE_CARREAUX_KM2', 'PERIMETRES_ADMIS',
       'INDICATEURS_SEUIL_CARREAUX', 'MESSAGES_REFUS'] as const) {
       expect((A as unknown as Record<string, unknown>)[k], k).toEqual((R as unknown as Record<string, unknown>)[k]);
@@ -33,7 +33,11 @@ describe('recette de zone : Angular = serveur', () => {
     }
   });
   it('les deux fichiers sont identiques hors de leur en-tête', () => {
-    const corps = (chemin: string) => readFileSync(chemin, 'utf8').replace(/\r\n/g, '\n').replace(/^\/\*\*[\s\S]*?\*\/\n/, '');
+    // Seuls l'en-tête et le chemin d'import de `formaterNombre` diffèrent (`@/lib/format/nombre` contre
+    // `core/format/nombre`, copie elle-même verrouillée par format-paritaire.test.ts).
+    const corps = (chemin: string) => readFileSync(chemin, 'utf8').replace(/\r\n/g, '\n')
+      .replace(/^\/\*\*[\s\S]*?\*\/\n/, '')
+      .replace(/^import \{ formaterNombre \} from '[^']+';\n/, '');
     expect(corps('angular/src/app/features/carte/logique/zones/recette.ts')).toBe(corps('lib/zones/recette.ts'));
   });
 });

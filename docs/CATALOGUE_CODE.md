@@ -4,11 +4,11 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-10-15 — commit `ed55f265`.
+> Généré le 2026-10-15 — commit `79786f9a`.
 
 ## Totaux
 
-- Exports morts : 153
+- Exports morts : 148
 - Fichiers morts : 0
 - Dépendances inutilisées : 2
 
@@ -25,7 +25,7 @@ Trié par nombre d’occurrences décroissant.
 | Fichier | Occurrences | Exports | Types |
 |---|---|---|---|
 | `lib/strategy-wizard/multiplier.ts` | 14 | computeMultiplier, inferTier, MULTIPLIER_COLOR_SCALE, colorForMultiplier, labelForMultiplier, plainFrenchForMultiplier, TIER_LABELS_FR, TIER_COLORS | Tier, WeightingMode, InZoneWeights, OutZoneWeights, SubzoneInput, MultiplierColorStop |
-| `lib/zones/recette.ts` | 11 | VERSION_RECETTE, TYPES_RECALCULABLES, TYPES_BORNES_PAR_PERIMETRE, MAX_POI_RAYON, MAX_CARREAUX_SEUIL, MAX_TERRITOIRES_SEUIL, MAX_SOMMETS_FORME, SURFACE_MAX_PERIMETRE_KM2, SURFACE_MAX_PERIMETRE_CARREAUX_KM2 | PerimetreRecette, OperateurSeuil |
+| `lib/zones/recette.ts` | 7 | VERSION_RECETTE, TYPES_RECALCULABLES, TYPES_BORNES_PAR_PERIMETRE, SURFACE_MAX_PERIMETRE_KM2, SURFACE_MAX_PERIMETRE_CARREAUX_KM2 | PerimetreRecette, OperateurSeuil |
 | `components/ui/sheet.tsx` | 7 | SheetPortal, SheetOverlay, SheetClose, SheetHeader, SheetFooter, SheetTitle, SheetDescription | — |
 | `lib/campaigns/channels.ts` | 6 | PlatformLinksSchema, linksComplete, linksSummary | LinkLevel, PlatformLinks, ChannelCategory |
 | `components/ui/dialog.tsx` | 6 | DialogPortal, DialogOverlay, DialogTrigger, DialogClose, DialogFooter, DialogDescription | — |
@@ -58,23 +58,22 @@ Trié par nombre d’occurrences décroissant.
 | `lib/geo/region-lookup-server.ts` | 1 | invalidateRegionCache | — |
 | `lib/http/lecture-avec-reprise.ts` | 1 | ATTENTE_MAX_MS | — |
 | `lib/meteo/requete.ts` | 1 | ARCHIVE_CUTOFF | — |
+| `lib/iris-crawler/db-columns.ts` | 1 | getCoreColumnType | — |
 | `lib/campagne/constats.ts` | 1 | SEUIL_ECART_SIGNALE_PCT | — |
 | `components/campagne/suivi-v2/TableauDeregles.tsx` | 1 | LIGNES_MAX | — |
-| `lib/iris-crawler/db-columns.ts` | 1 | getCoreColumnType | — |
 | `lib/dsp-mapping/parser.ts` | 1 | parseRow | — |
 | `lib/campaigns/platform-links.ts` | 1 | PlatformLinksSchema | — |
 | `lib/civic-health/atmofrance-client.ts` | 1 | AASQA_REGION_CODES | — |
 | `lib/pacing/rebid.ts` | 1 | REBID_EPSILON | — |
 | `lib/geo/dept-lookup-server.ts` | 1 | invalidateDeptCache | — |
-| `lib/zones/recette-schema.ts` | 1 | RecetteSchema | — |
 | `lib/api/safe-path.ts` | 1 | isValidUuid | — |
 | `lib/import/column-detector.ts` | 1 | normalizeColumnName | — |
 | `lib/civic-health/provider.ts` | 1 | _resetProvider | — |
 | `lib/metrics-display/loader.ts` | 1 | invalidateMetricsCache | — |
 | `app/map/_components/filter-panel/styles.ts` | 1 | hexToRgb | — |
 | `lib/dsp-mapping/transformer.ts` | 1 | listKnownTransforms | — |
-| `lib/dsp/push/simulated.ts` | 1 | buildPayloadSummary | — |
 | `lib/import/sheet-common.ts` | 1 | dedupeHeaders | — |
+| `lib/dsp/push/simulated.ts` | 1 | buildPayloadSummary | — |
 | `lib/metrics-display/types.ts` | 1 | UnknownMetricError | — |
 | `components/campaign/_shared.tsx` | 1 | SH | — |
 | `components/ui/input.tsx` | 1 | — | InputProps |
@@ -82,9 +81,9 @@ Trié par nombre d’occurrences décroissant.
 | `types/admin.ts` | 1 | — | HealthCheck |
 | `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
 | `lib/supabase/tables.ts` | 1 | — | TableUpdate |
-| `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
-| `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
 | `types/campaign.ts` | 1 | — | DspCampaign |
+| `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
+| `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
 | `lib/campaigns/actor-metrics.ts` | 1 | — | ActorsPayload |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |

@@ -4,6 +4,8 @@
  * Copie VERBATIM de `lib/zones/recette.ts` (hors cet en-tête), verrouillée par
  * `tests/unit/angular/recette-paritaire.test.ts`. Ne pas l'éditer seule : modifier le serveur, puis recopier.
  */
+import { formaterNombre } from '../../../../core/format/nombre';
+
 export const VERSION_RECETTE = 1;
 
 export const TYPES_RECETTE = [
@@ -30,6 +32,19 @@ export interface PerimetreRecette {
  */
 export const RAYON_POI_MIN_M = 100;
 export const RAYON_POI_MAX_M = 50_000;
+/** Rayon autour d'un point posé à la main : jusqu'à 100 km (le rayon de ③, un seul cercle, sans lecture de table). */
+export const RAYON_POINT_MAX_M = 100_000;
+/**
+ * Borne du seuil sur carreaux : la plus grande valeur qu'un indicateur de la liste puisse prendre est la densité
+ * (individus / 0,04 km²), qui reste sous 100 000 hab./km² ; une part est sous 100 %.
+ */
+export const SEUIL_CARREAUX_MAX = 100_000;
+/**
+ * Borne (en valeur absolue) du seuil sur territoires. Les indicateurs IRIS / CP sont des parts, des taux, des
+ * revenus en euros ou des effectifs : aucun ne dépasse dix millions. Une borne écrite plutôt que « n'importe quel
+ * nombre fini » : un seuil de 1e300 n'est jamais une intention, c'est une faute de frappe.
+ */
+export const SEUIL_TERRITOIRE_MAX_ABS = 10_000_000;
 export const MAX_POI_RAYON = 5_000;
 export const MAX_CARREAUX_SEUIL = 20_000;
 export const MAX_TERRITOIRES_SEUIL = 5_000;
@@ -96,15 +111,15 @@ export type RefusRecette =
 
 export const MESSAGES_REFUS: Readonly<Record<RefusRecette, string>> = {
   perimetre_absent: 'Choisissez un périmètre à l’étape ① avant ce calcul.',
-  perimetre_national_refuse: 'Ce calcul ne se lance pas sur la France entière : choisissez une région, un département ou une zone à l’étape ①.',
+  perimetre_national_refuse: 'Ce calcul ne se lance pas sur la France entière : choisissez un périmètre plus petit à l’étape ①.',
   perimetre_inconnu: 'Le périmètre de l’étape ① est introuvable ou n’appartient pas à cet espace.',
   perimetre_trop_grand: 'Le périmètre est trop grand pour ce calcul : resserrez-le à l’étape ①.',
   perimetre_non_admis: 'Ce calcul se fait sur un département au plus : choisissez un département, une commune, un code postal ou une zone à l’étape ①.',
   commune_ambigue: 'Plusieurs communes portent ce nom : tapez son code INSEE (ex. 93066) ou choisissez son code postal à l’étape ①.',
-  trop_de_poi: 'Plus de 5 000 POI dans le périmètre : resserrez le périmètre.',
-  trop_de_carreaux: 'Plus de 20 000 carreaux retenus : resserrez le périmètre ou relevez le seuil.',
-  trop_de_territoires: 'Plus de 5 000 territoires retenus : resserrez le périmètre ou relevez le seuil.',
-  trop_de_sommets: 'La forme dépasse 20 000 sommets : simplifiez-la avant de l’importer.',
+  trop_de_poi: `Plus de ${formaterNombre(MAX_POI_RAYON)} POI dans le périmètre : resserrez le périmètre.`,
+  trop_de_carreaux: `Plus de ${formaterNombre(MAX_CARREAUX_SEUIL)} carreaux retenus : resserrez le périmètre ou relevez le seuil.`,
+  trop_de_territoires: `Plus de ${formaterNombre(MAX_TERRITOIRES_SEUIL)} territoires retenus : resserrez le périmètre ou relevez le seuil.`,
+  trop_de_sommets: `La forme dépasse ${formaterNombre(MAX_SOMMETS_FORME)} sommets : simplifiez-la avant de l’importer.`,
   indicateur_inconnu: 'Cet indicateur n’est pas disponible pour un seuil.',
   zone_introuvable: 'Zone introuvable dans cet espace.',
   zone_referencee: 'Cette zone est utilisée par un plan : dupliquez-la avant de la recalculer.',

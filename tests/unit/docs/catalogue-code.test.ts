@@ -59,7 +59,10 @@ import { lancerKnip, construireRapport } from '../../../scripts/catalogue.mjs';
 // et TEMPORAIRE : chaque tache qui branche l'un de ces exports redescend le
 // cliquet ; a la fin du lot, il doit etre revenu a 141 au plus, ou chaque
 // export encore mort doit etre retire.
-const CLIQUET_EXPORTS_MORTS = 153;
+// Redescendu a 148 le 2026-10-15 (revue de la Task 2) : les messages de refus
+// citent les plafonds par leurs constantes, et les tests du schema importent
+// les bornes qu'ils verifient.
+const CLIQUET_EXPORTS_MORTS = 148;
 
 describe('catalogue du code', () => {
   it('existe et se declare genere', () => {
