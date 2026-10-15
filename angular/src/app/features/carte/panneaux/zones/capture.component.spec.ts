@@ -106,6 +106,7 @@ describe('CaptureComponent (CustomGeoCaptureModal.tsx)', () => {
         name: '[ESSAI lot 4] capture', description: null, org_id: 'org-1', source_type: 'carreaux_filosofi',
         source_metadata: { contributing_layers: [{ id: 'map-carreaux-filosofi', source_type: 'carreaux_filosofi', label: 'Carreaux 200m population_totale', metadata: { m: 'map-carreaux-filosofi' } }] },
         geometries: [CARRE], transformation: 'convex_hull',
+        recette: { v: 1, type: 'capture', source_type: 'carreaux_filosofi' },
       });
       expect(el.querySelector('[data-succes]')!.textContent!.trim()).toBe('Zone sauvegardee — 12 IRIS, 3 CP resolus');
       expect(cree).toHaveBeenCalledTimes(1);
@@ -115,6 +116,40 @@ describe('CaptureComponent (CustomGeoCaptureModal.tsx)', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('lot 3 : une bataille capturée envoie une recette `isochrone` FIGÉE — ses paramètres scalaires, jamais ses POI', async () => {
+    const pois = [{ poi_id: 'p1', poi_name: 'CIRFA Toulon', lat: 43.1, lng: 5.9 }];
+    const bataille: SourceCapture = {
+      id: 'map-battle-isochrone', sourceType: 'isochrone_battle', label: 'Battle isochrones',
+      metadata: { cache_key: 'battle_full__cirfa__drive__abc', poi_count: 1, pois, battle_features: [], category: 'cirfa', mode: 'drive' },
+      obtenir: { route: 'battle', corps: () => ({ cache_keys: ['battle_full__cirfa__drive__abc'] }) },
+    };
+    const { el, api, stable } = monter({ sources: [bataille] });
+    await stable();
+    nommer(el, 'bataille');
+    await stable();
+    el.querySelector<HTMLButtonElement>('[data-sauver]')!.click();
+    await stable();
+    const envoye = (api.capturer as ReturnType<typeof vi.fn>).mock.calls[0][0] as { recette: unknown; source_metadata: { pois: unknown } };
+    expect(envoye.recette).toEqual({
+      v: 1, type: 'isochrone',
+      parametres: { cache_key: 'battle_full__cirfa__drive__abc', category: 'cirfa', mode: 'drive', poi_count: 1 },
+    });
+    // Les POI restent dans `source_metadata` (et les sous-zones), pas dans la recette.
+    expect(envoye.source_metadata.pois).toEqual(pois);
+  });
+
+  it('lot 3 : une capture de Voronoï envoie une recette `capture` qui nomme sa source', async () => {
+    const { el, api, stable } = monter({ sources: [source('map-voronoi', 'voronoi_cells', 'Voronoi lycee', 'voronoi')] });
+    await stable();
+    nommer(el, 'voronoi');
+    await stable();
+    el.querySelector<HTMLButtonElement>('[data-sauver]')!.click();
+    await stable();
+    expect((api.capturer as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatchObject({
+      recette: { v: 1, type: 'capture', source_type: 'voronoi_cells' },
+    });
   });
 
   it('refus de la route : son message dans le dialogue', async () => {

@@ -126,6 +126,13 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   source `score` avec sa géométrie — la géométrie part pour toute recette non recalculable). Les opérations de « Mes
   zones » écrivent `combinaison` en UN appel (« Restreindre à » actif à deux zones exactement). Une zone citée (`zone_referencee`) ne se supprime pas (409).
   `CreationZoneService.org` reste lu par la capture.
+- **La capture garde sa recette ; isochrones et bataille restent en ④ (T11, arbitrage C3 / L3-5)** : rien n'est retiré
+  de ④. `mg-capture` ajoute au corps de `POST /api/custom-geo/capture` une recette FIGÉE (`recetteCapture`) —
+  `isochrone` quand une couche capturée est une bataille, ses `parametres` étant les clés scalaires de son
+  enrichissement (`cache_key`, `category`, `mode`, `poi_count` : la métadonnée de la couche ne porte ni `minutes` ni
+  `version` ; POI et paliers restent dans `source_metadata` et les sous-zones), sinon `capture` avec le
+  `source_type`. « Autour des POI » porte le renvoi `[data-renvoi-analyse]` et « Aller à ④ Analyse »
+  (`ParcoursService.choisir('analyse')`) ; ③ ne monte ni `mg-outil-isochrones` ni `mg-outil-bataille-v2`.
 
 ## Cycle de vie d'une couche
 

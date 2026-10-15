@@ -16,6 +16,7 @@ import { EtatCarteService } from '../../etat/etat-carte.service';
 import type { FiltreActif } from '../../logique/filtre';
 import type { Recette } from '../../logique/zones/recette';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
+import { ParcoursService } from '../../etat/parcours.service';
 import { PileEchapService } from '../../etat/pile-echap.service';
 import { CaptureComponent } from './capture.component';
 import { CreerCodesPostauxComponent } from './creer-codes-postaux.component';
@@ -60,7 +61,9 @@ class PiedFactice { readonly recette = input<Recette | null>(null); readonly geo
 
 async function monter(filtre: FiltreActif | null = null) {
   // Les VRAIS services du panneau (ses `providers`), sur des dépendances factices : aucune requête ne part.
+  const parcours = { choisir: vi.fn() };
   TestBed.configureTestingModule({ providers: [
+    { provide: ParcoursService, useValue: parcours },
     OutilsCarteService, PileEchapService, CaptureService, EtatCarteService, AnnonceService, CouchesCarteService, ChargementService,
     { provide: ZonesApi, useValue: {} },
     { provide: AnalysesApi, useValue: {} },
@@ -83,7 +86,7 @@ async function monter(filtre: FiltreActif | null = null) {
   const el = fixture.nativeElement as HTMLElement;
   const ouvrirFamille = async (f: string) => { el.querySelector<HTMLElement>(`mg-entete-section[data-famille="${f}"]`)!.click(); await fixture.whenStable(); };
   const pied = () => fixture.debugElement.query(By.directive(PiedFactice)).componentInstance as PiedFactice;
-  return { fixture, el, outils: TestBed.inject(OutilsCarteService), etat: TestBed.inject(EtatCarteService), zoneCreee: atelier.zoneCreee, ouvrirFamille, pied };
+  return { fixture, el, parcours, outils: TestBed.inject(OutilsCarteService), etat: TestBed.inject(EtatCarteService), zoneCreee: atelier.zoneCreee, ouvrirFamille, pied };
 }
 
 describe('PanneauZonesComponent — ③ rangée par familles (lot 3, T10)', () => {
@@ -157,5 +160,21 @@ describe('PanneauZonesComponent — ③ rangée par familles (lot 3, T10)', () =
     expect(bouton.className).not.toMatch(/teal/);
     bouton.click();
     expect(outils.outil()).toBe('zones');
+  });
+
+  it('lot 3 (T11) : « Autour des POI » renvoie vers ④ pour les isochrones et la bataille, sans les monter', async () => {
+    const { el, parcours, ouvrirFamille } = await monter();
+    const renvoi = el.querySelector('[data-renvoi-analyse]')!;
+    expect(renvoi.textContent!.trim()).toBe('Isochrones et bataille : lancez-les à l’étape ④, puis capturez le résultat ici.');
+    const bouton = el.querySelector<HTMLButtonElement>('[data-aller-analyse]')!;
+    expect(bouton.textContent!.trim()).toBe('Aller à ④ Analyse');
+    bouton.click();
+    expect(parcours.choisir).toHaveBeenCalledWith('analyse');
+    for (const f of ['seuil', 'main', 'capture']) await ouvrirFamille(f);
+    expect(el.querySelector('mg-outil-isochrones')).toBeNull();
+    expect(el.querySelector('mg-outil-bataille-v2')).toBeNull();
+    // Replier « Autour des POI » retire aussi le renvoi.
+    await ouvrirFamille('poi');
+    expect(el.querySelector('[data-renvoi-analyse]')).toBeNull();
   });
 });

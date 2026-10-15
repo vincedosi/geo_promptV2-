@@ -11,6 +11,7 @@ import {
   type MetaBataille, TRANSFORMATIONS, type TransformationCapture, aplatir, compterSommets, enrichissementBataille, sourceTypeCapture,
   texteBbox,
 } from '../../logique/zones/capture';
+import type { Recette } from '../../logique/zones/recette';
 
 /** Délai de résolution d'une couche avant de la dire en échec (> `maxDuration` serveur, compilation à froid comprise). */
 const DELAI_GEOMETRIE_MS = 50_000;
@@ -31,6 +32,9 @@ interface Collecte { source: SourceCapture; geometries: GeoJSON.Geometry[]; erre
  * `<dialog>` natif dans la racine d'ombre (B13), jamais le voile `position: fixed` de React. Échap, voile et croix
  * ferment, sauf pendant la sauvegarde. Défaut de React corrigé : la zone capturée n'apparaissait pas dans « Mes
  * zones » avant de rouvrir le panneau — `cree` la fait relire.
+ *
+ * Lot 3 (T11) : le corps porte en plus une recette FIGÉE (`recetteCapture`) — `isochrone` pour une bataille,
+ * `capture` sinon — que la route écrit sur la zone. Les isochrones et la bataille se lancent toujours à l'étape ④.
  */
 @Component({
   selector: 'mg-capture',
@@ -125,6 +129,7 @@ export class CaptureComponent {
       geometries: this.geometries(),
       transformation: this.transformation(),
       ...(bataille?.sousZones ? { subzones: bataille.sousZones } : {}),
+      recette: recetteCapture(bataille?.enrichissement ?? null, this.sourceType()),
     };
     this.abonnements.push(this.api.capturer(corps).subscribe({
       next: (r) => {
@@ -193,6 +198,25 @@ export class CaptureComponent {
       catchError((e: unknown) => of({ source, geometries: [], erreur: messageEchec(e) })),
     );
   }
+}
+
+/** Une valeur de paramètre qu'une recette `isochrone` admet (`recette-schema.ts` : chaîne ≤ 200, nombre, booléen). */
+const parametreAdmis = (v: unknown): v is string | number | boolean =>
+  (typeof v === 'string' && v.length <= 200) || (typeof v === 'number' && Number.isFinite(v)) || typeof v === 'boolean';
+
+/**
+ * La recette FIGÉE de la capture (lot 3, T11 — L3-5) : une bataille capturée devient `{ type: 'isochrone' }`, ses
+ * paramètres étant les clés SCALAIRES de son enrichissement (`enrichissementBataille` : `cache_key`, `category`,
+ * `mode`, `poi_count` — les noms réels ; il n'y a ni `minutes` ni `version` dans la métadonnée de la couche). Les POI
+ * et les paliers, des tableaux, restent dans `source_metadata` et les sous-zones. Toute autre capture devient
+ * `{ type: 'capture' }` et nomme sa source. Ni l'une ni l'autre ne se recalcule.
+ */
+export function recetteCapture(enrichissement: Record<string, unknown> | null, sourceType: string): Recette {
+  if (!enrichissement) return { v: 1, type: 'capture', source_type: sourceType };
+  const parametres = Object.fromEntries(
+    Object.entries(enrichissement).filter((e): e is [string, string | number | boolean] => parametreAdmis(e[1])).slice(0, 20),
+  );
+  return { v: 1, type: 'isochrone', parametres };
 }
 
 /** « HTTP 500 <corps> » comme React (`fetchGeometryFromRoute`), le message d'une erreur sinon. */

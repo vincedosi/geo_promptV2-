@@ -6,6 +6,7 @@ import { CaptureService } from '../../etat/capture.service';
 import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { CreationZoneService } from '../../etat/creation-zone.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
+import { ParcoursService } from '../../etat/parcours.service';
 import type { Recette } from '../../logique/zones/recette';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { CaptureComponent } from './capture.component';
@@ -38,7 +39,8 @@ const PREMIER_FORMULAIRE: Readonly<Record<Famille, CleRecette | null>> = {
  * Le panneau de l'étape ③ Zones (lot 3, T10 — spec carte-en-parcours § 16.3) : « Ce que je fabrique », rangé par
  * FAMILLES, quatre sections repliables `mg-entete-section` :
  *
- *   - « Autour des POI » : le rayon autour d'un point (`mg-creer-rayon`, lot 4) et le rayon autour d'un type de POI ;
+ *   - « Autour des POI » : le rayon autour d'un point (`mg-creer-rayon`, lot 4) et le rayon autour d'un type de POI,
+ *     puis le renvoi vers ④ (T11) : isochrones et bataille s'y lancent, inchangées, et leur capture devient une zone ;
  *   - « Par seuil » : carreaux de 200 m, IRIS ou codes postaux au-dessus d'un seuil ;
  *   - « À la main » : le dessin, l'import GeoJSON / KML, la liste de codes postaux ;
  *   - « Capture » : le bouton existant, libellé inchangé (arbitrage P25 : en dernier).
@@ -73,6 +75,11 @@ const PREMIER_FORMULAIRE: Readonly<Record<Famille, CleRecette | null>> = {
     @if (ouverts.poi()) {
       <div class="px-3.5 pb-1"><mg-creer-rayon (cree)="relire()" /></div>
       <mg-recette-rayon-poi #rayonPoi [class.recette-active]="actif() === 'rayon_poi'" (focusin)="actif.set('rayon_poi')" (click)="actif.set('rayon_poi')" />
+      <p data-renvoi-analyse class="m-0 px-3.5 pt-2 text-[12px] leading-[1.5] text-tertiary">
+        Isochrones et bataille : lancez-les à l’étape ④, puis capturez le résultat ici.
+      </p>
+      <button type="button" data-aller-analyse (click)="parcours.choisir('analyse')"
+        class="mx-3.5 mb-3 mt-1 cursor-pointer rounded-[6px] border-fin border-default bg-transparent px-3 py-1.5 text-[12px] text-secondary hover:border-hover hover:bg-elevated hover:text-primary">Aller à ④ Analyse</button>
     }
 
     <mg-entete-section data-famille="seuil" libelle="Par seuil" repliable [ouvert]="ouverts.seuil()" (ouvertChange)="basculer('seuil', $event)" />
@@ -134,6 +141,8 @@ export class PanneauZonesComponent {
   protected readonly captureInactive = computed(() => this.compte() === 0);
   protected readonly captureOuverte = signal(false);
   protected readonly outils = inject(OutilsCarteService);
+  /** Le renvoi vers ④ (T11) : le service du fil, fourni par la page (lot 1). */
+  protected readonly parcours = inject(ParcoursService);
   protected readonly filtre = inject(EtatCarteService).filtre;
 
   protected readonly ouverts: Readonly<Record<Famille, WritableSignal<boolean>>> = {

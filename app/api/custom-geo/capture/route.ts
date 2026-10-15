@@ -12,6 +12,8 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { resolveOrgWriteAccess } from '@/lib/campaigns/access';
 import { toJson, nullableArg } from '@/lib/supabase/rpc-json';
+import { lireRecette } from '@/lib/zones/recette-schema';
+import type { Recette } from '@/lib/zones/recette';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -40,6 +42,11 @@ const CaptureSchema = z.object({
    *   • Le wizard Custom Bidding peut pondérer chaque sous-zone séparément.
    */
   subzones: z.array(SubzoneSchema).max(50).optional(),
+  /**
+   * Lot 3 (carte en parcours) : la recette FIGÉE de la zone capturée — `isochrone` (une bataille) ou `capture` —,
+   * validée par `lireRecette`. Facultative : React ne l'envoie pas, et son comportement est inchangé.
+   */
+  recette: z.unknown().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -72,6 +79,17 @@ export async function POST(request: NextRequest) {
 
   if (!resolveOrgWriteAccess(profile.role, profile.organization_id, parsed.data.org_id)) {
     return NextResponse.json({ error: 'forbidden_org' }, { status: 403 });
+  }
+
+  // Lot 3 : la capture garde une recette FIGÉE (isochrone ou capture) ; React n'envoie pas le champ.
+  // Contrôlée AVANT toute RPC : une recette refusée ne crée rien.
+  let recette: Recette | null = null;
+  if (parsed.data.recette !== undefined) {
+    const lue = lireRecette(parsed.data.recette);
+    if (!lue.ok || (lue.recette.type !== 'isochrone' && lue.recette.type !== 'capture')) {
+      return NextResponse.json({ error: 'Recette invalide pour une capture.' }, { status: 400 });
+    }
+    recette = lue.recette;
   }
 
   const supabase = createAdminClient();
@@ -135,6 +153,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // 2 bis. La recette, écrite AVANT la résolution des codes : une résolution en échec (207 plus bas) la garde.
+  // Son échec n'emporte pas la zone : il est dit à la fin, par un 207 `recette_non_enregistree`.
+  let recetteEnregistree = true;
+  if (recette) {
+    const { error: recetteError } = await supabase
+      .from('custom_geo_zones')
+      .update({ recette: toJson(recette) })
+      .eq('id', zoneId);
+    if (recetteError) {
+      console.error('[custom-geo/capture] recette', recetteError.message);
+      recetteEnregistree = false;
+    }
+  }
+
   // 3. Résoudre IRIS + CP
   // Si la zone a des sous-zones → resolve v2 (rattache chaque code à sa sous-zone).
   // Sinon → resolve legacy (équivalent fonctionnel pour zones sans sous-zones).
@@ -149,7 +181,11 @@ export async function POST(request: NextRequest) {
   if (resolveError) {
     console.error('[custom-geo/capture] resolve', resolveError.message);
     return NextResponse.json(
-      { zone_id: zoneId, warning: 'zone_created_but_resolution_failed' },
+      {
+        zone_id: zoneId,
+        warning: 'zone_created_but_resolution_failed',
+        ...(recetteEnregistree ? {} : { recette_non_enregistree: true }),
+      },
       { status: 207 },
     );
   }
@@ -165,6 +201,13 @@ export async function POST(request: NextRequest) {
   );
   if (statsError) {
     console.warn('[custom-geo/capture] audience_stats', statsError.message);
+  }
+
+  if (!recetteEnregistree) {
+    return NextResponse.json(
+      { zone_id: zoneId, warning: 'recette_non_enregistree', count_iris: resolved.count_iris ?? 0, count_cp: resolved.count_cp ?? 0 },
+      { status: 207 },
+    );
   }
 
   return NextResponse.json({
