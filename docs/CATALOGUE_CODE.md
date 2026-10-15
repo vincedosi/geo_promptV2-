@@ -4,7 +4,7 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-10-15 — commit `79786f9a`.
+> Généré le 2026-10-15 — commit `db7e13ea`.
 
 ## Totaux
 
@@ -72,18 +72,18 @@ Trié par nombre d’occurrences décroissant.
 | `lib/metrics-display/loader.ts` | 1 | invalidateMetricsCache | — |
 | `app/map/_components/filter-panel/styles.ts` | 1 | hexToRgb | — |
 | `lib/dsp-mapping/transformer.ts` | 1 | listKnownTransforms | — |
-| `lib/import/sheet-common.ts` | 1 | dedupeHeaders | — |
 | `lib/dsp/push/simulated.ts` | 1 | buildPayloadSummary | — |
+| `lib/import/sheet-common.ts` | 1 | dedupeHeaders | — |
 | `lib/metrics-display/types.ts` | 1 | UnknownMetricError | — |
 | `components/campaign/_shared.tsx` | 1 | SH | — |
 | `components/ui/input.tsx` | 1 | — | InputProps |
 | `lib/logger.ts` | 1 | — | Logger |
-| `types/admin.ts` | 1 | — | HealthCheck |
 | `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
+| `types/admin.ts` | 1 | — | HealthCheck |
 | `lib/supabase/tables.ts` | 1 | — | TableUpdate |
 | `types/campaign.ts` | 1 | — | DspCampaign |
-| `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
 | `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
+| `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
 | `lib/campaigns/actor-metrics.ts` | 1 | — | ActorsPayload |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |
