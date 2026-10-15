@@ -134,6 +134,29 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   `source_type`. « Autour des POI » porte le renvoi `[data-renvoi-analyse]` et « Aller à ④ Analyse »
   (`ParcoursService.choisir('analyse')`) ; ③ ne monte ni `mg-outil-isochrones` ni `mg-outil-bataille-v2`.
 
+## « Mes zones » : la recette et « Recalculer » (lot 3, T12, 2026-10-15)
+
+- **La carte d'une zone** (`panneaux/zones/carte-zone.component.ts`) : une ligne `[data-recette]` — la recette en clair,
+  « Forme figée » pour une zone d'avant le lot 3 — qui passe à la ligne plutôt que d'être tronquée. Pour une zone à
+  recette, la ligne de composition (`decrireComposition`, copie React, qui ne lit que `source_metadata` et rendait
+  « recette_codes_postaux ») disparaît, et la puce de source prend le libellé du type (`[data-source]`). « Recalculer »
+  (`[data-recalculer]`, sortie `recalculer`) seulement si `estRecalculable` ; désactivé par `recalculEnCours`, distinct
+  d'`enCours` (lecture de la géométrie, qui fait dire « Chargement… » à « Afficher »).
+- **Les libellés** : `logique/zones/libelle-zone.ts` COMPLÈTE les deux copies verrouillées (`recette.ts`,
+  `source-type-labels.ts`), sans les toucher — `libelleSource` (puces et ligne de source : les `recette_*` posés par
+  `creer_zone_recette` ont un libellé, le reste passe par la table de React) et `libelleRecetteAffiche` (un seuil sur
+  territoires porte le LIBELLÉ du catalogue d'indicateurs et son unité, jamais l'identifiant ; sans catalogue, le
+  libellé de base).
+- **Le recalcul** (`mes-zones.component.ts`) : `ZonesApi.recalculer(id)`, une fois par zone à la fois (second clic
+  ignoré), puis la liste est relue et la zone, si elle est affichée, redessinée (géométrie relue). Un 207 est une
+  réussite, dit dans `[data-avis]` (« recalculée ; ses codes postaux n’ont pas pu être résolus »), jamais renvoyé. Un
+  échec dit le message de la route dans `[data-erreur]` (409 « utilisée par un plan : dupliquez-la », 409 forme
+  figée, 422…) et ne touche pas à la liste : un 404 peut venir d'une zone MEMBRE supprimée d'une combinaison.
+- **La suppression refusée** (409 `zone_referencee`) affiche le message français de la route dans le dialogue, plus
+  « HTTP 409 ».
+- **Le catalogue d'indicateurs** : « Mes zones » vit dans la boîte à outils, hors du panneau ③ ; il fournit son propre
+  `CatalogueIndicateursService` et ne le lit QUE si un seuil sur territoires est listé.
+
 ## Cycle de vie d'une couche
 
 1. **Allumée** par sa section de `panneaux/calques/`, dépliée dans sa ligne de ② (ou un outil) : le service passe `visible` à vrai.

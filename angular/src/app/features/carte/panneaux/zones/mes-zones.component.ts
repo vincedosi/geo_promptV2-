@@ -5,9 +5,13 @@ import { formaterNombre } from '../../../../core/format/nombre';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { ZonesCustomService } from '../../couches/zones-custom.service';
 import { type FormatExportZone, type StatsZones, type ZoneCustomResume, ZonesCustomApi } from '../../data/zones-custom.api';
+import { ZonesApi } from '../../data/zones.api';
+import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { ExportZoneService } from '../../etat/export-zone.service';
+import type { IndicateurRegistre } from '../../logique/analyses/score';
+import { libelleSource } from '../../logique/zones/libelle-zone';
 import { basculerDansSelection, selectionExistante } from '../../logique/zones/operations-zones';
-import { getSourceTypeLabel } from '../../logique/zones/source-type-labels';
+import { messageErreurZone } from '../../logique/zones/perimetre-recette';
 import { messageHttp, typesDeSource } from '../../logique/zones/zones-affichees';
 import { CarteZoneComponent } from './carte-zone.component';
 import { DialogueSuppressionZoneComponent } from './dialogue-suppression-zone.component';
@@ -38,6 +42,8 @@ const ANTI_REBOND_RECHERCHE_MS = 200;
   selector: 'mg-mes-zones',
   imports: [CarteZoneComponent, DialogueSuppressionZoneComponent, IconeComponent, OperationsZonesComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // « Mes zones » vit dans la boîte à outils, hors du panneau ③ qui fournit déjà le catalogue : il a le sien.
+  providers: [CatalogueIndicateursService],
   host: { class: 'block' },
   template: `
     @if (org() === undefined) {
@@ -89,6 +95,9 @@ const ANTI_REBOND_RECHERCHE_MS = 200;
         @if (erreur(); as e) {
           <div data-erreur role="alert" class="erreur rounded-[4px] p-2 text-[11px] text-danger">{{ e }}</div>
         }
+        @if (avis(); as a) {
+          <div data-avis role="status" class="rounded-[4px] border-fin border-subtle p-2 text-[11px] text-secondary">{{ a }}</div>
+        }
         @if (chargement() && zones().length === 0) {
           <div data-etat class="p-4 text-[12px] text-tertiary">Chargement…</div>
         }
@@ -106,7 +115,10 @@ const ANTI_REBOND_RECHERCHE_MS = 200;
               [zone]="l.zone"
               [couleur]="l.couleur"
               [enCours]="l.enCours"
+              [recalculEnCours]="l.recalcul"
+              [indicateurs]="indicateurs()"
               [rang]="l.rang"
+              (recalculer)="recalculer(l.zone.id)"
               (afficher)="affichage.afficher(l.zone)"
               (masquer)="affichage.masquer(l.zone.id)"
               (supprimer)="aSupprimer.set(l.zone)"
@@ -127,6 +139,8 @@ const ANTI_REBOND_RECHERCHE_MS = 200;
 })
 export class MesZonesComponent {
   private readonly api = inject(ZonesCustomApi);
+  private readonly zonesApi = inject(ZonesApi);
+  private readonly catalogue = inject(CatalogueIndicateursService);
   private readonly exports = inject(ExportZoneService);
   protected readonly affichage = inject(ZonesCustomService);
 
@@ -144,18 +158,30 @@ export class MesZonesComponent {
   /** Les zones cochées, dans l'ORDRE de cochage (la première est la base d'une soustraction). */
   protected readonly selection = signal<string[]>([]);
   protected readonly aSupprimer = signal<ZoneCustomResume | null>(null);
-  /** Relecture demandée par ce composant (opération, suppression), en plus de `rafraichir`. */
+  /** Relecture demandée par ce composant (opération, suppression, recalcul), en plus de `rafraichir`. */
   private readonly relecture = signal(0);
+  /** Les zones dont le recalcul est en vol (une à la fois par zone : le second clic est ignoré). */
+  protected readonly recalculs = signal<ReadonlySet<string>>(new Set());
+  /** L'issue d'un recalcul réussi mais incomplet (207) : la zone est recalculée, ses codes postaux non résolus. */
+  protected readonly avis = signal<string | null>(null);
 
   /** Chaque carte avec ce qu'elle montre de l'affichage et de la sélection (aucune méthode appelée dans le gabarit). */
   protected readonly lignes = computed(() => {
     const couleurs = this.affichage.couleurs();
     const enCours = this.affichage.enCours();
     const selection = this.selection();
+    const recalculs = this.recalculs();
     return this.zones().map((zone) => ({
       zone, couleur: couleurs.get(zone.id) ?? null, enCours: enCours === zone.id, rang: selection.indexOf(zone.id),
+      recalcul: recalculs.has(zone.id),
     }));
   });
+  /**
+   * Le catalogue d'indicateurs, pour nommer un seuil sur territoires : lu UNE fois, et seulement quand un tel seuil
+   * est listé (aucune lecture à l'ouverture sinon — pas de préchargement, CLAUDE.md).
+   */
+  protected readonly indicateurs = signal<readonly IndicateurRegistre[]>([]);
+  private readonly seuilListe = computed(() => this.zones().some((z) => z.recette?.type === 'seuil_territoire'));
   protected readonly noms = computed(() => new Map(this.zones().map((z) => [z.id, z.name])));
   protected readonly stats = computed(() => {
     const s = this.statsBrutes();
@@ -174,13 +200,15 @@ export class MesZonesComponent {
     return [
       { id: null, libelle: 'Tous', mono: false, actif: actif === null },
       ...types.map((t) => {
-        const l = getSourceTypeLabel(t);
+        const l = libelleSource(t);
         return { id: t, libelle: l.label, mono: !l.isReadable, actif: actif === t };
       }),
     ];
   });
 
   private lecture: Subscription | null = null;
+  private lectureCatalogue: Subscription | null = null;
+  private readonly vols = new Map<string, Subscription>();
   private minuterie: ReturnType<typeof setTimeout> | undefined;
   private detruit = false;
 
@@ -200,10 +228,62 @@ export class MesZonesComponent {
       this.minuterie = setTimeout(() => untracked(() => this.charger(org, q, type)), q ? ANTI_REBOND_RECHERCHE_MS : 0);
     });
 
+    effect(() => {
+      if (!this.seuilListe() || this.lectureCatalogue) return;
+      this.lectureCatalogue = untracked(() => this.catalogue.charger().subscribe({
+        next: (liste) => this.indicateurs.set(liste),
+        // Sans catalogue, l'identifiant est affiché ; la prochaine liste qui porte un seuil relira.
+        error: () => { this.lectureCatalogue = null; },
+      }));
+    });
+
     inject(DestroyRef).onDestroy(() => {
       this.detruit = true;
       clearTimeout(this.minuterie);
       this.lecture?.unsubscribe();
+      this.lectureCatalogue?.unsubscribe();
+      for (const v of this.vols.values()) v.unsubscribe();
+    });
+  }
+
+  /**
+   * « Recalculer » (lot 3) : `POST /api/zones/[id]/recalculer`, une fois par zone à la fois. Réussite : liste relue, et
+   * la zone, si elle est affichée, est redessinée avec sa nouvelle forme. Un 207 est une RÉUSSITE (la forme est
+   * remplacée, seuls ses codes postaux n'ont pas été résolus) : il est dit, jamais renvoyé.
+   *
+   * Un échec est dit dans le bandeau (le message de la route : 409 « utilisée par un plan », 409 forme figée, 422…) et
+   * ne touche pas à la liste. En particulier un 404 peut venir d'une zone MEMBRE supprimée d'une combinaison, et non de
+   * la zone elle-même : on ne la retire donc pas de la liste sur la foi de ce statut.
+   */
+  protected recalculer(id: string): void {
+    if (this.recalculs().has(id)) return;
+    const zone = this.zones().find((z) => z.id === id);
+    this.recalculs.update((s) => new Set(s).add(id));
+    this.erreur.set(null);
+    this.avis.set(null);
+    this.vols.set(id, this.zonesApi.recalculer(id).subscribe({
+      next: (r) => {
+        this.retirerRecalcul(id);
+        if (r.status === 207) this.avis.set(`Zone « ${zone?.name ?? ''} » recalculée ; ses codes postaux n’ont pas pu être résolus.`);
+        if (zone && this.affichage.couleurs().has(id)) {
+          this.affichage.masquer(id);
+          this.affichage.afficher(zone);
+        }
+        this.relecture.update((n) => n + 1);
+      },
+      error: (e: { status?: number; error?: unknown }) => {
+        this.retirerRecalcul(id);
+        this.erreur.set(messageErreurZone(e));
+      },
+    }));
+  }
+
+  private retirerRecalcul(id: string): void {
+    this.vols.delete(id);
+    this.recalculs.update((s) => {
+      const c = new Set(s);
+      c.delete(id);
+      return c;
     });
   }
 
@@ -230,8 +310,10 @@ export class MesZonesComponent {
 
   /**
    * La suppression confirmée (`handleDelete`, `ZonesOverlay.tsx:301-308`) : la zone affichée quitte la carte, le
-   * dialogue se ferme, la liste est relue. Un échec reste dans le dialogue (« HTTP 409 » quand une stratégie ou un
-   * composite la référence encore, comme React).
+   * dialogue se ferme, la liste est relue. Un échec reste dans le dialogue. Le refus d'une zone CITÉE (409
+   * `zone_referencee`, sql/253 : stratégie, jeu de zones, composite, combinaison, périmètre d'une recette) porte un
+   * message français : il est affiché tel quel (React, et ce composant jusqu'au lot 3, disaient « HTTP 409 ») ; les
+   * autres échecs gardent le message par statut de React (« HTTP 404 »…).
    */
   protected readonly supprimer = async (): Promise<string | null> => {
     const zone = this.aSupprimer();
@@ -239,6 +321,8 @@ export class MesZonesComponent {
     try {
       await firstValueFrom(this.api.supprimer(zone.id));
     } catch (e) {
+      const corps = (e as { error?: { refus?: unknown; error?: unknown } } | null)?.error;
+      if (corps?.refus === 'zone_referencee' && typeof corps.error === 'string') return corps.error;
       return messageHttp(e, 'Échec de la suppression');
     }
     this.affichage.masquer(zone.id);

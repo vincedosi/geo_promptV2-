@@ -116,7 +116,8 @@ async function ouvrir(options: OptionsOuverture = {}) {
       { provide: MeteoApi, useValue: { donnees: () => of() } },
       { provide: IsochronesApi, useValue: {} },
       // Mes analyses (boîte à outils, T6) : la liste n'est lue qu'à l'ouverture de l'outil (inventaire, T7).
-      { provide: AnalysesApi, useValue: { lister: options.analyses ?? (() => of({ analyses: [] })) } },
+      // `indicateurs` : le catalogue que lit « Par seuil » de ③ (lot 3), dépliée par l'inventaire.
+      { provide: AnalysesApi, useValue: { lister: options.analyses ?? (() => of({ analyses: [] })), indicateurs: () => of({ indicators: [] }) } },
       { provide: ClusteringApi, useValue: {} },
       { provide: SitesRisqueApi, useValue: { carte: () => of(), exposition: () => of() } },
       { provide: CiviqueApi, useValue: { geojsonVariable: () => of(), detailCp: () => of(), zones: () => of(), santeDepartement: () => of(), santeCp: () => of(), santeCommune: () => of() } },
@@ -1425,6 +1426,15 @@ describe('CartePage — le bouton « Autres », hors du fil (T11b, Vincent 14/10
   });
 });
 
+/** Les familles de ③ (lot 3) et ce que chacune doit montrer une fois dépliée (« Autour des POI » l'est d'emblée). */
+const FAMILLES_RECETTES: readonly { famille: string; fonction: string; preuves: readonly string[] }[] = [
+  { famille: 'poi', fonction: 'Autour des POI (rayon d’un point, rayon des POI, renvoi vers ④)', preuves: ['mg-creer-rayon', 'mg-recette-rayon-poi', '[data-aller-analyse]'] },
+  { famille: 'seuil', fonction: 'Par seuil (carreaux, IRIS ou CP)', preuves: ['mg-recette-seuil-carreaux', 'mg-recette-seuil-territoire'] },
+  { famille: 'main', fonction: 'À la main (dessin, import, codes postaux)', preuves: ['mg-creer-dessin', 'mg-recette-import', 'mg-creer-codes-postaux'] },
+  { famille: 'capture', fonction: 'Capture', preuves: ['[data-capturer]'] },
+  { famille: 'pied', fonction: 'Aperçu et enregistrement', preuves: ['mg-pied-recette'] },
+];
+
 type Lieu = { autres?: true; etape?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8; outil?: 'analyses' | 'zones' | 'fond' | 'legende' | 'aide' | 'reglages' };
 interface LigneInventaire {
   n: number;
@@ -1459,6 +1469,8 @@ interface LigneInventaire {
  *   fil (T11b, Vincent 14/10) — ces lignes échouent si l'une des deux sections quitte ce panneau.
  * - 25-32. Les 8 référentiels de ② (T13) : une ligne chacun dans le panneau Données, qu'une sélection recommandée range
  *   mais ne cache jamais (« Plus de données communes ») ; leur section dépliée : `panneau-donnees.component.spec.ts`.
+ * - 33-37. Les familles de ③ (lot 3) ; 38. « Mes zones » : la ligne de recette et « Recalculer » sont prouvés par
+ *   `panneaux/zones/mes-zones.component.spec.ts` et `carte-zone.component.spec.ts` (la liste est lue du serveur).
  * Une ligne qui échoue veut dire qu'une fonction a été PERDUE : la rétablir, jamais retirer la ligne.
  */
 const INVENTAIRE: readonly LigneInventaire[] = [
@@ -1501,6 +1513,19 @@ const INVENTAIRE: readonly LigneInventaire[] = [
   ...JEUX_REFERENTIELS.map((j, i): LigneInventaire => ({
     n: 25 + i, fonction: `② › ${j.nom}`, lieu: { etape: 2 }, preuves: [`[data-panneau-etape="donnees"] [data-jeu="${j.cle}"]`],
   })),
+  // Lot 3 (zones à recette) : ③ par familles. Les créateurs d'avant (rayon, dessin, CP) y restent ; isochrones et
+  // bataille restent en ④ (C3, rien n'en est retiré) et ③ y renvoie.
+  ...FAMILLES_RECETTES.map((f, i): LigneInventaire => ({
+    n: 33 + i, fonction: `③ › ${f.fonction}`, lieu: { etape: 3 }, preuves: f.preuves.map((p) => `[data-panneau-etape="zones"] ${p}`),
+    apres: f.famille === 'poi' || f.famille === 'pied' ? undefined : async ({ hote, stable }) => {
+      hote.querySelector<HTMLElement>(`[data-panneau-etape="zones"] mg-entete-section[data-famille="${f.famille}"]`)!.click();
+      await stable();
+    },
+  })),
+  {
+    n: 38, fonction: '« Mes zones » › recette et « Recalculer »', lieu: { outil: 'zones' },
+    preuves: ['[data-tiroir-outil] mg-mes-zones'],
+  },
 ];
 
 describe('CartePage — aucune fonction perdue (spec § 12, lot 1)', () => {
