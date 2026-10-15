@@ -73,7 +73,7 @@ export class CarteHoteComponent {
   /**
    * Recrée la page. Si le focus était DANS l'ancienne page (le badge d'espace, d'où part le changement), il est rendu
    * au badge d'espace de la nouvelle — l'élément que l'utilisateur vient de manier — plutôt qu'à l'hôte de la page
-   * (son repli d'ouverture, `rendreFocus` de `CartePage`) : au clavier, on reprend là où l'on était.
+   * (son repli d'ouverture, `rendreFocus` de `logique/focus-retour.ts`) : au clavier, on reprend là où l'on était.
    */
   private recreer(): void {
     const hote = this.hote.nativeElement;

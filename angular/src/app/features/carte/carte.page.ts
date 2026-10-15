@@ -1,6 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, DOCUMENT, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, output, signal,
-  untracked, viewChild,
+  ChangeDetectionStrategy, Component, DOCUMENT, DestroyRef, ElementRef, Injector, computed, effect, inject, output, signal, viewChild,
 } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import type maplibregl from 'maplibre-gl';
@@ -48,6 +47,7 @@ import { ReferentielGeoService } from './etat/referentiel-geo.service';
 import { ContoursZonesService } from './etat/contours-zones.service';
 import { RisqueCarteService } from './etat/risque-carte.service';
 import { LegendeCarteComponent } from './legende/legende-carte.component';
+import { rendreFocusALaFermeture, rendreFocusApresGeste } from './logique/focus-retour';
 import { ignorerRaccourciClavier } from './logique/garde-saisie';
 import { franciserLibelles } from './logique/libelles-fr';
 import { ETAPES_CARTE, etapeParRaccourci, etapesDuFil, lireEtape, precisionDuPerimetre, segmentsDuFiltre } from './logique/parcours';
@@ -250,28 +250,18 @@ export class CartePage {
     });
 
     // Un élément qui portait le focus et se retire (détail IRIS, tiroir Street View d'un panneau, dialogue météo) le
-    // laisserait sur <body> du document — hors de l'unique écouteur clavier (B10) : Alt+1..7 et Échap ne répondraient plus.
-    this.rendreFocusALaFermeture(() => this.iris.codeSelectionne() !== null);
-    this.rendreFocusALaFermeture(() => this.pois.panneauSelectionne() !== null);
-    this.rendreFocusALaFermeture(this.meteo.dialogueOuvert);
-    // Le module risque (T13) : il portait le focus, il disparaît avec l'outlet. Le tiroir de la boîte à outils (T5) : inerte.
-    this.rendreFocusALaFermeture(this.moduleOuvert);
-    this.rendreFocusALaFermeture(() => this.outils.outil() !== null);
-
-    // Le focus sur l'hôte à l'ouverture (sans lui, aucun raccourci ne l'atteint avant le premier clic), puis après
-    // chaque geste qui CACHE ce qui le portait : l'étape quittée devient inerte, le panneau replié et la barre de
-    // l'immersif disparaissent — le bouton cliqué, ou le champ du panneau quitté, ne peut plus le garder. Seulement si
-    // le focus était DANS la page au moment du geste (relevé avant le rendu) : un `?etape=` écrit de l'extérieur
-    // pendant que le focus est dans le shell AIDA ne le lui vole pas (relecture T4, m3).
-    let ouverture = true;
-    effect(() => {
+    // laisserait sur <body> du document — hors de l'unique écouteur clavier (B10) : Alt+1..8 et Échap ne répondraient plus.
+    // Le module risque (T13) disparaît avec l'outlet ; le tiroir de la boîte à outils (T5) devient inerte.
+    const hote = this.hote.nativeElement;
+    for (const ouvert of [() => this.iris.codeSelectionne() !== null, () => this.pois.panneauSelectionne() !== null,
+      this.meteo.dialogueOuvert, this.moduleOuvert, () => this.outils.outil() !== null]) {
+      rendreFocusALaFermeture(hote, this.injecteur, ouvert);
+    }
+    // À l'ouverture, puis après chaque geste qui CACHE ce qui portait le focus (`logique/focus-retour.ts`).
+    rendreFocusApresGeste(hote, this.injecteur, () => {
       this.parcours.vue();
       this.panneauReplie();
       this.etat.immersif();
-      const actif = untracked(() => this.elementActif());
-      const dansLaPage = ouverture || (!!actif && this.hote.nativeElement.contains(actif));
-      ouverture = false;
-      if (dansLaPage) afterNextRender(() => this.rendreFocus(), { injector: this.injecteur });
     });
   }
 
@@ -341,32 +331,6 @@ export class CartePage {
 
   protected zoomChange(z: number): void {
     this.zoom.set(z);
-  }
-
-  /** À chaque passage de `ouvert` de vrai à faux, le focus revient à l'hôte s'il n'est plus dans la page. */
-  private rendreFocusALaFermeture(ouvert: () => boolean): void {
-    let etaitOuvert = false;
-    effect(() => {
-      const o = ouvert();
-      if (etaitOuvert && !o) afterNextRender(() => this.rendreFocus(), { injector: this.injecteur });
-      etaitOuvert = o;
-    });
-  }
-
-  /** L'élément focalisé, lu dans la racine qui porte la page (`document.activeElement` y serait l'hôte d'ombre). */
-  private elementActif(): Element | null {
-    return (this.hote.nativeElement.getRootNode() as Document | ShadowRoot).activeElement;
-  }
-
-  /**
-   * Rend le focus à l'hôte s'il n'est plus nulle part dans la page (élément retiré pendant qu'il le portait), ou s'il
-   * est resté sur un élément devenu inatteignable : dans l'étape quittée (`inert`) ou dans le panneau caché.
-   */
-  private rendreFocus(): void {
-    const el = this.hote.nativeElement;
-    const actif = this.elementActif();
-    const cache = !!actif && actif !== el && (actif.closest('[inert]') !== null || getComputedStyle(actif).visibility === 'hidden');
-    if (!actif || !el.contains(actif) || cache) el.focus({ preventScroll: true });
   }
 
   /**
