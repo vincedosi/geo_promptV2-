@@ -38,16 +38,22 @@ describe('PanneauAutresComponent (T11b, Vincent 14/10)', () => {
   it('en-tête en bandeau (fond surélevé, filet haut, dot teal), puis la ligne tertiaire qui dit pourquoi c’est hors du fil', async () => {
     const { el, rendre } = monter();
     await rendre();
-    const entete = el.querySelector('[data-entete-autres]')!;
-    for (const c of ['bg-elevated', 'border-t', 'border-subtle', 'px-[14px]', 'py-[10px]', 'flex', 'items-center', 'gap-2']) {
-      expect(entete.classList, c).toContain(c);
-    }
-    const dot = entete.querySelector('[data-dot]')!;
-    for (const c of ['size-1.5', 'rounded-full', 'bg-teal']) expect(dot.classList, c).toContain(c);
-    expect(dot.getAttribute('aria-hidden')).toBe('true');
-    const titre = entete.querySelector('h2')!;
+    // Le bandeau PARTAGÉ (`mg-entete-section`, F1 de la revue finale), sous un h2 : un titre de niveau 2 pour les
+    // lecteurs d'écran, dont le nom est le libellé.
+    const titre = el.querySelector('h2[data-entete-autres]')!;
+    expect(titre).not.toBeNull();
+    expect(titre.classList).toContain('m-0');
     expect(titre.textContent!.trim()).toBe('Médias offline');
-    for (const c of ['text-[12px]', 'font-medium', 'text-primary']) expect(titre.classList, c).toContain(c);
+    const entete = titre.querySelector('mg-entete-section')!;
+    expect(entete).not.toBeNull();
+    for (const c of ['bg-elevated', 'border-t', 'border-subtle', 'flex', 'items-center', 'gap-2']) expect(entete.classList, c).toContain(c);
+    // Non repliable : ni bouton ni focus, rien qui masque le titre.
+    expect(entete.getAttribute('role')).toBeNull();
+    expect(entete.getAttribute('tabindex')).toBeNull();
+    const dot = entete.querySelector('span')!;
+    for (const c of ['rounded-full', 'bg-teal']) expect(dot.classList, c).toContain(c);
+    // Plus d'en-tête recopié à la main dans le panneau.
+    expect(el.querySelector('[data-dot]')).toBeNull();
     const texte = el.querySelector('[data-texte-autres]')!;
     expect(texte.textContent!.trim()).toBe(TEXTE_AUTRES);
     expect(TEXTE_AUTRES).toBe('Ces données s’affichent sur la carte mais ne servent pas encore à construire des zones.');
