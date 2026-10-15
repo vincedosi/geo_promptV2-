@@ -1905,6 +1905,8 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 
 ## Fonctions RPC PostGIS
 
+> **Sources rapatriées (sql/252, 2026-10-14)** : `get_carreaux_capture_geometry`, `get_carreaux_by_zoom`, `get_admin_filter_geometry`, `get_iris_selection_geometry`, `resolve_custom_geo_zone_codes` (deux surcharges `(uuid)` et `(uuid, uuid)`), `resolve_custom_geo_zone_codes_with_subzones`, `transform_geometries_for_save` et `compute_zone_audience_stats` n'existaient que dans la base locale et son dump ; `sql/252_rapatriement_rpc_zones.sql` en est la source versionnée, copiée à l'identique par `pg_get_functiondef` (droits compris, PUBLIC pour `get_carreaux_by_zoom`), sans aucune correction. Verrou : `tests/unit/db/rpc-chemin-zones-sources.test.ts`.
+
 ### Isochrones & Bataille (NE PAS MODIFIER)
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
