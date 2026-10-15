@@ -4,7 +4,8 @@
  * recette, elle a son propre champ dans les routes).
  *
  * Une combinaison : l'intersection se fait entre EXACTEMENT deux zones ; l'union et la différence entre deux zones au
- * moins (`get_composite_zone_geometry` lève sous deux) ; une zone n'y figure qu'une fois.
+ * moins (`get_composite_zone_geometry` lève sous deux) ; une zone n'y figure qu'une fois. Tout UUID (zones d'une
+ * combinaison, périmètre « zone ») sort en minuscules — le même UUID en deux casses est donc un doublon.
  *
  * ⚠ `RecetteSchema` est un `ZodEffects` (le `superRefine` de l'intersection), PAS une `ZodDiscriminatedUnion` : il
  * ne s'imbrique pas dans une autre `discriminatedUnion` et n'a pas de `.options`. Pour cela, prendre
@@ -19,9 +20,12 @@ import {
   SEUIL_CARREAUX_MAX, SEUIL_TERRITOIRE_MAX_ABS, TYPES_PERIMETRE, type Recette,
 } from './recette';
 
-const Uuid = z.string().uuid();
+// Tout UUID cité sort en MINUSCULES : `zone_referencee` (sql/253) le compare en texte jsonb, et un UUID en majuscules
+// lui échapperait — une zone citée par une combinaison serait alors recalculable sous le plan qui l'achète.
+const Uuid = z.string().uuid().transform((s) => s.toLowerCase());
 const Perimetre = z.object({ type: z.enum(TYPES_PERIMETRE), code: z.string().min(1).max(64) }).strict()
   .refine((p) => p.type !== 'zone' || Uuid.safeParse(p.code).success, { message: 'le code d’une zone doit être un UUID', path: ['code'] })
+  .transform((p) => (p.type === 'zone' ? { ...p, code: p.code.toLowerCase() } : p))
   .nullable();
 const Operateur = z.enum(['>=', '<=']);
 const IDS_CARREAUX = INDICATEURS_SEUIL_CARREAUX.map((i) => i.id) as [string, ...string[]];

@@ -19,11 +19,25 @@
 -- zone_referencee : qui cite une zone (stratégie de bidding, jeu de zones miroir, composite React, combinaison, recette
 --   qui la prend pour PÉRIMÈTRE). Appelée par la route de recalcul AVANT de lancer le calcul (une zone citée ne paie
 --   pas un calcul lourd pour recevoir un 409), puis refaite sous verrou par remplacer_geometrie_zone.
+--   « composite » couvre AUSSI l'intersection et la différence de « Mes zones » (React et Angular) : elles s'écrivent
+--   par /api/custom-geo/save avec source_type 'intersection' / 'difference' mais le même source_metadata.member_zone_ids,
+--   et le test `@>` ne regarde pas source_type.
+--   Les UUID sont comparés en TEXTE jsonb : creer_zone_recette les range en minuscules (et lireRecette aussi, côté
+--   route), sans quoi « 3F25… » échapperait à `@> jsonb_build_array(p_zone_id)` (revue T3).
 --   Non vérifié, assumé : campaign_plan_snapshot.zone_id (texte, vide au 14/10) — l'instantané fige des CP, pas la forme.
 --   Au lot 5, zone_sets généralisé aura une zone SOURCE : cette fonction devra la lire.
--- creer_zone_recette : create_custom_geo_zone (sql/247 : validation, réparation, ST_Multi) PUIS la recette et l'auteur,
---   dans la MÊME transaction — une recette refusée par le CHECK n'écrit aucune zone.
+-- creer_zone_recette : refuse une recette qui cite une zone hors de l'espace p_org_id (zones d'une combinaison →
+--   {refus: 'zone_introuvable'} ; périmètre « zone » → {refus: 'perimetre_inconnu'}, clés de MESSAGES_REFUS), PUIS
+--   create_custom_geo_zone (sql/247 : validation, réparation, ST_Multi), PUIS la recette (UUID en minuscules) et
+--   l'auteur, dans la MÊME transaction — une recette refusée par le CHECK n'écrit aucune zone.
 -- remplacer_geometrie_zone : le recalcul (A-2). Verrou FOR UPDATE sur la ligne, zone_referencee refaite sous ce verrou.
+--   ⚠ Fenêtre restante, assumée : le verrou porte sur la ligne de la zone RECALCULÉE, pas sur celles qui la citent. Un
+--   creer_zone_recette concurrent (combinaison ou périmètre qui la cite) qui s'engage entre la vérification et l'UPDATE
+--   n'est pas vu (lecture READ COMMITTED) : la nouvelle zone cite alors une forme qui vient de changer. Petite (deux
+--   requêtes de ~1 ms), et sans achat en jeu : une stratégie (bidding_strategies) se rattache par une route distincte,
+--   lente, après coup. La fermer demanderait un verrou consultatif par zone, pris aussi par creer_zone_recette.
+--   Les codes (custom_geo_zone_codes), sous-zones et compteurs de l'ancienne forme sont effacés dans la même
+--   transaction : la route les re-résout juste après (resolve_custom_geo_zone_codes).
 -- Droits : service_role seul (les routes passent par createAdminClient). Rejouable. Aucun DROP.
 
 begin;
@@ -105,8 +119,10 @@ begin
       end if;
     when 'zone' then
       -- plpgsql et non sql : un cast ::uuid d'un code invalide lèverait, même derrière un CASE replié à la planification.
-      if p_code ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
-        select z.geometry into g from public.custom_geo_zones z where z.id = p_code::uuid and z.org_id = p_org_id;
+      -- lower() : un UUID en majuscules désigne la même zone (revue T3).
+      if lower(trim(p_code)) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+        select z.geometry into g from public.custom_geo_zones z
+         where z.id = lower(trim(p_code))::uuid and z.org_id = p_org_id;
       end if;
     else
       g := null;
@@ -152,11 +168,40 @@ set search_path to 'public', 'pg_catalog'
 as $fn$
 declare
   v_id uuid;
+  v_recette jsonb := p_recette;
+  v_uuid constant text := '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
 begin
+  -- Les zones CITÉES : rangées en minuscules (zone_referencee compare en texte jsonb), et toutes de l'espace p_org_id.
+  -- Un id mal formé ou d'un autre espace est « introuvable » : on ne dit pas qu'il existe ailleurs.
+  if jsonb_typeof(v_recette->'zones') = 'array' then
+    v_recette := jsonb_set(v_recette, '{zones}', coalesce(
+      (select jsonb_agg(lower(x) order by n) from jsonb_array_elements_text(v_recette->'zones') with ordinality e(x, n)),
+      '[]'::jsonb));
+    if exists (
+      select 1 from jsonb_array_elements_text(v_recette->'zones') e(x)
+       where not exists (select 1 from public.custom_geo_zones z
+                          where z.id = (case when x ~ v_uuid then x::uuid end) and z.org_id = p_org_id)
+    ) then
+      return jsonb_build_object('refus', 'zone_introuvable');
+    end if;
+  end if;
+  if v_recette->'perimetre'->>'type' = 'zone' then
+    -- coalesce : jsonb_set(…, NULL) rendrait NULL et effacerait la recette entière ; un code absent reste refusé.
+    v_recette := jsonb_set(v_recette, '{perimetre,code}',
+                           coalesce(to_jsonb(lower(trim(v_recette->'perimetre'->>'code'))), 'null'::jsonb));
+    if not exists (
+      select 1 from public.custom_geo_zones z
+       where z.id = (case when v_recette->'perimetre'->>'code' ~ v_uuid then (v_recette->'perimetre'->>'code')::uuid end)
+         and z.org_id = p_org_id
+    ) then
+      return jsonb_build_object('refus', 'perimetre_inconnu');
+    end if;
+  end if;
+
   v_id := public.create_custom_geo_zone(
-    p_nom, null, p_org_id, 'recette_' || coalesce(p_recette->>'type', 'inconnue'), '{}'::jsonb, p_geometry_geojson
+    p_nom, null, p_org_id, 'recette_' || coalesce(v_recette->>'type', 'inconnue'), '{}'::jsonb, p_geometry_geojson
   );
-  update public.custom_geo_zones set recette = p_recette, created_by = p_cree_par where id = v_id;
+  update public.custom_geo_zones set recette = v_recette, created_by = p_cree_par where id = v_id;
   return jsonb_build_object('id', v_id);
 end
 $fn$;
@@ -193,8 +238,13 @@ begin
     raise exception 'geometrie sans surface' using errcode = '22023';
   end if;
 
+  -- Les codes et sous-zones de l'ANCIENNE forme ne la décrivent plus : effacés ici, re-résolus par la route juste après.
+  -- Codes d'abord (leur subzone_id passerait sinon à NULL par ON DELETE SET NULL avant d'être supprimés).
+  delete from public.custom_geo_zone_codes where zone_id = p_zone_id;
+  delete from public.custom_geo_zone_subzones where zone_id = p_zone_id;
   update public.custom_geo_zones
      set geometry = ST_Multi(v_geom), resolved_at = null,
+         feature_count_cp = 0, feature_count_iris = 0,
          audience_stats = '{}'::jsonb, audience_computed_at = null,
          items_audience_stats = null, items_audience_computed_at = null
    where id = p_zone_id;

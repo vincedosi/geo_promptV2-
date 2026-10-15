@@ -79,4 +79,19 @@ describe('lireRecette (Zod)', () => {
   it('accepte une recette complète', () => {
     expect(lireRecette({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 5000, perimetre: PER }).ok).toBe(true);
   });
+
+  // `zone_referencee` compare des UUID en texte jsonb : un UUID en majuscules lui échapperait (revue de la Task 3).
+  it('range tout UUID en minuscules : zones d’une combinaison et périmètre « zone »', () => {
+    const A = '3F2504E0-4F89-11D3-9A0C-0305E82C3301';
+    const B = '3F2504E0-4F89-11D3-9A0C-0305E82C3302';
+    const c = lireRecette({ v: 1, type: 'combinaison', operation: 'union', zones: [A, B] });
+    expect(c.ok && c.recette.type === 'combinaison' && c.recette.zones).toEqual([A.toLowerCase(), B.toLowerCase()]);
+    const p = lireRecette({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 500, perimetre: { type: 'zone', code: A } });
+    expect(p.ok && p.recette.type === 'rayon_poi' && p.recette.perimetre).toEqual({ type: 'zone', code: A.toLowerCase() });
+    // Un code de commune n'est PAS touché (`2a004` est résolu en base).
+    const q = lireRecette({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 500, perimetre: { type: 'commune', code: 'Martigues' } });
+    expect(q.ok && q.recette.type === 'rayon_poi' && q.recette.perimetre).toEqual({ type: 'commune', code: 'Martigues' });
+    // Le même UUID en deux casses est un doublon.
+    expect(lireRecette({ v: 1, type: 'combinaison', operation: 'union', zones: [A, A.toLowerCase()] }).ok).toBe(false);
+  });
 });

@@ -45,6 +45,30 @@ describe('creer_zone_recette', () => {
     const apres = await admin.from('custom_geo_zones').select('id', { count: 'exact', head: true }).eq('org_id', org);
     expect(apres.count).toBe(avant.count);
   });
+  it('une recette qui cite une zone d’un AUTRE espace est refusée, et rien n’est écrit', async () => {
+    const etrangere = ((await creer(RECETTE, autreOrg)).data as { id: string }).id;
+    const mienne = ((await creer()).data as { id: string }).id;
+    const avant = await admin.from('custom_geo_zones').select('id', { count: 'exact', head: true }).eq('org_id', org);
+    expect((await creer({ v: 1, type: 'combinaison', operation: 'union', zones: [mienne, etrangere] })).data)
+      .toEqual({ refus: 'zone_introuvable' });
+    expect((await creer({ v: 1, type: 'combinaison', operation: 'union', zones: [mienne, '3f2504e0-4f89-11d3-9a0c-0305e82c3301'] })).data)
+      .toEqual({ refus: 'zone_introuvable' });
+    expect((await creer({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 1000, perimetre: { type: 'zone', code: etrangere } })).data)
+      .toEqual({ refus: 'perimetre_inconnu' });
+    const apres = await admin.from('custom_geo_zones').select('id', { count: 'exact', head: true }).eq('org_id', org);
+    expect(apres.count).toBe(avant.count);
+  });
+  it('les UUID cités sont rangés en minuscules (sinon zone_referencee ne les verrait pas)', async () => {
+    const a = ((await creer()).data as { id: string }).id;
+    const b = ((await creer()).data as { id: string }).id;
+    const c = ((await creer({ v: 1, type: 'combinaison', operation: 'union', zones: [a.toUpperCase(), b.toUpperCase()] })).data as { id: string }).id;
+    const p = ((await creer({ v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre: { type: 'zone', code: b.toUpperCase() } })).data as { id: string }).id;
+    const { data: lignes } = await admin.from('custom_geo_zones').select('id, recette').in('id', [c, p]);
+    const parId = new Map((lignes ?? []).map((l) => [l.id, l.recette as Record<string, unknown>]));
+    expect(parId.get(c)?.zones).toEqual([a, b]);
+    expect((parId.get(p)?.perimetre as { code: string }).code).toBe(b);
+    expect((await admin.rpc('zone_referencee', { p_zone_id: a })).data).toBe('combinaison');
+  });
 });
 
 describe('resoudre_perimetre', () => {
@@ -89,6 +113,7 @@ describe('resoudre_perimetre', () => {
     expect((await lu('zone', autre)).refus).toBe('perimetre_inconnu');
     const mienne = ((await creer()).data as { id: string }).id;
     expect((await lu('zone', mienne)).refus).toBeNull();
+    expect((await lu('zone', mienne.toUpperCase())).refus).toBeNull();
     expect((await lu('zone', mienne, TOUS, 1)).refus).toBe('perimetre_trop_grand');
   });
 });
@@ -112,6 +137,23 @@ describe('remplacer_geometrie_zone', () => {
     expect(data).toEqual({ remplace: true });
     const { data: z } = await admin.from('custom_geo_zones').select('audience_stats, resolved_at').eq('id', id).single();
     expect(z).toEqual({ audience_stats: {}, resolved_at: null });
+  });
+  it('efface les codes, les sous-zones et les compteurs de l’ancienne forme (les routes les re-résolvent ensuite)', async () => {
+    const id = ((await creer()).data as { id: string }).id;
+    const { data: sz, error: e1 } = await admin.from('custom_geo_zone_subzones')
+      .insert({ zone_id: id, name: 'Sous-zone', geometry: 'SRID=4326;MULTIPOLYGON(((5.36 43.29,5.40 43.29,5.40 43.32,5.36 43.32,5.36 43.29)))' })
+      .select('id').single();
+    expect(e1).toBeNull();
+    const { error: e2 } = await admin.from('custom_geo_zone_codes').insert({ zone_id: id, code_type: 'cp', code: '13001', subzone_id: sz?.id });
+    expect(e2).toBeNull();
+    await admin.from('custom_geo_zones').update({ feature_count_cp: 3, feature_count_iris: 12 }).eq('id', id);
+    const { data } = await admin.rpc('remplacer_geometrie_zone', { p_zone_id: id, p_org_id: org, p_geometry_geojson: CARRE });
+    expect(data).toEqual({ remplace: true });
+    const codes = await admin.from('custom_geo_zone_codes').select('code', { count: 'exact', head: true }).eq('zone_id', id);
+    const sous = await admin.from('custom_geo_zone_subzones').select('id', { count: 'exact', head: true }).eq('zone_id', id);
+    expect([codes.count, sous.count]).toEqual([0, 0]);
+    const { data: z } = await admin.from('custom_geo_zones').select('feature_count_cp, feature_count_iris').eq('id', id).single();
+    expect(z).toEqual({ feature_count_cp: 0, feature_count_iris: 0 });
   });
   it('une zone prise pour périmètre par une autre recette : refus « perimetre »', async () => {
     const z = ((await creer()).data as { id: string }).id;
