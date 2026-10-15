@@ -33,7 +33,8 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   `ParcoursService` (`replaceUrl`, `merge`) ; ① n'est pas écrite. Pas un tunnel : chaque étape reste ouverte.
   `?etape=` porte un IDENTIFIANT (`perimetre`, `donnees`, `zones`, `analyse`, `jeu`, `plan`, `activation`, `live`),
   jamais un numéro : les liens d'avant le passage à 8 étapes restent valides, et il n'y a pas d'alias numérique.
-  Le fil est COMPACT (`[compact]="true"`, conteneur `@container`) : une ligne par étape, et sous 630 px de conteneur (« Autres » compris ; `nav` compact sans écart, T11b)
+  Le fil est COMPACT (`[compact]="true"`, conteneur `@container`) : une ligne par étape, et sous 640 px de conteneur (« Autres » compris ; `nav` compact sans écart, T11b ; 640 et non 630 depuis
+  que ④ peut s'allumer, T14 : au pire, ①, ② et ④ renseignées, le conteneur demande 635 px)
   les étapes non courantes se replient en numéro (libellé en `sr-only` et en infobulle) — 1 440 px tout lisible (fil d'Ariane « France entière », badge super_admin long compris), 1 280 px replié.
 - **« Autres »** (T11b, Vincent 14/10) : un bouton de la barre, juste après le fil et séparé de lui par un filet — au
   niveau des étapes mais HORS du parcours : ni numéro, ni `Alt+N`, hors de la liste `nav` des étapes (« Autres, hors
@@ -55,8 +56,27 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   sans lien : React n'a rien d'équivalent hors du module risque. ⑥-⑧ aussi, avec un lien vers l'écran React si
   `urlApplicationReact` est posé. Les outils de ③ et ④ n'ont pas bougé : rayons et isochrones comme types de zone de
   ③, couverture par territoire dans ④, c'est aux lots 4-5.
+- **La pastille « renseignée »** d'une étape (`etatsEtapes`, `logique/parcours.ts`, table `RENSEIGNEE_PAR`) : ① un
+  filtre posé, ② un jeu de ② affiché (`DonneesAfficheesService`, la même source que les pastilles des lignes ; ni OOH
+  ni radio), ④ le score composite OU les zones à risque sur la carte (T14). Les autres étapes ne s'allument pas encore.
 - **Aucune fonction perdue** : le describe « aucune fonction perdue (spec § 12, lot 1) » de `carte.page.spec.ts`
   (`INVENTAIRE`) dit où vit chaque fonction de l'ancienne carte. Une ligne rouge = une fonction perdue : la rétablir.
+
+## ② Données : les jeux rangés (lot 2, 2026-10-14)
+
+- **Le panneau** `mg-panneau-donnees` remplace l'ancien « Calques » : « Actifs (n) », les actions POI, « Chercher un
+  jeu », « Données de l'espace » (ses types de POI, ou « Cet espace n'a importé aucune donnée. »), « Données
+  communes » (la sélection recommandée de l'espace) et, replié, « Plus de données communes (n) ». Sans sélection — ou
+  une sélection qui ne désigne aucun jeu présent — tout est déplié et le repli n'existe pas.
+- **Les jeux** : `logique/jeux-carte.ts` (registre, copie de `lib/carte/jeux-carte.ts`) — 8 référentiels communs (IRIS,
+  carreaux, indicateurs CP, transport, TMJA, ICPE et PPRT, santé, météo) plus les types de POI ; OOH et radio vivent
+  dans `JEUX_AUTRES`, jamais dans ②. `logique/rangement-jeux.ts` les range ; la recherche filtre APRÈS le rangement.
+- **La ligne** `mg-ligne-jeu` : nom, nature · maille, pastille « affiché », puis une case (type de POI — « Afficher
+  les POI » reste un geste) ou un chevron qui déplie la section `integre` (en-tête masqué, contenu ouvert), instanciée
+  seulement dépliée.
+- **Ce que la première visite lit** : `GET /api/map/categories` et `GET /api/map/jeux-recommandes`, rien d'autre —
+  aucun calque ni tuile avant un geste. La sélection se règle dans Accès › fiche espace › Données
+  (`mg-jeux-recommandes`) ; une recommandation range, elle ne donne ni ne retire aucun droit.
 
 ## Cycle de vie d'une couche
 
