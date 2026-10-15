@@ -8378,6 +8378,18 @@ export type Database = {
         Args: { p_lat: number; p_lon: number; p_rayon_m: number }
         Returns: Json
       }
+      zone_rayon_poi: {
+        Args: {
+          p_categorie: string
+          p_max_poi?: number
+          p_org_id: string
+          p_perimetre_code: string
+          p_perimetre_type: string
+          p_rayon_m: number
+          p_sources: string[]
+        }
+        Returns: Json
+      }
       zone_referencee: { Args: { p_zone_id: string }; Returns: string }
       zone_set_cp_geo: {
         Args: { p_bbox?: number[]; p_limite?: number; p_zone_set_id: string }
