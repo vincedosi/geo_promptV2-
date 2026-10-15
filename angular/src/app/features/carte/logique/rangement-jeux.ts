@@ -8,6 +8,7 @@
  * `JEUX_REFERENTIELS` et les types de POI y sont rangés. Un type de POI passe par `cleJeuPoi`, comme la liste
  * recommandable d'Accès (T10, AT-10) : une catégorie dont la clé serait refusée par la base n'est pas un jeu.
  */
+import { plierTexte } from '../../../core/format/texte';
 import type { TypePoi } from '../etat/catalogue-poi.service';
 import { CATEGORIES_HORS_POI, JEUX_REFERENTIELS, type NatureJeu, cleJeuPoi } from './jeux-carte';
 
@@ -53,11 +54,8 @@ export function rangerJeux(jeux: readonly JeuAffichable[], recommandes: readonly
   return { espace, recommandes: reco, autres: communs.filter((j) => !choisis.has(j.cle)), sansSelection: false };
 }
 
-/** Sans casse ni accents (diacritiques combinants U+0300–U+036F retirés après décomposition). */
-const plier = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-
-/** « Chercher un jeu par nom » (spec § 4 ②) : sans casse ni accents ; une recherche vide rend tout. */
+/** « Chercher un jeu par nom » (spec § 4 ②) : sans casse ni accents (`plierTexte`) ; une recherche vide rend tout. */
 export function filtrerJeux(jeux: readonly JeuAffichable[], recherche: string): JeuAffichable[] {
-  const q = plier(recherche);
-  return q === '' ? [...jeux] : jeux.filter((j) => plier(j.nom).includes(q));
+  const q = plierTexte(recherche);
+  return q === '' ? [...jeux] : jeux.filter((j) => plierTexte(j.nom).includes(q));
 }
