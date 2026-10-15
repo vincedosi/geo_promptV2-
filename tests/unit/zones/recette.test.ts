@@ -45,10 +45,29 @@ describe('la recette d’une zone', () => {
     expect(refusPerimetreLocal({ v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre: region })).toBeNull();
   });
 
-  it('PERIMETRES_ADMIS est la liste écrite dans la RPC du seuil sur carreaux', () => {
-    const sql = migration(/_zone_seuil_carreaux\.sql$/);
-    if (sql === undefined) return; // la migration arrive en Task 5 : retirer CETTE ligne la rend stricte
-    expect(sql).toContain(`array[${(PERIMETRES_ADMIS.seuil_carreaux ?? []).map((t) => `'${t}'`).join(', ')}]`);
+  const liste = (type: 'rayon_poi' | 'seuil_carreaux' | 'seuil_territoire') =>
+    `array[${(PERIMETRES_ADMIS[type] ?? []).map((t) => `'${t}'`).join(', ')}]`;
+
+  it('PERIMETRES_ADMIS est la liste écrite dans les RPC du rayon POI et du seuil sur carreaux', () => {
+    for (const [type, suffixe] of [
+      ['rayon_poi', /_zone_rayon_poi\.sql$/],
+      ['seuil_carreaux', /_zone_seuil_carreaux\.sql$/],
+    ] as const) {
+      const sql = migration(suffixe);
+      expect(sql, `migration ${suffixe}`).toBeDefined();
+      expect(sql, type).toContain(liste(type));
+    }
+  });
+
+  it('PERIMETRES_ADMIS est la liste écrite dans la RPC du seuil sur territoires (Task 6)', () => {
+    const sql = migration(/_zone_seuil_territoire\.sql$/);
+    // TODO Task 6 : la migration *_zone_seuil_territoire.sql n'existe pas encore. Remplacer ce `if` par
+    // `expect(sql, 'migration *_zone_seuil_territoire.sql').toBeDefined()` dans le commit qui la crée.
+    if (sql === undefined) {
+      expect(readdirSync('sql').some((n) => n.includes('seuil_territoire'))).toBe(false);
+      return;
+    }
+    expect(sql).toContain(liste('seuil_territoire'));
   });
 
   it('un message français pour chaque refus', () => {
