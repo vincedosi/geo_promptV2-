@@ -39,8 +39,8 @@ interface ReponseRpc {
   part_retenue?: number | null; population?: number | null; refus?: string;
 }
 
-/** Ce que rend un appel `supabase.rpc(…)` une fois attendu — seuls `data` et `error.message` sont lus. */
-type RequeteRpc = PromiseLike<{ data: unknown; error: { message: string } | null }>;
+/** Ce que rend un appel `supabase.rpc(…)` une fois attendu — seuls `data`, `error.message` et `error.code` sont lus. */
+type RequeteRpc = PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
 
 const ECHEC: IssueRecette = { ok: false, statut: 500, refus: null, message: 'Calcul de la zone impossible.' };
 
@@ -108,6 +108,13 @@ async function lire(nom: string, requete: RequeteRpc): Promise<IssueRecette> {
   const { data, error } = await requete;
   if (error) {
     console.error(`[zones/recette] ${nom} :`, error.message);
+    // 22023 (`invalid_parameter_value`) : les RPC de recette lèvent ce code sur un argument hors contrat (opérateur,
+    // seuil NULL, plafond) — c'est la requête qui est fausse, pas le serveur.
+    if (error.code === '22023') return invalide('Paramètres de calcul invalides.');
+    // `get_composite_zone_geometry` (sql/100) LÈVE au lieu de rendre `vide` quand les zones n'ont aucune géométrie.
+    if (nom === 'get_composite_zone_geometry' && error.code === 'P0001' && error.message.includes('aucune geometrie trouvee')) {
+      return refuser('forme_vide', 409);
+    }
     return ECHEC;
   }
   return issue(nom, lireReponse(data));
@@ -160,9 +167,39 @@ export async function executerRecette(supabase: ClientAdmin, recette: Recette, c
   }
 }
 
+function estPosition(p: unknown): p is [number, number] {
+  return Array.isArray(p) && p.length === 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]);
+}
+
+/** Un anneau GeoJSON : ≥ 4 positions de deux nombres finis, la dernière égale à la première. */
+function anneauValide(a: unknown): boolean {
+  if (!Array.isArray(a) || a.length < 4 || !a.every(estPosition)) return false;
+  const premier = a[0] as [number, number];
+  const dernier = a[a.length - 1] as [number, number];
+  return premier[0] === dernier[0] && premier[1] === dernier[1];
+}
+
+function polygoneValide(anneaux: unknown): boolean {
+  return Array.isArray(anneaux) && anneaux.length > 0 && anneaux.every(anneauValide);
+}
+
+/**
+ * La structure d'une forme figée, vérifiée AVANT `zone_dessin` : un import maladroit (anneau ouvert, coordonnée texte,
+ * position à trois nombres) est une réponse 400 à l'utilisateur, pas une exception de `ST_GeomFromGeoJSON` lue en 500.
+ * La géométrie elle-même (auto-intersection, trous) est réparée en base par `ST_MakeValid`.
+ */
+function formeBienConstruite(g: FormeZone): boolean {
+  if (g.type === 'Polygon') return polygoneValide(g.coordinates);
+  return g.coordinates.length > 0 && g.coordinates.every(polygoneValide);
+}
+
 async function figer(supabase: ClientAdmin, geometrie: unknown): Promise<IssueRecette> {
   if (!estForme(geometrie)) return invalide('Une forme (Polygon ou MultiPolygon) est attendue pour cette recette.');
+  // Le plafond d'abord : il borne aussi le parcours de `formeBienConstruite`.
   if (compterSommets(geometrie) > MAX_SOMMETS_FORME) return refuser('trop_de_sommets');
+  if (!formeBienConstruite(geometrie)) {
+    return invalide('La forme est mal construite : chaque contour doit être fermé, avec au moins quatre points de deux coordonnées.');
+  }
   return lire('zone_dessin', supabase.rpc('zone_dessin', { p_geojson: toJson(geometrie) }));
 }
 

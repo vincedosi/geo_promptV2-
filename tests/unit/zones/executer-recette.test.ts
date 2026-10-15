@@ -179,6 +179,44 @@ describe('executerRecette', () => {
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('zone_rayon'), 'canceling statement due to statement timeout');
   });
 
+  it('argument refusé par la base (22023) : 400, pas un 500', async () => {
+    reponses.zone_seuil_carreaux = { data: null, error: { message: 'seuil invalide', code: '22023' } as { message: string } };
+    const r = await exec({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 10, perimetre: PER });
+    expect(r).toEqual({ ok: false, statut: 400, refus: null, message: 'Paramètres de calcul invalides.' });
+  });
+
+  it('forme figée mal construite : 400 AVANT tout appel (positions, anneaux fermés de 4 positions au moins)', async () => {
+    const malFormees: unknown[] = [
+      { type: 'Polygon', coordinates: [[[5, 43], [5.1, 43], [5.1, 43.1], [5, 43.2]]] }, // anneau non fermé
+      { type: 'Polygon', coordinates: [[[5, 43], [5.1, 43], [5, 43]]] }, // 3 positions
+      { type: 'Polygon', coordinates: [[[5, 43], [5.1, 'x'], [5.1, 43.1], [5, 43]]] }, // coordonnée non numérique
+      { type: 'Polygon', coordinates: [[[5, 43], [5.1, 43, 0], [5.1, 43.1], [5, 43]]] }, // 3 nombres
+      { type: 'Polygon', coordinates: [[[5, 43], [Infinity, 43], [5.1, 43.1], [5, 43]]] }, // non fini
+      { type: 'Polygon', coordinates: [] }, // aucun anneau
+      { type: 'MultiPolygon', coordinates: [[[[5, 43], [5.1, 43], [5.1, 43.1], [5, 43]]], [[[6, 44], [6.1, 44]]]] },
+      { type: 'MultiPolygon', coordinates: [] }, // aucun polygone
+      { type: 'MultiPolygon', coordinates: [[[5, 43], [5.1, 43], [5.1, 43.1], [5, 43]]] }, // profondeur d'un Polygon
+    ];
+    for (const geometrie of malFormees) {
+      const r = await exec({ v: 1, type: 'import', format: 'geojson', fichier: 'a.json' }, { geometrie });
+      expect(r, JSON.stringify(geometrie)).toMatchObject({ ok: false, statut: 400, refus: null });
+    }
+    expect(appels).toEqual([]);
+  });
+
+  it('union de zones sans géométrie (P0001 « aucune geometrie trouvee ») : 409 forme_vide', async () => {
+    zonesDeLOrg = [Z1, Z2];
+    reponses.get_composite_zone_geometry = { data: null, error: { message: 'composite: aucune geometrie trouvee', code: 'P0001' } as { message: string } };
+    const r = await exec({ v: 1, type: 'combinaison', operation: 'union', zones: [Z1, Z2] });
+    expect(r).toEqual({ ok: false, statut: 409, refus: 'forme_vide', message: MESSAGES_REFUS.forme_vide });
+  });
+
+  it('une autre P0001 de get_composite_zone_geometry reste un 500', async () => {
+    zonesDeLOrg = [Z1, Z2];
+    reponses.get_composite_zone_geometry = { data: null, error: { message: 'composite: 2 a 20 zones membres requises (recu 1)', code: 'P0001' } as { message: string } };
+    expect(await exec({ v: 1, type: 'combinaison', operation: 'union', zones: [Z1, Z2] })).toMatchObject({ ok: false, statut: 500 });
+  });
+
   it('une réponse jsonb sérialisée en texte est lue comme un objet', async () => {
     reponses.get_composite_zone_geometry = { data: JSON.stringify({ geometry: CARRE }), error: null };
     zonesDeLOrg = [Z1, Z2];
