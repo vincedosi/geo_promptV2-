@@ -4,12 +4,9 @@ import type { Subscription } from 'rxjs';
 import { ZonesApi } from '../../data/zones.api';
 import {
   MESSAGE_RESOLUTION_ECHOUEE, OPERATIONS_ZONES, ORDRE_OPERATIONS, type OperationZones,
-  libelleSelection, messageZoneCreee, nomDansSelection, nomZoneCreee,
+  libelleSelection, messageZoneCreee, nomDansSelection, nomZoneCreee, operationPossible,
 } from '../../logique/zones/operations-zones';
 import { messageErreurZone } from '../../logique/zones/perimetre-recette';
-
-/** `zone_intersection` calcule première ∩ union(autres) : la recette `combinaison` n'admet l'intersection qu'à deux. */
-const MESSAGE_INTERSECTION_A_DEUX = 'L’intersection se fait entre deux zones.';
 
 /**
  * La barre des opérations booléennes au-dessus de « Mes zones » — `ZonesOperations.tsx` (lot 4, T14), textes exacts.
@@ -20,7 +17,7 @@ const MESSAGE_INTERSECTION_A_DEUX = 'L’intersection se fait entre deux zones.'
  * `{ type: 'combinaison', operation, zones }` — le serveur calcule la forme, l'écrit et résout ses codes postaux. La
  * composition est la recette même (ids des membres, dans l'ordre : la première est la base). Sur un refus (409
  * « aucune surface en commun », 404 zone introuvable), RIEN n'est écrit et le message de la route est affiché.
- * L'intersection de plus de deux zones (« A restreint à B ∪ C » de React) n'est pas une recette : refusée avant l'appel.
+ * L'intersection ne se fait qu'entre DEUX zones (la recette `combinaison` l'exige) : « Restreindre à » n'est actif qu'à deux.
  *
  * Défaut de React corrigé : la réussite vide la sélection, et la barre disparaissait avec elle — « Zone créée : … »
  * n'était jamais vu au moment de la création, puis resurgissait, périmé, à la sélection suivante. Ici le message reste
@@ -105,7 +102,7 @@ export class OperationsZonesComponent {
     return {
       op, aide: d.aide,
       libelle: this.enCours() === op ? '…' : d.libelle,
-      inactif: this.selection().length < d.min || this.enCours() !== null || !this.org(),
+      inactif: !operationPossible(op, this.selection().length) || this.enCours() !== null || !this.org(),
     };
   }));
 
@@ -115,13 +112,9 @@ export class OperationsZonesComponent {
 
   protected lancer(op: OperationZones): void {
     const selection = [...this.selection()];
-    if (this.enCours() || selection.length < OPERATIONS_ZONES[op].min || !this.org()) return;
+    if (this.enCours() || !operationPossible(op, selection.length) || !this.org()) return;
     this.erreur.set(null);
     this.message.set(null);
-    if (op === 'intersection' && selection.length !== 2) {
-      this.erreur.set(MESSAGE_INTERSECTION_A_DEUX);
-      return;
-    }
     this.enCours.set(op);
     this.abonnement = this.api.enregistrer({
       nom: nomZoneCreee(op, selection, this.noms()).slice(0, 200),

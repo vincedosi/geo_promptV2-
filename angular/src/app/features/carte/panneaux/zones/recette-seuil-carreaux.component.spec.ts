@@ -37,6 +37,16 @@ describe('RecetteSeuilCarreauxComponent (lot 3, T10)', () => {
     expect(el.querySelector('[data-unite]')!.textContent!.trim()).toBe('hab./km²');
   });
 
+  it('seuil vidé : aucune recette (un champ vide n’est pas 0), « Saisissez un seuil positif. »', async () => {
+    const { f, el, c } = monter({ type: 'departement', code: '13', label: 'Bouches-du-Rhône' });
+    f.detectChanges(); await attendre();
+    const seuil = el.querySelector<HTMLInputElement>('input[data-seuil]')!;
+    seuil.value = ''; seuil.dispatchEvent(new Event('input'));
+    f.detectChanges(); await attendre();
+    expect(c.recette()).toBeNull();
+    expect(el.querySelector('[data-garde]')!.textContent).toBe('Saisissez un seuil positif.');
+  });
+
   it('sans périmètre : aucune recette, la raison dite', async () => {
     const { f, el, c } = monter(null);
     f.detectChanges(); await attendre();

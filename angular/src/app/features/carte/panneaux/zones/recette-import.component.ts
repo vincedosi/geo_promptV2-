@@ -44,6 +44,8 @@ export class RecetteImportComponent {
   protected readonly lecture = signal(false);
   protected readonly lu = signal<FormeLue | null>(null);
   private detruit = false;
+  /** Numéro du dernier dépôt. */
+  private depots = 0;
 
   protected readonly resume = computed(() => {
     const l = this.lu();
@@ -69,28 +71,34 @@ export class RecetteImportComponent {
     inject(DestroyRef).onDestroy(() => (this.detruit = true));
   }
 
+  /**
+   * Deux dépôts rapprochés peuvent se lire dans le désordre (un gros fichier puis un petit) : seule la lecture du
+   * DERNIER dépôt est gardée (numéro de dépôt), la plus ancienne arrivée après lui est jetée.
+   */
   protected async deposer(e: Event): Promise<void> {
     const champ = e.target as HTMLInputElement;
     const fichier = champ.files?.[0];
     if (!fichier) return;
+    const depot = ++this.depots;
     this.nomFichier.set(fichier.name);
     if (fichier.size > TAILLE_MAX_IMPORT_OCTETS) {
       this.lu.set({ ok: false, message: MESSAGE_FICHIER_TROP_VOLUMINEUX });
+      this.lecture.set(false);
       champ.value = '';
       return;
     }
     this.lu.set(null);
     this.lecture.set(true);
+    let lu: FormeLue;
     try {
-      const texte = await fichier.text();
-      if (this.detruit) return;
-      this.lu.set(lireForme(texte, fichier.name));
+      lu = lireForme(await fichier.text(), fichier.name);
     } catch {
-      if (!this.detruit) this.lu.set({ ok: false, message: 'Fichier illisible.' });
-    } finally {
-      this.lecture.set(false);
-      // Le même fichier, redéposé après correction, doit redéclencher `change`.
-      champ.value = '';
+      lu = { ok: false, message: 'Fichier illisible.' };
     }
+    if (this.detruit || depot !== this.depots) return;
+    this.lu.set(lu);
+    this.lecture.set(false);
+    // Le même fichier, redéposé après correction, doit redéclencher `change`.
+    champ.value = '';
   }
 }

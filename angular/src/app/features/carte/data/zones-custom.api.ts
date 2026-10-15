@@ -92,7 +92,7 @@ export class ZonesCustomApi extends HttpBaseService {
     return this.httpClient.get<EntiteZone>(`${this.baseUrl}/custom-geo/${encodeURIComponent(id)}/geometry`);
   }
 
-  /** `DELETE /api/custom-geo/[id]` — 409 si une stratégie ou un composite la référence encore. */
+  /** `DELETE /api/custom-geo/[id]` — 409 si elle est citée (`zone_referencee` : stratégie, jeu de zones, zone composée, périmètre d’une recette). */
   supprimer(id: string): Observable<{ deleted: boolean; id: string }> {
     return this.httpClient.delete<{ deleted: boolean; id: string }>(`${this.baseUrl}/custom-geo/${encodeURIComponent(id)}`);
   }

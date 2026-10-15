@@ -43,6 +43,18 @@ describe('RecetteSeuilTerritoireComponent (lot 3, T10)', () => {
     expect(c.recette()).toMatchObject({ operateur: '<=' });
   });
 
+  it('seuil vidé : aucune recette (un champ vide n’est pas 0), « Saisissez un seuil. »', async () => {
+    const { f, el, c } = monter(BDR);
+    f.detectChanges(); await attendre(); f.detectChanges();
+    const seuil = el.querySelector<HTMLInputElement>('input[data-seuil]')!;
+    seuil.value = ''; seuil.dispatchEvent(new Event('input'));
+    f.detectChanges(); await attendre();
+    expect(c.recette()).toBeNull();
+    expect(el.querySelector('[data-garde]')!.textContent).toBe('Saisissez un seuil.');
+    seuil.value = '-3'; seuil.dispatchEvent(new Event('input'));
+    expect(c.recette()).toMatchObject({ seuil: -3 });
+  });
+
   it('lecture du catalogue en échec : « Indicateurs indisponibles. », aucune recette', async () => {
     const { f, el, c } = monter(BDR, vi.fn(() => throwError(() => new Error('500'))));
     f.detectChanges(); await attendre(); f.detectChanges();

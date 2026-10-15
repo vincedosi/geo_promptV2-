@@ -118,13 +118,13 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   touché, ou le premier d'une famille qu'on ouvre ; liseré teal), porte « Aperçu », les chiffres de l'aperçu
   (`formaterNombre` : surface, carreaux / POI / territoires, habitants ; part dans le périmètre sous 98 %), le nom (le
   libellé de la recette par défaut) et « Enregistrer la zone ». Enregistrer est inactif dès le premier clic et tant que
-  les réglages ont changé depuis l'aperçu ; « Effacer » l'est pendant un calcul ; un 207 n'est jamais renvoyé — si la
+  l'aperçu n'est plus celui du formulaire actif (réglages changés, formulaire disparu, autre fichier) ; « Effacer » l'est pendant un calcul ; un 207 n'est jamais renvoyé — si la
   recette se recalcule, « Mes zones » est proposé.
 - **Les créateurs du lot 4 et les opérations écrivent une recette** : `CreationZoneService.creer(source, nom, recette)`
   écrit par `POST /api/zones` (codes postaux → `codes_postaux` avec les codes retenus par la route source ; rayon →
   `rayon_point` ; dessin → `dessin` avec sa géométrie réparée ; « Créer la zone » du score composite → `capture` de
   source `score` avec sa géométrie — la géométrie part pour toute recette non recalculable). Les opérations de « Mes
-  zones » écrivent `combinaison` en UN appel (l'intersection à deux zones seulement, refusée avant l'appel au-delà).
+  zones » écrivent `combinaison` en UN appel (« Restreindre à » actif à deux zones exactement). Une zone citée (`zone_referencee`) ne se supprime pas (409).
   `CreationZoneService.org` reste lu par la capture.
 
 ## Cycle de vie d'une couche

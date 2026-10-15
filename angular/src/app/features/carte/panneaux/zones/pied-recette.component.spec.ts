@@ -114,6 +114,37 @@ describe('PiedRecetteComponent (lot 3, T10, arbitrage P4)', () => {
     expect(b('[data-enregistrer]').disabled).toBe(true);
   });
 
+  it('plus de formulaire actif (famille repliée, ① passé à la France) : l’ancien aperçu ne s’enregistre plus', async () => {
+    const { f, el, stable, atelier, b } = monter();
+    f.componentInstance.recette.set(SEUIL);
+    atelier.recette.set(SEUIL);
+    atelier.apercu.set(APERCU);
+    await stable();
+    expect(b('[data-enregistrer]').disabled).toBe(false);
+    f.componentInstance.recette.set(null);
+    await stable();
+    expect(el.querySelector('[data-perime]')).not.toBeNull();
+    expect(b('[data-enregistrer]').disabled).toBe(true);
+  });
+
+  it('import : un AUTRE fichier de même nom (autre forme) rend l’aperçu périmé', async () => {
+    const { f, el, stable, atelier, b } = monter();
+    const imp: Recette = { v: 1, type: 'import', format: 'geojson', fichier: 'zones.geojson' };
+    f.componentInstance.recette.set(imp);
+    f.componentInstance.geometrie.set(FORME);
+    await stable();
+    b('[data-apercu]').click();
+    atelier.recette.set(imp);
+    atelier.apercu.set(APERCU);
+    await stable();
+    expect(el.querySelector('[data-perime]')).toBeNull();
+    expect(b('[data-enregistrer]').disabled).toBe(false);
+    f.componentInstance.geometrie.set({ type: 'MultiPolygon', coordinates: [] });
+    await stable();
+    expect(el.querySelector('[data-perime]')).not.toBeNull();
+    expect(b('[data-enregistrer]').disabled).toBe(true);
+  });
+
   it('erreur (alerte) et message (statut) de l’atelier ; un 207 recalculable propose « Mes zones »', async () => {
     const { el, stable, atelier, ouvrir, b } = monter();
     atelier.erreur.set('Choisissez un périmètre à l’étape ① avant ce calcul.');

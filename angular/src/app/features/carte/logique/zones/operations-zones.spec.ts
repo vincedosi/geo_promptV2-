@@ -1,10 +1,16 @@
 import {
-  basculerDansSelection, libelleSelection, messageZoneCreee, nomZoneCreee, selectionExistante,
+  basculerDansSelection, libelleSelection, messageZoneCreee, nomZoneCreee, operationPossible, selectionExistante,
 } from './operations-zones';
 
 const NOMS = new Map([['a', 'Bretagne'], ['b', 'Finistère']]);
 
 describe('operations-zones (ZonesOperations.tsx)', () => {
+  it('possible : union et différence à deux zones ou plus, intersection à DEUX exactement (recette combinaison)', () => {
+    expect([1, 2, 3].map((n) => operationPossible('union', n))).toEqual([false, true, true]);
+    expect([1, 2, 3].map((n) => operationPossible('difference', n))).toEqual([false, true, true]);
+    expect([1, 2, 3].map((n) => operationPossible('intersection', n))).toEqual([false, true, false]);
+  });
+
   it('noms de la zone créée, au singulier et au pluriel, id tronqué pour un nom inconnu', () => {
     expect(nomZoneCreee('difference', ['a', 'b'], NOMS)).toBe('Bretagne — moins 1 zone');
     expect(nomZoneCreee('intersection', ['a', 'b', 'c'], NOMS)).toBe('Bretagne — restreinte à 2 zones');

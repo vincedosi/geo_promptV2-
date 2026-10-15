@@ -77,15 +77,21 @@ describe('OperationsZonesComponent (ZonesOperations.tsx, T14 ; recette `combinai
     });
   });
 
-  it('« Restreindre à » sur trois zones : refusé AVANT l’appel (la recette n’admet l’intersection qu’à deux)', async () => {
+  it('« Restreindre à » : actif à DEUX zones exactement (la recette n’admet l’intersection qu’à deux), l’aide le dit', async () => {
     const enregistrer = vi.fn();
     const { fixture, el, stable } = monter(enregistrer);
+    fixture.componentInstance.selection.set(['a', 'b']);
+    await stable();
+    expect(bouton(el, 'intersection').disabled).toBe(false);
+    expect(bouton(el, 'intersection').title).toBe('la première, limitée à la seconde — deux zones exactement');
     fixture.componentInstance.selection.set(['a', 'b', 'c']);
     await stable();
+    expect(bouton(el, 'intersection').disabled).toBe(true);
+    expect(bouton(el, 'union').disabled).toBe(false);
+    expect(bouton(el, 'difference').disabled).toBe(false);
     bouton(el, 'intersection').click();
     await stable();
     expect(enregistrer).not.toHaveBeenCalled();
-    expect(el.querySelector('[data-erreur]')!.textContent).toBe('L’intersection se fait entre deux zones.');
   });
 
   it('404 → le message de la route, sélection gardée, pas de `termine`', async () => {

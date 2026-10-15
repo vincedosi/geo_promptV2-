@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
 import { formaterNombre } from '../../../../core/format/nombre';
 import type { ApercuZone } from '../../data/zones.api';
 import { AtelierZoneService } from '../../etat/atelier-zone.service';
@@ -44,7 +44,7 @@ export function chiffresApercu(a: ApercuZone, r: Recette | null): { ligne: strin
  * - « Enregistrer la zone » se désactive DÈS le premier clic (`enCours`), et l'atelier se vide après succès : le
  *   serveur n'étant pas idempotent, deux clics ne font jamais deux zones. Un 207 n'est jamais renvoyé : le message le
  *   dit et, si la recette se recalcule, « Mes zones » est proposé.
- * - Réglages modifiés depuis l'aperçu : l'enregistrement attend un nouvel aperçu (la zone écrite serait sinon celle
+ * - Réglages modifiés, formulaire disparu ou autre fichier depuis l'aperçu : l'enregistrement attend un nouvel aperçu (la zone écrite serait sinon celle
  *   de l'ANCIENNE recette, sous des champs qui en disent une autre).
  * - « Effacer » est inactif pendant un calcul ou une écriture (l'atelier l'ignorerait).
  */
@@ -66,7 +66,7 @@ export function chiffresApercu(a: ApercuZone, r: Recette | null): { ligne: strin
       @if (c.part) { <p data-part class="m-0 font-mono text-[11px] text-tertiary">{{ c.part }}</p> }
     }
     @if (perime()) {
-      <p data-perime class="garde">Les réglages ont changé depuis l’aperçu : relancez-le avant d’enregistrer.</p>
+      <p data-perime class="garde">L’aperçu ne correspond plus aux réglages affichés : relancez-le avant d’enregistrer.</p>
     }
 
     <label class="libelle" for="pied-recette-nom">Nom de la zone</label>
@@ -98,11 +98,17 @@ export class PiedRecetteComponent {
     const a = this.atelier.apercu();
     return a ? chiffresApercu(a, this.atelier.recette()) : null;
   });
-  /** L'aperçu affiché n'est plus celui des réglages du formulaire actif. */
+  /** La forme passée au dernier aperçu (import) : un autre fichier, même de même nom, est une autre lecture. */
+  private readonly geometrieVue = signal<GeoJSON.Geometry | undefined>(undefined);
+  /**
+   * L'aperçu affiché n'est plus celui du formulaire actif : réglages changés, AUCUN formulaire actif (famille repliée,
+   * ① passé à la France…), ou autre fichier importé (forme différente, même nom compris).
+   */
   protected readonly perime = computed(() => {
     const vue = this.atelier.recette();
+    if (!this.atelier.apercu() || !vue) return false;
     const actuelle = this.recette();
-    return !!this.atelier.apercu() && !!vue && !!actuelle && JSON.stringify(vue) !== JSON.stringify(actuelle);
+    return !actuelle || JSON.stringify(vue) !== JSON.stringify(actuelle) || this.geometrie() !== this.geometrieVue();
   });
   protected readonly ecriture = computed(() => this.atelier.enCours() && !!this.atelier.apercu());
   protected readonly peutEnregistrer = computed(() =>
@@ -112,7 +118,9 @@ export class PiedRecetteComponent {
 
   protected apercevoir(): void {
     const r = this.recette();
-    if (r && !this.atelier.enCours()) this.atelier.apercevoir(r, this.geometrie());
+    if (!r || this.atelier.enCours()) return;
+    this.geometrieVue.set(this.geometrie());
+    this.atelier.apercevoir(r, this.geometrie());
   }
 
   protected enregistrer(): void {

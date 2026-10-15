@@ -45,7 +45,7 @@ function parFamille(liste: readonly IndicateurRegistre[]): { famille: string; in
       <select data-operateur aria-label="Opérateur" class="champ w-16" [value]="operateur()" (change)="operateur.set($any($event.target).value)">
         <option value=">=">≥</option><option value="<=">≤</option>
       </select>
-      <input data-seuil type="number" aria-label="Seuil" class="champ w-24 font-mono" [value]="seuil()" (input)="seuil.set(+$any($event.target).value)" />
+      <input data-seuil type="number" aria-label="Seuil" class="champ w-24 font-mono" [value]="seuilSaisi()" (input)="seuilSaisi.set($any($event.target).value)" />
       <span data-unite class="libelle">{{ unite() }}</span>
     </div>
     @if (garde(); as g) { <p data-garde class="garde">{{ g }}</p> }
@@ -62,7 +62,9 @@ export class RecetteSeuilTerritoireComponent {
     computation: (liste, avant) => (avant && liste.some((i) => i.indicator_code === avant.value) ? avant.value : liste[0]?.indicator_code ?? ''),
   });
   protected readonly operateur = signal<OperateurSeuil>('>=');
-  protected readonly seuil = signal(20);
+  /** Le texte du champ, lu AVANT conversion : un champ vide n'est pas 0 (`+''` vaut 0 et passait la garde). */
+  protected readonly seuilSaisi = signal('20');
+  protected readonly seuil = computed(() => (this.seuilSaisi().trim() === '' ? Number.NaN : Number(this.seuilSaisi())));
   protected readonly unite = computed(() => this.catalogue().find((i) => i.indicator_code === this.indicateur())?.unit ?? '');
   private readonly composee = computed<Recette>(() => ({
     v: 1, type: 'seuil_territoire', indicateur: this.indicateur(), operateur: this.operateur(), seuil: this.seuil(),

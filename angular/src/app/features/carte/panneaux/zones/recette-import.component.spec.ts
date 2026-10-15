@@ -52,6 +52,23 @@ describe('RecetteImportComponent (lot 3, T10)', () => {
     expect(c.recette()).toBeNull();
   });
 
+  it('deux dépôts lus dans le désordre : seul le DERNIER compte', async () => {
+    const { el, c, stable } = monter();
+    await stable();
+    let lireAncien!: (t: string) => void;
+    const ancien = new File(['x'], 'ancien.geojson');
+    Object.defineProperty(ancien, 'text', { value: () => new Promise<string>((r) => (lireAncien = r)) });
+    deposer(el, ancien);
+    deposer(el, new File([GEOJSON], 'recent.geojson'));
+    await stable();
+    expect(c.recette()).toEqual({ v: 1, type: 'import', format: 'geojson', fichier: 'recent.geojson' });
+    // L'ancien fichier arrive APRÈS : il est jeté.
+    lireAncien('{"type":"Point","coordinates":[5,43]}');
+    await stable();
+    expect(c.recette()).toEqual({ v: 1, type: 'import', format: 'geojson', fichier: 'recent.geojson' });
+    expect(el.querySelector('[data-resume]')!.textContent!.trim()).toBe('2 polygones · 1 élément ignoré');
+  });
+
   it('plus de 5 Mo → « Fichier trop volumineux (5 Mo au plus). » SANS lecture (revue T9 : un parse de 100 Mo fige l’onglet)', async () => {
     const { el, c, stable } = monter();
     await stable();

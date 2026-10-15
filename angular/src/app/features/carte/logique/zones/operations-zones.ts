@@ -16,27 +16,33 @@ import { formaterNombre } from '../../../../core/format/nombre';
 
 export type OperationZones = 'union' | 'intersection' | 'difference';
 
-/** La route de la famille `custom-geo/source/*` — et le `source_type` de la zone créée. */
-export type SourceOperation = 'composite' | 'intersection' | 'difference';
-
 export interface DefinitionOperation {
   libelle: string;
-  source: SourceOperation;
   /** Nombre minimum de zones cochées. */
   min: number;
+  /** Nombre maximum de zones cochées, quand il y en a un. */
+  max?: number;
   /** Infobulle du bouton. */
   aide: string;
 }
 
 /**
  * Les trois opérations, dans l'ordre des boutons (`OPERATIONS`, `ZonesOperations.tsx:39-56`). « Restreindre à » et
- * non « Intersection » : au-delà de deux zones, le calcul est « A restreint à B ∪ C » — le mot de React, mesuré juste.
+ * non « Intersection », le mot de React. Écart voulu (lot 3, T10) : React l'admettait sur plus de deux zones (« A
+ * restreint à B ∪ C ») ; la recette `combinaison` n'admet l'intersection qu'entre DEUX zones (l'exécuteur la refuse
+ * sinon) — le bouton n'est actif qu'à deux exactement.
  */
 export const OPERATIONS_ZONES: Readonly<Record<OperationZones, DefinitionOperation>> = {
-  union: { libelle: 'Fusionner', source: 'composite', min: 2, aide: 'tout ce que couvrent les zones cochées' },
-  intersection: { libelle: 'Restreindre à', source: 'intersection', min: 2, aide: 'la première, limitée à ce que couvrent les autres' },
-  difference: { libelle: 'Soustraire', source: 'difference', min: 2, aide: 'la première, moins toutes les autres' },
+  union: { libelle: 'Fusionner', min: 2, aide: 'tout ce que couvrent les zones cochées' },
+  intersection: { libelle: 'Restreindre à', min: 2, max: 2, aide: 'la première, limitée à la seconde — deux zones exactement' },
+  difference: { libelle: 'Soustraire', min: 2, aide: 'la première, moins toutes les autres' },
 };
+
+/** L'opération est-elle possible sur `n` zones cochées ? */
+export function operationPossible(op: OperationZones, n: number): boolean {
+  const d = OPERATIONS_ZONES[op];
+  return n >= d.min && n <= (d.max ?? Infinity);
+}
 
 export const ORDRE_OPERATIONS: readonly OperationZones[] = ['union', 'intersection', 'difference'];
 
