@@ -57,7 +57,7 @@ const SAUVEGARDE_VIERGE: EtatSauvegarde = { saving: false, savedAt: null, error:
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'contents' },
   template: `
-    <div data-plan-media class="absolute bottom-0 right-0 z-[45] flex w-[600px] flex-col overflow-hidden border-l-fin border-subtle bg-surface" [style.top.px]="haut()">
+    <div data-plan-media class="absolute bottom-0 right-0 z-[45] flex flex-col overflow-hidden border-l-fin border-subtle bg-surface" [style.width.px]="largeur" [style.top.px]="haut()">
       <div class="flex shrink-0 items-center gap-2 border-b-fin border-subtle px-4 py-3">
         <div class="size-1.5 rounded-full bg-teal"></div>
         <span data-titre class="flex-1 text-[13px] font-medium text-primary">{{ titre() }}</span>
@@ -186,6 +186,7 @@ export class PlanMediaComponent {
   readonly haut = input.required<number>();
   readonly fermer = output<void>();
 
+  protected readonly largeur = LARGEUR_PLAN_MEDIA;
   protected readonly champ = CHAMP;
   protected readonly libelle = LIBELLE;
   protected readonly boutonNeutre = BOUTON_NEUTRE;

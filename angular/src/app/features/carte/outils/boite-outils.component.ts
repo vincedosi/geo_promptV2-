@@ -4,6 +4,8 @@ import type { NomIcone } from '../../../ui/icone/icones';
 import { ChoixFondComponent } from '../commun/choix-fond.component';
 import type { VueParcours } from '../logique/parcours';
 import { AideComponent } from '../panneaux/aide.component';
+import { LARGEUR_DETAIL_IRIS } from '../couches/detail-iris.component';
+import { LARGEUR_TIROIR_PANNEAU } from '../couches/tiroir-panneau.component';
 import { LARGEUR_PLAN_MEDIA } from '../panneaux/zones/plan-media.component';
 import { ReglagesComponent } from '../panneaux/reglages.component';
 import { OutilMesAnalysesComponent } from './outil-mes-analyses.component';
@@ -38,10 +40,10 @@ const JOUR_GAUCHE = 10;
 
 /**
  * Les panneaux ancrés au bord DROIT du conteneur carte que la boîte à outils ne doit pas recouvrir (ruling AT-3), avec
- * la largeur écrite dans leur gabarit : plan média `LARGEUR_PLAN_MEDIA`, détail IRIS `w-[320px]`
- * (`couches/detail-iris.component.ts`), tiroir Street View `w-[min(420px,92vw)]` (`couches/tiroir-panneau.component.ts`).
+ * la largeur exportée par chacun et liée dans son gabarit : plan média `LARGEUR_PLAN_MEDIA`, détail IRIS
+ * `LARGEUR_DETAIL_IRIS`, tiroir Street View `LARGEUR_TIROIR_PANNEAU` (`min(420px, 92vw)` : 420 au-delà de 456 px de large).
  */
-const LARGEURS_BORD_DROIT = { planMedia: LARGEUR_PLAN_MEDIA, detailIris: 320, streetView: 420 } as const;
+const LARGEURS_BORD_DROIT = { planMedia: LARGEUR_PLAN_MEDIA, detailIris: LARGEUR_DETAIL_IRIS, streetView: LARGEUR_TIROIR_PANNEAU } as const;
 
 /**
  * L'écart de la boîte à outils au bord droit du conteneur carte : 10 px, plus le plus large des panneaux ouverts au bord
