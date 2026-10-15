@@ -25,6 +25,7 @@ import { IsochronesApi } from './data/isochrones.api';
 import { AnalysesApi } from './data/analyses.api';
 import { ClusteringApi } from './data/clustering.api';
 import { ZonesCustomApi } from './data/zones-custom.api';
+import { ZonesApi } from './data/zones.api';
 import { CarteHoteComponent } from './carte-hote.component';
 import { CartePage } from './carte.page';
 import { CataloguePoiService } from './etat/catalogue-poi.service';
@@ -101,6 +102,7 @@ async function ouvrir(url = '/carte') {
       { provide: OrganisationsApi, useValue: faux.organisations },
       { provide: ReferentielApi, useValue: faux.referentiel },
       { provide: ZonesCustomApi, useValue: faux.zones },
+      { provide: ZonesApi, useValue: {} },
       { provide: ZonesRisqueApi, useValue: faux.zonesRisque },
       { provide: JeuxZonesApi, useValue: faux.jeux },
       { provide: CarreauxApi, useValue: faux.carreaux },

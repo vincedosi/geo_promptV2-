@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { type RouteSourceCapture, ZonesCustomApi } from '../../data/zones-custom.api';
+import { ZonesApi } from '../../data/zones.api';
 import { AnnonceService } from '../../etat/annonce.service';
 import { CaptureService, type SourceCapture } from '../../etat/capture.service';
 import { CreationZoneService } from '../../etat/creation-zone.service';
@@ -34,6 +35,7 @@ function monter(o: { sources?: SourceCapture[]; source?: unknown; capturer?: unk
     providers: [
       CaptureService, CreationZoneService, AnnonceService,
       { provide: ZonesCustomApi, useValue: api },
+      { provide: ZonesApi, useValue: {} },
       { provide: AuthService, useValue: { lireProfil: async () => ({ role: null, nom: null, organisation: o.organisation === undefined ? 'org-1' : o.organisation }) } },
     ],
   });

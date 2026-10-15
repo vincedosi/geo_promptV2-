@@ -45,7 +45,7 @@ export const CONSIGNE_ETAPE: Readonly<Record<EtapeCarte, string>> = {
   perimetre: 'Choisissez où regarder : région, département, ville, code postal ou zone enregistrée. Ce périmètre borne les calculs des étapes suivantes.',
   donnees: 'Allumez ce que vous voulez voir. Rien n’est chargé tant que vous ne l’allumez pas.',
   // ③ dit ce que le panneau offre AUJOURD'HUI : rayons et isochrones comme types de zone arrivent aux lots 4-5.
-  zones: 'Définissez vos zones : codes postaux, rayon, dessin, ou capture de ce qui est affiché. Vos zones enregistrées sont dans la boîte à outils, « Mes zones ».',
+  zones: 'Définissez vos zones : autour des POI, par seuil sur une donnée, à la main, ou en capturant la carte. Chaque zone garde sa recette et se recalcule.',
   analyse: 'Calculez sur ces zones : score, corrélation, isochrones, bataille, clustering. Chaque résultat s’affiche sur la carte.',
   jeu: 'Convertissez vos zones en codes postaux achetables : seuil de couverture, CP retenus, taux d’utile, extraction. Cette étape arrive dans le parcours.',
   plan: 'Le plan de campagne arrive dans le parcours. En attendant, il se prépare dans l’application actuelle.',

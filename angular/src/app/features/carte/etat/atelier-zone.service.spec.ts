@@ -96,6 +96,10 @@ describe('AtelierZoneService', () => {
     expect([s.apercu(), s.recette()]).toEqual([null, null]);
     s.enregistrer('Z');
     expect(enregistrer).toHaveBeenCalledTimes(1);
+    // T10 : le pied propose le recalcul (« Mes zones »), jamais un second envoi ; vidé par « Effacer ».
+    expect(s.nonResolue()).toEqual({ id: 'z2', recalculable: true });
+    s.effacer();
+    expect(s.nonResolue()).toBeNull();
   });
 
   it('enregistrer sans aperçu ou sans nom : rien ne part', () => {

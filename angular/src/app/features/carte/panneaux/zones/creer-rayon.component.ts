@@ -177,11 +177,11 @@ export class CreerRayonComponent {
     this.enCours.set(true);
     this.erreur.set(null);
     this.message.set(null);
-    this.abonnement = this.creation.creer(this.api.depuisRayon(corps), (geo) => ({
-      name: (nom || nomRayonParDefaut(corps.rayon_m)).slice(0, 200),
-      source_type: 'rayon',
-      source_metadata: { rayon_m: corps.rayon_m, centre: { lon: centre.lon, lat: centre.lat }, surface_km2: geo.surface_km2, part_retenue: geo.part_retenue },
-    })).subscribe((issue) => {
+    this.abonnement = this.creation.creer(
+      this.api.depuisRayon(corps),
+      () => nom || nomRayonParDefaut(corps.rayon_m),
+      () => ({ v: 1, type: 'rayon_point', lon: corps.lon, lat: corps.lat, rayon_m: corps.rayon_m }),
+    ).subscribe((issue) => {
       this.enCours.set(false);
       if ('erreur' in issue) {
         this.erreur.set(issue.erreur);

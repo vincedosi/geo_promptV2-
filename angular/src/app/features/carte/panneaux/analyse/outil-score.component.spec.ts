@@ -12,6 +12,7 @@ import { AnalysesApi } from '../../data/analyses.api';
 import { ClusteringApi } from '../../data/clustering.api';
 import { IsochronesApi } from '../../data/isochrones.api';
 import { ZonesCustomApi } from '../../data/zones-custom.api';
+import { ZonesApi } from '../../data/zones.api';
 import { AnnonceService } from '../../etat/annonce.service';
 import { BatailleV1Service } from '../../etat/bataille-v1.service';
 import { BatailleV2Service } from '../../etat/bataille-v2.service';
@@ -44,7 +45,7 @@ async function monter(filtre: FiltreActif | null) {
     providers: [
       provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting(),
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
-      EtatCarteService, AnnonceService, CouchesCarteService, CaptureService, BatailleService, IsochronesApi, AnalysesApi, ZonesCustomApi,
+      EtatCarteService, AnnonceService, CouchesCarteService, CaptureService, BatailleService, IsochronesApi, AnalysesApi, ZonesCustomApi, ZonesApi,
       ContexteBatailleService, BatailleV1Service, BatailleV2Service,
       { provide: ScoreService, useValue: score },
       { provide: AuthService, useValue: { session: signal(null), lireProfil: () => Promise.resolve({ organisation: 'org-1' }) } },
@@ -186,13 +187,12 @@ describe('Outil « Score composite » (ScoreCompositeTool.tsx, T18)', () => {
     });
     const geometrie = { type: 'MultiPolygon', coordinates: [] };
     source.flush({ geometry: geometrie, count: 2, codes: ['13001', '13003'], scale: 'cp' });
-    const save = m.http.expectOne((r) => r.url.endsWith('/api/custom-geo/save'));
+    // Lot 3 : POST /api/zones avec la recette figée `capture` (source `score`) et sa géométrie.
+    const save = m.http.expectOne((r) => r.url.endsWith('/api/zones'));
     expect(save.request.body).toEqual({
-      name: 'Score ≥ 70 — Revenu médian × Part des 15-29 ans',
-      source_type: 'score_composite',
-      source_metadata: { indicateurs: source.request.body.indicateurs, seuil: 70, n_codes_postaux: 2 },
-      geometry: geometrie,
-      org_id: 'org-1',
+      nom: 'Score ≥ 70 — Revenu médian × Part des 15-29 ans',
+      recette: { v: 1, type: 'capture', source_type: 'score' },
+      geometrie,
     });
     save.flush({ zone_id: 'z1', count_cp: 2 });
     await m.rendre();

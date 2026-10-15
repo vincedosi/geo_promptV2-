@@ -21,6 +21,7 @@ import { IsochronesApi } from './data/isochrones.api';
 import { AnalysesApi } from './data/analyses.api';
 import { ClusteringApi } from './data/clustering.api';
 import { ZonesCustomApi } from './data/zones-custom.api';
+import { ZonesApi } from './data/zones.api';
 import { JeuxZonesApi } from '../risques/data/jeux-zones.api';
 import { ZonesRisqueApi } from '../risques/data/zones-risque.api';
 import { PONT_CARTE } from './etat/pont-carte';
@@ -104,6 +105,8 @@ async function ouvrir(options: OptionsOuverture = {}) {
           ...options.zones,
         },
       },
+      // L'atelier de ③ (lot 3) : aucune requête tant qu'on ne prévisualise rien.
+      { provide: ZonesApi, useValue: {} },
       { provide: ZonesRisqueApi, useValue: { urlTuilesZones: () => '/api/tiles/zones-risque/{z}/{x}/{y}?profil=x', preparer: () => of({ classes: 1 }) } },
       { provide: JeuxZonesApi, useValue: { lister: options.jeux ?? (() => of({ jeux: [] })) } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },
@@ -1178,9 +1181,13 @@ describe('CartePage — le module risque, route ENFANT (T13, B2/B3)', () => {
     frapper(hote, altChiffre('3'));
     await stable();
     expect(hote.querySelector('[data-provisoire]')).toBeNull();
+    // Lot 3 (T10) : chaque famille se déplie ; « Autour des POI » l'est d'office.
+    const famille = async (f: string) => { hote.querySelector<HTMLElement>(`mg-panneau-zones mg-entete-section[data-famille="${f}"]`)!.click(); await stable(); };
+    await famille('capture');
     expect(hote.querySelector<HTMLButtonElement>('[data-capturer]')!.disabled).toBe(true);
+    await famille('main');
     const outils = [...hote.querySelectorAll('mg-outil-creation [data-repli]')].map((b) => b.textContent!.trim());
-    expect(outils).toEqual(['Importer une liste de codes postaux ▼', 'Zone par rayon ▼', 'Dessiner une zone ▼']);
+    expect(outils).toEqual(['Zone par rayon ▼', 'Dessiner une zone ▼', 'Importer une liste de codes postaux ▼']);
     hote.querySelector<HTMLButtonElement>('mg-creer-dessin [data-repli]')!.click();
     await stable();
     hote.querySelector('mg-carte')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }));
@@ -1209,7 +1216,8 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     await stable();
     const panneau = hote.querySelector('[data-panneau-etape="zones"] mg-panneau-zones')!;
     expect(panneau).not.toBeNull();
-    expect([...panneau.querySelectorAll('h4')].map((h) => h.textContent?.trim())).toEqual(['Créer une zone']);
+    // Lot 3 (T10) : ③ rangée par familles, la capture en dernier.
+    expect([...panneau.querySelectorAll('mg-entete-section')].map((h) => h.textContent?.trim())).toEqual(['Autour des POI', 'Par seuil', 'À la main', 'Capture']);
     expect(panneau.querySelector('mg-mes-zones')).toBeNull();
     panneau.querySelector<HTMLButtonElement>('[data-ouvrir-mes-zones]')!.click();
     await stable();
@@ -1466,7 +1474,7 @@ const INVENTAIRE: readonly LigneInventaire[] = [
     },
   },
   { n: 6, fonction: 'Analyse', lieu: { etape: 4 }, preuves: ['[data-panneau-etape="analyse"] mg-panneau-analyse'] },
-  { n: 7, fonction: 'Créer une zone', lieu: { etape: 3 }, preuves: ['[data-panneau-etape="zones"] [data-section="creer"]'] },
+  { n: 7, fonction: 'Créer une zone', lieu: { etape: 3 }, preuves: ['[data-panneau-etape="zones"] mg-entete-section[data-famille="poi"]'] },
   { n: 8, fonction: 'Jeux de zones', lieu: { outil: 'zones' }, preuves: ['[data-tiroir-outil] mg-jeux-de-zones'] },
   { n: 9, fonction: 'Mes zones', lieu: { outil: 'zones' }, preuves: ['[data-tiroir-outil] mg-mes-zones'] },
   { n: 10, fonction: 'Mes analyses', lieu: { outil: 'analyses' }, preuves: ['[data-tiroir-outil] mg-mes-analyses'] },

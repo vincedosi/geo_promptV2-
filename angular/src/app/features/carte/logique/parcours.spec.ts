@@ -15,9 +15,10 @@ describe('parcours de la carte — logique pure', () => {
     expect(ETAPES_CARTE.map(rangEtapeCarte)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
   it('les consignes de ③ ④ ⑤ disent l’ordre du module risque, sans promettre ce que ③ n’offre pas encore', () => {
-    expect(CONSIGNE_ETAPE.zones).toContain('Définissez vos zones');
-    // Rayons et isochrones comme TYPES de zone arrivent aux lots 4-5 : la consigne ne les annonce pas avant.
-    expect(CONSIGNE_ETAPE.zones).not.toMatch(/isochrone|seuil/i);
+    // Lot 3 (T10) : ③ est rangée par familles et chaque zone garde sa recette.
+    expect(CONSIGNE_ETAPE.zones).toBe('Définissez vos zones : autour des POI, par seuil sur une donnée, à la main, ou en capturant la carte. Chaque zone garde sa recette et se recalcule.');
+    // Les isochrones se lancent en ④ (C3) : ③ ne les annonce pas comme un geste à elle.
+    expect(CONSIGNE_ETAPE.zones).not.toMatch(/isochrone/i);
     expect(CONSIGNE_ETAPE.analyse).toContain('sur ces zones');
     expect(CONSIGNE_ETAPE.jeu).toContain('codes postaux achetables');
     for (const mot of ['seuil de couverture', 'CP retenus', 'taux d’utile', 'extraction']) expect(CONSIGNE_ETAPE.jeu).toContain(mot);

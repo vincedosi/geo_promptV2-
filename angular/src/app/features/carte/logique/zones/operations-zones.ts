@@ -40,13 +40,6 @@ export const OPERATIONS_ZONES: Readonly<Record<OperationZones, DefinitionOperati
 
 export const ORDRE_OPERATIONS: readonly OperationZones[] = ['union', 'intersection', 'difference'];
 
-/** Le corps envoyé à la route : base + retirées pour la soustraction, la liste sinon (`ZonesOperations.tsx:85-87`). */
-export function corpsOperation(op: OperationZones, selection: readonly string[]): Record<string, unknown> {
-  return op === 'difference'
-    ? { zone_base: selection[0], zones_retirees: selection.slice(1) }
-    : { zone_ids: [...selection] };
-}
-
 /** Le nom d'une zone de la sélection, ou les huit premiers caractères de son id (`nomDe`, l.75). */
 export function nomDansSelection(noms: ReadonlyMap<string, string>, id: string): string {
   return noms.get(id) ?? id.slice(0, 8);
@@ -62,17 +55,8 @@ export function nomZoneCreee(op: OperationZones, selection: readonly string[], n
   return `Fusion de ${selection.length} zones — ${base}…`;
 }
 
-/**
- * Le message d'une opération REFUSÉE par la route (`ZonesOperations.tsx:96-106`) : son `message` (409 « aucune surface
- * en commun »), sinon une traduction des deux codes connus, sinon le statut.
- */
-export function messageRefusOperation(statut: number, corps: unknown): string {
-  const c = (corps && typeof corps === 'object' ? corps : {}) as { message?: unknown; error?: unknown };
-  if (typeof c.message === 'string') return c.message;
-  if (c.error === 'zone_not_found') return 'Une des zones est introuvable.';
-  if (c.error === 'zone_dupliquee') return 'Une même zone est sélectionnée deux fois.';
-  return `Erreur (${statut})`;
-}
+// Depuis le lot 3 (T10), une opération s'écrit en UN appel (`POST /api/zones`, recette `combinaison`) : le corps des
+// routes `/source/*` et la traduction de leurs refus ne servent plus — le message d'échec est `messageErreurZone`.
 
 /** L'enregistrement a échoué (`!saveRes.ok`). */
 export const MESSAGE_SAUVEGARDE_ECHOUEE = 'Sauvegarde de la zone échouée.';

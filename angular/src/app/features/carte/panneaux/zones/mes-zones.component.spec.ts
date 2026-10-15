@@ -7,6 +7,7 @@ import { AuthService } from '../../../../core/auth/auth.service';
 import { ENREGISTRER_FICHIER } from '../../../../core/http/telecharger';
 import { ZonesCustomService } from '../../couches/zones-custom.service';
 import { type ZoneCustomResume, ZonesCustomApi } from '../../data/zones-custom.api';
+import { ZonesApi } from '../../data/zones.api';
 import { CouchesCarteService } from '../../etat/couches-carte.service';
 import { ExportZoneService } from '../../etat/export-zone.service';
 import { MesZonesComponent } from './mes-zones.component';
@@ -31,6 +32,8 @@ function monter(o: { organisation?: string | null; api?: Partial<Record<keyof Zo
     providers: [
       ZonesCustomService, CouchesCarteService, ExportZoneService,
       { provide: ZonesCustomApi, useValue: { ...base, ...o.api } },
+      // Les opérations écrivent par `ZonesApi` (recette `combinaison`, lot 3).
+      { provide: ZonesApi, useValue: {} },
       { provide: ENREGISTRER_FICHIER, useValue: vi.fn() },
       { provide: AuthService, useValue: { lireProfil: async () => ({ role: null, nom: null, organisation: o.organisation === undefined ? 'org-1' : o.organisation }) } },
     ],

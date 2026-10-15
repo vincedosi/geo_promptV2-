@@ -3,7 +3,6 @@ import { Injectable } from '@angular/core';
 import type { Observable } from 'rxjs';
 import { HttpBaseService } from '../../../core/http/http-base.service';
 import type { EntiteZone } from '../logique/zones/zone-du-lien';
-import type { SourceOperation } from '../logique/zones/operations-zones';
 import type { CibleKey } from '../logique/zones/cibles';
 import type { ItemAudience, corpsInstantane, corpsPlan } from '../logique/zones/plan-media';
 import type { GeometrieContribuee } from '../logique/zones/capture';
@@ -38,29 +37,6 @@ export interface StatsZones {
   total?: number;
   total_iris?: number;
   total_cp?: number;
-}
-
-/** Ce que rend une opération booléenne `POST /api/custom-geo/source/{composite,intersection,difference}`. */
-export interface ResultatOperation {
-  geometry: GeoJSON.Geometry;
-  surface_km2?: number | null;
-}
-
-/** Le corps de `POST /api/custom-geo/save` tel que les opérations l'envoient (`ZonesOperations.tsx:117-131`). */
-export interface ZoneAEnregistrer {
-  name: string;
-  source_type: string;
-  source_metadata: Record<string, unknown>;
-  geometry: GeoJSON.Geometry;
-  org_id: string;
-}
-
-/** `POST /api/custom-geo/save` : 200 avec les comptes, ou 207 si la résolution des codes a échoué. */
-export interface ZoneEnregistree {
-  zone_id: string;
-  count_iris?: number;
-  count_cp?: number;
-  warning?: string;
 }
 
 /** Une campagne du sélecteur de rattachement (`GET /api/custom-geo/media-plan`). */
@@ -121,18 +97,8 @@ export class ZonesCustomApi extends HttpBaseService {
     return this.httpClient.delete<{ deleted: boolean; id: string }>(`${this.baseUrl}/custom-geo/${encodeURIComponent(id)}`);
   }
 
-  /**
-   * `POST /api/custom-geo/source/{composite,intersection,difference}` — UNE méthode pour les trois routes : elles ne
-   * diffèrent que par le chemin et le corps (`corpsOperation`), comme la table `OPERATIONS` de React.
-   */
-  operation(source: SourceOperation, corps: Record<string, unknown>): Observable<ResultatOperation> {
-    return this.httpClient.post<ResultatOperation>(`${this.baseUrl}/custom-geo/source/${source}`, corps);
-  }
-
-  /** `POST /api/custom-geo/save`, réponse COMPLÈTE : le statut 207 (codes non résolus) se lit sur elle. */
-  enregistrer(zone: ZoneAEnregistrer): Observable<HttpResponse<ZoneEnregistree>> {
-    return this.httpClient.post<ZoneEnregistree>(`${this.baseUrl}/custom-geo/save`, zone, { observe: 'response' });
-  }
+  // Les opérations booléennes (`/source/{composite,intersection,difference}`) et `/api/custom-geo/save` ne sont plus
+  // appelées par l'Angular depuis le lot 3 (T10) : toute écriture passe par `ZonesApi.enregistrer` avec une recette.
 
   /**
    * `GET /api/custom-geo/[id]/export?format=…` en `blob`, réponse complète (`Content-Disposition` donne le nom) —
@@ -231,6 +197,8 @@ export class ZonesCustomApi extends HttpBaseService {
 /** La réponse de `/source/codes-postaux` : la géométrie et les deux familles de perte, comptées séparément. */
 export interface ReponseSourceCodesPostaux extends ReponseCodesPostaux {
   geometry: GeoJSON.Geometry;
+  /** Les codes RETENUS (connus du référentiel) : la recette `codes_postaux` de la zone (lot 3). */
+  codes?: string[];
   codes_inconnus?: string[];
   rejetes?: string[];
 }

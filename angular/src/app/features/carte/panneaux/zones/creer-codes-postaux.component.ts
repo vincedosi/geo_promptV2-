@@ -4,6 +4,7 @@ import { formaterNombre } from '../../../../core/format/nombre';
 import { ZonesCustomApi } from '../../data/zones-custom.api';
 import { CreationZoneService } from '../../etat/creation-zone.service';
 import { MAX_CP, apercuCodesPostaux, messageZoneCodesPostaux, nomCodesPostauxFichier } from '../../logique/zones/creation-zone';
+import { parserCodesPostaux } from '../../logique/zones/parse-cp';
 import { OutilCreationComponent } from './outil-creation.component';
 
 /**
@@ -126,11 +127,12 @@ export class CreerCodesPostauxComponent {
     this.enCours.set(true);
     this.erreur.set(null);
     this.message.set(null);
-    this.abonnement = this.creation.creer(this.api.depuisCodesPostaux(envoi), (geo) => ({
-      name: (nom || `Liste de ${geo.n_codes} codes postaux`).slice(0, 200),
-      source_type: 'codes_postaux',
-      source_metadata: { n_codes_postaux: geo.n_codes, n_inconnus: geo.n_inconnus, n_rejetes: geo.n_rejetes },
-    })).subscribe((issue) => {
+    this.abonnement = this.creation.creer(
+      this.api.depuisCodesPostaux(envoi),
+      (geo) => nom || `Liste de ${geo.n_codes} codes postaux`,
+      // Les codes RETENUS par la route (connus du référentiel) ; à défaut, les codes bien formés de la saisie.
+      (geo) => ({ v: 1, type: 'codes_postaux', codes: geo.codes?.length ? geo.codes : parserCodesPostaux(saisie).codes }),
+    ).subscribe((issue) => {
       this.enCours.set(false);
       if ('erreur' in issue) {
         this.erreur.set(issue.erreur);

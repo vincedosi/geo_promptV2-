@@ -100,6 +100,33 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   dans `logique/ordre-couches.ts`), teal 0,15 et contour pointillé `[2, 2]` ; pose et retrait communs avec l'aperçu du
   rayon dans `couches/apercu-forme.ts`.
 
+## ③ Zones par familles (lot 3, T10, 2026-10-15)
+
+- **Le panneau** `panneaux/zones/panneau-zones.component.ts` : la ligne du périmètre de ① en tête, puis quatre familles
+  `mg-entete-section` repliables, dans l'ordre « Autour des POI » (ouverte : rayon autour d'un point, rayon autour d'un
+  type de POI) · « Par seuil » (carreaux 200 m ; IRIS ou codes postaux) · « À la main » (dessin, import GeoJSON / KML,
+  liste de codes postaux) · « Capture » (le bouton existant, libellé inchangé), puis `mg-pied-recette` et le renvoi
+  vers « Mes zones ». Fournit `CreationZoneService`, `AtelierZoneService` et `CatalogueIndicateursService`. Une famille
+  repliée démonte ses formulaires (aucun calcul n'y vit) ; replier « À la main » pendant un tracé rend la carte.
+- **Les quatre formulaires** (`recette-rayon-poi`, `recette-seuil-carreaux`, `recette-seuil-territoire`,
+  `recette-import`) ne font que COMPOSER : un signal `recette` (`null` tant que leur garde refuse — aucun périmètre,
+  France, région pour les carreaux, catalogue indisponible, fichier refusé) et leur texte de garde `[data-garde]`.
+  Styles communs : `styles-recette.ts`. Aucune lecture à l'ouverture de ③ : les types de POI viennent du catalogue de
+  la page (`chargerUneFois`), le catalogue d'indicateurs n'est lu qu'à l'ouverture de « Par seuil ». L'import refuse un
+  fichier de plus de 5 Mo AVANT de le lire (`TAILLE_MAX_IMPORT_OCTETS` : un parse de 100 Mo fige l'onglet).
+- **Le pied** `mg-pied-recette` (arbitrage P4), monté une fois : reçoit la recette du formulaire ACTIF (le dernier
+  touché, ou le premier d'une famille qu'on ouvre ; liseré teal), porte « Aperçu », les chiffres de l'aperçu
+  (`formaterNombre` : surface, carreaux / POI / territoires, habitants ; part dans le périmètre sous 98 %), le nom (le
+  libellé de la recette par défaut) et « Enregistrer la zone ». Enregistrer est inactif dès le premier clic et tant que
+  les réglages ont changé depuis l'aperçu ; « Effacer » l'est pendant un calcul ; un 207 n'est jamais renvoyé — si la
+  recette se recalcule, « Mes zones » est proposé.
+- **Les créateurs du lot 4 et les opérations écrivent une recette** : `CreationZoneService.creer(source, nom, recette)`
+  écrit par `POST /api/zones` (codes postaux → `codes_postaux` avec les codes retenus par la route source ; rayon →
+  `rayon_point` ; dessin → `dessin` avec sa géométrie réparée ; « Créer la zone » du score composite → `capture` de
+  source `score` avec sa géométrie — la géométrie part pour toute recette non recalculable). Les opérations de « Mes
+  zones » écrivent `combinaison` en UN appel (l'intersection à deux zones seulement, refusée avant l'appel au-delà).
+  `CreationZoneService.org` reste lu par la capture.
+
 ## Cycle de vie d'une couche
 
 1. **Allumée** par sa section de `panneaux/calques/`, dépliée dans sa ligne de ② (ou un outil) : le service passe `visible` à vrai.

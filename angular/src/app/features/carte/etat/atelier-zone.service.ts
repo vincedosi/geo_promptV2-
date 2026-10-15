@@ -5,7 +5,7 @@ import { CouleursService } from '../../../core/theme/couleurs.service';
 import { poserApercuZone, retirerApercuZone } from '../couches/apercu-zone';
 import { type ApercuZone, ZonesApi } from '../data/zones.api';
 import { messageErreurZone } from '../logique/zones/perimetre-recette';
-import { MESSAGES_REFUS, refusPerimetreLocal, type Recette } from '../logique/zones/recette';
+import { MESSAGES_REFUS, estRecalculable, refusPerimetreLocal, type Recette } from '../logique/zones/recette';
 import { CouchesCarteService, quandStyleCharge } from './couches-carte.service';
 
 type EchecHttp = { status?: number; error?: unknown };
@@ -38,6 +38,11 @@ export class AtelierZoneService {
   readonly message = signal<string | null>(null);
   /** L'identifiant de chaque zone écrite : « Mes zones » se relit. */
   readonly zoneCreee = new Subject<string>();
+  /**
+   * Après un 207 : la zone écrite dont les codes postaux n'ont pas été résolus, et si sa recette se recalcule — le pied
+   * propose alors « Mes zones » (le recalcul), jamais un second envoi. Vidée au prochain aperçu ou à « Effacer ».
+   */
+  readonly nonResolue = signal<{ id: string; recalculable: boolean } | null>(null);
 
   private geometrieFigee: GeoJSON.Geometry | undefined;
   private volApercu: Subscription | null = null;
@@ -49,8 +54,10 @@ export class AtelierZoneService {
     effect((nettoyer) => {
       const carte = this.couches.carteCourante();
       const a = this.apercu();
-      const teal = this.couleurs().teal;
       if (!carte) return;
+      // La couleur n'est lue QUE s'il y a un aperçu à peindre (elle reste suivie : un changement de thème le repeint) :
+      // lue d'office, elle levait au montage de ③ quand les jetons ne sont pas encore résolus (relevé en T10).
+      const teal = a ? this.couleurs().teal : '';
       const annuler = untracked(() => quandStyleCharge(carte, () => (a ? poserApercuZone(carte, a.geometry, teal) : retirerApercuZone(carte))));
       nettoyer(annuler);
     });
@@ -73,6 +80,7 @@ export class AtelierZoneService {
     this.geometrieFigee = geometrie;
     this.apercu.set(null);
     this.message.set(null);
+    this.nonResolue.set(null);
     const refus = refusPerimetreLocal(recette);
     if (refus) {
       this.erreur.set(MESSAGES_REFUS[refus]);
@@ -103,6 +111,7 @@ export class AtelierZoneService {
         this.message.set(r.status === 207
           ? (b.message ?? 'Zone créée ; ses codes postaux n’ont pas pu être résolus.')
           : `Zone « ${n} » enregistrée — ${cp} ${cp > 1 ? 'codes postaux touchés' : 'code postal touché'}.`);
+        this.nonResolue.set(r.status === 207 ? { id: b.zone_id, recalculable: estRecalculable(recette) } : null);
         // Un second clic ne doit pas créer un doublon : l'aperçu et la recette sont vidés (le message reste).
         this.recette.set(null);
         this.apercu.set(null);
@@ -121,6 +130,7 @@ export class AtelierZoneService {
     this.apercu.set(null);
     this.erreur.set(null);
     this.message.set(null);
+    this.nonResolue.set(null);
     this.enCours.set(false);
     this.geometrieFigee = undefined;
   }
