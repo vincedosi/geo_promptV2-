@@ -1,25 +1,11 @@
-# La carte en parcours — design
 
-Date : 2026-10-13 · Décideur : Vincent · Statut : **à valider** (spec + maquette
-`.superpowers/sdd/2026-10-12-parcours-carte/maquette-parcours.html`).
-Suite de : `2026-10-12-droits-sur-la-carte-design.md` (droits par espace, deux
-groupes), `2026-10-08-espaces-de-travail-design.md` (page Accès), et de la
-vision du convertisseur zones → CP (mémoire `project_convertisseur_zones_plan`,
-24-25/09) qui **prime** sur toute idée neuve de ce document.
+## 17. Écarts à la livraison (lots 1-2)
 
-## 1. Objectif
-
-La carte Angular (`angular/src/app/features/carte/`) est aujourd'hui un rail de
-cinq panneaux indépendants (Filtre, Calques, Analyse, Zones, Campagne —
-`features/carte/logique/navigation.ts`) plus un module risque à part
-(`features/risques/`, route `carte/risques`). On ne sait pas par où commencer
-ni ce qui mène à quoi, et la campagne n'existe qu'en React
-(`components/magelian/MagelianOverlay.tsx`).
-
-Le chantier transforme la carte en **un seul parcours de sept étapes**, du
-périmètre à la campagne en live, sur une carte qui ne change pas. Il ne
-crée presque aucune fonction neuve : il **range** ce qui existe, généralise
-le moteur de conversion du module risque, et porte la campagne React.
+- **Bouton « Autres », hors du fil** (T11b, Vincent 14/10) : Panneaux OOH et Radio quittent ② pour un bouton au niveau des étapes mais hors du parcours (ni numéro, ni `Alt+N`, `?etape=autres`) — on ne construit pas de zones avec eux.
+- **8 référentiels communs et non 10** (A10 amendé) : IRIS, carreaux, indicateurs CP, transport, TMJA, ICPE et PPRT, santé, météo ; OOH et radio vivent dans `JEUX_AUTRES`.
+- **« Plus de données communes (n) »** et non « Autres données communes » : « Autres » ne nomme que le bouton hors fil (arbitrage du chef de projet).
+- **Pastille « renseignée » de ④** (T14) : s'allume quand le score composite ou les zones à risque sont sur la carte ; ces dégradés ne renseignent plus ②. Le seuil du fil compact remonte à 640 px (pire cas mesuré 635 px : à remesurer à chaque étape qui s'allume).
+- **Transport = arrêts sur la carte** : la pastille « affiché » de la ligne transport s'allume sur les arrêts affichés, les types choisis vivant dans le panneau (« aucun type » = tous). Le bloc « Actifs » compte encore les types choisis : les deux règles divergent, à trancher à la revue UX de la carte.
 
 ## 2. Décisions de Vincent (12/10/2026) — non rediscutées ici
 
