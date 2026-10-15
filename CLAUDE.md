@@ -123,8 +123,10 @@ OBLIGATOIRE :
 - `EXPLAIN ANALYZE` sur toute nouvelle requête PostGIS
 - Index GIST sur toute colonne géométrie
 - Quotas d'appels : passer par `lib/api/rate-limit.ts`, **jamais** par une `Map`
-  locale. Le compteur partagé vit en base (`consommer_quota`, sql/135), parce
-  qu'Upstash n'est pas configuré.
+  locale. Le compteur partagé vit en base (`consommer_quota`, sql/135) : des
+  variables `UPSTASH_*` mortes (hôte supprimé) peuvent encore exister, et un
+  disjoncteur les neutralise — aucune nouvelle tentative, un délai n'autorise
+  jamais, Upstash coupé 5 min après un échec, repli sur la base.
 
   > **La raison écrite ici était « une `Map` ne limite RIEN sur Vercel, chaque
   > invocation peut être une instance différente ». Vercel est abandonné depuis
