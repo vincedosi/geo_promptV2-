@@ -52,7 +52,14 @@ import { lancerKnip, construireRapport } from '../../../scripts/catalogue.mjs';
 // branche `lib/campagne/alignement.ts`, jusque-la importe par ses seuls tests.
 // Descendu a 141 le 2026-10-12 : la suppression de l'IA (lots 1 a 6) a retire
 // les exports que seuls le chat, l'agent et les bilans consommaient.
-const CLIQUET_EXPORTS_MORTS = 141;
+// RELEVÉ a 153 le 2026-10-15 (lot 3 « zones a recette », Task 2) : +12, tous dans
+// `lib/zones/recette.ts` (11) et `lib/zones/recette-schema.ts` (`RecetteSchema`).
+// C'est le CONTRAT du lot, pose avant ses consommateurs (migration des zones a
+// recette, executeur serveur, routes `/api/zones`, Tasks 3 a 8). Hausse assumee
+// et TEMPORAIRE : chaque tache qui branche l'un de ces exports redescend le
+// cliquet ; a la fin du lot, il doit etre revenu a 141 au plus, ou chaque
+// export encore mort doit etre retire.
+const CLIQUET_EXPORTS_MORTS = 153;
 
 describe('catalogue du code', () => {
   it('existe et se declare genere', () => {

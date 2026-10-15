@@ -66,6 +66,14 @@ const ATTENDUS: Record<string, string> = {
   'lib/dsp/push/types.ts': 'Types de la plomberie ci-dessus. Même sort.',
   'lib/dsp/push/dv360.ts': 'Connecteur DV360 de la plomberie ci-dessus. Même sort.',
   'lib/dsp/push/simulated.ts': 'Connecteurs simulé/ignoré de la plomberie ci-dessus. Même sort.',
+  'lib/zones/recette.ts':
+    'CONTRAT EN ATTENTE DE BRANCHEMENT — lot 3 « zones à recette », Task 2 (2026-10-15). '
+    + "Posé AVANT ses consommateurs : l'exécuteur serveur et les routes `/api/zones` (Tasks 7-8) "
+    + "l'importent. ⚠ Entrée TEMPORAIRE : la retirer dans la tâche qui le branche ; si elle "
+    + 'survit à la fin du lot, le module est mort.',
+  'lib/zones/recette-schema.ts':
+    'Schéma Zod du contrat ci-dessus (`lireRecette`), consommé par les routes `/api/zones` '
+    + '(Task 8). Même sort : entrée TEMPORAIRE, à retirer au branchement.',
 };
 
 // ── Graphe d'imports ────────────────────────────────────────────────────────
