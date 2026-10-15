@@ -2,7 +2,9 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { formaterNombre } from '../../../../core/format/nombre';
 import type { ApercuZone } from '../../data/zones.api';
+import { of } from 'rxjs';
 import { AtelierZoneService } from '../../etat/atelier-zone.service';
+import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import type { Recette } from '../../logique/zones/recette';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { PiedRecetteComponent } from './pied-recette.component';
@@ -21,13 +23,19 @@ class Hote {
 }
 
 function monter() {
+  const charger = vi.fn(() => of([{ indicator_code: 'taux_pauvrete', label: 'Taux de pauvreté', famille: 'Revenus', unit: '%' }]));
   const atelier = {
     recette: signal<Recette | null>(null), apercu: signal<ApercuZone | null>(null), enCours: signal(false),
     erreur: signal<string | null>(null), message: signal<string | null>(null), nonResolue: signal<{ id: string; recalculable: boolean } | null>(null),
     apercevoir: vi.fn(), enregistrer: vi.fn(), effacer: vi.fn(),
   };
   const ouvrir = vi.fn();
-  TestBed.configureTestingModule({ providers: [{ provide: AtelierZoneService, useValue: atelier }, { provide: OutilsCarteService, useValue: { ouvrir } }] });
+  TestBed.configureTestingModule({
+    providers: [
+      { provide: AtelierZoneService, useValue: atelier }, { provide: OutilsCarteService, useValue: { ouvrir } },
+      { provide: CatalogueIndicateursService, useValue: { charger } },
+    ],
+  });
   const f = TestBed.createComponent(Hote);
   const el = f.nativeElement as HTMLElement;
   const stable = async () => { await f.whenStable(); };
@@ -86,6 +94,15 @@ describe('PiedRecetteComponent (lot 3, T10, arbitrage P4)', () => {
     expect(b('[data-enregistrer]').disabled).toBe(false);
     b('[data-enregistrer]').click();
     expect(atelier.enregistrer).toHaveBeenCalledWith('Nom saisi');
+  });
+
+  it('seuil sur territoires : le nom par défaut porte le libellé du catalogue et son unité, jamais l’identifiant', async () => {
+    const { f, el, stable, atelier } = monter();
+    const territoire: Recette = { v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 30, perimetre: { type: 'departement', code: '13' } };
+    f.componentInstance.recette.set(territoire);
+    atelier.recette.set(territoire);
+    await stable();
+    expect(el.querySelector<HTMLInputElement>('[data-nom]')!.value).toBe('Territoires où taux de pauvreté ≥ 30 %');
   });
 
   it('écriture en vol : « Enregistrer » et « Effacer » désactivés dès le premier clic ; un second clic n’envoie rien', async () => {

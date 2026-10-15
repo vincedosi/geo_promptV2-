@@ -1,9 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, linkedSignal, signal, untracked } from '@angular/core';
+import type { Subscription } from 'rxjs';
 import { formaterNombre } from '../../../../core/format/nombre';
 import type { ApercuZone } from '../../data/zones.api';
 import { AtelierZoneService } from '../../etat/atelier-zone.service';
+import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
+import type { IndicateurRegistre } from '../../logique/analyses/score';
+import { libelleRecetteAffiche } from '../../logique/zones/libelle-zone';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
-import { type Recette, libelleRecette } from '../../logique/zones/recette';
+import type { Recette } from '../../logique/zones/recette';
 import { STYLES_RECETTE } from './styles-recette';
 
 /** Sous cette part, la découpe par le périmètre est dite (même seuil que les créateurs : les arrondis restent au-dessus). */
@@ -90,9 +94,18 @@ export class PiedRecetteComponent {
   /** La forme d'une recette figée (import) : elle part avec la recette. */
   readonly geometrie = input<GeoJSON.Geometry | undefined>(undefined);
 
+  private readonly catalogue = inject(CatalogueIndicateursService);
+  /**
+   * Le catalogue d'indicateurs du panneau (même service que le formulaire « Par seuil » : la lecture en vol ou déjà faite
+   * est partagée, aucun appel de plus), pour que le nom par défaut d'un seuil sur territoires dise « taux de pauvreté
+   * … %» et non l'identifiant. Lu seulement quand la recette prévisualisée est un tel seuil.
+   */
+  private readonly indicateurs = signal<readonly IndicateurRegistre[]>([]);
+  private lectureCatalogue: Subscription | null = null;
+
   protected readonly nom = linkedSignal({
-    source: this.atelier.recette,
-    computation: (r: Recette | null) => (r ? libelleRecette(r).slice(0, 200) : ''),
+    source: () => ({ r: this.atelier.recette(), catalogue: this.indicateurs() }),
+    computation: ({ r, catalogue }) => (r ? libelleRecetteAffiche(r, catalogue).slice(0, 200) : ''),
   });
   protected readonly chiffres = computed(() => {
     const a = this.atelier.apercu();
@@ -115,6 +128,18 @@ export class PiedRecetteComponent {
     !!this.atelier.apercu() && this.nom().trim().length > 0 && !this.atelier.enCours() && !this.perime());
   protected readonly aEffacer = computed(() =>
     !!(this.atelier.recette() || this.atelier.apercu() || this.atelier.erreur() || this.atelier.message()));
+
+  constructor() {
+    effect(() => {
+      if (this.atelier.recette()?.type !== 'seuil_territoire' || this.lectureCatalogue) return;
+      this.lectureCatalogue = untracked(() => this.catalogue.charger().subscribe({
+        next: (liste) => this.indicateurs.set(liste),
+        // Sans catalogue, l'identifiant : la prochaine recette de ce type relira.
+        error: () => { this.lectureCatalogue = null; },
+      }));
+    });
+    inject(DestroyRef).onDestroy(() => this.lectureCatalogue?.unsubscribe());
+  }
 
   protected apercevoir(): void {
     const r = this.recette();

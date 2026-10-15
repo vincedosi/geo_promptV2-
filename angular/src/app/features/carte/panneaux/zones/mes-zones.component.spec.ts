@@ -275,6 +275,64 @@ describe('MesZonesComponent (ZonesOverlay.tsx, T14)', () => {
     expect(el.querySelector('[data-avis]')!.textContent!.trim()).toBe('Zone « Lycées Gironde » recalculée ; ses codes postaux n’ont pas pu être résolus.');
   });
 
+  it('recalcul d’une zone affichée : sa teinte et son rang ne bougent pas, nom et forme sont ceux de la liste relue', async () => {
+    const recalculer = vi.fn(() => of(new HttpResponse({ status: 200, body: { zone_id: 'z1' } })));
+    const geometrie = vi.fn((id: string) => of({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[1, 2], [3, 4], [1, 2]]] }, properties: { id } }).pipe(delay(0)));
+    const { el, api, stable, carte } = monter({ zones: RECETTES, recalculer, api: { geometrie } });
+    await stable();
+    const service = TestBed.inject(ZonesCustomService);
+    cartes(el)[0].querySelector<HTMLButtonElement>('button[data-afficher]')!.click();
+    await stable();
+    cartes(el)[1].querySelector<HTMLButtonElement>('button[data-afficher]')!.click();
+    await stable();
+    const couleurs = [...service.couleurs()];
+    const cadrages = carte.cadrages.length;
+    // La liste relue après le recalcul porte le nouveau nom de la zone.
+    api.lister.mockImplementation(() => of({ zones: [{ ...RECETTES[0], name: 'Lycées Gironde (recalculée)' }, RECETTES[1]] }));
+    cartes(el)[0].querySelector<HTMLButtonElement>('button[data-recalculer]')!.click();
+    await stable();
+    expect(geometrie).toHaveBeenCalledTimes(3);
+    expect([...service.couleurs()]).toEqual(couleurs);
+    expect(service.zonesAffichees()).toEqual([{ id: 'z1', name: 'Lycées Gironde (recalculée)' }, { id: 'z2', name: 'Dessin' }]);
+    expect(carte.cadrages.length).toBe(cadrages);
+  });
+
+  it('Supprimer : tout message texte de la route est affiché, quel que soit `refus`', async () => {
+    const supprimer = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 403, error: { error: 'Droit insuffisant sur cette zone.' } })));
+    const { el, stable } = await monter({ api: { supprimer } });
+    await stable();
+    cartes(el)[0].querySelector<HTMLButtonElement>('button[data-supprimer]')!.click();
+    await stable();
+    const dialogue = el.querySelector('mg-dialogue-suppression-zone')!;
+    dialogue.querySelector<HTMLButtonElement>('button[data-confirmer]')!.click();
+    await stable();
+    expect(dialogue.querySelector('[data-erreur]')!.textContent).toBe('Droit insuffisant sur cette zone.');
+  });
+
+  it('le bandeau d’avis (207) disparaît à la suppression, à une opération et à une recherche', async () => {
+    const recalculer = vi.fn(() => of(new HttpResponse({ status: 207, body: { zone_id: 'z1' } })));
+    const { el, stable, fixture } = await monterRecettes(recalculer);
+    await stable();
+    const avisPuis = async (geste: () => void | Promise<void>) => {
+      cartes(el)[0].querySelector<HTMLButtonElement>('button[data-recalculer]')!.click();
+      await stable();
+      expect(el.querySelector('[data-avis]')).not.toBeNull();
+      await geste();
+      await stable(250);
+      expect(el.querySelector('[data-avis]')).toBeNull();
+    };
+    await avisPuis(() => {
+      const champ = el.querySelector<HTMLInputElement>('input[data-recherche]')!;
+      champ.value = 'x'; champ.dispatchEvent(new Event('input'));
+    });
+    await avisPuis(() => (fixture.componentInstance as unknown as { apresOperation: () => void }).apresOperation());
+    await avisPuis(async () => {
+      cartes(el)[0].querySelector<HTMLButtonElement>('button[data-supprimer]')!.click();
+      await stable();
+      el.querySelector<HTMLButtonElement>('mg-dialogue-suppression-zone button[data-confirmer]')!.click();
+    });
+  });
+
   it('liste en échec → « HTTP 500 » ; chiffres en échec → liste quand même', async () => {
     const { el, stable } = await monter({ api: { stats: () => throwError(() => new HttpErrorResponse({ status: 500 })) } });
     await stable();

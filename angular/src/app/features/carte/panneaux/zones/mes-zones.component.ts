@@ -209,6 +209,8 @@ export class MesZonesComponent {
   private lecture: Subscription | null = null;
   private lectureCatalogue: Subscription | null = null;
   private readonly vols = new Map<string, Subscription>();
+  /** Les zones affichées recalculées dont la forme attend la liste relue pour être redessinée. */
+  private readonly aRelire = new Set<string>();
   private minuterie: ReturnType<typeof setTimeout> | undefined;
   private detruit = false;
 
@@ -265,10 +267,9 @@ export class MesZonesComponent {
       next: (r) => {
         this.retirerRecalcul(id);
         if (r.status === 207) this.avis.set(`Zone « ${zone?.name ?? ''} » recalculée ; ses codes postaux n’ont pas pu être résolus.`);
-        if (zone && this.affichage.couleurs().has(id)) {
-          this.affichage.masquer(id);
-          this.affichage.afficher(zone);
-        }
+        // Affichée : redessinée EN PLACE (même teinte, même rang) à l'arrivée de la liste relue, qui porte le nom et
+        // l'emprise frais de la zone — la zone d'avant le recalcul n'est plus la bonne.
+        if (this.affichage.couleurs().has(id)) this.aRelire.add(id);
         this.relecture.update((n) => n + 1);
       },
       error: (e: { status?: number; error?: unknown }) => {
@@ -288,6 +289,7 @@ export class MesZonesComponent {
   }
 
   protected rechercher(q: string): void {
+    this.avis.set(null);
     this.recherche.set(q);
   }
 
@@ -297,6 +299,7 @@ export class MesZonesComponent {
 
   /** `onTermine` : sélection vidée, liste relue. */
   protected apresOperation(): void {
+    this.avis.set(null);
     this.selection.set([]);
     this.relecture.update((n) => n + 1);
   }
@@ -321,10 +324,11 @@ export class MesZonesComponent {
     try {
       await firstValueFrom(this.api.supprimer(zone.id));
     } catch (e) {
-      const corps = (e as { error?: { refus?: unknown; error?: unknown } } | null)?.error;
-      if (corps?.refus === 'zone_referencee' && typeof corps.error === 'string') return corps.error;
+      const corps = (e as { error?: { error?: unknown } } | null)?.error;
+      if (typeof corps?.error === 'string' && corps.error) return corps.error;
       return messageHttp(e, 'Échec de la suppression');
     }
+    this.avis.set(null);
     this.affichage.masquer(zone.id);
     this.aSupprimer.set(null);
     this.relecture.update((n) => n + 1);
@@ -347,6 +351,9 @@ export class MesZonesComponent {
       next: ({ liste, stats }) => {
         const zones = liste.zones ?? [];
         this.zones.set(zones);
+        for (const z of zones) {
+          if (this.aRelire.delete(z.id)) this.affichage.relire(z);
+        }
         const existants = new Set(zones.map((z) => z.id));
         this.selection.update((s) => selectionExistante(s, existants));
         if (stats) this.statsBrutes.set(stats);
