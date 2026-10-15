@@ -2336,6 +2336,7 @@ export type Database = {
           items_audience_stats: Json | null
           name: string
           org_id: string
+          recette: Json | null
           resolved_at: string | null
           source_metadata: Json
           source_type: string
@@ -2356,6 +2357,7 @@ export type Database = {
           items_audience_stats?: Json | null
           name: string
           org_id: string
+          recette?: Json | null
           resolved_at?: string | null
           source_metadata?: Json
           source_type: string
@@ -2376,6 +2378,7 @@ export type Database = {
           items_audience_stats?: Json | null
           name?: string
           org_id?: string
+          recette?: Json | null
           resolved_at?: string | null
           source_metadata?: Json
           source_type?: string
@@ -6500,6 +6503,16 @@ export type Database = {
         }
         Returns: string
       }
+      creer_zone_recette: {
+        Args: {
+          p_cree_par: string
+          p_geometry_geojson: string
+          p_nom: string
+          p_org_id: string
+          p_recette: Json
+        }
+        Returns: Json
+      }
       creer_zone_set_extraction: {
         Args: {
           p_commentaire?: string
@@ -7607,6 +7620,14 @@ export type Database = {
         Args: { p_actif: string; p_espaces: string[]; p_user: string }
         Returns: Json
       }
+      remplacer_geometrie_zone: {
+        Args: {
+          p_geometry_geojson: string
+          p_org_id: string
+          p_zone_id: string
+        }
+        Returns: Json
+      }
       remplacer_jeux_recommandes: {
         Args: { p_cles: string[]; p_organization_id: string }
         Returns: Json
@@ -7635,6 +7656,16 @@ export type Database = {
       resolve_custom_geo_zone_codes_with_subzones: {
         Args: { p_caller_user_id?: string; p_zone_id: string }
         Returns: Json
+      }
+      resoudre_perimetre: {
+        Args: {
+          p_code: string
+          p_max_km2: number
+          p_org_id: string
+          p_type: string
+          p_types_admis: string[]
+        }
+        Returns: Record<string, unknown>
       }
       risques_industriels_carte: {
         Args: {
@@ -8347,6 +8378,7 @@ export type Database = {
         Args: { p_lat: number; p_lon: number; p_rayon_m: number }
         Returns: Json
       }
+      zone_referencee: { Args: { p_zone_id: string }; Returns: string }
       zone_set_cp_geo: {
         Args: { p_bbox?: number[]; p_limite?: number; p_zone_set_id: string }
         Returns: Json

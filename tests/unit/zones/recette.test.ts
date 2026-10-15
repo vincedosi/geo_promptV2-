@@ -7,9 +7,6 @@ import {
 import { lireRecette } from '@/lib/zones/recette-schema';
 
 const PER = { type: 'departement', code: '13' } as const;
-const UUID_A = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
-const UUID_B = '3f2504e0-4f89-11d3-9a0c-0305e82c3302';
-const UUID_C = '3f2504e0-4f89-11d3-9a0c-0305e82c3303';
 
 /** La migration qui porte ce suffixe, cherchée par suffixe et jamais par numéro (le numéro réel se prend à chaque tâche). */
 function migration(suffixe: RegExp): string | undefined {
@@ -21,7 +18,7 @@ describe('la recette d’une zone', () => {
   it('dix types, et le CHECK de la migration les liste tous', () => {
     expect(TYPES_RECETTE).toHaveLength(10);
     const sql = migration(/_zones_a_recette\.sql$/);
-    if (sql === undefined) return; // la migration arrive en Task 3 : retirer CETTE ligne la rend stricte
+    expect(sql, 'migration *_zones_a_recette.sql').toBeDefined();
     for (const t of TYPES_RECETTE) expect(sql, t).toContain(`'${t}'`);
   });
 
@@ -51,7 +48,7 @@ describe('la recette d’une zone', () => {
   it('PERIMETRES_ADMIS est la liste écrite dans la RPC du seuil sur carreaux', () => {
     const sql = migration(/_zone_seuil_carreaux\.sql$/);
     if (sql === undefined) return; // la migration arrive en Task 5 : retirer CETTE ligne la rend stricte
-    expect(sql).toContain(`array[${PERIMETRES_ADMIS.seuil_carreaux!.map((t) => `'${t}'`).join(', ')}]`);
+    expect(sql).toContain(`array[${(PERIMETRES_ADMIS.seuil_carreaux ?? []).map((t) => `'${t}'`).join(', ')}]`);
   });
 
   it('un message français pour chaque refus', () => {
@@ -76,32 +73,10 @@ describe('la recette d’une zone', () => {
   });
 });
 
+// Les refus de lireRecette, les combinaisons et l'intersection sont couverts par recette-schema.test.ts (revue de la
+// Task 2) ; seul le cas d'une recette lourde COMPLÈTE acceptée n'y figure pas, il reste ici.
 describe('lireRecette (Zod)', () => {
   it('accepte une recette complète', () => {
     expect(lireRecette({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 5000, perimetre: PER }).ok).toBe(true);
-  });
-  it('accepte une union de trois zones, une différence de deux, une intersection de deux', () => {
-    expect(lireRecette({ v: 1, type: 'combinaison', operation: 'union', zones: [UUID_A, UUID_B, UUID_C] }).ok).toBe(true);
-    expect(lireRecette({ v: 1, type: 'combinaison', operation: 'difference', zones: [UUID_A, UUID_B] }).ok).toBe(true);
-    expect(lireRecette({ v: 1, type: 'combinaison', operation: 'intersection', zones: [UUID_A, UUID_B] }).ok).toBe(true);
-  });
-  it('l’intersection se fait entre deux zones exactement, et le dit', () => {
-    const r = lireRecette({ v: 1, type: 'combinaison', operation: 'intersection', zones: [UUID_A, UUID_B, UUID_C] });
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.message).toContain('L’intersection se fait entre deux zones.');
-  });
-  it.each([
-    ['version inconnue', { v: 2, type: 'dessin' }],
-    ['type inconnu', { v: 1, type: 'pluie' }],
-    ['rayon trop grand', { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 60_000, perimetre: PER }],
-    ['indicateur hors liste', { v: 1, type: 'seuil_carreaux', indicateur: 'men', operateur: '>=', seuil: 1, perimetre: PER }],
-    ['opérateur', { v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>', seuil: 1, perimetre: PER }],
-    ['combinaison d’une seule zone', { v: 1, type: 'combinaison', operation: 'union', zones: [UUID_A] }],
-    ['périmètre zone non UUID', { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 500, perimetre: { type: 'zone', code: 'abc' } }],
-    ['clé en trop', { v: 1, type: 'dessin', geometrie: {} }],
-  ])('refuse : %s, avec un message français', (_n, v) => {
-    const r = lireRecette(v);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.message).toMatch(/^Recette/);
   });
 });
