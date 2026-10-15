@@ -33,6 +33,7 @@ import { EtatCarteService } from '../../etat/etat-carte.service';
 import { PileEchapService } from '../../etat/pile-echap.service';
 import { RisqueCarteService } from '../../etat/risque-carte.service';
 import { CARREAUX_INDICATEURS } from '../../logique/carreaux/catalogue';
+import { JEUX_REFERENTIELS } from '../../logique/jeux-carte';
 import type { MeteoZoneChunk } from '../../logique/meteo/types';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { PanneauDonneesComponent } from './panneau-donnees.component';
@@ -231,6 +232,19 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
     expect(el.querySelector('mg-section-ooh, mg-section-radio')).toBeNull();
     // Les six sections `integre` ne rendent pas leur en-tête : la ligne porte déjà le nom.
     expect(el.querySelector('mg-entete-filtre')).toBeNull();
+  });
+
+  it('chaque clé de JEUX_REFERENTIELS (le registre, pas une liste recopiée) déplie un [data-reglages] NON VIDE — le @switch du panneau ne peut pas en oublier une (F3)', async () => {
+    const { el, rendre, deplier } = monter();
+    await rendre();
+    expect(JEUX_REFERENTIELS.length).toBeGreaterThan(0);
+    for (const { cle } of JEUX_REFERENTIELS) {
+      await deplier(cle);
+      // Le premier `[data-reglages]` de la ligne est celui de `mg-ligne-jeu` (celui des carreaux, plus profond, vient après).
+      const reglages = el.querySelector(`[data-jeu="${cle}"] [data-reglages]`);
+      expect(reglages, cle).not.toBeNull();
+      expect(reglages!.childElementCount, `${cle} : aucun @case dans le @switch de panneau-donnees`).toBeGreaterThan(0);
+    }
   });
 
   it('« Chercher un jeu » « meteo » : seule la ligne Météo reste, dans son bloc ; la vider rend tout', async () => {
