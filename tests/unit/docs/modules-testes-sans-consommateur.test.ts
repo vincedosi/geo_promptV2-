@@ -74,6 +74,11 @@ const ATTENDUS: Record<string, string> = {
   'lib/zones/recette-schema.ts':
     'Schéma Zod du contrat ci-dessus (`lireRecette`), consommé par les routes `/api/zones` '
     + '(Task 8). Même sort : entrée TEMPORAIRE, à retirer au branchement.',
+  'lib/zones/executer-recette.ts':
+    'EXÉCUTEUR EN ATTENTE DE BRANCHEMENT — lot 3 « zones à recette », Task 7 (2026-10-15). '
+    + "Il consomme le contrat ci-dessus, mais rien de la production ne l'atteint encore : les "
+    + 'routes `/api/zones` (Task 8) l\'appellent. Même sort : entrée TEMPORAIRE, à retirer avec '
+    + 'les deux précédentes au branchement.',
 };
 
 // ── Graphe d'imports ────────────────────────────────────────────────────────
