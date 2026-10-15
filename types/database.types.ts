@@ -8411,6 +8411,18 @@ export type Database = {
         }
         Returns: Json
       }
+      zone_seuil_territoire: {
+        Args: {
+          p_indicateur: string
+          p_max_territoires?: number
+          p_operateur: string
+          p_org_id: string
+          p_perimetre_code: string
+          p_perimetre_type: string
+          p_seuil: number
+        }
+        Returns: Json
+      }
       zones_risque_tuile: {
         Args: { p_profil_code: string; p_x: number; p_y: number; p_z: number }
         Returns: string

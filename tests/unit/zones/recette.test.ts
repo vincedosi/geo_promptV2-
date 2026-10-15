@@ -61,12 +61,7 @@ describe('la recette d’une zone', () => {
 
   it('PERIMETRES_ADMIS est la liste écrite dans la RPC du seuil sur territoires (Task 6)', () => {
     const sql = migration(/_zone_seuil_territoire\.sql$/);
-    // TODO Task 6 : la migration *_zone_seuil_territoire.sql n'existe pas encore. Remplacer ce `if` par
-    // `expect(sql, 'migration *_zone_seuil_territoire.sql').toBeDefined()` dans le commit qui la crée.
-    if (sql === undefined) {
-      expect(readdirSync('sql').some((n) => n.includes('seuil_territoire'))).toBe(false);
-      return;
-    }
+    expect(sql, 'migration *_zone_seuil_territoire.sql').toBeDefined();
     expect(sql).toContain(liste('seuil_territoire'));
   });
 
