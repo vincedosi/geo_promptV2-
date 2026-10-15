@@ -48,6 +48,7 @@ data/
 # angular/src/app/features/*/data/ est la couche data-access Angular
 # (*.api.ts), pas un dépôt de données — jamais du code à exclure en silence.
 !angular/src/**/data/
+!app/api/radio/data/
 
 # Python benchmark venv (chantier A4.2)
 scripts/benchmarking/.venv/
