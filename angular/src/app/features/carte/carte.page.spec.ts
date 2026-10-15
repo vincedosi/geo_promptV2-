@@ -177,6 +177,17 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     expect(routeur().url).toBe('/carte');
   });
 
+  it('lot 3, T9 : la barre de progression de la page est montée sous la barre du parcours, vide au repos', async () => {
+    const { hote } = await ouvrir();
+    const barre = hote.querySelector('mg-barre-progression');
+    expect(barre).not.toBeNull();
+    expect(barre!.previousElementSibling?.tagName.toLowerCase()).toBe('mg-barre-parcours');
+    const jauge = barre!.querySelector('[role="progressbar"]')!;
+    expect(jauge.getAttribute('aria-busy')).toBe('false');
+    expect(jauge.getAttribute('aria-label')).toBe('Aucun calcul en cours');
+    expect(jauge.textContent!.trim()).toBe('');
+  });
+
   it('(g) Alt+2 (AZERTY : code Digit2, key « é ») passe à ② : Données dans son panneau, ?etape=donnees ; Échap ne le ferme pas', async () => {
     const { hote, stable } = await ouvrir();
     const e = frapper(hote, altChiffre('2'));

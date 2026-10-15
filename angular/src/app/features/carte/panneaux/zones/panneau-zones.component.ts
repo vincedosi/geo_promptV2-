@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
+import { AtelierZoneService } from '../../etat/atelier-zone.service';
 import { CaptureService } from '../../etat/capture.service';
 import { CreationZoneService } from '../../etat/creation-zone.service';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
@@ -24,7 +25,8 @@ import { CreerRayonComponent } from './creer-rayon.component';
 @Component({
   selector: 'mg-panneau-zones',
   imports: [CaptureComponent, CreerCodesPostauxComponent, CreerDessinComponent, CreerRayonComponent, IconeComponent],
-  providers: [CreationZoneService],
+  // L'atelier des zones à recette (lot 3, T9) : au panneau, qui reste monté — l'aperçu survit à ③ → ① → ③.
+  providers: [CreationZoneService, AtelierZoneService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full flex-col overflow-y-auto' },
   template: `

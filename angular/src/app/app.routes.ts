@@ -18,6 +18,7 @@ import { RadioApi } from './features/carte/data/radio.api';
 import { CiviqueApi } from './features/carte/data/civique.api';
 import { MeteoApi } from './features/carte/data/meteo.api';
 import { ZonesCustomApi } from './features/carte/data/zones-custom.api';
+import { ZonesApi } from './features/carte/data/zones.api';
 import { IsochronesApi } from './features/carte/data/isochrones.api';
 import { AnalysesApi } from './features/carte/data/analyses.api';
 import { ClusteringApi } from './features/carte/data/clustering.api';
@@ -55,6 +56,7 @@ const FOURNISSEURS_DISTANTS: (Provider | EnvironmentProviders)[] = [
   SimulationApi,
   OrganisationsApi,
   ZonesCustomApi,
+  ZonesApi,
   CarreauxApi,
   IrisApi,
   CarteApi,

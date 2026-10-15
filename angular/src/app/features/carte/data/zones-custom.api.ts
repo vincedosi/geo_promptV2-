@@ -8,6 +8,7 @@ import type { CibleKey } from '../logique/zones/cibles';
 import type { ItemAudience, corpsInstantane, corpsPlan } from '../logique/zones/plan-media';
 import type { GeometrieContribuee } from '../logique/zones/capture';
 import type { ReponseCodesPostaux, ReponseSurface } from '../logique/zones/creation-zone';
+import type { Recette } from '../logique/zones/recette';
 
 /**
  * Une zone enregistrée, telle que `GET /api/custom-geo/list` la rend — recopie de `CustomGeoZoneSummary`
@@ -28,6 +29,8 @@ export interface ZoneCustomResume {
   dept_codes?: string[];
   /** Codes région INSEE résolus (`custom_geo_zone_codes`, `code_type='region'`). */
   region_codes?: string[];
+  /** La recette de la zone (lot 3, `custom_geo_zones.recette`) ; `null` pour une zone d'avant le lot 3. */
+  recette?: Recette | null;
 }
 
 /** `GET /api/custom-geo/stats` (`get_custom_geo_zones_stats`) : champs lus par `ZonesOverlay.tsx:171-175`. */

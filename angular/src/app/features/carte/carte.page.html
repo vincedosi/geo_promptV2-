@@ -9,6 +9,9 @@
     (basculerImmersif)="basculerImmersif()" (orgChangee)="organisationChangee()"
   />
 }
+<!-- La barre de progression de la page (spec § 3 : une barre pour tout calcul — l'aperçu d'une zone de ③, lot 3),
+     juste sous la barre du parcours ; TOUJOURS montée (seule l'opacité change), même en immersif. -->
+<mg-barre-progression />
 
 <!-- La carte, permanente, et SEULE dans sa rangée : tout ce qui la couvre flotte dedans (T4b), rien ne lui prend de largeur.
      `inert` pendant le module risque (T13 du lot 4) : recouverte, elle ne prend plus ni focus clavier ni lecteur d'écran.

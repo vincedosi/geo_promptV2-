@@ -38,6 +38,8 @@ const SOURCES_REACT: Record<string, { fichier: string; idReact: string } | { eca
   'custom-zone-*': { fichier: 'components/map/overlays/ZonesOverlay.tsx', idReact: 'custom-zone-fill-' },
   'apercu-rayon-fill': { fichier: 'app/map/_components/panneaux/CreerZoneRayon.tsx', idReact: 'apercu-rayon-fill' },
   'apercu-rayon-line': { fichier: 'app/map/_components/panneaux/CreerZoneRayon.tsx', idReact: 'apercu-rayon-line' },
+  'apercu-zone-fill': { ecart: 'sans équivalent React : aperçu d’une zone à recette, étape ③ du parcours (lot 3)' },
+  'apercu-zone-line': { ecart: 'sans équivalent React : aperçu d’une zone à recette, étape ③ du parcours (lot 3)' },
   'dessin-trace-fill': { ecart: 'terra-draw chez React (DessinLibre.tsx)' },
   'dessin-trace-line': { ecart: 'terra-draw chez React (DessinLibre.tsx)' },
   'dessin-trace-point': { ecart: 'terra-draw chez React (DessinLibre.tsx)' },
@@ -51,7 +53,8 @@ const POSEURS_ANGULAR = [
   'angular/src/app/features/carte/couches/couche-score.ts',
   'angular/src/app/features/carte/couches/zones-risque.service.ts',
   'angular/src/app/features/carte/couches/couche-zones-custom.ts',
-  'angular/src/app/features/carte/couches/apercu-rayon.ts',
+  // La pose des aperçus (rayon, zone à recette) est commune : `apercu-rayon.ts` et `apercu-zone.ts` y délèguent.
+  'angular/src/app/features/carte/couches/apercu-forme.ts',
   'angular/src/app/features/carte/couches/dessin.service.ts',
 ];
 

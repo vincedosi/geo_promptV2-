@@ -39,6 +39,7 @@ export const COUCHES_APRES_LOAD: readonly string[] = [
   'atelier-zones-fond', 'atelier-zones-contour', 'atelier-zones-pprt', 'atelier-zones-etiquettes',
   'custom-zone-*',
   'apercu-rayon-fill', 'apercu-rayon-line',
+  'apercu-zone-fill', 'apercu-zone-line',
   'dessin-trace-fill', 'dessin-trace-line', 'dessin-trace-point',
 ];
 

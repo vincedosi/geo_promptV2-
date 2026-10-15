@@ -78,6 +78,28 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   aucun calque ni tuile avant un geste. La sélection se règle dans Accès › fiche espace › Données
   (`mg-jeux-recommandes`) ; une recommandation range, elle ne donne ni ne retire aucun droit.
 
+## ③ Zones à recette : la plomberie (lot 3, T9, 2026-10-15)
+
+- **L'API** `data/zones.api.ts` (`ZonesApi`, dans `FOURNISSEURS_DISTANTS`) : `apercu` (`POST /api/zones/apercu`, rien
+  d'écrit), `enregistrer` (`POST /api/zones`, réponse COMPLÈTE : 200 ou 207) et `recalculer` (`POST
+  /api/zones/[id]/recalculer`). `ZoneCustomResume.recette` porte la recette lue par `/api/custom-geo/list`.
+- **Le périmètre** : `logique/zones/perimetre-recette.ts` — `perimetreDeFiltre` (le filtre de ① tel qu'une recette
+  l'enregistre ; la France s'écrit `FR`, aucun filtre → `null`, refusé avant tout appel pour une recette lourde) et
+  `messageErreurZone` (le message français de la route, sinon un message par statut).
+- **L'import** : `logique/zones/import-forme.ts` — `lireForme(texte, nomFichier)` lit un GeoJSON ou un KML (préfixé ou
+  non, `DOMParser`) en un `MultiPolygon` : polygones gardés, points et lignes COMPTÉS comme ignorés, refus au-delà de
+  20 000 sommets et sur des coordonnées hors bornes ou lat/lon inversées (dit, jamais corrigé). La réparation et le
+  découpage sur la France restent au serveur.
+- **L'atelier** : `etat/atelier-zone.service.ts` (`AtelierZoneService`, fourni par `mg-panneau-zones`, qui reste
+  monté — l'aperçu survit à ③ → ① → ③) : `apercevoir(recette, geometrie?)` coupe l'aperçu précédent ; `enregistrer(nom)`
+  envoie la RECETTE (la géométrie seulement pour une forme figée). ⚠ `POST /api/zones` n'est PAS idempotent : une
+  écriture en vol n'est jamais coupée ni doublée (second clic, nouvel aperçu, « Effacer » ignorés jusqu'à la réponse),
+  et un 207 est une réussite (la zone existe : atelier vidé, jamais renvoyée). Piste de chargement `atelier-zone` :
+  la page fournit `ChargementService` et monte `mg-barre-progression` sous la barre du parcours.
+- **La couche** : `couches/apercu-zone.ts` (`apercu-zone-fill` / `apercu-zone-line`, au-dessus de l'aperçu du rayon
+  dans `logique/ordre-couches.ts`), teal 0,15 et contour pointillé `[2, 2]` ; pose et retrait communs avec l'aperçu du
+  rayon dans `couches/apercu-forme.ts`.
+
 ## Cycle de vie d'une couche
 
 1. **Allumée** par sa section de `panneaux/calques/`, dépliée dans sa ligne de ② (ou un outil) : le service passe `visible` à vrai.

@@ -4,6 +4,8 @@ import {
 import { RouterOutlet } from '@angular/router';
 import type maplibregl from 'maplibre-gl';
 import { CarteComponent } from '../../carte/carte.component';
+import { ChargementService } from '../../core/chargement/chargement.service';
+import { BarreProgressionComponent } from '../../ui/barre-progression/barre-progression.component';
 import { CouleursService } from '../../core/theme/couleurs.service';
 import type { SegmentAriane } from '../../ui/fil-ariane/fil-ariane.component';
 import { IconeComponent } from '../../ui/icone/icone.component';
@@ -115,11 +117,11 @@ export function palierCarreaux(zoom: number): string {
 @Component({
   selector: 'mg-carte-principale',
   imports: [
-    AnnonceComponent, BarreParcoursComponent, BoiteOutilsComponent, CarteComponent, DetailIrisComponent, DialogueMeteoComponent,
+    AnnonceComponent, BarreParcoursComponent, BarreProgressionComponent, BoiteOutilsComponent, CarteComponent, DetailIrisComponent, DialogueMeteoComponent,
     EtapeBientotComponent, IconeComponent, LegendeCarteComponent, PanneauAnalyseComponent, PanneauAutresComponent, PanneauDonneesComponent, PanneauEtapeComponent,
     PanneauFiltreComponent, PanneauZonesComponent, PlanMediaComponent, RouterOutlet, TiroirPanneauComponent, ZoneActiveComponent,
   ],
-  providers: [ParcoursService, OutilsCarteService, EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
+  providers: [ChargementService, ParcoursService, OutilsCarteService, EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
     IrisService, PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService,
     IndicateursCiviquesService, SanteService, ContoursZonesService, MeteoService, RisqueCarteService, RisquesIndustrielsService,
     PprtService, ZonesRisqueService, BatailleService, ZonesCustomService, LienZoneService, ExportZoneService, PlanMediaService,
