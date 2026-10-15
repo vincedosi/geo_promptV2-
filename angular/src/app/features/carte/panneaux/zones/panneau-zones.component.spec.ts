@@ -43,6 +43,9 @@ describe('PanneauZonesComponent — ③ garde « Créer une zone » ; « Mes zon
     const { el, outils } = await monter();
     const bouton = el.querySelector<HTMLButtonElement>('[data-ouvrir-mes-zones]')!;
     expect(bouton.textContent!.trim()).toBe('Ouvrir « Mes zones »');
+    // Neutre, comme celui de ② : ouvrir un tiroir n'est pas une action métier.
+    expect(bouton.classList).toContain('border-default');
+    expect(bouton.className).not.toMatch(/teal/);
     bouton.click();
     expect(outils.outil()).toBe('zones');
   });

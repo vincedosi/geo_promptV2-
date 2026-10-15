@@ -179,7 +179,12 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
     expect(bloc.textContent).toContain("Cet espace n'a importé aucune donnée.");
     const zones = bloc.querySelector('[data-zones-espace]')!;
     expect(zones.textContent).toContain("Zones de l'espace : boîte à outils, « Mes zones »");
-    zones.querySelector<HTMLButtonElement>('button')!.click();
+    const ouvrir = zones.querySelector<HTMLButtonElement>('button[data-ouvrir-mes-zones]')!;
+    // NEUTRE, comme « Ouvrir « Mes zones » » de ③ (revue finale lots 1-2) : ni bord ni texte teal — seul le focus l'est.
+    expect(ouvrir.classList).toContain('border-default');
+    expect(ouvrir.classList).toContain('text-secondary');
+    expect(ouvrir.className.replace('focus-visible:outline-[var(--brand-teal-50)]', '')).not.toMatch(/teal/);
+    ouvrir.click();
     expect(outils.outil()).toBe('zones');
   });
 

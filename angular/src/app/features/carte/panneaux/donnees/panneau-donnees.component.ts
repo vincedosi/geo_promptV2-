@@ -132,8 +132,9 @@ const estPoi = (cle: string) => cle.startsWith(PREFIXE_POI);
       }
       <div data-zones-espace class="flex items-center gap-2 border-t-fin border-subtle px-[14px] py-2">
         <span class="min-w-0 flex-1 text-[12px] text-secondary">Zones de l'espace : boîte à outils, « Mes zones »</span>
-        <button type="button" (click)="outils.ouvrir('zones')"
-          class="shrink-0 cursor-pointer rounded-[6px] border-fin border-teal bg-transparent px-2.5 py-1 text-[11px] font-medium text-teal transition-colors duration-150 ease-[var(--ease-hover)] hover:bg-teal-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--brand-teal-50)]">Ouvrir</button>
+        <!-- NEUTRE, comme « Ouvrir « Mes zones » » de ③ : ouvrir un tiroir n'est pas une action métier (revue finale lots 1-2). -->
+        <button type="button" data-ouvrir-mes-zones (click)="outils.ouvrir('zones')"
+          class="shrink-0 cursor-pointer rounded-[6px] border-fin border-default bg-transparent px-2.5 py-1 text-[11px] text-secondary transition-colors duration-150 ease-[var(--ease-hover)] hover:border-hover hover:bg-elevated hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--brand-teal-50)]">Ouvrir</button>
       </div>
     </section>
 
