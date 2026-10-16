@@ -36,6 +36,8 @@ const SOURCES_REACT: Record<string, { fichier: string; idReact: string } | { eca
   'atelier-zones-pprt': { fichier: 'app/map/_components/ZonesRisqueLayer.tsx', idReact: 'zones-risque-contour-pprt' },
   'atelier-zones-etiquettes': { ecart: 'non posée sur la carte principale (etiquettes: false), rangée pour le cas où' },
   'custom-zone-*': { fichier: 'components/map/overlays/ZonesOverlay.tsx', idReact: 'custom-zone-fill-' },
+  'campagne-ooh-points': { ecart: 'sans équivalent React : emplacements d’une campagne OOH (spec 2026-10-16-ooh-campagnes)' },
+  'campagne-ooh-a-verifier': { ecart: 'sans équivalent React : anneau pointillé des emplacements à vérifier' },
   'apercu-rayon-fill': { fichier: 'app/map/_components/panneaux/CreerZoneRayon.tsx', idReact: 'apercu-rayon-fill' },
   'apercu-rayon-line': { fichier: 'app/map/_components/panneaux/CreerZoneRayon.tsx', idReact: 'apercu-rayon-line' },
   'apercu-zone-fill': { ecart: 'sans équivalent React : aperçu d’une zone à recette, étape ③ du parcours (lot 3)' },
@@ -53,6 +55,7 @@ const POSEURS_ANGULAR = [
   'angular/src/app/features/carte/couches/couche-score.ts',
   'angular/src/app/features/carte/couches/zones-risque.service.ts',
   'angular/src/app/features/carte/couches/couche-zones-custom.ts',
+  'angular/src/app/features/carte/couches/couche-campagne-ooh.ts',
   // La pose des aperçus (rayon, zone à recette) est commune : `apercu-rayon.ts` et `apercu-zone.ts` y délèguent.
   'angular/src/app/features/carte/couches/apercu-forme.ts',
   'angular/src/app/features/carte/couches/dessin.service.ts',

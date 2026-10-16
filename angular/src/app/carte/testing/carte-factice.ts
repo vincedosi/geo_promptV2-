@@ -204,6 +204,11 @@ export class CarteFactice {
   /** L'inverse de `project` : les pixels en longitude et latitude, tels quels. */
   unproject(point: [number, number]): { lng: number; lat: number } { return { lng: point[0], lat: point[1] }; }
   remove(): void { this.retiree = true; }
+  /** Les images posées par `addImage` (l'anneau pointillé des emplacements à vérifier). */
+  readonly images = new Map<string, unknown>();
+  hasImage(id: string): boolean { return this.images.has(id); }
+  addImage(id: string, image: unknown): this { this.images.set(id, image); return this; }
+  removeImage(id: string): this { this.images.delete(id); this.retraits.push(`image:${id}`); return this; }
   resize(): this { this.appelsResize++; return this; }
   getBounds() {
     const [o, s, e, n] = this.cadre;

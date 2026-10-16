@@ -3,6 +3,7 @@ import { Injectable } from '@angular/core';
 import { type Observable, timeout } from 'rxjs';
 import type { Bbox } from '../../../carte/bbox';
 import { HttpBaseService } from '../../../core/http/http-base.service';
+import type { DetailCampagneOoh, ReponseCampagnesOoh } from '../logique/campagnes-ooh';
 import { SOURCE_TMJA } from '../logique/palettes-donnees-carte';
 
 /** Un point d'intérêt — recopie de `POI` (`types/poi.ts`). */
@@ -153,6 +154,16 @@ export class CarteApi extends HttpBaseService {
   /** `POST /api/map/ooh`, 15 s au plus comme React. */
   ooh(corps: CorpsOoh): Observable<ZoneData> {
     return this.httpClient.post<ZoneData>(`${this.baseUrl}/map/ooh`, corps).pipe(timeout(DELAI_OOH_MS));
+  }
+
+  /** `GET /api/map/ooh/campagnes` — les campagnes OOH de l'espace actif (spec 2026-10-16-ooh-campagnes § 5). */
+  campagnesOoh(): Observable<ReponseCampagnesOoh> {
+    return this.httpClient.get<ReponseCampagnesOoh>(`${this.baseUrl}/map/ooh/campagnes`);
+  }
+
+  /** `GET /api/map/ooh/campagnes/:id` — une campagne de l'espace actif, ses lignes OOH et ses emplacements. */
+  campagneOoh(id: string): Observable<DetailCampagneOoh> {
+    return this.httpClient.get<DetailCampagneOoh>(`${this.baseUrl}/map/ooh/campagnes/${encodeURIComponent(id)}`);
   }
 
   /**

@@ -38,6 +38,9 @@ export const COUCHES_APRES_LOAD: readonly string[] = [
   'score-composite-cp-fill', 'score-composite-cp-line',
   'atelier-zones-fond', 'atelier-zones-contour', 'atelier-zones-pprt', 'atelier-zones-etiquettes',
   'custom-zone-*',
+  // Emplacements d'une campagne OOH (spec 2026-10-16-ooh-campagnes § 6) : des POINTS, au-dessus des zones
+  // enregistrées (un aplat à 25 % ne les cache pas), sous l'aperçu du rayon et le tracé libre. Sans équivalent React.
+  'campagne-ooh-points', 'campagne-ooh-a-verifier',
   'apercu-rayon-fill', 'apercu-rayon-line',
   'apercu-zone-fill', 'apercu-zone-line',
   'dessin-trace-fill', 'dessin-trace-line', 'dessin-trace-point',
