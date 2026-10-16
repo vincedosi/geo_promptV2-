@@ -6,7 +6,7 @@ import {
 } from './couche-campagne-ooh';
 
 const TEINTES = ['#e8a33d', '#4f9fe0', '#d9667f', '#5cc08a', '#e0d05a', '#5d7fc4', '#e58a6b', '#8bb84a'];
-const PEINTURE = { lignes: TEINTES, contour: '#ffffff' };
+const PEINTURE = { lignes: TEINTES, contour: '#ffffff', anneau: '#1a1a1a' };
 const donnees = (n: number): GeoJSON.FeatureCollection<GeoJSON.Point> => ({
   type: 'FeatureCollection',
   features: Array.from({ length: n }, (_, i) => ({
@@ -19,6 +19,13 @@ function carte(): { factice: CarteFactice; carte: maplibregl.Map } {
   const factice = new CarteFactice();
   factice.styleCharge = true;
   return { factice, carte: factice as unknown as maplibregl.Map };
+}
+
+/** Les couleurs opaques (« r,g,b ») présentes dans une image RGBA, triées. */
+function couleursPresentes(data: Uint8Array): string[] {
+  const vues = new Set<string>();
+  for (let k = 0; k < data.length; k += 4) if (data[k + 3] > 0) vues.add(`${data[k]},${data[k + 1]},${data[k + 2]}`);
+  return [...vues].sort();
 }
 
 describe('couche d une campagne OOH (pure)', () => {
@@ -46,8 +53,12 @@ describe('couche d une campagne OOH (pure)', () => {
   it('reposer : setData et repeinture, jamais une couche en double', () => {
     const { factice, carte: c } = carte();
     poserCoucheCampagneOoh(c, donnees(2), PEINTURE);
-    poserCoucheCampagneOoh(c, donnees(1), { lignes: ['#b9770f', ...TEINTES.slice(1)], contour: '#ffffff' });
+    poserCoucheCampagneOoh(c, donnees(1), { lignes: ['#b9770f', ...TEINTES.slice(1)], contour: '#ffffff', anneau: '#202020' });
     expect(factice.couches).toHaveLength(2);
+    // L'image existante est repeinte, pas ajoutée une seconde fois (MapLibre lève sur un `addImage` en double).
+    expect(factice.imagesRepeintes).toEqual([IMAGE_ANNEAU_A_VERIFIER]);
+    const repeinte = factice.images.get(IMAGE_ANNEAU_A_VERIFIER) as { data: Uint8Array };
+    expect(couleursPresentes(repeinte.data)).toContain('32,32,32');
     expect(factice.sources.get(SOURCE_CAMPAGNE_OOH)!.donnees).toEqual([donnees(1)]);
     expect(factice.peintures).toContainEqual({ couche: COUCHE_CAMPAGNE_OOH_POINTS, propriete: 'circle-color', valeur: expressionCouleurLigne(['#b9770f', ...TEINTES.slice(1)]) });
   });
@@ -71,24 +82,24 @@ describe('couche d une campagne OOH (pure)', () => {
     expect(factice.retraits).toHaveLength(4);
   });
 
-  it('l anneau pointillé : transparent au centre, des tirets ET des trous sur le cercle, dans la couleur donnée', () => {
-    const img = imageAnneauPointille('#ffffff');
+  it('l anneau pointillé BICOLORE : transparent au centre, segments alternés des deux couleurs, sans trou', () => {
+    const img = imageAnneauPointille('#ffffff', '#1a1a1a');
     expect(img.width).toBe(22);
     expect(img.data).toHaveLength(22 * 22 * 4);
-    const alpha = (x: number, y: number) => img.data[(y * 22 + x) * 4 + 3];
-    expect(alpha(11, 11)).toBe(0);
-    let pleins = 0;
-    let trous = 0;
+    const pixel = (x: number, y: number) => [...img.data.slice((y * 22 + x) * 4, (y * 22 + x) * 4 + 4)].join(',');
+    expect(pixel(11, 11)).toBe('0,0,0,0');
+    let clairs = 0;
+    let sombres = 0;
     for (let a = 0; a < 360; a += 5) {
       const x = Math.floor(11 + 9 * Math.cos((a * Math.PI) / 180));
       const y = Math.floor(11 + 9 * Math.sin((a * Math.PI) / 180));
-      if (alpha(x, y) > 0) pleins++;
-      else trous++;
+      if (pixel(x, y) === '255,255,255,255') clairs++;
+      if (pixel(x, y) === '26,26,26,255') sombres++;
     }
-    expect(pleins).toBeGreaterThan(10);
-    expect(trous).toBeGreaterThan(10);
-    const i = img.data.findIndex((_, k) => k % 4 === 3 && img.data[k] > 0);
-    expect([...img.data.slice(i - 3, i + 1)]).toEqual([255, 255, 255, 255]);
+    // Les deux couleurs sont sur le cercle, en proportions voisines : l'anneau se voit sur fond clair ET sombre.
+    expect(clairs).toBeGreaterThan(10);
+    expect(sombres).toBeGreaterThan(10);
+    expect(couleursPresentes(img.data)).toEqual(['255,255,255', '26,26,26']);
   });
 
   it('couleurEnRgba : hexadécimal court ou long, rgb(), rgba() ; une couleur illisible lève', () => {

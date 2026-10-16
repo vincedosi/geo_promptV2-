@@ -10,7 +10,7 @@ import { messageHttp } from '../logique/zones/zones-affichees';
 import { ecouterCampagneOoh, poserCoucheCampagneOoh, retirerCoucheCampagneOoh } from './couche-campagne-ooh';
 import { PoisService } from './pois.service';
 
-/** Le recadrage sur l'emprise d'une campagne (métropole : les DROM n'ont pas de points). */
+/** Le recadrage sur l'emprise des points SÛRS d'une campagne (`emprise`) : un point à vérifier lointain ne l'élargit pas. */
 const RECADRAGE = { padding: 50, duration: 800, maxZoom: 14 } as const;
 
 /**
@@ -71,7 +71,7 @@ export class CampagneOohService {
       }
       const donnees = collectionCarte(detail, this.rangs(), this.masquees());
       const p = this.palette();
-      const peinture = { lignes: [p.l1, p.l2, p.l3, p.l4, p.l5, p.l6, p.l7, p.l8], contour: p.contour };
+      const peinture = { lignes: [p.l1, p.l2, p.l3, p.l4, p.l5, p.l6, p.l7, p.l8], contour: p.contour, anneau: p.anneau };
       nettoyer(quandStyleCharge(carte, () => untracked(() => poserCoucheCampagneOoh(carte, donnees, peinture))));
     });
 

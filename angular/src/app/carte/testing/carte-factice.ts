@@ -208,6 +208,14 @@ export class CarteFactice {
   readonly images = new Map<string, unknown>();
   hasImage(id: string): boolean { return this.images.has(id); }
   addImage(id: string, image: unknown): this { this.images.set(id, image); return this; }
+  /** Les repeintures d'image (`updateImage`), dans l'ordre. MapLibre lève si l'image n'existe pas : la factice aussi. */
+  readonly imagesRepeintes: string[] = [];
+  updateImage(id: string, image: unknown): this {
+    if (!this.images.has(id)) throw new Error(`Image inconnue : ${id}`);
+    this.images.set(id, image);
+    this.imagesRepeintes.push(id);
+    return this;
+  }
   removeImage(id: string): this { this.images.delete(id); this.retraits.push(`image:${id}`); return this; }
   resize(): this { this.appelsResize++; return this; }
   getBounds() {

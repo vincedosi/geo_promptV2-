@@ -186,6 +186,11 @@
     --ligne-media-6: #5d7fc4;
     --ligne-media-7: #e58a6b;
     --ligne-media-8: #8bb84a;
+    /* Anneau pointille d'un point de campagne A VERIFIER : segments alternes
+       --poi-contour (blanc) et celui-ci (quasi noir). INVARIANT, comme
+       --poi-contour : un anneau bicolore se voit sur tout fond, clair ou
+       sombre ; un anneau d'une seule couleur disparaissait sur fond clair. */
+    --anneau-a-verifier: #1a1a1a;
 
     /* Perimetre PPRT — ACHROMATIQUE a dessein. La couleur, sur cette carte,
        porte le TYPE DE RISQUE (--risque-*) ; un perimetre reglementaire n'est
@@ -419,6 +424,8 @@
     --ligne-media-6: #3a5aa0;
     --ligne-media-7: #b8532f;
     --ligne-media-8: #5c7f1f;
+    /* Invariant (voir le bloc :root). */
+    --anneau-a-verifier: #1a1a1a;
 
     /* Inverse du theme sombre, comme --contour-carte et --halo-carte. */
     --pprt-contour: rgba(26,26,26,0.80);

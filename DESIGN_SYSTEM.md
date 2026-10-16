@@ -265,7 +265,14 @@ deux natures compte dans les deux), et l'écran le dit.
 Qualitative, comme les natures de risque : les lignes d'un plan (Mediatransports, Basic-Fit, Stride…) ne
 s'ordonnent pas. Une teinte par ligne qui a des emplacements, dans l'ordre du plan ; au-delà de huit lignes, les
 teintes reviennent. Les points ont un cerne `--poi-contour` ; un point **à vérifier** perd son cerne plein et porte un
-anneau pointillé de la même couleur (calque `symbol`, image calculée).
+anneau pointillé **bicolore** (calque `symbol`, image calculée) : seize segments alternés `--poi-contour` (blanc) et
+`--anneau-a-verifier` (quasi noir). Jusqu'au 16/10 l'anneau était d'une seule couleur, le blanc de `--poi-contour` :
+visible sur le fond « dentsu » sombre, il disparaissait sur le fond « Clair » et sur tout fond du thème clair, et le
+point à vérifier ne s'y distinguait plus d'un point sûr. L'image est repeinte (`updateImage`) à chaque pose.
+
+| Token | Hex (dark) | Hex (light) | Usage |
+|-------|-----------|-------------|-------|
+| --anneau-a-verifier | #1a1a1a | #1a1a1a | Segment sombre de l'anneau pointillé d'un point à vérifier — **invariant**, comme `--poi-contour` qui porte l'autre segment : c'est l'alternance des deux, et non le thème, qui le rend visible sur tout fond |
 
 | Token | Hex (dark) | Hex (light) |
 |-------|-----------|-------------|

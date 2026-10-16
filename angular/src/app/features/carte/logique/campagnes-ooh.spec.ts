@@ -23,8 +23,15 @@ describe('campagnes OOH — logique pure', () => {
     expect(collectionCarte(DETAIL_ESSAI, rangs, new Set(['l1'])).features).toEqual([]);
   });
 
-  it('emprise des emplacements, null sans emplacement', () => {
-    expect(emprise(DETAIL_ESSAI.emplacements)).toEqual([2.1, 48.1, 2.3, 48.3]);
+  it('emprise des emplacements SÛRS ; de tous s il n y a aucun sûr ; null sans emplacement', () => {
+    const [sur, aVerifier] = DETAIL_ESSAI.emplacements;
+    const point = (lng: number, lat: number, qualite: 'sure' | 'a_verifier', id: string) =>
+      ({ ...sur, geometry: { type: 'Point' as const, coordinates: [lng, lat] as [number, number] }, properties: { ...sur.properties, id, geoloc_qualite: qualite } });
+    // Un point à vérifier à La Réunion (commune homonyme rendue par la BAN) ne change pas l'emprise de la métropole.
+    const metropole = [point(2.1, 48.1, 'sure', 'a'), point(5.4, 43.3, 'sure', 'b'), point(55.45, -20.9, 'a_verifier', 'r')];
+    expect(emprise(metropole)).toEqual([2.1, 43.3, 5.4, 48.1]);
+    expect(emprise([sur, aVerifier])).toEqual([2.1, 48.1, 2.1, 48.1]);
+    expect(emprise([aVerifier, point(55.45, -20.9, 'a_verifier', 'r')])).toEqual([2.3, -20.9, 55.45, 48.3]);
     expect(emprise([])).toBeNull();
   });
 

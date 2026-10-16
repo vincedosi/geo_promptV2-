@@ -131,11 +131,11 @@ export interface DetailCampagneOoh {
   tronque: boolean;
 }
 
-/** Les jetons lus par `CouleursService` : les huit teintes de ligne (DESIGN_SYSTEM) et le cerne des points. */
+/** Les jetons lus par `CouleursService` : les huit teintes de ligne (DESIGN_SYSTEM), le cerne des points et le segment sombre de l'anneau. */
 export const JETONS_CAMPAGNE_OOH = {
   l1: 'ligne-media-1', l2: 'ligne-media-2', l3: 'ligne-media-3', l4: 'ligne-media-4',
   l5: 'ligne-media-5', l6: 'ligne-media-6', l7: 'ligne-media-7', l8: 'ligne-media-8',
-  contour: 'poi-contour',
+  contour: 'poi-contour', anneau: 'anneau-a-verifier',
 } as const;
 
 export const NB_TEINTES_LIGNES = 8;
@@ -173,11 +173,17 @@ export function collectionCarte(
   };
 }
 
-/** L'emprise `[ouest, sud, est, nord]` des emplacements ; `null` s'il n'y en a aucun. */
+/**
+ * L'emprise `[ouest, sud, est, nord]` des emplacements SÛRS ; de tous s'il n'y a aucun point sûr ; `null` s'il n'y en
+ * a aucun. Un point à vérifier peut être placé n'importe où (une commune homonyme outre-mer : TF4, trois clubs de
+ * métropole placés à La Réunion et en Guadeloupe par la BAN) — l'inclure faisait cadrer le monde au lieu de la France.
+ */
 export function emprise(emplacements: readonly EmplacementOoh[]): [number, number, number, number] | null {
-  if (emplacements.length === 0) return null;
-  const lng = emplacements.map((e) => e.geometry.coordinates[0]);
-  const lat = emplacements.map((e) => e.geometry.coordinates[1]);
+  const surs = emplacements.filter((e) => e.properties.geoloc_qualite !== 'a_verifier');
+  const points = surs.length > 0 ? surs : emplacements;
+  if (points.length === 0) return null;
+  const lng = points.map((e) => e.geometry.coordinates[0]);
+  const lat = points.map((e) => e.geometry.coordinates[1]);
   return [Math.min(...lng), Math.min(...lat), Math.max(...lng), Math.max(...lat)];
 }
 

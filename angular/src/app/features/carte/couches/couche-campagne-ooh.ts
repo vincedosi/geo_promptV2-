@@ -1,7 +1,8 @@
 /**
  * Rendu MapLibre PUR des emplacements d'une campagne OOH (spec 2026-10-16-ooh-campagnes § 6.3) : une source GeoJSON,
  * un calque de cercles coloré PAR LIGNE (`--ligne-media-*`, valeurs calculées), cerne `--poi-contour`, et un calque
- * `symbol` qui pose un ANNEAU POINTILLÉ sur les points à vérifier — un cercle MapLibre n'a pas de trait pointillé.
+ * `symbol` qui pose un ANNEAU POINTILLÉ BICOLORE sur les points à vérifier — un cercle MapLibre n'a pas de trait
+ * pointillé. Bicolore (`--poi-contour` / `--anneau-a-verifier`) : il se voit sur tout fond, clair ou sombre.
  * Couche DÉDIÉE (pas la zone partagée de `PoisService`), patron de `couche-zones-custom.ts`. Pose idempotente : une
  * source déjà là reçoit ses données (`setData`), une couche déjà là sa peinture (changement de thème).
  */
@@ -19,13 +20,14 @@ const SEGMENTS_ANNEAU = 16;
 
 type CarteCampagne = Pick<maplibregl.Map,
   'addSource' | 'getSource' | 'addLayer' | 'getLayer' | 'removeLayer' | 'removeSource' | 'setPaintProperty' | 'getStyle'
-  | 'hasImage' | 'addImage' | 'removeImage'>;
+  | 'hasImage' | 'addImage' | 'updateImage' | 'removeImage'>;
 type CarteEcoute = Pick<maplibregl.Map, 'on' | 'off' | 'getCanvas'>;
 
-/** Les couleurs CALCULÉES : huit teintes de ligne, dans l'ordre des rangs, et le cerne. */
+/** Les couleurs CALCULÉES : huit teintes de ligne, dans l'ordre des rangs, le cerne, et le segment sombre de l'anneau. */
 export interface PeintureCampagneOoh {
   lignes: readonly string[];
   contour: string;
+  anneau: string;
 }
 
 /** `['match', ['get', 'rang'], 1, c1, …, 8, c8, c1]`. */
@@ -46,9 +48,12 @@ export function couleurEnRgba(couleur: string): [number, number, number, number]
   throw new Error(`Couleur illisible pour l'anneau pointillé : ${couleur}`);
 }
 
-/** L'image d'un anneau pointillé (16 segments, un sur deux plein), pixel par pixel : aucun canevas. */
-export function imageAnneauPointille(couleur: string, taille = TAILLE_ANNEAU): { width: number; height: number; data: Uint8Array } {
-  const [r, g, b, a] = couleurEnRgba(couleur);
+/**
+ * L'image d'un anneau pointillé BICOLORE (16 segments, alternativement `clair` et `sombre`), pixel par pixel : aucun
+ * canevas. Une seule couleur disparaît sur un fond qui lui ressemble ; deux couleurs opposées, jamais.
+ */
+export function imageAnneauPointille(clair: string, sombre: string, taille = TAILLE_ANNEAU): { width: number; height: number; data: Uint8Array } {
+  const couleurs = [couleurEnRgba(clair), couleurEnRgba(sombre)];
   const data = new Uint8Array(taille * taille * 4);
   const centre = taille / 2;
   const rayon = centre - 2;
@@ -58,7 +63,7 @@ export function imageAnneauPointille(couleur: string, taille = TAILLE_ANNEAU): {
       const dy = y + 0.5 - centre;
       if (Math.abs(Math.hypot(dx, dy) - rayon) > 1) continue;
       const angle = Math.atan2(dy, dx) + Math.PI;
-      if (Math.floor((angle / (2 * Math.PI)) * SEGMENTS_ANNEAU) % 2 === 1) continue;
+      const [r, g, b, a] = couleurs[Math.floor((angle / (2 * Math.PI)) * SEGMENTS_ANNEAU) % 2];
       const i = (y * taille + x) * 4;
       data[i] = r;
       data[i + 1] = g;
@@ -74,8 +79,10 @@ export function poserCoucheCampagneOoh(carte: CarteCampagne, donnees: GeoJSON.Fe
   const source = carte.getSource(SOURCE_CAMPAGNE_OOH) as maplibregl.GeoJSONSource | undefined;
   if (source) source.setData(donnees);
   else carte.addSource(SOURCE_CAMPAGNE_OOH, { type: 'geojson', data: donnees });
-  // Image posée une fois, jamais repeinte au changement de thème : on s'appuie sur `--poi-contour` INVARIANT (#ffffff).
-  if (!carte.hasImage(IMAGE_ANNEAU_A_VERIFIER)) carte.addImage(IMAGE_ANNEAU_A_VERIFIER, imageAnneauPointille(peinture.contour));
+  // L'image suit la peinture comme les couches : repeinte si elle existe déjà (changement de thème, de jeton).
+  const anneau = imageAnneauPointille(peinture.contour, peinture.anneau);
+  if (carte.hasImage(IMAGE_ANNEAU_A_VERIFIER)) carte.updateImage(IMAGE_ANNEAU_A_VERIFIER, anneau);
+  else carte.addImage(IMAGE_ANNEAU_A_VERIFIER, anneau);
 
   const couleur = expressionCouleurLigne(peinture.lignes);
   if (!carte.getLayer(COUCHE_CAMPAGNE_OOH_POINTS)) {

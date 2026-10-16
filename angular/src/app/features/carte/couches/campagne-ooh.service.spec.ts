@@ -9,11 +9,11 @@ import { CouchesCarteService } from '../etat/couches-carte.service';
 import type { DetailCampagneOoh, ReponseCampagnesOoh } from '../logique/campagnes-ooh';
 import { DETAIL_ESSAI } from '../testing/campagnes-ooh.fixture';
 import { CampagneOohService } from './campagne-ooh.service';
-import { COUCHE_CAMPAGNE_OOH_POINTS, SOURCE_CAMPAGNE_OOH, expressionCouleurLigne } from './couche-campagne-ooh';
+import { COUCHE_CAMPAGNE_OOH_POINTS, IMAGE_ANNEAU_A_VERIFIER, SOURCE_CAMPAGNE_OOH, expressionCouleurLigne } from './couche-campagne-ooh';
 import { PoisService } from './pois.service';
 
 const TEINTES = {
-  l1: '#e8a33d', l2: '#4f9fe0', l3: '#d9667f', l4: '#5cc08a', l5: '#e0d05a', l6: '#5d7fc4', l7: '#e58a6b', l8: '#8bb84a', contour: '#ffffff',
+  l1: '#e8a33d', l2: '#4f9fe0', l3: '#d9667f', l4: '#5cc08a', l5: '#e0d05a', l6: '#5d7fc4', l7: '#e58a6b', l8: '#8bb84a', contour: '#ffffff', anneau: '#1a1a1a',
 };
 const LISTE: ReponseCampagnesOoh = { campagnes: [{ id: 'c1', nom: 'Campagne essai', annonceur: null, vague: 'V1', date_debut: '2026-09-20', date_fin: '2026-10-02', lignes: [] }], tronque: false };
 
@@ -70,14 +70,15 @@ describe('CampagneOohService', () => {
     expect(service.campagnes()).toEqual(LISTE.campagnes);
   });
 
-  it('choisir : la couche est posée, ses points colorés par ligne, la carte recadrée sur l emprise', () => {
+  it('choisir : la couche est posée, ses points colorés par ligne, la carte recadrée sur l emprise des points SÛRS', () => {
     const { service, carte } = monter({ campagneOoh: () => of(DETAIL_ESSAI) });
     service.choisir('c1');
     TestBed.tick();
     expect(service.detail()).toBe(DETAIL_ESSAI);
     expect(donneesPosees(carte)).toEqual(['p1', 'p2']);
     expect(carte.getLayer(COUCHE_CAMPAGNE_OOH_POINTS)!['paint']).toMatchObject({ 'circle-color': expressionCouleurLigne(Object.values(TEINTES).slice(0, 8)) });
-    expect(carte.cadrages.at(-1)).toEqual({ cadre: [[2.1, 48.1], [2.3, 48.3]], options: { padding: 50, duration: 800, maxZoom: 14 } });
+    // p2 (à vérifier) n'entre pas dans le cadre : seul p1 est sûr.
+    expect(carte.cadrages.at(-1)).toEqual({ cadre: [[2.1, 48.1], [2.1, 48.1]], options: { padding: 50, duration: 800, maxZoom: 14 } });
   });
 
   it('masquer une ligne retire ses points ; la réafficher les rend', () => {
@@ -128,6 +129,8 @@ describe('CampagneOohService', () => {
     expect(service.detail()).toBeNull();
     expect(carte.retraits).toContain(`couche:${COUCHE_CAMPAGNE_OOH_POINTS}`);
     expect(carte.retraits).toContain(`source:${SOURCE_CAMPAGNE_OOH}`);
+    expect(carte.retraits).toContain(`image:${IMAGE_ANNEAU_A_VERIFIER}`);
+    expect(carte.images.has(IMAGE_ANNEAU_A_VERIFIER)).toBe(false);
     expect(service.campagnes()).toEqual(LISTE.campagnes);
   });
 
