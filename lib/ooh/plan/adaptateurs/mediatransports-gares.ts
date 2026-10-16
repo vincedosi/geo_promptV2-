@@ -4,7 +4,8 @@
  * « 9/16ème »…), ses lignes de gare, puis « Total Paris » / « Total Région » / « Total sites … » (ignorés).
  * Un emplacement par gare ; la géolocalisation (référentiel SNCF) vient après, et donne l'identité définitive (UIC).
  */
-import type { AdaptateurPlan, BlocGares, Cellule, Classeur, EmplacementBrut, Feuille, LecturePlan, LigneFeuille } from '@/types/campagnes-media';
+import type { AdaptateurPlan, BlocGares, Cellule, Classeur, EmplacementBrut, LecturePlan, LigneFeuille } from '@/types/campagnes-media';
+import { trouverEntete } from '../classeur';
 import { fusionnerEmplacements } from '../fusion';
 import { nombre, normaliser, texte } from '../texte';
 
@@ -21,12 +22,9 @@ function contientEnTete(l: LigneFeuille, valeur: string): boolean {
   return l.cellules.some((c) => normaliser(texte(c) ?? '') === valeur);
 }
 
-function trouverFeuille(classeur: Classeur): { feuille: Feuille; iEntete: number } | null {
-  for (const feuille of classeur.feuilles.values()) {
-    const iEntete = feuille.lignes.findIndex((l) => contientEnTete(l, 'SITES') && contientEnTete(l, 'GARE'));
-    if (iEntete >= 0) return { feuille, iEntete };
-  }
-  return null;
+/** Vrai (sinon `null`) pour la ligne d'en-tête qui porte « SITES » et « GARE ». */
+function enteteGares(l: LigneFeuille): true | null {
+  return contientEnTete(l, 'SITES') && contientEnTete(l, 'GARE') ? true : null;
 }
 
 /** « SOLO » + « 9/16ème » → `solo 9/16` ; « DUO » + « compacte » → `duo`. */
@@ -48,7 +46,7 @@ function blocDuTitre(titres: readonly LigneFeuille[], debut: number): BlocGares 
 const cel = (l: LigneFeuille, i: number | undefined): Cellule => (i === undefined ? null : (l.cellules[i] ?? null));
 
 function lire(classeur: Classeur): LecturePlan {
-  const trouve = trouverFeuille(classeur);
+  const trouve = trouverEntete(classeur, enteteGares);
   if (!trouve) return { entete: null, lignes: [], emplacements: [] };
   const { feuille, iEntete } = trouve;
   const entete = feuille.lignes[iEntete];
@@ -115,6 +113,6 @@ function lire(classeur: Classeur): LecturePlan {
 export const ADAPTATEUR_GARES: AdaptateurPlan = {
   id: 'mediatransports-gares',
   regies: ['MEDIATRANSPORTS'],
-  reconnait: (classeur) => trouverFeuille(classeur) !== null,
+  reconnait: (classeur) => trouverEntete(classeur, enteteGares) !== null,
   lire,
 };

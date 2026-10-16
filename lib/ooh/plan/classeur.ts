@@ -40,3 +40,28 @@ export async function lireClasseur(contenu: Buffer): Promise<Classeur> {
   }
   return { feuilles };
 }
+
+/**
+ * La première ligne d'en-tête reconnue d'un classeur, feuille après feuille, ligne après ligne : c'est ainsi qu'un
+ * adaptateur trouve sa liste sans dépendre du nom de l'onglet. `reconnaitre` rend ce qu'il a tiré de la ligne
+ * (colonnes, index…) ou `null`.
+ */
+export function trouverEntete<T>(
+  classeur: Classeur, reconnaitre: (ligne: LigneFeuille) => T | null,
+): { feuille: Feuille; iEntete: number; entete: T } | null {
+  for (const feuille of classeur.feuilles.values()) {
+    for (let i = 0; i < feuille.lignes.length; i++) {
+      const entete = reconnaitre(feuille.lignes[i]);
+      if (entete !== null) return { feuille, iEntete: i, entete };
+    }
+  }
+  return null;
+}
+
+/** Lit la cellule d'un champ nommé par l'en-tête ; `null` si le champ n'a pas de colonne ou si la cellule est vide. */
+export function cellule<C>(cols: ReadonlyMap<C, number>): (ligne: LigneFeuille, champ: C) => Cellule {
+  return (ligne, champ) => {
+    const i = cols.get(champ);
+    return i === undefined ? null : (ligne.cellules[i] ?? null);
+  };
+}

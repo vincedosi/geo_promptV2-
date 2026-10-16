@@ -2,6 +2,7 @@
  * Durées et dates d'un plan de régie (spec 2026-10-16-ooh-campagnes § 4.2) : `date_fin` est calculée à partir du
  * départ et de la durée ; le libellé d'origine est gardé à côté (`duree_libelle`).
  */
+import { sansDiacritiques } from './texte';
 
 /** Une durée : jours calendaires couverts, et jours de diffusion annoncés. */
 interface Duree {
@@ -21,7 +22,7 @@ export function ajouterJours(iso: string, n: number): string {
  */
 export function lireDuree(libelle: string | null): Duree | null {
   if (!libelle) return null;
-  const t = libelle.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const t = sansDiacritiques(libelle).toLowerCase().replace(/\s+/g, ' ').trim();
   const semainesDeJours = /^(\d+)\s*[*x]\s*(\d+)\s*(?:jours?|jrs?|j)\b/.exec(t);
   if (semainesDeJours) {
     const semaines = Number(semainesDeJours[1]);

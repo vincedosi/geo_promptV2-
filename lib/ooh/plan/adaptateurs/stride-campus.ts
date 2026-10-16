@@ -4,7 +4,8 @@
  * écrans, taille d'écran, contacts par semaine, contacts 18-25 par semaine), une ligne par lieu.
  * Identité : établissement normalisé + code postal. Deux lignes du même lieu sont réunies (écrans et contacts additionnés).
  */
-import type { AdaptateurPlan, Cellule, Classeur, EmplacementBrut, Feuille, LecturePlan, LigneFeuille } from '@/types/campagnes-media';
+import type { AdaptateurPlan, Classeur, EmplacementBrut, LecturePlan, LigneFeuille } from '@/types/campagnes-media';
+import { cellule, trouverEntete } from '../classeur';
 import { fusionnerEmplacements } from '../fusion';
 import { cellulesNommees, codePostal, entier, nombre, normaliser, texte } from '../texte';
 
@@ -27,18 +28,14 @@ function champ(entete: string): Champ | null {
   return null;
 }
 
-function trouverFeuille(classeur: Classeur): { feuille: Feuille; iEntete: number; cols: Map<Champ, number> } | null {
-  for (const feuille of classeur.feuilles.values()) {
-    for (let i = 0; i < feuille.lignes.length; i++) {
-      const cols = new Map<Champ, number>();
-      feuille.lignes[i].cellules.forEach((c, j) => {
-        const ch = champ(texte(c) ?? '');
-        if (ch !== null && !cols.has(ch)) cols.set(ch, j);
-      });
-      if (cols.has('etablissement') && cols.has('groupement')) return { feuille, iEntete: i, cols };
-    }
-  }
-  return null;
+/** Les colonnes d'une ligne d'en-tête qui porte « établissement » et « groupement », ou `null`. */
+function colonnes(ligne: LigneFeuille): Map<Champ, number> | null {
+  const cols = new Map<Champ, number>();
+  ligne.cellules.forEach((c, j) => {
+    const ch = champ(texte(c) ?? '');
+    if (ch !== null && !cols.has(ch)) cols.set(ch, j);
+  });
+  return cols.has('etablissement') && cols.has('groupement') ? cols : null;
 }
 
 function typeLieu(brut: string | null): string {
@@ -50,14 +47,11 @@ function typeLieu(brut: string | null): string {
 }
 
 function lire(classeur: Classeur): LecturePlan {
-  const trouve = trouverFeuille(classeur);
+  const trouve = trouverEntete(classeur, colonnes);
   if (!trouve) return { entete: null, lignes: [], emplacements: [] };
-  const { feuille, iEntete, cols } = trouve;
+  const { feuille, iEntete, entete: cols } = trouve;
   const entetes = feuille.lignes[iEntete].cellules.map((c) => texte(c) ?? '');
-  const val = (l: LigneFeuille, c: Champ): Cellule => {
-    const i = cols.get(c);
-    return i === undefined ? null : (l.cellules[i] ?? null);
-  };
+  const val = cellule(cols);
   const lieux: EmplacementBrut[] = [];
   for (const l of feuille.lignes.slice(iEntete + 1)) {
     const etablissement = texte(val(l, 'etablissement'));
@@ -98,6 +92,6 @@ function lire(classeur: Classeur): LecturePlan {
 export const ADAPTATEUR_STRIDE: AdaptateurPlan = {
   id: 'stride-campus',
   regies: ['STRIDE'],
-  reconnait: (classeur) => trouverFeuille(classeur) !== null,
+  reconnait: (classeur) => trouverEntete(classeur, colonnes) !== null,
   lire,
 };

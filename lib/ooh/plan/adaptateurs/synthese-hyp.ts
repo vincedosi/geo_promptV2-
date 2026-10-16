@@ -12,6 +12,7 @@
 import type {
   AdaptateurPlan, Cellule, Classeur, CoutAnnexe, Feuille, LecturePlan, LigneFeuille, LignePlan,
 } from '@/types/campagnes-media';
+import { cellule, trouverEntete } from '../classeur';
 import { dateFinLigne, lireDuree, periodeDuTitre } from '../durees';
 import { cellulesNommees, entier, nombre, normaliser, texte } from '../texte';
 
@@ -44,16 +45,6 @@ function colonnes(ligne: LigneFeuille): Map<Champ, number> | null {
     if (trouve && !m.has(trouve[1])) m.set(trouve[1], i);
   });
   return m.has('regie') && m.has('reseau') ? m : null;
-}
-
-function trouverSynthese(classeur: Classeur): { feuille: Feuille; iEntete: number; cols: Map<Champ, number> } | null {
-  for (const feuille of classeur.feuilles.values()) {
-    for (let i = 0; i < feuille.lignes.length; i++) {
-      const cols = colonnes(feuille.lignes[i]);
-      if (cols) return { feuille, iEntete: i, cols };
-    }
-  }
-  return null;
 }
 
 function uniteLieux(mot: string): string {
@@ -104,14 +95,11 @@ function lignePlan(
 }
 
 function lire(classeur: Classeur): LecturePlan {
-  const trouve = trouverSynthese(classeur);
+  const trouve = trouverEntete(classeur, colonnes);
   if (!trouve) return { entete: null, lignes: [], emplacements: [] };
-  const { feuille, iEntete, cols } = trouve;
+  const { feuille, iEntete, entete: cols } = trouve;
   const entetes = feuille.lignes[iEntete].cellules.map((c) => texte(c) ?? '');
-  const val = (l: LigneFeuille, champ: Champ): Cellule => {
-    const i = cols.get(champ);
-    return i === undefined ? null : (l.cellules[i] ?? null);
-  };
+  const val = cellule(cols);
   const titres = feuille.lignes.slice(0, iEntete)
     .map((l) => l.cellules.map((c) => texte(c)).find((t): t is string => t !== null))
     .filter((t): t is string => t !== undefined);
@@ -179,6 +167,6 @@ function lire(classeur: Classeur): LecturePlan {
 export const ADAPTATEUR_SYNTHESE: AdaptateurPlan = {
   id: 'synthese-hyp',
   regies: [],
-  reconnait: (classeur) => trouverSynthese(classeur) !== null,
+  reconnait: (classeur) => trouverEntete(classeur, colonnes) !== null,
   lire,
 };

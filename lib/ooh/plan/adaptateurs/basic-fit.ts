@@ -10,9 +10,10 @@
  * nombre de la rue (« Rue du 8 Mai 1945 ») n'est jamais pris pour lui. La ville s'arrête au premier mot de voie.
  * Les lecteurs d'un même club sont réunis (`nb_ecrans` = nombre de lecteurs, `formats` = types).
  */
-import type { AdaptateurPlan, Classeur, EmplacementBrut, Feuille, LecturePlan } from '@/types/campagnes-media';
+import type { AdaptateurPlan, Classeur, EmplacementBrut, LecturePlan, LigneFeuille } from '@/types/campagnes-media';
+import { trouverEntete } from '../classeur';
 import { fusionnerEmplacements } from '../fusion';
-import { normaliser, texte } from '../texte';
+import { normaliser, sansDiacritiques, texte } from '../texte';
 
 /** Ce que l'on tire d'un libellé de lecteur. */
 interface LibelleBasicFit {
@@ -34,7 +35,7 @@ const VOIES = new Set([
 ]);
 
 function plierMot(mot: string): string {
-  return mot.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\./g, '').replace(/,+$/, '');
+  return sansDiacritiques(mot).toLowerCase().replace(/\./g, '').replace(/,+$/, '');
 }
 
 /** Découpe un libellé de lecteur ; `null` s'il ne reste rien après les préfixes « Basic-Fit » et « FR ». */
@@ -93,20 +94,16 @@ export function decouperLibelleBasicFit(libelle: string): LibelleBasicFit | null
   };
 }
 
-function trouverFeuille(classeur: Classeur): { feuille: Feuille; iEntete: number; colonne: number } | null {
-  for (const feuille of classeur.feuilles.values()) {
-    for (let i = 0; i < feuille.lignes.length; i++) {
-      const colonne = feuille.lignes[i].cellules.findIndex((c) => normaliser(texte(c) ?? '') === 'CLUB NAME');
-      if (colonne >= 0) return { feuille, iEntete: i, colonne };
-    }
-  }
-  return null;
+/** La colonne « CLub name » d'une ligne, ou `null`. */
+function colonneClub(ligne: LigneFeuille): number | null {
+  const colonne = ligne.cellules.findIndex((c) => normaliser(texte(c) ?? '') === 'CLUB NAME');
+  return colonne >= 0 ? colonne : null;
 }
 
 function lire(classeur: Classeur): LecturePlan {
-  const trouve = trouverFeuille(classeur);
+  const trouve = trouverEntete(classeur, colonneClub);
   if (!trouve) return { entete: null, lignes: [], emplacements: [] };
-  const { feuille, iEntete, colonne } = trouve;
+  const { feuille, iEntete, entete: colonne } = trouve;
   const entete = texte(feuille.lignes[iEntete].cellules[colonne]) ?? 'CLub name';
   const lecteurs: EmplacementBrut[] = [];
   for (const l of feuille.lignes.slice(iEntete + 1)) {
@@ -139,6 +136,6 @@ function lire(classeur: Classeur): LecturePlan {
 export const ADAPTATEUR_BASIC_FIT: AdaptateurPlan = {
   id: 'basic-fit',
   regies: ['BASIC FIT', 'BASICFIT'],
-  reconnait: (classeur) => trouverFeuille(classeur) !== null,
+  reconnait: (classeur) => trouverEntete(classeur, colonneClub) !== null,
   lire,
 };

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { lireClasseur } from '@/lib/ooh/plan/classeur';
+import { cellule, lireClasseur, trouverEntete } from '@/lib/ooh/plan/classeur';
 import { ajouterJours, dateFinLigne, lireDuree, periodeDuTitre } from '@/lib/ooh/plan/durees';
 import { fusionnerEmplacements } from '@/lib/ooh/plan/fusion';
-import { cellulesNommees, codePostal, departementDeInsee, entier, nombre, normaliser, texte } from '@/lib/ooh/plan/texte';
+import { cellulesNommees, codePostal, departementDeInsee, entier, nombre, normaliser, sansDiacritiques, texte } from '@/lib/ooh/plan/texte';
 import type { EmplacementBrut } from '@/types/campagnes-media';
 import { classeurEssai } from './_classeur';
 
@@ -10,6 +10,9 @@ describe('texte', () => {
   it('normaliser : majuscules sans accents, ponctuation en espace, ST et STE développés', () => {
     expect(normaliser("  Gare d'Évry — St-Michel / Ste Foy ")).toBe('GARE D EVRY SAINT MICHEL SAINTE FOY');
     expect(normaliser('STRIDE ')).toBe('STRIDE');
+  });
+  it('sansDiacritiques : accents retirés, casse et ponctuation gardées', () => {
+    expect(sansDiacritiques('Évry-Château, Alès')).toBe('Evry-Chateau, Ales');
   });
   it('texte, nombre, entier, codePostal', () => {
     expect(texte('\u00a0 Basic \u202f')).toBe('Basic');
@@ -32,6 +35,27 @@ describe('texte', () => {
   it('cellulesNommees : par en-tête, « colonne N » sans en-tête, doublons suffixés, vides sans en-tête omises', () => {
     expect(cellulesNommees(['A', '', 'A'], ['x', null, 'z'])).toEqual({ A: 'x', 'A (2)': 'z' });
     expect(cellulesNommees(['A'], ['x', 'y'])).toEqual({ A: 'x', 'colonne 2': 'y' });
+  });
+});
+
+describe('trouverEntete et cellule', () => {
+  const classeur = {
+    feuilles: new Map([
+      ['A', { nom: 'A', lignes: [{ numero: 1, cellules: ['rien'] }] }],
+      ['B', { nom: 'B', lignes: [{ numero: 1, cellules: ['titre'] }, { numero: 2, cellules: [null, 'NOM', 'CP'] }, { numero: 3, cellules: [null, 'Lieu', 13008] }] }],
+    ]),
+  };
+  const colonnes = (l: { cellules: unknown[] }) => (l.cellules.includes('NOM') ? new Map([['nom', 1], ['cp', 2]]) : null);
+  it('la première ligne reconnue, feuille après feuille, avec ce que la reconnaissance en a tiré', () => {
+    const t = trouverEntete(classeur, colonnes);
+    expect(t?.feuille.nom).toBe('B');
+    expect(t?.iEntete).toBe(1);
+    const val = cellule(t!.entete);
+    expect([val(classeur.feuilles.get('B')!.lignes[2], 'nom'), val(classeur.feuilles.get('B')!.lignes[2], 'cp')]).toEqual(['Lieu', 13008]);
+    expect(cellule(new Map<string, number>())(classeur.feuilles.get('B')!.lignes[2], 'absent')).toBeNull();
+  });
+  it('rien de reconnu : null', () => {
+    expect(trouverEntete(classeur, () => null)).toBeNull();
   });
 });
 

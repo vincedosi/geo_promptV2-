@@ -5,11 +5,14 @@
  */
 import type { Cellule } from '@/types/campagnes-media';
 
+/** Le texte sans ses accents (décomposition NFD, diacritiques retirés) ; casse et ponctuation intactes. */
+export function sansDiacritiques(valeur: string): string {
+  return valeur.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 /** Majuscules sans accents, ponctuation → espace, espaces réduits, `ST`/`STE` → `SAINT`/`SAINTE`. */
 export function normaliser(valeur: string): string {
-  return valeur
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+  return sansDiacritiques(valeur)
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, ' ')
     .trim()
