@@ -4366,6 +4366,8 @@ export type Database = {
           code_departement: string | null
           code_insee: string | null
           code_postal: string | null
+          contacts_18_25_semaine: number | null
+          contacts_semaine: number | null
           data_source_id: string | null
           date_enrichissement: string | null
           date_import: string | null
@@ -4376,6 +4378,11 @@ export type Database = {
           flux_routier_distance_m: number | null
           flux_routier_route: string | null
           flux_routier_tmja: number | null
+          formats: string[] | null
+          geoloc_libelle: string | null
+          geoloc_methode: string | null
+          geoloc_qualite: string | null
+          geoloc_score: number | null
           geom: unknown
           id: string
           in_isochrone_cirfa: boolean | null
@@ -4386,6 +4393,7 @@ export type Database = {
           lng: number
           metadata: Json | null
           nb_arrets_300m: number | null
+          nb_ecrans: number | null
           nb_faces: number | null
           nb_lycees_1000m: number | null
           nb_lycees_300m: number | null
@@ -4394,6 +4402,8 @@ export type Database = {
           nb_poi_gare_500m: number | null
           nb_poi_salle_sport_500m: number | null
           nb_poi_supermarche_500m: number | null
+          nom_lieu: string | null
+          numerique: boolean | null
           organization_id: string | null
           poi_cirfa_distance_min: number | null
           poi_cirfa_nom_proche: string | null
@@ -4405,6 +4415,7 @@ export type Database = {
           reference_panneau: string | null
           regie: string | null
           region: string | null
+          reseau: string | null
           revenu_median: number | null
           score_age_0_14: number | null
           score_age_15_29: number | null
@@ -4424,6 +4435,7 @@ export type Database = {
           source: string | null
           source_insee: string | null
           source_ref: string | null
+          type_lieu: string | null
           type_panneau: string | null
           ville: string | null
         }
@@ -4434,6 +4446,8 @@ export type Database = {
           code_departement?: string | null
           code_insee?: string | null
           code_postal?: string | null
+          contacts_18_25_semaine?: number | null
+          contacts_semaine?: number | null
           data_source_id?: string | null
           date_enrichissement?: string | null
           date_import?: string | null
@@ -4444,6 +4458,11 @@ export type Database = {
           flux_routier_distance_m?: number | null
           flux_routier_route?: string | null
           flux_routier_tmja?: number | null
+          formats?: string[] | null
+          geoloc_libelle?: string | null
+          geoloc_methode?: string | null
+          geoloc_qualite?: string | null
+          geoloc_score?: number | null
           geom: unknown
           id?: string
           in_isochrone_cirfa?: boolean | null
@@ -4454,6 +4473,7 @@ export type Database = {
           lng: number
           metadata?: Json | null
           nb_arrets_300m?: number | null
+          nb_ecrans?: number | null
           nb_faces?: number | null
           nb_lycees_1000m?: number | null
           nb_lycees_300m?: number | null
@@ -4462,6 +4482,8 @@ export type Database = {
           nb_poi_gare_500m?: number | null
           nb_poi_salle_sport_500m?: number | null
           nb_poi_supermarche_500m?: number | null
+          nom_lieu?: string | null
+          numerique?: boolean | null
           organization_id?: string | null
           poi_cirfa_distance_min?: number | null
           poi_cirfa_nom_proche?: string | null
@@ -4473,6 +4495,7 @@ export type Database = {
           reference_panneau?: string | null
           regie?: string | null
           region?: string | null
+          reseau?: string | null
           revenu_median?: number | null
           score_age_0_14?: number | null
           score_age_15_29?: number | null
@@ -4492,6 +4515,7 @@ export type Database = {
           source?: string | null
           source_insee?: string | null
           source_ref?: string | null
+          type_lieu?: string | null
           type_panneau?: string | null
           ville?: string | null
         }
@@ -4502,6 +4526,8 @@ export type Database = {
           code_departement?: string | null
           code_insee?: string | null
           code_postal?: string | null
+          contacts_18_25_semaine?: number | null
+          contacts_semaine?: number | null
           data_source_id?: string | null
           date_enrichissement?: string | null
           date_import?: string | null
@@ -4512,6 +4538,11 @@ export type Database = {
           flux_routier_distance_m?: number | null
           flux_routier_route?: string | null
           flux_routier_tmja?: number | null
+          formats?: string[] | null
+          geoloc_libelle?: string | null
+          geoloc_methode?: string | null
+          geoloc_qualite?: string | null
+          geoloc_score?: number | null
           geom?: unknown
           id?: string
           in_isochrone_cirfa?: boolean | null
@@ -4522,6 +4553,7 @@ export type Database = {
           lng?: number
           metadata?: Json | null
           nb_arrets_300m?: number | null
+          nb_ecrans?: number | null
           nb_faces?: number | null
           nb_lycees_1000m?: number | null
           nb_lycees_300m?: number | null
@@ -4530,6 +4562,8 @@ export type Database = {
           nb_poi_gare_500m?: number | null
           nb_poi_salle_sport_500m?: number | null
           nb_poi_supermarche_500m?: number | null
+          nom_lieu?: string | null
+          numerique?: boolean | null
           organization_id?: string | null
           poi_cirfa_distance_min?: number | null
           poi_cirfa_nom_proche?: string | null
@@ -4541,6 +4575,7 @@ export type Database = {
           reference_panneau?: string | null
           regie?: string | null
           region?: string | null
+          reseau?: string | null
           revenu_median?: number | null
           score_age_0_14?: number | null
           score_age_15_29?: number | null
@@ -4560,6 +4595,7 @@ export type Database = {
           source?: string | null
           source_insee?: string | null
           source_ref?: string | null
+          type_lieu?: string | null
           type_panneau?: string | null
           ville?: string | null
         }
