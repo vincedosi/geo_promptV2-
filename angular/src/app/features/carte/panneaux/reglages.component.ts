@@ -15,7 +15,6 @@ const LIENS_BACK_OFFICE: readonly { libelle: string; icone: NomIcone; cible?: st
   { libelle: 'Accès', icone: 'utilisateurs', cible: '../admin/acces' },
   { libelle: 'Import POI', icone: 'fichier-haut' },
   { libelle: 'Import Shapefile', icone: 'fichier-haut' },
-  { libelle: 'Import OOH', icone: 'fichier-haut' },
   { libelle: 'IRIS crawler', icone: 'base-de-donnees' },
   { libelle: 'Radio FM/DAB+', icone: 'radio' },
   { libelle: 'Connexions API', icone: 'prise' },
@@ -34,7 +33,7 @@ const LIENS_BACK_OFFICE: readonly { libelle: string; icone: NomIcone; cible?: st
  * première réglait le chat, la seconde ouvrait l'écran de sauvegarde qui ne vivait que dans le chat.
  * - **Apparence** reprend `mg-bascule-theme`, qui passe par `ThemeService.basculer()` seul (`ECRIRE_HTML`).
  * - **Back office** : « Accès » et « Health check » sont ACTIFS (liens relatifs vers `admin/acces` et `admin/health`) ;
- *   les huit autres restent INERTES (« Disponible prochainement », patron de la barre latérale) tant que leurs pages
+ *   les sept autres restent INERTES (« Disponible prochainement », patron de la barre latérale) tant que leurs pages
  *   ne sont pas portées.
  */
 @Component({

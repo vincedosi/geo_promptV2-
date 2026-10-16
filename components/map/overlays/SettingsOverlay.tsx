@@ -55,7 +55,6 @@ const BACK_OFFICE_LINKS: NavLink[] = [
   ...(URL_ACCES ? [{ href: URL_ACCES, label: 'Accès', icon: Users, externe: true }] : []),
   { href: '/admin/import', label: 'Import POI', icon: FileUp },
   { href: '/admin/carreaux-import', label: 'Import Shapefile', icon: FileUp },
-  { href: '/admin/ooh-import', label: 'Import OOH', icon: FileUp },
   { href: '/dashboard/iris-crawler', label: 'IRIS crawler', icon: Database },
   { href: '/admin/radio', label: 'Radio FM/DAB+', icon: RadioIcon },
   { href: '/admin/api', label: 'Connexions API', icon: Plug },

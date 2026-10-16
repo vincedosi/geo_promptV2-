@@ -27,7 +27,7 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     expect(entrees(el, 'Campagnes')).toEqual(['Gestion campagnes']);
     expect(entrees(el, 'Carte')).toEqual(['Explorer', 'Zones custom']);
     expect(entrees(el, 'Administration')).toEqual([
-      'Import Shapefile', 'Import POI', 'Import OOH', 'IRIS Crawler', 'Radio FM/DAB+', 'Connexions API',
+      'Import Shapefile', 'Import POI', 'IRIS Crawler', 'Radio FM/DAB+', 'Connexions API',
     ]);
     // « Users » et « Organisations » remplacées par « Accès » : écart VOULU à React
     // (spec espaces de travail 2026-10-08 § 6, décision E6).
@@ -36,17 +36,17 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     ]);
   });
 
-  it('badges « Admin » sur les six entrées d\'administration, « Sys » sur les deux dernières du système', async () => {
+  it('badges « Admin » sur les cinq entrées d\'administration, « Sys » sur les deux dernières du système', async () => {
     const el = await rendre({ dev: false });
     const badges = [...el.querySelectorAll('[data-badge]')].map((b) => texte(b));
-    expect(badges).toEqual(['Admin', 'Admin', 'Admin', 'Admin', 'Admin', 'Admin', 'Sys', 'Sys']);
+    expect(badges).toEqual(['Admin', 'Admin', 'Admin', 'Admin', 'Admin', 'Sys', 'Sys']);
   });
 
   it('chaque entrée porte son icône lucide 16 px, trait 1,5 (comme `size={16} strokeWidth={1.5}`)', async () => {
     const el = await rendre({ dev: false });
     const svgs = [...el.querySelectorAll('nav a mg-icone svg')];
-    // 14 et non 15 : deux entrées React remplacées par une (spec espaces de travail § 6, E6).
-    expect(svgs.length).toBe(14);
+    // 13 : 14 (E6 : 15 − 2 + 1) moins « Import OOH », supprimé le 2026-10-16.
+    expect(svgs.length).toBe(13);
     for (const svg of svgs) {
       expect(svg.getAttribute('width')).toBe('16');
       expect(svg.getAttribute('stroke-width')).toBe('1.5');
@@ -85,7 +85,7 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     const el = await rendre({ dev: false });
     const portes = ['Explorer', 'Health check', 'Qualite des donnees', 'Accès'];
     const liens = [...el.querySelectorAll('nav a')].filter((a) => !portes.includes(texte(a.querySelector('span'))));
-    expect(liens.length).toBe(10);
+    expect(liens.length).toBe(9);
     for (const a of liens) {
       expect(a.getAttribute('aria-disabled')).toBe('true');
       expect(a.getAttribute('title')).toBe('Disponible prochainement');
@@ -111,7 +111,7 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
   it('hors production : liens de développement en icônes dans le pied (RELATIFS), pas de section dans le nav', async () => {
     const el = await rendre({ dev: true });
     expect(titres(el)).not.toContain('Développement');
-    expect(el.querySelectorAll('nav a').length).toBe(14); // E6 : 15 − 2 + 1
+    expect(el.querySelectorAll('nav a').length).toBe(13); // E6 : 15 − 2 + 1, puis − « Import OOH »
     const liens = [...el.querySelectorAll('[data-pied] [data-liens-dev] a')];
     expect(liens.map((a) => a.getAttribute('aria-label'))).toEqual(['Accueil', 'Catalogue', 'Module risque']);
     expect(liens.map((a) => a.getAttribute('title'))).toEqual(['Accueil', 'Catalogue', 'Module risque']);
@@ -131,6 +131,6 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
   it('aucun filtre par rôle : React affiche toutes les entrées à tous (le contrôle vit dans les routes)', async () => {
     // Le composant n'injecte ni session ni rôle : la même liste pour tous, par construction.
     const el = await rendre({ dev: false });
-    expect(el.querySelectorAll('nav a').length).toBe(14); // E6 : 15 − 2 + 1
+    expect(el.querySelectorAll('nav a').length).toBe(13); // E6 : 15 − 2 + 1, puis − « Import OOH »
   });
 });

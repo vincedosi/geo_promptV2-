@@ -271,7 +271,6 @@ genesis_app/
 │   │   ├── health/             # Monitoring : etat DB, tables, fonctions RPC
 │   │   ├── import/             # Import universel de POI (CSV/XLSX/GeoJSON)
 │   │   ├── imports/            # Historique et gestion des imports
-│   │   ├── ooh-import/         # Import panneaux OOH depuis ArcGIS REST
 │   │   ├── profiles/           # Gestion des profils utilisateurs
 │   │   ├── radio/              # Admin emetteurs radio FM/DAB+
 │   │   └── sources/            # Gestion des sources de donnees (proprietaire et
@@ -1167,7 +1166,7 @@ Ecarts a la specification : voir la section « Ecarts a la livraison » de la sp
 
 | Niveau | Qui voit | Exemple |
 |---|---|---|
-| `socle` | toutes les organisations | lycees, carroyage Filosofi, inventaire Brest Metropole |
+| `socle` | toutes les organisations | lycees, carroyage Filosofi |
 | `privee` | l'organisation proprietaire | CONCESSIONS BMW → BMW GROUP, CIRFA → MARINE |
 | partage | `privee` + les organisations de `shared_with` | `/api/admin/organizations/[id]/sources/assign` (page Accès, onglet Données) |
 
@@ -1608,7 +1607,6 @@ le Voronoi, a sa route directe `GET /api/voronoi` (lot 4).
 | `/api/admin/import-poi/parse` | POST | Parse + auto-detection colonnes |
 | `/api/admin/import-poi/dry-run` | POST | Preview import (10 lignes) |
 | `/api/admin/import-poi/execute` | POST | Import batch SSE streaming |
-| `/api/admin/import-ooh/arcgis` | POST/DELETE | Import OOH ArcGIS REST |
 | `/api/admin/import-georisques` | POST | **Installations classees (ICPE) de l'API Georisques** vers `poi_france`, categorie `risque_industriel` (sql/173, spec du 2026-09-17). Flux NDJSON avec progression, lots de 50, `id` deterministe derive du `codeAIOT` — donc rejouable sans doublon (verifie : 1534 -> 1534 au rejeu). Corps `{departements?: string[], page_size?: number}`, defaut = les 101 departements. **Trois mesures a ne pas re-deviner** : `page_size` plafonne a **1 000** (a 2 000 l'API rend ZERO ligne, sans erreur) ; le filtre `statut_seveso` de l'API **est ignore** (il rend les 138 423 lignes quelle que soit la valeur), donc on ingere et on classe en base ; et l'endpoint sert aussi des etablissements `regime = 'Non ICPE'` qui ne sont PAS des installations classees — **19 % du volume national**, ecartes et comptes a part (`hors_perimetre`), jamais en silence. L'upsert MET A JOUR (referentiel vivant), donc `.select('id')` rend tout le lot : le compteur s'appelle `ecrites`, pas `inserees` |
 | `/api/admin/import-pprt` | POST | **Perimetres PPRT (servitudes PM3) de la Geoplateforme IGN** vers `pprt_perimetres` (sql/177). Flux NDJSON avec progression. UN appel sortant — le WFS `wfs_sup:assiette_sup_s` filtre `suptype='pm3'` rend les **664 assiettes en une fois** (5,6 Mo) — puis UNE transaction par partition (69 documents deposes au GPU). Corps `{partitions?: string[]}` pour rejouer un seul document. Mesure : 664 ecrites en 11,2 s, 0 rejetee, 0 echec. ⚠ Ne PAS passer par le WFS Georisques `PPRT_PERIMETRE_RISQIND` malgre son nom : ~147 000 lignes, tous les PPR confondus, `CQL_FILTER` ignore en silence — voir § « Perimetres PPRT » |
 | `/api/admin/import-datagouv` | POST | Import data.gouv.fr (SSRF whitelist). **Idempotent** depuis le 2026-09-11 : `id` deterministe (`lib/import/identite-poi.ts`, source `data_gouv`) + `upsert onConflict: 'id'`, donc un re-import du meme jeu n'ecrit rien. Les compteurs du flux NDJSON portent `inserted` ET `ignored` (deja presents) |
@@ -1665,8 +1663,9 @@ le Voronoi, a sa route directe `GET /api/voronoi` (lot 4).
 
 > La page `/integration-panneaux` et ses routes `/api/integration-panneaux/*`
 > ont ete supprimees en 2026-07 (pipeline CSV incomplet, perte de colonnes —
-> voir `docs/AUDIT_IMPORTS.md` C4). Les panneaux s'importent via
-> `/admin/ooh-import` (ArcGIS REST → `panneaux_affichage`).
+> voir `docs/AUDIT_IMPORTS.md` C4). L'import ArcGIS
+> (`/admin/ooh-import`, `/api/admin/import-ooh/arcgis`) est supprime le 2026-10-16 avec les 1 434 panneaux de Brest
+> qu'il avait ecrits (sql/260) : plus aucun import de panneaux depuis l'interface.
 
 ### Zones custom — plan média
 | Route | Methode | Description |
@@ -1840,7 +1839,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | Table | Description | Notes |
 |-------|-------------|-------|
 | `poi_france` | Points d'Interet — **une table**, et non une vue : il n'existe aucune table `poi`. Porte depuis le 2026-09-17 la categorie **`risque_industriel`** (ICPE Georisques) : `sous_categorie` = la gravite (`seveso_haut`/`seveso_bas`/`ied`/`autorisation`/`enregistrement`/`autre`, qui colore le point), `metadata.libelle_nature` = la nature DOMINANTE du risque (qui le filtre), `metadata.natures_risque[]` = toutes ses natures | Trigger `auto_set_geom`. `id` **deterministe** aux deux chemins d'import (universel et data.gouv) : UUIDv5 du contenu de la ligne (`lib/import/identite-poi.ts`), ce qui rend `onConflict: 'id'` operant et le rejeu d'un fichier sans effet. Ne jamais revenir a `randomUUID()` — voir `docs/AUDIT.md#ech-001` |
-| `panneaux_affichage` | Panneaux OOH/DOOH toutes regies (~1 434 lignes) — table unique (carte) | `source_ref` = OBJECTID, UNIQUE (source, source_ref), filtrer `actif = true` |
+| `panneaux_affichage` | Panneaux OOH/DOOH — table unique (carte). **Vide depuis la purge de Brest du 2026-10-16 (sql/260)** | UNIQUE (source, source_ref), filtrer `actif = true` |
 | `import_runs_ooh` | Historique imports OOH | |
 | `poi_categories` | Categories POI | |
 | `poi_accessibility_config` | Parametres sigma accessibilite | |
