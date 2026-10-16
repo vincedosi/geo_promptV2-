@@ -14,7 +14,12 @@
 4. **Pas de module à part, pas de page.** On place des panneaux : sous `/map`,
    **« Autres » → « Panneaux OOH et DOOH »** ouvre un overlay ; l'utilisateur **choisit une
    campagne** de son workspace, ses panneaux s'affichent avec le maximum d'information.
-5. La table des panneaux doit contenir **le maximum d'information**. L'import doit être
+5. **Les panneaux d'une campagne sont privés au workspace** : « ce n'est pas un inventaire, c'est
+   une campagne ». Ils appartiennent à la campagne, pas à un référentiel de régie partagé.
+6. **L'import ArcGIS de Brest est supprimé** (route, page, liens de navigation) : c'était le test.
+7. Écart Basic-Fit (882/905 clubs, 1 807/4 802 écrans) : on affiche les deux chiffres, la
+   question part à la régie.
+8. La table des panneaux doit contenir **le maximum d'information**. L'import doit être
    **générique** : la vague suivante = un adaptateur de plus, pas un nouveau script.
 
 ## 2. Hors champ
@@ -28,7 +33,7 @@
 - Scoring et enrichissement IRIS des panneaux (`compute_panneau_scores`, colonnes `score_*`).
 - Emplacements des DROM : Mediaoutremer n'a fourni aucune liste.
 - Côté React (gelé, P5) : `OohSection.tsx` et sa liste de régies restent tels quels.
-- L'import ArcGIS (`/api/admin/import-ooh/arcgis`) : non modifié (voir § 10, Q2).
+- La table `import_runs_ooh` reste (lue par `/api/admin/imports`), vidée de son seul passage.
 
 ## 3. Ce que contient le plan TF4 (fichier analysé le 16/10)
 
@@ -135,13 +140,14 @@ script.
 
 ### 4.4 Identité, visibilité, rejeu
 
-- **Une source privée par réseau et par workspace** : `data_sources` « Plan OOH Marine —
-  Basic-Fit », `visibilite = 'privee'`, `organization_id` = Marine. La RLS existante
-  (`source_visible`) fait le reste : les autres workspaces ne voient rien (Q1).
-- `source` = `plan-ooh:<slug workspace>:<réseau>`, `source_ref` = identifiant stable dans le
-  réseau (gare : code UIC ; Basic-Fit : code club ; Stride : établissement normalisé + CP).
-  L'upsert sur `(source, source_ref)` garde les mêmes `id` d'une vague à l'autre : la vague
-  suivante réutilise les mêmes panneaux.
+- **Une source privée par ligne de campagne** : `data_sources` « TF4 Marine — Basic-Fit »,
+  `visibilite = 'privee'`, `organization_id` = Marine. La RLS existante (`source_visible`) fait
+  le reste : les autres workspaces ne voient rien. Les panneaux appartiennent à la campagne :
+  pas de référentiel de régie partagé entre campagnes ni entre workspaces (décision 5).
+- `source` = `plan-ooh:<cle_import de la campagne>:<réseau>`, `source_ref` = identifiant stable
+  dans le réseau (gare : code UIC ; Basic-Fit : code club ; Stride : établissement normalisé +
+  CP). L'upsert sur `(source, source_ref)` garde les mêmes `id` d'un rejeu à l'autre de la même
+  campagne. La vague suivante a sa propre clé, donc ses propres panneaux.
 - Rejeu du script = même résultat : la campagne est retrouvée par
   `(organization_id, cle_import)`, ses lignes et leurs liens sont remplacés (DELETE ciblé dont
   l'erreur est lue, puis INSERT).
@@ -256,7 +262,7 @@ documentation.
 - **Preuve navigateur dans les deux thèmes** : la liste, TF4 choisie, les quatre lignes, les
   points sur la carte, la fiche d'un panneau de chaque réseau, la ligne DROM, un point à
   vérifier, et le changement de workspace.
-- Import réel de TF4 en local, avec ses compteurs reportés dans les écarts (§ 11).
+- Import réel de TF4 en local, avec ses compteurs reportés dans les écarts (§ 12).
 
 ## 9. Risques
 
@@ -271,16 +277,21 @@ documentation.
   risque) : les nouveaux types sont préfixés (`CampagneMedia`, `LigneMedia`) et la fiche
   ARCHITECTURE dit la différence.
 
-## 10. Questions ouvertes (avec défaut)
+## 10. Suppression de l'import ArcGIS
 
-- **Q1 — Visibilité des panneaux.** Défaut : **privés au workspace** de la campagne. Une liste
-  de régie peut être confidentielle, et le plan d'un client ne doit pas fuiter. Alternative :
-  l'inventaire d'une régie au socle, seule la campagne privée.
-- **Q2 — Import ArcGIS** (calé sur les champs de Brest). Défaut : **gardé tel quel**, hors
-  champ.
-- **Q3 — Écart Basic-Fit** (882/905 clubs, 1 807/4 802 écrans) : à demander à la régie.
-  L'écran montre les deux chiffres.
+Retirés dans le même commit, avec la doc (`ARCHITECTURE.md`) :
+- la route `app/api/admin/import-ooh/arcgis/route.ts` et la page `app/admin/ooh-import/page.tsx` ;
+- les liens « Import OOH » : `components/AppSidebar.tsx`, `app/dashboard/page.tsx`,
+  `components/map/overlays/SettingsOverlay.tsx`, `angular/src/app/layout/navigation.ts`, et
+  l'entrée inerte de `panneaux/reglages.component.ts` ;
+- les mentions périmées : `lib/import/inserter.ts:194`, `lib/format/nombre.ts:14`.
+- `tests/unit/api/quotas-partages.test.ts` prend la clé de quota en exemple : il est réécrit sur
+  une clé encore vivante, sans perdre ce qu'il vérifie.
 
-## 11. Écarts à la livraison
+## 11. Questions ouvertes
+
+Aucune : Q1 (visibilité), Q2 (ArcGIS) et Q3 (Basic-Fit) ont été tranchées le 16/10 (§ 1).
+
+## 12. Écarts à la livraison
 
 (à remplir à la fin du chantier)
