@@ -71,6 +71,7 @@ describe('dérive entre ARCHITECTURE.md et le code', () => {
     const hotesExternes: Array<[string, string]> = [
       ['openrouteservice', 'OpenRouteService'],
       ['open-meteo', 'Open-Meteo'],
+      ['ressources.data.sncf.com', 'SNCF Open Data'],
     ];
     const manquants = hotesExternes
       .filter(([, nom]) => !archi.toLowerCase().includes(nom.toLowerCase()))

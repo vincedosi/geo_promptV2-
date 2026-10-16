@@ -13,7 +13,7 @@ type MediaLigne = 'digital' | 'ooh' | 'tv' | 'radio' | 'presse';
 type GeolocMethode = 'referentiel_gares' | 'adresse_ban' | 'alias_manuel' | 'coordonnees_fournies';
 
 /** `sure`, ou `a_verifier` : un emplacement incertain est marqué, jamais placé en silence (sql/262). */
-type GeolocQualite = 'sure' | 'a_verifier';
+export type GeolocQualite = 'sure' | 'a_verifier';
 
 /** Une cellule lue : scalaire, date ISO `yyyy-mm-dd`, ou vide (`null`). */
 export type Cellule = string | number | boolean | null;
@@ -126,7 +126,7 @@ export interface EmplacementBrut {
 }
 
 /** Un emplacement placé : `source_ref` définitif (UIC d'une gare, code club…) et sa géolocalisation. */
-interface EmplacementPlace extends EmplacementBrut {
+export interface EmplacementPlace extends EmplacementBrut {
   source_ref: string;
   lat: number;
   lng: number;
@@ -139,7 +139,7 @@ interface EmplacementPlace extends EmplacementBrut {
 }
 
 /** Un emplacement introuvable : il n'entre pas dans la table, il est compté sur sa ligne et listé au rapport. */
-interface EmplacementNonPlace {
+export interface EmplacementNonPlace {
   adaptateur: AdaptateurId;
   cle: string;
   nom: string;

@@ -330,6 +330,7 @@ async function geocodeChunkCSV(
   resultType: string;
   resultCity: string;
   resultPostcode: string;
+  resultCitycode: string;
 }>> {
   // Tell BAN which columns to use
   // columns=adresse means: use 'adresse' column for full-text search
@@ -377,6 +378,7 @@ async function geocodeChunkCSV(
           resultType: row.result_type || '',
           resultCity: row.result_city || '',
           resultPostcode: row.result_postcode || '',
+          resultCitycode: row.result_citycode || '',
         };
       });
     } catch (err: unknown) {
@@ -431,6 +433,7 @@ export async function geocodeBatchDetailed(
             resultType: banResult.resultType,
             resultCity: banResult.resultCity,
             resultPostcode: banResult.resultPostcode,
+            resultCitycode: banResult.resultCitycode,
             status,
             manualOverride: false,
           });
