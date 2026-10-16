@@ -27,7 +27,9 @@ describe('zone_rayon_poi', () => {
     expect(r.compte).toBeGreaterThan(50);
     expect(r.geometry.type).toBe('MultiPolygon');
     expect(r.part_retenue).toBeGreaterThan(0);
-    expect(r.part_retenue).toBeLessThanOrEqual(1);
+    // STRICTEMENT sous 1 : des lycées du littoral et des confins (Marseille, Arles, Aubagne…) ont un cercle de 5 km qui
+    // déborde en mer ou sur le Var et le Vaucluse. Une part de 1 dirait que le département n'a rien découpé (L3-1).
+    expect(r.part_retenue).toBeLessThan(1);
   });
   it('POI d’une source NON visible : invisibles (les lycées sans leur source, les CIRFA)', async () => {
     expect((await appeler({ p_sources: [] })).data).toMatchObject({ vide: true, compte: 0, geometry: null });

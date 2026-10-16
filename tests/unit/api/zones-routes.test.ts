@@ -107,9 +107,25 @@ describe('POST /api/zones/apercu', () => {
     await apercu(req({ recette: RAYON, geometrie: POLYGONE }));
     expect(executions[0].ctx).not.toHaveProperty('geometrie');
   });
-  it('recette figée : la géométrie fournie passe à l’exécuteur', async () => {
+  it('recette figée : la géométrie fournie passe à l’exécuteur — sans lire les sources, que seul le rayon POI emploie', async () => {
     await apercu(req({ recette: { v: 1, type: 'dessin' }, geometrie: POLYGONE }));
-    expect(executions[0].ctx).toStrictEqual({ orgId: ORG, sources: ['s1'], geometrie: POLYGONE });
+    expect(executions[0].ctx).toStrictEqual({ orgId: ORG, sources: [], geometrie: POLYGONE });
+    expect(sessionsSources).toEqual([]);
+  });
+  it('les sources de POI ne sont lues que pour un rayon autour des POI', async () => {
+    const SEUIL = { v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre: { type: 'departement', code: '13' } };
+    await apercu(req({ recette: SEUIL }));
+    await apercu(req({ recette: { v: 1, type: 'codes_postaux', codes: ['13001'] } }));
+    expect(sessionsSources).toEqual([]);
+    expect(executions.map((e) => e.ctx)).toStrictEqual([{ orgId: ORG, sources: [] }, { orgId: ORG, sources: [] }]);
+    await apercu(req({ recette: RAYON }));
+    expect(sessionsSources).toHaveLength(1);
+  });
+  it('une combinaison est calculée par le serveur : aucune géométrie cliente ne passe', async () => {
+    const A = '3f2504e0-4f89-11d3-9a0c-0305e82c3311';
+    const B = '3f2504e0-4f89-11d3-9a0c-0305e82c3312';
+    await apercu(req({ recette: { v: 1, type: 'combinaison', operation: 'union', zones: [A, B] }, geometrie: POLYGONE }));
+    expect(executions[0].ctx).not.toHaveProperty('geometrie');
   });
   it('sans profil : 401 ; sans espace : 403 ; recette invalide : 400 français — sans quota ni lecture', async () => {
     profil = null; expect((await apercu(req({ recette: RAYON }))).status).toBe(401);
@@ -211,8 +227,18 @@ describe('POST /api/zones/[id]/recalculer', () => {
     expect((await r.json()).refus).toBe('zone_introuvable');
     expect(lectures[0]).toEqual({ table: 'custom_geo_zones', filtres: [['id', ZONE], ['org_id', ORG]] });
   });
-  it('forme figée (recette null ou dessin) : 409 forme_figee, rien d’exécuté', async () => {
-    for (const recette of [null, { v: 1, type: 'dessin' }]) {
+  it('recette stockée illisible : 409 forme_figee, et l’anomalie est journalisée', async () => {
+    const erreurs = vi.mocked(console.error);
+    zoneLue = { id: ZONE, recette: { v: 1, type: 'rayon_poi', rayon_m: 'cinq' } };
+    const r = await appel();
+    expect(r.status).toBe(409);
+    expect((await r.json()).refus).toBe('forme_figee');
+    expect(erreurs.mock.calls.some((c) => String(c[0]).includes('[zones/recalculer]') && String(c[0]).includes('illisible'))).toBe(true);
+  });
+  it('forme figée (recette null, dessin ou combinaison) : 409 forme_figee, rien d’exécuté', async () => {
+    const A = '3f2504e0-4f89-11d3-9a0c-0305e82c3311';
+    const B = '3f2504e0-4f89-11d3-9a0c-0305e82c3312';
+    for (const recette of [null, { v: 1, type: 'dessin' }, { v: 1, type: 'combinaison', operation: 'union', zones: [A, B] }]) {
       zoneLue = { id: ZONE, recette };
       const r = await appel();
       expect(r.status).toBe(409);
@@ -226,7 +252,7 @@ describe('POST /api/zones/[id]/recalculer', () => {
     reponsesRpc.zone_referencee = { data: 'strategie', error: null };
     const r = await appel();
     expect(r.status).toBe(409);
-    expect(await r.json()).toEqual({ error: 'Cette zone est utilisée par un plan : dupliquez-la avant de la recalculer.', refus: 'zone_referencee', par: 'strategie' });
+    expect(await r.json()).toEqual({ error: 'Cette zone est utilisée par un plan, un jeu de zones ou une autre zone : elle ne peut pas être recalculée.', refus: 'zone_referencee', par: 'strategie' });
     expect(executions).toEqual([]);
     expect(sessionsSources).toEqual([]);
     expect(rpcs.map((c) => c.nom)).toEqual(['zone_referencee']);
@@ -257,6 +283,14 @@ describe('POST /api/zones/[id]/recalculer', () => {
     expect(executions[0].ctx).toStrictEqual({ orgId: ORG, sources: ['s1'] });
     expect(rpcs.map((c) => c.nom)).toEqual(['zone_referencee', 'remplacer_geometrie_zone', 'resolve_custom_geo_zone_codes']);
     expect(rpcs[1].args).toEqual({ p_zone_id: ZONE, p_org_id: ORG, p_geometry_geojson: JSON.stringify(CARRE) });
+  });
+  it('résolution en échec après un recalcul : 207 dont le message dit « recalculée », pas « créée »', async () => {
+    zoneLue = { id: ZONE, recette: RAYON };
+    reponsesRpc.remplacer_geometrie_zone = { data: { remplace: true }, error: null };
+    reponsesRpc.resolve_custom_geo_zone_codes = { data: null, error: { message: 'canceling statement due to statement timeout' } };
+    const r = await appel();
+    expect(r.status).toBe(207);
+    expect(await r.json()).toEqual({ zone_id: ZONE, warning: 'codes_non_resolus', message: 'Zone recalculée, mais ses codes postaux n’ont pas pu être résolus.' });
   });
   it('remplacer_geometrie_zone rend une réponse hors contrat : 500', async () => {
     zoneLue = { id: ZONE, recette: RAYON };

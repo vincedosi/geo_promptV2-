@@ -87,13 +87,28 @@ describe('POST /api/custom-geo/capture — recette facultative', () => {
     echecUpdate = true;
     const r = await POST(corps({ recette: ISO }));
     expect(r.status).toBe(207);
-    expect(await r.json()).toEqual({ zone_id: 'z1', warning: 'recette_non_enregistree', count_iris: 5, count_cp: 2 });
+    expect(await r.json()).toEqual({
+      zone_id: 'z1', warning: 'recette_non_enregistree', count_iris: 5, count_cp: 2,
+      message: 'Zone sauvegardée, mais sa recette n’a pas pu être enregistrée.',
+    });
   });
   it('résolution des codes en échec : 207 « zone créée », et la recette est DÉJÀ écrite (P6)', async () => {
     echecResolution = true;
     const r = await POST(corps({ recette: ISO }));
     expect(r.status).toBe(207);
-    expect(await r.json()).toEqual({ zone_id: 'z1', warning: 'zone_created_but_resolution_failed' });
+    expect(await r.json()).toEqual({
+      zone_id: 'z1', warning: 'zone_created_but_resolution_failed', message: 'Zone créée ; ses codes postaux n’ont pas pu être résolus.',
+    });
     expect(miseAJour).toEqual([{ valeur: { recette: ISO }, id: 'z1' }]);
+  });
+  it('les deux échecs ensemble : un seul 207, dont le message dit les deux', async () => {
+    echecResolution = true;
+    echecUpdate = true;
+    const r = await POST(corps({ recette: ISO }));
+    expect(r.status).toBe(207);
+    expect(await r.json()).toEqual({
+      zone_id: 'z1', warning: 'zone_created_but_resolution_failed', recette_non_enregistree: true,
+      message: 'Zone créée ; ses codes postaux n’ont pas pu être résolus, et sa recette n’a pas été enregistrée.',
+    });
   });
 });

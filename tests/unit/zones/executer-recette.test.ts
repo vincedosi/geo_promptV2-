@@ -185,6 +185,18 @@ describe('executerRecette', () => {
     expect(r).toEqual({ ok: false, statut: 400, refus: null, message: 'Paramètres de calcul invalides.' });
   });
 
+  it('forme sans surface refusée par zone_dessin (22023) : un message qui parle de la forme ; les autres 22023 inchangés', async () => {
+    const forme = { type: 'Polygon', coordinates: [[[5, 43], [5.1, 43], [5.1, 43.1], [5, 43]]] };
+    for (const message of ['geometrie sans surface', 'geometrie non surfacique (LINESTRING)']) {
+      reponses.zone_dessin = { data: null, error: { message, code: '22023' } as { message: string } };
+      expect(await exec({ v: 1, type: 'dessin' }, { geometrie: forme }))
+        .toEqual({ ok: false, statut: 400, refus: null, message: 'La forme dessinée n’a pas de surface.' });
+    }
+    reponses.zone_dessin = { data: null, error: { message: 'autre chose', code: '22023' } as { message: string } };
+    expect(await exec({ v: 1, type: 'dessin' }, { geometrie: forme }))
+      .toEqual({ ok: false, statut: 400, refus: null, message: 'Paramètres de calcul invalides.' });
+  });
+
   it('forme figée mal construite : 400 AVANT tout appel (positions, anneaux fermés de 4 positions au moins)', async () => {
     const malFormees: unknown[] = [
       { type: 'Polygon', coordinates: [[[5, 43], [5.1, 43], [5.1, 43.1], [5, 43.2]]] }, // anneau non fermé

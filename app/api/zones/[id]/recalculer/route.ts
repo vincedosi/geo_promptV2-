@@ -8,8 +8,12 @@
  * verrou → `resolve_custom_geo_zone_codes` (200, ou 207 si la résolution échoue). Une zone citée ne paie donc jamais
  * un calcul lourd pour un 409, et sa forme ne change jamais sous une campagne.
  *
- * Le message du 409 est le même quel que soit `par` (« utilisée par un plan ») : `par` est un code, jamais montré
- * tel quel — `composite` couvre aussi bien une union qu'une différence ou une intersection.
+ * Le message du 409 est le même quel que soit `par` (« utilisée par un plan, un jeu de zones ou une autre zone ») :
+ * `par` est un code, jamais montré tel quel — `composite` couvre aussi bien une union qu'une différence ou une
+ * intersection. Pas de « dupliquer » dans ce lot (arbitrage de la revue finale). Une COMBINAISON n'est pas
+ * recalculable (`TYPES_RECALCULABLES`) : ses opérandes sont figés, elle reçoit le 409 `forme_figee`.
+ *
+ * Un 207 (résolution des codes en échec) dit « Zone recalculée, mais … » — `repondreResolue(…, 'recalcul')`.
  *
  * Quota unique des routes de zone (`lib/zones/session-zones.ts`), consommé avant la lecture de la zone.
  */
@@ -63,6 +67,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   if (!zone) return introuvable();
   const lue = zone.recette == null ? null : lireRecette(zone.recette);
+  // Une recette STOCKÉE que le schéma refuse est une anomalie (CHECK de sql/253 contourné, schéma resserré depuis) :
+  // l'utilisateur reçoit le refus d'une forme figée, mais elle se journalise — une zone d'avant le lot (NULL), non.
+  if (lue && !lue.ok) console.error(`[zones/recalculer] recette stockée illisible (zone ${id}) :`, lue.message);
   if (!lue || !lue.ok || !estRecalculable(lue.recette)) {
     return reponseRefus({ statut: 409, refus: 'forme_figee', message: MESSAGES_REFUS.forme_figee });
   }
@@ -89,5 +96,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Recalcul de la zone impossible.' }, { status: 500 });
   }
   if ('refus' in sortie) return sortie.refus === 'zone_introuvable' ? introuvable() : referencee(sortie.par);
-  return repondreResolue(supabase, id, s.espace.userId, r.surface_km2);
+  return repondreResolue(supabase, id, s.espace.userId, r.surface_km2, 'recalcul');
 }

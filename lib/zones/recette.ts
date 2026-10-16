@@ -19,8 +19,13 @@ export const TYPES_RECETTE = [
 ] as const;
 export type TypeRecette = (typeof TYPES_RECETTE)[number];
 
-/** Rejouées par l'exécuteur serveur. */
-export const TYPES_RECALCULABLES: readonly TypeRecette[] = ['rayon_point', 'rayon_poi', 'seuil_carreaux', 'seuil_territoire', 'codes_postaux', 'combinaison'];
+/**
+ * Rejouées par l'exécuteur serveur pour RECALCULER une zone. Pas la combinaison (arbitrage de la revue finale du
+ * lot 3) : ses opérandes sont figés au moment de la création, la rejouer rendrait la même forme.
+ */
+export const TYPES_RECALCULABLES: readonly TypeRecette[] = ['rayon_point', 'rayon_poi', 'seuil_carreaux', 'seuil_territoire', 'codes_postaux'];
+/** La forme vient du client (validée, réparée, découpée sur la France) ; toutes les autres sont calculées par le serveur. */
+const TYPES_GEOMETRIE_CLIENTE: readonly TypeRecette[] = ['dessin', 'import', 'isochrone', 'capture'];
 /** Coûteuses : bornées par le périmètre de ①, refusent la France entière (spec § 16.2-5). */
 export const TYPES_BORNES_PAR_PERIMETRE: readonly TypeRecette[] = ['rayon_poi', 'seuil_carreaux', 'seuil_territoire'];
 
@@ -127,13 +132,18 @@ export const MESSAGES_REFUS: Readonly<Record<RefusRecette, string>> = {
   trop_de_sommets: `La forme dépasse ${formaterNombre(MAX_SOMMETS_FORME)} sommets : simplifiez-la avant de l’importer.`,
   indicateur_inconnu: 'Cet indicateur n’est pas disponible pour un seuil.',
   zone_introuvable: 'Zone introuvable dans cet espace.',
-  zone_referencee: 'Cette zone est utilisée par un plan : dupliquez-la avant de la recalculer.',
+  zone_referencee: 'Cette zone est utilisée par un plan, un jeu de zones ou une autre zone : elle ne peut pas être recalculée.',
   forme_vide: 'Aucun territoire français dans cette forme : rien à enregistrer.',
-  forme_figee: 'Cette zone a une forme figée (dessin, import, isochrone ou capture) : elle ne se recalcule pas.',
+  forme_figee: 'Cette zone a une forme figée (dessin, import, isochrone, capture ou combinaison) : elle ne se recalcule pas.',
 };
 
 export function estRecalculable(r: Recette): boolean {
   return TYPES_RECALCULABLES.includes(r.type);
+}
+
+/** Vrai quand la forme vient du client (dessin, import, isochrone, capture) ; une combinaison est calculée par le serveur. */
+export function exigeGeometrie(r: Recette): boolean {
+  return TYPES_GEOMETRIE_CLIENTE.includes(r.type);
 }
 
 export function exigePerimetre(r: Recette): boolean {
@@ -159,17 +169,43 @@ function km(m: number): string {
 
 const OPERATIONS = { union: 'Union', intersection: 'Intersection', difference: 'Différence' } as const;
 
-/** Une ligne lisible, sans le nom de la zone (affichée dans « Mes zones »). */
-export function libelleRecette(r: Recette): string {
+/**
+ * Un indicateur du catalogue des territoires (`GET /api/cibles/indicators`), réduit à ce que le libellé lit. Écrit ici
+ * en forme STRUCTURELLE (non exportée : `IndicateurRegistre` côté Angular s'y conforme) — ce fichier est recopié tel
+ * quel côté Angular, qui n'a pas les types du serveur.
+ */
+interface IndicateurLibelle {
+  readonly indicator_code: string;
+  readonly label: string;
+  readonly unit?: string | null;
+}
+
+/** « Carreaux où part des ménages pauvres ≥ 40 % » : le libellé (initiale en minuscule), l'opérateur, le seuil. */
+function ligneSeuil(objet: string, nom: string, operateur: OperateurSeuil, seuil: number, unite: string | null | undefined): string {
+  return `${objet} où ${nom} ${operateur === '>=' ? '≥' : '≤'} ${formaterNombre(seuil)} ${unite ?? ''}`.trim();
+}
+
+function minusculeInitiale(s: string): string {
+  return s.charAt(0).toLowerCase() + s.slice(1);
+}
+
+/**
+ * Une ligne lisible, sans le nom de la zone (affichée dans « Mes zones »). Le seuil est mis en forme par
+ * `formaterNombre` (« 20 000 », « 12,5 »). Un seuil sur territoires prend le libellé et l'unité de `indicateurs` (le
+ * catalogue, quand l'écran l'a lu) ; sans catalogue, ou indicateur retiré du registre, son identifiant plutôt que rien.
+ */
+export function libelleRecette(r: Recette, indicateurs: readonly IndicateurLibelle[] = []): string {
   switch (r.type) {
     case 'rayon_point': return `Rayon de ${km(r.rayon_m)} autour d’un point`;
     case 'rayon_poi': return `Rayon de ${km(r.rayon_m)} autour des POI « ${r.categorie} »`;
     case 'seuil_carreaux': {
       const i = INDICATEURS_SEUIL_CARREAUX.find((x) => x.id === r.indicateur);
-      const nom = i ? i.libelle.charAt(0).toLowerCase() + i.libelle.slice(1) : r.indicateur;
-      return `Carreaux où ${nom} ${r.operateur === '>=' ? '≥' : '≤'} ${String(r.seuil).replace('.', ',')} ${i?.unite ?? ''}`.trim();
+      return ligneSeuil('Carreaux', i ? minusculeInitiale(i.libelle) : r.indicateur, r.operateur, r.seuil, i?.unite);
     }
-    case 'seuil_territoire': return `Territoires où ${r.indicateur} ${r.operateur === '>=' ? '≥' : '≤'} ${String(r.seuil).replace('.', ',')}`;
+    case 'seuil_territoire': {
+      const i = indicateurs.find((x) => x.indicator_code === r.indicateur);
+      return ligneSeuil('Territoires', i ? minusculeInitiale(i.label) : r.indicateur, r.operateur, r.seuil, i?.unit);
+    }
     case 'codes_postaux': return `${r.codes.length} ${r.codes.length > 1 ? 'codes postaux' : 'code postal'}`;
     case 'dessin': return 'Dessin à main levée';
     case 'import': return `Import ${r.format === 'kml' ? 'KML' : 'GeoJSON'} (${r.fichier})`;

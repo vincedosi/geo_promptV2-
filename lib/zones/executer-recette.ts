@@ -5,8 +5,8 @@
  * refusées AVANT tout appel quand le périmètre manque ou est national (`refusPerimetreLocal`) ; la base refait la
  * garde (surface, appartenance d'une zone-périmètre). Un refus est une réponse 422 en français, jamais une exception.
  *
- * Une recette RECALCULABLE ignore toute géométrie fournie par le client (le serveur la recalcule) ; une recette FIGÉE
- * (dessin, import, isochrone, capture) l'exige, et `zone_dessin` (sql/156) la répare et la découpe sur la France.
+ * Une recette calculée par le serveur (recalculable, ou combinaison) ignore toute géométrie fournie par le client ; une
+ * recette FIGÉE (dessin, import, isochrone, capture — `exigeGeometrie`) l'exige, et `zone_dessin` (sql/156) la répare et la découpe sur la France.
  *
  * Chaque RPC est appelée sur le client (`supabase.rpc(…)`), jamais par une référence détachée : `rpc` lit `this.rest`,
  * et `const f = supabase.rpc; f(…)` lève à l'exécution (le faux client du test est une classe pour le prouver).
@@ -23,9 +23,9 @@ type FormeZone = GeoJSON.Polygon | GeoJSON.MultiPolygon;
 
 export interface ContexteRecette {
   orgId: string;
-  /** `getOrgSourceIds(…, { vueEspace: true })` : les sources de POI que l’espace voit. */
+  /** `getOrgSourceIds(…, { vueEspace: true })` : les sources de POI que l’espace voit (lues pour `rayon_poi` seulement, vide sinon). */
   sources: string[];
-  /** La forme d'une recette figée ; ignorée pour une recette recalculable. */
+  /** La forme d'une recette figée ; ignorée pour une recette calculée par le serveur. */
   geometrie?: unknown;
 }
 
@@ -110,6 +110,10 @@ async function lire(nom: string, requete: RequeteRpc): Promise<IssueRecette> {
     console.error(`[zones/recette] ${nom} :`, error.message);
     // 22023 (`invalid_parameter_value`) : les RPC de recette lèvent ce code sur un argument hors contrat (opérateur,
     // seuil NULL, plafond) — c'est la requête qui est fausse, pas le serveur.
+    // Une forme sans surface (« sans surface », « non surfacique ») se dit comme telle : c'est le dessin qu'il faut
+    // reprendre, pas des « paramètres ». Garde défensive : `zone_dessin` (sql/156) rend aujourd'hui `vide` (→ 409
+    // forme_vide) plutôt que de lever — ce sont `creer_zone_recette` / `remplacer_geometrie_zone` (sql/253) qui lèvent.
+    if (error.code === '22023' && nom === 'zone_dessin' && /surfac/i.test(error.message)) return invalide('La forme dessinée n’a pas de surface.');
     if (error.code === '22023') return invalide('Paramètres de calcul invalides.');
     // `get_composite_zone_geometry` (sql/100) LÈVE au lieu de rendre `vide` quand les zones n'ont aucune géométrie.
     if (nom === 'get_composite_zone_geometry' && error.code === 'P0001' && error.message.includes('aucune geometrie trouvee')) {
@@ -125,7 +129,7 @@ export async function executerRecette(supabase: ClientAdmin, recette: Recette, c
   if (local) return refuser(local);
 
   // Le `switch` est exhaustif (aucun `default`) : un type de recette ajouté sans branche ne compile pas. Une recette
-  // RECALCULABLE n'y lit jamais `ctx.geometrie` ; seules les quatre figées la lisent.
+  // calculée par le serveur n'y lit jamais `ctx.geometrie` ; seules les quatre figées la lisent.
   switch (recette.type) {
     case 'rayon_point':
       return lire('zone_rayon', supabase.rpc('zone_rayon', { p_lon: recette.lon, p_lat: recette.lat, p_rayon_m: recette.rayon_m }));

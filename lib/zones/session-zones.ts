@@ -21,7 +21,7 @@ import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { executerRecette, type ContexteRecette, type IssueRecette } from './executer-recette';
-import { estRecalculable, type Recette, type RefusRecette } from './recette';
+import { exigeGeometrie, type Recette, type RefusRecette } from './recette';
 import { lireRecette } from './recette-schema';
 
 type ClientAdmin = ReturnType<typeof createAdminClient>;
@@ -75,8 +75,9 @@ export async function preparerRecette<S extends SchemaCorpsZone>(
 }
 
 /**
- * Lit les sources visibles de l'espace PUIS exécute la recette. Une recette RECALCULABLE ne reçoit jamais la
- * géométrie du client (Review Focus 4 : le serveur la recalcule) ; seule une forme figée la transmet.
+ * Lit les sources visibles de l'espace — pour un rayon autour des POI SEULEMENT, la seule recette qui les emploie —
+ * PUIS exécute la recette. Une recette calculée par le serveur (recalculable ou combinaison) ne reçoit jamais la
+ * géométrie du client (Review Focus 4) ; seule une forme figée la transmet (`exigeGeometrie`).
  */
 export async function executerDansEspace(
   supabase: ClientAdmin,
@@ -84,9 +85,11 @@ export async function executerDansEspace(
   recette: Recette,
   geometrie?: unknown,
 ): Promise<IssueRecette> {
-  const sources = await getOrgSourceIds({ userId: espace.userId, orgId: espace.orgId, role: espace.role }, { vueEspace: true });
+  const sources = recette.type === 'rayon_poi'
+    ? await getOrgSourceIds({ userId: espace.userId, orgId: espace.orgId, role: espace.role }, { vueEspace: true })
+    : null;
   const ctx: ContexteRecette = { orgId: espace.orgId, sources: sources ?? [] };
-  if (!estRecalculable(recette)) ctx.geometrie = geometrie;
+  if (exigeGeometrie(recette)) ctx.geometrie = geometrie;
   return executerRecette(supabase, recette, ctx);
 }
 
@@ -98,13 +101,19 @@ export function reponseRefus(r: { statut: number; message: string; refus: RefusR
 /**
  * Résout les codes de la zone (compteurs de « Mes zones » ; n'achète rien) ; 207 si la résolution échoue (délai,
  * accès) — la zone existe (Review Focus 5). Partagé par l'écriture et le recalcul : un fichier `route.ts` ne peut
- * exporter que ses verbes HTTP.
+ * exporter que ses verbes HTTP. Le message du 207 dit l'action (`creation` ou `recalcul`) : après un recalcul, la
+ * zone n'a pas été « créée ».
  */
-export async function repondreResolue(supabase: ClientAdmin, zoneId: string, userId: string, surface: number | null): Promise<NextResponse> {
+export async function repondreResolue(
+  supabase: ClientAdmin, zoneId: string, userId: string, surface: number | null, action: 'creation' | 'recalcul',
+): Promise<NextResponse> {
   const res = await supabase.rpc('resolve_custom_geo_zone_codes', { p_zone_id: zoneId, p_caller_user_id: userId });
   if (res.error) {
     console.error('[zones] resolve_custom_geo_zone_codes :', res.error.message);
-    return NextResponse.json({ zone_id: zoneId, warning: 'codes_non_resolus', message: 'Zone créée ; ses codes postaux n’ont pas pu être résolus.' }, { status: 207 });
+    const message = action === 'recalcul'
+      ? 'Zone recalculée, mais ses codes postaux n’ont pas pu être résolus.'
+      : 'Zone créée ; ses codes postaux n’ont pas pu être résolus.';
+    return NextResponse.json({ zone_id: zoneId, warning: 'codes_non_resolus', message }, { status: 207 });
   }
   const c: Readonly<Record<string, unknown>> = res.data !== null && typeof res.data === 'object' && !Array.isArray(res.data) ? res.data : {};
   return NextResponse.json({ zone_id: zoneId, count_cp: entier(c.count_cp), count_iris: entier(c.count_iris), surface_km2: surface });

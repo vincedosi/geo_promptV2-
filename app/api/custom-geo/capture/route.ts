@@ -185,6 +185,10 @@ export async function POST(request: NextRequest) {
         zone_id: zoneId,
         warning: 'zone_created_but_resolution_failed',
         ...(recetteEnregistree ? {} : { recette_non_enregistree: true }),
+        // Lot 3 : le client Angular affiche `message` quand il est présent (React l'ignore).
+        message: recetteEnregistree
+          ? 'Zone créée ; ses codes postaux n’ont pas pu être résolus.'
+          : 'Zone créée ; ses codes postaux n’ont pas pu être résolus, et sa recette n’a pas été enregistrée.',
       },
       { status: 207 },
     );
@@ -205,7 +209,10 @@ export async function POST(request: NextRequest) {
 
   if (!recetteEnregistree) {
     return NextResponse.json(
-      { zone_id: zoneId, warning: 'recette_non_enregistree', count_iris: resolved.count_iris ?? 0, count_cp: resolved.count_cp ?? 0 },
+      {
+        zone_id: zoneId, warning: 'recette_non_enregistree', count_iris: resolved.count_iris ?? 0, count_cp: resolved.count_cp ?? 0,
+        message: 'Zone sauvegardée, mais sa recette n’a pas pu être enregistrée.',
+      },
       { status: 207 },
     );
   }

@@ -62,7 +62,12 @@ import { lancerKnip, construireRapport } from '../../../scripts/catalogue.mjs';
 // Redescendu a 148 le 2026-10-15 (revue de la Task 2) : les messages de refus
 // citent les plafonds par leurs constantes, et les tests du schema importent
 // les bornes qu'ils verifient.
-const CLIQUET_EXPORTS_MORTS = 148;
+// Revenu a 141 le 2026-10-15 (vague de correctifs finale du lot 3) : les sept
+// derniers exports morts de `lib/zones/recette.ts` servent — le schema lit
+// VERSION_RECETTE, PerimetreRecette et OperateurSeuil ; recette.test.ts confronte
+// les plafonds et les surfaces aux litteraux des RPC (sql/254-256), et
+// TYPES_RECALCULABLES / TYPES_BORNES_PAR_PERIMETRE a leurs regles. Promesse tenue.
+const CLIQUET_EXPORTS_MORTS = 141;
 
 describe('catalogue du code', () => {
   it('existe et se declare genere', () => {
