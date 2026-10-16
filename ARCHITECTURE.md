@@ -1871,12 +1871,14 @@ passent par `service_role` et filtrent par l'espace actif elles-mêmes. Verrouil
 --cle <clé> [--vague V] [--annonceur …] [--rapport <dossier hors dépôt>] [--a-blanc]`. Chaîne de fonctions pures
 (`lib/ooh/plan/`) : `lireClasseur` (exceljs, grilles positionnelles) → adaptateurs (`adaptateurs/` : `synthese-hyp`,
 `mediatransports-gares`, `basic-fit`, `stride-campus` — la vague suivante = un adaptateur de plus) → `rattacher` (une
-liste à la première ligne de sa régie) → `geolocaliser` (référentiel SNCF + alias ; BAN `/search/csv/` : ≥ 0,6 sûr,
-0,3-0,6 à vérifier, < 0,3 non placé ; commune seule, ville ou CP différents → à vérifier ; BAN en panne → le script
-s'arrête AVANT l'écriture) → `ecrirePlan` (`lib/ooh/plan/ecrire.ts` ; contrôle d'abord que les panneaux déjà sous
+liste à la première ligne de sa régie ; une liste reconnue sans ligne de sa régie est SIGNALÉE par le script,
+`listesSansLigne`) → `geolocaliser` (référentiel SNCF + alias ; BAN `/search/csv/` : ≥ 0,6 sûr,
+0,3-0,6 à vérifier, < 0,3 non placé ; commune seule, ville ou CP différents → à vérifier, chaque motif gardé dans
+`geoloc_raison` pour la colonne `raison` du rapport ; ville de la régie qui correspond à celle de la BAN → la ville
+stockée est celle de la BAN, accents compris ; BAN en panne → le script s'arrête AVANT l'écriture) → `ecrirePlan` (`lib/ooh/plan/ecrire.ts` ; contrôle d'abord que les panneaux déjà sous
 `plan-ooh:<clé>:<réseau>` sont de CET espace — la clé n'est unique que dans un espace ; campagne upsertée sur (espace,
 `cle_import`) ; une source PRIVÉE par réseau dans `data_sources`, `mapping.source_key = plan-ooh:<clé>:<réseau>` ;
-panneaux upsertés sur (source, source_ref), id UUIDv5 ; lignes remplacées ; liens par lots de 50, vers les seuls
+panneaux upsertés sur (source, source_ref), id UUIDv5 ; lignes remplacées, montants arrondis au centime ; liens par lots de 50, vers les seuls
 panneaux écrits sous la source de la ligne ; panneaux sortis de la liste retirés, les autres gardent leur id ; une
 liste fournie mais vide garde sa source, une liste disparue du plan perd sa source et ses panneaux). Tables
 écrites : `campagnes`, `campagne_lignes`, `data_sources`, `panneaux_affichage`, `campagne_ligne_panneaux`. Rapport
@@ -1891,13 +1893,16 @@ TF4 septembre 2026 », clé `marine-tf4-2026`, espace `marine`, 20/09/2026 → 0
 | Réseau (adaptateur) | Lus | Sûrs | À vérifier | Non placés | Plan |
 |---|---|---|---|---|---|
 | Mediatransports (`mediatransports-gares`) | 215 | 215 (183 référentiel, 32 alias) | 0 | 0 | 215 gares, 490 écrans |
-| Basic-Fit (`basic-fit`) | 915 | 695 | 213 | 7 | 905 clubs, 4 802 écrans |
+| Basic-Fit (`basic-fit`) | 915 | 700 | 208 | 7 | 905 clubs, 4 802 écrans |
 | Stride (`stride-campus`) | 133 | 119 | 14 | 0 | 133 lieux, 236 écrans |
 
 Basic-Fit : 908 clubs placés (879 identifiés par leur code club, 29 sans code, identifiés par ville et rue) portant
 1 793 lecteurs, soit PLUS que les 905 clubs du plan, affichés « 908 clubs placés · plan : 905 clubs, 4 802 écrans ».
 Trois clubs de métropole sans code postal dans la liste ont été placés par la BAN en Guadeloupe et à La Réunion (à
-vérifier, scores 0,38 à 0,97). `campagne_ooh_jsonb` sur TF4 : 59-74 ms, 1,56 M caractères (sql/263, bloc « Mesure »).
+vérifier, scores 0,38 à 0,97) : la carte recadre sur les seuls points sûrs, ils n'élargissent plus le cadre.
+Réimporté le 16/10 après la vague de correctifs (ville rendue par la BAN gardée, ville Basic-Fit close par sa
+répétition) : mêmes 1 256 identifiants de panneaux, 218 villes ou adresses corrigées, Basic-Fit 695 → **700 sûrs**,
+213 → **208 à vérifier** ; le rapport donne la raison de chacun des 222 points à vérifier. `campagne_ooh_jsonb` sur TF4 : 59-74 ms, 1,56 M caractères (sql/263, bloc « Mesure »).
 
 **Les panneaux d'un plan suivent leur source (sql/264).** `panneaux_affichage.data_source_id` est `on delete set null`
 et `source_visible(null)` vaut vrai : sans garde, supprimer la source privée d'une campagne — ou l'espace, qui emporte

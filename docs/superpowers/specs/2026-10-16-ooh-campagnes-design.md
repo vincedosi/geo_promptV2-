@@ -299,12 +299,15 @@ preuve navigateur dans les deux thèmes. Captures hors dépôt, dans le dossier 
 `.superpowers/sdd/2026-10-16-ooh-campagnes/` (`T12-*.png`).
 
 **Compteurs mesurés.** 4 onglets, 11 lignes, référentiel SNCF à 2 792 gares ; 1 256 panneaux et 1 256 liens écrits,
-rejeu identique (0 panneau retiré).
+rejeu identique (0 panneau retiré). Réimporté après la vague de correctifs du 16/10 : mêmes 1 256 identifiants de
+panneaux (convergence), 218 villes ou adresses Basic-Fit corrigées, rejeu suivant identique ; le rapport CSV donne la
+raison de chacun des 222 points à vérifier (Basic-Fit 208 : 130 commune seule, 68 ville rendue différente, 54 score
+BAN sous 0,60 ; Stride 14 : 12 code postal différent, 4 score sous 0,60 — motifs cumulables).
 
 | Réseau | Lus | Sûrs | À vérifier | Non placés | Plan |
 |---|---|---|---|---|---|
 | Mediatransports — gares | 215 | 215 (183 par le nom, 32 par alias ; 215 UIC distincts) | 0 | 0 | 215 gares, 490 écrans |
-| Basic-Fit — salles | 915 | 695 | 213 | 7 (adresse introuvable par la BAN) | 905 clubs, 4 802 écrans |
+| Basic-Fit — salles | 915 | 700 (695 avant la vague de correctifs) | 208 (213 avant) | 7 (adresse introuvable par la BAN) | 905 clubs, 4 802 écrans |
 | Stride — bornes | 133 | 119 | 14 | 0 | 133 lieux, 236 écrans |
 
 - **Écart Basic-Fit, chiffre mesuré.** La spec annonçait 882 clubs (§ 1.7, § 3). La liste en donne **915** une fois
@@ -320,7 +323,8 @@ rejeu identique (0 panneau retiré).
 - **`geoloc_score` d'une gare** : 1 pour une correspondance sûre, 0,5 pour une gare à vérifier (première partie
   seule, hors bloc, homonymes) — la spec (§ 4.3) réservait 1 à la correspondance exacte.
 - **Anneau pointillé** des points à vérifier : un calque `symbol` (`campagne-ooh-a-verifier`) qui pose une image
-  dessinée, MapLibre n'ayant pas de trait pointillé de cercle.
+  dessinée, MapLibre n'ayant pas de trait pointillé de cercle ; BICOLORE (`--poi-contour` / `--anneau-a-verifier`)
+  depuis la correction de D2.
 - **Une source privée par RÉSEAU** (adaptateur), que la spec confondait avec « par ligne » : une liste n'est rattachée
   qu'à la première ligne de sa régie.
 - **`checkImportRateLimit`** n'a plus d'appelant de production depuis le retrait d'ArcGIS ; gardé comme mécanisme
@@ -333,20 +337,28 @@ rejeu identique (0 panneau retiré).
 - **Requêtes réseau** : aucune requête `/api/map/ooh/*` à l'ouverture de la carte ; une seule
   `GET /api/map/ooh/campagnes` à la première ouverture de la section.
 
-**Défauts relevés à la preuve navigateur, non corrigés dans ce chantier (à trancher) :**
+**Défauts relevés à la preuve navigateur — corrigés le 16/10 (vague de correctifs finale) :**
 
 1. **Le recadrage ne montre pas la métropole.** Trois clubs Basic-Fit de métropole, sans code postal dans la liste,
    sont placés par la BAN outre-mer — « Laval » à Saint-Denis de La Réunion, « Saint Etienne » à Sainte-Rose et
    « Sainte-Marguerite » au Moule (Guadeloupe). Marqués à vérifier, ils entrent pourtant dans l'emprise : choisir TF4
-   cadre le monde (z 2,3, de −137° à 64° de longitude) au lieu de la France (`T12-3a-recadrage-*.png`). Deux remèdes
-   possibles : refuser à l'import un résultat BAN hors du département attendu quand la régie est métropolitaine, ou
-   recadrer sur les seuls points sûrs.
+   cadre le monde (z 2,3, de −137° à 64° de longitude) au lieu de la France (`T12-3a-recadrage-*.png`).
+   **Corrigé (commit `4e47bc04`)** : le recadrage porte sur les seuls points sûrs (repli sur tous s'il n'y en a
+   aucun), sans emprise codée en dur ; l'emprise des 1 034 points sûrs de TF4 va de −4,5° à 8,0° de longitude.
+   Les trois clubs RESTENT classés à vérifier, conformément au § 9 (jamais placés en silence) : les reclasser en
+   non placés (code INSEE 97/98 sur une ligne métropolitaine) est une règle à trancher par Vincent, avec les
+   68 clubs dont la ville rendue par la BAN diffère de celle de la régie.
 2. **L'anneau pointillé est invisible sur fond clair.** L'image est dessinée en `--poi-contour` (#ffffff, invariant) :
    visible sur le fond « dentsu » en thème sombre (`T12-3b-zoom-a-verifier-sombre.png`), elle disparaît sur le fond
    « Clair » et sur tout fond du thème clair (`T12-3b-zoom-a-verifier-clair.png`) — et le point à vérifier perd aussi
-   son cerne blanc, il ne s'y distingue donc plus d'un point sûr. Il faut une couleur d'anneau qui suive le thème.
+   son cerne blanc, il ne s'y distingue donc plus d'un point sûr. **Corrigé (commit `4e47bc04`)** : anneau
+   bicolore, segments alternés `--poi-contour` (blanc) et `--anneau-a-verifier` (#1a1a1a, invariant), visible sur
+   tout fond ; l'image est repeinte (`updateImage`) à chaque pose.
 3. **Ville d'un club Basic-Fit mal découpée** sur certains libellés : la fiche de « Basic-Fit Dijon Dijon Chanoine
    Kir » affiche Ville « 21000 Dijon Dijon Chanoine Kir » et Adresse « — » (`T12-4e-fiche-a-verifier-*.png`).
+   **Corrigé (commit `425e1c0f`)** : un premier mot répété clôt la ville (« Dijon », rue « Chanoine Kir »), et la
+   ville stockée est celle de la BAN quand elle correspond à celle de la régie (accents rendus : Ales → Alès). Le club
+   est désormais placé SÛR, rue comprise. Voies ajoutées : `traverse`, `lot`, `lieu-dit`, `Z.A.`.
 
 Console : aucune erreur MapLibre (`addLayer`, `addImage`, expression). Les avertissements « Expected value to be of
 type number, but found null » viennent du fond de carte (ils reviennent sans aucune campagne affichée, à partir de
