@@ -120,3 +120,22 @@ describe('API clustering — réservée au super_admin', () => {
     });
   }
 });
+
+describe('campagnes multi-média — toute lecture d une route passe par l espace actif', () => {
+  // Les campagnes et leurs panneaux sont PRIVÉS à un espace (spec 2026-10-16-ooh-campagnes, décision 5). Les routes
+  // lisent par service_role : c'est le `p_org` de l'espace actif, et lui seul, qui cloisonne.
+  const LECTURE_CAMPAGNE = /rpc\(\s*'(campagne_ooh_jsonb|campagnes_ooh_jsonb)'|from\(\s*'(campagnes|campagne_lignes|campagne_ligne_panneaux)'\s*\)/;
+  const routes = candidats.filter((f) => f.startsWith('app/api/') && LECTURE_CAMPAGNE.test(readFileSync(join(RACINE, f), 'utf8')));
+
+  it('les routes de campagne existent (le motif n est pas aveugle)', () => {
+    expect(routes.length).toBeGreaterThanOrEqual(2);
+  });
+
+  for (const f of routes) {
+    it(f, () => {
+      const source = readFileSync(join(RACINE, f), 'utf8');
+      expect(source, `${f} doit lire la session`).toMatch(/getSessionOrg\(/);
+      expect(source, `${f} doit passer l espace actif à la RPC`).toMatch(/p_org:\s*orgId/);
+    });
+  }
+});

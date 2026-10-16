@@ -4,7 +4,7 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-10-16 — commit `dd38a51f`.
+> Généré le 2026-10-16 — commit `f83814c4`.
 
 ## Totaux
 
@@ -51,15 +51,15 @@ Trié par nombre d’occurrences décroissant.
 | `lib/dsp/validation.ts` | 2 | — | Dv360ConnectInput, Dv360OAuthConfigInput |
 | `lib/dsp/report/types.ts` | 2 | — | ReportStatus, DspReportRow |
 | `components/campagne/BarreContexteCampagne.tsx` | 1 | libellePeriode | — |
-| `lib/version.ts` | 1 | APP_NAME | — |
 | `lib/auth.ts` | 1 | createServerClient | — |
 | `lib/api/rate-limit.ts` | 1 | getClientKey | — |
 | `lib/geo/region-lookup-server.ts` | 1 | invalidateRegionCache | — |
 | `lib/http/lecture-avec-reprise.ts` | 1 | ATTENTE_MAX_MS | — |
 | `lib/meteo/requete.ts` | 1 | ARCHIVE_CUTOFF | — |
-| `lib/iris-crawler/db-columns.ts` | 1 | getCoreColumnType | — |
+| `lib/version.ts` | 1 | APP_NAME | — |
 | `lib/campagne/constats.ts` | 1 | SEUIL_ECART_SIGNALE_PCT | — |
 | `components/campagne/suivi-v2/TableauDeregles.tsx` | 1 | LIGNES_MAX | — |
+| `lib/iris-crawler/db-columns.ts` | 1 | getCoreColumnType | — |
 | `lib/dsp-mapping/parser.ts` | 1 | parseRow | — |
 | `lib/campaigns/platform-links.ts` | 1 | PlatformLinksSchema | — |
 | `lib/civic-health/atmofrance-client.ts` | 1 | AASQA_REGION_CODES | — |
@@ -77,19 +77,19 @@ Trié par nombre d’occurrences décroissant.
 | `components/campaign/_shared.tsx` | 1 | SH | — |
 | `components/ui/input.tsx` | 1 | — | InputProps |
 | `lib/logger.ts` | 1 | — | Logger |
+| `lib/supabase/tables.ts` | 1 | — | TableUpdate |
 | `types/admin.ts` | 1 | — | HealthCheck |
 | `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
-| `lib/supabase/tables.ts` | 1 | — | TableUpdate |
-| `types/campaign.ts` | 1 | — | DspCampaign |
-| `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
 | `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
+| `types/campaign.ts` | 1 | — | DspCampaign |
 | `lib/campaigns/actor-metrics.ts` | 1 | — | ActorsPayload |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |
+| `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
 | `lib/demo/pilot-types.ts` | 1 | — | PilotItem |
 | `lib/dsp/push/types.ts` | 1 | — | PushStatus |
-| `lib/qualite/verdict.ts` | 1 | — | Verdict |
 | `lib/report/types.ts` | 1 | — | ReportHeader |
+| `lib/qualite/verdict.ts` | 1 | — | Verdict |
 | `lib/radio/import-logger.ts` | 1 | — | LogEntry |
 | `lib/meteo/use-meteo-data.ts` | 1 | — | MeteoProgress |
 | `app/map/_components/filter-panel/use-poi-catalog.ts` | 1 | — | PoiType |
