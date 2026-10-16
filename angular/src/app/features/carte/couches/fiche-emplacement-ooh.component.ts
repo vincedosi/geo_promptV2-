@@ -1,10 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { DomSanitizer, type SafeResourceUrl } from '@angular/platform-browser';
-import { ConfigService } from '../../../core/config/config.service';
 import { formaterNombre } from '../../../core/format/nombre';
 import { LIBELLES_METHODE, LIBELLES_QUALITE, donneesRegie, formaterScore } from '../logique/campagnes-ooh';
 import { CampagneOohService } from './campagne-ooh.service';
-import { LARGEUR_TIROIR_PANNEAU, VARIABLE_CLE_GOOGLE, adresseStreetView } from './tiroir-panneau.component';
+import { StreetViewComponent } from './street-view.component';
+import { LARGEUR_TIROIR_PANNEAU } from './tiroir-panneau.component';
 
 /** Une ligne de la fiche : libellé, valeur, et si la valeur est un nombre (JetBrains Mono). */
 interface ChampFiche {
@@ -24,6 +23,7 @@ interface ChampFiche {
  */
 @Component({
   selector: 'mg-fiche-emplacement-ooh',
+  imports: [StreetViewComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'contents' },
   template: `
@@ -42,15 +42,7 @@ interface ChampFiche {
               <dd class="m-0 break-words text-secondary" [class.font-mono]="c.nombre">{{ c.valeur }}</dd>
             }
           </dl>
-          @if (adresse(); as src) {
-            <iframe data-street-view [title]="'Street View ' + (e.properties.nom_lieu ?? '')" width="100%" height="300" loading="lazy" allowfullscreen
-              [src]="src" class="block rounded-[2px] border-fin border-subtle bg-elevated"></iframe>
-          } @else {
-            <div data-cle-manquante
-              class="rounded-[2px] border-fin border-[color-mix(in_srgb,var(--danger)_30%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-[10px] font-mono text-[11px] text-danger">
-              {{ variable }} manquante.
-            </div>
-          }
+          <mg-street-view [lat]="e.geometry.coordinates[1]" [lng]="e.geometry.coordinates[0]" [titre]="e.properties.nom_lieu ?? ''" [hauteur]="300" />
           <details data-donnees-regie class="rounded-[6px] border-fin border-subtle p-2.5 text-[11px]">
             <summary class="cursor-pointer text-secondary">Données de la régie</summary>
             @for (g of regie(); track $index) {
@@ -72,10 +64,7 @@ interface ChampFiche {
 })
 export class FicheEmplacementOohComponent {
   protected readonly service = inject(CampagneOohService);
-  private readonly config = inject(ConfigService);
-  private readonly assainisseur = inject(DomSanitizer);
   protected readonly largeur = LARGEUR_TIROIR_PANNEAU;
-  protected readonly variable = VARIABLE_CLE_GOOGLE;
 
   protected readonly champs = computed<ChampFiche[]>(() => {
     const e = this.service.emplacementSelectionne();
@@ -107,13 +96,4 @@ export class FicheEmplacementOohComponent {
   });
 
   protected readonly regie = computed(() => donneesRegie(this.service.emplacementSelectionne()?.properties.metadata ?? null));
-
-  /** L'adresse de l'iframe, de confiance : un domaine fixe, une clé de configuration et deux nombres. */
-  protected readonly adresse = computed<SafeResourceUrl | null>(() => {
-    const e = this.service.emplacementSelectionne();
-    const cle = this.config.valeur.googleMapsKey;
-    if (!e || !cle) return null;
-    const [lng, lat] = e.geometry.coordinates;
-    return this.assainisseur.bypassSecurityTrustResourceUrl(adresseStreetView(cle, lat, lng));
-  });
 }
