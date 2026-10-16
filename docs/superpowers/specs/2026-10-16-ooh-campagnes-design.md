@@ -310,7 +310,7 @@ BAN sous 0,60 ; Stride 14 : 12 code postal différent, 4 score sous 0,60 — mot
 | Réseau | Lus | Sûrs | À vérifier | Non placés | Plan |
 |---|---|---|---|---|---|
 | Mediatransports — gares | 215 | 215 (183 par le nom, 32 par alias ; 215 UIC distincts) | 0 | 0 | 215 gares, 490 écrans |
-| Basic-Fit — salles | 915 | 700 (695 avant la vague de correctifs) | 208 (213 avant) | 7 (adresse introuvable par la BAN) | 905 clubs, 4 802 écrans |
+| Basic-Fit — salles | 915 | 700 (695 avant la vague de correctifs) | 205 (208 avant la règle outre-mer, 213 avant les correctifs) | 10 (7 avant la règle outre-mer : adresse introuvable par la BAN, plus 3 clubs géocodés en outre-mer) | 905 clubs, 4 802 écrans |
 | Stride — bornes | 133 | 119 | 14 | 0 | 133 lieux, 236 écrans |
 
 - **Écart Basic-Fit, chiffre mesuré.** La spec annonçait 882 clubs (§ 1.7, § 3). La liste en donne **915** une fois

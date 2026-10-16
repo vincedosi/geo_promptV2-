@@ -1893,13 +1893,13 @@ TF4 septembre 2026 », clé `marine-tf4-2026`, espace `marine`, 20/09/2026 → 0
 | Réseau (adaptateur) | Lus | Sûrs | À vérifier | Non placés | Plan |
 |---|---|---|---|---|---|
 | Mediatransports (`mediatransports-gares`) | 215 | 215 (183 référentiel, 32 alias) | 0 | 0 | 215 gares, 490 écrans |
-| Basic-Fit (`basic-fit`) | 915 | 700 | 208 | 7 | 905 clubs, 4 802 écrans |
+| Basic-Fit (`basic-fit`) | 915 | 700 | 205 | 10 | 905 clubs, 4 802 écrans |
 | Stride (`stride-campus`) | 133 | 119 | 14 | 0 | 133 lieux, 236 écrans |
 
-Basic-Fit : 908 clubs placés (879 identifiés par leur code club, 29 sans code, identifiés par ville et rue) portant
-1 793 lecteurs, soit PLUS que les 905 clubs du plan, affichés « 908 clubs placés · plan : 905 clubs, 4 802 écrans ».
-Trois clubs de métropole sans code postal dans la liste ont été placés par la BAN en Guadeloupe et à La Réunion (à
-vérifier, scores 0,38 à 0,97) : la carte recadre sur les seuls points sûrs, ils n'élargissent plus le cadre.
+Basic-Fit : 905 clubs placés (700 sûrs, 205 à vérifier), soit les 905 clubs du plan, affichés « 905 clubs placés · plan :
+905 clubs, 4 802 écrans » ; 10 lignes restent non placées. Trois clubs de métropole sans code postal dans la liste
+(Laval, Saint Etienne, Sainte-Marguerite) avaient été placés par la BAN en Guadeloupe et à La Réunion : depuis la règle
+outre-mer du 16/10 ils sont non placés (résultat BAN en 97x/98x sur une ligne métropolitaine), et la carte n'est plus élargie.
 Réimporté le 16/10 après la vague de correctifs (ville rendue par la BAN gardée, ville Basic-Fit close par sa
 répétition) : mêmes 1 256 identifiants de panneaux, 218 villes ou adresses corrigées, Basic-Fit 695 → **700 sûrs**,
 213 → **208 à vérifier** (puis 205, et 7 → **10 non placés**, après la règle outre-mer : un résultat BAN en 97x/98x sur une ligne métropolitaine n'est pas placé) ; le rapport donne la raison de chacun des 222 points à vérifier. `campagne_ooh_jsonb` sur TF4 : 59-74 ms, 1,56 M caractères (sql/263, bloc « Mesure »).
