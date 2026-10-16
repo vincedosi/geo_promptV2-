@@ -1,20 +1,26 @@
 import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import type { Subscription } from 'rxjs';
 import { messageErreurApi } from '../../../core/http/erreurs';
-import { CarteApi, type CategoriePoi } from '../data/carte.api';
+import { CarteApi, type CategoriePoi, type OrigineCategorie } from '../data/carte.api';
 
 /** Un type de POI proposé dans la section. */
 export interface TypePoi {
   readonly id: string;
   readonly label: string;
+  readonly origine: OrigineCategorie;
 }
 
 /** Délai de la reprise unique (`use-poi-catalog.ts:87-90`). */
 export const DELAI_REPRISE_CATEGORIES_MS = 800;
 
-/** Une chaîne brute devient `{ id, label }` : initiale en capitale, `_` en espaces (`use-poi-catalog.ts:76-80`). */
+/**
+ * Une chaîne brute devient `{ id, label }` : initiale en capitale, `_` en espaces (`use-poi-catalog.ts:76-80`).
+ * `origine` est TOUJOURS posée : « espace » seulement si la route le dit ; une chaîne, un objet sans le champ ou une
+ * valeur inconnue sont « commune » — on ne présente jamais comme donnée de l'espace ce que la route n'a pas qualifié.
+ */
 export function typeDePoi(c: CategoriePoi): TypePoi {
-  return typeof c === 'string' ? { id: c, label: c.charAt(0).toUpperCase() + c.slice(1).replace(/_/g, ' ') } : c;
+  if (typeof c === 'string') return { id: c, label: c.charAt(0).toUpperCase() + c.slice(1).replace(/_/g, ' '), origine: 'commune' };
+  return { id: c.id, label: c.label, origine: c.origine === 'espace' ? 'espace' : 'commune' };
 }
 
 /**

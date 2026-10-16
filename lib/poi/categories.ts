@@ -31,8 +31,13 @@ const CACHE_VISIBLES_MAX = 200;
  *
  * `strict` : une lecture en échec LÈVE (message français) au lieu de rendre le
  * cache ou []. Sans l'option (chat, carte), le comportement est inchangé.
+ *
+ * `surEchec` : appelé quand une lecture échoue SANS `strict` — le résultat rendu
+ * (cache ou []) est alors peut-être incomplet. Il ne change rien au résultat ni
+ * au cache : il permet à un appelant de le savoir sans contourner le cache comme
+ * le ferait `strict` (Accès › sélection recommandée, carte-en-parcours T11).
  */
-export async function getDistinctCategories(options: { strict?: boolean } = {}): Promise<string[]> {
+export async function getDistinctCategories(options: { strict?: boolean; surEchec?: () => void } = {}): Promise<string[]> {
   const now = Date.now();
   if (cachedCategories && now - cacheTimestamp < CACHE_TTL_MS) {
     return cachedCategories;
@@ -64,6 +69,7 @@ export async function getDistinctCategories(options: { strict?: boolean } = {}):
     if (error) {
       console.error('[categories] Supabase error:', error.message);
       if (options.strict) throw new Error(`lecture des catégories : ${error.message}`);
+      options.surEchec?.();
       return cachedCategories ?? [];
     }
     if (!data?.length) break;
@@ -91,15 +97,26 @@ export async function getDistinctCategories(options: { strict?: boolean } = {}):
  * Extrait de `app/api/map/categories/route.ts` le 2026-10-08, à l'identique,
  * pour que le chat applique la même règle.
  *
- * @param sources - Le retour de `getOrgSourceIds` : `null` = super_admin.
+ * @param sources - Le retour de `getOrgSourceIds` : `null` = aucun filtre
+ *   (super_admin HORS vue espace, c'est-à-dire administration seulement ; la
+ *   carte et le chat passent `{ vueEspace: true }` et n'envoient jamais `null`).
  * @param options.strict - Lever sur une lecture en échec au lieu de rendre une liste partielle.
+ * @param options.surEchec - Appelé si une lecture échoue sans `strict` (liste rendue peut-être partielle).
  * @returns Les catégories dans l'ordre de `getDistinctCategories`.
  */
 export async function getCategoriesVisibles(
   sources: string[] | null,
-  options: { strict?: boolean } = {},
+  options: { strict?: boolean; surEchec?: () => void } = {},
 ): Promise<string[]> {
-  const toutes = await getDistinctCategories(options);
+  // `complet` couvre AUSSI la lecture globale : si elle échoue (à froid, `toutes` vaut `[]`), le filtre plus bas
+  // rendrait `[]` même avec des visibles lues sans faute — et ce `[]` mis en cache serait servi 5 min comme une liste
+  // juste, sans plus rien signaler (relecture T11, Important 1). Un résultat calculé sur une lecture en échec, globale
+  // ou restreinte, n'est donc jamais caché ; le régime normal (aucun échec) n'en change pas.
+  let complet = true;
+  const toutes = await getDistinctCategories({
+    ...options,
+    surEchec: () => { complet = false; options.surEchec?.(); },
+  });
   if (sources === null) return toutes;
   if (sources.length === 0) return [];
 
@@ -114,7 +131,6 @@ export async function getCategoriesVisibles(
   // présente, sur l'index de `categorie`.
   const supabase = createAdminClient();
   const visibles = new Set<string>();
-  let complet = true;
   let lastSeen = '';
   for (let i = 0; i < 100; i++) {
     const { data, error } = await supabase
@@ -128,14 +144,14 @@ export async function getCategoriesVisibles(
     // Une lecture en échec ferme : on rend ce qu'on a pu vérifier, rien de plus
     // — sauf en mode `strict`, où elle lève (un aperçu ne doit pas mentir).
     if (error && options.strict) throw new Error(`lecture des catégories visibles : ${error.message}`);
-    if (error) { complet = false; break; }
+    if (error) { complet = false; options.surEchec?.(); break; }
     if (!data?.length) break;
     const cat = data[0].categorie as string;
     visibles.add(cat);
     lastSeen = cat;
   }
   const resultat = toutes.filter((c) => visibles.has(c));
-  // Une liste partielle (lecture en échec) n'est jamais mise en cache.
+  // Une liste partielle (lecture globale ou restreinte en échec) n'est jamais mise en cache.
   if (complet) {
     cacheVisibles.delete(cle);
     cacheVisibles.set(cle, { categories: resultat, t: Date.now() });

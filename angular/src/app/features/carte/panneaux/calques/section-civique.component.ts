@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { IndicateursCiviquesService } from '../../couches/indicateurs-civiques.service';
 import type { CodeVariableCivique } from '../../logique/palettes-donnees-carte';
 import { EnteteFiltreComponent } from '../filtre/perimetre.component';
@@ -23,8 +23,10 @@ import { SelectionsCalquesService } from './selections-calques.service';
   `,
   host: { class: 'flex flex-col gap-[10px]' },
   template: `
-    <mg-entete-filtre libelle="Indicateurs civiques" [ouvert]="ouvert()" [compte]="c.variable() ? 1 : 0"
-      (basculer)="selections.basculerSection('civic')" />
+    @if (!integre()) {
+      <mg-entete-filtre libelle="Indicateurs civiques" [ouvert]="ouvert()" [compte]="c.variable() ? 1 : 0"
+        (basculer)="selections.basculerSection('civic')" />
+    }
     @if (ouvert()) {
       <div class="fondu" data-contenu-civique>
         <div class="mb-1 text-[11px] font-medium text-secondary">Variable à afficher</div>
@@ -59,8 +61,10 @@ import { SelectionsCalquesService } from './selections-calques.service';
 export class SectionCiviqueComponent {
   protected readonly selections = inject(SelectionsCalquesService);
   protected readonly c = inject(IndicateursCiviquesService);
+  /** Rendue dans une ligne de ② (parcours, lot 2) : la ligne porte déjà le nom, l'en-tête interne n'est pas rendu et le contenu reste ouvert. */
+  readonly integre = input(false);
   /** `sectionsOpen.civic !== false` (`CivicIndicatorsSection.tsx:56`). */
-  protected readonly ouvert = computed(() => this.selections.sections()['civic'] !== false);
+  protected readonly ouvert = computed(() => this.integre() || this.selections.sections()['civic'] !== false);
   protected readonly actif = computed(() => this.c.variable() === 'abstention_pres_2022');
 
   protected choisir(valeur: string): void {

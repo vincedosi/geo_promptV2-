@@ -7,7 +7,6 @@ import type { Subscription } from 'rxjs';
 import { messageErreurApi } from '../../../../../core/http/erreurs';
 import { ClustersService } from '../../../couches/clusters.service';
 import { ClusteringApi } from '../../../data/clustering.api';
-import { EtatCarteService } from '../../../etat/etat-carte.service';
 import { PileEchapService } from '../../../etat/pile-echap.service';
 import { clustersTries, emprise, lignesPoi, profilsParDuree } from '../../../logique/clustering/panneau';
 import type { EntreeHistorique, PoiCluster } from '../../../logique/clustering/types';
@@ -17,8 +16,6 @@ export type ModeComparaison = 'idle' | 'selecting' | 'comparing';
 
 /** L'identifiant du mode comparaison dans la pile Échap (`PILE_ID_COMPARE`, `ClusterPanel.tsx:9`). */
 export const PILE_COMPARAISON = 'cluster-compare';
-/** L'identifiant sous lequel le panneau RÉSERVE les clics sur les points (`EtatCarteService.reserverClics`). */
-const RESERVATION = 'clusters';
 
 /**
  * L'état du panneau de clusters — les `useState` de `ClusterPanel.tsx:223-235` et leurs fonctions (comparaison,
@@ -29,17 +26,15 @@ const RESERVATION = 'clusters';
  * `window`) : en mode sélection, c'est le POI B de la comparaison ; sinon, le POI sélectionné.
  *
  * Défaut React corrigé : un clic sur la carte ferme le panneau d'outils (clic « hors » du panneau) — le clic sur un
- * point, qui devait ouvrir sa fiche ou désigner le POI B, démontait le panneau et son état : fiche, historique,
- * durées et comparaison étaient injoignables. Clusters chargés, le panneau RÉSERVE les seuls clics sur un point des
- * clusters (`reserverClics`) — tout autre clic sur la carte le ferme comme avant (revue 1 : la première version prenait
- * la carte entière) ; il les libère à sa destruction ou quand les clusters sont effacés.
+ * point, qui devait ouvrir sa fiche ou désigner le POI B, démontait le panneau et son état. Le panneau réservait donc
+ * les clics sur les points (`reserverClics`, T19) ; depuis le parcours de la carte (2026-10-13), le panneau d'étape est
+ * dans le flux et ne se ferme plus sur un clic : la réservation n'avait plus de lecteur, elle est retirée.
  */
 @Injectable()
 export class EtatPanneauClustersService {
   private readonly clusters = inject(ClustersService);
   private readonly api = inject(ClusteringApi);
   private readonly pile = inject(PileEchapService);
-  private readonly etatCarte = inject(EtatCarteService);
 
   readonly onglet = signal<OngletClusters>('legend');
   readonly selection = signal<PoiCluster | null>(null);
@@ -87,13 +82,6 @@ export class EtatPanneauClustersService {
       nettoyer(() => this.pile.depiler(PILE_COMPARAISON));
     });
     destruction.onDestroy(() => this.pile.depiler(PILE_COMPARAISON));
-
-    // Clusters chargés : un clic sur un POINT appartient au panneau (fiche, POI B), il ne le ferme pas.
-    effect(() => {
-      if (this.clusters.donnees()) untracked(() => this.etatCarte.reserverClics(RESERVATION, (e) => this.clusters.pointSous(e)));
-      else untracked(() => this.etatCarte.libererClics(RESERVATION));
-    });
-    destruction.onDestroy(() => this.etatCarte.libererClics(RESERVATION));
   }
 
   /** « Comparer » dans la fiche : le POI sélectionné devient A, on attend un clic sur la carte. */

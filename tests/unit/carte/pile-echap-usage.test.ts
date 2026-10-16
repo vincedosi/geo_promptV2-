@@ -13,7 +13,7 @@ import { join, relative, sep } from 'node:path';
  * chantier — invisible aux tests unitaires parce qu'elle vit dans le
  * COUPLAGE React, pas dans la logique pure :
  *
- *   1. `OverlayPanel.tsx` / `AIOverlay.tsx` (round 1) : `onClose` est une
+ *   1. `OverlayPanel.tsx` / l'ancien `AIOverlay.tsx`, supprimé au lot 5 (round 1) : `onClose` est une
  *      fonction fléchée inline côté `page.tsx`, recréée à chaque rendu de
  *      `MapPage` (qui se re-rend à chaque jeton de streaming du chat).
  *      `handleClose` en dépendait, donc l'effet d'empilage se rejouait à
@@ -33,12 +33,12 @@ import { join, relative, sep } from 'node:path';
  * relance JAMAIS après le montage, c'est-à-dire un tableau de dépendances
  * littéralement vide (`[]`). Un callback stabilisé par `useCallback(…, [])`
  * + une ref pour la valeur "fraîche" (patron déjà écrit trois fois :
- * `OverlayPanel.tsx`, `AIOverlay.tsx`, `ClusterResultsOverlay.tsx`) rend ça
+ * `OverlayPanel.tsx`, `ClusterResultsOverlay.tsx`, et jadis `AIOverlay.tsx`) rend ça
  * possible sans perdre la fraîcheur de la fonction réellement appelée.
  *
  * ── Les deux exceptions légitimes ──────────────────────────────────────────
  *
- * Trois composants (`OverlayPanel`, `AIOverlay`, `ClusterResultsOverlay`)
+ * Deux composants (`OverlayPanel`, `ClusterResultsOverlay` ; `AIOverlay` était le troisième)
  * MONTENT et DÉMONTENT avec l'overlay qu'ils représentent : leur effet
  * d'empilage n'a besoin de tourner qu'une fois, à l'exécution — deps `[]`.
  *

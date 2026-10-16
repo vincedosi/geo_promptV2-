@@ -28,7 +28,7 @@ const lire = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 const sqlAgg    = lire('sql/138_iris_agregats_cascade.sql');
 const sqlTuile  = lire('sql/139_get_iris_tile_cascade.sql');
 const sqlBornes = lire('sql/140_iris_bornes_echelle.sql');
-const mapLayers = lire('app/copilote/_hooks/useMapLayers.ts');
+const mapLayers = lire('app/map/_hooks/useMapLayers.ts');
 
 /** Bornes de reference : `population`, mesurees le 2026-09-12. */
 const POPULATION: BornesIris = {
@@ -44,7 +44,7 @@ describe('les paliers couvrent le zoom par defaut de la carte', () => {
   it('le plancher descend au meme niveau que les carreaux', () => {
     // DEFAULT_ZOOM vaut 5,5. Un plancher a 9 rendait la couche muette au
     // chargement : c'est LE defaut remonte par l'utilisateur.
-    const mapInit = lire('app/copilote/_hooks/useMapInit.ts');
+    const mapInit = lire('app/map/_hooks/useMapInit.ts');
     expect(mapInit).toContain('const DEFAULT_ZOOM = 5.5;');
     expect(IRIS_ZOOM_PLANCHER).toBeLessThanOrEqual(5);
   });

@@ -20,7 +20,7 @@ const jeu = (p: Partial<JeuResume>): JeuResume => ({
   population_exposee: null, n_cp_retenus: 1234, taux_utile: 75.94, mode_plan: 'pondere', seuil_couverture_cp: 20, ...p,
 });
 
-async function monter(lister: () => Observable<unknown>) {
+async function monter(lister: () => Observable<unknown>, url = '/carte') {
   TestBed.configureTestingModule({
     providers: [
       provideRouter([{ path: 'carte', component: HoteCarte, children: [{ path: 'risques', component: Module }] }]),
@@ -28,7 +28,7 @@ async function monter(lister: () => Observable<unknown>) {
     ],
   });
   const harness = await RouterTestingHarness.create();
-  await harness.navigateByUrl('/carte');
+  await harness.navigateByUrl(url);
   await harness.fixture.whenStable();
   return { harness, el: harness.fixture.nativeElement as HTMLElement, router: TestBed.inject(Router) };
 }
@@ -66,5 +66,13 @@ describe('JeuxDeZonesComponent', () => {
   it('échec de lecture : « Liste indisponible pour le moment. », jamais un chargement sans fin', async () => {
     const { el } = await monter(() => throwError(() => new Error('500')));
     expect(el.querySelector('[data-jeux-vide]')?.textContent?.trim()).toBe('Liste indisponible pour le moment.');
+  });
+
+  it('clic depuis `/carte?etape=zones` : l’étape du parcours survit à l’ouverture du module', async () => {
+    const { harness, el, router } = await monter(() => of({ jeux: [jeu({})] }), '/carte?etape=zones');
+    el.querySelector<HTMLButtonElement>('button[data-jeu]')!.click();
+    await harness.fixture.whenStable();
+    expect(router.url).toContain('etape=zones');
+    expect(router.url).toContain(`risque=etape%3Dzones%26jeu%3D${JEU}`);
   });
 });

@@ -29,7 +29,6 @@ export interface DataSource {
   mapping?: Record<string, string>;
   geo_config?: Record<string, string>;
   filter_fields?: string[];
-  ai_summary?: string;
   import_date: string;
   status: string;
   shared_with?: string[];

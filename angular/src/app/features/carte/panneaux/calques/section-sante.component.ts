@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { IrisService } from '../../couches/iris.service';
 import { SanteService } from '../../couches/sante.service';
 import type { EchelleSante, JeuSante } from '../../logique/sante';
@@ -35,7 +35,7 @@ const BOUTON_INGESTION = 'rounded-[6px] border-fin border-teal bg-transparent px
  * La section « Santé environnementale » du groupe Environnement — portage de `filter-panel/CivicHealthSection.tsx`.
  *
  * Repliée à l'ouverture du panneau (`DEFAULT_CLOSED`), elle s'ouvre d'elle-même au premier IRIS sélectionné (règle de
- * `use-filter-sections.ts`, portée dans `mg-panneau-calques`). En tête, la fiche de la commune de l'IRIS ; puis le choix
+ * `use-filter-sections.ts`, portée dans `mg-panneau-donnees`, qui déplie la ligne de la section). En tête, la fiche de la commune de l'IRIS ; puis le choix
  * de la couche nationale (re-cliquer masque), et, la couche active : échelle, avertissements de donnée absente ou
  * PÉRIMÉE (avec le bouton d'ingestion, à la condition EXACTE de React : au code postal seulement, table vide ou donnée
  * de plus de trois jours — la route refuse tout autre qu'un administrateur), métrique, seuil, chargement, source.
@@ -52,8 +52,10 @@ const BOUTON_INGESTION = 'rounded-[6px] border-fin border-teal bg-transparent px
   `,
   host: { class: 'flex flex-col gap-[10px]' },
   template: `
-    <mg-entete-filtre libelle="Santé environnementale" [ouvert]="ouvert()" [compte]="compte()"
-      (basculer)="selections.basculerSection('civicHealth')" />
+    @if (!integre()) {
+      <mg-entete-filtre libelle="Santé environnementale" [ouvert]="ouvert()" [compte]="compte()"
+        (basculer)="selections.basculerSection('civicHealth')" />
+    }
     @if (ouvert()) {
       <div class="fondu flex flex-col gap-[10px]">
         <mg-fiche-sante [codeCommune]="codeCommune()" [nomCommune]="nomCommune()" />
@@ -159,8 +161,10 @@ export class SectionSanteComponent {
   protected readonly bandeau = BANDEAU;
   protected readonly boutonIngestion = BOUTON_INGESTION;
 
+  /** Rendue dans une ligne de ② (parcours, lot 2) : la ligne porte déjà le nom, l'en-tête interne n'est pas rendu et le contenu reste ouvert. */
+  readonly integre = input(false);
   /** `sectionsOpen.civicHealth === true` (`CivicHealthSection.tsx:104`). */
-  protected readonly ouvert = computed(() => this.selections.sections()['civicHealth'] === true);
+  protected readonly ouvert = computed(() => this.integre() || this.selections.sections()['civicHealth'] === true);
   /** La commune de l'IRIS sélectionné (`selectedIrisData?.code_commune`, `page.tsx:1020`). */
   protected readonly codeCommune = computed(() => this.iris.detail()?.code_commune ?? null);
   protected readonly nomCommune = computed(() => this.iris.detail()?.nom_commune ?? null);

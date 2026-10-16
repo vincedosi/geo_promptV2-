@@ -20,11 +20,9 @@
  * (`onToggle` natif), jamais au montage — même règle que le lien « Voir les
  * N … » de `TableauDeregles`.
  *
- * `FinalReport` (bilan exécutif Gemini) est réintégré ICI, dans ce même
- * bloc, quand la stratégie de la campagne est `completed` — l'identifiant et
- * le statut de la stratégie sont lus la même façon que l'ancien
- * `CampaignSuivi.tsx` (`GET /api/bidding/strategies`, filtré côté client par
- * `campaign_id` : aucune route dédiée « stratégie d'une campagne » n'existe).
+ * Le bilan exécutif Gemini (`FinalReport`), monté ici pour une stratégie
+ * `completed`, a été retiré le 2026-10-12 (suppression de toute l'IA) avec la
+ * lecture de `GET /api/bidding/strategies` qui ne servait qu'à lui.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { adminFetch } from '@/lib/admin-fetch'
@@ -32,7 +30,6 @@ import { formaterNombreAbrege } from '@/lib/format/nombre'
 import type { SuiviDaily, SuiviPayload } from '@/lib/campaigns/suivi-metrics'
 import type { ReconciliationPayload } from '@/lib/campaigns/reconciliation-metrics'
 import { ReconciliationPanel } from '@/components/campaign/suivi/ReconciliationPanel'
-import { FinalReport } from '@/components/campaign/FinalReport'
 import { avecSemaphore } from './avec-semaphore'
 
 const fInter = "'Inter', system-ui, sans-serif"
@@ -153,15 +150,9 @@ function GraphiqueBudget({ points, totalBudget }: { points: PointBudget[]; total
   )
 }
 
-interface EtatStrategie { id: string | null; status: string | null }
-
-interface StrategieResumee { campaign_id: string; id: string; status?: string }
-interface ListeStrategiesReponse { strategies?: StrategieResumee[] }
-
 export function DetailTechnique({ campaignId }: { campaignId: string }) {
   const [suivi, setSuivi] = useState<SuiviPayload | null>(null)
   const [recon, setRecon] = useState<ReconciliationPayload | null>(null)
-  const [strategie, setStrategie] = useState<EtatStrategie>({ id: null, status: null })
   const [charge, setCharge] = useState(false)
   const [chargement, setChargement] = useState(false)
   const [erreur, setErreur] = useState<string | null>(null)
@@ -178,7 +169,6 @@ export function DetailTechnique({ campaignId }: { campaignId: string }) {
     dejaDeclenche.current = false
     setSuivi(null)
     setRecon(null)
-    setStrategie({ id: null, status: null })
     setCharge(false)
     setChargement(false)
     setErreur(null)
@@ -200,18 +190,12 @@ export function DetailTechnique({ campaignId }: { campaignId: string }) {
     setErreur(null)
     try {
       // Sémaphore PARTAGÉ de l'écran de suivi (budget CLAUDE.md : 3 appels
-      // Supabase simultanés) — ces deux-là partaient hors budget, alors même
-      // que le cœur de `SuiviV2` en a déjà trois en vol au même instant.
-      const [rSuivi, rStrategies] = await Promise.all([
-        avecSemaphore(() => adminFetch(`/api/digital/${campaignId}/suivi`, { cache: 'no-store' })),
-        avecSemaphore(() => adminFetch('/api/bidding/strategies', { cache: 'no-store' })),
-      ])
+      // Supabase simultanés) — le cœur de `SuiviV2` en a déjà trois en vol au
+      // même instant.
+      const rSuivi = await avecSemaphore(
+        () => adminFetch(`/api/digital/${campaignId}/suivi`, { cache: 'no-store' }),
+      )
       if (rSuivi.ok) setSuivi((await rSuivi.json()) as SuiviPayload)
-      const strategies: ListeStrategiesReponse = rStrategies.ok
-        ? await rStrategies.json().catch((): ListeStrategiesReponse => ({ strategies: [] }))
-        : { strategies: [] }
-      const match = (strategies.strategies ?? []).find((s) => s.campaign_id === campaignId)
-      setStrategie({ id: match?.id ?? null, status: match?.status ?? null })
       await chargerRecon()
     } catch (e) {
       setErreur(e instanceof Error ? e.message : String(e))
@@ -256,12 +240,6 @@ export function DetailTechnique({ campaignId }: { campaignId: string }) {
 
         {erreur && (
           <p role="alert" style={{ fontSize: 13, color: 'var(--danger)' }}>{erreur}</p>
-        )}
-
-        {charge && strategie.status === 'completed' && strategie.id && (
-          <div style={{ marginBottom: 20, border: '0.5px solid var(--border-subtle)', borderRadius: 8 }}>
-            <FinalReport strategyId={strategie.id} />
-          </div>
         )}
 
         {charge && (

@@ -48,12 +48,13 @@ describe('AccueilPage', () => {
     expect(el.querySelector('[role="alert"]')?.textContent).toMatch(/API ne répond pas/);
   });
 
-  it('porte l\'en-tête et les quatre cartes de session du tableau de bord', async () => {
+  it('porte l\'en-tête et les trois cartes de session du tableau de bord, sans tuile IA', async () => {
     const el = await rendre({ compter: () => of({ retenus: 1, total: 2, par_nature: {} }) }, { role: 'super_admin', nom: 'Alice Martin' });
     expect(el.querySelector('h1')?.textContent).toBe('Dashboard');
     expect(el.textContent).toContain('Bienvenue, Alice Martin');
     const textes = Array.from(el.querySelectorAll('mg-tuile-chiffre')).map((t) => t.textContent ?? '');
-    expect(textes.some((t) => t.includes('geo.prompt') && t.includes('Copilote IA'))).toBe(true);
+    expect(textes.some((t) => t.includes('geo.prompt') || t.includes('Copilote IA'))).toBe(false);
+    expect(textes).toHaveLength(4); // les trois cartes de session + la tuile des sites à risque
     expect(textes.some((t) => t.includes('super_admin') && t.includes('Compte vérifié'))).toBe(true);
     expect(textes.some((t) => t.includes('Expiration session'))).toBe(true);
   });
@@ -70,17 +71,12 @@ describe('AccueilPage', () => {
     expect(el.textContent).toContain('Navigation rapide');
   });
 
-  it('« geo.prompt » suit le patron inerte de la barre latérale', async () => {
+  it('la carte de navigation « Carte » remplace « geo.prompt / Carte + IA » (copilote retiré le 2026-10-12)', async () => {
     const el = await rendre({ compter: () => of({ retenus: 1, total: 2, par_nature: {} }) });
-    const tuile = Array.from(el.querySelectorAll('mg-tuile-chiffre')).find((t) => t.textContent?.includes('geo.prompt'))!;
-    expect(tuile.getAttribute('role')).toBe('link');
-    expect(tuile.getAttribute('aria-disabled')).toBe('true');
-    expect(tuile.getAttribute('tabindex')).toBe('0');
-    expect(tuile.getAttribute('title')).toBe('Disponible prochainement');
-    expect(tuile.className).toContain('cursor-default');
-    expect(tuile.className).not.toContain('cursor-pointer');
-    const autre = Array.from(el.querySelectorAll('mg-tuile-chiffre')).find((t) => t.textContent?.includes('Expiration'))!;
-    expect(autre.getAttribute('role')).toBeNull();
+    expect(el.textContent).not.toContain('geo.prompt');
+    expect(el.textContent).not.toContain('Copilote IA');
+    expect(el.textContent).not.toContain('Carte + IA');
+    expect(el.textContent).toContain('Calques et analyses');
   });
 
   it('un profil lu aux champs nuls écrase le jeton, comme { ...user, ...enrich } de React', async () => {

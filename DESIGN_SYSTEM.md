@@ -31,8 +31,8 @@
   partout ; l'icône lucide « Hexagon » de l'entrée Accueil n'est qu'une icône.
 - **Le bouton d'ouverture de l'overlay de campagne** s'appelle « Campagnes »
   (il s'appelait « MAGELIAN ») ; le fond de carte maison s'appelle « dentsu ».
-- **geo.prompt** : nom du copilote IA, voué à disparaître avec la suppression de
-  l'IA — pas renommé.
+- **geo.prompt** : nom de l'ancien copilote IA, DISPARU : le copilote a été supprimé avec toute
+  l'IA (lots 5 et 6 de la suppression de l'IA, 2026-10-12). Ne plus l'écrire.
 
 ---
 
@@ -123,7 +123,7 @@ neuf, il dit ce que l'élément EST.
 ### Accent de marque
 | Token | Hex (dark) | Hex (light) | Usage |
 |-------|-----------|-------------|-------|
-| --brand-teal | #4ecdc4 | #4ecdc4 | Accent de marque : tabs actifs, boutons send, dots de section, liens, focus |
+| --brand-teal | #4ecdc4 | #4ecdc4 | Accent de marque : tabs actifs, dots de section, liens, focus |
 | --brand-teal-hover | #3dbdb5 | #3dbdb5 | Hover du teal |
 | --brand-teal-10 | rgba(78,205,196,0.1) | rgba(78,205,196,0.1) | Fond d'un élément teal (tag, pastille) |
 | --brand-teal-30 | rgba(78,205,196,0.3) | rgba(78,205,196,0.3) | Borders hover subtiles, badges |
@@ -441,16 +441,6 @@ Style obligatoire pour chaque titre de section dans un panel latéral :
 - Valeur : JetBrains Mono, 11px, #a0a0a0
 ```
 
-### Cards de suggestion (chat copilote)
-```
-- background: #111111
-- border: 0.5px solid #1a1a1a
-- border-radius: 8px
-- padding: 12px 14px
-- text: Inter 400, 13px, #a0a0a0
-- hover: border rgba(78,205,196,0.3), background #151515
-```
-
 ### Badges
 ```
 - background: #181818
@@ -486,10 +476,10 @@ Style obligatoire pour chaque titre de section dans un panel latéral :
 - Split screen : formulaire à gauche, vitrine à droite
 - Logo dentsu en haut du formulaire (`<LogoDentsu largeur={240} />`)
 
-### Page copilote/map
+### Page map
 - Pas de sidebar (plein écran)
-- Panel chat à gauche (redimensionnable)
-- Carte MapLibre à droite (flex: 1)
+- Carte MapLibre pleine largeur (flex: 1), panneaux d'analyse en overlay
+- Le panneau de chat du copilote a disparu avec l'IA (2026-10-12)
 
 ### Responsive
 - < 768px : sidebar en Sheet (slide from left)
@@ -504,7 +494,7 @@ Style obligatoire pour chaque titre de section dans un panel latéral :
 3. **Sentence case** — "Afficher les panneaux" pas "AFFICHER LES PANNEAUX"
 4. **Section headers avec bandeau** — background #111111 + dot teal + border-top
 5. **Focus = teal** — tout focus ring utilise rgba(78,205,196,0.5)
-6. **Bouton send = teal** — cercle #4ecdc4 avec icône #050505
+6. *(supprimée : le bouton d'envoi du chat a disparu avec l'IA, 2026-10-12)*
 7. **Statut = vert/rouge/orange** — les seules couleurs vives autorisées hors teal
 8. **Borders = 0.5px** — jamais 1px sauf les séparateurs de section (1px)
 9. **Inline styles → Tailwind + shadcn** — migrer progressivement

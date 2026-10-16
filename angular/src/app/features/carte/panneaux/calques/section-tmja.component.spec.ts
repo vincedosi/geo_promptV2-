@@ -16,7 +16,7 @@ function monter() {
   const fixture = TestBed.createComponent(SectionTmjaComponent);
   const el = fixture.nativeElement as HTMLElement;
   const rendre = async () => { fixture.detectChanges(); await fixture.whenStable(); };
-  return { el, rendre, selections: TestBed.inject(SelectionsCalquesService), tmja: TestBed.inject(TmjaService) };
+  return { fixture, el, rendre, selections: TestBed.inject(SelectionsCalquesService), tmja: TestBed.inject(TmjaService) };
 }
 
 describe('SectionTmjaComponent', () => {
@@ -51,5 +51,15 @@ describe('SectionTmjaComponent', () => {
     await rendre();
     expect(tmja.visible()).toBe(false);
     expect(el.querySelector('[data-compte]')).toBeNull();
+  });
+
+  it('intégrée à une ligne de ② : aucun en-tête interne, contenu rendu même section repliée', async () => {
+    const { fixture, el, rendre, selections } = monter();
+    fixture.componentRef.setInput('integre', true);
+    selections.sections.update((s) => ({ ...s, tmja: false }));
+    await rendre();
+    expect(selections.sections()['tmja']).toBe(false);
+    expect(el.querySelector('mg-entete-filtre')).toBeNull();
+    expect(el.querySelector('[data-contenu-tmja]')).not.toBeNull();
   });
 });

@@ -1,8 +1,9 @@
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { ZonesCustomApi } from '../../data/zones-custom.api';
+import { ZonesApi } from '../../data/zones.api';
 import { OperationsZonesComponent } from './operations-zones.component';
 
 @Component({
@@ -15,19 +16,22 @@ class Hote {
   termines = 0;
 }
 
-function monter(api: { operation: unknown; enregistrer: unknown }) {
-  TestBed.configureTestingModule({ providers: [{ provide: ZonesCustomApi, useValue: api }] });
+function monter(enregistrer: unknown) {
+  // L'ancienne API (route d'opération + /save) : un faux qui échoue s'il est appelé.
+  const ancienne = { operation: vi.fn(), enregistrer: vi.fn() };
+  TestBed.configureTestingModule({ providers: [{ provide: ZonesApi, useValue: { enregistrer } }, { provide: ZonesCustomApi, useValue: ancienne }] });
   const fixture = TestBed.createComponent(Hote);
   const el = fixture.nativeElement as HTMLElement;
   const stable = async () => { await fixture.whenStable(); };
-  return { fixture, el, stable };
+  return { fixture, el, stable, ancienne };
 }
 
 const bouton = (el: HTMLElement, op: string) => el.querySelector<HTMLButtonElement>(`button[data-operation="${op}"]`)!;
+const ok = (corps: object, status = 200) => vi.fn(() => of(new HttpResponse({ status, body: corps })));
 
-describe('OperationsZonesComponent (ZonesOperations.tsx, T14)', () => {
+describe('OperationsZonesComponent (ZonesOperations.tsx, T14 ; recette `combinaison`, lot 3)', () => {
   it('rien sans sélection ; une zone : compte, aide, boutons inactifs ; deux : base nommée, boutons actifs', async () => {
-    const { fixture, el, stable } = monter({ operation: vi.fn(), enregistrer: vi.fn() });
+    const { fixture, el, stable } = monter(vi.fn());
     await stable();
     expect(el.querySelector('[data-barre]')).toBeNull();
     fixture.componentInstance.selection.set(['b']);
@@ -44,40 +48,16 @@ describe('OperationsZonesComponent (ZonesOperations.tsx, T14)', () => {
     expect(bouton(el, 'union').disabled).toBe(false);
   });
 
-  it('intersection 409 → le message de la route, AUCUNE sauvegarde, sélection gardée', async () => {
-    const enregistrer = vi.fn();
-    const operation = vi.fn(() => throwError(() => new HttpErrorResponse({
-      status: 409, error: { error: 'intersection_vide', message: 'Ces zones n’ont aucune surface en commun.' },
-    })));
-    const { fixture, el, stable } = monter({ operation, enregistrer });
+  it('« Fusionner » deux zones → POST /api/zones avec la recette combinaison, et plus AUCUN appel à l’ancienne API', async () => {
+    const enregistrer = ok({ zone_id: 'n', count_cp: 1234, surface_km2: 56.7 });
+    const { fixture, el, stable, ancienne } = monter(enregistrer);
     fixture.componentInstance.selection.set(['a', 'b']);
     await stable();
-    bouton(el, 'intersection').click();
+    bouton(el, 'union').click();
     await stable();
-    expect(operation).toHaveBeenCalledWith('intersection', { zone_ids: ['a', 'b'] });
-    expect(enregistrer).not.toHaveBeenCalled();
-    expect(el.querySelector('[data-erreur]')!.textContent).toBe('Ces zones n’ont aucune surface en commun.');
-    expect(fixture.componentInstance.termines).toBe(0);
-  });
-
-  it('soustraire → base puis retirées, zone enregistrée avec sa composition, message, `termine` ; le message reste après la sélection vidée', async () => {
-    const operation = vi.fn(() => of({ geometry: { type: 'Polygon', coordinates: [] }, surface_km2: 56.7 }));
-    const enregistrer = vi.fn(() => of(new HttpResponse({ status: 200, body: { zone_id: 'n', count_cp: 1234 } })));
-    const { fixture, el, stable } = monter({ operation, enregistrer });
-    fixture.componentInstance.selection.set(['a', 'b', 'c']);
-    await stable();
-    bouton(el, 'difference').click();
-    await stable();
-    expect(operation).toHaveBeenCalledWith('difference', { zone_base: 'a', zones_retirees: ['b', 'c'] });
-    expect(enregistrer).toHaveBeenCalledWith({
-      name: 'Bretagne — moins 2 zones',
-      source_type: 'difference',
-      source_metadata: {
-        operation: 'difference', member_zone_ids: ['a', 'b', 'c'], member_zone_names: ['Bretagne', 'Finistère', 'Morbihan'], surface_km2: 56.7,
-      },
-      geometry: { type: 'Polygon', coordinates: [] },
-      org_id: 'org-1',
-    });
+    expect(enregistrer).toHaveBeenCalledWith({ nom: 'Fusion de 2 zones — Bretagne…', recette: { v: 1, type: 'combinaison', operation: 'union', zones: ['a', 'b'] } });
+    expect(ancienne.operation).not.toHaveBeenCalled();
+    expect(ancienne.enregistrer).not.toHaveBeenCalled();
     expect(fixture.componentInstance.termines).toBe(1);
     fixture.componentInstance.selection.set([]);
     await stable();
@@ -85,28 +65,83 @@ describe('OperationsZonesComponent (ZonesOperations.tsx, T14)', () => {
     expect(el.querySelector('[data-message]')!.textContent).toBe(`Zone créée : ${(1234).toLocaleString('fr-FR')} codes postaux · 56,7 km²`);
   });
 
-  it('207 → « Zone créée, mais la résolution… », pas de `termine`', async () => {
-    const { fixture, el, stable } = monter({
-      operation: () => of({ geometry: { type: 'Polygon', coordinates: [] }, surface_km2: null }),
-      enregistrer: () => of(new HttpResponse({ status: 207, body: { zone_id: 'n', warning: 'zone_created_but_resolution_failed' } })),
+  it('« Soustraire » trois zones : la sélection DANS L’ORDRE (la première est la base), nom de React', async () => {
+    const enregistrer = ok({ zone_id: 'n', count_cp: 3 });
+    const { fixture, el, stable } = monter(enregistrer);
+    fixture.componentInstance.selection.set(['a', 'b', 'c']);
+    await stable();
+    bouton(el, 'difference').click();
+    await stable();
+    expect(enregistrer).toHaveBeenCalledWith({
+      nom: 'Bretagne — moins 2 zones', recette: { v: 1, type: 'combinaison', operation: 'difference', zones: ['a', 'b', 'c'] },
     });
+  });
+
+  it('« Restreindre à » : actif à DEUX zones exactement (la recette n’admet l’intersection qu’à deux), l’aide le dit', async () => {
+    const enregistrer = vi.fn();
+    const { fixture, el, stable } = monter(enregistrer);
     fixture.componentInstance.selection.set(['a', 'b']);
     await stable();
-    bouton(el, 'union').click();
+    expect(bouton(el, 'intersection').disabled).toBe(false);
+    expect(bouton(el, 'intersection').title).toBe('la première, limitée à la seconde — deux zones exactement');
+    fixture.componentInstance.selection.set(['a', 'b', 'c']);
     await stable();
-    expect(el.querySelector('[data-erreur]')!.textContent).toContain('la résolution des codes postaux a échoué');
+    expect(bouton(el, 'intersection').disabled).toBe(true);
+    expect(bouton(el, 'union').disabled).toBe(false);
+    expect(bouton(el, 'difference').disabled).toBe(false);
+    bouton(el, 'intersection').click();
+    await stable();
+    expect(enregistrer).not.toHaveBeenCalled();
+  });
+
+  it('404 → le message de la route, sélection gardée, pas de `termine`', async () => {
+    const enregistrer = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 404, error: { error: 'Zone introuvable dans cet espace.', refus: 'zone_introuvable' } })));
+    const { fixture, el, stable } = monter(enregistrer);
+    fixture.componentInstance.selection.set(['a', 'b']);
+    await stable();
+    bouton(el, 'intersection').click();
+    await stable();
+    expect(el.querySelector('[data-erreur]')!.textContent).toBe('Zone introuvable dans cet espace.');
     expect(fixture.componentInstance.termines).toBe(0);
   });
 
-  it('sauvegarde en échec → « Sauvegarde de la zone échouée. »', async () => {
-    const { fixture, el, stable } = monter({
-      operation: () => of({ geometry: { type: 'Polygon', coordinates: [] } }),
-      enregistrer: () => throwError(() => new HttpErrorResponse({ status: 500, error: { error: 'Internal server error' } })),
-    });
+  it('207 → la zone EXISTE : `termine` (liste relue, sélection vidée), le message de la route, aucun second envoi', async () => {
+    const enregistrer = ok({ zone_id: 'n', warning: 'codes_non_resolus', message: 'Zone créée ; ses codes postaux n’ont pas pu être résolus.' }, 207);
+    const { fixture, el, stable } = monter(enregistrer);
     fixture.componentInstance.selection.set(['a', 'b']);
     await stable();
     bouton(el, 'union').click();
     await stable();
-    expect(el.querySelector('[data-erreur]')!.textContent).toBe('Sauvegarde de la zone échouée.');
+    expect(fixture.componentInstance.termines).toBe(1);
+    // Le parent vide la sélection sur `termine` : la barre disparaît, le message reste.
+    fixture.componentInstance.selection.set([]);
+    await stable();
+    expect(el.querySelector('[data-barre]')).toBeNull();
+    expect(el.querySelector('[data-message]')!.textContent).toBe('Zone créée ; ses codes postaux n’ont pas pu être résolus.');
+    expect(el.querySelector('[data-erreur]')).toBeNull();
+    expect(enregistrer).toHaveBeenCalledTimes(1);
+  });
+
+  it('207 sans message dans le corps : le repli dit que la zone existe', async () => {
+    const enregistrer = ok({ zone_id: 'n', warning: 'codes_non_resolus' }, 207);
+    const { fixture, el, stable } = monter(enregistrer);
+    fixture.componentInstance.selection.set(['a', 'b']);
+    await stable();
+    bouton(el, 'union').click();
+    await stable();
+    expect(fixture.componentInstance.termines).toBe(1);
+    expect(el.querySelector('[data-message]')!.textContent).toContain('la résolution des codes postaux a échoué');
+  });
+
+  it('pendant l’écriture, les boutons sont inactifs : un second clic n’envoie rien', async () => {
+    const enregistrer = vi.fn(() => NEVER);
+    const { fixture, el, stable } = monter(enregistrer);
+    fixture.componentInstance.selection.set(['a', 'b']);
+    await stable();
+    bouton(el, 'union').click();
+    await stable();
+    expect(bouton(el, 'union').disabled).toBe(true);
+    bouton(el, 'union').click();
+    expect(enregistrer).toHaveBeenCalledTimes(1);
   });
 });

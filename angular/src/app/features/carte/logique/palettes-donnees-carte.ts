@@ -4,9 +4,9 @@
  * tests/unit/angular/carte-couches-paritaire.test.ts (gel P5 étendu à /map).
  *
  * Sources React :
- *  - `app/copilote/_lib/constants.ts:71-129` : `CATEGORY_COLORS`, `getCatColor`, `ISOCHRONE_COLORS`,
+ *  - `app/map/_lib/constants.ts:71-129` : `CATEGORY_COLORS`, `getCatColor`, `ISOCHRONE_COLORS`,
  *    `ISOCHRONE_MODE_LABELS`, `VORONOI_PALETTE`, `BATTLE_PALIER_OPACITY` (verbatim) ;
- *  - `app/copilote/_hooks/useMapInit.ts:391-530` : les littéraux de `paint` du TMJA et de la radio,
+ *  - `app/map/_hooks/useMapInit.ts:391-530` : les littéraux de `paint` du TMJA et de la radio,
  *    NOMMÉS ici (`PALIERS_TMJA`, `TEINTES_RADIO`) — React les écrivait en ligne dans l'initialisation
  *    de la carte ;
  *  - `app/map/_components/CivicIndicatorsLayer.tsx:38-60` : l'échelle d'abstention et son qualificatif ;
@@ -29,7 +29,7 @@ export type { CarreauxPalette } from '../../risques/logique/palettes-donnees';
 export const CARREAUX_PALETTES = PALETTES_DONNEES;
 
 // ---------------------------------------------------------------------------
-// IRIS — palettes de la choroplèthe (`app/copilote/_hooks/useMapLayers.ts:93-101`, verbatim, T7)
+// IRIS — palettes de la choroplèthe (`app/map/_hooks/useMapLayers.ts:93-101`, verbatim, T7)
 // Défaut React listé, NON corrigé (parité) : la palette `violet` (et `plasma`) porte des teintes violettes.
 // ---------------------------------------------------------------------------
 
@@ -336,7 +336,7 @@ export const JETONS_NIVEAUX_SANTE: Record<'pollen' | 'atmo', Record<0 | 1 | 2 | 
 };
 
 // ---------------------------------------------------------------------------
-// Météo (T11) — `app/copilote/_hooks/useMapInit.ts:368-383`
+// Météo (T11) — `app/map/_hooks/useMapInit.ts:368-383`
 // ---------------------------------------------------------------------------
 
 /**

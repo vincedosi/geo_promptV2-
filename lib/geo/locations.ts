@@ -2,8 +2,9 @@
  * GENESIS — lib/geo/locations.ts
  *
  * Coordonnées de référence des villes et régions françaises.
- * Utilisé par /api/chat pour résoudre les localisations textuelles
- * en coordonnées lat/lng.
+ * `/api/map/pois` n'en utilise que `resolveCategory` et `normVille`
+ * (aucune coordonnée) ; `getCoordsForVille` et les tables de coordonnées n'ont
+ * plus d'appelant depuis la suppression du chat (2026-10-12).
  */
 
 // ---------------------------------------------------------------------------

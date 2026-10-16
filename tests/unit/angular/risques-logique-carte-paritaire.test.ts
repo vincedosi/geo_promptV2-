@@ -11,7 +11,7 @@ import * as Rn from '@/lib/carte/nature-zone';
 import * as An from '../../../angular/src/app/features/risques/logique/nature-zone';
 import * as Rv from '@/lib/version';
 import * as Av from '../../../angular/src/app/features/risques/logique/zooms';
-import { circleGeoJSON } from '@/app/copilote/_lib/constants';
+import { circleGeoJSON } from '@/app/map/_lib/constants';
 import { cercleGeoJSON } from '../../../angular/src/app/features/risques/logique/cercle';
 import { CARREAUX_PALETTES } from '@/lib/carreaux/catalogue';
 import { PALETTES_DONNEES } from '../../../angular/src/app/features/risques/logique/palettes-donnees';

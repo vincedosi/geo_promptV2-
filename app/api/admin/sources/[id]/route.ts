@@ -25,7 +25,6 @@ const ModifierSourceSchema = z.object({
   // et shared_with (sql/234, lib/auth/getOrgSourceIds.ts).
   visibilite: z.enum(['socle', 'privee']).optional(),
   status: z.string().optional(),
-  ai_summary: z.string().nullable().optional(),
   filter_fields: z.unknown().optional(),
 });
 import { rpcJson } from '@/lib/supabase/rpc-json';
@@ -107,7 +106,6 @@ export async function PATCH(
     if (body.shared_with !== undefined) updates.shared_with = body.shared_with;
     if (body.visibilite !== undefined) updates.visibilite = body.visibilite;
     if (body.status !== undefined) updates.status = body.status;
-    if (body.ai_summary !== undefined) updates.ai_summary = body.ai_summary;
     if (body.filter_fields !== undefined) updates.filter_fields = body.filter_fields;
 
     if (Object.keys(updates).length === 0) {

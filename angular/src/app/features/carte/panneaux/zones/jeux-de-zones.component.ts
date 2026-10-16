@@ -15,7 +15,7 @@ interface LigneJeu {
 }
 
 /**
- * « Jeux de zones à risque » dans le panneau Zones — portage de `app/map/_components/panneaux/JeuxDeZonesRail.tsx` et de
+ * « Jeux de zones à risque » dans l'outil « Mes zones » de la boîte à outils (panneau Zones jusqu'au 2026-10-13) — portage de `app/map/_components/panneaux/JeuxDeZonesRail.tsx` et de
  * sa section dans `PanneauZones.tsx:138-151` (lot 4, T13).
  *
  * Un jeu de zones EST une zone : un périmètre nommé, enregistré, réutilisable. Le panneau Zones est l'endroit où l'on
@@ -25,7 +25,8 @@ interface LigneJeu {
  * vivent dans l'atelier avec le contexte qui les rend compréhensibles. Ouvrir navigue vers le module, route enfant de la
  * carte (`risques`, B2), à l'étape ④ sur ce jeu (`ouvrirJeuDeZones`, `page.tsx:232-240`).
  *
- * La liste est lue UNE fois, au montage du panneau (React : `useEffect([], …)`, `cache: 'no-store'`).
+ * La liste est lue UNE fois, au montage — à la première ouverture de l'outil, qui est ensuite gardé (React :
+ * `useEffect([], …)`, `cache: 'no-store'`).
  */
 @Component({
   selector: 'mg-jeux-de-zones',
@@ -92,6 +93,11 @@ export class JeuxDeZonesComponent {
 
   /** L'URL du module est écrite PAR la navigation même : le module naît sur ④ et ce jeu, jamais sur l'étape par défaut. */
   protected ouvrir(id: string): void {
-    void this.router.navigate(['risques'], { relativeTo: this.route, queryParams: { [PARAM_RISQUE]: risqueDuJeu(id) } });
+    // `merge` : l'étape du parcours (`etape`) suit dans l'URL du module ; le `risque` passé ici l'emporte sur l'ancien.
+    void this.router.navigate(['risques'], {
+      relativeTo: this.route,
+      queryParams: { [PARAM_RISQUE]: risqueDuJeu(id) },
+      queryParamsHandling: 'merge',
+    });
   }
 }

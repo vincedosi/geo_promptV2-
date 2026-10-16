@@ -13,8 +13,6 @@ import type {
  * côté serveur (`reserverAuSuperAdmin`) : les modèles sont calculés sur les POI de toutes les organisations.
  *
  * Non portées, et c'est voulu :
- * - `…/models/[version]/analysis` et `…/generate-analysis` : l'analyse Gemini, jamais AFFICHÉE par React (elle ne
- *   servait qu'à l'export PDF, lui-même non restauré) — décision du propriétaire, aucune IA portée ;
  * - `DELETE …/models/[version]`, `…/[clusterId]`, `…/model` : aucun écran React ne les appelle.
  *
  * ── LE LANCEMENT ÉCRIT EN BASE ET APPELLE ORS ────────────────────────────

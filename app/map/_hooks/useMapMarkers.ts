@@ -20,7 +20,7 @@
  */
 import { useEffect } from 'react';
 import maplibregl from 'maplibre-gl';
-import { circleGeoJSON, getCatColor } from '@/app/copilote/_lib/constants';
+import { circleGeoJSON, getCatColor } from '@/app/map/_lib/constants';
 import type { ZoneData } from '@/types/spatial';
 import type { SelectedBillboard } from '@/types/map';
 import type { POIStylesMap } from '@/app/map/_components/filter-panel/poi-style';

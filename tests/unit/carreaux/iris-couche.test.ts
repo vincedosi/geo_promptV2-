@@ -17,8 +17,8 @@ import { join } from 'node:path';
 const RACINE = process.cwd();
 const lire = (p: string) => readFileSync(join(RACINE, p), 'utf8');
 
-const mapInit = lire('app/copilote/_hooks/useMapInit.ts');
-const mapLayers = lire('app/copilote/_hooks/useMapLayers.ts');
+const mapInit = lire('app/map/_hooks/useMapInit.ts');
+const mapLayers = lire('app/map/_hooks/useMapLayers.ts');
 const vercelignore = lire('.vercelignore');
 
 describe('la couche IRIS doit pouvoir s afficher en production', () => {

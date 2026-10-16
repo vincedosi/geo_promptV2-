@@ -19,7 +19,7 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { checkStrategyAccess } from '@/lib/campaigns/access';
 import { interpolateOnCurve } from '@/lib/strategy-wizard/multiplier';
-import { resolveWeightingTarget } from '@/lib/bidding-ml/metric-labels';
+import { resolveWeightingTarget } from '@/lib/bidding/metric-labels';
 import {
   binScoresIntoTiers, buildPressureBiddingScript, buildPressureCsv, buildTiktokPressureSheet,
 } from '@/lib/digital/bidding-export';

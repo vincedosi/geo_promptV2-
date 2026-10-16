@@ -3,7 +3,7 @@ import {
   buildIsochCacheKey,
   ORS_PROFILES,
   ORS_BATCH_SIZE,
-  ORS_MAX_POIS_CHAT,
+  ORS_MAX_POIS_DEFAUT,
   ORS_MAX_POIS_ROUTIER,
 } from '@/lib/isochrones/fetcher';
 
@@ -93,11 +93,11 @@ describe('Constantes limites ORS', () => {
   });
 
   it('max POIs chat ≤ max POIs battle (battle a un timeout plus long)', () => {
-    expect(ORS_MAX_POIS_CHAT).toBeLessThanOrEqual(ORS_MAX_POIS_ROUTIER);
+    expect(ORS_MAX_POIS_DEFAUT).toBeLessThanOrEqual(ORS_MAX_POIS_ROUTIER);
   });
 
   it('max POIs chat est raisonnable (≤ 200)', () => {
-    expect(ORS_MAX_POIS_CHAT).toBeLessThanOrEqual(200);
+    expect(ORS_MAX_POIS_DEFAUT).toBeLessThanOrEqual(200);
   });
 });
 
@@ -127,7 +127,7 @@ describe('Logique de batching ORS', () => {
 
   it('troncature correcte : slice(0, maxPois)', () => {
     const pois = Array.from({ length: 100 }, (_, i) => i);
-    const sliced = pois.slice(0, ORS_MAX_POIS_CHAT);
-    expect(sliced).toHaveLength(ORS_MAX_POIS_CHAT);
+    const sliced = pois.slice(0, ORS_MAX_POIS_DEFAUT);
+    expect(sliced).toHaveLength(ORS_MAX_POIS_DEFAUT);
   });
 });

@@ -1,14 +1,14 @@
 import {
-  basculerDansSelection, corpsOperation, libelleSelection, messageRefusOperation, messageZoneCreee, nomZoneCreee, selectionExistante,
+  basculerDansSelection, libelleSelection, messageZoneCreee, nomZoneCreee, operationPossible, selectionExistante,
 } from './operations-zones';
 
 const NOMS = new Map([['a', 'Bretagne'], ['b', 'Finistère']]);
 
 describe('operations-zones (ZonesOperations.tsx)', () => {
-  it('corps : base + retirées pour la soustraction, la liste sinon', () => {
-    expect(corpsOperation('difference', ['a', 'b', 'c'])).toEqual({ zone_base: 'a', zones_retirees: ['b', 'c'] });
-    expect(corpsOperation('intersection', ['a', 'b'])).toEqual({ zone_ids: ['a', 'b'] });
-    expect(corpsOperation('union', ['a', 'b'])).toEqual({ zone_ids: ['a', 'b'] });
+  it('possible : union et différence à deux zones ou plus, intersection à DEUX exactement (recette combinaison)', () => {
+    expect([1, 2, 3].map((n) => operationPossible('union', n))).toEqual([false, true, true]);
+    expect([1, 2, 3].map((n) => operationPossible('difference', n))).toEqual([false, true, true]);
+    expect([1, 2, 3].map((n) => operationPossible('intersection', n))).toEqual([false, true, false]);
   });
 
   it('noms de la zone créée, au singulier et au pluriel, id tronqué pour un nom inconnu', () => {
@@ -16,14 +16,6 @@ describe('operations-zones (ZonesOperations.tsx)', () => {
     expect(nomZoneCreee('intersection', ['a', 'b', 'c'], NOMS)).toBe('Bretagne — restreinte à 2 zones');
     expect(nomZoneCreee('union', ['b', 'a'], NOMS)).toBe('Fusion de 2 zones — Finistère…');
     expect(nomZoneCreee('union', ['0123456789abcdef', 'a'], NOMS)).toBe('Fusion de 2 zones — 01234567…');
-  });
-
-  it('refus : message de la route, puis codes traduits, puis statut', () => {
-    expect(messageRefusOperation(409, { error: 'intersection_vide', message: 'Ces zones n’ont aucune surface en commun.' })).toBe('Ces zones n’ont aucune surface en commun.');
-    expect(messageRefusOperation(404, { error: 'zone_not_found' })).toBe('Une des zones est introuvable.');
-    expect(messageRefusOperation(400, { error: 'zone_dupliquee' })).toBe('Une même zone est sélectionnée deux fois.');
-    expect(messageRefusOperation(400, { error: 'composite_failed' })).toBe('Erreur (400)');
-    expect(messageRefusOperation(0, null)).toBe('Erreur (0)');
   });
 
   it('message de réussite et libellé de sélection', () => {

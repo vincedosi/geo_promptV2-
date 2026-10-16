@@ -1,12 +1,11 @@
 /**
  * GET /api/digital/campaigns
- * List DSP campaigns scoped by user's organization.
- * super_admin with no org → all campaigns
- * user with org → only their org's campaigns
+ * Campagnes DSP de l'espace actif, super_admin compris (R3/R5, 2026-10-12).
+ * Sans espace actif : liste vide. L'administration passe par /api/admin/campaigns.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getUserFromRequest, isSuperAdmin } from '@/lib/auth';
+import { getUserFromRequest } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -35,21 +34,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Authentification requise.' }, { status: 401 });
   }
 
-  // Un non-super_admin SANS organisation ne voit rien : `p_organization_id`
-  // null veut dire « toutes les campagnes » pour la RPC (sql/094), et ce cas
-  // l'y envoyait jusqu'au 2026-10-08.
-  if (!isSuperAdmin(profile) && !profile.organization_id) {
+  // Les campagnes de l'ESPACE ACTIF, pour tout le monde — super_admin compris
+  // (spec droits-sur-la-carte, R3/R5, 2026-10-12 : route lue par la carte, pas
+  // par l'administration, qui passe par `/api/admin/campaigns`). Sans espace
+  // actif, rien : la carte est alors au socle seul, et une campagne n'est
+  // jamais du socle. Jamais `p_organization_id: null`, qui veut dire « toutes
+  // les campagnes » pour la RPC (sql/094) — c'est ce qu'un super_admin
+  // recevait jusqu'au 2026-10-12, et un client sans espace jusqu'au 2026-10-08.
+  const orgId = profile.organization_id;
+  if (!orgId) {
     return NextResponse.json([]);
-  }
-
-  // Determine org filter
-  let orgId: string | null = null;
-  if (profile && !isSuperAdmin(profile)) {
-    // Non-admin users only see their org's campaigns
-    orgId = profile.organization_id;
-  } else if (profile && isSuperAdmin(profile) && profile.organization_id) {
-    // Super admin with an org sees all (orgId stays null)
-    orgId = null;
   }
 
   const { data, error } = await supabase.rpc('get_digital_campaigns_list', {

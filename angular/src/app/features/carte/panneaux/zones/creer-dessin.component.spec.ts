@@ -8,6 +8,7 @@ import { AuthService } from '../../../../core/auth/auth.service';
 import { CouleursService } from '../../../../core/theme/couleurs.service';
 import { DessinService, SOURCE_DESSIN } from '../../couches/dessin.service';
 import { ZonesCustomApi } from '../../data/zones-custom.api';
+import { ZonesApi } from '../../data/zones.api';
 import { AnnonceService } from '../../etat/annonce.service';
 import { CouchesCarteService } from '../../etat/couches-carte.service';
 import { CreationZoneService } from '../../etat/creation-zone.service';
@@ -27,6 +28,8 @@ function monter() {
     providers: [
       CreationZoneService, DessinService, CouchesCarteService, EtatCarteService, AnnonceService, PileEchapService,
       { provide: ZonesCustomApi, useValue: api },
+      // `enregistrer` est celui de `ZonesApi` (POST /api/zones, lot 3) : le même faux sert aux deux.
+      { provide: ZonesApi, useValue: api },
       { provide: CouleursService, useValue: { palette: () => signal({ teal: '#4ecdc4' }) } },
       { provide: AuthService, useValue: { lireProfil: async () => ({ role: null, nom: null, organisation: 'org-1' }) } },
     ],
@@ -92,9 +95,9 @@ describe('CreerDessinComponent (CreerZoneDessin.tsx + DessinLibre.tsx)', () => {
     bouton(el, '[data-creer]').click();
     await stable();
     expect(api.depuisDessin).toHaveBeenCalledWith({ type: 'Polygon', coordinates: [[[0, 0], [100, 100], [100, 0], [0, 100], [0, 0]]] });
+    // Forme figée : la géométrie RÉPARÉE de la route source part avec la recette `dessin`.
     expect(api.enregistrer).toHaveBeenCalledWith({
-      name: `Tracé de ${(163.24).toLocaleString('fr-FR')} km²`, source_type: 'dessin',
-      source_metadata: { surface_km2: 163.24, corrige: true, part_retenue: 1, n_sommets: 4 }, geometry: REPARE, org_id: 'org-1',
+      nom: `Tracé de ${(163.24).toLocaleString('fr-FR')} km²`, recette: { v: 1, type: 'dessin' }, geometrie: REPARE,
     });
     expect(el.querySelector('[data-message]')!.textContent).toContain('tracé réparé (il se croisait lui-même)');
     expect(bouton(el, '[data-creer]').disabled).toBe(true);

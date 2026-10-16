@@ -2,18 +2,14 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { basculerDegrade as basculerDegradePur } from '../logique/calques-actifs';
 import { type DegradeId, libelleDegrade } from '../logique/degrades';
 import type { FiltreActif } from '../logique/filtre';
-import { ENTREES_NAVIGATION, type EntreeId } from '../logique/navigation';
 import { AnnonceService } from './annonce.service';
 
 /**
  * L'état transverse de la carte principale — ce que `app/map/page.tsx` (l.140-260) et
  * `useMapLayers.ts` (l.1264-1271, `degradeActif`) tenaient dans des `useState`.
  *
- * ── ENTRÉES DU RAIL ──────────────────────────────────────────────────────
- * `choisirEntree` route selon le TYPE de l'entrée (`page.tsx:180-196`), jamais selon son id :
- * - `overlay-plein-ecran` (Campagne) : rien — l'overlay MAGELIAN relève du lot 5 (arbitrage B6) ;
- * - l'Assistant (`tiroir-droit`) : rien — décision du propriétaire (2026-10-04), il n'est JAMAIS porté ;
- * - le reste bascule : re-choisir l'entrée ouverte la referme.
+ * L'étape du parcours n'est PAS ici : elle vit dans `ParcoursService` (et `?etape=`). Depuis le parcours de la carte
+ * (2026-10-13), il n'y a plus d'entrée de rail à ouvrir ni à fermer.
  *
  * ── UN SEUL DÉGRADÉ DE COULEUR À LA FOIS ─────────────────────────────────
  * `basculerDegrade` reprend le contrat EXACT de `onDegrade` (`page.tsx:526-572`) : il rend l'id
@@ -28,10 +24,8 @@ import { AnnonceService } from './annonce.service';
 export class EtatCarteService {
   private readonly annonce = inject(AnnonceService);
 
-  private readonly entree = signal<EntreeId | null>(null);
-  readonly entreeActive = this.entree.asReadonly();
-  /** Mode immersif : rail et barre du haut masqués. */
-  readonly railMasque = signal(false);
+  /** Mode immersif : barre du parcours et panneau d'étape masqués. */
+  readonly immersif = signal(false);
   /** Le filtre unique « où je regarde » (`lib/carte/filtre.ts`), posé par le panneau Filtre (T5). */
   readonly filtre = signal<FiltreActif | null>(null);
   /** POI sélectionnés : relevés ici pour survivre à la fermeture des panneaux (`page.tsx:197-200`). */
@@ -44,9 +38,8 @@ export class EtatCarteService {
   private readonly evictions = new Map<DegradeId, () => void>();
 
   /**
-   * Les outils qui PRENNENT les clics de la carte (dessin d'une zone, pose du centre d'un rayon, T16). Tant qu'il y en
-   * a un, un clic sur la carte appartient à l'outil et ne ferme pas le panneau qui le porte — React le fermait, et
-   * l'outil disparaissait avec son tracé au premier clic (`OverlayPanel.tsx:107-117`).
+   * Les outils qui PRENNENT les clics de la carte (dessin d'une zone, pose du centre d'un rayon, T16) : un seul reçoit
+   * les clics à la fois, et le curseur de la carte reste le sien tant qu'il la tient.
    */
   private readonly outilsCarte = signal<readonly string[]>([]);
   readonly carteOccupee = computed(() => this.outilsCarte().length > 0);
@@ -55,24 +48,6 @@ export class EtatCarteService {
    * clic posait à la fois le centre d'un rayon et un sommet du dessin. Rendre la carte la redonne au précédent.
    */
   readonly outilCarte = computed(() => this.outilsCarte().at(-1) ?? null);
-  /**
-   * Les clics RÉSERVÉS, plus étroits que `prendreCarte` (T19, revue 1) : une couche déclare quels clics lui
-   * appartiennent (un point des clusters sous le pointeur) ; ceux-là seuls ne ferment pas le panneau, tout autre clic
-   * sur la carte le ferme comme avant. N'élit aucun outil : `outilCarte` reste celui des outils de zone.
-   */
-  private readonly reservations = new Map<string, (e: MouseEvent) => boolean>();
-
-  choisirEntree(id: EntreeId): void {
-    const entree = ENTREES_NAVIGATION.find((e) => e.id === id);
-    if (!entree) return;
-    if (entree.type === 'overlay-plein-ecran' || entree.type === 'tiroir-droit') return;
-    this.entree.update((courante) => (courante === id ? null : id));
-  }
-
-  fermerEntree(): void {
-    this.entree.set(null);
-  }
-
   basculerDegrade(cible: DegradeId, next: boolean): DegradeId | null {
     const resultat = basculerDegradePur(this.degrade(), cible, next);
     this.degrade.set(resultat.degradeActif);
@@ -98,20 +73,5 @@ export class EtatCarteService {
 
   rendreCarte(outil: string): void {
     this.outilsCarte.update((l) => l.filter((o) => o !== outil));
-  }
-
-  /** Réserve à `id` les clics que `predicat` reconnaît (remplace une réservation du même id). */
-  reserverClics(id: string, predicat: (e: MouseEvent) => boolean): void {
-    this.reservations.set(id, predicat);
-  }
-
-  libererClics(id: string): void {
-    this.reservations.delete(id);
-  }
-
-  /** Ce clic appartient-il à une couche qui l'a réservé ? */
-  clicReserve(e: MouseEvent): boolean {
-    for (const predicat of this.reservations.values()) if (predicat(e)) return true;
-    return false;
   }
 }

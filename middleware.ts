@@ -14,7 +14,6 @@ import type { NextRequest } from 'next/server';
 
 // ── Routes protégées ───────────────────────────────────────────────────────────
 const PROTECTED_API_PREFIXES = [
-  '/api/chat',
   '/api/map/pois',
   '/api/map/poi-natures',
   '/api/map/ooh',
@@ -41,9 +40,7 @@ const PROTECTED_API_PREFIXES = [
   '/api/isochrone-battle',
   '/api/isochrone-battle-v2',
   '/api/isochrone-cache-check',
-  '/api/providers',
   '/api/saved-maps',
-  '/api/smart-prompt',
   '/api/radio',
   // Referentiel geo : consommé par lib/geo/use-ref-geo.ts en
   // fetch(..., { credentials: 'include' }) — les cookies sont transmis.
@@ -146,7 +143,6 @@ export const config = {
     '/dashboard/:path*',
     '/admin/:path*',
     '/demo/:path*',
-    '/api/chat/:path*',
     '/api/map/:path*',
     '/api/admin/:path*',
     '/api/iris-crawler/:path*',
@@ -157,9 +153,7 @@ export const config = {
     '/api/isochrone-battle/:path*',
     '/api/isochrone-battle-v2/:path*',
     '/api/isochrone-cache-check/:path*',
-    '/api/providers/:path*',
     '/api/saved-maps/:path*',
-    '/api/smart-prompt/:path*',
     '/api/radio/:path*',
     '/api/ref/:path*',
   ],

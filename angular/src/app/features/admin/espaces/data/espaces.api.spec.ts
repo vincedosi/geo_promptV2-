@@ -38,6 +38,17 @@ describe('EspacesApi', () => {
   it('lireSocle : GET /api/admin/espaces/socle', () => lecture(() => api.lireSocle(), '/api/admin/espaces/socle'));
   it('lireDonnees : GET /api/admin/espaces/:id/donnees', () =>
     lecture(() => api.lireDonnees('org-1'), '/api/admin/espaces/org-1/donnees'));
+  it('jeuxRecommandables : GET /api/admin/espaces/:id/jeux-recommandes (id encodé)', () =>
+    lecture(() => api.jeuxRecommandables('org 1'), '/api/admin/espaces/org%201/jeux-recommandes'));
+  it('enregistrerJeuxRecommandes : PUT { cles } tel quel', () => {
+    let lu: unknown;
+    api.enregistrerJeuxRecommandes('org-1', ['iris:socio-demo', 'poi:lycee']).subscribe((v) => (lu = v));
+    const req = http.expectOne('/api/admin/espaces/org-1/jeux-recommandes');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ cles: ['iris:socio-demo', 'poi:lycee'] });
+    req.flush({ cles: ['iris:socio-demo', 'poi:lycee'] });
+    expect(lu).toEqual({ cles: ['iris:socio-demo', 'poi:lycee'] });
+  });
   it('lireMembres : GET /api/admin/espaces/:id/membres', () =>
     lecture(() => api.lireMembres('org-1'), '/api/admin/espaces/org-1/membres'));
   it('lireApercu : GET /api/admin/espaces/:id/apercu', () =>

@@ -43,6 +43,9 @@ const RACINE = process.cwd();
 const PUBLIQUES_ASSUMEES = new Map<string, string>([
   ['/api/map/categories',
    'Données non sensibles (liste de catégories de POI). Exclusion documentée dans middleware.ts.'],
+  ['/api/map/jeux-recommandes',
+   'Même justification que /api/map/categories : des clés de jeux de la carte, non sensibles ; sans session ni espace '
+   + 'la route rend [] sans aucune lecture. La recommandation range, elle ne donne aucun droit.'],
   ['/api/auth/[...auth]',
    "Flux OAuth Supabase : l'authentification ne peut pas exiger d'être authentifié."],
   ['/api/inngest',

@@ -119,6 +119,7 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `dsp_campaigns` | migrations/20260408 | Campagnes DSP (Adform, DV360…) |
 | `dsp_campaign_data` | migrations/20260408 | Lignes d'impressions DSP (~280k/campagne), CASCADE |
 | `postal_code_commune` | migrations/20260408 | Référentiel La Poste (~35k), peuplé via geo.api.gouv.fr |
+| `espace_jeux_recommandes` | 251 | Sélection recommandée de jeux de la carte par espace (range, ne donne aucun droit ; ≤ 200 par espace) |
 
 ## Fonctions RPC actives (état final)
 
@@ -136,8 +137,13 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `notify_pgrst_reload()` | 005_upsert | Reload cache PostgREST |
 | `match_campaign_postal_to_iris()` | migrations/20260408 | Matching DSP postal → commune → IRIS |
 | `get_dsp_campaign_stats()` | migrations/20260408 | Stats agrégées par campagne (COUNT FILTER) |
+| `remplacer_jeux_recommandes()` | 251 | Remplace la sélection recommandée d'un espace en une transaction (jsonb `{cles}`, ≤ 200) |
 
 ---
+
+## Rejouer sql/238 et sql/162 APRES sql/250
+
+`sql/250` supprime la table `agent_chat_messages` (suppression de l'IA, 2026-10-12). Deux anciennes migrations la nomment encore et ECHOUENT si on les rejoue sur une base deja passee par 250 : `sql/238_politiques_for_all.sql` (`drop policy if exists agent_chat_org_read on public.agent_chat_messages` -> `relation does not exist`, le `if exists` ne couvre pas la table) et `sql/162` (index de `agent_chat_messages`, lignes 78-79). Une reconstruction dans l'ordre (162, puis 238, puis 250) passe. Pour rejouer 238 ou 162 sur une base deja a jour : sauter les instructions qui visent `agent_chat_messages` (les migrations ne sont pas modifiees, elles portent l'histoire de la base).
 
 ## Dossier archive/
 

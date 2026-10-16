@@ -119,6 +119,45 @@ describe('ZonesCustomService (zones enregistrées affichées, T14)', () => {
     expect(lire).toHaveBeenCalledTimes(2);
   });
 
+  it('relire (recalcul d’une zone affichée) : forme et nom remplacés EN PLACE — teinte, rang et cadrage inchangés', () => {
+    let version = 0;
+    const { service, carte, lire } = monter((id) => of({
+      ...entite(id),
+      geometry: { type: 'Polygon' as const, coordinates: [[[1, 2], [3 + version, 2], [3 + version, 5], [1, 2]]] },
+    }));
+    service.afficher(zone('a', [4, 43, 5, 44]));
+    service.afficher(zone('b'));
+    service.afficher(zone('c'));
+    TestBed.tick();
+    const cadrages = carte.cadrages.length;
+    const couleurs = [...service.couleurs()];
+    version = 7;
+    service.relire({ ...zone('a', [10, 40, 11, 41]), name: 'Zone a recalculée' });
+    TestBed.tick();
+    expect(lire).toHaveBeenCalledTimes(4);
+    expect([...service.couleurs()]).toEqual(couleurs);
+    expect(service.zonesAffichees()).toEqual([{ id: 'a', name: 'Zone a recalculée' }, { id: 'b', name: 'Zone b' }, { id: 'c', name: 'Zone c' }]);
+    expect(carte.cadrages.length).toBe(cadrages);
+    // La source existante reçoit la nouvelle forme ; ni retrait ni repose (l'empilement des couches ne bouge pas).
+    expect(sourcesZones(carte)).toEqual(['custom-zone-a', 'custom-zone-b', 'custom-zone-c']);
+    const envoye = carte.sources.get('custom-zone-a')!.donnees.at(-1) as GeoJSON.Feature;
+    expect((envoye.geometry as GeoJSON.Polygon).coordinates[0][1]).toEqual([10, 2]);
+    expect(envoye.properties).toMatchObject({ name: 'Zone a recalculée' });
+  });
+
+  it('relire une zone qui n’est pas affichée (ou masquée pendant la lecture) : rien', () => {
+    const { service, lire } = monter();
+    service.relire(zone('a'));
+    expect(lire).not.toHaveBeenCalled();
+    service.afficher(zone('a'));
+    const vol = new Subject<EntiteZone>();
+    lire.mockImplementationOnce(() => vol);
+    service.relire(zone('a'));
+    service.masquer('a');
+    vol.next(entite('a'));
+    expect(service.zonesAffichees()).toEqual([]);
+  });
+
   it('géométrie en échec → « HTTP 404 », rien sur la carte', () => {
     const { service, carte } = monter(() => throwError(() => ({ status: 404 })));
     service.afficher(zone('a'));

@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { ZonesCustomApi } from '../../data/zones-custom.api';
+import { ZonesApi } from '../../data/zones.api';
 import { CreationZoneService } from '../../etat/creation-zone.service';
 import { CreerCodesPostauxComponent } from './creer-codes-postaux.component';
 
@@ -19,6 +20,8 @@ function monter(api: Partial<Record<keyof ZonesCustomApi, unknown>> = {}) {
     providers: [
       CreationZoneService,
       { provide: ZonesCustomApi, useValue: base },
+      // `enregistrer` est celui de `ZonesApi` (POST /api/zones, lot 3) : le même faux sert aux deux.
+      { provide: ZonesApi, useValue: base },
       { provide: AuthService, useValue: { lireProfil: async () => ({ role: null, nom: null, organisation: 'org-1' }) } },
     ],
   });
@@ -68,9 +71,9 @@ describe('CreerCodesPostauxComponent (CreerZoneCodesPostaux.tsx)', () => {
     el.querySelector<HTMLButtonElement>('[data-creer]')!.click();
     await stable();
     expect(api.depuisCodesPostaux).toHaveBeenCalledWith('13001, 13002, 99999, abc');
+    // La route ne rend pas ses codes retenus ici : la recette prend les codes bien formés de la saisie.
     expect(api.enregistrer).toHaveBeenCalledWith({
-      name: 'Liste de 2 codes postaux', source_type: 'codes_postaux',
-      source_metadata: { n_codes_postaux: 2, n_inconnus: 1, n_rejetes: 1 }, geometry: GEOMETRIE, org_id: 'org-1',
+      nom: 'Liste de 2 codes postaux', recette: { v: 1, type: 'codes_postaux', codes: ['13001', '13002', '99999'] },
     });
     expect(el.querySelector('[data-message]')!.textContent!.trim()).toBe('Zone créée : 2 codes postaux · 1 inconnu du référentiel, 1 rejeté');
     expect(el.querySelector('textarea')!.value).toBe('');
@@ -90,6 +93,18 @@ describe('CreerCodesPostauxComponent (CreerZoneCodesPostaux.tsx)', () => {
     el.querySelector<HTMLButtonElement>('[data-creer]')!.click();
     await stable();
     expect(api.depuisCodesPostaux).toHaveBeenCalledWith(fichier);
+  });
+
+  it('la route rend ses codes RETENUS : c’est eux que la recette `codes_postaux` garde (lot 3)', async () => {
+    const { el, api, stable } = monter({
+      depuisCodesPostaux: vi.fn(() => of({ geometry: GEOMETRIE, codes: ['13001', '13002'], n_codes: 2, n_inconnus: 1, n_rejetes: 0 })),
+    });
+    await ouvrir(el, stable);
+    saisir(el, '13001 13002 99999');
+    await stable();
+    el.querySelector<HTMLButtonElement>('[data-creer]')!.click();
+    await stable();
+    expect(api.enregistrer).toHaveBeenCalledWith({ nom: 'Liste de 2 codes postaux', recette: { v: 1, type: 'codes_postaux', codes: ['13001', '13002'] } });
   });
 
   it('la saisie retouchée après le dépôt : c’est le TEXTE qui part, pas le fichier d’origine', async () => {

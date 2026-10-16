@@ -6,13 +6,16 @@ import { PoisService } from './pois.service';
 /** Le nom de la variable que le bandeau nomme quand la clé manque (`MapPanel.tsx:333-335`). */
 export const VARIABLE_CLE_GOOGLE = 'NEXT_PUBLIC_GOOGLE_MAPS_API_KEY';
 
+/** Largeur du tiroir (`MapPanel.tsx`, `min(420px, 92vw)`), en px : la boîte à outils s'en écarte (`ecartOutils`). */
+export const LARGEUR_TIROIR_PANNEAU = 420;
+
 /** L'adresse Street View d'un point (`MapPanel.tsx:126-128`). */
 export function adresseStreetView(cle: string, lat: number, lng: number): string {
   return `https://www.google.com/maps/embed/v1/streetview?key=${encodeURIComponent(cle)}&location=${lat},${lng}&heading=0&pitch=0&fov=90`;
 }
 
 /**
- * Le tiroir Street View d'un panneau cliqué — portage de `app/copilote/_components/MapPanel.tsx:291-339`.
+ * Le tiroir Street View d'un panneau cliqué — portage de `app/map/_components/MapPanel.tsx:291-339`.
  *
  * À droite de la carte, sur toute sa hauteur (`min(420px, 92vw)`, `z-index` 30), DANS le conteneur de la carte : la
  * vue Google est un `<iframe>` de la racine d'ombre, jamais un portail. La clé vient de `config.local.json`
@@ -29,7 +32,7 @@ export function adresseStreetView(cle: string, lat: number, lng: number): string
   template: `
     @if (pois.panneauSelectionne(); as p) {
       <aside data-tiroir-panneau aria-label="Street View"
-        class="absolute bottom-0 right-0 top-0 z-30 flex w-[min(420px,92vw)] flex-col border-l-fin border-subtle bg-[var(--bg-primary)]">
+        class="absolute bottom-0 right-0 top-0 z-30 flex max-w-[92vw] flex-col border-l-fin border-subtle bg-[var(--bg-primary)]" [style.width.px]="largeur">
         <div class="flex items-center justify-between gap-2 border-b-fin border-subtle px-[14px] py-[10px]">
           <div class="font-mono text-[10px] tracking-[0.06em] text-secondary">STREET_VIEW</div>
           <button type="button" data-fermer aria-label="Fermer" (click)="pois.panneauSelectionne.set(null)"
@@ -62,6 +65,7 @@ export class TiroirPanneauComponent {
   private readonly config = inject(ConfigService);
   private readonly assainisseur = inject(DomSanitizer);
   protected readonly variable = VARIABLE_CLE_GOOGLE;
+  protected readonly largeur = LARGEUR_TIROIR_PANNEAU;
 
   protected readonly audience = computed(() => {
     const a = this.pois.panneauSelectionne()?.audience;

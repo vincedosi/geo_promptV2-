@@ -1,4 +1,5 @@
-import { Component, signal } from '@angular/core';
+import { Component, input, signal } from '@angular/core';
+import { By } from '@angular/platform-browser';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -9,6 +10,7 @@ import { ConfigService } from '../../../core/config/config.service';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
 import { EspacesApi } from './data/espaces.api';
 import { EspacesEtatService } from './etat/espaces-etat.service';
+import { JeuxRecommandesComponent } from './jeux-recommandes.component';
 import { OngletDonneesComponent } from './onglet-donnees.component';
 import type { EspaceResume, JeuPourEspace, ReponseDonneesEspace, StatutJeu } from './logique/types';
 
@@ -18,6 +20,18 @@ const URL_DONNEES = `/api/admin/espaces/${A}/donnees`;
 
 @Component({ imports: [OngletDonneesComponent], template: '<mg-onglet-donnees [espaceId]="id" />' })
 class Hote { id = A; }
+
+/** Le bloc « Sélection recommandée » a sa propre spec : ici, seulement sa présence et l'espace qu'il reçoit. */
+@Component({ selector: 'mg-jeux-recommandes', template: '' })
+class JeuxRecommandesFactice { readonly espaceId = input.required<string>(); }
+
+function configurer(recharger: () => void) {
+  TestBed.configureTestingModule({ providers: fournisseurs(recharger) });
+  TestBed.overrideComponent(OngletDonneesComponent, {
+    remove: { imports: [JeuxRecommandesComponent] },
+    add: { imports: [JeuxRecommandesFactice] },
+  });
+}
 
 function espace(id: string, nom: string, interne = false, actif = true): EspaceResume {
   return { id, nom, nom_affiche: nom, slug: nom, actif, interne, nb_membres: 1, nb_jeux_prives: 1 };
@@ -70,7 +84,7 @@ function fournisseurs(recharger: () => void) {
 
 async function monter() {
   const recharger = vi.fn();
-  TestBed.configureTestingModule({ providers: fournisseurs(recharger) });
+  configurer(recharger);
   const harnais = await RouterTestingHarness.create();
   const http = TestBed.inject(HttpTestingController);
   await harnais.navigateByUrl(`/espaces/${A}`, Hote);
@@ -236,7 +250,7 @@ describe('OngletDonneesComponent', () => {
   });
 
   it('lecture en échec : message et « Réessayer »', async () => {
-    TestBed.configureTestingModule({ providers: fournisseurs(vi.fn()) });
+    configurer(vi.fn());
     const harnais = await RouterTestingHarness.create();
     const http = TestBed.inject(HttpTestingController);
     await harnais.navigateByUrl(`/espaces/${A}`, Hote);
@@ -246,5 +260,29 @@ describe('OngletDonneesComponent', () => {
     expect(el.querySelector('[role="alert"]')!.textContent).toContain('Panne');
     el.querySelector<HTMLButtonElement>('[data-reessayer]')!.click();
     http.expectOne(URL_DONNEES).flush(reponse());
+  });
+
+  it('le bloc « Sélection recommandée » est sous le tableau, avec espaceId', async () => {
+    const { harnais, el } = await monter();
+    const bloc = harnais.fixture.debugElement.query(By.directive(JeuxRecommandesFactice));
+    expect(bloc).not.toBeNull();
+    expect((bloc.componentInstance as JeuxRecommandesFactice).espaceId()).toBe(A);
+    const cadre = el.querySelector('.cadre')!;
+    expect(cadre.compareDocumentPosition(bloc.nativeElement as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('le bloc « Sélection recommandée » reste rendu quand le tableau est en erreur, et pendant le squelette', async () => {
+    configurer(vi.fn());
+    const harnais = await RouterTestingHarness.create();
+    const http = TestBed.inject(HttpTestingController);
+    await harnais.navigateByUrl(`/espaces/${A}`, Hote);
+    expect(harnais.fixture.debugElement.query(By.directive(JeuxRecommandesFactice))).not.toBeNull();
+    http.expectOne(URL_DONNEES).flush({ error: 'Panne' }, { status: 500, statusText: 'x' });
+    await harnais.fixture.whenStable();
+    const el = harnais.routeNativeElement as HTMLElement;
+    expect(el.querySelector('[role="alert"]')).not.toBeNull();
+    const bloc = harnais.fixture.debugElement.query(By.directive(JeuxRecommandesFactice));
+    expect(bloc).not.toBeNull();
+    expect((bloc.componentInstance as JeuxRecommandesFactice).espaceId()).toBe(A);
   });
 });

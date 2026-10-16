@@ -76,7 +76,7 @@ const mockTableRows = [
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', active: false },
-  { icon: Map, label: 'Copilote', active: true },
+  { icon: Map, label: 'Carte', active: true },
   { icon: MapPin, label: 'Panneaux OOH', active: false },
   { icon: Users, label: 'Organisations', active: false },
   { icon: Settings, label: 'Administration', active: false },

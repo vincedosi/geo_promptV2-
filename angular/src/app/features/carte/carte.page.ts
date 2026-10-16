@@ -1,13 +1,15 @@
 import {
-  ChangeDetectionStrategy, Component, DOCUMENT, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, viewChild,
+  ChangeDetectionStrategy, Component, DOCUMENT, DestroyRef, ElementRef, Injector, computed, effect, inject, output, signal, viewChild,
 } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import type maplibregl from 'maplibre-gl';
 import { CarteComponent } from '../../carte/carte.component';
+import { ChargementService } from '../../core/chargement/chargement.service';
+import { BarreProgressionComponent } from '../../ui/barre-progression/barre-progression.component';
 import { CouleursService } from '../../core/theme/couleurs.service';
+import type { SegmentAriane } from '../../ui/fil-ariane/fil-ariane.component';
+import { IconeComponent } from '../../ui/icone/icone.component';
 import { AnnonceComponent } from './commun/annonce.component';
-import { BoutonsFlottantsComponent } from './commun/boutons-flottants.component';
-import { FondCompactComponent } from './commun/fond-compact.component';
 import { DessinService } from './couches/dessin.service';
 import { BatailleService } from './couches/bataille.service';
 import { CarreauxService } from './couches/carreaux.service';
@@ -32,6 +34,7 @@ import { ZoneActiveComponent } from './couches/zone-active.component';
 import { ZonesCustomService } from './couches/zones-custom.service';
 import { JETONS_STYLE_MAGELIAN, appliquerStyleMagelian, couchesDuFond } from './couches/style-magelian';
 import { AnnonceService } from './etat/annonce.service';
+import { CatalogueIndicateursService } from './etat/catalogue-indicateurs.service';
 import { CataloguePoiService } from './etat/catalogue-poi.service';
 import { CaptureService } from './etat/capture.service';
 import { CouchesCarteService } from './etat/couches-carte.service';
@@ -39,41 +42,35 @@ import { EtatCarteService } from './etat/etat-carte.service';
 import { ExportZoneService } from './etat/export-zone.service';
 import { lireFondMemorise, memoriserFond, urlDuFond } from './etat/fond-carte';
 import { LienZoneService } from './etat/lien-zone.service';
+import { ParcoursService } from './etat/parcours.service';
 import { PileEchapService } from './etat/pile-echap.service';
 import { PlanMediaService } from './etat/plan-media.service';
 import { PONT_CARTE } from './etat/pont-carte';
 import { ReferentielGeoService } from './etat/referentiel-geo.service';
 import { ContoursZonesService } from './etat/contours-zones.service';
 import { RisqueCarteService } from './etat/risque-carte.service';
-import { PuceFiltreComponent } from './filtre/puce-filtre.component';
 import { LegendeCarteComponent } from './legende/legende-carte.component';
+import { rendreFocusALaFermeture, rendreFocusApresGeste } from './logique/focus-retour';
 import { ignorerRaccourciClavier } from './logique/garde-saisie';
 import { franciserLibelles } from './logique/libelles-fr';
-import { ENTREES_NAVIGATION, LARGEUR_RAIL, type EntreeId, entreeParRaccourci } from './logique/navigation';
-import { AideComponent } from './panneaux/aide.component';
+import { ETAPES_CARTE, etapeParRaccourci, etapesDuFil, lireEtape, precisionDuPerimetre, segmentsDuFiltre } from './logique/parcours';
 import { DialogueMeteoComponent } from './panneaux/calques/dialogue-meteo.component';
-import { PanneauCalquesComponent } from './panneaux/calques/panneau-calques.component';
+import { PanneauDonneesComponent } from './panneaux/donnees/panneau-donnees.component';
+import { DonneesAfficheesService } from './etat/donnees-affichees.service';
 import { PanneauFiltreComponent } from './panneaux/filtre/panneau-filtre.component';
-import { ReglagesComponent } from './panneaux/reglages.component';
 import { PanneauZonesComponent } from './panneaux/zones/panneau-zones.component';
 import { PanneauAnalyseComponent } from './panneaux/analyse/panneau-analyse.component';
+import { PanneauAutresComponent } from './panneaux/autres/panneau-autres.component';
 import { BatailleV1Service } from './etat/bataille-v1.service';
 import { BatailleV2Service } from './etat/bataille-v2.service';
 import { ContexteBatailleService } from './etat/contexte-bataille.service';
-import { LARGEUR_PLAN_MEDIA, PlanMediaComponent } from './panneaux/zones/plan-media.component';
-import { BarreHautComponent, HAUTEUR_BARRE_HAUT } from './rail/barre-haut.component';
-import { PanneauComponent } from './rail/panneau.component';
-import { RailComponent } from './rail/rail.component';
-
-/** Couleur du point de l'en-tête du panneau, par entrée — `DOT_PAR_ENTREE` de `app/map/page.tsx:111-118`. */
-const POINT_PAR_ENTREE: Partial<Record<EntreeId, string>> = {
-  filtre: 'var(--cat-context)',
-  calques: 'var(--cat-terrain)',
-  analyse: 'var(--cat-analysis)',
-  zones: 'var(--brand-teal)',
-  reglages: 'var(--text-tertiary)',
-  aide: 'var(--text-tertiary)',
-};
+import { PlanMediaComponent } from './panneaux/zones/plan-media.component';
+import { BarreParcoursComponent } from './parcours/barre-parcours.component';
+import { BoiteOutilsComponent, ecartOutils } from './outils/boite-outils.component';
+import { OutilsCarteService } from './outils/outils-carte.service';
+import { EtapeBientotComponent } from './parcours/etape-bientot.component';
+import { PanneauEtapeComponent } from './parcours/panneau-etape.component';
+import { suivreMargeCarte } from './couches/marge-carte';
 
 /** Centre et zoom d'ouverture de React (`useMapInit.ts:131-132`). */
 const CENTRE_INITIAL: [number, number] = [2.3, 46.6];
@@ -89,14 +86,15 @@ export function palierCarreaux(zoom: number): string {
 }
 
 /**
- * La carte principale — portage de `app/map/page.tsx` (lot 4). Cette tâche (T3) en pose le
- * SQUELETTE : route, rail, barre du haut, panneau gauche, état transverse, clavier, mode immersif,
- * badge de zoom ; chaque panneau et chaque couche arrivent dans les tâches suivantes (T4-T20).
+ * La carte principale, en PARCOURS (spec 2026-10-13, lot 1 ; ordre du § 15) — ① Périmètre › ② Données › ③ Zones ›
+ * ④ Analyse › ⑤ Jeu de zones › ⑥ Plan › ⑦ Activation › ⑧ Live. Portage d'origine : `app/map/page.tsx` (lot 4 Angular).
  *
- * ── UNE ROUTE PLEIN ÉCRAN (arbitrage B1) ─────────────────────────────────
- * React posait tout en `position: fixed` (enveloppe, rail, barre, boutons flottants). Dans la racine
- * d'ombre, `fixed` se poserait sur la fenêtre du SHELL : tout est `absolute` dans l'hôte `relative`,
- * avec les mêmes `z-index` relatifs (rail 30 < panneau 40 < barre 45 < boutons 50).
+ * ── BARRE DU PARCOURS, PUIS LA CARTE ; LE PANNEAU D'ÉTAPE FLOTTE DESSUS ───
+ * Une colonne : la barre (`mg-barre-parcours`), puis le conteneur de la carte, seul dans sa rangée. Le panneau de l'étape
+ * courante (`mg-panneau-etape`, poignée, repli « carte seule ») FLOTTE dans ce conteneur (T4b, Vincent 13/10) : la carte
+ * garde toute sa largeur ; son bord droit (`--emprise-panneau`) écarte badge de zoom, zone active et légende. Rien en
+ * `fixed` (racine d'ombre : il se poserait sur la fenêtre du SHELL). L'étape vit dans `?etape=` (`ParcoursService`) ; un
+ * panneau visité reste MONTÉ (invisible et inerte quitté, arbitrage A1) — un calcul lui survit, revenir ne relit rien.
  *
  * ── UN SEUL ÉCOUTEUR CLAVIER, SUR L'HÔTE (arbitrage B10) ─────────────────
  * Jamais `window`/`document` (ceux du shell). L'hôte est focalisable (`tabindex="-1"`) et focalisé
@@ -114,69 +112,94 @@ export function palierCarreaux(zoom: number): string {
  * s'allumaient ensemble.
  *
  * ── LA PILE ÉCHAP EST UN SERVICE DE LA PAGE ──────────────────────────────
- * Panneau et mode immersif s'y empilent : dernier ouvert = premier fermé (`PileEchapService`).
+ * Le mode immersif, le tiroir de la boîte à outils (`OutilsCarteService`, T5) et ce que les panneaux y empilent : dernier
+ * ouvert = premier fermé (`PileEchapService`). Le panneau d'étape n'y est pas : il ne se ferme pas, il se replie.
  */
 @Component({
   selector: 'mg-carte-principale',
   imports: [
-    AideComponent, AnnonceComponent, BarreHautComponent, BoutonsFlottantsComponent, CarteComponent, DetailIrisComponent, DialogueMeteoComponent,
-    FondCompactComponent, LegendeCarteComponent, PanneauAnalyseComponent, PanneauCalquesComponent, PanneauComponent, PanneauFiltreComponent, PanneauZonesComponent, PlanMediaComponent, PuceFiltreComponent,
-    RailComponent, ReglagesComponent, RouterOutlet, TiroirPanneauComponent, ZoneActiveComponent,
+    AnnonceComponent, BarreParcoursComponent, BarreProgressionComponent, BoiteOutilsComponent, CarteComponent, DetailIrisComponent, DialogueMeteoComponent,
+    EtapeBientotComponent, IconeComponent, LegendeCarteComponent, PanneauAnalyseComponent, PanneauAutresComponent, PanneauDonneesComponent, PanneauEtapeComponent,
+    PanneauFiltreComponent, PanneauZonesComponent, PlanMediaComponent, RouterOutlet, TiroirPanneauComponent, ZoneActiveComponent,
   ],
-  providers: [EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
+  providers: [ChargementService, ParcoursService, OutilsCarteService, EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
     IrisService, PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService,
     IndicateursCiviquesService, SanteService, ContoursZonesService, MeteoService, RisqueCarteService, RisquesIndustrielsService,
     PprtService, ZonesRisqueService, BatailleService, ZonesCustomService, LienZoneService, ExportZoneService, PlanMediaService,
-    CaptureService, DessinService,
-    // Le score composite peint (T18) : à la PAGE — fermer le panneau Analyse ne l'éteint pas, comme React.
+    CaptureService, DessinService, DonneesAfficheesService,
+    // Le score composite peint (T18) : à la PAGE — quitter l'étape Analyse ne l'éteint pas, comme React.
     ScoreService,
-    // Les batailles d'isochrones (T17) : à la PAGE, pas au panneau — fermer le panneau ne coupe pas un calcul en cours.
+    // Les batailles d'isochrones (T17) : à la PAGE, pas au panneau — changer d'étape ne coupe pas un calcul en cours.
     ContexteBatailleService, BatailleV1Service, BatailleV2Service,
-    // Le clustering (T19) : à la PAGE — fermer le panneau Analyse laisse les clusters sur la carte, comme React (`page.tsx:245`).
+    // Le clustering (T19) : à la PAGE — quitter l'étape Analyse laisse les clusters sur la carte, comme React (`page.tsx:245`).
     ClustersService,
     // L'aperçu des POI de l'assistant de clustering (T20) : une couche de la carte, pilotée par l'assistant.
     ApercuClusteringService,
+    // Le catalogue d'indicateurs (lot 3, X4) : UNE lecture par page, partagée par Analyse (score, corrélation), ③ (« Par
+    // seuil », pied de recette) et « Mes zones » — qui le fournissaient chacun, trois lectures de la même liste.
+    CatalogueIndicateursService,
     // Le pont du module risque (B3) : le module, rendu par l'outlet de cette page, le voit par son injecteur d'élément.
     { provide: PONT_CARTE, useExisting: ZonesRisqueService },
   ],
   templateUrl: './carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
-    class: 'relative flex h-full overflow-hidden bg-[var(--bg-primary)] outline-none transition-[padding] duration-200 ease-[var(--ease-out)]',
+    class: 'relative flex h-full flex-col overflow-hidden bg-[var(--bg-primary)] outline-none',
     tabindex: '-1',
-    '[style.padding-left.px]': 'etat.railMasque() ? 0 : largeurRail',
-    '[style.padding-top.px]': 'etat.railMasque() ? 0 : hauteurBarre',
     '(keydown)': 'clavier($event)',
-    '(mousedown)': 'pointerHors($event)',
   },
 })
 export class CartePage {
+  /** Émis après un changement d'espace réussi : l'hôte de la route recrée la page (droits sur la carte, T3). */
+  readonly espaceChange = output<void>();
   protected readonly etat = inject(EtatCarteService);
+  /** L'étape courante et les étapes visitées, reflétées dans `?etape=` (T2). */
+  protected readonly parcours = inject(ParcoursService);
   private readonly couches = inject(CouchesCarteService);
   private readonly pile = inject(PileEchapService);
   private readonly hote = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injecteur = inject(Injector);
   private readonly iris = inject(IrisService);
   private readonly pois = inject(PoisService);
+  /** « Affiché » pour ② : la pastille de l'étape et celles des lignes du panneau Données, une seule source (AT-4). */
+  private readonly donnees = inject(DonneesAfficheesService);
   /** La météo (T11) : la page monte son dialogue, comme la modale de `page.tsx:1456-1488`. */
   protected readonly meteo = inject(MeteoService);
   private readonly document = inject(DOCUMENT);
   private readonly annonce = inject(AnnonceService);
-  private readonly zonesCustom = inject(ZonesCustomService);
   private readonly exports = inject(ExportZoneService);
-  /** Le lien `?customZone=` (T14) : lu dès l'ouverture de la carte, même panneau Zones fermé. */
+  /** Le lien `?customZone=` (T14) : lu dès l'ouverture de la carte, quelle que soit l'étape. */
   protected readonly lienZone = inject(LienZoneService);
-  /** Le plan média des zones affichées (T15) : panneau droit, et l'écart des boutons flottants quand il est ouvert. */
+  /** Le plan média des zones affichées (T15) : panneau droit du conteneur carte, et l'écart des outils quand il est ouvert. */
   protected readonly planMedia = inject(PlanMediaService);
-  protected readonly decalageBoutons = computed(() => 10 + (this.planMedia.visible() ? LARGEUR_PLAN_MEDIA + 10 : 0));
+  /** La boîte à outils (T5) : l'outil ouvert, la légende affichée. */
+  protected readonly outils = inject(OutilsCarteService);
+  /** Écartée du plan média, du détail IRIS et du tiroir Street View ouverts (ruling AT-3) ; les annonces sous elle. */
+  protected readonly decalageOutils = computed(() => ecartOutils({
+    planMedia: this.planMedia.visible(), detailIris: this.iris.codeSelectionne() !== null, streetView: this.pois.panneauSelectionne() !== null,
+  }));
   /** « Plan média (n) » : des zones affichées, panneau fermé (`page.tsx:1222`). */
   protected readonly zonesPlanFerme = computed(() => {
     const n = this.planMedia.zones().length;
     return n > 0 && !this.planMedia.ouvert() ? n : null;
   });
 
-  protected readonly largeurRail = LARGEUR_RAIL;
-  protected readonly hauteurBarre = HAUTEUR_BARRE_HAUT;
+  /** « Carte seule » : local, jamais dans l'URL (comme le risque). */
+  protected readonly panneauReplie = signal(false);
+  private readonly panneauEtape = viewChild(PanneauEtapeComponent);
+  /** Les panneaux montés, dans l'ordre du parcours. */
+  protected readonly etapesMontees = computed(() => ETAPES_CARTE.filter((e) => this.parcours.visitees().has(e)));
+  private readonly score = inject(ScoreService);
+  /** Les zones d'un profil (T13) : injectées ici, inscrites à l'éviction de leur dégradé dès l'ouverture. */
+  private readonly zonesRisque = inject(ZonesRisqueService);
+  /** Les pastilles « renseignée » (A2) : ② = un jeu de ② affiché (T13, AT-4) ; ④ = score composite ou zones à risque (T14). */
+  protected readonly etapes = computed(() => etapesDuFil({
+    filtrePose: this.etat.filtre() !== null || this.etat.perimetreScope() !== null, calquesActifs: this.donnees.renseignee(),
+    analyseAffichee: this.score.affiche() !== null || this.zonesRisque.affichees() !== null,
+  }));
+  protected readonly segmentsAriane = computed<SegmentAriane[]>(() => segmentsDuFiltre(this.etat.filtre()));
+  protected readonly precisionAriane = computed(() => precisionDuPerimetre(this.etat.perimetreScope()));
+
   /**
    * L'id du fond (`MAP_STYLES[].id`), lu dans `localStorage['genesis_map_style']` à l'ouverture et écrit au choix
    * (B9). Un stockage qui lève rend le fond par défaut.
@@ -191,19 +214,6 @@ export class CartePage {
   protected readonly zoomInitial = ZOOM_INITIAL;
   protected readonly navigation = { position: 'bottom-right', boussole: true } as const;
 
-  /** L'entrée active, si elle s'ouvre dans le panneau gauche (`page.tsx:1173`). */
-  protected readonly panneau = computed(() => {
-    const id = this.etat.entreeActive();
-    const entree = id ? ENTREES_NAVIGATION.find((e) => e.id === id) : undefined;
-    if (!entree || entree.type !== 'panneau-gauche') return null;
-    return { id: entree.id, titre: entree.label, point: POINT_PAR_ENTREE[entree.id] ?? 'var(--text-tertiary)' };
-  });
-  /** Le panneau reste monté d'un outil à l'autre : seule sa catégorie change (`OverlayPanel.tsx:73`). */
-  protected readonly panneauOuvert = computed(() => this.panneau() !== null);
-  private readonly cadrePanneau = viewChild(PanneauComponent, { read: ElementRef });
-  private readonly composantPanneau = viewChild(PanneauComponent);
-  private readonly rail = viewChild(RailComponent, { read: ElementRef });
-
   /** Zoom courant ; le badge s'affiche dès l'ouverture, avant le `load` du fond, comme React. */
   private readonly zoom = signal(ZOOM_INITIAL);
   /**
@@ -214,24 +224,26 @@ export class CartePage {
   protected readonly texteZoom = computed(() => `z${Math.floor(this.zoom())}  ${palierCarreaux(this.zoom())}`);
 
   constructor() {
-    // Mode immersif dans la pile Échap (`page.tsx:288-293`) : Échap ré-affiche la barre.
+    // Mode immersif dans la pile Échap (`page.tsx:288-293`) : Échap ré-affiche la barre et le panneau.
     effect((nettoyer) => {
-      if (!this.etat.railMasque()) return;
-      this.pile.empiler('rail-masque', () => this.etat.railMasque.set(false));
-      nettoyer(() => this.pile.depiler('rail-masque'));
+      if (!this.etat.immersif()) return;
+      this.pile.empiler('immersif', () => this.etat.immersif.set(false));
+      nettoyer(() => this.pile.depiler('immersif'));
     });
 
     inject(DestroyRef).onDestroy(() => this.couches.publier(null));
     // Les choroplèthes « Environnement » (T10, et la météo T11, injectée plus haut) existent dès l'ouverture : elles
-    // s'inscrivent à l'éviction de leur dégradé et à « Tout effacer » avant tout geste, même panneau Calques fermé.
+    // s'inscrivent à l'éviction de leur dégradé et à « Tout effacer » avant tout geste, même étape ② jamais visitée.
     inject(IndicateursCiviquesService);
     inject(SanteService);
-    // Les couches de risque (T12) : instanciées ici, elles vivent avec la page et non avec le panneau Calques — sites et
-    // périmètres restent sur la carte panneau fermé, comme les couches React montées par `page.tsx:1187-1214`.
+    // Les couches de risque (T12) : instanciées ici, elles vivent avec la page et non avec le panneau Données — sites et
+    // périmètres restent sur la carte à toute étape, comme les couches React montées par `page.tsx:1187-1214`.
     inject(RisquesIndustrielsService);
     inject(PprtService);
-    // Les zones d'un profil (T13) : inscrites à l'éviction de leur dégradé dès l'ouverture, avant tout « Voir sur la carte ».
-    inject(ZonesRisqueService);
+    // Les zones custom (T14-T15) : instanciées dès l'ouverture, comme avant la tâche 3 des droits sur la carte, qui a retiré
+    // le seul appel direct de la page (`effacer()` au changement d'espace).
+    inject(ZonesCustomService);
+    suivreMargeCarte(this.couches.carteCourante, () => this.panneauEtape()?.decalageCarte() ?? 0, this.decalageOutils); // I-1 de T4b
 
     // Le fond MAGELIAN : surcharges posées sur la carte prête, ré-appliquées à chaque bascule de thème
     // (`useMapInit.ts:217-221,1091-1102`). `carteCourante` est publiée au `load` : le style
@@ -244,27 +256,36 @@ export class CartePage {
     });
 
     // Un élément qui portait le focus et se retire (détail IRIS, tiroir Street View d'un panneau, dialogue météo) le
-    // laisserait sur <body> du document — hors de l'unique écouteur clavier (B10) : Alt+1..4 et Échap ne répondraient
-    // plus. Même règle que `panneauFerme` (T3).
-    this.rendreFocusALaFermeture(() => this.iris.codeSelectionne() !== null);
-    this.rendreFocusALaFermeture(() => this.pois.panneauSelectionne() !== null);
-    this.rendreFocusALaFermeture(this.meteo.dialogueOuvert);
-    // Le module risque (T13) : il portait le focus, il disparaît avec l'outlet.
-    this.rendreFocusALaFermeture(this.moduleOuvert);
-
-    // Le focus sur l'hôte à l'ouverture : sans lui, aucun raccourci ne l'atteint avant le premier clic.
-    afterNextRender(() => this.rendreFocus());
+    // laisserait sur <body> du document — hors de l'unique écouteur clavier (B10) : Alt+1..8 et Échap ne répondraient plus.
+    // Le module risque (T13) disparaît avec l'outlet ; le tiroir de la boîte à outils (T5) devient inerte.
+    const hote = this.hote.nativeElement;
+    for (const ouvert of [() => this.iris.codeSelectionne() !== null, () => this.pois.panneauSelectionne() !== null,
+      this.meteo.dialogueOuvert, this.moduleOuvert, () => this.outils.outil() !== null]) {
+      rendreFocusALaFermeture(hote, this.injecteur, ouvert);
+    }
+    // À l'ouverture, puis après chaque geste qui CACHE ce qui portait le focus (`logique/focus-retour.ts`).
+    rendreFocusApresGeste(hote, this.injecteur, () => {
+      this.parcours.vue();
+      this.panneauReplie();
+      this.etat.immersif();
+    });
   }
 
-  protected choisir(id: EntreeId): void {
-    this.etat.choisirEntree(id);
+  protected choisirEtape(cle: string): void {
+    const e = lireEtape(cle);
+    if (e) this.parcours.choisir(e);
+  }
+
+  /** « France entière » du fil d'Ariane : retire le filtre — la croix de l'ancienne puce. */
+  protected remonterAriane(index: number): void {
+    if (index === 0) this.etat.filtre.set(null);
   }
 
   protected basculerImmersif(): void {
-    this.etat.railMasque.update((m) => !m);
+    this.etat.immersif.update((m) => !m);
   }
 
-  /** Réglages › Fond de carte, et le sélecteur compact. Le même id ne recrée rien. */
+  /** L'outil « Fond de carte » de la boîte à outils (T5). Le même id ne recrée rien. */
   protected choisirFond(id: string): void {
     if (id === this.fond()) return;
     // Avant la recréation : aucun effet de couche n'écrit dans l'instance qui va être détruite.
@@ -276,8 +297,8 @@ export class CartePage {
   /**
    * « Tout effacer » (`page.tsx:681-765`) : chaque couche inscrite s'efface, le dégradé actif est remis à zéro
    * SANS annonce (`page.tsx:740-743`), et le périmètre et les POI sélectionnés repartent à vide. Le filtre unique
-   * reste posé, comme React. Le seul paramètre d'URL de la carte, `customZone` (B9), est retiré par l'effacement que
-   * `LienZoneService` inscrit — comme `page.tsx:760-763`, pour qu'un rechargement ne rouvre pas la zone.
+   * reste posé, comme React. Le paramètre `customZone` (B9) est retiré par l'effacement que `LienZoneService`
+   * inscrit — comme `page.tsx:760-763`, pour qu'un rechargement ne rouvre pas la zone ; `etape` reste.
    */
   protected toutEffacer(): void {
     this.couches.toutEffacer();
@@ -287,18 +308,14 @@ export class CartePage {
   }
 
   /**
-   * Changement d'organisation dans la barre du haut. React recharge toute la page (`window.location.reload()`) ;
-   * recréer la carte ici perdrait tous les calques, alors que seul ce qui APPARTIENT à l'organisation précédente devient
-   * faux : ses zones affichées, la zone ouverte par le lien et un filtre posé sur l'une d'elles. Le panneau ouvert est
-   * FERMÉ ici, quel que soit le geste : au clavier, aucun clic hors du panneau ne l'a fermé, et « Mes zones » (comme la
-   * liste de zones du Filtre) a lu l'organisation à son ouverture — resté ouvert, il listerait l'ancienne et une
-   * opération y écrirait sa zone. Rouvert, il relit la nouvelle (revue 1).
+   * Changement d'espace (organisation active) dans la barre du parcours : la page le signale à son hôte
+   * (`CarteHoteComponent`), qui la RECRÉE — l'équivalent du `window.location.reload()` de React (droits sur la carte,
+   * T3). Tous les services d'état de la carte sont fournis ici (`providers`) : la recréation remet à zéro TOUT ce qui
+   * dépend du périmètre (catalogue POI, points, panneaux, batailles, zones, analyses, plan média), sans liste
+   * d'invalidations à tenir à jour.
    */
   protected organisationChangee(): void {
-    if (this.panneauOuvert()) this.panneauFerme();
-    this.zonesCustom.effacer();
-    this.lienZone.oublier();
-    if (this.etat.filtre()?.type === 'zone') this.etat.filtre.set(null);
+    this.espaceChange.emit();
   }
 
   /** « Script bidding DV360 » de la zone du lien (`page.tsx:1377-1399`) : un FICHIER, aucun envoi vers DV360. */
@@ -323,46 +340,11 @@ export class CartePage {
   }
 
   /**
-   * Le panneau a fini sa sortie. S'il portait le focus (sa croix vient d'être cliquée, un champ de son
-   * contenu), le retirer du DOM le ferait tomber sur `<body>` du document — hors de l'hôte, donc hors
-   * de l'unique écouteur clavier (B10) : `Alt+1..4` et Échap ne répondraient plus avant un nouveau clic.
-   * React écoute `window` et n'a pas ce problème ; ici, le focus revient à l'hôte de la page.
-   */
-  protected panneauFerme(): void {
-    const cadre = this.cadrePanneau()?.nativeElement;
-    const avaitFocus = !!cadre && cadre.contains(this.elementActif());
-    this.etat.fermerEntree();
-    if (avaitFocus) afterNextRender(() => this.rendreFocus(), { injector: this.injecteur });
-  }
-
-  /** À chaque passage de `ouvert` de vrai à faux, le focus revient à l'hôte s'il n'est plus dans la page. */
-  private rendreFocusALaFermeture(ouvert: () => boolean): void {
-    let etaitOuvert = false;
-    effect(() => {
-      const o = ouvert();
-      if (etaitOuvert && !o) afterNextRender(() => this.rendreFocus(), { injector: this.injecteur });
-      etaitOuvert = o;
-    });
-  }
-
-  /** L'élément focalisé, lu dans la racine qui porte la page (`document.activeElement` y serait l'hôte d'ombre). */
-  private elementActif(): Element | null {
-    return (this.hote.nativeElement.getRootNode() as Document | ShadowRoot).activeElement;
-  }
-
-  /** Rend le focus à l'hôte s'il n'est plus nulle part dans la page (élément retiré pendant qu'il le portait). */
-  private rendreFocus(): void {
-    const el = this.hote.nativeElement;
-    const actif = this.elementActif();
-    if (!actif || !el.contains(actif)) el.focus({ preventScroll: true });
-  }
-
-  /**
-   * Recopie de `page.tsx:302-318`. Échap n'est JAMAIS filtré par la garde de saisie. Un Échap déjà
-   * consommé par un gestionnaire INTÉRIEUR (`preventDefault()`) ne ferme rien de plus : c'est le cas
-   * d'un menu ouvert du badge de session, qui consomme Échap sur son propre hôte AVANT que la frappe
-   * ne remonte ici (`BadgeSessionComponent.echap`) — sinon un seul Échap fermerait le menu ET le
-   * panneau. L'Assistant (`Ctrl+K`) n'est pas porté : la frappe n'est pas captée.
+   * Échap n'est JAMAIS filtré par la garde de saisie. Un Échap déjà consommé par un gestionnaire INTÉRIEUR
+   * (`preventDefault()`) ne ferme rien de plus : c'est le cas d'un menu ouvert du badge de session, qui consomme Échap
+   * sur son propre hôte AVANT que la frappe ne remonte ici (`BadgeSessionComponent.echap`). Alt+1…Alt+8 choisissent
+   * l'étape (`etapeParRaccourci`, lu sur la touche physique : Alt+1 marche en AZERTY). Alt+C (l'ancienne Campagne) et
+   * Ctrl+K (l'Assistant, retiré le 2026-10-12) ne mènent plus à rien : la frappe n'est pas captée.
    */
   protected clavier(e: KeyboardEvent): void {
     // `nodeType` et non `instanceof Element` : la cible peut venir d'un autre domaine de JavaScript.
@@ -375,25 +357,11 @@ export class CartePage {
       this.pile.fermerLePlusHaut();
       return;
     }
-    const entree = entreeParRaccourci(e);
-    if (!entree || entree === 'assistant') return;
+    // Sous le module risque, le parcours ne bouge pas : un raccourci n'écrit pas l'URL de la carte dessous (Review Focus 2).
+    if (this.moduleOuvert()) return;
+    const etape = etapeParRaccourci(e);
+    if (!etape) return;
     e.preventDefault();
-    this.etat.choisirEntree(entree);
-  }
-
-  /**
-   * Clic hors du panneau ET hors du rail : le panneau se ferme (`OverlayPanel.tsx:116-131`). Écouté
-   * sur l'hôte de la page, jamais sur `window` : un clic dans le shell n'a pas à fermer un panneau.
-   */
-  protected pointerHors(e: MouseEvent): void {
-    const panneau = this.composantPanneau();
-    // Un outil de « Créer une zone » tient la carte (tracé, pose d'un centre) : ses clics lui appartiennent (T16) ; un
-    // clic sur un point des clusters appartient au panneau de clusters (fiche, POI B — T19).
-    if (!panneau || this.etat.carteOccupee() || this.etat.clicReserve(e)) return;
-    const chemin = e.composedPath();
-    const cadre = this.cadrePanneau()?.nativeElement;
-    const rail = this.rail()?.nativeElement;
-    if ((cadre && chemin.includes(cadre)) || (rail && chemin.includes(rail))) return;
-    panneau.demanderFermeture();
+    this.parcours.choisir(etape);
   }
 }

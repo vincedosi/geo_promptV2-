@@ -1,21 +1,23 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
-import { type Subscription, switchMap } from 'rxjs';
-import { ZonesCustomApi } from '../../data/zones-custom.api';
+import type { Subscription } from 'rxjs';
+import { ZonesApi } from '../../data/zones.api';
 import {
-  MESSAGE_RESOLUTION_ECHOUEE, MESSAGE_SAUVEGARDE_ECHOUEE, OPERATIONS_ZONES, ORDRE_OPERATIONS, type OperationZones, corpsOperation,
-  libelleSelection, messageRefusOperation, messageZoneCreee, nomDansSelection, nomZoneCreee,
+  MESSAGE_RESOLUTION_ECHOUEE, OPERATIONS_ZONES, ORDRE_OPERATIONS, type OperationZones,
+  libelleSelection, messageZoneCreee, nomDansSelection, nomZoneCreee, operationPossible,
 } from '../../logique/zones/operations-zones';
+import { messageErreurZone } from '../../logique/zones/perimetre-recette';
 
 /**
  * La barre des opérations booléennes au-dessus de « Mes zones » — `ZonesOperations.tsx` (lot 4, T14), textes exacts.
  * Toujours montée, comme React (son état survit à une sélection vidée) ; la barre n'apparaît qu'avec une zone cochée,
  * les boutons s'activent à deux.
  *
- * Le geste ÉCRIT en base : la route calcule la géométrie (`/source/{composite,intersection,difference}`), puis
- * `/api/custom-geo/save` enregistre la zone et résout ses codes postaux — c'est cette liste qui part au DSP. Sur un
- * refus (409 « aucune surface en commun »), RIEN n'est enregistré : la sauvegarde n'est pas appelée. La composition
- * est gardée en clair dans `source_metadata` (opération, ids et noms des membres, surface).
+ * Le geste ÉCRIT en base, en UN appel depuis le lot 3 : `POST /api/zones` avec la recette
+ * `{ type: 'combinaison', operation, zones }` — le serveur calcule la forme, l'écrit et résout ses codes postaux. La
+ * composition est la recette même (ids des membres, dans l'ordre : la première est la base). Sur un refus (409
+ * « aucune surface en commun », 404 zone introuvable), RIEN n'est écrit et le message de la route est affiché.
+ * L'intersection ne se fait qu'entre DEUX zones (la recette `combinaison` l'exige) : « Restreindre à » n'est actif qu'à deux.
  *
  * Défaut de React corrigé : la réussite vide la sélection, et la barre disparaissait avec elle — « Zone créée : … »
  * n'était jamais vu au moment de la création, puis resurgissait, périmé, à la sélection suivante. Ici le message reste
@@ -78,7 +80,7 @@ import {
   `,
 })
 export class OperationsZonesComponent {
-  private readonly api = inject(ZonesCustomApi);
+  private readonly api = inject(ZonesApi);
 
   /** Ids des zones cochées, DANS L'ORDRE où elles l'ont été. */
   readonly selection = input.required<readonly string[]>();
@@ -100,7 +102,7 @@ export class OperationsZonesComponent {
     return {
       op, aide: d.aide,
       libelle: this.enCours() === op ? '…' : d.libelle,
-      inactif: this.selection().length < d.min || this.enCours() !== null || !this.org(),
+      inactif: !operationPossible(op, this.selection().length) || this.enCours() !== null || !this.org(),
     };
   }));
 
@@ -110,48 +112,26 @@ export class OperationsZonesComponent {
 
   protected lancer(op: OperationZones): void {
     const selection = [...this.selection()];
-    const org = this.org();
-    if (this.enCours() || selection.length < OPERATIONS_ZONES[op].min || !org) return;
-    this.enCours.set(op);
+    if (this.enCours() || !operationPossible(op, selection.length) || !this.org()) return;
     this.erreur.set(null);
     this.message.set(null);
-    const d = OPERATIONS_ZONES[op];
-    const noms = this.noms();
-    // Ce que la route de l'opération a rendu : un échec APRÈS elle est celui de la sauvegarde.
-    let geometrieRecue = false;
-    let surface: number | null = null;
-
-    this.abonnement = this.api.operation(d.source, corpsOperation(op, selection)).pipe(
-      switchMap((geo) => {
-        geometrieRecue = true;
-        surface = geo.surface_km2 ?? null;
-        return this.api.enregistrer({
-          name: nomZoneCreee(op, selection, noms).slice(0, 200),
-          source_type: d.source,
-          source_metadata: {
-            operation: op,
-            member_zone_ids: selection,
-            member_zone_names: selection.map((id) => nomDansSelection(noms, id)),
-            surface_km2: surface,
-          },
-          geometry: geo.geometry,
-          org_id: org,
-        });
-      }),
-    ).subscribe({
+    this.enCours.set(op);
+    this.abonnement = this.api.enregistrer({
+      nom: nomZoneCreee(op, selection, this.noms()).slice(0, 200),
+      recette: { v: 1, type: 'combinaison', operation: op, zones: selection },
+    }).subscribe({
       next: (reponse) => {
         this.enCours.set(null);
-        if (reponse.status === 207) {
-          this.erreur.set(MESSAGE_RESOLUTION_ECHOUEE);
-          return;
-        }
-        this.message.set(messageZoneCreee(reponse.body?.count_cp, surface));
+        // 207 : la zone EXISTE (codes non résolus). Elle est donc « terminée » comme une réussite — liste relue,
+        // sélection vidée par le parent, aucun second envoi possible — et le message de la route le dit.
+        this.message.set(reponse.status === 207
+          ? (reponse.body?.message ?? MESSAGE_RESOLUTION_ECHOUEE)
+          : messageZoneCreee(reponse.body?.count_cp, reponse.body?.surface_km2));
         this.termine.emit();
       },
-      error: (e: unknown) => {
+      error: (e: { status?: number; error?: unknown }) => {
         this.enCours.set(null);
-        const r = e as { status?: number; error?: unknown };
-        this.erreur.set(geometrieRecue ? MESSAGE_SAUVEGARDE_ECHOUEE : messageRefusOperation(r.status ?? 0, r.error));
+        this.erreur.set(messageErreurZone(e));
       },
     });
   }

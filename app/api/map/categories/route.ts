@@ -1,37 +1,19 @@
 /**
  * GET /api/map/categories
- * Retourne les catégories de POI distinctes présentes dans la base.
- * Filtrées par les data_sources de l'organisation si la session le requiert.
+ * Retourne les catégories de POI visibles de l'espace actif, chacune avec son
+ * origine : `{ categories: { id, label, origine: 'commune' | 'espace' }[] }`.
+ * « espace » = au moins un POI visible vient d'une source propre à l'espace
+ * (privée, possédée ou partagée) ; « commune » sinon (spec
+ * droits-sur-la-carte R6, 2026-10-12).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { getSessionOrg } from '@/lib/auth/getSessionOrg';
 import { getDistinctCategories, getCategoriesVisibles, invalidateCategoriesCache } from '@/lib/poi/categories';
-import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
+import { libellesCategories, avecLibelles } from '@/lib/poi/libelles-categories';
+import { getOrgSourceIds, getSourcesPropresEspace } from '@/lib/auth/getOrgSourceIds';
 
 export const dynamic = 'force-dynamic';
-
-// Construit la map categorie → label_fr depuis poi_categories (1 requête légère)
-async function buildLabelMap(supabase: ReturnType<typeof createAdminClient>, cats: string[]): Promise<Record<string, string>> {
-  if (cats.length === 0) return {};
-  const { data } = await supabase
-    .from('poi_categories')
-    .select('categorie, label_fr')
-    .in('categorie', cats);
-  const map: Record<string, string> = {};
-  for (const row of data ?? []) {
-    if (row.label_fr) map[row.categorie] = row.label_fr;
-  }
-  return map;
-}
-
-// Transforme string[] → {id, label}[] en utilisant label_fr si disponible
-function withLabels(cats: string[], labelMap: Record<string, string>) {
-  return cats.map(c => ({
-    id: c,
-    label: labelMap[c] ?? (c.charAt(0).toUpperCase() + c.slice(1).replace(/_/g, ' ')),
-  }));
-}
 
 export async function GET(req: NextRequest) {
   const session  = await getSessionOrg(req);
@@ -54,12 +36,18 @@ export async function GET(req: NextRequest) {
   // au super_admin. Cette route est publique (middleware.ts) : un appelant
   // SANS session reçoit les catégories du socle, et plus la liste complète —
   // qui révélait l'existence des catégories privées de chaque client.
-  const sourceIds = await getOrgSourceIds(session);
+  //
+  // Vue espace (2026-10-12) : le super_admin voit la carte comme son espace
+  // actif, exactement comme un client de cet espace — jamais « tout ».
+  const sourceIds = await getOrgSourceIds(session, { vueEspace: true });
 
-  // null → super_admin : tout retourner avec les libellés.
+  // null → impossible avec `vueEspace` (branche gardée pour un appelant futur
+  // qui retirerait l'option) : tout retourner avec les libellés.
   if (sourceIds === null) {
-    const labelMap = await buildLabelMap(supabase, allCats);
-    return NextResponse.json({ categories: withLabels(allCats, labelMap) });
+    const labelMap = await libellesCategories(supabase, allCats);
+    return NextResponse.json({
+      categories: avecLibelles(allCats, labelMap).map((c) => ({ ...c, origine: 'commune' as const })),
+    });
   }
 
   // [] → organisation connue mais sans aucune source : aucun accès.
@@ -70,6 +58,19 @@ export async function GET(req: NextRequest) {
   // Leapfrog sur les catégories restreintes aux sources de l'org — extrait
   // dans `getCategoriesVisibles` pour que le chat applique la même règle.
   const filteredCats = await getCategoriesVisibles(sourceIds);
-  const labelMap     = await buildLabelMap(supabase, filteredCats);
-  return NextResponse.json({ categories: withLabels(filteredCats, labelMap) });
+  const labelMap     = await libellesCategories(supabase, filteredCats);
+
+  // « Données de l'espace » : au moins un POI visible vient d'une source propre
+  // à l'espace. Une catégorie mixte est rangée « espace » (ce que le client a
+  // importé prime). Un leapfrog de plus, sur les seules sources propres, en
+  // cache par empreinte comme le premier ; aucun s'il n'y en a pas. Les deux
+  // lectures sont SÉQUENTIELLES — jamais de Promise.all ici (règles I/O).
+  const propres    = await getSourcesPropresEspace(session);
+  const catsEspace = new Set(propres.length > 0 ? await getCategoriesVisibles(propres) : []);
+  return NextResponse.json({
+    categories: avecLibelles(filteredCats, labelMap).map((c) => ({
+      ...c,
+      origine: catsEspace.has(c.id) ? ('espace' as const) : ('commune' as const),
+    })),
+  });
 }

@@ -17,25 +17,27 @@ export interface EtapeAffichee {
   selector: 'mg-fil-etapes',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <nav aria-label="Étapes du parcours" class="flex items-center gap-0.5 ml-1">
+    <nav aria-label="Étapes du parcours" class="flex items-center ml-1" [class]="compact() ? 'gap-0' : 'gap-0.5'">
       @for (e of etapes(); track e.cle; let i = $index) {
         @if (i > 0) { <span aria-hidden="true" class="text-[11px] text-tertiary">›</span> }
         <button #bouton type="button"
                 (click)="choisir.emit(e.cle)" (keydown)="auClavier($event, i)"
                 [attr.aria-current]="e.cle === courante() ? 'step' : null"
-                class="inline-flex items-center gap-[5px] px-2.5 pt-1 pb-1.5 text-[12px] cursor-pointer border-b-2"
+                [attr.title]="compact() && e.cle !== courante() ? e.libelle : null"
+                class="inline-flex items-center gap-[5px] pt-1 pb-1.5 text-[12px] cursor-pointer border-b-2"
+                [class]="compact() ? boutonCompact : boutonNormal"
                 [class.font-medium]="e.cle === courante()"
                 [class.text-primary]="e.cle === courante()"
                 [class.border-teal]="e.cle === courante()"
                 [class.text-tertiary]="e.cle !== courante()"
                 [class.border-transparent]="e.cle !== courante()">
           <span aria-hidden="true" class="text-[10px]"
-                [class.text-teal]="e.cle === courante()">{{ e.rang }}</span>
-          {{ e.libelle }}
+                [class.text-teal]="e.cle === courante()">{{ e.rang }}</span>&ngsp;
+          <span data-libelle-etape [class]="compact() && e.cle !== courante() ? repli : ''">{{ e.libelle }}</span>
           @if (e.renseignee && e.cle !== courante()) {
             <span aria-hidden="true" title="Vous avez posé un choix à cette étape."
                   class="size-[5px] rounded-full bg-teal"></span>
-            <span class="sr-only">(renseignée)</span>
+            <span class="sr-only">&ngsp;(renseignée)</span>
           }
         </button>
       }
@@ -45,6 +47,28 @@ export interface EtapeAffichee {
 export class FilEtapesComponent {
   readonly etapes = input.required<EtapeAffichee[]>();
   readonly courante = input.required<string>();
+  /**
+   * Fil COMPACT (barre du parcours de la carte, 8 étapes — T4c) : une ligne par étape, padding réduit, et sous
+   * le seuil `repli` (largeur de CONTENEUR : le parent porte `@container`), les étapes non courantes ne montrent plus que
+   * leur numéro — libellé gardé pour le lecteur d'écran (`sr-only`) et redit en infobulle. Défaut : inchangé.
+   */
+  readonly compact = input(false);
+  protected readonly boutonNormal = 'px-2.5';
+  protected readonly boutonCompact = 'h-[30px] min-w-6 justify-center px-1 whitespace-nowrap shrink-0';
+  /**
+   * Littéral : Tailwind lit les classes dans le source. Seuil = le fil complet en compact au PIRE du lot 1 : ≈ 606 px
+   * sans pastille (`px-1`, mesuré au round 1), plus ① et ② « renseignées » (≈ 10 px chacune) et le `font-medium` de
+   * l'étape courante, plus le bouton « Autres » que la barre pose dans le MÊME conteneur depuis T11b. En compact, le `nav`
+   * n'a AUCUN écart (`gap-0`, −28 px ; les `px-1` des boutons séparent déjà les chevrons). Mesuré le 14/10 au navigateur
+   * (round 1 de T11b), au pire — ① et ② renseignées, « 5 Jeu de zones » courante en gras : fil 571 px, filet 1, « Autres »
+   * 45, deux écarts de 4 px = 625 px. Depuis T14, ④ s'allume aussi (score composite ou zones à risque) : au pire —
+   * ①, ② et ④ renseignées, « 5 Jeu de zones » courante — fil 581 px, conteneur 635 px (mesuré le 14/10 ; à 632 px de
+   * conteneur, libellés affichés, `scrollWidth` 635 : il défilait). Seuil 640 px : il se replie au lieu de défiler. Seule
+   * la barre du parcours pose `compact`. À 1 440 px, fil d'Ariane « France entière » : 642 px offerts avec le badge
+   * super_admin long (367 px, « dentsu.explore (interne) »), tout lisible ; à 1 280 px (482 px) : replié. Une précision
+   * au fil d'Ariane (« métropole ») ou un filtre posé réduit la place comme avant T11b.
+   */
+  protected readonly repli = '@max-[640px]:sr-only';
   readonly choisir = output<string>();
 
   private readonly boutons = viewChildren<ElementRef<HTMLButtonElement>>('bouton');

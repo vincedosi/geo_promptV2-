@@ -192,6 +192,17 @@ export class CarteFactice {
     return { layers: [...this.styleCouches, ...posees] };
   }
   fitBounds(cadre: unknown, options?: unknown): this { this.cadrages.push({ cadre, options }); return this; }
+  /** Les marges posées par `setPadding`, dans l'ordre (la marge de la carte suit le panneau d'étape, T4b). */
+  readonly marges: unknown[] = [];
+  setPadding(marge: unknown): this { this.marges.push(marge); return this; }
+  getPadding(): { top: number; bottom: number; left: number; right: number } {
+    return (this.marges.at(-1) as ReturnType<CarteFactice['getPadding']> | undefined) ?? { top: 0, bottom: 0, left: 0, right: 0 };
+  }
+  /** Vrai : une animation de caméra est en cours (`fitBounds`, `flyTo`…), que `emettre('moveend')` termine. */
+  enMouvement = false;
+  isMoving(): boolean { return this.enMouvement; }
+  /** L'inverse de `project` : les pixels en longitude et latitude, tels quels. */
+  unproject(point: [number, number]): { lng: number; lat: number } { return { lng: point[0], lat: point[1] }; }
   remove(): void { this.retiree = true; }
   resize(): this { this.appelsResize++; return this; }
   getBounds() {

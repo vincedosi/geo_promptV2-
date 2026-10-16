@@ -1,6 +1,6 @@
 # MAGELIAN
 
-> SaaS B2B de géomarketing OOH/DOOH + Custom Bidding ML pour campagnes DSP. Planification d'affichage extérieur sur données INSEE, ciblage carto temps réel, optimisation algorithmique des bids, agent IA superviseur.
+> SaaS B2B de géomarketing OOH/DOOH + Custom Bidding pour campagnes DSP. Planification d'affichage extérieur sur données INSEE, ciblage carto temps réel, export des multiplicateurs d'enchères par code postal.
 
 ## Stack
 
@@ -9,8 +9,6 @@
 | Frontend | Next.js 14 App Router · TypeScript strict · Tailwind |
 | Cartographie | MapLibre GL JS · PMTiles (IRIS via GitHub Releases) · OpenFreeMap |
 | Backend | Supabase Pro (PostgreSQL 15 + PostGIS, compute Nano) |
-| ML | Python · river (Hoeffding Adaptive Tree) · déployé sur Modal (HTTPS) |
-| LLM | Vercel AI SDK · Gemini 2.5 Flash (default) · Mistral Small (fallback) |
 | Jobs async | Inngest |
 | Hosting | Vercel |
 
@@ -21,8 +19,6 @@
 - Node.js 20+
 - npm (ou pnpm)
 - Compte [Supabase](https://supabase.com) (free tier OK)
-- Compte [Modal](https://modal.com) (free tier OK, $30/mois suffit)
-- Clé API [Gemini](https://aistudio.google.com/app/apikey) (free tier OK)
 
 ### Étapes
 
@@ -47,22 +43,12 @@
    ```bash
    npx tsx scripts/setup-check.ts
    ```
-   Le script vérifie connexion Supabase, clé Gemini, URL Modal.
+   Le script vérifie les variables obligatoires et la connexion Supabase.
 
 5. **Migrations DB**
    Les migrations sont déjà appliquées sur le projet Supabase de dev. Pour un nouveau projet, voir [docs/deployment.md](docs/deployment.md).
 
-6. **Déployer Modal (Custom Bidding ML)**
-   ```bash
-   modal token set --token-id ak-... --token-secret as-...
-   modal secret create magelian-supabase \
-     SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
-     SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY"
-   modal deploy modal/bidding_ml/app.py
-   # Coller l'URL retournée dans .env.local sous MODAL_BIDDING_ML_URL
-   ```
-
-7. **Lancer en dev**
+6. **Lancer en dev**
    ```bash
    npm run dev
    ```
@@ -74,39 +60,22 @@ Voir [`.env.example`](.env.example) pour la liste exhaustive et documentée.
 
 **Obligatoires** :
 - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY`
-- `GOOGLE_GENERATIVE_AI_API_KEY` (Gemini, pour l'agent IA)
-- `MODAL_BIDDING_ML_URL` (pour Custom Bidding)
 
 **Optionnelles** :
-- `MISTRAL_API_KEY` (fallback LLM)
 - `ORS_API_KEY` (isochrones)
 - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` (rate limiting prod)
 - `GITHUB_TOKEN` (proxy PMTiles si dépôt privé)
 
 ## Architecture
 
-Vue d'ensemble : [docs/architecture.md](docs/architecture.md)
-
-```
-┌─ Next.js (Vercel) ─────────────┐    HTTPS    ┌─ Modal (Python) ──┐
-│  /map (MapLibre)               │ ──────────► │  bidding-ml       │
-│  /custom-bidding/[strategy_id] │             │  predict / train  │
-│  /api/bidding/* /api/agent/*   │             │  detect-drift     │
-└──────────┬─────────────────────┘             └──────────┬────────┘
-           │                                              │
-           ▼                                              ▼
-   ┌─────────────────────────────────────────────────────────┐
-   │  Supabase (PostgreSQL 15 + PostGIS)                     │
-   │  bidding_strategies, adaptive_model_state,              │
-   │  bidding_zone_configs, bidding_drift_events,            │
-   │  bidding_agent_actions, dsp_campaigns, iris, …          │
-   └─────────────────────────────────────────────────────────┘
-```
+> Le service ML Python sur Modal, l'agent d'enchères et l'historique de chat
+> ont été retirés le 2026-10-12 (suppression de l'IA). Les multiplicateurs
+> d'enchères par code postal sont produits localement (`lib/zones/plan.ts`).
+> Source de vérité de l'architecture : [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Documentation
 
-- [`docs/architecture.md`](docs/architecture.md) — vue d'ensemble + responsabilités modules
-- [`docs/deployment.md`](docs/deployment.md) — procédure prod (Supabase + Modal + Vercel)
+- [`docs/deployment.md`](docs/deployment.md) — procédure prod (périmée : Supabase hébergé, Vercel et Modal ne sont plus utilisés)
 - [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) — guide dev (ajouter feature/RPC/intent/algo)
 - [`docs/decisions.md`](docs/decisions.md) — Architecture Decision Records (10 ADRs)
 - [`docs/glossary.md`](docs/glossary.md) — termes métier OOH/DOOH/DSP

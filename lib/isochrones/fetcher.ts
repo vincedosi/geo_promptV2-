@@ -1,7 +1,8 @@
 /**
  * lib/isochrones/fetcher.ts
  * Module partagé : appel ORS API + cache Supabase pour les isochrones.
- * Réutilisé par /api/chat/route.ts et /api/isochrone-battle/route.ts
+ * Utilisé par /api/isochrone-battle/route.ts (le chat, son autre appelant,
+ * est supprimé depuis le 2026-10-12).
  */
 
 import { createAdminClient } from '@/lib/auth';
@@ -29,8 +30,8 @@ export const ORS_DELAI_MS    = 12_000;
 const ORS_ATTENTE_DELAI_MS   = 5_000;
 const ORS_URL = 'https://api.openrouteservice.org/v2/isochrones';
 
-// Limite de POIs pour /api/chat (timeout 120s)
-export const ORS_MAX_POIS_CHAT = 50;
+// Limite de POIs par défaut de `fetchIsochrones` (timeout 120s)
+export const ORS_MAX_POIS_DEFAUT = 50;
 // Limite pour /api/isochrone-battle (timeout étendu, cache prioritaire)
 export const ORS_MAX_POIS_ROUTIER = 300;
 
@@ -76,7 +77,7 @@ export async function fetchIsochrones(
   minutes: number,
   mode: string,
   cacheCtx: IsochroneCacheCtx,
-  maxPois = ORS_MAX_POIS_CHAT,
+  maxPois = ORS_MAX_POIS_DEFAUT,
   forceRecalculate = false
 ): Promise<Record<string, unknown> | null> {
   const apiKey = process.env.ORS_API_KEY;

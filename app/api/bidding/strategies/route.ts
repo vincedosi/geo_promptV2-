@@ -15,9 +15,8 @@
  *         (> 30 j / absent de indicator_cp_values), RPC materialize_indicator_cp_values()
  *         avant l'étape suivante — échec → 422 { error: 'indicator_not_ready' }.
  *   6. RPC apply_zone_weights_to_strategy() pour générer les bidding_zone_configs
- *   7. INSERT agent_autonomy_settings si autonomy_override fourni
- *   8. UPDATE draft → consumed si consume_draft_id fourni
- *   9. RPC log_strategy_change(change_type='created')
+ *   7. UPDATE draft → consumed si consume_draft_id fourni
+ *   8. RPC log_strategy_change(change_type='created')
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -75,7 +74,6 @@ const StrategyCreateSchema = z.object({
   // Step 5
   execution_mode: z.enum(['monitor_only', 'suggest', 'auto']).default('suggest'),
   init_preset_code: z.string().optional(),
-  agent_autonomy_override: z.number().int().min(0).max(4).nullable().optional(),
   notification_channels: z.array(z.string()).optional(),
   alert_severity_threshold: z.enum(['low', 'medium', 'high', 'critical']).optional(),
 
@@ -304,16 +302,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `apply_zone_weights: ${rpcErr.message}` }, { status: 500 });
   }
 
-  // 6. agent_autonomy_settings override si fourni
-  if (typeof body.agent_autonomy_override === 'number') {
-    await supabase.from('agent_autonomy_settings').upsert({
-      scope_type: 'strategy',
-      strategy_id: created.id,
-      autonomy_level: body.agent_autonomy_override,
-    }, { onConflict: 'scope_type,strategy_id' });
-  }
-
-  // 7. Consume draft si fourni
+  // 6. Consume draft si fourni
   if (body.consume_draft_id) {
     await supabase
       .from('bidding_strategy_drafts')
@@ -322,7 +311,7 @@ export async function POST(request: NextRequest) {
       .eq('user_id', profile.id);
   }
 
-  // 8. Audit trail : 'created'
+  // 7. Audit trail : 'created'
   await supabase.rpc('log_strategy_change', {
     p_strategy_id: created.id,
     p_change_type: 'created',

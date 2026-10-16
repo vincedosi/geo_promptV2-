@@ -5,15 +5,6 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { ThemeService } from '../../../core/theme/theme.service';
 import { ReglagesComponent } from './reglages.component';
 
-@Component({
-  imports: [ReglagesComponent],
-  template: `<mg-reglages [fond]="fond()" (choisirFond)="choix.push($event)" />`,
-})
-class Hote {
-  readonly fond = signal('liberty');
-  readonly choix: string[] = [];
-}
-
 @Component({ template: '<p data-acces>accès</p>' })
 class PageAcces {}
 
@@ -24,14 +15,14 @@ async function monter() {
     providers: [
       { provide: ThemeService, useValue: { theme: signal('dark'), basculer } },
       provideRouter([
-        { path: 'carte', component: Hote },
+        { path: 'carte', component: ReglagesComponent },
         { path: 'admin/acces', component: PageAcces },
         { path: 'admin/health', component: PageAcces },
       ]),
     ],
   });
   const harness = await RouterTestingHarness.create();
-  const instance = await harness.navigateByUrl('/carte', Hote);
+  const instance = await harness.navigateByUrl('/carte', ReglagesComponent);
   const fixture = { componentInstance: instance, whenStable: () => harness.fixture.whenStable() };
   await fixture.whenStable();
   const el = harness.fixture.nativeElement as HTMLElement;
@@ -39,36 +30,15 @@ async function monter() {
 }
 
 describe('ReglagesComponent — portage de SettingsOverlay.tsx', () => {
-  it("cinq sections dans l'ordre de React : Modèle IA, Fond de carte, Vues sauvegardées, Apparence, Back office", async () => {
+  it("deux sections : Apparence, Back office — le fond de carte a son propre outil (tiroir « Fond de carte », 2026-10-13)", async () => {
     const { el } = await monter();
     const titres = [...el.querySelectorAll('section h4')].map((h) => h.textContent?.trim());
-    expect(titres).toEqual(['Modèle IA', 'Fond de carte', 'Vues sauvegardées', 'Apparence', 'Back office']);
-  });
-
-  it('« Fond de carte » : quatre fonds, le courant aria-pressed ; un clic émet son id', async () => {
-    const { fixture, el } = await monter();
-    const fonds = [...el.querySelectorAll<HTMLButtonElement>('[data-section="fond"] button')];
-    expect(fonds.map((b) => b.textContent?.trim())).toEqual(['Standard', 'OSM', 'Clair', 'dentsu']);
-    expect(fonds.map((b) => b.getAttribute('aria-pressed'))).toEqual(['true', 'false', 'false', 'false']);
-    fonds[3].click();
-    expect(fixture.componentInstance.choix).toEqual(['magelian']);
-    fixture.componentInstance.fond.set('magelian');
-    await fixture.whenStable();
-    // Clair et MAGELIAN partagent l'URL de Positron : un seul des deux est pressé (défaut React corrigé).
-    expect(fonds.map((b) => b.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'false', 'true']);
-  });
-
-  it('« Modèle IA » et « Vues sauvegardées » sont INERTES (aria-disabled, Disponible prochainement)', async () => {
-    const { el } = await monter();
-    const inertes = [
-      ...el.querySelectorAll<HTMLButtonElement>('[data-section="modele-ia"] button'),
-      ...el.querySelectorAll<HTMLButtonElement>('[data-section="vues"] button'),
-    ];
-    expect(inertes.map((b) => b.textContent?.trim())).toEqual(['Mistral', 'Gemini', 'Sauvegarder la vue actuelle']);
-    for (const b of inertes) {
-      expect(b.getAttribute('aria-disabled')).toBe('true');
-      expect(b.getAttribute('title')).toBe('Disponible prochainement');
-    }
+    expect(titres).toEqual(['Apparence', 'Back office']);
+    expect(el.querySelector('[data-section="fond"]')).toBeNull();
+    expect(el.querySelector('[data-fond]')).toBeNull();
+    expect(el.textContent).not.toContain('Mistral');
+    expect(el.textContent).not.toContain('Gemini');
+    expect(el.textContent).not.toContain('Sauvegarder la vue actuelle');
   });
 
   it('« Apparence » bascule le thème par ThemeService.basculer() seul', async () => {

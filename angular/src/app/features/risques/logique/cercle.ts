@@ -1,6 +1,6 @@
 /**
  * Un cercle en GeoJSON — copie Angular de `circleGeoJSON`
- * (`app/copilote/_lib/constants.ts:12-28`), nom francisé, même calcul : le
+ * (`app/map/_lib/constants.ts:12-28`), nom francisé, même calcul : le
  * survol d'un site dessine ses anneaux sans aucune requête.
  */
 export function cercleGeoJSON(

@@ -52,13 +52,15 @@ export async function reserverAuSuperAdmin(req: NextRequest): Promise<NextRespon
 }
 
 /**
- * Les sources visibles de l'appelant d'une route.
+ * Les sources visibles de l'appelant d'une route de la CARTE (toute route hors
+ * /api/admin) : le socle + son espace actif + ses partages — super_admin
+ * compris, qui voit la carte comme l'espace qu'il a choisi (2026-10-12, spec
+ * droits-sur-la-carte R3/R4). Sans espace actif : le socle seul.
  *
- * @returns `null` pour un super_admin (aucun filtre), sinon la liste des
- *   sources visibles — jamais `null` pour un autre appelant, même sans session.
+ * @returns la liste des sources visibles — JAMAIS `null`, pour personne.
  */
-export async function sourcesVisiblesDeLaRequete(req: NextRequest): Promise<string[] | null> {
-  return getOrgSourceIds(await getSessionOrg(req));
+export async function sourcesVisiblesDeLaRequete(req: NextRequest): Promise<string[]> {
+  return (await getOrgSourceIds(await getSessionOrg(req), { vueEspace: true })) ?? [];
 }
 
 /**
@@ -77,8 +79,15 @@ export async function sourcesVisiblesDeLaRequete(req: NextRequest): Promise<stri
  * BMW l'aurait été à la Marine. Avec l'empreinte, deux appelants qui VOIENT la
  * même chose partagent le cache — et eux seuls.
  *
- * @returns `tout` pour un super_admin, sinon 12 caractères hexadécimaux
- *   stables (indépendants de l'ordre des sources).
+ * Depuis le 2026-10-12, les routes de la carte (`sourcesVisiblesDeLaRequete`)
+ * ne passent plus jamais `null` : un super_admin y reçoit l'empreinte de son
+ * espace actif, comme un client de cet espace. Les résultats déjà calculés
+ * sous `tout` ne lui sont donc plus resservis sur la carte (recalcul, une
+ * fois) ; ils ne sont pas purgés.
+ *
+ * @returns `tout` si `sources` vaut `null` (appelant d'administration sans
+ *   vue espace), sinon 12 caractères hexadécimaux stables (indépendants de
+ *   l'ordre des sources).
  */
 export function empreintePerimetre(sources: string[] | null): string {
   if (sources === null) return 'tout';
@@ -92,8 +101,10 @@ export function empreintePerimetre(sources: string[] | null): string {
  *
  * Les routes qui RELISENT un résultat par sa clé (`custom-geo/source/battle`)
  * la reçoivent du navigateur : sans ce contrôle, un client demanderait la clé
- * d'un autre. Une clé antérieure au 2026-10-08 (sans `__p`) n'est rendue qu'au
- * super_admin ; un client la recalculera, sous une clé à son empreinte.
+ * d'un autre. Une clé antérieure au 2026-10-08 (sans `__p`) n'est rendue qu'à
+ * un appelant sans filtre (`sources === null`) — plus le super_admin sur la
+ * carte depuis le 2026-10-12, qui y a l'empreinte de son espace ; tout appelant
+ * de la carte la recalculera, sous une clé à son empreinte.
  */
 export function cleDeCacheDuPerimetre(cle: string, sources: string[] | null): boolean {
   if (sources === null) return true;
@@ -108,6 +119,10 @@ export function cleDeCacheDuPerimetre(cle: string, sources: string[] | null): bo
  * la catégorie appartient à une source que l'appelant ne voit pas, le résultat
  * en révélerait l'emplacement. On refuse alors le calcul, plutôt que de le
  * rendre faux ou indiscret.
+ *
+ * Super_admin compris sur la carte depuis le 2026-10-12 : dans l'espace BMW,
+ * une catégorie qui contient des POI de la Marine lui est refusée, comme à un
+ * client BMW. Seul `sources === null` (administration) passe sans contrôle.
  *
  * Une lecture d'un POI au plus (`limit(1)`), sur l'index de `categorie`.
  */

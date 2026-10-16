@@ -1,5 +1,12 @@
 # Cartographie — reconstituée depuis le code
 
+> ⚠ **2026-10-12 — plus aucune IA dans dentsu.explore** (chantier « suppression
+> de toute l'IA », lots 1 à 6). Modal, l'agent d'enchères, `/api/agent/*`, le
+> copilote et le chat (`/api/chat`, `/api/smart-prompt`, `/api/providers`),
+> Gemini, Mistral et leurs clés (`GOOGLE_GENERATIVE_AI_API_KEY`,
+> `MISTRAL_API_KEY`, `MODAL_*`) sont RETIRÉS : tout ce qui les concerne dans ce
+> document est historique. Source de vérité : `ARCHITECTURE.md`.
+
 > Produite le 2026-09-11 par l'audit `/audit-refactor`, phase 1.
 > **Ce document n'est pas la source de vérité de l'architecture** : c'est
 > `ARCHITECTURE.md` à la racine, désigné par `CLAUDE.md`.
@@ -145,7 +152,7 @@ sequenceDiagram
 Points clés : `app/api/tiles/[z]/[x]/[y]/route.ts:14-15` (cache par instance),
 cascade à cinq paliers dans `get_tile` (`sql/129`), normalisation et bornes dans
 `lib/carreaux/` (`normalisation.ts`, `bornes.ts`, `expressions.ts`), application
-de la peinture dans `app/copilote/_hooks/useMapLayers.ts`.
+de la peinture dans `app/map/_hooks/useMapLayers.ts`.
 
 ### Flux 2 — Import universel de POI
 

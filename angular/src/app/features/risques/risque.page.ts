@@ -28,7 +28,7 @@ import { ProfilRisqueApi } from './data/profil-risque.api';
 import { CourbeRayonComponent, type PerimetreCourbe } from './etapes/rayon/courbe-rayon.component';
 import { AtelierJeuxService } from './etat/atelier-jeux.service';
 import { DonneesRisqueService } from './etat/donnees-risque.service';
-import { EtatRisqueService } from './etat/etat-risque.service';
+import { EtatRisqueService, PARAM_RISQUE } from './etat/etat-risque.service';
 import { BoutonExportComponent } from './exports/bouton-export.component';
 import { BoutonVoirCarteComponent } from './exports/bouton-voir-carte.component';
 import { PONT_CARTE } from '../carte/etat/pont-carte';
@@ -208,11 +208,12 @@ export class RisquePage {
    * est inconnu. Un Échap déjà consommé par un gestionnaire intérieur (`preventDefault()`) ne ferme pas l'écran. Celui
    * qui le ferme est CONSOMMÉ à son tour : il remonte jusqu'à l'hôte de la carte, dont la pile Échap fermerait en plus
    * le panneau resté ouvert dessous.
+   * Les paramètres de la carte (`etape`, `customZone`) survivent à la fermeture ; seul `risque` part.
    */
   protected fermer(ev?: Event): void {
     if (ev?.defaultPrevented) return;
     ev?.preventDefault();
-    void this.router.navigate(['..'], { relativeTo: this.route });
+    void this.router.navigate(['..'], { relativeTo: this.route, queryParams: { [PARAM_RISQUE]: null }, queryParamsHandling: 'merge' });
   }
 
   /** Le cadenas, une réglette relâchée ou un geste du tiroir : le profil va dans l'état, donc dans l'URL. */

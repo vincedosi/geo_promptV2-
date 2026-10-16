@@ -59,6 +59,8 @@ describe('FicheEspaceComponent', () => {
     el().querySelector<HTMLButtonElement>('[data-onglet="donnees"]')!.click();
     await harnais.fixture.whenStable();
     http.expectOne(`/api/admin/espaces/${A}/donnees`).flush({ espace: espace(A, 'Espace A', 2), jeux: [] });
+    // Le bloc « Sélection recommandée » de l'onglet (carte-en-parcours T11) a sa propre lecture.
+    http.expectOne(`/api/admin/espaces/${A}/jeux-recommandes`).flush({ jeux: [], socleIncomplet: false });
     expect(el().querySelector('[data-onglet="donnees"]')!.getAttribute('aria-selected')).toBe('true');
 
     const instanceB = await harnais.navigateByUrl(`/espaces/${B}`, FicheEspaceComponent);
@@ -87,6 +89,8 @@ describe('FicheEspaceComponent', () => {
     el().querySelector<HTMLButtonElement>('[data-onglet="donnees"]')!.click();
     await harnais.fixture.whenStable();
     http.expectOne(`/api/admin/espaces/${A}/donnees`).flush({ espace: espace(A, 'Espace A', 2), jeux: [] });
+    // Le bloc « Sélection recommandée » de l'onglet (carte-en-parcours T11) a sa propre lecture.
+    http.expectOne(`/api/admin/espaces/${A}/jeux-recommandes`).flush({ jeux: [], socleIncomplet: false });
     await harnais.fixture.whenStable();
     expect(el().querySelector('mg-onglet-donnees')).not.toBeNull();
     for (const o of ['membres', 'donnees']) {

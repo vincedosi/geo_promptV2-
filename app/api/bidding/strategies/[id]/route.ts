@@ -1,6 +1,6 @@
 /**
  * GET    /api/bidding/strategies/[id]
- *   → détails complets stratégie + campagne + objective + active model + subzones
+ *   → détails complets stratégie + campagne + objective + subzones
  *
  * PATCH  /api/bidding/strategies/[id]
  *   → édition champ-par-champ avec audit trail dans strategy_changes.
@@ -103,9 +103,11 @@ export async function GET(
     return NextResponse.json({ error: 'Stratégie introuvable' }, { status: 404 });
   }
 
-  // ⛔ Nano : max 3 appels Supabase simultanes (CLAUDE.md). Ces 5 lectures sont
-  // unitaires et indexees, mais la limite est absolue -> deux lots de 3 puis 2.
-  const [campaignResp, objectiveResp, activeModelResp] = await Promise.all([
+  // ⛔ Nano : max 3 appels Supabase simultanes (CLAUDE.md). Ces 3 lectures sont
+  // unitaires et indexees : un seul lot de 3. (`adaptive_model_state` n'est
+  // plus lue depuis le retrait de l'IA, 2026-10-12 : le champ `active_model`
+  // ne figurait dans aucun ecran.)
+  const [campaignResp, objectiveResp, subzonesResp] = await Promise.all([
     supabase
       .from('dsp_campaigns')
       .select('id,name,dsp_source,advertiser,date_start,date_end,is_demo,total_tracked_ads,total_unique_impressions')
@@ -117,34 +119,17 @@ export async function GET(
       .eq('code', strategy.objective_code)
       .maybeSingle(),
     supabase
-      .from('adaptive_model_state')
-      .select('id,algorithm_code,model_version,training_window_start,training_window_end,performance_metrics,trained_at,promoted_at')
-      .eq('strategy_id', id)
-      .eq('is_active', true)
-      .maybeSingle(),
-  ]);
-
-  const [subzonesResp, autonomyResp] = await Promise.all([
-    supabase
       .from('bidding_strategy_subzones')
       .select('id, name, postal_codes, multiplier, display_order')
       .eq('strategy_id', id)
       .order('display_order'),
-    supabase
-      .from('agent_autonomy_settings')
-      .select('autonomy_level')
-      .eq('scope_type', 'strategy')
-      .eq('strategy_id', id)
-      .maybeSingle(),
   ]);
 
   return NextResponse.json({
     strategy,
     campaign: campaignResp.data ?? null,
     objective: objectiveResp.data ?? null,
-    active_model: activeModelResp.data ?? null,
     subzones: subzonesResp.data ?? [],
-    agent_autonomy_override: autonomyResp.data?.autonomy_level ?? null,
   });
 }
 

@@ -7,7 +7,7 @@ import { AnnonceService } from '../etat/annonce.service';
 import { CouchesCarteService } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
 import { IRIS_DB_COLUMNS } from '../logique/iris-colonnes';
-import { DetailIrisComponent, formaterValeurIris } from './detail-iris.component';
+import { DetailIrisComponent, LARGEUR_DETAIL_IRIS, formaterValeurIris } from './detail-iris.component';
 import { IrisService } from './iris.service';
 import { CaptureService } from '../etat/capture.service';
 
@@ -65,6 +65,9 @@ describe('DetailIrisComponent', () => {
     iris.selectionner('751010201');
     await rendre();
     expect(el.querySelector('[data-detail-iris]')).not.toBeNull();
+    // La largeur liée est la constante exportée que `ecartOutils` lit aussi (revue finale lots 1-2, mineur 7).
+    expect(el.querySelector<HTMLElement>('[data-detail-iris]')!.style.width).toBe(`${LARGEUR_DETAIL_IRIS}px`);
+    expect(LARGEUR_DETAIL_IRIS).toBe(320);
     expect(el.querySelector('[data-nom]')!.textContent!.trim()).toBe('751010201');
     expect(el.querySelectorAll('[data-squelette-bloc]').length).toBe(4);
     // Flat total (revue 1) : ni ombre portée, ni dégradé miroitant sur le squelette.

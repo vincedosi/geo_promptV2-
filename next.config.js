@@ -31,14 +31,12 @@ const securityHeaders = [
       "font-src 'self' https://fonts.gstatic.com",
       // Images : tiles OpenFreeMap + Supabase Storage + data URIs + blobs PMTiles
       "img-src 'self' data: blob: https://tiles.openfreemap.org https://*.supabase.co",
-      // Connexions API : Supabase (REST+Realtime), ORS, Mistral, Gemini, BAN, data.gouv.fr, tiles
+      // Connexions API : Supabase (REST+Realtime), ORS, BAN, data.gouv.fr, tiles
       [
         "connect-src 'self'",
         "https://*.supabase.co",
         "wss://*.supabase.co",
         "https://api.openrouteservice.org",
-        "https://api.mistral.ai",
-        "https://generativelanguage.googleapis.com",
         "https://tiles.openfreemap.org",
         "https://api-adresse.data.gouv.fr",
         "https://static.data.gouv.fr",

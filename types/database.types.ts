@@ -238,44 +238,6 @@ export type Database = {
           },
         ]
       }
-      agent_chat_messages: {
-        Row: {
-          content: string
-          created_at: string
-          id: string
-          role: string
-          strategy_id: string
-          tool_calls: Json | null
-          user_id: string | null
-        }
-        Insert: {
-          content: string
-          created_at?: string
-          id?: string
-          role: string
-          strategy_id: string
-          tool_calls?: Json | null
-          user_id?: string | null
-        }
-        Update: {
-          content?: string
-          created_at?: string
-          id?: string
-          role?: string
-          strategy_id?: string
-          tool_calls?: Json | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "agent_chat_messages_strategy_id_fkey"
-            columns: ["strategy_id"]
-            isOneToOne: false
-            referencedRelation: "bidding_strategies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       agent_recommendations: {
         Row: {
           applied_at: string | null
@@ -2374,6 +2336,7 @@ export type Database = {
           items_audience_stats: Json | null
           name: string
           org_id: string
+          recette: Json | null
           resolved_at: string | null
           source_metadata: Json
           source_type: string
@@ -2394,6 +2357,7 @@ export type Database = {
           items_audience_stats?: Json | null
           name: string
           org_id: string
+          recette?: Json | null
           resolved_at?: string | null
           source_metadata?: Json
           source_type: string
@@ -2414,6 +2378,7 @@ export type Database = {
           items_audience_stats?: Json | null
           name?: string
           org_id?: string
+          recette?: Json | null
           resolved_at?: string | null
           source_metadata?: Json
           source_type?: string
@@ -3154,6 +3119,32 @@ export type Database = {
             columns: ["radio_id"]
             isOneToOne: false
             referencedRelation: "radios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      espace_jeux_recommandes: {
+        Row: {
+          cle_jeu: string
+          cree_le: string
+          organization_id: string
+        }
+        Insert: {
+          cle_jeu: string
+          cree_le?: string
+          organization_id: string
+        }
+        Update: {
+          cle_jeu?: string
+          cree_le?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "espace_jeux_recommandes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -6512,6 +6503,16 @@ export type Database = {
         }
         Returns: string
       }
+      creer_zone_recette: {
+        Args: {
+          p_cree_par: string
+          p_geometry_geojson: string
+          p_nom: string
+          p_org_id: string
+          p_recette: Json
+        }
+        Returns: Json
+      }
       creer_zone_set_extraction: {
         Args: {
           p_commentaire?: string
@@ -7593,7 +7594,6 @@ export type Database = {
         }
         Returns: Json
       }
-      purge_old_agent_chat_messages: { Args: never; Returns: number }
       purger_brouillons_zone_set: {
         Args: { p_age_heures?: number }
         Returns: Json
@@ -7620,6 +7620,18 @@ export type Database = {
         Args: { p_actif: string; p_espaces: string[]; p_user: string }
         Returns: Json
       }
+      remplacer_geometrie_zone: {
+        Args: {
+          p_geometry_geojson: string
+          p_org_id: string
+          p_zone_id: string
+        }
+        Returns: Json
+      }
+      remplacer_jeux_recommandes: {
+        Args: { p_cles: string[]; p_organization_id: string }
+        Returns: Json
+      }
       remplir_code_postal_carreau: { Args: { p_lot?: number }; Returns: Json }
       remplir_cp_population_totale: {
         Args: {
@@ -7644,6 +7656,16 @@ export type Database = {
       resolve_custom_geo_zone_codes_with_subzones: {
         Args: { p_caller_user_id?: string; p_zone_id: string }
         Returns: Json
+      }
+      resoudre_perimetre: {
+        Args: {
+          p_code: string
+          p_max_km2: number
+          p_org_id: string
+          p_type: string
+          p_types_admis: string[]
+        }
+        Returns: Record<string, unknown>
       }
       risques_industriels_carte: {
         Args: {
@@ -8356,12 +8378,49 @@ export type Database = {
         Args: { p_lat: number; p_lon: number; p_rayon_m: number }
         Returns: Json
       }
+      zone_rayon_poi: {
+        Args: {
+          p_categorie: string
+          p_max_poi?: number
+          p_org_id: string
+          p_perimetre_code: string
+          p_perimetre_type: string
+          p_rayon_m: number
+          p_sources: string[]
+        }
+        Returns: Json
+      }
+      zone_referencee: { Args: { p_zone_id: string }; Returns: string }
       zone_set_cp_geo: {
         Args: { p_bbox?: number[]; p_limite?: number; p_zone_set_id: string }
         Returns: Json
       }
       zone_set_grappes: {
         Args: { p_limite?: number; p_zone_set_id: string }
+        Returns: Json
+      }
+      zone_seuil_carreaux: {
+        Args: {
+          p_indicateur: string
+          p_max_carreaux?: number
+          p_operateur: string
+          p_org_id: string
+          p_perimetre_code: string
+          p_perimetre_type: string
+          p_seuil: number
+        }
+        Returns: Json
+      }
+      zone_seuil_territoire: {
+        Args: {
+          p_indicateur: string
+          p_max_territoires?: number
+          p_operateur: string
+          p_org_id: string
+          p_perimetre_code: string
+          p_perimetre_type: string
+          p_seuil: number
+        }
         Returns: Json
       }
       zones_risque_tuile: {

@@ -124,6 +124,9 @@
       @if (succes(); as s) {
         <div data-succes role="status" class="alerte-succes rounded-[4px] px-3 py-2 text-[12px] text-success">{{ s }}</div>
       }
+      @if (avertissement(); as a) {
+        <div data-avertissement role="status" class="alerte-avert rounded-[4px] px-3 py-2 text-[12px] text-warning">{{ a }}</div>
+      }
     </div>
 
     <div class="flex shrink-0 justify-end gap-2 border-t-fin border-subtle px-5 py-3.5">

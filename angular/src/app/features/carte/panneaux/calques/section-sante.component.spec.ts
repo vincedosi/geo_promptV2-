@@ -41,7 +41,7 @@ function monter() {
   const fixture = TestBed.createComponent(SectionSanteComponent);
   const el = fixture.nativeElement as HTMLElement;
   const rendre = async () => { fixture.detectChanges(); await fixture.whenStable(); };
-  return { el, rendre, selections: TestBed.inject(SelectionsCalquesService), etat, gestes, detail };
+  return { fixture, el, rendre, selections: TestBed.inject(SelectionsCalquesService), etat, gestes, detail };
 }
 
 const ouvrir = async (m: ReturnType<typeof monter>) => {
@@ -189,5 +189,14 @@ describe('SectionSanteComponent', () => {
     expect(m.el.querySelector('[data-compte]')!.textContent!.trim()).toBe('1');
     expect(m.el.querySelector('mg-fiche-sante [data-fiche-squelette]')).not.toBeNull();
     expect(m.el.querySelector('[data-provisoire]')).toBeNull();
+  });
+
+  it('intégrée à une ligne de ② : aucun en-tête interne, contenu rendu alors que la section est fermée par défaut (relecture T12, m3)', async () => {
+    const m = monter();
+    m.fixture.componentRef.setInput('integre', true);
+    await m.rendre();
+    expect(m.selections.sections()['civicHealth']).not.toBe(true);
+    expect(m.el.querySelector('mg-entete-filtre')).toBeNull();
+    expect(m.el.querySelector('[data-couches-sante]')).not.toBeNull();
   });
 });

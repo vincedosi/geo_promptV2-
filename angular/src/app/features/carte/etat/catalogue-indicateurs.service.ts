@@ -11,7 +11,9 @@ import type { IndicateurRegistre } from '../logique/analyses/score';
  * Une lecture EN VOL est partagée (`shareReplay`) ; un échec n'est pas retenu : le dépliage suivant relit, comme le
  * `catalogueRef.current = false` de React.
  *
- * `@Injectable()` sans `providedIn` : fourni par le panneau Analyse — sa durée de vie, celle des outils React.
+ * `@Injectable()` sans `providedIn` : fourni par la PAGE carte (lot 3, X4) — une lecture par page, partagée par
+ * Analyse (score, corrélation), ③ (« Par seuil », pied de recette) et « Mes zones ». Un changement d'espace recrée la
+ * page, donc le catalogue (il dépend des droits de l'espace).
  */
 @Injectable()
 export class CatalogueIndicateursService {

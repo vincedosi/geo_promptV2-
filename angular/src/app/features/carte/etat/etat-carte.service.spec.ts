@@ -13,34 +13,11 @@ function monter() {
 describe('EtatCarteService', () => {
   afterEach(() => vi.useRealTimers());
 
-  it('(a) choisir deux fois la même entrée la referme', () => {
+  it('le mode immersif est éteint à l’ouverture et se bascule', () => {
     const { etat } = monter();
-    etat.choisirEntree('filtre');
-    expect(etat.entreeActive()).toBe('filtre');
-    etat.choisirEntree('filtre');
-    expect(etat.entreeActive()).toBeNull();
-  });
-
-  it("choisir une autre entrée bascule de l'une à l'autre, fermerEntree ferme", () => {
-    const { etat } = monter();
-    etat.choisirEntree('filtre');
-    etat.choisirEntree('calques');
-    expect(etat.entreeActive()).toBe('calques');
-    etat.fermerEntree();
-    expect(etat.entreeActive()).toBeNull();
-  });
-
-  it("(b) Campagne (overlay plein écran, lot 5) ne devient jamais l'entrée active", () => {
-    const { etat } = monter();
-    etat.choisirEntree('calques');
-    etat.choisirEntree('campagne');
-    expect(etat.entreeActive()).toBe('calques');
-  });
-
-  it("l'Assistant (jamais porté) ne devient jamais l'entrée active", () => {
-    const { etat } = monter();
-    etat.choisirEntree('assistant');
-    expect(etat.entreeActive()).toBeNull();
+    expect(etat.immersif()).toBe(false);
+    etat.immersif.set(true);
+    expect(etat.immersif()).toBe(true);
   });
 
   it("(c) carreaux actif, IRIS allumé : carreaux est évincé, son abonné appelé une fois, l'annonce le nomme", () => {

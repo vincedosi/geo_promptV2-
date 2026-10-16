@@ -118,20 +118,18 @@ export class CreerDessinComponent {
     this.enCours.set(true);
     this.erreur.set(null);
     this.message.set(null);
-    this.abonnement = this.creation.creer(this.api.depuisDessin(trace), (geo) => ({
-      name: (nom || nomDessinParDefaut(geo.surface_km2)).slice(0, 200),
-      source_type: 'dessin',
-      source_metadata: {
-        surface_km2: geo.surface_km2, corrige: geo.corrige, part_retenue: geo.part_retenue,
-        n_sommets: Math.max(0, trace.coordinates[0].length - 1),
-      },
-    })).subscribe((issue) => {
+    // Forme figée : la géométrie RÉPARÉE et clippée par la route source part avec la recette (P5).
+    this.abonnement = this.creation.creer(
+      this.api.depuisDessin(trace),
+      (geo) => nom || nomDessinParDefaut(geo.surface_km2),
+      () => ({ v: 1, type: 'dessin' }),
+    ).subscribe((issue) => {
       this.enCours.set(false);
       if ('erreur' in issue) {
         this.erreur.set(issue.erreur);
         return;
       }
-      this.message.set(messageZoneDessin(issue.geo, issue.countCp));
+      this.message.set(messageZoneDessin(issue.geo, issue.countCp, issue.avertissement));
       this.nom.set('');
       // Le tracé est effacé : sans cela, un second clic créerait une seconde zone identique.
       this.dessin.effacer();

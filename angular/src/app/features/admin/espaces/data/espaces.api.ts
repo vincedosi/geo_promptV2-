@@ -4,6 +4,7 @@ import { HttpBaseService } from '../../../../core/http/http-base.service';
 import type {
   ApercuEspace, MembreEspace, ReponseComptes, ReponseDonneesEspace, ReponseEspaces, ReponseSocle,
 } from '../logique/types';
+import type { ReponseJeuxRecommandables } from '../../../carte/logique/jeux-carte';
 
 /** Un compte tel que le rend `GET /api/admin/users` (tableau de profils). */
 export interface CompteAdmin {
@@ -90,6 +91,16 @@ export class EspacesApi extends HttpBaseService {
 
   lireDonnees(id: string): Observable<ReponseDonneesEspace> {
     return this.httpClient.get<ReponseDonneesEspace>(`${this.espaceUrl(id)}/donnees`);
+  }
+
+  /** `GET admin/espaces/:id/jeux-recommandes` — jeux communs recommandables et sélection de l'espace (parcours, lot 2). */
+  jeuxRecommandables(id: string): Observable<ReponseJeuxRecommandables> {
+    return this.httpClient.get<ReponseJeuxRecommandables>(`${this.espaceUrl(id)}/jeux-recommandes`);
+  }
+
+  /** `PUT admin/espaces/:id/jeux-recommandes` — remplace la sélection (≤ 200 clés). */
+  enregistrerJeuxRecommandes(id: string, cles: readonly string[]): Observable<{ cles: string[] }> {
+    return this.httpClient.put<{ cles: string[] }>(`${this.espaceUrl(id)}/jeux-recommandes`, { cles });
   }
 
   lireMembres(id: string): Observable<{ membres: MembreEspace[] }> {

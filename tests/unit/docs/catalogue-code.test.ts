@@ -50,7 +50,24 @@ import { lancerKnip, construireRapport } from '../../../scripts/catalogue.mjs';
 // devenir un plafond decoratif.
 // Descendu a 193 le 2026-09-24 : l'etape 5 (simulation de campagne) a
 // branche `lib/campagne/alignement.ts`, jusque-la importe par ses seuls tests.
-const CLIQUET_EXPORTS_MORTS = 193;
+// Descendu a 141 le 2026-10-12 : la suppression de l'IA (lots 1 a 6) a retire
+// les exports que seuls le chat, l'agent et les bilans consommaient.
+// RELEVÉ a 153 le 2026-10-15 (lot 3 « zones a recette », Task 2) : +12, tous dans
+// `lib/zones/recette.ts` (11) et `lib/zones/recette-schema.ts` (`RecetteSchema`).
+// C'est le CONTRAT du lot, pose avant ses consommateurs (migration des zones a
+// recette, executeur serveur, routes `/api/zones`, Tasks 3 a 8). Hausse assumee
+// et TEMPORAIRE : chaque tache qui branche l'un de ces exports redescend le
+// cliquet ; a la fin du lot, il doit etre revenu a 141 au plus, ou chaque
+// export encore mort doit etre retire.
+// Redescendu a 148 le 2026-10-15 (revue de la Task 2) : les messages de refus
+// citent les plafonds par leurs constantes, et les tests du schema importent
+// les bornes qu'ils verifient.
+// Revenu a 141 le 2026-10-15 (vague de correctifs finale du lot 3) : les sept
+// derniers exports morts de `lib/zones/recette.ts` servent — le schema lit
+// VERSION_RECETTE, PerimetreRecette et OperateurSeuil ; recette.test.ts confronte
+// les plafonds et les surfaces aux litteraux des RPC (sql/254-256), et
+// TYPES_RECALCULABLES / TYPES_BORNES_PAR_PERIMETRE a leurs regles. Promesse tenue.
+const CLIQUET_EXPORTS_MORTS = 141;
 
 describe('catalogue du code', () => {
   it('existe et se declare genere', () => {

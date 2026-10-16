@@ -1,6 +1,6 @@
 /**
  * Logique PURE du rendu d'une bataille d'isochrones — portage d'`applyIsochroneBattle`, d'`addBattlePartialRings`
- * (`app/copilote/_hooks/useMapLayers.ts:975-1159`) et des filtres de `useMapLayers.ts:240-269` (lot 4, T14 puis T17).
+ * (`app/map/_hooks/useMapLayers.ts:975-1159`) et des filtres de `useMapLayers.ts:240-269` (lot 4, T14 puis T17).
  *
  * Une teinte par POI, dans l'ordre d'apparition (`VORONOI_PALETTE` en cycle) ; une opacité par palier
  * (`BATTLE_PALIER_OPACITY`, `0.20` pour un palier inconnu, `0.15` pour un anneau encore brut) ; un point par POI.

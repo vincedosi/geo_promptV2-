@@ -23,11 +23,11 @@ export interface POI {
   organization_id?: string;
   data_source_id?: string;
   metadata?: unknown;
-  /** Classement OOH (outil du copilote). */
+  /** Classement OOH (copilote retiré : plus aucun producteur ; champ lu seulement). */
   rank?: number | null;
-  /** Audience estimée (outil du copilote). */
+  /** Audience estimée (copilote retiré : plus aucun producteur). */
   audience?: number | null;
-  /** Score OOH composite (outil du copilote). */
+  /** Score OOH composite (copilote retiré : plus aucun producteur). */
   score_ooh?: number | null;
 }
 
@@ -86,8 +86,15 @@ export interface CorpsOoh {
   bbox?: readonly [number, number, number, number];
 }
 
-/** Un type de POI du catalogue ; la route rend aussi, dans un vieux format, une simple chaîne. */
-export type CategoriePoi = { id: string; label: string } | string;
+/** D'où vient une catégorie (droits sur la carte, T2) : du socle commun à tous les espaces, ou de l'espace actif. */
+export type OrigineCategorie = 'commune' | 'espace';
+
+/**
+ * Un type de POI du catalogue ; la route rend aussi, dans un vieux format, une simple chaîne. `origine` : une catégorie
+ * dont au moins un POI visible vient d'une source privée de l'espace actif (ou partagée avec lui) est « espace » ;
+ * « commune » sinon. Absent d'une réponse ancienne : lu « commune » (`typeDePoi`).
+ */
+export type CategoriePoi = { id: string; label: string; origine?: OrigineCategorie } | string;
 
 /** Réponse de `GET /api/map/pprt` (`PprtLayer.tsx:63-73`). `n_total` est compté AVANT la limite. */
 export interface CollectionPprt {
@@ -122,6 +129,11 @@ export class CarteApi extends HttpBaseService {
   /** `POST /api/map/pois`, 25 s au plus comme React. */
   pois(corps: CorpsPois): Observable<ZoneData> {
     return this.httpClient.post<ZoneData>(`${this.baseUrl}/map/pois`, corps).pipe(timeout(DELAI_POIS_MS));
+  }
+
+  /** `GET /api/map/jeux-recommandes` — la sélection recommandée de l'espace actif (parcours, lot 2). Ne précharge rien. */
+  jeuxRecommandes(): Observable<{ cles?: string[]; error?: string }> {
+    return this.httpClient.get<{ cles?: string[]; error?: string }>(`${this.baseUrl}/map/jeux-recommandes`);
   }
 
   /** `GET /api/map/categories` ; `rafraichir` rejoue le DISTINCT côté serveur (`?refresh=1`, `use-poi-catalog.ts:63-66`). */
