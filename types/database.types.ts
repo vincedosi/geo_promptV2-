@@ -1109,6 +1109,200 @@ export type Database = {
           },
         ]
       }
+      campagne_ligne_panneaux: {
+        Row: {
+          created_at: string
+          details: Json
+          formats: string[] | null
+          ligne_id: string
+          nb_ecrans: number | null
+          panneau_id: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json
+          formats?: string[] | null
+          ligne_id: string
+          nb_ecrans?: number | null
+          panneau_id: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json
+          formats?: string[] | null
+          ligne_id?: string
+          nb_ecrans?: number | null
+          panneau_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campagne_ligne_panneaux_ligne_id_fkey"
+            columns: ["ligne_id"]
+            isOneToOne: false
+            referencedRelation: "campagne_lignes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campagne_ligne_panneaux_panneau_id_fkey"
+            columns: ["panneau_id"]
+            isOneToOne: false
+            referencedRelation: "panneaux_affichage"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campagne_lignes: {
+        Row: {
+          campagne_id: string
+          contacts_15_plus: number | null
+          contacts_18_24: number | null
+          created_at: string
+          data_source_id: string | null
+          date_debut: string | null
+          date_fin: string | null
+          details: Json
+          duree_libelle: string | null
+          format: string | null
+          frais: number | null
+          honoraires: number | null
+          id: string
+          media: string
+          montant_brut: number | null
+          montant_net: number | null
+          nb_diffusions: number | null
+          nb_ecrans: number | null
+          ordre: number
+          plage_horaire: string | null
+          rang_option: string | null
+          regie: string | null
+          reseau: string | null
+          territoire: string | null
+          total_ttc: number | null
+        }
+        Insert: {
+          campagne_id: string
+          contacts_15_plus?: number | null
+          contacts_18_24?: number | null
+          created_at?: string
+          data_source_id?: string | null
+          date_debut?: string | null
+          date_fin?: string | null
+          details?: Json
+          duree_libelle?: string | null
+          format?: string | null
+          frais?: number | null
+          honoraires?: number | null
+          id?: string
+          media: string
+          montant_brut?: number | null
+          montant_net?: number | null
+          nb_diffusions?: number | null
+          nb_ecrans?: number | null
+          ordre: number
+          plage_horaire?: string | null
+          rang_option?: string | null
+          regie?: string | null
+          reseau?: string | null
+          territoire?: string | null
+          total_ttc?: number | null
+        }
+        Update: {
+          campagne_id?: string
+          contacts_15_plus?: number | null
+          contacts_18_24?: number | null
+          created_at?: string
+          data_source_id?: string | null
+          date_debut?: string | null
+          date_fin?: string | null
+          details?: Json
+          duree_libelle?: string | null
+          format?: string | null
+          frais?: number | null
+          honoraires?: number | null
+          id?: string
+          media?: string
+          montant_brut?: number | null
+          montant_net?: number | null
+          nb_diffusions?: number | null
+          nb_ecrans?: number | null
+          ordre?: number
+          plage_horaire?: string | null
+          rang_option?: string | null
+          regie?: string | null
+          reseau?: string | null
+          territoire?: string | null
+          total_ttc?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campagne_lignes_campagne_id_fkey"
+            columns: ["campagne_id"]
+            isOneToOne: false
+            referencedRelation: "campagnes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campagne_lignes_data_source_id_fkey"
+            columns: ["data_source_id"]
+            isOneToOne: false
+            referencedRelation: "data_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campagnes: {
+        Row: {
+          annonceur: string | null
+          budget_total_ttc: number | null
+          cle_import: string | null
+          created_at: string
+          date_debut: string | null
+          date_fin: string | null
+          id: string
+          metadata: Json
+          nom: string
+          organization_id: string
+          updated_at: string
+          vague: string | null
+        }
+        Insert: {
+          annonceur?: string | null
+          budget_total_ttc?: number | null
+          cle_import?: string | null
+          created_at?: string
+          date_debut?: string | null
+          date_fin?: string | null
+          id?: string
+          metadata?: Json
+          nom: string
+          organization_id: string
+          updated_at?: string
+          vague?: string | null
+        }
+        Update: {
+          annonceur?: string | null
+          budget_total_ttc?: number | null
+          cle_import?: string | null
+          created_at?: string
+          date_debut?: string | null
+          date_fin?: string | null
+          id?: string
+          metadata?: Json
+          nom?: string
+          organization_id?: string
+          updated_at?: string
+          vague?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campagnes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_cp_rollup: {
         Row: {
           actor: string

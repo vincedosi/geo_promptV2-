@@ -1845,6 +1845,25 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | `poi_accessibility_config` | Parametres sigma accessibilite | |
 | `data_sources` | Sources de donnees importees | `organization_id`, `shared_with`, `visibilite` (`socle`/`privee`, sql/234) |
 
+
+### Campagnes multi-média (2026-10-16, sql/261)
+
+> ⚠ **Trois « campagnes » coexistent, à ne pas confondre.** `dsp_campaigns` = une campagne d'ACHAT digital importée
+> d'un DSP (pilotage, pacing, rollups) ; `CampagnePlan` (Angular) = le sélecteur de rattachement d'un plan média de
+> zones ; `campagnes` (ici) = la campagne MULTI-MÉDIA d'un espace de travail, faite de lignes par média. Les types de
+> code du modèle multi-média sont préfixés (`MediaLigne`, `LignePlan`, `CampagneOohResume`) pour ne pas collisionner.
+> Les 8 `dsp_campaigns` existantes ne sont pas rattachées (prévu avec le module campagnes).
+
+| Table | Description | Notes |
+|-------|-------------|-------|
+| `campagnes` | Campagne d'un espace : nom, annonceur, vague, dates, budget TTC, `metadata` (fichier source, hypothèse, coûts annexes, notes du plan) | `unique (organization_id, cle_import)` — identité de rejeu du script d'import ; `updated_at` par `set_updated_at()` ; `on delete cascade` depuis `organizations` |
+| `campagne_lignes` | Une ligne par média : `media` ∈ `digital`/`ooh`/`tv`/`radio`/`presse`, régie, réseau, territoire, écrans, format, diffusions, dates, durée (libellé gardé), montants, contacts 15+ / 18-24 ; `details` = toute la ligne d'origine, plus `non_places` (emplacements introuvables, nom et raison) | `unique (campagne_id, ordre)` ; `data_source_id` = la source PRIVÉE des emplacements de la ligne (`null` : liste non fournie, ex. DROM) |
+| `campagne_ligne_panneaux` | Panneaux réservés par une ligne OOH, écrans et formats propres à la réservation | PK `(ligne_id, panneau_id)` ; `on delete RESTRICT` côté panneau (un panneau réservé ne disparaît pas en silence, 23503) |
+
+RLS : lecture `authenticated` pour son espace (`get_user_org()`) ou super_admin, aucune écriture client ; les routes
+passent par `service_role` et filtrent par l'espace actif elles-mêmes. Verrouillé par
+`tests/integration/cloisonnement-rls.test.ts` (« campagnes — un espace ne voit que les siennes »).
+
 ### Radio FM/DAB+
 | Table | Description | Notes |
 |-------|-------------|-------|

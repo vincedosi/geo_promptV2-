@@ -226,3 +226,77 @@ describe('fonctions SECURITY DEFINER — fermées aux clients', () => {
     });
   }
 });
+
+describe('campagnes — un espace ne voit que les siennes, et leurs panneaux privés', () => {
+  const SOURCE = `essai-cloisonnement-campagne-${Date.now()}`;
+  let campagne = '';
+  let ligne = '';
+  let panneau = '';
+  let source = '';
+
+  beforeAll(async () => {
+    const { marine } = comptes;
+    const { data: ds, error: eds } = await admin.from('data_sources')
+      .insert({ organization_id: marine.orgId, name: '[ESSAI] campagne privée', type: 'panneaux', visibilite: 'privee' }).select('id').single();
+    if (eds || !ds) throw new Error(`source : ${eds?.message}`);
+    source = ds.id as string;
+    const { data: p, error: ep } = await admin.from('panneaux_affichage')
+      .insert({ lat: 48.1, lng: -1.6, source: SOURCE, source_ref: '1', data_source_id: source, organization_id: marine.orgId }).select('id').single();
+    if (ep || !p) throw new Error(`panneau : ${ep?.message}`);
+    panneau = p.id as string;
+    const { data: c, error: ec } = await admin.from('campagnes')
+      .insert({ organization_id: marine.orgId, nom: '[ESSAI] campagne Marine', cle_import: SOURCE }).select('id').single();
+    if (ec || !c) throw new Error(`campagne : ${ec?.message}`);
+    campagne = c.id as string;
+    const { data: l, error: el } = await admin.from('campagne_lignes')
+      .insert({ campagne_id: campagne, media: 'ooh', ordre: 1, data_source_id: source }).select('id').single();
+    if (el || !l) throw new Error(`ligne : ${el?.message}`);
+    ligne = l.id as string;
+    const { error: elien } = await admin.from('campagne_ligne_panneaux').insert({ ligne_id: ligne, panneau_id: panneau });
+    if (elien) throw new Error(`lien : ${elien.message}`);
+  });
+
+  afterAll(async () => {
+    const { error: e1 } = await admin.from('campagnes').delete().eq('id', campagne);
+    if (e1) throw new Error(`nettoyage campagne : ${e1.message}`);
+    const { error: e2 } = await admin.from('panneaux_affichage').delete().eq('source', SOURCE);
+    if (e2) throw new Error(`nettoyage panneau : ${e2.message}`);
+    const { error: e3 } = await admin.from('data_sources').delete().eq('id', source);
+    if (e3) throw new Error(`nettoyage source : ${e3.message}`);
+  });
+
+  it('la Marine lit sa campagne, sa ligne, son panneau de ligne et le panneau', async () => {
+    const { marine } = comptes;
+    const { data: cs } = await marine.client.from('campagnes').select('id').eq('id', campagne);
+    const { data: ls } = await marine.client.from('campagne_lignes').select('id').eq('id', ligne);
+    const { data: liens } = await marine.client.from('campagne_ligne_panneaux').select('panneau_id').eq('ligne_id', ligne);
+    const { data: ps } = await marine.client.from('panneaux_affichage').select('id').eq('id', panneau);
+    expect(cs).toHaveLength(1);
+    expect(ls).toHaveLength(1);
+    expect(liens).toHaveLength(1);
+    expect(ps).toHaveLength(1);
+  });
+
+  it('BMW ne voit ni la campagne, ni la ligne, ni le panneau de ligne, ni le panneau', async () => {
+    const { bmw } = comptes;
+    const { data: cs } = await bmw.client.from('campagnes').select('id').eq('id', campagne);
+    const { data: ls } = await bmw.client.from('campagne_lignes').select('id').eq('id', ligne);
+    const { data: liens } = await bmw.client.from('campagne_ligne_panneaux').select('panneau_id').eq('ligne_id', ligne);
+    const { data: ps } = await bmw.client.from('panneaux_affichage').select('id').eq('id', panneau);
+    expect(cs).toEqual([]);
+    expect(ls).toEqual([]);
+    expect(liens).toEqual([]);
+    expect(ps).toEqual([]);
+  });
+
+  it('un client ne peut rien écrire par PostgREST', async () => {
+    const { marine } = comptes;
+    const { error } = await marine.client.from('campagnes').insert({ organization_id: marine.orgId, nom: 'intrus' });
+    expect(error?.code).toBe('42501');
+  });
+
+  it('sans connexion, rien', async () => {
+    const { data, error } = await anonyme.from('campagnes').select('id').eq('id', campagne);
+    expect(error?.code === '42501' || (data ?? []).length === 0).toBe(true);
+  });
+});

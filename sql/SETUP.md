@@ -120,6 +120,9 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `dsp_campaign_data` | migrations/20260408 | Lignes d'impressions DSP (~280k/campagne), CASCADE |
 | `postal_code_commune` | migrations/20260408 | Référentiel La Poste (~35k), peuplé via geo.api.gouv.fr |
 | `espace_jeux_recommandes` | 251 | Sélection recommandée de jeux de la carte par espace (range, ne donne aucun droit ; ≤ 200 par espace) |
+| `campagnes` | 261 | Campagne multi-média d'un espace (`organization_id`), clé de rejeu `cle_import` unique par espace — distincte de `dsp_campaigns` |
+| `campagne_lignes` | 261 | Lignes d'une campagne, une par média (`digital`, `ooh`, `tv`, `radio`, `presse`), `unique (campagne_id, ordre)` |
+| `campagne_ligne_panneaux` | 261 | Panneaux réservés par une ligne OOH ; `on delete restrict` côté panneau |
 
 ## Fonctions RPC actives (état final)
 
