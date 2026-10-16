@@ -146,6 +146,36 @@ describe('CampagneOohService', () => {
     expect(reponses[1].observed).toBe(false);
   });
 
+  it('revenir à la campagne affichée abandonne la lecture en vol d une autre : sa réponse ne peint rien', () => {
+    const reponses = [new Subject<DetailCampagneOoh>(), new Subject<DetailCampagneOoh>()];
+    let n = 0;
+    const { service } = monter({ campagneOoh: () => reponses[n++] });
+    service.choisir('c1');
+    reponses[0].next(DETAIL_ESSAI);
+    TestBed.tick();
+    service.choisir('c2');
+    expect(service.chargementDetail()).toBe(true);
+    service.choisir('c1');
+    expect(reponses[1].observed).toBe(false);
+    expect(service.chargementDetail()).toBe(false);
+    reponses[1].next({ ...DETAIL_ESSAI, campagne: { ...DETAIL_ESSAI.campagne, id: 'c2' } });
+    expect(service.detail()?.campagne.id).toBe('c1');
+    expect(n).toBe(2);
+  });
+
+  it('échec de la lecture d une autre campagne : la précédente quitte la carte, l erreur et la carte disent la même chose', () => {
+    let essai = 0;
+    const { service, carte } = monter({ campagneOoh: () => (++essai === 1 ? of(DETAIL_ESSAI) : throwError(() => ({ status: 404 }))) });
+    service.choisir('c1');
+    TestBed.tick();
+    service.choisir('c2');
+    TestBed.tick();
+    expect(service.erreurDetail()).toBe('HTTP 404');
+    expect(service.detail()).toBeNull();
+    expect(service.chargementDetail()).toBe(false);
+    expect(carte.sources.has(SOURCE_CAMPAGNE_OOH)).toBe(false);
+  });
+
   it('changement de thème : les teintes sont repeintes', () => {
     const { service, carte, palette } = monter({ campagneOoh: () => of(DETAIL_ESSAI) });
     service.choisir('c1');

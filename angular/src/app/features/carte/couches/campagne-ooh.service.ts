@@ -115,9 +115,12 @@ export class CampagneOohService {
 
   /** Lit une campagne et l'affiche ; une lecture précédente encore en vol est abandonnée. */
   choisir(id: string): void {
-    if (this.detail()?.campagne.id === id) return;
+    // Abandonner AVANT de comparer : revenir à la campagne affichée pendant la lecture d'une autre doit annuler
+    // celle-ci, sinon sa réponse remplacerait la campagne affichée (revue de la tâche 10).
     this.lectureDetail?.unsubscribe();
     this.lectureDetail = null;
+    this.chargementDetail.set(false);
+    if (this.detail()?.campagne.id === id) return;
     this.emplacementSelectionne.set(null);
     this.erreurDetail.set(null);
     this.chargementDetail.set(true);
@@ -133,6 +136,9 @@ export class CampagneOohService {
       error: (e: unknown) => {
         this.lectureDetail = null;
         this.chargementDetail.set(false);
+        // La campagne précédente quitte la carte : l'erreur et la carte disent la même chose.
+        this.masquees.set(new Set());
+        this.detail.set(null);
         this.erreurDetail.set(messageHttp(e, 'Lecture de la campagne impossible'));
       },
     });

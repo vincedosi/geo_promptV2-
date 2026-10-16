@@ -74,6 +74,7 @@ export function poserCoucheCampagneOoh(carte: CarteCampagne, donnees: GeoJSON.Fe
   const source = carte.getSource(SOURCE_CAMPAGNE_OOH) as maplibregl.GeoJSONSource | undefined;
   if (source) source.setData(donnees);
   else carte.addSource(SOURCE_CAMPAGNE_OOH, { type: 'geojson', data: donnees });
+  // Image posée une fois, jamais repeinte au changement de thème : on s'appuie sur `--poi-contour` INVARIANT (#ffffff).
   if (!carte.hasImage(IMAGE_ANNEAU_A_VERIFIER)) carte.addImage(IMAGE_ANNEAU_A_VERIFIER, imageAnneauPointille(peinture.contour));
 
   const couleur = expressionCouleurLigne(peinture.lignes);
