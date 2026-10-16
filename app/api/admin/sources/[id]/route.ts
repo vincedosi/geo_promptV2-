@@ -230,6 +230,15 @@ export async function DELETE(
         .eq('data_source_id', id);
       if (panneauxResult.error) {
         logger.error('delete-source', `Suppression des panneaux ECHOUEE : ${panneauxResult.error.message}`);
+        // 23503 : un panneau est réservé par une ligne de campagne (`on delete restrict`, sql/261). Relancer
+        // échouerait à l'identique : on dit pourquoi, au lieu d'inviter à recommencer.
+        if (panneauxResult.error.code === '23503') {
+          return NextResponse.json({
+            success: false,
+            error: 'Ces panneaux appartiennent à une campagne : ils ne se suppriment pas depuis leur source. '
+                 + 'Retirez-les de la campagne en réimportant son plan. La source est conservée.',
+          }, { status: 409 });
+        }
         return NextResponse.json({
           success: false,
           error: `Les panneaux liés n'ont pas pu être supprimés : ${panneauxResult.error.message}. `
