@@ -15,13 +15,13 @@ describe('ROUTES_ADMIN — pages Système et Données (lot 6, T6)', () => {
     const donnees = enfants().find((r) => r.path === 'donnees');
     expect(systeme?.children?.map((r) => r.path)).toEqual(['', 'sante', 'fraicheur', 'api']);
     expect(systeme?.children?.[0].redirectTo).toBe('sante');
-    expect(donnees?.children?.map((r) => r.path)).toEqual(['', 'qualite']);
+    expect(donnees?.children?.map((r) => r.path)).toEqual(['', 'historique', 'qualite']);
     expect(donnees?.children?.[0].redirectTo).toBe('qualite');
   });
 
-  it('`admin`, `admin/health` et `admin/qualite-donnees` redirigent, RELATIVEMENT, sous le préfixe de l’hôte', async () => {
-    const parRedirection = enfants().filter((r) => ['', 'health', 'qualite-donnees'].includes(r.path ?? '-') && r.redirectTo);
-    expect(parRedirection.length).toBe(3);
+  it('`admin`, `admin/health`, `admin/qualite-donnees` et `admin/imports` redirigent, RELATIVEMENT, sous le préfixe de l’hôte', async () => {
+    const parRedirection = enfants().filter((r) => ['', 'health', 'qualite-donnees', 'imports'].includes(r.path ?? '-') && r.redirectTo);
+    expect(parRedirection.length).toBe(4);
     // Aucune redirection absolue : le préfixe de montage appartient au shell.
     expect(enfants().every((r) => typeof r.redirectTo !== 'string' || !r.redirectTo.startsWith('/'))).toBe(true);
     TestBed.configureTestingModule({
@@ -31,7 +31,7 @@ describe('ROUTES_ADMIN — pages Système et Données (lot 6, T6)', () => {
           children: [
             ...parRedirection,
             { path: 'systeme', children: [{ path: '', pathMatch: 'full', redirectTo: 'sante' }, { path: 'sante', component: Factice }] },
-            { path: 'donnees', children: [{ path: 'qualite', component: Factice }] },
+            { path: 'donnees', children: [{ path: 'qualite', component: Factice }, { path: 'historique', component: Factice }] },
           ],
         }]),
       ],
@@ -42,6 +42,7 @@ describe('ROUTES_ADMIN — pages Système et Données (lot 6, T6)', () => {
       ['/hote/app/admin', '/hote/app/admin/systeme/sante'],
       ['/hote/app/admin/health', '/hote/app/admin/systeme/sante'],
       ['/hote/app/admin/qualite-donnees', '/hote/app/admin/donnees/qualite'],
+      ['/hote/app/admin/imports', '/hote/app/admin/donnees/historique'],
     ]) {
       await harness.navigateByUrl(avant);
       expect(router.url, avant).toBe(apres);

@@ -5,6 +5,7 @@ import { Router, provideRouter, type Route } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { ConfigService } from '../../../core/config/config.service';
 import { ROUTES_ADMIN } from '../admin.routes';
+import { ImportsApi } from '../imports/data/imports.api';
 import { QualiteApi } from '../qualite-donnees/data/qualite.api';
 
 /** La VRAIE route `donnees` de ROUTES_ADMIN, sous un préfixe d'hôte, sans le garde. */
@@ -12,7 +13,7 @@ async function monter(url: string) {
   const donnees = (ROUTES_ADMIN[0].children ?? []).find((r) => r.path === 'donnees') as Route;
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(), provideHttpClientTesting(), QualiteApi,
+      provideHttpClient(), provideHttpClientTesting(), QualiteApi, ImportsApi,
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       provideRouter([{ path: 'hote/app/admin', children: [donnees] }]),
     ],
@@ -28,15 +29,17 @@ describe('DonneesPage — page Données à onglets (lot 6, T6)', () => {
   afterEach(() => TestBed.inject(HttpTestingController).verify());
 
   for (const url of ['/hote/app/admin/donnees', '/hote/app/admin/donnees/qualite']) {
-    it(`${url} : titre « Données », un seul onglet « Qualité », actif, et l’écran Qualité des données`, async () => {
+    it(`${url} : titre « Données », onglets « Historique » puis « Qualité » (actif), et l’écran Qualité des données`, async () => {
       const { el, http, router } = await monter(url);
       expect(router.url).toBe('/hote/app/admin/donnees/qualite');
       expect(el.querySelector('mg-donnees h1')?.textContent?.trim()).toBe('Données');
       const onglets = [...el.querySelectorAll<HTMLAnchorElement>('mg-donnees [role="tab"]')];
-      // Pas d'onglet « bientôt » : Sources, Importer, Historique arrivent avec leur écran.
-      expect(onglets.map((a) => a.textContent!.trim())).toEqual(['Qualité']);
-      expect(onglets[0].getAttribute('aria-selected')).toBe('true');
-      expect(onglets[0].getAttribute('href')).toBe('/hote/app/admin/donnees/qualite');
+      // Pas d'onglet « bientôt » : Sources et Importer arrivent avec leur écran (Historique : T11′).
+      expect(onglets.map((a) => a.textContent!.trim())).toEqual(['Historique', 'Qualité']);
+      expect(onglets[1].getAttribute('aria-selected')).toBe('true');
+      expect(onglets[0].getAttribute('aria-selected')).toBe('false');
+      expect(onglets[0].getAttribute('href')).toBe('/hote/app/admin/donnees/historique');
+      expect(onglets[1].getAttribute('href')).toBe('/hote/app/admin/donnees/qualite');
       expect(el.querySelector('mg-donnees mg-qualite-donnees')).not.toBeNull();
       // Un seul titre de page : celui du cadre. Le titre « Qualité des données » de React est
       // remonté dans le cadre, comme « Santé système » dans Système — plus de double en-tête.
@@ -45,4 +48,14 @@ describe('DonneesPage — page Données à onglets (lot 6, T6)', () => {
       http.expectOne('/api/admin/qualite-donnees').flush({ verifications: [] });
     });
   }
+
+  it('/donnees/historique : onglet « Historique » actif, l’écran Historique des imports, UN GET, un seul titre', async () => {
+    const { el, http, router } = await monter('/hote/app/admin/donnees/historique');
+    expect(router.url).toBe('/hote/app/admin/donnees/historique');
+    const onglets = [...el.querySelectorAll<HTMLAnchorElement>('mg-donnees [role="tab"]')];
+    expect(onglets[0].getAttribute('aria-selected')).toBe('true');
+    expect(el.querySelector('mg-donnees mg-imports')).not.toBeNull();
+    expect([...el.querySelectorAll('h1')].map((h) => h.textContent!.trim())).toEqual(['Données']);
+    http.expectOne('/api/admin/imports').flush({ success: true, imports: [] });
+  });
 });

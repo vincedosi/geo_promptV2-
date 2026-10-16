@@ -36,7 +36,8 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     ]);
     // T9 : « Connexions API » n'est plus rendue — onglet de Système.
     // « Health check » et « Qualite des donnees » ne sont plus rendues : onglets de Système et Données.
-    expect(entrees(el, 'Systeme')).toEqual(['Sources', 'Imports']);
+    // T11′ : « Imports » n'est plus rendue — onglet « Historique » de Données.
+    expect(entrees(el, 'Systeme')).toEqual(['Sources']);
   });
 
   it('badges « Admin » sur les quatre écrans d\'administration non portés ; aucun sur les trois pages ; plus de « Sys »', async () => {
@@ -48,9 +49,9 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
   it('chaque entrée porte son icône lucide 16 px, trait 1,5 (comme `size={16} strokeWidth={1.5}`)', async () => {
     const el = await rendre({ dev: false });
     const svgs = [...el.querySelectorAll('nav a mg-icone svg')];
-    // 12 : 15 de React − Users − Organisations − Health check − Qualité − Connexions API − Import OOH
-    // (supprimé le 2026-10-16) + Accès, Données, Système.
-    expect(svgs.length).toBe(12);
+    // 11 : 15 de React − Users − Organisations − Health check − Qualité − Connexions API − Import OOH
+    // (supprimé le 2026-10-16) − Imports (T11′) + Accès, Données, Système.
+    expect(svgs.length).toBe(11);
     for (const svg of svgs) {
       expect(svg.getAttribute('width')).toBe('16');
       expect(svg.getAttribute('stroke-width')).toBe('1.5');
@@ -93,13 +94,15 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     // La copie verbatim de React n'est PAS modifiée : Health check et Qualité y sont toujours.
     const systeme = SECTIONS_NAVIGATION.find((s) => s.section === 'Systeme')!;
     expect(systeme.entrees.map((e) => e.libelle)).toEqual(['Sources', 'Accès', 'Imports', 'Health check', 'Qualite des donnees']);
+    // T11′ : « Imports » mène à l'onglet Historique de Données (chemin relatif).
+    expect(systeme.entrees.find((e) => e.libelle === 'Imports')?.cible).toBe('admin/donnees/historique');
   });
 
   it('les écrans pas encore portés sont INERTES : aria-disabled, infobulle, aucun lien', async () => {
     const el = await rendre({ dev: false });
     const portes = ['Explorer', 'Accès', 'Données', 'Système'];
     const liens = [...el.querySelectorAll('nav a')].filter((a) => !portes.includes(texte(a.querySelector('span'))));
-    expect(liens.length).toBe(8);
+    expect(liens.length).toBe(7);
     for (const a of liens) {
       expect(a.getAttribute('aria-disabled')).toBe('true');
       expect(a.getAttribute('title')).toBe('Disponible prochainement');
@@ -125,7 +128,7 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
   it('hors production : liens de développement en icônes dans le pied (RELATIFS), pas de section dans le nav', async () => {
     const el = await rendre({ dev: true });
     expect(titres(el)).not.toContain('Développement');
-    expect(el.querySelectorAll('nav a').length).toBe(12); // E6 : 15 − 2 + 1 ; T9 : − Connexions API ; − « Import OOH »
+    expect(el.querySelectorAll('nav a').length).toBe(11); // E6 : 15 − 2 + 1 ; T9 : − Connexions API ; − « Import OOH » ; T11′ : − Imports
     const liens = [...el.querySelectorAll('[data-pied] [data-liens-dev] a')];
     expect(liens.map((a) => a.getAttribute('aria-label'))).toEqual(['Accueil', 'Catalogue', 'Module risque']);
     expect(liens.map((a) => a.getAttribute('title'))).toEqual(['Accueil', 'Catalogue', 'Module risque']);
@@ -145,6 +148,6 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
   it('aucun filtre par rôle : React affiche toutes les entrées à tous (le contrôle vit dans les routes)', async () => {
     // Le composant n'injecte ni session ni rôle : la même liste pour tous, par construction.
     const el = await rendre({ dev: false });
-    expect(el.querySelectorAll('nav a').length).toBe(12); // E6 : 15 − 2 + 1 ; T9 : − Connexions API ; − « Import OOH »
+    expect(el.querySelectorAll('nav a').length).toBe(11); // E6 : 15 − 2 + 1 ; T9 : − Connexions API ; − « Import OOH » ; T11′ : − Imports
   });
 });

@@ -4,11 +4,13 @@ import { EntetePageComponent } from '../../../ui/entete-page/entete-page.compone
 import { OngletsRoutesComponent, type OngletRoute } from '../commun/onglets-routes.component';
 
 /**
- * Onglets de la page Données, dans l'ordre. « Sources » (T18-T20), « Importer » (T11-T17) et
- * « Historique » (`/admin/imports`) s'ajouteront ici quand leur écran sera porté — jamais d'onglet
- * « bientôt » (amendement du 2026-10-12).
+ * Onglets de la page Données, dans l'ordre cible (Sources, Importer, Historique, Qualité — A9).
+ * « Sources » (T18-T20) et « Importer » (T12-T17) s'ajouteront ici quand leur écran sera porté —
+ * jamais d'onglet « bientôt » (amendement du 2026-10-12). « Historique » = `/admin/imports` (T11′).
+ * La racine de la page mène toujours à « Qualité » (le premier écran porté).
  */
 export const ONGLETS_DONNEES: readonly OngletRoute[] = [
+  { chemin: 'historique', libelle: 'Historique' },
   { chemin: 'qualite', libelle: 'Qualité' },
 ];
 

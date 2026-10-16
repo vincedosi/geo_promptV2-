@@ -6,6 +6,7 @@ import { EspacesApi } from './espaces/data/espaces.api';
 import { RoleAdminService, roleResoluGuard } from './etat/role-admin.service';
 import { FraicheurApi } from './health/data/fraicheur.api';
 import { HealthApi } from './health/data/health.api';
+import { ImportsApi } from './imports/data/imports.api';
 import { QualiteApi } from './qualite-donnees/data/qualite.api';
 
 /**
@@ -15,7 +16,7 @@ import { QualiteApi } from './qualite-donnees/data/qualite.api';
  * session expirée) — prouvé par `remote.spec.ts`. Les services d'API s'ajoutent tâche par tâche
  * (`@Injectable()` sans `providedIn`, héritiers de `HttpBaseService`).
  */
-export const FOURNISSEURS_ADMIN: Provider[] = [RoleAdminService, HealthApi, FraicheurApi, QualiteApi, EspacesApi, DspApi];
+export const FOURNISSEURS_ADMIN: Provider[] = [RoleAdminService, HealthApi, FraicheurApi, QualiteApi, EspacesApi, DspApi, ImportsApi];
 
 /**
  * L'administration (lot 6), enfant de la coquille comme `/admin/*` en React (arbitrage C1).
@@ -70,6 +71,8 @@ export const ROUTES_ADMIN: Routes = [
         loadComponent: () => import('./donnees/donnees.page').then((m) => m.DonneesPage),
         children: [
           { path: '', pathMatch: 'full', redirectTo: 'qualite' },
+          // Historique des imports (T11′, amendement A1) : `/admin/imports` de React, sans l'import OOH.
+          { path: 'historique', loadComponent: () => import('./imports/imports.page').then((m) => m.ImportsPage) },
           {
             path: 'qualite',
             loadComponent: () => import('./qualite-donnees/qualite-donnees.page').then((m) => m.QualiteDonneesPage),
@@ -80,6 +83,7 @@ export const ROUTES_ADMIN: Routes = [
       // (sans `/`) : il reste sous le préfixe de montage, qui appartient au shell.
       { path: 'health', pathMatch: 'full', redirectTo: 'systeme' },
       { path: 'qualite-donnees', pathMatch: 'full', redirectTo: 'donnees/qualite' },
+      { path: 'imports', pathMatch: 'full', redirectTo: 'donnees/historique' },
       { path: 'api', pathMatch: 'full', redirectTo: 'systeme/api' },
       { path: 'api/:sous', pathMatch: 'full', redirectTo: 'systeme/api/:sous' },
       // Accès (« Espaces de travail » du 2026-10-09 au 2026-10-10) : une colonne persistante (la

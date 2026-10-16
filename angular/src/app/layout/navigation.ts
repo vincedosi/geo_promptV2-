@@ -64,7 +64,7 @@ export const SECTIONS_NAVIGATION: readonly SectionNavigation[] = [
       // React `/admin/users` est SUPPRIMÉE depuis le 2026-10-10 (comme `/admin/organizations`) ;
       // la barre React renvoie désormais elle-même ici, par NEXT_PUBLIC_URL_ANGULAR.
       { href: '/admin/users', libelle: 'Accès', icone: 'utilisateurs', cible: 'admin/acces' },
-      { href: '/admin/imports', libelle: 'Imports', icone: 'televerser', cible: null },
+      { href: '/admin/imports', libelle: 'Imports', icone: 'televerser', cible: 'admin/donnees/historique' },
       { href: '/admin/health', libelle: 'Health check', icone: 'activite', badge: 'Sys', cible: 'admin/systeme/sante' },
       { href: '/admin/qualite-donnees', libelle: 'Qualite des donnees', icone: 'bouclier-coche', badge: 'Sys', cible: 'admin/donnees/qualite' },
     ],
