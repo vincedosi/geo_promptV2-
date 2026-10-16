@@ -11,7 +11,8 @@ import { CouchesCarteService } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
 import { COUCHE_POIS_CERCLES } from './couche-pois';
 import { PoisService } from './pois.service';
-import { LARGEUR_TIROIR_PANNEAU, TiroirPanneauComponent, VARIABLE_CLE_GOOGLE, adresseStreetView } from './tiroir-panneau.component';
+import { VARIABLE_CLE_GOOGLE, adresseStreetView } from './street-view.component';
+import { LARGEUR_TIROIR_PANNEAU, TiroirPanneauComponent } from './tiroir-panneau.component';
 
 function monter(googleMapsKey?: string) {
   TestBed.configureTestingModule({

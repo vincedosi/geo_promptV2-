@@ -15,6 +15,17 @@ function preparer() {
 }
 
 describe('CarteApi', () => {
+  it('campagnes OOH : GET /api/map/ooh/campagnes, puis une campagne par son identifiant encodé', () => {
+    const { api, http } = preparer();
+    let liste: unknown;
+    api.campagnesOoh().subscribe((r) => (liste = r));
+    http.expectOne((r) => r.method === 'GET' && r.url === '/api/map/ooh/campagnes').flush({ campagnes: [], tronque: false });
+    expect(liste).toEqual({ campagnes: [], tronque: false });
+    api.campagneOoh('a/b').subscribe();
+    http.expectOne('/api/map/ooh/campagnes/a%2Fb').flush(null);
+    http.verify();
+  });
+
   it('pprt : bbox seule par défaut (comme React) ; types joints et limite seulement si fournis', () => {
     const { api, http } = preparer();
     api.pprt('4.9000,43.3000,5.3000,43.6000', []).subscribe();
@@ -53,15 +64,6 @@ describe('CarteApi', () => {
     const corps = { categories: [{ id: 'bmw', label: 'BMW', origine: 'espace' }, { id: 'lycee', label: 'Lycées', origine: 'commune' }] };
     http.expectOne('/api/map/categories').flush(corps);
     expect(recu).toEqual(corps);
-    http.verify();
-  });
-
-  it('ooh : POST /api/map/ooh', () => {
-    const { api, http } = preparer();
-    api.ooh({ regies: [] }).subscribe();
-    const req = http.expectOne('/api/map/ooh');
-    expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ regies: [] });
     http.verify();
   });
 

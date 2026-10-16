@@ -3,7 +3,7 @@
 import { useSession } from "@/lib/auth-client";
 import Link from "next/link";
 import {
-  MapPin, Layers, FileUp, Monitor, Database, Users,
+  MapPin, Layers, FileUp, Database, Users,
   Hexagon, Clock, Mail, Shield,
 } from 'lucide-react';
 import { lienPageAcces } from '@/lib/espaces/lien-page-acces';
@@ -87,7 +87,6 @@ export default function DashboardPage() {
   // ── Navigation cards ────────────────────────────────────────────────────────
   const navCards = [
     { href: '/map',                    icon: MapPin,   label: 'Carte',            sub: 'Calques et analyses' },
-    { href: '/admin/ooh-import',       icon: Monitor,  label: 'Import OOH',       sub: 'Panneaux ArcGIS' },
     { href: '/admin/import',           icon: FileUp,   label: 'Import POI',       sub: 'CSV / XLSX' },
     { href: '/admin/sources',          icon: Database,  label: 'Sources',          sub: 'Data lake' },
     // Page Angular « Accès » (10/10), qui remplace la page React Organisations

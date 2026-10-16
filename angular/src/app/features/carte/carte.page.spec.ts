@@ -25,6 +25,7 @@ import { ZonesApi } from './data/zones.api';
 import { JeuxZonesApi } from '../risques/data/jeux-zones.api';
 import { ZonesRisqueApi } from '../risques/data/zones-risque.api';
 import { PONT_CARTE } from './etat/pont-carte';
+import { DETAIL_ESSAI } from './testing/campagnes-ooh.fixture';
 import { ZonesRisqueService } from './couches/zones-risque.service';
 import { ScoreService } from './couches/score.service';
 import { PROFIL_DEFAUT } from '../risques/logique/profil';
@@ -74,6 +75,9 @@ interface OptionsOuverture {
   jeuxRecommandes?: () => unknown;
   /** `AnalysesApi.lister` (outil « Mes analyses », lu à la première ouverture du tiroir). */
   analyses?: () => unknown;
+  /** `CarteApi.campagnesOoh` / `campagneOoh` (« Autres » → « Panneaux OOH et DOOH »). */
+  campagnesOoh?: () => unknown;
+  campagneOoh?: (id: string) => unknown;
 }
 
 async function ouvrir(options: OptionsOuverture = {}) {
@@ -112,7 +116,7 @@ async function ouvrir(options: OptionsOuverture = {}) {
       { provide: JeuxZonesApi, useValue: { lister: options.jeux ?? (() => of({ jeux: [] })) } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },
       { provide: IrisApi, useValue: { urlTuiles: () => '/api/tiles/iris/{z}/{x}/{y}?v=2', bornes: () => of({}), detail: () => of() } },
-      { provide: CarteApi, useValue: { categories: options.categories ?? (() => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] })), jeuxRecommandes: options.jeuxRecommandes ?? (() => of({ cles: [] })), pois: () => of(), ooh: () => of(), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
+      { provide: CarteApi, useValue: { categories: options.categories ?? (() => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] })), jeuxRecommandes: options.jeuxRecommandes ?? (() => of({ cles: [] })), pois: () => of(), campagnesOoh: options.campagnesOoh ?? (() => of({ campagnes: [], tronque: false })), campagneOoh: options.campagneOoh ?? (() => of()), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
       { provide: RadioApi, useValue: { optionsFiltre: () => of({}), emetteurs: () => of({ type: 'FeatureCollection', features: [] }), stations: () => of({}) } },
       { provide: MeteoApi, useValue: { donnees: () => of() } },
       { provide: IsochronesApi, useValue: {} },
@@ -1413,17 +1417,20 @@ describe('CartePage — le bouton « Autres », hors du fil (T11b, Vincent 14/10
   });
 
   it('/carte?etape=autres s’ouvre sur « Autres » ; les états OOH et radio survivent à la fermeture et à la réouverture', async () => {
-    const { hote, stable } = await ouvrir({ url: '/carte?etape=autres' });
+    // Pré-vol P11 : une VRAIE campagne choisie avant la fermeture, pour que « l'état OOH survit » affirme quelque chose.
+    const liste = { campagnes: [{ ...DETAIL_ESSAI.campagne, lignes: [] }], tronque: false };
+    const campagneOoh = vi.fn(() => of(DETAIL_ESSAI));
+    const { hote, stable } = await ouvrir({ url: '/carte?etape=autres', campagnesOoh: () => of(liste), campagneOoh });
     expect(panneauAutres(hote)!.hasAttribute('inert')).toBe(false);
     expect(hote.querySelectorAll('[data-panneau-etape]')).toHaveLength(0);
     (hote.querySelector('mg-section-ooh mg-entete-filtre') as HTMLElement).click();
     await stable();
-    hote.querySelector<HTMLButtonElement>('mg-section-ooh [data-tout]')!.click();
+    hote.querySelector<HTMLButtonElement>('mg-section-ooh [data-choisir-campagne="c1"]')!.click();
     (hote.querySelector('mg-section-radio mg-entete-filtre') as HTMLElement).click();
     await stable();
     hote.querySelector<HTMLButtonElement>('[data-basculer-radio]')!.click();
     await stable();
-    expect(hote.querySelector('[data-afficher-ooh]')!.textContent!.trim()).toBe('Afficher — 8 régies');
+    expect(hote.querySelector('mg-section-ooh [data-campagne]')!.textContent).toContain('Campagne essai');
     expect(hote.querySelector('[data-basculer-radio]')!.getAttribute('aria-pressed')).toBe('true');
     const section = hote.querySelector('mg-section-ooh');
     frapper(hote, altChiffre('2'));
@@ -1436,7 +1443,10 @@ describe('CartePage — le bouton « Autres », hors du fil (T11b, Vincent 14/10
     autres(hote).click();
     await stable();
     expect(hote.querySelector('mg-section-ooh')).toBe(section);
-    expect(hote.querySelector('[data-afficher-ooh]')!.textContent!.trim()).toBe('Afficher — 8 régies');
+    expect(hote.querySelector('mg-section-ooh [data-campagne]')!.textContent).toContain('Campagne essai');
+    expect(hote.querySelector('mg-section-ooh [data-ligne="l1"]')).not.toBeNull();
+    // Rien n'a été relu : l'état vit dans `CampagneOohService`, fourni par la page.
+    expect(campagneOoh).toHaveBeenCalledTimes(1);
     expect(hote.querySelector('[data-basculer-radio]')!.getAttribute('aria-pressed')).toBe('true');
     expect(routeur().url).toBe('/carte?etape=autres');
   });

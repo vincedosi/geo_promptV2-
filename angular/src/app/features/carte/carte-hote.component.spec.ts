@@ -10,6 +10,7 @@ import { FABRIQUE_CARTE } from '../../carte/fabrique-carte';
 import { CarteFactice } from '../../carte/testing/carte-factice';
 import { AuthService } from '../../core/auth/auth.service';
 import { ConfigService } from '../../core/config/config.service';
+import { CouleursService } from '../../core/theme/couleurs.service';
 import { OrganisationsApi } from '../session/data/organisations.api';
 import { ReferentielApi } from '../risques/data/referentiel.api';
 import { SitesRisqueApi } from '../risques/data/sites-risque.api';
@@ -29,7 +30,10 @@ import { ZonesApi } from './data/zones.api';
 import { CarteHoteComponent } from './carte-hote.component';
 import { CartePage } from './carte.page';
 import { CataloguePoiService } from './etat/catalogue-poi.service';
+import { CampagneOohService } from './couches/campagne-ooh.service';
+import { SOURCE_CAMPAGNE_OOH } from './couches/couche-campagne-ooh';
 import { EtatCarteService } from './etat/etat-carte.service';
+import { DETAIL_ESSAI } from './testing/campagnes-ooh.fixture';
 
 @Component({ selector: 'mg-vide', template: '' })
 class Vide {}
@@ -59,7 +63,7 @@ const ID = '11111111-2222-3333-4444-555555555555';
  * La route `carte` charge l'HÔTE, comme `app.routes.ts`. `CarteApi` est le VRAI service, sur `HttpTestingController` :
  * c'est lui qui lit `/api/map/categories`. Les autres API sont des faux espionnés.
  */
-async function ouvrir(url = '/carte') {
+async function ouvrir(url = '/carte', avant?: () => void) {
   (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ObservateurFactice;
   const cartes: CarteFactice[] = [];
   const faux = {
@@ -116,6 +120,7 @@ async function ouvrir(url = '/carte') {
       { provide: CiviqueApi, useValue: faux.civique },
     ],
   });
+  avant?.();
   const harness = await RouterTestingHarness.create();
   await harness.navigateByUrl(url);
   const stable = async () => {
@@ -300,5 +305,49 @@ describe('CarteHoteComponent — changer d’espace recrée la page carte', () =
 
     expect(TestBed.inject(Router).url).toBe('/carte');
     expect(page().componentInstance).not.toBe(avant);
+  });
+
+  it('(i) la campagne OOH de l’ancien espace disparaît : overlay, fiche et couche (revue de la tâche 10)', async () => {
+    // Une palette qui rend une couleur pour tout jeton : sans feuille de style, le vrai service lève — et la couche
+    // n'est peinte qu'avec une campagne affichée sur une carte chargée (pré-vol P1).
+    const palette = (j: Record<string, string>) => signal(Object.fromEntries(Object.keys(j).map((k) => [k, 'rgb(78, 205, 196)'])));
+    const { harness, stable, page, changerEspace, cartes, http } = await ouvrir('/carte?etape=autres', () =>
+      TestBed.overrideProvider(CouleursService, { useValue: { palette, paletteDuTheme: (j: Record<string, string>) => palette(j)() } }));
+    const el = harness.fixture.nativeElement as HTMLElement;
+    cartes[0].emettre('load');
+    await stable();
+    (el.querySelector('mg-section-ooh mg-entete-filtre') as HTMLElement).click();
+    await stable();
+    http.expectOne((r) => r.url.endsWith('/map/ooh/campagnes')).flush({ campagnes: [{ ...DETAIL_ESSAI.campagne, lignes: [] }], tronque: false });
+    await stable();
+    el.querySelector<HTMLButtonElement>('[data-choisir-campagne="c1"]')!.click();
+    http.expectOne((r) => r.url.endsWith('/map/ooh/campagnes/c1')).flush(DETAIL_ESSAI);
+    await stable();
+    const ancien = page().injector.get(CampagneOohService);
+    ancien.selectionner('p2');
+    await stable();
+    expect(el.querySelector('mg-section-ooh [data-campagne]')).not.toBeNull();
+    expect(el.querySelector('[data-fiche-emplacement-ooh]')).not.toBeNull();
+    expect(cartes[0].getSource(SOURCE_CAMPAGNE_OOH)).toBeDefined();
+
+    changerEspace('org-2');
+    await stable();
+    const nouvelle = cartes[cartes.length - 1];
+    nouvelle.emettre('load');
+    await stable();
+
+    const service = page().injector.get(CampagneOohService);
+    expect(service).not.toBe(ancien);
+    expect(service.detail()).toBeNull();
+    expect(service.campagnes()).toBeNull();
+    expect(service.emplacementSelectionne()).toBeNull();
+    expect(el.querySelector('[data-campagne]')).toBeNull();
+    expect(el.querySelector('[data-fiche-emplacement-ooh]')).toBeNull();
+    // L'ancienne carte est détruite avec sa couche ; la nouvelle n'en a aucune, et rien n'a été relu.
+    expect(cartes[0].retiree).toBe(true);
+    expect(nouvelle).not.toBe(cartes[0]);
+    expect(nouvelle.getSource(SOURCE_CAMPAGNE_OOH)).toBeUndefined();
+    http.expectNone((r) => r.url.includes('/map/ooh/campagnes'));
+    http.verify();
   });
 });

@@ -19,7 +19,6 @@ import { SitesRisqueApi, type CompteSites } from '../risques/data/sites-risque.a
  */
 const CARTES_NAVIGATION: readonly { icone: NomIcone; libelle: string; sous: string; cible: string | null }[] = [
   { icone: 'epingle-carte', libelle: 'Carte', sous: 'Calques et analyses', cible: null },
-  { icone: 'ecran', libelle: 'Import OOH', sous: 'Panneaux ArcGIS', cible: null },
   { icone: 'fichier-haut', libelle: 'Import POI', sous: 'CSV / XLSX', cible: null },
   { icone: 'base-de-donnees', libelle: 'Sources', sous: 'Data lake', cible: null },
   { icone: 'utilisateurs', libelle: 'Accès', sous: 'Comptes et espaces', cible: 'admin/acces' },

@@ -48,16 +48,16 @@ describe('ReglagesComponent — portage de SettingsOverlay.tsx', () => {
     expect(el.querySelector('[data-section="apparence"]')!.textContent).toContain('Thème clair / sombre');
   });
 
-  it('« Back office » : « Accès » en tête (remplace « Organisations (workspaces) » et « Utilisateurs »), puis les neuf autres liens de React ; seules les pages non portées restent inertes', async () => {
+  it('« Back office » : « Accès » en tête (remplace « Organisations (workspaces) » et « Utilisateurs »), puis les huit autres liens de React ; seules les pages non portées restent inertes', async () => {
     const { el } = await monter();
     const entrees = [...el.querySelectorAll<HTMLElement>('[data-section="back-office"] a, [data-section="back-office"] button')];
     expect(entrees.map((b) => b.textContent?.trim())).toEqual([
-      'Accès', 'Import POI', 'Import Shapefile', 'Import OOH', 'IRIS crawler',
+      'Accès', 'Import POI', 'Import Shapefile', 'IRIS crawler',
       'Radio FM/DAB+', 'Connexions API', 'Sources', 'Historique imports', 'Health check',
     ]);
     const inertes = [...el.querySelectorAll<HTMLButtonElement>('[data-section="back-office"] button')];
     expect(inertes.map((b) => b.textContent?.trim())).toEqual([
-      'Import POI', 'Import Shapefile', 'Import OOH', 'IRIS crawler', 'Radio FM/DAB+', 'Connexions API', 'Sources', 'Historique imports',
+      'Import POI', 'Import Shapefile', 'IRIS crawler', 'Radio FM/DAB+', 'Connexions API', 'Sources', 'Historique imports',
     ]);
     expect(inertes.every((b) => b.getAttribute('aria-disabled') === 'true' && b.getAttribute('title') === 'Disponible prochainement')).toBe(true);
   });

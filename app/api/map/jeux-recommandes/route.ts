@@ -11,18 +11,14 @@
  * recommander (`estCleJeuConnue` faux : un jeu passé dans « Autres », T11b) est ignorée — une ligne ancienne ne ressort pas.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
-import { getSessionOrg } from '@/lib/auth/getSessionOrg';
+import { orgIdActif } from '@/lib/auth/getSessionOrg';
 import { estCleJeuConnue } from '@/lib/carte/jeux-carte';
 
 export const dynamic = 'force-dynamic';
 
-const Uuid = z.string().uuid();
-
 export async function GET(req: NextRequest) {
-  const session = await getSessionOrg(req);
-  const orgId = session?.orgId && Uuid.safeParse(session.orgId).success ? session.orgId : null;
+  const orgId = await orgIdActif(req);
   if (!orgId) return NextResponse.json({ cles: [] });
 
   const { data, error } = await createAdminClient()

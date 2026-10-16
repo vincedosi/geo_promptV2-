@@ -44,6 +44,9 @@ const ASSUMEES = new Map<string, string>([
   ['lib/auth/perimetre-donnees.ts', 'L\'application de la règle elle-même.'],
   ['lib/import/inserter.ts',
    'Écrivain des imports, appelé seulement par /api/admin/import-* (super_admin).'],
+  ['lib/ooh/plan/ecrire.ts',
+   'Écrivain du script scripts/ooh/importer-plan.ts (service_role, hors route) : il écrit les panneaux d\'une campagne '
+   + 'dans une source PRIVÉE de l\'espace et ne rend rien à un appelant HTTP.'],
   ['lib/import/geo-enricher.ts',
    'Enrichissement des imports, appelé seulement depuis /api/admin (super_admin).'],
   ['lib/supabase/tables.ts', 'Types et commentaires : aucune requête exécutée.'],
@@ -114,6 +117,26 @@ describe('API clustering — réservée au super_admin', () => {
       const handlers = (source.match(/export async function (GET|POST|PUT|PATCH|DELETE)\b/g) ?? []).length;
       const gardes = (source.match(/await reserverAuSuperAdmin\(/g) ?? []).length;
       expect(gardes, `${f} : ${handlers} handler(s), ${gardes} garde(s)`).toBe(handlers);
+    });
+  }
+});
+
+describe('campagnes multi-média — toute lecture d une route passe par l espace actif', () => {
+  // Les campagnes et leurs panneaux sont PRIVÉS à un espace (spec 2026-10-16-ooh-campagnes, décision 5). Les routes
+  // lisent par service_role : c'est le `p_org` de l'espace actif, et lui seul, qui cloisonne.
+  const LECTURE_CAMPAGNE = /rpc\(\s*'(campagne_ooh_jsonb|campagnes_ooh_jsonb)'|from\(\s*'(campagnes|campagne_lignes|campagne_ligne_panneaux)'\s*\)/;
+  const routes = candidats.filter((f) => f.startsWith('app/api/') && LECTURE_CAMPAGNE.test(readFileSync(join(RACINE, f), 'utf8')));
+
+  it('les routes de campagne existent (le motif n est pas aveugle)', () => {
+    expect(routes.length).toBeGreaterThanOrEqual(2);
+  });
+
+  for (const f of routes) {
+    it(f, () => {
+      const source = readFileSync(join(RACINE, f), 'utf8');
+      // `orgIdActif` (lib/auth/getSessionOrg.ts) lit la session et valide l'UUID de l'espace.
+      expect(source, `${f} doit lire la session`).toMatch(/\b(getSessionOrg|orgIdActif)\(/);
+      expect(source, `${f} doit passer l espace actif à la RPC`).toMatch(/p_org:\s*orgId/);
     });
   }
 });

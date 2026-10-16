@@ -9,7 +9,6 @@ import { CarreauxService } from '../../couches/carreaux.service';
 import { IndicateursCiviquesService } from '../../couches/indicateurs-civiques.service';
 import { IrisService } from '../../couches/iris.service';
 import { MeteoService } from '../../couches/meteo.service';
-import { OohService } from '../../couches/ooh.service';
 import { PoisService } from '../../couches/pois.service';
 import { PprtService } from '../../couches/pprt.service';
 import { RadioService } from '../../couches/radio.service';
@@ -56,7 +55,7 @@ function monter(o: Options = {}) {
   const carteApi = {
     categories: vi.fn(() => of({ categories: o.categories ?? CATEGORIES })),
     jeuxRecommandes: vi.fn(() => o.reco ?? of({ cles: [] as string[] })),
-    pois: vi.fn(() => NEVER), ooh: vi.fn(() => NEVER), transport: vi.fn(() => NEVER), pprt: vi.fn(() => NEVER),
+    pois: vi.fn(() => NEVER), campagnesOoh: vi.fn(() => NEVER), campagneOoh: vi.fn(() => NEVER), transport: vi.fn(() => NEVER), pprt: vi.fn(() => NEVER),
     urlTuilesTmja: vi.fn(() => ''), poiNatures: vi.fn(() => NEVER), territoryMask: vi.fn(() => NEVER),
   };
   // La fiche santé d'une commune (`mg-fiche-sante`) : AUCUNE lecture sans geste sur la ligne santé (relecture T13, m1).
@@ -65,7 +64,7 @@ function monter(o: Options = {}) {
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), provideRouter([]), CaptureService, CarreauxService, IrisService, EtatCarteService, CouchesCarteService, AnnonceService,
-      PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService, IndicateursCiviquesService, SanteService,
+      PoisService, TransportService, CataloguePoiService, TmjaService, RadioService, IndicateursCiviquesService, SanteService,
       MeteoService, ContoursZonesService, RisqueCarteService, RisquesIndustrielsService, PprtService, DonneesAfficheesService,
       OutilsCarteService, PileEchapService,
       { provide: MeteoApi, useValue: { donnees: () => of<MeteoZoneChunk>({ status: 'done', progress: 1, total: 1, data: {}, meta: META_METEO }) } },
@@ -116,7 +115,7 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
     expect(carteApi.categories).toHaveBeenCalledTimes(1);
     expect(carteApi.categories).toHaveBeenCalledWith(false);
     expect(carteApi.jeuxRecommandes).toHaveBeenCalledTimes(1);
-    for (const m of ['pois', 'ooh', 'transport', 'pprt', 'urlTuilesTmja', 'poiNatures', 'territoryMask'] as const) {
+    for (const m of ['pois', 'campagnesOoh', 'campagneOoh', 'transport', 'pprt', 'urlTuilesTmja', 'poiNatures', 'territoryMask'] as const) {
       expect(carteApi[m], m).not.toHaveBeenCalled();
     }
     for (const [nom, f] of Object.entries(tuiles)) expect(f, nom).not.toHaveBeenCalled();

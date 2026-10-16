@@ -260,6 +260,36 @@ deux natures compte dans les deux), et l'écran le dit.
 > jusqu'au 2026-09-19, sans variante de thème clair et hors de tout test — dans
 > un fichier qui prouvait pourtant trois lignes plus bas que `var()` y marche.
 
+### Échelle qualitative (lignes d'une campagne — points OOH sur la carte)
+
+Qualitative, comme les natures de risque : les lignes d'un plan (Mediatransports, Basic-Fit, Stride…) ne
+s'ordonnent pas. Une teinte par ligne qui a des emplacements, dans l'ordre du plan ; au-delà de huit lignes, les
+teintes reviennent. Les points ont un cerne `--poi-contour` ; un point **à vérifier** perd son cerne plein et porte un
+anneau pointillé **bicolore** (calque `symbol`, image calculée) : seize segments alternés `--poi-contour` (blanc) et
+`--anneau-a-verifier` (quasi noir). Jusqu'au 16/10 l'anneau était d'une seule couleur, le blanc de `--poi-contour` :
+visible sur le fond « dentsu » sombre, il disparaissait sur le fond « Clair » et sur tout fond du thème clair, et le
+point à vérifier ne s'y distinguait plus d'un point sûr. L'image est repeinte (`updateImage`) à chaque pose.
+
+| Token | Hex (dark) | Hex (light) | Usage |
+|-------|-----------|-------------|-------|
+| --anneau-a-verifier | #1a1a1a | #1a1a1a | Segment sombre de l'anneau pointillé d'un point à vérifier — **invariant**, comme `--poi-contour` qui porte l'autre segment : c'est l'alternance des deux, et non le thème, qui le rend visible sur tout fond |
+
+| Token | Hex (dark) | Hex (light) |
+|-------|-----------|-------------|
+| --ligne-media-1 | #e8a33d | #b9770f |
+| --ligne-media-2 | #4f9fe0 | #2a73b8 |
+| --ligne-media-3 | #d9667f | #b23a57 |
+| --ligne-media-4 | #5cc08a | #23874f |
+| --ligne-media-5 | #e0d05a | #8c7d10 |
+| --ligne-media-6 | #5d7fc4 | #3a5aa0 |
+| --ligne-media-7 | #e58a6b | #b8532f |
+| --ligne-media-8 | #8bb84a | #5c7f1f |
+
+Alternance chaud/froid ; aucune des huit `--nature-*`, aucune couleur de statut, pas le teal de marque, pas de violet.
+Contraste mesuré le 16/10 : ≥ 4,9:1 sur `#0a0a0a` en sombre, ≥ 3,3:1 sur `#f5f5f5` en clair (objets graphiques, WCAG
+1.4.11). ⚠ Valeurs CALCULÉES pour MapLibre (`CouleursService`), jamais `var()` dans `paint` ; la pastille de ligne de
+l'overlay, elle, est en CSS et emploie `var(--ligne-media-n)`. Choix visuel neuf, à valider par un designer.
+
 ### Niveau réglementaire d'un site à risque
 
 ⚠ **À ne pas confondre avec les quatre `--risque-*`**, qui sont juste au-dessus

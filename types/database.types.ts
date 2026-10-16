@@ -1109,6 +1109,200 @@ export type Database = {
           },
         ]
       }
+      campagne_ligne_panneaux: {
+        Row: {
+          created_at: string
+          details: Json
+          formats: string[] | null
+          ligne_id: string
+          nb_ecrans: number | null
+          panneau_id: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json
+          formats?: string[] | null
+          ligne_id: string
+          nb_ecrans?: number | null
+          panneau_id: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json
+          formats?: string[] | null
+          ligne_id?: string
+          nb_ecrans?: number | null
+          panneau_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campagne_ligne_panneaux_ligne_id_fkey"
+            columns: ["ligne_id"]
+            isOneToOne: false
+            referencedRelation: "campagne_lignes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campagne_ligne_panneaux_panneau_id_fkey"
+            columns: ["panneau_id"]
+            isOneToOne: false
+            referencedRelation: "panneaux_affichage"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campagne_lignes: {
+        Row: {
+          campagne_id: string
+          contacts_15_plus: number | null
+          contacts_18_24: number | null
+          created_at: string
+          data_source_id: string | null
+          date_debut: string | null
+          date_fin: string | null
+          details: Json
+          duree_libelle: string | null
+          format: string | null
+          frais: number | null
+          honoraires: number | null
+          id: string
+          media: string
+          montant_brut: number | null
+          montant_net: number | null
+          nb_diffusions: number | null
+          nb_ecrans: number | null
+          ordre: number
+          plage_horaire: string | null
+          rang_option: string | null
+          regie: string | null
+          reseau: string | null
+          territoire: string | null
+          total_ttc: number | null
+        }
+        Insert: {
+          campagne_id: string
+          contacts_15_plus?: number | null
+          contacts_18_24?: number | null
+          created_at?: string
+          data_source_id?: string | null
+          date_debut?: string | null
+          date_fin?: string | null
+          details?: Json
+          duree_libelle?: string | null
+          format?: string | null
+          frais?: number | null
+          honoraires?: number | null
+          id?: string
+          media: string
+          montant_brut?: number | null
+          montant_net?: number | null
+          nb_diffusions?: number | null
+          nb_ecrans?: number | null
+          ordre: number
+          plage_horaire?: string | null
+          rang_option?: string | null
+          regie?: string | null
+          reseau?: string | null
+          territoire?: string | null
+          total_ttc?: number | null
+        }
+        Update: {
+          campagne_id?: string
+          contacts_15_plus?: number | null
+          contacts_18_24?: number | null
+          created_at?: string
+          data_source_id?: string | null
+          date_debut?: string | null
+          date_fin?: string | null
+          details?: Json
+          duree_libelle?: string | null
+          format?: string | null
+          frais?: number | null
+          honoraires?: number | null
+          id?: string
+          media?: string
+          montant_brut?: number | null
+          montant_net?: number | null
+          nb_diffusions?: number | null
+          nb_ecrans?: number | null
+          ordre?: number
+          plage_horaire?: string | null
+          rang_option?: string | null
+          regie?: string | null
+          reseau?: string | null
+          territoire?: string | null
+          total_ttc?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campagne_lignes_campagne_id_fkey"
+            columns: ["campagne_id"]
+            isOneToOne: false
+            referencedRelation: "campagnes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campagne_lignes_data_source_id_fkey"
+            columns: ["data_source_id"]
+            isOneToOne: false
+            referencedRelation: "data_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campagnes: {
+        Row: {
+          annonceur: string | null
+          budget_total_ttc: number | null
+          cle_import: string | null
+          created_at: string
+          date_debut: string | null
+          date_fin: string | null
+          id: string
+          metadata: Json
+          nom: string
+          organization_id: string
+          updated_at: string
+          vague: string | null
+        }
+        Insert: {
+          annonceur?: string | null
+          budget_total_ttc?: number | null
+          cle_import?: string | null
+          created_at?: string
+          date_debut?: string | null
+          date_fin?: string | null
+          id?: string
+          metadata?: Json
+          nom: string
+          organization_id: string
+          updated_at?: string
+          vague?: string | null
+        }
+        Update: {
+          annonceur?: string | null
+          budget_total_ttc?: number | null
+          cle_import?: string | null
+          created_at?: string
+          date_debut?: string | null
+          date_fin?: string | null
+          id?: string
+          metadata?: Json
+          nom?: string
+          organization_id?: string
+          updated_at?: string
+          vague?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campagnes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_cp_rollup: {
         Row: {
           actor: string
@@ -4172,6 +4366,8 @@ export type Database = {
           code_departement: string | null
           code_insee: string | null
           code_postal: string | null
+          contacts_18_25_semaine: number | null
+          contacts_semaine: number | null
           data_source_id: string | null
           date_enrichissement: string | null
           date_import: string | null
@@ -4182,6 +4378,11 @@ export type Database = {
           flux_routier_distance_m: number | null
           flux_routier_route: string | null
           flux_routier_tmja: number | null
+          formats: string[] | null
+          geoloc_libelle: string | null
+          geoloc_methode: string | null
+          geoloc_qualite: string | null
+          geoloc_score: number | null
           geom: unknown
           id: string
           in_isochrone_cirfa: boolean | null
@@ -4192,6 +4393,7 @@ export type Database = {
           lng: number
           metadata: Json | null
           nb_arrets_300m: number | null
+          nb_ecrans: number | null
           nb_faces: number | null
           nb_lycees_1000m: number | null
           nb_lycees_300m: number | null
@@ -4200,6 +4402,8 @@ export type Database = {
           nb_poi_gare_500m: number | null
           nb_poi_salle_sport_500m: number | null
           nb_poi_supermarche_500m: number | null
+          nom_lieu: string | null
+          numerique: boolean | null
           organization_id: string | null
           poi_cirfa_distance_min: number | null
           poi_cirfa_nom_proche: string | null
@@ -4211,6 +4415,7 @@ export type Database = {
           reference_panneau: string | null
           regie: string | null
           region: string | null
+          reseau: string | null
           revenu_median: number | null
           score_age_0_14: number | null
           score_age_15_29: number | null
@@ -4230,6 +4435,7 @@ export type Database = {
           source: string | null
           source_insee: string | null
           source_ref: string | null
+          type_lieu: string | null
           type_panneau: string | null
           ville: string | null
         }
@@ -4240,6 +4446,8 @@ export type Database = {
           code_departement?: string | null
           code_insee?: string | null
           code_postal?: string | null
+          contacts_18_25_semaine?: number | null
+          contacts_semaine?: number | null
           data_source_id?: string | null
           date_enrichissement?: string | null
           date_import?: string | null
@@ -4250,6 +4458,11 @@ export type Database = {
           flux_routier_distance_m?: number | null
           flux_routier_route?: string | null
           flux_routier_tmja?: number | null
+          formats?: string[] | null
+          geoloc_libelle?: string | null
+          geoloc_methode?: string | null
+          geoloc_qualite?: string | null
+          geoloc_score?: number | null
           geom: unknown
           id?: string
           in_isochrone_cirfa?: boolean | null
@@ -4260,6 +4473,7 @@ export type Database = {
           lng: number
           metadata?: Json | null
           nb_arrets_300m?: number | null
+          nb_ecrans?: number | null
           nb_faces?: number | null
           nb_lycees_1000m?: number | null
           nb_lycees_300m?: number | null
@@ -4268,6 +4482,8 @@ export type Database = {
           nb_poi_gare_500m?: number | null
           nb_poi_salle_sport_500m?: number | null
           nb_poi_supermarche_500m?: number | null
+          nom_lieu?: string | null
+          numerique?: boolean | null
           organization_id?: string | null
           poi_cirfa_distance_min?: number | null
           poi_cirfa_nom_proche?: string | null
@@ -4279,6 +4495,7 @@ export type Database = {
           reference_panneau?: string | null
           regie?: string | null
           region?: string | null
+          reseau?: string | null
           revenu_median?: number | null
           score_age_0_14?: number | null
           score_age_15_29?: number | null
@@ -4298,6 +4515,7 @@ export type Database = {
           source?: string | null
           source_insee?: string | null
           source_ref?: string | null
+          type_lieu?: string | null
           type_panneau?: string | null
           ville?: string | null
         }
@@ -4308,6 +4526,8 @@ export type Database = {
           code_departement?: string | null
           code_insee?: string | null
           code_postal?: string | null
+          contacts_18_25_semaine?: number | null
+          contacts_semaine?: number | null
           data_source_id?: string | null
           date_enrichissement?: string | null
           date_import?: string | null
@@ -4318,6 +4538,11 @@ export type Database = {
           flux_routier_distance_m?: number | null
           flux_routier_route?: string | null
           flux_routier_tmja?: number | null
+          formats?: string[] | null
+          geoloc_libelle?: string | null
+          geoloc_methode?: string | null
+          geoloc_qualite?: string | null
+          geoloc_score?: number | null
           geom?: unknown
           id?: string
           in_isochrone_cirfa?: boolean | null
@@ -4328,6 +4553,7 @@ export type Database = {
           lng?: number
           metadata?: Json | null
           nb_arrets_300m?: number | null
+          nb_ecrans?: number | null
           nb_faces?: number | null
           nb_lycees_1000m?: number | null
           nb_lycees_300m?: number | null
@@ -4336,6 +4562,8 @@ export type Database = {
           nb_poi_gare_500m?: number | null
           nb_poi_salle_sport_500m?: number | null
           nb_poi_supermarche_500m?: number | null
+          nom_lieu?: string | null
+          numerique?: boolean | null
           organization_id?: string | null
           poi_cirfa_distance_min?: number | null
           poi_cirfa_nom_proche?: string | null
@@ -4347,6 +4575,7 @@ export type Database = {
           reference_panneau?: string | null
           regie?: string | null
           region?: string | null
+          reseau?: string | null
           revenu_median?: number | null
           score_age_0_14?: number | null
           score_age_15_29?: number | null
@@ -4366,6 +4595,7 @@ export type Database = {
           source?: string | null
           source_insee?: string | null
           source_ref?: string | null
+          type_lieu?: string | null
           type_panneau?: string | null
           ville?: string | null
         }
@@ -6266,6 +6496,14 @@ export type Database = {
           p_poids: number[]
           p_sens: string[]
         }
+        Returns: Json
+      }
+      campagne_ooh_jsonb: {
+        Args: { p_campagne: string; p_limite?: number; p_org: string }
+        Returns: Json
+      }
+      campagnes_ooh_jsonb: {
+        Args: { p_limite?: number; p_org: string }
         Returns: Json
       }
       check_iso_hits_new_carreaux: {

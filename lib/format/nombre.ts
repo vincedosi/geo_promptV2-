@@ -11,7 +11,7 @@
  *
  * | Comportement | Copies | Fichiers |
  * |---|---|---|
- * | `toLocaleString('fr-FR')` brut | 6 | carreaux-import, campaign, ooh-import, admin/imports, DspPanel, ZoneAudienceStats |
+ * | `toLocaleString('fr-FR')` brut | 6 | carreaux-import, campaign, ooh-import (page supprimée le 2026-10-16), admin/imports, DspPanel, ZoneAudienceStats |
  * | paliers `k` / `M` / `G`, séparateur `.` | 5 | KpiSummary, CampaignCard, CampaignContextBar, RailroadPipeline, SyncMap |
  * | paliers `k` / `M` **sans `G`** | 2 | ActionListTable, MediaHeatmap |
  *

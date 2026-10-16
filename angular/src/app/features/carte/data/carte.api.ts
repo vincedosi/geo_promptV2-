@@ -3,6 +3,7 @@ import { Injectable } from '@angular/core';
 import { type Observable, timeout } from 'rxjs';
 import type { Bbox } from '../../../carte/bbox';
 import { HttpBaseService } from '../../../core/http/http-base.service';
+import type { DetailCampagneOoh, ReponseCampagnesOoh } from '../logique/campagnes-ooh';
 import { SOURCE_TMJA } from '../logique/palettes-donnees-carte';
 
 /** Un point d'intérêt — recopie de `POI` (`types/poi.ts`). */
@@ -80,12 +81,6 @@ export interface CorpsPois {
   bbox?: readonly [number, number, number, number];
 }
 
-/** Le corps de `POST /api/map/ooh` (`useMapDirectActions.ts:65-71`). */
-export interface CorpsOoh {
-  regies: string[];
-  bbox?: readonly [number, number, number, number];
-}
-
 /** D'où vient une catégorie (droits sur la carte, T2) : du socle commun à tous les espaces, ou de l'espace actif. */
 export type OrigineCategorie = 'commune' | 'espace';
 
@@ -105,12 +100,11 @@ export interface CollectionPprt {
   tolerance_deg?: number;
 }
 
-/** Délais de React (`AbortSignal.timeout`, `useMapDirectActions.ts:71,101`). */
+/** Délai de React (`AbortSignal.timeout`, `useMapDirectActions.ts:101`). */
 export const DELAI_POIS_MS = 25000;
-export const DELAI_OOH_MS = 15000;
 
 /**
- * Les données ponctuelles de la carte principale : POI, panneaux OOH, arrêts de transport, catalogue des catégories
+ * Les données ponctuelles de la carte principale : POI, campagnes OOH de l'espace, arrêts de transport, catalogue des catégories
  * et des natures, masque d'un territoire.
  *
  * ⚠ `/api/map/pois` est un **POST** (`app/api/map/pois/route.ts:67`, le seul verbe exporté) : `ARCHITECTURE.md`
@@ -120,7 +114,8 @@ export const DELAI_OOH_MS = 15000;
  * - Aucun appel au chargement de la page : chaque requête part d'un geste (bouton « Afficher… ») ou, pour le
  *   catalogue, de la première ouverture de la section POI — et UNE fois par écran (`CataloguePoiService`).
  * - Les arrêts de transport ne portent que sur la carte VISIBLE (bbox `toFixed(4)`, `page.tsx:487-496`).
- * - POI et OOH ne reçoivent une bbox que si un filtre géographique est actif (`bboxPourRequete`).
+ * - Les POI ne reçoivent une bbox que si un filtre géographique est actif (`bboxPourRequete`).
+ * - Les campagnes OOH : la liste à la première ouverture de leur section, une campagne à son choix (`CampagneOohService`).
  *
  * Fourni par la ROUTE (`FOURNISSEURS_DISTANTS`), comme tout service d'API (garde `modele-aida.test.ts`).
  */
@@ -150,9 +145,14 @@ export class CarteApi extends HttpBaseService {
     });
   }
 
-  /** `POST /api/map/ooh`, 15 s au plus comme React. */
-  ooh(corps: CorpsOoh): Observable<ZoneData> {
-    return this.httpClient.post<ZoneData>(`${this.baseUrl}/map/ooh`, corps).pipe(timeout(DELAI_OOH_MS));
+  /** `GET /api/map/ooh/campagnes` — les campagnes OOH de l'espace actif (spec 2026-10-16-ooh-campagnes § 5). */
+  campagnesOoh(): Observable<ReponseCampagnesOoh> {
+    return this.httpClient.get<ReponseCampagnesOoh>(`${this.baseUrl}/map/ooh/campagnes`);
+  }
+
+  /** `GET /api/map/ooh/campagnes/:id` — une campagne de l'espace actif, ses lignes OOH et ses emplacements. */
+  campagneOoh(id: string): Observable<DetailCampagneOoh> {
+    return this.httpClient.get<DetailCampagneOoh>(`${this.baseUrl}/map/ooh/campagnes/${encodeURIComponent(id)}`);
   }
 
   /**

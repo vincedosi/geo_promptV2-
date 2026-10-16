@@ -3,6 +3,8 @@
  * Copie Angular (lot 4, P6) VERBATIM de `app/map/_components/filter-panel/constants.ts`,
  * `poi-style.ts` et de `lib/geo/france-admin.ts` (`POI_TYPES`, `POI_RAYONS`), verrouillée par
  * tests/unit/angular/carte-couches-paritaire.test.ts (gel P5 étendu à /map).
+ * `OOH_REGIES` n'est PLUS copié (2026-10-16) : l'Angular choisit une campagne de l'espace, plus des régies (spec
+ * ooh-campagnes § 6) ; React garde sa liste.
  *
  * `AUDIENCE_METRICS` (même fichier React) n'est PAS copié : aucun panneau Angular ne le lit
  * (le catalogue d'indicateurs vient de `/api/iris/bornes` et `/api/cibles/indicators`).
@@ -11,18 +13,6 @@
  */
 
 // ── filter-panel/constants.ts ───────────────────────────────────────────────
-
-/** Régies OOH filtrables dans la section Panneaux. */
-export const OOH_REGIES = [
-  { id: 'DECAUX',       label: 'JCDecaux' },
-  { id: 'Clear Chanel', label: 'Clear Channel' },
-  { id: 'SIGNALI',      label: 'Signali' },
-  { id: 'PUBLI ESPACE', label: 'Publi Espace' },
-  { id: 'AFFIOUEST',    label: 'Affiouest' },
-  { id: 'PUB OCEANNE',  label: 'Pub Océanne' },
-  { id: 'PROMOVIL',     label: 'Promovil' },
-  { id: 'RDPP',         label: 'RDPP' },
-];
 
 /** Modes de transport en commun filtrables. */
 export const TRANSPORT_TYPES = [

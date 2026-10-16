@@ -19,7 +19,7 @@ import { NextRequest } from 'next/server';
  */
 
 const getUser = vi.fn();
-const profil = { data: { organization_id: 'org-1', role: 'super_admin' }, error: null };
+const profil = { data: { organization_id: 'org-1' as string | null, role: 'super_admin' }, error: null };
 
 vi.mock('@/lib/auth', () => ({
   createAdminClient: () => ({
@@ -28,7 +28,7 @@ vi.mock('@/lib/auth', () => ({
   }),
 }));
 
-const { getSessionOrg } = await import('@/lib/auth/getSessionOrg');
+const { getSessionOrg, orgIdActif, orgIdDeSession } = await import('@/lib/auth/getSessionOrg');
 
 const URL_LOCALE = 'http://127.0.0.1:54321';
 const NOM = 'sb-127-auth-token';
@@ -69,5 +69,25 @@ describe('getSessionOrg — formats de cookie', () => {
 
   it('un cookie illisible donne null, sans lever', async () => {
     expect(await getSessionOrg(requete({ [NOM]: 'base64-%%%pas-du-base64' }))).toBeNull();
+  });
+});
+
+describe('orgIdActif — l espace actif d une requête', () => {
+  const ORG = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
+  const cookie = () => requete({ [NOM]: 'base64-' + Buffer.from(JSON.stringify(jeton)).toString('base64url') });
+
+  it('l organisation de la session si c est un UUID', async () => {
+    profil.data.organization_id = ORG;
+    expect(await orgIdActif(cookie())).toBe(ORG);
+  });
+
+  it('null pour un espace qui n est pas un UUID, sans espace, ou sans session', async () => {
+    profil.data.organization_id = 'org-1';
+    expect(await orgIdActif(cookie())).toBeNull();
+    profil.data.organization_id = null;
+    expect(await orgIdActif(cookie())).toBeNull();
+    expect(await orgIdActif(requete({}))).toBeNull();
+    expect(orgIdDeSession(null)).toBeNull();
+    profil.data.organization_id = 'org-1';
   });
 });

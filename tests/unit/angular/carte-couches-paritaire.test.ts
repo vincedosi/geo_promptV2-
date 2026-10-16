@@ -559,11 +559,13 @@ describe('fonds de carte, palettes de données et constantes de calques', () => 
     }
   });
 
-  it('constantes de calques : OOH, transport, épingles, POI, rayons, modes d’isochrones', () => {
-    donneesEgales(Rfc, Acc, ['OOH_REGIES', 'TRANSPORT_TYPES', 'PIN_SIZES', 'PIN_COLORS']);
+  it('constantes de calques : transport, épingles, POI, rayons, modes d’isochrones ; OOH_REGIES n’est plus copié', () => {
+    donneesEgales(Rfc, Acc, ['TRANSPORT_TYPES', 'PIN_SIZES', 'PIN_COLORS']);
     donneesEgales(Rfa, Acc, ['POI_TYPES', 'POI_RAYONS']);
     donneesEgales(Rfa, Ami, ['ISO_MODES', 'ISO_DURATIONS']);
-    expect(Acc.OOH_REGIES).toHaveLength(8);
+    // React (gelé) garde son filtre par régies ; l'Angular choisit une campagne de l'espace (spec ooh-campagnes § 6).
+    expect(Rfc.OOH_REGIES).toHaveLength(8);
+    expect('OOH_REGIES' in Acc).toBe(false);
     expect(Ami.ISO_MODES.map((m) => m.id)).toEqual(['walk', 'bike', 'drive']);
   });
 });

@@ -38,18 +38,22 @@ beforeEach(() => {
 });
 
 describe('checkImportRateLimit — quota partagé des imports', () => {
+  // Clé d'ESSAI : le seul appelant de checkImportRateLimit (l'import ArcGIS) est supprimé depuis le 2026-10-16.
+  // Le test porte sur le mécanisme — compteur en base, refus, échec ouvert —, pas sur une route.
+  const CLE = 'import-essai-quota';
+
   it('interroge le compteur en base, pas une Map locale', async () => {
-    await checkImportRateLimit('import-ooh-arcgis');
+    await checkImportRateLimit(CLE);
     expect(appelsRpc).toHaveLength(1);
     expect(appelsRpc[0].nom).toBe('consommer_quota');
     expect(appelsRpc[0].args).toEqual({
-      p_cle: 'import:import-ooh-arcgis', p_max: 3, p_fenetre_s: 60,
+      p_cle: `import:${CLE}`, p_max: 3, p_fenetre_s: 60,
     });
   });
 
   it('refuse quand la base dit que le quota est depasse', async () => {
     reponse.data = { ok: false, retry_s: 42 };
-    const r = await checkImportRateLimit('import-ooh-arcgis');
+    const r = await checkImportRateLimit(CLE);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.retryAfterSec).toBe(42);
   });
