@@ -1,4 +1,5 @@
-import { libelleRecetteAffiche, libelleSource } from './libelle-zone';
+import { libelleSource } from './libelle-zone';
+import { libelleRecette } from './recette';
 
 const CATALOGUE = [
   { indicator_code: 'taux_pauvrete', label: 'Taux de pauvreté', famille: 'Revenus', unit: '%' },
@@ -16,21 +17,13 @@ describe('libelleSource (puces et ligne de source de « Mes zones »)', () => {
   });
 });
 
-describe('libelleRecetteAffiche', () => {
-  it('seuil sur territoires : le LIBELLÉ du catalogue et son unité, jamais l’id brut (report T2)', () => {
+// Le libellé d'une recette est `libelleRecette` (copie paritaire de `lib/zones/recette.ts`, testée côté serveur) :
+// ce qui suit vérifie seulement que le catalogue Angular (`IndicateurRegistre`, avec `famille`) s'y passe tel quel.
+describe('libelleRecette avec le catalogue Angular', () => {
+  it('seuil sur territoires : le LIBELLÉ du catalogue et son unité, jamais l’id brut', () => {
     const r = { v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20.5, perimetre: null } as const;
-    expect(libelleRecetteAffiche(r, CATALOGUE)).toBe('Territoires où taux de pauvreté ≥ 20,5 %');
-    expect(libelleRecetteAffiche({ ...r, indicateur: 'nb_menages', operateur: '<=' }, CATALOGUE)).toBe('Territoires où ménages ≤ 20,5');
-  });
-
-  it('seuil sur territoires sans catalogue (pas encore lu, ou indicateur retiré) : le libellé de base', () => {
-    const r = { v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre: null } as const;
-    expect(libelleRecetteAffiche(r, [])).toBe('Territoires où taux_pauvrete ≥ 20');
-  });
-
-  it('les autres recettes : `libelleRecette`', () => {
-    expect(libelleRecetteAffiche({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 5000, perimetre: null }, CATALOGUE))
-      .toBe('Rayon de 5 km autour des POI « lycee »');
-    expect(libelleRecetteAffiche({ v: 1, type: 'codes_postaux', codes: ['75001', '75002'] }, [])).toBe('2 codes postaux');
+    expect(libelleRecette(r, CATALOGUE)).toBe('Territoires où taux de pauvreté ≥ 20,5 %');
+    expect(libelleRecette({ ...r, indicateur: 'nb_menages', operateur: '<=' }, CATALOGUE)).toBe('Territoires où ménages ≤ 20,5');
+    expect(libelleRecette(r, [])).toBe('Territoires où taux_pauvrete ≥ 20,5');
   });
 });

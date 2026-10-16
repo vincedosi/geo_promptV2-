@@ -3,7 +3,6 @@ import { AuthService } from '../../../../core/auth/auth.service';
 import { ClustersService } from '../../couches/clusters.service';
 import { BatailleV1Service } from '../../etat/bataille-v1.service';
 import { BatailleV2Service } from '../../etat/bataille-v2.service';
-import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { ContexteBatailleService } from '../../etat/contexte-bataille.service';
 import { CreationZoneService } from '../../etat/creation-zone.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
@@ -61,7 +60,8 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
 @Component({
   selector: 'mg-panneau-analyse',
   imports: [IntroAnalyseComponent, OutilBatailleV2Component, OutilCorrelationComponent, OutilIsochronesComponent, OutilScoreComponent, SectionClusteringComponent],
-  providers: [ScoreCompositeService, CatalogueIndicateursService, CreationZoneService, CalculClusteringService],
+  // Le catalogue d'indicateurs (score, corrélation) vient de la PAGE (lot 3, X4), partagé avec ③ et « Mes zones ».
+  providers: [ScoreCompositeService, CreationZoneService, CalculClusteringService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full flex-col overflow-y-auto' },
   template: `

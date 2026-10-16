@@ -33,6 +33,7 @@ import type { ZoneCustomResume } from './data/zones-custom.api';
 import { CouleursService } from '../../core/theme/couleurs.service';
 import { CartePage } from './carte.page';
 import { AnnonceService } from './etat/annonce.service';
+import { CatalogueIndicateursService } from './etat/catalogue-indicateurs.service';
 import { CouchesCarteService, quandStyleCharge } from './etat/couches-carte.service';
 import { EtatCarteService } from './etat/etat-carte.service';
 import { CarreauxService } from './couches/carreaux.service';
@@ -1227,6 +1228,21 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     expect(outil).not.toBeNull();
     expect([...outil.querySelectorAll('h4')].map((h) => h.textContent?.trim())).toEqual(['Jeux de zones à risque', 'Mes zones']);
     expect(outil.querySelector('mg-mes-zones')).not.toBeNull();
+  });
+
+  it('le catalogue d’indicateurs est fourni UNE fois, par la page : ③, son pied, « Mes zones » et Analyse partagent la même lecture (X4)', async () => {
+    const { harness, hote, stable } = await ouvrir();
+    const duPage = injecteurPage(harness).get(CatalogueIndicateursService);
+    frapper(hote, altChiffre('3'));
+    await stable();
+    const zones = harness.fixture.debugElement.query(By.css('mg-panneau-zones'));
+    expect(zones.injector.get(CatalogueIndicateursService)).toBe(duPage);
+    hote.querySelector<HTMLButtonElement>('[data-ouvrir-mes-zones]')!.click();
+    await stable();
+    expect(harness.fixture.debugElement.query(By.css('mg-mes-zones')).injector.get(CatalogueIndicateursService)).toBe(duPage);
+    frapper(hote, altChiffre('4'));
+    await stable();
+    expect(harness.fixture.debugElement.query(By.css('mg-panneau-analyse')).injector.get(CatalogueIndicateursService)).toBe(duPage);
   });
 
   it('sans lien : aucune géométrie demandée, aucun bouton DV360', async () => {

@@ -67,6 +67,8 @@ async function monter(filtre: FiltreActif | null = null) {
     OutilsCarteService, PileEchapService, CaptureService, EtatCarteService, AnnonceService, CouchesCarteService, ChargementService,
     { provide: ZonesApi, useValue: {} },
     { provide: AnalysesApi, useValue: {} },
+    // Fourni par la PAGE (X4) : le test tient le rôle de la page.
+    CatalogueIndicateursService,
     { provide: CouleursService, useValue: { palette: () => signal({ teal: '#4ecdc4' }) } },
     { provide: AuthService, useValue: { lireProfil: async () => ({ role: null, nom: null, organisation: 'org-1' }) } },
   ] });
@@ -90,13 +92,14 @@ async function monter(filtre: FiltreActif | null = null) {
 }
 
 describe('PanneauZonesComponent — ③ rangée par familles (lot 3, T10)', () => {
-  it('le panneau fournit AtelierZoneService, CreationZoneService et CatalogueIndicateursService (pas la racine)', async () => {
+  it('le panneau fournit AtelierZoneService et CreationZoneService (pas la racine) ; le catalogue vient de la PAGE (X4)', async () => {
     const { fixture } = await monter();
     const injecteur = fixture.debugElement.injector;
     expect(injecteur.get(AtelierZoneService)).toBeInstanceOf(AtelierZoneService);
     expect(injecteur.get(CreationZoneService)).toBeInstanceOf(CreationZoneService);
-    expect(injecteur.get(CatalogueIndicateursService)).toBeInstanceOf(CatalogueIndicateursService);
-    for (const s of [AtelierZoneService, CreationZoneService, CatalogueIndicateursService]) expect(() => TestBed.inject(s as never)).toThrow();
+    for (const s of [AtelierZoneService, CreationZoneService]) expect(() => TestBed.inject(s as never)).toThrow();
+    // Le catalogue n'est plus fourni par le panneau : celui de ce test (le fournisseur de la page) est le même objet.
+    expect(injecteur.get(CatalogueIndicateursService)).toBe(TestBed.inject(CatalogueIndicateursService));
   });
 
   it('quatre en-têtes dans l’ordre « Autour des POI », « Par seuil », « À la main », « Capture » ; seule la première ouverte', async () => {

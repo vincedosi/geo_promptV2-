@@ -9,6 +9,7 @@ import { ZonesCustomService } from '../../couches/zones-custom.service';
 import { type ZoneCustomResume, ZonesCustomApi } from '../../data/zones-custom.api';
 import { ZonesApi } from '../../data/zones.api';
 import { AnalysesApi } from '../../data/analyses.api';
+import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { CouchesCarteService } from '../../etat/couches-carte.service';
 import { ExportZoneService } from '../../etat/export-zone.service';
 import { MesZonesComponent } from './mes-zones.component';
@@ -44,6 +45,8 @@ function monter(o: {
   TestBed.configureTestingModule({
     providers: [
       ZonesCustomService, CouchesCarteService, ExportZoneService,
+      // Fourni par la PAGE carte (lot 3, X4) : le test tient le rôle de la page.
+      CatalogueIndicateursService,
       { provide: ZonesCustomApi, useValue: { ...base, ...o.api } },
       // Les opérations écrivent par `ZonesApi` (recette `combinaison`, lot 3).
       { provide: ZonesApi, useValue: { recalculer: o.recalculer ?? vi.fn() } },
@@ -265,14 +268,40 @@ describe('MesZonesComponent (ZonesOverlay.tsx, T14)', () => {
     expect(api.lister.mock.calls.length).toBe(lectures);
   });
 
-  it('207 → « zone recalculée, codes postaux non résolus » ; jamais renvoyée', async () => {
-    const recalculer = vi.fn(() => of(new HttpResponse({ status: 207, body: { zone_id: 'z1', warning: 'codes_non_resolus', message: 'Zone créée ; ses codes postaux n’ont pas pu être résolus.' } })));
+  it('207 → le message de la route (« Zone recalculée, mais … ») ; jamais renvoyée', async () => {
+    const recalculer = vi.fn(() => of(new HttpResponse({ status: 207, body: { zone_id: 'z1', warning: 'codes_non_resolus', message: 'Zone recalculée, mais ses codes postaux n’ont pas pu être résolus.' } })));
     const { el, stable } = await monterRecettes(recalculer);
     await stable();
     cartes(el)[0].querySelector<HTMLButtonElement>('button[data-recalculer]')!.click();
     await stable();
     expect(recalculer).toHaveBeenCalledTimes(1);
+    expect(el.querySelector('[data-avis]')!.textContent!.trim()).toBe('Zone recalculée, mais ses codes postaux n’ont pas pu être résolus.');
+  });
+
+  it('207 sans message : le repli nomme la zone', async () => {
+    const recalculer = vi.fn(() => of(new HttpResponse({ status: 207, body: { zone_id: 'z1', warning: 'codes_non_resolus' } })));
+    const { el, stable } = await monterRecettes(recalculer);
+    await stable();
+    cartes(el)[0].querySelector<HTMLButtonElement>('button[data-recalculer]')!.click();
+    await stable();
     expect(el.querySelector('[data-avis]')!.textContent!.trim()).toBe('Zone « Lycées Gironde » recalculée ; ses codes postaux n’ont pas pu être résolus.');
+  });
+
+  it('Supprimer : un échec sans message de la route garde le message par statut ; le réseau a le sien', async () => {
+    let echec: HttpErrorResponse = new HttpErrorResponse({ status: 404, error: 'texte' });
+    const supprimer = vi.fn(() => throwError(() => echec));
+    const { el, stable } = await monter({ api: { supprimer } });
+    await stable();
+    cartes(el)[0].querySelector<HTMLButtonElement>('button[data-supprimer]')!.click();
+    await stable();
+    const dialogue = el.querySelector('mg-dialogue-suppression-zone')!;
+    dialogue.querySelector<HTMLButtonElement>('button[data-confirmer]')!.click();
+    await stable();
+    expect(dialogue.querySelector('[data-erreur]')!.textContent).toBe('HTTP 404');
+    echec = new HttpErrorResponse({ status: 0, error: new ProgressEvent('error') });
+    dialogue.querySelector<HTMLButtonElement>('button[data-confirmer]')!.click();
+    await stable();
+    expect(dialogue.querySelector('[data-erreur]')!.textContent).toBe('Serveur injoignable : réessayez.');
   });
 
   it('recalcul d’une zone affichée : sa teinte et son rang ne bougent pas, nom et forme sont ceux de la liste relue', async () => {

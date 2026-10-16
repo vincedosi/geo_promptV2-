@@ -17,6 +17,7 @@ import { AnnonceService } from '../../etat/annonce.service';
 import { BatailleV1Service } from '../../etat/bataille-v1.service';
 import { BatailleV2Service } from '../../etat/bataille-v2.service';
 import { CaptureService } from '../../etat/capture.service';
+import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { ContexteBatailleService } from '../../etat/contexte-bataille.service';
 import { CouchesCarteService } from '../../etat/couches-carte.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
@@ -46,6 +47,8 @@ async function monter(filtre: FiltreActif | null) {
       provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting(),
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       EtatCarteService, AnnonceService, CouchesCarteService, CaptureService, BatailleService, IsochronesApi, AnalysesApi, ZonesCustomApi, ZonesApi,
+      // Fourni par la PAGE carte (lot 3, X4) : le test tient le rôle de la page.
+      CatalogueIndicateursService,
       ContexteBatailleService, BatailleV1Service, BatailleV2Service,
       { provide: ScoreService, useValue: score },
       { provide: AuthService, useValue: { session: signal(null), lireProfil: () => Promise.resolve({ organisation: 'org-1' }) } },

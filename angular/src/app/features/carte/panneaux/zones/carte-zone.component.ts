@@ -3,8 +3,8 @@ import { IconeComponent } from '../../../../ui/icone/icone.component';
 import type { FormatExportZone, ZoneCustomResume } from '../../data/zones-custom.api';
 import type { IndicateurRegistre } from '../../logique/analyses/score';
 import { decrireComposition } from '../../logique/zones/composition';
-import { libelleRecetteAffiche, libelleSource } from '../../logique/zones/libelle-zone';
-import { estRecalculable } from '../../logique/zones/recette';
+import { libelleSource } from '../../logique/zones/libelle-zone';
+import { estRecalculable, libelleRecette } from '../../logique/zones/recette';
 import { dateZone } from '../../logique/zones/zones-affichees';
 
 /** Le bouton fantôme de React (`ghostBtn`, `ZonesOverlay.tsx:615-624`) : bord 0,5 px subtil, 10 px, rayon 4. */
@@ -179,7 +179,7 @@ export class CarteZoneComponent {
   /** La recette en clair ; « Forme figée » pour une zone d'avant le lot 3 (aucune recette enregistrée). */
   protected readonly recette = computed(() => {
     const r = this.zone().recette;
-    return r ? libelleRecetteAffiche(r, this.indicateurs()) : 'Forme figée';
+    return r ? libelleRecette(r, this.indicateurs()) : 'Forme figée';
   });
   protected readonly recalculable = computed(() => {
     const r = this.zone().recette;

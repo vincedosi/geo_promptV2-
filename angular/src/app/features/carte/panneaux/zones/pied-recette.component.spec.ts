@@ -2,7 +2,7 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { formaterNombre } from '../../../../core/format/nombre';
 import type { ApercuZone } from '../../data/zones.api';
-import { of } from 'rxjs';
+import { type Observable, Subject, of } from 'rxjs';
 import { AtelierZoneService } from '../../etat/atelier-zone.service';
 import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import type { Recette } from '../../logique/zones/recette';
@@ -22,8 +22,8 @@ class Hote {
   readonly geometrie = signal<GeoJSON.Geometry | undefined>(undefined);
 }
 
-function monter() {
-  const charger = vi.fn(() => of([{ indicator_code: 'taux_pauvrete', label: 'Taux de pauvreté', famille: 'Revenus', unit: '%' }]));
+function monter(lecture: () => Observable<unknown> = () => of([{ indicator_code: 'taux_pauvrete', label: 'Taux de pauvreté', famille: 'Revenus', unit: '%' }])) {
+  const charger = vi.fn(lecture);
   const atelier = {
     recette: signal<Recette | null>(null), apercu: signal<ApercuZone | null>(null), enCours: signal(false),
     erreur: signal<string | null>(null), message: signal<string | null>(null), nonResolue: signal<{ id: string; recalculable: boolean } | null>(null),
@@ -101,6 +101,39 @@ describe('PiedRecetteComponent (lot 3, T10, arbitrage P4)', () => {
     const territoire: Recette = { v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 30, perimetre: { type: 'departement', code: '13' } };
     f.componentInstance.recette.set(territoire);
     atelier.recette.set(territoire);
+    await stable();
+    expect(el.querySelector<HTMLInputElement>('[data-nom]')!.value).toBe('Territoires où taux de pauvreté ≥ 30 %');
+  });
+
+  it('catalogue arrivé APRÈS une saisie : le nom saisi est gardé ; pas touché, il prend le libellé ; une autre recette le réinitialise', async () => {
+    const catalogue = new Subject<{ indicator_code: string; label: string; famille: string | null; unit: string | null }[]>();
+    const { f, el, stable, atelier } = monter(() => catalogue);
+    const territoire: Recette = { v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 30, perimetre: { type: 'departement', code: '13' } };
+    f.componentInstance.recette.set(territoire);
+    atelier.recette.set(territoire);
+    await stable();
+    const nom = el.querySelector<HTMLInputElement>('[data-nom]')!;
+    expect(nom.value).toBe('Territoires où taux_pauvrete ≥ 30');
+    nom.value = 'Mon nom'; nom.dispatchEvent(new Event('input'));
+    await stable();
+    catalogue.next([{ indicator_code: 'taux_pauvrete', label: 'Taux de pauvreté', famille: 'Revenus', unit: '%' }]);
+    await stable();
+    expect(nom.value).toBe('Mon nom');
+    // Une autre recette : le nom repart de son libellé (catalogue compris).
+    const autre: Recette = { ...territoire, seuil: 25 };
+    atelier.recette.set(autre);
+    await stable();
+    expect(nom.value).toBe('Territoires où taux de pauvreté ≥ 25 %');
+  });
+
+  it('catalogue arrivé APRÈS l’aperçu, nom non touché : le libellé du catalogue remplace l’identifiant', async () => {
+    const catalogue = new Subject<{ indicator_code: string; label: string; famille: string | null; unit: string | null }[]>();
+    const { f, el, stable, atelier } = monter(() => catalogue);
+    const territoire: Recette = { v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 30, perimetre: { type: 'departement', code: '13' } };
+    f.componentInstance.recette.set(territoire);
+    atelier.recette.set(territoire);
+    await stable();
+    catalogue.next([{ indicator_code: 'taux_pauvrete', label: 'Taux de pauvreté', famille: 'Revenus', unit: '%' }]);
     await stable();
     expect(el.querySelector<HTMLInputElement>('[data-nom]')!.value).toBe('Territoires où taux de pauvreté ≥ 30 %');
   });

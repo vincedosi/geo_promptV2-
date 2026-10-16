@@ -5,13 +5,10 @@ import type { ApercuZone } from '../../data/zones.api';
 import { AtelierZoneService } from '../../etat/atelier-zone.service';
 import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import type { IndicateurRegistre } from '../../logique/analyses/score';
-import { libelleRecetteAffiche } from '../../logique/zones/libelle-zone';
+import { PART_SIGNALEE } from '../../logique/zones/creation-zone';
+import { type Recette, libelleRecette } from '../../logique/zones/recette';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
-import type { Recette } from '../../logique/zones/recette';
 import { STYLES_RECETTE } from './styles-recette';
-
-/** Sous cette part, la découpe par le périmètre est dite (même seuil que les créateurs : les arrondis restent au-dessus). */
-const PART_SIGNALEE = 0.98;
 
 /** Ce que `compte` compte, selon la recette prévisualisée. */
 function libelleCompte(r: Recette | null, n: number): string | null {
@@ -44,7 +41,8 @@ export function chiffresApercu(a: ApercuZone, r: Recette | null): { ligne: strin
  * zone » — en appelant `AtelierZoneService` lui-même ; les formulaires ne font que composer.
  *
  * - « Aperçu » relance l'atelier ; les chiffres affichés sont ceux de l'aperçu courant (`atelier.apercu()`).
- * - Le nom est réinitialisé au libellé de la recette PRÉVISUALISÉE à chaque nouvel aperçu (`linkedSignal`).
+ * - Le nom est réinitialisé au libellé de la recette PRÉVISUALISÉE à chaque nouvel aperçu (`linkedSignal`) ; le
+ *   catalogue arrivé après coup ne remplace qu'un nom non touché.
  * - « Enregistrer la zone » se désactive DÈS le premier clic (`enCours`), et l'atelier se vide après succès : le
  *   serveur n'étant pas idempotent, deux clics ne font jamais deux zones. Un 207 n'est jamais renvoyé : le message le
  *   dit et, si la recette se recalcule, « Mes zones » est proposé.
@@ -103,9 +101,18 @@ export class PiedRecetteComponent {
   private readonly indicateurs = signal<readonly IndicateurRegistre[]>([]);
   private lectureCatalogue: Subscription | null = null;
 
-  protected readonly nom = linkedSignal({
+  /**
+   * Le nom proposé : réinitialisé quand la recette prévisualisée CHANGE ; l'arrivée du catalogue (seule) ne remplace
+   * le nom que s'il n'a pas été touché — une saisie faite pendant la lecture du catalogue n'est jamais écrasée.
+   */
+  protected readonly nom = linkedSignal<{ r: Recette | null; catalogue: readonly IndicateurRegistre[] }, string>({
     source: () => ({ r: this.atelier.recette(), catalogue: this.indicateurs() }),
-    computation: ({ r, catalogue }) => (r ? libelleRecetteAffiche(r, catalogue).slice(0, 200) : ''),
+    computation: ({ r, catalogue }, precedent) => {
+      const propose = r ? libelleRecette(r, catalogue).slice(0, 200) : '';
+      if (!precedent || precedent.source.r !== r) return propose;
+      const proposeAvant = r ? libelleRecette(r, precedent.source.catalogue).slice(0, 200) : '';
+      return precedent.value === proposeAvant ? propose : precedent.value;
+    },
   });
   protected readonly chiffres = computed(() => {
     const a = this.atelier.apercu();

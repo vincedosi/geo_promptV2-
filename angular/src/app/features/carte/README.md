@@ -94,7 +94,10 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   monté — l'aperçu survit à ③ → ① → ③) : `apercevoir(recette, geometrie?)` coupe l'aperçu précédent ; `enregistrer(nom)`
   envoie la RECETTE (la géométrie seulement pour une forme figée). ⚠ `POST /api/zones` n'est PAS idempotent : une
   écriture en vol n'est jamais coupée ni doublée (second clic, nouvel aperçu, « Effacer » ignorés jusqu'à la réponse),
-  et un 207 est une réussite (la zone existe : atelier vidé, jamais renvoyée). Piste de chargement `atelier-zone` :
+  et un 207 est une réussite (la zone existe : atelier vidé, jamais renvoyée, son `message` affiché). Une réponse
+  PERDUE (statut 0) ou un 2xx sans `zone_id` vident aussi l'atelier — la zone existe peut-être — et disent « La réponse
+  n’est pas arrivée : vérifiez Mes zones avant de réessayer. » ; un refus HTTP garde l'aperçu (`messageErreurZone(e,
+  'Enregistrement impossible.')` : le défaut se choisit par geste). Piste de chargement `atelier-zone` :
   la page fournit `ChargementService` et monte `mg-barre-progression` sous la barre du parcours.
 - **La couche** : `couches/apercu-zone.ts` (`apercu-zone-fill` / `apercu-zone-line`, au-dessus de l'aperçu du rayon
   dans `logique/ordre-couches.ts`), teal 0,15 et contour pointillé `[2, 2]` ; pose et retrait communs avec l'aperçu du
@@ -106,32 +109,45 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   `mg-entete-section` repliables, dans l'ordre « Autour des POI » (ouverte : rayon autour d'un point, rayon autour d'un
   type de POI) · « Par seuil » (carreaux 200 m ; IRIS ou codes postaux) · « À la main » (dessin, import GeoJSON / KML,
   liste de codes postaux) · « Capture » (le bouton existant, libellé inchangé), puis `mg-pied-recette` et le renvoi
-  vers « Mes zones ». Fournit `CreationZoneService`, `AtelierZoneService` et `CatalogueIndicateursService`. Une famille
+  vers « Mes zones ». Fournit `CreationZoneService` et `AtelierZoneService` ; `CatalogueIndicateursService` est fourni
+  par la PAGE (revue finale, X4 : une lecture partagée par Analyse, ③ et « Mes zones »). Une famille
   repliée démonte ses formulaires (aucun calcul n'y vit) ; replier « À la main » pendant un tracé rend la carte.
 - **Les quatre formulaires** (`recette-rayon-poi`, `recette-seuil-carreaux`, `recette-seuil-territoire`,
   `recette-import`) ne font que COMPOSER : un signal `recette` (`null` tant que leur garde refuse — aucun périmètre,
   France, région pour les carreaux, catalogue indisponible, fichier refusé) et leur texte de garde `[data-garde]`.
   Styles communs : `styles-recette.ts`. Aucune lecture à l'ouverture de ③ : les types de POI viennent du catalogue de
-  la page (`chargerUneFois`), le catalogue d'indicateurs n'est lu qu'à l'ouverture de « Par seuil ». L'import refuse un
+  la page (`chargerUneFois`), le catalogue d'indicateurs n'est lu qu'à l'ouverture de « Par seuil ». Les deux
+  formulaires de seuil lisent leur champ par `logique/zones/lire-seuil.ts` (`lireSeuil` : vide → `NaN`, jamais 0).
+  L'import KML resserre les virgules espacées (« 5, 43 ») avant de découper les tuples. L'import refuse un
   fichier de plus de 5 Mo AVANT de le lire (`TAILLE_MAX_IMPORT_OCTETS` : un parse de 100 Mo fige l'onglet).
 - **Le pied** `mg-pied-recette` (arbitrage P4), monté une fois : reçoit la recette du formulaire ACTIF (le dernier
   touché, ou le premier d'une famille qu'on ouvre ; liseré teal), porte « Aperçu », les chiffres de l'aperçu
-  (`formaterNombre` : surface, carreaux / POI / territoires, habitants ; part dans le périmètre sous 98 %), le nom (le
-  libellé de la recette par défaut) et « Enregistrer la zone ». Enregistrer est inactif dès le premier clic et tant que
+  (`formaterNombre` : surface, carreaux / POI / territoires, habitants ; part dans le périmètre sous `PART_SIGNALEE`,
+  une PART — 0,98 — exportée par `logique/zones/creation-zone.ts` et partagée avec les créateurs), le nom (le libellé
+  de la recette par défaut, réinitialisé quand la recette prévisualisée change ; le catalogue arrivé après coup ne
+  remplace qu'un nom non touché) et « Enregistrer la zone ». Enregistrer est inactif dès le premier clic et tant que
   l'aperçu n'est plus celui du formulaire actif (réglages changés, formulaire disparu, autre fichier) ; « Effacer » l'est pendant un calcul ; un 207 n'est jamais renvoyé — si la
   recette se recalcule, « Mes zones » est proposé.
 - **Les créateurs du lot 4 et les opérations écrivent une recette** : `CreationZoneService.creer(source, nom, recette)`
   écrit par `POST /api/zones` (codes postaux → `codes_postaux` avec les codes retenus par la route source ; rayon →
   `rayon_point` ; dessin → `dessin` avec sa géométrie réparée ; « Créer la zone » du score composite → `capture` de
-  source `score` avec sa géométrie — la géométrie part pour toute recette non recalculable). Les opérations de « Mes
-  zones » écrivent `combinaison` en UN appel (« Restreindre à » actif à deux zones exactement). Une zone citée (`zone_referencee`) ne se supprime pas (409).
+  source `score` avec sa géométrie — la géométrie ne part que pour une forme figée, `exigeGeometrie`). Après un 207,
+  le message de création dit l'avertissement de la route (`IssueCreation.avertissement`) au lieu de « 0 codes
+  postaux ». Les opérations de « Mes zones » écrivent `combinaison` en UN appel (« Restreindre à » actif à deux zones
+  exactement) ; un 207 y est une réussite (`termine` : liste relue, sélection vidée, message de la route). Une
+  combinaison n'est PAS recalculable (ses opérandes sont figés ; arbitrage de la revue finale, pas de « Dupliquer »
+  dans ce lot). Une zone citée (`zone_referencee`) ne se supprime pas (409).
   `CreationZoneService.org` reste lu par la capture.
 - **La capture garde sa recette ; isochrones et bataille restent en ④ (T11, arbitrage C3 / L3-5)** : rien n'est retiré
   de ④. `mg-capture` ajoute au corps de `POST /api/custom-geo/capture` une recette FIGÉE (`recetteCapture`) —
-  `isochrone` quand une couche capturée est une bataille, ses `parametres` étant les clés scalaires de son
+  `isochrone` quand la SEULE couche capturée est une bataille à POI, ses `parametres` étant les clés scalaires de son
   enrichissement (`cache_key`, `category`, `mode`, `poi_count` : la métadonnée de la couche ne porte ni `minutes` ni
-  `version` ; POI et paliers restent dans `source_metadata` et les sous-zones), sinon `capture` avec le
-  `source_type`. « Autour des POI » porte le renvoi `[data-renvoi-analyse]` et « Aller à ④ Analyse »
+  `version`) plus `paliers` joints en chaîne (« 5,10,15 ») ; les POI restent dans `source_metadata` et les
+  sous-zones. `cache_key` n'est qu'une PROVENANCE (le cache peut être purgé ; la recette ne se rejoue pas). Une
+  bataille SANS POI retombe sur `capture` (`source_type` `isochrone_battle`), une capture MIXTE (bataille + autre
+  couche) aussi (`capture` de `source_type` `composite` : sa forme n'est pas que des isochrones) ; toute autre capture
+  devient `capture` avec son `source_type`. Un 207 de la route (`recette_non_enregistree`,
+  `zone_created_but_resolution_failed`) affiche son `message` dans `[data-avertissement]` et le dialogue reste ouvert. « Autour des POI » porte le renvoi `[data-renvoi-analyse]` et « Aller à ④ Analyse »
   (`ParcoursService.choisir('analyse')`) ; ③ ne monte ni `mg-outil-isochrones` ni `mg-outil-bataille-v2`.
 
 ## « Mes zones » : la recette et « Recalculer » (lot 3, T12, 2026-10-15)
@@ -142,20 +158,21 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   « recette_codes_postaux ») disparaît, et la puce de source prend le libellé du type (`[data-source]`). « Recalculer »
   (`[data-recalculer]`, sortie `recalculer`) seulement si `estRecalculable` ; désactivé par `recalculEnCours`, distinct
   d'`enCours` (lecture de la géométrie, qui fait dire « Chargement… » à « Afficher »).
-- **Les libellés** : `logique/zones/libelle-zone.ts` COMPLÈTE les deux copies verrouillées (`recette.ts`,
-  `source-type-labels.ts`), sans les toucher — `libelleSource` (puces et ligne de source : les `recette_*` posés par
-  `creer_zone_recette` ont un libellé, le reste passe par la table de React) et `libelleRecetteAffiche` (un seuil sur
-  territoires porte le LIBELLÉ du catalogue d'indicateurs et son unité, jamais l'identifiant ; sans catalogue, le
-  libellé de base).
+- **Les libellés** : `logique/zones/libelle-zone.ts` COMPLÈTE la copie verrouillée `source-type-labels.ts` —
+  `libelleSource` (puces et ligne de source : les `recette_*` posés par `creer_zone_recette` ont un libellé, le reste
+  passe par la table de React). Le libellé d'une recette est `libelleRecette(r, indicateurs?)` de `recette.ts` (copie
+  paritaire du serveur, revue finale X1) : le seuil mis en forme par `formaterNombre` (« 20 000 », « 12,5 ») et, pour
+  un seuil sur territoires, le LIBELLÉ du catalogue et son unité (sans catalogue, l'identifiant).
 - **Le recalcul** (`mes-zones.component.ts`) : `ZonesApi.recalculer(id)`, une fois par zone à la fois (second clic
   ignoré), puis la liste est relue et la zone, si elle est affichée, redessinée (géométrie relue). Un 207 est une
-  réussite, dit dans `[data-avis]` (« recalculée ; ses codes postaux n’ont pas pu être résolus »), jamais renvoyé. Un
-  échec dit le message de la route dans `[data-erreur]` (409 « utilisée par un plan : dupliquez-la », 409 forme
-  figée, 422…) et ne touche pas à la liste : un 404 peut venir d'une zone MEMBRE supprimée d'une combinaison.
+  réussite, dit dans `[data-avis]` (le `message` de la route, « Zone recalculée, mais … » ; repli nommant la zone),
+  jamais renvoyé. Un échec dit le message de la route dans `[data-erreur]` (409 « utilisée par un plan, un jeu de
+  zones ou une autre zone », 409 forme figée — combinaison comprise —, 422…) et ne touche pas à la liste : un 404 peut
+  venir d'une zone MEMBRE supprimée d'une combinaison.
 - **La suppression refusée** (409 `zone_referencee`) affiche le message français de la route dans le dialogue, plus
-  « HTTP 409 ».
-- **Le catalogue d'indicateurs** : « Mes zones » vit dans la boîte à outils, hors du panneau ③ ; il fournit son propre
-  `CatalogueIndicateursService` et ne le lit QUE si un seuil sur territoires est listé.
+  « HTTP 409 » (`messageErreurZone`, le message par statut de React en défaut).
+- **Le catalogue d'indicateurs** : celui de la PAGE (X4), partagé avec ③ et Analyse ; « Mes zones » ne le lit QUE si
+  un seuil sur territoires est listé.
 
 ## Cycle de vie d'une couche
 

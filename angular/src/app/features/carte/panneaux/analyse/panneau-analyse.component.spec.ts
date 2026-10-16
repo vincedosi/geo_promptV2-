@@ -1,4 +1,5 @@
 import { CaptureService } from '../../etat/capture.service';
+import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { CouleursService } from '../../../../core/theme/couleurs.service';
 import { ApercuClusteringService } from '../../couches/apercu-clustering.service';
@@ -40,6 +41,8 @@ async function monter(o: { filtre?: FiltreActif | null; pois?: string[]; role?: 
       ContexteBatailleService, BatailleV1Service, BatailleV2Service, ClusteringApi, ClustersService, PileEchapService,
       // Score composite et corrélation (T18) : présents dans le panneau, sans requête tant qu'ils restent fermés.
       AnalysesApi, ZonesCustomApi, ZonesApi,
+      // Fourni par la PAGE carte (lot 3, X4) : le test tient le rôle de la page.
+      CatalogueIndicateursService,
       // L'assistant de clustering (T20) : son aperçu sur la carte, neutralisé (aucune carte ici).
       CarteApi, { provide: ApercuClusteringService, useValue: { afficher: vi.fn(), effacer: vi.fn() } },
       { provide: ScoreService, useValue: { afficher: vi.fn(), eteindre: vi.fn() } },

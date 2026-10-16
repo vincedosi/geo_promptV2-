@@ -3,7 +3,6 @@ import { EnteteSectionComponent } from '../../../../ui/entete-section/entete-sec
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { AtelierZoneService } from '../../etat/atelier-zone.service';
 import { CaptureService } from '../../etat/capture.service';
-import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { CreationZoneService } from '../../etat/creation-zone.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { ParcoursService } from '../../etat/parcours.service';
@@ -64,8 +63,8 @@ const PREMIER_FORMULAIRE: Readonly<Record<Famille, CleRecette | null>> = {
     CaptureComponent, CreerCodesPostauxComponent, CreerDessinComponent, CreerRayonComponent, EnteteSectionComponent, IconeComponent,
     PiedRecetteComponent, RecetteImportComponent, RecetteRayonPoiComponent, RecetteSeuilCarreauxComponent, RecetteSeuilTerritoireComponent,
   ],
-  // L'atelier (lot 3, T9) et le catalogue d'indicateurs au panneau, qui reste monté entre les étapes.
-  providers: [CreationZoneService, AtelierZoneService, CatalogueIndicateursService],
+  // L'atelier (lot 3, T9) au panneau, qui reste monté entre les étapes. Le catalogue d'indicateurs vient de la PAGE (X4).
+  providers: [CreationZoneService, AtelierZoneService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full flex-col overflow-y-auto' },
   template: `

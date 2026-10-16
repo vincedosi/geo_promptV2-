@@ -42,8 +42,7 @@ const ANTI_REBOND_RECHERCHE_MS = 200;
   selector: 'mg-mes-zones',
   imports: [CarteZoneComponent, DialogueSuppressionZoneComponent, IconeComponent, OperationsZonesComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  // « Mes zones » vit dans la boîte à outils, hors du panneau ③ qui fournit déjà le catalogue : il a le sien.
-  providers: [CatalogueIndicateursService],
+  // Le catalogue d'indicateurs est celui de la PAGE (X4) : le même que ③ et Analyse, une seule lecture.
   host: { class: 'block' },
   template: `
     @if (org() === undefined) {
@@ -266,7 +265,7 @@ export class MesZonesComponent {
     this.vols.set(id, this.zonesApi.recalculer(id).subscribe({
       next: (r) => {
         this.retirerRecalcul(id);
-        if (r.status === 207) this.avis.set(`Zone « ${zone?.name ?? ''} » recalculée ; ses codes postaux n’ont pas pu être résolus.`);
+        if (r.status === 207) this.avis.set(r.body?.message ?? `Zone « ${zone?.name ?? ''} » recalculée ; ses codes postaux n’ont pas pu être résolus.`);
         // Affichée : redessinée EN PLACE (même teinte, même rang) à l'arrivée de la liste relue, qui porte le nom et
         // l'emprise frais de la zone — la zone d'avant le recalcul n'est plus la bonne.
         if (this.affichage.couleurs().has(id)) this.aRelire.add(id);
@@ -315,8 +314,9 @@ export class MesZonesComponent {
    * La suppression confirmée (`handleDelete`, `ZonesOverlay.tsx:301-308`) : la zone affichée quitte la carte, le
    * dialogue se ferme, la liste est relue. Un échec reste dans le dialogue. Le refus d'une zone CITÉE (409
    * `zone_referencee`, sql/253 : stratégie, jeu de zones, composite, combinaison, périmètre d'une recette) porte un
-   * message français : il est affiché tel quel (React, et ce composant jusqu'au lot 3, disaient « HTTP 409 ») ; les
-   * autres échecs gardent le message par statut de React (« HTTP 404 »…).
+   * message français : il est affiché tel quel (React, et ce composant jusqu'au lot 3, disaient « HTTP 409 »), par
+   * `messageErreurZone` comme les autres routes de zones ; les autres échecs gardent le message par statut de React
+   * (« HTTP 404 »…), passé en défaut.
    */
   protected readonly supprimer = async (): Promise<string | null> => {
     const zone = this.aSupprimer();
@@ -324,9 +324,7 @@ export class MesZonesComponent {
     try {
       await firstValueFrom(this.api.supprimer(zone.id));
     } catch (e) {
-      const corps = (e as { error?: { error?: unknown } } | null)?.error;
-      if (typeof corps?.error === 'string' && corps.error) return corps.error;
-      return messageHttp(e, 'Échec de la suppression');
+      return messageErreurZone(e as { status?: number; error?: unknown }, messageHttp(e, 'Échec de la suppression'));
     }
     this.avis.set(null);
     this.affichage.masquer(zone.id);

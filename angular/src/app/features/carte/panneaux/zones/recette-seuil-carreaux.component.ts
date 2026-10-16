@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { EtatCarteService } from '../../etat/etat-carte.service';
+import { lireSeuil } from '../../logique/zones/lire-seuil';
 import { perimetreDeFiltre } from '../../logique/zones/perimetre-recette';
 import { INDICATEURS_SEUIL_CARREAUX, MESSAGES_REFUS, type OperateurSeuil, type Recette, refusPerimetreLocal } from '../../logique/zones/recette';
 import { STYLES_RECETTE } from './styles-recette';
@@ -40,7 +41,7 @@ export class RecetteSeuilCarreauxComponent {
   protected readonly operateur = signal<OperateurSeuil>('>=');
   /** Le texte du champ, lu AVANT conversion : un champ vide n'est pas 0 (`+''` vaut 0 et passait la garde). */
   protected readonly seuilSaisi = signal('40');
-  protected readonly seuil = computed(() => (this.seuilSaisi().trim() === '' ? Number.NaN : Number(this.seuilSaisi())));
+  protected readonly seuil = computed(() => lireSeuil(this.seuilSaisi()));
   protected readonly unite = computed(() => INDICATEURS_SEUIL_CARREAUX.find((i) => i.id === this.indicateur())?.unite ?? '');
   private readonly composee = computed<Recette>(() => ({
     v: 1, type: 'seuil_carreaux', indicateur: this.indicateur(), operateur: this.operateur(), seuil: this.seuil(),

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, linke
 import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import type { IndicateurRegistre } from '../../logique/analyses/score';
+import { lireSeuil } from '../../logique/zones/lire-seuil';
 import { perimetreDeFiltre } from '../../logique/zones/perimetre-recette';
 import { MESSAGES_REFUS, type OperateurSeuil, type Recette, refusPerimetreLocal } from '../../logique/zones/recette';
 import { STYLES_RECETTE } from './styles-recette';
@@ -21,8 +22,8 @@ function parFamille(liste: readonly IndicateurRegistre[]): { famille: string; in
  * composite), un opérateur, un seuil ; la zone est l'union des territoires retenus DANS le périmètre de ① (sql/256,
  * 5 000 territoires au plus — la maille, IRIS ou CP, est celle de l'indicateur).
  *
- * Le catalogue est lu UNE fois par ce formulaire (`CatalogueIndicateursService`, fourni par le panneau ③ : la lecture
- * en vol est partagée), à l'ouverture de « Par seuil » — jamais à l'ouverture de ③. Il ne compose que sa recette et
+ * Le catalogue est lu UNE fois par ce formulaire (`CatalogueIndicateursService`, fourni par la page carte : la lecture
+ * en vol ou déjà faite est partagée), à l'ouverture de « Par seuil » — jamais à l'ouverture de ③. Il ne compose que sa recette et
  * sa garde (P4).
  */
 @Component({
@@ -64,7 +65,7 @@ export class RecetteSeuilTerritoireComponent {
   protected readonly operateur = signal<OperateurSeuil>('>=');
   /** Le texte du champ, lu AVANT conversion : un champ vide n'est pas 0 (`+''` vaut 0 et passait la garde). */
   protected readonly seuilSaisi = signal('20');
-  protected readonly seuil = computed(() => (this.seuilSaisi().trim() === '' ? Number.NaN : Number(this.seuilSaisi())));
+  protected readonly seuil = computed(() => lireSeuil(this.seuilSaisi()));
   protected readonly unite = computed(() => this.catalogue().find((i) => i.indicator_code === this.indicateur())?.unit ?? '');
   private readonly composee = computed<Recette>(() => ({
     v: 1, type: 'seuil_territoire', indicateur: this.indicateur(), operateur: this.operateur(), seuil: this.seuil(),

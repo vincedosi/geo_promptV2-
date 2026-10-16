@@ -34,6 +34,7 @@ import { ZoneActiveComponent } from './couches/zone-active.component';
 import { ZonesCustomService } from './couches/zones-custom.service';
 import { JETONS_STYLE_MAGELIAN, appliquerStyleMagelian, couchesDuFond } from './couches/style-magelian';
 import { AnnonceService } from './etat/annonce.service';
+import { CatalogueIndicateursService } from './etat/catalogue-indicateurs.service';
 import { CataloguePoiService } from './etat/catalogue-poi.service';
 import { CaptureService } from './etat/capture.service';
 import { CouchesCarteService } from './etat/couches-carte.service';
@@ -134,6 +135,9 @@ export function palierCarreaux(zoom: number): string {
     ClustersService,
     // L'aperçu des POI de l'assistant de clustering (T20) : une couche de la carte, pilotée par l'assistant.
     ApercuClusteringService,
+    // Le catalogue d'indicateurs (lot 3, X4) : UNE lecture par page, partagée par Analyse (score, corrélation), ③ (« Par
+    // seuil », pied de recette) et « Mes zones » — qui le fournissaient chacun, trois lectures de la même liste.
+    CatalogueIndicateursService,
     // Le pont du module risque (B3) : le module, rendu par l'outlet de cette page, le voit par son injecteur d'élément.
     { provide: PONT_CARTE, useExisting: ZonesRisqueService },
   ],
