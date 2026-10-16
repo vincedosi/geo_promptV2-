@@ -111,7 +111,7 @@ function convertCell(value: ExcelJS.CellValue, raw: boolean): SheetCellValue {
  * Déballe les formes composées d'exceljs : texte enrichi, lien hypertexte,
  * formule (on retient le résultat calculé) et cellule en erreur.
  */
-function toNative(value: ExcelJS.CellValue): SheetCellValue {
+export function toNative(value: ExcelJS.CellValue): SheetCellValue {
   if (value === null || value === undefined) return null;
   if (value instanceof Date) return formatDateISO(value);
   if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'string') {
