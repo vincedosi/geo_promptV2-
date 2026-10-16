@@ -141,6 +141,8 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `match_campaign_postal_to_iris()` | migrations/20260408 | Matching DSP postal → commune → IRIS |
 | `get_dsp_campaign_stats()` | migrations/20260408 | Stats agrégées par campagne (COUNT FILTER) |
 | `remplacer_jeux_recommandes()` | 251 | Remplace la sélection recommandée d'un espace en une transaction (jsonb `{cles}`, ≤ 200) |
+| `campagne_ooh_jsonb()` | 263 | Campagne OOH d'un espace : campagne, lignes OOH, emplacements GeoJSON (jsonb, `null` hors espace, borne 20 000 + `tronque`) |
+| `campagnes_ooh_jsonb()` | 263 | Campagnes d'un espace ayant une ligne OOH (jsonb, borne 200 + `tronque`) |
 
 ---
 

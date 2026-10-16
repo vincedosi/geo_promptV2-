@@ -6498,6 +6498,14 @@ export type Database = {
         }
         Returns: Json
       }
+      campagne_ooh_jsonb: {
+        Args: { p_campagne: string; p_limite?: number; p_org: string }
+        Returns: Json
+      }
+      campagnes_ooh_jsonb: {
+        Args: { p_limite?: number; p_org: string }
+        Returns: Json
+      }
       check_iso_hits_new_carreaux: {
         Args: { p_iso_geojson: string; p_since: string }
         Returns: boolean
