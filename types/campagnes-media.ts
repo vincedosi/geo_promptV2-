@@ -43,7 +43,7 @@ export interface CoutAnnexe {
 }
 
 /** L'en-tête de campagne lu dans l'onglet de synthèse. */
-interface EnteteCampagne {
+export interface EnteteCampagne {
   titre: string | null;
   hypothese: string | null;
   date_debut: string | null;
@@ -80,10 +80,10 @@ export interface LignePlan {
 }
 
 /** Les formats de régie qu'un adaptateur sait lire. */
-type AdaptateurId = 'synthese-hyp' | 'mediatransports-gares' | 'basic-fit' | 'stride-campus';
+export type AdaptateurId = 'synthese-hyp' | 'mediatransports-gares' | 'basic-fit' | 'stride-campus';
 
 /** Bloc d'une liste de gares : Île-de-France, province, ou non dit. */
-type BlocGares = 'idf' | 'province' | 'inconnu';
+export type BlocGares = 'idf' | 'province' | 'inconnu';
 
 /** Ce que le géolocalisateur doit chercher. */
 type RechercheEmplacement =
