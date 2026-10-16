@@ -24,10 +24,11 @@ describe('rapport d import', () => {
   });
 
   it('le CSV à reprendre : à vérifier et non placés, séparateur point-virgule, valeurs échappées', () => {
-    const csv = csvAReprendre([place('basic-fit', 'sure', 'a'), place('basic-fit', 'a_verifier', 'b')], [nonPlace('stride-campus', 'Campus "X"', 'score BAN 0,20 sous 0,30')]);
+    const aVerifier = { ...place('basic-fit', 'a_verifier', 'b'), geoloc_raison: 'score BAN 0,45 sous 0,60 ; commune seule (pas de rue dans la liste)' };
+    const csv = csvAReprendre([place('basic-fit', 'sure', 'a'), aVerifier], [nonPlace('stride-campus', 'Campus "X"', 'score BAN 0,20 sous 0,30')]);
     expect(csv.split('\n')).toEqual([
       'reseau;nom;etat;raison;methode;score;reconnu;latitude;longitude',
-      'basic-fit;b;a_verifier;;adresse_ban;0,45;"Rue b; Ville";48.1;2.2',
+      'basic-fit;b;a_verifier;"score BAN 0,45 sous 0,60 ; commune seule (pas de rue dans la liste)";adresse_ban;0,45;"Rue b; Ville";48.1;2.2',
       'stride-campus;"Campus ""X""";non_place;score BAN 0,20 sous 0,30;;;;;',
     ]);
   });

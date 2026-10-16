@@ -60,6 +60,8 @@ describe('durées', () => {
   it('une durée illisible rend null', () => {
     expect(lireDuree('deux semaines')).toBeNull();
     expect(lireDuree(null)).toBeNull();
+    // Abréviation non reconnue, VOULU : une durée ne se devine pas (« sem » pourrait être une semaine ou un semestre).
+    expect(lireDuree('2 sem')).toBeNull();
   });
   it('date de fin = départ + durée − 1 jour, en UTC', () => {
     expect(ajouterJours('2026-09-28', 5)).toBe('2026-10-03');

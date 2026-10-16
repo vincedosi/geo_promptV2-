@@ -109,7 +109,7 @@ export const ALIAS_GARES: Readonly<Record<string, AliasGare>> = {
 };
 
 type ResultatGare =
-  | { trouvee: true; gare: GareSncf; methode: 'referentiel_gares' | 'alias_manuel'; qualite: GeolocQualite }
+  | { trouvee: true; gare: GareSncf; methode: 'referentiel_gares' | 'alias_manuel'; qualite: GeolocQualite; raison?: string }
   | { trouvee: false; raison: string };
 
 /** Les noms à essayer, du plus sûr au moins sûr ; le booléen dit si la correspondance suffit pour « sûr ». */
@@ -143,8 +143,13 @@ export function trouverGare(nom: string, bloc: BlocGares, index: IndexGares): Re
     if (!gares || gares.length === 0) continue;
     const gare = gares[0];
     const dansLeBloc = bloc === 'inconnu' || (bloc === 'idf') === DEPARTEMENTS_IDF.has(departementDeInsee(gare.code_insee));
-    const sure = suffisant && gares.length === 1 && dansLeBloc;
-    return { trouvee: true, gare, methode: 'referentiel_gares', qualite: sure ? 'sure' : 'a_verifier' };
+    const raisons = [
+      ...(suffisant ? [] : ['première partie du nom seule']),
+      ...(gares.length > 1 ? [`${gares.length} gares homonymes`] : []),
+      ...(dansLeBloc ? [] : [`hors du bloc ${bloc === 'idf' ? 'Île-de-France' : 'province'}`]),
+    ];
+    if (raisons.length === 0) return { trouvee: true, gare, methode: 'referentiel_gares', qualite: 'sure' };
+    return { trouvee: true, gare, methode: 'referentiel_gares', qualite: 'a_verifier', raison: raisons.join(' ; ') };
   }
   return { trouvee: false, raison: 'gare introuvable dans le référentiel SNCF' };
 }

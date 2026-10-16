@@ -136,6 +136,8 @@ export interface EmplacementPlace extends EmplacementBrut {
   geoloc_qualite: GeolocQualite;
   geoloc_score: number;
   geoloc_libelle: string;
+  /** Pourquoi un point est « à vérifier » (score, commune seule, ville ou CP différents…) — pour le rapport seulement. */
+  geoloc_raison?: string;
 }
 
 /** Un emplacement introuvable : il n'entre pas dans la table, il est compté sur sa ligne et listé au rapport. */

@@ -25,15 +25,16 @@ interface LibelleBasicFit {
 
 const TYPE_LECTEUR = /^(WW|NC|DS|W)(?:-?\d*)$/i;
 const CODE_CLUB = /^\d{4,5}$/;
-/** Premiers mots d'une voie (minuscules, sans accents ni point final). */
+/** Premiers mots d'une voie (minuscules, sans accents ni points : « Z.A. » → `za`). */
 const VOIES = new Set([
   'rue', 'avenue', 'av', 'boulevard', 'bd', 'route', 'rte', 'chemin', 'place', 'allee', 'impasse', 'quai', 'cours',
   'zac', 'za', 'zi', 'zone', 'centre', 'parc', 'lieu', 'chaussee', 'voie', 'square', 'esplanade', 'rond-point',
-  'promenade', 'faubourg', 'espace', 'mail', 'parvis', 'carrefour', 'lotissement', 'domaine', 'cc',
+  'promenade', 'faubourg', 'espace', 'mail', 'parvis', 'carrefour', 'lotissement', 'domaine', 'cc', 'traverse', 'lot',
+  'lieu-dit',
 ]);
 
 function plierMot(mot: string): string {
-  return mot.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[.,]+$/, '');
+  return mot.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\./g, '').replace(/,+$/, '');
 }
 
 /** Découpe un libellé de lecteur ; `null` s'il ne reste rien après les préfixes « Basic-Fit » et « FR ». */
@@ -73,12 +74,21 @@ export function decouperLibelleBasicFit(libelle: string): LibelleBasicFit | null
   if (type === null && mots.length > 1 && TYPE_LECTEUR.test(mots[mots.length - 1])) type = mots.pop() ?? null;
   if (mots.length === 0) return null;
 
+  // La ville s'arrête au premier mot de voie, ou à la répétition de son premier mot (« Villetest Villetest Gare » :
+  // le nom du club reprend la ville) ; la répétition elle-même n'entre pas dans la rue.
   const iVoie = mots.findIndex((m, i) => i > 0 && VOIES.has(plierMot(m)));
+  const iRepete = mots.findIndex((m, i) => i > 0 && plierMot(m) === plierMot(mots[0]));
+  const finVille = iRepete > 0 && (iVoie < 0 || iRepete < iVoie) ? iRepete : iVoie;
+  let debutRue = finVille;
+  if (finVille === iRepete && finVille > 0) {
+    for (let j = 0; j < finVille && plierMot(mots[debutRue] ?? '') === plierMot(mots[j]); j++) debutRue++;
+  }
+  const rue = finVille > 0 ? mots.slice(debutRue).join(' ') : '';
   return {
     code,
     type: type === null ? null : type.toUpperCase().replace(/-?\d*$/, ''),
-    ville: (iVoie > 0 ? mots.slice(0, iVoie) : mots).join(' '),
-    rue: iVoie > 0 ? mots.slice(iVoie).join(' ') : null,
+    ville: (finVille > 0 ? mots.slice(0, finVille) : mots).join(' '),
+    rue: rue === '' ? null : rue,
     lecteur: null,
   };
 }

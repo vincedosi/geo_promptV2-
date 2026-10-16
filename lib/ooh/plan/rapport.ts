@@ -3,7 +3,7 @@
  * non placés) et CSV des emplacements à reprendre, écrit HORS du dépôt (les noms viennent d'un fichier client).
  */
 import { isAbsolute, relative, resolve, sep } from 'node:path';
-import { formaterNombre } from '@/lib/format/nombre';
+import { formaterDecimal, formaterNombre } from '@/lib/format/nombre';
 import type { AdaptateurId, EmplacementNonPlace, EmplacementPlace } from '@/types/campagnes-media';
 
 interface CompteurReseau {
@@ -52,7 +52,7 @@ export function csvAReprendre(places: readonly EmplacementPlace[], nonPlaces: re
   for (const p of places) {
     if (p.geoloc_qualite !== 'a_verifier') continue;
     lignes.push([
-      p.adaptateur, p.nom_lieu, 'a_verifier', null, p.geoloc_methode, p.geoloc_score.toFixed(2).replace('.', ','),
+      p.adaptateur, p.nom_lieu, 'a_verifier', p.geoloc_raison ?? null, p.geoloc_methode, formaterDecimal(p.geoloc_score, 2),
       p.geoloc_libelle, p.lat, p.lng,
     ].map(cellule).join(';'));
   }

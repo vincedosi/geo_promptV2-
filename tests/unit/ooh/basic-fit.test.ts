@@ -18,6 +18,15 @@ describe('decouperLibelleBasicFit — les formes de libellé d une liste de lect
     ['FR Villetest 7034 WW1', { code: '7034', type: 'WW', ville: 'Villetest', rue: null, lecteur: null }],
     ['Basic-Fit FR Port-Essai Rue du Quai', { code: null, type: null, ville: 'Port-Essai', rue: 'Rue du Quai', lecteur: null }],
     ['Basic-Fit FR Fréville-Essai Rue Haute 1111 NC', { code: '1111', type: 'NC', ville: 'Fréville-Essai', rue: 'Rue Haute', lecteur: null }],
+    // Le nom du club reprend la ville : la répétition clôt la ville et n'entre pas dans la rue.
+    ['Basic-Fit FR Villetest Villetest Doyen Essai 2222 WW', { code: '2222', type: 'WW', ville: 'Villetest', rue: 'Doyen Essai', lecteur: null }],
+    ['Basic-Fit FR Saint Essai Saint Essai Centre 2223 NC', { code: '2223', type: 'NC', ville: 'Saint Essai', rue: 'Centre', lecteur: null }],
+    ['FR Villetest Villetest 2224 DS', { code: '2224', type: 'DS', ville: 'Villetest', rue: null, lecteur: null }],
+    // Voies vues dans les vrais libellés : traverse, lot, lieu-dit, Z.A. (points retirés).
+    ['Basic-Fit FR Bourg-Essai Traverse des Bancs 2225 WW', { code: '2225', type: 'WW', ville: 'Bourg-Essai', rue: 'Traverse des Bancs', lecteur: null }],
+    ['Basic-Fit FR Bourg-Essai Lot 4 Les Essais 2226 WW', { code: '2226', type: 'WW', ville: 'Bourg-Essai', rue: 'Lot 4 Les Essais', lecteur: null }],
+    ['Basic-Fit FR Bourg-Essai Lieu-dit Les Bancs 2227 NC', { code: '2227', type: 'NC', ville: 'Bourg-Essai', rue: 'Lieu-dit Les Bancs', lecteur: null }],
+    ['Basic-Fit FR Bourg-Essai Z.A. des Bancs 2228 NC', { code: '2228', type: 'NC', ville: 'Bourg-Essai', rue: 'Z.A. des Bancs', lecteur: null }],
   ])('%s', (libelle, attendu) => {
     expect(decouperLibelleBasicFit(libelle)).toEqual(attendu);
   });

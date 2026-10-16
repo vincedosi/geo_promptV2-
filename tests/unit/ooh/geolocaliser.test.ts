@@ -69,6 +69,29 @@ describe('geolocaliser', () => {
       gares: [], geocoder: async () => [ban({ resultCity: 'Autreville' }), ban({ resultPostcode: '13009' })],
     });
     expect(places.map((p) => p.geoloc_qualite)).toEqual(['a_verifier', 'a_verifier']);
+    expect(places.map((p) => p.geoloc_raison)).toEqual([
+      'ville rendue « Autreville » au lieu de « Villetest »',
+      'code postal rendu 13009 au lieu de 13008',
+    ]);
+  });
+
+  it('même ville : le nom rendu par la BAN est gardé (accents, ville de régie qui déborde sur le nom du club)', async () => {
+    const { places } = await geolocaliser([campus('A|1', '13008', 'Ales'), campus('B|1', '13008', 'Villetest Doyen Essai')], {
+      gares: [], geocoder: async () => [ban({ resultCity: 'Alès' }), ban({ resultCity: 'Villetest' })],
+    });
+    expect(places.map((p) => [p.ville, p.geoloc_qualite, p.geoloc_raison])).toEqual([
+      ['Alès', 'sure', undefined],
+      ['Villetest', 'sure', undefined],
+    ]);
+  });
+
+  it('la raison d un point à vérifier réunit tous ses motifs', async () => {
+    const club = emplacement({
+      adaptateur: 'basic-fit', cle: '2346', ville: 'Bourg-Essai',
+      recherche: { type: 'adresse', adresse: '', code_postal: null, ville: 'Bourg-Essai', commune_seule: true },
+    });
+    const { places } = await geolocaliser([club], { gares: [], geocoder: async () => [ban({ score: 0.45, resultCity: 'Autreville' })] });
+    expect(places[0].geoloc_raison).toBe('score BAN 0,45 sous 0,60 ; commune seule (pas de rue dans la liste) ; ville rendue « Autreville » au lieu de « Bourg-Essai »');
   });
 
   it('Basic-Fit sans rue : la commune seule est cherchée, le point est à vérifier', async () => {
@@ -99,7 +122,7 @@ describe('geolocaliser', () => {
     const nom = 'VILLETEST - QUARTIER INCONNU';
     const gare = emplacement({ adaptateur: 'mediatransports-gares', cle: nom, recherche: { type: 'gare', nom, bloc: 'idf' } });
     const { places } = await geolocaliser([gare], { gares: GARES, geocoder: async () => [] });
-    expect(places[0]).toMatchObject({ geoloc_qualite: 'a_verifier', geoloc_score: 0.5 });
+    expect(places[0]).toMatchObject({ geoloc_qualite: 'a_verifier', geoloc_score: 0.5, geoloc_raison: 'première partie du nom seule' });
   });
 
   it('panne de la BAN (« Erreur API BAN ») : on lève, rien n\'est rendu comme introuvable', async () => {
