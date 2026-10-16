@@ -12,7 +12,7 @@ describe('texte', () => {
     expect(normaliser('STRIDE ')).toBe('STRIDE');
   });
   it('texte, nombre, entier, codePostal', () => {
-    expect(texte('  Basic  ')).toBe('Basic');
+    expect(texte('\u00a0 Basic \u202f')).toBe('Basic');
     expect(texte('   ')).toBeNull();
     expect(nombre('1 603 636')).toBe(1603636);
     expect(nombre('12,5')).toBe(12.5);

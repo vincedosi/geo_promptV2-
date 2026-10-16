@@ -21,7 +21,7 @@ export function ajouterJours(iso: string, n: number): string {
  */
 export function lireDuree(libelle: string | null): Duree | null {
   if (!libelle) return null;
-  const t = libelle.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const t = libelle.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
   const semainesDeJours = /^(\d+)\s*[*x]\s*(\d+)\s*(?:jours?|jrs?|j)\b/.exec(t);
   if (semainesDeJours) {
     const semaines = Number(semainesDeJours[1]);

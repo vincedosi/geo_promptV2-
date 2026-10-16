@@ -29,11 +29,11 @@ const ENTETES: ReadonlyArray<readonly [string, Champ]> = [
 /** Une ligne qui porte l'un de ces champs est une ligne chiffrée (réseau, coût ou total), pas une section ni une note. */
 const CHAMPS_CHIFFRES: readonly Champ[] = ['nb_ecrans', 'depart', 'montant_brut', 'montant_net', 'frais', 'honoraires', 'total_ttc'];
 const DATE_ISO = /^\d{4}-\d{2}-\d{2}$/;
-const CONTACTS_15 = /contacts?\s*15\s*\+\s*:\s*([\d\s  .]+)/i;
-const CONTACTS_18_24 = /contacts?\s*18\s*-\s*24\s*:\s*([\d\s  .]+)/i;
+const CONTACTS_15 = /contacts?\s*15\s*\+\s*:\s*([\d\s\u00a0\u202f.]+)/i;
+const CONTACTS_18_24 = /contacts?\s*18\s*-\s*24\s*:\s*([\d\s\u00a0\u202f.]+)/i;
 /** « diffusion d'un spot de 10" <PLAGE>, au sein… » ou « …<PLAGE>, sur les écrans… ». */
 const PLAGE = /diffusion d['’]un spot de \S+\s+(.+?)(?=,\s*sur les|,?\s+au sein)/i;
-const LIEUX = /(\d[\d\s  ]*)\s*(gares?|clubs?|[ée]tablissements?)/i;
+const LIEUX = /(\d[\d\s\u00a0\u202f]*)\s*(gares?|clubs?|[ée]tablissements?)/i;
 
 function colonnes(ligne: LigneFeuille): Map<Champ, number> | null {
   const m = new Map<Champ, number>();

@@ -9,7 +9,7 @@ import type { Cellule } from '@/types/campagnes-media';
 export function normaliser(valeur: string): string {
   return valeur
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, ' ')
     .trim()
@@ -22,7 +22,7 @@ export function normaliser(valeur: string): string {
 /** Le texte d'une cellule, espaces insécables remplacés et bords retirés ; `null` si vide. */
 export function texte(c: Cellule | undefined): string | null {
   if (c === null || c === undefined) return null;
-  const t = String(c).replace(/[  ]/g, ' ').trim();
+  const t = String(c).replace(/[\u00a0\u202f]/g, ' ').trim();
   return t === '' ? null : t;
 }
 
@@ -30,7 +30,7 @@ export function texte(c: Cellule | undefined): string | null {
 export function nombre(c: Cellule | undefined): number | null {
   if (typeof c === 'number') return Number.isFinite(c) ? c : null;
   if (typeof c !== 'string') return null;
-  const t = c.replace(/[\s  ]/g, '').replace(',', '.');
+  const t = c.replace(/[\s\u00a0\u202f]/g, '').replace(',', '.');
   return /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : null;
 }
 
