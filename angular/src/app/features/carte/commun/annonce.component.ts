@@ -7,8 +7,10 @@ import { AnnonceService, DUREE_ANNONCE_MS } from '../etat/annonce.service';
  * fond `--bg-surface`, bord 0,5 + liseré gauche de 3 px teal, icône Info, texte 13/500, croix, barre de
  * progression de 2 px qui se vide en 4 s.
  *
- * `absolute` en haut à droite de la PAGE carte (React : `position: fixed`, `top/right: 12`, `z-index`
- * 10 000) — jamais `fixed` ni un portail vers `body`, interdits dans la racine d'ombre. La région est
+ * Placée SOUS la colonne de la boîte à outils, sur le même bord droit (ruling AT-3, relecture T5 I-1) : la page la
+ * projette dans `mg-boite-outils`, dont la colonne la borne à la place laissée dans le conteneur carte — elle
+ * rétrécit (jusqu'à 280 px, puis la place disponible) au lieu d'en sortir. React : `position: fixed`, `top/right: 12`,
+ * `z-index` 10 000 ; ici jamais `fixed` ni un portail vers `body`, interdits dans la racine d'ombre. La région est
  * `role="status"` / `aria-live="polite"` : la phrase est lue sans voler le focus.
  */
 @Component({
@@ -25,7 +27,7 @@ import { AnnonceService, DUREE_ANNONCE_MS } from '../etat/annonce.service';
     .barre { animation-name: vidage; animation-timing-function: linear; animation-fill-mode: both; }
   `,
   host: {
-    class: 'pointer-events-none absolute right-3 top-3 z-[10000] flex flex-col gap-2',
+    class: 'pointer-events-none flex w-full flex-col items-end gap-2',
     role: 'status',
     'aria-live': 'polite',
   },
@@ -33,7 +35,7 @@ import { AnnonceService, DUREE_ANNONCE_MS } from '../etat/annonce.service';
     @for (a of service.annonces(); track a.id) {
       <div
         data-annonce
-        class="carte-annonce pointer-events-auto min-w-[280px] max-w-[380px] overflow-hidden rounded-[8px] border-fin border-l-[3px] border-default border-l-teal bg-surface"
+        class="carte-annonce pointer-events-auto min-w-[min(280px,100%)] max-w-[380px] overflow-hidden rounded-[8px] border-fin border-l-[3px] border-default border-l-teal bg-surface"
       >
         <div class="flex items-start gap-2.5 px-4 py-3">
           <mg-icone nom="info" [taille]="16" [trait]="2" class="mt-px shrink-0 text-teal" />

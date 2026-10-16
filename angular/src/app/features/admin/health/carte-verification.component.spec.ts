@@ -11,11 +11,11 @@ function monter(check: Check): HTMLElement {
 
 describe('CarteVerificationComponent', () => {
   it('rend nom, statut, valeur et message (CheckCard, health/page.tsx:82-126)', () => {
-    const el = monter({ name: 'MISTRAL_API_KEY', status: 'WARN', value: 'YN0BZE...', message: 'Cle Mistral presente' });
-    expect(el.querySelector('[data-nom]')?.textContent?.trim()).toBe('MISTRAL_API_KEY');
+    const el = monter({ name: 'ORS_API_KEY', status: 'WARN', value: 'YN0BZE...', message: 'Cle ORS presente' });
+    expect(el.querySelector('[data-nom]')?.textContent?.trim()).toBe('ORS_API_KEY');
     expect(el.querySelector('[data-statut]')?.textContent?.trim()).toBe('WARN');
     expect(el.querySelector('[data-valeur]')?.textContent?.trim()).toBe('YN0BZE...');
-    expect(el.querySelector('[data-message]')?.textContent?.trim()).toBe('Cle Mistral presente');
+    expect(el.querySelector('[data-message]')?.textContent?.trim()).toBe('Cle ORS presente');
     expect(el.querySelector('[data-carte]')?.getAttribute('data-etat')).toBe('WARN');
   });
 

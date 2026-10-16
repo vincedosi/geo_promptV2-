@@ -3,6 +3,7 @@ import { Injectable } from '@angular/core';
 import { type Observable, timeout } from 'rxjs';
 import type { Bbox } from '../../../carte/bbox';
 import { HttpBaseService } from '../../../core/http/http-base.service';
+import type { DetailCampagneOoh, ReponseCampagnesOoh } from '../logique/campagnes-ooh';
 import { SOURCE_TMJA } from '../logique/palettes-donnees-carte';
 
 /** Un point d'intérêt — recopie de `POI` (`types/poi.ts`). */
@@ -23,11 +24,11 @@ export interface POI {
   organization_id?: string;
   data_source_id?: string;
   metadata?: unknown;
-  /** Classement OOH (outil du copilote). */
+  /** Classement OOH (copilote retiré : plus aucun producteur ; champ lu seulement). */
   rank?: number | null;
-  /** Audience estimée (outil du copilote). */
+  /** Audience estimée (copilote retiré : plus aucun producteur). */
   audience?: number | null;
-  /** Score OOH composite (outil du copilote). */
+  /** Score OOH composite (copilote retiré : plus aucun producteur). */
   score_ooh?: number | null;
 }
 
@@ -80,14 +81,15 @@ export interface CorpsPois {
   bbox?: readonly [number, number, number, number];
 }
 
-/** Le corps de `POST /api/map/ooh` (`useMapDirectActions.ts:65-71`). */
-export interface CorpsOoh {
-  regies: string[];
-  bbox?: readonly [number, number, number, number];
-}
+/** D'où vient une catégorie (droits sur la carte, T2) : du socle commun à tous les espaces, ou de l'espace actif. */
+export type OrigineCategorie = 'commune' | 'espace';
 
-/** Un type de POI du catalogue ; la route rend aussi, dans un vieux format, une simple chaîne. */
-export type CategoriePoi = { id: string; label: string } | string;
+/**
+ * Un type de POI du catalogue ; la route rend aussi, dans un vieux format, une simple chaîne. `origine` : une catégorie
+ * dont au moins un POI visible vient d'une source privée de l'espace actif (ou partagée avec lui) est « espace » ;
+ * « commune » sinon. Absent d'une réponse ancienne : lu « commune » (`typeDePoi`).
+ */
+export type CategoriePoi = { id: string; label: string; origine?: OrigineCategorie } | string;
 
 /** Réponse de `GET /api/map/pprt` (`PprtLayer.tsx:63-73`). `n_total` est compté AVANT la limite. */
 export interface CollectionPprt {
@@ -98,12 +100,11 @@ export interface CollectionPprt {
   tolerance_deg?: number;
 }
 
-/** Délais de React (`AbortSignal.timeout`, `useMapDirectActions.ts:71,101`). */
+/** Délai de React (`AbortSignal.timeout`, `useMapDirectActions.ts:101`). */
 export const DELAI_POIS_MS = 25000;
-export const DELAI_OOH_MS = 15000;
 
 /**
- * Les données ponctuelles de la carte principale : POI, panneaux OOH, arrêts de transport, catalogue des catégories
+ * Les données ponctuelles de la carte principale : POI, campagnes OOH de l'espace, arrêts de transport, catalogue des catégories
  * et des natures, masque d'un territoire.
  *
  * ⚠ `/api/map/pois` est un **POST** (`app/api/map/pois/route.ts:67`, le seul verbe exporté) : `ARCHITECTURE.md`
@@ -113,7 +114,8 @@ export const DELAI_OOH_MS = 15000;
  * - Aucun appel au chargement de la page : chaque requête part d'un geste (bouton « Afficher… ») ou, pour le
  *   catalogue, de la première ouverture de la section POI — et UNE fois par écran (`CataloguePoiService`).
  * - Les arrêts de transport ne portent que sur la carte VISIBLE (bbox `toFixed(4)`, `page.tsx:487-496`).
- * - POI et OOH ne reçoivent une bbox que si un filtre géographique est actif (`bboxPourRequete`).
+ * - Les POI ne reçoivent une bbox que si un filtre géographique est actif (`bboxPourRequete`).
+ * - Les campagnes OOH : la liste à la première ouverture de leur section, une campagne à son choix (`CampagneOohService`).
  *
  * Fourni par la ROUTE (`FOURNISSEURS_DISTANTS`), comme tout service d'API (garde `modele-aida.test.ts`).
  */
@@ -122,6 +124,11 @@ export class CarteApi extends HttpBaseService {
   /** `POST /api/map/pois`, 25 s au plus comme React. */
   pois(corps: CorpsPois): Observable<ZoneData> {
     return this.httpClient.post<ZoneData>(`${this.baseUrl}/map/pois`, corps).pipe(timeout(DELAI_POIS_MS));
+  }
+
+  /** `GET /api/map/jeux-recommandes` — la sélection recommandée de l'espace actif (parcours, lot 2). Ne précharge rien. */
+  jeuxRecommandes(): Observable<{ cles?: string[]; error?: string }> {
+    return this.httpClient.get<{ cles?: string[]; error?: string }>(`${this.baseUrl}/map/jeux-recommandes`);
   }
 
   /** `GET /api/map/categories` ; `rafraichir` rejoue le DISTINCT côté serveur (`?refresh=1`, `use-poi-catalog.ts:63-66`). */
@@ -138,9 +145,14 @@ export class CarteApi extends HttpBaseService {
     });
   }
 
-  /** `POST /api/map/ooh`, 15 s au plus comme React. */
-  ooh(corps: CorpsOoh): Observable<ZoneData> {
-    return this.httpClient.post<ZoneData>(`${this.baseUrl}/map/ooh`, corps).pipe(timeout(DELAI_OOH_MS));
+  /** `GET /api/map/ooh/campagnes` — les campagnes OOH de l'espace actif (spec 2026-10-16-ooh-campagnes § 5). */
+  campagnesOoh(): Observable<ReponseCampagnesOoh> {
+    return this.httpClient.get<ReponseCampagnesOoh>(`${this.baseUrl}/map/ooh/campagnes`);
+  }
+
+  /** `GET /api/map/ooh/campagnes/:id` — une campagne de l'espace actif, ses lignes OOH et ses emplacements. */
+  campagneOoh(id: string): Observable<DetailCampagneOoh> {
+    return this.httpClient.get<DetailCampagneOoh>(`${this.baseUrl}/map/ooh/campagnes/${encodeURIComponent(id)}`);
   }
 
   /**

@@ -11,11 +11,18 @@ import {
   type MetaBataille, TRANSFORMATIONS, type TransformationCapture, aplatir, compterSommets, enrichissementBataille, sourceTypeCapture,
   texteBbox,
 } from '../../logique/zones/capture';
+import type { Recette } from '../../logique/zones/recette';
 
 /** Délai de résolution d'une couche avant de la dire en échec (> `maxDuration` serveur, compilation à froid comprise). */
 const DELAI_GEOMETRIE_MS = 50_000;
 /** Le dialogue se ferme seul après la réussite, le temps de la lire. */
 const FERMETURE_APRES_MS = 2000;
+
+/** Le repli de chaque avertissement d'un 207 de `/api/custom-geo/capture` quand la route n'écrit pas de `message`. */
+const AVERTISSEMENTS_CAPTURE: Readonly<Record<string, string>> = {
+  recette_non_enregistree: 'Zone sauvegardée, mais sa recette n’a pas pu être enregistrée.',
+  zone_created_but_resolution_failed: 'Zone créée ; ses codes postaux n’ont pas pu être résolus.',
+};
 
 /** Une couche après résolution : ses géométries, ou la raison de son échec. */
 interface Collecte { source: SourceCapture; geometries: GeoJSON.Geometry[]; erreur: string | null }
@@ -31,6 +38,9 @@ interface Collecte { source: SourceCapture; geometries: GeoJSON.Geometry[]; erre
  * `<dialog>` natif dans la racine d'ombre (B13), jamais le voile `position: fixed` de React. Échap, voile et croix
  * ferment, sauf pendant la sauvegarde. Défaut de React corrigé : la zone capturée n'apparaissait pas dans « Mes
  * zones » avant de rouvrir le panneau — `cree` la fait relire.
+ *
+ * Lot 3 (T11) : le corps porte en plus une recette FIGÉE (`recetteCapture`) — `isochrone` pour une bataille,
+ * `capture` sinon — que la route écrit sur la zone. Les isochrones et la bataille se lancent toujours à l'étape ④.
  */
 @Component({
   selector: 'mg-capture',
@@ -57,6 +67,8 @@ export class CaptureComponent {
   protected readonly enCours = signal(false);
   protected readonly erreur = signal<string | null>(null);
   protected readonly succes = signal<string | null>(null);
+  /** L'avertissement d'un 207 (`body.message` de la route, sinon un repli selon `warning`). */
+  protected readonly avertissement = signal<string | null>(null);
 
   protected readonly valides = computed(() => this.collectes().filter((c) => !c.erreur));
   protected readonly echecs = computed(() => {
@@ -125,12 +137,19 @@ export class CaptureComponent {
       geometries: this.geometries(),
       transformation: this.transformation(),
       ...(bataille?.sousZones ? { subzones: bataille.sousZones } : {}),
+      recette: recetteCapture(bataille?.enrichissement ?? null, this.sourceType()),
     };
     this.abonnements.push(this.api.capturer(corps).subscribe({
       next: (r) => {
         this.enCours.set(false);
         this.succes.set(`Zone sauvegardee — ${r.count_iris ?? 0} IRIS, ${r.count_cp ?? 0} CP resolus`);
         this.cree.emit();
+        // 207 : la zone EXISTE (elle est relue), mais quelque chose manque — dit, et le dialogue reste ouvert pour
+        // être lu (pas de fermeture automatique) ; « Sauvegarder » reste inactif, aucun second envoi.
+        if (r.warning) {
+          this.avertissement.set(r.message ?? AVERTISSEMENTS_CAPTURE[r.warning] ?? 'Zone sauvegardée, avec un avertissement.');
+          return;
+        }
         this.minuterie = setTimeout(() => this.fermer.emit(), FERMETURE_APRES_MS);
       },
       error: (e: { status?: number; error?: { message?: string; error?: string } | null }) => {
@@ -193,6 +212,34 @@ export class CaptureComponent {
       catchError((e: unknown) => of({ source, geometries: [], erreur: messageEchec(e) })),
     );
   }
+}
+
+/** Une valeur de paramètre qu'une recette `isochrone` admet (`recette-schema.ts` : chaîne ≤ 200, nombre, booléen). */
+const parametreAdmis = (v: unknown): v is string | number | boolean =>
+  (typeof v === 'string' && v.length <= 200) || (typeof v === 'number' && Number.isFinite(v)) || typeof v === 'boolean';
+
+/**
+ * La recette FIGÉE de la capture (lot 3, T11 — L3-5) : une bataille capturée SEULE devient `{ type: 'isochrone' }`,
+ * ses paramètres étant les clés SCALAIRES de son enrichissement (`enrichissementBataille` : `cache_key`, `category`,
+ * `mode`, `poi_count` — les noms réels ; il n'y a ni `minutes` ni `version` dans la métadonnée de la couche), plus ses
+ * `paliers` joints en chaîne (« 5,10,15 » : un tableau n'est pas un paramètre admis). Les POI, eux, restent dans
+ * `source_metadata` et les sous-zones. `cache_key` n'est qu'une PROVENANCE : le cache peut avoir été purgé, la
+ * recette ne se rejoue pas.
+ *
+ * Toute autre capture devient `{ type: 'capture' }` et nomme sa source : une bataille sans POI (pas d'enrichissement),
+ * et une capture MIXTE (bataille + autre couche, `composite`) — sa forme n'est pas que des isochrones. Ni l'une ni
+ * l'autre ne se recalcule.
+ */
+export function recetteCapture(enrichissement: Record<string, unknown> | null, sourceType: string): Recette {
+  if (!enrichissement || sourceType !== 'isochrone_battle') return { v: 1, type: 'capture', source_type: sourceType };
+  const { paliers, ...autres } = enrichissement;
+  const chaine = Array.isArray(paliers) && paliers.length > 0 ? { paliers: paliers.join(',') } : {};
+  const parametres = Object.fromEntries(
+    Object.entries({ ...autres, ...chaine })
+      .filter((e): e is [string, string | number | boolean] => parametreAdmis(e[1]))
+      .slice(0, 20),
+  );
+  return { v: 1, type: 'isochrone', parametres };
 }
 
 /** « HTTP 500 <corps> » comme React (`fetchGeometryFromRoute`), le message d'une erreur sinon. */

@@ -10,7 +10,6 @@ import {
   FileUp,
   Layers,
   MapPin,
-  Monitor,
   Plug,
   Radio,
   ShieldCheck,
@@ -69,7 +68,6 @@ const navItems: NavSection[] = [
     items: [
       { href: '/admin/carreaux-import', label: 'Import Shapefile', icon: Upload, badge: 'Admin' },
       { href: '/admin/import', label: 'Import POI', icon: FileUp, badge: 'Admin' },
-      { href: '/admin/ooh-import', label: 'Import OOH', icon: Monitor, badge: 'Admin' },
       { href: '/dashboard/iris-crawler', label: 'IRIS Crawler', icon: Layers, badge: 'Admin' },
       { href: '/admin/radio', label: 'Radio FM/DAB+', icon: Radio, badge: 'Admin' },
       { href: '/admin/api', label: 'Connexions API', icon: Plug, badge: 'Admin' },

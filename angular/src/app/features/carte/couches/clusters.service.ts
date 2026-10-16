@@ -171,17 +171,6 @@ export class ClustersService {
     this.couches.carteCourante()?.flyTo({ center: [lng, lat], zoom, duration: 1000 });
   }
 
-  /**
-   * Un point des clusters est-il sous ce clic ? — la réservation étroite des clics du panneau (`EtatCarteService
-   * .reserverClics`) : seul un clic sur un point lui appartient. Couche absente ou masquée : jamais.
-   */
-  pointSous(e: MouseEvent): boolean {
-    const carte = this.posee();
-    if (!carte || !this._visible() || !carte.getLayer(COUCHE_CLUSTERS)) return false;
-    const cadre = carte.getCanvas().getBoundingClientRect();
-    return carte.queryRenderedFeatures([e.clientX - cadre.left, e.clientY - cadre.top], { layers: [COUCHE_CLUSTERS] }).length > 0;
-  }
-
   /** Un cluster de la légende : la carte cadre ses POI (`handleFitBounds`, `page.tsx:401-408`). */
   cadrer(e: Emprise): void {
     this.couches.carteCourante()?.fitBounds(e, { padding: 60, duration: 1000 });

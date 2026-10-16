@@ -36,7 +36,7 @@ Les gardes structurelles (plus bas) se lancent à la racine : `npx vitest run --
 
 | Dossier | Contenu | Règle |
 |---|---|---|
-| `src/app/core/` | Services racine sans écran : auth et session, config, démarrage, HTTP (`HttpBaseService`, intercepteurs, limiteur à 3 appels), thème et `CouleursService`, formats de nombres | Rien de métier. Une fonction de format se met dans `core/format/nombre.ts`, jamais en local |
+| `src/app/core/` | Services racine sans écran : auth et session, config, démarrage, HTTP (`HttpBaseService`, intercepteurs, limiteur à 3 appels), thème et `CouleursService`, formats de nombres et de texte | Rien de métier. Une fonction de format se met dans `core/format/nombre.ts` (nombres) ou `core/format/texte.ts` (`plierTexte` : recherche sans casse ni accents), jamais en local |
 | `src/app/ui/` | Briques de gabarit réutilisables (`mg-confirmation`, `mg-champ`, `mg-kpi`, `mg-icone`, `mg-reglette`…) | Aucune ne connaît une API ; leur guide vivant est la page `catalogue` |
 | `src/app/layout/` | Coquille : racine d'ombre (`racine-distante`), barre latérale, chrome du haut | `navigation.ts` recopie les entrées React |
 | `src/app/carte/` | `mg-carte` : le SEUL cycle de vie MapLibre (création, `ResizeObserver`, destruction), bbox, chargement par cadre, popups sûres | Le parent pose ses sources au `(prete)` |

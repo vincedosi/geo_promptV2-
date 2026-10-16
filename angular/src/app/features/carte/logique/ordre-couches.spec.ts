@@ -2,6 +2,7 @@ import type maplibregl from 'maplibre-gl';
 import { describe, expect, it } from 'vitest';
 import { CarteFactice } from '../../../carte/testing/carte-factice';
 import { poserApercuRayon } from '../couches/apercu-rayon';
+import { poserApercuZone } from '../couches/apercu-zone';
 import { poserCouchesIris, type PeintureIris } from '../couches/couche-iris';
 import { poserCouchesPprt, poserCouchesRisques, type TeintesRisques } from '../couches/couche-risques';
 import { poserZoneCustom } from '../couches/couche-zones-custom';
@@ -68,5 +69,18 @@ describe('ordre des couches posées après le load (revue finale I-1)', () => {
       'custom-zone-fill-a', 'custom-zone-line-a', 'custom-zone-fill-b', 'custom-zone-line-b',
       'apercu-rayon-fill', 'apercu-rayon-line',
     ]);
+  });
+
+  it('l’aperçu d’une zone à recette (lot 3) : au-dessus des zones enregistrées et de l’aperçu du rayon, pointillé teal', () => {
+    const c = carte();
+    poserApercuZone(comme(c), ZONE.geometry, '#4ecdc4');
+    poserZoneCustom(comme(c), 'a', ZONE, '#111');
+    poserApercuRayon(comme(c), CERCLE, '#4ecdc4');
+    expect(c.ordreRendu()).toEqual([
+      'custom-zone-fill-a', 'custom-zone-line-a', 'apercu-rayon-fill', 'apercu-rayon-line', 'apercu-zone-fill', 'apercu-zone-line',
+    ]);
+    const contour = c.getLayer('apercu-zone-line') as { paint: Record<string, unknown> };
+    expect(contour.paint).toEqual({ 'line-color': '#4ecdc4', 'line-width': 1.5, 'line-dasharray': [2, 2] });
+    expect((c.getLayer('apercu-zone-fill') as { paint: Record<string, unknown> }).paint).toEqual({ 'fill-color': '#4ecdc4', 'fill-opacity': 0.15 });
   });
 });

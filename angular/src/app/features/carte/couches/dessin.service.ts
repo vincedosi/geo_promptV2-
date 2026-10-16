@@ -20,7 +20,7 @@ export const COUCHES_DESSIN = ['dessin-trace-fill', 'dessin-trace-line', 'dessin
 const [REMPLISSAGE, LIGNE, POINTS] = COUCHES_DESSIN;
 /** L'identifiant sous lequel le dessin PREND la carte (`EtatCarteService.prendreCarte`). */
 const OUTIL = 'dessin';
-/** L'entrée de la pile Échap tant qu'un tracé est en cours : Échap l'annule, le suivant ferme le panneau. */
+/** L'entrée de la pile Échap tant qu'un tracé est en cours : Échap l'annule (le panneau d'étape, lui, ne se ferme pas). */
 const ECHAP_TRACE = 'dessin-trace';
 
 type CarteDessin = Pick<maplibregl.Map,
@@ -35,8 +35,9 @@ type CarteDessin = Pick<maplibregl.Map,
  * - le zoom au double-clic, tant que l'outil est actif : le double-clic FERME le polygone ;
  * - le déplacement à la souris, pendant un tracé EN COURS seulement (un glisser ne fait pas de clic, mais un tracé
  *   qui glisse sous le pointeur entre deux sommets se pose mal) ; rendu dès que le tracé est fermé ou effacé ;
- * - le curseur (viseur), et les clics : `EtatCarteService.prendreCarte` empêche qu'un clic de sommet ferme le
- *   panneau Zones — React le fermait, et l'outil disparaissait au premier sommet.
+ * - le curseur (viseur), et les clics : `EtatCarteService.prendreCarte` fait de ce service le SEUL outil qui reçoit
+ *   les clics de la carte (pas en même temps que la pose d'un centre de rayon). React fermait le panneau au premier
+ *   sommet ; depuis le parcours (2026-10-13), le panneau d'étape ne se ferme plus sur un clic.
  * `Backspace` est écouté sur le CONTENEUR de la carte (le canevas y fait remonter ses frappes), jamais sur `window` ni
  * `document` du shell (B10) ; elle n'est consommée que s'il y a un sommet à retirer.
  *

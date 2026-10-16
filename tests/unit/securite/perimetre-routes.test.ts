@@ -22,8 +22,8 @@ import { join, relative, sep } from 'node:path';
  *
  * Tout fichier de `app/api` (hors `/api/admin`, réservé au super_admin) et de
  * `lib/` qui lit une table de données client doit passer par la règle :
- * `lib/auth/perimetre-donnees.ts`, `lib/auth/getOrgSourceIds.ts` ou, pour les
- * outils du chat, `lib/chat/tools/orgContext.ts`.
+ * `lib/auth/perimetre-donnees.ts` ou `lib/auth/getOrgSourceIds.ts` (les outils
+ * du chat et leur `orgContext.ts` sont supprimés depuis le 2026-10-12).
  *
  * Quand ce test échoue : brancher `filtrerParSourcesVisibles` (ou
  * `reserverAuSuperAdmin`). Si la lecture est vraiment sans risque, l'inscrire
@@ -38,18 +38,21 @@ const LECTURE_CLIENT = new RegExp(
   + String.raw`|rpc\(\s*'(get_voronoi[a-z_]*|get_battle_geometry|compte_poi_par_categorie|poi_count_by_categorie|get_poi_near_panneau|panneaux_near_point|count_poi_by_categorie_source|get_poi_categories|types_poi_clustering)'`,
 );
 
-const REGLE = /from '@\/lib\/auth\/(perimetre-donnees|getOrgSourceIds)'|from '\.\/orgContext'/;
+const REGLE = /from '@\/lib\/auth\/(perimetre-donnees|getOrgSourceIds)'/;
 
 const ASSUMEES = new Map<string, string>([
   ['lib/auth/perimetre-donnees.ts', 'L\'application de la règle elle-même.'],
   ['lib/import/inserter.ts',
    'Écrivain des imports, appelé seulement par /api/admin/import-* (super_admin).'],
+  ['lib/ooh/plan/ecrire.ts',
+   'Écrivain du script scripts/ooh/importer-plan.ts (service_role, hors route) : il écrit les panneaux d\'une campagne '
+   + 'dans une source PRIVÉE de l\'espace et ne rend rien à un appelant HTTP.'],
   ['lib/import/geo-enricher.ts',
    'Enrichissement des imports, appelé seulement depuis /api/admin (super_admin).'],
   ['lib/supabase/tables.ts', 'Types et commentaires : aucune requête exécutée.'],
   ['lib/isochrones/fetcher.ts',
-   'Lit et écrit le cache par la clé que lui passe l\'appelant ; l\'appelant '
-   + '(analyserZone) y met l\'empreinte du périmètre.'],
+   'Lit et écrit le cache par la clé que lui passe l\'appelant '
+   + '(/api/isochrone-battle, seul appelant depuis le retrait du chat).'],
   ['lib/poi/categories.ts',
    'getDistinctCategories sert au contrôle interne ; ce qui est montré passe par '
    + 'getCategoriesVisibles, dans le même fichier, qui prend le périmètre.'],
@@ -114,6 +117,26 @@ describe('API clustering — réservée au super_admin', () => {
       const handlers = (source.match(/export async function (GET|POST|PUT|PATCH|DELETE)\b/g) ?? []).length;
       const gardes = (source.match(/await reserverAuSuperAdmin\(/g) ?? []).length;
       expect(gardes, `${f} : ${handlers} handler(s), ${gardes} garde(s)`).toBe(handlers);
+    });
+  }
+});
+
+describe('campagnes multi-média — toute lecture d une route passe par l espace actif', () => {
+  // Les campagnes et leurs panneaux sont PRIVÉS à un espace (spec 2026-10-16-ooh-campagnes, décision 5). Les routes
+  // lisent par service_role : c'est le `p_org` de l'espace actif, et lui seul, qui cloisonne.
+  const LECTURE_CAMPAGNE = /rpc\(\s*'(campagne_ooh_jsonb|campagnes_ooh_jsonb)'|from\(\s*'(campagnes|campagne_lignes|campagne_ligne_panneaux)'\s*\)/;
+  const routes = candidats.filter((f) => f.startsWith('app/api/') && LECTURE_CAMPAGNE.test(readFileSync(join(RACINE, f), 'utf8')));
+
+  it('les routes de campagne existent (le motif n est pas aveugle)', () => {
+    expect(routes.length).toBeGreaterThanOrEqual(2);
+  });
+
+  for (const f of routes) {
+    it(f, () => {
+      const source = readFileSync(join(RACINE, f), 'utf8');
+      // `orgIdActif` (lib/auth/getSessionOrg.ts) lit la session et valide l'UUID de l'espace.
+      expect(source, `${f} doit lire la session`).toMatch(/\b(getSessionOrg|orgIdActif)\(/);
+      expect(source, `${f} doit passer l espace actif à la RPC`).toMatch(/p_org:\s*orgId/);
     });
   }
 });

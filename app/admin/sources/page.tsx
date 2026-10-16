@@ -9,7 +9,11 @@
  *
  * @sections internes
  *   1. State + effets de chargement
- *   2. Handlers CRUD source (resume IA, suppression, edition, filtres)
+ *   2. Handlers CRUD source (suppression, edition, filtres)
+ *
+ * Le résumé IA d'une source (Mistral, `POST …/[id]/summary`) a été retiré le
+ * 2026-10-12 avec toute l'IA : son bouton, son bloc et son aperçu en liste.
+ * La colonne `ai_summary` reste en base (liste remise au propriétaire).
  *
  * Le propriétaire et les partages d'une source ne se modifient plus ici
  * depuis le 2026-10-10 : c'est la page Angular « Accès » (onglet Données d'un
@@ -59,7 +63,6 @@ export default function SourcesPage() {
   const [sources, setSources] = useState<DataSource[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSource, setSelectedSource] = useState<DataSource | null>(null);
-  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -172,21 +175,6 @@ export default function SourcesPage() {
   // ============================================================
   // Actions
   // ============================================================
-
-  const handleGenerateSummary = async (sourceId: string) => {
-    setIsGeneratingSummary(true);
-    try {
-      const res = await adminFetch(`/api/admin/sources/${sourceId}/summary`, { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        setSources((prev) => prev.map((s) => s.id === sourceId ? { ...s, ai_summary: data.summary } : s));
-        if (selectedSource?.id === sourceId) {
-          setSelectedSource((prev) => prev ? { ...prev, ai_summary: data.summary } : prev);
-        }
-      }
-    } catch { /* ignore */ }
-    setIsGeneratingSummary(false);
-  };
 
   const handleDelete = async (sourceId: string) => {
     setIsDeleting(true);
@@ -321,7 +309,7 @@ export default function SourcesPage() {
           }}>{sources.length} sources</span>
         </div>
         <p style={{ color: C.textDim, fontSize: 13, margin: 0, fontFamily: fontInter }}>
-          Gestion des sources de donnees importees — resumé IA, suppression, partage, export
+          Gestion des sources de donnees importees — suppression, partage, export
         </p>
       </div>
 
@@ -547,11 +535,6 @@ export default function SourcesPage() {
                         <span>{source.organizations?.name || '—'}</span>
                         {source.original_filename && <span>{source.original_filename}</span>}
                       </div>
-                      {source.ai_summary && (
-                        <div style={{ marginTop: 6, fontSize: 12, color: C.textSec, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: fontInter }}>
-                          {source.ai_summary}
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))}
@@ -616,28 +599,6 @@ export default function SourcesPage() {
                   <div><span style={{ color: C.textDim }}>fichier: </span><span style={{ color: C.text }}>{selectedSource.original_filename || '—'}</span></div>
                   <div><span style={{ color: C.textDim }}>format: </span><span style={{ color: C.text }}>{selectedSource.file_format || '—'}</span></div>
                   <div><span style={{ color: C.textDim }}>date: </span><span style={{ color: C.text }}>{formatDate(selectedSource.import_date)}</span></div>
-                </div>
-
-                {/* AI Summary */}
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span style={sectionLabelStyle}>{'// resume IA'}</span>
-                    <button
-                      onClick={() => handleGenerateSummary(selectedSource.id)}
-                      disabled={isGeneratingSummary}
-                      style={{ ...btnGhostStyle, marginLeft: 'auto', opacity: isGeneratingSummary ? 0.5 : 1 }}
-                    >
-                      {isGeneratingSummary ? <Spinner /> : null}
-                      {isGeneratingSummary ? 'En cours...' : selectedSource.ai_summary ? 'Regenerer' : 'Generer'}
-                    </button>
-                  </div>
-                  {selectedSource.ai_summary ? (
-                    <div style={{ fontSize: 12, color: C.textSec, lineHeight: 1.5, padding: '8px 10px', background: C.bgSurface, borderRadius: 2, border: `0.5px solid ${C.border}`, fontFamily: fontInter }}>
-                      {selectedSource.ai_summary}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', fontFamily: fontInter }}>Pas de resume — cliquez Generer</div>
-                  )}
                 </div>
 
                 {/* Filter Fields */}

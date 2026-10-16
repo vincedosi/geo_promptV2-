@@ -1,5 +1,6 @@
 import {
-  apercuCodesPostaux, messageErreurSource, messageZoneCodesPostaux, messageZoneDessin, messageZoneRayon, nomCodesPostauxFichier,
+  PART_SIGNALEE, apercuCodesPostaux, messageErreurSource, messageZoneCodesPostaux, messageZoneDessin, messageZoneRayon,
+  nomCodesPostauxFichier,
 } from './creation-zone';
 
 const n = (v: number) => v.toLocaleString('fr-FR');
@@ -37,6 +38,21 @@ describe('creation-zone — les textes de création de React (CreerZone*.tsx)', 
     expect(messageZoneDessin({ surface_km2: 163.24, corrige: true, part_retenue: 0.5 }, 12))
       .toBe(`Zone créée : ${n(163.24)} km² · 12 codes postaux · tracé réparé (il se croisait lui-même) · 50 % retenus, le reste est hors territoire`);
     expect(messageZoneDessin({ surface_km2: 10, corrige: false, part_retenue: 1 }, undefined)).toBe('Zone créée : 10 km² · 0 codes postaux');
+  });
+
+  it('après un 207, jamais « 0 codes postaux » : l’avertissement de la route remplace le compte', () => {
+    const AVERT = 'Zone créée ; ses codes postaux n’ont pas pu être résolus.';
+    expect(messageZoneRayon({ surface_km2: 760.4, part_retenue: 0.605 }, undefined, AVERT))
+      .toBe(`Zone créée : ${n(760.4)} km² · ${AVERT} · 61 % du cercle retenus (le reste est hors territoire)`);
+    expect(messageZoneDessin({ surface_km2: 10, corrige: false, part_retenue: 1 }, undefined, AVERT)).toBe(`Zone créée : 10 km² · ${AVERT}`);
+    expect(messageZoneCodesPostaux({ n_codes: 4, n_inconnus: 1 }, undefined, AVERT)).toBe(`${AVERT} · 1 inconnu du référentiel`);
+  });
+
+  it('PART_SIGNALEE est une PART (0,98) : la même borne pour les créateurs et le pied de recette', () => {
+    expect(PART_SIGNALEE).toBe(0.98);
+    // Comparée en PART, avant l'arrondi d'affichage : 0,979 est sous 0,98 et s'affiche « 98 % ».
+    expect(messageZoneRayon({ surface_km2: 1, part_retenue: 0.979 }, 1)).toContain('98 % du cercle');
+    expect(messageZoneRayon({ surface_km2: 1, part_retenue: 0.98 }, 1)).not.toContain('du cercle');
   });
 
   it('erreur d’une route source : `message`, puis `error`, puis « Erreur <statut> »', () => {

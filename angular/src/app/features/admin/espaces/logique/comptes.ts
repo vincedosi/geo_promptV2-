@@ -1,3 +1,4 @@
+import { plierTexte } from '../../../../core/format/texte';
 import type { CompteResume } from './types';
 
 /** Un groupe de la vue « Tous les comptes » : bandeau (point teal, libellé, effectif) puis ses lignes. */
@@ -14,16 +15,11 @@ export const LIBELLE_AUCUN_ACTIF = 'Aucun espace actif';
 export const LIBELLE_SANS_ESPACE = 'Sans espace';
 const ESPACE_INCONNU = 'Espace inconnu';
 
-/** Minuscules, sans diacritiques (« Hélène » → « helene »), espaces de bord retirés. */
-export function normaliser(texte: string): string {
-  return texte.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-}
-
-/** Filtre LOCAL par nom ou email, insensible à la casse et aux accents ; filtre vide → tout. */
+/** Filtre LOCAL par nom ou email, insensible à la casse et aux accents (`plierTexte`) ; filtre vide → tout. */
 export function filtrerComptes(comptes: readonly CompteResume[], filtre: string): CompteResume[] {
-  const f = normaliser(filtre);
+  const f = plierTexte(filtre);
   if (f === '') return [...comptes];
-  return comptes.filter((c) => normaliser(c.email).includes(f) || normaliser(c.nom ?? '').includes(f));
+  return comptes.filter((c) => plierTexte(c.email).includes(f) || plierTexte(c.nom ?? '').includes(f));
 }
 
 /**

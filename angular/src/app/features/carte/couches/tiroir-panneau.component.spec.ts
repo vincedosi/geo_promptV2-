@@ -11,7 +11,8 @@ import { CouchesCarteService } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
 import { COUCHE_POIS_CERCLES } from './couche-pois';
 import { PoisService } from './pois.service';
-import { TiroirPanneauComponent, VARIABLE_CLE_GOOGLE, adresseStreetView } from './tiroir-panneau.component';
+import { VARIABLE_CLE_GOOGLE, adresseStreetView } from './street-view.component';
+import { LARGEUR_TIROIR_PANNEAU, TiroirPanneauComponent } from './tiroir-panneau.component';
 
 function monter(googleMapsKey?: string) {
   TestBed.configureTestingModule({
@@ -57,6 +58,10 @@ describe('TiroirPanneauComponent', () => {
     await rendre();
     const tiroir = el.querySelector('[data-tiroir-panneau]')!;
     expect(tiroir.textContent).toContain('STREET_VIEW');
+    // La largeur liée est la constante exportée que `ecartOutils` lit aussi (revue finale lots 1-2, mineur 7).
+    expect((tiroir as HTMLElement).style.width).toBe(`${LARGEUR_TIROIR_PANNEAU}px`);
+    expect(tiroir.className).toContain('max-w-[92vw]');
+    expect(LARGEUR_TIROIR_PANNEAU).toBe(420);
     expect(el.querySelector('[data-infos]')!.textContent).toContain('o7');
     expect(el.querySelector('[data-infos]')!.textContent).toContain('AUD —');
     expect(el.querySelector('[data-cle-manquante]')!.textContent).toContain(`${VARIABLE_CLE_GOOGLE} manquante.`);

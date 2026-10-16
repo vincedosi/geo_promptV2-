@@ -117,7 +117,8 @@ export class ScoreCompositeService {
 
   /**
    * « Créer la zone » : la route sœur RECALCULE le score au-dessus du seuil (elle ne croit pas une liste de CP remontée
-   * par le client), puis `/api/custom-geo/save` ÉCRIT la zone — le geste commun des créations (`CreationZoneService`).
+   * par le client), puis `POST /api/zones` ÉCRIT la zone avec la recette figée `{ type: 'capture', source_type: 'score' }`
+   * et sa géométrie — le geste commun des créations (`CreationZoneService`, lot 3).
    */
   creerZone(): void {
     const resultat = this.resultat();
@@ -132,11 +133,8 @@ export class ScoreCompositeService {
     const source = this.api.zoneDepuisScore({ indicateurs, codes_postaux: resultat.scores.map((s) => s.code), seuil }).pipe(
       catchError((e: { status?: number; error?: unknown }) => throwError(() => ({ status: e.status, error: { message: messageZoneScore(e) } }))),
     );
-    this.creation.creer(source, (geo) => ({
-      name: nomZoneScore(seuil, choisis),
-      source_type: 'score_composite',
-      source_metadata: { indicateurs, seuil, n_codes_postaux: geo.count },
-    })).subscribe((issue) => {
+    // La recette d'une forme figée (lot 3, `capture` de source `score`) : sa géométrie part avec elle.
+    this.creation.creer(source, () => nomZoneScore(seuil, choisis), () => ({ v: 1, type: 'capture', source_type: 'score' })).subscribe((issue) => {
       this.messageZone.set('erreur' in issue ? issue.erreur : `Zone créée — ${formaterNombre(issue.geo.count)} codes postaux.`);
       this.creationZone.set(false);
     });

@@ -62,8 +62,6 @@ export interface FillIsochroneCacheParams {
 }
 
 export interface FilterPanelProps {
-  chatSlot?: React.ReactNode;
-  sendMessage: (text: string) => void;
   onDirectOOH: (regies?: string[]) => Promise<void>;
   onDirectSearch:   (params: DirectPOISearchParams) => Promise<void>;
   onDirectBattle:       (params: DirectBattleParams, onProgress?: (msg: string, pct?: number) => void) => Promise<{ geometry: string; nb_pois: number; poiGroups: { id: string; nom: string; geometries: string[] }[]; battleRings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[] }>;
@@ -81,7 +79,6 @@ export interface FilterPanelProps {
   setBattleOuterFillVisible: (v: boolean) => void;
   isochroneVisible: boolean;
   setIsochroneVisible: (v: boolean) => void;
-  setShowSavePanel: (v: boolean | ((p: boolean) => boolean)) => void;
   densityMode?: boolean;
   onDensityModeChange?: (v: boolean) => void;
   onPOIStylesChange?: (styles: POIStylesMap) => void;

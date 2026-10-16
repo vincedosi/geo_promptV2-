@@ -159,6 +159,15 @@ describe('LegendeCarteComponent', () => {
     expect(carreaux.seauSelectionne()).toBeNull();
   });
 
+  it('T4b : en bas, à 12 px à droite du panneau d’étape flottant (`--emprise-panneau` posé par la page), jamais dessous', async () => {
+    const { fixture, el, rendre } = monter();
+    fixture.componentRef.setInput('degradeActif', 'carreaux');
+    await rendre();
+    const boite = el.querySelector<HTMLElement>('[data-legende]')!;
+    expect(boite.classList).toContain('left-[calc(var(--emprise-panneau,0px)+12px)]');
+    expect(boite.style.left).toBe('');
+  });
+
   it('l’en-tête « Légende » replie et déplie le contenu', async () => {
     const { fixture, el, rendre } = monter();
     fixture.componentRef.setInput('degradeActif', 'carreaux');

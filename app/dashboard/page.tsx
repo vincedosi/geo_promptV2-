@@ -3,7 +3,7 @@
 import { useSession } from "@/lib/auth-client";
 import Link from "next/link";
 import {
-  MapPin, Layers, FileUp, Monitor, Database, Users,
+  MapPin, Layers, FileUp, Database, Users,
   Hexagon, Clock, Mail, Shield,
 } from 'lucide-react';
 import { lienPageAcces } from '@/lib/espaces/lien-page-acces';
@@ -19,8 +19,8 @@ export default function DashboardPage() {
       <div style={{ maxWidth: 960, margin: '0 auto' }}>
         <div className="geo-skeleton" style={{ width: 180, height: 22, marginBottom: 8 }} />
         <div className="geo-skeleton" style={{ width: 120, height: 14, marginBottom: 32 }} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 32 }}>
-          {[...Array(4)].map((_, i) => (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 32 }}>
+          {[...Array(3)].map((_, i) => (
             <div key={i} className="geo-skeleton" style={{ height: 88, borderRadius: 6 }} />
           ))}
         </div>
@@ -63,12 +63,6 @@ export default function DashboardPage() {
   // ── Stat cards data ─────────────────────────────────────────────────────────
   const stats = [
     {
-      icon: MapPin,
-      value: 'geo.prompt',
-      label: 'Copilote IA',
-      href: '/map',
-    },
-    {
       icon: Mail,
       value: displayName,
       label: session.user.email ?? '',
@@ -92,8 +86,7 @@ export default function DashboardPage() {
 
   // ── Navigation cards ────────────────────────────────────────────────────────
   const navCards = [
-    { href: '/map',                    icon: MapPin,   label: 'geo.prompt',       sub: 'Carte + IA' },
-    { href: '/admin/ooh-import',       icon: Monitor,  label: 'Import OOH',       sub: 'Panneaux ArcGIS' },
+    { href: '/map',                    icon: MapPin,   label: 'Carte',            sub: 'Calques et analyses' },
     { href: '/admin/import',           icon: FileUp,   label: 'Import POI',       sub: 'CSV / XLSX' },
     { href: '/admin/sources',          icon: Database,  label: 'Sources',          sub: 'Data lake' },
     // Page Angular « Accès » (10/10), qui remplace la page React Organisations
@@ -119,7 +112,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Stat cards row ─────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 32 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 32 }}>
         {stats.map((s, i) => {
           const inner = (
             <div

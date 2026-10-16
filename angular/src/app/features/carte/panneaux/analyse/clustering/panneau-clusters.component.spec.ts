@@ -127,23 +127,9 @@ describe('mg-panneau-clusters (ClusterPanel.tsx)', () => {
     expect(texte()).not.toContain('Clusters distincts.');
   });
 
-  it('clusters chargés : seuls les clics sur un POINT sont réservés au panneau ; la carte n’est pas prise', async () => {
-    const { fixture, carte } = await monter({ charge: true });
-    const etat = TestBed.inject(EtatCarteService);
-    const clic = new MouseEvent('mousedown', { clientX: 10, clientY: 20 });
-    expect(etat.carteOccupee()).toBe(false);
-    carte.entitesRendues = [];
-    expect(etat.clicReserve(clic)).toBe(false);
-    carte.entitesRendues = [{ properties: CLUSTERS.features[0].properties }];
-    expect(etat.clicReserve(clic)).toBe(true);
-    fixture.destroy();
-    expect(etat.clicReserve(clic)).toBe(false);
-  });
-
-  it('sans clusters : aucun clic réservé', async () => {
-    const { carte } = await monter();
-    carte.entitesRendues = [{ properties: {} }];
-    expect(TestBed.inject(EtatCarteService).clicReserve(new MouseEvent('mousedown'))).toBe(false);
+  it('clusters chargés : la carte n’est pas prise (aucun outil de zone élu)', async () => {
+    await monter({ charge: true });
+    expect(TestBed.inject(EtatCarteService).carteOccupee()).toBe(false);
   });
 
   it('historique de A puis de B : la réponse tardive de A est ANNULÉE, la fiche de B ne montre que B', async () => {

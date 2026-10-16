@@ -66,6 +66,9 @@ const ATTENDUS: Record<string, string> = {
   'lib/dsp/push/types.ts': 'Types de la plomberie ci-dessus. Même sort.',
   'lib/dsp/push/dv360.ts': 'Connecteur DV360 de la plomberie ci-dessus. Même sort.',
   'lib/dsp/push/simulated.ts': 'Connecteurs simulé/ignoré de la plomberie ci-dessus. Même sort.',
+  // Les trois entrées TEMPORAIRES du lot 3 (`lib/zones/recette.ts`, `recette-schema.ts`,
+  // `executer-recette.ts`) ont été retirées le 2026-10-15 (Task 8) : les routes `/api/zones`
+  // les importent, par `lib/zones/session-zones.ts`.
 };
 
 // ── Graphe d'imports ────────────────────────────────────────────────────────

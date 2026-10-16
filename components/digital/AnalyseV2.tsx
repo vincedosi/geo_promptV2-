@@ -3,12 +3,11 @@
 import { adminFetch } from '@/lib/admin-fetch';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Eye, Users, TrendingUp, Globe, Award, Star, Activity, Lightbulb, Sparkles, Info } from 'lucide-react';
+import { Eye, Users, TrendingUp, Globe, Award, Star, Activity, Lightbulb, Info } from 'lucide-react';
 import { BreakdownChart } from '@/app/map/analyse/digital/_components/BreakdownChart';
 import { MediaHeatmap } from '@/app/map/analyse/digital/_components/MediaHeatmap';
 import { ActionListTable } from '@/app/map/analyse/digital/_components/ActionListTable';
 import { BiddingRecommendation } from '@/app/map/analyse/digital/_components/BiddingRecommendation';
-import { AiAnalysisBlock } from '@/app/map/analyse/digital/_components/AiAnalysisBlock';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono  = "'JetBrains Mono', monospace";
@@ -38,7 +37,7 @@ export interface AnalyseV2Props {
   onZoneClick?: (code: string) => void;
 }
 
-type TabId = 'diagnostic' | 'recommandations' | 'ia';
+type TabId = 'diagnostic' | 'recommandations' | 'score';
 
 // ─── Count-up hook ─────────────────────────────────────────────────────────────
 // Anime une valeur numérique de 0 → target avec easeOut (emil-design-eng)
@@ -78,7 +77,7 @@ function fmtRatio(n: number): string { return n.toFixed(1); }
 
 // ─── Score qualité géographique (dérivé local, MVP) ───────────────────────────
 // Formule simple : 100 - concentration top 10% (plus la distribution est étalée,
-// meilleur le score). Bornée [0, 100]. Remplaçable par le score IA quand branché.
+// meilleur le score). Bornée [0, 100].
 function computeQualityScore(concentrationTop10: number, couverturePct: number): number {
   if (couverturePct === 0) return 0;
   const balance = Math.max(0, Math.min(100, 100 - (concentrationTop10 - 10)));
@@ -99,7 +98,7 @@ function scoreMessage(score: number): string {
 
 // ─── Définitions des KPI (tooltips au survol) ─────────────────────────────────
 // Centralisé ici pour cohérence : si tu vois ce label dans la KPI band et
-// dans l'IA tab, le texte explicatif est strictement identique.
+// dans l'onglet Score qualité, le texte explicatif est strictement identique.
 const KPI_DEFINITIONS: Record<string, string> = {
   'Impressions':   'Nombre total de diffusions enregistrées sur la zone analysée. Source : table dsp_campaign_data.',
   'Pop. cible':    'Population correspondant à l\'indicateur sélectionné (Population, 25-49 ans, etc.) sur la zone analysée. Source : carreaux Filosofi INSEE.',
@@ -108,7 +107,7 @@ const KPI_DEFINITIONS: Record<string, string> = {
   'Top 10% CP':    'Part des impressions concentrées dans les 10 % de zones les plus exposées. Plus c\'est élevé, plus la campagne est concentrée.',
   'Score qualité': 'Score heuristique 0-100 basé sur l\'écart entre la distribution réelle et une distribution équilibrée. Formule : 100 − max(0, concentration_top10 − 10). Une distribution étalée donne un score élevé.',
 };
-// Le score de l'onglet IA est strictement le même que la KPI "Score qualité" —
+// Le score de l'onglet Score qualité est strictement le même que la KPI "Score qualité" —
 // on partage donc la même définition pour éviter la confusion utilisateur.
 const SCORE_GEO_DEFINITION = KPI_DEFINITIONS['Score qualité'];
 
@@ -314,7 +313,7 @@ export function AnalyseV2({ campaignId, scale, popField, selectedMedia, metric, 
   const tabs: Array<{ id: TabId; label: string; Icon: typeof Activity }> = [
     { id: 'diagnostic',      label: 'Diagnostic',       Icon: Activity },
     { id: 'recommandations', label: 'Recommandations',  Icon: Lightbulb },
-    { id: 'ia',              label: 'IA',               Icon: Sparkles },
+    { id: 'score',           label: 'Score qualité',    Icon: Star },
   ];
 
   return (
@@ -494,14 +493,10 @@ export function AnalyseV2({ campaignId, scale, popField, selectedMedia, metric, 
                 handleBarClick={handleBarClick}
               />
             )}
-            {activeTab === 'ia' && (
-              <IATab
+            {activeTab === 'score' && (
+              <OngletScore
                 qualityScore={qualityScore}
                 animScore={animScore}
-                campaignId={campaignId}
-                indicator={popField}
-                kpi={{ totalImpressions: totalImp, totalPop, ratioMoyen, couverturePct, concentrationTop10 }}
-                breakdown={breakdownData}
               />
             )}
           </>
@@ -628,9 +623,10 @@ function RecommandationsTab({ breakdownData, currentAggregation, metric, handleB
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Tab IA
+// Onglet Score qualité (onglet « IA » jusqu'au 2026-10-12 : son diagnostic
+// Gemini a été retiré avec toute l'IA, le score — calculé localement — reste)
 // ═══════════════════════════════════════════════════════════════════════════════
-interface IATabProps {
+interface OngletScoreProps {
   /** Valeur cible (0-100) — pour la couleur, le donut, le message */
   qualityScore: number;
   /** Valeur ANIMÉE en cours — partagée avec la KPI band du parent.
@@ -638,12 +634,8 @@ interface IATabProps {
    *  (évite l'ancien bug 82 vs 55 dû à 2 useCountUp parallèles à durées
    *  différentes). */
   animScore: number;
-  campaignId: string;
-  indicator: string;
-  kpi: { totalImpressions: number; totalPop: number; ratioMoyen: number; couverturePct: number; concentrationTop10: number };
-  breakdown: BreakdownRow[];
 }
-function IATab({ qualityScore, animScore, campaignId, indicator, kpi, breakdown }: IATabProps) {
+function OngletScore({ qualityScore, animScore }: OngletScoreProps) {
   const color = scoreColor(qualityScore);
   const colorRgb = qualityScore >= 75 ? '61,255,160' : qualityScore >= 50 ? '247,183,49' : '255,87,87';
 
@@ -703,18 +695,6 @@ function IATab({ qualityScore, animScore, campaignId, indicator, kpi, breakdown 
           </div>
         </div>
       </div>
-
-      {/* ═════ Bloc Analyse IA (existant, dans un SectionCard) ═════ */}
-      <SectionCard title="Diagnostic IA" subtitle="Analyse Gemini sur la distribution géographique" accentRgb="78,205,196">
-        <div style={{ padding: 0 }}>
-          <AiAnalysisBlock
-            campaignId={campaignId}
-            indicator={indicator}
-            kpi={kpi}
-            breakdown={breakdown}
-          />
-        </div>
-      </SectionCard>
     </div>
   );
 }

@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import type { FormatExportZone, ZoneCustomResume } from '../../data/zones-custom.api';
+import type { IndicateurRegistre } from '../../logique/analyses/score';
 import { decrireComposition } from '../../logique/zones/composition';
-import { getSourceTypeLabel } from '../../logique/zones/source-type-labels';
+import { libelleSource } from '../../logique/zones/libelle-zone';
+import { estRecalculable, libelleRecette } from '../../logique/zones/recette';
 import { dateZone } from '../../logique/zones/zones-affichees';
 
 /** Le bouton fantôme de React (`ghostBtn`, `ZonesOverlay.tsx:615-624`) : bord 0,5 px subtil, 10 px, rayon 4. */
@@ -14,6 +16,10 @@ const FANTOME = 'flex cursor-pointer items-center justify-center gap-1 rounded-[
  * case de sélection et son RANG (l'ordre de cochage désigne la base d'une soustraction), point et bord à la teinte de
  * la zone quand elle est affichée, type de source, comptes, composition en clair (dérivée, aucune requête), codes
  * département / région, date, puis Afficher / Masquer, script DV360, ciblage TikTok, supprimer.
+ *
+ * Lot 3 (T12) : la RECETTE de la zone en une ligne (`data-recette`, « Forme figée » sans recette) et « Recalculer »
+ * quand elle se rejoue. Pour une zone à recette, la ligne de composition (qui ne lit que les métadonnées de React et
+ * rendait « recette_codes_postaux ») disparaît, et la puce de source prend le libellé du type (`libelleSource`).
  *
  * La teinte d'une zone affichée est une DONNÉE (`PALETTE_ZONES`, B12) : elle est posée en style, comme sur la carte.
  */
@@ -49,11 +55,28 @@ const FANTOME = 'flex cursor-pointer items-center justify-center gap-1 rounded-[
     </div>
 
     <div class="flex items-center gap-1.5 text-[10px]">
-      <span class="rounded-[3px] bg-elevated px-1.5 py-px text-[9px] text-secondary" [class.font-mono]="!source().isReadable">{{ source().label }}</span>
+      <span data-source class="rounded-[3px] bg-elevated px-1.5 py-px text-[9px] text-secondary" [class.font-mono]="!source().isReadable">{{ source().label }}</span>
       <span data-comptes class="font-mono text-tertiary">{{ comptes() }}</span>
     </div>
 
-    <div data-composition class="text-[10px] leading-[1.5] text-secondary">{{ composition() }}</div>
+    <!-- Une zone à recette (lot 3) : sa recette REMPLACE la composition, qui ne lit que les métadonnées de React. -->
+    @if (!zone().recette) {
+      <div data-composition class="text-[10px] leading-[1.5] text-secondary">{{ composition() }}</div>
+    }
+    <!-- Sur la largeur étroite du tiroir, la recette passe à la ligne plutôt que d'être tronquée : c'est son contenu
+         (seuil, rayon, unité) qui distingue deux zones. -->
+    <div class="flex items-start gap-1.5">
+      <div data-recette class="min-w-0 flex-1 break-words text-[11px] leading-[1.5] text-tertiary">{{ recette() }}</div>
+      @if (recalculable()) {
+        <button
+          type="button"
+          data-recalculer
+          [disabled]="recalculEnCours()"
+          (click)="recalculer.emit()"
+          class="shrink-0 cursor-pointer rounded-[6px] border-fin border-default bg-transparent px-2 py-1 text-[11px] text-secondary hover:border-hover hover:bg-elevated hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+        >Recalculer</button>
+      }
+    </div>
 
     <!-- L'espace interpolée après « Dept: » : celle de React ; Angular retire un blanc seul entre deux balises. -->
     @if (codes(); as c) {
@@ -130,6 +153,11 @@ export class CarteZoneComponent {
   readonly couleur = input<string | null>(null);
   /** Sa géométrie est en lecture (`pending`). */
   readonly enCours = input(false);
+  /**
+   * Son recalcul est en vol : « Recalculer » est désactivé. Distinct d'`enCours` (lecture de la géométrie), qui
+   * désactive « Afficher » et lui fait dire « Chargement… » — un recalcul ne doit pas passer pour un affichage.
+   */
+  readonly recalculEnCours = input(false);
   /** Position dans la sélection (0 = base d'une soustraction), -1 si non cochée. */
   readonly rang = input(-1);
 
@@ -138,9 +166,25 @@ export class CarteZoneComponent {
   readonly supprimer = output<void>();
   readonly basculer = output<void>();
   readonly exporter = output<FormatExportZone>();
+  /** « Recalculer » (lot 3) : rejouer la recette côté serveur. Émise seulement si la recette se recalcule. */
+  readonly recalculer = output<void>();
+  /**
+   * Le catalogue d'indicateurs, pour nommer un seuil sur territoires (libellé et unité, jamais l'identifiant). Lu par
+   * « Mes zones » seulement quand un tel seuil est listé ; vide sinon.
+   */
+  readonly indicateurs = input<readonly IndicateurRegistre[]>([]);
 
   protected readonly fantome = FANTOME;
-  protected readonly source = computed(() => getSourceTypeLabel(this.zone().source_type));
+  protected readonly source = computed(() => libelleSource(this.zone().source_type));
+  /** La recette en clair ; « Forme figée » pour une zone d'avant le lot 3 (aucune recette enregistrée). */
+  protected readonly recette = computed(() => {
+    const r = this.zone().recette;
+    return r ? libelleRecette(r, this.indicateurs()) : 'Forme figée';
+  });
+  protected readonly recalculable = computed(() => {
+    const r = this.zone().recette;
+    return !!r && estRecalculable(r);
+  });
   /** Bruts, sans séparateur de milliers, comme React (`{zone.feature_count_iris} IRIS · {zone.feature_count_cp} CP`). */
   protected readonly comptes = computed(() => `${this.zone().feature_count_iris} IRIS · ${this.zone().feature_count_cp} CP`);
   protected readonly composition = computed(() => decrireComposition(this.zone().source_type, this.zone().source_metadata));

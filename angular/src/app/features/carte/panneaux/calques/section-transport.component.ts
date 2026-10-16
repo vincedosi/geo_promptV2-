@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { TransportService } from '../../couches/transport.service';
 import { TRANSPORT_TYPES } from '../../logique/constantes-calques';
 import { EnteteFiltreComponent } from '../filtre/perimetre.component';
@@ -29,8 +29,10 @@ export const BOUTON_DESACTIVE = 'cursor-not-allowed border-subtle text-tertiary 
   `,
   host: { class: 'flex flex-col gap-[10px]' },
   template: `
-    <mg-entete-filtre libelle="Arrêts de transport en commun" [ouvert]="ouvert()" [compte]="choisis().length"
-      (basculer)="selections.basculerSection('transport')" />
+    @if (!integre()) {
+      <mg-entete-filtre libelle="Arrêts de transport en commun" [ouvert]="ouvert()" [compte]="choisis().length"
+        (basculer)="selections.basculerSection('transport')" />
+    }
     @if (ouvert()) {
       <div class="fondu" data-contenu-transport>
         <div>
@@ -68,7 +70,9 @@ export class SectionTransportComponent {
   protected readonly pastilleInactive = PASTILLE_INACTIVE;
   protected readonly actif = BOUTON_TEAL_ACTIF;
   protected readonly desactive = BOUTON_DESACTIVE;
-  protected readonly ouvert = computed(() => this.selections.sections()['transport'] !== false);
+  /** Rendue dans une ligne de ② (parcours, lot 2) : la ligne porte déjà le nom, l'en-tête interne n'est pas rendu et le contenu reste ouvert. */
+  readonly integre = input(false);
+  protected readonly ouvert = computed(() => this.integre() || this.selections.sections()['transport'] !== false);
   protected readonly choisis = this.selections.typesTransport;
 
   protected basculer(id: string): void {

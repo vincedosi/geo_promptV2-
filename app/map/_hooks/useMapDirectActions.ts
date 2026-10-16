@@ -30,7 +30,7 @@
 import { useState, useRef } from 'react';
 import type maplibregl from 'maplibre-gl';
 import { logger } from '@/lib/logger';
-import type { useMapLayers } from '@/app/copilote/_hooks/useMapLayers';
+import type { useMapLayers } from '@/app/map/_hooks/useMapLayers';
 import type {
   DirectPOISearchParams,
   DirectBattleParams,

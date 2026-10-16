@@ -94,7 +94,7 @@ export function assembleReport(
       period_start: m0.period_start ?? '', period_end: mN.period_end ?? '',
       version_count: versions.length,
     },
-    convergence, zones, budget, kpis, narrative: undefined,
+    convergence, zones, budget, kpis,
   };
 }
 

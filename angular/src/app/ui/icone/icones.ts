@@ -57,7 +57,6 @@
  * | PackageCheck               | colis-coche          |
  * | RefreshCw                  | rafraichir           |
  * | Play                       | jouer                |
- * | Sparkles                   | etincelles           |
  * | Megaphone                  | porte-voix           |
  * | Funnel                     | entonnoir            |
  * | FlaskConical               | fiole                |
@@ -494,15 +493,6 @@ export const ICONES = {
     lucide: 'play',
     el: [
       { t: 'path', d: 'M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z' },
-    ],
-  },
-  'etincelles': {
-    lucide: 'sparkles',
-    el: [
-      { t: 'path', d: 'M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z' },
-      { t: 'path', d: 'M20 2v4' },
-      { t: 'path', d: 'M22 4h-4' },
-      { t: 'circle', cx: '4', cy: '20', r: '2' },
     ],
   },
   'porte-voix': {

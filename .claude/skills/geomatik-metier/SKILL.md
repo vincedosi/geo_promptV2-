@@ -67,8 +67,7 @@ description: >
 - `clip_rings_to_france` utilise table `france_boundary`
 - ⛔ JAMAIS modifier `get_isochrone_battle` ou `clip_geojson_to_france` sans demande explicite
 
-## Multi-agents IA (GEO.Prompt)
+## Pas d'IA dans le code (depuis 2026-10-12)
 
-- Routeur multi-agents avec 6 agents spécialisés : demographie, poi_clustering, panneaux, isochrone_battle, benchmark, weblift
-- Table `data_registry` — drive les system prompts Mistral ET les dropdowns frontend
-- 1 outil = 1 fichier dans `lib/chat/tools/`, retourne données structurées (jamais texte libre)
+- Le copilote, le routeur multi-agents, `lib/chat/tools/` et les fournisseurs Gemini / Mistral sont SUPPRIMÉS : ne rien y réintroduire (verrou : `tests/unit/securite/aucune-ia.test.ts`).
+- Table `data_registry` : reste en base, elle sert encore les dropdowns frontend.

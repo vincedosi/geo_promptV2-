@@ -65,9 +65,19 @@ function raison(anomalie: z.ZodIssue): string {
       return anomalie.validation === 'uuid' ? 'doit être un UUID'
         : anomalie.validation === 'email' ? 'doit être une adresse e-mail'
         : anomalie.validation === 'url' ? 'doit être une URL'
-        : anomalie.message;
+        : 'format invalide';
     case 'invalid_enum_value':
       return `valeur inattendue (attendu : ${anomalie.options.join(', ')})`;
+    case 'invalid_union_discriminator':
+      return `valeur inattendue (attendu : ${anomalie.options.map(String).join(', ')})`;
+    case 'invalid_literal':
+      return `valeur inattendue (attendu : ${String(anomalie.expected)})`;
+    case 'unrecognized_keys':
+      return `clé${anomalie.keys.length > 1 ? 's' : ''} inattendue${anomalie.keys.length > 1 ? 's' : ''} : ${anomalie.keys.join(', ')}`;
+    case 'not_finite':
+      return 'doit être un nombre fini';
+    case 'custom':
+      return 'valeur invalide';
     case 'too_small':
       return anomalie.type === 'string' && Number(anomalie.minimum) <= 1
         ? 'ne peut pas être vide'
@@ -80,7 +90,7 @@ function raison(anomalie: z.ZodIssue): string {
 }
 
 /** Un message écrit à la main dans le schéma prime sur la traduction. */
-const MESSAGES_ZOD_PAR_DEFAUT = /^(Required|Expected |Invalid|String must|Number must|Array must)/;
+const MESSAGES_ZOD_PAR_DEFAUT = /^(Required|Expected |Invalid|String must|Number must|Array must|Unrecognized key)/;
 
 /**
  * Message lisible à partir d'un échec Zod : `champ : raison`, séparés par « ; ».

@@ -1,35 +1,29 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { DomSanitizer, type SafeResourceUrl } from '@angular/platform-browser';
-import { ConfigService } from '../../../core/config/config.service';
 import { PoisService } from './pois.service';
+import { StreetViewComponent } from './street-view.component';
 
-/** Le nom de la variable que le bandeau nomme quand la clé manque (`MapPanel.tsx:333-335`). */
-export const VARIABLE_CLE_GOOGLE = 'NEXT_PUBLIC_GOOGLE_MAPS_API_KEY';
-
-/** L'adresse Street View d'un point (`MapPanel.tsx:126-128`). */
-export function adresseStreetView(cle: string, lat: number, lng: number): string {
-  return `https://www.google.com/maps/embed/v1/streetview?key=${encodeURIComponent(cle)}&location=${lat},${lng}&heading=0&pitch=0&fov=90`;
-}
+/** Largeur du tiroir (`MapPanel.tsx`, `min(420px, 92vw)`), en px : la boîte à outils s'en écarte (`ecartOutils`). */
+export const LARGEUR_TIROIR_PANNEAU = 420;
 
 /**
- * Le tiroir Street View d'un panneau cliqué — portage de `app/copilote/_components/MapPanel.tsx:291-339`.
+ * Le tiroir Street View d'un panneau cliqué — portage de `app/map/_components/MapPanel.tsx:291-339`.
  *
  * À droite de la carte, sur toute sa hauteur (`min(420px, 92vw)`, `z-index` 30), DANS le conteneur de la carte : la
- * vue Google est un `<iframe>` de la racine d'ombre, jamais un portail. La clé vient de `config.local.json`
- * (`googleMapsKey`, écrit par `npm run config` depuis la variable `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` de la racine) ;
- * absente ou vide, un bandeau NOMME la variable, comme React — jamais un cadre vide.
+ * vue Google est un `<iframe>` de la racine d'ombre, jamais un portail (`mg-street-view`, partagé avec la fiche d'un
+ * emplacement OOH) ; clé absente ou vide, un bandeau NOMME la variable, comme React — jamais un cadre vide.
  *
  * Écarts voulus, de couleur : le bandeau d'alerte prend `--danger` (fond 10 %, bord 30 %, texte plein) au lieu du
  * rouge `#ef4444` et du rose `#fecaca` écrits en dur, illisibles sur fond clair.
  */
 @Component({
   selector: 'mg-tiroir-panneau',
+  imports: [StreetViewComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'contents' },
   template: `
     @if (pois.panneauSelectionne(); as p) {
       <aside data-tiroir-panneau aria-label="Street View"
-        class="absolute bottom-0 right-0 top-0 z-30 flex w-[min(420px,92vw)] flex-col border-l-fin border-subtle bg-[var(--bg-primary)]">
+        class="absolute bottom-0 right-0 top-0 z-30 flex max-w-[92vw] flex-col border-l-fin border-subtle bg-[var(--bg-primary)]" [style.width.px]="largeur">
         <div class="flex items-center justify-between gap-2 border-b-fin border-subtle px-[14px] py-[10px]">
           <div class="font-mono text-[10px] tracking-[0.06em] text-secondary">STREET_VIEW</div>
           <button type="button" data-fermer aria-label="Fermer" (click)="pois.panneauSelectionne.set(null)"
@@ -43,15 +37,7 @@ export function adresseStreetView(cle: string, lat: number, lng: number): string
             <div><span class="text-[9px] text-tertiary">SCR </span>{{ p.score != null ? p.score : '—' }}</div>
             <div><span class="text-[9px] text-tertiary">AUD </span>{{ audience() }}</div>
           </div>
-          @if (adresse(); as src) {
-            <iframe data-street-view [title]="'Street View ' + p.nom" width="100%" height="360" loading="lazy" allowfullscreen
-              [src]="src" class="block rounded-[2px] border-fin border-subtle bg-elevated"></iframe>
-          } @else {
-            <div data-cle-manquante
-              class="rounded-[2px] border-fin border-[color-mix(in_srgb,var(--danger)_30%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-[10px] font-mono text-[11px] text-danger">
-              {{ variable }} manquante.
-            </div>
-          }
+          <mg-street-view [lat]="p.lat" [lng]="p.lng" [titre]="p.nom" [hauteur]="360" />
         </div>
       </aside>
     }
@@ -59,20 +45,10 @@ export function adresseStreetView(cle: string, lat: number, lng: number): string
 })
 export class TiroirPanneauComponent {
   protected readonly pois = inject(PoisService);
-  private readonly config = inject(ConfigService);
-  private readonly assainisseur = inject(DomSanitizer);
-  protected readonly variable = VARIABLE_CLE_GOOGLE;
+  protected readonly largeur = LARGEUR_TIROIR_PANNEAU;
 
   protected readonly audience = computed(() => {
     const a = this.pois.panneauSelectionne()?.audience;
     return a != null ? Number(a).toLocaleString('fr-FR') : '—';
-  });
-
-  /** L'adresse de l'iframe, de confiance : un domaine fixe, une clé de configuration et deux nombres. */
-  protected readonly adresse = computed<SafeResourceUrl | null>(() => {
-    const p = this.pois.panneauSelectionne();
-    const cle = this.config.valeur.googleMapsKey;
-    if (!p || !cle) return null;
-    return this.assainisseur.bypassSecurityTrustResourceUrl(adresseStreetView(cle, p.lat, p.lng));
   });
 }

@@ -1,8 +1,8 @@
 /**
- * GENESIS — Spatial & Copilote types
+ * GENESIS — Spatial & carte types
  *
  * Types partagés pour les données géospatiales (isochrones, voronoï,
- * zones, carreaux) et les structures de l'interface copilote.
+ * zones, carreaux) et les structures de l'interface carte.
  */
 import type { POI } from './poi';
 
@@ -62,7 +62,7 @@ export interface BattleResult {
 }
 
 // ---------------------------------------------------------------------------
-// Copilote session
+// Session carte
 // ---------------------------------------------------------------------------
 
 export interface ZoneData {
@@ -90,21 +90,6 @@ export interface CarreauxData {
   resolution?: '200m' | '1km';
 }
 
-
-export interface SavedMap {
-  id: string;
-  name: string;
-  ville?: string;
-  nb_pois: number;
-  created_at: string;
-}
-
-export interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  zoneData?: ZoneData;
-  carreauxData?: CarreauxData;
-}
 
 // ---------------------------------------------------------------------------
 // Service spatial (lib/spatial/engine.ts)

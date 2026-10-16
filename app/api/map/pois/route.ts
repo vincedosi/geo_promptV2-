@@ -78,8 +78,11 @@ export async function POST(req: NextRequest) {
     const validCats = await getDistinctCategories();
     const poisMap   = new Map<string, PoiRow>();
 
-    // ── Filtre org : sources autorisées (null = tout voir) ───────────────────
-    const allowedSourceIds = await getOrgSourceIds(session);
+    // ── Filtre org : sources autorisées ──────────────────────────────────────
+    // Vue espace (2026-10-12) : le super_admin voit comme son espace actif,
+    // jamais `null`. Les tests `allowedSourceIds !== null` plus bas sont donc
+    // toujours vrais ; gardés pour un appelant futur sans l'option.
+    const allowedSourceIds = await getOrgSourceIds(session, { vueEspace: true });
     if (allowedSourceIds !== null && allowedSourceIds.length === 0) {
       // Org configurée mais aucune source → aucun POI accessible
       logger.debug('map/pois', 'Org sans sources configurées — résultat vide');

@@ -53,7 +53,7 @@ describe('dérive entre ARCHITECTURE.md et le code', () => {
     const exemple = lire('.env.example');
     const declarees = Array.from(exemple.matchAll(/^([A-Z][A-Z0-9_]+)=/gm)).map(m => m[1]);
     const critiques = declarees.filter(v =>
-      /^(SUPABASE|NEXT_PUBLIC_SUPABASE|MODAL|ORS|GOOGLE_GENERATIVE|DSP_ENC)/.test(v));
+      /^(SUPABASE|NEXT_PUBLIC_SUPABASE|ORS|DSP_ENC)/.test(v));
 
     const absentes = critiques.filter(v => !archi.includes(v));
     expect(
@@ -64,12 +64,14 @@ describe('dérive entre ARCHITECTURE.md et le code', () => {
   });
 
   it('toute dépendance externe appelée par le code est documentée', () => {
-    // Modal manquait : lib/bidding-ml/client.ts appelait un serverless Python
+    // Modal manquait : un client appelait un serverless Python
     // tiers, invisible dans le doc autoritaire. Seul le doc PÉRIMÉ en parlait.
+    // Modal est retiré depuis le 2026-10-12 (suppression de l'IA) : plus
+    // aucun appel, donc plus d'entrée ici.
     const hotesExternes: Array<[string, string]> = [
-      ['modal.run', 'Modal'],
       ['openrouteservice', 'OpenRouteService'],
       ['open-meteo', 'Open-Meteo'],
+      ['ressources.data.sncf.com', 'SNCF Open Data'],
     ];
     const manquants = hotesExternes
       .filter(([, nom]) => !archi.toLowerCase().includes(nom.toLowerCase()))
@@ -186,12 +188,12 @@ describe('dérive entre ARCHITECTURE.md et le code', () => {
       const raccourci = bloc.match(/raccourci:\s*'([^']+)'/)?.[1] ?? null;
       raccourcisReels.set(id, raccourci);
     }
-    expect(raccourcisReels.size, 'aucune entrée extraite de ENTREES_NAVIGATION — le motif d\'extraction a-t-il divergé du style du fichier ?').toBeGreaterThanOrEqual(8);
+    expect(raccourcisReels.size, 'aucune entrée extraite de ENTREES_NAVIGATION — le motif d\'extraction a-t-il divergé du style du fichier ?').toBeGreaterThanOrEqual(7);
 
     // Table doc : | Nom francais | ... | `Raccourci` (ou —) | ... |
     const idParLabel: Record<string, string> = {
       Filtre: 'filtre', Calques: 'calques', Analyse: 'analyse', Zones: 'zones',
-      Campagne: 'campagne', Assistant: 'assistant',
+      Campagne: 'campagne',
     };
     const divergences: string[] = [];
     for (const [label, id] of Object.entries(idParLabel)) {

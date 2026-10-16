@@ -25,7 +25,6 @@ const ModifierSourceSchema = z.object({
   // et shared_with (sql/234, lib/auth/getOrgSourceIds.ts).
   visibilite: z.enum(['socle', 'privee']).optional(),
   status: z.string().optional(),
-  ai_summary: z.string().nullable().optional(),
   filter_fields: z.unknown().optional(),
 });
 import { rpcJson } from '@/lib/supabase/rpc-json';
@@ -107,7 +106,6 @@ export async function PATCH(
     if (body.shared_with !== undefined) updates.shared_with = body.shared_with;
     if (body.visibilite !== undefined) updates.visibilite = body.visibilite;
     if (body.status !== undefined) updates.status = body.status;
-    if (body.ai_summary !== undefined) updates.ai_summary = body.ai_summary;
     if (body.filter_fields !== undefined) updates.filter_fields = body.filter_fields;
 
     if (Object.keys(updates).length === 0) {
@@ -232,6 +230,15 @@ export async function DELETE(
         .eq('data_source_id', id);
       if (panneauxResult.error) {
         logger.error('delete-source', `Suppression des panneaux ECHOUEE : ${panneauxResult.error.message}`);
+        // 23503 : un panneau est réservé par une ligne de campagne (`on delete restrict`, sql/261). Relancer
+        // échouerait à l'identique : on dit pourquoi, au lieu d'inviter à recommencer.
+        if (panneauxResult.error.code === '23503') {
+          return NextResponse.json({
+            success: false,
+            error: 'Ces panneaux appartiennent à une campagne : ils ne se suppriment pas depuis leur source. '
+                 + 'Retirez-les de la campagne en réimportant son plan. La source est conservée.',
+          }, { status: 409 });
+        }
         return NextResponse.json({
           success: false,
           error: `Les panneaux liés n'ont pas pu être supprimés : ${panneauxResult.error.message}. `

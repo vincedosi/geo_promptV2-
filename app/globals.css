@@ -171,6 +171,27 @@
     --nature-7: #4f7d7a;
     --nature-8: #a06c8c;
 
+    /* Lignes d'une campagne multi-media sur la carte (points OOH, une teinte
+       par ligne du plan — spec 2026-10-16-ooh-campagnes § 6). QUALITATIVE,
+       comme --nature-* : les lignes d'un plan ne s'ordonnent pas. Alternance
+       chaud/froid, aucune teinte des --nature-* ni des couleurs de statut, pas
+       le teal de marque, aucun violet. Contraste mesure >= 4,9:1 sur #0a0a0a.
+       MapLibre ne resout pas var() : CouleursService les lit et les passe en
+       valeurs calculees. */
+    --ligne-media-1: #e8a33d;
+    --ligne-media-2: #4f9fe0;
+    --ligne-media-3: #d9667f;
+    --ligne-media-4: #5cc08a;
+    --ligne-media-5: #e0d05a;
+    --ligne-media-6: #5d7fc4;
+    --ligne-media-7: #e58a6b;
+    --ligne-media-8: #8bb84a;
+    /* Anneau pointille d'un point de campagne A VERIFIER : segments alternes
+       --poi-contour (blanc) et celui-ci (quasi noir). INVARIANT, comme
+       --poi-contour : un anneau bicolore se voit sur tout fond, clair ou
+       sombre ; un anneau d'une seule couleur disparaissait sur fond clair. */
+    --anneau-a-verifier: #1a1a1a;
+
     /* Perimetre PPRT — ACHROMATIQUE a dessein. La couleur, sur cette carte,
        porte le TYPE DE RISQUE (--risque-*) ; un perimetre reglementaire n'est
        pas une donnee d'intensite, c'est une frontiere opposable. Lui donner une
@@ -391,6 +412,20 @@
     --nature-6: #8c6a1c;
     --nature-7: #35605d;
     --nature-8: #7e4e6c;
+
+    /* Lignes de campagne (light) — voir le bloc :root. Assombries pour tenir
+       sur fond clair : contraste mesure >= 3,3:1 sur #f5f5f5 (objets
+       graphiques, WCAG 1.4.11). */
+    --ligne-media-1: #b9770f;
+    --ligne-media-2: #2a73b8;
+    --ligne-media-3: #b23a57;
+    --ligne-media-4: #23874f;
+    --ligne-media-5: #8c7d10;
+    --ligne-media-6: #3a5aa0;
+    --ligne-media-7: #b8532f;
+    --ligne-media-8: #5c7f1f;
+    /* Invariant (voir le bloc :root). */
+    --anneau-a-verifier: #1a1a1a;
 
     /* Inverse du theme sombre, comme --contour-carte et --halo-carte. */
     --pprt-contour: rgba(26,26,26,0.80);

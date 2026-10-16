@@ -16,36 +16,35 @@ import { formaterNombre } from '../../../../core/format/nombre';
 
 export type OperationZones = 'union' | 'intersection' | 'difference';
 
-/** La route de la famille `custom-geo/source/*` — et le `source_type` de la zone créée. */
-export type SourceOperation = 'composite' | 'intersection' | 'difference';
-
 export interface DefinitionOperation {
   libelle: string;
-  source: SourceOperation;
   /** Nombre minimum de zones cochées. */
   min: number;
+  /** Nombre maximum de zones cochées, quand il y en a un. */
+  max?: number;
   /** Infobulle du bouton. */
   aide: string;
 }
 
 /**
  * Les trois opérations, dans l'ordre des boutons (`OPERATIONS`, `ZonesOperations.tsx:39-56`). « Restreindre à » et
- * non « Intersection » : au-delà de deux zones, le calcul est « A restreint à B ∪ C » — le mot de React, mesuré juste.
+ * non « Intersection », le mot de React. Écart voulu (lot 3, T10) : React l'admettait sur plus de deux zones (« A
+ * restreint à B ∪ C ») ; la recette `combinaison` n'admet l'intersection qu'entre DEUX zones (l'exécuteur la refuse
+ * sinon) — le bouton n'est actif qu'à deux exactement.
  */
 export const OPERATIONS_ZONES: Readonly<Record<OperationZones, DefinitionOperation>> = {
-  union: { libelle: 'Fusionner', source: 'composite', min: 2, aide: 'tout ce que couvrent les zones cochées' },
-  intersection: { libelle: 'Restreindre à', source: 'intersection', min: 2, aide: 'la première, limitée à ce que couvrent les autres' },
-  difference: { libelle: 'Soustraire', source: 'difference', min: 2, aide: 'la première, moins toutes les autres' },
+  union: { libelle: 'Fusionner', min: 2, aide: 'tout ce que couvrent les zones cochées' },
+  intersection: { libelle: 'Restreindre à', min: 2, max: 2, aide: 'la première, limitée à la seconde — deux zones exactement' },
+  difference: { libelle: 'Soustraire', min: 2, aide: 'la première, moins toutes les autres' },
 };
 
-export const ORDRE_OPERATIONS: readonly OperationZones[] = ['union', 'intersection', 'difference'];
-
-/** Le corps envoyé à la route : base + retirées pour la soustraction, la liste sinon (`ZonesOperations.tsx:85-87`). */
-export function corpsOperation(op: OperationZones, selection: readonly string[]): Record<string, unknown> {
-  return op === 'difference'
-    ? { zone_base: selection[0], zones_retirees: selection.slice(1) }
-    : { zone_ids: [...selection] };
+/** L'opération est-elle possible sur `n` zones cochées ? */
+export function operationPossible(op: OperationZones, n: number): boolean {
+  const d = OPERATIONS_ZONES[op];
+  return n >= d.min && n <= (d.max ?? Infinity);
 }
+
+export const ORDRE_OPERATIONS: readonly OperationZones[] = ['union', 'intersection', 'difference'];
 
 /** Le nom d'une zone de la sélection, ou les huit premiers caractères de son id (`nomDe`, l.75). */
 export function nomDansSelection(noms: ReadonlyMap<string, string>, id: string): string {
@@ -62,22 +61,13 @@ export function nomZoneCreee(op: OperationZones, selection: readonly string[], n
   return `Fusion de ${selection.length} zones — ${base}…`;
 }
 
-/**
- * Le message d'une opération REFUSÉE par la route (`ZonesOperations.tsx:96-106`) : son `message` (409 « aucune surface
- * en commun »), sinon une traduction des deux codes connus, sinon le statut.
- */
-export function messageRefusOperation(statut: number, corps: unknown): string {
-  const c = (corps && typeof corps === 'object' ? corps : {}) as { message?: unknown; error?: unknown };
-  if (typeof c.message === 'string') return c.message;
-  if (c.error === 'zone_not_found') return 'Une des zones est introuvable.';
-  if (c.error === 'zone_dupliquee') return 'Une même zone est sélectionnée deux fois.';
-  return `Erreur (${statut})`;
-}
+// Depuis le lot 3 (T10), une opération s'écrit en UN appel (`POST /api/zones`, recette `combinaison`) : le corps des
+// routes `/source/*` et la traduction de leurs refus ne servent plus — le message d'échec est `messageErreurZone`.
 
 /** L'enregistrement a échoué (`!saveRes.ok`). */
 export const MESSAGE_SAUVEGARDE_ECHOUEE = 'Sauvegarde de la zone échouée.';
 /** 207 : zone créée, mais ses codes postaux n'ont pas été résolus (`ZonesOperations.tsx:136-138`). */
-export const MESSAGE_RESOLUTION_ECHOUEE = 'Zone créée, mais la résolution des codes postaux a échoué — retirez-la et réessayez.';
+export const MESSAGE_RESOLUTION_ECHOUEE = 'Zone créée, mais la résolution des codes postaux a échoué.';
 
 /**
  * « Zone créée : 1 234 codes postaux · 56,7 km² » (`ZonesOperations.tsx:140-144`).

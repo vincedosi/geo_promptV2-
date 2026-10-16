@@ -12,13 +12,13 @@ import { TuileChiffreComponent } from '../../ui/tuile-chiffre/tuile-chiffre.comp
 import { SitesRisqueApi, type CompteSites } from '../risques/data/sites-risque.api';
 
 /**
- * Cartes de navigation rapide de `app/dashboard/page.tsx:91-98`. Un écran pas encore porté se rend à
+ * Cartes de navigation rapide de `app/dashboard/page.tsx`. La première s'appelait « geo.prompt / Carte + IA »
+ * jusqu'au 2026-10-12 : le copilote IA est retiré, elle ouvre la carte, rien de plus. Un écran pas encore porté se rend à
  * l'identique, mais INERTE (`cible: null`, même règle que la barre latérale). « Accès » (2026-10-10)
  * remplace « Organisations » comme côté React, et ouvre la page Angular (`cible` RELATIVE).
  */
 const CARTES_NAVIGATION: readonly { icone: NomIcone; libelle: string; sous: string; cible: string | null }[] = [
-  { icone: 'epingle-carte', libelle: 'geo.prompt', sous: 'Carte + IA', cible: null },
-  { icone: 'ecran', libelle: 'Import OOH', sous: 'Panneaux ArcGIS', cible: null },
+  { icone: 'epingle-carte', libelle: 'Carte', sous: 'Calques et analyses', cible: null },
   { icone: 'fichier-haut', libelle: 'Import POI', sous: 'CSV / XLSX', cible: null },
   { icone: 'base-de-donnees', libelle: 'Sources', sous: 'Data lake', cible: null },
   { icone: 'utilisateurs', libelle: 'Accès', sous: 'Comptes et espaces', cible: 'admin/acces' },
@@ -61,7 +61,10 @@ export class AccueilPage {
     return nom || u?.email?.split('@')[0] || '—';
   });
 
-  /** Les quatre cartes de `stats` (`page.tsx:61-88`) ; seule la première est un lien. */
+  /**
+   * Les trois cartes de `stats` (`app/dashboard/page.tsx`). La tuile « geo.prompt / Copilote IA », seul lien de la
+   * rangée, est retirée le 2026-10-12 avec toute l'IA (lot 5) : les trois restantes sont des chiffres, aucune n'est un lien.
+   */
   protected readonly cartesSession = computed(() => {
     const s = this.auth.session();
     const u = s?.user;
@@ -72,11 +75,10 @@ export class AccueilPage {
       ? new Date(s.expires_at * 1000).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
       : new Date(Date.now() + 3_600_000).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
     return [
-      { icone: 'epingle-carte', valeur: 'geo.prompt', libelle: 'Copilote IA', lien: true },
-      { icone: 'courrier', valeur: this.nomAffiche(), libelle: u?.email ?? '', lien: false },
-      { icone: 'bouclier', valeur: role, libelle: u?.email_confirmed_at ? 'Compte vérifié' : 'Non vérifié', lien: false },
-      { icone: 'horloge', valeur: expiration, libelle: 'Expiration session', lien: false },
-    ] satisfies { icone: NomIcone; valeur: string; libelle: string; lien: boolean }[];
+      { icone: 'courrier', valeur: this.nomAffiche(), libelle: u?.email ?? '' },
+      { icone: 'bouclier', valeur: role, libelle: u?.email_confirmed_at ? 'Compte vérifié' : 'Non vérifié' },
+      { icone: 'horloge', valeur: expiration, libelle: 'Expiration session' },
+    ] satisfies { icone: NomIcone; valeur: string; libelle: string }[];
   });
 
   protected readonly valeurSites = computed(() => {

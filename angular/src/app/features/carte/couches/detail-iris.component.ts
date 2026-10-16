@@ -5,6 +5,8 @@ import { IrisService } from './iris.service';
 
 /** Les groupes du panneau, dans l'ordre de React (`IrisDetailPanel.tsx:40`) — « Métadonnées » n'y est pas. */
 const ORDRE_GROUPES = ['Population', 'Âge', 'Revenus', 'Emploi', 'Diplômes', 'CSP', 'Logement', 'Familles', 'Mobilité'] as const;
+/** Largeur du panneau (`page.tsx:1436-1450`), en px : la boîte à outils s'en écarte (`ecartOutils`). */
+export const LARGEUR_DETAIL_IRIS = 320;
 /** Largeurs des trois lignes de `SkeletonText` (`components/ui/GeoSkeleton.tsx:29`). */
 const LARGEURS_SQUELETTE = ['100%', '85%', '60%'];
 
@@ -63,7 +65,7 @@ interface Ligne {
   `,
   template: `
     @if (i.codeSelectionne(); as code) {
-      <div data-detail-iris class="absolute inset-y-0 right-0 z-50 w-[320px] border-l-fin border-subtle">
+      <div data-detail-iris class="absolute inset-y-0 right-0 z-50 border-l-fin border-subtle" [style.width.px]="largeur">
         <div class="absolute inset-0 z-20 flex flex-col overflow-hidden bg-[var(--bg-level-2)]">
           <div class="shrink-0 border-b-fin border-subtle bg-[var(--bg-surface)] px-[14px] pb-[10px] pt-3">
             <div class="flex items-start justify-between">
@@ -143,6 +145,7 @@ export class DetailIrisComponent {
   protected readonly i = inject(IrisService);
   protected readonly blocs = [0, 1, 2, 3];
   protected readonly largeurs = LARGEURS_SQUELETTE;
+  protected readonly largeur = LARGEUR_DETAIL_IRIS;
 
   protected readonly nom = computed(() => this.i.detail()?.nom_iris ?? null);
 

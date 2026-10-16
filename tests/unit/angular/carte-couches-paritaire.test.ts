@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// `app/copilote/_lib/constants.ts` importe maplibre-gl (WebGL) : inutile pour les constantes lues ici.
+// `app/map/_lib/constants.ts` importe maplibre-gl (WebGL) : inutile pour les constantes lues ici.
 vi.mock('maplibre-gl', () => ({ default: {} }));
 
 import * as Rr from '@/lib/carte/palette-risques';
@@ -30,7 +30,7 @@ import * as Ri from '@/lib/iris/echelle';
 import * as Ai from '../../../angular/src/app/features/carte/logique/iris-echelle';
 import * as Rdb from '@/lib/iris-crawler/db-columns';
 import * as Adb from '../../../angular/src/app/features/carte/logique/iris-colonnes';
-import { IRIS_PALETTES as R_IRIS_PALETTES } from '@/app/copilote/_hooks/useMapLayers';
+import { IRIS_PALETTES as R_IRIS_PALETTES } from '@/app/map/_hooks/useMapLayers';
 import * as Rmt from '@/lib/meteo/types';
 import * as Amt from '../../../angular/src/app/features/carte/logique/meteo/types';
 import * as Rmp from '@/lib/meteo/palettes';
@@ -57,7 +57,7 @@ import * as Rcsv from '@/lib/csv/escape';
 import * as Acsv from '../../../angular/src/app/features/carte/logique/zones/csv-escape';
 import * as Rst from '@/lib/custom-geo/source-type-labels';
 import * as Ast from '../../../angular/src/app/features/carte/logique/zones/source-type-labels';
-import * as Rk from '@/app/copilote/_lib/constants';
+import * as Rk from '@/app/map/_lib/constants';
 import * as Af from '../../../angular/src/app/features/carte/logique/fonds';
 import * as Apal from '../../../angular/src/app/features/carte/logique/palettes-donnees-carte';
 import * as Rfc from '@/app/map/_components/filter-panel/constants';
@@ -423,7 +423,7 @@ describe('fonds de carte, palettes de données et constantes de calques', () => 
   });
 
   it('bataille (T14) : littéraux de paint de useMapInit et opacité de repli de useMapLayers', () => {
-    const src = readFileSync('app/copilote/_hooks/useMapInit.ts', 'utf8');
+    const src = readFileSync('app/map/_hooks/useMapInit.ts', 'utf8');
     const bloc = src.slice(src.indexOf("map.addSource('battle-rings'"), src.indexOf('const onBattlePoisClick'));
     const t = Apal.TRAITS_BATAILLE;
     expect(bloc).toContain(`['coalesce', ['get', 'battle_color'],   '${t.aplatRepli}']`);
@@ -431,15 +431,15 @@ describe('fonds de carte, palettes de données et constantes de calques', () => 
     expect(bloc).toContain(`paint: { 'line-color': '${t.trait.couleur}', 'line-width': ${t.trait.largeur}, 'line-opacity': ${t.trait.opacite} }`);
     expect(bloc).toContain(`'circle-radius': ${t.point.rayon}, 'circle-color': '${t.point.couleur}', 'circle-stroke-width': ${t.point.largeurCerne}, 'circle-stroke-color': '${t.point.cerne}'`);
     expect(bloc).toContain(`'circle-radius': ${t.halo.rayon}, 'circle-color': '${t.halo.couleur}', 'circle-opacity': ${t.halo.opacite}, 'circle-blur': ${t.halo.flou}`);
-    expect(readFileSync('app/copilote/_hooks/useMapLayers.ts', 'utf8'))
+    expect(readFileSync('app/map/_hooks/useMapLayers.ts', 'utf8'))
       .toContain(`battle_opacity: (BATTLE_PALIER_OPACITY as Record<number, number>)[palier] ?? ${Apal.OPACITE_PALIER_INCONNU.toFixed(2)},`);
   });
 
   it('bataille (T17) : trait des bordures CIRFA et opacité de repli des anneaux bruts', () => {
     const t = Apal.TRAITS_BATAILLE;
-    expect(readFileSync('app/copilote/_hooks/useMapInit.ts', 'utf8'))
+    expect(readFileSync('app/map/_hooks/useMapInit.ts', 'utf8'))
       .toContain(`paint: { 'line-color': '${t.bordure.couleur}', 'line-width': ${t.bordure.largeur}, 'line-opacity': ${t.bordure.opacite} }`);
-    expect(readFileSync('app/copilote/_hooks/useMapLayers.ts', 'utf8'))
+    expect(readFileSync('app/map/_hooks/useMapLayers.ts', 'utf8'))
       .toContain(`battle_opacity: (BATTLE_PALIER_OPACITY as Record<number, number>)[r.palier] ?? ${Apal.OPACITE_PALIER_PARTIEL},`);
   });
 
@@ -457,7 +457,7 @@ describe('fonds de carte, palettes de données et constantes de calques', () => 
     expect(Apal.OPACITE_TMJA_PAR_ZOOM).toEqual([[5, 0.95], [9, 0.9], [12, 0.8]]);
     expect(Apal.SOURCE_TMJA).toEqual({ minzoom: 5, maxzoom: 14, version: 'v10' });
     // lecture directe du source React : chaque littéral nommé s'y trouve
-    const src = readFileSync('app/copilote/_hooks/useMapInit.ts', 'utf8');
+    const src = readFileSync('app/map/_hooks/useMapInit.ts', 'utf8');
     for (const lit of ["'#4292C6'", "'#f6d543'", "'#f97316'", "'#ef4444'", '5, 0.6, 7, 1.2, 9, 2, 11, 3.2, 14, 5', '5, 0.95, 9, 0.9, 12, 0.8', '?v=v10']) {
       expect(src, lit).toContain(lit);
     }
@@ -466,7 +466,7 @@ describe('fonds de carte, palettes de données et constantes de calques', () => 
   it('météo (T11) : opacité de l’aplat et trait égaux aux littéraux de paint de useMapInit', () => {
     expect(Apal.OPACITE_METEO).toBe(0.55);
     expect(Apal.TRAIT_METEO).toEqual({ couleur: 'rgba(0,0,0,0.45)', largeur: 0.8 });
-    const src = readFileSync('app/copilote/_hooks/useMapInit.ts', 'utf8');
+    const src = readFileSync('app/map/_hooks/useMapInit.ts', 'utf8');
     const bloc = src.slice(src.indexOf("map.addSource('meteo-source'"), src.indexOf("map.addSource('tmja-source'"));
     expect(bloc).toContain(`'fill-opacity': ${Apal.OPACITE_METEO},`);
     expect(bloc).toContain(`'line-color': '${Apal.TRAIT_METEO.couleur}',`);
@@ -474,7 +474,7 @@ describe('fonds de carte, palettes de données et constantes de calques', () => 
   });
 
   it('radio : teintes égales aux littéraux de paint de useMapInit', () => {
-    const src = readFileSync('app/copilote/_hooks/useMapInit.ts', 'utf8');
+    const src = readFileSync('app/map/_hooks/useMapInit.ts', 'utf8');
     for (const [p, c] of Object.entries(Apal.TEINTES_RADIO.portee)) expect(src, p).toContain(`'${p}', '${c}'`);
     expect(src).toContain(`'${Apal.TEINTES_RADIO.porteeInconnue}', // default`);
     expect(Apal.TEINTES_RADIO.rayonGrappes).toEqual({ defaut: 14, paliers: [[10, 18], [50, 24], [200, 32]] });
@@ -559,11 +559,13 @@ describe('fonds de carte, palettes de données et constantes de calques', () => 
     }
   });
 
-  it('constantes de calques : OOH, transport, épingles, POI, rayons, modes d’isochrones', () => {
-    donneesEgales(Rfc, Acc, ['OOH_REGIES', 'TRANSPORT_TYPES', 'PIN_SIZES', 'PIN_COLORS']);
+  it('constantes de calques : transport, épingles, POI, rayons, modes d’isochrones ; OOH_REGIES n’est plus copié', () => {
+    donneesEgales(Rfc, Acc, ['TRANSPORT_TYPES', 'PIN_SIZES', 'PIN_COLORS']);
     donneesEgales(Rfa, Acc, ['POI_TYPES', 'POI_RAYONS']);
     donneesEgales(Rfa, Ami, ['ISO_MODES', 'ISO_DURATIONS']);
-    expect(Acc.OOH_REGIES).toHaveLength(8);
+    // React (gelé) garde son filtre par régies ; l'Angular choisit une campagne de l'espace (spec ooh-campagnes § 6).
+    expect(Rfc.OOH_REGIES).toHaveLength(8);
+    expect('OOH_REGIES' in Acc).toBe(false);
     expect(Ami.ISO_MODES.map((m) => m.id)).toEqual(['walk', 'bike', 'drive']);
   });
 });

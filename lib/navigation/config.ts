@@ -8,11 +8,15 @@
  *   Zones    : ce que je fabrique. Seul endroit qui cree de la geometrie et une liste de CP.
  *   Campagne : ce que j'active. Overlay plein ecran.
  *
+ * L'entree « Assistant » (Ctrl+K, tiroir droit du chat IA) est retiree depuis
+ * le 2026-10-12 (chantier « suppression de toute l'IA », lot 5) : AIDA, le
+ * shell dentsu, porte l'IA. Ctrl+K n'ouvre plus rien.
+ *
  * AUCUN composant ne redeclare un id, un label, une icone ou un raccourci :
  * ils lisent ce fichier. Verrouille par tests/unit/navigation/config.test.ts.
  */
 import {
-  Sparkles, Megaphone, Funnel, Layers, FlaskConical, Shapes, Settings, CircleHelp,
+  Megaphone, Funnel, Layers, FlaskConical, Shapes, Settings, CircleHelp,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -24,14 +28,13 @@ import type { LucideIcon } from 'lucide-react';
 type PanneauId = 'filtre' | 'calques' | 'analyse' | 'zones';
 
 /** Toutes les entrees du rail. */
-export type EntreeId = 'assistant' | 'campagne' | PanneauId | 'reglages' | 'aide';
+export type EntreeId = 'campagne' | PanneauId | 'reglages' | 'aide';
 
 /**
  * Ou et comment s'ouvre le contenu d'une entree.
  * Non exporte : consomme uniquement par `EntreeNavigation.type` ci-dessous.
  */
 type TypePanneau =
-  | 'tiroir-droit'          // Assistant : tiroir a DROITE de la carte
   | 'panneau-gauche'        // Les quatre outils : OverlayPanel a gauche
   | 'overlay-plein-ecran'   // Campagne : overlay MAGELIAN par-dessus la carte
   | 'lien';                 // Reglages, Aide
@@ -43,7 +46,7 @@ export interface EntreeNavigation {
   /** Phrase affichee au survol. Vide pour les entrees sans question associee. */
   tooltip: string;
   type: TypePanneau;
-  /** Forme canonique du raccourci : 'ctrl+k', 'alt+1'... */
+  /** Forme canonique du raccourci : 'alt+1', 'alt+c'... */
   raccourci?: string;
   position: 'haut' | 'bas';
   /** Filet de separation APRES cette entree. */
@@ -82,11 +85,6 @@ export const ECART_RAIL_PANNEAU = 8;
 export const LARGEUR_PANNEAU = 340;
 
 export const ENTREES_NAVIGATION: readonly EntreeNavigation[] = [
-  {
-    id: 'assistant', label: 'Assistant', icone: Sparkles,
-    tooltip: 'Poser une question', type: 'tiroir-droit',
-    raccourci: 'ctrl+k', position: 'haut', separateurApres: true,
-  },
   {
     id: 'campagne', label: 'Campagne', icone: Megaphone,
     tooltip: "Ce que j’active", type: 'overlay-plein-ecran',

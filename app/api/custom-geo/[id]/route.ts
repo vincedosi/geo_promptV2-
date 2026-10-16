@@ -168,20 +168,22 @@ export async function DELETE(
   const access = await checkZoneAccess(supabase, profile, id);
   if (access !== 'ok') return NextResponse.json({ error: 'zone_not_found' }, { status: 404 });
 
-  // Garde-fou : interdit de supprimer une zone référencée par une stratégie
-  // de bidding, ou membre d'une zone composite existante.
-  const [stratRes, compRes] = await Promise.all([
-    supabase.from('bidding_strategies').select('id').eq('zone_id', id).limit(1),
-    supabase.from('custom_geo_zones')
-      .select('id')
-      .contains('source_metadata', { member_zone_ids: [id] })
-      .limit(1),
-  ]);
-  if ((stratRes.data ?? []).length > 0) {
-    return NextResponse.json({ error: 'zone_referenced_by_strategy' }, { status: 409 });
+  // Garde-fou : interdit de supprimer une zone CITÉE. `zone_referencee` (sql/253) couvre la stratégie de bidding, le
+  // jeu de zones, la composite React (`source_metadata.member_zone_ids`), la combinaison à recette (`recette.zones`)
+  // et le périmètre d'une recette (`recette.perimetre`). Jusqu'au 2026-10-15, seuls la stratégie et
+  // `member_zone_ids` étaient lus : un membre d'une combinaison Angular se supprimait et cassait son recalcul.
+  // `par` est un code, jamais montré tel quel ; une garde en échec ne supprime rien.
+  const ref = await supabase.rpc('zone_referencee', { p_zone_id: id });
+  if (ref.error) {
+    console.error('[custom-geo/delete] zone_referencee :', ref.error.message);
+    return NextResponse.json({ error: 'Vérification des usages de la zone impossible.' }, { status: 500 });
   }
-  if ((compRes.data ?? []).length > 0) {
-    return NextResponse.json({ error: 'zone_member_of_composite' }, { status: 409 });
+  if (typeof ref.data === 'string' && ref.data !== '') {
+    return NextResponse.json({
+      error: 'Cette zone est utilisée par un plan, un jeu de zones ou une autre zone : elle ne peut pas être supprimée.',
+      refus: 'zone_referencee',
+      par: ref.data,
+    }, { status: 409 });
   }
 
   const { error } = await supabase

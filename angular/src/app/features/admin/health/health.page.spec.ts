@@ -16,7 +16,7 @@ function reponse(): HealthResponse {
     summary: '1 erreur(s) critique(s) — corrige les problemes ci-dessous',
     checks: [
       { name: 'NEXT_PUBLIC_SUPABASE_URL', status: 'OK', value: 'https://x...', message: 'URL configuree' },
-      { name: 'MISTRAL_API_KEY', status: 'WARN', value: '(vide)', message: 'MANQUANT' },
+      { name: 'ORS_API_KEY', status: 'WARN', value: '(vide)', message: 'MANQUANT' },
       { name: 'SUPABASE_CONNEXION', status: 'OK', message: 'Connecte a Supabase — 4 organisation(s) trouvee(s)' },
       { name: 'TABLE_PROFILES', status: 'ERROR', message: 'Table "profiles" inaccessible' },
     ],
@@ -86,7 +86,7 @@ describe('HealthPage', () => {
       'Variables d\'environnement', 'Connectivité Supabase', 'Tables Supabase', 'Database Overview', 'Build info',
     ]);
     const noms = (s: string) => [...el.querySelectorAll(`[data-section="${s}"] [data-nom]`)].map((n) => n.textContent!.trim());
-    expect(noms('env')).toEqual(['NEXT_PUBLIC_SUPABASE_URL', 'MISTRAL_API_KEY']);
+    expect(noms('env')).toEqual(['NEXT_PUBLIC_SUPABASE_URL', 'ORS_API_KEY']);
     expect(noms('connexion')).toEqual(['SUPABASE_CONNEXION']);
     expect(noms('tables')).toEqual(['TABLE_PROFILES']);
     expect(el.querySelector('[data-section="tables"] [data-fix]')).not.toBeNull();

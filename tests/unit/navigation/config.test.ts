@@ -9,13 +9,12 @@ function touche(init: Partial<KeyboardEvent>): KeyboardEvent {
 }
 
 describe('configuration de navigation', () => {
-  // « huit » et non « sept » : le titre disait sept, l'assertion en comptait
-  // huit, et ARCHITECTURE.md § Navigation de /map dit « soit huit entrees »
-  // (cinq themes + Assistant + Reglages + Aide). Sans consequence
-  // fonctionnelle, mais un titre de test faux se propage dans les revues.
-  it('declare exactement les huit entrees de la spec, dans l ordre', () => {
+  // Sept entrees : cinq themes + Reglages + Aide. Il y en avait huit
+  // jusqu'au 2026-10-12 — l'Assistant (Ctrl+K, chat IA) est retire avec toute
+  // l'IA du code (chantier « suppression de toute l'IA », lot 5).
+  it('declare exactement les sept entrees de la spec, dans l ordre', () => {
     expect(ENTREES_NAVIGATION.map(e => e.id)).toEqual([
-      'assistant', 'campagne', 'filtre', 'calques', 'analyse', 'zones', 'reglages', 'aide',
+      'campagne', 'filtre', 'calques', 'analyse', 'zones', 'reglages', 'aide',
     ]);
   });
 
@@ -41,8 +40,7 @@ describe('configuration de navigation', () => {
     expect(new Set(raccourcis).size).toBe(raccourcis.length);
   });
 
-  it('reconnait Ctrl+K et Alt+1 a Alt+4', () => {
-    expect(entreeParRaccourci(touche({ key: 'k', ctrlKey: true }))).toBe('assistant');
+  it('reconnait Alt+1 a Alt+4 et Alt+C', () => {
     expect(entreeParRaccourci(touche({ key: '1', altKey: true }))).toBe('filtre');
     expect(entreeParRaccourci(touche({ key: '2', altKey: true }))).toBe('calques');
     expect(entreeParRaccourci(touche({ key: '3', altKey: true }))).toBe('analyse');
@@ -57,7 +55,7 @@ describe('configuration de navigation', () => {
   it('laisse la place au plus long libelle', () => {
     // Le rail actuel (48 px) tronquait « Périmètre » a 8 caracteres.
     const plusLong = Math.max(...ENTREES_NAVIGATION.map(e => e.label.length));
-    expect(plusLong).toBeLessThanOrEqual(9);        // « Assistant », « Campagne », « Réglages »
+    expect(plusLong).toBeLessThanOrEqual(9);        // « Campagne », « Réglages »
     expect(LARGEUR_RAIL).toBeGreaterThanOrEqual(72); // 9 car. a 9px ≈ 58px + marges
   });
 
@@ -66,8 +64,8 @@ describe('configuration de navigation', () => {
     expect(bas).toEqual(['reglages', 'aide']);
   });
 
-  it('ouvre Assistant a droite et Campagne en plein ecran', () => {
-    expect(ENTREES_NAVIGATION.find(e => e.id === 'assistant')?.type).toBe('tiroir-droit');
+  it('ouvre Campagne en plein ecran, les autres en panneau gauche', () => {
+    expect(ENTREES_NAVIGATION.filter(e => e.id !== 'campagne').every(e => e.type === 'panneau-gauche')).toBe(true);
     expect(ENTREES_NAVIGATION.find(e => e.id === 'campagne')?.type).toBe('overlay-plein-ecran');
   });
 
@@ -78,7 +76,9 @@ describe('configuration de navigation', () => {
     expect(entreeParRaccourci(touche({ key: 'k', ctrlKey: true, metaKey: true }))).toBeNull();
   });
 
-  it('accepte Meta+K seul, pour les claviers Mac', () => {
-    expect(entreeParRaccourci(touche({ key: 'k', metaKey: true }))).toBe('assistant');
+  it('Ctrl+K et Meta+K sont INERTES : l Assistant est retire (2026-10-12)', () => {
+    expect(entreeParRaccourci(touche({ key: 'k', ctrlKey: true }))).toBeNull();
+    expect(entreeParRaccourci(touche({ key: 'k', metaKey: true }))).toBeNull();
+    expect(ENTREES_NAVIGATION.some(e => e.raccourci?.startsWith('ctrl+'))).toBe(false);
   });
 });

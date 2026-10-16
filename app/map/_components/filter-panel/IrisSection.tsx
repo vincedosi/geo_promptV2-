@@ -9,7 +9,7 @@
  */
 
 import React from 'react';
-import { IRIS_PALETTES } from '@/app/copilote/_hooks/useMapLayers';
+import { IRIS_PALETTES } from '@/app/map/_hooks/useMapLayers';
 import { niveauAuZoom, LIBELLE_NIVEAU,
   type BornesIris } from '@/lib/iris/echelle';
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';

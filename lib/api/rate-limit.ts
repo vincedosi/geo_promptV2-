@@ -14,7 +14,10 @@
  *
  * ── Les trois moteurs, dans cet ordre ───────────────────────────────────────
  *
- *  1. **Upstash**, s'il est configuré — le moins cher, rien à changer ;
+ *  1. **Upstash**, s'il est configuré — le moins cher, rien à changer. Des
+ *     variables mortes (hôte supprimé) sont neutralisées par un disjoncteur :
+ *     aucune nouvelle tentative, un délai n'autorise jamais, et après un échec
+ *     Upstash n'est plus tenté pendant 5 min (un seul log) ;
  *  2. **Postgres** (`consommer_quota`, sql/135) — la seule ressource partagée
  *     dont l'application dispose à coup sûr. Un `INSERT … ON CONFLICT …
  *     RETURNING`, donc exact même quand deux instances appellent ensemble ;
@@ -118,6 +121,24 @@ function parseWindowMs(window: Duration): number {
   }
 }
 
+/**
+ * Disjoncteur d'Upstash, commun à TOUS les limiteurs du module. Des variables
+ * `UPSTASH_*` peuvent rester posées vers une base supprimée (variables mortes) :
+ * après un échec, Upstash n'est plus tenté pendant 5 min — chaque requête à
+ * quota ne paie donc pas un aller-retour perdu, et le log n'est écrit qu'une
+ * fois par coupure.
+ */
+const DUREE_COUPURE_UPSTASH_MS = 5 * 60_000;
+let upstashCoupeJusqua = 0;
+
+/** Délai d'Upstash (ms) : au-delà, `limit()` rend `reason: 'timeout'`, traité comme un échec. */
+const DELAI_UPSTASH_MS = 2_000;
+
+function couperUpstash(cause: string): void {
+  upstashCoupeJusqua = Date.now() + DUREE_COUPURE_UPSTASH_MS;
+  console.error(`[rate-limit] Upstash injoignable (${cause}) : repli sur le compteur en base, Upstash n'est plus tenté pendant 5 min.`);
+}
+
 export function createRateLimiter({ max, window, prefix }: RateLimitOptions): RateLimiter {
   const upstash = (
     process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
@@ -125,10 +146,17 @@ export function createRateLimiter({ max, window, prefix }: RateLimitOptions): Ra
     redis: new Redis({
       url:   process.env.UPSTASH_REDIS_REST_URL,
       token: process.env.UPSTASH_REDIS_REST_TOKEN,
+      // Par défaut, 5 nouvelles tentatives à recul exponentiel : un hôte mort
+      // coûtait plusieurs secondes à CHAQUE requête avant le repli.
+      retry: { retries: 0 },
     }),
     limiter:   Ratelimit.slidingWindow(max, window),
     prefix,
     analytics: false,
+    // Au-delà du délai, la bibliothèque rend `success: true, reason: 'timeout'`
+    // — une autorisation silencieuse. Le délai est gardé (il borne l'attente),
+    // mais son verdict est refusé plus bas : jamais d'autorisation par délai.
+    timeout: DELAI_UPSTASH_MS,
   }) : null;
 
   const windowMs = parseWindowMs(window);
@@ -136,7 +164,7 @@ export function createRateLimiter({ max, window, prefix }: RateLimitOptions): Ra
   const localMap = fallbackMaps.get(prefix)!;
 
   return async (key: string) => {
-    if (upstash) {
+    if (upstash && Date.now() >= upstashCoupeJusqua) {
       // Un limiteur dont le dos est injoignable ne doit PAS faire echouer la
       // requete qu'il protege : les deux variables Upstash peuvent etre
       // renseignees vers un hote qui ne resout plus (base supprimee, DNS, dev
@@ -144,15 +172,20 @@ export function createRateLimiter({ max, window, prefix }: RateLimitOptions): Ra
       // constate le 2026-09-13 sur ENOTFOUND, et cela vaut pour TOUTES les
       // routes a quota, pas seulement celle qui l'a revele.
       try {
-        const { success, reset } = await upstash.limit(key);
-        return { ok: success, retrySec: success ? 0 : Math.ceil((reset - Date.now()) / 1000) };
+        const { success, reset, reason } = await upstash.limit(key);
+        if (reason === 'timeout') {
+          couperUpstash(`délai de ${DELAI_UPSTASH_MS} ms dépassé`);
+        } else {
+          return { ok: success, retrySec: success ? 0 : Math.ceil((reset - Date.now()) / 1000) };
+        }
       } catch (e) {
-        console.error('[rate-limit] Upstash injoignable, repli sur le compteur en base:', e instanceof Error ? e.message : e);
+        couperUpstash(e instanceof Error ? e.message : String(e));
       }
     }
 
-    // Pas d'Upstash : le compteur partagé en base prend le relais. C'est le
-    // chemin réel en production, où les deux variables Upstash sont vides.
+    // Pas d'Upstash (ou Upstash coupé par le disjoncteur) : le compteur partagé
+    // en base prend le relais. C'est le chemin réel, les variables Upstash
+    // étant vides — ou mortes.
     const partage = await consommerEnBase(`${prefix}:${key}`, max, Math.round(windowMs / 1000));
     if (partage) return partage;
 

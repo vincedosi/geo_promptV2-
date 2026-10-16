@@ -6,8 +6,6 @@
  * Vérifie :
  *   - .env.local existe + vars obligatoires présentes
  *   - Connexion Supabase OK (anon key fonctionnelle)
- *   - Clé Gemini valide (1 appel léger)
- *   - URL Modal joignable (sans nécessairement valide)
  *
  * Termine avec exit code 0 si tout OK, 1 sinon.
  */
@@ -23,8 +21,6 @@ const REQUIRED = [
   'NEXT_PUBLIC_SUPABASE_URL',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
   'SUPABASE_SERVICE_ROLE_KEY',
-  'GOOGLE_GENERATIVE_AI_API_KEY',
-  'MODAL_BIDDING_ML_URL',
 ];
 
 function loadEnvLocal(): Record<string, string> {
@@ -77,36 +73,6 @@ async function checkSupabase(env: Record<string, string>): Promise<Result> {
   }
 }
 
-async function checkGemini(env: Record<string, string>): Promise<Result> {
-  const key = env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (!key) return { ok: false, label: 'Gemini key valid', detail: 'GOOGLE_GENERATIVE_AI_API_KEY manquant' };
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`,
-    );
-    return res.ok
-      ? { ok: true, label: 'Gemini key valid' }
-      : { ok: false, label: 'Gemini key valid', detail: `HTTP ${res.status}` };
-  } catch (e) {
-    return { ok: false, label: 'Gemini key valid', detail: String(e instanceof Error ? e.message : e) };
-  }
-}
-
-async function checkModal(env: Record<string, string>): Promise<Result> {
-  const url = env.MODAL_BIDDING_ML_URL;
-  if (!url) return { ok: false, label: 'Modal URL set', detail: 'MODAL_BIDDING_ML_URL manquant' };
-  // On ne POST pas (qui consommerait un cold-start) : on check juste la résolution DNS
-  try {
-    const probe = `${url.replace(/\/+$/, '')}-predict.modal.run`;
-    const res = await fetch(probe, { method: 'OPTIONS' }).catch(() => null);
-    return res
-      ? { ok: true, label: 'Modal URL reachable' }
-      : { ok: false, label: 'Modal URL reachable', detail: 'DNS or network error' };
-  } catch (e) {
-    return { ok: false, label: 'Modal URL reachable', detail: String(e instanceof Error ? e.message : e) };
-  }
-}
-
 function fmt(r: Result): string {
   const icon = r.ok ? '✅' : '❌';
   const detail = r.detail ? ` — ${r.detail}` : '';
@@ -126,8 +92,6 @@ async function main(): Promise<number> {
   const results: Result[] = [
     ...(await checkRequiredVars(env)),
     await checkSupabase(env),
-    await checkGemini(env),
-    await checkModal(env),
   ];
 
   for (const r of results) {

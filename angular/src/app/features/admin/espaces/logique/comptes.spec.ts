@@ -1,4 +1,4 @@
-import { filtrerComptes, grouperComptes, normaliser } from './comptes';
+import { filtrerComptes, grouperComptes } from './comptes';
 import type { CompteResume } from './types';
 
 function compte(p: Partial<CompteResume> & { id: string; email: string }): CompteResume {
@@ -18,12 +18,6 @@ const COMPTES: CompteResume[] = [
   compte({ id: 'c4', email: 'eve@elysee.test', espace_actif: 'org-elysee', espaces: [ELYSEE] }),
   compte({ id: 'c5', email: 'flottant@exemple.test', espaces: [MARINE] }),
 ];
-
-describe('normaliser', () => {
-  it('minuscules, sans accents ni espaces superflus', () => {
-    expect(normaliser('  Hélène ÉLYSÉE  ')).toBe('helene elysee');
-  });
-});
 
 describe('filtrerComptes', () => {
   it('filtre vide → tout', () => {

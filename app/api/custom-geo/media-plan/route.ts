@@ -3,13 +3,15 @@
  * Le plan vit dans dsp_campaigns.geo_strategy.media_plan (sous-clé namespacée —
  * geo_strategy peut porter d'autres clés legacy, jamais écrasées). 1 campagne = 1 plan.
  *
- *   GET                       → liste des campagnes de l'org (id, name, has_plan)
+ *   GET                       → liste des campagnes de l'espace actif (id, name, has_plan) ; vide sans espace actif, super_admin compris
  *   GET  ?campaign_id=<uuid>  → plan stocké de cette campagne (ou null)
  *   POST {campaign_id, plan}  → enregistre le plan dans geo_strategy
  *   DELETE ?campaign_id=<uuid>→ détache (geo_strategy = null)
  *
  * Scope org : un membre n'agit que sur les campagnes de son organisation ;
- * un super_admin sans org voit tout. Consommé par le ZoneMediaPlanPanel.
+ * la LISTE suit l'espace actif pour tous (R3/R5, 2026-10-12) ; le détail et
+ * l'écriture d'une campagne nommée restent ouverts au super_admin sans espace
+ * (`scopeGuard`). Consommé par le ZoneMediaPlanPanel.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -65,19 +67,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ plan: gs.media_plan ?? null });
   }
 
-  // Liste pour le sélecteur — scopée à l'org (super_admin sans org = tout)
-  let query = supabase
-    .from('dsp_campaigns')
-    .select('id, name, dsp_source, geo_strategy, organization_id')
-    .order('created_at', { ascending: false });
-  if (profile.organization_id) {
-    query = query.eq('organization_id', profile.organization_id);
-  } else if (profile.role !== 'super_admin') {
-    // Un client SANS organisation tombait dans le « super_admin sans org =
-    // tout » ci-dessus et listait les campagnes de tous (2026-10-08).
+  // Liste pour le sélecteur — les campagnes de l'ESPACE ACTIF, pour tout le
+  // monde, super_admin compris (spec droits-sur-la-carte, R3/R5, 2026-10-12 :
+  // sélecteur de la carte, pas de l'administration). Sans espace actif, rien :
+  // la carte est alors au socle seul, une campagne n'est jamais du socle. Le
+  // super_admin sans espace listait TOUTES les campagnes jusqu'au 2026-10-12,
+  // un client sans espace jusqu'au 2026-10-08.
+  if (!profile.organization_id) {
     return NextResponse.json({ campaigns: [] });
   }
-  const { data, error } = await query;
+  const { data, error } = await supabase
+    .from('dsp_campaigns')
+    .select('id, name, dsp_source, geo_strategy, organization_id')
+    .order('created_at', { ascending: false })
+    .eq('organization_id', profile.organization_id);
   if (error) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

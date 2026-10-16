@@ -1,6 +1,6 @@
 /**
  * L'ordre d'empilement des couches de la carte principale Angular (`logique/ordre-couches.ts`) est EXACTEMENT celui
- * dans lequel React les pose au `load` (`app/copilote/_hooks/useMapInit.ts`, ordre des `addLayer`, aucun `beforeId`),
+ * dans lequel React les pose au `load` (`app/map/_hooks/useMapInit.ts`, ordre des `addLayer`, aucun `beforeId`),
  * suivi des couches que React pose APRÈS le `load` (`COUCHES_APRES_LOAD`), toujours au-dessus.
  * Ruling du lot 4, T8 : côté Angular les couches sont posées à la demande, donc l'ordre doit être écrit — et ce test
  * empêche qu'il dérive de celui de React (gel P5 étendu à /map). Revue finale I-1 : la liste des couches d'après le
@@ -36,8 +36,12 @@ const SOURCES_REACT: Record<string, { fichier: string; idReact: string } | { eca
   'atelier-zones-pprt': { fichier: 'app/map/_components/ZonesRisqueLayer.tsx', idReact: 'zones-risque-contour-pprt' },
   'atelier-zones-etiquettes': { ecart: 'non posée sur la carte principale (etiquettes: false), rangée pour le cas où' },
   'custom-zone-*': { fichier: 'components/map/overlays/ZonesOverlay.tsx', idReact: 'custom-zone-fill-' },
+  'campagne-ooh-points': { ecart: 'sans équivalent React : emplacements d’une campagne OOH (spec 2026-10-16-ooh-campagnes)' },
+  'campagne-ooh-a-verifier': { ecart: 'sans équivalent React : anneau pointillé des emplacements à vérifier' },
   'apercu-rayon-fill': { fichier: 'app/map/_components/panneaux/CreerZoneRayon.tsx', idReact: 'apercu-rayon-fill' },
   'apercu-rayon-line': { fichier: 'app/map/_components/panneaux/CreerZoneRayon.tsx', idReact: 'apercu-rayon-line' },
+  'apercu-zone-fill': { ecart: 'sans équivalent React : aperçu d’une zone à recette, étape ③ du parcours (lot 3)' },
+  'apercu-zone-line': { ecart: 'sans équivalent React : aperçu d’une zone à recette, étape ③ du parcours (lot 3)' },
   'dessin-trace-fill': { ecart: 'terra-draw chez React (DessinLibre.tsx)' },
   'dessin-trace-line': { ecart: 'terra-draw chez React (DessinLibre.tsx)' },
   'dessin-trace-point': { ecart: 'terra-draw chez React (DessinLibre.tsx)' },
@@ -51,7 +55,9 @@ const POSEURS_ANGULAR = [
   'angular/src/app/features/carte/couches/couche-score.ts',
   'angular/src/app/features/carte/couches/zones-risque.service.ts',
   'angular/src/app/features/carte/couches/couche-zones-custom.ts',
-  'angular/src/app/features/carte/couches/apercu-rayon.ts',
+  'angular/src/app/features/carte/couches/couche-campagne-ooh.ts',
+  // La pose des aperçus (rayon, zone à recette) est commune : `apercu-rayon.ts` et `apercu-zone.ts` y délèguent.
+  'angular/src/app/features/carte/couches/apercu-forme.ts',
   'angular/src/app/features/carte/couches/dessin.service.ts',
 ];
 
@@ -74,7 +80,7 @@ function carteSimulee() {
 
 describe('ORDRE_COUCHES (lot 4, T8 ; revue finale I-1)', () => {
   it('reprend, dans le même ordre, toutes les couches que useMapInit.ts ajoute', () => {
-    const source = readFileSync('app/copilote/_hooks/useMapInit.ts', 'utf8');
+    const source = readFileSync('app/map/_hooks/useMapInit.ts', 'utf8');
     const ids: string[] = [];
     for (const m of source.matchAll(/addLayer\(\{\s*id:\s*'([^']+)'/g)) ids.push(m[1]);
     expect(ids.length).toBeGreaterThan(20);
@@ -82,7 +88,7 @@ describe('ORDRE_COUCHES (lot 4, T8 ; revue finale I-1)', () => {
   });
 
   it('chaque couche d’après le load a sa source React (ou un écart de nom écrit), et nulle n’est dans useMapInit.ts', () => {
-    const init = readFileSync('app/copilote/_hooks/useMapInit.ts', 'utf8');
+    const init = readFileSync('app/map/_hooks/useMapInit.ts', 'utf8');
     expect(Object.keys(SOURCES_REACT)).toEqual([...COUCHES_APRES_LOAD]);
     for (const id of COUCHES_APRES_LOAD) {
       const s = SOURCES_REACT[id];

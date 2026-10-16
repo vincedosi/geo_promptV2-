@@ -191,7 +191,8 @@ async function insertPoiBatch(
 // Main dispatcher with progress + live logs
 // ============================================================
 // NB : le type 'panneaux' a été retiré avec la page /integration-panneaux
-// (2026-07-02). Les panneaux s'importent via /admin/ooh-import (ArcGIS REST).
+// (2026-07-02). L'import ArcGIS (/admin/ooh-import) est supprimé depuis le 2026-10-16 :
+// plus aucun import de panneaux depuis l'interface (spec 2026-10-16-ooh-campagnes).
 
 export async function insertRows(
   rows: ProcessedRow[],

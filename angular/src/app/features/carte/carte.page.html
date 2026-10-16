@@ -1,56 +1,87 @@
-<!-- Barre du haut : retirée en mode immersif, comme React (`{!railMasque && <MapTopBar />}`). -->
-@if (!etat.railMasque()) {
-  <mg-barre-haut (orgChangee)="organisationChangee()" />
+<!-- La barre du parcours (spec § 3) : retirée en mode immersif. -->
+@if (!etat.immersif()) {
+  <mg-barre-parcours
+    [etapes]="etapes()" [courante]="parcours.etape()"
+    [segments]="segmentsAriane()" [precision]="precisionAriane()"
+    [zoneScript]="lienZone.zoneDuLien()?.nom ?? null" [planMedia]="zonesPlanFerme()" [autresOuvert]="parcours.autres()"
+    (choisir)="choisirEtape($event)" (remonter)="remonterAriane($event)" (ouvrirAutres)="parcours.ouvrirAutres()"
+    (toutEffacer)="toutEffacer()" (genererScript)="genererScriptDv360()" (rouvrirPlan)="planMedia.ouvert.set(true)"
+    (basculerImmersif)="basculerImmersif()" (orgChangee)="organisationChangee()"
+  />
 }
+<!-- La barre de progression de la page (spec § 3 : une barre pour tout calcul — l'aperçu d'une zone de ③, lot 3),
+     juste sous la barre du parcours ; TOUJOURS montée (seule l'opacité change), même en immersif. -->
+<mg-barre-progression />
 
-<mg-rail [actif]="etat.entreeActive()" [masque]="etat.railMasque()" [pastille]="etat.filtre() !== null" (choisir)="choisir($event)" />
-
-<!-- La puce du filtre unique (`FiltreChip.tsx`), sous le panneau du rail quand il est ouvert à la même place. -->
-@if (etat.filtre(); as f) {
-  <mg-puce-filtre [filtre]="f" (retirer)="etat.filtre.set(null)" />
-}
-
-@if (panneauOuvert()) {
-  @let p = panneau()!;
-  <mg-panneau-carte
-    [categorie]="p.id"
-    [titre]="p.titre"
-    [pastille]="p.point"
-    [decalageHaut]="etat.railMasque() ? 0 : hauteurBarre"
-    (fermer)="panneauFerme()"
-  >
-    @switch (p.id) {
-      @case ('filtre') { <mg-panneau-filtre /> }
-      @case ('calques') { <mg-panneau-calques /> }
-      @case ('analyse') { <mg-panneau-analyse /> }
-      @case ('zones') { <mg-panneau-zones /> }
-      @case ('reglages') { <mg-reglages [fond]="fond()" (choisirFond)="choisirFond($event)" /> }
-      @case ('aide') { <mg-aide /> }
+<!-- La carte, permanente, et SEULE dans sa rangée : tout ce qui la couvre flotte dedans (T4b), rien ne lui prend de largeur.
+     `inert` pendant le module risque (T13 du lot 4) : recouverte, elle ne prend plus ni focus clavier ni lecteur d'écran.
+     `--emprise-panneau` : le bord droit du panneau d'étape ouvert — badge de zoom, zone active et légende s'y alignent. -->
+<div class="relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-zone-carte [attr.inert]="moduleOuvert() ? '' : null"
+     [style.--emprise-panneau]="panneau.emprise()">
+  <!-- Un nouvel id de fond RECRÉE la carte, comme React (arbitrage B11) : `track f` détruit puis recrée `mg-carte`. -->
+  @for (f of [fond()]; track f) {
+    <mg-carte class="min-h-0 min-w-0 flex-1" [fond]="urlFond()" [centre]="centre" [zoomInitial]="zoomInitial"
+              [navigation]="navigation" (prete)="cartePrete($event)" (zoom)="zoomChange($event)">
+      <!-- Badge de zoom (`useMapInit.ts:156-185`, arbitrage B16). Interligne 20 px : en React le badge vit DANS
+           `.maplibregl-map`, qui impose `12px/20px` ; ici il est projeté à côté. À 10 px du panneau d'étape ouvert (T4b). -->
+      <div data-badge-zoom
+           class="pointer-events-none absolute left-[calc(var(--emprise-panneau,0px)+10px)] top-[10px] z-10 rounded-[4px] border-fin border-default bg-card-overlay px-2 py-[3px] font-mono text-[11px] leading-[20px] tracking-[0.05em] text-secondary">{{ texteZoom() }}</div>
+    </mg-carte>
+  }
+  <!-- Les panneaux d'étape : MONTÉS à la première visite, puis gardés (arbitrage A1). L'étape quittée devient
+       invisible, inerte et `absolute` — jamais @if : un calcul en cours (bataille, clustering, zone en création) lui
+       survit. L'étape courante est seule DANS le flux : la carte flottante prend sa hauteur (T4b). -->
+  <mg-panneau-etape #panneau [etape]="parcours.vue()" [masque]="etat.immersif()" [reserveDroite]="decalageOutils()" [(replie)]="panneauReplie">
+    @for (e of etapesMontees(); track e) {
+      <div [attr.data-panneau-etape]="e" class="flex min-h-0 flex-col overflow-y-auto overflow-x-hidden py-2"
+           [class.invisible]="e !== parcours.vue()" [class.absolute]="e !== parcours.vue()" [class.inset-0]="e !== parcours.vue()"
+           [attr.inert]="e !== parcours.vue() ? '' : null"
+           [attr.aria-hidden]="e !== parcours.vue() ? 'true' : null">
+        @switch (e) {
+          @case ('perimetre') { <mg-panneau-filtre /> }
+          @case ('donnees') { <mg-panneau-donnees /> }
+          @case ('analyse') { <mg-panneau-analyse /> }
+          @case ('zones') { <mg-panneau-zones /> }
+          @default { <mg-etape-bientot [etape]="e" /> }
+        }
+      </div>
     }
-  </mg-panneau-carte>
-}
-
-<!-- Le plan média des zones affichées (`page.tsx:1214-1221`) : 600 px à droite, sous la barre du haut. -->
-@if (planMedia.visible()) {
-  <mg-plan-media [haut]="etat.railMasque() ? 0 : hauteurBarre" (fermer)="planMedia.ouvert.set(false)" />
-}
-
-<!-- Mode immersif, « Tout effacer », « Script bidding DV360 » pour la zone du lien `?customZone=`, puis « Plan média (n) »
-     panneau fermé (`page.tsx:1222-1243, 1334-1400`) : sous la barre du haut quand elle est affichée, à gauche du plan
-     média quand il est ouvert. -->
-<mg-boutons-flottants
-  [railMasque]="etat.railMasque()"
-  [haut]="etat.railMasque() ? 10 : hauteurBarre + 8"
-  [decalage]="decalageBoutons()"
-  [zoneScript]="lienZone.zoneDuLien()?.nom ?? null"
-  [planMedia]="zonesPlanFerme()"
-  (basculerImmersif)="basculerImmersif()"
-  (toutEffacer)="toutEffacer()"
-  (genererScript)="genererScriptDv360()"
-  (rouvrirPlan)="planMedia.ouvert.set(true)"
-/>
-
-<mg-annonce />
+    <!-- « Autres » (T11b) : hors du fil, dans le MÊME cadre ; monté à la première ouverture puis gardé, comme une étape. -->
+    @if (parcours.autresMonte()) {
+      <div data-panneau-autres class="flex min-h-0 flex-col overflow-y-auto overflow-x-hidden py-2"
+           [class.invisible]="!parcours.autres()" [class.absolute]="!parcours.autres()" [class.inset-0]="!parcours.autres()"
+           [attr.inert]="parcours.autres() ? null : ''" [attr.aria-hidden]="parcours.autres() ? null : 'true'">
+        <mg-panneau-autres />
+      </div>
+    }
+  </mg-panneau-etape>
+  <!-- Hors du `@for` : détail IRIS, zone active, tiroir Street View et fiche d'un emplacement OOH survivent au changement de fond. -->
+  <mg-detail-iris />
+  <mg-zone-active />
+  <mg-tiroir-panneau />
+  <mg-fiche-emplacement-ooh />
+  @if (outils.legendeVisible()) {
+    <mg-legende-carte [degradeActif]="etat.degradeActif()" />
+  }
+  <!-- Le plan média des zones affichées (`page.tsx:1214-1221`) : 600 px à droite du conteneur carte. -->
+  @if (planMedia.visible()) {
+    <mg-plan-media [haut]="0" (fermer)="planMedia.ouvert.set(false)" />
+  }
+  <!-- Panneau replié (« carte seule ») : un onglet au bord gauche de la carte le rouvre. -->
+  @if (panneauReplie() && !etat.immersif()) {
+    <button type="button" data-afficher-panneau (click)="panneauReplie.set(false)" aria-label="Afficher le panneau de l’étape" title="Afficher le panneau"
+            class="absolute left-0 top-1/2 z-40 flex -translate-y-1/2 cursor-pointer rounded-r-[6px] border-fin border-l-0 border-default bg-surface px-1 py-3 text-secondary hover:text-primary">
+      <mg-icone nom="chevron-droite" [taille]="14" [trait]="1.5" />
+    </button>
+  }
+  <!-- La boîte à outils (spec § 6, T5) : fond, légende, aide, réglages — et, en immersif, la sortie à la souris (Échap
+       aussi). Écartée des panneaux ouverts au bord droit (ruling AT-3) ; hors du `@for` du fond, elle survit à la
+       recréation de la carte. Les annonces y sont projetées, SOUS la colonne. -->
+  <mg-boite-outils [droite]="decalageOutils()" [fond]="fond()" [etape]="parcours.vue()" [immersif]="etat.immersif()"
+                   (choisirFond)="choisirFond($event)" (quitterImmersif)="basculerImmersif()">
+    <mg-annonce />
+  </mg-boite-outils>
+</div>
 
 <!-- Le dialogue « Zones météo » (`page.tsx:1456-1488`) : un <dialog> natif DANS la racine d'ombre (B13), monté à
      l'ouverture et détruit à la fermeture (chaque ouverture repart des défauts de React). -->
@@ -58,45 +89,9 @@
   <mg-dialogue-meteo />
 }
 
-<!-- La légende unique de la carte (`LegendeCarte.tsx`), en bas à gauche, sous les panneaux. -->
-<mg-legende-carte [degradeActif]="etat.degradeActif()" />
-
-<!-- La carte : `flex: 1`, sous la barre et à droite du rail (padding de l'hôte), comme le panneau droit de React.
-     `inert` pendant le module risque (T13) : recouverte, elle ne doit plus prendre ni focus clavier ni lecteur d'écran. -->
-<div class="relative flex min-w-0 flex-1 overflow-hidden" data-zone-carte [attr.inert]="moduleOuvert() ? '' : null">
-  <!-- Un nouvel id de fond RECRÉE la carte, comme React (arbitrage B11) : `track f` détruit puis recrée `mg-carte`. -->
-  @for (f of [fond()]; track f) {
-    <mg-carte
-      class="min-h-0 min-w-0 flex-1"
-      [fond]="urlFond()"
-      [centre]="centre"
-      [zoomInitial]="zoomInitial"
-      [navigation]="navigation"
-      (prete)="cartePrete($event)"
-      (zoom)="zoomChange($event)"
-    >
-      <!-- Badge de zoom (`useMapInit.ts:156-185`, arbitrage B16) : un élément du gabarit, plus un `style.cssText` injecté.
-           Interligne 20 px : en React le badge vit DANS `.maplibregl-map`, qui impose `12px/20px` ; ici il est projeté à côté. -->
-      <div
-        data-badge-zoom
-        class="pointer-events-none absolute left-[10px] top-[10px] z-10 rounded-[4px] border-fin border-default bg-card-overlay px-2 py-[3px] font-mono text-[11px] leading-[20px] tracking-[0.05em] text-secondary"
-      >{{ texteZoom() }}</div>
-      <!-- Sélecteur compact « FOND » (`MapPanel.tsx:255-287`). -->
-      <mg-fond-compact [fond]="fond()" (choisirFond)="choisirFond($event)" />
-    </mg-carte>
-  }
-  <!-- Le détail d'un IRIS cliqué (`page.tsx:1436-1450`) : à droite de la carte, au-dessus d'elle — hors du `@for`,
-       il survit au changement de fond comme l'état React qu'il reprend. -->
-  <mg-detail-iris />
-  <!-- Le badge ZONE_ACTIVE de la zone de points (`MapPanel.tsx:150-161`), au-dessus du badge de zoom comme React. -->
-  <mg-zone-active />
-  <!-- Le tiroir Street View d'un panneau cliqué (`MapPanel.tsx:291-339`), même raison d'être hors du `@for`. -->
-  <mg-tiroir-panneau />
-</div>
-
-<!-- Le module risque, route enfant `risques` (T13, arbitrage B2) : en surimpression de TOUTE la page — rail et barre
-     compris, comme l'overlay plein écran de React —, la carte intacte dessous. `absolute` et jamais `fixed` (racine
-     d'ombre). Le calque n'est affiché que module ouvert : vide, il intercepterait les clics sur la carte. -->
+<!-- Le module risque, route enfant `risques` (lot 4, B2) : en surimpression de toute la page — barre comprise —, la
+     carte intacte dessous. `absolute` et jamais `fixed` (racine d'ombre). Le calque n'est affiché que module ouvert :
+     vide, il intercepterait les clics sur la carte. Il reste tel quel jusqu'au lot 4 du parcours (arbitrage A8). -->
 <div class="absolute inset-0 z-[60]" [class.hidden]="!moduleOuvert()" data-module-risque>
   <router-outlet (activate)="moduleOuvert.set(true)" (deactivate)="moduleOuvert.set(false)" />
 </div>

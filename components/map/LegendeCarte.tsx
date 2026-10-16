@@ -21,7 +21,7 @@
  * tâche pour cette divergence assumée).
  *
  * Absorption du 2026-09-12 (Tâche 7) : la légende catégories POI / isochrone /
- * Voronoï / bataille d'`app/copilote/_components/MapPanel.tsx` (ex-lignes
+ * Voronoï / bataille d'`app/map/_components/MapPanel.tsx` (ex-lignes
  * ~267-393, boîte titrée « LEGENDE ») a été RAPATRIÉE ici (`BlocAnalyse`) et
  * retirée de `MapPanel.tsx` — avant cette tâche, deux légendes pouvaient
  * coexister à l'écran dans deux coins opposés. Les actions embarquées dans la
@@ -43,12 +43,12 @@ import { uniteNormalisee } from '@/lib/carreaux/normalisation';
 import { palierEchelle, versValeurReelle, formaterValeur, type BornesEchelle } from '@/lib/carreaux/bornes';
 import { bornesInternes } from '@/lib/carreaux/expressions';
 import { echelleDe, uniteIris, type BornesIris } from '@/lib/iris/echelle';
-import { IRIS_PALETTES } from '@/app/copilote/_hooks/useMapLayers';
+import { IRIS_PALETTES } from '@/app/map/_hooks/useMapLayers';
 import { ABSTENTION_LEGEND, ABSTENTION_LEGEND_REPERES } from '@/app/map/_components/filter-panel/CivicIndicatorsSection';
 import { ATMO_LEVEL_LABELS, POLLEN_LEVEL_LABELS } from '@/lib/civic-health/levels';
 import { TMJA_LEGEND } from '@/app/map/_components/filter-panel/TmjaSection';
 import { legendePourMetrique, type SuiviMapEventDetail } from '@/app/map/_components/SuiviMapLayer';
-import { getCatColor, ISOCHRONE_COLORS, ISOCHRONE_MODE_LABELS, BATTLE_PALIER_OPACITY } from '@/app/copilote/_lib/constants';
+import { getCatColor, ISOCHRONE_COLORS, ISOCHRONE_MODE_LABELS, BATTLE_PALIER_OPACITY } from '@/app/map/_lib/constants';
 import { LARGEUR_TRAIT_PPRT } from '@/lib/carte/palette-pprt';
 import { formaterNombre } from '@/lib/format/nombre';
 import type { ZoneData, VoronoiData } from '@/types/spatial';
@@ -103,9 +103,7 @@ export interface LegendeCarteProps {
   voronoiVisible?: boolean;
   voronoiCategory?: string;
   voronoiPois?: { id: string; nom: string; color: string }[];
-  voronoiDataForSaveRef?: React.MutableRefObject<VoronoiData | null>;
-  setShowSavePanel?: (v: boolean | ((prev: boolean) => boolean)) => void;
-  setSaveError?: (v: string | null) => void;
+  voronoiDataRef?: React.MutableRefObject<VoronoiData | null>;
   battleVisible?: boolean;
   battleCategory?: string;
   battlePois?: { id: string; nom: string; color: string }[];
@@ -375,9 +373,9 @@ function BlocAnalyse(props: LegendeCarteProps) {
         )}
 
         {!!props.voronoiVisible && !!props.voronoiCategory && (() => {
-          const regionLabel = props.voronoiDataForSaveRef?.current?._meta?.filtre_region
-            ?? props.voronoiDataForSaveRef?.current?._meta?.filtre_ville
-            ?? props.voronoiDataForSaveRef?.current?._meta?.filtre_dept
+          const regionLabel = props.voronoiDataRef?.current?._meta?.filtre_region
+            ?? props.voronoiDataRef?.current?._meta?.filtre_ville
+            ?? props.voronoiDataRef?.current?._meta?.filtre_dept
             ?? null;
           return (
             <div style={{ marginTop: 3, paddingTop: 5, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -388,12 +386,6 @@ function BlocAnalyse(props: LegendeCarteProps) {
                     VORONOI{regionLabel ? ` · ${regionLabel}` : ''}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { props.setShowSavePanel?.(true); props.setSaveError?.(null); }}
-                  title="Sauvegarder ce Voronoï"
-                  style={{ background: 'var(--border-subtle)', border: '0.5px solid var(--border-default)', borderRadius: 4, padding: '2px 8px', fontSize: 9, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: fInter }}
-                >SAVE</button>
               </div>
               {voronoiPois.map(c => (
                 <div key={c.id} style={swatchRow}>

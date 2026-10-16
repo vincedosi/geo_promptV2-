@@ -72,14 +72,14 @@ Travail **ITÉRATIF et PRUDENT**. Chaque étape = rapport d'abord, corrections a
 
 Catégories à auditer :
 - **Front** : composants non rendus, hooks non utilisés, imports inutiles, fonctions orphelines, code commenté mort, fichiers dupliqués
-- **Routes API** : routes jamais appelées, routes dupliquées. ⚠️ Routes IA (Mistral 6 agents, Gemini) → ne pas supprimer sans validation
+- **Routes API** : routes jamais appelées, routes dupliquées.
 - **Supabase** : migrations locales orphelines, Edge Functions non référencées. ⚠️ RLS récent multi-tenant critique
 - **Scripts** : scripts orphelins, doublons d'import. ⚠️ Scripts psycopg2 (radio, IRIS, carreaux, SIRENE) critiques
-- **Deps package.json** : packages jamais importés (vérifier avec `npm ls` — peut être peer). Vérifier que `@anthropic-ai/*`, `openai`, `@google/generative-ai`, `@mistralai/*`, `maplibre-gl`, `pmtiles`, `@supabase/*` sont tous gardés
+- **Deps package.json** : packages jamais importés (vérifier avec `npm ls` — peut être peer). Vérifier que `maplibre-gl`, `pmtiles`, `@supabase/*` sont tous gardés
 - **Config** : vars env référencées mais absentes de `.env.example`, vars de `.env.local` jamais utilisées, fichiers `.tmp`/`.bak`/`.old`/`.DS_Store`
 
 **Features potentiellement mortes à questionner (ne pas supprimer sans validation explicite)** :
-- Code legacy "GENESIS" / "geo.prompt" avant pivot GEOMATIK
+- Code legacy "GENESIS" avant pivot GEOMATIK (geo.prompt et toute l'IA sont déjà supprimés : ne rien y réintroduire)
 - ELM (État Local de Marché) — partiellement scopé, SIRENE pas fini
 - Composants /clusters standalone (refonte prévue vers Sheet overlay)
 - Vieux code matching radio Pass 1 avant refacto many-to-many
@@ -148,11 +148,10 @@ Catégories à auditer :
 ### Partie 5 — Documentation
 
 **5.1 ARCHITECTURE.md** à la racine :
-- Stack (Next.js 14, React 18, TS, Supabase PostGIS, MapLibre 5.x, PMTiles, Tailwind, Gemini, Mistral — versions exactes)
-- Arborescence commentée (`app/`, `components/`, `lib/chat/tools/`, `lib/scoring/`, `scripts/`, `supabase/`)
+- Stack (Next.js 14, React 18, TS, Supabase PostGIS, MapLibre 5.x, PMTiles, Tailwind — versions exactes)
+- Arborescence commentée (`app/`, `components/`, `lib/scoring/`, `scripts/`, `supabase/`)
 - Modèle multi-tenant (hiérarchie orgs/rôles, `organization_members`, `campaign_organizations`, `get_user_org()`, `get_user_role()`)
 - Pipelines d'import (INSEE, Filosofi, ANFR, Arcom, SIRENE)
-- Flux IA (Mistral routeur + 6 agents + Gemini function calling)
 - Flux MapLibre (PMTiles + MVT)
 - **Liste complète des RPC PostGIS** : `get_digital_campaigns_list`, `get_campaign_medias`, `get_digital_campaign_map`, `get_digital_analysis_breakdown`, `compute_poi_accessibility`, `compute_panneau_scores_v2`, `match_campaign_postal_to_iris`, `get_user_role`, `get_user_org`, `get_user_orgs`, `get_isochrone_battle` ⛔, etc. — pour chaque : nom, description, fichier appelant
 - **Tables groupées par domaine** :

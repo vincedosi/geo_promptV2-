@@ -15,7 +15,7 @@ index + sous-fichiers est à faire après le lot 4 Angular.
 ## Projet
 
 **dentsu.explore** (anciennement MAGELIAN, et GENESIS avant lui — renommé le 2026-10-08) — SaaS B2B géomarketing OOH/DOOH. Planification d'affichage extérieur sur données INSEE.
-Stack : Next.js 15 App Router · TypeScript strict · Supabase Pro (PostgreSQL **17.6** + PostGIS, compute **Micro**) · MapLibre GL JS · Vercel AI SDK (Gemini 2.5 Flash / Mistral Small) · Tailwind CSS · Inngest · Zod · Vitest
+Stack : Next.js 15 App Router · TypeScript strict · Supabase Pro (PostgreSQL **17.6** + PostGIS, compute **Micro**) · MapLibre GL JS · Tailwind CSS · Inngest · Zod · Vitest
 ### ⛔ BASE : LE LOCAL D'ABORD — la prod ne se touche pas sans accord explicite
 
 **Depuis le 2026-09-17, un stack Supabase local existe** (`scripts/local/`,
@@ -68,9 +68,8 @@ Supabase ont été basculées sur les conteneurs. L'ancienne version est dans
 `.env.local.avant-coupure-supabase-2026-09-19`, non suivi par git.
 
 ⚠ **`.env.local` ne porte pas que Supabase.** Il contient aussi `ORS_API_KEY`,
-`GOOGLE_GENERATIVE_AI_API_KEY`, `MISTRAL_API_KEY`, `DSP_ENC_KEY` et
-`ADMIN_INIT_KEY`. Le supprimer casserait l'IA, les isochrones et le chiffrement
-DSP, pas seulement la base.
+`DSP_ENC_KEY` et `ADMIN_INIT_KEY`. Le supprimer casserait les isochrones et le
+chiffrement DSP, pas seulement la base.
 
 - **`npm test` tapait en PRODUCTION jusqu'au 2026-09-18**, avec la clé
   `service_role` qui contourne toute RLS. Un seul fichier en était la cause —
@@ -124,8 +123,10 @@ OBLIGATOIRE :
 - `EXPLAIN ANALYZE` sur toute nouvelle requête PostGIS
 - Index GIST sur toute colonne géométrie
 - Quotas d'appels : passer par `lib/api/rate-limit.ts`, **jamais** par une `Map`
-  locale. Le compteur partagé vit en base (`consommer_quota`, sql/135), parce
-  qu'Upstash n'est pas configuré.
+  locale. Le compteur partagé vit en base (`consommer_quota`, sql/135) : des
+  variables `UPSTASH_*` mortes (hôte supprimé) peuvent encore exister, et un
+  disjoncteur les neutralise — aucune nouvelle tentative, un délai n'autorise
+  jamais, Upstash coupé 5 min après un échec, repli sur la base.
 
   > **La raison écrite ici était « une `Map` ne limite RIEN sur Vercel, chaque
   > invocation peut être une instance différente ». Vercel est abandonné depuis
@@ -152,7 +153,8 @@ OBLIGATOIRE :
 d'en-tête : l'appelant reçoit un tableau parfaitement valide de 1 000 éléments
 et n'a aucun moyen de savoir qu'il en manquait 5 187. Aucun `if (error)` ne
 peut voir ça passer. Aucun `.limit()` client ne lève ce plafond. Six
-occurrences recensées, un défaut et deux dettes encore ouverts —
+occurrences recensées, deux dettes encore ouvertes (le défaut C est clos par
+retrait de son appelant IA le 2026-10-12) —
 `docs/SUITE_TRONCATURE_POSTGREST.md`.
 
 > **Cette section disait « 5 000 lignes » jusqu'au 2026-10-10**, et ne parlait
@@ -287,7 +289,6 @@ Tout import/traitement batch DOIT avoir : barre de progression UI (%, lignes tra
   changerait la charge utile reçue par la base.
 - Rôles : `lib/auth/roles.ts` est la source unique (niveaux, libellés, schémas
   Zod). Ne jamais réécrire `['super_admin', 'admin', 'client']` à la main.
-- Outils IA : 1 fichier = 1 outil dans `lib/chat/tools/`, retourne données structurées (jamais texte libre)
 - Inserts DB : batch par 50 max — **une seule requête par lot**, avec repli
   ligne à ligne en cas d'échec pour désigner la ligne fautive
   (patron `lib/import/inserter.ts`). Jusqu'au 2026-09-11 ce fichier faisait
@@ -319,7 +320,6 @@ Tout import/traitement batch DOIT avoir : barre de progression UI (%, lignes tra
 | Type | Exemple à lire |
 |------|---------------|
 | Route API | `app/api/iris/stats/route.ts` |
-| Outil IA | `lib/chat/tools/*.ts` |
 | Composant carte | `app/map/_components/FilterPanel.tsx` |
 | Import données | `lib/import/inserter.ts` |
 | Import DSP | `app/api/admin/campaigns/import/route.ts` |

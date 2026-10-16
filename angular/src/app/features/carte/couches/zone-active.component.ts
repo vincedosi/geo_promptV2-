@@ -10,7 +10,7 @@ import { PoisService } from './pois.service';
  * l'Assistant, jamais porté : ils n'ont pas de place ici.
  *
  * Posée dans le conteneur de la carte, au-dessus du badge de zoom (même place, `z-index` 10, plus tard dans le DOM),
- * comme React. Écarts voulus : sans le flou `backdrop-filter` ni l'agrandissement au survol (« flat total ») ; le
+ * comme React — et, comme lui, à 12 px à droite du panneau d'étape flottant (`--emprise-panneau`, T4b). Écarts voulus : sans le flou `backdrop-filter` ni l'agrandissement au survol (« flat total ») ; le
  * rouge `#ef4444` codé en dur de la bascule devient `--danger`, à 9 % (`18` hexadécimal) et 50 % (`80`) comme React.
  */
 @Component({
@@ -19,7 +19,7 @@ import { PoisService } from './pois.service';
   host: { class: 'contents' },
   template: `
     @if (pois.zone() || bataille.categorie()) {
-      <div class="absolute left-3 top-3 z-10 flex w-[220px] flex-col gap-1.5">
+      <div class="absolute left-[calc(var(--emprise-panneau,0px)+12px)] top-3 z-10 flex w-[220px] flex-col gap-1.5">
         @if (pois.zone(); as z) {
           <div data-zone-active
             class="rounded-[4px] border-fin border-subtle bg-surface px-[10px] py-1.5 font-mono text-[10px] tracking-[0.04em] text-primary">

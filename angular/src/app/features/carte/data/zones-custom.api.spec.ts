@@ -38,25 +38,6 @@ describe('ZonesCustomApi', () => {
     http.verify();
   });
 
-  it('opération booléenne : POST /api/custom-geo/source/<route> avec le corps tel quel', () => {
-    const { api, http } = preparer();
-    api.operation('difference', { zone_base: 'a', zones_retirees: ['b'] }).subscribe();
-    const req = http.expectOne('/api/custom-geo/source/difference');
-    expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ zone_base: 'a', zones_retirees: ['b'] });
-    http.verify();
-  });
-
-  it('enregistrer : POST /api/custom-geo/save, réponse COMPLÈTE (le 207 se lit sur le statut)', () => {
-    const { api, http } = preparer();
-    let statut = 0;
-    api.enregistrer({ name: 'n', source_type: 'composite', source_metadata: {}, geometry: { type: 'Point', coordinates: [0, 0] }, org_id: 'o' })
-      .subscribe((r) => (statut = r.status));
-    http.expectOne('/api/custom-geo/save').flush({ zone_id: 'z', warning: 'zone_created_but_resolution_failed' }, { status: 207, statusText: 'Multi-Status' });
-    expect(statut).toBe(207);
-    http.verify();
-  });
-
   it('exporter : GET …/export?format=… en blob, réponse complète', () => {
     const { api, http } = preparer();
     api.exporter('z1', 'bidding_script').subscribe();

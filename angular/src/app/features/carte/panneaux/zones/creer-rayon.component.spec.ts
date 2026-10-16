@@ -8,6 +8,7 @@ import { AuthService } from '../../../../core/auth/auth.service';
 import { CouleursService } from '../../../../core/theme/couleurs.service';
 import { SOURCE_APERCU_RAYON } from '../../couches/apercu-rayon';
 import { ZonesCustomApi } from '../../data/zones-custom.api';
+import { ZonesApi } from '../../data/zones.api';
 import { AnnonceService } from '../../etat/annonce.service';
 import { CouchesCarteService } from '../../etat/couches-carte.service';
 import { CreationZoneService } from '../../etat/creation-zone.service';
@@ -27,6 +28,8 @@ function monter(api: Partial<Record<keyof ZonesCustomApi, unknown>> = {}) {
     providers: [
       CreationZoneService, CouchesCarteService, EtatCarteService, AnnonceService,
       { provide: ZonesCustomApi, useValue: base },
+      // `enregistrer` est celui de `ZonesApi` (POST /api/zones, lot 3) : le même faux sert aux deux.
+      { provide: ZonesApi, useValue: base },
       { provide: CouleursService, useValue: { palette: () => signal({ teal: '#4ecdc4' }) } },
       { provide: AuthService, useValue: { lireProfil: async () => ({ role: null, nom: null, organisation: 'org-1' }) } },
     ],
@@ -95,10 +98,9 @@ describe('CreerRayonComponent (CreerZoneRayon.tsx)', () => {
     bouton(el, '[data-creer]').click();
     await stable();
     expect(api.depuisRayon).toHaveBeenCalledWith({ lon: 5.3698, lat: 43.2965, rayon_m: 20000 });
+    // Recalculable : la recette seule, le serveur la rejoue (aucune géométrie envoyée).
     expect(api.enregistrer).toHaveBeenCalledWith({
-      name: 'Rayon de 20 km', source_type: 'rayon',
-      source_metadata: { rayon_m: 20000, centre: { lon: 5.3698, lat: 43.2965 }, surface_km2: 760.4, part_retenue: 0.605 },
-      geometry: GEOMETRIE, org_id: 'org-1',
+      nom: 'Rayon de 20 km', recette: { v: 1, type: 'rayon_point', lon: 5.3698, lat: 43.2965, rayon_m: 20000 },
     });
     expect(el.querySelector('[data-message]')!.textContent).toContain('61 % du cercle retenus (le reste est hors territoire)');
     // Centre oublié : l'aperçu disparaît, le bouton repart à « Poser le centre ».

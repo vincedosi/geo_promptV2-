@@ -3,7 +3,7 @@ import type maplibregl from 'maplibre-gl';
 import type { Subscription } from 'rxjs';
 import { type ZoneCustomResume, ZonesCustomApi } from '../data/zones-custom.api';
 import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.service';
-import { bboxDeZone, couleurZone, messageHttp } from '../logique/zones/zones-affichees';
+import { bboxDeZone, couleurZone, idsZone, messageHttp } from '../logique/zones/zones-affichees';
 import { poserZoneCustom, retirerZoneCustom } from './couche-zones-custom';
 
 /** Le recadrage sur une zone affichée (`ZonesOverlay.tsx:245`). */
@@ -54,9 +54,11 @@ export class ZonesCustomService {
   readonly erreur = signal<string | null>(null);
 
   private readonly lectures = new Map<string, Subscription>();
-  /** L'instance qui porte les couches et les zones qui y sont posées — pour retirer sans relire le style. */
+  /** Les relectures de géométrie après recalcul, à part des premières lectures (`lectures` garde « Afficher » unique). */
+  private readonly relectures = new Map<string, Subscription>();
+  /** L'instance qui porte les couches et les zones qui y sont posées, avec l'entité posée — pour retirer sans relire le style. */
   private instance: maplibregl.Map | null = null;
-  private readonly posees = new Set<string>();
+  private readonly posees = new Map<string, GeoJSON.Feature>();
 
   constructor() {
     this.couches.inscrireEffacement('zones-custom', () => this.effacer());
@@ -106,6 +108,38 @@ export class ZonesCustomService {
     this.lectures.set(zone.id, lecture);
   }
 
+  /**
+   * Relit la géométrie d'une zone DÉJÀ affichée après son recalcul et remplace son entité EN PLACE : même teinte, même
+   * rang, aucun recadrage. Un « Masquer » puis « Afficher » aurait repris la teinte suivante de la palette (celle d'une
+   * autre zone affichée) et replacé la zone en dernier. `zone` est la zone relue de la liste (nom et emprise frais).
+   * Zone non affichée, ou masquée pendant la lecture : rien. Un échec est dit comme pour « Afficher », la forme
+   * précédente reste à l'écran.
+   */
+  relire(zone: ZoneCustomResume): void {
+    if (!this.zones().some((z) => z.id === zone.id)) return;
+    this.relectures.get(zone.id)?.unsubscribe();
+    const lecture = this.api.geometrie(zone.id).subscribe({
+      next: (f) => {
+        this.relectures.delete(zone.id);
+        this.zones.update((zs) => zs.map((z) => z.id !== zone.id ? z : {
+          ...z,
+          name: zone.name,
+          entite: {
+            type: 'Feature',
+            // Le nom de la liste relue PRIME sur celui de la géométrie (qui peut dater d'avant le renommage).
+            properties: { source_type: zone.source_type, ...f.properties, name: zone.name },
+            geometry: f.geometry as GeoJSON.Geometry,
+          },
+        }));
+      },
+      error: (e: unknown) => {
+        this.relectures.delete(zone.id);
+        this.erreur.set(messageHttp(e, 'Erreur affichage zone'));
+      },
+    });
+    if (!lecture.closed) this.relectures.set(zone.id, lecture);
+  }
+
   /** « Masquer » (`hideZoneFromMap`). */
   masquer(id: string): void {
     this.zones.update((zs) => zs.filter((z) => z.id !== id));
@@ -123,21 +157,26 @@ export class ZonesCustomService {
   }
 
   private abandonnerLectures(): void {
-    for (const l of this.lectures.values()) l.unsubscribe();
+    for (const l of [...this.lectures.values(), ...this.relectures.values()]) l.unsubscribe();
     this.lectures.clear();
+    this.relectures.clear();
     this.enCours.set(null);
   }
 
   private synchroniser(carte: maplibregl.Map, zones: readonly ZoneAffichee[]): void {
     const voulues = new Set(zones.map((z) => z.id));
-    for (const id of [...this.posees]) {
+    for (const id of [...this.posees.keys()]) {
       if (voulues.has(id)) continue;
       retirerZoneCustom(carte, id);
       this.posees.delete(id);
     }
     for (const z of zones) {
-      poserZoneCustom(carte, z.id, z.entite, z.couleur);
-      this.posees.add(z.id);
+      const posee = this.posees.get(z.id);
+      // Déjà posée avec une autre entité (recalcul, `relire`) : la source reçoit la nouvelle forme, sans retrait ni
+      // repose — les couches gardent leur place dans l'empilement.
+      if (posee && posee !== z.entite) (carte.getSource(idsZone(z.id).source) as maplibregl.GeoJSONSource | undefined)?.setData(z.entite);
+      else poserZoneCustom(carte, z.id, z.entite, z.couleur);
+      this.posees.set(z.id, z.entite);
     }
   }
 }

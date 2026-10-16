@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { type RouteSourceCapture, ZonesCustomApi } from '../../data/zones-custom.api';
+import { ZonesApi } from '../../data/zones.api';
 import { AnnonceService } from '../../etat/annonce.service';
 import { CaptureService, type SourceCapture } from '../../etat/capture.service';
 import { CreationZoneService } from '../../etat/creation-zone.service';
@@ -34,6 +35,7 @@ function monter(o: { sources?: SourceCapture[]; source?: unknown; capturer?: unk
     providers: [
       CaptureService, CreationZoneService, AnnonceService,
       { provide: ZonesCustomApi, useValue: api },
+      { provide: ZonesApi, useValue: {} },
       { provide: AuthService, useValue: { lireProfil: async () => ({ role: null, nom: null, organisation: o.organisation === undefined ? 'org-1' : o.organisation }) } },
     ],
   });
@@ -104,6 +106,7 @@ describe('CaptureComponent (CustomGeoCaptureModal.tsx)', () => {
         name: '[ESSAI lot 4] capture', description: null, org_id: 'org-1', source_type: 'carreaux_filosofi',
         source_metadata: { contributing_layers: [{ id: 'map-carreaux-filosofi', source_type: 'carreaux_filosofi', label: 'Carreaux 200m population_totale', metadata: { m: 'map-carreaux-filosofi' } }] },
         geometries: [CARRE], transformation: 'convex_hull',
+        recette: { v: 1, type: 'capture', source_type: 'carreaux_filosofi' },
       });
       expect(el.querySelector('[data-succes]')!.textContent!.trim()).toBe('Zone sauvegardee — 12 IRIS, 3 CP resolus');
       expect(cree).toHaveBeenCalledTimes(1);
@@ -113,6 +116,101 @@ describe('CaptureComponent (CustomGeoCaptureModal.tsx)', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  const POIS = [{ poi_id: 'p1', poi_name: 'CIRFA Toulon', lat: 43.1, lng: 5.9 }];
+  const anneau = (palier: number): GeoJSON.Feature => ({ type: 'Feature', geometry: CARRE, properties: { poi_id: 'p1', palier } });
+  const BATAILLE: SourceCapture = {
+    id: 'map-battle-isochrone', sourceType: 'isochrone_battle', label: 'Battle isochrones',
+    metadata: {
+      cache_key: 'battle_full__cirfa__drive__abc', poi_count: 1, pois: POIS, category: 'cirfa', mode: 'drive',
+      battle_features: [anneau(15), anneau(5), anneau(10)],
+    },
+    obtenir: { route: 'battle', corps: () => ({ cache_keys: ['battle_full__cirfa__drive__abc'] }) },
+  };
+
+  it('lot 3 : une bataille capturée envoie une recette `isochrone` FIGÉE — ses paramètres scalaires et ses paliers en chaîne, jamais ses POI', async () => {
+    const { el, api, stable } = monter({ sources: [BATAILLE] });
+    await stable();
+    nommer(el, 'bataille');
+    await stable();
+    el.querySelector<HTMLButtonElement>('[data-sauver]')!.click();
+    await stable();
+    const envoye = (api.capturer as ReturnType<typeof vi.fn>).mock.calls[0][0] as { recette: unknown; source_metadata: { pois: unknown } };
+    expect(envoye.recette).toEqual({
+      v: 1, type: 'isochrone',
+      parametres: { cache_key: 'battle_full__cirfa__drive__abc', category: 'cirfa', mode: 'drive', paliers: '5,10,15', poi_count: 1 },
+    });
+    // Les POI restent dans `source_metadata` (et les sous-zones), pas dans la recette.
+    expect(envoye.source_metadata.pois).toEqual(POIS);
+  });
+
+  it('lot 3 : une capture MIXTE (bataille + autre couche) envoie une recette `capture` composite — la forme n’est pas que des isochrones', async () => {
+    const { el, api, stable } = monter({ sources: [BATAILLE, source('map-voronoi', 'voronoi_cells', 'Voronoi lycee', 'voronoi')] });
+    await stable();
+    nommer(el, 'mixte');
+    await stable();
+    el.querySelector<HTMLButtonElement>('[data-sauver]')!.click();
+    await stable();
+    const envoye = (api.capturer as ReturnType<typeof vi.fn>).mock.calls[0][0] as { recette: unknown; source_type: string; source_metadata: { pois: unknown } };
+    expect(envoye.source_type).toBe('composite');
+    expect(envoye.recette).toEqual({ v: 1, type: 'capture', source_type: 'composite' });
+    // La provenance de la bataille reste dans `source_metadata`.
+    expect(envoye.source_metadata.pois).toEqual(POIS);
+  });
+
+  it('lot 3 : une bataille SANS POI retombe sur la recette `capture`', async () => {
+    const sansPoi: SourceCapture = { ...BATAILLE, metadata: { cache_key: 'k', pois: [], battle_features: [] } };
+    const { el, api, stable } = monter({ sources: [sansPoi] });
+    await stable();
+    nommer(el, 'vide');
+    await stable();
+    el.querySelector<HTMLButtonElement>('[data-sauver]')!.click();
+    await stable();
+    expect((api.capturer as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatchObject({ recette: { v: 1, type: 'capture', source_type: 'isochrone_battle' } });
+  });
+
+  it('207 `recette_non_enregistree` : la zone existe (relue), l’avertissement de la route est affiché et le dialogue reste ouvert', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const capturer = vi.fn(() => of({ zone_id: 'z1', warning: 'recette_non_enregistree', message: 'Zone sauvegardée, mais sa recette n’a pas pu être enregistrée.', count_iris: 5, count_cp: 2 }));
+      const { el, stable, cree, fermer } = monter({ capturer });
+      await stable();
+      nommer(el, 'x');
+      await stable();
+      el.querySelector<HTMLButtonElement>('[data-sauver]')!.click();
+      await stable();
+      expect(cree).toHaveBeenCalledTimes(1);
+      expect(el.querySelector('[data-avertissement]')!.textContent!.trim()).toBe('Zone sauvegardée, mais sa recette n’a pas pu être enregistrée.');
+      vi.advanceTimersByTime(5000);
+      expect(fermer).not.toHaveBeenCalled();
+      expect(el.querySelector<HTMLButtonElement>('[data-sauver]')!.disabled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('207 sans message : un repli selon l’avertissement', async () => {
+    const capturer = vi.fn(() => of({ zone_id: 'z1', warning: 'zone_created_but_resolution_failed' }));
+    const { el, stable } = monter({ capturer });
+    await stable();
+    nommer(el, 'x');
+    await stable();
+    el.querySelector<HTMLButtonElement>('[data-sauver]')!.click();
+    await stable();
+    expect(el.querySelector('[data-avertissement]')!.textContent!.trim()).toBe('Zone créée ; ses codes postaux n’ont pas pu être résolus.');
+  });
+
+  it('lot 3 : une capture de Voronoï envoie une recette `capture` qui nomme sa source', async () => {
+    const { el, api, stable } = monter({ sources: [source('map-voronoi', 'voronoi_cells', 'Voronoi lycee', 'voronoi')] });
+    await stable();
+    nommer(el, 'voronoi');
+    await stable();
+    el.querySelector<HTMLButtonElement>('[data-sauver]')!.click();
+    await stable();
+    expect((api.capturer as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatchObject({
+      recette: { v: 1, type: 'capture', source_type: 'voronoi_cells' },
+    });
   });
 
   it('refus de la route : son message dans le dialogue', async () => {

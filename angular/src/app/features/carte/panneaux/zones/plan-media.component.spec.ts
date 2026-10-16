@@ -7,7 +7,7 @@ import { ZonesCustomApi } from '../../data/zones-custom.api';
 import { ExportZoneService } from '../../etat/export-zone.service';
 import { PlanMediaService } from '../../etat/plan-media.service';
 import type { LignePlan } from '../../logique/zones/plan-media';
-import { PlanMediaComponent } from './plan-media.component';
+import { LARGEUR_PLAN_MEDIA, PlanMediaComponent } from './plan-media.component';
 
 const E = ' ';
 const attendre = () => new Promise((r) => setTimeout(r, 0));
@@ -65,7 +65,9 @@ describe('PlanMediaComponent — panneau et calculs (ZoneMediaPlanPanel.tsx)', (
     const { el, fixture, service } = await monter();
     const cadre = el.querySelector<HTMLElement>('[data-plan-media]')!;
     expect(cadre.style.top).toBe('48px');
-    expect(cadre.className).toContain('w-[600px]');
+    // La largeur liée est la constante exportée que `ecartOutils` lit aussi (revue finale lots 1-2, mineur 7).
+    expect(cadre.style.width).toBe(`${LARGEUR_PLAN_MEDIA}px`);
+    expect(LARGEUR_PLAN_MEDIA).toBe(600);
     expect(el.querySelector('[data-titre]')!.textContent!.trim()).toBe('Plan média — 2 zones');
     let ferme = false;
     fixture.componentInstance.fermer.subscribe(() => (ferme = true));

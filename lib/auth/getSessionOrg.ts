@@ -16,6 +16,7 @@
  *   if (!session) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
  */
 import type { NextRequest } from 'next/server';
+import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import type { UserRole } from '@/types/admin';
 
@@ -137,4 +138,20 @@ export async function getSessionOrg(request: NextRequest): Promise<SessionOrg | 
   } catch {
     return null;
   }
+}
+
+const Uuid = z.string().uuid();
+
+/** L'organisation d'une session si c'est un UUID valide, sinon `null` — la règle de `orgIdActif`, sans réseau. */
+export function orgIdDeSession(session: SessionOrg | null): string | null {
+  return session?.orgId && Uuid.safeParse(session.orgId).success ? session.orgId : null;
+}
+
+/**
+ * L'espace ACTIF d'une requête : l'organisation de la session, validée comme UUID ; `null` sans session, sans espace
+ * ou avec un espace douteux. Pour les routes de carte qui passent `p_org` à une RPC service_role : l'espace vient
+ * UNIQUEMENT de la session, jamais d'un paramètre de l'appelant.
+ */
+export async function orgIdActif(request: NextRequest): Promise<string | null> {
+  return orgIdDeSession(await getSessionOrg(request));
 }
