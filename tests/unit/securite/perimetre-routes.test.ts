@@ -134,7 +134,8 @@ describe('campagnes multi-média — toute lecture d une route passe par l espac
   for (const f of routes) {
     it(f, () => {
       const source = readFileSync(join(RACINE, f), 'utf8');
-      expect(source, `${f} doit lire la session`).toMatch(/getSessionOrg\(/);
+      // `orgIdActif` (lib/auth/getSessionOrg.ts) lit la session et valide l'UUID de l'espace.
+      expect(source, `${f} doit lire la session`).toMatch(/\b(getSessionOrg|orgIdActif)\(/);
       expect(source, `${f} doit passer l espace actif à la RPC`).toMatch(/p_org:\s*orgId/);
     });
   }

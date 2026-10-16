@@ -7,26 +7,23 @@
  * Borne : 20 000 emplacements (TF4 en porte ≈ 1 230) ; la RPC est `jsonb`, elle lit `p_limite + 1` et rend `tronque`.
  *
  * Sécurité : la RPC tourne en service_role et fait confiance à `p_org`. Il vient UNIQUEMENT de la session
- * (`getSessionOrg`), jamais de la query string, du chemin ou d'un corps ; seul `id` (chemin) est lu, et validé.
+ * (`orgIdActif`, sur `getSessionOrg`), jamais de la query string, du chemin ou d'un corps ; seul `id` (chemin) est lu, et validé.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
-import { getSessionOrg } from '@/lib/auth/getSessionOrg';
+import { orgIdActif } from '@/lib/auth/getSessionOrg';
 
 export const dynamic = 'force-dynamic';
 
 const BORNE_EMPLACEMENTS = 20_000;
 
 const Parametres = z.object({ id: z.string().uuid() });
-const Uuid = z.string().uuid();
-
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const p = Parametres.safeParse(await params);
   if (!p.success) return NextResponse.json({ error: 'Identifiant de campagne invalide.' }, { status: 400 });
 
-  const session = await getSessionOrg(req);
-  const orgId = session?.orgId && Uuid.safeParse(session.orgId).success ? session.orgId : null;
+  const orgId = await orgIdActif(req);
   if (!orgId) return NextResponse.json({ error: 'Campagne introuvable dans cet espace de travail.' }, { status: 404 });
 
   const { data, error } = await createAdminClient().rpc('campagne_ooh_jsonb', {

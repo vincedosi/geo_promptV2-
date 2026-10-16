@@ -7,7 +7,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 type Session = { userId: string; role: string; orgId: string | null } | null;
 let session: Session = null;
-vi.mock('@/lib/auth/getSessionOrg', () => ({ getSessionOrg: async () => session }));
+// La session est simulée ; la règle « espace = UUID de la session » est la VRAIE (`orgIdDeSession`).
+vi.mock('@/lib/auth/getSessionOrg', async (importOriginal) => {
+  const reel = await importOriginal<typeof import('@/lib/auth/getSessionOrg')>();
+  return { ...reel, getSessionOrg: async () => session, orgIdActif: async () => reel.orgIdDeSession(session as never) };
+});
 
 const lues: string[] = [];
 const filtres: [string, unknown][] = [];
