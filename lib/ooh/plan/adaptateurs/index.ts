@@ -63,3 +63,12 @@ export function rattacher(lignes: readonly LignePlan[], emplacements: readonly E
   }
   return sortie;
 }
+
+/**
+ * Les listes reconnues qu'aucune ligne n'a prises (le plan n'a pas de ligne de leur régie). Le script les signale :
+ * une liste jetée en silence ferait croire à une campagne complète.
+ */
+export function listesSansLigne(rattachement: ReadonlyMap<number, Rattachement>, emplacements: readonly EmplacementBrut[]): AdaptateurId[] {
+  const prises = new Set([...rattachement.values()].map((r) => r.adaptateur));
+  return [...new Set(emplacements.map((e) => e.adaptateur))].filter((a) => !prises.has(a));
+}

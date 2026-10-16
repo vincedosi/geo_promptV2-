@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lirePlan, rattacher } from '@/lib/ooh/plan/adaptateurs';
+import { lirePlan, listesSansLigne, rattacher } from '@/lib/ooh/plan/adaptateurs';
 import { classeurEssai, type ValeurEssai } from './_classeur';
 
 const jour = (j: number) => new Date(Date.UTC(2026, 8, j));
@@ -33,6 +33,7 @@ describe('lirePlan et rattacher', () => {
     expect(r.get(2)?.adaptateur).toBe('basic-fit');
     expect(r.get(2)?.emplacements).toHaveLength(1);
     expect(r.has(3)).toBe(false);
+    expect(listesSansLigne(r, plan.emplacements)).toEqual([]);
   });
 
   it('un plan sans onglet de synthèse est refusé, en français', async () => {
@@ -44,5 +45,12 @@ describe('lirePlan et rattacher', () => {
     const r = rattacher(plan.lignes, plan.emplacements);
     expect(r.get(1)?.adaptateur).toBe('mediatransports-gares');
     expect(r.has(4)).toBe(false);
+  });
+
+  it('une liste reconnue sans ligne de sa régie est signalée, pas jetée en silence', async () => {
+    const sansBasicFit = HYP.filter((l) => l[1] !== 'BASIC FIT');
+    const plan = lirePlan(await classeurEssai({ HYP1: sansBasicFit, 'LISTING GARE': GARES, 'LISTING BASIC FIT': CLUBS }));
+    const r = rattacher(plan.lignes, plan.emplacements);
+    expect(listesSansLigne(r, plan.emplacements)).toEqual(['basic-fit']);
   });
 });

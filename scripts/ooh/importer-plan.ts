@@ -23,7 +23,7 @@ import { basename, join } from 'node:path';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { geocodeBatchDetailed } from '@/lib/import/geocoder';
-import { lirePlan, rattacher } from '@/lib/ooh/plan/adaptateurs';
+import { lirePlan, listesSansLigne, rattacher } from '@/lib/ooh/plan/adaptateurs';
 import { lireArguments } from '@/lib/ooh/plan/arguments';
 import { lireClasseur } from '@/lib/ooh/plan/classeur';
 import { ecrirePlan, type EmplacementsDeLigne } from '@/lib/ooh/plan/ecrire';
@@ -67,6 +67,10 @@ async function main(): Promise<void> {
   for (const l of plan.lignes) {
     const r = parLigne.get(l.ordre);
     console.log(`  ${l.ordre}. ${l.regie} · ${l.reseau ?? l.territoire ?? '—'} — ${r ? `${r.emplacements.length} emplacement(s) (${r.adaptateur})` : 'liste non fournie'}`);
+  }
+  for (const a of listesSansLigne(parLigne, plan.emplacements)) {
+    const n = plan.emplacements.filter((e) => e.adaptateur === a).length;
+    console.warn(`  AVERTISSEMENT liste ${a} (${n} emplacement(s)) : aucune ligne de sa régie dans le plan, elle n'est pas importée.`);
   }
 
   etape('4/6 Géolocalisation');

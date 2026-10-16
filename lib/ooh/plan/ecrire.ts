@@ -30,6 +30,11 @@ import { uuidV5 } from '@/lib/import/identite-poi';
 import { lireTout } from '@/lib/supabase/lire-tout';
 import type { AdaptateurId, EmplacementNonPlace, EmplacementPlace, LignePlan } from '@/types/campagnes-media';
 
+/** Un montant arrondi au centime : un plan en formules rend « 1603636.0000000002 ». */
+function centimes(n: number | null): number | null {
+  return n === null ? null : Math.round(n * 100) / 100;
+}
+
 /** Taille de lot imposée par CLAUDE.md. */
 const LOT = 50;
 /** Espace de noms UUIDv5 des panneaux d'un plan : distinct de celui des POI (`identite-poi.ts`). */
@@ -262,7 +267,7 @@ export async function ecrirePlan(sb: SupabaseClient, e: EntreeEcriture, progress
   }
 
   // 4. Lignes : remplacées. Le DELETE est lu : un DELETE raté suivi de l'INSERT doublerait les lignes.
-  const { error: eSuppression } = await sb.from('campagne_lignes').delete({ count: 'exact' }).eq('campagne_id', campagneId);
+  const { error: eSuppression } = await sb.from('campagne_lignes').delete().eq('campagne_id', campagneId);
   if (eSuppression) echouer('suppression des anciennes lignes', eSuppression);
   const { data: lignesEcrites, error: eLignes } = await sb.from('campagne_lignes').insert(e.lignes.map((l) => {
     const d = e.emplacements.get(l.ordre);
@@ -281,11 +286,11 @@ export async function ecrirePlan(sb: SupabaseClient, e: EntreeEcriture, progress
       duree_libelle: l.duree_libelle,
       rang_option: l.rang_option,
       plage_horaire: l.plage_horaire,
-      montant_brut: l.montant_brut,
-      montant_net: l.montant_net,
-      frais: l.frais,
-      honoraires: l.honoraires,
-      total_ttc: l.total_ttc,
+      montant_brut: centimes(l.montant_brut),
+      montant_net: centimes(l.montant_net),
+      frais: centimes(l.frais),
+      honoraires: centimes(l.honoraires),
+      total_ttc: centimes(l.total_ttc),
       contacts_15_plus: l.contacts_15_plus,
       contacts_18_24: l.contacts_18_24,
       data_source_id: sourceDeLigne.get(l.ordre) ?? null,

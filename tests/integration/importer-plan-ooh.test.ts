@@ -18,7 +18,7 @@ let autreOrg = '';
 const ligne = (ordre: number, regie: string, territoire: string | null = null): LignePlan => ({
   ordre, media: 'ooh', regie, reseau: territoire ? null : 'DOOH SALLE', territoire, nb_ecrans: 10, format: 'DOOH',
   nb_diffusions: 100, date_debut: '2026-09-20', date_fin: '2026-10-03', duree_libelle: '2 semaines', rang_option: '2nd OPTION',
-  plage_horaire: null, montant_brut: 10, montant_net: 5, frais: 1, honoraires: 1, total_ttc: 8,
+  plage_horaire: null, montant_brut: 10.004, montant_net: 0.1 + 0.2, frais: 1, honoraires: 1, total_ttc: 8.006,
   contacts_15_plus: 1000, contacts_18_24: 200, details: { onglet: 'HYP1', ligne: 4 + ordre },
 });
 
@@ -112,8 +112,11 @@ describe('ecrirePlan', () => {
     const bilan = await ecrirePlan(admin, entree(['1001', '1002', '1003']));
     expect(bilan).toMatchObject({ lignes: 2, panneaux_ecrits: 3, liens: 3, panneaux_retires: 0, erreurs: [] });
     campagne = bilan.campagne_id;
-    const { data: lignes } = await admin.from('campagne_lignes').select('ordre, regie, territoire, data_source_id, details').eq('campagne_id', campagne).order('ordre');
+    const { data: lignes } = await admin.from('campagne_lignes')
+      .select('ordre, regie, territoire, data_source_id, details, montant_brut, montant_net, total_ttc').eq('campagne_id', campagne).order('ordre');
     expect(lignes).toHaveLength(2);
+    // Montants arrondis au centime à l'écriture (`numeric` garderait 0.30000000000000004).
+    expect(lignes!.map((l) => [Number(l.montant_brut), Number(l.montant_net), Number(l.total_ttc)])).toEqual([[10, 0.3, 8.01], [10, 0.3, 8.01]]);
     expect(lignes![0].data_source_id).not.toBeNull();
     expect(lignes![1]).toMatchObject({ regie: 'MEDIAOUTREMER', territoire: 'LA REUNION', data_source_id: null });
     expect((lignes![0].details as { non_places: unknown[] }).non_places).toEqual([{ nom: 'Basic-Fit Essai introuvable', raison: 'adresse introuvable (BAN)' }]);
