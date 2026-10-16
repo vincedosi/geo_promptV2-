@@ -64,6 +64,11 @@ describe('lireForme — KML', () => {
       <coordinates>5,43 5.1,43 5.1,43.1 5,43.1 5,43</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark></kml>`;
     expect(lireForme(kml, 'a.kml')).toMatchObject({ ok: true, polygones: 1, sommets: 5 });
   });
+  it('KML aux virgules ESPACÉES (« 5, 43 ») : chaque tuple reste un point, pas deux demi-points perdus', () => {
+    const kml = `<kml><Placemark><Polygon><outerBoundaryIs><LinearRing>
+      <coordinates>5, 43, 0  5.1 ,43   5.1 , 43.1 5,43.1 5,  43</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark></kml>`;
+    expect(lireForme(kml, 'a.kml')).toMatchObject({ ok: true, polygones: 1, sommets: 5, geometrie: { type: 'MultiPolygon', coordinates: [[CARRE]] } });
+  });
   it('KML sans polygone', () => {
     expect(lireForme('<kml><Placemark><Point><coordinates>5,43</coordinates></Point></Placemark></kml>', 'a.kml'))
       .toEqual({ ok: false, message: 'Aucun polygone dans ce fichier.' });

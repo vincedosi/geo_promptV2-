@@ -57,7 +57,8 @@ function balises(n: Element | Document, nom: string): Element[] {
 function anneauKml(el: Element | null): Anneau | null {
   const txt = el ? balises(el, 'coordinates')[0]?.textContent?.trim() : undefined;
   if (!txt) return null;
-  return txt.split(/\s+/).map((t) => t.split(',').slice(0, 2).map(Number)).filter((p) => p.length === 2 && p.every(Number.isFinite));
+  // Des espaces AUTOUR des virgules (« 5, 43 ») couperaient un tuple en deux au split sur les blancs : resserrés d'abord.
+  return txt.replace(/\s*,\s*/g, ',').split(/\s+/).map((t) => t.split(',').slice(0, 2).map(Number)).filter((p) => p.length === 2 && p.every(Number.isFinite));
 }
 
 function depuisKml(texte: string): FormeLue {
