@@ -32,12 +32,13 @@ const club = (code: string, qualite: 'sure' | 'a_verifier' = 'sure'): Emplacemen
   geoloc_methode: 'adresse_ban', geoloc_qualite: qualite, geoloc_score: qualite === 'sure' ? 0.9 : 0.45, geoloc_libelle: 'Rue Essai 45000 Villetest',
 });
 
-function entree(codes: string[], organizationId = org): EntreeEcriture {
+/** `codes = null` : la liste Basic-Fit n'est plus fournie du tout. */
+function entree(codes: string[] | null, organizationId = org): EntreeEcriture {
   return {
     organizationId,
     campagne: { nom: '[ESSAI] Campagne écrite', annonceur: 'Annonceur essai', vague: 'V1', cle_import: CLE, date_debut: '2026-09-20', date_fin: '2026-10-02', budget_total_ttc: 100, metadata: { fichier: 'essai.xlsx' } },
     lignes: [ligne(1, 'BASIC FIT'), ligne(2, 'MEDIAOUTREMER', 'LA REUNION')],
-    emplacements: new Map([[1, {
+    emplacements: codes === null ? new Map() : new Map([[1, {
       adaptateur: 'basic-fit' as const,
       places: codes.map((c, i) => club(c, i === 0 ? 'a_verifier' : 'sure')),
       non_places: [{ adaptateur: 'basic-fit' as const, cle: '9999', nom: 'Basic-Fit Essai introuvable', raison: 'adresse introuvable (BAN)', metadata: { onglet: 'LISTING BASIC FIT', lignes: [] } }],
@@ -156,11 +157,40 @@ describe('ecrirePlan', () => {
 
   it('un autre espace avec la même clé ne touche pas aux panneaux du premier', async () => {
     const avant = await admin.from('panneaux_affichage').select('id, organization_id, data_source_id').eq('source', SOURCE).order('id');
+    expect(avant.error).toBeNull();
+    expect(avant.data).toHaveLength(2);
     await expect(ecrirePlan(admin, entree(['1001', '1003'], autreOrg))).rejects.toThrow(/appartiennent à un autre espace/);
     const apres = await admin.from('panneaux_affichage').select('id, organization_id, data_source_id').eq('source', SOURCE).order('id');
+    expect(apres.error).toBeNull();
     expect(apres.data).toEqual(avant.data);
     expect(await verifierAppartenanceDesLiens(campagne)).toBe(2);
     const { count } = await admin.from('campagne_lignes').select('id', { count: 'exact', head: true }).eq('campagne_id', campagne);
     expect(count).toBe(2);
+  });
+
+  it('rejeu avec une liste vide : ses panneaux sont retirés, la ligne garde sa source', async () => {
+    const { data: avant, error: eAvant } = await admin.from('campagne_lignes').select('data_source_id').eq('campagne_id', campagne).eq('ordre', 1).single();
+    expect(eAvant).toBeNull();
+    const bilan = await ecrirePlan(admin, entree([]));
+    expect(bilan).toMatchObject({ lignes: 2, panneaux_ecrits: 0, liens: 0, panneaux_retires: 2, erreurs: [] });
+    expect(await idsPanneaux()).toEqual({});
+    const { data: apres, error: eApres } = await admin.from('campagne_lignes').select('data_source_id').eq('campagne_id', campagne).eq('ordre', 1).single();
+    expect(eApres).toBeNull();
+    expect(apres!.data_source_id).toBe(avant!.data_source_id);
+    expect(apres!.data_source_id).not.toBeNull();
+  });
+
+  it('rejeu sans la liste : ses panneaux et sa source privée partent', async () => {
+    const remise = await ecrirePlan(admin, entree(['1001', '1002']));
+    expect(remise).toMatchObject({ panneaux_ecrits: 2, liens: 2, erreurs: [] });
+    const bilan = await ecrirePlan(admin, entree(null));
+    expect(bilan).toMatchObject({ lignes: 2, panneaux_ecrits: 0, liens: 0, panneaux_retires: 2, erreurs: [] });
+    expect(await idsPanneaux()).toEqual({});
+    const { data: sources, error: eS } = await admin.from('data_sources').select('id').eq('organization_id', org).eq('mapping->>source_key', SOURCE);
+    expect(eS).toBeNull();
+    expect(sources).toEqual([]);
+    const { data: lignes, error: eL } = await admin.from('campagne_lignes').select('ordre, data_source_id').eq('campagne_id', campagne).order('ordre');
+    expect(eL).toBeNull();
+    expect(lignes).toEqual([{ ordre: 1, data_source_id: null }, { ordre: 2, data_source_id: null }]);
   });
 });

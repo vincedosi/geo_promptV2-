@@ -13,7 +13,9 @@
  *   4. lignes de la campagne : DELETE ciblé (erreur lue) puis INSERT — les liens partent en cascade ;
  *   5. liens ligne ↔ panneau : lots de 50, repli ligne à ligne. Seuls les panneaux que l'étape 3 a effectivement
  *      écrits sous la source privée DE LA LIGNE sont liés (la base ne vérifie pas qu'un panneau lié est de l'espace) ;
- *   6. panneaux de la source qui ne sont plus dans la liste : retirés (lots de 50, erreur lue). Sans cela un club
+ *   6. une liste qui a disparu du plan : sa source privée est supprimée, ses panneaux et leurs liens partent avec elle
+ *      (déclencheur sql/264) ; panneaux de la source qui ne sont plus dans la liste : retirés (lots de 50, erreur
+ *      lue). Sans cela un club
  *      disparu de la liste resterait visible dans l'espace, hors campagne. Un panneau toujours listé mais dont
  *      l'upsert a échoué n'est PAS retiré : l'erreur est rapportée, le rejeu le reprend.
  * Une liste fournie dont aucun emplacement n'est placé garde sa source (vide) : ses anciens panneaux sont retirés et
@@ -80,7 +82,12 @@ interface PanneauPresent {
 
 /** `plan-ooh:<cle_import>:<réseau>` — la vague suivante a sa propre clé, donc ses propres panneaux. */
 export function sourcePanneaux(cleImport: string, adaptateur: AdaptateurId): string {
-  return `plan-ooh:${cleImport}:${adaptateur}`;
+  return `${prefixeSources(cleImport)}${adaptateur}`;
+}
+
+/** `plan-ooh:<cle_import>:` — le préfixe commun aux sources d'une campagne (deux-points final : `a:` ≠ `a-b:`). */
+function prefixeSources(cleImport: string): string {
+  return `plan-ooh:${cleImport}:`;
 }
 
 /** L'id d'un panneau de plan : UUIDv5 de (source, source_ref) — le même à chaque rejeu. */
@@ -212,6 +219,13 @@ export async function ecrirePlan(sb: SupabaseClient, e: EntreeEcriture, progress
     }
     presentsParSource.set(source, presents);
   }
+  // Les sources de plan de CET espace et de cette clé dont la liste n'est plus fournie : retirées à l'étape 6.
+  const { data: sourcesExistantes, error: eSources } = await sb.from('data_sources').select('id, mapping')
+    .eq('organization_id', e.organizationId).eq('type', 'panneaux')
+    .like('mapping->>source_key', `${prefixeSources(e.campagne.cle_import)}*`);
+  if (eSources) echouer('sources de plan existantes', eSources);
+  const sourcesSorties = (sourcesExistantes as { id: string; mapping: { source_key?: string } | null }[])
+    .filter((s) => !presentsParSource.has(s.mapping?.source_key ?? ''));
 
   // 1. Campagne.
   const { data: campagne, error: eCampagne } = await sb.from('campagnes')
@@ -310,6 +324,17 @@ export async function ecrirePlan(sb: SupabaseClient, e: EntreeEcriture, progress
 
   // 6. Panneaux de la source sortis de la liste (lus à l'étape 0 : tout panneau apparu depuis vient de l'étape 3).
   let retires = 0;
+  // Listes qui ont disparu du plan : la source part, et ses panneaux et leurs liens avec elle (déclencheur sql/264).
+  for (const s of sourcesSorties) {
+    const { count, error: eCompte } = await sb.from('panneaux_affichage').select('id', { count: 'exact', head: true }).eq('data_source_id', s.id);
+    if (eCompte) {
+      erreurs.push(`source sortie du plan ${s.mapping?.source_key} (comptage) : ${eCompte.message}`);
+      continue;
+    }
+    const { error } = await sb.from('data_sources').delete().eq('id', s.id);
+    if (error) erreurs.push(`source sortie du plan ${s.mapping?.source_key} (suppression) : ${error.message}`);
+    else retires += count ?? 0;
+  }
   for (const [source, listes] of idsListes) {
     const orphelins = (presentsParSource.get(source) ?? []).map((p) => p.id).filter((id) => !listes.has(id));
     for (let i = 0; i < orphelins.length; i += LOT) {

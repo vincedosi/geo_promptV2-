@@ -23,6 +23,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { ecrirePlan, sourcePanneaux } from '@/lib/ooh/plan/ecrire';
 import { creerClientTest } from './_client';
 
 const admin = creerClientTest();
@@ -298,5 +299,66 @@ describe('campagnes — un espace ne voit que les siennes, et leurs panneaux pri
   it('sans connexion, rien', async () => {
     const { data, error } = await anonyme.from('campagnes').select('id').eq('id', campagne);
     expect(error?.code === '42501' || (data ?? []).length === 0).toBe(true);
+  });
+});
+
+describe('panneaux d un plan OOH — supprimer l espace ne les rend lisibles par personne (sql/264)', () => {
+  const T = Date.now();
+  const CLE = `essai-cloisonnement-plan-${T}`;
+  const SOURCE = sourcePanneaux(CLE, 'basic-fit');
+  let espace = '';
+
+  beforeAll(async () => {
+    const { data, error } = await admin.from('organizations')
+      .insert({ name: '[ESSAI] espace supprimé', slug: `essai-cloisonnement-plan-${T}` }).select('id').single();
+    if (error || !data) throw new Error(`espace : ${error?.message}`);
+    espace = data.id as string;
+    const place = (code: string) => ({
+      adaptateur: 'basic-fit' as const, cle: code, nom_lieu: `[ESSAI] Site client ${code}`, type_lieu: 'salle de sport', reseau: 'DOOH',
+      numerique: true, nb_ecrans: 1, formats: [], adresse: null, code_postal: null, ville: null, reference_panneau: code,
+      contacts_semaine: null, contacts_18_25_semaine: null,
+      recherche: { type: 'adresse' as const, adresse: 'Rue Essai', code_postal: null, ville: 'Villetest', commune_seule: false },
+      metadata: { onglet: 'ESSAI', lignes: [] }, source_ref: code, lat: 47.9, lng: 1.9, code_insee: null, code_departement: null,
+      geoloc_methode: 'adresse_ban' as const, geoloc_qualite: 'sure' as const, geoloc_score: 0.9, geoloc_libelle: 'Rue Essai',
+    });
+    const bilan = await ecrirePlan(admin, {
+      organizationId: espace,
+      campagne: { nom: '[ESSAI] campagne d un espace supprimé', annonceur: null, vague: null, cle_import: CLE, date_debut: null, date_fin: null, budget_total_ttc: null, metadata: {} },
+      lignes: [{
+        ordre: 1, media: 'ooh', regie: 'BASIC FIT', reseau: 'DOOH', territoire: null, nb_ecrans: 2, format: 'DOOH', nb_diffusions: null,
+        date_debut: null, date_fin: null, duree_libelle: null, rang_option: null, plage_horaire: null, montant_brut: null,
+        montant_net: null, frais: null, honoraires: null, total_ttc: null, contacts_15_plus: null, contacts_18_24: null, details: {},
+      }],
+      emplacements: new Map([[1, { adaptateur: 'basic-fit' as const, places: [place('1'), place('2')], non_places: [] }]]),
+    });
+    if (bilan.liens !== 2) throw new Error(`plan d essai : ${JSON.stringify(bilan)}`);
+  });
+
+  afterAll(async () => {
+    const erreurs: string[] = [];
+    const { error: e1 } = await admin.from('panneaux_affichage').delete().eq('source', SOURCE);
+    if (e1) erreurs.push(`panneaux : ${e1.message}`);
+    const { error: e2 } = await admin.from('organizations').delete().eq('id', espace);
+    if (e2) erreurs.push(`espace : ${e2.message}`);
+    if (erreurs.length > 0) throw new Error(`nettoyage incomplet — ${erreurs.join(' ; ')}`);
+  });
+
+  it('avant : BMW ne voit pas les sites ; après suppression de l espace : il ne reste aucun site, lisible par personne', async () => {
+    const { bmw, marine } = comptes;
+    const { data: avant, error: eAvant } = await bmw.client.from('panneaux_affichage').select('id').eq('source', SOURCE);
+    expect(eAvant).toBeNull();
+    expect(avant).toEqual([]);
+
+    const { error } = await admin.from('organizations').delete().eq('id', espace);
+    expect(error).toBeNull();
+
+    for (const c of [bmw, marine]) {
+      const { data, error: e } = await c.client.from('panneaux_affichage').select('id, nom_lieu').eq('source', SOURCE);
+      expect(e).toBeNull();
+      expect(data).toEqual([]);
+    }
+    const { count, error: eCompte } = await admin.from('panneaux_affichage').select('id', { count: 'exact', head: true }).eq('source', SOURCE);
+    expect(eCompte).toBeNull();
+    expect(count).toBe(0);
   });
 });

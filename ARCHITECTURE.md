@@ -1875,10 +1875,20 @@ s'arrête AVANT l'écriture) → `ecrirePlan` (`lib/ooh/plan/ecrire.ts` ; contr�
 `plan-ooh:<clé>:<réseau>` sont de CET espace — la clé n'est unique que dans un espace ; campagne upsertée sur (espace,
 `cle_import`) ; une source PRIVÉE par réseau dans `data_sources`, `mapping.source_key = plan-ooh:<clé>:<réseau>` ;
 panneaux upsertés sur (source, source_ref), id UUIDv5 ; lignes remplacées ; liens par lots de 50, vers les seuls
-panneaux écrits sous la source de la ligne ; panneaux sortis de la liste retirés, les autres gardent leur id). Tables
+panneaux écrits sous la source de la ligne ; panneaux sortis de la liste retirés, les autres gardent leur id ; une
+liste fournie mais vide garde sa source, une liste disparue du plan perd sa source et ses panneaux). Tables
 écrites : `campagnes`, `campagne_lignes`, `data_sources`, `panneaux_affichage`, `campagne_ligne_panneaux`. Rapport
 (`lib/ooh/plan/rapport.ts`) : compteurs par réseau et CSV des emplacements à reprendre, écrit HORS du dépôt (refusé
 sinon). Pas d'import depuis l'interface (spec § 2) : un plan de régie n'a pas d'API.
+
+**Les panneaux d'un plan suivent leur source (sql/264).** `panneaux_affichage.data_source_id` est `on delete set null`
+et `source_visible(null)` vaut vrai : sans garde, supprimer la source privée d'une campagne — ou l'espace, qui emporte
+ses `data_sources` en cascade — rendait les sites du client lisibles par TOUS les espaces. Le déclencheur
+`trg_data_sources_panneaux_plan` (BEFORE DELETE sur `data_sources`, fonction `supprimer_panneaux_plan_de_source()`,
+SECURITY DEFINER) supprime d'abord les liens `campagne_ligne_panneaux` (`restrict` côté panneau) puis les panneaux
+`source like 'plan-ooh:%'` de la source qui part — indépendamment de l'ordre des cascades issues de `organizations`.
+Les autres familles de panneaux gardent le `set null`. Verrouillé par `tests/integration/panneaux-plan-suppression.test.ts`
+et `cloisonnement-rls.test.ts` (« supprimer l'espace ne les rend lisibles par personne »).
 
 ### Radio FM/DAB+
 | Table | Description | Notes |

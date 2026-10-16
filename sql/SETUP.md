@@ -143,6 +143,7 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `remplacer_jeux_recommandes()` | 251 | Remplace la sélection recommandée d'un espace en une transaction (jsonb `{cles}`, ≤ 200) |
 | `campagne_ooh_jsonb()` | 263 | Campagne OOH d'un espace : campagne, lignes OOH, emplacements GeoJSON (jsonb, `null` hors espace, borne 20 000 + `tronque`) |
 | `campagnes_ooh_jsonb()` | 263 | Campagnes d'un espace ayant une ligne OOH (jsonb, borne 200 + `tronque`) |
+| `supprimer_panneaux_plan_de_source()` | 264 | Fonction du déclencheur `trg_data_sources_panneaux_plan` (BEFORE DELETE sur `data_sources`) : retire les panneaux `plan-ooh:%` de la source et leurs liens de campagne, sinon `set null` les rendrait visibles de tous |
 
 ---
 
