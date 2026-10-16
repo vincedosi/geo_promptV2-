@@ -157,10 +157,18 @@ export class CampagneOohService {
     if (choisi && this.masquees().has(choisi.properties.ligne_id)) this.emplacementSelectionne.set(null);
   }
 
-  /** Ouvre la fiche d'un emplacement (clic sur la carte) ; ferme le tiroir Street View des POI. */
+  /**
+   * Ouvre la fiche d'un emplacement (clic sur la carte, ou la liste des points à vérifier) ; ferme le tiroir Street
+   * View des POI. Un emplacement d'une ligne masquée réaffiche sa ligne : une fiche ouverte sur un point absent de la
+   * carte se lirait comme une erreur.
+   */
   selectionner(id: string): void {
     const e = this.detail()?.emplacements.find((x) => x.properties.id === id) ?? null;
-    if (e) this.pois.panneauSelectionne.set(null);
+    if (e) {
+      this.pois.panneauSelectionne.set(null);
+      const ligne = e.properties.ligne_id;
+      if (this.masquees().has(ligne)) this.masquees.update((m) => new Set([...m].filter((x) => x !== ligne)));
+    }
     this.emplacementSelectionne.set(e);
   }
 

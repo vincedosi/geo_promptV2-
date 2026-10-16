@@ -99,7 +99,7 @@ import { SelectionsCalquesService } from './selections-calques.service';
           }
         } @else {
           @if (service.chargementListe()) { <div data-chargement-liste class="text-[11px] text-tertiary">Lecture des campagnes…</div> }
-          @if (service.erreurListe(); as e) { <div data-erreur class="font-mono text-[10px] text-danger">! {{ e }}</div> }
+          @if (service.erreurListe(); as e) { <div data-erreur role="alert" class="font-mono text-[10px] text-danger">! {{ e }}</div> }
           <!-- Au-dessus de la liste : une liste longue ne doit pas pousser l'échec hors de vue. -->
           @if (service.chargementDetail()) { <div data-chargement-detail class="text-[11px] text-tertiary">Lecture de la campagne…</div> }
           @if (service.erreurDetail(); as e) { <div data-erreur-detail role="alert" class="font-mono text-[10px] text-danger">! {{ e }}</div> }
@@ -117,7 +117,8 @@ import { SelectionsCalquesService } from './selections-calques.service';
               </button>
             }
             @if (service.listeTronquee()) {
-              <div class="text-[11px] text-warning">Plus de 200 campagnes : seules les 200 plus récentes sont listées.</div>
+              <!-- La borne est celle de la route (BORNE_CAMPAGNES) : on dit le nombre réellement listé, jamais un 200 recopié. -->
+              <div data-liste-tronquee class="text-[11px] text-warning">Plus de {{ nombre(cs.length) }} campagnes : seules les {{ nombre(cs.length) }} plus récentes sont listées.</div>
             }
           }
         }

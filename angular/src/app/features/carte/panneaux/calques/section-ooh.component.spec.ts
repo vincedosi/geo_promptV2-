@@ -137,9 +137,18 @@ describe('SectionOohComponent — les campagnes OOH de l espace', () => {
     selections.basculerSection('ooh');
     await rendre();
     expect(el.querySelector('[data-erreur]')!.textContent!.trim()).toBe('! Délai dépassé');
+    expect(el.querySelector('[data-erreur]')!.getAttribute('role')).toBe('alert');
   });
 
-  it('la lecture d une campagne en échec est dite, sous la liste toujours offerte', async () => {
+  it('liste tronquée par la route : le nombre dit est celui des campagnes listées, pas une borne recopiée', async () => {
+    const campagnes = [LISTE.campagnes[0], { ...LISTE.campagnes[0], id: 'c2' }, { ...LISTE.campagnes[0], id: 'c3' }];
+    const { el, rendre, selections } = monter({ campagnesOoh: () => of({ campagnes, tronque: true }) });
+    selections.basculerSection('ooh');
+    await rendre();
+    expect(el.querySelector('[data-liste-tronquee]')!.textContent!.trim()).toBe('Plus de 3 campagnes : seules les 3 plus récentes sont listées.');
+  });
+
+  it('la lecture d une campagne en échec est dite au-dessus de la liste, toujours offerte', async () => {
     const { el, rendre, selections, service } = monter({ campagnesOoh: () => of(LISTE), campagneOoh: () => throwError(() => ({ status: 404 })) });
     selections.basculerSection('ooh');
     await rendre();

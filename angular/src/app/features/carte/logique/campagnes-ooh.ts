@@ -4,7 +4,7 @@
  * l'overlay « Autres » → « Panneaux OOH et DOOH » et de sa couche. Préfixées OOH : « campagne » désigne déjà
  * `dsp_campaigns` et `CampagnePlan` (rattachement d'un plan média de zones).
  */
-import { formaterNombre } from '../../../core/format/nombre';
+import { formaterDecimal, formaterNombre } from '../../../core/format/nombre';
 
 /** Une ligne OOH dans la liste des campagnes. */
 export interface LigneOohResume {
@@ -222,7 +222,7 @@ export function libelleNonPlaces(n: number): string {
 
 /** Score de géolocalisation à deux décimales, virgule française ; « — » sans score. */
 export function formaterScore(s: number | null): string {
-  return s === null ? '—' : s.toFixed(2).replace('.', ',');
+  return formaterDecimal(s, 2);
 }
 
 /** Un bloc de la fiche « Données de la régie ». */

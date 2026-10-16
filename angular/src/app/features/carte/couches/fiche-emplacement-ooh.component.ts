@@ -53,7 +53,7 @@ interface ChampFiche {
           }
           <details data-donnees-regie class="rounded-[6px] border-fin border-subtle p-2.5 text-[11px]">
             <summary class="cursor-pointer text-secondary">Données de la régie</summary>
-            @for (g of regie(); track g.titre) {
+            @for (g of regie(); track $index) {
               <div class="mt-2 text-tertiary">{{ g.titre }}</div>
               <dl class="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono">
                 @for (c of g.cellules; track c[0]) {

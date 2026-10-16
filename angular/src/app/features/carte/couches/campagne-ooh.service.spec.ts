@@ -119,6 +119,19 @@ describe('CampagneOohService', () => {
     expect(service.emplacementSelectionne()).toBeNull();
   });
 
+  it('ouvrir un emplacement d une ligne masquée (liste des points à vérifier) réaffiche sa ligne sur la carte', () => {
+    const { service, carte } = monter({ campagneOoh: () => of(DETAIL_ESSAI) });
+    service.choisir('c1');
+    service.basculerLigne('l1');
+    TestBed.tick();
+    expect(donneesPosees(carte)).toEqual([]);
+    service.selectionner('p2');
+    TestBed.tick();
+    expect(service.emplacementSelectionne()?.properties.id).toBe('p2');
+    expect(service.masquees().has('l1')).toBe(false);
+    expect(donneesPosees(carte)).toEqual(['p1', 'p2']);
+  });
+
   it('Tout effacer retire la couche et vide la campagne, la liste reste', () => {
     const { service, carte, couches } = monter({ campagnesOoh: () => of(LISTE), campagneOoh: () => of(DETAIL_ESSAI) });
     service.lireCampagnes();
