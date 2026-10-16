@@ -150,7 +150,7 @@ export function trouverGare(nom: string, bloc: BlocGares, index: IndexGares): Re
 }
 
 /** Télécharge le référentiel (60 s par tentative, trois tentatives) ; lève si la réponse n'est pas un succès. */
-async function telechargerReferentielGares(): Promise<GareSncf[]> {
+export async function telechargerReferentielGares(): Promise<GareSncf[]> {
   const reponse = await fetchLectureAvecReprise(URL_REFERENTIEL_GARES, {}, { delaiMs: 60_000, tentatives: 3 });
   if (!reponse.ok) throw new Error(`Référentiel des gares SNCF indisponible (HTTP ${reponse.status}).`);
   const gares = lireReferentielGares(await reponse.text());

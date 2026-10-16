@@ -44,6 +44,9 @@ const ASSUMEES = new Map<string, string>([
   ['lib/auth/perimetre-donnees.ts', 'L\'application de la règle elle-même.'],
   ['lib/import/inserter.ts',
    'Écrivain des imports, appelé seulement par /api/admin/import-* (super_admin).'],
+  ['lib/ooh/plan/ecrire.ts',
+   'Écrivain du script scripts/ooh/importer-plan.ts (service_role, hors route) : il écrit les panneaux d\'une campagne '
+   + 'dans une source PRIVÉE de l\'espace et ne rend rien à un appelant HTTP.'],
   ['lib/import/geo-enricher.ts',
    'Enrichissement des imports, appelé seulement depuis /api/admin (super_admin).'],
   ['lib/supabase/tables.ts', 'Types et commentaires : aucune requête exécutée.'],

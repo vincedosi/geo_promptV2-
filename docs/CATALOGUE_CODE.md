@@ -4,7 +4,7 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-10-16 — commit `bbd71740`.
+> Généré le 2026-10-16 — commit `d9d59768`.
 
 ## Totaux
 
@@ -81,8 +81,8 @@ Trié par nombre d’occurrences décroissant.
 | `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
 | `lib/supabase/tables.ts` | 1 | — | TableUpdate |
 | `types/campaign.ts` | 1 | — | DspCampaign |
-| `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
 | `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
+| `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
 | `lib/campaigns/actor-metrics.ts` | 1 | — | ActorsPayload |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |

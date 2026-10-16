@@ -1840,7 +1840,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | Table | Description | Notes |
 |-------|-------------|-------|
 | `poi_france` | Points d'Interet — **une table**, et non une vue : il n'existe aucune table `poi`. Porte depuis le 2026-09-17 la categorie **`risque_industriel`** (ICPE Georisques) : `sous_categorie` = la gravite (`seveso_haut`/`seveso_bas`/`ied`/`autorisation`/`enregistrement`/`autre`, qui colore le point), `metadata.libelle_nature` = la nature DOMINANTE du risque (qui le filtre), `metadata.natures_risque[]` = toutes ses natures | Trigger `auto_set_geom`. `id` **deterministe** aux deux chemins d'import (universel et data.gouv) : UUIDv5 du contenu de la ligne (`lib/import/identite-poi.ts`), ce qui rend `onConflict: 'id'` operant et le rejeu d'un fichier sans effet. Ne jamais revenir a `randomUUID()` — voir `docs/AUDIT.md#ech-001` |
-| `panneaux_affichage` | Panneaux OOH/DOOH — table unique (carte). **Vide depuis la purge de Brest du 2026-10-16 (sql/260)**. **Colonnes d'emplacement (sql/262)** : `nom_lieu`, `reseau`, `type_lieu`, `numerique`, `nb_ecrans`, `formats text[]`, `contacts_semaine`, `contacts_18_25_semaine`, `geoloc_methode` (`referentiel_gares`/`adresse_ban`/`alias_manuel`/`coordonnees_fournies`), `geoloc_qualite` (`sure`/`a_verifier`), `geoloc_score` [0, 1], `geoloc_libelle` ; `metadata` = la ligne d'origine de la régie EN ENTIER | UNIQUE (source, source_ref), filtrer `actif = true` |
+| `panneaux_affichage` | Panneaux OOH/DOOH — table unique (carte). **Vide depuis la purge de Brest du 2026-10-16 (sql/260)**. **Colonnes d'emplacement (sql/262)** : `nom_lieu`, `reseau`, `type_lieu`, `numerique`, `nb_ecrans`, `formats text[]`, `contacts_semaine`, `contacts_18_25_semaine`, `geoloc_methode` (`referentiel_gares`/`adresse_ban`/`alias_manuel`/`coordonnees_fournies`), `geoloc_qualite` (`sure`/`a_verifier`), `geoloc_score` [0, 1], `geoloc_libelle` ; `metadata` = la ligne d'origine de la régie EN ENTIER. Les panneaux d'une campagne ont `source = plan-ooh:<clé>:<réseau>` et une source PRIVÉE de l'espace (sql/261-262, `scripts/ooh/importer-plan.ts`) | UNIQUE (source, source_ref), filtrer `actif = true` |
 | `import_runs_ooh` | Historique imports OOH | |
 | `poi_categories` | Categories POI | |
 | `poi_accessibility_config` | Parametres sigma accessibilite | |
@@ -1864,6 +1864,21 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 RLS : lecture `authenticated` pour son espace (`get_user_org()`) ou super_admin, aucune écriture client ; les routes
 passent par `service_role` et filtrent par l'espace actif elles-mêmes. Verrouillé par
 `tests/integration/cloisonnement-rls.test.ts` (« campagnes — un espace ne voit que les siennes »).
+
+**Import d'un plan de régie** : `npx tsx scripts/ooh/importer-plan.ts --plan <xlsx> --espace <slug> --campagne "<nom>"
+--cle <clé> [--vague V] [--annonceur …] [--rapport <dossier hors dépôt>] [--a-blanc]`. Chaîne de fonctions pures
+(`lib/ooh/plan/`) : `lireClasseur` (exceljs, grilles positionnelles) → adaptateurs (`adaptateurs/` : `synthese-hyp`,
+`mediatransports-gares`, `basic-fit`, `stride-campus` — la vague suivante = un adaptateur de plus) → `rattacher` (une
+liste à la première ligne de sa régie) → `geolocaliser` (référentiel SNCF + alias ; BAN `/search/csv/` : ≥ 0,6 sûr,
+0,3-0,6 à vérifier, < 0,3 non placé ; commune seule, ville ou CP différents → à vérifier ; BAN en panne → le script
+s'arrête AVANT l'écriture) → `ecrirePlan` (`lib/ooh/plan/ecrire.ts` ; contrôle d'abord que les panneaux déjà sous
+`plan-ooh:<clé>:<réseau>` sont de CET espace — la clé n'est unique que dans un espace ; campagne upsertée sur (espace,
+`cle_import`) ; une source PRIVÉE par réseau dans `data_sources`, `mapping.source_key = plan-ooh:<clé>:<réseau>` ;
+panneaux upsertés sur (source, source_ref), id UUIDv5 ; lignes remplacées ; liens par lots de 50, vers les seuls
+panneaux écrits sous la source de la ligne ; panneaux sortis de la liste retirés, les autres gardent leur id). Tables
+écrites : `campagnes`, `campagne_lignes`, `data_sources`, `panneaux_affichage`, `campagne_ligne_panneaux`. Rapport
+(`lib/ooh/plan/rapport.ts`) : compteurs par réseau et CSV des emplacements à reprendre, écrit HORS du dépôt (refusé
+sinon). Pas d'import depuis l'interface (spec § 2) : un plan de régie n'a pas d'API.
 
 ### Radio FM/DAB+
 | Table | Description | Notes |
