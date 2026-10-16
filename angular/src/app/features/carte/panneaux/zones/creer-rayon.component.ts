@@ -187,7 +187,7 @@ export class CreerRayonComponent {
         this.erreur.set(issue.erreur);
         return;
       }
-      this.message.set(messageZoneRayon(issue.geo, issue.countCp));
+      this.message.set(messageZoneRayon(issue.geo, issue.countCp, issue.avertissement));
       this.centre.set(null);
       this.nom.set('');
       this.cree.emit();

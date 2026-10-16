@@ -105,16 +105,32 @@ describe('OperationsZonesComponent (ZonesOperations.tsx, T14 ; recette `combinai
     expect(fixture.componentInstance.termines).toBe(0);
   });
 
-  it('207 → « Zone créée, mais la résolution… », pas de `termine`, jamais renvoyée', async () => {
+  it('207 → la zone EXISTE : `termine` (liste relue, sélection vidée), le message de la route, aucun second envoi', async () => {
+    const enregistrer = ok({ zone_id: 'n', warning: 'codes_non_resolus', message: 'Zone créée ; ses codes postaux n’ont pas pu être résolus.' }, 207);
+    const { fixture, el, stable } = monter(enregistrer);
+    fixture.componentInstance.selection.set(['a', 'b']);
+    await stable();
+    bouton(el, 'union').click();
+    await stable();
+    expect(fixture.componentInstance.termines).toBe(1);
+    // Le parent vide la sélection sur `termine` : la barre disparaît, le message reste.
+    fixture.componentInstance.selection.set([]);
+    await stable();
+    expect(el.querySelector('[data-barre]')).toBeNull();
+    expect(el.querySelector('[data-message]')!.textContent).toBe('Zone créée ; ses codes postaux n’ont pas pu être résolus.');
+    expect(el.querySelector('[data-erreur]')).toBeNull();
+    expect(enregistrer).toHaveBeenCalledTimes(1);
+  });
+
+  it('207 sans message dans le corps : le repli dit que la zone existe', async () => {
     const enregistrer = ok({ zone_id: 'n', warning: 'codes_non_resolus' }, 207);
     const { fixture, el, stable } = monter(enregistrer);
     fixture.componentInstance.selection.set(['a', 'b']);
     await stable();
     bouton(el, 'union').click();
     await stable();
-    expect(el.querySelector('[data-erreur]')!.textContent).toContain('la résolution des codes postaux a échoué');
-    expect(fixture.componentInstance.termines).toBe(0);
-    expect(enregistrer).toHaveBeenCalledTimes(1);
+    expect(fixture.componentInstance.termines).toBe(1);
+    expect(el.querySelector('[data-message]')!.textContent).toContain('la résolution des codes postaux a échoué');
   });
 
   it('pendant l’écriture, les boutons sont inactifs : un second clic n’envoie rien', async () => {

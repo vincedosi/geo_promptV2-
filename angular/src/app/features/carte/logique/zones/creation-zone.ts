@@ -13,8 +13,12 @@ import { parserCodesPostaux } from './parse-cp';
 export const MAX_CP = 2000;
 /** Rejets listés sous l'aperçu : au-delà, « … ». */
 const REJETS_AFFICHES = 8;
-/** Sous ce pourcentage, la part retenue est dite (les arrondis du clip ne font pas tomber un cercle entier sous 98 %). */
-const PART_SIGNALEE = 98;
+/**
+ * Sous cette PART (0 à 1, l'unité de `part_retenue` des routes), la découpe est dite — les arrondis du clip ne font
+ * pas tomber un cercle entier sous 98 %. Seule définition : les créateurs ET le pied de recette de ③ la lisent ; la
+ * comparaison se fait en part, la conversion en % n'a lieu qu'à l'affichage.
+ */
+export const PART_SIGNALEE = 0.98;
 
 const pluriel = (n: number, s = 's') => (n > 1 ? s : '');
 
@@ -50,33 +54,42 @@ export function nomCodesPostauxFichier(nomFichier: string): string {
 /** Ce que `/api/custom-geo/source/codes-postaux` rend et que le message lit. */
 export interface ReponseCodesPostaux { n_codes: number; n_inconnus?: number; n_rejetes?: number }
 
-export function messageZoneCodesPostaux(geo: ReponseCodesPostaux, countCp: number | undefined): string {
+/**
+ * Le message après création. `avertissement` : celui d'un 207 (la zone existe, ses codes postaux n'ont pas été
+ * résolus) — il REMPLACE le compte de codes postaux, qui serait faux (« 0 codes postaux »).
+ */
+export function messageZoneCodesPostaux(geo: ReponseCodesPostaux, countCp: number | undefined, avertissement?: string): string {
   const pertes: string[] = [];
   const inconnus = geo.n_inconnus ?? 0;
   const rejetes = geo.n_rejetes ?? 0;
   if (inconnus) pertes.push(`${formaterNombre(inconnus)} inconnu${pluriel(inconnus)} du référentiel`);
   if (rejetes) pertes.push(`${formaterNombre(rejetes)} rejeté${pluriel(rejetes)}`);
-  return `Zone créée : ${formaterNombre(countCp ?? geo.n_codes)} codes postaux` + (pertes.length ? ` · ${pertes.join(', ')}` : '');
+  const debut = avertissement ?? `Zone créée : ${formaterNombre(countCp ?? geo.n_codes)} codes postaux`;
+  return debut + (pertes.length ? ` · ${pertes.join(', ')}` : '');
 }
 
 /** Ce que `/source/rayon` et `/source/dessin` rendent et que les messages lisent. */
 export interface ReponseSurface { surface_km2: number; part_retenue?: number; corrige?: boolean }
 
-const partRetenue = (geo: ReponseSurface) => Math.round((geo.part_retenue ?? 1) * 100);
-const debutSurface = (geo: ReponseSurface, countCp: number | undefined) =>
-  `Zone créée : ${formaterNombre(geo.surface_km2)} km² · ${formaterNombre(countCp ?? 0)} codes postaux`;
+/** La part retenue quand elle est à dire (sous `PART_SIGNALEE`), en % arrondi ; `null` sinon. */
+const partSignalee = (geo: ReponseSurface): number | null => {
+  const p = geo.part_retenue ?? 1;
+  return p < PART_SIGNALEE ? Math.round(p * 100) : null;
+};
+const debutSurface = (geo: ReponseSurface, countCp: number | undefined, avertissement: string | undefined) =>
+  `Zone créée : ${formaterNombre(geo.surface_km2)} km² · ${avertissement ?? `${formaterNombre(countCp ?? 0)} codes postaux`}`;
 
-export function messageZoneRayon(geo: ReponseSurface, countCp: number | undefined): string {
-  const part = partRetenue(geo);
-  return debutSurface(geo, countCp) + (part < PART_SIGNALEE ? ` · ${part} % du cercle retenus (le reste est hors territoire)` : '');
+export function messageZoneRayon(geo: ReponseSurface, countCp: number | undefined, avertissement?: string): string {
+  const part = partSignalee(geo);
+  return debutSurface(geo, countCp, avertissement) + (part !== null ? ` · ${part} % du cercle retenus (le reste est hors territoire)` : '');
 }
 
-export function messageZoneDessin(geo: ReponseSurface, countCp: number | undefined): string {
+export function messageZoneDessin(geo: ReponseSurface, countCp: number | undefined, avertissement?: string): string {
   const remarques: string[] = [];
   if (geo.corrige) remarques.push('tracé réparé (il se croisait lui-même)');
-  const part = partRetenue(geo);
-  if (part < PART_SIGNALEE) remarques.push(`${part} % retenus, le reste est hors territoire`);
-  return debutSurface(geo, countCp) + (remarques.length ? ` · ${remarques.join(' · ')}` : '');
+  const part = partSignalee(geo);
+  if (part !== null) remarques.push(`${part} % retenus, le reste est hors territoire`);
+  return debutSurface(geo, countCp, avertissement) + (remarques.length ? ` · ${remarques.join(' · ')}` : '');
 }
 
 /** Le nom d'un tracé laissé sans nom : « Tracé de 163,24 km² ». */

@@ -129,7 +129,7 @@ export class CreerDessinComponent {
         this.erreur.set(issue.erreur);
         return;
       }
-      this.message.set(messageZoneDessin(issue.geo, issue.countCp));
+      this.message.set(messageZoneDessin(issue.geo, issue.countCp, issue.avertissement));
       this.nom.set('');
       // Le tracé est effacé : sans cela, un second clic créerait une seconde zone identique.
       this.dessin.effacer();

@@ -122,12 +122,11 @@ export class OperationsZonesComponent {
     }).subscribe({
       next: (reponse) => {
         this.enCours.set(null);
-        // 207 : la zone EXISTE (codes non résolus) — jamais renvoyée ; le message le dit.
-        if (reponse.status === 207) {
-          this.erreur.set(MESSAGE_RESOLUTION_ECHOUEE);
-          return;
-        }
-        this.message.set(messageZoneCreee(reponse.body?.count_cp, reponse.body?.surface_km2));
+        // 207 : la zone EXISTE (codes non résolus). Elle est donc « terminée » comme une réussite — liste relue,
+        // sélection vidée par le parent, aucun second envoi possible — et le message de la route le dit.
+        this.message.set(reponse.status === 207
+          ? (reponse.body?.message ?? MESSAGE_RESOLUTION_ECHOUEE)
+          : messageZoneCreee(reponse.body?.count_cp, reponse.body?.surface_km2));
         this.termine.emit();
       },
       error: (e: { status?: number; error?: unknown }) => {

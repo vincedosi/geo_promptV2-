@@ -67,7 +67,7 @@ export function nomZoneCreee(op: OperationZones, selection: readonly string[], n
 /** L'enregistrement a échoué (`!saveRes.ok`). */
 export const MESSAGE_SAUVEGARDE_ECHOUEE = 'Sauvegarde de la zone échouée.';
 /** 207 : zone créée, mais ses codes postaux n'ont pas été résolus (`ZonesOperations.tsx:136-138`). */
-export const MESSAGE_RESOLUTION_ECHOUEE = 'Zone créée, mais la résolution des codes postaux a échoué — retirez-la et réessayez.';
+export const MESSAGE_RESOLUTION_ECHOUEE = 'Zone créée, mais la résolution des codes postaux a échoué.';
 
 /**
  * « Zone créée : 1 234 codes postaux · 56,7 km² » (`ZonesOperations.tsx:140-144`).

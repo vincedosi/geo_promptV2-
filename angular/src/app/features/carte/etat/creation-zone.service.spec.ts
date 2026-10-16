@@ -45,12 +45,25 @@ describe('CreationZoneService — écrit par POST /api/zones avec la recette (lo
     expect((enregistrer.mock.calls[0][0] as { nom: string }).nom).toHaveLength(200);
   });
 
-  it('un 207 reste une réussite (la zone existe), jamais renvoyé', async () => {
+  it('un 207 reste une réussite (la zone existe), jamais renvoyé ; il porte l’avertissement de la route', async () => {
+    const enregistrer = vi.fn(() => of(new HttpResponse({ status: 207, body: { zone_id: 'z', warning: 'codes_non_resolus', message: 'Zone créée ; ses codes postaux n’ont pas pu être résolus.' } })));
+    const { service } = await monter(enregistrer);
+    const issue = await firstValueFrom(service.creer(of({ geometry: GEO }), () => 'N', () => ({ v: 1, type: 'dessin' })));
+    expect(issue).toEqual({ geo: { geometry: GEO }, countCp: undefined, avertissement: 'Zone créée ; ses codes postaux n’ont pas pu être résolus.' });
+    expect(enregistrer).toHaveBeenCalledTimes(1);
+  });
+
+  it('un 207 sans message : l’avertissement de repli', async () => {
     const enregistrer = vi.fn(() => of(new HttpResponse({ status: 207, body: { zone_id: 'z', warning: 'codes_non_resolus' } })));
     const { service } = await monter(enregistrer);
     const issue = await firstValueFrom(service.creer(of({ geometry: GEO }), () => 'N', () => ({ v: 1, type: 'dessin' })));
-    expect(issue).toEqual({ geo: { geometry: GEO }, countCp: undefined });
-    expect(enregistrer).toHaveBeenCalledTimes(1);
+    expect(issue).toMatchObject({ avertissement: 'Zone créée ; ses codes postaux n’ont pas pu être résolus.' });
+  });
+
+  it('une combinaison est calculée par le serveur : sa géométrie n’est pas envoyée', async () => {
+    const { service, enregistrer } = await monter();
+    await firstValueFrom(service.creer(of({ geometry: GEO }), () => 'N', () => ({ v: 1, type: 'combinaison', operation: 'union', zones: ['a', 'b'] })));
+    expect(enregistrer.mock.calls[0][0]).not.toHaveProperty('geometrie');
   });
 
   it('écriture en échec → « Sauvegarde de la zone échouée. » ; refus de la source → son message, rien d’écrit', async () => {

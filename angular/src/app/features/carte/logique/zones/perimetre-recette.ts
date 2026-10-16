@@ -11,11 +11,14 @@ export function perimetreDeFiltre(f: FiltreActif | null): PerimetreRecette | nul
   return { type: f.type, code: f.code };
 }
 
-/** Le message d'un échec HTTP des routes de zones : celui de la route s'il existe, sinon un message par statut. */
-export function messageErreurZone(e: { status?: number; error?: unknown }): string {
+/**
+ * Le message d'un échec HTTP des routes de zones : celui de la route s'il existe, sinon un message par statut, sinon
+ * `defaut` — à choisir par geste (« Enregistrement impossible. », « Suppression impossible. »).
+ */
+export function messageErreurZone(e: { status?: number; error?: unknown }, defaut = 'Calcul de la zone impossible.'): string {
   const m = (e.error as { error?: unknown } | null | undefined)?.error;
   if (typeof m === 'string' && m.length > 0) return m;
   if (e.status === 429) return 'Trop de calculs à la suite : patientez une minute.';
   if (e.status === 0) return 'Serveur injoignable : réessayez.';
-  return 'Calcul de la zone impossible.';
+  return defaut;
 }

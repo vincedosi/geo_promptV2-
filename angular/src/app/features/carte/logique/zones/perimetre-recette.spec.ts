@@ -21,5 +21,8 @@ describe('messageErreurZone', () => {
     expect(messageErreurZone({ status: 429, error: {} })).toBe('Trop de calculs à la suite : patientez une minute.');
     expect(messageErreurZone({ status: 0 })).toBe('Serveur injoignable : réessayez.');
     expect(messageErreurZone({ status: 500, error: 'texte' })).toBe('Calcul de la zone impossible.');
+    // Le défaut se choisit par geste : une écriture ou une suppression n'est pas un « calcul ».
+    expect(messageErreurZone({ status: 500, error: 'texte' }, 'Enregistrement impossible.')).toBe('Enregistrement impossible.');
+    expect(messageErreurZone({ status: 409, error: { error: 'Cette zone est utilisée.' } }, 'Suppression impossible.')).toBe('Cette zone est utilisée.');
   });
 });

@@ -138,7 +138,7 @@ export class CreerCodesPostauxComponent {
         this.erreur.set(issue.erreur);
         return;
       }
-      this.message.set(messageZoneCodesPostaux(issue.geo, issue.countCp));
+      this.message.set(messageZoneCodesPostaux(issue.geo, issue.countCp, issue.avertissement));
       this.saisie.set('');
       this.nom.set('');
       this.depot = null;

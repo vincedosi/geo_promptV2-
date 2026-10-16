@@ -188,9 +188,12 @@ export class ZonesCustomApi extends HttpBaseService {
     return this.httpClient.post<{ geometry?: GeometrieContribuee }>(`${this.baseUrl}/custom-geo/source/${route}`, corps);
   }
 
-  /** `POST /api/custom-geo/capture` : ÉCRIT la zone fusionnée des couches capturées. */
-  capturer(corps: Record<string, unknown>): Observable<{ count_iris?: number; count_cp?: number }> {
-    return this.httpClient.post<{ count_iris?: number; count_cp?: number }>(`${this.baseUrl}/custom-geo/capture`, corps);
+  /**
+   * `POST /api/custom-geo/capture` : ÉCRIT la zone fusionnée des couches capturées. Un 207 arrive ici comme une
+   * réussite : il porte `warning` (`recette_non_enregistree`, `zone_created_but_resolution_failed`) et `message`.
+   */
+  capturer(corps: Record<string, unknown>): Observable<ReponseCapture> {
+    return this.httpClient.post<ReponseCapture>(`${this.baseUrl}/custom-geo/capture`, corps);
   }
 }
 
@@ -201,6 +204,15 @@ export interface ReponseSourceCodesPostaux extends ReponseCodesPostaux {
   codes?: string[];
   codes_inconnus?: string[];
   rejetes?: string[];
+}
+
+/** La réponse de `POST /api/custom-geo/capture` : 200, ou 207 avec `warning` et `message`. */
+export interface ReponseCapture {
+  zone_id?: string;
+  count_iris?: number;
+  count_cp?: number;
+  warning?: string;
+  message?: string;
 }
 
 /** La réponse de `/source/rayon` et `/source/dessin`. */

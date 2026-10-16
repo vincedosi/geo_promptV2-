@@ -144,6 +144,41 @@ describe('AtelierZoneService', () => {
     expect(s.enCours()).toBe(false);
   });
 
+  it('échec d’écriture sans message de la route : « Enregistrement impossible. », pas « Calcul de la zone impossible. »', () => {
+    const s = monter({
+      apercu: () => of(APERCU),
+      enregistrer: () => throwError(() => new HttpErrorResponse({ status: 500, error: 'texte' })),
+    });
+    s.apercevoir(RECETTE);
+    s.enregistrer('Z');
+    expect(s.erreur()).toBe('Enregistrement impossible.');
+    expect(s.apercu()?.compte).toBe(40);
+  });
+
+  it('réponse perdue (statut 0) : la zone a PEUT-ÊTRE été écrite — atelier vidé, aucun second envoi, « vérifiez Mes zones »', () => {
+    const enregistrer = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 0, error: new ProgressEvent('error') })));
+    const s = monter({ apercu: () => of(APERCU), enregistrer });
+    s.apercevoir(RECETTE);
+    s.enregistrer('Z');
+    expect(s.erreur()).toBe('La réponse n’est pas arrivée : vérifiez Mes zones avant de réessayer.');
+    expect(s.apercu()).toBeNull();
+    expect(s.recette()).toBeNull();
+    expect(s.enCours()).toBe(false);
+    s.enregistrer('Z');
+    expect(enregistrer).toHaveBeenCalledTimes(1);
+  });
+
+  it('2xx sans zone_id : même traitement qu’une réponse perdue (on ne sait pas si la zone existe)', () => {
+    const enregistrer = vi.fn(() => of(new HttpResponse({ status: 200, body: {} })));
+    const s = monter({ apercu: () => of(APERCU), enregistrer });
+    s.apercevoir(RECETTE);
+    s.enregistrer('Z');
+    expect(s.erreur()).toBe('La réponse n’est pas arrivée : vérifiez Mes zones avant de réessayer.');
+    expect(s.apercu()).toBeNull();
+    s.enregistrer('Z');
+    expect(enregistrer).toHaveBeenCalledTimes(1);
+  });
+
   it('forme figée : la géométrie lue part avec la recette', () => {
     const enregistrer = vi.fn(() => of(new HttpResponse({ status: 200, body: { zone_id: 'z3' } })));
     const s = monter({ apercu: () => of({ geometry: CARRE, surface_km2: 3, compte: null, part_retenue: 0.8, population: null }), enregistrer });

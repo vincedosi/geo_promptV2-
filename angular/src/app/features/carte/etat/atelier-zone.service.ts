@@ -23,7 +23,8 @@ type EchecHttp = { status?: number; error?: unknown };
  * ⚠ `POST /api/zones` n'est PAS idempotent (deux envois, deux zones — revue de la Task 8). Une écriture en vol n'est
  * donc jamais coupée ni doublée : un second « Enregistrer », un nouvel aperçu ou « Effacer » sont ignorés jusqu'à sa
  * réponse. Un 207 est une RÉUSSITE (la zone existe, seuls ses codes postaux n'ont pas été résolus) : jamais renvoyée,
- * l'atelier est vidé comme après un 200.
+ * l'atelier est vidé comme après un 200. Une réponse PERDUE (statut 0) ou un 2xx sans `zone_id` vident aussi l'atelier
+ * (la zone existe peut-être) et renvoient à « Mes zones » avant tout nouvel essai.
  */
 @Injectable()
 export class AtelierZoneService {
@@ -106,21 +107,37 @@ export class AtelierZoneService {
       next: (r) => {
         this.enCours.set(false);
         const b = r.body;
-        if (!b?.zone_id) { this.erreur.set('Enregistrement de la zone impossible.'); return; }
+        // Une réussite sans identifiant : on ne sait pas si la zone existe — traitée comme une réponse perdue.
+        if (!b?.zone_id) { this.reponsePerdue(); return; }
         const cp = b.count_cp ?? 0;
         this.message.set(r.status === 207
           ? (b.message ?? 'Zone créée ; ses codes postaux n’ont pas pu être résolus.')
           : `Zone « ${n} » enregistrée — ${cp} ${cp > 1 ? 'codes postaux touchés' : 'code postal touché'}.`);
         this.nonResolue.set(r.status === 207 ? { id: b.zone_id, recalculable: estRecalculable(recette) } : null);
         // Un second clic ne doit pas créer un doublon : l'aperçu et la recette sont vidés (le message reste).
-        this.recette.set(null);
-        this.apercu.set(null);
-        this.geometrieFigee = undefined;
+        this.vider();
         this.zoneCreee.next(b.zone_id);
       },
-      // L'aperçu reste : l'utilisateur peut réessayer (un échec HTTP n'a rien écrit, sauf coupure réseau — dite « injoignable »).
-      error: (e: EchecHttp) => { this.erreur.set(messageErreurZone(e)); this.enCours.set(false); },
+      error: (e: EchecHttp) => {
+        this.enCours.set(false);
+        // Statut 0 : la requête est peut-être arrivée, la zone peut-être écrite — jamais de second envoi à l'aveugle.
+        if (e.status === 0) { this.reponsePerdue(); return; }
+        // Un refus HTTP n'a rien écrit : l'aperçu reste, l'utilisateur peut réessayer.
+        this.erreur.set(messageErreurZone(e, 'Enregistrement impossible.'));
+      },
     });
+  }
+
+  private vider(): void {
+    this.recette.set(null);
+    this.apercu.set(null);
+    this.geometrieFigee = undefined;
+  }
+
+  /** On ne sait pas si la zone a été écrite : l'atelier est vidé (aucun second envoi), le message renvoie à « Mes zones ». */
+  private reponsePerdue(): void {
+    this.erreur.set('La réponse n’est pas arrivée : vérifiez Mes zones avant de réessayer.');
+    this.vider();
   }
 
   effacer(): void {
