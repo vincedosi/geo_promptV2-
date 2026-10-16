@@ -168,3 +168,9 @@ commit;
 -- Seq Scan (60 buffers) plutôt que par `panneaux_affichage_pkey` : sur une table de cette taille c'est le bon choix, et
 -- la clé de jointure `panneau_id` = pkey reste indexée si la table grossit.
 -- Appel complet `campagne_ooh_jsonb` (1 230 points, 840 727 caractères de jsonb) : 53,2 ms (\timing).
+-- TF4 réelle (16/10, campagne importée dans l'espace `marine`, 11 lignes, base locale à 1 256 panneaux) :
+-- 1 256 emplacements, requête des emplacements 1,24 ms (Planning 0,35 ms), nœud racine Limit : Buffers shared hit=397
+-- (aucune lecture disque), Hash Join sur les trois tables, Seq Scan de `panneaux_affichage` (354 buffers : la table
+-- ne porte que TF4) ; avant ANALYZE des tables fraîchement écrites, le planificateur prenait des Nested Loop par index
+-- (2,8 ms, 5 603 buffers hit). Appel complet `campagne_ooh_jsonb` : 59 à 74 ms (\timing, 5 appels), 1 559 517
+-- caractères de jsonb ; `campagnes_ooh_jsonb` (liste de l'espace) : 2,4 ms, 2 470 caractères.

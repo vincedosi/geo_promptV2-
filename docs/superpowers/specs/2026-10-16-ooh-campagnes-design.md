@@ -294,4 +294,61 @@ Aucune : Q1 (visibilité), Q2 (ArcGIS) et Q3 (Basic-Fit) ont été tranchées le
 
 ## 12. Écarts à la livraison
 
-(à remplir à la fin du chantier)
+Relevés le 16/10 à l'import réel du plan TF4 en base LOCALE (espace `marine`, clé `marine-tf4-2026`), puis à la
+preuve navigateur dans les deux thèmes. Captures hors dépôt, dans le dossier de session
+`.superpowers/sdd/2026-10-16-ooh-campagnes/` (`T12-*.png`).
+
+**Compteurs mesurés.** 4 onglets, 11 lignes, référentiel SNCF à 2 792 gares ; 1 256 panneaux et 1 256 liens écrits,
+rejeu identique (0 panneau retiré).
+
+| Réseau | Lus | Sûrs | À vérifier | Non placés | Plan |
+|---|---|---|---|---|---|
+| Mediatransports — gares | 215 | 215 (183 par le nom, 32 par alias ; 215 UIC distincts) | 0 | 0 | 215 gares, 490 écrans |
+| Basic-Fit — salles | 915 | 695 | 213 | 7 (adresse introuvable par la BAN) | 905 clubs, 4 802 écrans |
+| Stride — bornes | 133 | 119 | 14 | 0 | 133 lieux, 236 écrans |
+
+- **Écart Basic-Fit, chiffre mesuré.** La spec annonçait 882 clubs (§ 1.7, § 3). La liste en donne **915** une fois
+  les lecteurs regroupés par club (code club, ou ville + rue pour les 29 clubs sans code) ; **908** sont placés (879 par
+  code, 29 sans code), portant 1 793 lecteurs. L'overlay affiche « 908 clubs placés · plan : 905 clubs, 4 802 écrans » :
+  la liste dépasse le plan de 10 clubs, ce qu'un doublon de club sans code pourrait expliquer — question pour la régie,
+  avec l'écart des écrans.
+- **11 lignes de campagne, pas 4.** Une ligne par ligne chiffrée du plan : Mediaoutremer en porte 8 (La Réunion deux
+  fois, budgets et formats différents : 200 faces 12 m² et 127 faces DOOH). L'overlay les regroupe en 3 lignes
+  métropole et un bloc « 8 lignes sans emplacement · 662 faces » (« Liste des emplacements non fournie par la régie. »).
+- **Table d'alias des gares : 32 entrées, pas 21.** Onze noms composés tombaient sur la mauvaise gare. Ordre de
+  recherche : nom plein → dernière partie → première + dernière → première.
+- **`geoloc_score` d'une gare** : 1 pour une correspondance sûre, 0,5 pour une gare à vérifier (première partie
+  seule, hors bloc, homonymes) — la spec (§ 4.3) réservait 1 à la correspondance exacte.
+- **Anneau pointillé** des points à vérifier : un calque `symbol` (`campagne-ooh-a-verifier`) qui pose une image
+  dessinée, MapLibre n'ayant pas de trait pointillé de cercle.
+- **Une source privée par RÉSEAU** (adaptateur), que la spec confondait avec « par ligne » : une liste n'est rattachée
+  qu'à la première ligne de sa régie.
+- **`checkImportRateLimit`** n'a plus d'appelant de production depuis le retrait d'ArcGIS ; gardé comme mécanisme
+  générique des imports, son test est réécrit sur une clé d'essai.
+- **Deux RPC, pas une** : `campagnes_ooh_jsonb` (liste de l'espace) s'ajoute à `campagne_ooh_jsonb`.
+- **Dates** : celles de la campagne sont prises dans le titre du plan (« 20/09 - 02/10 ») ; celles des lignes sont
+  calculées départ + durée − 1 et débordent : Mediatransports « 2 semaines » depuis le 21/09 va jusqu'au 04/10.
+- **Mesures sur TF4** (sql/263, bloc « Mesure ») : requête des emplacements 1,24 ms, 397 buffers lus en cache, aucun
+  disque ; appel complet `campagne_ooh_jsonb` 59 à 74 ms pour 1 559 517 caractères ; liste 2,4 ms.
+- **Requêtes réseau** : aucune requête `/api/map/ooh/*` à l'ouverture de la carte ; une seule
+  `GET /api/map/ooh/campagnes` à la première ouverture de la section.
+
+**Défauts relevés à la preuve navigateur, non corrigés dans ce chantier (à trancher) :**
+
+1. **Le recadrage ne montre pas la métropole.** Trois clubs Basic-Fit de métropole, sans code postal dans la liste,
+   sont placés par la BAN outre-mer — « Laval » à Saint-Denis de La Réunion, « Saint Etienne » à Sainte-Rose et
+   « Sainte-Marguerite » au Moule (Guadeloupe). Marqués à vérifier, ils entrent pourtant dans l'emprise : choisir TF4
+   cadre le monde (z 2,3, de −137° à 64° de longitude) au lieu de la France (`T12-3a-recadrage-*.png`). Deux remèdes
+   possibles : refuser à l'import un résultat BAN hors du département attendu quand la régie est métropolitaine, ou
+   recadrer sur les seuls points sûrs.
+2. **L'anneau pointillé est invisible sur fond clair.** L'image est dessinée en `--poi-contour` (#ffffff, invariant) :
+   visible sur le fond « dentsu » en thème sombre (`T12-3b-zoom-a-verifier-sombre.png`), elle disparaît sur le fond
+   « Clair » et sur tout fond du thème clair (`T12-3b-zoom-a-verifier-clair.png`) — et le point à vérifier perd aussi
+   son cerne blanc, il ne s'y distingue donc plus d'un point sûr. Il faut une couleur d'anneau qui suive le thème.
+3. **Ville d'un club Basic-Fit mal découpée** sur certains libellés : la fiche de « Basic-Fit Dijon Dijon Chanoine
+   Kir » affiche Ville « 21000 Dijon Dijon Chanoine Kir » et Adresse « — » (`T12-4e-fiche-a-verifier-*.png`).
+
+Console : aucune erreur MapLibre (`addLayer`, `addImage`, expression). Les avertissements « Expected value to be of
+type number, but found null » viennent du fond de carte (ils reviennent sans aucune campagne affichée, à partir de
+z 13) ; NG0956 vient du `@for (g of [generation()]; track g)` voulu de `carte-hote` (recréation au changement
+d'espace).
