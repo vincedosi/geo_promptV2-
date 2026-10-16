@@ -1842,7 +1842,7 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 | Table | Description | Notes |
 |-------|-------------|-------|
 | `poi_france` | Points d'Interet — **une table**, et non une vue : il n'existe aucune table `poi`. Porte depuis le 2026-09-17 la categorie **`risque_industriel`** (ICPE Georisques) : `sous_categorie` = la gravite (`seveso_haut`/`seveso_bas`/`ied`/`autorisation`/`enregistrement`/`autre`, qui colore le point), `metadata.libelle_nature` = la nature DOMINANTE du risque (qui le filtre), `metadata.natures_risque[]` = toutes ses natures | Trigger `auto_set_geom`. `id` **deterministe** aux deux chemins d'import (universel et data.gouv) : UUIDv5 du contenu de la ligne (`lib/import/identite-poi.ts`), ce qui rend `onConflict: 'id'` operant et le rejeu d'un fichier sans effet. Ne jamais revenir a `randomUUID()` — voir `docs/AUDIT.md#ech-001` |
-| `panneaux_affichage` | Panneaux OOH/DOOH — table unique (carte). Purgée de Brest le 2026-10-16 (sql/260), elle porte depuis les **1 256 emplacements de la campagne TF4 de la Marine** (mesuré le 2026-10-16 en local : 215 gares Mediatransports, 908 clubs Basic-Fit, 133 lieux Stride ; voir « Campagnes multi-média »). **Colonnes d'emplacement (sql/262)** : `nom_lieu`, `reseau`, `type_lieu`, `numerique`, `nb_ecrans`, `formats text[]`, `contacts_semaine`, `contacts_18_25_semaine`, `geoloc_methode` (`referentiel_gares`/`adresse_ban`/`alias_manuel`/`coordonnees_fournies`), `geoloc_qualite` (`sure`/`a_verifier`), `geoloc_score` [0, 1], `geoloc_libelle` ; `metadata` = la ligne d'origine de la régie EN ENTIER. Les panneaux d'une campagne ont `source = plan-ooh:<clé>:<réseau>` et une source PRIVÉE de l'espace (sql/261-262, `scripts/ooh/importer-plan.ts`) | UNIQUE (source, source_ref), filtrer `actif = true` |
+| `panneaux_affichage` | Panneaux OOH/DOOH — table unique (carte). Purgée de Brest le 2026-10-16 (sql/260), elle porte depuis les **1 253 emplacements de la campagne TF4 de la Marine** (mesuré le 2026-10-16 en local : 215 gares Mediatransports, 905 clubs Basic-Fit, 133 lieux Stride ; voir « Campagnes multi-média »). **Colonnes d'emplacement (sql/262)** : `nom_lieu`, `reseau`, `type_lieu`, `numerique`, `nb_ecrans`, `formats text[]`, `contacts_semaine`, `contacts_18_25_semaine`, `geoloc_methode` (`referentiel_gares`/`adresse_ban`/`alias_manuel`/`coordonnees_fournies`), `geoloc_qualite` (`sure`/`a_verifier`), `geoloc_score` [0, 1], `geoloc_libelle` ; `metadata` = la ligne d'origine de la régie EN ENTIER. Les panneaux d'une campagne ont `source = plan-ooh:<clé>:<réseau>` et une source PRIVÉE de l'espace (sql/261-262, `scripts/ooh/importer-plan.ts`) | UNIQUE (source, source_ref), filtrer `actif = true` |
 | `import_runs_ooh` | Historique imports OOH | |
 | `poi_categories` | Categories POI | |
 | `poi_accessibility_config` | Parametres sigma accessibilite | |
@@ -1887,7 +1887,7 @@ sinon). Pas d'import depuis l'interface (spec § 2) : un plan de régie n'a pas 
 
 **Première campagne importée — TF4 de la Marine (mesuré le 2026-10-16, base locale).** Campagne « Marine nationale —
 TF4 septembre 2026 », clé `marine-tf4-2026`, espace `marine`, 20/09/2026 → 02/10/2026, 249 674 € TTC : **11 lignes**
-(3 métropole + 8 Mediaoutremer sans liste), 3 sources privées, **1 256 panneaux et 1 256 liens** ; rejouée à l'identique
+(3 métropole + 8 Mediaoutremer sans liste), 3 sources privées, **1 253 panneaux et 1 253 liens** (1 256 avant la règle outre-mer du 16/10 : 3 clubs Basic-Fit géocodés à La Réunion/Guadeloupe ne sont plus placés, `geolocaliser.ts`) ; rejouée à l'identique
 (mêmes compteurs, 0 panneau retiré). Référentiel SNCF : 2 792 gares.
 
 | Réseau (adaptateur) | Lus | Sûrs | À vérifier | Non placés | Plan |
@@ -1902,7 +1902,7 @@ Trois clubs de métropole sans code postal dans la liste ont été placés par l
 vérifier, scores 0,38 à 0,97) : la carte recadre sur les seuls points sûrs, ils n'élargissent plus le cadre.
 Réimporté le 16/10 après la vague de correctifs (ville rendue par la BAN gardée, ville Basic-Fit close par sa
 répétition) : mêmes 1 256 identifiants de panneaux, 218 villes ou adresses corrigées, Basic-Fit 695 → **700 sûrs**,
-213 → **208 à vérifier** ; le rapport donne la raison de chacun des 222 points à vérifier. `campagne_ooh_jsonb` sur TF4 : 59-74 ms, 1,56 M caractères (sql/263, bloc « Mesure »).
+213 → **208 à vérifier** (puis 205, et 7 → **10 non placés**, après la règle outre-mer : un résultat BAN en 97x/98x sur une ligne métropolitaine n'est pas placé) ; le rapport donne la raison de chacun des 222 points à vérifier. `campagne_ooh_jsonb` sur TF4 : 59-74 ms, 1,56 M caractères (sql/263, bloc « Mesure »).
 
 **Les panneaux d'un plan suivent leur source (sql/264).** `panneaux_affichage.data_source_id` est `on delete set null`
 et `source_visible(null)` vaut vrai : sans garde, supprimer la source privée d'une campagne — ou l'espace, qui emporte

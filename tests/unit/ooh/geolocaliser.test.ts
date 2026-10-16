@@ -40,6 +40,36 @@ describe('villeCorrespond', () => {
 });
 
 describe('geolocaliser', () => {
+  describe('règle outre-mer (décision du 16/10)', () => {
+    const club = () => campus('OM|1');
+    const raison = 'résultat BAN hors du territoire de la ligne (outre-mer)';
+
+    it('ligne métropolitaine, résultat BAN en 97 : non placé avec sa raison', async () => {
+      const { places, non_places } = await geolocaliser([club()], { gares: [], geocoder: async () => [ban({ resultCitycode: '97411' })] });
+      expect(places).toEqual([]);
+      expect(non_places.map((n) => [n.cle, n.raison])).toEqual([['OM|1', raison]]);
+    });
+
+    it('ligne métropolitaine, résultat BAN en 98 : non placé', async () => {
+      const { non_places } = await geolocaliser([club()], { gares: [], geocoder: async () => [ban({ resultCitycode: '98800' })] });
+      expect(non_places.map((n) => n.raison)).toEqual([raison]);
+    });
+
+    it('ligne métropolitaine, résultat BAN en 75056 : inchangé', async () => {
+      const { places, non_places } = await geolocaliser([club()], { gares: [], geocoder: async () => [ban({ resultCitycode: '75056' })] });
+      expect(non_places).toEqual([]);
+      expect(places[0].code_insee).toBe('75056');
+    });
+
+    it('ligne d outre-mer, résultat BAN en 97411 : inchangé', async () => {
+      const { places, non_places } = await geolocaliser([club()], {
+        gares: [], geocoder: async () => [ban({ resultCitycode: '97411' })], adaptateursOutreMer: new Set(['stride-campus']),
+      });
+      expect(non_places).toEqual([]);
+      expect(places[0].code_insee).toBe('97411');
+    });
+  });
+
   it('adresse : un seul lot pour la BAN, score ≥ 0,6 sûr, code INSEE et département repris', async () => {
     const geocoder = vi.fn(async (rows: LigneAdresse[]) => rows.map(() => ban({})));
     const { places, non_places } = await geolocaliser([campus('A|13008')], { gares: [], geocoder });

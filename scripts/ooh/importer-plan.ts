@@ -77,7 +77,9 @@ async function main(): Promise<void> {
   const aPlacer = [...parLigne.values()].flatMap((r) => r.emplacements);
   const gares = aPlacer.some((e) => e.recherche.type === 'gare') ? await telechargerReferentielGares() : [];
   if (gares.length > 0) console.log(`référentiel SNCF : ${gares.length} gares`);
-  const geo = await geolocaliser(aPlacer, { gares, geocoder: geocodeBatchDetailed, progression: suivre('géolocalisation') });
+  // Une liste rattachée à une ligne d'outre-mer (territoire renseigné) échappe à la règle « résultat BAN en 97x/98x non placé ».
+  const adaptateursOutreMer = new Set(plan.lignes.filter((l) => l.territoire !== null).flatMap((l) => parLigne.get(l.ordre)?.adaptateur ?? []));
+  const geo = await geolocaliser(aPlacer, { gares, geocoder: geocodeBatchDetailed, adaptateursOutreMer, progression: suivre('géolocalisation') });
   process.stdout.write('\n');
 
   const emplacements = new Map<number, EmplacementsDeLigne>();

@@ -234,7 +234,10 @@ npx tsx scripts/ooh/importer-plan.ts --plan "<fichier.xlsx>" --espace marine \
   - **La vague suivante = un adaptateur de plus**, ou aucun si le format est le même.
 - **Géolocalisation** (`lib/ooh/plan/geolocaliser.ts`) :
   - **Adresses** : `lib/import/geocoder.ts` existant (BAN `/search/csv/`). Score ≥ 0,6 →
-    `sure` ; de 0,3 à 0,6 → `a_verifier` ; sous 0,3 → non placé.
+    `sure` ; de 0,3 à 0,6 → `a_verifier` ; sous 0,3 → non placé. **Règle outre-mer (décision de Vincent, 16/10)** :
+    sur une ligne de France métropolitaine (aucun `territoire` dans le plan), un résultat BAN dont le code INSEE
+    commence par 97 ou 98 n'est pas placé — raison « résultat BAN hors du territoire de la ligne (outre-mer) ».
+    Les autres écarts de ville restent `a_verifier`. Les gares ne sont pas concernées.
   - **Gares** : référentiel public SNCF « gares de voyageurs » (data.sncf.com, sans clé,
     téléchargé au lancement). Correspondance par nom normalisé, avec une **table d'alias
     versionnée** pour les 21 noms composés, vérifiée par le code INSEE de la commune.
@@ -298,7 +301,7 @@ Relevés le 16/10 à l'import réel du plan TF4 en base LOCALE (espace `marine`,
 preuve navigateur dans les deux thèmes. Captures hors dépôt, dans le dossier de session
 `.superpowers/sdd/2026-10-16-ooh-campagnes/` (`T12-*.png`).
 
-**Compteurs mesurés.** 4 onglets, 11 lignes, référentiel SNCF à 2 792 gares ; 1 256 panneaux et 1 256 liens écrits,
+**Compteurs mesurés (état au 16/10 avant la règle outre-mer ; voir plus bas pour l'état final).** 4 onglets, 11 lignes, référentiel SNCF à 2 792 gares ; 1 256 panneaux et 1 256 liens écrits,
 rejeu identique (0 panneau retiré). Réimporté après la vague de correctifs du 16/10 : mêmes 1 256 identifiants de
 panneaux (convergence), 218 villes ou adresses Basic-Fit corrigées, rejeu suivant identique ; le rapport CSV donne la
 raison de chacun des 222 points à vérifier (Basic-Fit 208 : 130 commune seule, 68 ville rendue différente, 54 score
@@ -346,8 +349,13 @@ BAN sous 0,60 ; Stride 14 : 12 code postal différent, 4 score sous 0,60 — mot
    **Corrigé (commit `4e47bc04`)** : le recadrage porte sur les seuls points sûrs (repli sur tous s'il n'y en a
    aucun), sans emprise codée en dur ; l'emprise des 1 034 points sûrs de TF4 va de −4,5° à 8,0° de longitude.
    Les trois clubs RESTENT classés à vérifier, conformément au § 9 (jamais placés en silence) : les reclasser en
-   non placés (code INSEE 97/98 sur une ligne métropolitaine) est une règle à trancher par Vincent, avec les
-   68 clubs dont la ville rendue par la BAN diffère de celle de la régie.
+   non placés (code INSEE 97/98 sur une ligne métropolitaine) était à trancher par Vincent.
+   **Décision de Vincent (16/10), appliquée** : sur une ligne métropolitaine, un résultat BAN en 97x/98x n'est plus
+   placé mais rendu en non placé (« résultat BAN hors du territoire de la ligne (outre-mer) ») ; la ligne est
+   métropolitaine quand le plan ne lui donne aucun `territoire` (`importer-plan.ts` passe à `geolocaliser` les
+   adaptateurs des lignes à `territoire`). Les 68 clubs dont la ville rendue diffère restent à vérifier (§ 9).
+   Réimport réel : Basic-Fit non placés 7 → **10**, à vérifier 208 → **205** ; les 3 panneaux d'outre-mer sont
+   retirés de la table au rejeu ; Stride et gares inchangés ; **1 253 panneaux et 1 253 liens**, aucune ligne ERREUR.
 2. **L'anneau pointillé est invisible sur fond clair.** L'image est dessinée en `--poi-contour` (#ffffff, invariant) :
    visible sur le fond « dentsu » en thème sombre (`T12-3b-zoom-a-verifier-sombre.png`), elle disparaît sur le fond
    « Clair » et sur tout fond du thème clair (`T12-3b-zoom-a-verifier-clair.png`) — et le point à vérifier perd aussi

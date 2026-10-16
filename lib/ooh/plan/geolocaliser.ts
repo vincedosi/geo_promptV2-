@@ -4,6 +4,8 @@
  *   - adresses (Stride, Basic-Fit) → BAN `/search/csv/` par `geocodeBatchDetailed`, en UN lot :
  *     score ≥ 0,6 → `sure` ; de 0,3 à 0,6 → `a_verifier` ; sous 0,3 → non placé.
  *     Commune seule (Basic-Fit sans rue), ville ou code postal rendus différents de ceux de la régie → `a_verifier`.
+ * Ligne de France métropolitaine (aucun territoire dans le plan) : un résultat BAN en 97x/98x (outre-mer) n'est pas
+ * placé (décision du 16/10) ; tout autre écart de ville reste à vérifier.
  * Un emplacement introuvable n'est pas placé : il est rendu dans `non_places` avec sa raison. Le géocodeur est
  * INJECTÉ (tests sans réseau ; le script passe `geocodeBatchDetailed`).
  */
@@ -17,6 +19,7 @@ import { departementDeInsee, normaliser } from './texte';
 
 const SEUIL_SUR = 0.6;
 const SEUIL_NON_PLACE = 0.3;
+const RAISON_OUTRE_MER = 'résultat BAN hors du territoire de la ligne (outre-mer)';
 
 /** Une ligne envoyée à la BAN — la forme de `geocodeBatchDetailed`. */
 export interface LigneAdresse {
@@ -31,6 +34,8 @@ interface DependancesGeoloc {
   gares: readonly GareSncf[];
   geocoder: GeocodeurLot;
   progression?: (fait: number, total: number) => void;
+  /** Adaptateurs rattachés à une ligne d'outre-mer (`territoire` renseigné) : le reste est de métropole. */
+  adaptateursOutreMer?: ReadonlySet<string>;
 }
 
 interface ResultatGeoloc {
@@ -49,11 +54,12 @@ function nonPlace(e: EmplacementBrut, raison: string): EmplacementNonPlace {
   return { adaptateur: e.adaptateur, cle: e.cle, nom: e.nom_lieu, raison, metadata: e.metadata };
 }
 
-function deciderAdresse(e: EmplacementBrut, r: GeocodeDetailedResult | undefined): EmplacementPlace | string {
+function deciderAdresse(e: EmplacementBrut, r: GeocodeDetailedResult | undefined, ligneMetropole: boolean): EmplacementPlace | string {
   if (e.recherche.type !== 'adresse') return 'recherche inattendue';
   const rech = e.recherche;
   if (!r || r.lat === null || r.lng === null) return 'adresse introuvable (BAN)';
   if (r.score < SEUIL_NON_PLACE) return `score BAN ${formaterDecimal(r.score, 2)} sous ${formaterDecimal(SEUIL_NON_PLACE, 2)}`;
+  if (ligneMetropole && /^9[78]/.test(r.resultCitycode ?? '')) return RAISON_OUTRE_MER;
   // Chaque motif qui retire le « sûr » est gardé : le rapport dit pourquoi le point est à vérifier.
   const raisons: string[] = [];
   if (r.score < SEUIL_SUR) raisons.push(`score BAN ${formaterDecimal(r.score, 2)} sous ${formaterDecimal(SEUIL_SUR, 2)}`);
@@ -133,7 +139,7 @@ export async function geolocaliser(emplacements: readonly EmplacementBrut[], dep
     // des lignes sans leurs panneaux. On échoue avant toute écriture.
     if (resultats.some((r) => r.resultLabel === 'Erreur API BAN')) throw new Error("BAN indisponible : rien n'est écrit.");
     adresses.forEach((e, i) => {
-      const d = deciderAdresse(e, resultats[i]);
+      const d = deciderAdresse(e, resultats[i], !deps.adaptateursOutreMer?.has(e.adaptateur));
       if (typeof d === 'string') nonPlaces.push(nonPlace(e, d));
       else places.push(d);
     });
