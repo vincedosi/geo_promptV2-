@@ -3,9 +3,9 @@ import { basculerSection, sectionsInitiales } from '../../etat/sections-filtre';
 
 /**
  * L'état LOCAL du panneau Calques que React gardait dans `PanneauCalques.tsx` (`useState`, `useFilterSections(true, …)`) :
- * les sections internes ouvertes, les régies OOH et les types de transport choisis.
+ * les sections internes ouvertes, les types de transport choisis.
  *
- * Fourni par `mg-panneau-donnees` (② — `mg-panneau-calques` jusqu'à T13) ET, depuis T11b, par `mg-panneau-autres` (sections OOH et radio, régies OOH) : une
+ * Fourni par `mg-panneau-donnees` (② — `mg-panneau-calques` jusqu'à T13) ET, depuis T11b, par `mg-panneau-autres` (sections OOH et radio) : une
  * instance par panneau, fournie par le panneau lui-même. Elle survit au repli d'un groupe (les sections, rendues sous
  * `@if`, sont recréées) ET au changement d'étape ou à la fermeture d'« Autres » : les panneaux sont montés à la première
  * visite puis gardés (arbitrage A1), jamais démontés ; elle ne meurt qu'avec la page (changement d'espace). Mode OVERLAY : rien n'est lu ni écrit dans
@@ -14,8 +14,6 @@ import { basculerSection, sectionsInitiales } from '../../etat/sections-filtre';
 @Injectable()
 export class SelectionsCalquesService {
   readonly sections = signal<Record<string, boolean>>(sectionsInitiales(true, () => undefined));
-  /** Régies OOH choisies (`selectedOOH`, `PanneauCalques.tsx:263`). */
-  readonly regiesOoh = signal<readonly string[]>([]);
   /** Types de transport choisis (`selectedTransportTypes`, `PanneauCalques.tsx:264`). */
   readonly typesTransport = signal<readonly string[]>([]);
 

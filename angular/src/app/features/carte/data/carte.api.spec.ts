@@ -67,15 +67,6 @@ describe('CarteApi', () => {
     http.verify();
   });
 
-  it('ooh : POST /api/map/ooh', () => {
-    const { api, http } = preparer();
-    api.ooh({ regies: [] }).subscribe();
-    const req = http.expectOne('/api/map/ooh');
-    expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ regies: [] });
-    http.verify();
-  });
-
   it('transport : bbox de la carte à 4 décimales ; types joints par une virgule, absents sans type', () => {
     const { api, http } = preparer();
     api.transport([5.123456, 43.2, 5.5, 43.40001], ['bus', 'tram']).subscribe();

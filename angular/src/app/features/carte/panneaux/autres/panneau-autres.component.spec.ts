@@ -1,9 +1,9 @@
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Subject } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { FABRIQUE_POPUP } from '../../../../carte/fabrique-carte';
 import { CouleursService } from '../../../../core/theme/couleurs.service';
-import { OohService } from '../../couches/ooh.service';
+import { CampagneOohService } from '../../couches/campagne-ooh.service';
 import { PoisService } from '../../couches/pois.service';
 import { RadioService } from '../../couches/radio.service';
 import { CarteApi } from '../../data/carte.api';
@@ -22,8 +22,8 @@ import { PanneauAutresComponent, TEXTE_AUTRES } from './panneau-autres.component
 function monter() {
   TestBed.configureTestingModule({
     providers: [
-      provideZonelessChangeDetection(), CaptureService, OohService, PoisService, RadioService, EtatCarteService, CouchesCarteService, AnnonceService,
-      { provide: CarteApi, useValue: { ooh: () => new Subject() } },
+      provideZonelessChangeDetection(), CaptureService, CampagneOohService, PoisService, RadioService, EtatCarteService, CouchesCarteService, AnnonceService,
+      { provide: CarteApi, useValue: { campagnesOoh: () => of({ campagnes: [], tronque: false }), campagneOoh: () => new Subject() } },
       { provide: RadioApi, useValue: { emetteurs: () => new Subject(), optionsFiltre: () => new Subject(), stations: () => new Subject() } },
       { provide: CouleursService, useValue: { palette: () => signal({}) } },
       { provide: FABRIQUE_POPUP, useValue: () => ({}) },
@@ -60,7 +60,7 @@ describe('PanneauAutresComponent (T11b, Vincent 14/10)', () => {
     expect(texte.classList).toContain('text-tertiary');
   });
 
-  it('porte les sections Panneaux OOH puis Radio, dans cet ordre, avec SON état de sections et de régies', async () => {
+  it('porte les sections Panneaux OOH puis Radio, dans cet ordre, avec SON état de sections', async () => {
     const { fixture, el, rendre } = monter();
     await rendre();
     const sections = [...el.querySelectorAll('mg-section-ooh, mg-section-radio')].map((s) => s.tagName.toLowerCase());
@@ -71,9 +71,7 @@ describe('PanneauAutresComponent (T11b, Vincent 14/10)', () => {
     const selections = fixture.debugElement.injector.get(SelectionsCalquesService);
     (el.querySelector('mg-section-ooh mg-entete-filtre') as HTMLElement).click();
     await rendre();
-    (el.querySelector('[data-tout]') as HTMLButtonElement).click();
-    await rendre();
-    expect(selections.regiesOoh()).toHaveLength(8);
-    expect(el.querySelector('[data-afficher-ooh]')!.textContent!.trim()).toBe('Afficher — 8 régies');
+    expect(selections.sections()['ooh']).toBe(true);
+    expect(el.querySelector('[data-aucune-campagne]')!.textContent!.trim()).toBe('Aucune campagne OOH dans cet espace de travail.');
   });
 });

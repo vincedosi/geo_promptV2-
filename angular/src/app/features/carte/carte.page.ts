@@ -19,7 +19,8 @@ import { DetailIrisComponent } from './couches/detail-iris.component';
 import { IndicateursCiviquesService } from './couches/indicateurs-civiques.service';
 import { IrisService } from './couches/iris.service';
 import { MeteoService } from './couches/meteo.service';
-import { OohService } from './couches/ooh.service';
+import { CampagneOohService } from './couches/campagne-ooh.service';
+import { FicheEmplacementOohComponent } from './couches/fiche-emplacement-ooh.component';
 import { PoisService } from './couches/pois.service';
 import { PprtService } from './couches/pprt.service';
 import { RadioService } from './couches/radio.service';
@@ -119,11 +120,11 @@ export function palierCarreaux(zoom: number): string {
   selector: 'mg-carte-principale',
   imports: [
     AnnonceComponent, BarreParcoursComponent, BarreProgressionComponent, BoiteOutilsComponent, CarteComponent, DetailIrisComponent, DialogueMeteoComponent,
-    EtapeBientotComponent, IconeComponent, LegendeCarteComponent, PanneauAnalyseComponent, PanneauAutresComponent, PanneauDonneesComponent, PanneauEtapeComponent,
+    EtapeBientotComponent, FicheEmplacementOohComponent, IconeComponent, LegendeCarteComponent, PanneauAnalyseComponent, PanneauAutresComponent, PanneauDonneesComponent, PanneauEtapeComponent,
     PanneauFiltreComponent, PanneauZonesComponent, PlanMediaComponent, RouterOutlet, TiroirPanneauComponent, ZoneActiveComponent,
   ],
   providers: [ChargementService, ParcoursService, OutilsCarteService, EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
-    IrisService, PoisService, OohService, TransportService, CataloguePoiService, TmjaService, RadioService,
+    IrisService, PoisService, CampagneOohService, TransportService, CataloguePoiService, TmjaService, RadioService,
     IndicateursCiviquesService, SanteService, ContoursZonesService, MeteoService, RisqueCarteService, RisquesIndustrielsService,
     PprtService, ZonesRisqueService, BatailleService, ZonesCustomService, LienZoneService, ExportZoneService, PlanMediaService,
     CaptureService, DessinService, DonneesAfficheesService,
@@ -161,6 +162,8 @@ export class CartePage {
   private readonly injecteur = inject(Injector);
   private readonly iris = inject(IrisService);
   private readonly pois = inject(PoisService);
+  /** La campagne OOH affichée (« Autres » → « Panneaux OOH et DOOH ») : sa fiche occupe la place du tiroir Street View. */
+  private readonly campagneOoh = inject(CampagneOohService);
   /** « Affiché » pour ② : la pastille de l'étape et celles des lignes du panneau Données, une seule source (AT-4). */
   private readonly donnees = inject(DonneesAfficheesService);
   /** La météo (T11) : la page monte son dialogue, comme la modale de `page.tsx:1456-1488`. */
@@ -176,7 +179,7 @@ export class CartePage {
   protected readonly outils = inject(OutilsCarteService);
   /** Écartée du plan média, du détail IRIS et du tiroir Street View ouverts (ruling AT-3) ; les annonces sous elle. */
   protected readonly decalageOutils = computed(() => ecartOutils({
-    planMedia: this.planMedia.visible(), detailIris: this.iris.codeSelectionne() !== null, streetView: this.pois.panneauSelectionne() !== null,
+    planMedia: this.planMedia.visible(), detailIris: this.iris.codeSelectionne() !== null, streetView: this.pois.panneauSelectionne() !== null || this.campagneOoh.emplacementSelectionne() !== null,
   }));
   /** « Plan média (n) » : des zones affichées, panneau fermé (`page.tsx:1222`). */
   protected readonly zonesPlanFerme = computed(() => {
@@ -260,6 +263,7 @@ export class CartePage {
     // Le module risque (T13) disparaît avec l'outlet ; le tiroir de la boîte à outils (T5) devient inerte.
     const hote = this.hote.nativeElement;
     for (const ouvert of [() => this.iris.codeSelectionne() !== null, () => this.pois.panneauSelectionne() !== null,
+      () => this.campagneOoh.emplacementSelectionne() !== null,
       this.meteo.dialogueOuvert, this.moduleOuvert, () => this.outils.outil() !== null]) {
       rendreFocusALaFermeture(hote, this.injecteur, ouvert);
     }

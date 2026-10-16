@@ -55,10 +55,11 @@
       </div>
     }
   </mg-panneau-etape>
-  <!-- Hors du `@for` : détail IRIS, zone active et tiroir Street View survivent au changement de fond. -->
+  <!-- Hors du `@for` : détail IRIS, zone active, tiroir Street View et fiche d'un emplacement OOH survivent au changement de fond. -->
   <mg-detail-iris />
   <mg-zone-active />
   <mg-tiroir-panneau />
+  <mg-fiche-emplacement-ooh />
   @if (outils.legendeVisible()) {
     <mg-legende-carte [degradeActif]="etat.degradeActif()" />
   }

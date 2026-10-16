@@ -41,8 +41,12 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   parcours » pour le lecteur d'écran). Il ouvre `mg-panneau-autres` dans le cadre du panneau d'étape et s'écrit
   `?etape=autres` (l'étape d'en dessous ne change pas ; choisir une étape le referme ; `?etape=Autres` ou toute autre
   valeur inconnue est nettoyée comme d'habitude). Contenu : les sections Panneaux OOH et Radio, sorties de ② (on n'en
-  construit pas de zones) ; leurs couches restent dans `OohService`/`RadioService` (page), leurs sections et régies dans
-  le `SelectionsCalquesService` du panneau Autres, monté à la première ouverture puis gardé.
+  construit pas de zones). « Panneaux OOH et DOOH » choisit une CAMPAGNE de l'espace (2026-10-16, spec
+  ooh-campagnes § 6) : `CampagneOohService` (page) lit la liste à la première ouverture, puis la campagne choisie ;
+  sa couche dédiée (`couches/couche-campagne-ooh.ts`, une teinte `--ligne-media-*` par ligne, anneau pointillé des
+  points à vérifier, listés et cliquables dans la section) et sa fiche (`mg-fiche-emplacement-ooh`, à la place du
+  tiroir Street View) ; la radio reste dans `RadioService`. Sections ouvertes : `SelectionsCalquesService` du panneau
+  Autres, monté à la première ouverture puis gardé.
 - **Où je regarde** : le fil d'Ariane de la barre, nourri par le filtre de ① ; « France entière » le retire.
 - **Le panneau d'étape** (`mg-panneau-etape`) est une carte flottante `absolute` dans `[data-zone-carte]` : la carte
   garde toute sa largeur, `couches/marge-carte.ts` lui pose un `setPadding` pour que centrage et recadrages visent la

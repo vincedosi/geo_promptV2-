@@ -46,8 +46,8 @@ export function messagePoints(e: unknown, delai: string): string {
  * `poiStyles`, `selectedBillboard`) et son rendu (`useMapMarkers.ts`, `useMapInit.ts:42-360`).
  *
  * ── UNE ZONE PARTAGÉE ────────────────────────────────────────────────────
- * Comme React, POI, panneaux OOH et arrêts de transport écrivent la MÊME zone (`definirZone`) : en afficher un remplace
- * l'autre. `OohService` et `TransportService` ne font que leur requête.
+ * Comme React, POI et arrêts de transport écrivent la MÊME zone (`definirZone`) : en afficher un remplace
+ * l'autre. `TransportService` ne fait que sa requête.
  *
  * ── CONTRAT DU REGISTRE (B11) ────────────────────────────────────────────
  * Les sources et couches (`couche-pois.ts`) sont posées à la PREMIÈRE zone, sur l'instance COURANTE, et re-posées sur
@@ -80,7 +80,7 @@ export class PoisService {
   private readonly couleurs = inject(CouleursService).palette(JETONS_POIS);
 
   private readonly zoneCourante = signal<ZoneData | null>(null);
-  /** Les points affichés — POI, panneaux OOH ou arrêts de transport (`zoneData` de React). */
+  /** Les points affichés — POI ou arrêts de transport (`zoneData` de React). */
   readonly zone = this.zoneCourante.asReadonly();
   /** Nappe de densité forcée, relue de `localStorage['genesis_density_mode']`. */
   readonly modeDensite = signal(this.lireDensite());
@@ -188,7 +188,7 @@ export class PoisService {
     });
   }
 
-  /** La zone affichée ; `null` la vide. Écrite aussi par `OohService` et `TransportService`. */
+  /** La zone affichée ; `null` la vide. Écrite aussi par `TransportService`. */
   definirZone(zone: ZoneData | null): void {
     this.zoneCourante.set(zone);
   }
@@ -205,7 +205,7 @@ export class PoisService {
   }
 
   /**
-   * Une requête qui REMPLACE la zone (`setZoneData(null)` puis la réponse) : POI et panneaux OOH. Le corps d'une
+   * Une requête qui REMPLACE la zone (`setZoneData(null)` puis la réponse) : les POI. Le corps d'une
    * réponse 200 peut porter `error` ; `vide` dit pourquoi une réponse sans point n'est pas affichée.
    */
   lancer(
@@ -216,7 +216,7 @@ export class PoisService {
     erreur.set(null);
     this.definirZone(null);
     chargement.set(true);
-    // `finalize` : la requête ANNULÉE par une autre (POI ↔ OOH partagent cette lecture) ou par « Tout effacer » rend son
+    // `finalize` : la requête ANNULÉE par une autre (une nouvelle lecture des POI) ou par « Tout effacer » rend son
     // propre bouton — sans lui, son `chargement` restait vrai jusqu'au rechargement (revue 1).
     this.lecture = requete.pipe(finalize(() => chargement.set(false))).subscribe({
       next: (data) => {

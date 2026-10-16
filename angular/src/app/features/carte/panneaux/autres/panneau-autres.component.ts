@@ -14,8 +14,8 @@ export const TEXTE_AUTRES = 'Ces données s’affichent sur la carte mais ne ser
  * comme une étape visitée (arbitrage A1).
  *
  * Premier contenu : les sections Panneaux OOH et Radio, DÉPLACÉES telles quelles du groupe « Médias offline » du
- * panneau Calques (②), qui ne les porte plus. Les couches restent dans `OohService` et `RadioService`, fournis par la
- * PAGE ; les sections ouvertes et les régies choisies dans `SelectionsCalquesService`, fourni par CE panneau — une
+ * panneau Calques (②), qui ne les porte plus. Les couches restent dans `CampagneOohService` et `RadioService`, fournis
+ * par la PAGE ; les sections ouvertes dans `SelectionsCalquesService`, fourni par CE panneau — une
  * instance à lui, qui survit à la fermeture d'« Autres » puisque le panneau n'est jamais démonté. Comme dans le
  * groupe d'origine (mode overlay de `sectionsInitiales`), les deux sections s'ouvrent repliées.
  *
