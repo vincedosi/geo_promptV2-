@@ -759,3 +759,78 @@ Plan du lot 3 et sommaire des lots 4 à 11 :
 | A-5 | L'Angular de ③ écrit par les routes neuves (`/api/zones`) ; React gelé garde `/api/custom-geo/save`. Les deux écrivent la même table. | aucun |
 | A-6 | Les exports (lot 6) passent AVANT le portage du plan (lot 7), parce qu'ils partent du jeu de zones sans campagne. | réordonner deux lots |
 | A-7 | **Un seul quota** pour les trois routes de calcul de zone (aperçu, écriture, recalcul) : 12 appels par minute et par compte, préfixe `geo:rl:zones`. Un aperçu suivi d'un enregistrement coûte 2 jetons, soit 6 zones par minute au plus. Ce qu'il protège : au pire mesuré après la borne au département — une zone-périmètre dense de 12 000 km² (l'IDF, 90 000 buffers par appel ; un département ≤ 69 000) —, ≤ 1,1 M buffers par minute et par compte. | une constante |
+
+## 18. Décisions du 17/10 — trois onglets, dossiers de travail et versions
+
+Décidé avec Vincent le 2026-10-17. Ce paragraphe **remplace** l'organisation
+« un fil de 8 étapes + bouton Autres » du § 16.1 ; le contenu des étapes, lui,
+ne change pas.
+
+### 18.1 Trois onglets au-dessus d'une seule carte
+
+| Onglet | Fil | Contient |
+|---|---|---|
+| **Insights** | ① Périmètre · ② Données · ③ Zones · ④ Analyse | ce que je regarde, ce que je fabrique, ce que je chiffre |
+| **Activation** | ① Jeu de zones · ② Plan · ③ Activation | ce que j'achète, plateforme par plateforme |
+| **Campagne** | deux **sous-onglets** côte à côte : **Live** · **Media off** | le suivi en vol ; Media off = l'ex-« Autres » (OOH, radio) |
+
+- **Une seule carte, jamais démontée** : changer d'onglet change le fil et le
+  panneau, pas la carte (calques, zoom et fond restent).
+- **Les onglets se parlent** : un seul état partagé. Les zones et l'analyse
+  d'Insights arrivent dans le jeu de zones d'Activation ; ce qui est activé
+  apparaît dans Campagne. Passerelles explicites : « Passer à l'activation → »
+  en fin de ④, « Voir en live → » après l'activation.
+- **Activation s'ouvre directement** quand quelque chose est chargé (un
+  dossier, une version, un jeu de zones enregistré), sans repasser par Insights.
+- **URL** : l'onglet entre dans l'état du § 5 (`onglet=insights|activation|campagne`,
+  `etape` numérotée DANS l'onglet). Les raccourcis Alt+1…8 sont remappés par
+  onglet. Les anciens liens `etape=plan|activation|live` redirigent.
+
+### 18.2 Dossiers de travail et versions
+
+```
+Dossier « Marine nationale — recrutement 2027 »   (workspace TF4, partagé à 3 personnes)
+├─ V1 « Littoral 30 km »           Insights ④ · Activation ②
+├─ V2 « Littoral + villes ports »  Insights ④ · Activation ③   ← activée, FIGÉE
+└─ V3 « Test 18-24 seuls »         Insights ②
+```
+
+- **Le dossier** se crée avec un seul champ obligatoire, son **nom** ; annonceur,
+  dates, budget viennent au plan. Il appartient à un workspace. Un dossier
+  jamais activé (étude, pitch) reste en préparation : c'est un cas normal.
+- **Le partage se choisit à la création**, parmi les membres du workspace
+  (`organization_members`), et se modifie ensuite. Un utilisateur non invité,
+  ou d'un autre workspace, ne voit ni le dossier ni ses versions — contrôlé
+  dans CHAQUE route (les RLS sont dormantes) et verrouillé par des tests
+  d'accès croisé.
+- **Une version** porte tout le parcours : l'état du § 5 sérialisé (périmètre,
+  calques, analyse, zones, jeu, plan, vue, onglet, étape). Nom par défaut V1,
+  V2… + libellé libre. « Nouvelle version » duplique la courante.
+- **Enregistrement automatique**, sans bouton : écriture regroupée (une toutes
+  les quelques secondes au plus, une petite ligne jsonb), jamais de requête
+  lourde (§ Disk I/O de CLAUDE.md).
+- **Reprise** : en rouvrant Explore, on revient au dernier dossier, à la
+  dernière version, au même onglet, à la même étape et à la même vue — depuis
+  n'importe quel poste. Liste « Mes dossiers récents » + « Nouveau dossier ».
+- **Activation : UNE version par dossier.** Elle est alors **figée** (lecture
+  seule : c'est ce qui a été acheté) et le dossier devient la campagne suivie
+  dans l'onglet Campagne. Les autres versions restent consultables.
+
+### 18.3 À trancher dans le plan du lot (chef de projet)
+
+- Le dossier EST-il une ligne `dsp_campaigns` dès sa création (nouvel état
+  « en préparation » à côté du statut dérivé des dates + `status_override`),
+  ou une table `dossiers` qui ne crée la campagne qu'à l'activation ? Critère :
+  ne rien casser du cycle de vie existant ni des rollups.
+- Une 2ᵉ vague = nouveau dossier, ou nouvelle activation après la fin de la
+  première ? (Vincent : une seule version activée par dossier.)
+
+### 18.4 Place dans le découpage (§ 16.5)
+
+Nouveau **lot « Onglets + dossiers »**, inséré **avant le lot 4** :
+la version stocke l'état du § 5, qui existe déjà ; ④ à ⑧ naissent ensuite
+directement dans leur onglet et dans une version, au lieu d'être déménagés.
+Effort estimé : comparable au lot 3 (8 à 10 tâches) — onglets S-M, dossiers
++ versions M, enregistrement automatique + reprise M, partage S-M, activation
+figée S. Rang dans `C:\GENESIS\priorites-projets-dentsu-explore.xlsx` : P1,
+juste après le lot 6 d'administration.
