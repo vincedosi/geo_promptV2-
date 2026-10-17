@@ -1,0 +1,11 @@
+nom;adresse;code_postal;ville;latitude;longitude;capacite;statut
+[ESSAI lot 6] POI 01;Place de l’Hôtel de Ville;75004;Paris;48.8566;2.3522;120;ouvert
+[ESSAI lot 6] POI 02;Place Bellecour;69002;Lyon;45.7578;4.8320;80;ouvert
+[ESSAI lot 6] POI 03;Quai du Port;13002;Marseille;43.2965;5.3698;45;ferme
+[ESSAI lot 6] POI 04;Place du Capitole;31000;Toulouse;43.6045;1.4440;200;ouvert
+[ESSAI lot 6] POI 05;Place de la Comédie;34000;Montpellier;43.6086;3.8798;60;ouvert
+[ESSAI lot 6] POI 06;Place Kléber;67000;Strasbourg;48.5839;7.7455;95;ferme
+[ESSAI lot 6] POI 07;Place du Général de Gaulle;59800;Lille;50.6366;3.0635;150;ouvert
+[ESSAI lot 6] POI 08;Place Royale;44000;Nantes;47.2135;-1.5594;70;ouvert
+[ESSAI lot 6] POI 09;Place de la Bourse;33000;Bordeaux;44.8412;-0.5700;110;ferme
+[ESSAI lot 6] POI 10;Place Masséna;06000;Nice;43.6974;7.2700;130;ouvert

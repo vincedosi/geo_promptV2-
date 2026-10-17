@@ -1,0 +1,31 @@
+<div class="entete" data-entete>
+  <div class="badges">
+    <span class="badge avertissement" data-badge>Admin</span>
+    @if (analysee()) {
+      <span class="badge vert" data-badge>Parsé</span>
+    }
+  </div>
+  <p class="sous-titre" data-sous-titre>Import Points d&apos;interet (POI)</p>
+</div>
+
+<div class="etapes">
+  <!-- 01 — dépôt du fichier -->
+  <mg-import-depot />
+
+  <!-- 02 — catégorie POI -->
+  @if (etat.etapeAccessible()['02']) {
+    <mg-import-categorie />
+  }
+
+  <!-- 03 — correspondance des colonnes -->
+  @if (etat.etapeAccessible()['03']) {
+    <mg-import-correspondance />
+  }
+
+  <!-- 03b — colonnes à importer et filtres -->
+  @if (etat.etapeAccessible()['03b']) {
+    <mg-import-colonnes />
+  }
+
+  <div class="pied" data-pied>// Formats supportes: CSV, Excel (.xlsx), GeoJSON · Encodages: UTF-8, Latin-1 (auto-detecte)</div>
+</div>

@@ -1,0 +1,38 @@
+/*
+ * Carte d'une étape de l'import POI — `card`, `cardHeader`, `cardBody`, `stepNum`, `cardTitle`, badges et
+ * boutons de `app/admin/import/_components/styles.ts`, aux jetons de `shared.tsx` (C).
+ * Substitutions (C9) : `#505050` (`C.muted`) → `--text-tertiary` ; `rgba(61,255,160,0.12|0.3)` → `--success`
+ * à 12 % / 30 % ; `#f87171` (`C.red`) → `--danger`, `rgba(248,113,113,0.1|0.3)` → `--danger` à 10 % / 30 %.
+ * Teal en TEXTE lisible en clair (≈ 1,8:1 sinon) : variante `light-dark` de T16, reprise telle quelle. Le vert de
+ * `--success` en texte (bouton « Creer », badges, nom du fichier) suit la MÊME recette : ≈ 2,5:1 en clair sinon.
+ * Bords 1 px et rayon 2 gardés (parité, C16).
+ */
+:host {
+  display: block;
+  --teal-texte: light-dark(color-mix(in srgb, var(--brand-teal) 50%, var(--text-primary)), var(--brand-teal));
+  --vert-texte: light-dark(color-mix(in srgb, var(--success) 50%, var(--text-primary)), var(--success));
+}
+.carte { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 2px; }
+.entete { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border-subtle); }
+.num { font-family: var(--font-mono); font-size: 11px; color: var(--teal-texte); font-weight: 700; }
+.titre { font-family: var(--font-sans); font-size: 12px; font-weight: 500; color: var(--text-primary); }
+.corps { padding: 14px; }
+.mono { font-family: var(--font-mono); }
+.discret { color: var(--text-tertiary); }
+.badge {
+  font-family: var(--font-sans); font-size: 11px; font-weight: 500; border-radius: 2px; padding: 2px 6px;
+  display: inline-block; border: 1px solid;
+}
+.badge.vert {
+  color: var(--vert-texte); background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
+}
+.badge.accent { color: var(--teal-texte); background: var(--brand-teal-10); border-color: var(--brand-teal-30); }
+.a-droite { margin-left: auto; }
+select, input[type='text'] {
+  background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 2px; color: var(--text-primary);
+  font-family: var(--font-mono); font-size: 11px; outline: none; box-sizing: border-box;
+}
+select:focus-visible, input[type='text']:focus-visible { border-color: var(--brand-teal-50); }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.tourne { display: inline-block; vertical-align: middle; animation: spin 1s linear infinite; }

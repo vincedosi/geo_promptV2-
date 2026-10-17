@@ -12,6 +12,8 @@ import { OrganisationsListeApi } from '../commun/data/organisations-liste.api';
 import { RadioAdminApi } from '../radio/data/radio-admin.api';
 import { SourcesAdminApi } from '../sources/data/sources-admin.api';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
+import { CategoriesPoiApi } from '../commun/data/categories-poi.api';
+import { ImportPoiApi } from '../import/data/import-poi.api';
 
 /** La VRAIE route `donnees` de ROUTES_ADMIN, sous un préfixe d'hôte, sans le garde. */
 async function monter(url: string) {
@@ -19,7 +21,7 @@ async function monter(url: string) {
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(), provideHttpClientTesting(), QualiteApi, ImportsApi, IrisCrawlerApi, SourcesAdminApi, RadioAdminApi, OrganisationsListeApi,
-      NotificationsService,
+      CategoriesPoiApi, ImportPoiApi, NotificationsService,
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       provideRouter([{ path: 'hote/app/admin', children: [donnees] }]),
     ],
@@ -66,15 +68,16 @@ describe('DonneesPage — page Données à onglets (lot 6, T6)', () => {
     http.expectOne('/api/admin/imports').flush({ success: true, imports: [] });
   });
 
-  for (const url of ['/hote/app/admin/donnees/importer', '/hote/app/admin/donnees/importer/iris']) {
-    it(`${url} : onglet « Importer » actif, choix du type (« IRIS » actif, puis « Radio »), l’écran IRIS crawler, AUCUNE requête`, async () => {
+  for (const url of ['/hote/app/admin/donnees/importer/iris']) {
+    it(`${url} : onglet « Importer » actif, choix du type (« POI », « IRIS » actif, « Radio »), l’écran IRIS crawler, AUCUNE requête`, async () => {
       const { el, router } = await monter(url);
       expect(router.url).toBe('/hote/app/admin/donnees/importer/iris');
       const onglets = [...el.querySelectorAll<HTMLAnchorElement>('mg-donnees > div > mg-onglets-routes [role="tab"]')];
       expect(onglets.map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false', 'false']);
-      // Le choix du type ne liste que les écrans PORTÉS (A7) : ni POI, ni Shapefile, ni « bientôt » ; Radio depuis T16.
+      // Le choix du type ne liste que les écrans PORTÉS (A7) : ni Shapefile, ni « bientôt » ; Radio depuis T16, POI (en tête) depuis T12.
       const types = [...el.querySelectorAll<HTMLAnchorElement>('mg-importer [role="tab"]')];
       expect(types.map((a) => [a.textContent!.trim(), a.getAttribute('href'), a.getAttribute('aria-selected')])).toEqual([
+        ['POI', '/hote/app/admin/donnees/importer/poi', 'false'],
         ['IRIS', '/hote/app/admin/donnees/importer/iris', 'true'],
         ['Radio', '/hote/app/admin/donnees/importer/radio', 'false'],
       ]);

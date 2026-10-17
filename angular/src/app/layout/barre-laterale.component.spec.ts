@@ -35,7 +35,8 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
       // « Import OOH » : supprimé le 2026-10-16 (chantier campagnes OOH, feat/angular-lot0).
       // T15 : « IRIS Crawler » n'est plus rendue — onglet Importer › IRIS de Données.
       // T16 : « Radio FM/DAB+ » n'est plus rendue — onglet Importer › Radio de Données.
-      'Import Shapefile', 'Import POI',
+      // T12 : « Import POI » n'est plus rendue — onglet Importer › POI de Données.
+      'Import Shapefile',
     ]);
     // T9 : « Connexions API » n'est plus rendue — onglet de Système.
     // « Health check » et « Qualite des donnees » ne sont plus rendues : onglets de Système et Données.
@@ -44,18 +45,19 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     expect(entrees(el, 'Systeme')).toEqual([]);
   });
 
-  it('badges « Admin » sur les deux écrans d\'administration non portés ; aucun sur les trois pages ; plus de « Sys »', async () => {
+  it('badges « Admin » sur le seul écran d\'administration non porté (Import Shapefile) ; aucun sur les trois pages ; plus de « Sys »', async () => {
     const el = await rendre({ dev: false });
     const badges = [...el.querySelectorAll('[data-badge]')].map((b) => texte(b));
-    expect(badges).toEqual(['Admin', 'Admin']);
+    expect(badges).toEqual(['Admin']);
   });
 
   it('chaque entrée porte son icône lucide 16 px, trait 1,5 (comme `size={16} strokeWidth={1.5}`)', async () => {
     const el = await rendre({ dev: false });
     const svgs = [...el.querySelectorAll('nav a mg-icone svg')];
     // 9 : 15 de React − Users − Organisations − Health check − Qualité − Connexions API − Import OOH
-    // (supprimé le 2026-10-16) − Imports (T11′) − IRIS Crawler (T15) − Sources (T18) − Radio (T16) + Accès, Données, Système.
-    expect(svgs.length).toBe(8);
+    // (supprimé le 2026-10-16) − Imports (T11′) − IRIS Crawler (T15) − Sources (T18) − Radio (T16) − Import POI (T12)
+    // + Accès, Données, Système.
+    expect(svgs.length).toBe(7);
     for (const svg of svgs) {
       expect(svg.getAttribute('width')).toBe('16');
       expect(svg.getAttribute('stroke-width')).toBe('1.5');
@@ -107,13 +109,15 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     expect(systeme.entrees.find((e) => e.libelle === 'Sources')?.cible).toBe('admin/donnees/sources');
     // T16 : « Radio FM/DAB+ » mène à l'onglet Importer › Radio de Données (chemin relatif).
     expect(administration.entrees.find((e) => e.libelle === 'Radio FM/DAB+')?.cible).toBe('admin/donnees/importer/radio');
+    // T12 : « Import POI » mène à l'onglet Importer › POI de Données (chemin relatif).
+    expect(administration.entrees.find((e) => e.libelle === 'Import POI')?.cible).toBe('admin/donnees/importer/poi');
   });
 
   it('les écrans pas encore portés sont INERTES : aria-disabled, infobulle, aucun lien', async () => {
     const el = await rendre({ dev: false });
     const portes = ['Explorer', 'Accès', 'Données', 'Système'];
     const liens = [...el.querySelectorAll('nav a')].filter((a) => !portes.includes(texte(a.querySelector('span'))));
-    expect(liens.length).toBe(4);
+    expect(liens.length).toBe(3);
     for (const a of liens) {
       expect(a.getAttribute('aria-disabled')).toBe('true');
       expect(a.getAttribute('title')).toBe('Disponible prochainement');
@@ -139,7 +143,7 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
   it('hors production : liens de développement en icônes dans le pied (RELATIFS), pas de section dans le nav', async () => {
     const el = await rendre({ dev: true });
     expect(titres(el)).not.toContain('Développement');
-    expect(el.querySelectorAll('nav a').length).toBe(8); // E6 : 15 − 2 + 1 ; T9 : − Connexions API ; − « Import OOH » ; T11′ : − Imports ; T15 : − IRIS Crawler ; T18 : − Sources ; T16 : − Radio
+    expect(el.querySelectorAll('nav a').length).toBe(7); // E6 : 15 − 2 + 1 ; T9 : − Connexions API ; − « Import OOH » ; T11′ : − Imports ; T15 : − IRIS Crawler ; T18 : − Sources ; T16 : − Radio ; T12 : − Import POI
     const liens = [...el.querySelectorAll('[data-pied] [data-liens-dev] a')];
     expect(liens.map((a) => a.getAttribute('aria-label'))).toEqual(['Accueil', 'Catalogue', 'Module risque']);
     expect(liens.map((a) => a.getAttribute('title'))).toEqual(['Accueil', 'Catalogue', 'Module risque']);
@@ -159,6 +163,6 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
   it('aucun filtre par rôle : React affiche toutes les entrées à tous (le contrôle vit dans les routes)', async () => {
     // Le composant n'injecte ni session ni rôle : la même liste pour tous, par construction.
     const el = await rendre({ dev: false });
-    expect(el.querySelectorAll('nav a').length).toBe(8); // E6 : 15 − 2 + 1 ; T9 : − Connexions API ; − « Import OOH » ; T11′ : − Imports ; T15 : − IRIS Crawler ; T18 : − Sources ; T16 : − Radio
+    expect(el.querySelectorAll('nav a').length).toBe(7); // E6 : 15 − 2 + 1 ; T9 : − Connexions API ; − « Import OOH » ; T11′ : − Imports ; T15 : − IRIS Crawler ; T18 : − Sources ; T16 : − Radio ; T12 : − Import POI
   });
 });

@@ -16,6 +16,8 @@ import * as Rp from '@/app/admin/api/_lib/constants';
 import * as Rs from '@/app/admin/sources/_lib/theme';
 import * as As from '../../../angular/src/app/features/admin/sources/logique/constantes';
 import * as Ap from '../../../angular/src/app/features/admin/api/logique/fournisseurs';
+import * as Ri from '@/app/admin/import/_components/shared';
+import * as Ai from '../../../angular/src/app/features/admin/import/logique/constantes';
 import type * as RtA from '@/types/admin';
 import type * as AtA from '../../../angular/src/app/features/admin/logique/types/admin';
 import type * as RtD from '@/types/dsp';
@@ -69,6 +71,10 @@ describe("logique de l'administration : Angular = React", () => {
   });
   it('colonnes de schéma proposées comme champs filtres d’une source (T18)', () => {
     expect(As.SCHEMA_FILTER_COLS).toEqual(Rs.SCHEMA_FILTER_COLS);
+  });
+  it('import POI (T12) : modes de géolocalisation et champs du mapping standard', () => {
+    expect(Ai.GEO_MODES).toEqual(Ri.GEO_MODES);
+    expect(Ai.GENESIS_FIELDS_POI).toEqual(Ri.GENESIS_FIELDS_POI);
   });
   it('formats de taille et de durée', () => {
     for (const b of [0, 1, 1023, 1024, 1_048_575, 1_048_576, 5_368_709_120]) expect(Af.fmtBytes(b)).toBe(Rf.fmtBytes(b));

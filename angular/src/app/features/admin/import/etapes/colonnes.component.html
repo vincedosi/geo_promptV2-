@@ -1,0 +1,71 @@
+<div class="carte">
+  <div class="entete">
+    <span class="num" data-num>03b</span>
+    <span class="titre" data-titre>Colonnes a importer</span>
+    <div class="badges a-droite">
+      <span class="badge vert" data-importees>{{ nbImportees() }} importees</span>
+      @if (nbFiltres() > 0) {
+        <span class="badge accent" data-filtres>{{ nbFiltres() }} filtre{{ nbFiltres() > 1 ? 's' : '' }}</span>
+      }
+    </div>
+  </div>
+  <div class="corps">
+    <div class="note mono" data-note>// schema = toujours importe via champs dentsu.explore · cochez Importer pour metadata · Filtre = filtre carte</div>
+
+    <div class="grille entetes" data-entetes>
+      <span>Colonne / exemples</span>
+      <span>Statut</span>
+      <span class="centre">Importer</span>
+      <span class="centre">Filtre</span>
+    </div>
+
+    <div class="lignes">
+      @for (l of lignes(); track l.nom) {
+        <div class="grille ligne" [attr.data-colonne]="l.nom" [class.mappee]="l.mappee" [class.exclue]="!l.mappee && !l.importee">
+          <div class="cellule-nom">
+            <div class="nom mono" data-nom [class.mappee]="l.mappee" [class.importee]="!l.mappee && l.importee">{{ l.nom }}</div>
+            @if (l.exemples) {
+              <div class="exemples mono" data-exemples>{{ l.exemples }}</div>
+            }
+          </div>
+
+          @if (l.mappee) {
+            <span class="statut mono mappee" data-statut>→ schema:{{ l.schema }}</span>
+          } @else {
+            <span class="statut mono" data-statut>{{ l.importee ? (l.filtre ? 'metadata + filtre' : 'metadata') : 'exclu' }}</span>
+          }
+
+          <div class="centre">
+            @if (l.mappee) {
+              <span class="tiret mono">—</span>
+            } @else {
+              <input type="checkbox" class="case-import" [attr.aria-label]="'Importer ' + l.nom" [checked]="l.importee" (change)="etat.basculerImport(l.nom)" />
+            }
+          </div>
+
+          <div class="centre">
+            @if (l.mappee) {
+              <span class="tiret mono">—</span>
+            } @else {
+              <input
+                type="checkbox"
+                class="case-filtre"
+                [attr.aria-label]="'Filtre ' + l.nom"
+                [checked]="l.filtre"
+                [disabled]="!l.importee"
+                (change)="basculerFiltre(l)"
+              />
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+    <div class="actions" data-actions>
+      <button type="button" class="fantome" (click)="toutImporter()">Tout importer</button>
+      <button type="button" class="fantome" (click)="etat.toutExclure()">Tout exclure</button>
+      <button type="button" class="fantome" (click)="etat.effacerFiltres()">Effacer filtres</button>
+      <span class="compte mono" data-compte>{{ libresImportees() }}/{{ nbLibres() }} colonnes libres · {{ nbFiltres() }} filtres</span>
+    </div>
+  </div>
+</div>

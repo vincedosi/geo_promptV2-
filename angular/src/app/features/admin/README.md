@@ -2,7 +2,7 @@
 
 **Rôle** : les écrans d'administration portés de `/admin/*` (lot 6). Cible validée par le propriétaire :
 trois pages à onglets — **Accès**, **Données**, **Système** (en place depuis le 2026-10-12, T6). Aujourd'hui :
-Accès (comptes et espaces de travail) ; Données → Sources, Importer (IRIS), Historique, Qualité ; Système → Santé, Fraîcheur des données, Connexions API.
+Accès (comptes et espaces de travail) ; Données → Sources, Importer (POI, IRIS, Radio), Historique, Qualité ; Système → Santé, Fraîcheur des données, Connexions API.
 
 **Routes** (`admin.routes.ts`, `ROUTES_ADMIN`, enfant de la coquille) :
 
@@ -19,12 +19,13 @@ Accès (comptes et espaces de travail) ; Données → Sources, Importer (IRIS), 
 | `admin/systeme/api/logs` | `api/journal-dsp.page.ts` — journal des appels DSP de l'organisation, filtre « Erreurs uniquement » |
 | `admin/donnees` | `donnees/donnees.page.ts` — cadre ; `''` → `sources` |
 | `admin/donnees/sources` | `sources/sources.page.ts` — neuf onglets, vue « Toutes » (tuiles, données système, liste et détail d'une source : filtres, nom, export CSV, suppression) ; panneaux par type (T19) ; DSP et Zones perso (T20) |
-| `admin/donnees/importer` | `importer/importer.page.ts` — choix du type d'import en sous-onglets (écrans PORTÉS seulement) ; `''` → `iris` |
+| `admin/donnees/importer` | `importer/importer.page.ts` — choix du type d'import en sous-onglets (écrans PORTÉS seulement) ; `''` → `poi` |
+| `admin/donnees/importer/poi` | `import/import-poi.page.ts` (état de page `import/etat/import-poi.service.ts`) + `import/etapes/` — import POI : dépôt, catégorie, correspondance, colonnes (T12) ; géocodage, essai, import en flux (T13) |
 | `admin/donnees/importer/iris` | `iris-crawler/iris-crawler.page.ts` — dépôt d'un CSV IRIS, correspondance des colonnes, import NDJSON avec progression |
 | `admin/donnees/importer/radio[/import]` | `radio/radio.page.ts` (cadre, onglets propres, état de page `radio/etat/radio-import.service.ts`) + `radio/onglet-import.component.ts` — imports ANFR / enrichissement / ODS en flux, journal filtrable, historique, zone dangereuse (T16) |
 | `admin/donnees/historique` | `imports/imports.page.ts` — historique des imports |
 | `admin/donnees/qualite` | `qualite-donnees/qualite-donnees.page.ts` — contenu des données (absente, partielle, périmée, fausse) |
-| `admin/health`, `admin/qualite-donnees`, `admin/imports`, `admin/iris-crawler`, `admin/sources`, `admin/radio`, `admin/api[/<x>]` | anciennes adresses, redirigées (RELATIVEMENT) vers `systeme`, `donnees/qualite`, `donnees/historique`, `donnees/importer/iris`, `donnees/sources`, `donnees/importer/radio`, `systeme/api[/<x>]` |
+| `admin/health`, `admin/qualite-donnees`, `admin/imports`, `admin/iris-crawler`, `admin/sources`, `admin/radio`, `admin/import`, `admin/api[/<x>]` | anciennes adresses, redirigées (RELATIVEMENT) vers `systeme`, `donnees/qualite`, `donnees/historique`, `donnees/importer/iris`, `donnees/sources`, `donnees/importer/radio`, `donnees/importer/poi`, `systeme/api[/<x>]` |
 | `admin/acces` | `espaces/espaces.page.ts` — colonne des espaces, puis `socle`, `comptes` ou `:id` (fiche d'un espace) |
 | `admin/espaces[/:id]` | anciennes adresses, redirigées vers `admin/acces` |
 
@@ -61,6 +62,11 @@ la route reçoit nos intercepteurs. État : `etat/role-admin.service.ts` ; pour 
   dans le parent.
 - `commun/data/organisations-liste.api.ts` — `GET /api/admin/organizations` (amendement A2, créé en T20, réutilisé
   par l'import POI en T12) ; pas de cache dans le service : chaque écran garde sa lecture.
+- `commun/data/categories-poi.api.ts` — `GET` / `POST /api/admin/poi-categories` (T12) ; même règle de cache.
+- `import/` — import POI (T12-T13) : `import-poi.page` (fournit l'état), `etat/import-poi.service.ts` (l'état de page de
+  React, `etapeAccessible`, `configGeo`), `etapes/` (une étape par composant, `etape.css` commun : carte, badges,
+  champs), `data/import-poi.api.ts` (dépôt multipart), `logique/constantes.ts` (copies de `shared.tsx`),
+  `testing/import-poi.fixture.ts` (analyse de `tests/fixtures/admin/poi-essai.csv`).
 - `radio/data/radio-admin.api.ts` — `/api/radio/*` : `stats()` (Sources, T18), puis `historique()`, `journal()`, `importerAnfr()`, `enrichir()`, `importerOds()` (flux NDJSON) et `supprimer()` (DELETE avec corps) pour l'écran Radio (T16).
 - `espaces/` — page Accès : fiches (`fiche-espace`, `fiche-socle`, `fiche-utilisateur`), onglets (Membres,
   Données, Aperçu, Réglages), dialogues `<dialog>` natifs, `logique/` (règles pures), `data/espaces.api.ts`.

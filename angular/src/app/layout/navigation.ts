@@ -48,7 +48,7 @@ export const SECTIONS_NAVIGATION: readonly SectionNavigation[] = [
     section: 'Administration',
     entrees: [
       { href: '/admin/carreaux-import', libelle: 'Import Shapefile', icone: 'televerser', badge: 'Admin', cible: null },
-      { href: '/admin/import', libelle: 'Import POI', icone: 'fichier-haut', badge: 'Admin', cible: null },
+      { href: '/admin/import', libelle: 'Import POI', icone: 'fichier-haut', badge: 'Admin', cible: 'admin/donnees/importer/poi' },
       { href: '/dashboard/iris-crawler', libelle: 'IRIS Crawler', icone: 'calques', badge: 'Admin', cible: 'admin/donnees/importer/iris' },
       { href: '/admin/radio', libelle: 'Radio FM/DAB+', icone: 'radio', badge: 'Admin', cible: 'admin/donnees/importer/radio' },
       { href: '/admin/api', libelle: 'Connexions API', icone: 'prise', badge: 'Admin', cible: 'admin/systeme/api' },

@@ -42,6 +42,7 @@ describe('RadioPage — écran Radio, type « Radio » de Données › Importer 
       // Le choix du type liste IRIS puis Radio (A7 : seuls les écrans portés), Radio actif.
       const types = [...el.querySelectorAll<HTMLAnchorElement>('mg-importer > mg-onglets-routes [role="tab"]')];
       expect(types.map((a) => [texte(a), a.getAttribute('href'), a.getAttribute('aria-selected')])).toEqual([
+        ['POI', '/hote/app/admin/donnees/importer/poi', 'false'],
         ['IRIS', '/hote/app/admin/donnees/importer/iris', 'false'],
         ['Radio', '/hote/app/admin/donnees/importer/radio', 'true'],
       ]);

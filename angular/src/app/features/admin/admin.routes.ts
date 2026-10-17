@@ -2,11 +2,13 @@ import type { Provider } from '@angular/core';
 import type { Routes } from '@angular/router';
 import { DspApi } from './api/data/dsp.api';
 import { CadreAdminComponent } from './cadre-admin.component';
+import { CategoriesPoiApi } from './commun/data/categories-poi.api';
 import { OrganisationsListeApi } from './commun/data/organisations-liste.api';
 import { EspacesApi } from './espaces/data/espaces.api';
 import { RoleAdminService, roleResoluGuard } from './etat/role-admin.service';
 import { FraicheurApi } from './health/data/fraicheur.api';
 import { HealthApi } from './health/data/health.api';
+import { ImportPoiApi } from './import/data/import-poi.api';
 import { ImportsApi } from './imports/data/imports.api';
 import { IrisCrawlerApi } from './iris-crawler/data/iris-crawler.api';
 import { QualiteApi } from './qualite-donnees/data/qualite.api';
@@ -22,7 +24,7 @@ import { SourcesAdminApi } from './sources/data/sources-admin.api';
  */
 export const FOURNISSEURS_ADMIN: Provider[] = [
   RoleAdminService, HealthApi, FraicheurApi, QualiteApi, EspacesApi, DspApi, ImportsApi, IrisCrawlerApi, SourcesAdminApi,
-  RadioAdminApi, OrganisationsListeApi,
+  RadioAdminApi, OrganisationsListeApi, CategoriesPoiApi, ImportPoiApi,
 ];
 
 /**
@@ -80,13 +82,16 @@ export const ROUTES_ADMIN: Routes = [
           { path: '', pathMatch: 'full', redirectTo: 'sources' },
           // Sources (T18, amendement A5) : `/admin/sources` de React ; panneaux par type en T19-T20.
           { path: 'sources', loadComponent: () => import('./sources/sources.page').then((m) => m.SourcesPage) },
-          // Importer (T15, amendement A7) : un sous-onglet par écran d'import PORTÉ (IRIS, Radio),
+          // Importer (T15, amendement A7) : un sous-onglet par écran d'import PORTÉ (POI, IRIS, Radio),
           // `donnees/importer/{poi,shapefile,iris,radio}` ; la racine mène au premier porté.
           {
             path: 'importer',
             loadComponent: () => import('./importer/importer.page').then((m) => m.ImporterPage),
             children: [
-              { path: '', pathMatch: 'full', redirectTo: 'iris' },
+              { path: '', pathMatch: 'full', redirectTo: 'poi' },
+              // `/admin/import` de React (T12), en tête : l'import le plus courant. La page fournit son état
+              // (`ImportPoiService`), détruit avec elle.
+              { path: 'poi', loadComponent: () => import('./import/import-poi.page').then((m) => m.ImportPoiPage) },
               // `/dashboard/iris-crawler` de React (segment `admin/iris-crawler` par C1).
               { path: 'iris', loadComponent: () => import('./iris-crawler/iris-crawler.page').then((m) => m.IrisCrawlerPage) },
               // `/admin/radio` de React (T16) : l'écran garde SES onglets (Import, puis Radios et Statistiques en
@@ -117,6 +122,7 @@ export const ROUTES_ADMIN: Routes = [
       { path: 'iris-crawler', pathMatch: 'full', redirectTo: 'donnees/importer/iris' },
       { path: 'sources', pathMatch: 'full', redirectTo: 'donnees/sources' },
       { path: 'radio', pathMatch: 'full', redirectTo: 'donnees/importer/radio' },
+      { path: 'import', pathMatch: 'full', redirectTo: 'donnees/importer/poi' },
       { path: 'api', pathMatch: 'full', redirectTo: 'systeme/api' },
       { path: 'api/:sous', pathMatch: 'full', redirectTo: 'systeme/api/:sous' },
       // Accès (« Espaces de travail » du 2026-10-09 au 2026-10-10) : une colonne persistante (la
