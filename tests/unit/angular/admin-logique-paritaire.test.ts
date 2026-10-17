@@ -13,6 +13,8 @@ import * as Av from '../../../angular/src/app/features/admin/logique/version';
 import * as Rf from '@/app/admin/carreaux-import/_components/shared';
 import * as Af from '../../../angular/src/app/features/admin/logique/formats';
 import * as Rp from '@/app/admin/api/_lib/constants';
+import * as Rs from '@/app/admin/sources/_lib/theme';
+import * as As from '../../../angular/src/app/features/admin/sources/logique/constantes';
 import * as Ap from '../../../angular/src/app/features/admin/api/logique/fournisseurs';
 import type * as RtA from '@/types/admin';
 import type * as AtA from '../../../angular/src/app/features/admin/logique/types/admin';
@@ -64,6 +66,9 @@ describe("logique de l'administration : Angular = React", () => {
   it('version affichée par le Health check', () => {
     expect(Av.APP_VERSION).toBe(Rv.APP_VERSION);
     expect(Av.BUILD_DATE).toBe(Rv.BUILD_DATE);
+  });
+  it('colonnes de schéma proposées comme champs filtres d’une source (T18)', () => {
+    expect(As.SCHEMA_FILTER_COLS).toEqual(Rs.SCHEMA_FILTER_COLS);
   });
   it('formats de taille et de durée', () => {
     for (const b of [0, 1, 1023, 1024, 1_048_575, 1_048_576, 5_368_709_120]) expect(Af.fmtBytes(b)).toBe(Rf.fmtBytes(b));

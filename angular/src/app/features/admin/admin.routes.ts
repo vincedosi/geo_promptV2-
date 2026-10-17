@@ -9,6 +9,8 @@ import { HealthApi } from './health/data/health.api';
 import { ImportsApi } from './imports/data/imports.api';
 import { IrisCrawlerApi } from './iris-crawler/data/iris-crawler.api';
 import { QualiteApi } from './qualite-donnees/data/qualite.api';
+import { RadioAdminApi } from './radio/data/radio-admin.api';
+import { SourcesAdminApi } from './sources/data/sources-admin.api';
 
 /**
  * Services de l'administration, fournis par la route `admin` et NON par `FOURNISSEURS_DISTANTS`
@@ -18,7 +20,8 @@ import { QualiteApi } from './qualite-donnees/data/qualite.api';
  * (`@Injectable()` sans `providedIn`, héritiers de `HttpBaseService`).
  */
 export const FOURNISSEURS_ADMIN: Provider[] = [
-  RoleAdminService, HealthApi, FraicheurApi, QualiteApi, EspacesApi, DspApi, ImportsApi, IrisCrawlerApi,
+  RoleAdminService, HealthApi, FraicheurApi, QualiteApi, EspacesApi, DspApi, ImportsApi, IrisCrawlerApi, SourcesAdminApi,
+  RadioAdminApi,
 ];
 
 /**
@@ -72,7 +75,10 @@ export const ROUTES_ADMIN: Routes = [
         path: 'donnees',
         loadComponent: () => import('./donnees/donnees.page').then((m) => m.DonneesPage),
         children: [
-          { path: '', pathMatch: 'full', redirectTo: 'qualite' },
+          // La racine mène à « Sources », premier onglet (T18, ruling du 2026-10-17).
+          { path: '', pathMatch: 'full', redirectTo: 'sources' },
+          // Sources (T18, amendement A5) : `/admin/sources` de React ; panneaux par type en T19-T20.
+          { path: 'sources', loadComponent: () => import('./sources/sources.page').then((m) => m.SourcesPage) },
           // Importer (T15, amendement A7) : un sous-onglet par écran d'import PORTÉ (aujourd'hui IRIS seul),
           // `donnees/importer/{poi,shapefile,iris,radio}` ; la racine mène au premier porté.
           {
@@ -98,6 +104,7 @@ export const ROUTES_ADMIN: Routes = [
       { path: 'qualite-donnees', pathMatch: 'full', redirectTo: 'donnees/qualite' },
       { path: 'imports', pathMatch: 'full', redirectTo: 'donnees/historique' },
       { path: 'iris-crawler', pathMatch: 'full', redirectTo: 'donnees/importer/iris' },
+      { path: 'sources', pathMatch: 'full', redirectTo: 'donnees/sources' },
       { path: 'api', pathMatch: 'full', redirectTo: 'systeme/api' },
       { path: 'api/:sous', pathMatch: 'full', redirectTo: 'systeme/api/:sous' },
       // Accès (« Espaces de travail » du 2026-10-09 au 2026-10-10) : une colonne persistante (la

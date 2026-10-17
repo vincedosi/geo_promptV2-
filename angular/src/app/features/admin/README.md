@@ -2,7 +2,7 @@
 
 **Rôle** : les écrans d'administration portés de `/admin/*` (lot 6). Cible validée par le propriétaire :
 trois pages à onglets — **Accès**, **Données**, **Système** (en place depuis le 2026-10-12, T6). Aujourd'hui :
-Accès (comptes et espaces de travail) ; Données → Importer (IRIS), Historique, Qualité ; Système → Santé, Fraîcheur des données, Connexions API.
+Accès (comptes et espaces de travail) ; Données → Sources, Importer (IRIS), Historique, Qualité ; Système → Santé, Fraîcheur des données, Connexions API.
 
 **Routes** (`admin.routes.ts`, `ROUTES_ADMIN`, enfant de la coquille) :
 
@@ -17,12 +17,13 @@ Accès (comptes et espaces de travail) ; Données → Importer (IRIS), Historiqu
 | `admin/systeme/api/{meta,ttd}` | `api/fournisseur-a-venir.component.ts` — « bientôt disponible » (`data.fournisseur`) |
 | `admin/systeme/api/tiktok` | `api/tiktok.page.ts` — connexion TikTok (diagnostic, App ID + secret, OAuth, test, purge, journal) |
 | `admin/systeme/api/logs` | `api/journal-dsp.page.ts` — journal des appels DSP de l'organisation, filtre « Erreurs uniquement » |
-| `admin/donnees` | `donnees/donnees.page.ts` — cadre ; `''` → `qualite` |
+| `admin/donnees` | `donnees/donnees.page.ts` — cadre ; `''` → `sources` |
+| `admin/donnees/sources` | `sources/sources.page.ts` — neuf onglets, vue « Toutes » (tuiles, données système, liste et détail d'une source : filtres, nom, export CSV, suppression) ; panneaux par type provisoires (T19-T20) |
 | `admin/donnees/importer` | `importer/importer.page.ts` — choix du type d'import en sous-onglets (écrans PORTÉS seulement) ; `''` → `iris` |
 | `admin/donnees/importer/iris` | `iris-crawler/iris-crawler.page.ts` — dépôt d'un CSV IRIS, correspondance des colonnes, import NDJSON avec progression |
 | `admin/donnees/historique` | `imports/imports.page.ts` — historique des imports |
 | `admin/donnees/qualite` | `qualite-donnees/qualite-donnees.page.ts` — contenu des données (absente, partielle, périmée, fausse) |
-| `admin/health`, `admin/qualite-donnees`, `admin/imports`, `admin/iris-crawler`, `admin/api[/<x>]` | anciennes adresses, redirigées (RELATIVEMENT) vers `systeme`, `donnees/qualite`, `donnees/historique`, `donnees/importer/iris`, `systeme/api[/<x>]` |
+| `admin/health`, `admin/qualite-donnees`, `admin/imports`, `admin/iris-crawler`, `admin/sources`, `admin/api[/<x>]` | anciennes adresses, redirigées (RELATIVEMENT) vers `systeme`, `donnees/qualite`, `donnees/historique`, `donnees/importer/iris`, `donnees/sources`, `systeme/api[/<x>]` |
 | `admin/acces` | `espaces/espaces.page.ts` — colonne des espaces, puis `socle`, `comptes` ou `:id` (fiche d'un espace) |
 | `admin/espaces[/:id]` | anciennes adresses, redirigées vers `admin/acces` |
 
@@ -46,6 +47,9 @@ la route reçoit nos intercepteurs. État : `etat/role-admin.service.ts` ; pour 
   lectures annulables).
 - `logique/` — rôles (`roles.ts`, copie de `lib/auth/roles.ts`, seule source des libellés de rôle) et types
   copiés du serveur, verrouillés par `admin-logique-paritaire.test.ts`.
+- `sources/` — écran Sources : `sources.page` (onglets, état, suppression confirmée), `tuiles-sources`, `liste-sources`,
+  `detail-source` (recréé à chaque source choisie), `logique/constantes.ts` (copies de React), `data/sources-admin.api.ts`.
+- `radio/data/radio-admin.api.ts` — `/api/radio/*` ; aujourd'hui `stats()` seule (Sources, T18), complété par l'écran Radio (T16).
 - `espaces/` — page Accès : fiches (`fiche-espace`, `fiche-socle`, `fiche-utilisateur`), onglets (Membres,
   Données, Aperçu, Réglages), dialogues `<dialog>` natifs, `logique/` (règles pures), `data/espaces.api.ts`.
   `fiche-commune.css` porte les boutons et la « Zone dangereuse » communs à la fiche utilisateur et à

@@ -57,7 +57,7 @@ export const SECTIONS_NAVIGATION: readonly SectionNavigation[] = [
   {
     section: 'Systeme',
     entrees: [
-      { href: '/admin/sources', libelle: 'Sources', icone: 'base-de-donnees', cible: null },
+      { href: '/admin/sources', libelle: 'Sources', icone: 'base-de-donnees', cible: 'admin/donnees/sources' },
       // Accès (« Espaces de travail » du 2026-10-09 au 2026-10-10) : remplace « Users » et
       // « Organisations » — écart VOULU à la parité avec la barre React (spec espaces de travail
       // § 6). `href` garde le chemin React d'où vient la fonction, pour la traçabilité : la page

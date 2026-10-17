@@ -6,12 +6,13 @@ import { OngletsRoutesComponent, type OngletRoute } from '../commun/onglets-rout
 /**
  * Onglets de la page Données, dans l'ordre cible (Sources, Importer, Historique, Qualité — A9) :
  * le flux de la donnée, d'où elle vient, comment elle entre, ce qui est entré, ce qu'elle vaut.
- * « Sources » (T18-T20) s'ajoutera EN TÊTE quand son écran sera porté — jamais d'onglet « bientôt »
- * (amendement du 2026-10-12). « Importer » = les écrans d'import portés (T15 : IRIS, A7) ;
- * « Historique » = `/admin/imports` (T11′). La racine de la page mène toujours à « Qualité » (le
- * premier écran porté) : une entrée « Données » qui ouvrirait un dépôt de fichier inviterait à écrire.
+ * Jamais d'onglet « bientôt » (amendement du 2026-10-12). « Sources » = `/admin/sources` (T18 ; ses
+ * panneaux par type en T19-T20) ; « Importer » = les écrans d'import portés (T15 : IRIS, A7) ;
+ * « Historique » = `/admin/imports` (T11′). La racine de la page mène au PREMIER onglet, « Sources »
+ * (T18) : une vue d'ensemble en lecture — pas un dépôt de fichier, qui inviterait à écrire.
  */
 export const ONGLETS_DONNEES: readonly OngletRoute[] = [
+  { chemin: 'sources', libelle: 'Sources' },
   { chemin: 'importer', libelle: 'Importer' },
   { chemin: 'historique', libelle: 'Historique' },
   { chemin: 'qualite', libelle: 'Qualité' },

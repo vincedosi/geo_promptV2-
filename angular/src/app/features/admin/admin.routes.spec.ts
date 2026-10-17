@@ -10,18 +10,20 @@ class Factice {}
 const enfants = (): Route[] => ROUTES_ADMIN[0].children ?? [];
 
 describe('ROUTES_ADMIN — pages Système et Données (lot 6, T6)', () => {
-  it('`systeme` porte `sante` et `fraicheur`, `donnees` porte `qualite` ; chaque page redirige sa racine vers son premier onglet', () => {
+  it('`systeme` porte `sante` et `fraicheur`, `donnees` porte `sources` en tête ; chaque page redirige sa racine vers son premier onglet', () => {
     const systeme = enfants().find((r) => r.path === 'systeme');
     const donnees = enfants().find((r) => r.path === 'donnees');
     expect(systeme?.children?.map((r) => r.path)).toEqual(['', 'sante', 'fraicheur', 'api']);
     expect(systeme?.children?.[0].redirectTo).toBe('sante');
-    expect(donnees?.children?.map((r) => r.path)).toEqual(['', 'importer', 'historique', 'qualite']);
-    expect(donnees?.children?.[0].redirectTo).toBe('qualite');
+    expect(donnees?.children?.map((r) => r.path)).toEqual(['', 'sources', 'importer', 'historique', 'qualite']);
+    // T18 : la racine mène au PREMIER onglet, « Sources » — la règle redevient vraie pour Données.
+    expect(donnees?.children?.[0].redirectTo).toBe(donnees?.children?.[1].path);
+    expect(systeme?.children?.[0].redirectTo).toBe(systeme?.children?.[1].path);
   });
 
-  it('`admin`, `admin/health`, `admin/qualite-donnees`, `admin/imports` et `admin/iris-crawler` redirigent, RELATIVEMENT, sous le préfixe de l’hôte', async () => {
-    const parRedirection = enfants().filter((r) => ['', 'health', 'qualite-donnees', 'imports', 'iris-crawler'].includes(r.path ?? '-') && r.redirectTo);
-    expect(parRedirection.length).toBe(5);
+  it('`admin`, `admin/health`, `admin/qualite-donnees`, `admin/imports`, `admin/iris-crawler` et `admin/sources` redirigent, RELATIVEMENT, sous le préfixe de l’hôte', async () => {
+    const parRedirection = enfants().filter((r) => ['', 'health', 'qualite-donnees', 'imports', 'iris-crawler', 'sources'].includes(r.path ?? '-') && r.redirectTo);
+    expect(parRedirection.length).toBe(6);
     // Aucune redirection absolue : le préfixe de montage appartient au shell.
     expect(enfants().every((r) => typeof r.redirectTo !== 'string' || !r.redirectTo.startsWith('/'))).toBe(true);
     TestBed.configureTestingModule({
@@ -34,6 +36,7 @@ describe('ROUTES_ADMIN — pages Système et Données (lot 6, T6)', () => {
             {
               path: 'donnees',
               children: [
+                { path: '', pathMatch: 'full', redirectTo: 'sources' }, { path: 'sources', component: Factice },
                 { path: 'qualite', component: Factice }, { path: 'historique', component: Factice },
                 { path: 'importer', children: [{ path: 'iris', component: Factice }] },
               ],
@@ -51,6 +54,9 @@ describe('ROUTES_ADMIN — pages Système et Données (lot 6, T6)', () => {
       ['/hote/app/admin/imports', '/hote/app/admin/donnees/historique'],
       // T15 (A7) : l'IRIS crawler de React (`/dashboard/iris-crawler`, segment `admin/iris-crawler` par C1).
       ['/hote/app/admin/iris-crawler', '/hote/app/admin/donnees/importer/iris'],
+      // T18 : `/admin/sources` de React, premier onglet de Données ; la racine de Données y mène aussi.
+      ['/hote/app/admin/sources', '/hote/app/admin/donnees/sources'],
+      ['/hote/app/admin/donnees', '/hote/app/admin/donnees/sources'],
     ]) {
       await harness.navigateByUrl(avant);
       expect(router.url, avant).toBe(apres);

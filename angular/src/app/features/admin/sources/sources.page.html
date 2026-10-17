@@ -1,0 +1,49 @@
+<div class="entete" data-entete>
+  <div class="badges">
+    <span class="badge admin" data-badge>Admin</span>
+    <span class="badge compte" data-badge>{{ sources().length }} sources</span>
+  </div>
+  <p class="sous-titre" data-sous-titre>Gestion des sources de donnees importees — suppression, partage, export</p>
+</div>
+
+<div class="onglets" role="tablist" aria-label="Sources" data-onglets>
+  @for (o of onglets(); track o.cle) {
+    <button type="button" role="tab" class="onglet" [attr.data-onglet]="o.cle" [attr.data-teinte]="o.teinte"
+      [attr.aria-selected]="o.cle === onglet()" (click)="choisirOnglet(o.cle)">{{ o.libelle }}</button>
+  }
+</div>
+
+@switch (onglet()) {
+  @case ('all') {
+    @if (stats(); as s) {
+      <mg-tuiles-sources [stats]="s" [radio]="radio()" [statsZones]="statsZones()" [zonesChargement]="zonesChargement()"
+        (choisir)="choisirOnglet($event)" />
+    }
+    <div class="vue">
+      <mg-liste-sources class="gauche" [sources]="sources()" [chargement]="chargement()" [stats]="stats()" [radio]="radio()"
+        [selection]="selection()" (choisir)="choisirSource($event)" (choisirOnglet)="choisirOnglet($event)" />
+      @for (s of selectionListe(); track s.id) {
+        <mg-detail-source [source]="s" [suppressionEnCours]="suppressionEnCours()" (fermer)="fermerDetail()"
+          (supprimer)="aSupprimer.set($event)" (renommee)="lireSources()" (filtresModifies)="filtresModifies(s.id, $event)" />
+      }
+    </div>
+  }
+  @case ('radio') {
+    <mg-liste-sources mode="radio" [radio]="radio()" />
+  }
+  @default {
+    <!-- Panneaux par type : T19 (POI, carreaux, OOH, IRIS, transport) et T20 (DSP, zones perso). -->
+    <div class="provisoire" data-provisoire>Disponible prochainement</div>
+  }
+}
+
+<mg-confirmation
+  [ouvert]="aSupprimer() !== null"
+  titre="Supprimer cette source"
+  message="Cette action supprimera la source et TOUTES ses données associées. Cette action est irréversible."
+  libelleConfirmer="Supprimer"
+  variante="danger"
+  [enCours]="suppressionEnCours()"
+  (confirmer)="supprimer()"
+  (annuler)="aSupprimer.set(null)"
+/>
