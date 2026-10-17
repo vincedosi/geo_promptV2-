@@ -27,4 +27,12 @@ describe('fixture du flux d’import IRIS (lot 6, T15)', () => {
     }
     expect(evenements.at(-1)?.type).toBe('done');
   });
+
+  it('réponse de suppression de TOUS les IRIS (T19), servie par interception aux deux écrans : la forme de la route, au compte de référence', () => {
+    // `DELETE /api/admin/iris/delete` n'est JAMAIS joué en preuve (régime C12 c) : il efface la table `iris`.
+    const route = readFileSync(path.join(RACINE, 'app/api/admin/iris/delete/route.ts'), 'utf8');
+    expect(route).toContain('NextResponse.json({ success: true, deleted: count })');
+    const corps = JSON.parse(readFileSync(path.join(RACINE, 'tests/fixtures/admin/iris-delete.json'), 'utf8')) as Record<string, unknown>;
+    expect(corps).toEqual({ success: true, deleted: 49448 });
+  });
 });

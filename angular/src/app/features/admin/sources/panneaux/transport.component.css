@@ -1,0 +1,33 @@
+/* Panneau Transport (lot 6, T19) — teintes et pastilles de couverture de `TransportPanel.tsx`. */
+.bandeau[data-teinte='vert'] { --teinte: var(--success); }
+/* `#f97316` (orange, sans jeton) : `--warning` et `--danger` à parts égales. */
+.bandeau[data-teinte='orange'] { --teinte: color-mix(in srgb, var(--warning) 50%, var(--danger)); }
+
+.couverture { margin-top: 8px; display: flex; align-items: center; gap: 8px; }
+.pastille, .non-calcule { font-size: 9px; font-weight: 500; padding: 2px 8px; border-radius: 2px; }
+[data-niveau='bon'] { --niveau: var(--success); }
+[data-niveau='moyen'] { --niveau: var(--warning); }
+[data-niveau='faible'] { --niveau: var(--danger); }
+.pastille {
+  color: var(--niveau); background: color-mix(in srgb, var(--niveau) 10%, transparent);
+  border: 0.5px solid color-mix(in srgb, var(--niveau) 27%, transparent);
+}
+.ratio { font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); }
+.non-calcule { margin-top: 8px; color: var(--text-tertiary); border: 0.5px solid var(--border-subtle); display: inline-block; }
+.actualiser { margin-top: 10px; font-size: 9px; }
+.fantome.ouvert { margin-bottom: 10px; }
+
+.tableau { background: var(--bg-surface); border: 0.5px solid var(--border-subtle); border-radius: 2px; overflow: hidden; }
+table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 11px; }
+thead tr { background: var(--bg-level-2); }
+th {
+  padding: 8px 12px; text-align: left; font-family: var(--font-sans); font-size: 9px; font-weight: 400; color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+tbody tr { border-bottom: 1px solid var(--bg-level-2); transition: background 0.2s ease; animation: srcFadeIn 0.3s ease-out both; }
+tbody tr:hover { background: var(--bg-level-2); }
+td { padding: 6px 12px; color: var(--text-secondary); }
+td[data-niveau] { color: var(--niveau); }
+td.ville { color: var(--text-primary); font-weight: 600; }
+td.score { color: var(--teal-texte); font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { tbody tr { animation: none; } }

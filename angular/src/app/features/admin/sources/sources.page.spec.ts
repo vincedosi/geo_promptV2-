@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpHeaders, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { ConfigService } from '../../../core/config/config.service';
@@ -11,6 +12,7 @@ import { OrganisationsListeApi } from '../commun/data/organisations-liste.api';
 import { RadioAdminApi } from '../radio/data/radio-admin.api';
 import { SourcesAdminApi, type StatsSources, type StatsZones } from './data/sources-admin.api';
 import { SourcesPage } from './sources.page';
+import { PoiComponent } from './panneaux/poi.component';
 
 const IMPORT = '2026-10-16T12:05:00.000Z';
 /** Date attendue, calculée comme `formatDate` de React (fuseau de la machine de test). */
@@ -104,16 +106,32 @@ async function monter() {
 describe('SourcesPage — onglets, vue « Toutes », liste et détail d’une source (lot 6, T18)', () => {
   afterEach(() => TestBed.inject(HttpTestingController).verify());
 
-  it('montage : QUATRE lectures (sources, stats, radio, zones), aucune de transport-stats ni de campagnes, ni à l’ouverture de l’onglet Transport', async () => {
-    const { http, servir, onglet, stable } = await monter();
+  it('montage : QUATRE lectures (sources, stats, radio, zones), aucune de transport-stats, d’IRIS, de POI ni de campagnes', async () => {
+    const { http, servir } = await monter();
     // `servir()` exige UNE requête de chaque adresse ; `afterEach` vérifie qu'il n'en reste aucune autre.
     await servir();
     http.expectNone('/api/admin/transport-stats');
+    http.expectNone((r) => r.url.startsWith('/api/admin/iris') || r.url.startsWith('/api/admin/poi') || r.url.startsWith('/api/admin/campaigns'));
+  });
+
+  it('onglet Transport (T19) : UNE lecture à la première visite, AUCUNE au retour (état gardé pour l’écran, comme le parent React)', async () => {
+    const { el, http, servir, stable, onglet } = await monter();
+    await servir();
     onglet('transport').click();
     await stable();
-    // Le panneau Transport arrive en T19 : d'ici là, l'onglet ne lit rien.
+    http.expectOne('/api/admin/transport-stats').flush({
+      success: true, arrets: { total: 1, by_source: { gtfs_consolidated_france: 1 } }, flux: { total: 0, by_source: {} },
+      panneaux: { total: 0, avec_transport: 0, avec_flux: 0 }, villes: [],
+    });
+    await stable();
+    expect(el.querySelector('mg-sources-transport [data-bloc="arrets"]')).not.toBeNull();
+    onglet('all').click();
+    await stable();
+    expect(el.querySelector('mg-sources-transport')!.classList.contains('masque')).toBe(true);
+    onglet('transport').click();
+    await stable();
     http.expectNone('/api/admin/transport-stats');
-    http.expectNone((r) => r.url.startsWith('/api/admin/campaigns'));
+    expect(el.querySelector('mg-sources-transport')!.classList.contains('masque')).toBe(false);
   });
 
   it('en-tête : badges « Admin » et « N sources », sous-titre de React ; pas de titre de page (celui du cadre)', async () => {
@@ -135,7 +153,7 @@ describe('SourcesPage — onglets, vue « Toutes », liste et détail d’une so
   });
 
   it('tuiles « Toutes » : valeurs et sous-titres de React (OOH = total seul, A6), formatage fr-FR ; tuile cliquée → son onglet', async () => {
-    const { el, servir, stable, onglet } = await monter();
+    const { el, http, servir, stable, onglet } = await monter();
     await servir();
     const tuiles = [...el.querySelectorAll('mg-tuiles-sources [data-tuile]')];
     expect(tuiles.map((t) => [t.getAttribute('data-tuile'), texte(t.querySelector('[data-libelle]')), espaces(texte(t.querySelector('[data-valeur]'))), espaces(texte(t.querySelector('[data-sous]')))])).toEqual([
@@ -151,7 +169,9 @@ describe('SourcesPage — onglets, vue « Toutes », liste et détail d’une so
     await stable();
     expect(onglet('iris').getAttribute('aria-selected')).toBe('true');
     expect(el.querySelector('mg-tuiles-sources')).toBeNull();
-    expect(el.querySelector('[data-provisoire]')).not.toBeNull();
+    expect(el.querySelector('mg-sources-iris')).not.toBeNull();
+    http.expectOne('/api/admin/iris/stats').flush({ success: false });
+    http.expectOne('/api/admin/iris/metadata').flush({});
   });
 
   it('liste : données système (IRIS, Transport), bloc Radio, puis les sources importées (badge, lignes, date, espace, fichier)', async () => {
@@ -416,19 +436,55 @@ describe('SourcesPage — onglets, vue « Toutes », liste et détail d’une so
     ]);
   });
 
-  it('onglet Radio : le bloc Radio seul (React ne rendait rien) ; onglets de T19 : panneau provisoire, sans lecture', async () => {
+  it('onglet Radio : le bloc Radio seul (React ne rendait rien) ; OOH et Carreaux (T19) : rendus depuis les statistiques, sans lecture', async () => {
     const { el, http, servir, stable, onglet } = await monter();
     await servir();
     onglet('radio').click();
     await stable();
     expect(el.querySelector('[data-radio]')).not.toBeNull();
     expect(el.querySelector('[data-source]')).toBeNull();
-    for (const cle of ['poi', 'carreaux', 'panneaux', 'iris', 'transport']) {
-      onglet(cle).click();
-      await stable();
-      expect(el.querySelector('[data-provisoire]'), cle).not.toBeNull();
-    }
+    onglet('panneaux').click();
+    await stable();
+    expect(espaces(texte(el.querySelector('mg-sources-ooh [data-total]')))).toBe('1 253');
+    onglet('carreaux').click();
+    await stable();
+    expect(texte(el.querySelector('mg-sources-carreaux [data-total]'))).toBe('2.32M');
+    expect(el.querySelector('[data-provisoire]')).toBeNull();
     http.expectNone(() => true);
+  });
+
+  it('onglet IRIS (T19) : DEUX lectures ensemble à la première visite (stats + métadonnées), aucune au retour', async () => {
+    const { el, http, servir, stable, onglet } = await monter();
+    await servir();
+    onglet('iris').click();
+    await stable();
+    const lectures = [http.expectOne('/api/admin/iris/stats'), http.expectOne('/api/admin/iris/metadata')];
+    lectures[0].flush({ success: false, error: 'x' });
+    lectures[1].flush({});
+    await stable();
+    expect(el.querySelector('mg-sources-iris')).not.toBeNull();
+    onglet('poi').click();
+    await stable();
+    onglet('iris').click();
+    await stable();
+    http.expectNone(() => true);
+  });
+
+  it('onglet POI (T19) : aucune lecture à l’ouverture (statistiques de l’écran) ; une écriture POI relit les statistiques UNE fois, en silence', async () => {
+    const { f, el, http, servir, stable, onglet } = await monter();
+    await servir();
+    onglet('poi').click();
+    await stable();
+    http.expectNone(() => true);
+    const stats = { ...STATS, poi: { total: 101, by_category: [{ categorie: 'cirfa', nb: 101 }] } };
+    // Le panneau signale une écriture réussie : la page relit `sources-stats` sans repasser en chargement.
+    (f.debugElement.query(By.directive(PoiComponent)).componentInstance as PoiComponent).modifie.emit();
+    await stable();
+    expect(onglet('all').textContent!.trim()).toBe('Toutes (2.8M)');
+    http.expectOne('/api/admin/sources-stats').flush(stats);
+    await stable();
+    expect(espaces(texte(el.querySelector('mg-sources-poi [data-total]')))).toBe('101');
+    expect(onglet('poi').textContent!.trim()).toBe('POI (101)');
   });
 
   it('« Gérer → » du bloc Radio mène à l’écran Radio (T16), par un lien RELATIF (`href="/admin/radio"` de React)', async () => {
@@ -440,11 +496,12 @@ describe('SourcesPage — onglets, vue « Toutes », liste et détail d’une so
   });
 
   it('carte de données système cliquée → son onglet', async () => {
-    const { el, servir, stable, onglet } = await monter();
+    const { el, http, servir, stable, onglet } = await monter();
     await servir();
     el.querySelector<HTMLButtonElement>('[data-systeme="transport"]')!.click();
     await stable();
     expect(onglet('transport').getAttribute('aria-selected')).toBe('true');
+    http.expectOne('/api/admin/transport-stats').flush({ success: false });
   });
 
   it('onglet DSP (T20) : les campagnes lues À CHAQUE visite (React : pas de cache, voulu), libellé « DSP (N) » gardé en quittant', async () => {

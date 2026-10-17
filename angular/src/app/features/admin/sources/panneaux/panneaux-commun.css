@@ -1,0 +1,66 @@
+/* Panneaux par type de l'écran Sources (lot 6, T19) — briques répétées par OohPanel, CarreauxPanel,
+   TransportPanel, IrisPanel et PoiPanel de React : bandeau d'en-tête teinté, grand total, cases de
+   chiffres, blocs à en-tête, note « // utilisation ». Jetons seulement (C9) ; la teinte du bloc passe
+   par `--teinte` (posée par le composant ou par `data-teinte`). */
+:host {
+  display: block; font-family: var(--font-sans);
+  /* Teal de marque en TEXTE, lisible en clair (≈ 1,8:1 sinon) : variante `light-dark` de T16, reprise telle quelle. */
+  --teal-texte: light-dark(color-mix(in srgb, var(--brand-teal) 50%, var(--text-primary)), var(--brand-teal));
+}
+@keyframes srcFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes srcCountUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes srcBarGrow { from { width: 0%; } }
+@keyframes tourne { to { transform: rotate(360deg); } }
+
+.colonne { display: flex; flex-direction: column; gap: 16px; animation: srcFadeIn 0.3s ease-out; }
+.message { padding: 40px 0; text-align: center; color: var(--text-secondary); font-size: 13px; }
+.message.mono { display: flex; align-items: center; gap: 8px; text-align: left; font-family: var(--font-mono); font-size: 12px; }
+.tourne { animation: tourne 1s linear infinite; display: inline-flex; vertical-align: middle; }
+
+/* Bandeau d'en-tête : fond teinte 10 %, bord teinte `--bord` (25 % chez React quand la valeur est valide). */
+.bandeau {
+  background: color-mix(in srgb, var(--teinte) 10%, transparent); border: 0.5px solid color-mix(in srgb, var(--teinte) var(--bord, 25%), transparent);
+  border-radius: 2px; padding: 16px 20px; display: flex; align-items: flex-start; gap: 20px;
+}
+.bandeau .corps { flex: 1; }
+.bandeau-titre { font-size: 13px; font-weight: 700; color: var(--teinte); letter-spacing: 1px; margin-bottom: 6px; }
+.lignes { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); line-height: 2; }
+.cle { color: var(--text-tertiary); }
+.fort { color: var(--text-primary); }
+.accent { color: var(--teal-texte); }
+.droite { text-align: right; flex-shrink: 0; }
+.grand-total {
+  font-family: var(--font-mono); font-size: 36px; font-weight: 700; color: var(--teinte); line-height: 1; animation: srcCountUp 0.5s ease-out;
+}
+.unite { font-size: 9px; font-weight: 500; color: var(--text-secondary); margin-top: 4px; }
+
+/* Cases de chiffres (grille de React). */
+.case {
+  background: var(--bg-surface); border: 0.5px solid var(--border-subtle); border-radius: 2px; padding: 12px 14px;
+  transition: all 0.2s ease; animation: srcFadeIn 0.4s ease-out both;
+}
+.case-libelle { font-size: 9px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
+.case-valeur { font-family: var(--font-mono); font-size: 20px; font-weight: 700; color: var(--teinte); animation: srcCountUp 0.5s ease-out; }
+
+/* Bloc à en-tête (« Répartition par type », « Top 15 départements »…). */
+.bloc { background: var(--bg-surface); border: 0.5px solid var(--border-subtle); border-radius: 2px; padding: 14px 16px; }
+.bloc-entete {
+  font-size: 9px; font-weight: 500; color: var(--teinte); background: var(--bg-level-2); margin: -14px -16px 12px -16px; padding: 10px 16px;
+  border-bottom: 1px solid var(--border-subtle); border-left: 2px solid color-mix(in srgb, var(--brand-teal) 25%, transparent);
+}
+.utilisation {
+  background: var(--bg-surface); border: 0.5px solid var(--border-subtle); border-radius: 2px; padding: 14px 16px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); line-height: 1.8;
+}
+.utilisation .commentaire { font-family: var(--font-sans); font-size: 9px; font-weight: 500; color: var(--text-tertiary); display: block; margin-bottom: 6px; }
+
+/* Bouton fantôme de `_lib/styles.ts` (btnGhostStyle). */
+.fantome {
+  background: transparent; border: 0.5px solid var(--border-subtle); border-radius: 2px; color: var(--text-secondary); font-family: var(--font-sans);
+  font-size: 12px; font-weight: 500; padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s ease;
+}
+button:focus-visible, input:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 1px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .colonne, .case, .case-valeur, .grand-total { animation: none; }
+}

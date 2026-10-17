@@ -37,10 +37,23 @@
   @case ('custom_zones') {
     <mg-sources-zones [organisations]="organisations()" />
   }
-  @default {
-    <!-- Panneaux par type : T19 (POI, carreaux, OOH, IRIS, transport). -->
-    <div class="provisoire" data-provisoire>Disponible prochainement</div>
+  @case ('panneaux') {
+    <mg-sources-ooh [stats]="stats()" [chargement]="statsChargement()" />
   }
+  @case ('carreaux') {
+    <mg-sources-carreaux [stats]="stats()" [chargement]="statsChargement()" />
+  }
+}
+
+<!-- Panneaux à état (T19) : créés à la première visite de leur onglet, puis gardés et masqués. -->
+@if (visites().poi) {
+  <mg-sources-poi [class.masque]="onglet() !== 'poi'" [stats]="stats()" [chargement]="statsChargement()" (modifie)="rafraichirStats()" />
+}
+@if (visites().iris) {
+  <mg-sources-iris [class.masque]="onglet() !== 'iris'" />
+}
+@if (visites().transport) {
+  <mg-sources-transport [class.masque]="onglet() !== 'transport'" />
 }
 
 <mg-confirmation

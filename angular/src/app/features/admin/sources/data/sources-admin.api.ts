@@ -4,6 +4,10 @@ import type { Observable } from 'rxjs';
 import { HttpBaseService } from '../../../../core/http/http-base.service';
 import { lignesSse } from '../../../../core/http/sse';
 import type { DataSource } from '../../logique/types/admin';
+import type {
+  FormulairePoi, MetadonneesIris, RapportSynchroIris, ReponseEchantillonsPoi, ReponseGestionPoi, ReponsePmtiles,
+  ReponseStatsIris, ReponseSuppressionIris, StatsTransport,
+} from './panneaux.types';
 
 /** `GET /api/admin/sources` : les sources ACTIVES, triées par date d'import décroissante. */
 export interface ReponseSources {
@@ -133,7 +137,9 @@ export interface FiltresZones {
 
 /**
  * Routes de l'écran Sources — toutes `requireAdmin`. T18 : sources, statistiques, export ; T20 :
- * campagnes DSP (liste, import en flux, suppression) et zones perso (liste filtrée, suppression).
+ * campagnes DSP (liste, import en flux, suppression) et zones perso (liste filtrée, suppression) ; T19 :
+ * panneaux Transport (statistiques), IRIS (statistiques, millésime, synchronisation, PMTiles, suppression)
+ * et POI (échantillons paginés, création, édition, suppressions).
  *
  * Fourni par la route `admin` (`FOURNISSEURS_ADMIN`, C3).
  */
@@ -225,5 +231,63 @@ export class SourcesAdminApi extends HttpBaseService {
     return this.httpClient.delete<{ deleted?: boolean; id?: string; error?: string }>(
       `${this.baseUrl}/admin/custom-geo/${encodeURIComponent(id)}`,
     );
+  }
+
+  // ── T19 — panneaux Transport, IRIS, POI ─────────────────────────────────────────────────────────
+
+  /** Arrêts, flux routiers et scoring des panneaux par ville : TROIS `COUNT` exacts séquencés côté route. */
+  transportStats(): Observable<StatsTransport> {
+    return this.httpClient.get<StatsTransport>(`${this.baseUrl}/admin/transport-stats`);
+  }
+
+  irisStats(): Observable<ReponseStatsIris> {
+    return this.httpClient.get<ReponseStatsIris>(`${this.baseUrl}/admin/iris/stats`);
+  }
+
+  irisMetadonnees(): Observable<MetadonneesIris> {
+    return this.httpClient.get<MetadonneesIris>(`${this.baseUrl}/admin/iris/metadata`);
+  }
+
+  /** ⚠ ÉCRIT un réglage (`iris_metadata`, upsert clé par clé). Corps de React : `{ annee }`. */
+  enregistrerIrisMetadonnees(corps: MetadonneesIris): Observable<{ success?: boolean; error?: string }> {
+    return this.httpClient.post<{ success?: boolean; error?: string }>(`${this.baseUrl}/admin/iris/metadata`, corps);
+  }
+
+  /** Comparaison SEULE (deux RPC de lecture), malgré le `POST` : rien n'est écrit (`sync-iris-system/route.ts`). */
+  synchroniserIris(): Observable<RapportSynchroIris> {
+    return this.httpClient.post<RapportSynchroIris>(`${this.baseUrl}/admin/sync-iris-system`, null);
+  }
+
+  /** ⚠ Déclenche le workflow GitHub `generate-iris-pmtiles.yml` (non idempotent : deux clics, deux runs). */
+  declencherPmtiles(): Observable<ReponsePmtiles> {
+    return this.httpClient.post<ReponsePmtiles>(`${this.baseUrl}/admin/trigger-pmtiles`, null);
+  }
+
+  /** ⛔ EFFACE TOUTES les lignes de `iris` (`.neq('code_iris', '')`). Jamais appelée en preuve : interceptée. */
+  supprimerIris(): Observable<ReponseSuppressionIris> {
+    return this.httpClient.delete<ReponseSuppressionIris>(`${this.baseUrl}/admin/iris/delete`);
+  }
+
+  /** 50 POI d'une catégorie à partir de `offset`, et le total exact (`usePoiAdmin.ts:85`, paramètres dans cet ordre). */
+  poiEchantillons(categorie: string, offset: number): Observable<ReponseEchantillonsPoi> {
+    const params = new HttpParams().set('cat', categorie).set('limit', 50).set('offset', offset);
+    return this.httpClient.get<ReponseEchantillonsPoi>(`${this.baseUrl}/admin/poi-samples`, { params });
+  }
+
+  /** `POST` (création) ou `PUT` (édition, `id` dans le corps) : le formulaire TEL QUEL, comme React. */
+  enregistrerPoi(formulaire: FormulairePoi, edition: boolean): Observable<ReponseGestionPoi> {
+    const url = `${this.baseUrl}/admin/poi-manage`;
+    return edition
+      ? this.httpClient.put<ReponseGestionPoi>(url, formulaire)
+      : this.httpClient.post<ReponseGestionPoi>(url, formulaire);
+  }
+
+  supprimerPoi(id: string): Observable<ReponseGestionPoi> {
+    return this.httpClient.delete<ReponseGestionPoi>(`${this.baseUrl}/admin/poi-manage`, { params: new HttpParams().set('id', id) });
+  }
+
+  /** ⛔ Efface TOUS les POI de la catégorie (la route refuse seulement `arret_transport`). */
+  purgerCategoriePoi(categorie: string): Observable<ReponseGestionPoi> {
+    return this.httpClient.delete<ReponseGestionPoi>(`${this.baseUrl}/admin/poi-manage`, { params: new HttpParams().set('cat', categorie) });
   }
 }

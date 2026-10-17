@@ -18,7 +18,7 @@ Accès (comptes et espaces de travail) ; Données → Sources, Importer (IRIS), 
 | `admin/systeme/api/tiktok` | `api/tiktok.page.ts` — connexion TikTok (diagnostic, App ID + secret, OAuth, test, purge, journal) |
 | `admin/systeme/api/logs` | `api/journal-dsp.page.ts` — journal des appels DSP de l'organisation, filtre « Erreurs uniquement » |
 | `admin/donnees` | `donnees/donnees.page.ts` — cadre ; `''` → `sources` |
-| `admin/donnees/sources` | `sources/sources.page.ts` — neuf onglets, vue « Toutes » (tuiles, données système, liste et détail d'une source : filtres, nom, export CSV, suppression) ; panneaux par type provisoires (T19-T20) |
+| `admin/donnees/sources` | `sources/sources.page.ts` — neuf onglets, vue « Toutes » (tuiles, données système, liste et détail d'une source : filtres, nom, export CSV, suppression) ; panneaux par type (T19) ; DSP et Zones perso (T20) |
 | `admin/donnees/importer` | `importer/importer.page.ts` — choix du type d'import en sous-onglets (écrans PORTÉS seulement) ; `''` → `iris` |
 | `admin/donnees/importer/iris` | `iris-crawler/iris-crawler.page.ts` — dépôt d'un CSV IRIS, correspondance des colonnes, import NDJSON avec progression |
 | `admin/donnees/importer/radio[/import]` | `radio/radio.page.ts` (cadre, onglets propres, état de page `radio/etat/radio-import.service.ts`) + `radio/onglet-import.component.ts` — imports ANFR / enrichissement / ODS en flux, journal filtrable, historique, zone dangereuse (T16) |
@@ -53,6 +53,12 @@ la route reçoit nos intercepteurs. État : `etat/role-admin.service.ts` ; pour 
   Onglets DSP et Zones perso (T20) dans `sources/panneaux/` : `dsp` (liste relue à chaque visite, suppression
   confirmée), `dialogue-import-dsp` (`<dialog>` non fermable pendant le flux SSE, progression par étape),
   `zones-custom` (filtres, tableau) et `dialogue-suppression-zone` ; `testing/dsp-import.fixture.ts` (flux SSE).
+  Panneaux par type (T19), même dossier : `ooh` (réduit à `ooh.total`, A6) et `carreaux` (statistiques de l'écran,
+  sans lecture), `transport` (tableau repliable), `iris` + `iris-synchro` (millésime, PMTiles et suppression sous
+  `mg-confirmation`), `poi` + `dialogue-poi` (`<dialog>`, focus dans « Nom ») ; `panneaux-commun.css` (bandeau,
+  grand total, cases, blocs) ; types des réponses dans `data/panneaux.types.ts`. POI, IRIS et Transport sont
+  créés à la première visite de leur onglet puis GARDÉS, masqués (`.masque`), comme l'état de React vivait
+  dans le parent.
 - `commun/data/organisations-liste.api.ts` — `GET /api/admin/organizations` (amendement A2, créé en T20, réutilisé
   par l'import POI en T12) ; pas de cache dans le service : chaque écran garde sa lecture.
 - `radio/data/radio-admin.api.ts` — `/api/radio/*` : `stats()` (Sources, T18), puis `historique()`, `journal()`, `importerAnfr()`, `enrichir()`, `importerOds()` (flux NDJSON) et `supprimer()` (DELETE avec corps) pour l'écran Radio (T16).

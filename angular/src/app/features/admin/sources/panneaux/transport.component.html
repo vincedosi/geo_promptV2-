@@ -1,0 +1,92 @@
+@if (chargement()) {
+  <div class="message mono" data-chargement><mg-icone nom="chargement" [taille]="18" class="tourne" /> Chargement des statistiques transport...</div>
+} @else if (!stats()) {
+  <div class="message" data-vide>Aucune donnée. <button type="button" class="fantome" (click)="lire()">Charger</button></div>
+} @else {
+  @let c = couvertures()!;
+  @let t = totaux()!;
+  <div class="colonne">
+    <!-- Arrêts transport -->
+    <div class="bandeau" data-bloc="arrets" data-teinte="vert">
+      <div class="corps">
+        <div class="bandeau-titre" data-titre>Arrêts de transport en commun</div>
+        <div class="lignes">
+          <span data-ligne><span class="cle">Source: </span>GTFS consolidé France — transport.data.gouv.fr</span><br />
+          @for (a of arrets(); track a.src) {
+            <span data-ligne><span class="cle">Dataset: </span><span class="fort">{{ a.src }}</span><span class="cle"> — {{ a.nb }} arrêts</span></span><br />
+          }
+        </div>
+        @if (c.transport.pct > 0) {
+          <div class="couverture">
+            <span class="pastille" data-couverture [attr.data-niveau]="c.transport.niveau">{{ c.transport.pct }}% panneaux couverts</span>
+            <span class="ratio" data-ratio>{{ c.transport.ratio }}</span>
+          </div>
+        } @else {
+          <div class="non-calcule" data-non-calcule>Scoring OOH non calculé</div>
+        }
+      </div>
+      <div class="droite">
+        <div class="grand-total" data-total>{{ t.arrets }}</div>
+        <div class="unite" data-unite>arrêts physiques</div>
+        <button type="button" class="fantome actualiser" data-actualiser (click)="lire()">Actualiser</button>
+      </div>
+    </div>
+
+    <!-- Flux routier -->
+    <div class="bandeau" data-bloc="flux" data-teinte="orange">
+      <div class="corps">
+        <div class="bandeau-titre" data-titre>Flux routier (TMJA)</div>
+        <div class="lignes">
+          @for (f of flux(); track f.libelle) {
+            <span data-ligne><span class="cle">{{ f.libelle }}</span><span class="fort">{{ f.nb }} sections</span></span><br />
+          }
+        </div>
+        @if (c.flux.pct > 0) {
+          <div class="couverture">
+            <span class="pastille" data-couverture [attr.data-niveau]="c.flux.niveau">{{ c.flux.pct }}% panneaux couverts</span>
+            <span class="ratio" data-ratio>{{ c.flux.ratio }}</span>
+          </div>
+        } @else {
+          <div class="non-calcule" data-non-calcule>Scoring OOH non calculé</div>
+        }
+      </div>
+      <div class="droite">
+        <div class="grand-total" data-total>{{ t.flux }}</div>
+        <div class="unite" data-unite>sections routières</div>
+      </div>
+    </div>
+
+    <!-- Tableau par ville, masqué si scoring non calculé -->
+    <div>
+      @if (c.basculable) {
+        <button type="button" class="fantome" [class.ouvert]="tableau()" data-basculer [attr.aria-expanded]="tableau()" (click)="tableau.set(!tableau())">
+          {{ tableau() ? '▲ Masquer' : '▼ Détails par ville (top 30)' }}
+        </button>
+      }
+      @if (tableau()) {
+        <div class="tableau" data-tableau>
+          <table>
+            <thead>
+              <tr>
+                <th>Ville</th><th>Panneaux</th><th>Transport %</th><th>Moy. transport</th><th>Flux %</th><th>Moy. flux</th><th>Score total</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (v of villes(); track v.ville; let i = $index) {
+                <tr [style.animation-delay.s]="(i < 20 ? i : 20) * 0.02">
+                  <td class="ville">{{ v.ville }}</td>
+                  <td>{{ v.nb_panneaux }}</td>
+                  <td [attr.data-niveau]="v.nT">{{ v.pT }}%</td>
+                  <td>{{ v.transport_moyen }}</td>
+                  <td [attr.data-niveau]="v.nF">{{ v.pF }}%</td>
+                  <td>{{ v.flux_moyen }}</td>
+                  <td class="score">{{ v.score_moyen }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </div>
+}

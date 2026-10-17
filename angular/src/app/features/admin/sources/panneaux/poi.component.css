@@ -1,0 +1,49 @@
+/* Panneau POI (lot 6, T19) — bandeau, purge et cartes de catégorie de `PoiPanel.tsx`. */
+@keyframes srcScaleIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+:host { --teinte: var(--teal-texte); }
+.bandeau { background: var(--brand-teal-10); border-color: color-mix(in srgb, var(--brand-teal) 25%, transparent); }
+[data-teinte='teal'] { --cat: var(--brand-teal); --cat-texte: var(--teal-texte); }
+[data-teinte='info'] { --cat: var(--info); }
+[data-teinte='succes'] { --cat: var(--success); }
+[data-teinte='avert'] { --cat: var(--warning); }
+[data-teinte='danger'] { --cat: var(--danger); }
+[data-teinte='rose'] { --cat: var(--ligne-media-3); }
+[data-teinte='ardoise'] { --cat: var(--text-tertiary); }
+[data-teinte='gris'] { --cat: var(--text-secondary); }
+.cartes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.carte {
+  background: var(--bg-surface); border: 0.5px solid var(--border-subtle); border-radius: 2px; padding: 16px; transition: all 0.2s ease;
+  display: flex; flex-direction: column; gap: 10px; animation: srcScaleIn 0.4s ease-out both;
+}
+.carte:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--cat) 27%, transparent); }
+.carte.choisie { background: color-mix(in srgb, var(--cat) 10%, transparent); border-color: color-mix(in srgb, var(--cat) 27%, transparent); }
+.carte-tete { display: flex; justify-content: space-between; align-items: flex-start; }
+.surtitre { font-size: 9px; font-weight: 500; color: var(--cat-texte, var(--cat)); margin-bottom: 4px; }
+.libelle { font-size: 11px; font-weight: 700; color: var(--text-primary); letter-spacing: 0.5px; }
+.choisie .libelle { color: var(--cat-texte, var(--cat)); }
+.pct, .voir, .nouveau, .purger { font-family: var(--font-sans); font-size: 9px; font-weight: 500; border-radius: 2px; }
+.pct {
+  color: var(--cat-texte, var(--cat)); background: color-mix(in srgb, var(--cat) 10%, transparent);
+  border: 0.5px solid color-mix(in srgb, var(--cat) 27%, transparent); padding: 2px 6px;
+}
+.nb {
+  font-family: var(--font-mono); font-size: 32px; font-weight: 700; color: var(--cat-texte, var(--cat)); line-height: 1;
+  animation: srcCountUp 0.5s ease-out;
+}
+.nb-unite { font-family: var(--font-sans); font-size: 9px; font-weight: 500; color: var(--text-secondary); margin-left: 8px; }
+.piste { height: 3px; background: var(--bg-level-2); border-radius: 2px; overflow: hidden; }
+.barre { height: 100%; background: var(--cat); border-radius: 2px; transition: width 0.3s ease; animation: srcBarGrow 0.6s ease-out; }
+.meta {
+  font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary); line-height: 1.8; border-top: 1px solid var(--border-subtle); padding-top: 8px;
+}
+.description { color: var(--text-tertiary); margin-bottom: 2px; }
+.boutons { display: flex; gap: 6px; margin-top: 2px; }
+.boutons button { cursor: pointer; transition: all 0.2s ease; background: transparent; padding: 5px 10px; }
+.voir { flex: 1; color: var(--text-tertiary); border: 0.5px solid var(--border-subtle); padding: 5px 8px !important; }
+.choisie .voir {
+  background: color-mix(in srgb, var(--cat) 10%, transparent); color: var(--cat-texte, var(--cat));
+  border-color: color-mix(in srgb, var(--cat) 27%, transparent);
+}
+.nouveau { color: var(--success); border: 0.5px solid color-mix(in srgb, var(--success) 27%, transparent); }
+.purger { color: var(--danger); border: 0.5px solid color-mix(in srgb, var(--danger) 27%, transparent); }
+@media (prefers-reduced-motion: reduce) { .carte, .nb, .barre { animation: none; } .carte:hover { transform: none; } }

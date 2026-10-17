@@ -115,4 +115,59 @@ describe('SourcesAdminApi — routes de l’écran Sources (lot 6, T18)', () => 
     expect(d.request.method).toBe('DELETE');
     d.flush({ deleted: true, id: 'z 1' });
   });
+  it('T19 — lectures : transport, statistiques et métadonnées IRIS en GET ; échantillons POI `cat`, `limit=50`, `offset` dans l’ordre de React', () => {
+    const { api, http } = monter();
+    api.transportStats().subscribe();
+    api.irisStats().subscribe();
+    api.irisMetadonnees().subscribe();
+    for (const url of ['/api/admin/transport-stats', '/api/admin/iris/stats', '/api/admin/iris/metadata']) {
+      const r = http.expectOne(url);
+      expect(r.request.method).toBe('GET');
+      r.flush({});
+    }
+    api.poiEchantillons('lycee', 50).subscribe();
+    const p = http.expectOne((r) => r.url === '/api/admin/poi-samples');
+    expect(p.request.urlWithParams).toBe('/api/admin/poi-samples?cat=lycee&limit=50&offset=50');
+    p.flush({ success: true, samples: [], total: 0 });
+  });
+
+  it('T19 — écritures IRIS : POST métadonnées au corps exact, POST synchronisation et PMTiles sans corps, DELETE de tous les IRIS', () => {
+    const { api, http } = monter();
+    api.enregistrerIrisMetadonnees({ annee: '2026' }).subscribe();
+    const m = http.expectOne('/api/admin/iris/metadata');
+    expect([m.request.method, m.request.body]).toEqual(['POST', { annee: '2026' }]);
+    m.flush({ success: true });
+    api.synchroniserIris().subscribe();
+    api.declencherPmtiles().subscribe();
+    api.supprimerIris().subscribe();
+    for (const [url, methode] of [['/api/admin/sync-iris-system', 'POST'], ['/api/admin/trigger-pmtiles', 'POST'], ['/api/admin/iris/delete', 'DELETE']]) {
+      const r = http.expectOne(url);
+      expect(r.request.method).toBe(methode);
+      expect(r.request.body).toBeNull();
+      r.flush({});
+    }
+  });
+
+  it('T19 — écritures POI : POST (création) / PUT (édition) du formulaire TEL QUEL ; DELETE `?id=` et `?cat=` encodés', () => {
+    const { api, http } = monter();
+    const formulaire = {
+      nom: 'A', categorie: 'lycee', sous_categorie: '', lat: '48.8', lng: '2.3', adresse: '', ville: '', departement: '', code_postal: '', source: '',
+    };
+    api.enregistrerPoi(formulaire, false).subscribe();
+    const c = http.expectOne('/api/admin/poi-manage');
+    expect([c.request.method, c.request.body]).toEqual(['POST', formulaire]);
+    c.flush({ success: true });
+    api.enregistrerPoi({ id: 'p1', ...formulaire }, true).subscribe();
+    const e = http.expectOne('/api/admin/poi-manage');
+    expect([e.request.method, e.request.body]).toEqual(['PUT', { id: 'p1', ...formulaire }]);
+    e.flush({ success: true });
+    api.supprimerPoi('p 1').subscribe();
+    api.purgerCategoriePoi('essai lot6').subscribe();
+    const urls = http.match((r) => r.url === '/api/admin/poi-manage');
+    expect(urls.map((r) => [r.request.method, r.request.urlWithParams])).toEqual([
+      ['DELETE', '/api/admin/poi-manage?id=p%201'],
+      ['DELETE', '/api/admin/poi-manage?cat=essai%20lot6'],
+    ]);
+    for (const r of urls) r.flush({ success: true });
+  });
 });

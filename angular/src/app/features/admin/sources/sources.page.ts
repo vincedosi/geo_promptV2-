@@ -10,7 +10,12 @@ import { DetailSourceComponent } from './detail-source.component';
 import { ListeSourcesComponent } from './liste-sources.component';
 import { SourcesAdminApi, type ReponseEcriture, type StatsSources, type StatsZones } from './data/sources-admin.api';
 import { fmtK, type OngletSources, type TeinteSources } from './logique/constantes';
+import { CarreauxComponent } from './panneaux/carreaux.component';
 import { DspComponent } from './panneaux/dsp.component';
+import { IrisComponent } from './panneaux/iris.component';
+import { OohComponent } from './panneaux/ooh.component';
+import { PoiComponent } from './panneaux/poi.component';
+import { TransportComponent } from './panneaux/transport.component';
 import { ZonesCustomComponent } from './panneaux/zones-custom.component';
 import { TuilesSourcesComponent } from './tuiles-sources.component';
 
@@ -24,12 +29,19 @@ interface VueOnglet {
  * `admin/donnees/sources` — portage de `app/admin/sources/page.tsx` (lot 6, T18, amendement A5),
  * PREMIER onglet de la page Données ; `admin/sources` y redirige. Cadre, neuf onglets, vue
  * « Toutes » (tuiles, données système, bloc Radio, liste et détail des sources). Onglets DSP et Zones
- * perso : `mg-sources-dsp` et `mg-sources-zones` (T20). Les panneaux POI, carreaux, OOH, IRIS,
- * transport (T19) sont PROVISOIRES d'ici là : « Disponible prochainement », sans aucune lecture.
+ * perso : `mg-sources-dsp` et `mg-sources-zones` (T20). Panneaux par type (T19) : OOH et Carreaux
+ * (`mg-sources-ooh`, `mg-sources-carreaux`, rendus depuis les statistiques de l'écran), POI, IRIS et
+ * Transport (`mg-sources-poi`, `mg-sources-iris`, `mg-sources-transport`).
  *
  * Lectures : QUATRE à l'ouverture — sources, statistiques, radio, zones perso (le limiteur en laisse
- * passer trois, la quatrième attend : voulu) ; chacune UNE fois par écran (cache, règle d'I/O). Aucune
- * de `transport-stats` tant que son panneau n'est pas porté. Les campagnes DSP sont lues par l'onglet DSP
+ * passer trois, la quatrième attend : voulu) ; chacune UNE fois par écran (cache, règle d'I/O). Les
+ * panneaux POI, IRIS et Transport ne sont CRÉÉS qu'à la première visite de leur onglet (un onglet non
+ * ouvert ne lit rien), puis GARDÉS, masqués, pour l'écran : React tenait leur état dans le parent
+ * (`useIrisAdmin`, `usePoiAdmin`, `transportStats`) pour ne pas relire à chaque visite — même effet ici,
+ * catégorie ouverte, rapport et tableau compris. IRIS lit stats + métadonnées à sa création, Transport
+ * `transport-stats` ; POI ne lit rien (catégories des statistiques de l'écran), et chaque écriture POI
+ * réussie fait relire les statistiques UNE fois, en silence (`refreshPoiStats`). React relisait aussi les
+ * statistiques à chaque ouverture de l'onglet POI : pas ici (une fois par écran). Les campagnes DSP sont lues par l'onglet DSP
  * à CHAQUE visite (React, voulu) ; les organisations du filtre des Zones perso, à la PREMIÈRE visite de
  * cet onglet, puis gardées pour l'écran (A2) — relues à la visite suivante seulement si elles ont échoué.
  *
@@ -48,7 +60,10 @@ interface VueOnglet {
  */
 @Component({
   selector: 'mg-sources',
-  imports: [ConfirmationComponent, DetailSourceComponent, DspComponent, ListeSourcesComponent, TuilesSourcesComponent, ZonesCustomComponent],
+  imports: [
+    CarreauxComponent, ConfirmationComponent, DetailSourceComponent, DspComponent, IrisComponent, ListeSourcesComponent, OohComponent,
+    PoiComponent, TransportComponent, TuilesSourcesComponent, ZonesCustomComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './sources.page.html',
   styles: [`
@@ -77,10 +92,8 @@ interface VueOnglet {
     .onglet:focus-visible { outline: 1px solid var(--brand-teal-50); outline-offset: -1px; }
     .vue { display: flex; gap: 16px; }
     .gauche { flex: 1; min-width: 0; }
-    .provisoire {
-      background: var(--bg-surface); border: 0.5px solid var(--border-subtle); border-radius: 2px; padding: 40px; text-align: center;
-      color: var(--text-secondary); font-size: 13px;
-    }
+    /* Panneau gardé après sa première visite, masqué hors de son onglet. */
+    .masque { display: none; }
     @media (prefers-reduced-motion: reduce) { .entete { animation: none; } }
   `],
 })
@@ -111,6 +124,8 @@ export class SourcesPage {
   /** Organisations du filtre des Zones perso : lues une fois par écran (A2), à la première visite de l'onglet. */
   protected readonly organisations = signal<OrganisationListe[]>([]);
   private organisationsLues = false;
+  /** Panneaux POI, IRIS, Transport : créés à la première visite de leur onglet, puis gardés (voir l'en-tête). */
+  protected readonly visites = signal<Partial<Record<OngletSources, true>>>({});
 
   protected readonly selection = this.selectionId.asReadonly();
   /** La source choisie, relue dans la liste (zéro ou un élément : le `@for … track id` recrée le détail). */
@@ -179,7 +194,22 @@ export class SourcesPage {
   protected choisirOnglet(o: OngletSources): void {
     this.onglet.set(o);
     this.selectionId.set(null);
+    if (!this.visites()[o]) this.visites.update((v) => ({ ...v, [o]: true }));
     if (o === 'custom_zones') this.lireOrganisations();
+  }
+
+  /**
+   * `refreshPoiStats` (`page.tsx:95-102`), après une écriture POI réussie : relecture SILENCIEUSE des
+   * statistiques — sans repasser en chargement (le tableau des échantillons clignoterait) ; un échec garde
+   * les précédentes.
+   */
+  protected rafraichirStats(): void {
+    this.lectures.push(this.api.stats().subscribe({
+      next: (r) => {
+        if (r?.success) this.stats.set(r);
+      },
+      error: () => undefined,
+    }));
   }
 
   /**
