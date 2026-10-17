@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { HttpEventType } from '@angular/common/http';
+import type { TestRequest } from '@angular/common/http/testing';
 import { Component, inject } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -9,6 +11,8 @@ import { OrganisationsListeApi } from '../../commun/data/organisations-liste.api
 import { ImportPoiApi } from '../data/import-poi.api';
 import { CATEGORIES_REPLI, ORGANISATION_DEFAUT } from '../logique/constantes';
 import { ANALYSE_POI_ESSAI } from '../testing/import-poi.fixture';
+import { ESSAI_A_BLANC, GEOCODAGE_ESSAI } from '../testing/geocodage.fixture';
+import { FLUX_IMPORT_COMPLET, FLUX_SOURCE_IMPOSSIBLE } from '../testing/import-poi-sse.fixture';
 import { ImportPoiService } from './import-poi.service';
 
 const URL_PARSE = '/api/admin/import-poi/parse';
@@ -52,7 +56,7 @@ describe('ImportPoiService — état du parcours d’import POI (lot 6, T12)', (
     expect(etat.correspondanceGeo()).toEqual({});
     expect(etat.nomSource()).toBe('');
     expect(etat.organisationId()).toBe(ORGANISATION_DEFAUT);
-    expect(etat.etapeAccessible()).toEqual({ '02': false, '03': false, '03b': false });
+    expect(etat.etapeAccessible()).toMatchObject({ '02': false, '03': false, '03b': false });
   });
 
   describe('chargement au montage (`page.tsx:93-126`)', () => {
@@ -177,11 +181,11 @@ describe('ImportPoiService — état du parcours d’import POI (lot 6, T12)', (
       etat.choisirCategorie('lycee');
       etat.basculerFiltre('statut');
       etat.associer('departement', 'ville');
-      expect(etat.etapeAccessible()).toEqual({ '02': true, '03': true, '03b': true });
+      expect(etat.etapeAccessible()).toMatchObject({ '02': true, '03': true, '03b': true });
 
       etat.analyser([csv('autre.csv')]);
       expect(etat.analyse()).toBeNull();
-      expect(etat.etapeAccessible()).toEqual({ '02': false, '03': false, '03b': false });
+      expect(etat.etapeAccessible()).toMatchObject({ '02': false, '03': false, '03b': false });
       const premier = http.expectOne(URL_PARSE);
       etat.analyser([csv('dernier.csv')]);
       expect(premier.cancelled).toBe(true);
@@ -272,9 +276,9 @@ describe('ImportPoiService — état du parcours d’import POI (lot 6, T12)', (
 
     it('étapes (mêmes règles que React, `page.tsx:418-423`) : 02 dès l’analyse réussie, 03 avec une catégorie, 03b avec la géolocalisation complète', () => {
       const { etat } = analyse();
-      expect(etat.etapeAccessible()).toEqual({ '02': true, '03': false, '03b': false });
+      expect(etat.etapeAccessible()).toMatchObject({ '02': true, '03': false, '03b': false });
       etat.choisirCategorie('lycee');
-      expect(etat.etapeAccessible()).toEqual({ '02': true, '03': true, '03b': true });
+      expect(etat.etapeAccessible()).toMatchObject({ '02': true, '03': true, '03b': true });
       etat.associerGeo('colLng', '');
       expect(etat.etapeAccessible()['03b']).toBe(false);
       // Adresse : une adresse OU une ville, du mapping géo OU du mapping standard.
@@ -319,6 +323,347 @@ describe('ImportPoiService — état du parcours d’import POI (lot 6, T12)', (
       etat.toutExclure();
       expect(etat.colonnesImportees()).toEqual([]);
       expect(etat.champsFiltres()).toEqual([]);
+    });
+  });
+});
+
+const URL_GEOCODAGE = '/api/admin/geocode/batch';
+const URL_CORRECTION = '/api/admin/geocode/update';
+const URL_ESSAI = '/api/admin/import-poi/dry-run';
+const URL_IMPORT = '/api/admin/import-poi/execute';
+
+describe('ImportPoiService — géocodage, essai à blanc et import en flux (lot 6, T13)', () => {
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  /** Fichier analysé, catégorie choisie : GPS complet (latitude / longitude suggérées). */
+  function pret() {
+    const m = monter();
+    m.etat.charger();
+    m.http.expectOne(URL_ORGANISATIONS).flush({ success: true, organizations: [{ id: 'o1', name: 'Espace A' }] });
+    m.http.expectOne(URL_CATEGORIES).flush({ success: true, categories: CATEGORIES });
+    m.etat.analyser([csv()]);
+    m.http.expectOne(URL_PARSE).flush(ANALYSE_POI_ESSAI);
+    m.etat.choisirCategorie('essai_lot_6');
+    return m;
+  }
+
+  /** Mode adresse, géocodage servi par la fixture. */
+  function geocode() {
+    const m = pret();
+    m.etat.choisirModeGeo('address');
+    m.etat.geocoder();
+    m.http.expectOne(URL_GEOCODAGE).flush(GEOCODAGE_ESSAI);
+    return m;
+  }
+
+  function essaiReussi(m: ReturnType<typeof pret>) {
+    m.etat.essayer();
+    m.http.expectOne(URL_ESSAI).flush(ESSAI_A_BLANC);
+  }
+
+  function morceau(req: TestRequest, flux: string, jusqua: string) {
+    const bout = flux.indexOf(jusqua);
+    req.event({ type: HttpEventType.DownloadProgress, loaded: bout, partialText: flux.slice(0, bout) });
+  }
+
+  describe('accès aux étapes (`page.tsx:425-426, 511, 544, 555`)', () => {
+    it('GPS : pas de 03c, 04 dès la géolocalisation complète, 05 après un essai réussi avec au moins une ligne valide', () => {
+      const m = pret();
+      expect(m.etat.etapeAccessible()).toEqual({ '02': true, '03': true, '03b': true, '03c': false, '04': true, '05': false });
+      m.etat.essayer();
+      m.http.expectOne(URL_ESSAI).flush({ ...ESSAI_A_BLANC, stats: { ...ESSAI_A_BLANC.stats, validRows: 0 } });
+      expect(m.etat.etapeAccessible()['05']).toBe(false);
+      essaiReussi(m);
+      expect(m.etat.etapeAccessible()['05']).toBe(true);
+    });
+
+    it('adresse : 03c visible, 04 BLOQUÉE tant que le géocodage n’est pas validé (`isGeocodeReady`, l.426)', () => {
+      const m = pret();
+      m.etat.choisirModeGeo('address');
+      expect(m.etat.etapeAccessible()).toMatchObject({ '03c': true, '04': false });
+      m.etat.geocoder();
+      m.http.expectOne(URL_GEOCODAGE).flush(GEOCODAGE_ESSAI);
+      expect(m.etat.etapeAccessible()['04']).toBe(false);
+      m.etat.validerGeocodage();
+      expect(m.etat.etapeAccessible()['04']).toBe(true);
+      m.etat.relancerGeocodage();
+      expect(m.etat.etapeAccessible()['04']).toBe(false);
+      expect([m.etat.geocodeId(), m.etat.statsGeocodage(), m.etat.erreurGeocodage()]).toEqual([null, null, null]);
+    });
+  });
+
+  describe('géocodage (`handleGeocodeBatch`, `handleGeocodeUpdateRow`)', () => {
+    it('corps EXACT : `fileId` et les colonnes d’adresse de `buildGeoConfig` (repli sur le mapping standard) ; résultats et compteurs gardés', () => {
+      const m = pret();
+      m.etat.choisirModeGeo('address');
+      m.etat.geocoder();
+      expect(m.etat.geocodageEnCours()).toBe(true);
+      const req = m.http.expectOne(URL_GEOCODAGE);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({
+        fileId: ANALYSE_POI_ESSAI.fileId, colAdresse: 'adresse', colCodePostal: 'code_postal', colVille: 'ville',
+      });
+      req.flush(GEOCODAGE_ESSAI);
+      expect(m.etat.geocodageEnCours()).toBe(false);
+      expect(m.etat.geocodeId()).toBe('1b2c3d4e-5f60');
+      expect(m.etat.resultatsGeocodage()).toEqual(GEOCODAGE_ESSAI.results);
+      expect(m.etat.statsGeocodage()).toEqual({ green: 1, orange: 1, red: 2 });
+      expect(m.etat.geocodageValide()).toBe(false);
+    });
+
+    it('refus (`{ success: false, error }`, même en 400) : le message de la route ; sans message « Erreur geocodage » ; réseau : « Failed to fetch »', () => {
+      const m = pret();
+      m.etat.choisirModeGeo('address');
+      m.etat.geocoder();
+      m.http.expectOne(URL_GEOCODAGE).flush({ success: false, error: 'Au moins une colonne adresse ou ville est requise' }, { status: 400, statusText: 'Bad Request' });
+      expect(m.etat.erreurGeocodage()).toBe('Au moins une colonne adresse ou ville est requise');
+      expect(m.etat.geocodeId()).toBeNull();
+      m.etat.geocoder();
+      expect(m.etat.erreurGeocodage()).toBeNull();
+      m.http.expectOne(URL_GEOCODAGE).flush({ success: false });
+      expect(m.etat.erreurGeocodage()).toBe('Erreur geocodage');
+      m.etat.geocoder();
+      m.http.expectOne(URL_GEOCODAGE).error(new ProgressEvent('error'));
+      expect(m.etat.erreurGeocodage()).toBe('Failed to fetch');
+      expect(m.etat.geocodageEnCours()).toBe(false);
+    });
+
+    for (const [nom, action] of [
+      ['manual', { type: 'manual', lat: 45.75, lng: 4.83 }],
+      ['reGeocode', { type: 'reGeocode', address: 'Place Bellecour, Lyon' }],
+      ['ignore', { type: 'ignore' }],
+    ] as const) {
+      it(`correction « ${nom} » : corps { geocodeId, rowIndex, action } exact ; succès → la ligne remplacée, compteurs relus, édition fermée`, () => {
+        const m = geocode();
+        m.etat.ouvrirEdition(GEOCODAGE_ESSAI.results![2]);
+        expect(m.etat.ligneEditee()).toBe(2);
+        m.etat.corriger(2, action);
+        expect(m.etat.correctionEnCours()).toBe(true);
+        const req = m.http.expectOne(URL_CORRECTION);
+        expect(req.request.body).toEqual({ geocodeId: '1b2c3d4e-5f60', rowIndex: 2, action });
+        const corrigee = { ...GEOCODAGE_ESSAI.results![2], status: 'green' as const, score: 1, manualOverride: true, resultLabel: 'Saisie manuelle' };
+        req.flush({ success: true, updatedResult: corrigee, stats: { green: 2, orange: 1, red: 1 } });
+        expect(m.etat.resultatsGeocodage()[2]).toEqual(corrigee);
+        expect(m.etat.statsGeocodage()).toEqual({ green: 2, orange: 1, red: 1 });
+        expect(m.etat.ligneEditee()).toBeNull();
+        expect([m.etat.adresseEditee(), m.etat.latEditee(), m.etat.lngEditee()]).toEqual(['', '', '']);
+        expect(m.etat.correctionEnCours()).toBe(false);
+      });
+    }
+
+    it('correction refusée : notifiée avec le message de la route (React se taisait), la ligne et l’édition inchangées', () => {
+      const m = geocode();
+      const erreur = vi.spyOn(TestBed.inject(NotificationsService), 'error');
+      m.etat.ouvrirEdition(GEOCODAGE_ESSAI.results![2]);
+      m.etat.corriger(2, { type: 'ignore' });
+      m.http.expectOne(URL_CORRECTION).flush({ success: false, error: 'geocodeId invalide' }, { status: 400, statusText: 'Bad Request' });
+      expect(erreur).toHaveBeenCalledWith('Correction du géocodage échouée', 'geocodeId invalide');
+      expect(m.etat.resultatsGeocodage()[2]).toEqual(GEOCODAGE_ESSAI.results![2]);
+      expect(m.etat.ligneEditee()).toBe(2);
+      expect(m.etat.correctionEnCours()).toBe(false);
+    });
+
+    it('ouvrir l’édition recopie l’adresse et les coordonnées ; la rouvrir la ferme (« Corriger » / « Fermer »)', () => {
+      const m = geocode();
+      m.etat.ouvrirEdition(GEOCODAGE_ESSAI.results![1]);
+      expect([m.etat.ligneEditee(), m.etat.adresseEditee(), m.etat.latEditee(), m.etat.lngEditee()])
+        .toEqual([1, 'Quai du Port 13002 Marseille', '43.2965', '5.3698']);
+      m.etat.ouvrirEdition(GEOCODAGE_ESSAI.results![1]);
+      expect(m.etat.ligneEditee()).toBeNull();
+    });
+  });
+
+  describe('essai à blanc (`handleDryRun`, `page.tsx:293-326`)', () => {
+    it('GPS : corps EXACT (`dataType: poi`, catégorie, mapping, `buildGeoConfig`, `limit: 100`), sans `geocodeId`', () => {
+      const m = pret();
+      m.etat.essayer();
+      expect(m.etat.essaiEnCours()).toBe(true);
+      const req = m.http.expectOne(URL_ESSAI);
+      expect(req.request.body).toEqual({
+        fileId: ANALYSE_POI_ESSAI.fileId, dataType: 'poi', category: 'essai_lot_6',
+        mapping: m.etat.correspondance(),
+        geolocation: { mode: 'gps', colLat: 'latitude', colLng: 'longitude' }, limit: 100,
+      });
+      expect(Object.keys(req.request.body as object)).not.toContain('geocodeId');
+      req.flush(ESSAI_A_BLANC);
+      expect(m.etat.essai()).toEqual(ESSAI_A_BLANC);
+      expect(m.etat.essaiEnCours()).toBe(false);
+    });
+
+    it('adresse : le `geocodeId` du géocodage est joint', () => {
+      const m = geocode();
+      m.etat.validerGeocodage();
+      m.etat.essayer();
+      const corps = m.http.expectOne(URL_ESSAI).request.body as Record<string, unknown>;
+      expect(corps['geocodeId']).toBe('1b2c3d4e-5f60');
+      expect(corps['geolocation']).toEqual({ mode: 'address', colAdresse: 'adresse', colCodePostal: 'code_postal', colVille: 'ville' });
+    });
+
+    it('refus JSON (400 / 404 / 500) rendu tel quel ; réseau : « Failed to fetch » ; corps illisible : « HTTP <statut> »', () => {
+      const m = pret();
+      m.etat.essayer();
+      m.http.expectOne(URL_ESSAI).flush({ success: false, error: 'geocodeId invalide' }, { status: 400, statusText: 'Bad Request' });
+      expect(m.etat.essai()).toEqual({ success: false, error: 'geocodeId invalide' });
+      m.etat.essayer();
+      expect(m.etat.essai()).toBeNull();
+      m.http.expectOne(URL_ESSAI).error(new ProgressEvent('error'));
+      expect(m.etat.essai()).toEqual({ success: false, error: 'Failed to fetch' });
+      m.etat.essayer();
+      m.http.expectOne(URL_ESSAI).flush('<html></html>', { status: 502, statusText: 'Bad Gateway' });
+      expect(m.etat.essai()).toEqual({ success: false, error: 'HTTP 502' });
+    });
+  });
+
+  describe('import en flux (`handleImport`, `page.tsx:332-410`)', () => {
+    function lancer(m: ReturnType<typeof pret>): TestRequest {
+      m.etat.demanderImport();
+      m.etat.confirmerImport();
+      return m.http.expectOne(URL_IMPORT);
+    }
+
+    it('confirmation d’abord : demander n’envoie RIEN ; annuler ferme sans requête ; confirmer ferme et envoie le corps EXACT', () => {
+      const m = pret();
+      essaiReussi(m);
+      m.etat.demanderImport();
+      expect(m.etat.confirmationImport()).toBe(true);
+      m.http.expectNone(URL_IMPORT);
+      m.etat.annulerImport();
+      expect(m.etat.confirmationImport()).toBe(false);
+      m.http.expectNone(URL_IMPORT);
+
+      m.etat.basculerImport('capacite');
+      m.etat.basculerFiltre('statut');
+      m.etat.nomSource.set('  Essai lot 6  ');
+      m.etat.organisationId.set('o1');
+      const req = lancer(m);
+      expect(m.etat.confirmationImport()).toBe(false);
+      expect(req.request.body).toEqual({
+        fileId: ANALYSE_POI_ESSAI.fileId, dataType: 'poi', category: 'essai_lot_6',
+        mapping: m.etat.correspondance(),
+        geolocation: { mode: 'gps', colLat: 'latitude', colLng: 'longitude' },
+        sourceName: 'Essai lot 6', organizationId: 'o1',
+        importedColumns: ['nom', 'adresse', 'code_postal', 'ville', 'latitude', 'longitude', 'statut'],
+        filterFields: ['statut'],
+      });
+      req.flush(FLUX_IMPORT_COMPLET);
+    });
+
+    it('nom vide, aucune colonne, aucun filtre : `sourceName`, `importedColumns`, `filterFields` ABSENTS (`undefined`, l.348-351)', () => {
+      const m = pret();
+      essaiReussi(m);
+      m.etat.toutExclure();
+      m.etat.nomSource.set('   ');
+      const req = lancer(m);
+      const corps = req.request.body as Record<string, unknown>;
+      expect(corps['sourceName']).toBeUndefined();
+      expect(corps['importedColumns']).toBeUndefined();
+      expect(corps['filterFields']).toBeUndefined();
+      expect(corps['organizationId']).toBe(ORGANISATION_DEFAUT);
+      req.flush(FLUX_IMPORT_COMPLET);
+    });
+
+    it('flux en morceaux : `log` → journal ; le reste → progression nommée (libellés de la route) ; `complete` → rapport', () => {
+      const m = pret();
+      essaiReussi(m);
+      const req = lancer(m);
+      expect(m.etat.importEnCours()).toBe(true);
+      expect(m.etat.etatProgression()).toMatchObject({ etape: 'Lancement', traitees: null, total: null, termine: false, echec: null });
+
+      morceau(req, FLUX_IMPORT_COMPLET, 'data: {"type":"progress","message":"Fichier parse');
+      expect(m.etat.etatProgression()).toMatchObject({ etape: 'Parsing du fichier...', total: null });
+      expect(m.etat.journal()).toEqual([]);
+
+      morceau(req, FLUX_IMPORT_COMPLET, 'data: {"type":"log","logLevel":"info","logLine":"--- Batch');
+      expect(m.etat.etatProgression()).toMatchObject({ etape: 'Source "5f1c2a9e" creee', traitees: 0, total: 10 });
+      expect(m.etat.journal().map((l) => l.line)).toEqual([
+        'Insertion en base Supabase (10 lignes)...',
+        '====== START: 10 lignes, type="poi" (Supabase JS) ======',
+        'Connexion Supabase OK — table "poi_france"',
+      ]);
+      expect(m.etat.compteurs()).toEqual({ processed: 0, total: 10 });
+
+      morceau(req, FLUX_IMPORT_COMPLET, 'data: {"type":"complete"');
+      expect(m.etat.etatProgression()).toMatchObject({ etape: 'Insertion en base Supabase', traitees: 10, total: 10, termine: false });
+      expect(m.etat.compteurs()).toEqual({ processed: 10, total: 10, inserted: 10, ignored: 0, errors: 0 });
+      expect(m.etat.rapport()).toBeNull();
+
+      req.flush(FLUX_IMPORT_COMPLET);
+      expect(m.etat.rapport()).toEqual({ total: 10, inserted: 10, ignored: 0, errors: 0 });
+      expect(m.etat.premiereErreur()).toBeNull();
+      expect(m.etat.etatProgression()).toMatchObject({ termine: true, echec: null });
+      expect(m.etat.journal()).toHaveLength(16);
+      expect(m.etat.journal()[4]).toEqual({ level: 'info', line: '[OK] #0 [ESSAI lot 6] POI 01 (48.8566, 2.3522) → insere' });
+      expect(m.etat.importEnCours()).toBe(false);
+    });
+
+    it('A3 — `error` « Impossible de créer la source de données… » puis fin : message d’échec et ligne au journal, AUCUN rapport, barre jamais à 100 %', () => {
+      const m = pret();
+      essaiReussi(m);
+      lancer(m).flush(FLUX_SOURCE_IMPOSSIBLE);
+      const message = 'Impossible de créer la source de données : import arrêté, aucune ligne écrite.';
+      expect(m.etat.progression()).toEqual({ type: 'error', message });
+      expect(m.etat.etatProgression()).toMatchObject({ echec: message, termine: false, traitees: 0, total: 10 });
+      expect(m.etat.journal().at(-1)).toEqual({ level: 'error', line: `! ${message}` });
+      expect(JSON.stringify(m.etat.journal())).not.toContain('interrompu');
+      expect(m.etat.rapport()).toBeNull();
+      expect(m.etat.importEnCours()).toBe(false);
+    });
+
+    it('flux sans `complete` ni `error` : « Le flux s’est interrompu avant la fin. » (règle du lot 3), pas de rapport', () => {
+      const m = pret();
+      essaiReussi(m);
+      lancer(m).flush(FLUX_IMPORT_COMPLET.slice(0, FLUX_IMPORT_COMPLET.indexOf('data: {"type":"log","logLevel":"info","logLine":"====== FIN')));
+      expect(m.etat.progression()).toEqual({ type: 'error', message: 'Le flux s’est interrompu avant la fin.' });
+      expect(m.etat.etatProgression()).toMatchObject({ echec: 'Le flux s’est interrompu avant la fin.', termine: false });
+      expect(m.etat.journal().at(-1)).toEqual({ level: 'error', line: '! Le flux s’est interrompu avant la fin.' });
+      expect(m.etat.rapport()).toBeNull();
+    });
+
+    it('refus HTTP (corps texte JSON) : `! <error>` ; corps illisible : `HTTP <statut>` ; le bouton revient', () => {
+      const m = pret();
+      essaiReussi(m);
+      lancer(m).flush('{"error":"Non autorisé"}', { status: 403, statusText: 'Forbidden' });
+      expect(m.etat.progression()).toEqual({ type: 'error', message: 'Non autorisé' });
+      expect(m.etat.importEnCours()).toBe(false);
+      lancer(m).flush('<html></html>', { status: 500, statusText: 'Server Error' });
+      expect(m.etat.progression()).toEqual({ type: 'error', message: 'HTTP 500' });
+    });
+
+    it('rapport à `firstError` : gardé pour le bloc « Erreur SQL detectee »', () => {
+      const m = pret();
+      essaiReussi(m);
+      lancer(m).flush('data: {"type":"complete","report":{"total":10,"inserted":0,"ignored":0,"errors":10},"firstError":"column \\"x\\" does not exist"}\n\n');
+      expect(m.etat.rapport()).toEqual({ total: 10, inserted: 0, ignored: 0, errors: 10 });
+      expect(m.etat.premiereErreur()).toBe('column "x" does not exist');
+    });
+
+    it('destruction pendant l’import : la requête N’EST PAS annulée (C13), la suite est ignorée sans erreur', () => {
+      const m = pret();
+      essaiReussi(m);
+      const req = lancer(m);
+      morceau(req, FLUX_IMPORT_COMPLET, 'data: {"type":"log","logLevel":"info","logLine":"--- Batch');
+      m.f.destroy();
+      expect(req.cancelled).toBe(false);
+      expect(() => req.flush(FLUX_IMPORT_COMPLET)).not.toThrow();
+    });
+
+    it('nouveau fichier : essai, rapport, progression, journal ET géocodage remis à zéro ; l’import en cours continue mais n’écrit plus l’écran', () => {
+      const m = geocode();
+      m.etat.validerGeocodage();
+      essaiReussi(m);
+      const req = lancer(m);
+      morceau(req, FLUX_IMPORT_COMPLET, 'data: {"type":"log","logLevel":"info","logLine":"--- Batch');
+      m.etat.analyser([csv('autre.csv')]);
+      expect(req.cancelled).toBe(false);
+      expect([m.etat.essai(), m.etat.rapport(), m.etat.progression(), m.etat.etatProgression(), m.etat.compteurs()]).toEqual([null, null, null, null, null]);
+      expect(m.etat.journal()).toEqual([]);
+      expect([m.etat.geocodeId(), m.etat.statsGeocodage(), m.etat.geocodageValide()]).toEqual([null, null, false]);
+      expect(m.etat.resultatsGeocodage()).toEqual([]);
+      expect(m.etat.importEnCours()).toBe(false);
+      req.flush(FLUX_IMPORT_COMPLET);
+      expect(m.etat.rapport()).toBeNull();
+      expect(m.etat.journal()).toEqual([]);
+      m.http.expectOne(URL_PARSE).flush(ANALYSE_POI_ESSAI);
     });
   });
 });

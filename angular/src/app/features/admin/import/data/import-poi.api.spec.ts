@@ -44,3 +44,53 @@ describe('ImportPoiApi — POST /api/admin/import-poi/parse (lot 6, T12)', () =>
     expect((corps.get('file') as File).name).toBe('z.shp');
   });
 });
+
+describe('ImportPoiApi — géocodage, essai à blanc et import en flux (lot 6, T13)', () => {
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  it('`geocoder` : POST JSON `/api/admin/geocode/batch`, corps tel quel', () => {
+    const { api, http } = monter();
+    api.geocoder({ fileId: 'f-1', colAdresse: 'adresse', colCodePostal: 'code_postal', colVille: 'ville' }).subscribe();
+    const req = http.expectOne('/api/admin/geocode/batch');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ fileId: 'f-1', colAdresse: 'adresse', colCodePostal: 'code_postal', colVille: 'ville' });
+    req.flush({ success: false, error: 'x' });
+  });
+
+  it('`corrigerGeocodage` : POST JSON `/api/admin/geocode/update`, `{ geocodeId, rowIndex, action }`', () => {
+    const { api, http } = monter();
+    api.corrigerGeocodage({ geocodeId: 'g-1', rowIndex: 3, action: { type: 'ignore' } }).subscribe();
+    const req = http.expectOne('/api/admin/geocode/update');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ geocodeId: 'g-1', rowIndex: 3, action: { type: 'ignore' } });
+    req.flush({ success: true });
+  });
+
+  it('`essayer` : POST JSON `/api/admin/import-poi/dry-run`, corps tel quel', () => {
+    const { api, http } = monter();
+    api.essayer({ fileId: 'f-1', dataType: 'poi', category: 'c', mapping: {}, geolocation: { mode: 'gps' }, limit: 100 }).subscribe();
+    const req = http.expectOne('/api/admin/import-poi/dry-run');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ fileId: 'f-1', dataType: 'poi', category: 'c', mapping: {}, geolocation: { mode: 'gps' }, limit: 100 });
+    req.flush({ success: true });
+  });
+
+  it('`importer` : POST `/api/admin/import-poi/execute` lu en TEXTE et en flux (C4), événements `data:` découpés', () => {
+    const { api, http } = monter();
+    const recus: unknown[] = [];
+    let fini = false;
+    api.importer({ fileId: 'f-1', dataType: 'poi', mapping: {}, geolocation: { mode: 'gps' } })
+      .subscribe({ next: (e) => recus.push(e), complete: () => (fini = true) });
+    const req = http.expectOne('/api/admin/import-poi/execute');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.responseType).toBe('text');
+    expect(req.request.reportProgress).toBe(true);
+    expect(req.request.body).toEqual({ fileId: 'f-1', dataType: 'poi', mapping: {}, geolocation: { mode: 'gps' } });
+    req.flush('data: {"type":"log","logLevel":"info","logLine":"a"}\n\ndata: {"type":"complete","report":{"total":1,"inserted":1,"ignored":0,"errors":0}}\n\n');
+    expect(recus).toEqual([
+      { type: 'log', logLevel: 'info', logLine: 'a' },
+      { type: 'complete', report: { total: 1, inserted: 1, ignored: 0, errors: 0 } },
+    ]);
+    expect(fini).toBe(true);
+  });
+});

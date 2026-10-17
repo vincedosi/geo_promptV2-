@@ -63,10 +63,12 @@ la route reçoit nos intercepteurs. État : `etat/role-admin.service.ts` ; pour 
 - `commun/data/organisations-liste.api.ts` — `GET /api/admin/organizations` (amendement A2, créé en T20, réutilisé
   par l'import POI en T12) ; pas de cache dans le service : chaque écran garde sa lecture.
 - `commun/data/categories-poi.api.ts` — `GET` / `POST /api/admin/poi-categories` (T12) ; même règle de cache.
-- `import/` — import POI (T12-T13) : `import-poi.page` (fournit l'état), `etat/import-poi.service.ts` (l'état de page de
-  React, `etapeAccessible`, `configGeo`), `etapes/` (une étape par composant, `etape.css` commun : carte, badges,
-  champs), `data/import-poi.api.ts` (dépôt multipart), `logique/constantes.ts` (copies de `shared.tsx`),
-  `testing/import-poi.fixture.ts` (analyse de `tests/fixtures/admin/poi-essai.csv`).
+- `import/` — import POI (T12-T13) : `import-poi.page` (fournit l'état), `etat/import-poi-preparation.ts` (classe de
+  base : étapes 01-03b, `configGeo`) et `etat/import-poi.service.ts` (l'état de page de React complet : géocodage,
+  essai, import en flux, `etapeAccessible`), `etapes/` (une étape par composant, `etape.css` commun : carte, badges,
+  champs ; `etape-actions.css` : boutons, encarts, tuiles de 03c / 04 / 05), `data/import-poi.api.ts` (dépôt
+  multipart, géocodage, essai, import SSE), `logique/constantes.ts` (copies de `shared.tsx`), `testing/` (analyse de
+  `tests/fixtures/admin/poi-essai.csv`, géocodage et essai, flux `import-poi.sse`).
 - `radio/data/radio-admin.api.ts` — `/api/radio/*` : `stats()` (Sources, T18), puis `historique()`, `journal()`, `importerAnfr()`, `enrichir()`, `importerOds()` (flux NDJSON) et `supprimer()` (DELETE avec corps) pour l'écran Radio (T16).
 - `espaces/` — page Accès : fiches (`fiche-espace`, `fiche-socle`, `fiche-utilisateur`), onglets (Membres,
   Données, Aperçu, Réglages), dialogues `<dialog>` natifs, `logique/` (règles pures), `data/espaces.api.ts`.

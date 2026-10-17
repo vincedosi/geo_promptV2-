@@ -27,5 +27,20 @@
     <mg-import-colonnes />
   }
 
+  <!-- 03c — géocodage des adresses (mode adresse) -->
+  @if (etat.etapeAccessible()['03c']) {
+    <mg-import-geocodage />
+  }
+
+  <!-- 04 — essai à blanc -->
+  @if (etat.etapeAccessible()['04']) {
+    <mg-import-essai />
+  }
+
+  <!-- 05 — import réel en flux -->
+  @if (etat.etapeAccessible()['05']) {
+    <mg-import-reel />
+  }
+
   <div class="pied" data-pied>// Formats supportes: CSV, Excel (.xlsx), GeoJSON · Encodages: UTF-8, Latin-1 (auto-detecte)</div>
 </div>

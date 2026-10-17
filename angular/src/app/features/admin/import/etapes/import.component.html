@@ -1,0 +1,111 @@
+<div class="carte">
+  <div class="entete">
+    <span class="num" data-num>05</span>
+    <span class="titre" data-titre>Import reel</span>
+    @if (bilan(); as b) {
+      <span class="badge vert a-droite" data-inseres>{{ b.inseres }} inseres</span>
+    }
+  </div>
+  <div class="corps">
+    <div class="meta">
+      <div>
+        <label class="libelle" for="import-poi-source">Nom de la source (optionnel)</label>
+        <input id="import-poi-source" type="text" class="champ" [value]="etat.nomSource()" [placeholder]="exempleNom" (input)="saisirNom($event)" />
+      </div>
+      <div>
+        <label class="libelle" for="import-poi-organisation">Organisation</label>
+        <select id="import-poi-organisation" class="champ" (change)="choisirOrganisation($event)">
+          @for (o of etat.organisations(); track o.id) {
+            <option [value]="o.id" [selected]="o.id === etat.organisationId()">{{ o.name }}</option>
+          } @empty {
+            <option [value]="orgDefaut" [selected]="true">dentsu.explore (interne)</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <div class="lancement">
+      <button type="button" class="bouton danger lancer" data-lancer [disabled]="etat.importEnCours()" (click)="etat.demanderImport()">
+        @if (etat.importEnCours()) {
+          <mg-icone nom="chargement" [taille]="12" class="tourne" /> Import en cours...
+        } @else {
+          LANCER L'IMPORT REEL
+        }
+      </button>
+      <span class="avertissement mono rouge-t" data-avertissement>! Insertion en base Supabase ({{ lignesFichier() }} lignes)</span>
+    </div>
+
+    @if (etat.etatProgression(); as p) {
+      <mg-progression-import
+        class="progression"
+        [etape]="p.etape"
+        [traitees]="p.traitees"
+        [total]="p.total"
+        [termine]="p.termine"
+        [echec]="p.echec"
+      >
+        @if (compteurs(); as c) {
+          <div class="compteurs mono" data-compteurs>
+            <span>traites: <span class="primaire-t">{{ c.traites }}</span></span>
+            @if (c.inseres !== null) {
+              <span>inseres: <span class="vert-t">{{ c.inseres }}</span></span>
+            }
+            @if (c.ignores !== null) {
+              <span>ignores: <span class="ambre-t">{{ c.ignores }}</span></span>
+            }
+            @if (c.erreurs !== null) {
+              <span>erreurs: <span class="rouge-t">{{ c.erreurs }}</span></span>
+            }
+          </div>
+        }
+      </mg-progression-import>
+    }
+
+    @if (erreur() !== null) {
+      <div class="alerte rouge marge-12" data-erreur>! {{ erreur() }}</div>
+    }
+
+    @if (bilan(); as b) {
+      <div class="rapport-bloc">
+        <div class="alerte bilan" [class]="b.sorte" data-bilan>{{ b.texte }}</div>
+        <div class="rapport mono" data-rapport>
+          @for (c of b.cellules; track c.libelle) {
+            <div><span class="discret">{{ c.libelle }}: </span><span [class]="c.classe">{{ c.valeur }}</span></div>
+          }
+        </div>
+        @if (etat.premiereErreur(); as sql) {
+          <div class="erreur-sql mono rouge-t" data-erreur-sql>
+            <div class="erreur-sql-titre">! Erreur SQL detectee</div>
+            <div class="erreur-sql-texte">{{ sql }}</div>
+            <div class="erreur-sql-aide discret">→ Si "column does not exist": executer le SQL ALTER TABLE dans Supabase Dashboard</div>
+          </div>
+        }
+      </div>
+    }
+
+    @if (etat.journal().length > 0) {
+      <div class="journal-bloc">
+        <div class="entete-journal mono" data-entete-journal>
+          <span class="discret gras">// JOURNAL EN DIRECT</span>
+          <span class="vert-t">OK {{ enteteJournal().ok }}</span>
+          <span class="ambre-t">SKIP {{ enteteJournal().skip }}</span>
+          <span class="rouge-t">ERR {{ enteteJournal().err }}</span>
+          <span class="discret a-droite">{{ enteteJournal().total }} lignes</span>
+        </div>
+        <mg-journal [lignes]="lignesJournal()" [hauteur]="240" />
+        @if (etat.importEnCours()) {
+          <div class="en-cours mono teal-t" data-en-cours>&gt; en cours...</div>
+        }
+      </div>
+    }
+  </div>
+</div>
+
+<mg-confirmation
+  [ouvert]="etat.confirmationImport()"
+  titre="Lancer l'import reel en base Supabase ?"
+  libelleConfirmer="Lancer l'import"
+  variante="danger"
+  (confirmer)="etat.confirmerImport()"
+  (annuler)="etat.annulerImport()"
+/>

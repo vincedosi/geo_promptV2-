@@ -1,0 +1,144 @@
+<div class="carte">
+  <div class="entete">
+    <span class="num" data-num>03c</span>
+    <span class="titre" data-titre>Geocodage adresses</span>
+    @if (etat.statsGeocodage(); as s) {
+      <div class="badges a-droite" data-badges>
+        <span class="badge vert">{{ s.green }} OK</span>
+        @if (s.orange > 0) {
+          <span class="badge ambre">{{ s.orange }} approx.</span>
+        }
+        @if (s.red > 0) {
+          <span class="badge rouge">{{ s.red }} echecs</span>
+        }
+      </div>
+    }
+  </div>
+  <div class="corps">
+    <div class="note mono" data-note>// geocodage via api-adresse.data.gouv.fr (BAN) — endpoint batch CSV</div>
+
+    @if (!etat.geocodeId()) {
+      <button type="button" class="bouton succes lancer" data-lancer [disabled]="etat.geocodageEnCours()" (click)="etat.geocoder()">
+        @if (etat.geocodageEnCours()) {
+          <mg-icone nom="chargement" [taille]="12" class="tourne" /> Geocodage en cours...
+        } @else {
+          {{ libelleLancer() }}
+        }
+      </button>
+    }
+
+    @if (etat.erreurGeocodage()) {
+      <div class="alerte rouge marge-12" data-erreur>! {{ etat.erreurGeocodage() }}</div>
+    }
+
+    @if (etat.resultatsGeocodage().length > 0 && etat.statsGeocodage(); as s) {
+      <div class="revue">
+        <div class="tuiles">
+          @for (t of tuiles(); track t.cle) {
+            <button type="button" class="tuile" [class.active]="t.actif" [attr.data-tuile]="t.cle" [attr.data-statut]="t.cle" [attr.aria-pressed]="t.actif" (click)="filtrer(t.cle)">
+              <div class="tuile-libelle">{{ t.libelle }}</div>
+              <div class="tuile-valeur" [class.vert-t]="t.cle === 'green'" [class.ambre-t]="t.cle === 'orange'" [class.rouge-t]="t.cle === 'red'">{{ t.valeur }}</div>
+              <div class="tuile-note mono">{{ t.note }}</div>
+            </button>
+          }
+        </div>
+
+        <div class="barre-filtres">
+          @for (b of boutonsFiltre(); track b.cle) {
+            <button type="button" class="filtre" [class.actif]="b.actif" [attr.data-filtre]="b.cle" [attr.data-statut]="b.cle" [attr.aria-pressed]="b.actif" (click)="filtrer(b.cle)">{{ b.texte }}</button>
+          }
+          <span class="affiches mono" data-affiches>{{ nbAffiches() }} resultats affiches</span>
+        </div>
+
+        <div class="tableau">
+          <div class="grille entetes" data-entetes>
+            <span>#</span>
+            <span>Adresse saisie</span>
+            <span>Resultat BAN</span>
+            <span>Score</span>
+            <span>Statut</span>
+            <span>Actions</span>
+          </div>
+
+          @for (l of lignes(); track l.r.rowIndex) {
+            <div [attr.data-ligne]="l.r.rowIndex">
+              <div class="grille ligne" [attr.data-fond]="l.fond">
+                <span class="mono discret petit">{{ l.numero }}</span>
+                <span class="mono petit secondaire-t coupe" [attr.title]="l.r.inputAddress">
+                  @if (l.r.inputAddress) {
+                    {{ l.r.inputAddress }}
+                  } @else {
+                    <i class="discret">vide</i>
+                  }
+                </span>
+                <span class="mono petit coupe" [class.resultat-ok]="l.r.status === 'green'" [attr.title]="l.r.resultLabel">
+                  {{ l.r.resultLabel || '—' }}
+                  @if (l.r.manualOverride) {
+                    <span class="edit mono">[edit]</span>
+                  }
+                </span>
+                <span class="mono petit gras" [class]="l.couleur">{{ l.score }}</span>
+                <span class="statut" [class]="l.couleur">{{ l.statut }}</span>
+                <div class="actions">
+                  @if (l.r.status !== 'green') {
+                    <button type="button" class="fantome mini" (click)="etat.ouvrirEdition(l.r)">{{ etat.ligneEditee() === l.r.rowIndex ? 'Fermer' : 'Corriger' }}</button>
+                    <button type="button" class="fantome mini" [disabled]="etat.correctionEnCours()" (click)="corriger(l.r, { type: 'ignore' })">Ignorer</button>
+                  }
+                </div>
+              </div>
+
+              @if (etat.ligneEditee() === l.r.rowIndex) {
+                <div class="edition" data-edition>
+                  <div class="rangee">
+                    <label class="libelle" [attr.for]="'geo-adresse-' + l.r.rowIndex">Adresse :</label>
+                    <input
+                      type="text"
+                      class="champ large"
+                      [id]="'geo-adresse-' + l.r.rowIndex"
+                      [value]="etat.adresseEditee()"
+                      placeholder="Corrigez l'adresse et re-geocodez"
+                      (input)="saisir('adresse', $event)"
+                    />
+                    <button type="button" class="bouton succes compact" [disabled]="adresseInvalide()" (click)="regeocoder(l.r)">
+                      @if (etat.correctionEnCours()) {
+                        <mg-icone nom="chargement" [taille]="10" class="tourne" />
+                      } @else {
+                        Re-geocoder
+                      }
+                    </button>
+                  </div>
+                  <div class="rangee">
+                    <span class="libelle">Manuel :</span>
+                    <input type="text" class="champ coord" aria-label="Latitude" placeholder="Latitude" [value]="etat.latEditee()" (input)="saisir('lat', $event)" />
+                    <input type="text" class="champ coord" aria-label="Longitude" placeholder="Longitude" [value]="etat.lngEditee()" (input)="saisir('lng', $event)" />
+                    <button type="button" class="bouton succes compact" [disabled]="coordsInvalides()" (click)="validerCoords(l.r)">Valider coords</button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+
+          @if (reste() > 0) {
+            <div class="reste mono" data-reste>... et {{ reste() }} autres resultats (utilisez les filtres pour affiner)</div>
+          }
+        </div>
+
+        <div class="validation">
+          <button type="button" class="bouton succes valider" data-valider [disabled]="s.green === 0" (click)="etat.validerGeocodage()">
+            Valider le geocodage ({{ avecCoordonnees() }} lignes avec coordonnees)
+          </button>
+          @if (s.red > 0) {
+            <span class="mono sans-coord ambre-t" data-sans-coordonnees>! {{ s.red }} ligne{{ s.red > 1 ? 's' : '' }} sans coordonnees (seront exclues)</span>
+          }
+          @if (etat.geocodageValide()) {
+            <span class="badge vert a-droite" data-valide>VALIDE</span>
+          }
+        </div>
+
+        <div class="relancer">
+          <button type="button" class="fantome" data-relancer (click)="etat.relancerGeocodage()">Relancer tout le geocodage</button>
+        </div>
+      </div>
+    }
+  </div>
+</div>

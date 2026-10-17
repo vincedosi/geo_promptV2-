@@ -15,6 +15,7 @@ import { RadioAdminApi } from '../radio/data/radio-admin.api';
 import { SourcesAdminApi } from '../sources/data/sources-admin.api';
 import { ImportPoiApi } from './data/import-poi.api';
 import { ANALYSE_POI_ESSAI } from './testing/import-poi.fixture';
+import { ESSAI_A_BLANC } from './testing/geocodage.fixture';
 
 const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
@@ -97,6 +98,31 @@ describe('ImportPoiPage — `admin/donnees/importer/poi` (`app/admin/import/page
     lat.dispatchEvent(new Event('change'));
     await harness.fixture.whenStable();
     expect(page.querySelector('mg-import-colonnes')).toBeNull();
+  });
+
+  it('T13 — GPS : 04 « Test (dry-run) » sous 03b, sans 03c ; essai réussi → 05 ; mode adresse : 03c, et 04 attend la validation', async () => {
+    const { harness, el, http } = await monter('/hote/app/admin/donnees/importer/poi');
+    lecturesDuMontage(http);
+    deposer(el, new File(['x'], 'poi-essai.csv'));
+    http.expectOne('/api/admin/import-poi/parse').flush(ANALYSE_POI_ESSAI);
+    await harness.fixture.whenStable();
+    const page = el.querySelector('mg-import-poi')!;
+    const select = page.querySelector<HTMLSelectElement>('mg-import-categorie select')!;
+    select.value = 'lycee';
+    select.dispatchEvent(new Event('change'));
+    await harness.fixture.whenStable();
+    const ordre = () => [...page.querySelectorAll('.etapes > *')].map((e) => e.tagName.toLowerCase());
+    expect(ordre()).toEqual(['mg-import-depot', 'mg-import-categorie', 'mg-import-correspondance', 'mg-import-colonnes', 'mg-import-essai', 'div']);
+    page.querySelector<HTMLButtonElement>('mg-import-essai [data-essayer]')!.click();
+    http.expectOne('/api/admin/import-poi/dry-run').flush(ESSAI_A_BLANC);
+    await harness.fixture.whenStable();
+    expect(ordre()).toContain('mg-import-reel');
+
+    page.querySelector<HTMLInputElement>('mg-import-correspondance input[type="radio"][value="address"]')!.click();
+    await harness.fixture.whenStable();
+    expect(ordre()).toEqual([
+      'mg-import-depot', 'mg-import-categorie', 'mg-import-correspondance', 'mg-import-colonnes', 'mg-import-geocodage', 'mg-import-reel', 'div',
+    ]);
   });
 
   it('l’état vit avec la page : quitter puis revenir repart vide et relit (comme le montage de React)', async () => {

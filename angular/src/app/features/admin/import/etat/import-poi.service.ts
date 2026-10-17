@@ -1,316 +1,391 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
-import type { Observable, Subscription } from 'rxjs';
-import { NotificationsService } from '../../../../ui/notifications/notifications.service';
-import { CategoriesPoiApi, type ReponseCategoriesPoi } from '../../commun/data/categories-poi.api';
-import { OrganisationsListeApi, type ReponseOrganisationsListe } from '../../commun/data/organisations-liste.api';
-import type { GeoConfig, GeoMode, ParseResult } from '../../logique/types/import-poi';
-import { ImportPoiApi } from '../data/import-poi.api';
+import { Injectable, computed, signal } from '@angular/core';
+import type {
+  DryRunResult, GeocodeDetailedResult, ImportProgress, ImportReport, LogLevel,
+} from '../../logique/types/import-poi';
 import {
-  CATEGORIES_REPLI, ORGANISATION_DEFAUT, type Correspondance, type OptionCategoriePoi,
-} from '../logique/constantes';
+  type ActionGeocodage, type ConfigImport, type ReponseCorrection, type ReponseGeocodage, type StatsGeocodage,
+} from '../data/import-poi.api';
+import { ImportPoiPreparation, corpsJson } from './import-poi-preparation';
 
-/** Étapes dont l'accès dépend de la précédente (T12) ; T13 ajoute 03c, 04 et 05. */
-export type EtapeImportPoi = '02' | '03' | '03b';
+export type { CorrespondanceGeo } from './import-poi-preparation';
 
-/** Colonnes de géolocalisation (`geoMapping` de React) : `colLat`, `colLng`, `colAdresse`, `colCodePostal`, `colVille`, `colX`, `colY`. */
-export type CorrespondanceGeo = Record<string, string>;
+/** Étapes dont l'accès dépend de la précédente : 02 à 03b (T12), 03c, 04 et 05 (T13). */
+export type EtapeImportPoi = '02' | '03' | '03b' | '03c' | '04' | '05';
+
+/** Filtre du tableau de géocodage (`GeocodeFilter`, `GeocodeStep.tsx:30`). */
+export type FiltreGeocodage = 'all' | 'green' | 'orange' | 'red';
+
+/** Une ligne du journal d'import (`LogLine` de `ImportLogPanel.tsx`, sans l'horodatage que React n'affiche pas). */
+export interface LigneJournalImport {
+  level: LogLevel;
+  line: string;
+}
+
+/** Ce que `mg-progression-import` affiche (C5) : étape NOMMÉE d'après la route, compteur, fin, échec. */
+export interface EtatProgressionImport {
+  etape: string;
+  traitees: number | null;
+  total: number | null;
+  termine: boolean;
+  echec: string | null;
+}
+
+/** Les compteurs du dernier événement qui portait un total (la ligne « traites / inseres / ignores / erreurs »). */
+export interface CompteursImport {
+  processed: number;
+  total: number;
+  /** Absents des événements qui ne les portent pas (React n'affiche alors pas leur compteur). */
+  inserted?: number;
+  ignored?: number;
+  errors?: number;
+}
+
+/** Règle du lot 3 : un flux fini sans événement final est un échec, jamais un succès silencieux. */
+export const MESSAGE_INTERROMPU = 'Le flux s’est interrompu avant la fin.';
 
 /**
- * Corps d'un refus HTTP tel que React l'aurait lu par `res.json()` : un objet JSON est rendu, tout le
- * reste (réseau coupé, corps HTML ou vide) vaut « illisible » — `res.json()` aurait levé.
+ * Étape d'une progression d'INSERTION : la route n'y joint aucun `message` (`execute/route.ts:202-211`) ; on
+ * la nomme de ses propres mots, ceux du journal qui l'ouvre (« Insertion en base Supabase (N lignes)... », l.197).
  */
-function corpsJson<T = Record<string, unknown>>(e: unknown): T | null {
-  if (!(e instanceof HttpErrorResponse) || e.status === 0) return null;
-  const corps: unknown = e.error;
-  if (corps === null || typeof corps !== 'object' || corps instanceof Event || corps instanceof Error) return null;
-  // Une réponse 2xx dont le JSON est invalide arrive en `{ error: SyntaxError, text }`.
-  if ((corps as { error?: unknown }).error instanceof Error) return null;
-  return corps as T;
-}
+export const ETAPE_INSERTION = 'Insertion en base Supabase';
 
-/** Catégories de la route → options de l'étape 02 (`page.tsx:108-112`). */
-function options(data: ReponseCategoriesPoi): OptionCategoriePoi[] | null {
-  if (!data.success || !data.categories) return null;
-  return data.categories.map((c) => ({ val: c.categorie, label: c.label_fr || c.categorie, icone: c.icone || '' }));
+/**
+ * Le message d'un refus HTTP : l'`error` du corps (objet JSON, ou texte JSON du flux), sinon `HTTP <statut>` ;
+ * « Failed to fetch » (le message de `fetch`) sans réponse du serveur.
+ */
+function messageRefus(e: unknown): string {
+  if (!(e instanceof HttpErrorResponse)) return e instanceof Error ? e.message : String(e);
+  if (e.status === 0) return 'Failed to fetch';
+  let corps: unknown = e.error;
+  if (typeof corps === 'string') {
+    try {
+      corps = JSON.parse(corps);
+    } catch {
+      corps = null;
+    }
+  }
+  const erreur = corps && typeof corps === 'object' ? (corps as { error?: unknown }).error : undefined;
+  return typeof erreur === 'string' && erreur ? erreur : `HTTP ${e.status}`;
 }
 
 /**
- * L'état du parcours d'import POI (lot 6, T12) : ce que `app/admin/import/page.tsx` garde au niveau de la
- * PAGE (l.35-94), fourni par `ImportPoiPage` et détruit avec elle — revenir sur l'écran repart vide, comme
- * un nouveau montage de React. Les étapes le lisent et l'écrivent ; T13 y ajoute géocodage, essai à blanc
- * et import en flux (et consomme `configGeo`, `nomSource`, `organisationId`, `organisations`).
+ * L'état du parcours d'import POI (lot 6) : ce que `app/admin/import/page.tsx` garde au niveau de la PAGE, fourni
+ * par `ImportPoiPage` et détruit avec elle. Les étapes 01 à 03b viennent d'`ImportPoiPreparation` (T12) ; ce
+ * service y ajoute (T13) :
  *
- * - **Lectures du montage** (`charger`) : organisations et catégories, UNE fois par écran (cache avant
- *   appel). Échecs : organisations ignorées ; catégories → le repli codé en dur de React quand la réponse
- *   est illisible (réseau, corps non JSON), une liste vide quand la route répond `{ success: false }`.
- * - **Dépôt** (`analyser`) : une lecture (la route n'écrit rien en base) — annulée par un dépôt plus récent
- *   et à la destruction.
- * - **Création de catégorie** : une ÉCRITURE ; jamais désabonnée, sa suite ignorée après destruction.
- *
- * Écarts à React, voulus : un dépôt plus récent ANNULE le précédent (React gardait la réponse arrivée la
- * dernière, pas celle du dernier fichier) ; un refus de création de catégorie est NOTIFIÉ (React l'avalait,
- * le bouton revenait sans un mot) ; un corps d'analyse illisible dit « HTTP <statut> » (React affichait le
- * message de `SyntaxError`).
+ * - **03c — géocodage** (mode adresse) : `geocode/batch` (la BAN, service EXTERNE, appelée par le serveur pour
+ *   toutes les lignes ; une lecture, annulée par un nouveau fichier et à la destruction), puis les corrections
+ *   ligne à ligne (`geocode/update`, réécrit un fichier temporaire du serveur : jamais désabonnée) ;
+ * - **04 — essai à blanc** (`dry-run`, une lecture) ;
+ * - **05 — import en flux SSE** (`execute`, ⚠ ÉCRIT) : confirmation d'abord (C6), jamais désabonné (C13),
+ *   journal, progression nommée (C5), rapport ; un flux tronqué est un échec nommé.
  */
 @Injectable()
-export class ImportPoiService {
-  private readonly api = inject(ImportPoiApi);
-  private readonly categoriesApi = inject(CategoriesPoiApi);
-  private readonly organisationsApi = inject(OrganisationsListeApi);
-  private readonly notifications = inject(NotificationsService);
+export class ImportPoiService extends ImportPoiPreparation {
+  // ── 03c — géocodage (mode adresse) ──
+  /** Identifiant des résultats gardés par le serveur (fichier temporaire), joint à l'essai et à l'import. */
+  readonly geocodeId = signal<string | null>(null);
+  readonly resultatsGeocodage = signal<GeocodeDetailedResult[]>([]);
+  readonly statsGeocodage = signal<StatsGeocodage | null>(null);
+  readonly geocodageEnCours = signal(false);
+  readonly erreurGeocodage = signal<string | null>(null);
+  readonly filtreGeocodage = signal<FiltreGeocodage>('all');
+  /** `rowIndex` de la ligne dont le formulaire de correction est ouvert. */
+  readonly ligneEditee = signal<number | null>(null);
+  readonly adresseEditee = signal('');
+  readonly latEditee = signal('');
+  readonly lngEditee = signal('');
+  readonly correctionEnCours = signal(false);
+  readonly geocodageValide = signal(false);
 
-  // ── 01 — dépôt ──
-  /** Les fichiers déposés (un bundle Shapefile en compte plusieurs) ; le premier est celui qu'on affiche. */
-  readonly fichiers = signal<File[]>([]);
-  readonly analyse = signal<ParseResult | null>(null);
-  readonly analyseEnCours = signal(false);
+  // ── 04 — essai à blanc ──
+  readonly essai = signal<DryRunResult | null>(null);
+  readonly essaiEnCours = signal(false);
 
-  // ── 02 — catégorie ──
-  readonly categorie = signal('');
-  readonly categories = signal<OptionCategoriePoi[]>([]);
-  readonly nouvelleCategorie = signal('');
-  readonly creationEnCours = signal(false);
+  // ── 05 — import ──
+  /** La boîte « Lancer l'import reel en base Supabase ? » (le `confirm()` de React, C6). */
+  readonly confirmationImport = signal(false);
+  readonly importEnCours = signal(false);
+  /** `importProgress` de React : le dernier événement du flux qui n'est pas un `log` (ou l'échec). */
+  readonly progression = signal<ImportProgress | null>(null);
+  readonly etatProgression = signal<EtatProgressionImport | null>(null);
+  readonly compteurs = signal<CompteursImport | null>(null);
+  readonly rapport = signal<ImportReport | null>(null);
+  /** `firstError` de l'événement `complete` : la première erreur SQL, affichée sous le rapport. */
+  readonly premiereErreur = signal<string | null>(null);
+  readonly journal = signal<LigneJournalImport[]>([]);
 
-  // ── 03 — correspondance ──
-  readonly correspondance = signal<Correspondance>({});
-  readonly modeGeo = signal<GeoMode>('gps');
-  readonly correspondanceGeo = signal<CorrespondanceGeo>({});
-
-  // ── 03b — colonnes ──
-  readonly colonnesImportees = signal<string[]>([]);
-  readonly champsFiltres = signal<string[]>([]);
-
-  // ── 05 — import (champs de React lus par T13) ──
-  readonly nomSource = signal('');
-  readonly organisationId = signal(ORGANISATION_DEFAUT);
-  readonly organisations = signal<{ id: string; name: string }[]>([]);
-
-  /** Les colonnes du fichier analysé (`parseResult?.columns || []`). */
-  readonly colonnes = computed(() => this.analyse()?.columns ?? []);
-
-  /** `isStep3Valid` (`page.tsx:419-423`) : la géolocalisation du mode choisi est renseignée. */
-  readonly geolocalisationComplete = computed(() => {
-    const geo = this.correspondanceGeo();
-    const m = this.correspondance();
-    switch (this.modeGeo()) {
-      case 'gps': return !!(geo['colLat'] && geo['colLng']);
-      case 'address': return !!(geo['colAdresse'] || m.adresse || geo['colVille'] || m.ville);
-      default: return !!(geo['colX'] && geo['colY']);
-    }
-  });
-
-  /** Accès aux étapes, mêmes conditions que le rendu de React (`page.tsx:465, 481, 496`). */
+  /**
+   * Accès aux étapes, mêmes conditions que le rendu de React (`page.tsx:465, 481, 496, 511, 544, 555`) : en mode
+   * adresse, 04 reste fermée tant que le géocodage n'est pas VALIDÉ (`isGeocodeReady`, l.426) ; 05 s'ouvre sur
+   * un essai réussi qui a trouvé au moins une ligne valide (sans autre condition, comme React).
+   */
   readonly etapeAccessible = computed<Record<EtapeImportPoi, boolean>>(() => {
     const analysee = this.analyse()?.success === true;
     const categorie = analysee && this.categorie().length > 0;
+    const geo = categorie && this.geolocalisationComplete();
+    const adresse = this.modeGeo() === 'address';
+    const essai = this.essai();
     return {
       '02': analysee,
       '03': categorie,
-      '03b': categorie && this.geolocalisationComplete() && this.colonnes().length > 0,
+      '03b': geo && this.colonnes().length > 0,
+      '03c': geo && adresse,
+      '04': geo && (!adresse || this.geocodageValide()),
+      '05': essai?.success === true && essai.stats.validRows > 0,
     };
   });
 
-  /** `buildGeoConfig` (`page.tsx:206-215`) : les colonnes du mode choisi, l'adresse retombant sur le mapping standard. */
-  readonly configGeo = computed<GeoConfig>(() => {
-    const geo = this.correspondanceGeo();
-    const m = this.correspondance();
-    const mode = this.modeGeo();
-    if (mode === 'gps') return { mode, colLat: geo['colLat'], colLng: geo['colLng'] };
-    if (mode === 'address') {
-      return {
-        mode,
-        colAdresse: geo['colAdresse'] || m.adresse,
-        colCodePostal: geo['colCodePostal'] || m.code_postal,
-        colVille: geo['colVille'] || m.ville,
-      };
-    }
-    return { mode, colX: geo['colX'], colY: geo['colY'] };
-  });
+  /** Chaque import ouvre une « génération » : un nouveau fichier ou la destruction fait ignorer la suite du flux. */
+  private generation = 0;
 
-  private detruit = false;
-  private charge = false;
-  private readonly lectures = new Map<string, Subscription>();
-
-  constructor() {
-    inject(DestroyRef).onDestroy(() => {
-      this.detruit = true;
-      for (const l of this.lectures.values()) l.unsubscribe();
-    });
+  /**
+   * Un nouveau fichier (`handleFileUpload`, `page.tsx:139-141`) : l'essai à blanc, le rapport et la progression
+   * repartent de zéro, le journal aussi. Écart voulu : le GÉOCODAGE aussi — React le gardait, et son `geocodeId`
+   * (les coordonnées de l'ANCIEN fichier, ligne par ligne) partait avec l'essai et l'import du nouveau.
+   * Un import en cours n'est pas annulé (C13) : sa suite est ignorée.
+   */
+  protected reinitialiserAval(): void {
+    this.lectures.get('essai')?.unsubscribe();
+    this.lectures.get('geocodage')?.unsubscribe();
+    this.essai.set(null);
+    this.essaiEnCours.set(false);
+    this.geocodageEnCours.set(false);
+    this.oublierImport();
+    this.oublierGeocodage();
   }
 
-  /** Les deux lectures du montage (`page.tsx:93-126`), une fois par écran. */
-  charger(): void {
-    if (this.charge) return;
-    this.charge = true;
-    this.lire('organisations', this.organisationsApi.lister(), (d) => this.appliquerOrganisations(d), (e) => {
-      const corps = corpsJson<ReponseOrganisationsListe>(e);
-      if (corps) this.appliquerOrganisations(corps);
-    });
-    this.lire('categories', this.categoriesApi.lister(), (d) => this.appliquerCategories(d), (e) => {
-      const corps = corpsJson<ReponseCategoriesPoi>(e);
-      if (corps) this.appliquerCategories(corps);
-      else this.categories.set([...CATEGORIES_REPLI]);
-    });
-  }
+  // ── 03c — géocodage ──
 
-  /** `handleFileUpload` (`page.tsx:132-186`). */
-  analyser(fichiers: File[]): void {
-    if (fichiers.length === 0) return;
-    this.fichiers.set(fichiers);
-    this.analyseEnCours.set(true);
-    this.analyse.set(null);
-    this.lire('analyse', this.api.analyser(fichiers), (data) => {
-      this.analyse.set(data);
-      this.appliquerAnalyse(data);
-      this.analyseEnCours.set(false);
+  /** `handleGeocodeBatch` (`page.tsx:221-259`) : toutes les adresses du fichier envoyées à la BAN par la route. */
+  geocoder(): void {
+    const fichier = this.analyse()?.fileId;
+    if (!fichier) return;
+    this.oublierGeocodage();
+    this.geocodageEnCours.set(true);
+    const gc = this.configGeo();
+    const fin = (message: string | null, data?: ReponseGeocodage) => {
+      if (message !== null) this.erreurGeocodage.set(message);
+      else if (data) {
+        this.geocodeId.set(data.geocodeId ?? null);
+        this.resultatsGeocodage.set(data.results ?? []);
+        this.statsGeocodage.set(data.stats ?? null);
+      }
+      this.geocodageEnCours.set(false);
+    };
+    this.lire('geocodage', this.api.geocoder({
+      fileId: fichier, colAdresse: gc.colAdresse, colCodePostal: gc.colCodePostal, colVille: gc.colVille,
+    }), (data) => {
+      if (!data.success) fin(data.error || 'Erreur geocodage');
+      else fin(null, data);
     }, (e) => {
-      const corps = corpsJson<ParseResult>(e);
-      if (corps) {
-        this.analyse.set(corps);
-        this.appliquerAnalyse(corps);
-      } else {
-        const message = e instanceof HttpErrorResponse && e.status !== 0 ? `HTTP ${e.status}` : 'Failed to fetch';
-        this.analyse.set({ success: false, error: message } as ParseResult);
-      }
-      this.analyseEnCours.set(false);
+      const corps = corpsJson<ReponseGeocodage>(e);
+      fin(corps ? corps.error || 'Erreur geocodage' : messageRefus(e));
     });
   }
 
-  choisirCategorie(val: string): void {
-    this.categorie.set(val);
+  /** « Corriger » / « Fermer » d'une ligne (`GeocodeStep.tsx:256-261`) : recopie l'adresse et les coordonnées. */
+  ouvrirEdition(r: GeocodeDetailedResult): void {
+    this.ligneEditee.set(this.ligneEditee() === r.rowIndex ? null : r.rowIndex);
+    this.adresseEditee.set(r.inputAddress);
+    this.latEditee.set(r.lat?.toString() || '');
+    this.lngEditee.set(r.lng?.toString() || '');
   }
 
-  /** `handleCreateCategory` (`CategoryStep.tsx:44-68`) : POST, relecture de la liste, la catégorie créée choisie. */
-  creerCategorie(): void {
-    const nom = this.nouvelleCategorie().trim();
-    if (!nom || this.creationEnCours()) return;
-    this.creationEnCours.set(true);
-    // Une écriture : jamais désabonnée, sa suite est seulement ignorée après destruction.
-    this.categoriesApi.creer(nom).subscribe({
+  /**
+   * `handleGeocodeUpdateRow` (`page.tsx:261-287`). Réécrit le fichier temporaire du serveur : jamais
+   * désabonnée, sa suite ignorée après destruction ou après un nouveau géocodage. Écart voulu : un refus est
+   * NOTIFIÉ (React l'avalait, la ligne restait telle quelle sans un mot).
+   */
+  corriger(rowIndex: number, action: ActionGeocodage): void {
+    const geocodeId = this.geocodeId();
+    if (!geocodeId) return;
+    this.correctionEnCours.set(true);
+    const perime = () => this.detruit || geocodeId !== this.geocodeId();
+    const echec = (message?: string) => {
+      this.notifications.error('Correction du géocodage échouée', message);
+      this.correctionEnCours.set(false);
+    };
+    this.api.corrigerGeocodage({ geocodeId, rowIndex, action }).subscribe({
       next: (data) => {
-        if (this.detruit) return;
-        if (!data.success) {
-          this.echecCreation(data.error);
-          return;
-        }
-        const categorie = data.categorie ?? '';
-        this.lire('relecture', this.categoriesApi.lister(), (d) => {
-          this.appliquerCategories(d);
-          this.finirCreation(categorie);
-        }, (e) => {
-          const corps = corpsJson<ReponseCategoriesPoi>(e);
-          if (corps) {
-            this.appliquerCategories(corps);
-            this.finirCreation(categorie);
-          } else {
-            this.creationEnCours.set(false);
-          }
-        });
+        if (perime()) return;
+        if (!data.success || !data.updatedResult) echec(data.error);
+        else this.appliquerCorrection(rowIndex, data);
       },
       error: (e: unknown) => {
-        if (this.detruit) return;
-        const corps = corpsJson(e);
-        this.echecCreation(typeof corps?.['error'] === 'string' ? corps['error'] : undefined);
+        if (perime()) return;
+        const corps = corpsJson<ReponseCorrection>(e);
+        echec(corps ? corps.error : messageRefus(e));
       },
     });
   }
 
-  /** Un champ standard : « — Non mappe — » le retire (`v || undefined`, `MappingStep.tsx:234`). */
-  associer(champ: string, colonne: string): void {
-    this.correspondance.update((m) => ({ ...m, [champ]: colonne || undefined }));
+  validerGeocodage(): void {
+    this.geocodageValide.set(true);
   }
 
-  /** Une colonne de géolocalisation : la valeur telle quelle, chaîne vide comprise (`MappingStep.tsx:273-290`). */
-  associerGeo(cle: string, colonne: string): void {
-    this.correspondanceGeo.update((g) => ({ ...g, [cle]: colonne }));
+  /** « Relancer tout le geocodage » (`GeocodeStep.tsx:363-369`) : retour au bouton de lancement. */
+  relancerGeocodage(): void {
+    this.oublierGeocodage();
   }
 
-  choisirModeGeo(mode: GeoMode): void {
-    this.modeGeo.set(mode);
+  // ── 04 — essai à blanc ──
+
+  /** `handleDryRun` (`page.tsx:293-326`) : les 100 premières lignes, rien en base. */
+  essayer(): void {
+    const config = this.config({ limit: 100 });
+    if (!config) return;
+    this.essaiEnCours.set(true);
+    this.essai.set(null);
+    this.lire('essai', this.api.essayer(config), (data) => {
+      this.essai.set(data);
+      this.essaiEnCours.set(false);
+    }, (e) => {
+      this.essai.set(corpsJson<DryRunResult>(e) ?? ({ success: false, error: messageRefus(e) } as DryRunResult));
+      this.essaiEnCours.set(false);
+    });
   }
 
-  /** `toggleImport` (`ColumnSelectionStep.tsx:68-74`) : décocher retire aussi la colonne des filtres. */
-  basculerImport(colonne: string): void {
-    const avant = this.colonnesImportees();
-    const apres = avant.includes(colonne) ? avant.filter((c) => c !== colonne) : [...avant, colonne];
-    this.colonnesImportees.set(apres);
-    if (!apres.includes(colonne)) this.champsFiltres.update((f) => f.filter((x) => x !== colonne));
+  // ── 05 — import ──
+
+  /** « LANCER L'IMPORT REEL » : la confirmation d'abord (le `confirm()` de React, l.334), rien n'est envoyé. */
+  demanderImport(): void {
+    if (!this.analyse()?.fileId || this.importEnCours()) return;
+    this.confirmationImport.set(true);
   }
 
-  basculerFiltre(colonne: string): void {
-    this.champsFiltres.update((f) => (f.includes(colonne) ? f.filter((x) => x !== colonne) : [...f, colonne]));
+  annulerImport(): void {
+    this.confirmationImport.set(false);
   }
 
-  /** « Tout importer » : les colonnes LIBRES seulement (`unmappedCols`). */
-  toutImporter(libres: string[]): void {
-    this.colonnesImportees.set([...libres]);
-  }
+  /**
+   * `handleImport` (`page.tsx:332-410`), une fois confirmé. ⚠ ÉCRIT (une source, les POI). Jamais désabonné, ni
+   * par la destruction ni par un nouveau fichier (C13) : la génération fait ignorer la suite.
+   */
+  confirmerImport(): void {
+    this.confirmationImport.set(false);
+    const config = this.config({
+      sourceName: this.nomSource().trim() || undefined,
+      organizationId: this.organisationId(),
+      importedColumns: this.colonnesImportees().length > 0 ? this.colonnesImportees() : undefined,
+      filterFields: this.champsFiltres().length > 0 ? this.champsFiltres() : undefined,
+    });
+    if (!config || this.importEnCours()) return;
+    const generation = ++this.generation;
+    const actuel = () => !this.detruit && generation === this.generation;
+    let fini = false;
+    this.importEnCours.set(true);
+    this.rapport.set(null);
+    this.progression.set(null);
+    this.premiereErreur.set(null);
+    this.compteurs.set(null);
+    this.journal.set([]);
+    this.etatProgression.set({ etape: 'Lancement', traitees: null, total: null, termine: false, echec: null });
 
-  toutExclure(): void {
-    this.colonnesImportees.set([]);
-    this.champsFiltres.set([]);
-  }
-
-  effacerFiltres(): void {
-    this.champsFiltres.set([]);
-  }
-
-  /** Ce qu'une analyse réussie pose en aval (`page.tsx:158-179`) ; la catégorie, elle, est gardée (React). */
-  private appliquerAnalyse(data: ParseResult): void {
-    if (data.success && data.suggestedMapping) {
-      const suggere: Correspondance = {};
-      for (const [cle, val] of Object.entries(data.suggestedMapping)) if (val) suggere[cle] = val;
-      this.correspondance.set(suggere);
-      const geo: CorrespondanceGeo = {};
-      if (suggere['lat']) {
-        geo['colLat'] = suggere['lat'];
-        this.modeGeo.set('gps');
-      }
-      if (suggere['lng']) geo['colLng'] = suggere['lng'];
-      if (suggere['x']) geo['colX'] = suggere['x'];
-      if (suggere['y']) geo['colY'] = suggere['y'];
-      this.correspondanceGeo.set(geo);
-    }
-    if (data.success && data.columns) {
-      this.colonnesImportees.set(data.columns.map((c) => c.name));
-      this.champsFiltres.set([]);
-    }
-  }
-
-  private appliquerOrganisations(data: ReponseOrganisationsListe): void {
-    if (data.success && data.organizations) this.organisations.set(data.organizations.map((o) => ({ id: o.id, name: o.name })));
-  }
-
-  private appliquerCategories(data: ReponseCategoriesPoi): void {
-    const liste = options(data);
-    if (liste) this.categories.set(liste);
-  }
-
-  private finirCreation(categorie: string): void {
-    this.categorie.set(categorie);
-    this.nouvelleCategorie.set('');
-    this.creationEnCours.set(false);
-  }
-
-  private echecCreation(message?: string): void {
-    this.notifications.error('Création de la catégorie échouée', message);
-    this.creationEnCours.set(false);
-  }
-
-  /** Une lecture annulable, rangée sous sa clé : une nouvelle lecture de même clé annule la précédente. */
-  private lire<T>(cle: string, source: Observable<T>, ok: (d: T) => void, ko: (e: unknown) => void): void {
-    this.lectures.get(cle)?.unsubscribe();
-    const s = source.subscribe({
-      next: (d) => {
-        this.lectures.delete(cle);
-        ok(d);
+    this.api.importer(config).subscribe({
+      next: (evt) => {
+        if (!actuel()) return;
+        if (evt.type === 'complete' || evt.type === 'error') fini = true;
+        this.evenement(evt);
       },
       error: (e: unknown) => {
-        this.lectures.delete(cle);
-        ko(e);
+        if (!actuel()) return;
+        this.echouer(messageRefus(e));
+        this.importEnCours.set(false);
+      },
+      complete: () => {
+        if (!actuel()) return;
+        if (!fini) this.echouer(MESSAGE_INTERROMPU);
+        this.importEnCours.set(false);
       },
     });
-    if (!s.closed) this.lectures.set(cle, s);
+  }
+
+  /** Un événement du flux, lu comme React (l.384-399), plus la progression nommée (C5). */
+  private evenement(evt: ImportProgress): void {
+    if (evt.type === 'log') {
+      const ligne = evt.logLine;
+      if (ligne) this.journal.update((j) => [...j, { level: evt.logLevel || 'info', line: ligne }]);
+      return;
+    }
+    this.progression.set(evt);
+    if (evt.type === 'error') {
+      this.echouer(evt.message ?? 'Erreur import', false);
+      return;
+    }
+    if (evt.type === 'complete') {
+      if (evt.report) this.rapport.set(evt.report);
+      this.premiereErreur.set(evt.firstError ?? null);
+      this.etatProgression.update((p) => (p ? { ...p, termine: true } : p));
+      return;
+    }
+    // `progress` et `geocode` : l'étape est le message de la route ; un total nul (« Parsing du fichier... ») n'en est pas un.
+    const total = evt.total && evt.total > 0 ? evt.total : null;
+    this.etatProgression.update((p) => (p ? {
+      ...p,
+      etape: evt.message ?? ETAPE_INSERTION,
+      traitees: total === null ? null : evt.processed ?? 0,
+      total,
+    } : p));
+    if (total !== null) {
+      this.compteurs.set({
+        processed: evt.processed ?? 0, total, inserted: evt.inserted, ignored: evt.ignored, errors: evt.errors,
+      });
+    }
+  }
+
+  /**
+   * L'échec d'un import : React met `{ type: 'error', message }` à la place de la progression (l.406) ; la barre
+   * garde le pourcentage atteint, le journal le dit aussi.
+   */
+  private echouer(message: string, remplacer = true): void {
+    if (remplacer) this.progression.set({ type: 'error', message });
+    this.journal.update((j) => [...j, { level: 'error', line: `! ${message}` }]);
+    this.etatProgression.update((p) => ({ ...(p ?? { etape: 'Lancement', traitees: null, total: null, termine: false }), echec: message }));
+  }
+
+  /** Le corps commun à l'essai et à l'import (`page.tsx:299-311, 342-357`), `geocodeId` en mode adresse. */
+  private config(plus: Partial<ConfigImport>): ConfigImport | null {
+    const fileId = this.analyse()?.fileId;
+    if (!fileId) return null;
+    const config: ConfigImport = {
+      fileId, dataType: 'poi', category: this.categorie(), mapping: this.correspondance(), geolocation: this.configGeo(), ...plus,
+    };
+    const geocodeId = this.geocodeId();
+    if (this.modeGeo() === 'address' && geocodeId) config.geocodeId = geocodeId;
+    return config;
+  }
+
+  private appliquerCorrection(rowIndex: number, data: ReponseCorrection): void {
+    const corrigee = data.updatedResult;
+    if (corrigee) this.resultatsGeocodage.update((rs) => rs.map((r) => (r.rowIndex === rowIndex ? corrigee : r)));
+    this.statsGeocodage.set(data.stats ?? null);
+    this.ligneEditee.set(null);
+    this.adresseEditee.set('');
+    this.latEditee.set('');
+    this.lngEditee.set('');
+    this.correctionEnCours.set(false);
+  }
+
+  private oublierGeocodage(): void {
+    this.geocodeId.set(null);
+    this.resultatsGeocodage.set([]);
+    this.statsGeocodage.set(null);
+    this.geocodageValide.set(false);
+    this.erreurGeocodage.set(null);
+  }
+
+  /** Un nouveau fichier : l'import affiché est oublié, un flux encore ouvert n'écrira plus l'écran. */
+  private oublierImport(): void {
+    this.generation++;
+    this.importEnCours.set(false);
+    this.confirmationImport.set(false);
+    this.rapport.set(null);
+    this.progression.set(null);
+    this.etatProgression.set(null);
+    this.compteurs.set(null);
+    this.premiereErreur.set(null);
+    this.journal.set([]);
   }
 }

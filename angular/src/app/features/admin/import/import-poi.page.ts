@@ -3,6 +3,9 @@ import { CategorieComponent } from './etapes/categorie.component';
 import { ColonnesComponent } from './etapes/colonnes.component';
 import { CorrespondanceComponent } from './etapes/correspondance.component';
 import { DepotComponent } from './etapes/depot.component';
+import { EssaiComponent } from './etapes/essai.component';
+import { GeocodageComponent } from './etapes/geocodage.component';
+import { ImportComponent } from './etapes/import.component';
 import { ImportPoiService } from './etat/import-poi.service';
 
 /**
@@ -10,9 +13,10 @@ import { ImportPoiService } from './etat/import-poi.service';
  * l'onglet « Importer » de la page Données (amendement A7), en tête : c'est l'import le plus courant ;
  * `admin/import` y redirige.
  *
- * T12 : les quatre premières étapes — 01 dépôt, 02 catégorie, 03 correspondance, 03b colonnes —, chacune
- * rendue quand la précédente est remplie (`ImportPoiService.etapeAccessible`, mêmes règles que React).
- * T13 ajoute 03c (géocodage), 04 (essai à blanc), 05 (import en flux) dans ce gabarit.
+ * Sept étapes, chacune rendue quand la précédente est remplie (`ImportPoiService.etapeAccessible`, mêmes
+ * règles que React) : T12 — 01 dépôt, 02 catégorie, 03 correspondance, 03b colonnes ; T13 — 03c géocodage
+ * (mode adresse : 04 attend sa validation), 04 essai à blanc, 05 import en flux SSE (confirmation, progression,
+ * journal, rapport).
  *
  * Fournit `ImportPoiService`, l'état que React tient au niveau de la PAGE : détruit avec elle, il repart
  * vide au retour, comme un nouveau montage. Les deux lectures du montage (organisations, catégories)
@@ -25,7 +29,7 @@ import { ImportPoiService } from './etat/import-poi.service';
  */
 @Component({
   selector: 'mg-import-poi',
-  imports: [DepotComponent, CategorieComponent, CorrespondanceComponent, ColonnesComponent],
+  imports: [DepotComponent, CategorieComponent, CorrespondanceComponent, ColonnesComponent, GeocodageComponent, EssaiComponent, ImportComponent],
   providers: [ImportPoiService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './import-poi.page.html',
