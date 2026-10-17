@@ -126,4 +126,19 @@ describe('JournalComponent', () => {
     expect(el.querySelector('[data-niveau]')).toBeNull();
     expect(el.querySelector('[data-copier]')).toBeNull();
   });
+
+  it('outils projetés (`[outils]`) : rendus APRÈS « Copier », dans la même rangée (« Fermer » de la radio, `page.tsx:489-497`)', async () => {
+    const f = TestBed.createComponent(HoteOutils);
+    await f.whenStable();
+    const el = f.nativeElement as HTMLElement;
+    const rangee = el.querySelector('[data-copier]')!.parentElement!;
+    expect([...rangee.querySelectorAll('button')].map((b) => b.textContent!.trim())).toEqual(['Copier', 'Fermer']);
+  });
 });
+
+@Component({
+  imports: [JournalComponent],
+  providers: [NotificationsService],
+  template: '<mg-journal [lignes]="[]" [copiable]="true"><button outils type="button">Fermer</button></mg-journal>',
+})
+class HoteOutils {}

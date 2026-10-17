@@ -45,6 +45,10 @@ const COULEURS: Record<Niveau, string> = {
  * SHELL. Et seulement tant que l'utilisateur n'a pas remonté pour lire (`userScrolledRef`).
  *
  * Un niveau hors des cinq boutons (`log`) n'est jamais masqué par le filtre.
+ *
+ * Contenu projeté `[outils]` : des boutons de plus, rendus après « Copier » dans la même rangée (le
+ * « Fermer » d'un journal passé de la radio, `radio/page.tsx:489-497`) ; style `.outil` à reprendre par
+ * l'écran (le style d'un composant ne s'applique pas au contenu projeté).
  */
 @Component({
   selector: 'mg-journal',
@@ -70,6 +74,7 @@ const COULEURS: Record<Niveau, string> = {
         @if (copiable()) {
           <button type="button" data-copier class="outil" (click)="copier()">Copier</button>
         }
+        <ng-content select="[outils]" />
       </div>
     }
     <div

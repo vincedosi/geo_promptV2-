@@ -430,13 +430,12 @@ describe('SourcesPage — onglets, vue « Toutes », liste et détail d’une so
     http.expectNone(() => true);
   });
 
-  it('« Gérer → » du bloc Radio est INERTE tant que l’écran Radio n’est pas porté (patron de la barre)', async () => {
+  it('« Gérer → » du bloc Radio mène à l’écran Radio (T16), par un lien RELATIF (`href="/admin/radio"` de React)', async () => {
     const { el, servir } = await monter();
     await servir();
     const gerer = el.querySelector('[data-radio] [data-gerer]')!;
-    expect(gerer.getAttribute('aria-disabled')).toBe('true');
-    expect(gerer.getAttribute('title')).toBe('Disponible prochainement');
-    expect(gerer.hasAttribute('href')).toBe(false);
+    expect(gerer.getAttribute('href')).toBe('/hote/app/admin/donnees/importer/radio');
+    expect(gerer.hasAttribute('aria-disabled')).toBe(false);
   });
 
   it('carte de données système cliquée → son onglet', async () => {

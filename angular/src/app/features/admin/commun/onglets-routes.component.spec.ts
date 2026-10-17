@@ -114,5 +114,10 @@ describe('OngletsRoutesComponent — barre d’onglets liée au routeur', () => 
     expect(liste.getAttribute('data-variante')).toBe('ecran');
     expect(liste.getAttribute('aria-label')).toBe('Connexions API');
     expect(liste.querySelectorAll('[role="tab"]').length).toBe(2);
+    // `large` (onglets de l'écran Radio, T16) : même liste, seul le rendu change.
+    f.componentRef.setInput('variante', 'large');
+    await f.whenStable();
+    expect(liste.getAttribute('data-variante')).toBe('large');
+    expect(liste.querySelectorAll('[role="tab"]').length).toBe(2);
   });
 });

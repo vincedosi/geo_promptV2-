@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { formaterNombre } from '../../../core/format/nombre';
 import { IconeComponent } from '../../../ui/icone/icone.component';
 import type { DataSource } from '../logique/types/admin';
@@ -23,8 +24,8 @@ interface VueSource {
  *   posait `onClick` sur des `div`, inatteignables au clavier.
  * - « lignes » en `fr-FR` : React écrit `valid_count.toLocaleString()` SANS langue (celle du
  *   navigateur) ; le reste de l'écran est en `fr-FR`.
- * - « Gérer → » (`href="/admin/radio"`) est INERTE (« Disponible prochainement ») tant que l'écran
- *   Radio n'est pas porté (T16) : pas de lien vers React.
+ * - « Gérer → » (`href="/admin/radio"`) : lien RELATIF vers l'écran Radio porté (T16),
+ *   `../importer/radio` depuis l'onglet Sources de Données — jamais vers React.
  * - teintes (C9) : `#06b6d4` → `--info`, `#22c55e` → `--success`, `rgba(78,205,196,0.05)` →
  *   `color-mix` du teal à 5 %.
  *
@@ -33,7 +34,7 @@ interface VueSource {
  */
 @Component({
   selector: 'mg-liste-sources',
-  imports: [IconeComponent],
+  imports: [IconeComponent, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   // Badge de type : `sources-commun.css`, partagé avec le détail.
   styleUrls: ['./sources-commun.css'],
@@ -87,7 +88,7 @@ interface VueSource {
         <span>{{ radio()?.total_radios ?? 0 }} radios identifiées</span>
         <span class="discret">table: emetteurs_radio</span>
       </div>
-      <a class="gerer" data-gerer aria-disabled="true" title="Disponible prochainement">Gérer →</a>
+      <a class="gerer" data-gerer routerLink="../importer/radio">Gérer →</a>
     </div>
 
     @if (mode() === 'toutes') {
@@ -163,7 +164,9 @@ interface VueSource {
     }
     .radio-titre { font-weight: 500; font-size: 12px; color: var(--text-primary); }
     .radio-meta { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
-    .gerer { font-size: 11px; color: var(--brand-teal); text-decoration: none; cursor: default; opacity: 0.6; }
+    /* Teal lisible en clair (≈ 1,8:1 sinon) : light-dark suit le color-scheme de :host (styles.css). */
+    .gerer { font-size: 11px; color: light-dark(color-mix(in srgb, var(--brand-teal) 50%, var(--text-primary)), var(--brand-teal)); text-decoration: none; }
+    .gerer:focus-visible { outline: 1px solid var(--brand-teal-50); outline-offset: 1px; }
     .message { text-align: center; padding: 40px; color: var(--text-secondary); font-size: 13px; }
     .message.mono { display: flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--font-mono); font-size: 12px; }
     .message-sous { font-size: 12px; color: var(--text-tertiary); }

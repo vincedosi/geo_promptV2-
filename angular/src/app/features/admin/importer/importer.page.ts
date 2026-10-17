@@ -5,10 +5,11 @@ import { OngletsRoutesComponent, type OngletRoute } from '../commun/onglets-rout
 /**
  * Le choix du type d'import (amendement A7) : UN sous-onglet par écran d'import PORTÉ, jamais d'entrée
  * « bientôt ». Ordre cible : POI, Shapefile, IRIS, Radio — chaque tâche d'import ajoute le sien à sa
- * place (T12 `poi`, T14 `shapefile`, T16 `radio`). Aujourd'hui : IRIS seul (T15).
+ * place (T12 `poi`, T14 `shapefile`). Aujourd'hui : IRIS (T15), Radio (T16).
  */
 export const ONGLETS_IMPORTER: readonly OngletRoute[] = [
   { chemin: 'iris', libelle: 'IRIS' },
+  { chemin: 'radio', libelle: 'Radio' },
 ];
 
 /**

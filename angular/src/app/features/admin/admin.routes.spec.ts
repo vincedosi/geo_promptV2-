@@ -21,9 +21,9 @@ describe('ROUTES_ADMIN — pages Système et Données (lot 6, T6)', () => {
     expect(systeme?.children?.[0].redirectTo).toBe(systeme?.children?.[1].path);
   });
 
-  it('`admin`, `admin/health`, `admin/qualite-donnees`, `admin/imports`, `admin/iris-crawler` et `admin/sources` redirigent, RELATIVEMENT, sous le préfixe de l’hôte', async () => {
-    const parRedirection = enfants().filter((r) => ['', 'health', 'qualite-donnees', 'imports', 'iris-crawler', 'sources'].includes(r.path ?? '-') && r.redirectTo);
-    expect(parRedirection.length).toBe(6);
+  it('`admin`, `admin/health`, `admin/qualite-donnees`, `admin/imports`, `admin/iris-crawler`, `admin/sources` et `admin/radio` redirigent, RELATIVEMENT, sous le préfixe de l’hôte', async () => {
+    const parRedirection = enfants().filter((r) => ['', 'health', 'qualite-donnees', 'imports', 'iris-crawler', 'sources', 'radio'].includes(r.path ?? '-') && r.redirectTo);
+    expect(parRedirection.length).toBe(7);
     // Aucune redirection absolue : le préfixe de montage appartient au shell.
     expect(enfants().every((r) => typeof r.redirectTo !== 'string' || !r.redirectTo.startsWith('/'))).toBe(true);
     TestBed.configureTestingModule({
@@ -38,7 +38,7 @@ describe('ROUTES_ADMIN — pages Système et Données (lot 6, T6)', () => {
               children: [
                 { path: '', pathMatch: 'full', redirectTo: 'sources' }, { path: 'sources', component: Factice },
                 { path: 'qualite', component: Factice }, { path: 'historique', component: Factice },
-                { path: 'importer', children: [{ path: 'iris', component: Factice }] },
+                { path: 'importer', children: [{ path: 'iris', component: Factice }, { path: 'radio', component: Factice }] },
               ],
             },
           ],
@@ -57,6 +57,8 @@ describe('ROUTES_ADMIN — pages Système et Données (lot 6, T6)', () => {
       // T18 : `/admin/sources` de React, premier onglet de Données ; la racine de Données y mène aussi.
       ['/hote/app/admin/sources', '/hote/app/admin/donnees/sources'],
       ['/hote/app/admin/donnees', '/hote/app/admin/donnees/sources'],
+      // T16 (A7) : `/admin/radio` de React, type « Radio » de l'onglet Importer.
+      ['/hote/app/admin/radio', '/hote/app/admin/donnees/importer/radio'],
     ]) {
       await harness.navigateByUrl(avant);
       expect(router.url, avant).toBe(apres);
@@ -65,13 +67,18 @@ describe('ROUTES_ADMIN — pages Système et Données (lot 6, T6)', () => {
 });
 
 describe('ROUTES_ADMIN — onglet « Importer » de Données (lot 6, T15, amendement A7)', () => {
-  it('`donnees/importer` porte UN type par écran d’import porté — aujourd’hui `iris` seul — et sa racine y mène', () => {
+  it('`donnees/importer` porte UN type par écran d’import porté — `iris` (T15) puis `radio` (T16) — et sa racine mène au premier', () => {
     const donnees = enfants().find((r) => r.path === 'donnees');
     const importer = donnees?.children?.find((r) => r.path === 'importer');
     expect(importer?.loadComponent).toBeTypeOf('function');
-    expect(importer?.children?.map((r) => r.path)).toEqual(['', 'iris']);
+    expect(importer?.children?.map((r) => r.path)).toEqual(['', 'iris', 'radio']);
     expect(importer?.children?.[0].redirectTo).toBe('iris');
     expect(importer?.children?.[1].loadComponent).toBeTypeOf('function');
+    // Radio garde SES onglets (`page.tsx:356-366`), en sous-routes relatives : seul « Import » est porté (T16).
+    const radio = importer?.children?.[2];
+    expect(radio?.loadComponent).toBeTypeOf('function');
+    expect(radio?.children?.map((r) => r.path)).toEqual(['', 'import']);
+    expect(radio?.children?.[0].redirectTo).toBe('import');
   });
 });
 

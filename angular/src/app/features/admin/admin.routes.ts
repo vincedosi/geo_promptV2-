@@ -79,7 +79,7 @@ export const ROUTES_ADMIN: Routes = [
           { path: '', pathMatch: 'full', redirectTo: 'sources' },
           // Sources (T18, amendement A5) : `/admin/sources` de React ; panneaux par type en T19-T20.
           { path: 'sources', loadComponent: () => import('./sources/sources.page').then((m) => m.SourcesPage) },
-          // Importer (T15, amendement A7) : un sous-onglet par écran d'import PORTÉ (aujourd'hui IRIS seul),
+          // Importer (T15, amendement A7) : un sous-onglet par écran d'import PORTÉ (IRIS, Radio),
           // `donnees/importer/{poi,shapefile,iris,radio}` ; la racine mène au premier porté.
           {
             path: 'importer',
@@ -88,6 +88,16 @@ export const ROUTES_ADMIN: Routes = [
               { path: '', pathMatch: 'full', redirectTo: 'iris' },
               // `/dashboard/iris-crawler` de React (segment `admin/iris-crawler` par C1).
               { path: 'iris', loadComponent: () => import('./iris-crawler/iris-crawler.page').then((m) => m.IrisCrawlerPage) },
+              // `/admin/radio` de React (T16) : l'écran garde SES onglets (Import, puis Radios et Statistiques en
+              // T17), en sous-routes relatives ; `RadioPage` fournit l'état de page (`RadioImportService`).
+              {
+                path: 'radio',
+                loadComponent: () => import('./radio/radio.page').then((m) => m.RadioPage),
+                children: [
+                  { path: '', pathMatch: 'full', redirectTo: 'import' },
+                  { path: 'import', loadComponent: () => import('./radio/onglet-import.component').then((m) => m.OngletImportComponent) },
+                ],
+              },
             ],
           },
           // Historique des imports (T11′, amendement A1) : `/admin/imports` de React, sans l'import OOH.
@@ -105,6 +115,7 @@ export const ROUTES_ADMIN: Routes = [
       { path: 'imports', pathMatch: 'full', redirectTo: 'donnees/historique' },
       { path: 'iris-crawler', pathMatch: 'full', redirectTo: 'donnees/importer/iris' },
       { path: 'sources', pathMatch: 'full', redirectTo: 'donnees/sources' },
+      { path: 'radio', pathMatch: 'full', redirectTo: 'donnees/importer/radio' },
       { path: 'api', pathMatch: 'full', redirectTo: 'systeme/api' },
       { path: 'api/:sous', pathMatch: 'full', redirectTo: 'systeme/api/:sous' },
       // Accès (« Espaces de travail » du 2026-10-09 au 2026-10-10) : une colonne persistante (la

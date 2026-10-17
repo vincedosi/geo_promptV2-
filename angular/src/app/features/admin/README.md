@@ -21,9 +21,10 @@ Accès (comptes et espaces de travail) ; Données → Sources, Importer (IRIS), 
 | `admin/donnees/sources` | `sources/sources.page.ts` — neuf onglets, vue « Toutes » (tuiles, données système, liste et détail d'une source : filtres, nom, export CSV, suppression) ; panneaux par type provisoires (T19-T20) |
 | `admin/donnees/importer` | `importer/importer.page.ts` — choix du type d'import en sous-onglets (écrans PORTÉS seulement) ; `''` → `iris` |
 | `admin/donnees/importer/iris` | `iris-crawler/iris-crawler.page.ts` — dépôt d'un CSV IRIS, correspondance des colonnes, import NDJSON avec progression |
+| `admin/donnees/importer/radio[/import]` | `radio/radio.page.ts` (cadre, onglets propres, état de page `radio/etat/radio-import.service.ts`) + `radio/onglet-import.component.ts` — imports ANFR / enrichissement / ODS en flux, journal filtrable, historique, zone dangereuse (T16) |
 | `admin/donnees/historique` | `imports/imports.page.ts` — historique des imports |
 | `admin/donnees/qualite` | `qualite-donnees/qualite-donnees.page.ts` — contenu des données (absente, partielle, périmée, fausse) |
-| `admin/health`, `admin/qualite-donnees`, `admin/imports`, `admin/iris-crawler`, `admin/sources`, `admin/api[/<x>]` | anciennes adresses, redirigées (RELATIVEMENT) vers `systeme`, `donnees/qualite`, `donnees/historique`, `donnees/importer/iris`, `donnees/sources`, `systeme/api[/<x>]` |
+| `admin/health`, `admin/qualite-donnees`, `admin/imports`, `admin/iris-crawler`, `admin/sources`, `admin/radio`, `admin/api[/<x>]` | anciennes adresses, redirigées (RELATIVEMENT) vers `systeme`, `donnees/qualite`, `donnees/historique`, `donnees/importer/iris`, `donnees/sources`, `donnees/importer/radio`, `systeme/api[/<x>]` |
 | `admin/acces` | `espaces/espaces.page.ts` — colonne des espaces, puis `socle`, `comptes` ou `:id` (fiche d'un espace) |
 | `admin/espaces[/:id]` | anciennes adresses, redirigées vers `admin/acces` |
 
@@ -49,7 +50,7 @@ la route reçoit nos intercepteurs. État : `etat/role-admin.service.ts` ; pour 
   copiés du serveur, verrouillés par `admin-logique-paritaire.test.ts`.
 - `sources/` — écran Sources : `sources.page` (onglets, état, suppression confirmée), `tuiles-sources`, `liste-sources`,
   `detail-source` (recréé à chaque source choisie), `logique/constantes.ts` (copies de React), `data/sources-admin.api.ts`.
-- `radio/data/radio-admin.api.ts` — `/api/radio/*` ; aujourd'hui `stats()` seule (Sources, T18), complété par l'écran Radio (T16).
+- `radio/data/radio-admin.api.ts` — `/api/radio/*` : `stats()` (Sources, T18), puis `historique()`, `journal()`, `importerAnfr()`, `enrichir()`, `importerOds()` (flux NDJSON) et `supprimer()` (DELETE avec corps) pour l'écran Radio (T16).
 - `espaces/` — page Accès : fiches (`fiche-espace`, `fiche-socle`, `fiche-utilisateur`), onglets (Membres,
   Données, Aperçu, Réglages), dialogues `<dialog>` natifs, `logique/` (règles pures), `data/espaces.api.ts`.
   `fiche-commune.css` porte les boutons et la « Zone dangereuse » communs à la fiche utilisateur et à

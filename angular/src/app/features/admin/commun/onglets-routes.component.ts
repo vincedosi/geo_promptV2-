@@ -61,6 +61,13 @@ export interface OngletRoute {
     .liste[data-variante='ecran'] .onglet { padding: 8px 12px; transition: none; }
     .liste[data-variante='ecran'] .onglet:hover { color: var(--text-tertiary); }
     .liste[data-variante='ecran'] .onglet[aria-selected='true']:hover { color: var(--text-primary); }
+    /* Variante « large » : la barre de l'écran Radio (app/admin/radio/page.tsx:356-366) — onglets
+       collés (gap 0), 10 px 20 px, inactif en 400, actif en 500, trait du bas 0,5 px, pas de survol. */
+    .liste[data-variante='large'] { gap: 0; border-bottom-width: 0.5px; }
+    .liste[data-variante='large'] .onglet { padding: 10px 20px; font-weight: 400; margin-bottom: 0; transition: all 0.15s; }
+    .liste[data-variante='large'] .onglet:hover { color: var(--text-tertiary); }
+    .liste[data-variante='large'] .onglet[aria-selected='true'] { font-weight: 500; }
+    .liste[data-variante='large'] .onglet[aria-selected='true']:hover { color: var(--text-primary); }
   `],
 })
 export class OngletsRoutesComponent {
@@ -70,8 +77,9 @@ export class OngletsRoutesComponent {
   /**
    * `cadre` (défaut) : barre d'une page à onglets (Données, Système), rendu du Health check.
    * `ecran` : sous-onglets propres à un écran React monté dans un onglet (Connexions API, T9).
+   * `large` : les onglets de l'écran Radio (T16), plus aérés.
    */
-  readonly variante = input<'cadre' | 'ecran'>('cadre');
+  readonly variante = input<'cadre' | 'ecran' | 'large'>('cadre');
 
   protected clavier(e: KeyboardEvent): void {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;

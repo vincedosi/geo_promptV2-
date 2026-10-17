@@ -1,0 +1,61 @@
+{"type":"status","level":"info","phase":"INIT","message":"[08:00:00] [INFO   ] [INIT        ] ▸ Import ANFR démarré","raw_message":"Import ANFR démarré","details":{"log_id":"00000000-0000-4000-8000-000000000016"},"timestamp":"2026-10-17T08:00:00.137Z"}
+{"type":"status","level":"info","phase":"DOWNLOAD","message":"[08:00:00] [INFO   ] [DOWNLOAD    ] ▸ Phase DOWNLOAD démarrée","raw_message":"Phase DOWNLOAD démarrée","timestamp":"2026-10-17T08:00:00.274Z"}
+{"type":"status","level":"info","phase":"DOWNLOAD","message":"[08:00:00] [INFO   ] [DOWNLOAD    ] ▸ Recherche des fichiers ANFR...","raw_message":"Recherche des fichiers ANFR...","details":{"current":1,"total":1},"timestamp":"2026-10-17T08:00:00.411Z"}
+{"type":"status","level":"info","phase":"DOWNLOAD","message":"[08:00:00] [INFO   ] [DOWNLOAD    ] ▸ Téléchargement du ZIP principal (~65 Mo)...","raw_message":"Téléchargement du ZIP principal (~65 Mo)...","details":{"current":1,"total":1},"timestamp":"2026-10-17T08:00:00.548Z"}
+{"type":"status","level":"info","phase":"DOWNLOAD","message":"[08:00:00] [INFO   ] [DOWNLOAD    ] ▸ Téléchargement du ZIP de référence...","raw_message":"Téléchargement du ZIP de référence...","details":{"current":1,"total":1},"timestamp":"2026-10-17T08:00:00.685Z"}
+{"type":"status","level":"info","phase":"DOWNLOAD","message":"[08:00:00] [INFO   ] [DOWNLOAD    ] ▸ ZIP principal téléchargé (62.9 Mo)","raw_message":"ZIP principal téléchargé (62.9 Mo)","details":{"current":1,"total":1},"timestamp":"2026-10-17T08:00:00.822Z"}
+{"type":"status","level":"info","phase":"DOWNLOAD","message":"[08:00:00] [INFO   ] [DOWNLOAD    ] ▸ Parsing SUP_EMETTEUR (filtre FM + DAB+)...","raw_message":"Parsing SUP_EMETTEUR (filtre FM + DAB+)...","details":{"current":1,"total":1},"timestamp":"2026-10-17T08:00:00.959Z"}
+{"type":"status","level":"info","phase":"DOWNLOAD","message":"[08:00:01] [INFO   ] [DOWNLOAD    ] ▸ Extraction et parsing...","raw_message":"Extraction et parsing...","details":{"current":1,"total":1},"timestamp":"2026-10-17T08:00:01.096Z"}
+{"type":"status","level":"info","phase":"DOWNLOAD","message":"[08:00:01] [INFO   ] [DOWNLOAD    ] ▸ 12960 émetteurs radio trouvés (FM + DAB+)","raw_message":"12960 émetteurs radio trouvés (FM + DAB+)","details":{"current":1,"total":1},"timestamp":"2026-10-17T08:00:01.233Z"}
+{"type":"status","level":"info","phase":"DOWNLOAD","message":"[08:00:01] [INFO   ] [DOWNLOAD    ] ▸ Parsing SUP_SUPPORT (coordonnées GPS)...","raw_message":"Parsing SUP_SUPPORT (coordonnées GPS)...","details":{"current":1,"total":1},"timestamp":"2026-10-17T08:00:01.370Z"}
+{"type":"status","level":"info","phase":"DOWNLOAD","message":"[08:00:01] [INFO   ] [DOWNLOAD    ] ▸ 12750 émetteurs extraits (FM: 11640, DAB+: 1110)","raw_message":"12750 émetteurs extraits (FM: 11640, DAB+: 1110)","details":{"current":1,"total":1},"timestamp":"2026-10-17T08:00:01.507Z"}
+{"type":"status","level":"info","phase":"DOWNLOAD","message":"[08:00:01] [INFO   ] [DOWNLOAD    ] ▸ Version fichier : 2026-10-04","raw_message":"Version fichier : 2026-10-04","timestamp":"2026-10-17T08:00:01.644Z"}
+{"type":"done","level":"success","phase":"DOWNLOAD","message":"[08:00:01] [SUCCESS] [DOWNLOAD    ] ✓ Phase DOWNLOAD terminée (2m23s)","raw_message":"Phase DOWNLOAD terminée (2m23s)","duration_ms":143200,"timestamp":"2026-10-17T08:00:01.781Z"}
+{"type":"status","level":"info","phase":"PARSE","message":"[08:00:01] [INFO   ] [PARSE       ] ▸ 12750 émetteurs radio extraits","raw_message":"12750 émetteurs radio extraits","details":{"total":12750,"fm":11640,"dab":1110,"snapshot":"2026-10-04"},"timestamp":"2026-10-17T08:00:01.918Z"}
+{"type":"status","level":"warn","phase":"PARSE","message":"[08:00:02] [WARN   ] [PARSE       ] ⚠ 210 émetteurs sans coordonnées GPS (ignorés)","raw_message":"210 émetteurs sans coordonnées GPS (ignorés)","timestamp":"2026-10-17T08:00:02.055Z"}
+{"type":"status","level":"info","phase":"ARCHIVE","message":"[08:00:02] [INFO   ] [ARCHIVE     ] ▸ Phase ARCHIVE démarrée","raw_message":"Phase ARCHIVE démarrée","timestamp":"2026-10-17T08:00:02.192Z"}
+{"type":"status","level":"info","phase":"ARCHIVE","message":"[08:00:02] [INFO   ] [ARCHIVE     ] ▸ 12704 émetteurs archivés, 0 archives > 12 mois purgées","raw_message":"12704 émetteurs archivés, 0 archives > 12 mois purgées","timestamp":"2026-10-17T08:00:02.329Z"}
+{"type":"done","level":"success","phase":"ARCHIVE","message":"[08:00:02] [SUCCESS] [ARCHIVE     ] ✓ Phase ARCHIVE terminée (1.0s)","raw_message":"Phase ARCHIVE terminée (1.0s)","duration_ms":1012,"timestamp":"2026-10-17T08:00:02.466Z"}
+{"type":"status","level":"info","phase":"DIFF","message":"[08:00:02] [INFO   ] [DIFF        ] ▸ Phase DIFF démarrée","raw_message":"Phase DIFF démarrée","timestamp":"2026-10-17T08:00:02.603Z"}
+{"type":"status","level":"info","phase":"DIFF","message":"[08:00:02] [INFO   ] [DIFF        ] ▸ Nouveaux : 120, Existants : 12630, À supprimer : 74","raw_message":"Nouveaux : 120, Existants : 12630, À supprimer : 74","details":{"new":120,"existing":12630,"to_delete":74},"timestamp":"2026-10-17T08:00:02.740Z"}
+{"type":"done","level":"success","phase":"DIFF","message":"[08:00:02] [SUCCESS] [DIFF        ] ✓ Phase DIFF terminée (412ms)","raw_message":"Phase DIFF terminée (412ms)","duration_ms":412,"timestamp":"2026-10-17T08:00:02.877Z"}
+{"type":"status","level":"info","phase":"LIAISONS","message":"[08:00:03] [INFO   ] [LIAISONS    ] ▸ Phase LIAISONS démarrée","raw_message":"Phase LIAISONS démarrée","timestamp":"2026-10-17T08:00:03.014Z"}
+{"type":"status","level":"warn","phase":"LIAISONS","message":"[08:00:03] [WARN   ] [LIAISONS    ] ⚠ 6 émetteurs retirés de l'ANFR, conservés car liés à des radios : 0751234 (3 radios), 0692345 (2 radios), 0133456 (1 radio), 0314567 (4 radios), 0595678 (1 radio), 0446789 (2 radios)","raw_message":"6 émetteurs retirés de l'ANFR, conservés car liés à des radios : 0751234 (3 radios), 0692345 (2 radios), 0133456 (1 radio), 0314567 (4 radios), 0595678 (1 radio), 0446789 (2 radios)","details":{"conserves":[]},"timestamp":"2026-10-17T08:00:03.151Z"}
+{"type":"done","level":"success","phase":"LIAISONS","message":"[08:00:03] [SUCCESS] [LIAISONS    ] ✓ Phase LIAISONS terminée (288ms)","raw_message":"Phase LIAISONS terminée (288ms)","duration_ms":288,"timestamp":"2026-10-17T08:00:03.288Z"}
+{"type":"status","level":"info","phase":"DELETE","message":"[08:00:03] [INFO   ] [DELETE      ] ▸ Phase DELETE démarrée","raw_message":"Phase DELETE démarrée","timestamp":"2026-10-17T08:00:03.425Z"}
+{"type":"progress","message":"Suppression 68/68","percent":100,"deleted":68}
+{"type":"status","level":"info","phase":"DELETE","message":"[08:00:03] [INFO   ] [DELETE      ] ▸ 68 émetteurs obsolètes supprimés","raw_message":"68 émetteurs obsolètes supprimés","timestamp":"2026-10-17T08:00:03.562Z"}
+{"type":"done","level":"success","phase":"DELETE","message":"[08:00:03] [SUCCESS] [DELETE      ] ✓ Phase DELETE terminée (71ms)","raw_message":"Phase DELETE terminée (71ms)","duration_ms":71,"timestamp":"2026-10-17T08:00:03.699Z"}
+{"type":"status","level":"info","phase":"UPSERT","message":"[08:00:03] [INFO   ] [UPSERT      ] ▸ Phase UPSERT démarrée","raw_message":"Phase UPSERT démarrée","timestamp":"2026-10-17T08:00:03.836Z"}
+{"type":"progress","message":"Upsert 500/12750 (4%)","percent":4,"inserted":0,"updated":500,"errors":0}
+{"type":"progress","message":"Upsert 1000/12750 (8%)","percent":8,"inserted":0,"updated":1000,"errors":0}
+{"type":"progress","message":"Upsert 1500/12750 (12%)","percent":12,"inserted":0,"updated":1500,"errors":0}
+{"type":"progress","message":"Upsert 2000/12750 (16%)","percent":16,"inserted":0,"updated":2000,"errors":0}
+{"type":"progress","message":"Upsert 2500/12750 (20%)","percent":20,"inserted":0,"updated":2500,"errors":0}
+{"type":"progress","message":"Upsert 3000/12750 (24%)","percent":24,"inserted":0,"updated":3000,"errors":0}
+{"type":"progress","message":"Upsert 3500/12750 (27%)","percent":27,"inserted":0,"updated":3500,"errors":0}
+{"type":"progress","message":"Upsert 4000/12750 (31%)","percent":31,"inserted":0,"updated":4000,"errors":0}
+{"type":"progress","message":"Upsert 4500/12750 (35%)","percent":35,"inserted":0,"updated":4500,"errors":0}
+{"type":"progress","message":"Upsert 5000/12750 (39%)","percent":39,"inserted":0,"updated":5000,"errors":0}
+{"type":"progress","message":"Upsert 5500/12750 (43%)","percent":43,"inserted":0,"updated":5500,"errors":0}
+{"type":"progress","message":"Upsert 6000/12750 (47%)","percent":47,"inserted":0,"updated":6000,"errors":0}
+{"type":"progress","message":"Upsert 6500/12750 (51%)","percent":51,"inserted":0,"updated":6500,"errors":0}
+{"type":"progress","message":"Upsert 7000/12750 (55%)","percent":55,"inserted":0,"updated":7000,"errors":0}
+{"type":"progress","message":"Upsert 7500/12750 (59%)","percent":59,"inserted":0,"updated":7500,"errors":0}
+{"type":"progress","message":"Upsert 8000/12750 (63%)","percent":63,"inserted":0,"updated":8000,"errors":0}
+{"type":"progress","message":"Upsert 8500/12750 (67%)","percent":67,"inserted":0,"updated":8500,"errors":0}
+{"type":"progress","message":"Upsert 9000/12750 (71%)","percent":71,"inserted":0,"updated":9000,"errors":0}
+{"type":"progress","message":"Upsert 9500/12750 (75%)","percent":75,"inserted":0,"updated":9500,"errors":0}
+{"type":"progress","message":"Upsert 10000/12750 (78%)","percent":78,"inserted":0,"updated":10000,"errors":0}
+{"type":"progress","message":"Upsert 10500/12750 (82%)","percent":82,"inserted":0,"updated":10500,"errors":0}
+{"type":"progress","message":"Upsert 11000/12750 (86%)","percent":86,"inserted":0,"updated":11000,"errors":0}
+{"type":"progress","message":"Upsert 11500/12750 (90%)","percent":90,"inserted":0,"updated":11500,"errors":0}
+{"type":"progress","message":"Upsert 12000/12750 (94%)","percent":94,"inserted":0,"updated":12000,"errors":0}
+{"type":"progress","message":"Upsert 12500/12750 (98%)","percent":98,"inserted":0,"updated":12500,"errors":0}
+{"type":"progress","message":"Upsert 12750/12750 (100%)","percent":100,"inserted":120,"updated":12630,"errors":0}
+{"type":"status","level":"info","phase":"UPSERT","message":"[08:00:03] [INFO   ] [UPSERT      ] ▸ 120 insérés, 12630 mis à jour, 0 erreurs","raw_message":"120 insérés, 12630 mis à jour, 0 erreurs","timestamp":"2026-10-17T08:00:03.973Z"}
+{"type":"done","level":"success","phase":"UPSERT","message":"[08:00:04] [SUCCESS] [UPSERT      ] ✓ Phase UPSERT terminée (10.3s)","raw_message":"Phase UPSERT terminée (10.3s)","duration_ms":10350,"timestamp":"2026-10-17T08:00:04.110Z"}
+{"type":"status","level":"info","phase":"REFRESH_VIEW","message":"[08:00:04] [INFO   ] [REFRESH_VIEW] ▸ Phase REFRESH_VIEW démarrée","raw_message":"Phase REFRESH_VIEW démarrée","timestamp":"2026-10-17T08:00:04.247Z"}
+{"type":"status","level":"info","phase":"REFRESH_VIEW","message":"[08:00:04] [INFO   ] [REFRESH_VIEW] ▸ Stats radio recalculées","raw_message":"Stats radio recalculées","timestamp":"2026-10-17T08:00:04.384Z"}
+{"type":"done","level":"success","phase":"REFRESH_VIEW","message":"[08:00:04] [SUCCESS] [REFRESH_VIEW] ✓ Phase REFRESH_VIEW terminée (64ms)","raw_message":"Phase REFRESH_VIEW terminée (64ms)","duration_ms":64,"timestamp":"2026-10-17T08:00:04.521Z"}
+{"type":"done","level":"success","phase":"FINALIZE","message":"[08:00:04] [SUCCESS] [FINALIZE    ] ✓ Import ANFR terminé : 12750 émetteurs (11640 FM, 1110 DAB+), 120 nouveaux, 12630 modifiés, 68 supprimés, 6 retirés de l'ANFR mais conservés car liés à des radios","raw_message":"Import ANFR terminé : 12750 émetteurs (11640 FM, 1110 DAB+), 120 nouveaux, 12630 modifiés, 68 supprimés, 6 retirés de l'ANFR mais conservés car liés à des radios","details":{"total_parsed":12750,"total_fm":11640,"total_dab":1110,"inserted":120,"updated":12630,"deleted":68,"errors":0,"delete_errors":0,"retained_linked":6,"delete_aborted":false,"duration_ms":158411},"duration_ms":158411,"timestamp":"2026-10-17T08:00:04.658Z"}
