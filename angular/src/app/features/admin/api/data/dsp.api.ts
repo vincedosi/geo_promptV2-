@@ -31,6 +31,23 @@ export interface CorpsConnexionDv360 {
   service_account_json: string;
 }
 
+/** `GET /api/admin/dsp/tiktok/config` (`app/api/admin/dsp/tiktok/config/route.ts`) : pas de `ready`. */
+export interface ConfigTiktok {
+  env: {
+    enc_key: boolean;
+    app_id: boolean;
+    app_secret: boolean;
+    redirect_uri: boolean;
+    redirect_uri_value: string | null;
+  };
+}
+
+/** Corps de `POST /api/admin/dsp/tiktok/connect` tel que React l'envoie (`tiktok/page.tsx:84`). */
+export interface CorpsConnexionTiktok {
+  app_id: string;
+  app_secret: string;
+}
+
 /** Corps de `POST /api/admin/dsp/dv360/oauth/config` (`dv360/page.tsx:117`). */
 export interface CorpsConfigOAuthDv360 {
   partner_id: string;
@@ -50,7 +67,11 @@ export interface ReponseDemarrageOAuth {
   error?: string;
 }
 
-/** Filtres de `GET /api/admin/dsp/logs` (`logsQuerySchema`, `lib/dsp/validation.ts`). */
+/**
+ * Filtres de `GET /api/admin/dsp/logs` (`logsQuerySchema`, `lib/dsp/validation.ts`). Le filtre
+ * « Erreurs uniquement » du journal est `level: 'error'` (`logs/page.tsx:18` : `?level=error`) —
+ * la route ne lit aucun `errors_only`.
+ */
 export interface FiltresJournal {
   provider?: DspProvider;
   level?: DspLogLevel;
@@ -76,6 +97,10 @@ export class DspApi extends HttpBaseService {
     return this.httpClient.get<ConfigDv360>(`${this.baseUrl}/admin/dsp/dv360/config`);
   }
 
+  configTiktok(): Observable<ConfigTiktok> {
+    return this.httpClient.get<ConfigTiktok>(`${this.baseUrl}/admin/dsp/tiktok/config`);
+  }
+
   connecter(fournisseur: FournisseurConnectable, corps: object): Observable<unknown> {
     return this.httpClient.post(`${this.baseUrl}/admin/dsp/${fournisseur}/connect`, corps);
   }
@@ -90,7 +115,8 @@ export class DspApi extends HttpBaseService {
     return this.httpClient.post(`${this.baseUrl}/admin/dsp/dv360/oauth/config`, corps);
   }
 
-  demarrerOAuth(fournisseur: FournisseurConnectable, corps: object = {}): Observable<ReponseDemarrageOAuth> {
+  /** DV360 poste `{ partner_id }` ; TikTok, rien (`tiktok/page.tsx:98`) : corps `null` par défaut. */
+  demarrerOAuth(fournisseur: FournisseurConnectable, corps: object | null = null): Observable<ReponseDemarrageOAuth> {
     return this.httpClient.post<ReponseDemarrageOAuth>(`${this.baseUrl}/admin/dsp/${fournisseur}/oauth/start`, corps);
   }
 

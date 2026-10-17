@@ -15,7 +15,8 @@ Accès (comptes et espaces de travail) ; Données → Qualité ; Système → Sa
 | `admin/systeme/api` | `api/connexions-api.page.ts` — en-tête de section et SOUS-onglets de l'écran React ; `''` → `dv360` |
 | `admin/systeme/api/dv360` | `api/dv360.page.ts` — connexion DV360 (diagnostic, méthode, OAuth, test, purge, journal) |
 | `admin/systeme/api/{meta,ttd}` | `api/fournisseur-a-venir.component.ts` — « bientôt disponible » (`data.fournisseur`) |
-| `admin/systeme/api/{tiktok,logs}` | `api/ecran-provisoire.component.ts` — provisoires jusqu'à T10 |
+| `admin/systeme/api/tiktok` | `api/tiktok.page.ts` — connexion TikTok (diagnostic, App ID + secret, OAuth, test, purge, journal) |
+| `admin/systeme/api/logs` | `api/journal-dsp.page.ts` — journal des appels DSP de l'organisation, filtre « Erreurs uniquement » |
 | `admin/donnees` | `donnees/donnees.page.ts` — cadre ; `''` → `qualite` |
 | `admin/donnees/qualite` | `qualite-donnees/qualite-donnees.page.ts` — contenu des données (absente, partielle, périmée, fausse) |
 | `admin/health`, `admin/qualite-donnees`, `admin/api[/<x>]` | anciennes adresses, redirigées (RELATIVEMENT) vers `systeme`, `donnees/qualite`, `systeme/api[/<x>]` |
@@ -37,7 +38,9 @@ la route reçoit nos intercepteurs. État : `etat/role-admin.service.ts` ; pour 
 - `api/` — Connexions API : `data/dsp.api.ts` (routes `app/api/admin/dsp/**`, fournisseur en paramètre),
   `logique/fournisseurs.ts` (copie de `PROVIDERS`, logos `angular/public/logos/` copiés à l'octet),
   `naviguer-hors-application.ts` (seule navigation hors application, consentement OAuth) et
-  `retour-oauth.ts` (`?oauth=` lu dans la route puis retiré, partagé avec TikTok en T10).
+  `retour-oauth.ts` (`?oauth=` lu dans la route puis retiré, partagé par DV360 et TikTok) ; ce que DV360 et TikTok
+  ont d'identique : `connexion-dsp.css` (styles) et `logique/connexion-dsp.ts` (message d'échec, ligne de journal,
+  lectures annulables).
 - `logique/` — rôles (`roles.ts`, copie de `lib/auth/roles.ts`, seule source des libellés de rôle) et types
   copiés du serveur, verrouillés par `admin-logique-paritaire.test.ts`.
 - `espaces/` — page Accès : fiches (`fiche-espace`, `fiche-socle`, `fiche-utilisateur`), onglets (Membres,

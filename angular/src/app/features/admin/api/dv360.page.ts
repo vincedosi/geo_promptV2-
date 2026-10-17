@@ -1,40 +1,16 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import { firstValueFrom, type Observable, type Subscription } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import { BASE_RESSOURCES, urlRessourceDistante } from '../../../core/ressources/ressource-distante';
 import { ConfirmationComponent } from '../../../ui/confirmation/confirmation.component';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
 import type { DspApiLogRow, DspConnectionPublic } from '../logique/types/dsp';
 import { DspApi, type ConfigDv360 } from './data/dsp.api';
+import { LecturesAnnulables, erreurLueCommeAucuneConnexion, messageEchec, versLigneLog, type LigneLog } from './logique/connexion-dsp';
 import { fournisseur } from './logique/fournisseurs';
 import { NAVIGUER_HORS_APPLICATION } from './naviguer-hors-application';
 import { consommerRetourOAuth } from './retour-oauth';
 
 type Methode = 'service_account' | 'oauth';
-
-/** Une ligne du journal, mise en forme une fois (`LogLine`, `dv360/page.tsx:397-413`). */
-interface LigneLog {
-  id: string;
-  heure: string;
-  niveau: string;
-  action: string;
-  message: string;
-  meta: string;
-}
-
-/**
- * Message d'une écriture en échec, comme React : `json.error ?? <défaut>` (`dv360/page.tsx:91`…).
- * Un échec réseau donne le `Failed to fetch` du `fetch` de React ; un corps illisible, le défaut
- * (React affichait le message de la `SyntaxError` de `res.json()`).
- */
-function messageEchec(e: unknown, defaut: string): string {
-  if (e instanceof HttpErrorResponse) {
-    const corps = e.error as { error?: unknown } | null;
-    if (corps && typeof corps === 'object' && typeof corps.error === 'string' && corps.error) return corps.error;
-    return e.status === 0 ? 'Failed to fetch' : defaut;
-  }
-  return e instanceof Error && e.message ? e.message : defaut;
-}
 
 /**
  * `admin/systeme/api/dv360` — portage de `app/admin/api/dv360/page.tsx` (lot 6, T9) : diagnostic de
@@ -61,50 +37,15 @@ function messageEchec(e: unknown, defaut: string): string {
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './dv360.page.html',
   // Mise en page en utilitaires Tailwind (gabarit) ; ici, ce qu'ils n'écrivent pas (budget de 4 ko).
+  // Communs avec TikTok : `connexion-dsp.css` ; ici, ce qui n'appartient qu'à DV360.
+  styleUrls: ['./connexion-dsp.css'],
   styles: [`
-    /* 16 px hérités par React (corps de page) : l’interligne des champs EN LIGNE en dépend. */
-    :host { display: block; max-width: 640px; font-family: var(--font-sans); font-size: 16px; color: var(--text-primary); }
-    .statut { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--c-statut); }
-    .point { width: 7px; height: 7px; border-radius: 50%; background: var(--c-statut); }
-    [data-etat='connected'], .prete.ok { --c-statut: var(--success); }
-    [data-etat='error'] { --c-statut: var(--danger); }
-    [data-etat='disconnected'], .prete:not(.ok) { --c-statut: var(--text-tertiary); }
-    .section-tete {
-      background: var(--bg-level-2); border: 1px solid var(--border-subtle); border-bottom: none;
-      border-radius: 8px 8px 0 0; padding: 10px 14px; display: flex; align-items: center; gap: 8px;
-    }
-    .section-corps { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-top: none; border-radius: 0 0 8px 8px; }
-    .coche { font-family: var(--font-mono); font-size: 12px; width: 14px; color: var(--danger); }
-    .coche.ok { color: var(--success); }
-    .valeur-config { margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); max-width: 280px; }
+    .prete.ok { --c-statut: var(--success); }
+    .prete:not(.ok) { --c-statut: var(--text-tertiary); }
     .pretes { display: flex; gap: 16px; margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--border-subtle); }
     .prete { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--c-statut); }
-    .encart { background: var(--bg-level-2); border-radius: 6px; padding: 8px 12px; margin-bottom: 16px; }
-    .encart.erreur { border: 0.5px solid var(--danger); font-family: var(--font-mono); font-size: 11px; color: var(--danger); }
     .encart.avert { border: 0.5px solid var(--warning); font-size: 12px; color: var(--warning); }
-    .carte { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 24px; }
-    /* En ligne (inline-block), comme les champs de React : l'interligne compte dans l'espacement. */
-    .champ {
-      width: 100%; background: var(--bg-level-2); border: 0.5px solid var(--border-subtle);
-      border-radius: 6px; padding: 8px 12px; color: var(--text-primary); font-size: 13px; margin: 6px 0 16px;
-    }
-    .champ:focus { outline: none; border-color: var(--brand-teal-50); }
-    .champ::placeholder { color: var(--text-tertiary); }
-    .champ.oauth { font-family: var(--font-mono); font-size: 12px; margin-bottom: 12px; }
     .champ.json { font-family: var(--font-mono); font-size: 11px; resize: vertical; }
-    .separes { border-top: 0.5px solid var(--border-subtle); padding-top: 16px; }
-    .bouton { background: transparent; border-radius: 6px; padding: 8px 16px; font-size: 12px; cursor: pointer; }
-    .bouton:disabled, .purge:disabled { opacity: 0.5; }
-    .bouton:disabled, .lien:disabled { cursor: not-allowed; }
-    .bouton:focus-visible { outline: 1px solid var(--brand-teal-50); outline-offset: 1px; }
-    .teal { border: 0.5px solid var(--brand-teal); color: var(--brand-teal); font-weight: 500; }
-    .contour { border: 0.5px solid var(--border-default); color: var(--text-secondary); }
-    .danger { border: 0.5px solid var(--danger); color: var(--danger); }
-    .lien { background: transparent; border: none; padding: 0; cursor: pointer; }
-    .log { display: flex; gap: 8px; padding: 6px 10px; border-bottom: 0.5px solid var(--border-subtle); font-family: var(--font-mono); font-size: 11px; align-items: baseline; }
-    .niveau { color: var(--text-secondary); flex-shrink: 0; text-transform: uppercase; width: 42px; }
-    .niveau[data-niveau='error'] { color: var(--danger); }
-    .niveau[data-niveau='warn'] { color: var(--warning); }
   `],
 })
 export class Dv360Page {
@@ -128,7 +69,7 @@ export class Dv360Page {
   protected readonly confirmPurge = signal(false);
 
   /** Lectures en vol, annulées si l'écran est quitté (les écritures, elles, vont à leur terme). */
-  private readonly lectures = new Set<Subscription>();
+  private readonly lectures = new LecturesAnnulables();
 
   protected readonly statut = computed(() => this.conn()?.status ?? 'disconnected');
   protected readonly libelleStatut = computed(() => {
@@ -150,23 +91,10 @@ export class Dv360Page {
     this.busy() || !this.partnerId() || !this.clientId() || !this.clientSecret());
   protected readonly oauthDesactive = computed(() => this.busy() || !this.partnerId() || !this.methodePrete());
 
-  protected readonly lignesLog = computed<LigneLog[]>(() => this.logs().map((l) => ({
-    id: l.id,
-    heure: new Date(l.created_at).toLocaleTimeString('fr-FR'),
-    niveau: l.level,
-    action: l.action,
-    message: l.message ?? '',
-    meta: [
-      l.status_code != null ? `${l.status_code}` : null,
-      l.duration_ms != null ? `${l.duration_ms}ms` : null,
-    ].filter(Boolean).join(' · '),
-  })));
+  protected readonly lignesLog = computed<LigneLog[]>(() => this.logs().map(versLigneLog));
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => {
-      for (const s of this.lectures) s.unsubscribe();
-      this.lectures.clear();
-    });
+    inject(DestroyRef).onDestroy(() => this.lectures.annulerTout());
     // Trois lectures au montage, comme React (`page.tsx:71`) : la limite de 3 en vol est tenue.
     void this.charger();
     void this.chargerConfig();
@@ -174,25 +102,13 @@ export class Dv360Page {
     consommerRetourOAuth('DV360 connecté via Google.');
   }
 
-  /** Une lecture annulable : la promesse reste en suspens si l'écran est détruit avant la réponse. */
-  private lire<T>(source: Observable<T>): Promise<T> {
-    return new Promise<T>((resoudre, rejeter) => {
-      const s = source.subscribe({
-        next: (v) => resoudre(v),
-        error: (e: unknown) => { rejeter(e); this.lectures.delete(s); },
-        complete: () => this.lectures.delete(s),
-      });
-      if (!s.closed) this.lectures.add(s);
-    });
-  }
-
   /** `load` (`page.tsx:39-51`). */
   private async charger(): Promise<void> {
     try {
-      const json = await this.lire(this.api.connexions());
+      const json = await this.lectures.lire(this.api.connexions());
       this.appliquerConnexion(json.connections ?? []);
     } catch (e) {
-      if (e instanceof HttpErrorResponse && e.status !== 0 && e.error && typeof e.error === 'object') {
+      if (erreurLueCommeAucuneConnexion(e)) {
         // React : `res.json()` d'une erreur JSON → `json.connections` absent → aucune connexion.
         this.appliquerConnexion([]);
         return;
@@ -212,7 +128,7 @@ export class Dv360Page {
   /** `loadConfig` (`page.tsx:53-59`) : en échec, « Diagnostic indisponible. ». */
   private async chargerConfig(): Promise<void> {
     try {
-      this.config.set(await this.lire(this.api.configDv360()));
+      this.config.set(await this.lectures.lire(this.api.configDv360()));
     } catch { /* le panneau affichera « Diagnostic indisponible. » */ }
   }
 
@@ -220,7 +136,7 @@ export class Dv360Page {
   protected async chargerLogs(): Promise<void> {
     this.logsBusy.set(true);
     try {
-      const json = await this.lire(this.api.journal({ provider: 'dv360', limit: 20 }));
+      const json = await this.lectures.lire(this.api.journal({ provider: 'dv360', limit: 20 }));
       this.logs.set(json.logs ?? []);
     } catch { /* flux de logs best-effort */ } finally {
       this.logsBusy.set(false);

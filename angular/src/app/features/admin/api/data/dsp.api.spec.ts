@@ -55,4 +55,21 @@ describe('DspApi — routes app/api/admin/dsp/** (lot 6, T9)', () => {
     expect([test.request.method, test.request.body]).toEqual(['POST', null]);
     [...connect, oauth, start, test].forEach((r) => r.flush({ ok: true }));
   });
+
+  it('TikTok (T10) : diagnostic, connect au corps de React, oauth/start SANS corps ; journal « erreurs » = `?level=error`', () => {
+    const { api, http } = monter();
+    api.configTiktok().subscribe();
+    api.connecter('tiktok', { app_id: '1', app_secret: 's' }).subscribe();
+    api.demarrerOAuth('tiktok').subscribe();
+    api.journal({ level: 'error' }).subscribe();
+    api.journal().subscribe();
+    expect(http.expectOne('/api/admin/dsp/tiktok/config').request.method).toBe('GET');
+    const connect = http.expectOne('/api/admin/dsp/tiktok/connect');
+    expect([connect.request.method, connect.request.body]).toEqual(['POST', { app_id: '1', app_secret: 's' }]);
+    const start = http.expectOne('/api/admin/dsp/tiktok/oauth/start');
+    expect([start.request.method, start.request.body]).toEqual(['POST', null]);
+    const journaux = http.match((r) => r.url === '/api/admin/dsp/logs');
+    expect(journaux.map((r) => r.request.urlWithParams)).toEqual(['/api/admin/dsp/logs?level=error', '/api/admin/dsp/logs']);
+    [connect, start, ...journaux].forEach((r) => r.flush({}));
+  });
 });

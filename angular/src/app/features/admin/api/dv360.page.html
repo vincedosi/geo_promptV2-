@@ -104,7 +104,7 @@
     </div>
   } @else {
     <label class="text-[12px] text-tertiary" for="dv360-client-id">Client ID OAuth</label>
-    <input id="dv360-client-id" data-champ="client-id" class="champ oauth" placeholder="xxxxx.apps.googleusercontent.com"
+    <input id="dv360-client-id" data-champ="client-id" class="champ mono" placeholder="xxxxx.apps.googleusercontent.com"
       [value]="clientId()" (input)="saisir('clientId', $event)" />
     <label class="text-[12px] text-tertiary" for="dv360-client-secret">
       Client Secret OAuth
@@ -112,7 +112,7 @@
         <span class="text-success">— client déjà enregistré ✓ (re-saisir pour modifier)</span>
       }
     </label>
-    <input id="dv360-client-secret" data-champ="client-secret" type="password" autocomplete="off" class="champ oauth"
+    <input id="dv360-client-secret" data-champ="client-secret" type="password" autocomplete="off" class="champ mono"
       placeholder="GOCSPX-…" [value]="clientSecret()" (input)="saisir('clientSecret', $event)" />
     <button type="button" data-action="config-oauth" class="bouton contour mb-4" [disabled]="configOAuthDesactivee()"
       (click)="enregistrerConfigOAuth()">Enregistrer la config OAuth</button>

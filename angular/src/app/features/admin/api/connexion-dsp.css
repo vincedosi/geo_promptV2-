@@ -1,0 +1,45 @@
+/*
+ * Styles communs aux écrans de connexion DSP (DV360, T9 ; TikTok, T10) : ceux que `dv360/page.tsx` et
+ * `tiktok/page.tsx` écrivent À L'IDENTIQUE (statut, `SectionHeader`, `ConfigRow`, carte, champs,
+ * boutons `btnTeal`/`btnOutline`/`btnDanger`, purge, `LogLine`). Ce qui n'appartient qu'à un écran
+ * reste dans les `styles` de son composant. Mise en page : utilitaires Tailwind du gabarit.
+ */
+/* 16 px hérités par React (corps de page) : l’interligne des champs EN LIGNE en dépend. */
+:host { display: block; max-width: 640px; font-family: var(--font-sans); font-size: 16px; color: var(--text-primary); }
+.statut { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--c-statut); }
+.point { width: 7px; height: 7px; border-radius: 50%; background: var(--c-statut); }
+[data-etat='connected'] { --c-statut: var(--success); }
+[data-etat='error'] { --c-statut: var(--danger); }
+[data-etat='disconnected'] { --c-statut: var(--text-tertiary); }
+.section-tete {
+  background: var(--bg-level-2); border: 1px solid var(--border-subtle); border-bottom: none;
+  border-radius: 8px 8px 0 0; padding: 10px 14px; display: flex; align-items: center; gap: 8px;
+}
+.section-corps { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-top: none; border-radius: 0 0 8px 8px; }
+.coche { font-family: var(--font-mono); font-size: 12px; width: 14px; color: var(--danger); }
+.coche.ok { color: var(--success); }
+.valeur-config { margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); max-width: 280px; }
+.encart { background: var(--bg-level-2); border-radius: 6px; padding: 8px 12px; margin-bottom: 16px; }
+.encart.erreur { border: 0.5px solid var(--danger); font-family: var(--font-mono); font-size: 11px; color: var(--danger); }
+.carte { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 24px; }
+/* En ligne (inline-block), comme les champs de React : l'interligne compte dans l'espacement. */
+.champ {
+  width: 100%; background: var(--bg-level-2); border: 0.5px solid var(--border-subtle);
+  border-radius: 6px; padding: 8px 12px; color: var(--text-primary); font-size: 13px; margin: 6px 0 16px;
+}
+.champ:focus { outline: none; border-color: var(--brand-teal-50); }
+.champ::placeholder { color: var(--text-tertiary); }
+.champ.mono { font-family: var(--font-mono); font-size: 12px; margin-bottom: 12px; }
+.separes { border-top: 0.5px solid var(--border-subtle); padding-top: 16px; }
+.bouton { background: transparent; border-radius: 6px; padding: 8px 16px; font-size: 12px; cursor: pointer; }
+.bouton:disabled, .purge:disabled { opacity: 0.5; }
+.bouton:disabled, .lien:disabled { cursor: not-allowed; }
+.bouton:focus-visible { outline: 1px solid var(--brand-teal-50); outline-offset: 1px; }
+.teal { border: 0.5px solid var(--brand-teal); color: var(--brand-teal); font-weight: 500; }
+.contour { border: 0.5px solid var(--border-default); color: var(--text-secondary); }
+.danger { border: 0.5px solid var(--danger); color: var(--danger); }
+.lien { background: transparent; border: none; padding: 0; cursor: pointer; }
+.log { display: flex; gap: 8px; padding: 6px 10px; border-bottom: 0.5px solid var(--border-subtle); font-family: var(--font-mono); font-size: 11px; align-items: baseline; }
+.niveau { color: var(--text-secondary); flex-shrink: 0; text-transform: uppercase; width: 42px; }
+.niveau[data-niveau='error'] { color: var(--danger); }
+.niveau[data-niveau='warn'] { color: var(--warning); }

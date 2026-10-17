@@ -45,7 +45,6 @@ export const ROUTES_ADMIN: Routes = [
           { path: 'fraicheur', loadComponent: () => import('./health/fraicheur.component').then((m) => m.FraicheurComponent) },
           // Connexions API (T9) : l'écran garde SES sous-onglets (`app/admin/api/layout.tsx`), en
           // sous-routes relatives ; sa racine mène à `dv360` comme `app/admin/api/page.tsx`.
-          // `tiktok` et `logs` sont provisoires jusqu'à T10.
           {
             path: 'api',
             loadComponent: () => import('./api/connexions-api.page').then((m) => m.ConnexionsApiPage),
@@ -56,12 +55,12 @@ export const ROUTES_ADMIN: Routes = [
                 path: 'meta', data: { fournisseur: 'meta' },
                 loadComponent: () => import('./api/fournisseur-a-venir.component').then((m) => m.FournisseurAVenirComponent),
               },
-              { path: 'tiktok', loadComponent: () => import('./api/ecran-provisoire.component').then((m) => m.EcranProvisoireComponent) },
+              { path: 'tiktok', loadComponent: () => import('./api/tiktok.page').then((m) => m.TiktokPage) },
               {
                 path: 'ttd', data: { fournisseur: 'ttd' },
                 loadComponent: () => import('./api/fournisseur-a-venir.component').then((m) => m.FournisseurAVenirComponent),
               },
-              { path: 'logs', loadComponent: () => import('./api/ecran-provisoire.component').then((m) => m.EcranProvisoireComponent) },
+              { path: 'logs', loadComponent: () => import('./api/journal-dsp.page').then((m) => m.JournalDspPage) },
             ],
           },
         ],

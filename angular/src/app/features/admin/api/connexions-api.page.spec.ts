@@ -91,15 +91,24 @@ describe('ConnexionsApiPage — onglet « Connexions API » de Système (lot 6, 
     http.expectNone(() => true);
   });
 
-  it('The Trade Desk : même écran, libellé complet ; TikTok et Logs : écran provisoire jusqu’à T10', async () => {
-    const { el, harness, http } = await monter('/hote/app/admin/systeme/api/ttd');
+  it('The Trade Desk : même écran, libellé complet', async () => {
+    const { el, http } = await monter('/hote/app/admin/systeme/api/ttd');
     expect(el.querySelector('mg-fournisseur-a-venir [data-titre]')?.textContent?.trim()).toBe('Intégration The Trade Desk bientôt disponible');
     expect(el.querySelector('mg-fournisseur-a-venir img')?.getAttribute('src')).toBe('http://distante.test/remotes/magelian/logos/ttd.svg');
-    for (const s of ['tiktok', 'logs']) {
-      await harness.navigateByUrl(`/hote/app/admin/systeme/api/${s}`);
-      expect(el.querySelector('mg-ecran-provisoire [data-provisoire]')?.textContent?.trim(), s).toBe('Disponible prochainement.');
-    }
     http.expectNone(() => true);
+  });
+
+  it('TikTok et Logs (T10) : les vrais écrans sous leurs sous-onglets, leurs SEULES lectures au montage', async () => {
+    const { el, harness, http, sousOnglets } = await monter('/hote/app/admin/systeme/api/tiktok');
+    expect(el.querySelector('mg-tiktok')).not.toBeNull();
+    expect(sousOnglets().map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'false', 'true', 'false', 'false']);
+    expect(http.match(() => true).map((r) => r.request.urlWithParams)).toEqual([
+      '/api/admin/dsp/connections', '/api/admin/dsp/tiktok/config', '/api/admin/dsp/logs?provider=tiktok&limit=20',
+    ]);
+    await harness.navigateByUrl('/hote/app/admin/systeme/api/logs');
+    expect(el.querySelector('mg-journal-dsp')).not.toBeNull();
+    expect(sousOnglets().map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'false', 'false', 'false', 'true']);
+    expect(http.match(() => true).map((r) => r.request.urlWithParams)).toEqual(['/api/admin/dsp/logs']);
   });
 
   it('flèche droite sur le sous-onglet DV360 : focus ET navigation vers Meta, sans toucher la barre de Système', async () => {
