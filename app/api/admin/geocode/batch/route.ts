@@ -92,8 +92,12 @@ export async function POST(request: NextRequest) {
 
     logger.info('GEOCODE-BATCH', `Done: ${stats.green} green, ${stats.orange} orange, ${stats.red} red`);
 
-    // Save results to temp file for later use by dry-run/execute
-    const geocodeId = randomUUID().slice(0, 12);
+    // Save results to temp file for later use by dry-run/execute.
+    // UUID COMPLET : `geocode/update`, `dry-run` et `execute` relisent ce fichier par `resolveSafeJsonPath`, qui
+    // exige un UUID (garde contre la traversée de chemin). Tronqué à 12 caractères jusqu'au 2026-10-17, il était
+    // refusé par ces trois routes (« geocodeId invalide ») : l'import par adresse ne pouvait pas aboutir.
+    // Verrouillé par tests/unit/api/geocode-batch-identifiant.test.ts.
+    const geocodeId = randomUUID();
     const geocodePath = path.join(GEOCODE_DIR, `${geocodeId}.json`);
     fs.writeFileSync(geocodePath, JSON.stringify({
       geocodeId,
