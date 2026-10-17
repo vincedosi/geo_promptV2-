@@ -463,6 +463,23 @@ describe('ImportPoiService — géocodage, essai à blanc et import en flux (lot
       expect(m.etat.correctionEnCours()).toBe(false);
     });
 
+    it('relancer le géocodage PENDANT une correction : `correctionEnCours` repasse à faux (boutons réactivés), la réponse tardive est ignorée', () => {
+      const m = geocode();
+      m.etat.ouvrirEdition(GEOCODAGE_ESSAI.results![2]);
+      m.etat.corriger(2, { type: 'ignore' });
+      const tardive = m.http.expectOne(URL_CORRECTION);
+      expect(m.etat.correctionEnCours()).toBe(true);
+      m.etat.relancerGeocodage();
+      expect(m.etat.correctionEnCours()).toBe(false);
+      m.etat.geocoder();
+      m.http.expectOne(URL_GEOCODAGE).flush({ ...GEOCODAGE_ESSAI, geocodeId: '0b3c4d5e-6f70-4a81-9b92-a3b4c5d6e7f8' });
+      expect(tardive.cancelled).toBe(false);
+      tardive.flush({ success: true, updatedResult: { ...GEOCODAGE_ESSAI.results![2], status: 'green' }, stats: { green: 2, orange: 1, red: 1 } });
+      expect(m.etat.correctionEnCours()).toBe(false);
+      expect(m.etat.statsGeocodage()).toEqual({ green: 1, orange: 1, red: 2 });
+      expect(m.etat.resultatsGeocodage()[2]).toEqual(GEOCODAGE_ESSAI.results![2]);
+    });
+
     it('ouvrir l’édition recopie l’adresse et les coordonnées ; la rouvrir la ferme (« Corriger » / « Fermer »)', () => {
       const m = geocode();
       m.etat.ouvrirEdition(GEOCODAGE_ESSAI.results![1]);

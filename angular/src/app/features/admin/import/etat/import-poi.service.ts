@@ -368,7 +368,12 @@ export class ImportPoiService extends ImportPoiPreparation {
     this.correctionEnCours.set(false);
   }
 
+  /**
+   * Retour au bouton de lancement. Une correction encore en vol appartient à l'ANCIENNE session : sa réponse sera
+   * ignorée (`perime`), donc ses boutons ne doivent pas rester désactivés.
+   */
   private oublierGeocodage(): void {
+    this.correctionEnCours.set(false);
     this.geocodeId.set(null);
     this.resultatsGeocodage.set([]);
     this.statsGeocodage.set(null);
