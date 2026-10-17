@@ -7,6 +7,7 @@ import { RoleAdminService, roleResoluGuard } from './etat/role-admin.service';
 import { FraicheurApi } from './health/data/fraicheur.api';
 import { HealthApi } from './health/data/health.api';
 import { ImportsApi } from './imports/data/imports.api';
+import { IrisCrawlerApi } from './iris-crawler/data/iris-crawler.api';
 import { QualiteApi } from './qualite-donnees/data/qualite.api';
 
 /**
@@ -16,7 +17,9 @@ import { QualiteApi } from './qualite-donnees/data/qualite.api';
  * session expirée) — prouvé par `remote.spec.ts`. Les services d'API s'ajoutent tâche par tâche
  * (`@Injectable()` sans `providedIn`, héritiers de `HttpBaseService`).
  */
-export const FOURNISSEURS_ADMIN: Provider[] = [RoleAdminService, HealthApi, FraicheurApi, QualiteApi, EspacesApi, DspApi, ImportsApi];
+export const FOURNISSEURS_ADMIN: Provider[] = [
+  RoleAdminService, HealthApi, FraicheurApi, QualiteApi, EspacesApi, DspApi, ImportsApi, IrisCrawlerApi,
+];
 
 /**
  * L'administration (lot 6), enfant de la coquille comme `/admin/*` en React (arbitrage C1).
@@ -70,6 +73,17 @@ export const ROUTES_ADMIN: Routes = [
         loadComponent: () => import('./donnees/donnees.page').then((m) => m.DonneesPage),
         children: [
           { path: '', pathMatch: 'full', redirectTo: 'qualite' },
+          // Importer (T15, amendement A7) : un sous-onglet par écran d'import PORTÉ (aujourd'hui IRIS seul),
+          // `donnees/importer/{poi,shapefile,iris,radio}` ; la racine mène au premier porté.
+          {
+            path: 'importer',
+            loadComponent: () => import('./importer/importer.page').then((m) => m.ImporterPage),
+            children: [
+              { path: '', pathMatch: 'full', redirectTo: 'iris' },
+              // `/dashboard/iris-crawler` de React (segment `admin/iris-crawler` par C1).
+              { path: 'iris', loadComponent: () => import('./iris-crawler/iris-crawler.page').then((m) => m.IrisCrawlerPage) },
+            ],
+          },
           // Historique des imports (T11′, amendement A1) : `/admin/imports` de React, sans l'import OOH.
           { path: 'historique', loadComponent: () => import('./imports/imports.page').then((m) => m.ImportsPage) },
           {
@@ -83,6 +97,7 @@ export const ROUTES_ADMIN: Routes = [
       { path: 'health', pathMatch: 'full', redirectTo: 'systeme' },
       { path: 'qualite-donnees', pathMatch: 'full', redirectTo: 'donnees/qualite' },
       { path: 'imports', pathMatch: 'full', redirectTo: 'donnees/historique' },
+      { path: 'iris-crawler', pathMatch: 'full', redirectTo: 'donnees/importer/iris' },
       { path: 'api', pathMatch: 'full', redirectTo: 'systeme/api' },
       { path: 'api/:sous', pathMatch: 'full', redirectTo: 'systeme/api/:sous' },
       // Accès (« Espaces de travail » du 2026-10-09 au 2026-10-10) : une colonne persistante (la

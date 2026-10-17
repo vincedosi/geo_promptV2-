@@ -6,6 +6,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { ConfigService } from '../../../core/config/config.service';
 import { ROUTES_ADMIN } from '../admin.routes';
 import { ImportsApi } from '../imports/data/imports.api';
+import { IrisCrawlerApi } from '../iris-crawler/data/iris-crawler.api';
 import { QualiteApi } from '../qualite-donnees/data/qualite.api';
 
 /** La VRAIE route `donnees` de ROUTES_ADMIN, sous un préfixe d'hôte, sans le garde. */
@@ -13,7 +14,7 @@ async function monter(url: string) {
   const donnees = (ROUTES_ADMIN[0].children ?? []).find((r) => r.path === 'donnees') as Route;
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(), provideHttpClientTesting(), QualiteApi, ImportsApi,
+      provideHttpClient(), provideHttpClientTesting(), QualiteApi, ImportsApi, IrisCrawlerApi,
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       provideRouter([{ path: 'hote/app/admin', children: [donnees] }]),
     ],
@@ -29,17 +30,17 @@ describe('DonneesPage — page Données à onglets (lot 6, T6)', () => {
   afterEach(() => TestBed.inject(HttpTestingController).verify());
 
   for (const url of ['/hote/app/admin/donnees', '/hote/app/admin/donnees/qualite']) {
-    it(`${url} : titre « Données », onglets « Historique » puis « Qualité » (actif), et l’écran Qualité des données`, async () => {
+    it(`${url} : titre « Données », onglets « Importer », « Historique » puis « Qualité » (actif), et l’écran Qualité des données`, async () => {
       const { el, http, router } = await monter(url);
       expect(router.url).toBe('/hote/app/admin/donnees/qualite');
       expect(el.querySelector('mg-donnees h1')?.textContent?.trim()).toBe('Données');
       const onglets = [...el.querySelectorAll<HTMLAnchorElement>('mg-donnees [role="tab"]')];
-      // Pas d'onglet « bientôt » : Sources et Importer arrivent avec leur écran (Historique : T11′).
-      expect(onglets.map((a) => a.textContent!.trim())).toEqual(['Historique', 'Qualité']);
-      expect(onglets[1].getAttribute('aria-selected')).toBe('true');
-      expect(onglets[0].getAttribute('aria-selected')).toBe('false');
-      expect(onglets[0].getAttribute('href')).toBe('/hote/app/admin/donnees/historique');
-      expect(onglets[1].getAttribute('href')).toBe('/hote/app/admin/donnees/qualite');
+      // Pas d'onglet « bientôt » : Sources arrive avec son écran (Historique : T11′, Importer : T15).
+      expect(onglets.map((a) => a.textContent!.trim())).toEqual(['Importer', 'Historique', 'Qualité']);
+      expect(onglets.map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'false', 'true']);
+      expect(onglets.map((a) => a.getAttribute('href'))).toEqual([
+        '/hote/app/admin/donnees/importer', '/hote/app/admin/donnees/historique', '/hote/app/admin/donnees/qualite',
+      ]);
       expect(el.querySelector('mg-donnees mg-qualite-donnees')).not.toBeNull();
       // Un seul titre de page : celui du cadre. Le titre « Qualité des données » de React est
       // remonté dans le cadre, comme « Santé système » dans Système — plus de double en-tête.
@@ -53,9 +54,26 @@ describe('DonneesPage — page Données à onglets (lot 6, T6)', () => {
     const { el, http, router } = await monter('/hote/app/admin/donnees/historique');
     expect(router.url).toBe('/hote/app/admin/donnees/historique');
     const onglets = [...el.querySelectorAll<HTMLAnchorElement>('mg-donnees [role="tab"]')];
-    expect(onglets[0].getAttribute('aria-selected')).toBe('true');
+    expect(onglets.map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false']);
     expect(el.querySelector('mg-donnees mg-imports')).not.toBeNull();
     expect([...el.querySelectorAll('h1')].map((h) => h.textContent!.trim())).toEqual(['Données']);
     http.expectOne('/api/admin/imports').flush({ success: true, imports: [] });
   });
+
+  for (const url of ['/hote/app/admin/donnees/importer', '/hote/app/admin/donnees/importer/iris']) {
+    it(`${url} : onglet « Importer » actif, choix du type (« IRIS » seul, actif), l’écran IRIS crawler, AUCUNE requête`, async () => {
+      const { el, router } = await monter(url);
+      expect(router.url).toBe('/hote/app/admin/donnees/importer/iris');
+      const onglets = [...el.querySelectorAll<HTMLAnchorElement>('mg-donnees > div > mg-onglets-routes [role="tab"]')];
+      expect(onglets.map((a) => a.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false']);
+      // Le choix du type ne liste que les écrans PORTÉS (A7) : ni POI, ni Shapefile, ni Radio, ni « bientôt ».
+      const types = [...el.querySelectorAll<HTMLAnchorElement>('mg-importer [role="tab"]')];
+      expect(types.map((a) => [a.textContent!.trim(), a.getAttribute('href'), a.getAttribute('aria-selected')])).toEqual([
+        ['IRIS', '/hote/app/admin/donnees/importer/iris', 'true'],
+      ]);
+      expect(el.querySelector('mg-importer mg-iris-crawler')).not.toBeNull();
+      expect([...el.querySelectorAll('h1')].map((h) => h.textContent!.trim())).toEqual(['Données']);
+      // Rien ne part à l'ouverture : le dépôt attend un fichier (`afterEach` vérifie qu'aucune requête n'est en attente).
+    });
+  }
 });

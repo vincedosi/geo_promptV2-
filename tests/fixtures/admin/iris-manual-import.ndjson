@@ -1,0 +1,6 @@
+{"type":"status","message":"1200 lignes chargées depuis BASE_TD_FILO_IRIS_2021_DEC.csv. Préparation…"}
+{"type":"status","message":"1200 lignes préparées (5 colonnes core)…"}
+{"type":"progress","message":"Batch 1/3 — 42%","percent":42,"totalInserted":500,"totalErrors":0}
+{"type":"progress","message":"Batch 2/3 — 83%","percent":83,"totalInserted":1000,"totalErrors":0}
+{"type":"progress","message":"Batch 3/3 — 100%","percent":100,"totalInserted":1200,"totalErrors":0}
+{"type":"done","message":"✓ 1200 IRIS mis à jour","totalInserted":1200,"totalErrors":0,"status":"success","historyId":"00000000-0000-4000-8000-000000000015","columns":["rev_median","rev_d1","rev_d9","indice_gini","taux_pauvrete"]}

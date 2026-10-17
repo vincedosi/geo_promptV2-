@@ -9,7 +9,9 @@ import { IconeComponent } from '../../../ui/icone/icone.component';
  *
  * Elle n'invente AUCUN pourcentage : sans `total` (le flux n'en porte pas), la barre est
  * INDÉTERMINÉE et seul le compteur des lignes reçues s'affiche. Un échec garde le pourcentage
- * atteint — jamais une barre pleine.
+ * atteint — jamais une barre pleine. Exception, quand le FLUX porte lui-même un pourcentage sans
+ * total (IRIS crawler, champ `percent` de `manual-import`, T15) : `pourcentageFlux` rend la barre
+ * déterminée à cette valeur, le compteur dit alors « N lignes traitées ».
  *
  * Écarts à React, voulus (flat total) : remplissage UNI en jeton (React : dégradés et halo).
  * Contenu projeté : `[mesures]` à droite de l'en-tête (débit, durée), le reste sous la barre
@@ -117,6 +119,11 @@ export class ProgressionImportComponent {
   readonly traitees = input<number | null>(null);
   /** `null` : le flux ne porte pas de total, la barre est indéterminée. */
   readonly total = input<number | null>(null);
+  /**
+   * Pourcentage PORTÉ PAR LE FLUX (0-100), quand il n'annonce pas de total — jamais un pourcentage
+   * calculé ici. Ignoré si `total` est connu.
+   */
+  readonly pourcentageFlux = input<number | null>(null);
   readonly termine = input(false);
   readonly echec = input<string | null>(null);
 
@@ -126,6 +133,8 @@ export class ProgressionImportComponent {
   protected readonly pourcentage = computed(() => {
     const t = this.total();
     const n = this.traitees();
+    const pf = this.pourcentageFlux();
+    if (t === null && pf !== null) return Math.max(0, Math.min(100, Math.round(pf)));
     if (t === null || t <= 0 || n === null) return this.termine() && !this.echec() && t !== null ? 100 : null;
     return Math.min(100, Math.round((n / t) * 100));
   });
@@ -148,6 +157,7 @@ export class ProgressionImportComponent {
     const n = this.traitees();
     const t = this.total();
     if (n !== null && t !== null) return `${this.etape()} — ${formaterNombre(n)} / ${formaterNombre(t)}`;
+    if (n !== null && this.pourcentageFlux() !== null) return `${this.etape()} — ${formaterNombre(n)} lignes traitées`;
     if (n !== null) return `${this.etape()} — ${formaterNombre(n)} lignes reçues`;
     return `${this.etape()}…`;
   });

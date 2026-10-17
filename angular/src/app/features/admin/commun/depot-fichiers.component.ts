@@ -28,6 +28,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, input, output, signal, 
       [class.survol]="survol()"
       [class.desactive]="desactive()"
       [class.fond-surface]="fondRepos() === 'surface'"
+      [class.fond-eleve]="fondRepos() === 'eleve'"
       [style.padding]="marge()"
       (click)="ouvrir()"
       (keydown.enter)="ouvrir(); $event.preventDefault()"
@@ -59,6 +60,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, input, output, signal, 
       transition: all 0.15s ease;
     }
     .zone.fond-surface { background: var(--bg-surface); }
+    .zone.fond-eleve { background: var(--bg-level-2); }
     .zone.survol { border-color: var(--brand-teal); background: var(--brand-teal-10); }
     .zone.desactive { cursor: not-allowed; opacity: 0.5; }
   `,
@@ -68,8 +70,11 @@ export class DepotFichiersComponent {
   readonly accepter = input<string>();
   readonly multiple = input(false);
   readonly desactive = input(false);
-  /** Fond au repos : transparent (import POI) ou surface (IRIS crawler). */
-  readonly fondRepos = input<'transparent' | 'surface'>('transparent');
+  /**
+   * Fond au repos : transparent (import POI), surface, ou élevé (`--bg-level-2` : IRIS crawler, dont le
+   * `C.bgElevated` vaut `var(--bg-level-2)`, `iris-crawler/page.tsx:9,192` — constaté en T15).
+   */
+  readonly fondRepos = input<'transparent' | 'surface' | 'eleve'>('transparent');
   /** Marge intérieure CSS : `28px 20px` (import POI), `40px 20px` (IRIS crawler). */
   readonly marge = input('28px 20px');
   readonly fichiers = output<File[]>();

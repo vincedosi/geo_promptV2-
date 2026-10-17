@@ -2,7 +2,7 @@
 
 **Rôle** : les écrans d'administration portés de `/admin/*` (lot 6). Cible validée par le propriétaire :
 trois pages à onglets — **Accès**, **Données**, **Système** (en place depuis le 2026-10-12, T6). Aujourd'hui :
-Accès (comptes et espaces de travail) ; Données → Qualité ; Système → Santé, Fraîcheur des données, Connexions API.
+Accès (comptes et espaces de travail) ; Données → Importer (IRIS), Historique, Qualité ; Système → Santé, Fraîcheur des données, Connexions API.
 
 **Routes** (`admin.routes.ts`, `ROUTES_ADMIN`, enfant de la coquille) :
 
@@ -18,8 +18,11 @@ Accès (comptes et espaces de travail) ; Données → Qualité ; Système → Sa
 | `admin/systeme/api/tiktok` | `api/tiktok.page.ts` — connexion TikTok (diagnostic, App ID + secret, OAuth, test, purge, journal) |
 | `admin/systeme/api/logs` | `api/journal-dsp.page.ts` — journal des appels DSP de l'organisation, filtre « Erreurs uniquement » |
 | `admin/donnees` | `donnees/donnees.page.ts` — cadre ; `''` → `qualite` |
+| `admin/donnees/importer` | `importer/importer.page.ts` — choix du type d'import en sous-onglets (écrans PORTÉS seulement) ; `''` → `iris` |
+| `admin/donnees/importer/iris` | `iris-crawler/iris-crawler.page.ts` — dépôt d'un CSV IRIS, correspondance des colonnes, import NDJSON avec progression |
+| `admin/donnees/historique` | `imports/imports.page.ts` — historique des imports |
 | `admin/donnees/qualite` | `qualite-donnees/qualite-donnees.page.ts` — contenu des données (absente, partielle, périmée, fausse) |
-| `admin/health`, `admin/qualite-donnees`, `admin/api[/<x>]` | anciennes adresses, redirigées (RELATIVEMENT) vers `systeme`, `donnees/qualite`, `systeme/api[/<x>]` |
+| `admin/health`, `admin/qualite-donnees`, `admin/imports`, `admin/iris-crawler`, `admin/api[/<x>]` | anciennes adresses, redirigées (RELATIVEMENT) vers `systeme`, `donnees/qualite`, `donnees/historique`, `donnees/importer/iris`, `systeme/api[/<x>]` |
 | `admin/acces` | `espaces/espaces.page.ts` — colonne des espaces, puis `socle`, `comptes` ou `:id` (fiche d'un espace) |
 | `admin/espaces[/:id]` | anciennes adresses, redirigées vers `admin/acces` |
 

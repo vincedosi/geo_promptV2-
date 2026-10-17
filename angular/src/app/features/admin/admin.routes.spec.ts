@@ -15,13 +15,13 @@ describe('ROUTES_ADMIN — pages Système et Données (lot 6, T6)', () => {
     const donnees = enfants().find((r) => r.path === 'donnees');
     expect(systeme?.children?.map((r) => r.path)).toEqual(['', 'sante', 'fraicheur', 'api']);
     expect(systeme?.children?.[0].redirectTo).toBe('sante');
-    expect(donnees?.children?.map((r) => r.path)).toEqual(['', 'historique', 'qualite']);
+    expect(donnees?.children?.map((r) => r.path)).toEqual(['', 'importer', 'historique', 'qualite']);
     expect(donnees?.children?.[0].redirectTo).toBe('qualite');
   });
 
-  it('`admin`, `admin/health`, `admin/qualite-donnees` et `admin/imports` redirigent, RELATIVEMENT, sous le préfixe de l’hôte', async () => {
-    const parRedirection = enfants().filter((r) => ['', 'health', 'qualite-donnees', 'imports'].includes(r.path ?? '-') && r.redirectTo);
-    expect(parRedirection.length).toBe(4);
+  it('`admin`, `admin/health`, `admin/qualite-donnees`, `admin/imports` et `admin/iris-crawler` redirigent, RELATIVEMENT, sous le préfixe de l’hôte', async () => {
+    const parRedirection = enfants().filter((r) => ['', 'health', 'qualite-donnees', 'imports', 'iris-crawler'].includes(r.path ?? '-') && r.redirectTo);
+    expect(parRedirection.length).toBe(5);
     // Aucune redirection absolue : le préfixe de montage appartient au shell.
     expect(enfants().every((r) => typeof r.redirectTo !== 'string' || !r.redirectTo.startsWith('/'))).toBe(true);
     TestBed.configureTestingModule({
@@ -31,7 +31,13 @@ describe('ROUTES_ADMIN — pages Système et Données (lot 6, T6)', () => {
           children: [
             ...parRedirection,
             { path: 'systeme', children: [{ path: '', pathMatch: 'full', redirectTo: 'sante' }, { path: 'sante', component: Factice }] },
-            { path: 'donnees', children: [{ path: 'qualite', component: Factice }, { path: 'historique', component: Factice }] },
+            {
+              path: 'donnees',
+              children: [
+                { path: 'qualite', component: Factice }, { path: 'historique', component: Factice },
+                { path: 'importer', children: [{ path: 'iris', component: Factice }] },
+              ],
+            },
           ],
         }]),
       ],
@@ -43,10 +49,23 @@ describe('ROUTES_ADMIN — pages Système et Données (lot 6, T6)', () => {
       ['/hote/app/admin/health', '/hote/app/admin/systeme/sante'],
       ['/hote/app/admin/qualite-donnees', '/hote/app/admin/donnees/qualite'],
       ['/hote/app/admin/imports', '/hote/app/admin/donnees/historique'],
+      // T15 (A7) : l'IRIS crawler de React (`/dashboard/iris-crawler`, segment `admin/iris-crawler` par C1).
+      ['/hote/app/admin/iris-crawler', '/hote/app/admin/donnees/importer/iris'],
     ]) {
       await harness.navigateByUrl(avant);
       expect(router.url, avant).toBe(apres);
     }
+  });
+});
+
+describe('ROUTES_ADMIN — onglet « Importer » de Données (lot 6, T15, amendement A7)', () => {
+  it('`donnees/importer` porte UN type par écran d’import porté — aujourd’hui `iris` seul — et sa racine y mène', () => {
+    const donnees = enfants().find((r) => r.path === 'donnees');
+    const importer = donnees?.children?.find((r) => r.path === 'importer');
+    expect(importer?.loadComponent).toBeTypeOf('function');
+    expect(importer?.children?.map((r) => r.path)).toEqual(['', 'iris']);
+    expect(importer?.children?.[0].redirectTo).toBe('iris');
+    expect(importer?.children?.[1].loadComponent).toBeTypeOf('function');
   });
 });
 
