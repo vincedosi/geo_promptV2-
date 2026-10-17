@@ -3,12 +3,15 @@ import { HttpErrorResponse } from '@angular/common/http';
 import type { Subscription } from 'rxjs';
 import { ConfirmationComponent } from '../../../ui/confirmation/confirmation.component';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
+import { OrganisationsListeApi, type OrganisationListe } from '../commun/data/organisations-liste.api';
 import type { DataSource } from '../logique/types/admin';
 import { RadioAdminApi, type StatsRadio } from '../radio/data/radio-admin.api';
 import { DetailSourceComponent } from './detail-source.component';
 import { ListeSourcesComponent } from './liste-sources.component';
 import { SourcesAdminApi, type ReponseEcriture, type StatsSources, type StatsZones } from './data/sources-admin.api';
 import { fmtK, type OngletSources, type TeinteSources } from './logique/constantes';
+import { DspComponent } from './panneaux/dsp.component';
+import { ZonesCustomComponent } from './panneaux/zones-custom.component';
 import { TuilesSourcesComponent } from './tuiles-sources.component';
 
 interface VueOnglet {
@@ -20,13 +23,15 @@ interface VueOnglet {
 /**
  * `admin/donnees/sources` — portage de `app/admin/sources/page.tsx` (lot 6, T18, amendement A5),
  * PREMIER onglet de la page Données ; `admin/sources` y redirige. Cadre, neuf onglets, vue
- * « Toutes » (tuiles, données système, bloc Radio, liste et détail des sources). Les panneaux par
- * type (POI, carreaux, OOH, IRIS, transport — T19 ; DSP, zones perso — T20) sont PROVISOIRES d'ici
- * là : « Disponible prochainement », sans aucune lecture.
+ * « Toutes » (tuiles, données système, bloc Radio, liste et détail des sources). Onglets DSP et Zones
+ * perso : `mg-sources-dsp` et `mg-sources-zones` (T20). Les panneaux POI, carreaux, OOH, IRIS,
+ * transport (T19) sont PROVISOIRES d'ici là : « Disponible prochainement », sans aucune lecture.
  *
  * Lectures : QUATRE à l'ouverture — sources, statistiques, radio, zones perso (le limiteur en laisse
  * passer trois, la quatrième attend : voulu) ; chacune UNE fois par écran (cache, règle d'I/O). Aucune
- * de `transport-stats` ni des campagnes DSP tant que leur panneau n'est pas porté.
+ * de `transport-stats` tant que son panneau n'est pas porté. Les campagnes DSP sont lues par l'onglet DSP
+ * à CHAQUE visite (React, voulu) ; les organisations du filtre des Zones perso, à la PREMIÈRE visite de
+ * cet onglet, puis gardées pour l'écran (A2) — relues à la visite suivante seulement si elles ont échoué.
  *
  * Périmètre réduit (A5, qui prime sur le brief du 06/10) : pas de résumé IA, pas de partage, pas de
  * changement d'organisation, pas de lecture des organisations — React les a retirés.
@@ -43,7 +48,7 @@ interface VueOnglet {
  */
 @Component({
   selector: 'mg-sources',
-  imports: [ConfirmationComponent, DetailSourceComponent, ListeSourcesComponent, TuilesSourcesComponent],
+  imports: [ConfirmationComponent, DetailSourceComponent, DspComponent, ListeSourcesComponent, TuilesSourcesComponent, ZonesCustomComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './sources.page.html',
   styles: [`
@@ -82,6 +87,7 @@ interface VueOnglet {
 export class SourcesPage {
   private readonly api = inject(SourcesAdminApi);
   private readonly radioApi = inject(RadioAdminApi);
+  private readonly organisationsApi = inject(OrganisationsListeApi);
   private readonly notifications = inject(NotificationsService);
   private readonly lectures: Subscription[] = [];
   private lectureSources: Subscription | null = null;
@@ -100,6 +106,11 @@ export class SourcesPage {
   /** Identifiant dont la suppression attend confirmation (`deleteConfirm`). */
   protected readonly aSupprimer = signal<string | null>(null);
   protected readonly suppressionEnCours = signal(false);
+  /** Nombre de campagnes de la dernière lecture de l'onglet DSP (`dsp.dspCampaigns.length`), gardé en le quittant. */
+  protected readonly nbCampagnes = signal(0);
+  /** Organisations du filtre des Zones perso : lues une fois par écran (A2), à la première visite de l'onglet. */
+  protected readonly organisations = signal<OrganisationListe[]>([]);
+  private organisationsLues = false;
 
   protected readonly selection = this.selectionId.asReadonly();
   /** La source choisie, relue dans la liste (zéro ou un élément : le `@for … track id` recrée le détail). */
@@ -120,8 +131,8 @@ export class SourcesPage {
       { cle: 'iris', libelle: `IRIS (${ss ? fmtK(ss.iris.total) : '…'})`, teinte: 'info' },
       { cle: 'transport', libelle: `Transport & Flux (${ss ? fmtK(ss.transport.total + ss.flux.total) : '…'})`, teinte: 'succes' },
       { cle: 'radio', libelle: `Radio (${r ? fmtK(r.total_emetteurs) : '…'})`, teinte: 'teal' },
-      // `dsp.dspCampaigns.length || '…'` : les campagnes ne sont lues qu'à l'ouverture de l'onglet DSP (T20).
-      { cle: 'dsp', libelle: 'DSP (…)', teinte: 'avert' },
+      // `dsp.dspCampaigns.length || '…'` : les campagnes ne sont lues qu'à l'ouverture de l'onglet DSP.
+      { cle: 'dsp', libelle: `DSP (${this.nbCampagnes() || '…'})`, teinte: 'avert' },
       { cle: 'custom_zones', libelle: 'Zones perso', teinte: 'teal' },
     ];
   });
@@ -168,6 +179,24 @@ export class SourcesPage {
   protected choisirOnglet(o: OngletSources): void {
     this.onglet.set(o);
     this.selectionId.set(null);
+    if (o === 'custom_zones') this.lireOrganisations();
+  }
+
+  /**
+   * `WorkspaceFilter` (`CustomZonesTab/WorkspaceFilter.tsx:19-26`) : React relit à chaque montage et avale
+   * l'erreur. Ici une fois par écran ; un échec laisse la liste vide (« Tous les workspaces » seul) et
+   * sera retenté à la visite suivante.
+   */
+  private lireOrganisations(): void {
+    if (this.organisationsLues) return;
+    this.organisationsLues = true;
+    this.lectures.push(this.organisationsApi.lister().subscribe({
+      next: (r) => {
+        if (r?.organizations) this.organisations.set(r.organizations);
+        else this.organisationsLues = false;
+      },
+      error: () => (this.organisationsLues = false),
+    }));
   }
 
   protected choisirSource(id: string): void {

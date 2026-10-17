@@ -29,6 +29,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, input, output, signal, 
       [class.desactive]="desactive()"
       [class.fond-surface]="fondRepos() === 'surface'"
       [class.fond-eleve]="fondRepos() === 'eleve'"
+      [class.trait-fin]="trait() === 'fin'"
       [style.padding]="marge()"
       (click)="ouvrir()"
       (keydown.enter)="ouvrir(); $event.preventDefault()"
@@ -61,6 +62,8 @@ import { ChangeDetectionStrategy, Component, ElementRef, input, output, signal, 
     }
     .zone.fond-surface { background: var(--bg-surface); }
     .zone.fond-eleve { background: var(--bg-level-2); }
+    /* Cadre du dialogue d'import DSP (DspPanel.tsx:115) : tirets de 0,5 px en teal à 30 %, rayon 6. */
+    .zone.trait-fin { border: 0.5px dashed var(--brand-teal-30); border-radius: 6px; }
     .zone.survol { border-color: var(--brand-teal); background: var(--brand-teal-10); }
     .zone.desactive { cursor: not-allowed; opacity: 0.5; }
   `,
@@ -75,6 +78,11 @@ export class DepotFichiersComponent {
    * `C.bgElevated` vaut `var(--bg-level-2)`, `iris-crawler/page.tsx:9,192` — constaté en T15).
    */
   readonly fondRepos = input<'transparent' | 'surface' | 'eleve'>('transparent');
+  /**
+   * Cadre : tirets de 2 px (import POI, IRIS crawler), ou `fin` — tirets de 0,5 px teal à 30 %, rayon 6
+   * (dialogue d'import de campagne DSP, `sources/_components/DspPanel.tsx:115`, T20).
+   */
+  readonly trait = input<'tirets' | 'fin'>('tirets');
   /** Marge intérieure CSS : `28px 20px` (import POI), `40px 20px` (IRIS crawler). */
   readonly marge = input('28px 20px');
   readonly fichiers = output<File[]>();

@@ -2,6 +2,7 @@ import type { Provider } from '@angular/core';
 import type { Routes } from '@angular/router';
 import { DspApi } from './api/data/dsp.api';
 import { CadreAdminComponent } from './cadre-admin.component';
+import { OrganisationsListeApi } from './commun/data/organisations-liste.api';
 import { EspacesApi } from './espaces/data/espaces.api';
 import { RoleAdminService, roleResoluGuard } from './etat/role-admin.service';
 import { FraicheurApi } from './health/data/fraicheur.api';
@@ -21,7 +22,7 @@ import { SourcesAdminApi } from './sources/data/sources-admin.api';
  */
 export const FOURNISSEURS_ADMIN: Provider[] = [
   RoleAdminService, HealthApi, FraicheurApi, QualiteApi, EspacesApi, DspApi, ImportsApi, IrisCrawlerApi, SourcesAdminApi,
-  RadioAdminApi,
+  RadioAdminApi, OrganisationsListeApi,
 ];
 
 /**

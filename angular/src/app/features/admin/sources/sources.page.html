@@ -31,8 +31,14 @@
   @case ('radio') {
     <mg-liste-sources mode="radio" [radio]="radio()" />
   }
+  @case ('dsp') {
+    <mg-sources-dsp (nombre)="nbCampagnes.set($event)" />
+  }
+  @case ('custom_zones') {
+    <mg-sources-zones [organisations]="organisations()" />
+  }
   @default {
-    <!-- Panneaux par type : T19 (POI, carreaux, OOH, IRIS, transport) et T20 (DSP, zones perso). -->
+    <!-- Panneaux par type : T19 (POI, carreaux, OOH, IRIS, transport). -->
     <div class="provisoire" data-provisoire>Disponible prochainement</div>
   }
 }

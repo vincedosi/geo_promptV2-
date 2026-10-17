@@ -7,6 +7,7 @@ import { ConfigService } from '../../../core/config/config.service';
 import { ENREGISTRER_FICHIER, nomDeFichier } from '../../../core/http/telecharger';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
 import type { DataSource } from '../logique/types/admin';
+import { OrganisationsListeApi } from '../commun/data/organisations-liste.api';
 import { RadioAdminApi } from '../radio/data/radio-admin.api';
 import { SourcesAdminApi, type StatsSources, type StatsZones } from './data/sources-admin.api';
 import { SourcesPage } from './sources.page';
@@ -71,7 +72,7 @@ async function monter() {
   const enregistrer = vi.fn();
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(), provideHttpClientTesting(), SourcesAdminApi, RadioAdminApi, NotificationsService,
+      provideHttpClient(), provideHttpClientTesting(), SourcesAdminApi, RadioAdminApi, OrganisationsListeApi, NotificationsService,
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       { provide: ENREGISTRER_FICHIER, useValue: enregistrer },
       provideRouter([{ path: 'hote/app/admin/donnees', children: [{ path: 'sources', component: SourcesPage }] }]),
@@ -415,14 +416,14 @@ describe('SourcesPage — onglets, vue « Toutes », liste et détail d’une so
     ]);
   });
 
-  it('onglet Radio : le bloc Radio seul (React ne rendait rien) ; autres onglets : panneau provisoire, sans lecture', async () => {
+  it('onglet Radio : le bloc Radio seul (React ne rendait rien) ; onglets de T19 : panneau provisoire, sans lecture', async () => {
     const { el, http, servir, stable, onglet } = await monter();
     await servir();
     onglet('radio').click();
     await stable();
     expect(el.querySelector('[data-radio]')).not.toBeNull();
     expect(el.querySelector('[data-source]')).toBeNull();
-    for (const cle of ['poi', 'carreaux', 'panneaux', 'iris', 'transport', 'dsp', 'custom_zones']) {
+    for (const cle of ['poi', 'carreaux', 'panneaux', 'iris', 'transport']) {
       onglet(cle).click();
       await stable();
       expect(el.querySelector('[data-provisoire]'), cle).not.toBeNull();
@@ -444,5 +445,67 @@ describe('SourcesPage — onglets, vue « Toutes », liste et détail d’une so
     el.querySelector<HTMLButtonElement>('[data-systeme="transport"]')!.click();
     await stable();
     expect(onglet('transport').getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('onglet DSP (T20) : les campagnes lues À CHAQUE visite (React : pas de cache, voulu), libellé « DSP (N) » gardé en quittant', async () => {
+    const { el, http, servir, stable, onglet } = await monter();
+    await servir();
+    onglet('dsp').click();
+    await stable();
+    expect(el.querySelector('mg-sources-dsp')).not.toBeNull();
+    expect(el.querySelector('[data-provisoire]')).toBeNull();
+    http.expectOne('/api/admin/campaigns').flush([
+      { id: 'c1', name: 'A', dsp_source: 'adform', date_start: null, date_end: null, total_tracked_ads: 1, countries: null, total_rows: 1, france_rows: 0, matched_iris: 0 },
+      { id: 'c2', name: 'B', dsp_source: 'ttd', date_start: null, date_end: null, total_tracked_ads: 1, countries: null, total_rows: 1, france_rows: 0, matched_iris: 0 },
+    ]);
+    await stable();
+    expect(onglet('dsp').textContent!.trim()).toBe('DSP (2)');
+    onglet('all').click();
+    await stable();
+    expect(onglet('dsp').textContent!.trim()).toBe('DSP (2)');
+    onglet('dsp').click();
+    await stable();
+    // `dspCampaigns.length || '…'` : zéro campagne redonne « … », comme React.
+    http.expectOne('/api/admin/campaigns').flush([]);
+    await stable();
+    expect(onglet('dsp').textContent!.trim()).toBe('DSP (…)');
+  });
+
+  it('onglet Zones perso (T20) : organisations lues UNE fois par écran (A2), liste relue à chaque visite ; la tuile y mène aussi', async () => {
+    const { el, http, servir, stable, onglet } = await monter();
+    await servir();
+    (el.querySelector('mg-tuiles-sources [data-tuile="custom_zones"]') as HTMLButtonElement).click();
+    await stable();
+    expect(onglet('custom_zones').getAttribute('aria-selected')).toBe('true');
+    expect(el.querySelector('mg-sources-zones')).not.toBeNull();
+    http.expectOne('/api/admin/organizations').flush({ success: true, organizations: [{ id: 'o1', name: 'Espace A' }] });
+    http.expectOne((r) => r.url === '/api/admin/custom-geo/list').flush({ zones: [] });
+    await stable();
+    expect([...el.querySelectorAll<HTMLOptionElement>('[data-filtre-org] option')].map((o) => o.textContent!.trim())).toEqual(['Tous les workspaces', 'Espace A']);
+    onglet('all').click();
+    await stable();
+    onglet('custom_zones').click();
+    await stable();
+    http.expectNone('/api/admin/organizations');
+    http.expectOne((r) => r.url === '/api/admin/custom-geo/list').flush({ zones: [] });
+    await stable();
+    expect([...el.querySelectorAll<HTMLOptionElement>('[data-filtre-org] option')].map((o) => o.textContent!.trim())).toEqual(['Tous les workspaces', 'Espace A']);
+  });
+
+  it('organisations en échec : le filtre ne propose que « Tous les workspaces » (React avale l’erreur), relues à la visite suivante', async () => {
+    const { el, http, servir, stable, onglet } = await monter();
+    await servir();
+    onglet('custom_zones').click();
+    await stable();
+    http.expectOne('/api/admin/organizations').flush({ success: false, error: 'x' }, { status: 500, statusText: 'Server Error' });
+    http.expectOne((r) => r.url === '/api/admin/custom-geo/list').flush({ zones: [] });
+    await stable();
+    expect(el.querySelectorAll('[data-filtre-org] option')).toHaveLength(1);
+    onglet('all').click();
+    await stable();
+    onglet('custom_zones').click();
+    await stable();
+    http.expectOne('/api/admin/organizations').flush({ success: true, organizations: [] });
+    http.expectOne((r) => r.url === '/api/admin/custom-geo/list').flush({ zones: [] });
   });
 });

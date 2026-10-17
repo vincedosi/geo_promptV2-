@@ -1,0 +1,14 @@
+data: {"type":"parsing","message":"Parsing campagne-essai.csv…"}
+
+data: {"type":"progress","processed":0,"total":20,"message":"20 lignes détectées, 1 pays"}
+
+data: {"type":"progress","processed":20,"total":20,"message":"20/20 lignes insérées"}
+
+data: {"type":"matching","matched":0,"total_france":20,"message":"Matching IRIS pour 20 lignes France…"}
+
+data: {"type":"matching","matched":20,"total_france":20,"message":"20/20 lignes matchées IRIS"}
+
+data: {"type":"rollups","message":"Agrégats de suivi…"}
+
+data: {"type":"complete","report":{"campaign_id":"00000000-0000-4000-8000-0000000000e1","campaign_name":"[ESSAI lot 6] campagne","total_rows":20,"countries":["France"],"total_france":20,"matched_iris":20,"pct_matched":100}}
+

@@ -50,6 +50,11 @@ la route reçoit nos intercepteurs. État : `etat/role-admin.service.ts` ; pour 
   copiés du serveur, verrouillés par `admin-logique-paritaire.test.ts`.
 - `sources/` — écran Sources : `sources.page` (onglets, état, suppression confirmée), `tuiles-sources`, `liste-sources`,
   `detail-source` (recréé à chaque source choisie), `logique/constantes.ts` (copies de React), `data/sources-admin.api.ts`.
+  Onglets DSP et Zones perso (T20) dans `sources/panneaux/` : `dsp` (liste relue à chaque visite, suppression
+  confirmée), `dialogue-import-dsp` (`<dialog>` non fermable pendant le flux SSE, progression par étape),
+  `zones-custom` (filtres, tableau) et `dialogue-suppression-zone` ; `testing/dsp-import.fixture.ts` (flux SSE).
+- `commun/data/organisations-liste.api.ts` — `GET /api/admin/organizations` (amendement A2, créé en T20, réutilisé
+  par l'import POI en T12) ; pas de cache dans le service : chaque écran garde sa lecture.
 - `radio/data/radio-admin.api.ts` — `/api/radio/*` : `stats()` (Sources, T18), puis `historique()`, `journal()`, `importerAnfr()`, `enrichir()`, `importerOds()` (flux NDJSON) et `supprimer()` (DELETE avec corps) pour l'écran Radio (T16).
 - `espaces/` — page Accès : fiches (`fiche-espace`, `fiche-socle`, `fiche-utilisateur`), onglets (Membres,
   Données, Aperçu, Réglages), dialogues `<dialog>` natifs, `logique/` (règles pures), `data/espaces.api.ts`.

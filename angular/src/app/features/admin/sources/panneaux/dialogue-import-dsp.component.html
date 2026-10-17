@@ -1,0 +1,78 @@
+<dialog
+  #dialogue
+  [attr.aria-labelledby]="idTitre"
+  [attr.aria-busy]="importEnCours()"
+  (cancel)="surAnnulationNative($event)"
+  (close)="surFermeture()"
+  (click)="surClic($event)"
+  (keydown.escape)="$event.stopPropagation()"
+>
+  <div class="boite">
+    <h2 [id]="idTitre" class="titre" data-titre>Importer une campagne DSP</h2>
+    <button type="button" class="croix" data-croix aria-label="Fermer" [disabled]="importEnCours()" (click)="demanderFermeture()">
+      <mg-icone nom="croix" [taille]="16" />
+    </button>
+
+    <div class="corps">
+      <div>
+        <span class="libelle" data-libelle>Fichier (CSV ou XLSX)</span>
+        <mg-depot-fichiers accepter=".csv,.xlsx" fondRepos="eleve" trait="fin" marge="20px 16px" [desactive]="importEnCours()"
+          (fichiers)="choisirFichier($event)">
+          @if (fichier(); as f) {
+            <span class="nom-fichier" data-nom-fichier>{{ f.name }}</span>
+          } @else {
+            <span class="consigne">Glisser-déposer ou cliquer pour sélectionner</span>
+          }
+        </mg-depot-fichiers>
+      </div>
+
+      <label class="champ">
+        <span class="libelle" data-libelle>Source DSP</span>
+        <select data-source [value]="source()" [disabled]="importEnCours()" (change)="choisirSource($event)">
+          @for (s of sources; track s) {
+            <option [value]="s" [selected]="s === source()">{{ s }}</option>
+          }
+        </select>
+      </label>
+
+      <label class="champ">
+        <span class="libelle" data-libelle>Nom (optionnel, auto-détecté sinon)</span>
+        <input data-nom type="text" autocomplete="off" placeholder="Ex: Adform Q1 2026" [value]="nom()" [disabled]="importEnCours()"
+          (input)="saisirNom($event)" />
+      </label>
+
+      @if (progression(); as p) {
+        <mg-progression-import [etape]="p.etape" [traitees]="p.traitees" [total]="p.total" [termine]="p.termine" [echec]="p.echec" />
+      }
+
+      @if (lignes().length > 0) {
+        <div class="evenements" data-evenements>
+          @for (l of lignes(); track $index) {
+            <div class="evenement" [attr.data-evenement]="l.sorte">{{ l.texte }}</div>
+          }
+        </div>
+      }
+
+      @if (rapport()) {
+        <div class="rapport" data-rapport>
+          <div class="rapport-titre" data-rapport-titre>Import réussi</div>
+          <div class="grille">
+            @for (c of cellules(); track c.libelle) {
+              <span data-cellule>{{ c.libelle }}</span>
+              <span data-cellule class="valeur" [class.succes]="c.succes">{{ c.valeur }}</span>
+            }
+          </div>
+        </div>
+      }
+
+      <div class="actions">
+        @if (rapport()) {
+          <button type="button" class="bouton principal" data-fermer (click)="fermer.emit()">Fermer</button>
+        } @else {
+          <button type="button" class="bouton secondaire" data-annuler [disabled]="importEnCours()" (click)="demanderFermeture()">Annuler</button>
+          <button type="button" class="bouton principal" data-lancer [disabled]="!peutLancer()" (click)="lancer()">{{ libelleLancer() }}</button>
+        }
+      </div>
+    </div>
+  </div>
+</dialog>

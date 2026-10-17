@@ -5,7 +5,7 @@ import { DepotFichiersComponent } from './depot-fichiers.component';
 @Component({
   imports: [DepotFichiersComponent],
   template: `
-    <mg-depot-fichiers accepter=".csv,.tsv" [multiple]="multiple()" [desactive]="desactive()" (fichiers)="recus.push($event)">
+    <mg-depot-fichiers accepter=".csv,.tsv" [multiple]="multiple()" [desactive]="desactive()" [trait]="trait()" (fichiers)="recus.push($event)">
       <span>Glissez un fichier ici</span>
     </mg-depot-fichiers>
   `,
@@ -13,6 +13,7 @@ import { DepotFichiersComponent } from './depot-fichiers.component';
 class Hote {
   readonly multiple = signal(false);
   readonly desactive = signal(false);
+  readonly trait = signal<'tirets' | 'fin'>('tirets');
   readonly recus: File[][] = [];
 }
 
@@ -95,5 +96,13 @@ describe('DepotFichiersComponent', () => {
     expect(ouvrir).not.toHaveBeenCalled();
     expect(h.recus).toEqual([]);
     expect(zone.getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('trait : tirets épais par défaut ; `fin` (dialogue d’import DSP, T20) pose la classe du cadre fin', async () => {
+    const { f, h, zone } = await monter();
+    expect(zone.classList.contains('trait-fin')).toBe(false);
+    h.trait.set('fin');
+    await f.whenStable();
+    expect(zone.classList.contains('trait-fin')).toBe(true);
   });
 });

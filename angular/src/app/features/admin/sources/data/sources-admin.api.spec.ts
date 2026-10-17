@@ -4,7 +4,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ConfigService } from '../../../../core/config/config.service';
 import { nomDeFichier } from '../../../../core/http/telecharger';
 import { RadioAdminApi } from '../../radio/data/radio-admin.api';
-import { SourcesAdminApi } from './sources-admin.api';
+import { FLUX_IMPORT_DSP } from '../testing/dsp-import.fixture';
+import { SourcesAdminApi, type EvenementImportDsp } from './sources-admin.api';
 
 function monter() {
   TestBed.configureTestingModule({
@@ -58,5 +59,60 @@ describe('SourcesAdminApi — routes de l’écran Sources (lot 6, T18)', () => 
       headers: new HttpHeaders({ 'Content-Disposition': 'attachment; filename="CIRFA_export.csv"' }),
     });
     expect(nom).toBe('CIRFA_export.csv');
+  });
+
+  it('campagnes DSP : GET sans paramètre (le `?_t=` anti-cache de React est sans objet sous HttpClient) ; DELETE à l’identifiant encodé', () => {
+    const { api, http } = monter();
+    api.campagnes().subscribe();
+    const g = http.expectOne('/api/admin/campaigns');
+    expect(g.request.method).toBe('GET');
+    expect(g.request.params.keys()).toEqual([]);
+    g.flush([]);
+    api.supprimerCampagne('c 1').subscribe();
+    const d = http.expectOne('/api/admin/campaigns/c%201');
+    expect(d.request.method).toBe('DELETE');
+    d.flush({ success: true, deleted: 1 });
+  });
+
+  it('import DSP : POST multipart aux trois champs de React (nom rogné), flux SSE en texte, événements dans l’ordre', () => {
+    const { api, http } = monter();
+    const fichier = new File(['campaign,date\n'], 'campagne-essai.csv', { type: 'text/csv' });
+    const recus: EvenementImportDsp[] = [];
+    api.importerCampagne({ fichier, source: 'adform', nom: '  [ESSAI lot 6] campagne  ' }).subscribe((e) => recus.push(e));
+    const r = http.expectOne('/api/admin/campaigns/import');
+    expect(r.request.method).toBe('POST');
+    expect(r.request.responseType).toBe('text');
+    expect(r.request.reportProgress).toBe(true);
+    const corps = r.request.body as FormData;
+    expect([...corps.keys()]).toEqual(['file', 'dsp_source', 'campaign_name']);
+    expect(corps.get('file')).toBe(fichier);
+    expect(corps.get('dsp_source')).toBe('adform');
+    expect(corps.get('campaign_name')).toBe('[ESSAI lot 6] campagne');
+    r.flush(FLUX_IMPORT_DSP);
+    expect(recus.map((e) => e.type)).toEqual(['parsing', 'progress', 'progress', 'matching', 'matching', 'rollups', 'complete']);
+  });
+
+  it('import DSP sans nom (ou blanc) : pas de champ `campaign_name`, comme React (`if (dspCampaignName.trim())`)', () => {
+    const { api, http } = monter();
+    api.importerCampagne({ fichier: new File(['x'], 'a.csv'), source: 'ttd', nom: '   ' }).subscribe();
+    const r = http.expectOne('/api/admin/campaigns/import');
+    expect([...(r.request.body as FormData).keys()]).toEqual(['file', 'dsp_source']);
+    r.flush('');
+  });
+
+  it('zones perso : chaque filtre seulement s’il est renseigné (`org_id`, `source_type`, `q`) ; DELETE encodé', () => {
+    const { api, http } = monter();
+    api.zones({ orgId: null, sourceType: null, recherche: '' }).subscribe();
+    const a = http.expectOne((r) => r.url === '/api/admin/custom-geo/list');
+    expect(a.request.params.keys()).toEqual([]);
+    a.flush({ zones: [] });
+    api.zones({ orgId: 'o1', sourceType: 'composite', recherche: 'cible' }).subscribe();
+    const b = http.expectOne((r) => r.url === '/api/admin/custom-geo/list');
+    expect(b.request.urlWithParams).toBe('/api/admin/custom-geo/list?org_id=o1&source_type=composite&q=cible');
+    b.flush({ zones: [] });
+    api.supprimerZone('z 1').subscribe();
+    const d = http.expectOne('/api/admin/custom-geo/z%201');
+    expect(d.request.method).toBe('DELETE');
+    d.flush({ deleted: true, id: 'z 1' });
   });
 });

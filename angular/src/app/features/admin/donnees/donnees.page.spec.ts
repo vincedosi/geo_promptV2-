@@ -8,6 +8,7 @@ import { ROUTES_ADMIN } from '../admin.routes';
 import { ImportsApi } from '../imports/data/imports.api';
 import { IrisCrawlerApi } from '../iris-crawler/data/iris-crawler.api';
 import { QualiteApi } from '../qualite-donnees/data/qualite.api';
+import { OrganisationsListeApi } from '../commun/data/organisations-liste.api';
 import { RadioAdminApi } from '../radio/data/radio-admin.api';
 import { SourcesAdminApi } from '../sources/data/sources-admin.api';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
@@ -17,7 +18,7 @@ async function monter(url: string) {
   const donnees = (ROUTES_ADMIN[0].children ?? []).find((r) => r.path === 'donnees') as Route;
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(), provideHttpClientTesting(), QualiteApi, ImportsApi, IrisCrawlerApi, SourcesAdminApi, RadioAdminApi,
+      provideHttpClient(), provideHttpClientTesting(), QualiteApi, ImportsApi, IrisCrawlerApi, SourcesAdminApi, RadioAdminApi, OrganisationsListeApi,
       NotificationsService,
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       provideRouter([{ path: 'hote/app/admin', children: [donnees] }]),
