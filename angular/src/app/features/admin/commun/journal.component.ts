@@ -6,7 +6,7 @@ import { NotificationsService } from '../../../ui/notifications/notifications.se
 /** Une ligne de journal d'import. `message` est affiché tel quel (React y écrit souvent déjà l'heure). */
 export interface LigneJournal {
   message: string;
-  niveau: 'debug' | 'info' | 'warn' | 'error' | 'success' | 'log';
+  niveau: 'debug' | 'info' | 'warn' | 'error' | 'success' | 'log' | 'rapport';
   phase?: string;
   /** Horodatage en millisecondes : affiché `[HH:MM:SS]` devant le message quand il est fourni. */
   horodatage?: number;
@@ -33,6 +33,9 @@ const COULEURS: Record<Niveau, string> = {
   warn: 'var(--warning)',
   error: 'var(--danger)',
   success: 'var(--success)',
+  // Lignes « RAPPORT » / « ═══ » de l'import Shapefile (`carreaux-import/_components/ImportStep.tsx:262`, `C.blue`
+  // = `#3b82f6`) : le jeton informatif, lisible dans les deux thèmes (T14).
+  rapport: 'var(--info)',
 };
 
 /**
@@ -44,7 +47,7 @@ const COULEURS: Record<Niveau, string> = {
  * emploie, `radio/page.tsx:338`) : dans un hôte, `scrollIntoView` fait aussi défiler la page du
  * SHELL. Et seulement tant que l'utilisateur n'a pas remonté pour lire (`userScrolledRef`).
  *
- * Un niveau hors des cinq boutons (`log`) n'est jamais masqué par le filtre.
+ * Un niveau hors des cinq boutons (`log`, `rapport`) n'est jamais masqué par le filtre.
  *
  * Contenu projeté `[outils]` : des boutons de plus, rendus après « Copier » dans la même rangée (le
  * « Fermer » d'un journal passé de la radio, `radio/page.tsx:489-497`) ; style `.outil` à reprendre par

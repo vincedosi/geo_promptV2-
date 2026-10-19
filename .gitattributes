@@ -44,3 +44,6 @@
 *.xlsx   binary
 *.ods    binary
 *.dump   binary
+*.shp    binary
+*.shx    binary
+*.dbf    binary

@@ -2,6 +2,7 @@ import type { Provider } from '@angular/core';
 import type { Routes } from '@angular/router';
 import { DspApi } from './api/data/dsp.api';
 import { CadreAdminComponent } from './cadre-admin.component';
+import { ImportGeoApi } from './carreaux-import/data/import-geo.api';
 import { CategoriesPoiApi } from './commun/data/categories-poi.api';
 import { OrganisationsListeApi } from './commun/data/organisations-liste.api';
 import { EspacesApi } from './espaces/data/espaces.api';
@@ -24,7 +25,7 @@ import { SourcesAdminApi } from './sources/data/sources-admin.api';
  */
 export const FOURNISSEURS_ADMIN: Provider[] = [
   RoleAdminService, HealthApi, FraicheurApi, QualiteApi, EspacesApi, DspApi, ImportsApi, IrisCrawlerApi, SourcesAdminApi,
-  RadioAdminApi, OrganisationsListeApi, CategoriesPoiApi, ImportPoiApi,
+  RadioAdminApi, OrganisationsListeApi, CategoriesPoiApi, ImportPoiApi, ImportGeoApi,
 ];
 
 /**
@@ -82,7 +83,7 @@ export const ROUTES_ADMIN: Routes = [
           { path: '', pathMatch: 'full', redirectTo: 'sources' },
           // Sources (T18, amendement A5) : `/admin/sources` de React ; panneaux par type en T19-T20.
           { path: 'sources', loadComponent: () => import('./sources/sources.page').then((m) => m.SourcesPage) },
-          // Importer (T15, amendement A7) : un sous-onglet par écran d'import PORTÉ (POI, IRIS, Radio),
+          // Importer (T15, amendement A7) : un sous-onglet par écran d'import PORTÉ (POI, Shapefile, IRIS, Radio),
           // `donnees/importer/{poi,shapefile,iris,radio}` ; la racine mène au premier porté.
           {
             path: 'importer',
@@ -92,6 +93,12 @@ export const ROUTES_ADMIN: Routes = [
               // `/admin/import` de React (T12), en tête : l'import le plus courant. La page fournit son état
               // (`ImportPoiService`), détruit avec elle.
               { path: 'poi', loadComponent: () => import('./import/import-poi.page').then((m) => m.ImportPoiPage) },
+              // `/admin/carreaux-import` de React (T14) : lecture du Shapefile dans le navigateur (`proj4` chargé à la
+              // demande, C10), envoi par lots, enregistrement. La page fournit son état (`ImportShapefileService`).
+              {
+                path: 'shapefile',
+                loadComponent: () => import('./carreaux-import/carreaux-import.page').then((m) => m.CarreauxImportPage),
+              },
               // `/dashboard/iris-crawler` de React (segment `admin/iris-crawler` par C1).
               { path: 'iris', loadComponent: () => import('./iris-crawler/iris-crawler.page').then((m) => m.IrisCrawlerPage) },
               // `/admin/radio` de React (T16) : l'écran garde SES onglets (Import, puis Radios et Statistiques en
@@ -123,6 +130,7 @@ export const ROUTES_ADMIN: Routes = [
       { path: 'sources', pathMatch: 'full', redirectTo: 'donnees/sources' },
       { path: 'radio', pathMatch: 'full', redirectTo: 'donnees/importer/radio' },
       { path: 'import', pathMatch: 'full', redirectTo: 'donnees/importer/poi' },
+      { path: 'carreaux-import', pathMatch: 'full', redirectTo: 'donnees/importer/shapefile' },
       { path: 'api', pathMatch: 'full', redirectTo: 'systeme/api' },
       { path: 'api/:sous', pathMatch: 'full', redirectTo: 'systeme/api/:sous' },
       // Accès (« Espaces de travail » du 2026-10-09 au 2026-10-10) : une colonne persistante (la

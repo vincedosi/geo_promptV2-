@@ -69,15 +69,16 @@ describe('DonneesPage — page Données à onglets (lot 6, T6)', () => {
   });
 
   for (const url of ['/hote/app/admin/donnees/importer/iris']) {
-    it(`${url} : onglet « Importer » actif, choix du type (« POI », « IRIS » actif, « Radio »), l’écran IRIS crawler, AUCUNE requête`, async () => {
+    it(`${url} : onglet « Importer » actif, choix du type (« POI », « Shapefile », « IRIS » actif, « Radio »), l’écran IRIS crawler, AUCUNE requête`, async () => {
       const { el, router } = await monter(url);
       expect(router.url).toBe('/hote/app/admin/donnees/importer/iris');
       const onglets = [...el.querySelectorAll<HTMLAnchorElement>('mg-donnees > div > mg-onglets-routes [role="tab"]')];
       expect(onglets.map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false', 'false']);
-      // Le choix du type ne liste que les écrans PORTÉS (A7) : ni Shapefile, ni « bientôt » ; Radio depuis T16, POI (en tête) depuis T12.
+      // Le choix du type ne liste que les écrans PORTÉS (A7), jamais « bientôt » : Radio depuis T16, POI (en tête) depuis T12, Shapefile depuis T14.
       const types = [...el.querySelectorAll<HTMLAnchorElement>('mg-importer [role="tab"]')];
       expect(types.map((a) => [a.textContent!.trim(), a.getAttribute('href'), a.getAttribute('aria-selected')])).toEqual([
         ['POI', '/hote/app/admin/donnees/importer/poi', 'false'],
+        ['Shapefile', '/hote/app/admin/donnees/importer/shapefile', 'false'],
         ['IRIS', '/hote/app/admin/donnees/importer/iris', 'true'],
         ['Radio', '/hote/app/admin/donnees/importer/radio', 'false'],
       ]);

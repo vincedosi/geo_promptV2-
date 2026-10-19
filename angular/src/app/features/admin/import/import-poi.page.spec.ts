@@ -60,6 +60,7 @@ describe('ImportPoiPage — `admin/donnees/importer/poi` (`app/admin/import/page
       const types = [...el.querySelectorAll<HTMLAnchorElement>('mg-importer [role="tab"]')];
       expect(types.map((a) => [texte(a), a.getAttribute('href'), a.getAttribute('aria-selected')])).toEqual([
         ['POI', '/hote/app/admin/donnees/importer/poi', 'true'],
+        ['Shapefile', '/hote/app/admin/donnees/importer/shapefile', 'false'],
         ['IRIS', '/hote/app/admin/donnees/importer/iris', 'false'],
         ['Radio', '/hote/app/admin/donnees/importer/radio', 'false'],
       ]);

@@ -2,7 +2,7 @@
 
 **Rôle** : les écrans d'administration portés de `/admin/*` (lot 6). Cible validée par le propriétaire :
 trois pages à onglets — **Accès**, **Données**, **Système** (en place depuis le 2026-10-12, T6). Aujourd'hui :
-Accès (comptes et espaces de travail) ; Données → Sources, Importer (POI, IRIS, Radio), Historique, Qualité ; Système → Santé, Fraîcheur des données, Connexions API.
+Accès (comptes et espaces de travail) ; Données → Sources, Importer (POI, Shapefile, IRIS, Radio), Historique, Qualité ; Système → Santé, Fraîcheur des données, Connexions API.
 
 **Routes** (`admin.routes.ts`, `ROUTES_ADMIN`, enfant de la coquille) :
 
@@ -21,11 +21,12 @@ Accès (comptes et espaces de travail) ; Données → Sources, Importer (POI, IR
 | `admin/donnees/sources` | `sources/sources.page.ts` — neuf onglets, vue « Toutes » (tuiles, données système, liste et détail d'une source : filtres, nom, export CSV, suppression) ; panneaux par type (T19) ; DSP et Zones perso (T20) |
 | `admin/donnees/importer` | `importer/importer.page.ts` — choix du type d'import en sous-onglets (écrans PORTÉS seulement) ; `''` → `poi` |
 | `admin/donnees/importer/poi` | `import/import-poi.page.ts` (état de page `import/etat/import-poi.service.ts`) + `import/etapes/` — import POI : dépôt, catégorie, correspondance, colonnes (T12) ; géocodage, essai, import en flux (T13) |
+| `admin/donnees/importer/shapefile` | `carreaux-import/carreaux-import.page.ts` (état de page `carreaux-import/etat/import-shapefile.service.ts`) + `carreaux-import/etapes/` — import Shapefile de carreaux : lecture du bundle dans le navigateur (`logique/shapefile.ts`, `proj4` chargé à la demande), mapping, envoi par lots de 1 000 (un seul en vol) puis enregistrement de la source (T14) |
 | `admin/donnees/importer/iris` | `iris-crawler/iris-crawler.page.ts` — dépôt d'un CSV IRIS, correspondance des colonnes, import NDJSON avec progression |
 | `admin/donnees/importer/radio[/import]` | `radio/radio.page.ts` (cadre, onglets propres, état de page `radio/etat/radio-import.service.ts`) + `radio/onglet-import.component.ts` — imports ANFR / enrichissement / ODS en flux, journal filtrable, historique, zone dangereuse (T16) |
 | `admin/donnees/historique` | `imports/imports.page.ts` — historique des imports |
 | `admin/donnees/qualite` | `qualite-donnees/qualite-donnees.page.ts` — contenu des données (absente, partielle, périmée, fausse) |
-| `admin/health`, `admin/qualite-donnees`, `admin/imports`, `admin/iris-crawler`, `admin/sources`, `admin/radio`, `admin/import`, `admin/api[/<x>]` | anciennes adresses, redirigées (RELATIVEMENT) vers `systeme`, `donnees/qualite`, `donnees/historique`, `donnees/importer/iris`, `donnees/sources`, `donnees/importer/radio`, `donnees/importer/poi`, `systeme/api[/<x>]` |
+| `admin/health`, `admin/qualite-donnees`, `admin/imports`, `admin/iris-crawler`, `admin/sources`, `admin/radio`, `admin/import`, `admin/carreaux-import`, `admin/api[/<x>]` | anciennes adresses, redirigées (RELATIVEMENT) vers `systeme`, `donnees/qualite`, `donnees/historique`, `donnees/importer/iris`, `donnees/sources`, `donnees/importer/radio`, `donnees/importer/poi`, `donnees/importer/shapefile`, `systeme/api[/<x>]` |
 | `admin/acces` | `espaces/espaces.page.ts` — colonne des espaces, puis `socle`, `comptes` ou `:id` (fiche d'un espace) |
 | `admin/espaces[/:id]` | anciennes adresses, redirigées vers `admin/acces` |
 
@@ -48,7 +49,13 @@ la route reçoit nos intercepteurs. État : `etat/role-admin.service.ts` ; pour 
   ont d'identique : `connexion-dsp.css` (styles) et `logique/connexion-dsp.ts` (message d'échec, ligne de journal,
   lectures annulables).
 - `logique/` — rôles (`roles.ts`, copie de `lib/auth/roles.ts`, seule source des libellés de rôle) et types
-  copiés du serveur, verrouillés par `admin-logique-paritaire.test.ts`.
+  copiés du serveur, verrouillés par `admin-logique-paritaire.test.ts` ; `shapefile.ts`, lecteur de Shapefile copié de
+  `carreaux-import/_lib/shapefile.ts`, PUR (`proj4` reçu en paramètre, arbitrage C10).
+- `carreaux-import/` — import Shapefile (T14) : `carreaux-import.page.ts`, `etat/import-shapefile.service.ts` (lecture,
+  envoi par lots, enregistrement, chronomètre), `etapes/` (`etapes`, `fichiers`, `correspondance`, `envoi` ;
+  `etape-shapefile.css` commun), `data/import-geo.api.ts`, `logique/lots.ts` (lignes d'un lot, corps de `register`) et
+  `logique/charger-proj4.ts` (`import('proj4')` dynamique, jeton `CHARGEUR_PROJ4`), `testing/` (fabrique du bundle
+  jetable, dont `tests/fixtures/admin/carreaux-essai.*` est la sortie exacte).
 - `sources/` — écran Sources : `sources.page` (onglets, état, suppression confirmée), `tuiles-sources`, `liste-sources`,
   `detail-source` (recréé à chaque source choisie), `logique/constantes.ts` (copies de React), `data/sources-admin.api.ts`.
   Onglets DSP et Zones perso (T20) dans `sources/panneaux/` : `dsp` (liste relue à chaque visite, suppression

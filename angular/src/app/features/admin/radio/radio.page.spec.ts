@@ -43,6 +43,7 @@ describe('RadioPage — écran Radio, type « Radio » de Données › Importer 
       const types = [...el.querySelectorAll<HTMLAnchorElement>('mg-importer > mg-onglets-routes [role="tab"]')];
       expect(types.map((a) => [texte(a), a.getAttribute('href'), a.getAttribute('aria-selected')])).toEqual([
         ['POI', '/hote/app/admin/donnees/importer/poi', 'false'],
+        ['Shapefile', '/hote/app/admin/donnees/importer/shapefile', 'false'],
         ['IRIS', '/hote/app/admin/donnees/importer/iris', 'false'],
         ['Radio', '/hote/app/admin/donnees/importer/radio', 'true'],
       ]);
