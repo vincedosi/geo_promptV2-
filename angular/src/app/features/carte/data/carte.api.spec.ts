@@ -26,6 +26,19 @@ describe('CarteApi', () => {
     http.verify();
   });
 
+  it('export HTML d une campagne OOH : GET …/export-html en blob, réponse complète (Content-Disposition)', () => {
+    const { api, http } = preparer();
+    let reponse: { body: Blob | null; headers: { get(n: string): string | null } } | undefined;
+    api.exporterCampagneOohHtml('a/b').subscribe((r) => (reponse = r));
+    const req = http.expectOne('/api/map/ooh/campagnes/a%2Fb/export-html');
+    expect(req.request.method).toBe('GET');
+    expect(req.request.responseType).toBe('blob');
+    req.flush(new Blob(['<!doctype html>'], { type: 'text/html' }), { headers: { 'Content-Disposition': 'attachment; filename="essai.html"' } });
+    expect(reponse!.body).toBeInstanceOf(Blob);
+    expect(reponse!.headers.get('content-disposition')).toBe('attachment; filename="essai.html"');
+    http.verify();
+  });
+
   it('pprt : bbox seule par défaut (comme React) ; types joints et limite seulement si fournis', () => {
     const { api, http } = preparer();
     api.pprt('4.9000,43.3000,5.3000,43.6000', []).subscribe();
