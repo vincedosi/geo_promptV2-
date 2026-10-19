@@ -101,7 +101,9 @@ import { ImportShapefileService } from '../etat/import-shapefile.service';
       border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent); border-radius: 2px; padding: 12px 16px;
     }
     .alerte p { font-size: 12px; color: var(--rouge-texte); margin: 0; }
-    .resume { border-color: color-mix(in srgb, var(--success) 25%, transparent); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+    /* \`.carte.resume\` et non \`.resume\` : la feuille commune (\`.carte\`) est lue APRÈS ces styles et reposait la
+       bordure grise à égalité de spécificité (vague finale, B2). */
+    .carte.resume { border-color: color-mix(in srgb, var(--success) 25%, transparent); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
     .ligne { display: flex; align-items: center; gap: 12px; }
     .pastille {
       width: 36px; height: 36px; border-radius: 2px; display: flex; align-items: center; justify-content: center;

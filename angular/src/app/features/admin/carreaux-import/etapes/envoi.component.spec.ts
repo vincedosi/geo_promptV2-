@@ -61,6 +61,11 @@ describe('EnvoiComponent — étape 3 (`ImportStep.tsx`, lot 6, T14)', { timeout
     expect(texte(prog().querySelector('[data-duree]'))).toBe('0s');
     expect(el.querySelector<HTMLButtonElement>('.boutons .secondaire')!.disabled).toBe(true);
     expect(texte(el.querySelector('[data-nb-lignes]'))).toBe('4 lignes');
+    // I-2 : pendant l'envoi, l'écran dit ce que coûte un départ.
+    expect(el.querySelector('[data-avertissement-envoi]')?.getAttribute('role')).toBe('note');
+    expect(texte(el.querySelector('[data-avertissement-envoi]'))).toBe(
+      'Restez dans « Importer » jusqu’à la fin : si l’envoi s’arrête, les lots déjà envoyés resteront en base sans source enregistrée.',
+    );
 
     (await requete(http, '/api/admin/import-geo')).flush({ success: true, inserted: 5 });
     const reg = await requete(http, '/api/admin/import-geo/register');
@@ -71,6 +76,7 @@ describe('EnvoiComponent — étape 3 (`ImportStep.tsx`, lot 6, T14)', { timeout
     for (let i = 0; i < 5; i++) await tick();
     await f.whenStable();
     expect(texte(prog().querySelector('.font-mono'))).toBe('✓ Import terminé');
+    expect(el.querySelector('[data-avertissement-envoi]')).toBeNull();
     expect(prog().querySelector('[role="progressbar"]')!.getAttribute('aria-valuenow')).toBe('100');
     const lignes = [...el.querySelectorAll('[data-terminal] > div')].map((d) => texte(d));
     expect(lignes.at(-1)).toMatch(/^\[\d{2}:\d{2}:\d{2}\] ✓ Source enregistrée \(id: src-1\)$/);

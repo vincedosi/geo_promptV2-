@@ -13,6 +13,7 @@ import { RadioAdminApi } from '../radio/data/radio-admin.api';
 import { SourcesAdminApi, type StatsSources, type StatsZones } from './data/sources-admin.api';
 import { SourcesPage } from './sources.page';
 import { PoiComponent } from './panneaux/poi.component';
+import { ImportGeoApi } from '../carreaux-import/data/import-geo.api';
 
 const IMPORT = '2026-10-16T12:05:00.000Z';
 /** Date attendue, calculée comme `formatDate` de React (fuseau de la machine de test). */
@@ -74,7 +75,7 @@ async function monter() {
   const enregistrer = vi.fn();
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(), provideHttpClientTesting(), SourcesAdminApi, RadioAdminApi, OrganisationsListeApi, NotificationsService,
+      provideHttpClient(), provideHttpClientTesting(), ImportGeoApi, SourcesAdminApi, RadioAdminApi, OrganisationsListeApi, NotificationsService,
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       { provide: ENREGISTRER_FICHIER, useValue: enregistrer },
       provideRouter([{ path: 'hote/app/admin/donnees', children: [{ path: 'sources', component: SourcesPage }] }]),

@@ -9,6 +9,7 @@ import { ROUTES_ADMIN } from '../admin.routes';
 import { IrisCrawlerApi } from '../iris-crawler/data/iris-crawler.api';
 import { RadioAdminApi } from './data/radio-admin.api';
 import { HISTORIQUE_RADIO, STATS_RADIO } from './testing/radio-donnees.fixture';
+import { ImportGeoApi } from '../carreaux-import/data/import-geo.api';
 
 const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
@@ -17,7 +18,7 @@ async function monter(url: string) {
   const donnees = (ROUTES_ADMIN[0].children ?? []).find((r) => r.path === 'donnees') as Route;
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(), provideHttpClientTesting(), RadioAdminApi, IrisCrawlerApi, NotificationsService,
+      provideHttpClient(), provideHttpClientTesting(), ImportGeoApi, RadioAdminApi, IrisCrawlerApi, NotificationsService,
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       provideRouter([{ path: 'hote/app/admin', children: [donnees] }]),
     ],

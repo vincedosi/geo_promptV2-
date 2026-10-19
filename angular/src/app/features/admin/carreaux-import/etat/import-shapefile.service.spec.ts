@@ -99,6 +99,40 @@ describe('ImportShapefileService — lecture, envoi par lots, enregistrement (lo
     expect(etat.lectureEnCours()).toBe(false);
   });
 
+  it('second dépôt refusé (.dbf manquant) PENDANT une lecture : la lecture s’arrête net, le message s’affiche (B3)', async () => {
+    const enVol = etat.lire(fichiersEssai(50));
+    expect(etat.lectureEnCours()).toBe(true);
+    const [shp, shx] = fichiersEssai(3);
+    await etat.lire([shp, shx]);
+    expect(etat.lectureEnCours()).toBe(false);
+    expect(etat.lecture()).toBeNull();
+    expect(etat.erreurLecture()).toBe('Fichier .dbf manquant (attributs). Sélectionnez au minimum .shp et .dbf.');
+    await enVol;
+    expect(etat.lectureEnCours()).toBe(false);
+  });
+
+  it('minuterie de 600 ms annulée quand l’utilisateur avance lui-même : pas de retour à l’étape 2 (B5)', async () => {
+    await lire(5);
+    expect(etat.etape()).toBe(1);
+    // La minuterie est posée en temps réel par la lecture : on attend au-delà de ses 600 ms.
+    etat.choisirEtape(2);
+    etat.choisirEtape(3);
+    await new Promise((r) => setTimeout(r, 700));
+    expect(etat.etape()).toBe(3);
+  });
+
+  it('lots envoyés / prévus, pour la confirmation de sortie (I-2)', async () => {
+    await lire(2500);
+    expect(etat.lots()).toBeNull();
+    void etat.importer();
+    expect(etat.lots()).toEqual({ envoyes: 0, total: 3 });
+    (await requete(URL_LOT)).flush({ success: true, inserted: 1000 });
+    await requete(URL_LOT);
+    expect(etat.lots()).toEqual({ envoyes: 1, total: 3 });
+    injecteur.destroy();
+    http.match(URL_LOT).forEach((r) => r.flush({ success: true, inserted: 1000 }));
+  });
+
   it('nombres d’entités différents (.shp de 3, .dbf de 4) : « Incohérence: … » de React', async () => {
     const [shp] = fichiersEssai(3);
     const dbf = fichiersEssai(4)[2];

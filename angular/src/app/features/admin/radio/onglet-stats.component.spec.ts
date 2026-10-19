@@ -10,6 +10,7 @@ import { ROUTES_ADMIN } from '../admin.routes';
 import { RadioAdminApi, type AuditRadio } from './data/radio-admin.api';
 import { fmtDate } from './logique/radio';
 import { AUDIT_RADIO, HISTORIQUE_RADIO, STATIONS_RADIO, STATS_RADIO } from './testing/radio-donnees.fixture';
+import { ImportGeoApi } from '../carreaux-import/data/import-geo.api';
 
 const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 /** Même repli des blancs que `texte` (le séparateur de milliers fr-FR est une espace fine insécable). */
@@ -21,7 +22,7 @@ async function monter() {
   const donnees = (ROUTES_ADMIN[0].children ?? []).find((r) => r.path === 'donnees') as Route;
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(), provideHttpClientTesting(), RadioAdminApi, NotificationsService,
+      provideHttpClient(), provideHttpClientTesting(), ImportGeoApi, RadioAdminApi, NotificationsService,
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       provideRouter([{ path: 'hote/app/admin', children: [donnees] }]),
     ],

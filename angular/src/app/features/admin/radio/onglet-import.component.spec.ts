@@ -10,6 +10,7 @@ import { RadioAdminApi, type ImportRadio } from './data/radio-admin.api';
 import { daysAgo, fmtDate } from './logique/radio';
 import { DERNIERE_MAJ, HISTORIQUE_RADIO, STATS_RADIO } from './testing/radio-donnees.fixture';
 import { FLUX_RADIO_ANFR, FLUX_RADIO_ARCOM, FLUX_RADIO_ODS } from './testing/radio-flux.fixture';
+import { ImportGeoApi } from '../carreaux-import/data/import-geo.api';
 
 const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
@@ -25,7 +26,7 @@ async function monter() {
   const donnees = (ROUTES_ADMIN[0].children ?? []).find((r) => r.path === 'donnees') as Route;
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(), provideHttpClientTesting(), RadioAdminApi, NotificationsService,
+      provideHttpClient(), provideHttpClientTesting(), ImportGeoApi, RadioAdminApi, NotificationsService,
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       provideRouter([{ path: 'hote/app/admin', children: [donnees, { path: 'ailleurs', children: [] }] }]),
     ],

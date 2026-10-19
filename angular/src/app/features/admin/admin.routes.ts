@@ -9,6 +9,7 @@ import { EspacesApi } from './espaces/data/espaces.api';
 import { RoleAdminService, roleResoluGuard } from './etat/role-admin.service';
 import { FraicheurApi } from './health/data/fraicheur.api';
 import { HealthApi } from './health/data/health.api';
+import { quitterImporterGuard } from './importer/quitter-importer.guard';
 import { ImportPoiApi } from './import/data/import-poi.api';
 import { ImportsApi } from './imports/data/imports.api';
 import { IrisCrawlerApi } from './iris-crawler/data/iris-crawler.api';
@@ -84,17 +85,19 @@ export const ROUTES_ADMIN: Routes = [
           // Sources (T18, amendement A5) : `/admin/sources` de React ; panneaux par type en T19-T20.
           { path: 'sources', loadComponent: () => import('./sources/sources.page').then((m) => m.SourcesPage) },
           // Importer (T15, amendement A7) : un sous-onglet par écran d'import PORTÉ (POI, Shapefile, IRIS, Radio),
-          // `donnees/importer/{poi,shapefile,iris,radio}` ; la racine mène au premier porté.
+          // `donnees/importer/{poi,shapefile,iris,radio}` ; la racine mène au premier porté. La page fournit l'état du
+          // Shapefile (vague finale, I-2) : la quitter pendant un envoi demande confirmation.
           {
             path: 'importer',
             loadComponent: () => import('./importer/importer.page').then((m) => m.ImporterPage),
+            canDeactivate: [quitterImporterGuard],
             children: [
               { path: '', pathMatch: 'full', redirectTo: 'poi' },
               // `/admin/import` de React (T12), en tête : l'import le plus courant. La page fournit son état
               // (`ImportPoiService`), détruit avec elle.
               { path: 'poi', loadComponent: () => import('./import/import-poi.page').then((m) => m.ImportPoiPage) },
               // `/admin/carreaux-import` de React (T14) : lecture du Shapefile dans le navigateur (`proj4` chargé à la
-              // demande, C10), envoi par lots, enregistrement. La page fournit son état (`ImportShapefileService`).
+              // demande, C10), envoi par lots, enregistrement. Son état (`ImportShapefileService`) vient d'`ImporterPage`.
               {
                 path: 'shapefile',
                 loadComponent: () => import('./carreaux-import/carreaux-import.page').then((m) => m.CarreauxImportPage),

@@ -10,7 +10,8 @@ const ETAPES: readonly { n: WizardStep; libelle: string }[] = [
 /**
  * Fil d'étapes de l'import Shapefile — portage de `app/admin/carreaux-import/_components/Stepper.tsx` (lot 6,
  * T14). Une étape franchie est cliquable pour revenir en arrière ; l'étape courante ne fait rien ; une étape
- * non atteinte est désactivée.
+ * non atteinte est désactivée. Pendant un envoi (`verrouille`), les étapes franchies le sont aussi (vague
+ * finale, B4) : défaut de React, dont le fil laissait redéposer un bundle — et remplacer `features` — en plein envoi.
  *
  * Écarts à React, voulus : couleurs en jetons (C9) — `rgba(61,255,160,0.12|0.3)` → `--success` à 12 / 30 %,
  * `#505050` → `--text-tertiary`, `#000` du rond franchi → `--brand-teal-fg` (texte posé sur un aplat, invariant) ;
@@ -34,7 +35,7 @@ const ETAPES: readonly { n: WizardStep; libelle: string }[] = [
             [class.franchie]="e.franchie"
             [attr.data-etape]="e.n"
             [attr.aria-current]="e.courante ? 'step' : null"
-            [disabled]="e.future"
+            [disabled]="e.future || e.bloquee"
             (click)="e.franchie && choisir.emit(e.n)"
           >
             <span class="rond">{{ e.franchie ? '✓' : e.n }}</span>
@@ -78,15 +79,19 @@ const ETAPES: readonly { n: WizardStep; libelle: string }[] = [
 })
 export class EtapesComponent {
   readonly etape = input.required<WizardStep>();
+  /** Envoi en cours : aucune étape franchie n'est cliquable (B4). */
+  readonly verrouille = input(false);
   readonly choisir = output<WizardStep>();
 
   protected readonly etapes = computed(() => {
     const courante = this.etape();
+    const verrouille = this.verrouille();
     return ETAPES.map((e) => ({
       ...e,
       courante: e.n === courante,
-      franchie: e.n < courante,
+      franchie: e.n < courante && !verrouille,
       future: e.n > courante,
+      bloquee: e.n < courante && verrouille,
       atteinte: courante >= e.n,
     }));
   });

@@ -6,10 +6,11 @@ import { EtapesComponent } from './etapes.component';
 
 @Component({
   imports: [EtapesComponent],
-  template: '<mg-shapefile-etapes [etape]="etape()" (choisir)="choisies.push($event)" />',
+  template: '<mg-shapefile-etapes [etape]="etape()" [verrouille]="verrouille()" (choisir)="choisies.push($event)" />',
 })
 class Hote {
   readonly etape = signal<WizardStep>(1);
+  readonly verrouille = signal(false);
   readonly choisies: WizardStep[] = [];
 }
 
@@ -39,5 +40,14 @@ describe('EtapesComponent — fil d’étapes (`Stepper.tsx`, lot 6, T14)', () =
     boutons[0].click();
     boutons[1].click();
     expect(f.componentInstance.choisies).toEqual([1, 2]);
+  });
+
+  it('verrouillé (envoi en cours) : les étapes franchies sont désactivées et ne ramènent nulle part (B4)', async () => {
+    const { f, boutons } = await monter(3);
+    f.componentInstance.verrouille.set(true);
+    await f.whenStable();
+    expect(boutons.map((b) => b.disabled)).toEqual([true, true, false]);
+    boutons[0].click();
+    expect(f.componentInstance.choisies).toEqual([]);
   });
 });

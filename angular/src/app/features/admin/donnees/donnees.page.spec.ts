@@ -14,13 +14,14 @@ import { SourcesAdminApi } from '../sources/data/sources-admin.api';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
 import { CategoriesPoiApi } from '../commun/data/categories-poi.api';
 import { ImportPoiApi } from '../import/data/import-poi.api';
+import { ImportGeoApi } from '../carreaux-import/data/import-geo.api';
 
 /** La VRAIE route `donnees` de ROUTES_ADMIN, sous un préfixe d'hôte, sans le garde. */
 async function monter(url: string) {
   const donnees = (ROUTES_ADMIN[0].children ?? []).find((r) => r.path === 'donnees') as Route;
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(), provideHttpClientTesting(), QualiteApi, ImportsApi, IrisCrawlerApi, SourcesAdminApi, RadioAdminApi, OrganisationsListeApi,
+      provideHttpClient(), provideHttpClientTesting(), ImportGeoApi, QualiteApi, ImportsApi, IrisCrawlerApi, SourcesAdminApi, RadioAdminApi, OrganisationsListeApi,
       CategoriesPoiApi, ImportPoiApi, NotificationsService,
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       provideRouter([{ path: 'hote/app/admin', children: [donnees] }]),

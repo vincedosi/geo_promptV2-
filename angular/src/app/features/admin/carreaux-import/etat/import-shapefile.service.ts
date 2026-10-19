@@ -1,4 +1,4 @@
-import { DestroyRef, Injectable, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { formaterNombre } from '../../../../core/format/nombre';
 import type { LigneJournal } from '../../commun/journal.component';
@@ -30,7 +30,10 @@ const message = (e: unknown, defaut: string) => (e instanceof Error ? e.message 
 
 /**
  * État et déroulé de l'import Shapefile — ce que `app/admin/carreaux-import/page.tsx` tient au niveau de la PAGE
- * (lot 6, T14). Fourni par `CarreauxImportPage`, détruit avec elle : il repart vide au retour.
+ * (lot 6, T14). Fourni par `ImporterPage` (l'onglet « Importer » de Données) et NON par l'écran Shapefile
+ * (vague finale, I-2 / Q-2) : passer d'un sous-onglet d'import à un autre ne détruit plus l'envoi, et revenir sur
+ * « Shapefile » retrouve l'écran où on l'a laissé. Quitter « Importer » le détruit ; pendant un envoi, la route
+ * demande d'abord confirmation (`quitterImporterGuard`).
  *
  * - **Lecture** (`lire`, l.90-206) dans le navigateur : `.shp` et `.dbf` obligatoires, `.prj` et `.shx`
  *   facultatifs ; cessions au fil (`setTimeout` de 50 ms entre les phases, 0 ms tous les 100 000
@@ -42,9 +45,11 @@ const message = (e: unknown, defaut: string) => (e instanceof Error ? e.message 
  *   une ligne `data_sources`.
  * - **Chronomètre** (`setInterval` d'une seconde, l.67-75) : arrêté en fin d'envoi et à la destruction.
  *
- * Destruction pendant l'envoi : l'envoi est un ENCHAÎNEMENT CLIENT de requêtes, pas un flux (C13 ne s'applique
- * pas). Le lot en vol se termine côté serveur, mais aucun lot NOUVEAU ne part, ni demi-lot, ni `register`.
- * Écart voulu : React n'arrêtait rien — sa boucle continuait d'envoyer après le démontage de la page.
+ * Destruction pendant l'envoi (on a CONFIRMÉ la sortie d'« Importer ») : l'envoi est un ENCHAÎNEMENT CLIENT de
+ * requêtes, pas un flux (C13 ne s'applique pas). Le lot en vol se termine côté serveur, mais aucun lot NOUVEAU ne
+ * part, ni demi-lot, ni `register` : ⚠ les lots déjà envoyés restent dans `carreaux_filosofi` SANS ligne
+ * `data_sources` — ce que la confirmation et l'avertissement de l'écran disent en toutes lettres. React, lui,
+ * continuait d'envoyer après le démontage, sans écran pour le suivre.
  */
 @Injectable()
 export class ImportShapefileService {
@@ -77,6 +82,11 @@ export class ImportShapefileService {
   readonly termine = signal(false);
   readonly erreurImport = signal('');
   readonly ecoule = signal(0);
+  /** Lots envoyés (réponse reçue) et lots prévus, pour la confirmation de sortie. */
+  readonly lots = computed(() => {
+    const p = this.progression();
+    return p ? { envoyes: Math.ceil(p.current / TAILLE_LOT), total: Math.ceil(p.total / TAILLE_LOT) } : null;
+  });
 
   private generation = 0;
   private detruit = false;
@@ -106,12 +116,13 @@ export class ImportShapefileService {
 
     const parExtension: Record<string, File> = {};
     for (const f of liste) parExtension[f.name.split('.').pop()?.toLowerCase() || ''] = f;
+    // Un refus arrête aussi une lecture PRÉCÉDENTE encore en vol, devenue muette : sa barre ne reste pas figée (B3).
     if (!parExtension['shp']) {
-      this.erreurLecture.set('Fichier .shp manquant. Sélectionnez les 4 fichiers du Shapefile (.shp, .dbf, .prj, .shx).');
+      this.arreterLecture('Fichier .shp manquant. Sélectionnez les 4 fichiers du Shapefile (.shp, .dbf, .prj, .shx).');
       return;
     }
     if (!parExtension['dbf']) {
-      this.erreurLecture.set('Fichier .dbf manquant (attributs). Sélectionnez au minimum .shp et .dbf.');
+      this.arreterLecture('Fichier .dbf manquant (attributs). Sélectionnez au minimum .shp et .dbf.');
       return;
     }
 
@@ -195,7 +206,10 @@ export class ImportShapefileService {
 
   // ════ Étape 2 : mapping ════
 
+  /** L'utilisateur choisit son étape : le passage automatique au mapping, s'il est encore attendu, est annulé (B5). */
   choisirEtape(n: WizardStep): void {
+    if (this.avance !== null) clearTimeout(this.avance);
+    this.avance = null;
     this.etape.set(n);
   }
 
@@ -299,6 +313,12 @@ export class ImportShapefileService {
     this.progression.set(null);
     this.termine.set(false);
     this.erreurImport.set('');
+  }
+
+  private arreterLecture(erreur: string): void {
+    this.erreurLecture.set(erreur);
+    this.lectureEnCours.set(false);
+    this.lecture.set(null);
   }
 
   private envoyer(rows: readonly LigneCarreau[]): Promise<ReponseLot> {

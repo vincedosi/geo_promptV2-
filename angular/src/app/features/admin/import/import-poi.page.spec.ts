@@ -16,6 +16,7 @@ import { SourcesAdminApi } from '../sources/data/sources-admin.api';
 import { ImportPoiApi } from './data/import-poi.api';
 import { ANALYSE_POI_ESSAI } from './testing/import-poi.fixture';
 import { ESSAI_A_BLANC } from './testing/geocodage.fixture';
+import { ImportGeoApi } from '../carreaux-import/data/import-geo.api';
 
 const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
@@ -24,7 +25,7 @@ async function monter(url: string) {
   const donnees = (ROUTES_ADMIN[0].children ?? []).find((r) => r.path === 'donnees') as Route;
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(), provideHttpClientTesting(), QualiteApi, ImportsApi, IrisCrawlerApi, SourcesAdminApi, RadioAdminApi,
+      provideHttpClient(), provideHttpClientTesting(), ImportGeoApi, QualiteApi, ImportsApi, IrisCrawlerApi, SourcesAdminApi, RadioAdminApi,
       OrganisationsListeApi, CategoriesPoiApi, ImportPoiApi, NotificationsService,
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       provideRouter([{ path: 'hote/app/admin', children: [donnees] }]),

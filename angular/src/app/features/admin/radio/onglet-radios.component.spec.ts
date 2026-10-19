@@ -8,6 +8,7 @@ import { NotificationsService } from '../../../ui/notifications/notifications.se
 import { ROUTES_ADMIN } from '../admin.routes';
 import { RadioAdminApi, type StationRadio } from './data/radio-admin.api';
 import { AUDIT_RADIO, HISTORIQUE_RADIO, STATIONS_RADIO, STATS_RADIO } from './testing/radio-donnees.fixture';
+import { ImportGeoApi } from '../carreaux-import/data/import-geo.api';
 
 const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 const RACINE = '/hote/app/admin/donnees/importer/radio';
@@ -18,7 +19,7 @@ async function monter(onglet = 'radios') {
   const donnees = (ROUTES_ADMIN[0].children ?? []).find((r) => r.path === 'donnees') as Route;
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(), provideHttpClientTesting(), RadioAdminApi, NotificationsService,
+      provideHttpClient(), provideHttpClientTesting(), ImportGeoApi, RadioAdminApi, NotificationsService,
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       provideRouter([{ path: 'hote/app/admin', children: [donnees] }]),
     ],

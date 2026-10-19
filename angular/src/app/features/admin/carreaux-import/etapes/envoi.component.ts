@@ -15,9 +15,14 @@ import { EXCLUE } from '../logique/lots';
  * total est connu d'avance) puis « Enregistrement » (indéterminée, une requête) ; affichée DÈS le lancement
  * (React : seulement après le premier lot rendu) ; échec = `! N lot(s) en erreur — …` comme React.
  *
+ * Pendant l'envoi, une ligne dit ce que coûte un départ (vague finale, I-2) : quitter « Importer » demande
+ * confirmation, mais une fermeture d'onglet ou une navigation de l'hôte ne le peut pas.
+ *
  * Écarts à React, voulus : barre unie sans dégradé ni halo (flat total) ; terminal `mg-journal` (C14) sur
  * `--bg-level-0` (React : `#020202` dans les deux thèmes) ; pastilles du terminal et « Nouvel import » en jetons
  * (`--danger`, `--warning`, `--success`, `--info` ; React : hex en dur) ; bleu des lignes « RAPPORT » → `--info`.
+ * Indentation des lignes du rapport (« ␣␣Lignes insérées… ») AFFICHÉE : les espaces sont dans les textes de React,
+ * mais son `<div>` en blancs normaux les fondait ; `mg-journal` est en `pre-wrap` (vague finale, B6 : écart listé).
  * Gardés : textes, tailles, grille de 4, `fmtTime`, `N lignes` du terminal.
  */
 @Component({
@@ -57,6 +62,10 @@ import { EXCLUE } from '../logique/lots';
         </mg-progression-import>
       }
 
+      @if (etat.importEnCours()) {
+        <p class="avertissement" role="note" data-avertissement-envoi>Restez dans « Importer » jusqu’à la fin : si l’envoi s’arrête, les lots déjà envoyés resteront en base sans source enregistrée.</p>
+      }
+
       <div class="terminal">
         <div class="barre-terminal">
           <div class="pastilles" aria-hidden="true">
@@ -87,6 +96,7 @@ import { EXCLUE } from '../logique/lots';
     .valeur.accent { color: var(--vert-texte); }
     .lancer { width: 100%; padding: 16px 0; font-size: 13px; }
     .duree { font-weight: 700; color: var(--text-primary); }
+    .avertissement { font-family: var(--font-sans); font-size: 12px; color: var(--text-secondary); margin: 0; }
     .terminal { border: 1px solid var(--border-subtle); border-radius: 2px; overflow: hidden; background: var(--bg-level-0); }
     .barre-terminal {
       padding: 8px 14px; background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle);
