@@ -29,6 +29,11 @@
 
 * text=auto eol=lf
 
+# Sauf les .bat : cmd.exe lit mal un batch en LF (un `goto` vers une étiquette
+# peut la manquer selon où tombe la frontière de bloc de 512 octets).
+# `lancer-dentsu-explore.bat` boucle sur `goto attente`.
+*.bat    text eol=crlf
+
 # Binaires : jamais touchés.
 *.png    binary
 *.jpg    binary
