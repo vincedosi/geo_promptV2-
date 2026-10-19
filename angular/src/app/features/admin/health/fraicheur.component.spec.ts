@@ -56,7 +56,7 @@ describe('FraicheurComponent', () => {
     f.detectChanges();
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => { vi.useRealTimers(); http.verify(); });
 
   const texte = (sel: string) => el.querySelector(sel)?.textContent?.replace(/[ \t\r\n]+/g, ' ').trim() ?? null;
   const relancer = () => el.querySelector<HTMLButtonElement>('[data-relancer]')!;
@@ -177,7 +177,8 @@ describe('FraicheurComponent', () => {
     expect(lourd().disabled).toBe(false);
   });
 
-  it('429 : le message du SERVEUR, aucune relance automatique, relevé gardé', () => {
+  it('429 : le message du SERVEUR, aucune relance automatique (ni immédiate ni DIFFÉRÉE), relevé gardé', () => {
+    vi.useFakeTimers();
     charge();
     lourd().click();
     f.detectChanges();
@@ -187,7 +188,10 @@ describe('FraicheurComponent', () => {
     );
     f.detectChanges();
     expect(texte('[data-erreur]')).toBe('Trop de requêtes. Réessayez dans quelques instants.');
+    // Vague finale G4 : au-delà du `retry_after` de 51 s, toujours aucune relance minutée.
+    vi.advanceTimersByTime(60_000);
     http.expectNone(URL);
+    vi.useRealTimers();
     expect(el.querySelectorAll('tbody tr').length).toBe(5);
     expect(lourd().disabled).toBe(false);
   });
@@ -205,6 +209,19 @@ describe('FraicheurComponent', () => {
     f.detectChanges();
     expect(texte('[data-erreur]')).toBe('Erreur base de données.');
     expect(texte('[data-releve]')).toBe('Aucun relevé : rien n’a encore été mesuré.');
+  });
+
+  it('vague finale G1 — PREMIÈRE lecture en échec : quitter puis revenir sur l’onglet la retente (un nouveau GET)', () => {
+    http.expectOne(URL).flush({ error: 'Erreur base de données.' }, { status: 500, statusText: 'x' });
+    f.detectChanges();
+    f.destroy();
+    const retour = TestBed.createComponent(FraicheurComponent);
+    retour.detectChanges();
+    http.expectOne(URL).flush(reponse());
+    retour.detectChanges();
+    const r = retour.nativeElement as HTMLElement;
+    expect(r.querySelector('[data-erreur]')).toBeNull();
+    expect(r.querySelectorAll('tbody tr').length).toBe(5);
   });
 
   it('mesure en échec sans corps lisible : « La mesure a échoué. »', () => {

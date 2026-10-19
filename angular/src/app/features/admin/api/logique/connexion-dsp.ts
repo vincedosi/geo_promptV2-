@@ -56,7 +56,12 @@ export function messageEchec(e: unknown, defaut: string): string {
 export class LecturesAnnulables {
   private readonly enVol = new Set<Subscription>();
 
-  /** Une lecture annulable : la promesse reste en suspens si l'écran est détruit avant la réponse. */
+  /**
+   * Une lecture annulable : la promesse reste en suspens si l'écran est détruit avant la réponse — ET aussi
+   * après une annulation VOLONTAIRE (`annulerTout`) : elle n'est ni résolue ni rejetée, donc un `finally` de
+   * l'appelant ne court pas (vague finale G2). Un appelant qui doit remettre un état (« en cours ») après
+   * `annulerTout` le fait lui-même, à côté de l'appel.
+   */
   lire<T>(source: Observable<T>): Promise<T> {
     return new Promise<T>((resoudre, rejeter) => {
       const s = source.subscribe({

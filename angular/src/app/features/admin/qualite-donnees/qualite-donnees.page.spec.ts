@@ -109,6 +109,9 @@ describe('QualiteDonneesPage', () => {
     expect(texte(ind.querySelector('[data-synthese]'))).toBe('2 indicateurs sur 4 posent problème, et sont proposés à l’utilisateur.');
     const codes = [...ind.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-code'));
     expect(codes).toEqual(['b_vide', 'd_partiel', 'a_ok', 'c_ok']);
+    // Vague finale G7 : la teinte de chaque ligne (source vide → danger, partielle → avertissement, ok → aucune).
+    const teintes = [...ind.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-teinte'));
+    expect(teintes).toEqual(['danger', 'avert', 'neutre', 'neutre']);
     const cellules = (code: string) => [...ind.querySelectorAll(`tr[data-code="${code}"] td`)].map(texte);
     expect(cellules('a_ok')).toEqual(['Libellé a_ok', 'a_ok', '100 · 25 %', '40 %', '50', 'ok']);
     expect(cellules('b_vide')).toEqual(['Libellé b_vide', 'b_vide', '0 · 0 %', '0 %', '0', 'source vide — ne produira jamais rien']);
@@ -177,6 +180,30 @@ describe('QualiteDonneesPage', () => {
     expect(bouton('fraicheur').disabled).toBe(false);
     expect(texte(bouton('fraicheur'))).toBe('Relancer');
     http.expectNone(URL);
+  });
+
+  it('vague finale G6 (Q-1) — persiste: false : le relevé s’affiche, avec l’avertissement de Fraîcheur', () => {
+    charge();
+    bouton('invariants').click();
+    http.expectOne(URL).flush({
+      cle: 'invariants', libelle: 'Famille invariants', calcule_le: '2026-10-07T10:00:00.000Z', duree_ms: 900, persiste: false,
+      releve: { controles: [] },
+    });
+    f.detectChanges();
+    expect(texte(el.querySelector('[data-erreur]'))).toBe('Mesure faite, mais elle n’a pas pu être enregistrée : elle sera perdue au rechargement.');
+    expect(texte(bouton('invariants'))).toBe('Relancer');
+    expect(famille('invariants').querySelector('[data-jamais]')).toBeNull();
+  });
+
+  it('persiste: true : aucun avertissement', () => {
+    charge();
+    bouton('invariants').click();
+    http.expectOne(URL).flush({
+      cle: 'invariants', libelle: 'Famille invariants', calcule_le: '2026-10-07T10:00:00.000Z', duree_ms: 900, persiste: true,
+      releve: { controles: [] },
+    });
+    f.detectChanges();
+    expect(el.querySelector('[data-erreur]')).toBeNull();
   });
 
   it('POST en échec sans `error` lisible : « HTTP <statut> »', () => {

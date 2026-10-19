@@ -11,7 +11,11 @@ import { DspApi, type ConfigTiktok } from './data/dsp.api';
 import { NAVIGUER_HORS_APPLICATION } from './naviguer-hors-application';
 import { TiktokPage } from './tiktok.page';
 
-/** Le diagnostic de la base locale (relevé du 2026-10-17) : clé de chiffrement seule, redirect URI dérivée. */
+/**
+ * Diagnostic de FIXTURE, pas le relevé local : clé de chiffrement présente, identifiants absents, et une redirect
+ * URI posée pour exercer l'affichage de sa valeur. Le poste local (relevé du 2026-10-17) montre, lui, la redirect
+ * URI en « ✗ » (vague finale G3 : l'ancien commentaire disait le contraire).
+ */
 const CONFIG: ConfigTiktok = {
   env: { enc_key: true, app_id: false, app_secret: false, redirect_uri: true, redirect_uri_value: 'http://localhost:3000/api/admin/dsp/tiktok/oauth/callback' },
 };

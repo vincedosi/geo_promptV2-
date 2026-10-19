@@ -237,7 +237,8 @@ function messageLecture(e: unknown): string {
  *   opacité ; polices en dur → `var(--font-sans)` / `var(--font-mono)`.
  * - réponse du POST non JSON : React affichait l'erreur de `res.json()` ; ici `HTTP <statut>`.
  *
- * Gardé par parité : `persiste: false` (relevé non enregistré) n'est pas signalé, comme React.
+ * - `persiste: false` (relevé non enregistré) est signalé, avec la phrase de Fraîcheur (Q-1, vague finale
+ *   G6) : React le taisait, et un relevé affiché qui disparaît au rechargement ment.
  */
 @Component({
   selector: 'mg-qualite-donnees',
@@ -356,6 +357,9 @@ export class QualiteDonneesPage {
         this.verifications.update((prev) => prev.map((v) => (
           v.cle === cle ? { ...v, releve: r.releve, calcule_le: r.calcule_le, duree_ms: r.duree_ms } : v
         )));
+        if (r.persiste === false) {
+          this.erreur.set('Mesure faite, mais elle n’a pas pu être enregistrée : elle sera perdue au rechargement.');
+        }
         this.enCours.set(null);
       },
       error: (e: unknown) => {

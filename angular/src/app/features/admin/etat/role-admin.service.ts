@@ -16,6 +16,9 @@ export type EtatRoleAdmin = 'chargement' | 'super_admin' | 'refuse' | 'erreur';
  * `profiles` en ÉCHEC, et profil présent SANS rôle. On lit donc `lireProfil()` : `null` = la
  * lecture a échoué → `erreur` (on propose de réessayer, on ne conclut pas au refus) ; profil
  * présent dont le rôle n'est pas `super_admin` (y compris un rôle vide) → `refuse`.
+ * Conséquence (vague finale G8) : un compte SANS ligne `profiles` rend aussi `null`, donc tombe en
+ * `erreur` et non en `refuse` — « Réessayer » y échouera toujours, puisque rien ne distingue une
+ * lecture ratée d'un profil absent.
  *
  * Relu quand l'IDENTIFIANT de session change (connexion avec un autre compte, y compris dans un
  * hôte, sans navigation) — jamais à chaque page, ni au simple rafraîchissement du jeton (même

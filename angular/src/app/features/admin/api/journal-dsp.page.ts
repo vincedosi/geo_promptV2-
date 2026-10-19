@@ -124,6 +124,8 @@ export class JournalDspPage {
 
   /** `load` (`logs/page.tsx:15-25`). */
   protected async charger(): Promise<void> {
+    // La lecture précédente, annulée ici, ne finira jamais (ni `catch` ni `finally`) : c'est CETTE lecture qui
+    // remet `chargement` à faux (G2).
     this.lectures.annulerTout();
     this.chargement.set(true);
     try {

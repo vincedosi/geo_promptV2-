@@ -38,9 +38,17 @@ export class FraicheurEtatService {
     });
   }
 
-  /** UNE lecture du relevé (GET), à la première ouverture de l'onglet ; aucune mesure. */
+  /**
+   * UNE lecture du relevé (GET), à la première ouverture de l'onglet ; aucune mesure. Une lecture en ÉCHEC est
+   * oubliée (vague finale G1) : le prochain retour sur l'onglet la retente, au lieu de garder l'erreur pour la vie
+   * de la page.
+   */
   assurer(): void {
     if (this.lecture) return;
+    if (this.erreur() !== null && this.donnees() === null) {
+      this.erreur.set(null);
+      this.chargement.set(true);
+    }
     this.lecture = this.api.lire().subscribe({
       next: (r) => {
         this.donnees.set(r);
@@ -49,6 +57,7 @@ export class FraicheurEtatService {
       error: (e: unknown) => {
         this.erreur.set(messageEchec(e, 'Lecture impossible.'));
         this.chargement.set(false);
+        this.lecture = null;
       },
     });
   }

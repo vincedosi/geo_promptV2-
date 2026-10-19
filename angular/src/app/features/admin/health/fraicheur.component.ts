@@ -125,7 +125,7 @@ function ligne(s: SourceAffichee): LigneAffichee {
     :host { display: flex; flex-direction: column; gap: 16px; }
     .cadre { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 2px; }
     .bandeau { padding: 14px 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-    .petit { font-size: 11px; color: var(--text-tertiary); line-height: 1.5; }
+    .petit { font-size: 11px; color: var(--text-tertiary); }
     .mono { font-family: var(--font-mono); }
     .badge { font-size: 10px; border-radius: 4px; padding: 2px 7px; white-space: nowrap; }
     [data-t='succes'] { color: var(--success); }
