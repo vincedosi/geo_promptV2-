@@ -4,8 +4,7 @@
    par `--teinte` (posée par le composant ou par `data-teinte`). */
 :host {
   display: block; font-family: var(--font-sans);
-  /* Teal de marque en TEXTE, lisible en clair (≈ 1,8:1 sinon) : variante `light-dark` de T16, reprise telle quelle. */
-  --teal-texte: light-dark(color-mix(in srgb, var(--brand-teal) 50%, var(--text-primary)), var(--brand-teal));
+  /* Teal de marque en TEXTE, lisible en clair (≈ 1,8:1 sinon) : --teal-texte du cadre admin (F-3). */
 }
 @keyframes srcFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes srcCountUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }

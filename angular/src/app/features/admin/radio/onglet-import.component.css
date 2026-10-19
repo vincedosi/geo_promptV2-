@@ -27,11 +27,11 @@
 .bouton.attenue { opacity: 0.5; }
 .bouton.large { padding: 8px 16px; font-size: 12px; }
 .bouton.petit { padding: 8px 12px; font-size: 11px; }
-/* Teal de marque, lisible en clair (≈ 1,8:1 sur la carte claire sinon) : `light-dark` suit le
-   `color-scheme` que `:host` / `:host(.light)` posent (styles.css), donc le thème de l'application. */
+/* Teal de marque, lisible en clair (≈ 1,8:1 sur la carte claire sinon) : --teal-texte du cadre admin (F-3),
+   dont le `light-dark` suit le `color-scheme` que `:host` / `:host(.light)` posent (styles.css). */
 .bouton.teal {
   border: 0.5px solid var(--brand-teal); font-weight: 500;
-  color: light-dark(color-mix(in srgb, var(--brand-teal) 50%, var(--text-primary)), var(--brand-teal));
+  color: var(--teal-texte);
 }
 .bouton.neutre { border: 0.5px solid var(--border-default); color: var(--text-secondary); }
 .bouton:focus-visible, .voir:focus-visible, .bouton-danger:focus-visible { outline: 1px solid var(--brand-teal-50); outline-offset: 1px; }
@@ -53,7 +53,7 @@ tbody tr { border-bottom: 0.5px solid var(--border-subtle); }
 td { padding: 8px 12px; }
 td.mono { font-size: 11px; }
 .petit-texte { font-size: 11px; }
-.erreur { color: var(--danger); }
+.erreur { color: var(--danger-texte); }
 .statut {
   font-size: 10px; padding: 2px 8px; border-radius: 4px; color: var(--teinte);
   background: color-mix(in srgb, var(--teinte) 8%, transparent); border: 0.5px solid color-mix(in srgb, var(--teinte) 19%, transparent);
@@ -64,7 +64,7 @@ td.mono { font-size: 11px; }
 }
 .voir:hover {
   border-color: var(--brand-teal);
-  color: light-dark(color-mix(in srgb, var(--brand-teal) 50%, var(--text-primary)), var(--brand-teal));
+  color: var(--teal-texte);
 }
 
 .danger {
@@ -73,6 +73,6 @@ td.mono { font-size: 11px; }
 }
 .bouton-danger {
   background: transparent; border: 0.5px solid color-mix(in srgb, var(--danger) 30%, transparent); border-radius: 6px;
-  padding: 8px 14px; font-size: 11px; color: var(--danger); cursor: pointer; font-family: var(--font-sans);
+  padding: 8px 14px; font-size: 11px; color: var(--danger-texte); cursor: pointer; font-family: var(--font-sans);
 }
 

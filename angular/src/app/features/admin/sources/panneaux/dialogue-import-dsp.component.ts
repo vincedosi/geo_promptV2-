@@ -73,7 +73,7 @@ let compteur = 0;
  * - **destruction pendant l'import** (C13) : la requête n'est PAS annulée — couper le flux peut
  *   interrompre l'écriture côté Next —, sa suite est ignorée.
  * - couleurs (C9) : `rgba(61,255,160,0.2)` → `--success` à 20 % ; teal du nom de fichier lisible en
- *   clair par `light-dark` (variante de T16, décision du propriétaire en attente) ; voile noir à 80 %
+ *   clair par `--teal-texte` du cadre admin (Q-9 tranchée, F-3) ; voile noir à 80 %
  *   (`bg-black/80` de Radix), sans ombre (flat total : Radix pose `shadow-lg`).
  *
  * Gardés par parité : textes (« Ex: Adform Q1 2026 » est un nom de DSP, pas une marque d'annonceur),

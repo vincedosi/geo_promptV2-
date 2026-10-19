@@ -44,14 +44,14 @@ import { NotificationsService } from '../../../ui/notifications/notifications.se
     }
     input:focus { border-color: var(--brand-teal-50); }
     .copier {
-      flex-shrink: 0; background: transparent; border: 0.5px solid var(--brand-teal); color: var(--brand-teal);
+      flex-shrink: 0; background: transparent; border: 0.5px solid var(--brand-teal); color: var(--teal-texte);
       border-radius: 6px; padding: 8px 16px; font-family: var(--font-sans); font-size: 12px; font-weight: 500; cursor: pointer;
       transition: background-color 150ms var(--ease-hover);
     }
     .copier:hover { background: var(--brand-teal-10); }
     .copier:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
-    .mention { margin: 0; font-size: 12px; color: var(--warning); }
-    .impossible { margin: 0; font-size: 12px; color: var(--danger); }
+    .mention { margin: 0; font-size: 12px; color: var(--warning-texte); }
+    .impossible { margin: 0; font-size: 12px; color: var(--danger-texte); }
   `,
 })
 export class LienSecretComponent {

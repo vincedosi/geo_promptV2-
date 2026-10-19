@@ -31,8 +31,8 @@ import {
  *   `rgba(255,87,87,…)` → `--danger` à 8 / 15 / 30 % ; statut : `${color}15` / `30` de React sont
  *   INVALIDES sur un `var()` (aucun fond, aucun bord rendu) → `color-mix` à 8 et 19 %, l'intention.
  * - **teal lisible en clair** : le texte teal des boutons (« Lancer l'import ANFR », « Importer », survol
- *   de « Voir ») passe à `light-dark(teal mêlé à 50 % de --text-primary, teal)` — ≈ 5:1 sur la carte
- *   claire au lieu de 1,8:1 ; inchangé en sombre.
+ *   de « Voir ») passe à `--teal-texte` du cadre admin (`light-dark(teal mêlé à 45 % de --text-primary,
+ *   teal)`, F-3) — ≥ 5:1 sur la carte claire au lieu de 1,8:1 ; inchangé en sombre.
  */
 @Component({
   selector: 'mg-radio-import',

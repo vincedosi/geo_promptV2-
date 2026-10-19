@@ -150,7 +150,7 @@ const AUCUN_ACTIF = 'Aucun (socle seul)';
       display: inline-block; margin: 2px 4px 2px 0; padding: 2px 8px; border-radius: 4px; white-space: nowrap;
       background: var(--bg-level-3); border: 0.5px solid var(--border-default); color: var(--text-secondary); font-size: 10px;
     }
-    .pastille.teal { background: var(--brand-teal-10); border-color: var(--brand-teal-30); color: var(--brand-teal); }
+    .pastille.teal { background: var(--brand-teal-10); border-color: var(--brand-teal-30); color: var(--teal-texte); }
     .attenue { color: var(--text-tertiary); }
     .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
     .vide { margin: 0; padding: 12px 14px; font-size: 12px; color: var(--text-tertiary); }
@@ -161,14 +161,14 @@ const AUCUN_ACTIF = 'Aucun (socle seul)';
     .bouton-neutre { padding: 5px 12px; background: transparent; border: 0.5px solid var(--border-default); color: var(--text-secondary); }
     .bouton-neutre:not(:disabled):hover { border-color: var(--border-hover); background: var(--bg-level-2); color: var(--text-primary); }
     .bouton-neutre:disabled { opacity: 0.5; cursor: not-allowed; }
-    .bouton-teal { padding: 8px 16px; background: transparent; border: 0.5px solid var(--brand-teal); color: var(--brand-teal); }
+    .bouton-teal { padding: 8px 16px; background: transparent; border: 0.5px solid var(--brand-teal); color: var(--teal-texte); }
     .bouton-teal:hover { background: var(--brand-teal-10); }
     .bouton-neutre:focus-visible, .bouton-teal:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
     .squelette { height: 36px; margin-bottom: 8px; border-radius: 6px; background: var(--bg-level-2); animation: pulse 1.5s ease-in-out infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     .erreur {
       display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
-      padding: 12px; border-radius: 6px; font-size: 12px; color: var(--danger);
+      padding: 12px; border-radius: 6px; font-size: 12px; color: var(--danger-texte);
       background: color-mix(in srgb, var(--danger) 10%, transparent);
       border: 0.5px solid color-mix(in srgb, var(--danger) 20%, transparent);
     }

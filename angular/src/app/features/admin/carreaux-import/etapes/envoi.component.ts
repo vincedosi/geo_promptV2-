@@ -93,7 +93,7 @@ import { EXCLUE } from '../logique/lots';
     .recap { padding: 20px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
     .libelle { font-family: var(--font-sans); font-size: 12px; font-weight: 500; color: var(--text-tertiary); }
     .valeur { font-size: 22px; font-weight: 700; color: var(--text-primary); margin-top: 4px; }
-    .valeur.accent { color: var(--vert-texte); }
+    .valeur.accent { color: var(--success-texte); }
     .lancer { width: 100%; padding: 16px 0; font-size: 13px; }
     .duree { font-weight: 700; color: var(--text-primary); }
     .avertissement { font-family: var(--font-sans); font-size: 12px; color: var(--text-secondary); margin: 0; }
@@ -114,7 +114,7 @@ import { EXCLUE } from '../logique/lots';
     .nouvel {
       padding: 10px 20px; border-radius: 2px; font-family: var(--font-sans); font-size: 12px; font-weight: 500; cursor: pointer;
       background: color-mix(in srgb, var(--info) 10%, transparent); border: 1px solid color-mix(in srgb, var(--info) 30%, transparent);
-      color: var(--bleu-texte); transition: background 0.15s;
+      color: var(--info-texte); transition: background 0.15s;
     }
     .nouvel:hover { background: color-mix(in srgb, var(--info) 18%, transparent); }
   `,

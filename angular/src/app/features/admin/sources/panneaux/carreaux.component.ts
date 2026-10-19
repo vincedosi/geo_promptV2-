@@ -48,8 +48,8 @@ import type { StatsSources } from '../data/sources-admin.api';
   styleUrl: './panneaux-commun.css',
   styles: `
     :host { --teinte: var(--success); --bord: 27%; }
-    .vert { color: var(--success); }
-    .cyan { color: var(--info); }
+    .vert { color: var(--success-texte); }
+    .cyan { color: var(--info-texte); }
   `,
 })
 export class CarreauxComponent {

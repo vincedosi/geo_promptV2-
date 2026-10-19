@@ -112,7 +112,7 @@ function messageImport(e: unknown): string {
   styles: [`
     :host { display: flex; flex-direction: column; gap: 16px; font-family: var(--font-sans); color: var(--text-primary); }
     .consigne { font-family: var(--font-sans); font-size: 10px; color: var(--text-secondary); letter-spacing: 0.12em; margin-bottom: 8px; }
-    .consigne.survol { color: var(--brand-teal); }
+    .consigne.survol { color: var(--teal-texte); }
     .aide { font-family: var(--font-mono); font-size: 9px; color: var(--text-tertiary); }
     .aide + .aide { margin-top: 4px; }
     .resultat { border: 1px solid color-mix(in srgb, var(--brand-teal) 20%, transparent); border-radius: 2px; overflow: hidden; }
@@ -120,9 +120,9 @@ function messageImport(e: unknown): string {
       background: var(--bg-level-2); padding: 10px 16px; display: flex; align-items: center; gap: 12px;
       border-bottom: 1px solid var(--border-subtle);
     }
-    .fichier { font-family: var(--font-sans); font-size: 9px; color: var(--brand-teal); letter-spacing: 0.12em; }
+    .fichier { font-family: var(--font-sans); font-size: 9px; color: var(--teal-texte); letter-spacing: 0.12em; }
     .mesure { font-family: var(--font-mono); font-size: 9px; color: var(--text-tertiary); }
-    .mesure.mappees { color: var(--success); }
+    .mesure.mappees { color: var(--success-texte); }
     .correspondance { padding: 12px 16px; background: var(--bg-level-2); }
     .titre-correspondance {
       font-family: var(--font-sans); font-size: 7.5px; color: var(--text-tertiary); letter-spacing: 0.14em; margin-bottom: 8px;
@@ -134,16 +134,16 @@ function messageImport(e: unknown): string {
     }
     .puce .csv { color: var(--text-secondary); }
     .puce .fleche { color: var(--text-tertiary); }
-    .puce .cible { color: var(--success); font-weight: 700; }
+    .puce .cible { color: var(--success-texte); font-weight: 700; }
     .actions { padding: 12px 16px; border-top: 1px solid var(--border-subtle); display: flex; align-items: center; gap: 12px; }
     .importer {
       padding: 8px 20px; border-radius: 2px; background: var(--brand-teal-10);
-      border: 1px solid color-mix(in srgb, var(--brand-teal) 20%, transparent); color: var(--brand-teal);
+      border: 1px solid color-mix(in srgb, var(--brand-teal) 20%, transparent); color: var(--teal-texte);
       font-family: var(--font-sans); font-size: 9px; letter-spacing: 0.12em; cursor: pointer;
     }
     .importer.termine {
       background: color-mix(in srgb, var(--success) 10%, transparent);
-      border-color: color-mix(in srgb, var(--success) 40%, transparent); color: var(--success);
+      border-color: color-mix(in srgb, var(--success) 40%, transparent); color: var(--success-texte);
     }
     .importer:disabled { cursor: not-allowed; }
     .nouveau {

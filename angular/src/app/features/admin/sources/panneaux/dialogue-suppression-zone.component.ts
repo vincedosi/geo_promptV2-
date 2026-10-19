@@ -77,7 +77,7 @@ let compteur = 0;
     /* Le toast d'erreur de React (bord --danger, texte --danger, 12 px), placé dans la boîte. */
     .erreur {
       margin: -8px 0 16px; padding: 10px 14px; background: var(--bg-surface); border: 0.5px solid var(--danger); border-radius: 4px;
-      color: var(--danger); font-family: var(--font-sans); font-size: 12px;
+      color: var(--danger-texte); font-family: var(--font-sans); font-size: 12px;
     }
     .actions { display: flex; gap: 8px; justify-content: flex-end; }
     .bouton { font-family: var(--font-sans); font-size: 12px; padding: 8px 16px; border-radius: 4px; cursor: pointer; }

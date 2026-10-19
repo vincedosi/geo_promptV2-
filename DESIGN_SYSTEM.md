@@ -145,9 +145,19 @@ texte seulement, cinq propriétés posées UNE fois sur l'hôte du cadre admin
 (`angular/src/app/features/admin/cadre-admin.component.ts`), héritées par tous
 ses écrans :
 
-- `--teal-texte` : `--brand-teal` mêlé à 50 % de `--text-primary` en clair (≈ 5:1) ;
-- `--success-texte` et `--warning-texte` : même recette, 50 % ;
+- `--teal-texte` : `--brand-teal` mêlé à **45 %** de `--text-primary` en clair
+  (`rgb(49,107,102)`) — 5,65:1 sur `--bg-level-1`, 5,03:1 sur le pire fond
+  rencontré (le teal à 10 % posé sur `--bg-level-2`, bouton « Sauvegarder » de
+  Sources). À 50 %, ce bouton tombait à 4,45:1 : la valeur a été abaissée le
+  2026-10-19 (vague finale 2 du lot 6), une seule fois, dans le cadre ;
+- `--success-texte` et `--warning-texte` : la couleur à 50 % (≥ 6:1 partout) ;
 - `--danger-texte` et `--info-texte` : 75 % de la couleur, le reste de `--text-primary`.
+
+**Règle** : dans l'administration, toute couleur de TEXTE teal ou de statut
+passe par ces propriétés (`color: var(--teal-texte)`, jamais
+`color: var(--brand-teal)`) ; aplats, bordures, `accent-color` et focus gardent
+le jeton brut. Les briques de `features/admin/commun/` que le catalogue monte
+HORS du cadre écrivent `var(--success-texte, var(--success))`, avec repli.
 
 Chacune vaut `light-dark(<mélange>, <couleur>)` : en thème sombre, la couleur
 d'origine, inchangée. `light-dark()` se résout chez l'élément qui emploie la
@@ -159,7 +169,9 @@ Ce ne sont PAS des jetons du système : ni `app/globals.css` ni
 `angular/src/styles/jetons.css` ne les portent (la parité de ces deux fichiers
 est verrouillée), et React ne les emploie pas. Décision du 2026-10-19 (Q-9 de la
 revue finale du lot 6) : une seule règle pour toute l'administration, plutôt
-que quatorze copies locales de la recette. Choix visuel à valider par un
+que quatorze copies locales de la recette — retirées le même jour (factorisation
+F-3), et la règle étendue à Accès, Santé, Fraîcheur, Historique, Qualité, IRIS
+crawler et Connexions API. Choix visuel à valider par un
 designer, comme toute palette de données.
 
 ### Statut (seules couleurs sémantiques autorisées)

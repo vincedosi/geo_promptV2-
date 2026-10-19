@@ -92,7 +92,7 @@ import { ImportShapefileService } from '../etat/import-shapefile.service';
       width: 56px; height: 56px; border-radius: 2px; background: var(--bg-level-2); border: 1px solid var(--border-subtle);
       display: flex; align-items: center; justify-content: center; color: var(--text-tertiary);
     }
-    .vignette.survol { color: var(--brand-teal); }
+    .vignette.survol { color: var(--teal-texte); }
     .titre-depot { font-family: var(--font-sans); font-size: 15px; font-weight: 600; color: var(--text-primary); margin: 0; }
     .note { font-size: 11px; color: var(--text-tertiary); margin: 6px 0 0; }
     .phase { margin: 0; }
@@ -100,7 +100,7 @@ import { ImportShapefileService } from '../etat/import-shapefile.service';
       background: color-mix(in srgb, var(--danger) 10%, transparent);
       border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent); border-radius: 2px; padding: 12px 16px;
     }
-    .alerte p { font-size: 12px; color: var(--rouge-texte); margin: 0; }
+    .alerte p { font-size: 12px; color: var(--danger-texte); margin: 0; }
     /* \`.carte.resume\` et non \`.resume\` : la feuille commune (\`.carte\`) est lue APRÈS ces styles et reposait la
        bordure grise à égalité de spécificité (vague finale, B2). */
     .carte.resume { border-color: color-mix(in srgb, var(--success) 25%, transparent); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
@@ -108,9 +108,9 @@ import { ImportShapefileService } from '../etat/import-shapefile.service';
     .pastille {
       width: 36px; height: 36px; border-radius: 2px; display: flex; align-items: center; justify-content: center;
       background: color-mix(in srgb, var(--success) 12%, transparent);
-      border: 1px solid color-mix(in srgb, var(--success) 20%, transparent); color: var(--vert-texte);
+      border: 1px solid color-mix(in srgb, var(--success) 20%, transparent); color: var(--success-texte);
     }
-    .nom { font-weight: 700; color: var(--vert-texte); margin: 0; font-size: 13px; }
+    .nom { font-weight: 700; color: var(--success-texte); margin: 0; font-size: 13px; }
     [data-detail] { margin-top: 2px; }
     .puces { display: flex; gap: 8px; flex-wrap: wrap; }
     .puces.serrees { gap: 6px; }

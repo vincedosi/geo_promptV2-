@@ -17,9 +17,9 @@
   background: transparent; color: var(--text-tertiary); border: 1px solid var(--border-subtle);
 }
 .filtre.actif[data-statut='all'] { background: var(--brand-teal-10); color: var(--teal-texte); border-color: var(--brand-teal); }
-.filtre.actif[data-statut='green'] { background: color-mix(in srgb, var(--success) 13%, transparent); color: var(--vert-texte); border-color: var(--success); }
-.filtre.actif[data-statut='orange'] { background: color-mix(in srgb, var(--warning) 13%, transparent); color: var(--ambre-texte); border-color: var(--warning); }
-.filtre.actif[data-statut='red'] { background: color-mix(in srgb, var(--danger) 13%, transparent); color: var(--rouge-texte); border-color: var(--danger); }
+.filtre.actif[data-statut='green'] { background: color-mix(in srgb, var(--success) 13%, transparent); color: var(--success-texte); border-color: var(--success); }
+.filtre.actif[data-statut='orange'] { background: color-mix(in srgb, var(--warning) 13%, transparent); color: var(--warning-texte); border-color: var(--warning); }
+.filtre.actif[data-statut='red'] { background: color-mix(in srgb, var(--danger) 13%, transparent); color: var(--danger-texte); border-color: var(--danger); }
 .affiches { margin-left: auto; font-size: 9px; color: var(--text-tertiary); }
 .tableau { max-height: 500px; overflow: auto; border: 1px solid var(--border-subtle); border-radius: 2px; }
 .grille { display: grid; grid-template-columns: 50px 1fr 1fr 60px 70px 120px; gap: 4px; padding: 5px 8px; align-items: center; }

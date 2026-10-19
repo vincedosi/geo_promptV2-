@@ -103,8 +103,8 @@ function versLigne(l: DspApiLogRow): LigneJournal {
     th, td { padding: 8px 10px; }
     .date { white-space: nowrap; }
     .message { color: var(--text-primary); }
-    td[data-niveau='error'] { color: var(--danger); }
-    td[data-niveau='warn'] { color: var(--warning); }
+    td[data-niveau='error'] { color: var(--danger-texte); }
+    td[data-niveau='warn'] { color: var(--warning-texte); }
   `],
 })
 export class JournalDspPage {

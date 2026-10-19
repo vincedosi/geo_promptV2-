@@ -80,7 +80,7 @@ interface Tuile {
     .tete { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
     .pastille {
       width: 16px; height: 16px; border-radius: 3px; background: var(--brand-teal-10); border: 0.5px solid var(--brand-teal-30);
-      display: flex; align-items: center; justify-content: center; color: var(--brand-teal);
+      display: flex; align-items: center; justify-content: center; color: var(--teal-texte);
     }
     @media (prefers-reduced-motion: reduce) { .tuile, .valeur { animation: none; } }
   `],

@@ -4,7 +4,7 @@
   border-radius: 2px; padding: 14px 16px; display: flex; align-items: center; gap: 12px;
 }
 .phrase { font-size: 12px; color: var(--text-primary); flex: 1; }
-.phrase strong, .phrase .mono { color: var(--danger); }
+.phrase strong, .phrase .mono { color: var(--danger-texte); }
 .mono { font-family: var(--font-mono); }
 .purge button { font-family: var(--font-sans); font-size: 9px; font-weight: 500; border-radius: 2px; padding: 6px 14px; cursor: pointer; }
 /* React : `#fff` sur le rouge — `--text-primary`, comme le bouton danger de `mg-confirmation` (identique en sombre). */
@@ -19,7 +19,7 @@
 .ech-titre { font-size: 9px; font-weight: 500; color: var(--teal-texte); }
 .nouveau-poi {
   margin-left: auto; font-family: var(--font-sans); font-size: 9px; font-weight: 500; border-radius: 2px; padding: 4px 10px; cursor: pointer;
-  background: color-mix(in srgb, var(--success) 10%, transparent); color: var(--success); border: 0.5px solid color-mix(in srgb, var(--success) 27%, transparent);
+  background: color-mix(in srgb, var(--success) 10%, transparent); color: var(--success-texte); border: 0.5px solid color-mix(in srgb, var(--success) 27%, transparent);
 }
 .fermer { background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 13px; line-height: 1; margin-left: 4px; }
 .defile { overflow-x: auto; }
@@ -41,7 +41,7 @@ td.actions-ligne { padding: 5px 8px; white-space: nowrap; }
   font-family: var(--font-sans); font-size: 9px; font-weight: 500; border-radius: 2px; cursor: pointer; background: transparent; padding: 3px 7px;
 }
 .editer { color: var(--teal-texte); border: 0.5px solid var(--brand-teal-30); margin-right: 4px; }
-.supprimer { color: var(--danger); border: 0.5px solid color-mix(in srgb, var(--danger) 27%, transparent); }
+.supprimer { color: var(--danger-texte); border: 0.5px solid color-mix(in srgb, var(--danger) 27%, transparent); }
 .supprimer:disabled { cursor: not-allowed; opacity: 0.5; }
 .plus { padding: 10px 16px; border-top: 1px solid var(--border-subtle); display: flex; align-items: center; gap: 8px; }
 .charger { background: var(--brand-teal-10); color: var(--teal-texte); border: 0.5px solid var(--brand-teal-30); padding: 5px 14px; }

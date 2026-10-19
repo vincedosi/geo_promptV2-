@@ -74,7 +74,7 @@ interface VueOnglet {
     .badges { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
     .badge { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 2px; }
     .badge.admin {
-      color: var(--warning); background: color-mix(in srgb, var(--warning) 10%, transparent);
+      color: var(--warning-texte); background: color-mix(in srgb, var(--warning) 10%, transparent);
       border: 0.5px solid color-mix(in srgb, var(--warning) 27%, transparent);
     }
     .badge.compte { color: var(--text-secondary); background: var(--bg-level-2); border: 0.5px solid var(--border-subtle); }

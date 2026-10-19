@@ -44,12 +44,12 @@
         </div>
         @if (pastilleVisible()) {
           <div class="mono flex gap-4 text-[12px]">
-            <span data-compte="OK" style="color: var(--success)">✓ {{ nbOk() }} OK</span>
+            <span data-compte="OK" style="color: var(--success-texte)">✓ {{ nbOk() }} OK</span>
             @if (nbWarn() > 0) {
-              <span data-compte="WARN" style="color: var(--warning)">! {{ nbWarn() }} WARN</span>
+              <span data-compte="WARN" style="color: var(--warning-texte)">! {{ nbWarn() }} WARN</span>
             }
             @if (nbErr() > 0) {
-              <span data-compte="ERROR" style="color: var(--danger)">✕ {{ nbErr() }} ERROR</span>
+              <span data-compte="ERROR" style="color: var(--danger-texte)">✕ {{ nbErr() }} ERROR</span>
             }
             <span class="ml-auto text-secondary">{{ heureLecture() }}</span>
           </div>
@@ -156,7 +156,7 @@
             }
             @if (tableEnErreur()) {
               <div data-fix class="mono encart danger">
-                <span style="color: var(--danger)">// FIX: </span>Ouvrir Supabase Dashboard → SQL Editor → executer le script de migration SQL
+                <span style="color: var(--danger-texte)">// FIX: </span>Ouvrir Supabase Dashboard → SQL Editor → executer le script de migration SQL
               </div>
             }
           }
@@ -178,15 +178,15 @@
             <div class="mb-4 grid grid-cols-3 gap-3">
               <div data-tuile="tables" class="tuile">
                 <div class="tuile-libelle">Tables</div>
-                <div class="mono tuile-valeur" style="color: var(--brand-teal)">{{ db.total_tables }}</div>
+                <div class="mono tuile-valeur" style="color: var(--teal-texte)">{{ db.total_tables }}</div>
               </div>
               <div data-tuile="lignes" class="tuile">
                 <div class="tuile-libelle">Lignes totales</div>
-                <div class="mono tuile-valeur" style="color: var(--success)">{{ lignesTotales() }}</div>
+                <div class="mono tuile-valeur" style="color: var(--success-texte)">{{ lignesTotales() }}</div>
               </div>
               <div data-tuile="espace" class="tuile">
                 <div class="tuile-libelle">Espace tables</div>
-                <div class="mono tuile-valeur" style="color: var(--warning)">{{ db.total_size }}</div>
+                <div class="mono tuile-valeur" style="color: var(--warning-texte)">{{ db.total_size }}</div>
               </div>
             </div>
 
@@ -226,12 +226,12 @@
 
             @if (taillesNA()) {
               <div data-tailles-na class="mono encart avert">
-                <span style="color: var(--warning)">! </span>Tailles indisponibles — configurez <span style="color: var(--brand-teal)">SUPABASE_DB_URL</span> dans .env.local ou exécutez <span style="color: var(--brand-teal)">sql/004_get_table_sizes_function.sql</span> dans Supabase SQL Editor
+                <span style="color: var(--warning-texte)">! </span>Tailles indisponibles — configurez <span style="color: var(--teal-texte)">SUPABASE_DB_URL</span> dans .env.local ou exécutez <span style="color: var(--teal-texte)">sql/004_get_table_sizes_function.sql</span> dans Supabase SQL Editor
               </div>
             }
             @if (taillesEstimees()) {
               <div data-tailles-estimees class="mono encart info">
-                <span style="color: var(--info)">i </span>Tailles estimées (~200-500 bytes/ligne). Pour les tailles exactes : configurez <span style="color: var(--brand-teal)">SUPABASE_DB_URL</span> dans .env.local
+                <span style="color: var(--info-texte)">i </span>Tailles estimées (~200-500 bytes/ligne). Pour les tailles exactes : configurez <span style="color: var(--teal-texte)">SUPABASE_DB_URL</span> dans .env.local
               </div>
             }
           </div>
@@ -250,8 +250,8 @@
         </div>
         <div class="p-4">
           <div class="mono build">
-            <div><span class="cle">app: </span><span style="color: var(--brand-teal)">dentsu.explore</span></div>
-            <div><span class="cle">version: </span><span style="color: var(--success)">v{{ version }}</span></div>
+            <div><span class="cle">app: </span><span style="color: var(--teal-texte)">dentsu.explore</span></div>
+            <div><span class="cle">version: </span><span style="color: var(--success-texte)">v{{ version }}</span></div>
             <div><span class="cle">build: </span><span class="text-primary">{{ dateBuild }}</span></div>
             <div><span class="cle">stack: </span><span class="text-primary">Next.js 14 · Supabase · PostGIS · Mapbox</span></div>
             <div><span class="cle">checked: </span><span data-checked class="text-primary">{{ dateLecture() }}</span></div>

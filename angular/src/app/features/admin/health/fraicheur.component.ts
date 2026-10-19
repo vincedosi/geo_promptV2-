@@ -128,19 +128,19 @@ function ligne(s: SourceAffichee): LigneAffichee {
     .petit { font-size: 11px; color: var(--text-tertiary); }
     .mono { font-family: var(--font-mono); }
     .badge { font-size: 10px; border-radius: 4px; padding: 2px 7px; white-space: nowrap; }
-    [data-t='succes'] { color: var(--success); }
-    [data-t='danger'] { color: var(--danger); }
-    [data-t='avert'] { color: var(--warning); }
-    [data-t='accent'] { color: var(--brand-teal); }
+    [data-t='succes'] { color: var(--success-texte); }
+    [data-t='danger'] { color: var(--danger-texte); }
+    [data-t='avert'] { color: var(--warning-texte); }
+    [data-t='accent'] { color: var(--teal-texte); }
     [data-t='neutre'] { color: var(--text-tertiary); }
     button { border-radius: 6px; font-family: var(--font-sans); font-weight: 500; cursor: pointer; background: transparent; }
     button:disabled { opacity: 0.5; }
-    .relancer { padding: 8px 14px; font-size: 12px; border: 0.5px solid var(--brand-teal); color: var(--brand-teal); }
+    .relancer { padding: 8px 14px; font-size: 12px; border: 0.5px solid var(--brand-teal); color: var(--teal-texte); }
     .lourd { padding: 5px 10px; font-size: 11px; border: 0.5px solid var(--border-default); color: var(--text-secondary); }
     .erreur {
       background: color-mix(in srgb, var(--danger) 10%, transparent);
       border: 1px solid color-mix(in srgb, var(--danger) 20%, transparent);
-      border-radius: 2px; padding: 10px 14px; font-size: 12px; color: var(--danger);
+      border-radius: 2px; padding: 10px 14px; font-size: 12px; color: var(--danger-texte);
     }
     .tableau { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; min-width: 640px; }

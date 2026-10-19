@@ -15,7 +15,7 @@ const ETAPES: readonly { n: WizardStep; libelle: string }[] = [
  *
  * Écarts à React, voulus : couleurs en jetons (C9) — `rgba(61,255,160,0.12|0.3)` → `--success` à 12 / 30 %,
  * `#505050` → `--text-tertiary`, `#000` du rond franchi → `--brand-teal-fg` (texte posé sur un aplat, invariant) ;
- * vert en TEXTE lisible en clair par la recette `light-dark` (T12, T16) ; `aria-current="step"` sur l'étape
+ * vert en TEXTE lisible en clair par `--success-texte` du cadre admin (F-3) ; `aria-current="step"` sur l'étape
  * courante ; focus clavier visible (React : `outline: none`). Gardés : bords 1 px, rayon 2, filet de 48 px.
  */
 @Component({
@@ -48,7 +48,6 @@ const ETAPES: readonly { n: WizardStep; libelle: string }[] = [
   styles: `
     :host {
       display: block;
-      --vert-texte: light-dark(color-mix(in srgb, var(--success) 50%, var(--text-primary)), var(--success));
     }
     .fil { display: flex; align-items: center; gap: 8px; margin-bottom: 32px; }
     .groupe { display: flex; align-items: center; gap: 8px; }
@@ -63,7 +62,7 @@ const ETAPES: readonly { n: WizardStep; libelle: string }[] = [
     .etape:disabled { cursor: not-allowed; }
     .etape.franchie { color: var(--text-secondary); cursor: pointer; }
     .etape.courante {
-      font-weight: 600; color: var(--vert-texte);
+      font-weight: 600; color: var(--success-texte);
       background: color-mix(in srgb, var(--success) 12%, transparent);
       border-color: color-mix(in srgb, var(--success) 30%, transparent);
     }
@@ -74,7 +73,7 @@ const ETAPES: readonly { n: WizardStep; libelle: string }[] = [
       background: var(--bg-level-2); color: var(--text-tertiary);
     }
     .franchie .rond { background: var(--success); color: var(--brand-teal-fg); }
-    .courante .rond { background: color-mix(in srgb, var(--success) 12%, transparent); color: var(--vert-texte); }
+    .courante .rond { background: color-mix(in srgb, var(--success) 12%, transparent); color: var(--success-texte); }
   `,
 })
 export class EtapesComponent {

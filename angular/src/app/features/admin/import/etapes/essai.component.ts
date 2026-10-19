@@ -27,12 +27,12 @@ import { ImportPoiService } from '../etat/import-poi.service';
     .tuiles.seconde { margin-top: 10px; }
     details { margin-top: 8px; }
     summary { font-family: var(--font-sans); font-size: 9px; font-weight: 500; color: var(--text-secondary); cursor: pointer; }
-    details.erreurs summary { color: var(--ambre-texte); }
+    details.erreurs summary { color: var(--warning-texte); }
     pre {
       background: var(--bg-level-2); border: 1px solid var(--border-subtle); border-radius: 2px; padding: 10px;
       font-family: var(--font-mono); font-size: 10px; max-height: 150px; overflow: auto; margin: 6px 0 0; color: var(--text-secondary);
     }
-    details.erreurs pre { color: var(--ambre-texte); }
+    details.erreurs pre { color: var(--warning-texte); }
     .marge-12 { margin-top: 12px; }
   `],
   template: `

@@ -1,17 +1,16 @@
 /* Onglet Statistiques (audit du matching) — mesures de `app/admin/radio/page.tsx:719-898`. Jetons seulement (C9).
-   Texte teal lisible en clair (≈ 1,8:1 sinon), même recette `light-dark` que l'onglet Import (T16) ; inchangé en sombre.
+   Texte teal lisible en clair (≈ 1,8:1 sinon) : --teal-texte du cadre admin (F-3) ; inchangé en sombre.
    Noms en clair (`--teinte`, `--teal-texte`) : la version compactée pour tenir sous le budget de 4 kB était illisible
    (vague finale C9) ; le budget `anyComponentStyle` s'applique au CSS MINIFIÉ, que ces noms n'alourdissent qu'à peine. */
 :host {
   display: flex; flex-direction: column; gap: 16px; font-family: var(--font-sans);
-  --teal-texte: light-dark(color-mix(in srgb, var(--brand-teal) 50%, var(--text-primary)), var(--brand-teal));
 }
 .mono { font-family: var(--font-mono); }
 .petit { font-size: 10px; }
 .primaire { color: var(--text-primary); }
 .secondaire { color: var(--text-secondary); }
 .tertiaire { color: var(--text-tertiary); }
-.danger { color: var(--danger); }
+.danger { color: var(--danger-texte); }
 [data-teinte='succes'] { --teinte: var(--success); }
 [data-teinte='avert'] { --teinte: var(--warning); }
 [data-teinte='danger'] { --teinte: var(--danger); }
@@ -31,7 +30,7 @@
 .rafraichir:hover:not(:disabled) { border-color: var(--border-hover); color: var(--text-primary); }
 .rafraichir:disabled { cursor: not-allowed; opacity: 0.5; }
 .rafraichir:focus-visible { outline: 1px solid var(--brand-teal-50); outline-offset: 1px; }
-.erreur { color: var(--danger); font-size: 12px; }
+.erreur { color: var(--danger-texte); font-size: 12px; }
 
 /* KPI (StatCard, page.tsx:76-92) et barre. */
 .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }

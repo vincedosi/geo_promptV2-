@@ -160,12 +160,12 @@ interface VueSource {
     .radio-tete { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .radio-badge {
       font-size: 10px; padding: 2px 8px; background: var(--brand-teal-10); border: 0.5px solid var(--brand-teal-30); border-radius: 4px;
-      color: var(--brand-teal);
+      color: var(--teal-texte);
     }
     .radio-titre { font-weight: 500; font-size: 12px; color: var(--text-primary); }
     .radio-meta { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
-    /* Teal lisible en clair (≈ 1,8:1 sinon) : light-dark suit le color-scheme de :host (styles.css). */
-    .gerer { font-size: 11px; color: light-dark(color-mix(in srgb, var(--brand-teal) 50%, var(--text-primary)), var(--brand-teal)); text-decoration: none; }
+    /* Teal lisible en clair (≈ 1,8:1 sinon) : --teal-texte du cadre admin (F-3). */
+    .gerer { font-size: 11px; color: var(--teal-texte); text-decoration: none; }
     .gerer:focus-visible { outline: 1px solid var(--brand-teal-50); outline-offset: 1px; }
     .message { text-align: center; padding: 40px; color: var(--text-secondary); font-size: 13px; }
     .message.mono { display: flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--font-mono); font-size: 12px; }

@@ -16,11 +16,11 @@
   border-radius: 8px 8px 0 0; padding: 10px 14px; display: flex; align-items: center; gap: 8px;
 }
 .section-corps { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-top: none; border-radius: 0 0 8px 8px; }
-.coche { font-family: var(--font-mono); font-size: 12px; width: 14px; color: var(--danger); }
-.coche.ok { color: var(--success); }
+.coche { font-family: var(--font-mono); font-size: 12px; width: 14px; color: var(--danger-texte); }
+.coche.ok { color: var(--success-texte); }
 .valeur-config { margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); max-width: 280px; }
 .encart { background: var(--bg-level-2); border-radius: 6px; padding: 8px 12px; margin-bottom: 16px; }
-.encart.erreur { border: 0.5px solid var(--danger); font-family: var(--font-mono); font-size: 11px; color: var(--danger); }
+.encart.erreur { border: 0.5px solid var(--danger); font-family: var(--font-mono); font-size: 11px; color: var(--danger-texte); }
 .carte { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 24px; }
 /* En ligne (inline-block), comme les champs de React : l'interligne compte dans l'espacement. */
 .champ {
@@ -35,11 +35,11 @@
 .bouton:disabled, .purge:disabled { opacity: 0.5; }
 .bouton:disabled, .lien:disabled { cursor: not-allowed; }
 .bouton:focus-visible { outline: 1px solid var(--brand-teal-50); outline-offset: 1px; }
-.teal { border: 0.5px solid var(--brand-teal); color: var(--brand-teal); font-weight: 500; }
+.teal { border: 0.5px solid var(--brand-teal); color: var(--teal-texte); font-weight: 500; }
 .contour { border: 0.5px solid var(--border-default); color: var(--text-secondary); }
-.danger { border: 0.5px solid var(--danger); color: var(--danger); }
+.danger { border: 0.5px solid var(--danger); color: var(--danger-texte); }
 .lien { background: transparent; border: none; padding: 0; cursor: pointer; }
 .log { display: flex; gap: 8px; padding: 6px 10px; border-bottom: 0.5px solid var(--border-subtle); font-family: var(--font-mono); font-size: 11px; align-items: baseline; }
 .niveau { color: var(--text-secondary); flex-shrink: 0; text-transform: uppercase; width: 42px; }
-.niveau[data-niveau='error'] { color: var(--danger); }
-.niveau[data-niveau='warn'] { color: var(--warning); }
+.niveau[data-niveau='error'] { color: var(--danger-texte); }
+.niveau[data-niveau='warn'] { color: var(--warning-texte); }

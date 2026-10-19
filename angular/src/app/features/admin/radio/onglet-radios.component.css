@@ -1,8 +1,7 @@
 /* Onglet Radios de l'écran Radio — mesures de `app/admin/radio/page.tsx:598-718`. Jetons seulement (C9). */
 :host {
   display: block; font-family: var(--font-sans);
-  /* Texte teal lisible en clair (≈ 1,8:1 sinon), même règle que l'onglet Import (T16) ; inchangé en sombre. */
-  --teal-lisible: light-dark(color-mix(in srgb, var(--brand-teal) 50%, var(--text-primary)), var(--brand-teal));
+  /* Texte teal lisible en clair (≈ 1,8:1 sinon) : --teal-texte du cadre admin (F-3) ; inchangé en sombre. */
 }
 [data-teinte='teal'] { --teinte: var(--brand-teal); }
 [data-teinte='succes'] { --teinte: var(--success); }
@@ -27,7 +26,7 @@
   color: var(--teinte);
 }
 /* « Toutes » actif : bord teal plein et fond teal 10 % (React), texte teal lisible. */
-.filtre[data-teinte='teal'][aria-pressed='true'] { border-color: var(--brand-teal); color: var(--teal-lisible); }
+.filtre[data-teinte='teal'][aria-pressed='true'] { border-color: var(--brand-teal); color: var(--teal-texte); }
 .filtre[data-teinte='danger'][aria-pressed='true'] { background: color-mix(in srgb, var(--danger) 8%, transparent); }
 .filtre:focus-visible, .page-bouton:focus-visible, .lancer:focus-visible, .slug:focus-visible {
   outline: 1px solid var(--brand-teal-50); outline-offset: 1px;
@@ -44,10 +43,10 @@
 .rafraichir:focus-visible { outline: 1px solid var(--brand-teal-50); outline-offset: 1px; }
 
 .chargement { padding: 40px; text-align: center; color: var(--text-tertiary); font-size: 12px; }
-.erreur { padding: 40px; text-align: center; color: var(--danger); font-size: 12px; }
+.erreur { padding: 40px; text-align: center; color: var(--danger-texte); font-size: 12px; }
 .vide { padding: 40px; text-align: center; }
 .vide-texte { font-size: 13px; color: var(--text-tertiary); margin-bottom: 8px; }
 .lancer {
   display: inline-block; background: transparent; border: 0.5px solid var(--brand-teal); border-radius: 6px;
-  padding: 8px 16px; font-size: 12px; color: var(--teal-lisible); cursor: pointer; font-family: var(--font-sans); text-decoration: none;
+  padding: 8px 16px; font-size: 12px; color: var(--teal-texte); cursor: pointer; font-family: var(--font-sans); text-decoration: none;
 }

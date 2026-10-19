@@ -104,11 +104,11 @@ interface VueLigne {
       padding: 6px 14px; border-radius: 2px; border: 1px solid var(--border-subtle); background: none;
       color: var(--text-secondary); font-family: var(--font-sans); font-size: 12px; cursor: pointer;
     }
-    .filtres button[aria-pressed='true'] { border-color: var(--brand-teal); background: var(--brand-teal-10); color: var(--brand-teal); }
+    .filtres button[aria-pressed='true'] { border-color: var(--brand-teal); background: var(--brand-teal-10); color: var(--teal-texte); }
     .filtres button:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 1px; }
     .filtres .rafraichir { margin-left: auto; }
     .tableau { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 2px; }
-    .erreur { padding: 12px 16px; color: var(--danger); font-family: var(--font-mono); font-size: 11px; border-bottom: 1px solid var(--border-subtle); }
+    .erreur { padding: 12px 16px; color: var(--danger-texte); font-family: var(--font-mono); font-size: 11px; border-bottom: 1px solid var(--border-subtle); }
     .message { padding: 40px; text-align: center; color: var(--text-secondary); font-family: var(--font-mono); font-size: 12px; }
     table { width: 100%; border-collapse: collapse; }
     tr { border-bottom: 1px solid var(--border-subtle); }
@@ -121,20 +121,20 @@ interface VueLigne {
     td.source { color: var(--text-primary); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .global { color: var(--text-tertiary); }
     td.nombre { font-family: var(--font-mono); font-size: 12px; text-align: right; color: var(--text-secondary); }
-    td.inseres { color: var(--success); }
-    td.maj { color: var(--warning); }
+    td.inseres { color: var(--success-texte); }
+    td.maj { color: var(--warning-texte); }
     .badge { font-family: var(--font-mono); font-size: 10px; border-radius: 2px; padding: 2px 6px; border: 1px solid; }
-    .badge[data-type='ooh'] { color: var(--brand-teal); background: var(--brand-teal-10); border-color: var(--brand-teal-30); }
+    .badge[data-type='ooh'] { color: var(--teal-texte); background: var(--brand-teal-10); border-color: var(--brand-teal-30); }
     .badge[data-type='source'] {
-      color: var(--info); background: color-mix(in srgb, var(--info) 12%, transparent);
+      color: var(--info-texte); background: color-mix(in srgb, var(--info) 12%, transparent);
       border-color: color-mix(in srgb, var(--info) 30%, transparent);
     }
-    .badge[data-statut][data-teinte='succes'] { color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); border-color: var(--success); }
-    .badge[data-statut][data-teinte='danger'] { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); border-color: var(--danger); }
-    .badge[data-statut][data-teinte='avert'] { color: var(--warning); background: color-mix(in srgb, var(--warning) 10%, transparent); border-color: var(--warning); }
+    .badge[data-statut][data-teinte='succes'] { color: var(--success-texte); background: color-mix(in srgb, var(--success) 12%, transparent); border-color: var(--success); }
+    .badge[data-statut][data-teinte='danger'] { color: var(--danger-texte); background: color-mix(in srgb, var(--danger) 10%, transparent); border-color: var(--danger); }
+    .badge[data-statut][data-teinte='avert'] { color: var(--warning-texte); background: color-mix(in srgb, var(--warning) 10%, transparent); border-color: var(--warning); }
     .badge[data-statut][data-teinte='neutre'] { color: var(--text-secondary); background: var(--bg-level-2); border-color: var(--text-secondary); }
-    [data-valeur][data-teinte='succes'] { color: var(--success); }
-    [data-valeur][data-teinte='danger'], td[data-teinte='danger'] { color: var(--danger); }
+    [data-valeur][data-teinte='succes'] { color: var(--success-texte); }
+    [data-valeur][data-teinte='danger'], td[data-teinte='danger'] { color: var(--danger-texte); }
     [data-valeur][data-teinte='neutre'] { color: var(--text-secondary); }
   `],
 })

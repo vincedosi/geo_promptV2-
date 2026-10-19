@@ -3,14 +3,12 @@
  * boutons de `app/admin/import/_components/styles.ts`, aux jetons de `shared.tsx` (C).
  * Substitutions (C9) : `#505050` (`C.muted`) → `--text-tertiary` ; `rgba(61,255,160,0.12|0.3)` → `--success`
  * à 12 % / 30 % ; `#f87171` (`C.red`) → `--danger`, `rgba(248,113,113,0.1|0.3)` → `--danger` à 10 % / 30 %.
- * Teal en TEXTE lisible en clair (≈ 1,8:1 sinon) : variante `light-dark` de T16, reprise telle quelle. Le vert de
- * `--success` en texte (bouton « Creer », badges, nom du fichier) suit la MÊME recette : ≈ 2,5:1 en clair sinon.
+ * Teal en TEXTE lisible en clair (≈ 1,8:1 sinon) et vert de `--success` en texte (bouton « Creer », badges, nom
+ * du fichier ; ≈ 2,5:1 sinon) : les propriétés `--*-texte` du cadre admin (F-3, DESIGN_SYSTEM § 3).
  * Bords 1 px et rayon 2 gardés (parité, C16).
  */
 :host {
   display: block;
-  --teal-texte: light-dark(color-mix(in srgb, var(--brand-teal) 50%, var(--text-primary)), var(--brand-teal));
-  --vert-texte: light-dark(color-mix(in srgb, var(--success) 50%, var(--text-primary)), var(--success));
 }
 .carte { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 2px; }
 .entete { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border-subtle); }
@@ -24,7 +22,7 @@
   display: inline-block; border: 1px solid;
 }
 .badge.vert {
-  color: var(--vert-texte); background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: var(--success-texte); background: color-mix(in srgb, var(--success) 12%, transparent);
   border-color: color-mix(in srgb, var(--success) 30%, transparent);
 }
 .badge.accent { color: var(--teal-texte); background: var(--brand-teal-10); border-color: var(--brand-teal-30); }

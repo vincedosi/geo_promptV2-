@@ -93,7 +93,8 @@ describe('CadreAdminComponent', () => {
     for (const nom of ['--teal-texte', '--success-texte', '--warning-texte', '--danger-texte', '--info-texte']) {
       expect(style.getPropertyValue(nom), nom).toContain('light-dark(');
     }
-    expect(style.getPropertyValue('--teal-texte')).toContain('var(--brand-teal) 50%');
+    // Recette du teal à 45 % (ruling de la vague finale 2 : ≈ 5,03:1 sur le bouton « Sauvegarder » de Sources, 4,45:1 à 50 %).
+    expect(style.getPropertyValue('--teal-texte')).toContain('var(--brand-teal) 45%');
     expect(style.getPropertyValue('--danger-texte')).toContain('var(--danger) 75%');
   });
 

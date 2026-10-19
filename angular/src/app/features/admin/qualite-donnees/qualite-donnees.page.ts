@@ -252,7 +252,7 @@ function messageLecture(e: unknown): string {
     .page { max-width: 1100px; font-family: var(--font-sans); color: var(--text-secondary); }
     .intro { font-size: 13px; line-height: 1.6; margin: 0 0 28px; max-width: 720px; }
     .erreur {
-      padding: 10px 12px; border-radius: 6px; margin-bottom: 20px; font-size: 12px; color: var(--danger);
+      padding: 10px 12px; border-radius: 6px; margin-bottom: 20px; font-size: 12px; color: var(--danger-texte);
       background: color-mix(in srgb, var(--danger) 8%, transparent);
       border: 0.5px solid color-mix(in srgb, var(--danger) 25%, transparent);
     }
@@ -268,7 +268,7 @@ function messageLecture(e: unknown): string {
     .titre { font-size: 12px; font-weight: 500; color: var(--text-primary); flex: 1; }
     .etat { font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); }
     button {
-      background: transparent; border: 0.5px solid var(--brand-teal); color: var(--brand-teal);
+      background: transparent; border: 0.5px solid var(--brand-teal); color: var(--teal-texte);
       border-radius: 6px; padding: 5px 12px; font-family: var(--font-sans); font-size: 11px; font-weight: 500;
       cursor: pointer;
     }
@@ -278,7 +278,7 @@ function messageLecture(e: unknown): string {
     .jamais { font-size: 12px; color: var(--text-tertiary); }
     .synthese { font-size: 12px; margin-bottom: 10px; }
     .synthese strong { color: var(--text-primary); font-weight: 700; }
-    .synthese strong.danger { color: var(--danger); }
+    .synthese strong.danger { color: var(--danger-texte); }
     .defile { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; }
     th {
@@ -296,8 +296,8 @@ function messageLecture(e: unknown): string {
     tr[data-teinte='danger'] { background: color-mix(in srgb, var(--danger) 8%, transparent); }
     tr[data-teinte='avert'] { background: color-mix(in srgb, var(--warning) 8%, transparent); }
     tr[data-teinte='info'] { background: color-mix(in srgb, var(--brand-teal) 6%, transparent); }
-    .c-danger { color: var(--danger); }
-    .c-avert { color: var(--warning); }
+    .c-danger { color: var(--danger-texte); }
+    .c-avert { color: var(--warning-texte); }
     .c-info { color: var(--text-secondary); }
     .c-neutre { color: var(--text-tertiary); }
     .contresens { font-size: 11px; color: var(--text-tertiary); margin-top: 10px; line-height: 1.6; }

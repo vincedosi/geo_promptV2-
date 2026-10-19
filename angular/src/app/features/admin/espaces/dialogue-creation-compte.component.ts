@@ -127,9 +127,9 @@ let compteur = 0;
     .choix { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer; }
     .choix input { accent-color: var(--brand-teal); margin: 0; }
     fieldset:disabled .choix { cursor: not-allowed; opacity: 0.6; }
-    .aide { margin: 0; font-size: 12px; color: var(--warning); }
+    .aide { margin: 0; font-size: 12px; color: var(--warning-texte); }
     .erreur {
-      margin: 0; padding: 10px 12px; border-radius: 6px; font-size: 12px; color: var(--danger);
+      margin: 0; padding: 10px 12px; border-radius: 6px; font-size: 12px; color: var(--danger-texte);
       background: color-mix(in srgb, var(--danger) 10%, transparent);
       border: 0.5px solid color-mix(in srgb, var(--danger) 20%, transparent);
     }

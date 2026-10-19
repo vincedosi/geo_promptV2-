@@ -44,7 +44,7 @@ type Methode = 'service_account' | 'oauth';
     .prete:not(.ok) { --c-statut: var(--text-tertiary); }
     .pretes { display: flex; gap: 16px; margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--border-subtle); }
     .prete { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--c-statut); }
-    .encart.avert { border: 0.5px solid var(--warning); font-size: 12px; color: var(--warning); }
+    .encart.avert { border: 0.5px solid var(--warning); font-size: 12px; color: var(--warning-texte); }
     .champ.json { font-family: var(--font-mono); font-size: 11px; resize: vertical; }
   `],
 })

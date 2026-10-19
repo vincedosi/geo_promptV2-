@@ -121,21 +121,21 @@ interface VueCampagne {
     .campagne { padding: 12px 16px; transition: border-color 0.15s; }
     .campagne:hover { border-color: var(--brand-teal-30); }
     .ligne-haut { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-    /* Teal lisible en clair (≈ 1,8:1 sinon) : variante light-dark de T16. */
+    /* Teal lisible en clair (≈ 1,8:1 sinon) : --teal-texte du cadre admin (F-3). */
     .nom {
       flex: 1; font-weight: 500; font-size: 14px; text-decoration: none; cursor: default;
-      color: light-dark(color-mix(in srgb, var(--brand-teal) 50%, var(--text-primary)), var(--brand-teal));
+      color: var(--teal-texte);
     }
     .badge {
-      font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 4px; color: var(--warning);
+      font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 4px; color: var(--warning-texte);
       background: color-mix(in srgb, var(--warning) 10%, transparent); border: 0.5px solid color-mix(in srgb, var(--warning) 27%, transparent);
     }
     .supprimer {
       background: color-mix(in srgb, var(--danger) 10%, transparent); border: 0.5px solid color-mix(in srgb, var(--danger) 20%, transparent);
-      border-radius: 4px; padding: 3px 10px; font-family: var(--font-sans); font-size: 10px; color: var(--danger); cursor: pointer;
+      border-radius: 4px; padding: 3px 10px; font-family: var(--font-sans); font-size: 10px; color: var(--danger-texte); cursor: pointer;
     }
     .meta { display: flex; gap: 16px; flex-wrap: wrap; font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
-    .meta .rattache { color: var(--success); }
+    .meta .rattache { color: var(--success-texte); }
     @media (prefers-reduced-motion: reduce) { :host, .tourne { animation: none; } }
   `,
 })

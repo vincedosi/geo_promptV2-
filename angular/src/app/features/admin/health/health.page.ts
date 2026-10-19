@@ -75,7 +75,7 @@ interface TailleBase {
     .en-lecture .resume { color: var(--text-secondary); }
     .retester {
       flex-shrink: 0; display: flex; align-items: center; gap: 6px; background: var(--brand-teal-10);
-      border: 1px solid var(--brand-teal-30); border-radius: 2px; color: var(--brand-teal);
+      border: 1px solid var(--brand-teal-30); border-radius: 2px; color: var(--teal-texte);
       font-size: 12px; padding: 7px 14px; cursor: pointer;
     }
     .retester:disabled { cursor: not-allowed; opacity: 0.5; }
@@ -98,7 +98,7 @@ interface TailleBase {
     td { padding: 10px 12px; text-align: right; color: var(--text-secondary); }
     td:first-child { text-align: left; color: var(--text-primary); font-weight: 600; }
     td:nth-child(2) { color: var(--text-tertiary); }
-    td:nth-child(3) { color: var(--brand-teal); }
+    td:nth-child(3) { color: var(--teal-texte); }
     .build {
       font-size: 11px; background: var(--bg-level-2);
       border: 1px solid var(--border-subtle); border-radius: 2px; padding: 12px 14px;

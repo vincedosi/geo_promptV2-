@@ -31,10 +31,10 @@ dialog::backdrop { background: color-mix(in srgb, black 80%, transparent); anima
 .champ { display: block; }
 .libelle { display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-tertiary); }
 .consigne { font-size: 12px; color: var(--text-tertiary); }
-/* Teal lisible en clair (≈ 1,8:1 sinon) : variante `light-dark` de T16, sans en inventer une autre. */
+/* Teal lisible en clair (≈ 1,8:1 sinon) : --teal-texte du cadre admin (F-3). */
 .nom-fichier {
   font-family: var(--font-mono); font-size: 12px;
-  color: light-dark(color-mix(in srgb, var(--brand-teal) 50%, var(--text-primary)), var(--brand-teal));
+  color: var(--teal-texte);
 }
 select, input {
   box-sizing: border-box; width: 100%; background: var(--bg-level-2); border: 0.5px solid var(--border-subtle); border-radius: 6px;
@@ -49,17 +49,17 @@ select:disabled, input:disabled { opacity: 0.6; cursor: not-allowed; }
   max-height: 200px; overflow-y: auto;
 }
 .evenement { font-family: var(--font-mono); font-size: 11px; padding: 2px 0; color: var(--text-secondary); }
-.evenement[data-evenement='error'] { color: var(--danger); }
-.evenement[data-evenement='complete'] { color: var(--success); }
+.evenement[data-evenement='error'] { color: var(--danger-texte); }
+.evenement[data-evenement='complete'] { color: var(--success-texte); }
 
 .rapport {
   background: color-mix(in srgb, var(--success) 10%, transparent);
   border: 0.5px solid color-mix(in srgb, var(--success) 20%, transparent); border-radius: 6px; padding: 12px;
 }
-.rapport-titre { font-size: 12px; font-weight: 500; color: var(--success); margin-bottom: 6px; }
+.rapport-titre { font-size: 12px; font-weight: 500; color: var(--success-texte); margin-bottom: 6px; }
 .grille { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
 .valeur { color: var(--text-primary); }
-.valeur.succes { color: var(--success); }
+.valeur.succes { color: var(--success-texte); }
 
 .actions { display: flex; gap: 8px; justify-content: flex-end; }
 .bouton {

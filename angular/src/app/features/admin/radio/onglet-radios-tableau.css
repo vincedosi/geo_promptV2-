@@ -17,11 +17,11 @@ td { padding: 8px 12px; }
 .pastille[data-teinte='danger'] { background: color-mix(in srgb, var(--danger) 8%, transparent); }
 .freq { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); }
 .petit { font-size: 11px; }
-.reseau { color: var(--teal-lisible); }
+.reseau { color: var(--teal-texte); }
 .tertiaire { color: var(--text-tertiary); }
 .slug { font-family: var(--font-mono); font-size: 9px; color: var(--text-tertiary); text-decoration: none; transition: color 0.15s; }
-.slug:hover { color: var(--teal-lisible); }
-.non-matche { font-size: 10px; color: var(--danger); }
+.slug:hover { color: var(--teal-texte); }
+.non-matche { font-size: 10px; color: var(--danger-texte); }
 
 .pagination {
   padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; border-top: 0.5px solid var(--border-subtle);

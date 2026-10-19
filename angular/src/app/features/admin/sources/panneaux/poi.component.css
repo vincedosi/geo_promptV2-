@@ -45,6 +45,6 @@
   background: color-mix(in srgb, var(--cat) 10%, transparent); color: var(--cat-texte, var(--cat));
   border-color: color-mix(in srgb, var(--cat) 27%, transparent);
 }
-.nouveau { color: var(--success); border: 0.5px solid color-mix(in srgb, var(--success) 27%, transparent); }
-.purger { color: var(--danger); border: 0.5px solid color-mix(in srgb, var(--danger) 27%, transparent); }
+.nouveau { color: var(--success-texte); border: 0.5px solid color-mix(in srgb, var(--success) 27%, transparent); }
+.purger { color: var(--danger-texte); border: 0.5px solid color-mix(in srgb, var(--danger) 27%, transparent); }
 @media (prefers-reduced-motion: reduce) { .carte, .nb, .barre { animation: none; } .carte:hover { transform: none; } }

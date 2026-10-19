@@ -32,7 +32,7 @@ import { ImportPoiService } from '../etat/import-poi.service';
     input[type='text'] { max-width: 250px; width: 100%; padding: 5px 8px; }
     .creer {
       font-family: var(--font-sans); font-size: 12px; font-weight: 500; background: color-mix(in srgb, var(--success) 12%, transparent);
-      border: 1px solid color-mix(in srgb, var(--success) 30%, transparent); border-radius: 2px; color: var(--vert-texte);
+      border: 1px solid color-mix(in srgb, var(--success) 30%, transparent); border-radius: 2px; color: var(--success-texte);
       padding: 7px 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
     }
     .creer:disabled { opacity: 0.5; cursor: default; }

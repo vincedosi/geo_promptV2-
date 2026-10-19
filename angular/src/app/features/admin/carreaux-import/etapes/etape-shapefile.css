@@ -4,15 +4,12 @@
  * `C.bgElevated` = `--bg-surface`, `C.bgSurface` = `--bg-level-2`, `C.bg` = `--bg-primary`.
  * Substitutions (C9) : `#505050` → `--text-tertiary` ; `#f87171` → `--danger` ; `#fbbf24` → `--warning` ;
  * `#3b82f6` → `--info` ; `rgba(…)` → `color-mix` du jeton ; `#000` posé sur le vert → `--brand-teal-fg`.
- * Vert, rouge et bleu en TEXTE lisibles en clair : recette `light-dark` du teal (T16), reprise en T12 — sans
- * elle, `--success` en texte tombe à ≈ 2,5:1 sur fond clair.
+ * Vert, rouge et bleu en TEXTE lisibles en clair : les propriétés `--*-texte` du cadre admin (F-3, DESIGN_SYSTEM § 3) — sans
+ * elles, `--success` en texte tombe à ≈ 2,5:1 sur fond clair.
  * Bords 1 px et rayon 2 gardés (parité, C16). Survol des boutons verts : opacité 0,85 comme React.
  */
 :host {
   display: block;
-  --vert-texte: light-dark(color-mix(in srgb, var(--success) 50%, var(--text-primary)), var(--success));
-  --rouge-texte: light-dark(color-mix(in srgb, var(--danger) 75%, var(--text-primary)), var(--danger));
-  --bleu-texte: light-dark(color-mix(in srgb, var(--info) 75%, var(--text-primary)), var(--info));
 }
 p { margin: 0; }
 .pile { display: flex; flex-direction: column; gap: 16px; }

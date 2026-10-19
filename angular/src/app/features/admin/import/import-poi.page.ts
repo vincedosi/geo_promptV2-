@@ -36,9 +36,7 @@ import { ImportPoiService } from './etat/import-poi.service';
   styles: [`
     :host {
       display: block; max-width: 900px; font-family: var(--font-sans); color: var(--text-primary);
-      /* Vert de --success en texte lisible en clair (≈ 2,5:1 sinon), de même l'ambre du badge « Admin » (≈ 2,9:1) : recette light-dark du teal de T16. */
-      --vert-texte: light-dark(color-mix(in srgb, var(--success) 50%, var(--text-primary)), var(--success));
-      --ambre-texte: light-dark(color-mix(in srgb, var(--warning) 50%, var(--text-primary)), var(--warning));
+      /* Vert de --success en texte lisible en clair (≈ 2,5:1 sinon), de même l'ambre du badge « Admin » (≈ 2,9:1) : --success-texte / --warning-texte du cadre admin (F-3). */
     }
     .entete { margin-bottom: 20px; }
     .badges { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
@@ -47,11 +45,11 @@ import { ImportPoiService } from './etat/import-poi.service';
       display: inline-block; border: 1px solid;
     }
     .badge.avertissement {
-      color: var(--ambre-texte); background: color-mix(in srgb, var(--warning) 10%, transparent);
+      color: var(--warning-texte); background: color-mix(in srgb, var(--warning) 10%, transparent);
       border-color: color-mix(in srgb, var(--warning) 30%, transparent);
     }
     .badge.vert {
-      color: var(--vert-texte); background: color-mix(in srgb, var(--success) 12%, transparent);
+      color: var(--success-texte); background: color-mix(in srgb, var(--success) 12%, transparent);
       border-color: color-mix(in srgb, var(--success) 30%, transparent);
     }
     .sous-titre { font-family: var(--font-sans); font-size: 12px; color: var(--text-secondary); margin: 0; }

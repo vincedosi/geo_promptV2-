@@ -22,9 +22,9 @@
 .stat { padding: 8px 10px; background: var(--bg-level-2); border: 0.5px solid var(--border-subtle); border-radius: 2px; }
 .stat-libelle { font-size: 9px; font-weight: 500; color: var(--text-secondary); margin-bottom: 4px; }
 .stat-valeur { font-size: 16px; font-weight: 700; font-family: var(--font-mono); }
-.stat-valeur[data-teinte='succes'] { color: var(--success); }
+.stat-valeur[data-teinte='succes'] { color: var(--success-texte); }
 .stat-valeur[data-teinte='texte'] { color: var(--text-primary); }
-.stat-valeur[data-teinte='danger'] { color: var(--danger); }
+.stat-valeur[data-teinte='danger'] { color: var(--danger-texte); }
 
 .info {
   font-family: var(--font-mono); font-size: 11px; background: var(--bg-level-2); border: 0.5px solid var(--border-subtle);
