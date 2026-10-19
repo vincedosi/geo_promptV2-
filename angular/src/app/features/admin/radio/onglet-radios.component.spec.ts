@@ -10,8 +10,8 @@ import { RadioAdminApi, type StationRadio } from './data/radio-admin.api';
 import { ANTI_REBOND_RECHERCHE_MS } from './onglet-radios.component';
 import { AUDIT_RADIO, HISTORIQUE_RADIO, STATIONS_RADIO, STATS_RADIO } from './testing/radio-donnees.fixture';
 import { ImportGeoApi } from '../carreaux-import/data/import-geo.api';
+import { texte } from '../testing/dom';
 
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 const RACINE = '/hote/app/admin/donnees/importer/radio';
 const estStations = (r: { url: string }) => r.url === '/api/radio/stations';
 

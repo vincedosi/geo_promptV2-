@@ -6,6 +6,7 @@ import { NotificationsService } from '../../../../ui/notifications/notifications
 import { SourcesAdminApi } from '../data/sources-admin.api';
 import type { RapportSynchroIris, ReponseStatsIris } from '../data/panneaux.types';
 import { IrisComponent } from './iris.component';
+import { doublerDialog, espaces, texte } from '../../testing/dom';
 
 const STATS = '/api/admin/iris/stats';
 const META = '/api/admin/iris/metadata';
@@ -37,8 +38,6 @@ const RAPPORT: RapportSynchroIris = {
   ],
 };
 
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
-const espaces = (s: string) => s.replace(/\s/g, ' ');
 /** Les nœuds texte d'un élément, joints par une espace (Angular retire les blancs ENTRE éléments). */
 function mots(e: Element | null | undefined): string {
   if (!e) return '';
@@ -46,12 +45,6 @@ function mots(e: Element | null | undefined): string {
   const l: string[] = [];
   for (let n = w.nextNode(); n; n = w.nextNode()) { const t = n.textContent?.replace(/\s+/g, ' ').trim(); if (t) l.push(t); }
   return l.join(' ');
-}
-
-function doublerDialog() {
-  const proto = HTMLDialogElement.prototype as unknown as { showModal?: () => void; close?: () => void };
-  proto.showModal ??= function (this: HTMLDialogElement) { this.setAttribute('open', ''); };
-  proto.close ??= function (this: HTMLDialogElement) { this.removeAttribute('open'); };
 }
 
 describe('IrisComponent — référentiel IRIS : stats, millésime, PMTiles, suppression, synchronisation (lot 6, T19)', () => {

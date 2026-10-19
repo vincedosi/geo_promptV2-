@@ -10,6 +10,7 @@ import type { DspConnectionPublic } from '../logique/types/dsp';
 import { DspApi, type ConfigDv360 } from './data/dsp.api';
 import { Dv360Page } from './dv360.page';
 import { NAVIGUER_HORS_APPLICATION } from './naviguer-hors-application';
+import { doublerDialog } from '../testing/dom';
 
 const CONFIG: ConfigDv360 = {
   env: { enc_key: true, oauth_client_id: false, oauth_client_secret: false, oauth_redirect_uri: true, redirect_uri_value: 'http://localhost:3000/api/admin/dsp/dv360/oauth/callback' },
@@ -26,13 +27,6 @@ const LOG = {
   id: 'l1', provider: 'dv360', category: 'api_call', level: 'error', action: 'list_advertisers',
   status_code: 403, duration_ms: 812, message: 'Permission denied', created_at: '2026-10-12T10:11:12Z',
 };
-
-/** Polyfill jsdom : `<dialog>` sans showModal/close. */
-function doublerDialog() {
-  const proto = HTMLDialogElement.prototype as unknown as { showModal?: () => void; close?: () => void };
-  proto.showModal ??= function (this: HTMLDialogElement) { this.setAttribute('open', ''); };
-  proto.close ??= function (this: HTMLDialogElement) { this.removeAttribute('open'); };
-}
 
 async function monter(url = '/hote/app/dv360', options: { connexions?: DspConnectionPublic[] } = {}) {
   doublerDialog();

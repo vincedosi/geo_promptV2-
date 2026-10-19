@@ -6,6 +6,7 @@ import { NotificationsService } from '../../../../ui/notifications/notifications
 import { SourcesAdminApi, type StatsSources } from '../data/sources-admin.api';
 import type { LignePoi } from '../data/panneaux.types';
 import { PoiComponent } from './poi.component';
+import { doublerDialog, espaces, texte } from '../../testing/dom';
 
 const STATS: StatsSources = {
   success: true,
@@ -31,8 +32,6 @@ function ligne(i: number, p: Partial<LignePoi> = {}): LignePoi {
 }
 const PAGE = (debut: number, n: number) => Array.from({ length: n }, (_, k) => ligne(debut + k));
 
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
-const espaces = (s: string) => s.replace(/\s/g, ' ');
 /** Les nœuds texte d'un élément, joints par une espace (Angular retire les blancs ENTRE éléments). */
 function mots(e: Element | null | undefined): string {
   if (!e) return '';
@@ -40,12 +39,6 @@ function mots(e: Element | null | undefined): string {
   const l: string[] = [];
   for (let n = w.nextNode(); n; n = w.nextNode()) { const t = n.textContent?.replace(/\s+/g, ' ').trim(); if (t) l.push(t); }
   return l.join(' ');
-}
-
-function doublerDialog() {
-  const proto = HTMLDialogElement.prototype as unknown as { showModal?: () => void; close?: () => void };
-  proto.showModal ??= function (this: HTMLDialogElement) { this.setAttribute('open', ''); };
-  proto.close ??= function (this: HTMLDialogElement) { this.removeAttribute('open'); };
 }
 
 const echantillons = (r: { url: string }) => r.url === '/api/admin/poi-samples';

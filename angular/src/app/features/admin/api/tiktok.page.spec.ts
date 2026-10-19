@@ -10,6 +10,7 @@ import type { DspConnectionPublic } from '../logique/types/dsp';
 import { DspApi, type ConfigTiktok } from './data/dsp.api';
 import { NAVIGUER_HORS_APPLICATION } from './naviguer-hors-application';
 import { TiktokPage } from './tiktok.page';
+import { doublerDialog } from '../testing/dom';
 
 /**
  * Diagnostic de FIXTURE, pas le relevé local : clé de chiffrement présente, identifiants absents, et une redirect
@@ -32,13 +33,6 @@ const LOG = {
 };
 
 const JOURNAL = '/api/admin/dsp/logs?provider=tiktok&limit=20';
-
-/** Polyfill jsdom : `<dialog>` sans showModal/close. */
-function doublerDialog() {
-  const proto = HTMLDialogElement.prototype as unknown as { showModal?: () => void; close?: () => void };
-  proto.showModal ??= function (this: HTMLDialogElement) { this.setAttribute('open', ''); };
-  proto.close ??= function (this: HTMLDialogElement) { this.removeAttribute('open'); };
-}
 
 async function monter(url = '/hote/app/tiktok') {
   doublerDialog();

@@ -7,6 +7,7 @@ import { NotificationsService } from '../../../../ui/notifications/notifications
 import { SourcesAdminApi, type CampagneDsp, type RapportImportDsp } from '../data/sources-admin.api';
 import { DialogueImportDspComponent } from './dialogue-import-dsp.component';
 import { DspComponent } from './dsp.component';
+import { doublerDialog, espaces, texte } from '../../testing/dom';
 
 const URL_LISTE = '/api/admin/campaigns';
 
@@ -25,16 +26,6 @@ const CAMPAGNES: CampagneDsp[] = [
   }),
   campagne({ id: 'c3', name: 'Sans IRIS', total_rows: 10, france_rows: 10, matched_iris: 0 }),
 ];
-
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
-/** `formaterNombre` sépare les milliers par une espace insécable : on compare sans elle. */
-const espaces = (s: string) => s.replace(/\s/g, ' ');
-
-function doublerDialog() {
-  const proto = HTMLDialogElement.prototype as unknown as { showModal?: () => void; close?: () => void };
-  proto.showModal ??= function (this: HTMLDialogElement) { this.setAttribute('open', ''); };
-  proto.close ??= function (this: HTMLDialogElement) { this.removeAttribute('open'); };
-}
 
 describe('DspComponent — onglet DSP des Sources : liste, import, suppression (lot 6, T20)', () => {
   let f: ComponentFixture<DspComponent>;

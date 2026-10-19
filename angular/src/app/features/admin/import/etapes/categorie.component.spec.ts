@@ -1,25 +1,14 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ConfigService } from '../../../../core/config/config.service';
-import { NotificationsService } from '../../../../ui/notifications/notifications.service';
-import { CategoriesPoiApi } from '../../commun/data/categories-poi.api';
-import { OrganisationsListeApi } from '../../commun/data/organisations-liste.api';
-import { ImportPoiApi } from '../data/import-poi.api';
+import { HttpTestingController } from '@angular/common/http/testing';
 import { ImportPoiService } from '../etat/import-poi.service';
 import { CategorieComponent } from './categorie.component';
+import { texte } from '../../testing/dom';
+import { fournisseursImportPoi } from '../testing/fournisseurs';
 
 const URL_CATEGORIES = '/api/admin/poi-categories';
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
 async function monter() {
-  TestBed.configureTestingModule({
-    providers: [
-      provideHttpClient(), provideHttpClientTesting(), ImportPoiApi, CategoriesPoiApi, OrganisationsListeApi,
-      NotificationsService, ImportPoiService,
-      { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
-    ],
-  });
+  TestBed.configureTestingModule({ providers: fournisseursImportPoi() });
   const f = TestBed.createComponent(CategorieComponent);
   await f.whenStable();
   return {

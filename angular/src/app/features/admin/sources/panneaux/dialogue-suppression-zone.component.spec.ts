@@ -1,21 +1,13 @@
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import type { ZoneAdmin } from '../data/sources-admin.api';
 import { DialogueSuppressionZoneComponent } from './dialogue-suppression-zone.component';
+import { doublerDialog, espaces, texte } from '../../testing/dom';
 
 const ZONE: ZoneAdmin = {
   id: 'z1', name: 'Cible composite (2 zones) — juil. 2026', description: null, org_id: 'o1', org_name: 'GENESIS (Global)',
   source_type: 'composite', source_metadata: {}, feature_count_iris: 9834, feature_count_cp: 1641, bbox: null,
   created_at: '2026-07-10T09:16:13.790Z', created_by: null,
 };
-
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
-const espaces = (s: string) => s.replace(/\s/g, ' ');
-
-function doublerDialog() {
-  const proto = HTMLDialogElement.prototype as unknown as { showModal?: () => void; close?: () => void };
-  proto.showModal ??= function (this: HTMLDialogElement) { this.setAttribute('open', ''); };
-  proto.close ??= function (this: HTMLDialogElement) { this.removeAttribute('open'); };
-}
 
 describe('DialogueSuppressionZoneComponent — confirmation de suppression d’une zone perso (lot 6, T20)', () => {
   let f: ComponentFixture<DialogueSuppressionZoneComponent>;

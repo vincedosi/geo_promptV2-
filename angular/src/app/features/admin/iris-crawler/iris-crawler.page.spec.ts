@@ -6,13 +6,10 @@ import { formaterNombre } from '../../../core/format/nombre';
 import { IrisCrawlerApi } from './data/iris-crawler.api';
 import { IrisCrawlerPage } from './iris-crawler.page';
 import { DEPOT_IRIS_ESSAI, FLUX_IMPORT_IRIS } from './testing/iris-manual-import.fixture';
+import { espaces, texte } from '../testing/dom';
 
 const URL_DEPOT = '/api/iris-crawler/manual-upload';
 const URL_IMPORT = '/api/iris-crawler/manual-import';
-
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
-/** `formaterNombre` sépare les milliers par une espace insécable : on compare sans elle. */
-const espaces = (s: string) => s.replace(/\s/g, ' ');
 
 /** jsdom n'a ni DragEvent ni DataTransfer : un événement portant `dataTransfer.files`. */
 function deposer(el: HTMLElement, fichier: File): void {

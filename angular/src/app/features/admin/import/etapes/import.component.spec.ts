@@ -1,40 +1,22 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpEventType, provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting, type TestRequest } from '@angular/common/http/testing';
-import { ConfigService } from '../../../../core/config/config.service';
+import { HttpEventType } from '@angular/common/http';
+import { HttpTestingController, type TestRequest } from '@angular/common/http/testing';
 import { formaterNombre } from '../../../../core/format/nombre';
-import { NotificationsService } from '../../../../ui/notifications/notifications.service';
-import { CategoriesPoiApi } from '../../commun/data/categories-poi.api';
-import { OrganisationsListeApi } from '../../commun/data/organisations-liste.api';
-import { ImportPoiApi } from '../data/import-poi.api';
 import { ImportPoiService } from '../etat/import-poi.service';
 import { ESSAI_A_BLANC } from '../testing/geocodage.fixture';
 import { ANALYSE_POI_ESSAI } from '../testing/import-poi.fixture';
 import { FLUX_IMPORT_COMPLET, FLUX_SOURCE_IMPOSSIBLE } from '../testing/import-poi-sse.fixture';
 import { ImportComponent } from './import.component';
+import { doublerDialog, espaces, texte } from '../../testing/dom';
+import { fournisseursImportPoi } from '../testing/fournisseurs';
 
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
-const espaces = (s: string) => s.replace(/\s/g, ' ');
 /** Angular retire les blancs entre éléments : les enfants se lisent un à un. */
 const enfants = (e: Element | null) => (e ? [...e.children].map((c) => texte(c)).join(' ') : '');
 const URL_IMPORT = '/api/admin/import-poi/execute';
 
-/** Polyfill jsdom : `<dialog>` sans showModal/close (patron de `dv360.page.spec.ts`). */
-function doublerDialog() {
-  const proto = HTMLDialogElement.prototype as unknown as { showModal?: () => void; close?: () => void };
-  proto.showModal ??= function (this: HTMLDialogElement) { this.setAttribute('open', ''); };
-  proto.close ??= function (this: HTMLDialogElement) { this.removeAttribute('open'); };
-}
-
 async function monter(organisations = [{ id: 'o1', name: 'Espace A' }, { id: 'o2', name: 'Espace B' }]) {
   doublerDialog();
-  TestBed.configureTestingModule({
-    providers: [
-      provideHttpClient(), provideHttpClientTesting(), ImportPoiApi, CategoriesPoiApi, OrganisationsListeApi,
-      NotificationsService, ImportPoiService,
-      { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
-    ],
-  });
+  TestBed.configureTestingModule({ providers: fournisseursImportPoi() });
   const etat = TestBed.inject(ImportPoiService);
   const http = TestBed.inject(HttpTestingController);
   etat.organisations.set(organisations);

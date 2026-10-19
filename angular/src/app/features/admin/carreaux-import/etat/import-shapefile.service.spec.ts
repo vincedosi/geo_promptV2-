@@ -7,11 +7,11 @@ import { ImportGeoApi, type LigneCarreau } from '../data/import-geo.api';
 import { CHARGEUR_PROJ4, chargerProj4 } from '../logique/charger-proj4';
 import { fichiersEssai } from '../testing/shapefile.fixture';
 import { ImportShapefileService } from './import-shapefile.service';
+import { espaces } from '../../testing/dom';
 
 const URL_LOT = '/api/admin/import-geo';
 const URL_REGISTER = '/api/admin/import-geo/register';
 const tick = () => new Promise<void>((r) => setTimeout(r, 0));
-const espaces = (s: string) => s.replace(/\s/g, ' ');
 
 describe('ImportShapefileService — lecture, envoi par lots, enregistrement (lot 6, T14)', { timeout: 20_000 }, () => {
   let http: HttpTestingController;

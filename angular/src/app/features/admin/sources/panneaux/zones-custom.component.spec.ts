@@ -5,6 +5,7 @@ import { ConfigService } from '../../../../core/config/config.service';
 import type { OrganisationListe } from '../../commun/data/organisations-liste.api';
 import { SourcesAdminApi, type ZoneAdmin } from '../data/sources-admin.api';
 import { ZonesCustomComponent } from './zones-custom.component';
+import { doublerDialog, espaces, texte } from '../../testing/dom';
 
 const URL_LISTE = '/api/admin/custom-geo/list';
 const GLOBAL = '00000000-0000-0000-0000-000000000001';
@@ -23,8 +24,6 @@ const ZONES: ZoneAdmin[] = [
 ];
 const ORGANISATIONS: OrganisationListe[] = [{ id: GLOBAL, name: 'GENESIS (Global)' }, { id: 'o2', name: 'Espace B' }];
 
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
-const espaces = (s: string) => s.replace(/\s/g, ' ');
 /** Les nœuds texte d'un élément, joints par une espace (Angular retire les blancs ENTRE éléments). */
 function mots(e: Element): string {
   const w = document.createTreeWalker(e, NodeFilter.SHOW_TEXT);
@@ -34,12 +33,6 @@ function mots(e: Element): string {
 }
 /** Date attendue, calculée comme `fmtDate` de React (fuseau de la machine de test). */
 const date = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
-
-function doublerDialog() {
-  const proto = HTMLDialogElement.prototype as unknown as { showModal?: () => void; close?: () => void };
-  proto.showModal ??= function (this: HTMLDialogElement) { this.setAttribute('open', ''); };
-  proto.close ??= function (this: HTMLDialogElement) { this.removeAttribute('open'); };
-}
 
 describe('ZonesCustomComponent — onglet Zones perso des Sources : filtres, tableau, suppression (lot 6, T20)', () => {
   let f: ComponentFixture<ZonesCustomComponent>;

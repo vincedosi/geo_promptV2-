@@ -10,8 +10,7 @@ import { IrisCrawlerApi } from '../iris-crawler/data/iris-crawler.api';
 import { RadioAdminApi } from './data/radio-admin.api';
 import { HISTORIQUE_RADIO, STATS_RADIO } from './testing/radio-donnees.fixture';
 import { ImportGeoApi } from '../carreaux-import/data/import-geo.api';
-
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+import { texte } from '../testing/dom';
 
 /** La VRAIE route `donnees` de ROUTES_ADMIN, sous un préfixe d'hôte, sans le garde. */
 async function monter(url: string) {

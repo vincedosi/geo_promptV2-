@@ -11,14 +11,7 @@ import { daysAgo, fmtDate } from './logique/radio';
 import { DERNIERE_MAJ, HISTORIQUE_RADIO, STATS_RADIO } from './testing/radio-donnees.fixture';
 import { FLUX_RADIO_ANFR, FLUX_RADIO_ARCOM, FLUX_RADIO_ODS } from './testing/radio-flux.fixture';
 import { ImportGeoApi } from '../carreaux-import/data/import-geo.api';
-
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
-
-function doublerDialog(): void {
-  const proto = HTMLDialogElement.prototype as unknown as { showModal?: () => void; close?: () => void };
-  proto.showModal ??= function (this: HTMLDialogElement) { this.setAttribute('open', ''); };
-  proto.close ??= function (this: HTMLDialogElement) { this.removeAttribute('open'); };
-}
+import { doublerDialog, texte } from '../testing/dom';
 
 /** La VRAIE route `donnees` (sans le garde), sous un préfixe d'hôte ; notifications à la racine (C7 : le cadre). */
 async function monter() {

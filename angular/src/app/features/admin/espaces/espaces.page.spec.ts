@@ -9,6 +9,7 @@ import { NotificationsService } from '../../../ui/notifications/notifications.se
 import { EspacesApi } from './data/espaces.api';
 import { EspacesPage } from './espaces.page';
 import type { EspaceResume, ReponseEspaces } from './logique/types';
+import { texte } from '../testing/dom';
 
 @Component({ selector: 'mg-fiche-factice', template: '<p data-fiche>fiche</p>' })
 class FicheFactice {}
@@ -81,7 +82,6 @@ async function monter(url = '/admin/acces') {
   return { harness, http, el, stable, charger };
 }
 
-const texte = (n: Element | null | undefined) => n?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 const liens = (el: HTMLElement) => [...el.querySelectorAll<HTMLAnchorElement>('nav[aria-label="Accès"] a')];
 
 describe('EspacesPage', () => {

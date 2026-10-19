@@ -1,14 +1,7 @@
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import type { FormulairePoi } from '../data/panneaux.types';
 import { DialoguePoiComponent, FORMULAIRE_POI_VIDE } from './dialogue-poi.component';
-
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
-
-function doublerDialog() {
-  const proto = HTMLDialogElement.prototype as unknown as { showModal?: () => void; close?: () => void };
-  proto.showModal ??= function (this: HTMLDialogElement) { this.setAttribute('open', ''); };
-  proto.close ??= function (this: HTMLDialogElement) { this.removeAttribute('open'); };
-}
+import { doublerDialog, texte } from '../../testing/dom';
 
 describe('DialoguePoiComponent — modale de création / édition d’un POI (lot 6, T19)', () => {
   let f: ComponentFixture<DialoguePoiComponent>;

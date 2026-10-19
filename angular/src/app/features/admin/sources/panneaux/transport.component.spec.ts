@@ -5,6 +5,7 @@ import { ConfigService } from '../../../../core/config/config.service';
 import { SourcesAdminApi } from '../data/sources-admin.api';
 import type { StatsTransport } from '../data/panneaux.types';
 import { TransportComponent } from './transport.component';
+import { espaces, texte } from '../../testing/dom';
 
 const URL = '/api/admin/transport-stats';
 
@@ -29,9 +30,6 @@ const SCORE: StatsTransport = {
     { ville: 'Lyon', nb_panneaux: 4, avec_transport: 1, transport_moyen: 3, avec_flux: 0, flux_moyen: 0, score_moyen: 1.1 },
   ],
 };
-
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
-const espaces = (s: string) => s.replace(/\s/g, ' ');
 
 describe('TransportComponent — arrêts, flux routier, scoring des panneaux par ville (lot 6, T19)', () => {
   let f: ComponentFixture<TransportComponent>;

@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import type { Type } from '@angular/core';
 import type { StatsSources } from '../data/sources-admin.api';
 import { CarreauxComponent } from './carreaux.component';
+import { texte } from '../../testing/dom';
 
 const STATS: StatsSources = {
   success: true,
@@ -12,8 +13,6 @@ const STATS: StatsSources = {
   carreaux: { total: 2324604 },
   iris: { total: 49448, enrichis: 49133 },
 };
-
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
 function monter<T>(type: Type<T>, stats: StatsSources | null, chargement = false) {
   const f = TestBed.createComponent(type);

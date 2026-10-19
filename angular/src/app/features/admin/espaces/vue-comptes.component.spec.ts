@@ -9,6 +9,7 @@ import { EspacesApi } from './data/espaces.api';
 import { EspacesEtatService } from './etat/espaces-etat.service';
 import type { CompteResume, EspaceResume } from './logique/types';
 import { VueComptesComponent } from './vue-comptes.component';
+import { texte } from '../testing/dom';
 
 const URL = '/api/admin/espaces/comptes';
 
@@ -71,7 +72,6 @@ async function monter() {
   return { f, el, http, stable, charger, filtrer, ligne, recharger };
 }
 
-const texte = (n: Element | null | undefined) => n?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 /** « libellé effectif » d'un bandeau de groupe. */
 const bandeau = (g: Element | null) => `${texte(g?.querySelector('[data-libelle]'))} ${texte(g?.querySelector('[data-effectif]'))}`;
 

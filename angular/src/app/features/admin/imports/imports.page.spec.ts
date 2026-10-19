@@ -4,6 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ConfigService } from '../../../core/config/config.service';
 import { ImportsApi, type LigneImport } from './data/imports.api';
 import { ImportsPage } from './imports.page';
+import { espaces, texte } from '../testing/dom';
 
 const URL = '/api/admin/imports';
 
@@ -22,9 +23,7 @@ const LIGNES: LigneImport[] = [
   ligne({ id: 'd', type: undefined, status: 'brouillon', started_at: '', total: 5, inserted: 5 }),
 ];
 
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 /** `toLocaleString('fr-FR')` sépare les milliers par une espace fine insécable : on compare sans elle. */
-const espaces = (s: string) => s.replace(/\s/g, ' ');
 
 describe('ImportsPage — historique des imports (lot 6, T11′)', () => {
   let f: ComponentFixture<ImportsPage>;

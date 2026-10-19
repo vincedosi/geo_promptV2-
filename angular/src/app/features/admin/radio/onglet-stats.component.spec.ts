@@ -11,8 +11,8 @@ import { RadioAdminApi, type AuditRadio } from './data/radio-admin.api';
 import { fmtDate } from './logique/radio';
 import { AUDIT_RADIO, HISTORIQUE_RADIO, STATIONS_RADIO, STATS_RADIO } from './testing/radio-donnees.fixture';
 import { ImportGeoApi } from '../carreaux-import/data/import-geo.api';
+import { texte } from '../testing/dom';
 
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 /** Même repli des blancs que `texte` (le séparateur de milliers fr-FR est une espace fine insécable). */
 const plie = (s: string) => s.replace(/\s+/g, ' ');
 const RACINE = '/hote/app/admin/donnees/importer/radio';

@@ -6,18 +6,10 @@ import { NotificationsService } from '../../../../ui/notifications/notifications
 import { SourcesAdminApi, type RapportImportDsp } from '../data/sources-admin.api';
 import { FLUX_IMPORT_DSP } from '../testing/dsp-import.fixture';
 import { DialogueImportDspComponent } from './dialogue-import-dsp.component';
+import { doublerDialog, texte } from '../../testing/dom';
 
 const URL_IMPORT = '/api/admin/campaigns/import';
 const CSV = new File(['campaign,date\n'], 'campagne-essai.csv', { type: 'text/csv' });
-
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
-
-/** Polyfill jsdom : `<dialog>` sans showModal/close (patron de `dv360.page.spec.ts`). */
-function doublerDialog() {
-  const proto = HTMLDialogElement.prototype as unknown as { showModal?: () => void; close?: () => void };
-  proto.showModal ??= function (this: HTMLDialogElement) { this.setAttribute('open', ''); };
-  proto.close ??= function (this: HTMLDialogElement) { this.removeAttribute('open'); };
-}
 
 /** jsdom n'a ni DragEvent ni DataTransfer : un événement portant `dataTransfer.files`. */
 function deposer(el: HTMLElement, fichier: File): void {

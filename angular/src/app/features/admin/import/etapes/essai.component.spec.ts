@@ -1,31 +1,19 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ConfigService } from '../../../../core/config/config.service';
+import { HttpTestingController } from '@angular/common/http/testing';
 import { formaterNombre } from '../../../../core/format/nombre';
-import { NotificationsService } from '../../../../ui/notifications/notifications.service';
-import { CategoriesPoiApi } from '../../commun/data/categories-poi.api';
-import { OrganisationsListeApi } from '../../commun/data/organisations-liste.api';
-import { ImportPoiApi } from '../data/import-poi.api';
 import { ImportPoiService } from '../etat/import-poi.service';
 import { ESSAI_A_BLANC } from '../testing/geocodage.fixture';
 import { ANALYSE_POI_ESSAI } from '../testing/import-poi.fixture';
 import { EssaiComponent } from './essai.component';
+import { espaces, texte } from '../../testing/dom';
+import { fournisseursImportPoi } from '../testing/fournisseurs';
 
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 /** Angular retire les blancs entre éléments : les enfants se lisent un à un. */
 const enfants = (e: Element) => [...e.children].map((c) => texte(c)).join(' ');
-const espaces = (s: string) => s.replace(/\s/g, ' ');
 const URL_ESSAI = '/api/admin/import-poi/dry-run';
 
 async function monter() {
-  TestBed.configureTestingModule({
-    providers: [
-      provideHttpClient(), provideHttpClientTesting(), ImportPoiApi, CategoriesPoiApi, OrganisationsListeApi,
-      NotificationsService, ImportPoiService,
-      { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
-    ],
-  });
+  TestBed.configureTestingModule({ providers: fournisseursImportPoi() });
   const etat = TestBed.inject(ImportPoiService);
   const http = TestBed.inject(HttpTestingController);
   etat.analyser([new File(['x'], 'poi-essai.csv')]);

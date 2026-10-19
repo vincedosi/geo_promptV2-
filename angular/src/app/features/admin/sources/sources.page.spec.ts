@@ -14,6 +14,7 @@ import { SourcesAdminApi, type StatsSources, type StatsZones } from './data/sour
 import { SourcesPage } from './sources.page';
 import { PoiComponent } from './panneaux/poi.component';
 import { ImportGeoApi } from '../carreaux-import/data/import-geo.api';
+import { doublerDialog, espaces, texte } from '../testing/dom';
 
 const IMPORT = '2026-10-16T12:05:00.000Z';
 /** Date attendue, calculée comme `formatDate` de React (fuseau de la machine de test). */
@@ -51,7 +52,6 @@ const STATS: StatsSources = {
 const RADIO = { total_emetteurs: 12704, emetteurs_fm: 11602, emetteurs_dab: 1102, total_radios: 1175 };
 const ZONES: StatsZones = { total_zones: 7, total_iris: 1234, total_cp: 56, nb_workspaces: 2, top_workspaces: [] };
 
-const texte = (e: Element | null | undefined) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 /** Les nœuds texte d'un élément, joints par une espace (Angular retire les blancs ENTRE éléments). */
 function mots(e: Element | null | undefined): string {
   if (!e) return '';
@@ -61,14 +61,6 @@ function mots(e: Element | null | undefined): string {
   return l.join(' ');
 }
 /** `toLocaleString('fr-FR')` sépare les milliers par une espace fine insécable : on compare sans elle. */
-const espaces = (s: string) => s.replace(/\s/g, ' ');
-
-/** Polyfill jsdom : `<dialog>` sans showModal/close (patron de `dv360.page.spec.ts`). */
-function doublerDialog() {
-  const proto = HTMLDialogElement.prototype as unknown as { showModal?: () => void; close?: () => void };
-  proto.showModal ??= function (this: HTMLDialogElement) { this.setAttribute('open', ''); };
-  proto.close ??= function (this: HTMLDialogElement) { this.removeAttribute('open'); };
-}
 
 async function monter() {
   doublerDialog();

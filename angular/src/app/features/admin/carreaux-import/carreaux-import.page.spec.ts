@@ -12,6 +12,7 @@ import { ImportsApi } from '../imports/data/imports.api';
 import { IrisCrawlerApi } from '../iris-crawler/data/iris-crawler.api';
 import { deposer, texte } from './testing/aides';
 import { fichiersEssai } from './testing/shapefile.fixture';
+import { doublerDialog } from '../testing/dom';
 
 /** La VRAIE route `donnees` de ROUTES_ADMIN, sous un préfixe d'hôte, sans le garde. */
 async function monter(url: string) {
@@ -64,13 +65,6 @@ async function rendre(harness: RouterTestingHarness): Promise<void> {
 
 const URL_LOT = '/api/admin/import-geo';
 const URL_REGISTER = '/api/admin/import-geo/register';
-
-/** jsdom n'a pas `showModal` : la confirmation de sortie est un `<dialog>`. */
-function doublerDialog(): void {
-  const proto = HTMLDialogElement.prototype as unknown as { showModal?: () => void; close?: () => void };
-  proto.showModal ??= function (this: HTMLDialogElement) { this.setAttribute('open', ''); };
-  proto.close ??= function (this: HTMLDialogElement) { this.removeAttribute('open'); };
-}
 
 describe('CarreauxImportPage — `admin/donnees/importer/shapefile` (`app/admin/carreaux-import/page.tsx`, lot 6, T14)', { timeout: 30_000 }, () => {
   // `proj4` chargé UNE fois avant la suite (J1) : son premier `import()` coûtait plusieurs secondes sous charge.
