@@ -85,8 +85,8 @@ import { ImportPoiService } from '../etat/import-poi.service';
           </div>
         }
 
-        @if (echec(); as message) {
-          <div class="alerte rouge marge-12" data-erreur>! {{ message }}</div>
+        @if (echec() !== null) {
+          <div class="alerte rouge marge-12" data-erreur>! {{ echec() }}</div>
         }
       </div>
     </div>
@@ -99,10 +99,13 @@ export class EssaiComponent {
     const e = this.etat.essai();
     return e?.success ? e : null;
   });
-  /** `dryRunResult && !dryRunResult.success` : le message de la route (`undefined` rendu vide, comme React). */
+  /**
+   * `dryRunResult && !dryRunResult.success` : le message de la route, `''` quand elle n'en donne pas (React rend
+   * « ! » suivi de rien). `null` = pas d'échec : le gabarit teste `!== null`, une chaîne vide reste une alerte.
+   */
   protected readonly echec = computed(() => {
     const e = this.etat.essai();
-    return e && !e.success ? `${e.error ?? ''}` || ' ' : null;
+    return e && !e.success ? `${e.error ?? ''}` : null;
   });
   protected readonly totalFichier = computed(() => formaterNombre(this.reussi()?.stats.totalRows ?? 0));
   protected readonly echantillon = computed(() => JSON.stringify(this.reussi()?.samplePoints ?? [], null, 2));

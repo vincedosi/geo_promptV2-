@@ -20,7 +20,8 @@ interface LigneColonne {
  * Calculs de React à l'identique (`mappedSourceCols`, `colToSchema`, `unmappedCols`, compteurs), en `computed`.
  *
  * Écarts à React, voulus : cases nommées (`aria-label`) ; couleurs (C9) : `rgba(78,205,196,0.04)` → teal à
- * 4 %, `rgba(0,0,0,0.2)` → `--bg-level-0` à 20 % (React : un voile noir aussi en thème clair), `#505050` →
+ * 4 %, `rgba(0,0,0,0.2)` → `--text-primary` à 6 % (vague finale E1 : `--bg-level-0` à 20 % était blanc sur blanc
+ * en clair, la ligne exclue ne se voyait plus ; voile neutre visible dans les deux thèmes), `#505050` →
  * `--text-tertiary`, teal en texte lisible en clair. Gardés par parité : textes sans accents (« importees »,
  * « exclu »), « 1 filtres » au pied (React n'accorde que le badge), grille `1fr 180px 80px 70px`.
  */

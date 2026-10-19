@@ -87,6 +87,20 @@ describe('mg-import-correspondance — étape 03 « Mapping colonnes » (`Mappin
     expect(texte(el.querySelector('[data-note-mode]'))).toBe('// EPSG:2154 → EPSG:4326 via proj4');
   });
 
+  it('un clic sur un mode (libellé ou bouton radio) appelle le choix UNE seule fois — le `(change)` du radio suffit (vague finale E2)', async () => {
+    const { f, el, etat } = await monter();
+    const choix = vi.spyOn(etat, 'choisirModeGeo');
+    (el.querySelectorAll('[data-mode]')[1] as HTMLElement).click();
+    await f.whenStable();
+    expect(choix).toHaveBeenCalledTimes(1);
+    expect(etat.modeGeo()).toBe('address');
+    choix.mockClear();
+    (el.querySelectorAll('[data-mode] input[type="radio"]')[2] as HTMLInputElement).click();
+    await f.whenStable();
+    expect(choix).toHaveBeenCalledTimes(1);
+    expect(etat.modeGeo()).toBe('lambert93');
+  });
+
   it('changer un sélecteur écrit l’état : champ standard (vide → retiré) et colonne géo', async () => {
     const { f, el, etat } = await monter();
     const sNom = el.querySelector<HTMLSelectElement>('[data-standard] [data-ligne] select')!;

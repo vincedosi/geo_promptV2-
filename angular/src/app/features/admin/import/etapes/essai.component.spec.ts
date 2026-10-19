@@ -103,4 +103,13 @@ describe('mg-import-essai — étape 04 « Test (dry-run) » (`DryRunStep.tsx`, 
     expect(el.querySelector('[data-tuiles]')).toBeNull();
     expect(el.querySelector('[data-valides]')).toBeNull();
   });
+  it('refus SANS `error` : l’alerte « ! » s’affiche quand même, vide comme React (`undefined` rendu vide) — vague finale E6', async () => {
+    const { el, http, stable, bouton } = await monter();
+    bouton().click();
+    await stable();
+    http.expectOne(URL_ESSAI).flush({ success: false }, { status: 400, statusText: 'Bad Request' });
+    await stable();
+    expect(el.querySelector('[data-erreur]')).not.toBeNull();
+    expect(texte(el.querySelector('[data-erreur]'))).toBe('!');
+  });
 });

@@ -480,6 +480,17 @@ describe('ImportPoiService — géocodage, essai à blanc et import en flux (lot
       expect(m.etat.resultatsGeocodage()[2]).toEqual(GEOCODAGE_ESSAI.results![2]);
     });
 
+    it('vague finale E3 — correction ouverte et filtre posé, puis nouveau fichier : formulaire fermé et vidé, filtre « all »', () => {
+      const m = geocode();
+      m.etat.ouvrirEdition(GEOCODAGE_ESSAI.results![0]);
+      m.etat.filtreGeocodage.set('red');
+      expect(m.etat.ligneEditee()).not.toBeNull();
+      m.etat.analyser([csv('autre.csv')]);
+      m.http.expectOne(URL_PARSE).flush(ANALYSE_POI_ESSAI);
+      expect([m.etat.ligneEditee(), m.etat.adresseEditee(), m.etat.latEditee(), m.etat.lngEditee()]).toEqual([null, '', '', '']);
+      expect(m.etat.filtreGeocodage()).toBe('all');
+    });
+
     it('ouvrir l’édition recopie l’adresse et les coordonnées ; la rouvrir la ferme (« Corriger » / « Fermer »)', () => {
       const m = geocode();
       m.etat.ouvrirEdition(GEOCODAGE_ESSAI.results![1]);
@@ -591,7 +602,8 @@ describe('ImportPoiService — géocodage, essai à blanc et import en flux (lot
       expect(m.etat.journal()).toEqual([]);
 
       morceau(req, FLUX_IMPORT_COMPLET, 'data: {"type":"log","logLevel":"info","logLine":"--- Batch');
-      expect(m.etat.etatProgression()).toMatchObject({ etape: 'Source "5f1c2a9e" creee', traitees: 0, total: 10 });
+      // Vague finale E4 : le journal « Insertion en base… » fait basculer l'étape (la route n'envoie plus de message).
+      expect(m.etat.etatProgression()).toMatchObject({ etape: 'Insertion en base Supabase', traitees: 0, total: 10 });
       expect(m.etat.journal().map((l) => l.line)).toEqual([
         'Insertion en base Supabase (10 lignes)...',
         '====== START: 10 lignes, type="poi" (Supabase JS) ======',

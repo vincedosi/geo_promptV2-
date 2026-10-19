@@ -21,7 +21,7 @@
       <div class="note geo mono" data-note-geo>// geolocalisation</div>
       <div class="modes" role="radiogroup" aria-label="Géolocalisation">
         @for (mode of modes; track mode.val) {
-          <label class="mode" data-mode [class.actif]="etat.modeGeo() === mode.val" (click)="choisirMode(mode.val)">
+          <label class="mode" data-mode [class.actif]="etat.modeGeo() === mode.val">
             <input type="radio" name="import-poi-mode-geo" [value]="mode.val" [checked]="etat.modeGeo() === mode.val" (change)="choisirMode(mode.val)" />
             <div class="texte-mode">
               <div class="titre-mode">{{ mode.title }}</div>

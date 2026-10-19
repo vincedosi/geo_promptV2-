@@ -307,6 +307,11 @@ export class ImportPoiService extends ImportPoiPreparation {
     if (evt.type === 'log') {
       const ligne = evt.logLine;
       if (ligne) this.journal.update((j) => [...j, { level: evt.logLevel || 'info', line: ligne }]);
+      // Vague finale E4 : la route ouvre l'insertion par ce seul journal, sans `progress` nommé ; sans bascule,
+      // l'étape restait « Source "…" creee — 0 / N » pendant toute l'insertion.
+      if (ligne?.startsWith(ETAPE_INSERTION)) {
+        this.etatProgression.update((p) => (p ? { ...p, etape: ETAPE_INSERTION } : p));
+      }
       return;
     }
     this.progression.set(evt);
@@ -374,6 +379,12 @@ export class ImportPoiService extends ImportPoiPreparation {
    */
   private oublierGeocodage(): void {
     this.correctionEnCours.set(false);
+    // Vague finale E3 : le formulaire de correction et le filtre visaient les lignes de l'ANCIEN géocodage.
+    this.ligneEditee.set(null);
+    this.adresseEditee.set('');
+    this.latEditee.set('');
+    this.lngEditee.set('');
+    this.filtreGeocodage.set('all');
     this.geocodeId.set(null);
     this.resultatsGeocodage.set([]);
     this.statsGeocodage.set(null);

@@ -79,7 +79,7 @@ export class ImportComponent {
       ? `! Import echoue — ${r.errors} erreurs, 0 inseres`
       : sorte === 'ambre' ? `! Import partiel — ${r.inserted} inseres, ${r.errors} erreurs` : '[OK] Import termine avec succes';
     return {
-      sorte, texte, inseres: formaterNombre(r.inserted), erreursPositives: r.errors > 0,
+      sorte, texte, inseres: formaterNombre(r.inserted),
       cellules: [
         { libelle: 'total', valeur: formaterNombre(r.total), classe: 'primaire-t' },
         { libelle: 'inseres', valeur: formaterNombre(r.inserted), classe: 'vert-t' },
