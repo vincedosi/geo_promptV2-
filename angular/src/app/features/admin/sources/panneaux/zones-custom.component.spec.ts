@@ -130,14 +130,21 @@ describe('ZonesCustomComponent — onglet Zones perso des Sources : filtres, tab
 
   it('recherche : relue 200 ms après la frappe (anti-rebond de React), une seule fois ; pied préfixé « Filtres actifs : »', async () => {
     await servir();
-    recherche().value = 'cib';
-    recherche().dispatchEvent(new Event('input'));
-    recherche().value = 'cible';
-    recherche().dispatchEvent(new Event('input'));
-    await stable();
-    http.expectNone((r) => r.url === URL_LISTE);
-    await new Promise((fin) => setTimeout(fin, 230));
-    const r = lecture();
+    // Vague finale J2 : minuteries simulées, à la milliseconde, au lieu d'une attente réelle de 230 ms.
+    vi.useFakeTimers();
+    let r;
+    try {
+      recherche().value = 'cib';
+      recherche().dispatchEvent(new Event('input'));
+      recherche().value = 'cible';
+      recherche().dispatchEvent(new Event('input'));
+      vi.advanceTimersByTime(199);
+      http.expectNone((q) => q.url === URL_LISTE);
+      vi.advanceTimersByTime(1);
+      r = lecture();
+    } finally {
+      vi.useRealTimers();
+    }
     expect(r.request.urlWithParams).toBe(`${URL_LISTE}?q=cible`);
     r.flush({ zones: [ZONES[0]] });
     await stable();
