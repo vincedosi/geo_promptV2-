@@ -136,7 +136,8 @@ describe('mg-import-reel — étape 05 « Import reel » (`ImportStep.tsx`, `Imp
     expect(el.querySelector('mg-progression-import [role="progressbar"]')!.hasAttribute('aria-valuenow')).toBe(false);
 
     await morceau(req, FLUX_IMPORT_COMPLET, 'data: {"type":"log","logLevel":"info","logLine":"--- Batch');
-    expect(progression()).toContain(espaces(`Source "5f1c2a9e" creee — 0 / ${formaterNombre(10)}`));
+    // Vague finale E4 : le journal « Insertion en base… » nomme l’étape (avant : « Source "…" creee » restait affiché).
+    expect(progression()).toContain(espaces(`Insertion en base Supabase — 0 / ${formaterNombre(10)}`));
     expect(espaces(enfants(el.querySelector('[data-compteurs]')))).toBe('traites: 0/10');
     expect(journal()).toEqual([
       'Insertion en base Supabase (10 lignes)...',
