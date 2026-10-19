@@ -10,7 +10,11 @@
 .lignes { max-height: 400px; overflow: auto; }
 .ligne { border-radius: 2px; border-bottom: 1px solid var(--border-subtle); align-items: center; background: transparent; }
 .ligne.mappee { background: color-mix(in srgb, var(--brand-teal) 4%, transparent); opacity: 0.75; }
-.ligne.exclue { background: color-mix(in srgb, var(--text-primary) 6%, transparent); }
+/* Voile de la ligne exclue (E1, revue des vagues) : en sombre, il ASSOMBRIT comme React (`rgba(0,0,0,0.2)`),
+   par `--bg-level-0` à 20 % ; en clair, inchangé : `--text-primary` à 6 % (`--bg-level-0` y est blanc, sans effet). */
+.ligne.exclue {
+  background: light-dark(color-mix(in srgb, var(--text-primary) 6%, transparent), color-mix(in srgb, var(--bg-level-0) 20%, transparent));
+}
 .cellule-nom { min-width: 0; }
 .nom { font-size: 11px; font-weight: 600; color: var(--text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nom.mappee { color: var(--teal-texte); }
