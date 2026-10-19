@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpTestingController } from '@angular/common/http/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ImportPoiService } from '../etat/import-poi.service';
 import { ANALYSE_POI_ESSAI } from '../testing/import-poi.fixture';
 import { ColonnesComponent } from './colonnes.component';
@@ -7,7 +8,7 @@ import { texte } from '../../testing/dom';
 import { fournisseursImportPoi } from '../testing/fournisseurs';
 
 async function monter() {
-  TestBed.configureTestingModule({ providers: fournisseursImportPoi() });
+  TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), ...fournisseursImportPoi()] });
   const etat = TestBed.inject(ImportPoiService);
   const http = TestBed.inject(HttpTestingController);
   etat.analyser([new File(['x'], 'poi-essai.csv')]);

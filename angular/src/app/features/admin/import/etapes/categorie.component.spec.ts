@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpTestingController } from '@angular/common/http/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ImportPoiService } from '../etat/import-poi.service';
 import { CategorieComponent } from './categorie.component';
 import { texte } from '../../testing/dom';
@@ -8,7 +9,7 @@ import { fournisseursImportPoi } from '../testing/fournisseurs';
 const URL_CATEGORIES = '/api/admin/poi-categories';
 
 async function monter() {
-  TestBed.configureTestingModule({ providers: fournisseursImportPoi() });
+  TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), ...fournisseursImportPoi()] });
   const f = TestBed.createComponent(CategorieComponent);
   await f.whenStable();
   return {

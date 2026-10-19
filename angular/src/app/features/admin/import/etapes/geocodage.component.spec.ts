@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpTestingController } from '@angular/common/http/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ImportPoiService } from '../etat/import-poi.service';
 import { GEOCODAGE_ESSAI } from '../testing/geocodage.fixture';
 import { ANALYSE_POI_ESSAI } from '../testing/import-poi.fixture';
@@ -13,7 +14,7 @@ const URL_GEOCODAGE = '/api/admin/geocode/batch';
 const URL_CORRECTION = '/api/admin/geocode/update';
 
 async function monter() {
-  TestBed.configureTestingModule({ providers: fournisseursImportPoi() });
+  TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), ...fournisseursImportPoi()] });
   const etat = TestBed.inject(ImportPoiService);
   const http = TestBed.inject(HttpTestingController);
   etat.analyser([new File(['x'], 'poi-essai.csv')]);

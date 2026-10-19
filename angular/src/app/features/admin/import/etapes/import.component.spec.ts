@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpEventType } from '@angular/common/http';
-import { HttpTestingController, type TestRequest } from '@angular/common/http/testing';
+import { HttpEventType, provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting, type TestRequest } from '@angular/common/http/testing';
 import { formaterNombre } from '../../../../core/format/nombre';
 import { ImportPoiService } from '../etat/import-poi.service';
 import { ESSAI_A_BLANC } from '../testing/geocodage.fixture';
@@ -16,7 +16,7 @@ const URL_IMPORT = '/api/admin/import-poi/execute';
 
 async function monter(organisations = [{ id: 'o1', name: 'Espace A' }, { id: 'o2', name: 'Espace B' }]) {
   doublerDialog();
-  TestBed.configureTestingModule({ providers: fournisseursImportPoi() });
+  TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), ...fournisseursImportPoi()] });
   const etat = TestBed.inject(ImportPoiService);
   const http = TestBed.inject(HttpTestingController);
   etat.organisations.set(organisations);

@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpTestingController } from '@angular/common/http/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { formaterNombre } from '../../../../core/format/nombre';
 import { ImportPoiService } from '../etat/import-poi.service';
 import { ESSAI_A_BLANC } from '../testing/geocodage.fixture';
@@ -13,7 +14,7 @@ const enfants = (e: Element) => [...e.children].map((c) => texte(c)).join(' ');
 const URL_ESSAI = '/api/admin/import-poi/dry-run';
 
 async function monter() {
-  TestBed.configureTestingModule({ providers: fournisseursImportPoi() });
+  TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), ...fournisseursImportPoi()] });
   const etat = TestBed.inject(ImportPoiService);
   const http = TestBed.inject(HttpTestingController);
   etat.analyser([new File(['x'], 'poi-essai.csv')]);

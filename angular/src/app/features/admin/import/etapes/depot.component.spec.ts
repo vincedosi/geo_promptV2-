@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpTestingController } from '@angular/common/http/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ANALYSE_POI_ESSAI } from '../testing/import-poi.fixture';
 import { DepotComponent } from './depot.component';
 import { texte } from '../../testing/dom';
@@ -17,7 +18,7 @@ function deposer(el: HTMLElement, fichiers: File[]): void {
 }
 
 async function monter() {
-  TestBed.configureTestingModule({ providers: fournisseursImportPoi() });
+  TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), ...fournisseursImportPoi()] });
   const f = TestBed.createComponent(DepotComponent);
   await f.whenStable();
   return { f, el: f.nativeElement as HTMLElement, http: TestBed.inject(HttpTestingController) };
