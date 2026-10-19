@@ -11,6 +11,9 @@ import { ChangeDetectionStrategy, Component, ElementRef, input, output, signal, 
  * premier fichier déposé est émis (`dataTransfer.files[0]`, iris-crawler). Le champ est vidé après
  * chaque choix pour qu'on puisse re-choisir le même fichier.
  *
+ * Un `dragleave` vers un ENFANT de la zone (`relatedTarget` contenu) ne retire pas le survol : sans
+ * ce test, passer sur la consigne projetée faisait scintiller le cadre (vague finale, A11).
+ *
  * Écart à React, voulu : la zone est focalisable et s'ouvre au clavier (Entrée, Espace) — le `div`
  * de React ne l'était pas.
  */
@@ -35,7 +38,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, input, output, signal, 
       (keydown.enter)="ouvrir(); $event.preventDefault()"
       (keydown.space)="ouvrir(); $event.preventDefault()"
       (dragover)="surSurvol($event)"
-      (dragleave)="survol.set(false)"
+      (dragleave)="surSortie($event)"
       (drop)="surDepot($event)"
     >
       <input
@@ -95,6 +98,12 @@ export class DepotFichiersComponent {
   protected ouvrir(): void {
     if (this.desactive()) return;
     this.champ().nativeElement.click();
+  }
+
+  protected surSortie(e: DragEvent): void {
+    const vers = e.relatedTarget;
+    if (vers instanceof Node && (e.currentTarget as Node | null)?.contains(vers)) return;
+    this.survol.set(false);
   }
 
   protected surSurvol(e: DragEvent): void {

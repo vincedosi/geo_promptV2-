@@ -161,7 +161,9 @@ describe('FicheUtilisateurComponent', () => {
     await f.whenStable();
     http.expectOne('/api/admin/users/U').flush({ error: 'Refusé' }, { status: 403, statusText: 'x' });
     await f.whenStable();
-    expect(notifs.notifications()[0]).toMatchObject({ titre: 'Refusé', variante: 'error' });
+    // I-1 : l'erreur s'affiche DANS le dialogue (une notification y serait inerte, sous le voile).
+    expect(el.querySelector('mg-fiche-utilisateur > dialog [role="alert"][data-erreur-role]')?.textContent).toContain('Refusé');
+    expect(notifs.notifications()).toHaveLength(0);
     expect(radio.checked).toBe(false);
     expect(el.querySelector<HTMLInputElement>('input[type="radio"][value="client"]')!.checked).toBe(true);
   });
@@ -193,6 +195,33 @@ describe('FicheUtilisateurComponent', () => {
     req.flush({ success: true });
     await f.whenStable();
     expect(h.fermetures).toEqual([true]);
+  });
+
+  it('PATCH du nom refusé : le message de la route DANS le dialogue, effacé au nouvel essai', async () => {
+    const { f, el, http, notifs } = await monter();
+    el.querySelector<HTMLButtonElement>('[data-enregistrer-nom]')!.click();
+    await f.whenStable();
+    http.expectOne('/api/admin/users/U').flush({ error: 'Nom refusé par la route' }, { status: 400, statusText: 'x' });
+    await f.whenStable();
+    expect(el.querySelector('mg-fiche-utilisateur > dialog [role="alert"][data-erreur-nom]')?.textContent).toContain('Nom refusé par la route');
+    expect(notifs.notifications()).toHaveLength(0);
+    el.querySelector<HTMLButtonElement>('[data-enregistrer-nom]')!.click();
+    await f.whenStable();
+    expect(el.querySelector('[data-erreur-nom]')).toBeNull();
+    http.expectOne('/api/admin/users/U').flush({ success: true });
+  });
+
+  it('DELETE refusé : le message de la route DANS le dialogue, la fiche reste ouverte', async () => {
+    const { f, el, http, h, notifs } = await monter();
+    el.querySelector<HTMLButtonElement>('[data-supprimer]')!.click();
+    await f.whenStable();
+    el.querySelector<HTMLButtonElement>('mg-confirmation[data-confirmation-suppression] button.confirmer')!.click();
+    await f.whenStable();
+    http.expectOne('/api/admin/users/U').flush({ error: 'Dernier super-administrateur' }, { status: 409, statusText: 'x' });
+    await f.whenStable();
+    expect(el.querySelector('mg-fiche-utilisateur > dialog [role="alert"][data-erreur-suppression]')?.textContent).toContain('Dernier super-administrateur');
+    expect(notifs.notifications()).toHaveLength(0);
+    expect(h.fermetures).toEqual([]);
   });
 
   it('« Supprimer le compte » désactivé sur son propre compte', async () => {
@@ -401,15 +430,14 @@ describe('FicheUtilisateurComponent — lien de mot de passe', () => {
     }
   });
 
-  it('échec (404) : notification du message du serveur, aucun dialogue, bouton réactivé', async () => {
+  it('échec (404) : message du serveur DANS la fiche, aucun dialogue, bouton réactivé', async () => {
     const { f, el, http } = await monterSansEspace(MEMBRE);
     el.querySelector<HTMLButtonElement>('[data-lien-mot-de-passe]')!.click();
     await f.whenStable();
     http.expectOne(URL_LIEN).flush({ error: 'Compte introuvable.' }, { status: 404, statusText: 'Not Found' });
     await f.whenStable();
-    const notifs = TestBed.inject(NotificationsService).notifications();
-    expect(notifs[0]).toMatchObject({ variante: 'error' });
-    expect(JSON.stringify(notifs[0])).toContain('Compte introuvable.');
+    expect(TestBed.inject(NotificationsService).notifications()).toHaveLength(0);
+    expect(el.querySelector('mg-fiche-utilisateur > dialog [role="alert"][data-erreur-lien]')?.textContent).toContain('Compte introuvable.');
     expect(el.querySelector('mg-dialogue-lien')).toBeNull();
     expect(el.querySelector<HTMLButtonElement>('[data-lien-mot-de-passe]')!.disabled).toBe(false);
   });

@@ -45,7 +45,7 @@
         }
       </mg-progression-import>
     }
-    <mg-journal [lignes]="lignes()" [filtrable]="true" [copiable]="true" [hauteur]="360">
+    <mg-journal [lignes]="lignes()" [filtrable]="true" [copiable]="true" [hauteur]="360" [(niveauxActifs)]="etat.niveauxJournal">
       @if (etat.journalPasse()) {
         <button outils type="button" data-fermer class="outil" (click)="etat.fermerJournal()">Fermer</button>
       }

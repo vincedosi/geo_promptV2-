@@ -196,6 +196,26 @@ describe('Onglet Import de l’écran Radio — cartes, journal, historique, zon
     expect(texte(progression()!.querySelector('[data-bilan]'))).toBe('Enrichissement terminé : 11836/12704 émetteurs matchés (93.2%)');
   });
 
+  it('le filtre du journal survit au détour par l’onglet Radios (vague finale, A7)', async () => {
+    const { el, http, servir, morceau, bouton, router, stable, relectures } = await monter();
+    await servir();
+    bouton('enrichissement').click();
+    await stable();
+    const req = http.expectOne('/api/radio/crawl-arcom');
+    await morceau(req, FLUX_RADIO_ARCOM, 'Passe 1 terminée');
+    el.querySelector<HTMLButtonElement>('[data-niveau="warn"]')!.click();
+    await stable();
+    await router.navigateByUrl('/hote/app/admin/donnees/importer/radio/radios');
+    await stable();
+    http.expectOne((r) => r.url === '/api/radio/stations').flush({ stations: [], total: 0, page: 1, limit: 20 });
+    await router.navigateByUrl('/hote/app/admin/donnees/importer/radio/import');
+    await stable();
+    expect(el.querySelector('[data-niveau="warn"]')!.getAttribute('aria-pressed')).toBe('false');
+    expect(el.querySelector('[data-niveau="info"]')!.getAttribute('aria-pressed')).toBe('true');
+    req.flush(FLUX_RADIO_ARCOM);
+    await relectures();
+  });
+
   it('ODS : « Importer » coupé sans fichier ; multipart au champ `file` ; « Import ODS terminé » ; fichier remis à vide', async () => {
     const { http, servir, carte, bouton, journal, notes, stable, relectures } = await monter();
     await servir();

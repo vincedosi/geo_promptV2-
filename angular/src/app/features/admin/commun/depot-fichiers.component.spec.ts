@@ -6,7 +6,7 @@ import { DepotFichiersComponent } from './depot-fichiers.component';
   imports: [DepotFichiersComponent],
   template: `
     <mg-depot-fichiers accepter=".csv,.tsv" [multiple]="multiple()" [desactive]="desactive()" [trait]="trait()" (fichiers)="recus.push($event)">
-      <span>Glissez un fichier ici</span>
+      <span data-consigne>Glissez un fichier ici</span>
     </mg-depot-fichiers>
   `,
 })
@@ -70,6 +70,23 @@ describe('DepotFichiersComponent', () => {
     await f.whenStable();
     expect(zone.classList).toContain('survol');
     zone.dispatchEvent(evenementGlisser('dragleave'));
+    await f.whenStable();
+    expect(zone.classList).not.toContain('survol');
+  });
+
+  it('sortie vers un ENFANT de la zone (`relatedTarget` contenu) : le survol reste — pas de scintillement (A11)', async () => {
+    const { f, zone } = await monter();
+    zone.dispatchEvent(evenementGlisser('dragover'));
+    await f.whenStable();
+    const enfant = zone.querySelector('[data-consigne]') as HTMLElement;
+    const sortie = evenementGlisser('dragleave');
+    Object.defineProperty(sortie, 'relatedTarget', { value: enfant });
+    zone.dispatchEvent(sortie);
+    await f.whenStable();
+    expect(zone.classList).toContain('survol');
+    const dehors = evenementGlisser('dragleave');
+    Object.defineProperty(dehors, 'relatedTarget', { value: document.body });
+    zone.dispatchEvent(dehors);
     await f.whenStable();
     expect(zone.classList).not.toContain('survol');
   });

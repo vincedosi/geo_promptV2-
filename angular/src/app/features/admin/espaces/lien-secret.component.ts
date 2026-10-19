@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
 
 /**
@@ -9,6 +9,10 @@ import { NotificationsService } from '../../../ui/notifications/notifications.se
  * Le lien n'est JAMAIS passé à `console.*`, ni dans un message de notification : seul le
  * presse-papiers le reçoit, sur geste de l'utilisateur. Le composant ne garde rien : c'est le parent
  * qui porte le lien et l'efface (signal remis à `null`, ou composant démonté) à la fermeture.
+ *
+ * « Copie impossible » s'affiche SOUS le champ (`role="alert"`), pas en notification : le composant
+ * vit toujours dans un `<dialog>` modal, où la pile de notifications est inerte (vague finale, I-1).
+ * Le succès (« Lien copié ») reste une notification, que la pile en popover rend visible.
  */
 @Component({
   selector: 'mg-lien-secret',
@@ -25,6 +29,9 @@ import { NotificationsService } from '../../../ui/notifications/notifications.se
       />
       <button type="button" data-copier class="copier" (click)="copier()">Copier</button>
     </div>
+    @if (copieImpossible()) {
+      <p role="alert" data-copie-impossible class="impossible">Copie impossible. Sélectionnez le lien et copiez-le.</p>
+    }
     <p class="mention">{{ mention() }}</p>
   `,
   styles: `
@@ -44,6 +51,7 @@ import { NotificationsService } from '../../../ui/notifications/notifications.se
     .copier:hover { background: var(--brand-teal-10); }
     .copier:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
     .mention { margin: 0; font-size: 12px; color: var(--warning); }
+    .impossible { margin: 0; font-size: 12px; color: var(--danger); }
   `,
 })
 export class LienSecretComponent {
@@ -51,20 +59,22 @@ export class LienSecretComponent {
 
   readonly lien = input.required<string>();
   readonly mention = input.required<string>();
+  protected readonly copieImpossible = signal(false);
 
   protected selectionner(e: Event): void {
     (e.target as HTMLInputElement).select();
   }
 
   protected copier(): void {
+    this.copieImpossible.set(false);
     const presse = typeof navigator !== 'undefined' ? navigator.clipboard : undefined;
     if (!presse) {
-      this.notifications.error('Copie impossible', 'Sélectionnez le lien et copiez-le.');
+      this.copieImpossible.set(true);
       return;
     }
     presse.writeText(this.lien()).then(
       () => this.notifications.success('Lien copié'),
-      () => this.notifications.error('Copie impossible', 'Sélectionnez le lien et copiez-le.'),
+      () => this.copieImpossible.set(true),
     );
   }
 }

@@ -15,8 +15,8 @@ export const MESSAGE_ROLE_ILLISIBLE = 'Impossible de vérifier vos droits.';
  * shell ne bouge pas) et en autonome. React n'a pas d'équivalent : il affiche la page et laisse
  * chaque appel répondre 401/403.
  *
- * Refus et erreur sont décalés de 32 px (`pt-8`, une marge fondrait avec celle de la rangée des
- * notifications) : sans en-tête de page au-dessus, ils passaient SOUS le chrome du
+ * Refus et erreur sont décalés de 32 px (`pt-8` : un remplissage, pas une marge, qui fondrait avec
+ * celle de la coquille) : sans en-tête de page au-dessus, ils passaient SOUS le chrome du
  * haut (badge de session à cheval sur leur bordure, réserve de T1).
  *
  * Fournit aussi le `NotificationsService` des pages admin (C7), détruit avec le cadre.
@@ -30,16 +30,10 @@ export const MESSAGE_ROLE_ILLISIBLE = 'Impossible de vérifier vos droits.';
   providers: [NotificationsService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <!-- Notifications (C7) : React les épinglait à 12 px du coin haut-droit de la fenêtre,
-         ce que la racine d'ombre interdit. Rangée collante (patron du chrome de la coquille) :
-         -mt-8 annule la marge p-8 de la coquille pour la coller au haut du défilement, donc 12 px
-         du haut comme React, et visible quand on défile. Haute de 1 px et non 0 : une boîte vide
-         de hauteur nulle laisse ses marges haute et basse se fondre (-32 + 32 = 0) et ne monte pas
-         (mesuré : 44 px au lieu de 12) ; mb-[31px] rend le pixel. z 300 : au-dessus
-         du chrome (z 200), comme le z 10000 de React. -->
-    <div data-rangee-notifications class="sticky top-0 z-[300] -mt-8 mb-[31px] h-px">
-      <mg-notifications class="absolute top-3 -right-5" />
-    </div>
+    <!-- Notifications (C7) : popover manuel, placé par le navigateur dans la couche supérieure,
+         à 12 px du coin haut-droit comme React (vague finale, A2). Plus de rangée collante : sous
+         un <dialog> modal, elle restait derrière le voile (I-1). -->
+    <mg-notifications />
     @switch (role.etat()) {
       @case ('super_admin') {
         <router-outlet />

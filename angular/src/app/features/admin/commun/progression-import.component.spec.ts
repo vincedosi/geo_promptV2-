@@ -5,7 +5,7 @@ import { ProgressionImportComponent } from './progression-import.component';
 
 @Component({
   imports: [ProgressionImportComponent],
-  template: `<mg-progression-import [etape]="etape()" [traitees]="traitees()" [total]="total()" [termine]="termine()" [echec]="echec()" [pourcentageFlux]="pourcentageFlux()" />`,
+  template: `<mg-progression-import [etape]="etape()" [traitees]="traitees()" [total]="total()" [termine]="termine()" [echec]="echec()" [pourcentageFlux]="pourcentageFlux()" [avertissement]="avertissement()" />`,
 })
 class Hote {
   readonly etape = signal('Insertion');
@@ -14,6 +14,7 @@ class Hote {
   readonly termine = signal(false);
   readonly echec = signal<string | null>(null);
   readonly pourcentageFlux = signal<number | null>(null);
+  readonly avertissement = signal(false);
 }
 
 async function monter() {
@@ -97,9 +98,24 @@ describe('ProgressionImportComponent', () => {
     expect((el.querySelector('[data-remplissage]') as HTMLElement).style.width).toBe('83%');
     h.echec.set(null); h.termine.set(true);
     await f.whenStable();
-    expect(barre().getAttribute('aria-valuenow')).toBe('83');
+    // Un `termine` sans échec force 100 % (vague finale, A10) : le flux a fini, la barre ne reste pas à 83.
+    expect(barre().getAttribute('aria-valuenow')).toBe('100');
+    expect((el.querySelector('[data-remplissage]') as HTMLElement).style.width).toBe('100%');
     h.pourcentageFlux.set(100);
     await f.whenStable();
     expect((el.querySelector('[data-remplissage]') as HTMLElement).style.width).toBe('100%');
+  });
+
+  it('avertissement : « ⚠ Import terminé avec erreurs » en --warning, barre pleine NON verte', async () => {
+    const { f, h, el } = await monter();
+    h.total.set(10); h.traitees.set(10); h.termine.set(true); h.avertissement.set(true);
+    await f.whenStable();
+    expect(el.textContent).toContain('⚠ Import terminé avec erreurs');
+    expect(el.textContent).not.toContain('✓');
+    expect(el.querySelector('.text-warning')).not.toBeNull();
+    const remplissage = el.querySelector('[data-remplissage]') as HTMLElement;
+    expect(remplissage.classList).not.toContain('termine');
+    expect(remplissage.classList).toContain('avertissement');
+    expect(remplissage.style.width).toBe('100%');
   });
 });

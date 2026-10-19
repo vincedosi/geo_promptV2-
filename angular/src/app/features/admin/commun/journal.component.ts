@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, ElementRef, afterRenderEffect, computed, inject, input, signal, viewChild,
+  ChangeDetectionStrategy, Component, ElementRef, afterRenderEffect, computed, inject, input, model, viewChild,
 } from '@angular/core';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
 
@@ -12,12 +12,13 @@ export interface LigneJournal {
   horodatage?: number;
 }
 
-type Niveau = LigneJournal['niveau'];
+export type NiveauJournal = LigneJournal['niveau'];
+type Niveau = NiveauJournal;
 
 /** Ordre des boutons de filtre de `radio/page.tsx:470`. */
 const NIVEAUX_FILTRABLES: readonly Niveau[] = ['info', 'warn', 'error', 'success', 'debug'];
 /** Niveaux actifs au départ, comme React : `debug` est masqué. */
-const ACTIFS_INITIAUX: readonly Niveau[] = ['info', 'warn', 'error', 'success'];
+export const NIVEAUX_ACTIFS_INITIAUX: readonly Niveau[] = ['info', 'warn', 'error', 'success'];
 /** Écart en px sous lequel on considère que l'utilisateur est « en bas » (`radio/page.tsx:506`). */
 const MARGE_BAS = 30;
 
@@ -48,6 +49,12 @@ const COULEURS: Record<Niveau, string> = {
  * SHELL. Et seulement tant que l'utilisateur n'a pas remonté pour lire (`userScrolledRef`).
  *
  * Un niveau hors des cinq boutons (`log`, `rapport`) n'est jamais masqué par le filtre.
+ *
+ * Le filtre est un `model()` (`niveauxActifs`) : un écran qui masque le journal sous un `@if` le
+ * tient lui-même, sinon il repartirait du défaut à chaque réaffichage (React le tient au niveau de la
+ * page ; vague finale, A7). Une liste qui repart de zéro (nouvel import) réarme le suivi du bas,
+ * comme `userScrolledRef.current = false` de React (`radio/page.tsx:257`, A6). « Copier » copie le
+ * texte AFFICHÉ (horodatage compris) de toutes les lignes (A8).
  *
  * Contenu projeté `[outils]` : des boutons de plus, rendus après « Copier » dans la même rangée (le
  * « Fermer » d'un journal passé de la radio, `radio/page.tsx:489-497`) ; style `.outil` à reprendre par
@@ -141,9 +148,13 @@ export class JournalComponent {
 
   private readonly notifications = inject(NotificationsService, { optional: true });
   private readonly terminal = viewChild.required<ElementRef<HTMLElement>>('terminal');
-  private readonly actifs = signal<ReadonlySet<Niveau>>(new Set(ACTIFS_INITIAUX));
+  /** Niveaux affichés par le filtre ; à lier en `[(niveauxActifs)]` pour survivre à un masquage. */
+  readonly niveauxActifs = model<ReadonlySet<Niveau>>(new Set(NIVEAUX_ACTIFS_INITIAUX));
+  private readonly actifs = this.niveauxActifs;
   /** L'utilisateur a remonté pour lire : on ne le ramène plus en bas (`userScrolledRef`). */
   private remonte = false;
+  /** Longueur vue au dernier rendu : une liste plus courte est un nouvel import (les écrans ne font qu'ajouter). */
+  private longueurVue = 0;
 
   private readonly compteurs = computed(() => {
     const c = new Map<Niveau, number>();
@@ -170,15 +181,15 @@ export class JournalComponent {
     const actifs = this.actifs();
     return this.lignes()
       .filter((l) => !filtrer || !NIVEAUX_FILTRABLES.includes(l.niveau) || actifs.has(l.niveau))
-      .map((l) => ({
-        texte: l.horodatage === undefined ? l.message : `[${heure(l.horodatage)}] ${l.message}`,
-        couleur: COULEURS[l.niveau] ?? COULEURS.info,
-      }));
+      .map((l) => ({ texte: texteAffiche(l), couleur: COULEURS[l.niveau] ?? COULEURS.info }));
   });
 
   constructor() {
     afterRenderEffect(() => {
       this.visibles();
+      const lignes = this.lignes();
+      if (lignes.length < this.longueurVue) this.remonte = false;
+      this.longueurVue = lignes.length;
       if (this.remonte) return;
       const el = this.terminal().nativeElement;
       el.scrollTop = el.scrollHeight;
@@ -199,11 +210,12 @@ export class JournalComponent {
   }
 
   /**
-   * Copie TOUTES les lignes (pas seulement les visibles), comme React. Le presse-papiers peut être
+   * Copie TOUTES les lignes (pas seulement les visibles), comme React, avec le texte affiché
+   * (`[HH:MM:SS]` devant quand la ligne est horodatée). Le presse-papiers peut être
    * absent (contexte non sécurisé) ou refusé : une notification d'erreur, jamais une exception.
    */
   protected copier(): void {
-    const texte = this.lignes().map((l) => l.message).join('\n');
+    const texte = this.lignes().map(texteAffiche).join('\n');
     const echec = (e: unknown) =>
       this.notifications?.error('Copie impossible', e instanceof Error ? e.message : 'Le presse-papiers est indisponible.');
     try {
@@ -212,6 +224,10 @@ export class JournalComponent {
       echec(e);
     }
   }
+}
+
+function texteAffiche(l: LigneJournal): string {
+  return l.horodatage === undefined ? l.message : `[${heure(l.horodatage)}] ${l.message}`;
 }
 
 function heure(ms: number): string {

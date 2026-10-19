@@ -73,18 +73,17 @@ describe('CadreAdminComponent', () => {
     expect(el.querySelector('[data-enfant]')).not.toBeNull();
   });
 
-  it('fournit les notifications aux pages (C7) : rangée collante de 1 px, jamais `fixed`', async () => {
+  it('fournit les notifications aux pages (C7) : une pile en popover, enfant direct du cadre, sans rangée ni `fixed`', async () => {
     const { el, harness } = await monter('super_admin');
-    const rangee = el.querySelector('mg-cadre-admin > [data-rangee-notifications]') as HTMLElement;
-    expect(rangee.className).toContain('sticky');
-    expect(rangee.className).toContain('h-px');
-    expect(rangee.className).not.toContain('fixed');
-    expect(rangee.querySelector('mg-notifications')).not.toBeNull();
+    expect(el.querySelector('[data-rangee-notifications]')).toBeNull();
+    const pile = el.querySelector('mg-cadre-admin > mg-notifications') as HTMLElement;
+    expect(pile.getAttribute('popover')).toBe('manual');
+    expect(pile.className).not.toContain('fixed');
     const injecteur = harness.routeDebugElement!.injector;
     const service = injecteur.get(NotificationsService);
     service.info('Bonjour');
     await harness.fixture.whenStable();
-    expect(rangee.querySelector('[data-notification]')?.textContent).toContain('Bonjour');
+    expect(pile.querySelector('[data-notification]')?.textContent).toContain('Bonjour');
   });
 
   it('refus et erreur : décalés sous le chrome du haut (réserve T1)', async () => {

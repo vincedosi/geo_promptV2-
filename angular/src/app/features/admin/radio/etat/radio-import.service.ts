@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import type { Observable, Subscription } from 'rxjs';
 import { NotificationsService } from '../../../../ui/notifications/notifications.service';
-import type { LigneJournal } from '../../commun/journal.component';
+import { NIVEAUX_ACTIFS_INITIAUX, type LigneJournal, type NiveauJournal } from '../../commun/journal.component';
 import {
   RadioAdminApi, type CibleSuppressionRadio, type EvenementImportRadio, type ImportRadio, type StatsRadio,
 } from '../data/radio-admin.api';
@@ -62,6 +62,12 @@ export class RadioImportService {
   readonly cibleSuppression = signal<CibleSuppressionRadio | null>(null);
   readonly comptesSuppression = signal<Record<string, number> | null>(null);
   readonly suppressionEnCours = signal(false);
+  /**
+   * Filtre de niveaux du journal, tenu ici comme React le tient au niveau de la page : le journal est
+   * sous un `@if` de l'onglet Import, et l'onglet lui-même est détruit au passage par Radios
+   * (vague finale, A7).
+   */
+  readonly niveauxJournal = signal<ReadonlySet<NiveauJournal>>(new Set(NIVEAUX_ACTIFS_INITIAUX));
 
   private readonly lignesImport = signal<LigneJournal[]>([]);
   private readonly lignesPassees = signal<LigneJournal[]>([]);
