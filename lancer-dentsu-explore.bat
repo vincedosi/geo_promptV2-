@@ -15,6 +15,9 @@ if not exist "%BASH%" (
   pause & exit /b 1
 )
 set "PATH=C:\GENESIS\PortableGit\bin;C:\GENESIS\PortableGit\cmd;%PATH%"
+rem Sans cette variable, le premier "ng serve" pose une question (statistiques
+rem d usage) dans sa fenetre et attend une reponse : :4200 ne demarre jamais.
+set "NG_CLI_ANALYTICS=false"
 
 echo.
 echo === 1/5  Docker ===
