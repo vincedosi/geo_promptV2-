@@ -32,6 +32,8 @@ interface EtatProgression {
   traitees: number | null;
   termine: boolean;
   echec: string | null;
+  /** `done` au statut `partial` : fini avec des erreurs (vague finale F1). */
+  avertissement: boolean;
   bilan: { inseres: number; erreurs: number; statut: string } | null;
 }
 
@@ -98,6 +100,13 @@ function messageImport(e: unknown): string {
  * - **destruction** : un dépôt en vol est annulé (rien en base) ; un import en vol N'EST PAS annulé
  *   (C13 : couper la requête peut interrompre l'écriture côté Next), sa suite est seulement ignorée.
  * - zone de dépôt focalisable et ouverte au clavier (`mg-depot-fichiers`).
+ * - **`done` en échec ou partiel** (vague finale F1) : React n'avait que le journal, toujours « ✓ Import
+ *   terminé ». La carte de progression suit le `status` de la route : `error` → « ! Import en échec — N
+ *   erreurs » (barre en danger), `partial` → « ⚠ Import terminé avec erreurs » (avertissement). Le journal
+ *   et le bouton gardent les textes de React.
+ * - **un nouveau dépôt annule le précédent** (vague finale F2) : un second fichier déposé pendant l'envoi
+ *   du premier coupe cet envoi (lecture seule côté base : le dépôt n'écrit qu'un fichier temporaire) ;
+ *   React laissait les deux réponses se croiser et la dernière arrivée gagnait.
  *
  * Gardés par parité : textes en capitales de React (« UPLOAD EN COURS… », « IMPORTER N COLONNES »…),
  * bords 1 px et rayon 2 px, tailles 9 / 7,5 / 8 px, « (0.0 Mo) » de `toFixed(1)`, le nombre BRUT de
@@ -257,7 +266,7 @@ export class IrisCrawlerPage {
     this.importEnCours.set(true);
     this.termine.set(false);
     this.ajouter('Lancement de l\'import…');
-    this.progression.set({ etape: ETAPE_PREPARATION, pourcentage: null, traitees: null, termine: false, echec: null, bilan: null });
+    this.progression.set({ etape: ETAPE_PREPARATION, pourcentage: null, traitees: null, termine: false, echec: null, avertissement: false, bilan: null });
 
     const echouer = (message: string) => {
       this.progression.update((p) => (p ? { ...p, echec: message } : p));
@@ -318,8 +327,12 @@ export class IrisCrawlerPage {
         this.ajouter(`✓ Import terminé — ${n} lignes traitées`, 'success');
         finir();
         this.termine.set(true);
+        const erreurs = evt.totalErrors ?? 0;
+        // Vague finale F1 : `error` (aucune ligne écrite) échoue, `partial` avertit ; seul `success` est « ✓ ».
         this.progression.update((p) => (p ? {
-          ...p, termine: true, bilan: { inseres: n, erreurs: evt.totalErrors ?? 0, statut: evt.status },
+          ...p, termine: true, bilan: { inseres: n, erreurs, statut: evt.status },
+          echec: evt.status === 'error' ? `Import en échec — ${formaterNombre(erreurs)} ${erreurs > 1 ? 'erreurs' : 'erreur'}` : p.echec,
+          avertissement: evt.status === 'partial',
         } : p));
         break;
       }

@@ -182,6 +182,35 @@ describe('IrisCrawlerPage — dépôt manuel, correspondance, import NDJSON (lot
     expect(el.querySelector('[data-nouveau-fichier]')).not.toBeNull();
   });
 
+  /** Le flux de la fixture, `done` remplacé : la route rend `partial` (des erreurs ET des lignes) ou `error` (aucune ligne). */
+  const fluxTermine = (totalInserted: number, totalErrors: number, statut: string) => FLUX_IMPORT_IRIS.replace(
+    /\{"type":"done".*\n/,
+    `{"type":"done","message":"✓ ${totalInserted} IRIS mis à jour","totalInserted":${totalInserted},"totalErrors":${totalErrors},"status":"${statut}","historyId":"h","columns":[]}\n`,
+  );
+
+  it('vague finale F1 — `done` au statut `partial` : « ⚠ Import terminé avec erreurs », teinte avertissement, jamais « ✓ Import terminé »', async () => {
+    await deposerEtServir();
+    (await lancerImport()).flush(fluxTermine(1100, 100, 'partial'));
+    await f.whenStable();
+    const carte = texte(el.querySelector('mg-progression-import'));
+    expect(carte).toContain('⚠ Import terminé avec erreurs');
+    expect(carte).not.toContain('✓ Import terminé');
+    expect(el.querySelector('mg-progression-import [data-remplissage]')?.classList.contains('avertissement')).toBe(true);
+    expect(espaces(texte(el.querySelector('[data-compteurs]')))).toBe(espaces(`${formaterNombre(1100)} IRIS mis à jour · 100 erreurs · statut partial`));
+  });
+
+  it('vague finale F1 — `done` au statut `error` : la carte échoue « Import en échec — N erreurs », barre en danger, pas en vert', async () => {
+    await deposerEtServir();
+    (await lancerImport()).flush(fluxTermine(0, 1200, 'error'));
+    await f.whenStable();
+    const carte = espaces(texte(el.querySelector('mg-progression-import')));
+    expect(carte).toContain(espaces(`! Import en échec — ${formaterNombre(1200)} erreurs`));
+    expect(carte).not.toContain('✓ Import terminé');
+    const remplissage = el.querySelector('mg-progression-import [data-remplissage]')!;
+    expect(remplissage.classList.contains('echec')).toBe(true);
+    expect(remplissage.classList.contains('termine')).toBe(false);
+  });
+
   it('« NOUVEAU FICHIER » : l’écran repart vide (résultat, journal, progression), comme React', async () => {
     await deposerEtServir();
     (await lancerImport()).flush(FLUX_IMPORT_IRIS);
