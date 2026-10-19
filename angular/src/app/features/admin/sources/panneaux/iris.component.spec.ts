@@ -231,6 +231,42 @@ describe('IrisComponent — référentiel IRIS : stats, millésime, PMTiles, sup
     expect(espaces(texte(el.querySelector('[data-total]')))).toBe('49 448');
   });
 
+  it('statistiques en échec : « Aucune donnée. » et « Charger », qui relit (D4 ; avant : panneau VIDE pour la vie de l’écran)', async () => {
+    http.expectOne(META).flush({ annee: '2025' });
+    http.expectOne(STATS).flush({ error: 'boom' }, { status: 500, statusText: 'Server Error' });
+    await stable();
+    const vide = el.querySelector('[data-vide]')!;
+    expect(texte(vide)).toBe('Aucune donnée. Charger');
+    (vide.querySelector('button') as HTMLButtonElement).click();
+    await stable();
+    await servir();
+    expect(espaces(texte(el.querySelector('[data-total]')))).toBe('49 448');
+  });
+
+  it('table vide (`total: 0`, après « Supprimer tous les IRIS ») : « 0 % », jamais « NaN % » (D6)', async () => {
+    http.expectOne(STATS).flush({
+      ...REPONSE,
+      stats: { ...REPONSE.stats, total: 0, type_h: 0, type_a: 0, type_d: 0, type_z: 0, with_geom: 0, nb_depts: 0, nb_communes: 0 },
+      top_depts: [],
+    });
+    http.expectOne(META).flush({ annee: '2025' });
+    await stable();
+    const types = [...el.querySelectorAll('[data-type-iris] .pct')].map((e) => texte(e));
+    expect(types).toEqual(['(0%)', '(0%)', '(0%)', '(0%)']);
+    expect(el.textContent).not.toContain('NaN');
+  });
+
+  it('détruit pendant la relecture du millésime : la relecture est ANNULÉE et aucune minuterie ne survit (D15)', async () => {
+    await servir();
+    bouton('[data-sauver-annee]').click();
+    await stable();
+    http.expectOne((r) => r.url === META && r.method === 'POST').flush({ success: true });
+    await stable();
+    const relecture = http.expectOne((r) => r.url === META && r.method === 'GET');
+    f.destroy();
+    expect(relecture.cancelled).toBe(true);
+  });
+
   it('synchronisation : POST, « Vérification… » pendant, puis le rapport (statut, actions, RPC, remplissage trié)', async () => {
     await servir();
     bouton('[data-synchroniser]').click();

@@ -105,7 +105,7 @@
         À faire après chaque import de nouvelles données démographiques (diplômes, revenus, CSP…).
       </div>
       @if (pmtilesMessage(); as m) {
-        <div class="retour" data-message-pmtiles [attr.data-succes]="m.startsWith('✓')">{{ m }}</div>
+        <div class="retour" data-message-pmtiles [attr.data-succes]="m.succes">{{ m.texte }}</div>
       }
       <button type="button" class="cyan-bouton" data-pmtiles [disabled]="pmtilesEnCours()" (click)="pmtilesConfirmation.set(true)">
         {{ pmtilesEnCours() ? 'Déclenchement…' : 'Régénérer PMTiles IRIS' }}
@@ -117,7 +117,7 @@
       <div class="titre-section">Zone Danger — Suppression</div>
       <div class="explication">Supprime toutes les zones IRIS de la base (TRUNCATE). À utiliser avant un ré-import avec un nouveau millésime.</div>
       @if (suppressionMessage(); as m) {
-        <div class="retour" data-message-suppression [attr.data-succes]="m.startsWith('✓')">{{ m }}</div>
+        <div class="retour" data-message-suppression [attr.data-succes]="m.succes">{{ m.texte }}</div>
       }
       <button type="button" class="rouge" data-supprimer-iris (click)="suppressionConfirmation.set(true)">Supprimer tous les IRIS</button>
     </div>
@@ -143,4 +143,6 @@
     (confirmer)="supprimerTout()"
     (annuler)="suppressionConfirmation.set(false)"
   />
+} @else {
+  <div class="message" data-vide>Aucune donnée. <button type="button" class="fantome" (click)="lire()">Charger</button></div>
 }

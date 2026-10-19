@@ -7,7 +7,8 @@
 [data-teinte='succes'] { --cat: var(--success); }
 [data-teinte='avert'] { --cat: var(--warning); }
 [data-teinte='danger'] { --cat: var(--danger); }
-[data-teinte='rose'] { --cat: var(--ligne-media-3); }
+/* Q-6 : `--nature-8` (rose-mauve, assombri en clair) — `--ligne-media-3` se lisait comme `--danger` en clair. */
+[data-teinte='rose'] { --cat: var(--nature-8); }
 [data-teinte='ardoise'] { --cat: var(--text-tertiary); }
 [data-teinte='gris'] { --cat: var(--text-secondary); }
 .cartes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }

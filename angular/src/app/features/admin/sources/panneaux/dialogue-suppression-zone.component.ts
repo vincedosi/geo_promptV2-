@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, inject, input, output, viewChild,
 } from '@angular/core';
+import { formaterNombre } from '../../../../core/format/nombre';
 import type { ZoneAdmin } from '../data/sources-admin.api';
 
 let compteur = 0;
@@ -99,7 +100,7 @@ export class DialogueSuppressionZoneComponent {
 
   protected readonly features = computed(() => {
     const z = this.zone();
-    return `${z.feature_count_iris.toLocaleString('fr-FR')} IRIS · ${z.feature_count_cp.toLocaleString('fr-FR')} CP`;
+    return `${formaterNombre(z.feature_count_iris)} IRIS · ${formaterNombre(z.feature_count_cp)} CP`;
   });
 
   private readonly dialogue = viewChild.required<ElementRef<HTMLDialogElement>>('dialogue');

@@ -104,6 +104,8 @@ export class SourcesPage {
   private readonly notifications = inject(NotificationsService);
   private readonly lectures: Subscription[] = [];
   private lectureSources: Subscription | null = null;
+  /** Relecture silencieuse des statistiques après une écriture POI : la précédente est remplacée (D7). */
+  private relectureStats: Subscription | null = null;
 
   /** L'onglet actif (`activeTab` de React). Le changer passe par `choisirOnglet`, qui vide la sélection. */
   readonly onglet = signal<OngletSources>('all');
@@ -155,6 +157,7 @@ export class SourcesPage {
   constructor() {
     inject(DestroyRef).onDestroy(() => {
       this.lectureSources?.unsubscribe();
+      this.relectureStats?.unsubscribe();
       for (const l of this.lectures) l.unsubscribe();
     });
     this.lireSources();
@@ -201,16 +204,24 @@ export class SourcesPage {
   /**
    * `refreshPoiStats` (`page.tsx:95-102`), après une écriture POI réussie : relecture SILENCIEUSE des
    * statistiques — sans repasser en chargement (le tableau des échantillons clignoterait) ; un échec garde
-   * les précédentes.
+   * les précédentes. Une relecture en cours est ANNULÉE par la suivante (vague finale D7 : elles
+   * s'empilaient dans `lectures`, qui grossissait sans fin).
    */
   protected rafraichirStats(): void {
-    this.lectures.push(this.api.stats().subscribe({
+    this.relectureStats?.unsubscribe();
+    this.relectureStats = this.api.stats().subscribe({
       next: (r) => {
         if (r?.success) this.stats.set(r);
       },
       error: () => undefined,
-    }));
+    });
   }
+
+  /** Après un renommage réussi (rappelé par le détail, même détruit entre-temps : D8). */
+  protected readonly apresRenommage = (): void => this.lireSources();
+
+  /** Après un enregistrement des champs filtres (même remarque). */
+  protected readonly apresFiltres = (id: string, champs: string[]): void => this.filtresModifies(id, champs);
 
   /**
    * `WorkspaceFilter` (`CustomZonesTab/WorkspaceFilter.tsx:19-26`) : React relit à chaque montage et avale

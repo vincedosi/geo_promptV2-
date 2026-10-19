@@ -24,7 +24,7 @@
         [selection]="selection()" (choisir)="choisirSource($event)" (choisirOnglet)="choisirOnglet($event)" />
       @for (s of selectionListe(); track s.id) {
         <mg-detail-source [source]="s" [suppressionEnCours]="suppressionEnCours()" (fermer)="fermerDetail()"
-          (supprimer)="aSupprimer.set($event)" (renommee)="lireSources()" (filtresModifies)="filtresModifies(s.id, $event)" />
+          (supprimer)="aSupprimer.set($event)" [apresRenommage]="apresRenommage" [apresFiltres]="apresFiltres" />
       }
     </div>
   }

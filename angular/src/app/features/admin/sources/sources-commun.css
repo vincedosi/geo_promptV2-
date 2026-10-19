@@ -25,7 +25,7 @@
 .fantome.fermer { padding: 2px 8px; margin-left: auto; font-size: 11px; font-family: var(--font-mono); }
 .fantome.large { width: 100%; justify-content: flex-start; }
 .primaire {
-  background: var(--brand-teal-10); border: 0.5px solid var(--brand-teal-30); color: var(--brand-teal); padding: 6px 14px;
+  background: var(--brand-teal-10); border: 0.5px solid var(--brand-teal-30); color: var(--teal-texte); padding: 6px 14px;
   width: 100%; justify-content: center;
 }
 .primaire.marge-haute { margin-top: 12px; }

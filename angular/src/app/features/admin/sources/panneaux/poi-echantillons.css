@@ -42,6 +42,7 @@ td.actions-ligne { padding: 5px 8px; white-space: nowrap; }
 }
 .editer { color: var(--teal-texte); border: 0.5px solid var(--brand-teal-30); margin-right: 4px; }
 .supprimer { color: var(--danger); border: 0.5px solid color-mix(in srgb, var(--danger) 27%, transparent); }
+.supprimer:disabled { cursor: not-allowed; opacity: 0.5; }
 .plus { padding: 10px 16px; border-top: 1px solid var(--border-subtle); display: flex; align-items: center; gap: 8px; }
 .charger { background: var(--brand-teal-10); color: var(--teal-texte); border: 0.5px solid var(--brand-teal-30); padding: 5px 14px; }
 .charger:disabled { opacity: 0.5; }

@@ -171,7 +171,7 @@ export class SourcesAdminApi extends HttpBaseService {
 
   /**
    * Export CSV en blob, PAR `HttpClient` donc sous jeton (C8) : React fait `window.open` de la route,
-   * qui part sans `Authorization` et répond 401. Le nom est celui de `Content-Disposition`
+   * qui part sans `Authorization` et répond 403 (mesuré en T18 ; « 401 » écrit ici jusqu'à la vague finale). Le nom est celui de `Content-Disposition`
    * (`<nom>_export[_tronque].csv`), lu par `ENREGISTRER_FICHIER`.
    */
   exporter(id: string): Observable<HttpResponse<Blob>> {

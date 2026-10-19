@@ -33,14 +33,16 @@ function erreurDe(e: unknown): string | undefined {
  *   les cases et les clés de la source PRÉCÉDENTE — « Sauvegarder les filtres » écrivait alors les
  *   champs d'une source dans une autre.
  * - **export par `HttpClient`, sous jeton** (C8) : `window.open` de React part sans `Authorization` et
- *   ouvre un onglet « 401 ». Fichier enregistré par `ENREGISTRER_FICHIER`, nom de `Content-Disposition`.
+ *   ouvre un onglet « 403 » (mesuré ; ce commentaire disait « 401 » jusqu'à la vague finale, D11). Fichier enregistré par `ENREGISTRER_FICHIER`, nom de `Content-Disposition`.
  * - **échecs dits** : un PATCH refusé (nom, filtres) ou un export en échec affiche une notification ;
  *   React les avalait (`catch` vide, aucun message).
  * - « Propriétaire et partages : page Accès » : lien RELATIF vers `admin/acces` (React pointe vers
  *   Angular par `NEXT_PUBLIC_URL_ANGULAR`) ; « Re-importer (meme config) » : lien RELATIF vers
  *   l'onglet Importer de Données (C8 ; React : `window.open('/admin/import', '_self')`).
- * - « Sauvegarder » / « Sauvegarder les filtres » : texte `--brand-teal` sur le fond teal à 10 % —
- *   React écrit `color: var(--bg-primary)` (texte noir sur fond quasi noir en thème sombre, illisible).
+ * - « Sauvegarder » / « Sauvegarder les filtres » : texte `--teal-texte` (le teal lisible en clair du cadre
+ *   admin, vague finale D10 / Q-9 : `--brand-teal` y tombait à ≈ 1,8:1) sur le fond teal à 10 % — React
+ *   écrit `color: var(--bg-primary)` (texte noir sur fond quasi noir en thème sombre, illisible). Même jeton
+ *   pour le nom de table et le lien « page Accès ».
  * - nombres des compteurs en `fr-FR` (React : `toLocaleString()` sans langue).
  * - teintes (C9) : `rgba(…)` → `color-mix` des jetons à la même opacité.
  *
@@ -64,10 +66,14 @@ export class DetailSourceComponent {
   readonly suppressionEnCours = input(false);
   readonly fermer = output<void>();
   readonly supprimer = output<string>();
-  /** Le nom a été enregistré : le parent relit la liste (`fetchSources()` de React). */
-  readonly renommee = output<void>();
-  /** Les champs filtres ont été enregistrés : le parent met la source à jour en place. */
-  readonly filtresModifies = output<string[]>();
+  /**
+   * Le nom a été enregistré : le parent relit la liste (`fetchSources()` de React). Un RAPPEL et non un
+   * `output()` (vague finale D8) : le parent recrée ce composant à chaque changement de source, et une réponse
+   * arrivée après la destruction était perdue — un `output` détruit n'émet plus.
+   */
+  readonly apresRenommage = input<() => void>(() => undefined);
+  /** Les champs filtres de la source `id` ont été enregistrés : le parent la met à jour en place (même raison). */
+  readonly apresFiltres = input<(id: string, champs: string[]) => void>(() => undefined);
 
   protected readonly colonnesSchema = SCHEMA_FILTER_COLS;
 
@@ -78,6 +84,8 @@ export class DetailSourceComponent {
   protected readonly cles = signal<string[]>([]);
   protected readonly chargementCles = signal(false);
   protected readonly sauvegardeFiltres = signal(false);
+  /** PATCH du nom en vol : un second clic n'en envoie pas un autre (D9). */
+  protected readonly sauvegardeNom = signal(false);
 
   private lectureCles: Subscription | null = null;
   private lectureExport: Subscription | null = null;
@@ -161,12 +169,14 @@ export class DetailSourceComponent {
   /** `handleSaveFilterFields` (`page.tsx:234-251`). */
   protected sauverFiltres(): void {
     const champs = this.filtresEdites();
+    const id = this.source().id;
+    const rappel = this.apresFiltres();
     this.sauvegardeFiltres.set(true);
-    this.api.modifier(this.source().id, { filter_fields: champs }).subscribe({
+    this.api.modifier(id, { filter_fields: champs }).subscribe({
       next: (r) => {
         this.sauvegardeFiltres.set(false);
         if (r.success) {
-          this.filtresModifies.emit(champs);
+          rappel(id, champs);
           this.editeurFiltres.set(false);
         } else {
           this.notifications.error('Modification échouée', r.error ?? 'Erreur inconnue');
@@ -188,17 +198,23 @@ export class DetailSourceComponent {
   /** `handleSaveEdit` (`page.tsx:202-220`) : rien n'est envoyé si le nom rogné est vide. */
   protected sauverNom(): void {
     const nom = this.nomEdite().trim();
-    if (!nom) return;
+    if (!nom || this.sauvegardeNom()) return;
+    const rappel = this.apresRenommage();
+    this.sauvegardeNom.set(true);
     this.api.modifier(this.source().id, { name: nom }).subscribe({
       next: (r) => {
+        this.sauvegardeNom.set(false);
         if (r.success) {
-          this.renommee.emit();
+          rappel();
           this.edition.set(false);
         } else {
           this.notifications.error('Modification échouée', r.error ?? 'Erreur inconnue');
         }
       },
-      error: (e: unknown) => this.notifications.error('Modification échouée', erreurDe(e) ?? 'Erreur inconnue'),
+      error: (e: unknown) => {
+        this.sauvegardeNom.set(false);
+        this.notifications.error('Modification échouée', erreurDe(e) ?? 'Erreur inconnue');
+      },
     });
   }
 

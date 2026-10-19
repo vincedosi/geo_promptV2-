@@ -204,27 +204,66 @@ describe('PoiComponent — POI par catégorie, échantillons paginés, création
     expect(texte(lignes()[0].querySelector('td'))).toBe('Lycée 1 renommé');
   });
 
-  it('suppression unitaire : DELETE `?id=` ; succès → ligne retirée, total −1, `modifie`', async () => {
+  const confirmationPoi = () => el.querySelector('mg-confirmation[data-confirmation-poi]')!;
+
+  it('suppression unitaire : ✕ → confirmation NOMMANT le POI, aucune requête ; « Annuler » → aucune requête (D1, écart à React)', async () => {
     await voir('lycee', PAGE(0, 3), 3);
     dans(lignes()[1], '[data-supprimer]').click();
     await stable();
+    http.expectNone(gestion('DELETE'));
+    expect(confirmationPoi().querySelector('dialog')!.hasAttribute('open')).toBe(true);
+    expect(texte(confirmationPoi())).toContain('Supprimer ce POI');
+    expect(texte(confirmationPoi())).toContain('« Lycée 1 » sera définitivement supprimé.');
+    dans(confirmationPoi(), 'button.annuler').click();
+    await stable();
+    http.expectNone(gestion('DELETE'));
+    expect(confirmationPoi().querySelector('dialog')!.hasAttribute('open')).toBe(false);
+    expect(lignes().length).toBe(3);
+  });
+
+  it('suppression unitaire confirmée : UN DELETE `?id=` ; succès → ligne retirée, total −1, `modifie`', async () => {
+    await voir('lycee', PAGE(0, 3), 3);
+    dans(lignes()[1], '[data-supprimer]').click();
+    await stable();
+    dans(confirmationPoi(), 'button.confirmer').click();
+    await stable();
     const d = http.expectOne(gestion('DELETE'));
     expect(d.request.urlWithParams).toBe('/api/admin/poi-manage?id=p1');
+    // Pendant la requête : confirmation « en cours », ✕ de la ligne désactivé (D2).
+    expect(dans(confirmationPoi(), 'button.confirmer').disabled).toBe(true);
+    expect(dans(lignes()[1], '[data-supprimer]').disabled).toBe(true);
+    dans(confirmationPoi(), 'button.confirmer').click();
+    http.expectNone(gestion('DELETE'));
     d.flush({ success: true, deleted: 'single', id: 'p1' });
     await stable();
     expect(lignes().map((l) => l.getAttribute('data-poi'))).toEqual(['p0', 'p2']);
     expect(espaces(texte(el.querySelector('[data-entete-echantillons]')))).toContain('lycee — 2 / 2 POI');
+    expect(confirmationPoi().querySelector('dialog')!.hasAttribute('open')).toBe(false);
     expect(modifs).toBe(1);
+  });
+
+  it('D2 : deux appels de suppression pour le même POI → UNE requête, total décrémenté une fois', async () => {
+    await voir('lycee', PAGE(0, 3), 3);
+    const composant = f.componentInstance as unknown as { supprimer(id: string): void };
+    composant.supprimer('p1');
+    composant.supprimer('p1');
+    const d = http.expectOne(gestion('DELETE'));
+    d.flush({ success: true, deleted: 'single', id: 'p1' });
+    await stable();
+    expect(espaces(texte(el.querySelector('[data-entete-echantillons]')))).toContain('lycee — 2 / 2 POI');
   });
 
   it('suppression unitaire refusée (500) : notification au message de la route, la ligne RESTE (React la retirait sans lire la réponse)', async () => {
     await voir('lycee', PAGE(0, 3), 3);
     dans(lignes()[1], '[data-supprimer]').click();
     await stable();
+    dans(confirmationPoi(), 'button.confirmer').click();
+    await stable();
     http.expectOne(gestion('DELETE')).flush({ error: 'update or delete violates foreign key' }, { status: 500, statusText: 'Server Error' });
     await stable();
     expect(lignes().length).toBe(3);
     expect(notifications()).toEqual([['error', 'Suppression échouée', 'update or delete violates foreign key']]);
+    expect(dans(lignes()[1], '[data-supprimer]').disabled).toBe(false);
     expect(modifs).toBe(0);
   });
 

@@ -305,6 +305,70 @@ describe('SourcesPage — onglets, vue « Toutes », liste et détail d’une so
     http.expectNone('/api/admin/sources');
   });
 
+  it('D8 : PATCH du nom en vol, on change de source, réponse OK → la liste est RELUE quand même', async () => {
+    const { el, http, servir, stable, carte, action } = await monter();
+    await servir();
+    carte('cirfa').click();
+    await stable();
+    action('modifier').click();
+    await stable();
+    const champ = el.querySelector<HTMLInputElement>('mg-detail-source [data-champ-nom]')!;
+    champ.value = 'CIRFA bis';
+    champ.dispatchEvent(new Event('input'));
+    el.querySelector<HTMLButtonElement>('mg-detail-source [data-sauver-nom]')!.click();
+    await stable();
+    const patch = http.expectOne('/api/admin/sources/cirfa');
+    carte('tf4').click();
+    await stable();
+    patch.flush({ success: true });
+    await stable();
+    http.expectOne('/api/admin/sources').flush({ success: true, sources: SOURCES.map((x) => (x.id === 'cirfa' ? { ...x, name: 'CIRFA bis' } : x)) });
+    await stable();
+    expect(texte(carte('cirfa'))).toContain('CIRFA bis');
+  });
+
+  it('D8 : PATCH des filtres en vol, on change de source, réponse OK → la source est mise à jour en place', async () => {
+    const { el, http, servir, stable, carte } = await monter();
+    await servir();
+    carte('cirfa').click();
+    await stable();
+    el.querySelector<HTMLButtonElement>('mg-detail-source [data-basculer-filtres]')!.click();
+    await stable();
+    http.expectOne('/api/admin/sources/cirfa/meta-keys').flush({ success: true, keys: [] });
+    await stable();
+    el.querySelector<HTMLButtonElement>('mg-detail-source [data-effacer]')!.click();
+    await stable();
+    el.querySelector<HTMLButtonElement>('mg-detail-source [data-sauver-filtres]')!.click();
+    await stable();
+    const patch = http.expectOne('/api/admin/sources/cirfa');
+    carte('tf4').click();
+    await stable();
+    patch.flush({ success: true });
+    await stable();
+    carte('cirfa').click();
+    await stable();
+    expect(texte(el.querySelector('mg-detail-source [data-aucun-filtre]'))).toBe('Aucun filtre configure');
+  });
+
+  it('D9 : deux clics sur « Sauvegarder » du nom → UN seul PATCH', async () => {
+    const { el, http, servir, stable, carte, action } = await monter();
+    await servir();
+    carte('cirfa').click();
+    await stable();
+    action('modifier').click();
+    await stable();
+    const sauver = el.querySelector<HTMLButtonElement>('mg-detail-source [data-sauver-nom]')!;
+    sauver.click();
+    sauver.click();
+    await stable();
+    const patch = http.expectOne('/api/admin/sources/cirfa');
+    expect(sauver.disabled).toBe(true);
+    patch.flush({ success: true });
+    await stable();
+    http.expectOne('/api/admin/sources').flush({ success: true, sources: SOURCES });
+    await stable();
+  });
+
   it('« Tout cocher » = colonnes schéma PUIS clés metadata ; « Aucun filtre configure » sans filtre', async () => {
     const { el, http, servir, stable, carte } = await monter();
     await servir();
@@ -486,6 +550,20 @@ describe('SourcesPage — onglets, vue « Toutes », liste et détail d’une so
     await stable();
     expect(espaces(texte(el.querySelector('mg-sources-poi [data-total]')))).toBe('101');
     expect(onglet('poi').textContent!.trim()).toBe('POI (101)');
+  });
+
+  it('D7 : deux écritures POI rapides → la première relecture des statistiques est ANNULÉE (une seule vit)', async () => {
+    const { f, http, servir, stable, onglet } = await monter();
+    await servir();
+    onglet('poi').click();
+    await stable();
+    const poi = f.debugElement.query(By.directive(PoiComponent)).componentInstance as PoiComponent;
+    poi.modifie.emit();
+    const premiere = http.expectOne('/api/admin/sources-stats');
+    poi.modifie.emit();
+    expect(premiere.cancelled).toBe(true);
+    http.expectOne('/api/admin/sources-stats').flush(STATS);
+    await stable();
   });
 
   it('« Gérer → » du bloc Radio mène à l’écran Radio (T16), par un lien RELATIF (`href="/admin/radio"` de React)', async () => {

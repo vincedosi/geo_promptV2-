@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import type { Subscription } from 'rxjs';
+import { formaterNombre } from '../../../../core/format/nombre';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import type { OrganisationListe } from '../../commun/data/organisations-liste.api';
 import { SourcesAdminApi, type ZoneAdmin } from '../data/sources-admin.api';
@@ -36,11 +37,14 @@ const pluriel = (n: number) => (n > 1 ? 's' : '');
  *   voir `mg-dialogue-suppression-zone`.
  * - corbeille au survol et filtres : CSS (`:hover`, `:focus-visible`), sans écouteur ; libellé
  *   accessible « Supprimer la zone » (React : `title` seul) ; champ de recherche nommé.
+ * - un espace ou un type choisi relit TOUT DE SUITE, même avec une recherche saisie : React attendait alors les
+ *   200 ms de son anti-rebond, qui couvrait les trois filtres (`useAdminCustomZones.ts:56`) — écart listé (D13).
  * - couleurs (C9) : `rgba(255,87,87,0.1|0.2|0.08)` → `--danger` à 10 / 20 / 8 %.
  *
  * Gardés par parité : textes sans accents (« Aucune zone personnalisee… »), en-têtes en capitales
  * (`textTransform: uppercase` de React), « Erreur : HTTP <statut> » sans le corps de la route, nombres
- * par `toLocaleString('fr-FR')`, rayon 4 px.
+ * en `fr-FR` (par `formaterNombre`, la source unique de CLAUDE.md — même sortie que `toLocaleString('fr-FR')`
+ * de React), rayon 4 px.
  */
 @Component({
   selector: 'mg-sources-zones',
@@ -83,13 +87,13 @@ export class ZonesCustomComponent {
     const iris = z.reduce((s, x) => s + x.feature_count_iris, 0);
     const cp = z.reduce((s, x) => s + x.feature_count_cp, 0);
     return `${this.filtresActifs() ? 'Filtres actifs : ' : ''}${z.length} zone${pluriel(z.length)} — `
-      + `${iris.toLocaleString('fr-FR')} IRIS — ${cp.toLocaleString('fr-FR')} CP résolus`;
+      + `${formaterNombre(iris)} IRIS — ${formaterNombre(cp)} CP résolus`;
   });
 
   protected readonly lignes = computed(() => this.zones().map((z) => ({
     zone: z,
-    iris: z.feature_count_iris.toLocaleString('fr-FR'),
-    cp: z.feature_count_cp.toLocaleString('fr-FR'),
+    iris: formaterNombre(z.feature_count_iris),
+    cp: formaterNombre(z.feature_count_cp),
     date: fmtDate(z.created_at),
   })));
 

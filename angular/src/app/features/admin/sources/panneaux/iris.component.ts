@@ -28,6 +28,11 @@ function messageErreur(e: unknown, repli: string): string {
   return e instanceof Error ? e.message : repli;
 }
 
+/** Un message de retour : un texte qui commence par « ✓ » est une réussite. */
+function retour(texte: string): { texte: string; succes: boolean } {
+  return { texte, succes: texte.startsWith('✓') };
+}
+
 /**
  * Onglet « IRIS » des Sources — portage d'`IrisPanel.tsx` et d'`useIrisAdmin.ts` (lot 6, T19) :
  * statistiques du référentiel, millésime, régénération des PMTiles, suppression de TOUS les IRIS,
@@ -45,6 +50,9 @@ function messageErreur(e: unknown, repli: string): string {
  * - PMTiles (déclenche un workflow GitHub, non idempotent) et suppression de tous les IRIS : passent
  *   par `mg-confirmation` (React : aucun garde pour les PMTiles, deux boutons en ligne pour la suppression).
  * - un refus HTTP est lu dans le corps de l'erreur `HttpClient`, comme React le lisait dans `res.json()`.
+ * - statistiques en échec : « Aucune donnée. » et « Charger » (patron de Transport ; vague finale D4) — React
+ *   laissait le panneau vide ; une table vide (`total: 0`) donne « 0 % » et non « NaN % » (D6) ; la relecture
+ *   du millésime est annulée à la destruction, sa minuterie jamais reposée après (D15).
  * - couleurs (C9) : `#06b6d4` → `--info` ; `${cyan}66` → `--info` à 40 % ; `rgba(…)` → `color-mix` ;
  *   les valeurs `${C.red}44|66|22` (CSS invalide chez React) prennent la valeur voulue.
  */
@@ -59,7 +67,10 @@ export class IrisComponent {
   private readonly api = inject(SourcesAdminApi);
   private readonly notifications = inject(NotificationsService);
   private lecture: Subscription | null = null;
+  /** Relecture des métadonnées après l'écriture du millésime : annulée à la destruction (D15). */
+  private relectureMeta: Subscription | null = null;
   private minuterie: ReturnType<typeof setTimeout> | null = null;
+  private detruit = false;
 
   protected readonly schema = SCHEMA;
   protected readonly stats = signal<StatsIris | null>(null);
@@ -73,11 +84,12 @@ export class IrisComponent {
 
   protected readonly pmtilesConfirmation = signal(false);
   protected readonly pmtilesEnCours = signal(false);
-  protected readonly pmtilesMessage = signal<string | null>(null);
+  /** Retour du déclenchement : texte et réussite (`✓`), calculés une fois, jamais dans le gabarit (D5). */
+  protected readonly pmtilesMessage = signal<{ texte: string; succes: boolean } | null>(null);
 
   protected readonly suppressionConfirmation = signal(false);
   protected readonly suppressionEnCours = signal(false);
-  protected readonly suppressionMessage = signal<string | null>(null);
+  protected readonly suppressionMessage = signal<{ texte: string; succes: boolean } | null>(null);
 
   protected readonly rapport = signal<RapportSynchroIris | null>(null);
   protected readonly synchroEnCours = signal(false);
@@ -86,7 +98,7 @@ export class IrisComponent {
   protected readonly vue = computed(() => {
     const s = this.stats();
     if (!s) return null;
-    const pct = (v: number) => Math.round((v / s.total) * 100);
+    const pct = (v: number) => (s.total > 0 ? Math.round((v / s.total) * 100) : 0);
     const max = this.departements()[0]?.nb ?? 1;
     return {
       total: formaterNombre(s.total),
@@ -110,14 +122,19 @@ export class IrisComponent {
 
   constructor() {
     inject(DestroyRef).onDestroy(() => {
+      this.detruit = true;
       this.lecture?.unsubscribe();
+      this.relectureMeta?.unsubscribe();
       if (this.minuterie) clearTimeout(this.minuterie);
     });
     this.lire();
   }
 
-  /** `fetchIrisStats` (`useIrisAdmin.ts:79-96`) : les deux lectures ensemble ; un échec est avalé, comme React. */
-  private lire(): void {
+  /**
+   * `fetchIrisStats` (`useIrisAdmin.ts:79-96`) : les deux lectures ensemble ; un échec est avalé, comme React,
+   * mais le panneau propose alors « Charger » (D4).
+   */
+  protected lire(): void {
     this.lecture?.unsubscribe();
     this.chargement.set(true);
     this.lecture = forkJoin({ stats: this.api.irisStats(), meta: this.api.irisMetadonnees() }).subscribe({
@@ -143,7 +160,9 @@ export class IrisComponent {
     this.anneeEnCours.set(true);
     this.api.enregistrerIrisMetadonnees({ annee: this.annee() }).subscribe({
       next: () => {
-        this.api.irisMetadonnees().subscribe({
+        if (this.detruit) return;
+        this.relectureMeta?.unsubscribe();
+        this.relectureMeta = this.api.irisMetadonnees().subscribe({
           next: (meta) => {
             if (meta?.['annee']) this.annee.set(meta['annee']);
             this.anneeEnCours.set(false);
@@ -171,13 +190,15 @@ export class IrisComponent {
     this.pmtilesMessage.set(null);
     this.api.declencherPmtiles().subscribe({
       next: (r) => {
-        this.pmtilesMessage.set(r?.success ? `✓ Workflow lancé — durée estimée 5-8 min. Suivi : ${r.workflow_url}` : `! Erreur : ${r?.error}`);
+        this.pmtilesMessage.set(r?.success
+          ? retour(`✓ Workflow lancé — durée estimée 5-8 min. Suivi : ${r.workflow_url}`)
+          : retour(`! Erreur : ${r?.error}`));
         this.pmtilesEnCours.set(false);
       },
       error: (e: unknown) => {
-        this.pmtilesMessage.set(e instanceof HttpErrorResponse && !estCoupure(e)
+        this.pmtilesMessage.set(retour(e instanceof HttpErrorResponse && !estCoupure(e)
           ? `! Erreur : ${erreurDuCorps(e) ?? `HTTP ${e.status}`}`
-          : `! Erreur réseau : ${messageErreur(e, String(e))}`);
+          : `! Erreur réseau : ${messageErreur(e, String(e))}`));
         this.pmtilesEnCours.set(false);
       },
     });
@@ -194,19 +215,19 @@ export class IrisComponent {
     this.api.supprimerIris().subscribe({
       next: (r) => {
         if (r?.success) {
-          this.suppressionMessage.set(`✓ ${r.deleted ?? 0} IRIS supprimés`);
+          this.suppressionMessage.set(retour(`✓ ${r.deleted ?? 0} IRIS supprimés`));
           fin();
           this.stats.set(null);
           this.lire();
         } else {
-          this.suppressionMessage.set(`! Erreur: ${r?.error}`);
+          this.suppressionMessage.set(retour(`! Erreur: ${r?.error}`));
           fin();
         }
       },
       error: (e: unknown) => {
-        this.suppressionMessage.set(e instanceof HttpErrorResponse && !estCoupure(e)
+        this.suppressionMessage.set(retour(e instanceof HttpErrorResponse && !estCoupure(e)
           ? `! Erreur: ${erreurDuCorps(e) ?? `HTTP ${e.status}`}`
-          : `! ${messageErreur(e, 'Erreur')}`);
+          : `! ${messageErreur(e, 'Erreur')}`));
         fin();
       },
     });

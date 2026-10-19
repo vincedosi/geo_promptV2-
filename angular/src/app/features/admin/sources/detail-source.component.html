@@ -82,7 +82,7 @@
         <div class="etiquette-section bloc">// modifier</div>
         <label class="libelle-champ" for="nom-source">Nom</label>
         <input id="nom-source" class="champ" data-champ-nom [value]="nomEdite()" (input)="surSaisieNom($event)" />
-        <button type="button" class="primaire" data-sauver-nom (click)="sauverNom()">Sauvegarder</button>
+        <button type="button" class="primaire" data-sauver-nom [disabled]="sauvegardeNom()" (click)="sauverNom()">Sauvegarder</button>
       </div>
     }
 

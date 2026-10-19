@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input
 import { HttpErrorResponse } from '@angular/common/http';
 import type { Subscription } from 'rxjs';
 import { formaterNombre } from '../../../../core/format/nombre';
+import { ConfirmationComponent } from '../../../../ui/confirmation/confirmation.component';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { NotificationsService } from '../../../../ui/notifications/notifications.service';
 import { SourcesAdminApi, type StatsSources } from '../data/sources-admin.api';
@@ -57,15 +58,20 @@ function messageRefus(e: unknown): string {
  * - suppression unitaire et purge : React ne lisait PAS la réponse (`usePoiAdmin.ts:121-137`) — une ligne
  *   refusée disparaissait de l'écran. Ici la réponse est lue : refus → notification « Suppression échouée »
  *   au message de la route, la ligne reste.
+ * - suppression unitaire CONFIRMÉE (vague finale D1, ruling) : React supprimait au premier clic sur un ✕ de
+ *   9 px voisin d'« éditer » ; ici `mg-confirmation` « Supprimer ce POI » nomme le POI. Une suppression en vol
+ *   désactive le ✕ de sa ligne et ignore un second appel (D2 : le double clic envoyait deux DELETE et
+ *   décrémentait le total deux fois).
  * - modale : `<dialog>` (C6) au lieu d'un voile `position: fixed`, focus dans le premier champ.
- * - couleurs (C9) : teintes en jetons (`#3b82f6` / `#06b6d4` → `--info`, `#ec4899` → `--ligne-media-3`,
+ * - couleurs (C9) : teintes en jetons (`#3b82f6` / `#06b6d4` → `--info`, `#ec4899` → `--nature-8` (Q-6 : le
+ *   `--ligne-media-3` d'abord choisi se lisait comme `--danger` en clair, à côté de CIRFA ; à valider par un designer),
  *   `#64748b` → `--text-tertiary`, `#a0a0a0` → `--text-secondary`, `#f59e0b` → `--warning`,
  *   `#34d399` → `--success`) ; fonds à 10 %, bords à 27 % (`44`) ; teal en texte lisible en clair.
  * - cartes au survol : `:hover` CSS au lieu de deux écouteurs.
  */
 @Component({
   selector: 'mg-sources-poi',
-  imports: [DialoguePoiComponent, IconeComponent],
+  imports: [ConfirmationComponent, DialoguePoiComponent, IconeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './poi.component.html',
   styleUrls: ['./panneaux-commun.css', './poi.component.css', './poi-echantillons.css'],
@@ -92,6 +98,18 @@ export class PoiComponent {
   /** Catégorie dont la purge attend confirmation (`confirmDeleteCat`). */
   protected readonly aPurger = signal<string | null>(null);
   protected readonly purgeEnCours = signal(false);
+  /** POI dont la suppression attend confirmation (D1). */
+  protected readonly aSupprimer = signal<{ id: string; nom: string } | null>(null);
+  /** Suppressions unitaires en vol (D2). */
+  protected readonly suppressions = signal<ReadonlySet<string>>(new Set());
+  protected readonly suppressionEnCours = computed(() => {
+    const p = this.aSupprimer();
+    return p !== null && this.suppressions().has(p.id);
+  });
+  protected readonly messageSuppression = computed(() => {
+    const p = this.aSupprimer();
+    return p ? `« ${p.nom} » sera définitivement supprimé.` : '';
+  });
 
   protected readonly entete = computed(() => {
     const s = this.stats();
@@ -107,9 +125,12 @@ export class PoiComponent {
     }));
   });
 
-  protected readonly lignes = computed(() => this.echantillons().map((p) => ({
-    ...p, latTexte: p.lat?.toFixed(4) ?? '', lngTexte: p.lng?.toFixed(4) ?? '',
-  })));
+  protected readonly lignes = computed(() => {
+    const enVol = this.suppressions();
+    return this.echantillons().map((p) => ({
+      ...p, latTexte: p.lat?.toFixed(4) ?? '', lngTexte: p.lng?.toFixed(4) ?? '', suppression: enVol.has(p.id),
+    }));
+  });
 
   protected readonly resume = computed(() => ({
     entete: `${this.selection()} — ${this.echantillons().length} / ${formaterNombre(this.total())} POI`,
@@ -204,10 +225,35 @@ export class PoiComponent {
     });
   }
 
-  /** `deletePoi` (`usePoiAdmin.ts:121-127`), réponse LUE. */
+  /** ✕ d'une ligne : la confirmation d'abord (D1), aucune requête. */
+  protected demanderSuppression(p: LignePoi): void {
+    this.aSupprimer.set({ id: p.id, nom: p.nom ?? p.id });
+  }
+
+  protected annulerSuppression(): void {
+    if (!this.suppressionEnCours()) this.aSupprimer.set(null);
+  }
+
+  protected confirmerSuppression(): void {
+    const p = this.aSupprimer();
+    if (p) this.supprimer(p.id);
+  }
+
+  /** `deletePoi` (`usePoiAdmin.ts:121-127`), réponse LUE ; une seule requête par POI à la fois (D2). */
   protected supprimer(id: string): void {
+    if (this.suppressions().has(id)) return;
+    this.suppressions.update((s) => new Set(s).add(id));
+    const fin = () => {
+      this.suppressions.update((s) => {
+        const n = new Set(s);
+        n.delete(id);
+        return n;
+      });
+      if (this.aSupprimer()?.id === id) this.aSupprimer.set(null);
+    };
     this.api.supprimerPoi(id).subscribe({
       next: (r) => {
+        fin();
         if (r && r.success === false) {
           this.notifications.error('Suppression échouée', r.error ?? 'Erreur');
           return;
@@ -216,7 +262,10 @@ export class PoiComponent {
         this.total.update((t) => t - 1);
         this.modifie.emit();
       },
-      error: (e: unknown) => this.notifications.error('Suppression échouée', messageRefus(e)),
+      error: (e: unknown) => {
+        fin();
+        this.notifications.error('Suppression échouée', messageRefus(e));
+      },
     });
   }
 

@@ -21,6 +21,13 @@ export const MESSAGE_ROLE_ILLISIBLE = 'Impossible de vérifier vos droits.';
  *
  * Fournit aussi le `NotificationsService` des pages admin (C7), détruit avec le cadre.
  *
+ * Pose UNE fois les couleurs de TEXTE lisibles en thème clair (Q-9, socle de F-3) : `--teal-texte`,
+ * `--success-texte`, `--warning-texte`, `--danger-texte`, `--info-texte` — la couleur du jeton mêlée à
+ * `--text-primary` en clair (50 % pour teal, vert et ambre ; 75 % pour rouge et bleu), inchangée en sombre.
+ * Les propriétés personnalisées héritent dans l'arbre, et `light-dark()` se résout chez l'élément qui les
+ * emploie (le `color-scheme` de `:host`). Le teal reste invariant en aplat et en bordure ; seul le texte
+ * l'assombrit (DESIGN_SYSTEM.md § 3). `jetons.css` n'est pas touché (parité verrouillée, C9).
+ *
  * `chargement` ne rend rien : le garde `roleResoluGuard` a attendu la lecture, cet état n'est
  * visible qu'à une relecture (changement de compte, « Réessayer »).
  */
@@ -58,6 +65,15 @@ export const MESSAGE_ROLE_ILLISIBLE = 'Impossible de vérifier vos droits.';
     }
   `,
   host: { class: 'block' },
+  styles: `
+    :host {
+      --teal-texte: light-dark(color-mix(in srgb, var(--brand-teal) 50%, var(--text-primary)), var(--brand-teal));
+      --success-texte: light-dark(color-mix(in srgb, var(--success) 50%, var(--text-primary)), var(--success));
+      --warning-texte: light-dark(color-mix(in srgb, var(--warning) 50%, var(--text-primary)), var(--warning));
+      --danger-texte: light-dark(color-mix(in srgb, var(--danger) 75%, var(--text-primary)), var(--danger));
+      --info-texte: light-dark(color-mix(in srgb, var(--info) 75%, var(--text-primary)), var(--info));
+    }
+  `,
 })
 export class CadreAdminComponent {
   protected readonly role = inject(RoleAdminService);

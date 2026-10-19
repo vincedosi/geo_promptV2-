@@ -13,9 +13,13 @@ export function estCoupure(e: unknown): boolean {
 }
 
 /**
- * Le champ `error` du corps d'un refus HTTP, ou `null` s'il n'y en a pas (corps vide, illisible, sans
- * `error`). Le corps arrive en objet pour une réponse JSON, en TEXTE pour une requête demandée en texte
- * (le flux SSE de l'import, C4) : il est alors relu par `JSON.parse`. Un HTML de passerelle reste `null`.
+ * Le champ `error` du corps d'un refus HTTP. Trois réponses (vague finale D12 : ce commentaire disait `null`
+ * pour les trois cas d'absence) :
+ * - le message, quand le corps JSON porte un `error` non vide ;
+ * - `undefined`, quand le corps est un objet JSON SANS `error` (ou un `error` vide ou non textuel) ;
+ * - `null`, quand le corps est vide ou illisible (un HTML de passerelle, par exemple).
+ * Le corps arrive en objet pour une réponse JSON, en TEXTE pour une requête demandée en texte (le flux SSE
+ * de l'import, C4) : il est alors relu par `JSON.parse`.
  *
  * `undefined` distingue « corps JSON sans `error` » de « corps illisible » : React les traite
  * différemment pour la suppression d'une campagne (`body.error || 'Suppression échouée'` contre

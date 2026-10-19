@@ -31,11 +31,11 @@
   border-radius: 2px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; line-height: 1.7;
 }
 .cle { color: var(--text-secondary); }
-.accent { color: var(--brand-teal); }
+.accent { color: var(--teal-texte); }
 .valeur { color: var(--text-primary); }
 
 .acces { font-size: 11px; color: var(--text-secondary); }
-.acces a { color: var(--brand-teal); text-decoration: none; }
+.acces a { color: var(--teal-texte); text-decoration: none; }
 .acces a:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 1px; }
 .separe { border-top: 1px solid var(--border-subtle); padding-top: 12px; }
 .libelle-champ { font-size: 9px; font-weight: 500; color: var(--text-secondary); display: block; margin-bottom: 4px; }

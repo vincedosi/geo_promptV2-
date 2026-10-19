@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { formaterNombre } from '../../../../core/format/nombre';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import type { RapportSynchroIris } from '../data/panneaux.types';
 
@@ -9,7 +10,8 @@ import type { RapportSynchroIris } from '../data/panneaux.types';
  *
  * Couleurs (C9) : `rgba(61,255,160,0.06)` → `--success` à 6 % ; `${C.green}44` / `${C.warn}44` (CSS
  * invalide chez React) → 27 % ; remplissage ≥ 80 % vert, ≥ 30 % avertissement, sinon rouge (React).
- * Gardé par parité : comptes en `toLocaleString('fr')`.
+ * Gardé par parité : comptes en français (`toLocaleString('fr')` de React, même sortie que `formaterNombre`,
+ * la source unique de CLAUDE.md, vague finale D14).
  */
 @Component({
   selector: 'mg-iris-synchro',
@@ -93,7 +95,7 @@ export class IrisSynchroComponent {
         .map(([col, n]) => {
           const pct = Math.round((n / total) * 100);
           return {
-            col, compte: n.toLocaleString('fr'), largeur: Math.min(pct, 100),
+            col, compte: formaterNombre(n), largeur: Math.min(pct, 100),
             niveau: pct >= 80 ? 'bon' : pct >= 30 ? 'moyen' : 'faible', dansCode: r.code_columns.includes(col),
           };
         }),

@@ -78,7 +78,7 @@
                     <td class="discret petit">{{ p.source ?? '—' }}</td>
                     <td class="actions-ligne">
                       <button type="button" class="editer" data-editer (click)="editer(p)">éditer</button>
-                      <button type="button" class="supprimer" data-supprimer [attr.aria-label]="'Supprimer ' + (p.nom ?? p.id)" (click)="supprimer(p.id)">✕</button>
+                      <button type="button" class="supprimer" data-supprimer [attr.aria-label]="'Supprimer ' + (p.nom ?? p.id)" [disabled]="p.suppression" (click)="demanderSuppression(p)">✕</button>
                     </td>
                   </tr>
                 }
@@ -104,6 +104,18 @@
 } @else {
   <div class="message" data-vide>Aucune donnée.</div>
 }
+
+<mg-confirmation
+  data-confirmation-poi
+  variante="danger"
+  [ouvert]="aSupprimer() !== null"
+  titre="Supprimer ce POI"
+  [message]="messageSuppression()"
+  libelleConfirmer="Supprimer"
+  [enCours]="suppressionEnCours()"
+  (confirmer)="confirmerSuppression()"
+  (annuler)="annulerSuppression()"
+/>
 
 @if (modale(); as m) {
   <mg-dialogue-poi [mode]="m.mode" [initial]="m.initial" [enCours]="modaleEnCours()" [erreur]="modaleErreur()"

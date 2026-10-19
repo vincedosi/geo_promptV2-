@@ -136,6 +136,32 @@ Le teal ne bascule pas avec le thème : c'est l'accent de marque, pas une
 surface. `--brand-teal-fg` est invariant pour la même raison — le dériver de
 `--bg-level-0` le ferait passer au blanc sur un aplat teal clair, illisible.
 
+#### Teal et statut en TEXTE sur fond clair — administration Angular
+
+Invariant en aplat, en bordure et en focus, le teal tombe à ≈ 1,8:1 quand il
+sert de couleur de TEXTE sur une surface claire (`--bg-level-1`), et le vert de
+`--success` à ≈ 2,5:1. L'administration Angular (lot 6) emploie donc, pour du
+texte seulement, cinq propriétés posées UNE fois sur l'hôte du cadre admin
+(`angular/src/app/features/admin/cadre-admin.component.ts`), héritées par tous
+ses écrans :
+
+- `--teal-texte` : `--brand-teal` mêlé à 50 % de `--text-primary` en clair (≈ 5:1) ;
+- `--success-texte` et `--warning-texte` : même recette, 50 % ;
+- `--danger-texte` et `--info-texte` : 75 % de la couleur, le reste de `--text-primary`.
+
+Chacune vaut `light-dark(<mélange>, <couleur>)` : en thème sombre, la couleur
+d'origine, inchangée. `light-dark()` se résout chez l'élément qui emploie la
+propriété, d'après le `color-scheme` de son hôte ; un navigateur qui ne le
+connaît pas ignore la déclaration et garde la couleur héritée, qui reste
+lisible.
+
+Ce ne sont PAS des jetons du système : ni `app/globals.css` ni
+`angular/src/styles/jetons.css` ne les portent (la parité de ces deux fichiers
+est verrouillée), et React ne les emploie pas. Décision du 2026-10-19 (Q-9 de la
+revue finale du lot 6) : une seule règle pour toute l'administration, plutôt
+que quatorze copies locales de la recette. Choix visuel à valider par un
+designer, comme toute palette de données.
+
 ### Statut (seules couleurs sémantiques autorisées)
 | Token | Hex (dark) | Hex (light) | Usage |
 |-------|-----------|-------------|-------|

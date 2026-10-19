@@ -86,6 +86,17 @@ describe('CadreAdminComponent', () => {
     expect(pile.querySelector('[data-notification]')?.textContent).toContain('Bonjour');
   });
 
+  it('Q-9 / F-3 : les couleurs de TEXTE lisibles en clair sont posées une fois sur le cadre', async () => {
+    const { el } = await monter('super_admin');
+    const cadre = el.querySelector('mg-cadre-admin') as HTMLElement;
+    const style = getComputedStyle(cadre);
+    for (const nom of ['--teal-texte', '--success-texte', '--warning-texte', '--danger-texte', '--info-texte']) {
+      expect(style.getPropertyValue(nom), nom).toContain('light-dark(');
+    }
+    expect(style.getPropertyValue('--teal-texte')).toContain('var(--brand-teal) 50%');
+    expect(style.getPropertyValue('--danger-texte')).toContain('var(--danger) 75%');
+  });
+
   it('refus et erreur : décalés sous le chrome du haut (réserve T1)', async () => {
     const { el } = await monter('refuse');
     expect(el.querySelector('[data-refus]')!.parentElement!.className).toContain('pt-8');
