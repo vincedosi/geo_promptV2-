@@ -8,7 +8,7 @@ import { NotificationsService } from '../../../../ui/notifications/notifications
 import { DepotFichiersComponent } from '../../commun/depot-fichiers.component';
 import { ProgressionImportComponent } from '../../commun/progression-import.component';
 import { SourcesAdminApi, type EvenementImportDsp, type RapportImportDsp } from '../data/sources-admin.api';
-import { ECHEC_RESEAU, erreurDuCorps, estCoupure } from './erreurs';
+import { ECHEC_RESEAU, erreurDuCorps, estCoupure } from '../../commun/erreurs-http';
 
 /** Sources proposées par React (`DSP_SOURCES`, `DspPanel.tsx:35`), dans son ordre. */
 const SOURCES_DSP = ['adform', 'dv360', 'ttd', 'xandr', 'amazon_dsp', 'other'] as const;

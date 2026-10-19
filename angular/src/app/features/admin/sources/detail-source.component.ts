@@ -7,16 +7,13 @@ import { ENREGISTRER_FICHIER } from '../../../core/http/telecharger';
 import { IconeComponent } from '../../../ui/icone/icone.component';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
 import type { DataSource } from '../logique/types/admin';
-import { SourcesAdminApi, type ReponseEcriture } from './data/sources-admin.api';
+import { SourcesAdminApi } from './data/sources-admin.api';
 import { SCHEMA_FILTER_COLS, badgeType, formatDate } from './logique/constantes';
+import { erreurDuCorps } from '../commun/erreurs-http';
 
 /** `data.error` d'une écriture refusée (HTTP ≠ 2xx), lu dans le corps JSON comme React. */
 function erreurDe(e: unknown): string | undefined {
-  if (e instanceof HttpErrorResponse) {
-    const corps = e.error as ReponseEcriture | null;
-    if (corps && typeof corps === 'object' && typeof corps.error === 'string' && corps.error) return corps.error;
-  }
-  return undefined;
+  return e instanceof HttpErrorResponse ? (erreurDuCorps(e) ?? undefined) : undefined;
 }
 
 /**

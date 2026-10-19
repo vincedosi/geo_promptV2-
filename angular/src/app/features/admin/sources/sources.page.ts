@@ -8,7 +8,7 @@ import type { DataSource } from '../logique/types/admin';
 import { RadioAdminApi, type StatsRadio } from '../radio/data/radio-admin.api';
 import { DetailSourceComponent } from './detail-source.component';
 import { ListeSourcesComponent } from './liste-sources.component';
-import { SourcesAdminApi, type ReponseEcriture, type StatsSources, type StatsZones } from './data/sources-admin.api';
+import { SourcesAdminApi, type StatsSources, type StatsZones } from './data/sources-admin.api';
 import { fmtK, type OngletSources, type TeinteSources } from './logique/constantes';
 import { CarreauxComponent } from './panneaux/carreaux.component';
 import { DspComponent } from './panneaux/dsp.component';
@@ -18,6 +18,7 @@ import { PoiComponent } from './panneaux/poi.component';
 import { TransportComponent } from './panneaux/transport.component';
 import { ZonesCustomComponent } from './panneaux/zones-custom.component';
 import { TuilesSourcesComponent } from './tuiles-sources.component';
+import { erreurDuCorps } from '../commun/erreurs-http';
 
 interface VueOnglet {
   cle: OngletSources;
@@ -270,8 +271,7 @@ export class SourcesPage {
       },
       error: (e: unknown) => {
         if (e instanceof HttpErrorResponse && e.status !== 0) {
-          const corps = e.error as ReponseEcriture | null;
-          const message = corps && typeof corps === 'object' && typeof corps.error === 'string' && corps.error ? corps.error : 'Erreur inconnue';
+          const message = erreurDuCorps(e) ?? 'Erreur inconnue';
           this.notifications.error('Suppression échouée', message);
         } else {
           this.notifications.error('Erreur réseau', 'Connexion au serveur impossible');

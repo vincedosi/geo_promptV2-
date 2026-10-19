@@ -6,6 +6,7 @@ import { DepotFichiersComponent } from '../commun/depot-fichiers.component';
 import { JournalComponent, type LigneJournal } from '../commun/journal.component';
 import { ProgressionImportComponent } from '../commun/progression-import.component';
 import { IrisCrawlerApi, type EvenementImportIris, type ResultatDepotIris } from './data/iris-crawler.api';
+import { ECHEC_RESEAU, erreurDuCorps, estCoupure } from '../commun/erreurs-http';
 
 /** Les trois sortes de ligne de React (`kind`, `page.tsx:80`). */
 type Sorte = 'log' | 'error' | 'success';
@@ -43,10 +44,8 @@ interface EtatProgression {
  */
 function messageDepot(e: unknown): string {
   if (e instanceof HttpErrorResponse) {
-    if (e.status === 0) return 'TypeError: Failed to fetch';
-    const corps = e.error as { error?: unknown } | null;
-    if (corps && typeof corps === 'object' && typeof corps.error === 'string' && corps.error) return corps.error;
-    return 'Erreur upload';
+    if (estCoupure(e)) return ECHEC_RESEAU;
+    return erreurDuCorps(e) ?? 'Erreur upload';
   }
   return String(e);
 }
@@ -58,17 +57,8 @@ function messageDepot(e: unknown): string {
  */
 function messageImport(e: unknown): string {
   if (!(e instanceof HttpErrorResponse)) return String(e);
-  if (e.status === 0) return 'TypeError: Failed to fetch';
-  let corps: unknown = e.error;
-  if (typeof corps === 'string') {
-    try {
-      corps = JSON.parse(corps);
-    } catch {
-      corps = null;
-    }
-  }
-  const erreur = corps && typeof corps === 'object' ? (corps as { error?: unknown }).error : null;
-  return typeof erreur === 'string' && erreur ? erreur : `HTTP ${e.status}`;
+  if (estCoupure(e)) return ECHEC_RESEAU;
+  return erreurDuCorps(e) ?? `HTTP ${e.status}`;
 }
 
 /**

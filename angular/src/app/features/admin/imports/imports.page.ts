@@ -3,6 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import type { Subscription } from 'rxjs';
 import { formaterNombre } from '../../../core/format/nombre';
 import { ImportsApi, type LigneImport } from './data/imports.api';
+import { ECHEC_RESEAU, erreurDuCorps, estCoupure } from '../commun/erreurs-http';
 
 /**
  * Filtres de l'écran. React proposait `all`, `ooh`, `source` (`page.tsx:121-139`) : le filtre
@@ -43,10 +44,8 @@ function dateDebut(iso: string | null): string {
  */
 function messageErreur(e: unknown): string {
   if (e instanceof HttpErrorResponse) {
-    if (e.status === 0) return 'TypeError: Failed to fetch';
-    const corps = e.error as { error?: unknown } | null;
-    if (corps && typeof corps === 'object' && typeof corps.error === 'string' && corps.error) return corps.error;
-    return 'Erreur';
+    if (estCoupure(e)) return ECHEC_RESEAU;
+    return erreurDuCorps(e) ?? 'Erreur';
   }
   return String(e);
 }

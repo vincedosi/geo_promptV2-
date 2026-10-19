@@ -7,6 +7,7 @@ import {
   type ActionGeocodage, type ConfigImport, type ReponseCorrection, type ReponseGeocodage, type StatsGeocodage,
 } from '../data/import-poi.api';
 import { ImportPoiPreparation, corpsJson } from './import-poi-preparation';
+import { erreurDuCorps, estCoupure } from '../../commun/erreurs-http';
 
 export type { CorrespondanceGeo } from './import-poi-preparation';
 
@@ -56,17 +57,8 @@ export const ETAPE_INSERTION = 'Insertion en base Supabase';
  */
 function messageRefus(e: unknown): string {
   if (!(e instanceof HttpErrorResponse)) return e instanceof Error ? e.message : String(e);
-  if (e.status === 0) return 'Failed to fetch';
-  let corps: unknown = e.error;
-  if (typeof corps === 'string') {
-    try {
-      corps = JSON.parse(corps);
-    } catch {
-      corps = null;
-    }
-  }
-  const erreur = corps && typeof corps === 'object' ? (corps as { error?: unknown }).error : undefined;
-  return typeof erreur === 'string' && erreur ? erreur : `HTTP ${e.status}`;
+  if (estCoupure(e)) return 'Failed to fetch';
+  return erreurDuCorps(e) ?? `HTTP ${e.status}`;
 }
 
 /**

@@ -6,7 +6,7 @@ import { IconeComponent } from '../../../../ui/icone/icone.component';
 import type { OrganisationListe } from '../../commun/data/organisations-liste.api';
 import { SourcesAdminApi, type ZoneAdmin } from '../data/sources-admin.api';
 import { DialogueSuppressionZoneComponent } from './dialogue-suppression-zone.component';
-import { erreurDuCorps, estCoupure } from './erreurs';
+import { erreurDuCorps, estCoupure } from '../../commun/erreurs-http';
 
 /** Anti-rebond de la recherche (`useAdminCustomZones.ts:56` : 200 ms s'il y a une recherche, sinon 0). */
 const DELAI_RECHERCHE = 200;

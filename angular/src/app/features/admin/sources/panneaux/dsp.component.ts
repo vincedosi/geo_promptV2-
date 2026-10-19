@@ -7,7 +7,7 @@ import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { NotificationsService } from '../../../../ui/notifications/notifications.service';
 import { SourcesAdminApi, type CampagneDsp } from '../data/sources-admin.api';
 import { DialogueImportDspComponent } from './dialogue-import-dsp.component';
-import { ECHEC_RESEAU, erreurDuCorps, estCoupure } from './erreurs';
+import { ECHEC_RESEAU, erreurDuCorps, estCoupure } from '../../commun/erreurs-http';
 
 /** `fmtD` de React (`DspPanel.tsx:36`) : `jj/mm/aa`, « — » sans date. */
 function fmtD(d: string | null): string {

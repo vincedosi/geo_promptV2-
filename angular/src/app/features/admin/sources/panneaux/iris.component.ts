@@ -7,7 +7,7 @@ import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { NotificationsService } from '../../../../ui/notifications/notifications.service';
 import { SourcesAdminApi } from '../data/sources-admin.api';
 import type { DepartementIris, RapportSynchroIris, SourceIris, StatsIris } from '../data/panneaux.types';
-import { erreurDuCorps, estCoupure } from './erreurs';
+import { erreurDuCorps, estCoupure } from '../../commun/erreurs-http';
 import { IrisSynchroComponent } from './iris-synchro.component';
 
 /** Colonnes de `public.iris` affichées par React (`IrisPanel.tsx:146-154`), écrites en dur comme chez lui. */

@@ -9,6 +9,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import type { Observable, Subscription } from 'rxjs';
 import type { DspApiLogRow } from '../../logique/types/dsp';
+import { erreurDuCorps } from '../../commun/erreurs-http';
 
 /** Une ligne du journal d'un fournisseur, mise en forme une fois (`LogLine`). */
 export interface LigneLog {
@@ -42,8 +43,8 @@ export function versLigneLog(l: DspApiLogRow): LigneLog {
  */
 export function messageEchec(e: unknown, defaut: string): string {
   if (e instanceof HttpErrorResponse) {
-    const corps = e.error as { error?: unknown } | null;
-    if (corps && typeof corps === 'object' && typeof corps.error === 'string' && corps.error) return corps.error;
+    const erreur = erreurDuCorps(e);
+    if (erreur) return erreur;
     return e.status === 0 ? 'Failed to fetch' : defaut;
   }
   return e instanceof Error && e.message ? e.message : defaut;

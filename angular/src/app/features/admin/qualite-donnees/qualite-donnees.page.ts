@@ -3,6 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import type { Subscription } from 'rxjs';
 import { formaterNombre } from '../../../core/format/nombre';
 import { QualiteApi, type CleVerification, type Verification } from './data/qualite.api';
+import { erreurDuCorps } from '../commun/erreurs-http';
 
 /** `LigneIndicateur` (`page.tsx:44-59`). */
 interface LigneIndicateur {
@@ -209,8 +210,8 @@ interface VueVerification {
 /** POST : le `error` du corps (celui du SERVEUR, 429 compris), sinon `HTTP <statut>` (`page.tsx:140`). */
 function messageVerification(e: unknown): string {
   if (e instanceof HttpErrorResponse) {
-    const corps = e.error as { error?: unknown } | null;
-    if (corps && typeof corps === 'object' && typeof corps.error === 'string' && corps.error) return corps.error;
+    const erreur = erreurDuCorps(e);
+    if (erreur) return erreur;
     return e.status ? `HTTP ${e.status}` : 'Failed to fetch';
   }
   return e instanceof Error ? e.message : String(e);

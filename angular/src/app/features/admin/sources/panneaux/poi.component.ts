@@ -8,7 +8,7 @@ import { NotificationsService } from '../../../../ui/notifications/notifications
 import { SourcesAdminApi, type StatsSources } from '../data/sources-admin.api';
 import type { FormulairePoi, LignePoi } from '../data/panneaux.types';
 import { DialoguePoiComponent, FORMULAIRE_POI_VIDE } from './dialogue-poi.component';
-import { ECHEC_RESEAU, erreurDuCorps, estCoupure } from './erreurs';
+import { ECHEC_RESEAU, erreurDuCorps, estCoupure } from '../../commun/erreurs-http';
 
 /** Teinte d'une catégorie : la couleur de `POI_META` / `PALETTE` de React, ramenée à un jeton (C9). */
 type TeintePoi = 'teal' | 'info' | 'succes' | 'avert' | 'danger' | 'rose' | 'ardoise' | 'gris';

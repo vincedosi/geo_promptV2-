@@ -2,11 +2,11 @@ import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core'
 import { HttpErrorResponse } from '@angular/common/http';
 import type { Subscription } from 'rxjs';
 import { FraicheurApi, type ReponseFraicheur } from '../data/fraicheur.api';
+import { erreurDuCorps } from '../../commun/erreurs-http';
 
 /** Message d'un échec : le `error` du corps (celui du SERVEUR, 429 compris), sinon le repli de React. */
 function messageEchec(e: unknown, repli: string): string {
-  const corps = e instanceof HttpErrorResponse ? (e.error as { error?: unknown } | null) : null;
-  return corps && typeof corps === 'object' && typeof corps.error === 'string' && corps.error ? corps.error : repli;
+  return (e instanceof HttpErrorResponse ? erreurDuCorps(e) : null) || repli;
 }
 
 /**

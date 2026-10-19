@@ -1,5 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
+/*
+ * Lecture d'un refus HTTP, partagée par toute l'administration (factorisation F-1, lot 6, vague finale) :
+ * venue de `sources/panneaux/erreurs.ts`, elle remplace dix copies de la même lecture du champ `error`.
+ * Chaque écran garde SA phrase de repli (« Erreur », `HTTP n`, « Failed to fetch », un texte français…) :
+ * ce sont les textes React de chaque écran (C16), à ne pas unifier.
+ */
+
 /**
  * Le texte que React affiche quand `fetch` lui-même échoue (`String(err)` d'un `TypeError`), repris
  * pour une coupure réseau (`HttpErrorResponse` de statut 0) — les trois écritures de l'onglet DSP et des
