@@ -319,6 +319,24 @@ describe('SourcesPage — onglets, vue « Toutes », liste et détail d’une so
     expect(texte(carte('cirfa'))).toContain('CIRFA bis');
   });
 
+  it('D8 : PATCH du nom en vol, on QUITTE la page, réponse OK → AUCUNE relecture (revue des vagues, Minor 1)', async () => {
+    const { f, el, http, servir, stable, carte, action } = await monter();
+    await servir();
+    carte('cirfa').click();
+    await stable();
+    action('modifier').click();
+    await stable();
+    const champ = el.querySelector<HTMLInputElement>('mg-detail-source [data-champ-nom]')!;
+    champ.value = 'CIRFA bis';
+    champ.dispatchEvent(new Event('input'));
+    el.querySelector<HTMLButtonElement>('mg-detail-source [data-sauver-nom]')!.click();
+    await stable();
+    const patch = http.expectOne('/api/admin/sources/cirfa');
+    f.destroy();
+    patch.flush({ success: true });
+    http.expectNone('/api/admin/sources');
+  });
+
   it('D8 : PATCH des filtres en vol, on change de source, réponse OK → la source est mise à jour en place', async () => {
     const { el, http, servir, stable, carte } = await monter();
     await servir();

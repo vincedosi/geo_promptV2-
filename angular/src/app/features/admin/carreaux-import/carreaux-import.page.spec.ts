@@ -179,6 +179,27 @@ describe('CarreauxImportPage — `admin/donnees/importer/shapefile` (`app/admin/
     http.expectNone(URL_REGISTER);
   });
 
+  it('quitter pendant l’« Enregistrement » : le message dit que les lots sont envoyés et la déclaration partie (revue des vagues, Minor 3)', async () => {
+    const { harness, el, http, router } = await monter('/hote/app/admin/donnees/importer/shapefile');
+    const lot1 = await lancerEnvoi(harness, el, http);
+    lot1.flush({ success: true, inserted: 1000 });
+    await vi.waitFor(() => http.expectOne(URL_LOT).flush({ success: true, inserted: 500 }), { timeout: 2_000, interval: 10 });
+    const enregistrement = await vi.waitFor(() => http.expectOne(URL_REGISTER), { timeout: 2_000, interval: 10 });
+    const navigation = router.navigateByUrl('/hote/app/admin/donnees/historique');
+    await rendre(harness);
+    const confirmation = el.querySelector('mg-importer mg-confirmation[data-confirmation-sortie]')!;
+    expect(confirmation.querySelector('dialog')!.hasAttribute('open')).toBe(true);
+    expect(texte(confirmation)).toContain('tous les lots sont envoyés et la déclaration est déjà partie');
+    expect(texte(confirmation)).not.toContain('sans source enregistrée');
+    confirmation.querySelector<HTMLButtonElement>('button.annuler')!.click();
+    expect(await navigation).toBe(false);
+    enregistrement.flush({ success: true, source_id: 'jetable' });
+    await vi.waitFor(async () => {
+      await harness.fixture.whenStable();
+      expect(texte(el.querySelector('mg-shapefile-envoi [data-envoi]'))).toContain('✓ Import terminé');
+    }, { timeout: 2_000, interval: 10 });
+  });
+
   it('sans envoi en cours, quitter « Importer » ne demande rien', async () => {
     const { harness, el, router, http } = await monter('/hote/app/admin/donnees/importer/shapefile');
     expect(await router.navigateByUrl('/hote/app/admin/donnees/historique')).toBe(true);

@@ -107,6 +107,8 @@ export class SourcesPage {
   private lectureSources: Subscription | null = null;
   /** Relecture silencieuse des statistiques après une écriture POI : la précédente est remplacée (D7). */
   private relectureStats: Subscription | null = null;
+  /** Page détruite : un rappel tardif du détail (D8) ne relit plus rien (revue des vagues, Minor 1). */
+  private detruite = false;
 
   /** L'onglet actif (`activeTab` de React). Le changer passe par `choisirOnglet`, qui vide la sélection. */
   readonly onglet = signal<OngletSources>('all');
@@ -157,6 +159,7 @@ export class SourcesPage {
 
   constructor() {
     inject(DestroyRef).onDestroy(() => {
+      this.detruite = true;
       this.lectureSources?.unsubscribe();
       this.relectureStats?.unsubscribe();
       for (const l of this.lectures) l.unsubscribe();
@@ -218,8 +221,13 @@ export class SourcesPage {
     });
   }
 
-  /** Après un renommage réussi (rappelé par le détail, même détruit entre-temps : D8). */
-  protected readonly apresRenommage = (): void => this.lireSources();
+  /**
+   * Après un renommage réussi (rappelé par le détail, même détruit entre-temps : D8). Rien si la PAGE est détruite :
+   * l'abonnement de la relecture naîtrait après le `onDestroy` et ne serait jamais annulé.
+   */
+  protected readonly apresRenommage = (): void => {
+    if (!this.detruite) this.lireSources();
+  };
 
   /** Après un enregistrement des champs filtres (même remarque). */
   protected readonly apresFiltres = (id: string, champs: string[]): void => this.filtresModifies(id, champs);

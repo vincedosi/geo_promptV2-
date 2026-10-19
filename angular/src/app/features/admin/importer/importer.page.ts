@@ -63,6 +63,12 @@ export class ImporterPage implements SortieConfirmable {
 
   protected readonly sortieDemandee = signal(false);
   protected readonly messageSortie = computed(() => {
+    // Phase « Enregistrement » (revue des vagues, Minor 3) : tous les lots sont partis et la déclaration de la source
+    // est déjà en vol — quitter n'en verra seulement pas la réponse.
+    if (this.shapefile.phase() === 'Enregistrement') {
+      return 'Un import Shapefile enregistre sa source : tous les lots sont envoyés et la déclaration est déjà partie. '
+        + 'Le quitter n’en affichera pas la réponse — vérifiez ensuite dans Sources que la source y figure.';
+    }
     const l = this.shapefile.lots();
     const avancement = l ? ` (${l.envoyes} / ${l.total} lots)` : '';
     return `Un import Shapefile est en cours${avancement}. Le quitter l’arrête : les lots déjà envoyés resteront en base sans source enregistrée.`;
