@@ -21,7 +21,7 @@ import { FORMATS_ACCEPTES } from '../logique/constantes';
   imports: [DepotFichiersComponent, IconeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './depot.component.html',
-  styleUrls: ['./etape.css', './depot.component.css'],
+  styleUrls: ['./etape.css', './badges.css', './depot.component.css'],
 })
 export class DepotComponent {
   protected readonly etat = inject(ImportPoiService);

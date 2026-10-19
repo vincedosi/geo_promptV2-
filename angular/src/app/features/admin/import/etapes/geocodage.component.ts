@@ -47,7 +47,7 @@ const TUILES: { cle: GeocodeStatus; libelle: string; note: string }[] = [
   selector: 'mg-import-geocodage',
   imports: [IconeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  styleUrls: ['./etape.css', './etape-actions.css', './geocodage.component.css'],
+  styleUrls: ['./etape.css', './badges.css', './etape-actions.css', './geocodage.component.css'],
   templateUrl: './geocodage.component.html',
 })
 export class GeocodageComponent {

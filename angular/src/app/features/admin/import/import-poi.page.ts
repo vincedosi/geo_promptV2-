@@ -33,6 +33,7 @@ import { ImportPoiService } from './etat/import-poi.service';
   providers: [ImportPoiService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './import-poi.page.html',
+  styleUrls: ['./etapes/badges.css'],
   styles: [`
     :host {
       display: block; max-width: 900px; font-family: var(--font-sans); color: var(--text-primary);
@@ -40,18 +41,6 @@ import { ImportPoiService } from './etat/import-poi.service';
     }
     .entete { margin-bottom: 20px; }
     .badges { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
-    .badge {
-      font-family: var(--font-sans); font-size: 11px; font-weight: 500; border-radius: 2px; padding: 2px 6px;
-      display: inline-block; border: 1px solid;
-    }
-    .badge.avertissement {
-      color: var(--warning-texte); background: color-mix(in srgb, var(--warning) 10%, transparent);
-      border-color: color-mix(in srgb, var(--warning) 30%, transparent);
-    }
-    .badge.vert {
-      color: var(--success-texte); background: color-mix(in srgb, var(--success) 12%, transparent);
-      border-color: color-mix(in srgb, var(--success) 30%, transparent);
-    }
     .sous-titre { font-family: var(--font-sans); font-size: 12px; color: var(--text-secondary); margin: 0; }
     .etapes { display: flex; flex-direction: column; gap: 16px; }
     .pied { padding: 12px 0; font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); border-top: 1px solid var(--border-subtle); }

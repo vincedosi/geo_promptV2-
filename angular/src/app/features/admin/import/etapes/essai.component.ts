@@ -19,7 +19,7 @@ import { ImportPoiService } from '../etat/import-poi.service';
   selector: 'mg-import-essai',
   imports: [IconeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  styleUrls: ['./etape.css', './etape-actions.css'],
+  styleUrls: ['./etape.css', './badges.css', './etape-actions.css'],
   styles: [`
     .essayer { min-width: 200px; }
     .essayer:disabled { opacity: 0.6; }

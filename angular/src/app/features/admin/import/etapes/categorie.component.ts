@@ -17,7 +17,7 @@ import { ImportPoiService } from '../etat/import-poi.service';
   selector: 'mg-import-categorie',
   imports: [IconeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  styleUrls: ['./etape.css'],
+  styleUrls: ['./etape.css', './badges.css'],
   styles: [`
     .corps { display: flex; flex-direction: column; gap: 10px; }
     label { font-family: var(--font-sans); font-size: 12px; font-weight: 500; color: var(--text-primary); margin: 0; display: block; margin-bottom: 6px; }

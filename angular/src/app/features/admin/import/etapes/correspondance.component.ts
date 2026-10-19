@@ -64,7 +64,7 @@ export class ChoixColonneComponent {
   selector: 'mg-import-correspondance',
   imports: [ChoixColonneComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  styleUrls: ['./etape.css', './correspondance.component.css'],
+  styleUrls: ['./etape.css', './badges.css', './correspondance.component.css'],
   templateUrl: './correspondance.component.html',
 })
 export class CorrespondanceComponent {

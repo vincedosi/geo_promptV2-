@@ -42,7 +42,7 @@ import { ORGANISATION_DEFAUT } from '../logique/constantes';
   selector: 'mg-import-reel',
   imports: [ConfirmationComponent, IconeComponent, JournalComponent, ProgressionImportComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  styleUrls: ['./etape.css', './etape-actions.css', './import.component.css'],
+  styleUrls: ['./etape.css', './badges.css', './etape-actions.css', './import.component.css'],
   templateUrl: './import.component.html',
 })
 export class ImportComponent {

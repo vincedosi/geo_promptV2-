@@ -28,7 +28,7 @@ interface LigneColonne {
 @Component({
   selector: 'mg-import-colonnes',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  styleUrls: ['./etape.css', './colonnes.component.css'],
+  styleUrls: ['./etape.css', './badges.css', './colonnes.component.css'],
   templateUrl: './colonnes.component.html',
 })
 export class ColonnesComponent {

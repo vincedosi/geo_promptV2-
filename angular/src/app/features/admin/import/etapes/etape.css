@@ -17,15 +17,6 @@
 .corps { padding: 14px; }
 .mono { font-family: var(--font-mono); }
 .discret { color: var(--text-tertiary); }
-.badge {
-  font-family: var(--font-sans); font-size: 11px; font-weight: 500; border-radius: 2px; padding: 2px 6px;
-  display: inline-block; border: 1px solid;
-}
-.badge.vert {
-  color: var(--success-texte); background: color-mix(in srgb, var(--success) 12%, transparent);
-  border-color: color-mix(in srgb, var(--success) 30%, transparent);
-}
-.badge.accent { color: var(--teal-texte); background: var(--brand-teal-10); border-color: var(--brand-teal-30); }
 .a-droite { margin-left: auto; }
 select, input[type='text'] {
   background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 2px; color: var(--text-primary);
