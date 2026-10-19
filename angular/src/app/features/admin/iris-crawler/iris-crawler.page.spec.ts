@@ -99,14 +99,14 @@ describe('IrisCrawlerPage — dépôt manuel, correspondance, import NDJSON (lot
     expect(texte(boutonImport())).toBe('IMPORTER 5 COLONNES');
     expect(boutonImport().disabled).toBe(false);
     expect(journal()).toEqual(['Upload de iris-essai.csv (0.0 Mo)…', '✓ 5 lignes — 5 colonnes mappées']);
-    expect(couleurs()).toEqual(['var(--text-tertiary)', 'var(--success)']);
+    expect(couleurs()).toEqual(['var(--text-tertiary)', 'var(--success-texte, var(--success))']);
   });
 
   it('dépôt : grands nombres au format fr-FR (`toLocaleString(\'fr-FR\')` de React → `formaterNombre`), avertissements en `! …`', async () => {
     await deposerEtServir({ ...DEPOT_IRIS_ESSAI, totalRows: 16045, parseWarnings: ['Too few fields', 'Too many fields'] });
     expect(espaces(texte(el.querySelector('[data-entete] > span:nth-child(2)')))).toBe(espaces(`${formaterNombre(16045)} lignes · 7 colonnes`));
     expect(journal().slice(1)).toEqual([espaces(`✓ ${formaterNombre(16045)} lignes — 5 colonnes mappées`), '! Too few fields', '! Too many fields']);
-    expect(couleurs().slice(2)).toEqual(['var(--danger)', 'var(--danger)']);
+    expect(couleurs().slice(2)).toEqual(['var(--danger-texte, var(--danger))', 'var(--danger-texte, var(--danger))']);
   });
 
   it('dépôt refusé : `! <error>` de la route, sinon « Erreur upload » ; réseau coupé : le `String(e)` de React ; aucun résultat', async () => {
@@ -115,7 +115,7 @@ describe('IrisCrawlerPage — dépôt manuel, correspondance, import NDJSON (lot
     http.expectOne(URL_DEPOT).flush({ error: 'Seuls les fichiers .csv et .tsv sont acceptés' }, { status: 400, statusText: 'Bad Request' });
     await f.whenStable();
     expect(journal().at(-1)).toBe('! Seuls les fichiers .csv et .tsv sont acceptés');
-    expect(couleurs().at(-1)).toBe('var(--danger)');
+    expect(couleurs().at(-1)).toBe('var(--danger-texte, var(--danger))');
     expect(el.querySelector('[data-resultat]')).toBeNull();
     expect(texte(el.querySelector('[data-consigne]'))).toBe('GLISSER UN FICHIER CSV / CLIQUER POUR PARCOURIR');
 
@@ -170,7 +170,7 @@ describe('IrisCrawlerPage — dépôt manuel, correspondance, import NDJSON (lot
     req.flush(FLUX_IMPORT_IRIS);
     await f.whenStable();
     expect(journal().slice(5)).toEqual(['Batch 1/3 — 42%', 'Batch 2/3 — 83%', 'Batch 3/3 — 100%', '✓ Import terminé — 1200 lignes traitées']);
-    expect(couleurs().at(-1)).toBe('var(--success)');
+    expect(couleurs().at(-1)).toBe('var(--success-texte, var(--success))');
     expect(texte(boutonImport())).toBe('✓ IMPORT TERMINÉ');
     expect(boutonImport().disabled).toBe(true);
     expect(barre()?.getAttribute('aria-valuenow')).toBe('100');
@@ -225,7 +225,7 @@ describe('IrisCrawlerPage — dépôt manuel, correspondance, import NDJSON (lot
     req.flush('{"error":"Non autorisé"}', { status: 403, statusText: 'Forbidden' });
     await f.whenStable();
     expect(journal().at(-1)).toBe('! Non autorisé');
-    expect(couleurs().at(-1)).toBe('var(--danger)');
+    expect(couleurs().at(-1)).toBe('var(--danger-texte, var(--danger))');
     expect(texte(boutonImport())).toBe('IMPORTER 5 COLONNES');
     expect(boutonImport().disabled).toBe(false);
     expect(texte(el.querySelector('mg-progression-import'))).toContain('! Non autorisé');
