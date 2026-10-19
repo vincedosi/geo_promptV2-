@@ -73,4 +73,24 @@ describe('RadioAdminApi — routes `/api/radio/*` de l’onglet Import (lot 6, T
     essai.flush({ dry_run: true, would_delete: { emetteurs: 12704 } });
     reel.flush({ success: true });
   });
+
+  it('Radios (T17) : `stations` aux paramètres EXACTS de `fetchRadios` (`page.tsx:141-160`), dans le même ordre, `search` seulement s’il est saisi', () => {
+    api.stations({ page: 1, filtre: 'all', recherche: '' }).subscribe();
+    const sans = http.expectOne((r) => r.url === '/api/radio/stations');
+    expect(sans.request.method).toBe('GET');
+    expect(sans.request.urlWithParams).toBe('/api/radio/stations?page=1&limit=20&sort=freq_desc&filter=all');
+    sans.flush({ stations: [], total: 0, page: 1, limit: 20 });
+    api.stations({ page: 3, filtre: 'unmatched', recherche: 'fun radio' }).subscribe();
+    const avec = http.expectOne((r) => r.url === '/api/radio/stations');
+    expect(avec.request.urlWithParams).toBe('/api/radio/stations?page=3&limit=20&sort=freq_desc&filter=unmatched&search=fun%20radio');
+    avec.flush({ stations: [], total: 0, page: 3, limit: 20 });
+  });
+
+  it('Statistiques (T17) : `audit` en GET sans paramètre (`fetchAudit`, `page.tsx:118-125`)', () => {
+    api.audit().subscribe();
+    const req = http.expectOne('/api/radio/audit');
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.keys()).toEqual([]);
+    req.flush({});
+  });
 });

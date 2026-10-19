@@ -1,0 +1,88 @@
+<div class="barre">
+  <input
+    class="recherche"
+    data-recherche
+    type="text"
+    placeholder="Rechercher une radio..."
+    aria-label="Rechercher une radio"
+    [value]="reglages.recherche()"
+    (input)="chercher($any($event.target).value)"
+  />
+  <div class="filtres" role="group" aria-label="Filtre des radios">
+    @for (f of filtres; track f.valeur) {
+      <button
+        type="button"
+        class="filtre"
+        [attr.data-filtre]="f.valeur"
+        [attr.data-teinte]="f.teinte"
+        [attr.aria-pressed]="reglages.filtre() === f.valeur"
+        (click)="filtrer(f.valeur)"
+      >{{ f.libelle }}</button>
+    }
+  </div>
+  @if (compteur(); as c) {
+    <span class="compteur" data-compteur>{{ c }}</span>
+  }
+</div>
+
+@if (chargement()) {
+  <div class="chargement" data-chargement>Chargement...</div>
+} @else if (erreur(); as e) {
+  <div class="erreur" data-erreur role="alert">{{ e }}</div>
+} @else if (lignes().length === 0) {
+  <div class="vide" data-vide>
+    <div class="vide-texte">{{ reglages.recherche() ? 'Aucune radio trouvée' : 'Aucune radio en base' }}</div>
+    @if (!reglages.recherche()) {
+      <a class="lancer" data-lancer-import routerLink="../import">Lancer un import</a>
+    }
+  </div>
+} @else {
+  <div class="tableau">
+    <table>
+      <thead>
+        <tr>
+          @for (c of colonnes; track $index) {
+            <th>{{ c }}</th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (r of lignes(); track r.id) {
+          <tr>
+            <td class="nom">{{ r.nom }}</td>
+            <td class="categorie">{{ r.categorie }}</td>
+            <td>
+              <span class="pastille" data-emetteurs [attr.data-teinte]="r.emetteurs > 0 ? 'succes' : 'danger'">{{ r.emetteurs > 0 ? r.emetteurs : 0 }}</span>
+            </td>
+            <td class="freq">{{ r.freq }}</td>
+            <td class="petit">
+              @if (r.reseau) {
+                <span class="reseau" data-reseau>{{ r.reseau }}</span>
+              } @else {
+                <span class="tertiaire">—</span>
+              }
+            </td>
+            <td>
+              <a class="slug" data-slug [href]="r.url" target="_blank" rel="noopener noreferrer" [attr.title]="r.page">{{ r.slug }}</a>
+            </td>
+            <td>
+              @if (r.emetteurs === 0) {
+                <span class="non-matche">non matché</span>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    @if (pagination()) {
+      <div class="pagination" data-pagination>
+        <span class="total" data-total>{{ total() }} radios</span>
+        <div class="pages">
+          <button type="button" class="page-bouton" data-precedent [disabled]="precedentCoupe()" (click)="allerA(-1)">Précédent</button>
+          <span class="numero" data-page>{{ reglages.page() }}</span>
+          <button type="button" class="page-bouton" data-suivant [disabled]="suivantCoupe()" (click)="allerA(1)">Suivant</button>
+        </div>
+      </div>
+    }
+  </div>
+}

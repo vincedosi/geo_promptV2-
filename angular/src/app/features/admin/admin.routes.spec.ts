@@ -86,10 +86,12 @@ describe('ROUTES_ADMIN — onglet « Importer » de Données (lot 6, T15, amende
     expect(importer?.children?.[1].loadComponent).toBeTypeOf('function');
     expect(importer?.children?.[2].loadComponent).toBeTypeOf('function');
     expect(importer?.children?.[3].loadComponent).toBeTypeOf('function');
-    // Radio garde SES onglets (`page.tsx:356-366`), en sous-routes relatives : seul « Import » est porté (T16).
+    // Radio garde SES onglets (`page.tsx:356-366`), en sous-routes relatives : Import (T16), Radios et
+    // Statistiques (T17), segments = clés de React.
     const radio = importer?.children?.[4];
     expect(radio?.loadComponent).toBeTypeOf('function');
-    expect(radio?.children?.map((r) => r.path)).toEqual(['', 'import']);
+    expect(radio?.children?.map((r) => r.path)).toEqual(['', 'import', 'radios', 'stats']);
+    expect(radio?.children?.slice(1).every((r) => typeof r.loadComponent === 'function')).toBe(true);
     expect(radio?.children?.[0].redirectTo).toBe('import');
   });
 });

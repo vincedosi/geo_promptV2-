@@ -1,3 +1,4 @@
+import { HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import type { Observable } from 'rxjs';
 import { HttpBaseService } from '../../../../core/http/http-base.service';
@@ -21,6 +22,11 @@ export interface StatsRadio {
   /** Date du fichier ANFR (`'2026-09-06'`), `null` si aucun import. */
   derniere_maj_anfr: string | null;
   archives_count: number;
+  /**
+   * Radios ayant au moins un émetteur — rendu par la RPC, non déclaré par React. L'onglet Radios (T17)
+   * l'emploie pour son compteur, là où React divisait les ÉMETTEURS matchés par le nombre de radios.
+   */
+  radios_matchees?: number;
 }
 
 /** Une ligne de `radio_imports_log` (`ImportLog`, `page.tsx:29-33`) ; la route rend `select('*')`. */
@@ -71,6 +77,57 @@ export interface EvenementImportRadio {
   deleted?: number;
 }
 
+/** Filtre de l'onglet Radios (`radiosFilter`, `page.tsx:140`), passé tel quel en `filter`. */
+export type FiltreStations = 'all' | 'matched' | 'unmatched';
+
+/** Une radio de `GET /api/radio/stations` (`RadioRow`, `page.tsx:34-42`) : la ligne de `radios` + trois champs calculés. */
+export interface StationRadio {
+  id: string;
+  nom: string;
+  categorie_arcom: string | null;
+  portee: string | null;
+  genre: string | null;
+  groupe_media: string | null;
+  audience_data: Record<string, unknown>;
+  tarifs_data: Record<string, unknown>;
+  created_at: string;
+  nb_emetteurs?: number;
+  nb_freq_fm?: number;
+  parent_nom?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+/** `{ stations, total, page, limit }` : `total` compte TOUTES les radios filtrées (lecture par pages, plafond 5 000). */
+export interface PageStations {
+  stations?: StationRadio[];
+  total?: number;
+  page?: number;
+  limit?: number;
+}
+
+/** Une radio non matchée de l'audit, avec son diagnostic (`get_radio_audit`). */
+export interface NonMatcheeAudit {
+  id: string;
+  nom: string;
+  cat: string;
+  portee: string | null;
+  nb_freq_ods: number;
+  parent_nom: string | null;
+  diagnostic: string;
+}
+
+/** `GET /api/radio/audit` = le JSON de la RPC `get_radio_audit` (`AuditData`, `page.tsx:46-52`). */
+export interface AuditRadio {
+  kpis: { matchees: number; non_matchees: number; total: number; pct: number; relations: number };
+  par_categorie: Array<{ cat: string; total: number; matchees: number; non_matchees: number; pct: number }>;
+  non_matchees: NonMatcheeAudit[];
+  sources: Array<{ source: string; relations: number; radios: number }>;
+  historique: Array<{
+    id: string; started_at: string; completed_at: string | null; duration_s: number | null;
+    stats: Record<string, unknown> | null; status: string;
+  }>;
+}
+
 /** Cibles proposées par l'écran (`deleteTarget`, `page.tsx:300`) ; la route accepte aussi `radios`. */
 export type CibleSuppressionRadio = 'emetteurs' | 'all';
 
@@ -84,7 +141,8 @@ export interface ReponseSuppressionRadio {
 
 /**
  * Routes radio de l'administration — un seul service pour `/api/radio/*`. Créé par T18 avec `stats()`
- * (tuile et bloc « Radio » des Sources), complété par T16 (onglet Import de l'écran Radio).
+ * (tuile et bloc « Radio » des Sources), complété par T16 (onglet Import de l'écran Radio) puis T17
+ * (`stations()`, `audit()` : onglets Radios et Statistiques, lectures seules).
  *
  * ⚠ Les TROIS imports écrivent ou effacent des données irremplaçables : ANFR archive puis purge les
  * émetteurs (`archive_and_purge_radio`), l'enrichissement vide d'abord la table des liaisons (phase
@@ -108,6 +166,23 @@ export class RadioAdminApi extends HttpBaseService {
   /** Le journal d'un import passé, sans filtre (React n'en passe aucun). */
   journal(id: string): Observable<JournalRadio> {
     return this.httpClient.get<JournalRadio>(`${this.baseUrl}/radio/import-logs/${encodeURIComponent(id)}`);
+  }
+
+  /**
+   * Onglet Radios (T17) : les paramètres EXACTS de `fetchRadios` (`page.tsx:144-145`), dans le même ordre —
+   * `page`, `limit=20`, `sort=freq_desc`, `filter`, puis `search` seulement s'il est saisi (non rogné).
+   * La route lit TOUTES les radios à chaque appel (filtre, tri et pagination côté Next).
+   */
+  stations(q: { page: number; filtre: FiltreStations; recherche: string }): Observable<PageStations> {
+    let params = new HttpParams()
+      .set('page', String(q.page)).set('limit', '20').set('sort', 'freq_desc').set('filter', q.filtre);
+    if (q.recherche) params = params.set('search', q.recherche);
+    return this.httpClient.get<PageStations>(`${this.baseUrl}/radio/stations`, { params });
+  }
+
+  /** Onglet Statistiques (T17) : `GET /api/radio/audit`, sans paramètre (RPC `get_radio_audit`). */
+  audit(): Observable<AuditRadio> {
+    return this.httpClient.get<AuditRadio>(`${this.baseUrl}/radio/audit`);
   }
 
   /** `POST /api/radio/import-anfr`, sans corps. */

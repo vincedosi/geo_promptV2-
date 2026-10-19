@@ -2,13 +2,17 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { OngletsRoutesComponent, type OngletRoute } from '../commun/onglets-routes.component';
 import { RadioImportService } from './etat/radio-import.service';
+import { RadioOngletsService } from './etat/radio-onglets.service';
 
 /**
  * Les onglets PROPRES à l'écran Radio (`page.tsx:356-366` : Import, Radios, Statistiques), en
- * sous-routes relatives ; seuls les portés sont listés — Import (T16). Radios et Statistiques : T17.
+ * sous-routes relatives — Import (T16), Radios et Statistiques (T17). Segments = clés de React
+ * (`'import' | 'radios' | 'stats'`).
  */
 export const ONGLETS_RADIO: readonly OngletRoute[] = [
   { chemin: 'import', libelle: 'Import' },
+  { chemin: 'radios', libelle: 'Radios' },
+  { chemin: 'stats', libelle: 'Statistiques' },
 ];
 
 /**
@@ -19,7 +23,8 @@ export const ONGLETS_RADIO: readonly OngletRoute[] = [
  * partageable). Il fournit `RadioImportService`, l'état que React tient au niveau de la PAGE : changer
  * d'onglet ne perd ni le journal ni un import en cours. Les deux lectures du montage de React (stats,
  * historique) partent ici, quel que soit l'onglet ouvert ; les onglets Radios et Statistiques (T17)
- * liront les leurs à leur ouverture.
+ * lisent les leurs à CHAQUE ouverture (comme React), leurs réglages (recherche, filtres, page) vivant
+ * dans `RadioOngletsService`, fourni ici aussi.
  *
  * Écarts à React, voulus : titre « Radio FM/DAB+ » porté par le cadre (« Données », onglet « Importer »,
  * type « Radio ») ; onglets `role="tab"` et liens (React : boutons d'état).
@@ -27,7 +32,7 @@ export const ONGLETS_RADIO: readonly OngletRoute[] = [
 @Component({
   selector: 'mg-radio',
   imports: [OngletsRoutesComponent, RouterOutlet],
-  providers: [RadioImportService],
+  providers: [RadioImportService, RadioOngletsService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="entete" data-entete>

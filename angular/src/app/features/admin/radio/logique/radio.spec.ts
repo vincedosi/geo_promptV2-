@@ -1,6 +1,8 @@
+import type { NonMatcheeAudit } from '../data/radio-admin.api';
 import {
-  daysAgo, detailsImport, dureeImport, fmtDate, ligneJournalPasse, messageSuppression, teinteFraicheur, teinteStatut,
-  titreSuppression,
+  daysAgo, detailsImport, dureeEnrichissement, dureeImport, filtrerNonMatchees, fmtDate, libelleCategorie, libelleSlug,
+  ligneJournalPasse, messageSuppression, partSource, resumeEnrichissement, slugRadio, teinteBarreCategorie,
+  teinteDiagnostic, teinteFraicheur, teinteKpiMatchees, teintePctCategorie, teinteStatut, titreSuppression,
 } from './radio';
 
 /**
@@ -64,5 +66,84 @@ describe('logique de l’onglet Import radio — copies de `radio/page.tsx` (lot
     expect(detailsImport({ error_message: null, stats: {} })).toEqual({ texte: '0 insérés, 0 màj', erreur: false });
     expect(detailsImport({ error_message: null, stats: null })).toEqual({ texte: '—', erreur: false });
     expect(['success', 'error', 'running'].map(teinteStatut)).toEqual(['succes', 'danger', 'avert']);
+  });
+});
+
+/**
+ * Onglets Radios et Statistiques (T17) : expressions de `page.tsx:598-898` recopiées VERBATIM (elles
+ * sont écrites en ligne dans le JSX, rien à importer).
+ */
+const reactT17 = {
+  slug(nom: string) {
+    return nom.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/['']/g, '-').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  },
+  dur(duration_s: number | null) {
+    return duration_s ? (duration_s >= 60 ? `${Math.floor(duration_s / 60)}m${duration_s % 60}s` : `${duration_s}s`) : '—';
+  },
+  filtre(liste: NonMatcheeAudit[], auditCatFilter: string, auditFreqMin: number, auditSearch: string, auditDiagFilter: string) {
+    return liste.filter(r => {
+      if (auditCatFilter && r.cat !== auditCatFilter) return false;
+      if (auditFreqMin && r.nb_freq_ods < auditFreqMin) return false;
+      if (auditSearch && !r.nom.toLowerCase().includes(auditSearch.toLowerCase())) return false;
+      if (auditDiagFilter === 'parent' && !r.diagnostic.startsWith('Parent')) return false;
+      if (auditDiagFilter === 'declinaison' && !r.diagnostic.startsWith('Declinaison')) return false;
+      if (auditDiagFilter === 'absente' && !r.diagnostic.startsWith('Absente')) return false;
+      if (auditDiagFilter === 'aucune' && !r.diagnostic.startsWith('Aucune')) return false;
+      return true;
+    });
+  },
+};
+
+const NM = (nom: string, cat: string, nb_freq_ods: number, diagnostic: string): NonMatcheeAudit =>
+  ({ id: nom, nom, cat, portee: null, nb_freq_ods, parent_nom: null, diagnostic });
+
+describe('logique des onglets Radios et Statistiques — copies de `radio/page.tsx` (lot 6, T17)', () => {
+  it('slugRadio : le slug de frequence-radio.com de React (accents, apostrophes, ponctuation) ; libellé coupé à 20 caractères + « … »', () => {
+    for (const nom of ['Europe 2 Nord Picardie', 'Radio Fréquence Plus', "RTL2 L'Alsace", 'Chérie FM – Côte d’Azur', '  NRJ  ', 'Ô Radio!']) {
+      expect(slugRadio(nom)).toBe(reactT17.slug(nom));
+    }
+    expect(slugRadio("RTL2 L'Alsace")).toBe('rtl2-l-alsace');
+    expect(libelleSlug('europe-2-nord-picardie')).toBe('europe-2-nord-picard…');
+    expect(libelleSlug('nrj')).toBe('nrj');
+  });
+
+  it('dureeEnrichissement : `13m32s`, `45s`, `—` (y compris 0 et null, comme le test de vérité de React)', () => {
+    for (const d of [812, 60, 59, 0, null]) expect(dureeEnrichissement(d)).toBe(reactT17.dur(d));
+    expect(dureeEnrichissement(812)).toBe('13m32s');
+  });
+
+  it('filtrerNonMatchees : mêmes lignes que le filtre de React pour chaque combinaison', () => {
+    const liste = [
+      NM('Europe 2 Nord Picardie', 'C', 9, 'Parent detecte: Europe 2'),
+      NM('Radio Locale', 'A', 2, 'Declinaison locale probable'),
+      NM('Radio Absente', 'B', 5, 'Absente des sources'),
+      NM('Muette', 'A', 0, 'Aucune freq FM'),
+    ];
+    for (const cat of ['', 'A', 'C']) for (const freq of [0, 3, 5]) for (const rech of ['', 'RADIO', 'pic']) {
+      for (const diag of ['', 'parent', 'declinaison', 'absente', 'aucune']) {
+        expect(filtrerNonMatchees(liste, { cat, freqMin: freq, recherche: rech, diag }))
+          .toEqual(reactT17.filtre(liste, cat, freq, rech, diag));
+      }
+    }
+  });
+
+  it('libellés et teintes de React : catégories, KPI (> 80 / > 60), % par catégorie (≥ 90 / ≥ 70), diagnostic', () => {
+    expect(['A', 'B', 'C', 'D', 'E', 'P', '?', 'Z'].map(libelleCategorie)).toEqual([
+      'A (associative)', 'B (locale comm.)', 'C (franchise)', 'D (thematique)', 'E (generaliste)', 'P (public)', '?', 'Z',
+    ]);
+    expect([81, 80, 61, 60].map(teinteKpiMatchees)).toEqual(['succes', 'avert', 'avert', 'danger']);
+    expect([90, 89.9, 70, 69.9].map(teintePctCategorie)).toEqual(['succes', 'secondaire', 'secondaire', 'danger']);
+    expect([90, 89.9, 70, 69.9].map(teinteBarreCategorie)).toEqual(['succes', 'teal', 'teal', 'danger']);
+    expect(['Parent detecte: X', 'Declinaison locale', 'Absente des sources', 'Aucune freq FM', 'Autre'].map(teinteDiagnostic))
+      .toEqual(['teal', 'avert', 'danger', 'tertiaire', 'tertiaire']);
+  });
+
+  it('partSource : `((relations / (total || 1)) * 100).toFixed(1)` ; resumeEnrichissement : `P1: … · P2: …` en fr-FR, sinon le statut', () => {
+    expect(partSource(293119, 569698)).toBe(((293119 / 569698) * 100).toFixed(1));
+    expect(partSource(5, 0)).toBe('500.0');
+    expect(resumeEnrichissement({ status: 'success', stats: { matched_pass1: 546019, matched_pass2: 23679 } }))
+      .toBe(`P1: ${(546019).toLocaleString('fr-FR')} · P2: ${(23679).toLocaleString('fr-FR')}`);
+    expect(resumeEnrichissement({ status: 'success', stats: {} })).toBe('P1: 0 · P2: 0');
+    expect(resumeEnrichissement({ status: 'running', stats: {} })).toBe('running');
   });
 });

@@ -52,11 +52,12 @@ describe('RadioPage — écran Radio, type « Radio » de Données › Importer 
       expect(texte(radio.querySelector('[data-sous-titre]'))).toBe('Import, classification, audience et tarifs des émetteurs radio');
       // Le titre « Radio FM/DAB+ » de React est porté par le cadre (Données › Importer › Radio).
       expect([...el.querySelectorAll('h1')].map((h) => texte(h))).toEqual(['Données']);
-      // Onglets propres à l'écran (`page.tsx:356-366`) : seuls les PORTÉS — Import (T16) ; Radios et
-      // Statistiques arrivent en T17.
+      // Onglets propres à l'écran (`page.tsx:356-366`) : Import (T16), Radios et Statistiques (T17).
       const onglets = [...radio.querySelectorAll<HTMLAnchorElement>('mg-onglets-routes [role="tab"]')];
       expect(onglets.map((a) => [texte(a), a.getAttribute('href'), a.getAttribute('aria-selected')])).toEqual([
         ['Import', '/hote/app/admin/donnees/importer/radio/import', 'true'],
+        ['Radios', '/hote/app/admin/donnees/importer/radio/radios', 'false'],
+        ['Statistiques', '/hote/app/admin/donnees/importer/radio/stats', 'false'],
       ]);
       expect(radio.querySelector('mg-radio-import')).not.toBeNull();
       http.expectOne('/api/radio/stats').flush(STATS_RADIO);

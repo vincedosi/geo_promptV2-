@@ -101,14 +101,16 @@ export const ROUTES_ADMIN: Routes = [
               },
               // `/dashboard/iris-crawler` de React (segment `admin/iris-crawler` par C1).
               { path: 'iris', loadComponent: () => import('./iris-crawler/iris-crawler.page').then((m) => m.IrisCrawlerPage) },
-              // `/admin/radio` de React (T16) : l'écran garde SES onglets (Import, puis Radios et Statistiques en
-              // T17), en sous-routes relatives ; `RadioPage` fournit l'état de page (`RadioImportService`).
+              // `/admin/radio` de React (T16, T17) : l'écran garde SES onglets (Import, Radios, Statistiques), en
+              // sous-routes relatives ; `RadioPage` fournit l'état de page (`RadioImportService`, `RadioOngletsService`).
               {
                 path: 'radio',
                 loadComponent: () => import('./radio/radio.page').then((m) => m.RadioPage),
                 children: [
                   { path: '', pathMatch: 'full', redirectTo: 'import' },
                   { path: 'import', loadComponent: () => import('./radio/onglet-import.component').then((m) => m.OngletImportComponent) },
+                  { path: 'radios', loadComponent: () => import('./radio/onglet-radios.component').then((m) => m.OngletRadiosComponent) },
+                  { path: 'stats', loadComponent: () => import('./radio/onglet-stats.component').then((m) => m.OngletStatsComponent) },
                 ],
               },
             ],

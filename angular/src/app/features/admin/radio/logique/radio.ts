@@ -1,4 +1,7 @@
-import type { CibleSuppressionRadio, EntreeJournalRadio, ImportRadio } from '../data/radio-admin.api';
+import { formaterNombre } from '../../../../core/format/nombre';
+import type {
+  AuditRadio, CibleSuppressionRadio, EntreeJournalRadio, ImportRadio, NonMatcheeAudit,
+} from '../data/radio-admin.api';
 
 /**
  * Logique pure de l'onglet Import de l'écran Radio, recopiée de `app/admin/radio/page.tsx` (gel P5 du
@@ -63,4 +66,84 @@ export function detailsImport(imp: Pick<ImportRadio, 'stats' | 'error_message'>)
 /** Teinte du statut (`statusColor`, `page.tsx:540`). */
 export function teinteStatut(statut: string): 'succes' | 'danger' | 'avert' {
   return statut === 'success' ? 'succes' : statut === 'error' ? 'danger' : 'avert';
+}
+
+// ── Onglets Radios et Statistiques (T17) — expressions écrites EN LIGNE dans le JSX de React ──────────
+
+/** Slug de frequence-radio.com (`page.tsx:676` et `:820`, même expression aux deux endroits). */
+export function slugRadio(nom: string): string {
+  return nom.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/['']/g, '-').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+/** Libellé du lien de l'onglet Radios (`page.tsx:683`) : 20 caractères, puis « … ». */
+export function libelleSlug(slug: string): string {
+  return `${slug.slice(0, 20)}${slug.length > 20 ? '…' : ''}`;
+}
+
+/** Libellés des catégories Arcom de l'audit (`catLabels`, `page.tsx:761`) ; une catégorie inconnue s'affiche telle quelle. */
+const LIBELLES_CATEGORIE: Record<string, string> = {
+  A: 'A (associative)', B: 'B (locale comm.)', C: 'C (franchise)', D: 'D (thematique)', E: 'E (generaliste)', P: 'P (public)', '?': '?',
+};
+
+export function libelleCategorie(cat: string): string {
+  return LIBELLES_CATEGORIE[cat] ?? cat;
+}
+
+/** Filtres de la liste des non matchées (`auditCatFilter`, `auditDiagFilter`, `auditFreqMin`, `auditSearch`). */
+export interface FiltresNonMatchees {
+  cat: string;
+  diag: string;
+  freqMin: number;
+  recherche: string;
+}
+
+/** Le filtre de `page.tsx:807-816`, dans le même ordre. */
+export function filtrerNonMatchees(liste: readonly NonMatcheeAudit[], f: FiltresNonMatchees): NonMatcheeAudit[] {
+  return liste.filter((r) => {
+    if (f.cat && r.cat !== f.cat) return false;
+    if (f.freqMin && r.nb_freq_ods < f.freqMin) return false;
+    if (f.recherche && !r.nom.toLowerCase().includes(f.recherche.toLowerCase())) return false;
+    if (f.diag === 'parent' && !r.diagnostic.startsWith('Parent')) return false;
+    if (f.diag === 'declinaison' && !r.diagnostic.startsWith('Declinaison')) return false;
+    if (f.diag === 'absente' && !r.diagnostic.startsWith('Absente')) return false;
+    if (f.diag === 'aucune' && !r.diagnostic.startsWith('Aucune')) return false;
+    return true;
+  });
+}
+
+/** Teinte du KPI « Radios matchees » (`page.tsx:729`). */
+export function teinteKpiMatchees(pct: number): 'succes' | 'avert' | 'danger' {
+  return pct > 80 ? 'succes' : pct > 60 ? 'avert' : 'danger';
+}
+
+/** Teinte du `%` d'une catégorie (`page.tsx:770`). */
+export function teintePctCategorie(pct: number): 'succes' | 'secondaire' | 'danger' {
+  return pct >= 90 ? 'succes' : pct >= 70 ? 'secondaire' : 'danger';
+}
+
+/** Teinte de la barre d'une catégorie (`page.tsx:773`). */
+export function teinteBarreCategorie(pct: number): 'succes' | 'teal' | 'danger' {
+  return pct >= 90 ? 'succes' : pct >= 70 ? 'teal' : 'danger';
+}
+
+/** Teinte d'un diagnostic (`diagColor`, `page.tsx:821`). */
+export function teinteDiagnostic(diagnostic: string): 'teal' | 'avert' | 'danger' | 'tertiaire' {
+  return diagnostic.startsWith('Parent') ? 'teal' : diagnostic.startsWith('Declinaison') ? 'avert' : diagnostic.startsWith('Absente') ? 'danger' : 'tertiaire';
+}
+
+/** Part d'une source dans les relations (`page.tsx:854-855`). */
+export function partSource(relations: number, totalRelations: number): string {
+  const totalRel = totalRelations || 1;
+  return ((relations / totalRel) * 100).toFixed(1);
+}
+
+/** Durée d'un enrichissement (`dur`, `page.tsx:875`) : `13m32s`, `45s`, `—` (0 compris). */
+export function dureeEnrichissement(duration_s: number | null): string {
+  return duration_s ? (duration_s >= 60 ? `${Math.floor(duration_s / 60)}m${duration_s % 60}s` : `${duration_s}s`) : '—';
+}
+
+/** Colonne de droite d'un enrichissement (`page.tsx:882-884`) : `P1: … · P2: …` en fr-FR si succès, sinon le statut. */
+export function resumeEnrichissement(h: Pick<AuditRadio['historique'][number], 'status' | 'stats'>): string {
+  const s = h.stats as Record<string, number> | null;
+  return h.status === 'success' ? `P1: ${formaterNombre(s?.['matched_pass1'] ?? 0)} · P2: ${formaterNombre(s?.['matched_pass2'] ?? 0)}` : h.status;
 }
