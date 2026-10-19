@@ -16,9 +16,9 @@ export interface OngletRoute {
  *   préfixe de montage, qui appartient au shell (contrat AIDA) — jamais `/admin/...`.
  * - Motif ARIA « tabs » : `role="tablist"` nommé, `role="tab"`, `aria-selected` porté par
  *   `routerLinkActive` (juste aussi après un chargement direct sur un onglet), tabulation itinérante
- *   (seul l'onglet actif est dans l'ordre de Tab). Flèches gauche/droite : focus ET navigation vers
- *   l'onglet voisin, en boucle (comme les onglets de `fiche-espace`). Écouteur sur la liste, jamais
- *   sur `document` (il appartient au shell).
+ *   (seul l'onglet actif est dans l'ordre de Tab). Activation MANUELLE : flèches gauche/droite = focus
+ *   sur l'onglet voisin, en boucle ; Entrée ou Espace = navigation (vague finale I-3 ; avant, les
+ *   flèches naviguaient aussi). Écouteur sur la liste, jamais sur `document` (il appartient au shell).
  * - Rendu : celui de la barre interne du Health check (T3, `app/admin/health/page.tsx:228-250`) —
  *   actif `--text-primary` + bordure basse 2 px `--brand-teal`, inactif `--text-tertiary`, survol
  *   `--text-secondary`, Inter 500 13 px, sentence case. Jetons seulement.
@@ -81,18 +81,30 @@ export class OngletsRoutesComponent {
    */
   readonly variante = input<'cadre' | 'ecran' | 'large'>('cadre');
 
+  /**
+   * Activation MANUELLE (motif ARIA « tabs », vague finale I-3) : les flèches ne font que déplacer le focus,
+   * Entrée ou Espace activent l'onglet qui l'a. Avec l'activation automatique d'avant, parcourir la barre au
+   * clavier ouvrait chaque onglet traversé — et l'écran Radio lançait une lecture lourde par onglet.
+   */
   protected clavier(e: KeyboardEvent): void {
-    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-    e.preventDefault();
     const liste = e.currentTarget as HTMLElement;
     const liens = [...liste.querySelectorAll<HTMLAnchorElement>('[role="tab"]')];
     if (liens.length === 0) return;
-    // Depuis l'onglet qui a le focus, sinon depuis l'onglet actif.
-    const cible = (e.target as Element | null)?.closest?.('[role="tab"]');
-    let i = liens.indexOf(cible as HTMLAnchorElement);
+    const cible = (e.target as Element | null)?.closest?.('[role="tab"]') as HTMLAnchorElement | null;
+    if (e.key === 'Enter' || e.key === ' ') {
+      if (!cible || !liens.includes(cible)) return;
+      // Entrée sur un lien l'activerait aussi nativement : un seul clic, le nôtre.
+      e.preventDefault();
+      cible.click();
+      return;
+    }
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault();
+    // Depuis l'onglet visé, sinon celui qui a le focus, sinon l'onglet actif.
+    const racine = liste.getRootNode() as Document | ShadowRoot;
+    const focalise = racine.activeElement as HTMLAnchorElement | null;
+    let i = liens.indexOf(cible ?? (focalise as HTMLAnchorElement));
     if (i < 0) i = Math.max(0, liens.findIndex((a) => a.getAttribute('aria-selected') === 'true'));
-    const suivant = liens[(i + (e.key === 'ArrowRight' ? 1 : liens.length - 1)) % liens.length];
-    suivant.focus();
-    suivant.click();
+    liens[(i + (e.key === 'ArrowRight' ? 1 : liens.length - 1)) % liens.length].focus();
   }
 }

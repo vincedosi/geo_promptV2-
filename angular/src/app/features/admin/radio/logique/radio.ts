@@ -72,7 +72,7 @@ export function teinteStatut(statut: string): 'succes' | 'danger' | 'avert' {
 
 /** Slug de frequence-radio.com (`page.tsx:676` et `:820`, même expression aux deux endroits). */
 export function slugRadio(nom: string): string {
-  return nom.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/['']/g, '-').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/['']/g, '-').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
 /** Libellé du lien de l'onglet Radios (`page.tsx:683`) : 20 caractères, puis « … ». */

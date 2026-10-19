@@ -1,0 +1,30 @@
+/* Onglet Statistiques, seconde feuille : non matchées, sources, derniers enrichissements. Le budget
+   `anyComponentStyle` (4 kB) vaut PAR FEUILLE : deux feuilles lisibles plutôt qu'une compactée ou un budget
+   élargi pour tous les composants (vague finale C9). Teintes et `--teal-texte` : première feuille. */
+/* Non matchées : filtres, liste défilante à en-tête collant. */
+.filtres { padding: 8px 14px; display: flex; gap: 8px; flex-wrap: wrap; border-bottom: 0.5px solid var(--border-subtle); }
+.champ {
+  background: var(--bg-level-2); border: 0.5px solid var(--border-subtle); border-radius: 6px; padding: 5px 8px;
+  font-size: 11px; color: var(--text-secondary); font-family: inherit;
+}
+.recherche { flex: 1 1 150px; padding: 5px 10px; color: var(--text-primary); }
+.recherche::placeholder { color: var(--text-tertiary); }
+.recherche:focus { border-color: var(--brand-teal-50); }
+.defilement { max-height: 500px; overflow-y: auto; }
+.table-nm thead tr { background: var(--bg-level-2); position: sticky; top: 0; z-index: 1; }
+.table-nm th { font-size: 10px; }
+.nm-nom, .diagnostic { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nm-nom { color: var(--text-primary); font-weight: 500; max-width: 200px; }
+.diagnostic { max-width: 250px; }
+.liens { display: flex; gap: 4px; }
+.lien { font-size: 9px; color: var(--text-tertiary); text-decoration: none; padding: 2px 6px; border: 0.5px solid var(--border-subtle); border-radius: 3px; }
+.lien:hover { color: var(--teal-texte); border-color: var(--brand-teal); }
+
+/* Sources, derniers enrichissements. */
+.sources { display: flex; align-items: center; gap: 16px; padding: 8px 14px; font-size: 11px; color: var(--text-secondary); }
+.source { display: flex; align-items: center; gap: 4px; }
+.point { width: 8px; height: 8px; border-radius: 50%; background: var(--teinte); }
+.corps-historique { padding: 0 14px 10px; }
+.enrichissement { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 0.5px solid var(--border-subtle); }
+.enrichissement:last-child { border-bottom: none; }
+.moyen { font-size: 11px; }

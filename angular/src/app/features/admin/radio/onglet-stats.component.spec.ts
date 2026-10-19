@@ -129,7 +129,7 @@ describe('Onglet Statistiques de l’écran Radio — audit du matching (lot 6, 
     await stable();
     expect(nonMatchees()).toEqual(['Europe 2 Nord Picardie', 'Radio Absente']);
     expect(champ<HTMLSelectElement>('categorie').value).toBe('C');
-    expect(lignes()[1].getAttribute('aria-selected')).toBe('true');
+    expect(lignes()[1].getAttribute('aria-pressed')).toBe('true');
     lignes()[1].click();
     await stable();
     expect(nonMatchees()).toHaveLength(3);
@@ -212,7 +212,7 @@ describe('Onglet Statistiques de l’écran Radio — audit du matching (lot 6, 
     expect(erreur.getAttribute('role')).toBe('alert');
   });
 
-  it('chaque ouverture RELIT l’audit (React : `useEffect` sur `tab`) ; les filtres vivent au niveau de la page et survivent au détour', async () => {
+  it('Q-3 : l’audit est lu à la PREMIÈRE ouverture seulement ; au retour, ni relecture ni chargement ; les filtres survivent', async () => {
     const { http, servir, router, stable, choisir, champ, nonMatchees, onglet } = await monter();
     await servir();
     await choisir('diagnostic', 'absente');
@@ -221,10 +221,39 @@ describe('Onglet Statistiques de l’écran Radio — audit du matching (lot 6, 
     http.expectOne((r) => r.url === '/api/radio/stations').flush({ stations: STATIONS_RADIO, total: 3, page: 1, limit: 20 });
     await router.navigateByUrl(`${RACINE}/stats`);
     await stable();
-    expect(texte(onglet().querySelector('[data-chargement]'))).toBe("Chargement de l'audit...");
-    await servir();
+    http.expectNone('/api/radio/audit');
+    expect(onglet().querySelector('[data-chargement]')).toBeNull();
     expect(champ<HTMLSelectElement>('diagnostic').value).toBe('absente');
     expect(nonMatchees()).toEqual(['Radio Absente']);
+  });
+
+  it('« Rafraîchir » relit l’audit', async () => {
+    const { servir, onglet, stable } = await monter();
+    await servir();
+    const bouton = onglet().querySelector<HTMLButtonElement>('[data-rafraichir]')!;
+    expect(texte(bouton)).toBe('Rafraîchir');
+    bouton.click();
+    await stable();
+    expect(texte(onglet().querySelector('[data-chargement]'))).toBe("Chargement de l'audit...");
+    await servir();
+    expect(onglet().querySelector('[data-section="kpis"]')).not.toBeNull();
+  });
+
+  it('ligne de catégorie : un BOUTON bascule (`role="button"`, `aria-pressed`), Entrée et Espace au clavier (C6)', async () => {
+    const { servir, onglet, stable } = await monter();
+    await servir();
+    const ligne = () => onglet().querySelector<HTMLElement>('tr.ligne-categorie')!;
+    expect(ligne().getAttribute('role')).toBe('button');
+    expect(ligne().hasAttribute('aria-selected')).toBe(false);
+    expect(ligne().getAttribute('aria-pressed')).toBe('false');
+    ligne().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await stable();
+    expect(ligne().getAttribute('aria-pressed')).toBe('true');
+    const espace = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
+    ligne().dispatchEvent(espace);
+    await stable();
+    expect(ligne().getAttribute('aria-pressed')).toBe('false');
+    expect(espace.defaultPrevented).toBe(true);
   });
 
   it('quitter l’onglet pendant la lecture l’annule (lecture seule)', async () => {

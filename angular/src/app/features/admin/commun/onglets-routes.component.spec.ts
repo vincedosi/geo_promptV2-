@@ -76,21 +76,37 @@ describe('OngletsRoutesComponent — barre d’onglets liée au routeur', () => 
     expect(onglets().map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'true']);
   });
 
-  it('flèches droite/gauche : focus ET navigation vers l’onglet voisin, en boucle', async () => {
+  it('activation MANUELLE (I-3) : les flèches déplacent le focus seulement, en boucle ; l’URL ne change pas', async () => {
     const { harness, onglets, router, el } = await monter('/hote/app/admin/systeme/sante');
     const liste = el.querySelector<HTMLElement>('[role="tablist"]')!;
     liste.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     await harness.fixture.whenStable();
-    expect(router.url).toBe('/hote/app/admin/systeme/fraicheur');
+    expect(router.url).toBe('/hote/app/admin/systeme/sante');
     expect(el.ownerDocument.activeElement).toBe(onglets()[1]);
-    // En boucle : à droite du dernier, le premier.
-    liste.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    // En boucle, depuis l'onglet qui a le focus : à droite du dernier, le premier.
+    onglets()[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await harness.fixture.whenStable();
+    expect(el.ownerDocument.activeElement).toBe(onglets()[0]);
+    onglets()[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    await harness.fixture.whenStable();
+    expect(el.ownerDocument.activeElement).toBe(onglets()[1]);
+    expect(router.url).toBe('/hote/app/admin/systeme/sante');
+  });
+
+  it('Entrée puis Espace sur l’onglet qui a le focus : navigation', async () => {
+    const { harness, onglets, router } = await monter('/hote/app/admin/systeme/sante');
+    onglets()[1].focus();
+    const entree = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    onglets()[1].dispatchEvent(entree);
+    await harness.fixture.whenStable();
+    expect(router.url).toBe('/hote/app/admin/systeme/fraicheur');
+    expect(entree.defaultPrevented).toBe(true);
+    onglets()[0].focus();
+    const espace = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
+    onglets()[0].dispatchEvent(espace);
     await harness.fixture.whenStable();
     expect(router.url).toBe('/hote/app/admin/systeme/sante');
-    liste.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
-    await harness.fixture.whenStable();
-    expect(router.url).toBe('/hote/app/admin/systeme/fraicheur');
-    expect(el.ownerDocument.activeElement).toBe(onglets()[1]);
+    expect(espace.defaultPrevented).toBe(true);
   });
 
   it('une autre touche ne fait rien', async () => {

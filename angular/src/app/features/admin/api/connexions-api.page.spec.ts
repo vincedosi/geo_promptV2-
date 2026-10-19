@@ -111,11 +111,14 @@ describe('ConnexionsApiPage — onglet « Connexions API » de Système (lot 6, 
     expect(http.match(() => true).map((r) => r.request.urlWithParams)).toEqual(['/api/admin/dsp/logs']);
   });
 
-  it('flèche droite sur le sous-onglet DV360 : focus ET navigation vers Meta, sans toucher la barre de Système', async () => {
+  it('flèche droite sur le sous-onglet DV360 : focus sur Meta (activation manuelle), Entrée y navigue, sans toucher la barre de Système', async () => {
     const { http, router, harness, sousOnglets, ongletsPage } = await monter('/hote/app/admin/systeme/api/dv360');
     repondreDv360(http);
     sousOnglets()[0].focus();
     sousOnglets()[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await harness.fixture.whenStable();
+    expect(router.url).toBe('/hote/app/admin/systeme/api/dv360');
+    sousOnglets()[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     await harness.fixture.whenStable();
     expect(router.url).toBe('/hote/app/admin/systeme/api/meta');
     expect(ongletsPage().map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'false', 'true']);

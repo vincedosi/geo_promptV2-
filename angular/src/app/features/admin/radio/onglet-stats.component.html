@@ -1,3 +1,6 @@
+<div class="outils">
+  <button type="button" class="rafraichir" data-rafraichir [disabled]="chargement()" (click)="rafraichir()">Rafraîchir</button>
+</div>
 @if (chargement()) {
   <div class="chargement" data-chargement>Chargement de l'audit...</div>
 } @else if (erreur(); as e) {
@@ -33,8 +36,9 @@
           @for (r of lignesCategories(); track r.cat) {
             <tr
               class="ligne-categorie"
+              role="button"
               tabindex="0"
-              [attr.aria-selected]="reglages.auditCategorie() === r.cat"
+              [attr.aria-pressed]="reglages.auditCategorie() === r.cat"
               (click)="basculerCategorie(r.cat)"
               (keydown.enter)="basculerCategorie(r.cat)"
               (keydown.space)="basculerCategorie(r.cat); $event.preventDefault()"

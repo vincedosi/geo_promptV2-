@@ -23,8 +23,9 @@ export const ONGLETS_RADIO: readonly OngletRoute[] = [
  * partageable). Il fournit `RadioImportService`, l'état que React tient au niveau de la PAGE : changer
  * d'onglet ne perd ni le journal ni un import en cours. Les deux lectures du montage de React (stats,
  * historique) partent ici, quel que soit l'onglet ouvert ; les onglets Radios et Statistiques (T17)
- * lisent les leurs à CHAQUE ouverture (comme React), leurs réglages (recherche, filtres, page) vivant
- * dans `RadioOngletsService`, fourni ici aussi.
+ * lisent les leurs à leur PREMIÈRE ouverture seulement (React : à chaque ouverture ; vague finale I-3),
+ * puis sur « Rafraîchir » ou après un import ; leurs réglages ET leur dernier résultat vivent dans
+ * `RadioOngletsService`, fourni ici aussi.
  *
  * Écarts à React, voulus : titre « Radio FM/DAB+ » porté par le cadre (« Données », onglet « Importer »,
  * type « Radio ») ; onglets `role="tab"` et liens (React : boutons d'état).

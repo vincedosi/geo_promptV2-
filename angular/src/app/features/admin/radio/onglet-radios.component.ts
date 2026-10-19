@@ -17,16 +17,25 @@ const FILTRES: readonly { valeur: FiltreStations; libelle: string; teinte: 'teal
 /** Taille de page de React (`limit: '20'`, `page.tsx:144`). */
 const PAR_PAGE = 20;
 
+/** Anti-rebond de la recherche (vague finale C1, écart à React) : chaque frappe coûtait une lecture lourde. */
+export const ANTI_REBOND_RECHERCHE_MS = 300;
+
 /**
  * Onglet « Radios » de l'écran Radio (`admin/donnees/importer/radio/radios`) — portage de
  * `app/admin/radio/page.tsx:598-718` et de `fetchRadios` (l.141-160) (lot 6, T17). Lecture seule.
  *
- * Comme React : UN `GET /api/radio/stations` à l'ouverture, puis un à chaque frappe dans la recherche
- * (pas de validation, pas d'anti-rebond), à chaque filtre et à chaque page ; la recherche et le filtre
- * ramènent en page 1 ; l'onglet RELIT à chaque retour (l.336) ; recherche, filtre et page vivent au
- * niveau de la page (`RadioOngletsService`).
+ * Comme React : UN `GET /api/radio/stations` à l'ouverture, puis un à chaque filtre et à chaque page ; la
+ * recherche et le filtre ramènent en page 1 ; recherche, filtre et page vivent au niveau de la page
+ * (`RadioOngletsService`).
  *
  * Écarts à React, voulus et listés au rapport :
+ * - **anti-rebond de 300 ms sur la recherche** (vague finale C1) : React lisait à CHAQUE frappe, chaque lecture
+ *   coûtant ≈ 407 000 buffers (`count_emetteurs_par_radio`) ; un filtre ou une page partent tout de suite et
+ *   annulent la minuterie ;
+ * - **pas de relecture au simple retour sur l'onglet** (I-3 / Q-3) : le dernier résultat est gardé dans
+ *   `RadioOngletsService` avec ses réglages ; « Rafraîchir » (bouton ajouté) relit, un import terminé ou une
+ *   suppression invalident ;
+ * - **compteur masqué** quand `radios_matchees` manque (C4), plutôt que de retomber sur le faux pourcentage ;
  * - **lecture précédente annulée** quand une nouvelle part : React laissait les réponses arriver dans le
  *   désordre (une frappe rapide pouvait afficher les résultats d'une recherche plus ancienne) ;
  * - **refus de la route affiché** (`role="alert"`) : React gardait l'état précédent, donc « Aucune radio
@@ -42,7 +51,7 @@ const PAR_PAGE = 20;
   imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './onglet-radios.component.html',
-  styleUrl: './onglet-radios.component.css',
+  styleUrls: ['./onglet-radios.component.css', './onglet-radios-tableau.css'],
 })
 export class OngletRadiosComponent {
   private readonly api = inject(RadioAdminApi);
@@ -73,11 +82,11 @@ export class OngletRadiosComponent {
     };
   }));
 
-  /** `stats && …` (`page.tsx:631-635`) — sur les RADIOS matchées (voir l'en-tête). */
+  /** `stats && …` (`page.tsx:631-635`) — sur les RADIOS matchées (voir l'en-tête) ; rien si la RPC ne les rend pas. */
   protected readonly compteur = computed(() => {
     const s = this.stats();
-    if (!s) return null;
-    const matchees = s.radios_matchees ?? s.emetteurs_matches;
+    if (!s || s.radios_matchees === undefined || s.radios_matchees === null) return null;
+    const matchees = s.radios_matchees;
     const pct = s.total_radios > 0 ? Math.round(matchees / s.total_radios * 100) : 0;
     return `${matchees}/${s.total_radios} radios matchées (${pct}%)`;
   });
@@ -87,16 +96,31 @@ export class OngletRadiosComponent {
   protected readonly suivantCoupe = computed(() => this.reglages.page() * PAR_PAGE >= this.total());
 
   private lecture: Subscription | null = null;
+  private rebond: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.lecture?.unsubscribe());
-    this.lire();
+    inject(DestroyRef).onDestroy(() => {
+      this.lecture?.unsubscribe();
+      this.annulerRebond();
+    });
+    const gardees = this.reglages.stations();
+    if (gardees && gardees.cle === this.reglages.cleStations()) {
+      this.radios.set(gardees.stations);
+      this.total.set(gardees.total);
+    } else {
+      this.lire();
+    }
   }
 
+  /** La saisie s'affiche tout de suite ; la lecture part 300 ms après la DERNIÈRE frappe (C1). */
   protected chercher(valeur: string): void {
     this.reglages.recherche.set(valeur);
     this.reglages.page.set(1);
-    this.lire();
+    this.annulerRebond();
+    this.rebond = setTimeout(() => {
+      this.rebond = null;
+      this.lire();
+    }, ANTI_REBOND_RECHERCHE_MS);
   }
 
   protected filtrer(valeur: FiltreStations): void {
@@ -110,16 +134,34 @@ export class OngletRadiosComponent {
     this.lire();
   }
 
-  /** `fetchRadios` : la lecture en cours est annulée (seule la dernière demande compte). */
+  /** « Rafraîchir » (écart à React, Q-3) : relit la page courante. */
+  protected rafraichir(): void {
+    this.lire();
+  }
+
+  private annulerRebond(): void {
+    if (this.rebond !== null) clearTimeout(this.rebond);
+    this.rebond = null;
+  }
+
+  /**
+   * `fetchRadios` : la lecture en cours est annulée (seule la dernière demande compte), comme une recherche en
+   * attente d'anti-rebond. Le résultat est gardé avec ses réglages (`RadioOngletsService.stations`).
+   */
   private lire(): void {
+    this.annulerRebond();
     this.lecture?.unsubscribe();
     this.chargement.set(true);
+    const cle = this.reglages.cleStations();
     this.lecture = this.api.stations({
       page: this.reglages.page(), filtre: this.reglages.filtre(), recherche: this.reglages.recherche(),
     }).subscribe({
       next: (d) => {
-        this.radios.set(d.stations ?? []);
-        this.total.set(d.total ?? 0);
+        const stations = d.stations ?? [];
+        const total = d.total ?? 0;
+        this.radios.set(stations);
+        this.total.set(total);
+        this.reglages.stations.set({ cle, stations, total });
         this.erreur.set(null);
         this.chargement.set(false);
       },

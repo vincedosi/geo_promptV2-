@@ -23,6 +23,7 @@
   @if (compteur(); as c) {
     <span class="compteur" data-compteur>{{ c }}</span>
   }
+  <button type="button" class="rafraichir" data-rafraichir [disabled]="chargement()" (click)="rafraichir()">Rafraîchir</button>
 </div>
 
 @if (chargement()) {

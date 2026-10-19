@@ -7,6 +7,7 @@ import { ConfigService } from '../../../core/config/config.service';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
 import { ROUTES_ADMIN } from '../admin.routes';
 import { RadioAdminApi, type StationRadio } from './data/radio-admin.api';
+import { ANTI_REBOND_RECHERCHE_MS } from './onglet-radios.component';
 import { AUDIT_RADIO, HISTORIQUE_RADIO, STATIONS_RADIO, STATS_RADIO } from './testing/radio-donnees.fixture';
 import { ImportGeoApi } from '../carreaux-import/data/import-geo.api';
 
@@ -55,7 +56,12 @@ async function monter(onglet = 'radios') {
     recherche().dispatchEvent(new Event('input'));
     await stable();
   };
-  return { el, http, router, stable, servirPage, requete, servir, onglet: onglet_, recherche, filtre, lignes, saisir };
+  /** Laisse passer l'anti-rebond de la recherche (300 ms, vague finale C1). */
+  const rebond = async () => {
+    await new Promise((r) => setTimeout(r, ANTI_REBOND_RECHERCHE_MS + 30));
+    await stable();
+  };
+  return { el, http, router, stable, servirPage, requete, servir, onglet: onglet_, recherche, filtre, lignes, saisir, rebond };
 }
 
 describe('Onglet Radios de l’écran Radio — recherche, filtre, tableau, pagination (lot 6, T17)', () => {
@@ -104,6 +110,15 @@ describe('Onglet Radios de l’écran Radio — recherche, filtre, tableau, pagi
     expect(texte(onglet().querySelector('[data-compteur]'))).toBe('861/1175 radios matchées (73%)');
   });
 
+  it('stats SANS `radios_matchees` : aucun compteur, plutôt que le faux « 1007 % » de React (C4)', async () => {
+    const { onglet, requete, servirPage, servir } = await monter();
+    const sans: Record<string, unknown> = { ...STATS_RADIO };
+    delete sans['radios_matchees'];
+    await servirPage(sans);
+    await servir(requete());
+    expect(onglet().querySelector('[data-compteur]')).toBeNull();
+  });
+
   it('sans stats de page, aucun compteur (React : `stats &&`)', async () => {
     const { http, onglet, requete, servir, stable } = await monter();
     http.expectOne('/api/radio/stats').flush('x', { status: 500, statusText: 'Erreur' });
@@ -113,22 +128,46 @@ describe('Onglet Radios de l’écran Radio — recherche, filtre, tableau, pagi
     expect(onglet().querySelector('[data-compteur]')).toBeNull();
   });
 
-  it('recherche à la FRAPPE (pas de validation, pas d’anti-rebond, comme React) : `search` ajouté, page remise à 1 ; la lecture précédente est ANNULÉE', async () => {
-    const { requete, servirPage, servir, saisir } = await monter();
+  it('recherche avec ANTI-REBOND de 300 ms (écart à React, C1) : UNE requête après la dernière frappe, `search` ajouté, page remise à 1', async () => {
+    const { http, requete, servirPage, servir, saisir, rebond } = await monter();
     await servirPage();
     await servir(requete());
     await saisir('e');
-    const premiere = requete();
-    expect(premiere.request.urlWithParams).toBe('/api/radio/stations?page=1&limit=20&sort=freq_desc&filter=all&search=e');
     await saisir('eu');
-    // Écart voulu : React laissait les deux réponses arriver dans le désordre (la plus lente gagnait).
-    expect(premiere.cancelled).toBe(true);
-    const seconde = requete();
-    expect(seconde.request.urlWithParams).toBe('/api/radio/stations?page=1&limit=20&sort=freq_desc&filter=all&search=eu');
-    await servir(seconde);
+    await saisir('eur');
+    http.expectNone(estStations);
+    await rebond();
+    const r = requete();
+    expect(r.request.urlWithParams).toBe('/api/radio/stations?page=1&limit=20&sort=freq_desc&filter=all&search=eur');
+    await servir(r);
     // Champ vidé : plus de `search` (React : `if (radiosSearch)`).
     await saisir('');
+    await rebond();
     expect(requete().request.urlWithParams).toBe('/api/radio/stations?page=1&limit=20&sort=freq_desc&filter=all');
+  });
+
+  it('un filtre cliqué pendant l’anti-rebond part TOUT DE SUITE (avec la recherche saisie) et annule la minuterie', async () => {
+    const { http, requete, servirPage, servir, saisir, filtre, rebond } = await monter();
+    await servirPage();
+    await servir(requete());
+    await saisir('nrj');
+    filtre('matched').click();
+    const r = requete();
+    expect(r.request.urlWithParams).toBe('/api/radio/stations?page=1&limit=20&sort=freq_desc&filter=matched&search=nrj');
+    await servir(r);
+    await rebond();
+    http.expectNone(estStations);
+  });
+
+  it('une nouvelle lecture ANNULE la précédente (React laissait les réponses arriver dans le désordre)', async () => {
+    const { requete, servirPage, servir, filtre } = await monter();
+    await servirPage();
+    await servir(requete());
+    filtre('matched').click();
+    const premiere = requete();
+    filtre('unmatched').click();
+    expect(premiere.cancelled).toBe(true);
+    await servir(requete());
   });
 
   it('filtres « Toutes » / « Avec émetteurs » / « Sans émetteurs » : `filter` et page remise à 1, état pressé', async () => {
@@ -188,7 +227,7 @@ describe('Onglet Radios de l’écran Radio — recherche, filtre, tableau, pagi
   });
 
   it('vide sans recherche : « Aucune radio en base » + « Lancer un import » (lien RELATIF vers l’onglet Import) ; vide avec recherche : « Aucune radio trouvée », sans bouton', async () => {
-    const { onglet, requete, servirPage, servir, saisir, router, stable, http } = await monter();
+    const { onglet, requete, servirPage, servir, saisir, router, stable, http, rebond } = await monter();
     await servirPage();
     await servir(requete(), []);
     expect(texte(onglet().querySelector('[data-vide] .vide-texte'))).toBe('Aucune radio en base');
@@ -196,10 +235,12 @@ describe('Onglet Radios de l’écran Radio — recherche, filtre, tableau, pagi
     const lien = onglet().querySelector<HTMLAnchorElement>('[data-lancer-import]')!;
     expect(lien.getAttribute('href')).toBe(`${RACINE}/import`);
     await saisir('zzz');
+    await rebond();
     await servir(requete(), []);
     expect(texte(onglet().querySelector('[data-vide]'))).toBe('Aucune radio trouvée');
     expect(onglet().querySelector('[data-lancer-import]')).toBeNull();
     await saisir('');
+    await rebond();
     await servir(requete(), []);
     onglet().querySelector<HTMLAnchorElement>('[data-lancer-import]')!.click();
     await stable();
@@ -217,24 +258,38 @@ describe('Onglet Radios de l’écran Radio — recherche, filtre, tableau, pagi
     expect(onglet().querySelector('[data-lancer-import]')).toBeNull();
   });
 
-  it('recherche, filtre et page vivent au niveau de la PAGE (React) : ils survivent à un passage par un autre onglet, et l’onglet RELIT à chaque retour', async () => {
-    const { requete, servirPage, servir, saisir, router, stable, recherche, filtre, http } = await monter();
+  it('Q-3 : réglages ET résultat gardés au niveau de la page — page 2, détour par Statistiques, retour SANS relecture', async () => {
+    const { requete, servirPage, servir, router, stable, onglet, filtre, http, lignes } = await monter();
     await servirPage();
     await servir(requete(), STATIONS_RADIO, 45);
     filtre('matched').click();
     await servir(requete(), STATIONS_RADIO, 45);
-    await saisir('eu');
-    await servir(requete(), STATIONS_RADIO, 45);
+    onglet().querySelector<HTMLButtonElement>('[data-suivant]')!.click();
+    const p2 = requete();
+    expect(p2.request.urlWithParams).toBe('/api/radio/stations?page=2&limit=20&sort=freq_desc&filter=matched');
+    await servir(p2, STATIONS_RADIO.slice(0, 1), 45);
     await router.navigateByUrl(`${RACINE}/stats`);
     await stable();
     http.expectOne('/api/radio/audit').flush(AUDIT_RADIO);
     await router.navigateByUrl(`${RACINE}/radios`);
     await stable();
-    const retour = requete();
-    expect(retour.request.urlWithParams).toBe('/api/radio/stations?page=1&limit=20&sort=freq_desc&filter=matched&search=eu');
-    await servir(retour, STATIONS_RADIO, 45);
-    expect(recherche().value).toBe('eu');
+    http.expectNone(estStations);
+    expect(texte(onglet().querySelector('[data-page]'))).toBe('2');
     expect(filtre('matched').getAttribute('aria-pressed')).toBe('true');
+    expect(lignes()).toHaveLength(1);
+    expect(onglet().querySelector('[data-chargement]')).toBeNull();
+  });
+
+  it('« Rafraîchir » relit la page courante (écart à React : bouton ajouté, Q-3)', async () => {
+    const { requete, servirPage, servir, onglet } = await monter();
+    await servirPage();
+    await servir(requete(), STATIONS_RADIO, 45);
+    const bouton = onglet().querySelector<HTMLButtonElement>('[data-rafraichir]')!;
+    expect(texte(bouton)).toBe('Rafraîchir');
+    bouton.click();
+    const r = requete();
+    expect(r.request.urlWithParams).toBe('/api/radio/stations?page=1&limit=20&sort=freq_desc&filter=all');
+    await servir(r, STATIONS_RADIO, 45);
   });
 
   it('quitter l’onglet pendant la lecture l’annule (lecture seule)', async () => {

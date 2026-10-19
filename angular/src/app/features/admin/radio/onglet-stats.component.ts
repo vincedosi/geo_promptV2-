@@ -1,8 +1,9 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import type { Subscription } from 'rxjs';
 import { formaterNombre } from '../../../core/format/nombre';
 import { messageErreurApi } from '../../../core/http/erreurs';
 import { EnteteSectionComponent } from '../../../ui/entete-section/entete-section.component';
-import { RadioAdminApi, type AuditRadio } from './data/radio-admin.api';
+import { RadioAdminApi } from './data/radio-admin.api';
 import { RadioOngletsService } from './etat/radio-onglets.service';
 import {
   dureeEnrichissement, filtrerNonMatchees, fmtDate, libelleCategorie, partSource, resumeEnrichissement, slugRadio,
@@ -31,15 +32,18 @@ const TEINTES_SOURCE: Record<string, string> = { 'freq-radio': 'teal', arcom: 'i
  * Onglet « Statistiques » de l'écran Radio (`admin/donnees/importer/radio/stats`) — l'audit du matching,
  * portage de `app/admin/radio/page.tsx:719-898` et de `fetchAudit` (l.118-125) (lot 6, T17). Lecture seule.
  *
- * Comme React : UN `GET /api/radio/audit` à CHAQUE ouverture de l'onglet (`useEffect` sur `tab`, l.337),
- * « Chargement de l'audit... » pendant la lecture ; sections dans l'ordre KPI, barre, par catégorie, non
+ * UN `GET /api/radio/audit` à la PREMIÈRE ouverture de l'onglet, puis sur « Rafraîchir » ou après un import
+ * terminé (l'audit est gardé dans `RadioOngletsService`, vague finale I-3 / Q-3 ; React relisait à CHAQUE
+ * ouverture, `useEffect` sur `tab`, l.337 — 1,4 s de base à chaque fois) ; « Chargement de l'audit... » pendant la lecture ; sections dans l'ordre KPI, barre, par catégorie, non
  * matchées (filtres locaux), sources, derniers enrichissements ; les filtres vivent au niveau de la page
  * (`RadioOngletsService`). Aucun nombre recalculé : tout vient de la RPC `get_radio_audit`.
  *
  * Écarts à React, voulus et listés au rapport :
  * - **refus de la route affiché** (`role="alert"`) : React restait sur « Chargement de l'audit... » ;
  * - **catégorie choisie surlignée dès le clic** : React ne posait le fond qu'au `mouseleave` suivant ;
- *   ligne cliquable au clavier (`tabindex`, Entrée / Espace, `aria-selected`) ;
+ *   ligne cliquable au clavier : un bouton bascule (`role="button"`, `tabindex`, Entrée / Espace,
+ *   `aria-pressed` — `aria-selected` n'a pas de sens sur une ligne sans rôle, C6) ;
+ * - **« Rafraîchir »** (bouton ajouté) et pas de relecture au retour sur l'onglet (voir plus haut) ;
  * - **couleurs** (C9) : `#5b9bd5` → `--info`, `rgba(…)` → `color-mix` des jetons, teal du texte lisible
  *   en clair (`light-dark`, comme T16).
  */
@@ -48,7 +52,7 @@ const TEINTES_SOURCE: Record<string, string> = { 'freq-radio': 'teal', arcom: 'i
   imports: [EnteteSectionComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './onglet-stats.component.html',
-  styleUrl: './onglet-stats.component.css',
+  styleUrls: ['./onglet-stats.component.css', './onglet-stats-listes.css'],
 })
 export class OngletStatsComponent {
   private readonly api = inject(RadioAdminApi);
@@ -58,9 +62,11 @@ export class OngletStatsComponent {
   protected readonly diagnostics = DIAGNOSTICS;
   protected readonly frequences = FREQUENCES;
 
-  protected readonly chargement = signal(true);
+  protected readonly chargement = signal(false);
   protected readonly erreur = signal<string | null>(null);
-  private readonly audit = signal<AuditRadio | null>(null);
+  /** L'audit gardé au niveau de la page (Q-3). */
+  private readonly audit = this.reglages.audit;
+  private lecture: Subscription | null = null;
 
   protected readonly kpis = computed(() => {
     const a = this.audit();
@@ -126,7 +132,20 @@ export class OngletStatsComponent {
   })));
 
   constructor() {
-    const lecture = this.api.audit().subscribe({
+    inject(DestroyRef).onDestroy(() => this.lecture?.unsubscribe());
+    if (!this.audit()) this.lire();
+  }
+
+  /** « Rafraîchir » (écart à React, Q-3). */
+  protected rafraichir(): void {
+    this.lire();
+  }
+
+  private lire(): void {
+    this.lecture?.unsubscribe();
+    this.chargement.set(true);
+    this.erreur.set(null);
+    this.lecture = this.api.audit().subscribe({
       next: (a) => {
         this.audit.set(a);
         this.chargement.set(false);
@@ -136,7 +155,6 @@ export class OngletStatsComponent {
         this.chargement.set(false);
       },
     });
-    inject(DestroyRef).onDestroy(() => lecture.unsubscribe());
   }
 
   /** Clic sur une catégorie : filtre les non matchées, un second clic le retire (`page.tsx:764`). */

@@ -95,8 +95,10 @@
 <div>
   <mg-entete-section class="section" libelle="Gestion des données" />
   <div class="danger">
-    <button type="button" data-supprimer="emetteurs" class="bouton-danger" (click)="etat.demanderSuppression('emetteurs')">Supprimer les émetteurs</button>
-    <button type="button" data-supprimer="all" class="bouton-danger" (click)="etat.demanderSuppression('all')">Supprimer tout (émetteurs + radios + archive)</button>
+    <!-- Q-5 : désactivée pendant un import (écart à React) — un DELETE confirmé au milieu d'un import ANFR
+         laisserait une base incohérente. -->
+    <button type="button" data-supprimer="emetteurs" class="bouton-danger" [disabled]="importEnCours()" (click)="etat.demanderSuppression('emetteurs')">Supprimer les émetteurs</button>
+    <button type="button" data-supprimer="all" class="bouton-danger" [disabled]="importEnCours()" (click)="etat.demanderSuppression('all')">Supprimer tout (émetteurs + radios + archive)</button>
   </div>
 </div>
 

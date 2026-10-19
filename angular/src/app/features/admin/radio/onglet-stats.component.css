@@ -1,8 +1,10 @@
 /* Onglet Statistiques (audit du matching) — mesures de `app/admin/radio/page.tsx:719-898`. Jetons seulement (C9).
-   Texte teal lisible en clair (≈ 1,8:1 sinon), même recette `light-dark` que l'onglet Import (T16) ; inchangé en sombre. */
+   Texte teal lisible en clair (≈ 1,8:1 sinon), même recette `light-dark` que l'onglet Import (T16) ; inchangé en sombre.
+   Noms en clair (`--teinte`, `--teal-texte`) : la version compactée pour tenir sous le budget de 4 kB était illisible
+   (vague finale C9) ; le budget `anyComponentStyle` s'applique au CSS MINIFIÉ, que ces noms n'alourdissent qu'à peine. */
 :host {
   display: flex; flex-direction: column; gap: 16px; font-family: var(--font-sans);
-  --tl: light-dark(color-mix(in srgb, var(--brand-teal) 50%, var(--text-primary)), var(--brand-teal));
+  --teal-texte: light-dark(color-mix(in srgb, var(--brand-teal) 50%, var(--text-primary)), var(--brand-teal));
 }
 .mono { font-family: var(--font-mono); }
 .petit { font-size: 10px; }
@@ -10,16 +12,25 @@
 .secondaire { color: var(--text-secondary); }
 .tertiaire { color: var(--text-tertiary); }
 .danger { color: var(--danger); }
-[data-teinte='succes'] { --t: var(--success); }
-[data-teinte='avert'] { --t: var(--warning); }
-[data-teinte='danger'] { --t: var(--danger); }
-[data-teinte='secondaire'] { --t: var(--text-secondary); }
-[data-teinte='tertiaire'] { --t: var(--text-tertiary); }
-[data-teinte='info'] { --t: var(--info); }
-[data-teinte='teal'] { --t: var(--brand-teal); }
-.teinte, .kpi-valeur[data-teinte] { color: var(--t); }
-.teinte[data-teinte='teal'] { color: var(--tl); }
+[data-teinte='succes'] { --teinte: var(--success); }
+[data-teinte='avert'] { --teinte: var(--warning); }
+[data-teinte='danger'] { --teinte: var(--danger); }
+[data-teinte='secondaire'] { --teinte: var(--text-secondary); }
+[data-teinte='tertiaire'] { --teinte: var(--text-tertiary); }
+[data-teinte='info'] { --teinte: var(--info); }
+[data-teinte='teal'] { --teinte: var(--brand-teal); }
+.teinte, .kpi-valeur[data-teinte] { color: var(--teinte); }
+.teinte[data-teinte='teal'] { color: var(--teal-texte); }
 .chargement { padding: 40px; text-align: center; color: var(--text-tertiary); }
+/* « Rafraîchir » (vague finale, Q-3 ; absent de React), à droite au-dessus des sections. */
+.outils { display: flex; justify-content: flex-end; }
+.rafraichir {
+  padding: 4px 10px; border-radius: 4px; font-size: 10px; font-family: inherit; background: transparent;
+  border: 0.5px solid var(--border-default); color: var(--text-secondary); cursor: pointer;
+}
+.rafraichir:hover:not(:disabled) { border-color: var(--border-hover); color: var(--text-primary); }
+.rafraichir:disabled { cursor: not-allowed; opacity: 0.5; }
+.rafraichir:focus-visible { outline: 1px solid var(--brand-teal-50); outline-offset: 1px; }
 .erreur { color: var(--danger); font-size: 12px; }
 
 /* KPI (StatCard, page.tsx:76-92) et barre. */
@@ -42,39 +53,11 @@ th { padding: 6px 8px; text-align: left; color: var(--text-tertiary); font-weigh
 td { padding: 6px 8px; font-size: 11px; }
 tbody tr { border-bottom: 0.5px solid var(--border-subtle); }
 .ligne-categorie { cursor: pointer; }
-.ligne-categorie[aria-selected='true'] { background: color-mix(in srgb, var(--brand-teal) 5%, transparent); }
+.ligne-categorie[aria-pressed='true'] { background: color-mix(in srgb, var(--brand-teal) 5%, transparent); }
 .ligne-categorie:hover { background: var(--bg-level-2); }
 .cat-libelle { color: var(--text-primary); font-weight: 500; }
-[aria-selected='true'] .cat-libelle { color: var(--tl); }
+[aria-pressed='true'] .cat-libelle { color: var(--teal-texte); }
 .cellule-barre { width: 40%; }
 .mini-barre { height: 6px; border-radius: 3px; background: var(--border-subtle); overflow: hidden; }
-.mini-remplie { height: 100%; border-radius: 3px; background: var(--t); transition: width 0.3s; }
+.mini-remplie { height: 100%; border-radius: 3px; background: var(--teinte); transition: width 0.3s; }
 .ligne-categorie:focus-visible, .champ:focus-visible, .lien:focus-visible { outline: 1px solid var(--brand-teal-50); outline-offset: -1px; }
-
-/* Non matchées : filtres, liste défilante à en-tête collant. */
-.filtres { padding: 8px 14px; display: flex; gap: 8px; flex-wrap: wrap; border-bottom: 0.5px solid var(--border-subtle); }
-.champ {
-  background: var(--bg-level-2); border: 0.5px solid var(--border-subtle); border-radius: 6px; padding: 5px 8px;
-  font-size: 11px; color: var(--text-secondary); font-family: inherit;
-}
-.recherche { flex: 1 1 150px; padding: 5px 10px; color: var(--text-primary); }
-.recherche::placeholder { color: var(--text-tertiary); }
-.recherche:focus { border-color: var(--brand-teal-50); }
-.defilement { max-height: 500px; overflow-y: auto; }
-.table-nm thead tr { background: var(--bg-level-2); position: sticky; top: 0; z-index: 1; }
-.table-nm th { font-size: 10px; }
-.nm-nom, .diagnostic { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nm-nom { color: var(--text-primary); font-weight: 500; max-width: 200px; }
-.diagnostic { max-width: 250px; }
-.liens { display: flex; gap: 4px; }
-.lien { font-size: 9px; color: var(--text-tertiary); text-decoration: none; padding: 2px 6px; border: 0.5px solid var(--border-subtle); border-radius: 3px; }
-.lien:hover { color: var(--tl); border-color: var(--brand-teal); }
-
-/* Sources, derniers enrichissements. */
-.sources { display: flex; align-items: center; gap: 16px; padding: 8px 14px; font-size: 11px; color: var(--text-secondary); }
-.source { display: flex; align-items: center; gap: 4px; }
-.point { width: 8px; height: 8px; border-radius: 50%; background: var(--t); }
-.corps-historique { padding: 0 14px 10px; }
-.enrichissement { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 0.5px solid var(--border-subtle); }
-.enrichissement:last-child { border-bottom: none; }
-.moyen { font-size: 11px; }

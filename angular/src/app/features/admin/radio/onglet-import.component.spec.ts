@@ -189,6 +189,8 @@ describe('Onglet Import de l’écran Radio — cartes, journal, historique, zon
     // Masquer WARN retire la ligne d'avertissement, le compteur reste.
     filtres[1].click();
     await stable();
+    expect(texte(filtres[1])).toBe('WARN (1)');
+    expect(filtres[1].getAttribute('aria-pressed')).toBe('false');
     req.flush(FLUX_RADIO_ARCOM);
     await relectures();
     expect(journal().some((l) => l.includes('[WARN ]'))).toBe(false);
@@ -260,6 +262,13 @@ describe('Onglet Import de l’écran Radio — cartes, journal, historique, zon
     http.expectOne('/api/radio/crawl-arcom').flush('<html>', { status: 500, statusText: 'Server Error' });
     await stable();
     expect(journal()).toEqual(['▶ Enrichissement lancé...', '✗ Erreur : HTTP 500']);
+
+    // Corps VIDE (`null`) : illisible comme un corps non JSON, donc `HTTP <statut>` (C7 ; avant : « Erreur : 500 »).
+    bouton('anfr').click();
+    await stable();
+    http.expectOne('/api/radio/import-anfr').flush(null, { status: 502, statusText: 'Bad Gateway' });
+    await stable();
+    expect(journal()).toEqual(['▶ Import ANFR lancé...', '✗ Erreur : HTTP 502']);
     // `afterEach` vérifie qu'aucune relecture n'est partie (React sort avant `fetchStats`).
   });
 
@@ -405,6 +414,44 @@ describe('Onglet Import de l’écran Radio — cartes, journal, historique, zon
     await stable();
     expect(notes().at(-1)).toEqual(['error', 'Erreur suppression', null]);
     expect(el.querySelector('mg-confirmation dialog')!.hasAttribute('open')).toBe(false);
+  });
+
+  it('zone dangereuse DÉSACTIVÉE pendant un import (Q-5, écart à React) ; réactivée à la fin', async () => {
+    const { el, http, servir, bouton, stable, relectures } = await monter();
+    await servir();
+    const zone = () => [...el.querySelectorAll<HTMLButtonElement>('[data-supprimer]')];
+    expect(zone().map((b) => b.disabled)).toEqual([false, false]);
+    bouton('anfr').click();
+    await stable();
+    expect(zone().map((b) => b.disabled)).toEqual([true, true]);
+    zone()[0].click();
+    http.expectNone('/api/radio/data');
+    http.expectOne('/api/radio/import-anfr').flush(FLUX_RADIO_ANFR);
+    await relectures();
+    expect(zone().map((b) => b.disabled)).toEqual([false, false]);
+  });
+
+  it('un import terminé invalide les résultats gardés des onglets Radios et Statistiques (Q-3)', async () => {
+    const { http, servir, bouton, router, stable, relectures } = await monter();
+    await servir();
+    const RACINE = '/hote/app/admin/donnees/importer/radio';
+    await router.navigateByUrl(`${RACINE}/radios`);
+    await stable();
+    http.expectOne((r) => r.url === '/api/radio/stations').flush({ stations: [], total: 0, page: 1, limit: 20 });
+    await router.navigateByUrl(`${RACINE}/import`);
+    await stable();
+    await router.navigateByUrl(`${RACINE}/radios`);
+    await stable();
+    http.expectNone((r) => r.url === '/api/radio/stations');
+    await router.navigateByUrl(`${RACINE}/import`);
+    await stable();
+    bouton('enrichissement').click();
+    await stable();
+    http.expectOne('/api/radio/crawl-arcom').flush(FLUX_RADIO_ARCOM);
+    await relectures();
+    await router.navigateByUrl(`${RACINE}/radios`);
+    await stable();
+    http.expectOne((r) => r.url === '/api/radio/stations').flush({ stations: [], total: 0, page: 1, limit: 20 });
   });
 
   it('quitter l’écran pendant un import : la requête N’EST PAS annulée (C13), sa suite est ignorée', async () => {

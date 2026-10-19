@@ -7,6 +7,7 @@ import {
   RadioAdminApi, type CibleSuppressionRadio, type EvenementImportRadio, type ImportRadio, type StatsRadio,
 } from '../data/radio-admin.api';
 import { ligneJournalPasse } from '../logique/radio';
+import { RadioOngletsService } from './radio-onglets.service';
 
 /** Progression d'un import (C5) : étape = la `phase` courante, pourcentage = le `percent` du flux. */
 export interface EtatProgressionRadio {
@@ -52,6 +53,8 @@ interface Lecture {
 export class RadioImportService {
   private readonly api = inject(RadioAdminApi);
   private readonly notifications = inject(NotificationsService);
+  /** Résultats gardés des onglets Radios et Statistiques : invalidés quand les données changent (Q-3). */
+  private readonly onglets = inject(RadioOngletsService);
 
   readonly stats = signal<StatsRadio | null>(null);
   readonly historique = signal<ImportRadio[]>([]);
@@ -157,6 +160,7 @@ export class RadioImportService {
       next: () => {
         if (this.detruit) return;
         this.notifications.success('Données supprimées');
+        this.onglets.invalider();
         this.lireStats();
         fin();
       },
@@ -200,6 +204,7 @@ export class RadioImportService {
 
     const terminer = () => {
       this.importEnCours.set(false);
+      this.onglets.invalider();
       l.apres?.();
       this.lireStats();
       this.lireHistorique();
@@ -280,9 +285,12 @@ function niveau(n: string | undefined): LigneJournal['niveau'] {
 /**
  * Corps d'un refus, relu en texte (C4) comme `res.json().catch(() => ({ error: \`HTTP ${status}\` }))` :
  * la ligne porte `err.error ?? res.status`, la notification `err.error` (absente si la route n'en dit rien).
+ * Un corps VIDE (`null` sous `HttpClient`, chaîne vide) est illisible pour `res.json()` comme un corps non
+ * JSON : `HTTP <statut>` (vague finale C7 ; `null` donnait « Erreur : 500 »).
  */
 function corpsRefus(e: HttpErrorResponse): { ligne: string; message: string | undefined } {
   let corps: unknown = e.error;
+  if (corps === null || corps === undefined) return { ligne: `HTTP ${e.status}`, message: `HTTP ${e.status}` };
   if (typeof corps === 'string') {
     try {
       corps = JSON.parse(corps);
