@@ -8,6 +8,7 @@ import {
 } from '../data/import-poi.api';
 import { ImportPoiPreparation, corpsJson } from './import-poi-preparation';
 import { erreurDuCorps, estCoupure } from '../../commun/erreurs-http';
+import { MESSAGE_INTERROMPU } from '../../commun/progression-import.component';
 
 export type { CorrespondanceGeo } from './import-poi-preparation';
 
@@ -42,8 +43,6 @@ export interface CompteursImport {
   errors?: number;
 }
 
-/** Règle du lot 3 : un flux fini sans événement final est un échec, jamais un succès silencieux. */
-export const MESSAGE_INTERROMPU = 'Le flux s’est interrompu avant la fin.';
 
 /**
  * Étape d'une progression d'INSERTION : la route n'y joint aucun `message` (`execute/route.ts:202-211`) ; on

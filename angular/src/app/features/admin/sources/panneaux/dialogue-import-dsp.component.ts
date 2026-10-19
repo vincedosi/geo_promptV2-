@@ -6,7 +6,7 @@ import { formaterNombre } from '../../../../core/format/nombre';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { NotificationsService } from '../../../../ui/notifications/notifications.service';
 import { DepotFichiersComponent } from '../../commun/depot-fichiers.component';
-import { ProgressionImportComponent } from '../../commun/progression-import.component';
+import { MESSAGE_INTERROMPU, ProgressionImportComponent } from '../../commun/progression-import.component';
 import { SourcesAdminApi, type EvenementImportDsp, type RapportImportDsp } from '../data/sources-admin.api';
 import { ECHEC_RESEAU, erreurDuCorps, estCoupure } from '../../commun/erreurs-http';
 
@@ -21,8 +21,6 @@ const ETAPES: Record<'parsing' | 'progress' | 'matching' | 'rollups', string> = 
   rollups: 'Agrégats de suivi',
 };
 
-/** Règle du lot 3 : un flux fini sans événement final est un échec, jamais un succès silencieux. */
-const MESSAGE_INTERROMPU = 'Le flux s’est interrompu avant la fin.';
 
 /** Une ligne de la liste d'événements : `info` (gris), `error` (rouge), `complete` (vert), comme React. */
 interface LigneEvenement {

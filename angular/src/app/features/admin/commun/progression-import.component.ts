@@ -3,6 +3,12 @@ import { formaterNombre } from '../../../core/format/nombre';
 import { IconeComponent } from '../../../ui/icone/icone.component';
 
 /**
+ * Règle du lot 3 : un flux fini sans événement final est un échec, jamais un succès silencieux. Texte unique des
+ * quatre imports en flux (POI, IRIS, Radio, DSP) — factorisation F-5, lot 6, vague finale.
+ */
+export const MESSAGE_INTERROMPU = 'Le flux s’est interrompu avant la fin.';
+
+/**
  * Progression d'un import (arbitrage C5, règle « progression OBLIGATOIRE » de CLAUDE.md), rendu de
  * la carte de progression de l'import Shapefile (`carreaux-import/_components/ImportStep.tsx`) :
  * étape NOMMÉE, compteur, barre, puis état final.

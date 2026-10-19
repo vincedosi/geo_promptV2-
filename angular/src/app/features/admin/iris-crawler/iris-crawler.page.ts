@@ -4,7 +4,7 @@ import type { Subscription } from 'rxjs';
 import { formaterNombre } from '../../../core/format/nombre';
 import { DepotFichiersComponent } from '../commun/depot-fichiers.component';
 import { JournalComponent, type LigneJournal } from '../commun/journal.component';
-import { ProgressionImportComponent } from '../commun/progression-import.component';
+import { MESSAGE_INTERROMPU, ProgressionImportComponent } from '../commun/progression-import.component';
 import { IrisCrawlerApi, type EvenementImportIris, type ResultatDepotIris } from './data/iris-crawler.api';
 import { ECHEC_RESEAU, erreurDuCorps, estCoupure } from '../commun/erreurs-http';
 
@@ -24,8 +24,6 @@ const LIGNES_MAX = 300;
 /** Étapes nommées de la progression (C5), d'après les événements de la route. */
 const ETAPE_PREPARATION = 'Préparation';
 const ETAPE_MISE_A_JOUR = 'Mise à jour des IRIS';
-/** Règle du lot 3 : un flux fini sans événement final est un échec, jamais un succès silencieux. */
-const MESSAGE_INTERROMPU = 'Le flux s’est interrompu avant la fin.';
 
 interface EtatProgression {
   etape: string;

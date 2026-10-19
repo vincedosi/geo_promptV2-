@@ -8,6 +8,7 @@ import {
 } from '../data/radio-admin.api';
 import { ligneJournalPasse } from '../logique/radio';
 import { RadioOngletsService } from './radio-onglets.service';
+import { MESSAGE_INTERROMPU } from '../../commun/progression-import.component';
 
 /** Progression d'un import (C5) : étape = la `phase` courante, pourcentage = le `percent` du flux. */
 export interface EtatProgressionRadio {
@@ -20,8 +21,6 @@ export interface EtatProgressionRadio {
   bilan: string | null;
 }
 
-/** Règle du lot 3 : un flux fini sans événement final est un échec, jamais un succès silencieux. */
-export const MESSAGE_INTERROMPU = 'Le flux s’est interrompu avant la fin.';
 
 const NIVEAUX: readonly LigneJournal['niveau'][] = ['debug', 'info', 'warn', 'error', 'success'];
 
