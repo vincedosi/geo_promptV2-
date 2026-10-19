@@ -19,6 +19,13 @@ describe('ImportShapefileService — lecture, envoi par lots, enregistrement (lo
   let injecteur: ReturnType<typeof createEnvironmentInjector>;
   let etat: ImportShapefileService;
 
+  // `proj4` chargé UNE fois avant la suite (remède J1, comme `carreaux-import.page.spec.ts`) : son premier `import()`
+  // dépassait les 20 s du premier test sous la charge de la suite complète (revue des vagues). Appel direct, hors du
+  // `chargeur` espionné : « proj4 NON chargé avant la lecture » reste vérifié par le compteur d'appels.
+  beforeAll(async () => {
+    await chargerProj4();
+  }, 30_000);
+
   beforeEach(() => {
     chargeur = vi.fn(chargerProj4);
     TestBed.configureTestingModule({

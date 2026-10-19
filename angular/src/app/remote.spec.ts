@@ -293,7 +293,9 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     expect(racine.querySelector('mg-coquille')).toBeNull();
     expect(cartes).toHaveLength(1);
     http.match(() => true);
-  });
+    // 30 s et non 5 : ce test fait le PREMIER import du morceau paresseux de la carte (écran entier), qui dépassait
+    // 5 s même lancé seul sur le poste le 2026-10-19 (revue des vagues du lot 6, vérification des specs instables).
+  }, 30_000);
 
   it("carte sans session : le message de session, jamais l'écran ni un appel d'API", async () => {
     const { harness, http } = await monter(false);
