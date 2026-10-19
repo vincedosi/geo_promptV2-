@@ -1,4 +1,4 @@
-import { HttpParams } from '@angular/common/http';
+import { HttpParams, type HttpResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { type Observable, timeout } from 'rxjs';
 import type { Bbox } from '../../../carte/bbox';
@@ -153,6 +153,17 @@ export class CarteApi extends HttpBaseService {
   /** `GET /api/map/ooh/campagnes/:id` — une campagne de l'espace actif, ses lignes OOH et ses emplacements. */
   campagneOoh(id: string): Observable<DetailCampagneOoh> {
     return this.httpClient.get<DetailCampagneOoh>(`${this.baseUrl}/map/ooh/campagnes/${encodeURIComponent(id)}`);
+  }
+
+  /**
+   * `GET /api/map/ooh/campagnes/:id/export-html` en `blob`, réponse complète : le fichier HTML autonome de la campagne
+   * (bible des priorités, ligne 30), nommé par `Content-Disposition`. Passe par `HttpClient` (jeton, limiteur), jamais
+   * par un `<a href>` nu (A8) — c'est `mg-bouton-export` qui l'enregistre.
+   */
+  exporterCampagneOohHtml(id: string): Observable<HttpResponse<Blob>> {
+    return this.httpClient.get(`${this.baseUrl}/map/ooh/campagnes/${encodeURIComponent(id)}/export-html`, {
+      observe: 'response', responseType: 'blob',
+    });
   }
 
   /**

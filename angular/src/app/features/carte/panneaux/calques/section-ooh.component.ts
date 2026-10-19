@@ -1,6 +1,10 @@
+import type { HttpResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, untracked } from '@angular/core';
+import type { Observable } from 'rxjs';
 import { formaterNombre } from '../../../../core/format/nombre';
+import { BoutonExportComponent } from '../../../risques/exports/bouton-export.component';
 import { CampagneOohService } from '../../couches/campagne-ooh.service';
+import { CarteApi } from '../../data/carte.api';
 import { type EmplacementOoh, type LigneOoh, libelleEcart, libelleNonPlaces, libellePeriode, montantTtc } from '../../logique/campagnes-ooh';
 import { EnteteFiltreComponent } from '../filtre/perimetre.component';
 import { SelectionsCalquesService } from './selections-calques.service';
@@ -13,7 +17,8 @@ import { SelectionsCalquesService } from './selections-calques.service';
  *   2. la campagne choisie : ses lignes OOH dans l'ordre du plan — pastille de teinte, régie et réseau, dates, écrans,
  *      budget, contacts, case afficher/masquer, écart entre la liste de la régie et le plan, points à vérifier et
  *      emplacements non placés (dépliables ; un point à vérifier s'ouvre dans sa fiche, pré-vol P6) ; les lignes sans
- *      liste (DROM) regroupées, avec la phrase qui le dit ;
+ *      liste (DROM) regroupées, avec la phrase qui le dit ; sous l'en-tête, « Exporter en HTML » (`mg-bouton-export`,
+ *      `GET /api/map/ooh/campagnes/:id/export-html`) : le fichier autonome à envoyer au client ;
  *   3. le retour à la liste.
  * L'état vit dans `CampagneOohService` (page) : fermer « Autres » ou replier la section ne perd rien ; changer
  * d'espace recrée la page et vide tout. La pastille est en CSS (`var(--ligne-media-n)`), la carte reçoit les mêmes
@@ -21,7 +26,7 @@ import { SelectionsCalquesService } from './selections-calques.service';
  */
 @Component({
   selector: 'mg-section-ooh',
-  imports: [EnteteFiltreComponent],
+  imports: [EnteteFiltreComponent, BoutonExportComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
     @keyframes fondu { from { opacity: 0; } to { opacity: 1; } }
@@ -42,6 +47,13 @@ import { SelectionsCalquesService } from './selections-calques.service';
               @if (d.campagne.vague) { <span>{{ d.campagne.vague }} · </span> }{{ periode(d.campagne.date_debut, d.campagne.date_fin) }}
             </div>
           </div>
+          <!-- Le fichier à envoyer au client, sans accès à l'application (bible des priorités, ligne 30). -->
+          <!-- Un bouton PAR campagne (\`track\`) : le message d'échec de l'export d'une campagne ne survit pas au choix d'une autre. -->
+          @for (export of exportCampagne(); track export.id) {
+            <mg-bouton-export data-export-html class="self-start flex-wrap" libelle="Exporter en HTML" libelleEnCours="Préparation…"
+              nomRepli="campagne-ooh.html" variante="panneau" titre="Un fichier HTML autonome : carte, lignes du plan, emplacements par régie"
+              [charger]="export.charger" />
+          }
           @if (d.tronque) {
             <div data-tronque class="text-[11px] text-warning">Campagne tronquée : seuls les {{ nombre(d.emplacements.length) }} premiers emplacements sont sur la carte.</div>
           }
@@ -129,6 +141,15 @@ import { SelectionsCalquesService } from './selections-calques.service';
 export class SectionOohComponent {
   protected readonly selections = inject(SelectionsCalquesService);
   protected readonly service = inject(CampagneOohService);
+  private readonly api = inject(CarteApi);
+  /**
+   * L'export HTML de la campagne affichée, pour `mg-bouton-export` : zéro ou un élément, recalculé seulement quand
+   * l'identifiant change (`equal`) — la fonction `charger` reste stable tant que la campagne est la même.
+   */
+  protected readonly exportCampagne = computed<{ id: string; charger: () => Observable<HttpResponse<Blob>> }[]>(() => {
+    const id = this.service.detail()?.campagne.id;
+    return id ? [{ id, charger: () => this.api.exporterCampagneOohHtml(id) }] : [];
+  }, { equal: (a, b) => a[0]?.id === b[0]?.id });
   protected readonly ouvert = computed(() => this.selections.sections()['ooh'] !== false);
   protected readonly lignesAvecListe = computed(() => (this.service.detail()?.lignes ?? []).filter((l) => l.a_des_emplacements));
   protected readonly lignesSansListe = computed(() => (this.service.detail()?.lignes ?? []).filter((l) => !l.a_des_emplacements));
