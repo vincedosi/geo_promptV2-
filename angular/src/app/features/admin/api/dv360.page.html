@@ -109,7 +109,7 @@
     <label class="text-[12px] text-tertiary" for="dv360-client-secret">
       Client Secret OAuth
       @if (conn()?.oauth_client_id) {
-        <span class="text-success">— client déjà enregistré ✓ (re-saisir pour modifier)</span>
+        <span class="text-[var(--success-texte)]">— client déjà enregistré ✓ (re-saisir pour modifier)</span>
       }
     </label>
     <input id="dv360-client-secret" data-champ="client-secret" type="password" autocomplete="off" class="champ mono"
@@ -132,7 +132,7 @@
 <!-- Purge complète (page.tsx:315-325) -->
 @if (conn()) {
   <div class="mt-2.5 flex justify-end">
-    <button type="button" data-action="purger" class="lien purge text-[11px] text-danger underline" [disabled]="busy()" (click)="confirmPurge.set(true)">
+    <button type="button" data-action="purger" class="lien purge text-[11px] text-[var(--danger-texte)] underline" [disabled]="busy()" (click)="confirmPurge.set(true)">
       Effacer les données d'authentification
     </button>
   </div>
@@ -161,7 +161,7 @@
     <span class="h-1.5 w-1.5 rounded-full bg-teal"></span>
     <span class="text-[12px] font-medium text-primary">Logs DV360 (temps réel)</span>
     <span class="ml-auto">
-      <button type="button" data-action="rafraichir" class="lien font-mono text-[11px] text-teal" [disabled]="logsBusy()" (click)="chargerLogs()">
+      <button type="button" data-action="rafraichir" class="lien font-mono text-[11px] text-[var(--teal-texte)]" [disabled]="logsBusy()" (click)="chargerLogs()">
         {{ logsBusy() ? '…' : 'rafraîchir' }}
       </button>
     </span>

@@ -105,6 +105,10 @@ export const MESSAGE_INTERROMPU = 'Le flux s’est interrompu avant la fin.';
       transition: width 0.3s;
     }
     .remplissage.termine { background: var(--success); }
+    /* Texte d'état : propriétés --*-texte du cadre admin (F-3), jeton brut en repli hors du cadre. */
+    .statut-succes { color: var(--success-texte, var(--success)); }
+    .statut-avert { color: var(--warning-texte, var(--warning)); }
+    .statut-danger { color: var(--danger-texte, var(--danger)); }
     .remplissage.echec { background: var(--danger); }
     .curseur {
       position: absolute; top: 0; left: 0; height: 100%; width: 25%;
@@ -175,6 +179,10 @@ export class ProgressionImportComponent {
     return `${this.etape()}…`;
   });
 
+  /**
+   * Classe de la couleur du TEXTE d'état (revue des vagues du lot 6, Important 2) : la propriété `--*-texte` du
+   * cadre admin, avec repli sur le jeton brut hors du cadre (catalogue) — voir `styles`.
+   */
   protected readonly couleurTexte = computed(() =>
-    this.echec() ? 'text-danger' : this.termine() && !this.avertissement() ? 'text-success' : 'text-warning');
+    this.echec() ? 'statut-danger' : this.termine() && !this.avertissement() ? 'statut-succes' : 'statut-avert');
 }

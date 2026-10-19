@@ -112,7 +112,7 @@ describe('ProgressionImportComponent', () => {
     await f.whenStable();
     expect(el.textContent).toContain('⚠ Import terminé avec erreurs');
     expect(el.textContent).not.toContain('✓');
-    expect(el.querySelector('.text-warning')).not.toBeNull();
+    expect(el.querySelector('.statut-avert')).not.toBeNull();
     const remplissage = el.querySelector('[data-remplissage]') as HTMLElement;
     expect(remplissage.classList).not.toContain('termine');
     expect(remplissage.classList).toContain('avertissement');

@@ -162,14 +162,14 @@ describe('JournalComponent', () => {
     expect([...rangee.querySelectorAll('button')].map((b) => b.textContent!.trim())).toEqual(['Copier', 'Fermer']);
   });
 
-  it('niveau `rapport` (import Shapefile, T14) : couleur --info, jamais masqué par le filtre', async () => {
+  it('niveau `rapport` (import Shapefile, T14) : couleur --info-texte (repli --info), jamais masqué par le filtre', async () => {
     const { f, h, el } = await monter();
     h.filtrable.set(true);
     h.lignes.set([ligne(1, 'rapport'), ligne(2, 'debug')]);
     await f.whenStable();
     const lignes = [...el.querySelectorAll('[data-terminal] > div')] as HTMLElement[];
     expect(lignes.map((l) => l.textContent)).toEqual(['ligne 1']);
-    expect(lignes[0].style.color).toBe('var(--info)');
+    expect(lignes[0].style.color).toBe('var(--info-texte, var(--info))');
     expect([...el.querySelectorAll('button[data-niveau]')].map((b) => b.getAttribute('data-niveau')))
       .toEqual(['info', 'warn', 'error', 'success', 'debug']);
   });

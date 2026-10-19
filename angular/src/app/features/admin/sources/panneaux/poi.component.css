@@ -3,10 +3,10 @@
 :host { --teinte: var(--teal-texte); }
 .bandeau { background: var(--brand-teal-10); border-color: color-mix(in srgb, var(--brand-teal) 25%, transparent); }
 [data-teinte='teal'] { --cat: var(--brand-teal); --cat-texte: var(--teal-texte); }
-[data-teinte='info'] { --cat: var(--info); }
-[data-teinte='succes'] { --cat: var(--success); }
-[data-teinte='avert'] { --cat: var(--warning); }
-[data-teinte='danger'] { --cat: var(--danger); }
+[data-teinte='info'] { --cat: var(--info); --cat-texte: var(--info-texte); }
+[data-teinte='succes'] { --cat: var(--success); --cat-texte: var(--success-texte); }
+[data-teinte='avert'] { --cat: var(--warning); --cat-texte: var(--warning-texte); }
+[data-teinte='danger'] { --cat: var(--danger); --cat-texte: var(--danger-texte); }
 /* Q-6 : `--nature-8` (rose-mauve, assombri en clair) — `--ligne-media-3` se lisait comme `--danger` en clair. */
 [data-teinte='rose'] { --cat: var(--nature-8); }
 [data-teinte='ardoise'] { --cat: var(--text-tertiary); }

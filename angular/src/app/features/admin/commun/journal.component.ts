@@ -40,6 +40,22 @@ const COULEURS: Record<Niveau, string> = {
 };
 
 /**
+ * Couleur du TEXTE de chaque niveau (revue des vagues du lot 6, Important 2) : la propriété `--*-texte` du cadre
+ * admin (F-3, DESIGN_SYSTEM § 3), lisible sur le fond clair du terminal, avec repli sur le jeton brut quand le
+ * catalogue monte le journal hors du cadre. `COULEURS` reste le jeton brut, pour le fond et la bordure des boutons
+ * de filtre (aplats et bordures gardent le jeton brut).
+ */
+const COULEURS_TEXTE: Record<Niveau, string> = {
+  debug: COULEURS.debug,
+  info: COULEURS.info,
+  log: COULEURS.log,
+  warn: 'var(--warning-texte, var(--warning))',
+  error: 'var(--danger-texte, var(--danger))',
+  success: 'var(--success-texte, var(--success))',
+  rapport: 'var(--info-texte, var(--info))',
+};
+
+/**
  * Journal d'import (arbitrage C14), rendu du terminal de la page radio (`radio/page.tsx:459-518`) :
  * lignes colorées par niveau, filtre par niveau avec compteurs (`filtrable`), « Copier »
  * (`copiable`), défilement automatique.
@@ -76,6 +92,7 @@ const COULEURS: Record<Niveau, string> = {
               [attr.aria-pressed]="b.actif"
               [class.actif]="b.actif"
               [style.--couleur]="b.couleur"
+              [style.--couleur-texte]="b.couleurTexte"
               (click)="basculer(b.niveau)"
             >{{ b.libelle }}</button>
           }
@@ -115,7 +132,7 @@ const COULEURS: Record<Niveau, string> = {
     .filtre.actif {
       background: color-mix(in srgb, var(--couleur) 12.5%, transparent);
       border-color: var(--couleur);
-      color: var(--couleur);
+      color: var(--couleur-texte);
     }
     .outil {
       padding: 2px 8px;
@@ -171,6 +188,7 @@ export class JournalComponent {
         niveau,
         actif: actifs.has(niveau),
         couleur: COULEURS[niveau],
+        couleurTexte: COULEURS_TEXTE[niveau],
         libelle: `${niveau.toUpperCase()}${n ? ` (${n})` : ''}`,
       };
     });
@@ -181,7 +199,7 @@ export class JournalComponent {
     const actifs = this.actifs();
     return this.lignes()
       .filter((l) => !filtrer || !NIVEAUX_FILTRABLES.includes(l.niveau) || actifs.has(l.niveau))
-      .map((l) => ({ texte: texteAffiche(l), couleur: COULEURS[l.niveau] ?? COULEURS.info }));
+      .map((l) => ({ texte: texteAffiche(l), couleur: COULEURS_TEXTE[l.niveau] ?? COULEURS_TEXTE.info }));
   });
 
   constructor() {

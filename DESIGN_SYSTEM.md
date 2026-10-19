@@ -157,7 +157,25 @@ ses écrans :
 passe par ces propriétés (`color: var(--teal-texte)`, jamais
 `color: var(--brand-teal)`) ; aplats, bordures, `accent-color` et focus gardent
 le jeton brut. Les briques de `features/admin/commun/` que le catalogue monte
-HORS du cadre écrivent `var(--success-texte, var(--success))`, avec repli.
+HORS du cadre — le texte d'état de `progression-import` (« ✓ Import terminé »,
+« ⚠ Import terminé avec erreurs », échec) et les lignes et filtres actifs de
+`journal` — écrivent `var(--success-texte, var(--success))`, avec repli ; les
+écrans montés DANS le cadre écrivent `var(--success-texte)` seul (pages DV360 et
+TikTok, Fraîcheur, cartes de catégorie POI de Sources, qui posent un
+`--cat-texte` par teinte de statut).
+
+Le repli `var(--x-texte, var(--x))` ne joue que lorsque la propriété **n'est pas
+définie** (hors du cadre). Il ne rattrape PAS un navigateur sans `light-dark()` :
+la propriété y est définie mais invalide au calcul, et `color` retombe alors sur
+la couleur héritée (voir plus bas), pas sur le jeton brut.
+
+Exceptions assumées, parce que ce ne sont pas des textes posés sur une surface
+claire : l'icône de chargement de `progression-import` (`text-success`, un trait
+graphique, comme la barre) ; `text-teal-fg`, texte posé SUR un aplat teal ; les
+teintes `rose`, `ardoise` et `gris` des cartes POI, qui sont déjà des jetons de
+texte ou une teinte assombrie en clair (`--nature-8`, `--text-tertiary`,
+`--text-secondary`) ; et tous les `border-color`, fonds en `color-mix` et
+`accent-color` du module.
 
 Chacune vaut `light-dark(<mélange>, <couleur>)` : en thème sombre, la couleur
 d'origine, inchangée. `light-dark()` se résout chez l'élément qui emploie la
