@@ -37,7 +37,10 @@ import type * as AtF from '../../../angular/src/app/features/admin/logique/types
 
 // Assignabilité mutuelle, vérifiée par `npx tsc --noEmit` à la racine (Vitest ne type-vérifie pas).
 // Liste = chaque type que l'admin React importe de ces modules (grep du 2026-10-06), plus `UserRole`.
-type Egal<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+// Les CLÉS aussi (vague finale H3) : un champ OPTIONNEL ajouté d'un seul côté garde l'assignabilité
+// mutuelle, mais change `keyof`.
+type MemesCles<A, B> = [keyof A] extends [keyof B] ? ([keyof B] extends [keyof A] ? true : false) : false;
+type Egal<A, B> = [A] extends [B] ? ([B] extends [A] ? MemesCles<A, B> : false) : false;
 const _verif: [
   Egal<RtA.HealthResponse, AtA.HealthResponse>,
   Egal<RtA.Check, AtA.Check>,

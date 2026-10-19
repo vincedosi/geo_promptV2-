@@ -37,27 +37,26 @@ async function monter(url: string) {
 describe('DonneesPage — page Données à onglets (lot 6, T6)', () => {
   afterEach(() => TestBed.inject(HttpTestingController).verify());
 
-  for (const url of ['/hote/app/admin/donnees/qualite']) {
-    it(`${url} : titre « Données », onglets « Sources », « Importer », « Historique » puis « Qualité » (actif), et l’écran Qualité des données`, async () => {
-      const { el, http, router } = await monter(url);
-      expect(router.url).toBe('/hote/app/admin/donnees/qualite');
-      expect(el.querySelector('mg-donnees h1')?.textContent?.trim()).toBe('Données');
-      const onglets = [...el.querySelectorAll<HTMLAnchorElement>('mg-donnees [role="tab"]')];
-      // Pas d'onglet « bientôt » : chacun est arrivé avec son écran (Historique : T11′, Importer : T15, Sources : T18).
-      expect(onglets.map((a) => a.textContent!.trim())).toEqual(['Sources', 'Importer', 'Historique', 'Qualité']);
-      expect(onglets.map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'false', 'false', 'true']);
-      expect(onglets.map((a) => a.getAttribute('href'))).toEqual([
-        '/hote/app/admin/donnees/sources', '/hote/app/admin/donnees/importer', '/hote/app/admin/donnees/historique',
-        '/hote/app/admin/donnees/qualite',
-      ]);
-      expect(el.querySelector('mg-donnees mg-qualite-donnees')).not.toBeNull();
-      // Un seul titre de page : celui du cadre. Le titre « Qualité des données » de React est
-      // remonté dans le cadre, comme « Santé système » dans Système — plus de double en-tête.
-      expect([...el.querySelectorAll('h1')].map((h) => h.textContent!.trim())).toEqual(['Données']);
-      // L'écran lit ses relevés à son ouverture, comme React : UN GET.
-      http.expectOne('/api/admin/qualite-donnees').flush({ verifications: [] });
-    });
-  }
+  it('/hote/app/admin/donnees/qualite : titre « Données », onglets « Sources », « Importer », « Historique » puis « Qualité » (actif), et l’écran Qualité des données', async () => {
+    const url = '/hote/app/admin/donnees/qualite';
+    const { el, http, router } = await monter(url);
+    expect(router.url).toBe('/hote/app/admin/donnees/qualite');
+    expect(el.querySelector('mg-donnees h1')?.textContent?.trim()).toBe('Données');
+    const onglets = [...el.querySelectorAll<HTMLAnchorElement>('mg-donnees [role="tab"]')];
+    // Pas d'onglet « bientôt » : chacun est arrivé avec son écran (Historique : T11′, Importer : T15, Sources : T18).
+    expect(onglets.map((a) => a.textContent!.trim())).toEqual(['Sources', 'Importer', 'Historique', 'Qualité']);
+    expect(onglets.map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'false', 'false', 'true']);
+    expect(onglets.map((a) => a.getAttribute('href'))).toEqual([
+      '/hote/app/admin/donnees/sources', '/hote/app/admin/donnees/importer', '/hote/app/admin/donnees/historique',
+      '/hote/app/admin/donnees/qualite',
+    ]);
+    expect(el.querySelector('mg-donnees mg-qualite-donnees')).not.toBeNull();
+    // Un seul titre de page : celui du cadre. Le titre « Qualité des données » de React est
+    // remonté dans le cadre, comme « Santé système » dans Système — plus de double en-tête.
+    expect([...el.querySelectorAll('h1')].map((h) => h.textContent!.trim())).toEqual(['Données']);
+    // L'écran lit ses relevés à son ouverture, comme React : UN GET.
+    http.expectOne('/api/admin/qualite-donnees').flush({ verifications: [] });
+  });
 
   it('/donnees/historique : onglet « Historique » actif, l’écran Historique des imports, UN GET, un seul titre', async () => {
     const { el, http, router } = await monter('/hote/app/admin/donnees/historique');
@@ -69,25 +68,24 @@ describe('DonneesPage — page Données à onglets (lot 6, T6)', () => {
     http.expectOne('/api/admin/imports').flush({ success: true, imports: [] });
   });
 
-  for (const url of ['/hote/app/admin/donnees/importer/iris']) {
-    it(`${url} : onglet « Importer » actif, choix du type (« POI », « Shapefile », « IRIS » actif, « Radio »), l’écran IRIS crawler, AUCUNE requête`, async () => {
-      const { el, router } = await monter(url);
-      expect(router.url).toBe('/hote/app/admin/donnees/importer/iris');
-      const onglets = [...el.querySelectorAll<HTMLAnchorElement>('mg-donnees > div > mg-onglets-routes [role="tab"]')];
-      expect(onglets.map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false', 'false']);
-      // Le choix du type ne liste que les écrans PORTÉS (A7), jamais « bientôt » : Radio depuis T16, POI (en tête) depuis T12, Shapefile depuis T14.
-      const types = [...el.querySelectorAll<HTMLAnchorElement>('mg-importer [role="tab"]')];
-      expect(types.map((a) => [a.textContent!.trim(), a.getAttribute('href'), a.getAttribute('aria-selected')])).toEqual([
-        ['POI', '/hote/app/admin/donnees/importer/poi', 'false'],
-        ['Shapefile', '/hote/app/admin/donnees/importer/shapefile', 'false'],
-        ['IRIS', '/hote/app/admin/donnees/importer/iris', 'true'],
-        ['Radio', '/hote/app/admin/donnees/importer/radio', 'false'],
-      ]);
-      expect(el.querySelector('mg-importer mg-iris-crawler')).not.toBeNull();
-      expect([...el.querySelectorAll('h1')].map((h) => h.textContent!.trim())).toEqual(['Données']);
-      // Rien ne part à l'ouverture : le dépôt attend un fichier (`afterEach` vérifie qu'aucune requête n'est en attente).
-    });
-  }
+  it('/hote/app/admin/donnees/importer/iris : onglet « Importer » actif, choix du type (« POI », « Shapefile », « IRIS » actif, « Radio »), l’écran IRIS crawler, AUCUNE requête', async () => {
+    const url = '/hote/app/admin/donnees/importer/iris';
+    const { el, router } = await monter(url);
+    expect(router.url).toBe('/hote/app/admin/donnees/importer/iris');
+    const onglets = [...el.querySelectorAll<HTMLAnchorElement>('mg-donnees > div > mg-onglets-routes [role="tab"]')];
+    expect(onglets.map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false', 'false']);
+    // Le choix du type ne liste que les écrans PORTÉS (A7), jamais « bientôt » : Radio depuis T16, POI (en tête) depuis T12, Shapefile depuis T14.
+    const types = [...el.querySelectorAll<HTMLAnchorElement>('mg-importer [role="tab"]')];
+    expect(types.map((a) => [a.textContent!.trim(), a.getAttribute('href'), a.getAttribute('aria-selected')])).toEqual([
+      ['POI', '/hote/app/admin/donnees/importer/poi', 'false'],
+      ['Shapefile', '/hote/app/admin/donnees/importer/shapefile', 'false'],
+      ['IRIS', '/hote/app/admin/donnees/importer/iris', 'true'],
+      ['Radio', '/hote/app/admin/donnees/importer/radio', 'false'],
+    ]);
+    expect(el.querySelector('mg-importer mg-iris-crawler')).not.toBeNull();
+    expect([...el.querySelectorAll('h1')].map((h) => h.textContent!.trim())).toEqual(['Données']);
+    // Rien ne part à l'ouverture : le dépôt attend un fichier (`afterEach` vérifie qu'aucune requête n'est en attente).
+  });
 
   for (const url of ['/hote/app/admin/donnees', '/hote/app/admin/donnees/sources']) {
     it(`${url} : la racine mène à « Sources » (PREMIER onglet, T18), l’écran Sources, ses quatre lectures, un seul titre`, async () => {

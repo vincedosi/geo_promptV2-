@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { voisin } from '../commun/voisin';
 import { EspacesEtatService } from './etat/espaces-etat.service';
 import { OngletApercuComponent } from './onglet-apercu.component';
 import { OngletDonneesComponent } from './onglet-donnees.component';
@@ -148,7 +149,7 @@ export class FicheEspaceComponent {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
     e.preventDefault();
     const i = ONGLETS.indexOf(this.onglet());
-    const suivant = ONGLETS[(i + (e.key === 'ArrowRight' ? 1 : ONGLETS.length - 1)) % ONGLETS.length];
+    const suivant = ONGLETS[voisin(i, ONGLETS.length, e.key)];
     this.ouvrir(suivant);
     const liste = e.currentTarget as HTMLElement;
     liste.querySelector<HTMLButtonElement>(`[data-onglet="${suivant}"]`)?.focus();

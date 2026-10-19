@@ -14,7 +14,7 @@ export interface LigneImport {
   source: string;
   started_at: string | null;
   finished_at: string | null;
-  status: string;
+  status: string | null;
   total: number | null;
   inserted: number | null;
   updated: number | null;

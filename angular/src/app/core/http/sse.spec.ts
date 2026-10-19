@@ -24,6 +24,14 @@ describe('lignesSse', () => {
     expect(lus).toEqual([{ n: 1 }, { n: 2 }]);
   });
 
+  it('accepte \\r SEUL comme séparateur (norme SSE, vague finale H4)', () => {
+    const flux = new Subject<HttpEvent<string>>();
+    const lus: unknown[] = [];
+    lignesSse(flux).subscribe((v) => lus.push(v));
+    progres(flux, 'data: {"n":1}\r\rdata: {"n":2}\r\r');
+    expect(lus).toEqual([{ n: 1 }, { n: 2 }]);
+  });
+
   it('ignore `event:`, `id:`, les commentaires `:` et une ligne `data:` illisible, sans couper le flux', () => {
     const flux = new Subject<HttpEvent<string>>();
     const lus: unknown[] = [];

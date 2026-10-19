@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { voisin } from './voisin';
 
 /** Un onglet : un segment de route RELATIF au cadre qui porte la barre, et son libellé. */
 export interface OngletRoute {
@@ -105,6 +106,6 @@ export class OngletsRoutesComponent {
     const focalise = racine.activeElement as HTMLAnchorElement | null;
     let i = liens.indexOf(cible ?? (focalise as HTMLAnchorElement));
     if (i < 0) i = Math.max(0, liens.findIndex((a) => a.getAttribute('aria-selected') === 'true'));
-    liens[(i + (e.key === 'ArrowRight' ? 1 : liens.length - 1)) % liens.length].focus();
+    liens[voisin(i, liens.length, e.key)].focus();
   }
 }
