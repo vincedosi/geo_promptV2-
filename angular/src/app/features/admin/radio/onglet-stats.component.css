@@ -1,0 +1,62 @@
+/* Onglet Statistiques (audit du matching) — mesures de `app/admin/radio/page.tsx:719-898`. Jetons seulement (C9).
+   Texte teal lisible en clair (≈ 1,8:1 sinon) : --teal-texte du cadre admin (F-3) ; inchangé en sombre.
+   Noms en clair (`--teinte`, `--teal-texte`) : la version compactée pour tenir sous le budget de 4 kB était illisible
+   (vague finale C9) ; le budget `anyComponentStyle` s'applique au CSS MINIFIÉ, que ces noms n'alourdissent qu'à peine. */
+:host {
+  display: flex; flex-direction: column; gap: 16px; font-family: var(--font-sans);
+}
+.mono { font-family: var(--font-mono); }
+.petit { font-size: 10px; }
+.primaire { color: var(--text-primary); }
+.secondaire { color: var(--text-secondary); }
+.tertiaire { color: var(--text-tertiary); }
+.danger { color: var(--danger-texte); }
+[data-teinte='succes'] { --teinte: var(--success); --teinte-texte: var(--success-texte); }
+[data-teinte='avert'] { --teinte: var(--warning); --teinte-texte: var(--warning-texte); }
+[data-teinte='danger'] { --teinte: var(--danger); --teinte-texte: var(--danger-texte); }
+[data-teinte='secondaire'] { --teinte: var(--text-secondary); --teinte-texte: var(--text-secondary); }
+[data-teinte='tertiaire'] { --teinte: var(--text-tertiary); --teinte-texte: var(--text-tertiary); }
+[data-teinte='info'] { --teinte: var(--info); --teinte-texte: var(--info-texte); }
+[data-teinte='teal'] { --teinte: var(--brand-teal); --teinte-texte: var(--teal-texte); }
+.teinte, .kpi-valeur[data-teinte] { color: var(--teinte-texte, var(--teinte)); }
+.teinte[data-teinte='teal'] { color: var(--teal-texte); }
+.chargement { padding: 40px; text-align: center; color: var(--text-tertiary); }
+/* « Rafraîchir » (vague finale, Q-3 ; absent de React), à droite au-dessus des sections. */
+.outils { display: flex; justify-content: flex-end; }
+.rafraichir {
+  padding: 4px 10px; border-radius: 4px; font-size: 10px; font-family: inherit; background: transparent;
+  border: 0.5px solid var(--border-default); color: var(--text-secondary); cursor: pointer;
+}
+.rafraichir:hover:not(:disabled) { border-color: var(--border-hover); color: var(--text-primary); }
+.rafraichir:disabled { cursor: not-allowed; opacity: 0.5; }
+.rafraichir:focus-visible { outline: 1px solid var(--brand-teal-50); outline-offset: 1px; }
+.erreur { color: var(--danger-texte); font-size: 12px; }
+
+/* KPI (StatCard, page.tsx:76-92) et barre. */
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.kpi, .carte { background: var(--bg-surface); border: 0.5px solid var(--border-subtle); border-radius: 6px; }
+.kpi { padding: 14px 16px; }
+.kpi:hover { border-color: var(--border-default); }
+.kpi-libelle { font-size: 11px; color: var(--text-tertiary); margin-bottom: 6px; }
+.kpi-valeur { font-family: var(--font-mono); font-size: 22px; font-weight: 500; color: var(--text-primary); margin-bottom: 2px; }
+.kpi-sous { font-size: 11px; color: var(--text-secondary); }
+.barre { height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--danger) 15%, transparent); overflow: hidden; }
+.barre-remplie { height: 100%; background: var(--success); border-radius: 4px; transition: width 0.3s; }
+
+/* Cartes, bandeaux (SH : marge basse 12 px), tableaux. */
+.carte { overflow: hidden; }
+.section { margin-bottom: 12px; }
+.corps { padding: 0 14px 14px; }
+table { width: 100%; border-collapse: collapse; }
+th { padding: 6px 8px; text-align: left; color: var(--text-tertiary); font-weight: 500; font-size: 11px; border-bottom: 0.5px solid var(--border-subtle); }
+td { padding: 6px 8px; font-size: 11px; }
+tbody tr { border-bottom: 0.5px solid var(--border-subtle); }
+.ligne-categorie { cursor: pointer; }
+.ligne-categorie[aria-pressed='true'] { background: color-mix(in srgb, var(--brand-teal) 5%, transparent); }
+.ligne-categorie:hover { background: var(--bg-level-2); }
+.cat-libelle { color: var(--text-primary); font-weight: 500; }
+[aria-pressed='true'] .cat-libelle { color: var(--teal-texte); }
+.cellule-barre { width: 40%; }
+.mini-barre { height: 6px; border-radius: 3px; background: var(--border-subtle); overflow: hidden; }
+.mini-remplie { height: 100%; border-radius: 3px; background: var(--teinte); transition: width 0.3s; }
+.ligne-categorie:focus-visible, .champ:focus-visible, .lien:focus-visible { outline: 1px solid var(--brand-teal-50); outline-offset: -1px; }

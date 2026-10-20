@@ -1,0 +1,145 @@
+<div class="outils">
+  <button type="button" class="rafraichir" data-rafraichir [disabled]="chargement()" (click)="rafraichir()">Rafraîchir</button>
+</div>
+@if (chargement()) {
+  <div class="chargement" data-chargement>Chargement de l'audit...</div>
+} @else if (erreur(); as e) {
+  <div class="chargement erreur" data-erreur role="alert">{{ e }}</div>
+} @else if (kpis(); as k) {
+  <!-- Section 1 : KPI synthétiques -->
+  <div class="kpis" data-section="kpis">
+    @for (c of k.cartes; track c.libelle) {
+      <div class="kpi" data-kpi>
+        <div class="kpi-libelle" data-libelle>{{ c.libelle }}</div>
+        <div class="kpi-valeur" data-valeur [attr.data-teinte]="c.teinte">{{ c.valeur }}</div>
+        <div class="kpi-sous" data-sous>{{ c.sous }}</div>
+      </div>
+    }
+  </div>
+  <div class="barre" data-section="barre" role="img" [attr.aria-label]="k.pct + ' % des radios matchées'">
+    <div class="barre-remplie" data-remplissage [style.width.%]="k.pct"></div>
+  </div>
+
+  <!-- Section 2 : par catégorie -->
+  <div class="carte" data-section="categories">
+    <mg-entete-section class="section" libelle="Matching par categorie" />
+    <div class="corps">
+      <table>
+        <thead>
+          <tr>
+            @for (h of ['Categorie', 'Matchees', 'Non matchees', '%', '']; track $index) {
+              <th>{{ h }}</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of lignesCategories(); track r.cat) {
+            <tr
+              class="ligne-categorie"
+              role="button"
+              tabindex="0"
+              [attr.aria-pressed]="reglages.auditCategorie() === r.cat"
+              (click)="basculerCategorie(r.cat)"
+              (keydown.enter)="basculerCategorie(r.cat)"
+              (keydown.space)="basculerCategorie(r.cat); $event.preventDefault()"
+            >
+              <td class="cat-libelle">{{ r.libelle }}</td>
+              <td class="mono secondaire">{{ r.matchees }}</td>
+              <td class="mono" [class.danger]="r.nonMatchees > 0" [class.tertiaire]="r.nonMatchees === 0">{{ r.nonMatchees }}</td>
+              <td class="mono teinte" data-pct [attr.data-teinte]="r.teintePct">{{ r.pct }}</td>
+              <td class="cellule-barre">
+                <div class="mini-barre">
+                  <div class="mini-remplie" data-barre [attr.data-teinte]="r.teinteBarre" [style.width.%]="r.largeur"></div>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Section 3 : radios non matchées avec diagnostic -->
+  <div class="carte" data-section="non-matchees">
+    <mg-entete-section class="section" [libelle]="titreNonMatchees()" />
+    <div class="filtres">
+      <input
+        class="champ recherche"
+        data-recherche-audit
+        type="text"
+        placeholder="Rechercher..."
+        aria-label="Rechercher une radio non matchée"
+        [value]="reglages.auditRecherche()"
+        (input)="chercher($any($event.target).value)"
+      />
+      <select class="champ" data-categorie aria-label="Catégorie" (change)="choisirCategorie($any($event.target).value)">
+        <option value="" [selected]="reglages.auditCategorie() === ''">Toutes cat.</option>
+        @for (c of categories; track c) {
+          <option [value]="c" [selected]="reglages.auditCategorie() === c">{{ c }}</option>
+        }
+      </select>
+      <select class="champ" data-diagnostic aria-label="Diagnostic" (change)="choisirDiagnostic($any($event.target).value)">
+        @for (d of diagnostics; track d.valeur) {
+          <option [value]="d.valeur" [selected]="reglages.auditDiagnostic() === d.valeur">{{ d.libelle }}</option>
+        }
+      </select>
+      <select class="champ" data-frequences aria-label="Fréquences FM" (change)="choisirFrequences($any($event.target).value)">
+        @for (f of frequences; track f.valeur) {
+          <option [value]="f.valeur" [selected]="reglages.auditFrequencesMin() === f.valeur">{{ f.libelle }}</option>
+        }
+      </select>
+    </div>
+    <div class="defilement">
+      <table class="table-nm">
+        <thead>
+          <tr>
+            @for (h of ['Radio', 'Cat.', 'Portee', 'Freq', 'Diagnostic', 'Liens']; track $index) {
+              <th>{{ h }}</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of lignesNonMatchees(); track r.id) {
+            <tr>
+              <td class="nm-nom">{{ r.nom }}</td>
+              <td class="tertiaire">{{ r.cat }}</td>
+              <td class="tertiaire petit">{{ r.portee }}</td>
+              <td class="mono" data-freq [attr.data-fort]="r.fort" [class.primaire]="r.fort" [class.tertiaire]="!r.fort">{{ r.freq }}</td>
+              <td class="diagnostic teinte petit" data-diagnostic [attr.data-teinte]="r.teinte">{{ r.diagnostic }}</td>
+              <td class="liens">
+                <a class="lien" [href]="r.freqRadio" target="_blank" rel="noopener noreferrer">freq-radio</a>
+                <a class="lien" [href]="r.arcom" target="_blank" rel="noopener noreferrer">arcom</a>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Section 4 : sources (compact) -->
+  <div class="sources" data-section="sources">
+    @for (s of sources(); track s.source) {
+      <span class="source" [attr.data-source]="s.source">
+        <span class="point" [attr.data-teinte]="s.teinte"></span>
+        {{ s.source }} {{ s.part }}%
+      </span>
+    }
+  </div>
+
+  <!-- Section 5 : historique des enrichissements -->
+  @if (enrichissements().length > 0) {
+    <div class="carte" data-section="historique">
+      <mg-entete-section class="section" libelle="Derniers enrichissements" />
+      <div class="corps-historique">
+        @for (h of enrichissements(); track h.id) {
+          <div class="enrichissement" data-enrichissement>
+            <span class="moyen secondaire">{{ h.date }}</span>
+            <span class="moyen tertiaire mono">{{ h.duree }}</span>
+            <span class="petit teinte" data-statut [attr.data-teinte]="h.teinte">{{ h.resume }}</span>
+          </div>
+        }
+      </div>
+    </div>
+  }
+}

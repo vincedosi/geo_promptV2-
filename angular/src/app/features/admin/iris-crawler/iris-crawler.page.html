@@ -1,0 +1,66 @@
+<!-- Zone de dépôt (`page.tsx:181-212`) : tirets 2 px, fond `--bg-level-2`, teal au survol d'un glisser. -->
+<mg-depot-fichiers #depot accepter=".csv,.tsv" fondRepos="eleve" marge="40px 20px" (fichiers)="deposer($event)">
+  <div data-consigne class="consigne" [class.survol]="depot.survol()">{{ consigne() }}</div>
+  <div class="aide">Formats acceptés : .csv, .tsv · Taille max : 50 Mo</div>
+  <div class="aide">Ex: BASE_TD_FILO_IRIS_2021_DEC.csv · Séparateur auto-détecté (;  ou ,)</div>
+</mg-depot-fichiers>
+
+<!-- Résultat du dépôt et correspondance des colonnes cœur (`page.tsx:214-279`). -->
+@if (entete(); as e) {
+  <div data-resultat class="resultat">
+    <div data-entete class="entete">
+      <span class="fichier">{{ e.fichier }}</span>
+      <span class="mesure">{{ e.dimensions }}</span>
+      <span class="mesure mappees">{{ e.mappees }}</span>
+      <span class="mesure">{{ e.jsonb }}</span>
+    </div>
+
+    <div class="correspondance">
+      <div data-titre-correspondance class="titre-correspondance">COLONNES MAPPÉES → TABLE IRIS</div>
+      <div class="puces">
+        @for (c of colonnesMappees(); track c.csv) {
+          <div data-correspondance class="puce">
+            <span class="csv">{{ c.csv }}</span>
+            <span class="fleche">→</span>
+            <span class="cible">{{ c.cible }}</span>
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="actions">
+      <button
+        type="button"
+        data-importer
+        class="importer"
+        [class.termine]="termine()"
+        [disabled]="importEnCours() || termine()"
+        (click)="importer()"
+      >{{ libelleImport() }}</button>
+      @if (termine()) {
+        <button type="button" data-nouveau-fichier class="nouveau" (click)="nouveauFichier()">NOUVEAU FICHIER</button>
+      }
+    </div>
+  </div>
+}
+
+<!-- Progression (C5) : absente de React, qui n'a que le journal. -->
+@if (progression(); as p) {
+  <mg-progression-import
+    [etape]="p.etape"
+    [traitees]="p.traitees"
+    [pourcentageFlux]="p.pourcentage"
+    [termine]="p.termine"
+    [echec]="p.echec"
+    [avertissement]="p.avertissement"
+  >
+    @if (compteurs(); as c) {
+      <div data-compteurs class="compteurs">{{ c }}</div>
+    }
+  </mg-progression-import>
+}
+
+<!-- Journal (`page.tsx:281-290`), affiché dès sa première ligne. -->
+@if (journal().length > 0) {
+  <mg-journal [lignes]="journal()" [hauteur]="180" />
+}

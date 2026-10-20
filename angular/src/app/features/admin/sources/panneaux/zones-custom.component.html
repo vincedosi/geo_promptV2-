@@ -1,0 +1,84 @@
+<div class="entete">
+  <div class="titre" data-entete>{{ entete() }}</div>
+  <div class="filtres">
+    <select class="filtre org" data-filtre-org aria-label="Workspace" (change)="choisirOrg($event)">
+      <option value="" [selected]="!orgFiltre()">Tous les workspaces</option>
+      @for (o of organisations(); track o.id) {
+        <option [value]="o.id" [selected]="o.id === orgFiltre()">{{ o.name }}</option>
+      }
+    </select>
+    <select class="filtre type" data-filtre-type aria-label="Type de source" (change)="choisirType($event)">
+      <option value="" [selected]="!typeFiltre()">Tous les types</option>
+      @for (t of types(); track t) {
+        <option [value]="t" [selected]="t === typeFiltre()">{{ t }}</option>
+      }
+    </select>
+    <label class="recherche">
+      <mg-icone nom="loupe" [taille]="12" class="loupe" />
+      <input data-recherche type="text" aria-label="Rechercher une zone" placeholder="Rechercher..." [value]="recherche()"
+        (input)="saisirRecherche($event)" />
+    </label>
+  </div>
+</div>
+
+@if (erreur(); as e) {
+  <div class="bandeau-erreur" data-erreur>Erreur : {{ e }}</div>
+}
+
+@if (chargement()) {
+  <div class="message" data-chargement>Chargement...</div>
+} @else if (lignes().length === 0) {
+  <div class="message vide" data-vide>
+    {{ filtresActifs() ? 'Aucune zone ne correspond a ces filtres.' : 'Aucune zone personnalisee dans aucun workspace pour l\'instant.' }}
+  </div>
+} @else {
+  <div class="tableau">
+    <table>
+      <thead>
+        <tr>
+          <th>Nom</th>
+          <th>Workspace</th>
+          <th>Type</th>
+          <th class="droite">IRIS</th>
+          <th class="droite">CP</th>
+          <th>Créé le</th>
+          <th class="droite"></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (l of lignes(); track l.zone.id) {
+          <tr [attr.data-zone]="l.zone.id">
+            <td class="nom">
+              <div>{{ l.zone.name }}</div>
+              @if (l.zone.description) {
+                <div class="description">{{ l.zone.description }}</div>
+              }
+            </td>
+            <td class="espace">
+              @if (l.zone.org_name) { {{ l.zone.org_name }} } @else { <span class="absent">—</span> }
+            </td>
+            <td class="mono type-zone">{{ l.zone.source_type }}</td>
+            <td class="mono nombre droite">{{ l.iris }}</td>
+            <td class="mono nombre droite">{{ l.cp }}</td>
+            <td class="mono date">{{ l.date }}</td>
+            <td class="droite">
+              <button type="button" class="corbeille" data-supprimer title="Supprimer la zone" aria-label="Supprimer la zone"
+                (click)="viser(l.zone)">
+                <mg-icone nom="corbeille" [taille]="14" />
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
+@if (zones().length > 0) {
+  <div class="pied" data-pied>{{ pied() }}</div>
+}
+
+@if (aSupprimer(); as z) {
+  <mg-dialogue-suppression-zone [zone]="z" [enCours]="suppressionEnCours()" [erreur]="erreurSuppression()"
+    (confirmer)="supprimer()" (annuler)="annulerSuppression()" />
+}

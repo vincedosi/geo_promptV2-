@@ -2,6 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { formaterNombre } from '../../../core/format/nombre';
 import { IconeComponent } from '../../../ui/icone/icone.component';
 
+/** Défini dans `import-flux.ts` (revue des vagues, mineur 8), ré-exporté pour les imports existants. */
+export { MESSAGE_INTERROMPU } from './import-flux';
+
 /**
  * Progression d'un import (arbitrage C5, règle « progression OBLIGATOIRE » de CLAUDE.md), rendu de
  * la carte de progression de l'import Shapefile (`carreaux-import/_components/ImportStep.tsx`) :
@@ -9,7 +12,13 @@ import { IconeComponent } from '../../../ui/icone/icone.component';
  *
  * Elle n'invente AUCUN pourcentage : sans `total` (le flux n'en porte pas), la barre est
  * INDÉTERMINÉE et seul le compteur des lignes reçues s'affiche. Un échec garde le pourcentage
- * atteint — jamais une barre pleine.
+ * atteint — jamais une barre pleine. Exception, quand le FLUX porte lui-même un pourcentage sans
+ * total (IRIS crawler, champ `percent` de `manual-import`, T15) : `pourcentageFlux` rend la barre
+ * déterminée à cette valeur, le compteur dit alors « N lignes traitées ». Un `termine` sans échec
+ * force 100 % dans les deux cas (vague finale, A10) : le flux a fini, la barre ne reste pas en deçà.
+ *
+ * `avertissement` (avec `termine`) : fini AVEC des erreurs — « ⚠ Import terminé avec erreurs », teinte
+ * `--warning`, barre pleine mais jamais verte (A10, pour le `status: 'partial'` de l'IRIS crawler).
  *
  * Écarts à React, voulus (flat total) : remplissage UNI en jeton (React : dégradés et halo).
  * Contenu projeté : `[mesures]` à droite de l'en-tête (débit, durée), le reste sous la barre
@@ -49,7 +58,8 @@ import { IconeComponent } from '../../../ui/icone/icone.component';
             <div
               data-remplissage
               class="remplissage"
-              [class.termine]="termine() && !echec()"
+              [class.termine]="termine() && !echec() && !avertissement()"
+              [class.avertissement]="termine() && !echec() && avertissement()"
               [class.echec]="!!echec()"
               [style.width.%]="largeur()"
             ></div>
@@ -92,6 +102,10 @@ import { IconeComponent } from '../../../ui/icone/icone.component';
       transition: width 0.3s;
     }
     .remplissage.termine { background: var(--success); }
+    /* Texte d'état : propriétés --*-texte du cadre admin (F-3), jeton brut en repli hors du cadre. */
+    .statut-succes { color: var(--success-texte, var(--success)); }
+    .statut-avert { color: var(--warning-texte, var(--warning)); }
+    .statut-danger { color: var(--danger-texte, var(--danger)); }
     .remplissage.echec { background: var(--danger); }
     .curseur {
       position: absolute; top: 0; left: 0; height: 100%; width: 25%;
@@ -117,8 +131,15 @@ export class ProgressionImportComponent {
   readonly traitees = input<number | null>(null);
   /** `null` : le flux ne porte pas de total, la barre est indéterminée. */
   readonly total = input<number | null>(null);
+  /**
+   * Pourcentage PORTÉ PAR LE FLUX (0-100), quand il n'annonce pas de total — jamais un pourcentage
+   * calculé ici. Ignoré si `total` est connu.
+   */
+  readonly pourcentageFlux = input<number | null>(null);
   readonly termine = input(false);
   readonly echec = input<string | null>(null);
+  /** Terminé avec des erreurs (n'a de sens qu'avec `termine`). */
+  readonly avertissement = input(false);
 
   protected readonly enCours = computed(() => !this.termine() && !this.echec());
 
@@ -126,6 +147,8 @@ export class ProgressionImportComponent {
   protected readonly pourcentage = computed(() => {
     const t = this.total();
     const n = this.traitees();
+    const pf = this.pourcentageFlux();
+    if (t === null && pf !== null) return this.termine() && !this.echec() ? 100 : Math.max(0, Math.min(100, Math.round(pf)));
     if (t === null || t <= 0 || n === null) return this.termine() && !this.echec() && t !== null ? 100 : null;
     return Math.min(100, Math.round((n / t) * 100));
   });
@@ -144,14 +167,19 @@ export class ProgressionImportComponent {
   protected readonly texte = computed(() => {
     const echec = this.echec();
     if (echec) return `! ${echec}`;
-    if (this.termine()) return '✓ Import terminé';
+    if (this.termine()) return this.avertissement() ? '⚠ Import terminé avec erreurs' : '✓ Import terminé';
     const n = this.traitees();
     const t = this.total();
     if (n !== null && t !== null) return `${this.etape()} — ${formaterNombre(n)} / ${formaterNombre(t)}`;
+    if (n !== null && this.pourcentageFlux() !== null) return `${this.etape()} — ${formaterNombre(n)} lignes traitées`;
     if (n !== null) return `${this.etape()} — ${formaterNombre(n)} lignes reçues`;
     return `${this.etape()}…`;
   });
 
+  /**
+   * Classe de la couleur du TEXTE d'état (revue des vagues du lot 6, Important 2) : la propriété `--*-texte` du
+   * cadre admin, avec repli sur le jeton brut hors du cadre (catalogue) — voir `styles`.
+   */
   protected readonly couleurTexte = computed(() =>
-    this.echec() ? 'text-danger' : this.termine() ? 'text-success' : 'text-warning');
+    this.echec() ? 'statut-danger' : this.termine() && !this.avertissement() ? 'statut-succes' : 'statut-avert');
 }

@@ -1,0 +1,100 @@
+<div class="carte">
+  <div class="tete">
+    <span class="etiquette-section">source.detail</span>
+    <button type="button" class="fantome fermer" data-fermer aria-label="Fermer le détail" (click)="fermer.emit()">✕</button>
+  </div>
+  <div class="corps">
+    <div>
+      <div class="nom" data-nom>{{ vue().nom }}</div>
+      <span class="badge-type" data-badge-type [attr.data-famille]="vue().badge.famille">{{ vue().badge.libelle }}</span>
+    </div>
+
+    <div class="stats">
+      @for (s of vue().stats; track s.libelle) {
+        <div class="stat" data-stat>
+          <div class="stat-libelle">{{ s.libelle }}</div>
+          <div class="stat-valeur" [attr.data-teinte]="s.teinte">{{ s.valeur }}</div>
+        </div>
+      }
+    </div>
+
+    <div class="info" data-info>
+      <div><span class="cle">org: </span><span class="accent">{{ vue().org }}</span></div>
+      <div><span class="cle">fichier: </span><span class="valeur">{{ vue().fichier }}</span></div>
+      <div><span class="cle">format: </span><span class="valeur">{{ vue().format }}</span></div>
+      <div><span class="cle">date: </span><span class="valeur">{{ vue().date }}</span></div>
+    </div>
+
+    <div>
+      <div class="ligne-filtres">
+        <span class="etiquette-section">// champs filtres</span>
+        <button type="button" class="fantome pousse" data-basculer-filtres (click)="basculerFiltres()">
+          {{ editeurFiltres() ? 'Fermer' : 'Modifier' }}
+        </button>
+      </div>
+      @if (vue().filtres.length > 0) {
+        <div class="puces">
+          @for (f of vue().filtres; track f) { <span class="puce" data-filtre>{{ f }}</span> }
+        </div>
+      } @else {
+        <div class="aucun" data-aucun-filtre>Aucun filtre configure</div>
+      }
+      @if (editeurFiltres()) {
+        <div class="editeur" data-editeur-filtres>
+          <div class="editeur-tete">
+            <span class="compteur" data-compteur>{{ compteurFiltres() }}</span>
+            <button type="button" class="fantome mini" data-tout-cocher (click)="toutCocher()">Tout cocher</button>
+            <button type="button" class="fantome mini" data-effacer (click)="effacer()">Effacer</button>
+          </div>
+          <div class="sous-etiquette">colonnes schema</div>
+          @for (c of casesSchema(); track c.cle) {
+            <label class="case">
+              <input type="checkbox" [attr.data-case]="c.cle" [checked]="c.coche" (change)="basculerCase(c.cle)" />
+              <span class="case-nom" [class.coche]="c.coche">{{ c.cle }}</span>
+              <span class="case-type">schema</span>
+            </label>
+          }
+          <div class="sous-etiquette separee" data-entete-meta>{{ enteteMeta() }}</div>
+          @if (chargementCles()) {
+            <div class="chargement-cles"><mg-icone nom="chargement" [taille]="10" class="tourne" /> Chargement...</div>
+          } @else if (cles().length === 0) {
+            <div class="aucun sans-marge" data-meta-vide>Pas de cles metadata trouvees</div>
+          } @else {
+            @for (c of casesMeta(); track c.cle) {
+              <label class="case">
+                <input type="checkbox" [attr.data-case]="c.cle" [checked]="c.coche" (change)="basculerCase(c.cle)" />
+                <span class="case-nom" [class.coche]="c.coche">{{ c.cle }}</span>
+                <span class="case-type">meta</span>
+              </label>
+            }
+          }
+          <button type="button" class="primaire marge-haute" data-sauver-filtres [disabled]="sauvegardeFiltres()" (click)="sauverFiltres()">
+            @if (sauvegardeFiltres()) { <mg-icone nom="chargement" [taille]="12" class="tourne" /> Sauvegarde... } @else { Sauvegarder les filtres }
+          </button>
+        </div>
+      }
+    </div>
+
+    <div class="acces" data-acces>Propriétaire et partages : <a routerLink="../../acces">page Accès</a></div>
+
+    @if (edition()) {
+      <div class="separe">
+        <div class="etiquette-section bloc">// modifier</div>
+        <label class="libelle-champ" for="nom-source">Nom</label>
+        <input id="nom-source" class="champ" data-champ-nom [value]="nomEdite()" (input)="surSaisieNom($event)" />
+        <button type="button" class="primaire" data-sauver-nom [disabled]="sauvegardeNom()" (click)="sauverNom()">Sauvegarder</button>
+      </div>
+    }
+
+    <div class="actions separe">
+      <button type="button" class="fantome large" data-action="exporter" (click)="exporter()">Exporter CSV</button>
+      <button type="button" class="fantome large" data-action="modifier" (click)="basculerEdition()">
+        {{ edition() ? 'Annuler modification' : 'Modifier' }}
+      </button>
+      <a class="fantome large" data-action="reimporter" routerLink="../importer">Re-importer (meme config)</a>
+      <button type="button" class="danger" data-action="supprimer" [disabled]="suppressionEnCours()" (click)="supprimer.emit(source().id)">
+        @if (suppressionEnCours()) { <mg-icone nom="chargement" [taille]="12" class="tourne" /> Suppression... } @else { Supprimer source + donnees }
+      </button>
+    </div>
+  </div>
+</div>

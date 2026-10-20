@@ -1,0 +1,78 @@
+/* Onglet Import de l'écran Radio — mesures de `app/admin/radio/page.tsx:369-597`. Jetons seulement (C9). */
+:host { display: flex; flex-direction: column; gap: 20px; font-family: var(--font-sans); }
+.mono { font-family: var(--font-mono); }
+.section { margin-bottom: 12px; }
+
+.cartes { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.carte { background: var(--bg-surface); border: 0.5px solid var(--border-subtle); border-radius: 6px; padding: 16px 18px; }
+.titre { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; }
+.description { font-size: 12px; color: var(--text-tertiary); margin-bottom: 12px; line-height: 1.5; }
+.etat { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 11px; }
+.point { width: 6px; height: 6px; border-radius: 50%; }
+.secondaire { color: var(--text-secondary); }
+.tertiaire { color: var(--text-tertiary); }
+.primaire { color: var(--text-primary); }
+[data-teinte='succes'] { --teinte: var(--success); --teinte-texte: var(--success-texte); }
+[data-teinte='avert'] { --teinte: var(--warning); --teinte-texte: var(--warning-texte); }
+[data-teinte='danger'] { --teinte: var(--danger); --teinte-texte: var(--danger-texte); }
+.point[data-teinte] { background: var(--teinte); }
+.teinte { color: var(--teinte-texte, var(--teinte)); }
+.rangee { display: flex; gap: 8px; align-items: center; }
+.cache { display: none; }
+
+.bouton {
+  background: transparent; border-radius: 6px; font-family: var(--font-sans); cursor: pointer; transition: all 0.15s;
+}
+.bouton:disabled { cursor: not-allowed; }
+.bouton.attenue { opacity: 0.5; }
+.bouton.large { padding: 8px 16px; font-size: 12px; }
+.bouton.petit { padding: 8px 12px; font-size: 11px; }
+/* Teal de marque, lisible en clair (≈ 1,8:1 sur la carte claire sinon) : --teal-texte du cadre admin (F-3),
+   dont le `light-dark` suit le `color-scheme` que `:host` / `:host(.light)` posent (styles.css). */
+.bouton.teal {
+  border: 0.5px solid var(--brand-teal); font-weight: 500;
+  color: var(--teal-texte);
+}
+.bouton.neutre { border: 0.5px solid var(--border-default); color: var(--text-secondary); }
+.bouton:focus-visible, .voir:focus-visible, .bouton-danger:focus-visible { outline: 1px solid var(--brand-teal-50); outline-offset: 1px; }
+
+.progression { margin-bottom: 8px; }
+.bilan { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
+/* Le « Fermer » projeté dans la rangée d'outils de `mg-journal` : même rendu que « Copier ». */
+.outil {
+  padding: 2px 8px; border-radius: 3px; font-size: 10px; font-family: var(--font-sans); background: transparent;
+  border: 0.5px solid var(--border-default); color: var(--text-tertiary); cursor: pointer;
+}
+
+.vide { padding: 20px; text-align: center; color: var(--text-tertiary); font-size: 12px; }
+.tableau { background: var(--bg-surface); border: 0.5px solid var(--border-subtle); border-radius: 6px; overflow: hidden; }
+table { width: 100%; border-collapse: collapse; font-family: var(--font-sans); font-size: 12px; }
+thead tr { background: var(--bg-level-2); }
+th { padding: 8px 12px; text-align: left; color: var(--text-tertiary); font-weight: 500; border-bottom: 1px solid var(--border-subtle); }
+tbody tr { border-bottom: 0.5px solid var(--border-subtle); }
+td { padding: 8px 12px; }
+td.mono { font-size: 11px; }
+.petit-texte { font-size: 11px; }
+.erreur { color: var(--danger-texte); }
+.statut {
+  font-size: 10px; padding: 2px 8px; border-radius: 4px; color: var(--teinte-texte, var(--teinte));
+  background: color-mix(in srgb, var(--teinte) 8%, transparent); border: 0.5px solid color-mix(in srgb, var(--teinte) 19%, transparent);
+}
+.voir {
+  background: none; border: 0.5px solid var(--border-default); border-radius: 4px; padding: 3px 8px; font-size: 10px;
+  color: var(--text-secondary); cursor: pointer; font-family: var(--font-sans); transition: all 0.15s;
+}
+.voir:hover {
+  border-color: var(--brand-teal);
+  color: var(--teal-texte);
+}
+
+.danger {
+  background: color-mix(in srgb, var(--danger) 8%, transparent); border: 0.5px solid color-mix(in srgb, var(--danger) 15%, transparent);
+  border-radius: 6px; padding: 16px; display: flex; gap: 10px;
+}
+.bouton-danger {
+  background: transparent; border: 0.5px solid color-mix(in srgb, var(--danger) 30%, transparent); border-radius: 6px;
+  padding: 8px 14px; font-size: 11px; color: var(--danger-texte); cursor: pointer; font-family: var(--font-sans);
+}
+

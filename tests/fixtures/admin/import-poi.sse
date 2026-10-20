@@ -1,0 +1,58 @@
+data: {"type":"progress","message":"Parsing du fichier...","processed":0,"total":0}
+
+data: {"type":"progress","message":"Fichier parse: 10 lignes detectees","processed":0,"total":10}
+
+data: {"type":"progress","message":"Traitement des coordonnees...","processed":0,"total":10}
+
+data: {"type":"progress","message":"10 lignes valides, 0 sans coordonnees","processed":0,"total":10,"inserted":0,"ignored":0,"errors":0}
+
+data: {"type":"progress","message":"Source \"5f1c2a9e\" creee","processed":0,"total":10}
+
+data: {"type":"log","logLevel":"info","logLine":"Insertion en base Supabase (10 lignes)..."}
+
+data: {"type":"log","logLevel":"info","logLine":"====== START: 10 lignes, type=\"poi\" (Supabase JS) ======"}
+
+data: {"type":"log","logLevel":"info","logLine":"Connexion Supabase OK — table \"poi_france\""}
+
+data: {"type":"log","logLevel":"info","logLine":"--- Batch 1/1 (lignes 0–9) ---"}
+
+data: {"type":"log","logLevel":"info","logLine":"[OK] #0 [ESSAI lot 6] POI 01 (48.8566, 2.3522) → insere"}
+
+data: {"type":"log","logLevel":"info","logLine":"[OK] #1 [ESSAI lot 6] POI 02 (45.7578, 4.8320) → insere"}
+
+data: {"type":"log","logLevel":"info","logLine":"[OK] #2 [ESSAI lot 6] POI 03 (43.2965, 5.3698) → insere"}
+
+data: {"type":"log","logLevel":"info","logLine":"[OK] #3 [ESSAI lot 6] POI 04 (43.6045, 1.4440) → insere"}
+
+data: {"type":"log","logLevel":"info","logLine":"[OK] #4 [ESSAI lot 6] POI 05 (43.6086, 3.8798) → insere"}
+
+data: {"type":"log","logLevel":"info","logLine":"[OK] #5 [ESSAI lot 6] POI 06 (48.5839, 7.7455) → insere"}
+
+data: {"type":"log","logLevel":"info","logLine":"[OK] #6 [ESSAI lot 6] POI 07 (50.6366, 3.0635) → insere"}
+
+data: {"type":"log","logLevel":"info","logLine":"[OK] #7 [ESSAI lot 6] POI 08 (47.2135, -1.5594) → insere"}
+
+data: {"type":"log","logLevel":"info","logLine":"[OK] #8 [ESSAI lot 6] POI 09 (44.8412, -0.5700) → insere"}
+
+data: {"type":"log","logLevel":"info","logLine":"[OK] #9 [ESSAI lot 6] POI 10 (43.6974, 7.2700) → insere"}
+
+data: {"type":"log","logLevel":"info","logLine":"Batch 1 termine: +10 inseres, 0 ignores, 0 erreurs"}
+
+data: {"type":"progress","processed":10,"total":10,"inserted":10,"ignored":0,"errors":0}
+
+data: {"type":"log","logLevel":"info","logLine":"====== FIN: inserted=10, ignored=0, errors=0 ======"}
+
+data: {"type":"complete","report":{"total":10,"inserted":10,"ignored":0,"errors":0},"firstError":null}
+
+: --- scenario 2 : echec de creation de la source (route, l.182-188) ---
+
+data: {"type":"progress","message":"Parsing du fichier...","processed":0,"total":0}
+
+data: {"type":"progress","message":"Fichier parse: 10 lignes detectees","processed":0,"total":10}
+
+data: {"type":"progress","message":"Traitement des coordonnees...","processed":0,"total":10}
+
+data: {"type":"progress","message":"10 lignes valides, 0 sans coordonnees","processed":0,"total":10,"inserted":0,"ignored":0,"errors":0}
+
+data: {"type":"error","message":"Impossible de créer la source de données : import arrêté, aucune ligne écrite."}
+

@@ -1,0 +1,29 @@
+/* `ImportStep.tsx` et `ImportLogPanel.tsx` — champs, lancement, compteurs, rapport, journal. */
+.meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.libelle { font-family: var(--font-sans); font-size: 12px; font-weight: 500; color: var(--text-primary); margin: 0; display: block; margin-bottom: 6px; }
+.champ { width: 100%; padding: 6px 10px; }
+.lancement { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.lancer { min-width: 200px; }
+.lancer:disabled { opacity: 0.6; }
+.avertissement { font-size: 11px; }
+.progression { margin-top: 16px; }
+.compteurs { display: flex; gap: 16px; font-size: 10px; color: var(--text-secondary); }
+.primaire-t { color: var(--text-primary); }
+.marge-12 { margin-top: 12px; }
+.rapport-bloc { margin-top: 16px; }
+.bilan { margin-bottom: 10px; }
+.rapport {
+  background: var(--bg-level-2); border: 1px solid var(--border-subtle); border-radius: 2px; padding: 12px; font-size: 11px;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+}
+.erreur-sql {
+  margin-top: 10px; padding: 10px 12px; background: color-mix(in srgb, var(--danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); border-radius: 2px; font-size: 11px;
+}
+.erreur-sql-titre { font-family: var(--font-sans); font-size: 12px; font-weight: 500; margin-bottom: 6px; }
+.erreur-sql-texte { word-break: break-all; line-height: 1.6; }
+.erreur-sql-aide { margin-top: 8px; font-size: 9px; }
+.journal-bloc { margin-top: 16px; }
+.entete-journal { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; font-size: 10px; }
+.gras { font-weight: 700; }
+.en-cours { font-size: 10px; margin-top: 4px; }

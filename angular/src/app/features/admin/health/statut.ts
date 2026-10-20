@@ -7,12 +7,14 @@
  * sombre l'écart est nul pour OK (`--success` = #3dffa0) et léger pour WARN/ERROR ; en thème
  * clair les jetons s'assombrissent, là où React garde ses couleurs sombres.
  *
- * Un élément porte `class="statut"` et `data-etat` ; il expose alors `--c-statut` (texte),
+ * Un élément porte `class="statut"` et `data-etat` ; il expose alors `--c-statut` (trait, barre),
+ * `--c-statut-texte` (TEXTE : la propriété lisible du cadre, DESIGN_SYSTEM § 3, T21),
  * `--fond-statut`, `--bord-statut` (26,67 %), `--bord-statut-fort` (40 %) et `--badge-statut`.
  */
 export const STYLES_STATUT = `
   .statut[data-etat='OK'] {
     --c-statut: var(--success);
+    --c-statut-texte: var(--success-texte, var(--success));
     --fond-statut: color-mix(in srgb, var(--success) 12%, transparent);
     --bord-statut: color-mix(in srgb, var(--success) 26.67%, transparent);
     --bord-statut-fort: color-mix(in srgb, var(--success) 40%, transparent);
@@ -20,6 +22,7 @@ export const STYLES_STATUT = `
   }
   .statut[data-etat='WARN'] {
     --c-statut: var(--warning);
+    --c-statut-texte: var(--warning-texte, var(--warning));
     --fond-statut: color-mix(in srgb, var(--warning) 10%, transparent);
     --bord-statut: color-mix(in srgb, var(--warning) 26.67%, transparent);
     --bord-statut-fort: color-mix(in srgb, var(--warning) 40%, transparent);
@@ -27,6 +30,7 @@ export const STYLES_STATUT = `
   }
   .statut[data-etat='ERROR'] {
     --c-statut: var(--danger);
+    --c-statut-texte: var(--danger-texte, var(--danger));
     --fond-statut: color-mix(in srgb, var(--danger) 10%, transparent);
     --bord-statut: color-mix(in srgb, var(--danger) 26.67%, transparent);
     --bord-statut-fort: color-mix(in srgb, var(--danger) 40%, transparent);

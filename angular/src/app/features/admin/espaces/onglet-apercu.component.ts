@@ -137,7 +137,7 @@ interface Groupe { cle: CleGroupe; libelle: string; jeux: LigneJeu[] }
     .bouton-neutre:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
     .erreur {
       display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
-      padding: 12px; border-radius: 6px; font-size: 12px; color: var(--danger);
+      padding: 12px; border-radius: 6px; font-size: 12px; color: var(--danger-texte);
       background: color-mix(in srgb, var(--danger) 10%, transparent);
       border: 0.5px solid color-mix(in srgb, var(--danger) 20%, transparent);
     }

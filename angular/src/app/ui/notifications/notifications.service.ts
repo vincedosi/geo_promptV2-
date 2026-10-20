@@ -3,7 +3,8 @@ import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 /** Les quatre variantes de `components/ui/geo-toast.tsx`. */
 export type VarianteNotification = 'success' | 'error' | 'warning' | 'info';
 
-export interface Notification {
+/** Une notification affichée (nommée ainsi pour ne pas masquer le type DOM `Notification`). */
+export interface NotificationAffichee {
   readonly id: number;
   readonly titre: string;
   readonly message?: string;
@@ -31,7 +32,7 @@ export const MAX_NOTIFICATIONS = 3;
  */
 @Injectable()
 export class NotificationsService {
-  private readonly liste = signal<readonly Notification[]>([]);
+  private readonly liste = signal<readonly NotificationAffichee[]>([]);
   readonly notifications = this.liste.asReadonly();
 
   private suivant = 0;
@@ -67,7 +68,7 @@ export class NotificationsService {
     const avant = this.liste();
     const gardees = avant.slice(-(MAX_NOTIFICATIONS - 1));
     for (const evincee of avant.slice(0, avant.length - gardees.length)) this.annulerMinuterie(evincee.id);
-    const n: Notification = message === undefined ? { id, titre, variante } : { id, titre, message, variante };
+    const n: NotificationAffichee = message === undefined ? { id, titre, variante } : { id, titre, message, variante };
     this.liste.set([...gardees, n]);
     this.minuteries.set(id, setTimeout(() => {
       this.minuteries.delete(id);

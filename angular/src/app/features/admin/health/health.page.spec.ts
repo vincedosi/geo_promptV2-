@@ -4,8 +4,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ConfigService } from '../../../core/config/config.service';
 import { formaterNombre } from '../../../core/format/nombre';
 import type { HealthResponse } from '../logique/types/admin';
-import { FraicheurApi } from './data/fraicheur.api';
 import { HealthApi } from './data/health.api';
+import { SanteService } from './etat/sante.service';
 import { HealthPage } from './health.page';
 
 /** Réponse factice du brief : 2 OK, 1 WARN, 1 ERROR, 3 tables. */
@@ -45,7 +45,7 @@ describe('HealthPage', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(), provideHttpClientTesting(), HealthApi, FraicheurApi,
+        provideHttpClient(), provideHttpClientTesting(), HealthApi, SanteService,
         { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       ],
     });
@@ -176,52 +176,33 @@ describe('HealthPage', () => {
     expect(bouton().disabled).toBe(false);
   });
 
-  it('onglet « Fraîcheur données » : sous-titre de React, UN GET du relevé, aucun POST ; rôles d’onglets complets', () => {
+  it('en-tête de l’onglet : sous-titre de React, ni titre de page ni barre d’onglets interne (remontés dans Système)', () => {
     http.expectOne('/api/admin/health').flush(reponse());
     f.detectChanges();
-    const onglets = [...el.querySelectorAll<HTMLButtonElement>('[data-onglet]')];
-    expect(onglets.map((o) => o.textContent!.trim())).toEqual(['Diagnostic système', 'Fraîcheur données']);
-    // Un onglet non ouvert ne lit rien.
+    expect(texte('[data-sous-titre]')).toBe('Variables d’environnement, connectivité Supabase, tables');
+    expect(el.querySelector('h1')).toBeNull();
+    expect(el.querySelector('[role="tablist"]')).toBeNull();
+    // Le relevé de fraîcheur n'est jamais lu par l'écran Santé.
     http.expectNone('/api/admin/fraicheur-donnees');
-    onglets[1].click();
-    f.detectChanges();
-    expect(f.componentInstance.onglet()).toBe('fraicheur');
-    expect(texte('[data-sous-titre]')).toBe('D’où vient chaque donnée, comment elle entre, et de quand elle date');
-    const req = http.expectOne('/api/admin/fraicheur-donnees');
-    expect(req.request.method).toBe('GET');
-    req.flush({ sources: [], mesureLe: null, dureeMs: null });
-    f.detectChanges();
-    expect(el.querySelector('mg-fraicheur')).not.toBeNull();
-    expect(el.querySelector<HTMLElement>('#health-panneau-systeme')!.hidden).toBe(true);
-    for (const o of onglets) {
-      const panneau = el.querySelector(`#${o.getAttribute('aria-controls')}`)!;
-      expect(panneau.getAttribute('role')).toBe('tabpanel');
-      expect(panneau.getAttribute('aria-labelledby')).toBe(o.id);
-    }
-    http.expectNone('/api/admin/health');
   });
 
-  it('aller-retour Système ↔ Fraîcheur deux fois : toujours UN seul GET du relevé (cache d’écran)', () => {
+  it('écran détruit puis recréé (retour sur l’onglet) : aucune nouvelle lecture, le diagnostic est réaffiché', () => {
     http.expectOne('/api/admin/health').flush(reponse());
     f.detectChanges();
-    const onglets = [...el.querySelectorAll<HTMLButtonElement>('[data-onglet]')];
-    onglets[1].click();
-    f.detectChanges();
-    http.expectOne('/api/admin/fraicheur-donnees').flush({ sources: [], mesureLe: null, dureeMs: null });
-    for (let i = 0; i < 2; i++) {
-      onglets[0].click();
-      f.detectChanges();
-      expect(el.querySelector('[data-section="env"]')).not.toBeNull();
-      onglets[1].click();
-      f.detectChanges();
-    }
-    http.expectNone('/api/admin/fraicheur-donnees');
+    f.destroy();
+    const retour = TestBed.createComponent(HealthPage);
+    retour.detectChanges();
     http.expectNone('/api/admin/health');
+    const el2 = retour.nativeElement as HTMLElement;
+    expect(el2.querySelector('[data-statut-global]')?.textContent?.trim()).toBe('ERROR');
+    expect(el2.querySelector('[data-section="database"]')).not.toBeNull();
   });
 
-  it('build info : version 7.19.0', () => {
+  it('build info : version 7.19.0, nom « dentsu.explore » (React renommé le 2026-10-08, 832ef861)', () => {
     http.expectOne('/api/admin/health').flush(reponse());
     f.detectChanges();
+    expect(texte('[data-section="build"]')).toContain('app: dentsu.explore');
+    expect(texte('[data-section="build"]')).not.toContain('MAGELIAN');
     expect(texte('[data-section="build"]')).toContain('v7.19.0');
     expect(texte('[data-section="build"]')).toContain('2026-04-28');
   });

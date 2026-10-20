@@ -1,0 +1,103 @@
+<div class="carte">
+  <div class="entete">
+    <span class="num" data-num>01</span>
+    <span class="titre" data-titre>Upload fichier</span>
+    @if (reussie()) {
+      <span class="badge vert a-droite" data-lignes>{{ lignes() }} lignes</span>
+    }
+  </div>
+  <div class="corps">
+    <mg-depot-fichiers [accepter]="accepter" [multiple]="true" marge="28px 20px" (fichiers)="etat.analyser($event)">
+      @if (etat.analyseEnCours()) {
+        <div class="analyse mono">
+          <mg-icone nom="chargement" [taille]="16" class="tourne" /> Analyse du fichier...
+        </div>
+      } @else if (fichier(); as f) {
+        <div>
+          <div class="nom-fichier mono">{{ f.name }}</div>
+          <div class="taille mono">
+            @if (reussie()?.format === 'shapefile') {
+              <span>Shapefile bundle — {{ lignes() }} enregistrements</span>
+            } @else {
+              {{ taille() }} MB — Cliquez pour changer
+            }
+          </div>
+        </div>
+      } @else {
+        <div>
+          <div class="consigne">Glissez un ou plusieurs fichiers ici ou cliquez pour selectionner</div>
+          <div class="formats mono">// formats: .csv .xlsx .geojson | Shapefile (.shp+.dbf+.prj+.shx)</div>
+        </div>
+      }
+    </mg-depot-fichiers>
+
+    @if (reussie(); as a) {
+      <div class="resultat">
+        <div class="infos mono" data-infos>
+          <span>format: <span class="valeur">{{ a.format }}</span></span>
+          <span>encoding: <span class="valeur">{{ a.encoding }}</span></span>
+          @if (a.format === 'csv') {
+            <span>separator: <span class="valeur">{{ separateur() }}</span></span>
+          }
+          <span>colonnes: <span class="valeur">{{ a.columns.length }}</span></span>
+          <span>lignes: <span class="valeur vert">{{ lignes() }}</span></span>
+        </div>
+
+        @if (a.format === 'shapefile') {
+          <div class="shapefile mono" data-shapefile>
+            [OK] Shapefile detecte et parse avec succes. Les attributs du fichier .dbf sont maintenant disponibles.
+          </div>
+        }
+
+        @if (a.preview.length > 0) {
+          <details data-apercu>
+            <summary>Apercu — 5 premieres lignes</summary>
+            <div class="defilement">
+              <table class="mono">
+                <thead>
+                  <tr>
+                    @for (col of colonnesApercu(); track col.name) {
+                      <th>{{ col.name }}</th>
+                    }
+                    @if (colonnesEnPlus()) {
+                      <th class="en-plus">...</th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (ligne of a.preview; track $index) {
+                    <tr [class.impaire]="$index % 2 === 1">
+                      @for (col of colonnesApercu(); track col.name) {
+                        <td>
+                          @if (ligne[col.name] == null) { <span class="discret">null</span> } @else { {{ ligne[col.name] }} }
+                        </td>
+                      }
+                      @if (colonnesEnPlus()) {
+                        <td class="en-plus">...</td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </details>
+        }
+      </div>
+    }
+
+    @if (!fichier()) {
+      <div class="formats-supportes" data-formats>
+        <div class="titre-formats">Formats supportes</div>
+        <ul>
+          <li><strong>Fichier unique :</strong> CSV, XLSX, TSV, GeoJSON</li>
+          <li><strong>Shapefile :</strong> Selectionnez les fichiers .shp, .dbf, .prj, .shx ensemble (meme nom de base).</li>
+          <li><strong>Carreaux INSEE :</strong> Le systeme detecte automatiquement les colonnes.</li>
+        </ul>
+      </div>
+    }
+
+    @if (erreur() !== null) {
+      <div class="erreur mono" data-erreur role="alert">! {{ erreur() }}</div>
+    }
+  </div>
+</div>

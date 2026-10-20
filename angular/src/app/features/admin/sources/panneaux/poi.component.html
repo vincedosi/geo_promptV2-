@@ -1,0 +1,123 @@
+@if (entete(); as e) {
+  <div class="colonne">
+    <div class="bandeau">
+      <div class="corps">
+        <div class="bandeau-titre" data-titre>Points d'intérêt (hors transport)</div>
+        <div class="lignes">
+          <span data-categories><span class="cle">Catégories: </span>{{ e.categories }}</span><br />
+          <span class="cle">Table: </span><span class="accent">poi_france</span>
+        </div>
+      </div>
+      <div class="droite">
+        <div class="grand-total" data-total>{{ e.total }}</div>
+        <div class="unite">points d'intérêt</div>
+      </div>
+    </div>
+
+    @if (aPurger(); as cat) {
+      <div class="purge" data-purge role="alert">
+        <span class="phrase" data-phrase>Supprimer <strong>TOUS</strong> les POI de catégorie <span class="mono">{{ cat }}</span> ? Cette action est irréversible.</span>
+        <button type="button" class="purge-confirmer" data-confirmer [disabled]="purgeEnCours()" (click)="purger()">
+          {{ purgeEnCours() ? 'Suppression...' : 'Confirmer' }}
+        </button>
+        <button type="button" class="purge-annuler" data-annuler (click)="aPurger.set(null)">Annuler</button>
+      </div>
+    }
+
+    <div class="cartes">
+      @for (c of cartes(); track c.cat; let i = $index) {
+        <div class="carte" [attr.data-categorie]="c.cat" [attr.data-teinte]="c.teinte" [class.choisie]="selection() === c.cat"
+          [style.animation-delay.s]="0.06 * i">
+          <div class="carte-tete">
+            <div>
+              <div class="surtitre">POI</div>
+              <div class="libelle" data-libelle>{{ c.libelle }}</div>
+            </div>
+            <span class="pct" data-pct>{{ c.pct }}%</span>
+          </div>
+          <div class="nb" data-nb>{{ c.nb }}<span class="nb-unite">POI</span></div>
+          <div class="piste"><div class="barre" [style.width.%]="c.pct"></div></div>
+          <div class="meta">
+            <div class="description" data-description>{{ c.description }}</div>
+            <div><span class="cle">cat: </span><span class="accent">{{ c.cat }}</span></div>
+          </div>
+          <div class="boutons">
+            <button type="button" class="voir" data-voir [attr.aria-expanded]="selection() === c.cat" (click)="basculer(c.cat)">
+              {{ selection() === c.cat ? '✕ fermer' : '+ voir' }}
+            </button>
+            <button type="button" class="nouveau" data-nouveau (click)="creer(c.cat)">+ nouveau</button>
+            <button type="button" class="purger" data-purger (click)="aPurger.set(c.cat)">✕ purger</button>
+          </div>
+        </div>
+      }
+    </div>
+
+    @if (selection(); as cat) {
+      <div class="echantillons" data-echantillons>
+        <div class="ech-tete">
+          <span class="ech-titre" data-entete-echantillons>{{ resume().entete }}</span>
+          @if (chargementEchantillons()) { <mg-icone nom="chargement" [taille]="12" class="tourne" /> }
+          <button type="button" class="nouveau-poi" (click)="creer(cat)">+ nouveau POI</button>
+          <button type="button" class="fermer" aria-label="Fermer" (click)="fermer()">✕</button>
+        </div>
+        @if (lignes().length > 0) {
+          <div class="defile">
+            <table>
+              <thead>
+                <tr><th>Nom</th><th>Ville</th><th>Adresse</th><th>Sous-cat</th><th>Lat</th><th>Lng</th><th>Source</th><th></th></tr>
+              </thead>
+              <tbody>
+                @for (p of lignes(); track p.id; let i = $index) {
+                  <tr [attr.data-poi]="p.id" [style.animation-delay.s]="(i < 20 ? i : 20) * 0.02">
+                    <td class="nom">{{ p.nom ?? '—' }}</td>
+                    <td class="ville">{{ p.ville ?? '—' }}</td>
+                    <td class="adresse">{{ p.adresse ?? '—' }}</td>
+                    <td class="ville">{{ p.sous_categorie ?? '—' }}</td>
+                    <td class="discret">{{ p.latTexte }}</td>
+                    <td class="discret">{{ p.lngTexte }}</td>
+                    <td class="discret petit">{{ p.source ?? '—' }}</td>
+                    <td class="actions-ligne">
+                      <button type="button" class="editer" data-editer (click)="editer(p)">éditer</button>
+                      <button type="button" class="supprimer" data-supprimer [attr.aria-label]="'Supprimer ' + (p.nom ?? p.id)" [disabled]="p.suppression" (click)="demanderSuppression(p)">✕</button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+        @if (resume().restants > 0) {
+          <div class="plus">
+            <button type="button" class="charger" data-charger-plus [disabled]="chargementEchantillons()" (click)="chargerPlus()">
+              {{ chargementEchantillons() ? 'Chargement...' : resume().plus }}
+            </button>
+          </div>
+        }
+        @if (!chargementEchantillons() && lignes().length === 0) {
+          <div class="aucun">Aucun résultat.</div>
+        }
+      </div>
+    }
+  </div>
+} @else if (chargement()) {
+  <div class="message" data-chargement><mg-icone nom="chargement" [taille]="18" class="tourne" /> Chargement...</div>
+} @else {
+  <div class="message" data-vide>Aucune donnée.</div>
+}
+
+<mg-confirmation
+  data-confirmation-poi
+  variante="danger"
+  [ouvert]="aSupprimer() !== null"
+  titre="Supprimer ce POI"
+  [message]="messageSuppression()"
+  libelleConfirmer="Supprimer"
+  [enCours]="suppressionEnCours()"
+  (confirmer)="confirmerSuppression()"
+  (annuler)="annulerSuppression()"
+/>
+
+@if (modale(); as m) {
+  <mg-dialogue-poi [mode]="m.mode" [initial]="m.initial" [enCours]="modaleEnCours()" [erreur]="modaleErreur()"
+    (enregistrer)="enregistrer($event)" (annuler)="modale.set(null)" />
+}

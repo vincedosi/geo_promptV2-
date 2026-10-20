@@ -129,6 +129,8 @@ export interface GeocodeDetailedResult {
   resultType: string; // housenumber, street, municipality, locality
   resultCity: string;
   resultPostcode: string;
+  /** Code commune INSEE rendu par la BAN (`result_citycode`) ; absent des résultats construits ailleurs. */
+  resultCitycode?: string;
   status: GeocodeStatus;
   manualOverride: boolean;
 }

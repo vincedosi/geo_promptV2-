@@ -1,0 +1,55 @@
+<div class="carte">
+  <div class="entete">
+    <span class="num" data-num>03</span>
+    <span class="titre" data-titre>Mapping colonnes</span>
+    <span class="detectees mono a-droite" data-detectees>{{ etat.colonnes().length }} colonnes detectees</span>
+  </div>
+  <div class="corps">
+    <div class="standard" data-standard>
+      <div class="note mono" data-note-standard>// champs dentsu.explore → colonnes fichier</div>
+      @for (champ of champs; track champ.key) {
+        <mg-import-choix-colonne
+          [colonnes]="etat.colonnes()"
+          [libelle]="champ.label"
+          [valeur]="etat.correspondance()[champ.key]"
+          (choisi)="etat.associer(champ.key, $event)"
+        />
+      }
+    </div>
+
+    <div class="geolocalisation">
+      <div class="note geo mono" data-note-geo>// geolocalisation</div>
+      <div class="modes" role="radiogroup" aria-label="Géolocalisation">
+        @for (mode of modes; track mode.val) {
+          <label class="mode" data-mode [class.actif]="etat.modeGeo() === mode.val">
+            <input type="radio" name="import-poi-mode-geo" [value]="mode.val" [checked]="etat.modeGeo() === mode.val" (change)="choisirMode(mode.val)" />
+            <div class="texte-mode">
+              <div class="titre-mode">{{ mode.title }}</div>
+              <div class="desc-mode">{{ mode.desc }}</div>
+            </div>
+          </label>
+        }
+      </div>
+
+      <div data-geo-champs>
+        @switch (etat.modeGeo()) {
+          @case ('gps') {
+            <mg-import-choix-colonne [colonnes]="etat.colonnes()" libelle="Latitude" [valeur]="geo()['colLat'] || ''" (choisi)="etat.associerGeo('colLat', $event)" />
+            <mg-import-choix-colonne [colonnes]="etat.colonnes()" libelle="Longitude" [valeur]="geo()['colLng'] || ''" (choisi)="etat.associerGeo('colLng', $event)" />
+          }
+          @case ('address') {
+            <mg-import-choix-colonne [colonnes]="etat.colonnes()" libelle="Adresse" [valeur]="geo()['colAdresse'] || ''" (choisi)="etat.associerGeo('colAdresse', $event)" />
+            <mg-import-choix-colonne [colonnes]="etat.colonnes()" libelle="Code postal" [valeur]="geo()['colCodePostal'] || ''" (choisi)="etat.associerGeo('colCodePostal', $event)" />
+            <mg-import-choix-colonne [colonnes]="etat.colonnes()" libelle="Ville" [valeur]="geo()['colVille'] || ''" (choisi)="etat.associerGeo('colVille', $event)" />
+            <div class="note-mode mono" data-note-mode>// geocodage via api-adresse.data.gouv.fr (BAN) — ~100ms/adresse</div>
+          }
+          @case ('lambert93') {
+            <mg-import-choix-colonne [colonnes]="etat.colonnes()" libelle="X (Est)" [valeur]="geo()['colX'] || ''" (choisi)="etat.associerGeo('colX', $event)" />
+            <mg-import-choix-colonne [colonnes]="etat.colonnes()" libelle="Y (Nord)" [valeur]="geo()['colY'] || ''" (choisi)="etat.associerGeo('colY', $event)" />
+            <div class="note-mode mono" data-note-mode>// EPSG:2154 → EPSG:4326 via proj4</div>
+          }
+        }
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,129 @@
+<!-- Portage de app/admin/api/tiktok/page.tsx (lot 6, T10). Textes recopiés tels quels (C16). -->
+<div class="mb-4 flex items-center gap-3">
+  <img class="h-7" [src]="urlLogo" alt="TikTok" />
+  <span data-statut class="statut" [attr.data-etat]="statut()">
+    <span class="point"></span>
+    {{ libelleStatut() }}
+  </span>
+</div>
+
+<!-- Diagnostic config serveur (page.tsx:160-182) -->
+<div class="section-tete">
+  <span class="h-1.5 w-1.5 rounded-full bg-teal"></span>
+  <span class="text-[12px] font-medium text-primary">Diagnostic — configuration serveur</span>
+</div>
+<div data-diagnostic class="section-corps mb-4 p-4">
+  @if (config(); as c) {
+    <div class="flex items-center gap-2 py-1" data-config="enc_key">
+      <span class="coche" [class.ok]="c.env.enc_key">{{ c.env.enc_key ? '✓' : '✗' }}</span>
+      <span class="text-[12px] text-secondary">Chiffrement des secrets (DSP_ENC_KEY)</span>
+    </div>
+    <div class="flex items-center gap-2 py-1" data-config="app_id">
+      <span class="coche" [class.ok]="c.env.app_id">{{ c.env.app_id ? '✓' : '✗' }}</span>
+      <span class="text-[12px] text-secondary">App ID (env TIKTOK_APP_ID — optionnel)</span>
+    </div>
+    <div class="flex items-center gap-2 py-1" data-config="app_secret">
+      <span class="coche" [class.ok]="c.env.app_secret">{{ c.env.app_secret ? '✓' : '✗' }}</span>
+      <span class="text-[12px] text-secondary">App Secret (env TIKTOK_APP_SECRET — optionnel)</span>
+    </div>
+    <div class="flex items-center gap-2 py-1" data-config="redirect_uri">
+      <span class="coche" [class.ok]="c.env.redirect_uri">{{ c.env.redirect_uri ? '✓' : '✗' }}</span>
+      <span class="text-[12px] text-secondary">Redirect URI (à déclarer dans l'app TikTok)</span>
+      @if (c.env.redirect_uri_value) {
+        <span class="valeur-config truncate">{{ c.env.redirect_uri_value }}</span>
+      }
+    </div>
+    <div class="flex items-center gap-2 py-1" data-config="app_organisation">
+      <span class="coche" [class.ok]="!!conn()?.oauth_client_id">{{ conn()?.oauth_client_id ? '✓' : '✗' }}</span>
+      <span class="text-[12px] text-secondary">App de l'organisation (formulaire)</span>
+      @if (conn()?.oauth_client_id) {
+        <span class="valeur-config truncate">{{ conn()?.oauth_client_id }}</span>
+      }
+    </div>
+  } @else {
+    <span class="font-mono text-[11px] text-tertiary">Diagnostic indisponible.</span>
+  }
+</div>
+
+@if (conn()?.last_error) {
+  <div data-derniere-erreur class="encart erreur">Dernière erreur : {{ conn()?.last_error }}</div>
+}
+
+<div class="carte">
+  <label class="text-[12px] text-tertiary" for="tiktok-app-id">App ID (app développeur TikTok)</label>
+  <input id="tiktok-app-id" data-champ="app-id" class="champ mono" placeholder="ex : 7412345678901234567"
+    [value]="appId()" (input)="saisir('appId', $event)" />
+  <label class="text-[12px] text-tertiary" for="tiktok-app-secret">
+    App Secret
+    @if (conn()?.oauth_client_id) {
+      <span data-deja-enregistree class="text-[var(--success-texte)]">— app déjà enregistrée ✓ (re-saisir pour modifier)</span>
+    }
+  </label>
+  <input id="tiktok-app-secret" data-champ="app-secret" type="password" autocomplete="off" class="champ mono"
+    placeholder="secret de l'app TikTok" [value]="appSecret()" (input)="saisir('appSecret', $event)" />
+  <button type="button" data-action="enregistrer" class="bouton contour mb-4" [disabled]="enregistrerDesactive()"
+    (click)="enregistrer()">Enregistrer l'app</button>
+
+  <div class="separes flex gap-2.5">
+    <button type="button" data-action="oauth" class="bouton teal" [disabled]="oauthDesactive()" (click)="demarrerOAuth()">Se connecter avec TikTok</button>
+    <button type="button" data-action="tester" class="bouton contour" [disabled]="testerDesactive()"
+      [attr.title]="peutTester() ? null : 'Termine d\'abord la connexion TikTok.'" (click)="tester()">Tester la connexion</button>
+    @if (conn()) {
+      <button type="button" data-action="deconnecter" class="bouton danger" [disabled]="busy()" (click)="deconnecter()">Déconnecter</button>
+    }
+  </div>
+</div>
+
+<!-- Purge complète (page.tsx:223-244) -->
+@if (conn()) {
+  <div class="mt-2.5 flex justify-end">
+    <button type="button" data-action="purger" class="lien purge text-[11px] text-[var(--danger-texte)] underline" [disabled]="busy()" (click)="confirmPurge.set(true)">
+      Effacer les données d'authentification
+    </button>
+  </div>
+}
+
+<mg-confirmation
+  [ouvert]="confirmPurge()"
+  titre="Effacer les données d'authentification"
+  message="Supprime définitivement l'app TikTok (App ID + Secret) et l'access token de cette organisation. Il faudra tout ressaisir."
+  libelleConfirmer="Tout effacer"
+  variante="danger"
+  [enCours]="busy()"
+  (confirmer)="purger()"
+  (annuler)="confirmPurge.set(false)"
+/>
+
+@if (conn(); as c) {
+  @if (c.advertiser_ids.length > 0) {
+    <p data-annonceurs class="mt-4 mb-0 font-mono text-[12px] text-secondary">Advertisers détectés : {{ c.advertiser_ids.length }}</p>
+  }
+}
+
+<!-- Flux de logs (page.tsx:252-269) -->
+<div class="mt-6">
+  <div class="section-tete">
+    <span class="h-1.5 w-1.5 rounded-full bg-teal"></span>
+    <span class="text-[12px] font-medium text-primary">Logs TikTok (temps réel)</span>
+    <span class="ml-auto">
+      <button type="button" data-action="rafraichir" class="lien font-mono text-[11px] text-[var(--teal-texte)]" [disabled]="logsBusy()" (click)="chargerLogs()">
+        {{ logsBusy() ? '…' : 'rafraîchir' }}
+      </button>
+    </span>
+  </div>
+  <div data-journal class="section-corps max-h-[280px] overflow-y-auto p-1">
+    @for (l of lignesLog(); track l.id) {
+      <div class="log" data-log>
+        <span class="shrink-0 text-tertiary">{{ l.heure }}</span>
+        <span class="niveau" [attr.data-niveau]="l.niveau">{{ l.niveau }}</span>
+        <span class="shrink-0 text-secondary">{{ l.action }}</span>
+        <span class="truncate text-primary">{{ l.message }}</span>
+        @if (l.meta) {
+          <span class="ml-auto shrink-0 text-tertiary">{{ l.meta }}</span>
+        }
+      </div>
+    } @empty {
+      <span class="block p-3 font-mono text-[11px] text-tertiary">Aucun log pour l'instant.</span>
+    }
+  </div>
+</div>

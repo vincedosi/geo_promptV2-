@@ -37,6 +37,9 @@ let compteur = 0;
  *   jamais passé à `console.*` ni à une notification. Ce n'est pas une écriture : `fermer` n'en
  *   tient pas compte. Fermer la fiche pendant la génération abandonne la requête.
  * - Fermer émet `fermer(ecrit)` : le parent relit membres et liste si une écriture a réussi.
+ * - Les ÉCHECS (nom, rôle, lien, suppression) s'affichent dans la fiche, sous leur bloc, en
+ *   `role="alert"` (vague finale du lot 6, I-1) ; les succès restent des notifications, que la pile
+ *   en popover fait voir au-dessus du voile. React n'avait que des toasts, cachés sous sa modale.
  */
 @Component({
   selector: 'mg-fiche-utilisateur',
@@ -89,6 +92,15 @@ export class FicheUtilisateurComponent {
   protected readonly roleVise = signal<RolePropose | null>(null);
   protected readonly confirmationSuppression = signal(false);
   protected readonly erreurEspaces = signal<string | null>(null);
+  /**
+   * Erreurs des autres écritures, affichées DANS le dialogue, chacune sous son bloc (vague finale,
+   * I-1) : sous un `<dialog>` modal, une notification est inerte et hors de l'arbre
+   * d'accessibilité. C'était le SEUL retour de ces échecs.
+   */
+  protected readonly erreurNom = signal<string | null>(null);
+  protected readonly erreurRole = signal<string | null>(null);
+  protected readonly erreurLien = signal<string | null>(null);
+  protected readonly erreurSuppression = signal<string | null>(null);
   protected readonly lienEnCours = signal(false);
   /** Le lien affiché : secret d'usage unique, remis à `null` à la fermeture de son dialogue. */
   protected readonly lien = signal<string | null>(null);
@@ -156,6 +168,7 @@ export class FicheUtilisateurComponent {
   protected enregistrerNom(): void {
     if (this.enCours()) return;
     this.ecritureNom.set(true);
+    this.erreurNom.set(null);
     this.suivre(this.api.modifierCompte(this.membre().id, { full_name: this.nom().trim() || null }).subscribe({
       next: () => {
         this.ecritureNom.set(false);
@@ -164,7 +177,7 @@ export class FicheUtilisateurComponent {
       },
       error: (e: unknown) => {
         this.ecritureNom.set(false);
-        this.notifications.error(messageErreur(e));
+        this.erreurNom.set(messageErreur(e));
       },
     }));
   }
@@ -192,6 +205,7 @@ export class FicheUtilisateurComponent {
     const role = this.roleVise();
     if (!role || this.ecritureRole()) return;
     this.ecritureRole.set(true);
+    this.erreurRole.set(null);
     this.suivre(this.api.modifierCompte(this.membre().id, { role }).subscribe({
       next: () => {
         this.ecritureRole.set(false);
@@ -204,7 +218,7 @@ export class FicheUtilisateurComponent {
         this.ecritureRole.set(false);
         this.roleVise.set(null);
         this.resynchroniserRadios();
-        this.notifications.error(messageErreur(e));
+        this.erreurRole.set(messageErreur(e));
       },
     }));
   }
@@ -251,6 +265,7 @@ export class FicheUtilisateurComponent {
   protected supprimer(): void {
     if (this.suppression() || this.estMoi()) return;
     this.suppression.set(true);
+    this.erreurSuppression.set(null);
     this.suivre(this.api.supprimerCompte(this.membre().id).subscribe({
       next: () => {
         this.suppression.set(false);
@@ -262,7 +277,7 @@ export class FicheUtilisateurComponent {
       error: (e: unknown) => {
         this.suppression.set(false);
         this.confirmationSuppression.set(false);
-        this.notifications.error(messageErreur(e));
+        this.erreurSuppression.set(messageErreur(e));
       },
     }));
   }
@@ -270,15 +285,16 @@ export class FicheUtilisateurComponent {
   protected demanderLien(): void {
     if (this.lienEnCours() || this.enCours()) return;
     this.lienEnCours.set(true);
+    this.erreurLien.set(null);
     this.suivre(this.api.lienMotDePasseCompte(this.membre().id).subscribe({
       next: (r) => {
         this.lienEnCours.set(false);
         if (r.lien) this.lien.set(r.lien);
-        else this.notifications.error('Lien non généré');
+        else this.erreurLien.set('Lien non généré');
       },
       error: (e: unknown) => {
         this.lienEnCours.set(false);
-        this.notifications.error(messageErreur(e));
+        this.erreurLien.set(messageErreur(e));
       },
     }));
   }

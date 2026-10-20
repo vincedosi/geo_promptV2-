@@ -3,6 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import type { Subscription } from 'rxjs';
 import { formaterNombre } from '../../../core/format/nombre';
 import { QualiteApi, type CleVerification, type Verification } from './data/qualite.api';
+import { erreurDuCorps } from '../commun/erreurs-http';
 
 /** `LigneIndicateur` (`page.tsx:44-59`). */
 interface LigneIndicateur {
@@ -209,8 +210,8 @@ interface VueVerification {
 /** POST : le `error` du corps (celui du SERVEUR, 429 compris), sinon `HTTP <statut>` (`page.tsx:140`). */
 function messageVerification(e: unknown): string {
   if (e instanceof HttpErrorResponse) {
-    const corps = e.error as { error?: unknown } | null;
-    if (corps && typeof corps === 'object' && typeof corps.error === 'string' && corps.error) return corps.error;
+    const erreur = erreurDuCorps(e);
+    if (erreur) return erreur;
     return e.status ? `HTTP ${e.status}` : 'Failed to fetch';
   }
   return e instanceof Error ? e.message : String(e);
@@ -237,7 +238,8 @@ function messageLecture(e: unknown): string {
  *   opacité ; polices en dur → `var(--font-sans)` / `var(--font-mono)`.
  * - réponse du POST non JSON : React affichait l'erreur de `res.json()` ; ici `HTTP <statut>`.
  *
- * Gardé par parité : `persiste: false` (relevé non enregistré) n'est pas signalé, comme React.
+ * - `persiste: false` (relevé non enregistré) est signalé, avec la phrase de Fraîcheur (Q-1, vague finale
+ *   G6) : React le taisait, et un relevé affiché qui disparaît au rechargement ment.
  */
 @Component({
   selector: 'mg-qualite-donnees',
@@ -245,11 +247,12 @@ function messageLecture(e: unknown): string {
   templateUrl: './qualite-donnees.page.html',
   styles: [`
     :host { display: block; }
-    .page { padding: 32px 40px; max-width: 1100px; font-family: var(--font-sans); color: var(--text-secondary); }
-    h1 { font-size: 20px; font-weight: 500; color: var(--text-primary); letter-spacing: -0.02em; margin: 0; }
-    .intro { font-size: 13px; line-height: 1.6; margin: 8px 0 28px; max-width: 720px; }
+    /* Monté comme onglet du cadre Données (lot 6, T6) : le cadre pose déjà la marge de page et le titre ;
+       le « padding: 32px 40px » et le h1 de React les doubleraient. */
+    .page { max-width: 1100px; font-family: var(--font-sans); color: var(--text-secondary); }
+    .intro { font-size: 13px; line-height: 1.6; margin: 0 0 28px; max-width: 720px; }
     .erreur {
-      padding: 10px 12px; border-radius: 6px; margin-bottom: 20px; font-size: 12px; color: var(--danger);
+      padding: 10px 12px; border-radius: 6px; margin-bottom: 20px; font-size: 12px; color: var(--danger-texte);
       background: color-mix(in srgb, var(--danger) 8%, transparent);
       border: 0.5px solid color-mix(in srgb, var(--danger) 25%, transparent);
     }
@@ -265,7 +268,7 @@ function messageLecture(e: unknown): string {
     .titre { font-size: 12px; font-weight: 500; color: var(--text-primary); flex: 1; }
     .etat { font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); }
     button {
-      background: transparent; border: 0.5px solid var(--brand-teal); color: var(--brand-teal);
+      background: transparent; border: 0.5px solid var(--brand-teal); color: var(--teal-texte);
       border-radius: 6px; padding: 5px 12px; font-family: var(--font-sans); font-size: 11px; font-weight: 500;
       cursor: pointer;
     }
@@ -275,7 +278,7 @@ function messageLecture(e: unknown): string {
     .jamais { font-size: 12px; color: var(--text-tertiary); }
     .synthese { font-size: 12px; margin-bottom: 10px; }
     .synthese strong { color: var(--text-primary); font-weight: 700; }
-    .synthese strong.danger { color: var(--danger); }
+    .synthese strong.danger { color: var(--danger-texte); }
     .defile { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; }
     th {
@@ -293,8 +296,8 @@ function messageLecture(e: unknown): string {
     tr[data-teinte='danger'] { background: color-mix(in srgb, var(--danger) 8%, transparent); }
     tr[data-teinte='avert'] { background: color-mix(in srgb, var(--warning) 8%, transparent); }
     tr[data-teinte='info'] { background: color-mix(in srgb, var(--brand-teal) 6%, transparent); }
-    .c-danger { color: var(--danger); }
-    .c-avert { color: var(--warning); }
+    .c-danger { color: var(--danger-texte); }
+    .c-avert { color: var(--warning-texte); }
     .c-info { color: var(--text-secondary); }
     .c-neutre { color: var(--text-tertiary); }
     .contresens { font-size: 11px; color: var(--text-tertiary); margin-top: 10px; line-height: 1.6; }
@@ -355,6 +358,9 @@ export class QualiteDonneesPage {
         this.verifications.update((prev) => prev.map((v) => (
           v.cle === cle ? { ...v, releve: r.releve, calcule_le: r.calcule_le, duree_ms: r.duree_ms } : v
         )));
+        if (r.persiste === false) {
+          this.erreur.set('Mesure faite, mais elle n’a pas pu être enregistrée : elle sera perdue au rechargement.');
+        }
         this.enCours.set(null);
       },
       error: (e: unknown) => {

@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { NotificationsComponent } from './notifications.component';
-import { DUREE_SORTIE, NotificationsService } from './notifications.service';
+import { DUREE_NOTIFICATION, DUREE_SORTIE, NotificationsService } from './notifications.service';
 
 @Component({
   imports: [NotificationsComponent],
@@ -50,5 +50,66 @@ describe('NotificationsComponent', () => {
     const noms = Array.from((f.nativeElement as HTMLElement).querySelectorAll('[data-notification] mg-icone[data-role="variante"]'))
       .map((i) => i.getAttribute('data-nom'));
     expect(noms).toEqual(['coche', 'croix', 'triangle-alerte']);
+  });
+  describe('pile en popover (vague finale A2, A4, A5)', () => {
+    let montrer: ReturnType<typeof vi.fn>;
+    let cacher: ReturnType<typeof vi.fn>;
+    const proto = HTMLElement.prototype as unknown as Record<string, unknown>;
+    const avant = { show: proto['showPopover'], hide: proto['hidePopover'] };
+
+    beforeEach(() => {
+      montrer = vi.fn();
+      cacher = vi.fn();
+      // jsdom ne connaît pas l'API popover : on la double.
+      proto['showPopover'] = montrer;
+      proto['hidePopover'] = cacher;
+    });
+    afterEach(() => {
+      proto['showPopover'] = avant.show;
+      proto['hidePopover'] = avant.hide;
+    });
+
+    it("l'hôte est un popover manuel, transparent aux clics hors des cartes", async () => {
+      const f = TestBed.createComponent(Hote);
+      await f.whenStable();
+      const hote = (f.nativeElement as HTMLElement).querySelector('mg-notifications') as HTMLElement;
+      expect(hote.getAttribute('popover')).toBe('manual');
+      expect(hote.classList).not.toContain('block');
+      expect(hote.hasAttribute('data-pile-notifications')).toBe(true);
+    });
+
+    it("chaque poussée réaffiche la pile (cacher puis montrer) pour repasser au-dessus d'un modal ouvert après elle", async () => {
+      const f = TestBed.createComponent(Hote);
+      const s = f.componentInstance.service;
+      await f.whenStable();
+      expect(montrer).not.toHaveBeenCalled();
+      s.info('Un');
+      await f.whenStable();
+      expect(montrer).toHaveBeenCalledTimes(1);
+      s.error('Deux');
+      await f.whenStable();
+      expect(montrer).toHaveBeenCalledTimes(2);
+      expect(cacher).toHaveBeenCalledTimes(1);
+      const hote = (f.nativeElement as HTMLElement).querySelector('mg-notifications');
+      expect(montrer.mock.contexts[1]).toBe(hote);
+    });
+
+    it('la pile vide se referme', async () => {
+      const f = TestBed.createComponent(Hote);
+      const s = f.componentInstance.service;
+      s.info('Un');
+      await f.whenStable();
+      (f.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-notification] button')!.click();
+      await new Promise((r) => setTimeout(r, DUREE_SORTIE + 30));
+      await f.whenStable();
+      expect(cacher).toHaveBeenCalledTimes(1);
+    });
+
+    it('la durée de la barre de temps vient de DUREE_NOTIFICATION', async () => {
+      const f = TestBed.createComponent(Hote);
+      await f.whenStable();
+      const zone = (f.nativeElement as HTMLElement).querySelector('[role="status"]') as HTMLElement;
+      expect(zone.style.getPropertyValue('--duree')).toBe(`${DUREE_NOTIFICATION}ms`);
+    });
   });
 });

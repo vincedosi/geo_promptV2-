@@ -1,0 +1,19 @@
+/* `MappingStep.tsx` — en-tête, notes, cartes de mode de géolocalisation. */
+.detectees { font-size: 10px; color: var(--text-tertiary); }
+.standard { margin-bottom: 16px; }
+.note { font-size: 10px; color: var(--text-tertiary); margin-bottom: 10px; }
+.note.geo { margin-bottom: 12px; }
+.geolocalisation { border-top: 1px solid var(--border-subtle); padding-top: 16px; }
+.modes { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.mode {
+  display: flex; align-items: flex-start; gap: 10px; padding: 9px 12px; border-radius: 2px;
+  border: 1px solid var(--border-subtle); background: var(--bg-level-2); cursor: pointer;
+}
+.mode.actif { border-color: var(--brand-teal-30); background: var(--brand-teal-10); }
+.mode input { margin: 2px 0 0; accent-color: var(--brand-teal); }
+.mode input:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
+.texte-mode { flex: 1; }
+.titre-mode { font-family: var(--font-sans); font-size: 12px; font-weight: 500; color: var(--text-primary); margin-bottom: 2px; }
+.mode.actif .titre-mode { color: var(--teal-texte); }
+.desc-mode { font-family: var(--font-sans); font-size: 11px; color: var(--text-secondary); }
+.note-mode { font-size: 10px; color: var(--text-tertiary); margin-top: 4px; }

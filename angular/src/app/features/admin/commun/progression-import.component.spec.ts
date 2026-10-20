@@ -5,7 +5,7 @@ import { ProgressionImportComponent } from './progression-import.component';
 
 @Component({
   imports: [ProgressionImportComponent],
-  template: `<mg-progression-import [etape]="etape()" [traitees]="traitees()" [total]="total()" [termine]="termine()" [echec]="echec()" />`,
+  template: `<mg-progression-import [etape]="etape()" [traitees]="traitees()" [total]="total()" [termine]="termine()" [echec]="echec()" [pourcentageFlux]="pourcentageFlux()" [avertissement]="avertissement()" />`,
 })
 class Hote {
   readonly etape = signal('Insertion');
@@ -13,6 +13,8 @@ class Hote {
   readonly total = signal<number | null>(null);
   readonly termine = signal(false);
   readonly echec = signal<string | null>(null);
+  readonly pourcentageFlux = signal<number | null>(null);
+  readonly avertissement = signal(false);
 }
 
 async function monter() {
@@ -75,5 +77,45 @@ describe('ProgressionImportComponent', () => {
     await f.whenStable();
     expect(el.querySelector('[data-indeterminee]')).toBeNull();
     expect((el.querySelector('[data-remplissage]') as HTMLElement).style.width).toBe('0%');
+  });
+
+  it('pourcentage PORTÉ PAR LE FLUX sans total (IRIS crawler, champ `percent`) : barre déterminée à ce pourcentage, « N lignes traitées »', async () => {
+    const { f, h, el, barre } = await monter();
+    h.pourcentageFlux.set(42); h.traitees.set(500);
+    await f.whenStable();
+    expect(el.querySelector('[data-indeterminee]')).toBeNull();
+    expect(barre().getAttribute('aria-valuenow')).toBe('42');
+    expect((el.querySelector('[data-remplissage]') as HTMLElement).style.width).toBe('42%');
+    expect(el.textContent).toContain('Insertion — 500 lignes traitées');
+    expect(el.textContent).not.toContain('reçues');
+    // Hors bornes : ramené à 0-100, jamais au-delà.
+    h.pourcentageFlux.set(140);
+    await f.whenStable();
+    expect(barre().getAttribute('aria-valuenow')).toBe('100');
+    // Terminé : 100 % ; échec : le pourcentage atteint, pas 100.
+    h.pourcentageFlux.set(83); h.echec.set('Refusé');
+    await f.whenStable();
+    expect((el.querySelector('[data-remplissage]') as HTMLElement).style.width).toBe('83%');
+    h.echec.set(null); h.termine.set(true);
+    await f.whenStable();
+    // Un `termine` sans échec force 100 % (vague finale, A10) : le flux a fini, la barre ne reste pas à 83.
+    expect(barre().getAttribute('aria-valuenow')).toBe('100');
+    expect((el.querySelector('[data-remplissage]') as HTMLElement).style.width).toBe('100%');
+    h.pourcentageFlux.set(100);
+    await f.whenStable();
+    expect((el.querySelector('[data-remplissage]') as HTMLElement).style.width).toBe('100%');
+  });
+
+  it('avertissement : « ⚠ Import terminé avec erreurs » en --warning, barre pleine NON verte', async () => {
+    const { f, h, el } = await monter();
+    h.total.set(10); h.traitees.set(10); h.termine.set(true); h.avertissement.set(true);
+    await f.whenStable();
+    expect(el.textContent).toContain('⚠ Import terminé avec erreurs');
+    expect(el.textContent).not.toContain('✓');
+    expect(el.querySelector('.statut-avert')).not.toBeNull();
+    const remplissage = el.querySelector('[data-remplissage]') as HTMLElement;
+    expect(remplissage.classList).not.toContain('termine');
+    expect(remplissage.classList).toContain('avertissement');
+    expect(remplissage.style.width).toBe('100%');
   });
 });

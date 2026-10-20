@@ -127,7 +127,7 @@ let compteur = 0;
       padding: 10px 12px;
       border-radius: 6px;
       font-size: 12px;
-      color: var(--danger);
+      color: var(--danger-texte);
       background: color-mix(in srgb, var(--danger) 10%, transparent);
       border: 0.5px solid color-mix(in srgb, var(--danger) 20%, transparent);
     }

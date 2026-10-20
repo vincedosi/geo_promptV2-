@@ -1,5 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import type { StatutJeu, TypeJeu } from './types';
+import { erreurDuCorps } from '../../commun/erreurs-http';
 
 /** Statut d'un jeu pour un espace (spec § 4.4), libellé affiché. */
 export const LIBELLES_STATUT: Record<StatutJeu, string> = {
@@ -32,8 +33,8 @@ export const NOM_SOCLE = 'Socle dentsu.explore';
  */
 export function messageErreur(e: unknown): string {
   if (e instanceof HttpErrorResponse) {
-    const corps = e.error as { error?: unknown } | null;
-    if (corps && typeof corps === 'object' && typeof corps.error === 'string' && corps.error) return corps.error;
+    const erreur = erreurDuCorps(e);
+    if (erreur) return erreur;
     return e.status === 0 ? 'Le serveur n\'a pas répondu. Réessayez.' : `Erreur du serveur (code ${e.status}).`;
   }
   if (e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string') {

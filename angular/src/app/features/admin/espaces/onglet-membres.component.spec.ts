@@ -207,6 +207,29 @@ describe('OngletMembresComponent', () => {
     expect(writeText).toHaveBeenCalledWith(LIEN);
   });
 
+  it('copie refusée : « Copie impossible » DANS le dialogue du lien (I-1), aucune notification', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('refus'));
+    const origine = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    onTestFinished(() => {
+      if (origine) Object.defineProperty(navigator, 'clipboard', origine);
+      else delete (navigator as unknown as Record<string, unknown>)['clipboard'];
+    });
+    const { f, el, http, notifs } = await monter([SEUL]);
+    el.querySelector<HTMLButtonElement>('[data-lien="se"]')!.click();
+    await f.whenStable();
+    http.expectOne(URL_LIEN).flush({ success: true, link: LIEN });
+    await f.whenStable();
+    el.querySelector<HTMLButtonElement>('[data-copier]')!.click();
+    await f.whenStable();
+    await Promise.resolve();
+    await f.whenStable();
+    const alerte = el.querySelector('mg-dialogue-lien dialog mg-lien-secret [role="alert"]');
+    expect(alerte?.textContent).toContain('Copie impossible');
+    expect(alerte?.textContent).toContain('Sélectionnez le lien et copiez-le.');
+    expect(notifs.notifications()).toHaveLength(0);
+  });
+
   it('link: null → notification d\'erreur « Lien non généré », aucun dialogue', async () => {
     const { f, el, http, notifs } = await monter([SEUL]);
     el.querySelector<HTMLButtonElement>('[data-lien="se"]')!.click();

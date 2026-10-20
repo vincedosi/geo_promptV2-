@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { voisin } from '../commun/voisin';
 import { EspacesEtatService } from './etat/espaces-etat.service';
 import { OngletApercuComponent } from './onglet-apercu.component';
 import { OngletDonneesComponent } from './onglet-donnees.component';
@@ -88,7 +89,7 @@ const ONGLETS: readonly Onglet[] = ['membres', 'donnees', 'apercu', 'reglages'];
     .onglet[aria-selected='true'] { color: var(--text-primary); border-bottom-color: var(--brand-teal); }
     .onglet:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
     .introuvable { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
-    .retour { font-size: 13px; color: var(--brand-teal); text-decoration: none; }
+    .retour { font-size: 13px; color: var(--teal-texte); text-decoration: none; }
     .retour:hover { text-decoration: underline; }
     .retour:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
     .squelette { height: 24px; width: 240px; border-radius: 6px; background: var(--bg-level-2); animation: pulse 1.5s ease-in-out infinite; }
@@ -148,7 +149,7 @@ export class FicheEspaceComponent {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
     e.preventDefault();
     const i = ONGLETS.indexOf(this.onglet());
-    const suivant = ONGLETS[(i + (e.key === 'ArrowRight' ? 1 : ONGLETS.length - 1)) % ONGLETS.length];
+    const suivant = ONGLETS[voisin(i, ONGLETS.length, e.key)];
     this.ouvrir(suivant);
     const liste = e.currentTarget as HTMLElement;
     liste.querySelector<HTMLButtonElement>(`[data-onglet="${suivant}"]`)?.focus();

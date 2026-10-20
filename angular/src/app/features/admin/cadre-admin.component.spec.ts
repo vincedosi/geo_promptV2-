@@ -73,18 +73,29 @@ describe('CadreAdminComponent', () => {
     expect(el.querySelector('[data-enfant]')).not.toBeNull();
   });
 
-  it('fournit les notifications aux pages (C7) : rangée collante de 1 px, jamais `fixed`', async () => {
+  it('fournit les notifications aux pages (C7) : une pile en popover, enfant direct du cadre, sans rangée ni `fixed`', async () => {
     const { el, harness } = await monter('super_admin');
-    const rangee = el.querySelector('mg-cadre-admin > [data-rangee-notifications]') as HTMLElement;
-    expect(rangee.className).toContain('sticky');
-    expect(rangee.className).toContain('h-px');
-    expect(rangee.className).not.toContain('fixed');
-    expect(rangee.querySelector('mg-notifications')).not.toBeNull();
+    expect(el.querySelector('[data-rangee-notifications]')).toBeNull();
+    const pile = el.querySelector('mg-cadre-admin > mg-notifications') as HTMLElement;
+    expect(pile.getAttribute('popover')).toBe('manual');
+    expect(pile.className).not.toContain('fixed');
     const injecteur = harness.routeDebugElement!.injector;
     const service = injecteur.get(NotificationsService);
     service.info('Bonjour');
     await harness.fixture.whenStable();
-    expect(rangee.querySelector('[data-notification]')?.textContent).toContain('Bonjour');
+    expect(pile.querySelector('[data-notification]')?.textContent).toContain('Bonjour');
+  });
+
+  it('Q-9 / F-3 : les couleurs de TEXTE lisibles en clair sont posées une fois sur le cadre', async () => {
+    const { el } = await monter('super_admin');
+    const cadre = el.querySelector('mg-cadre-admin') as HTMLElement;
+    const style = getComputedStyle(cadre);
+    for (const nom of ['--teal-texte', '--success-texte', '--warning-texte', '--danger-texte', '--info-texte']) {
+      expect(style.getPropertyValue(nom), nom).toContain('light-dark(');
+    }
+    // Recette du teal à 45 % (ruling de la vague finale 2 : ≈ 5,03:1 sur le bouton « Sauvegarder » de Sources, 4,45:1 à 50 %).
+    expect(style.getPropertyValue('--teal-texte')).toContain('var(--brand-teal) 45%');
+    expect(style.getPropertyValue('--danger-texte')).toContain('var(--danger) 75%');
   });
 
   it('refus et erreur : décalés sous le chrome du haut (réserve T1)', async () => {

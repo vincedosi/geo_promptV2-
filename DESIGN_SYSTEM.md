@@ -136,6 +136,70 @@ Le teal ne bascule pas avec le thème : c'est l'accent de marque, pas une
 surface. `--brand-teal-fg` est invariant pour la même raison — le dériver de
 `--bg-level-0` le ferait passer au blanc sur un aplat teal clair, illisible.
 
+#### Teal et statut en TEXTE sur fond clair — administration Angular
+
+Invariant en aplat, en bordure et en focus, le teal tombe à ≈ 1,8:1 quand il
+sert de couleur de TEXTE sur une surface claire (`--bg-level-1`), et le vert de
+`--success` à ≈ 2,5:1. L'administration Angular (lot 6) emploie donc, pour du
+texte seulement, cinq propriétés posées UNE fois sur l'hôte du cadre admin
+(`angular/src/app/features/admin/cadre-admin.component.ts`), héritées par tous
+ses écrans :
+
+- `--teal-texte` : `--brand-teal` mêlé à **45 %** de `--text-primary` en clair
+  (`rgb(49,107,102)`) — 5,65:1 sur `--bg-level-1`, 5,03:1 sur le pire fond
+  rencontré (le teal à 10 % posé sur `--bg-level-2`, bouton « Sauvegarder » de
+  Sources). À 50 %, ce bouton tombait à 4,45:1 : la valeur a été abaissée le
+  2026-10-19 (vague finale 2 du lot 6), une seule fois, dans le cadre ;
+- `--success-texte` et `--warning-texte` : la couleur à 50 % (≥ 6:1 partout) ;
+- `--danger-texte` et `--info-texte` : 75 % de la couleur, le reste de `--text-primary`.
+
+**Règle** : dans l'administration, toute couleur de TEXTE teal ou de statut
+passe par ces propriétés (`color: var(--teal-texte)`, jamais
+`color: var(--brand-teal)`) ; aplats, bordures, `accent-color` et focus gardent
+le jeton brut. Les briques de `features/admin/commun/` que le catalogue monte
+HORS du cadre — le texte d'état de `progression-import` (« ✓ Import terminé »,
+« ⚠ Import terminé avec erreurs », échec) et les lignes et filtres actifs de
+`journal` — écrivent `var(--success-texte, var(--success))`, avec repli ; les
+écrans montés DANS le cadre écrivent `var(--success-texte)` seul (pages DV360 et
+TikTok, Fraîcheur, cartes de catégorie POI de Sources, qui posent un
+`--cat-texte` par teinte de statut). Les écrans qui portent une teinte par
+propriété (`--teinte`, `--c-statut`) posent à côté sa jumelle de TEXTE
+(`--teinte-texte`, `--c-statut-texte`) et l'emploient pour `color`, le jeton brut
+restant aux fonds, bordures, points et barres : badges et résumé de Santé
+(`health/statut.ts`), statut des Connexions API, onglets Import, Radios et
+Statistiques de Radio, onglets, tuiles, liste et panneaux de Sources (ajouté le
+2026-10-20, T21 : mesuré à 2,5-2,9:1 en clair avant, ≥ 4,5:1 après — rapport T21
+du lot 6). Une teinte neutre (`--text-secondary`, `--text-tertiary`) pose sa
+jumelle à la même valeur, pour ne pas hériter de celle d'un ancêtre.
+
+Le repli `var(--x-texte, var(--x))` ne joue que lorsque la propriété **n'est pas
+définie** (hors du cadre). Il ne rattrape PAS un navigateur sans `light-dark()` :
+la propriété y est définie mais invalide au calcul, et `color` retombe alors sur
+la couleur héritée (voir plus bas), pas sur le jeton brut.
+
+Exceptions assumées, parce que ce ne sont pas des textes posés sur une surface
+claire : l'icône de chargement de `progression-import` (`text-success`, un trait
+graphique, comme la barre) ; `text-teal-fg`, texte posé SUR un aplat teal ; les
+teintes `rose`, `ardoise` et `gris` des cartes POI, qui sont déjà des jetons de
+texte ou une teinte assombrie en clair (`--nature-8`, `--text-tertiary`,
+`--text-secondary`) ; et tous les `border-color`, fonds en `color-mix` et
+`accent-color` du module.
+
+Chacune vaut `light-dark(<mélange>, <couleur>)` : en thème sombre, la couleur
+d'origine, inchangée. `light-dark()` se résout chez l'élément qui emploie la
+propriété, d'après le `color-scheme` de son hôte ; un navigateur qui ne le
+connaît pas ignore la déclaration et garde la couleur héritée, qui reste
+lisible.
+
+Ce ne sont PAS des jetons du système : ni `app/globals.css` ni
+`angular/src/styles/jetons.css` ne les portent (la parité de ces deux fichiers
+est verrouillée), et React ne les emploie pas. Décision du 2026-10-19 (Q-9 de la
+revue finale du lot 6) : une seule règle pour toute l'administration, plutôt
+que quatorze copies locales de la recette — retirées le même jour (factorisation
+F-3), et la règle étendue à Accès, Santé, Fraîcheur, Historique, Qualité, IRIS
+crawler et Connexions API. Choix visuel à valider par un
+designer, comme toute palette de données.
+
 ### Statut (seules couleurs sémantiques autorisées)
 | Token | Hex (dark) | Hex (light) | Usage |
 |-------|-----------|-------------|-------|

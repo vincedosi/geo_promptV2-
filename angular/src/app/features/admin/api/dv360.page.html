@@ -1,0 +1,184 @@
+<!-- Portage de app/admin/api/dv360/page.tsx (lot 6, T9). Textes recopiés tels quels (C16). -->
+<div class="mb-4 flex items-center gap-3">
+  <img class="h-7" [src]="urlLogo" alt="DV360" />
+  <span data-statut class="statut" [attr.data-etat]="statut()">
+    <span class="point"></span>
+    {{ libelleStatut() }}
+  </span>
+</div>
+
+<!-- Diagnostic config serveur (page.tsx:199-224) -->
+<div class="section-tete">
+  <span class="h-1.5 w-1.5 rounded-full bg-teal"></span>
+  <span class="text-[12px] font-medium text-primary">Diagnostic — configuration serveur</span>
+</div>
+<div data-diagnostic class="section-corps mb-4 p-4">
+  @if (config(); as c) {
+    <div class="flex items-center gap-2 py-1" data-config="enc_key">
+      <span class="coche" [class.ok]="c.env.enc_key">{{ c.env.enc_key ? '✓' : '✗' }}</span>
+      <span class="text-[12px] text-secondary">Chiffrement des secrets (DSP_ENC_KEY)</span>
+    </div>
+    <div class="flex items-center gap-2 py-1" data-config="oauth_client_id">
+      <span class="coche" [class.ok]="c.env.oauth_client_id">{{ c.env.oauth_client_id ? '✓' : '✗' }}</span>
+      <span class="text-[12px] text-secondary">OAuth — Client ID (DV360_OAUTH_CLIENT_ID)</span>
+    </div>
+    <div class="flex items-center gap-2 py-1" data-config="oauth_client_secret">
+      <span class="coche" [class.ok]="c.env.oauth_client_secret">{{ c.env.oauth_client_secret ? '✓' : '✗' }}</span>
+      <span class="text-[12px] text-secondary">OAuth — Client Secret (DV360_OAUTH_CLIENT_SECRET)</span>
+    </div>
+    <div class="flex items-center gap-2 py-1" data-config="oauth_redirect_uri">
+      <span class="coche" [class.ok]="c.env.oauth_redirect_uri">{{ c.env.oauth_redirect_uri ? '✓' : '✗' }}</span>
+      <span class="text-[12px] text-secondary">OAuth — Redirect URI</span>
+      @if (c.env.redirect_uri_value) {
+        <span class="valeur-config truncate">{{ c.env.redirect_uri_value }}</span>
+      }
+    </div>
+    <div class="flex items-center gap-2 py-1" data-config="client_organisation">
+      <span class="coche" [class.ok]="!!conn()?.oauth_client_id">{{ conn()?.oauth_client_id ? '✓' : '✗' }}</span>
+      <span class="text-[12px] text-secondary">OAuth — Client de l'organisation (formulaire)</span>
+      @if (conn()?.oauth_client_id) {
+        <span class="valeur-config truncate">{{ conn()?.oauth_client_id }}</span>
+      }
+    </div>
+    <div class="pretes">
+      <span data-prete="service_account" class="prete" [class.ok]="c.ready.service_account">
+        <span class="point"></span>
+        Service Account : {{ c.ready.service_account ? 'prête' : 'non configurée' }}
+      </span>
+      <span data-prete="oauth" class="prete" [class.ok]="clientOAuthPret()">
+        <span class="point"></span>
+        OAuth Google : {{ clientOAuthPret() ? 'prête' : 'non configurée' }}
+      </span>
+    </div>
+  } @else {
+    <span class="font-mono text-[11px] text-tertiary">Diagnostic indisponible.</span>
+  }
+</div>
+
+@if (conn()?.last_error) {
+  <div data-derniere-erreur class="encart erreur">Dernière erreur : {{ conn()?.last_error }}</div>
+}
+
+<!-- Avertissement si la méthode sélectionnée n'est pas prête côté serveur (page.tsx:233-239) -->
+@if (configConnue() && !methodePrete()) {
+  <div data-avertissement class="encart avert">
+    @if (methode() === 'oauth') {
+      Client OAuth non configuré : renseigne Client ID + Client Secret dans le formulaire ci-dessous (ou les env vars DV360_OAUTH_* + redémarrage).
+    } @else {
+      Service Account indisponible : DSP_ENC_KEY manquante dans .env.local.
+    }
+  </div>
+}
+
+<div class="carte">
+  <label class="text-[12px] text-tertiary" for="dv360-methode-sa">Méthode d'authentification</label>
+  <div class="mt-2 mb-4 flex gap-4" role="radiogroup" aria-label="Méthode d'authentification">
+    <label class="flex cursor-pointer items-center gap-1.5 text-[13px] text-secondary">
+      <input id="dv360-methode-sa" type="radio" name="dv360-methode" data-methode="service_account"
+        [checked]="methode() === 'service_account'" (change)="methode.set('service_account')" />
+      Service Account
+    </label>
+    <label class="flex cursor-pointer items-center gap-1.5 text-[13px] text-secondary">
+      <input type="radio" name="dv360-methode" data-methode="oauth"
+        [checked]="methode() === 'oauth'" (change)="methode.set('oauth')" />
+      OAuth Google
+    </label>
+  </div>
+
+  <label class="text-[12px] text-tertiary" for="dv360-partner">Partner ID</label>
+  <input id="dv360-partner" data-champ="partner" class="champ" placeholder="ex : 123456"
+    [value]="partnerId()" (input)="saisir('partnerId', $event)" />
+
+  @if (methode() === 'service_account') {
+    <label class="text-[12px] text-tertiary" for="dv360-sa">Clé Service Account (JSON)</label>
+    <textarea id="dv360-sa" data-champ="sa" class="champ json" rows="6"
+      placeholder='{ "client_email": "...", "private_key": "..." }'
+      [value]="saJson()" (input)="saisir('saJson', $event)"></textarea>
+    <div class="flex gap-2.5">
+      <button type="button" data-action="enregistrer" class="bouton teal" [disabled]="enregistrerDesactive()" (click)="enregistrer()">Enregistrer</button>
+      <button type="button" data-action="tester" class="bouton contour" [disabled]="testerDesactive()"
+        [attr.title]="peutTester() ? null : 'Enregistre d’abord une clé Service Account.'" (click)="tester()">Tester la connexion</button>
+      @if (conn()) {
+        <button type="button" data-action="deconnecter" class="bouton danger" [disabled]="busy()" (click)="deconnecter()">Déconnecter</button>
+      }
+    </div>
+  } @else {
+    <label class="text-[12px] text-tertiary" for="dv360-client-id">Client ID OAuth</label>
+    <input id="dv360-client-id" data-champ="client-id" class="champ mono" placeholder="xxxxx.apps.googleusercontent.com"
+      [value]="clientId()" (input)="saisir('clientId', $event)" />
+    <label class="text-[12px] text-tertiary" for="dv360-client-secret">
+      Client Secret OAuth
+      @if (conn()?.oauth_client_id) {
+        <span class="text-[var(--success-texte)]">— client déjà enregistré ✓ (re-saisir pour modifier)</span>
+      }
+    </label>
+    <input id="dv360-client-secret" data-champ="client-secret" type="password" autocomplete="off" class="champ mono"
+      placeholder="GOCSPX-…" [value]="clientSecret()" (input)="saisir('clientSecret', $event)" />
+    <button type="button" data-action="config-oauth" class="bouton contour mb-4" [disabled]="configOAuthDesactivee()"
+      (click)="enregistrerConfigOAuth()">Enregistrer la config OAuth</button>
+
+    <div class="separes flex gap-2.5">
+      <button type="button" data-action="oauth" class="bouton teal" [disabled]="oauthDesactive()" (click)="demarrerOAuth()">Se connecter avec Google</button>
+      <button type="button" data-action="tester" class="bouton contour" [disabled]="testerDesactive()"
+        [attr.title]="peutTester() ? null : 'Termine d’abord la connexion Google (bouton « Se connecter avec Google »).'"
+        (click)="tester()">Tester la connexion</button>
+      @if (conn()) {
+        <button type="button" data-action="deconnecter" class="bouton danger" [disabled]="busy()" (click)="deconnecter()">Déconnecter</button>
+      }
+    </div>
+  }
+</div>
+
+<!-- Purge complète (page.tsx:315-325) -->
+@if (conn()) {
+  <div class="mt-2.5 flex justify-end">
+    <button type="button" data-action="purger" class="lien purge text-[11px] text-[var(--danger-texte)] underline" [disabled]="busy()" (click)="confirmPurge.set(true)">
+      Effacer les données d'authentification
+    </button>
+  </div>
+}
+
+<mg-confirmation
+  [ouvert]="confirmPurge()"
+  titre="Effacer les données d'authentification"
+  message="Supprime définitivement le client OAuth (Client ID + Secret), le refresh token, la clé Service Account et le Partner ID de cette organisation. Il faudra tout ressaisir."
+  libelleConfirmer="Tout effacer"
+  variante="danger"
+  [enCours]="busy()"
+  (confirmer)="purger()"
+  (annuler)="confirmPurge.set(false)"
+/>
+
+@if (conn(); as c) {
+  @if (c.advertiser_ids.length > 0) {
+    <p data-annonceurs class="mt-4 mb-0 font-mono text-[12px] text-secondary">Advertisers détectés : {{ c.advertiser_ids.length }}</p>
+  }
+}
+
+<!-- Flux de logs (page.tsx:345-361) -->
+<div class="mt-6">
+  <div class="section-tete">
+    <span class="h-1.5 w-1.5 rounded-full bg-teal"></span>
+    <span class="text-[12px] font-medium text-primary">Logs DV360 (temps réel)</span>
+    <span class="ml-auto">
+      <button type="button" data-action="rafraichir" class="lien font-mono text-[11px] text-[var(--teal-texte)]" [disabled]="logsBusy()" (click)="chargerLogs()">
+        {{ logsBusy() ? '…' : 'rafraîchir' }}
+      </button>
+    </span>
+  </div>
+  <div data-journal class="section-corps max-h-[280px] overflow-y-auto p-1">
+    @for (l of lignesLog(); track l.id) {
+      <div class="log" data-log>
+        <span class="shrink-0 text-tertiary">{{ l.heure }}</span>
+        <span class="niveau" [attr.data-niveau]="l.niveau">{{ l.niveau }}</span>
+        <span class="shrink-0 text-secondary">{{ l.action }}</span>
+        <span class="truncate text-primary">{{ l.message }}</span>
+        @if (l.meta) {
+          <span class="ml-auto shrink-0 text-tertiary">{{ l.meta }}</span>
+        }
+      </div>
+    } @empty {
+      <span class="block p-3 font-mono text-[11px] text-tertiary">Aucun log pour l'instant.</span>
+    }
+  </div>
+</div>

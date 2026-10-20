@@ -1,0 +1,114 @@
+<!-- Cartes d'action (`page.tsx:371-457`). -->
+<div class="cartes">
+  <div class="carte" data-carte="anfr">
+    <div class="titre" data-titre>Import ANFR</div>
+    <div class="description" data-description>Télécharger et importer les émetteurs depuis data.gouv.fr (~64 Mo)</div>
+    <div class="etat">
+      <span class="point" [attr.data-teinte]="fraicheur().teinte"></span>
+      <span class="mono teinte" data-etat [attr.data-teinte]="fraicheur().teinte">{{ fraicheur().texte }}</span>
+    </div>
+    <button type="button" data-lancer class="bouton teal large" [class.attenue]="importEnCours()" [disabled]="importEnCours()"
+      (click)="etat.lancer('anfr')">{{ importEnCours() ? 'Import en cours...' : 'Lancer l\'import ANFR' }}</button>
+  </div>
+
+  <div class="carte" data-carte="enrichissement">
+    <div class="titre" data-titre>Enrichissement radios</div>
+    <div class="description" data-description>Identifier les radios et les associer aux émetteurs</div>
+    <div class="etat"><span class="mono secondaire" data-etat>{{ etatEnrichissement() }}</span></div>
+    <button type="button" data-lancer class="bouton neutre large" [class.attenue]="importEnCours()" [disabled]="importEnCours()"
+      (click)="etat.lancer('enrichissement')">{{ importEnCours() ? 'En cours...' : 'Lancer l\'enrichissement' }}</button>
+  </div>
+
+  <div class="carte" data-carte="ods">
+    <div class="titre" data-titre>Référentiel Arcom (ODS)</div>
+    <div class="description" data-description>Importer le fichier officiel Arcom avec les 1 174 radios et leurs fréquences</div>
+    <div class="etat"><span class="mono secondaire" data-etat>{{ etatOds() }}</span></div>
+    <div class="rangee">
+      <input #champOds type="file" accept=".ods,.xlsx" class="cache" (change)="choisirOds(champOds)" />
+      <button type="button" data-choisir class="bouton neutre petit" [disabled]="importEnCours()" (click)="champOds.click()">Choisir .ods</button>
+      <button type="button" data-importer class="bouton teal petit" [class.attenue]="importEnCours()"
+        [disabled]="importEnCours() || !fichierOds()" (click)="importerOds(champOds)">Importer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Journal (`page.tsx:459-518`) : celui de l'import, ou un journal passé relu par « Voir ». -->
+@if (lignes().length > 0) {
+  <div data-section-journal>
+    <mg-entete-section class="section" [libelle]="libelleSection()" />
+    @if (progression(); as p) {
+      <!-- C5 : remplace le filet de 4 px de React (affiché seulement quand `percent` > 0). -->
+      <mg-progression-import class="progression" [etape]="p.etape" [traitees]="p.traitees" [pourcentageFlux]="p.pourcentage"
+        [termine]="p.termine" [echec]="p.echec">
+        @if (p.bilan) {
+          <div data-bilan class="bilan">{{ p.bilan }}</div>
+        }
+      </mg-progression-import>
+    }
+    <mg-journal [lignes]="lignes()" [filtrable]="true" [copiable]="true" [hauteur]="360" [(niveauxActifs)]="etat.niveauxJournal">
+      @if (etat.journalPasse()) {
+        <button outils type="button" data-fermer class="outil" (click)="etat.fermerJournal()">Fermer</button>
+      }
+    </mg-journal>
+  </div>
+}
+
+<!-- Historique (`page.tsx:520-580`). -->
+<div data-historique>
+  <mg-entete-section class="section" libelle="Historique des imports" />
+  @if (lignesHistorique().length === 0) {
+    <div class="vide" data-historique-vide>Aucun import effectué</div>
+  } @else {
+    <div class="tableau">
+      <table>
+        <thead>
+          <tr>
+            @for (h of colonnes; track h) {
+              <th>{{ h }}</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (l of lignesHistorique(); track l.id) {
+            <tr>
+              <td class="mono secondaire">{{ l.date }}</td>
+              <td class="primaire">{{ l.type }}</td>
+              <td><span class="statut" data-statut [attr.data-teinte]="l.teinte">{{ l.statut }}</span></td>
+              <td class="mono tertiaire">{{ l.duree }}</td>
+              <td class="tertiaire petit-texte">
+                @if (l.erreur) {
+                  <span class="erreur" data-erreur>{{ l.details }}</span>
+                } @else {
+                  {{ l.details }}
+                }
+              </td>
+              <td><button type="button" data-voir class="voir" (click)="etat.voirJournal(l.id)">Voir</button></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+<!-- Zone dangereuse (`page.tsx:581-597`) : l'essai à blanc compte, la confirmation efface. -->
+<div>
+  <mg-entete-section class="section" libelle="Gestion des données" />
+  <div class="danger">
+    <!-- Q-5 : désactivée pendant un import (écart à React) — un DELETE confirmé au milieu d'un import ANFR
+         laisserait une base incohérente. -->
+    <button type="button" data-supprimer="emetteurs" class="bouton-danger" [disabled]="importEnCours()" (click)="etat.demanderSuppression('emetteurs')">Supprimer les émetteurs</button>
+    <button type="button" data-supprimer="all" class="bouton-danger" [disabled]="importEnCours()" (click)="etat.demanderSuppression('all')">Supprimer tout (émetteurs + radios + archive)</button>
+  </div>
+</div>
+
+<mg-confirmation
+  [ouvert]="etat.cibleSuppression() !== null"
+  [titre]="titreSuppression()"
+  [message]="messageSuppression()"
+  libelleConfirmer="Supprimer"
+  variante="danger"
+  [enCours]="etat.suppressionEnCours()"
+  (confirmer)="etat.confirmerSuppression()"
+  (annuler)="etat.annulerSuppression()"
+/>

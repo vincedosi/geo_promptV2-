@@ -1,0 +1,19 @@
+/*
+ * Badges de l'import POI — `badge` de `app/admin/import/_components/styles.ts`, aux jetons (C9). Une seule
+ * définition (factorisation F-10, lot 6, vague finale) : la page (« Admin », « Parsé ») et les étapes
+ * l'empruntent ; `.ambre` et `.rouge` restent dans `etape-actions.css`, seules les étapes 03c à 05 les portent.
+ * Textes lisibles en clair : propriétés `--*-texte` du cadre admin (F-3).
+ */
+.badge {
+  font-family: var(--font-sans); font-size: 11px; font-weight: 500; border-radius: 2px; padding: 2px 6px;
+  display: inline-block; border: 1px solid;
+}
+.badge.vert {
+  color: var(--success-texte); background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
+}
+.badge.avertissement {
+  color: var(--warning-texte); background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 30%, transparent);
+}
+.badge.accent { color: var(--teal-texte); background: var(--brand-teal-10); border-color: var(--brand-teal-30); }

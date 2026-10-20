@@ -5,14 +5,15 @@ import { DepotFichiersComponent } from './depot-fichiers.component';
 @Component({
   imports: [DepotFichiersComponent],
   template: `
-    <mg-depot-fichiers accepter=".csv,.tsv" [multiple]="multiple()" [desactive]="desactive()" (fichiers)="recus.push($event)">
-      <span>Glissez un fichier ici</span>
+    <mg-depot-fichiers accepter=".csv,.tsv" [multiple]="multiple()" [desactive]="desactive()" [trait]="trait()" (fichiers)="recus.push($event)">
+      <span data-consigne>Glissez un fichier ici</span>
     </mg-depot-fichiers>
   `,
 })
 class Hote {
   readonly multiple = signal(false);
   readonly desactive = signal(false);
+  readonly trait = signal<'tirets' | 'fin'>('tirets');
   readonly recus: File[][] = [];
 }
 
@@ -73,6 +74,23 @@ describe('DepotFichiersComponent', () => {
     expect(zone.classList).not.toContain('survol');
   });
 
+  it('sortie vers un ENFANT de la zone (`relatedTarget` contenu) : le survol reste — pas de scintillement (A11)', async () => {
+    const { f, zone } = await monter();
+    zone.dispatchEvent(evenementGlisser('dragover'));
+    await f.whenStable();
+    const enfant = zone.querySelector('[data-consigne]') as HTMLElement;
+    const sortie = evenementGlisser('dragleave');
+    Object.defineProperty(sortie, 'relatedTarget', { value: enfant });
+    zone.dispatchEvent(sortie);
+    await f.whenStable();
+    expect(zone.classList).toContain('survol');
+    const dehors = evenementGlisser('dragleave');
+    Object.defineProperty(dehors, 'relatedTarget', { value: document.body });
+    zone.dispatchEvent(dehors);
+    await f.whenStable();
+    expect(zone.classList).not.toContain('survol');
+  });
+
   it('clic et clavier ouvrent le sélecteur ; le choix est émis puis le champ vidé', async () => {
     const { f, h, zone, champ } = await monter();
     const ouvrir = vi.spyOn(champ, 'click').mockImplementation(() => undefined);
@@ -95,5 +113,13 @@ describe('DepotFichiersComponent', () => {
     expect(ouvrir).not.toHaveBeenCalled();
     expect(h.recus).toEqual([]);
     expect(zone.getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('trait : tirets épais par défaut ; `fin` (dialogue d’import DSP, T20) pose la classe du cadre fin', async () => {
+    const { f, h, zone } = await monter();
+    expect(zone.classList.contains('trait-fin')).toBe(false);
+    h.trait.set('fin');
+    await f.whenStable();
+    expect(zone.classList.contains('trait-fin')).toBe(true);
   });
 });

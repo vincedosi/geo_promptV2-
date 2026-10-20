@@ -9,6 +9,136 @@ class Factice {}
 
 const enfants = (): Route[] => ROUTES_ADMIN[0].children ?? [];
 
+describe('ROUTES_ADMIN — pages Système et Données (lot 6, T6)', () => {
+  it('`systeme` porte `sante` et `fraicheur`, `donnees` porte `sources` en tête ; chaque page redirige sa racine vers son premier onglet', () => {
+    const systeme = enfants().find((r) => r.path === 'systeme');
+    const donnees = enfants().find((r) => r.path === 'donnees');
+    expect(systeme?.children?.map((r) => r.path)).toEqual(['', 'sante', 'fraicheur', 'api']);
+    expect(systeme?.children?.[0].redirectTo).toBe('sante');
+    expect(donnees?.children?.map((r) => r.path)).toEqual(['', 'sources', 'importer', 'historique', 'qualite']);
+    // T18 : la racine mène au PREMIER onglet, « Sources » — la règle redevient vraie pour Données.
+    expect(donnees?.children?.[0].redirectTo).toBe(donnees?.children?.[1].path);
+    expect(systeme?.children?.[0].redirectTo).toBe(systeme?.children?.[1].path);
+  });
+
+  it('`admin`, `admin/health`, `admin/qualite-donnees`, `admin/imports`, `admin/iris-crawler`, `admin/sources`, `admin/radio`, `admin/import` et `admin/carreaux-import` redirigent, RELATIVEMENT, sous le préfixe de l’hôte', async () => {
+    const parRedirection = enfants().filter((r) => ['', 'health', 'qualite-donnees', 'imports', 'iris-crawler', 'sources', 'radio', 'import', 'carreaux-import'].includes(r.path ?? '-') && r.redirectTo);
+    expect(parRedirection.length).toBe(9);
+    // Aucune redirection absolue : le préfixe de montage appartient au shell.
+    expect(enfants().every((r) => typeof r.redirectTo !== 'string' || !r.redirectTo.startsWith('/'))).toBe(true);
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([{
+          path: 'hote/app/admin',
+          children: [
+            ...parRedirection,
+            { path: 'systeme', children: [{ path: '', pathMatch: 'full', redirectTo: 'sante' }, { path: 'sante', component: Factice }] },
+            {
+              path: 'donnees',
+              children: [
+                { path: '', pathMatch: 'full', redirectTo: 'sources' }, { path: 'sources', component: Factice },
+                { path: 'qualite', component: Factice }, { path: 'historique', component: Factice },
+                {
+                  path: 'importer',
+                  children: [
+                    { path: 'poi', component: Factice }, { path: 'shapefile', component: Factice },
+                    { path: 'iris', component: Factice }, { path: 'radio', component: Factice },
+                  ],
+                },
+              ],
+            },
+          ],
+        }]),
+      ],
+    });
+    const harness = await RouterTestingHarness.create();
+    const router = TestBed.inject(Router);
+    for (const [avant, apres] of [
+      ['/hote/app/admin', '/hote/app/admin/systeme/sante'],
+      ['/hote/app/admin/health', '/hote/app/admin/systeme/sante'],
+      ['/hote/app/admin/qualite-donnees', '/hote/app/admin/donnees/qualite'],
+      ['/hote/app/admin/imports', '/hote/app/admin/donnees/historique'],
+      // T15 (A7) : l'IRIS crawler de React (`/dashboard/iris-crawler`, segment `admin/iris-crawler` par C1).
+      ['/hote/app/admin/iris-crawler', '/hote/app/admin/donnees/importer/iris'],
+      // T18 : `/admin/sources` de React, premier onglet de Données ; la racine de Données y mène aussi.
+      ['/hote/app/admin/sources', '/hote/app/admin/donnees/sources'],
+      ['/hote/app/admin/donnees', '/hote/app/admin/donnees/sources'],
+      // T16 (A7) : `/admin/radio` de React, type « Radio » de l'onglet Importer.
+      ['/hote/app/admin/radio', '/hote/app/admin/donnees/importer/radio'],
+      // T12 (A7) : `/admin/import` de React, type « POI » de l'onglet Importer.
+      ['/hote/app/admin/import', '/hote/app/admin/donnees/importer/poi'],
+      // T14 (A7) : `/admin/carreaux-import` de React, type « Shapefile » de l'onglet Importer.
+      ['/hote/app/admin/carreaux-import', '/hote/app/admin/donnees/importer/shapefile'],
+    ]) {
+      await harness.navigateByUrl(avant);
+      expect(router.url, avant).toBe(apres);
+    }
+  });
+});
+
+describe('ROUTES_ADMIN — onglet « Importer » de Données (lot 6, T15, amendement A7)', () => {
+  it('`donnees/importer` porte UN type par écran d’import porté — `poi` (T12, en tête : le plus courant), `shapefile` (T14), `iris` (T15), `radio` (T16) — et sa racine mène au premier', () => {
+    const donnees = enfants().find((r) => r.path === 'donnees');
+    const importer = donnees?.children?.find((r) => r.path === 'importer');
+    expect(importer?.loadComponent).toBeTypeOf('function');
+    expect(importer?.children?.map((r) => r.path)).toEqual(['', 'poi', 'shapefile', 'iris', 'radio']);
+    expect(importer?.children?.[0].redirectTo).toBe('poi');
+    expect(importer?.children?.[1].loadComponent).toBeTypeOf('function');
+    expect(importer?.children?.[2].loadComponent).toBeTypeOf('function');
+    expect(importer?.children?.[3].loadComponent).toBeTypeOf('function');
+    // Radio garde SES onglets (`page.tsx:356-366`), en sous-routes relatives : Import (T16), Radios et
+    // Statistiques (T17), segments = clés de React.
+    const radio = importer?.children?.[4];
+    expect(radio?.loadComponent).toBeTypeOf('function');
+    expect(radio?.children?.map((r) => r.path)).toEqual(['', 'import', 'radios', 'stats']);
+    expect(radio?.children?.slice(1).every((r) => typeof r.loadComponent === 'function')).toBe(true);
+    expect(radio?.children?.[0].redirectTo).toBe('import');
+  });
+});
+
+describe('ROUTES_ADMIN — Connexions API, onglet de Système (lot 6, T9)', () => {
+  it('`systeme/api` porte les sous-onglets de React, dans l’ordre ; sa racine mène à `dv360` ; Meta et TTD disent leur fournisseur', () => {
+    const systeme = enfants().find((r) => r.path === 'systeme');
+    const api = systeme?.children?.find((r) => r.path === 'api');
+    expect(api?.loadComponent).toBeTypeOf('function');
+    expect(api?.children?.map((r) => r.path)).toEqual(['', 'dv360', 'meta', 'tiktok', 'ttd', 'logs']);
+    expect(api?.children?.[0].redirectTo).toBe('dv360');
+    expect(api?.children?.filter((r) => r.data).map((r) => [r.path, r.data?.['fournisseur']])).toEqual([['meta', 'meta'], ['ttd', 'ttd']]);
+  });
+
+  it('les anciennes adresses `api` et `api/<x>` redirigent, RELATIVEMENT, vers `systeme/api/**` (paramètres gardés)', async () => {
+    const redirections = enfants().filter((r) => r.path === 'api' || r.path === 'api/:sous');
+    expect(redirections.length).toBe(2);
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([{
+          path: 'hote/app/admin',
+          children: [
+            ...redirections,
+            {
+              path: 'systeme',
+              children: [{
+                path: 'api',
+                children: [{ path: '', pathMatch: 'full', redirectTo: 'dv360' }, { path: ':x', component: Factice }],
+              }],
+            },
+          ],
+        }]),
+      ],
+    });
+    const harness = await RouterTestingHarness.create();
+    const router = TestBed.inject(Router);
+    for (const [avant, apres] of [
+      ['/hote/app/admin/api', '/hote/app/admin/systeme/api/dv360'],
+      ['/hote/app/admin/api/ttd', '/hote/app/admin/systeme/api/ttd'],
+      ['/hote/app/admin/api/dv360?oauth=success', '/hote/app/admin/systeme/api/dv360?oauth=success'],
+    ]) {
+      await harness.navigateByUrl(avant);
+      expect(router.url, avant).toBe(apres);
+    }
+  });
+});
+
 describe('ROUTES_ADMIN — page Accès (2026-10-10)', () => {
   it('`acces` porte, dans cet ordre, l\'invite, `socle`, `comptes`, puis `:id` (les chemins fixes AVANT le paramètre)', () => {
     const acces = enfants().find((r) => r.path === 'acces');

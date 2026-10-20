@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { MODE_DEVELOPPEMENT } from '../core/environnement/mode-developpement';
 import { BarreLateraleComponent } from './barre-laterale.component';
+import { PAGES_ADMINISTRATION, SECTIONS_NAVIGATION, sectionsRendues } from './navigation';
 
 async function rendre(options: { dev?: boolean } = {}): Promise<HTMLElement> {
   TestBed.configureTestingModule({
@@ -21,32 +22,43 @@ const entrees = (el: HTMLElement, section: string) =>
   [...el.querySelectorAll(`[data-section="${section}"] a`)].map((a) => texte(a.querySelector('span')));
 
 describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
-  it('reprend les sections de React, dans l\'ordre, avec les libellés exacts', async () => {
+  it('reprend les sections de React, dans l\'ordre, avec les libellés exacts — administration regroupée au rendu', async () => {
     const el = await rendre({ dev: false });
-    expect(titres(el)).toEqual(['Campagnes', 'Carte', 'Administration', 'Systeme']);
+    // T18 : « Sources » portée, la section « Systeme » est vidée — elle n'est plus rendue.
+    expect(titres(el)).toEqual(['Campagnes', 'Carte', 'Administration']);
     expect(entrees(el, 'Campagnes')).toEqual(['Gestion campagnes']);
     expect(entrees(el, 'Carte')).toEqual(['Explorer', 'Zones custom']);
+    // Lot 6, T6 (amendement du 2026-10-12) : les trois pages à onglets en tête, puis les écrans React
+    // pas encore portés, inchangés. « Accès » (E6) quitte « Systeme » pour rejoindre ses deux sœurs.
     expect(entrees(el, 'Administration')).toEqual([
-      'Import Shapefile', 'Import POI', 'IRIS Crawler', 'Radio FM/DAB+', 'Connexions API',
+      'Accès', 'Données', 'Système',
+      // « Import OOH » : supprimé le 2026-10-16 (chantier campagnes OOH, feat/angular-lot0).
+      // T15 : « IRIS Crawler » n'est plus rendue — onglet Importer › IRIS de Données.
+      // T16 : « Radio FM/DAB+ » n'est plus rendue — onglet Importer › Radio de Données.
+      // T12 : « Import POI » n'est plus rendue — onglet Importer › POI de Données.
+      // T14 : « Import Shapefile » n'est plus rendue — onglet Importer › Shapefile de Données.
     ]);
-    // « Users » et « Organisations » remplacées par « Accès » : écart VOULU à React
-    // (spec espaces de travail 2026-10-08 § 6, décision E6).
-    expect(entrees(el, 'Systeme')).toEqual([
-      'Sources', 'Accès', 'Imports', 'Health check', 'Qualite des donnees',
-    ]);
+    // T9 : « Connexions API » n'est plus rendue — onglet de Système.
+    // « Health check » et « Qualite des donnees » ne sont plus rendues : onglets de Système et Données.
+    // T11′ : « Imports » n'est plus rendue — onglet « Historique » de Données.
+    // T18 : « Sources » n'est plus rendue — onglet « Sources » de Données.
+    expect(entrees(el, 'Systeme')).toEqual([]);
   });
 
-  it('badges « Admin » sur les cinq entrées d\'administration, « Sys » sur les deux dernières du système', async () => {
+  it('plus aucun badge depuis T14 : tous les écrans d’administration sont portés (le badge « Admin » d’Import Shapefile est parti avec lui), aucun sur les trois pages, plus de « Sys »', async () => {
     const el = await rendre({ dev: false });
     const badges = [...el.querySelectorAll('[data-badge]')].map((b) => texte(b));
-    expect(badges).toEqual(['Admin', 'Admin', 'Admin', 'Admin', 'Admin', 'Sys', 'Sys']);
+    expect(badges).toEqual([]);
   });
 
   it('chaque entrée porte son icône lucide 16 px, trait 1,5 (comme `size={16} strokeWidth={1.5}`)', async () => {
     const el = await rendre({ dev: false });
     const svgs = [...el.querySelectorAll('nav a mg-icone svg')];
-    // 13 : 14 (E6 : 15 − 2 + 1) moins « Import OOH », supprimé le 2026-10-16.
-    expect(svgs.length).toBe(13);
+    // 9 : 15 de React − Users − Organisations − Health check − Qualité − Connexions API − Import OOH
+    // (supprimé le 2026-10-16) − Imports (T11′) − IRIS Crawler (T15) − Sources (T18) − Radio (T16) − Import POI (T12)
+    // − Import Shapefile (T14)
+    // + Accès, Données, Système.
+    expect(svgs.length).toBe(6);
     for (const svg of svgs) {
       expect(svg.getAttribute('width')).toBe('16');
       expect(svg.getAttribute('stroke-width')).toBe('1.5');
@@ -60,32 +72,55 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
     expect(explorer.hasAttribute('aria-disabled')).toBe(false);
   });
 
-  it('« Health check » mène à l’administration (lot 6, T3), par un lien RELATIF', async () => {
+  it('« Accès », « Données », « Système » mènent à leurs pages (lot 6, T6), par des liens RELATIFS', async () => {
     const el = await rendre({ dev: false });
-    const health = [...el.querySelectorAll('[data-section="Systeme"] a')].find((a) => texte(a.querySelector('span')) === 'Health check')!;
-    expect(health.getAttribute('href')).toBe('/admin/health');
-    expect(health.hasAttribute('aria-disabled')).toBe(false);
+    const lien = (libelle: string) =>
+      [...el.querySelectorAll('[data-section="Administration"] a')].find((a) => texte(a.querySelector('span')) === libelle)!;
+    expect(lien('Accès').getAttribute('href')).toBe('/admin/acces');
+    expect(lien('Données').getAttribute('href')).toBe('/admin/donnees');
+    expect(lien('Système').getAttribute('href')).toBe('/admin/systeme');
+    for (const l of ['Accès', 'Données', 'Système']) expect(lien(l).hasAttribute('aria-disabled')).toBe(false);
   });
 
-  it('« Qualite des donnees » mène à l’administration (lot 6, T5), par un lien RELATIF', async () => {
-    const el = await rendre({ dev: false });
-    const qualite = [...el.querySelectorAll('[data-section="Systeme"] a')].find((a) => texte(a.querySelector('span')) === 'Qualite des donnees')!;
-    expect(qualite.getAttribute('href')).toBe('/admin/qualite-donnees');
-    expect(qualite.hasAttribute('aria-disabled')).toBe(false);
+  it('icônes des trois pages : utilisateurs (Accès), base de données (Données), activité (Système)', () => {
+    expect(PAGES_ADMINISTRATION.map((p) => [p.libelle, p.icone, p.badge])).toEqual([
+      ['Accès', 'utilisateurs', undefined], ['Données', 'base-de-donnees', undefined], ['Système', 'activite', undefined],
+    ]);
   });
 
-  it('« Accès » mène à `admin/acces` (spec espaces de travail § 6 et § 11, E6), par un lien RELATIF', async () => {
-    const el = await rendre({ dev: false });
-    const espaces = [...el.querySelectorAll('[data-section="Systeme"] a')].find((a) => texte(a.querySelector('span')) === 'Accès')!;
-    expect(espaces.getAttribute('href')).toBe('/admin/acces');
-    expect(espaces.hasAttribute('aria-disabled')).toBe(false);
+  it('regroupement : une entrée qui reçoit sa `cible` quitte la barre (son écran devient un onglet), une section vidée disparaît', () => {
+    const rendu = sectionsRendues([
+      { section: 'Administration', entrees: [{ href: '/admin/x', libelle: 'X', icone: 'radio', cible: 'admin/donnees/x' }] },
+      { section: 'Systeme', entrees: [{ href: '/admin/y', libelle: 'Y', icone: 'radio', cible: 'admin/systeme/y' }] },
+      { section: 'Carte', entrees: [{ href: '/map', libelle: 'Explorer', icone: 'epingle-carte', cible: 'carte' }] },
+    ]);
+    expect(rendu.map((s) => [s.section, s.entrees.map((e) => e.libelle)])).toEqual([
+      ['Administration', ['Accès', 'Données', 'Système']],
+      ['Carte', ['Explorer']],
+    ]);
+    // La copie verbatim de React n'est PAS modifiée : Health check et Qualité y sont toujours.
+    const systeme = SECTIONS_NAVIGATION.find((s) => s.section === 'Systeme')!;
+    expect(systeme.entrees.map((e) => e.libelle)).toEqual(['Sources', 'Accès', 'Imports', 'Health check', 'Qualite des donnees']);
+    // T11′ : « Imports » mène à l'onglet Historique de Données (chemin relatif).
+    expect(systeme.entrees.find((e) => e.libelle === 'Imports')?.cible).toBe('admin/donnees/historique');
+    // T15 : « IRIS Crawler » mène à l'onglet Importer › IRIS de Données (chemin relatif).
+    const administration = SECTIONS_NAVIGATION.find((s) => s.section === 'Administration')!;
+    expect(administration.entrees.find((e) => e.libelle === 'IRIS Crawler')?.cible).toBe('admin/donnees/importer/iris');
+    // T18 : « Sources » mène à l'onglet Sources de Données (chemin relatif).
+    expect(systeme.entrees.find((e) => e.libelle === 'Sources')?.cible).toBe('admin/donnees/sources');
+    // T16 : « Radio FM/DAB+ » mène à l'onglet Importer › Radio de Données (chemin relatif).
+    expect(administration.entrees.find((e) => e.libelle === 'Radio FM/DAB+')?.cible).toBe('admin/donnees/importer/radio');
+    // T12 : « Import POI » mène à l'onglet Importer › POI de Données (chemin relatif).
+    expect(administration.entrees.find((e) => e.libelle === 'Import POI')?.cible).toBe('admin/donnees/importer/poi');
+    // T14 : « Import Shapefile » mène à l'onglet Importer › Shapefile de Données (chemin relatif).
+    expect(administration.entrees.find((e) => e.libelle === 'Import Shapefile')?.cible).toBe('admin/donnees/importer/shapefile');
   });
 
   it('les écrans pas encore portés sont INERTES : aria-disabled, infobulle, aucun lien', async () => {
     const el = await rendre({ dev: false });
-    const portes = ['Explorer', 'Health check', 'Qualite des donnees', 'Accès'];
+    const portes = ['Explorer', 'Accès', 'Données', 'Système'];
     const liens = [...el.querySelectorAll('nav a')].filter((a) => !portes.includes(texte(a.querySelector('span'))));
-    expect(liens.length).toBe(9);
+    expect(liens.length).toBe(2); // Gestion campagnes, Zones custom
     for (const a of liens) {
       expect(a.getAttribute('aria-disabled')).toBe('true');
       expect(a.getAttribute('title')).toBe('Disponible prochainement');
@@ -111,7 +146,7 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
   it('hors production : liens de développement en icônes dans le pied (RELATIFS), pas de section dans le nav', async () => {
     const el = await rendre({ dev: true });
     expect(titres(el)).not.toContain('Développement');
-    expect(el.querySelectorAll('nav a').length).toBe(13); // E6 : 15 − 2 + 1, puis − « Import OOH »
+    expect(el.querySelectorAll('nav a').length).toBe(6); // E6 : 15 − 2 + 1 ; T9 : − Connexions API ; − « Import OOH » ; T11′ : − Imports ; T15 : − IRIS Crawler ; T18 : − Sources ; T16 : − Radio ; T12 : − Import POI ; T14 : − Import Shapefile
     const liens = [...el.querySelectorAll('[data-pied] [data-liens-dev] a')];
     expect(liens.map((a) => a.getAttribute('aria-label'))).toEqual(['Accueil', 'Catalogue', 'Module risque']);
     expect(liens.map((a) => a.getAttribute('title'))).toEqual(['Accueil', 'Catalogue', 'Module risque']);
@@ -131,6 +166,6 @@ describe('BarreLateraleComponent — AppSidebar.tsx porté', () => {
   it('aucun filtre par rôle : React affiche toutes les entrées à tous (le contrôle vit dans les routes)', async () => {
     // Le composant n'injecte ni session ni rôle : la même liste pour tous, par construction.
     const el = await rendre({ dev: false });
-    expect(el.querySelectorAll('nav a').length).toBe(13); // E6 : 15 − 2 + 1, puis − « Import OOH »
+    expect(el.querySelectorAll('nav a').length).toBe(6); // E6 : 15 − 2 + 1 ; T9 : − Connexions API ; − « Import OOH » ; T11′ : − Imports ; T15 : − IRIS Crawler ; T18 : − Sources ; T16 : − Radio ; T12 : − Import POI ; T14 : − Import Shapefile
   });
 });

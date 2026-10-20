@@ -1,0 +1,148 @@
+@if (chargement()) {
+  <div class="message mono" data-chargement><mg-icone nom="chargement" [taille]="18" class="tourne" /> Chargement des statistiques IRIS...</div>
+} @else if (vue(); as v) {
+  <div class="colonne">
+    <!-- Bandeau source -->
+    <div class="bandeau source">
+      <div class="corps">
+        <div class="bandeau-titre" data-source-nom>{{ source()?.name ?? 'CONTOURS-IRIS-PE — IGN 2025' }}</div>
+        <div class="lignes">
+          <span data-source-ligne><span class="cle">Fournisseur: </span>{{ source()?.provider }}</span><br />
+          <span data-source-ligne><span class="cle">Licence: </span>{{ source()?.license }}</span><br />
+          <span data-source-ligne><span class="cle">Format: </span>{{ source()?.format }}</span><br />
+          <span data-source-ligne><span class="cle">Couverture: </span>{{ source()?.coverage }}</span><br />
+          <span data-source-ligne><span class="cle">Importé le: </span><span class="vert">{{ source()?.imported_at }}</span></span>
+        </div>
+      </div>
+      <div class="droite">
+        <div class="grand-total" data-total>{{ v.total }}</div>
+        <div class="unite">zones IRIS</div>
+      </div>
+    </div>
+
+    <!-- Grille -->
+    <div class="grille" data-grille>
+      @for (c of v.cases; track c.libelle; let i = $index) {
+        <div class="case" data-case [attr.data-teinte]="c.teinte" [style.animation-delay.s]="0.05 * i">
+          <div class="case-libelle">{{ c.libelle }}</div>
+          <div class="case-valeur">{{ c.valeur }}</div>
+        </div>
+      }
+    </div>
+
+    <div class="deux">
+      <div class="bloc">
+        <div class="bloc-entete">Répartition par type</div>
+        @for (t of v.types; track t.code) {
+          <div class="type" data-type-iris [attr.data-teinte]="t.teinte">
+            <div class="type-tete">
+              <div class="type-gauche">
+                <span class="code">{{ t.code }}</span>
+                <span class="type-libelle">{{ t.libelle }}</span>
+              </div>
+              <span class="type-valeur">{{ t.nombre }} <span class="pct">({{ t.pct }}%)</span></span>
+            </div>
+            <div class="piste epaisse"><div class="barre" [style.width.%]="t.pct"></div></div>
+          </div>
+        }
+      </div>
+      <div class="bloc">
+        <div class="bloc-entete">Top 15 départements</div>
+        <div>
+          @for (d of v.departements; track d.code; let premier = $first; let dernier = $last) {
+            <div class="dept" data-departement [class.premier]="premier" [class.dernier]="dernier">
+              <span class="dept-code">{{ d.code }}</span>
+              <span class="dept-nom">{{ d.nom }}</span>
+              <div class="piste fine"><div class="barre" [style.width.%]="d.pct"></div></div>
+              <span class="dept-nb">{{ d.nb }}</span>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Schéma -->
+    <div class="bloc">
+      <div class="titre-section">Schéma de la table <span class="accent">public.iris</span></div>
+      <div class="colonnes">
+        @for (c of schema; track c.col) {
+          <div class="colonne-schema" data-colonne>
+            <span class="col-nom">{{ c.col }}</span>
+            <span class="col-type" [class.geometrie]="c.type === 'GEOMETRY'">{{ c.type }}</span>
+            <span class="col-note">{{ c.note }}</span>
+          </div>
+        }
+      </div>
+      <div class="index" data-index>
+        Index: <span class="secondaire">PRIMARY KEY (code_iris)</span> · <span class="vert">GIST (geom)</span> · Taille index: {{ v.index }}
+      </div>
+    </div>
+
+    <div class="utilisation niveau-2">
+      <span class="commentaire">// utilisation</span>
+      Utilisé pour les analyses de <span class="accent">bassins de population</span> Filosofi.<br />
+      Jointure spatiale avec <span class="vert">public.carreaux_filosofi</span> via <span class="cyan">ST_Intersects(iris.geom, carreaux.geom)</span>.<br />
+      Requête type: <span class="fort">SELECT code_iris, SUM(ind) FROM iris JOIN carreaux_filosofi ON ST_Intersects(...)</span>
+    </div>
+
+    <!-- Millésime -->
+    <div class="bloc action">
+      <div class="titre-section">Millésime / Année</div>
+      <div class="ligne-annee">
+        <input type="number" min="2000" max="2099" class="annee" data-annee aria-label="Millésime CONTOURS-IRIS" [value]="annee()" (input)="saisirAnnee($event)" />
+        <button type="button" class="teal" data-sauver-annee [disabled]="anneeEnCours()" (click)="sauverAnnee()">
+          {{ anneeEnCours() ? 'Enregistrement…' : anneeSauvee() ? '✓ Sauvegardé' : 'Sauvegarder' }}
+        </button>
+        <span class="aide">Millésime CONTOURS-IRIS (ex: 2025 = édition IGN 2025)</span>
+      </div>
+    </div>
+
+    <!-- PMTiles -->
+    <div class="bloc action pmtiles">
+      <div class="titre-section">Carte choroplèthe — PMTiles</div>
+      <div class="explication">
+        Déclenche le workflow GitHub Actions <span class="fort">generate-iris-pmtiles</span> : export NDJSON → tippecanoe → upload GitHub Releases.<br />
+        À faire après chaque import de nouvelles données démographiques (diplômes, revenus, CSP…).
+      </div>
+      @if (pmtilesMessage(); as m) {
+        <div class="retour" data-message-pmtiles [attr.data-succes]="m.succes">{{ m.texte }}</div>
+      }
+      <button type="button" class="cyan-bouton" data-pmtiles [disabled]="pmtilesEnCours()" (click)="pmtilesConfirmation.set(true)">
+        {{ pmtilesEnCours() ? 'Déclenchement…' : 'Régénérer PMTiles IRIS' }}
+      </button>
+    </div>
+
+    <!-- Zone danger -->
+    <div class="danger-zone">
+      <div class="titre-section">Zone Danger — Suppression</div>
+      <div class="explication">Supprime toutes les zones IRIS de la base (TRUNCATE). À utiliser avant un ré-import avec un nouveau millésime.</div>
+      @if (suppressionMessage(); as m) {
+        <div class="retour" data-message-suppression [attr.data-succes]="m.succes">{{ m.texte }}</div>
+      }
+      <button type="button" class="rouge" data-supprimer-iris (click)="suppressionConfirmation.set(true)">Supprimer tous les IRIS</button>
+    </div>
+
+    <mg-iris-synchro [rapport]="rapport()" [enCours]="synchroEnCours()" [erreur]="synchroErreur()" (verifier)="synchroniser()" />
+  </div>
+
+  <mg-confirmation
+    [ouvert]="pmtilesConfirmation()"
+    titre="Régénérer les PMTiles IRIS"
+    message="Déclenche le workflow GitHub Actions generate-iris-pmtiles (5-8 min). Chaque déclenchement lance une nouvelle exécution."
+    libelleConfirmer="Régénérer"
+    (confirmer)="declencherPmtiles()"
+    (annuler)="pmtilesConfirmation.set(false)"
+  />
+  <mg-confirmation
+    [ouvert]="suppressionConfirmation()"
+    titre="Supprimer tous les IRIS"
+    [message]="v.confirmation"
+    libelleConfirmer="Oui, supprimer"
+    variante="danger"
+    [enCours]="suppressionEnCours()"
+    (confirmer)="supprimerTout()"
+    (annuler)="suppressionConfirmation.set(false)"
+  />
+} @else {
+  <div class="message" data-vide>Aucune donnée. <button type="button" class="fantome" (click)="lire()">Charger</button></div>
+}

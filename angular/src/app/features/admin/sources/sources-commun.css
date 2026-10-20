@@ -1,0 +1,38 @@
+/* Écran Sources — badge de type (`typeBadge`, `_components/ui.tsx`) et boutons (`_lib/styles.ts` :
+   btnGhost, btnPrimary, btnDanger), partagés par la liste et le détail ; jetons seulement (C9). */
+.badge-type {
+  font-size: 11px; font-weight: 500; padding: 2px 7px; border-radius: 2px; white-space: nowrap; transition: all 0.2s ease;
+  color: var(--text-secondary); background: transparent; border: 0.5px solid var(--border-subtle);
+}
+.badge-type[data-famille='poi'] { color: var(--teal-texte); background: var(--brand-teal-10); border-color: var(--brand-teal-30); }
+.badge-type[data-famille='panneaux'] {
+  color: var(--warning-texte); background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 27%, transparent);
+}
+.badge-type[data-famille='carreaux'] {
+  color: var(--success-texte); background: color-mix(in srgb, var(--success) 10%, transparent);
+  border-color: color-mix(in srgb, var(--success) 27%, transparent);
+}
+
+/* Boutons de `_lib/styles.ts`. */
+.fantome, .primaire, .danger {
+  border-radius: 2px; font-family: var(--font-sans); font-size: 12px; font-weight: 500; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s ease; box-sizing: border-box; text-decoration: none;
+}
+.fantome { background: transparent; border: 0.5px solid var(--border-subtle); color: var(--text-secondary); padding: 4px 10px; }
+.fantome.pousse { margin-left: auto; }
+.fantome.mini { padding: 2px 6px; font-size: 9px; }
+.fantome.fermer { padding: 2px 8px; margin-left: auto; font-size: 11px; font-family: var(--font-mono); }
+.fantome.large { width: 100%; justify-content: flex-start; }
+.primaire {
+  background: var(--brand-teal-10); border: 0.5px solid var(--brand-teal-30); color: var(--teal-texte); padding: 6px 14px;
+  width: 100%; justify-content: center;
+}
+.primaire.marge-haute { margin-top: 12px; }
+.primaire:disabled { opacity: 0.6; cursor: default; }
+.danger {
+  background: color-mix(in srgb, var(--danger) 10%, transparent); border: 0.5px solid color-mix(in srgb, var(--danger) 27%, transparent);
+  color: var(--danger-texte); padding: 6px 14px; width: 100%; justify-content: flex-start;
+}
+.danger:disabled { opacity: 0.6; cursor: default; }
+.fantome:focus-visible, .primaire:focus-visible, .danger:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 1px; }

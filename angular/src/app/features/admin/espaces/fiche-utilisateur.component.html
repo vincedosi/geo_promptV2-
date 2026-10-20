@@ -21,6 +21,9 @@
         />
         <button type="button" data-enregistrer-nom class="bouton neutre" [disabled]="enCours()" (click)="enregistrerNom()">Enregistrer</button>
       </div>
+      @if (erreurNom(); as m) {
+        <p role="alert" data-erreur-nom class="erreur">{{ m }}</p>
+      }
     </section>
 
     <fieldset class="bloc" [disabled]="enCours() || estMoi()">
@@ -33,6 +36,9 @@
           </label>
         }
       </div>
+      @if (erreurRole(); as m) {
+        <p role="alert" data-erreur-role class="erreur">{{ m }}</p>
+      }
     </fieldset>
 
     <fieldset class="bloc" [disabled]="enCours()">
@@ -70,6 +76,9 @@
           (click)="demanderLien()"
         >Lien de mot de passe</button>
       </div>
+      @if (erreurLien(); as m) {
+        <p role="alert" data-erreur-lien class="erreur">{{ m }}</p>
+      }
     </section>
 
     <section class="danger">
@@ -84,6 +93,9 @@
         (click)="confirmationSuppression.set(true)"
       >Supprimer le compte</button>
     </section>
+    @if (erreurSuppression(); as m) {
+      <p role="alert" data-erreur-suppression class="erreur">{{ m }}</p>
+    }
 
     <div class="rangee fin">
       <button type="button" data-fermer class="bouton neutre" [disabled]="enCours()" (click)="demanderFermeture()">Fermer</button>

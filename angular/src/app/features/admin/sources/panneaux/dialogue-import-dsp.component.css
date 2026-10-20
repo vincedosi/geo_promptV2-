@@ -1,0 +1,76 @@
+/* `DialogContent` de React (`DspPanel.tsx:101`) : fond --bg-surface, bord 0,5 px, 520 px, rayon 6
+   (`rounded-lg` = --radius), marge intérieure 24 ; ni ombre ni zoom (flat total). */
+dialog {
+  margin: auto;
+  padding: 0;
+  max-width: 520px;
+  width: calc(100% - 32px);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 0.5px solid var(--border-subtle);
+  border-radius: 6px;
+}
+dialog[open] { animation: entree 200ms var(--ease-out); }
+/* Voile `bg-black/80` de Radix : noir à 80 % dans les DEUX thèmes, comme React. */
+dialog::backdrop { background: color-mix(in srgb, black 80%, transparent); animation: voile 200ms var(--ease-out); }
+@keyframes entree { from { opacity: 0; } to { opacity: 1; } }
+@keyframes voile { from { opacity: 0; } to { opacity: 1; } }
+
+.boite { position: relative; padding: 24px; display: flex; flex-direction: column; gap: 16px; font-family: var(--font-sans); }
+.titre { margin: 0; font-size: 16px; font-weight: 500; line-height: 1; color: var(--text-primary); }
+/* Croix de Radix : 16 px du coin, opacité 0,7, pleine au survol. */
+.croix {
+  position: absolute; top: 16px; right: 16px; display: inline-flex; padding: 0; border: none; background: transparent;
+  color: var(--text-primary); opacity: 0.7; cursor: pointer; border-radius: 2px; transition: opacity 150ms var(--ease-hover);
+}
+.croix:not(:disabled):hover { opacity: 1; }
+.croix:disabled { cursor: not-allowed; opacity: 0.35; }
+.croix:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
+
+.corps { display: flex; flex-direction: column; gap: 16px; margin-top: 8px; }
+.champ { display: block; }
+.libelle { display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-tertiary); }
+.consigne { font-size: 12px; color: var(--text-tertiary); }
+/* Teal lisible en clair (≈ 1,8:1 sinon) : --teal-texte du cadre admin (F-3). */
+.nom-fichier {
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--teal-texte);
+}
+select, input {
+  box-sizing: border-box; width: 100%; background: var(--bg-level-2); border: 0.5px solid var(--border-subtle); border-radius: 6px;
+  padding: 8px 12px; font-family: var(--font-sans); font-size: 13px; color: var(--text-primary); outline: none;
+}
+input::placeholder { color: var(--text-tertiary); }
+select:focus-visible, input:focus { border-color: var(--brand-teal-50); }
+select:disabled, input:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.evenements {
+  background: var(--bg-primary); border: 0.5px solid var(--border-subtle); border-radius: 6px; padding: 12px;
+  max-height: 200px; overflow-y: auto;
+}
+.evenement { font-family: var(--font-mono); font-size: 11px; padding: 2px 0; color: var(--text-secondary); }
+.evenement[data-evenement='error'] { color: var(--danger-texte); }
+.evenement[data-evenement='complete'] { color: var(--success-texte); }
+
+.rapport {
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  border: 0.5px solid color-mix(in srgb, var(--success) 20%, transparent); border-radius: 6px; padding: 12px;
+}
+.rapport-titre { font-size: 12px; font-weight: 500; color: var(--success-texte); margin-bottom: 6px; }
+.grille { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
+.valeur { color: var(--text-primary); }
+.valeur.succes { color: var(--success-texte); }
+
+.actions { display: flex; gap: 8px; justify-content: flex-end; }
+.bouton {
+  border-radius: 6px; padding: 10px 16px; font-family: var(--font-sans); font-size: 13px; cursor: pointer;
+  transition: background-color 150ms var(--ease-hover), opacity 150ms var(--ease-hover);
+}
+.bouton:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
+/* CTA principal de React : fond --text-primary, texte --bg-primary ; désactivé : fond teal à 30 %. */
+.principal { border: none; background: var(--text-primary); color: var(--bg-primary); font-weight: 500; }
+.principal:not(:disabled):hover { opacity: 0.85; }
+.principal:disabled { background: var(--brand-teal-30); cursor: not-allowed; }
+.secondaire { background: transparent; border: 0.5px solid var(--brand-teal-30); color: var(--text-secondary); }
+.secondaire:disabled { cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) { dialog[open], dialog::backdrop { animation: none; } }

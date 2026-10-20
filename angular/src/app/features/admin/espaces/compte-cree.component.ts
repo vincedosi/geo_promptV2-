@@ -35,7 +35,7 @@ export const MESSAGE_SANS_LIEN = 'Le compte est créé, mais le lien n\'a pas pu
     :host { display: flex; flex-direction: column; gap: 14px; }
     .titre { margin: 0; font-size: 16px; font-weight: 500; color: var(--text-primary); }
     .texte { margin: 0; font-size: 13px; color: var(--text-secondary); }
-    .avertissement { margin: 0; font-size: 12px; color: var(--warning); }
+    .avertissement { margin: 0; font-size: 12px; color: var(--warning-texte); }
     .actions { display: flex; justify-content: flex-end; gap: 8px; }
     .bouton {
       border-radius: 6px; padding: 9px 18px; font-size: 13px; font-weight: 500; font-family: var(--font-sans); cursor: pointer;

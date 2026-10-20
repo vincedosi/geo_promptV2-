@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, effect, inject } from '@angular/core';
 import { IconeComponent } from '../icone/icone.component';
 import type { NomIcone } from '../icone/icones';
-import { NotificationsService, type VarianteNotification } from './notifications.service';
+import { DUREE_NOTIFICATION, NotificationsService, type VarianteNotification } from './notifications.service';
 
 /** `VARIANTS` de geo-toast.tsx : couleur (jeton) et icône lucide de chaque variante. */
 const VARIANTES: Record<VarianteNotification, { couleur: string; icone: NomIcone }> = {
@@ -15,8 +15,19 @@ const VARIANTES: Record<VarianteNotification, { couleur: string; icone: NomIcone
  * Pile de notifications, rendu de `ToastCard` (`components/ui/geo-toast.tsx`), lue dans le
  * `NotificationsService` de l'injecteur (fourni par le cadre qui la monte).
  *
- * N'est PAS positionnée : React la posait en `position: fixed` en haut à droite, interdit dans la
- * racine d'ombre. Le parent la place (rangée `sticky` de hauteur nulle, arbitrage C7).
+ * Popover MANUEL (vague finale du lot 6, A2) : React la posait en `position: fixed` en haut à droite,
+ * ce que la racine d'ombre interdit d'écrire. L'API popover la met dans la couche supérieure, où le
+ * navigateur la positionne lui-même ; on ne fait que la caler à 12 px du coin haut-droit par
+ * `inset`/`margin`. Avant, une rangée collante du cadre la plaçait : sous un `<dialog>` modal, elle
+ * restait derrière le voile (constat T20, I-1). Chaque poussée la referme puis la rouvre : la couche
+ * supérieure est une pile, et un modal ouvert APRÈS elle passerait sinon au-dessus.
+ *
+ * Elle reste INERTE sous un modal (spécification HTML : tout ce qui n'est pas le modal l'est), donc
+ * hors de l'arbre d'accessibilité et non cliquable : elle n'est là que pour être VUE. Une erreur
+ * née dans un dialogue s'affiche DANS le dialogue (A1), jamais seulement ici.
+ *
+ * L'hôte laisse passer les clics (`pointer-events: none`) : seules les cartes les reçoivent, et les
+ * interstices de 8 px entre elles n'interceptent plus rien (A5).
  *
  * Barre de temps : une animation CSS de 4 s au lieu de la boucle `requestAnimationFrame` de React —
  * même rendu (largeur 100 % → 0, linéaire), figée pendant la sortie comme chez React.
@@ -25,9 +36,9 @@ const VARIANTES: Record<VarianteNotification, { couleur: string; icone: NomIcone
   selector: 'mg-notifications',
   imports: [IconeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'block' },
+  host: { popover: 'manual', 'data-pile-notifications': '' },
   template: `
-    <div role="status" aria-live="polite" class="pointer-events-none flex flex-col gap-2">
+    <div role="status" aria-live="polite" class="pointer-events-none flex flex-col gap-2" [style.--duree.ms]="duree">
       @for (n of service.notifications(); track n.id) {
         <div
           data-notification
@@ -68,6 +79,15 @@ const VARIANTES: Record<VarianteNotification, { couleur: string; icone: NomIcone
     </div>
   `,
   styles: `
+    :host {
+      inset: 12px 12px auto auto;
+      margin: 0;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      overflow: visible;
+      pointer-events: none;
+    }
     .carte {
       pointer-events: auto;
       background: var(--bg-surface);
@@ -93,7 +113,7 @@ const VARIANTES: Record<VarianteNotification, { couleur: string; icone: NomIcone
     .temps {
       background: var(--couleur);
       opacity: 0.4;
-      animation: temps 4000ms linear forwards; /* DUREE_NOTIFICATION */
+      animation: temps var(--duree) linear forwards; /* DUREE_NOTIFICATION, lié par le gabarit */
     }
     .carte.sortie .temps { animation-play-state: paused; }
     @keyframes temps {
@@ -109,4 +129,27 @@ const VARIANTES: Record<VarianteNotification, { couleur: string; icone: NomIcone
 export class NotificationsComponent {
   protected readonly service = inject(NotificationsService);
   protected readonly variantes = VARIANTES;
+  protected readonly duree = DUREE_NOTIFICATION;
+
+  constructor() {
+    const hote = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+    let derniere = 0;
+    let ouverte = false;
+    effect(() => {
+      const liste = this.service.notifications();
+      // API absente (jsdom, navigateur d'avant 2024) : la pile reste en place, sans couche supérieure.
+      if (typeof hote.showPopover !== 'function') return;
+      if (liste.length === 0) {
+        if (ouverte) hote.hidePopover();
+        ouverte = false;
+        return;
+      }
+      const plusRecente = liste[liste.length - 1].id;
+      if (plusRecente <= derniere) return;
+      derniere = plusRecente;
+      if (ouverte) hote.hidePopover();
+      hote.showPopover();
+      ouverte = true;
+    });
+  }
 }

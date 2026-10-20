@@ -1,0 +1,22 @@
+/* Détail d'une source — champs filtres et leur éditeur (`page.tsx:604-712`), jetons seulement (C9). */
+.ligne-filtres { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.puces { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.puce {
+  font-size: 9px; font-weight: 500; color: var(--success-texte); padding: 2px 7px; border-radius: 2px;
+  background: color-mix(in srgb, var(--success) 10%, transparent); border: 0.5px solid color-mix(in srgb, var(--success) 27%, transparent);
+}
+.aucun { font-size: 11px; color: var(--text-tertiary); font-style: italic; margin-bottom: 6px; }
+.aucun.sans-marge { margin-bottom: 0; }
+.editeur { border: 0.5px solid var(--border-subtle); border-radius: 2px; padding: 10px; margin-top: 4px; background: var(--bg-level-2); }
+.editeur-tete { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.compteur { font-size: 10px; color: var(--text-secondary); font-family: var(--font-mono); flex: 1; }
+.sous-etiquette { font-size: 9px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
+.sous-etiquette.separee { margin-top: 10px; border-top: 1px solid var(--border-subtle); padding-top: 8px; }
+.case { display: flex; align-items: center; gap: 6px; padding: 3px 0; cursor: pointer; font-size: 11px; }
+.case input { accent-color: var(--brand-teal); margin: 0; }
+.case input:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 1px; }
+.case-nom { color: var(--text-tertiary); flex: 1; font-family: var(--font-mono); font-size: 11px; }
+.case-nom.coche { color: var(--teal-texte); }
+.case-type { font-size: 9px; color: var(--text-tertiary); font-weight: 500; }
+.chargement-cles { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); padding: 4px 0; font-family: var(--font-mono); }
+

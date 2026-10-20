@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
-import { JournalComponent, type LigneJournal } from './journal.component';
+import { JournalComponent, NIVEAUX_ACTIFS_INITIAUX, type LigneJournal } from './journal.component';
 
 @Component({
   imports: [JournalComponent],
@@ -74,6 +74,20 @@ describe('JournalComponent', () => {
     expect(conteneur.scrollTop).toBe(200 * 20 - 300);
   });
 
+  it('une liste qui repart de zéro (nouvel import) réarme le suivi du bas (radio/page.tsx:257)', async () => {
+    const { f, h, conteneur } = await monter();
+    h.lignes.set(Array.from({ length: 100 }, (_, i) => ligne(i)));
+    await f.whenStable();
+    conteneur.scrollTop = 100;
+    conteneur.dispatchEvent(new Event('scroll'));
+    // Nouvel import : la liste est remise à une ligne, puis grossit.
+    h.lignes.set([ligne(0)]);
+    await f.whenStable();
+    h.lignes.set(Array.from({ length: 80 }, (_, i) => ligne(i)));
+    await f.whenStable();
+    expect(conteneur.scrollTop).toBe(conteneur.scrollHeight - conteneur.clientHeight);
+  });
+
   it('filtrable : compteurs exacts par niveau, et filtre sur error seul', async () => {
     const { f, h, el } = await monter();
     h.filtrable.set(true);
@@ -103,6 +117,19 @@ describe('JournalComponent', () => {
     expect(h.notifications.notifications().map((n) => n.titre)).toEqual(['Logs copiés']);
   });
 
+  it('« Copier » copie le texte AFFICHÉ, horodatage compris, de toutes les lignes', async () => {
+    const ecrire = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: ecrire }, configurable: true });
+    const { f, h, el } = await monter();
+    h.copiable.set(true);
+    const t = new Date(2026, 9, 19, 14, 5, 9).getTime();
+    h.lignes.set([{ message: 'début', niveau: 'info', horodatage: t }, { message: 'sans heure', niveau: 'debug' }]);
+    await f.whenStable();
+    (el.querySelector('[data-copier]') as HTMLButtonElement).click();
+    await Promise.resolve(); await Promise.resolve();
+    expect(ecrire).toHaveBeenCalledWith('[14:05:09] début\nsans heure');
+  });
+
   it('copie impossible (presse-papiers absent ou refusé) : notification d’erreur, jamais d’exception', async () => {
     Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
     const { f, h, el } = await monter();
@@ -125,5 +152,60 @@ describe('JournalComponent', () => {
     await f.whenStable();
     expect(el.querySelector('[data-niveau]')).toBeNull();
     expect(el.querySelector('[data-copier]')).toBeNull();
+  });
+
+  it('outils projetés (`[outils]`) : rendus APRÈS « Copier », dans la même rangée (« Fermer » de la radio, `page.tsx:489-497`)', async () => {
+    const f = TestBed.createComponent(HoteOutils);
+    await f.whenStable();
+    const el = f.nativeElement as HTMLElement;
+    const rangee = el.querySelector('[data-copier]')!.parentElement!;
+    expect([...rangee.querySelectorAll('button')].map((b) => b.textContent!.trim())).toEqual(['Copier', 'Fermer']);
+  });
+
+  it('niveau `rapport` (import Shapefile, T14) : couleur --info-texte (repli --info), jamais masqué par le filtre', async () => {
+    const { f, h, el } = await monter();
+    h.filtrable.set(true);
+    h.lignes.set([ligne(1, 'rapport'), ligne(2, 'debug')]);
+    await f.whenStable();
+    const lignes = [...el.querySelectorAll('[data-terminal] > div')] as HTMLElement[];
+    expect(lignes.map((l) => l.textContent)).toEqual(['ligne 1']);
+    expect(lignes[0].style.color).toBe('var(--info-texte, var(--info))');
+    expect([...el.querySelectorAll('button[data-niveau]')].map((b) => b.getAttribute('data-niveau')))
+      .toEqual(['info', 'warn', 'error', 'success', 'debug']);
+  });
+});
+
+@Component({
+  imports: [JournalComponent],
+  providers: [NotificationsService],
+  template: '<mg-journal [lignes]="[]" [copiable]="true"><button outils type="button">Fermer</button></mg-journal>',
+})
+class HoteOutils {}
+
+@Component({
+  imports: [JournalComponent],
+  providers: [NotificationsService],
+  template: `@if (visible()) { <mg-journal [lignes]="lignes" [filtrable]="true" [(niveauxActifs)]="niveaux" /> }`,
+})
+class HoteMasque {
+  readonly visible = signal(true);
+  readonly lignes: readonly LigneJournal[] = [ligne(1, 'info'), ligne(2, 'warn')];
+  readonly niveaux = signal<ReadonlySet<LigneJournal['niveau']>>(new Set(NIVEAUX_ACTIFS_INITIAUX));
+}
+
+describe('JournalComponent — filtre tenu par le parent (A7)', () => {
+  it('décocher WARN, masquer puis réafficher le journal : WARN toujours décoché', async () => {
+    const f = TestBed.createComponent(HoteMasque);
+    await f.whenStable();
+    const el = f.nativeElement as HTMLElement;
+    el.querySelector<HTMLButtonElement>('[data-niveau="warn"]')!.click();
+    await f.whenStable();
+    expect(f.componentInstance.niveaux().has('warn')).toBe(false);
+    f.componentInstance.visible.set(false);
+    await f.whenStable();
+    f.componentInstance.visible.set(true);
+    await f.whenStable();
+    expect(el.querySelector('[data-niveau="warn"]')!.getAttribute('aria-pressed')).toBe('false');
+    expect([...el.querySelectorAll('[data-terminal] > div')].map((d) => d.textContent!.trim())).toEqual(['ligne 1']);
   });
 });

@@ -11,6 +11,9 @@ import { ChangeDetectionStrategy, Component, ElementRef, input, output, signal, 
  * premier fichier déposé est émis (`dataTransfer.files[0]`, iris-crawler). Le champ est vidé après
  * chaque choix pour qu'on puisse re-choisir le même fichier.
  *
+ * Un `dragleave` vers un ENFANT de la zone (`relatedTarget` contenu) ne retire pas le survol : sans
+ * ce test, passer sur la consigne projetée faisait scintiller le cadre (vague finale, A11).
+ *
  * Écart à React, voulu : la zone est focalisable et s'ouvre au clavier (Entrée, Espace) — le `div`
  * de React ne l'était pas.
  */
@@ -28,12 +31,14 @@ import { ChangeDetectionStrategy, Component, ElementRef, input, output, signal, 
       [class.survol]="survol()"
       [class.desactive]="desactive()"
       [class.fond-surface]="fondRepos() === 'surface'"
+      [class.fond-eleve]="fondRepos() === 'eleve'"
+      [class.trait-fin]="trait() === 'fin'"
       [style.padding]="marge()"
       (click)="ouvrir()"
       (keydown.enter)="ouvrir(); $event.preventDefault()"
       (keydown.space)="ouvrir(); $event.preventDefault()"
       (dragover)="surSurvol($event)"
-      (dragleave)="survol.set(false)"
+      (dragleave)="surSortie($event)"
       (drop)="surDepot($event)"
     >
       <input
@@ -59,6 +64,9 @@ import { ChangeDetectionStrategy, Component, ElementRef, input, output, signal, 
       transition: all 0.15s ease;
     }
     .zone.fond-surface { background: var(--bg-surface); }
+    .zone.fond-eleve { background: var(--bg-level-2); }
+    /* Cadre du dialogue d'import DSP (DspPanel.tsx:115) : tirets de 0,5 px en teal à 30 %, rayon 6. */
+    .zone.trait-fin { border: 0.5px dashed var(--brand-teal-30); border-radius: 6px; }
     .zone.survol { border-color: var(--brand-teal); background: var(--brand-teal-10); }
     .zone.desactive { cursor: not-allowed; opacity: 0.5; }
   `,
@@ -68,8 +76,16 @@ export class DepotFichiersComponent {
   readonly accepter = input<string>();
   readonly multiple = input(false);
   readonly desactive = input(false);
-  /** Fond au repos : transparent (import POI) ou surface (IRIS crawler). */
-  readonly fondRepos = input<'transparent' | 'surface'>('transparent');
+  /**
+   * Fond au repos : transparent (import POI), surface, ou élevé (`--bg-level-2` : IRIS crawler, dont le
+   * `C.bgElevated` vaut `var(--bg-level-2)`, `iris-crawler/page.tsx:9,192` — constaté en T15).
+   */
+  readonly fondRepos = input<'transparent' | 'surface' | 'eleve'>('transparent');
+  /**
+   * Cadre : tirets de 2 px (import POI, IRIS crawler), ou `fin` — tirets de 0,5 px teal à 30 %, rayon 6
+   * (dialogue d'import de campagne DSP, `sources/_components/DspPanel.tsx:115`, T20).
+   */
+  readonly trait = input<'tirets' | 'fin'>('tirets');
   /** Marge intérieure CSS : `28px 20px` (import POI), `40px 20px` (IRIS crawler). */
   readonly marge = input('28px 20px');
   readonly fichiers = output<File[]>();
@@ -82,6 +98,12 @@ export class DepotFichiersComponent {
   protected ouvrir(): void {
     if (this.desactive()) return;
     this.champ().nativeElement.click();
+  }
+
+  protected surSortie(e: DragEvent): void {
+    const vers = e.relatedTarget;
+    if (vers instanceof Node && (e.currentTarget as Node | null)?.contains(vers)) return;
+    this.survol.set(false);
   }
 
   protected surSurvol(e: DragEvent): void {

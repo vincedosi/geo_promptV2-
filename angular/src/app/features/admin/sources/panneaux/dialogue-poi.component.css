@@ -1,0 +1,31 @@
+/* Modale POI (lot 6, T19) — `PoiPanel.tsx:259-316` ; jetons seulement (C9). */
+dialog {
+  margin: auto; padding: 0; width: 520px; max-width: 90vw; max-height: 90vh; overflow: auto; background: var(--bg-level-2); color: inherit;
+  border: 0.5px solid var(--border-subtle); border-radius: 2px; font-family: var(--font-sans);
+}
+dialog::backdrop { background: color-mix(in srgb, black 70%, transparent); }
+.boite { padding: 24px; }
+.titre {
+  font-size: 12px; font-weight: 700; letter-spacing: 1px; margin-bottom: 20px;
+  color: var(--teal-texte);
+}
+.erreur {
+  background: color-mix(in srgb, var(--danger) 10%, transparent); border: 0.5px solid color-mix(in srgb, var(--danger) 27%, transparent);
+  border-radius: 2px; padding: 8px 12px; font-family: var(--font-mono); font-size: 11px; color: var(--danger-texte); margin-bottom: 14px;
+}
+.grille { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.large { grid-column: 1 / -1; }
+.libelle { display: block; font-size: 9px; font-weight: 500; color: var(--text-secondary); margin-bottom: 4px; }
+.champ {
+  width: 100%; background: var(--bg-surface); border: 0.5px solid var(--border-subtle); border-radius: 2px; padding: 7px 10px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-primary); outline: none; box-sizing: border-box; transition: border-color 0.3s ease;
+}
+.champ:focus { border-color: var(--brand-teal-50); }
+.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.actions button { font-family: var(--font-sans); font-size: 9px; font-weight: 500; border-radius: 2px; cursor: pointer; transition: all 0.2s ease; }
+.annuler { background: none; color: var(--text-secondary); border: 0.5px solid var(--border-subtle); padding: 7px 16px; }
+/* React : `#fff` sur le teal (≈ 1,9:1) → `--brand-teal-fg`, le texte posé sur un aplat teal. */
+.enregistrer { background: var(--brand-teal); color: var(--brand-teal-fg); border: none; padding: 7px 20px; }
+.enregistrer:disabled { opacity: 0.6; }
+.annuler:disabled { cursor: default; }
+button:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }

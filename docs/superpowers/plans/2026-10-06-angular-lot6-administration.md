@@ -19,6 +19,55 @@
 
 ---
 
+## Amendement du 2026-10-12 — trois pages à onglets (prime sur le reste du plan)
+
+Ce plan a été écrit le 2026-10-06. Le propriétaire a décidé le 2026-10-10 deux choses qui le
+rendent en partie faux, et la règle du projet est qu'une décision plus récente du propriétaire
+prime sur un plan plus ancien :
+
+1. **Les pages React Users et Organisations sont SUPPRIMÉES** (2026-10-10). Elles sont remplacées par
+   la page Angular **Accès** (`admin/acces`, `features/admin/espaces/`, commit 852116c2, déjà sur la
+   branche) : utilisateurs, espaces, droits. **T6, T7 et T8 sont RETIRÉES du lot** : il n'y a plus de
+   source React à porter, et l'écran cible existe. T21 vérifie qu'Accès couvre bien leur périmètre
+   (liste, invitation, édition, suppression d'un compte ; création et détail d'une organisation :
+   configuration, membres, sources). Tout manque trouvé devient une tâche nommée, pas une page.
+2. **L'administration cible tient en TROIS pages à onglets** (verbatim : « 13 entrées d'admin, c'est
+   trop ») : **Accès** (fait), **Données** (sources, imports, historique, qualité), **Système**
+   (health, connexions API, journaux). Une fonction d'admin devient un onglet de l'une d'elles,
+   jamais une page de plus.
+
+**Conséquences sur les tâches restantes :**
+
+- **T6 (nouvelle) — Cadres « Données » et « Système ».** Deux pages à onglets, routes `admin/donnees`
+  et `admin/systeme`, onglets en sous-routes RELATIVES (lien partageable, retour arrière juste, même
+  patron que `admin/acces`). Barre d'onglets de T2 réutilisée.
+  - **Système** : « Santé » et « Fraîcheur des données » (les deux onglets du Health check de T3/T4,
+    remontés d'un niveau — plus de double barre), puis « Connexions API » (T9-T10).
+  - **Données** : « Sources » (T18-T20), « Importer » (T11-T17 : un choix du type — POI, OOH,
+    Shapefile, IRIS, Radio — puis l'écran d'import porté ; les onglets propres à un écran React, ex.
+    Radio Import/Radios/Stats, restent DANS cet écran), « Historique » (`/admin/imports`), « Qualité »
+    (T5).
+  - Un onglet n'apparaît que lorsque son écran est porté : pas d'onglet « bientôt ».
+  - Redirections RELATIVES : `admin/health` → `admin/systeme`, `admin/qualite-donnees` →
+    `admin/donnees/qualite` (patron des redirections `espaces` → `acces`).
+  - Barre latérale : la section Administration montre **Accès, Données, Système** pour les écrans
+    portés ; les entrées React pas encore portées restent (`cible: null`, elles mènent au React)
+    et disparaissent une à une quand leur onglet arrive. La copie verbatim de la navigation React
+    (test de parité du lot 4) n'est pas modifiée : le regroupement se fait au rendu, comme le filtrage
+    de l'entrée Assistant.
+  - Écart à React assumé et listé : React garde ses 12 entrées tant qu'il vit (gel P5).
+- **T9 à T20** : contenu inchangé (même parité écran par écran, mêmes pièges), mais chaque écran se
+  monte comme ONGLET (ou écran du choix « Importer ») de Données ou de Système, et non comme page
+  autonome ; chaque tâche ajoute son onglet, sa redirection depuis l'ancienne URL et retire son entrée
+  React de la barre au rendu.
+- **T21** : le parcours suit les trois pages et leurs onglets ; le tableau « écran → chiffre React →
+  chiffre Angular » reste exigé écran par écran.
+
+Arbitrage du chef de projet, faute de maquette du propriétaire (`docs/ux/` absent le 2026-10-12) —
+coût si faux : renommer ou déplacer des onglets, le contenu des écrans ne change pas.
+
+---
+
 ## Préalable bloquant (à vérifier AVANT la tâche 1)
 
 - [ ] Le socle (lots 0, 1, AIDA, Rendu) est en place sur la branche de départ : `HttpBaseService`, `lignesNdjson`, `telecharger.ts` (`ENREGISTRER_FICHIER`, `nomDeFichier`), `limiteurInterceptor`, `mg-coquille` et `layout/navigation.ts`, `ui/{entete-page,entete-section,tableau,champ,pastille,kpi,tuile-chiffre,icone,barre-progression}`, `core/format/nombre.ts`, `racine-ombre.ts`. Les LIRE avant d'écrire.

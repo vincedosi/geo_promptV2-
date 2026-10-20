@@ -15,11 +15,19 @@ export const MESSAGE_ROLE_ILLISIBLE = 'Impossible de vérifier vos droits.';
  * shell ne bouge pas) et en autonome. React n'a pas d'équivalent : il affiche la page et laisse
  * chaque appel répondre 401/403.
  *
- * Refus et erreur sont décalés de 32 px (`pt-8`, une marge fondrait avec celle de la rangée des
- * notifications) : sans en-tête de page au-dessus, ils passaient SOUS le chrome du
+ * Refus et erreur sont décalés de 32 px (`pt-8` : un remplissage, pas une marge, qui fondrait avec
+ * celle de la coquille) : sans en-tête de page au-dessus, ils passaient SOUS le chrome du
  * haut (badge de session à cheval sur leur bordure, réserve de T1).
  *
  * Fournit aussi le `NotificationsService` des pages admin (C7), détruit avec le cadre.
+ *
+ * Pose UNE fois les couleurs de TEXTE lisibles en thème clair (Q-9, socle de F-3) : `--teal-texte`,
+ * `--success-texte`, `--warning-texte`, `--danger-texte`, `--info-texte` — la couleur du jeton mêlée à
+ * `--text-primary` en clair (45 % pour le teal — ≥ 5:1 sur ses fonds teintés, 4,45:1 à 50 % —, 50 % pour vert et
+ * ambre, 75 % pour rouge et bleu), inchangée en sombre. UNE valeur par couleur : la changer ici la change partout.
+ * Les propriétés personnalisées héritent dans l'arbre, et `light-dark()` se résout chez l'élément qui les
+ * emploie (le `color-scheme` de `:host`). Le teal reste invariant en aplat et en bordure ; seul le texte
+ * l'assombrit (DESIGN_SYSTEM.md § 3). `jetons.css` n'est pas touché (parité verrouillée, C9).
  *
  * `chargement` ne rend rien : le garde `roleResoluGuard` a attendu la lecture, cet état n'est
  * visible qu'à une relecture (changement de compte, « Réessayer »).
@@ -30,16 +38,10 @@ export const MESSAGE_ROLE_ILLISIBLE = 'Impossible de vérifier vos droits.';
   providers: [NotificationsService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <!-- Notifications (C7) : React les épinglait à 12 px du coin haut-droit de la fenêtre,
-         ce que la racine d'ombre interdit. Rangée collante (patron du chrome de la coquille) :
-         -mt-8 annule la marge p-8 de la coquille pour la coller au haut du défilement, donc 12 px
-         du haut comme React, et visible quand on défile. Haute de 1 px et non 0 : une boîte vide
-         de hauteur nulle laisse ses marges haute et basse se fondre (-32 + 32 = 0) et ne monte pas
-         (mesuré : 44 px au lieu de 12) ; mb-[31px] rend le pixel. z 300 : au-dessus
-         du chrome (z 200), comme le z 10000 de React. -->
-    <div data-rangee-notifications class="sticky top-0 z-[300] -mt-8 mb-[31px] h-px">
-      <mg-notifications class="absolute top-3 -right-5" />
-    </div>
+    <!-- Notifications (C7) : popover manuel, placé par le navigateur dans la couche supérieure,
+         à 12 px du coin haut-droit comme React (vague finale, A2). Plus de rangée collante : sous
+         un <dialog> modal, elle restait derrière le voile (I-1). -->
+    <mg-notifications />
     @switch (role.etat()) {
       @case ('super_admin') {
         <router-outlet />
@@ -64,6 +66,15 @@ export const MESSAGE_ROLE_ILLISIBLE = 'Impossible de vérifier vos droits.';
     }
   `,
   host: { class: 'block' },
+  styles: `
+    :host {
+      --teal-texte: light-dark(color-mix(in srgb, var(--brand-teal) 45%, var(--text-primary)), var(--brand-teal));
+      --success-texte: light-dark(color-mix(in srgb, var(--success) 50%, var(--text-primary)), var(--success));
+      --warning-texte: light-dark(color-mix(in srgb, var(--warning) 50%, var(--text-primary)), var(--warning));
+      --danger-texte: light-dark(color-mix(in srgb, var(--danger) 75%, var(--text-primary)), var(--danger));
+      --info-texte: light-dark(color-mix(in srgb, var(--info) 75%, var(--text-primary)), var(--info));
+    }
+  `,
 })
 export class CadreAdminComponent {
   protected readonly role = inject(RoleAdminService);

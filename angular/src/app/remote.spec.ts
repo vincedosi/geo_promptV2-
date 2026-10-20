@@ -293,7 +293,9 @@ describe('remoteRoutes — monté par un hôte qui ne connaît pas app.config.ts
     expect(racine.querySelector('mg-coquille')).toBeNull();
     expect(cartes).toHaveLength(1);
     http.match(() => true);
-  });
+    // 30 s et non 5 : ce test fait le PREMIER import du morceau paresseux de la carte (écran entier), qui dépassait
+    // 5 s même lancé seul sur le poste le 2026-10-19 (revue des vagues du lot 6, vérification des specs instables).
+  }, 30_000);
 
   it("carte sans session : le message de session, jamais l'écran ni un appel d'API", async () => {
     const { harness, http } = await monter(false);
@@ -487,12 +489,12 @@ describe('administration (lot 6)', () => {
     expect(enfants.at(-1)?.loadChildren).toBeDefined();
   });
 
-  it('super_admin : `admin` mène à `admin/health`, dans la coquille, sans changer de préfixe', async () => {
+  it('super_admin : `admin` mène à `admin/systeme/sante`, dans la coquille, sans changer de préfixe', async () => {
     const { harness, http } = await monterAdmin('super_admin');
     await harness.navigateByUrl('/hote/magelian/admin');
     await stabiliser(harness);
-    expect(TestBed.inject(Router).url).toBe('/hote/magelian/admin/health');
-    expect(racineOmbre(harness).querySelector('mg-coquille mg-cadre-admin mg-health')).not.toBeNull();
+    expect(TestBed.inject(Router).url).toBe('/hote/magelian/admin/systeme/sante');
+    expect(racineOmbre(harness).querySelector('mg-coquille mg-cadre-admin mg-systeme mg-health')).not.toBeNull();
     // La page Health check (T3) lit son diagnostic : UNE requête, avec le Bearer, et rien d'autre.
     const diagnostic = http.expectOne('/api/admin/health');
     expect(diagnostic.request.headers.get('Authorization')).toBe('Bearer jeton-test');
@@ -500,9 +502,22 @@ describe('administration (lot 6)', () => {
     expect(http.match((r) => r.url.startsWith('/api/'))).toEqual([]);
   });
 
-  it('un service fourni sous la route `admin` part avec le Bearer et passe par le limiteur (4 appels → 3 en vol)', async () => {
+  it('T6 : l’ancienne `admin/health` redirige vers `admin/systeme/sante` SOUS le préfixe ; les onglets y restent', async () => {
     const { harness, http } = await monterAdmin('super_admin');
     await harness.navigateByUrl('/hote/magelian/admin/health');
+    await stabiliser(harness);
+    expect(TestBed.inject(Router).url).toBe('/hote/magelian/admin/systeme/sante');
+    http.expectOne('/api/admin/health').flush(DIAGNOSTIC_VIDE);
+    const onglets = [...racineOmbre(harness).querySelectorAll('mg-systeme [role="tab"]')];
+    expect(onglets.map((a) => a.getAttribute('href'))).toEqual([
+      '/hote/magelian/admin/systeme/sante', '/hote/magelian/admin/systeme/fraicheur', '/hote/magelian/admin/systeme/api',
+    ]);
+    expect(onglets.map((a) => a.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false']);
+  });
+
+  it('un service fourni sous la route `admin` part avec le Bearer et passe par le limiteur (4 appels → 3 en vol)', async () => {
+    const { harness, http } = await monterAdmin('super_admin');
+    await harness.navigateByUrl('/hote/magelian/admin/systeme/sante');
     await stabiliser(harness);
     // L'injecteur d'environnement de la route `admin` (celui qui porte FOURNISSEURS_ADMIN), lu depuis la
     // page qu'elle a montée — `routeDebugElement` désigne la racine distante, pas la page.
@@ -524,17 +539,41 @@ describe('administration (lot 6)', () => {
     enVol.slice(1).forEach((r) => r.flush({}));
   });
 
-  it("client qui suit `admin/health` : le message de refus, URL inchangée, aucune page ni requête d'API", async () => {
+  it("client qui suit `admin/systeme` : le message de refus, URL inchangée, aucune page ni requête d'API", async () => {
     const { harness, http, navigations } = await monterAdmin('client');
     navigations.length = 0;
-    await harness.navigateByUrl('/hote/magelian/admin/health');
+    await harness.navigateByUrl('/hote/magelian/admin/systeme/sante');
     await stabiliser(harness);
     const racine = racineOmbre(harness);
     expect(racine.querySelector('mg-cadre-admin [data-refus]')?.textContent?.trim())
       .toBe('Accès réservé aux super-administrateurs.');
+    expect(racine.querySelector('mg-systeme')).toBeNull();
     expect(racine.querySelector('mg-health')).toBeNull();
-    expect(TestBed.inject(Router).url).toBe('/hote/magelian/admin/health');
-    expect(navigations).toEqual(['/hote/magelian/admin/health']);
+    expect(TestBed.inject(Router).url).toBe('/hote/magelian/admin/systeme/sante');
+    expect(navigations).toEqual(['/hote/magelian/admin/systeme/sante']);
     expect(http.match((r) => r.url.startsWith('/api/'))).toEqual([]);
+  });
+
+  it('T9 : `admin/systeme/api/meta` chargée directement SOUS le préfixe — Connexions API ET Meta actifs, liens dans le préfixe ; `admin/api/ttd` redirigée', async () => {
+    const { harness, http } = await monterAdmin('super_admin');
+    await harness.navigateByUrl('/hote/magelian/admin/systeme/api/meta');
+    await stabiliser(harness);
+    expect(TestBed.inject(Router).url).toBe('/hote/magelian/admin/systeme/api/meta');
+    const racine = racineOmbre(harness);
+    const page = [...racine.querySelectorAll('mg-systeme > div > mg-onglets-routes [role="tab"]')];
+    expect(page.map((a) => [a.getAttribute('href'), a.getAttribute('aria-selected')])).toEqual([
+      ['/hote/magelian/admin/systeme/sante', 'false'],
+      ['/hote/magelian/admin/systeme/fraicheur', 'false'],
+      ['/hote/magelian/admin/systeme/api', 'true'],
+    ]);
+    const sous = [...racine.querySelectorAll('mg-connexions-api [role="tab"]')];
+    expect(sous.map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false', 'false', 'false']);
+    expect(sous.every((a) => a.getAttribute('href')!.startsWith('/hote/magelian/admin/systeme/api/'))).toBe(true);
+    expect(racine.querySelector('mg-fournisseur-a-venir')).not.toBeNull();
+    expect(http.match((r) => r.url.startsWith('/api/admin/dsp'))).toEqual([]);
+
+    await harness.navigateByUrl('/hote/magelian/admin/api/ttd');
+    await stabiliser(harness);
+    expect(TestBed.inject(Router).url).toBe('/hote/magelian/admin/systeme/api/ttd');
   });
 });

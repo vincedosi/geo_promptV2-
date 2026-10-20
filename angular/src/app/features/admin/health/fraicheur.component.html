@@ -1,3 +1,6 @@
+<!-- Sous-titre que React pose sous « Santé système » quand l'onglet Fraîcheur est ouvert (page.tsx:217-224) -->
+<p data-sous-titre class="m-0 text-[13px] text-secondary">D’où vient chaque donnée, comment elle entre, et de quand elle date</p>
+
 <!-- Bandeau : ce que l'onglet mesure, et ce qu'il ne mesure pas (FraicheurPanel.tsx:212-248) -->
 <div class="cadre bandeau">
   <div class="min-w-[260px] flex-1">
@@ -72,7 +75,7 @@
             @if (s.table) {
               <span style="word-break: break-word">{{ s.table }}</span>
             } @else {
-              <span class="text-teal">hors base</span>
+              <span class="text-[var(--teal-texte)]">hors base</span>
             }
           </td>
           <td data-lignes class="nw" style="text-align: right">

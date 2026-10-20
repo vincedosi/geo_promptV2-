@@ -169,7 +169,7 @@ interface LigneEspace {
     .nouvel { margin-top: 6px; }
     .erreur {
       display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
-      padding: 12px; border-radius: 6px; font-size: 12px; color: var(--danger);
+      padding: 12px; border-radius: 6px; font-size: 12px; color: var(--danger-texte);
       background: color-mix(in srgb, var(--danger) 10%, transparent);
       border: 0.5px solid color-mix(in srgb, var(--danger) 20%, transparent);
     }

@@ -172,7 +172,7 @@ function dateFr(iso: string | null): string {
       display: inline-block; margin: 2px 4px 2px 0; padding: 2px 8px; border-radius: 4px; white-space: nowrap;
       background: var(--bg-level-3); border: 0.5px solid var(--border-default); color: var(--text-secondary); font-size: 10px;
     }
-    .pastille.actif { background: var(--brand-teal-10); border-color: var(--brand-teal-30); color: var(--brand-teal); }
+    .pastille.actif { background: var(--brand-teal-10); border-color: var(--brand-teal-30); color: var(--teal-texte); }
     .attenue { color: var(--text-tertiary); }
     /* Jamais de retour à la ligne : un email se coupe sinon aux traits d'union (capture T1-06). Règle
        du composant, pas l'utilitaire Tailwind, pour ne pas dépendre de la feuille générée. */
@@ -193,7 +193,7 @@ function dateFr(iso: string | null): string {
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     .erreur {
       display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
-      padding: 12px; border-radius: 6px; font-size: 12px; color: var(--danger);
+      padding: 12px; border-radius: 6px; font-size: 12px; color: var(--danger-texte);
       background: color-mix(in srgb, var(--danger) 10%, transparent);
       border: 0.5px solid color-mix(in srgb, var(--danger) 20%, transparent);
     }

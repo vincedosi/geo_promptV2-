@@ -1,0 +1,28 @@
+<dialog
+  #dialogue
+  [attr.aria-labelledby]="id + '-titre'"
+  (cancel)="surAnnulationNative($event)"
+  (close)="surFermeture()"
+  (keydown.escape)="$event.stopPropagation()"
+>
+  <div class="boite">
+    <div [id]="id + '-titre'" class="titre" data-titre>{{ mode() === 'creation' ? '+ Nouveau POI' : 'Éditer POI' }}</div>
+    @if (erreur()) {
+      <div class="erreur" role="alert" data-erreur>{{ erreur() }}</div>
+    }
+    <div class="grille">
+      @for (c of champs; track c.champ) {
+        <div [class.large]="c.large">
+          <label class="libelle" [attr.for]="id + '-' + c.champ">{{ c.libelle }}</label>
+          <input [id]="id + '-' + c.champ" class="champ" [attr.data-champ]="c.champ" [value]="formulaire()[c.champ]" (input)="saisir(c.champ, $event)" />
+        </div>
+      }
+    </div>
+    <div class="actions">
+      <button type="button" class="annuler" data-annuler [disabled]="enCours()" (click)="annuler.emit()">Annuler</button>
+      <button type="button" class="enregistrer" data-enregistrer [disabled]="enCours()" (click)="valider()">
+        {{ enCours() ? 'Enregistrement...' : mode() === 'creation' ? 'Créer' : 'Enregistrer' }}
+      </button>
+    </div>
+  </div>
+</dialog>

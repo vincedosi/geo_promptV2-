@@ -91,7 +91,7 @@ const SOCLE_INCOMPLET =
     }
     .bouton-neutre { background: transparent; border: 0.5px solid var(--border-default); color: var(--text-secondary); }
     .bouton-neutre:not(:disabled):hover { border-color: var(--border-hover); background: var(--bg-level-2); color: var(--text-primary); }
-    .bouton-teal { background: transparent; border: 0.5px solid var(--brand-teal); color: var(--brand-teal); }
+    .bouton-teal { background: transparent; border: 0.5px solid var(--brand-teal); color: var(--teal-texte); }
     .bouton-teal:not(:disabled):hover { background: var(--brand-teal-10); }
     .bouton-neutre:disabled, .bouton-teal:disabled { opacity: 0.5; cursor: not-allowed; }
     .bouton-neutre:focus-visible, .bouton-teal:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
@@ -99,7 +99,7 @@ const SOCLE_INCOMPLET =
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     .erreur {
       display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
-      padding: 12px; border-radius: 6px; font-size: 12px; color: var(--danger);
+      padding: 12px; border-radius: 6px; font-size: 12px; color: var(--danger-texte);
       background: color-mix(in srgb, var(--danger) 10%, transparent);
       border: 0.5px solid color-mix(in srgb, var(--danger) 20%, transparent);
     }

@@ -1,0 +1,40 @@
+/* `ColumnSelectionStep.tsx` — badges, grille, lignes, cases, actions. */
+.badges { display: flex; gap: 6px; }
+.note { font-size: 10px; color: var(--text-tertiary); margin-bottom: 10px; }
+.grille { display: grid; grid-template-columns: 1fr 180px 80px 70px; gap: 4px; padding: 5px 8px; }
+.entetes {
+  font-family: var(--font-sans); font-size: 11px; font-weight: 500; color: var(--text-tertiary);
+  border-bottom: 1px solid var(--border-subtle); margin-bottom: 4px;
+}
+.centre { text-align: center; }
+.lignes { max-height: 400px; overflow: auto; }
+.ligne { border-radius: 2px; border-bottom: 1px solid var(--border-subtle); align-items: center; background: transparent; }
+.ligne.mappee { background: color-mix(in srgb, var(--brand-teal) 4%, transparent); opacity: 0.75; }
+/* Voile de la ligne exclue (E1, revue des vagues) : en sombre, il ASSOMBRIT comme React (`rgba(0,0,0,0.2)`),
+   par `--bg-level-0` à 20 % ; en clair, inchangé : `--text-primary` à 6 % (`--bg-level-0` y est blanc, sans effet). */
+.ligne.exclue {
+  background: light-dark(color-mix(in srgb, var(--text-primary) 6%, transparent), color-mix(in srgb, var(--bg-level-0) 20%, transparent));
+}
+.cellule-nom { min-width: 0; }
+.nom { font-size: 11px; font-weight: 600; color: var(--text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nom.mappee { color: var(--teal-texte); }
+.nom.importee { color: var(--text-primary); }
+.exemples { font-size: 9px; color: var(--text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.statut { font-size: 9px; color: var(--text-tertiary); }
+.statut.mappee { color: var(--teal-texte); }
+.tiret { font-size: 10px; color: var(--text-tertiary); }
+input[type='checkbox'] { cursor: pointer; width: 13px; height: 13px; margin: 0; vertical-align: middle; }
+.case-import { accent-color: var(--brand-teal); }
+.case-filtre { accent-color: var(--success); }
+.case-filtre:disabled { cursor: not-allowed; opacity: 0.3; }
+input[type='checkbox']:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
+.actions {
+  margin-top: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  border-top: 1px solid var(--border-subtle); padding-top: 8px;
+}
+.fantome {
+  font-family: var(--font-sans); font-size: 12px; font-weight: 500; background: transparent; border: 1px solid var(--border-subtle);
+  border-radius: 2px; color: var(--text-secondary); padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+}
+.fantome:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 2px; }
+.compte { font-size: 9px; color: var(--text-tertiary); margin-left: auto; }

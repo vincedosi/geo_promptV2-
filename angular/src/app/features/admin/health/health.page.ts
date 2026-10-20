@@ -1,20 +1,10 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import type { Subscription } from 'rxjs';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { formaterNombre } from '../../../core/format/nombre';
-import type { Check, HealthResponse } from '../logique/types/admin';
+import type { Check } from '../logique/types/admin';
 import { APP_VERSION, BUILD_DATE } from '../logique/version';
 import { CarteVerificationComponent } from './carte-verification.component';
-import { FraicheurComponent } from './fraicheur.component';
-import { HealthApi } from './data/health.api';
+import { SanteService } from './etat/sante.service';
 import { STYLES_STATUT } from './statut';
-
-export type OngletHealth = 'systeme' | 'fraicheur';
-
-/** Onglets de `app/admin/health/page.tsx:128-133`, libellés recopiés. */
-export const ONGLETS_HEALTH: readonly { cle: OngletHealth; libelle: string }[] = [
-  { cle: 'systeme', libelle: 'Diagnostic système' },
-  { cle: 'fraicheur', libelle: 'Fraîcheur données' },
-];
 
 const MO = 1024 * 1024;
 const GO = 1024 * MO;
@@ -29,8 +19,12 @@ interface TailleBase {
 }
 
 /**
- * Health check, onglet « Diagnostic système » — portage de `app/admin/health/page.tsx`.
- * L'onglet « Fraîcheur données » est `mg-fraicheur` (T4), monté à sa première ouverture puis gardé.
+ * Onglet « Santé » de la page Système (`admin/systeme/sante`, lot 6 T6) — portage de l'onglet
+ * « Diagnostic système » de `app/admin/health/page.tsx`. Le titre de page et la barre d'onglets
+ * de React sont remontés dans `SystemePage` ; l'onglet « Fraîcheur » est la sous-route sœur
+ * (`mg-fraicheur`). Le diagnostic vit dans `SanteService` (fourni par la page Système) : cet écran
+ * est détruit à chaque changement d'onglet, le diagnostic ne l'est pas — UNE lecture à la
+ * première ouverture, comme React (aucune en revenant sur l'onglet).
  *
  * Écarts à React, voulus :
  * - erreur HTTP : React fait `res.json()` sans tester `res.ok`. Un corps JSON d'erreur (401
@@ -46,12 +40,11 @@ interface TailleBase {
  */
 @Component({
   selector: 'mg-health',
-  imports: [CarteVerificationComponent, FraicheurComponent],
+  imports: [CarteVerificationComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './health.page.html',
   styles: [STYLES_STATUT, `
     :host { display: block; }
-    [hidden] { display: none !important; }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     .tourne { animation: spin 1s linear infinite; }
@@ -67,14 +60,8 @@ interface TailleBase {
     .carte-corps { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
     .squelette { height: 60px; background: var(--bg-level-2); border-radius: 2px; }
     .squelette.pulse { animation: pulse 1.5s ease-in-out infinite; }
-    .onglet {
-      background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-tertiary);
-      font-weight: 500; font-size: 13px; padding: 8px 14px;
-      cursor: pointer; margin-bottom: -1px;
-    }
-    .onglet[aria-selected='true'] { border-bottom-color: var(--brand-teal); color: var(--text-primary); }
     .pastille {
-      font-size: 10px; color: var(--c-statut); background: var(--fond-statut);
+      font-size: 10px; color: var(--c-statut-texte); background: var(--fond-statut);
       padding: 2px 10px; border-radius: 2px; border: 1px solid var(--bord-statut);
     }
     .pastille[data-etat='OK'] { border: none; }
@@ -84,11 +71,11 @@ interface TailleBase {
     }
     .globale[data-etat='OK'] { border: none; }
     .globale.en-lecture { background: var(--bg-surface); border: 1px solid var(--border-subtle); }
-    .resume { font-size: 15px; font-weight: 700; color: var(--c-statut); margin-bottom: 4px; }
+    .resume { font-size: 15px; font-weight: 700; color: var(--c-statut-texte); margin-bottom: 4px; }
     .en-lecture .resume { color: var(--text-secondary); }
     .retester {
       flex-shrink: 0; display: flex; align-items: center; gap: 6px; background: var(--brand-teal-10);
-      border: 1px solid var(--brand-teal-30); border-radius: 2px; color: var(--brand-teal);
+      border: 1px solid var(--brand-teal-30); border-radius: 2px; color: var(--teal-texte);
       font-size: 12px; padding: 7px 14px; cursor: pointer;
     }
     .retester:disabled { cursor: not-allowed; opacity: 0.5; }
@@ -111,7 +98,7 @@ interface TailleBase {
     td { padding: 10px 12px; text-align: right; color: var(--text-secondary); }
     td:first-child { text-align: left; color: var(--text-primary); font-weight: 600; }
     td:nth-child(2) { color: var(--text-tertiary); }
-    td:nth-child(3) { color: var(--brand-teal); }
+    td:nth-child(3) { color: var(--teal-texte); }
     .build {
       font-size: 11px; background: var(--bg-level-2);
       border: 1px solid var(--border-subtle); border-radius: 2px; padding: 12px 14px;
@@ -121,17 +108,14 @@ interface TailleBase {
   `],
 })
 export class HealthPage {
-  private readonly api = inject(HealthApi);
-  private lecture: Subscription | null = null;
+  private readonly etat = inject(SanteService);
 
-  readonly onglet = signal<OngletHealth>('systeme');
-  protected readonly onglets = ONGLETS_HEALTH;
   protected readonly version = APP_VERSION;
   protected readonly dateBuild = BUILD_DATE;
 
-  protected readonly health = signal<HealthResponse | null>(null);
-  protected readonly enLecture = signal(true);
-  private readonly derniereLecture = signal<Date | null>(null);
+  protected readonly health = this.etat.health;
+  protected readonly enLecture = this.etat.enLecture;
+  private readonly derniereLecture = this.etat.derniereLecture;
 
   /** `health?.status || 'ERROR'` (`page.tsx:158`). */
   protected readonly statutGlobal = computed(() => this.health()?.status || 'ERROR');
@@ -187,32 +171,12 @@ export class HealthPage {
   });
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.lecture?.unsubscribe());
-    this.relire();
-  }
-
-  /** Vrai dès la première ouverture de l'onglet Fraîcheur : son panneau reste ensuite monté. */
-  protected readonly fraicheurOuverte = signal(false);
-
-  protected choisir(cle: OngletHealth): void {
-    this.onglet.set(cle);
-    if (cle === 'fraicheur') this.fraicheurOuverte.set(true);
+    // Première ouverture de l'onglet : UNE lecture ; un retour sur l'onglet ne relit rien.
+    this.etat.assurer();
   }
 
   /** « Re-tester » (`fetchHealth`, `page.tsx:141-152`) : UNE lecture à la fois. */
   relire(): void {
-    if (this.lecture && !this.lecture.closed) return;
-    this.enLecture.set(true);
-    this.lecture = this.api.lire().subscribe({
-      next: (r) => {
-        this.health.set(r);
-        this.derniereLecture.set(new Date());
-        this.enLecture.set(false);
-      },
-      error: () => {
-        this.health.set(null);
-        this.enLecture.set(false);
-      },
-    });
+    this.etat.relire();
   }
 }

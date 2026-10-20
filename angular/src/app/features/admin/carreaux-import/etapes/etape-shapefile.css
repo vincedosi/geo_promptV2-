@@ -1,0 +1,33 @@
+/*
+ * Commun aux trois étapes de l'import Shapefile — cartes, boutons et champs de
+ * `app/admin/carreaux-import/_components/*.tsx`, aux jetons de `shared.ts` (C) :
+ * `C.bgElevated` = `--bg-surface`, `C.bgSurface` = `--bg-level-2`, `C.bg` = `--bg-primary`.
+ * Substitutions (C9) : `#505050` → `--text-tertiary` ; `#f87171` → `--danger` ; `#fbbf24` → `--warning` ;
+ * `#3b82f6` → `--info` ; `rgba(…)` → `color-mix` du jeton ; `#000` posé sur le vert → `--brand-teal-fg`.
+ * Vert, rouge et bleu en TEXTE lisibles en clair : les propriétés `--*-texte` du cadre admin (F-3, DESIGN_SYSTEM § 3) — sans
+ * elles, `--success` en texte tombe à ≈ 2,5:1 sur fond clair.
+ * Bords 1 px et rayon 2 gardés (parité, C16). Survol des boutons verts : opacité 0,85 comme React.
+ */
+:host {
+  display: block;
+}
+p { margin: 0; }
+.pile { display: flex; flex-direction: column; gap: 16px; }
+.mono { font-family: var(--font-mono); }
+.carte { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 2px; }
+.principal {
+  border-radius: 2px; background: var(--success); color: var(--brand-teal-fg); border: none;
+  font-family: var(--font-sans); font-weight: 500; font-size: 12px; cursor: pointer; transition: opacity 0.15s;
+}
+.principal:hover { opacity: 0.85; }
+.secondaire {
+  padding: 10px 20px; border-radius: 2px; background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  color: var(--text-secondary); font-family: var(--font-sans); font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.secondaire:disabled { cursor: not-allowed; opacity: 0.3; }
+.principal:focus-visible, .secondaire:focus-visible, button:focus-visible { outline: 1px solid var(--brand-teal-50); outline-offset: 1px; }
+select, input[type='text'] {
+  background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 2px; color: var(--text-primary);
+  font-family: var(--font-mono); outline: none; box-sizing: border-box;
+}
+select:focus-visible, input[type='text']:focus-visible { border-color: var(--brand-teal-50); }

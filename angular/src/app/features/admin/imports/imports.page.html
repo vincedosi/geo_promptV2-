@@ -1,0 +1,68 @@
+<!-- Le titre « Historique des imports » de React (page.tsx:97-101) est remonté dans le cadre Données
+     (onglet « Historique ») ; il reste ici le sous-titre de l'écran, SANS « OOH ArcGIS + »
+     (import supprimé le 2026-10-16, ruling du lot 6). -->
+<p data-sous-titre class="sous-titre">Historique global de tous les imports — sources CSV/Shapefile</p>
+
+<div class="stats">
+  @for (s of stats(); track s.cle) {
+    <div class="stat" [attr.data-stat]="s.cle">
+      <div data-libelle class="stat-libelle">{{ s.libelle }}</div>
+      <div data-valeur class="stat-valeur" [attr.data-teinte]="s.teinte">{{ s.valeur }}</div>
+    </div>
+  }
+</div>
+
+<div class="filtres">
+  @for (f of filtres; track f.cle) {
+    <button type="button" data-filtre [attr.aria-pressed]="filtre() === f.cle" (click)="filtre.set(f.cle)">{{ f.libelle }}</button>
+  }
+  <button type="button" data-rafraichir class="rafraichir" (click)="lire()">Rafraîchir</button>
+</div>
+
+<div class="tableau">
+  @if (erreur()) {
+    <div data-erreur role="alert" class="erreur">! {{ erreur() }}</div>
+  }
+  @if (chargement()) {
+    <div data-chargement class="message">chargement...</div>
+  } @else if (lignes().length === 0) {
+    <div data-vide class="message">Aucun import</div>
+  } @else {
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Source</th>
+          <th>Workspace</th>
+          <th>Démarré le</th>
+          <th>Statut</th>
+          <th>Total</th>
+          <th>Insérés</th>
+          <th>MAJ</th>
+          <th>Erreurs</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (l of lignes(); track l.id) {
+          <tr>
+            <td><span class="badge" [attr.data-type]="l.kind">{{ l.type }}</span></td>
+            <td data-source class="texte source" [title]="l.source">{{ l.source }}</td>
+            <td class="texte">
+              @if (l.workspace !== null) {
+                {{ l.workspace }}
+              } @else {
+                <span class="global">global</span>
+              }
+            </td>
+            <td class="texte">{{ l.date }}</td>
+            <td><span class="badge" data-statut [attr.data-teinte]="l.teinteStatut">{{ l.status }}</span></td>
+            <td class="nombre">{{ l.total }}</td>
+            <td class="nombre inseres">{{ l.inseres }}</td>
+            <td class="nombre maj">{{ l.maj }}</td>
+            <td class="nombre" data-erreurs [attr.data-teinte]="l.teinteErreurs">{{ l.erreurs }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>

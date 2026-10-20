@@ -1,0 +1,43 @@
+/* `UploadStep.tsx` — zone, ligne d'information, encart Shapefile, aperçu, encart des formats, erreur. */
+.analyse { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--teal-texte); font-size: 12px; }
+.nom-fichier { font-size: 13px; font-weight: 600; color: var(--success-texte); margin-bottom: 4px; }
+.taille { font-size: 11px; color: var(--text-secondary); }
+.consigne { font-family: var(--font-sans); font-size: 13px; color: var(--text-primary); margin-bottom: 6px; }
+.formats { font-size: 10px; color: var(--text-secondary); }
+.resultat { margin-top: 12px; }
+.infos { display: flex; gap: 16px; flex-wrap: wrap; font-size: 10px; color: var(--text-secondary); margin-bottom: 10px; }
+.infos .valeur { color: var(--teal-texte); }
+.infos .valeur.vert { color: var(--success-texte); }
+.shapefile {
+  background: color-mix(in srgb, var(--success) 12%, transparent); border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
+  border-radius: 2px; padding: 8px 12px; margin-bottom: 10px; font-size: 11px; color: var(--success-texte);
+}
+summary { font-family: var(--font-sans); font-size: 9px; font-weight: 500; color: var(--text-secondary); cursor: pointer; margin-bottom: 6px; }
+.defilement { overflow: auto; max-height: 200px; margin-top: 6px; }
+table { width: 100%; border-collapse: collapse; font-size: 10px; }
+thead tr { background: var(--bg-level-2); }
+th {
+  padding: 5px 8px; border-bottom: 1px solid var(--border-subtle); color: var(--teal-texte); text-align: left; white-space: nowrap;
+  font-family: var(--font-sans); font-size: 11px; font-weight: 500;
+}
+th.en-plus {
+  color: var(--text-tertiary); border-bottom: 0; text-align: center; font-family: inherit; font-size: inherit; font-weight: 700;
+}
+tr.impaire { background: var(--bg-level-2); }
+td {
+  padding: 4px 8px; border-bottom: 1px solid var(--border-subtle); color: var(--text-secondary); max-width: 150px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; font-size: 10px;
+}
+td.en-plus { color: var(--text-tertiary); padding: 1px; border-bottom: 0; max-width: none; }
+.formats-supportes {
+  margin-top: 12px; padding: 12px; background: var(--bg-level-2); border-radius: 2px; border: 1px solid var(--border-subtle);
+  font-family: var(--font-sans); font-size: 11px; color: var(--text-secondary); line-height: 1.6;
+}
+.titre-formats { font-size: 9px; font-weight: 500; color: var(--text-primary); margin-bottom: 8px; }
+ul { margin: 0; padding-left: 16px; list-style: disc; }
+strong { color: var(--text-secondary); font-weight: 700; }
+.erreur {
+  margin-top: 12px; background: color-mix(in srgb, var(--danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); border-radius: 2px; padding: 8px 12px; font-size: 11px;
+  color: var(--danger-texte);
+}
