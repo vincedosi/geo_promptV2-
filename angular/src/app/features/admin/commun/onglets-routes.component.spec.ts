@@ -109,6 +109,18 @@ describe('OngletsRoutesComponent — barre d’onglets liée au routeur', () => 
     expect(espace.defaultPrevented).toBe(true);
   });
 
+  it('Ctrl / Cmd / Maj + Entrée : laissé au navigateur (nouvel onglet), aucun clic synthétique', async () => {
+    const { harness, onglets, router } = await monter('/hote/app/admin/systeme/sante');
+    for (const mod of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }]) {
+      onglets()[1].focus();
+      const e = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, ...mod });
+      onglets()[1].dispatchEvent(e);
+      await harness.fixture.whenStable();
+      expect(e.defaultPrevented).toBe(false);
+      expect(router.url).toBe('/hote/app/admin/systeme/sante');
+    }
+  });
+
   it('une autre touche ne fait rien', async () => {
     const { harness, router, el } = await monter('/hote/app/admin/systeme/sante');
     el.querySelector<HTMLElement>('[role="tablist"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));

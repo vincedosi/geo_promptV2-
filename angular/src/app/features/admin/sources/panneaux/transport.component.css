@@ -1,7 +1,7 @@
 /* Panneau Transport (lot 6, T19) — teintes et pastilles de couverture de `TransportPanel.tsx`. */
-.bandeau[data-teinte='vert'] { --teinte: var(--success); }
+.bandeau[data-teinte='vert'] { --teinte: var(--success); --teinte-texte: var(--success-texte); }
 /* `#f97316` (orange, sans jeton) : `--warning` et `--danger` à parts égales. */
-.bandeau[data-teinte='orange'] { --teinte: color-mix(in srgb, var(--warning) 50%, var(--danger)); }
+.bandeau[data-teinte='orange'] { --teinte: color-mix(in srgb, var(--warning) 50%, var(--danger)); --teinte-texte: color-mix(in srgb, var(--warning-texte) 50%, var(--danger-texte)); }
 
 .couverture { margin-top: 8px; display: flex; align-items: center; gap: 8px; }
 .pastille, .non-calcule { font-size: 9px; font-weight: 500; padding: 2px 8px; border-radius: 2px; }

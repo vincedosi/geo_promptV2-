@@ -2,13 +2,13 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import type { Observable, Subscription } from 'rxjs';
 import { NotificationsService } from '../../../../ui/notifications/notifications.service';
-import { NIVEAUX_ACTIFS_INITIAUX, type LigneJournal, type NiveauJournal } from '../../commun/journal.component';
+import { MESSAGE_INTERROMPU, NIVEAUX_ACTIFS_INITIAUX } from '../../commun/import-flux';
+import type { LigneJournal, NiveauJournal } from '../../commun/journal.component';
 import {
   RadioAdminApi, type CibleSuppressionRadio, type EvenementImportRadio, type ImportRadio, type StatsRadio,
 } from '../data/radio-admin.api';
 import { ligneJournalPasse } from '../logique/radio';
 import { RadioOngletsService } from './radio-onglets.service';
-import { MESSAGE_INTERROMPU } from '../../commun/progression-import.component';
 
 /** Progression d'un import (C5) : étape = la `phase` courante, pourcentage = le `percent` du flux. */
 export interface EtatProgressionRadio {

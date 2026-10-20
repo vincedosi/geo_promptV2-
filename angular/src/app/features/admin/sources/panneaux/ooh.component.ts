@@ -43,7 +43,7 @@ import type { StatsSources } from '../data/sources-admin.api';
     }
   `,
   styleUrl: './panneaux-commun.css',
-  styles: `:host { --teinte: var(--warning); --bord: 27%; }`,
+  styles: `:host { --teinte: var(--warning); --teinte-texte: var(--warning-texte); --bord: 27%; }`,
 })
 export class OohComponent {
   readonly stats = input<StatsSources | null>(null);

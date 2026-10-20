@@ -11,14 +11,14 @@
 .secondaire { color: var(--text-secondary); }
 .tertiaire { color: var(--text-tertiary); }
 .danger { color: var(--danger-texte); }
-[data-teinte='succes'] { --teinte: var(--success); }
-[data-teinte='avert'] { --teinte: var(--warning); }
-[data-teinte='danger'] { --teinte: var(--danger); }
-[data-teinte='secondaire'] { --teinte: var(--text-secondary); }
-[data-teinte='tertiaire'] { --teinte: var(--text-tertiary); }
-[data-teinte='info'] { --teinte: var(--info); }
-[data-teinte='teal'] { --teinte: var(--brand-teal); }
-.teinte, .kpi-valeur[data-teinte] { color: var(--teinte); }
+[data-teinte='succes'] { --teinte: var(--success); --teinte-texte: var(--success-texte); }
+[data-teinte='avert'] { --teinte: var(--warning); --teinte-texte: var(--warning-texte); }
+[data-teinte='danger'] { --teinte: var(--danger); --teinte-texte: var(--danger-texte); }
+[data-teinte='secondaire'] { --teinte: var(--text-secondary); --teinte-texte: var(--text-secondary); }
+[data-teinte='tertiaire'] { --teinte: var(--text-tertiary); --teinte-texte: var(--text-tertiary); }
+[data-teinte='info'] { --teinte: var(--info); --teinte-texte: var(--info-texte); }
+[data-teinte='teal'] { --teinte: var(--brand-teal); --teinte-texte: var(--teal-texte); }
+.teinte, .kpi-valeur[data-teinte] { color: var(--teinte-texte, var(--teinte)); }
 .teinte[data-teinte='teal'] { color: var(--teal-texte); }
 .chargement { padding: 40px; text-align: center; color: var(--text-tertiary); }
 /* « Rafraîchir » (vague finale, Q-3 ; absent de React), à droite au-dessus des sections. */

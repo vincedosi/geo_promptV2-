@@ -12,11 +12,11 @@
 .secondaire { color: var(--text-secondary); }
 .tertiaire { color: var(--text-tertiary); }
 .primaire { color: var(--text-primary); }
-[data-teinte='succes'] { --teinte: var(--success); }
-[data-teinte='avert'] { --teinte: var(--warning); }
-[data-teinte='danger'] { --teinte: var(--danger); }
+[data-teinte='succes'] { --teinte: var(--success); --teinte-texte: var(--success-texte); }
+[data-teinte='avert'] { --teinte: var(--warning); --teinte-texte: var(--warning-texte); }
+[data-teinte='danger'] { --teinte: var(--danger); --teinte-texte: var(--danger-texte); }
 .point[data-teinte] { background: var(--teinte); }
-.teinte { color: var(--teinte); }
+.teinte { color: var(--teinte-texte, var(--teinte)); }
 .rangee { display: flex; gap: 8px; align-items: center; }
 .cache { display: none; }
 
@@ -55,7 +55,7 @@ td.mono { font-size: 11px; }
 .petit-texte { font-size: 11px; }
 .erreur { color: var(--danger-texte); }
 .statut {
-  font-size: 10px; padding: 2px 8px; border-radius: 4px; color: var(--teinte);
+  font-size: 10px; padding: 2px 8px; border-radius: 4px; color: var(--teinte-texte, var(--teinte));
   background: color-mix(in srgb, var(--teinte) 8%, transparent); border: 0.5px solid color-mix(in srgb, var(--teinte) 19%, transparent);
 }
 .voir {

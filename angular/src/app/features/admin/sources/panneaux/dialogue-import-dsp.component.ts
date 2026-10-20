@@ -6,7 +6,8 @@ import { formaterNombre } from '../../../../core/format/nombre';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { NotificationsService } from '../../../../ui/notifications/notifications.service';
 import { DepotFichiersComponent } from '../../commun/depot-fichiers.component';
-import { MESSAGE_INTERROMPU, ProgressionImportComponent } from '../../commun/progression-import.component';
+import { MESSAGE_INTERROMPU } from '../../commun/import-flux';
+import { ProgressionImportComponent } from '../../commun/progression-import.component';
 import { SourcesAdminApi, type EvenementImportDsp, type RapportImportDsp } from '../data/sources-admin.api';
 import { ECHEC_RESEAU, erreurDuCorps, estCoupure } from '../../commun/erreurs-http';
 

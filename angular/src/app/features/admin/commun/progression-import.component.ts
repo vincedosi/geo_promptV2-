@@ -2,11 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { formaterNombre } from '../../../core/format/nombre';
 import { IconeComponent } from '../../../ui/icone/icone.component';
 
-/**
- * Règle du lot 3 : un flux fini sans événement final est un échec, jamais un succès silencieux. Texte unique des
- * quatre imports en flux (POI, IRIS, Radio, DSP) — factorisation F-5, lot 6, vague finale.
- */
-export const MESSAGE_INTERROMPU = 'Le flux s’est interrompu avant la fin.';
+/** Défini dans `import-flux.ts` (revue des vagues, mineur 8), ré-exporté pour les imports existants. */
+export { MESSAGE_INTERROMPU } from './import-flux';
 
 /**
  * Progression d'un import (arbitrage C5, règle « progression OBLIGATOIRE » de CLAUDE.md), rendu de

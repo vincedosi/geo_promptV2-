@@ -28,7 +28,7 @@ import { STYLES_STATUT } from './statut';
     .tete { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
     .nom { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--text-primary); }
     .badge {
-      font-size: 10px; font-family: var(--font-mono); color: var(--c-statut);
+      font-size: 10px; font-family: var(--font-mono); color: var(--c-statut-texte);
       background: var(--badge-statut); padding: 1px 6px; border-radius: 2px; border: 1px solid var(--bord-statut);
     }
     .carte[data-etat='OK'] .badge { background: transparent; border: none; }

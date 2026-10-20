@@ -64,15 +64,15 @@ interface Tuile {
     }
     .tuile.zones { animation: none; transition: border-color 0.2s ease; }
     .tuile:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 1px; }
-    .tuile[data-teinte='teal'] { --teinte: var(--brand-teal); }
-    .tuile[data-teinte='succes'] { --teinte: var(--success); }
-    .tuile[data-teinte='avert'] { --teinte: var(--warning); }
-    .tuile[data-teinte='info'] { --teinte: var(--info); }
+    .tuile[data-teinte='teal'] { --teinte: var(--brand-teal); --teinte-texte: var(--teal-texte); }
+    .tuile[data-teinte='succes'] { --teinte: var(--success); --teinte-texte: var(--success-texte); }
+    .tuile[data-teinte='avert'] { --teinte: var(--warning); --teinte-texte: var(--warning-texte); }
+    .tuile[data-teinte='info'] { --teinte: var(--info); --teinte-texte: var(--info-texte); }
     .tuile:hover { border-color: var(--teinte); }
     .libelle { font-size: 9px; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px; }
     .libelle.sans-marge { margin-bottom: 0; }
     .valeur {
-      font-family: var(--font-mono); font-size: 22px; font-weight: 700; color: var(--teinte); line-height: 1; margin-bottom: 4px;
+      font-family: var(--font-mono); font-size: 22px; font-weight: 700; color: var(--teinte-texte, var(--teinte)); line-height: 1; margin-bottom: 4px;
       animation: srcCountUp 0.5s ease-out;
     }
     .zones .valeur { animation: none; }

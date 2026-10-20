@@ -47,7 +47,7 @@ import type { StatsSources } from '../data/sources-admin.api';
   `,
   styleUrl: './panneaux-commun.css',
   styles: `
-    :host { --teinte: var(--success); --bord: 27%; }
+    :host { --teinte: var(--success); --teinte-texte: var(--success-texte); --bord: 27%; }
     .vert { color: var(--success-texte); }
     .cyan { color: var(--info-texte); }
   `,

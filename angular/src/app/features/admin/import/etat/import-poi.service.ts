@@ -8,7 +8,7 @@ import {
 } from '../data/import-poi.api';
 import { ImportPoiPreparation, corpsJson } from './import-poi-preparation';
 import { erreurDuCorps, estCoupure } from '../../commun/erreurs-http';
-import { MESSAGE_INTERROMPU } from '../../commun/progression-import.component';
+import { MESSAGE_INTERROMPU } from '../../commun/import-flux';
 
 export type { CorrespondanceGeo } from './import-poi-preparation';
 

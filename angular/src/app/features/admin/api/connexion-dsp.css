@@ -6,10 +6,10 @@
  */
 /* 16 px hérités par React (corps de page) : l’interligne des champs EN LIGNE en dépend. */
 :host { display: block; max-width: 640px; font-family: var(--font-sans); font-size: 16px; color: var(--text-primary); }
-.statut { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--c-statut); }
+.statut { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--c-statut-texte, var(--c-statut)); }
 .point { width: 7px; height: 7px; border-radius: 50%; background: var(--c-statut); }
-[data-etat='connected'] { --c-statut: var(--success); }
-[data-etat='error'] { --c-statut: var(--danger); }
+[data-etat='connected'] { --c-statut: var(--success); --c-statut-texte: var(--success-texte); }
+[data-etat='error'] { --c-statut: var(--danger); --c-statut-texte: var(--danger-texte); }
 [data-etat='disconnected'] { --c-statut: var(--text-tertiary); }
 .section-tete {
   background: var(--bg-level-2); border: 1px solid var(--border-subtle); border-bottom: none;

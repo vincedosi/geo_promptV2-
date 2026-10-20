@@ -140,21 +140,21 @@ interface VueSource {
     }
     button.carte { cursor: pointer; }
     button.carte:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: 1px; }
-    .systeme[data-teinte='info'] { --teinte: var(--info); }
-    .systeme[data-teinte='succes'] { --teinte: var(--success); }
+    .systeme[data-teinte='info'] { --teinte: var(--info); --teinte-texte: var(--info-texte); }
+    .systeme[data-teinte='succes'] { --teinte: var(--success); --teinte-texte: var(--success-texte); }
     .systeme:hover { border-color: var(--teinte); }
     .source[aria-pressed='true'] { border-color: var(--brand-teal); background: color-mix(in srgb, var(--brand-teal) 5%, transparent); }
     .corps { padding: 12px 16px; }
     .ligne-titre { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
     .titre { font-weight: 600; font-size: 14px; color: var(--text-primary); flex: 1; }
     .etiquette-type {
-      font-size: 9px; font-weight: 500; color: var(--teinte); padding: 2px 7px; border-radius: 2px;
+      font-size: 9px; font-weight: 500; color: var(--teinte-texte, var(--teinte)); padding: 2px 7px; border-radius: 2px;
       background: color-mix(in srgb, var(--teinte) 10%, transparent); border: 0.5px solid color-mix(in srgb, var(--teinte) 30%, transparent);
     }
     .meta { display: flex; gap: 16px; font-size: 11px; font-family: var(--font-mono); color: var(--text-secondary); }
     .meta.retour { flex-wrap: wrap; }
-    .fort { color: var(--teinte); font-weight: 700; }
-    .teinte { color: var(--teinte); }
+    .fort { color: var(--teinte-texte, var(--teinte)); font-weight: 700; }
+    .teinte { color: var(--teinte-texte, var(--teinte)); }
     .discret { color: var(--text-tertiary); }
     .radio { margin-bottom: 12px; }
     .radio-tete { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }

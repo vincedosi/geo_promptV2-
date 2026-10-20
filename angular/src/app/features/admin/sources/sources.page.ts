@@ -85,11 +85,11 @@ interface VueOnglet {
       font-size: 9px; font-weight: 400; padding: 8px 14px; cursor: pointer; transition: color 0.2s ease, border-color 0.2s ease;
       white-space: nowrap; margin-bottom: -1px;
     }
-    .onglet[data-teinte='teal'] { --teinte: var(--brand-teal); }
-    .onglet[data-teinte='succes'] { --teinte: var(--success); }
-    .onglet[data-teinte='avert'] { --teinte: var(--warning); }
-    .onglet[data-teinte='info'] { --teinte: var(--info); }
-    .onglet[aria-selected='true'] { border-bottom-color: var(--teinte); color: var(--teinte); font-weight: 700; }
+    .onglet[data-teinte='teal'] { --teinte: var(--brand-teal); --teinte-texte: var(--teal-texte); }
+    .onglet[data-teinte='succes'] { --teinte: var(--success); --teinte-texte: var(--success-texte); }
+    .onglet[data-teinte='avert'] { --teinte: var(--warning); --teinte-texte: var(--warning-texte); }
+    .onglet[data-teinte='info'] { --teinte: var(--info); --teinte-texte: var(--info-texte); }
+    .onglet[aria-selected='true'] { border-bottom-color: var(--teinte); color: var(--teinte-texte, var(--teinte)); font-weight: 700; }
     .onglet:focus-visible { outline: 1px solid var(--brand-teal-50); outline-offset: -1px; }
     .vue { display: flex; gap: 16px; }
     .gauche { flex: 1; min-width: 0; }

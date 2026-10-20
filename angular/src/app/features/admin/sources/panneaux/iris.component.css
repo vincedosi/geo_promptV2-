@@ -1,10 +1,10 @@
 /* Panneau IRIS (lot 6, T19) — `IrisPanel.tsx` ; cyan `#06b6d4` → `--info`. */
-:host { --teinte: var(--info); }
-[data-teinte='info'] { --teinte: var(--info); }
+:host { --teinte: var(--info); --teinte-texte: var(--info-texte); }
+[data-teinte='info'] { --teinte: var(--info); --teinte-texte: var(--info-texte); }
 [data-teinte='teal'] { --teinte: var(--teal-texte); }
-[data-teinte='succes'] { --teinte: var(--success); }
-[data-teinte='avert'] { --teinte: var(--warning); }
-[data-teinte='neutre'] { --teinte: var(--text-secondary); }
+[data-teinte='succes'] { --teinte: var(--success); --teinte-texte: var(--success-texte); }
+[data-teinte='avert'] { --teinte: var(--warning); --teinte-texte: var(--warning-texte); }
+[data-teinte='neutre'] { --teinte: var(--text-secondary); --teinte-texte: var(--text-secondary); }
 .source { padding: 14px 18px; gap: 14px; }
 .source .bandeau-titre { margin-bottom: 4px; }
 .source .lignes { line-height: 1.8; }
@@ -24,7 +24,7 @@
   font-size: 9px; color: var(--text-secondary); background: var(--bg-level-2); border: 0.5px solid var(--border-subtle); padding: 1px 5px; border-radius: 1px;
 }
 .type-libelle { font-size: 11px; color: var(--text-tertiary); }
-.type-valeur { font-family: var(--font-mono); font-size: 11px; color: var(--teinte); font-weight: 700; }
+.type-valeur { font-family: var(--font-mono); font-size: 11px; color: var(--teinte-texte, var(--teinte)); font-weight: 700; }
 .pct { color: var(--text-tertiary); font-size: 9px; }
 .dept { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--bg-level-2); }
 .dept.dernier { border-bottom: none; }

@@ -162,7 +162,15 @@ HORS du cadre — le texte d'état de `progression-import` (« ✓ Import termin
 `journal` — écrivent `var(--success-texte, var(--success))`, avec repli ; les
 écrans montés DANS le cadre écrivent `var(--success-texte)` seul (pages DV360 et
 TikTok, Fraîcheur, cartes de catégorie POI de Sources, qui posent un
-`--cat-texte` par teinte de statut).
+`--cat-texte` par teinte de statut). Les écrans qui portent une teinte par
+propriété (`--teinte`, `--c-statut`) posent à côté sa jumelle de TEXTE
+(`--teinte-texte`, `--c-statut-texte`) et l'emploient pour `color`, le jeton brut
+restant aux fonds, bordures, points et barres : badges et résumé de Santé
+(`health/statut.ts`), statut des Connexions API, onglets Import, Radios et
+Statistiques de Radio, onglets, tuiles, liste et panneaux de Sources (ajouté le
+2026-10-20, T21 : mesuré à 2,5-2,9:1 en clair avant, ≥ 4,5:1 après — rapport T21
+du lot 6). Une teinte neutre (`--text-secondary`, `--text-tertiary`) pose sa
+jumelle à la même valeur, pour ne pas hériter de celle d'un ancêtre.
 
 Le repli `var(--x-texte, var(--x))` ne joue que lorsque la propriété **n'est pas
 définie** (hors du cadre). Il ne rattrape PAS un navigateur sans `light-dark()` :

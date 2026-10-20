@@ -94,6 +94,9 @@ export class OngletsRoutesComponent {
     const cible = (e.target as Element | null)?.closest?.('[role="tab"]') as HTMLAnchorElement | null;
     if (e.key === 'Enter' || e.key === ' ') {
       if (!cible || !liens.includes(cible)) return;
+      // Ctrl / Cmd / Maj + Entrée : ouverture dans un nouvel onglet ou une nouvelle fenêtre, que seul le
+      // comportement NATIF du lien sait faire — un `click()` synthétique perdrait le modificateur.
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey || e.shiftKey)) return;
       // Entrée sur un lien l'activerait aussi nativement : un seul clic, le nôtre.
       e.preventDefault();
       cible.click();

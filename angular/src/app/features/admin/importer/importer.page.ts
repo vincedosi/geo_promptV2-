@@ -29,6 +29,11 @@ export const ONGLETS_IMPORTER: readonly OngletRoute[] = [
  * Q-2) : `ImportShapefileService` est fourni ICI, pour qu'un envoi par lots — un enchaînement de requêtes
  * mené par le navigateur — survive au passage par un autre type d'import. Quitter « Importer » pendant cet
  * envoi passe par `quitterImporterGuard` : une confirmation qui dit ce qui restera en base.
+ *
+ * Coût assumé (revue des vagues, mineur 2) : fournir le service ici fait entrer la lecture Shapefile
+ * (`parseSHP`, `parseDBF`, `detectCRS`…) dans le morceau paresseux d'« Importer », chargé aussi pour POI,
+ * IRIS et Radio. Du poids de bundle seulement : `proj4` reste en `import()` dynamique, rien ne part vers
+ * la base. Une injection paresseuse le retirerait, au prix d'un état plus difficile à tenir ; non fait.
  */
 @Component({
   selector: 'mg-importer',

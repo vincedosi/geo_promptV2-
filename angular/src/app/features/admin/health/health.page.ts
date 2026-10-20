@@ -61,7 +61,7 @@ interface TailleBase {
     .squelette { height: 60px; background: var(--bg-level-2); border-radius: 2px; }
     .squelette.pulse { animation: pulse 1.5s ease-in-out infinite; }
     .pastille {
-      font-size: 10px; color: var(--c-statut); background: var(--fond-statut);
+      font-size: 10px; color: var(--c-statut-texte); background: var(--fond-statut);
       padding: 2px 10px; border-radius: 2px; border: 1px solid var(--bord-statut);
     }
     .pastille[data-etat='OK'] { border: none; }
@@ -71,7 +71,7 @@ interface TailleBase {
     }
     .globale[data-etat='OK'] { border: none; }
     .globale.en-lecture { background: var(--bg-surface); border: 1px solid var(--border-subtle); }
-    .resume { font-size: 15px; font-weight: 700; color: var(--c-statut); margin-bottom: 4px; }
+    .resume { font-size: 15px; font-weight: 700; color: var(--c-statut-texte); margin-bottom: 4px; }
     .en-lecture .resume { color: var(--text-secondary); }
     .retester {
       flex-shrink: 0; display: flex; align-items: center; gap: 6px; background: var(--brand-teal-10);

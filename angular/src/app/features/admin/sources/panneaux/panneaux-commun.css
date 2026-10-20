@@ -22,14 +22,14 @@
   border-radius: 2px; padding: 16px 20px; display: flex; align-items: flex-start; gap: 20px;
 }
 .bandeau .corps { flex: 1; }
-.bandeau-titre { font-size: 13px; font-weight: 700; color: var(--teinte); letter-spacing: 1px; margin-bottom: 6px; }
+.bandeau-titre { font-size: 13px; font-weight: 700; color: var(--teinte-texte, var(--teinte)); letter-spacing: 1px; margin-bottom: 6px; }
 .lignes { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); line-height: 2; }
 .cle { color: var(--text-tertiary); }
 .fort { color: var(--text-primary); }
 .accent { color: var(--teal-texte); }
 .droite { text-align: right; flex-shrink: 0; }
 .grand-total {
-  font-family: var(--font-mono); font-size: 36px; font-weight: 700; color: var(--teinte); line-height: 1; animation: srcCountUp 0.5s ease-out;
+  font-family: var(--font-mono); font-size: 36px; font-weight: 700; color: var(--teinte-texte, var(--teinte)); line-height: 1; animation: srcCountUp 0.5s ease-out;
 }
 .unite { font-size: 9px; font-weight: 500; color: var(--text-secondary); margin-top: 4px; }
 
@@ -39,12 +39,12 @@
   transition: all 0.2s ease; animation: srcFadeIn 0.4s ease-out both;
 }
 .case-libelle { font-size: 9px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
-.case-valeur { font-family: var(--font-mono); font-size: 20px; font-weight: 700; color: var(--teinte); animation: srcCountUp 0.5s ease-out; }
+.case-valeur { font-family: var(--font-mono); font-size: 20px; font-weight: 700; color: var(--teinte-texte, var(--teinte)); animation: srcCountUp 0.5s ease-out; }
 
 /* Bloc à en-tête (« Répartition par type », « Top 15 départements »…). */
 .bloc { background: var(--bg-surface); border: 0.5px solid var(--border-subtle); border-radius: 2px; padding: 14px 16px; }
 .bloc-entete {
-  font-size: 9px; font-weight: 500; color: var(--teinte); background: var(--bg-level-2); margin: -14px -16px 12px -16px; padding: 10px 16px;
+  font-size: 9px; font-weight: 500; color: var(--teinte-texte, var(--teinte)); background: var(--bg-level-2); margin: -14px -16px 12px -16px; padding: 10px 16px;
   border-bottom: 1px solid var(--border-subtle); border-left: 2px solid color-mix(in srgb, var(--brand-teal) 25%, transparent);
 }
 .utilisation {

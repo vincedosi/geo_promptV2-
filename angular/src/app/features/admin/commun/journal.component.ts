@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy, Component, ElementRef, afterRenderEffect, computed, inject, input, model, viewChild,
 } from '@angular/core';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
+import { NIVEAUX_ACTIFS_INITIAUX } from './import-flux';
 
 /** Une ligne de journal d'import. `message` est affiché tel quel (React y écrit souvent déjà l'heure). */
 export interface LigneJournal {
@@ -17,8 +18,8 @@ type Niveau = NiveauJournal;
 
 /** Ordre des boutons de filtre de `radio/page.tsx:470`. */
 const NIVEAUX_FILTRABLES: readonly Niveau[] = ['info', 'warn', 'error', 'success', 'debug'];
-/** Niveaux actifs au départ, comme React : `debug` est masqué. */
-export const NIVEAUX_ACTIFS_INITIAUX: readonly Niveau[] = ['info', 'warn', 'error', 'success'];
+/** Niveaux actifs au départ, comme React : `debug` est masqué. Défini dans `import-flux.ts` (mineur 8), ré-exporté. */
+export { NIVEAUX_ACTIFS_INITIAUX };
 /** Écart en px sous lequel on considère que l'utilisateur est « en bas » (`radio/page.tsx:506`). */
 const MARGE_BAS = 30;
 

@@ -40,10 +40,10 @@ type Methode = 'service_account' | 'oauth';
   // Communs avec TikTok : `connexion-dsp.css` ; ici, ce qui n'appartient qu'à DV360.
   styleUrls: ['./connexion-dsp.css'],
   styles: [`
-    .prete.ok { --c-statut: var(--success); }
+    .prete.ok { --c-statut: var(--success); --c-statut-texte: var(--success-texte); }
     .prete:not(.ok) { --c-statut: var(--text-tertiary); }
     .pretes { display: flex; gap: 16px; margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--border-subtle); }
-    .prete { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--c-statut); }
+    .prete { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--c-statut-texte, var(--c-statut)); }
     .encart.avert { border: 0.5px solid var(--warning); font-size: 12px; color: var(--warning-texte); }
     .champ.json { font-family: var(--font-mono); font-size: 11px; resize: vertical; }
   `],
