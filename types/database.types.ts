@@ -2479,6 +2479,44 @@ export type Database = {
         }
         Relationships: []
       }
+      couverture_zone_cache: {
+        Row: {
+          base_construite_le: string
+          calcule_le: string
+          cible: string
+          decoupage: string
+          resultat: Json
+          zone_id: string
+          zone_maj: string
+        }
+        Insert: {
+          base_construite_le: string
+          calcule_le?: string
+          cible: string
+          decoupage: string
+          resultat: Json
+          zone_id: string
+          zone_maj: string
+        }
+        Update: {
+          base_construite_le?: string
+          calcule_le?: string
+          cible?: string
+          decoupage?: string
+          resultat?: Json
+          zone_id?: string
+          zone_maj?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "couverture_zone_cache_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "custom_geo_zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cp_groupe: {
         Row: {
           code_canonique: string
@@ -6818,6 +6856,24 @@ export type Database = {
           p_cible?: string
           p_decoupage?: string
           p_max_carreaux?: number
+          p_org_id: string
+          p_zone_id: string
+        }
+        Returns: Json
+      }
+      couverture_zone: {
+        Args: {
+          p_cible: string
+          p_decoupage: string
+          p_org_id: string
+          p_zone_id: string
+        }
+        Returns: Json
+      }
+      couverture_zone_en_cache: {
+        Args: {
+          p_cible: string
+          p_decoupage: string
           p_org_id: string
           p_zone_id: string
         }
