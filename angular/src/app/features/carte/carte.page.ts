@@ -72,6 +72,7 @@ import { OutilsCarteService } from './outils/outils-carte.service';
 import { EtapeBientotComponent } from './parcours/etape-bientot.component';
 import { PanneauEtapeComponent } from './parcours/panneau-etape.component';
 import { suivreMargeCarte } from './couches/marge-carte';
+import { FOURNISSEURS_ANALYSE } from './carte.fournisseurs';
 
 /** Centre et zoom d'ouverture de React (`useMapInit.ts:131-132`). */
 const CENTRE_INITIAL: [number, number] = [2.3, 46.6];
@@ -141,6 +142,7 @@ export function palierCarreaux(zoom: number): string {
     CatalogueIndicateursService,
     // Le pont du module risque (B3) : le module, rendu par l'outlet de cette page, le voit par son injecteur d'élément.
     { provide: PONT_CARTE, useExisting: ZonesRisqueService },
+    ...FOURNISSEURS_ANALYSE,
   ],
   templateUrl: './carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,

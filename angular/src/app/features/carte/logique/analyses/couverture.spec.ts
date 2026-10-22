@@ -1,0 +1,107 @@
+import { HttpErrorResponse } from '@angular/common/http';
+import { formaterNombre } from '../../../../core/format/nombre';
+import {
+  type LigneCouverture, ecrireParamCouverture, libelleDecoupage, lireParamCouverture, lireZoneAnalyse, pageDeLignes,
+  resumeCouverture, trierLignes,
+} from './couverture';
+import { messageErreurCouverture, refusDeLErreur } from './couverture-erreurs';
+
+const ligne = (code: string, pop_en_zone: number, part: number | null, nom: string | null = code): LigneCouverture => ({
+  code, nom, commune: null, n_carreaux: 1, pop_en_zone, pop_totale: part === null ? null : 100, part,
+});
+
+describe('lireParamCouverture / ecrireParamCouverture', () => {
+  it('absent, vide ou illisible : les défauts, sans lever', () => {
+    for (const brut of [null, undefined, '', '.', 'ind', '.cp', 'ind.commune', 'IND.cp', 'a.cp', 'x'.repeat(21) + '.cp', 'ind.cp.x']) {
+      expect(lireParamCouverture(brut), String(brut)).toEqual({ cible: 'ind', decoupage: 'forme' });
+    }
+  });
+  it('lit cible et découpage', () => {
+    expect(lireParamCouverture('ind_18_24.iris')).toEqual({ cible: 'ind_18_24', decoupage: 'iris' });
+    expect(lireParamCouverture('ind.cp')).toEqual({ cible: 'ind', decoupage: 'cp' });
+  });
+  it('le défaut ne s’écrit pas ; le reste fait l’aller-retour', () => {
+    expect(ecrireParamCouverture({ cible: 'ind', decoupage: 'forme' })).toBeNull();
+    for (const r of [{ cible: 'ind', decoupage: 'cp' }, { cible: 'men_pauv', decoupage: 'forme' }, { cible: 'ind_65p', decoupage: 'iris' }] as const) {
+      expect(lireParamCouverture(ecrireParamCouverture(r))).toEqual(r);
+    }
+  });
+});
+
+describe('lireZoneAnalyse', () => {
+  it('un uuid, mis en minuscules ; tout le reste : null', () => {
+    expect(lireZoneAnalyse('0F8FAD5B-D9CB-469F-A165-70867728950E')).toBe('0f8fad5b-d9cb-469f-a165-70867728950e');
+    for (const b of [null, '', 'zone', '0f8fad5b-d9cb-469f-a165-70867728950', '0f8fad5b-d9cb-469f-a165-70867728950e1']) {
+      expect(lireZoneAnalyse(b)).toBeNull();
+    }
+  });
+});
+
+describe('trierLignes', () => {
+  const lignes = [ligne('13100', 50, 80), ligne('13001', 200, null), ligne('13090', 50, 100), ligne('13002', 10, 5)];
+  it('par part décroissante, valeur absente en dernier, code pour départager', () => {
+    expect(trierLignes(lignes, 'part', 'desc').map((l) => l.code)).toEqual(['13090', '13100', '13002', '13001']);
+    expect(trierLignes(lignes, 'part', 'asc').map((l) => l.code)).toEqual(['13002', '13100', '13090', '13001']);
+  });
+  it('par population dans la zone ; égalité départagée par le code ; la liste d’origine n’est pas touchée', () => {
+    const avant = lignes.map((l) => l.code);
+    expect(trierLignes(lignes, 'pop_en_zone', 'desc').map((l) => l.code)).toEqual(['13001', '13090', '13100', '13002']);
+    expect(lignes.map((l) => l.code)).toEqual(avant);
+  });
+  it('par nom, à la française', () => {
+    const l = [ligne('1', 1, 1, 'Étang'), ligne('2', 1, 1, 'Aix'), ligne('3', 1, 1, 'Zèbre')];
+    expect(trierLignes(l, 'nom', 'asc').map((x) => x.nom)).toEqual(['Aix', 'Étang', 'Zèbre']);
+  });
+});
+
+describe('pageDeLignes', () => {
+  const n = Array.from({ length: 5486 }, (_, i) => i);
+  it('50 par page ; 5 486 lignes → 110 pages ; la dernière en porte 36', () => {
+    expect(pageDeLignes(n, 1).lignes).toHaveLength(50);
+    const derniere = pageDeLignes(n, 110);
+    expect(derniere).toMatchObject({ page: 110, nPages: 110 });
+    expect(derniere.lignes).toHaveLength(36);
+    expect(derniere.lignes[0]).toBe(5450);
+  });
+  it('page hors bornes ramenée ; liste vide : une page vide', () => {
+    expect(pageDeLignes(n, 999).page).toBe(110);
+    expect(pageDeLignes(n, -3).page).toBe(1);
+    expect(pageDeLignes(n, Number.NaN).page).toBe(1);
+    expect(pageDeLignes([], 1)).toEqual({ lignes: [], page: 1, nPages: 1 });
+  });
+});
+
+describe('libelleDecoupage', () => {
+  it('sentence case', () => {
+    expect([libelleDecoupage('forme'), libelleDecoupage('cp'), libelleDecoupage('iris')]).toEqual(['Telle quelle', 'Par code postal', 'Par IRIS']);
+  });
+});
+
+describe('messageErreurCouverture / refusDeLErreur', () => {
+  const erreur = (status: number, error: unknown) => new HttpErrorResponse({ status, error });
+  it('la phrase de la route d’abord (refus compris)', () => {
+    const e = erreur(404, { error: 'Cette zone n’existe pas dans cet espace.', refus: 'zone_introuvable' });
+    expect(messageErreurCouverture(e)).toBe('Cette zone n’existe pas dans cet espace.');
+    expect(refusDeLErreur(e)).toBe('zone_introuvable');
+  });
+  it('réseau coupé : « Connexion perdue : réessayez. »', () => {
+    expect(messageErreurCouverture(erreur(0, null))).toBe('Connexion perdue : réessayez.');
+  });
+  it('sans phrase : le message commun (429 sans corps)', () => {
+    expect(messageErreurCouverture(erreur(429, null))).toBe('Trop de demandes rapprochées. Réessayez dans une minute.');
+    expect(messageErreurCouverture(new Error('x'))).toBe('x');
+    expect(refusDeLErreur(erreur(422, { refus: 'inconnu' }))).toBeNull();
+    expect(refusDeLErreur(new Error('x'))).toBeNull();
+  });
+});
+
+describe('resumeCouverture', () => {
+  it('forme : population et surface ; cp / iris : le nombre de territoires', () => {
+    const base = { population: 1906400, surface_km2: 5102.6, n_territoires: 126 };
+    expect(resumeCouverture({ ...base, decoupage: 'forme' }, 'habitants'))
+      .toBe(`${formaterNombre(1906400)} habitants · ${formaterNombre(5103)} km²`);
+    expect(resumeCouverture({ ...base, decoupage: 'cp' }, 'habitants')).toContain('· 126 codes postaux');
+    expect(resumeCouverture({ ...base, n_territoires: 1, decoupage: 'cp' }, 'habitants')).toContain('· 1 code postal');
+    expect(resumeCouverture({ ...base, n_territoires: 5486, decoupage: 'iris' }, 'habitants')).toContain(`· ${formaterNombre(5486)} IRIS`);
+  });
+});

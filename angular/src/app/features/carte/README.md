@@ -178,6 +178,31 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 - **Le catalogue d'indicateurs** : celui de la PAGE (X4), partagé avec ③ et Analyse ; « Mes zones » ne le lit QUE si
   un seuil sur territoires est listé.
 
+## ④ Analyse : la zone analysée (lot 4, T7, 2026-10-22)
+
+④ chiffre UNE zone enregistrée de l'espace, sur sa forme telle quelle ou découpée par code postal ou par IRIS
+(`GET /api/zones/[id]/couverture`), sans jamais la convertir. T7 pose la plomberie ; l'écran est T8.
+
+| Fichier | Rôle |
+|---|---|
+| `data/couverture.api.ts` | `CouvertureApi` (dans `FOURNISSEURS_DISTANTS`) : `couverture(zoneId, cible, decoupage)` |
+| `logique/analyses/couverture.ts` | PUR, sans import d’Angular (le test de parité racine l’importe) : types de la réponse, copie de `DECOUPAGES` et des messages de refus (`couverture-paritaire.test.ts`), paramètre d’URL, tri, pagination (50), libellés, résumé ; les messages d’une erreur HTTP sont dans `couverture-erreurs.ts` |
+| `etat/zone-analysee.service.ts` | `ZoneAnalyseeService`, fourni par la PAGE (`carte.fournisseurs.ts`) : `zoneId`, `cible`, `decoupage`, `resultat`, `enCours`, `erreur` ; `choisir`, `regler`, `chiffrer` |
+| `etat/ecrire-parametres.ts` | Écriture d'URL qui ne perd pas un paramètre posé dans le même tick (piège P-g) — employée par `ParcoursService` et `ZoneAnalyseeService` |
+| `panneaux/analyse/choix-zone-analysee.component.ts` | `mg-choix-zone-analysee` : liste des zones de l'espace lue au PREMIER clic, filtre par nom, zone choisie (nom, recette, « Changer », « Retirer ») ; sortie `choisie` |
+
+- **URL** : `?zoneAnalyse=<uuid>` et `?couverture=<cible>.<forme|cp|iris>` (défaut `ind.forme`, non écrit) — lus à
+  la construction, réécrits en `replaceUrl`, relus à toute navigation extérieure ; une valeur illisible est réécrite
+  une fois. Indépendant du filtre ① et de `?customZone=` (le créneau de bataille, que `LienZoneService` retire après
+  lecture).
+- **Aucun appel avant « Chiffrer »** ; changer de zone, de cible ou de découpage efface le résultat et ANNULE la
+  requête en vol ; chaque chiffrage porte un jeton, une réponse quittée est jetée. 404 `zone_introuvable` (zone
+  supprimée, ou d'un autre espace — lien partagé) : `?zoneAnalyse=` retiré, message affiché.
+- **P-g** : `queryParamsHandling: 'merge'` fusionne avec la dernière URL ABOUTIE ; deux navigations du même tick et
+  la seconde efface le paramètre de la première. `ecrireParametres` part de la navigation EN VOL
+  (`router.currentNavigation()`). Les autres écrivains de la page (`lien-zone`, `carte-hote`, `section-risque`,
+  `jeux-de-zones`) ne l'emploient pas encore.
+
 ## Cycle de vie d'une couche
 
 1. **Allumée** par sa section de `panneaux/calques/`, dépliée dans sa ligne de ② (ou un outil) : le service passe `visible` à vrai.

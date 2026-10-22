@@ -13,7 +13,8 @@
  */
 import { z } from 'zod';
 
-const DECOUPAGES = ['forme', 'cp', 'iris'] as const;
+/** Les trois découpages admis — exporté pour la copie Angular (`couverture-paritaire.test.ts`). */
+export const DECOUPAGES = ['forme', 'cp', 'iris'] as const;
 
 /** Les paramètres de requête. Absents : la population totale (`ind`), la zone telle quelle (`forme`). */
 export const RequeteCouvertureSchema = z.object({

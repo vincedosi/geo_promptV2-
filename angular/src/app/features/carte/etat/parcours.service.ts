@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import {
   ETAPE_PAR_DEFAUT, type EtapeCarte, PARAM_ETAPE, VUE_AUTRES, type VueParcours, ecrireEtape, etapeInitiale, lireEtape,
 } from '../logique/parcours';
+import { ecrireParametres } from './ecrire-parametres';
 
 /**
  * L'étape courante du parcours de la carte, et son reflet dans `?etape=` (spec § 5) — patron EXACT de
@@ -67,12 +68,8 @@ export class ParcoursService {
     const canonique = encode === '' ? null : encode;
     if (canonique === this.dernier) return;
     this.dernier = canonique;
-    void this.router.navigate([], {
-      relativeTo: this.route.firstChild ?? this.route,
-      queryParams: { [PARAM_ETAPE]: canonique },
-      queryParamsHandling: 'merge',
-      replaceUrl: true,
-    });
+    // P-g (lot 4) : une autre écriture du même tick (`?zoneAnalyse=`) n'est pas perdue — `ecrireParametres`.
+    ecrireParametres(this.router, this.route.firstChild ?? this.route, { [PARAM_ETAPE]: canonique });
   }
 
   /** Choisir une étape referme « Autres ». */
