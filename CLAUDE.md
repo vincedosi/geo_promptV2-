@@ -354,6 +354,14 @@ et le message ne nommait ni la concurrence ni la memoire. Mesure du
 seul, et echouait **2 fois sur 3** dans la suite complete. Ne pas remettre les
 deux projets en parallele pour gagner 10 secondes.
 
+Et a l'interieur de la passe d'integration, les FICHIERS tournent un par un
+(`--no-file-parallelism` dans `package.json`) : plusieurs creent et suppriment
+des comptes et des espaces dans la meme base. Sans le drapeau, 2 a 4 tests
+differents echouaient a chaque execution (2026-10-22, 3 fois sur 3) ; avec,
+344/344. L'option `fileParallelism` ne marche pas dans `vitest.workspace.ts`
+(configuration de projet) : c'est bien le drapeau de ligne de commande qui
+protege.
+
 ## Compaction
 
 Quand tu fais `/compact`, préserve TOUJOURS :

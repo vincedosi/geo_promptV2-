@@ -62,8 +62,12 @@ export default defineWorkspace([
       // n'existe pas dans une configuration de PROJET, seulement à la racine.
       // Elle était donc silencieusement ignorée — `tsc` l'a signalée, pas
       // Vitest. Un réglage qui ne s'applique pas est pire que son absence : il
-      // fait croire à une protection. La sérialisation réelle vient des deux
-      // passes de `npm test`.
+      // fait croire à une protection. La sérialisation des FICHIERS passe donc
+      // par le drapeau `--no-file-parallelism` des scripts `test` et
+      // `test:integration` (package.json) : sans lui, des fichiers qui créent
+      // et suppriment comptes et espaces dans la même base échouaient 2 à 4
+      // tests différents à chaque exécution (mesuré le 2026-10-22, 3 fois sur
+      // 3), et passaient 344/344 avec.
       sequence: { concurrent: false },
       // Les calculs d'exposition dépassent le défaut de 5 s par construction :
       // prouver qu'une colonne est vide sur 2,3 M lignes demande de les lire
