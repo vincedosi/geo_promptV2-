@@ -6813,6 +6813,16 @@ export type Database = {
         Args: { p_departement?: string }
         Returns: Json
       }
+      couverture_geometrie: {
+        Args: {
+          p_cible?: string
+          p_decoupage?: string
+          p_max_carreaux?: number
+          p_org_id: string
+          p_zone_id: string
+        }
+        Returns: Json
+      }
       cp_des_points: {
         Args: { p_ids: number[]; p_pts: unknown[] }
         Returns: {

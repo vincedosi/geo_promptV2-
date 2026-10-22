@@ -151,6 +151,7 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `vider_carreau_couverture()` | 266, 268 | Vide `carreau_couverture`, son journal ET son certificat (préalable de `--tout`) |
 | `certifier_carreau_couverture()` | 268 | Compte `carreaux_filosofi`, la table et son journal ; range le certificat (≈ 0,3 s) |
 | `carreau_couverture_complete()` | 268 | `NULL` si la table est certifiée complète, sinon le motif ; lu par la couverture et le dénominateur IRIS |
+| `couverture_geometrie()` | 269 | Couverture d'une zone de l'espace (lecture seule, `jsonb`) : population de la cible telle quelle, ou par CP / IRIS avec la part de chaque territoire ; ≤ 100 000 km², ≤ 400 000 carreaux ; refuse sans table certifiée |
 | `construire_denominateur_iris()` | 267 | Maille `iris` d'`unite_population_totale` construite depuis `carreau_couverture` (même règle que le numérateur, jamais `iris.population`) ; efface et réécrit la seule maille `iris`, ≈ 18 s |
 
 ---
