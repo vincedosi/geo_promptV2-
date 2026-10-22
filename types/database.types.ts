@@ -6730,6 +6730,7 @@ export type Database = {
         Returns: Json
       }
       construire_cp_groupe: { Args: never; Returns: Json }
+      construire_denominateur_iris: { Args: never; Returns: Json }
       construire_iris_agg: {
         Args: { p_niveau: string }
         Returns: {

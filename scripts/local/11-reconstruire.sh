@@ -30,6 +30,9 @@
 #          └─ couverture_rayon_risque
 #     └─ cp_groupe -> cp_population_totale
 #          └─ carreau_couverture     (sql/266 : même règle CP, test d'égalité)
+#               └─ unite_population_totale, maille `iris` (sql/267 : construite
+#                  DEPUIS carreau_couverture — l'étape 4 n'écrit que les trois
+#                  autres mailles)
 #
 # `zones_risque_cache` n'y figure pas : l'application la construit seule au
 # premier affichage d'un profil (~2,8 s), et la préconstruire ici ferait payer
@@ -118,8 +121,12 @@ echo "  -> $(n public.carreau_risque_nature) lignes"
 
 # ── 4. LE DÉNOMINATEUR ──────────────────────────────────────────────────────
 etape "4/7 unite_population_totale"
-if [ "$(n public.unite_population_totale)" -gt 0 ]; then
-  echo "  déjà construit : $(n public.unite_population_totale) lignes"
+# ⚠ Compter les seules mailles de sql/221 : la maille `iris` (sql/267) vit dans
+# la même table mais se construit à l'étape 5 ter, depuis carreau_couverture.
+# Compter toute la table ferait sauter les communes dès qu'un IRIS est présent.
+upt_n=$(n "public.unite_population_totale where maille <> 'iris'")
+if [ "${upt_n:-0}" -gt 0 ]; then
+  echo "  déjà construit : $upt_n lignes (commune, département, région)"
 else
   sql "select public.construire_unite_population_totale()" | head -c 200; echo
 fi
@@ -253,6 +260,25 @@ else
 fi
 echo "  -> $(n public.carreau_couverture) lignes"
 
+# ── 5 ter. LE DÉNOMINATEUR IRIS ─────────────────────────────────────────────
+#
+# `unite_population_totale`, maille `iris` (sql/267, lot 4 T4) : la population
+# de chaque IRIS comptée sur `carreau_couverture` — la même règle que le
+# numérateur de la couverture par IRIS, jamais `iris.population`. ≈ 18 s.
+#
+# Reconstruit si absent OU plus ancien que le journal de carreau_couverture :
+# la table de dénominateurs EST sauvegardée, la table étroite NON — après une
+# restauration, le dénominateur restauré daterait d'avant la reconstruction de
+# la table dont il dérive, et c'est exactement ce que la comparaison voit.
+etape "5ter/7 dénominateur IRIS"
+iris_perime=$(sql "select coalesce((select max(construit_le) from public.unite_population_totale where maille = 'iris')
+                        < (select max(construit_le) from public.carreau_couverture_bandes), true)" | tr -d ' \r')
+if [ "$iris_perime" = "t" ]; then
+  sql "select public.construire_denominateur_iris()" || { echo "ÉCHEC dénominateur IRIS" >&2; exit 1; }
+else
+  echo "  déjà construit : $(n "public.unite_population_totale where maille = 'iris'") IRIS"
+fi
+
 # ── 5. LA COUVERTURE PAR RAYON ──────────────────────────────────────────────
 #
 # ⚠ `--tout` N'EST PAS UN LUXE ICI, et c'est l'erreur la plus coûteuse du
@@ -313,7 +339,7 @@ attendu() { # $1 = table, $2 = effectif de référence
 attendu carreaux_filosofi        2324577
 attendu carreau_risque_distance   883451
 attendu carreau_risque_nature    1446552
-attendu unite_population_totale    35031
+attendu unite_population_totale    83903   # 35 031 (sql/221) + 48 872 IRIS (sql/267)
 attendu couverture_rayon_risque   115962
 attendu pprt_niveau_generateur       664
 attendu cp_population_totale        6000

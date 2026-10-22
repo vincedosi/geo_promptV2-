@@ -134,3 +134,127 @@ describe('sql/266 — carreau_couverture', () => {
     expect([anon, auth, sr, rls, fnAnon, fnSr]).toEqual(['f', 'f', 't', 't', 'f', 't']);
   }, LONG);
 });
+
+/**
+ * `carreau_couverture.code_iris` est-il JUSTE ? (relecture de T3, réserve r7)
+ *
+ * Le dénominateur IRIS de sql/267 est construit DEPUIS cette colonne : si elle était fausse, numérateur et dénominateur
+ * seraient faux ENSEMBLE et l'égalité IRIS par IRIS plus bas passerait quand même. On la recalcule donc par la
+ * géométrie, sans rien relire de la table étroite que l'identifiant et les codes à contrôler : centroïde refait depuis
+ * `carreaux_filosofi.geom_3857`, IRIS cherchés dans `iris.geom` (4326), et TOUS ceux qui contiennent le point comptés.
+ * Attendu : exactement un IRIS — le même — quand le code est posé, aucun quand il est NULL. Un carreau rattaché à tort,
+ * ou tombé dans deux IRIS, échoue.
+ *
+ * Échantillon : 1 % des PAGES (`tablesample system`, graine fixe), ≈ 24 000 carreaux, ≈ 6 s. Il doit contenir des
+ * carreaux sans IRIS ET des carreaux dont l'IRIS n'est pas dans leur commune (`left(code_iris, 5) <> code_commune`,
+ * ≈ 2,3 %) : ce sont les cas où une erreur se cacherait, on exige qu'ils y soient.
+ */
+describe('sql/266 — exactitude de carreau_couverture.code_iris (recalcul géométrique indépendant)', () => {
+  it('sur ≈ 24 000 carreaux tirés : un IRIS et le même quand code_iris est posé, aucun quand il est NULL ; centroïde exact', () => {
+    const [n, ok, nuls, nonEmboites, centroideFaux] = sql(`
+      with ech as (
+        select cc.carreau_id, cc.code_iris, cc.code_commune, cc.centroide_3857,
+               ST_Centroid(c.geom_3857) as ctr
+          from public.carreau_couverture cc tablesample system (1) repeatable (267)
+          join public.carreaux_filosofi c on c.id = cc.carreau_id),
+      r as (
+        select e.*, x.n_contenants, x.plus_petit
+          from ech e
+          cross join lateral (
+            select count(*) as n_contenants, min(i.code_iris) as plus_petit
+              from public.iris i
+             where i.geom && ST_Transform(e.ctr, 4326) and ST_Contains(i.geom, ST_Transform(e.ctr, 4326))) x)
+      select count(*),
+             count(*) filter (where n_contenants = case when code_iris is null then 0 else 1 end
+                                and code_iris is not distinct from plus_petit),
+             count(*) filter (where code_iris is null),
+             count(*) filter (where left(code_iris, 5) <> code_commune),
+             count(*) filter (where ST_Distance(centroide_3857, ctr) > 1e-6)
+        from r;`);
+    expect(Number(n)).toBeGreaterThan(15_000);
+    expect(Number(ok)).toBe(Number(n));
+    expect(Number(nuls)).toBeGreaterThan(0);
+    expect(Number(nonEmboites)).toBeGreaterThan(100);
+    expect(Number(centroideFaux)).toBe(0);
+  }, LONG);
+});
+
+/**
+ * sql/267 — le dénominateur IRIS (lot 4, T4, arbitrage A-3) : `unite_population_totale`, maille `iris`, construite DEPUIS
+ * `carreau_couverture`. La part d'un IRIS couverte par une zone se rapporte à la population de cet IRIS comptée par la
+ * MÊME règle (centroïde dans `iris.geom`) — jamais `iris.population` (recensement), qui ne compte pas la même chose.
+ *
+ * ⚠ IRIS et commune NE S'EMBOÎTENT PAS ici : pour ≈ 2,3 % des carreaux, le code de l'IRIS qui contient le centroïde ne
+ * commence pas par le premier code `lcog_geo` (bordures, et millésimes COG différents entre `iris` et le carroyage). On
+ * ne recoupe donc JAMAIS la somme des IRIS d'une commune avec la commune : chaque IRIS se recoupe avec sa propre maille,
+ * et le total national se recoupe (IRIS + hors IRIS = total communal).
+ */
+describe('sql/267 — dénominateur IRIS (unite_population_totale, maille iris)', () => {
+  it('une ligne par IRIS habité, entre 45 000 et 49 448, autant que d’IRIS dans carreau_couverture ; 24 cibles chacune', () => {
+    const [n, attendu, inconnus, mauvaisesCles] = sql(`
+      select (select count(*) from public.unite_population_totale where maille = 'iris'),
+             (select count(distinct code_iris) from public.carreau_couverture),
+             (select count(*) from public.unite_population_totale u
+               where u.maille = 'iris' and not exists (select 1 from public.iris i where i.code_iris = u.code)),
+             (select count(*) from public.unite_population_totale u
+               where u.maille = 'iris'
+                 and (select count(*) from jsonb_object_keys(u.populations))
+                     <> (select count(*) from public.cibles_exposition where actif and rang_pop is not null));`);
+    expect(Number(n)).toBeGreaterThanOrEqual(45_000);
+    expect(Number(n)).toBeLessThanOrEqual(49_448);
+    expect(Number(n)).toBe(Number(attendu));
+    expect(Number(inconnus)).toBe(0);
+    expect(Number(mauvaisesCles)).toBe(0);
+  }, LONG);
+
+  it('IRIS par IRIS : le dénominateur égale la somme des carreaux de cet IRIS (ind, men, men_pauv, carreaux) — aucune part > 100 % possible', () => {
+    const [absents, ecarts] = sql(`
+      with t as (
+        select code_iris code, count(*) n, sum(pops[1]::numeric) ind, sum(pops[17]::numeric) men, sum(pops[23]::numeric) mp
+          from public.carreau_couverture where code_iris is not null group by 1)
+      select count(*) filter (where t.code is null or d.code is null),
+             count(*) filter (where t.n <> d.n_carreaux
+                                 or abs(t.ind - (d.populations->>'ind')::numeric) > 0.5
+                                 or abs(t.men - (d.populations->>'men')::numeric) > 0.5
+                                 or abs(t.mp - (d.populations->>'men_pauv')::numeric) > 0.5)
+        from t full join (select * from public.unite_population_totale where maille = 'iris') d on d.code = t.code;`);
+    // `pops[1]`, `pops[17]`, `pops[23]` = ind, men, men_pauv : vérifié par le test A-2 et les deux tests par CP / commune.
+    expect(Number(absents)).toBe(0);
+    expect(Number(ecarts)).toBe(0);
+  }, LONG);
+
+  it('total national : IRIS + carreaux hors IRIS = total communal (63,8 M), au carreau près', () => {
+    const [nIris, indIris, nHors, indHors, nComm, indComm] = sql(`
+      select (select sum(n_carreaux) from public.unite_population_totale where maille = 'iris'),
+             (select sum((populations->>'ind')::numeric) from public.unite_population_totale where maille = 'iris'),
+             (select count(*) from public.carreau_couverture where code_iris is null),
+             (select coalesce(sum(pops[1]::numeric), 0) from public.carreau_couverture where code_iris is null),
+             (select sum(n_carreaux) from public.unite_population_totale where maille = 'commune'),
+             (select sum((populations->>'ind')::numeric) from public.unite_population_totale where maille = 'commune');`);
+    expect(Number(nIris) + Number(nHors)).toBe(Number(nComm));
+    // `pops` est en `real` : ≈ 7 chiffres significatifs par carreau. Sur 2,3 M de carreaux l'écart cumulé reste sous
+    // quelques habitants ; l'égalité IRIS par IRIS au demi-habitant près est assurée par le test précédent.
+    expect(Math.abs(Number(indIris) + Number(indHors) - Number(indComm))).toBeLessThan(5);
+  }, LONG);
+
+  it('rejouée, la construction rend exactement le même dénominateur (idempotente, aucune ligne en double)', () => {
+    const empreinte = `select md5(string_agg(code || ':' || n_carreaux || ':' || populations::text, ',' order by code))
+                         from public.unite_population_totale where maille = 'iris';`;
+    const avant = sql(empreinte)[0];
+    const [ok, nIris] = sql(`select r->>'ok', r->>'n_iris' from (select public.construire_denominateur_iris() r) s;`);
+    expect(ok).toBe('true');
+    expect(sql(empreinte)[0]).toBe(avant);
+    expect(Number(nIris)).toBe(Number(sql(`select count(*) from public.unite_population_totale where maille = 'iris';`)[0]));
+    // Les trois autres mailles ne bougent pas.
+    expect(sql(`select count(*) from public.unite_population_totale where maille in ('commune', 'departement', 'region');`)[0])
+      .toBe('35031');
+  }, LONG);
+
+  it('construction réservée à service_role', () => {
+    const [anon, auth, sr] = sql(`
+      select has_function_privilege('anon', 'public.construire_denominateur_iris()', 'execute'),
+             has_function_privilege('authenticated', 'public.construire_denominateur_iris()', 'execute'),
+             has_function_privilege('service_role', 'public.construire_denominateur_iris()', 'execute');`);
+    expect([anon, auth, sr]).toEqual(['f', 'f', 't']);
+  }, LONG);
+});

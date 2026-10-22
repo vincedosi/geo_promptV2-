@@ -116,7 +116,8 @@ vol_table carreaux_filosofi       2324577 "07-carreaux-insee.sh"
 vol_table carreau_risque_distance  883451 "11-reconstruire.sh"
 vol_table carreau_risque_nature   1446552 "11-reconstruire.sh"
 vol_table couverture_rayon_risque   115962 "11-reconstruire.sh"
-vol_table unite_population_totale    35031 "11-reconstruire.sh"
+# 35 031 lignes commune/département/région (sql/221) + 48 872 IRIS (sql/267).
+vol_table unite_population_totale    83903 "11-reconstruire.sh"
 vol_table cp_population_totale         6000 "11-reconstruire.sh"
 vol_table cp_groupe                   6187 "11-reconstruire.sh"
 # La table étroite de la couverture (sql/266) : vide, ④ refuse de chiffrer une

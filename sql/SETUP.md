@@ -148,6 +148,7 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `supprimer_panneaux_plan_de_source()` | 264 | Fonction du déclencheur `trg_data_sources_panneaux_plan` (BEFORE DELETE sur `data_sources`) : retire les panneaux `plan-ooh:%` de la source et leurs liens de campagne, sinon `set null` les rendrait visibles de tous |
 | `construire_carreau_couverture()` | 266 | Construit UNE bande de longitude de `carreau_couverture` (une transaction, journalisée, rejouable : remplace) — psql uniquement |
 | `vider_carreau_couverture()` | 266 | Vide `carreau_couverture` ET son journal (préalable de `--tout`) |
+| `construire_denominateur_iris()` | 267 | Maille `iris` d'`unite_population_totale` construite depuis `carreau_couverture` (même règle que le numérateur, jamais `iris.population`) ; efface et réécrit la seule maille `iris`, ≈ 18 s |
 
 ---
 
