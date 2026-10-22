@@ -232,10 +232,34 @@ echo "  -> $(n public.cp_population_totale) codes postaux"
 # La cause est corrigée dans `10-sauvegarder.sh` (le journal est désormais
 # exclu avec sa table), mais toute sauvegarde ANTÉRIEURE au 22/09 porte encore
 # le défaut — d'où le `--tout` inconditionnel quand la table est vide.
+#
+# ⚠ « NON VIDE » NE VEUT PAS DIRE « À JOUR » — constaté le 2026-10-22.
+#
+# Jusqu'à cette date, l'étape sautait dès que la table portait des lignes. Or
+# `couverture_rayon_risque` (journal daté du 2026-09-18) était PÉRIMÉE par
+# rapport à `carreau_risque_distance` (journal du 2026-09-19) : sa courbe
+# nationale rendait 42 409 940 habitants à 10 km quand la table des distances
+# n'en compte que 41 025 586 — 1,4 M de trop, et le test de caractérisation
+# `zone-risque-caracterisation.test.ts` rouge depuis un mois sans que ce script
+# n'y voie rien. Une table pleine et une table juste se ressemblent.
+#
+# On compare donc les JOURNAUX : `carreau_risque_distance` n'a pas de date, son
+# journal `carreau_risque_bandes` la porte (sql/203). Si la couverture a été
+# construite AVANT les distances dont elle dérive, elle est reconstruite.
+#
+# Limite connue : ce contrôle ne voit que l'ordre des deux journaux. Des
+# distances restaurées d'une sauvegarde AVEC leur journal, après un rechargement
+# des carreaux, passeraient pour fraîches — même défaut aux étapes 4 et 5
+# (`unite_population_totale`, `cp_population_totale`), à traiter à part.
 etape "6/7 couverture_rayon_risque"
-if [ "$(n public.couverture_rayon_risque)" -gt 0 ]; then
-  echo "  déjà construite : $(n public.couverture_rayon_risque) lignes"
+couv_le=$(sql "select coalesce(max(construit_le)::text, '') from public.couverture_rayon_bandes" | tr -d '\r')
+dist_le=$(sql "select coalesce(max(construit_le)::text, '') from public.carreau_risque_bandes" | tr -d '\r')
+perimee=$(sql "select (select max(construit_le) from public.couverture_rayon_bandes)
+                    < (select max(construit_le) from public.carreau_risque_bandes)" | tr -d ' \r')
+if [ "$(n public.couverture_rayon_risque)" -gt 0 ] && [ "$perimee" != "t" ]; then
+  echo "  déjà construite : $(n public.couverture_rayon_risque) lignes (couverture ${couv_le:-?}, distances ${dist_le:-?})"
 else
+  [ "$perimee" = "t" ] && echo "  PÉRIMÉE : couverture construite le $couv_le, distances le $dist_le — reconstruction"
   node scripts/construire_couverture_rayon.mjs --tout || { echo "ÉCHEC couverture" >&2; exit 1; }
 fi
 echo "  -> $(n public.couverture_rayon_risque) lignes"

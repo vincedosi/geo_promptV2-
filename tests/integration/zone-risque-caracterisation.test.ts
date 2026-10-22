@@ -114,6 +114,18 @@ describe('zone à risque — caractérisation (valeurs mesurées le 2026-09-19)'
    * ouverte de l'autre). Une valeur de caractérisation qu'on met à jour sans
    * la recouper ailleurs ne caractérise plus rien : elle enregistre ce que le
    * code fait, y compris quand il a tort.
+   *
+   * ⚠ 2026-10-22 (lot 4, T1) : CE TEST A ÉTÉ ROUGE PENDANT UN MOIS, ET LA
+   * VALEUR ÉTAIT JUSTE. La base rendait de nouveau 42 409 940 : après une
+   * restauration, `couverture_rayon_risque` portait une construction du
+   * 2026-09-18 (journal `couverture_rayon_bandes`), antérieure aux distances du
+   * 2026-09-19 dont elle dérive, et `11-reconstruire.sh` la sautait parce
+   * qu'elle n'était pas vide. Reconstruite (`construire_couverture_rayon.mjs
+   * --tout`, 122 bandes, 608 s), elle rend EXACTEMENT 41 025 366 ; la source
+   * indépendante (`carreau_risque_distance`, distance au plus proche Seveso
+   * ≤ 10 000 m, `sum(pops[1]::numeric)`) rend 41 025 586 sur 880 976 carreaux,
+   * soit 220 d'écart, comme le 22/09. On n'a donc rien re-figé : on a remis la
+   * donnée d'accord avec le test. Le script compare désormais les deux journaux.
    */
   it('la courbe totale atteint 41 025 366 habitants à 10 km d’un site Seveso', async () => {
     const { data } = await sb.rpc('lire_couverture_rayon', {
