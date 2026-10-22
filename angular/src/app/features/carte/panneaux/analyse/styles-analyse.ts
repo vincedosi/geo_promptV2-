@@ -48,3 +48,17 @@ export const ENCART_AVERTISSEMENT = 'rounded-[4px] border-fin border-[color-mix(
 export const TEXTE_TEINTE: Readonly<Record<string, string>> = {
   success: 'text-success', danger: 'text-danger', warning: 'text-warning', secondary: 'text-secondary', tertiary: 'text-tertiary',
 };
+
+/**
+ * La couleur de TEXTE d'un avertissement, lisible en thème clair (relecture T8, I3) — la recette de l'administration
+ * (`cadre-admin.component.ts`, DESIGN_SYSTEM « Teal et statut en TEXTE sur fond clair ») : en clair, `--warning` mêlé
+ * à 50 % de `--text-primary` ; en sombre, `--warning` inchangé. `light-dark()` se résout d'après le `color-scheme` de
+ * l'hôte. Mesuré : 6,3:1 sur le fond de l'encart en clair (2,7:1 avec `--warning` seul), 9,6:1 en sombre.
+ */
+export const TEXTE_AVERTISSEMENT = 'text-[color:light-dark(color-mix(in_srgb,var(--warning)_50%,var(--text-primary)),var(--warning))]';
+/**
+ * L'encart d'avertissement de la couverture d'une zone (messages Q-J : territoire non carroyé, zone sans carreau) :
+ * le fond et le bord d'`ENCART_AVERTISSEMENT`, le texte `TEXTE_AVERTISSEMENT`. `ENCART_AVERTISSEMENT` reste tel quel
+ * pour la corrélation (hors du périmètre de T8).
+ */
+export const ENCART_AVERTISSEMENT_LISIBLE = `rounded-[4px] border-fin border-[color-mix(in_srgb,var(--warning)_25%,transparent)] bg-[color-mix(in_srgb,var(--warning)_10%,transparent)] px-[10px] py-2 text-[11px] leading-[1.5] ${TEXTE_AVERTISSEMENT}`;

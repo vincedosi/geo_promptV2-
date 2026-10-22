@@ -7,10 +7,14 @@ import { CouleursService } from '../../../core/theme/couleurs.service';
 import { IrisApi } from '../data/iris.api';
 import { ZonesCustomApi } from '../data/zones-custom.api';
 import { ContoursZonesService } from '../etat/contours-zones.service';
+import { AnnonceService } from '../etat/annonce.service';
 import { CouchesCarteService } from '../etat/couches-carte.service';
+import { EtatCarteService } from '../etat/etat-carte.service';
 import { ZoneAnalyseeService } from '../etat/zone-analysee.service';
 import type { ResultatCouverture } from '../logique/analyses/couverture';
-import { COUCHES_COUVERTURE, COUCHE_COUVERTURE_CP_FOND, COUCHE_COUVERTURE_CP_SURVOL, COUCHE_COUVERTURE_ZONE, SOURCE_COUVERTURE_CP } from './couche-couverture';
+import {
+  COUCHES_COUVERTURE, COUCHE_COUVERTURE_CP_FOND, COUCHE_COUVERTURE_CP_SURVOL, COUCHE_COUVERTURE_IRIS_FOND, COUCHE_COUVERTURE_ZONE,
+} from './couche-couverture';
 import { CouvertureService } from './couverture.service';
 
 const A = '0f8fad5b-d9cb-469f-a165-70867728950e';
@@ -20,7 +24,7 @@ const resultat = (zone_id: string, decoupage: ResultatCouverture['decoupage']): 
   lignes: decoupage === 'forme' ? [] : [{ code: '13100', nom: 'Aix', commune: null, n_carreaux: 2, pop_en_zone: 30, pop_totale: 30, part: 100 }],
   hors_territoire: { n_carreaux: 0, population: 0 }, n_territoires: decoupage === 'forme' ? 0 : 1, motif_vide: null,
   territoires_non_carroyes: [], reference: { source: 's', millesime: 2021, population_france: 63783569, n_carreaux_france: 2324577 },
-  base_construite_le: '2026-10-22', calcule_le: '2026-10-22T10:00:00Z', cache: false,
+  base_construite_le: '2026-10-22', calcule_le: '2026-10-22T10:00:00Z', cache: false, zone_maj: '2026-10-22T09:00:00+00:00',
 });
 const entite = (id: string) => ({ type: 'Feature' as const, geometry: { type: 'Polygon' as const, coordinates: [[[5, 43], [5.5, 43], [5.5, 43.5], [5, 43]]] }, properties: { id } });
 
@@ -29,9 +33,11 @@ function monter() {
   const res = signal<ResultatCouverture | null>(null);
   const geos: Array<{ id: string; s: Subject<ReturnType<typeof entite>> }> = [];
   const cps: Subject<GeoJSON.FeatureCollection>[] = [];
+  const annonces: string[] = [];
   TestBed.configureTestingModule({
     providers: [
-      provideZonelessChangeDetection(), CouvertureService, CouchesCarteService,
+      provideZonelessChangeDetection(), CouvertureService, CouchesCarteService, EtatCarteService,
+      { provide: AnnonceService, useValue: { annoncer: (m: string) => annonces.push(m) } },
       { provide: ZoneAnalyseeService, useValue: { zoneId, resultat: res } },
       { provide: ZonesCustomApi, useValue: { geometrie: (id: string) => { const s = new Subject<ReturnType<typeof entite>>(); geos.push({ id, s }); return s; } } },
       { provide: ContoursZonesService, useValue: { zones: () => { const s = new Subject<GeoJSON.FeatureCollection>(); cps.push(s); return s; } } },
@@ -45,7 +51,7 @@ function monter() {
   couches.publier(carte as unknown as maplibregl.Map);
   const service = TestBed.inject(CouvertureService);
   TestBed.tick();
-  return { service, carte, couches, zoneId, res, geos, cps };
+  return { service, carte, couches, zoneId, res, geos, cps, annonces, etat: TestBed.inject(EtatCarteService) };
 }
 
 describe('CouvertureService (lot 4, T8)', () => {
@@ -125,12 +131,16 @@ describe('CouvertureService (lot 4, T8)', () => {
     expect(m.carte.getLayer(COUCHE_COUVERTURE_ZONE)).toBeDefined();
   });
 
-  it('IRIS sous z9 : « Zoomez » ; au-dessus, non — l’écouteur de zoom est retiré à la destruction', () => {
+  it('IRIS sous z9 : « Zoomez » ; au-dessus, non — écouteur, couches et contour retirés à la destruction', () => {
     const m = monter();
     m.carte.zoom = 7;
     m.carte.emettre('zoomend');
     m.res.set(resultat(A, 'iris'));
     TestBed.tick();
+    m.geos[0].s.next(entite(A));
+    TestBed.tick();
+    expect(m.carte.getLayer(COUCHE_COUVERTURE_IRIS_FOND)).toBeDefined();
+    expect(m.carte.getLayer(COUCHE_COUVERTURE_ZONE)).toBeDefined();
     expect(m.service.irisSousLeZoom()).toBe(true);
     m.carte.zoom = 10;
     m.carte.emettre('zoomend');
@@ -138,6 +148,75 @@ describe('CouvertureService (lot 4, T8)', () => {
     expect(m.carte.nombreEcouteurs('zoomend')).toBe(1);
     TestBed.resetTestingModule();
     expect(m.carte.nombreEcouteurs('zoomend')).toBe(0);
-    expect(m.carte.sources.has(SOURCE_COUVERTURE_CP)).toBe(false);
+    expect(m.carte.getLayer(COUCHE_COUVERTURE_IRIS_FOND)).toBeUndefined();
+    expect(m.carte.getLayer(COUCHE_COUVERTURE_ZONE)).toBeUndefined();
+  });
+
+  it('I1 : même zone, forme recalculée (zone_maj neuf) → contour RELU et recadré ; l’ancien n’est plus tracé', () => {
+    const m = monter();
+    m.res.set(resultat(A, 'forme'));
+    TestBed.tick();
+    m.geos[0].s.next(entite(A));
+    TestBed.tick();
+    expect(m.carte.cadrages).toHaveLength(1);
+    // Retour de ③ : même id, nouvelle forme ; un chiffrage du même zone_maj ne relit rien.
+    m.res.set({ ...resultat(A, 'forme'), cache: true });
+    TestBed.tick();
+    expect(m.geos).toHaveLength(1);
+    m.res.set({ ...resultat(A, 'forme'), zone_maj: '2026-10-22T11:00:00+00:00' });
+    TestBed.tick();
+    expect(m.geos.map((g) => g.id)).toEqual([A, A]);
+    expect(m.carte.getLayer(COUCHE_COUVERTURE_ZONE)).toBeUndefined();
+    m.geos[1].s.next(entite(A));
+    TestBed.tick();
+    expect(m.carte.getLayer(COUCHE_COUVERTURE_ZONE)).toBeDefined();
+    expect(m.carte.cadrages).toHaveLength(2);
+  });
+
+  it('Q1 : peinte, elle RÉCLAME le dégradé ; évincée, elle se masque et le panneau peut la ré-afficher (Q2)', () => {
+    const m = monter();
+    m.etat.basculerDegrade('iris', true);
+    m.res.set(resultat(A, 'forme'));
+    TestBed.tick();
+    expect(m.etat.degradeActif()).toBe('couverture');
+    expect(m.annonces.at(-1)).toContain('IRIS');
+    m.etat.basculerDegrade('carreaux', true);
+    TestBed.tick();
+    expect(m.service.masquee()).toBe(true);
+    expect(m.service.affichee()).toBe(false);
+    m.service.afficher();
+    TestBed.tick();
+    expect(m.service.affichee()).toBe(true);
+    expect(m.etat.degradeActif()).toBe('couverture');
+  });
+
+  it('Q2 : « Tout effacer » garde le chiffre, masque la couche ; afficher() la remet SANS nouvelle lecture', () => {
+    const m = monter();
+    m.res.set(resultat(A, 'forme'));
+    TestBed.tick();
+    m.geos[0].s.next(entite(A));
+    TestBed.tick();
+    m.couches.toutEffacer();
+    TestBed.tick();
+    expect(m.service.masquee()).toBe(true);
+    expect(m.carte.getLayer(COUCHE_COUVERTURE_ZONE)).toBeUndefined();
+    m.service.afficher();
+    TestBed.tick();
+    expect(m.service.masquee()).toBe(false);
+    expect(m.carte.getLayer(COUCHE_COUVERTURE_ZONE)).toBeDefined();
+    expect(m.geos).toHaveLength(1);
+  });
+
+  it('contours CP en échec : « indisponibles », relus au chiffrage CP suivant', () => {
+    const m = monter();
+    m.res.set(resultat(A, 'cp'));
+    TestBed.tick();
+    m.cps[0].error(new Error('réseau'));
+    TestBed.tick();
+    expect(m.service.contoursIndisponibles()).toBe(true);
+    m.res.set({ ...resultat(A, 'cp') });
+    TestBed.tick();
+    expect(m.cps).toHaveLength(2);
+    expect(m.service.contoursIndisponibles()).toBe(false);
   });
 });

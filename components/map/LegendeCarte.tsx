@@ -168,6 +168,10 @@ function degradeALegende(props: LegendeCarteProps): boolean {
       // profil courant — elles changent à chaque anneau ajouté ou retiré, et
       // une légende générique ne pourrait pas les nommer.
       return false;
+    case 'couverture':
+      // Réclamé par la seule carte Angular (④ Couverture d'une zone), dont la
+      // légende vit dans le panneau de l'outil : jamais actif côté React.
+      return false;
     default: {
       const _exhaustif: never = d;
       return _exhaustif;

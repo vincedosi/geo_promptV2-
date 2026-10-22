@@ -66,7 +66,8 @@ const TRI_DEFAUT = { cle: 'pop_en_zone' as CleTriCouverture, sens: 'desc' as Sen
         @for (l of page().lignes; track l.code) {
           <tr class="border-b-fin border-subtle transition-[background-color] duration-150 ease-[var(--ease-out)]"
               [class.bg-teal-10]="actif() === l.code" [attr.data-ligne]="l.code"
-              (mouseenter)="survol.emit(l.code)" (mouseleave)="survol.emit(null)">
+              tabindex="0" [attr.aria-label]="l.code + ' ' + l.nom + ' : ' + l.part"
+              (mouseenter)="survol.emit(l.code)" (mouseleave)="survol.emit(null)" (focus)="survol.emit(l.code)" (blur)="survol.emit(null)">
             <td class="px-2 py-[7px] text-primary">
               <span class="mr-[7px] font-mono text-[10px] text-tertiary">{{ l.code }}</span>{{ l.nom }}
               @if (l.commune) { <span class="block text-[10px] text-tertiary">{{ l.commune }}</span> }
@@ -76,7 +77,8 @@ const TRI_DEFAUT = { cle: 'pop_en_zone' as CleTriCouverture, sens: 'desc' as Sen
             <td mgTd>
               <span class="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
                 @if (l.barre; as b) {
-                  <span aria-hidden="true" class="inline-block h-1 w-10 overflow-hidden rounded-[2px] bg-overlay">
+                  <!-- Piste bordée (relecture T8, I2) : le palier --seq-1 est plus clair que --bg-overlay en thème clair. -->
+                  <span aria-hidden="true" class="inline-block h-1.5 w-10 overflow-hidden rounded-[2px] border-fin border-[var(--text-tertiary)]">
                     <span class="block h-full" [style.width.%]="b.largeur" [style.background]="b.couleur"></span>
                   </span>
                 }

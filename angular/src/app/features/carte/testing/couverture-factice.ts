@@ -21,7 +21,7 @@ export function fournisseursCouvertureFactices(): Provider[] {
       provide: CouvertureService,
       useValue: {
         affichee: signal(false), survole: signal(null), chargementContours: signal(false), contoursIndisponibles: signal(false),
-        irisSousLeZoom: signal(false), survoler: () => undefined,
+        irisSousLeZoom: signal(false), survoler: () => undefined, masquee: signal(false), afficher: () => undefined,
       },
     },
     { provide: ProfilRisqueApi, useValue: { cibles: () => of({ cibles: [] }) } },

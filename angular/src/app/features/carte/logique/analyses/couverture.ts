@@ -66,6 +66,8 @@ export interface ResultatCouverture {
   base_construite_le: string;
   calcule_le: string;
   cache: boolean;
+  /** La version de la forme chiffrée (`custom_geo_zones.updated_at`, sql/271) : le contour se relit quand elle change. */
+  zone_maj: string;
 }
 
 /** `?couverture=<cible>.<decoupage>` → cible et découpage. Absent ou illisible : les défauts. Ne lève jamais. */

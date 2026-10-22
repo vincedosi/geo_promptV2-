@@ -54,7 +54,7 @@ describe('logique de navigation et de carte : Angular = React', () => {
     expect(Af.retirerFiltre()).toBe(Rf.retirerFiltre());
   });
   it('dégradés — libellés, activation, bascule, validation', () => {
-    const ids = ['carreaux', 'iris', 'civic-indicateurs', 'civic-sante', 'meteo', 'campagne-impressions', 'score', 'diffusion', 'zones-risque'] as const;
+    const ids = ['carreaux', 'iris', 'civic-indicateurs', 'civic-sante', 'meteo', 'campagne-impressions', 'score', 'diffusion', 'zones-risque', 'couverture'] as const;
     for (const id of ids) expect(Ad.libelleDegrade(id)).toBe(Rd.libelleDegrade(id));
     for (const actif of [null, ...ids]) for (const cible of ids) {
       expect(Ad.activerDegrade(actif, cible)).toEqual(Rd.activerDegrade(actif, cible));

@@ -17,7 +17,8 @@ export type DegradeId =
   | 'campagne-impressions'
   | 'score'
   | 'diffusion'
-  | 'zones-risque';
+  | 'zones-risque'
+  | 'couverture';
 
 const LIBELLES: Record<DegradeId, string> = {
   'carreaux': 'Carreaux Filosofi',
@@ -40,6 +41,12 @@ const LIBELLES: Record<DegradeId, string> = {
   // à côté du registre est ce qui les empêche de s'empiler avec les huit
   // autres — et ce qui garantit qu'une seule légende parle à la fois.
   'zones-risque': 'Zones de risque',
+  // 2026-10-22 (lot 4 Angular, T8) : la couverture d'une zone (part de chaque
+  // code postal ou IRIS) est une choroplèthe comme les autres — même
+  // raisonnement que le score et les zones de risque. Côté React, aucun
+  // composant ne la réclame : l'entrée n'existe que pour que les deux copies
+  // de ce registre restent identiques (écart P5 ratifié par le CdP).
+  'couverture': 'Couverture d’une zone',
 };
 
 export function libelleDegrade(id: DegradeId): string {

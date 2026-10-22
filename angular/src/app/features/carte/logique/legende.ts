@@ -38,6 +38,8 @@ export function degradeALegende(d: DegradeId | null): boolean {
     case 'score':
     case 'diffusion':
       return false;
+    case 'couverture':
+      return false; // légende dans le panneau de l'outil (④, lot 4 T8)
     default: {
       const exhaustif: never = d;
       return exhaustif;

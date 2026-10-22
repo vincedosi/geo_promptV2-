@@ -6,6 +6,7 @@ import { IrisApi } from '../data/iris.api';
 import { ZonesCustomApi } from '../data/zones-custom.api';
 import { ContoursZonesService } from '../etat/contours-zones.service';
 import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.service';
+import { EtatCarteService } from '../etat/etat-carte.service';
 import { ZoneAnalyseeService } from '../etat/zone-analysee.service';
 import { bboxDeZone } from '../logique/zones/zones-affichees';
 import {
@@ -36,26 +37,36 @@ const RECADRAGE = { padding: 60, duration: 900 } as const;
  * la MASQUE jusqu'au prochain chiffrage, sans toucher au résultat affiché dans le panneau. À la destruction : lectures
  * désabonnées, couches retirées, écouteur de zoom retiré (nettoyage de l'effet).
  *
- * Pas de dégradé réclamé : le registre `logique/degrades.ts` est une copie VERBATIM de `lib/carte/degrades.ts` (gel P5),
- * on n'y ajoute pas une entrée sans React. La couche se pose au-dessus des choroplèthes (`ORDRE_COUCHES`).
+ * ── UN SEUL DÉGRADÉ À LA FOIS (relecture T8, Q1) ─────────────────────────
+ * `'couverture'` est au registre (`logique/degrades.ts` et sa source React `lib/carte/degrades.ts`, écart P5 ratifié) :
+ * la couche peinte RÉCLAME le dégradé (l'IRIS, les carreaux, le score… sont évincés et l'éviction annoncée) ; évincée à
+ * son tour, elle se MASQUE — le chiffre reste au panneau, qui dit « Couche retirée de la carte » (Q2).
+ *
+ * ── LE CONTOUR SUIT LA VERSION DE LA ZONE (relecture T8, I1) ─────────────
+ * Un recalcul en ③ garde l'id et change la forme : la réponse porte `zone_maj` (sql/271), et le contour est relu (et la
+ * carte recadrée) dès que (zone, zone_maj) change. Tant que le neuf n'est pas lu, l'ancien n'est PAS tracé.
  */
 @Injectable()
 export class CouvertureService {
   private readonly zone = inject(ZoneAnalyseeService);
   private readonly couches = inject(CouchesCarteService);
+  private readonly etat = inject(EtatCarteService);
   private readonly zonesApi = inject(ZonesCustomApi);
   private readonly irisApi = inject(IrisApi);
   private readonly contoursZones = inject(ContoursZonesService);
   private readonly palette = inject(CouleursService).palette(JETONS_COUVERTURE);
 
-  /** « Tout effacer » masque la couche ; un nouveau chiffrage la ré-affiche. */
-  private readonly masquee = linkedSignal({ source: this.zone.resultat, computation: () => false });
+  /** « Tout effacer » ou l'éviction par un autre dégradé masquent la couche ; un chiffrage ou `afficher()` la rendent. */
+  private readonly _masquee = linkedSignal({ source: this.zone.resultat, computation: () => false });
+  /** La couche est-elle masquée alors qu'un chiffrage existe ? Le panneau le dit (« Couche retirée de la carte »). */
+  readonly masquee = computed(() => this.zone.resultat() !== null && this._masquee());
   /** La couverture est-elle peinte ? Lu par la pastille « renseignée » de ④. */
-  readonly affichee = computed(() => this.zone.resultat() !== null && !this.masquee());
+  readonly affichee = computed(() => this.zone.resultat() !== null && !this._masquee());
   /** Le territoire survolé dans le tableau ; remis à `null` à chaque résultat. */
   readonly survole = linkedSignal<unknown, string | null>({ source: this.zone.resultat, computation: () => null });
 
-  private readonly geometrie = signal<{ id: string; entite: GeoJSON.Feature } | null>(null);
+  /** Le contour lu, et la version (`cle` = zone + `zone_maj`) dont il est la forme. */
+  private readonly geometrie = signal<{ cle: string; entite: GeoJSON.Feature } | null>(null);
   private readonly contoursCp = signal<GeoJSON.FeatureCollection | null>(null);
   /** Contours CP en lecture / en échec : le panneau le dit (le tableau reste lisible). */
   readonly chargementContours = signal(false);
@@ -70,11 +81,11 @@ export class CouvertureService {
 
   private readonly rendu = computed<RenduCouverture | null>(() => {
     const r = this.zone.resultat();
-    if (!r || this.masquee()) return null;
+    if (!r || this._masquee()) return null;
     const g = this.geometrie();
     const cp = this.contoursCp();
     return {
-      zone: g && g.id === r.zone_id ? g.entite : null,
+      zone: g && g.cle === cleContour(r) ? g.entite : null,
       decoupage: r.decoupage,
       cp: r.decoupage === 'cp' && cp ? entitesCouvertureCp(cp, r.lignes) : null,
       iris: r.decoupage === 'iris' ? r.lignes : null,
@@ -84,27 +95,41 @@ export class CouvertureService {
   /** L'instance qui porte les couches — la surbrillance n'écrit que là. */
   private readonly posee = signal<maplibregl.Map | null>(null);
   private lectureZone: Subscription | null = null;
-  /** La zone dont le contour est lu ou en lecture ; `null` : aucun. */
-  private idContour: string | null = null;
+  /** La version (zone + `zone_maj`) dont le contour est lu ou en lecture ; `null` : aucune. */
+  private cleLue: string | null = null;
+  /** Le dégradé `couverture` est-il réclamé ? (transition seulement, comme `ScoreService`). */
+  private reclame = false;
   private lectureContours: Subscription | null = null;
 
   constructor() {
-    this.couches.inscrireEffacement('couverture', () => this.masquee.set(true));
+    this.couches.inscrireEffacement('couverture', () => this._masquee.set(true));
+    // Évincée par un autre dégradé : masquée, sans rendre un dégradé qu'on vient de prendre.
+    this.etat.surEviction('couverture', () => {
+      this.reclame = false;
+      this._masquee.set(true);
+    });
+
+    // Peinte → réclame le dégradé ; retirée → le rend. Transition seulement.
+    effect(() => {
+      const a = this.affichee();
+      untracked(() => {
+        if (a === this.reclame) return;
+        this.reclame = a;
+        this.etat.basculerDegrade('couverture', a);
+      });
+    });
 
     // Les lectures suivent le RÉSULTAT (jamais l'ouverture de ④) : le contour de sa zone, les contours CP s'il le faut.
     effect(() => {
       const r = this.zone.resultat();
       const id = this.zone.zoneId();
       untracked(() => {
-        // Zone quittée : son contour (lu ou en vol) n'est plus le nôtre.
-        if (this.idContour !== null && this.idContour !== id) {
-          this.lectureZone?.unsubscribe();
-          this.lectureZone = null;
-          this.idContour = null;
-          this.geometrie.set(null);
-        }
-        if (!r) return;
-        if (this.idContour === null) this.lireZone(r.zone_id);
+        // Zone quittée, ou forme recalculée : le contour (lu ou en vol) n'est plus le nôtre.
+        const cle = r ? cleContour(r) : null;
+        if (this.cleLue !== null && !this.cleLue.startsWith(`${id}@`)) this.oublierContour();
+        if (!r || !cle) return;
+        if (this.cleLue !== null && this.cleLue !== cle) this.oublierContour();
+        if (this.cleLue === null) this.lireZone(r.zone_id, cle);
         if (r.decoupage === 'cp' && !this.contoursCp() && !this.lectureContours) this.lireContours();
       });
     });
@@ -160,25 +185,37 @@ export class CouvertureService {
     });
   }
 
+  /** « Afficher sur la carte » : rend la couche masquée, SANS re-chiffrer (relecture T8, Q2). */
+  afficher(): void {
+    this._masquee.set(false);
+  }
+
   /** Survol d'une ligne du tableau (`null` en sortie). */
   survoler(code: string | null): void {
     this.survole.set(code);
   }
 
-  private lireZone(id: string): void {
-    this.idContour = id;
+  private oublierContour(): void {
+    this.lectureZone?.unsubscribe();
+    this.lectureZone = null;
+    this.cleLue = null;
+    this.geometrie.set(null);
+  }
+
+  private lireZone(id: string, cle: string): void {
+    this.cleLue = cle;
     this.lectureZone = this.zonesApi.geometrie(id).subscribe({
       next: (f) => {
         this.lectureZone = null;
-        if (this.idContour !== id || !f?.geometry) return;
-        this.geometrie.set({ id, entite: f as GeoJSON.Feature });
+        if (this.cleLue !== cle || !f?.geometry) return;
+        this.geometrie.set({ cle, entite: f as GeoJSON.Feature });
         const b = bboxDeZone(null, f.geometry);
         if (b) this.couches.carteCourante()?.fitBounds([[b[0], b[1]], [b[2], b[3]]], RECADRAGE);
       },
       // Sans contour, la part reste peinte : on ne bloque pas le reste pour un trait.
       error: () => {
         this.lectureZone = null;
-        if (this.idContour === id) this.idContour = null;
+        if (this.cleLue === cle) this.cleLue = null;
       },
     });
   }
@@ -199,4 +236,9 @@ export class CouvertureService {
       },
     });
   }
+}
+
+/** La version d'une zone chiffrée : son id et la date de sa forme (`zone_maj`, sql/271). */
+function cleContour(r: { zone_id: string; zone_maj?: string | null }): string {
+  return `${r.zone_id}@${r.zone_maj ?? ''}`;
 }

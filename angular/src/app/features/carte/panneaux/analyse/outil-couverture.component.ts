@@ -13,7 +13,7 @@ import {
 import { BORNES_PART } from '../../couches/couche-couverture';
 import { ChoixZoneAnalyseeComponent } from './choix-zone-analysee.component';
 import {
-  BOUTON_CALCUL, CORPS_ACCORDEON, ENCART_AVERTISSEMENT, ENCART_ERREUR, ENTETE_ACCORDEON, LIBELLE_CHAMP, PASTILLE, PASTILLE_INACTIVE,
+  BOUTON_CALCUL, CORPS_ACCORDEON, ENCART_AVERTISSEMENT_LISIBLE, ENCART_ERREUR, ENTETE_ACCORDEON, LIBELLE_CHAMP, PASTILLE, PASTILLE_INACTIVE,
   PASTILLE_PRIMAIRE_ACTIVE,
 } from './styles-analyse';
 import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couverture-zone.component';
@@ -106,6 +106,13 @@ const LIBELLE_CIBLE_DEFAUT = 'Population totale';
 
         @if (z.resultat(); as r) {
           <div class="flex flex-col gap-[10px]" data-resultat>
+            <!-- « Tout effacer » ou un autre dégradé ont retiré la couche : le chiffre reste, on le DIT (relecture T8, Q2). -->
+            @if (c.masquee()) {
+              <div data-couche-retiree class="flex items-center gap-2 text-[11px] text-tertiary">
+                <span class="flex-1">Couche retirée de la carte.</span>
+                <button type="button" data-afficher-couche (click)="c.afficher()" [class]="pastille + ' ' + pastilleInactive">Afficher sur la carte</button>
+              </div>
+            }
             @if (vide(); as v) {
               <div data-zone-vide [class]="encartAvertissement">{{ v }}</div>
               <div class="font-mono text-[11px] text-secondary">{{ nombre(surface()) }} km²</div>
@@ -128,15 +135,15 @@ const LIBELLE_CIBLE_DEFAUT = 'Population totale';
             </p>
 
             @if (r.decoupage !== 'forme' && r.lignes.length > 0) {
-              @if (c.irisSousLeZoom()) { <div data-zoomer class="text-[11px] text-warning">Zoomez pour voir les IRIS sur la carte (à partir du zoom 9).</div> }
+              @if (c.irisSousLeZoom()) { <div data-zoomer class="text-[11px] text-secondary">Zoomez pour voir les IRIS sur la carte (à partir du zoom 9).</div> }
               @if (c.chargementContours()) { <div class="font-mono text-[11px] text-tertiary">Chargement des contours…</div> }
               @if (c.contoursIndisponibles()) { <div class="text-[11px] text-tertiary">Contours indisponibles : le tableau reste juste, la carte ne montre que la zone.</div> }
               <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-tertiary" data-legende-part>
                 <span>Part</span>
                 @for (p of paliers; track $index) {
-                  <span class="inline-flex items-center gap-1"><span class="inline-block size-2.5 rounded-[2px]" [style.background]="p.couleur"></span>{{ p.libelle }}</span>
+                  <span class="inline-flex items-center gap-1"><span class="inline-block size-2.5 rounded-[2px] border-fin border-[var(--text-tertiary)]" [style.background]="p.couleur"></span>{{ p.libelle }}</span>
                 }
-                <span class="inline-flex items-center gap-1"><span class="inline-block size-2.5 rounded-[2px] bg-[var(--donnee-absente)]"></span>sans total</span>
+                <span class="inline-flex items-center gap-1"><span class="inline-block size-2.5 rounded-[2px] border-fin border-[var(--text-tertiary)] bg-[var(--donnee-absente)]"></span>sans total</span>
               </div>
               <mg-tableau-couverture-zone [lignes]="r.lignes" [decoupage]="r.decoupage" [actif]="c.survole()" (survol)="c.survoler($event)" />
             }
@@ -169,7 +176,7 @@ export class OutilCouvertureComponent {
   protected readonly libelleChamp = LIBELLE_CHAMP;
   protected readonly boutonCalcul = BOUTON_CALCUL;
   protected readonly encartErreur = ENCART_ERREUR;
-  protected readonly encartAvertissement = ENCART_AVERTISSEMENT;
+  protected readonly encartAvertissement = ENCART_AVERTISSEMENT_LISIBLE;
   protected readonly pastille = PASTILLE;
   protected readonly pastilleActive = PASTILLE_PRIMAIRE_ACTIVE;
   protected readonly pastilleInactive = PASTILLE_INACTIVE;
@@ -191,7 +198,7 @@ export class OutilCouvertureComponent {
   /** « habitants carroyés », ou « <cible> (carroyés) » : le chiffre de tête ne se lit jamais sans son dénominateur. */
   protected readonly libelleTete = computed(() => {
     const r = this.z.resultat();
-    return r?.cible === CIBLE_PAR_DEFAUT ? 'habitants carroyés' : `${this.libelleCible().toLowerCase()} (carroyés)`;
+    return r?.cible === CIBLE_PAR_DEFAUT ? 'habitants carroyés' : `${minusculeInitiale(this.libelleCible())} (carroyés)`;
   });
   protected readonly reference = computed(() => {
     const r = this.z.resultat();
@@ -250,4 +257,9 @@ export class OutilCouvertureComponent {
       },
     });
   }
+}
+
+/** « Ménages pauvres » → « ménages pauvres » ; un sigle (« CSP+ ») garde ses capitales. */
+function minusculeInitiale(s: string): string {
+  return s.length > 1 && s[1] === s[1].toLowerCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 }

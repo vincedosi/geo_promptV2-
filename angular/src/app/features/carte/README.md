@@ -219,7 +219,13 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   `panneau-analyse-garde.test.ts`). A-9 : zone analysée → « Cet outil travaille sur le périmètre de l'étape ① » dans
   « Analyse spatiale » (batailles) et au-dessus du clustering.
 - **Ordre** : `couverture-*` au-dessus des zones enregistrées, sous les points OOH et les tracés (`ORDRE_COUCHES`).
-  Pas de dégradé réclamé : `logique/degrades.ts` est une copie verbatim de React (gel P5).
+- **Un seul dégradé** (correctif de revue, Q1) : `'couverture'` est au registre (`logique/degrades.ts` et sa source
+  React, écart P5 ratifié) ; peinte, la couche évince l'IRIS, les carreaux, le score… ; évincée ou « Tout effacer »,
+  elle se masque et le panneau dit « Couche retirée de la carte » + « Afficher sur la carte » (Q2), sans re-chiffrer.
+- **Contour à jour** (I1) : la réponse porte `zone_maj` (sql/271) ; le contour est relu quand (zone, `zone_maj`)
+  change — un recalcul en ③ redessine la nouvelle forme.
+- **Lisibilité en clair** (I2, I3) : trait `--text-tertiary` sur les territoires touchés (le palier `--seq-1` est
+  quasi blanc), pastilles et barres bordées ; texte d'avertissement `TEXTE_AVERTISSEMENT` (`styles-analyse.ts`).
 - Pastille « renseignée » de ④ : `suivreAnalyseAffichee()` (`carte.fournisseurs.ts`) — score, zones à risque ou
   couverture peints.
 

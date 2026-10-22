@@ -16,7 +16,7 @@ const BASE: ResultatCouverture = {
   zone_id: A, cible: 'ind', decoupage: 'forme', surface_km2: 5103.4, n_carreaux: 33100, population: 1906414, lignes: [],
   hors_territoire: { n_carreaux: 0, population: 0 }, n_territoires: 0, motif_vide: null, territoires_non_carroyes: [],
   reference: { source: 'carroyage', millesime: 2021, population_france: 63783569, n_carreaux_france: 2324577 },
-  base_construite_le: '2026-10-22', calcule_le: '2026-10-22T10:00:00Z', cache: false,
+  base_construite_le: '2026-10-22', calcule_le: '2026-10-22T10:00:00Z', cache: false, zone_maj: '2026-10-22T09:00:00+00:00',
 };
 
 /** Une doublure de `ZoneAnalyseeService` qui enregistre les gestes (le vrai est prouvé par sa propre spec, T7). */
@@ -41,13 +41,15 @@ async function monter(zone: string | null = A) {
     { code: 'men_pauv', libelle: 'Ménages pauvres', famille: 'Ménages' },
   ] }));
   const listes = new Subject<{ zones: never[] }>();
+  const couverture = {
+    survole: signal(null), survoler: vi.fn(), chargementContours: signal(false), contoursIndisponibles: signal(false), irisSousLeZoom: signal(false),
+    masquee: signal(false), afficher: vi.fn(),
+  };
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
       { provide: ZoneAnalyseeService, useValue: z },
-      { provide: CouvertureService, useValue: {
-        survole: signal(null), survoler: vi.fn(), chargementContours: signal(false), contoursIndisponibles: signal(false), irisSousLeZoom: signal(false),
-      } },
+      { provide: CouvertureService, useValue: couverture },
       { provide: ProfilRisqueApi, useValue: { cibles } },
       { provide: ZonesCustomApi, useValue: { lister: () => listes } },
       { provide: AuthService, useValue: { lireProfil: async () => ({ organisation: 'o1' }) } },
@@ -58,7 +60,7 @@ async function monter(zone: string | null = A) {
   const el = f.nativeElement as HTMLElement;
   const stable = async () => { await new Promise((r) => setTimeout(r, 0)); await f.whenStable(); };
   await stable();
-  return { f, el, z, cibles, stable };
+  return { f, el, z, cibles, stable, couverture };
 }
 
 describe('mg-outil-couverture (lot 4, T8)', () => {
@@ -110,7 +112,8 @@ describe('mg-outil-couverture (lot 4, T8)', () => {
     expect(el.querySelector('[data-zone-vide]')!.textContent).toContain('Aucun carreau habité');
   });
 
-  it('changer de découpage efface le résultat et ne relance rien', async () => {
+  // L'effacement RÉEL du résultat est prouvé par la spec de ZoneAnalyseeService (T7) ; ici, le câblage du clic.
+  it('cliquer un découpage appelle regler({ decoupage }) et ne relance aucun chiffrage', async () => {
     const { el, z, stable } = await monter();
     z.resultat.set(BASE);
     await stable();
@@ -146,5 +149,19 @@ describe('mg-outil-couverture (lot 4, T8)', () => {
     (el.querySelector('[data-ouvrir-cible]') as HTMLButtonElement).click();
     await stable();
     expect(cibles).toHaveBeenCalledTimes(1);
+  });
+
+  it('Q2 : couche retirée de la carte → la ligne le dit, « Afficher sur la carte » la remet (sans re-chiffrer)', async () => {
+    const { el, z, stable, couverture } = await monter();
+    z.resultat.set(BASE);
+    await stable();
+    expect(el.querySelector('[data-couche-retiree]')).toBeNull();
+    couverture.masquee.set(true);
+    await stable();
+    expect(el.querySelector('[data-couche-retiree]')!.textContent).toContain('Couche retirée de la carte.');
+    (el.querySelector('[data-afficher-couche]') as HTMLButtonElement).click();
+    await stable();
+    expect(couverture.afficher).toHaveBeenCalledTimes(1);
+    expect(z.chiffrer).not.toHaveBeenCalled();
   });
 });
