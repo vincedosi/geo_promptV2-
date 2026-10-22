@@ -229,6 +229,16 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 - Pastille « renseignée » de ④ : `suivreAnalyseAffichee()` (`carte.fournisseurs.ts`) — score, zones à risque ou
   couverture peints.
 
+### Ce que le lot 4a laisse en l'état (T9, 2026-10-22)
+
+- **Deux chiffres pour une zone (A-15)** : le plan média des zones (`panneaux/zones/plan-media.component.ts`,
+  `plan-media.service.ts`) lit `audience_stats` — carreaux qui INTERSECTENT la zone, ≤ 5 000 km² — quand ④ compte
+  ceux dont le CENTROÏDE est dedans. Sur « CIRFA BRETAGNE » : 1 373 227 contre 1 355 354 habitants (+1,3 %).
+  Unifier relève du lot 7 ; ne pas afficher les deux côte à côte d'ici là (`ARCHITECTURE.md`, § Zones custom).
+- **La cible d'URL** (Q3 de T8, ratifiée) : le catalogue des cibles est lu à la première ouverture du sélecteur,
+  ET au chargement quand `?couverture=` porte une cible autre que la population totale (il faut la nommer).
+- **Couverture par rayon (4b, Q-I)** : bornée au département ; la région attendra un pré-calcul national.
+
 ## Cycle de vie d'une couche
 
 1. **Allumée** par sa section de `panneaux/calques/`, dépliée dans sa ligne de ② (ou un outil) : le service passe `visible` à vrai.
