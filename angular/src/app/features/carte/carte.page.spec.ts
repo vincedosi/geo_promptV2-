@@ -4,13 +4,15 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { Subject, of, throwError } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
 import { FABRIQUE_CARTE } from '../../carte/fabrique-carte';
 import { CarteFactice } from '../../carte/testing/carte-factice';
 import { AuthService } from '../../core/auth/auth.service';
 import { OrganisationsApi } from '../session/data/organisations.api';
 import { ReferentielApi } from '../risques/data/referentiel.api';
 import { CarreauxApi } from './data/carreaux.api';
+import { ProfilRisqueApi } from '../risques/data/profil-risque.api';
+import { CouvertureApi } from './data/couverture.api';
 import { IrisApi } from './data/iris.api';
 import { CarteApi } from './data/carte.api';
 import { RadioApi } from './data/radio.api';
@@ -116,6 +118,9 @@ async function ouvrir(options: OptionsOuverture = {}) {
       { provide: JeuxZonesApi, useValue: { lister: options.jeux ?? (() => of({ jeux: [] })) } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },
       { provide: IrisApi, useValue: { urlTuiles: () => '/api/tiles/iris/{z}/{x}/{y}?v=2', bornes: () => of({}), detail: () => of() } },
+      // ④ Couverture d'une zone (lot 4, T8) : jamais appelée sans « Chiffrer ».
+      { provide: CouvertureApi, useValue: { couverture: () => NEVER } },
+      { provide: ProfilRisqueApi, useValue: { cibles: () => NEVER } },
       { provide: CarteApi, useValue: { categories: options.categories ?? (() => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] })), jeuxRecommandes: options.jeuxRecommandes ?? (() => of({ cles: [] })), pois: () => of(), campagnesOoh: options.campagnesOoh ?? (() => of({ campagnes: [], tronque: false })), campagneOoh: options.campagneOoh ?? (() => of()), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
       { provide: RadioApi, useValue: { optionsFiltre: () => of({}), emetteurs: () => of({ type: 'FeatureCollection', features: [] }), stations: () => of({}) } },
       { provide: MeteoApi, useValue: { donnees: () => of() } },
@@ -1497,6 +1502,8 @@ interface LigneInventaire {
  *   mais ne cache jamais (« Plus de données communes ») ; leur section dépliée : `panneau-donnees.component.spec.ts`.
  * - 33-37. Les familles de ③ (lot 3) ; 38. « Mes zones » : la ligne de recette et « Recalculer » sont prouvés par
  *   `panneaux/zones/mes-zones.component.spec.ts` et `carte-zone.component.spec.ts` (la liste est lue du serveur).
+ * - 39. ④ Couverture d'une zone (lot 4, T8) : le chiffrage, le tableau et la couche sont prouvés par
+ *   `panneaux/analyse/outil-couverture.component.spec.ts` et `couches/couverture.service.spec.ts`.
  * Une ligne qui échoue veut dire qu'une fonction a été PERDUE : la rétablir, jamais retirer la ligne.
  */
 const INVENTAIRE: readonly LigneInventaire[] = [
@@ -1551,6 +1558,11 @@ const INVENTAIRE: readonly LigneInventaire[] = [
   {
     n: 38, fonction: '« Mes zones » › recette et « Recalculer »', lieu: { outil: 'zones' },
     preuves: ['[data-tiroir-outil] mg-mes-zones'],
+  },
+  // Lot 4, T8 : la couverture d'une zone, en tête de ④ et ouverte (choix de zone, cible, découpage, « Chiffrer »).
+  {
+    n: 39, fonction: '④ › Couverture d’une zone', lieu: { etape: 4 },
+    preuves: ['[data-panneau-etape="analyse"] mg-outil-couverture [data-outil-couverture] mg-choix-zone-analysee', '[data-panneau-etape="analyse"] [data-chiffrer]'],
   },
 ];
 

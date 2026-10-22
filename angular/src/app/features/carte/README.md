@@ -203,6 +203,26 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   (`router.currentNavigation()`). Les autres écrivains de la page (`lien-zone`, `carte-hote`, `section-risque`,
   `jeux-de-zones`) ne l'emploient pas encore.
 
+### L'écran et la couche (T8)
+
+| Fichier | Rôle |
+|---|---|
+| `panneaux/analyse/outil-couverture.component.ts` | `mg-outil-couverture`, EN TÊTE de ④ et ouvert par défaut : zone (`mg-choix-zone-analysee`), cible (catalogue `ProfilRisqueApi.cibles()` lu à la première ouverture du sélecteur, ou pour nommer une cible venue de l'URL), découpage (« Telle quelle » · « Par code postal » · « Par IRIS »), CTA « Chiffrer la zone », refus au-dessus du CTA, trois chiffres clés, tableau, « Calculé le … · en cache » |
+| `panneaux/analyse/tableau-couverture-zone.component.ts` | `mg-tableau-couverture-zone` : Territoire · Dans la zone · Total · Part (barre `--seq-*`) ; tri par colonne, 50 lignes par page, « 5 498 IRIS · page 3 sur 110 » ; survol → surbrillance sur la carte |
+| `couches/couverture.service.ts` | `CouvertureService` (PAGE, `carte.fournisseurs.ts`) : lit le contour de la zone (`/api/custom-geo/[id]/geometry`) et les contours CP (`ContoursZonesService`) au PREMIER résultat qui les demande, recadre (padding 60), re-pose au changement de fond, repeint au thème, retire au changement de zone et à la destruction ; « Tout effacer » masque jusqu'au chiffrage suivant |
+| `couches/couche-couverture.ts` | Fonctions PURES : contour de la zone ; CP = contours filtrés aux codes de la réponse, `step` sur `part` en cinq classes (< 20, 20-40, 40-60, 60-80, ≥ 80 %) ; IRIS = couche sur `iris-source` avec `minzoom` 9 ET filtre `niveau = 'iris'` (les tuiles servent des communes sous z9), `match` sur `code_iris` GROUPÉ par classe ; surbrillance par `setFilter` |
+
+- **Q-J** : « Population des carreaux Filosofi 2021 (63,78 M en France) » est la note du chiffre de tête ET la
+  phrase sous le résultat, dans les trois découpages (`phraseReference`). Zone en Guadeloupe, Guyane ou Mayotte
+  (`motif_vide = territoire_non_carroye`) ou en mer (`aucun_carreau`) : un message, jamais « 0 ».
+- **Hors garde de ①** : la zone est le périmètre ; bornes et quota côté serveur (verrou
+  `panneau-analyse-garde.test.ts`). A-9 : zone analysée → « Cet outil travaille sur le périmètre de l'étape ① » dans
+  « Analyse spatiale » (batailles) et au-dessus du clustering.
+- **Ordre** : `couverture-*` au-dessus des zones enregistrées, sous les points OOH et les tracés (`ORDRE_COUCHES`).
+  Pas de dégradé réclamé : `logique/degrades.ts` est une copie verbatim de React (gel P5).
+- Pastille « renseignée » de ④ : `suivreAnalyseAffichee()` (`carte.fournisseurs.ts`) — score, zones à risque ou
+  couverture peints.
+
 ## Cycle de vie d'une couche
 
 1. **Allumée** par sa section de `panneaux/calques/`, dépliée dans sa ligne de ② (ou un outil) : le service passe `visible` à vrai.

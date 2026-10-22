@@ -3,6 +3,8 @@ import type { Subscription } from 'rxjs';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { plierTexte } from '../../../../core/format/texte';
 import { ZonesCustomApi, type ZoneCustomResume } from '../../data/zones-custom.api';
+import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
+import type { IndicateurRegistre } from '../../logique/analyses/score';
 import { messageErreurRequete } from '../../logique/analyses/commun';
 import { libelleRecette } from '../../logique/zones/recette';
 import { LIBELLE_CHAMP, LISTE_CHAMP, PASTILLE, PASTILLE_INACTIVE } from './styles-analyse';
@@ -16,8 +18,11 @@ import { LIBELLE_CHAMP, LISTE_CHAMP, PASTILLE, PASTILLE_INACTIVE } from './style
  * « Choisir une zone », une seule fois par composant (le panneau reste monté, A1). Exception : une zone arrive déjà
  * choisie (lien `?zoneAnalyse=`) — son nom et sa recette sont dans cette même liste, lue alors une fois pour les dire.
  *
- * La zone choisie affiche son nom, le libellé de sa recette (`libelleRecette`, sans catalogue d'indicateurs : un seuil
- * sur territoires montre l'identifiant de l'indicateur), « Changer » et « Retirer ».
+ * La zone choisie affiche son nom, le libellé de sa recette (`libelleRecette`), « Changer » et « Retirer ». Un seuil
+ * sur territoires est nommé par le catalogue d'indicateurs de la PAGE (`CatalogueIndicateursService`, X4 — le même que
+ * ③, le score et « Mes zones », lecture partagée) : lu seulement quand la liste porte un tel seuil (T8, réserve 4 de T7).
+ * Si la liste ne peut pas être lue alors qu'une zone est déjà choisie (lien), l'échec est dit SOUS la zone, sans
+ * ouvrir la liste (relecture de T7).
  */
 @Component({
   selector: 'mg-choix-zone-analysee',
@@ -29,6 +34,8 @@ import { LIBELLE_CHAMP, LISTE_CHAMP, PASTILLE, PASTILLE_INACTIVE } from './style
         <div class="flex flex-col gap-1 rounded-[6px] border-fin border-subtle bg-elevated px-[10px] py-2" data-zone-choisie>
           <span class="text-[12px] text-primary">{{ zoneChoisie()?.name ?? (chargement() ? 'Chargement…' : 'Zone enregistrée') }}</span>
           @if (recetteChoisie(); as r) { <span class="text-[11px] text-tertiary">{{ r }}</span> }
+          <!-- La liste n'a pas pu être lue : le nom manque, et on le DIT sans attendre qu'on ouvre la liste (relecture T7). -->
+          @if (erreur(); as e) { <span class="text-[11px] text-danger" role="alert" data-erreur-liste>Nom indisponible : {{ e }}</span> }
           <div class="mt-1 flex gap-1.5">
             <button type="button" [class]="PASTILLE + ' ' + PASTILLE_INACTIVE" (click)="ouvrir()" data-changer>Changer</button>
             <button type="button" [class]="PASTILLE + ' ' + PASTILLE_INACTIVE" (click)="choisie.emit(null)" data-retirer>Retirer</button>
@@ -72,6 +79,7 @@ import { LIBELLE_CHAMP, LISTE_CHAMP, PASTILLE, PASTILLE_INACTIVE } from './style
 export class ChoixZoneAnalyseeComponent {
   private readonly api = inject(ZonesCustomApi);
   private readonly auth = inject(AuthService);
+  private readonly catalogue = inject(CatalogueIndicateursService);
 
   /** La zone analysée courante (`ZoneAnalyseeService.zoneId()`), lue en fonction (P-d). */
   readonly zoneId = input<string | null>(null);
@@ -88,13 +96,16 @@ export class ChoixZoneAnalyseeComponent {
   protected readonly zones = signal<ZoneCustomResume[]>([]);
   protected readonly chargement = signal(false);
   protected readonly erreur = signal<string | null>(null);
+  /** Le catalogue d'indicateurs, pour nommer un seuil sur territoires (sinon l'identifiant s'affiche). */
+  private readonly indicateurs = signal<readonly IndicateurRegistre[]>([]);
+  private readonly seuilListe = computed(() => this.zones().some((z) => z.recette?.type === 'seuil_territoire'));
 
   /** Les zones dont le nom contient le filtre (sans casse ni accents), avec le libellé de leur recette. */
   protected readonly zonesFiltrees = computed(() => {
     const f = plierTexte(this.filtre());
     return this.zones()
       .filter((z) => !f || plierTexte(z.name).includes(f))
-      .map((z) => ({ z, libelle: z.recette ? libelleRecette(z.recette) : null }));
+      .map((z) => ({ z, libelle: z.recette ? libelleRecette(z.recette, this.indicateurs()) : null }));
   });
   protected readonly zoneChoisie = computed(() => {
     const id = this.zoneId();
@@ -102,21 +113,31 @@ export class ChoixZoneAnalyseeComponent {
   });
   protected readonly recetteChoisie = computed(() => {
     const z = this.zoneChoisie();
-    return z?.recette ? libelleRecette(z.recette) : null;
+    return z?.recette ? libelleRecette(z.recette, this.indicateurs()) : null;
   });
 
   private demandee = false;
   private detruit = false;
   private lecture: Subscription | null = null;
+  private lectureCatalogue: Subscription | null = null;
 
   constructor() {
     // Une zone déjà choisie (lien) : la liste est lue pour dire son nom. Aucune zone : rien n'est lu.
     effect(() => {
       if (this.zoneId()) untracked(() => this.charger());
     });
+    // Le patron de « Mes zones » : une lecture, seulement si un seuil sur territoires est listé.
+    effect(() => {
+      if (!this.seuilListe() || this.lectureCatalogue) return;
+      this.lectureCatalogue = untracked(() => this.catalogue.charger().subscribe({
+        next: (liste) => this.indicateurs.set(liste),
+        error: () => { this.lectureCatalogue = null; },
+      }));
+    });
     inject(DestroyRef).onDestroy(() => {
       this.detruit = true;
       this.lecture?.unsubscribe();
+      this.lectureCatalogue?.unsubscribe();
     });
   }
 

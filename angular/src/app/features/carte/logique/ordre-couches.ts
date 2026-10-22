@@ -38,6 +38,11 @@ export const COUCHES_APRES_LOAD: readonly string[] = [
   'score-composite-cp-fill', 'score-composite-cp-line',
   'atelier-zones-fond', 'atelier-zones-contour', 'atelier-zones-pprt', 'atelier-zones-etiquettes',
   'custom-zone-*',
+  // ④ Couverture d'une zone (lot 4, T8) : la part de chaque CP / IRIS, au-dessus des zones enregistrées (c'est la
+  // lecture d'UNE d'elles), sous les points d'une campagne et les tracés de l'utilisateur. Le contour de la zone et la
+  // surbrillance du territoire survolé en dernier. Sans équivalent React.
+  'couverture-cp-fill', 'couverture-cp-line', 'couverture-iris-fill', 'couverture-iris-line',
+  'couverture-cp-survol', 'couverture-iris-survol', 'couverture-zone-line',
   // Emplacements d'une campagne OOH (spec 2026-10-16-ooh-campagnes § 6) : des POINTS, au-dessus des zones
   // enregistrées (un aplat à 25 % ne les cache pas), sous l'aperçu du rayon et le tracé libre. Sans équivalent React.
   'campagne-ooh-points', 'campagne-ooh-a-verifier',

@@ -17,7 +17,9 @@ import { join } from 'node:path';
  *
  * ⚠️ Tout nouveau point de lancement s'ajoute à `HANDLERS_GARDE_OUTIL`. Le score composite (T18) et l'assistant de
  * clustering (T20, `lancerClustering`) y sont. Pour une RELECTURE gardée sans refus national (chargement des clusters, T19) : `HANDLERS_GARDE_GENERIQUE`.
- * Absences de garde ASSUMÉES : la corrélation (bornée par une campagne, elle ne balaie aucun territoire — dernier test) ;
+ * Absences de garde ASSUMÉES : la corrélation (bornée par une campagne, elle ne balaie aucun territoire — avant-dernier
+ * test) ; la couverture d'une zone (lot 4, T8 : la zone analysée EST le périmètre, bornée côté serveur à 100 000 km² et
+ * 400 000 carreaux, quota 6/min — dernier test) ;
  * le changement de durée des clusters (`ClustersService.changerDuree`, relecture GET d'un autre modèle, sans garde chez
  * React — `onClusterDurationChange` — et seulement joignable une fois des clusters chargés sous garde).
  */
@@ -154,5 +156,14 @@ describe('Panneau Analyse Angular — verrou structurel de la garde de périmèt
 
   it('la corrélation n’est PAS gardée, délibérément (PanneauAnalyse.tsx:442-450) : aucune sortie de lancement', () => {
     expect(baliseOuvrante('mg-outil-correlation')).toBe('<mg-outil-correlation />');
+  });
+
+  it('la couverture d’une zone n’est PAS gardée par ①, délibérément (lot 4, T8) : la zone est le périmètre', () => {
+    expect(baliseOuvrante('mg-outil-couverture')).toBe('<mg-outil-couverture />');
+    // Elle n'emploie aucune garde de ① ni le filtre : son seul calcul est `ZoneAnalyseeService.chiffrer()`, borné en SQL.
+    const outil = lire('outil-couverture.component.ts');
+    // Le CODE, pas l'en-tête (qui explique pourquoi il n'y a pas de `verifierPerimetreOutil`).
+    expect(outil).not.toMatch(/\.verifierPerimetre|messageGarde\w*\(|etat\.filtre/);
+    expect(outil).toContain('z.chiffrer()');
   });
 });

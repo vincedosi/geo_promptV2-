@@ -1,8 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { formaterNombre } from '../../../../core/format/nombre';
 import {
-  type LigneCouverture, ecrireParamCouverture, libelleDecoupage, lireParamCouverture, lireZoneAnalyse, pageDeLignes,
-  resumeCouverture, trierLignes,
+  type LigneCouverture, avertissementNonCarroye, ecrireParamCouverture, libelleDecoupage, ligneHorsTerritoire, lireParamCouverture,
+  lireZoneAnalyse, messageZoneVide, pageDeLignes, phraseReference, resumeCouverture, trierLignes,
 } from './couverture';
 import { messageErreurCouverture, refusDeLErreur } from './couverture-erreurs';
 
@@ -103,5 +103,31 @@ describe('resumeCouverture', () => {
     expect(resumeCouverture({ ...base, decoupage: 'cp' }, 'habitants')).toContain('· 126 codes postaux');
     expect(resumeCouverture({ ...base, n_territoires: 1, decoupage: 'cp' }, 'habitants')).toContain('· 1 code postal');
     expect(resumeCouverture({ ...base, n_territoires: 5486, decoupage: 'iris' }, 'habitants')).toContain(`· ${formaterNombre(5486)} IRIS`);
+  });
+});
+
+describe('textes Q-J de la couverture (T8)', () => {
+  const ref = { source: 's', millesime: 2021, population_france: 63783569, n_carreaux_france: 2324577 };
+  it('phraseReference : « 63,78 M en France », et « pour cette cible » hors population totale', () => {
+    expect(phraseReference({ reference: ref, cible: 'ind' })).toBe('Population des carreaux Filosofi 2021 (63,78 M en France)');
+    expect(phraseReference({ reference: { ...ref, population_france: 523000 }, cible: 'men_pauv' }))
+      .toBe(`Population des carreaux Filosofi 2021 (${formaterNombre(523000)} en France pour cette cible)`);
+  });
+  it('messageZoneVide : territoire non carroyé nommé, mer, ou rien', () => {
+    expect(messageZoneVide({ motif_vide: 'territoire_non_carroye', territoires_non_carroyes: [{ code: '973', nom: 'Guyane' }] })).toContain('ne couvre pas ce territoire (Guyane)');
+    expect(messageZoneVide({ motif_vide: 'territoire_non_carroye', territoires_non_carroyes: [] })).toContain('ces territoires (Guadeloupe, Guyane, Mayotte)');
+    expect(messageZoneVide({ motif_vide: 'aucun_carreau', territoires_non_carroyes: [] })).toContain('Aucun carreau habité');
+    expect(messageZoneVide({ motif_vide: null, territoires_non_carroyes: [] })).toBeNull();
+  });
+  it('avertissementNonCarroye : seulement une zone peuplée qui déborde sur un territoire non carroyé', () => {
+    expect(avertissementNonCarroye({ motif_vide: null, territoires_non_carroyes: [{ code: '971', nom: 'Guadeloupe' }] })).toContain('Guadeloupe');
+    expect(avertissementNonCarroye({ motif_vide: null, territoires_non_carroyes: [] })).toBeNull();
+  });
+  it('ligneHorsTerritoire : CP / IRIS, jamais en forme ni à zéro', () => {
+    const h = { n_carreaux: 12, population: 1786 };
+    expect(ligneHorsTerritoire({ decoupage: 'cp', hors_territoire: h, cible: 'ind' })).toContain(`${formaterNombre(1786)} habitants hors code postal (12 carreaux)`);
+    expect(ligneHorsTerritoire({ decoupage: 'iris', hors_territoire: h, cible: 'men_pauv' })).toContain('de la cible hors IRIS');
+    expect(ligneHorsTerritoire({ decoupage: 'forme', hors_territoire: h, cible: 'ind' })).toBeNull();
+    expect(ligneHorsTerritoire({ decoupage: 'cp', hors_territoire: { n_carreaux: 0, population: 0 }, cible: 'ind' })).toBeNull();
   });
 });

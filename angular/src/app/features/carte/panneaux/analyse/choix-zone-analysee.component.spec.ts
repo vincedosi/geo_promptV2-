@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { Subject } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { ZonesCustomApi, type ZoneCustomResume } from '../../data/zones-custom.api';
+import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { ChoixZoneAnalyseeComponent } from './choix-zone-analysee.component';
 
 const Z1 = '0f8fad5b-d9cb-469f-a165-70867728950e';
@@ -11,10 +12,12 @@ const attendre = () => new Promise((r) => setTimeout(r, 0));
 function monter(zoneId: string | null = null, org: string | null = 'o1') {
   const reponses: Array<Subject<{ zones: ZoneCustomResume[] }>> = [];
   const lister = vi.fn((_p: URLSearchParams) => { const s = new Subject<{ zones: ZoneCustomResume[] }>(); reponses.push(s); return s; });
+  const catalogue = vi.fn(() => of([{ indicator_code: 'rev_med', label: 'Revenu médian', unit: '€' }]));
   TestBed.configureTestingModule({
     providers: [
       { provide: ZonesCustomApi, useValue: { lister } },
       { provide: AuthService, useValue: { lireProfil: vi.fn(async () => ({ role: 'admin', nom: 'A', organisation: org })) } },
+      { provide: CatalogueIndicateursService, useValue: { charger: catalogue } },
     ],
   });
   const f = TestBed.createComponent(ChoixZoneAnalyseeComponent);
@@ -24,7 +27,7 @@ function monter(zoneId: string | null = null, org: string | null = 'o1') {
   const el = f.nativeElement as HTMLElement;
   const stable = async () => { await attendre(); await f.whenStable(); };
   const cliquer = async (sel: string) => { await stable(); (el.querySelector(sel) as HTMLElement).click(); await stable(); };
-  return { f, el, lister, reponses, choisies, stable, cliquer };
+  return { f, el, lister, reponses, choisies, stable, cliquer, catalogue };
 }
 
 describe('mg-choix-zone-analysee', () => {
@@ -86,5 +89,27 @@ describe('mg-choix-zone-analysee', () => {
     reponses[0].next({ zones: [] });
     await stable();
     expect(el.textContent).toContain('Aucune zone enregistrée dans cet espace.');
+  });
+
+  it('un seuil sur territoires est nommé par le catalogue de la page, lu une fois et seulement dans ce cas (T8)', async () => {
+    const { reponses, stable, cliquer, el, catalogue } = monter();
+    await cliquer('[data-ouvrir]');
+    reponses[0].next({ zones: [zone('b', 'Aix', { v: 1, type: 'dessin' } as never)] });
+    await stable();
+    expect(catalogue).not.toHaveBeenCalled();
+    const seuil = { v: 1, type: 'seuil_territoire', indicateur: 'rev_med', operateur: '>=', seuil: 30000, maille: 'cp', perimetre: null } as never;
+    reponses[0].next({ zones: [zone('b', 'Aix', seuil), zone('c', 'Riches', seuil)] });
+    await stable();
+    expect(catalogue).toHaveBeenCalledTimes(1);
+    expect(el.textContent).toContain('revenu médian');
+  });
+
+  it('zone venue de l’URL et liste illisible : l’échec se voit SANS ouvrir la liste (relecture T7)', async () => {
+    const { reponses, stable, el } = monter(Z1);
+    await stable();
+    reponses[0].error(new Error('Réseau coupé'));
+    await stable();
+    expect(el.querySelector('[data-liste-zones]')).toBeNull();
+    expect(el.querySelector('[data-erreur-liste]')?.textContent).toContain('Réseau coupé');
   });
 });

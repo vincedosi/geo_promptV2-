@@ -8,6 +8,7 @@ import { CreationZoneService } from '../../etat/creation-zone.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { ReferentielGeoService } from '../../etat/referentiel-geo.service';
 import { ScoreCompositeService } from '../../etat/score-composite.service';
+import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
 import type { FiltreActif } from '../../logique/filtre';
 import { messageRefusTerritoireBataille } from '../../logique/bataille/parametres';
 import { type OutilAnalyse, messageGardeOutil, messageGardePerimetre } from '../../logique/garde-perimetre';
@@ -18,6 +19,7 @@ import { SectionClusteringComponent } from './clustering/section-clustering.comp
 import { IntroAnalyseComponent } from './intro-analyse.component';
 import { OutilBatailleV2Component } from './outil-bataille-v2.component';
 import { OutilCorrelationComponent } from './outil-correlation.component';
+import { OutilCouvertureComponent } from './outil-couverture.component';
 import { OutilIsochronesComponent } from './outil-isochrones.component';
 import { OutilScoreComponent } from './outil-score.component';
 import { ENTETE_ACCORDEON, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } from './styles-analyse';
@@ -59,7 +61,10 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
  */
 @Component({
   selector: 'mg-panneau-analyse',
-  imports: [IntroAnalyseComponent, OutilBatailleV2Component, OutilCorrelationComponent, OutilIsochronesComponent, OutilScoreComponent, SectionClusteringComponent],
+  imports: [
+    IntroAnalyseComponent, OutilBatailleV2Component, OutilCorrelationComponent, OutilCouvertureComponent, OutilIsochronesComponent,
+    OutilScoreComponent, SectionClusteringComponent,
+  ],
   // Le catalogue d'indicateurs (score, corrélation) vient de la PAGE (lot 3, X4), partagé avec ③ et « Mes zones ».
   providers: [ScoreCompositeService, CreationZoneService, CalculClusteringService],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -72,6 +77,9 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
       </div>
     }
 
+    <!-- Lot 4, T8 : la couverture d'une zone EN TÊTE, ouverte par défaut. Hors garde de ① : la zone est le périmètre. -->
+    <mg-outil-couverture />
+
     <div class="flex flex-col">
       <button type="button" data-accordeon="spatiale" [attr.aria-expanded]="spatialeOuverte()" (click)="spatialeOuverte.set(!spatialeOuverte())"
         [class]="entete">
@@ -81,6 +89,7 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
       </button>
       @if (spatialeOuverte()) {
         <div class="border-b-fin border-subtle p-4">
+          @if (zoneAnalysee()) { <div data-perimetre-etape-1 [class]="lignePerimetre">{{ messagePerimetre }}</div> }
           <div class="pb-1">
             <mg-intro-analyse [nombrePoi]="nombrePoi()" />
             @if (contexte.unPoi()) {
@@ -118,6 +127,7 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
     <!-- PanneauAnalyse.tsx:430-475 : le score composite (gardé, France admise), la corrélation (non gardée), le clustering. -->
     <mg-outil-score (lancer)="lancerScore()" />
     <mg-outil-correlation />
+    @if (clusteringOuvert() && zoneAnalysee()) { <div data-perimetre-etape-1 [class]="lignePerimetre + ' mx-[14px] mt-[10px]'">{{ messagePerimetre }}</div> }
     @if (clusteringOuvert()) { <mg-section-clustering [refusCalcul]="gardeMessage()" (charger)="chargerClusters()" (lancerCalcul)="lancerClustering($event)" /> }
   `,
 })
@@ -130,6 +140,14 @@ export class PanneauAnalyseComponent {
   private readonly calculClustering = inject(CalculClusteringService);
 
   private readonly scoreComposite = inject(ScoreCompositeService);
+  /**
+   * A-9 (lot 4) : quand une zone est analysée, les batailles et le clustering — qui ne savent pas la prendre — disent
+   * en une ligne sur quoi ils travaillent.
+   */
+  private readonly analysee = inject(ZoneAnalyseeService);
+  protected readonly zoneAnalysee = computed(() => this.analysee.zoneId() !== null);
+  protected readonly messagePerimetre = 'Cet outil travaille sur le périmètre de l’étape ①.';
+  protected readonly lignePerimetre = 'mb-2 text-[11px] leading-[1.5] text-tertiary';
 
   protected readonly modes = ISO_MODES;
   protected readonly entete = ENTETE_ACCORDEON;

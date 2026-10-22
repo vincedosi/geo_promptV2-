@@ -28,13 +28,14 @@ import { ScoreService } from '../../couches/score.service';
 import { AnalysesApi } from '../../data/analyses.api';
 import { ZonesCustomApi } from '../../data/zones-custom.api';
 import { ZonesApi } from '../../data/zones.api';
+import { fournisseursCouvertureFactices } from '../../testing/couverture-factice';
 
 const DEPT_13: FiltreActif = { type: 'departement', code: '13', label: 'Bouches-du-Rhône' };
 const FRANCE: FiltreActif = { type: 'france', code: 'france', label: 'France entière' };
 
 async function monter(o: { filtre?: FiltreActif | null; pois?: string[]; role?: string | null; auth?: unknown } = {}) {
   TestBed.configureTestingModule({
-    providers: [CaptureService,
+    providers: [CaptureService, ...fournisseursCouvertureFactices(),
       provideHttpClient(), provideHttpClientTesting(),
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       EtatCarteService, AnnonceService, CouchesCarteService, BatailleService, IsochronesApi,

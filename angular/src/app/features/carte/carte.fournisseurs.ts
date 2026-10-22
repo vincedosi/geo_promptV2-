@@ -1,4 +1,7 @@
-import type { Provider } from '@angular/core';
+import { type Provider, type Signal, computed, inject } from '@angular/core';
+import { CouvertureService } from './couches/couverture.service';
+import { ScoreService } from './couches/score.service';
+import { ZonesRisqueService } from './couches/zones-risque.service';
 import { ZoneAnalyseeService } from './etat/zone-analysee.service';
 
 /**
@@ -9,4 +12,17 @@ import { ZoneAnalyseeService } from './etat/zone-analysee.service';
 export const FOURNISSEURS_ANALYSE: Provider[] = [
   // La zone analysée, reflétée dans `?zoneAnalyse=` et `?couverture=` (T7).
   ZoneAnalyseeService,
+  // Sa couverture peinte sur LA carte (T8, A-7) : contour, part par CP ou par IRIS, surbrillance.
+  CouvertureService,
 ];
+
+/**
+ * La pastille « renseignée » de ④ (A2) : un score composite, des zones à risque ou une couverture de zone PEINTS. À
+ * appeler dans un contexte d'injection (initialiseur de champ de la page).
+ */
+export function suivreAnalyseAffichee(): Signal<boolean> {
+  const score = inject(ScoreService);
+  const zonesRisque = inject(ZonesRisqueService);
+  const couverture = inject(CouvertureService);
+  return computed(() => score.affiche() !== null || zonesRisque.affichees() !== null || couverture.affichee());
+}

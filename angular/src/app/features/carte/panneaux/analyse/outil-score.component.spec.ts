@@ -24,6 +24,7 @@ import { EtatCarteService } from '../../etat/etat-carte.service';
 import { ReferentielGeoService } from '../../etat/referentiel-geo.service';
 import type { FiltreActif } from '../../logique/filtre';
 import { PanneauAnalyseComponent } from './panneau-analyse.component';
+import { fournisseursCouvertureFactices } from '../../testing/couverture-factice';
 
 const DEPT_13: FiltreActif = { type: 'departement', code: '13', label: 'Bouches-du-Rhône' };
 const FRANCE: FiltreActif = { type: 'france', code: 'france', label: 'France entière' };
@@ -44,7 +45,7 @@ async function monter(filtre: FiltreActif | null) {
   const score = { afficher: vi.fn(), eteindre: vi.fn() };
   TestBed.configureTestingModule({
     providers: [
-      provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting(),
+      provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting(), ...fournisseursCouvertureFactices(),
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       EtatCarteService, AnnonceService, CouchesCarteService, CaptureService, BatailleService, IsochronesApi, AnalysesApi, ZonesCustomApi, ZonesApi,
       // Fourni par la PAGE carte (lot 3, X4) : le test tient le rôle de la page.

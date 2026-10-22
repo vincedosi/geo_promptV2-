@@ -5,7 +5,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { By } from '@angular/platform-browser';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { of } from 'rxjs';
+import { NEVER, of } from 'rxjs';
 import { FABRIQUE_CARTE } from '../../carte/fabrique-carte';
 import { CarteFactice } from '../../carte/testing/carte-factice';
 import { AuthService } from '../../core/auth/auth.service';
@@ -17,6 +17,8 @@ import { SitesRisqueApi } from '../risques/data/sites-risque.api';
 import { JeuxZonesApi } from '../risques/data/jeux-zones.api';
 import { ZonesRisqueApi } from '../risques/data/zones-risque.api';
 import { CarreauxApi } from './data/carreaux.api';
+import { ProfilRisqueApi } from '../risques/data/profil-risque.api';
+import { CouvertureApi } from './data/couverture.api';
 import { IrisApi } from './data/iris.api';
 import { CarteApi } from './data/carte.api';
 import { RadioApi } from './data/radio.api';
@@ -111,6 +113,9 @@ async function ouvrir(url = '/carte', avant?: () => void) {
       { provide: JeuxZonesApi, useValue: faux.jeux },
       { provide: CarreauxApi, useValue: faux.carreaux },
       { provide: IrisApi, useValue: faux.iris },
+      // ④ Couverture d'une zone (lot 4, T8) : jamais appelée sans « Chiffrer ».
+      { provide: CouvertureApi, useValue: { couverture: () => NEVER } },
+      { provide: ProfilRisqueApi, useValue: { cibles: () => NEVER } },
       { provide: RadioApi, useValue: faux.radio },
       { provide: MeteoApi, useValue: faux.meteo },
       { provide: IsochronesApi, useValue: {} },

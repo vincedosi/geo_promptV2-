@@ -72,7 +72,7 @@ import { OutilsCarteService } from './outils/outils-carte.service';
 import { EtapeBientotComponent } from './parcours/etape-bientot.component';
 import { PanneauEtapeComponent } from './parcours/panneau-etape.component';
 import { suivreMargeCarte } from './couches/marge-carte';
-import { FOURNISSEURS_ANALYSE } from './carte.fournisseurs';
+import { FOURNISSEURS_ANALYSE, suivreAnalyseAffichee } from './carte.fournisseurs';
 
 /** Centre et zoom d'ouverture de React (`useMapInit.ts:131-132`). */
 const CENTRE_INITIAL: [number, number] = [2.3, 46.6];
@@ -194,13 +194,12 @@ export class CartePage {
   private readonly panneauEtape = viewChild(PanneauEtapeComponent);
   /** Les panneaux montés, dans l'ordre du parcours. */
   protected readonly etapesMontees = computed(() => ETAPES_CARTE.filter((e) => this.parcours.visitees().has(e)));
-  private readonly score = inject(ScoreService);
-  /** Les zones d'un profil (T13) : injectées ici, inscrites à l'éviction de leur dégradé dès l'ouverture. */
-  private readonly zonesRisque = inject(ZonesRisqueService);
-  /** Les pastilles « renseignée » (A2) : ② = un jeu de ② affiché (T13, AT-4) ; ④ = score composite ou zones à risque (T14). */
+  /** Score, zones d'un profil (T13, inscrites à l'éviction de leur dégradé dès l'ouverture) et couverture : injectés ici. */
+  private readonly analyseAffichee = suivreAnalyseAffichee();
+  /** Les pastilles « renseignée » (A2) : ② = un jeu de ② affiché (T13, AT-4) ; ④ = score, zones à risque, couverture (T8). */
   protected readonly etapes = computed(() => etapesDuFil({
     filtrePose: this.etat.filtre() !== null || this.etat.perimetreScope() !== null, calquesActifs: this.donnees.renseignee(),
-    analyseAffichee: this.score.affiche() !== null || this.zonesRisque.affichees() !== null,
+    analyseAffichee: this.analyseAffichee(),
   }));
   protected readonly segmentsAriane = computed<SegmentAriane[]>(() => segmentsDuFiltre(this.etat.filtre()));
   protected readonly precisionAriane = computed(() => precisionDuPerimetre(this.etat.perimetreScope()));
