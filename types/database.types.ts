@@ -5388,6 +5388,7 @@ export type Database = {
           code_dept: string
           code_region: string | null
           geom: unknown
+          geom_perimetre: unknown
           nom_dept: string | null
         }
         Insert: {
@@ -5396,6 +5397,7 @@ export type Database = {
           code_dept: string
           code_region?: string | null
           geom?: unknown
+          geom_perimetre?: unknown
           nom_dept?: string | null
         }
         Update: {
@@ -5404,6 +5406,7 @@ export type Database = {
           code_dept?: string
           code_region?: string | null
           geom?: unknown
+          geom_perimetre?: unknown
           nom_dept?: string | null
         }
         Relationships: []
@@ -5414,6 +5417,7 @@ export type Database = {
           centroid_lon: number | null
           code_region: string
           geom: unknown
+          geom_perimetre: unknown
           nom_region: string
         }
         Insert: {
@@ -5421,6 +5425,7 @@ export type Database = {
           centroid_lon?: number | null
           code_region: string
           geom?: unknown
+          geom_perimetre?: unknown
           nom_region: string
         }
         Update: {
@@ -5428,6 +5433,7 @@ export type Database = {
           centroid_lon?: number | null
           code_region?: string
           geom?: unknown
+          geom_perimetre?: unknown
           nom_region?: string
         }
         Relationships: []
@@ -6471,6 +6477,10 @@ export type Database = {
         Returns: number
       }
       archive_and_purge_radio: { Args: never; Returns: Json }
+      boucher_interstices: {
+        Args: { p_code: string; p_geom: unknown; p_niveau: string }
+        Returns: unknown
+      }
       build_ref_codes_postaux: { Args: never; Returns: undefined }
       calculer_alignement_geo: {
         Args: { p_campaign_id: string; p_poids?: number; p_tolerance?: number }
