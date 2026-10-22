@@ -1600,6 +1600,33 @@ export type Database = {
         }
         Relationships: []
       }
+      carreau_couverture_controle: {
+        Row: {
+          certifie_le: string
+          n_bandes: number
+          n_carreaux_filosofi: number
+          n_journal: number
+          n_lignes: number
+          unique_ligne: boolean
+        }
+        Insert: {
+          certifie_le?: string
+          n_bandes: number
+          n_carreaux_filosofi: number
+          n_journal: number
+          n_lignes: number
+          unique_ligne?: boolean
+        }
+        Update: {
+          certifie_le?: string
+          n_bandes?: number
+          n_carreaux_filosofi?: number
+          n_journal?: number
+          n_lignes?: number
+          unique_ligne?: boolean
+        }
+        Relationships: []
+      }
       carreau_risque_bandes: {
         Row: {
           bande: number
@@ -6573,6 +6600,8 @@ export type Database = {
         Args: { p_limite?: number; p_org: string }
         Returns: Json
       }
+      carreau_couverture_complete: { Args: never; Returns: string }
+      certifier_carreau_couverture: { Args: never; Returns: Json }
       check_iso_hits_new_carreaux: {
         Args: { p_iso_geojson: string; p_since: string }
         Returns: boolean

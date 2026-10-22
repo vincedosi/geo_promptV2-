@@ -258,6 +258,14 @@ elif [ "$cc_n" -lt "$cc_attendu" ]; then
 else
   echo "  déjà construite : $cc_n lignes"
 fi
+# Le CERTIFICAT de complétude (sql/268) : sans lui la couverture refuse. Le
+# script le pose en fin de course ; une table construite avant sql/268, ou
+# restaurée, est certifiée ici (≈ 0,3 s, deux comptes).
+cc_motif=$(sql "select coalesce(public.carreau_couverture_complete(), 'ok')" | tr -d ' \r')
+if [ "$cc_motif" != "ok" ]; then
+  echo "  certificat : $cc_motif — recertification"
+  sql "select public.certifier_carreau_couverture()" || { echo "ÉCHEC certificat carreau_couverture" >&2; exit 1; }
+fi
 echo "  -> $(n public.carreau_couverture) lignes"
 
 # ── 5 ter. LE DÉNOMINATEUR IRIS ─────────────────────────────────────────────
@@ -273,7 +281,9 @@ echo "  -> $(n public.carreau_couverture) lignes"
 etape "5ter/7 dénominateur IRIS"
 iris_perime=$(sql "select coalesce((select max(construit_le) from public.unite_population_totale where maille = 'iris')
                         < (select max(construit_le) from public.carreau_couverture_bandes), true)" | tr -d ' \r')
-if [ "$iris_perime" = "t" ]; then
+# `!= "f"` et non `= "t"` : une requête de péremption EN ÉCHEC (sortie vide)
+# doit reconstruire, pas annoncer « déjà construit » (relecture de T4, 22/10).
+if [ "$iris_perime" != "f" ]; then
   sql "select public.construire_denominateur_iris()" || { echo "ÉCHEC dénominateur IRIS" >&2; exit 1; }
 else
   echo "  déjà construit : $(n "public.unite_population_totale where maille = 'iris'") IRIS"

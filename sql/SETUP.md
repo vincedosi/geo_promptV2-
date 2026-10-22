@@ -125,6 +125,7 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `campagne_ligne_panneaux` | 261 | Panneaux réservés par une ligne OOH ; `on delete restrict` côté panneau |
 | `carreau_couverture` | 266 | Une ligne étroite par carreau Filosofi (2 324 577) : centroïde 3857, CP canonique, IRIS, commune, département, 24 effectifs `real[]` (ordre `rang_pop`) ; construite par `scripts/construire_carreau_couverture.mjs` (≈ 5 min, psql), exclue de la sauvegarde avec son journal |
 | `carreau_couverture_bandes` | 266 | Journal des bandes de `carreau_couverture` ; `max(construit_le)` date la base pour le cache de couverture |
+| `carreau_couverture_controle` | 268 | Certificat de complétude de `carreau_couverture` (une ligne : comptes de `carreaux_filosofi`, de la table et du journal), posé en fin de construction |
 
 ## Fonctions RPC actives (état final)
 
@@ -147,7 +148,9 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `campagnes_ooh_jsonb()` | 263 | Campagnes d'un espace ayant une ligne OOH (jsonb, borne 200 + `tronque`) |
 | `supprimer_panneaux_plan_de_source()` | 264 | Fonction du déclencheur `trg_data_sources_panneaux_plan` (BEFORE DELETE sur `data_sources`) : retire les panneaux `plan-ooh:%` de la source et leurs liens de campagne, sinon `set null` les rendrait visibles de tous |
 | `construire_carreau_couverture()` | 266 | Construit UNE bande de longitude de `carreau_couverture` (une transaction, journalisée, rejouable : remplace) — psql uniquement |
-| `vider_carreau_couverture()` | 266 | Vide `carreau_couverture` ET son journal (préalable de `--tout`) |
+| `vider_carreau_couverture()` | 266, 268 | Vide `carreau_couverture`, son journal ET son certificat (préalable de `--tout`) |
+| `certifier_carreau_couverture()` | 268 | Compte `carreaux_filosofi`, la table et son journal ; range le certificat (≈ 0,3 s) |
+| `carreau_couverture_complete()` | 268 | `NULL` si la table est certifiée complète, sinon le motif ; lu par la couverture et le dénominateur IRIS |
 | `construire_denominateur_iris()` | 267 | Maille `iris` d'`unite_population_totale` construite depuis `carreau_couverture` (même règle que le numérateur, jamais `iris.population`) ; efface et réécrit la seule maille `iris`, ≈ 18 s |
 
 ---

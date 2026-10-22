@@ -28,6 +28,12 @@
  * n'est pas journalisée. L'insertion REMPLACE (la clé est le carreau) : rejouer
  * une bande avec `--bande N` est sans danger.
  *
+ * ⚠ CERTIFIÉE EN FIN DE COURSE (sql/268). Le journal s'accorde TOUJOURS avec
+ * la table (même transaction) : il ne prouve pas qu'elle est complète. Le
+ * script compte donc la table contre `carreaux_filosofi` à la fin et range un
+ * certificat ; sans lui, la couverture refuse. Puis il reconstruit le
+ * dénominateur IRIS (sql/267), qui dérive de cette table.
+ *
  * ⚠ Changer le nombre de bandes impose `--tout` : le journal additionne les
  * carreaux par bande, et deux découpages superposés le feraient mentir (la
  * table, elle, resterait juste). Le nombre précédent se déduit de la largeur
@@ -233,6 +239,37 @@ function main() {
     console.error(`✗ La table ne couvre pas tous les carreaux (${nb(Number(attendu) - Number(n))} manquants).`);
     process.exit(1);
   }
+
+  /*
+   * CERTIFIER (sql/268). Tant que la table n'est pas certifiée complète, la
+   * couverture d'une zone REFUSE (`couverture_non_construite`) et le
+   * dénominateur IRIS ne se construit pas : un `--tout` interrompu laisse une
+   * table partielle MAIS cohérente avec son journal — seul un compte contre
+   * `carreaux_filosofi`, rangé ici une fois, le voit (relecture de T4, 22/10).
+   * Toute bande écrite après invalide le certificat : on certifie donc aussi
+   * après une `--bande N` rejouée.
+   */
+  const cert = JSON.parse(psql('select public.certifier_carreau_couverture()::text'));
+  if (!cert.complete) {
+    console.error(
+      `✗ Certificat refusé : ${nb(cert.n_lignes)} lignes, ${nb(cert.n_journal)} au journal, `
+      + `${nb(cert.n_carreaux_filosofi)} carreaux Filosofi. La couverture restera refusée.`,
+    );
+    process.exit(1);
+  }
+  console.log(`✓ Table certifiée complète (${nb(cert.n_lignes)} lignes, ${cert.n_bandes} bandes)`);
+
+  /*
+   * LE DÉNOMINATEUR IRIS SUIT (sql/267). Il est construit DEPUIS cette table :
+   * relancer ce script seul le laissait plus ancien que le journal, sans que
+   * rien ne le signale hors de `11-reconstruire.sh`. Il est donc reconstruit
+   * ici, à chaque construction (≈ 18 s) ; et `couverture_geometrie` (sql/269)
+   * refuse quand même le découpage IRIS sur un dénominateur plus ancien que le
+   * journal — la seconde garde vaut pour tout autre chemin (restauration…).
+   */
+  const ti = Date.now();
+  const d = JSON.parse(psql('select public.construire_denominateur_iris()::text'));
+  console.log(`✓ Dénominateur IRIS reconstruit : ${nb(d.n_iris)} IRIS, ${nb(d.n_carreaux)} carreaux · ${Math.round((Date.now() - ti) / 1000)} s`);
 }
 
 main();

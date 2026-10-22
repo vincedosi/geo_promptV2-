@@ -91,7 +91,9 @@ docker exec "$CONT" pg_dump -U postgres -d postgres \
 # `carreau_couverture` et `carreau_couverture_bandes` (sql/266, lot 4 T3) :
 # exclues ENSEMBLE, pour la même raison. La table pèse plusieurs centaines de Mo
 # et se reconstruit en ~5 min depuis les carreaux (`11-reconstruire.sh`, étape
-# 5 bis) ; son journal seul ferait croire la construction faite.
+# 5 bis) ; son journal seul ferait croire la construction faite. Son CERTIFICAT
+# `carreau_couverture_controle` (sql/268) suit le couple pour la même raison :
+# restauré seul, il certifierait une table vide.
 # ⚠ `--no-acl` a été RETIRÉ le 2026-09-22, et c'est un quatrième piège, découvert
 # en restaurant pour de vrai. Il était là par symétrie avec `--no-owner`, qui lui
 # reste nécessaire. Mais une sauvegarde sans ACL ne porte AUCUN `GRANT` : après
