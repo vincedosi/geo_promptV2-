@@ -33,10 +33,11 @@
 #
 # ── CE QUI N'EST PAS SAUVEGARDÉ, ET POURQUOI ────────────────────────────────
 #
-# `carreaux_filosofi` (2 324 577 lignes) et `couverture_rayon_risque`
-# (115 962) sont EXCLUES : deux scripts les reconstruisent
-# (`07-carreaux-insee.sh`, `construire_couverture_rayon.mjs`). Les inclure
-# ferait 4 Go pour de la donnée régénérable.
+# `carreaux_filosofi` (2 324 577 lignes), `couverture_rayon_risque`
+# (115 962) et `carreau_couverture` (2 324 577, sql/266) sont EXCLUES : des
+# scripts les reconstruisent (`07-carreaux-insee.sh`,
+# `construire_couverture_rayon.mjs`, `construire_carreau_couverture.mjs`). Les
+# inclure ferait 4 Go pour de la donnée régénérable.
 #
 # ── TROIS DANGERS, TROIS PARADES ────────────────────────────────────────────
 #
@@ -69,6 +70,8 @@ docker exec "$CONT" pg_dump -U postgres -d postgres \
   --exclude-table-data=public.carreaux_filosofi \
   --exclude-table-data=public.couverture_rayon_risque \
   --exclude-table-data=public.couverture_rayon_bandes \
+  --exclude-table-data=public.carreau_couverture \
+  --exclude-table-data=public.carreau_couverture_bandes \
   --exclude-table-data=public.spatial_ref_sys \
   > "$FICHIER"
 # ⚠ `couverture_rayon_bandes` AJOUTÉE aux exclusions le 2026-09-22, et c'est le
@@ -84,6 +87,11 @@ docker exec "$CONT" pg_dump -U postgres -d postgres \
 # progression forment un COUPLE. On les exclut tous les deux, ou aucun des deux.
 # `carreaux_filosofi` n'a pas ce problème — `07-carreaux-insee.sh` vide et
 # recharge, il ne consulte aucun journal.
+#
+# `carreau_couverture` et `carreau_couverture_bandes` (sql/266, lot 4 T3) :
+# exclues ENSEMBLE, pour la même raison. La table pèse plusieurs centaines de Mo
+# et se reconstruit en ~5 min depuis les carreaux (`11-reconstruire.sh`, étape
+# 5 bis) ; son journal seul ferait croire la construction faite.
 # ⚠ `--no-acl` a été RETIRÉ le 2026-09-22, et c'est un quatrième piège, découvert
 # en restaurant pour de vrai. Il était là par symétrie avec `--no-owner`, qui lui
 # reste nécessaire. Mais une sauvegarde sans ACL ne porte AUCUN `GRANT` : après

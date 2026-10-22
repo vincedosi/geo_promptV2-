@@ -1543,6 +1543,63 @@ export type Database = {
         }
         Relationships: []
       }
+      carreau_couverture: {
+        Row: {
+          carreau_id: number
+          centroide_3857: unknown
+          code_commune: string | null
+          code_departement: string | null
+          code_iris: string | null
+          code_postal: string | null
+          pops: number[]
+        }
+        Insert: {
+          carreau_id: number
+          centroide_3857: unknown
+          code_commune?: string | null
+          code_departement?: string | null
+          code_iris?: string | null
+          code_postal?: string | null
+          pops: number[]
+        }
+        Update: {
+          carreau_id?: number
+          centroide_3857?: unknown
+          code_commune?: string | null
+          code_departement?: string | null
+          code_iris?: string | null
+          code_postal?: string | null
+          pops?: number[]
+        }
+        Relationships: []
+      }
+      carreau_couverture_bandes: {
+        Row: {
+          bande: number
+          construit_le: string
+          duree_ms: number
+          lon_max: number
+          lon_min: number
+          n_carreaux: number
+        }
+        Insert: {
+          bande: number
+          construit_le?: string
+          duree_ms: number
+          lon_max: number
+          lon_min: number
+          n_carreaux: number
+        }
+        Update: {
+          bande?: number
+          construit_le?: string
+          duree_ms?: number
+          lon_max?: number
+          lon_min?: number
+          n_carreaux?: number
+        }
+        Relationships: []
+      }
       carreau_risque_bandes: {
         Row: {
           bande: number
@@ -6629,6 +6686,16 @@ export type Database = {
         Args: { p_cle: string; p_fenetre_s: number; p_max: number }
         Returns: Json
       }
+      construire_carreau_couverture: {
+        Args: {
+          p_bande: number
+          p_bande_id?: number
+          p_lon_est?: number
+          p_lon_ouest?: number
+          p_n_bandes?: number
+        }
+        Returns: Json
+      }
       construire_carreau_risque_distance: {
         Args: {
           p_bande: number
@@ -8610,6 +8677,7 @@ export type Database = {
         }
         Returns: string
       }
+      vider_carreau_couverture: { Args: never; Returns: number }
       vider_carreau_risque_distance: { Args: never; Returns: Json }
       vider_carreau_risque_nature: { Args: never; Returns: Json }
       vider_couverture_rayon: { Args: never; Returns: number }

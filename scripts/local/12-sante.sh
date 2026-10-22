@@ -119,6 +119,9 @@ vol_table couverture_rayon_risque   115962 "11-reconstruire.sh"
 vol_table unite_population_totale    35031 "11-reconstruire.sh"
 vol_table cp_population_totale         6000 "11-reconstruire.sh"
 vol_table cp_groupe                   6187 "11-reconstruire.sh"
+# La table étroite de la couverture (sql/266) : vide, ④ refuse de chiffrer une
+# zone (« pas encore construite »), elle ne se rabat pas sur les carreaux.
+vol_table carreau_couverture       2324577 "11-reconstruire.sh"
 
 # ⚠ Une COLONNE peut être vide dans une table pleine, et c'est le cas le plus
 # traître : `carreau_risque_distance` affichait ses 883 451 lignes en vert le

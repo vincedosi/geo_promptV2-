@@ -28,6 +28,8 @@
 #          └─ carreau_risque_nature
 #          └─ unite_population_totale
 #          └─ couverture_rayon_risque
+#     └─ cp_groupe -> cp_population_totale
+#          └─ carreau_couverture     (sql/266 : même règle CP, test d'égalité)
 #
 # `zones_risque_cache` n'y figure pas : l'application la construit seule au
 # premier affichage d'un profil (~2,8 s), et la préconstruire ici ferait payer
@@ -219,6 +221,38 @@ else
 fi
 echo "  -> $(n public.cp_population_totale) codes postaux"
 
+# ── 5 bis. LA TABLE ÉTROITE DE LA COUVERTURE (sql/266, lot 4 T3) ────────────
+#
+# Une ligne par carreau (centroïde, CP canonique, IRIS, commune, département,
+# 24 effectifs) : c'est ce que lit la couverture d'une zone en ④. Vide, la
+# couverture REFUSE (`couverture_non_construite`) — pas de repli, exprès.
+#
+# APRÈS `cp_population_totale`, parce qu'elle applique la même règle
+# (`cp_des_points`, donc `cp_groupe`) et que son test d'intégration exige
+# l'égalité CP par CP avec ce dénominateur. ~5 min, 26 bandes.
+#
+# ⚠ « NON VIDE » NE VEUT PAS DIRE « À JOUR » (leçon du 22/10, étape 6) :
+#   - vide                               -> --tout ;
+#   - journal antérieur au dénominateur CP -> --tout (contours rechargés) ;
+#   - moins de lignes que de carreaux     -> reprise (une bande a échoué).
+# Elle n'a pas de date propre : son journal `carreau_couverture_bandes` la
+# porte, et le cache de la couverture (T6) s'en sert pour se périmer.
+etape "5bis/7 carreau_couverture"
+cc_n=$(n public.carreau_couverture)
+cc_attendu=$(n public.carreaux_filosofi)
+cc_perimee=$(sql "select coalesce((select max(construit_le) from public.carreau_couverture_bandes)
+                       < (select max(construit_le) from public.cp_population_totale), false)" | tr -d ' \r')
+if [ "${cc_n:-0}" = "0" ] || [ "$cc_perimee" = "t" ]; then
+  [ "$cc_perimee" = "t" ] && echo "  PÉRIMÉE : construite avant cp_population_totale — reconstruction"
+  node scripts/construire_carreau_couverture.mjs --tout || { echo "ÉCHEC carreau_couverture" >&2; exit 1; }
+elif [ "$cc_n" -lt "$cc_attendu" ]; then
+  echo "  INCOMPLÈTE : $cc_n lignes pour $cc_attendu carreaux — reprise"
+  node scripts/construire_carreau_couverture.mjs || { echo "ÉCHEC carreau_couverture" >&2; exit 1; }
+else
+  echo "  déjà construite : $cc_n lignes"
+fi
+echo "  -> $(n public.carreau_couverture) lignes"
+
 # ── 5. LA COUVERTURE PAR RAYON ──────────────────────────────────────────────
 #
 # ⚠ `--tout` N'EST PAS UN LUXE ICI, et c'est l'erreur la plus coûteuse du
@@ -283,6 +317,7 @@ attendu unite_population_totale    35031
 attendu couverture_rayon_risque   115962
 attendu pprt_niveau_generateur       664
 attendu cp_population_totale        6000
+attendu carreau_couverture       2324577
 
 # ── LA SAUVEGARDE, ICI ET PAS PLUS TARD ─────────────────────────────────────
 #
