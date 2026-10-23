@@ -7,6 +7,7 @@ import { croisementsFactices } from '../../testing/couverture-factice';
 import { CroisementsZoneComponent } from './croisements-zone.component';
 
 const RESULTAT: ResultatCroisements = {
+  zone_maj: '2026-10-23T10:00:00+00:00',
   radio: {
     n_emetteurs: 39, n_sans_rayon: 2, tronque: true,
     emetteurs: [

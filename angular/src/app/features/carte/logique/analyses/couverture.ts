@@ -78,6 +78,8 @@ export interface ResultatCouverture {
 
 /** La réponse 200 de `GET /api/zones/[id]/croisements` (sql/273, T13) : listes bornées, compteurs = totaux. */
 export interface ResultatCroisements {
+  /** La version de la forme lue (sql/273) : un chiffrage d'une autre version périme cette liste. */
+  zone_maj: string;
   radio: {
     n_emetteurs: number;
     /** Émetteurs dans la zone sans rayon de couverture : non comptés dans `n_emetteurs`. */

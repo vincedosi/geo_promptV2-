@@ -25,7 +25,8 @@ import { LectureAnnulable } from './lecture-annulable';
  * ── UNE RÉPONSE QUITTÉE N'EST JAMAIS AFFICHÉE (P-c) ───────────────────────
  * La lecture est une `LectureAnnulable` (désabonnement + jeton : une réponse quittée est jetée). Changer de zone, de cible ou de découpage efface le
  * résultat et annule la lecture en vol ; rien ne repart seul (aucun appel avant « Chiffrer »). La radio et le trafic
- * (T13) suivent la même règle, mais seul un changement de ZONE les efface. Un 404
+ * (T13) suivent la même règle, mais seul un changement de ZONE les efface — ou un chiffrage d'une autre version de sa
+ * forme (`zone_maj` : un recalcul en ③ garde l'id), qui ne laisse jamais affichée la liste de l'ancienne. Un 404
  * (`zone_introuvable` : zone supprimée ou d'un autre espace — lien partagé) retire `?zoneAnalyse=` et dit le message.
  *
  * ── FOURNI PAR LA PAGE (P-e) ──────────────────────────────────────────────
@@ -122,7 +123,9 @@ export class ZoneAnalyseeService {
     if (!id || this.detruit) return;
     this.lecture.perimer();
     const { cible, decoupage } = this._reglage();
-    this.lecture.lancer(this.api.couverture(id, cible, decoupage), undefined, this.siIntrouvable);
+    this.lecture.lancer(this.api.couverture(id, cible, decoupage), (r) => {
+      if (this.lectureCroisements.resultat()?.zone_maj !== r.zone_maj) this.lectureCroisements.perimer();
+    }, this.siIntrouvable);
   }
 
   /** Demande la radio et le trafic de la zone courante ; un second appel annule le premier. Sans zone : rien. */

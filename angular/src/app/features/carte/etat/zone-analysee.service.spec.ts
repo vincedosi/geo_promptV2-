@@ -232,10 +232,25 @@ describe('ZoneAnalyseeService — radio et trafic (T13, ronde 1 : P-e)', () => {
     await stable();
     expect(hote.zone.croisements.resultat()).toBeNull();
   });
-  it('404 zone_introuvable : la zone est retirée, comme pour le chiffrage', async () => {
-    const { hote, api } = await ouvrir(`/carte?zoneAnalyse=${Z1}`);
+  it('404 zone_introuvable : la zone est retirée, comme pour le chiffrage, et le message SURVIT au retrait', async () => {
+    const { hote, api, stable } = await ouvrir(`/carte?zoneAnalyse=${Z1}`);
     hote.zone.lireCroisements();
     api.lectures[0].sortie.error(new HttpErrorResponse({ status: 404, error: { error: 'Zone introuvable dans cet espace.', refus: 'zone_introuvable' } }));
     expect(hote.zone.zoneId()).toBeNull();
+    expect(hote.zone.croisements.erreur()).toBe('Zone introuvable dans cet espace.');
+    await stable();
+    expect(hote.zone.croisements.erreur()).toBe('Zone introuvable dans cet espace.');
+  });
+  it('T13 M4 : un chiffrage d’une AUTRE version de la forme (recalcul en ③) périme la liste ; la même version la garde', async () => {
+    const { hote, api } = await ouvrir(`/carte?zoneAnalyse=${Z1}`);
+    const lue = { ...croisements, zone_maj: 'v1' } as ResultatCroisements;
+    hote.zone.lireCroisements();
+    api.lectures[0].sortie.next(lue);
+    hote.zone.chiffrer();
+    api.appels[0].sortie?.next({ ...resultat(Z1, 10), zone_maj: 'v1' });
+    expect(hote.zone.croisements.resultat()).toBe(lue);
+    hote.zone.chiffrer();
+    api.appels[1].sortie?.next({ ...resultat(Z1, 12), zone_maj: 'v2' });
+    expect(hote.zone.croisements.resultat()).toBeNull();
   });
 });
