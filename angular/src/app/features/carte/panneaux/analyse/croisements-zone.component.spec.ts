@@ -1,8 +1,9 @@
-import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { formaterNombre } from '../../../../core/format/nombre';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
 import type { ResultatCroisements } from '../../logique/analyses/couverture';
+import { croisementsFactices } from '../../testing/couverture-factice';
 import { CroisementsZoneComponent } from './croisements-zone.component';
 
 const RESULTAT: ResultatCroisements = {
@@ -24,10 +25,7 @@ const RESULTAT: ResultatCroisements = {
 
 /** La lecture et son état vivent dans `ZoneAnalyseeService` (ronde 1, P-e) : prouvés par sa spec ; ici, le gabarit. */
 async function monter() {
-  const z = {
-    croisements: { resultat: signal<ResultatCroisements | null>(null), enCours: signal(false), erreur: signal<string | null>(null) },
-    lireCroisements: vi.fn(),
-  };
+  const z = croisementsFactices(vi.fn());
   TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection(), { provide: ZoneAnalyseeService, useValue: z }] });
   const f = TestBed.createComponent(CroisementsZoneComponent);
   const el = f.nativeElement as HTMLElement;

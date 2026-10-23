@@ -68,7 +68,8 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
           </div>
         </div>
 
-        @if (z.erreur(); as e) { <div data-erreur role="alert" [class]="encartErreur">{{ e }}</div> }
+        <!-- Un refus radio/trafic qui retire la zone démonte son bloc : son message s'affiche ici (T13, ronde 2). -->
+        @if (z.erreur() ?? (z.zoneId() ? null : z.croisements.erreur()); as e) { <div data-erreur role="alert" [class]="encartErreur">{{ e }}</div> }
 
         <button type="button" data-chiffrer [disabled]="!z.zoneId() || z.enCours()" (click)="z.chiffrer()" [class]="boutonCalcul">
           {{ z.enCours() ? 'Chiffrage…' : 'Chiffrer la zone' }}

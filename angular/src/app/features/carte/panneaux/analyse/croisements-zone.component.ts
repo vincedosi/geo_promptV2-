@@ -19,12 +19,12 @@ import { BOUTON_CALCUL, ENCART_ERREUR } from './styles-analyse';
     <div class="text-[12px] font-medium text-primary">Dans cette zone</div>
     <div class="text-[11px] leading-[1.5] text-tertiary">Émetteurs radio dont la couverture touche la zone, comptages routiers qui la traversent.</div>
 
-    @if (c.erreur(); as e) { <div data-erreur role="alert" [class]="encartErreur">{{ e }}</div> }
-    <button type="button" data-lire-croisements [disabled]="c.enCours()" (click)="z.lireCroisements()" [class]="boutonCalcul">
-      {{ c.enCours() ? 'Lecture…' : 'Voir la radio et le trafic' }}
+    @if (etat.erreur(); as e) { <div data-erreur role="alert" [class]="encartErreur">{{ e }}</div> }
+    <button type="button" data-lire-croisements [disabled]="etat.enCours()" (click)="z.lireCroisements()" [class]="boutonCalcul">
+      {{ etat.enCours() ? 'Lecture…' : 'Voir la radio et le trafic' }}
     </button>
 
-    @if (c.resultat(); as r) {
+    @if (etat.resultat(); as r) {
       <details data-radio class="text-[11px]">
         <summary class="cursor-pointer text-secondary">
           <span class="font-mono text-primary">{{ nombre(r.radio.n_emetteurs) }}</span> émetteur{{ r.radio.n_emetteurs > 1 ? 's' : '' }} radio
@@ -71,7 +71,7 @@ import { BOUTON_CALCUL, ENCART_ERREUR } from './styles-analyse';
 })
 export class CroisementsZoneComponent {
   protected readonly z = inject(ZoneAnalyseeService);
-  protected readonly c = this.z.croisements;
+  protected readonly etat = this.z.croisements;
   protected readonly nombre = formaterNombre;
   protected readonly boutonCalcul = BOUTON_CALCUL;
   protected readonly encartErreur = ENCART_ERREUR;

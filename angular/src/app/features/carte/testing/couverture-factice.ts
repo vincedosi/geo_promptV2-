@@ -5,6 +5,7 @@ import { CouvertureService } from '../couches/couverture.service';
 import { CouvertureApi } from '../data/couverture.api';
 import { CataloguePoiService } from '../etat/catalogue-poi.service';
 import { ZoneAnalyseeService } from '../etat/zone-analysee.service';
+import type { ResultatCroisements } from '../logique/analyses/couverture';
 
 /**
  * Les services de ④ « Couverture d'une zone » (lot 4, T8) et de la couverture par rayon (T12) en doublures INERTES, pour les specs qui montent le panneau
@@ -17,7 +18,7 @@ export function fournisseursCouvertureFactices(): Provider[] {
       useValue: {
         zoneId: signal(null), cible: signal('ind'), decoupage: signal('forme'), resultat: signal(null), enCours: signal(false),
         erreur: signal(null), choisir: () => undefined, regler: () => undefined, chiffrer: () => undefined,
-        croisements: { resultat: signal(null), enCours: signal(false), erreur: signal(null) }, lireCroisements: () => undefined,
+        ...croisementsFactices(),
       },
     },
     {
@@ -32,4 +33,12 @@ export function fournisseursCouvertureFactices(): Provider[] {
     { provide: CouvertureApi, useValue: { rayon: () => of() } },
     { provide: CataloguePoiService, useValue: { types: signal([]), chargerUneFois: () => undefined } },
   ];
+}
+
+/** La radio et le trafic de `ZoneAnalyseeService` (T13) en doublure : signaux écrivables, lecture inerte par défaut. */
+export function croisementsFactices(lireCroisements: () => void = () => undefined) {
+  return {
+    croisements: { resultat: signal<ResultatCroisements | null>(null), enCours: signal(false), erreur: signal<string | null>(null) },
+    lireCroisements,
+  };
 }
