@@ -4,9 +4,8 @@ import { KpiComponent } from '../../../../ui/kpi/kpi.component';
 import { APERCU_SITES_MAX } from '../../../risques/cartes/couches-sites';
 import { CLE_TOUTES, CourbePopulationComponent, formaterKm } from '../../../risques/etapes/rayon/courbe-population.component';
 import { CouvertureRayonService } from '../../etat/couverture-rayon.service';
-import {
-  CHAMP_SOUS_CATEGORIE, type LigneProfil, RAYON_MAX_MAX_M, RAYON_MAX_MIN_M, libelleBande,
-} from '../../logique/analyses/couverture-rayon';
+import { MAX_VALEURS, RAYON_MAX_M, RAYON_MIN_M } from '../../logique/analyses/couverture';
+import { CHAMP_SOUS_CATEGORIE, type LigneProfil, libelleBande } from '../../logique/analyses/couverture-rayon';
 import { ChoixCibleComponent } from './choix-cible.component';
 import { ChoixSurZoneComponent } from './choix-sur-zone.component';
 import {
@@ -14,8 +13,6 @@ import {
   PASTILLE_PRIMAIRE_ACTIVE,
 } from './styles-analyse';
 
-/** Huit valeurs au plus (`--nature-1…8`), la borne de la base. */
-const MAX_VALEURS = 8;
 const CHAMP_SAISIE = 'w-full rounded-[6px] border-fin border-subtle bg-elevated px-[10px] py-1.5 font-mono text-[11px] text-primary';
 
 /**
@@ -145,8 +142,8 @@ export class OutilRayonComponent {
   protected readonly s = inject(CouvertureRayonService);
   protected readonly choixCible = viewChild(ChoixCibleComponent);
 
-  protected readonly min = RAYON_MAX_MIN_M;
-  protected readonly max = RAYON_MAX_MAX_M;
+  protected readonly min = RAYON_MIN_M;
+  protected readonly max = RAYON_MAX_M;
   protected readonly maxValeurs = MAX_VALEURS;
   protected readonly sousCategorie = CHAMP_SOUS_CATEGORIE;
   protected readonly tous = CLE_TOUTES;

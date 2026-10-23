@@ -20,7 +20,9 @@ import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
 import { requireAuth } from '@/lib/api/middleware';
 import { createQuota } from '@/lib/api/rate-limit';
 import { messageAnomalies } from '@/lib/api/valider-corps';
-import { MESSAGES_REFUS_COUVERTURE, RequeteCouvertureSchema, repondreCouverture } from '@/lib/zones/couverture';
+import {
+  MAX_VALEURS, MESSAGES_REFUS_COUVERTURE, RAYON_MAX_M, RAYON_MIN_M, RequeteCouvertureSchema, repondreCouverture,
+} from '@/lib/zones/couverture';
 import { MESSAGES_REFUS, TYPES_PERIMETRE } from '@/lib/zones/recette';
 import { espaceDeZone } from '@/lib/zones/session-zones';
 
@@ -29,10 +31,6 @@ export const maxDuration = 60;
 
 const quota = createQuota({ max: 6, window: '60 s', prefix: 'geo:rl:couverture-rayon' });
 const ECHEC = 'Calcul de la couverture par rayon impossible.';
-const RAYON_MIN_M = 100;
-const RAYON_MAX_M = 10_000;
-/** Huit teintes de valeur au plus (`--nature-1…8`), la borne de la RPC. */
-const MAX_VALEURS = 8;
 
 /** Les refus de la RPC, dans les phrases déjà écrites pour les zones (T6, recettes) quand elles existent. */
 const MESSAGES = {

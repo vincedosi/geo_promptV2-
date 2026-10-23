@@ -4,7 +4,7 @@ import { formaterNombre } from '../../../../core/format/nombre';
  * ④ Analyse — la couverture d'une zone (lot 4, T7) : le contrat de `GET /api/zones/[id]/couverture` côté écran, et la
  * logique PURE qui le lit (paramètre d'URL, tri, pagination, messages, résumé).
  *
- * Copie des constantes de `lib/zones/couverture.ts` (`DECOUPAGES`, `MESSAGES_REFUS_COUVERTURE`) : Angular n'importe
+ * Copie des constantes de `lib/zones/couverture.ts` (`DECOUPAGES`, `MESSAGES_REFUS_COUVERTURE`, bornes) : Angular n'importe
  * jamais le serveur (`isolement.test.ts`) ; `tests/unit/angular/couverture-paritaire.test.ts` verrouille l'égalité.
  * Les types de la réponse recopient les clés de `couverture_geometrie` (sql/269) et le drapeau `cache` de
  * `couverture_zone` / `couverture_zone_en_cache` (sql/270).
@@ -13,6 +13,12 @@ import { formaterNombre } from '../../../../core/format/nombre';
  * (`HttpErrorResponse`) sont dans `couverture-erreurs.ts`.
  */
 
+/** Bornes de la base (sql/269, sql/272), copiées du serveur. */
+export const RAYON_MIN_M = 100;
+export const RAYON_MAX_M = 10_000;
+export const MAX_VALEURS = 8;
+export const MAX_CARREAUX_COUVERTURE = 400_000;
+
 export const DECOUPAGES = ['forme', 'cp', 'iris'] as const;
 export type Decoupage = (typeof DECOUPAGES)[number];
 
@@ -20,7 +26,7 @@ export const MESSAGES_REFUS_COUVERTURE = {
   zone_introuvable: 'Zone introuvable dans cet espace.',
   cible_inconnue: 'Cette cible n’est pas connue.',
   zone_trop_vaste: 'La zone est trop vaste : la couverture se calcule jusqu’à la taille d’une région.',
-  trop_de_carreaux: 'La zone compte plus de 400 000 carreaux habités.',
+  trop_de_carreaux: `La zone compte plus de ${formaterNombre(MAX_CARREAUX_COUVERTURE)} carreaux habités.`,
   couverture_non_construite: 'La couverture n’est pas encore construite sur cette base.',
 } as const;
 export type RefusCouverture = keyof typeof MESSAGES_REFUS_COUVERTURE;

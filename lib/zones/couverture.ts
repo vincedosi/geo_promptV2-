@@ -14,6 +14,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createQuota } from '@/lib/api/rate-limit';
+import { formaterNombre } from '@/lib/format/nombre';
 import { MESSAGES_REFUS } from './recette';
 
 /**
@@ -21,6 +22,16 @@ import { MESSAGES_REFUS } from './recette';
  * et sa radio et son trafic (T13). Un seul limiteur : deux déclarations du même préfixe pourraient diverger.
  */
 export const quotaCouverture = createQuota({ max: 6, window: '60 s', prefix: 'geo:rl:couverture' });
+
+/**
+ * Les bornes écrites en base, reprises par les routes et copiées côté Angular (`couverture-paritaire.test.ts`) : rayon
+ * maximal et valeurs détaillées de `couverture_rayon_poi` (sql/272), carreaux lus par `couverture_geometrie` (sql/269).
+ */
+export const RAYON_MIN_M = 100;
+export const RAYON_MAX_M = 10_000;
+/** Huit teintes de valeur au plus (`--nature-1…8`). */
+export const MAX_VALEURS = 8;
+export const MAX_CARREAUX_COUVERTURE = 400_000;
 
 /** Les trois découpages admis — exporté pour la copie Angular (`couverture-paritaire.test.ts`). */
 export const DECOUPAGES = ['forme', 'cp', 'iris'] as const;
@@ -37,7 +48,7 @@ export const MESSAGES_REFUS_COUVERTURE: Readonly<Record<RefusCouverture, string>
   zone_introuvable: MESSAGES_REFUS.zone_introuvable,
   cible_inconnue: 'Cette cible n’est pas connue.',
   zone_trop_vaste: 'La zone est trop vaste : la couverture se calcule jusqu’à la taille d’une région.',
-  trop_de_carreaux: 'La zone compte plus de 400 000 carreaux habités.',
+  trop_de_carreaux: `La zone compte plus de ${formaterNombre(MAX_CARREAUX_COUVERTURE)} carreaux habités.`,
   couverture_non_construite: 'La couverture n’est pas encore construite sur cette base.',
 };
 

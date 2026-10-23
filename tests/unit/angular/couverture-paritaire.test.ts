@@ -1,3 +1,4 @@
+import { readFileSync, readdirSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import * as S from '@/lib/zones/couverture';
 import * as A from '../../../angular/src/app/features/carte/logique/analyses/couverture';
@@ -9,6 +10,14 @@ import * as A from '../../../angular/src/app/features/carte/logique/analyses/cou
 describe('couverture d’une zone : Angular = serveur', () => {
   it('mêmes découpages, dans le même ordre', () => {
     expect([...A.DECOUPAGES]).toEqual([...S.DECOUPAGES]);
+  });
+  it('mêmes bornes que la base (rayon, valeurs, carreaux)', () => {
+    for (const c of ['RAYON_MIN_M', 'RAYON_MAX_M', 'MAX_VALEURS', 'MAX_CARREAUX_COUVERTURE'] as const) expect(A[c], c).toBe(S[c]);
+    // Et la base les écrit telles quelles.
+    const sql = (f: string) => readFileSync(`sql/${readdirSync('sql').find((n) => n.endsWith(f))}`, 'utf8');
+    expect(sql('_couverture_rayon_poi.sql')).toContain(`p_rayon_max_m < ${S.RAYON_MIN_M} or p_rayon_max_m > ${S.RAYON_MAX_M}`);
+    expect(sql('_couverture_rayon_poi.sql')).toContain(`coalesce(cardinality(p_valeurs), 0) > ${S.MAX_VALEURS}`);
+    expect(sql('_couverture_geometrie.sql')).toContain(`p_max_carreaux integer default ${S.MAX_CARREAUX_COUVERTURE}`);
   });
   it('mêmes messages de refus, mêmes clés', () => {
     expect(A.MESSAGES_REFUS_COUVERTURE).toEqual(S.MESSAGES_REFUS_COUVERTURE);

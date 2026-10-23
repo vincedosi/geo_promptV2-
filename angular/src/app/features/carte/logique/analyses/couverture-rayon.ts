@@ -7,8 +7,6 @@ import type { PerimetreRecette } from '../zones/recette';
  * `GET /api/analyses/couverture-rayon` et sa réponse (`couverture_rayon_poi`, sql/272). Logique pure.
  */
 
-export const RAYON_MAX_MIN_M = 100;
-export const RAYON_MAX_MAX_M = 10_000;
 export const RAYON_MAX_DEFAUT_M = 5000;
 /** Le seul champ que la base détaille (liste fermée, `champ_non_admis` sinon). */
 export const CHAMP_SOUS_CATEGORIE = 'sous_categorie';
