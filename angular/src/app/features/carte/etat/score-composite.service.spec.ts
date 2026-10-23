@@ -106,6 +106,17 @@ describe('ScoreCompositeService — sur la zone analysée', () => {
     expect(carte.eteindre).toHaveBeenCalledTimes(1);
   });
 
+  it('fermer le panneau (service détruit) pendant un calcul l’annule : la réponse ne peint pas la carte (ruling T12)', () => {
+    const reponse = new Subject<never>();
+    const { s, carte } = monter();
+    TestBed.inject(AnalysesApi).score = () => reponse as never;
+    s.lancer();
+    expect(reponse.observed).toBe(true);
+    TestBed.resetTestingModule();
+    expect(reponse.observed).toBe(false);
+    expect(carte.afficher).not.toHaveBeenCalled();
+  });
+
   it('P-c : le calcul en vol d’une zone quittée est annulé, sa réponse n’atteint ni l’écran ni la carte', () => {
     const reponse = new Subject<never>();
     const { s, carte, zoneId } = monter();

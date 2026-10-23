@@ -33,7 +33,8 @@ import { ZoneAnalyseeService } from './zone-analysee.service';
  * (même geste que `perimer`) : le calcul en vol est annulé, sa réponse ne revient pas peindre la carte (P-c).
  *
  * `@Injectable()` sans `providedIn` : fourni par le panneau Analyse — fermer le panneau perd les réglages, comme
- * React ; la carte, elle, garde le score peint (`ScoreService`, à la page).
+ * React ; la carte, elle, garde le score peint (`ScoreService`, à la page). Un calcul EN VOL à la fermeture est ANNULÉ
+ * (`LectureAnnulable`, désabonnée au `DestroyRef`) : sa réponse ne peint jamais la carte d'un panneau fermé (ruling T12).
  */
 @Injectable()
 export class ScoreCompositeService {
@@ -117,9 +118,10 @@ export class ScoreCompositeService {
     const filtre = this.etat.filtre();
     const choisis = this.choisis();
     const zone = this.zoneScore();
-    if (!choisis.length || this.calcul() || (!filtre && !zone)) return;
+    const perimetre = zone ? { zone } : filtre ? { filtre } : null;
+    if (!choisis.length || this.calcul() || !perimetre) return;
     this.messageZone.set(null);
-    this.lecture.lancer(this.api.score(corpsScore(choisis, filtre, this.enregistrer(), zone)), (r) => {
+    this.lecture.lancer(this.api.score(corpsScore(choisis, perimetre, this.enregistrer())), (r) => {
       this.carte.afficher({ scores: r.scores, libelle: libelleScore(choisis.map((c) => c.label)), nIndicateurs: choisis.length });
     });
   }
