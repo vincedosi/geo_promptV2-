@@ -20,11 +20,16 @@
 -- ligne porte l'ANCIENNE date : elle ne sera jamais servie (égalité fausse) — un recalcul de trop. L'inverse (un
 -- chiffre d'une ancienne forme sous une date neuve) est impossible : la date est toujours lue AVANT la forme.
 -- `base_construite_le` est celle que rend `couverture_geometrie` : lue dans le MÊME instantané que les carreaux.
+-- L'écriture ne remplace jamais une ligne plus récente (`where c.zone_maj <= excluded.zone_maj`) : un calcul lent
+-- commencé sur l'ancienne forme n'écrase pas celui, fini avant lui, de la nouvelle.
 --
 -- UN REFUS NE S'ÉCRIT PAS : le cache ne contient que des chiffrages. Les deux fonctions rendent les mêmes clés que
--- `couverture_geometrie`, plus `cache` (true : servi du cache ; false : calculé à l'instant).
+-- `couverture_geometrie`, plus `cache` (true : servi du cache ; false : calculé à l'instant) et `zone_maj` (T8, I1) :
+-- la version de la forme chiffrée, la clé même du cache — un recalcul en ③ garde l'id et change la forme, et l'écran
+-- relit le contour quand (zone, `zone_maj`) change. Dans la fenêtre décrite plus haut, `zone_maj` désigne l'ANCIENNE
+-- forme d'un chiffrage de la nouvelle : le contour est relu une fois de plus, jamais tracé faux.
 --
--- Taille : une ligne par chiffrage demandé ; le plus gros (ARA par IRIS, 5 498 lignes) ≈ 400 Ko de jsonb. La
+-- Taille : une ligne par chiffrage demandé ; le plus gros (ARA par IRIS, 5 498 lignes) ≈ 400 Ko de jsonb, non compressé. La
 -- suppression d'une zone emporte ses lignes (`on delete cascade`). Aucune purge : une ligne périmée est réécrite au
 -- prochain chiffrage de la même clé.
 --
@@ -64,7 +69,7 @@ stable
 security invoker
 set search_path to 'public', 'pg_catalog'
 as $fn$
-  select c.resultat || jsonb_build_object('cache', true)
+  select c.resultat || jsonb_build_object('cache', true, 'zone_maj', c.zone_maj)
     from public.couverture_zone_cache c
     join public.custom_geo_zones g on g.id = c.zone_id
    where c.zone_id = p_zone_id
@@ -77,8 +82,8 @@ as $fn$
 $fn$;
 
 comment on function public.couverture_zone_en_cache(uuid, uuid, text, text) is
-  'Chiffrage de couverture en cache (|| {cache: true}) s''il est encore valide — zone de l''espace, forme et base '
-  'inchangees, base certifiee complete — sinon NULL. Lecture seule. sql/270 (lot 4, T6).';
+  'Chiffrage de couverture en cache (|| {cache: true, zone_maj}) s''il est encore valide — zone de l''espace, forme et '
+  'base inchangees, base certifiee complete — sinon NULL. Lecture seule. sql/270 (lot 4, T6, T8).';
 
 revoke all on function public.couverture_zone_en_cache(uuid, uuid, text, text) from public, anon, authenticated;
 grant execute on function public.couverture_zone_en_cache(uuid, uuid, text, text) to service_role;
@@ -124,21 +129,22 @@ begin
         set zone_maj = excluded.zone_maj,
             base_construite_le = excluded.base_construite_le,
             resultat = excluded.resultat,
-            calcule_le = excluded.calcule_le;
+            calcule_le = excluded.calcule_le
+        where c.zone_maj <= excluded.zone_maj;
     exception when foreign_key_violation then
       -- La zone a été supprimée pendant le calcul : le chiffrage est rendu, rien n'est gardé.
       null;
     end;
   end if;
 
-  return v_res || jsonb_build_object('cache', false);
+  return v_res || jsonb_build_object('cache', false, 'zone_maj', v_maj);
 end
 $fn$;
 
 comment on function public.couverture_zone(uuid, uuid, text, text) is
   'Couverture d''une zone de l''espace : le cache s''il est valide (couverture_zone_en_cache), sinon '
   'couverture_geometrie, dont le chiffrage (jamais un refus) est ecrit au cache. Rend les cles de '
-  'couverture_geometrie + cache (true/false). sql/270 (lot 4, T6).';
+  'couverture_geometrie + cache (true/false) + zone_maj. sql/270 (lot 4, T6, T8).';
 
 revoke all on function public.couverture_zone(uuid, uuid, text, text) from public, anon, authenticated;
 grant execute on function public.couverture_zone(uuid, uuid, text, text) to service_role;

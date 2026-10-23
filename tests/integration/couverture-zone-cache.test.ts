@@ -154,7 +154,7 @@ describe('péremption (Review Focus 2, R-2)', () => {
     const apres = await couvrir(zone, org);
     expect(apres.cache).toBe(false);
     expect(apres.n_carreaux).toBeLessThan(avant.n_carreaux ?? 0);
-    // sql/271 (T8, relecture I1) : la réponse porte la version de la forme chiffrée — l'écran y indexe le contour.
+    // sql/270 (T8, relecture I1) : la réponse porte la version de la forme chiffrée — l'écran y indexe le contour.
     expect(typeof avant.zone_maj).toBe('string');
     expect(apres.zone_maj).not.toBe(avant.zone_maj);
     expect((await enCache(zone, org))?.zone_maj).toBe(apres.zone_maj);

@@ -43,7 +43,7 @@ const RECADRAGE = { padding: 60, duration: 900 } as const;
  * son tour, elle se MASQUE — le chiffre reste au panneau, qui dit « Couche retirée de la carte » (Q2).
  *
  * ── LE CONTOUR SUIT LA VERSION DE LA ZONE (relecture T8, I1) ─────────────
- * Un recalcul en ③ garde l'id et change la forme : la réponse porte `zone_maj` (sql/271), et le contour est relu (et la
+ * Un recalcul en ③ garde l'id et change la forme : la réponse porte `zone_maj` (sql/270), et le contour est relu (et la
  * carte recadrée) dès que (zone, zone_maj) change. Tant que le neuf n'est pas lu, l'ancien n'est PAS tracé.
  */
 @Injectable()
@@ -238,7 +238,7 @@ export class CouvertureService {
   }
 }
 
-/** La version d'une zone chiffrée : son id et la date de sa forme (`zone_maj`, sql/271). */
+/** La version d'une zone chiffrée : son id et la date de sa forme (`zone_maj`, sql/270). */
 function cleContour(r: { zone_id: string; zone_maj?: string | null }): string {
   return `${r.zone_id}@${r.zone_maj ?? ''}`;
 }

@@ -222,7 +222,7 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 - **Un seul dégradé** (correctif de revue, Q1) : `'couverture'` est au registre (`logique/degrades.ts` et sa source
   React, écart P5 ratifié) ; peinte, la couche évince l'IRIS, les carreaux, le score… ; évincée ou « Tout effacer »,
   elle se masque et le panneau dit « Couche retirée de la carte » + « Afficher sur la carte » (Q2), sans re-chiffrer.
-- **Contour à jour** (I1) : la réponse porte `zone_maj` (sql/271) ; le contour est relu quand (zone, `zone_maj`)
+- **Contour à jour** (I1) : la réponse porte `zone_maj` (sql/270) ; le contour est relu quand (zone, `zone_maj`)
   change — un recalcul en ③ redessine la nouvelle forme.
 - **Lisibilité en clair** (I2, I3) : trait `--text-tertiary` sur les territoires touchés (le palier `--seq-1` est
   quasi blanc), pastilles et barres bordées ; texte d'avertissement `TEXTE_AVERTISSEMENT` (`styles-analyse.ts`).
