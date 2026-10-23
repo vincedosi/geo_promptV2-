@@ -188,7 +188,7 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 | `data/couverture.api.ts` | `CouvertureApi` (dans `FOURNISSEURS_DISTANTS`) : `couverture(zoneId, cible, decoupage)` |
 | `logique/analyses/couverture.ts` | PUR, sans import d’Angular (le test de parité racine l’importe) : types de la réponse, copie de `DECOUPAGES` et des messages de refus (`couverture-paritaire.test.ts`), paramètre d’URL, tri, pagination (50), libellés, résumé ; les messages d’une erreur HTTP sont dans `couverture-erreurs.ts` |
 | `etat/zone-analysee.service.ts` | `ZoneAnalyseeService`, fourni par la PAGE (`carte.fournisseurs.ts`) : `zoneId`, `cible`, `decoupage`, `resultat`, `enCours`, `erreur` ; `choisir`, `regler`, `chiffrer` |
-| `etat/ecrire-parametres.ts` | Écriture d'URL qui ne perd pas un paramètre posé dans le même tick (piège P-g) — employée par `ParcoursService` et `ZoneAnalyseeService` |
+| `etat/ecrire-parametres.ts` | Le SEUL écrivain de paramètres d'URL de la carte (piège P-g) : part de la navigation EN VOL et de SON arbre d'URL ; avec un `chemin`, ouvre un module (page d'historique) — `ParcoursService`, `ZoneAnalyseeService`, `LienZoneService`, `CarteHoteComponent`, `section-risque`, `jeux-de-zones` |
 | `panneaux/analyse/choix-zone-analysee.component.ts` | `mg-choix-zone-analysee` : liste des zones de l'espace lue au PREMIER clic, filtre par nom, zone choisie (nom, recette, « Changer », « Retirer ») ; sortie `choisie` |
 
 - **URL** : `?zoneAnalyse=<uuid>` et `?couverture=<cible>.<forme|cp|iris>` (défaut `ind.forme`, non écrit) — lus à
@@ -200,8 +200,8 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   supprimée, ou d'un autre espace — lien partagé) : `?zoneAnalyse=` retiré, message affiché.
 - **P-g** : `queryParamsHandling: 'merge'` fusionne avec la dernière URL ABOUTIE ; deux navigations du même tick et
   la seconde efface le paramètre de la première. `ecrireParametres` part de la navigation EN VOL
-  (`router.currentNavigation()`). Les autres écrivains de la page (`lien-zone`, `carte-hote`, `section-risque`,
-  `jeux-de-zones`) ne l'emploient pas encore.
+  (`router.currentNavigation()`) et navigue sur SON arbre (jamais l'ancien chemin) ; tous les écrivains de la page
+  passent par lui (vague finale du lot 4, `ecrire-parametres.spec.ts`).
 
 ### L'écran et la couche (T8)
 
@@ -238,6 +238,27 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 - **La cible d'URL** (Q3 de T8, ratifiée) : le catalogue des cibles est lu à la première ouverture du sélecteur,
   ET au chargement quand `?couverture=` porte une cible autre que la population totale (il faut la nommer).
 - **Couverture par rayon (4b, Q-I)** : bornée au département ; la région attendra un pré-calcul national.
+
+## ④ Analyse : les analyses sur la zone analysée (lot 4b, 2026-10-23)
+
+| Fichier | Rôle |
+|---|---|
+| `etat/lecture-annulable.ts` | `LectureAnnulable` : LE cycle des lectures de ④ (jeton + désabonnement + `DestroyRef`, P-c) — `lancer`, `chargerUneFois` (une lecture par propriétaire, un échec se relit), `refuser` (message sans requête), `annuler`, `perimer` ; `surChangement` (P-a) |
+| `etat/score-composite.service.ts` | Le score part sur la zone analysée par défaut (`surZone`, T10) ; `corpsScore` prend `{ filtre } \| { zone }` ; fermer le panneau pendant un calcul l'annule |
+| `etat/couverture-rayon.service.ts` | Couverture par rayon autour de TOUT type de POI (T12, `GET /api/analyses/couverture-rayon`) : catalogue de ② + sites ICPE ajoutés une fois le catalogue lu ; zone analysée introuvable (404) → retirée comme pour la couverture, le message reste ; état exposé en lecture seule |
+| `couches/couche-couverture-rayon.ts` | POI et cercles au rayon lu sur la courbe (cercles bornés à `APERCU_SITES_MAX`) |
+| `panneaux/analyse/outil-rayon.component.ts` | `mg-outil-rayon` : type, rayon maximal, détail par sous-catégorie, anneaux, cible, « Sur » ; la courbe `mg-courbe-population` du module risque |
+| `panneaux/analyse/croisements-zone.component.ts` | `mg-croisements-zone` (T13), sous la couverture : émetteurs radio dont le cercle touche la zone, comptages routiers qui la traversent ; état dans `ZoneAnalyseeService.croisements` (survit au repli, P-e) ; périmé par un chiffrage d'une autre version de la forme (`zone_maj`) |
+| `panneaux/analyse/entete-outil.component.ts`, `pastilles.component.ts` | `mg-entete-outil` (en-tête des quatre outils d'accordéon) et `mg-pastilles` (groupe exclusif : découpage, détail par champ, « Sur ») |
+
+- **Bornes sous verrou** : `RAYON_MIN_M`, `RAYON_MAX_M`, `MAX_VALEURS`, `MAX_CARREAUX_COUVERTURE` sont copiés de
+  `lib/zones/couverture.ts` dans `logique/analyses/couverture.ts` ; `couverture-paritaire.test.ts` compare les deux
+  copies ET les nombres écrits dans sql/269 et sql/272.
+- **Une phrase par refus** : `zone_introuvable` = « Zone introuvable dans cet espace. » partout (recettes, couverture,
+  rayon, radio et trafic). Sur la zone analysée, le rayon dit « La zone analysée dépasse 12 000 km² », pas « l'étape ① ».
+- **Ce qui reste dupliqué** : les pastilles « Haut = mieux / Bas = mieux » du score (une par indicateur) et l'en-tête
+  « Analyse spatiale » du panneau (un accordéon de section, pas un outil) gardent leur gabarit ; le cycle du catalogue
+  d'indicateurs du score (`basculerOuvert`, antérieur au lot) n'est pas encore sur `LectureAnnulable`.
 
 ## Cycle de vie d'une couche
 

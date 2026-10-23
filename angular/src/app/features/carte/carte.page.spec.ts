@@ -1504,6 +1504,9 @@ interface LigneInventaire {
  *   `panneaux/zones/mes-zones.component.spec.ts` et `carte-zone.component.spec.ts` (la liste est lue du serveur).
  * - 39. ④ Couverture d'une zone (lot 4, T8) : le chiffrage, le tableau et la couche sont prouvés par
  *   `panneaux/analyse/outil-couverture.component.spec.ts` et `couches/couverture.service.spec.ts`.
+ * - 40. ④ Couverture par rayon (lot 4b, T12) : `outil-rayon.component.spec.ts`, `etat/couverture-rayon.service.spec.ts`.
+ * - 41. ④ Radio et trafic de la zone analysée (lot 4b, T13), montés avec une zone dans l'URL :
+ *   `croisements-zone.component.spec.ts`, `etat/zone-analysee.service.spec.ts`.
  * Une ligne qui échoue veut dire qu'une fonction a été PERDUE : la rétablir, jamais retirer la ligne.
  */
 const INVENTAIRE: readonly LigneInventaire[] = [
@@ -1563,6 +1566,11 @@ const INVENTAIRE: readonly LigneInventaire[] = [
   {
     n: 39, fonction: '④ › Couverture d’une zone', lieu: { etape: 4 },
     preuves: ['[data-panneau-etape="analyse"] mg-outil-couverture [data-outil-couverture] mg-choix-zone-analysee', '[data-panneau-etape="analyse"] [data-chiffrer]'],
+  },
+  { n: 40, fonction: '④ › Couverture par rayon', lieu: { etape: 4 }, preuves: ['[data-panneau-etape="analyse"] mg-outil-rayon mg-entete-outil'] },
+  {
+    n: 41, fonction: '④ › Radio et trafic de la zone analysée', lieu: { etape: 4 }, url: `/carte?zoneAnalyse=${ID_ZONE_DU_LIEN}`,
+    preuves: ['[data-panneau-etape="analyse"] mg-outil-couverture mg-croisements-zone'],
   },
 ];
 

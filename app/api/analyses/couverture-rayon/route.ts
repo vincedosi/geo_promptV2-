@@ -10,7 +10,7 @@
  * session → RPC. L'espace et les sources viennent de la SESSION, jamais du client (patron de T6). Pas de cache : le
  * résultat dépend de trop de réglages.
  *
- * Quota 6 / min / compte, comme T6 : au pire cas admis ≈ 1,5-1,7 s et ≈ 120 000 accès par appel (mesures de T11).
+ * Quota 6 / min / compte, comme T6 : au pire cas admis ≈ 1,8 s et ≈ 131 000 accès par appel (ICPE du Nord à 10 km).
  * Statuts : 422 pour un refus de la requête, 503 pour une base non construite (règle de `lib/zones/couverture.ts`).
  * Sur la zone analysée, les refus parlent de la zone et non de l'étape ① : `zone_introuvable` (404, comme la
  * couverture) et « La zone analysée dépasse 12 000 km² ».
