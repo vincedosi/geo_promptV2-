@@ -52,16 +52,15 @@ declare
   v_n_hors    bigint;
   v_n_cibles  integer;
   v_paires    text;
+  v_motif     text;
 begin
   -- La table étroite doit être COMPLÈTE : un dénominateur construit sur une table à moitié remplie serait faux pour
-  -- chaque IRIS d'une bande manquante, sans que rien ne le signale.
-  if not exists (select 1 from public.carreau_couverture) then
-    raise exception 'carreau_couverture est vide : la construire d''abord (scripts/construire_carreau_couverture.mjs)'
-      using errcode = '55000';
-  end if;
-  if (select coalesce(sum(n_carreaux), 0) from public.carreau_couverture_bandes)
-     <> (select count(*) from public.carreau_couverture) then
-    raise exception 'carreau_couverture incomplète ou incohérente avec son journal de bandes : la reprendre d''abord'
+  -- chaque IRIS d'une bande manquante. Le certificat de sql/268, comparé à `carreaux_filosofi` — et non « journal =
+  -- lignes », vrai par construction : un --tout interrompu passait (relecture de T4).
+  v_motif := public.carreau_couverture_complete();
+  if v_motif is not null then
+    raise exception 'carreau_couverture incomplete ou non certifiee (%) : la construire jusqu''au bout '
+      '(scripts/construire_carreau_couverture.mjs, qui certifie en fin de course)', v_motif
       using errcode = '55000';
   end if;
 
@@ -109,8 +108,8 @@ $fn$;
 comment on function public.construire_denominateur_iris() is
   'Construit la maille iris d''unite_population_totale DEPUIS carreau_couverture (meme regle que le numerateur de la '
   'couverture : centroide dans iris.geom). Jamais iris.population. Efface puis reecrit la seule maille iris, en une '
-  'transaction ; refuse si carreau_couverture est vide ou incomplete. A rejouer apres toute construction de '
-  'carreau_couverture. sql/267 (lot 4, T4).';
+  'transaction ; refuse si carreau_couverture n''est pas certifiee complete (sql/268). A rejouer apres toute '
+  'construction de carreau_couverture. sql/267, sql/268.';
 
 revoke all on function public.construire_denominateur_iris() from public, anon, authenticated;
 grant execute on function public.construire_denominateur_iris() to service_role;

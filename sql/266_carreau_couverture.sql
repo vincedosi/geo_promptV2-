@@ -224,15 +224,18 @@ declare v_n bigint;
 begin
   select count(*) into v_n from public.carreau_couverture;
   -- La table ET son journal, ensemble : un journal qui survit à sa table ferait sauter toutes les bandes au prochain
-  -- lancement, et la table resterait vide (leçon du 22/09, 11-reconstruire.sh).
+  -- lancement, et la table resterait vide (leçon du 22/09, 11-reconstruire.sh). Et le certificat (sql/268) : une table
+  -- vidée n'est plus certifiée.
   truncate public.carreau_couverture;
   delete from public.carreau_couverture_bandes;
+  delete from public.carreau_couverture_controle;
   return v_n;
 end;
 $fn$;
 
 comment on function public.vider_carreau_couverture() is
-  'Vide carreau_couverture ET son journal de bandes (prealable de --tout). Rend le nombre de lignes effacees. sql/266.';
+  'Vide carreau_couverture, son journal de bandes ET son certificat (prealable de --tout). Rend le nombre de lignes '
+  'effacees. sql/266, sql/268.';
 
 revoke all on function public.vider_carreau_couverture() from public, anon, authenticated;
 grant execute on function public.vider_carreau_couverture() to service_role;

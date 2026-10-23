@@ -100,4 +100,10 @@ describe('sql/268 — carreau_couverture_complete', () => {
       'vider_carreau_couverture:falsefalsetrue',
     ]);
   });
+
+  it('le certificat ne se forge pas : service_role le lit, ne l’écrit pas', () => {
+    expect(psql(`select string_agg(p || ':' || has_table_privilege('service_role', 'public.carreau_couverture_controle', p), ' ')
+                   from unnest(array['select', 'insert', 'update', 'delete']) p;`))
+      .toEqual(['select:true insert:false update:false delete:false']);
+  });
 });
