@@ -39,6 +39,26 @@ describe('sql/265 — périmètres sans interstices', () => {
     }
   });
 
+  it('le périmètre bouché CONTIENT l’ancien, sur tous les départements et toutes les régions (rien n’est rogné)', () => {
+    for (const table of ['ref_departements', 'ref_regions']) {
+      const [rognes] = sql(`select count(*) from public.${table}
+                             where geom is not null and not ST_Covers(geom_perimetre, ST_CollectionExtract(geom, 3));`);
+      expect(Number(rognes), table).toBe(0);
+    }
+  });
+
+  it('boucher_interstices, appelée directement : la règle sur trois trous fabriqués', () => {
+    const anneaux = (carre: string, trou: string, code: string) => sql(`
+      select sum(ST_NumInteriorRings(d.geom)) from ST_Dump(public.boucher_interstices(
+        ST_GeomFromText('POLYGON((${carre}),(${trou}))', 4326), '${code}', 'departement')) d;`)[0];
+    // Dans Aix, 0,2 km² couverts par des communes du 13 : une fente, bouchée.
+    expect(anneaux('5.40 43.50,5.50 43.50,5.50 43.56,5.40 43.56,5.40 43.50', '5.44 43.52,5.445 43.52,5.445 43.525,5.44 43.525,5.44 43.52', '13')).toBe('0');
+    // Sur Pertuis, couverte par une commune du 84 : une enclave d'une autre unité, gardée.
+    expect(anneaux('5.40 43.60,5.60 43.60,5.60 43.80,5.40 43.80,5.40 43.60', '5.49 43.68,5.51 43.68,5.51 43.70,5.49 43.70,5.49 43.68', '13')).toBe('1');
+    // En mer, 22,8 km² sans commune française : gardé (règle de Llívia, > 5 km²).
+    expect(anneaux('4 42.5,4.2 42.5,4.2 42.7,4 42.7,4 42.5', '4.05 42.55,4.1 42.55,4.1 42.6,4.05 42.6,4.05 42.55', '13')).toBe('1');
+  });
+
   it('Bouches-du-Rhône : plus aucun trou, et 20,7 km² de plus', () => {
     // 678 trous pour 21,7 km² ; mais 10 petits polygones du département (1,0 km²) étaient DÉJÀ posés dans ces trous :
     // la surface gagnée est 21,7 − 1,0 = 20,68 km² (mesuré le 22/10), pas 21,7 comme le disait le plan.
