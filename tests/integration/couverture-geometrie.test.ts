@@ -14,7 +14,6 @@
  * scénarios de panne sont simulés par psql dans des transactions ANNULÉES (base locale partagée).
  */
 import { spawnSync } from 'node:child_process';
-import { readFileSync, readdirSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { creerClientTest } from './_client';
 
@@ -203,15 +202,27 @@ describe('couverture_geometrie — département 13 figé comme dessin (après T2
 });
 
 describe('couverture_geometrie — ③ et ④ comptent les mêmes carreaux', () => {
-  it('la règle est écrite comme celle de zone_seuil_carreaux : ST_Intersects + distinct on, jamais ST_Contains', () => {
-    // Le test de données ci-dessous ne voit PAS une régression vers ST_Contains : mesuré le 22/10 sur cette zone,
-    // aucun centroïde ne tombe sur une couture de ST_Subdivide (573 carreaux dans les deux règles). D'où ce verrou-ci.
-    const f = readdirSync('sql').find((n) => /_couverture_geometrie\.sql$/.test(n))!;
-    const corps = readFileSync(`sql/${f}`, 'utf8').replace(/--.*$/gm, '');
-    expect(corps).toMatch(/distinct on \(cc\.carreau_id\)/);
-    expect(corps).toMatch(/cc\.centroide_3857 && z\.sg and ST_Intersects\(cc\.centroide_3857, z\.sg\)/);
-    expect(corps).not.toMatch(/ST_Contains/);
-  });
+  it('couture de ST_Subdivide : ③, ④ et la couverture par rayon comptent le carreau qui la touche', async () => {
+    // Un carré de ±1 000 m (3857) autour du centroïde du carreau 457209, segmenté à 10 m : ses deux morceaux de
+    // ST_Subdivide se touchent SUR ce centroïde. `ST_Intersects` + `distinct on` le compte une fois ; `ST_Contains`
+    // par morceau le perdrait (47 au lieu de 48 : vérifié ci-dessous, sinon le cas ne prouverait rien). 15 décimales :
+    // les 9 par défaut d'ST_AsGeoJSON déplacent la couture.
+    const zone = psql(`select public.creer_zone_recette('Couture 457209', '${org}', null, '{"v":1,"type":"dessin"}',
+                         ST_AsGeoJSON(ST_Transform(ST_Segmentize(ST_Expand(centroide_3857, 1000), 10), 4326), 15))->>'id'
+                         from public.carreau_couverture where carreau_id = 457209;`);
+    const parContains = Number(psql(`select count(distinct cc.carreau_id)
+                                       from public.custom_geo_zones z
+                                       cross join lateral ST_Subdivide(ST_Transform(z.geometry, 3857), 256) m
+                                       join public.carreau_couverture cc on ST_Contains(m, cc.centroide_3857)
+                                      where z.id = '${zone}';`));
+    const quatre = await couverture(zone);
+    expect(quatre.n_carreaux).toBe(48);
+    expect(parContains).toBe(47);
+    const trois = Number(psql(`select z->>'compte' from public.zone_seuil_carreaux('densite_ind', '>=', 0, 'zone', '${zone}', '${org}') z;`));
+    expect(trois).toBe(quatre.n_carreaux);
+    const rayon = JSON.parse(psql(`select public.couverture_rayon_poi('lycee', 'zone', '${zone}', '${org}', null, 'ind', 1000);`));
+    expect(rayon.population_perimetre).toBe(quatre.population);
+  }, LONG);
 
   it('zone seuil_carreaux : n_carreaux = le nombre de carreaux que ③ a retenus', async () => {
     const r = await couverture(zones.seuil);

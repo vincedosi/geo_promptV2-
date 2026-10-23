@@ -271,12 +271,8 @@ begin
         from public.carreau_couverture cc
        where p_perimetre_type = 'departement' and cc.code_departement = p_perimetre_code
       union all
-      -- `ST_Intersects` + `distinct on` : un centroïde sur la couture de deux morceaux compte une fois (sql/269).
-      (select distinct on (cc.carreau_id) cc.carreau_id, cc.pops[v_rang]::numeric
-         from (select ST_Subdivide(v_per3857, 256) as sg) z
-         join public.carreau_couverture cc on cc.centroide_3857 && z.sg and ST_Intersects(cc.centroide_3857, z.sg)
-        where p_perimetre_type <> 'departement'
-        order by cc.carreau_id)
+      select f.carreau_id, f.pop from public.carreaux_de_forme(v_per, v_rang) f
+       where p_perimetre_type <> 'departement'
     ),
     -- ── LE PLUS PROCHE POI PAR CARREAU, SANS ÉNUMÉRER LES PAIRES ──────────────
     -- Toutes les paires carreau × POI à moins de r_max : 4,7 M pour les lycées d'Île-de-France à 10 km, 10,9 s. Un

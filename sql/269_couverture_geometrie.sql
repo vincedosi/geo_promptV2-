@@ -14,10 +14,13 @@
 -- Un carreau sans CP (resp. sans IRIS) reste compté dans la forme et sort en `hors_territoire` : la somme des lignes et
 -- de `hors_territoire` égale TOUJOURS la population de la forme.
 --
--- ⚠ `ST_Intersects` + `distinct on`, PAS `ST_Contains` (relecture du plan, R-3) : la règle EXACTE de
--- `zone_seuil_carreaux` (sql/255:103-105). Un centroïde posé sur l'arête commune de deux morceaux de `ST_Subdivide` est
--- dans les deux — compté une fois par le `distinct on`. `ST_Contains` l'exclurait des deux : il disparaîtrait, et la
--- zone fabriquée par ③ et sa couverture en ④ ne compteraient plus les mêmes carreaux (test dédié).
+-- LA RÈGLE « CARREAUX D'UNE FORME » est `carreaux_de_forme` (ci-dessous), seule copie, appelée aussi par
+-- `couverture_rayon_poi` (sql/272). ⚠ `ST_Intersects` + `distinct on`, PAS `ST_Contains` (relecture du plan, R-3) : la
+-- règle EXACTE de `zone_seuil_carreaux` (sql/255:103-105). Un centroïde posé sur l'arête commune de deux morceaux de
+-- `ST_Subdivide` est dans les deux — compté une fois par le `distinct on`. `ST_Contains` l'exclurait des deux : il
+-- disparaîtrait, et la zone fabriquée par ③ et sa couverture en ④ ne compteraient plus les mêmes carreaux (test de
+-- couture par données). sql/255 garde sa copie : elle lit `carreaux_filosofi` (polygones et `metadata`), pas la table
+-- étroite.
 --
 -- BORNES (A-4, écrites ici, verrouillées par test) : zone ≤ 100 000 km² — la France est refusée, la plus grande région
 -- (Nouvelle-Aquitaine, 84 617 km²) admise ; ≤ 400 000 carreaux LUS (`p_max_carreaux`, on lit `limit + 1` carreaux
@@ -52,6 +55,25 @@
 --   `distinct on` : ≈ 14-30 Mo de fichiers temporaires, laissés tels quels (un `work_mem` de fonction relèverait la
 --   mémoire de CHAQUE appel sur un compute Micro partagé).
 -- Droits : service_role. Rejouable (`create or replace`, aucun `drop`).
+
+-- Les carreaux de `carreau_couverture` dont le centroïde est dans une forme (4326), chacun une fois, avec l'effectif
+-- de la cible de rang `p_rang`. SANS `set search_path` : la fonction est alors INLINÉE dans l'appelant (qui fixe le
+-- sien) et le plan reste celui des copies qu'elle remplace (corps entièrement qualifié, `public.`). L'effectif d'UNE
+-- cible et non les 24 : le tri du `distinct on` les porterait tous (mesuré le 23/10 : 9 Mo de fichier temporaire sur
+-- les Bouches-du-Rhône, 0 avant).
+create or replace function public.carreaux_de_forme(p_geom geometry, p_rang integer)
+returns table (carreau_id bigint, pop numeric, code_postal text, code_iris text)
+language sql
+stable
+as $fn$
+  select distinct on (cc.carreau_id) cc.carreau_id, cc.pops[p_rang]::numeric, cc.code_postal, cc.code_iris
+    from (select public.ST_Subdivide(public.ST_Transform(p_geom, 3857), 256) as sg) z
+    join public.carreau_couverture cc on cc.centroide_3857 operator(public.&&) z.sg and public.ST_Intersects(cc.centroide_3857, z.sg)
+   order by cc.carreau_id
+$fn$;
+
+revoke all on function public.carreaux_de_forme(geometry, integer) from public, anon, authenticated;
+grant execute on function public.carreaux_de_forme(geometry, integer) to service_role;
 
 create or replace function public.couverture_geometrie(
   p_zone_id uuid,
@@ -127,15 +149,9 @@ begin
 
   select max(b.construit_le) into v_base from public.carreau_couverture_bandes b;
 
-  with z as materialized (
-    select ST_Subdivide(ST_Transform(v_geom, 3857), 256) as sg
-  ), c as materialized (
-    -- Dédoublonné AVANT le limit (sql/255) : un centroïde sur une couture de morceaux sort deux fois de la jointure.
-    select distinct on (cc.carreau_id) cc.carreau_id, cc.pops[v_rang]::numeric as pop,
-           case p_decoupage when 'cp' then cc.code_postal when 'iris' then cc.code_iris end as code
-      from z
-      join public.carreau_couverture cc on cc.centroide_3857 && z.sg and ST_Intersects(cc.centroide_3857, z.sg)
-     order by cc.carreau_id
+  with c as materialized (
+    select f.carreau_id, f.pop, case p_decoupage when 'cp' then f.code_postal when 'iris' then f.code_iris end as code
+      from public.carreaux_de_forme(v_geom, v_rang) f
      limit p_max_carreaux + 1
   ), g as materialized (
     select c.code, count(*) as n, sum(c.pop) as p from c where p_decoupage <> 'forme' group by c.code
