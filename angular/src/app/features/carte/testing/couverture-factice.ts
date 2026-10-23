@@ -17,6 +17,7 @@ export function fournisseursCouvertureFactices(): Provider[] {
       useValue: {
         zoneId: signal(null), cible: signal('ind'), decoupage: signal('forme'), resultat: signal(null), enCours: signal(false),
         erreur: signal(null), choisir: () => undefined, regler: () => undefined, chiffrer: () => undefined,
+        croisements: { resultat: signal(null), enCours: signal(false), erreur: signal(null) }, lireCroisements: () => undefined,
       },
     },
     {

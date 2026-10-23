@@ -31,11 +31,11 @@ interface Croisements {
   refus?: string;
   radio: {
     n_emetteurs: number; n_sans_rayon: number; tronque: boolean;
-    emetteurs: { site: string; commune: string | null; frequence_mhz: number | null; puissance_w: number | null; stations: string[] }[];
+    emetteurs: { site: string; lieu: string | null; stations: string[] }[];
   };
   trafic: {
     n_comptages: number; tmja_max: number | null; tmja_median: number | null; tronque: boolean;
-    comptages: { route: string; tmja: number; annee_mesure: number; type_comptage: string }[];
+    comptages: { route: string; tmja: number; annee_mesure: number }[];
   };
 }
 
@@ -78,6 +78,8 @@ describe('croisements_zone — Bouches-du-Rhône', () => {
     expect(r.radio.emetteurs).toHaveLength(Math.min(r.radio.n_emetteurs, 200));
     expect(r.radio.tronque).toBe(r.radio.n_emetteurs > 200);
     expect(r.radio.n_sans_rayon).toBeGreaterThanOrEqual(0);
+    // Ronde 1, I1 : ni fréquence (87,5 partout), ni puissance (vide), ni type de comptage (une seule valeur).
+    expect(Object.keys(r.radio.emetteurs[0]).sort()).toEqual(['lieu', 'site', 'stations']);
     for (const e of r.radio.emetteurs) {
       expect(e.site).toBeTruthy();
       // Triées dans la collation de la base (en_US : « Beur FM » avant « BFM Radio »).
@@ -86,6 +88,7 @@ describe('croisements_zone — Bouches-du-Rhône', () => {
     expect(r.trafic.n_comptages).toBeGreaterThanOrEqual(0);
     expect(r.trafic.comptages).toHaveLength(Math.min(r.trafic.n_comptages, 200));
     if (r.trafic.n_comptages > 0) {
+      expect(Object.keys(r.trafic.comptages[0]).sort()).toEqual(['annee_mesure', 'route', 'tmja']);
       expect(r.trafic.tmja_max).toBe(r.trafic.comptages[0].tmja);
       expect(r.trafic.tmja_median!).toBeLessThanOrEqual(r.trafic.tmja_max!);
     }

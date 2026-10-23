@@ -8,7 +8,10 @@
 -- plus court : l'élargissement ne manque jamais un cercle). Un émetteur sans rayon n'a pas de cercle : exclu, et
 -- compté à part (`n_sans_rayon`, ceux dont le point est dans la zone) — jamais rangé en silence parmi les absents.
 -- Stations : `radios.nom` par `emetteur_radio_stations` (dédoublonnées, triées). `emetteurs_radio` n'a pas de colonne
--- `nom` : le site est `sta_nm_anfr` (numéro ANFR). Ordre : le plus grand rayon d'abord (la puissance est vide partout).
+-- `nom` : le site est `sta_nm_anfr` (numéro ANFR) ; `lieu` est la colonne `commune`, qui porte un lieu-dit ou une
+-- adresse (« Pylône TDF »), jamais une commune. Ordre : le plus grand rayon d'abord.
+-- ABSENTS, données sources fausses ou vides (23/10) : `frequence_mhz` (87,5 sur 11 599 FM / 11 602), `puissance_w`
+-- (vide sur 12 704), `type_comptage` (une seule valeur sur 1 100).
 --
 -- TRAFIC. Les comptages dont le tronçon INTERSECTE la zone : les 1 100 comptages réels (`tmja_rrn_national` partout le
 -- 22/10, plus aucun proxy OSM). `tmja_max` et `tmja_median` portent sur TOUS les comptages de la zone, pas sur la liste
@@ -56,7 +59,7 @@ begin
     into v_marge from public.emetteurs_radio e;
 
   with retenus as materialized (
-    select e.id, e.sta_nm_anfr, e.commune, e.frequence_mhz, e.puissance_w, e.rayon_couverture_m
+    select e.id, e.sta_nm_anfr, e.commune, e.rayon_couverture_m
       from public.emetteurs_radio e
      where e.rayon_couverture_m is not null
        and e.geom && ST_Expand(v_geom, coalesce(v_marge, 0))
@@ -82,15 +85,14 @@ begin
                              where e.rayon_couverture_m is null and ST_Intersects(e.geom, v_geom)),
            'emetteurs', coalesce((
              select jsonb_agg(jsonb_build_object(
-                      'site', l.sta_nm_anfr, 'commune', nullif(l.commune, ''), 'frequence_mhz', l.frequence_mhz,
-                      'puissance_w', l.puissance_w, 'stations', coalesce(st.noms, '[]'::jsonb))
+                      'site', l.sta_nm_anfr, 'lieu', nullif(l.commune, ''), 'stations', coalesce(st.noms, '[]'::jsonb))
                       order by l.rayon_couverture_m desc, l.sta_nm_anfr)
                from liste l left join stations st on st.emetteur_id = l.id), '[]'::jsonb),
            'tronque', (select count(*) from retenus) > p_limite)
     into v_radio;
 
   with retenus as materialized (
-    select c.route, c.tmja, c.annee_mesure, c.type_comptage
+    select c.route, c.tmja, c.annee_mesure
       from public.comptages_routiers c
      where ST_Intersects(c.geom, v_geom)
   )
@@ -99,8 +101,8 @@ begin
            'tmja_max', (select max(tmja) from retenus),
            'tmja_median', (select round(percentile_cont(0.5) within group (order by tmja)) from retenus),
            'comptages', coalesce((
-             select jsonb_agg(jsonb_build_object('route', l.route, 'tmja', l.tmja, 'annee_mesure', l.annee_mesure,
-                                                 'type_comptage', l.type_comptage) order by l.tmja desc nulls last, l.route)
+             select jsonb_agg(jsonb_build_object('route', l.route, 'tmja', l.tmja, 'annee_mesure', l.annee_mesure)
+                              order by l.tmja desc nulls last, l.route)
                from (select * from retenus order by tmja desc nulls last, route limit p_limite) l), '[]'::jsonb),
            'tronque', (select count(*) from retenus) > p_limite)
     into v_trafic;

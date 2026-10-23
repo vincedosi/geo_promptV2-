@@ -128,7 +128,7 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
         }
 
         <!-- Hors du résultat : ni la cible ni le découpage ne changent la radio et le trafic de la zone (T13). -->
-        @if (z.zoneId(); as id) { <mg-croisements-zone [zoneId]="id" /> }
+        @if (z.zoneId()) { <mg-croisements-zone /> }
       </div>
     }
   `,

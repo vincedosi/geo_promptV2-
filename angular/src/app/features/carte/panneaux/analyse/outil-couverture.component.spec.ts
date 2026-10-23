@@ -5,7 +5,6 @@ import { Subject, of } from 'rxjs';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { ProfilRisqueApi } from '../../../risques/data/profil-risque.api';
 import { CouvertureService } from '../../couches/couverture.service';
-import { CouvertureApi } from '../../data/couverture.api';
 import { ZonesCustomApi } from '../../data/zones-custom.api';
 import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
@@ -25,7 +24,8 @@ function zoneFactice(zone: string | null) {
   const z = {
     zoneId: signal(zone), cible: signal('ind'), decoupage: signal<ResultatCouverture['decoupage']>('forme'),
     resultat: signal<ResultatCouverture | null>(null), enCours: signal(false), erreur: signal<string | null>(null),
-    chiffrer: vi.fn(), choisir: vi.fn(),
+    chiffrer: vi.fn(), choisir: vi.fn(), lireCroisements: vi.fn(),
+    croisements: { resultat: signal(null), enCours: signal(false), erreur: signal<string | null>(null) },
     regler: vi.fn((r: { cible?: string; decoupage?: ResultatCouverture['decoupage'] }) => {
       if (r.decoupage) z.decoupage.set(r.decoupage);
       if (r.cible) z.cible.set(r.cible);
@@ -51,7 +51,6 @@ async function monter(zone: string | null = A) {
       provideZonelessChangeDetection(),
       { provide: ZoneAnalyseeService, useValue: z },
       { provide: CouvertureService, useValue: couverture },
-      { provide: CouvertureApi, useValue: { croisements: vi.fn() } },
       { provide: ProfilRisqueApi, useValue: { cibles } },
       { provide: ZonesCustomApi, useValue: { lister: () => listes } },
       { provide: AuthService, useValue: { lireProfil: async () => ({ organisation: 'o1' }) } },
@@ -155,12 +154,11 @@ describe('mg-outil-couverture (lot 4, T8)', () => {
 
   it('T13 : « Dans cette zone » sous le résultat dès qu’une zone est choisie, sans lecture ; absent sans zone', async () => {
     const { el, z, stable } = await monter();
-    const api = TestBed.inject(CouvertureApi) as unknown as { croisements: ReturnType<typeof vi.fn> };
     z.resultat.set(BASE);
     await stable();
     const bloc = el.querySelector('mg-croisements-zone')!;
     expect(el.querySelector('[data-resultat]')!.compareDocumentPosition(bloc) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(api.croisements).not.toHaveBeenCalled();
+    expect(z.lireCroisements).not.toHaveBeenCalled();
     z.zoneId.set(null);
     await stable();
     expect(el.querySelector('mg-croisements-zone')).toBeNull();

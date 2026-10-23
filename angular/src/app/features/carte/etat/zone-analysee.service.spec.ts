@@ -5,7 +5,7 @@ import { Router, RouterOutlet, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { Observable, type Subscriber } from 'rxjs';
 import { CouvertureApi } from '../data/couverture.api';
-import type { ResultatCouverture } from '../logique/analyses/couverture';
+import type { ResultatCouverture, ResultatCroisements } from '../logique/analyses/couverture';
 import { ParcoursService } from './parcours.service';
 import { ZoneAnalyseeService } from './zone-analysee.service';
 
@@ -22,7 +22,17 @@ class ApiFactice {
       return () => { appel.annulee = true; };
     });
   }
+  /** Radio et trafic (T13), même mécanique. */
+  readonly lectures: Array<{ id: string; sortie: Subscriber<ResultatCroisements>; annulee: boolean }> = [];
+  croisements(id: string): Observable<ResultatCroisements> {
+    return new Observable<ResultatCroisements>((s) => {
+      const lecture = { id, sortie: s, annulee: false };
+      this.lectures.push(lecture);
+      return () => { lecture.annulee = true; };
+    });
+  }
 }
+const croisements = { radio: { n_emetteurs: 3 } } as unknown as ResultatCroisements;
 const resultat = (zone_id: string, population: number) => ({ zone_id, population } as unknown as ResultatCouverture);
 
 @Component({ selector: 'mg-hote-zone', template: '<router-outlet />', providers: [ZoneAnalyseeService, ParcoursService], imports: [RouterOutlet] })
@@ -193,5 +203,39 @@ describe('ZoneAnalyseeService — le chiffrage', () => {
     expect(nav).not.toHaveBeenCalled();
     expect(api.appels).toHaveLength(1);
     expect(router.url).toBe('/ailleurs');
+  });
+});
+
+describe('ZoneAnalyseeService — radio et trafic (T13, ronde 1 : P-e)', () => {
+  it('lus au geste seulement ; le résultat survit au réglage de la cible (et au repli du panneau : il vit ici)', async () => {
+    const { hote, api } = await ouvrir(`/carte?zoneAnalyse=${Z1}`);
+    expect(api.lectures).toHaveLength(0);
+    hote.zone.lireCroisements();
+    expect(api.lectures.map((l) => l.id)).toEqual([Z1]);
+    api.lectures[0].sortie.next(croisements);
+    hote.zone.regler({ cible: 'men_pauv', decoupage: 'cp' });
+    expect(hote.zone.croisements.resultat()).toBe(croisements);
+  });
+  it('changer de zone (geste ou URL) efface le résultat et annule la lecture en vol', async () => {
+    const { hote, api, router, stable } = await ouvrir(`/carte?zoneAnalyse=${Z1}`);
+    hote.zone.lireCroisements();
+    api.lectures[0].sortie.next(croisements);
+    hote.zone.lireCroisements();
+    hote.zone.choisir(Z2);
+    expect(api.lectures[1].annulee).toBe(true);
+    expect(hote.zone.croisements.resultat()).toBeNull();
+    await stable();
+    hote.zone.lireCroisements();
+    api.lectures[2].sortie.next(croisements);
+    expect(hote.zone.croisements.resultat()).toBe(croisements);
+    await router.navigateByUrl(`/carte?zoneAnalyse=${Z1}`);
+    await stable();
+    expect(hote.zone.croisements.resultat()).toBeNull();
+  });
+  it('404 zone_introuvable : la zone est retirée, comme pour le chiffrage', async () => {
+    const { hote, api } = await ouvrir(`/carte?zoneAnalyse=${Z1}`);
+    hote.zone.lireCroisements();
+    api.lectures[0].sortie.error(new HttpErrorResponse({ status: 404, error: { error: 'Cette zone n’existe pas dans cet espace.', refus: 'zone_introuvable' } }));
+    expect(hote.zone.zoneId()).toBeNull();
   });
 });

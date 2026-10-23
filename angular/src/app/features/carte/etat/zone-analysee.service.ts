@@ -2,7 +2,8 @@ import { DestroyRef, Injectable, type Signal, computed, effect, inject, signal, 
 import { ActivatedRoute, Router } from '@angular/router';
 import { CouvertureApi } from '../data/couverture.api';
 import {
-  type Decoupage, PARAM_COUVERTURE, PARAM_ZONE_ANALYSE, type ResultatCouverture, ecrireParamCouverture, lireParamCouverture,
+  type Decoupage, PARAM_COUVERTURE, PARAM_ZONE_ANALYSE, type ResultatCouverture, type ResultatCroisements, ecrireParamCouverture,
+  lireParamCouverture,
   lireZoneAnalyse,
 } from '../logique/analyses/couverture';
 import { messageErreurCouverture, refusDeLErreur } from '../logique/analyses/couverture-erreurs';
@@ -23,7 +24,8 @@ import { LectureAnnulable } from './lecture-annulable';
  *
  * ── UNE RÉPONSE QUITTÉE N'EST JAMAIS AFFICHÉE (P-c) ───────────────────────
  * La lecture est une `LectureAnnulable` (désabonnement + jeton : une réponse quittée est jetée). Changer de zone, de cible ou de découpage efface le
- * résultat et annule la lecture en vol ; rien ne repart seul (aucun appel avant « Chiffrer »). Un 404
+ * résultat et annule la lecture en vol ; rien ne repart seul (aucun appel avant « Chiffrer »). La radio et le trafic
+ * (T13) suivent la même règle, mais seul un changement de ZONE les efface. Un 404
  * (`zone_introuvable` : zone supprimée ou d'un autre espace — lien partagé) retire `?zoneAnalyse=` et dit le message.
  *
  * ── FOURNI PAR LA PAGE (P-e) ──────────────────────────────────────────────
@@ -39,6 +41,8 @@ export class ZoneAnalyseeService {
   private readonly _zoneId = signal<string | null>(lireZoneAnalyse(this.route.snapshot.queryParamMap.get(PARAM_ZONE_ANALYSE)));
   private readonly _reglage = signal(lireParamCouverture(this.route.snapshot.queryParamMap.get(PARAM_COUVERTURE)));
   private readonly lecture = new LectureAnnulable<ResultatCouverture>(messageErreurCouverture);
+  /** Radio et trafic de la zone (T13) : ICI et non dans le composant, pour survivre au repli de l'accordéon (P-e). */
+  private readonly lectureCroisements = new LectureAnnulable<ResultatCroisements>(messageErreurCouverture);
 
   /** L'id de la zone analysée, ou `null`. */
   readonly zoneId: Signal<string | null> = this._zoneId.asReadonly();
@@ -49,6 +53,12 @@ export class ZoneAnalyseeService {
   readonly enCours: Signal<boolean> = this.lecture.enCours.asReadonly();
   /** Le message d'un refus ou d'un échec, en français ; `null` sinon. */
   readonly erreur: Signal<string | null> = this.lecture.erreur.asReadonly();
+  /** Radio et trafic de la zone COURANTE, lus au geste (quota partagé avec le chiffrage) ; effacés quand elle change. */
+  readonly croisements = {
+    resultat: this.lectureCroisements.resultat.asReadonly(),
+    enCours: this.lectureCroisements.enCours.asReadonly(),
+    erreur: this.lectureCroisements.erreur.asReadonly(),
+  };
 
   /** Les valeurs BRUTES lues ou écrites en dernier (`null` = absent) : on ne réécrit l'URL que si elle diffère. */
   private dernierZone: string | null = this.route.snapshot.queryParamMap.get(PARAM_ZONE_ANALYSE);
@@ -65,6 +75,7 @@ export class ZoneAnalyseeService {
       const zone = lireZoneAnalyse(bz);
       const reglage = lireParamCouverture(bc);
       const r = this._reglage();
+      if (zone !== this._zoneId()) this.lectureCroisements.perimer();
       if (zone !== this._zoneId() || reglage.cible !== r.cible || reglage.decoupage !== r.decoupage) {
         this.lecture.perimer();
         this._zoneId.set(zone);
@@ -92,6 +103,7 @@ export class ZoneAnalyseeService {
     const zone = id === null ? null : lireZoneAnalyse(id);
     if (zone === this._zoneId()) return;
     this.lecture.perimer();
+    this.lectureCroisements.perimer();
     this._zoneId.set(zone);
   }
 
@@ -110,10 +122,20 @@ export class ZoneAnalyseeService {
     if (!id || this.detruit) return;
     this.lecture.perimer();
     const { cible, decoupage } = this._reglage();
-    this.lecture.lancer(this.api.couverture(id, cible, decoupage), undefined, (e) => {
-      if (refusDeLErreur(e) === 'zone_introuvable') this.choisir(null);
-    });
+    this.lecture.lancer(this.api.couverture(id, cible, decoupage), undefined, this.siIntrouvable);
   }
+
+  /** Demande la radio et le trafic de la zone courante ; un second appel annule le premier. Sans zone : rien. */
+  lireCroisements(): void {
+    const id = this._zoneId();
+    if (!id || this.detruit) return;
+    this.lectureCroisements.lancer(this.api.croisements(id), undefined, this.siIntrouvable);
+  }
+
+  /** Zone supprimée ou d'un autre espace (lien partagé) : on la retire. */
+  private readonly siIntrouvable = (e: unknown): void => {
+    if (refusDeLErreur(e) === 'zone_introuvable') this.choisir(null);
+  };
 
   /** Écrit l'état courant sous sa forme canonique, si l'URL ne le porte pas déjà. Jamais après destruction. */
   private ecrire(): void {

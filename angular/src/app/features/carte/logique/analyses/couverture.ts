@@ -76,14 +76,15 @@ export interface ResultatCroisements {
     n_emetteurs: number;
     /** Émetteurs dans la zone sans rayon de couverture : non comptés dans `n_emetteurs`. */
     n_sans_rayon: number;
-    emetteurs: Array<{ site: string; commune: string | null; frequence_mhz: number | null; puissance_w: number | null; stations: string[] }>;
+    /** `lieu` : lieu-dit ou adresse du site (« Pylône TDF »), jamais une commune. */
+    emetteurs: Array<{ site: string; lieu: string | null; stations: string[] }>;
     tronque: boolean;
   };
   trafic: {
     n_comptages: number;
     tmja_max: number | null;
     tmja_median: number | null;
-    comptages: Array<{ route: string; tmja: number; annee_mesure: number; type_comptage: string }>;
+    comptages: Array<{ route: string; tmja: number; annee_mesure: number }>;
     tronque: boolean;
   };
 }

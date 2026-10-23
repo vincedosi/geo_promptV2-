@@ -38,7 +38,7 @@ const appel = (id: string, query = '', entetes: Record<string, string> = {}) =>
   GET(new Request(`http://localhost/api/zones/${id}/croisements${query}`, { headers: entetes }) as never, { params: Promise.resolve({ id }) });
 
 const CROISEMENTS = {
-  radio: { n_emetteurs: 1, n_sans_rayon: 0, tronque: false, emetteurs: [{ site: '0130600060', commune: null, frequence_mhz: 87.5, puissance_w: null, stations: ['France Inter'] }] },
+  radio: { n_emetteurs: 1, n_sans_rayon: 0, tronque: false, emetteurs: [{ site: '0130600060', lieu: null, stations: ['France Inter'] }] },
   trafic: { n_comptages: 0, tmja_max: null, tmja_median: null, tronque: false, comptages: [] },
 };
 

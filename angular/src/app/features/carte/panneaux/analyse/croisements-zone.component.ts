@@ -1,18 +1,15 @@
-import { ChangeDetectionStrategy, Component, effect, inject, input, untracked } from '@angular/core';
-import { formaterDecimal, formaterNombre } from '../../../../core/format/nombre';
-import { CouvertureApi } from '../../data/couverture.api';
-import { LectureAnnulable } from '../../etat/lecture-annulable';
-import type { ResultatCroisements } from '../../logique/analyses/couverture';
-import { messageErreurCouverture } from '../../logique/analyses/couverture-erreurs';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { formaterNombre } from '../../../../core/format/nombre';
+import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
 import { BOUTON_CALCUL, ENCART_ERREUR } from './styles-analyse';
 
 /**
  * ④ Analyse — « Dans cette zone » (lot 4, T13), sous la couverture : les émetteurs radio dont le cercle touche la zone
  * et les comptages routiers qui la traversent (`croisements_zone`, sql/273). Sans équivalent React.
  *
- * Lu par son propre bouton, jamais à l'ouverture (quota partagé avec le chiffrage). La lecture est une
- * `LectureAnnulable` du composant : changer de zone l'annule et efface le résultat (P-c) ; la retirer détruit le
- * composant, donc la lecture. Indépendante de la cible et du découpage, elle survit à leur changement.
+ * Lu par son propre bouton, jamais à l'ouverture (quota partagé avec le chiffrage). La lecture et son résultat vivent
+ * dans `ZoneAnalyseeService` (P-e) : ils survivent au repli de l'accordéon et à ④ → ① → ④, et s'effacent quand la
+ * zone change (P-c). Le composant n'est qu'un gabarit.
  */
 @Component({
   selector: 'mg-croisements-zone',
@@ -22,12 +19,12 @@ import { BOUTON_CALCUL, ENCART_ERREUR } from './styles-analyse';
     <div class="text-[12px] font-medium text-primary">Dans cette zone</div>
     <div class="text-[11px] leading-[1.5] text-tertiary">Émetteurs radio dont la couverture touche la zone, comptages routiers qui la traversent.</div>
 
-    @if (lecture.erreur(); as e) { <div data-erreur role="alert" [class]="encartErreur">{{ e }}</div> }
-    <button type="button" data-lire-croisements [disabled]="lecture.enCours()" (click)="lire()" [class]="boutonCalcul">
-      {{ lecture.enCours() ? 'Lecture…' : 'Voir la radio et le trafic' }}
+    @if (c.erreur(); as e) { <div data-erreur role="alert" [class]="encartErreur">{{ e }}</div> }
+    <button type="button" data-lire-croisements [disabled]="c.enCours()" (click)="z.lireCroisements()" [class]="boutonCalcul">
+      {{ c.enCours() ? 'Lecture…' : 'Voir la radio et le trafic' }}
     </button>
 
-    @if (lecture.resultat(); as r) {
+    @if (c.resultat(); as r) {
       <details data-radio class="text-[11px]">
         <summary class="cursor-pointer text-secondary">
           <span class="font-mono text-primary">{{ nombre(r.radio.n_emetteurs) }}</span> émetteur{{ r.radio.n_emetteurs > 1 ? 's' : '' }} radio
@@ -36,9 +33,7 @@ import { BOUTON_CALCUL, ENCART_ERREUR } from './styles-analyse';
           @for (e of r.radio.emetteurs; track e.site) {
             <li data-emetteur class="text-tertiary">
               <span class="font-mono text-secondary">{{ e.site }}</span>
-              @if (e.frequence_mhz !== null) { · <span class="font-mono">{{ decimal(e.frequence_mhz) }} MHz</span> }
-              @if (e.puissance_w !== null) { · <span class="font-mono">{{ nombre(e.puissance_w) }} W</span> }
-              @if (e.commune) { · {{ e.commune }} }
+              @if (e.lieu) { · {{ e.lieu }} }
               <!-- Jusqu'à 106 stations par site : une ligne, la liste entière au survol. -->
               @if (e.stations.length) {
                 @let noms = e.stations.join(', ');
@@ -75,25 +70,9 @@ import { BOUTON_CALCUL, ENCART_ERREUR } from './styles-analyse';
   `,
 })
 export class CroisementsZoneComponent {
-  readonly zoneId = input.required<string>();
-
-  private readonly api = inject(CouvertureApi);
-  protected readonly lecture = new LectureAnnulable<ResultatCroisements>(messageErreurCouverture);
+  protected readonly z = inject(ZoneAnalyseeService);
+  protected readonly c = this.z.croisements;
   protected readonly nombre = formaterNombre;
-  protected readonly decimal = formaterDecimal;
   protected readonly boutonCalcul = BOUTON_CALCUL;
   protected readonly encartErreur = ENCART_ERREUR;
-
-  constructor() {
-    // P-a : l'effet lit la zone, l'effacement est hors suivi. Au premier passage il n'y a rien à effacer.
-    // (`surChangement` lirait l'input requis dans le constructeur : NG0950.)
-    effect(() => {
-      this.zoneId();
-      untracked(() => this.lecture.perimer());
-    });
-  }
-
-  protected lire(): void {
-    this.lecture.lancer(this.api.croisements(this.zoneId()));
-  }
 }
