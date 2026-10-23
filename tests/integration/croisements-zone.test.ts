@@ -6,7 +6,9 @@
  *   - Bouches-du-Rhône : au moins un émetteur, stations dédoublonnées et triées, compteurs = totaux ;
  *   - le pré-filtre `&&` (emprise élargie du plus grand rayon) ne perd AUCUN émetteur : même compte que sans index ;
  *   - `p_limite = 1` : une ligne par liste, `tronque`, totaux inchangés ;
- *   - zone d'un autre espace : `zone_introuvable` ; limite hors bornes : 22023.
+ *   - `zone_maj` = `updated_at` de la zone (l'écran y périme la liste après un recalcul en ③) ;
+ *   - zone d'un autre espace : `zone_introuvable` ; zone > 100 000 km² : `zone_trop_vaste` ; limite hors bornes : 22023 ;
+ *   - le plan reste PERSONNALISÉ (`plan_cache_mode`) : le plan générique d'une 6e lecture passait de 1,3 s à 46 s.
  *
  * Zones créées par `creer_zone_recette` dans deux espaces de test, supprimés (cascade) en fin de fichier.
  */
@@ -29,6 +31,7 @@ function psql(script: string): string {
 
 interface Croisements {
   refus?: string;
+  zone_maj: string;
   radio: {
     n_emetteurs: number; n_sans_rayon: number; tronque: boolean;
     emetteurs: { site: string; lieu: string | null; stations: string[] }[];
@@ -42,6 +45,7 @@ interface Croisements {
 let org = '';
 let autreOrg = '';
 let bdr = '';
+let vaste = '';
 
 async function nouvelleOrg(nom: string) {
   const { data, error } = await admin.from('organizations')
@@ -59,6 +63,10 @@ beforeAll(async () => {
   autreOrg = await nouvelleOrg('b');
   bdr = psql(`select public.creer_zone_recette('Département 13', '${org}', null, '{"v":1,"type":"dessin"}', ST_AsGeoJSON(r.g))->>'id'
                 from public.resoudre_perimetre('departement', '13', null, 100000, array['departement']) r;`);
+  // Deux régions réunies (≈ 155 000 km²) : au-delà du plafond de 100 000 km².
+  vaste = psql(`insert into public.custom_geo_zones (name, org_id, source_type, geometry)
+                select 'Deux régions', '${org}', 'composite', ST_Multi(ST_CollectionExtract(ST_Union(geom), 3))
+                  from public.ref_regions where code_region in ('75', '84') returning id;`);
 }, LONG);
 
 afterAll(async () => {
@@ -85,6 +93,7 @@ describe('croisements_zone — Bouches-du-Rhône', () => {
       // Triées dans la collation de la base (en_US : « Beur FM » avant « BFM Radio »).
       expect(e.stations).toEqual([...new Set(e.stations)].sort(new Intl.Collator('en').compare));
     }
+    expect(Date.parse(r.zone_maj)).toBe(Date.parse(psql(`select updated_at from public.custom_geo_zones where id = '${bdr}';`)));
     expect(r.trafic.n_comptages).toBeGreaterThanOrEqual(0);
     expect(r.trafic.comptages).toHaveLength(Math.min(r.trafic.n_comptages, 200));
     if (r.trafic.n_comptages > 0) {
@@ -123,6 +132,14 @@ describe('croisements_zone — refus', () => {
     const { data, error } = await croisements(bdr, {}, autreOrg);
     expect(error).toBeNull();
     expect(data).toEqual({ refus: 'zone_introuvable' });
+  });
+  it('zone de plus de 100 000 km² : zone_trop_vaste, avant toute lecture d’émetteur', async () => {
+    const { data, error } = await croisements(vaste);
+    expect(error).toBeNull();
+    expect(data).toMatchObject({ refus: 'zone_trop_vaste', plafond_km2: 100000 });
+  });
+  it('plan personnalisé à chaque appel (le plan générique coûtait 35 fois plus)', () => {
+    expect(psql(`select proconfig::text from pg_proc where proname = 'croisements_zone';`)).toContain('plan_cache_mode=force_custom_plan');
   });
   it('limite hors bornes : 22023', async () => {
     for (const p_limite of [0, 1001]) {

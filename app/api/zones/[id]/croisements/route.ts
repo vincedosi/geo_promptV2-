@@ -4,7 +4,8 @@
  *
  * Ordre (patron de T6, `../couverture/route.ts`) : session (401 / 403) → id UUID (400, rien en base) → quota
  * `geo:rl:couverture`, PARTAGÉ avec T6 (`quotaCouverture`) → RPC. L'espace vient de la SESSION, jamais du client.
- * Au pire mesuré (France métropolitaine) 1,65 s et ≈ 3 200 accès par appel. Statuts : `repondreCouverture`.
+ * Zone ≤ 100 000 km² (`zone_trop_vaste`, 422). Au pire mesuré (zone `919ca65d`, 23 073 sommets) 1,7 s et ≈ 3 300
+ * accès par appel. Statuts : `repondreCouverture`.
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
@@ -17,7 +18,8 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const ECHEC = 'Lecture de la radio et du trafic impossible.';
-const MESSAGES = { zone_introuvable: MESSAGES_REFUS_COUVERTURE.zone_introuvable } as const;
+const { zone_introuvable, zone_trop_vaste } = MESSAGES_REFUS_COUVERTURE;
+const MESSAGES = { zone_introuvable, zone_trop_vaste } as const;
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const s = espaceDeZone(await requireAuth(req));
