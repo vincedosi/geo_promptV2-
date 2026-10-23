@@ -174,13 +174,13 @@ describe('ZoneAnalyseeService — le chiffrage', () => {
     const { hote, api, router, stable } = await ouvrir(`/carte?zoneAnalyse=${Z1}&etape=analyse`);
     hote.zone.chiffrer();
     api.appels[0].sortie?.error(new HttpErrorResponse({
-      status: 404, error: { error: 'Cette zone n’existe pas dans cet espace.', refus: 'zone_introuvable' },
+      status: 404, error: { error: 'Zone introuvable dans cet espace.', refus: 'zone_introuvable' },
     }));
-    expect(hote.zone.erreur()).toBe('Cette zone n’existe pas dans cet espace.');
+    expect(hote.zone.erreur()).toBe('Zone introuvable dans cet espace.');
     expect(hote.zone.zoneId()).toBeNull();
     await stable();
     expect(router.url).toBe('/carte?etape=analyse');
-    expect(hote.zone.erreur()).toBe('Cette zone n’existe pas dans cet espace.');
+    expect(hote.zone.erreur()).toBe('Zone introuvable dans cet espace.');
   });
   it('422 : message, la zone reste', async () => {
     const { hote, api } = await ouvrir(`/carte?zoneAnalyse=${Z1}`);
@@ -235,7 +235,7 @@ describe('ZoneAnalyseeService — radio et trafic (T13, ronde 1 : P-e)', () => {
   it('404 zone_introuvable : la zone est retirée, comme pour le chiffrage', async () => {
     const { hote, api } = await ouvrir(`/carte?zoneAnalyse=${Z1}`);
     hote.zone.lireCroisements();
-    api.lectures[0].sortie.error(new HttpErrorResponse({ status: 404, error: { error: 'Cette zone n’existe pas dans cet espace.', refus: 'zone_introuvable' } }));
+    api.lectures[0].sortie.error(new HttpErrorResponse({ status: 404, error: { error: 'Zone introuvable dans cet espace.', refus: 'zone_introuvable' } }));
     expect(hote.zone.zoneId()).toBeNull();
   });
 });

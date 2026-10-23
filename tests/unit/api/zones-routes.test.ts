@@ -21,8 +21,10 @@ vi.mock('@/lib/auth/getOrgSourceIds', () => ({ getOrgSourceIds: async (s: unknow
 let quotaOk = true;
 const quotas: string[] = [];
 vi.mock('@/lib/api/rate-limit', () => ({
-  createRateLimiter: () => async (cle: string) => { quotas.push(cle); return quotaOk ? { ok: true, retrySec: 0 } : { ok: false, retrySec: 30 }; },
-  rateLimitResponse: (s: number) => new Response(JSON.stringify({ error: 'Trop de requêtes.' }), { status: 429, headers: { 'Retry-After': String(s) } }),
+  createQuota: () => async (cle: string) => {
+    quotas.push(cle);
+    return quotaOk ? null : new Response(JSON.stringify({ error: 'Trop de requêtes.' }), { status: 429, headers: { 'Retry-After': '30' } });
+  },
 }));
 const CARRE = { type: 'MultiPolygon', coordinates: [[[[5, 43], [5.1, 43], [5.1, 43.1], [5, 43.1], [5, 43]]]] };
 let issue: unknown = { ok: true, geometry: CARRE, surface_km2: 3, compte: 4, part_retenue: 1, population: null };
@@ -86,10 +88,10 @@ describe('garde des trois routes', () => {
   it('UN limiteur partagé : 12 / 60 s / compte, préfixe geo:rl:zones', async () => {
     const { readFileSync } = await import('node:fs');
     const s = readFileSync('lib/zones/session-zones.ts', 'utf8');
-    expect(s).toMatch(/createRateLimiter\(\{\s*max:\s*12,\s*window:\s*'60 s',\s*prefix:\s*'geo:rl:zones'\s*\}\)/);
-    expect(s.match(/createRateLimiter\(/g)).toHaveLength(1);
+    expect(s).toMatch(/createQuota\(\{\s*max:\s*12,\s*window:\s*'60 s',\s*prefix:\s*'geo:rl:zones'\s*\}\)/);
+    expect(s.match(/createQuota\(/g)).toHaveLength(1);
     for (const f of ['app/api/zones/apercu/route.ts', 'app/api/zones/route.ts', 'app/api/zones/[id]/recalculer/route.ts']) {
-      expect(readFileSync(f, 'utf8'), f).not.toContain('createRateLimiter(');
+      expect(readFileSync(f, 'utf8'), f).not.toMatch(/createQuota\(|createRateLimiter\(/);
     }
   });
 });

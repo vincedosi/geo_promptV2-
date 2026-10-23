@@ -166,7 +166,7 @@ describe('mg-outil-couverture (lot 4, T8)', () => {
 
   it('T13, ronde 2 (I3) : la radio et le trafic refusés pour zone introuvable — la zone part, le message RESTE à l’écran', async () => {
     const { el, z, stable } = await monter();
-    z.croisements.erreur.set('Cette zone n’existe pas dans cet espace.');
+    z.croisements.erreur.set('Zone introuvable dans cet espace.');
     await stable();
     expect(el.querySelectorAll('[data-erreur]')).toHaveLength(1); // zone présente : le bloc le dit, une seule fois
     z.zoneId.set(null);

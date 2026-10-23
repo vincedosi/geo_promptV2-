@@ -4,7 +4,7 @@
  * (`couverture_geometrie`, sql/269). Une lecture : rien n'est converti, aucune zone n'est créée.
  *
  * Ordre (tout est SÉQUENTIEL, au plus trois appels en base après l'authentification) :
- *   session (`requireAuth`, 401 / 403 sans espace actif) → id UUID et paramètres Zod (400, rien en base) →
+ *   session (`requireAuth`, 401 / 403 sans espace actif) → id UUID (404) et paramètres Zod (400), rien en base →
  *   `couverture_zone_en_cache` (sql/270 : la validité — espace, `updated_at` de la zone, date de construction de la
  *   base, certificat — se juge EN SQL ; un id d'un autre espace n'y lit rien) → si rien en cache, quota
  *   `geo:rl:couverture` → `couverture_zone` (relit le cache, sinon calcule et écrit le cache).
@@ -18,30 +18,22 @@
  * compte. Statuts des refus : `lib/zones/couverture.ts`.
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth } from '@/lib/api/middleware';
-import { espaceDeZone } from '@/lib/zones/session-zones';
+import { espaceDeZone, idDeZone } from '@/lib/zones/session-zones';
 import { MESSAGES_REFUS_COUVERTURE, RequeteCouvertureSchema, quotaCouverture, repondreCouverture } from '@/lib/zones/couverture';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const Uuid = z.string().uuid();
 const ECHEC = 'Calcul de la couverture impossible.';
-const echec = () => NextResponse.json({ error: ECHEC }, { status: 500 });
-
-/** La réponse d'une des deux RPC en HTTP : 200 le chiffrage, 4xx/503 un refus connu, 500 hors contrat. */
-const repondre = (data: unknown, etape: string) => repondreCouverture(data, MESSAGES_REFUS_COUVERTURE, `zones/couverture ${etape}`, ECHEC);
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const s = espaceDeZone(await requireAuth(req));
   if (!s.ok) return s.reponse;
 
-  const { id } = await params;
-  if (!Uuid.safeParse(id).success) {
-    return NextResponse.json({ error: 'Identifiant de zone invalide.' }, { status: 400 });
-  }
+  const id = idDeZone((await params).id);
+  if (id instanceof NextResponse) return id;
   const sp = req.nextUrl?.searchParams ?? new URL(req.url).searchParams;
   const p = RequeteCouvertureSchema.safeParse({
     cible: sp.get('cible') ?? undefined,
@@ -55,19 +47,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const supabase = createAdminClient();
 
   const cache = await supabase.rpc('couverture_zone_en_cache', args);
-  if (cache.error) {
-    console.error('[zones/couverture] cache :', cache.error.message);
-    return echec();
-  }
-  if (cache.data !== null) return repondre(cache.data, 'cache');
+  if (cache.error || cache.data !== null) return repondreCouverture(cache, MESSAGES_REFUS_COUVERTURE, 'zones/couverture cache', ECHEC);
 
   const refusQuota = await quotaCouverture(s.espace.userId);
   if (refusQuota) return refusQuota;
 
   const calcul = await supabase.rpc('couverture_zone', args);
-  if (calcul.error) {
-    console.error('[zones/couverture] calcul :', calcul.error.code, calcul.error.message);
-    return echec();
-  }
-  return repondre(calcul.data, 'calcul');
+  return repondreCouverture(calcul, MESSAGES_REFUS_COUVERTURE, 'zones/couverture calcul', ECHEC);
 }

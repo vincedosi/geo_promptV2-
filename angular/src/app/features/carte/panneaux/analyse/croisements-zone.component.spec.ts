@@ -63,7 +63,7 @@ describe('mg-croisements-zone (lot 4, T13)', () => {
 
   it('un refus s’affiche en message, au-dessus du bouton', async () => {
     const { el, z, stable } = await monter();
-    z.croisements.erreur.set('Cette zone n’existe pas dans cet espace.');
+    z.croisements.erreur.set('Zone introuvable dans cet espace.');
     await stable();
     const erreur = el.querySelector('[data-erreur]')!;
     expect(erreur.textContent).toContain('n’existe pas dans cet espace');

@@ -18,7 +18,7 @@ import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
 import { requireAuth } from '@/lib/api/middleware';
-import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
+import { createQuota } from '@/lib/api/rate-limit';
 import { messageAnomalies } from '@/lib/api/valider-corps';
 import { MESSAGES_REFUS_COUVERTURE, RequeteCouvertureSchema, repondreCouverture } from '@/lib/zones/couverture';
 import { MESSAGES_REFUS, TYPES_PERIMETRE } from '@/lib/zones/recette';
@@ -27,7 +27,7 @@ import { espaceDeZone } from '@/lib/zones/session-zones';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const limiteur = createRateLimiter({ max: 6, window: '60 s', prefix: 'geo:rl:couverture-rayon' });
+const quota = createQuota({ max: 6, window: '60 s', prefix: 'geo:rl:couverture-rayon' });
 const ECHEC = 'Calcul de la couverture par rayon impossible.';
 const RAYON_MIN_M = 100;
 const RAYON_MAX_M = 10_000;
@@ -93,23 +93,17 @@ export async function GET(req: NextRequest) {
   });
   if (!p.success) return NextResponse.json({ error: messageAnomalies(p.error) }, { status: 400 });
 
-  const quota = await limiteur(s.espace.userId);
-  if (!quota.ok) return rateLimitResponse(quota.retrySec);
+  const refusQuota = await quota(s.espace.userId);
+  if (refusQuota) return refusQuota;
 
   const { userId, orgId, role } = s.espace;
   const sources = (await getOrgSourceIds({ userId, orgId, role }, { vueEspace: true })) ?? [];
   const r = p.data;
-  const { data, error } = await createAdminClient().rpc('couverture_rayon_poi', {
+  const res = await createAdminClient().rpc('couverture_rayon_poi', {
     p_categorie: r.categorie, p_perimetre_type: r.perimetre_type, p_perimetre_code: r.perimetre_code, p_org_id: orgId,
     // Absents : omis, la RPC prend ses défauts (NULL).
     p_sources: sources, p_cible: r.cible, p_rayon_max_m: r.rayon_max, p_champ: r.champ,
     p_valeurs: r.valeur.length > 0 ? r.valeur : undefined, p_profil: r.profil,
   });
-  if (error) {
-    console.error('[analyses/couverture-rayon]', error.code, error.message);
-    // 22023 : un argument hors contrat que Zod n'a pas vu — la requête est fausse, pas le serveur.
-    if (error.code === '22023') return NextResponse.json({ error: 'Paramètres de calcul invalides.' }, { status: 400 });
-    return NextResponse.json({ error: ECHEC }, { status: 500 });
-  }
-  return repondreCouverture(data, MESSAGES, 'analyses/couverture-rayon', ECHEC);
+  return repondreCouverture(res, MESSAGES, 'analyses/couverture-rayon', ECHEC, 'Paramètres de calcul invalides.');
 }

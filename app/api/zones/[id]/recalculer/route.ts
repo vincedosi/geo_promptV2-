@@ -18,18 +18,15 @@
  * Quota unique des routes de zone (`lib/zones/session-zones.ts`), consommé avant la lecture de la zone.
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth } from '@/lib/api/middleware';
 import { MESSAGES_REFUS, estRecalculable } from '@/lib/zones/recette';
 import { lireRecette } from '@/lib/zones/recette-schema';
-import { espaceDeZone, executerDansEspace, quotaZones, repondreResolue, reponseRefus } from '@/lib/zones/session-zones';
+import { espaceDeZone, executerDansEspace, idDeZone, quotaZones, repondreResolue, reponseRefus, zoneIntrouvable } from '@/lib/zones/session-zones';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const Uuid = z.string().uuid();
-const introuvable = () => reponseRefus({ statut: 404, refus: 'zone_introuvable', message: MESSAGES_REFUS.zone_introuvable });
 const referencee = (par: string) =>
   NextResponse.json({ error: MESSAGES_REFUS.zone_referencee, refus: 'zone_referencee', par }, { status: 409 });
 
@@ -53,8 +50,8 @@ function lireRemplacement(data: unknown): { remplace: true } | { refus: 'zone_in
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const s = espaceDeZone(await requireAuth(req));
   if (!s.ok) return s.reponse;
-  const { id } = await params;
-  if (!Uuid.safeParse(id).success) return introuvable();
+  const id = idDeZone((await params).id);
+  if (id instanceof NextResponse) return id;
   const refusQuota = await quotaZones(s.espace);
   if (refusQuota) return refusQuota;
 
@@ -65,7 +62,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     console.error('[zones/recalculer] lecture :', error.message);
     return NextResponse.json({ error: 'Lecture de la zone impossible.' }, { status: 500 });
   }
-  if (!zone) return introuvable();
+  if (!zone) return zoneIntrouvable();
   const lue = zone.recette == null ? null : lireRecette(zone.recette);
   // Une recette STOCKÉE que le schéma refuse est une anomalie (CHECK de sql/253 contourné, schéma resserré depuis) :
   // l'utilisateur reçoit le refus d'une forme figée, mais elle se journalise — une zone d'avant le lot (NULL), non.
@@ -95,6 +92,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     console.error('[zones/recalculer] remplacer :', rem.error?.message ?? 'réponse hors contrat', rem.error ? '' : rem.data);
     return NextResponse.json({ error: 'Recalcul de la zone impossible.' }, { status: 500 });
   }
-  if ('refus' in sortie) return sortie.refus === 'zone_introuvable' ? introuvable() : referencee(sortie.par);
+  if ('refus' in sortie) return sortie.refus === 'zone_introuvable' ? zoneIntrouvable() : referencee(sortie.par);
   return repondreResolue(supabase, id, s.espace.userId, r.surface_km2, 'recalcul');
 }

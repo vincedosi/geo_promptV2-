@@ -17,7 +17,7 @@ export const DECOUPAGES = ['forme', 'cp', 'iris'] as const;
 export type Decoupage = (typeof DECOUPAGES)[number];
 
 export const MESSAGES_REFUS_COUVERTURE = {
-  zone_introuvable: 'Cette zone n’existe pas dans cet espace.',
+  zone_introuvable: 'Zone introuvable dans cet espace.',
   cible_inconnue: 'Cette cible n’est pas connue.',
   zone_trop_vaste: 'La zone est trop vaste : la couverture se calcule jusqu’à la taille d’une région.',
   trop_de_carreaux: 'La zone compte plus de 400 000 carreaux habités.',

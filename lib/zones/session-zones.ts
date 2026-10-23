@@ -15,19 +15,18 @@
  * zone-périmètre dense de 12 000 km², l'IDF ; ≤ 69 000 pour un département), ≤ 1,1 M buffers / min / compte.
  */
 import { NextResponse } from 'next/server';
-import type { z } from 'zod';
+import { z } from 'zod';
 import type { UserProfile, createAdminClient } from '@/lib/auth';
 import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
-import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
+import { createQuota } from '@/lib/api/rate-limit';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { executerRecette, type ContexteRecette, type IssueRecette } from './executer-recette';
-import { exigeGeometrie, type Recette, type RefusRecette } from './recette';
+import { MESSAGES_REFUS, exigeGeometrie, type Recette, type RefusRecette } from './recette';
 import { lireRecette } from './recette-schema';
 
 type ClientAdmin = ReturnType<typeof createAdminClient>;
 
-/** Non exporté : les routes passent par `quotaZones` / `preparerRecette` (knip compterait l'export mort). */
-const limiteurZones = createRateLimiter({ max: 12, window: '60 s', prefix: 'geo:rl:zones' });
+const limiteurZones = createQuota({ max: 12, window: '60 s', prefix: 'geo:rl:zones' });
 
 /** L'espace actif d'une session : l'auteur, l'espace où la zone se lit et s'écrit, le rôle (pour les sources). */
 interface EspaceZone {
@@ -46,9 +45,18 @@ export function espaceDeZone(profil: UserProfile | null): { ok: true; espace: Es
 }
 
 /** Le quota partagé des trois routes ; `null` quand il reste un jeton. */
-export async function quotaZones(espace: EspaceZone): Promise<NextResponse | null> {
-  const quota = await limiteurZones(espace.userId);
-  return quota.ok ? null : rateLimitResponse(quota.retrySec);
+export function quotaZones(espace: EspaceZone): Promise<NextResponse | null> {
+  return limiteurZones(espace.userId);
+}
+
+/** 404 `zone_introuvable` : absente, d'un autre espace (on ne révèle pas qu'elle existe ailleurs) ou id illisible. */
+export function zoneIntrouvable(): NextResponse {
+  return reponseRefus({ statut: 404, refus: 'zone_introuvable', message: MESSAGES_REFUS.zone_introuvable });
+}
+
+/** L'id de zone d'une route `/api/zones/[id]/…` ; sinon 404 (décision CdP T6), sans rien lire en base. */
+export function idDeZone(id: string): string | NextResponse {
+  return z.string().uuid().safeParse(id).success ? id : zoneIntrouvable();
 }
 
 /** Le corps attendu par l'aperçu et l'écriture : au moins `recette`, et `geometrie` pour une forme figée. */

@@ -210,6 +210,15 @@ export function rateLimitResponse(retrySec: number): NextResponse {
   );
 }
 
+/** Le quota d'une route : `null` quand il reste un jeton, sinon la réponse 429. */
+export function createQuota(options: RateLimitOptions): (key: string) => Promise<NextResponse | null> {
+  const limiteur = createRateLimiter(options);
+  return async (key) => {
+    const q = await limiteur(key);
+    return q.ok ? null : rateLimitResponse(q.retrySec);
+  };
+}
+
 export function getClientKey(request: Request): string {
   const fwd = request.headers.get('x-forwarded-for');
   if (fwd) return fwd.split(',')[0]?.trim() || 'anon';

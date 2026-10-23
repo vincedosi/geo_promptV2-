@@ -13,19 +13,14 @@
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
+import { createQuota } from '@/lib/api/rate-limit';
+import { MESSAGES_REFUS } from './recette';
 
 /**
  * Le quota `geo:rl:couverture`, 6 / min / compte, PARTAGÉ par les deux lectures d'une zone de ④ : sa couverture (T6)
  * et sa radio et son trafic (T13). Un seul limiteur : deux déclarations du même préfixe pourraient diverger.
  */
-const limiteurCouverture = createRateLimiter({ max: 6, window: '60 s', prefix: 'geo:rl:couverture' });
-
-/** `null` quand il reste un jeton, sinon la réponse 429. */
-export async function quotaCouverture(userId: string): Promise<NextResponse | null> {
-  const quota = await limiteurCouverture(userId);
-  return quota.ok ? null : rateLimitResponse(quota.retrySec);
-}
+export const quotaCouverture = createQuota({ max: 6, window: '60 s', prefix: 'geo:rl:couverture' });
 
 /** Les trois découpages admis — exporté pour la copie Angular (`couverture-paritaire.test.ts`). */
 export const DECOUPAGES = ['forme', 'cp', 'iris'] as const;
@@ -39,7 +34,7 @@ export const RequeteCouvertureSchema = z.object({
 type RefusCouverture = 'zone_introuvable' | 'cible_inconnue' | 'zone_trop_vaste' | 'trop_de_carreaux' | 'couverture_non_construite';
 
 export const MESSAGES_REFUS_COUVERTURE: Readonly<Record<RefusCouverture, string>> = {
-  zone_introuvable: 'Cette zone n’existe pas dans cet espace.',
+  zone_introuvable: MESSAGES_REFUS.zone_introuvable,
   cible_inconnue: 'Cette cible n’est pas connue.',
   zone_trop_vaste: 'La zone est trop vaste : la couverture se calcule jusqu’à la taille d’une région.',
   trop_de_carreaux: 'La zone compte plus de 400 000 carreaux habités.',
@@ -47,13 +42,22 @@ export const MESSAGES_REFUS_COUVERTURE: Readonly<Record<RefusCouverture, string>
 };
 
 /**
- * Le `Json` d'une RPC de couverture (`couverture_zone`, `couverture_zone_en_cache`, `couverture_rayon_poi`) en HTTP :
- * 200 le chiffrage ; un refus de `messages` en `{ error, refus, …détails }` (`plafond`, `surface_km2`, `motif`…) au
- * statut de l'en-tête — 404, 503, sinon 422 ; hors contrat (refus inconnu, pas un objet) : journalisé, 500 `echec`.
+ * La réponse d'une RPC de couverture (`couverture_zone`, `couverture_zone_en_cache`, `couverture_rayon_poi`,
+ * `croisements_zone`) en HTTP : 200 le chiffrage ; un refus de `messages` en `{ error, refus, …détails }` (`plafond`,
+ * `surface_km2`, `motif`…) au statut de l'en-tête — 404, 503, sinon 422 ; erreur Postgres ou hors contrat (refus
+ * inconnu, pas un objet) : journalisée, 500 `echec`. Avec `invalide`, une erreur 22023 (argument que Zod n'a pas vu :
+ * la requête est fausse, pas le serveur) répond 400.
  */
 export function repondreCouverture<R extends string>(
-  data: unknown, messages: Readonly<Record<R, string>>, etiquette: string, echec: string,
+  { data, error }: { data: unknown; error: { code?: string; message: string } | null },
+  messages: Readonly<Record<R, string>>, etiquette: string, echec: string, invalide?: string,
 ): NextResponse {
+  if (error) {
+    console.error(`[${etiquette}]`, error.code, error.message);
+    return error.code === '22023' && invalide
+      ? NextResponse.json({ error: invalide }, { status: 400 })
+      : NextResponse.json({ error: echec }, { status: 500 });
+  }
   const o = data !== null && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
   if (o && !('refus' in o)) return NextResponse.json(o);
   if (!o || typeof o.refus !== 'string' || !Object.prototype.hasOwnProperty.call(messages, o.refus)) {

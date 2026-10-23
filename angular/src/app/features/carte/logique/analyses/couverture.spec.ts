@@ -80,8 +80,8 @@ describe('libelleDecoupage', () => {
 describe('messageErreurCouverture / refusDeLErreur', () => {
   const erreur = (status: number, error: unknown) => new HttpErrorResponse({ status, error });
   it('la phrase de la route d’abord (refus compris)', () => {
-    const e = erreur(404, { error: 'Cette zone n’existe pas dans cet espace.', refus: 'zone_introuvable' });
-    expect(messageErreurCouverture(e)).toBe('Cette zone n’existe pas dans cet espace.');
+    const e = erreur(404, { error: 'Zone introuvable dans cet espace.', refus: 'zone_introuvable' });
+    expect(messageErreurCouverture(e)).toBe('Zone introuvable dans cet espace.');
     expect(refusDeLErreur(e)).toBe('zone_introuvable');
   });
   it('réseau coupé : « Connexion perdue : réessayez. »', () => {
