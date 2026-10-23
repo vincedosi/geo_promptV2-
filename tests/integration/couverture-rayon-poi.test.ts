@@ -159,6 +159,11 @@ describe('couverture_rayon_poi — refus, sans calcul', () => {
     expect(await couverture(args)).toEqual(attendu);
   });
 
+  it('carreaux × courbes de valeur au-delà de 300 000 : calcul_trop_lourd (Gironde, 54 842 carreaux × 6 natures ICPE)', async () => {
+    expect(await couverture({ p_categorie: 'risque_industriel', p_sources: [], p_perimetre_code: '33', p_champ: 'sous_categorie' }))
+      .toEqual({ refus: 'calcul_trop_lourd', plafond: 300000, n_carreaux: 54842, n_valeurs: 6 });
+  });
+
   it('rayon hors de [100, 10 000] : 22023', async () => {
     for (const p_rayon_max_m of [50, 10_100]) {
       const { error } = await admin.rpc('couverture_rayon_poi', {

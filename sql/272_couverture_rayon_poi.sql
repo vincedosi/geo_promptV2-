@@ -23,10 +23,10 @@
 -- la priorité est l'ordre de `p_valeurs`, puis l'ordre alphabétique. La clé `*` vise le POI le plus proche, toute
 -- valeur confondue.
 --
--- MESURES (EXPLAIN ANALYZE BUFFERS de l'appel, 3e passe, 23/10) : pire cas ICPE toutes natures des Bouches-du-Rhône à
--- 5 km, 1,0-1,6 s / 57 392 accès ; zone Île-de-France de 11 793 km², lycées à 10 km, 0,6-0,9 s / 31 817 (détail :
--- ARCHITECTURE.md). Lecture seule, jsonb (les courbes, pas des lignes). Droits : service_role. Rejouable
--- (`create or replace`, aucun `drop`).
+-- MESURES (durée réelle de l'appel, 2e à 4e passes, 23/10) : pire cas admis ICPE toutes natures du Nord à 10 km
+-- (2 964 sites, 6 natures), 1,5-1,8 s / 89 347 accès, aucun fichier temporaire ; au-delà de 300 000 carreaux × courbes,
+-- refus `calcul_trop_lourd` en 0,5-0,7 s (détail : ARCHITECTURE.md). Lecture seule, jsonb (les courbes, pas des
+-- lignes). Droits : service_role. Rejouable (`create or replace`, aucun `drop`).
 
 begin;
 
@@ -174,10 +174,14 @@ language plpgsql
 stable
 security invoker
 set search_path to 'public', 'pg_catalog'
+-- 64 Mo : le minimum par carreau et par valeur (jusqu'à 340 000 lignes) débordait le `work_mem` de 4 Mo et écrivait
+-- jusqu'à 95 Mo de fichiers temporaires par appel (ICPE du Nord) ; `set` de fonction, rendu à la sortie.
+set work_mem to '64MB'
 as $fn$
 declare
   v_rang  integer;
   v_per   geometry;
+  v_per3857 geometry;
   v_refus text;
   v_motif text;
   v_g     geography[];
@@ -185,6 +189,8 @@ declare
   v_n_val integer;
   -- Pas de la grille qui rend sa cellule de Voronoï à chaque POI (unités 3857).
   c_tuile constant integer := 10000;
+  -- Carreaux × courbes de valeur au-delà duquel on refuse (≤ 1,3 s mesuré à 273 000 : ICPE du Nord à 10 km).
+  c_calcul_max constant integer := 300000;
   -- + 1 km pour un département lu par code : des centroïdes de ses carreaux débordent son contour.
   v_portee integer := p_rayon_max_m + case when p_perimetre_type = 'departement' then 1000 else 0 end;
 begin
@@ -220,6 +226,7 @@ begin
   if v_refus is not null then
     return jsonb_build_object('refus', v_refus);
   end if;
+  v_per3857 := ST_Transform(v_per, 3857);
 
   -- Pas de repli sur `carreaux_filosofi` (A-1) : deux chemins pour la même donnée divergent.
   v_motif := public.carreau_couverture_complete();
@@ -229,20 +236,26 @@ begin
 
   -- Les POI, lus une fois. `p_max_poi + 1` : au-delà, refus, jamais une courbe partielle (sql/254).
   select array_agg(s.g), array_agg(s.v), count(distinct s.v) into v_g, v_v, v_n_val
-    from (select x.g, x.v
-            from (select p.geom::geography as g,
+    from (select distinct on (x.id) x.g, x.v
+            from (select p.id, p.geom::geography as g,
                          case p_champ when 'sous_categorie' then coalesce(p.sous_categorie, 'non_renseigne') end as v
-                    from public.poi_france p
+                    -- Le périmètre en morceaux : la distance géodésique au contour ENTIER (1 571 sommets pour une zone
+                    -- des Hauts-de-France) coûtait 2,1 s pour 5 619 sites ; aux morceaux, 0,5 s. Même ensemble (distance au plus
+                    -- proche morceau), dédoublonné par `distinct on`.
+                    from (select ST_Subdivide(v_per, 256) as m) z
+                    join public.poi_france p
+                      -- La boîte d'abord, par l'index : 60 km par degré minore le degré de longitude partout en France
+                      -- (69 km à 51,5° N). Sans elle, 99 152 sites ICPE mesurés au contour : 2 s.
+                      on p.geom && ST_Expand(z.m, v_portee / 60000.0)
+                     and ST_DWithin(p.geom::geography, z.m::geography, v_portee)
                    where p.categorie = p_categorie
                      and (p.data_source_id is null or p.data_source_id = any (coalesce(p_sources, '{}'::uuid[])))
                      -- Sites ICPE « en fin d'exploitation » exclus par défaut, règle de `construire_couverture_rayon`.
                      and (p_categorie <> 'risque_industriel' or p_inclure_inactifs
                           or p.metadata->>'etat_activite' is distinct from 'En fin d''exploitation')
-                     -- La boîte d'abord, par l'index : 60 km par degré minore le degré de longitude partout en France
-                     -- (69 km à 51,5° N). Sans elle, 99 152 sites ICPE mesurés au contour : 2 s.
-                     and p.geom && ST_Expand(v_per, v_portee / 60000.0)
-                     and ST_DWithin(p.geom::geography, v_per::geography, v_portee)) x
+                 ) x
            where p_valeurs is null or x.v = any (p_valeurs)
+           order by x.id
            limit p_max_poi + 1) s;
   if coalesce(cardinality(v_g), 0) > p_max_poi then
     return jsonb_build_object('refus', 'trop_de_poi', 'plafond', p_max_poi);
@@ -260,7 +273,7 @@ begin
       union all
       -- `ST_Intersects` + `distinct on` : un centroïde sur la couture de deux morceaux compte une fois (sql/269).
       (select distinct on (cc.carreau_id) cc.carreau_id, cc.pops[v_rang]::numeric
-         from (select ST_Subdivide(ST_Transform(v_per, 3857), 256) as sg) z
+         from (select ST_Subdivide(v_per3857, 256) as sg) z
          join public.carreau_couverture cc on cc.centroide_3857 && z.sg and ST_Intersects(cc.centroide_3857, z.sg)
         where p_perimetre_type <> 'departement'
         order by cc.carreau_id)
@@ -269,7 +282,7 @@ begin
     -- Toutes les paires carreau × POI à moins de r_max : 4,7 M pour les lycées d'Île-de-France à 10 km, 10,9 s. Un
     -- plus-proche-voisin par index n'existe pas ici (la catégorie n'est pas dans l'index des POI : 34,6 s mesurées).
     -- On découpe donc le plan en cellules de Voronoï (une par POI, en 3857) : chaque carreau ne se mesure qu'au POI de
-    -- sa cellule, coupée au disque de r_max — une distance par carreau, 0,6 à 0,9 s.
+    -- sa cellule, coupée au disque de r_max — une distance par carreau et par valeur, 0,6 s.
     -- Exact : la distance reste GÉODÉSIQUE et le minimum se prend sur les cellules à moins de 100 unités du centroïde.
     -- Mercator déforme les distances de ±0,3 % sur 10 km : ce n'est qu'au voisinage d'une frontière de cellule que le
     -- POI le plus proche en 3857 peut ne pas l'être sur l'ellipsoïde, et la bande de 100 y mesure les deux POI.
@@ -281,16 +294,15 @@ begin
         from unnest(v_g, v_v) as t(g, v)
         cross join lateral (select ST_Transform(t.g::geometry, 3857) as g3) x
     ),
-    -- Une partition par valeur et une pour `*` (toutes valeurs). Les quatre coins d'une enveloppe élargie bornent les
+    -- Une partition par valeur (sans champ, une seule : `*`). Les quatre coins d'une enveloppe élargie bornent les
     -- cellules du bord, et donnent une cellule à une valeur d'un seul POI (Voronoï d'un point : vide).
     cellules as materialized (
       select c.cle, (ST_Dump(c.diagramme)).geom as cell
-        from (select case when grouping(v) = 1 then '*' else v end as cle,
+        from (select coalesce(v, '*') as cle,
                      ST_VoronoiPolygons(ST_Collect(ST_Collect(g3), ST_Points(ST_Expand(ST_Envelope(ST_Collect(g3)), 3 * max(r3)))))
                        as diagramme
                 from poi
-               group by grouping sets ((v), ())
-              having grouping(v) = 1 or p_champ is not null) c
+               group by v) c
     ),
     -- La cellule retrouve son POI par une grille, jointe par hachage (CTE matérialisée, sans quoi le
     -- planificateur revient au produit cellules × POI : 3,5 M tests à 1 426 sites, 25 M à 5 000). Les cellules des
@@ -301,27 +313,34 @@ begin
         cross join generate_series(floor(ST_XMin(k.cell) / c_tuile)::int, floor(ST_XMax(k.cell) / c_tuile)::int) gx(x)
         cross join generate_series(floor(ST_YMin(k.cell) / c_tuile)::int, floor(ST_YMax(k.cell) / c_tuile)::int) gy(y)
        -- Une cellule loin du périmètre n'y a aucun carreau (2 000 unités : le débord d'un département lu par code).
-       where k.cell && ST_Expand(ST_Transform(v_per, 3857), 2000)
+       where k.cell && ST_Expand(v_per3857, 2000)
     ),
     zones as materialized (
       select t.cle, p.g, ST_Intersection(t.cell, ST_Buffer(p.g3, p.r3)) as z
         from tuiles t
-        join poi p on p.tx = t.x and p.ty = t.y and (t.cle = '*' or p.v = t.cle) and ST_Intersects(t.cell, p.g3)
+        join poi p on p.tx = t.x and p.ty = t.y and coalesce(p.v, '*') = t.cle and ST_Intersects(t.cell, p.g3)
     ),
     -- Minimum par carreau ET par valeur, et par carreau seul (`*`) : jamais une somme, sinon un carreau proche de deux
-    -- valeurs compterait deux fois (sql/200).
+    -- valeurs compterait deux fois (sql/200). Chaque POI a UNE valeur : `*` est le minimum des valeurs, sans partition
+    -- à lui (elle coûtait une distance de plus par carreau).
     mins as materialized (
-      select s.carreau_id, s.cle, min(s.d) as d
-        from (select cc.carreau_id, k.cle, ST_Distance(ST_Transform(cc.centroide_3857, 4326)::geography, k.g) as d
+      select s.carreau_id, case when grouping(s.cle) = 1 then '*' else s.cle end as cle, min(s.d) as d, max(s.pop) as pop
+        from (select cc.carreau_id, k.cle, cc.pops[v_rang]::numeric as pop,
+                     ST_Distance(ST_Transform(cc.centroide_3857, 4326)::geography, k.g) as d
                 from zones k
                 join public.carreau_couverture cc on ST_DWithin(cc.centroide_3857, k.z, 100)
-               where cc.carreau_id in (select carreau_id from car)) s
-       group by 1, 2
-      having min(s.d) <= p_rayon_max_m
+               -- L'appartenance au périmètre par prédicat, la règle de `car` (le centroïde dans la forme ENTIÈRE vaut
+               -- le centroïde dans l'un de ses morceaux), et non par jointure à `car` : sur une zone, `car` est
+               -- estimée à 2 325 lignes pour 74 996, et le planificateur croisait `car` × zones sans index (89 s).
+               -- `coalesce` rend le code non indexable : sinon chaque sonde relisait tout le département en bitmap (1,6 s).
+               where case when p_perimetre_type = 'departement' then coalesce(cc.code_departement, '') = p_perimetre_code
+                          else ST_Intersects(cc.centroide_3857, v_per3857) end) s
+       group by grouping sets ((s.carreau_id, s.cle), (s.carreau_id))
+      having min(s.d) <= p_rayon_max_m and (grouping(s.cle) = 0 or p_champ is not null)
     ),
     paliers as (
-      select m.cle, least(floor(m.d / 100)::int * 100, p_rayon_max_m) as rayon_m, sum(c.pop) as pop, count(*) as n
-        from mins m join car c using (carreau_id)
+      select m.cle, least(floor(m.d / 100)::int * 100, p_rayon_max_m) as rayon_m, sum(m.pop) as pop, count(*) as n
+        from mins m
        group by 1, 2
     ),
     profil as (
@@ -330,13 +349,18 @@ begin
         from jsonb_each(coalesce(p_profil, '{}')) e
     ),
     classe as (
-      select distinct on (m.carreau_id) m.carreau_id, k.valeur, k.rang,
+      select distinct on (m.carreau_id) m.carreau_id, m.pop, k.valeur, k.rang,
              (select min(a) from unnest(k.anneaux) a where m.d < a) as anneau_m
         from mins m join profil k on k.valeur = m.cle
        where m.d < k.anneaux[cardinality(k.anneaux)]
        order by m.carreau_id, k.rang
     )
-    select jsonb_build_object(
+    -- Le coût suit le nombre de carreaux × courbes de valeur : au-delà de 300 000 (2,6 s pour les 6 natures ICPE d'une
+    -- zone de 11 157 km², 450 000), refus AVANT tout calcul — une CTE n'est lue que par la branche qui la cite.
+    select case when (select count(*) from car) * greatest(v_n_val, 1) > c_calcul_max then jsonb_build_object(
+             'refus', 'calcul_trop_lourd', 'plafond', c_calcul_max,
+             'n_carreaux', (select count(*) from car), 'n_valeurs', greatest(v_n_val, 1))
+           else jsonb_build_object(
              'calculable', true,
              'cible', p_cible,
              'rayon_max_m', p_rayon_max_m,
@@ -347,10 +371,10 @@ begin
            || case when p_profil is null then '{}'::jsonb else jsonb_build_object(
              'classes', (select coalesce(jsonb_agg(jsonb_build_object('valeur', valeur, 'anneau_m', anneau_m,
                                                                       'population', round(pop)) order by rang, anneau_m), '[]')
-                           from (select k.valeur, k.rang, k.anneau_m, sum(c.pop) as pop
-                                   from classe k join car c using (carreau_id) group by 1, 2, 3) s),
-             'hors_classes', (select round(coalesce(sum(c.pop), 0)) from car c
-                               where not exists (select 1 from classe k where k.carreau_id = c.carreau_id)))
+                           from (select valeur, rang, anneau_m, sum(pop) as pop from classe group by 1, 2, 3) s),
+             -- Les carreaux classés sont des carreaux du périmètre (prédicat de `mins`) : le reste est hors classes.
+             'hors_classes', round((select coalesce(sum(pop), 0) from car) - (select coalesce(sum(pop), 0) from classe)))
+           end
            end
   );
 end
@@ -359,7 +383,8 @@ $fn$;
 comment on function public.couverture_rayon_poi(text, text, text, uuid, uuid[], text, integer, text, text[], jsonb, boolean, integer) is
   'Couverture par rayon autour des POI d''une categorie : courbes cumulees (format lire_couverture_rayon, * + une par '
   'valeur de sous_categorie), population du perimetre, classes d''un profil d''anneaux. Sans pre-calcul, perimetre '
-  '<= 12 000 km2 (departement, commune, cp, zone), r_max <= 10 km, <= 5 000 POI, <= 8 valeurs. sql/272 (lot 4, T11).';
+  '<= 12 000 km2 (departement, commune, cp, zone), r_max <= 10 km, <= 5 000 POI, <= 8 valeurs, '
+  '<= 300 000 carreaux x courbes. sql/272 (lot 4, T11).';
 
 revoke all on function public.couverture_rayon_poi(text, text, text, uuid, uuid[], text, integer, text, text[], jsonb, boolean, integer)
   from public, anon, authenticated;
