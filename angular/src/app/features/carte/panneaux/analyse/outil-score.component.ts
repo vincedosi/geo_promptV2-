@@ -7,6 +7,7 @@ import {
   BOUTON_CALCUL, CORPS_ACCORDEON, ENCART_ERREUR, ENTETE_ACCORDEON, LIBELLE_CHAMP, LISTE_CHAMP, PASTILLE, PASTILLE_INACTIVE,
   PASTILLE_PRIMAIRE_ACTIVE,
 } from './styles-analyse';
+import { ChoixSurZoneComponent } from './choix-sur-zone.component';
 
 /**
  * L'outil « Score composite » du panneau Analyse — le gabarit de `filter-panel/ScoreCompositeTool.tsx` (lot 4, T18).
@@ -18,6 +19,7 @@ import {
  */
 @Component({
   selector: 'mg-outil-score',
+  imports: [ChoixSurZoneComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   template: `
@@ -33,15 +35,7 @@ import {
         </div>
 
         @if (s.zoneAnalysee()) {
-          <div>
-            <div [class]="libelleChamp">Sur</div>
-            <div class="flex gap-[5px]" role="group" aria-label="Périmètre du score">
-              <button type="button" data-sur="zone" [attr.aria-pressed]="s.surZone()" (click)="s.surZone.set(true)"
-                [class]="pastille + ' flex-1 text-center ' + (s.surZone() ? pastilleActive : pastilleInactive)">La zone analysée</button>
-              <button type="button" data-sur="filtre" [attr.aria-pressed]="!s.surZone()" (click)="s.surZone.set(false)"
-                [class]="pastille + ' flex-1 text-center ' + (s.surZone() ? pastilleInactive : pastilleActive)">Le périmètre de ①</button>
-            </div>
-          </div>
+          <mg-choix-sur-zone [(surZone)]="s.surZone" objet="du score" />
         }
 
         <div>

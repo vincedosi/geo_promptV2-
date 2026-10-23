@@ -365,6 +365,10 @@ begin
              'cible', p_cible,
              'rayon_max_m', p_rayon_max_m,
              'n_poi', coalesce(cardinality(v_g), 0),
+             -- Les POI retenus, [lon, lat] à 5 décimales (≈ 1 m) : l'écran les peint avec leurs cercles (lot 4, T12).
+             'poi', (select coalesce(jsonb_agg(jsonb_build_array(round(ST_X(g::geometry)::numeric, 5),
+                                                                 round(ST_Y(g::geometry)::numeric, 5))), '[]')
+                       from unnest(v_g) g),
              'population_perimetre', (select round(coalesce(sum(pop), 0)) from car),
              'courbes', (select public.courbes_par_palier(array_agg(cle), array_agg(rayon_m), array_agg(pop),
                                                           array_agg(n), p_rayon_max_m) from paliers))

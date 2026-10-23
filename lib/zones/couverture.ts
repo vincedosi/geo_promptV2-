@@ -47,21 +47,19 @@ export function statutDuRefus(refus: RefusCouverture): 404 | 422 | 503 {
   return STATUTS[refus];
 }
 
-function estRefusConnu(v: unknown): v is RefusCouverture {
-  return typeof v === 'string' && (REFUS_COUVERTURE as readonly string[]).includes(v);
-}
-
 /**
- * Rétrécit le `Json` de `couverture_zone` / `couverture_zone_en_cache` : un chiffrage, un refus connu (avec ses
- * détails — `plafond`, `surface_km2`, `plafond_km2`, `motif`), ou `null` (hors contrat : refus inconnu, pas un objet).
+ * Rétrécit le `Json` d'une RPC de couverture (`couverture_zone`, `couverture_zone_en_cache`, `couverture_rayon_poi`) :
+ * un chiffrage, un refus de la liste `connus` (avec ses détails — `plafond`, `surface_km2`, `plafond_km2`, `motif`), ou
+ * `null` (hors contrat : refus inconnu, pas un objet).
  */
-export function lireReponseCouverture(
+export function lireReponseCouverture<R extends string = RefusCouverture>(
   data: unknown,
-): { ok: true; resultat: Record<string, unknown> } | { ok: false; refus: RefusCouverture; details: Record<string, unknown> } | null {
+  connus: readonly R[] = REFUS_COUVERTURE as readonly string[] as readonly R[],
+): { ok: true; resultat: Record<string, unknown> } | { ok: false; refus: R; details: Record<string, unknown> } | null {
   if (data === null || typeof data !== 'object' || Array.isArray(data)) return null;
   const o = data as Record<string, unknown>;
   if (!('refus' in o)) return { ok: true, resultat: o };
-  if (!estRefusConnu(o.refus)) return null;
+  if (!(connus as readonly unknown[]).includes(o.refus)) return null;
   const { refus, ...details } = o;
-  return { ok: false, refus, details };
+  return { ok: false, refus: refus as R, details };
 }

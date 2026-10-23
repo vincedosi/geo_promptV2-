@@ -7,6 +7,7 @@ import { ContexteBatailleService } from '../../etat/contexte-bataille.service';
 import { CreationZoneService } from '../../etat/creation-zone.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { ReferentielGeoService } from '../../etat/referentiel-geo.service';
+import { CouvertureRayonService } from '../../etat/couverture-rayon.service';
 import { ScoreCompositeService } from '../../etat/score-composite.service';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
 import type { FiltreActif } from '../../logique/filtre';
@@ -21,6 +22,7 @@ import { OutilBatailleV2Component } from './outil-bataille-v2.component';
 import { OutilCorrelationComponent } from './outil-correlation.component';
 import { OutilCouvertureComponent } from './outil-couverture.component';
 import { OutilIsochronesComponent } from './outil-isochrones.component';
+import { OutilRayonComponent } from './outil-rayon.component';
 import { OutilScoreComponent } from './outil-score.component';
 import { ENTETE_ACCORDEON, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } from './styles-analyse';
 
@@ -63,10 +65,11 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
   selector: 'mg-panneau-analyse',
   imports: [
     IntroAnalyseComponent, OutilBatailleV2Component, OutilCorrelationComponent, OutilCouvertureComponent, OutilIsochronesComponent,
-    OutilScoreComponent, SectionClusteringComponent,
+    OutilRayonComponent, OutilScoreComponent, SectionClusteringComponent,
   ],
   // Le catalogue d'indicateurs (score, corrélation) vient de la PAGE (lot 3, X4), partagé avec ③ et « Mes zones ».
-  providers: [ScoreCompositeService, CreationZoneService, CalculClusteringService],
+  // La couverture par rayon (T12) aussi : le panneau reste monté (P-e), sa couche se retire avec lui.
+  providers: [ScoreCompositeService, CouvertureRayonService, CreationZoneService, CalculClusteringService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full flex-col overflow-y-auto' },
   template: `
@@ -79,6 +82,8 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
 
     <!-- Lot 4, T8 : la couverture d'une zone EN TÊTE, ouverte par défaut. Hors garde de ① : la zone est le périmètre. -->
     <mg-outil-couverture />
+    <!-- Lot 4, T12 : hors garde de ① elle aussi — la base borne le périmètre (France, région, > 12 000 km² refusés). -->
+    <mg-outil-rayon />
 
     <div class="flex flex-col">
       <button type="button" data-accordeon="spatiale" [attr.aria-expanded]="spatialeOuverte()" (click)="spatialeOuverte.set(!spatialeOuverte())"

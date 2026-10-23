@@ -19,7 +19,8 @@ import { join } from 'node:path';
  * clustering (T20, `lancerClustering`) y sont. Pour une RELECTURE gardée sans refus national (chargement des clusters, T19) : `HANDLERS_GARDE_GENERIQUE`.
  * Absences de garde ASSUMÉES : la corrélation (bornée par une campagne, elle ne balaie aucun territoire — avant-dernier
  * test) ; la couverture d'une zone (lot 4, T8 : la zone analysée EST le périmètre, bornée côté serveur à 100 000 km² et
- * 400 000 carreaux, quota 6/min — dernier test) ;
+ * 400 000 carreaux, quota 6/min — avant-dernier test) ; la couverture par rayon (lot 4, T12 : `resoudre_perimetre` refuse en
+ * base la France, la région et plus de 12 000 km², quota 6/min — dernier test) ;
  * le changement de durée des clusters (`ClustersService.changerDuree`, relecture GET d'un autre modèle, sans garde chez
  * React — `onClusterDurationChange` — et seulement joignable une fois des clusters chargés sous garde).
  */
@@ -165,5 +166,13 @@ describe('Panneau Analyse Angular — verrou structurel de la garde de périmèt
     // Le CODE, pas l'en-tête (qui explique pourquoi il n'y a pas de `verifierPerimetreOutil`).
     expect(outil).not.toMatch(/\.verifierPerimetre|messageGarde\w*\(|etat\.filtre/);
     expect(outil).toContain('z.chiffrer()');
+  });
+
+  it('la couverture par rayon n’est PAS gardée par ①, délibérément (lot 4, T12) : la base borne le périmètre', () => {
+    expect(baliseOuvrante('mg-outil-rayon')).toBe('<mg-outil-rayon />');
+    // Le seul calcul est `CouvertureRayonService.lancer()` ; l'outil ne lit ni la garde ni le filtre.
+    const outil = lire('outil-rayon.component.ts');
+    expect(outil).not.toMatch(/\.verifierPerimetre|messageGarde\w*\(|etat\.filtre/);
+    expect(outil).toContain('s.lancer()');
   });
 });

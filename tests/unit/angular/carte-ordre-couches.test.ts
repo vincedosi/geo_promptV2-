@@ -43,6 +43,9 @@ const SOURCES_REACT: Record<string, { fichier: string; idReact: string } | { eca
   'couverture-cp-survol': { ecart: 'sans équivalent React : surbrillance du CP survolé dans le tableau (lot 4, T8)' },
   'couverture-iris-survol': { ecart: 'sans équivalent React : surbrillance de l’IRIS survolé dans le tableau (lot 4, T8)' },
   'couverture-zone-line': { ecart: 'sans équivalent React : contour de la zone analysée en ④ (lot 4, T8)' },
+  'couverture-rayon-fill': { ecart: 'sans équivalent React : ④ cercles autour des POI retenus (lot 4, T12)' },
+  'couverture-rayon-line': { ecart: 'sans équivalent React : ④ cercles autour des POI retenus (lot 4, T12)' },
+  'couverture-rayon-poi': { ecart: 'sans équivalent React : ④ POI retenus par la couverture par rayon (lot 4, T12)' },
   'campagne-ooh-points': { ecart: 'sans équivalent React : emplacements d’une campagne OOH (spec 2026-10-16-ooh-campagnes)' },
   'campagne-ooh-a-verifier': { ecart: 'sans équivalent React : anneau pointillé des emplacements à vérifier' },
   'apercu-rayon-fill': { fichier: 'app/map/_components/panneaux/CreerZoneRayon.tsx', idReact: 'apercu-rayon-fill' },
@@ -64,6 +67,7 @@ const POSEURS_ANGULAR = [
   'angular/src/app/features/carte/couches/couche-zones-custom.ts',
   'angular/src/app/features/carte/couches/couche-campagne-ooh.ts',
   'angular/src/app/features/carte/couches/couche-couverture.ts',
+  'angular/src/app/features/carte/couches/couche-couverture-rayon.ts',
   // La pose des aperçus (rayon, zone à recette) est commune : `apercu-rayon.ts` et `apercu-zone.ts` y délèguent.
   'angular/src/app/features/carte/couches/apercu-forme.ts',
   'angular/src/app/features/carte/couches/dessin.service.ts',

@@ -20,7 +20,7 @@ export type CarteApercu = Pick<maplibregl.Map, 'getSource' | 'addSource' | 'getL
 
 /** Pose (idempotente) ou met à jour l'aperçu, à son rang (`avantDe` : sous le tracé libre, sur tout le reste). */
 export function poserApercu(
-  carte: CarteApercu, ids: IdsApercu, donnees: GeoJSON.Feature | GeoJSON.Geometry, teal: string, opaciteRemplissage: number,
+  carte: CarteApercu, ids: IdsApercu, donnees: GeoJSON.GeoJSON, teal: string, opaciteRemplissage: number,
 ): void {
   const source = carte.getSource(ids.source) as maplibregl.GeoJSONSource | undefined;
   if (source) {

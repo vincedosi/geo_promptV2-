@@ -43,6 +43,8 @@ export const COUCHES_APRES_LOAD: readonly string[] = [
   // surbrillance du territoire survolé en dernier. Sans équivalent React.
   'couverture-cp-fill', 'couverture-cp-line', 'couverture-iris-fill', 'couverture-iris-line',
   'couverture-cp-survol', 'couverture-iris-survol', 'couverture-zone-line',
+  // ④ Couverture par rayon (lot 4, T12) : les cercles autour des POI retenus, puis les POI. Sans équivalent React.
+  'couverture-rayon-fill', 'couverture-rayon-line', 'couverture-rayon-poi',
   // Emplacements d'une campagne OOH (spec 2026-10-16-ooh-campagnes § 6) : des POINTS, au-dessus des zones
   // enregistrées (un aplat à 25 % ne les cache pas), sous l'aperçu du rayon et le tracé libre. Sans équivalent React.
   'campagne-ooh-points', 'campagne-ooh-a-verifier',

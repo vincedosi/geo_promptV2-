@@ -28,4 +28,11 @@ describe('CouvertureApi', () => {
     http.expectOne('https://hote.example/distant/api/zones/a%2Fb/couverture?cible=ind_18_24&decoupage=iris');
     http.verify();
   });
+  it('rayon : GET /api/analyses/couverture-rayon?<requête>, sur baseUrl', () => {
+    const { api, http } = preparer('https://hote.example/distant');
+    api.rayon('categorie=lycee&perimetre_type=departement&perimetre_code=13').subscribe();
+    const req = http.expectOne('https://hote.example/distant/api/analyses/couverture-rayon?categorie=lycee&perimetre_type=departement&perimetre_code=13');
+    expect(req.request.method).toBe('GET');
+    http.verify();
+  });
 });

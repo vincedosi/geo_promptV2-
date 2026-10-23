@@ -1,25 +1,21 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
-import type { Subscription } from 'rxjs';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
 import { formaterNombre } from '../../../../core/format/nombre';
 import { KpiComponent } from '../../../../ui/kpi/kpi.component';
-import { type Cible, ProfilRisqueApi } from '../../../risques/data/profil-risque.api';
 import { CouvertureService } from '../../couches/couverture.service';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
-import { dateFr, messageErreurRequete } from '../../logique/analyses/commun';
+import { dateFr } from '../../logique/analyses/commun';
 import {
   CIBLE_PAR_DEFAUT, DECOUPAGES, avertissementNonCarroye, libelleDecoupage, ligneHorsTerritoire, messageZoneVide,
   phraseReference,
 } from '../../logique/analyses/couverture';
 import { BORNES_PART } from '../../couches/couche-couverture';
+import { ChoixCibleComponent } from './choix-cible.component';
 import { ChoixZoneAnalyseeComponent } from './choix-zone-analysee.component';
 import {
   BOUTON_CALCUL, CORPS_ACCORDEON, ENCART_AVERTISSEMENT_LISIBLE, ENCART_ERREUR, ENTETE_ACCORDEON, LIBELLE_CHAMP, PASTILLE, PASTILLE_INACTIVE,
   PASTILLE_PRIMAIRE_ACTIVE,
 } from './styles-analyse';
 import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couverture-zone.component';
-
-/** Le libellé de la cible par défaut tant que le catalogue n'est pas lu (`cibles_exposition`, rang 1). */
-const LIBELLE_CIBLE_DEFAUT = 'Population totale';
 
 /**
  * ④ Analyse — l'outil « Couverture d'une zone » (lot 4, T8), en tête du panneau Analyse et ouvert par défaut : choisir
@@ -32,9 +28,9 @@ const LIBELLE_CIBLE_DEFAUT = 'Population totale';
  * `tests/unit/angular/panneau-analyse-garde.test.ts`, comme la corrélation.
  *
  * ── AUCUNE LECTURE À L'OUVERTURE ──────────────────────────────────────────
- * Rien ne part avant « Chiffrer la zone ». Le catalogue des cibles (`GET /api/risques/exposition/cibles`) est lu à la
- * première ouverture du sélecteur de cible — ou quand la cible venue de l'URL n'est pas la cible par défaut, pour la
- * nommer —, une fois par composant (le panneau reste monté, A1).
+ * Rien ne part avant « Chiffrer la zone ». Le catalogue des cibles est lu par `mg-choix-cible` à la première ouverture
+ * du sélecteur — ou quand la cible venue de l'URL n'est pas la cible par défaut, pour la nommer (le panneau reste
+ * monté, A1).
  *
  * ── Q-J : « HABITANTS CARROYÉS » PARTOUT ──────────────────────────────────
  * La phrase de référence (`phraseReference`) est la note du chiffre de tête ET suit le résultat dans les trois
@@ -42,7 +38,7 @@ const LIBELLE_CIBLE_DEFAUT = 'Population totale';
  */
 @Component({
   selector: 'mg-outil-couverture',
-  imports: [ChoixZoneAnalyseeComponent, KpiComponent, TableauCouvertureZoneComponent],
+  imports: [ChoixCibleComponent, ChoixZoneAnalyseeComponent, KpiComponent, TableauCouvertureZoneComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   template: `
@@ -59,29 +55,7 @@ const LIBELLE_CIBLE_DEFAUT = 'Population totale';
 
         <mg-choix-zone-analysee [zoneId]="z.zoneId()" (choisie)="z.choisir($event)" />
 
-        <div data-choix-cible>
-          <div [class]="libelleChamp">Cible</div>
-          @if (!cibleOuverte()) {
-            <button type="button" data-ouvrir-cible (click)="ouvrirCibles()" [class]="pastille + ' ' + pastilleInactive">{{ libelleCible() }} ▾</button>
-          } @else {
-            @if (chargementCibles()) { <div class="font-mono text-[11px] text-tertiary">Chargement…</div> }
-            @if (erreurCibles(); as e) { <div class="text-[11px] text-danger" role="alert">{{ e }}</div> }
-            <div class="flex max-h-[220px] flex-col gap-2 overflow-y-auto" data-liste-cibles>
-              @for (g of familles(); track g.famille) {
-                <div>
-                  <div class="mb-1 text-[10px] text-tertiary">{{ g.famille }}</div>
-                  <div class="flex flex-wrap gap-[5px]">
-                    @for (c of g.cibles; track c.code) {
-                      <button type="button" [attr.data-cible]="c.code" [attr.aria-pressed]="c.code === z.cible()" (click)="choisirCible(c.code)"
-                        [class]="pastille + ' ' + (c.code === z.cible() ? pastilleActive : pastilleInactive)">{{ c.libelle }}</button>
-                    }
-                  </div>
-                </div>
-              }
-            </div>
-            <button type="button" data-fermer-cible (click)="cibleOuverte.set(false)" [class]="pastille + ' ' + pastilleInactive + ' mt-1.5'">Fermer</button>
-          }
-        </div>
+        <mg-choix-cible [cible]="z.cible()" (choisie)="z.regler({ cible: $event })" />
 
         <div>
           <div [class]="libelleChamp">Découpage</div>
@@ -158,14 +132,11 @@ const LIBELLE_CIBLE_DEFAUT = 'Population totale';
 export class OutilCouvertureComponent {
   protected readonly z = inject(ZoneAnalyseeService);
   protected readonly c = inject(CouvertureService);
-  private readonly cibles = inject(ProfilRisqueApi);
+  /** Le sélecteur de cible : son libellé écrit le chiffre de tête. */
+  private readonly choixCible = viewChild(ChoixCibleComponent);
 
   /** Ouvert par défaut : c'est l'outil de tête de ④. Le panneau reste monté, l'état survit à ④ → ① → ④. */
   protected readonly ouvert = signal(true);
-  protected readonly cibleOuverte = signal(false);
-  private readonly catalogue = signal<Cible[]>([]);
-  protected readonly chargementCibles = signal(false);
-  protected readonly erreurCibles = signal<string | null>(null);
 
   protected readonly decoupages = DECOUPAGES;
   protected readonly libelle = libelleDecoupage;
@@ -185,20 +156,10 @@ export class OutilCouvertureComponent {
     libelle: i === 0 ? `< ${BORNES_PART[0]} %` : i === PALIERS_CSS.length - 1 ? `≥ ${BORNES_PART[i - 1]} %` : `${BORNES_PART[i - 1]}-${BORNES_PART[i]} %`,
   }));
 
-  /** Les cibles regroupées par famille, dans l'ordre du catalogue (rang de population). */
-  protected readonly familles = computed(() => {
-    const g = new Map<string, Cible[]>();
-    for (const c of this.catalogue()) g.set(c.famille, [...(g.get(c.famille) ?? []), c]);
-    return [...g].map(([famille, cibles]) => ({ famille, cibles }));
-  });
-  protected readonly libelleCible = computed(() => {
-    const code = this.z.cible();
-    return this.catalogue().find((c) => c.code === code)?.libelle ?? (code === CIBLE_PAR_DEFAUT ? LIBELLE_CIBLE_DEFAUT : code);
-  });
   /** « habitants carroyés », ou « <cible> (carroyés) » : le chiffre de tête ne se lit jamais sans son dénominateur. */
   protected readonly libelleTete = computed(() => {
     const r = this.z.resultat();
-    return r?.cible === CIBLE_PAR_DEFAUT ? 'habitants carroyés' : `${minusculeInitiale(this.libelleCible())} (carroyés)`;
+    return r?.cible === CIBLE_PAR_DEFAUT ? 'habitants carroyés' : `${minusculeInitiale(this.choixCible()?.libelle() ?? r?.cible ?? '')} (carroyés)`;
   });
   protected readonly reference = computed(() => {
     const r = this.z.resultat();
@@ -217,46 +178,6 @@ export class OutilCouvertureComponent {
     return r ? ligneHorsTerritoire(r) : null;
   });
   protected readonly surface = computed(() => Math.round(this.z.resultat()?.surface_km2 ?? 0));
-
-  private lecture: Subscription | null = null;
-  private demandee = false;
-
-  constructor() {
-    // Une cible venue de l'URL qui n'est pas la cible par défaut : le catalogue est lu pour la NOMMER.
-    effect(() => {
-      if (this.z.cible() !== CIBLE_PAR_DEFAUT) untracked(() => this.chargerCibles());
-    });
-    inject(DestroyRef).onDestroy(() => this.lecture?.unsubscribe());
-  }
-
-  protected ouvrirCibles(): void {
-    this.cibleOuverte.set(true);
-    this.chargerCibles();
-  }
-
-  protected choisirCible(code: string): void {
-    this.cibleOuverte.set(false);
-    this.z.regler({ cible: code });
-  }
-
-  /** Une lecture par composant ; un échec se relit à la prochaine ouverture. */
-  private chargerCibles(): void {
-    if (this.demandee) return;
-    this.demandee = true;
-    this.chargementCibles.set(true);
-    this.erreurCibles.set(null);
-    this.lecture = this.cibles.cibles().subscribe({
-      next: (r) => {
-        this.catalogue.set(Array.isArray(r.cibles) ? r.cibles : []);
-        this.chargementCibles.set(false);
-      },
-      error: (e: unknown) => {
-        this.chargementCibles.set(false);
-        this.erreurCibles.set(messageErreurRequete(e));
-        this.demandee = false;
-      },
-    });
-  }
 }
 
 /** « Ménages pauvres » → « ménages pauvres » ; un sigle (« CSP+ ») garde ses capitales. */

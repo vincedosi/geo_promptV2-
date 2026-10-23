@@ -21,7 +21,7 @@ interface Point { r: number; p: number; i: number }
 interface Courbe { cle: string; total: number; carreaux: number; points: Point[] }
 interface Resultat {
   refus?: string; plafond?: number;
-  calculable: boolean; cible: string; rayon_max_m: number; n_poi: number; population_perimetre: number;
+  calculable: boolean; cible: string; rayon_max_m: number; n_poi: number; poi: [number, number][]; population_perimetre: number;
   courbes: Courbe[]; classes?: { valeur: string; anneau_m: number; population: number }[]; hors_classes?: number;
 }
 
@@ -114,6 +114,9 @@ describe('couverture_rayon_poi — autres POI, autres périmètres', () => {
   it('lycées des Bouches-du-Rhône à 5 km : une seule courbe de valeur, égale à la courbe *', async () => {
     const r = await couverture({ p_champ: 'sous_categorie' });
     expect(r.n_poi).toBeGreaterThan(50);
+    // Les POI retenus, peints par l'écran (T12) : un [lon, lat] par POI, dans la boîte des Bouches-du-Rhône élargie.
+    expect(r.poi).toHaveLength(r.n_poi);
+    for (const [lon, lat] of r.poi) expect(lon > 4 && lon < 6.2 && lat > 42.9 && lat < 44.1).toBe(true);
     expect(r.courbes).toHaveLength(2);
     const [tout, valeur] = r.courbes;
     expect(tout.cle).toBe('*');
