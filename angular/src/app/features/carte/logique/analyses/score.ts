@@ -77,16 +77,17 @@ export function parametresIndicateurs(choisis: readonly IndicateurChoisi[]): Par
   return choisis.map((c) => ({ code: c.code, poids: c.poids, sens: c.sens }));
 }
 
+/** Ce sur quoi le score part : le filtre de ①, ou la zone analysée de ④. Jamais aucun des deux (T10 M-1). */
+export type PerimetreScore = { readonly filtre: FiltreActif } | { readonly zone: string };
+
 /**
  * Le corps exact de React (`ScoreCompositeTool.tsx:161-166`) : le périmètre est le FILTRE, la route le résout. Lot 4,
- * T10 : une zone analysée (④) prend sa place — la route sait déjà lire `{ type: 'zone' }` — et le filtre n'est pas lu.
+ * T10 : une zone analysée (④) prend sa place — la route sait déjà lire `{ type: 'zone' }` — sans nom (la route nomme).
  */
-export function corpsScore(
-  choisis: readonly IndicateurChoisi[], filtre: FiltreActif | null, enregistrer: boolean, zoneAnalysee: string | null = null,
-): CorpsScore {
+export function corpsScore(choisis: readonly IndicateurChoisi[], p: PerimetreScore, enregistrer: boolean): CorpsScore {
   const base = { indicateurs: parametresIndicateurs(choisis), enregistrer };
-  if (zoneAnalysee) return { ...base, perimetre: { type: 'zone', code: zoneAnalysee } };
-  return { ...base, perimetre: filtre ? { type: filtre.type, code: filtre.code } : undefined, nom: `Score composite — ${filtre?.label ?? ''}` };
+  if ('zone' in p) return { ...base, perimetre: { type: 'zone', code: p.zone } };
+  return { ...base, perimetre: { type: p.filtre.type, code: p.filtre.code }, nom: `Score composite — ${p.filtre.label}` };
 }
 
 /** Ce que le score agrège, en légende : « Revenu médian × Part des 15-29 ans ». */

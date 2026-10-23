@@ -30,25 +30,23 @@ describe('logique/analyses/score (ScoreCompositeTool.tsx)', () => {
       { code: 'rev_median', label: 'Revenu médian', poids: 1.5, sens: 'croissant' },
       { code: 'part_15_29', label: 'Part des 15-29 ans', poids: 1, sens: 'decroissant' },
     ];
-    expect(corpsScore(choisis, DEPT_13, false)).toEqual({
+    expect(corpsScore(choisis, { filtre: DEPT_13 }, false)).toEqual({
       indicateurs: [{ code: 'rev_median', poids: 1.5, sens: 'croissant' }, { code: 'part_15_29', poids: 1, sens: 'decroissant' }],
       perimetre: { type: 'departement', code: '13' },
       enregistrer: false,
       nom: 'Score composite — Bouches-du-Rhône',
     });
-    expect(parametresIndicateurs(choisis)).toEqual(corpsScore(choisis, DEPT_13, true).indicateurs);
+    expect(parametresIndicateurs(choisis)).toEqual(corpsScore(choisis, { filtre: DEPT_13 }, true).indicateurs);
   });
 
-  it('zone analysée posée : le périmètre est la zone, sans nom (la route nomme), le filtre de ① est ignoré (même absent)', () => {
+  it('zone analysée : le périmètre est la zone, sans nom (la route nomme)', () => {
     const choisis: IndicateurChoisi[] = [{ code: 'rev_median', label: 'Revenu médian', poids: 1, sens: 'croissant' }];
     const attendu = {
       indicateurs: [{ code: 'rev_median', poids: 1, sens: 'croissant' }],
       perimetre: { type: 'zone', code: 'z-1' },
       enregistrer: false,
     };
-    expect(corpsScore(choisis, DEPT_13, false, 'z-1')).toEqual(attendu);
-    expect(corpsScore(choisis, null, false, 'z-1')).toEqual(attendu);
-    expect(corpsScore(choisis, DEPT_13, false, null)).toEqual(corpsScore(choisis, DEPT_13, false));
+    expect(corpsScore(choisis, { zone: 'z-1' }, false)).toEqual(attendu);
   });
 
   it('libellé du score, compte au-dessus du seuil (≥), pluriels de « code postal retenu »', () => {
