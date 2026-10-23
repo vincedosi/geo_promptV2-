@@ -32,6 +32,10 @@
 -- découpage IRIS refuse aussi quand son dénominateur est absent ou PLUS ANCIEN que le journal des bandes
 -- (`denominateur_iris_perime`) : le script de construction le reconstruit en fin de course, mais tout autre chemin
 -- (restauration, script relancé seul avant sql/268) le laisserait périmé — et une part pourrait dépasser 100 %.
+-- Symétrique pour le CP (vague finale, n° 6) : `cp_population_totale` (sql/228) est compté sur `carreaux_filosofi` et
+-- les contours de CP, la table étroite porte le CP attribué à SA construction. Un dénominateur reconstruit APRÈS elle
+-- (contours ou CP rechargés) ne compte plus les mêmes carreaux : refus `denominateur_cp_plus_recent`, et le cache CP se
+-- périme avec (sql/270). Index sur `construit_le` : le `max` lit 3 pages au lieu des 831 de la table.
 --
 -- Q-J (décision du 22/10) : le chiffre est la population CARROYÉE (Filosofi, ménages fiscaux ; 63,8 M), pas la
 -- population légale. Toute réponse porte `reference` (source, millésime, population et carreaux de France pour la
@@ -54,7 +58,9 @@
 --   (bornes du plan : ARA iris ≤ 2 s / 500 000 ; BdR cp ≤ 0,3 s). ARA déborde `work_mem` (4 Mo) au tri du
 --   `distinct on` : ≈ 14-30 Mo de fichiers temporaires, laissés tels quels (un `work_mem` de fonction relèverait la
 --   mémoire de CHAQUE appel sur un compute Micro partagé).
--- Droits : service_role. Rejouable (`create or replace`, aucun `drop`).
+-- Droits : service_role. Rejouable (`create or replace`, `if not exists`, aucun `drop`).
+
+create index if not exists idx_cp_population_totale_construit_le on public.cp_population_totale (construit_le);
 
 -- Les carreaux de `carreau_couverture` dont le centroïde est dans une forme (4326), chacun une fois, avec l'effectif
 -- de la cible de rang `p_rang`. SANS `set search_path` : la fonction est alors INLINÉE dans l'appelant (qui fixe le
@@ -139,8 +145,11 @@ begin
       v_motif := 'denominateur_iris_perime';
     end if;
   elsif v_motif is null and p_decoupage = 'cp' then
-    if not exists (select 1 from public.cp_population_totale) then
+    select max(cp.construit_le) into v_denom_le from public.cp_population_totale cp;
+    if v_denom_le is null then
       v_motif := 'denominateur_cp_absent';
+    elsif v_denom_le > (select max(b.construit_le) from public.carreau_couverture_bandes b) then
+      v_motif := 'denominateur_cp_plus_recent';
     end if;
   end if;
   if v_motif is not null then

@@ -190,6 +190,18 @@ describe('péremption (Review Focus 2, R-2)', () => {
       rollback;`);
     expect(sortie).toBe('true|couverture_non_construite');
   }, LONG);
+
+  it('le dénominateur CP est reconstruit APRÈS la base : le cache CP n’est plus servi, le calcul refuse (n° 6)', async () => {
+    await couvrir(zone, org);
+    const sortie = psql(`begin;
+      update public.cp_population_totale set construit_le = clock_timestamp() + interval '1 hour'
+       where code_postal = (select min(code_postal) from public.cp_population_totale);
+      select (public.couverture_zone_en_cache('${zone}', '${org}', 'ind', 'cp') is null)::text
+          || '|' || (public.couverture_zone('${zone}', '${org}', 'ind', 'cp')->>'motif');
+      rollback;`);
+    expect(sortie).toBe('true|denominateur_cp_plus_recent');
+    expect((await enCache(zone, org))?.cache).toBe(true);
+  }, LONG);
 });
 
 describe('cascade', () => {

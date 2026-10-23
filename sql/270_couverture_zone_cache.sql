@@ -3,7 +3,7 @@
 --
 -- CE QU'IL FAIT. Un chiffrage `couverture_geometrie` (sql/269) par (zone, cible, découpage) est gardé tant que RIEN de
 -- ce qui le produit n'a changé : un second affichage ne coûte qu'une lecture de clé primaire et ne consomme aucun jeton
--- de quota (A-16). Une ligne n'est servie que si les QUATRE conditions tiennent, jugées en SQL dans la même requête :
+-- de quota (A-16). Une ligne n'est servie que si les CINQ conditions tiennent, jugées en SQL dans la même requête :
 --   1. la zone est DE L'ESPACE demandé (`custom_geo_zones.org_id = p_org_id`) — correction R-1 de la relecture : sans
 --      ce contrôle, l'id d'une zone connu d'un autre espace lirait son chiffrage en cache. Les RLS sont dormantes (la
 --      route parle en service_role) : le contrôle est ICI, pas dans une policy ;
@@ -12,8 +12,10 @@
 --   3. `base_construite_le = max(construit_le)` du journal `carreau_couverture_bandes` — correction R-2 : reconstruire
 --      la table étroite (une bande, ou tout) périme tout le cache sans le vider ;
 --   4. `carreau_couverture_complete()` est NULL — une base qui n'est plus certifiée complète (sql/268) ne sert plus de
---      chiffre ; le calcul, lui, la refuse (`couverture_non_construite`). 27 lignes lues.
--- Une ÉGALITÉ, jamais un ordre : toute différence périme, dans les deux sens.
+--      chiffre ; le calcul, lui, la refuse (`couverture_non_construite`). 27 lignes lues ;
+--   5. pour un découpage CP, le dénominateur n'est pas plus récent que la base (`denominateur_cp_plus_recent`,
+--      sql/269) : un `max` par index.
+-- Une ÉGALITÉ pour 2 et 3, jamais un ordre : toute différence périme, dans les deux sens.
 --
 -- POURQUOI `zone_maj` EST LU AVANT LE CALCUL. `couverture_zone` lit `updated_at` dans une instruction, puis calcule
 -- dans la suivante (nouvel instantané). Si la zone change entre les deux, le calcul voit la NOUVELLE forme mais la
@@ -79,6 +81,7 @@ as $fn$
      and c.zone_maj = g.updated_at
      and c.base_construite_le = (select max(b.construit_le) from public.carreau_couverture_bandes b)
      and public.carreau_couverture_complete() is null
+     and (c.decoupage <> 'cp' or (select max(cp.construit_le) from public.cp_population_totale cp) <= c.base_construite_le)
 $fn$;
 
 comment on function public.couverture_zone_en_cache(uuid, uuid, text, text) is
