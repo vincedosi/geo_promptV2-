@@ -156,6 +156,16 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `couverture_zone_en_cache()` | 270 | Le chiffrage en cache s'il est encore valide (espace, `updated_at`, date de construction, certificat), sinon `NULL` |
 | `couverture_zone()` | 270 | Le cache, sinon `couverture_geometrie` ; écrit le cache pour un chiffrage, jamais pour un refus |
 | `construire_denominateur_iris()` | 267 | Maille `iris` d'`unite_population_totale` construite depuis `carreau_couverture` (même règle que le numérateur, jamais `iris.population`) ; efface et réécrit la seule maille `iris`, ≈ 18 s ; refuse sans table certifiée (`carreau_couverture_complete`, 268) |
+| `resoudre_perimetre()` | 253, 265 | Le périmètre de ① en géométrie (département et région sur `geom_perimetre`, sql/265), avec les refus de bornes ; garde commune des calculs de zones |
+| `creer_zone_recette()` · `remplacer_geometrie_zone()` · `zone_referencee()` | 253 | Écrit une zone à recette (`custom_geo_zones.recette`), remplace sa forme en place, dit si elle est citée (plan, jeu, composite) |
+| `zone_rayon_poi()` | 254 | Zone fabriquée : union des disques autour des POI d'une catégorie dans le périmètre |
+| `zone_seuil_carreaux()` | 255 | Zone fabriquée : union des carreaux Filosofi au-delà d'un seuil d'indicateur, bornée au département |
+| `zone_seuil_territoire()` | 256 | Zone fabriquée : union des CP ou IRIS au-delà d'un seuil |
+| `boucher_interstices()` | 265 | Bouche les fentes de couture d'un contour de département ou de région, vraies enclaves gardées ; remplit `geom_perimetre` (migration psql : `\if :{?forcer_perimetres}`) |
+| `carreaux_de_forme()` | 269 | LA règle « carreaux d'une forme » (centroïde, `ST_Subdivide` + `ST_Intersects` + `distinct on`), inlinée dans ses deux appelants |
+| `courbes_par_palier()` | 272 | Mise en forme commune des courbes de couverture par rayon (cumul, grille, incréments) |
+| `couverture_rayon_poi()` | 272 | Couverture par rayon autour de tout type de POI, sans pré-calcul (`jsonb`, ≤ 12 000 km², ≤ 5 000 POI) |
+| `croisements_zone()` | 273 | Radio et trafic d'une zone de l'espace (`jsonb`, listes bornées, ≤ 100 000 km²) |
 
 ---
 

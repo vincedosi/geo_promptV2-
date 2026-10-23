@@ -110,9 +110,9 @@ declare
   v_sans_cp  bigint;
   v_sans_iri bigint;
 begin
-  -- Une construction, pas une lecture d'écran. Appelée par psql dans le conteneur (jamais par PostgREST, que Kong
-  -- coupe à 60 s) : le délai de la session n'est pas armé à 8 s comme celui d'`authenticator`.
-  set local statement_timeout = '30min';
+  -- Une construction, pas une lecture d'écran : appelée par psql dans le conteneur, rôle `postgres`, sans délai (jamais
+  -- par PostgREST, que Kong coupe à 60 s, ni sous les 8 s d'`authenticator`). Aucun `statement_timeout` posé ici : un
+  -- `set local` dans le corps n'arme pas l'instruction EN COURS (relecture de T3, r6).
   set local work_mem = '64MB';
 
   if p_n_bandes < 1 or p_bande < 0 or p_bande >= p_n_bandes then

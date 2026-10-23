@@ -31,9 +31,11 @@
 -- garde ses trous jusqu'au lot 5. Le 22/10, aucune zone de `custom_geo_zones` n'avait une telle recette.
 --
 -- REJOUABLE : la colonne n'est calculée que là où elle est NULL ; une seconde application ne recalcule rien.
--- Pour FORCER le recalcul (contours de référence rechargés) :
+-- Pour FORCER le recalcul (contours de référence rechargés ; `11-reconstruire.sh` le fait avec FORCER_PERIMETRES=1) :
 --   docker exec -i supabase_db_genesis_app psql -U postgres -v forcer_perimetres=1 < sql/265_perimetres_sans_interstices.sql
--- Durée mesurée du remplissage complet : voir le rapport de T2 (≈ 10 s en local).
+-- ⚠ `\if :{?forcer_perimetres}` force dès que la variable est DÉFINIE, même à 0. C'est une méta-commande psql : cette
+-- migration ne passe que par psql (pas par un éditeur SQL ni `apply_migration`).
+-- Durée mesurée du remplissage complet : 17,2 s en local (rapport de T2).
 
 alter table public.ref_departements add column if not exists geom_perimetre geometry(MultiPolygon, 4326);
 alter table public.ref_regions      add column if not exists geom_perimetre geometry(MultiPolygon, 4326);
@@ -43,6 +45,8 @@ comment on column public.ref_departements.geom_perimetre is
 comment on column public.ref_regions.geom_perimetre is
   'geom dont les interstices de couture entre communes sont bouchés, vraies enclaves gardées (boucher_interstices). Lue par resoudre_perimetre. sql/265.';
 
+-- GIST : aucune lecture spatiale aujourd'hui (`resoudre_perimetre` lit par code), mais la colonne remplace `geom` pour
+-- tout calcul à venir qui chercherait un département PAR POSITION ; sans coût sur 122 lignes.
 create index if not exists idx_ref_dept_geom_perimetre    on public.ref_departements using gist (geom_perimetre);
 create index if not exists idx_ref_regions_geom_perimetre on public.ref_regions      using gist (geom_perimetre);
 
