@@ -11,6 +11,7 @@ import {
 import { BORNES_PART } from '../../couches/couche-couverture';
 import { ChoixCibleComponent } from './choix-cible.component';
 import { ChoixZoneAnalyseeComponent } from './choix-zone-analysee.component';
+import { CroisementsZoneComponent } from './croisements-zone.component';
 import {
   BOUTON_CALCUL, CORPS_ACCORDEON, ENCART_AVERTISSEMENT_LISIBLE, ENCART_ERREUR, ENTETE_ACCORDEON, LIBELLE_CHAMP, PASTILLE, PASTILLE_INACTIVE,
   PASTILLE_PRIMAIRE_ACTIVE,
@@ -20,7 +21,7 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
 /**
  * ④ Analyse — l'outil « Couverture d'une zone » (lot 4, T8), en tête du panneau Analyse et ouvert par défaut : choisir
  * une zone enregistrée, la cible et le découpage, « Chiffrer la zone », lire les chiffres et les voir sur la carte
- * (`CouvertureService`). Sans équivalent React.
+ * (`CouvertureService`) ; dessous, sa radio et son trafic (`mg-croisements-zone`, T13). Sans équivalent React.
  *
  * ── HORS GARDE DE PÉRIMÈTRE ① ─────────────────────────────────────────────
  * La zone EST le périmètre : l'outil appelle `ZoneAnalyseeService.chiffrer()` lui-même, sans `verifierPerimetreOutil`.
@@ -38,7 +39,7 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
  */
 @Component({
   selector: 'mg-outil-couverture',
-  imports: [ChoixCibleComponent, ChoixZoneAnalyseeComponent, KpiComponent, TableauCouvertureZoneComponent],
+  imports: [ChoixCibleComponent, ChoixZoneAnalyseeComponent, CroisementsZoneComponent, KpiComponent, TableauCouvertureZoneComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   template: `
@@ -125,6 +126,9 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
             <div data-calcule class="font-mono text-[10px] text-tertiary">Calculé le {{ date(r.calcule_le) }}@if (r.cache) { · en cache}</div>
           </div>
         }
+
+        <!-- Hors du résultat : ni la cible ni le découpage ne changent la radio et le trafic de la zone (T13). -->
+        @if (z.zoneId(); as id) { <mg-croisements-zone [zoneId]="id" /> }
       </div>
     }
   `,

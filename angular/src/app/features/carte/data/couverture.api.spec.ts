@@ -28,6 +28,12 @@ describe('CouvertureApi', () => {
     http.expectOne('https://hote.example/distant/api/zones/a%2Fb/couverture?cible=ind_18_24&decoupage=iris');
     http.verify();
   });
+  it('croisements : GET /api/zones/<id>/croisements, id encodé, sur baseUrl', () => {
+    const { api, http } = preparer('https://hote.example/distant');
+    api.croisements('a/b').subscribe();
+    expect(http.expectOne('https://hote.example/distant/api/zones/a%2Fb/croisements').request.method).toBe('GET');
+    http.verify();
+  });
   it('rayon : GET /api/analyses/couverture-rayon?<requête>, sur baseUrl', () => {
     const { api, http } = preparer('https://hote.example/distant');
     api.rayon('categorie=lycee&perimetre_type=departement&perimetre_code=13').subscribe();

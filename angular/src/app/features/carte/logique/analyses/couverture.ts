@@ -70,6 +70,24 @@ export interface ResultatCouverture {
   zone_maj: string;
 }
 
+/** La réponse 200 de `GET /api/zones/[id]/croisements` (sql/273, T13) : listes bornées, compteurs = totaux. */
+export interface ResultatCroisements {
+  radio: {
+    n_emetteurs: number;
+    /** Émetteurs dans la zone sans rayon de couverture : non comptés dans `n_emetteurs`. */
+    n_sans_rayon: number;
+    emetteurs: Array<{ site: string; commune: string | null; frequence_mhz: number | null; puissance_w: number | null; stations: string[] }>;
+    tronque: boolean;
+  };
+  trafic: {
+    n_comptages: number;
+    tmja_max: number | null;
+    tmja_median: number | null;
+    comptages: Array<{ route: string; tmja: number; annee_mesure: number; type_comptage: string }>;
+    tronque: boolean;
+  };
+}
+
 /** `?couverture=<cible>.<decoupage>` → cible et découpage. Absent ou illisible : les défauts. Ne lève jamais. */
 export function lireParamCouverture(brut: string | null | undefined): { cible: string; decoupage: Decoupage } {
   const defaut = { cible: CIBLE_PAR_DEFAUT, decoupage: DECOUPAGE_PAR_DEFAUT };

@@ -6962,6 +6962,10 @@ export type Database = {
         }
         Returns: Json
       }
+      croisements_zone: {
+        Args: { p_limite?: number; p_org_id: string; p_zone_id: string }
+        Returns: Json
+      }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       disablelongtransactions: { Args: never; Returns: string }
       drop_carreaux_table: { Args: { table_name: string }; Returns: undefined }

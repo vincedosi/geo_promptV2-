@@ -67,14 +67,14 @@ describe('source de la route', () => {
     expect(s).not.toContain('getUser(');
     expect(s).not.toMatch(/new Map\(/);
   });
-  it('UN limiteur propre : 6 / 60 s / compte, préfixe geo:rl:couverture (A-16, correction R-4) — pas celui des zones', async () => {
+  it('UN limiteur : 6 / 60 s / compte, préfixe geo:rl:couverture (A-16, correction R-4), partagé avec T13 — pas celui des zones', async () => {
     // `session-zones.ts`, importé pour `espaceDeZone`, crée aussi le sien (`geo:rl:zones`) : la route ne l'emploie pas.
     expect(limiteurs.filter((l) => (l as { prefix: string }).prefix === 'geo:rl:couverture'))
       .toEqual([{ max: 6, window: '60 s', prefix: 'geo:rl:couverture' }]);
     const { readFileSync } = await import('node:fs');
     const s = readFileSync('app/api/zones/[id]/couverture/route.ts', 'utf8');
-    expect(s.match(/createRateLimiter\(/g)).toHaveLength(1);
-    expect(s).not.toContain('quotaZones');
+    expect(s).toContain('quotaCouverture(');
+    expect(s).not.toMatch(/createRateLimiter\(|quotaZones/);
   });
 });
 

@@ -13,22 +13,20 @@
  * client : c'est lui seul qui part en `p_org_id` (Review Focus 1). Les RLS sont dormantes (service_role) : le contrôle
  * d'espace est dans les deux RPC, sur ce `p_org_id`.
  *
- * Quota (A-16, correction R-4) : 6 / min / compte, consommé APRÈS la lecture du cache — un chiffrage en cache ne coûte
- * pas de jeton. Au pire (ARA par IRIS ≈ 68 000 accès mesurés en T5 ; 347 000 dans le plan), ≈ 2,1 M accès / min /
+ * Quota (A-16, correction R-4) : 6 / min / compte, partagé avec `croisements` (T13), consommé APRÈS la lecture du
+ * cache — un chiffrage en cache ne coûte pas de jeton. Au pire (ARA par IRIS ≈ 68 000 accès mesurés en T5 ; 347 000 dans le plan), ≈ 2,1 M accès / min /
  * compte. Statuts des refus : `lib/zones/couverture.ts`.
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth } from '@/lib/api/middleware';
-import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { espaceDeZone } from '@/lib/zones/session-zones';
-import { MESSAGES_REFUS_COUVERTURE, RequeteCouvertureSchema, repondreCouverture } from '@/lib/zones/couverture';
+import { MESSAGES_REFUS_COUVERTURE, RequeteCouvertureSchema, quotaCouverture, repondreCouverture } from '@/lib/zones/couverture';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const limiteur = createRateLimiter({ max: 6, window: '60 s', prefix: 'geo:rl:couverture' });
 const Uuid = z.string().uuid();
 const ECHEC = 'Calcul de la couverture impossible.';
 const echec = () => NextResponse.json({ error: ECHEC }, { status: 500 });
@@ -63,8 +61,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
   if (cache.data !== null) return repondre(cache.data, 'cache');
 
-  const quota = await limiteur(s.espace.userId);
-  if (!quota.ok) return rateLimitResponse(quota.retrySec);
+  const refusQuota = await quotaCouverture(s.espace.userId);
+  if (refusQuota) return refusQuota;
 
   const calcul = await supabase.rpc('couverture_zone', args);
   if (calcul.error) {

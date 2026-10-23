@@ -1,0 +1,130 @@
+/**
+ * `croisements_zone` (sql/273, lot 4, T13) — les émetteurs radio dont le cercle touche une zone et les comptages
+ * routiers qui la traversent. Lecture seule, `jsonb`, listes bornées.
+ *
+ * Ce que ce fichier prouve :
+ *   - Bouches-du-Rhône : au moins un émetteur, stations dédoublonnées et triées, compteurs = totaux ;
+ *   - le pré-filtre `&&` (emprise élargie du plus grand rayon) ne perd AUCUN émetteur : même compte que sans index ;
+ *   - `p_limite = 1` : une ligne par liste, `tronque`, totaux inchangés ;
+ *   - zone d'un autre espace : `zone_introuvable` ; limite hors bornes : 22023.
+ *
+ * Zones créées par `creer_zone_recette` dans deux espaces de test, supprimés (cascade) en fin de fichier.
+ */
+import { spawnSync } from 'node:child_process';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { creerClientTest } from './_client';
+
+const admin = creerClientTest();
+const CONTENEUR = process.env.CONTENEUR_PG ?? 'supabase_db_genesis_app';
+const LONG = 120_000;
+
+function psql(script: string): string {
+  const r = spawnSync('docker', ['exec', '-i', CONTENEUR, 'psql', '-U', 'postgres', '-X', '-q', '-At', '-v', 'ON_ERROR_STOP=1'], {
+    input: script, encoding: 'utf8',
+  });
+  if (r.status !== 0) throw new Error(`psql (${r.status}) : ${r.stderr}`);
+  const lignes = r.stdout.trim().split('\n');
+  return lignes[lignes.length - 1];
+}
+
+interface Croisements {
+  refus?: string;
+  radio: {
+    n_emetteurs: number; n_sans_rayon: number; tronque: boolean;
+    emetteurs: { site: string; commune: string | null; frequence_mhz: number | null; puissance_w: number | null; stations: string[] }[];
+  };
+  trafic: {
+    n_comptages: number; tmja_max: number | null; tmja_median: number | null; tronque: boolean;
+    comptages: { route: string; tmja: number; annee_mesure: number; type_comptage: string }[];
+  };
+}
+
+let org = '';
+let autreOrg = '';
+let bdr = '';
+
+async function nouvelleOrg(nom: string) {
+  const { data, error } = await admin.from('organizations')
+    .insert({ name: `[ESSAI lot4 T13] ${nom}`, slug: `essai-lot4-t13-${nom}-${Date.now()}` }).select('id').single();
+  if (error || !data) throw new Error(error?.message);
+  return data.id as string;
+}
+
+async function croisements(zone: string, args: Record<string, unknown> = {}, o = org) {
+  return admin.rpc('croisements_zone', { p_zone_id: zone, p_org_id: o, ...args });
+}
+
+beforeAll(async () => {
+  org = await nouvelleOrg('a');
+  autreOrg = await nouvelleOrg('b');
+  bdr = psql(`select public.creer_zone_recette('Département 13', '${org}', null, '{"v":1,"type":"dessin"}', ST_AsGeoJSON(r.g))->>'id'
+                from public.resoudre_perimetre('departement', '13', null, 100000, array['departement']) r;`);
+}, LONG);
+
+afterAll(async () => {
+  for (const o of [org, autreOrg]) {
+    if (!o) continue;
+    const { error } = await admin.from('organizations').delete().eq('id', o);
+    if (error) throw new Error(`nettoyage : ${error.message}`);
+  }
+});
+
+describe('croisements_zone — Bouches-du-Rhône', () => {
+  it('au moins un émetteur, stations dédoublonnées et triées ; comptages ≥ 0, TMJA cohérents', async () => {
+    const { data, error } = await croisements(bdr);
+    expect(error).toBeNull();
+    const r = data as Croisements;
+    expect(r.radio.n_emetteurs).toBeGreaterThan(0);
+    expect(r.radio.emetteurs).toHaveLength(Math.min(r.radio.n_emetteurs, 200));
+    expect(r.radio.tronque).toBe(r.radio.n_emetteurs > 200);
+    expect(r.radio.n_sans_rayon).toBeGreaterThanOrEqual(0);
+    for (const e of r.radio.emetteurs) {
+      expect(e.site).toBeTruthy();
+      // Triées dans la collation de la base (en_US : « Beur FM » avant « BFM Radio »).
+      expect(e.stations).toEqual([...new Set(e.stations)].sort(new Intl.Collator('en').compare));
+    }
+    expect(r.trafic.n_comptages).toBeGreaterThanOrEqual(0);
+    expect(r.trafic.comptages).toHaveLength(Math.min(r.trafic.n_comptages, 200));
+    if (r.trafic.n_comptages > 0) {
+      expect(r.trafic.tmja_max).toBe(r.trafic.comptages[0].tmja);
+      expect(r.trafic.tmja_median!).toBeLessThanOrEqual(r.trafic.tmja_max!);
+    }
+  });
+
+  it('le pré-filtre par emprise élargie ne perd aucun émetteur : même compte que le prédicat seul', async () => {
+    const { data } = await croisements(bdr);
+    const brut = Number(psql(`select count(*) from public.emetteurs_radio e, public.custom_geo_zones z
+                               where z.id = '${bdr}' and e.rayon_couverture_m is not null
+                                 and ST_DWithin(e.geom::geography, z.geometry::geography, e.rayon_couverture_m);`));
+    expect((data as Croisements).radio.n_emetteurs).toBe(brut);
+    const comptages = Number(psql(`select count(*) from public.comptages_routiers c, public.custom_geo_zones z
+                                    where z.id = '${bdr}' and ST_Intersects(c.geom, z.geometry);`));
+    expect((data as Croisements).trafic.n_comptages).toBe(comptages);
+  });
+
+  it('limite 1 : une ligne par liste, tronque, totaux inchangés', async () => {
+    const tout = (await croisements(bdr)).data as Croisements;
+    const r = (await croisements(bdr, { p_limite: 1 })).data as Croisements;
+    expect(r.radio.emetteurs).toHaveLength(1);
+    expect(r.radio.tronque).toBe(true);
+    expect(r.radio.n_emetteurs).toBe(tout.radio.n_emetteurs);
+    expect(r.radio.emetteurs[0]).toEqual(tout.radio.emetteurs[0]);
+    expect(r.trafic.comptages).toHaveLength(Math.min(1, tout.trafic.n_comptages));
+    expect(r.trafic.tronque).toBe(tout.trafic.n_comptages > 1);
+    expect(r.trafic.tmja_median).toBe(tout.trafic.tmja_median);
+  });
+});
+
+describe('croisements_zone — refus', () => {
+  it('zone d’un autre espace : zone_introuvable', async () => {
+    const { data, error } = await croisements(bdr, {}, autreOrg);
+    expect(error).toBeNull();
+    expect(data).toEqual({ refus: 'zone_introuvable' });
+  });
+  it('limite hors bornes : 22023', async () => {
+    for (const p_limite of [0, 1001]) {
+      const { error } = await croisements(bdr, { p_limite });
+      expect(error?.code, String(p_limite)).toBe('22023');
+    }
+  });
+});

@@ -13,6 +13,19 @@
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
+
+/**
+ * Le quota `geo:rl:couverture`, 6 / min / compte, PARTAGÉ par les deux lectures d'une zone de ④ : sa couverture (T6)
+ * et sa radio et son trafic (T13). Un seul limiteur : deux déclarations du même préfixe pourraient diverger.
+ */
+const limiteurCouverture = createRateLimiter({ max: 6, window: '60 s', prefix: 'geo:rl:couverture' });
+
+/** `null` quand il reste un jeton, sinon la réponse 429. */
+export async function quotaCouverture(userId: string): Promise<NextResponse | null> {
+  const quota = await limiteurCouverture(userId);
+  return quota.ok ? null : rateLimitResponse(quota.retrySec);
+}
 
 /** Les trois découpages admis — exporté pour la copie Angular (`couverture-paritaire.test.ts`). */
 export const DECOUPAGES = ['forme', 'cp', 'iris'] as const;
