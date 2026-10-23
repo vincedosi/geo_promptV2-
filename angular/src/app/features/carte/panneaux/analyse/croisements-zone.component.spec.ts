@@ -66,7 +66,7 @@ describe('mg-croisements-zone (lot 4, T13)', () => {
     z.croisements.erreur.set('Zone introuvable dans cet espace.');
     await stable();
     const erreur = el.querySelector('[data-erreur]')!;
-    expect(erreur.textContent).toContain('n’existe pas dans cet espace');
+    expect(erreur.textContent).toContain('Zone introuvable dans cet espace');
     expect(erreur.compareDocumentPosition(el.querySelector('[data-lire-croisements]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

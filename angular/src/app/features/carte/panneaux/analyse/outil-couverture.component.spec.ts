@@ -171,7 +171,7 @@ describe('mg-outil-couverture (lot 4, T8)', () => {
     expect(el.querySelectorAll('[data-erreur]')).toHaveLength(1); // zone présente : le bloc le dit, une seule fois
     z.zoneId.set(null);
     await stable();
-    expect(el.querySelector('[data-erreur]')!.textContent).toContain('n’existe pas dans cet espace');
+    expect(el.querySelector('[data-erreur]')!.textContent).toContain('Zone introuvable dans cet espace');
   });
 
   it('Q2 : couche retirée de la carte → la ligne le dit, « Afficher sur la carte » la remet (sans re-chiffrer)', async () => {

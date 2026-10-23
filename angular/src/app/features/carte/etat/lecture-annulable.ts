@@ -2,8 +2,8 @@ import { DestroyRef, effect, inject, signal, untracked } from '@angular/core';
 import type { Observable, Subscription } from 'rxjs';
 
 /**
- * Une lecture HTTP annulable (P-c) — le cycle commun de la zone analysée, du score composite et de la couverture par
- * rayon de ④ (lot 4, T12, relecture I3). Une lecture relancée ou annulée est DÉSABONNÉE (la requête part à la
+ * Une lecture HTTP annulable (P-c) — le cycle commun des lectures de ④ (lot 4, T12, relecture I3 ; vague finale n° 10) :
+ * zone analysée, score composite, couverture par rayon, contours, catalogue des cibles, liste des zones. Une lecture relancée ou annulée est DÉSABONNÉE (la requête part à la
  * corbeille) et son jeton invalidé : une réponse qui arriverait quand même n'est jamais affichée. Désabonnée au
  * `DestroyRef` de son propriétaire : à créer dans un contexte d'injection (initialiseur de champ).
  */
@@ -42,6 +42,17 @@ export class LectureAnnulable<T> {
         this.erreur.set(message);
       },
     });
+  }
+
+  /** Lit `source()` s'il n'y a ni résultat ni lecture en vol : une lecture par propriétaire, un échec se relit au prochain appel. */
+  chargerUneFois(source: () => Observable<T>): void {
+    if (this.resultat() === null && !this.enCours()) this.lancer(source());
+  }
+
+  /** Un refus dit par l'écran, sans requête : la lecture en vol est annulée, le résultat effacé, le message posé. */
+  refuser(message: string): void {
+    this.perimer();
+    this.erreur.set(message);
   }
 
   /** Désabonne la lecture en vol et invalide son jeton ; le résultat et le message restent. */

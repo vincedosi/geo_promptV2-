@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
-import type { Subscription } from 'rxjs';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { type Cible, ProfilRisqueApi } from '../../../risques/data/profil-risque.api';
+import { LectureAnnulable } from '../../etat/lecture-annulable';
 import { messageErreurRequete } from '../../logique/analyses/commun';
 import { CIBLE_PAR_DEFAUT } from '../../logique/analyses/couverture';
 import { LIBELLE_CHAMP, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } from './styles-analyse';
@@ -50,9 +50,13 @@ export class ChoixCibleComponent {
 
   private readonly api = inject(ProfilRisqueApi);
   protected readonly ouverte = signal(false);
-  private readonly catalogue = signal<Cible[]>([]);
-  protected readonly chargement = signal(false);
-  protected readonly erreur = signal<string | null>(null);
+  private readonly lecture = new LectureAnnulable<{ cibles: Cible[] }>(messageErreurRequete);
+  private readonly catalogue = computed(() => {
+    const c = this.lecture.resultat()?.cibles;
+    return Array.isArray(c) ? c : [];
+  });
+  protected readonly chargement = this.lecture.enCours.asReadonly();
+  protected readonly erreur = this.lecture.erreur.asReadonly();
 
   protected readonly libelleChamp = LIBELLE_CHAMP;
   protected readonly pastille = PASTILLE;
@@ -70,14 +74,10 @@ export class ChoixCibleComponent {
     return this.catalogue().find((c) => c.code === code)?.libelle ?? (code === CIBLE_PAR_DEFAUT ? LIBELLE_CIBLE_DEFAUT : code);
   });
 
-  private lecture: Subscription | null = null;
-  private demandee = false;
-
   constructor() {
     effect(() => {
       if (this.cible() !== CIBLE_PAR_DEFAUT) untracked(() => this.charger());
     });
-    inject(DestroyRef).onDestroy(() => this.lecture?.unsubscribe());
   }
 
   protected ouvrir(): void {
@@ -91,20 +91,6 @@ export class ChoixCibleComponent {
   }
 
   private charger(): void {
-    if (this.demandee) return;
-    this.demandee = true;
-    this.chargement.set(true);
-    this.erreur.set(null);
-    this.lecture = this.api.cibles().subscribe({
-      next: (r) => {
-        this.catalogue.set(Array.isArray(r.cibles) ? r.cibles : []);
-        this.chargement.set(false);
-      },
-      error: (e: unknown) => {
-        this.chargement.set(false);
-        this.erreur.set(messageErreurRequete(e));
-        this.demandee = false;
-      },
-    });
+    this.lecture.chargerUneFois(() => this.api.cibles());
   }
 }

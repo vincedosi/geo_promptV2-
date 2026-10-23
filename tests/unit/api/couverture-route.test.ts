@@ -125,7 +125,7 @@ describe('refus de la RPC → statut et message français', () => {
     [{ refus: 'zone_introuvable' }, 404, /^Zone introuvable dans cet espace\.$/],
     [{ refus: 'cible_inconnue' }, 422, /cible n’est pas connue/],
     [{ refus: 'zone_trop_vaste', surface_km2: 180000, plafond_km2: 100000 }, 422, /trop vaste/],
-    [{ refus: 'trop_de_carreaux', plafond: 400000 }, 422, /plus de 400 000 carreaux/],
+    [{ refus: 'trop_de_carreaux', plafond: 400000 }, 422, /plus de 400\u202f000 carreaux/],
     [{ refus: 'couverture_non_construite', motif: 'jamais_certifiee' }, 503, /pas encore construite/],
   ];
   for (const [donnee, statut, message] of cas) {

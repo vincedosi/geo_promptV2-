@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
-import type { Subscription } from 'rxjs';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import { from, map, switchMap, throwError } from 'rxjs';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { plierTexte } from '../../../../core/format/texte';
 import { ZonesCustomApi, type ZoneCustomResume } from '../../data/zones-custom.api';
 import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
+import { LectureAnnulable } from '../../etat/lecture-annulable';
 import type { IndicateurRegistre } from '../../logique/analyses/score';
 import { messageErreurRequete } from '../../logique/analyses/commun';
 import { libelleRecette } from '../../logique/zones/recette';
@@ -24,6 +25,8 @@ import { LIBELLE_CHAMP, LISTE_CHAMP, PASTILLE, PASTILLE_INACTIVE } from './style
  * Si la liste ne peut pas être lue alors qu'une zone est déjà choisie (lien), l'échec est dit SOUS la zone, sans
  * ouvrir la liste (relecture de T7).
  */
+const SANS_ESPACE = 'Aucun espace actif : impossible de lister les zones.';
+
 @Component({
   selector: 'mg-choix-zone-analysee',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -93,11 +96,13 @@ export class ChoixZoneAnalyseeComponent {
 
   protected readonly ouvert = signal(false);
   protected readonly filtre = signal('');
-  protected readonly zones = signal<ZoneCustomResume[]>([]);
-  protected readonly chargement = signal(false);
-  protected readonly erreur = signal<string | null>(null);
-  /** Le catalogue d'indicateurs, pour nommer un seuil sur territoires (sinon l'identifiant s'affiche). */
-  private readonly indicateurs = signal<readonly IndicateurRegistre[]>([]);
+  private readonly lecture = new LectureAnnulable<ZoneCustomResume[]>((e) => (e === SANS_ESPACE ? SANS_ESPACE : messageErreurRequete(e)));
+  protected readonly zones = computed(() => this.lecture.resultat() ?? []);
+  protected readonly chargement = this.lecture.enCours.asReadonly();
+  protected readonly erreur = this.lecture.erreur.asReadonly();
+  /** Le catalogue d'indicateurs, pour nommer un seuil sur territoires (sinon l'identifiant s'affiche ; un échec se tait). */
+  private readonly lectureIndicateurs = new LectureAnnulable<readonly IndicateurRegistre[]>(() => '');
+  private readonly indicateurs = computed(() => this.lectureIndicateurs.resultat() ?? []);
   private readonly seuilListe = computed(() => this.zones().some((z) => z.recette?.type === 'seuil_territoire'));
 
   /** Les zones dont le nom contient le filtre (sans casse ni accents), avec le libellé de leur recette. */
@@ -116,10 +121,6 @@ export class ChoixZoneAnalyseeComponent {
     return z?.recette ? libelleRecette(z.recette, this.indicateurs()) : null;
   });
 
-  private demandee = false;
-  private detruit = false;
-  private lecture: Subscription | null = null;
-  private lectureCatalogue: Subscription | null = null;
 
   constructor() {
     // Une zone déjà choisie (lien) : la liste est lue pour dire son nom. Aucune zone : rien n'est lu.
@@ -128,16 +129,7 @@ export class ChoixZoneAnalyseeComponent {
     });
     // Le patron de « Mes zones » : une lecture, seulement si un seuil sur territoires est listé.
     effect(() => {
-      if (!this.seuilListe() || this.lectureCatalogue) return;
-      this.lectureCatalogue = untracked(() => this.catalogue.charger().subscribe({
-        next: (liste) => this.indicateurs.set(liste),
-        error: () => { this.lectureCatalogue = null; },
-      }));
-    });
-    inject(DestroyRef).onDestroy(() => {
-      this.detruit = true;
-      this.lecture?.unsubscribe();
-      this.lectureCatalogue?.unsubscribe();
+      if (this.seuilListe()) untracked(() => this.lectureIndicateurs.chargerUneFois(() => this.catalogue.charger()));
     });
   }
 
@@ -154,30 +146,10 @@ export class ChoixZoneAnalyseeComponent {
 
   /** Une lecture par composant, et seulement avec un espace. */
   private charger(): void {
-    if (this.demandee) return;
-    this.demandee = true;
-    this.chargement.set(true);
-    this.erreur.set(null);
-    void this.auth.lireProfil().then((p) => {
-      const org = p?.organisation ?? null;
-      if (this.detruit) return;
-      if (!org) {
-        this.chargement.set(false);
-        this.erreur.set('Aucun espace actif : impossible de lister les zones.');
-        return;
-      }
-      const params = new URLSearchParams({ org_id: org, _t: String(Date.now()) });
-      this.lecture = this.api.lister(params).subscribe({
-        next: (r) => {
-          this.zones.set(r.zones ?? []);
-          this.chargement.set(false);
-        },
-        error: (e: unknown) => {
-          this.chargement.set(false);
-          this.erreur.set(messageErreurRequete(e));
-          this.demandee = false;
-        },
-      });
-    });
+    this.lecture.chargerUneFois(() => from(this.auth.lireProfil()).pipe(
+      switchMap((p) => (p?.organisation
+        ? this.api.lister(new URLSearchParams({ org_id: p.organisation, _t: String(Date.now()) })).pipe(map((r) => r.zones ?? []))
+        : throwError(() => SANS_ESPACE))),
+    ));
   }
 }

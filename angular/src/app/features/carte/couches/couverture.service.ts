@@ -1,12 +1,13 @@
 import { DestroyRef, Injectable, computed, effect, inject, linkedSignal, signal, untracked } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
-import type { Subscription } from 'rxjs';
+import { map } from 'rxjs';
 import { CouleursService } from '../../../core/theme/couleurs.service';
 import { IrisApi } from '../data/iris.api';
 import { ZonesCustomApi } from '../data/zones-custom.api';
 import { ContoursZonesService } from '../etat/contours-zones.service';
 import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
+import { LectureAnnulable } from '../etat/lecture-annulable';
 import { ZoneAnalyseeService } from '../etat/zone-analysee.service';
 import { bboxDeZone } from '../logique/zones/zones-affichees';
 import {
@@ -65,12 +66,12 @@ export class CouvertureService {
   /** Le territoire survolé dans le tableau ; remis à `null` à chaque résultat. */
   readonly survole = linkedSignal<unknown, string | null>({ source: this.zone.resultat, computation: () => null });
 
-  /** Le contour lu, et la version (`cle` = zone + `zone_maj`) dont il est la forme. */
-  private readonly geometrie = signal<{ cle: string; entite: GeoJSON.Feature } | null>(null);
-  private readonly contoursCp = signal<GeoJSON.FeatureCollection | null>(null);
+  /** Le contour lu, et la version (`cle` = zone + `zone_maj`) dont il est la forme ; sans contour, la part reste peinte. */
+  private readonly contour = new LectureAnnulable<{ cle: string; entite: GeoJSON.Feature } | null>(() => '');
+  private readonly contours = new LectureAnnulable<GeoJSON.FeatureCollection>(() => '');
   /** Contours CP en lecture / en échec : le panneau le dit (le tableau reste lisible). */
-  readonly chargementContours = signal(false);
-  readonly contoursIndisponibles = signal(false);
+  readonly chargementContours = this.contours.enCours.asReadonly();
+  readonly contoursIndisponibles = computed(() => this.contours.erreur() !== null);
 
   private readonly zoom = signal<number | null>(null);
   /** Découpage IRIS sous z9 : rien n'est peint (les tuiles portent des communes) — « Zoomez pour voir les IRIS ». */
@@ -82,8 +83,8 @@ export class CouvertureService {
   private readonly rendu = computed<RenduCouverture | null>(() => {
     const r = this.zone.resultat();
     if (!r || this._masquee()) return null;
-    const g = this.geometrie();
-    const cp = this.contoursCp();
+    const g = this.contour.resultat();
+    const cp = this.contours.resultat();
     return {
       zone: g && g.cle === cleContour(r) ? g.entite : null,
       decoupage: r.decoupage,
@@ -94,12 +95,10 @@ export class CouvertureService {
 
   /** L'instance qui porte les couches — la surbrillance n'écrit que là. */
   private readonly posee = signal<maplibregl.Map | null>(null);
-  private lectureZone: Subscription | null = null;
   /** La version (zone + `zone_maj`) dont le contour est lu ou en lecture ; `null` : aucune. */
   private cleLue: string | null = null;
   /** Le dégradé `couverture` est-il réclamé ? (transition seulement, comme `ScoreService`). */
   private reclame = false;
-  private lectureContours: Subscription | null = null;
 
   constructor() {
     this.couches.inscrireEffacement('couverture', () => this._masquee.set(true));
@@ -130,7 +129,7 @@ export class CouvertureService {
         if (!r || !cle) return;
         if (this.cleLue !== null && this.cleLue !== cle) this.oublierContour();
         if (this.cleLue === null) this.lireZone(r.zone_id, cle);
-        if (r.decoupage === 'cp' && !this.contoursCp() && !this.lectureContours) this.lireContours();
+        if (r.decoupage === 'cp') this.contours.chargerUneFois(() => this.contoursZones.zones('cp'));
       });
     });
 
@@ -178,8 +177,6 @@ export class CouvertureService {
     });
 
     inject(DestroyRef).onDestroy(() => {
-      this.lectureZone?.unsubscribe();
-      this.lectureContours?.unsubscribe();
       const carte = this.couches.carteCourante();
       if (carte) retirerCoucheCouverture(carte);
     });
@@ -196,45 +193,21 @@ export class CouvertureService {
   }
 
   private oublierContour(): void {
-    this.lectureZone?.unsubscribe();
-    this.lectureZone = null;
+    this.contour.perimer();
     this.cleLue = null;
-    this.geometrie.set(null);
   }
 
   private lireZone(id: string, cle: string): void {
     this.cleLue = cle;
-    this.lectureZone = this.zonesApi.geometrie(id).subscribe({
-      next: (f) => {
-        this.lectureZone = null;
-        if (this.cleLue !== cle || !f?.geometry) return;
-        this.geometrie.set({ cle, entite: f as GeoJSON.Feature });
-        const b = bboxDeZone(null, f.geometry);
+    this.contour.lancer(
+      this.zonesApi.geometrie(id).pipe(map((f) => (f?.geometry ? { cle, entite: f as GeoJSON.Feature } : null))),
+      (g) => {
+        const b = g && bboxDeZone(null, g.entite.geometry);
         if (b) this.couches.carteCourante()?.fitBounds([[b[0], b[1]], [b[2], b[3]]], RECADRAGE);
       },
-      // Sans contour, la part reste peinte : on ne bloque pas le reste pour un trait.
-      error: () => {
-        this.lectureZone = null;
-        if (this.cleLue === cle) this.cleLue = null;
-      },
-    });
-  }
-
-  private lireContours(): void {
-    this.chargementContours.set(true);
-    this.contoursIndisponibles.set(false);
-    this.lectureContours = this.contoursZones.zones('cp').subscribe({
-      next: (z) => this.contoursCp.set(z),
-      error: () => {
-        this.lectureContours = null;
-        this.chargementContours.set(false);
-        this.contoursIndisponibles.set(true);
-      },
-      complete: () => {
-        this.lectureContours = null;
-        this.chargementContours.set(false);
-      },
-    });
+      // Échec : relu au prochain résultat de cette zone.
+      () => { this.cleLue = null; },
+    );
   }
 }
 
