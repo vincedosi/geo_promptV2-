@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { formaterNombre } from '../../../../core/format/nombre';
-import { CataloguePoiService } from '../../etat/catalogue-poi.service';
+import { CataloguePoiService, typePoiRetenu } from '../../etat/catalogue-poi.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { perimetreDeFiltre } from '../../logique/zones/perimetre-recette';
 import { MESSAGES_REFUS, RAYON_POI_MAX_M, RAYON_POI_MIN_M, type Recette, refusPerimetreLocal } from '../../logique/zones/recette';
@@ -42,11 +42,7 @@ export class RecetteRayonPoiComponent {
   protected readonly min = RAYON_POI_MIN_M;
   protected readonly max = RAYON_POI_MAX_M;
   protected readonly pas = PAS_RAYON_POI_M;
-  /** Le premier type dès que le catalogue arrive ; gardé tant qu'il existe. */
-  protected readonly categorie = linkedSignal<readonly { id: string }[], string>({
-    source: this.types,
-    computation: (types, avant) => (avant && types.some((t) => t.id === avant.value) ? avant.value : types[0]?.id ?? ''),
-  });
+  protected readonly categorie = typePoiRetenu(this.types);
   protected readonly rayonM = signal(RAYON_POI_DEFAUT_M);
   protected readonly libelleRayon = computed(() => {
     const m = this.rayonM();

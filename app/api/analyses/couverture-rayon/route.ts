@@ -20,7 +20,7 @@ import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
 import { requireAuth } from '@/lib/api/middleware';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { messageAnomalies } from '@/lib/api/valider-corps';
-import { MESSAGES_REFUS_COUVERTURE, RequeteCouvertureSchema, lireReponseCouverture } from '@/lib/zones/couverture';
+import { MESSAGES_REFUS_COUVERTURE, RequeteCouvertureSchema, repondreCouverture } from '@/lib/zones/couverture';
 import { MESSAGES_REFUS, TYPES_PERIMETRE } from '@/lib/zones/recette';
 import { espaceDeZone } from '@/lib/zones/session-zones';
 
@@ -48,8 +48,6 @@ const MESSAGES = {
   trop_de_valeurs: `Plus de ${MAX_VALEURS} valeurs à détailler : retenez-en ${MAX_VALEURS} au plus, ou retirez le détail par champ.`,
   calcul_trop_lourd: 'Calcul trop lourd : réduisez le périmètre, le rayon ou retirez le détail par champ.',
 } as const;
-type Refus = keyof typeof MESSAGES;
-const REFUS = Object.keys(MESSAGES) as Refus[];
 
 const Profil = z.string()
   .transform((s, ctx) => {
@@ -113,14 +111,5 @@ export async function GET(req: NextRequest) {
     if (error.code === '22023') return NextResponse.json({ error: 'Paramètres de calcul invalides.' }, { status: 400 });
     return NextResponse.json({ error: ECHEC }, { status: 500 });
   }
-  const lue = lireReponseCouverture(data, REFUS);
-  if (!lue) {
-    console.error('[analyses/couverture-rayon] réponse hors contrat', data);
-    return NextResponse.json({ error: ECHEC }, { status: 500 });
-  }
-  if (lue.ok) return NextResponse.json(lue.resultat);
-  return NextResponse.json(
-    { error: MESSAGES[lue.refus], refus: lue.refus, ...lue.details },
-    { status: lue.refus === 'couverture_non_construite' ? 503 : 422 },
-  );
+  return repondreCouverture(data, MESSAGES, 'analyses/couverture-rayon', ECHEC);
 }

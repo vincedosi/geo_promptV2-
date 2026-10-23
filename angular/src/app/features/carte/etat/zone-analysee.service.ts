@@ -1,6 +1,5 @@
 import { DestroyRef, Injectable, type Signal, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import type { Subscription } from 'rxjs';
 import { CouvertureApi } from '../data/couverture.api';
 import {
   type Decoupage, PARAM_COUVERTURE, PARAM_ZONE_ANALYSE, type ResultatCouverture, ecrireParamCouverture, lireParamCouverture,
@@ -8,6 +7,7 @@ import {
 } from '../logique/analyses/couverture';
 import { messageErreurCouverture, refusDeLErreur } from '../logique/analyses/couverture-erreurs';
 import { ecrireParametres } from './ecrire-parametres';
+import { LectureAnnulable } from './lecture-annulable';
 
 /**
  * ④ Analyse — la ZONE ANALYSÉE (lot 4, T7, arbitrage A-8) : la zone enregistrée de l'espace que ④ chiffre, sa cible et
@@ -22,8 +22,7 @@ import { ecrireParametres } from './ecrire-parametres';
  * navigations du même tick ne perdent plus de paramètre).
  *
  * ── UNE RÉPONSE QUITTÉE N'EST JAMAIS AFFICHÉE (P-c) ───────────────────────
- * `chiffrer()` désabonne la lecture précédente (la requête HTTP est annulée, comme un `switchMap`) et porte un JETON :
- * une réponse dont le jeton n'est plus le courant est jetée. Changer de zone, de cible ou de découpage efface le
+ * La lecture est une `LectureAnnulable` (désabonnement + jeton : une réponse quittée est jetée). Changer de zone, de cible ou de découpage efface le
  * résultat et annule la lecture en vol ; rien ne repart seul (aucun appel avant « Chiffrer »). Un 404
  * (`zone_introuvable` : zone supprimée ou d'un autre espace — lien partagé) retire `?zoneAnalyse=` et dit le message.
  *
@@ -39,25 +38,21 @@ export class ZoneAnalyseeService {
 
   private readonly _zoneId = signal<string | null>(lireZoneAnalyse(this.route.snapshot.queryParamMap.get(PARAM_ZONE_ANALYSE)));
   private readonly _reglage = signal(lireParamCouverture(this.route.snapshot.queryParamMap.get(PARAM_COUVERTURE)));
-  private readonly _resultat = signal<ResultatCouverture | null>(null);
-  private readonly _enCours = signal(false);
-  private readonly _erreur = signal<string | null>(null);
+  private readonly lecture = new LectureAnnulable<ResultatCouverture>(messageErreurCouverture);
 
   /** L'id de la zone analysée, ou `null`. */
   readonly zoneId: Signal<string | null> = this._zoneId.asReadonly();
   readonly cible: Signal<string> = computed(() => this._reglage().cible);
   readonly decoupage: Signal<Decoupage> = computed(() => this._reglage().decoupage);
   /** Le dernier chiffrage de (zone, cible, découpage) COURANTS ; `null` dès que l'un change. */
-  readonly resultat: Signal<ResultatCouverture | null> = this._resultat.asReadonly();
-  readonly enCours: Signal<boolean> = this._enCours.asReadonly();
+  readonly resultat: Signal<ResultatCouverture | null> = this.lecture.resultat.asReadonly();
+  readonly enCours: Signal<boolean> = this.lecture.enCours.asReadonly();
   /** Le message d'un refus ou d'un échec, en français ; `null` sinon. */
-  readonly erreur: Signal<string | null> = this._erreur.asReadonly();
+  readonly erreur: Signal<string | null> = this.lecture.erreur.asReadonly();
 
   /** Les valeurs BRUTES lues ou écrites en dernier (`null` = absent) : on ne réécrit l'URL que si elle diffère. */
   private dernierZone: string | null = this.route.snapshot.queryParamMap.get(PARAM_ZONE_ANALYSE);
   private dernierCouverture: string | null = this.route.snapshot.queryParamMap.get(PARAM_COUVERTURE);
-  private jeton = 0;
-  private lecture: Subscription | null = null;
   private detruit = false;
 
   constructor() {
@@ -71,7 +66,7 @@ export class ZoneAnalyseeService {
       const reglage = lireParamCouverture(bc);
       const r = this._reglage();
       if (zone !== this._zoneId() || reglage.cible !== r.cible || reglage.decoupage !== r.decoupage) {
-        this.effacer();
+        this.lecture.perimer();
         this._zoneId.set(zone);
         this._reglage.set(reglage);
       }
@@ -89,8 +84,6 @@ export class ZoneAnalyseeService {
     inject(DestroyRef).onDestroy(() => {
       this.detruit = true;
       abonnement.unsubscribe();
-      this.abandonner();
-      this.jeton++;
     });
   }
 
@@ -98,7 +91,7 @@ export class ZoneAnalyseeService {
   choisir(id: string | null): void {
     const zone = id === null ? null : lireZoneAnalyse(id);
     if (zone === this._zoneId()) return;
-    this.effacer();
+    this.lecture.perimer();
     this._zoneId.set(zone);
   }
 
@@ -107,7 +100,7 @@ export class ZoneAnalyseeService {
     const avant = this._reglage();
     const apres = { cible: r.cible ?? avant.cible, decoupage: r.decoupage ?? avant.decoupage };
     if (apres.cible === avant.cible && apres.decoupage === avant.decoupage) return;
-    this.effacer();
+    this.lecture.perimer();
     this._reglage.set(apres);
   }
 
@@ -115,40 +108,11 @@ export class ZoneAnalyseeService {
   chiffrer(): void {
     const id = this._zoneId();
     if (!id || this.detruit) return;
-    this.effacer();
-    const jeton = this.jeton;
+    this.lecture.perimer();
     const { cible, decoupage } = this._reglage();
-    this._enCours.set(true);
-    this.lecture = this.api.couverture(id, cible, decoupage).subscribe({
-      next: (r) => {
-        if (jeton !== this.jeton) return;
-        this.lecture = null;
-        this._resultat.set(r);
-        this._enCours.set(false);
-      },
-      error: (e: unknown) => {
-        if (jeton !== this.jeton) return;
-        this.lecture = null;
-        const message = messageErreurCouverture(e);
-        if (refusDeLErreur(e) === 'zone_introuvable') this.choisir(null);
-        this._enCours.set(false);
-        this._erreur.set(message);
-      },
+    this.lecture.lancer(this.api.couverture(id, cible, decoupage), undefined, (e) => {
+      if (refusDeLErreur(e) === 'zone_introuvable') this.choisir(null);
     });
-  }
-
-  /** Annule la lecture en vol, invalide son jeton, efface résultat et message. */
-  private effacer(): void {
-    this.abandonner();
-    this.jeton++;
-    this._resultat.set(null);
-    this._erreur.set(null);
-    this._enCours.set(false);
-  }
-
-  private abandonner(): void {
-    this.lecture?.unsubscribe();
-    this.lecture = null;
   }
 
   /** Écrit l'état courant sous sa forme canonique, si l'URL ne le porte pas déjà. Jamais après destruction. */

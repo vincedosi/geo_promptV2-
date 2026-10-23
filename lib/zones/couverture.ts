@@ -11,6 +11,7 @@
  *   certifiée, dénominateur absent ou périmé) ; un état du serveur, que reconstruire la base lève.
  * Pas de 409 : aucun refus de ce calcul ne dépend d'un conflit d'état de la zone (elle est lue telle quelle).
  */
+import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 /** Les trois découpages admis — exporté pour la copie Angular (`couverture-paritaire.test.ts`). */
@@ -22,10 +23,7 @@ export const RequeteCouvertureSchema = z.object({
   decoupage: z.enum(DECOUPAGES, { errorMap: () => ({ message: 'Découpage inconnu : forme, cp ou iris.' }) }).default('forme'),
 });
 
-const REFUS_COUVERTURE = [
-  'zone_introuvable', 'cible_inconnue', 'zone_trop_vaste', 'trop_de_carreaux', 'couverture_non_construite',
-] as const;
-type RefusCouverture = (typeof REFUS_COUVERTURE)[number];
+type RefusCouverture = 'zone_introuvable' | 'cible_inconnue' | 'zone_trop_vaste' | 'trop_de_carreaux' | 'couverture_non_construite';
 
 export const MESSAGES_REFUS_COUVERTURE: Readonly<Record<RefusCouverture, string>> = {
   zone_introuvable: 'Cette zone n’existe pas dans cet espace.',
@@ -35,31 +33,21 @@ export const MESSAGES_REFUS_COUVERTURE: Readonly<Record<RefusCouverture, string>
   couverture_non_construite: 'La couverture n’est pas encore construite sur cette base.',
 };
 
-const STATUTS: Readonly<Record<RefusCouverture, 404 | 422 | 503>> = {
-  zone_introuvable: 404,
-  cible_inconnue: 422,
-  zone_trop_vaste: 422,
-  trop_de_carreaux: 422,
-  couverture_non_construite: 503,
-};
-
-export function statutDuRefus(refus: RefusCouverture): 404 | 422 | 503 {
-  return STATUTS[refus];
-}
-
 /**
- * Rétrécit le `Json` d'une RPC de couverture (`couverture_zone`, `couverture_zone_en_cache`, `couverture_rayon_poi`) :
- * un chiffrage, un refus de la liste `connus` (avec ses détails — `plafond`, `surface_km2`, `plafond_km2`, `motif`), ou
- * `null` (hors contrat : refus inconnu, pas un objet).
+ * Le `Json` d'une RPC de couverture (`couverture_zone`, `couverture_zone_en_cache`, `couverture_rayon_poi`) en HTTP :
+ * 200 le chiffrage ; un refus de `messages` en `{ error, refus, …détails }` (`plafond`, `surface_km2`, `motif`…) au
+ * statut de l'en-tête — 404, 503, sinon 422 ; hors contrat (refus inconnu, pas un objet) : journalisé, 500 `echec`.
  */
-export function lireReponseCouverture<R extends string = RefusCouverture>(
-  data: unknown,
-  connus: readonly R[] = REFUS_COUVERTURE as readonly string[] as readonly R[],
-): { ok: true; resultat: Record<string, unknown> } | { ok: false; refus: R; details: Record<string, unknown> } | null {
-  if (data === null || typeof data !== 'object' || Array.isArray(data)) return null;
-  const o = data as Record<string, unknown>;
-  if (!('refus' in o)) return { ok: true, resultat: o };
-  if (!(connus as readonly unknown[]).includes(o.refus)) return null;
-  const { refus, ...details } = o;
-  return { ok: false, refus: refus as R, details };
+export function repondreCouverture<R extends string>(
+  data: unknown, messages: Readonly<Record<R, string>>, etiquette: string, echec: string,
+): NextResponse {
+  const o = data !== null && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
+  if (o && !('refus' in o)) return NextResponse.json(o);
+  if (!o || typeof o.refus !== 'string' || !Object.prototype.hasOwnProperty.call(messages, o.refus)) {
+    console.error(`[${etiquette}] réponse hors contrat`, data);
+    return NextResponse.json({ error: echec }, { status: 500 });
+  }
+  const refus = o.refus as R;
+  const statut = refus === 'zone_introuvable' ? 404 : refus === 'couverture_non_construite' ? 503 : 422;
+  return NextResponse.json({ error: messages[refus], ...o }, { status: statut });
 }

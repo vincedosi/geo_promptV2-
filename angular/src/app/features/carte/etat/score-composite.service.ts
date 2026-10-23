@@ -1,5 +1,5 @@
-import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
-import { type Subscription, catchError, throwError } from 'rxjs';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { catchError, throwError } from 'rxjs';
 import { formaterNombre } from '../../../core/format/nombre';
 import { ScoreService } from '../couches/score.service';
 import { AnalysesApi } from '../data/analyses.api';
@@ -11,6 +11,7 @@ import {
 import { CatalogueIndicateursService } from './catalogue-indicateurs.service';
 import { CreationZoneService } from './creation-zone.service';
 import { EtatCarteService } from './etat-carte.service';
+import { LectureAnnulable, surChangement } from './lecture-annulable';
 import { ZoneAnalyseeService } from './zone-analysee.service';
 
 /**
@@ -50,18 +51,17 @@ export class ScoreCompositeService {
 
   readonly choisis = signal<IndicateurChoisi[]>([]);
   readonly enregistrer = signal(false);
-  readonly calcul = signal(false);
-  readonly resultat = signal<ResultatScore | null>(null);
-  readonly erreur = signal<string | null>(null);
+  /** Le calcul : un réglage modifié l'ANNULE, sans quoi l'ancien résultat reviendrait repeindre la carte. */
+  private readonly lecture = new LectureAnnulable<ResultatScore>(messageErreurRequete);
+  readonly calcul = this.lecture.enCours;
+  readonly resultat = this.lecture.resultat;
+  readonly erreur = this.lecture.erreur;
 
   readonly seuil = signal(70);
   readonly creationZone = signal(false);
   readonly messageZone = signal<string | null>(null);
   /** L'organisation active : sans elle, « Créer la zone » reste inactif (`!orgId`). */
   readonly org = this.creation.org;
-
-  /** Le calcul en vol : un réglage modifié l'ANNULE, sans quoi l'ancien résultat reviendrait repeindre la carte. */
-  private calculEnVol: Subscription | null = null;
 
   /** La zone analysée de ④, ou `null` : la bascule « Sur : » n'a de sens qu'avec elle. */
   readonly zoneAnalysee = this.analysee.zoneId;
@@ -74,16 +74,7 @@ export class ScoreCompositeService {
   readonly auDessusDuSeuil = computed(() => compteAuDessus(this.resultat()?.scores ?? [], this.seuil()));
 
   constructor() {
-    // P-a : l'effet ne fait que lire ; périmer écrit des signaux, hors suivi. La première valeur n'est pas un changement.
-    let derniere = this.zoneScore();
-    effect(() => {
-      const zone = this.zoneScore();
-      untracked(() => {
-        if (zone === derniere) return;
-        derniere = zone;
-        this.perimer();
-      });
-    });
+    surChangement(this.zoneScore, () => this.perimer());
   }
 
   /** Déplier charge le catalogue la PREMIÈRE fois ; un échec laisse le dépliage suivant relire. */
@@ -127,19 +118,9 @@ export class ScoreCompositeService {
     const choisis = this.choisis();
     const zone = this.zoneScore();
     if (!choisis.length || this.calcul() || (!filtre && !zone)) return;
-    this.calcul.set(true);
-    this.erreur.set(null);
     this.messageZone.set(null);
-    this.calculEnVol = this.api.score(corpsScore(choisis, filtre, this.enregistrer(), zone)).subscribe({
-      next: (r) => {
-        this.resultat.set(r);
-        this.carte.afficher({ scores: r.scores, libelle: libelleScore(choisis.map((c) => c.label)), nIndicateurs: choisis.length });
-        this.calcul.set(false);
-      },
-      error: (e: unknown) => {
-        this.erreur.set(messageErreurRequete(e));
-        this.calcul.set(false);
-      },
+    this.lecture.lancer(this.api.score(corpsScore(choisis, filtre, this.enregistrer(), zone)), (r) => {
+      this.carte.afficher({ scores: r.scores, libelle: libelleScore(choisis.map((c) => c.label)), nIndicateurs: choisis.length });
     });
   }
 
@@ -168,10 +149,9 @@ export class ScoreCompositeService {
     });
   }
 
+  /** Le message d'erreur reste : seul le résultat est retiré. */
   private perimer(): void {
-    this.calculEnVol?.unsubscribe();
-    this.calculEnVol = null;
-    this.calcul.set(false);
+    this.lecture.annuler();
     this.resultat.set(null);
     this.messageZone.set(null);
     this.carte.eteindre();

@@ -13,6 +13,9 @@ export const RAYON_LECTURE_DEFAUT = 1000;
 /** Graduations aux kilomètres ronds (Recharts : `ticks`), coupées au rayon maximal. */
 const GRADUATIONS_X: readonly number[] = Array.from({ length: 10 }, (_, i) => (i + 1) * 1000);
 
+/** « 1 km », « 2,5 km » : les distances de la courbe et de ses appelants. */
+export const formaterKm = (m: number): string => `${formaterNombre(m / 1000)} km`;
+
 /** Une courbe cumulée : la forme commune de `lire_couverture_rayon` et de `couverture_rayon_poi` (sql/272). */
 export type CourbeCumulee = ReponseCourbe['courbes'][number];
 
@@ -86,7 +89,7 @@ export class CourbePopulationComponent {
   /** Étiquettes au kilomètre, sur la courbe totale seulement ; décochées par défaut comme en React. */
   protected readonly etiquettes = signal(false);
 
-  protected readonly formaterX = (x: number) => `${formaterNombre(x / 1000)} km`;
+  protected readonly formaterX = formaterKm;
   protected readonly formaterY = formaterNombreAbrege;
   protected readonly formaterValeur = (y: number) => formaterNombre(y);
   protected readonly formaterTitre = (x: number) => `à moins de ${formaterDecimal(x / 1000)} km`;
@@ -111,7 +114,7 @@ export class CourbePopulationComponent {
   /** Le repère suit le curseur : trait teal tireté, SANS libellé (React : `ReferenceLine`). */
   protected readonly repere = computed(() => ({ x: this.rayon() }));
   protected readonly rayonKm = computed(() => `${formaterDecimal(this.rayon() / 1000)} km`);
-  protected readonly libellePart = computed(() => `du total à ${this.formaterX(this.rayonMax())}`);
+  protected readonly libellePart = computed(() => `du total à ${formaterKm(this.rayonMax())}`);
 
   /**
    * Les chiffres au rayon du curseur (l.146-167) : le point le plus proche SANS dépasser (la courbe est cumulée), la

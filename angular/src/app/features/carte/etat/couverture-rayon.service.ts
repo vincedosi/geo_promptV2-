@@ -1,19 +1,19 @@
-import { DestroyRef, Injectable, computed, effect, inject, linkedSignal, signal, untracked } from '@angular/core';
-import type { Subscription } from 'rxjs';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { CouleursService } from '../../../core/theme/couleurs.service';
-import { RAYON_LECTURE_DEFAUT } from '../../risques/etapes/rayon/courbe-population.component';
+import { CLE_TOUTES, RAYON_LECTURE_DEFAUT } from '../../risques/etapes/rayon/courbe-population.component';
 import { JETONS_RAYON, entitesRayon, poserCoucheRayon, retirerCoucheRayon } from '../couches/couche-couverture-rayon';
 import { CouvertureApi } from '../data/couverture.api';
 import { messageErreurRequete } from '../logique/analyses/commun';
 import { CIBLE_PAR_DEFAUT } from '../logique/analyses/couverture';
 import {
-  CLE_TOUS, type LigneProfil, RAYON_MAX_DEFAUT_M, type ResultatCouvertureRayon, TYPE_ICPE, profilRayon, requeteRayon,
+  type LigneProfil, RAYON_MAX_DEFAUT_M, type ResultatCouvertureRayon, TYPE_ICPE, profilRayon, requeteRayon,
 } from '../logique/analyses/couverture-rayon';
 import { perimetreDeFiltre } from '../logique/zones/perimetre-recette';
 import { MESSAGES_REFUS } from '../logique/zones/recette';
-import { CataloguePoiService } from './catalogue-poi.service';
+import { CataloguePoiService, typePoiRetenu } from './catalogue-poi.service';
 import { CouchesCarteService, quandStyleCharge } from './couches-carte.service';
 import { EtatCarteService } from './etat-carte.service';
+import { LectureAnnulable, surChangement } from './lecture-annulable';
 import { ZoneAnalyseeService } from './zone-analysee.service';
 
 /**
@@ -47,15 +47,11 @@ export class CouvertureRayonService {
     const t = this.catalogue.types();
     return t.some((x) => x.id === TYPE_ICPE.id) ? t : [...t, TYPE_ICPE];
   });
-  /** Le premier type dès que le catalogue arrive ; gardé tant qu'il existe (patron de `recette-rayon-poi`). */
-  readonly categorie = linkedSignal<readonly { id: string }[], string>({
-    source: this.types,
-    computation: (types, avant) => (avant && types.some((t) => t.id === avant.value) ? avant.value : types[0]?.id ?? ''),
-  });
+  readonly categorie = typePoiRetenu(this.types);
   readonly rayonMax = signal(RAYON_MAX_DEFAUT_M);
   readonly champ = signal<string | null>(null);
   /** Sans champ : une ligne, `*` (le POI le plus proche). Avec : une ligne par valeur saisie. */
-  readonly ligneTous = signal<LigneProfil>({ valeur: CLE_TOUS, anneaux: '' });
+  readonly ligneTous = signal<LigneProfil>({ valeur: CLE_TOUTES, anneaux: '' });
   readonly lignesValeurs = signal<readonly LigneProfil[]>([]);
   readonly cible = signal(CIBLE_PAR_DEFAUT);
 
@@ -75,30 +71,18 @@ export class CouvertureRayonService {
     return requeteRayon({ categorie, perimetre, cible: this.cible(), rayonMax: this.rayonMax(), champ: this.champ(), lignes: this.lignes() });
   });
 
-  readonly resultat = signal<ResultatCouvertureRayon | null>(null);
+  private readonly lecture = new LectureAnnulable<ResultatCouvertureRayon>(messageErreurRequete);
+  readonly resultat = this.lecture.resultat;
+  readonly enCours = this.lecture.enCours;
+  readonly erreur = this.lecture.erreur;
   /** Le profil du calcul affiché : les bandes du tableau se lisent sur LUI, pas sur la saisie en cours. */
   readonly profilCalcule = signal<Record<string, number[]>>({});
-  readonly enCours = signal(false);
-  readonly erreur = signal<string | null>(null);
   /** Le rayon lu sur la courbe : celui des cercles peints. */
   readonly rayon = signal(RAYON_LECTURE_DEFAUT);
 
-  private jeton = 0;
-  private lecture: Subscription | null = null;
-
   constructor() {
-    this.couches.inscrireEffacement('couverture-rayon', () => this.perimer());
-
-    // P-a : l'effet ne fait que lire ; périmer écrit des signaux, hors suivi. La première valeur n'est pas un changement.
-    let derniere = untracked(this.requete);
-    effect(() => {
-      const requete = this.requete();
-      untracked(() => {
-        if (requete === derniere) return;
-        derniere = requete;
-        this.perimer();
-      });
-    });
+    this.couches.inscrireEffacement('couverture-rayon', () => this.lecture.perimer());
+    surChangement(this.requete, () => this.lecture.perimer());
 
     effect((nettoyer) => {
       const carte = this.couches.carteCourante();
@@ -113,11 +97,6 @@ export class CouvertureRayonService {
         retirerCoucheRayon(carte);
       });
     });
-
-    inject(DestroyRef).onDestroy(() => {
-      this.lecture?.unsubscribe();
-      this.jeton++;
-    });
   }
 
   /** Déplier lit le catalogue des types de POI de la page, une fois (`chargerUneFois` ne relit rien s'il l'a été). */
@@ -129,39 +108,15 @@ export class CouvertureRayonService {
   /** « Calculer » : un second appel annule le premier. Sans périmètre, la phrase des recettes, et aucune requête. */
   lancer(): void {
     const requete = this.requete();
-    this.perimer();
+    this.lecture.perimer();
     if (!requete) {
       this.erreur.set(this.perimetre() ? 'Choisissez un type de POI.' : MESSAGES_REFUS.perimetre_absent);
       return;
     }
-    const jeton = this.jeton;
     const profil = profilRayon({ champ: this.champ(), lignes: this.lignes() });
-    this.enCours.set(true);
-    this.lecture = this.api.rayon(requete).subscribe({
-      next: (r) => {
-        if (jeton !== this.jeton) return;
-        this.lecture = null;
-        this.profilCalcule.set(profil);
-        this.rayon.set(Math.min(RAYON_LECTURE_DEFAUT, r.rayon_max_m));
-        this.resultat.set(r);
-        this.enCours.set(false);
-      },
-      error: (e: unknown) => {
-        if (jeton !== this.jeton) return;
-        this.lecture = null;
-        this.enCours.set(false);
-        this.erreur.set(messageErreurRequete(e));
-      },
+    this.lecture.lancer(this.api.rayon(requete), (r) => {
+      this.profilCalcule.set(profil);
+      this.rayon.set(Math.min(RAYON_LECTURE_DEFAUT, r.rayon_max_m));
     });
-  }
-
-  /** Annule la lecture en vol, invalide son jeton, efface résultat, message et couche. */
-  private perimer(): void {
-    this.lecture?.unsubscribe();
-    this.lecture = null;
-    this.jeton++;
-    this.resultat.set(null);
-    this.erreur.set(null);
-    this.enCours.set(false);
   }
 }

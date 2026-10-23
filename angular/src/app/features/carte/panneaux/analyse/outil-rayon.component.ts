@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject, viewChild } from '@angular/core';
 import { formaterNombre } from '../../../../core/format/nombre';
 import { KpiComponent } from '../../../../ui/kpi/kpi.component';
-import { CLE_TOUTES, CourbePopulationComponent } from '../../../risques/etapes/rayon/courbe-population.component';
+import { APERCU_SITES_MAX } from '../../../risques/cartes/couches-sites';
+import { CLE_TOUTES, CourbePopulationComponent, formaterKm } from '../../../risques/etapes/rayon/courbe-population.component';
 import { CouvertureRayonService } from '../../etat/couverture-rayon.service';
 import {
-  CHAMP_SOUS_CATEGORIE, CLE_TOUS, type LigneProfil, RAYON_MAX_MAX_M, RAYON_MAX_MIN_M, libelleBande,
+  CHAMP_SOUS_CATEGORIE, type LigneProfil, RAYON_MAX_MAX_M, RAYON_MAX_MIN_M, libelleBande,
 } from '../../logique/analyses/couverture-rayon';
 import { ChoixCibleComponent } from './choix-cible.component';
 import { ChoixSurZoneComponent } from './choix-sur-zone.component';
@@ -110,6 +111,7 @@ const CHAMP_SAISIE = 'w-full rounded-[6px] border-fin border-subtle bg-elevated 
               <p mgNote data-role="note" class="m-0 px-5 pt-0 pb-[14px] text-[10px] leading-[1.5] text-tertiary">
                 Distance du centre de chaque carreau de 200 m au POI le plus proche ; {{ nombre(r.population_perimetre) }} habitants
                 carroyés dans le périmètre.
+                @if (r.n_poi > apercuMax) { Cercles tracés autour des {{ apercuMax }} premiers POI seulement. }
                 @if (r.courbes.length > 2) { « Tous les POI » n’est pas la somme des autres courbes — un habitant proche de deux valeurs compte dans les deux. }
               </p>
             </mg-courbe-population>
@@ -147,7 +149,9 @@ export class OutilRayonComponent {
   protected readonly max = RAYON_MAX_MAX_M;
   protected readonly maxValeurs = MAX_VALEURS;
   protected readonly sousCategorie = CHAMP_SOUS_CATEGORIE;
-  protected readonly tous = CLE_TOUS;
+  protected readonly tous = CLE_TOUTES;
+  protected readonly apercuMax = APERCU_SITES_MAX;
+  protected readonly km = formaterKm;
   protected readonly nombre = formaterNombre;
   protected readonly entete = ENTETE_ACCORDEON;
   protected readonly corps = CORPS_ACCORDEON;
@@ -166,10 +170,6 @@ export class OutilRayonComponent {
     const type = this.s.types().find((t) => t.id === this.s.categorie())?.label ?? this.s.categorie();
     return `Population couverte selon le rayon autour des POI « ${type} » — ${this.s.nomPerimetre()}`;
   });
-
-  protected km(m: number): string {
-    return `${formaterNombre(m / 1000)} km`;
-  }
 
   protected bande(valeur: string, anneauM: number): string {
     return libelleBande(this.s.profilCalcule()[valeur] ?? [], anneauM);

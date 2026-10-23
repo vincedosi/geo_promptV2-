@@ -23,9 +23,7 @@ import { createAdminClient } from '@/lib/auth';
 import { requireAuth } from '@/lib/api/middleware';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { espaceDeZone } from '@/lib/zones/session-zones';
-import {
-  MESSAGES_REFUS_COUVERTURE, RequeteCouvertureSchema, lireReponseCouverture, statutDuRefus,
-} from '@/lib/zones/couverture';
+import { MESSAGES_REFUS_COUVERTURE, RequeteCouvertureSchema, repondreCouverture } from '@/lib/zones/couverture';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -36,18 +34,7 @@ const ECHEC = 'Calcul de la couverture impossible.';
 const echec = () => NextResponse.json({ error: ECHEC }, { status: 500 });
 
 /** La réponse d'une des deux RPC en HTTP : 200 le chiffrage, 4xx/503 un refus connu, 500 hors contrat. */
-function repondre(data: unknown, etape: string): NextResponse {
-  const lue = lireReponseCouverture(data);
-  if (!lue) {
-    console.error(`[zones/couverture] ${etape} : réponse hors contrat`, data);
-    return echec();
-  }
-  if (lue.ok) return NextResponse.json(lue.resultat);
-  return NextResponse.json(
-    { error: MESSAGES_REFUS_COUVERTURE[lue.refus], refus: lue.refus, ...lue.details },
-    { status: statutDuRefus(lue.refus) },
-  );
-}
+const repondre = (data: unknown, etape: string) => repondreCouverture(data, MESSAGES_REFUS_COUVERTURE, `zones/couverture ${etape}`, ECHEC);
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const s = espaceDeZone(await requireAuth(req));

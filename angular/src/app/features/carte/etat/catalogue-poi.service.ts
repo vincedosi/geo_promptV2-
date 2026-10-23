@@ -1,4 +1,4 @@
-import { DestroyRef, Injectable, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, type Signal, type WritableSignal, inject, linkedSignal, signal } from '@angular/core';
 import type { Subscription } from 'rxjs';
 import { messageErreurApi } from '../../../core/http/erreurs';
 import { CarteApi, type CategoriePoi, type OrigineCategorie } from '../data/carte.api';
@@ -8,6 +8,17 @@ export interface TypePoi {
   readonly id: string;
   readonly label: string;
   readonly origine: OrigineCategorie;
+}
+
+/**
+ * Le type de POI retenu d'une liste : le premier dès que la liste arrive, gardé tant qu'il y figure — ③ « rayon autour
+ * d'un type de POI » et ④ « couverture par rayon ».
+ */
+export function typePoiRetenu(types: Signal<readonly { id: string }[]>): WritableSignal<string> {
+  return linkedSignal<readonly { id: string }[], string>({
+    source: types,
+    computation: (liste, avant) => (avant && liste.some((t) => t.id === avant.value) ? avant.value : liste[0]?.id ?? ''),
+  });
 }
 
 /** Délai de la reprise unique (`use-poi-catalog.ts:87-90`). */

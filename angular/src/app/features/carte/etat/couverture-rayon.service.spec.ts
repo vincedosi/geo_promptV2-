@@ -3,7 +3,8 @@ import { TestBed } from '@angular/core/testing';
 import type maplibregl from 'maplibre-gl';
 import { Subject } from 'rxjs';
 import { CouleursService } from '../../../core/theme/couleurs.service';
-import { COUCHE_POI_RAYON } from '../couches/couche-couverture-rayon';
+import { APERCU_SITES_MAX } from '../../risques/cartes/couches-sites';
+import { COUCHE_POI_RAYON, entitesRayon } from '../couches/couche-couverture-rayon';
 import { CouvertureApi } from '../data/couverture.api';
 import type { ResultatCouvertureRayon } from '../logique/analyses/couverture-rayon';
 import { CataloguePoiService } from './catalogue-poi.service';
@@ -160,5 +161,12 @@ describe('CouvertureRayonService (lot 4, T12)', () => {
     expect(c.couches).toHaveLength(3);
     TestBed.resetTestingModule();
     expect(c.couches).toEqual([]);
+  });
+
+  it('I1 : les cercles, reconstruits à chaque cran, sont bornés à APERCU_SITES_MAX ; les POI sont tous peints', () => {
+    const poi = Array.from({ length: APERCU_SITES_MAX + 50 }, (_, i) => [5 + i / 1000, 43.3] as const);
+    const [cercles, ...points] = entitesRayon(poi, 1000).features;
+    expect((cercles.geometry as GeoJSON.MultiPolygon).coordinates).toHaveLength(APERCU_SITES_MAX);
+    expect(points).toHaveLength(APERCU_SITES_MAX + 50);
   });
 });

@@ -1,4 +1,5 @@
-import type { CourbeCumulee } from '../../../risques/etapes/rayon/courbe-population.component';
+import { CLE_TOUTES, type CourbeCumulee, formaterKm } from '../../../risques/etapes/rayon/courbe-population.component';
+import { CATEGORIES_HORS_POI } from '../jeux-carte';
 import type { PerimetreRecette } from '../zones/recette';
 
 /**
@@ -15,9 +16,7 @@ export const CHAMP_SOUS_CATEGORIE = 'sous_categorie';
  * Les sites ICPE : en ② ils ont leur propre calque, hors du catalogue des POI (`/api/map/categories` ne compte que les
  * POI à source, et les 99 152 sites sont au socle sans source) — l'outil les propose donc en plus.
  */
-export const TYPE_ICPE = { id: 'risque_industriel', label: 'Sites industriels à risque (ICPE)' } as const;
-/** La clé du profil qui vise le POI le plus proche, toute valeur confondue (sql/272). */
-export const CLE_TOUS = '*';
+export const TYPE_ICPE = { id: CATEGORIES_HORS_POI[0], label: 'Sites industriels à risque (ICPE)' } as const;
 
 /** Une ligne de profil telle que saisie : la valeur du champ (`*` sans champ) et ses anneaux, « 500, 1000, 2000 ». */
 export interface LigneProfil {
@@ -83,7 +82,7 @@ export function requeteRayon(r: ReglageRayon): string {
 
 function lignesRetenues(r: Pick<ReglageRayon, 'champ' | 'lignes'>): { valeur: string; anneaux: number[] }[] {
   return r.lignes.map((l) => ({ valeur: l.valeur.trim(), anneaux: [...new Set(lireAnneaux(l.anneaux))].sort((a, b) => a - b) }))
-    .filter((l) => l.valeur !== '' && (r.champ ? l.valeur !== CLE_TOUS : l.valeur === CLE_TOUS));
+    .filter((l) => l.valeur !== '' && (r.champ ? l.valeur !== CLE_TOUTES : l.valeur === CLE_TOUTES));
 }
 
 /** « 0-500 m », « 500 m-1 km » : la bande [anneau précédent, `anneau_m`) d'une classe, d'après le profil envoyé. */
@@ -93,5 +92,5 @@ export function libelleBande(anneaux: readonly number[], anneauM: number): strin
 }
 
 function distance(m: number): string {
-  return m >= 1000 ? `${String(m / 1000).replace('.', ',')} km` : `${m} m`;
+  return m >= 1000 ? formaterKm(m) : `${m} m`;
 }
