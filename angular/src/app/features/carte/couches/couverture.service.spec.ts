@@ -34,6 +34,7 @@ function monter() {
   const geos: Array<{ id: string; s: Subject<ReturnType<typeof entite>> }> = [];
   const cps: Subject<GeoJSON.FeatureCollection>[] = [];
   const annonces: string[] = [];
+  const palette = signal({ s1: 'a', s2: 'b', s3: 'c', s4: 'd', s5: 'e', absente: 'f', zone: 'g', trait: 'h', survol: 'i' });
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), CouvertureService, CouchesCarteService, EtatCarteService,
@@ -42,7 +43,7 @@ function monter() {
       { provide: ZonesCustomApi, useValue: { geometrie: (id: string) => { const s = new Subject<ReturnType<typeof entite>>(); geos.push({ id, s }); return s; } } },
       { provide: ContoursZonesService, useValue: { zones: () => { const s = new Subject<GeoJSON.FeatureCollection>(); cps.push(s); return s; } } },
       { provide: IrisApi, useValue: { urlTuiles: () => 'http://h/api/tiles/iris/{z}/{x}/{y}?v=1' } },
-      { provide: CouleursService, useValue: { palette: () => signal({ s1: 'a', s2: 'b', s3: 'c', s4: 'd', s5: 'e', absente: 'f', zone: 'g', trait: 'h', survol: 'i' }) } },
+      { provide: CouleursService, useValue: { palette: () => palette } },
     ],
   });
   const carte = new CarteFactice();
@@ -51,7 +52,7 @@ function monter() {
   couches.publier(carte as unknown as maplibregl.Map);
   const service = TestBed.inject(CouvertureService);
   TestBed.tick();
-  return { service, carte, couches, zoneId, res, geos, cps, annonces, etat: TestBed.inject(EtatCarteService) };
+  return { service, carte, couches, zoneId, res, geos, cps, annonces, palette, etat: TestBed.inject(EtatCarteService) };
 }
 
 describe('CouvertureService (lot 4, T8)', () => {
@@ -100,6 +101,25 @@ describe('CouvertureService (lot 4, T8)', () => {
     m.geos[1].s.next(entite(B));
     TestBed.tick();
     expect(m.carte.cadrages).toHaveLength(1);
+  });
+
+  it('B11 : une carte RECRÉÉE (changement de fond) reçoit la couche ; le thème la repeint (T8 m2)', () => {
+    const m = monter();
+    m.res.set(resultat(A, 'forme'));
+    TestBed.tick();
+    m.geos[0].s.next(entite(A));
+    TestBed.tick();
+    expect(m.carte.getLayer(COUCHE_COUVERTURE_ZONE)).toBeDefined();
+    const neuve = new CarteFactice();
+    neuve.styleCharge = true;
+    m.couches.publier(neuve as unknown as maplibregl.Map);
+    TestBed.tick();
+    expect(neuve.getLayer(COUCHE_COUVERTURE_ZONE)).toBeDefined();
+    const couleurZone = () => JSON.stringify(neuve.getLayer(COUCHE_COUVERTURE_ZONE)!['paint']);
+    expect(couleurZone()).toContain('"g"');
+    m.palette.set({ ...m.palette(), zone: 'g-clair' });
+    TestBed.tick();
+    expect(couleurZone()).toContain('"g-clair"');
   });
 
   it('survol : la surbrillance suit le code, et repart de rien à chaque résultat', () => {
