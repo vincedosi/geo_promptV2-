@@ -4,7 +4,8 @@ import { join } from 'node:path';
 
 /**
  * Verrous STRUCTURELS sur la couverture par rayon (sql/198 construction,
- * sql/199 lecture).
+ * sql/199 lecture, mise en forme des courbes dans `courbes_par_palier` depuis
+ * sql/272).
  *
  * Ils lisent le SQL, pas la base : ils tournent en CI sans Postgres et
  * attrapent une régression au moment où elle est écrite.
@@ -54,7 +55,21 @@ function sqlContenant(motif: string): { fichier: string; contenu: string } {
  * gardant du code mort.
  */
 const CONSTRUCTION = sqlContenant('function public.construire_couverture_rayon(');
-const LECTURE = sqlContenant('function public.lire_couverture_rayon(');
+
+/**
+ * Le CORPS d'une fonction, jusqu'à la fin de son `$fn$` — pas le fichier entier. Depuis sql/272, le fichier qui définit
+ * `lire_couverture_rayon` définit aussi `couverture_rayon_poi`, qui croise légitimement des géométries : lire tout le
+ * fichier ferait rougir « ne croise aucune géométrie » sur la voisine.
+ */
+function corps(nom: string): string {
+  const motif = `function public.${nom}(`;
+  const { contenu } = sqlContenant(motif);
+  const debut = contenu.indexOf(motif);
+  return contenu.slice(debut, contenu.indexOf('$fn$;', debut));
+}
+const LECTURE = { contenu: corps('lire_couverture_rayon') };
+/** La mise en forme des courbes (cumul, grille, report), sortie de `lire_couverture_rayon` par sql/272. */
+const COURBES = corps('courbes_par_palier');
 /**
  * `compter_sites_rayon` a sa PROPRE recherche, et ce n'est pas de la
  * redondance : elle est née dans sql/199 aux côtés de `lire_couverture_rayon`,
@@ -178,22 +193,23 @@ describe('lecture de la courbe', () => {
   it('rend une grille COMPLÈTE de 100 à 10 000, sans trou', () => {
     // Une nature sans carreau à un palier n'a pas de ligne : mesuré, 94 points
     // sur 99. Recharts relierait les points existants, inventant une pente.
-    expect(s).toMatch(/generate_series\(100, 10000, 100\)/);
+    expect(s).toMatch(/public\.courbes_par_palier\([^;]*, 10000\)/);
+    expect(COURBES).toMatch(/generate_series\(100, p_rayon_max_m, 100\)/);
     // Et le report du dernier cumul connu sur les paliers vides.
-    expect(s).toMatch(/max\(c\.pop_cumulee\) over/);
+    expect(COURBES).toMatch(/max\(c\.pop_cumulee\) over/);
   });
 
   it('cumule avec une fenêtre EXPLICITE en `rows`, jamais le `range` par défaut', () => {
     // Le defaut d'une fenetre ordonnee est `range`, qui regrouperait les ex
     // aequo. Sans effet ici, mais un defaut implicite dans un cumul est ce qui
     // se met a mentir quand la cle change.
-    expect(s).toMatch(/rows between unbounded preceding and current row/);
+    expect(COURBES).toMatch(/rows between unbounded preceding and current row/);
   });
 
   it('décale les paliers de 100 m — « à moins de 0 mètre » n’existe pas', () => {
     // Le palier `b` regroupe les carreaux dans [b, b+100) : la population « a
     // moins de 100 m » est l'increment du palier 0.
-    expect(s).toMatch(/rayon_m \+ 100 as rayon_m/);
+    expect(COURBES).toMatch(/rayon_m \+ 100 as rayon_m/);
   });
 
   it('ne somme JAMAIS les gravités : `*` est une ligne pré-calculée', () => {

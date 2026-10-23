@@ -6847,6 +6847,16 @@ export type Database = {
         Args: { p_categorie: string; p_source?: string }
         Returns: number
       }
+      courbes_par_palier: {
+        Args: {
+          p_carreaux: number[]
+          p_cles: string[]
+          p_pops: number[]
+          p_rayon_max_m: number
+          p_rayons: number[]
+        }
+        Returns: Json
+      }
       couverture_carreau_risque: {
         Args: { p_departement?: string }
         Returns: Json
@@ -6858,6 +6868,23 @@ export type Database = {
           p_max_carreaux?: number
           p_org_id: string
           p_zone_id: string
+        }
+        Returns: Json
+      }
+      couverture_rayon_poi: {
+        Args: {
+          p_categorie: string
+          p_champ?: string
+          p_cible?: string
+          p_inclure_inactifs?: boolean
+          p_max_poi?: number
+          p_org_id: string
+          p_perimetre_code: string
+          p_perimetre_type: string
+          p_profil?: Json
+          p_rayon_max_m?: number
+          p_sources: string[]
+          p_valeurs?: string[]
         }
         Returns: Json
       }
