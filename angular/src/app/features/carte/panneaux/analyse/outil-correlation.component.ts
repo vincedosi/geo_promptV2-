@@ -10,8 +10,9 @@ import {
   type CampagneItem, N_MIN_NUAGE, type ResultatCorrelation, ligneCouverture, lignesInfobulle, lireCoefficient, nomCampagne,
 } from '../../logique/analyses/correlation';
 import { type IndicateurRegistre, libelleIndicateur } from '../../logique/analyses/score';
+import { EnteteOutilComponent } from './entete-outil.component';
 import {
-  BOUTON_CALCUL, CORPS_ACCORDEON, ENCART_AVERTISSEMENT, ENCART_ERREUR, ENTETE_ACCORDEON, LIBELLE_CHAMP, LISTE_CHAMP,
+  BOUTON_CALCUL, CORPS_ACCORDEON, ENCART_AVERTISSEMENT, ENCART_ERREUR, LIBELLE_CHAMP, LISTE_CHAMP,
 } from './styles-analyse';
 
 /**
@@ -32,15 +33,11 @@ import {
  */
 @Component({
   selector: 'mg-outil-correlation',
-  imports: [NuageComponent],
+  imports: [EnteteOutilComponent, NuageComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   template: `
-    <button type="button" data-entete-outil [attr.aria-expanded]="ouvert()" (click)="basculer()" [class]="entete">
-      <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-teal"></span>
-      <span class="flex-1 text-left text-[12px] font-medium text-primary">Corrélation</span>
-      <span class="text-[10px] text-tertiary">{{ ouvert() ? '▲' : '▼' }}</span>
-    </button>
+    <mg-entete-outil titre="Corrélation" [ouvert]="ouvert()" (basculer)="basculer()" />
     @if (ouvert()) {
       <div [class]="corps">
         <div class="text-[11px] leading-[1.5] text-tertiary">
@@ -144,7 +141,6 @@ export class OutilCorrelationComponent {
   protected readonly libelleIndicateur = libelleIndicateur;
   protected readonly date = dateFr;
   protected readonly abrege = (v: number) => formaterNombreAbrege(v);
-  protected readonly entete = ENTETE_ACCORDEON;
   protected readonly corps = CORPS_ACCORDEON;
   protected readonly libelleChamp = LIBELLE_CHAMP;
   protected readonly liste = LISTE_CHAMP;

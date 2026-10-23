@@ -72,20 +72,20 @@ describe('mg-outil-rayon (lot 4, T12)', () => {
     expect(m.el.querySelector<HTMLSelectElement>('[data-categorie]')!.value).toBe('lycee');
     expect([...m.el.querySelectorAll('[data-categorie] option')].map((o) => o.textContent)).toEqual(['Lycée', 'Sites industriels à risque (ICPE)']);
     expect(m.el.querySelector<HTMLInputElement>('[data-rayon-max]')!.value).toBe('5000');
-    expect(m.el.querySelector('[data-champ="aucun"]')!.getAttribute('aria-pressed')).toBe('true');
+    expect(m.el.querySelector('[data-pastille="aucun"]')!.getAttribute('aria-pressed')).toBe('true');
     expect(m.el.querySelector('mg-choix-cible')).not.toBeNull();
     expect(m.el.querySelector('mg-choix-sur-zone')).toBeNull();
     TestBed.resetTestingModule();
     const z = await monter('0f8fad5b-d9cb-469f-a165-70867728950e');
     await z.cliquer('[data-entete-outil]');
-    expect(z.el.querySelector('mg-choix-sur-zone [data-sur="zone"]')!.getAttribute('aria-pressed')).toBe('true');
+    expect(z.el.querySelector('mg-choix-sur-zone [data-pastille="zone"]')!.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('Seveso par sous-catégorie, profil haut [500, 1 000, 2 000] / bas [500] → requête, courbe, classes et hors classes', async () => {
     const m = await monter();
     await m.cliquer('[data-entete-outil]');
     await m.saisir('[data-categorie]', 'risque_industriel');
-    await m.cliquer('[data-champ="sous_categorie"]');
+    await m.cliquer('[data-pastille="sous_categorie"]');
     await m.cliquer('[data-ajouter-valeur]');
     await m.cliquer('[data-ajouter-valeur]');
     await m.saisir('[data-valeur]', 'seveso_haut', 0);

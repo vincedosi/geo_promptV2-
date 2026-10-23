@@ -12,9 +12,10 @@ import { BORNES_PART } from '../../couches/couche-couverture';
 import { ChoixCibleComponent } from './choix-cible.component';
 import { ChoixZoneAnalyseeComponent } from './choix-zone-analysee.component';
 import { CroisementsZoneComponent } from './croisements-zone.component';
+import { EnteteOutilComponent } from './entete-outil.component';
+import { PastillesComponent } from './pastilles.component';
 import {
-  BOUTON_CALCUL, CORPS_ACCORDEON, ENCART_AVERTISSEMENT_LISIBLE, ENCART_ERREUR, ENTETE_ACCORDEON, LIBELLE_CHAMP, PASTILLE, PASTILLE_INACTIVE,
-  PASTILLE_PRIMAIRE_ACTIVE,
+  BOUTON_CALCUL, CORPS_ACCORDEON, ENCART_AVERTISSEMENT_LISIBLE, ENCART_ERREUR, LIBELLE_CHAMP, PASTILLE, PASTILLE_INACTIVE,
 } from './styles-analyse';
 import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couverture-zone.component';
 
@@ -39,15 +40,11 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
  */
 @Component({
   selector: 'mg-outil-couverture',
-  imports: [ChoixCibleComponent, ChoixZoneAnalyseeComponent, CroisementsZoneComponent, KpiComponent, TableauCouvertureZoneComponent],
+  imports: [EnteteOutilComponent, PastillesComponent, ChoixCibleComponent, ChoixZoneAnalyseeComponent, CroisementsZoneComponent, KpiComponent, TableauCouvertureZoneComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   template: `
-    <button type="button" data-entete-outil [attr.aria-expanded]="ouvert()" (click)="ouvert.set(!ouvert())" [class]="entete">
-      <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-teal"></span>
-      <span class="flex-1 text-left text-[12px] font-medium text-primary">Couverture d’une zone</span>
-      <span class="text-[10px] text-tertiary">{{ ouvert() ? '▲' : '▼' }}</span>
-    </button>
+    <mg-entete-outil titre="Couverture d’une zone" [ouvert]="ouvert()" (basculer)="ouvert.set(!ouvert())" />
     @if (ouvert()) {
       <div [class]="corps" data-outil-couverture>
         <div class="text-[11px] leading-[1.5] text-tertiary">
@@ -60,12 +57,7 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
 
         <div>
           <div [class]="libelleChamp">Découpage</div>
-          <div class="flex gap-[5px]" role="group" aria-label="Découpage">
-            @for (d of decoupages; track d) {
-              <button type="button" [attr.data-decoupage]="d" [attr.aria-pressed]="z.decoupage() === d" (click)="z.regler({ decoupage: d })"
-                [class]="pastille + ' flex-1 text-center ' + (z.decoupage() === d ? pastilleActive : pastilleInactive)">{{ libelle(d) }}</button>
-            }
-          </div>
+          <mg-pastilles libelle="Découpage" [options]="decoupages" [valeur]="z.decoupage()" (valeurChange)="z.regler({ decoupage: $event })" />
         </div>
 
         <!-- Un refus radio/trafic qui retire la zone démonte son bloc : son message s'affiche ici (T13, ronde 2). -->
@@ -143,18 +135,15 @@ export class OutilCouvertureComponent {
   /** Ouvert par défaut : c'est l'outil de tête de ④. Le panneau reste monté, l'état survit à ④ → ① → ④. */
   protected readonly ouvert = signal(true);
 
-  protected readonly decoupages = DECOUPAGES;
-  protected readonly libelle = libelleDecoupage;
+  protected readonly decoupages = DECOUPAGES.map((d) => ({ cle: d, valeur: d, libelle: libelleDecoupage(d) }));
   protected readonly nombre = formaterNombre;
   protected readonly date = dateFr;
-  protected readonly entete = ENTETE_ACCORDEON;
   protected readonly corps = CORPS_ACCORDEON;
   protected readonly libelleChamp = LIBELLE_CHAMP;
   protected readonly boutonCalcul = BOUTON_CALCUL;
   protected readonly encartErreur = ENCART_ERREUR;
   protected readonly encartAvertissement = ENCART_AVERTISSEMENT_LISIBLE;
   protected readonly pastille = PASTILLE;
-  protected readonly pastilleActive = PASTILLE_PRIMAIRE_ACTIVE;
   protected readonly pastilleInactive = PASTILLE_INACTIVE;
   protected readonly paliers = PALIERS_CSS.map((couleur, i) => ({
     couleur,

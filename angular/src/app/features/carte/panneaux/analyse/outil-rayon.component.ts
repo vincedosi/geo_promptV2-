@@ -8,9 +8,10 @@ import { MAX_VALEURS, RAYON_MAX_M, RAYON_MIN_M } from '../../logique/analyses/co
 import { CHAMP_SOUS_CATEGORIE, type LigneProfil, libelleBande } from '../../logique/analyses/couverture-rayon';
 import { ChoixCibleComponent } from './choix-cible.component';
 import { ChoixSurZoneComponent } from './choix-sur-zone.component';
+import { EnteteOutilComponent } from './entete-outil.component';
+import { PastillesComponent } from './pastilles.component';
 import {
-  BOUTON_CALCUL, CORPS_ACCORDEON, ENCART_ERREUR, ENTETE_ACCORDEON, LIBELLE_CHAMP, LISTE_CHAMP, PASTILLE, PASTILLE_INACTIVE,
-  PASTILLE_PRIMAIRE_ACTIVE,
+  BOUTON_CALCUL, CORPS_ACCORDEON, ENCART_ERREUR, LIBELLE_CHAMP, LISTE_CHAMP, PASTILLE, PASTILLE_INACTIVE,
 } from './styles-analyse';
 
 const CHAMP_SAISIE = 'w-full rounded-[6px] border-fin border-subtle bg-elevated px-[10px] py-1.5 font-mono text-[11px] text-primary';
@@ -24,15 +25,11 @@ const CHAMP_SAISIE = 'w-full rounded-[6px] border-fin border-subtle bg-elevated 
  */
 @Component({
   selector: 'mg-outil-rayon',
-  imports: [ChoixCibleComponent, ChoixSurZoneComponent, CourbePopulationComponent, KpiComponent],
+  imports: [EnteteOutilComponent, PastillesComponent, ChoixCibleComponent, ChoixSurZoneComponent, CourbePopulationComponent, KpiComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   template: `
-    <button type="button" data-entete-outil [attr.aria-expanded]="s.ouvert()" (click)="s.basculerOuvert()" [class]="entete">
-      <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-teal"></span>
-      <span class="flex-1 text-left text-[12px] font-medium text-primary">Couverture par rayon autour d’un type de POI</span>
-      <span class="text-[10px] text-tertiary">{{ s.ouvert() ? '▲' : '▼' }}</span>
-    </button>
+    <mg-entete-outil titre="Couverture par rayon autour d’un type de POI" [ouvert]="s.ouvert()" (basculer)="s.basculerOuvert()" />
     @if (s.ouvert()) {
       <div [class]="corps" data-outil-rayon>
         <div class="text-[11px] leading-[1.5] text-tertiary">
@@ -59,12 +56,7 @@ const CHAMP_SAISIE = 'w-full rounded-[6px] border-fin border-subtle bg-elevated 
 
         <div>
           <div [class]="libelleChamp">Détail</div>
-          <div class="flex gap-[5px]" role="group" aria-label="Détail par champ">
-            <button type="button" data-champ="aucun" [attr.aria-pressed]="!s.champ()" (click)="s.champ.set(null)"
-              [class]="pastille + ' flex-1 text-center ' + (s.champ() ? pastilleInactive : pastilleActive)">Aucun</button>
-            <button type="button" data-champ="sous_categorie" [attr.aria-pressed]="!!s.champ()" (click)="s.champ.set(sousCategorie)"
-              [class]="pastille + ' flex-1 text-center ' + (s.champ() ? pastilleActive : pastilleInactive)">Par sous-catégorie</button>
-          </div>
+          <mg-pastilles libelle="Détail par champ" [options]="details" [(valeur)]="s.champ" />
         </div>
 
         <div>
@@ -145,12 +137,14 @@ export class OutilRayonComponent {
   protected readonly min = RAYON_MIN_M;
   protected readonly max = RAYON_MAX_M;
   protected readonly maxValeurs = MAX_VALEURS;
-  protected readonly sousCategorie = CHAMP_SOUS_CATEGORIE;
+  protected readonly details = [
+    { cle: 'aucun', valeur: null, libelle: 'Aucun' },
+    { cle: CHAMP_SOUS_CATEGORIE, valeur: CHAMP_SOUS_CATEGORIE, libelle: 'Par sous-catégorie' },
+  ];
   protected readonly tous = CLE_TOUTES;
   protected readonly apercuMax = APERCU_SITES_MAX;
   protected readonly km = formaterKm;
   protected readonly nombre = formaterNombre;
-  protected readonly entete = ENTETE_ACCORDEON;
   protected readonly corps = CORPS_ACCORDEON;
   protected readonly libelleChamp = LIBELLE_CHAMP;
   protected readonly liste = LISTE_CHAMP;
@@ -158,7 +152,6 @@ export class OutilRayonComponent {
   protected readonly boutonCalcul = BOUTON_CALCUL;
   protected readonly encartErreur = ENCART_ERREUR;
   protected readonly pastille = PASTILLE;
-  protected readonly pastilleActive = PASTILLE_PRIMAIRE_ACTIVE;
   protected readonly pastilleInactive = PASTILLE_INACTIVE;
 
   /** Les valeurs du dernier calcul, proposées à la saisie. */

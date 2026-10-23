@@ -234,14 +234,14 @@ describe('Outil « Score composite » (ScoreCompositeTool.tsx, T18)', () => {
   it('sans zone analysée : aucune bascule « Sur : »', async () => {
     const m = await monter(DEPT_13);
     await m.preparer();
-    expect(m.el.querySelector('mg-outil-score [data-sur]')).toBeNull();
+    expect(m.el.querySelector('mg-outil-score mg-choix-sur-zone')).toBeNull();
   });
 
   it('zone analysée : « Sur » = la zone par défaut, sans filtre de ① ; la bascule rend le périmètre de ①', async () => {
     const m = await monter(null);
     m.zone.set('z-1');
     await m.preparer();
-    const pressed = (v: string) => m.el.querySelector(`mg-outil-score [data-sur="${v}"]`)!.getAttribute('aria-pressed');
+    const pressed = (v: string) => m.el.querySelector(`mg-outil-score [data-pastille="${v}"]`)!.getAttribute('aria-pressed');
     expect([pressed('zone'), pressed('filtre')]).toEqual(['true', 'false']);
     expect(m.el.querySelector('mg-outil-score')!.textContent).not.toContain('filtre actif');
     await m.cliquer('mg-outil-score [data-calculer]');
@@ -251,7 +251,7 @@ describe('Outil « Score composite » (ScoreCompositeTool.tsx, T18)', () => {
     req.flush(RESULTAT_13);
     await m.rendre();
     // Revenir au périmètre de ① retire le résultat de la zone ; sans filtre posé, la garde parle.
-    await m.cliquer('mg-outil-score [data-sur="filtre"]');
+    await m.cliquer('mg-outil-score [data-pastille="filtre"]');
     expect(m.el.querySelector('mg-outil-score [data-resume]')).toBeNull();
     expect(m.el.querySelector('mg-outil-score')!.textContent).toContain('filtre actif');
     await m.cliquer('mg-outil-score [data-calculer]');

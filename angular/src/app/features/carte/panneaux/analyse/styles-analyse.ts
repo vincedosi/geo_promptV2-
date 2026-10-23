@@ -41,8 +41,10 @@ export const LISTE_CHAMP = 'w-full cursor-pointer rounded-[6px] border-fin borde
 export const BOUTON_CALCUL = 'rounded-[6px] border-fin border-teal bg-transparent px-4 py-2 text-[12px] font-medium text-teal disabled:cursor-not-allowed disabled:opacity-40 enabled:cursor-pointer';
 /** L'encart d'erreur d'un outil (`C.redDim`, `C.redBorder`, `C.red`). */
 export const ENCART_ERREUR = 'rounded-[4px] border-fin border-[color-mix(in_srgb,var(--danger)_25%,transparent)] bg-[color-mix(in_srgb,var(--danger)_8%,transparent)] px-[10px] py-2 text-[11px] leading-[1.5] text-danger';
-/** L'encart d'avertissement (`C.amberDim`, bord ambre à 25 %, `C.amber`). */
-export const ENCART_AVERTISSEMENT = 'rounded-[4px] border-fin border-[color-mix(in_srgb,var(--warning)_25%,transparent)] bg-[color-mix(in_srgb,var(--warning)_10%,transparent)] px-[10px] py-2 text-[11px] leading-[1.5] text-warning';
+/** Le fond et le bord d'un encart d'avertissement (`C.amberDim`, bord ambre à 25 %), sans couleur de texte. */
+const FOND_AVERTISSEMENT = 'rounded-[4px] border-fin border-[color-mix(in_srgb,var(--warning)_25%,transparent)] bg-[color-mix(in_srgb,var(--warning)_10%,transparent)] px-[10px] py-2 text-[11px] leading-[1.5]';
+/** L'encart d'avertissement (`C.amber`). */
+export const ENCART_AVERTISSEMENT = `${FOND_AVERTISSEMENT} text-warning`;
 
 /** La classe de texte d'une teinte de ligne de journal. */
 export const TEXTE_TEINTE: Readonly<Record<string, string>> = {
@@ -61,4 +63,4 @@ const TEXTE_AVERTISSEMENT = 'text-[color:light-dark(color-mix(in_srgb,var(--warn
  * le fond et le bord d'`ENCART_AVERTISSEMENT`, le texte `TEXTE_AVERTISSEMENT`. `ENCART_AVERTISSEMENT` reste tel quel
  * pour la corrélation (hors du périmètre de T8).
  */
-export const ENCART_AVERTISSEMENT_LISIBLE = `rounded-[4px] border-fin border-[color-mix(in_srgb,var(--warning)_25%,transparent)] bg-[color-mix(in_srgb,var(--warning)_10%,transparent)] px-[10px] py-2 text-[11px] leading-[1.5] ${TEXTE_AVERTISSEMENT}`;
+export const ENCART_AVERTISSEMENT_LISIBLE = `${FOND_AVERTISSEMENT} ${TEXTE_AVERTISSEMENT}`;

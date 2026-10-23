@@ -1,5 +1,11 @@
 import { ChangeDetectionStrategy, Component, input, model } from '@angular/core';
-import { LIBELLE_CHAMP, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } from './styles-analyse';
+import { PastillesComponent } from './pastilles.component';
+import { LIBELLE_CHAMP } from './styles-analyse';
+
+const OPTIONS = [
+  { cle: 'zone', valeur: true, libelle: 'La zone analysée' },
+  { cle: 'filtre', valeur: false, libelle: 'Le périmètre de ①' },
+] as const;
 
 /**
  * ④ Analyse — « Sur : la zone analysée / le périmètre de ① », la bascule des outils qui savent lire une zone (score
@@ -7,16 +13,12 @@ import { LIBELLE_CHAMP, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } 
  */
 @Component({
   selector: 'mg-choix-sur-zone',
+  imports: [PastillesComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   template: `
     <div [class]="libelleChamp">Sur</div>
-    <div class="flex gap-[5px]" role="group" [attr.aria-label]="'Périmètre ' + objet()">
-      <button type="button" data-sur="zone" [attr.aria-pressed]="surZone()" (click)="surZone.set(true)"
-        [class]="pastille + ' flex-1 text-center ' + (surZone() ? pastilleActive : pastilleInactive)">La zone analysée</button>
-      <button type="button" data-sur="filtre" [attr.aria-pressed]="!surZone()" (click)="surZone.set(false)"
-        [class]="pastille + ' flex-1 text-center ' + (surZone() ? pastilleInactive : pastilleActive)">Le périmètre de ①</button>
-    </div>
+    <mg-pastilles [libelle]="'Périmètre ' + objet()" [options]="options" [(valeur)]="surZone" />
   `,
 })
 export class ChoixSurZoneComponent {
@@ -25,7 +27,5 @@ export class ChoixSurZoneComponent {
   readonly objet = input.required<string>();
 
   protected readonly libelleChamp = LIBELLE_CHAMP;
-  protected readonly pastille = PASTILLE;
-  protected readonly pastilleActive = PASTILLE_PRIMAIRE_ACTIVE;
-  protected readonly pastilleInactive = PASTILLE_INACTIVE;
+  protected readonly options = OPTIONS;
 }

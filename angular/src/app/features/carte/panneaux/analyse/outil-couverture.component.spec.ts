@@ -118,7 +118,7 @@ describe('mg-outil-couverture (lot 4, T8)', () => {
     const { el, z, stable } = await monter();
     z.resultat.set(BASE);
     await stable();
-    (el.querySelector('[data-decoupage="cp"]') as HTMLButtonElement).click();
+    (el.querySelector('[data-pastille="cp"]') as HTMLButtonElement).click();
     await stable();
     expect(z.regler).toHaveBeenCalledWith({ decoupage: 'cp' });
     expect(el.querySelector('[data-resultat]')).toBeNull();

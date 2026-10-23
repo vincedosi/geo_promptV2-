@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, linkedSignal, signal, untracked } from '@angular/core';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { ClustersService } from '../../couches/clusters.service';
@@ -64,7 +65,7 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
 @Component({
   selector: 'mg-panneau-analyse',
   imports: [
-    IntroAnalyseComponent, OutilBatailleV2Component, OutilCorrelationComponent, OutilCouvertureComponent, OutilIsochronesComponent,
+    IntroAnalyseComponent, NgTemplateOutlet, OutilBatailleV2Component, OutilCorrelationComponent, OutilCouvertureComponent, OutilIsochronesComponent,
     OutilRayonComponent, OutilScoreComponent, SectionClusteringComponent,
   ],
   // Le catalogue d'indicateurs (score, corrélation) vient de la PAGE (lot 3, X4), partagé avec ③ et « Mes zones ».
@@ -94,7 +95,7 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
       </button>
       @if (spatialeOuverte()) {
         <div class="border-b-fin border-subtle p-4">
-          @if (zoneAnalysee()) { <div data-perimetre-etape-1 [class]="lignePerimetre">{{ messagePerimetre }}</div> }
+          @if (zoneAnalysee()) { <ng-container *ngTemplateOutlet="lignePerimetre1" /> }
           <div class="pb-1">
             <mg-intro-analyse [nombrePoi]="nombrePoi()" />
             @if (contexte.unPoi()) {
@@ -132,7 +133,9 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
     <!-- PanneauAnalyse.tsx:430-475 : le score composite (gardé, France admise), la corrélation (non gardée), le clustering. -->
     <mg-outil-score (lancer)="lancerScore()" />
     <mg-outil-correlation />
-    @if (clusteringOuvert() && zoneAnalysee()) { <div data-perimetre-etape-1 [class]="lignePerimetre + ' mx-[14px] mt-[10px]'">{{ messagePerimetre }}</div> }
+    @if (clusteringOuvert() && zoneAnalysee()) { <div class="mx-[14px] mt-[10px]"><ng-container *ngTemplateOutlet="lignePerimetre1" /></div> }
+    <!-- A-9 : la ligne des outils qui ne lisent pas la zone analysée, écrite une fois. -->
+    <ng-template #lignePerimetre1><div data-perimetre-etape-1 class="mb-2 text-[11px] leading-[1.5] text-tertiary">Cet outil travaille sur le périmètre de l’étape ①.</div></ng-template>
     @if (clusteringOuvert()) { <mg-section-clustering [refusCalcul]="gardeMessage()" (charger)="chargerClusters()" (lancerCalcul)="lancerClustering($event)" /> }
   `,
 })
@@ -151,8 +154,6 @@ export class PanneauAnalyseComponent {
    */
   private readonly analysee = inject(ZoneAnalyseeService);
   protected readonly zoneAnalysee = computed(() => this.analysee.zoneId() !== null);
-  protected readonly messagePerimetre = 'Cet outil travaille sur le périmètre de l’étape ①.';
-  protected readonly lignePerimetre = 'mb-2 text-[11px] leading-[1.5] text-tertiary';
 
   protected readonly modes = ISO_MODES;
   protected readonly entete = ENTETE_ACCORDEON;
