@@ -52,7 +52,8 @@ export interface CorpsScore {
   perimetre?: { type: FiltreActif['type']; code: string };
   codes_postaux?: string[];
   enregistrer: boolean;
-  nom: string;
+  /** Absent sur une zone analysée : la route nomme alors le score d'après ses indicateurs (plus parlant qu'un nom unique). */
+  nom?: string;
 }
 
 /** Au-delà, le score ne se lit plus — même plafond que la route (`MAX_INDICATEURS`). */
@@ -83,13 +84,9 @@ export function parametresIndicateurs(choisis: readonly IndicateurChoisi[]): Par
 export function corpsScore(
   choisis: readonly IndicateurChoisi[], filtre: FiltreActif | null, enregistrer: boolean, zoneAnalysee: string | null = null,
 ): CorpsScore {
-  const cible = zoneAnalysee ? { type: 'zone' as const, code: zoneAnalysee, label: 'zone analysée' } : filtre;
-  return {
-    indicateurs: parametresIndicateurs(choisis),
-    perimetre: cible ? { type: cible.type, code: cible.code } : undefined,
-    enregistrer,
-    nom: `Score composite — ${cible?.label ?? ''}`,
-  };
+  const base = { indicateurs: parametresIndicateurs(choisis), enregistrer };
+  if (zoneAnalysee) return { ...base, perimetre: { type: 'zone', code: zoneAnalysee } };
+  return { ...base, perimetre: filtre ? { type: filtre.type, code: filtre.code } : undefined, nom: `Score composite — ${filtre?.label ?? ''}` };
 }
 
 /** Ce que le score agrège, en légende : « Revenu médian × Part des 15-29 ans ». */

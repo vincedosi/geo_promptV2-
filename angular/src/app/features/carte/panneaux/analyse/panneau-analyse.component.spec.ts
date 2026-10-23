@@ -9,7 +9,7 @@ import { ClusteringApi } from '../../data/clustering.api';
 import { PileEchapService } from '../../etat/pile-echap.service';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { signal } from '@angular/core';
+import { type WritableSignal, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ConfigService } from '../../../../core/config/config.service';
 import { PoisService } from '../../couches/pois.service';
@@ -25,6 +25,7 @@ import { ReferentielGeoService } from '../../etat/referentiel-geo.service';
 import type { FiltreActif } from '../../logique/filtre';
 import { PanneauAnalyseComponent } from './panneau-analyse.component';
 import { ScoreService } from '../../couches/score.service';
+import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
 import { AnalysesApi } from '../../data/analyses.api';
 import { ZonesCustomApi } from '../../data/zones-custom.api';
 import { ZonesApi } from '../../data/zones.api';
@@ -160,6 +161,31 @@ describe('PanneauAnalyseComponent (PanneauAnalyse.tsx, T17)', () => {
     expect(m.el.querySelector('[data-garde]')).toBeNull();
   });
 
+  it('zone analysée SANS filtre ①: la zone ne va qu’au score — bataille V1 et V2 refusées, zéro requête', async () => {
+    const m = await monter({ filtre: null });
+    (TestBed.inject(ZoneAnalyseeService).zoneId as WritableSignal<string | null>).set('z-1');
+    await ouvrirOutil(m, 'mg-outil-isochrones');
+    await m.cliquer('mg-outil-isochrones [data-lancer]');
+    expect(m.el.querySelector('[data-garde]')!.textContent!.trim()).toBe('! Choisissez un périmètre (filtre ou zone) avant de lancer un calcul');
+    await m.cliquer('mg-outil-isochrones [data-verifier-cache]');
+    await m.cliquer('mg-outil-bataille-v2 [data-entete-outil]');
+    await m.cliquer('mg-outil-bataille-v2 [data-lancer]');
+    await m.cliquer('mg-outil-bataille-v2 [data-verifier-cache]');
+    // Seule lecture légitime : le nom de la zone choisie (liste des zones), pas un calcul.
+    m.http.match((r) => r.url.includes('/api/custom-geo/list'));
+    m.http.verify();
+  });
+
+  it('le refus d’un outil s’efface quand une zone analysée est choisie (périmètre du score)', async () => {
+    const m = await monter({ filtre: null });
+    await ouvrirOutil(m, 'mg-outil-isochrones');
+    await m.cliquer('mg-outil-isochrones [data-lancer]');
+    expect(m.el.querySelector('[data-garde]')).not.toBeNull();
+    (TestBed.inject(ZoneAnalyseeService).zoneId as WritableSignal<string | null>).set('z-1');
+    await m.fixture.whenStable();
+    expect(m.el.querySelector('[data-garde]')).toBeNull();
+  });
+
   it('le message de garde s’efface dès qu’un filtre est posé', async () => {
     const m = await monter({ filtre: null });
     await ouvrirOutil(m, 'mg-outil-isochrones');
@@ -268,6 +294,14 @@ describe('PanneauAnalyseComponent — assistant de clustering (T20)', () => {
     const refus = '! Le clustering ne peut pas être calculé sur la France entière — choisissez une région ou un département.';
     expect(m.el.querySelector('[data-erreur-lancement]')!.textContent!.trim()).toBe(refus);
     expect(m.el.querySelector('[data-garde]')!.textContent!.trim()).toBe(refus);
+    m.http.expectNone('/api/poi-clusters/run');
+  });
+
+  it('zone analysée SANS filtre ①: le clustering reste refusé, zéro POST', async () => {
+    const m = await monterAdmin(null);
+    (TestBed.inject(ZoneAnalyseeService).zoneId as WritableSignal<string | null>).set('z-1');
+    await lancerAssistant(m);
+    expect(m.el.querySelector('[data-erreur-lancement]')!.textContent!.trim()).toBe('! Choisissez un périmètre (filtre ou zone) avant de lancer un calcul');
     m.http.expectNone('/api/poi-clusters/run');
   });
 

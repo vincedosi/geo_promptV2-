@@ -243,6 +243,7 @@ describe('Outil « Score composite » (ScoreCompositeTool.tsx, T18)', () => {
     await m.preparer();
     const pressed = (v: string) => m.el.querySelector(`mg-outil-score [data-sur="${v}"]`)!.getAttribute('aria-pressed');
     expect([pressed('zone'), pressed('filtre')]).toEqual(['true', 'false']);
+    expect(m.el.querySelector('mg-outil-score')!.textContent).not.toContain('filtre actif');
     await m.cliquer('mg-outil-score [data-calculer]');
     expect(m.el.querySelector('[data-garde]')).toBeNull();
     const req = m.http.expectOne((r) => r.url.endsWith('/api/analyses/score'));
@@ -252,6 +253,7 @@ describe('Outil « Score composite » (ScoreCompositeTool.tsx, T18)', () => {
     // Revenir au périmètre de ① retire le résultat de la zone ; sans filtre posé, la garde parle.
     await m.cliquer('mg-outil-score [data-sur="filtre"]');
     expect(m.el.querySelector('mg-outil-score [data-resume]')).toBeNull();
+    expect(m.el.querySelector('mg-outil-score')!.textContent).toContain('filtre actif');
     await m.cliquer('mg-outil-score [data-calculer]');
     expect(m.el.querySelector('[data-garde]')).not.toBeNull();
     m.http.expectNone((r) => r.url.endsWith('/api/analyses/score'));

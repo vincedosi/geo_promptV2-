@@ -29,7 +29,7 @@ import {
     @if (s.ouvert()) {
       <div [class]="corps">
         <div class="text-[11px] leading-[1.5] text-tertiary">
-          Combine plusieurs indicateurs en une note de 0 à 100 par code postal, sur le périmètre du filtre actif.
+          Combine plusieurs indicateurs en une note de 0 à 100 par code postal{{ s.zoneScore() ? '.' : ', sur le périmètre du filtre actif.' }}
         </div>
 
         @if (s.zoneAnalysee()) {

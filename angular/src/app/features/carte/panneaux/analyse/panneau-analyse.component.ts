@@ -159,9 +159,10 @@ export class PanneauAnalyseComponent {
   protected readonly outilOuvert = signal<OutilOuvert>(null);
   protected readonly nombrePoi = computed(() => this.etat.poiSelectionnes().length);
   /** Le dernier refus ; un filtre posé l'efface (`useEffect(() => { if (filtre) setGardeMessage(null) })`). */
-  protected readonly gardeMessage = linkedSignal<FiltreActif | null, string | null>({
-    source: this.etat.filtre,
-    computation: (filtre, precedent) => (filtre ? null : (precedent?.value ?? null)),
+  protected readonly gardeMessage = linkedSignal<FiltreActif | string | null, string | null>({
+    // Une zone analysée est un périmètre suffisant pour le score (T10) : la choisir efface aussi le refus.
+    source: computed(() => this.etat.filtre() ?? this.scoreComposite.zoneScore()),
+    computation: (perimetre, precedent) => (perimetre ? null : (precedent?.value ?? null)),
   });
 
   private readonly auth = inject(AuthService);

@@ -39,13 +39,12 @@ describe('logique/analyses/score (ScoreCompositeTool.tsx)', () => {
     expect(parametresIndicateurs(choisis)).toEqual(corpsScore(choisis, DEPT_13, true).indicateurs);
   });
 
-  it('zone analysée posée : le périmètre est la zone, le filtre de ① est ignoré (même absent)', () => {
+  it('zone analysée posée : le périmètre est la zone, sans nom (la route nomme), le filtre de ① est ignoré (même absent)', () => {
     const choisis: IndicateurChoisi[] = [{ code: 'rev_median', label: 'Revenu médian', poids: 1, sens: 'croissant' }];
     const attendu = {
       indicateurs: [{ code: 'rev_median', poids: 1, sens: 'croissant' }],
       perimetre: { type: 'zone', code: 'z-1' },
       enregistrer: false,
-      nom: 'Score composite — zone analysée',
     };
     expect(corpsScore(choisis, DEPT_13, false, 'z-1')).toEqual(attendu);
     expect(corpsScore(choisis, null, false, 'z-1')).toEqual(attendu);
