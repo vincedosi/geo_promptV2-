@@ -1,4 +1,4 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { type Subscription, catchError, throwError } from 'rxjs';
 import { formaterNombre } from '../../../core/format/nombre';
 import { ScoreService } from '../couches/score.service';
@@ -11,6 +11,7 @@ import {
 import { CatalogueIndicateursService } from './catalogue-indicateurs.service';
 import { CreationZoneService } from './creation-zone.service';
 import { EtatCarteService } from './etat-carte.service';
+import { ZoneAnalyseeService } from './zone-analysee.service';
 
 /**
  * L'état de l'outil « Score composite » — `ScoreCompositeTool.tsx` (lot 4, T18), hors de son gabarit : le LANCEMENT
@@ -25,6 +26,11 @@ import { EtatCarteService } from './etat-carte.service';
  * ── ENREGISTRER : OPT-IN ─────────────────────────────────────────────────
  * Décoché par défaut : l'outil se relance à chaque essai, et la liste « Mes analyses » est bornée à 50.
  *
+ * ── SUR LA ZONE ANALYSÉE (lot 4, T10) ────────────────────────────────────
+ * Quand ④ analyse une zone, le score s'y applique par défaut (`surZone`, bascule vers le périmètre de ①) : la route lit
+ * déjà `{ type: 'zone' }`, et une zone suffit comme périmètre. Changer de zone — ou basculer — PÉRIME le résultat
+ * (même geste que `perimer`) : le calcul en vol est annulé, sa réponse ne revient pas peindre la carte (P-c).
+ *
  * `@Injectable()` sans `providedIn` : fourni par le panneau Analyse — fermer le panneau perd les réglages, comme
  * React ; la carte, elle, garde le score peint (`ScoreService`, à la page).
  */
@@ -35,6 +41,7 @@ export class ScoreCompositeService {
   private readonly carte = inject(ScoreService);
   private readonly catalogueService = inject(CatalogueIndicateursService);
   private readonly creation = inject(CreationZoneService);
+  private readonly analysee = inject(ZoneAnalyseeService);
 
   readonly ouvert = signal(false);
   readonly catalogue = signal<IndicateurRegistre[]>([]);
@@ -56,8 +63,28 @@ export class ScoreCompositeService {
   /** Le calcul en vol : un réglage modifié l'ANNULE, sans quoi l'ancien résultat reviendrait repeindre la carte. */
   private calculEnVol: Subscription | null = null;
 
+  /** La zone analysée de ④, ou `null` : la bascule « Sur : » n'a de sens qu'avec elle. */
+  readonly zoneAnalysee = this.analysee.zoneId;
+  /** « Sur : la zone analysée » (défaut) ou « le périmètre de ① ». */
+  readonly surZone = signal(true);
+  /** La zone sur laquelle le score part, ou `null` : le périmètre de ①. */
+  readonly zoneScore = computed(() => (this.surZone() ? this.zoneAnalysee() : null));
+
   readonly disponibles = computed(() => this.catalogue().filter((i) => !this.choisis().some((c) => c.code === i.indicator_code)));
   readonly auDessusDuSeuil = computed(() => compteAuDessus(this.resultat()?.scores ?? [], this.seuil()));
+
+  constructor() {
+    // P-a : l'effet ne fait que lire ; périmer écrit des signaux, hors suivi. La première valeur n'est pas un changement.
+    let derniere = this.zoneScore();
+    effect(() => {
+      const zone = this.zoneScore();
+      untracked(() => {
+        if (zone === derniere) return;
+        derniere = zone;
+        this.perimer();
+      });
+    });
+  }
 
   /** Déplier charge le catalogue la PREMIÈRE fois ; un échec laisse le dépliage suivant relire. */
   basculerOuvert(): void {
@@ -98,11 +125,12 @@ export class ScoreCompositeService {
   lancer(): void {
     const filtre = this.etat.filtre();
     const choisis = this.choisis();
-    if (!choisis.length || this.calcul() || !filtre) return;
+    const zone = this.zoneScore();
+    if (!choisis.length || this.calcul() || (!filtre && !zone)) return;
     this.calcul.set(true);
     this.erreur.set(null);
     this.messageZone.set(null);
-    this.calculEnVol = this.api.score(corpsScore(choisis, filtre, this.enregistrer())).subscribe({
+    this.calculEnVol = this.api.score(corpsScore(choisis, filtre, this.enregistrer(), zone)).subscribe({
       next: (r) => {
         this.resultat.set(r);
         this.carte.afficher({ scores: r.scores, libelle: libelleScore(choisis.map((c) => c.label)), nIndicateurs: choisis.length });

@@ -1,6 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { type WritableSignal, provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { ConfigService } from '../../../../core/config/config.service';
@@ -21,6 +21,7 @@ import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.se
 import { ContexteBatailleService } from '../../etat/contexte-bataille.service';
 import { CouchesCarteService } from '../../etat/couches-carte.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
+import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
 import { ReferentielGeoService } from '../../etat/referentiel-geo.service';
 import type { FiltreActif } from '../../logique/filtre';
 import { PanneauAnalyseComponent } from './panneau-analyse.component';
@@ -87,7 +88,8 @@ async function monter(filtre: FiltreActif | null) {
     await choisir('mg-outil-score [data-ajouter]', 'rev_median');
     await choisir('mg-outil-score [data-ajouter]', 'part_15_29');
   };
-  return { el, http, score, rendre, cliquer, choisir, preparer, etat: TestBed.inject(EtatCarteService) };
+  const zone = TestBed.inject(ZoneAnalyseeService).zoneId as WritableSignal<string | null>;
+  return { el, http, score, zone, rendre, cliquer, choisir, preparer, etat: TestBed.inject(EtatCarteService) };
 }
 
 describe('Outil « Score composite » (ScoreCompositeTool.tsx, T18)', () => {
@@ -227,5 +229,31 @@ describe('Outil « Score composite » (ScoreCompositeTool.tsx, T18)', () => {
     expect(m.el.querySelector('mg-outil-score [data-calculer]')!.textContent!.trim()).toBe('Calculer le score');
     expect(m.el.querySelector('mg-outil-score [data-resume]')).toBeNull();
     expect(m.score.afficher).not.toHaveBeenCalled();
+  });
+
+  it('sans zone analysée : aucune bascule « Sur : »', async () => {
+    const m = await monter(DEPT_13);
+    await m.preparer();
+    expect(m.el.querySelector('mg-outil-score [data-sur]')).toBeNull();
+  });
+
+  it('zone analysée : « Sur » = la zone par défaut, sans filtre de ① ; la bascule rend le périmètre de ①', async () => {
+    const m = await monter(null);
+    m.zone.set('z-1');
+    await m.preparer();
+    const pressed = (v: string) => m.el.querySelector(`mg-outil-score [data-sur="${v}"]`)!.getAttribute('aria-pressed');
+    expect([pressed('zone'), pressed('filtre')]).toEqual(['true', 'false']);
+    await m.cliquer('mg-outil-score [data-calculer]');
+    expect(m.el.querySelector('[data-garde]')).toBeNull();
+    const req = m.http.expectOne((r) => r.url.endsWith('/api/analyses/score'));
+    expect(req.request.body.perimetre).toEqual({ type: 'zone', code: 'z-1' });
+    req.flush(RESULTAT_13);
+    await m.rendre();
+    // Revenir au périmètre de ① retire le résultat de la zone ; sans filtre posé, la garde parle.
+    await m.cliquer('mg-outil-score [data-sur="filtre"]');
+    expect(m.el.querySelector('mg-outil-score [data-resume]')).toBeNull();
+    await m.cliquer('mg-outil-score [data-calculer]');
+    expect(m.el.querySelector('[data-garde]')).not.toBeNull();
+    m.http.expectNone((r) => r.url.endsWith('/api/analyses/score'));
   });
 });

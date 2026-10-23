@@ -109,8 +109,8 @@ describe('Panneau Analyse Angular — verrou structurel de la garde de périmèt
     }
   });
 
-  it('verifierPerimetreOutil lit messageGardeOutil(outil, filtre) — la logique pure, jamais une copie', () => {
-    expect(corpsDeMethode('verifierPerimetreOutil')).toContain('messageGardeOutil(outil, this.etat.filtre())');
+  it('verifierPerimetreOutil lit messageGardeOutil(outil, filtre, zone) — la logique pure, jamais une copie', () => {
+    expect(corpsDeMethode('verifierPerimetreOutil')).toContain('messageGardeOutil(outil, this.etat.filtre(), zone)');
   });
 
   it('les deux batailles refusent EN PLUS un filtre code postal ou zone, qu’elles ne transmettent pas (registre, ligne 71)', () => {

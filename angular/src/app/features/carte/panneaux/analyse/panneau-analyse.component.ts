@@ -198,7 +198,9 @@ export class PanneauAnalyseComponent {
    */
   protected verifierPerimetreOutil(outil: OutilAnalyse): boolean {
     const bataille = outil === 'bataille_v1' || outil === 'bataille_v2';
-    const message = messageGardeOutil(outil, this.etat.filtre())
+    // Seul le score sait lire une zone : pour lui, la zone analysée tient lieu de périmètre (lot 4, T10).
+    const zone = outil === 'score_composite' ? this.scoreComposite.zoneScore() : null;
+    const message = messageGardeOutil(outil, this.etat.filtre(), zone)
       ?? (bataille ? messageRefusTerritoireBataille(this.etat.filtre()) : null);
     this.gardeMessage.set(message);
     return message === null;

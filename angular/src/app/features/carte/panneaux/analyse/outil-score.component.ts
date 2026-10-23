@@ -32,6 +32,18 @@ import {
           Combine plusieurs indicateurs en une note de 0 à 100 par code postal, sur le périmètre du filtre actif.
         </div>
 
+        @if (s.zoneAnalysee()) {
+          <div>
+            <div [class]="libelleChamp">Sur</div>
+            <div class="flex gap-[5px]" role="group" aria-label="Périmètre du score">
+              <button type="button" data-sur="zone" [attr.aria-pressed]="s.surZone()" (click)="s.surZone.set(true)"
+                [class]="pastille + ' flex-1 text-center ' + (s.surZone() ? pastilleActive : pastilleInactive)">La zone analysée</button>
+              <button type="button" data-sur="filtre" [attr.aria-pressed]="!s.surZone()" (click)="s.surZone.set(false)"
+                [class]="pastille + ' flex-1 text-center ' + (s.surZone() ? pastilleInactive : pastilleActive)">Le périmètre de ①</button>
+            </div>
+          </div>
+        }
+
         <div>
           <div [class]="libelleChamp">Indicateurs ({{ s.choisis().length }}/{{ max }})</div>
           @if (s.chargementCatalogue()) {
