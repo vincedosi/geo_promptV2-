@@ -176,12 +176,19 @@ describe('PanneauAnalyseComponent (PanneauAnalyse.tsx, T17)', () => {
     m.http.verify();
   });
 
-  it('le refus d’un outil s’efface quand une zone analysée est choisie (périmètre du score)', async () => {
+  it('T10 R-1 : choisir une zone analysée efface le refus du SCORE, jamais celui d’un outil qui ne la lit pas', async () => {
     const m = await monter({ filtre: null });
+    const zone = TestBed.inject(ZoneAnalyseeService).zoneId as WritableSignal<string | null>;
     await ouvrirOutil(m, 'mg-outil-isochrones');
     await m.cliquer('mg-outil-isochrones [data-lancer]');
+    zone.set('z-1');
+    await m.fixture.whenStable();
     expect(m.el.querySelector('[data-garde]')).not.toBeNull();
-    (TestBed.inject(ZoneAnalyseeService).zoneId as WritableSignal<string | null>).set('z-1');
+    zone.set(null);
+    (m.fixture.componentInstance as unknown as { lancerScore(): void }).lancerScore();
+    await m.fixture.whenStable();
+    expect(m.el.querySelector('[data-garde]')).not.toBeNull();
+    zone.set('z-1');
     await m.fixture.whenStable();
     expect(m.el.querySelector('[data-garde]')).toBeNull();
   });

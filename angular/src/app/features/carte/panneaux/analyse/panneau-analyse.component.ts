@@ -163,10 +163,12 @@ export class PanneauAnalyseComponent {
   protected readonly spatialeOuverte = signal(false);
   protected readonly outilOuvert = signal<OutilOuvert>(null);
   protected readonly nombrePoi = computed(() => this.etat.poiSelectionnes().length);
+  /** L'outil du dernier refus : seule la zone analysée du SCORE efface son refus (T10 R-1 — la bataille ne la lit pas). */
+  private readonly outilRefuse = signal<OutilAnalyse | null>(null);
   /** Le dernier refus ; un filtre posé l'efface (`useEffect(() => { if (filtre) setGardeMessage(null) })`). */
   protected readonly gardeMessage = linkedSignal<FiltreActif | string | null, string | null>({
-    // Une zone analysée est un périmètre suffisant pour le score (T10) : la choisir efface aussi le refus.
-    source: computed(() => this.etat.filtre() ?? this.scoreComposite.zoneScore()),
+    // Une zone analysée est un périmètre suffisant pour le score (T10) : la choisir efface le refus du score, pas des autres.
+    source: computed(() => this.etat.filtre() ?? (this.outilRefuse() === 'score_composite' ? this.scoreComposite.zoneScore() : null)),
     computation: (perimetre, precedent) => (perimetre ? null : (precedent?.value ?? null)),
   });
 
@@ -208,6 +210,7 @@ export class PanneauAnalyseComponent {
     const zone = outil === 'score_composite' ? this.scoreComposite.zoneScore() : null;
     const message = messageGardeOutil(outil, this.etat.filtre(), zone)
       ?? (bataille ? messageRefusTerritoireBataille(this.etat.filtre()) : null);
+    this.outilRefuse.set(outil);
     this.gardeMessage.set(message);
     return message === null;
   }
@@ -215,6 +218,7 @@ export class PanneauAnalyseComponent {
   /** La garde GÉNÉRIQUE (`verifierPerimetre` de React) : un périmètre, n'importe lequel — la France entière comprise. */
   protected verifierPerimetre(): boolean {
     const message = messageGardePerimetre(this.etat.filtre());
+    this.outilRefuse.set(null);
     this.gardeMessage.set(message);
     return message === null;
   }
