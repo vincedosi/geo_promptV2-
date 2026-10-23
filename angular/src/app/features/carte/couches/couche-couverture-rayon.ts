@@ -13,7 +13,7 @@ import { type CarteApercu, poserApercu, retirerApercu } from './apercu-forme';
 const IDS = { source: 'couverture-rayon', remplissage: 'couverture-rayon-fill', contour: 'couverture-rayon-line' } as const;
 export const COUCHE_POI_RAYON = 'couverture-rayon-poi';
 export const JETONS_RAYON = { teal: 'brand-teal', contour: 'poi-contour' } as const;
-export type PaletteRayon = Record<keyof typeof JETONS_RAYON, string>;
+type PaletteRayon = Record<keyof typeof JETONS_RAYON, string>;
 
 /**
  * Les cercles (un MultiPolygon) puis un point par POI. Les cercles sont reconstruits à chaque cran du curseur : bornés

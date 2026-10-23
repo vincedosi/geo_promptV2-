@@ -55,7 +55,7 @@ export const TEXTE_TEINTE: Readonly<Record<string, string>> = {
  * à 50 % de `--text-primary` ; en sombre, `--warning` inchangé. `light-dark()` se résout d'après le `color-scheme` de
  * l'hôte. Mesuré : 6,3:1 sur le fond de l'encart en clair (2,7:1 avec `--warning` seul), 9,6:1 en sombre.
  */
-export const TEXTE_AVERTISSEMENT = 'text-[color:light-dark(color-mix(in_srgb,var(--warning)_50%,var(--text-primary)),var(--warning))]';
+const TEXTE_AVERTISSEMENT = 'text-[color:light-dark(color-mix(in_srgb,var(--warning)_50%,var(--text-primary)),var(--warning))]';
 /**
  * L'encart d'avertissement de la couverture d'une zone (messages Q-J : territoire non carroyé, zone sans carreau) :
  * le fond et le bord d'`ENCART_AVERTISSEMENT`, le texte `TEXTE_AVERTISSEMENT`. `ENCART_AVERTISSEMENT` reste tel quel

@@ -153,14 +153,6 @@ export function libelleDecoupage(d: Decoupage): string {
   return LIBELLES_DECOUPAGE[d];
 }
 
-/** « 1 906 400 habitants · 5 103 km² · 126 codes postaux » ; le découpage `forme` n'a pas de territoires. */
-export function resumeCouverture(r: Pick<ResultatCouverture, 'population' | 'surface_km2' | 'decoupage' | 'n_territoires'>, libelleCible: string): string {
-  const morceaux = [`${formaterNombre(r.population)} ${libelleCible}`, `${formaterNombre(Math.round(r.surface_km2))} km²`];
-  if (r.decoupage === 'cp') morceaux.push(`${formaterNombre(r.n_territoires)} ${r.n_territoires > 1 ? 'codes postaux' : 'code postal'}`);
-  if (r.decoupage === 'iris') morceaux.push(`${formaterNombre(r.n_territoires)} IRIS`);
-  return morceaux.join(' · ');
-}
-
 /** « 63,78 M » au-delà du million (deux décimales), sinon le nombre complet. */
 function effectifFrance(n: number): string {
   return n >= 1e6 ? `${(n / 1e6).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} M` : formaterNombre(n);

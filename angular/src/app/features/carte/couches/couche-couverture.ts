@@ -20,12 +20,12 @@ import { SOURCE_IRIS } from './couche-iris';
  * Couleurs : valeurs CALCULÉES par `CouleursService` (jamais `var()` dans `paint`, jamais un hexadécimal recopié).
  */
 
-export const SOURCE_COUVERTURE_ZONE = 'couverture-zone';
+const SOURCE_COUVERTURE_ZONE = 'couverture-zone';
 export const SOURCE_COUVERTURE_CP = 'couverture-cp';
 export const COUCHE_COUVERTURE_CP_FOND = 'couverture-cp-fill';
-export const COUCHE_COUVERTURE_CP_TRAIT = 'couverture-cp-line';
+const COUCHE_COUVERTURE_CP_TRAIT = 'couverture-cp-line';
 export const COUCHE_COUVERTURE_IRIS_FOND = 'couverture-iris-fill';
-export const COUCHE_COUVERTURE_IRIS_TRAIT = 'couverture-iris-line';
+const COUCHE_COUVERTURE_IRIS_TRAIT = 'couverture-iris-line';
 export const COUCHE_COUVERTURE_CP_SURVOL = 'couverture-cp-survol';
 export const COUCHE_COUVERTURE_IRIS_SURVOL = 'couverture-iris-survol';
 export const COUCHE_COUVERTURE_ZONE = 'couverture-zone-line';
@@ -68,7 +68,7 @@ function paliers(p: PaletteCouverture): string[] {
 }
 
 /** L'aplat d'un CP : `step` sur `part`, gris neutre sans dénominateur (« on ne sait pas » n'est pas « faible »). */
-export function expressionCouleurCp(p: PaletteCouverture): unknown[] {
+function expressionCouleurCp(p: PaletteCouverture): unknown[] {
   const c = paliers(p);
   return [
     'case', ['==', ['get', 'part'], null], p.absente,
@@ -95,12 +95,12 @@ export function expressionCouleurIris(lignes: readonly LigneCouverture[], p: Pal
 }
 
 /** Les IRIS de la réponse, au seul palier `iris` des tuiles. */
-export function filtreIrisCouverture(codes: readonly string[]): unknown[] {
+function filtreIrisCouverture(codes: readonly string[]): unknown[] {
   return ['all', ['==', ['get', 'niveau'], 'iris'], ['in', ['get', 'code_iris'], ['literal', [...codes]]]];
 }
 
 /** Le filtre de la surbrillance : le territoire survolé, ou aucun. */
-export function filtreSurvol(propriete: 'code' | 'code_iris', code: string | null): unknown[] {
+function filtreSurvol(propriete: 'code' | 'code_iris', code: string | null): unknown[] {
   const f = ['==', ['get', propriete], code ?? ''];
   return propriete === 'code_iris' ? ['all', ['==', ['get', 'niveau'], 'iris'], f] : f;
 }

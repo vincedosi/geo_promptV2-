@@ -7,7 +7,8 @@ import { ProfilRisqueApi } from '../../data/profil-risque.api';
 import { ZonesRisqueApi } from '../../data/zones-risque.api';
 import type { ResultatCourbe } from '../../logique/donnees-risque';
 import { COURBE_RAYON_REELLE } from '../../testing/courbe-rayon.fixture';
-import { CLE_TOUTES, COMMANDE_COUVERTURE, CourbeRayonComponent, jetonNature } from './courbe-rayon.component';
+import { CLE_TOUTES, jetonNature } from './courbe-population.component';
+import { COMMANDE_COUVERTURE, CourbeRayonComponent } from './courbe-rayon.component';
 
 class GraphiqueFactice implements GraphiqueMinimal {
   options: Record<string, unknown>[] = [];

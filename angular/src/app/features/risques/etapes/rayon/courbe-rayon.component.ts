@@ -8,7 +8,6 @@ import type { ResultatCourbe } from '../../logique/donnees-risque';
 import { BoutonExportComponent } from '../../exports/bouton-export.component';
 import { CourbePopulationComponent, RAYON_LECTURE_DEFAUT } from './courbe-population.component';
 
-export { CLE_TOUTES, jetonNature } from './courbe-population.component';
 /** La commande qui termine le pré-calcul — MOT POUR MOT de `OngletRayonInfluence.tsx:177,211`. */
 export const COMMANDE_COUVERTURE = 'node scripts/construire_couverture_rayon.mjs';
 

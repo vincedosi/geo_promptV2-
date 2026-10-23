@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { formaterNombre } from '../../../../core/format/nombre';
 import {
   type LigneCouverture, avertissementNonCarroye, ecrireParamCouverture, libelleDecoupage, ligneHorsTerritoire, lireParamCouverture,
-  lireZoneAnalyse, messageZoneVide, pageDeLignes, phraseReference, resumeCouverture, trierLignes,
+  lireZoneAnalyse, messageZoneVide, pageDeLignes, phraseReference, trierLignes,
 } from './couverture';
 import { messageErreurCouverture, refusDeLErreur } from './couverture-erreurs';
 
@@ -92,17 +92,6 @@ describe('messageErreurCouverture / refusDeLErreur', () => {
     expect(messageErreurCouverture(new Error('x'))).toBe('x');
     expect(refusDeLErreur(erreur(422, { refus: 'inconnu' }))).toBeNull();
     expect(refusDeLErreur(new Error('x'))).toBeNull();
-  });
-});
-
-describe('resumeCouverture', () => {
-  it('forme : population et surface ; cp / iris : le nombre de territoires', () => {
-    const base = { population: 1906400, surface_km2: 5102.6, n_territoires: 126 };
-    expect(resumeCouverture({ ...base, decoupage: 'forme' }, 'habitants'))
-      .toBe(`${formaterNombre(1906400)} habitants · ${formaterNombre(5103)} km²`);
-    expect(resumeCouverture({ ...base, decoupage: 'cp' }, 'habitants')).toContain('· 126 codes postaux');
-    expect(resumeCouverture({ ...base, n_territoires: 1, decoupage: 'cp' }, 'habitants')).toContain('· 1 code postal');
-    expect(resumeCouverture({ ...base, n_territoires: 5486, decoupage: 'iris' }, 'habitants')).toContain(`· ${formaterNombre(5486)} IRIS`);
   });
 });
 
