@@ -22,6 +22,8 @@ import { ZoneAnalyseeService } from './zone-analysee.service';
  * ── LE PÉRIMÈTRE ─────────────────────────────────────────────────────────
  * La zone analysée par défaut (`surZone`, patron du score de T10), sinon le filtre de ①. La borne est EN BASE
  * (`resoudre_perimetre` : France et région refusées, ≤ 12 000 km²) : l'écran ne refuse que l'absence de périmètre.
+ * Une zone analysée introuvable (404) est retirée, comme pour la couverture d'une zone, et son message RESTE affiché :
+ * le changement de périmètre qui s'ensuit annule sans effacer.
  *
  * ── UNE RÉPONSE QUITTÉE N'EST JAMAIS AFFICHÉE (P-c) ───────────────────────
  * Tout réglage modifié — type, rayon, champ, profil, cible, périmètre — change la requête, ce qui PÉRIME : la lecture
@@ -42,10 +44,13 @@ export class CouvertureRayonService {
   private readonly palette = inject(CouleursService).palette(JETONS_RAYON);
 
   readonly ouvert = signal(false);
-  /** Le catalogue des POI de ②, plus les sites ICPE (leur calque est à part). */
+  /**
+   * Le catalogue des POI de ②, plus les sites ICPE (leur calque est à part) — ajoutés une fois le catalogue LU : avant,
+   * ICPE seul serait retenu et resterait (`typePoiRetenu` garde l'ancien), le défaut dépendrait de l'ordre de navigation.
+   */
   readonly types = computed(() => {
     const t = this.catalogue.types();
-    return t.some((x) => x.id === TYPE_ICPE.id) ? t : [...t, TYPE_ICPE];
+    return t.length === 0 || t.some((x) => x.id === TYPE_ICPE.id) ? t : [...t, TYPE_ICPE];
   });
   readonly categorie = typePoiRetenu(this.types);
   readonly rayonMax = signal(RAYON_MAX_DEFAUT_M);
@@ -72,9 +77,11 @@ export class CouvertureRayonService {
   });
 
   private readonly lecture = new LectureAnnulable<ResultatCouvertureRayon>(messageErreurRequete);
-  readonly resultat = this.lecture.resultat;
-  readonly enCours = this.lecture.enCours;
-  readonly erreur = this.lecture.erreur;
+  readonly resultat = this.lecture.resultat.asReadonly();
+  readonly enCours = this.lecture.enCours.asReadonly();
+  readonly erreur = this.lecture.erreur.asReadonly();
+  /** La zone analysée vient d'être retirée (404) : le changement de périmètre annule sans effacer le message. */
+  private zoneRetiree = false;
   /** Le profil du calcul affiché : les bandes du tableau se lisent sur LUI, pas sur la saisie en cours. */
   readonly profilCalcule = signal<Record<string, number[]>>({});
   /** Le rayon lu sur la courbe : celui des cercles peints. */
@@ -82,7 +89,11 @@ export class CouvertureRayonService {
 
   constructor() {
     this.couches.inscrireEffacement('couverture-rayon', () => this.lecture.perimer());
-    surChangement(this.requete, () => this.lecture.perimer());
+    surChangement(this.requete, () => {
+      if (this.zoneRetiree) this.lecture.annuler();
+      else this.lecture.perimer();
+      this.zoneRetiree = false;
+    });
 
     effect((nettoyer) => {
       const carte = this.couches.carteCourante();
@@ -108,15 +119,15 @@ export class CouvertureRayonService {
   /** « Calculer » : un second appel annule le premier. Sans périmètre, la phrase des recettes, et aucune requête. */
   lancer(): void {
     const requete = this.requete();
-    this.lecture.perimer();
     if (!requete) {
-      this.erreur.set(this.perimetre() ? 'Choisissez un type de POI.' : MESSAGES_REFUS.perimetre_absent);
+      this.lecture.refuser(this.perimetre() ? 'Choisissez un type de POI.' : MESSAGES_REFUS.perimetre_absent);
       return;
     }
+    this.lecture.perimer();
     const profil = profilRayon({ champ: this.champ(), lignes: this.lignes() });
     this.lecture.lancer(this.api.rayon(requete), (r) => {
       this.profilCalcule.set(profil);
       this.rayon.set(Math.min(RAYON_LECTURE_DEFAUT, r.rayon_max_m));
-    });
+    }, (e) => { this.zoneRetiree = this.analysee.siIntrouvable(e); });
   }
 }

@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type maplibregl from 'maplibre-gl';
@@ -52,20 +53,27 @@ function monter() {
   const carte = signal<unknown>(null);
   const effacements = new Map<string, () => void>();
   const chargerUneFois = vi.fn();
+  const types = signal([{ id: 'risque_industriel', label: 'Risque industriel', origine: 'commune' }]);
+  // La règle de `ZoneAnalyseeService.siIntrouvable` : un 404 zone_introuvable retire la zone.
+  const siIntrouvable = (e: unknown) => {
+    const oui = e instanceof HttpErrorResponse && (e.error as { refus?: string })?.refus === 'zone_introuvable';
+    if (oui) zoneId.set(null);
+    return oui;
+  };
   TestBed.configureTestingModule({
     providers: [
       CouvertureRayonService,
       { provide: CouvertureApi, useValue: { rayon } },
       { provide: EtatCarteService, useValue: { filtre } },
-      { provide: ZoneAnalyseeService, useValue: { zoneId } },
-      { provide: CataloguePoiService, useValue: { types: signal([{ id: 'risque_industriel', label: 'Risque industriel', origine: 'commune' }]), chargerUneFois } },
+      { provide: ZoneAnalyseeService, useValue: { zoneId, siIntrouvable } },
+      { provide: CataloguePoiService, useValue: { types, chargerUneFois } },
       { provide: CouchesCarteService, useValue: { carteCourante: carte, inscrireEffacement: (id: string, f: () => void) => effacements.set(id, f) } },
       { provide: CouleursService, useValue: { palette: (j: Record<string, string>) => () => Object.fromEntries(Object.keys(j).map((k) => [k, `couleur:${k}`])) } },
     ],
   });
   const s = TestBed.inject(CouvertureRayonService);
   const stable = () => TestBed.tick();
-  return { s, rayon, reponses, zoneId, filtre, carte, effacements, chargerUneFois, stable };
+  return { s, rayon, reponses, zoneId, filtre, carte, effacements, chargerUneFois, types, stable };
 }
 
 const parametres = (q: string) => [...new URLSearchParams(q).entries()];
@@ -93,6 +101,32 @@ describe('CouvertureRayonService (lot 4, T12)', () => {
     s.surZone.set(false);
     s.lancer();
     expect(new URLSearchParams(rayon.mock.calls[2][0]).get('perimetre_code')).toBe('13');
+  });
+
+  it('le type par défaut ne dépend pas de l’ordre de navigation : ICPE n’est ajouté qu’au catalogue LU (T12 M3)', () => {
+    const { s, types } = monter();
+    types.set([]);
+    expect(s.types()).toEqual([]);
+    expect(s.categorie()).toBe('');
+    types.set([{ id: 'lycee', label: 'Lycée', origine: 'commune' }]);
+    expect(s.types().map((t) => t.id)).toEqual(['lycee', 'risque_industriel']);
+    expect(s.categorie()).toBe('lycee');
+  });
+
+  it('zone analysée introuvable (404) : la zone est retirée, comme pour la couverture, et le message RESTE', () => {
+    const { s, reponses, zoneId, stable } = monter();
+    zoneId.set(ZONE);
+    stable();
+    s.lancer();
+    reponses[0].error(new HttpErrorResponse({ status: 404, error: { error: 'Zone introuvable dans cet espace.', refus: 'zone_introuvable' } }));
+    expect(zoneId()).toBeNull();
+    expect(s.erreur()).toBe('Zone introuvable dans cet espace.');
+    stable();
+    expect(s.erreur()).toBe('Zone introuvable dans cet espace.');
+    // Un réglage changé ensuite efface, comme toujours.
+    s.rayonMax.set(2000);
+    stable();
+    expect(s.erreur()).toBeNull();
   });
 
   it('sans périmètre : la phrase des recettes, AUCUNE requête', () => {

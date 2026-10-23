@@ -40,7 +40,7 @@ async function monter(zone: string | null = null) {
       CouvertureRayonService,
       { provide: CouvertureApi, useValue: { rayon } },
       { provide: EtatCarteService, useValue: { filtre: signal({ type: 'departement', code: '13', label: 'Bouches-du-Rhône' }) } },
-      { provide: ZoneAnalyseeService, useValue: { zoneId: signal(zone) } },
+      { provide: ZoneAnalyseeService, useValue: { zoneId: signal(zone), siIntrouvable: () => false } },
       { provide: CataloguePoiService, useValue: {
         types: signal([{ id: 'lycee', label: 'Lycée' }]), chargerUneFois: vi.fn(),
       } },

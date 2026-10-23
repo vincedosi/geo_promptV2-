@@ -197,6 +197,11 @@ describe('couverture_rayon_poi — refus, sans calcul', () => {
     expect(await couverture({ p_perimetre_type: 'zone', p_perimetre_code: zone })).toEqual({ refus: 'perimetre_trop_grand' });
   });
 
+  it('zone absente ou d’un autre espace : zone_introuvable, le refus de la couverture (et non perimetre_inconnu)', async () => {
+    expect(await couverture({ p_perimetre_type: 'zone', p_perimetre_code: '00000000-0000-0000-0000-00000000dead' }))
+      .toEqual({ refus: 'zone_introuvable' });
+  });
+
   it.each([
     ['plus de POI que le plafond', { p_max_poi: 10 }, { refus: 'trop_de_poi', plafond: 10 }],
     ['champ hors de la liste fermée', { p_champ: 'nom' }, { refus: 'champ_non_admis' }],

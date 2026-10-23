@@ -132,9 +132,12 @@ export class ZoneAnalyseeService {
     this.lectureCroisements.lancer(this.api.croisements(id), undefined, this.siIntrouvable);
   }
 
-  /** Zone supprimée ou d'un autre espace (lien partagé) : on la retire. */
-  private readonly siIntrouvable = (e: unknown): void => {
-    if (refusDeLErreur(e) === 'zone_introuvable') this.choisir(null);
+  /** Zone supprimée ou d'un autre espace (lien partagé) : on la retire. Rend vrai si c'était le cas. Public : la
+   * couverture par rayon sur la zone analysée suit la même règle. */
+  readonly siIntrouvable = (e: unknown): boolean => {
+    const introuvable = refusDeLErreur(e) === 'zone_introuvable';
+    if (introuvable) this.choisir(null);
+    return introuvable;
   };
 
   /** Écrit l'état courant sous sa forme canonique, si l'URL ne le porte pas déjà. Jamais après destruction. */

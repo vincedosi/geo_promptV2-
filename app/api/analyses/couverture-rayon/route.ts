@@ -12,6 +12,8 @@
  *
  * Quota 6 / min / compte, comme T6 : au pire cas admis ≈ 1,5-1,7 s et ≈ 120 000 accès par appel (mesures de T11).
  * Statuts : 422 pour un refus de la requête, 503 pour une base non construite (règle de `lib/zones/couverture.ts`).
+ * Sur la zone analysée, les refus parlent de la zone et non de l'étape ① : `zone_introuvable` (404, comme la
+ * couverture) et « La zone analysée dépasse 12 000 km² ».
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
@@ -45,7 +47,9 @@ const MESSAGES = {
   champ_non_admis: 'Ce champ ne se détaille pas : seule la sous-catégorie est admise.',
   trop_de_valeurs: `Plus de ${MAX_VALEURS} valeurs à détailler : retenez-en ${MAX_VALEURS} au plus, ou retirez le détail par champ.`,
   calcul_trop_lourd: 'Calcul trop lourd : réduisez le périmètre, le rayon ou retirez le détail par champ.',
+  zone_introuvable: MESSAGES_REFUS.zone_introuvable,
 } as const;
+const MESSAGES_ZONE = { ...MESSAGES, perimetre_trop_grand: 'La zone analysée dépasse 12 000 km².' } as const;
 
 const Profil = z.string()
   .transform((s, ctx) => {
@@ -103,5 +107,6 @@ export async function GET(req: NextRequest) {
     p_sources: sources, p_cible: r.cible, p_rayon_max_m: r.rayon_max, p_champ: r.champ,
     p_valeurs: r.valeur.length > 0 ? r.valeur : undefined, p_profil: r.profil,
   });
-  return repondreCouverture(res, MESSAGES, 'analyses/couverture-rayon', ECHEC, 'Paramètres de calcul invalides.');
+  const messages = r.perimetre_type === 'zone' ? MESSAGES_ZONE : MESSAGES;
+  return repondreCouverture(res, messages, 'analyses/couverture-rayon', ECHEC, 'Paramètres de calcul invalides.');
 }

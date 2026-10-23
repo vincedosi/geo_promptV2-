@@ -233,7 +233,9 @@ begin
     from public.resoudre_perimetre(p_perimetre_type, p_perimetre_code, p_org_id, 12000,
                                    array['departement', 'commune', 'cp', 'zone']) r;
   if v_refus is not null then
-    return jsonb_build_object('refus', v_refus);
+    -- Une zone absente ou d'un autre espace : le refus de la couverture (404, l'écran retire la zone analysée).
+    return jsonb_build_object('refus', case when v_refus = 'perimetre_inconnu' and p_perimetre_type = 'zone'
+                                            then 'zone_introuvable' else v_refus end);
   end if;
   v_per3857 := ST_Transform(v_per, 3857);
 

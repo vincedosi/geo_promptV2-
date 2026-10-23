@@ -139,6 +139,16 @@ describe('refus de la RPC → statut et phrase française', () => {
     expect(await r.json()).toEqual({ error: expect.stringMatching(message), refus, ...details });
   });
 
+  it('sur la zone analysée : zone_introuvable en 404, et une zone trop grande se dit comme une zone (pas « l’étape ① »)', async () => {
+    const zone = `categorie=lycee&perimetre_type=zone&perimetre_code=${ZONE}`;
+    etat.reponses.couverture_rayon_poi = { data: { refus: 'zone_introuvable' }, error: null };
+    const r404 = await appel(zone);
+    expect(r404.status).toBe(404);
+    expect(await r404.json()).toEqual({ error: 'Zone introuvable dans cet espace.', refus: 'zone_introuvable' });
+    etat.reponses.couverture_rayon_poi = { data: { refus: 'perimetre_trop_grand' }, error: null };
+    expect((await (await appel(zone)).json()).error).toBe('La zone analysée dépasse 12 000 km².');
+  });
+
   it('refus inconnu ou réponse hors contrat : 500, message générique', async () => {
     for (const data of [{ refus: 'inattendu' }, null, [1]]) {
       etat.reponses.couverture_rayon_poi = { data, error: null };
