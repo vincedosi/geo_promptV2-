@@ -123,8 +123,10 @@ export class ZoneAnalyseeService {
     if (!id || this.detruit) return;
     this.lecture.perimer();
     const { cible, decoupage } = this._reglage();
+    // Seule une liste DÉJÀ lue d'une autre version de la forme est périmée : une lecture en vol n'est pas annulée.
     this.lecture.lancer(this.api.couverture(id, cible, decoupage), (r) => {
-      if (this.lectureCroisements.resultat()?.zone_maj !== r.zone_maj) this.lectureCroisements.perimer();
+      const lue = this.lectureCroisements.resultat();
+      if (lue && lue.zone_maj !== r.zone_maj) this.lectureCroisements.perimer();
     }, this.siIntrouvable);
   }
 

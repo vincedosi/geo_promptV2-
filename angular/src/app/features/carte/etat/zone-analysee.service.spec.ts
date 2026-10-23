@@ -253,4 +253,14 @@ describe('ZoneAnalyseeService — radio et trafic (T13, ronde 1 : P-e)', () => {
     api.appels[1].sortie?.next({ ...resultat(Z1, 12), zone_maj: 'v2' });
     expect(hote.zone.croisements.resultat()).toBeNull();
   });
+  it('un chiffrage revenu PENDANT une lecture radio/trafic ne l’annule pas', async () => {
+    const { hote, api } = await ouvrir(`/carte?zoneAnalyse=${Z1}`);
+    hote.zone.lireCroisements();
+    hote.zone.chiffrer();
+    api.appels[0].sortie?.next({ ...resultat(Z1, 10), zone_maj: 'v1' });
+    expect(api.lectures[0].annulee).toBe(false);
+    const lue = { ...croisements, zone_maj: 'v1' } as ResultatCroisements;
+    api.lectures[0].sortie.next(lue);
+    expect(hote.zone.croisements.resultat()).toBe(lue);
+  });
 });
