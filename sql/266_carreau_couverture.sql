@@ -70,13 +70,11 @@ comment on table public.carreau_couverture_bandes is
   'Journal de construction de carreau_couverture, une ligne par bande de longitude (cles >= 1000 : zones lointaines). '
   'max(construit_le) date la base pour le cache de couverture. A exclure de la sauvegarde AVEC la table. sql/266.';
 
--- Index. GIST pour « les carreaux de cette zone » (T5) ; btree pour le découpage par territoire et la couverture par
--- rayon d'un département lu par code (T11, A-11).
+-- Index. GIST pour « les carreaux de cette zone » (T5) ; btree pour la couverture par rayon d'un département lu par
+-- code (T11, A-11). Pas d'index par commune, CP ou IRIS : 2, 10 et 12 parcours en tout (les tests), 65 Mo (relecture
+-- finale du lot 4) — le découpage regroupe les carreaux d'une zone déjà lus par le GIST.
 create index if not exists idx_carreau_couverture_centroide on public.carreau_couverture using gist (centroide_3857);
 create index if not exists idx_carreau_couverture_departement on public.carreau_couverture (code_departement);
-create index if not exists idx_carreau_couverture_commune on public.carreau_couverture (code_commune);
-create index if not exists idx_carreau_couverture_code_postal on public.carreau_couverture (code_postal);
-create index if not exists idx_carreau_couverture_iris on public.carreau_couverture (code_iris);
 
 -- Droits : lue par des RPC `security definer` / `service_role`, jamais par un client.
 alter table public.carreau_couverture enable row level security;
