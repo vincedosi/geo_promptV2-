@@ -15,6 +15,8 @@ const GRADUATIONS_X: readonly number[] = Array.from({ length: 10 }, (_, i) => (i
 
 /** « 1 km », « 2,5 km » : les distances de la courbe et de ses appelants. */
 export const formaterKm = (m: number): string => `${formaterNombre(m / 1000)} km`;
+/** « 500 m », « 1,5 km » : la seule recette d'une distance en mètres (③ rayon, ④ bandes). */
+export const formaterDistance = (m: number): string => (m >= 1000 ? formaterKm(m) : `${formaterNombre(m)} m`);
 
 /** Une courbe cumulée : la forme commune de `lire_couverture_rayon` et de `couverture_rayon_poi` (sql/272). */
 export type CourbeCumulee = ReponseCourbe['courbes'][number];

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { formaterNombre } from '../../../../core/format/nombre';
+import { formaterDistance } from '../../../risques/etapes/rayon/courbe-population.component';
 import { CataloguePoiService, typePoiRetenu } from '../../etat/catalogue-poi.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { perimetreDeFiltre } from '../../logique/zones/perimetre-recette';
@@ -44,10 +44,7 @@ export class RecetteRayonPoiComponent {
   protected readonly pas = PAS_RAYON_POI_M;
   protected readonly categorie = typePoiRetenu(this.types);
   protected readonly rayonM = signal(RAYON_POI_DEFAUT_M);
-  protected readonly libelleRayon = computed(() => {
-    const m = this.rayonM();
-    return m >= 1000 ? `${formaterNombre(m / 1000)} km` : `${formaterNombre(m)} m`;
-  });
+  protected readonly libelleRayon = computed(() => formaterDistance(this.rayonM()));
   private readonly composee = computed<Recette>(() => ({
     v: 1, type: 'rayon_poi', categorie: this.categorie(), rayon_m: this.rayonM(), perimetre: perimetreDeFiltre(this.filtre()),
   }));

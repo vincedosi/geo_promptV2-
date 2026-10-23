@@ -1,4 +1,4 @@
-import { CLE_TOUTES, type CourbeCumulee, formaterKm } from '../../../risques/etapes/rayon/courbe-population.component';
+import { CLE_TOUTES, type CourbeCumulee, formaterDistance } from '../../../risques/etapes/rayon/courbe-population.component';
 import { CATEGORIES_HORS_POI } from '../jeux-carte';
 import type { PerimetreRecette } from '../zones/recette';
 
@@ -22,7 +22,7 @@ export interface LigneProfil {
   readonly anneaux: string;
 }
 
-export interface ReglageRayon {
+interface ReglageRayon {
   readonly categorie: string;
   readonly perimetre: PerimetreRecette;
   readonly cible: string;
@@ -31,7 +31,7 @@ export interface ReglageRayon {
   readonly lignes: readonly LigneProfil[];
 }
 
-export interface ClasseRayon {
+interface ClasseRayon {
   readonly valeur: string;
   /** L'anneau extérieur de la bande ([précédent, anneau_m)). */
   readonly anneau_m: number;
@@ -51,7 +51,7 @@ export interface ResultatCouvertureRayon {
 }
 
 /** « 500, 1 000 ; 2000 » → `[500, 1000, 2000]` : la borne et le nombre d'anneaux se vérifient côté serveur (400). */
-export function lireAnneaux(saisie: string): number[] {
+function lireAnneaux(saisie: string): number[] {
   return saisie.split(/[,;]/).map((s) => Number(s.replace(/\s/g, ''))).filter((n) => Number.isFinite(n) && n > 0);
 }
 
@@ -86,9 +86,5 @@ function lignesRetenues(r: Pick<ReglageRayon, 'champ' | 'lignes'>): { valeur: st
 /** « 0-500 m », « 500 m-1 km » : la bande [anneau précédent, `anneau_m`) d'une classe, d'après le profil envoyé. */
 export function libelleBande(anneaux: readonly number[], anneauM: number): string {
   const precedent = anneaux.filter((a) => a < anneauM).at(-1) ?? 0;
-  return `${precedent === 0 ? '0' : distance(precedent)}-${distance(anneauM)}`;
-}
-
-function distance(m: number): string {
-  return m >= 1000 ? formaterKm(m) : `${m} m`;
+  return `${precedent === 0 ? '0' : formaterDistance(precedent)}-${formaterDistance(anneauM)}`;
 }
