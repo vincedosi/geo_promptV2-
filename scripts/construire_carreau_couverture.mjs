@@ -51,13 +51,16 @@
  *   node scripts/construire_carreau_couverture.mjs --bandes 48  # plus fin (avec --tout)
  *   node scripts/construire_carreau_couverture.mjs --bande 12   # une seule, rejouée
  */
-import { execFileSync } from 'node:child_process';
 import { freemem } from 'node:os';
-
-const CONTENEUR = process.env.CONTENEUR_PG ?? 'supabase_db_genesis_app';
+import { CONTENEUR, ZONES_LOINTAINES, nb, psql } from './local/psql-conteneur.mjs';
 
 const args = process.argv.slice(2);
 const tout = args.includes('--tout');
+if (tout && args.includes('--bande')) {
+  // `--tout` purge la table : une seule bande rejouée derrière laisserait le reste vide (relecture de T3, r4).
+  console.error('ERREUR : --tout et --bande N ne se combinent pas (la purge effacerait toutes les autres bandes).');
+  process.exit(1);
+}
 const valeur = (nom, defaut) => {
   const i = args.indexOf(nom);
   return i >= 0 ? Number(args[i + 1]) : defaut;
@@ -75,29 +78,6 @@ const RAM_MIN_MO = valeur('--ram-min', 300);
 const OUEST = -5.5;
 const EST = 9.8;
 
-/**
- * Les zones lointaines, une bande chacune, sous des clés >= 1000 — mêmes bornes
- * que `scripts/construire_carreau_risque.mjs`. Seules la Martinique et La
- * Réunion : le carroyage Filosofi 2021 à 200 m ne publie ni la Guadeloupe, ni
- * la Guyane, ni Mayotte (une donnée absente, pas un zéro).
- */
-const ZONES_LOINTAINES = [
-  { id: 1000, nom: 'Martinique', ouest: -61.6, est: -60.6 },
-  { id: 1001, nom: 'La Réunion', ouest: 55.0, est: 56.0 },
-];
-
-function psql(sql) {
-  // Pas de `-i` : `psql -c` ne lit jamais l'entrée standard, et la lui passer
-  // le ferait bloquer quand elle est fermée (lancement en arrière-plan).
-  return execFileSync(
-    'docker',
-    ['exec', CONTENEUR, 'psql', '-U', 'postgres', '-d', 'postgres', '-X',
-     '-v', 'ON_ERROR_STOP=1', '-tAc', sql],
-    { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] },
-  ).trim();
-}
-
-const nb = (n) => new Intl.NumberFormat('fr-FR').format(n);
 const deg = (x) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(x);
 const duree = (s) => (s >= 90 ? `${Math.round(s / 60)} min` : `${Math.round(s)} s`);
 

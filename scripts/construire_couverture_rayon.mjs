@@ -44,7 +44,7 @@
  * production et l'annonce bruyamment ; ce n'est PAS le geste du quotidien.
  */
 import { readFileSync, existsSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { CONTENEUR, ZONES_LOINTAINES, nb, psql } from './local/psql-conteneur.mjs';
 import { createClient } from '@supabase/supabase-js';
 
 const versProd = process.argv.includes('--prod');
@@ -114,18 +114,6 @@ const sb = createClient(url, cle, { auth: { persistSession: false } });
  *
  * Le chemin HTTPS reste celui de `--prod`, où `psql` n'est pas une option.
  */
-const CONTENEUR = process.env.CONTENEUR_PG ?? 'supabase_db_genesis_app';
-
-function psql(sql) {
-  // Pas de `-i` : `psql -c` ne lit jamais l'entrée standard, et lui passer
-  // celle du script le ferait bloquer si elle est fermée — ce qu'elle est quand
-  // la commande tourne en arrière-plan.
-  return execFileSync(
-    'docker',
-    ['exec', CONTENEUR, 'psql', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-tAc', sql],
-    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] },
-  ).trim();
-}
 
 /** Les cinq acces dont ce script a besoin, dans les deux chemins. */
 const base = versProd
@@ -195,8 +183,6 @@ const base = versProd
         return Number(psql('select count(*) from public.couverture_rayon_risque') || 0);
       },
     };
-
-const nb = (n) => new Intl.NumberFormat('fr-FR').format(n);
 
 async function principal() {
   console.log(`▶ Construction de couverture_rayon_risque — ${N} bandes`);
@@ -285,16 +271,9 @@ async function principal() {
    * d'expiration. Chaque zone a donc ses propres bornes et sa propre clé de
    * journal, et tient en UNE bande : elles sont minuscules.
    *
-   * ⚠ Seules la Martinique et La Réunion figurent ici, parce que ce sont les
-   * seules zones d'outre-mer que le carroyage Filosofi 2021 à 200 m publie.
-   * La Guadeloupe, la Guyane et Mayotte ont des sites ICPE mais AUCUN carreau :
-   * y lancer une bande écrirait zéro ligne. C'est une donnée absente, pas un
-   * zéro — elle se dit à l'écran, elle ne se fabrique pas ici.
+   * Les zones : `ZONES_LOINTAINES` de `local/psql-conteneur.mjs` (Martinique et La Réunion, les seules que le
+   * carroyage publie).
    */
-  const ZONES_LOINTAINES = [
-    { nom: 'Martinique', id: 1000, ouest: -61.6, est: -60.6 },
-    { nom: 'La Réunion', id: 1001, ouest: 55.1, est: 56.0 },
-  ];
 
   for (const z of ZONES_LOINTAINES) {
     if (faites.has(z.id)) continue;

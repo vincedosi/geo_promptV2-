@@ -52,9 +52,7 @@
  * symétrie avec le script voisin : ce drapeau y existe pour une raison
  * historique qui a cessé de valoir.
  */
-import { execFileSync } from 'node:child_process';
-
-const CONTENEUR = process.env.CONTENEUR_PG ?? 'supabase_db_genesis_app';
+import { CONTENEUR, ZONES_LOINTAINES, nb, psql } from './local/psql-conteneur.mjs';
 
 const args = process.argv.slice(2);
 const tout = args.includes('--tout');
@@ -72,47 +70,8 @@ const iBande = args.indexOf('--bande');
  */
 const N = iBandes >= 0 ? Number(args[iBandes + 1]) : 20;
 
-function psql(sql) {
-  // Pas de `-i` : `psql -c` ne lit jamais l'entrée standard, et lui passer
-  // celle du script le ferait bloquer quand elle est fermée — ce qu'elle est
-  // en arrière-plan.
-  return execFileSync(
-    'docker',
-    ['exec', CONTENEUR, 'psql', '-U', 'postgres', '-d', 'postgres',
-     '-v', 'ON_ERROR_STOP=1', '-tAc', sql],
-    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] },
-  ).trim();
-}
-
-const nb = (n) => new Intl.NumberFormat('fr-FR').format(n);
-
-/**
- * Les zones ÉLOIGNÉES, construites par des appels séparés.
- *
- * ⚠ Ne PAS les couvrir en élargissant le découpage de la métropole. Un
- * partitionnement uniforme de -61,6 à 56,0 mettrait toute la France
- * métropolitaine dans une ou deux bandes — exactement les bandes trop denses
- * qu'on découpe pour les éviter. C'est la leçon de sql/200, et elle a déjà été
- * payée une fois.
- *
- * Elle vient de l'être une seconde : la première construction n'a couvert que
- * -5,5 à 9,8, et la **Martinique (972) et La Réunion (974) manquaient** — 14 058
- * carreaux, absents sans le moindre message. Une population absente ressemble
- * trait pour trait à une population nulle.
- *
- * Les clés de journal sont >= 1000 pour ne pas entrer en collision avec les
- * index de bande de la métropole : une zone traitée en une seule bande a
- * forcément l'index 0, déjà pris par la première bande métropolitaine.
- *
- * ⚠ La Guadeloupe, la Guyane et Mayotte n'y figurent pas, et ce n'est pas un
- * oubli : le carroyage Filosofi 200 m de l'INSEE ne les publie pas. Leurs sites
- * existent, leur population exposée n'est pas calculable — une donnée absente à
- * la source, pas un zéro.
- */
-const ZONES_LOINTAINES = [
-  { id: 1000, nom: 'Martinique',   ouest: -61.6, est: -60.6 },
-  { id: 1001, nom: 'La Réunion',   ouest:  55.0, est:  56.0 },
-];
+// Zones lointaines : celles de `local/psql-conteneur.mjs`. Leçon du premier passage : -5,5 à 9,8 seulement, et les
+// 14 058 carreaux de la Martinique et de La Réunion manquaient sans un message.
 
 function main() {
   if (tout) {
