@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { ecrireParametres } from '../../etat/ecrire-parametres';
 import { formaterDecimal, formaterNombre } from '../../../../core/format/nombre';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { JeuxZonesApi } from '../../../risques/data/jeux-zones.api';
@@ -93,11 +94,7 @@ export class JeuxDeZonesComponent {
 
   /** L'URL du module est écrite PAR la navigation même : le module naît sur ④ et ce jeu, jamais sur l'étape par défaut. */
   protected ouvrir(id: string): void {
-    // `merge` : l'étape du parcours (`etape`) suit dans l'URL du module ; le `risque` passé ici l'emporte sur l'ancien.
-    void this.router.navigate(['risques'], {
-      relativeTo: this.route,
-      queryParams: { [PARAM_RISQUE]: risqueDuJeu(id) },
-      queryParamsHandling: 'merge',
-    });
+    // L'étape du parcours (`etape`) suit dans l'URL du module ; le `risque` passé ici l'emporte sur l'ancien.
+    void ecrireParametres(this.router, this.route, { [PARAM_RISQUE]: risqueDuJeu(id) }, ['risques']);
   }
 }

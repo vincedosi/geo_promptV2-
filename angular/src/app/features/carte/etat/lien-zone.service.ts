@@ -1,5 +1,6 @@
 import { DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { ecrireParametres } from './ecrire-parametres';
 import type { Subscription } from 'rxjs';
 import { BatailleService } from '../couches/bataille.service';
 import { ZonesCustomApi } from '../data/zones-custom.api';
@@ -107,8 +108,6 @@ export class LienZoneService {
 
   private retirerDeLUrl(): void {
     if (!untracked(this.demande)) return;
-    void this.router.navigate([], {
-      relativeTo: this.route, queryParams: { [PARAM_ZONE_LIEN]: null }, queryParamsHandling: 'merge', replaceUrl: true,
-    });
+    void ecrireParametres(this.router, this.route, { [PARAM_ZONE_LIEN]: null });
   }
 }

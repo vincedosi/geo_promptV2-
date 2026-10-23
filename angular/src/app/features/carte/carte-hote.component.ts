@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { ecrireParametres } from './etat/ecrire-parametres';
 import { CartePage } from './carte.page';
 import { PARAM_ETAPE } from './logique/parcours';
 import { PARAM_ZONE_LIEN } from './logique/zones/zone-du-lien';
@@ -60,14 +61,7 @@ export class CarteHoteComponent {
       return;
     }
     const recreer = () => this.recreer();
-    void this.router
-      .navigate([], {
-        relativeTo: this.route,
-        queryParams: Object.fromEntries(aRetirer.map((p) => [p, null])),
-        queryParamsHandling: 'merge',
-        replaceUrl: true,
-      })
-      .then(recreer, recreer);
+    void ecrireParametres(this.router, this.route, Object.fromEntries(aRetirer.map((p) => [p, null]))).then(recreer, recreer);
   }
 
   /**

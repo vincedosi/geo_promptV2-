@@ -55,11 +55,13 @@ describe('ParcoursService — l’étape dans l’URL', () => {
     expect(vi.mocked(router.navigate)).toHaveBeenCalledTimes(1);
   });
   it('lien ?etape=inconnue collé alors que la carte est déjà à ① : nettoyé, en UNE navigation', async () => {
-    const { router, stable } = await ouvrir('/carte', true);
+    const { router, stable } = await ouvrir('/carte');
+    // `navigate` passe par `navigateByUrl`, et l'écriture pendant une navigation en vol aussi (P-g) : on compte là.
+    const nav = vi.spyOn(router, 'navigateByUrl');
     await router.navigateByUrl('/carte?etape=inconnue');
     await stable(); await stable();
     expect(router.url).toBe('/carte');
-    expect(vi.mocked(router.navigate)).toHaveBeenCalledTimes(1);
+    expect(nav).toHaveBeenCalledTimes(2);
   });
   it('?customZone=z sans etape : ③, etape=zones écrit, customZone gardé', async () => {
     const { hote, router } = await ouvrir('/carte?customZone=z');

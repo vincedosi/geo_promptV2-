@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { ecrireParametres } from '../../etat/ecrire-parametres';
 import { formaterNombre } from '../../../../core/format/nombre';
 import { PARAM_RISQUE } from '../../../risques/etat/etat-risque.service';
 import { NIVEAUX_RISQUE } from '../../../risques/logique/gravites';
@@ -368,12 +369,8 @@ export class SectionRisqueComponent {
   /** Ouvre le module : `risques` relatif à la carte, le `?risque=` courant gardé, ses natures celles de Calques. */
   protected analyser(): void {
     const brut = this.route.snapshot.queryParamMap.get(PARAM_RISQUE);
-    // `merge` : l'étape du parcours (`etape`) suit dans l'URL du module ; le `risque` passé ici l'emporte sur l'ancien.
-    void this.router.navigate(['risques'], {
-      relativeTo: this.route,
-      queryParamsHandling: 'merge',
-      queryParams: { [PARAM_RISQUE]: risqueDepuisCalques(brut, this.r.typesRisque()) },
-    });
+    // L'étape du parcours (`etape`) suit dans l'URL du module ; le `risque` passé ici l'emporte sur l'ancien.
+    void ecrireParametres(this.router, this.route, { [PARAM_RISQUE]: risqueDepuisCalques(brut, this.r.typesRisque()) }, ['risques']);
   }
 
   protected basculerSection(): void {
