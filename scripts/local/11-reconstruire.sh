@@ -41,6 +41,7 @@
 # Usage :
 #   bash scripts/local/11-reconstruire.sh            # reprend ce qui manque
 #   bash scripts/local/11-reconstruire.sh --sans-sauvegarde
+#   FORCER_PERIMETRES=1 bash scripts/local/11-reconstruire.sh   # contours de référence rechargés
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -66,7 +67,7 @@ etape() { echo ""; echo "=== $1 — $(( ($(date +%s) - t0) / 60 )) min ==="; }
 # 2026-09-22) se restaure sans le moindre GRANT. PostgREST répond alors 401 sur
 # tout, l'application affiche « Failed to fetch », et on cherche du côté des
 # clés JWT — qui sont bonnes. Reposer les droits est idempotent et coûte 2 s.
-etape "0/7 droits des rôles applicatifs"
+etape "0/8 droits des rôles applicatifs"
 sql "grant usage on schema public to anon, authenticated, service_role;
      grant all on all tables    in schema public to anon, authenticated, service_role;
      grant all on all sequences in schema public to anon, authenticated, service_role;
@@ -77,8 +78,19 @@ sql "grant usage on schema public to anon, authenticated, service_role;
   >/dev/null 2>&1
 echo "  droits reposés (anon · authenticated · service_role)"
 
+# ── 0 bis. LES PÉRIMÈTRES SANS INTERSTICES ──────────────────────────────────
+#
+# `geom_perimetre` (sql/265) : ce que `resoudre_perimetre` lit. La migration ne
+# remplit que les lignes NULL ; après un rechargement des contours, l'ancienne
+# forme reste en place sans rien dire — FORCER_PERIMETRES=1 la recalcule (17 s).
+etape "0bis/8 geom_perimetre"
+MSYS_NO_PATHCONV=1 docker exec -i "$CONT" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 \
+  ${FORCER_PERIMETRES:+-v forcer_perimetres=1} < sql/265_perimetres_sans_interstices.sql >/dev/null \
+  || { echo "ÉCHEC geom_perimetre" >&2; exit 1; }
+echo "  $(n "public.ref_departements where geom_perimetre is not null") départements, $(n "public.ref_regions where geom_perimetre is not null") régions${FORCER_PERIMETRES:+ (recalculés)}"
+
 # ── 1. LES CARREAUX ─────────────────────────────────────────────────────────
-etape "1/7 carreaux_filosofi"
+etape "1/8 carreaux_filosofi"
 if [ "$(n public.carreaux_filosofi)" -ge 2324577 ]; then
   echo "  déjà chargés : $(n public.carreaux_filosofi)"
 else
@@ -90,7 +102,7 @@ fi
 # Reprenable : le journal `carreau_risque_bandes` dit ce qui est fait et le
 # script saute ces bandes-là. 22 bandes attendues — 20 en métropole, plus la
 # Martinique et La Réunion, que le script traite en appels séparés.
-etape "2/7 carreau_risque_distance"
+etape "2/8 carreau_risque_distance"
 node scripts/construire_carreau_risque.mjs || { echo "ÉCHEC distances" >&2; exit 1; }
 echo "  -> $(n public.carreau_risque_distance) lignes"
 
@@ -105,7 +117,7 @@ echo "  -> $(n public.carreau_risque_distance) lignes"
 # Le découpage est le MÊME que celui de sql/203, et l'outre-mer part en appels
 # séparés avec des clés de journal >= 1000 : une zone traitée en une seule
 # bande a forcément l'index 0, déjà pris par la première bande métropolitaine.
-etape "3/7 carreau_risque_nature"
+etape "3/8 carreau_risque_nature"
 if [ "$(n public.carreau_risque_nature)" -ge 1446552 ]; then
   echo "  déjà construite : $(n public.carreau_risque_nature)"
 else
@@ -120,9 +132,9 @@ fi
 echo "  -> $(n public.carreau_risque_nature) lignes"
 
 # ── 4. LE DÉNOMINATEUR ──────────────────────────────────────────────────────
-etape "4/7 unite_population_totale"
+etape "4/8 unite_population_totale"
 # ⚠ Compter les seules mailles de sql/221 : la maille `iris` (sql/267) vit dans
-# la même table mais se construit à l'étape 5 ter, depuis carreau_couverture.
+# la même table mais se construit à l'étape 7, depuis carreau_couverture.
 # Compter toute la table ferait sauter les communes dès qu'un IRIS est présent.
 upt_n=$(n "public.unite_population_totale where maille <> 'iris'")
 if [ "${upt_n:-0}" -gt 0 ]; then
@@ -149,14 +161,14 @@ fi
 # CANONIQUE d'un groupe de codes postaux indiscernables, et sans elle la
 # jointure ne rend AUCUNE ligne — donc tous les carreaux seraient déclarés
 # « sans code postal », en silence. 130 ms, aucune raison de s'en passer.
-etape "4bis/7 cp_groupe"
+etape "4bis/8 cp_groupe"
 if [ "$(n public.cp_groupe)" -gt 0 ]; then
   echo "  déjà construit : $(n public.cp_groupe) codes postaux"
 else
   echo "  $(sql "select public.construire_cp_groupe()")"
 fi
 
-etape "4ter/7 carreau_risque_distance.code_postal"
+etape "4ter/8 carreau_risque_distance.code_postal"
 manquants=$(sql "select count(*) from carreau_risque_distance where code_postal is null")
 if [ "${manquants:-0}" = "0" ]; then
   echo "  déjà rattachés : $(n public.carreau_risque_distance) carreaux"
@@ -172,7 +184,31 @@ else
   done
 fi
 
-# ── 4 ter. LE DÉNOMINATEUR PAR CODE POSTAL ──────────────────────────────────
+# ── 4 quater. LA POPULATION DU CARREAU, À CÔTÉ DE SA DISTANCE ───────────────
+#
+# ⚠ AJOUTÉ le 2026-09-22 (sql/229). Sans elle, le remplissage des codes
+# postaux d'un jeu de zones joint `carreaux_filosofi` — 4,6 Go, 811 octets de
+# jsonb par ligne — pour en tirer un nombre par carreau. Mesuré : 0,9 s pour
+# lire les distances seules, 11,2 s avec la jointure, et de 12 s à plus de
+# 400 s selon le cache sur une construction complète, quand Kong coupe à 60 s.
+#
+# Ce que ça bloque quand c'est vide : `remplir_zone_set_cp` REFUSE
+# (`population_carreau_absente`) plutôt que de replier sur la jointure — deux
+# chemins pour la même donnée, c'est deux chemins qui divergent.
+etape "4quater/8 carreau_risque_distance.pops"
+manquants=$(sql "select count(*) from carreau_risque_distance where pops is null")
+if [ "${manquants:-0}" = "0" ]; then
+  echo "  déjà remplis : $(n public.carreau_risque_distance) carreaux"
+else
+  echo "  $manquants carreau(x) sans population — remplissage par lots de 200 000"
+  while true; do
+    echo "    $(sql "select public.remplir_population_carreau(200000)")"
+    reste=$(sql "select count(*) from carreau_risque_distance where pops is null")
+    [ "${reste:-0}" = "0" ] && break
+  done
+fi
+
+# ── 5. LE DÉNOMINATEUR PAR CODE POSTAL ──────────────────────────────────────
 #
 # ⚠ AJOUTÉ le 2026-09-22, même oubli : `cp_population_totale` (sql/207) était
 # à ZÉRO ligne. Elle n'était pilotée que par
@@ -187,31 +223,7 @@ fi
 # ⚠ 60 bandes en métropole, puis l'outre-mer par appels SÉPARÉS avec ses
 # propres bornes : un découpage uniforme de -61,6 à 56,0 mettrait toute la
 # France dans une ou deux bandes. Leçon de sql/200, déjà payée deux fois.
-# ── 4 quater. LA POPULATION DU CARREAU, À CÔTÉ DE SA DISTANCE ───────────────
-#
-# ⚠ AJOUTÉ le 2026-09-22 (sql/229). Sans elle, le remplissage des codes
-# postaux d'un jeu de zones joint `carreaux_filosofi` — 4,6 Go, 811 octets de
-# jsonb par ligne — pour en tirer un nombre par carreau. Mesuré : 0,9 s pour
-# lire les distances seules, 11,2 s avec la jointure, et de 12 s à plus de
-# 400 s selon le cache sur une construction complète, quand Kong coupe à 60 s.
-#
-# Ce que ça bloque quand c'est vide : `remplir_zone_set_cp` REFUSE
-# (`population_carreau_absente`) plutôt que de replier sur la jointure — deux
-# chemins pour la même donnée, c'est deux chemins qui divergent.
-etape "4quater/7 carreau_risque_distance.pops"
-manquants=$(sql "select count(*) from carreau_risque_distance where pops is null")
-if [ "${manquants:-0}" = "0" ]; then
-  echo "  déjà remplis : $(n public.carreau_risque_distance) carreaux"
-else
-  echo "  $manquants carreau(x) sans population — remplissage par lots de 200 000"
-  while true; do
-    echo "    $(sql "select public.remplir_population_carreau(200000)")"
-    reste=$(sql "select count(*) from carreau_risque_distance where pops is null")
-    [ "${reste:-0}" = "0" ] && break
-  done
-fi
-
-etape "5/7 cp_population_totale"
+etape "5/8 cp_population_totale"
 if [ "$(n public.cp_population_totale)" -gt 0 ]; then
   echo "  déjà construit : $(n public.cp_population_totale) codes postaux"
 else
@@ -228,7 +240,7 @@ else
 fi
 echo "  -> $(n public.cp_population_totale) codes postaux"
 
-# ── 5 bis. LA TABLE ÉTROITE DE LA COUVERTURE (sql/266, lot 4 T3) ────────────
+# ── 6. LA TABLE ÉTROITE DE LA COUVERTURE (sql/266, lot 4 T3) ────────────────
 #
 # Une ligne par carreau (centroïde, CP canonique, IRIS, commune, département,
 # 24 effectifs) : c'est ce que lit la couverture d'une zone en ④. Vide, la
@@ -238,13 +250,13 @@ echo "  -> $(n public.cp_population_totale) codes postaux"
 # (`cp_des_points`, donc `cp_groupe`) et que son test d'intégration exige
 # l'égalité CP par CP avec ce dénominateur. ~5 min, 26 bandes.
 #
-# ⚠ « NON VIDE » NE VEUT PAS DIRE « À JOUR » (leçon du 22/10, étape 6) :
+# ⚠ « NON VIDE » NE VEUT PAS DIRE « À JOUR » (leçon du 22/10, étape 8) :
 #   - vide                               -> --tout ;
 #   - journal antérieur au dénominateur CP -> --tout (contours rechargés) ;
-#   - moins de lignes que de carreaux     -> reprise (une bande a échoué).
+#   - plus ou moins de lignes que de carreaux -> reprise (une bande a échoué).
 # Elle n'a pas de date propre : son journal `carreau_couverture_bandes` la
 # porte, et le cache de la couverture (T6) s'en sert pour se périmer.
-etape "5bis/7 carreau_couverture"
+etape "6/8 carreau_couverture"
 cc_n=$(n public.carreau_couverture)
 cc_attendu=$(n public.carreaux_filosofi)
 cc_perimee=$(sql "select coalesce((select max(construit_le) from public.carreau_couverture_bandes)
@@ -252,23 +264,23 @@ cc_perimee=$(sql "select coalesce((select max(construit_le) from public.carreau_
 if [ "${cc_n:-0}" = "0" ] || [ "$cc_perimee" = "t" ]; then
   [ "$cc_perimee" = "t" ] && echo "  PÉRIMÉE : construite avant cp_population_totale — reconstruction"
   node scripts/construire_carreau_couverture.mjs --tout || { echo "ÉCHEC carreau_couverture" >&2; exit 1; }
-elif [ "$cc_n" -lt "$cc_attendu" ]; then
+elif [ "$cc_n" -ne "$cc_attendu" ]; then
   echo "  INCOMPLÈTE : $cc_n lignes pour $cc_attendu carreaux — reprise"
   node scripts/construire_carreau_couverture.mjs || { echo "ÉCHEC carreau_couverture" >&2; exit 1; }
 else
   echo "  déjà construite : $cc_n lignes"
 fi
-# Le CERTIFICAT de complétude (sql/268) : sans lui la couverture refuse. Le
-# script le pose en fin de course ; une table construite avant sql/268, ou
-# restaurée, est certifiée ici (≈ 0,3 s, deux comptes).
+# Le CERTIFICAT de complétude (sql/268) : sans lui la couverture refuse.
+# Reposé à CHAQUE passe (≈ 0,3 s, deux comptes) et pas seulement s'il manque :
+# un rechargement de carreaux à compte DIFFÉRENT devient ainsi `incomplete`
+# (réserve r1 de T3). Limite : un rechargement au même compte mais au contenu
+# différent passe — seule une reconstruction (--tout) le rattrape.
+sql "select public.certifier_carreau_couverture()" >/dev/null || { echo "ÉCHEC certificat carreau_couverture" >&2; exit 1; }
 cc_motif=$(sql "select coalesce(public.carreau_couverture_complete(), 'ok')" | tr -d ' \r')
-if [ "$cc_motif" != "ok" ]; then
-  echo "  certificat : $cc_motif — recertification"
-  sql "select public.certifier_carreau_couverture()" || { echo "ÉCHEC certificat carreau_couverture" >&2; exit 1; }
-fi
+[ "$cc_motif" != "ok" ] && echo "  ⚠ certificat : $cc_motif — la couverture d'une zone sera refusée" >&2
 echo "  -> $(n public.carreau_couverture) lignes"
 
-# ── 5 ter. LE DÉNOMINATEUR IRIS ─────────────────────────────────────────────
+# ── 7. LE DÉNOMINATEUR IRIS ─────────────────────────────────────────────────
 #
 # `unite_population_totale`, maille `iris` (sql/267, lot 4 T4) : la population
 # de chaque IRIS comptée sur `carreau_couverture` — la même règle que le
@@ -278,7 +290,7 @@ echo "  -> $(n public.carreau_couverture) lignes"
 # la table de dénominateurs EST sauvegardée, la table étroite NON — après une
 # restauration, le dénominateur restauré daterait d'avant la reconstruction de
 # la table dont il dérive, et c'est exactement ce que la comparaison voit.
-etape "5ter/7 dénominateur IRIS"
+etape "7/8 dénominateur IRIS"
 iris_perime=$(sql "select coalesce((select max(construit_le) from public.unite_population_totale where maille = 'iris')
                         < (select max(construit_le) from public.carreau_couverture_bandes), true)" | tr -d ' \r')
 # `!= "f"` et non `= "t"` : une requête de péremption EN ÉCHEC (sortie vide)
@@ -289,7 +301,7 @@ else
   echo "  déjà construit : $(n "public.unite_population_totale where maille = 'iris'") IRIS"
 fi
 
-# ── 5. LA COUVERTURE PAR RAYON ──────────────────────────────────────────────
+# ── 8. LA COUVERTURE PAR RAYON ──────────────────────────────────────────────
 #
 # ⚠ `--tout` N'EST PAS UN LUXE ICI, et c'est l'erreur la plus coûteuse du
 # 2026-09-22. La table de données est exclue de la sauvegarde ; son JOURNAL de
@@ -321,12 +333,20 @@ fi
 # distances restaurées d'une sauvegarde AVEC leur journal, après un rechargement
 # des carreaux, passeraient pour fraîches — même défaut aux étapes 4 et 5
 # (`unite_population_totale`, `cp_population_totale`), à traiter à part.
-etape "6/7 couverture_rayon_risque"
+etape "8/8 couverture_rayon_risque"
 couv_le=$(sql "select coalesce(max(construit_le)::text, '') from public.couverture_rayon_bandes" | tr -d '\r')
 dist_le=$(sql "select coalesce(max(construit_le)::text, '') from public.carreau_risque_bandes" | tr -d '\r')
 perimee=$(sql "select (select max(construit_le) from public.couverture_rayon_bandes)
                     < (select max(construit_le) from public.carreau_risque_bandes)" | tr -d ' \r')
-if [ "$(n public.couverture_rayon_risque)" -gt 0 ] && [ "$perimee" != "t" ]; then
+# Et non vide ne veut pas dire COMPLÈTE : une construction interrompue laisse
+# des bandes de métropole manquantes (réserve T1-2) — on reprend. La part de la
+# largeur -5,5 → 9,8 couverte, la mesure que `lire_couverture_rayon` affiche
+# (`couverture_pct`), et non un nombre de bandes qui dépend du découpage choisi.
+couv_pct=$(sql "select coalesce(round(100 * sum(lon_max - lon_min) / 15.3), 0) from public.couverture_rayon_bandes where bande < 1000" | tr -d ' \r')
+if [ "$(n public.couverture_rayon_risque)" -gt 0 ] && [ "$perimee" != "t" ] && [ "${couv_pct:-0}" -lt 100 ]; then
+  echo "  INCOMPLÈTE : ${couv_pct:-0} % de la métropole au journal — reprise"
+  node scripts/construire_couverture_rayon.mjs || { echo "ÉCHEC couverture" >&2; exit 1; }
+elif [ "$(n public.couverture_rayon_risque)" -gt 0 ] && [ "$perimee" != "t" ]; then
   echo "  déjà construite : $(n public.couverture_rayon_risque) lignes (couverture ${couv_le:-?}, distances ${dist_le:-?})"
 else
   [ "$perimee" = "t" ] && echo "  PÉRIMÉE : couverture construite le $couv_le, distances le $dist_le — reconstruction"

@@ -32,7 +32,7 @@
 -- de carreaux × 24 sommes `numeric` — sans parallélisme : un `INSERT … SELECT` n'en a pas (la même lecture seule, en
 -- parallèle, prend 7,2 s ; en série 16,9 s). Une construction par reconstruction de la base, pas une lecture d'écran.
 --
--- QUAND LA REJOUER : après toute construction de `carreau_couverture` (`11-reconstruire.sh`, étape 5 ter, qui compare
+-- QUAND LA REJOUER : après toute construction de `carreau_couverture` (`11-reconstruire.sh`, étape 7, qui compare
 -- les dates : un dénominateur plus ancien que le journal `carreau_couverture_bandes` est périmé).
 
 create or replace function public.construire_denominateur_iris()

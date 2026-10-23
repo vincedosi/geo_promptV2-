@@ -84,19 +84,22 @@ describe('couverture par rayon — références du département 13 (mesurées le
   }, 60_000);
 
   it('département 13, une courbe par gravité : seveso_haut et seveso_bas', async () => {
+    let sommeGravites = 0;
     for (const [gravite, ref] of [
       ['seveso_haut', REFERENCES_13_HAUT],
       ['seveso_bas', REFERENCES_13_BAS],
     ] as const) {
       const c = await courbe13([gravite]);
+      sommeGravites += c.total;
       expect(c.total, gravite).toBe(ref.total);
       expect(c.carreaux, gravite).toBe(ref.carreaux);
       expect(au(c, 1000), gravite).toBe(ref.r1000);
       expect(au(c, 5000), gravite).toBe(ref.r5000);
       expect(au(c, 10000), gravite).toBe(ref.r10000);
     }
-    // `*` est le MINIMUM par carreau, pas la somme : un carreau proche des deux niveaux ne compte qu'une fois.
-    expect(REFERENCES_13.total).toBeLessThan(REFERENCES_13_HAUT.total + REFERENCES_13_BAS.total);
+    // `*` est le MINIMUM par carreau, pas la somme : un carreau proche des deux niveaux ne compte qu'une fois. Sur les
+    // courbes VIVANTES : comparer les constantes ne verrouillait rien.
+    expect((await courbe13(null)).total).toBeLessThan(sommeGravites);
   }, 60_000);
 
   it('la somme des incréments égale le dernier cumul (télescopage, sql/201)', async () => {
