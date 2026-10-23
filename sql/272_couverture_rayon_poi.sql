@@ -15,17 +15,20 @@
 -- Q-I). Carreaux d'un département par CODE (`code_departement`, la règle `lcog` du risque : c'est elle qui donne la
 -- parité) ; d'une commune, d'un CP ou d'une zone par GÉOMÉTRIE (règle de `couverture_geometrie`, sql/269 : une commune
 -- saisie par son nom ou un CP non canonique n'a pas de code dans `carreau_couverture`). POI à moins de r_max du
--- périmètre, même hors de lui (un lycée de l'autre côté de la limite couvre le périmètre), + 1 km pour un département
--- lu par code, dont des centroïdes débordent le contour.
+-- périmètre, même hors de lui (un lycée de l'autre côté de la limite couvre le périmètre), + 5 km pour un département
+-- lu par code, dont des centroïdes débordent le contour (mesuré : jusqu'à 4 289 m dans le 29, îlots du Conquet).
+-- Une clé de profil qui n'est ni `*` ni une valeur demandée (ou lue) lève 22023 : une faute de frappe ne classe rien et
+-- verserait tout en « hors classes » sans le dire.
 --
 -- PROFIL (A-12) : `{ valeur: [r1, r2, …] }` classe chaque carreau dans la PREMIÈRE valeur dont un anneau le contient,
 -- bandes [0, r1), [r1, r2)… (règle de `classe_carreau_risque`, généralisée). jsonb ne garde pas l'ordre des clés :
 -- la priorité est l'ordre de `p_valeurs`, puis l'ordre alphabétique. La clé `*` vise le POI le plus proche, toute
 -- valeur confondue.
 --
--- MESURES (durée réelle de l'appel, 2e à 4e passes, 23/10) : pire cas admis ICPE toutes natures du Nord à 10 km
--- (2 964 sites, 6 natures), 1,5-1,8 s / 89 347 accès, aucun fichier temporaire ; au-delà de 300 000 carreaux × courbes,
--- refus `calcul_trop_lourd` en 0,5-0,7 s (détail : ARCHITECTURE.md). Lecture seule, jsonb (les courbes, pas des
+-- MESURES (EXPLAIN (ANALYZE, BUFFERS), 2e passe, 23/10, vague finale ; « accès » = hit + read) : pire cas admis, ICPE
+-- toutes natures du Nord à 10 km, 1,8 s / ≈ 131 000 accès, aucun fichier temporaire. Ille-et-Vilaine, pire cas avant
+-- la marge de 5 km (1,8 s / ≈ 116 000), dépasse désormais 5 000 sites : refus `trop_de_poi` en 0,3 s. Au-delà de
+-- 300 000 carreaux × courbes, refus `calcul_trop_lourd` (détail : ARCHITECTURE.md). Lecture seule, jsonb (les courbes, pas des
 -- lignes). Droits : service_role. Rejouable (`create or replace`, aucun `drop`).
 
 begin;
@@ -155,6 +158,11 @@ end;
 $fn$;
 
 
+comment on function public.lire_couverture_rayon(text, text[], text[], text, text[]) is
+  'Courbe cumulee de population par rayon, lue dans la table pre-calculee. `couverture_pct` ne porte QUE sur les '
+  'bandes de metropole (bande < 1000) ; les zones lointaines sont comptees a part dans `n_zones_lointaines` — sql/201. '
+  'Mise en forme des courbes deleguee a courbes_par_palier (sql/272).';
+
 create or replace function public.couverture_rayon_poi(
   p_categorie text,
   p_perimetre_type text,
@@ -189,10 +197,11 @@ declare
   v_n_val integer;
   -- Pas de la grille qui rend sa cellule de Voronoï à chaque POI (unités 3857).
   c_tuile constant integer := 10000;
-  -- Carreaux × courbes de valeur au-delà duquel on refuse (≤ 1,3 s mesuré à 273 000 : ICPE du Nord à 10 km).
+  -- Carreaux × courbes de valeur au-delà duquel on refuse (Ille-et-Vilaine, 297 840, calculée en 1,8 s).
   c_calcul_max constant integer := 300000;
-  -- + 1 km pour un département lu par code : des centroïdes de ses carreaux débordent son contour.
-  v_portee integer := p_rayon_max_m + case when p_perimetre_type = 'departement' then 1000 else 0 end;
+  -- Débord d'un département lu par code : des centroïdes de ses carreaux sont hors du contour (4 289 m dans le 29).
+  c_debord constant integer := 5000;
+  v_portee integer := p_rayon_max_m + case when p_perimetre_type = 'departement' then c_debord else 0 end;
 begin
   if p_rayon_max_m is null or p_rayon_max_m < 100 or p_rayon_max_m > 10000 then
     raise exception 'rayon maximal hors bornes (100 m a 10 km) : %', p_rayon_max_m using errcode = '22023';
@@ -260,6 +269,10 @@ begin
   if coalesce(cardinality(v_g), 0) > p_max_poi then
     return jsonb_build_object('refus', 'trop_de_poi', 'plafond', p_max_poi);
   end if;
+  if exists (select 1 from jsonb_object_keys(coalesce(p_profil, '{}')) k
+              where k <> '*' and not k = any (array_remove(coalesce(p_valeurs, v_v, '{}'), null))) then
+    raise exception 'cle de profil hors des valeurs demandees ou lues' using errcode = '22023';
+  end if;
   -- 8 teintes au plus (`--nature-1…8`).
   if coalesce(cardinality(p_valeurs), 0) > 8 or v_n_val > 8 then
     return jsonb_build_object('refus', 'trop_de_valeurs');
@@ -280,8 +293,9 @@ begin
     -- On découpe donc le plan en cellules de Voronoï (une par POI, en 3857) : chaque carreau ne se mesure qu'au POI de
     -- sa cellule, coupée au disque de r_max — une distance par carreau et par valeur, 0,6 s.
     -- Exact : la distance reste GÉODÉSIQUE et le minimum se prend sur les cellules à moins de 100 unités du centroïde.
-    -- Mercator déforme les distances de ±0,3 % sur 10 km : ce n'est qu'au voisinage d'une frontière de cellule que le
-    -- POI le plus proche en 3857 peut ne pas l'être sur l'ellipsoïde, et la bande de 100 y mesure les deux POI.
+    -- Entre deux POI de directions différentes, Mercator déforme le rapport des distances de ≈ 0,65 % à 10 km
+    -- (anisotropie ellipsoïdale ≈ 0,34 % + gradient d'échelle) : le POI le plus proche en 3857 peut ne pas l'être sur
+    -- l'ellipsoïde seulement à moins de ≈ 50 unités de la médiatrice — la bande de 100 y mesure les deux POI.
     poi as materialized (
       select t.g, t.v, x.g3, floor(ST_X(x.g3) / c_tuile)::int as tx, floor(ST_Y(x.g3) / c_tuile)::int as ty,
              -- Le rayon en unités 3857 (échelle 1/cos(latitude), 0,1° de marge) plus la bande : le disque, polygone
@@ -308,8 +322,9 @@ begin
         from cellules k
         cross join generate_series(floor(ST_XMin(k.cell) / c_tuile)::int, floor(ST_XMax(k.cell) / c_tuile)::int) gx(x)
         cross join generate_series(floor(ST_YMin(k.cell) / c_tuile)::int, floor(ST_YMax(k.cell) / c_tuile)::int) gy(y)
-       -- Une cellule loin du périmètre n'y a aucun carreau (2 000 unités : le débord d'un département lu par code).
-       where k.cell && ST_Expand(v_per3857, 2000)
+       -- Une cellule loin du périmètre n'y a aucun carreau : le débord d'un département lu par code, en unités 3857
+       -- (× 1/cos 51,5° = 1,61, la latitude la plus haute de la métropole).
+       where k.cell && ST_Expand(v_per3857, c_debord * 1.61)
     ),
     zones as materialized (
       select t.cle, p.g, ST_Intersection(t.cell, ST_Buffer(p.g3, p.r3)) as z
