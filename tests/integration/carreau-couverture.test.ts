@@ -12,22 +12,10 @@
  * Les requêtes passent par psql dans le conteneur (comme `perimetres-sans-interstices.test.ts`) : la table n'est lisible
  * que par `service_role` et ces lectures portent sur des millions de lignes, hors de portée de PostgREST (1 000 lignes).
  */
-import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
+import { sql } from './_psql';
 
-const CONTENEUR = process.env.CONTENEUR_PG ?? 'supabase_db_genesis_app';
 const LONG = 180_000;
-
-/** Une requête, une ligne de résultat, colonnes séparées par « | ». Lève si psql échoue. */
-function sql(requete: string): string[] {
-  const r = spawnSync('docker', ['exec', '-i', CONTENEUR, 'psql', '-U', 'postgres', '-X', '-q', '-At', '-v', 'ON_ERROR_STOP=1'], {
-    input: requete,
-    encoding: 'utf8',
-    maxBuffer: 16 * 1024 * 1024,
-  });
-  if (r.status !== 0) throw new Error(`psql (${r.status}) : ${r.stderr}`);
-  return r.stdout.trim().split('|');
-}
 
 describe('sql/266 — carreau_couverture', () => {
   it('une ligne par carreau Filosofi, 24 effectifs chacune, aucun centroïde absent', () => {

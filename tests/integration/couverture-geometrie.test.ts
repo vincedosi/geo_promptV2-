@@ -13,25 +13,12 @@
  * Les zones sont créées par `creer_zone_recette` dans deux espaces de test, supprimés (cascade) en fin de fichier. Les
  * scénarios de panne sont simulés par psql dans des transactions ANNULÉES (base locale partagée).
  */
-import { spawnSync } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { creerClientTest } from './_client';
+import { psql } from './_psql';
 
 const admin = creerClientTest();
-const CONTENEUR = process.env.CONTENEUR_PG ?? 'supabase_db_genesis_app';
 const LONG = 120_000;
-
-/** Un script psql ; rend la DERNIÈRE ligne de sa sortie. Lève si psql échoue. */
-function psql(script: string): string {
-  const r = spawnSync('docker', ['exec', '-i', CONTENEUR, 'psql', '-U', 'postgres', '-X', '-q', '-At', '-v', 'ON_ERROR_STOP=1'], {
-    input: script,
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  if (r.status !== 0) throw new Error(`psql (${r.status}) : ${r.stderr}`);
-  const lignes = r.stdout.trim().split('\n');
-  return lignes[lignes.length - 1];
-}
 
 interface Ligne { code: string; nom: string | null; commune: string | null; pop_en_zone: number; pop_totale: number | null; part: number | null }
 interface Resultat {

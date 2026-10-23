@@ -12,21 +12,9 @@
  *
  * Chaque scénario de panne est simulé dans une transaction ANNULÉE (base locale partagée) : rien ne reste.
  */
-import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
+import { psqlBrut, psqlLignes as psql } from './_psql';
 
-const CONTENEUR = process.env.CONTENEUR_PG ?? 'supabase_db_genesis_app';
-
-/** Un script psql ; rend la sortie brute (lignes). Lève si psql échoue. */
-function psql(script: string): string[] {
-  const r = spawnSync('docker', ['exec', '-i', CONTENEUR, 'psql', '-U', 'postgres', '-X', '-q', '-At', '-v', 'ON_ERROR_STOP=1'], {
-    input: script,
-    encoding: 'utf8',
-    maxBuffer: 16 * 1024 * 1024,
-  });
-  if (r.status !== 0) throw new Error(`psql (${r.status}) : ${r.stderr}`);
-  return r.stdout.trim().split('\n');
-}
 
 /** Le motif rendu après les altérations `avant`, dans une transaction annulée. `''` = complète. */
 function motifApres(avant: string): string {
@@ -74,14 +62,11 @@ describe('sql/268 — carreau_couverture_complete', () => {
   });
 
   it('construire_denominateur_iris refuse une table partielle (55000), sans rien écrire', () => {
-    const r = spawnSync('docker', ['exec', '-i', CONTENEUR, 'psql', '-U', 'postgres', '-X', '-q', '-At', '-v', 'ON_ERROR_STOP=1'], {
-      input: `begin;
+    const r = psqlBrut(`begin;
         delete from public.carreau_couverture_bandes
          where bande not in (select bande from public.carreau_couverture_bandes order by bande limit 10);
         select public.construire_denominateur_iris();
-        rollback;`,
-      encoding: 'utf8',
-    });
+        rollback;`);
     expect(r.status).not.toBe(0);
     expect(r.stderr).toMatch(/incompl|certifi/i);
   });

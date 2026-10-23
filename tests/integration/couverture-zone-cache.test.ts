@@ -13,25 +13,12 @@
  * Fichier distinct de `couverture-geometrie.test.ts` (T5), en relecture au moment de l'écriture : les deux ne se
  * touchent pas. Les pannes de base sont simulées par psql dans des transactions ANNULÉES (base locale partagée).
  */
-import { spawnSync } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { creerClientTest } from './_client';
+import { psql } from './_psql';
 
 const admin = creerClientTest();
-const CONTENEUR = process.env.CONTENEUR_PG ?? 'supabase_db_genesis_app';
 const LONG = 120_000;
-
-/** Un script psql ; rend la DERNIÈRE ligne de sa sortie. Lève si psql échoue. */
-function psql(script: string): string {
-  const r = spawnSync('docker', ['exec', '-i', CONTENEUR, 'psql', '-U', 'postgres', '-X', '-q', '-At', '-v', 'ON_ERROR_STOP=1'], {
-    input: script,
-    encoding: 'utf8',
-    maxBuffer: 16 * 1024 * 1024,
-  });
-  if (r.status !== 0) throw new Error(`psql (${r.status}) : ${r.stderr}`);
-  const lignes = r.stdout.trim().split('\n');
-  return lignes[lignes.length - 1];
-}
 
 interface Reponse {
   refus?: string; cache?: boolean; zone_maj?: string; zone_id?: string; population?: number; n_carreaux?: number;

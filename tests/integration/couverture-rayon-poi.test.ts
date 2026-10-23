@@ -8,11 +8,14 @@
  *     `couverture-caracterisation.test.ts`) — la courbe `*` et une courbe par gravité — sauf au dernier palier, où le
  *     pré-calcul perd des carreaux (cause mesurée et écrite sur le test) ;
  *   - un autre type de POI (lycées), une commune saisie par son NOM et un CP non canonique de `cp_groupe` (A-11) ;
- *   - le profil d'anneaux : chaque carreau du périmètre est classé une fois et une seule (A-12) ;
+ *   - le profil d'anneaux : Σ classes égale une somme recalculée ici, indépendamment de la fonction (A-12) ;
+ *   - les cas propres au Voronoï, contre un calcul brut (min des distances) : une valeur à UN seul POI, des POI
+ *     confondus (83 sites ICPE au même point dans Paris) ;
  *   - les refus, rendus avant tout calcul.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { creerClientTest } from './_client';
+import { psql } from './_psql';
 
 const admin = creerClientTest();
 const LONG = 60_000;
@@ -95,18 +98,60 @@ describe('couverture_rayon_poi — parité avec le module risque (département 1
     }
   }, LONG);
 
-  it('profil d’anneaux : chaque carreau du périmètre classé une fois (∑ classes + hors classes = population)', async () => {
+  it('profil d’anneaux : Σ classes = la population recalculée par jointure au périmètre ; hors classes ≥ 0', async () => {
     const r = await seveso13({ p_profil: { seveso_haut: [500, 1000, 2000], seveso_bas: [500] } });
     // Ordre du profil = ordre de `p_valeurs` (jsonb ne garde pas l'ordre des clés) : seveso_haut prime.
     expect(r.classes!.map((c) => `${c.valeur}:${c.anneau_m}`))
       .toEqual(['seveso_haut:500', 'seveso_haut:1000', 'seveso_haut:2000', 'seveso_bas:500']);
-    const somme = r.classes!.reduce((s, c) => s + c.population, 0) + r.hors_classes!;
-    // Arrondis : 0,5 par terme au plus (même tolérance que la partition de `couverture_geometrie`).
-    expect(Math.abs(somme - r.population_perimetre)).toBeLessThanOrEqual(0.5 * (r.classes!.length + 2));
+    expect(r.hors_classes!).toBeGreaterThanOrEqual(0);
+    // `hors_classes` est la différence : seule une somme INDÉPENDANTE verrouille la partition. Un carreau du 13 est
+    // classé s'il a un Seveso haut à moins de 2 km ou un Seveso bas à moins de 500 m.
+    const independante = Number(psql(`
+      select round(sum(c.pop)) from (select cc.pops[1] pop, ST_Transform(cc.centroide_3857, 4326) g
+                                       from public.carreau_couverture cc where cc.code_departement = '13') c
+       where exists (select 1 from public.poi_france p cross join (values ('seveso_haut', 2000), ('seveso_bas', 500)) v(v, r)
+                      where p.categorie = 'risque_industriel' and p.sous_categorie = v.v and p.data_source_id is null
+                        and p.metadata->>'etat_activite' is distinct from 'En fin d''exploitation'
+                        and p.geom && ST_Expand(c.g, 0.04) and ST_Distance(p.geom::geography, c.g::geography) < v.r);`));
+    const classes = r.classes!.reduce((s, c) => s + c.population, 0);
+    // Arrondis : 0,5 par classe au plus.
+    expect(Math.abs(classes - independante)).toBeLessThanOrEqual(0.5 * r.classes!.length + 0.5);
+    expect(Math.abs(classes + r.hors_classes! - r.population_perimetre)).toBeLessThanOrEqual(0.5 * (r.classes!.length + 2));
     // Le cumul à 2 km de la courbe seveso_haut ne peut pas être sous la somme de ses trois anneaux.
     const haut2000 = r.courbes.find((c) => c.cle === 'seveso_haut')!.points.find((p) => p.r === 2000)!.p;
     const classesHaut = r.classes!.filter((c) => c.valeur === 'seveso_haut').reduce((s, c) => s + c.population, 0);
     expect(Math.abs(haut2000 - classesHaut)).toBeLessThanOrEqual(2);
+  }, LONG);
+});
+
+/** Population et carreaux du département `dept` à moins de `r` m d'un site ICPE actif du socle (`valeur` : sa gravité). */
+function brut(dept: string, r: number, valeur: string | null): { total: number; carreaux: number } {
+  const [carreaux, total] = psql(`
+    select count(*) || '|' || round(sum(c.pop)) from (select cc.pops[1] pop, ST_Transform(cc.centroide_3857, 4326) g
+                                                        from public.carreau_couverture cc where cc.code_departement = '${dept}') c
+     where exists (select 1 from public.poi_france p
+                    where p.categorie = 'risque_industriel' and p.data_source_id is null
+                      and ${valeur ? `p.sous_categorie = '${valeur}'` : 'true'}
+                      and p.metadata->>'etat_activite' is distinct from 'En fin d''exploitation'
+                      and p.geom && ST_Expand(c.g, 0.03) and ST_DWithin(p.geom::geography, c.g::geography, ${r}));`).split('|');
+  return { total: Number(total), carreaux: Number(carreaux) };
+}
+
+describe('couverture_rayon_poi — cas propres au Voronoï, contre le calcul brut (T11 M4)', () => {
+  it('une valeur à UN seul site (Seveso haut, Corrèze, 2 km) : la cellule vient des coins de l’enveloppe', async () => {
+    const r = await couverture({ p_categorie: 'risque_industriel', p_sources: [], p_perimetre_code: '19', p_rayon_max_m: 2000,
+      p_champ: 'sous_categorie', p_valeurs: ['seveso_haut'] });
+    expect(r.n_poi).toBe(1);
+    const b = brut('19', 2000, 'seveso_haut');
+    expect(b.carreaux).toBeGreaterThan(0);
+    expect({ total: r.courbes[0].total, carreaux: r.courbes[0].carreaux }).toEqual(b);
+  }, LONG);
+  it('des sites confondus (Paris, 1 km : jusqu’à 83 au même point) : chaque carreau compté une fois', async () => {
+    const r = await couverture({ p_categorie: 'risque_industriel', p_sources: [], p_perimetre_code: '75', p_rayon_max_m: 1000 });
+    const b = brut('75', 1000, null);
+    expect(r.courbes[0].carreaux).toBe(b.carreaux);
+    // Somme de populations arrondie une fois ici, une fois par palier là : 1 habitant d'écart au plus.
+    expect(Math.abs(r.courbes[0].total - b.total)).toBeLessThanOrEqual(1);
   }, LONG);
 });
 

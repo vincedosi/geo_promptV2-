@@ -12,20 +12,9 @@
  * de géométries, qu'aucune RPC n'expose. La population n'est PAS lue par `zone_seuil_carreaux` : le département compte
  * 32 462 carreaux, au-delà de son plafond de 20 000 (correction R-7 de la relecture du plan).
  */
-import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
+import { sql } from './_psql';
 
-const CONTENEUR = process.env.CONTENEUR_PG ?? 'supabase_db_genesis_app';
-
-/** Une requête, une ligne de résultat, colonnes séparées par « | ». Lève si psql échoue. */
-function sql(requete: string): string[] {
-  const r = spawnSync('docker', ['exec', '-i', CONTENEUR, 'psql', '-U', 'postgres', '-X', '-q', '-At', '-v', 'ON_ERROR_STOP=1'], {
-    input: requete,
-    encoding: 'utf8',
-  });
-  if (r.status !== 0) throw new Error(`psql (${r.status}) : ${r.stderr}`);
-  return r.stdout.trim().split('|');
-}
 
 /** Aires (km², géodésiques) des trous de la géométrie, du plus grand au plus petit. */
 function trous(table: 'ref_departements' | 'ref_regions', cle: string, code: string, colonne: string): number[] {
