@@ -50,7 +50,8 @@ export const JETONS_COUVERTURE = {
 /**
  * Le trait des territoires TOUCHÉS (relecture T8, I2) : `--text-tertiary` (#8a8a8a, invariant) à 0,8 px. Le palier
  * `--seq-1` vaut #eaf7f5 en clair : sans un trait franc, un CP touché à 10 % se lisait « hors zone » (≈ 1:1 sur un
- * fond clair). #8a8a8a fait ≥ 3:1 sur le fond clair (objet graphique, WCAG 1.4.11) et reste lisible sur le sombre.
+ * fond clair). #8a8a8a fait ≈ 3,0:1 sur le fond de carte réel (terre OSM #f2efe9 ; 3,2:1 sur #f5f5f5, 3,45:1 sur le
+ * blanc seul) : le seuil WCAG 1.4.11 des objets graphiques, tenu tout juste ; lisible aussi sur le sombre.
  */
 const LARGEUR_TRAIT = 0.8;
 export type PaletteCouverture = Record<keyof typeof JETONS_COUVERTURE, string>;
