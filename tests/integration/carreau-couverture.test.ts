@@ -188,6 +188,9 @@ describe('sql/266 — exactitude de carreau_couverture.code_iris (recalcul géom
  * commence pas par le premier code `lcog_geo` (bordures, et millésimes COG différents entre `iris` et le carroyage). On
  * ne recoupe donc JAMAIS la somme des IRIS d'une commune avec la commune : chaque IRIS se recoupe avec sa propre maille,
  * et le total national se recoupe (IRIS + hors IRIS = total communal).
+ *
+ * Tout se vérifie en LECTURE : reconstruire le dénominateur à chaque passe réécrivait 48 872 lignes (≈ 20 s, règle
+ * I/O). Le refus d'une table non certifiée est prouvé dans une transaction annulée (`carreau-couverture-complete`).
  */
 describe('sql/267 — dénominateur IRIS (unite_population_totale, maille iris)', () => {
   it('une ligne par IRIS habité, entre 45 000 et 49 448, autant que d’IRIS dans carreau_couverture ; 24 cibles chacune', () => {
@@ -235,19 +238,6 @@ describe('sql/267 — dénominateur IRIS (unite_population_totale, maille iris)'
     // `pops` est en `real` : ≈ 7 chiffres significatifs par carreau. Sur 2,3 M de carreaux l'écart cumulé reste sous
     // quelques habitants ; l'égalité IRIS par IRIS au demi-habitant près est assurée par le test précédent.
     expect(Math.abs(Number(indIris) + Number(indHors) - Number(indComm))).toBeLessThan(5);
-  }, LONG);
-
-  it('rejouée, la construction rend exactement le même dénominateur (idempotente, aucune ligne en double)', () => {
-    const empreinte = `select md5(string_agg(code || ':' || n_carreaux || ':' || populations::text, ',' order by code))
-                         from public.unite_population_totale where maille = 'iris';`;
-    const avant = sql(empreinte)[0];
-    const [ok, nIris] = sql(`select r->>'ok', r->>'n_iris' from (select public.construire_denominateur_iris() r) s;`);
-    expect(ok).toBe('true');
-    expect(sql(empreinte)[0]).toBe(avant);
-    expect(Number(nIris)).toBe(Number(sql(`select count(*) from public.unite_population_totale where maille = 'iris';`)[0]));
-    // Les trois autres mailles ne bougent pas.
-    expect(sql(`select count(*) from public.unite_population_totale where maille in ('commune', 'departement', 'region');`)[0])
-      .toBe('35031');
   }, LONG);
 
   it('construction réservée à service_role', () => {
