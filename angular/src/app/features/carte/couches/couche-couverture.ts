@@ -1,8 +1,9 @@
 import type maplibregl from 'maplibre-gl';
 import type { Decoupage, LigneCouverture } from '../logique/analyses/couverture';
-import { avantDe } from '../logique/ordre-couches';
-import { IRIS_ZOOM_PLANCHER } from '../logique/versions';
 import { SOURCE_IRIS } from './couche-iris';
+import {
+  BORNES_PART, type CarteUnites, ZOOM_IRIS_UNITES, ajouterCouche, classePart, expressionCouleurIris, poserUnitesGeojson, poserUnitesIris,
+} from './couche-unites';
 
 /**
  * ④ Analyse — la couche « Couverture d'une zone » (lot 4, T8, arbitrage A-7), en fonctions PURES (patron
@@ -11,10 +12,10 @@ import { SOURCE_IRIS } from './couche-iris';
  * - le CONTOUR de la zone analysée, dans les trois découpages ;
  * - par code postal : les contours CP (`ContoursZonesService`) des SEULS codes de la réponse, aplat séquentiel de la
  *   `part` en cinq classes (`--seq-1…5`) ;
- * - par IRIS : une couche sur la source `iris-source` déjà employée par le calque IRIS (posée si absente, mêmes
- *   paramètres). ⚠ `get_iris_tile` (sql/139) sert des départements sous z7 et des communes à z7-z8 — chaque entité porte
- *   `niveau`, et le code IRIS s'appelle `code_iris` au seul palier `iris`. La couche prend donc `minzoom` 9 ET un filtre
- *   `niveau = 'iris'`, sans quoi le `match` s'appliquerait à des codes de commune (relecture R-9 du plan) ;
+ * - par IRIS : une couche sur la source `iris-source` déjà employée par le calque IRIS (`minzoom` 9, `niveau = 'iris'`) ;
+ *
+ * Aplats et traits par part : `couche-unites.ts`, la peinture PARTAGÉE avec ⑤ Jeu de zones (lot 5, T11) — un seul
+ * code de peinture ; ce fichier garde ses identifiants, le contour de la zone et la surbrillance.
  * - une SURBRILLANCE (trait) du territoire survolé dans le tableau.
  *
  * Couleurs : valeurs CALCULÉES par `CouleursService` (jamais `var()` dans `paint`, jamais un hexadécimal recopié).
@@ -36,11 +37,9 @@ export const COUCHES_COUVERTURE = [
   COUCHE_COUVERTURE_CP_SURVOL, COUCHE_COUVERTURE_IRIS_SURVOL, COUCHE_COUVERTURE_ZONE,
 ] as const;
 
-/** Le premier zoom où les tuiles IRIS portent des IRIS (sql/139 : `z <= 8` → communes). */
-export const ZOOM_IRIS_COUVERTURE = 9;
-/** Les frontières des cinq classes de part (%) : < 20, 20-40, 40-60, 60-80, ≥ 80. */
-export const BORNES_PART = [20, 40, 60, 80] as const;
-const OPACITE_FOND = 0.6;
+/** Le premier zoom où les tuiles IRIS portent des IRIS — celui de la peinture partagée. */
+export const ZOOM_IRIS_COUVERTURE = ZOOM_IRIS_UNITES;
+export { BORNES_PART, classePart, expressionCouleurIris };
 
 /** Les jetons lus par `CouleursService.palette` — cinq paliers séquentiels, l'absence, le contour, la surbrillance. */
 export const JETONS_COUVERTURE = {
@@ -48,57 +47,11 @@ export const JETONS_COUVERTURE = {
   absente: 'donnee-absente', zone: 'brand-teal', trait: 'text-tertiary', survol: 'text-primary',
 } as const;
 /**
- * Le trait des territoires TOUCHÉS (relecture T8, I2) : `--text-tertiary` (#8a8a8a, invariant) à 0,8 px. Le palier
- * `--seq-1` vaut #eaf7f5 en clair : sans un trait franc, un CP touché à 10 % se lisait « hors zone » (≈ 1:1 sur un
- * fond clair). #8a8a8a fait ≈ 3,0:1 sur le fond de carte réel (terre OSM #f2efe9 ; 3,2:1 sur #f5f5f5, 3,45:1 sur le
- * blanc seul) : le seuil WCAG 1.4.11 des objets graphiques, tenu tout juste ; lisible aussi sur le sombre.
+ * `trait` : le trait des territoires TOUCHÉS (relecture T8, I2), `--text-tertiary` (#8a8a8a, invariant) à 0,8 px. Le
+ * palier `--seq-1` vaut #eaf7f5 en clair : sans un trait franc, un CP touché à 10 % se lisait « hors zone ». #8a8a8a
+ * fait ≈ 3,0:1 sur le fond de carte réel (terre OSM #f2efe9) : le seuil WCAG 1.4.11 des objets graphiques.
  */
-const LARGEUR_TRAIT = 0.8;
 export type PaletteCouverture = Record<keyof typeof JETONS_COUVERTURE, string>;
-
-/** La classe (0-4) d'une part ; `null` sans dénominateur. Une borne appartient à la classe du HAUT. */
-export function classePart(part: number | null): number | null {
-  if (part === null || !Number.isFinite(part)) return null;
-  let i = 0;
-  while (i < BORNES_PART.length && part >= BORNES_PART[i]) i++;
-  return i;
-}
-
-function paliers(p: PaletteCouverture): string[] {
-  return [p.s1, p.s2, p.s3, p.s4, p.s5];
-}
-
-/** L'aplat d'un CP : `step` sur `part`, gris neutre sans dénominateur (« on ne sait pas » n'est pas « faible »). */
-function expressionCouleurCp(p: PaletteCouverture): unknown[] {
-  const c = paliers(p);
-  return [
-    'case', ['==', ['get', 'part'], null], p.absente,
-    ['step', ['get', 'part'], c[0], BORNES_PART[0], c[1], BORNES_PART[1], c[2], BORNES_PART[2], c[3], BORNES_PART[3], c[4]],
-  ];
-}
-
-/**
- * L'aplat des IRIS : un `match` sur `code_iris` qui GROUPE les codes par classe (six entrées au plus, quelle que soit
- * la taille de la liste — 5 498 IRIS sur une région) ; un code hors réponse reste transparent.
- */
-export function expressionCouleurIris(lignes: readonly LigneCouverture[], p: PaletteCouverture): unknown {
-  const c = paliers(p);
-  const groupes = new Map<number | null, string[]>();
-  for (const l of lignes) {
-    const k = classePart(l.part);
-    const g = groupes.get(k);
-    if (g) g.push(l.code);
-    else groupes.set(k, [l.code]);
-  }
-  const branches: unknown[] = [];
-  for (const [k, codes] of groupes) branches.push(codes, k === null ? p.absente : c[k]);
-  return branches.length === 0 ? 'rgba(0,0,0,0)' : ['match', ['get', 'code_iris'], ...branches, 'rgba(0,0,0,0)'];
-}
-
-/** Les IRIS de la réponse, au seul palier `iris` des tuiles. */
-function filtreIrisCouverture(codes: readonly string[]): unknown[] {
-  return ['all', ['==', ['get', 'niveau'], 'iris'], ['in', ['get', 'code_iris'], ['literal', [...codes]]]];
-}
 
 /** Le filtre de la surbrillance : le territoire survolé, ou aucun. */
 function filtreSurvol(propriete: 'code' | 'code_iris', code: string | null): unknown[] {
@@ -128,13 +81,7 @@ export interface RenduCouverture {
   iris: readonly LigneCouverture[] | null;
 }
 
-type CarteCouverture = Pick<
-  maplibregl.Map, 'getSource' | 'addSource' | 'removeSource' | 'getLayer' | 'addLayer' | 'removeLayer' | 'setFilter' | 'getStyle'
->;
-
-function ajouter(carte: CarteCouverture, couche: Record<string, unknown>): void {
-  carte.addLayer(couche as maplibregl.LayerSpecification, avantDe(carte, couche['id'] as string));
-}
+type CarteCouverture = CarteUnites;
 
 /**
  * Pose la couverture : retire d'abord tout ce qui est à elle (un changement de découpage ou de thème repart propre),
@@ -143,30 +90,22 @@ function ajouter(carte: CarteCouverture, couche: Record<string, unknown>): void 
 export function poserCoucheCouverture(carte: CarteCouverture, r: RenduCouverture, p: PaletteCouverture, urlIris: string): void {
   retirerCoucheCouverture(carte);
   if (r.decoupage === 'cp' && r.cp) {
-    carte.addSource(SOURCE_COUVERTURE_CP, { type: 'geojson', data: r.cp });
-    ajouter(carte, { id: COUCHE_COUVERTURE_CP_FOND, type: 'fill', source: SOURCE_COUVERTURE_CP, paint: { 'fill-color': expressionCouleurCp(p), 'fill-opacity': OPACITE_FOND } });
-    ajouter(carte, { id: COUCHE_COUVERTURE_CP_TRAIT, type: 'line', source: SOURCE_COUVERTURE_CP, paint: { 'line-color': p.trait, 'line-width': LARGEUR_TRAIT } });
-    ajouter(carte, {
+    poserUnitesGeojson(carte, { source: SOURCE_COUVERTURE_CP, fond: COUCHE_COUVERTURE_CP_FOND, trait: COUCHE_COUVERTURE_CP_TRAIT }, r.cp, p);
+    ajouterCouche(carte, {
       id: COUCHE_COUVERTURE_CP_SURVOL, type: 'line', source: SOURCE_COUVERTURE_CP, filter: filtreSurvol('code', null),
       paint: { 'line-color': p.survol, 'line-width': 2.5 },
     });
   }
   if (r.decoupage === 'iris' && r.iris && r.iris.length > 0) {
-    if (!carte.getSource(SOURCE_IRIS)) {
-      carte.addSource(SOURCE_IRIS, { type: 'vector', tiles: [urlIris], minzoom: IRIS_ZOOM_PLANCHER, maxzoom: 14, attribution: 'IGN — IRIS 2023' });
-    }
-    const commun = { source: SOURCE_IRIS, 'source-layer': 'iris', minzoom: ZOOM_IRIS_COUVERTURE };
-    const filtre = filtreIrisCouverture(r.iris.map((l) => l.code));
-    ajouter(carte, { id: COUCHE_COUVERTURE_IRIS_FOND, type: 'fill', ...commun, filter: filtre, paint: { 'fill-color': expressionCouleurIris(r.iris, p), 'fill-opacity': OPACITE_FOND } });
-    ajouter(carte, { id: COUCHE_COUVERTURE_IRIS_TRAIT, type: 'line', ...commun, filter: filtre, paint: { 'line-color': p.trait, 'line-width': LARGEUR_TRAIT } });
-    ajouter(carte, {
-      id: COUCHE_COUVERTURE_IRIS_SURVOL, type: 'line', ...commun, filter: filtreSurvol('code_iris', null),
-      paint: { 'line-color': p.survol, 'line-width': 2.5 },
+    poserUnitesIris(carte, { fond: COUCHE_COUVERTURE_IRIS_FOND, trait: COUCHE_COUVERTURE_IRIS_TRAIT }, r.iris, p, urlIris);
+    ajouterCouche(carte, {
+      id: COUCHE_COUVERTURE_IRIS_SURVOL, type: 'line', source: SOURCE_IRIS, 'source-layer': 'iris', minzoom: ZOOM_IRIS_UNITES,
+      filter: filtreSurvol('code_iris', null), paint: { 'line-color': p.survol, 'line-width': 2.5 },
     });
   }
   if (r.zone) {
     carte.addSource(SOURCE_COUVERTURE_ZONE, { type: 'geojson', data: r.zone });
-    ajouter(carte, { id: COUCHE_COUVERTURE_ZONE, type: 'line', source: SOURCE_COUVERTURE_ZONE, paint: { 'line-color': p.zone, 'line-width': 2 } });
+    ajouterCouche(carte, { id: COUCHE_COUVERTURE_ZONE, type: 'line', source: SOURCE_COUVERTURE_ZONE, paint: { 'line-color': p.zone, 'line-width': 2 } });
   }
 }
 

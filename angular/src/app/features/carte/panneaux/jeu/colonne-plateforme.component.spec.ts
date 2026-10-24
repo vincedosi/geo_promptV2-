@@ -2,6 +2,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import type { Type } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
+import { JeuCarteService } from '../../couches/jeu-carte.service';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import type { PlateformeGeo } from '../../logique/jeu/plateformes';
 import { REGISTRE, Z1, couvertureCp, fournisseursJeu, regle, urlCouverture } from '../../testing/jeu-factice';
@@ -101,5 +102,19 @@ describe('mg-colonne-plateforme', () => {
     await stable();
     expect(texte(el, '[data-motif-vide]')).toBe('Aucun cercle n’atteint le seuil : baissez le seuil ou changez le rayon.');
     expect(texte(el, '[data-chiffres]')).toContain('Cercles retenus / cellules examinées');
+  });
+  it('« Voir sur la carte » (T11) : la plateforme devient la REGARDÉE, une seule à la fois', async () => {
+    const { el, stable } = await colonne('dv360');
+    const carte = TestBed.inject(JeuCarteService);
+    const bouton = el.querySelector<HTMLButtonElement>('[data-voir-carte]')!;
+    expect(bouton.textContent?.trim()).toBe('Voir sur la carte');
+    bouton.click();
+    await stable();
+    expect(carte.regardee()).toBe('dv360');
+    expect(bouton.getAttribute('aria-pressed')).toBe('true');
+    expect(bouton.textContent?.trim()).toBe('Sur la carte');
+    carte.regarder('meta');
+    await stable();
+    expect(bouton.getAttribute('aria-pressed')).toBe('false');
   });
 });

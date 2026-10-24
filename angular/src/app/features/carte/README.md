@@ -320,6 +320,25 @@ la plomberie ; l'écran est T10, la couche T11.
   `mg-choix-cible`, `mg-mode-plan`, `mg-dilution` (entrées FACULTATIVES `titre`, `sujet`, `accord`, `libelleCurseur` :
   défauts = le texte du module risque, son spec inchangé et vert), `mg-kpi`, `mg-entete-section`.
 
+## ⑤ Jeu de zones : la carte (lot 5, T11, 2026-10-24)
+
+| Fichier | Rôle |
+|---|---|
+| `couches/couche-unites.ts` | PUR : la peinture d'unités PAR PART (`--seq-1…5`), UN seul code pour ④ et ⑤ — `poserUnitesGeojson` (territoires, cercles), `poserUnitesIris` (tuiles `iris-source`, z ≥ 9, `niveau = 'iris'`), `expressionCouleurIris` (`match` groupé, six branches au plus), `classePart`, `libellesPaliers` (légende). `couche-couverture.ts` (④) y délègue ses aplats et garde contour et surbrillance |
+| `couches/couche-jeu.ts` | PUR : la carte de ⑤ — contour de la zone exacte, unités retenues teintées, touchées non retenues en contour fin `--contour-carte` ; `entitesTerritoires` (rétention par `estRetenue`, la règle de l'extraction), `entitesCercles` (un pavage en UNE source) |
+| `couches/jeu-carte.service.ts` | `JeuCarteService`, fourni par la PAGE (`FOURNISSEURS_JEU`) : `regarder(p)` (« Voir sur la carte » d'une colonne), `regardee`, `affichee`, `chargement`, `irisSousLeZoom` |
+
+- **Lectures** : rien avant « Voir sur la carte ». Contour de la zone : `ZonesCustomApi.geometrie`, une lecture par zone,
+  recadrage. CP et départements : `ContoursZonesService` (partagé, une lecture par échelle et par écran). Communes :
+  `JeuxApi.contoursCommunes` des RETENUES, une lecture par jeu de codes, gardée (revenir à un seuil ne relit rien).
+  Cercles : `cercleGeoJSON` du module risque. Maille exacte : le contour seul.
+- **Une plateforme, une choroplèthe** : regarder une autre plateforme retire les couches de la précédente. Le geste
+  porte sa zone : changer de zone l'annule. Peinte, la carte réclame le dégradé `'jeu'` (registre `logique/degrades.ts`
+  ET sa source React `lib/carte/degrades.ts`, parité verrouillée ; `calques-actifs` et la légende React suivent) : la
+  couverture de ④ se masque (« Afficher sur la carte » la rend, et masque alors ⑤). Légende des parts dans la colonne.
+- **Cycle de vie** : re-posée sur une carte recréée (B11), repeinte au thème, masquée par « Tout effacer », retirée à la
+  destruction du service.
+
 ## Cycle de vie d'une couche
 
 1. **Allumée** par sa section de `panneaux/calques/`, dépliée dans sa ligne de ② (ou un outil) : le service passe `visible` à vrai.

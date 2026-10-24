@@ -27,6 +27,7 @@ const DEGRADE_IDS = [
   'diffusion',
   'zones-risque',
   'couverture',
+  'jeu',
 ] as const satisfies readonly DegradeId[];
 
 /**

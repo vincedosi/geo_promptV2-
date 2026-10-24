@@ -40,6 +40,8 @@ export function degradeALegende(d: DegradeId | null): boolean {
       return false;
     case 'couverture':
       return false; // légende dans le panneau de l'outil (④, lot 4 T8)
+    case 'jeu':
+      return false; // légende dans la colonne de la plateforme regardée (⑤, lot 5 T11)
     default: {
       const exhaustif: never = d;
       return exhaustif;

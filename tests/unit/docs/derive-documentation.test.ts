@@ -217,7 +217,7 @@ describe('dérive entre ARCHITECTURE.md et le code', () => {
     expect(nombreReel, 'aucune valeur DegradeId extraite — le motif a-t-il divergé du style du fichier ?').toBeGreaterThan(0);
 
     const motsVersNombre: Record<string, number> = {
-      deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, sept: 7, huit: 8, neuf: 9, dix: 10,
+      deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, sept: 7, huit: 8, neuf: 9, dix: 10, onze: 11,
     };
     const mot = navSection.match(/jusqu'a\s+(\w+)\s+choroplethes/)?.[1];
     expect(mot, 'ARCHITECTURE.md ne cite plus le nombre de choroplèthes concurrentes avant le dégradé unique').toBeDefined();

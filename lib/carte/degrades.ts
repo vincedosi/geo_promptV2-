@@ -18,7 +18,8 @@ export type DegradeId =
   | 'score'
   | 'diffusion'
   | 'zones-risque'
-  | 'couverture';
+  | 'couverture'
+  | 'jeu';
 
 const LIBELLES: Record<DegradeId, string> = {
   'carreaux': 'Carreaux Filosofi',
@@ -47,6 +48,11 @@ const LIBELLES: Record<DegradeId, string> = {
   // composant ne la réclame : l'entrée n'existe que pour que les deux copies
   // de ce registre restent identiques (écart P5 ratifié par le CdP).
   'couverture': 'Couverture d’une zone',
+  // 2026-10-24 (lot 5 Angular, T11) : les unités d'un jeu de zones (⑤, la
+  // plateforme regardée) sont teintées par part comme la couverture de ④ —
+  // une choroplèthe : la couverture et le jeu ne s'empilent pas. Même écart
+  // P5 que 'couverture' : React ne la réclame pas.
+  'jeu': 'Jeu de zones',
 };
 
 export function libelleDegrade(id: DegradeId): string {

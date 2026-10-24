@@ -2,13 +2,16 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSign
 import { formaterDecimal, formaterNombre } from '../../../../core/format/nombre';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { DilutionComponent } from '../../../risques/etapes/zones/dilution.component';
+import { libellesPaliers } from '../../couches/couche-unites';
+import { JeuCarteService } from '../../couches/jeu-carte.service';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { estExacte } from '../../logique/jeu/bilan';
 import {
   M_PAR_KM, MESSAGE_MOTIF_VIDE, NOM_PLATEFORME, UNITE_MAILLE, bornesRayon, dateReleve, libelleCurseurSeuil, nombreUnites, texteAvertissement,
 } from '../../logique/jeu/ecran';
 import type { Maille, Plateforme } from '../../logique/jeu/plateformes';
-import { ENCART_AVERTISSEMENT_LISIBLE, ENCART_ERREUR } from '../analyse/styles-analyse';
+import { ENCART_AVERTISSEMENT_LISIBLE, ENCART_ERREUR, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } from '../analyse/styles-analyse';
+import { PALIERS_CSS } from '../analyse/tableau-couverture-zone.component';
 import { ChoixMailleComponent } from './choix-maille.component';
 
 /**
@@ -24,6 +27,8 @@ import { ChoixMailleComponent } from './choix-maille.component';
  *
  * Les chiffres sont en JetBrains Mono : unités retenues / touchées, taux d'utile, habitants manqués (et leur part de
  * la zone), diffusion hors zone ; une maille exacte (A-6) dit « exacte : aucune perte » sans calcul.
+ *
+ * « Voir sur la carte » (T11) : la plateforme REGARDÉE, peinte par `JeuCarteService` (une à la fois).
  */
 @Component({
   selector: 'mg-colonne-plateforme',
@@ -100,12 +105,31 @@ import { ChoixMailleComponent } from './choix-maille.component';
           }
           @for (a of avertissements(); track a) { <div data-avertissement [class]="encartAvertissement">{{ a }}</div> }
         }
+
+        <!-- T11 : la plateforme REGARDÉE sur la carte (une à la fois, A-14). -->
+        @if (choix()) {
+          <button type="button" data-voir-carte (click)="carte.regarder(plateforme())" [attr.aria-pressed]="surLaCarte()"
+            [class]="pastille + ' self-start ' + (surLaCarte() ? pastilleActive : pastilleInactive)">{{ surLaCarte() ? 'Sur la carte' : 'Voir sur la carte' }}</button>
+          @if (surLaCarte() && carte.chargement()) { <div class="font-mono text-[11px] text-tertiary">Chargement des contours…</div> }
+          @if (surLaCarte()) {
+            <div data-legende-part class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-tertiary">
+              <span>Part</span>
+              @for (p of paliers; track p.libelle) {
+                <span class="inline-flex items-center gap-1"><span class="inline-block size-2.5 rounded-[2px] border-fin border-[var(--text-tertiary)]" [style.background]="p.couleur"></span>{{ p.libelle }}</span>
+              }
+              <span>· non retenu : contour fin</span>
+            </div>
+          }
+          @if (surLaCarte() && carte.irisSousLeZoom()) { <div data-zoomer class="text-[11px] text-secondary">Zoomez pour voir les IRIS sur la carte (à partir du zoom 9).</div> }
+        }
       </div>
     }
   `,
 })
 export class ColonnePlateformeComponent {
   protected readonly jeu = inject(JeuZonesService);
+  /** La carte de ⑤ (fournie par la page) : « Voir sur la carte » y pose CETTE plateforme. */
+  protected readonly carte = inject(JeuCarteService);
 
   readonly plateforme = input.required<Plateforme>();
   /** Dépliée : toujours en colonnes côte à côte ; une seule à la fois quand elles s'empilent. */
@@ -117,6 +141,13 @@ export class ColonnePlateformeComponent {
   protected readonly encartErreur = ENCART_ERREUR;
   protected readonly encartAvertissement = ENCART_AVERTISSEMENT_LISIBLE;
   protected readonly nombre = formaterNombre;
+  /** La légende des parts de la carte, celle de ④ (`libellesPaliers`, couleurs en jetons CSS : ici c'est du HTML). */
+  protected readonly paliers = libellesPaliers().map((libelle, i) => ({ couleur: PALIERS_CSS[i], libelle }));
+  protected readonly pastille = PASTILLE;
+  protected readonly pastilleActive = PASTILLE_PRIMAIRE_ACTIVE;
+  protected readonly pastilleInactive = PASTILLE_INACTIVE;
+  /** Cette plateforme est peinte sur la carte. */
+  protected readonly surLaCarte = computed(() => this.carte.affichee() && this.carte.regardee() === this.plateforme());
 
   protected readonly nom = computed(() => NOM_PLATEFORME[this.plateforme()]);
   protected readonly lignes = computed(() => this.jeu.plateformes().filter((l) => l.plateforme === this.plateforme()));

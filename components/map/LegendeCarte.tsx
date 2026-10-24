@@ -169,8 +169,9 @@ function degradeALegende(props: LegendeCarteProps): boolean {
       // une légende générique ne pourrait pas les nommer.
       return false;
     case 'couverture':
-      // Réclamé par la seule carte Angular (④ Couverture d'une zone), dont la
-      // légende vit dans le panneau de l'outil : jamais actif côté React.
+    case 'jeu':
+      // Réclamés par la seule carte Angular (④ Couverture d'une zone, ⑤ Jeu de
+      // zones), dont la légende vit dans le panneau : jamais actifs côté React.
       return false;
     default: {
       const _exhaustif: never = d;

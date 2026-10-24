@@ -8,7 +8,7 @@ import {
   CIBLE_PAR_DEFAUT, DECOUPAGES_ANALYSE, avertissementNonCarroye, libelleDecoupage, ligneHorsTerritoire, messageZoneVide,
   phraseReference,
 } from '../../logique/analyses/couverture';
-import { BORNES_PART } from '../../couches/couche-couverture';
+import { libellesPaliers } from '../../couches/couche-unites';
 import { ChoixCibleComponent } from './choix-cible.component';
 import { ChoixZoneAnalyseeComponent } from './choix-zone-analysee.component';
 import { CroisementsZoneComponent } from './croisements-zone.component';
@@ -145,10 +145,7 @@ export class OutilCouvertureComponent {
   protected readonly encartAvertissement = ENCART_AVERTISSEMENT_LISIBLE;
   protected readonly pastille = PASTILLE;
   protected readonly pastilleInactive = PASTILLE_INACTIVE;
-  protected readonly paliers = PALIERS_CSS.map((couleur, i) => ({
-    couleur,
-    libelle: i === 0 ? `< ${BORNES_PART[0]} %` : i === PALIERS_CSS.length - 1 ? `≥ ${BORNES_PART[i - 1]} %` : `${BORNES_PART[i - 1]}-${BORNES_PART[i]} %`,
-  }));
+  protected readonly paliers = libellesPaliers().map((libelle, i) => ({ couleur: PALIERS_CSS[i], libelle }));
 
   /** « habitants carroyés », ou « <cible> (carroyés) » : le chiffre de tête ne se lit jamais sans son dénominateur. */
   protected readonly libelleTete = computed(() => {

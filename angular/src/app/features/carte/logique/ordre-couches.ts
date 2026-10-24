@@ -43,6 +43,8 @@ export const COUCHES_APRES_LOAD: readonly string[] = [
   // surbrillance du territoire survolé en dernier. Sans équivalent React.
   'couverture-cp-fill', 'couverture-cp-line', 'couverture-iris-fill', 'couverture-iris-line',
   'couverture-cp-survol', 'couverture-iris-survol', 'couverture-zone-line',
+  // ⑤ Jeu de zones (lot 5, T11) : les unités de la plateforme regardée, rangées comme la couverture de ④ (A-14).
+  'jeu-unites-fill', 'jeu-unites-line', 'jeu-iris-fill', 'jeu-iris-line', 'jeu-zone-line',
   // ④ Couverture par rayon (lot 4, T12) : les cercles autour des POI retenus, puis les POI. Sans équivalent React.
   'couverture-rayon-fill', 'couverture-rayon-line', 'couverture-rayon-poi',
   // Emplacements d'une campagne OOH (spec 2026-10-16-ooh-campagnes § 6) : des POINTS, au-dessus des zones

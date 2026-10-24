@@ -5,6 +5,13 @@ import { NEVER, of } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { ConfigService } from '../../../core/config/config.service';
 import { ProfilRisqueApi } from '../../risques/data/profil-risque.api';
+import { CouleursService } from '../../../core/theme/couleurs.service';
+import { JeuCarteService } from '../couches/jeu-carte.service';
+import { IrisApi } from '../data/iris.api';
+import { AnnonceService } from '../etat/annonce.service';
+import { ContoursZonesService } from '../etat/contours-zones.service';
+import { CouchesCarteService } from '../etat/couches-carte.service';
+import { EtatCarteService } from '../etat/etat-carte.service';
 import { CouvertureApi } from '../data/couverture.api';
 import { JeuxApi } from '../data/jeux.api';
 import { ZonesCustomApi } from '../data/zones-custom.api';
@@ -66,9 +73,15 @@ export function fournisseursJeu(lister: () => unknown = () => NEVER): Array<Prov
     provideRouter([{ path: 'carte', component: VideJeu }]),
     provideHttpClient(), JeuxApi, CouvertureApi, JeuZonesService, ParcoursService, ZoneAnalyseeService,
     { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
-    { provide: ZonesCustomApi, useValue: { lister } },
+    { provide: ZonesCustomApi, useValue: { lister, geometrie: () => NEVER } },
     { provide: AuthService, useValue: { lireProfil: async () => ({ role: 'admin', nom: 'A', organisation: 'o1' }) } },
     { provide: CatalogueIndicateursService, useValue: { charger: () => of([]) } },
     { provide: ProfilRisqueApi, useValue: { cibles: () => NEVER } },
+    // La carte de ⑤ (T11) : aucune carte publiée dans le banc, donc rien n'est peint ni lu tant qu'on ne regarde rien.
+    JeuCarteService, CouchesCarteService, EtatCarteService,
+    { provide: AnnonceService, useValue: { annoncer: () => undefined } },
+    { provide: IrisApi, useValue: { urlTuiles: () => '/api/tiles/iris/{z}/{x}/{y}' } },
+    { provide: ContoursZonesService, useValue: { zones: () => NEVER } },
+    { provide: CouleursService, useValue: { palette: () => () => ({}) } },
   ];
 }

@@ -43,6 +43,11 @@ const SOURCES_REACT: Record<string, { fichier: string; idReact: string } | { eca
   'couverture-cp-survol': { ecart: 'sans équivalent React : surbrillance du CP survolé dans le tableau (lot 4, T8)' },
   'couverture-iris-survol': { ecart: 'sans équivalent React : surbrillance de l’IRIS survolé dans le tableau (lot 4, T8)' },
   'couverture-zone-line': { ecart: 'sans équivalent React : contour de la zone analysée en ④ (lot 4, T8)' },
+  'jeu-unites-fill': { ecart: 'sans équivalent React : ⑤ unités retenues de la plateforme regardée (lot 5, T11)' },
+  'jeu-unites-line': { ecart: 'sans équivalent React : ⑤ contour des unités touchées (lot 5, T11)' },
+  'jeu-iris-fill': { ecart: 'sans équivalent React : ⑤ IRIS retenus de la plateforme regardée (lot 5, T11)' },
+  'jeu-iris-line': { ecart: 'sans équivalent React : ⑤ contour des IRIS touchés (lot 5, T11)' },
+  'jeu-zone-line': { ecart: 'sans équivalent React : ⑤ contour de la zone exacte (lot 5, T11)' },
   'couverture-rayon-fill': { ecart: 'sans équivalent React : ④ cercles autour des POI retenus (lot 4, T12)' },
   'couverture-rayon-line': { ecart: 'sans équivalent React : ④ cercles autour des POI retenus (lot 4, T12)' },
   'couverture-rayon-poi': { ecart: 'sans équivalent React : ④ POI retenus par la couverture par rayon (lot 4, T12)' },
@@ -66,7 +71,9 @@ const POSEURS_ANGULAR = [
   'angular/src/app/features/carte/couches/zones-risque.service.ts',
   'angular/src/app/features/carte/couches/couche-zones-custom.ts',
   'angular/src/app/features/carte/couches/couche-campagne-ooh.ts',
-  'angular/src/app/features/carte/couches/couche-couverture.ts',
+  // ④ (couverture) et ⑤ (jeu) posent leurs aplats par `couche-unites.ts` (une seule peinture, lot 5, T11), leurs
+  // contours de zone et surbrillance par son `ajouterCouche`.
+  'angular/src/app/features/carte/couches/couche-unites.ts',
   'angular/src/app/features/carte/couches/couche-couverture-rayon.ts',
   // La pose des aperçus (rayon, zone à recette) est commune : `apercu-rayon.ts` et `apercu-zone.ts` y délèguent.
   'angular/src/app/features/carte/couches/apercu-forme.ts',
