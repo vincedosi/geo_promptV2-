@@ -1,7 +1,10 @@
 /**
  * @file app/api/zones/jeux/route.ts
  *
- * GET  — les jeux de zones de l'organisation, des deux types (`risque`, `zone`).
+ * GET  — les jeux de zones de l'organisation. `?type=risque` (DÉFAUT) rend les seuls jeux risque, `zone` les seuls jeux
+ *        de zone, `tous` les deux : les lecteurs d'avant le lot 5 (atelier risque React et Angular, wizard `SourcePlan`,
+ *        `JeuxDeZonesRail`) ne savent lire qu'un jeu risque et n'envoient aucun paramètre — le défaut leur rend
+ *        exactement l'ancienne liste. ⑤ et « Mes zones » demandent `tous` (revue finale du lot 5, point 1).
  * POST — enregistre un jeu. Un jeu RISQUE (corps sans `jeu.type`) est construit (géométries + codes postaux) ;
  *        un jeu de ZONE (`jeu.type === 'zone'`, lot 5, T7) est seulement écrit : sa zone, sa cible, son mode de plan
  *        et un choix par plateforme — aucun calcul, ses chiffres se relisent (`lib/zones/jeu-zone-routes.ts`).
@@ -68,6 +71,11 @@ const CorpsSchema = z.object({
   jeu: JeuDeZonesSchema,
 });
 
+/** `?type=` de la liste : absent → `risque`, la liste d'avant le lot 5. */
+const TypeListeSchema = z.enum(['risque', 'zone', 'tous'], {
+  message: 'Paramètre type invalide : risque, zone ou tous.',
+}).default('risque');
+
 const MESSAGES: Record<string, string> = {
   jeu_introuvable: 'Ce jeu de zones n’existe pas.',
   /*
@@ -107,8 +115,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Aucune organisation active.' }, { status: 403 });
   }
 
+  const sp = request.nextUrl?.searchParams ?? new URL(request.url).searchParams;
+  const type = TypeListeSchema.safeParse(sp.get('type') ?? undefined);
+  if (!type.success) {
+    return NextResponse.json({ error: type.error.issues[0]?.message ?? 'Paramètres invalides.' }, { status: 400 });
+  }
+
   const supabase = createAdminClient();
-  const { data, error } = await supabase
+  let requete = supabase
     .from('zone_sets')
     // UNE chaîne littérale : supabase-js déduit le type des lignes de la valeur, une concaténation le perd. Le nom de
     // la zone d'un jeu de zone vient par la clé étrangère (jointure PostgREST) : une requête, pas N.
@@ -123,6 +137,8 @@ export async function GET(request: NextRequest) {
     // exhaustive alors qu'elle est tronquée est un mensonge silencieux.
     // 200 jeux dans une organisation serait déjà un symptôme.
     .limit(200);
+  if (type.data !== 'tous') requete = requete.eq('type', type.data);
+  const { data, error } = await requete;
 
   if (error) {
     console.error('[zones/jeux] liste :', error.message);

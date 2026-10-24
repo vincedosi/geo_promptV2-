@@ -24,7 +24,7 @@ import type { Recette } from '../logique/zones/recette';
 
 export type ModePlan = (typeof MODES_PLAN)[number];
 
-/** Une ligne de `GET /api/zones/jeux` : les deux types ; `zone_nom` est `null` pour un jeu risque. */
+/** Une ligne de `GET /api/zones/jeux?type=tous` : les deux types ; `zone_nom` est `null` pour un jeu risque. */
 export interface JeuListe {
   id: string;
   type: 'risque' | 'zone';
@@ -144,8 +144,9 @@ export class JeuxApi extends HttpBaseService {
     return this.httpClient.get<{ plateformes: PlateformeGeo[] }>(`${this.baseUrl}/zones/plateformes`);
   }
 
+  /** `?type=tous` : sans paramètre, la route ne rend que les jeux RISQUE (la liste que ses anciens lecteurs attendent). */
   lister(): Observable<{ jeux: JeuListe[] }> {
-    return this.httpClient.get<{ jeux: JeuListe[] }>(`${this.baseUrl}/zones/jeux`);
+    return this.httpClient.get<{ jeux: JeuListe[] }>(`${this.baseUrl}/zones/jeux?type=tous`);
   }
 
   lire(id: string): Observable<DetailJeuZone | DetailJeuRisque> {

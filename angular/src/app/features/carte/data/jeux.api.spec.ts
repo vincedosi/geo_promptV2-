@@ -26,10 +26,10 @@ describe('JeuxApi — adresses sur HttpBaseService.baseUrl, jamais écrites en d
     expect(rendu).toEqual({ plateformes: [] });
     http.verify();
   });
-  it('lister, lire, supprimer : /api/zones/jeux[/id], id encodé', () => {
+  it('lister (?type=tous : les deux types), lire, supprimer : /api/zones/jeux[/id], id encodé', () => {
     const { api, http } = preparer('');
     api.lister().subscribe();
-    expect(http.expectOne('/api/zones/jeux').request.method).toBe('GET');
+    expect(http.expectOne('/api/zones/jeux?type=tous').request.method).toBe('GET');
     api.lire('a/b').subscribe();
     expect(http.expectOne('/api/zones/jeux/a%2Fb').request.method).toBe('GET');
     api.supprimer(J).subscribe();

@@ -29,7 +29,7 @@ async function ouverte(url = '/carte') {
   const o = await monterJeu(BibliothequeJeuxComponent, url);
   o.el.querySelector<HTMLElement>('mg-entete-section')!.click();
   await o.stable();
-  o.http.expectOne('/api/zones/jeux').flush(LISTE);
+  o.http.expectOne('/api/zones/jeux?type=tous').flush(LISTE);
   await o.stable();
   return o;
 }
@@ -41,7 +41,7 @@ describe('mg-bibliotheque-jeux', () => {
     const entete = o.el.querySelector<HTMLElement>('mg-entete-section')!;
     entete.click();
     await o.stable();
-    o.http.expectOne('/api/zones/jeux').flush(LISTE);
+    o.http.expectOne('/api/zones/jeux?type=tous').flush(LISTE);
     await o.stable();
     entete.click();
     entete.click();

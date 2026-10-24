@@ -232,14 +232,39 @@ describe('POST /api/zones/jeux — jeu de zone', () => {
   });
 });
 
-describe('GET /api/zones/jeux — les deux types', () => {
-  it('rend type, custom_geo_zone_id et le nom de la zone (aplati), sans l’objet imbriqué', async () => {
+describe('GET /api/zones/jeux — le type de la liste', () => {
+  /*
+   * Les lecteurs d'avant le lot 5 (atelier risque, wizard `SourcePlan`, `JeuxDeZonesRail`) n'envoient aucun paramètre
+   * et ne savent lire qu'un jeu risque : sans paramètre, la liste reste celle d'avant (revue finale, point 1).
+   */
+  it('sans paramètre : les seuls jeux risque (filtre type=risque), la liste d’avant le lot 5', async () => {
+    h.donnees['zone_sets:select'] = [{ id: 'a', nom: 'Seveso', type: 'risque', custom_geo_zone_id: null, zone: null }];
+    const r = await lister(new NextRequest(URL_LISTE));
+    expect(r.status).toBe(200);
+    expect(h.lectures.at(-1)).toBe(`zone_sets:org_id=${h.ORG},brouillon=false,type=risque`);
+  });
+
+  it('type=zone : les seuls jeux de zone', async () => {
+    h.donnees['zone_sets:select'] = [];
+    expect((await lister(new NextRequest(`${URL_LISTE}?type=zone`))).status).toBe(200);
+    expect(h.lectures.at(-1)).toBe(`zone_sets:org_id=${h.ORG},brouillon=false,type=zone`);
+  });
+
+  it('type inconnu → 400, aucune lecture', async () => {
+    const r = await lister(new NextRequest(`${URL_LISTE}?type=campagne`));
+    expect(r.status).toBe(400);
+    expect((await r.json()).error).toBe('Paramètre type invalide : risque, zone ou tous.');
+    expect(h.lectures).toEqual([]);
+  });
+
+  it('type=tous : les deux types, avec custom_geo_zone_id et le nom de la zone (aplati), sans l’objet imbriqué', async () => {
     h.donnees['zone_sets:select'] = [
       { id: 'a', nom: 'Seveso', type: 'risque', custom_geo_zone_id: null, zone: null },
       { id: 'b', nom: 'Bretagne', type: 'zone', custom_geo_zone_id: h.ZONE, zone: { name: 'CIRFA Bretagne' } },
     ];
-    const r = await lister(new NextRequest(URL_LISTE));
+    const r = await lister(new NextRequest(`${URL_LISTE}?type=tous`));
     expect(r.status).toBe(200);
+    expect(h.lectures.at(-1)).toBe(`zone_sets:org_id=${h.ORG},brouillon=false`);
     expect((await r.json()).jeux).toEqual([
       { id: 'a', nom: 'Seveso', type: 'risque', custom_geo_zone_id: null, zone_nom: null },
       { id: 'b', nom: 'Bretagne', type: 'zone', custom_geo_zone_id: h.ZONE, zone_nom: 'CIRFA Bretagne' },

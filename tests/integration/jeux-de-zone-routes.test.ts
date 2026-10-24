@@ -145,8 +145,16 @@ describe('POST /api/zones/jeux — jeu de zone', () => {
     expect((await r.json()).error).toBe('Zone introuvable dans cet espace.');
   });
 
-  it('GET de la liste : les deux types, le nom de la zone pour le jeu de zone', async () => {
+  it('GET de la liste SANS paramètre : les seuls jeux risque (la liste d’avant le lot 5, revue finale point 1)', async () => {
     const r = await liste.GET(new NextRequest(URL));
+    const { jeux } = await r.json() as { jeux: { id: string; type: string }[] };
+    expect(jeux.some((j) => j.id === risque)).toBe(true);
+    expect(jeux.some((j) => j.id === jeu)).toBe(false);
+    expect(jeux.every((j) => j.type === 'risque')).toBe(true);
+  });
+
+  it('GET de la liste ?type=tous : les deux types, le nom de la zone pour le jeu de zone', async () => {
+    const r = await liste.GET(new NextRequest(`${URL}?type=tous`));
     const { jeux } = await r.json() as { jeux: { id: string; type: string; custom_geo_zone_id: string | null; zone_nom: string | null }[] };
     expect(jeux.find((j) => j.id === jeu)).toMatchObject({ type: 'zone', custom_geo_zone_id: zone, zone_nom: 'Lyon 5 km' });
     expect(jeux.find((j) => j.id === risque)).toMatchObject({ type: 'risque', custom_geo_zone_id: null, zone_nom: null });
