@@ -39,6 +39,22 @@ export const MAX_CARREAUX_COUVERTURE = 400_000;
  */
 export const DECOUPAGES = ['forme', 'cp', 'iris', 'commune', 'departement'] as const;
 
+/**
+ * Un territoire touché par la zone (tout découpage sauf `forme`), tel que `couverture_geometrie` le rend dans `lignes`.
+ * `part` (en %, une décimale) est NULL si le territoire n'a pas de dénominateur. Même forme que la copie Angular
+ * (`logique/analyses/couverture.ts`) ; lue par la conversion de ⑤ (`lib/zones/conversion.ts`).
+ */
+export interface LigneCouverture {
+  code: string;
+  nom: string | null;
+  /** La commune de l'IRIS ; `null` dans les autres découpages. */
+  commune: string | null;
+  n_carreaux: number;
+  pop_en_zone: number;
+  pop_totale: number | null;
+  part: number | null;
+}
+
 /** Les paramètres de requête. Absents : la population totale (`ind`), la zone telle quelle (`forme`). */
 export const RequeteCouvertureSchema = z.object({
   cible: z.string().regex(/^[a-z0-9_]{2,20}$/, 'Cible invalide.').default('ind'),
