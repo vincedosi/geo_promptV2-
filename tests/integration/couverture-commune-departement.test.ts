@@ -123,6 +123,13 @@ describe('cache et fraîcheur des dénominateurs commune / département', () => 
     expect(psql(`select count(*) from public.couverture_zone_cache where zone_id = '${zones.paris}' and decoupage = 'commune';`)).toBe('1');
   }, LONG);
 
+  it('la contrainte du cache admet les cinq découpages (élargie par sql/275, rejouable)', () => {
+    const def = psql(`select pg_get_constraintdef(oid) from pg_constraint
+                       where conrelid = 'public.couverture_zone_cache'::regclass
+                         and conname = 'couverture_zone_cache_decoupage_check';`);
+    for (const d of ['forme', 'cp', 'iris', 'commune', 'departement']) expect(def, d).toContain(`'${d}'`);
+  });
+
   it('dénominateur reconstruit après la table étroite : refus, et le cache n\'est plus servi', () => {
     for (const maille of ['commune', 'departement']) {
       const r = psql(`begin;
