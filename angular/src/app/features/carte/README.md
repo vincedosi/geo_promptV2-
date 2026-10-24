@@ -271,8 +271,9 @@ la plomberie ; l'écran est T10, la couche T11.
 | `logique/jeu/conversion.ts` | COPIE de `lib/zones/conversion.ts` : corps identique mot pour mot, verrouillé par `tests/unit/angular/conversion-paritaire.test.ts` (corriger un côté = corriger l'autre) |
 | `logique/jeu/plateformes.ts` | `PLATEFORMES`, `MAILLES`, `PlateformeGeo` (copie de `lib/zones/plateformes.ts` sans Zod, même verrou). Aucune limite de plateforme dans `logique/jeu/**` (grep du même test) |
 | `logique/jeu/mailles-url.ts` | `?mailles=` (A-10) : `lireMailles` / `ecrireMailles` (ne lèvent jamais), `lireVersion` (`?x=`), `rayonParDefaut`, `SEUIL_PAR_DEFAUT` (20 %) |
+| `logique/jeu/bilan.ts` | PUR : la lecture qu'un choix requiert (`lectureRequise`), la clé d'une couverture en mémoire (`cleCouverture`, date de mise à jour de la zone comprise), `rangerCouverture` (une autre version de la forme, `zone_maj`, purge les entrées de la même zone), `bilanDe`, `parPlateforme`, type `ResultatCercles` |
 | `etat/file-lectures.ts` | `FileLectures` : les conversions UNE à la fois ; une tâche de même clé remplace la précédente (désabonnée, jeton) ; vidée au changement de zone et à la destruction |
-| `etat/jeu-zones.service.ts` | `JeuZonesService`, fourni par la PAGE (`FOURNISSEURS_JEU`, `carte.fournisseurs.ts`) : `zoneId`, `jeuId`, `jeu`, `cible`, `recette`, `extraction`, `plateformes`, `choix`, `couvertures`, `cercles`, `resumes`, `enCours`, `erreurs`, `erreur` ; `choisirZone(id, recette?)`, `charger(jeuId)`, `regler(plateforme, {maille?, seuil?, rayon?})`, `valider(plateforme)`, `choisirExtraction(v)`, `chargerPlateformes()` |
+| `etat/jeu-zones.service.ts` | `JeuZonesService`, fourni par la PAGE (`FOURNISSEURS_JEU`, `carte.fournisseurs.ts`) : `zoneId`, `jeuId`, `jeu`, `cible`, `recette`, `extraction`, `plateformes`, `choix`, `couvertures`, `cercles`, `resumes`, `enCours`, `erreurs`, `erreur` ; `choisirZone(id, recette?, maj?)`, `charger(jeuId)`, `regler(plateforme, {maille?, seuil?, rayon?})`, `valider(plateforme)`, `choisirExtraction(v)`, `chargerPlateformes()` |
 
 - **URL** : `?zoneJeu=<uuid>` (zone avant enregistrement) ou `?jeu=<uuid>` (jeu ouvert : il l'emporte, `?zoneJeu=`
   disparaît), `?mailles=` (les choix EXPLICITES : écarts aux défauts, ou au jeu ouvert), `?x=<version>` (avec un jeu
@@ -286,6 +287,10 @@ la plomberie ; l'écran est T10, la couche T11.
 - **Défauts (A-4)** : maille de `mailleParDefaut` (« à vérifier » écarté d'abord), seuil 20 %, rayon de la recette
   ramené dans les bornes de la ligne (sinon 10 km). Une maille exacte (A-6) est chiffrée sur la forme, sans seuil ;
   `exactitude` reçoit le rayon CHOISI. Zone sans recette lisible : seule la forme est exacte, comme à l'extraction.
+- **Forme à jour (Review Focus 2)** : une zone recalculée en ③ garde son id. La date de mise à jour donnée par la
+  liste (`choisirZone(id, recette, maj)`) entre dans la clé des couvertures : au retour en ⑤, tout se relit. Et une
+  couverture lue sur une autre version de la forme (`zone_maj`) purge les couvertures et les pavages de la zone :
+  jamais deux formes mêlées dans les bilans.
 - **Refus** : 404 zone → `?zoneJeu=` retiré, « Zone introuvable dans cet espace. » ; 404 jeu → `?jeu=` retiré,
   « Jeu de zones introuvable dans cet espace. » ; jeu risque → « Ce jeu de zones se gère dans le module risque. » ;
   autre refus d'une conversion → `erreurs[plateforme]`, la zone reste.

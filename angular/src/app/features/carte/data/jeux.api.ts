@@ -3,6 +3,7 @@ import type { Observable } from 'rxjs';
 import { HttpBaseService } from '../../../core/http/http-base.service';
 import type { Extraction } from '../../risques/data/jeux-zones.api';
 import type { MODES_PLAN } from '../../risques/logique/jeu';
+import type { ResultatCercles } from '../logique/jeu/bilan';
 import type { Maille, Plateforme, PlateformeGeo } from '../logique/jeu/plateformes';
 import type { Recette } from '../logique/zones/recette';
 
@@ -92,26 +93,6 @@ export interface DemandeCercles {
   rayon: number;
   seuil: number;
   plateforme: Plateforme;
-}
-
-/** La réponse 200 de `GET /api/zones/[id]/cercles` (`paver_cercles`, sql/276) : seuls les cercles RETENUS. */
-export interface ResultatCercles {
-  zone_id: string;
-  cible: string;
-  rayon_m: number;
-  seuil: number;
-  /** Cellules hexagonales examinées — pas des territoires. */
-  n_candidates: number;
-  n_cercles: number;
-  cercles: Array<{ lon: number; lat: number; pop_en_zone: number; pop_totale: number; part: number }>;
-  population: number;
-  couverte: number;
-  manques: number;
-  hors_zone: number;
-  achetee: number;
-  taux_utile: number | null;
-  n_carreaux: number;
-  motif_vide: 'territoire_non_carroye' | 'aucun_carreau' | 'aucune_cellule_au_seuil' | null;
 }
 
 /** `POST /api/zones/communes/contours` : un code absent du référentiel est DIT dans `manquants`. */

@@ -201,6 +201,45 @@ describe('JeuZonesService — la conversion', () => {
     hote.jeu.valider('dv360');
     http.expectOne(couverture(Z2, 'cp'));
   });
+  it('Review Focus 2 : une couverture d’une autre version de la forme (zone_maj) purge l’ancienne ET les pavages — aucun bilan mêlé', async () => {
+    const { hote, http } = await ouvrirAvecZone();
+    hote.jeu.valider('ttd');
+    http.expectOne(couverture(Z1, 'forme')).flush({ ...couvertureCp, decoupage: 'forme', lignes: [], zone_maj: 'v1' });
+    hote.jeu.valider('meta');
+    http.expectOne((r) => r.url.includes('/cercles')).flush(cercles(10000, 20));
+    expect(Object.keys(hote.jeu.resumes()).sort()).toEqual(['meta', 'ttd']);
+    // La zone a été recalculée en ③ (même id) : la couverture CP arrive sur la nouvelle forme.
+    hote.jeu.valider('dv360');
+    http.expectOne(couverture(Z1, 'cp')).flush({ ...couvertureCp, zone_maj: 'v2' });
+    expect(Object.keys(hote.jeu.couvertures())).toEqual(['cp']);
+    expect(hote.jeu.cercles()).toEqual({});
+    expect(Object.keys(hote.jeu.resumes())).toEqual(['dv360']);
+    // Les deux autres se relisent sur la nouvelle forme.
+    hote.jeu.valider('ttd');
+    http.expectOne(couverture(Z1, 'forme'));
+  });
+  it('même version de la forme : rien n’est purgé', async () => {
+    const { hote, http } = await ouvrirAvecZone();
+    hote.jeu.valider('ttd');
+    http.expectOne(couverture(Z1, 'forme')).flush({ ...couvertureCp, decoupage: 'forme', lignes: [], zone_maj: 'v1' });
+    hote.jeu.valider('dv360');
+    http.expectOne(couverture(Z1, 'cp')).flush({ ...couvertureCp, zone_maj: 'v1' });
+    expect(Object.keys(hote.jeu.couvertures()).sort()).toEqual(['cp', 'forme']);
+  });
+  it('choisirZone(même zone, recette, autre maj) : la date entre dans la clé, tout se relit au retour en ⑤', async () => {
+    const { hote, http } = await ouvrirAvecZone();
+    hote.jeu.choisirZone(Z1, null, '2026-10-24T10:00:00Z');
+    hote.jeu.valider('dv360');
+    http.expectOne(couverture(Z1, 'cp')).flush(couvertureCp);
+    expect(hote.jeu.resumes().dv360).toBeDefined();
+    hote.jeu.choisirZone(Z1, null, '2026-10-24T10:00:00Z');
+    hote.jeu.valider('dv360');
+    http.expectNone(couverture(Z1, 'cp'));
+    hote.jeu.choisirZone(Z1, null, '2026-10-24T11:00:00Z');
+    expect(hote.jeu.resumes()).toEqual({});
+    hote.jeu.valider('dv360');
+    http.expectOne(couverture(Z1, 'cp'));
+  });
   it('erreur d’une conversion : message pour les plateformes de cette maille, la zone reste', async () => {
     const { hote, http } = await ouvrirAvecZone();
     hote.jeu.valider('tiktok');

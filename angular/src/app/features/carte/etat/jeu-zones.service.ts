@@ -3,10 +3,13 @@ import { DestroyRef, Injectable, type Signal, computed, effect, inject, signal, 
 import { ActivatedRoute, Router } from '@angular/router';
 import { map } from 'rxjs';
 import { CouvertureApi } from '../data/couverture.api';
-import { type DetailJeuZone, JeuxApi, type ResultatCercles } from '../data/jeux.api';
-import { CIBLE_PAR_DEFAUT, type Decoupage, type ResultatCouverture, lireZoneAnalyse } from '../logique/analyses/couverture';
+import { type DetailJeuZone, JeuxApi } from '../data/jeux.api';
+import { CIBLE_PAR_DEFAUT, DECOUPAGES, type Decoupage, type ResultatCouverture, lireZoneAnalyse } from '../logique/analyses/couverture';
 import { messageErreurCouverture, refusDeLErreur } from '../logique/analyses/couverture-erreurs';
-import { type Avertissement, type Resume, appliquerSeuil, exactitude, mailleParDefaut, resumeExact, verifierLimites } from '../logique/jeu/conversion';
+import {
+  type BilanPlateforme, type ResultatCercles, SANS_RECETTE, bilanDe, cleCouverture, lectureRequise, parPlateforme, rangerCouverture,
+} from '../logique/jeu/bilan';
+import { mailleParDefaut } from '../logique/jeu/conversion';
 import {
   type ChoixMaille, type ChoixParPlateforme, PARAM_EXTRACTION, PARAM_JEU, PARAM_MAILLES, PARAM_ZONE_JEU, type ParametresJeu, SEUIL_PAR_DEFAUT,
   ecrireMailles, lireMailles, lireParametresJeu, lireVersion, memesParametres, rayonParDefaut,
@@ -17,25 +20,10 @@ import { ecrireParametres } from './ecrire-parametres';
 import { FileLectures } from './file-lectures';
 import { LectureAnnulable } from './lecture-annulable';
 
-/** Le bilan d'une plateforme pour son choix courant : la perte (ou « exacte ») et les limites dépassées. */
-export interface BilanPlateforme {
-  resume: Resume;
-  avertissements: Avertissement[];
-}
-
-/**
- * Une zone sans recette lisible (d'avant le lot 3) : la règle du serveur à l'extraction est « seule la forme exacte
- * est exacte » — exactement ce que `exactitude` rend pour un dessin. Une seule règle, donc, des deux côtés.
- */
-const SANS_RECETTE: Recette = { v: 1, type: 'dessin' };
-
 /** Le message d'un jeu RISQUE reçu par ⑤ — celui que le serveur rend dans l'autre sens (`charger-jeu.ts`). */
 class JeuRisque extends Error {
   constructor() { super('Ce jeu de zones se gère dans le module risque.'); }
 }
-
-/** Le découpage de `couverture_geometrie` qui porte une maille territoriale (même nom), ou la forme (polygone). */
-const decoupageDe = (m: Exclude<Maille, 'cercle'>): Decoupage => (m === 'polygone' ? 'forme' : m);
 
 /**
  * ⑤ Jeu de zones — l'ÉTAT (lot 5, T9) : la zone convertie, le jeu enregistré ouvert, le choix de maille par
@@ -69,11 +57,13 @@ export class JeuZonesService {
   private readonly _extraction = signal<number | null>(null);
   /** La recette de la zone (exactitude, défauts) : du jeu ouvert, ou donnée par le sélecteur ; `null` inconnue. */
   private readonly _recette = signal<Recette | null>(null);
+  /** La date de mise à jour de la zone que le sélecteur connaît : elle entre dans la clé des couvertures (recalcul en ③). */
+  private readonly _maj = signal<string | null>(null);
   private readonly _erreur = signal<string | null>(null);
   private readonly lectureJeu = new LectureAnnulable<DetailJeuZone>(messageErreurCouverture);
   private readonly lecturePlateformes = new LectureAnnulable<readonly PlateformeGeo[]>(messageErreurCouverture);
   private readonly file = new FileLectures();
-  /** Les couvertures lues, par `zone|cible|découpage` ; vidées au changement de zone. */
+  /** Les couvertures lues, par `cleCouverture` ; vidées au changement de zone, purgées si la forme a changé. */
   private readonly _couvertures = signal<ReadonlyMap<string, ResultatCouverture>>(new Map());
   private readonly _cercles = signal<Partial<Record<Plateforme, ResultatCercles>>>({});
   /** Le pavage demandé en dernier par plateforme (`zone|cible|rayon|seuil`) : un second `valider` identique n'en relance pas. */
@@ -116,9 +106,11 @@ export class JeuZonesService {
 
   /** Les couvertures lues pour la zone et la cible COURANTES, par découpage. */
   readonly couvertures: Signal<Partial<Record<Decoupage, ResultatCouverture>>> = computed(() => {
-    const prefixe = `${this._zoneId()}|${this.cible()}|`;
     const sortie: Partial<Record<Decoupage, ResultatCouverture>> = {};
-    for (const [cle, r] of this._couvertures()) if (cle.startsWith(prefixe)) sortie[r.decoupage] = r;
+    for (const d of DECOUPAGES) {
+      const r = this._couvertures().get(this.cleCouv(d));
+      if (r) sortie[d] = r;
+    }
     return sortie;
   });
 
@@ -130,24 +122,17 @@ export class JeuZonesService {
   });
 
   /**
-   * Le bilan de chaque plateforme pour son choix COURANT — calculé ici, sans requête : une maille exacte (A-6) par
-   * `resumeExact` sur la forme, une maille territoriale par `appliquerSeuil` sur sa couverture, un cercle par le
-   * pavage lu s'il est à ce rayon et à ce seuil. Une plateforme absente : rien de lu (ou pavage périmé).
+   * Le bilan de chaque plateforme pour son choix COURANT, sans requête (`bilanDe`). Une plateforme absente : rien de
+   * lu, ou un pavage périmé (autre rayon, autre seuil).
    */
-  readonly resumes: Signal<Partial<Record<Plateforme, BilanPlateforme>>> = computed(() => {
-    const sortie: Partial<Record<Plateforme, BilanPlateforme>> = {};
-    for (const [p, c] of Object.entries(this.choix()) as [Plateforme, ChoixMaille][]) {
-      const ligne = this.regle(p, c.maille);
-      const resume = ligne ? this.resumeDe(p, c, ligne) : null;
-      if (ligne && resume) sortie[p] = { resume, avertissements: verifierLimites(resume, ligne) };
-    }
-    return sortie;
-  });
-
+  readonly resumes: Signal<Partial<Record<Plateforme, BilanPlateforme>>> = computed(() =>
+    parPlateforme(this.choix(), this.regleDe, (p, c, l) => bilanDe(c, l, this._recette(), this.lu(p, c, l))));
   /** Les plateformes dont la conversion est en file ou en vol. */
-  readonly enCours: Signal<Partial<Record<Plateforme, true>>> = computed(() => this.parPlateforme((cle) => (this.file.cles().has(cle) ? true : undefined)));
+  readonly enCours: Signal<Partial<Record<Plateforme, true>>> = computed(() =>
+    parPlateforme(this.choix(), this.regleDe, (p, c, l) => (this.file.cles().has(this.tache(p, c, l)) ? true : undefined)));
   /** Le message d'échec de la conversion de chaque plateforme (refus en français). */
-  readonly erreurs: Signal<Partial<Record<Plateforme, string>>> = computed(() => this.parPlateforme((cle) => this._erreursTaches().get(cle)));
+  readonly erreurs: Signal<Partial<Record<Plateforme, string>>> = computed(() =>
+    parPlateforme(this.choix(), this.regleDe, (p, c, l) => this._erreursTaches().get(this.tache(p, c, l))));
 
   private dernier: ParametresJeu = lireParametresJeu(this.route.snapshot.queryParamMap);
   private detruit = false;
@@ -183,19 +168,24 @@ export class JeuZonesService {
 
   /**
    * Choisit (ou retire, `null`) la zone à convertir. Une AUTRE zone ferme le jeu ouvert et efface tout résultat et
-   * tout choix explicite. `recette` : celle que le sélecteur connaît — rappeler avec la zone courante la renseigne
-   * (zone arrivée par l'URL, avant que la liste soit lue).
+   * tout choix explicite. `recette` et `maj` (date de mise à jour) : ce que le sélecteur connaît — rappeler avec la
+   * zone courante les renseigne (zone arrivée par l'URL) ; une autre `maj` (zone recalculée en ③) fait tout relire.
    */
-  choisirZone(id: string | null, recette: Recette | null = null): void {
+  choisirZone(id: string | null, recette: Recette | null = null, maj: string | null = null): void {
     const zone = id === null ? null : lireZoneAnalyse(id);
     if (zone === this._zoneId() && this._jeuId() === null) {
       if (zone && recette) this._recette.set(recette);
+      if (zone && maj !== null && maj !== this._maj()) {
+        this.viderResultats();
+        this._maj.set(maj);
+      }
       return;
     }
     this.fermerJeu();
     this.viderResultats();
     this._reglages.set({});
     this._recette.set(recette);
+    this._maj.set(maj);
     this._erreur.set(null);
     this._zoneId.set(zone);
   }
@@ -242,19 +232,20 @@ export class JeuZonesService {
     const ligne = c ? this.regle(plateforme, c.maille) : undefined;
     if (this.detruit || !zone || !c || !ligne) return;
     const cible = this.cible();
-    const tache = this.cleTache(plateforme, c, ligne);
-    if (tache.startsWith('couverture|')) {
-      const decoupage = tache.split('|')[3] as Decoupage;
-      if (this._couvertures().has(tache.slice('couverture|'.length)) || this.file.contient(tache)) return;
+    const besoin = lectureRequise(c, ligne, this._recette());
+    const tache = this.tache(plateforme, c, ligne);
+    if (besoin !== 'cercles') {
+      const cle = this.cleCouv(besoin);
+      if (this._couvertures().has(cle) || this.file.contient(tache)) return;
       this.oublierErreur(tache);
-      this.file.ajouter(tache, () => this.couvertureApi.couverture(zone, cible, decoupage),
-        (r) => this._couvertures.update((m) => new Map(m).set(`${zone}|${cible}|${decoupage}`, r)), (e) => this.surEchec(tache, e));
+      this.file.ajouter(tache, () => this.couvertureApi.couverture(zone, cible, besoin), (r) => this.ranger(zone, cle, r), (e) => this.surEchec(tache, e));
       return;
     }
     const rayon = c.rayon_m;
     const demande = `${zone}|${cible}|${rayon}|${c.seuil}`;
     // Déjà lu, ou déjà demandé à l'identique (double relâchement) : rien ; un autre rayon remplace la demande en vol.
-    if (rayon === undefined || this.resumeDe(plateforme, c, ligne) || (this.file.contient(tache) && this.demandes.get(plateforme) === demande)) return;
+    if (rayon === undefined || bilanDe(c, ligne, this._recette(), this.cercles()[plateforme])
+      || (this.file.contient(tache) && this.demandes.get(plateforme) === demande)) return;
     this.oublierErreur(tache);
     this.demandes.set(plateforme, demande);
     this.file.ajouter(tache, () => this.api.cercles(zone, { cible, rayon, seuil: c.seuil, plateforme }),
@@ -266,50 +257,33 @@ export class JeuZonesService {
     return this.plateformes().find((l) => l.plateforme === plateforme && l.maille === maille);
   }
 
+  private readonly regleDe = (p: Plateforme, c: ChoixMaille) => this.regle(p, c.maille);
+
   private choixNeuf(maille: Maille, seuil: number, rayon: number | undefined, ligne: PlateformeGeo | undefined): ChoixMaille {
     return maille === 'cercle' ? { maille, seuil, rayon_m: rayon ?? rayonParDefaut(ligne, this._recette()) } : { maille, seuil };
   }
 
-  /** La maille rend-elle la zone telle quelle (A-6) ? Le rayon CHOISI compte : un autre rayon pave (T8). */
-  private exacte(c: ChoixMaille, ligne: PlateformeGeo): boolean {
-    return exactitude(this._recette() ?? SANS_RECETTE, c.maille, ligne, c.rayon_m) === 'exacte';
+  private cleCouv(decoupage: Decoupage): string {
+    return cleCouverture(this._zoneId() ?? '', this._maj(), this.cible(), decoupage);
   }
 
-  /** La clé de la tâche qui chiffre ce choix : la couverture `zone|cible|découpage`, ou le pavage de la plateforme. */
-  private cleTache(p: Plateforme, c: ChoixMaille, ligne: PlateformeGeo): string {
-    if (c.maille === 'cercle' && !this.exacte(c, ligne)) return `cercles|${p}`;
-    const decoupage = this.exacte(c, ligne) ? 'forme' : decoupageDe(c.maille as Exclude<Maille, 'cercle'>);
-    return `couverture|${this._zoneId()}|${this.cible()}|${decoupage}`;
+  /** La clé de la tâche qui chiffre ce choix : la couverture requise, ou le pavage de la plateforme. */
+  private tache(p: Plateforme, c: ChoixMaille, ligne: PlateformeGeo): string {
+    const besoin = lectureRequise(c, ligne, this._recette());
+    return besoin === 'cercles' ? `cercles|${p}` : `couverture|${this.cleCouv(besoin)}`;
   }
 
-  /** Le bilan d'un choix à partir de ce qui est EN MÉMOIRE, ou `null` s'il manque une lecture (ou si elle est périmée). */
-  private resumeDe(p: Plateforme, c: ChoixMaille, ligne: PlateformeGeo): Resume | null {
-    const cle = this.cleTache(p, c, ligne);
-    if (cle.startsWith('couverture|')) {
-      const cv = this._couvertures().get(cle.slice('couverture|'.length));
-      if (!cv) return null;
-      if (!this.exacte(c, ligne)) return appliquerSeuil(cv.lignes, cv.population, c.seuil);
-      const r = this._recette();
-      // Une liste de codes postaux achetée au CP : une unité par code (comme l'extraction, `convertirExacte`).
-      return resumeExact(cv.population, cv.surface_km2, c.maille === 'cp' && r?.type === 'codes_postaux' ? new Set(r.codes).size : 1);
-    }
-    const k = this.cercles()[p];
-    if (!k || k.rayon_m !== c.rayon_m || k.seuil !== c.seuil) return null;
-    return {
-      exacte: false, n_unites: k.n_cercles, n_touchees: k.n_candidates, couverte: k.couverte, achetee: k.achetee,
-      manques: k.manques, hors_zone: k.hors_zone, taux_utile: k.taux_utile,
-    };
+  /** La lecture EN MÉMOIRE que requiert ce choix, si elle est là. */
+  private lu(p: Plateforme, c: ChoixMaille, ligne: PlateformeGeo): ResultatCouverture | ResultatCercles | undefined {
+    const besoin = lectureRequise(c, ligne, this._recette());
+    return besoin === 'cercles' ? this.cercles()[p] : this._couvertures().get(this.cleCouv(besoin));
   }
 
-  /** Une valeur par plateforme choisie, lue sur la clé de la tâche qui la chiffre ; les `undefined` sont omis. */
-  private parPlateforme<V>(lire: (cle: string) => V | undefined): Partial<Record<Plateforme, V>> {
-    const sortie: Partial<Record<Plateforme, V>> = {};
-    for (const [p, c] of Object.entries(this.choix()) as [Plateforme, ChoixMaille][]) {
-      const ligne = this.regle(p, c.maille);
-      const v = ligne ? lire(this.cleTache(p, c, ligne)) : undefined;
-      if (v !== undefined) sortie[p] = v;
-    }
-    return sortie;
+  /** Range une couverture ; lue sur une autre version de la forme (recalcul en ③), les pavages de la zone partent aussi. */
+  private ranger(zone: string, cle: string, r: ResultatCouverture): void {
+    const { cache, purgee } = rangerCouverture(this._couvertures(), cle, r);
+    this._couvertures.set(cache);
+    if (purgee) this._cercles.update((k) => Object.fromEntries(Object.entries(k).filter(([, v]) => v.zone_id !== zone)));
   }
 
   /** Une zone introuvable (supprimée, d'un autre espace) est retirée et le message reste ; un autre refus est noté. */
@@ -350,7 +324,10 @@ export class JeuZonesService {
       return r as DetailJeuZone;
     }));
     this.lectureJeu.lancer(lecture, (r) => {
-      if (r.jeu.custom_geo_zone_id !== this._zoneId()) this.viderResultats();
+      if (r.jeu.custom_geo_zone_id !== this._zoneId()) {
+        this.viderResultats();
+        this._maj.set(null);
+      }
       this._zoneId.set(r.jeu.custom_geo_zone_id);
       this._recette.set(r.zone.recette);
     }, (e) => {
@@ -372,6 +349,7 @@ export class JeuZonesService {
     if (!jeu && zone !== this._zoneId()) {
       this.viderResultats();
       this._recette.set(null);
+      this._maj.set(null);
       this._zoneId.set(zone);
     }
     const reglages = lireMailles(b[PARAM_MAILLES]);
