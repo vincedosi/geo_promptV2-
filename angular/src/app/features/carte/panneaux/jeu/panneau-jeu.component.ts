@@ -14,7 +14,10 @@ import { PLATEFORMES, type Plateforme } from '../../logique/jeu/plateformes';
 import { ChoixCibleComponent } from '../analyse/choix-cible.component';
 import { ChoixZoneAnalyseeComponent } from '../analyse/choix-zone-analysee.component';
 import { ENCART_ERREUR } from '../analyse/styles-analyse';
+import { BibliothequeJeuxComponent } from './bibliotheque-jeux.component';
 import { ColonnePlateformeComponent } from './colonne-plateforme.component';
+import { EnregistrerJeuComponent } from './enregistrer-jeu.component';
+import { ExtractionsJeuComponent } from './extractions-jeu.component';
 
 /** Largeur de panneau (px) à partir de laquelle les quatre colonnes tiennent côte à côte. */
 const LARGEUR_COLONNES = 900;
@@ -39,10 +42,16 @@ const LARGEUR_COLONNES = 900;
  * ── AUCUNE LECTURE À L'OUVERTURE ─────────────────────────────────────────
  * Sans zone, rien ne part : ni registre, ni liste, ni couverture (P-h). Le panneau reste MONTÉ (P-e) et l'état vit
  * dans le service de la page : ⑤ → ① → ⑤ retrouve tout.
+ *
+ * Pied (T12) : enregistrer (`mg-enregistrer-jeu`), extraire (`mg-extractions-jeu`, jeu enregistré), bibliothèque des
+ * jeux de l'espace (`mg-bibliotheque-jeux`, lue à sa première ouverture).
  */
 @Component({
   selector: 'mg-panneau-jeu',
-  imports: [ChoixCibleComponent, ChoixZoneAnalyseeComponent, ColonnePlateformeComponent, EnteteSectionComponent, KpiComponent, ModePlanComponent],
+  imports: [
+    BibliothequeJeuxComponent, ChoixCibleComponent, ChoixZoneAnalyseeComponent, ColonnePlateformeComponent, EnregistrerJeuComponent, EnteteSectionComponent,
+    ExtractionsJeuComponent, KpiComponent, ModePlanComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col', 'data-panneau-jeu': '' },
   template: `
@@ -80,7 +89,12 @@ const LARGEUR_COLONNES = 900;
         }
       </div>
       <p data-reference class="m-0 px-4 pb-4 text-[11px] leading-[1.5] text-tertiary">Habitants carroyés (Filosofi 2021) ; la part rapporte chaque territoire à ses propres habitants carroyés.</p>
+      <!-- T12 : enregistrer le jeu, puis l'extraire (un jeu enregistré seulement). -->
+      <mg-entete-section libelle="Enregistrer et extraire" />
+      <mg-enregistrer-jeu [nomPropose]="nomZone() === '—' ? '' : nomZone()" />
+      @if (jeu.jeuId()) { <mg-extractions-jeu /> }
     }
+    <mg-bibliotheque-jeux />
   `,
 })
 export class PanneauJeuComponent {

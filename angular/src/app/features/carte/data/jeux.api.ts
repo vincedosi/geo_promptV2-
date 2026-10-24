@@ -101,6 +101,25 @@ export interface ContoursCommunes {
   manquants: string[];
 }
 
+/**
+ * Le résumé FIGÉ d'une plateforme dans une extraction (`zone_set_extractions.plateformes`, sql/278) : le choix enregistré
+ * (maille, seuil, rayon) et ce que le serveur a calculé. Seuls les champs que l'écran lit sont typés.
+ */
+export interface ResumeExtraction {
+  plateforme: Plateforme;
+  maille: Maille;
+  seuil: number;
+  rayon_m: number | null;
+  exacte?: boolean;
+  n_unites?: number;
+  taux_utile?: number | null;
+}
+
+/** Une ligne de `GET …/extractions` : les colonnes d'une extraction, et pour un jeu de zone son résumé par plateforme. */
+export interface ExtractionJeu extends Extraction {
+  plateformes: ResumeExtraction[] | null;
+}
+
 /** La réponse de `POST …/extractions` (`creer_extraction_jeu_zone`) : 201 créée, 200 `deja_extraite`. */
 export interface ExtractionCreee {
   ok: true;
@@ -149,8 +168,8 @@ export class JeuxApi extends HttpBaseService {
     return this.httpClient.post<ContoursCommunes>(`${this.baseUrl}/zones/communes/contours`, { codes });
   }
 
-  extractions(id: string): Observable<{ extractions: Extraction[]; jeu: { id: string; nom: string; version: number } }> {
-    return this.httpClient.get<{ extractions: Extraction[]; jeu: { id: string; nom: string; version: number } }>(this.jeu(id, '/extractions'));
+  extractions(id: string): Observable<{ extractions: ExtractionJeu[]; jeu: { id: string; nom: string; version: number } }> {
+    return this.httpClient.get<{ extractions: ExtractionJeu[]; jeu: { id: string; nom: string; version: number } }>(this.jeu(id, '/extractions'));
   }
 
   /** Fige le jeu : le SERVEUR recalcule chaque plateforme, le corps ne porte que l'origine et le commentaire. */

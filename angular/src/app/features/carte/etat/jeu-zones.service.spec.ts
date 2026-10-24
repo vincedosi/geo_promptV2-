@@ -323,6 +323,19 @@ describe('JeuZonesService — un jeu enregistré', () => {
     http.expectOne(couverture(Z1, 'forme', 'ind_18_24')).flush({ ...couvertureCp, decoupage: 'forme', lignes: [] });
     expect(hote.jeu.resumes().dv360?.resume).toMatchObject({ exacte: true, n_unites: 2 });
   });
+  it('adopter (T12) : le jeu enregistré devient le jeu ouvert SANS relecture — ?jeu= posé, ?zoneJeu= et ?mailles= retirés', async () => {
+    const { hote, http, router, stable } = await ouvrirAvecZone('&mailles=dv360.cp.25');
+    hote.jeu.adopter(detail as never);
+    await stable();
+    http.expectNone(`/api/zones/jeux/${J1}`);
+    expect(router.url).toBe(`/carte?jeu=${J1}`);
+    expect(hote.jeu.jeu()?.jeu.nom).toBe('Lycées');
+    expect(hote.jeu.choix()).toEqual({ dv360: { maille: 'cp', seuil: 25 } });
+    // Une réponse tardive d'une AUTRE zone n'est pas adoptée.
+    hote.jeu.choisirZone(Z2);
+    hote.jeu.adopter(detail as never);
+    expect(hote.jeu.jeuId()).toBeNull();
+  });
   it('?jeu= lu à la construction : le jeu est relu, ses écarts dans ?mailles= gardés, ?x= gardé', async () => {
     const { hote, http, router, stable } = await ouvrir(`/carte?jeu=${J1}&mailles=dv360.cp.40&x=2`);
     http.expectOne(`/api/zones/jeux/${J1}`).flush(detail);

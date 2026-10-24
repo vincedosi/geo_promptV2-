@@ -72,7 +72,7 @@ interface OptionsOuverture {
   referentiel?: () => unknown;
   /** `JeuxApi.plateformes` (⑤, lu à l'arrivée d'une zone). */
   plateformes?: () => unknown;
-  /** `JeuxZonesApi.lister` (outil « Mes zones »). */
+  /** `JeuxApi.lister` (outil « Mes zones »). */
   jeux?: () => unknown;
   /** `CarteApi.categories` (catalogue des types de POI, ②). */
   categories?: () => unknown;
@@ -124,7 +124,8 @@ async function ouvrir(options: OptionsOuverture = {}) {
       // ④ Couverture d'une zone (lot 4, T8) : jamais appelée sans « Chiffrer ».
       { provide: CouvertureApi, useValue: { couverture: () => NEVER } },
       // ⑤ Jeu de zones (lot 5, T10) : rien n'est lu sans zone ; une zone de l'URL fait lire le registre.
-      { provide: JeuxApi, useValue: { plateformes: options.plateformes ?? (() => NEVER) } },
+      // « Mes zones » lit `GET /api/zones/jeux` par `JeuxApi` depuis le lot 5 (T12, les deux types).
+      { provide: JeuxApi, useValue: { plateformes: options.plateformes ?? (() => NEVER), lister: options.jeux ?? (() => of({ jeux: [] })) } },
       { provide: ProfilRisqueApi, useValue: { cibles: () => NEVER } },
       { provide: CarteApi, useValue: { categories: options.categories ?? (() => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] })), jeuxRecommandes: options.jeuxRecommandes ?? (() => of({ cles: [] })), pois: () => of(), campagnesOoh: options.campagnesOoh ?? (() => of({ campagnes: [], tronque: false })), campagneOoh: options.campagneOoh ?? (() => of()), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
       { provide: RadioApi, useValue: { optionsFiltre: () => of({}), emetteurs: () => of({ type: 'FeatureCollection', features: [] }), stations: () => of({}) } },
@@ -1247,7 +1248,7 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     expect(panneauCourant(hote)).toBe('zones');
     const outil = hote.querySelector('[data-tiroir-outil]:not([inert]) mg-outil-mes-zones')!;
     expect(outil).not.toBeNull();
-    expect([...outil.querySelectorAll('h4')].map((h) => h.textContent?.trim())).toEqual(['Jeux de zones à risque', 'Mes zones']);
+    expect([...outil.querySelectorAll('h4')].map((h) => h.textContent?.trim())).toEqual(['Jeux de zones', 'Mes zones']);
     expect(outil.querySelector('mg-mes-zones')).not.toBeNull();
   });
 

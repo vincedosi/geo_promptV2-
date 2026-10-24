@@ -339,6 +339,15 @@ la plomberie ; l'écran est T10, la couche T11.
 - **Cycle de vie** : re-posée sur une carte recréée (B11), repeinte au thème, masquée par « Tout effacer », retirée à la
   destruction du service.
 
+## ⑤ Jeu de zones : enregistrer, bibliothèque, extraire (lot 5, T12, 2026-10-24)
+
+| Fichier | Rôle |
+|---|---|
+| `panneaux/jeu/enregistrer-jeu.component.ts` | `mg-enregistrer-jeu` : nom (proposé : la zone), « Enregistrer le jeu » (POST) / « Enregistrer les réglages » (PATCH) ; le jeu est ADOPTÉ (`JeuZonesService.adopter`) sans relecture ; une requête par geste |
+| `panneaux/jeu/extractions-jeu.component.ts` | `mg-extractions-jeu` : « Extraire » (commentaire, recalage) puis la liste relue ; `deja_extraite`, réponse perdue (statut 0 : « vérifiez la liste des versions ») ; résumé figé par plateforme ; une version choisie → `?x=` ; le lot 6 (fichiers) annoncé par un texte |
+| `panneaux/jeu/bibliotheque-jeux.component.ts` | `mg-bibliotheque-jeux` : jeux de l'espace (les deux types, badge neutre), lus à la première ouverture ; ouvrir, supprimer (`mg-dialogue-suppression-zone`, `titre` / `texte`) |
+| `etat/ouvrir-jeu.ts` | `ouvrirJeuListe` : un jeu risque → module (`risques`), un jeu de zone → ⑤ `?jeu=` ; partagé avec « Mes zones » (`jeux-de-zones.component.ts`, les deux types par `JeuxApi.lister`) |
+
 ## Cycle de vie d'une couche
 
 1. **Allumée** par sa section de `panneaux/calques/`, dépliée dans sa ligne de ② (ou un outil) : le service passe `visible` à vrai.

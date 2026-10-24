@@ -204,6 +204,20 @@ export class JeuZonesService {
     this.ouvrirJeu(id);
   }
 
+  /**
+   * Adopte un jeu tout juste enregistré (POST, détail recomposé par l'écran) ou réglé (PATCH, réponse de la route),
+   * SANS le relire : l'URL passe à `?jeu=`, `?zoneJeu=` et `?mailles=` disparaissent (ils sont dans le jeu). Un jeu
+   * d'une autre zone que la courante (réponse tardive) est ignoré.
+   */
+  adopter(detail: DetailJeuZone): void {
+    if (this.detruit || detail.jeu.custom_geo_zone_id !== this._zoneId()) return;
+    this.lectureJeu.perimer();
+    this.lectureJeu.resultat.set(detail);
+    this._reglages.set({});
+    this._modeChoisi.set(null);
+    this._jeuId.set(detail.jeu.id);
+  }
+
   /** Désigne une extraction du jeu ouvert (`?x=`), ou aucune. Sans jeu : rien. */
   choisirExtraction(version: number | null): void {
     if (this._jeuId()) this._extraction.set(version);

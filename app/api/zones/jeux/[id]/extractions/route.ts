@@ -116,6 +116,8 @@ export interface ExtractionResume {
   taux_utile: number | null;
   part_plan_en_zone: number | null;
   created_at: string;
+  /** Jeu de zone : le résumé figé par plateforme (maille, seuil, rayon, unités, taux d'utile) ; `null` pour un jeu risque. */
+  plateformes: unknown;
 }
 
 export async function GET(
@@ -145,7 +147,7 @@ export async function GET(
     // type des lignes de la valeur littérale passée à `.select()`. Concaténée,
     // elle vaut `string`, le retour devient `GenericStringError` et la première
     // lecture de propriété échoue à la compilation (ARCHITECTURE.md).
-    .select('id, version, origine, commentaire, seuil_couverture_cp, mode_plan, n_cp, n_retenus, taux_utile, part_plan_en_zone, created_at')
+    .select('id, version, origine, commentaire, seuil_couverture_cp, mode_plan, n_cp, n_retenus, taux_utile, part_plan_en_zone, created_at, plateformes')
     .eq('zone_set_id', id)
     .order('version', { ascending: false });
 

@@ -165,7 +165,10 @@ describe('POST /api/zones/jeux/[id]/extractions — jeu de zone', () => {
   it('GET de la liste : la version figée', async () => {
     const r = await extractions.GET(new NextRequest(`http://localhost/api/zones/jeux/${jeu}/extractions`), { params: Promise.resolve({ id: jeu }) });
     expect(r.status).toBe(200);
-    expect((await r.json()).extractions.map((e: { id: string }) => e.id)).toEqual([extraction]);
+    const liste = (await r.json()).extractions as Array<{ id: string; plateformes: Array<{ plateforme: string; maille: string }> | null }>;
+    expect(liste.map((e) => e.id)).toEqual([extraction]);
+    // T12 du lot 5 : la liste porte le résumé figé par plateforme (l'écran le montre par version).
+    expect(Array.isArray(liste[0].plateformes) && liste[0].plateformes.every((x) => typeof x.plateforme === 'string' && typeof x.maille === 'string')).toBe(true);
   });
 });
 

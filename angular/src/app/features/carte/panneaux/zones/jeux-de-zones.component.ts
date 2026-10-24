@@ -1,30 +1,40 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ecrireParametres } from '../../etat/ecrire-parametres';
 import { formaterDecimal, formaterNombre } from '../../../../core/format/nombre';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
-import { JeuxZonesApi } from '../../../risques/data/jeux-zones.api';
-import { PARAM_RISQUE } from '../../../risques/etat/etat-risque.service';
-import { risqueDuJeu } from '../../logique/entree-module-risque';
+import { type JeuListe, JeuxApi } from '../../data/jeux.api';
+import { ouvrirJeuListe } from '../../etat/ouvrir-jeu';
 
 /** Une ligne de la liste, mise en forme une fois à la lecture (aucune méthode appelée dans le gabarit). */
 interface LigneJeu {
   id: string;
+  type: JeuListe['type'];
   nom: string;
   version: number;
   detail: string;
 }
 
+/** Le badge neutre du type : un jeu risque s'ouvre dans le module, un jeu de zone à l'étape ⑤. */
+export const BADGE_TYPE_JEU: Readonly<Record<JeuListe['type'], string>> = { risque: 'Risque', zone: 'Zone' };
+
+/** Le détail d'une ligne : CP retenus et taux d'utile d'un jeu risque, la zone d'un jeu de zone. */
+export function detailJeu(j: JeuListe): string {
+  if (j.type === 'zone') return j.zone_nom ?? 'zone supprimée';
+  return `${j.n_cp_retenus === null ? '—' : formaterNombre(j.n_cp_retenus)} CP`
+    + (j.taux_utile !== null ? ` · ${formaterDecimal(Number(j.taux_utile))} % d’utile` : '');
+}
+
 /**
- * « Jeux de zones à risque » dans l'outil « Mes zones » de la boîte à outils (panneau Zones jusqu'au 2026-10-13) — portage de `app/map/_components/panneaux/JeuxDeZonesRail.tsx` et de
+ * « Jeux de zones » dans l'outil « Mes zones » de la boîte à outils (panneau Zones jusqu'au 2026-10-13) — portage de `app/map/_components/panneaux/JeuxDeZonesRail.tsx` et de
  * sa section dans `PanneauZones.tsx:138-151` (lot 4, T13).
  *
  * Un jeu de zones EST une zone : un périmètre nommé, enregistré, réutilisable. Le panneau Zones est l'endroit où l'on
  * cherche un périmètre qu'on a déjà, d'où cette entrée à côté de l'atelier qui les fabrique.
  *
  * Ce panneau MONTRE et OUVRE — rien d'autre, comme React : ni affichage des géométries ni suppression, deux gestes qui
- * vivent dans l'atelier avec le contexte qui les rend compréhensibles. Ouvrir navigue vers le module, route enfant de la
- * carte (`risques`, B2), à l'étape ④ sur ce jeu (`ouvrirJeuDeZones`, `page.tsx:232-240`).
+ * vivent dans l'atelier (ou la bibliothèque de ⑤) avec le contexte qui les rend compréhensibles. Depuis le lot 5 (T12),
+ * les DEUX types : un jeu risque ouvre le module à l'étape ④ sur ce jeu (`ouvrirJeuDeZones`, `page.tsx:232-240`), un
+ * jeu de zone ouvre ⑤ sur `?jeu=` (`ouvrirJeuListe`, règle partagée avec la bibliothèque de ⑤).
  *
  * La liste est lue UNE fois, au montage — à la première ouverture de l'outil, qui est ensuite gardé (React :
  * `useEffect([], …)`, `cache: 'no-store'`).
@@ -35,7 +45,7 @@ interface LigneJeu {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block border-b-fin border-subtle pt-3' },
   template: `
-    <h4 class="mb-2 mt-0 px-4 text-[11px] font-medium tracking-[0.04em] text-secondary">Jeux de zones à risque</h4>
+    <h4 class="mb-2 mt-0 px-4 text-[11px] font-medium tracking-[0.04em] text-secondary">Jeux de zones</h4>
     @if (jeux(); as liste) {
       @if (liste.length === 0) {
         <p data-jeux-vide class="m-0 px-4 pb-3 text-[11.5px] leading-[1.6] text-tertiary">{{ echec() ? messageEchec : messageVide }}</p>
@@ -43,11 +53,11 @@ interface LigneJeu {
         <ul class="m-0 flex list-none flex-col gap-[5px] px-4 pb-3">
           @for (j of liste; track j.id) {
             <li>
-              <button type="button" [attr.data-jeu]="j.id" (click)="ouvrir(j.id)" title="Ouvrir ce jeu dans l’atelier"
+              <button type="button" [attr.data-jeu]="j.id" (click)="ouvrir(j)" [title]="j.type === 'risque' ? 'Ouvrir ce jeu dans l’atelier' : 'Ouvrir ce jeu à l’étape ⑤'"
                       class="flex w-full cursor-pointer items-center gap-[9px] rounded-[6px] border-fin border-subtle bg-transparent px-[10px] py-2 text-left text-primary">
                 <mg-icone nom="calques" [taille]="13" class="shrink-0 text-tertiary" />
                 <span class="min-w-0 flex-1">
-                  <span class="block text-[12px]">{{ j.nom }}<span class="ml-[7px] font-mono text-[10px] text-tertiary">v{{ j.version }}</span></span>
+                  <span class="block text-[12px]">{{ j.nom }}<span class="ml-[7px] font-mono text-[10px] text-tertiary">v{{ j.version }}</span><span data-type-jeu class="ml-[7px] rounded-[4px] border-fin border-default bg-overlay px-1.5 py-px text-[10px] text-tertiary">{{ badge[j.type] }}</span></span>
                   <span class="mt-0.5 block font-mono text-[10px] text-tertiary">{{ j.detail }}</span>
                 </span>
               </button>
@@ -67,8 +77,9 @@ export class JeuxDeZonesComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
-  protected readonly messageVide = 'Aucun jeu enregistré. Ils se fabriquent dans Calques, section Zones à '
+  protected readonly messageVide = 'Aucun jeu enregistré. Ils se fabriquent à l’étape ⑤, ou dans Calques, section Zones à '
     + 'risque industriel, bouton « Analyser la population à risque ».';
+  protected readonly badge = BADGE_TYPE_JEU;
   protected readonly messageEchec = 'Liste indisponible pour le moment.';
 
   /** `null` pendant la lecture ; une liste vide après un échec, avec `echec` levé (React l.62-75). */
@@ -76,13 +87,9 @@ export class JeuxDeZonesComponent {
   protected readonly echec = signal(false);
 
   constructor() {
-    const abonnement = inject(JeuxZonesApi).lister().subscribe({
+    const abonnement = inject(JeuxApi).lister().subscribe({
       next: (r) => this.jeux.set((Array.isArray(r?.jeux) ? r.jeux : []).map((j) => ({
-        id: j.id,
-        nom: j.nom,
-        version: j.version,
-        detail: `${j.n_cp_retenus === null ? '—' : formaterNombre(j.n_cp_retenus)} CP`
-          + (j.taux_utile !== null ? ` · ${formaterDecimal(Number(j.taux_utile))} % d’utile` : ''),
+        id: j.id, type: j.type, nom: j.nom, version: j.version, detail: detailJeu(j),
       }))),
       error: () => {
         this.jeux.set([]);
@@ -92,9 +99,8 @@ export class JeuxDeZonesComponent {
     inject(DestroyRef).onDestroy(() => abonnement.unsubscribe());
   }
 
-  /** L'URL du module est écrite PAR la navigation même : le module naît sur ④ et ce jeu, jamais sur l'étape par défaut. */
-  protected ouvrir(id: string): void {
-    // L'étape du parcours (`etape`) suit dans l'URL du module ; le `risque` passé ici l'emporte sur l'ancien.
-    void ecrireParametres(this.router, this.route, { [PARAM_RISQUE]: risqueDuJeu(id) }, ['risques']);
+  /** Selon le type : le module risque (né sur ④ et ce jeu), ou ⑤ sur `?jeu=`. */
+  protected ouvrir(j: LigneJeu): void {
+    void ouvrirJeuListe(this.router, this.route, j);
   }
 }

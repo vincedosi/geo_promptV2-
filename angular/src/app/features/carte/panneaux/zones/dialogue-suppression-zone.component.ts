@@ -18,10 +18,10 @@ let compteur = 0;
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <dialog #dialogue [attr.aria-labelledby]="idTitre" (cancel)="surAnnulation($event)" (keydown.escape)="echap($event)" (click)="surClic($event)">
-      <div [id]="idTitre" class="border-b-fin border-subtle px-5 py-3.5 text-[14px] font-semibold text-danger">Supprimer la zone</div>
+      <div [id]="idTitre" class="border-b-fin border-subtle px-5 py-3.5 text-[14px] font-semibold text-danger">{{ titre() }}</div>
       <div class="p-5 text-[13px] leading-[1.6] text-secondary">
         Supprimer <strong class="text-primary">{{ nom() }}</strong> ?
-        Cette action est irreversible. Les codes IRIS et CP resolus seront aussi supprimes.
+        {{ texte() }}
         @if (erreur(); as e) {
           <div data-erreur role="alert" class="alerte mt-3 rounded-[4px] px-3 py-2 text-[12px] text-danger">{{ e }}</div>
         }
@@ -52,6 +52,9 @@ let compteur = 0;
 export class DialogueSuppressionZoneComponent {
   /** Le nom de la zone à supprimer. */
   readonly nom = input.required<string>();
+  /** Titre et avertissement : ceux d'une zone par défaut ; la bibliothèque de ⑤ (lot 5, T12) y supprime un JEU. */
+  readonly titre = input('Supprimer la zone');
+  readonly texte = input('Cette action est irreversible. Les codes IRIS et CP resolus seront aussi supprimes.');
   /** La suppression : `null` si elle a réussi, le message d'échec sinon. */
   readonly confirmer = input.required<() => Promise<string | null>>();
   readonly fermer = output<void>();
