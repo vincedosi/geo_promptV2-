@@ -273,14 +273,14 @@ la plomberie ; l'écran est T10, la couche T11.
 | `logique/jeu/mailles-url.ts` | `?mailles=` (A-10) : `lireMailles` / `ecrireMailles` (ne lèvent jamais), `lireVersion` (`?x=`), `rayonParDefaut`, `SEUIL_PAR_DEFAUT` (20 %) |
 | `logique/jeu/bilan.ts` | PUR : la lecture qu'un choix requiert (`lectureRequise`), la clé d'une couverture en mémoire (`cleCouverture`, date de mise à jour de la zone comprise), `rangerCouverture` (une autre version de la forme, `zone_maj`, purge les entrées de la même zone), `bilanDe`, `parPlateforme`, type `ResultatCercles` |
 | `etat/file-lectures.ts` | `FileLectures` : les conversions UNE à la fois ; une tâche de même clé remplace la précédente (désabonnée, jeton) ; vidée au changement de zone et à la destruction |
-| `etat/jeu-zones.service.ts` | `JeuZonesService`, fourni par la PAGE (`FOURNISSEURS_JEU`, `carte.fournisseurs.ts`) : `zoneId`, `jeuId`, `jeu`, `cible`, `recette`, `extraction`, `plateformes`, `choix`, `couvertures`, `cercles`, `resumes`, `enCours`, `erreurs`, `erreur` ; `choisirZone(id, recette?, maj?)`, `charger(jeuId)`, `regler(plateforme, {maille?, seuil?, rayon?})`, `valider(plateforme)`, `choisirExtraction(v)`, `chargerPlateformes()` |
+| `etat/jeu-zones.service.ts` | `JeuZonesService`, fourni par la PAGE (`FOURNISSEURS_JEU`, `carte.fournisseurs.ts`) : `zoneId`, `jeuId`, `jeu`, `cible`, `recette`, `extraction`, `plateformes`, `choix`, `couvertures`, `cercles`, `resumes`, `enCours`, `erreurs`, `erreur` ; `maj`, `relectureZone` ; `choisirZone(id, recette?, maj?)`, `zoneRecalculee(id)`, `adopter(detail)`, `regler(plateforme, {maille?, seuil?, rayon?})`, `valider(plateforme)`, `choisirExtraction(v)`. Un jeu s'ouvre par l'URL (`?jeu=`, `ouvrirJeuListe`) : `charger(jeuId)`, sans appelant, est retiré à la revue finale ; le registre se lit par un effet du service (privé) |
 
 - **URL** : `?zoneJeu=<uuid>` (zone avant enregistrement) ou `?jeu=<uuid>` (jeu ouvert : il l'emporte, `?zoneJeu=`
   disparaît), `?mailles=` (les choix EXPLICITES : écarts aux défauts, ou au jeu ouvert), `?x=<version>` (avec un jeu
   seulement). Lus à la construction, réécrits en `replaceUrl` par `ecrireParametres` (P-g), relus à toute navigation
   extérieure ; une valeur illisible est réécrite une fois.
 - **Aucune requête non demandée** : ouvrir ⑤ ne lit rien ; le registre se lit une fois par page, à l'arrivée d'une
-  zone ou d'un jeu (et à l'ouverture du sélecteur, T10) ; une conversion part par `valider` (ouverture de la colonne,
+  zone ou d'un jeu ; une conversion part par `valider` (ouverture de la colonne,
   relâchement de la réglette de rayon), jamais quatre d'un coup, et une seule couverture par (zone, cible, découpage).
   Régler un seuil ne requête RIEN (`resumes` rejoue la conversion pure en mémoire) ; un pavage en cercles dépend du
   rayon ET du seuil (calculé au serveur) : régler l'un ou l'autre le périme, sans requête, jusqu'au `valider` suivant.
@@ -288,11 +288,16 @@ la plomberie ; l'écran est T10, la couche T11.
   ramené dans les bornes de la ligne (sinon 10 km). Une maille exacte (A-6) est chiffrée sur la forme, sans seuil ;
   `exactitude` reçoit le rayon CHOISI. Zone sans recette lisible : seule la forme est exacte, comme à l'extraction.
 - **Forme à jour (Review Focus 2)** : une zone recalculée en ③ garde son id. La date de mise à jour donnée par la
-  liste (`choisirZone(id, recette, maj)`) entre dans la clé des couvertures : au retour en ⑤, tout se relit. Et une
+  liste (`choisirZone(id, recette, maj)`) entre dans la clé des couvertures. La liste n'étant lue qu'une fois par
+  composant (le panneau reste monté), un recalcul fait dans « Mes zones » (`MesZonesComponent`) appelle
+  `zoneRecalculee(id)` : `relectureZone` monte, `mg-choix-zone-analysee` (entrée `relire`) relit la liste, la NOUVELLE
+  date vide les conversions, et l'effet du panneau (qui lit `maj`) les redemande — spec de page « ⑤ → ③ Mes zones →
+  Recalculer → ⑤ » (revue finale, point 2). Un recalcul fait hors de la page n'est vu qu'au rechargement. Et une
   couverture lue sur une autre version de la forme (`zone_maj`) purge les couvertures et les pavages de la zone :
   jamais deux formes mêlées dans les bilans.
 - **Refus** : 404 zone → `?zoneJeu=` retiré, « Zone introuvable dans cet espace. » ; 404 jeu → `?jeu=` retiré,
-  « Jeu de zones introuvable dans cet espace. » ; jeu risque → « Ce jeu de zones se gère dans le module risque. » ;
+  « Jeu de zones introuvable dans cet espace. » ; jeu risque → `MESSAGE_JEU_RISQUE` (`ecran.ts`, verrouillé égal à
+  `OU_SE_GERE.risque` du chargeur serveur) ; un autre `?jeu=` / `?zoneJeu=` arrivé par l'URL efface le message ;
   autre refus d'une conversion → `erreurs[plateforme]`, la zone reste.
 - **Recette et date de la liste (T10)** : une zone arrivée par l'URL est lue SANS date ; quand la liste la date,
   `choisirZone(id, recette, maj)` ADOPTE la date (les couvertures lues passent sous la clé datée, `daterCouvertures`,
@@ -309,7 +314,7 @@ la plomberie ; l'écran est T10, la couche T11.
 | `panneaux/jeu/colonne-plateforme.component.ts` | `mg-colonne-plateforme` : maille, badge neutre « À vérifier », date du relevé, « Doc officielle » (`doc_url`), rayon (cercle, borné par la ligne, réglé au relâchement), seuil (`mg-dilution` du risque, au relâchement), chiffres en JetBrains Mono (unités retenues / touchées, taux d'utile, habitants manqués et leur part, diffusion hors zone), « Exacte : aucune perte », avertissements de `verifierLimites`, cause d'un pavage vide (`motif_vide`) |
 | `panneaux/jeu/choix-maille.component.ts` | `mg-choix-maille` : boutons segmentés des lignes du registre, natives d'abord ; `disponible = false` grisée, raison en infobulle et sous le bouton |
 | `logique/jeu/ecran.ts` | PUR : noms des plateformes, unités par maille (`Record<Maille, …>`, jamais un ternaire cp/iris), phrases d'avertissement et de pavage vide, bornes de la réglette de rayon (registre, jamais un nombre écrit) |
-| `testing/jeu-factice.ts` | Banc des écrans de ⑤ : état réel + routes réelles derrière `HttpTestingController` |
+| `testing/jeu-factice.ts` | Banc des écrans de ⑤ : état réel + routes réelles derrière `HttpTestingController` ; `monterJeu(BANC, composant, url, { lister?, entrees? })`, le montage commun des specs (les entrées `…/testing` d'Angular passées par le spec, `imports-partages.test.ts`) |
 
 - **Colonnes** : côte à côte dès 900 px de PANNEAU (`ResizeObserver` sur l'hôte : la poignée du panneau d'étape décide,
   pas la fenêtre) ; plus étroit, empilées, une seule dépliée. Une zone choisie ne lit que la maille des colonnes
@@ -317,7 +322,7 @@ la plomberie ; l'écran est T10, la couche T11.
   territorial, une au relâchement pour un cercle).
 - **Pastille ⑤** : `?zoneJeu=` ou `?jeu=` (`suivreJeuRenseigne`, `carte.fournisseurs.ts`).
 - **Réutilisé sans copie** : `mg-choix-zone-analysee` (entrées `libelle`, `proposee`, sortie `lue` ajoutées, ④ inchangé),
-  `mg-choix-cible`, `mg-mode-plan`, `mg-dilution` (entrées FACULTATIVES `titre`, `sujet`, `accord`, `libelleCurseur` :
+  `mg-choix-cible`, `mg-mode-plan`, `mg-dilution` (entrées FACULTATIVES `titre`, `sujet`, `accord`, `complement`, `libelleCurseur` :
   défauts = le texte du module risque, son spec inchangé et vert), `mg-kpi`, `mg-entete-section`.
 
 ## ⑤ Jeu de zones : la carte (lot 5, T11, 2026-10-24)
@@ -332,7 +337,8 @@ la plomberie ; l'écran est T10, la couche T11.
   recadrage. CP et départements : `ContoursZonesService` (partagé, une lecture par échelle et par écran). Communes :
   `JeuxApi.contoursCommunes` de TOUTES les touchées, une lecture par jeu de codes ; le seuil tranche en mémoire (retenues
   teintées, autres en contour fin), aucune requête au relâchement ; au-delà de `MAX_CODES_CONTOURS` (le plafond de la
-  route), les seules retenues, et la colonne le dit. « Extraire » attend l'enregistrement des réglages modifiés
+  route), les seules retenues, et la colonne le dit ; plus de `MAX_CODES_CONTOURS` RETENUES (`communesIllisibles`) :
+  rien n'est lu (la route répondrait 400), et la colonne le dit aussi. « Extraire » attend l'enregistrement des réglages modifiés
   (`JeuZonesService.modifie`).
   Cercles : `cercleGeoJSON` du module risque. Maille exacte : le contour seul.
 - **Une plateforme, une choroplèthe** : regarder une autre plateforme retire les couches de la précédente. Le geste
@@ -346,9 +352,9 @@ la plomberie ; l'écran est T10, la couche T11.
 
 | Fichier | Rôle |
 |---|---|
-| `panneaux/jeu/enregistrer-jeu.component.ts` | `mg-enregistrer-jeu` : nom (proposé : la zone), « Enregistrer le jeu » (POST) / « Enregistrer les réglages » (PATCH) ; le jeu est ADOPTÉ (`JeuZonesService.adopter`) sans relecture ; une requête par geste |
-| `panneaux/jeu/extractions-jeu.component.ts` | `mg-extractions-jeu` : « Extraire » (commentaire, recalage) puis la liste relue ; `deja_extraite`, réponse perdue (statut 0 : « vérifiez la liste des versions ») ; résumé figé par plateforme ; une version choisie → `?x=` ; le lot 6 (fichiers) annoncé par un texte |
-| `panneaux/jeu/bibliotheque-jeux.component.ts` | `mg-bibliotheque-jeux` : jeux de l'espace (les deux types, badge neutre), lus à la première ouverture ; ouvrir, supprimer (`mg-dialogue-suppression-zone`, `titre` / `texte`) |
+| `panneaux/jeu/enregistrer-jeu.component.ts` | `mg-enregistrer-jeu` : nom (proposé : la zone), « Enregistrer le jeu » (POST) / « Enregistrer les réglages » (PATCH) ; le jeu est ADOPTÉ (`JeuZonesService.adopter`) sans relecture ; une requête par geste ; une réponse arrivée après un changement de zone ou de jeu n'est ni adoptée ni dite (P-c) |
+| `panneaux/jeu/extractions-jeu.component.ts` | `mg-extractions-jeu` : « Extraire » (commentaire, recalage) puis la liste relue ; `deja_extraite`, réponse perdue (statut 0 : « vérifiez la liste des versions ») ; résumé figé par plateforme ; une version choisie → `?x=` ; le lot 6 (fichiers) annoncé par un texte ; une extraction en vol est désabonnée quand le jeu change |
+| `panneaux/jeu/bibliotheque-jeux.component.ts` | `mg-bibliotheque-jeux` : jeux de l'espace (les deux types, badge neutre), lus à la première ouverture (`GET /api/zones/jeux?type=tous` — sans paramètre, la route ne rend que les jeux risque) ; relue quand un jeu adopté (enregistré, renommé) n'y figure pas ; ouvrir, supprimer (`mg-dialogue-suppression-zone`, `titre` / `texte`) |
 | `etat/ouvrir-jeu.ts` | `ouvrirJeuListe` : un jeu risque → module (`risques`), un jeu de zone → ⑤ `?jeu=` ; partagé avec « Mes zones » (`jeux-de-zones.component.ts`, les deux types par `JeuxApi.lister`) |
 
 ## Cycle de vie d'une couche

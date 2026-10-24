@@ -18,7 +18,7 @@ import { MAX_PLATEFORMES_GEO, PlateformeGeoSchema, type PlateformeGeo } from './
 type ClientAdmin = ReturnType<typeof createAdminClient>;
 
 /** Les colonnes d'une ligne de `plateformes_geo` — une chaîne LITTÉRALE : supabase-js en déduit le type des lignes. */
-export const COLONNES_PLATEFORMES_GEO =
+const COLONNES_PLATEFORMES_GEO =
   'plateforme, maille, libelle, natif, disponible, limites, doc_url, releve_le, a_verifier, note, ordre';
 
 /**
