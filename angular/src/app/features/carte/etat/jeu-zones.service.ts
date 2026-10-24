@@ -14,15 +14,16 @@ import {
   type ChoixMaille, type ChoixParPlateforme, PARAM_EXTRACTION, PARAM_JEU, PARAM_MAILLES, PARAM_ZONE_JEU, type ParametresJeu, SEUIL_PAR_DEFAUT,
   ecrireMailles, lireMailles, lireParametresJeu, lireVersion, memesParametres, parametresDe,
 } from '../logique/jeu/mailles-url';
+import { MESSAGE_JEU_RISQUE } from '../logique/jeu/ecran';
 import type { Maille, Plateforme, PlateformeGeo } from '../logique/jeu/plateformes';
 import type { Recette } from '../logique/zones/recette';
 import { ecrireParametres } from './ecrire-parametres';
 import { FileLectures } from './file-lectures';
 import { LectureAnnulable } from './lecture-annulable';
 
-/** Le message d'un jeu RISQUE reçu par ⑤ — celui que le serveur rend dans l'autre sens (`charger-jeu.ts`). */
+/** Un jeu RISQUE reçu par ⑤ : la phrase que le serveur rend dans l'autre sens (`MESSAGE_JEU_RISQUE`). */
 class JeuRisque extends Error {
-  constructor() { super('Ce jeu de zones se gère dans le module risque.'); }
+  constructor() { super(MESSAGE_JEU_RISQUE); }
 }
 
 /**
@@ -207,10 +208,8 @@ export class JeuZonesService {
   }
 
   /**
-   * Une zone vient d'être recalculée (« Mes zones », lot 3) : si c'est la zone courante et qu'aucun jeu n'est ouvert,
-   * le sélecteur relit sa ligne et repasse sa NOUVELLE date à `choisirZone`, qui vide les conversions de l'ancienne
-   * forme (revue finale du lot 5, point 2 : l'extraction calcule sur la nouvelle). La zone d'un jeu enregistré ne se
-   * recalcule pas (409 `zone_referencee`).
+   * Zone recalculée (« Mes zones ») : la courante, sans jeu ouvert (sa zone ne se recalcule pas, 409), fait relire sa
+   * ligne au sélecteur ; sa NOUVELLE date vide dans `choisirZone` les conversions de l'ancienne forme (revue finale, 2).
    */
   zoneRecalculee(id: string): void {
     if (!this.detruit && this._jeuId() === null && lireZoneAnalyse(id) === this._zoneId()) this._relectureZone.update((n) => n + 1);

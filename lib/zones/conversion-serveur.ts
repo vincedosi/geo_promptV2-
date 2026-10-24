@@ -22,15 +22,16 @@ export const COLONNES_PLATEFORMES_GEO =
   'plateforme, maille, libelle, natif, disponible, limites, doc_url, releve_le, a_verifier, note, ordre';
 
 /**
- * Les règles des plateformes demandées, validées par le schéma. Une lecture, bornée par construction (≤ 4 plateformes
- * × 6 mailles, clé primaire) et par `MAX_PLATEFORMES_GEO + 1` lue (au-delà : une erreur dite, jamais une liste
- * coupée). Lève sur une erreur de lecture ou une ligne hors schéma : l'appelant répond 500 et journalise.
+ * Les règles des plateformes demandées (toutes sans filtre : `GET /api/zones/plateformes`), triées par `ordre` et
+ * validées par le schéma — la SEULE lecture de `plateformes_geo` du serveur (revue finale du lot 5, point 10 : il y en
+ * avait trois, avec trois bornes). Bornée par construction (≤ 4 plateformes × 6 mailles, clé primaire) et par
+ * `MAX_PLATEFORMES_GEO + 1` lue (au-delà : une erreur dite, jamais une liste coupée). Lève sur une erreur de lecture ou
+ * une ligne hors schéma : l'appelant répond 500 et journalise.
  */
-export async function lireRegles(supabase: ClientAdmin, plateformes: readonly string[]): Promise<PlateformeGeo[]> {
-  const { data, error } = await supabase
-    .from('plateformes_geo')
-    .select(COLONNES_PLATEFORMES_GEO)
-    .in('plateforme', [...new Set(plateformes)])
+export async function lireRegles(supabase: ClientAdmin, plateformes?: readonly string[]): Promise<PlateformeGeo[]> {
+  const requete = supabase.from('plateformes_geo').select(COLONNES_PLATEFORMES_GEO);
+  const { data, error } = await (plateformes ? requete.in('plateforme', [...new Set(plateformes)]) : requete)
+    .order('ordre', { ascending: true })
     .limit(MAX_PLATEFORMES_GEO + 1);
   if (error) throw new Error(`lecture de plateformes_geo : ${error.message}`);
   if ((data ?? []).length > MAX_PLATEFORMES_GEO) throw new Error('plateformes_geo : borne de lecture dépassée');

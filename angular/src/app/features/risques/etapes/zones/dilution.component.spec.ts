@@ -20,6 +20,10 @@ function glisser(curseur: HTMLInputElement, v: number) {
 }
 
 describe('DilutionComponent', () => {
+  it('par défaut (module risque), la phrase du seuil parle du code postal jusqu’au bout', async () => {
+    const { el } = await rendre();
+    expect(el.querySelector('p')?.textContent?.replace(/\s+/g, ' ')).toContain('une telle part de son code postal.');
+  });
   it('le curseur suit le doigt SANS rien émettre ; le relâchement émet une fois la dernière valeur', async () => {
     const { f, el, curseur, emis } = await rendre();
     glisser(curseur, 25);

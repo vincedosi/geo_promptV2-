@@ -1,6 +1,8 @@
 import { provideHttpClient } from '@angular/common/http';
-import { Component, type EnvironmentProviders, type Provider } from '@angular/core';
-import { provideRouter } from '@angular/router';
+import type { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Component, type EnvironmentProviders, type Provider, type Type } from '@angular/core';
+import type { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
 import { NEVER, of } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { ConfigService } from '../../../core/config/config.service';
@@ -64,11 +66,10 @@ export class VideJeu {}
 
 /**
  * Les fournisseurs du banc : l'état de ⑤ comme la page le fournit, les routes réelles (`JeuxApi`, `CouvertureApi`),
- * les doublures. Le spec ajoute `provideHttpClientTesting()` et monte son composant après une navigation vers
- * `carte` — ce fichier n'importe aucune entrée `…/testing` d'Angular (`imports-partages.test.ts` : il n'est pas un
- * spec). `lister` : la liste des zones (`ZonesCustomApi.lister`) ; par défaut, jamais de réponse.
+ * les doublures — montés par `monterJeu`. `lister` : la liste des zones (`ZonesCustomApi.lister`) ; par défaut, jamais
+ * de réponse.
  */
-export function fournisseursJeu(lister: () => unknown = () => NEVER): Array<Provider | EnvironmentProviders> {
+function fournisseursJeu(lister: () => unknown = () => NEVER): Array<Provider | EnvironmentProviders> {
   return [
     provideRouter([{ path: 'carte', component: VideJeu }]),
     provideHttpClient(), JeuxApi, CouvertureApi, JeuZonesService, ParcoursService, ZoneAnalyseeService,
@@ -84,4 +85,35 @@ export function fournisseursJeu(lister: () => unknown = () => NEVER): Array<Prov
     { provide: ContoursZonesService, useValue: { zones: () => NEVER } },
     { provide: CouleursService, useValue: { palette: () => () => ({}) } },
   ];
+}
+
+/**
+ * Les entrées `…/testing` d'Angular, PASSÉES par le spec : ce fichier n'est pas un spec et ne les importe qu'en type
+ * (`imports-partages.test.ts` : le remote n'importe à l'exécution que des entrées que tout hôte partage).
+ */
+export interface OutilsBanc {
+  TestBed: typeof TestBed;
+  HttpTestingController: typeof HttpTestingController;
+  provideHttpClientTesting: typeof provideHttpClientTesting;
+}
+
+/**
+ * Le montage commun des specs de ⑤ (revue finale du lot 5, point 11 — il était recopié dans cinq specs) : navigation
+ * vers `url`, puis le composant et ses entrées ; l'état de ⑤ à l'injecteur du banc. `lister` : la liste des zones.
+ */
+export async function monterJeu<T>(
+  outils: OutilsBanc, composant: Type<T>, url = '/carte', o: { lister?: () => unknown; entrees?: Record<string, unknown> } = {},
+) {
+  const { TestBed: banc } = outils;
+  banc.configureTestingModule({ providers: [...fournisseursJeu(o.lister), outils.provideHttpClientTesting()] });
+  const router = banc.inject(Router);
+  await router.navigateByUrl(url);
+  const fixture = banc.createComponent(composant);
+  for (const [cle, valeur] of Object.entries(o.entrees ?? {})) fixture.componentRef.setInput(cle, valeur);
+  const stable = async () => { for (let i = 0; i < 3; i++) { await new Promise((r) => setTimeout(r, 0)); await fixture.whenStable(); } };
+  await stable();
+  return {
+    fixture, el: fixture.nativeElement as HTMLElement, stable, router,
+    http: banc.inject(outils.HttpTestingController), jeu: banc.inject(JeuZonesService),
+  };
 }

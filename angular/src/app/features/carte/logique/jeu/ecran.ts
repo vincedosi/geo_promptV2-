@@ -12,6 +12,12 @@ import type { Maille, Plateforme, PlateformeGeo } from './plateformes';
  * les lit dans `plateformes_geo` ; `tests/unit/angular/conversion-paritaire.test.ts` balaie aussi ce dossier.
  */
 
+/**
+ * Un jeu RISQUE reçu par ⑤ : la phrase du serveur pour le cas inverse (`OU_SE_GERE.risque`, `lib/zones/charger-jeu.ts`),
+ * verrouillée par `tests/unit/angular/conversion-paritaire.test.ts`.
+ */
+export const MESSAGE_JEU_RISQUE = 'Ce jeu de zones se gère dans le module risque.';
+
 /** Le nom affiché de chaque plateforme. */
 export const NOM_PLATEFORME: Readonly<Record<Plateforme, string>> = {
   dv360: 'DV360', ttd: 'The Trade Desk', meta: 'Meta', tiktok: 'TikTok',
@@ -26,15 +32,17 @@ export interface UniteMaille {
   /** Sujet de « … n'est retenu(e) que si… ». */
   sujet: string;
   accord: '' | 'e';
+  /** Fin de « …une telle part de … » (`complement` de `mg-dilution`). */
+  complement: string;
 }
 
 export const UNITE_MAILLE: Readonly<Record<Maille, UniteMaille>> = {
-  polygone: { un: 'polygone', plusieurs: 'polygones', titre: 'Dilution au polygone', sujet: 'Un polygone', accord: '' },
-  cp: { un: 'code postal', plusieurs: 'codes postaux', titre: 'Dilution au code postal', sujet: 'Un code postal', accord: '' },
-  iris: { un: 'IRIS', plusieurs: 'IRIS', titre: 'Dilution à l’IRIS', sujet: 'Un IRIS', accord: '' },
-  commune: { un: 'commune', plusieurs: 'communes', titre: 'Dilution à la commune', sujet: 'Une commune', accord: 'e' },
-  departement: { un: 'département', plusieurs: 'départements', titre: 'Dilution au département', sujet: 'Un département', accord: '' },
-  cercle: { un: 'cercle', plusieurs: 'cercles', titre: 'Dilution au cercle', sujet: 'Un cercle', accord: '' },
+  polygone: { un: 'polygone', plusieurs: 'polygones', titre: 'Dilution au polygone', sujet: 'Un polygone', accord: '', complement: 'son polygone' },
+  cp: { un: 'code postal', plusieurs: 'codes postaux', titre: 'Dilution au code postal', sujet: 'Un code postal', accord: '', complement: 'son code postal' },
+  iris: { un: 'IRIS', plusieurs: 'IRIS', titre: 'Dilution à l’IRIS', sujet: 'Un IRIS', accord: '', complement: 'son IRIS' },
+  commune: { un: 'commune', plusieurs: 'communes', titre: 'Dilution à la commune', sujet: 'Une commune', accord: 'e', complement: 'sa commune' },
+  departement: { un: 'département', plusieurs: 'départements', titre: 'Dilution au département', sujet: 'Un département', accord: '', complement: 'son département' },
+  cercle: { un: 'cercle', plusieurs: 'cercles', titre: 'Dilution au cercle', sujet: 'Un cercle', accord: '', complement: 'son cercle' },
 };
 
 /** Le libellé accessible de la réglette de seuil d'une maille. */

@@ -84,11 +84,14 @@ const corps = (methode: string, c: unknown) =>
 const poster = (c: unknown) => POST(new NextRequest(URL_LISTE, corps('POST', c)));
 const patcher = (c: unknown) => R.PATCH(new NextRequest(URL_JEU, corps('PATCH', c)), params);
 
-/** Les règles de `plateformes_geo` lues pour dv360 et meta (extrait du seed sql/274). */
+/** Les règles de `plateformes_geo` lues pour dv360 et meta (extrait du seed sql/274), entières : `lireRegles` les valide. */
+const regle = (r: { plateforme: string; maille: string; disponible: boolean; limites: object; note: string | null }) => ({
+  libelle: r.maille, natif: true, doc_url: null, releve_le: '2026-10-14', a_verifier: false, ordre: 0, ...r,
+});
 const REGLES = [
-  { plateforme: 'dv360', maille: 'cp', disponible: true, limites: {}, note: null },
-  { plateforme: 'dv360', maille: 'polygone', disponible: false, limites: {}, note: 'Pas de polygone (relevé du 14/10).' },
-  { plateforme: 'meta', maille: 'cercle', disponible: true, limites: { rayon_min_m: 1000, rayon_max_m: 80000 }, note: null },
+  regle({ plateforme: 'dv360', maille: 'cp', disponible: true, limites: {}, note: null }),
+  regle({ plateforme: 'dv360', maille: 'polygone', disponible: false, limites: {}, note: 'Pas de polygone (relevé du 14/10).' }),
+  regle({ plateforme: 'meta', maille: 'cercle', disponible: true, limites: { rayon_min_m: 1000, rayon_max_m: 80000 }, note: null }),
 ];
 
 const jeuZone = (patch: Record<string, unknown> = {}) => ({
@@ -319,6 +322,22 @@ describe('PATCH /api/zones/jeux/[id] — jeu de zone', () => {
     const r = await patcher({ plateformes: [{ plateforme: 'dv360', maille: 'cp', seuil: 20 }] });
     expect(r.status).toBe(500);
     expect((await r.json()).error).toBe('Choix des plateformes partiellement enregistré : relancez l’enregistrement.');
+  });
+
+  it('les choix échouent : l’en-tête n’est PAS écrit — « Modification impossible » dit vrai (revue finale, point 8)', async () => {
+    h.erreurs['zone_set_plateformes:upsert'] = { message: 'panne' };
+    const r = await patcher({ nom: 'Bretagne v2', plateformes: [{ plateforme: 'dv360', maille: 'cp', seuil: 20 }] });
+    expect(r.status).toBe(500);
+    expect((await r.json()).error).toBe('Modification impossible.');
+    expect(h.ecritures.map((e) => `${e.table}:${e.op}`)).toEqual(['zone_set_plateformes:upsert']);
+  });
+
+  it('choix puis en-tête : un renommage refusé (23505) dit que les choix sont enregistrés', async () => {
+    h.erreurs['zone_sets:update'] = { message: 'doublon', code: '23505' };
+    const r = await patcher({ nom: 'Bretagne', plateformes: [{ plateforme: 'dv360', maille: 'cp', seuil: 20 }] });
+    expect(r.status).toBe(409);
+    expect((await r.json()).error).toBe('Un jeu de zones de ce nom existe déjà dans cette version. Les choix des plateformes, eux, sont enregistrés.');
+    expect(h.ecritures.map((e) => `${e.table}:${e.op}`)).toEqual(['zone_set_plateformes:upsert', 'zone_set_plateformes:delete', 'zone_sets:update']);
   });
 
   it('un couple non disponible : 400, rien écrit', async () => {

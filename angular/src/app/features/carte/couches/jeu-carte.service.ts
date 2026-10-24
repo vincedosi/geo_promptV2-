@@ -25,7 +25,7 @@ const RECADRAGE = { padding: 60, duration: 900 } as const;
 type Vue =
   | { type: 'zone' }
   | { type: 'territoires'; echelle: 'cp' | 'departement'; lignes: readonly LigneCouverture[]; seuil: number }
-  | { type: 'communes'; lignes: readonly LigneCouverture[]; seuil: number; codes: string[]; toutes: boolean }
+  | { type: 'communes'; lignes: readonly LigneCouverture[]; seuil: number; codes: string[]; toutes: boolean; lisibles: boolean }
   | { type: 'iris'; lignes: readonly LigneCouverture[]; seuil: number }
   | { type: 'cercles'; rendu: GeoJSON.FeatureCollection };
 
@@ -85,7 +85,12 @@ export class JeuCarteService {
   /** Plus de communes touchées que la route n'en lit d'un coup : seules les retenues sont dessinées (la colonne le dit). */
   readonly communesTronquees = computed(() => {
     const v = this.affichee() ? this.vue() : null;
-    return v?.type === 'communes' && !v.toutes;
+    return v?.type === 'communes' && !v.toutes && v.lisibles;
+  });
+  /** Plus de communes RETENUES que la route n'en lit : rien n'est dessiné (la colonne le dit). */
+  readonly communesIllisibles = computed(() => {
+    const v = this.affichee() ? this.vue() : null;
+    return v?.type === 'communes' && !v.lisibles;
   });
   /** Une plateforme regardée à l'IRIS sous z9 : rien n'est peint (les tuiles portent des communes). */
   readonly irisSousLeZoom = computed(() => {
@@ -109,9 +114,13 @@ export class JeuCarteService {
     if (c.maille === 'commune') {
       // Les contours de TOUTES les communes touchées, lus une fois : le seuil tranche ensuite en mémoire (P-h). Au-delà
       // du plafond de la route, les seules retenues — un seuil relâché les relit, et la colonne le dit.
+      // Plus de RETENUES que ce plafond (seuil bas, grande zone) : rien n'est lu — la route répondrait 400 — et la
+      // colonne le dit (revue finale du lot 5, point 12 : l'échec était muet).
       const toutes = lignes.length <= MAX_CODES_CONTOURS;
-      const codes = (toutes ? lignes : lignes.filter((l) => estRetenue(l, c.seuil))).map((l) => l.code).sort();
-      return { type: 'communes', lignes, seuil: c.seuil, codes, toutes };
+      const aLire = toutes ? lignes : lignes.filter((l) => estRetenue(l, c.seuil));
+      const lisibles = aLire.length <= MAX_CODES_CONTOURS;
+      const codes = lisibles ? aLire.map((l) => l.code).sort() : [];
+      return { type: 'communes', lignes, seuil: c.seuil, codes, toutes, lisibles };
     }
     if (c.maille === 'iris') return { type: 'iris', lignes, seuil: c.seuil };
     return { type: 'territoires', echelle: c.maille, lignes, seuil: c.seuil };

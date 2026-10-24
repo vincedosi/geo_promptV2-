@@ -31,7 +31,7 @@ import { formaterDecimal, formaterNombre } from '../../../../core/format/nombre'
       {{ sujet() }} n’est retenu{{ accord() }} que si au moins <strong>{{ local() }} %</strong> de sa
       population vit en zone. En deçà, on achète surtout des habitants hors cible ;
       au-delà, le plan se vide des campagnes, où un site isolé ne couvre jamais une
-      telle part de son code postal.
+      telle part de {{ complement() }}.
     </p>
     @if (achetee() > 0) {
       <p data-role="gaspille" class="mt-[6px] mb-0 text-[11.5px] text-secondary">
@@ -56,6 +56,8 @@ export class DilutionComponent {
   readonly titre = input('Dilution au code postal');
   readonly sujet = input('Un code postal');
   readonly accord = input<'' | 'e'>('');
+  /** La fin de la phrase du seuil : « …une telle part de son code postal » (« de sa commune » en ⑤). */
+  readonly complement = input('son code postal');
   readonly libelleCurseur = input('Part minimale de la population du code postal en zone');
   /** Émis au relâchement, jamais pendant le glissement. */
   readonly seuilChange = output<number>();

@@ -77,7 +77,7 @@ import { ChoixMailleComponent } from './choix-maille.component';
             }
             @if (c.maille !== 'polygone') {
               <mg-dilution [seuil]="c.seuil" [visee]="bilan()?.resume?.couverte ?? 0" [achetee]="bilan()?.resume?.achetee ?? 0"
-                [titre]="unite().titre" [sujet]="unite().sujet" [accord]="unite().accord" [libelleCurseur]="curseur()" (seuilChange)="regler({ seuil: $event })" />
+                [titre]="unite().titre" [sujet]="unite().sujet" [accord]="unite().accord" [complement]="unite().complement" [libelleCurseur]="curseur()" (seuilChange)="regler({ seuil: $event })" />
             }
           }
         }
@@ -124,6 +124,9 @@ import { ChoixMailleComponent } from './choix-maille.component';
           @if (surLaCarte() && carte.communesTronquees()) {
             <div data-communes-tronquees class="text-[11px] text-secondary">{{ texteCommunesTronquees }}</div>
           }
+          @if (surLaCarte() && carte.communesIllisibles()) {
+            <div data-communes-illisibles class="text-[11px] text-secondary">{{ texteCommunesIllisibles }}</div>
+          }
           @if (surLaCarte() && carte.irisSousLeZoom()) { <div data-zoomer class="text-[11px] text-secondary">Zoomez pour voir les IRIS sur la carte (à partir du zoom 9).</div> }
         }
       </div>
@@ -148,6 +151,7 @@ export class ColonnePlateformeComponent {
   /** La légende des parts de la carte, celle de ④ (`libellesPaliers`, couleurs en jetons CSS : ici c'est du HTML). */
   protected readonly paliers = libellesPaliers().map((libelle, i) => ({ couleur: PALIERS_CSS[i], libelle }));
   protected readonly texteCommunesTronquees = `Plus de ${formaterNombre(MAX_CODES_CONTOURS)} communes touchées : seules les retenues sont dessinées, et chaque seuil relit leurs contours.`;
+  protected readonly texteCommunesIllisibles = `Plus de ${formaterNombre(MAX_CODES_CONTOURS)} communes retenues : aucune n’est dessinée. Relevez le seuil pour les voir sur la carte.`;
   protected readonly pastille = PASTILLE;
   protected readonly pastilleActive = PASTILLE_PRIMAIRE_ACTIVE;
   protected readonly pastilleInactive = PASTILLE_INACTIVE;

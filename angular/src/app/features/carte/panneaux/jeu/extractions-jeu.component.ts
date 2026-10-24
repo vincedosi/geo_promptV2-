@@ -104,10 +104,14 @@ export class ExtractionsJeuComponent {
   private envoi: Subscription | null = null;
 
   constructor() {
-    // La liste suit le jeu ouvert : relue à son ouverture, vidée sans jeu (P-c : la réponse d'un jeu quitté est jetée).
+    // La liste suit le jeu ouvert : relue à son ouverture, vidée sans jeu (P-c : la réponse d'un jeu quitté est jetée,
+    // et une extraction en vol est DÉSABONNÉE — son message ne s'affiche jamais sous le jeu suivant).
     effect(() => {
       const id = this.jeu.jeuId();
       untracked(() => {
+        this.envoi?.unsubscribe();
+        this.envoi = null;
+        this.enCours.set(false);
         this.message.set(null);
         this.erreur.set(null);
         if (id) this.relire(id);

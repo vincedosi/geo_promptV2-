@@ -29,10 +29,14 @@ type LigneJeu = Tables<'zone_sets'>;
  */
 export const SANS_CONTROLE_ESPACE = Symbol('sans contrôle d’espace');
 
-const MESSAGE_JEU_INTROUVABLE = 'Jeu de zones introuvable dans cet espace.';
+/** Le 404 d'un jeu absent ou d'un autre espace — repris par l'extraction (`MESSAGES_RPC`) : une seule phrase. */
+export const MESSAGE_JEU_INTROUVABLE = 'Jeu de zones introuvable dans cet espace.';
 
-/** Où se gère un jeu, selon SON type : le message du 409 quand une route de l'autre type le reçoit. */
-const OU_SE_GERE: Record<TypeJeu, string> = {
+/**
+ * Où se gère un jeu, selon SON type : le message du 409 quand une route de l'autre type le reçoit. Repris par
+ * l'extraction (`MESSAGES_RPC`) et, côté Angular, par `MESSAGE_JEU_RISQUE` (verrouillé par `conversion-paritaire`).
+ */
+export const OU_SE_GERE: Record<TypeJeu, string> = {
   zone: "Ce jeu de zones se gère à l'étape ⑤ de la carte.",
   risque: 'Ce jeu de zones se gère dans le module risque.',
 };

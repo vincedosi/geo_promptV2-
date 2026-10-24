@@ -17,7 +17,8 @@ import type { createAdminClient } from '@/lib/auth';
 import type { Tables } from '@/types/database.types';
 import { zoneIntrouvable } from '@/lib/zones/session-zones';
 import { JeuZoneSchema, type ChoixPlateforme } from '@/lib/zones/jeu';
-import { refusDuChoix } from '@/lib/zones/conversion-serveur';
+import { lireRegles, refusDuChoix } from '@/lib/zones/conversion-serveur';
+import type { PlateformeGeo } from '@/lib/zones/plateformes';
 
 type ClientAdmin = ReturnType<typeof createAdminClient>;
 type LigneJeu = Tables<'zone_sets'>;
@@ -99,16 +100,18 @@ export async function prochaineVersion(supabase: ClientAdmin, orgId: string, nom
 
 /**
  * Vérifie chaque choix contre `plateformes_geo` : couple connu, maille `disponible`, rayon dans les bornes de la
- * plateforme. Une lecture, bornée par construction (≤ 4 plateformes × 6 mailles, clé primaire). `null` = admis.
+ * plateforme. La lecture commune `lireRegles` (bornée, validée). `null` = admis.
  */
 async function refusDesChoix(supabase: ClientAdmin, choix: ChoixPlateforme[]): Promise<NextResponse | null> {
-  const { data, error } = await supabase
-    .from('plateformes_geo').select('plateforme, maille, disponible, limites, note')
-    .in('plateforme', [...new Set(choix.map((c) => c.plateforme))]);
-  if (error) return panne('plateformes_geo', error.message);
+  let regles: PlateformeGeo[];
+  try {
+    regles = await lireRegles(supabase, choix.map((c) => c.plateforme));
+  } catch (e) {
+    return panne('plateformes_geo', e instanceof Error ? e.message : String(e));
+  }
 
   for (const c of choix) {
-    const refus = refusDuChoix(c, (data ?? []).find((l) => l.plateforme === c.plateforme && l.maille === c.maille));
+    const refus = refusDuChoix(c, regles.find((l) => l.plateforme === c.plateforme && l.maille === c.maille));
     if (refus) return erreur(refus, 400);
   }
   return null;
@@ -194,6 +197,10 @@ export async function lireJeuZone(supabase: ClientAdmin, jeu: LigneJeu): Promise
  * Les choix se remplacent par un UPSERT des nouveaux puis un DELETE CIBLÉ des plateformes retirées — et non
  * « DELETE tout puis INSERT » : si la seconde requête échoue, le jeu garde au pire une plateforme de trop (dite par le
  * 500), jamais zéro choix. L'erreur du DELETE est LUE (`CLAUDE.md`).
+ *
+ * Les CHOIX s'écrivent avant l'en-tête (revue finale du lot 5, point 8) : un échec des choix laisse le jeu tel quel,
+ * nom compris — la réponse « Modification impossible » dit alors vrai. Un renommage refusé ENSUITE (23505) le dit
+ * avec ce qui a déjà été écrit.
  */
 export async function reglerJeuZone(
   supabase: ClientAdmin,
@@ -204,17 +211,6 @@ export async function reglerJeuZone(
   if (corps.plateformes) {
     const refus = await refusDesChoix(supabase, corps.plateformes);
     if (refus) return refus;
-  }
-
-  const maj: Partial<LigneJeu> = {};
-  if (corps.nom !== undefined) maj.nom = corps.nom;
-  if (corps.description !== undefined) maj.description = corps.description;
-  if (corps.mode_plan !== undefined) maj.mode_plan = corps.mode_plan;
-  if (Object.keys(maj).length > 0) {
-    const { error } = await supabase.from('zone_sets').update(maj).eq('id', jeu.id).eq('org_id', jeu.org_id);
-    // 23505 : (espace, nom, version) existe déjà — un renommage vers un jeu existant, pas une panne.
-    if (error?.code === '23505') return erreur('Un jeu de zones de ce nom existe déjà dans cette version.', 409);
-    if (error) return panne('réglage', error.message, 'Modification impossible.');
   }
 
   if (corps.plateformes) {
@@ -231,6 +227,20 @@ export async function reglerJeuZone(
       return panne('retrait des plateformes', erreurRetrait.message,
         'Choix des plateformes partiellement enregistré : relancez l’enregistrement.');
     }
+  }
+
+  const maj: Partial<LigneJeu> = {};
+  if (corps.nom !== undefined) maj.nom = corps.nom;
+  if (corps.description !== undefined) maj.description = corps.description;
+  if (corps.mode_plan !== undefined) maj.mode_plan = corps.mode_plan;
+  if (Object.keys(maj).length > 0) {
+    const { error } = await supabase.from('zone_sets').update(maj).eq('id', jeu.id).eq('org_id', jeu.org_id);
+    // 23505 : (espace, nom, version) existe déjà — un renommage vers un jeu existant, pas une panne.
+    if (error?.code === '23505') {
+      return erreur('Un jeu de zones de ce nom existe déjà dans cette version.'
+        + (corps.plateformes ? ' Les choix des plateformes, eux, sont enregistrés.' : ''), 409);
+    }
+    if (error) return panne('réglage', error.message, 'Modification impossible.');
   }
 
   const apres = await relire();

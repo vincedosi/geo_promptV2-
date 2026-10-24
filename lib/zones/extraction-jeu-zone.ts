@@ -33,6 +33,7 @@ import {
   MESSAGES_CONVERSION, appliquerSeuil, estRetenue, exactitude, resumeExact, verifierLimites, type Avertissement, type Resume,
 } from './conversion';
 import { lireRegles, paverPourPlateforme, refusDuChoix } from './conversion-serveur';
+import { MESSAGE_JEU_INTROUVABLE, OU_SE_GERE } from './charger-jeu';
 import type { MembresParCanonique } from './plan';
 import { planCpDeZone } from './plan-jeu-zone';
 import { lireGroupesCp } from './groupes';
@@ -209,10 +210,13 @@ function convertir(ctx: Contexte, c: Choix, regles: readonly PlateformeGeo[]): P
   return c.maille === 'cercle' ? convertirCercles(ctx, c, regle) : convertirTerritoire(ctx, c, regle);
 }
 
-/** Les messages des codes métier de `creer_extraction_jeu_zone` : un code brut ne dit rien à qui lit l'écran. */
+/**
+ * Les messages des codes métier de `creer_extraction_jeu_zone` : un code brut ne dit rien à qui lit l'écran. Les deux
+ * premiers sont ceux du chargeur (`charger-jeu.ts`) : la même situation se dit par la même phrase.
+ */
 const MESSAGES_RPC: Record<string, string> = {
-  jeu_introuvable: 'Ce jeu de zones est introuvable.',
-  type_non_zone: 'Ce jeu de zones se gère dans le module risque.',
+  jeu_introuvable: MESSAGE_JEU_INTROUVABLE,
+  type_non_zone: OU_SE_GERE.risque,
   plan_vide: 'Ce jeu ne produit aucun plan : il n’y a rien à extraire.',
   unites_hors_choix: 'Le choix des plateformes a changé pendant l’extraction : relancez-la.',
 };

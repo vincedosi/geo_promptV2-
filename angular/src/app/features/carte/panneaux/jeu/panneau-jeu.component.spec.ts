@@ -1,24 +1,11 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import type { Type } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
-import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { of } from 'rxjs';
 import type { ZoneCustomResume } from '../../data/zones-custom.api';
-import { REGISTRE, Z1, Z2, couvertureCp, fournisseursJeu, urlCouverture } from '../../testing/jeu-factice';
+import { REGISTRE, Z1, Z2, couvertureCp, monterJeu, urlCouverture } from '../../testing/jeu-factice';
 import { PanneauJeuComponent } from './panneau-jeu.component';
 
-/** Le banc (`testing/jeu-factice.ts`) : navigation vers `url`, puis le composant, l'état de ⑤ à l'injecteur du banc. */
-async function monterJeu<T>(composant: Type<T>, url = '/carte', o: { lister?: () => unknown; entrees?: Record<string, unknown> } = {}) {
-  TestBed.configureTestingModule({ providers: [...fournisseursJeu(o.lister), provideHttpClientTesting()] });
-  const router = TestBed.inject(Router);
-  await router.navigateByUrl(url);
-  const fixture = TestBed.createComponent(composant);
-  for (const [cle, valeur] of Object.entries(o.entrees ?? {})) fixture.componentRef.setInput(cle, valeur);
-  const stable = async () => { for (let i = 0; i < 3; i++) { await new Promise((r) => setTimeout(r, 0)); await fixture.whenStable(); } };
-  await stable();
-  return { fixture, el: fixture.nativeElement as HTMLElement, stable, router, http: TestBed.inject(HttpTestingController), jeu: TestBed.inject(JeuZonesService) };
-}
+const BANC = { TestBed, HttpTestingController, provideHttpClientTesting };
 
 /** Un `ResizeObserver` qui annonce une largeur d'hôte fixe dès l'observation. */
 function largeurPanneau(px: number): void {
@@ -33,7 +20,7 @@ describe('mg-panneau-jeu', () => {
   beforeEach(() => largeurPanneau(400));
 
   it('ouvert sans zone : AUCUNE requête ; le vide renvoie à l’étape ③', async () => {
-    const { el, http, router, stable } = await monterJeu(PanneauJeuComponent);
+    const { el, http, router, stable } = await monterJeu(BANC, PanneauJeuComponent);
     http.verify();
     expect(el.querySelector('[data-jeu-vide]')?.textContent?.replace(/\s+/g, ' ').trim())
       .toBe('Aucune zone : choisissez une zone enregistrée, ou créez-en une à l’étape ③.');
@@ -44,7 +31,7 @@ describe('mg-panneau-jeu', () => {
   });
 
   it('une zone : le registre lu une fois, puis la couverture de la SEULE colonne ouverte (empilées)', async () => {
-    const { el, http, stable } = await monterJeu(PanneauJeuComponent, `/carte?zoneJeu=${Z1}`);
+    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`);
     http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
     await stable();
     http.expectOne(urlCouverture(Z1, 'cp')).flush(couvertureCp);
@@ -64,7 +51,7 @@ describe('mg-panneau-jeu', () => {
 
   it('900 px et plus : les quatre colonnes côte à côte, toutes ouvertes, chacune demande sa conversion (une à la fois)', async () => {
     largeurPanneau(1000);
-    const { el, http, stable } = await monterJeu(PanneauJeuComponent, `/carte?zoneJeu=${Z1}`);
+    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`);
     http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
     await stable();
     expect(el.querySelector('[data-colonnes]')!.classList).toContain('grid-cols-4');
@@ -76,7 +63,7 @@ describe('mg-panneau-jeu', () => {
 
   it('bandeau : zone, plateformes chiffrées, meilleur taux d’utile', async () => {
     const lister = () => of({ zones: [{ id: Z1, name: 'Lycées 5 km', recette: null, updated_at: 'v1' } as unknown as ZoneCustomResume] });
-    const { el, http, stable } = await monterJeu(PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister });
+    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister });
     http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
     await stable();
     http.expectOne(urlCouverture(Z1, 'cp')).flush(couvertureCp);
@@ -87,7 +74,7 @@ describe('mg-panneau-jeu', () => {
 
   it('la recette donnée par la liste change l’exactitude : une liste de CP se lit « forme », exacte au CP', async () => {
     const zone = { id: Z1, name: 'CP', recette: { v: 1, type: 'codes_postaux', codes: ['13001', '13002'] }, updated_at: 'v1' } as unknown as ZoneCustomResume;
-    const { el, http, stable } = await monterJeu(PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister: () => of({ zones: [zone] }) });
+    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister: () => of({ zones: [zone] }) });
     http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
     await stable();
     http.expectOne(urlCouverture(Z1, 'forme')).flush({ ...couvertureCp, decoupage: 'forme', lignes: [] });
@@ -98,7 +85,7 @@ describe('mg-panneau-jeu', () => {
 
   it('A-13 : la zone analysée en ④ est PROPOSÉE (pas prise) ; un clic la choisit', async () => {
     const lister = () => of({ zones: [{ id: Z2, name: 'Fos', recette: null } as unknown as ZoneCustomResume] });
-    const { el, http, jeu, stable } = await monterJeu(PanneauJeuComponent, `/carte?zoneAnalyse=${Z2}`, { lister });
+    const { el, http, jeu, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneAnalyse=${Z2}`, { lister });
     expect(jeu.zoneId()).toBeNull();
     http.verify();
     expect(el.querySelector('[data-proposee]')?.textContent?.trim()).toBe('Partir de la zone analysée : Fos');

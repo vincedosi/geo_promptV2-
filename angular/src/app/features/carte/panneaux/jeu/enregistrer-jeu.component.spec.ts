@@ -1,22 +1,9 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import type { Type } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
-import { JeuZonesService } from '../../etat/jeu-zones.service';
-import { J1, REGISTRE, Z1, fournisseursJeu } from '../../testing/jeu-factice';
+import { J1, REGISTRE, Z1, Z2, monterJeu } from '../../testing/jeu-factice';
 import { EnregistrerJeuComponent } from './enregistrer-jeu.component';
 
-/** Le banc (`testing/jeu-factice.ts`) : navigation vers `url`, puis le composant, l'état de ⑤ à l'injecteur du banc. */
-async function monterJeu<T>(composant: Type<T>, url: string, entrees: Record<string, unknown> = {}) {
-  TestBed.configureTestingModule({ providers: [...fournisseursJeu(), provideHttpClientTesting()] });
-  const router = TestBed.inject(Router);
-  await router.navigateByUrl(url);
-  const fixture = TestBed.createComponent(composant);
-  for (const [cle, valeur] of Object.entries(entrees)) fixture.componentRef.setInput(cle, valeur);
-  const stable = async () => { for (let i = 0; i < 3; i++) { await new Promise((r) => setTimeout(r, 0)); await fixture.whenStable(); } };
-  await stable();
-  return { fixture, el: fixture.nativeElement as HTMLElement, stable, router, http: TestBed.inject(HttpTestingController), jeu: TestBed.inject(JeuZonesService) };
-}
+const BANC = { TestBed, HttpTestingController, provideHttpClientTesting };
 
 const detail = {
   jeu: { id: J1, type: 'zone', nom: 'Lycées BdR', description: null, version: 1, created_at: '2026-10-24', custom_geo_zone_id: Z1, cible: 'ind', mode_plan: 'pondere' },
@@ -26,7 +13,7 @@ const detail = {
 
 describe('mg-enregistrer-jeu', () => {
   it('« Enregistrer le jeu » : UN POST (nom proposé, zone, cible, mode, choix) ; un double clic n’en lance pas deux ; URL réécrite', async () => {
-    const { el, http, router, stable } = await monterJeu(EnregistrerJeuComponent, `/carte?zoneJeu=${Z1}&mailles=dv360.cp.30`, { nomPropose: 'Lycées 5 km' });
+    const { el, http, router, stable } = await monterJeu(BANC, EnregistrerJeuComponent, `/carte?zoneJeu=${Z1}&mailles=dv360.cp.30`, { entrees: { nomPropose: 'Lycées 5 km' } });
     http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
     await stable();
     expect((el.querySelector('input') as HTMLInputElement).value).toBe('Lycées 5 km');
@@ -54,8 +41,22 @@ describe('mg-enregistrer-jeu', () => {
     expect(el.querySelector('[data-message]')?.textContent?.trim()).toBe('Jeu enregistré.');
   });
 
+  it('P-c : un POST qui répond après un changement de zone n’est ni adopté ni dit « Jeu enregistré. » (revue finale, point 4)', async () => {
+    const { el, http, jeu, stable } = await monterJeu(BANC, EnregistrerJeuComponent, `/carte?zoneJeu=${Z1}`, { entrees: { nomPropose: 'Lycées 5 km' } });
+    http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
+    await stable();
+    el.querySelector<HTMLButtonElement>('[data-enregistrer]')!.click();
+    await stable();
+    const post = http.expectOne((r) => r.method === 'POST' && r.url === '/api/zones/jeux');
+    jeu.choisirZone(Z2);
+    post.flush({ id: J1, version: 1 });
+    await stable();
+    expect(jeu.jeuId()).toBeNull();
+    expect(el.querySelector('[data-message], [data-erreur]')).toBeNull();
+  });
+
   it('jeu ouvert : « Enregistrer les réglages » → PATCH ; un refus (409) se lit tel que la route le dit', async () => {
-    const { el, http, stable } = await monterJeu(EnregistrerJeuComponent, `/carte?jeu=${J1}`);
+    const { el, http, stable } = await monterJeu(BANC, EnregistrerJeuComponent, `/carte?jeu=${J1}`);
     http.expectOne(`/api/zones/jeux/${J1}`).flush(detail);
     http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
     await stable();

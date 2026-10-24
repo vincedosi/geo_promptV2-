@@ -73,10 +73,12 @@ export class EnregistrerJeuComponent {
     this.erreur.set(null);
     const id = this.jeu.jeuId();
     const plateformes = this.choix();
-    const fin = { error: (e: unknown) => this.terminer(null, messageErreurCouverture(e)) };
+    // P-c : une réponse arrivée après un changement de zone ou de jeu n'est ni adoptée ni dite sous le nouveau.
+    const quitte = () => this.jeu.zoneId() !== zone || this.jeu.jeuId() !== id;
+    const fin = { error: (e: unknown) => this.terminer(quitte, null, messageErreurCouverture(e)) };
     if (id) {
       this.envoi = this.api.regler(id, { nom, mode_plan: this.jeu.modePlan(), plateformes }).subscribe({
-        next: (r) => this.terminer(r, 'Réglages enregistrés.'), ...fin,
+        next: (r) => this.terminer(quitte, r, 'Réglages enregistrés.'), ...fin,
       });
       return;
     }
@@ -84,7 +86,7 @@ export class EnregistrerJeuComponent {
     const modePlan = this.jeu.modePlan();
     const ouvert = this.jeu.jeu();
     this.envoi = this.api.enregistrer({ nom, jeu: { type: 'zone', zone_id: zone, cible, mode_plan: modePlan, plateformes } }).subscribe({
-      next: (r) => this.terminer({
+      next: (r) => this.terminer(quitte, {
         jeu: {
           id: r.id, type: 'zone', nom, description: null, version: r.version, created_at: new Date().toISOString(),
           custom_geo_zone_id: zone, cible, mode_plan: modePlan,
@@ -96,9 +98,10 @@ export class EnregistrerJeuComponent {
     });
   }
 
-  private terminer(detail: DetailJeuZone | null, texte: string): void {
+  private terminer(quitte: () => boolean, detail: DetailJeuZone | null, texte: string): void {
     this.envoi = null;
     this.enCours.set(false);
+    if (quitte()) return;
     if (detail) {
       this.jeu.adopter(detail);
       this.message.set(texte);

@@ -1,28 +1,15 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import type { Type } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
 import { JeuCarteService } from '../../couches/jeu-carte.service';
-import { JeuZonesService } from '../../etat/jeu-zones.service';
 import type { PlateformeGeo } from '../../logique/jeu/plateformes';
-import { REGISTRE, Z1, couvertureCp, fournisseursJeu, regle, urlCouverture } from '../../testing/jeu-factice';
+import { REGISTRE, Z1, couvertureCp, monterJeu, regle, urlCouverture } from '../../testing/jeu-factice';
 import { ColonnePlateformeComponent } from './colonne-plateforme.component';
 
-/** Le banc (`testing/jeu-factice.ts`) : navigation vers `url`, puis le composant, l'état de ⑤ à l'injecteur du banc. */
-async function monterJeu<T>(composant: Type<T>, url = '/carte', o: { lister?: () => unknown; entrees?: Record<string, unknown> } = {}) {
-  TestBed.configureTestingModule({ providers: [...fournisseursJeu(o.lister), provideHttpClientTesting()] });
-  const router = TestBed.inject(Router);
-  await router.navigateByUrl(url);
-  const fixture = TestBed.createComponent(composant);
-  for (const [cle, valeur] of Object.entries(o.entrees ?? {})) fixture.componentRef.setInput(cle, valeur);
-  const stable = async () => { for (let i = 0; i < 3; i++) { await new Promise((r) => setTimeout(r, 0)); await fixture.whenStable(); } };
-  await stable();
-  return { fixture, el: fixture.nativeElement as HTMLElement, stable, router, http: TestBed.inject(HttpTestingController), jeu: TestBed.inject(JeuZonesService) };
-}
+const BANC = { TestBed, HttpTestingController, provideHttpClientTesting };
 
 /** Une colonne montée sur une zone de l'URL, le registre lu. */
 async function colonne(plateforme: string, registre: PlateformeGeo[] = REGISTRE) {
-  const o = await monterJeu(ColonnePlateformeComponent, `/carte?zoneJeu=${Z1}`, { entrees: { plateforme } });
+  const o = await monterJeu(BANC, ColonnePlateformeComponent, `/carte?zoneJeu=${Z1}`, { entrees: { plateforme } });
   o.http.expectOne('/api/zones/plateformes').flush({ plateformes: registre });
   await o.stable();
   return o;
@@ -74,6 +61,14 @@ describe('mg-colonne-plateforme', () => {
     ]);
     TestBed.resetTestingModule();
     expect((await avec(2))[0]).toBe('Palier sous 5 000 personnes : 2 000 achetées, la plateforme peut refuser la diffusion.');
+  });
+  it('la phrase du seuil nomme la maille, jusqu’au bout : « …une telle part de son département » (revue finale, point 3)', async () => {
+    const { el, http, jeu, stable } = await colonne('tiktok', [regle({ plateforme: 'tiktok', maille: 'departement' })]);
+    jeu.valider('tiktok');
+    http.expectOne(urlCouverture(Z1, 'departement')).flush({ ...couvertureCp, decoupage: 'departement' });
+    await stable();
+    expect(texte(el, 'mg-dilution p')).toContain('Un département n’est retenu que si');
+    expect(texte(el, 'mg-dilution p')).toContain('une telle part de son département.');
   });
   it('maille exacte (polygone) : « Exacte : aucune perte », ni seuil ni rayon ; badge neutre « À vérifier »', async () => {
     const { el, http, jeu, stable } = await colonne('ttd');

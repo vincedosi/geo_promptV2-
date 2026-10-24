@@ -136,6 +136,19 @@ describe('JeuCarteService (lot 5, T11)', () => {
     TestBed.tick();
     expect(m.communes.map((c) => c.codes)).toEqual([['10000']]);
     expect(m.service.communesTronquees()).toBe(true);
+    expect(m.service.communesIllisibles()).toBe(false);
+  });
+
+  it('plus de RETENUES que le plafond de la route : rien n’est lu (la route répondrait 400), et c’est dit (revue finale, point 12)', async () => {
+    const m = monter();
+    const lignes = Array.from({ length: MAX_CODES_CONTOURS + 2 }, (_, i) => ({ code: String(10000 + i), nom: null, commune: null, n_carreaux: 1, pop_en_zone: 5, pop_totale: 10, part: 50 }));
+    m.choix.update((c) => ({ ...c, tiktok: { maille: 'commune', seuil: 20 } }));
+    m.couvertures.set({ commune: { ...couvertureCp, decoupage: 'commune', lignes } });
+    m.service.regarder('tiktok');
+    TestBed.tick();
+    expect(m.communes).toHaveLength(0);
+    expect(m.service.communesIllisibles()).toBe(true);
+    expect(m.service.communesTronquees()).toBe(false);
   });
 
   it('④ puis ⑤ : la couverture est évincée (une choroplèthe) ; ⑤ évincé à son tour se retire, « Voir sur la carte » le rend', () => {

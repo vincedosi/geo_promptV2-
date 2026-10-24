@@ -4,7 +4,7 @@ import { firstValueFrom, map } from 'rxjs';
 import { EnteteSectionComponent } from '../../../../ui/entete-section/entete-section.component';
 import { type JeuListe, JeuxApi } from '../../data/jeux.api';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
-import { LectureAnnulable } from '../../etat/lecture-annulable';
+import { LectureAnnulable, surChangement } from '../../etat/lecture-annulable';
 import { ouvrirJeuListe } from '../../etat/ouvrir-jeu';
 import { messageErreurCouverture } from '../../logique/analyses/couverture-erreurs';
 import { PASTILLE, PASTILLE_INACTIVE } from '../analyse/styles-analyse';
@@ -17,7 +17,9 @@ import { BADGE_TYPE_JEU, detailJeu } from '../zones/jeux-de-zones.component';
  * zone pose `?jeu=`. Supprimer passe par le dialogue de confirmation des zones (`mg-dialogue-suppression-zone`,
  * titre et texte du jeu) ; un jeu ouvert supprimé est fermé, sa zone reste.
  *
- * Lue à la PREMIÈRE ouverture de la section (repliée par défaut), une fois — le panneau reste monté.
+ * Lue à la PREMIÈRE ouverture de la section (repliée par défaut), une fois — le panneau reste monté. Un jeu tout juste
+ * enregistré ou renommé (adopté sans relecture) que la liste ne porte pas la périme : relue tout de suite si la section
+ * est ouverte, sinon à sa prochaine ouverture (revue finale du lot 5, point 7).
  */
 @Component({
   selector: 'mg-bibliotheque-jeux',
@@ -64,9 +66,23 @@ export class BibliothequeJeuxComponent {
     id: j.id, nom: j.nom, version: j.version, badge: BADGE_TYPE_JEU[j.type], detail: detailJeu(j), jeu: j,
   })));
 
+  constructor() {
+    surChangement(() => this.jeu.jeu(), () => {
+      const d = this.jeu.jeu();
+      const liste = this.lecture.resultat();
+      if (!d || !liste || liste.some((j) => j.id === d.jeu.id && j.nom === d.jeu.nom)) return;
+      this.lecture.perimer();
+      if (this.ouverte()) this.charger();
+    });
+  }
+
   protected basculer(ouverte: boolean): void {
     this.ouverte.set(ouverte);
-    if (ouverte) this.lecture.chargerUneFois(() => this.api.lister().pipe(map((r) => (Array.isArray(r?.jeux) ? r.jeux : []))));
+    if (ouverte) this.charger();
+  }
+
+  private charger(): void {
+    this.lecture.chargerUneFois(() => this.api.lister().pipe(map((r) => (Array.isArray(r?.jeux) ? r.jeux : []))));
   }
 
   protected ouvrir(j: JeuListe): void {

@@ -1,21 +1,9 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import type { Type } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
-import { JeuZonesService } from '../../etat/jeu-zones.service';
-import { J1, REGISTRE, Z1, fournisseursJeu } from '../../testing/jeu-factice';
+import { J1, REGISTRE, Z1, monterJeu } from '../../testing/jeu-factice';
 import { ExtractionsJeuComponent, MESSAGE_REPONSE_PERDUE } from './extractions-jeu.component';
 
-/** Le banc (`testing/jeu-factice.ts`) : navigation vers `url`, puis le composant, l'état de ⑤ à l'injecteur du banc. */
-async function monterJeu<T>(composant: Type<T>, url: string) {
-  TestBed.configureTestingModule({ providers: [...fournisseursJeu(), provideHttpClientTesting()] });
-  const router = TestBed.inject(Router);
-  await router.navigateByUrl(url);
-  const fixture = TestBed.createComponent(composant);
-  const stable = async () => { for (let i = 0; i < 3; i++) { await new Promise((r) => setTimeout(r, 0)); await fixture.whenStable(); } };
-  await stable();
-  return { fixture, el: fixture.nativeElement as HTMLElement, stable, router, http: TestBed.inject(HttpTestingController), jeu: TestBed.inject(JeuZonesService) };
-}
+const BANC = { TestBed, HttpTestingController, provideHttpClientTesting };
 
 const detail = {
   jeu: { id: J1, type: 'zone', nom: 'Lycées BdR', description: null, version: 1, created_at: '2026-10-24', custom_geo_zone_id: Z1, cible: 'ind', mode_plan: 'pondere' },
@@ -34,7 +22,7 @@ const version = (v: number) => ({
 
 /** Un jeu ouvert par l'URL, la liste des versions lue. */
 async function ouvert(versions = [version(1)]) {
-  const o = await monterJeu(ExtractionsJeuComponent, `/carte?jeu=${J1}`);
+  const o = await monterJeu(BANC, ExtractionsJeuComponent, `/carte?jeu=${J1}`);
   o.http.expectOne(`/api/zones/jeux/${J1}`).flush(detail);
   o.http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
   await o.stable();
@@ -78,6 +66,17 @@ describe('mg-extractions-jeu', () => {
     post.flush({ ok: true, deja_extraite: true, id: 'x1', version: 1 });
     await stable();
     expect(texte(el, '[data-message]')).toBe('Cette extraction existe déjà (v1).');
+  });
+
+  it('P-c : une extraction en vol quand on ouvre un AUTRE jeu est désabonnée — aucun message sous le nouveau jeu (revue finale, point 4)', async () => {
+    const { el, http, router, stable } = await ouvert();
+    el.querySelector<HTMLButtonElement>('[data-extraire]')!.click();
+    await stable();
+    const post = http.expectOne((r) => r.method === 'POST' && r.url === LISTE);
+    await router.navigateByUrl('/carte?jeu=0b7ece33-4903-4a0b-a57a-f6c54e78a729');
+    await stable();
+    expect(post.cancelled).toBe(true);
+    expect(el.querySelector('[data-message], [data-erreur]')).toBeNull();
   });
 
   it('réponse PERDUE (statut 0) : ni succès ni échec affirmés — « vérifiez la liste des versions », et la liste est relue', async () => {

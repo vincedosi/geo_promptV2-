@@ -7,6 +7,8 @@ import * as A from '../../../angular/src/app/features/carte/logique/jeu/conversi
 import * as AP from '../../../angular/src/app/features/carte/logique/jeu/plateformes';
 import type * as AC from '../../../angular/src/app/features/carte/logique/analyses/couverture';
 import type { Recette } from '@/lib/zones/recette';
+import { OU_SE_GERE } from '@/lib/zones/charger-jeu';
+import { MESSAGE_JEU_RISQUE } from '../../../angular/src/app/features/carte/logique/jeu/ecran';
 
 /**
  * ⑤ Jeu de zones (lot 5, T9) : la conversion PURE est la MÊME des deux côtés (A-5) — l'écran rejoue le seuil sans
@@ -48,6 +50,9 @@ describe('conversion d’une zone : Angular = serveur', () => {
   });
   it('mêmes messages de refus', () => {
     expect(A.MESSAGES_CONVERSION).toEqual(S.MESSAGES_CONVERSION);
+  });
+  it('un jeu risque reçu par ⑤ se dit par la phrase du chargeur serveur (revue finale du lot 5, point 9)', () => {
+    expect(MESSAGE_JEU_RISQUE).toBe(OU_SE_GERE.risque);
   });
   it('mêmes réponses sur les mêmes cas', () => {
     const lignes = [

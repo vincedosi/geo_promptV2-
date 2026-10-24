@@ -3,19 +3,19 @@
  * comme maille, ses limites, sa doc officielle, la date du relevé et ce qui reste « à vérifier ». Lu par ⑤ à la
  * première ouverture du sélecteur, une fois par page.
  *
- * Ordre : session (401 / 403, rien en base) → UNE lecture de table, triée par `ordre`, bornée à
- * `MAX_PLATEFORMES_GEO + 1` lignes (au-delà : 500 dit, jamais une liste coupée) → chaque ligne passe le schéma.
+ * Ordre : session (401 / 403, rien en base) → UNE lecture de table par `lireRegles` (la lecture commune du serveur) :
+ * triée par `ordre`, bornée à `MAX_PLATEFORMES_GEO + 1` lignes (au-delà : 500 dit, jamais une liste coupée), chaque
+ * ligne passée au schéma.
  * Pas de quota : une lecture de ≤ 24 lignes, gardée 5 minutes par le navigateur
  * (`private` : réservée à un utilisateur connecté). La table n'appartient à aucun espace ; l'espace actif n'est exigé
  * que par cohérence avec les autres routes de ⑤.
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth } from '@/lib/api/middleware';
 import { espaceDeZone } from '@/lib/zones/session-zones';
-import { MAX_PLATEFORMES_GEO, PlateformeGeoSchema, type PlateformeGeo } from '@/lib/zones/plateformes';
-import { COLONNES_PLATEFORMES_GEO } from '@/lib/zones/conversion-serveur';
+import type { PlateformeGeo } from '@/lib/zones/plateformes';
+import { lireRegles } from '@/lib/zones/conversion-serveur';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,18 +30,12 @@ export async function GET(req: NextRequest) {
   const s = espaceDeZone(await requireAuth(req));
   if (!s.ok) return s.reponse;
 
-  const { data, error } = await createAdminClient()
-    .from('plateformes_geo')
-    .select(COLONNES_PLATEFORMES_GEO)
-    .order('ordre', { ascending: true })
-    .limit(MAX_PLATEFORMES_GEO + 1);
-  if (error) return echec('lecture', error);
-  const rows = data ?? [];
-  if (rows.length > MAX_PLATEFORMES_GEO) return echec('borne dépassée', { lignes: rows.length });
-
-  const lignes = z.array(PlateformeGeoSchema).safeParse(rows);
-  if (!lignes.success) return echec('ligne refusée par le schéma', lignes.error.issues);
-
-  const plateformes: PlateformeGeo[] = lignes.data;
+  let plateformes: PlateformeGeo[];
+  try {
+    plateformes = await lireRegles(createAdminClient());
+  } catch (e) {
+    // Erreur Postgres, borne dépassée ou ligne hors schéma : le détail reste dans le journal.
+    return echec('lecture', e);
+  }
   return NextResponse.json({ plateformes }, { headers: { 'Cache-Control': 'private, max-age=300' } });
 }

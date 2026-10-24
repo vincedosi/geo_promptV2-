@@ -1,21 +1,9 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import type { Type } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
-import { JeuZonesService } from '../../etat/jeu-zones.service';
-import { J1, REGISTRE, Z1, fournisseursJeu } from '../../testing/jeu-factice';
+import { J1, REGISTRE, Z1, monterJeu } from '../../testing/jeu-factice';
 import { BibliothequeJeuxComponent } from './bibliotheque-jeux.component';
 
-/** Le banc (`testing/jeu-factice.ts`) : navigation vers `url`, puis le composant, l'état de ⑤ à l'injecteur du banc. */
-async function monterJeu<T>(composant: Type<T>, url: string) {
-  TestBed.configureTestingModule({ providers: [...fournisseursJeu(), provideHttpClientTesting()] });
-  const router = TestBed.inject(Router);
-  await router.navigateByUrl(url);
-  const fixture = TestBed.createComponent(composant);
-  const stable = async () => { for (let i = 0; i < 3; i++) { await new Promise((r) => setTimeout(r, 0)); await fixture.whenStable(); } };
-  await stable();
-  return { fixture, el: fixture.nativeElement as HTMLElement, stable, router, http: TestBed.inject(HttpTestingController), jeu: TestBed.inject(JeuZonesService) };
-}
+const BANC = { TestBed, HttpTestingController, provideHttpClientTesting };
 
 const RISQUE = '0b7ece33-4903-4a0b-a57a-f6c54e78a729';
 const ligne = (id: string, type: 'risque' | 'zone', nom: string) => ({
@@ -26,7 +14,7 @@ const ligne = (id: string, type: 'risque' | 'zone', nom: string) => ({
 const LISTE = { jeux: [ligne(RISQUE, 'risque', 'Vallée de la chimie'), ligne(J1, 'zone', 'Lycées BdR')] };
 
 async function ouverte(url = '/carte') {
-  const o = await monterJeu(BibliothequeJeuxComponent, url);
+  const o = await monterJeu(BANC, BibliothequeJeuxComponent, url);
   o.el.querySelector<HTMLElement>('mg-entete-section')!.click();
   await o.stable();
   o.http.expectOne('/api/zones/jeux?type=tous').flush(LISTE);
@@ -36,7 +24,7 @@ async function ouverte(url = '/carte') {
 
 describe('mg-bibliotheque-jeux', () => {
   it('lue à la PREMIÈRE ouverture seulement, une fois ; les deux types, badge neutre', async () => {
-    const o = await monterJeu(BibliothequeJeuxComponent, '/carte');
+    const o = await monterJeu(BANC, BibliothequeJeuxComponent, '/carte');
     o.http.verify();
     const entete = o.el.querySelector<HTMLElement>('mg-entete-section')!;
     entete.click();
@@ -48,6 +36,21 @@ describe('mg-bibliotheque-jeux', () => {
     await o.stable();
     o.http.verify();
     expect([...o.el.querySelectorAll('[data-type-jeu]')].map((b) => b.textContent?.trim())).toEqual(['Risque', 'Zone']);
+  });
+
+  it('un jeu tout juste enregistré (adopté) absent de la liste la fait RELIRE, section ouverte (revue finale, point 7)', async () => {
+    const { el, http, jeu, stable } = await ouverte(`/carte?zoneJeu=${Z1}`);
+    http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
+    await stable();
+    const NEUF = '9a1b2c3d-4e5f-4a6b-8c7d-0e1f2a3b4c5d';
+    jeu.adopter({
+      jeu: { id: NEUF, type: 'zone', nom: 'Neuf', description: null, version: 1, created_at: '', custom_geo_zone_id: Z1, cible: 'ind', mode_plan: 'pondere' },
+      zone: { id: Z1, nom: 'Lycées 5 km', recette: null }, plateformes: [],
+    });
+    await stable();
+    http.expectOne('/api/zones/jeux?type=tous').flush({ jeux: [ligne(NEUF, 'zone', 'Neuf'), ...LISTE.jeux] });
+    await stable();
+    expect(el.querySelector(`[data-jeu-liste="${NEUF}"]`)).not.toBeNull();
   });
 
   it('ouvrir un jeu RISQUE navigue vers le module (`ouvrirJeuDeZones`) ; un jeu de ZONE pose ?jeu=', async () => {
