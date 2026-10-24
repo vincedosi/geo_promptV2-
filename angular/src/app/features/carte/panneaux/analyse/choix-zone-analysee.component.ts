@@ -24,6 +24,11 @@ import { LIBELLE_CHAMP, LISTE_CHAMP, PASTILLE, PASTILLE_INACTIVE } from './style
  * ③, le score et « Mes zones », lecture partagée) : lu seulement quand la liste porte un tel seuil (T8, réserve 4 de T7).
  * Si la liste ne peut pas être lue alors qu'une zone est déjà choisie (lien), l'échec est dit SOUS la zone, sans
  * ouvrir la liste (relecture de T7).
+ *
+ * ⑤ Jeu de zones (lot 5, T10) le monte AUSSI, sans copie : `libelle` renomme le champ (« Zone ») ; `proposee` est la
+ * zone analysée en ④ (A-13), PROPOSÉE sans être prise (« Partir de la zone analysée : <nom> » — un lien de l'URL,
+ * qui fait lire la liste une fois pour la nommer) ; `lue` rend la ligne de la zone choisie dès que la liste la connaît
+ * (recette et date de mise à jour : `JeuZonesService.choisirZone(id, recette, maj)`).
  */
 const SANS_ESPACE = 'Aucun espace actif : impossible de lister les zones.';
 
@@ -32,7 +37,7 @@ const SANS_ESPACE = 'Aucun espace actif : impossible de lister les zones.';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="flex flex-col gap-1.5" data-choix-zone>
-      <div [class]="LIBELLE_CHAMP">Zone analysée</div>
+      <div [class]="LIBELLE_CHAMP">{{ libelle() }}</div>
       @if (zoneId() && !ouvert()) {
         <div class="flex flex-col gap-1 rounded-[6px] border-fin border-subtle bg-elevated px-[10px] py-2" data-zone-choisie>
           <span class="text-[12px] text-primary">{{ zoneChoisie()?.name ?? (chargement() ? 'Chargement…' : 'Zone enregistrée') }}</span>
@@ -45,6 +50,11 @@ const SANS_ESPACE = 'Aucun espace actif : impossible de lister les zones.';
           </div>
         </div>
       } @else if (!ouvert()) {
+        @if (proposee(); as p) {
+          <button type="button" [class]="PASTILLE + ' ' + PASTILLE_INACTIVE + ' self-start text-left'" (click)="choisir(p)" data-proposee>
+            Partir de la zone analysée{{ nomPropose() ? ' : ' + nomPropose() : '' }}
+          </button>
+        }
         <button type="button" [class]="PASTILLE + ' ' + PASTILLE_INACTIVE + ' self-start'" (click)="ouvrir()" data-ouvrir>Choisir une zone</button>
       } @else {
         <div class="flex flex-col gap-1.5" data-liste-zones>
@@ -86,8 +96,14 @@ export class ChoixZoneAnalyseeComponent {
 
   /** La zone analysée courante (`ZoneAnalyseeService.zoneId()`), lue en fonction (P-d). */
   readonly zoneId = input<string | null>(null);
+  /** Le libellé du champ : « Zone analysée » en ④, « Zone » en ⑤. */
+  readonly libelle = input('Zone analysée');
+  /** Une zone PROPOSÉE quand aucune n'est choisie (A-13, ⑤ ← ④) ; `null` sans proposition. */
+  readonly proposee = input<string | null>(null);
   /** L'id choisi, ou `null` (« Retirer »). */
   readonly choisie = output<string | null>();
+  /** La ligne de la zone choisie, dès que la liste la connaît (une fois par zone et par lecture). */
+  readonly lue = output<ZoneCustomResume>();
 
   protected readonly LIBELLE_CHAMP = LIBELLE_CHAMP;
   protected readonly LISTE_CHAMP = LISTE_CHAMP;
@@ -116,6 +132,10 @@ export class ChoixZoneAnalyseeComponent {
     const id = this.zoneId();
     return id ? this.zones().find((z) => z.id === id) ?? null : null;
   });
+  protected readonly nomPropose = computed(() => {
+    const id = this.proposee();
+    return id ? this.zones().find((z) => z.id === id)?.name ?? null : null;
+  });
   protected readonly recetteChoisie = computed(() => {
     const z = this.zoneChoisie();
     return z?.recette ? libelleRecette(z.recette, this.indicateurs()) : null;
@@ -123,9 +143,15 @@ export class ChoixZoneAnalyseeComponent {
 
 
   constructor() {
-    // Une zone déjà choisie (lien) : la liste est lue pour dire son nom. Aucune zone : rien n'est lu.
+    // Une zone déjà choisie ou proposée (lien) : la liste est lue pour dire son nom. Aucune zone : rien n'est lu.
     effect(() => {
-      if (this.zoneId()) untracked(() => this.charger());
+      if (this.zoneId() || this.proposee()) untracked(() => this.charger());
+    });
+    // P-a : l'effet ne fait que lire ; l'émission est hors suivi. Une ligne émise une fois (même objet = même lecture).
+    let emise: ZoneCustomResume | null = null;
+    effect(() => {
+      const z = this.zoneChoisie();
+      if (z && z !== emise) untracked(() => { emise = z; this.lue.emit(z); });
     });
     // Le patron de « Mes zones » : une lecture, seulement si un seuil sur territoires est listé.
     effect(() => {

@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('custom_geo_zones')
-    .select('id, name, description, source_type, source_metadata, recette, feature_count_iris, feature_count_cp, created_at, created_by, bbox')
+    .select('id, name, description, source_type, source_metadata, recette, feature_count_iris, feature_count_cp, created_at, updated_at, created_by, bbox')
     .eq('org_id', orgId)
     .order('created_at', { ascending: false })
     .limit(500);

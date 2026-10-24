@@ -56,8 +56,8 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   l'étape courante + raccourcis), Réglages (apparence, back office). Un tiroir à la fois, Échap le ferme.
 - **Dans la barre** : « Script bidding DV360 » (lien `?customZone=`) et « Plan média (n) » quand ils ont un objet,
   « Tout effacer », mode immersif (sortie : bouton de la boîte à outils ou Échap), thème, session et espace.
-- ⑤ Jeu de zones (le convertisseur zones → codes postaux achetables, lot 5) affiche « Bientôt dans le parcours. »,
-  sans lien : React n'a rien d'équivalent hors du module risque. ⑥-⑧ aussi, avec un lien vers l'écran React si
+- ⑤ Jeu de zones (lot 5) a son panneau (`panneaux/jeu/`, voir plus bas) : React n'a rien d'équivalent hors du module
+  risque. ⑥-⑧ affichent « Bientôt dans le parcours. », avec un lien vers l'écran React si
   `urlApplicationReact` est posé. Les outils de ③ et ④ n'ont pas bougé : rayons et isochrones comme types de zone de
   ③, couverture par territoire dans ④, c'est aux lots 4-5.
 - **La pastille « renseignée »** d'une étape (`etatsEtapes`, `logique/parcours.ts`, table `RENSEIGNEE_PAR`) : ① un
@@ -294,6 +294,31 @@ la plomberie ; l'écran est T10, la couche T11.
 - **Refus** : 404 zone → `?zoneJeu=` retiré, « Zone introuvable dans cet espace. » ; 404 jeu → `?jeu=` retiré,
   « Jeu de zones introuvable dans cet espace. » ; jeu risque → « Ce jeu de zones se gère dans le module risque. » ;
   autre refus d'une conversion → `erreurs[plateforme]`, la zone reste.
+- **Recette et date de la liste (T10)** : une zone arrivée par l'URL est lue SANS date ; quand la liste la date,
+  `choisirZone(id, recette, maj)` ADOPTE la date (les couvertures lues passent sous la clé datée, `daterCouvertures`,
+  et une lecture en vol n'est pas annulée : la clé d'une tâche ne porte pas la date, celle du rangement se calcule à
+  l'arrivée). Une AUTRE date (zone recalculée en ③) vide tout. `GET /api/custom-geo/list` rend `updated_at`.
+- **Cible et mode de plan (T10)** : `choisirCible` / `choisirMode` avant enregistrement, hors URL (R4 de T9) ; un jeu
+  ouvert garde sa cible, son mode se change et part au PATCH. `choixDeBase` / `choixNeuf` (purs, `bilan.ts`).
+
+## ⑤ Jeu de zones : l'écran (lot 5, T10, 2026-10-24)
+
+| Fichier | Rôle |
+|---|---|
+| `panneaux/jeu/panneau-jeu.component.ts` | `mg-panneau-jeu`, monté par la page sous `@case ('jeu')` : Source (`mg-choix-zone-analysee` de ④ RÉUTILISÉ, champ « Zone » ; zone analysée PROPOSÉE, A-13 ; population et surface de la forme lues dans une conversion déjà là), cible (`mg-choix-cible`), mode de plan (`mg-mode-plan` du risque) ; bandeau `mg-kpi` (zone, plateformes chiffrées, meilleur taux d'utile, extraction) ; une colonne par plateforme ; phrase Q-J. Seul à appeler `valider`, pour les colonnes OUVERTES |
+| `panneaux/jeu/colonne-plateforme.component.ts` | `mg-colonne-plateforme` : maille, badge neutre « À vérifier », date du relevé, « Doc officielle » (`doc_url`), rayon (cercle, borné par la ligne, réglé au relâchement), seuil (`mg-dilution` du risque, au relâchement), chiffres en JetBrains Mono (unités retenues / touchées, taux d'utile, habitants manqués et leur part, diffusion hors zone), « Exacte : aucune perte », avertissements de `verifierLimites`, cause d'un pavage vide (`motif_vide`) |
+| `panneaux/jeu/choix-maille.component.ts` | `mg-choix-maille` : boutons segmentés des lignes du registre, natives d'abord ; `disponible = false` grisée, raison en infobulle et sous le bouton |
+| `logique/jeu/ecran.ts` | PUR : noms des plateformes, unités par maille (`Record<Maille, …>`, jamais un ternaire cp/iris), phrases d'avertissement et de pavage vide, bornes de la réglette de rayon (registre, jamais un nombre écrit) |
+| `testing/jeu-factice.ts` | Banc des écrans de ⑤ : état réel + routes réelles derrière `HttpTestingController` |
+
+- **Colonnes** : côte à côte dès 900 px de PANNEAU (`ResizeObserver` sur l'hôte : la poignée du panneau d'étape décide,
+  pas la fenêtre) ; plus étroit, empilées, une seule dépliée. Une zone choisie ne lit que la maille des colonnes
+  ouvertes ; l'effet repasse quand le registre arrive et quand un choix change (aucune requête pour un seuil
+  territorial, une au relâchement pour un cercle).
+- **Pastille ⑤** : `?zoneJeu=` ou `?jeu=` (`suivreJeuRenseigne`, `carte.fournisseurs.ts`).
+- **Réutilisé sans copie** : `mg-choix-zone-analysee` (entrées `libelle`, `proposee`, sortie `lue` ajoutées, ④ inchangé),
+  `mg-choix-cible`, `mg-mode-plan`, `mg-dilution` (entrées FACULTATIVES `titre`, `sujet`, `accord`, `libelleCurseur` :
+  défauts = le texte du module risque, son spec inchangé et vert), `mg-kpi`, `mg-entete-section`.
 
 ## Cycle de vie d'une couche
 

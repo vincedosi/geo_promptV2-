@@ -20,15 +20,16 @@ describe('parcours de la carte — logique pure', () => {
     // Les isochrones se lancent en ④ (C3) : ③ ne les annonce pas comme un geste à elle.
     expect(CONSIGNE_ETAPE.zones).not.toMatch(/isochrone/i);
     expect(CONSIGNE_ETAPE.analyse).toContain('sur ces zones');
-    expect(CONSIGNE_ETAPE.jeu).toContain('codes postaux achetables');
-    for (const mot of ['seuil de couverture', 'CP retenus', 'taux d’utile', 'extraction']) expect(CONSIGNE_ETAPE.jeu).toContain(mot);
+    // Lot 5 (T10) : ⑤ traduit une zone dans la maille de CHAQUE plateforme et dit ce que la traduction perd.
+    expect(CONSIGNE_ETAPE.jeu).toContain('maille de chaque plateforme');
+    for (const mot of ['seuil', 'taux d’utile', 'perd', 'extraction']) expect(CONSIGNE_ETAPE.jeu).toContain(mot);
   });
   it('T11b « Autres » : hors du fil — ni étape, ni rang, ni raccourci ; `?etape=autres` se lit par lireVue seulement', () => {
     expect(VUE_AUTRES).toBe('autres');
     expect(LIBELLE_AUTRES).toBe('Autres');
     expect(CONSIGNE_AUTRES).toContain('pas encore');
     expect((ETAPES_CARTE as readonly string[]).includes(VUE_AUTRES)).toBe(false);
-    expect(etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: false }).map((e) => e.cle)).not.toContain(VUE_AUTRES);
+    expect(etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: false, jeuRenseigne: false }).map((e) => e.cle)).not.toContain(VUE_AUTRES);
     expect(lireEtape('autres')).toBeNull();
     expect(lireVue('autres')).toBe('autres');
     expect(lireVue('zones')).toBe('zones');
@@ -81,16 +82,20 @@ describe('parcours de la carte — logique pure', () => {
     expect(etapeParRaccourci(alt('KeyC', 'c'))).toBeNull();
   });
   it('etapesDuFil : ① renseignée par le filtre, ② par un calque, les autres jamais (lot 1)', () => {
-    const fil = etapesDuFil({ filtrePose: true, calquesActifs: false, analyseAffichee: false });
+    const fil = etapesDuFil({ filtrePose: true, calquesActifs: false, analyseAffichee: false, jeuRenseigne: false });
     expect(fil.map((e) => [e.cle, e.rang, e.renseignee])).toEqual([
       ['perimetre', 1, true], ['donnees', 2, false], ['zones', 3, false], ['analyse', 4, false],
       ['jeu', 5, false], ['plan', 6, false], ['activation', 7, false], ['live', 8, false],
     ]);
-    expect(etapesDuFil({ filtrePose: false, calquesActifs: true, analyseAffichee: false })[1].renseignee).toBe(true);
+    expect(etapesDuFil({ filtrePose: false, calquesActifs: true, analyseAffichee: false, jeuRenseigne: false })[1].renseignee).toBe(true);
   });
   it('etapesDuFil : ④ renseignée par une analyse affichée (score composite ou zones à risque), et elle seule (T14)', () => {
-    const fil = etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: true });
+    const fil = etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: true, jeuRenseigne: false });
     expect(fil.filter((e) => e.renseignee).map((e) => e.cle)).toEqual(['analyse']);
+  });
+  it('etapesDuFil : ⑤ renseignée par une zone ou un jeu (?zoneJeu= / ?jeu=), et elle seule (lot 5, T10)', () => {
+    const fil = etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: false, jeuRenseigne: true });
+    expect(fil.filter((e) => e.renseignee).map((e) => e.cle)).toEqual(['jeu']);
   });
   it('segmentsDuFiltre : « France entière » puis le filtre ; une zone ne montre pas son uuid', () => {
     expect(segmentsDuFiltre(null)).toEqual([{ cle: 'france', libelle: 'France entière' }]);

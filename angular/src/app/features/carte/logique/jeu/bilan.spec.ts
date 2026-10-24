@@ -1,5 +1,5 @@
 import type { ResultatCouverture } from '../analyses/couverture';
-import { type ResultatCercles, bilanDe, cleCouverture, lectureRequise, parPlateforme, rangerCouverture } from './bilan';
+import { type ResultatCercles, bilanDe, choixDeBase, cleCouverture, daterCouvertures, lectureRequise, parPlateforme, rangerCouverture } from './bilan';
 import type { PlateformeGeo } from './plateformes';
 
 const ligne = (p: Partial<PlateformeGeo> & Pick<PlateformeGeo, 'plateforme' | 'maille'>): PlateformeGeo => ({
@@ -57,5 +57,21 @@ describe('bilan d’un choix (logique pure de ⑤)', () => {
     const regle = (p: string) => (p === 'dv360' ? cp : undefined);
     expect(parPlateforme({ dv360: { maille: 'cp', seuil: 20 }, ttd: { maille: 'cp', seuil: 20 } }, regle, () => 1)).toEqual({ dv360: 1 });
     expect(parPlateforme({ dv360: { maille: 'cp', seuil: 20 } }, regle, () => null)).toEqual({});
+  });
+  it('daterCouvertures : les entrées SANS date de la zone passent sous la clé datée ; les autres ne bougent pas', () => {
+    const c = new Map([
+      [cleCouverture('z1', null, 'ind', 'cp'), couverture('cp', 'v1')],
+      [cleCouverture('z2', null, 'ind', 'cp'), couverture('cp', 'v1')],
+      [cleCouverture('z1', 'avant', 'ind', 'iris'), couverture('iris', 'v1')],
+    ]);
+    expect([...daterCouvertures(c, 'z1', 'd1').keys()]).toEqual([
+      cleCouverture('z1', 'd1', 'ind', 'cp'), cleCouverture('z2', null, 'ind', 'cp'), cleCouverture('z1', 'avant', 'ind', 'iris'),
+    ]);
+  });
+  it('choixDeBase : ceux du jeu ouvert tels quels ; sinon la maille par défaut, seuil par défaut, un rayon au cercle seul', () => {
+    expect(choixDeBase([{ plateforme: 'meta', maille: 'cercle', seuil: 30, rayon_m: 9000 }, { plateforme: 'dv360', maille: 'cp', seuil: 10, rayon_m: null }], [], null))
+      .toEqual({ meta: { maille: 'cercle', seuil: 30, rayon_m: 9000 }, dv360: { maille: 'cp', seuil: 10 } });
+    const regles = [cp, ligne({ plateforme: 'meta', maille: 'cercle', limites: { rayon_min_m: 20000 } })];
+    expect(choixDeBase(null, regles, null)).toEqual({ dv360: { maille: 'cp', seuil: 20 }, meta: { maille: 'cercle', seuil: 20, rayon_m: 20000 } });
   });
 });

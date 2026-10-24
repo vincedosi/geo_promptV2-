@@ -13,6 +13,7 @@ import { ReferentielApi } from '../risques/data/referentiel.api';
 import { CarreauxApi } from './data/carreaux.api';
 import { ProfilRisqueApi } from '../risques/data/profil-risque.api';
 import { CouvertureApi } from './data/couverture.api';
+import { JeuxApi } from './data/jeux.api';
 import { IrisApi } from './data/iris.api';
 import { CarteApi } from './data/carte.api';
 import { RadioApi } from './data/radio.api';
@@ -69,6 +70,8 @@ interface OptionsOuverture {
   organisation?: string | null;
   /** `ReferentielApi.geo` (panneau ①). */
   referentiel?: () => unknown;
+  /** `JeuxApi.plateformes` (⑤, lu à l'arrivée d'une zone). */
+  plateformes?: () => unknown;
   /** `JeuxZonesApi.lister` (outil « Mes zones »). */
   jeux?: () => unknown;
   /** `CarteApi.categories` (catalogue des types de POI, ②). */
@@ -120,6 +123,8 @@ async function ouvrir(options: OptionsOuverture = {}) {
       { provide: IrisApi, useValue: { urlTuiles: () => '/api/tiles/iris/{z}/{x}/{y}?v=2', bornes: () => of({}), detail: () => of() } },
       // ④ Couverture d'une zone (lot 4, T8) : jamais appelée sans « Chiffrer ».
       { provide: CouvertureApi, useValue: { couverture: () => NEVER } },
+      // ⑤ Jeu de zones (lot 5, T10) : rien n'est lu sans zone ; une zone de l'URL fait lire le registre.
+      { provide: JeuxApi, useValue: { plateformes: options.plateformes ?? (() => NEVER) } },
       { provide: ProfilRisqueApi, useValue: { cibles: () => NEVER } },
       { provide: CarteApi, useValue: { categories: options.categories ?? (() => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] })), jeuxRecommandes: options.jeuxRecommandes ?? (() => of({ cles: [] })), pois: () => of(), campagnesOoh: options.campagnesOoh ?? (() => of({ campagnes: [], tronque: false })), campagneOoh: options.campagneOoh ?? (() => of()), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
       { provide: RadioApi, useValue: { optionsFiltre: () => of({}), emetteurs: () => of({ type: 'FeatureCollection', features: [] }), stations: () => of({}) } },
@@ -258,12 +263,12 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     expect(hote.querySelector('mg-barre-parcours')).not.toBeNull();
   });
 
-  it('(j) Alt+5 ouvre ⑤ Jeu de zones « bientôt » ; Alt+C et Ctrl+K ne changent pas l’étape et ne sont pas consommés', async () => {
+  it('(j) Alt+5 ouvre ⑤ Jeu de zones (lot 5) ; Alt+C et Ctrl+K ne changent pas l’étape et ne sont pas consommés', async () => {
     const { hote, stable } = await ouvrir();
     frapper(hote, altChiffre('5'));
     await stable();
     expect(panneauCourant(hote)).toBe('jeu');
-    expect(hote.querySelector('[data-panneau-etape="jeu"] mg-etape-bientot [data-etape-bientot="jeu"]')).not.toBeNull();
+    expect(hote.querySelector('[data-panneau-etape="jeu"] mg-panneau-jeu')).not.toBeNull();
     expect(aside(hote).getAttribute('aria-label')).toBe('Étape 5 — Jeu de zones');
     expect(routeur().url).toBe('/carte?etape=jeu');
     const c = frapper(hote, { key: 'c', code: 'KeyC', altKey: true });
@@ -966,6 +971,13 @@ describe('CartePage — filtre unique : panneau ①, pastille, fil d’Ariane (T
     expect(pastilles(hote)).toEqual(['2 Données (renseignée)']);
   });
 
+  it('⑤ : une zone à convertir dans l’URL (?zoneJeu=) allume sa pastille ; sans elle, rien (lot 5, T10)', async () => {
+    const { hote } = await ouvrir({ url: `/carte?zoneJeu=${ID_ZONE_DU_LIEN}` });
+    expect(pastilles(hote)).toEqual(['5 Jeu de zones (renseignée)']);
+    TestBed.resetTestingModule();
+    expect(pastilles((await ouvrir()).hote)).toEqual([]);
+  });
+
   it('revenir à ① garde « France entière » pressée : panneau monté, aucune relecture du référentiel', async () => {
     const geo = vi.fn(() => of({ regions: [] }));
     const { hote, stable } = await ouvrir({ referentiel: geo });
@@ -1507,6 +1519,8 @@ interface LigneInventaire {
  * - 40. ④ Couverture par rayon (lot 4b, T12) : `outil-rayon.component.spec.ts`, `etat/couverture-rayon.service.spec.ts`.
  * - 41. ④ Radio et trafic de la zone analysée (lot 4b, T13), montés avec une zone dans l'URL :
  *   `croisements-zone.component.spec.ts`, `etat/zone-analysee.service.spec.ts`.
+ * - 42. ⑤ Jeu de zones (lot 5, T10) : colonnes, seuil et perte prouvés par `panneaux/jeu/panneau-jeu.component.spec.ts`
+ *   et `colonne-plateforme.component.spec.ts`.
  * Une ligne qui échoue veut dire qu'une fonction a été PERDUE : la rétablir, jamais retirer la ligne.
  */
 const INVENTAIRE: readonly LigneInventaire[] = [
@@ -1572,6 +1586,7 @@ const INVENTAIRE: readonly LigneInventaire[] = [
     n: 41, fonction: '④ › Radio et trafic de la zone analysée', lieu: { etape: 4 }, url: `/carte?zoneAnalyse=${ID_ZONE_DU_LIEN}`,
     preuves: ['[data-panneau-etape="analyse"] mg-outil-couverture mg-croisements-zone'],
   },
+  { n: 42, fonction: '⑤ › Jeu de zones', lieu: { etape: 5 }, preuves: ['[data-panneau-etape="jeu"] mg-panneau-jeu mg-choix-zone-analysee', '[data-panneau-etape="jeu"] [data-jeu-vide]'] },
 ];
 
 describe('CartePage — aucune fonction perdue (spec § 12, lot 1)', () => {

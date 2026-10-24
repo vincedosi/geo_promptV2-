@@ -33,3 +33,12 @@ export function suivreAnalyseAffichee(): Signal<boolean> {
   const couverture = inject(CouvertureService);
   return computed(() => score.affiche() !== null || zonesRisque.affichees() !== null || couverture.affichee());
 }
+
+/**
+ * La pastille « renseignée » de ⑤ (lot 5, T10) : une zone à convertir (`?zoneJeu=`) ou un jeu ouvert (`?jeu=`). Lue
+ * dans l'état de la page, qui reflète l'URL — injecté ici, le service naît avec la page, sans aucune requête.
+ */
+export function suivreJeuRenseigne(): Signal<boolean> {
+  const jeu = inject(JeuZonesService);
+  return computed(() => jeu.zoneId() !== null || jeu.jeuId() !== null);
+}

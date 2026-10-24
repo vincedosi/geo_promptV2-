@@ -1,8 +1,8 @@
 import type { Decoupage, ResultatCouverture } from '../analyses/couverture';
 import type { Recette } from '../zones/recette';
-import { type Avertissement, type Resume, appliquerSeuil, exactitude, resumeExact, verifierLimites } from './conversion';
-import type { ChoixMaille, ChoixParPlateforme } from './mailles-url';
-import type { Plateforme, PlateformeGeo } from './plateformes';
+import { type Avertissement, type Resume, appliquerSeuil, exactitude, mailleParDefaut, resumeExact, verifierLimites } from './conversion';
+import { type ChoixMaille, type ChoixParPlateforme, SEUIL_PAR_DEFAUT, rayonParDefaut } from './mailles-url';
+import { type Maille, PLATEFORMES, type Plateforme, type PlateformeGeo } from './plateformes';
 
 /**
  * ⑤ Jeu de zones — le bilan d'un choix à partir de ce qui est EN MÉMOIRE (lot 5, T9) : quelle lecture il faut, où
@@ -42,6 +42,32 @@ export interface BilanPlateforme {
  */
 export const SANS_RECETTE: Recette = { v: 1, type: 'dessin' };
 
+/** Un choix bien formé : une maille cercle reçoit un rayon (le donné, sinon `rayonParDefaut`), une autre n'en porte pas. */
+export function choixNeuf(maille: Maille, seuil: number, rayon: number | undefined, ligne: PlateformeGeo | undefined, recette: Recette | null): ChoixMaille {
+  return maille === 'cercle' ? { maille, seuil, rayon_m: rayon ?? rayonParDefaut(ligne, recette) } : { maille, seuil };
+}
+
+/**
+ * Les choix de base : ceux du jeu ouvert (`enregistres`), sinon la maille par défaut de chaque plateforme (A-4) au
+ * seuil par défaut — les choix explicites (`?mailles=`) se posent par-dessus.
+ */
+export function choixDeBase(
+  enregistres: readonly { plateforme: Plateforme; maille: Maille; seuil: number; rayon_m: number | null }[] | null,
+  regles: readonly PlateformeGeo[], recette: Recette | null,
+): ChoixParPlateforme {
+  if (enregistres) {
+    return Object.fromEntries(enregistres.map((c) => [c.plateforme, c.rayon_m === null
+      ? { maille: c.maille, seuil: c.seuil } : { maille: c.maille, seuil: c.seuil, rayon_m: c.rayon_m }]));
+  }
+  const choix: ChoixParPlateforme = {};
+  for (const p of PLATEFORMES) {
+    const maille = mailleParDefaut(regles, p, recette ?? SANS_RECETTE);
+    const ligne = regles.find((l) => l.plateforme === p && l.maille === maille);
+    if (maille) choix[p] = choixNeuf(maille, SEUIL_PAR_DEFAUT, undefined, ligne, recette);
+  }
+  return choix;
+}
+
 /** La maille rend-elle la zone telle quelle (A-6) ? Le rayon CHOISI compte : un autre rayon pave (T8). */
 export function estExacte(c: ChoixMaille, ligne: PlateformeGeo, recette: Recette | null): boolean {
   return exactitude(recette ?? SANS_RECETTE, c.maille, ligne, c.rayon_m) === 'exacte';
@@ -60,6 +86,18 @@ export function lectureRequise(c: ChoixMaille, ligne: PlateformeGeo, recette: Re
  */
 export function cleCouverture(zone: string, maj: string | null, cible: string, decoupage: Decoupage): string {
   return `${zone}|${maj ?? ''}|${cible}|${decoupage}`;
+}
+
+/**
+ * Une zone arrivée par l'URL est lue SANS date (`maj` inconnue) ; quand la liste la date ensuite, les entrées lues
+ * passent sous la clé datée au lieu d'être jetées : c'est la même forme, et la purge de `rangerCouverture` (par
+ * `zone_maj`) reste la seule garde de péremption. Les autres zones ne bougent pas.
+ */
+export function daterCouvertures(
+  cache: ReadonlyMap<string, ResultatCouverture>, zone: string, maj: string,
+): ReadonlyMap<string, ResultatCouverture> {
+  const sansDate = `${zone}||`;
+  return new Map([...cache].map(([k, v]) => [k.startsWith(sansDate) ? `${zone}|${maj}|${k.slice(sansDate.length)}` : k, v]));
 }
 
 /**

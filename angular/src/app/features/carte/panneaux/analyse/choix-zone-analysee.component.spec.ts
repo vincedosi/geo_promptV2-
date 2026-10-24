@@ -112,4 +112,32 @@ describe('mg-choix-zone-analysee', () => {
     expect(el.querySelector('[data-liste-zones]')).toBeNull();
     expect(el.querySelector('[data-erreur-liste]')?.textContent).toContain('Réseau coupé');
   });
+  it('⑤ (lot 5, T10) : `libelle` renomme le champ ; la zone proposée (A-13) est nommée, PROPOSÉE et non prise', async () => {
+    const { f, reponses, stable, el, cliquer, choisies, lister } = monter();
+    f.componentRef.setInput('libelle', 'Zone');
+    f.componentRef.setInput('proposee', Z1);
+    await stable();
+    expect(el.textContent).toContain('Zone');
+    expect(el.textContent).not.toContain('Zone analysée');
+    // Une zone proposée vient d'un lien (`?zoneAnalyse=`) : la liste est lue une fois pour la nommer.
+    expect(lister).toHaveBeenCalledTimes(1);
+    reponses[0].next({ zones: [zone(Z1, 'Lycées à 5 km')] });
+    await stable();
+    expect(choisies).toEqual([]);
+    expect(el.querySelector('[data-proposee]')?.textContent?.trim()).toBe('Partir de la zone analysée : Lycées à 5 km');
+    await cliquer('[data-proposee]');
+    expect(choisies).toEqual([Z1]);
+  });
+  it('`lue` rend la ligne de la zone choisie dès que la liste la connaît, une fois', async () => {
+    const { f, reponses, stable } = monter(Z1);
+    const lues: ZoneCustomResume[] = [];
+    f.componentInstance.lue.subscribe((z) => lues.push(z));
+    await stable();
+    expect(lues).toEqual([]);
+    const ligne = { ...zone(Z1, 'Rayon'), updated_at: '2026-10-24T10:00:00Z' };
+    reponses[0].next({ zones: [ligne] });
+    await stable();
+    await stable();
+    expect(lues).toEqual([ligne]);
+  });
 });

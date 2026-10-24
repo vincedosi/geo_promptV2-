@@ -95,8 +95,8 @@ function sources(dossier: string): string[] {
 
 describe('les règles des plateformes vivent dans plateformes_geo — côté Angular aussi', () => {
   // Même contrôle que `tests/unit/zones/conversion.test.ts` sur `lib/zones/conversion*.ts`, étendu à la logique de ⑤
-  // côté Angular (contraintes du lot 5 : « grep des nombres dans angular/…/jeu/** »).
-  const code = sources('angular/src/app/features/carte/logique/jeu')
+  // côté Angular (contraintes du lot 5 : « grep des nombres dans angular/…/jeu/** ») : la logique ET l'écran (T10).
+  const code = [...sources('angular/src/app/features/carte/logique/jeu'), ...sources('angular/src/app/features/carte/panneaux/jeu')]
     .map((f) => readFileSync(f, 'utf8')).join('\n').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   const OP = String.raw`(?:<=?|>=?|===?|!==?|\?\?|\|\||:|=)`;
   const enContexte = (n: string) => new RegExp(String.raw`${OP}\s*${n}(?![\d_])|(?<![\d_])${n}\s*${OP}`);

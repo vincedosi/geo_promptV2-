@@ -23,6 +23,8 @@ export interface ZoneCustomResume {
   feature_count_cp: number;
   bbox: [number, number, number, number] | null;
   created_at: string;
+  /** Dernière écriture de la zone (sa forme comprise) : la date de `couverture_geometrie.zone_maj` (lot 5, T10). */
+  updated_at?: string;
   created_by: string | null;
   /** Codes département INSEE résolus (`custom_geo_zone_codes`, `code_type='dept'`). */
   dept_codes?: string[];

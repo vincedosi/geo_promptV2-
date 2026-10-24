@@ -61,6 +61,7 @@ import { DonneesAfficheesService } from './etat/donnees-affichees.service';
 import { PanneauFiltreComponent } from './panneaux/filtre/panneau-filtre.component';
 import { PanneauZonesComponent } from './panneaux/zones/panneau-zones.component';
 import { PanneauAnalyseComponent } from './panneaux/analyse/panneau-analyse.component';
+import { PanneauJeuComponent } from './panneaux/jeu/panneau-jeu.component';
 import { PanneauAutresComponent } from './panneaux/autres/panneau-autres.component';
 import { BatailleV1Service } from './etat/bataille-v1.service';
 import { BatailleV2Service } from './etat/bataille-v2.service';
@@ -72,7 +73,7 @@ import { OutilsCarteService } from './outils/outils-carte.service';
 import { EtapeBientotComponent } from './parcours/etape-bientot.component';
 import { PanneauEtapeComponent } from './parcours/panneau-etape.component';
 import { suivreMargeCarte } from './couches/marge-carte';
-import { FOURNISSEURS_ANALYSE, FOURNISSEURS_JEU, suivreAnalyseAffichee } from './carte.fournisseurs';
+import { FOURNISSEURS_ANALYSE, FOURNISSEURS_JEU, suivreAnalyseAffichee, suivreJeuRenseigne } from './carte.fournisseurs';
 
 /** Centre et zoom d'ouverture de React (`useMapInit.ts:131-132`). */
 const CENTRE_INITIAL: [number, number] = [2.3, 46.6];
@@ -121,7 +122,7 @@ export function palierCarreaux(zoom: number): string {
   selector: 'mg-carte-principale',
   imports: [
     AnnonceComponent, BarreParcoursComponent, BarreProgressionComponent, BoiteOutilsComponent, CarteComponent, DetailIrisComponent, DialogueMeteoComponent,
-    EtapeBientotComponent, FicheEmplacementOohComponent, IconeComponent, LegendeCarteComponent, PanneauAnalyseComponent, PanneauAutresComponent, PanneauDonneesComponent, PanneauEtapeComponent,
+    EtapeBientotComponent, FicheEmplacementOohComponent, IconeComponent, LegendeCarteComponent, PanneauAnalyseComponent, PanneauAutresComponent, PanneauJeuComponent, PanneauDonneesComponent, PanneauEtapeComponent,
     PanneauFiltreComponent, PanneauZonesComponent, PlanMediaComponent, RouterOutlet, TiroirPanneauComponent, ZoneActiveComponent,
   ],
   providers: [ChargementService, ParcoursService, OutilsCarteService, EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
@@ -197,10 +198,11 @@ export class CartePage {
   protected readonly etapesMontees = computed(() => ETAPES_CARTE.filter((e) => this.parcours.visitees().has(e)));
   /** Score, zones d'un profil (T13, inscrites à l'éviction de leur dégradé dès l'ouverture) et couverture : injectés ici. */
   private readonly analyseAffichee = suivreAnalyseAffichee();
-  /** Les pastilles « renseignée » (A2) : ② = un jeu de ② affiché (T13, AT-4) ; ④ = score, zones à risque, couverture (T8). */
+  private readonly jeuRenseigne = suivreJeuRenseigne();
+  /** Les pastilles « renseignée » (A2) : ② = un jeu de ② affiché (T13, AT-4) ; ④ = score, zones à risque, couverture (T8) ; ⑤ = une zone ou un jeu (lot 5). */
   protected readonly etapes = computed(() => etapesDuFil({
     filtrePose: this.etat.filtre() !== null || this.etat.perimetreScope() !== null, calquesActifs: this.donnees.renseignee(),
-    analyseAffichee: this.analyseAffichee(),
+    analyseAffichee: this.analyseAffichee(), jeuRenseigne: this.jeuRenseigne(),
   }));
   protected readonly segmentsAriane = computed<SegmentAriane[]>(() => segmentsDuFiltre(this.etat.filtre()));
   protected readonly precisionAriane = computed(() => precisionDuPerimetre(this.etat.perimetreScope()));

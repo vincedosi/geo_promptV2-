@@ -240,6 +240,50 @@ describe('JeuZonesService — la conversion', () => {
     hote.jeu.valider('dv360');
     http.expectOne(couverture(Z1, 'cp'));
   });
+  it('conversion d’abord, date ensuite (zone arrivée par l’URL) : la date est ADOPTÉE, rien n’est vidé ni relu', async () => {
+    const { hote, http } = await ouvrirAvecZone();
+    hote.jeu.valider('dv360');
+    http.expectOne(couverture(Z1, 'cp')).flush(couvertureCp);
+    hote.jeu.choisirZone(Z1, { v: 1, type: 'dessin' }, '2026-10-24T10:00:00Z');
+    expect(hote.jeu.resumes().dv360).toBeDefined();
+    hote.jeu.valider('dv360');
+    http.expectNone(couverture(Z1, 'cp'));
+    // Une AUTRE date ensuite (recalcul en ③) vide toujours tout.
+    hote.jeu.choisirZone(Z1, null, '2026-10-24T11:00:00Z');
+    expect(hote.jeu.resumes()).toEqual({});
+  });
+  it('la date arrive pendant la lecture : la lecture en vol n’est pas annulée, elle se range sous la nouvelle clé', async () => {
+    const { hote, http } = await ouvrirAvecZone();
+    hote.jeu.valider('dv360');
+    const enVol = http.expectOne(couverture(Z1, 'cp'));
+    hote.jeu.choisirZone(Z1, null, '2026-10-24T10:00:00Z');
+    hote.jeu.valider('dv360');
+    expect(enVol.cancelled).toBe(false);
+    enVol.flush(couvertureCp);
+    expect(hote.jeu.resumes().dv360).toBeDefined();
+    hote.jeu.valider('dv360');
+    http.verify();
+  });
+  it('choisirCible : une autre cible, une autre lecture ; revenir à la première ne relit rien', async () => {
+    const { hote, http } = await ouvrirAvecZone();
+    hote.jeu.valider('dv360');
+    http.expectOne(couverture(Z1, 'cp')).flush(couvertureCp);
+    hote.jeu.choisirCible('csp_plus');
+    expect(hote.jeu.cible()).toBe('csp_plus');
+    expect(hote.jeu.resumes()).toEqual({});
+    hote.jeu.valider('dv360');
+    http.expectOne(couverture(Z1, 'cp', 'csp_plus')).flush({ ...couvertureCp, cible: 'csp_plus' });
+    hote.jeu.choisirCible('ind');
+    hote.jeu.valider('dv360');
+    http.verify();
+    expect(hote.jeu.resumes().dv360).toBeDefined();
+  });
+  it('choisirMode : le mode de plan avant enregistrement (pondéré par défaut)', async () => {
+    const { hote } = await ouvrirAvecZone();
+    expect(hote.jeu.modePlan()).toBe('pondere');
+    hote.jeu.choisirMode('exclusif');
+    expect(hote.jeu.modePlan()).toBe('exclusif');
+  });
   it('erreur d’une conversion : message pour les plateformes de cette maille, la zone reste', async () => {
     const { hote, http } = await ouvrirAvecZone();
     hote.jeu.valider('tiktok');

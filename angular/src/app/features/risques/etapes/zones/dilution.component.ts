@@ -19,16 +19,16 @@ import { formaterDecimal, formaterNombre } from '../../../../core/format/nombre'
   host: { class: 'mb-4 block rounded-[8px] border-fin border-subtle bg-elevated p-[14px]' },
   template: `
     <div class="mb-[6px] flex items-baseline gap-[10px]">
-      <span class="text-[12px] font-medium text-primary">Dilution au code postal</span>
+      <span class="text-[12px] font-medium text-primary">{{ titre() }}</span>
       <span data-role="seuil" class="font-mono text-[12px] text-teal">seuil {{ local() }} %</span>
     </div>
     <input type="range" min="0" max="60" step="5" [value]="local()"
            (input)="local.set(valeurDe($event))" (pointerdown)="saisir()" (keydown)="saisir()"
            (pointerup)="relacher()" (touchend)="relacher()" (keyup)="relacher()" (change)="relacher()"
-           aria-label="Part minimale de la population du code postal en zone"
+           [attr.aria-label]="libelleCurseur()"
            class="w-full accent-teal" />
     <p class="mt-2 mb-0 text-[11.5px] leading-[1.6] text-secondary">
-      Un code postal n’est retenu que si au moins <strong>{{ local() }} %</strong> de sa
+      {{ sujet() }} n’est retenu{{ accord() }} que si au moins <strong>{{ local() }} %</strong> de sa
       population vit en zone. En deçà, on achète surtout des habitants hors cible ;
       au-delà, le plan se vide des campagnes, où un site isolé ne couvre jamais une
       telle part de son code postal.
@@ -49,6 +49,14 @@ export class DilutionComponent {
   readonly seuil = input.required<number>();
   readonly visee = input.required<number>();
   readonly achetee = input.required<number>();
+  /**
+   * L'unité achetée — le code postal par défaut (le module risque). ⑤ Jeu de zones (lot 5, T10) monte ce bloc pour
+   * chaque maille territoriale : « Une commune n'est retenue… » (sujet + accord), titre « Dilution à la commune ».
+   */
+  readonly titre = input('Dilution au code postal');
+  readonly sujet = input('Un code postal');
+  readonly accord = input<'' | 'e'>('');
+  readonly libelleCurseur = input('Part minimale de la population du code postal en zone');
   /** Émis au relâchement, jamais pendant le glissement. */
   readonly seuilChange = output<number>();
 

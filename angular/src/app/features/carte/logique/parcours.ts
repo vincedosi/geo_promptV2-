@@ -47,7 +47,7 @@ export const CONSIGNE_ETAPE: Readonly<Record<EtapeCarte, string>> = {
   // ③ dit ce que le panneau offre AUJOURD'HUI : rayons et isochrones comme types de zone arrivent aux lots 4-5.
   zones: 'Définissez vos zones : autour des POI, par seuil sur une donnée, à la main, ou en capturant la carte. Chaque zone garde sa recette et se recalcule.',
   analyse: 'Calculez sur ces zones : couverture, score, corrélation, isochrones, bataille, clustering. Chaque résultat s’affiche sur la carte.',
-  jeu: 'Convertissez vos zones en codes postaux achetables : seuil de couverture, CP retenus, taux d’utile, extraction. Cette étape arrive dans le parcours.',
+  jeu: 'Traduisez une zone dans la maille de chaque plateforme (codes postaux, communes, cercles, polygone…) : seuil, taux d’utile et ce que la traduction perd. Enregistrez le jeu, puis faites-en une extraction.',
   plan: 'Le plan de campagne arrive dans le parcours. En attendant, il se prépare dans l’application actuelle.',
   activation: 'L’activation plateforme par plateforme arrive dans le parcours. En attendant, elle se fait dans l’application actuelle.',
   live: 'Le suivi de la campagne en vol arrive dans le parcours. En attendant, il se consulte dans l’application actuelle.',
@@ -108,16 +108,19 @@ export function etapeParRaccourci(e: FrappeClavier): EtapeCarte | null {
 
 /**
  * Ce qui allume la pastille « renseignée » (arbitrage A2) : ① un filtre posé, ② un jeu affiché, ④ une analyse sur la
- * carte — le score composite ou les zones à risque (T14). Les autres étapes s'allumeront avec leur paramètre d'URL.
+ * carte — le score composite ou les zones à risque (T14) —, ⑤ une zone ou un jeu (lot 5). Les autres étapes
+ * s'allumeront avec leur paramètre d'URL.
  */
 export interface EtatRenseigne {
   readonly filtrePose: boolean;
   readonly calquesActifs: boolean;
   readonly analyseAffichee: boolean;
+  /** ⑤ : une zone à convertir ou un jeu ouvert (`?zoneJeu=` ou `?jeu=`, lot 5). */
+  readonly jeuRenseigne: boolean;
 }
 
 const RENSEIGNEE_PAR: Partial<Readonly<Record<EtapeCarte, keyof EtatRenseigne>>> = {
-  perimetre: 'filtrePose', donnees: 'calquesActifs', analyse: 'analyseAffichee',
+  perimetre: 'filtrePose', donnees: 'calquesActifs', analyse: 'analyseAffichee', jeu: 'jeuRenseigne',
 };
 
 export function etapesDuFil(r: EtatRenseigne): EtapeAffichee[] {
