@@ -17,39 +17,49 @@ import type { Recette } from '@/lib/zones/recette';
 
 type LigneFixture = Pick<LigneCouverture, 'code' | 'nom' | 'pop_en_zone' | 'pop_totale' | 'part'>;
 const composite = JSON.parse(readFileSync('tests/unit/zones/fixtures/couverture-composite-cp.json', 'utf8')) as {
-  population: number; lignes: LigneFixture[];
+  population: number; hors_territoire: { population: number }; lignes: LigneFixture[];
 };
 
-/** Les deux égalités de la perte honnête (Review Focus 1), aux arrondis des sommes `numeric` près. */
-function verifierConservation(r: ReturnType<typeof appliquerSeuil>, population: number) {
-  expect(r.manques + r.couverte).toBeCloseTo(population, 6);
-  expect(r.hors_zone + r.couverte).toBeCloseTo(r.achetee, 6);
+/**
+ * `manques` comparé à une grandeur calculée À PART, par un autre chemin : les habitants de la zone dans les CP écartés
+ * (part NULL ou sous le seuil) + ceux qu'aucun CP ne porte (`hors_territoire.population`, rendu par la RPC).
+ *
+ * Les deux ne sont égaux qu'aux arrondis près : la RPC arrondit à l'entier CHAQUE `pop_en_zone`, `population` et
+ * `hors_territoire.population` (sql/275, `round(d.p)`, `round(v_pop)`, `round(v_hors_p)`), alors que les populations
+ * de carreaux sont fractionnaires (des demi-habitants). Écart au plus ½ par terme arrondi : ½ × (lignes + 2).
+ */
+function verifierManques(r: ReturnType<typeof appliquerSeuil>, seuil: number) {
+  const ecartees = composite.lignes.filter((l) => l.part === null || l.part < seuil).reduce((t, l) => t + l.pop_en_zone, 0);
+  const attendu = ecartees + composite.hors_territoire.population;
+  expect(Math.abs(r.manques - attendu)).toBeLessThanOrEqual((r.n_touchees + 2) / 2);
+  return r.manques - attendu;
 }
 
 describe('appliquerSeuil — la maille CP de la composite (mesure M2)', () => {
   const pop = composite.population;
-  // La population hors de tout territoire (carreaux sans CP) : M2 la tenait à part, la règle la compte comme manquée.
-  const horsTerritoire = pop - composite.lignes.reduce((t, l) => t + l.pop_en_zone, 0);
 
   it('seuil 20 : 617 CP sur 895, 57,6 % d’utile, 7 541 431 achetés hors zone', () => {
     const r = appliquerSeuil(composite.lignes, pop, 20);
     expect(r).toMatchObject({ n_unites: 617, n_touchees: 895, taux_utile: 57.6, hors_zone: 7_541_431 });
-    // M2 : 977 538 habitants manqués DANS les CP non retenus ; s'y ajoutent ceux qu'aucun CP ne porte.
-    expect(horsTerritoire).toBe(3_043);
-    expect(r.manques).toBe(977_538 + horsTerritoire);
-    verifierConservation(r, pop);
+    // M2 : 977 538 habitants manqués DANS les CP écartés ; s'y ajoutent les 3 273 qu'aucun CP ne porte.
+    expect(composite.lignes.filter((l) => l.part === null || l.part < 20).reduce((t, l) => t + l.pop_en_zone, 0)).toBe(977_538);
+    expect(composite.hors_territoire.population).toBe(3_273);
+    // −230 : mesuré en base le 24/10, Σ round(pop_en_zone) = 11 221 886 contre Σ pop_en_zone brute = 11 221 655,5 —
+    // les demi-habitants arrondis vers le haut, CP par CP. Même écart à tout seuil : il ne dépend que de l'arrondi.
+    expect(verifierManques(r, 20)).toBe(-230);
+    expect(r.manques).toBe(980_581);
   });
 
-  it('seuil 0 : tout est retenu, seul le hors-territoire est manqué', () => {
+  it('seuil 0 : tout est retenu, seul le hors-territoire est manqué (à l’arrondi près)', () => {
     const r = appliquerSeuil(composite.lignes, pop, 0);
-    expect(r).toMatchObject({ n_unites: 895, n_touchees: 895, taux_utile: 40.8, hors_zone: 16_305_578, manques: horsTerritoire });
-    verifierConservation(r, pop);
+    expect(r).toMatchObject({ n_unites: 895, n_touchees: 895, taux_utile: 40.8, hors_zone: 16_305_578 });
+    expect(verifierManques(r, 0)).toBe(-230);
   });
 
   it('seuil 50 : 358 CP, 76,6 %', () => {
     const r = appliquerSeuil(composite.lignes, pop, 50);
     expect(r).toMatchObject({ n_unites: 358, taux_utile: 76.6, hors_zone: 2_302_112 });
-    verifierConservation(r, pop);
+    expect(verifierManques(r, 50)).toBe(-230);
   });
 
   it('un CP entièrement dans la zone vaut 100 % et n’achète rien hors zone', () => {
@@ -105,8 +115,8 @@ const RECETTES: Record<Recette['type'], Recette> = {
 };
 
 describe('exactitude — dix recettes × six mailles (A-6)', () => {
-  // Les seules cases exactes ; toutes les autres sont calculées.
-  const EXACTES = new Set(['*.polygone', 'codes_postaux.cp', 'rayon_point.cercle']);
+  // Le polygone est exact pour toute recette ; hors de lui, ces deux cases seulement.
+  const EXACTES = new Set(['codes_postaux.cp', 'rayon_point.cercle']);
   for (const [type, recette] of Object.entries(RECETTES)) {
     for (const maille of MAILLES) {
       const attendu = EXACTES.has(`${type}.${maille}`) || maille === 'polygone' ? 'exacte' : 'calculee';
@@ -160,7 +170,12 @@ describe('mailleParDefaut (A-4)', () => {
   it('toutes « à vérifier » : la plus fine quand même (polygone pour TTD)', () => {
     expect(mailleParDefaut(lignes, 'ttd', RECETTES.dessin)).toBe('polygone');
   });
-  it('une maille exacte pour la recette passe devant', () => {
+  it('une maille exacte mais « à vérifier » ne passe pas devant une maille sûre', () => {
+    const ttd = [ligne({ plateforme: 'ttd', maille: 'cercle', a_verifier: true }), ligne({ plateforme: 'ttd', maille: 'cp' })];
+    expect(exactitude(RECETTES.rayon_point, 'cercle', ttd[0])).toBe('exacte');
+    expect(mailleParDefaut(ttd, 'ttd', RECETTES.rayon_point)).toBe('cp');
+  });
+  it('parmi les mailles sûres, une maille exacte pour la recette passe devant une plus fine', () => {
     expect(mailleParDefaut(lignes, 'dv360', RECETTES.rayon_point)).toBe('cercle');
     // Rayon sous la borne de la plateforme : le cercle n'est plus exact, la plus fine reprend la main.
     expect(mailleParDefaut(lignes, 'dv360', { ...RECETTES.rayon_point, rayon_m: 1_000 } as Recette)).toBe('cp');
@@ -190,10 +205,23 @@ describe('verifierLimites — lit les limites de la ligne, n’en écrit aucune'
 });
 
 describe('les règles des plateformes vivent dans plateformes_geo', () => {
-  it('aucun nombre de la seed dans lib/zones/conversion.ts', () => {
-    const source = readFileSync('lib/zones/conversion.ts', 'utf8');
+  // Le code seul (commentaires retirés) : une limite écrite en dur est un nombre de la seed comparé, affecté ou pris
+  // par défaut — pas l'arrondi `* 1000` du taux d'utile.
+  const code = readFileSync('lib/zones/conversion.ts', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  const OP = String.raw`(?:<=?|>=?|===?|!==?|\?\?|\|\||:|=)`;
+  const enContexte = (n: string) => new RegExp(String.raw`${OP}\s*${n}(?![\d_])|(?<![\d_])${n}\s*${OP}`);
+  it('aucun nombre de la seed en contexte de limite dans lib/zones/conversion.ts', () => {
     for (const n of ['200', '80000', '80_000', '3000', '3_000', '50000', '50_000', '1000', '1_000']) {
-      expect(source, n).not.toMatch(new RegExp(`(^|[^\\d_])${n}([^\\d_]|$)`));
+      expect(code, n).not.toMatch(enContexte(n));
     }
+  });
+  it('aucune clé de limite reçoit un nombre écrit', () => {
+    expect(code).not.toMatch(/(max_unites|rayon_min_m|rayon_max_m|pop_min_unite|pop_min_groupe|max_sommets)\s*(?:<=?|>=?|===?|!==?|\?\?|\|\||:|=)\s*\d/);
+  });
+  it('le contrôle mord : une limite écrite en dur serait vue', () => {
+    expect('if (n > 200)').toMatch(enContexte('200'));
+    expect('const MAX = 3_000;').toMatch(enContexte('3_000'));
+    expect('Math.round(x * 1000) / 10').not.toMatch(enContexte('1000'));
+    expect('max_unites ?? 3000').toMatch(/max_unites\s*\?\?\s*\d/);
   });
 });

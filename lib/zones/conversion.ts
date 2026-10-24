@@ -68,6 +68,12 @@ export interface Avertissement {
  * Retient les unités dont la part (en %) atteint le seuil — la borne est retenue, comme dans `appliquer_seuil_zone_set`.
  * Une ligne à `part` NULL (territoire sans dénominateur) n'est jamais retenue : on ne sait pas ce qu'on achèterait.
  * `population` est celle de la zone (`couverture_geometrie.population`), hors-territoire compris.
+ *
+ * ⚠ Arrondis : la RPC arrondit à l'entier chaque `pop_en_zone`, `population` et `hors_territoire.population` (sql/275),
+ * alors que les populations de carreaux sont fractionnaires (demi-habitants). `manques` (= population − couverte) et
+ * la somme « CP écartés + hors territoire » diffèrent donc d'au plus ½ par ligne : −230 habitants sur les 895 CP de la
+ * composite (24/10). L'écran affiche `manques` : c'est lui qui boucle avec la population de la zone affichée en tête
+ * (`manques + couverte = population`) ; la somme des lignes d'un tableau peut s'en écarter de cet arrondi.
  */
 export function appliquerSeuil(lignes: readonly LigneSeuil[], population: number, seuil: number): ResumeMaille {
   let n_unites = 0;
@@ -88,8 +94,9 @@ export function appliquerSeuil(lignes: readonly LigneSeuil[], population: number
     achetee,
     manques: population - couverte,
     hors_zone: achetee - couverte,
-    // En %, arrondi à une décimale (comme `tauxUtile` de `plan.ts`).
-    taux_utile: achetee > 0 ? Math.round((couverte / achetee) * 100 * 10) / 10 : null,
+    // En %, à une décimale : l'arrondi de `tauxUtile` (`plan.ts`), recopié et non importé — ce fichier est copié côté
+    // Angular sans dépendance, et `tauxUtile` (non exporté) lit des `CpZone` du moteur risque.
+    taux_utile: achetee > 0 ? Math.round((couverte / achetee) * 1000) / 10 : null,
   };
 }
 
@@ -123,14 +130,15 @@ export function exactitude(recette: Recette, maille: Maille, ligne?: PlateformeG
 const FINESSE: readonly Maille[] = ['polygone', 'iris', 'cp', 'cercle', 'commune', 'departement'];
 
 /**
- * La maille proposée par défaut (A-4) parmi les mailles natives et disponibles de la plateforme : d'abord une maille
- * exacte pour la recette, puis une maille non « à vérifier », puis la plus fine. Si toutes sont « à vérifier » (TTD au
- * 24/10), la plus fine quand même : le badge le dit à l'écran. `null` si la plateforme n'a aucune maille achetable.
+ * La maille proposée par défaut (A-4) parmi les mailles natives et disponibles de la plateforme : d'abord écarter les
+ * mailles « à vérifier » (une maille exacte mais douteuse ne passe pas devant une maille sûre), puis préférer la maille
+ * exacte pour la recette, puis la plus fine. Si toutes sont « à vérifier » (TTD au 24/10), le même ordre parmi elles :
+ * le badge le dit à l'écran. `null` si la plateforme n'a aucune maille achetable.
  */
 export function mailleParDefaut(lignes: readonly PlateformeGeo[], plateforme: Plateforme, recette: Recette): Maille | null {
   const rang = (l: PlateformeGeo) => [
-    exactitude(recette, l.maille, l) === 'exacte' ? 0 : 1,
     l.a_verifier ? 1 : 0,
+    exactitude(recette, l.maille, l) === 'exacte' ? 0 : 1,
     FINESSE.indexOf(l.maille),
   ];
   const candidates = lignes.filter((l) => l.plateforme === plateforme && l.natif && l.disponible);
