@@ -106,12 +106,15 @@ const ChoixPlateformeSchema = z.object({
   maille: z.enum(MAILLES),
   seuil: z.number().min(0).max(100),
   rayon_m: z.number().int().positive().optional(),
-}).refine(
+// `strict` : une clé inconnue est refusée, pas retirée en silence — le choix part tel quel vers `zone_set_plateformes`.
+}).strict().refine(
   // Même règle que le CHECK `zsp_rayon_cercle` : un cercle sans rayon ne se pave pas, un rayon ailleurs n'est lu par
   // personne.
   (c) => (c.maille === 'cercle') === (c.rayon_m !== undefined),
   'Un rayon pour la maille cercle, et pour elle seule.',
 );
+
+export type ChoixPlateforme = z.infer<typeof ChoixPlateformeSchema>;
 
 /**
  * Un jeu de ZONE (étape ⑤, sql/277) : UNE zone enregistrée (A-1), la cible comptée, le mode de plan, et au plus une
@@ -126,7 +129,7 @@ export const JeuZoneSchema = z.object({
     .min(1)
     .max(PLATEFORMES.length)
     .refine((cs) => new Set(cs.map((c) => c.plateforme)).size === cs.length, 'Une seule maille par plateforme.'),
-});
+}).strict();
 
 /**
  * Le jeu ouvert par défaut.

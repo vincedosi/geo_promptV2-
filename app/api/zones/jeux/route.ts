@@ -1,8 +1,10 @@
 /**
  * @file app/api/zones/jeux/route.ts
  *
- * GET  — les jeux de zones de l'organisation.
- * POST — enregistre un jeu et le construit (géométries + codes postaux).
+ * GET  — les jeux de zones de l'organisation, des deux types (`risque`, `zone`).
+ * POST — enregistre un jeu. Un jeu RISQUE (corps sans `jeu.type`) est construit (géométries + codes postaux) ;
+ *        un jeu de ZONE (`jeu.type === 'zone'`, lot 5, T7) est seulement écrit : sa zone, sa cible, son mode de plan
+ *        et un choix par plateforme — aucun calcul, ses chiffres se relisent (`lib/zones/jeu-zone-routes.ts`).
  *
  * ── CE QU'UN JEU DE ZONES EST ─────────────────────────────────────────────
  *
@@ -27,17 +29,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
-import { lireCorps } from '@/lib/api/valider-corps';
+import { lireCorps, messageAnomalies } from '@/lib/api/valider-corps';
 import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { JeuDeZonesSchema, normaliserJeu, codeJeu } from '@/lib/zones/jeu';
+import {
+  CorpsCreationZoneSchema, enregistrerJeuZone, estCorpsDeZone, prochaineVersion, retirerJeu,
+} from '@/lib/zones/jeu-zone-routes';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * 6 par minute : chaque enregistrement déclenche une construction de ~21 s qui
  * croise 883 451 carreaux. Même ordre que `geo:rl:qualite-donnees`, pour la
- * même raison — le quota protège un budget d'I/O, pas un caprice.
+ * même raison — le quota protège un budget d'I/O, pas un caprice. Un jeu de
+ * zone (quatre lectures légères, deux écritures) partage ce quota : un seul
+ * compteur pour « enregistrer un jeu », quel que soit son type.
  */
 const limiteur = createRateLimiter({
   max: 6,
@@ -93,28 +100,6 @@ const MESSAGES: Record<string, string> = {
     + 'la carte, mais leur population exposée n’est pas mesurable.',
 };
 
-/**
- * Retire un jeu qui n'a pas pu être construit.
- *
- * ⚠ L'erreur de la suppression est LUE. `supabase-js` ne lève pas, il rend
- * `{ error }` : une suppression ratée passerait inaperçue et laisserait un jeu
- * fantôme que la liste afficherait sans qu'il serve à rien — un objet qu'on ne
- * peut ni utiliser ni comprendre. C'est la règle de `CLAUDE.md`, et elle vaut
- * autant pour un rollback que pour une suppression demandée.
- */
-async function retirerJeu(
-  supabase: ReturnType<typeof createAdminClient>,
-  id: string,
-): Promise<void> {
-  const { error } = await supabase.from('zone_sets').delete().eq('id', id);
-  if (error) {
-    console.error(
-      `[zones/jeux] jeu ${id} non construit ET non supprime : ${error.message}. `
-      + `Il reste en base sans geometrie.`,
-    );
-  }
-}
-
 export async function GET(request: NextRequest) {
   const profile = await requireAuth(request);
   if (!profile) return authUnauthorized();
@@ -125,8 +110,9 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('zone_sets')
-    .select('id, nom, description, version, created_at, construit_le, '
-      + 'population_exposee, n_cp_retenus, taux_utile, mode_plan, seuil_couverture_cp')
+    // UNE chaîne littérale : supabase-js déduit le type des lignes de la valeur, une concaténation le perd. Le nom de
+    // la zone d'un jeu de zone vient par la clé étrangère (jointure PostgREST) : une requête, pas N.
+    .select('id, nom, description, version, created_at, construit_le, population_exposee, n_cp_retenus, taux_utile, mode_plan, seuil_couverture_cp, type, custom_geo_zone_id, zone:custom_geo_zones(name)')
     .eq('org_id', profile.organization_id)
     // Les brouillons d'atelier ne sont pas des jeux : ils n'ont pas de nom, ils
     // se purgent seuls, et les lister ferait croire à une bibliothèque pleine
@@ -143,7 +129,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Liste des jeux indisponible.' }, { status: 500 });
   }
 
-  return NextResponse.json({ jeux: data ?? [] }, { headers: { 'Cache-Control': 'no-store' } });
+  // L'objet imbriqué est aplati en `zone_nom` (null pour un jeu risque) : la liste reste plate pour ses clients.
+  const jeux = (data ?? []).map(({ zone, ...jeu }) => ({ ...jeu, zone_nom: zone?.name ?? null }));
+  return NextResponse.json({ jeux }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 export async function POST(request: NextRequest) {
@@ -153,10 +141,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Aucune organisation active.' }, { status: 403 });
   }
 
-  const corps = await lireCorps(request, CorpsSchema);
-  // `lireCorps` ne lève jamais et rend un message français : un corps illisible
-  // répond 400 au lieu du 500 que produirait `await request.json()`.
-  if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
+  // Lu une fois (`lireCorps` ne lève jamais : un JSON illisible répond 400, pas
+  // 500), puis validé par le schéma de SON type — `jeu.type` le discrimine.
+  const brut = await lireCorps(request, z.unknown());
+  if (!brut.ok) return NextResponse.json({ error: brut.message }, { status: 400 });
+
+  if (estCorpsDeZone(brut.valeur)) {
+    const zone = CorpsCreationZoneSchema.safeParse(brut.valeur);
+    if (!zone.success) return NextResponse.json({ error: messageAnomalies(zone.error) }, { status: 400 });
+    const quota = await limiteur(profile.id);
+    if (!quota.ok) return rateLimitResponse(quota.retrySec);
+    return enregistrerJeuZone(createAdminClient(), { orgId: profile.organization_id, userId: profile.id }, zone.data);
+  }
+
+  const lu = CorpsSchema.safeParse(brut.valeur);
+  if (!lu.success) return NextResponse.json({ error: messageAnomalies(lu.error) }, { status: 400 });
+  const valeur = lu.data;
 
   /*
    * Le jeu est RENORMALISÉ côté serveur, jamais accepté sur parole. Le client
@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
    */
   let jeu;
   try {
-    jeu = normaliserJeu(corps.valeur.jeu);
+    jeu = normaliserJeu(valeur.jeu);
   } catch {
     return NextResponse.json(
       { error: 'Jeu de zones invalide : vérifiez les rayons, les poids et le seuil.' },
@@ -175,8 +175,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const brouillon = corps.valeur.brouillon === true;
-  if (!brouillon && !corps.valeur.nom) {
+  const brouillon = valeur.brouillon === true;
+  if (!brouillon && !valeur.nom) {
     return NextResponse.json(
       { error: 'Donnez un nom au jeu de zones.' },
       { status: 400 },
@@ -221,32 +221,18 @@ export async function POST(request: NextRequest) {
   const quota = await limiteur(profile.id);
   if (!quota.ok) return rateLimitResponse(quota.retrySec);
 
-  /*
-   * La version : un jeu de même nom dans la même organisation est une NOUVELLE
-   * version, jamais un écrasement. Une campagne fige la version au
-   * rattachement — écraser ferait changer le plan sous une campagne en vol.
-   */
-  const { data: existants, error: erreurVersion } = await supabase
-    .from('zone_sets')
-    .select('version')
-    .eq('org_id', profile.organization_id)
-    .eq('nom', corps.valeur.nom ?? '')
-    .order('version', { ascending: false })
-    .limit(1);
-
-  if (erreurVersion) {
-    console.error('[zones/jeux] version :', erreurVersion.message);
-    return NextResponse.json({ error: 'Enregistrement impossible.' }, { status: 500 });
-  }
-  const version = (existants?.[0]?.version ?? 0) + 1;
+  // Même nom, même espace : une NOUVELLE version, jamais un écrasement (une
+  // campagne fige la version au rattachement).
+  const version = await prochaineVersion(supabase, profile.organization_id, valeur.nom ?? '');
+  if (version === null) return NextResponse.json({ error: 'Enregistrement impossible.' }, { status: 500 });
 
   const { data: cree, error: erreurCreation } = await supabase
     .from('zone_sets')
     .insert({
       // Un brouillon porte un nom vide plutôt que `null` : la colonne est
       // `not null`, et un nom vide se distingue d'un nom oublié.
-      nom: corps.valeur.nom ?? '',
-      description: corps.valeur.description ?? null,
+      nom: valeur.nom ?? '',
+      description: valeur.description ?? null,
       brouillon,
       org_id: profile.organization_id,
       created_by: profile.id,

@@ -10,7 +10,8 @@ import { NextRequest } from 'next/server';
  * juste. Elles passent toutes par UN chargeur, `chargerJeu(…, { type: 'risque' })`, qui rend un 409 explicite — et
  * aucune autre lecture n'a lieu (le client factice lève sur toute table inattendue, et sur toute RPC).
  *
- * Seule exception : la LISTE des extractions (`GET …/extractions`) sert les deux types (lot 5, T8).
+ * Exceptions : la LISTE des extractions (`GET …/extractions`) sert les deux types (lot 5, T8), et `GET` / `PATCH
+ * [id]` servent un jeu de zone par leur propre branche (T7, `tests/unit/api/zones-jeux-zone.test.ts`).
  */
 const h = vi.hoisted(() => ({
   ORG: '3f2504e0-4f89-11d3-9a0c-0305e82c3301',
@@ -43,6 +44,7 @@ vi.mock('@/lib/api/middleware', () => ({
 }));
 vi.mock('@/lib/api/rate-limit', () => ({
   createRateLimiter: () => async () => ({ ok: true, retrySec: 0 }),
+  createQuota: () => async () => null,
   rateLimitResponse: () => new Response(null, { status: 429 }),
 }));
 vi.mock('@/lib/campaigns/access', () => ({ checkCampaignAccess: async () => 'ok' }));
@@ -121,7 +123,7 @@ beforeEach(() => {
 });
 
 describe('routes risque — un jeu de zone reçoit un 409, sans autre lecture', () => {
-  it.each(ROUTES)('%s', async (_nom, appel) => {
+  it.each(ROUTES.filter(([nom]) => !nom.endsWith(' [id]')))('%s', async (_nom, appel) => {
     h.jeu = jeuDe('zone');
     const r = await appel();
     expect(r.status).toBe(409);

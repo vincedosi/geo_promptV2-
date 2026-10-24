@@ -1,9 +1,10 @@
 /**
  * @file app/api/zones/jeux/[id]/route.ts
  *
- * GET    — le jeu, ses classes et leurs chiffres.
- * PATCH  — enregistre un brouillon, ou en modifie les réglages.
- * DELETE — retire le jeu (géométries et codes postaux suivent en cascade).
+ * GET    — le jeu, ses classes et leurs chiffres ; pour un jeu de ZONE (lot 5, T7) : `{ jeu, zone, plateformes }`.
+ * PATCH  — enregistre un brouillon, ou en modifie les réglages ; pour un jeu de zone : nom, description, mode de
+ *          plan, choix par plateforme (`lib/zones/jeu-zone-routes.ts`).
+ * DELETE — retire le jeu, des deux types (géométries, codes postaux, choix et extractions suivent en cascade).
  *
  * ── POURQUOI PATCH NE RECONSTRUIT JAMAIS ─────────────────────────────────
  *
@@ -23,12 +24,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
-import { lireCorps } from '@/lib/api/valider-corps';
+import { lireCorps, messageAnomalies } from '@/lib/api/valider-corps';
 import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
 import { lireTout } from '@/lib/supabase/lire-tout';
 import { POIDS_MIN, POIDS_MAX, MODES_PLAN, MOTIF_CLASSE } from '@/lib/zones/jeu';
 import { plierParCodePostal } from '@/lib/zones/plan';
 import { chargerJeu } from '@/lib/zones/charger-jeu';
+import { CorpsReglageZoneSchema, lireJeuZone, reglerJeuZone } from '@/lib/zones/jeu-zone-routes';
 import type { Tables } from '@/types/database.types';
 
 export const dynamic = 'force-dynamic';
@@ -162,10 +164,11 @@ export async function GET(
   const { id } = await params;
   const supabase = createAdminClient();
 
-  // Un jeu de zone (étape ⑤) n'a ni classes ni `zone_set_cp` : 409 du chargeur (lot 5, A-3).
-  const charge = await chargerJeu(supabase, id, profile.organization_id, { type: 'risque' });
+  const charge = await chargerJeu(supabase, id, profile.organization_id);
   if (!charge.ok) return charge.reponse;
   const { jeu } = charge;
+  // Un jeu de zone n'a ni classes ni `zone_set_cp` : sa zone et ses choix, rien d'autre (lot 5, A-2).
+  if (jeu.type === 'zone') return lireJeuZone(supabase, jeu);
 
   let lignes: LigneCp[];
   try {
@@ -205,17 +208,27 @@ export async function PATCH(
     return NextResponse.json({ error: 'Aucune organisation active.' }, { status: 403 });
   }
 
-  const corps = await lireCorps(request, CorpsSchema);
-  if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
+  // Le corps est LU d'abord (JSON illisible : 400), mais validé après le chargement, par le schéma du TYPE du jeu.
+  const brut = await lireCorps(request, z.unknown());
+  if (!brut.ok) return NextResponse.json({ error: brut.message }, { status: 400 });
 
   const { id } = await params;
   const supabase = createAdminClient();
+  const orgId = profile.organization_id;
 
-  const charge = await chargerJeu(supabase, id, profile.organization_id, { type: 'risque' });
+  const charge = await chargerJeu(supabase, id, orgId);
   if (!charge.ok) return charge.reponse;
   const { jeu } = charge;
 
-  const v = corps.valeur;
+  if (jeu.type === 'zone') {
+    const zone = CorpsReglageZoneSchema.safeParse(brut.valeur);
+    if (!zone.success) return NextResponse.json({ error: messageAnomalies(zone.error) }, { status: 400 });
+    return reglerJeuZone(supabase, jeu, zone.data, () => chargerJeu(supabase, id, orgId, { type: 'zone' }));
+  }
+
+  const corps = CorpsSchema.safeParse(brut.valeur);
+  if (!corps.success) return NextResponse.json({ error: messageAnomalies(corps.error) }, { status: 400 });
+  const v = corps.data;
 
   if (v.enregistrer && !v.nom && !jeu.nom) {
     return NextResponse.json(
@@ -266,7 +279,7 @@ export async function PATCH(
   }
 
   // Une relecture qui échoue est une panne (500), pas un jeu vide : `{ jeu: null }` en 200 se lirait « enregistré ».
-  const apres = await chargerJeu(supabase, id, profile.organization_id, { type: 'risque' });
+  const apres = await chargerJeu(supabase, id, orgId, { type: 'risque' });
   if (!apres.ok) return apres.reponse;
   return NextResponse.json({ jeu: vueJeu(apres.jeu) });
 }
@@ -285,6 +298,10 @@ export async function DELETE(
   const supabase = createAdminClient();
 
   /*
+   * Les deux types se suppriment de même : tout ce qui dépend du jeu part en cascade (sql/277). Un jeu de zone libère
+   * sa zone (`zone_referencee` ne le cite plus). ⚠ Lot 7 : une extraction référencée par une campagne (« Cible = une
+   * extraction ») devra bloquer la suppression ; aucune campagne n'en référence encore, il n'y a rien à vérifier ici.
+   *
    * `{ count: 'exact' }` n'est pas décoratif : sans l'option, supabase-js rend
    * `count: null` et la route répondrait « supprimé » pour un identifiant
    * inexistant ou appartenant à une autre organisation — exactement le défaut
