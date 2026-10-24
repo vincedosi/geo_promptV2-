@@ -62,6 +62,8 @@ export class JeuZonesService {
   private readonly _modeChoisi = signal<ModePlan | null>(null);
   /** La date de mise à jour de la zone que le sélecteur connaît : elle entre dans la clé des couvertures (recalcul en ③). */
   private readonly _maj = signal<string | null>(null);
+  /** Incrémenté quand la zone courante (non enregistrée) vient d'être recalculée : le sélecteur relit sa date. */
+  private readonly _relectureZone = signal(0);
   private readonly _erreur = signal<string | null>(null);
   private readonly lectureJeu = new LectureAnnulable<DetailJeuZone>(messageErreurCouverture);
   private readonly lecturePlateformes = new LectureAnnulable<readonly PlateformeGeo[]>(messageErreurCouverture);
@@ -78,6 +80,9 @@ export class JeuZonesService {
   readonly jeuId: Signal<string | null> = this._jeuId.asReadonly();
   readonly extraction: Signal<number | null> = this._extraction.asReadonly();
   readonly recette: Signal<Recette | null> = this._recette.asReadonly();
+  /** La date de la forme courante : la changer vide les conversions, et l'écran les redemande. */
+  readonly maj: Signal<string | null> = this._maj.asReadonly();
+  readonly relectureZone: Signal<number> = this._relectureZone.asReadonly();
   /** Le jeu enregistré ouvert, tel que la route le rend ; `null` sans jeu (ou pendant sa lecture). */
   readonly jeu: Signal<DetailJeuZone | null> = this.lectureJeu.resultat.asReadonly();
   /** La cible comptée : celle du jeu ouvert (elle ne change pas, PATCH), sinon la choisie, sinon la population totale. */
@@ -160,8 +165,8 @@ export class JeuZonesService {
     });
   }
 
-  /** Lit le registre des plateformes, une fois par page (aussi à la première ouverture du sélecteur, T10). */
-  chargerPlateformes(): void {
+  /** Lit le registre des plateformes, une fois par page, à l'arrivée d'une zone ou d'un jeu (effet du constructeur). */
+  private chargerPlateformes(): void {
     if (!this.detruit) this.lecturePlateformes.chargerUneFois(() => this.api.plateformes().pipe(map((r) => r.plateformes)));
   }
 
@@ -201,15 +206,14 @@ export class JeuZonesService {
     this._modeChoisi.set(mode);
   }
 
-  /** Ouvre un jeu enregistré : sa zone, sa cible et ses choix remplacent l'état courant (l'URL passe à `?jeu=`). */
-  charger(jeuId: string): void {
-    const id = lireZoneAnalyse(jeuId);
-    if (!id || this.detruit) return;
-    this._reglages.set({});
-    this._modeChoisi.set(null);
-    this._extraction.set(null);
-    this._erreur.set(null);
-    this.ouvrirJeu(id);
+  /**
+   * Une zone vient d'être recalculée (« Mes zones », lot 3) : si c'est la zone courante et qu'aucun jeu n'est ouvert,
+   * le sélecteur relit sa ligne et repasse sa NOUVELLE date à `choisirZone`, qui vide les conversions de l'ancienne
+   * forme (revue finale du lot 5, point 2 : l'extraction calcule sur la nouvelle). La zone d'un jeu enregistré ne se
+   * recalcule pas (409 `zone_referencee`).
+   */
+  zoneRecalculee(id: string): void {
+    if (!this.detruit && this._jeuId() === null && lireZoneAnalyse(id) === this._zoneId()) this._relectureZone.update((n) => n + 1);
   }
 
   /**
@@ -368,11 +372,13 @@ export class JeuZonesService {
   /** L'état d'une URL lue (construction, navigation extérieure). `?jeu=` l'emporte sur `?zoneJeu=`. */
   private appliquerUrl(b: ParametresJeu): void {
     const jeu = lireZoneAnalyse(b[PARAM_JEU]);
+    const zone = lireZoneAnalyse(b[PARAM_ZONE_JEU]);
+    // Une autre zone ou un autre jeu arrive par l'URL (« Mes zones », retour) : le message d'avant ne vaut plus.
+    if (jeu !== this._jeuId() || (!jeu && zone !== this._zoneId())) this._erreur.set(null);
     if (jeu !== this._jeuId()) {
       if (jeu) this.ouvrirJeu(jeu);
       else this.fermerJeu();
     }
-    const zone = lireZoneAnalyse(b[PARAM_ZONE_JEU]);
     if (!jeu && zone !== this._zoneId()) {
       this.viderResultats();
       this._recette.set(null);

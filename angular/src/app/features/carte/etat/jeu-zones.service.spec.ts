@@ -328,6 +328,18 @@ describe('JeuZonesService — la conversion', () => {
     expect(hote.jeu.erreur()).toBe('Zone introuvable dans cet espace.');
     await stable();
     expect(router.url).toBe('/carte?etape=jeu');
+    // Un jeu ouvert ensuite par l'URL (« Mes zones ») : le « Zone introuvable » d'avant ne reste pas affiché.
+    await router.navigateByUrl(`/carte?etape=jeu&jeu=${J1}`);
+    await stable();
+    expect(hote.jeu.erreur()).toBeNull();
+    http.expectOne(`/api/zones/jeux/${J1}`);
+  });
+  it('zoneRecalculee : la zone courante non enregistrée fait monter relectureZone ; une autre zone, non', async () => {
+    const { hote } = await ouvrirAvecZone();
+    hote.jeu.zoneRecalculee(Z2);
+    expect(hote.jeu.relectureZone()).toBe(0);
+    hote.jeu.zoneRecalculee(Z1);
+    expect(hote.jeu.relectureZone()).toBe(1);
   });
 });
 
@@ -337,9 +349,10 @@ describe('JeuZonesService — un jeu enregistré', () => {
     zone: { id: Z1, nom: 'Lycées BdR', recette: { v: 1, type: 'codes_postaux', codes: ['13001', '13002'] } },
     plateformes: [{ plateforme: 'dv360', maille: 'cp', seuil: 25, rayon_m: null }],
   };
-  it('charger : ?jeu= écrit, ?zoneJeu= et ?mailles= retirés ; zone, cible, recette et choix du jeu', async () => {
+  it('ouvert par l’URL (« Mes zones », bibliothèque) : ?zoneJeu= et ?mailles= retirés ; zone, cible, recette et choix du jeu', async () => {
     const { hote, http, router, stable } = await ouvrirAvecZone('&mailles=dv360.cp.35');
-    hote.jeu.charger(J1);
+    await router.navigateByUrl(`/carte?jeu=${J1}`);
+    await stable();
     http.expectOne(`/api/zones/jeux/${J1}`).flush(detail);
     await stable();
     expect(router.url).toBe(`/carte?jeu=${J1}`);

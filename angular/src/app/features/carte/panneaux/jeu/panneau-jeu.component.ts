@@ -29,7 +29,8 @@ const LARGEUR_COLONNES = 900;
  * ── SOURCE ────────────────────────────────────────────────────────────────
  * `mg-choix-zone-analysee` de ④, RÉUTILISÉ (champ « Zone ») ; la zone analysée en ④ est PROPOSÉE, jamais prise
  * d'office (A-13). Quand la liste des zones nomme la zone choisie, sa recette et sa date de mise à jour passent à
- * `JeuZonesService.choisirZone` (exactitude, défauts, cache). La cible (`mg-choix-cible`, ④) et le mode de plan
+ * `JeuZonesService.choisirZone` (exactitude, défauts, cache) ; une zone recalculée dans « Mes zones » fait relire la
+ * liste (`relire`), et sa NOUVELLE date vide les conversions de l'ancienne forme, que l'effet redemande. La cible (`mg-choix-cible`, ④) et le mode de plan
  * (`mg-mode-plan`, module risque) se choisissent avant enregistrement ; un jeu ouvert garde sa zone et sa cible.
  *
  * ── UNE COLONNE PAR PLATEFORME ───────────────────────────────────────────
@@ -57,7 +58,7 @@ const LARGEUR_COLONNES = 900;
   template: `
     <mg-entete-section libelle="Source" />
     <div class="flex flex-col gap-3 px-4 py-3">
-      <mg-choix-zone-analysee libelle="Zone" [zoneId]="jeu.zoneId()" [proposee]="proposee()" (choisie)="jeu.choisirZone($event)" (lue)="zoneLue($event)" />
+      <mg-choix-zone-analysee libelle="Zone" [zoneId]="jeu.zoneId()" [proposee]="proposee()" [relire]="jeu.relectureZone()" (choisie)="jeu.choisirZone($event)" (lue)="zoneLue($event)" />
       @if (jeu.zoneId() && (population() !== null || surface() !== null)) {
         <div data-forme class="font-mono text-[11px] text-secondary">{{ formeTexte() }}</div>
       }
@@ -144,10 +145,12 @@ export class PanneauJeuComponent {
   });
 
   constructor() {
-    // P-a : l'effet LIT la zone, les choix et les colonnes ouvertes ; `valider` (qui lit et écrit l'état) est hors suivi.
+    // P-a : l'effet LIT la zone, sa date, les choix et les colonnes ouvertes ; `valider` (qui lit et écrit l'état) est
+    // hors suivi. La date : une zone recalculée vide les conversions sans changer aucun choix — sans elle, rien ne repart.
     effect(() => {
       const ouvertes = this.ouvertes();
       if (!this.jeu.zoneId()) return;
+      this.jeu.maj();
       this.jeu.choix();
       this.jeu.cible();
       untracked(() => { for (const p of ouvertes) this.jeu.valider(p); });

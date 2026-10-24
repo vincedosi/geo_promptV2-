@@ -1,3 +1,4 @@
+import { HttpResponse } from '@angular/common/http';
 import { Component, type Injector, computed, effect, inject, runInInjectionContext, signal } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
 import { TestBed } from '@angular/core/testing';
@@ -83,6 +84,10 @@ interface OptionsOuverture {
   /** `CarteApi.campagnesOoh` / `campagneOoh` (« Autres » → « Panneaux OOH et DOOH »). */
   campagnesOoh?: () => unknown;
   campagneOoh?: (id: string) => unknown;
+  /** `CouvertureApi.couverture` (④, ⑤) ; par défaut jamais rendue. */
+  couverture?: (...args: unknown[]) => unknown;
+  /** `ZonesApi.recalculer` (« Mes zones »). */
+  recalculer?: (id: string) => unknown;
 }
 
 async function ouvrir(options: OptionsOuverture = {}) {
@@ -116,15 +121,15 @@ async function ouvrir(options: OptionsOuverture = {}) {
         },
       },
       // L'atelier de ③ (lot 3) : aucune requête tant qu'on ne prévisualise rien.
-      { provide: ZonesApi, useValue: {} },
+      { provide: ZonesApi, useValue: options.recalculer ? { recalculer: options.recalculer } : {} },
       { provide: ZonesRisqueApi, useValue: { urlTuilesZones: () => '/api/tiles/zones-risque/{z}/{x}/{y}?profil=x', preparer: () => of({ classes: 1 }) } },
       { provide: JeuxZonesApi, useValue: { lister: options.jeux ?? (() => of({ jeux: [] })) } },
       { provide: CarreauxApi, useValue: { urlTuiles: () => '/api/tiles/{z}/{x}/{y}?v=19' } },
       { provide: IrisApi, useValue: { urlTuiles: () => '/api/tiles/iris/{z}/{x}/{y}?v=2', bornes: () => of({}), detail: () => of() } },
       // ④ Couverture d'une zone (lot 4, T8) : jamais appelée sans « Chiffrer ».
-      { provide: CouvertureApi, useValue: { couverture: () => NEVER } },
+      { provide: CouvertureApi, useValue: { couverture: options.couverture ?? (() => NEVER) } },
       // ⑤ Jeu de zones (lot 5, T10) : rien n'est lu sans zone ; une zone de l'URL fait lire le registre.
-      // « Mes zones » lit `GET /api/zones/jeux` par `JeuxApi` depuis le lot 5 (T12, les deux types).
+      // « Mes zones » lit `GET /api/zones/jeux?type=tous` par `JeuxApi` depuis le lot 5 (T12, les deux types).
       { provide: JeuxApi, useValue: { plateformes: options.plateformes ?? (() => NEVER), lister: options.jeux ?? (() => of({ jeux: [] })) } },
       { provide: ProfilRisqueApi, useValue: { cibles: () => NEVER } },
       { provide: CarteApi, useValue: { categories: options.categories ?? (() => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] })), jeuxRecommandes: options.jeuxRecommandes ?? (() => of({ cles: [] })), pois: () => of(), campagnesOoh: options.campagnesOoh ?? (() => of({ campagnes: [], tronque: false })), campagneOoh: options.campagneOoh ?? (() => of()), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
@@ -1350,6 +1355,55 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     expect(hote.querySelector('button[data-script-dv360]')).toBeNull();
   });
 });
+describe('CartePage — ⑤ suit un recalcul de sa zone (revue finale du lot 5, point 2)', () => {
+  const Z = '0f8fad5b-d9cb-469f-a165-70867728950e';
+  it('⑤ → ③ « Mes zones » → Recalculer → ⑤ : la date relue vide l’ancienne conversion, la nouvelle forme est relue et affichée', async () => {
+    let maj = '2026-10-24T08:00:00Z';
+    let population = 1000;
+    const ligne = (): ZoneCustomResume => ({
+      id: Z, name: 'Lyon 5 km', description: null, source_type: 'recette_rayon_point', source_metadata: {}, feature_count_iris: 3,
+      feature_count_cp: 2, bbox: [4, 45, 5, 46], created_at: '2026-10-24T08:00:00Z', created_by: null, dept_codes: ['69'], region_codes: ['84'],
+      updated_at: maj, recette: { v: 1, type: 'rayon_point', lon: 4.8357, lat: 45.764, rayon_m: 5000 },
+    });
+    const couverture = vi.fn((zone: unknown, cible: unknown, decoupage: unknown) => of({
+      zone_id: zone, cible, decoupage, population, surface_km2: 78, n_carreaux: 40, zone_maj: maj,
+      lignes: [{ code: '69005', nom: null, commune: null, n_carreaux: 40, pop_en_zone: population, pop_totale: population, part: 100 }],
+    }));
+    const recalculer = vi.fn(() => {
+      maj = '2026-10-24T09:00:00Z';
+      population = 2500;
+      return of(new HttpResponse({ status: 200, body: { zone_id: Z } }));
+    });
+    const plateformes = () => of({ plateformes: [{
+      plateforme: 'dv360', maille: 'cp', libelle: 'Code postal', natif: true, disponible: true, limites: {}, doc_url: null,
+      releve_le: '2026-10-14', a_verifier: false, note: null, ordre: 0,
+    }] });
+    const { hote, stable } = await ouvrir({
+      url: `/carte?etape=jeu&zoneJeu=${Z}`, organisation: 'org-1', zones: { lister: () => of({ zones: [ligne()] }) },
+      plateformes, couverture, recalculer,
+    });
+    const forme = () => hote.querySelector('mg-panneau-jeu [data-forme]')?.textContent?.replace(/\s/g, '') ?? '';
+    expect(couverture).toHaveBeenCalledTimes(1);
+    expect(couverture).toHaveBeenLastCalledWith(Z, 'ind', 'cp');
+    expect(forme()).toContain('1000habitantscarroyés');
+
+    // ③ : « Mes zones », puis « Recalculer » sur la zone convertie par ⑤.
+    frapper(hote, altChiffre('3'));
+    await stable();
+    hote.querySelector<HTMLButtonElement>('[data-panneau-etape="zones"] [data-ouvrir-mes-zones]')!.click();
+    await stable();
+    hote.querySelector<HTMLButtonElement>('mg-mes-zones [data-recalculer]')!.click();
+    await stable();
+    expect(recalculer).toHaveBeenCalledWith(Z);
+
+    // Retour en ⑤ : la nouvelle forme est relue (une seconde couverture), et c'est elle que l'écran montre.
+    frapper(hote, altChiffre('5'));
+    await stable();
+    expect(couverture).toHaveBeenCalledTimes(2);
+    expect(forme()).toContain('2500habitantscarroyés');
+  });
+});
+
 describe('CartePage — plan média des zones affichées (T15)', () => {
   const ENTITE = { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[5, 43], [6, 43], [6, 44], [5, 43]]] }, properties: {} };
   const zone = (id: string, name: string) => ({ id, name, source_type: 'composite', bbox: [5, 43, 6, 44] }) as unknown as ZoneCustomResume;

@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
-import { from, map, switchMap, throwError } from 'rxjs';
+import { type Observable, from, map, switchMap, throwError } from 'rxjs';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { plierTexte } from '../../../../core/format/texte';
 import { ZonesCustomApi, type ZoneCustomResume } from '../../data/zones-custom.api';
 import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
-import { LectureAnnulable } from '../../etat/lecture-annulable';
+import { LectureAnnulable, surChangement } from '../../etat/lecture-annulable';
 import type { IndicateurRegistre } from '../../logique/analyses/score';
 import { messageErreurRequete } from '../../logique/analyses/commun';
 import { libelleRecette } from '../../logique/zones/recette';
@@ -28,7 +28,9 @@ import { LIBELLE_CHAMP, LISTE_CHAMP, PASTILLE, PASTILLE_INACTIVE } from './style
  * ⑤ Jeu de zones (lot 5, T10) le monte AUSSI, sans copie : `libelle` renomme le champ (« Zone ») ; `proposee` est la
  * zone analysée en ④ (A-13), PROPOSÉE sans être prise (« Partir de la zone analysée : <nom> » — un lien de l'URL,
  * qui fait lire la liste une fois pour la nommer) ; `lue` rend la ligne de la zone choisie dès que la liste la connaît
- * (recette et date de mise à jour : `JeuZonesService.choisirZone(id, recette, maj)`).
+ * (recette et date de mise à jour : `JeuZonesService.choisirZone(id, recette, maj)`) ; `relire` change quand la zone
+ * choisie vient d'être recalculée (« Mes zones ») : la liste est RELUE, et `lue` rend la ligne à sa nouvelle date
+ * (revue finale du lot 5, point 2 — sans elle, ⑤ gardait les chiffres de l'ancienne forme).
  */
 const SANS_ESPACE = 'Aucun espace actif : impossible de lister les zones.';
 
@@ -100,6 +102,8 @@ export class ChoixZoneAnalyseeComponent {
   readonly libelle = input('Zone analysée');
   /** Une zone PROPOSÉE quand aucune n'est choisie (A-13, ⑤ ← ④) ; `null` sans proposition. */
   readonly proposee = input<string | null>(null);
+  /** Change après un recalcul de la zone choisie : la liste est relue (jamais pour sa valeur initiale). */
+  readonly relire = input(0);
   /** L'id choisi, ou `null` (« Retirer »). */
   readonly choisie = output<string | null>();
   /** La ligne de la zone choisie, dès que la liste la connaît (une fois par zone et par lecture). */
@@ -153,6 +157,10 @@ export class ChoixZoneAnalyseeComponent {
       const z = this.zoneChoisie();
       if (z && z !== emise) untracked(() => { emise = z; this.lue.emit(z); });
     });
+    // Une relecture DEMANDÉE (zone recalculée) remplace la liste, même déjà lue ; sans zone choisie, rien n'est lu.
+    surChangement(() => this.relire(), () => {
+      if (this.zoneId()) this.lecture.lancer(this.source());
+    });
     // Le patron de « Mes zones » : une lecture, seulement si un seuil sur territoires est listé.
     effect(() => {
       if (this.seuilListe()) untracked(() => this.lectureIndicateurs.chargerUneFois(() => this.catalogue.charger()));
@@ -170,12 +178,16 @@ export class ChoixZoneAnalyseeComponent {
     this.choisie.emit(id);
   }
 
-  /** Une lecture par composant, et seulement avec un espace. */
+  /** Une lecture par composant (hors relecture demandée), et seulement avec un espace. */
   private charger(): void {
-    this.lecture.chargerUneFois(() => from(this.auth.lireProfil()).pipe(
+    this.lecture.chargerUneFois(() => this.source());
+  }
+
+  private source(): Observable<ZoneCustomResume[]> {
+    return from(this.auth.lireProfil()).pipe(
       switchMap((p) => (p?.organisation
         ? this.api.lister(new URLSearchParams({ org_id: p.organisation, _t: String(Date.now()) })).pipe(map((r) => r.zones ?? []))
         : throwError(() => SANS_ESPACE))),
-    ));
+    );
   }
 }

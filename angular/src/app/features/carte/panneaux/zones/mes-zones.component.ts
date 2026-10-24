@@ -8,6 +8,7 @@ import { type FormatExportZone, type StatsZones, type ZoneCustomResume, ZonesCus
 import { ZonesApi } from '../../data/zones.api';
 import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { ExportZoneService } from '../../etat/export-zone.service';
+import { JeuZonesService } from '../../etat/jeu-zones.service';
 import type { IndicateurRegistre } from '../../logique/analyses/score';
 import { libelleSource } from '../../logique/zones/libelle-zone';
 import { basculerDansSelection, selectionExistante } from '../../logique/zones/operations-zones';
@@ -142,6 +143,8 @@ export class MesZonesComponent {
   private readonly catalogue = inject(CatalogueIndicateursService);
   private readonly exports = inject(ExportZoneService);
   protected readonly affichage = inject(ZonesCustomService);
+  /** ⑤ (page) : averti d'un recalcul, il relit la date de sa zone. Facultatif : ce panneau se monte aussi sans ⑤ (tests). */
+  private readonly jeu = inject(JeuZonesService, { optional: true });
 
   /** Incrémenté par le parent après une création de zone (T16) : relit la liste sans recréer ce composant. */
   readonly rafraichir = input(0);
@@ -270,6 +273,8 @@ export class MesZonesComponent {
         // l'emprise frais de la zone — la zone d'avant le recalcul n'est plus la bonne.
         if (this.affichage.couleurs().has(id)) this.aRelire.add(id);
         this.relecture.update((n) => n + 1);
+        // ⑤ ne doit pas montrer l'ancienne forme quand son extraction calculerait sur la nouvelle (revue finale lot 5).
+        this.jeu?.zoneRecalculee(id);
       },
       error: (e: { status?: number; error?: unknown }) => {
         this.retirerRecalcul(id);
