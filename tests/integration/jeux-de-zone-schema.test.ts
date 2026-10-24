@@ -1,5 +1,5 @@
 /**
- * sql/277 — les jeux de ZONE à côté des jeux risque (lot 5, T6).
+ * sql/277 (+ sql/278) — les jeux de ZONE à côté des jeux risque (lot 5, T6).
  *
  * Ce que ce fichier verrouille :
  * - la migration se rejoue deux fois à l'identique (base locale partagée) ;
@@ -9,7 +9,9 @@
  * - `zone_set_plateformes` : une plateforme une fois, un couple connu de `plateformes_geo`, un seuil en pourcentage,
  *   un rayon pour le cercle et pour lui seul ;
  * - `creer_extraction_jeu_zone` (A-11) : refus nommés, `forme` copiée, unités numérotées dans l'ordre reçu, empreinte
- *   indépendante de l'ordre (deux appels identiques → `deja_extraite`), unités immuables.
+ *   indépendante de l'ordre (deux appels identiques → `deja_extraite`), unités immuables ;
+ * - sql/278 (relecture T6) : chaque plateforme au CP garde SES CP dans les unités, le plan CP (`zone_set_extraction_cp`)
+ *   est celui du seuil le plus bas ; un code ne figure qu'une fois par (extraction, plateforme, maille).
  * Tout ce qui écrit vit dans une transaction ANNULÉE : rien ne reste en base.
  */
 import { readFileSync } from 'node:fs';
@@ -17,7 +19,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { psql, psqlBrut, psqlLignes } from './_psql';
 
-const MIGRATION = readFileSync(join(process.cwd(), 'sql', '277_jeux_de_zone.sql'), 'utf8');
+const MIGRATION = ['277_jeux_de_zone.sql', '278_jeux_de_zone_cp_par_plateforme.sql']
+  .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join(';\n');
 
 /** « CIRFA BRETAGNE », zone de l'espace interne présente dans le dump local. */
 const ZONE = 'f001b479-b870-4958-978d-e7a98b90de57';
@@ -64,7 +67,7 @@ const RESUME = `'{"n_cp":2,"n_retenus":1,"taux_utile":90,"part_plan_en_zone":60,
                   "plateformes":[{"plateforme":"meta","n_unites":2,"n_retenus":1},{"plateforme":"ttd","n_unites":1}]}'::jsonb`;
 const extraire = (u: string, cp = CP) => `select public.creer_extraction_jeu_zone('${JEU}', ${cp}, ${u}, ${RESUME});`;
 
-describe('sql/277 — jeux de zone', () => {
+describe('sql/277-278 — jeux de zone', () => {
   it('la migration rejouée deux fois : empreinte identique, et identique à la base', () => {
     const base = psql(EMPREINTE);
     const lignes = psqlLignes(`begin;\n${MIGRATION}\n${EMPREINTE}\n${MIGRATION}\n${EMPREINTE}\nrollback;`);
@@ -168,8 +171,9 @@ describe('sql/277 — jeux de zone', () => {
     ['plan_vide', `select public.creer_extraction_jeu_zone('${JEU}', null, '{"a":1}', '{}');`],
     ['unites_hors_choix', `select public.creer_extraction_jeu_zone('${JEU}', '[]',
        '[{"plateforme":"tiktok","maille":"commune","code":"29019","pop_en_zone":1,"pop_totale":2,"part":50,"retenu":true}]', '{}');`],
+    // Meta a choisi le cercle : ses CP ne sont pas un choix du jeu.
     ['unites_hors_choix', `select public.creer_extraction_jeu_zone('${JEU}', '[]',
-       '[{"plateforme":"dv360","maille":"cp","code":"29200","pop_en_zone":1,"pop_totale":2,"part":50,"retenu":true}]', '{}');`],
+       '[{"plateforme":"meta","maille":"cp","code":"29200","pop_en_zone":1,"pop_totale":2,"part":50,"retenu":true}]', '{}');`],
   ])('extraction refusée : %s', (refus, appel) => {
     const r = JSON.parse(psql(`begin; ${JEU_DE_ZONE} ${appel} rollback;`));
     expect(r).toEqual({ ok: false, error: refus });
@@ -180,5 +184,41 @@ describe('sql/277 — jeux de zone', () => {
       delete from public.zone_set_plateformes where zone_set_id = '${JEU}' and maille = 'cp';
       ${extraire(unites(CERCLES))} rollback;`));
     expect(r).toEqual({ ok: false, error: 'unites_hors_choix' });
+  });
+
+  it('deux plateformes au CP (20 et 50 %) : chacune garde SES CP dans les unités, le plan CP est au seuil 20', () => {
+    const cpDe = (plateforme: string, retenu29000: boolean) =>
+      `{"plateforme":"${plateforme}","maille":"cp","code":"29200","pop_en_zone":900,"pop_totale":1000,"part":90,"retenu":true},`
+      + `{"plateforme":"${plateforme}","maille":"cp","code":"29000","pop_en_zone":300,"pop_totale":1000,"part":30,"retenu":${retenu29000}}`;
+    const lignes = psqlLignes(`begin; ${JEU_DE_ZONE}
+      update public.zone_set_plateformes set maille = 'cp', seuil = 50, rayon_m = null
+       where zone_set_id = '${JEU}' and plateforme = 'meta';
+      ${extraire(`'[${cpDe('dv360', true)},${cpDe('meta', false)}]'::jsonb`)}
+      select string_agg(u.plateforme || ':' || u.code || ':' || u.retenu, ',' order by u.plateforme, u.code)
+        from public.zone_set_extraction_unites u join public.zone_set_extractions e on e.id = u.extraction_id
+       where e.zone_set_id = '${JEU}';
+      select e.seuil_couverture_cp || '|' || (select count(*) from public.zone_set_extraction_cp c where c.extraction_id = e.id)
+        from public.zone_set_extractions e where e.zone_set_id = '${JEU}';
+      rollback;`);
+    const [rep, unitesLues, plan] = lignes.slice(-3);
+    expect(JSON.parse(rep)).toMatchObject({ ok: true, unites_ecrites: 4, lignes_ecrites: 2 });
+    expect(unitesLues).toBe('dv360:29000:true,dv360:29200:true,meta:29000:false,meta:29200:true');
+    expect(plan).toBe('20|2');
+  });
+
+  it('un code ne figure qu’une fois par (extraction, plateforme, maille)', () => {
+    const doublon = '{"plateforme":"dv360","maille":"cp","code":"29200","pop_en_zone":1,"pop_totale":2,"part":50,"retenu":true}';
+    const r = psqlBrut(`begin; ${JEU_DE_ZONE} ${extraire(unites([doublon, doublon]))} rollback;`);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('zseu_code_unique');
+  });
+
+  it('empreinte : une population changée (base reconstruite) fait une nouvelle version, pas un deja_extraite', () => {
+    const autrePop = CERCLES.map((u, i) => (i === 0 ? u.replace('"pop_totale":800', '"pop_totale":801') : u));
+    const lignes = psqlLignes(`begin; ${JEU_DE_ZONE}
+      ${extraire(unites(CERCLES))}
+      ${extraire(unites(autrePop))}
+      rollback;`);
+    expect(JSON.parse(lignes.at(-1)!)).toMatchObject({ deja_extraite: false, version: 2 });
   });
 });

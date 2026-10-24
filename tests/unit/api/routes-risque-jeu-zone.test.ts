@@ -19,14 +19,20 @@ const h = vi.hoisted(() => ({
   jeu: null as Record<string, unknown> | null,
   /** `table:filtre=valeur` de chaque lecture. */
   lectures: [] as string[],
+  /** Rang (1, 2…) de la lecture de `zone_sets` qui échoue ; 0 = aucune. */
+  lectureEnEchec: 0,
+  nLectures: 0,
 }));
 
 /** Une requête supabase-js : chaque filtre se journalise, la fin rend la ligne prévue pour la table. */
 function requete(table: string, fin: () => unknown) {
   const q: Record<string, unknown> = {};
-  for (const m of ['select', 'order', 'limit', 'range']) q[m] = () => q;
+  for (const m of ['select', 'order', 'limit', 'range', 'update']) q[m] = () => q;
   q.eq = (col: string, val: unknown) => { h.lectures.push(`${table}:${col}=${String(val)}`); return q; };
-  q.maybeSingle = async () => ({ data: fin(), error: null });
+  q.maybeSingle = async () => {
+    h.nLectures += 1;
+    return h.nLectures === h.lectureEnEchec ? { data: null, error: { message: 'panne' } } : { data: fin(), error: null };
+  };
   q.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: fin(), error: null }).then(ok);
   return q;
 }
@@ -47,7 +53,7 @@ vi.mock('@/lib/auth', () => ({
       if (table === 'bidding_strategies') {
         return requete(table, () => ({ in_zone_weights: { mode: 'zone_set', zone_set_id: h.JEU, zone_set_nom: 'J' } }));
       }
-      if (table === 'zone_set_extractions') return requete(table, () => []);
+      if (table === 'zone_set_extractions' || table === 'zone_set_cp') return requete(table, () => []);
       throw new Error(`lecture inattendue : ${table}`);
     },
     rpc(nom: string) { throw new Error(`RPC inattendue : ${nom}`); },
@@ -109,6 +115,8 @@ const ROUTES: [string, Appel][] = [
 beforeEach(() => {
   h.jeu = null;
   h.lectures.length = 0;
+  h.lectureEnEchec = 0;
+  h.nLectures = 0;
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
@@ -162,5 +170,33 @@ describe('source des routes — une seule lecture du jeu, par le chargeur', () =
     const s = readFileSync(f, 'utf8');
     expect(s).toContain("from '@/lib/zones/charger-jeu'");
     expect(s, 'lecture de zone_sets hors du chargeur').not.toMatch(/from\('zone_sets'\)\s*\.select/);
+  });
+});
+
+describe('GET / PATCH [id] d’un jeu risque — la forme de réponse d’avant le chargeur', () => {
+  const CHAMPS = ['brouillon', 'cible', 'construit_le', 'created_at', 'description', 'gravites', 'id', 'mode_plan',
+    'modes', 'n_cp_retenus', 'natures', 'nom', 'poids', 'population_exposee', 'profil', 'profil_hash',
+    'seuil_couverture_cp', 'taux_utile', 'territoire', 'version'];
+  const risque = () => ({ ...jeuDe('risque'), created_by: 'u1', description: null, created_at: '2026-10-24',
+    population_exposee: 1, n_cp_retenus: 1, taux_utile: 50 });
+
+  it('GET : les champs d’avant, ni org_id, ni created_by, ni type, ni zone', async () => {
+    h.jeu = risque();
+    const r = await R.jeu.GET(req(URL_JEU), params);
+    expect(r.status).toBe(200);
+    expect(Object.keys((await r.json()).jeu).sort()).toEqual(CHAMPS);
+  });
+
+  it('PATCH : même forme ; une relecture après mise à jour qui échoue rend 500, pas 200 { jeu: null }', async () => {
+    h.jeu = risque();
+    const ok = await R.jeu.PATCH(req(URL_JEU, { ...enJson({ nom: 'x' }), method: 'PATCH' }), params);
+    expect(ok.status).toBe(200);
+    expect(Object.keys((await ok.json()).jeu).sort()).toEqual(CHAMPS);
+
+    h.nLectures = 0;
+    h.lectureEnEchec = 2;
+    const ko = await R.jeu.PATCH(req(URL_JEU, { ...enJson({ nom: 'x' }), method: 'PATCH' }), params);
+    expect(ko.status).toBe(500);
+    expect(await ko.json()).toEqual({ error: 'Jeu de zones illisible.' });
   });
 });

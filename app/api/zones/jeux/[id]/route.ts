@@ -29,11 +29,27 @@ import { lireTout } from '@/lib/supabase/lire-tout';
 import { POIDS_MIN, POIDS_MAX, MODES_PLAN, MOTIF_CLASSE } from '@/lib/zones/jeu';
 import { plierParCodePostal } from '@/lib/zones/plan';
 import { chargerJeu } from '@/lib/zones/charger-jeu';
+import type { Tables } from '@/types/database.types';
 
 export const dynamic = 'force-dynamic';
 
 /** Au-delà, la lecture des codes postaux échoue plutôt que de rendre un début. */
 const PLAFOND_CP = 8000;
+
+/**
+ * Les champs du jeu que GET et PATCH rendent — la forme d'avant le chargeur commun. `chargerJeu` lit la ligne
+ * entière (une lecture pour toutes les routes) ; l'espace (`org_id`), l'auteur (`created_by`), `type` et
+ * `custom_geo_zone_id` ne partent pas au client d'un jeu risque.
+ */
+const CHAMPS_JEU = [
+  'id', 'nom', 'description', 'version', 'brouillon', 'created_at', 'construit_le', 'profil', 'profil_hash', 'cible',
+  'gravites', 'natures', 'modes', 'territoire', 'mode_plan', 'seuil_couverture_cp', 'poids', 'population_exposee',
+  'n_cp_retenus', 'taux_utile',
+] as const satisfies readonly (keyof Tables<'zone_sets'>)[];
+
+function vueJeu(jeu: Tables<'zone_sets'>): Pick<Tables<'zone_sets'>, (typeof CHAMPS_JEU)[number]> {
+  return Object.fromEntries(CHAMPS_JEU.map((k) => [k, jeu[k]])) as Pick<Tables<'zone_sets'>, (typeof CHAMPS_JEU)[number]>;
+}
 
 const CorpsSchema = z.object({
   nom: z.string().min(1).max(120).optional(),
@@ -174,7 +190,7 @@ export async function GET(
   }
 
   return NextResponse.json(
-    { jeu, classes: regrouperParClasse(lignes), codes_postaux: lignes },
+    { jeu: vueJeu(jeu), classes: regrouperParClasse(lignes), codes_postaux: lignes },
     { headers: { 'Cache-Control': 'no-store' } },
   );
 }
@@ -249,8 +265,10 @@ export async function PATCH(
     }
   }
 
+  // Une relecture qui échoue est une panne (500), pas un jeu vide : `{ jeu: null }` en 200 se lirait « enregistré ».
   const apres = await chargerJeu(supabase, id, profile.organization_id, { type: 'risque' });
-  return NextResponse.json({ jeu: apres.ok ? apres.jeu : null });
+  if (!apres.ok) return apres.reponse;
+  return NextResponse.json({ jeu: vueJeu(apres.jeu) });
 }
 
 export async function DELETE(
