@@ -3,8 +3,10 @@
  *
  * Les EXTRACTIONS d'un jeu de zones (Phase 4 du chantier zones -> CP).
  *
- * GET  — la liste des versions, la plus récente d'abord.
- * POST — fige l'état courant du plan en une nouvelle version.
+ * GET  — la liste des versions, la plus récente d'abord (les deux types de jeu).
+ * POST — fige l'état courant du plan en une nouvelle version. Un jeu de ZONE (lot 5, T8) passe par
+ *        `extraireJeuZone` (`lib/zones/extraction-jeu-zone.ts`) : le serveur rejoue chaque plateforme ; le jeu risque
+ *        garde le chemin ci-dessous, inchangé.
  *
  * ── CE QUI DISTINGUE CETTE ROUTE DE `/export` ────────────────────────────
  *
@@ -38,8 +40,12 @@ import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
 import { normaliserJeu } from '@/lib/zones/jeu';
 import { genererPlanCp, plierParCodePostal, type CpZone } from '@/lib/zones/plan';
 import { lireGroupesCp } from '@/lib/zones/groupes';
+import { extraireJeuZone } from '@/lib/zones/extraction-jeu-zone';
+import { messageAnomalies } from '@/lib/api/valider-corps';
 
 export const dynamic = 'force-dynamic';
+/** L'extraction d'un jeu de zone enchaîne jusqu'à quatre conversions (≈ 1,8 s au pire mesuré chacune, sql/276). */
+export const maxDuration = 60;
 
 /**
  * 6 par minute, comme `/export` et `/rattacher`. Une extraction relit tous les
@@ -64,6 +70,14 @@ const CorpsSchema = z.object({
   origine: z.enum(['initiale', 'recalage']).default('initiale'),
   commentaire: z.string().trim().max(500).default(''),
 });
+
+/**
+ * Le corps d'une extraction de jeu de ZONE : les mêmes champs, STRICT — des unités, un plan ou un résumé envoyés par
+ * le client sont refusés, jamais pris (Review Focus 3 : le serveur recalcule chaque plateforme). Le corps est d'abord
+ * lu par `CorpsSchema.passthrough()`, qui garde les clés inconnues sans changer le chemin du risque (elles y sont
+ * ignorées comme avant), puis relu par ce schéma quand le type du jeu est connu.
+ */
+const CorpsZoneSchema = CorpsSchema.strict();
 
 interface LigneCp {
   code_postal: string;
@@ -158,7 +172,7 @@ export async function POST(
 
   // `lireCorps` ne lève jamais et rend un message français — `request.json()`
   // nu répondrait 500 sur un corps illisible (`lib/api/valider-corps.ts`).
-  const corps = await lireCorps(request, CorpsSchema);
+  const corps = await lireCorps(request, CorpsSchema.passthrough());
   if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
 
   const quota = await limiteurEcriture(profile.id);
@@ -167,11 +181,15 @@ export async function POST(
   const { id } = await params;
   const supabase = createAdminClient();
 
-  // Le plan d'un jeu de zone se calcule autrement (couverture par plateforme, `creer_extraction_jeu_zone`) : 409 du
-  // chargeur jusqu'à sa branche (lot 5, T8).
-  const charge = await chargerJeu(supabase, id, profile.organization_id, { type: 'risque' });
+  // Sans type : un jeu de zone se calcule autrement (conversion par plateforme, `creer_extraction_jeu_zone`).
+  const charge = await chargerJeu(supabase, id, profile.organization_id);
   if (!charge.ok) return charge.reponse;
   const jeuRow = charge.jeu;
+  if (jeuRow.type === 'zone') {
+    const strict = CorpsZoneSchema.safeParse(corps.valeur);
+    if (!strict.success) return NextResponse.json({ error: messageAnomalies(strict.error) }, { status: 400 });
+    return extraireJeuZone(supabase, jeuRow, strict.data, profile.id);
+  }
   if (jeuRow.brouillon) {
     return NextResponse.json(
       {

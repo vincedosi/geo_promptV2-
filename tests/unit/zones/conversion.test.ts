@@ -9,8 +9,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
-  appliquerSeuil, exactitude, mailleParDefaut, resumeExact, verifierLimites,
+  MESSAGES_CONVERSION, appliquerSeuil, estRetenue, exactitude, mailleParDefaut, resumeExact, verifierLimites,
 } from '@/lib/zones/conversion';
+import { MESSAGES_REFUS_COUVERTURE } from '@/lib/zones/couverture';
 import { MAILLES, type PlateformeGeo } from '@/lib/zones/plateformes';
 import type { LigneCouverture } from '@/lib/zones/couverture';
 import type { Recette } from '@/lib/zones/recette';
@@ -94,8 +95,36 @@ describe('appliquerSeuil — cas limites', () => {
 describe('resumeExact — une maille exacte ne calcule rien', () => {
   it('zéro perte, tout acheté est dans la zone', () => {
     expect(resumeExact(12_345, 67.8)).toEqual({
-      exacte: true, population: 12_345, surface_km2: 67.8, couverte: 12_345, achetee: 12_345, manques: 0, hors_zone: 0, taux_utile: 100,
+      exacte: true, n_unites: 1, population: 12_345, surface_km2: 67.8, couverte: 12_345, achetee: 12_345, manques: 0, hors_zone: 0, taux_utile: 100,
     });
+  });
+  it('une liste de codes postaux exacte compte ses unités (une par code)', () => {
+    expect(resumeExact(100, 2, 4).n_unites).toBe(4);
+  });
+});
+
+describe('estRetenue — la règle du seuil, une seule fois', () => {
+  it('la borne est retenue ; une part NULL ne l’est jamais', () => {
+    expect(estRetenue({ part: 20 }, 20)).toBe(true);
+    expect(estRetenue({ part: 19.9 }, 20)).toBe(false);
+    expect(estRetenue({ part: null }, 0)).toBe(false);
+  });
+});
+
+describe('MESSAGES_CONVERSION — les refus de paver_cercles en français', () => {
+  it('un message par refus de la RPC (sql/276), en français, sans limite écrite', () => {
+    expect(Object.keys(MESSAGES_CONVERSION).sort()).toEqual([
+      'couverture_non_construite', 'cible_inconnue', 'trop_de_candidates', 'trop_de_cercles', 'zone_introuvable', 'zone_trop_vaste',
+    ].sort());
+    for (const m of Object.values(MESSAGES_CONVERSION)) {
+      expect(m).toMatch(/^[A-ZÉ]/);
+      expect(m).not.toMatch(/\d/);
+    }
+  });
+  it('les refus communs avec la couverture disent la même chose (copie verrouillée : ce module n’importe que des types)', () => {
+    for (const k of ['zone_introuvable', 'cible_inconnue', 'couverture_non_construite'] as const) {
+      expect(MESSAGES_CONVERSION[k], k).toBe(MESSAGES_REFUS_COUVERTURE[k]);
+    }
   });
 });
 
@@ -198,6 +227,11 @@ describe('verifierLimites — lit les limites de la ligne, n’en écrit aucune'
       { code: 'pop_min_groupe', limite: 91, valeur: 90 },
     ]);
   });
+  it('une maille exacte compte aussi ses unités : une liste de CP plus longue que max_unites avertit', () => {
+    expect(verifierLimites(resumeExact(500, 3, 4), ligne({ plateforme: 'meta', maille: 'cp', limites: { max_unites: 3 } })))
+      .toEqual([{ code: 'max_unites', limite: 3, valeur: 4 }]);
+    expect(verifierLimites(resumeExact(500, 3, 3), ligne({ plateforme: 'meta', maille: 'cp', limites: { max_unites: 3 } }))).toEqual([]);
+  });
   it('une maille exacte : le groupe est la zone entière', () => {
     expect(verifierLimites(resumeExact(50, 1), ligne({ plateforme: 'tiktok', maille: 'commune', limites: { pop_min_groupe: 51 } })))
       .toEqual([{ code: 'pop_min_groupe', limite: 51, valeur: 50 }]);
@@ -207,10 +241,12 @@ describe('verifierLimites — lit les limites de la ligne, n’en écrit aucune'
 describe('les règles des plateformes vivent dans plateformes_geo', () => {
   // Le code seul (commentaires retirés) : une limite écrite en dur est un nombre de la seed comparé, affecté ou pris
   // par défaut — pas l'arrondi `* 1000` du taux d'utile.
-  const code = readFileSync('lib/zones/conversion.ts', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  // `conversion.ts` (pur) et `conversion-serveur.ts` (lecture des règles et appel de `paver_cercles`, T8).
+  const code = ['lib/zones/conversion.ts', 'lib/zones/conversion-serveur.ts']
+    .map((f) => readFileSync(f, 'utf8')).join('\n').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   const OP = String.raw`(?:<=?|>=?|===?|!==?|\?\?|\|\||:|=)`;
   const enContexte = (n: string) => new RegExp(String.raw`${OP}\s*${n}(?![\d_])|(?<![\d_])${n}\s*${OP}`);
-  it('aucun nombre de la seed en contexte de limite dans lib/zones/conversion.ts', () => {
+  it('aucun nombre de la seed en contexte de limite dans lib/zones/conversion*.ts', () => {
     for (const n of ['200', '80000', '80_000', '3000', '3_000', '50000', '50_000', '1000', '1_000']) {
       expect(code, n).not.toMatch(enContexte(n));
     }

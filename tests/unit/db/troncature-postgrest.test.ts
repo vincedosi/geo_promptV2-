@@ -327,7 +327,8 @@ describe('troncature PostgREST à db-max-rows (1 000 lignes) — verrou de famil
     // Les aides tabulaires de `paver_cercles` (`cellule_hex`, `centre_hex`, `carreaux_de_forme_points`, sql/276) ne
     // sont lues qu'en SQL : appelées un jour par l'application, le test « borne écrite » ci-dessus l'exigerait.
     // `creer_extraction_jeu_zone` (sql/277) rend un résumé, jamais les unités : elles se relisent par table.
-    for (const nom of ['couverture_geometrie', 'paver_cercles', 'creer_extraction_jeu_zone']) {
+    // `contours_communes` (sql/279) : jusqu'à 3 000 contours, refus `trop_de_communes` au-delà.
+    for (const nom of ['couverture_geometrie', 'paver_cercles', 'creer_extraction_jeu_zone', 'contours_communes']) {
       expect(RETOUR_EFFECTIF.get(nom)?.retour, nom).toBe('jsonb');
     }
   });

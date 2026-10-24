@@ -15,9 +15,9 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import type { createAdminClient } from '@/lib/auth';
 import type { Tables } from '@/types/database.types';
-import { formaterNombre } from '@/lib/format/nombre';
 import { zoneIntrouvable } from '@/lib/zones/session-zones';
 import { JeuZoneSchema, type ChoixPlateforme } from '@/lib/zones/jeu';
+import { refusDuChoix } from '@/lib/zones/conversion-serveur';
 
 type ClientAdmin = ReturnType<typeof createAdminClient>;
 type LigneJeu = Tables<'zone_sets'>;
@@ -108,20 +108,8 @@ async function refusDesChoix(supabase: ClientAdmin, choix: ChoixPlateforme[]): P
   if (error) return panne('plateformes_geo', error.message);
 
   for (const c of choix) {
-    const regle = (data ?? []).find((l) => l.plateforme === c.plateforme && l.maille === c.maille);
-    if (!regle) return erreur(`${c.plateforme} n’achète pas à la maille ${c.maille}.`, 400);
-    if (!regle.disponible) {
-      return erreur(`La maille ${c.maille} n’est pas disponible chez ${c.plateforme}${regle.note ? ` : ${regle.note}` : '.'}`, 400);
-    }
-    const limites = (regle.limites ?? {}) as { rayon_min_m?: number; rayon_max_m?: number };
-    const min = limites.rayon_min_m ?? 0;
-    const max = limites.rayon_max_m ?? Number.POSITIVE_INFINITY;
-    if (c.rayon_m !== undefined && (c.rayon_m < min || c.rayon_m > max)) {
-      const bornes = Number.isFinite(max)
-        ? `${formaterNombre(min)} à ${formaterNombre(max)} m`
-        : `au moins ${formaterNombre(min)} m`;
-      return erreur(`Rayon de ${formaterNombre(c.rayon_m)} m hors des bornes de ${c.plateforme} (${bornes}).`, 400);
-    }
+    const refus = refusDuChoix(c, (data ?? []).find((l) => l.plateforme === c.plateforme && l.maille === c.maille));
+    if (refus) return erreur(refus, 400);
   }
   return null;
 }

@@ -173,6 +173,7 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `carreaux_de_forme_points()` | 276 | Le corps de la règle « carreaux d'une forme », avec le centroïde ; `carreaux_de_forme_codes` en devient l'enveloppe |
 | `cellule_hex()` · `centre_hex()` · `echelle_sol_3857()` · `territoire_grille()` · `territoires_non_carroyes()` | 276 | Aides du pavage : cellule hexagonale et son centre, échelle au sol de 3857 mesurée, territoire d'une grille, départements non carroyés touchés |
 | `creer_extraction_jeu_zone()` | 277, 278 | L'extraction d'un jeu de zone (`zone_sets.type = 'zone'`) : CP et autres unités figés, forme de la zone copiée, choix par plateforme lus en base, idempotente (jsonb) ; sql/278 : CP de chaque plateforme dans les unités, plan CP au seuil le plus bas, populations dans l'empreinte |
+| `contours_communes()` | 279 | Les contours d'une liste de communes, simplifiés à 0,001° en GeoJSON à 5 décimales, pour la carte de ⑤ (jsonb, refus `trop_de_communes` au-delà de 3 000) |
 
 ---
 

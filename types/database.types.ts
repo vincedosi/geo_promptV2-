@@ -7029,6 +7029,10 @@ export type Database = {
         }
         Returns: Json
       }
+      contours_communes: {
+        Args: { p_codes: string[]; p_max?: number }
+        Returns: Json
+      }
       correlation_campagne_indicateur: {
         Args: { p_campaign_id: string; p_indicator_code: string }
         Returns: Json

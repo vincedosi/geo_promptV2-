@@ -66,14 +66,10 @@ const ATTENDUS: Record<string, string> = {
   'lib/dsp/push/types.ts': 'Types de la plomberie ci-dessus. Même sort.',
   'lib/dsp/push/dv360.ts': 'Connecteur DV360 de la plomberie ci-dessus. Même sort.',
   'lib/dsp/push/simulated.ts': 'Connecteurs simulé/ignoré de la plomberie ci-dessus. Même sort.',
-  'lib/zones/conversion.ts':
-    'CONTRAT EN ATTENTE DE BRANCHEMENT — lot 5 « jeu de zones », Task 5 (2026-10-24). '
-    + 'Logique pure de la conversion (seuil, perte, exactitude) posée AVANT ses consommateurs : '
-    + 'la route d\'extraction (Task 8) l\'importe, Angular la recopie (Task 9). ⚠ Entrée TEMPORAIRE : '
-    + 'la retirer dans la tâche qui la branche ; si elle survit à la fin du lot, le module est mort.',
   // Les trois entrées TEMPORAIRES du lot 3 (`lib/zones/recette.ts`, `recette-schema.ts`,
   // `executer-recette.ts`) ont été retirées le 2026-10-15 (Task 8) : les routes `/api/zones`
-  // les importent, par `lib/zones/session-zones.ts`.
+  // les importent, par `lib/zones/session-zones.ts`. Celle de `lib/zones/conversion.ts` (lot 5,
+  // Task 5) l'a été le 2026-10-24 (lot 5, Task 8) : `/api/zones/[id]/cercles` et l'extraction l'importent.
 };
 
 // ── Graphe d'imports ────────────────────────────────────────────────────────

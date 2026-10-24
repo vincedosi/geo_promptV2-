@@ -8,8 +8,8 @@
  * import autre que des TYPES (ni Zod, ni Node, ni Next), des entrées et sorties en objets simples.
  *
  * Aucune limite de plateforme n'est écrite ici (nombre de cercles, bornes de rayon, nombre de lieux…) : elles se LISENT dans la ligne de
- * `plateformes_geo` passée en argument (§ 16.2-3) ; un test le verrouille par grep. Les messages français des
- * avertissements et des refus de conversion relèvent de la route (T8, `MESSAGES_CONVERSION`) : ce module rend des codes.
+ * `plateformes_geo` passée en argument (§ 16.2-3) ; un test le verrouille par grep. Les refus de `paver_cercles`
+ * ont leurs messages français ici (`MESSAGES_CONVERSION`, T8) ; les avertissements restent des codes, que l'écran dit.
  */
 import type { LigneCouverture } from './couverture';
 import type { PlateformeGeo } from './plateformes';
@@ -46,6 +46,8 @@ export interface ResumeMaille {
 /** Une maille exacte pour la recette (A-6) : zéro perte par construction, aucun calcul. */
 export interface ResumeExact {
   exacte: true;
+  /** Unités achetées : une (le polygone, le cercle de la recette), ou une par code d'une liste de codes postaux. */
+  n_unites: number;
   population: number;
   surface_km2: number;
   couverte: number;
@@ -65,7 +67,16 @@ export interface Avertissement {
 }
 
 /**
- * Retient les unités dont la part (en %) atteint le seuil — la borne est retenue, comme dans `appliquer_seuil_zone_set`.
+ * LA règle de rétention d'une unité : sa part (en %) atteint le seuil — la borne est retenue, comme dans
+ * `appliquer_seuil_zone_set`. Une part NULL (territoire sans dénominateur) ne l'est jamais : on ne sait pas ce qu'on
+ * achèterait. Exportée pour que l'extraction marque `retenu` par la MÊME règle que le bilan.
+ */
+export function estRetenue(ligne: Pick<LigneSeuil, 'part'>, seuil: number): boolean {
+  return ligne.part !== null && ligne.part >= seuil;
+}
+
+/**
+ * Retient les unités dont la part (en %) atteint le seuil ({@link estRetenue}) — la borne est retenue, comme dans `appliquer_seuil_zone_set`.
  * Une ligne à `part` NULL (territoire sans dénominateur) n'est jamais retenue : on ne sait pas ce qu'on achèterait.
  * `population` est celle de la zone (`couverture_geometrie.population`), hors-territoire compris.
  *
@@ -80,7 +91,7 @@ export function appliquerSeuil(lignes: readonly LigneSeuil[], population: number
   let couverte = 0;
   let achetee = 0;
   for (const l of lignes) {
-    if (l.part === null || l.part < seuil) continue;
+    if (!estRetenue(l, seuil)) continue;
     n_unites += 1;
     couverte += l.pop_en_zone;
     // Une part non nulle a un dénominateur ; `?? 0` ne sert que le typage.
@@ -100,9 +111,14 @@ export function appliquerSeuil(lignes: readonly LigneSeuil[], population: number
   };
 }
 
-/** Le bilan d'une maille exacte (le polygone, ou une maille exacte pour la recette) : la zone telle quelle. */
-export function resumeExact(population: number, surface_km2: number): ResumeExact {
-  return { exacte: true, population, surface_km2, couverte: population, achetee: population, manques: 0, hors_zone: 0, taux_utile: 100 };
+/**
+ * Le bilan d'une maille exacte (le polygone, ou une maille exacte pour la recette) : la zone telle quelle. `n_unites` :
+ * une par défaut ; le nombre de codes d'une recette `codes_postaux` achetée au CP.
+ */
+export function resumeExact(population: number, surface_km2: number, n_unites = 1): ResumeExact {
+  return {
+    exacte: true, n_unites, population, surface_km2, couverte: population, achetee: population, manques: 0, hors_zone: 0, taux_utile: 100,
+  };
 }
 
 /** Le rayon est-il dans les bornes de la plateforme ? Une borne absente ne borne pas. */
@@ -151,14 +167,15 @@ export function mailleParDefaut(lignes: readonly PlateformeGeo[], plateforme: Pl
 }
 
 /**
- * Les limites de la ligne que le bilan dépasse. `max_unites` porte sur les unités retenues (une maille exacte n'en
- * compte pas ici : le polygone est un, un cercle est un, et la liste de CP d'une recette est bornée par ③).
- * `pop_min_groupe` porte sur la diffusion achetée — le palier unique d'A-9.
+ * Les limites de la ligne que le bilan dépasse. `max_unites` porte sur les unités achetées, maille exacte comprise :
+ * une liste de codes postaux exacte au CP peut dépasser le plafond de la plateforme (relecture T5). `pop_min_groupe`
+ * porte sur la diffusion achetée — le palier unique d'A-9. `max_sommets` n'est pas vérifié ici : aucune forme n'est
+ * simplifiée par ce module (le polygone part tel que ③ l'a enregistré).
  */
 export function verifierLimites(resume: Resume, ligne: PlateformeGeo): Avertissement[] {
   const { max_unites, pop_min_groupe } = ligne.limites;
   const avertissements: Avertissement[] = [];
-  if (!resume.exacte && max_unites !== undefined && resume.n_unites > max_unites) {
+  if (max_unites !== undefined && resume.n_unites > max_unites) {
     avertissements.push({ code: 'max_unites', limite: max_unites, valeur: resume.n_unites });
   }
   if (pop_min_groupe !== undefined && resume.achetee < pop_min_groupe) {
@@ -166,3 +183,25 @@ export function verifierLimites(resume: Resume, ligne: PlateformeGeo): Avertisse
   }
   return avertissements;
 }
+
+/** Les refus de `paver_cercles` (sql/276), tels que la RPC les rend dans `refus`. */
+type RefusConversion =
+  | 'zone_introuvable' | 'cible_inconnue' | 'zone_trop_vaste' | 'trop_de_candidates' | 'trop_de_cercles' | 'couverture_non_construite';
+
+/**
+ * Les refus de la conversion en cercles, en français — même forme que `MESSAGES_REFUS_COUVERTURE`, lue par
+ * `repondreCouverture` (statut : 404, 503, sinon 422). Les chiffres (cercles retenus, plafond, rayon) partent à côté
+ * du message, dans le corps de la réponse : l'écran les dit, aucun n'est écrit ici.
+ *
+ * ⚠ COPIE DÉCLARÉE : `zone_introuvable`, `cible_inconnue` et `couverture_non_construite` recopient les messages de la
+ * couverture (`lib/zones/couverture.ts`) — ce module n'importe que des types, il est recopié côté Angular.
+ * `tests/unit/zones/conversion.test.ts` verrouille l'égalité.
+ */
+export const MESSAGES_CONVERSION: Readonly<Record<RefusConversion, string>> = {
+  zone_introuvable: 'Zone introuvable dans cet espace.',
+  cible_inconnue: 'Cette cible n’est pas connue.',
+  zone_trop_vaste: 'La zone est trop vaste pour ce rayon : augmentez le rayon ou réduisez la zone.',
+  trop_de_candidates: 'La zone touche trop de cellules à paver : augmentez le rayon.',
+  trop_de_cercles: 'Trop de cercles retenus pour cette plateforme : augmentez le rayon ou le seuil.',
+  couverture_non_construite: 'La couverture n’est pas encore construite sur cette base.',
+};

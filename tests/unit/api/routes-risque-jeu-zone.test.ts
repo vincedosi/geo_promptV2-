@@ -10,8 +10,9 @@ import { NextRequest } from 'next/server';
  * juste. Elles passent toutes par UN chargeur, `chargerJeu(…, { type: 'risque' })`, qui rend un 409 explicite — et
  * aucune autre lecture n'a lieu (le client factice lève sur toute table inattendue, et sur toute RPC).
  *
- * Exceptions : la LISTE des extractions (`GET …/extractions`) sert les deux types (lot 5, T8), et `GET` / `PATCH
- * [id]` servent un jeu de zone par leur propre branche (T7, `tests/unit/api/zones-jeux-zone.test.ts`).
+ * Exceptions : les extractions (`GET` et `POST …/extractions`) servent les deux types (lot 5, T8 ; l'extraction d'un
+ * jeu de zone est prouvée contre la base, `tests/integration/jeu-zone-extraction.test.ts`), et `GET` / `PATCH [id]`
+ * servent un jeu de zone par leur propre branche (T7, `tests/unit/api/zones-jeux-zone.test.ts`).
  */
 const h = vi.hoisted(() => ({
   ORG: '3f2504e0-4f89-11d3-9a0c-0305e82c3301',
@@ -123,7 +124,7 @@ beforeEach(() => {
 });
 
 describe('routes risque — un jeu de zone reçoit un 409, sans autre lecture', () => {
-  it.each(ROUTES.filter(([nom]) => !nom.endsWith(' [id]')))('%s', async (_nom, appel) => {
+  it.each(ROUTES.filter(([nom]) => !nom.endsWith(' [id]') && nom !== 'POST extractions'))('%s', async (_nom, appel) => {
     h.jeu = jeuDe('zone');
     const r = await appel();
     expect(r.status).toBe(409);
@@ -150,7 +151,19 @@ describe('routes risque — un jeu absent de l’espace : 404', () => {
   });
 });
 
-describe('la liste des extractions sert les deux types (T8)', () => {
+describe('les extractions servent les deux types (T8)', () => {
+  it('POST extractions d’un jeu de zone : des unités envoyées par le client sont REFUSÉES (corps strict), rien d’autre lu', async () => {
+    h.jeu = jeuDe('zone');
+    const r = await R.extractions.POST(req(`${URL_JEU}/extractions`, enJson({ unites: [{ plateforme: 'meta' }] })), params);
+    expect(r.status).toBe(400);
+    expect((await r.json()).error).toBe('clé inattendue : unites');
+    expect(h.lectures.every((l) => l.startsWith('zone_sets:'))).toBe(true);
+  });
+  it('POST extractions d’un jeu RISQUE : une clé inconnue reste ignorée, comme avant le lot 5', async () => {
+    h.jeu = jeuDe('risque');
+    const r = await R.extractions.POST(req(`${URL_JEU}/extractions`, enJson({ unites: [] })), params);
+    expect(r.status).not.toBe(400);
+  });
   it('GET extractions d’un jeu de zone : 200', async () => {
     h.jeu = jeuDe('zone');
     const r = await R.extractions.GET(req(`${URL_JEU}/extractions`), params);

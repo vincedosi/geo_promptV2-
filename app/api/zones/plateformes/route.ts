@@ -15,11 +15,11 @@ import { createAdminClient } from '@/lib/auth';
 import { requireAuth } from '@/lib/api/middleware';
 import { espaceDeZone } from '@/lib/zones/session-zones';
 import { MAX_PLATEFORMES_GEO, PlateformeGeoSchema, type PlateformeGeo } from '@/lib/zones/plateformes';
+import { COLONNES_PLATEFORMES_GEO } from '@/lib/zones/conversion-serveur';
 
 export const dynamic = 'force-dynamic';
 
 const ECHEC = 'Lecture des règles des plateformes impossible.';
-const COLONNES = 'plateforme, maille, libelle, natif, disponible, limites, doc_url, releve_le, a_verifier, note, ordre';
 
 function echec(contexte: string, detail: unknown): NextResponse {
   console.error(`[zones/plateformes] ${contexte}`, detail);
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await createAdminClient()
     .from('plateformes_geo')
-    .select(COLONNES)
+    .select(COLONNES_PLATEFORMES_GEO)
     .order('ordre', { ascending: true })
     .limit(MAX_PLATEFORMES_GEO + 1);
   if (error) return echec('lecture', error);

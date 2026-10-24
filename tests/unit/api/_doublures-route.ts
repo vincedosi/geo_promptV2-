@@ -17,13 +17,18 @@ export const etat = {
   rpcs: [] as { nom: string; args: Record<string, unknown> }[],
   /** La réponse de chaque RPC par nom ; absente : `{ data: null, error: null }`. */
   reponses: {} as Record<string, Reponse>,
+  /** La réponse d'une lecture de table par nom ; une table absente d'ici LÈVE (aucune lecture attendue). */
+  tables: {} as Record<string, Reponse>,
+  /** Chaque table lue, avec ses filtres (`eq`, `in`) dans l'ordre d'appel. */
+  lectures: [] as { table: string; filtres: unknown[][] }[],
 };
 
 /** À appeler dans `beforeEach` : session valide, jetons disponibles, journaux vides. Les limiteurs, créés à l'import, restent. */
 export function reinitialiser(): void {
-  Object.assign(etat, { profil: { id: 'u1', role: 'client', organization_id: ORG }, quotaOk: true, reponses: {} });
+  Object.assign(etat, { profil: { id: 'u1', role: 'client', organization_id: ORG }, quotaOk: true, reponses: {}, tables: {} });
   etat.quotas.length = 0;
   etat.rpcs.length = 0;
+  etat.lectures.length = 0;
 }
 
 export const requireAuth = async () => etat.profil;
@@ -52,5 +57,21 @@ export const createAdminClient = () => ({
     etat.rpcs.push({ nom, args });
     return Promise.resolve(etat.reponses[nom] ?? { data: null, error: null });
   },
-  from() { throw new Error('aucune lecture de table attendue'); },
+  from(table: string) {
+    const reponse = etat.tables[table];
+    if (!reponse) throw new Error(`aucune lecture de table attendue : ${table}`);
+    const lecture = { table, filtres: [] as unknown[][] };
+    etat.lectures.push(lecture);
+    // Une requête enchaînable minimale : chaque filtre est noté, la réponse est celle de `etat.tables`.
+    const requete = {
+      select: () => requete,
+      eq: (...a: unknown[]) => { lecture.filtres.push(['eq', ...a]); return requete; },
+      in: (...a: unknown[]) => { lecture.filtres.push(['in', ...a]); return requete; },
+      limit: () => requete,
+      order: () => requete,
+      maybeSingle: () => Promise.resolve(reponse),
+      then: (ok: (r: Reponse) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(reponse).then(ok, ko),
+    };
+    return requete;
+  },
 });
