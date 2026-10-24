@@ -25,6 +25,23 @@
 -- corrigée en base : une correction faite par `update` survit (c'est le mode d'édition prévu, A-7). Aucun `drop`.
 -- Droits : service_role seul, RLS activée sans policy (patron sql/231, sql/270) — la route lit en service_role.
 
+-- Les `limites` que la base accepte sont celles que lit `PlateformeGeoSchema` (lib/zones/plateformes.ts) : six clés
+-- connues, chacune un ENTIER > 0. Sans ce contrôle, une `update` à 1500.5, 0 ou "200" passerait en base et ferait
+-- échouer la route (ligne refusée par Zod) : l'erreur doit tomber à l'écriture, chez celui qui la commet.
+-- IMMUTABLE : appelée par un CHECK. `^[1-9][0-9]*$` sur le texte d'un nombre jsonb refuse décimales et zéro.
+create or replace function public.plateformes_geo_limites_valides(p_limites jsonb)
+returns boolean
+language sql immutable set search_path to 'public' as $fn$
+  select jsonb_typeof(p_limites) = 'object'
+     and coalesce(bool_and(
+           e.key in ('max_unites', 'rayon_min_m', 'rayon_max_m', 'pop_min_unite', 'pop_min_groupe', 'max_sommets')
+           and jsonb_typeof(e.value) = 'number'
+           and e.value::text ~ '^[1-9][0-9]*$'), true)
+    from jsonb_each(case when jsonb_typeof(p_limites) = 'object' then p_limites else '{}'::jsonb end) e;
+$fn$;
+revoke all on function public.plateformes_geo_limites_valides(jsonb) from public, anon, authenticated;
+grant execute on function public.plateformes_geo_limites_valides(jsonb) to service_role;
+
 create table if not exists public.plateformes_geo (
   plateforme  text        not null check (plateforme in ('dv360', 'ttd', 'meta', 'tiktok')),
   maille      text        not null check (maille in ('polygone', 'cp', 'iris', 'commune', 'departement', 'cercle')),
@@ -44,6 +61,17 @@ comment on table public.plateformes_geo is
   'Capacites geographiques des plateformes d''achat, une ligne par (plateforme, maille). Editee par SQL (update), '
   'jamais en dur dans le code. Seed : releve du 14/10/2026. sql/274 (lot 5, T2).';
 
+-- Posé à part (et non dans `create table`) pour atteindre aussi une table créée avant ce contrôle ; rejouable.
+do $do$
+begin
+  if not exists (select 1 from pg_constraint
+                  where conrelid = 'public.plateformes_geo'::regclass and conname = 'plateformes_geo_limites_connues') then
+    alter table public.plateformes_geo
+      add constraint plateformes_geo_limites_connues check (public.plateformes_geo_limites_valides(limites));
+  end if;
+end
+$do$;
+
 alter table public.plateformes_geo enable row level security;
 revoke all on table public.plateformes_geo from public, anon, authenticated;
 grant select, insert, update, delete on table public.plateformes_geo to service_role;
@@ -57,6 +85,9 @@ values
   ('dv360', 'cercle', 'Cercles (liste de proximité)', true, true, '{"rayon_min_m": 1000, "pop_min_unite": 1000}',
    'https://developers.google.com/display-video/api/guides/concepts/targeting/geography', '2026-10-14', false,
    'Liste de proximité, poussée non branchée.', 20),
+  ('dv360', 'polygone', 'Polygones', false, false, '{}',
+   'https://developers.google.com/display-video/api/guides/concepts/targeting/geography', '2026-10-14', false,
+   'Pas de polygone (relevé du 14/10).', 25),
   ('ttd', 'polygone', 'Polygones', true, true, '{}', null, '2026-10-14', true,
    'Q-A : natif dans le compte dentsu, ou via un partenaire (Foursquare, surcoût CPM) ? Doc derrière connexion.', 30),
   ('ttd', 'cercle', 'Cercles (points + rayon)', true, true, '{}', null, '2026-10-14', true,
@@ -65,10 +96,13 @@ values
    'Q-A : segments de CP français non confirmés. Doc derrière connexion.', 50),
   ('meta', 'cercle', 'Cercles', true, true, '{"max_unites": 200, "rayon_min_m": 1000, "rayon_max_m": 80000}',
    'https://developers.facebook.com/docs/marketing-api/audiences/reference/basic-targeting', '2026-10-14', false,
-   'Rayon d''au moins 15 km en catégorie sensible.', 60),
+   'Catégorie d''annonces spéciale : rayon d''au moins 15 km en Europe (doc Special Ad Categories, relue le 24/10).', 60),
   ('meta', 'cp', 'Codes postaux', true, true, '{"max_unites": 50000}',
    'https://developers.facebook.com/docs/marketing-api/audiences/reference/basic-targeting', '2026-10-14', true,
    'Q-C : CP français (clé FR:75001) non confirmés. Sans poids : paliers.', 70),
+  ('meta', 'polygone', 'Polygones', false, false, '{}',
+   'https://developers.facebook.com/docs/marketing-api/audiences/reference/basic-targeting', '2026-10-14', false,
+   'Pas de polygone (relevé du 14/10).', 75),
   ('tiktok', 'departement', 'Départements', true, true, '{"max_unites": 3000, "pop_min_groupe": 1000}',
    'https://ads.tiktok.com/help/article/location-targeting', '2026-10-14', false,
    '3 000 lieux par groupe d''annonces, pas d''exclusion. Au moins 1 000 personnes par groupe (UE).', 80),

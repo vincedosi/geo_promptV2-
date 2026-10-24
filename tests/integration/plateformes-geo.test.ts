@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { MAILLES, PLATEFORMES } from '@/lib/zones/plateformes';
-import { psql, psqlLignes } from './_psql';
+import { psql, psqlBrut, psqlLignes } from './_psql';
 
 const MIGRATION = readFileSync(join(process.cwd(), 'sql', '274_plateformes_geo.sql'), 'utf8');
 
@@ -23,9 +23,9 @@ const EMPREINTE = `select md5(
         from pg_constraint c where c.conrelid = 'public.plateformes_geo'::regclass));`;
 
 describe('sql/274 — plateformes_geo', () => {
-  it('le seed du relevé : 11 lignes, une par (plateforme, maille)', () => {
-    expect(psql('select count(*) from public.plateformes_geo;')).toBe('11');
-    expect(psql('select count(distinct (plateforme, maille)) from public.plateformes_geo;')).toBe('11');
+  it('le seed du relevé : 13 lignes, une par (plateforme, maille)', () => {
+    expect(psql('select count(*) from public.plateformes_geo;')).toBe('13');
+    expect(psql('select count(distinct (plateforme, maille)) from public.plateformes_geo;')).toBe('13');
   });
 
   it('la clé (plateforme, maille) est la clé primaire — T6 la référence', () => {
@@ -64,6 +64,29 @@ describe('sql/274 — plateformes_geo', () => {
       .map(v => v.slice(1, v.indexOf("'", 1)));
     expect(valeurs('plateforme')).toEqual([...PLATEFORMES]);
     expect(valeurs('maille')).toEqual([...MAILLES]);
+  });
+
+  it.each([
+    ['une décimale', '{"max_unites": 1500.5}'],
+    ['zéro', '{"max_unites": 0}'],
+    ['un négatif', '{"rayon_min_m": -1}'],
+    ['un texte', '{"max_unites": "200"}'],
+    ['une clé inconnue', '{"max_cercles": 200}'],
+    ['un tableau', '[200]'],
+  ])('la base refuse des limites que Zod refuserait : %s', (_cas, limites) => {
+    const r = psqlBrut(`begin;
+      update public.plateformes_geo set limites = '${limites}'::jsonb where plateforme = 'meta' and maille = 'cercle';
+      rollback;`);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/plateformes_geo_limites_(connues|check)/);
+  });
+
+  it('la base accepte des limites valides (transaction annulée)', () => {
+    expect(psql(`begin;
+      update public.plateformes_geo set limites = '{"max_unites": 150, "max_sommets": 5000}'::jsonb
+       where plateforme = 'meta' and maille = 'cercle';
+      select limites->>'max_unites' from public.plateformes_geo where plateforme = 'meta' and maille = 'cercle';
+      rollback;`)).toBe('150');
   });
 
   it('les droits : service_role seul', () => {

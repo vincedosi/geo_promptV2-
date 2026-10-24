@@ -36,9 +36,10 @@ export async function GET(req: NextRequest) {
     .order('ordre', { ascending: true })
     .limit(MAX_PLATEFORMES_GEO + 1);
   if (error) return echec('lecture', error);
-  if ((data ?? []).length > MAX_PLATEFORMES_GEO) return echec('borne dépassée', { lignes: data!.length });
+  const rows = data ?? [];
+  if (rows.length > MAX_PLATEFORMES_GEO) return echec('borne dépassée', { lignes: rows.length });
 
-  const lignes = z.array(PlateformeGeoSchema).safeParse(data ?? []);
+  const lignes = z.array(PlateformeGeoSchema).safeParse(rows);
   if (!lignes.success) return echec('ligne refusée par le schéma', lignes.error.issues);
 
   const plateformes: PlateformeGeo[] = lignes.data;

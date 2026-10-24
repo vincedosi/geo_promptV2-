@@ -7967,6 +7967,10 @@ export type Database = {
           ville: string
         }[]
       }
+      plateformes_geo_limites_valides: {
+        Args: { p_limites: Json }
+        Returns: boolean
+      }
       poi_count_by_categorie: {
         Args: never
         Returns: {
