@@ -34,6 +34,15 @@ import { z } from 'zod';
 import { normaliserProfil, profilDesGravites, ProfilRayonsSchema } from '@/lib/risques/profil';
 import { codeProfil, profilDepuisCode, encStrict } from '@/lib/risques/code-profil';
 import { classesDuProfil, idClasse, HORS_ZONE } from '@/lib/risques/affectation';
+import { MAILLES, PLATEFORMES } from '@/lib/zones/plateformes';
+
+/**
+ * Les deux natures de jeu que `zone_sets.type` distingue (sql/277, lot 5, T6) : `risque`, le module risque (profil
+ * d'anneaux, grappes, classes) ; `zone`, une zone enregistrée et un choix de maille par plateforme (étape ⑤).
+ */
+export const TYPES_JEU = ['risque', 'zone'] as const;
+
+export type TypeJeu = (typeof TYPES_JEU)[number];
 
 /** Les deux façons de traduire un jeu de zones en plan de campagne. */
 export const MODES_PLAN = ['pondere', 'exclusif'] as const;
@@ -54,15 +63,19 @@ export const POIDS_MAX = 5;
 
 /**
  * Une clé de classe telle que `idClasse` l'écrit : `haut:pprt`, `bas:2`, ou
- * `hors`. Le motif est vérifié pour qu'une clé fantaisiste ne survive pas à
- * l'enregistrement.
+ * `hors` — ou `zone`, la classe unique des codes postaux retenus d'un jeu de
+ * zone (lot 5). Le motif est vérifié pour qu'une clé fantaisiste ne survive pas
+ * à l'enregistrement.
  */
-export const MOTIF_CLASSE = /^(haut|bas|autres):(pprt|[1-4])$|^hors$/;
+export const MOTIF_CLASSE = /^(haut|bas|autres):(pprt|[1-4])$|^(hors|zone)$/;
+
+/** Code d'une cible comptée, validé contre `cibles_exposition` côté serveur. */
+const CibleSchema = z.string().regex(/^[a-z0-9_]{1,40}$/);
 
 export const JeuDeZonesSchema = z.object({
   profil: ProfilRayonsSchema,
   /** Code de la cible comptée, validé contre `cibles_exposition` côté serveur. */
-  cible: z.string().regex(/^[a-z0-9_]{1,40}$/),
+  cible: CibleSchema,
   /** Gravités retenues, telles que `poi_france.sous_categorie` les écrit. */
   gravites: z.array(z.string().max(40)).max(10),
   /** Natures de risque retenues. Vide = toutes. */
@@ -81,6 +94,39 @@ export const JeuDeZonesSchema = z.object({
 });
 
 export type JeuDeZones = z.infer<typeof JeuDeZonesSchema>;
+
+/**
+ * Le choix d'UNE plateforme dans un jeu de zone (A-4) : sa maille, son seuil (POURCENTAGE de population en zone pour
+ * retenir une unité, comme `seuil_couverture_cp`), et le rayon des cercles. Le couple (plateforme, maille) est connu
+ * de `plateformes_geo` (clé étrangère de `zone_set_plateformes`) ; « disponible » et les bornes du rayon se lisent
+ * dans la table, à la route — jamais ici (spec § 16.2-3).
+ */
+const ChoixPlateformeSchema = z.object({
+  plateforme: z.enum(PLATEFORMES),
+  maille: z.enum(MAILLES),
+  seuil: z.number().min(0).max(100),
+  rayon_m: z.number().int().positive().optional(),
+}).refine(
+  // Même règle que le CHECK `zsp_rayon_cercle` : un cercle sans rayon ne se pave pas, un rayon ailleurs n'est lu par
+  // personne.
+  (c) => (c.maille === 'cercle') === (c.rayon_m !== undefined),
+  'Un rayon pour la maille cercle, et pour elle seule.',
+);
+
+/**
+ * Un jeu de ZONE (étape ⑤, sql/277) : UNE zone enregistrée (A-1), la cible comptée, le mode de plan, et au plus une
+ * maille par plateforme. Aucun profil, aucune unité : les chiffres se relisent, l'extraction les fige (A-2).
+ */
+export const JeuZoneSchema = z.object({
+  type: z.literal('zone'),
+  zone_id: z.string().uuid(),
+  cible: CibleSchema,
+  mode_plan: z.enum(MODES_PLAN),
+  plateformes: z.array(ChoixPlateformeSchema)
+    .min(1)
+    .max(PLATEFORMES.length)
+    .refine((cs) => new Set(cs.map((c) => c.plateforme)).size === cs.length, 'Une seule maille par plateforme.'),
+});
 
 /**
  * Le jeu ouvert par défaut.
@@ -113,7 +159,7 @@ export const JEU_DEFAUT: JeuDeZones = {
  * @param classe - L'identifiant de classe (`idClasse`).
  * @returns Le multiplicateur, entre {@link POIDS_MIN} et {@link POIDS_MAX}.
  */
-export function poidsDeClasse(jeu: JeuDeZones, classe: string): number {
+export function poidsDeClasse(jeu: Pick<JeuDeZones, 'mode_plan' | 'poids'>, classe: string): number {
   if (classe === HORS_ZONE) return jeu.mode_plan === 'exclusif' ? 0 : (jeu.poids[classe] ?? 1);
   return jeu.poids[classe] ?? 1;
 }

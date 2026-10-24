@@ -30,6 +30,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { chargerJeu, SANS_CONTROLE_ESPACE } from '@/lib/zones/charger-jeu';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { rpcJson } from '@/lib/supabase/rpc-json';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
@@ -121,14 +122,18 @@ export async function GET(
    * « NaN km à ? » — un chiffre absurde qui fait douter des chiffres justes
    * affichés juste à côté.
    */
-  const { data: jeuRow, error: erreurJeu } = await supabase
-    .from('zone_sets')
-    .select('profil')
-    .eq('id', source.zoneSetId)
-    .maybeSingle();
-  if (erreurJeu) {
-    console.error('[pression-classes] profil du jeu :', erreurJeu.message);
+  /*
+   * La propriété du jeu est prouvée par l'accès à la campagne (`checkCampaignAccess`) : c'est sa stratégie qui le
+   * désigne, d'où `SANS_CONTROLE_ESPACE` — un super_admin lit la campagne d'un autre espace. Un jeu de zone n'a ni
+   * classes ni profil : 409 du chargeur (lot 5, A-3 ; `rattacher` le refuse déjà, ceci couvre une stratégie écrite
+   * autrement). Un jeu disparu garde le message métier que la RPC aurait rendu, sans l'appeler.
+   */
+  const charge = await chargerJeu(supabase, source.zoneSetId, SANS_CONTROLE_ESPACE, { type: 'risque' });
+  if (!charge.ok) {
+    if (charge.reponse.status !== 404) return charge.reponse;
+    return NextResponse.json({ error: MESSAGES.jeu_introuvable, raison: 'jeu_introuvable' }, { status: 404 });
   }
+  const jeuRow = charge.jeu;
 
   const { data, error } = await supabase.rpc('pression_par_classe', {
     p_campaign_id: campaignId,
@@ -159,9 +164,9 @@ export async function GET(
         id: source.zoneSetId,
         nom: source.nom,
         version: source.version,
-        // `null` quand la lecture a échoué : l'écran nommera les bandes par
-        // leur rang plutôt que d'inventer des rayons.
-        profil: jeuRow?.profil ?? null,
+        // `null` si le profil manquait : l'écran nommera les bandes par leur
+        // rang plutôt que d'inventer des rayons.
+        profil: jeuRow.profil ?? null,
       },
     },
     { headers: { 'Cache-Control': 'no-store' } },

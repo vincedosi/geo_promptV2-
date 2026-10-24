@@ -69,7 +69,7 @@ export interface CpZone {
  *   classe. Pour un code postal à une seule ligne, le résultat est identique
  *   au calcul précédent — la généralisation ne change donc rien à l'existant.
  */
-export function regrouperParCodePostal(cps: CpZone[], jeu: JeuDeZones): CpAgrege[] {
+export function regrouperParCodePostal(cps: CpZone[], jeu: Pick<JeuDeZones, 'mode_plan' | 'poids'>): CpAgrege[] {
   return plierParCodePostal(cps).map(({ lignes, ...cp }) => ({
     ...cp,
     poids: cp.pop_en_zone > 0
@@ -213,7 +213,7 @@ const MULT_MIN_NON_NUL = 0.001;
  */
 export function genererPlanCp(
   entrees: CpZone[],
-  jeu: JeuDeZones,
+  jeu: Pick<JeuDeZones, 'mode_plan' | 'poids'>,
   membres?: MembresParCanonique,
 ): Plan {
   const exclusif = jeu.mode_plan === 'exclusif';

@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { chargerJeu } from '@/lib/zones/charger-jeu';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { toJson } from '@/lib/supabase/rpc-json';
@@ -56,16 +57,6 @@ const CorpsSchema = z.object({
   }).default({}),
 });
 
-/** Le jeu, s'il appartient à l'organisation. La propriété est vérifiée ICI, pas par RLS. */
-async function lireJeu(supabase: ReturnType<typeof createAdminClient>, id: string, orgId: string) {
-  return supabase
-    .from('zone_sets')
-    .select('id, nom, brouillon, construit_le')
-    .eq('id', id)
-    .eq('org_id', orgId)
-    .maybeSingle();
-}
-
 /** Le premier jour : la campagne se termine aujourd'hui, elle est passée en entier. */
 function dateDebut(jours: number): string {
   const d = new Date();
@@ -91,12 +82,9 @@ export async function GET(
   const { id } = await params;
   const supabase = createAdminClient();
 
-  const { data: jeu, error: erreurJeu } = await lireJeu(supabase, id, profile.organization_id);
-  if (erreurJeu) {
-    console.error('[zones/simulation] lecture jeu :', erreurJeu.message);
-    return NextResponse.json({ error: 'Jeu de zones illisible.' }, { status: 500 });
-  }
-  if (!jeu) return NextResponse.json({ error: 'Ce jeu de zones est introuvable.' }, { status: 404 });
+  // La simulation rejoue des grappes et des classes : propre au jeu risque, 409 du chargeur pour un jeu de zone.
+  const charge = await chargerJeu(supabase, id, profile.organization_id, { type: 'risque' });
+  if (!charge.ok) return charge.reponse;
 
   try {
     return NextResponse.json(await chargerSimulation(supabase, id));
@@ -130,12 +118,9 @@ export async function POST(
   const { id } = await params;
   const supabase = createAdminClient();
 
-  const { data: jeu, error: erreurJeu } = await lireJeu(supabase, id, orgId);
-  if (erreurJeu) {
-    console.error('[zones/simulation] lecture jeu :', erreurJeu.message);
-    return NextResponse.json({ error: 'Jeu de zones illisible.' }, { status: 500 });
-  }
-  if (!jeu) return NextResponse.json({ error: 'Ce jeu de zones est introuvable.' }, { status: 404 });
+  const charge = await chargerJeu(supabase, id, orgId, { type: 'risque' });
+  if (!charge.ok) return charge.reponse;
+  const { jeu } = charge;
 
   const { data: extraction, error: erreurExt } = await supabase
     .from('zone_set_extractions')
@@ -283,9 +268,8 @@ export async function DELETE(
 
   const { id } = await params;
   const supabase = createAdminClient();
-  const { data: jeu, error: erreurJeu } = await lireJeu(supabase, id, profile.organization_id);
-  if (erreurJeu) return NextResponse.json({ error: 'Jeu de zones illisible.' }, { status: 500 });
-  if (!jeu) return NextResponse.json({ error: 'Ce jeu de zones est introuvable.' }, { status: 404 });
+  const charge = await chargerJeu(supabase, id, profile.organization_id, { type: 'risque' });
+  if (!charge.ok) return charge.reponse;
 
   try {
     const n = await purgerSimulations(supabase, id);

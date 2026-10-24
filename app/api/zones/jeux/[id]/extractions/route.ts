@@ -30,6 +30,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { chargerJeu } from '@/lib/zones/charger-jeu';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { lireTout } from '@/lib/supabase/lire-tout';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
@@ -103,23 +104,6 @@ export interface ExtractionResume {
   created_at: string;
 }
 
-/** Le jeu, s'il appartient à l'organisation et qu'il est exploitable. */
-async function lireJeu(
-  supabase: ReturnType<typeof createAdminClient>,
-  id: string,
-  orgId: string,
-) {
-  const { data, error } = await supabase
-    .from('zone_sets')
-    .select('*')
-    .eq('id', id)
-    .eq('org_id', orgId)
-    .maybeSingle();
-  // La propriété est vérifiée ICI et non par RLS : les routes passent par
-  // `createAdminClient()`, qui contourne toute policy.
-  return { jeu: data, error };
-}
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -136,22 +120,17 @@ export async function GET(
   const { id } = await params;
   const supabase = createAdminClient();
 
-  const { jeu, error: erreurJeu } = await lireJeu(supabase, id, profile.organization_id);
-  if (erreurJeu) {
-    console.error('[zones/extractions] lecture jeu :', erreurJeu.message);
-    return NextResponse.json({ error: 'Jeu de zones illisible.' }, { status: 500 });
-  }
-  if (!jeu) {
-    return NextResponse.json({ error: 'Ce jeu de zones est introuvable.' }, { status: 404 });
-  }
+  // Sans type : la liste des versions sert un jeu risque comme un jeu de zone (lot 5, T8).
+  const charge = await chargerJeu(supabase, id, profile.organization_id);
+  if (!charge.ok) return charge.reponse;
+  const { jeu } = charge;
 
   const { data, error } = await supabase
     .from('zone_set_extractions')
     // ⚠ UNE chaîne littérale, JAMAIS une concaténation : supabase-js déduit le
     // type des lignes de la valeur littérale passée à `.select()`. Concaténée,
     // elle vaut `string`, le retour devient `GenericStringError` et la première
-    // lecture de propriété échoue à la compilation (piège déjà documenté pour
-    // `CHAMPS_JEU`, ARCHITECTURE.md).
+    // lecture de propriété échoue à la compilation (ARCHITECTURE.md).
     .select('id, version, origine, commentaire, seuil_couverture_cp, mode_plan, n_cp, n_retenus, taux_utile, part_plan_en_zone, created_at')
     .eq('zone_set_id', id)
     .order('version', { ascending: false });
@@ -188,14 +167,11 @@ export async function POST(
   const { id } = await params;
   const supabase = createAdminClient();
 
-  const { jeu: jeuRow, error: erreurJeu } = await lireJeu(supabase, id, profile.organization_id);
-  if (erreurJeu) {
-    console.error('[zones/extractions] lecture jeu :', erreurJeu.message);
-    return NextResponse.json({ error: 'Jeu de zones illisible.' }, { status: 500 });
-  }
-  if (!jeuRow) {
-    return NextResponse.json({ error: 'Ce jeu de zones est introuvable.' }, { status: 404 });
-  }
+  // Le plan d'un jeu de zone se calcule autrement (couverture par plateforme, `creer_extraction_jeu_zone`) : 409 du
+  // chargeur jusqu'à sa branche (lot 5, T8).
+  const charge = await chargerJeu(supabase, id, profile.organization_id, { type: 'risque' });
+  if (!charge.ok) return charge.reponse;
+  const jeuRow = charge.jeu;
   if (jeuRow.brouillon) {
     return NextResponse.json(
       {

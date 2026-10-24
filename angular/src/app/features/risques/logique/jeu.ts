@@ -20,10 +20,11 @@ export const POIDS_MAX = 5;
 
 /**
  * Une clé de classe telle que `idClasse` l'écrit : `haut:pprt`, `bas:2`, ou
- * `hors`. Le motif est vérifié pour qu'une clé fantaisiste ne survive pas à
- * l'enregistrement.
+ * `hors` — ou `zone`, classe d'un jeu de zone (lot 5). Le motif est vérifié
+ * pour qu'une clé fantaisiste ne survive pas à l'enregistrement. Copie de
+ * `lib/zones/jeu.ts`, verrouillée par `risques-logique-carte-paritaire.test.ts`.
  */
-export const MOTIF_CLASSE = /^(haut|bas|autres):(pprt|[1-4])$|^hors$/;
+export const MOTIF_CLASSE = /^(haut|bas|autres):(pprt|[1-4])$|^(hors|zone)$/;
 
 /** Équivalent de `z.infer<typeof JeuDeZonesSchema>` côté React. */
 export interface JeuDeZones {

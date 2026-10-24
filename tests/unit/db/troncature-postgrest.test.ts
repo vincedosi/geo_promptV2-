@@ -322,11 +322,12 @@ describe('troncature PostgREST à db-max-rows (1 000 lignes) — verrou de famil
     ).toEqual([]);
   });
 
-  it("les RPC de conversion d'une zone (lots 4-5) rendent du jsonb : une liste d'unités entière ou refusée", () => {
+  it("les RPC de conversion et d'extraction d'une zone (lots 4-5) rendent du jsonb : une liste d'unités entière ou refusée", () => {
     // Leurs listes (CP, communes, cercles) dépassent 1 000 sur une zone de 13 000 km² (1 410 communes mesurées).
     // Les aides tabulaires de `paver_cercles` (`cellule_hex`, `centre_hex`, `carreaux_de_forme_points`, sql/276) ne
     // sont lues qu'en SQL : appelées un jour par l'application, le test « borne écrite » ci-dessus l'exigerait.
-    for (const nom of ['couverture_geometrie', 'paver_cercles']) {
+    // `creer_extraction_jeu_zone` (sql/277) rend un résumé, jamais les unités : elles se relisent par table.
+    for (const nom of ['couverture_geometrie', 'paver_cercles', 'creer_extraction_jeu_zone']) {
       expect(RETOUR_EFFECTIF.get(nom)?.retour, nom).toBe('jsonb');
     }
   });

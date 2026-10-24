@@ -28,20 +28,12 @@ import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
 import { lireTout } from '@/lib/supabase/lire-tout';
 import { POIDS_MIN, POIDS_MAX, MODES_PLAN, MOTIF_CLASSE } from '@/lib/zones/jeu';
 import { plierParCodePostal } from '@/lib/zones/plan';
+import { chargerJeu } from '@/lib/zones/charger-jeu';
 
 export const dynamic = 'force-dynamic';
 
 /** Au-delà, la lecture des codes postaux échoue plutôt que de rendre un début. */
 const PLAFOND_CP = 8000;
-
-/*
- * ⚠ UNE SEULE chaîne littérale, et non une concaténation de trois morceaux.
- * supabase-js déduit le TYPE des lignes rendues de la valeur littérale passée
- * à `.select()` : une concaténation lui donne `string`, il retombe alors sur
- * `GenericStringError` et toute lecture de propriété échoue à la compilation.
- * Le découper pour tenir la largeur de ligne casse donc le typage.
- */
-const CHAMPS_JEU = 'id, nom, description, version, brouillon, created_at, construit_le, profil, profil_hash, cible, gravites, natures, modes, territoire, mode_plan, seuil_couverture_cp, poids, population_exposee, n_cp_retenus, taux_utile';
 
 const CorpsSchema = z.object({
   nom: z.string().min(1).max(120).optional(),
@@ -141,27 +133,6 @@ function regrouperParClasse(lignes: LigneCp[]): ClasseJeu[] {
   return [...par.values()].sort((a, b) => b.population_en_zone - a.population_en_zone);
 }
 
-/**
- * Charge le jeu et vérifie qu'il appartient à l'organisation de l'appelant.
- *
- * ⚠ Le contrôle de propriété est fait ICI et non par RLS : les routes parlent
- * à Supabase par `createAdminClient()`, qui contourne toute policy
- * (`ARCHITECTURE.md` § « RLS — DORMANTES »). Sans ce filtre, connaître
- * l'identifiant d'un jeu suffirait à lire celui d'une autre organisation.
- */
-async function chargerJeu(
-  supabase: ReturnType<typeof createAdminClient>,
-  id: string,
-  orgId: string,
-) {
-  return supabase
-    .from('zone_sets')
-    .select(CHAMPS_JEU)
-    .eq('id', id)
-    .eq('org_id', orgId)
-    .maybeSingle();
-}
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -175,14 +146,10 @@ export async function GET(
   const { id } = await params;
   const supabase = createAdminClient();
 
-  const { data: jeu, error } = await chargerJeu(supabase, id, profile.organization_id);
-  if (error) {
-    console.error('[zones/jeux/id] lecture :', error.message);
-    return NextResponse.json({ error: 'Jeu de zones illisible.' }, { status: 500 });
-  }
-  if (!jeu) {
-    return NextResponse.json({ error: 'Ce jeu de zones est introuvable.' }, { status: 404 });
-  }
+  // Un jeu de zone (étape ⑤) n'a ni classes ni `zone_set_cp` : 409 du chargeur (lot 5, A-3).
+  const charge = await chargerJeu(supabase, id, profile.organization_id, { type: 'risque' });
+  if (!charge.ok) return charge.reponse;
+  const { jeu } = charge;
 
   let lignes: LigneCp[];
   try {
@@ -228,16 +195,9 @@ export async function PATCH(
   const { id } = await params;
   const supabase = createAdminClient();
 
-  const { data: jeu, error: erreurLecture } = await chargerJeu(
-    supabase, id, profile.organization_id,
-  );
-  if (erreurLecture) {
-    console.error('[zones/jeux/id] PATCH lecture :', erreurLecture.message);
-    return NextResponse.json({ error: 'Jeu de zones illisible.' }, { status: 500 });
-  }
-  if (!jeu) {
-    return NextResponse.json({ error: 'Ce jeu de zones est introuvable.' }, { status: 404 });
-  }
+  const charge = await chargerJeu(supabase, id, profile.organization_id, { type: 'risque' });
+  if (!charge.ok) return charge.reponse;
+  const { jeu } = charge;
 
   const v = corps.valeur;
 
@@ -289,8 +249,8 @@ export async function PATCH(
     }
   }
 
-  const { data: apres } = await chargerJeu(supabase, id, profile.organization_id);
-  return NextResponse.json({ jeu: apres });
+  const apres = await chargerJeu(supabase, id, profile.organization_id, { type: 'risque' });
+  return NextResponse.json({ jeu: apres.ok ? apres.jeu : null });
 }
 
 export async function DELETE(

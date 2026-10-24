@@ -29,6 +29,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { chargerJeu } from '@/lib/zones/charger-jeu';
 import { lireTout } from '@/lib/supabase/lire-tout';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { normaliserJeu } from '@/lib/zones/jeu';
@@ -95,22 +96,11 @@ export async function GET(
   const { id } = await params;
   const supabase = createAdminClient();
 
-  // La propriété est vérifiée ICI et non par RLS : les routes passent par
-  // `createAdminClient()`, qui contourne toute policy.
-  const { data: jeuRow, error: erreurJeu } = await supabase
-    .from('zone_sets')
-    .select('*')
-    .eq('id', id)
-    .eq('org_id', profile.organization_id)
-    .maybeSingle();
-
-  if (erreurJeu) {
-    console.error('[zones/cp-geo] lecture du jeu :', erreurJeu.message);
-    return NextResponse.json({ error: 'Jeu de zones illisible.' }, { status: 500 });
-  }
-  if (!jeuRow) {
-    return NextResponse.json({ error: 'Ce jeu de zones est introuvable.' }, { status: 404 });
-  }
+  // Un jeu de zone (étape ⑤) n'a ni profil ni `zone_set_cp` : 409 du chargeur (lot 5, A-3). L'espace est
+  // vérifié par lui, et non par RLS (`createAdminClient()` contourne toute policy).
+  const charge = await chargerJeu(supabase, id, profile.organization_id, { type: 'risque' });
+  if (!charge.ok) return charge.reponse;
+  const jeuRow = charge.jeu;
   if (!jeuRow.construit_le) {
     return NextResponse.json(
       { error: 'Ce jeu de zones n’a pas été construit : il n’y a rien à afficher.' },

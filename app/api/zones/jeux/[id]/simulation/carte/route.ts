@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { chargerJeu } from '@/lib/zones/charger-jeu';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { rpcJson } from '@/lib/supabase/rpc-json';
 
@@ -50,11 +51,9 @@ export async function GET(
 
   const { id } = await params;
   const supabase = createAdminClient();
-  const { data: jeu, error: erreurJeu } = await supabase
-    .from('zone_sets').select('id')
-    .eq('id', id).eq('org_id', profile.organization_id).maybeSingle();
-  if (erreurJeu) return NextResponse.json({ error: 'Jeu de zones illisible.' }, { status: 500 });
-  if (!jeu) return NextResponse.json({ error: 'Ce jeu de zones est introuvable.' }, { status: 404 });
+  // Propre au jeu risque (grappes, classes) : 409 du chargeur pour un jeu de zone (lot 5, A-3).
+  const charge = await chargerJeu(supabase, id, profile.organization_id, { type: 'risque' });
+  if (!charge.ok) return charge.reponse;
 
   const { data, error } = await supabase.rpc('simulation_carte', {
     p_zone_set: id, p_xmin: bbox[0], p_ymin: bbox[1], p_xmax: bbox[2], p_ymax: bbox[3],

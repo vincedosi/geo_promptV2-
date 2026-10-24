@@ -172,6 +172,7 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `paver_cercles()` | 276 | Une zone pavée en cercles (grille hexagonale par territoire), cellules au seuil, perte exacte sur l'union des cercles retenus — la maille « cercle » de Meta et DV360 |
 | `carreaux_de_forme_points()` | 276 | Le corps de la règle « carreaux d'une forme », avec le centroïde ; `carreaux_de_forme_codes` en devient l'enveloppe |
 | `cellule_hex()` · `centre_hex()` · `echelle_sol_3857()` · `territoire_grille()` · `territoires_non_carroyes()` | 276 | Aides du pavage : cellule hexagonale et son centre, échelle au sol de 3857 mesurée, territoire d'une grille, départements non carroyés touchés |
+| `creer_extraction_jeu_zone()` | 277 | L'extraction d'un jeu de zone (`zone_sets.type = 'zone'`) : CP et autres unités figés, forme de la zone copiée, choix par plateforme lus en base, idempotente (jsonb) |
 
 ---
 

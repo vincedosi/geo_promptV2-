@@ -6078,18 +6078,73 @@ export type Database = {
           },
         ]
       }
+      zone_set_extraction_unites: {
+        Row: {
+          centre: unknown
+          code: string | null
+          extraction_id: string
+          maille: string
+          nom: string | null
+          ordinal: number
+          part: number | null
+          plateforme: string
+          pop_en_zone: number | null
+          pop_totale: number | null
+          rayon_m: number | null
+          retenu: boolean
+        }
+        Insert: {
+          centre?: unknown
+          code?: string | null
+          extraction_id: string
+          maille: string
+          nom?: string | null
+          ordinal: number
+          part?: number | null
+          plateforme: string
+          pop_en_zone?: number | null
+          pop_totale?: number | null
+          rayon_m?: number | null
+          retenu?: boolean
+        }
+        Update: {
+          centre?: unknown
+          code?: string | null
+          extraction_id?: string
+          maille?: string
+          nom?: string | null
+          ordinal?: number
+          part?: number | null
+          plateforme?: string
+          pop_en_zone?: number | null
+          pop_totale?: number | null
+          rayon_m?: number | null
+          retenu?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zone_set_extraction_unites_extraction_id_fkey"
+            columns: ["extraction_id"]
+            isOneToOne: false
+            referencedRelation: "zone_set_extractions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       zone_set_extractions: {
         Row: {
           commentaire: string
           created_at: string
           created_by: string | null
           empreinte: string
+          forme: unknown
           id: string
           mode_plan: string
           n_cp: number
           n_retenus: number
           origine: string
           part_plan_en_zone: number | null
+          plateformes: Json | null
           population_exposee: number
           seuil_couverture_cp: number
           taux_utile: number | null
@@ -6101,12 +6156,14 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           empreinte: string
+          forme?: unknown
           id?: string
           mode_plan: string
           n_cp: number
           n_retenus: number
           origine?: string
           part_plan_en_zone?: number | null
+          plateformes?: Json | null
           population_exposee?: number
           seuil_couverture_cp: number
           taux_utile?: number | null
@@ -6118,12 +6175,14 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           empreinte?: string
+          forme?: unknown
           id?: string
           mode_plan?: string
           n_cp?: number
           n_retenus?: number
           origine?: string
           part_plan_en_zone?: number | null
+          plateformes?: Json | null
           population_exposee?: number
           seuil_couverture_cp?: number
           taux_utile?: number | null
@@ -6171,6 +6230,45 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "zone_set_geoms_zone_set_id_fkey"
+            columns: ["zone_set_id"]
+            isOneToOne: false
+            referencedRelation: "zone_sets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zone_set_plateformes: {
+        Row: {
+          maille: string
+          plateforme: string
+          rayon_m: number | null
+          seuil: number
+          zone_set_id: string
+        }
+        Insert: {
+          maille: string
+          plateforme: string
+          rayon_m?: number | null
+          seuil: number
+          zone_set_id: string
+        }
+        Update: {
+          maille?: string
+          plateforme?: string
+          rayon_m?: number | null
+          seuil?: number
+          zone_set_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zone_set_plateformes_plateforme_maille_fkey"
+            columns: ["plateforme", "maille"]
+            isOneToOne: false
+            referencedRelation: "plateformes_geo"
+            referencedColumns: ["plateforme", "maille"]
+          },
+          {
+            foreignKeyName: "zone_set_plateformes_zone_set_id_fkey"
             columns: ["zone_set_id"]
             isOneToOne: false
             referencedRelation: "zone_sets"
@@ -6280,11 +6378,12 @@ export type Database = {
           org_id: string
           poids: Json
           population_exposee: number | null
-          profil: Json
-          profil_hash: string
+          profil: Json | null
+          profil_hash: string | null
           seuil_couverture_cp: number
           taux_utile: number | null
           territoire: string | null
+          type: string
           version: number
         }
         Insert: {
@@ -6305,11 +6404,12 @@ export type Database = {
           org_id: string
           poids?: Json
           population_exposee?: number | null
-          profil: Json
-          profil_hash: string
+          profil?: Json | null
+          profil_hash?: string | null
           seuil_couverture_cp?: number
           taux_utile?: number | null
           territoire?: string | null
+          type?: string
           version?: number
         }
         Update: {
@@ -6330,14 +6430,23 @@ export type Database = {
           org_id?: string
           poids?: Json
           population_exposee?: number | null
-          profil?: Json
-          profil_hash?: string
+          profil?: Json | null
+          profil_hash?: string | null
           seuil_couverture_cp?: number
           taux_utile?: number | null
           territoire?: string | null
+          type?: string
           version?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "zone_sets_custom_geo_zone_id_fkey"
+            columns: ["custom_geo_zone_id"]
+            isOneToOne: false
+            referencedRelation: "custom_geo_zones"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       zones_risque_cache: {
         Row: {
@@ -7028,6 +7137,18 @@ export type Database = {
           p_subzones?: Json
         }
         Returns: string
+      }
+      creer_extraction_jeu_zone: {
+        Args: {
+          p_commentaire?: string
+          p_cp: Json
+          p_created_by?: string
+          p_origine?: string
+          p_resume: Json
+          p_unites: Json
+          p_zone_set_id: string
+        }
+        Returns: Json
       }
       creer_zone_recette: {
         Args: {
