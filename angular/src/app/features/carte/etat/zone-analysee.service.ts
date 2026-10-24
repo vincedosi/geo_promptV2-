@@ -2,7 +2,7 @@ import { DestroyRef, Injectable, type Signal, computed, effect, inject, signal, 
 import { ActivatedRoute, Router } from '@angular/router';
 import { CouvertureApi } from '../data/couverture.api';
 import {
-  type Decoupage, PARAM_COUVERTURE, PARAM_ZONE_ANALYSE, type ResultatCouverture, type ResultatCroisements, ecrireParamCouverture,
+  type DecoupageAnalyse, PARAM_COUVERTURE, PARAM_ZONE_ANALYSE, type ResultatCouverture, type ResultatCroisements, ecrireParamCouverture,
   lireParamCouverture,
   lireZoneAnalyse,
 } from '../logique/analyses/couverture';
@@ -48,7 +48,7 @@ export class ZoneAnalyseeService {
   /** L'id de la zone analysée, ou `null`. */
   readonly zoneId: Signal<string | null> = this._zoneId.asReadonly();
   readonly cible: Signal<string> = computed(() => this._reglage().cible);
-  readonly decoupage: Signal<Decoupage> = computed(() => this._reglage().decoupage);
+  readonly decoupage: Signal<DecoupageAnalyse> = computed(() => this._reglage().decoupage);
   /** Le dernier chiffrage de (zone, cible, découpage) COURANTS ; `null` dès que l'un change. */
   readonly resultat: Signal<ResultatCouverture | null> = this.lecture.resultat.asReadonly();
   readonly enCours: Signal<boolean> = this.lecture.enCours.asReadonly();
@@ -109,7 +109,7 @@ export class ZoneAnalyseeService {
   }
 
   /** Change la cible et/ou le découpage. Le résultat est effacé ; rien ne repart seul. */
-  regler(r: { cible?: string; decoupage?: Decoupage }): void {
+  regler(r: { cible?: string; decoupage?: DecoupageAnalyse }): void {
     const avant = this._reglage();
     const apres = { cible: r.cible ?? avant.cible, decoupage: r.decoupage ?? avant.decoupage };
     if (apres.cible === avant.cible && apres.decoupage === avant.decoupage) return;

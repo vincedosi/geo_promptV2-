@@ -33,13 +33,16 @@ export const RAYON_MAX_M = 10_000;
 export const MAX_VALEURS = 8;
 export const MAX_CARREAUX_COUVERTURE = 400_000;
 
-/** Les trois découpages admis — exporté pour la copie Angular (`couverture-paritaire.test.ts`). */
-export const DECOUPAGES = ['forme', 'cp', 'iris'] as const;
+/**
+ * Les découpages admis par `couverture_geometrie` — exporté pour la copie Angular (`couverture-paritaire.test.ts`).
+ * `commune` et `departement` (sql/275, lot 5) : la maille TikTok, lue par ⑤ ; l'écran ④ ne les propose pas.
+ */
+export const DECOUPAGES = ['forme', 'cp', 'iris', 'commune', 'departement'] as const;
 
 /** Les paramètres de requête. Absents : la population totale (`ind`), la zone telle quelle (`forme`). */
 export const RequeteCouvertureSchema = z.object({
   cible: z.string().regex(/^[a-z0-9_]{2,20}$/, 'Cible invalide.').default('ind'),
-  decoupage: z.enum(DECOUPAGES, { errorMap: () => ({ message: 'Découpage inconnu : forme, cp ou iris.' }) }).default('forme'),
+  decoupage: z.enum(DECOUPAGES, { errorMap: () => ({ message: 'Découpage inconnu : forme, cp, iris, commune ou departement.' }) }).default('forme'),
 });
 
 type RefusCouverture = 'zone_introuvable' | 'cible_inconnue' | 'zone_trop_vaste' | 'trop_de_carreaux' | 'couverture_non_construite';

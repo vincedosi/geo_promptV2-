@@ -5,7 +5,7 @@ import { CouvertureService } from '../../couches/couverture.service';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
 import { dateFr } from '../../logique/analyses/commun';
 import {
-  CIBLE_PAR_DEFAUT, DECOUPAGES, avertissementNonCarroye, libelleDecoupage, ligneHorsTerritoire, messageZoneVide,
+  CIBLE_PAR_DEFAUT, DECOUPAGES_ANALYSE, avertissementNonCarroye, libelleDecoupage, ligneHorsTerritoire, messageZoneVide,
   phraseReference,
 } from '../../logique/analyses/couverture';
 import { BORNES_PART } from '../../couches/couche-couverture';
@@ -135,7 +135,7 @@ export class OutilCouvertureComponent {
   /** Ouvert par défaut : c'est l'outil de tête de ④. Le panneau reste monté, l'état survit à ④ → ① → ④. */
   protected readonly ouvert = signal(true);
 
-  protected readonly decoupages = DECOUPAGES.map((d) => ({ cle: d, valeur: d, libelle: libelleDecoupage(d) }));
+  protected readonly decoupages = DECOUPAGES_ANALYSE.map((d) => ({ cle: d, valeur: d, libelle: libelleDecoupage(d) }));
   protected readonly nombre = formaterNombre;
   protected readonly date = dateFr;
   protected readonly corps = CORPS_ACCORDEON;

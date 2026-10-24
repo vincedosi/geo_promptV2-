@@ -6681,6 +6681,26 @@ export type Database = {
         Returns: Json
       }
       carreau_couverture_complete: { Args: never; Returns: string }
+      carreaux_de_forme: {
+        Args: { p_geom: unknown; p_rang: number }
+        Returns: {
+          carreau_id: number
+          code_iris: string
+          code_postal: string
+          pop: number
+        }[]
+      }
+      carreaux_de_forme_codes: {
+        Args: { p_geom: unknown; p_rang: number }
+        Returns: {
+          carreau_id: number
+          code_commune: string
+          code_departement: string
+          code_iris: string
+          code_postal: string
+          pop: number
+        }[]
+      }
       certifier_carreau_couverture: { Args: never; Returns: Json }
       check_iso_hits_new_carreaux: {
         Args: { p_iso_geojson: string; p_since: string }
@@ -7009,6 +7029,10 @@ export type Database = {
         Returns: Json
       }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      denominateur_construit_le: {
+        Args: { p_decoupage: string }
+        Returns: string
+      }
       disablelongtransactions: { Args: never; Returns: string }
       drop_carreaux_table: { Args: { table_name: string }; Returns: undefined }
       dropgeometrycolumn:

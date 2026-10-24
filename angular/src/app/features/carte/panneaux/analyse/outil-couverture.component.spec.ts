@@ -113,6 +113,16 @@ describe('mg-outil-couverture (lot 4, T8)', () => {
     expect(el.querySelector('[data-zone-vide]')!.textContent).toContain('Aucun carreau habité');
   });
 
+  it('trois pastilles de découpage : commune et département (maille de ⑤) n’apparaissent pas en ④', async () => {
+    const { el, z, stable } = await monter();
+    z.resultat.set(BASE);
+    await stable();
+    const cles = [...el.querySelectorAll('[data-pastille]')].map((b) => b.getAttribute('data-pastille'));
+    expect(cles).toEqual(expect.arrayContaining(['forme', 'cp', 'iris']));
+    expect(cles).not.toContain('commune');
+    expect(cles).not.toContain('departement');
+  });
+
   // L'effacement RÉEL du résultat est prouvé par la spec de ZoneAnalyseeService (T7) ; ici, le câblage du clic.
   it('cliquer un découpage appelle regler({ decoupage }) et ne relance aucun chiffrage', async () => {
     const { el, z, stable } = await monter();

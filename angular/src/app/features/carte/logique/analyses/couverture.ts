@@ -19,8 +19,14 @@ export const RAYON_MAX_M = 10_000;
 export const MAX_VALEURS = 8;
 export const MAX_CARREAUX_COUVERTURE = 400_000;
 
-export const DECOUPAGES = ['forme', 'cp', 'iris'] as const;
+export const DECOUPAGES = ['forme', 'cp', 'iris', 'commune', 'departement'] as const;
 export type Decoupage = (typeof DECOUPAGES)[number];
+/**
+ * Les découpages que ④ PROPOSE (pastilles, `?couverture=`) : commune et département (sql/275, lot 5) sont la maille
+ * de ⑤ (TikTok) ; l'écran de ④ reste celui du lot 4.
+ */
+export const DECOUPAGES_ANALYSE = ['forme', 'cp', 'iris'] as const satisfies readonly Decoupage[];
+export type DecoupageAnalyse = (typeof DECOUPAGES_ANALYSE)[number];
 
 export const MESSAGES_REFUS_COUVERTURE = {
   zone_introuvable: 'Zone introuvable dans cet espace.',
@@ -36,17 +42,17 @@ export const PARAM_ZONE_ANALYSE = 'zoneAnalyse';
 export const PARAM_COUVERTURE = 'couverture';
 /** Défauts : population totale, zone telle quelle — `RequeteCouvertureSchema` du serveur. Le défaut ne s'écrit pas. */
 export const CIBLE_PAR_DEFAUT = 'ind';
-export const DECOUPAGE_PAR_DEFAUT: Decoupage = 'forme';
+export const DECOUPAGE_PAR_DEFAUT: DecoupageAnalyse = 'forme';
 /** La forme d'une cible admise par la route (`/^[a-z0-9_]{2,20}$/`) : une autre partirait en 400. */
 const MOTIF_CIBLE = /^[a-z0-9_]{2,20}$/;
 /** Un identifiant de zone (`uuid`) : la route répond 400 à toute autre chaîne, sans rien lire. */
 const MOTIF_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Un territoire touché par la zone (découpage `cp` ou `iris`). `part` est NULL si le territoire n'a pas de dénominateur. */
+/** Un territoire touché par la zone (tout découpage sauf `forme`). `part` est NULL si le territoire n'a pas de dénominateur. */
 export interface LigneCouverture {
   code: string;
   nom: string | null;
-  /** La commune de l'IRIS ; `null` en découpage CP. */
+  /** La commune de l'IRIS ; `null` dans les autres découpages. */
   commune: string | null;
   n_carreaux: number;
   pop_en_zone: number;
@@ -97,20 +103,23 @@ export interface ResultatCroisements {
   };
 }
 
-/** `?couverture=<cible>.<decoupage>` → cible et découpage. Absent ou illisible : les défauts. Ne lève jamais. */
-export function lireParamCouverture(brut: string | null | undefined): { cible: string; decoupage: Decoupage } {
+/**
+ * `?couverture=<cible>.<decoupage>` → cible et découpage DE ④ (`DECOUPAGES_ANALYSE`). Absent ou illisible : les
+ * défauts. Ne lève jamais.
+ */
+export function lireParamCouverture(brut: string | null | undefined): { cible: string; decoupage: DecoupageAnalyse } {
   const defaut = { cible: CIBLE_PAR_DEFAUT, decoupage: DECOUPAGE_PAR_DEFAUT };
   if (typeof brut !== 'string') return defaut;
   const point = brut.lastIndexOf('.');
   if (point <= 0) return defaut;
   const cible = brut.slice(0, point);
   const decoupage = brut.slice(point + 1);
-  if (!MOTIF_CIBLE.test(cible) || !(DECOUPAGES as readonly string[]).includes(decoupage)) return defaut;
-  return { cible, decoupage: decoupage as Decoupage };
+  if (!MOTIF_CIBLE.test(cible) || !(DECOUPAGES_ANALYSE as readonly string[]).includes(decoupage)) return defaut;
+  return { cible, decoupage: decoupage as DecoupageAnalyse };
 }
 
 /** La forme canonique de `?couverture=` : `null` (paramètre absent) pour les défauts. */
-export function ecrireParamCouverture(r: { cible: string; decoupage: Decoupage }): string | null {
+export function ecrireParamCouverture(r: { cible: string; decoupage: DecoupageAnalyse }): string | null {
   return r.cible === CIBLE_PAR_DEFAUT && r.decoupage === DECOUPAGE_PAR_DEFAUT ? null : `${r.cible}.${r.decoupage}`;
 }
 
@@ -146,7 +155,12 @@ export function pageDeLignes<T>(lignes: readonly T[], page: number, taille = 50)
 }
 
 const LIBELLES_DECOUPAGE: Readonly<Record<Decoupage, string>> = {
-  forme: 'Telle quelle', cp: 'Par code postal', iris: 'Par IRIS',
+  forme: 'Telle quelle', cp: 'Par code postal', iris: 'Par IRIS', commune: 'Par commune', departement: 'Par département',
+};
+
+/** Le territoire d'un découpage, après « hors » : « hors code postal », « hors département »… */
+const HORS_DECOUPAGE: Readonly<Record<Exclude<Decoupage, 'forme'>, string>> = {
+  cp: 'code postal', iris: 'IRIS', commune: 'commune', departement: 'département',
 };
 
 export function libelleDecoupage(d: Decoupage): string {
@@ -201,5 +215,5 @@ export function ligneHorsTerritoire(r: Pick<ResultatCouverture, 'decoupage' | 'h
   if (r.decoupage === 'forme' || r.hors_territoire.n_carreaux === 0) return null;
   const n = r.hors_territoire.n_carreaux;
   const qui = r.cible === CIBLE_PAR_DEFAUT ? 'habitants' : 'de la cible';
-  return `${formaterNombre(r.hors_territoire.population)} ${qui} hors ${r.decoupage === 'cp' ? 'code postal' : 'IRIS'} (${formaterNombre(n)} carreau${n > 1 ? 'x' : ''}) : comptés dans le total, absents du tableau.`;
+  return `${formaterNombre(r.hors_territoire.population)} ${qui} hors ${HORS_DECOUPAGE[r.decoupage]} (${formaterNombre(n)} carreau${n > 1 ? 'x' : ''}) : comptés dans le total, absents du tableau.`;
 }

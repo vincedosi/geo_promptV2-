@@ -256,7 +256,7 @@ describe('couverture_geometrie — refus et garde-fous', () => {
   });
 
   it('découpage hors liste ou plafond hors bornes : 22023', async () => {
-    const a = await admin.rpc('couverture_geometrie', { p_zone_id: zones.lyon, p_org_id: org, p_decoupage: 'commune' });
+    const a = await admin.rpc('couverture_geometrie', { p_zone_id: zones.lyon, p_org_id: org, p_decoupage: 'canton' });
     expect(a.error?.code).toBe('22023');
     const b = await admin.rpc('couverture_geometrie', { p_zone_id: zones.lyon, p_org_id: org, p_max_carreaux: 400001 });
     expect(b.error?.code).toBe('22023');

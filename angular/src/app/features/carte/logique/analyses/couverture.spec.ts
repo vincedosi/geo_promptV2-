@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { formaterNombre } from '../../../../core/format/nombre';
 import {
-  type LigneCouverture, avertissementNonCarroye, ecrireParamCouverture, libelleDecoupage, ligneHorsTerritoire, lireParamCouverture,
+  DECOUPAGES, DECOUPAGES_ANALYSE, type LigneCouverture, avertissementNonCarroye, ecrireParamCouverture, libelleDecoupage, ligneHorsTerritoire, lireParamCouverture,
   lireZoneAnalyse, messageZoneVide, pageDeLignes, phraseReference, trierLignes,
 } from './couverture';
 import { messageErreurCouverture, refusDeLErreur } from './couverture-erreurs';
@@ -12,7 +12,7 @@ const ligne = (code: string, pop_en_zone: number, part: number | null, nom: stri
 
 describe('lireParamCouverture / ecrireParamCouverture', () => {
   it('absent, vide ou illisible : les défauts, sans lever', () => {
-    for (const brut of [null, undefined, '', '.', 'ind', '.cp', 'ind.commune', 'IND.cp', 'a.cp', 'x'.repeat(21) + '.cp', 'ind.cp.x']) {
+    for (const brut of [null, undefined, '', '.', 'ind', '.cp', 'ind.commune', 'ind.departement', 'IND.cp', 'a.cp', 'x'.repeat(21) + '.cp', 'ind.cp.x']) {
       expect(lireParamCouverture(brut), String(brut)).toEqual({ cible: 'ind', decoupage: 'forme' });
     }
   });
@@ -74,6 +74,14 @@ describe('pageDeLignes', () => {
 describe('libelleDecoupage', () => {
   it('sentence case', () => {
     expect([libelleDecoupage('forme'), libelleDecoupage('cp'), libelleDecoupage('iris')]).toEqual(['Telle quelle', 'Par code postal', 'Par IRIS']);
+    expect([libelleDecoupage('commune'), libelleDecoupage('departement')]).toEqual(['Par commune', 'Par département']);
+  });
+});
+
+describe('découpages : le serveur en sert cinq, ④ en affiche trois (lot 5, T3)', () => {
+  it('commune et département sont la maille de ⑤, jamais une pastille ni un paramètre d’URL de ④', () => {
+    expect([...DECOUPAGES]).toEqual(['forme', 'cp', 'iris', 'commune', 'departement']);
+    expect([...DECOUPAGES_ANALYSE]).toEqual(['forme', 'cp', 'iris']);
   });
 });
 
@@ -116,6 +124,8 @@ describe('textes Q-J de la couverture (T8)', () => {
     const h = { n_carreaux: 12, population: 1786 };
     expect(ligneHorsTerritoire({ decoupage: 'cp', hors_territoire: h, cible: 'ind' })).toContain(`${formaterNombre(1786)} habitants hors code postal (12 carreaux)`);
     expect(ligneHorsTerritoire({ decoupage: 'iris', hors_territoire: h, cible: 'men_pauv' })).toContain('de la cible hors IRIS');
+    expect(ligneHorsTerritoire({ decoupage: 'commune', hors_territoire: h, cible: 'ind' })).toContain('habitants hors commune');
+    expect(ligneHorsTerritoire({ decoupage: 'departement', hors_territoire: h, cible: 'ind' })).toContain('habitants hors département');
     expect(ligneHorsTerritoire({ decoupage: 'forme', hors_territoire: h, cible: 'ind' })).toBeNull();
     expect(ligneHorsTerritoire({ decoupage: 'cp', hors_territoire: { n_carreaux: 0, population: 0 }, cible: 'ind' })).toBeNull();
   });
