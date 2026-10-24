@@ -41,6 +41,43 @@ Branche `feat/carte-zones-recette`, de `64b4944d` (fin du lot 2) à `7530beec` (
 
 **Preuves navigateur de la vague finale** (16/10, Angular :4200 + Next :3000 du worktree, deux thèmes, captures `L3-preuve-*` dans `.superpowers/sdd/2026-10-14-carte-en-parcours-lot-3/`) : (1) une combinaison (« Fusionner » de deux zones des Bouches-du-Rhône) n'offre pas « Recalculer », et le recalcul d'un membre rend le nouveau 409 ; (2) Analyse → ③ « Par seuil » → « Mes zones » (une zone seuil sur territoires listée) : **un** `GET /api/cibles/indicators` ; (3) catalogue retardé de 25 s : le nom saisi pendant la lecture reste ; (4) KML « 5, 43 » : 1 polygone, 4,5 km² sur le territoire (84 % des 5,41 km² du rectangle) ; (5) capture d'une bataille V1 seule (CIRFA Bretagne, Marine nationale) → `recette.parametres.paliers = "10,30"`, capture bataille + IRIS → `source_type = composite`, recette `capture` (lu en base). Aucun défaut trouvé ; vus en passant, préexistants : le bandeau vert « Zone créée » reste affiché, l'aperçu ne recadre pas la carte. Zones de test supprimées, espace actif rétabli (BMW GROUP).
 
+## 17 quinquies. Écarts à la livraison du lot 5
+
+Branche `feat/carte-jeu-de-zones`, de `acbe5b6e` à la vague de correctifs de la revue finale (24/10) — non poussée,
+non fusionnée. Six migrations, sql/274 à sql/279 (`plateformes_geo`, découpages commune et département de
+`couverture_geometrie`, `paver_cercles`, jeux de zone et leur extraction, CP par plateforme, `contours_communes`).
+Écarts au plan du lot 5 (« Ruling » du registre, et constats de la revue finale) :
+
+- **`lireMailles` / `ecrireMailles` vivent côté Angular seulement** (`logique/jeu/mailles-url.ts`), retirés de T5 : le
+  serveur reçoit un corps JSON, jamais `?mailles=`.
+- **Q-A, Q-B, Q-C (« à vérifier ») non bloquants ; Q-L un seuil PAR plateforme, défaut 20 % ; Q-M le rayon se règle à
+  la main** (Vincent, 24/10). Coût si faux : un `update` de `plateformes_geo`, un rayon automatique à ajouter.
+- **Borne de sécurité du rayon de `paver_cercles` : [1 000, 200 000] m**, et non [1 000, 80 000] : la règle Meta
+  (1-80 km) vit dans `plateformes_geo`, la RPC ne la recopie pas (Review Focus 5).
+- **Les CP d'une extraction vont AUSSI dans `zone_set_extraction_unites`** (sql/278), liste par plateforme : le
+  CHECK `maille <> 'cp'` de sql/277 est retiré par une migration gardée — exception écrite à « aucun DROP », la table
+  étant née dans ce lot. `zone_set_extraction_cp` porte le plan au seuil le plus bas des plateformes au CP.
+- **Un cercle n'est EXACT pour une recette `rayon_point` qu'au rayon de la recette** : un autre rayon est pavé et sa
+  perte calculée (`exactitude` reçoit le rayon choisi, des deux côtés).
+- **Contours des communes : ceux de TOUTES les communes touchées, lus une fois par zone et cible** (borne 3 000),
+  tranchés en mémoire par le seuil ; au-delà, les seules retenues, et c'est dit ; au-delà de 3 000 RETENUES, rien
+  n'est lu (la route répondrait 400), et c'est dit (revue finale, point 12).
+- **`GET /api/zones/jeux?type=` : `risque` par défaut** (revue finale, point 1). Le plan (T7) mettait les deux types
+  dans la liste sans traiter ses quatre lecteurs d'avant le lot 5 (wizard `SourcePlan`, atelier risque React et
+  Angular, `JeuxDeZonesRail`), qui ne savent lire qu'un jeu risque ; ⑤ et « Mes zones » demandent `tous`. Aucun
+  fichier React modifié.
+- **Une zone recalculée se relit par « Mes zones »** (revue finale, point 2) : le recalcul réussi avertit ⑤
+  (`zoneRecalculee`), qui relit la date de sa zone et vide les conversions de l'ancienne forme. Un recalcul fait hors
+  de la page (autre onglet, React) n'est vu qu'au rechargement.
+- **La cible et le mode de plan choisis avant enregistrement ne sont PAS dans l'URL** (R4 de T9) : écart au contrat
+  AIDA n° 5 (« tout état partageable dans l'URL ») ; un jeu enregistré les porte. Coût si faux : deux paramètres.
+- **Retour en ④ après ⑤ : la couverture de ④ ne revient pas d'elle-même sur la carte** (R3 de T10-12) — le registre
+  d'éviction du lot 4 (une choroplèthe à la fois) la masque quand ⑤ peint ; « Voir sur la carte » de ④ la rend. La
+  preuve T11 du plan disait « la couverture revient » : écart à trancher par Vincent.
+- **Mode accéléré à partir de T9** (Vincent, 24/10) : seuls les défauts critiques et importants corrigés tâche par
+  tâche ; les mineurs ont été traités en une vague, celle de la revue finale (11 corrigés, 9 laissés avec leur raison
+  dans `final-review.md`).
+
 ## 2. Décisions de Vincent (12/10/2026) — non rediscutées ici
 
 | # | Décision |
