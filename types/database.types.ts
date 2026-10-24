@@ -6701,6 +6701,32 @@ export type Database = {
           pop: number
         }[]
       }
+      carreaux_de_forme_points: {
+        Args: { p_geom: unknown; p_rang: number }
+        Returns: {
+          carreau_id: number
+          centroide_3857: unknown
+          code_commune: string
+          code_departement: string
+          code_iris: string
+          code_postal: string
+          pop: number
+        }[]
+      }
+      cellule_hex: {
+        Args: { p_pas: number; p_x: number; p_y: number }
+        Returns: {
+          q: number
+          r: number
+        }[]
+      }
+      centre_hex: {
+        Args: { p_pas: number; p_q: number; p_r: number }
+        Returns: {
+          cx: number
+          cy: number
+        }[]
+      }
       certifier_carreau_couverture: { Args: never; Returns: Json }
       check_iso_hits_new_carreaux: {
         Args: { p_iso_geojson: string; p_since: string }
@@ -7065,6 +7091,7 @@ export type Database = {
           }
         | { Args: { schema_name: string; table_name: string }; Returns: string }
         | { Args: { table_name: string }; Returns: string }
+      echelle_sol_3857: { Args: { p_y: number }; Returns: number }
       empreinte_zones: { Args: { p_zone_ids: string[] }; Returns: Json }
       enablelongtransactions: { Args: never; Returns: string }
       equals: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
@@ -7991,6 +8018,19 @@ export type Database = {
           ville: string
         }[]
       }
+      paver_cercles: {
+        Args: {
+          p_cible: string
+          p_max_candidates?: number
+          p_max_cercles?: number
+          p_org_id: string
+          p_pop_min?: number
+          p_rayon_m: number
+          p_seuil: number
+          p_zone_id: string
+        }
+        Returns: Json
+      }
       plateformes_geo_limites_valides: {
         Args: { p_limites: Json }
         Returns: boolean
@@ -8853,6 +8893,10 @@ export type Database = {
       st_wrapx: {
         Args: { geom: unknown; move: number; wrap: number }
         Returns: unknown
+      }
+      territoire_grille: {
+        Args: { p_code_departement: string }
+        Returns: string
       }
       transform_geometries_for_save: {
         Args: { p_geometries: Json; p_method: string }

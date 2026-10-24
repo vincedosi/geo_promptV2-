@@ -169,6 +169,9 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `carreaux_de_forme_codes()` | 275 | La jumelle qui porte le corps de `carreaux_de_forme` (devenue enveloppe) : mêmes carreaux, quatre codes (CP, IRIS, commune, département) |
 | `denominateur_construit_le()` | 275 | Date de construction du dénominateur d'un découpage (CP, IRIS, commune, département), lue par la couverture et son cache |
 | `couverture_geometrie()` · `couverture_zone_en_cache()` | 275 | Découpages `commune` et `departement` (maille TikTok) ; le CHECK de `couverture_zone_cache` les admet |
+| `paver_cercles()` | 276 | Une zone pavée en cercles (grille hexagonale par territoire), cellules au seuil, perte exacte sur l'union des cercles retenus — la maille « cercle » de Meta et DV360 |
+| `carreaux_de_forme_points()` | 276 | Le corps de la règle « carreaux d'une forme », avec le centroïde ; `carreaux_de_forme_codes` en devient l'enveloppe |
+| `cellule_hex()` · `centre_hex()` · `echelle_sol_3857()` · `territoire_grille()` | 276 | Aides du pavage : cellule hexagonale et son centre, échelle au sol de 3857 mesurée, territoire d'une grille |
 
 ---
 
