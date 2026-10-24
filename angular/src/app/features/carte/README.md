@@ -260,6 +260,36 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   « Analyse spatiale » du panneau (un accordéon de section, pas un outil) gardent leur gabarit ; le cycle du catalogue
   d'indicateurs du score (`basculerOuvert`, antérieur au lot) n'est pas encore sur `LectureAnnulable`.
 
+## ⑤ Jeu de zones : l'état (lot 5, T9, 2026-10-24)
+
+⑤ traduit UNE zone enregistrée dans la maille de chaque plateforme d'achat et dit ce que la traduction perd. T9 pose
+la plomberie ; l'écran est T10, la couche T11.
+
+| Fichier | Rôle |
+|---|---|
+| `data/jeux.api.ts` | `JeuxApi` (dans `FOURNISSEURS_DISTANTS`) : registre des plateformes, jeux de zone (lister, lire, enregistrer, régler, supprimer, extraire, extractions), pavage en cercles, contours des communes. La conversion territoriale reste `CouvertureApi.couverture` (lot 4). Recouvre en partie `JeuxZonesApi` du module risque (déclaré dans l'en-tête) |
+| `logique/jeu/conversion.ts` | COPIE de `lib/zones/conversion.ts` : corps identique mot pour mot, verrouillé par `tests/unit/angular/conversion-paritaire.test.ts` (corriger un côté = corriger l'autre) |
+| `logique/jeu/plateformes.ts` | `PLATEFORMES`, `MAILLES`, `PlateformeGeo` (copie de `lib/zones/plateformes.ts` sans Zod, même verrou). Aucune limite de plateforme dans `logique/jeu/**` (grep du même test) |
+| `logique/jeu/mailles-url.ts` | `?mailles=` (A-10) : `lireMailles` / `ecrireMailles` (ne lèvent jamais), `lireVersion` (`?x=`), `rayonParDefaut`, `SEUIL_PAR_DEFAUT` (20 %) |
+| `etat/file-lectures.ts` | `FileLectures` : les conversions UNE à la fois ; une tâche de même clé remplace la précédente (désabonnée, jeton) ; vidée au changement de zone et à la destruction |
+| `etat/jeu-zones.service.ts` | `JeuZonesService`, fourni par la PAGE (`FOURNISSEURS_JEU`, `carte.fournisseurs.ts`) : `zoneId`, `jeuId`, `jeu`, `cible`, `recette`, `extraction`, `plateformes`, `choix`, `couvertures`, `cercles`, `resumes`, `enCours`, `erreurs`, `erreur` ; `choisirZone(id, recette?)`, `charger(jeuId)`, `regler(plateforme, {maille?, seuil?, rayon?})`, `valider(plateforme)`, `choisirExtraction(v)`, `chargerPlateformes()` |
+
+- **URL** : `?zoneJeu=<uuid>` (zone avant enregistrement) ou `?jeu=<uuid>` (jeu ouvert : il l'emporte, `?zoneJeu=`
+  disparaît), `?mailles=` (les choix EXPLICITES : écarts aux défauts, ou au jeu ouvert), `?x=<version>` (avec un jeu
+  seulement). Lus à la construction, réécrits en `replaceUrl` par `ecrireParametres` (P-g), relus à toute navigation
+  extérieure ; une valeur illisible est réécrite une fois.
+- **Aucune requête non demandée** : ouvrir ⑤ ne lit rien ; le registre se lit une fois par page, à l'arrivée d'une
+  zone ou d'un jeu (et à l'ouverture du sélecteur, T10) ; une conversion part par `valider` (ouverture de la colonne,
+  relâchement de la réglette de rayon), jamais quatre d'un coup, et une seule couverture par (zone, cible, découpage).
+  Régler un seuil ne requête RIEN (`resumes` rejoue la conversion pure en mémoire) ; un pavage en cercles dépend du
+  rayon ET du seuil (calculé au serveur) : régler l'un ou l'autre le périme, sans requête, jusqu'au `valider` suivant.
+- **Défauts (A-4)** : maille de `mailleParDefaut` (« à vérifier » écarté d'abord), seuil 20 %, rayon de la recette
+  ramené dans les bornes de la ligne (sinon 10 km). Une maille exacte (A-6) est chiffrée sur la forme, sans seuil ;
+  `exactitude` reçoit le rayon CHOISI. Zone sans recette lisible : seule la forme est exacte, comme à l'extraction.
+- **Refus** : 404 zone → `?zoneJeu=` retiré, « Zone introuvable dans cet espace. » ; 404 jeu → `?jeu=` retiré,
+  « Jeu de zones introuvable dans cet espace. » ; jeu risque → « Ce jeu de zones se gère dans le module risque. » ;
+  autre refus d'une conversion → `erreurs[plateforme]`, la zone reste.
+
 ## Cycle de vie d'une couche
 
 1. **Allumée** par sa section de `panneaux/calques/`, dépliée dans sa ligne de ② (ou un outil) : le service passe `visible` à vrai.

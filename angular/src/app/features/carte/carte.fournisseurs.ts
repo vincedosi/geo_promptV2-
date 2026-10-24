@@ -2,6 +2,7 @@ import { type Provider, type Signal, computed, inject } from '@angular/core';
 import { CouvertureService } from './couches/couverture.service';
 import { ScoreService } from './couches/score.service';
 import { ZonesRisqueService } from './couches/zones-risque.service';
+import { JeuZonesService } from './etat/jeu-zones.service';
 import { ZoneAnalyseeService } from './etat/zone-analysee.service';
 
 /**
@@ -15,6 +16,12 @@ export const FOURNISSEURS_ANALYSE: Provider[] = [
   // Sa couverture peinte sur LA carte (T8, A-7) : contour, part par CP ou par IRIS, surbrillance.
   CouvertureService,
 ];
+
+/**
+ * L'état de ⑤ Jeu de zones (lot 5, T9) fourni par la PAGE, pour la même raison (P-e) : la zone convertie, le jeu
+ * ouvert et les conversions lues survivent à ⑤ → ① → ⑤.
+ */
+export const FOURNISSEURS_JEU: Provider[] = [JeuZonesService];
 
 /**
  * La pastille « renseignée » de ④ (A2) : un score composite, des zones à risque ou une couverture de zone PEINTS. À
