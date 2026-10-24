@@ -95,6 +95,12 @@ export interface DemandeCercles {
   plateforme: Plateforme;
 }
 
+/**
+ * Le plafond de codes de `POST /api/zones/communes/contours` (`MAX_CODES` de la route, sql/279) — une borne de COÛT de
+ * la route, pas une règle de plateforme. `tests/unit/angular/conversion-paritaire.test.ts` verrouille l'égalité.
+ */
+export const MAX_CODES_CONTOURS = 3000;
+
 /** `POST /api/zones/communes/contours` : un code absent du référentiel est DIT dans `manquants`. */
 export interface ContoursCommunes {
   communes: Array<{ code: string; nom: string | null; geometry: GeoJSON.Geometry }>;

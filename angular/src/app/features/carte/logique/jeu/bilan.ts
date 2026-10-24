@@ -120,7 +120,9 @@ export function rangerCouverture(
 /**
  * Le bilan d'un choix à partir de la lecture qu'il requiert (`lu`), ou `null` si elle manque ou est périmée : une
  * maille exacte par `resumeExact` sur la forme, une maille territoriale par `appliquerSeuil` — un seuil déplacé ne
- * requête rien —, un cercle par le pavage s'il est à ce rayon ET à ce seuil (calculés au serveur).
+ * requête rien —, un cercle par le pavage s'il est à ce rayon ET à ce seuil (calculés au serveur). La zone et la CIBLE
+ * du pavage sont vérifiées en amont : `JeuZonesService.cercles` ne rend que ceux de la zone et de la cible courantes
+ * (relecture T10-12 : une autre cible relit, test « changer de cible périme le pavage »).
  */
 export function bilanDe(
   c: ChoixMaille, ligne: PlateformeGeo, recette: Recette | null, lu: ResultatCouverture | ResultatCercles | undefined,

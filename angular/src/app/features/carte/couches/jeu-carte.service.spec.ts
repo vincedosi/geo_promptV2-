@@ -5,7 +5,7 @@ import { Subject } from 'rxjs';
 import { CarteFactice } from '../../../carte/testing/carte-factice';
 import { CouleursService } from '../../../core/theme/couleurs.service';
 import { IrisApi } from '../data/iris.api';
-import { JeuxApi } from '../data/jeux.api';
+import { JeuxApi, MAX_CODES_CONTOURS } from '../data/jeux.api';
 import { ZonesCustomApi } from '../data/zones-custom.api';
 import { AnnonceService } from '../etat/annonce.service';
 import { ContoursZonesService } from '../etat/contours-zones.service';
@@ -109,21 +109,33 @@ describe('JeuCarteService (lot 5, T11)', () => {
     expect(m.geos).toHaveLength(1);
   });
 
-  it('communes : les RETENUES seulement, une lecture par jeu de codes ; revenir à un seuil déjà vu ne relit rien', () => {
+  it('communes : les contours de TOUTES les touchées lus UNE fois ; le seuil tranche en mémoire, AUCUNE requête au relâchement', async () => {
     const m = monter();
     m.choix.update((c) => ({ ...c, tiktok: { maille: 'commune', seuil: 20 } }));
     m.couvertures.set({ commune: { ...couvertureCp, decoupage: 'commune' } });
     m.service.regarder('tiktok');
     TestBed.tick();
-    expect(m.communes.map((c) => c.codes)).toEqual([['13001', '13002']]);
-    m.communes[0].s.next({ communes: [{ code: '13001', nom: 'A', geometry: entite.geometry }], manquants: [] });
+    expect(m.communes.map((c) => c.codes)).toEqual([['13001', '13002', '13003']]);
+    m.communes[0].s.next({ communes: ['13001', '13002', '13003'].map((code) => ({ code, nom: code, geometry: entite.geometry })), manquants: [] });
     TestBed.tick();
-    expect(donnees(m.carte, 'jeu-unites').features.map((f) => f.properties?.['code'])).toEqual(['13001']);
+    const retenues = () => donnees(m.carte, 'jeu-unites').features.map((f) => [f.properties?.['code'], f.properties?.['retenue']]);
+    expect(retenues()).toEqual([['13001', true], ['13002', true], ['13003', false]]);
     m.choix.update((c) => ({ ...c, tiktok: { maille: 'commune', seuil: 50 } }));
     TestBed.tick();
+    expect(retenues()).toEqual([['13001', true], ['13002', false], ['13003', false]]);
+    expect(m.communes).toHaveLength(1);
+    expect(m.service.communesTronquees()).toBe(false);
+  });
+
+  it('communes au-delà du plafond de la route : les seules RETENUES sont lues, et c’est dit', async () => {
+    const m = monter();
+    const lignes = Array.from({ length: MAX_CODES_CONTOURS + 1 }, (_, i) => ({ code: String(10000 + i), nom: null, commune: null, n_carreaux: 1, pop_en_zone: 1, pop_totale: 10, part: i === 0 ? 60 : 10 }));
     m.choix.update((c) => ({ ...c, tiktok: { maille: 'commune', seuil: 20 } }));
+    m.couvertures.set({ commune: { ...couvertureCp, decoupage: 'commune', lignes } });
+    m.service.regarder('tiktok');
     TestBed.tick();
-    expect(m.communes.map((c) => c.codes)).toEqual([['13001', '13002'], ['13001']]);
+    expect(m.communes.map((c) => c.codes)).toEqual([['10000']]);
+    expect(m.service.communesTronquees()).toBe(true);
   });
 
   it('④ puis ⑤ : la couverture est évincée (une choroplèthe) ; ⑤ évincé à son tour se retire, « Voir sur la carte » le rend', () => {

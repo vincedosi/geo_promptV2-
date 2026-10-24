@@ -3,7 +3,7 @@ import type maplibregl from 'maplibre-gl';
 import { map } from 'rxjs';
 import { CouleursService } from '../../../core/theme/couleurs.service';
 import { IrisApi } from '../data/iris.api';
-import { JeuxApi } from '../data/jeux.api';
+import { JeuxApi, MAX_CODES_CONTOURS } from '../data/jeux.api';
 import { ZonesCustomApi } from '../data/zones-custom.api';
 import { ContoursZonesService } from '../etat/contours-zones.service';
 import { CouchesCarteService, quandStyleCharge } from '../etat/couches-carte.service';
@@ -25,15 +25,16 @@ const RECADRAGE = { padding: 60, duration: 900 } as const;
 type Vue =
   | { type: 'zone' }
   | { type: 'territoires'; echelle: 'cp' | 'departement'; lignes: readonly LigneCouverture[]; seuil: number }
-  | { type: 'communes'; codes: string[]; parts: ReadonlyMap<string, number | null> }
+  | { type: 'communes'; lignes: readonly LigneCouverture[]; seuil: number; codes: string[]; toutes: boolean }
   | { type: 'iris'; lignes: readonly LigneCouverture[]; seuil: number }
   | { type: 'cercles'; rendu: GeoJSON.FeatureCollection };
 
 /**
  * ⑤ Jeu de zones — la carte de la plateforme REGARDÉE (lot 5, T11, A-14), sur LA carte principale : le contour de la
  * zone exacte (`ZonesCustomApi.geometrie`, une lecture par zone), puis ses unités — CP et départements par
- * `ContoursZonesService` (partagé, une lecture par échelle et par écran), communes RETENUES par
- * `JeuxApi.contoursCommunes` (une lecture par jeu de codes, gardée), IRIS sur les tuiles `iris-source` (z ≥ 9),
+ * `ContoursZonesService` (partagé, une lecture par échelle et par écran), communes TOUCHÉES par
+ * `JeuxApi.contoursCommunes` (une lecture par jeu de codes, gardée ; le seuil tranche en mémoire, ruling de la
+ * relecture T10-12 ; au-delà de `MAX_CODES_CONTOURS`, les seules retenues), IRIS sur les tuiles `iris-source` (z ≥ 9),
  * cercles par `cercleGeoJSON` du module risque ; une maille exacte (A-6) : le contour seul. Couleurs CALCULÉES.
  *
  * ── UNE PLATEFORME À LA FOIS, UNE CHOROPLÈTHE À LA FOIS ──────────────────
@@ -81,6 +82,11 @@ export class JeuCarteService {
   readonly chargement = computed(() => this.contour.enCours() || this.contoursCp.enCours() || this.contoursDepartements.enCours() || this.lectureCommunes.enCours());
 
   private readonly zoom = signal<number | null>(null);
+  /** Plus de communes touchées que la route n'en lit d'un coup : seules les retenues sont dessinées (la colonne le dit). */
+  readonly communesTronquees = computed(() => {
+    const v = this.affichee() ? this.vue() : null;
+    return v?.type === 'communes' && !v.toutes;
+  });
   /** Une plateforme regardée à l'IRIS sous z9 : rien n'est peint (les tuiles portent des communes). */
   readonly irisSousLeZoom = computed(() => {
     const z = this.zoom();
@@ -101,8 +107,11 @@ export class JeuCarteService {
     const lignes = this.jeu.couvertures()[c.maille]?.lignes;
     if (!lignes) return null;
     if (c.maille === 'commune') {
-      const retenues = lignes.filter((l) => estRetenue(l, c.seuil));
-      return { type: 'communes', codes: retenues.map((l) => l.code).sort(), parts: new Map(retenues.map((l) => [l.code, l.part])) };
+      // Les contours de TOUTES les communes touchées, lus une fois : le seuil tranche ensuite en mémoire (P-h). Au-delà
+      // du plafond de la route, les seules retenues — un seuil relâché les relit, et la colonne le dit.
+      const toutes = lignes.length <= MAX_CODES_CONTOURS;
+      const codes = (toutes ? lignes : lignes.filter((l) => estRetenue(l, c.seuil))).map((l) => l.code).sort();
+      return { type: 'communes', lignes, seuil: c.seuil, codes, toutes };
     }
     if (c.maille === 'iris') return { type: 'iris', lignes, seuil: c.seuil };
     return { type: 'territoires', echelle: c.maille, lignes, seuil: c.seuil };
@@ -121,7 +130,7 @@ export class JeuCarteService {
     }
     if (v?.type === 'communes') {
       const fc = this.communesLues().get(v.codes.join(','));
-      if (fc) r.unites = { type: 'FeatureCollection', features: fc.features.map((f) => ({ ...f, properties: { code: f.properties?.['code'], part: v.parts.get(String(f.properties?.['code'])) ?? null, retenue: true } })) };
+      if (fc) r.unites = entitesTerritoires(fc, v.lignes, v.seuil);
     }
     if (v?.type === 'iris') r.iris = { retenus: v.lignes.filter((l) => estRetenue(l, v.seuil)), touches: v.lignes.map((l) => l.code) };
     return r;

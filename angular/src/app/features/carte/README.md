@@ -330,7 +330,10 @@ la plomberie ; l'écran est T10, la couche T11.
 
 - **Lectures** : rien avant « Voir sur la carte ». Contour de la zone : `ZonesCustomApi.geometrie`, une lecture par zone,
   recadrage. CP et départements : `ContoursZonesService` (partagé, une lecture par échelle et par écran). Communes :
-  `JeuxApi.contoursCommunes` des RETENUES, une lecture par jeu de codes, gardée (revenir à un seuil ne relit rien).
+  `JeuxApi.contoursCommunes` de TOUTES les touchées, une lecture par jeu de codes ; le seuil tranche en mémoire (retenues
+  teintées, autres en contour fin), aucune requête au relâchement ; au-delà de `MAX_CODES_CONTOURS` (le plafond de la
+  route), les seules retenues, et la colonne le dit. « Extraire » attend l'enregistrement des réglages modifiés
+  (`JeuZonesService.modifie`).
   Cercles : `cercleGeoJSON` du module risque. Maille exacte : le contour seul.
 - **Une plateforme, une choroplèthe** : regarder une autre plateforme retire les couches de la précédente. Le geste
   porte sa zone : changer de zone l'annule. Peinte, la carte réclame le dégradé `'jeu'` (registre `logique/degrades.ts`

@@ -4,6 +4,7 @@ import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { DilutionComponent } from '../../../risques/etapes/zones/dilution.component';
 import { libellesPaliers } from '../../couches/couche-unites';
 import { JeuCarteService } from '../../couches/jeu-carte.service';
+import { MAX_CODES_CONTOURS } from '../../data/jeux.api';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { estExacte } from '../../logique/jeu/bilan';
 import {
@@ -120,6 +121,9 @@ import { ChoixMailleComponent } from './choix-maille.component';
               <span>· non retenu : contour fin</span>
             </div>
           }
+          @if (surLaCarte() && carte.communesTronquees()) {
+            <div data-communes-tronquees class="text-[11px] text-secondary">{{ texteCommunesTronquees }}</div>
+          }
           @if (surLaCarte() && carte.irisSousLeZoom()) { <div data-zoomer class="text-[11px] text-secondary">Zoomez pour voir les IRIS sur la carte (à partir du zoom 9).</div> }
         }
       </div>
@@ -143,6 +147,7 @@ export class ColonnePlateformeComponent {
   protected readonly nombre = formaterNombre;
   /** La légende des parts de la carte, celle de ④ (`libellesPaliers`, couleurs en jetons CSS : ici c'est du HTML). */
   protected readonly paliers = libellesPaliers().map((libelle, i) => ({ couleur: PALIERS_CSS[i], libelle }));
+  protected readonly texteCommunesTronquees = `Plus de ${formaterNombre(MAX_CODES_CONTOURS)} communes touchées : seules les retenues sont dessinées, et chaque seuil relit leurs contours.`;
   protected readonly pastille = PASTILLE;
   protected readonly pastilleActive = PASTILLE_PRIMAIRE_ACTIVE;
   protected readonly pastilleInactive = PASTILLE_INACTIVE;

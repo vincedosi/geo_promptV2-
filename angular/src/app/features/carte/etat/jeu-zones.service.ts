@@ -12,7 +12,7 @@ import {
 } from '../logique/jeu/bilan';
 import {
   type ChoixMaille, type ChoixParPlateforme, PARAM_EXTRACTION, PARAM_JEU, PARAM_MAILLES, PARAM_ZONE_JEU, type ParametresJeu, SEUIL_PAR_DEFAUT,
-  ecrireMailles, lireMailles, lireParametresJeu, lireVersion, memesParametres,
+  ecrireMailles, lireMailles, lireParametresJeu, lireVersion, memesParametres, parametresDe,
 } from '../logique/jeu/mailles-url';
 import type { Maille, Plateforme, PlateformeGeo } from '../logique/jeu/plateformes';
 import type { Recette } from '../logique/zones/recette';
@@ -94,6 +94,14 @@ export class JeuZonesService {
 
   /** Le choix courant de chaque plateforme : la base, et par-dessus les choix explicites. Vide sans zone. */
   readonly choix: Signal<ChoixParPlateforme> = computed(() => (this._zoneId() ? { ...this.base(), ...this._reglages() } : {}));
+  /**
+   * Un jeu ouvert dont l'écran ne montre plus l'enregistré : des choix ou un mode qui en diffèrent. Une extraction fige
+   * l'ENREGISTRÉ (A-11) : tant que c'est vrai, l'écran fait d'abord enregistrer les réglages (relecture T10-12).
+   */
+  readonly modifie: Signal<boolean> = computed(() => {
+    const jeu = this.jeu();
+    return !!jeu && (ecrireMailles(this.choix()) !== ecrireMailles(this.base()) || this.modePlan() !== jeu.jeu.mode_plan);
+  });
 
   /** Les couvertures lues pour la zone et la cible COURANTES, par découpage. */
   readonly couvertures: Signal<Partial<Record<Decoupage, ResultatCouverture>>> = computed(() => {
@@ -379,14 +387,7 @@ export class JeuZonesService {
   /** Écrit l'état courant sous sa forme canonique, si l'URL ne le porte pas déjà. Jamais après destruction. */
   private ecrire(): void {
     if (this.detruit) return;
-    const jeu = this._jeuId();
-    const x = this._extraction();
-    const v: ParametresJeu = {
-      [PARAM_ZONE_JEU]: jeu ? null : this._zoneId(),
-      [PARAM_JEU]: jeu,
-      [PARAM_MAILLES]: jeu || this._zoneId() ? ecrireMailles(this._reglages()) : null,
-      [PARAM_EXTRACTION]: jeu && x !== null ? String(x) : null,
-    };
+    const v = parametresDe(this._jeuId(), this._zoneId(), this._reglages(), this._extraction());
     if (memesParametres(v, this.dernier)) return;
     this.dernier = v;
     ecrireParametres(this.router, this.route.firstChild ?? this.route, v);

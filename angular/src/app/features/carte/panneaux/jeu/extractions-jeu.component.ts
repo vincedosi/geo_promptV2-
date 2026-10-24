@@ -30,7 +30,8 @@ interface LigneVersion {
  * existe déjà (v2). » ; une réponse perdue (statut 0) ne dit ni succès ni échec : elle renvoie à la liste, relue.
  *
  * La liste montre, par version : son origine, sa date et le résumé FIGÉ par plateforme (maille, unités, taux d'utile).
- * Choisir une version la désigne dans `?x=` (`JeuZonesService.choisirExtraction`). Le téléchargement des fichiers par
+ * Choisir une version la désigne dans `?x=` (`JeuZonesService.choisirExtraction`). Le serveur fige les réglages
+ * ENREGISTRÉS : tant que l'écran en montre d'autres (`JeuZonesService.modifie`), « Extraire » attend qu'on les enregistre. Le téléchargement des fichiers par
  * plateforme arrive au lot 6 : un texte l'annonce, aucun bouton mort.
  *
  * Ce n'est PAS `mg-panneau-extractions` du module risque : celui-là montre un plan CP (seuil, CP retenus, classeur) ;
@@ -45,8 +46,10 @@ interface LigneVersion {
     <div class="flex flex-wrap items-center gap-2">
       <input type="text" maxlength="500" [class]="listeChamp + ' flex-[1_1_200px] cursor-text'" placeholder="Pourquoi cette extraction (facultatif)"
         aria-label="Commentaire de l’extraction" [value]="commentaire()" (input)="commentaire.set(texte($event))" />
-      <button type="button" data-extraire [disabled]="enCours()" (click)="extraire()" [class]="boutonCalcul">{{ enCours() ? 'Extraction…' : 'Extraire' }}</button>
+      <button type="button" data-extraire [disabled]="enCours() || jeu.modifie()" (click)="extraire()" [class]="boutonCalcul">{{ enCours() ? 'Extraction…' : 'Extraire' }}</button>
     </div>
+    <!-- Une extraction fige l'ENREGISTRÉ : des réglages modifiés à l'écran doivent d'abord être enregistrés (relecture T10-12). -->
+    @if (jeu.modifie()) { <p data-enregistrer-avant role="status" class="m-0 text-[11px] text-secondary">Enregistrez les réglages avant d’extraire.</p> }
     @if (lignes().length > 0) {
       <label class="flex cursor-pointer items-center gap-2 text-[11px] text-tertiary">
         <input type="checkbox" data-recalage [checked]="recalage()" (change)="recalage.set(coche($event))" class="accent-teal" />
@@ -129,7 +132,7 @@ export class ExtractionsJeuComponent {
 
   protected extraire(): void {
     const id = this.jeu.jeuId();
-    if (!id || this.enCours()) return;
+    if (!id || this.enCours() || this.jeu.modifie()) return;
     this.enCours.set(true);
     this.message.set(null);
     this.erreur.set(null);

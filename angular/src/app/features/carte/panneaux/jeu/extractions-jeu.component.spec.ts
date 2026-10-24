@@ -99,4 +99,18 @@ describe('mg-extractions-jeu', () => {
     await stable();
     expect(router.url).toBe(`/carte?jeu=${J1}`);
   });
+  it('réglages modifiés à l’écran : « Extraire » désactivé, « Enregistrez les réglages avant d’extraire. », aucune requête', async () => {
+    const { el, http, jeu, stable } = await ouvert();
+    jeu.regler('dv360', { seuil: 40 });
+    await stable();
+    const bouton = el.querySelector<HTMLButtonElement>('[data-extraire]')!;
+    expect(bouton.disabled).toBe(true);
+    expect(texte(el, '[data-enregistrer-avant]')).toBe('Enregistrez les réglages avant d’extraire.');
+    bouton.click();
+    await stable();
+    http.expectNone((r) => r.method === 'POST');
+    jeu.regler('dv360', { seuil: 20 });
+    await stable();
+    expect(bouton.disabled).toBe(false);
+  });
 });

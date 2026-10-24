@@ -278,6 +278,33 @@ describe('JeuZonesService — la conversion', () => {
     http.verify();
     expect(hote.jeu.resumes().dv360).toBeDefined();
   });
+  it('relecture T10-12 : changer de cible périme le pavage en cercles de l’ancienne — Meta se relit à la nouvelle cible', async () => {
+    const { hote, http } = await ouvrirAvecZone();
+    hote.jeu.valider('meta');
+    http.expectOne((r) => r.url.includes('/cercles') && r.url.includes('cible=ind')).flush(cercles(10000, 20));
+    expect(hote.jeu.resumes().meta).toBeDefined();
+    hote.jeu.choisirCible('csp_plus');
+    expect(hote.jeu.resumes().meta).toBeUndefined();
+    hote.jeu.valider('meta');
+    http.expectOne((r) => r.url.includes('/cercles') && r.url.includes('cible=csp_plus'));
+  });
+  it('modifie : un jeu ouvert dont les choix ou le mode diffèrent de l’enregistré ; revenir à l’identique le remet à faux', async () => {
+    const { hote, http, stable } = await ouvrirAvecZone();
+    expect(hote.jeu.modifie()).toBe(false);
+    hote.jeu.adopter({
+      jeu: { id: J1, type: 'zone', nom: 'L', description: null, version: 1, created_at: '', custom_geo_zone_id: Z1, cible: 'ind', mode_plan: 'pondere' },
+      zone: { id: Z1, nom: 'Z', recette: null }, plateformes: [{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null }],
+    });
+    await stable();
+    expect(hote.jeu.modifie()).toBe(false);
+    hote.jeu.regler('dv360', { seuil: 40 });
+    expect(hote.jeu.modifie()).toBe(true);
+    hote.jeu.regler('dv360', { seuil: 20 });
+    expect(hote.jeu.modifie()).toBe(false);
+    hote.jeu.choisirMode('exclusif');
+    expect(hote.jeu.modifie()).toBe(true);
+    http.verify();
+  });
   it('choisirMode : le mode de plan avant enregistrement (pondéré par défaut)', async () => {
     const { hote } = await ouvrirAvecZone();
     expect(hote.jeu.modePlan()).toBe('pondere');

@@ -110,3 +110,16 @@ export function ecrireMailles(choix: ChoixParPlateforme): string | null {
 export function lireVersion(brut: string | null | undefined): number | null {
   return typeof brut === 'string' && /^[1-9]\d*$/.test(brut) ? Number(brut) : null;
 }
+
+/**
+ * La forme canonique des quatre paramètres pour un état : `?jeu=` l'emporte (zone et choix sont dedans, `?zoneJeu=`
+ * disparaît) ; `?mailles=` seulement avec une zone ou un jeu ; `?x=` seulement avec un jeu.
+ */
+export function parametresDe(jeu: string | null, zone: string | null, reglages: ChoixParPlateforme, extraction: number | null): ParametresJeu {
+  return {
+    [PARAM_ZONE_JEU]: jeu ? null : zone,
+    [PARAM_JEU]: jeu,
+    [PARAM_MAILLES]: jeu || zone ? ecrireMailles(reglages) : null,
+    [PARAM_EXTRACTION]: jeu && extraction !== null ? String(extraction) : null,
+  };
+}

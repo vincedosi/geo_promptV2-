@@ -107,3 +107,12 @@ describe('les règles des plateformes vivent dans plateformes_geo — côté Ang
     expect(code).not.toMatch(/(max_unites|rayon_min_m|rayon_max_m|pop_min_unite|pop_min_groupe|max_sommets)\s*(?:<=?|>=?|===?|!==?|\?\?|\|\||:|=)\s*\d/);
   });
 });
+
+describe('le plafond de la route des contours de communes, vu de ⑤ (relecture T10-12)', () => {
+  it('`MAX_CODES_CONTOURS` (Angular) = `MAX_CODES` de `POST /api/zones/communes/contours`', () => {
+    const route = readFileSync('app/api/zones/communes/contours/route.ts', 'utf8').match(/const MAX_CODES = (\d+);/)?.[1];
+    const angular = readFileSync('angular/src/app/features/carte/data/jeux.api.ts', 'utf8').match(/export const MAX_CODES_CONTOURS = (\d+);/)?.[1];
+    expect(route).toBeDefined();
+    expect(angular).toBe(route);
+  });
+});
