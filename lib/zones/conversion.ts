@@ -129,13 +129,17 @@ function rayonAdmis(rayon_m: number, ligne?: PlateformeGeo): boolean {
 
 /**
  * La maille rend-elle la zone EXACTEMENT (A-6) ? Le polygone, toujours ; le CP pour une zone faite de codes postaux ;
- * le cercle pour un rayon autour d'un point, si la plateforme admet ce rayon. Pas `rayon_poi` : sa zone est découpée
- * par le périmètre de ① (obligatoire, `executerRecette`), les cercles entiers en débordent — la perte se calcule.
+ * le cercle pour un rayon autour d'un point, si la plateforme admet ce rayon ET si le rayon choisi pour la plateforme
+ * (`rayonChoisi`) est absent ou égal à celui de la recette — l'unité achetée est alors LE cercle de la recette ; un
+ * autre rayon pave la zone, et la perte se calcule. Pas `rayon_poi` : sa zone est découpée par le périmètre de ①
+ * (obligatoire, `executerRecette`), les cercles entiers en débordent — la perte se calcule.
+ * Une maille exacte se fige sans calcul ni seuil (extraction, T8) : l'écran et le serveur lisent cette MÊME règle.
  */
-export function exactitude(recette: Recette, maille: Maille, ligne?: PlateformeGeo): 'exacte' | 'calculee' {
+export function exactitude(recette: Recette, maille: Maille, ligne?: PlateformeGeo, rayonChoisi?: number): 'exacte' | 'calculee' {
   if (maille === 'polygone') return 'exacte';
   if (maille === 'cp' && recette.type === 'codes_postaux') return 'exacte';
-  if (maille === 'cercle' && recette.type === 'rayon_point' && rayonAdmis(recette.rayon_m, ligne)) return 'exacte';
+  if (maille === 'cercle' && recette.type === 'rayon_point' && rayonAdmis(recette.rayon_m, ligne)
+      && (rayonChoisi === undefined || rayonChoisi === recette.rayon_m)) return 'exacte';
   return 'calculee';
 }
 

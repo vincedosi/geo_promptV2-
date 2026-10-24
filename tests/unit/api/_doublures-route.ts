@@ -67,6 +67,7 @@ export const createAdminClient = () => ({
       select: () => requete,
       eq: (...a: unknown[]) => { lecture.filtres.push(['eq', ...a]); return requete; },
       in: (...a: unknown[]) => { lecture.filtres.push(['in', ...a]); return requete; },
+      gt: (...a: unknown[]) => { lecture.filtres.push(['gt', ...a]); return requete; },
       limit: () => requete,
       order: () => requete,
       maybeSingle: () => Promise.resolve(reponse),

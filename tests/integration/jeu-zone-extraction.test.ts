@@ -128,7 +128,13 @@ describe('POST /api/zones/jeux/[id]/extractions — jeu de zone', () => {
     const resumes = x.plateformes as { plateforme: string; maille: string; exacte: boolean; n_unites: number }[];
     expect(resumes.map((p) => `${p.plateforme}:${p.maille}`)).toEqual(['dv360:cp', 'meta:cercle', 'tiktok:commune', 'ttd:polygone']);
     expect(resumes.every((p) => p.n_unites > 0)).toBe(true);
-    expect(resumes.find((p) => p.plateforme === 'ttd')?.exacte).toBe(true);
+    // TTD au polygone : exact, chiffré par la population de la zone. Meta à 2 km ≠ 5 km de la recette : calculé.
+    const ttd = resumes.find((p) => p.plateforme === 'ttd') as unknown as { exacte: boolean; population: number; couverte: number; manques: number };
+    expect(ttd.exacte).toBe(true);
+    expect(ttd.population).toBeGreaterThan(0);
+    expect(ttd.couverte).toBe(ttd.population);
+    expect(ttd.manques).toBe(0);
+    expect(resumes.find((p) => p.plateforme === 'meta')?.exacte).toBe(false);
 
     const { data: cps } = await sb.from('zone_set_extraction_cp').select('code_postal, classe, retenu, multiplicateur')
       .eq('extraction_id', extraction);
@@ -145,7 +151,8 @@ describe('POST /api/zones/jeux/[id]/extractions — jeu de zone', () => {
     expect(de('tiktok').filter((u) => u.retenu).length).toBe(resumes.find((p) => p.plateforme === 'tiktok')!.n_unites);
     // Les CP de DV360 sont SES unités (sql/278) : autant de retenus que le plan, au même seuil (le seul au CP).
     expect(de('dv360').filter((u) => u.retenu).length).toBe(x.n_retenus);
-    expect(de('ttd')).toEqual([{ plateforme: 'ttd', maille: 'polygone', code: null, centre: null, rayon_m: null, retenu: true }]);
+    expect(de('ttd').map(({ plateforme, maille, code, centre, rayon_m, retenu }) => ({ plateforme, maille, code, centre, rayon_m, retenu })))
+      .toEqual([{ plateforme: 'ttd', maille: 'polygone', code: null, centre: null, rayon_m: null, retenu: true }]);
   }, LONG);
 
   it('rejouée : 200 deja_extraite, même version, rien d’écrit en plus', async () => {
@@ -160,6 +167,30 @@ describe('POST /api/zones/jeux/[id]/extractions — jeu de zone', () => {
     expect(r.status).toBe(200);
     expect((await r.json()).extractions.map((e: { id: string }) => e.id)).toEqual([extraction]);
   });
+});
+
+describe('maille exacte : Meta au rayon de la recette (5 km autour de Lyon)', () => {
+  it('201 : exacte, UNE unité cercle au centre et au rayon de la recette, zéro perte', async () => {
+    const { data, error } = await sb.from('zone_sets').insert({
+      org_id: org, nom: 'Lyon Meta exact', type: 'zone', custom_geo_zone_id: zone, cible: 'ind',
+      mode_plan: 'pondere', brouillon: false, version: 1,
+    }).select('id').single();
+    if (error || !data) throw new Error(error?.message);
+    const exact = data.id as string;
+    const choix = await sb.from('zone_set_plateformes').insert({ zone_set_id: exact, plateforme: 'meta', maille: 'cercle', seuil: 30, rayon_m: 5000 });
+    if (choix.error) throw new Error(choix.error.message);
+
+    const r = await extractions.POST(new NextRequest(`http://localhost/api/zones/jeux/${exact}/extractions`, json({})), { params: Promise.resolve({ id: exact }) });
+    expect(r.status).toBe(201);
+    const { id } = await r.json() as { id: string };
+    const { data: x } = await sb.from('zone_set_extractions').select('plateformes').eq('id', id).single();
+    expect((x!.plateformes as Record<string, unknown>[])[0]).toMatchObject({ plateforme: 'meta', exacte: true, n_unites: 1, manques: 0, hors_zone: 0, taux_utile: 100 });
+    const { data: u, error: e2 } = await sb.from('zone_set_extraction_unites')
+      .select('maille, rayon_m, retenu, part').eq('extraction_id', id);
+    if (e2) throw new Error(e2.message);
+    // Le centre est celui de la recette (vérifié en unitaire : `tests/unit/zones/extraction-jeu-zone.test.ts`).
+    expect(u).toEqual([{ maille: 'cercle', rayon_m: 5000, retenu: true, part: 100 }]);
+  }, LONG);
 });
 
 describe('GET /api/zones/[id]/cercles', () => {

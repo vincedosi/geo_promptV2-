@@ -162,7 +162,9 @@ describe('les extractions servent les deux types (T8)', () => {
   it('POST extractions d’un jeu RISQUE : une clé inconnue reste ignorée, comme avant le lot 5', async () => {
     h.jeu = jeuDe('risque');
     const r = await R.extractions.POST(req(`${URL_JEU}/extractions`, enJson({ unites: [] })), params);
-    expect(r.status).not.toBe(400);
+    // La clé passe le corps, et le chemin risque va jusqu'à sa lecture de `zone_set_cp` (vide ici) : le 409 d'avant.
+    expect(r.status).toBe(409);
+    expect(await r.json()).toEqual({ error: 'Ce jeu de zones ne couvre aucun code postal.' });
   });
   it('GET extractions d’un jeu de zone : 200', async () => {
     h.jeu = jeuDe('zone');

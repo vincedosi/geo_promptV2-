@@ -175,6 +175,16 @@ describe('exactitude — un cercle n’est exact que dans les bornes de rayon de
   });
   it('sans borne connue : exact', () => {
     expect(exactitude(point(7), 'cercle', ligne({ plateforme: 'ttd', maille: 'cercle' }))).toBe('exacte');
+  });  it('le rayon CHOISI pour la plateforme : absent ou égal à celui de la recette → exact ; différent → calculé', () => {
+    expect(exactitude(point(5_000), 'cercle', p, 5_000)).toBe('exacte');
+    expect(exactitude(point(5_000), 'cercle', p, undefined)).toBe('exacte');
+    expect(exactitude(point(5_000), 'cercle', p, 2_500)).toBe('calculee');
+    // Égal mais hors des bornes de la plateforme : toujours calculé.
+    expect(exactitude(point(2_000), 'cercle', p, 2_000)).toBe('calculee');
+  });
+  it('le rayon choisi ne joue que pour le cercle : polygone et CP d’une liste restent exacts', () => {
+    expect(exactitude(RECETTES.codes_postaux, 'cp', undefined, 3_000)).toBe('exacte');
+    expect(exactitude(RECETTES.dessin, 'polygone', undefined, 3_000)).toBe('exacte');
   });
 });
 
