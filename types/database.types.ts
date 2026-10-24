@@ -8898,6 +8898,7 @@ export type Database = {
         Args: { p_code_departement: string }
         Returns: string
       }
+      territoires_non_carroyes: { Args: { p_geom: unknown }; Returns: Json }
       transform_geometries_for_save: {
         Args: { p_geometries: Json; p_method: string }
         Returns: Json

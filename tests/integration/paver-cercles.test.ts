@@ -9,7 +9,9 @@
  *   - tout carreau de la zone dont la cellule est retenue est à ≤ r (distance géodésique) du centre de son cercle ;
  *   - `p_pop_min` retire les cellules sous le seuil d'habitants, et seulement elles ;
  *   - refus : `trop_de_cercles` (avec le nombre), `trop_de_candidates`, `zone_introuvable` (autre espace),
- *     `cible_inconnue` ; rayon hors [1 000, 80 000] → 22023.
+ *     `cible_inconnue`, `zone_trop_vaste` motif `rayon` (borne de coût : > 200 000 km² balayés) ; rayon hors
+ *     [1 000, 200 000] → 22023 (borne de SÉCURITÉ, la règle de plateforme vient de `plateformes_geo`) ;
+ *   - `motif_vide` : `territoire_non_carroye` (Guadeloupe), `aucun_carreau` (en mer), `aucune_cellule_au_seuil`.
  *
  * L'espace de test (et la copie de la zone) est supprimé en cascade en fin de fichier.
  */
@@ -24,17 +26,19 @@ const CIRFA = 'f001b479-b870-4958-978d-e7a98b90de57';
 
 interface Cercle { lon: number; lat: number; pop_en_zone: number; pop_totale: number; part: number }
 interface Resultat {
-  refus?: string; n_cercles: number; plafond?: number; n_candidates: number; cercles: Cercle[];
+  refus?: string; motif?: string; n_cercles: number; plafond?: number; n_candidates: number; cercles: Cercle[];
+  n_carreaux: number; motif_vide: string | null; territoires_non_carroyes: { code: string; nom: string }[];
   population: number; couverte: number; manques: number; hors_zone: number; achetee: number; taux_utile: number | null;
   reference: { grilles: { territoire: string; pas_3857: number }[] };
 }
 
 let org = '';
 let zone = '';
+const zones: Record<string, string> = {};
 
-async function paver(params: Record<string, unknown>): Promise<Resultat> {
+async function paver(params: Record<string, unknown>, zoneId = zone): Promise<Resultat> {
   const { data, error } = await admin.rpc('paver_cercles', {
-    p_zone_id: zone, p_org_id: org, p_cible: 'ind', p_rayon_m: 5000, p_seuil: 20, ...params,
+    p_zone_id: zoneId, p_org_id: org, p_cible: 'ind', p_rayon_m: 5000, p_seuil: 20, ...params,
   });
   if (error) throw new Error(`${error.code} ${error.message}`);
   return data as Resultat;
@@ -48,6 +52,12 @@ beforeAll(async () => {
   zone = psql(`select public.creer_zone_recette('CIRFA (copie)', '${org}', null, '{"v":1,"type":"dessin"}',
                  ST_AsGeoJSON(geometry, 15))->>'id' from public.custom_geo_zones where id = '${CIRFA}';`);
   if (!zone) throw new Error(`zone CIRFA ${CIRFA} absente de la base`);
+  zones.guadeloupe = psql(`select public.creer_zone_recette('Guadeloupe', '${org}', null, '{"v":1,"type":"dessin"}',
+                             ST_AsGeoJSON(r.g))->>'id'
+                             from public.resoudre_perimetre('departement', '971', null, 100000, array['departement']) r;`);
+  // Un carré de 10 km dans le golfe de Gascogne : aucun carreau, aucun département.
+  zones.mer = psql(`select public.creer_zone_recette('En mer', '${org}', null, '{"v":1,"type":"dessin"}',
+                      ST_AsGeoJSON(ST_MakeEnvelope(-6.0, 45.0, -5.87, 45.09, 4326)))->>'id';`);
 }, LONG);
 
 afterAll(async () => {
@@ -138,8 +148,28 @@ describe('paver_cercles — CIRFA Bretagne (≈ 5 000 km², M5)', () => {
 });
 
 describe('paver_cercles — refus et bornes', () => {
-  it('rayon hors [1 000, 80 000] → 22023', async () => {
-    for (const rayon of [500, 80001]) {
+  it('borne de coût : 80 km passe sur la CIRFA, 200 km balaierait > 200 000 km² → zone_trop_vaste motif rayon', async () => {
+    const r80 = await paver({ p_rayon_m: 80000 });
+    expect(r80.refus).toBeUndefined();
+    expect(r80.n_cercles).toBeGreaterThan(0);
+    expect(await paver({ p_rayon_m: 200000 })).toEqual({
+      refus: 'zone_trop_vaste', motif: 'rayon', n_candidates_max: 1, plafond_balaye_km2: 200000,
+    });
+  }, LONG);
+
+  it('motif_vide : territoire non carroyé, aucun carreau, aucune cellule au seuil', async () => {
+    const gp = await paver({}, zones.guadeloupe);
+    expect(gp).toMatchObject({ n_carreaux: 0, n_cercles: 0, cercles: [], motif_vide: 'territoire_non_carroye' });
+    expect(gp.territoires_non_carroyes).toEqual([{ code: '971', nom: 'Guadeloupe' }]);
+    expect(await paver({}, zones.mer)).toMatchObject({ n_carreaux: 0, motif_vide: 'aucun_carreau', territoires_non_carroyes: [] });
+    const seuil = await paver({ p_pop_min: 100_000_000 });
+    expect(seuil).toMatchObject({ n_cercles: 0, motif_vide: 'aucune_cellule_au_seuil', couverte: 0, achetee: 0 });
+    expect(seuil.manques).toBe(seuil.population);
+    expect((await paver({})).motif_vide).toBeNull();
+  }, LONG);
+
+  it('rayon hors [1 000, 200 000] → 22023', async () => {
+    for (const rayon of [500, 200001]) {
       const { error } = await admin.rpc('paver_cercles', {
         p_zone_id: zone, p_org_id: org, p_cible: 'ind', p_rayon_m: rayon, p_seuil: 20,
       });
