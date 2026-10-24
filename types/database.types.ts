@@ -4738,6 +4738,48 @@ export type Database = {
           },
         ]
       }
+      plateformes_geo: {
+        Row: {
+          a_verifier: boolean
+          disponible: boolean
+          doc_url: string | null
+          libelle: string
+          limites: Json
+          maille: string
+          natif: boolean
+          note: string | null
+          ordre: number
+          plateforme: string
+          releve_le: string
+        }
+        Insert: {
+          a_verifier?: boolean
+          disponible?: boolean
+          doc_url?: string | null
+          libelle: string
+          limites?: Json
+          maille: string
+          natif: boolean
+          note?: string | null
+          ordre: number
+          plateforme: string
+          releve_le: string
+        }
+        Update: {
+          a_verifier?: boolean
+          disponible?: boolean
+          doc_url?: string | null
+          libelle?: string
+          limites?: Json
+          maille?: string
+          natif?: boolean
+          note?: string | null
+          ordre?: number
+          plateforme?: string
+          releve_le?: string
+        }
+        Relationships: []
+      }
       poi_categories: {
         Row: {
           actif: boolean | null
