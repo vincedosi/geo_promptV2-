@@ -97,6 +97,8 @@ Ceux de la spec § 16.8, des lots 3, 4 et 5 s'appliquent. Ajoutés :
 
 Q2 et Q4 de la spec sont **tranchées** (§ 14) et appliquées (A-1 ; une extraction = le plan unique de la campagne).
 
+**Tranché par Vincent le 2026-10-25** : **Q-1 → l'extraction figée**, pour les deux types de jeu (recommandation adoptée). **Q-2 → ni rétablir ni porter : la section Stratégie (objectif + KPI) n'entre PAS dans ⑥** — « on est juste dans le suivi et contrôle des impressions ». Pas de route `GET /api/bidding/objectives` ; T6 retire objectif et KPI du périmètre (React garde sa section telle quelle jusqu'à la bascule).
+
 ---
 
 ## File Structure
