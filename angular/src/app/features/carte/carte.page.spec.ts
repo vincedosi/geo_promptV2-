@@ -46,6 +46,7 @@ import { JEUX_REFERENTIELS } from './logique/jeux-carte';
 import { MeteoService } from './couches/meteo.service';
 import { PileEchapService } from './etat/pile-echap.service';
 import { PanneauFiltreComponent } from './panneaux/filtre/panneau-filtre.component';
+import { PlanApi } from './data/plan.api';
 import { CONSIGNE_ETAPE, ETAPES_CARTE, LIBELLE_ETAPE_CARTE } from './logique/parcours';
 
 @Component({ selector: 'mg-vide', template: '' })
@@ -132,6 +133,8 @@ async function ouvrir(options: OptionsOuverture = {}) {
       // « Mes zones » lit `GET /api/zones/jeux?type=tous` par `JeuxApi` depuis le lot 5 (T12, les deux types).
       { provide: JeuxApi, useValue: { plateformes: options.plateformes ?? (() => NEVER), lister: options.jeux ?? (() => of({ jeux: [] })) } },
       { provide: ProfilRisqueApi, useValue: { cibles: () => NEVER } },
+      // ⑥ Plan (lot 6, T3) : le hall lit campagnes, stratégies, brouillons et mode démo à son montage ; jamais rendus ici.
+      { provide: PlanApi, useValue: { campagnes: () => NEVER, strategies: () => NEVER, brouillons: () => NEVER, modeDemo: () => NEVER } },
       { provide: CarteApi, useValue: { categories: options.categories ?? (() => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] })), jeuxRecommandes: options.jeuxRecommandes ?? (() => of({ cles: [] })), pois: () => of(), campagnesOoh: options.campagnesOoh ?? (() => of({ campagnes: [], tronque: false })), campagneOoh: options.campagneOoh ?? (() => of()), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
       { provide: RadioApi, useValue: { optionsFiltre: () => of({}), emetteurs: () => of({ type: 'FeatureCollection', features: [] }), stations: () => of({}) } },
       { provide: MeteoApi, useValue: { donnees: () => of() } },
@@ -1611,7 +1614,7 @@ const INVENTAIRE: readonly LigneInventaire[] = [
     avant: async ({ cartes, stable }) => { cartes[0].emettre('load'); await stable(); },
   },
   { n: 20, fonction: 'Session', lieu: {}, preuves: ['mg-barre-parcours mg-badge-session'] },
-  { n: 21, fonction: 'Campagne', lieu: { etape: 6 }, preuves: ['[data-etape-bientot="plan"]'] },
+  { n: 21, fonction: 'Campagne', lieu: { etape: 6 }, preuves: ['[data-panneau-etape="plan"] mg-panneau-plan mg-hall-campagnes', 'mg-barre-parcours mg-choix-campagne'] },
   { n: 22, fonction: 'Badge de zoom', lieu: {}, preuves: ['[data-badge-zoom]'] },
   { n: 23, fonction: 'Panneaux OOH (bouton « Autres »)', lieu: { autres: true }, preuves: ['[data-panneau-autres]:not([inert]) mg-panneau-autres mg-section-ooh'] },
   { n: 24, fonction: 'Radio FM/DAB+ (bouton « Autres »)', lieu: { autres: true }, preuves: ['[data-panneau-autres]:not([inert]) mg-panneau-autres mg-section-radio'] },

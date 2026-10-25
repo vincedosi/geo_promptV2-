@@ -48,18 +48,25 @@ export const CONSIGNE_ETAPE: Readonly<Record<EtapeCarte, string>> = {
   zones: 'Définissez vos zones : autour des POI, par seuil sur une donnée, à la main, ou en capturant la carte. Chaque zone garde sa recette et se recalcule.',
   analyse: 'Calculez sur ces zones : couverture, score, corrélation, isochrones, bataille, clustering. Chaque résultat s’affiche sur la carte.',
   jeu: 'Traduisez une zone dans la maille de chaque plateforme (codes postaux, communes, cercles, polygone…) : seuil, taux d’utile et ce que la traduction perd. Enregistrez le jeu, puis faites-en une extraction.',
-  plan: 'Le plan de campagne arrive dans le parcours. En attendant, il se prépare dans l’application actuelle.',
+  plan: 'Choisissez la campagne, donnez-lui pour cible une extraction de l’étape ⑤, puis ses plateformes, son budget et ses impressions prévues.',
   activation: 'L’activation plateforme par plateforme arrive dans le parcours. En attendant, elle se fait dans l’application actuelle.',
   live: 'Le suivi de la campagne en vol arrive dans le parcours. En attendant, il se consulte dans l’application actuelle.',
 };
 
 /**
  * L'onglet de l'overlay campagne React qui porte aujourd'hui l'étape (`components/magelian/deep-link.ts`, `TABS`).
- * ⑤ Jeu de zones n'y est pas : rien d'équivalent côté React hors du module risque — « bientôt », sans lien.
+ * ⑤ Jeu de zones n'y est pas : rien d'équivalent côté React hors du module risque — « bientôt », sans lien. ⑥ Plan
+ * non plus depuis le lot 6 (T3) : il a son panneau (`mg-panneau-plan`).
  */
-const ONGLET_REACT: Partial<Record<EtapeCarte, 'strategie' | 'activation' | 'suivi'>> = {
-  plan: 'strategie', activation: 'activation', live: 'suivi',
+const ONGLET_REACT: Partial<Record<EtapeCarte, 'activation' | 'suivi'>> = {
+  activation: 'activation', live: 'suivi',
 };
+
+/**
+ * Les étapes qui portent une campagne courante (`?campagne=`) : le sélecteur de campagne s'affiche dans la barre à
+ * celles-ci (lot 6, A-1 ; spec § 13-14, Q2 tranchée).
+ */
+export const ETAPES_CAMPAGNE: readonly EtapeCarte[] = ['plan', 'activation', 'live'];
 
 /** Bornes de la poignée du panneau d'étape : celles de `RisquePage` (320-900 px, 480 par défaut). */
 export const LARGEUR_PANNEAU_ETAPE = { min: 320, max: 900, defaut: 480 } as const;
@@ -108,8 +115,8 @@ export function etapeParRaccourci(e: FrappeClavier): EtapeCarte | null {
 
 /**
  * Ce qui allume la pastille « renseignée » (arbitrage A2) : ① un filtre posé, ② un jeu affiché, ④ une analyse sur la
- * carte — le score composite ou les zones à risque (T14) —, ⑤ une zone ou un jeu (lot 5). Les autres étapes
- * s'allumeront avec leur paramètre d'URL.
+ * carte — le score composite ou les zones à risque (T14) —, ⑤ une zone ou un jeu (lot 5), ⑥ une stratégie existante
+ * pour la campagne courante (lot 6, T3). Les autres étapes s'allumeront avec leur paramètre d'URL.
  */
 export interface EtatRenseigne {
   readonly filtrePose: boolean;
@@ -117,10 +124,12 @@ export interface EtatRenseigne {
   readonly analyseAffichee: boolean;
   /** ⑤ : une zone à convertir ou un jeu ouvert (`?zoneJeu=` ou `?jeu=`, lot 5). */
   readonly jeuRenseigne: boolean;
+  /** ⑥ : la campagne courante (`?campagne=`) a déjà une stratégie, le conteneur de son plan (lot 6, T3). */
+  readonly planRenseigne: boolean;
 }
 
 const RENSEIGNEE_PAR: Partial<Readonly<Record<EtapeCarte, keyof EtatRenseigne>>> = {
-  perimetre: 'filtrePose', donnees: 'calquesActifs', analyse: 'analyseAffichee', jeu: 'jeuRenseigne',
+  perimetre: 'filtrePose', donnees: 'calquesActifs', analyse: 'analyseAffichee', jeu: 'jeuRenseigne', plan: 'planRenseigne',
 };
 
 export function etapesDuFil(r: EtatRenseigne): EtapeAffichee[] {

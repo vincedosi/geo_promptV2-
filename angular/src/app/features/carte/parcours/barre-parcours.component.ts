@@ -1,10 +1,12 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { BadgeSessionComponent } from '../../../layout/badge-session.component';
 import { BasculeThemeComponent } from '../../../layout/bascule-theme.component';
 import { FilArianeComponent, type SegmentAriane } from '../../../ui/fil-ariane/fil-ariane.component';
 import { type EtapeAffichee, FilEtapesComponent } from '../../../ui/fil-etapes/fil-etapes.component';
 import { IconeComponent } from '../../../ui/icone/icone.component';
 import { LogoComponent } from '../../../ui/logo/logo.component';
+import { ETAPES_CAMPAGNE, type EtapeCarte } from '../logique/parcours';
+import { ChoixCampagneComponent } from './choix-campagne.component';
 
 /** Hauteur de la barre — celle de l'ancienne barre du haut (`MAP_TOPBAR_HEIGHT` de React). */
 export const HAUTEUR_BARRE_PARCOURS = 44;
@@ -23,12 +25,13 @@ const BOUTON_NEUTRE = 'flex shrink-0 cursor-pointer items-center gap-1.5 rounded
  * « Autres » (T11b, Vincent 14/10) : au niveau des étapes mais HORS du fil — ni numéro, ni Alt+N, hors de la liste
  * `nav` des étapes ; ouvert, il prend l'état actif d'une étape courante et le fil n'en marque plus aucune. À droite, ce qui vaut à toute étape (arbitrage A5) : les deux
  * boutons contextuels de l'ancienne colonne flottante (Script bidding DV360 de la zone du lien, Plan média (n) panneau
- * fermé), Tout effacer, le mode immersif, le thème, la session. Elle remplace la barre du haut et le rail.
+ * fermé), Tout effacer, le mode immersif, le thème, la session. Aux étapes ⑥-⑧, avant eux, le sélecteur de campagne
+ * (`mg-choix-campagne`, lot 6, A-1). Elle remplace la barre du haut et le rail.
  * Dans le flux de la page (jamais `fixed`, racine d'ombre).
  */
 @Component({
   selector: 'mg-barre-parcours',
-  imports: [BadgeSessionComponent, BasculeThemeComponent, FilArianeComponent, FilEtapesComponent, IconeComponent, LogoComponent],
+  imports: [BadgeSessionComponent, BasculeThemeComponent, ChoixCampagneComponent, FilArianeComponent, FilEtapesComponent, IconeComponent, LogoComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     role: 'banner',
@@ -47,6 +50,8 @@ const BOUTON_NEUTRE = 'flex shrink-0 cursor-pointer items-center gap-1.5 rounded
               [class.font-medium]="autresOuvert()" [class.text-primary]="autresOuvert()" [class.border-teal]="autresOuvert()"
               [class.text-tertiary]="!autresOuvert()" [class.border-transparent]="!autresOuvert()">Autres</button>
     </div>
+    <!-- ⑥-⑧ (lot 6, A-1) : la campagne courante (?campagne=). Hors du fil : elle vaut pour les trois étapes. -->
+    @if (avecCampagne()) { <mg-choix-campagne /> }
     @if (zoneScript(); as nom) {
       <button type="button" data-script-dv360 (click)="genererScript.emit()" [class]="boutonTeal"
               [attr.title]="'Générer le fichier custom bidding DV360 pour « ' + nom + ' »'">
@@ -85,6 +90,8 @@ export class BarreParcoursComponent {
   readonly planMedia = input<number | null>(null);
   /** « Autres » est ouvert (`ParcoursService.autres`) : aucune étape n'est alors courante dans le fil. */
   readonly autresOuvert = input(false);
+  /** Le sélecteur de campagne, aux étapes ⑥-⑧ seulement (et pas sous « Autres »). */
+  protected readonly avecCampagne = computed(() => !this.autresOuvert() && ETAPES_CAMPAGNE.includes(this.courante() as EtapeCarte));
 
   readonly choisir = output<string>();
   readonly remonter = output<number>();

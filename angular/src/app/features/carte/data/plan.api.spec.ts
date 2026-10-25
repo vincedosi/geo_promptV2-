@@ -58,6 +58,9 @@ describe('PlanApi — adresses sur HttpBaseService.baseUrl, jamais écrites en d
     const { api, http } = preparer();
     api.strategies(C).subscribe();
     attendre(http, 'GET', `${BASE}/api/bidding/strategies?campaign_id=${C}`);
+    // Sans campagne : celles de l'espace (hall de ⑥, T3).
+    api.strategies().subscribe();
+    attendre(http, 'GET', `${BASE}/api/bidding/strategies`);
     api.strategie(J).subscribe();
     attendre(http, 'GET', `${BASE}/api/bidding/strategies/${J}`);
     api.modifierStrategie(J, { total_budget: 1500, kpi_target: 450000 }).subscribe();
@@ -69,6 +72,8 @@ describe('PlanApi — adresses sur HttpBaseService.baseUrl, jamais écrites en d
     const { api, http } = preparer();
     api.brouillons(C).subscribe();
     attendre(http, 'GET', `${BASE}/api/bidding/strategies/drafts?campaign_id=${C}`);
+    api.brouillons().subscribe();
+    attendre(http, 'GET', `${BASE}/api/bidding/strategies/drafts`);
     const corps = { campaign_id: C, current_step: 2, draft_data: { v: 1, draft: {} } };
     api.sauverBrouillon(corps).subscribe();
     attendre(http, 'POST', `${BASE}/api/bidding/strategies/drafts`, corps);

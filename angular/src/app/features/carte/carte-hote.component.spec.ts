@@ -20,6 +20,7 @@ import { CarreauxApi } from './data/carreaux.api';
 import { ProfilRisqueApi } from '../risques/data/profil-risque.api';
 import { CouvertureApi } from './data/couverture.api';
 import { JeuxApi } from './data/jeux.api';
+import { PlanApi } from './data/plan.api';
 import { IrisApi } from './data/iris.api';
 import { CarteApi } from './data/carte.api';
 import { RadioApi } from './data/radio.api';
@@ -118,6 +119,8 @@ async function ouvrir(url = '/carte', avant?: () => void) {
       { provide: CouvertureApi, useValue: { couverture: () => NEVER } },
       // ⑤ (lot 5) : la page injecte l'état du jeu (pastille) ; rien n'est lu sans zone.
       { provide: JeuxApi, useValue: {} },
+      // ⑥ Plan (lot 6) : `PlanCampagneService` naît avec la page (pastille de ⑥) ; sans `?campagne=`, rien n'est lu.
+      { provide: PlanApi, useValue: {} },
       { provide: ProfilRisqueApi, useValue: { cibles: () => NEVER } },
       { provide: RadioApi, useValue: faux.radio },
       { provide: MeteoApi, useValue: faux.meteo },

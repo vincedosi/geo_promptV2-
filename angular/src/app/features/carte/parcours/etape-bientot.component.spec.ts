@@ -12,12 +12,12 @@ function rendre(etape: string, valeur: unknown) {
 }
 
 describe('EtapeBientotComponent', () => {
-  it('⑥ Plan avec une origine React : un lien vers l’onglet Stratégie, nouvel onglet — et PAS la consigne (dite par l’en-tête du panneau d’étape)', () => {
-    const el = rendre('plan', { urlApplicationReact: 'http://localhost:3000' });
-    expect(el.querySelector('[data-etape-bientot="plan"]')).not.toBeNull();
-    expect(el.textContent).not.toContain(CONSIGNE_ETAPE.plan);
+  it('⑦ Activation avec une origine React : un lien vers l’onglet Activation, nouvel onglet — et PAS la consigne (dite par l’en-tête du panneau d’étape)', () => {
+    const el = rendre('activation', { urlApplicationReact: 'http://localhost:3000' });
+    expect(el.querySelector('[data-etape-bientot="activation"]')).not.toBeNull();
+    expect(el.textContent).not.toContain(CONSIGNE_ETAPE.activation);
     const a = el.querySelector('a') as HTMLAnchorElement;
-    expect(a.getAttribute('href')).toBe('http://localhost:3000/map?tab=strategie');
+    expect(a.getAttribute('href')).toBe('http://localhost:3000/map?tab=activation');
     expect(a.target).toBe('_blank');
     expect(a.rel).toContain('noopener');
   });
@@ -37,6 +37,6 @@ describe('EtapeBientotComponent', () => {
     expect(el.textContent).not.toContain(CONSIGNE_ETAPE.activation);
   });
   it('configuration pas encore chargée : aucun lien, aucune exception', () => {
-    expect(rendre('plan', new Error('pas chargée')).querySelector('a')).toBeNull();
+    expect(rendre('live', new Error('pas chargée')).querySelector('a')).toBeNull();
   });
 });

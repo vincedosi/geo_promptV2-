@@ -55,3 +55,12 @@ export function suivreJeuRenseigne(): Signal<boolean> {
   const jeu = inject(JeuZonesService);
   return computed(() => jeu.zoneId() !== null || jeu.jeuId() !== null);
 }
+
+/**
+ * La pastille « renseignée » de ⑥ (lot 6, T3) : la campagne courante a déjà une stratégie (le conteneur de son plan).
+ * Injecté ici, le service naît avec la page : sans `?campagne=`, il ne lit rien.
+ */
+export function suivrePlanRenseigne(): Signal<boolean> {
+  const plan = inject(PlanCampagneService);
+  return computed(() => plan.strategieExistante() !== null);
+}

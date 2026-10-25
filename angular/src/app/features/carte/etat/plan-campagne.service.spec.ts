@@ -1,4 +1,4 @@
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
@@ -7,7 +7,9 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { ConfigService } from '../../../core/config/config.service';
 import { PlanApi } from '../data/plan.api';
 import { DEFAULT_PROG_DRAFT } from '../logique/plan/brouillon';
-import { DELAI_AUTOSAVE_MS, MESSAGE_CAMPAGNE_INTROUVABLE, MESSAGE_RESERVE_ADMIN, PlanCampagneService } from './plan-campagne.service';
+import {
+  DELAI_AUTOSAVE_MS, MESSAGE_CAMPAGNE_INTROUVABLE, MESSAGE_RESERVE_ADMIN, PlanCampagneService, messageErreurCampagnes,
+} from './plan-campagne.service';
 
 const C1 = '0f8fad5b-d9cb-469f-a165-70867728950e';
 const C2 = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
@@ -271,5 +273,29 @@ describe('PlanCampagneService — CP d’une extraction', () => {
     o.hote.plan.chargerCp(J1, 2);
     o.http.expectOne(`/api/zones/jeux/${J1}/extractions/2/cp`).flush({ error: 'Ce jeu de zones n’a pas de version 2.' }, { status: 404, statusText: 'x' });
     expect(o.hote.plan.erreurCp(J1, 2)).toBe('Ce jeu de zones n’a pas de version 2.');
+  });
+});
+
+describe('PlanCampagneService — créer une campagne (hall et sélecteur, T3)', () => {
+  it('« Nouvelle campagne » : POST sans nom, puis la coquille est OUVERTE (URL et préremplissage)', async () => {
+    const o = await ouvrir('/carte');
+    let creee: { id: string; name: string } | null = null;
+    o.hote.plan.creerCampagne().subscribe((c) => { creee = c; });
+    const req = o.http.expectOne('/api/admin/campaigns');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({});
+    req.flush({ campaign: { id: C1, name: 'Nouvelle campagne — 25/10/2026' } });
+    await o.stable();
+    expect(creee).toEqual({ id: C1, name: 'Nouvelle campagne — 25/10/2026' });
+    expect(o.hote.plan.campagne()).toBe(C1);
+    expect(o.router.url).toContain(`campagne=${C1}`);
+    o.http.expectOne(`/api/admin/campaigns/${C1}?page=1`);
+  });
+
+  it('messageErreurCampagnes : 401/403 → réservé aux administrateurs ; le reste → le message de l’API', () => {
+    const e = (status: number, error: unknown = null) => new HttpErrorResponse({ status, error });
+    expect(messageErreurCampagnes(e(403))).toBe(MESSAGE_RESERVE_ADMIN);
+    expect(messageErreurCampagnes(e(401))).toBe(MESSAGE_RESERVE_ADMIN);
+    expect(messageErreurCampagnes(e(500, { error: 'Base indisponible' }))).toBe('Base indisponible');
   });
 });

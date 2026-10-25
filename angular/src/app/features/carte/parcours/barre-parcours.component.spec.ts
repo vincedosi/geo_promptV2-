@@ -5,7 +5,10 @@ import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { OrganisationsApi } from '../../session/data/organisations.api';
+import { PlanApi } from '../data/plan.api';
+import { PlanCampagneService } from '../etat/plan-campagne.service';
 import { ETAPES_CARTE, LIBELLE_ETAPE_CARTE, etapesDuFil } from '../logique/parcours';
+import { planFactice } from '../testing/plan-factice';
 import { BarreParcoursComponent, HAUTEUR_BARRE_PARCOURS } from './barre-parcours.component';
 
 /** Les fausses dépendances de `mg-badge-session`, comme `carte.page.spec.ts`. */
@@ -24,10 +27,13 @@ async function monter(entrees: { zoneScript?: string | null; planMedia?: number 
         },
       },
       { provide: OrganisationsApi, useValue: { lister: () => of({ organizations: [], active_org_id: null, is_super_admin: false }), changer: () => of() } },
+      // Le sélecteur de campagne (⑥-⑧, lot 6) : son état et ses routes, jamais lues sans clic.
+      { provide: PlanCampagneService, useValue: planFactice() },
+      { provide: PlanApi, useValue: { campagnes: () => of([]) } },
     ],
   });
   const fixture = TestBed.createComponent(BarreParcoursComponent);
-  fixture.componentRef.setInput('etapes', etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: false, jeuRenseigne: false }));
+  fixture.componentRef.setInput('etapes', etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: false, jeuRenseigne: false, planRenseigne: false }));
   fixture.componentRef.setInput('courante', 'perimetre');
   fixture.componentRef.setInput('segments', [{ cle: 'france', libelle: 'France entière' }, { cle: 'region:53', libelle: 'Bretagne' }]);
   if (entrees.zoneScript !== undefined) fixture.componentRef.setInput('zoneScript', entrees.zoneScript);
@@ -170,5 +176,21 @@ describe('BarreParcoursComponent', () => {
     expect(espions.basculerImmersif).toHaveBeenCalledTimes(1);
     expect(espions.orgChangee.mock.calls).toEqual([['org-2']]);
     expect(espions.ouvrirAutres).toHaveBeenCalledTimes(1);
+  });
+
+  it('le sélecteur de campagne : aux étapes ⑥ ⑦ ⑧ seulement, et pas sous « Autres » (lot 6, A-1)', async () => {
+    const { fixture, el } = await monter();
+    const present = async (courante: string, autres = false) => {
+      fixture.componentRef.setInput('courante', courante);
+      fixture.componentRef.setInput('autresOuvert', autres);
+      await fixture.whenStable();
+      return el.querySelector('mg-choix-campagne') !== null;
+    };
+    expect(await present('perimetre')).toBe(false);
+    expect(await present('jeu')).toBe(false);
+    expect(await present('plan')).toBe(true);
+    expect(await present('activation')).toBe(true);
+    expect(await present('live')).toBe(true);
+    expect(await present('plan', true)).toBe(false);
   });
 });

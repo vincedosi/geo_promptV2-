@@ -57,12 +57,14 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 - **Dans la barre** : « Script bidding DV360 » (lien `?customZone=`) et « Plan média (n) » quand ils ont un objet,
   « Tout effacer », mode immersif (sortie : bouton de la boîte à outils ou Échap), thème, session et espace.
 - ⑤ Jeu de zones (lot 5) a son panneau (`panneaux/jeu/`, voir plus bas) : React n'a rien d'équivalent hors du module
-  risque. ⑥-⑧ affichent « Bientôt dans le parcours. », avec un lien vers l'écran React si
-  `urlApplicationReact` est posé. Les outils de ③ et ④ n'ont pas bougé : rayons et isochrones comme types de zone de
+  risque. ⑥ Plan (lot 6) a le sien (`panneaux/plan/`, voir plus bas). ⑦-⑧ affichent « Bientôt dans le parcours. »,
+  avec un lien vers l'écran React si `urlApplicationReact` est posé ; le sélecteur de campagne de la barre y écrit déjà
+  `?campagne=`. Les outils de ③ et ④ n'ont pas bougé : rayons et isochrones comme types de zone de
   ③, couverture par territoire dans ④, c'est aux lots 4-5.
 - **La pastille « renseignée »** d'une étape (`etatsEtapes`, `logique/parcours.ts`, table `RENSEIGNEE_PAR`) : ① un
   filtre posé, ② un jeu de ② affiché (`DonneesAfficheesService`, la même source que les pastilles des lignes ; ni OOH
-  ni radio), ④ le score composite OU les zones à risque sur la carte (T14). Les autres étapes ne s'allument pas encore.
+  ni radio), ④ le score composite OU les zones à risque sur la carte (T14), ⑤ une zone ou un jeu, ⑥ une stratégie
+  existante pour la campagne courante (lot 6). ⑦-⑧ ne s'allument pas encore.
 - **Aucune fonction perdue** : le describe « aucune fonction perdue (spec § 12, lot 1) » de `carte.page.spec.ts`
   (`INVENTAIRE`) dit où vit chaque fonction de l'ancienne carte. Une ligne rouge = une fonction perdue : la rétablir.
 
@@ -358,6 +360,21 @@ la plomberie ; l'écran est T10, la couche T11.
 | `panneaux/jeu/extractions-jeu.component.ts` | `mg-extractions-jeu` : « Extraire » (commentaire, recalage) puis la liste relue ; `deja_extraite`, réponse perdue (statut 0 : « vérifiez la liste des versions ») ; résumé figé par plateforme ; une version choisie → `?x=` ; le lot 6 (fichiers) annoncé par un texte ; une extraction en vol est désabonnée quand le jeu change |
 | `panneaux/jeu/bibliotheque-jeux.component.ts` | `mg-bibliotheque-jeux` : jeux de l'espace (les deux types, badge neutre), lus à la première ouverture (`GET /api/zones/jeux?type=tous` — sans paramètre, la route ne rend que les jeux risque) ; relue quand un jeu adopté (enregistré, renommé) n'y figure pas ; ouvrir, supprimer (`mg-dialogue-suppression-zone`, `titre` / `texte`) |
 | `etat/ouvrir-jeu.ts` | `ouvrirJeuListe` : un jeu risque → module (`risques`), un jeu de zone → ⑤ `?jeu=` ; partagé avec « Mes zones » (`jeux-de-zones.component.ts`, les deux types par `JeuxApi.lister`) |
+
+## ⑥ Plan : campagne, hall et panneau (lot 6, T3, 2026-10-25)
+
+V1 = contrôle des impressions et du budget dépensé (spec § 19). L'état vit dans `etat/plan-campagne.service.ts`
+(fourni par la page, `FOURNISSEURS_PLAN`) ; les écrans n'écrivent `?campagne=` que par lui.
+
+| Fichier | Rôle |
+|---|---|
+| `parcours/choix-campagne.component.ts` | `mg-choix-campagne`, dans la barre aux étapes `plan`, `activation`, `live` (`ETAPES_CAMPAGNE`) : liste lue au premier clic (relue si la campagne courante n'y est pas), « Nouvelle campagne » en tête (`creerCampagne`), nom de la campagne lue ; liste dans l'arbre, fermée à la sortie du focus ou sur Échap (aucun écouteur de document) |
+| `panneaux/plan/panneau-plan.component.ts` | `mg-panneau-plan` : note « filtre de carte » (A-8) ; sans campagne, le hall (et « introuvable dans cet espace ») ; avec, « ← Choisir une autre campagne », « Création / Modification — <nom> », bannière « Brouillon restauré », trois `mg-entete-section` repliables (la plus basse dépliée = `current_step` du brouillon, A-2) et le pied ; un refus de rôle est dit, sans sections |
+| `panneaux/plan/hall-campagnes.component.ts` | `mg-hall-campagnes`, port de `CreationHall` : campagnes → stratégies → brouillons en UNE chaîne séquentielle à chaque montage ; « Reprendre une création » (coquilles sans stratégie, badge brouillon, suppression confirmée), « Modifier une campagne lancée » ; mode démo (A-7) |
+| `testing/plan-factice.ts` | la doublure de `PlanCampagneService` des specs d'écran |
+
+`messageErreurCampagnes` (service) : un 401/403 sur les campagnes se dit « La gestion des campagnes est réservée aux
+administrateurs. » (V1 : super_admin seul) — hall, sélecteur et panneau le disent, jamais en silence.
 
 ## Cycle de vie d'une couche
 

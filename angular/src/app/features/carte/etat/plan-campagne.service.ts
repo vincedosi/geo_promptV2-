@@ -43,6 +43,14 @@ function classer(e: unknown): unknown {
 }
 
 /**
+ * Le message d'un échec sur les CAMPAGNES (liste, création, suppression) : un refus de rôle (401/403) se dit
+ * `MESSAGE_RESERVE_ADMIN`, comme au préremplissage — le hall et le sélecteur le disent, ils ne se taisent pas.
+ */
+export function messageErreurCampagnes(e: unknown): string {
+  return classer(e) instanceof AccesRefuse ? MESSAGE_RESERVE_ADMIN : messageErreurApi(e);
+}
+
+/**
  * ⑥ Plan — l'ÉTAT de la campagne courante (lot 6, T2) : la campagne (`?campagne=`), le brouillon `ProgDraft`, la
  * stratégie existante, les canaux de la campagne et les CP des extractions lus.
  *
@@ -128,6 +136,11 @@ export class PlanCampagneService {
     if (valide === this._campagne()) return;
     this.ouvrir(valide);
     this.ecrireUrl();
+  }
+
+  /** « Nouvelle campagne » (hall et sélecteur) : la coquille naît côté serveur (nom par défaut), puis elle est ouverte. */
+  creerCampagne(): Observable<{ id: string; name: string }> {
+    return this.api.creerCampagne().pipe(map((r) => r.campaign), tap((c) => { if (!this.detruit) this.choisirCampagne(c.id); }));
   }
 
   /** Un geste de l'écran sur le brouillon : jamais muté, autosauvé après `DELAI_AUTOSAVE_MS` de calme. */

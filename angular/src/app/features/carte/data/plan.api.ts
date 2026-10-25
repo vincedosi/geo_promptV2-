@@ -200,10 +200,13 @@ export class PlanApi extends HttpBaseService {
     return this.httpClient.put<{ ok: true }>(`${this.baseUrl}/campaigns/${encodeURIComponent(campagne)}/channels`, corps);
   }
 
-  /** La SEULE stratégie la plus récente de la campagne (`?campaign_id=`, `limit(1)` côté route, relecture 1). */
-  strategies(campagne: string): Observable<{ strategies: StrategieListe[] }> {
-    const p = new URLSearchParams({ campaign_id: campagne });
-    return this.httpClient.get<{ strategies: StrategieListe[] }>(`${this.baseUrl}/bidding/strategies?${p.toString()}`);
+  /**
+   * Avec une campagne : sa SEULE stratégie la plus récente (`?campaign_id=`, `limit(1)` côté route, relecture 1). Sans :
+   * celles de l'espace, comme la liste de l'overlay React (hall de ⑥, « Modifier une campagne lancée »).
+   */
+  strategies(campagne?: string): Observable<{ strategies: StrategieListe[] }> {
+    const suite = campagne ? `?${new URLSearchParams({ campaign_id: campagne }).toString()}` : '';
+    return this.httpClient.get<{ strategies: StrategieListe[] }>(`${this.baseUrl}/bidding/strategies${suite}`);
   }
 
   strategie(id: string): Observable<{ strategy: Strategie }> {
@@ -214,9 +217,10 @@ export class PlanApi extends HttpBaseService {
     return this.httpClient.patch<{ strategy: Strategie }>(`${this.baseUrl}/bidding/strategies/${encodeURIComponent(id)}`, corps);
   }
 
-  brouillons(campagne: string): Observable<{ drafts: BrouillonServeur[] }> {
-    const p = new URLSearchParams({ campaign_id: campagne });
-    return this.httpClient.get<{ drafts: BrouillonServeur[] }>(`${this.baseUrl}/bidding/strategies/drafts?${p.toString()}`);
+  /** Les brouillons non consommés de l'utilisateur, d'une campagne ou de toutes (badge « brouillon » du hall). */
+  brouillons(campagne?: string): Observable<{ drafts: BrouillonServeur[] }> {
+    const suite = campagne ? `?${new URLSearchParams({ campaign_id: campagne }).toString()}` : '';
+    return this.httpClient.get<{ drafts: BrouillonServeur[] }>(`${this.baseUrl}/bidding/strategies/drafts${suite}`);
   }
 
   sauverBrouillon(corps: CorpsBrouillon): Observable<{ draft: { id: string; current_step: number; last_saved_at: string } }> {
