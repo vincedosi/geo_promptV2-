@@ -3,7 +3,8 @@ import type { Subscription } from 'rxjs';
 import { IconeComponent } from '../../../ui/icone/icone.component';
 import { type CampagneListe, PlanApi } from '../data/plan.api';
 import { LectureAnnulable } from '../etat/lecture-annulable';
-import { PlanCampagneService, messageErreurCampagnes } from '../etat/plan-campagne.service';
+import { messageErreurCampagnes } from '../etat/erreurs-campagnes';
+import { PlanCampagneService } from '../etat/plan-campagne.service';
 
 /** Le déclencheur : le gabarit des boutons neutres de la barre (`BOUTON_NEUTRE` de `mg-barre-parcours`). */
 const DECLENCHEUR = 'flex max-w-[260px] cursor-pointer items-center gap-1.5 rounded-[6px] border-fin border-default bg-transparent px-[10px] py-[5px] text-[11px] transition-colors duration-150 ease-[var(--ease-hover)] hover:border-hover hover:bg-elevated';

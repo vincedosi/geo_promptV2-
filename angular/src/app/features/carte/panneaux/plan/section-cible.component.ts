@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, untracked } from '@angular/core';
 import { type OrganisationsCampagne, PlanApi } from '../../data/plan.api';
 import { LectureAnnulable } from '../../etat/lecture-annulable';
-import { PlanCampagneService, messageErreurCampagnes } from '../../etat/plan-campagne.service';
+import { messageErreurCampagnes } from '../../etat/erreurs-campagnes';
+import { PlanCampagneService } from '../../etat/plan-campagne.service';
 import type { ProgDraft } from '../../logique/plan/brouillon';
 import { LIBELLE_CHAMP } from '../analyse/styles-analyse';
 import { SourcePlanComponent } from './source-plan.component';

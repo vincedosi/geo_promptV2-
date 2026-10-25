@@ -2,7 +2,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { NEVER, Subject, of, throwError } from 'rxjs';
 import { type CampagneListe, PlanApi } from '../../data/plan.api';
-import { MESSAGE_RESERVE_ADMIN, PlanCampagneService } from '../../etat/plan-campagne.service';
+import { MESSAGE_RESERVE_ADMIN } from '../../etat/erreurs-campagnes';
+import { PlanCampagneService } from '../../etat/plan-campagne.service';
 import { CAMPAGNE_A, CAMPAGNE_B, planFactice } from '../../testing/plan-factice';
 import { HallCampagnesComponent } from './hall-campagnes.component';
 

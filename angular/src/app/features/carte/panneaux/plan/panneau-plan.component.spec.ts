@@ -9,7 +9,8 @@ import { LancementCampagneService } from '../../etat/lancement-campagne.service'
 import { ParcoursService } from '../../etat/parcours.service';
 import { NotificationsService } from '../../../../ui/notifications/notifications.service';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
-import { MESSAGE_CAMPAGNE_INTROUVABLE, MESSAGE_RESERVE_ADMIN, PlanCampagneService } from '../../etat/plan-campagne.service';
+import { MESSAGE_RESERVE_ADMIN } from '../../etat/erreurs-campagnes';
+import { MESSAGE_CAMPAGNE_INTROUVABLE, PlanCampagneService } from '../../etat/plan-campagne.service';
 import { CAMPAGNE_A, detailCampagne, planFactice } from '../../testing/plan-factice';
 import { PanneauPlanComponent } from './panneau-plan.component';
 

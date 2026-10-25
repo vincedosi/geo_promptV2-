@@ -7,9 +7,8 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { ConfigService } from '../../../core/config/config.service';
 import { PlanApi } from '../data/plan.api';
 import { DEFAULT_PROG_DRAFT } from '../logique/plan/brouillon';
-import {
-  DELAI_AUTOSAVE_MS, MESSAGE_CAMPAGNE_INTROUVABLE, MESSAGE_RESERVE_ADMIN, PlanCampagneService, messageErreurCampagnes,
-} from './plan-campagne.service';
+import { MESSAGE_RESERVE_ADMIN, messageErreurCampagnes } from './erreurs-campagnes';
+import { DELAI_AUTOSAVE_MS, MESSAGE_CAMPAGNE_INTROUVABLE, PlanCampagneService } from './plan-campagne.service';
 
 const C1 = '0f8fad5b-d9cb-469f-a165-70867728950e';
 const C2 = '7c9e6679-7425-40de-944b-e07fc1f90ae7';

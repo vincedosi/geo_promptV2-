@@ -1,4 +1,3 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { DestroyRef, Injectable, type Signal, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { type Observable, type Subscription, catchError, concatMap, from, map, of, switchMap, tap, throwError } from 'rxjs';
@@ -10,6 +9,8 @@ import { type ResolvedChannel, resolveChannelAvailability } from '../logique/pla
 import { previsions, totauxPrevus } from '../logique/plan/impressions';
 import { remplirCanaux, remplirDepuisStrategie, remplirIdentite } from '../logique/plan/preremplissage';
 import { lireUuid } from '../logique/analyses/couverture';
+import { CpsExtractions } from './cps-extractions';
+import { AccesRefuse, CampagneIntrouvable, MESSAGE_RESERVE_ADMIN, classer } from './erreurs-campagnes';
 import { ecrireParametres } from './ecrire-parametres';
 
 /** Le paramètre d'URL de la campagne courante (spec § 5, A-1). */
@@ -25,33 +26,6 @@ export const DELAI_AUTOSAVE_MS = 1000;
 const ETAPE_MIN = 1;
 const ETAPE_MAX = 5;
 
-/**
- * Le refus de RÔLE (401/403) : `/api/admin/campaigns` reste réservé au super_admin en V1 (décision de Vincent,
- * relecture 1). Le préremplissage se TERMINE sur ce message, le paramètre reste, et rien n'est écrit.
- */
-export const MESSAGE_RESERVE_ADMIN = 'La gestion des campagnes est réservée aux administrateurs.';
-
-class CampagneIntrouvable extends Error {}
-class AccesRefuse extends Error {}
-
-/**
- * Un 404 = campagne absente, ou d'un autre espace (`checkCampaignAccess` des canaux rend 404, jamais 403). Un 401/403
- * (`requireAdmin` de `GET /api/admin/campaigns/[id]`) dit le RÔLE, pas l'absence : `AccesRefuse`, le paramètre reste.
- */
-function classer(e: unknown): unknown {
-  if (!(e instanceof HttpErrorResponse)) return e;
-  if (e.status === 404) return new CampagneIntrouvable();
-  if (e.status === 401 || e.status === 403) return new AccesRefuse();
-  return e;
-}
-
-/**
- * Le message d'un échec sur les CAMPAGNES (liste, création, suppression) : un refus de rôle (401/403) se dit
- * `MESSAGE_RESERVE_ADMIN`, comme au préremplissage — le hall et le sélecteur le disent, ils ne se taisent pas.
- */
-export function messageErreurCampagnes(e: unknown): string {
-  return classer(e) instanceof AccesRefuse ? MESSAGE_RESERVE_ADMIN : messageErreurApi(e);
-}
 
 /**
  * ⑥ Plan — l'ÉTAT de la campagne courante (lot 6, T2) : la campagne (`?campagne=`), le brouillon `ProgDraft`, la
@@ -86,8 +60,6 @@ export class PlanCampagneService {
   private readonly _accesRefuse = signal(false);
   private readonly _etape = signal(ETAPE_MIN);
   private readonly _sauveLe = signal<string | null>(null);
-  private readonly _cps = signal<ReadonlyMap<string, CpDExtraction>>(new Map());
-  private readonly _erreursCp = signal<ReadonlyMap<string, string>>(new Map());
   private readonly _extractions = signal<ReadonlyMap<string, readonly ExtractionJeu[]>>(new Map());
 
   readonly campagne: Signal<string | null> = this._campagne.asReadonly();
@@ -156,7 +128,7 @@ export class PlanCampagneService {
   private chargement: Subscription | null = null;
   private minuterie: ReturnType<typeof setTimeout> | null = null;
   private brouillonId: string | null = null;
-  private readonly lecturesCp = new Map<string, Subscription>();
+  private readonly cps = new CpsExtractions((jeu, version, plateforme) => this.api.cpExtraction(jeu, version, plateforme));
   private detruit = false;
 
   constructor() {
@@ -166,7 +138,7 @@ export class PlanCampagneService {
       this.detruit = true;
       abonnement.unsubscribe();
       this.annuler();
-      for (const s of this.lecturesCp.values()) s.unsubscribe();
+      this.cps.annuler();
     });
   }
 
@@ -226,28 +198,16 @@ export class PlanCampagneService {
 
   /** Les CP achetés d'une extraction (d'une plateforme si donnée), s'ils sont lus. Une extraction est figée : jamais périmés. */
   cpDe(jeu: string, version: number, plateforme?: string): CpDExtraction | null {
-    return this._cps().get(cleCp(jeu, version, plateforme)) ?? null;
+    return this.cps.de(jeu, version, plateforme);
   }
 
   erreurCp(jeu: string, version: number, plateforme?: string): string | null {
-    return this._erreursCp().get(cleCp(jeu, version, plateforme)) ?? null;
+    return this.cps.erreur(jeu, version, plateforme);
   }
 
   /** Lit les CP d'une extraction, une fois par (jeu, version, plateforme) : au clic « Voir par CP » (A-11). */
   chargerCp(jeu: string, version: number, plateforme?: string): void {
-    const cle = cleCp(jeu, version, plateforme);
-    if (this.detruit || this._cps().has(cle) || this.lecturesCp.has(cle)) return;
-    this._erreursCp.update((m) => sans(m, cle));
-    this.lecturesCp.set(cle, this.api.cpExtraction(jeu, version, plateforme).subscribe({
-      next: (r) => {
-        this.lecturesCp.delete(cle);
-        this._cps.update((m) => new Map(m).set(cle, r));
-      },
-      error: (e: unknown) => {
-        this.lecturesCp.delete(cle);
-        this._erreursCp.update((m) => new Map(m).set(cle, messageErreurApi(e)));
-      },
-    }));
+    if (!this.detruit) this.cps.charger(jeu, version, plateforme);
   }
 
   /**
@@ -418,13 +378,4 @@ export class PlanCampagneService {
   private ecrireUrl(): void {
     if (!this.detruit) void ecrireParametres(this.router, this.route, { [PARAM_CAMPAGNE]: this._campagne() });
   }
-}
-
-const cleCp = (jeu: string, version: number, plateforme?: string) => `${jeu}|${version}|${plateforme ?? ''}`;
-
-function sans<V>(m: ReadonlyMap<string, V>, cle: string): ReadonlyMap<string, V> {
-  if (!m.has(cle)) return m;
-  const copie = new Map(m);
-  copie.delete(cle);
-  return copie;
 }
