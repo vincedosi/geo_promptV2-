@@ -107,6 +107,7 @@ Ceux de la spec § 16.8, des lots 3, 4 et 5 s'appliquent. Ajoutés :
 | Q-1 | **Un jeu RISQUE en ⑥ : on rattache sa dernière extraction (figée), ou ses codes postaux VIVANTS comme le fait React aujourd'hui ?** | T1, T4 | **L'extraction, pour les deux types.** |
 | Q-2 | **Objectif de la stratégie : rétablir la lecture du catalogue, ou masquer objectif + KPI en ⑥ ?** | ex-T6 | Rétablir `GET /api/bidding/objectives`. |
 | Q-3 | **Une campagne nationale sans zone (React : « national ») a-t-elle sa place en V1 ?** Elle n'a pas de plan géographique : ⑧ ne comparerait que le total et la région. | A-9, T4, T6 | **Non en V1** ; si oui, la faire passer par une zone « France entière » de ③ → extraction, plutôt que rouvrir un second chemin de lancement. |
+**Q-3 tranchée par Vincent le 2026-10-25 : le national passe par une zone « France entière » créée en ③**, pas par un cas à part en ⑥. ⚠ Cette zone bute aujourd'hui sur la borne de 100 000 km² de `couverture_geometrie` (sql/269, sql/275 : « la France est refusée ») : ④ et ⑤ la refuseraient (`zone_trop_vaste`). **Suivi hors lot ⑥** : un mode « pays » pour ④ et ⑤ (ciblage France natif des plateformes, aucune conversion, population = référence nationale), à planifier avant ⑧ ; ⑥ lui-même n'en dépend pas, il rattache une extraction.
 
 Q2 et Q4 de la spec sont **tranchées** (§ 14) et appliquées (A-1 ; une extraction = le plan unique de la campagne).
 
