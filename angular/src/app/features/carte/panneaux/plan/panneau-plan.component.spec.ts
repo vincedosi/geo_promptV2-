@@ -1,4 +1,4 @@
-import { signal } from '@angular/core';
+import { computed, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { NEVER } from 'rxjs';
 import { JeuxApi } from '../../data/jeux.api';
@@ -13,7 +13,13 @@ import { MESSAGE_CAMPAGNE_INTROUVABLE, MESSAGE_RESERVE_ADMIN, PlanCampagneServic
 import { CAMPAGNE_A, detailCampagne, planFactice } from '../../testing/plan-factice';
 import { PanneauPlanComponent } from './panneau-plan.component';
 
-async function monter(preparer: (p: ReturnType<typeof planFactice>) => void = () => undefined) {
+/** La doublure du lancement (V-9) : son état seul, écriturable. */
+function lancementFactice() {
+  const etat = signal<{ campagne: string; statut: 'en_cours' } | null>(null);
+  return { etat, enCours: computed(() => etat()?.statut === 'en_cours'), lancer: vi.fn(), oublier: vi.fn() };
+}
+
+async function monter(preparer: (p: ReturnType<typeof planFactice>) => void = () => undefined, lancement?: ReturnType<typeof lancementFactice>) {
   const plan = planFactice();
   preparer(plan);
   TestBed.configureTestingModule({
@@ -25,7 +31,7 @@ async function monter(preparer: (p: ReturnType<typeof planFactice>) => void = ()
       { provide: JeuZonesService, useValue: { jeuId: signal(null), extraction: signal(null) } },
       EtatCarteService, AnnonceService,
       { provide: ParcoursService, useValue: { choisir: vi.fn() } },
-      LancementCampagneService, NotificationsService,
+      lancement ? { provide: LancementCampagneService, useValue: lancement } : LancementCampagneService, NotificationsService,
     ],
   });
   const fixture = TestBed.createComponent(PanneauPlanComponent);
@@ -39,6 +45,23 @@ const ouverte = (p: ReturnType<typeof planFactice>) => {
   p.detail.set(detailCampagne(CAMPAGNE_A, 'Rentrée'));
   p.prerempli.set(true);
 };
+
+describe('PanneauPlanComponent — lancement en vol (revue finale, V-9)', () => {
+  it('les trois sections sont grisées et inertes tant que le lancement de la campagne ouverte est en vol', async () => {
+    const lancement = lancementFactice();
+    const { el, stable } = await monter(ouverte, lancement);
+    const sections = () => [...el.querySelectorAll('[data-corps-section]')];
+    expect(sections()).toHaveLength(3);
+    expect(sections().some((s) => s.hasAttribute('inert'))).toBe(false);
+    lancement.etat.set({ campagne: CAMPAGNE_A, statut: 'en_cours' });
+    await stable();
+    expect(sections().every((s) => s.hasAttribute('inert') && s.classList.contains('opacity-50'))).toBe(true);
+    // Le lancement d'une AUTRE campagne ne gèle pas celle-ci.
+    lancement.etat.set({ campagne: '7c9e6679-7425-40de-944b-e07fc1f90ae7', statut: 'en_cours' });
+    await stable();
+    expect(sections().some((s) => s.hasAttribute('inert'))).toBe(false);
+  });
+});
 
 describe('PanneauPlanComponent — le squelette de ⑥', () => {
   it('sans ?campagne= : le hall, et aucune section', async () => {

@@ -57,16 +57,16 @@ describe('etatLancement — la validité de React restreinte au chemin extractio
     const d = { ...DEFAULT_PROG_DRAFT, channels: { dsps: ['dv360'], socials: [], ad_server: null } };
     const r = etatLancement(entrees(d, { detail: { ...DETAIL, name: '' }, liaisonsConfirmees: false }));
     expect(r.motifs).toEqual([
-      'Choisis une extraction en section Cible.', 'Nom de la campagne manquant.', 'Budget manquant : DV360',
-      'CPM prévu manquant : DV360', 'Période incomplète.', 'Confirme les liaisons en section Plateformes et budget.',
+      'Choisissez une extraction en section Cible.', 'Nom de la campagne manquant.', 'Budget manquant : DV360',
+      'CPM prévu manquant : DV360', 'Période incomplète.', 'Confirmez les liaisons en section Plateformes et budget.',
     ]);
     expect(etatLancement(entrees({ ...PRET, endDate: '2026-10-01' })).motifs).toEqual(['La fin de la période précède son début.']);
-    expect(etatLancement(entrees({ ...PRET, channels: { dsps: [], socials: [], ad_server: null } })).motifs).toEqual(['Choisis au moins un DSP ou un réseau.']);
+    expect(etatLancement(entrees({ ...PRET, channels: { dsps: [], socials: [], ad_server: null } })).motifs).toEqual(['Choisissez au moins un DSP ou un réseau.']);
   });
 
   it('plus de 9 999 999 999 impressions (kpi_target numeric(14,4)) : bloqué (relecture 3, M1)', () => {
     const r = etatLancement(entrees({ ...PRET, channelBudgets: { dv360: 10_000_000, meta: 3000 }, cpmPrevus: { dv360: 0.5, meta: 6 } }));
-    expect(r.motifs).toEqual(['Plus de 9 999 999 999 impressions prévues : vérifie budgets et CPM.']);
+    expect(r.motifs).toEqual(['Plus de 9 999 999 999 impressions prévues : vérifiez budgets et CPM.']);
   });
 
   it('identité inchangée : pas de PATCH de campagne', () => {
@@ -168,9 +168,9 @@ describe('lancerCampagne — un seul chemin, séquentiel (T6, A-9, E2)', () => {
 });
 
 describe('messageLancement', () => {
-  const r = { codes_postaux: 1234, part_plan_en_zone: 77.94, taux_utile: 80.04 } as PlanRattache;
-  it('N codes postaux · X % du plan en zone · Y % d’utile · Z impressions prévues', () => {
-    expect(messageLancement(r, 3000000).replace(/\s/g, ' ')).toBe('1 234 codes postaux · 78 % du plan en zone · 80,0 % d’utile · 3 000 000 impressions prévues');
+  const r = { codes_postaux: 1234, n_retenus: 1000, part_plan_en_zone: 77.94, taux_utile: 80.04 } as PlanRattache;
+  it('N CP au plan, dont M retenus · X % du plan en zone · Y % d’utile · Z impressions prévues (V-4)', () => {
+    expect(messageLancement(r, 3000000).replace(/\s/g, ' ')).toBe('1 234 CP au plan, dont 1 000 retenus · 78 % du plan en zone · 80,0 % d’utile · 3 000 000 impressions prévues');
   });
   it('0 CP (aucune plateforme au CP) : dit, sans « 0 codes postaux »', () => {
     expect(messageLancement({ ...r, codes_postaux: 0 }, 500000).replace(/\s/g, ' '))

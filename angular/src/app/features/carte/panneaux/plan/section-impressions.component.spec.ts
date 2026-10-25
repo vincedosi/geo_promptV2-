@@ -16,7 +16,7 @@ const CANAUX: CanauxCampagne = {
   connectedProviders: [], is_demo: true, selected: { dsps: [], socials: [], ad_server: null },
 };
 const EXTRACTION = {
-  id: 'x1', version: 3, plateformes: [
+  id: 'x1', version: 3, n_retenus: 100, plateformes: [
     { plateforme: 'dv360', maille: 'cp', seuil: 30, rayon_m: null, n_unites: 120, taux_utile: 80 },
     { plateforme: 'meta', maille: 'cercle', seuil: 30, rayon_m: 5000, n_unites: 4, taux_utile: 60 },
   ],
@@ -89,6 +89,17 @@ describe('SectionImpressionsComponent — impressions prévues (T5, A-10, A-11)'
     expect(cellules).toEqual([16667, 8333, 8333]);
   });
 
+  it('jeu RISQUE (sans résumé par plateforme) : chaque plateforme au CP, « Voir par CP » sur le plan entier (V-7)', async () => {
+    const { el, plan, stable, texte } = await monter(SectionImpressionsComponent, { ...PLAN, cpmPrevus: { dv360: 4, meta: 6 } });
+    plan.extraction.set({ ...EXTRACTION, n_retenus: 87, taux_utile: 70, plateformes: null } as ExtractionJeu);
+    await stable();
+    expect(texte('[data-prevision="dv360"] [data-maille]')).toBe('87 codes postaux');
+    expect(texte('[data-prevision="meta"] [data-maille]')).toBe('87 codes postaux');
+    el.querySelector<HTMLButtonElement>('[data-prevision="meta"] [data-voir-cp]')!.click();
+    await stable();
+    expect(plan.chargerCp).toHaveBeenCalledWith(J, 3, undefined);
+  });
+
   it(`plus de ${LIGNES_CP_VISIBLES} CP : ${LIGNES_CP_VISIBLES} lignes, puis « Voir tout »`, async () => {
     const { el, plan, stable } = await monter(SectionImpressionsComponent);
     el.querySelector<HTMLButtonElement>('[data-prevision="dv360"] [data-voir-cp]')!.click();
@@ -115,5 +126,7 @@ describe('BandeauPlanComponent — le bandeau de l’étape', () => {
     plan.cps.set(new Map([[`${J}|3|`, { cp: [], total: 1234 }]]));
     await stable();
     expect(kpi('cp')).toBe('1 234');
+    // V-4 : « dont M retenus » sous le nombre de CP au plan.
+    expect(el.querySelector('[data-kpi="cp"]')!.textContent!.replace(/\s+/g, ' ')).toContain('dont 100 retenus');
   });
 });

@@ -19,7 +19,7 @@ import { CADRE_LIAISON, LIBELLE_NIVEAU, SAISIE_LIAISON, TEXTE_SUCCES } from './s
       <div class="flex items-baseline gap-2.5">
         <span class="text-[12px] font-medium text-primary">Liaison {{ libelleCanal() }}</span>
         <span data-etat-liaison class="text-[11px]" [class]="complete() ? texteSucces : 'text-tertiary'">
-          {{ complete() ? '✓ renseignée' : 'saisie manuelle — reporte les IDs depuis la plateforme' }}
+          {{ complete() ? '✓ renseignée' : 'saisie manuelle — reportez les IDs depuis la plateforme' }}
         </span>
       </div>
       @for (n of niveaux(); track n.key) {

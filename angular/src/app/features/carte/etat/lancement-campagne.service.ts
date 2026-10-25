@@ -5,10 +5,14 @@ import { PlanApi } from '../data/plan.api';
 import { type DemandeLancement, EchecLancement, lancerCampagne, messageLancement } from './lancement-campagne';
 import { PlanCampagneService } from './plan-campagne.service';
 
+/** Le titre d'une issue réussie : création d'une campagne, ou mise à jour du plan d'une campagne lancée (V-5). */
+export const TITRE_CREATION = 'Campagne créée';
+export const TITRE_MISE_A_JOUR = 'Plan mis à jour';
+
 /** L'état du dernier lancement : sa campagne, son issue, et ce que l'écran en dit. */
 export type EtatLancementCampagne =
   | { campagne: string; statut: 'en_cours' }
-  | { campagne: string; statut: 'reussi'; message: string }
+  | { campagne: string; statut: 'reussi'; message: string; /** La campagne avait déjà un plan (V-5). */ miseAJour: boolean }
   | { campagne: string; statut: 'echec'; titre: string; message: string };
 
 /**
@@ -48,16 +52,19 @@ export class LancementCampagneService {
     });
   }
 
-  /** Lance la séquence ; ignoré si une autre est en vol. `impressions` : le total affiché, repris dans le message. */
-  lancer(demande: DemandeLancement, impressions: number | null): void {
+  /**
+   * Lance la séquence ; ignoré si une autre est en vol. `impressions` : le total affiché, repris dans le message.
+   * `miseAJour` : la campagne avait déjà un plan — l'issue se dit « Plan mis à jour » (revue finale, V-5).
+   */
+  lancer(demande: DemandeLancement, impressions: number | null, miseAJour = false): void {
     if (this.enCours() || this.detruit) return;
     const campagne = demande.campagne;
     this._etat.set({ campagne, statut: 'en_cours' });
     this.abonnement = lancerCampagne(this.api, demande).subscribe({
       next: (r) => {
         const message = messageLancement(r, impressions);
-        this._etat.set({ campagne, statut: 'reussi', message });
-        this.notifications.success('Campagne créée', message);
+        this._etat.set({ campagne, statut: 'reussi', message, miseAJour });
+        this.notifications.success(miseAJour ? TITRE_MISE_A_JOUR : TITRE_CREATION, message);
         if (this.plan.campagne() === campagne) this.plan.apresLancement(r.strategie, demande.identite);
         else this.plan.jeterBrouillonsDe(campagne);
       },

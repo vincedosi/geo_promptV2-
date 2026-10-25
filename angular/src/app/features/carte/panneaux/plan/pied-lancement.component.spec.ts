@@ -19,7 +19,7 @@ const PRET: ProgDraft = {
   channelBudgets: { dv360: 10000 }, cpmPrevus: { dv360: 4 },
   startDate: '2026-11-01', endDate: '2026-11-30',
 };
-const RATTACHE = { strategie: 's1', codes_postaux: 12, part_plan_en_zone: 90, taux_utile: 75 } as PlanRattache;
+const RATTACHE = { strategie: 's1', codes_postaux: 12, n_retenus: 10, part_plan_en_zone: 90, taux_utile: 75 } as PlanRattache;
 
 function monter(brouillon: ProgDraft = PRET, api: Partial<Record<keyof PlanApi, unknown>> = {}) {
   const plan = planFactice();
@@ -87,7 +87,8 @@ describe('PiedLancementComponent — récapitulatif et lancement (T6)', () => {
     expect(appels.modifierStrategie).toHaveBeenCalledWith('s1', { total_budget: 10000, forecast_cpm: 4, kpi_target: 2500000, start_date: '2026-11-01', end_date: '2026-11-30' });
     expect(plan.apresLancement).toHaveBeenCalledWith('s1', null);
     expect(notifs.notifications()[0]).toMatchObject({ variante: 'success', titre: 'Campagne créée' });
-    expect(el.querySelector('[data-message-lancement]')!.textContent!.replace(/\s/g, ' ')).toBe('12 codes postaux · 90 % du plan en zone · 75,0 % d’utile · 2 500 000 impressions prévues');
+    expect(el.querySelector('[data-titre-lance]')!.textContent!.trim()).toBe('✓ Campagne créée');
+    expect(el.querySelector('[data-message-lancement]')!.textContent!.replace(/\s/g, ' ')).toBe('12 CP au plan, dont 10 retenus · 90 % du plan en zone · 75,0 % d’utile · 2 500 000 impressions prévues');
     el.querySelector<HTMLButtonElement>('[data-vers-activation]')!.click();
     expect(parcours.choisir).toHaveBeenCalledWith('activation');
     // « Modifier et relancer » (relecture 3, M4) : retour au récapitulatif, le bouton de lancement est rendu.
@@ -110,6 +111,18 @@ describe('PiedLancementComponent — récapitulatif et lancement (T6)', () => {
     expect(notifs.notifications()[0]).toMatchObject({ variante: 'error', titre: 'Rattachement impossible', message: 'Ce jeu de zones ne couvre aucun code postal.' });
     expect(el.querySelector('[data-echec-lancement]')!.textContent!.trim()).toBe('Rattachement impossible. Ce jeu de zones ne couvre aucun code postal.');
     expect(el.querySelector<HTMLButtonElement>('[data-lancer]')!.disabled).toBe(false);
+  });
+
+  it('campagne déjà lancée (Modification) : « Mettre à jour le plan → » puis « ✓ Plan mis à jour » (revue finale, V-5)', async () => {
+    const { el, plan, notifs, stable } = monter();
+    plan.strategieExistante.set({ id: 's0', statut: 'active' });
+    await stable();
+    const bouton = el.querySelector<HTMLButtonElement>('[data-lancer]')!;
+    expect(bouton.textContent!.trim()).toBe('Mettre à jour le plan →');
+    bouton.click();
+    await stable();
+    expect(el.querySelector('[data-titre-lance]')!.textContent!.trim()).toBe('✓ Plan mis à jour');
+    expect(notifs.notifications()[0]).toMatchObject({ variante: 'success', titre: 'Plan mis à jour' });
   });
 
   it('échec APRÈS rattacher : la stratégie écrite devient l’existante, rien n’est jeté (revue finale, m3)', async () => {

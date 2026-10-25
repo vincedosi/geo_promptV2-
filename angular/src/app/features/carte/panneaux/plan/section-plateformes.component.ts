@@ -43,7 +43,7 @@ type Liste = 'dsps' | 'socials';
     @if (!plan.canaux()) {
       @if (!plan.prerempli()) { <div class="text-[12px] text-tertiary">Chargement…</div> }
     } @else if (disponibles().length === 0) {
-      <div data-aucun-canal class="text-[13px] text-tertiary">Aucun canal connecté. Configure une connexion dans Administration → Système → Connexions API.</div>
+      <div data-aucun-canal class="text-[13px] text-tertiary">Aucun canal connecté. Configurez une connexion dans Administration → Système → Connexions API.</div>
     } @else {
       @if (horsCatalogue(); as h) { <div data-hors-catalogue role="status" class="text-[11px] leading-[1.5] text-secondary">{{ h }}</div> }
       @for (g of groupes(); track g.liste) {

@@ -48,8 +48,8 @@ export const CONSIGNE_ETAPE: Readonly<Record<EtapeCarte, string>> = {
   zones: 'Définissez vos zones : autour des POI, par seuil sur une donnée, à la main, ou en capturant la carte. Chaque zone garde sa recette et se recalcule.',
   analyse: 'Calculez sur ces zones : couverture, score, corrélation, isochrones, bataille, clustering. Chaque résultat s’affiche sur la carte.',
   jeu: 'Traduisez une zone dans la maille de chaque plateforme (codes postaux, communes, cercles, polygone…) : seuil, taux d’utile et ce que la traduction perd. Enregistrez le jeu, puis faites-en une extraction.',
-  // ⑥ tutoie, comme le wizard React qu'il porte (relecture 2 du lot 6 : parité de registre avec le hall et les sections).
-  plan: 'Choisis la campagne, donne-lui pour cible une extraction de l’étape ⑤, puis ses plateformes, son budget et ses impressions prévues.',
+  // Un seul registre pour tout le parcours, le vouvoiement (revue finale du lot 6, V-2) : ⑥ tutoyait comme le wizard React.
+  plan: 'Choisissez la campagne, donnez-lui pour cible une extraction de l’étape ⑤, puis ses plateformes, son budget et ses impressions prévues.',
   activation: 'L’activation plateforme par plateforme arrive dans le parcours. En attendant, elle se fait dans l’application actuelle.',
   live: 'Le suivi de la campagne en vol arrive dans le parcours. En attendant, il se consulte dans l’application actuelle.',
 };

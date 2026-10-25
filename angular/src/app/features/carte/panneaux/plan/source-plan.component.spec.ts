@@ -81,8 +81,8 @@ describe('SourcePlanComponent — la cible V1 = une extraction figée (A-3)', ()
     await cliquer(`[data-jeu="${J2}"]`);
     const j3 = el.querySelector<HTMLButtonElement>(`[data-jeu="${J3}"]`)!;
     expect(j3.disabled).toBe(true);
-    expect(j3.querySelector('[data-sans-extraction]')!.textContent!.trim()).toBe('Aucune extraction : fige-la à l’étape ⑤');
-    expect(el.querySelector(`[data-jeu="${J2}"] [data-sans-extraction]`)!.textContent!.trim()).toBe('Aucune extraction : fige-la dans le module risque');
+    expect(j3.querySelector('[data-sans-extraction]')!.textContent!.trim()).toBe('Aucune extraction : figez-la à l’étape ⑤');
+    expect(el.querySelector(`[data-jeu="${J2}"] [data-sans-extraction]`)!.textContent!.trim()).toBe('Aucune extraction : figez-la dans le module risque');
     expect(el.querySelector(`[data-jeu="${J1}"]`)!.hasAttribute('disabled')).toBe(false);
   });
 
@@ -96,10 +96,15 @@ describe('SourcePlanComponent — la cible V1 = une extraction figée (A-3)', ()
     expect(plan.brouillon().jeuZones).toEqual({ id: J1, nom: 'Rentrée', version: 2, extraction: { id: 'x1', version: 1 } });
     expect(plan.brouillon().channels).toEqual({ dsps: ['dv360'], socials: ['meta'], ad_server: null });
     expect(el.querySelector('[data-chiffres-extraction]')!.textContent!.replace(/\s+/g, ' ').trim())
-      .toBe('87 codes postaux retenus, taux d’utile 76,4 %, 91 % du plan en zone.');
+      .toBe('— CP au plan, dont 87 retenus, taux d’utile 76,4 %, 91 % du plan en zone.');
+    // V-4 : les CP au plan viennent de la lecture du bandeau (le plan CP entier de l'extraction).
+    plan.cps.set(new Map([[`${J1}|1|`, { cp: [], total: 120 }]]));
+    await stable();
+    expect(el.querySelector('[data-chiffres-extraction]')!.textContent!.replace(/\s+/g, ' ').trim())
+      .toBe('120 CP au plan, dont 87 retenus, taux d’utile 76,4 %, 91 % du plan en zone.');
+    // V-3 : un jeu de ZONE n'a pas de classes, ce sont les multiplicateurs de son extraction.
     expect(el.querySelector('[data-phrase-plan]')!.textContent!.replace(/\s+/g, ' ').trim())
-      .toBe('Le plan vient du jeu de zones Rentrée : ce sont ses poids par classe qui répartissent le budget.');
-    expect(el.textContent).not.toMatch(/multiplicateur/i);
+      .toBe('Le plan vient du jeu de zones Rentrée : ce sont les multiplicateurs de son extraction qui répartissent le budget.');
   });
 
   it('changer d’extraction RE-pré-coche les plateformes sans perdre les budgets saisis des plateformes restantes', async () => {
@@ -150,7 +155,7 @@ describe('SourcePlanComponent — la cible V1 = une extraction figée (A-3)', ()
     await stable();
     const j3 = el.querySelector<HTMLButtonElement>(`[data-jeu="${J3}"]`)!;
     expect(j3.disabled).toBe(true);
-    expect(j3.querySelector('[data-sans-extraction]')!.textContent!.trim()).toBe('Aucune extraction : fige-la à l’étape ⑤');
+    expect(j3.querySelector('[data-sans-extraction]')!.textContent!.trim()).toBe('Aucune extraction : figez-la à l’étape ⑤');
     expect(api.extractions).not.toHaveBeenCalled();
   });
 

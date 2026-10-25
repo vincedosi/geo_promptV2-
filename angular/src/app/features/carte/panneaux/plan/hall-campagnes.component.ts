@@ -49,7 +49,7 @@ const LIGNE = 'mb-1.5 flex items-center gap-3 rounded-[8px] border-fin border-su
   template: `
     <div class="mb-3.5 flex items-start gap-3">
       <p class="m-0 flex-1 text-[13px] leading-[1.6] text-secondary">
-        Crée une nouvelle campagne, reprends une création en cours ou reprogramme une campagne déjà lancée.
+        Créez une nouvelle campagne, reprenez une création en cours ou reprogrammez une campagne déjà lancée.
       </p>
       @if (demo()?.can_toggle) {
         <label data-mode-demo class="inline-flex shrink-0 cursor-pointer items-center gap-1.5 text-[12px] text-secondary">

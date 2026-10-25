@@ -52,7 +52,7 @@ const BOUTON_NEUTRE = 'flex shrink-0 cursor-pointer items-center gap-1.5 rounded
     </div>
     <!-- ⑥-⑧ (lot 6, A-1) : la campagne courante (?campagne=). Hors du fil : elle vaut pour les trois étapes. -->
     @if (avecCampagne()) { <mg-choix-campagne /> }
-    @if (zoneScript(); as nom) {
+    @if (scriptVisible(); as nom) {
       <button type="button" data-script-dv360 (click)="genererScript.emit()" [class]="boutonTeal"
               [attr.title]="'Générer le fichier custom bidding DV360 pour « ' + nom + ' »'">
         <mg-icone nom="fichier-bas" [taille]="13" [trait]="1.5" />Script bidding DV360
@@ -92,6 +92,8 @@ export class BarreParcoursComponent {
   readonly autresOuvert = input(false);
   /** Le sélecteur de campagne, aux étapes ⑥-⑧ seulement (et pas sous « Autres »). */
   protected readonly avecCampagne = computed(() => !this.autresOuvert() && ETAPES_CAMPAGNE.includes(this.courante() as EtapeCarte));
+  /** « Script bidding DV360 » : masqué aux étapes ⑥-⑧, la V1 n'y fait pas de custom bidding (revue finale du lot 6, V-8). */
+  protected readonly scriptVisible = computed(() => (this.avecCampagne() ? null : this.zoneScript()));
 
   readonly choisir = output<string>();
   readonly remonter = output<number>();

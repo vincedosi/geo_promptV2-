@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal, sig
 import { EnteteSectionComponent } from '../../../../ui/entete-section/entete-section.component';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { EtatCarteService } from '../../etat/etat-carte.service';
+import { LancementCampagneService } from '../../etat/lancement-campagne.service';
 import { PlanCampagneService } from '../../etat/plan-campagne.service';
 import { linksSelectionHash } from '../../logique/plan/brouillon';
 import { ENCART_ERREUR } from '../analyse/styles-analyse';
@@ -73,11 +74,11 @@ const ORDRE_SECTIONS: readonly SectionPlan[] = ['cible', 'plateformes', 'impress
         <mg-bandeau-plan class="mb-3" />
 
         <mg-entete-section data-section="cible" libelle="Cible" repliable [ouvert]="ouvertes().cible" (ouvertChange)="basculer('cible', $event)" />
-        <mg-section-cible data-corps-section="cible" class="px-4 py-3" [class.hidden]="!ouvertes().cible" />
+        <mg-section-cible data-corps-section="cible" class="px-4 py-3" [class.hidden]="!ouvertes().cible" [class.opacity-50]="gele()" [attr.inert]="gele() ? '' : null" />
         <mg-entete-section data-section="plateformes" libelle="Plateformes et budget" repliable [ouvert]="ouvertes().plateformes" (ouvertChange)="basculer('plateformes', $event)" />
-        <mg-section-plateformes data-corps-section="plateformes" class="px-4 py-3" [class.hidden]="!ouvertes().plateformes" [(confirmation)]="confirmation" />
+        <mg-section-plateformes data-corps-section="plateformes" class="px-4 py-3" [class.hidden]="!ouvertes().plateformes" [class.opacity-50]="gele()" [attr.inert]="gele() ? '' : null" [(confirmation)]="confirmation" />
         <mg-entete-section data-section="impressions" libelle="Impressions prévues" repliable [ouvert]="ouvertes().impressions" (ouvertChange)="basculer('impressions', $event)" />
-        <mg-section-impressions data-corps-section="impressions" class="px-4 py-3" [class.hidden]="!ouvertes().impressions" />
+        <mg-section-impressions data-corps-section="impressions" class="px-4 py-3" [class.hidden]="!ouvertes().impressions" [class.opacity-50]="gele()" [attr.inert]="gele() ? '' : null" />
 
         <mg-pied-lancement class="mt-auto" [liaisonsConfirmees]="liaisonsConfirmees()" />
       }
@@ -88,6 +89,13 @@ export class PanneauPlanComponent {
   protected readonly plan = inject(PlanCampagneService);
   protected readonly etat = inject(EtatCarteService);
   protected readonly encartErreur = ENCART_ERREUR;
+  private readonly lancement = inject(LancementCampagneService);
+
+  /**
+   * Un lancement de LA campagne ouverte est en vol : les sections sont grisées et inertes (revue finale, V-9) — ce qui
+   * s'y modifierait ne partirait pas (la demande est figée au clic) et le brouillon serait jeté au succès.
+   */
+  protected readonly gele = computed(() => this.lancement.enCours() && this.lancement.etat()?.campagne === this.plan.campagne());
 
   /**
    * L'empreinte des liaisons confirmée en section Plateformes (« Je confirme ces liaisons ») : locale à l'écran comme

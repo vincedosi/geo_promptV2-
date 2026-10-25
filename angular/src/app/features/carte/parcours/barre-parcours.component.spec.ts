@@ -140,6 +140,18 @@ describe('BarreParcoursComponent', () => {
     expect(avec.el.querySelector('[data-rouvrir-plan]')).toBeNull();
   });
 
+  it('Script bidding DV360 masqué aux étapes ⑥-⑧ (revue finale du lot 6, V-8)', async () => {
+    const { fixture, el } = await monter({ zoneScript: 'Brest' });
+    for (const etape of ['plan', 'activation', 'live']) {
+      fixture.componentRef.setInput('courante', etape);
+      await fixture.whenStable();
+      expect(el.querySelector('[data-script-dv360]')).toBeNull();
+    }
+    fixture.componentRef.setInput('courante', 'jeu');
+    await fixture.whenStable();
+    expect(el.querySelector('[data-script-dv360]')).not.toBeNull();
+  });
+
   it('relaie choisir, remonter, toutEffacer, genererScript, rouvrirPlan, basculerImmersif, orgChangee, ouvrirAutres', async () => {
     const { fixture, el } = await monter({ zoneScript: 'Brest', planMedia: 2 });
     const barre = fixture.componentInstance;

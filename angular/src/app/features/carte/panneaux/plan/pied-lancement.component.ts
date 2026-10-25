@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input } from '@an
 import { formaterNombre } from '../../../../core/format/nombre';
 import { NotificationsComponent } from '../../../../ui/notifications/notifications.component';
 import { etatLancement } from '../../etat/lancement-campagne';
-import { LancementCampagneService } from '../../etat/lancement-campagne.service';
+import { LancementCampagneService, TITRE_CREATION, TITRE_MISE_A_JOUR } from '../../etat/lancement-campagne.service';
 import { ParcoursService } from '../../etat/parcours.service';
 import { PlanCampagneService } from '../../etat/plan-campagne.service';
 import { fmtCpm, fmtDateShort, fmtEUR } from '../../logique/plan/brouillon';
@@ -24,7 +24,8 @@ const SECONDAIRE = 'cursor-pointer rounded-[6px] border-fin border-default bg-tr
  * - la VALIDITÉ (`etatLancement`, un `computed`) : chaque motif de blocage est DIT, le bouton reste inactif ;
  * - « Créer la campagne → » : DÉCLENCHE `LancementCampagneService` (fourni par la page, relecture 3) et AFFICHE son
  *   état — le pied peut être détruit en cours de séquence (autre campagne, autre étape), la séquence continue. Réussi :
- *   « ✓ Campagne créée », « N codes postaux · X % du plan en zone · Y % d'utile · Z impressions prévues »,
+ *   « ✓ Campagne créée » (« ✓ Plan mis à jour » si elle avait déjà un plan, V-5 ; le bouton dit alors « Mettre à jour
+ *   le plan → »), « N CP au plan, dont M retenus · X % du plan en zone · Y % d'utile · Z impressions prévues »,
  *   « Préparer l'activation → ⑦ » et « Modifier et relancer » (relancer suit le même chemin, `rattacher` archive
  *   l'ancienne stratégie). Échec : le titre de l'étape et le message de la route, dans le pied ET en notification.
  *   L'issue s'affiche pour SA campagne seulement.
@@ -36,10 +37,10 @@ const SECONDAIRE = 'cursor-pointer rounded-[6px] border-fin border-default bg-tr
   host: { class: 'flex flex-col gap-2.5 border-t border-subtle px-4 py-3 text-[12px] text-secondary', 'data-pied-plan': '' },
   template: `
     <mg-notifications />
-    @if (reussi(); as message) {
+    @if (reussi(); as r) {
       <div data-lance class="flex flex-col gap-2">
-        <span class="text-[12px]" [class]="texteSucces">✓ Campagne créée</span>
-        <span data-message-lancement class="text-[12px] text-secondary">{{ message }}</span>
+        <span data-titre-lance class="text-[12px]" [class]="texteSucces">✓ {{ reussi()!.titre }}</span>
+        <span data-message-lancement class="text-[12px] text-secondary">{{ r.message }}</span>
         <div class="flex flex-wrap gap-2">
           <button type="button" data-vers-activation [class]="cta" (click)="parcours.choisir('activation')">Préparer l’activation → ⑦</button>
           <button type="button" data-relancer [class]="secondaire" (click)="lancement.oublier(campagne())">Modifier et relancer</button>
@@ -66,7 +67,7 @@ const SECONDAIRE = 'cursor-pointer rounded-[6px] border-fin border-default bg-tr
       }
       @if (echec(); as e) { <div data-echec-lancement role="alert" [class]="encartErreur"><strong class="font-medium">{{ e.titre }}.</strong> {{ e.message }}</div> }
       <div class="flex items-center gap-3">
-        <button type="button" data-lancer [class]="cta" [disabled]="!etat().demande || enCours()" (click)="lancer()">{{ enCoursIci() ? 'Création…' : 'Créer la campagne →' }}</button>
+        <button type="button" data-lancer [class]="cta" [disabled]="!etat().demande || enCours()" (click)="lancer()">{{ libelleBouton() }}</button>
         @if (plan.sauveLe()) { <span data-sauve class="ml-auto text-[11px] text-tertiary">Brouillon enregistré</span> }
       </div>
     }
@@ -96,7 +97,13 @@ export class PiedLancementComponent {
   });
   protected readonly reussi = computed(() => {
     const e = this.issue();
-    return e?.statut === 'reussi' ? e.message : null;
+    return e?.statut === 'reussi' ? { message: e.message, titre: e.miseAJour ? TITRE_MISE_A_JOUR : TITRE_CREATION } : null;
+  });
+  /** La campagne a déjà un plan (« Modification ») : le bouton met le plan à jour (revue finale, V-5). */
+  private readonly miseAJour = computed(() => this.plan.strategieExistante() !== null);
+  protected readonly libelleBouton = computed(() => {
+    if (this.enCoursIci()) return this.miseAJour() ? 'Mise à jour…' : 'Création…';
+    return this.miseAJour() ? 'Mettre à jour le plan →' : 'Créer la campagne →';
   });
   protected readonly echec = computed(() => {
     const e = this.issue();
@@ -145,6 +152,6 @@ export class PiedLancementComponent {
 
   protected lancer(): void {
     const demande = this.etat().demande;
-    if (demande) this.lancement.lancer(demande, this.plan.totaux().impressions);
+    if (demande) this.lancement.lancer(demande, this.plan.totaux().impressions, this.miseAJour());
   }
 }

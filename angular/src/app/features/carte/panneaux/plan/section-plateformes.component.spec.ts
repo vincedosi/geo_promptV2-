@@ -129,6 +129,6 @@ describe('SectionPlateformesComponent — plateformes, budgets, liaisons, pério
     plan.canaux.set({ ...CANAUX, catalog: [], is_demo: false });
     await stable();
     expect(el.querySelector('[data-aucun-canal]')!.textContent!.trim())
-      .toBe('Aucun canal connecté. Configure une connexion dans Administration → Système → Connexions API.');
+      .toBe('Aucun canal connecté. Configurez une connexion dans Administration → Système → Connexions API.');
   });
 });

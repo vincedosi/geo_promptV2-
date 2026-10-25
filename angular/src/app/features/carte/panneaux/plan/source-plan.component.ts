@@ -16,8 +16,16 @@ type VersionsJeu = { extractions: ExtractionJeu[]; jeu: { id: string; nom: strin
 
 /** Où se fige un jeu qui n'a pas encore d'extraction (A-3). */
 const SANS_EXTRACTION: Readonly<Record<JeuListe['type'], string>> = {
-  zone: 'Aucune extraction : fige-la à l’étape ⑤',
-  risque: 'Aucune extraction : fige-la dans le module risque',
+  zone: 'Aucune extraction : figez-la à l’étape ⑤',
+  risque: 'Aucune extraction : figez-la dans le module risque',
+};
+/**
+ * Ce qui répartit le budget, par type de jeu (revue finale, V-3) : un jeu RISQUE pondère par classe de risque ; un jeu
+ * de ZONE n'a pas de classes, ce sont les multiplicateurs de son extraction.
+ */
+const REPARTITION: Readonly<Record<JeuListe['type'], string>> = {
+  zone: 'ce sont les multiplicateurs de son extraction qui répartissent le budget.',
+  risque: 'ce sont ses poids par classe qui répartissent le budget.',
 };
 const BADGE_TYPE: Readonly<Record<JeuListe['type'], string>> = { zone: 'Zone', risque: 'Risque' };
 
@@ -51,7 +59,7 @@ const BADGE_TYPE: Readonly<Record<JeuListe['type'], string>> = { zone: 'Zone', r
     @if (jeux.enCours()) { <div class="font-mono text-[11px] text-tertiary">Lecture des jeux de zones…</div> }
     @if (jeux.erreur(); as e) { <div role="alert" [class]="encartErreur">La liste des jeux de zones est indisponible. {{ e }}</div> }
     @if (jeux.resultat()?.length === 0) {
-      <p data-aucun-jeu class="m-0 text-[11px] leading-[1.6] text-secondary">Aucun jeu de zones enregistré : fais-en un à l’étape ⑤, puis fige-le en extraction.</p>
+      <p data-aucun-jeu class="m-0 text-[11px] leading-[1.6] text-secondary">Aucun jeu de zones enregistré : faites-en un à l’étape ⑤, puis figez-le en extraction.</p>
     }
     <div class="flex flex-col gap-1">
       @for (l of lignes(); track l.id) {
@@ -86,11 +94,11 @@ const BADGE_TYPE: Readonly<Record<JeuListe['type'], string>> = { zone: 'Zone', r
     @if (choisie(); as c) {
       <div data-extraction-choisie class="mt-1.5 flex flex-col gap-1.5 rounded-[8px] border-fin border-subtle bg-elevated px-3 py-2.5 text-[11.5px] leading-[1.65] text-secondary">
         <span data-chiffres-extraction>
-          <span class="font-mono text-primary">{{ c.retenus }}</span> codes postaux retenus, taux d’utile
+          <span class="font-mono text-primary">{{ c.auPlan }}</span> CP au plan, dont <span class="font-mono text-primary">{{ c.retenus }}</span> retenus, taux d’utile
           <span class="font-mono text-primary">{{ c.utile }}</span>, <span class="font-mono text-primary">{{ c.enZone }}</span> du plan en zone.
         </span>
         @if (c.plateformes) { <span data-plateformes-extraction class="font-mono text-[10px]">{{ c.plateformes }}</span> }
-        <span data-phrase-plan>Le plan vient du jeu de zones <strong class="font-medium text-primary">{{ c.nom }}</strong> : ce sont ses poids par classe qui répartissent le budget.</span>
+        <span data-phrase-plan>Le plan vient du jeu de zones <strong class="font-medium text-primary">{{ c.nom }}</strong> : {{ c.repartition }}</span>
       </div>
     }
   `,
@@ -135,13 +143,21 @@ export class SourcePlanComponent {
     const j = this.jeuChoisi();
     const x = j?.extraction ? this.lues().get(j.id)?.extractions.find((e) => e.id === j.extraction?.id) : undefined;
     if (!j || !x) return null;
+    // Le type vient de la liste ; à défaut, un résumé absent dit un jeu risque (`plateformes` nul).
+    const type = this.jeux.resultat()?.find((l) => l.id === j.id)?.type ?? (x.plateformes === null ? 'risque' : 'zone');
+    // Les CP au plan : la lecture du bandeau (`chargerCp`, une par extraction, mise en cache par le service).
+    const auPlan = this.plan.cpDe(j.id, x.version)?.total;
     return {
       nom: j.nom,
+      repartition: REPARTITION[type],
+      auPlan: auPlan == null ? '—' : formaterNombre(auPlan),
       retenus: formaterNombre(x.n_retenus),
       utile: x.taux_utile == null ? '—' : `${formaterDecimal(Number(x.taux_utile))} %`,
       enZone: x.part_plan_en_zone == null ? '—' : `${formaterDecimal(Number(x.part_plan_en_zone), 0)} %`,
-      plateformes: (x.plateformes ?? []).map((p) => `${NOM_PLATEFORME[p.plateforme] ?? p.plateforme} : ${formaterNombre(p.n_unites ?? 0)} ${UNITE_MAILLE[p.maille]?.plusieurs ?? p.maille}`
-        + `, ${utilePlateforme(p) ?? '—'}`).join(' · '),
+      // Un jeu risque n'a pas de résumé par plateforme : tout son plan est au CP (V-7).
+      plateformes: x.plateformes === null ? 'Toutes plateformes au code postal'
+        : x.plateformes.map((p) => `${NOM_PLATEFORME[p.plateforme] ?? p.plateforme} : ${formaterNombre(p.n_unites ?? 0)} ${UNITE_MAILLE[p.maille]?.plusieurs ?? p.maille}`
+          + `, ${utilePlateforme(p) ?? '—'}`).join(' · '),
     };
   });
 

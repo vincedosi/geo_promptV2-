@@ -21,8 +21,13 @@ export const LIGNES_CP_VISIBLES = 50;
  * (repris de la section Plateformes, lecture seule), son CPM prévu (€, saisi ici), ses impressions prévues — budget ÷
  * CPM × 1 000, un `computed` du service (`previsions`), jamais recopié —, la maille et le nombre d'unités de
  * l'extraction. « Voir par CP » pour une plateforme qui achète au code postal : ses CP lus AU CLIC (A-11, mis en cache
- * par le service), répartis par la formule de `planned_share` ; 50 lignes puis « Voir tout ». Une ligne de total :
- * budget, impressions, CPM moyen pondéré — les valeurs mêmes que le lancement envoie (`totaux`).
+ * par le service), répartis sur SES CP au prorata de leur multiplicateur ; 50 lignes puis « Voir tout ». Une ligne de
+ * total : budget, impressions, CPM moyen pondéré — les valeurs mêmes que le lancement envoie (`totaux`).
+ *
+ * CONTRAT avec ⑧ (revue finale, I-2) : ce prévu par CP et par plateforme n'est PAS `campaign_cp_rollup.planned_share`,
+ * agrégat sur la campagne entière (tous les CP écrits, toutes plateformes). ⑧ le recalculera par la même formule, depuis
+ * `geo_strategy.channels.{budgets,cpm_prevus}` et les unités de l'extraction (`ARCHITECTURE.md`, spec § 19.4). Le texte
+ * de la section ne promet donc plus que « ⑧ comparera » ces chiffres.
  */
 @Component({
   selector: 'mg-section-impressions',
@@ -31,10 +36,10 @@ export const LIGNES_CP_VISIBLES = 50;
   host: { class: 'flex flex-col gap-3', 'data-section-impressions': '' },
   template: `
     <p class="m-0 text-[13px] leading-[1.6] text-secondary">
-      Saisis le CPM prévu de chaque plateforme : ses impressions prévues valent budget ÷ CPM × 1 000. Ce sont elles que l’étape ⑧ comparera au livré.
+      Saisissez le CPM prévu de chaque plateforme : ses impressions prévues valent budget ÷ CPM × 1 000.
     </p>
     @if (lignes().length === 0) {
-      <div data-aucune-plateforme class="text-[12px] text-tertiary">Coche au moins une plateforme en section Plateformes et budget.</div>
+      <div data-aucune-plateforme class="text-[12px] text-tertiary">Cochez au moins une plateforme en section Plateformes et budget.</div>
     }
     @for (l of lignes(); track l.code) {
       <div [attr.data-prevision]="l.code" class="flex flex-col gap-2 rounded-[8px] border-fin border-subtle px-3 py-2.5">
@@ -174,7 +179,7 @@ function bascule(s: ReadonlySet<string>, code: string, present: boolean): Readon
 
 /**
  * ⑥ Plan — le bandeau de l'étape (lot 6, T5) : budget, impressions prévues, CPM moyen pondéré, plateformes cochées et
- * codes postaux au plan. Les trois premiers sont les `totaux` du service — ceux de la section Impressions et du
+ * codes postaux au plan, « dont M retenus » (V-4). Les trois premiers sont les `totaux` du service — ceux de la section Impressions et du
  * lancement. « CP au plan » = les CP que `rattacher` écrira (`multiplicateur > 0`) : lus une fois par extraction, dès
  * qu'elle est connue (une lecture indexée, ≤ 7 000 lignes, mise en cache par le service).
  */
@@ -189,7 +194,7 @@ function bascule(s: ReadonlySet<string>, code: string, present: boolean): Readon
       <mg-kpi data-kpi="impressions" [taille]="22" [valeur]="impressions()" libelle="Impressions prévues" note="budget ÷ CPM × 1 000" accent />
       <mg-kpi data-kpi="cpm" [taille]="22" [valeur]="cpm()" libelle="CPM moyen" note="pondéré par les impressions" />
       <mg-kpi data-kpi="plateformes" [taille]="22" [valeur]="plateformes()" libelle="Plateformes" note="cochées" />
-      <mg-kpi data-kpi="cp" [taille]="22" [valeur]="cp()" libelle="CP au plan" note="de l’extraction choisie" />
+      <mg-kpi data-kpi="cp" [taille]="22" [valeur]="cp()" libelle="CP au plan" [note]="noteCp()" />
     </mg-bandeau-kpi>
   `,
 })
@@ -208,6 +213,11 @@ export class BandeauPlanComponent {
     const x = this.plan.extraction();
     const lus = jeu && x ? this.plan.cpDe(jeu.id, x.version) : null;
     return lus ? formaterNombre(lus.total) : '—';
+  });
+  /** « dont M retenus » : les deux nombres de CP, partout (revue finale, V-4). */
+  protected readonly noteCp = computed(() => {
+    const x = this.plan.extraction();
+    return x ? `dont ${formaterNombre(x.n_retenus)} retenus` : 'de l’extraction choisie';
   });
 
   private readonly jeu = computed(() => this.plan.brouillon().jeuZones?.id ?? null);

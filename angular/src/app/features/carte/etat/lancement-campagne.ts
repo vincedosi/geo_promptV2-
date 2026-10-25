@@ -65,14 +65,14 @@ export function etatLancement(e: EntreesLancement): EtatLancement {
   const extraction = d.jeuZones?.extraction;
   const sansBudget = e.previsions.filter((p) => !(p.budget && p.budget > 0)).map((p) => e.libelle(p.code));
   const motifs = [
-    !extraction ? 'Choisis une extraction en section Cible.' : '',
+    !extraction ? 'Choisissez une extraction en section Cible.' : '',
     !nom ? 'Nom de la campagne manquant.' : '',
-    e.previsions.length === 0 ? 'Choisis au moins un DSP ou un réseau.' : '',
+    e.previsions.length === 0 ? 'Choisissez au moins un DSP ou un réseau.' : '',
     sansBudget.length ? `Budget manquant : ${sansBudget.join(', ')}` : '',
     e.totaux.cpmManquants.length ? `CPM prévu manquant : ${e.totaux.cpmManquants.map(e.libelle).join(', ')}` : '',
-    (e.totaux.impressions ?? 0) > IMPRESSIONS_MAX ? 'Plus de 9 999 999 999 impressions prévues : vérifie budgets et CPM.' : '',
+    (e.totaux.impressions ?? 0) > IMPRESSIONS_MAX ? 'Plus de 9 999 999 999 impressions prévues : vérifiez budgets et CPM.' : '',
     !d.startDate || !d.endDate ? 'Période incomplète.' : d.endDate < d.startDate ? 'La fin de la période précède son début.' : '',
-    e.previsions.length > 0 && !e.liaisonsConfirmees ? 'Confirme les liaisons en section Plateformes et budget.' : '',
+    e.previsions.length > 0 && !e.liaisonsConfirmees ? 'Confirmez les liaisons en section Plateformes et budget.' : '',
   ].filter(Boolean);
   if (motifs.length || !e.campagne || !e.detail || !d.jeuZones || !extraction) {
     return { demande: null, motifs: motifs.length ? motifs : ['Chargement de la campagne…'] };
@@ -162,8 +162,10 @@ export function lancerCampagne(api: PlanApi, d: DemandeLancement): Observable<Pl
 }
 
 /**
- * « N codes postaux · X % du plan en zone · Y % d'utile · Z impressions prévues » — les deux chiffres qui voyagent avec
- * le plan (React), plus le volume prévu. Sans plateforme au CP (0 CP, T6), le message le dit au lieu d'un « 0 ».
+ * « N CP au plan, dont M retenus · X % du plan en zone · Y % d'utile · Z impressions prévues » — les deux chiffres qui
+ * voyagent avec le plan (React), plus le volume prévu. N = les CP écrits (multiplicateur > 0, hors zone compris en mode
+ * pondéré), M = les CP retenus de l'extraction : les deux nombres partout (revue finale, V-4). Sans plateforme au CP
+ * (0 CP, T6), le message le dit au lieu d'un « 0 ».
  */
 export function messageLancement(r: PlanRattache, impressions: number | null): string {
   const prevues = impressions == null ? null : `${formaterNombre(impressions)} impressions prévues`;
@@ -171,7 +173,7 @@ export function messageLancement(r: PlanRattache, impressions: number | null): s
     return ['Aucune plateforme n’achète au code postal : plan sans répartition par CP', prevues].filter(Boolean).join(' · ');
   }
   return [
-    `${formaterNombre(r.codes_postaux)} codes postaux`,
+    `${formaterNombre(r.codes_postaux)} CP au plan, dont ${formaterNombre(r.n_retenus)} retenus`,
     typeof r.part_plan_en_zone === 'number' ? `${formaterDecimal(r.part_plan_en_zone, 0)} % du plan en zone` : null,
     typeof r.taux_utile === 'number' ? `${formaterDecimal(r.taux_utile, 1)} % d’utile` : null,
     prevues,
