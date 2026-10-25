@@ -294,6 +294,38 @@ describe('PlanCampagneService — CP d’une extraction', () => {
   });
 });
 
+describe('PlanCampagneService — extraction, prévisions et lancement (T5, T6)', () => {
+  it('extraction : connue dès que la section Cible a retenu les versions de son jeu', async () => {
+    const o = await ouvrir(`/carte?campagne=${C1}`);
+    await preremplirC1(o);
+    o.hote.plan.modifier((d) => ({ ...d, jeuZones: { id: J1, nom: 'Rentrée', version: 2, extraction: { id: 'x2', version: 2 } } }));
+    expect(o.hote.plan.extraction()).toBeNull();
+    const x = (id: string, version: number) => ({ id, version, plateformes: null }) as never;
+    o.hote.plan.retenirExtractions(J1, [x('x2', 2), x('x1', 1)]);
+    expect(o.hote.plan.extraction()).toMatchObject({ id: 'x2', version: 2 });
+  });
+
+  it('prévisions et totaux : les plateformes cochées seules, budget ÷ CPM × 1 000', async () => {
+    const o = await ouvrir(`/carte?campagne=${C1}`);
+    await preremplirC1(o);
+    o.hote.plan.modifier((d) => ({ ...d, channels: { dsps: ['dv360'], socials: [], ad_server: null }, channelBudgets: { dv360: 1000, ttd: 99 }, cpmPrevus: { dv360: 4 } }));
+    expect(o.hote.plan.previsions()).toEqual([{ code: 'dv360', budget: 1000, cpm: 4, impressions: 250000 }]);
+    expect(o.hote.plan.totaux()).toEqual({ budget: 1000, impressions: 250000, cpmMoyen: 4, cpmManquants: [] });
+  });
+
+  it('apresLancement : brouillon serveur supprimé, stratégie existante, identité persistée', async () => {
+    const o = await ouvrir(`/carte?campagne=${C1}`);
+    const ligne = { id: B1, campaign_id: C1, current_step: 1, last_saved_at: '2026-10-25T10:00:00Z', expires_at: null, created_at: '',
+      draft_data: { v: 1, draft: DEFAULT_PROG_DRAFT } };
+    await preremplirC1(o, [ligne]);
+    o.hote.plan.apresLancement(S1, { name: 'Nouveau nom', advertiser: 'Autre' });
+    expect(o.http.expectOne(`/api/bidding/strategies/drafts/${B1}`).request.method).toBe('DELETE');
+    expect(o.hote.plan.restaure()).toBeNull();
+    expect(o.hote.plan.strategieExistante()).toEqual({ id: S1, statut: 'active' });
+    expect(o.hote.plan.detail()).toMatchObject({ name: 'Nouveau nom', advertiser: 'Autre' });
+  });
+});
+
 describe('PlanCampagneService — créer une campagne (hall et sélecteur, T3)', () => {
   it('« Nouvelle campagne » : POST sans nom, puis la coquille est OUVERTE (URL et préremplissage)', async () => {
     const o = await ouvrir('/carte');

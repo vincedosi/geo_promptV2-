@@ -5,15 +5,10 @@ import { PlanCampagneService, messageErreurCampagnes } from '../../etat/plan-cam
 import type { ProgDraft } from '../../logique/plan/brouillon';
 import { LIBELLE_CHAMP } from '../analyse/styles-analyse';
 import { SourcePlanComponent } from './source-plan.component';
+import { SAISIE } from './styles-plan';
 
 /** Les trois champs d'identité de la campagne, persistés au lancement (PATCH) s'ils ont changé. */
 type ChampIdentite = 'name' | 'advertiser' | 'product';
-
-/**
- * Le champ texte du wizard (`TextInput` de `StepCible.tsx`) : fond de niveau 2, bord subtil, focus teal à 50 %.
- * Tailwind lit le source : classes littérales.
- */
-const SAISIE = 'w-full rounded-[6px] border-fin border-subtle bg-elevated px-3 py-2.5 text-[13px] text-primary outline-none transition-[border-color] duration-150 placeholder:text-tertiary focus:border-[var(--brand-teal-50)] disabled:opacity-50';
 
 /**
  * ⑥ Plan — la section Cible (lot 6, T4) : la partie IDENTITÉ de `StepCible` (`components/campaign/wizard/steps/

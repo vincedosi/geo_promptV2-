@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal, signal } from '@angular/core';
 import { EnteteSectionComponent } from '../../../../ui/entete-section/entete-section.component';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { EtatCarteService } from '../../etat/etat-carte.service';
@@ -7,6 +7,8 @@ import { draftTotalBudget, fmtDateShort, fmtEUR } from '../../logique/plan/broui
 import { ENCART_ERREUR } from '../analyse/styles-analyse';
 import { HallCampagnesComponent } from './hall-campagnes.component';
 import { SectionCibleComponent } from './section-cible.component';
+import { BandeauPlanComponent, SectionImpressionsComponent } from './section-impressions.component';
+import { SectionPlateformesComponent } from './section-plateformes.component';
 
 /** Les trois sections du panneau, de haut en bas. */
 type SectionPlan = 'cible' | 'plateformes' | 'impressions';
@@ -36,7 +38,7 @@ const ORDRE_SECTIONS: readonly SectionPlan[] = ['cible', 'plateformes', 'impress
  */
 @Component({
   selector: 'mg-panneau-plan',
-  imports: [EnteteSectionComponent, HallCampagnesComponent, IconeComponent, SectionCibleComponent],
+  imports: [BandeauPlanComponent, EnteteSectionComponent, HallCampagnesComponent, IconeComponent, SectionCibleComponent, SectionImpressionsComponent, SectionPlateformesComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col', 'data-panneau-plan': '' },
   template: `
@@ -66,13 +68,14 @@ const ORDRE_SECTIONS: readonly SectionPlan[] = ['cible', 'plateformes', 'impress
           </div>
         }
         @if (!plan.prerempli()) { <div data-chargement-plan class="px-4 pb-3 font-mono text-[11px] text-tertiary">Chargement de la campagne…</div> }
+        <mg-bandeau-plan class="mb-3" />
 
         <mg-entete-section data-section="cible" libelle="Cible" repliable [ouvert]="ouvertes().cible" (ouvertChange)="basculer('cible', $event)" />
         <mg-section-cible data-corps-section="cible" class="px-4 py-3" [class.hidden]="!ouvertes().cible" />
         <mg-entete-section data-section="plateformes" libelle="Plateformes et budget" repliable [ouvert]="ouvertes().plateformes" (ouvertChange)="basculer('plateformes', $event)" />
-        <div data-corps-section="plateformes" class="flex flex-col gap-3 px-4 py-3" [class.hidden]="!ouvertes().plateformes"></div>
+        <mg-section-plateformes data-corps-section="plateformes" class="px-4 py-3" [class.hidden]="!ouvertes().plateformes" [(confirmation)]="confirmation" />
         <mg-entete-section data-section="impressions" libelle="Impressions prévues" repliable [ouvert]="ouvertes().impressions" (ouvertChange)="basculer('impressions', $event)" />
-        <div data-corps-section="impressions" class="flex flex-col gap-3 px-4 py-3" [class.hidden]="!ouvertes().impressions"></div>
+        <mg-section-impressions data-corps-section="impressions" class="px-4 py-3" [class.hidden]="!ouvertes().impressions" />
 
         <div data-pied-plan class="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-subtle px-4 py-3 text-[12px] text-secondary">
           <span>Budget prévu <span data-recap-budget class="font-mono text-primary">{{ budget() }}</span></span>
@@ -87,6 +90,12 @@ export class PanneauPlanComponent {
   protected readonly plan = inject(PlanCampagneService);
   protected readonly etat = inject(EtatCarteService);
   protected readonly encartErreur = ENCART_ERREUR;
+
+  /**
+   * L'empreinte des liaisons confirmée en section Plateformes (« Je confirme ces liaisons ») : locale à l'écran comme
+   * chez React, oubliée au changement de campagne ; le pied de lancement la lit (T6).
+   */
+  protected readonly confirmation = linkedSignal<string | null, string | null>({ source: () => this.plan.campagne(), computation: () => null });
 
   /** Les sections dépliées : locales à l'écran, jamais dans l'URL ; toutes ouvertes par défaut. */
   protected readonly ouvertes = signal<Readonly<Record<SectionPlan, boolean>>>({ cible: true, plateformes: true, impressions: true });

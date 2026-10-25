@@ -211,6 +211,8 @@ export class SourcePlanComponent {
     this.versionAbsente.set(null);
     this.versions.lancer(this.api.extractions(id), (r) => {
       this.lues.update((m) => new Map(m).set(id, r));
+      // Le résumé figé de l'extraction choisie sert aussi aux sections Plateformes et Impressions (T5).
+      this.plan.retenirExtractions(id, r.extractions);
       choisir(r);
     });
   }

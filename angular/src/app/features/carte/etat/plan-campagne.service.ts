@@ -1,10 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { DestroyRef, Injectable, type Signal, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, type Signal, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { type Observable, type Subscription, catchError, map, of, switchMap, tap, throwError } from 'rxjs';
 import { messageErreurApi } from '../../../core/http/erreurs';
-import { type Campagne, type CanauxCampagne, type CpDExtraction, PlanApi, type StatutStrategie } from '../data/plan.api';
+import type { ExtractionJeu } from '../data/jeux.api';
+import { type Campagne, type CanauxCampagne, type CorpsCampagne, type CpDExtraction, PlanApi, type StatutStrategie } from '../data/plan.api';
 import { DEFAULT_PROG_DRAFT, type ProgDraft, deserializeDraft, serializeDraft } from '../logique/plan/brouillon';
+import { previsions, totauxPrevus } from '../logique/plan/impressions';
 import { remplirCanaux, remplirDepuisStrategie, remplirIdentite } from '../logique/plan/preremplissage';
 import { lireZoneAnalyse } from '../logique/analyses/couverture';
 import { ecrireParametres } from './ecrire-parametres';
@@ -85,6 +87,7 @@ export class PlanCampagneService {
   private readonly _sauveLe = signal<string | null>(null);
   private readonly _cps = signal<ReadonlyMap<string, CpDExtraction>>(new Map());
   private readonly _erreursCp = signal<ReadonlyMap<string, string>>(new Map());
+  private readonly _extractions = signal<ReadonlyMap<string, readonly ExtractionJeu[]>>(new Map());
 
   readonly campagne: Signal<string | null> = this._campagne.asReadonly();
   readonly brouillon: Signal<ProgDraft> = this._brouillon.asReadonly();
@@ -105,6 +108,22 @@ export class PlanCampagneService {
   readonly etape: Signal<number> = this._etape.asReadonly();
   /** L'heure de la dernière sauvegarde réussie (`last_saved_at`). */
   readonly sauveLe: Signal<string | null> = this._sauveLe.asReadonly();
+
+  /**
+   * L'extraction du brouillon avec son résumé figé, dès que la section Cible a lu les versions de son jeu (`retenir
+   * Extractions`) : les sections Plateformes et Impressions y lisent maille, unités et taux d'utile (A-5, A-10).
+   */
+  readonly extraction: Signal<ExtractionJeu | null> = computed(() => {
+    const j = this._brouillon().jeuZones;
+    return (j?.extraction && this._extractions().get(j.id)?.find((x) => x.id === j.extraction?.id)) || null;
+  });
+  /** Les plateformes cochées (DSP puis réseaux), chiffrées : budget, CPM prévu, impressions prévues (A-10). */
+  readonly previsions = computed(() => {
+    const d = this._brouillon();
+    return previsions([...d.channels.dsps, ...d.channels.socials], d.channelBudgets, d.cpmPrevus ?? {});
+  });
+  /** Les totaux affichés ET envoyés au lancement (`total_budget`, `kpi_target`, `forecast_cpm`) : une seule source. */
+  readonly totaux = computed(() => totauxPrevus(this.previsions()));
 
   /**
    * Jeton de la CAMPAGNE : invalidé à chaque changement de campagne. Le préremplissage et la sauvegarde d'une campagne
@@ -163,15 +182,27 @@ export class PlanCampagneService {
 
   /** « Repartir de zéro » : le brouillon serveur est jeté, le défaut repart, prérempli de l'identité de la campagne. */
   repartirDeZero(): void {
-    this.arreterMinuterie();
-    this.remise++;
-    const id = this.brouillonId;
-    this.brouillonId = null;
-    if (id) this.api.supprimerBrouillon(id).subscribe({ error: () => undefined });
+    this.jeterBrouillonServeur();
     const camp = this._detail();
     this._brouillon.set(camp ? remplirIdentite(DEFAULT_PROG_DRAFT, camp) : DEFAULT_PROG_DRAFT);
     this._restaure.set(null);
     this._etape.set(ETAPE_MIN);
+  }
+
+  /** Les versions lues d'un jeu (section Cible) : une extraction est figée, la liste vaut pour la vie de la page. */
+  retenirExtractions(jeu: string, liste: readonly ExtractionJeu[]): void {
+    this._extractions.update((m) => new Map(m).set(jeu, liste));
+  }
+
+  /**
+   * Le lancement a réussi (T6) : le brouillon serveur n'a plus lieu d'être (`handleLaunched` de React), la stratégie
+   * écrite devient l'existante (« Modification », pastille ⑥) et l'identité persistée remplace celle lue.
+   */
+  apresLancement(strategie: string, identite: CorpsCampagne | null): void {
+    this.jeterBrouillonServeur();
+    this._restaure.set(null);
+    this._strategie.set({ id: strategie, statut: 'active' });
+    if (identite) this._detail.update((c) => (c ? { ...c, ...identite, name: identite.name ?? c.name } : c));
   }
 
   /** Les CP achetés d'une extraction (d'une plateforme si donnée), s'ils sont lus. Une extraction est figée : jamais périmés. */
@@ -198,6 +229,15 @@ export class PlanCampagneService {
         this._erreursCp.update((m) => new Map(m).set(cle, messageErreurApi(e)));
       },
     }));
+  }
+
+  /** Supprime le brouillon serveur ; une sauvegarde partie avant ne le recrée pas (`remise`, relecture 1). */
+  private jeterBrouillonServeur(): void {
+    this.arreterMinuterie();
+    this.remise++;
+    const id = this.brouillonId;
+    this.brouillonId = null;
+    if (id) this.api.supprimerBrouillon(id).subscribe({ error: () => undefined });
   }
 
   /** Une valeur lue dans l'URL ; illisible (pas un uuid, même forme que `?zoneAnalyse=` et `?jeu=`), elle est retirée une fois. */
