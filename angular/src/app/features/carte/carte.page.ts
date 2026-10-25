@@ -73,7 +73,7 @@ import { OutilsCarteService } from './outils/outils-carte.service';
 import { EtapeBientotComponent } from './parcours/etape-bientot.component';
 import { PanneauEtapeComponent } from './parcours/panneau-etape.component';
 import { suivreMargeCarte } from './couches/marge-carte';
-import { FOURNISSEURS_ANALYSE, FOURNISSEURS_JEU, suivreAnalyseAffichee, suivreJeuRenseigne } from './carte.fournisseurs';
+import { FOURNISSEURS_ANALYSE, FOURNISSEURS_JEU, FOURNISSEURS_PLAN, suivreAnalyseAffichee, suivreJeuRenseigne } from './carte.fournisseurs';
 
 /** Centre et zoom d'ouverture de React (`useMapInit.ts:131-132`). */
 const CENTRE_INITIAL: [number, number] = [2.3, 46.6];
@@ -145,6 +145,7 @@ export function palierCarreaux(zoom: number): string {
     { provide: PONT_CARTE, useExisting: ZonesRisqueService },
     ...FOURNISSEURS_ANALYSE,
     ...FOURNISSEURS_JEU,
+    ...FOURNISSEURS_PLAN,
   ],
   templateUrl: './carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,

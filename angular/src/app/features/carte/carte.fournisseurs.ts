@@ -4,6 +4,7 @@ import { JeuCarteService } from './couches/jeu-carte.service';
 import { ScoreService } from './couches/score.service';
 import { ZonesRisqueService } from './couches/zones-risque.service';
 import { JeuZonesService } from './etat/jeu-zones.service';
+import { PlanCampagneService } from './etat/plan-campagne.service';
 import { ZoneAnalyseeService } from './etat/zone-analysee.service';
 
 /**
@@ -27,6 +28,13 @@ export const FOURNISSEURS_JEU: Provider[] = [
   // La plateforme regardée peinte sur LA carte (T11, A-14) : retirée à la destruction du service (page recréée).
   JeuCarteService,
 ];
+
+/**
+ * L'état de ⑥ Plan (lot 6, T2) fourni par la PAGE, pour la même raison (P-e) : la campagne courante (`?campagne=`),
+ * son brouillon autosauvé et les CP d'extraction lus survivent à ⑥ → ① → ⑥. Un changement d'espace recrée la page,
+ * donc lui : le brouillon d'un espace ne s'écrit jamais dans l'autre.
+ */
+export const FOURNISSEURS_PLAN: Provider[] = [PlanCampagneService];
 
 /**
  * La pastille « renseignée » de ④ (A2) : un score composite, des zones à risque ou une couverture de zone PEINTS. À
