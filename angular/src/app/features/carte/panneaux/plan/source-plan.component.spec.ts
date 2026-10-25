@@ -98,10 +98,11 @@ describe('SourcePlanComponent — la cible V1 = une extraction figée (A-3)', ()
     expect(el.querySelector('[data-chiffres-extraction]')!.textContent!.replace(/\s+/g, ' ').trim())
       .toBe('— CP au plan, dont 87 retenus, taux d’utile 76,4 %, 91 % du plan en zone.');
     // V-4 : les CP au plan viennent de la lecture du bandeau (le plan CP entier de l'extraction).
-    plan.cps.set(new Map([[`${J1}|1|`, { cp: [], total: 120 }]]));
+    // Preuve D-3 : codes CANONIQUES (110), pas les lignes brutes (120), comme `n_retenus`.
+    plan.cps.set(new Map([[`${J1}|1|`, { cp: [], total: 120, canoniques: 110 }]]));
     await stable();
     expect(el.querySelector('[data-chiffres-extraction]')!.textContent!.replace(/\s+/g, ' ').trim())
-      .toBe('120 CP au plan, dont 87 retenus, taux d’utile 76,4 %, 91 % du plan en zone.');
+      .toBe('110 CP au plan, dont 87 retenus, taux d’utile 76,4 %, 91 % du plan en zone.');
     // V-3 : un jeu de ZONE n'a pas de classes, ce sont les multiplicateurs de son extraction.
     expect(el.querySelector('[data-phrase-plan]')!.textContent!.replace(/\s+/g, ' ').trim())
       .toBe('Le plan vient du jeu de zones Rentrée : ce sont les multiplicateurs de son extraction qui répartissent le budget.');

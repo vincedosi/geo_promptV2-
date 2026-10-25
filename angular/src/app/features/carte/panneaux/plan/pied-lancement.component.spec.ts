@@ -83,6 +83,8 @@ describe('PiedLancementComponent — récapitulatif et lancement (T6)', () => {
 
   it('réussite : message, brouillon jeté, « Préparer l’activation → ⑦ »', async () => {
     const { el, plan, appels, parcours, notifs, stable } = monter();
+    // Le plan CP de l'extraction, lu par le bandeau : 11 codes CANONIQUES pour 12 lignes écrites (D-3).
+    plan.cps.set(new Map([[`${J}|3|`, { cp: [], total: 12, canoniques: 11 }]]));
     await stable();
     el.querySelector<HTMLButtonElement>('[data-lancer]')!.click();
     await stable();
@@ -91,7 +93,7 @@ describe('PiedLancementComponent — récapitulatif et lancement (T6)', () => {
     expect(plan.apresLancement).toHaveBeenCalledWith('s1', null);
     expect(notifs.notifications()[0]).toMatchObject({ variante: 'success', titre: 'Campagne créée' });
     expect(el.querySelector('[data-titre-lance]')!.textContent!.trim()).toBe('✓ Campagne créée');
-    expect(el.querySelector('[data-message-lancement]')!.textContent!.replace(/\s/g, ' ')).toBe('12 CP au plan, dont 10 retenus · 90 % du plan en zone · 75,0 % d’utile · 2 500 000 impressions prévues');
+    expect(el.querySelector('[data-message-lancement]')!.textContent!.replace(/\s/g, ' ')).toBe('11 CP au plan, dont 10 retenus · 90 % du plan en zone · 75,0 % d’utile · 2 500 000 impressions prévues');
     el.querySelector<HTMLButtonElement>('[data-vers-activation]')!.click();
     expect(parcours.choisir).toHaveBeenCalledWith('activation');
     // « Modifier et relancer » (relecture 3, M4) : retour au récapitulatif, le bouton de lancement est rendu.

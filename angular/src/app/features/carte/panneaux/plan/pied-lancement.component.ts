@@ -152,6 +152,9 @@ export class PiedLancementComponent {
 
   protected lancer(): void {
     const demande = this.etat().demande;
-    if (demande) this.lancement.lancer(demande, this.plan.totaux().impressions, this.miseAJour());
+    if (!demande) return;
+    const x = this.plan.brouillon().jeuZones?.extraction;
+    const cpAuPlan = x ? this.plan.cpDe(demande.jeu, x.version)?.canoniques ?? null : null;
+    this.lancement.lancer(demande, this.plan.totaux().impressions, this.miseAJour(), cpAuPlan);
   }
 }

@@ -2,6 +2,7 @@ import { DestroyRef, Injectable, type Signal, computed, inject, signal } from '@
 import { ActivatedRoute, Router } from '@angular/router';
 import { type Observable, type Subscription, catchError, concatMap, from, map, of, switchMap, tap, throwError } from 'rxjs';
 import { messageErreurApi } from '../../../core/http/erreurs';
+import { OrganisationsApi } from '../../session/data/organisations.api';
 import type { ExtractionJeu } from '../data/jeux.api';
 import { type Campagne, type CanauxCampagne, type CorpsCampagne, type CpDExtraction, PlanApi, type StatutStrategie } from '../data/plan.api';
 import { DEFAULT_PROG_DRAFT, type ProgDraft, deserializeDraft, serializeDraft } from '../logique/plan/brouillon';
@@ -10,7 +11,7 @@ import { previsions, totauxPrevus } from '../logique/plan/impressions';
 import { remplirCanaux, remplirDepuisStrategie, remplirIdentite } from '../logique/plan/preremplissage';
 import { lireUuid } from '../logique/analyses/couverture';
 import { CpsExtractions } from './cps-extractions';
-import { AccesRefuse, CampagneIntrouvable, MESSAGE_RESERVE_ADMIN, classer } from './erreurs-campagnes';
+import { AccesRefuse, CampagneIntrouvable, MESSAGE_RESERVE_ADMIN, classer, verifierEspace } from './erreurs-campagnes';
 import { ecrireParametres } from './ecrire-parametres';
 
 /** Le paramètre d'URL de la campagne courante (spec § 5, A-1). */
@@ -31,7 +32,7 @@ const ETAPE_MAX = 5;
  * ⑥ Plan — l'ÉTAT de la campagne courante (lot 6, T2) : la campagne (`?campagne=`), le brouillon `ProgDraft`, la
  * stratégie existante, les canaux de la campagne et les CP des extractions lus.
  *
- * PRÉREMPLISSAGE SÉQUENTIEL ANNULABLE : campagne → stratégie existante → brouillon serveur → canaux, UNE requête à la
+ * PRÉREMPLISSAGE SÉQUENTIEL ANNULABLE : campagne → espace actif (`verifierEspace`) → stratégie existante → brouillon serveur → canaux, UNE requête à la
  * fois (≤ 3 simultanées, CLAUDE.md), dans un seul abonnement. Changer de campagne le DÉSABONNE (les requêtes partent à
  * la corbeille) et invalide son jeton : la réponse tardive de A ne s'écrit jamais dans B. Le brouillon serveur PRIME
  * sur la stratégie (règle `restoredAppliedRef` de React) ; seule l'identité de la campagne en complète les champs vides.
@@ -48,6 +49,7 @@ export class PlanCampagneService {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(PlanApi);
+  private readonly organisations = inject(OrganisationsApi);
 
   private readonly _campagne = signal<string | null>(null);
   private readonly _brouillon = signal<ProgDraft>(DEFAULT_PROG_DRAFT);
@@ -277,6 +279,8 @@ export class PlanCampagneService {
     const enCours = () => jeton === this.jeton;
     this.chargement = this.api.campagne(id).pipe(
       catchError((e: unknown) => throwError(() => classer(e))),
+      // Une campagne d'un AUTRE espace est introuvable ici (D-1) : rien d'elle ne s'écrit dans l'état.
+      switchMap((r) => verifierEspace(r.campaign, this.organisations, this.api).pipe(map(() => r))),
       tap(({ campaign }) => {
         this._detail.set(campaign);
         this._brouillon.update((d) => remplirIdentite(d, campaign));

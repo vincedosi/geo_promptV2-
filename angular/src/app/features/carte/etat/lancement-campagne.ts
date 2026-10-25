@@ -164,16 +164,18 @@ export function lancerCampagne(api: PlanApi, d: DemandeLancement): Observable<Pl
 /**
  * « N CP au plan, dont M retenus · X % du plan en zone · Y % d'utile · Z impressions prévues » — les deux chiffres qui
  * voyagent avec le plan (React), plus le volume prévu. N = les CP écrits (multiplicateur > 0, hors zone compris en mode
- * pondéré), M = les CP retenus de l'extraction : les deux nombres partout (revue finale, V-4). Sans plateforme au CP
- * (0 CP, T6), le message le dit au lieu d'un « 0 ».
+ * pondéré), M = les CP retenus de l'extraction, tous deux en codes CANONIQUES (revue finale V-4, preuve D-3). Sans
+ * plateforme au CP (0 CP, T6), le message le dit au lieu d'un « 0 ».
  */
-export function messageLancement(r: PlanRattache, impressions: number | null): string {
+export function messageLancement(r: PlanRattache, impressions: number | null, cpAuPlan: number | null = null): string {
   const prevues = impressions == null ? null : `${formaterNombre(impressions)} impressions prévues`;
   if (r.codes_postaux === 0) {
     return ['Aucune plateforme n’achète au code postal : plan sans répartition par CP', prevues].filter(Boolean).join(' · ');
   }
+  // `codes_postaux` compte les LIGNES écrites (un membre de groupe indiscernable par ligne) et `n_retenus` des codes
+  // CANONIQUES : les deux nombres se disent dans la même unité, `cpAuPlan` (codes canoniques du plan, preuve D-3).
   return [
-    `${formaterNombre(r.codes_postaux)} CP au plan, dont ${formaterNombre(r.n_retenus)} retenus`,
+    cpAuPlan == null ? `${formaterNombre(r.n_retenus)} CP retenus` : `${formaterNombre(cpAuPlan)} CP au plan, dont ${formaterNombre(r.n_retenus)} retenus`,
     typeof r.part_plan_en_zone === 'number' ? `${formaterDecimal(r.part_plan_en_zone, 0)} % du plan en zone` : null,
     typeof r.taux_utile === 'number' ? `${formaterDecimal(r.taux_utile, 1)} % d’utile` : null,
     prevues,

@@ -5,6 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { Router, RouterOutlet, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { ConfigService } from '../../../core/config/config.service';
+import { OrganisationsApi } from '../../session/data/organisations.api';
 import { PlanApi } from '../data/plan.api';
 import { DEFAULT_PROG_DRAFT } from '../logique/plan/brouillon';
 import { MESSAGE_RESERVE_ADMIN, messageErreurCampagnes } from './erreurs-campagnes';
@@ -19,6 +20,8 @@ const J1 = '6ba7b811-9dad-41d1-80b4-00c04fd430c8';
 const campagne = (id: string, name: string) => ({
   campaign: { id, name, advertiser: 'Annonceur', product: null, date_start: '2026-11-01', date_end: null, organization_id: 'o', is_demo: true },
 });
+/** L'espace actif `o` = l'organisation propriétaire des campagnes de test : la campagne est DANS l'espace (D-1). */
+const ORGS = { organizations: [], active_org_id: 'o', is_super_admin: true };
 const canaux = { catalog: [], connectedProviders: [], is_demo: true, selected: { dsps: ['dv360'], socials: [], ad_server: null, budgets: { dv360: 1000 } } };
 const strategie = { id: S1, campaign_id: C1, status: 'active', objective_code: 'maximize_impressions', execution_mode: 'suggest',
   start_date: '2026-11-02', end_date: '2026-11-30', total_budget: 1000, forecast_cpm: 4, kpi_target: null, in_zone_weights: {} };
@@ -32,7 +35,7 @@ async function ouvrir(url: string) {
   TestBed.configureTestingModule({
     providers: [
       provideRouter([{ path: 'carte', component: Hote }]),
-      provideHttpClient(), provideHttpClientTesting(), PlanApi,
+      provideHttpClient(), provideHttpClientTesting(), PlanApi, OrganisationsApi,
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
     ],
   });
@@ -57,6 +60,7 @@ async function repondre(o: Ouvert, url: string, corps: object, status = 200) {
 /** Le préremplissage complet de C1 : stratégie existante, brouillon serveur `drafts`, canaux stockés. */
 async function preremplirC1(o: Ouvert, drafts: object[] = []) {
   await repondre(o, `/api/admin/campaigns/${C1}?page=1`, campagne(C1, 'Rentrée'));
+  await repondre(o, '/api/user/organizations', ORGS);
   await repondre(o, `/api/bidding/strategies?campaign_id=${C1}`, { strategies: [{ id: S1, name: 's', campaign_id: C1, status: 'active', created_at: '' }] });
   await repondre(o, `/api/bidding/strategies/${S1}`, { strategy: strategie });
   await repondre(o, `/api/bidding/strategies/drafts?campaign_id=${C1}`, { drafts });
@@ -107,9 +111,42 @@ describe('PlanCampagneService — la campagne dans l’URL', () => {
     o.http.verify();
   });
 
+  it('campagne d’un AUTRE espace lue par un super_admin (route non bornée, preuve D-1) : introuvable, paramètre retiré, rien d’autre de lu', async () => {
+    const o = await ouvrir(`/carte?campagne=${C1}`);
+    const ailleurs = { campaign: { ...campagne(C1, 'Campagne BMW').campaign, organization_id: 'bmw' } };
+    await repondre(o, `/api/admin/campaigns/${C1}?page=1`, ailleurs);
+    await repondre(o, '/api/user/organizations', { ...ORGS, active_org_id: 'marine' });
+    await repondre(o, `/api/admin/campaigns/${C1}/organizations`, { owner_organization_id: 'bmw', organizations: [{ id: 'bmw', name: 'BMW GROUP', slug: 'bmw', added_at: '', is_owner: true }] });
+    expect(o.hote.plan.erreur()).toBe(MESSAGE_CAMPAGNE_INTROUVABLE);
+    expect(o.hote.plan.campagne()).toBeNull();
+    expect(o.hote.plan.detail()).toBeNull();
+    expect(o.hote.plan.brouillon()).toEqual(DEFAULT_PROG_DRAFT);
+    expect(o.router.url).toBe('/carte');
+    // Ni stratégie, ni brouillon serveur, ni canaux : rien à restaurer, rien à lancer.
+    o.http.verify();
+  });
+
+  it('campagne LIÉE à l’espace actif (campaign_organizations) ou espace « Toutes » : ouverte, comme dans la liste du hall', async () => {
+    const o = await ouvrir(`/carte?campagne=${C1}`);
+    await repondre(o, `/api/admin/campaigns/${C1}?page=1`, { campaign: { ...campagne(C1, 'Liée').campaign, organization_id: 'bmw' } });
+    await repondre(o, '/api/user/organizations', ORGS);
+    await repondre(o, `/api/admin/campaigns/${C1}/organizations`, { owner_organization_id: 'bmw', organizations: [
+      { id: 'bmw', name: 'BMW GROUP', slug: 'bmw', added_at: '', is_owner: true }, { id: 'o', name: 'Espace', slug: 'o', added_at: '', is_owner: false },
+    ] });
+    expect(o.hote.plan.detail()?.name).toBe('Liée');
+    o.http.expectOne(`/api/bidding/strategies?campaign_id=${C1}`);
+    TestBed.resetTestingModule();
+    const t = await ouvrir(`/carte?campagne=${C1}`);
+    await repondre(t, `/api/admin/campaigns/${C1}?page=1`, { campaign: { ...campagne(C1, 'Globale').campaign, organization_id: 'bmw' } });
+    await repondre(t, '/api/user/organizations', { ...ORGS, active_org_id: null });
+    expect(t.hote.plan.detail()?.name).toBe('Globale');
+    t.http.expectOne(`/api/bidding/strategies?campaign_id=${C1}`);
+  });
+
   it('campagne d’un autre espace (canaux en 404, checkCampaignAccess) : même message, paramètre retiré', async () => {
     const o = await ouvrir(`/carte?campagne=${C1}`);
     await repondre(o, `/api/admin/campaigns/${C1}?page=1`, campagne(C1, 'Ailleurs'));
+    await repondre(o, '/api/user/organizations', ORGS);
     await repondre(o, `/api/bidding/strategies?campaign_id=${C1}`, { strategies: [] });
     await repondre(o, `/api/bidding/strategies/drafts?campaign_id=${C1}`, { drafts: [] });
     await repondre(o, `/api/campaigns/${C1}/channels`, { error: 'campaign_not_found' }, 404);
@@ -122,12 +159,14 @@ describe('PlanCampagneService — changement de campagne en cours de lecture', (
   it('la lecture de A est annulée, sa réponse tardive ne s’écrit jamais dans B', async () => {
     const o = await ouvrir(`/carte?campagne=${C1}`);
     await repondre(o, `/api/admin/campaigns/${C1}?page=1`, campagne(C1, 'A'));
+    await repondre(o, '/api/user/organizations', ORGS);
     const strategiesDeA = o.http.expectOne(`/api/bidding/strategies?campaign_id=${C1}`);
     await o.router.navigateByUrl(`/carte?campagne=${C2}`);
     await o.stable();
     expect(strategiesDeA.cancelled).toBe(true);
     expect(o.hote.plan.brouillon().name).toBe('');
     await repondre(o, `/api/admin/campaigns/${C2}?page=1`, campagne(C2, 'B'));
+    await repondre(o, '/api/user/organizations', ORGS);
     expect(o.hote.plan.campagne()).toBe(C2);
     expect(o.hote.plan.brouillon().name).toBe('B');
   });
@@ -261,6 +300,7 @@ describe('PlanCampagneService — relecture 1', () => {
   it('repartirDeZero pendant la lecture du brouillon serveur : il n’est pas restauré par-dessus, il est supprimé', async () => {
     const o = await ouvrir(`/carte?campagne=${C1}`);
     await repondre(o, `/api/admin/campaigns/${C1}?page=1`, campagne(C1, 'Rentrée'));
+    await repondre(o, '/api/user/organizations', ORGS);
     await repondre(o, `/api/bidding/strategies?campaign_id=${C1}`, { strategies: [] });
     o.hote.plan.repartirDeZero();
     await repondre(o, `/api/bidding/strategies/drafts?campaign_id=${C1}`, { drafts: [{
@@ -306,6 +346,7 @@ describe('PlanCampagneService — revue finale (F-6, m3, m4)', () => {
   it('lancement réussi PENDANT le préremplissage de la même campagne : le brouillon lu ensuite est supprimé, pas restauré (m4)', async () => {
     const o = await ouvrir(`/carte?campagne=${C1}`);
     await repondre(o, `/api/admin/campaigns/${C1}?page=1`, campagne(C1, 'Rentrée'));
+    await repondre(o, '/api/user/organizations', ORGS);
     await repondre(o, `/api/bidding/strategies?campaign_id=${C1}`, { strategies: [] });
     o.hote.plan.apresLancement(S1, null);
     await repondre(o, `/api/bidding/strategies/drafts?campaign_id=${C1}`, { drafts: [{

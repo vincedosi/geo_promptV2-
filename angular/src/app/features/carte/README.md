@@ -382,6 +382,8 @@ V1 = contrôle des impressions et du budget dépensé (spec § 19). Deux service
   arrête tout ; un échec après `rattacher` porte la stratégie écrite), `messageEtape` (codes anglais des routes
   traduits), `messageLancement` (« N CP au plan, dont M retenus · … »).
 
+**« N CP au plan, dont M retenus »** : les deux en codes CANONIQUES (`canoniques` de la route `…/cp`, `n_retenus`) ; `total` compte les lignes brutes, un membre de groupe indiscernable par ligne.
+
 **Le prévu par CP et par plateforme** (« Voir par CP ») = impressions de la plateforme × multiplicateur ÷ Σ
 multiplicateurs de SES CP. Ce n'est PAS `campaign_cp_rollup.planned_share` (agrégat campagne entière) : ⑧ le
 recalculera par la même formule (contrat écrit dans `ARCHITECTURE.md`, spec § 19.4).
@@ -406,7 +408,7 @@ recalculera par la même formule (contrat écrit dans `ARCHITECTURE.md`, spec §
 | `logique/plan/saisie.ts` | `basculerPlateforme`, `lireMontant`, `poserMontant` |
 | `logique/plan/partition.ts` | `partitionHall`, copie de `partitionCampaigns` réduite au hall |
 | `etat/cps-extractions.ts` | `CpsExtractions`, le cache des CP lus des extractions (une lecture par jeu, version, plateforme), composé par `PlanCampagneService` |
-| `etat/erreurs-campagnes.ts` | `MESSAGE_RESERVE_ADMIN`, `classer`, `messageErreurCampagnes` : les échecs sur les campagnes (service, hall, sélecteur, Cible) |
+| `etat/erreurs-campagnes.ts` | `MESSAGE_RESERVE_ADMIN`, `classer`, `messageErreurCampagnes` : les échecs sur les campagnes (service, hall, sélecteur, Cible) ; `verifierEspace` : une campagne d'un autre espace (lue par un super_admin, route non bornée) est introuvable, paramètre retiré, ni brouillon ni lancement |
 | `testing/plan-factice.ts` | la doublure de `PlanCampagneService` des specs d'écran (`catalogue`, `previsions`, `totaux` : les vrais calculs) |
 
 **Dupliqué à dessein** (verrouillé par `tests/unit/angular/plan-logique-paritaire.test.ts`, à retirer côté React à la

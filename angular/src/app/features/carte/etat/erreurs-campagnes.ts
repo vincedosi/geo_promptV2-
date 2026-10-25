@@ -1,5 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { type Observable, catchError, map, of, switchMap, throwError } from 'rxjs';
 import { messageErreurApi } from '../../../core/http/erreurs';
+import type { OrganisationsApi } from '../../session/data/organisations.api';
+import type { Campagne, PlanApi } from '../data/plan.api';
 
 /*
  * ⑥ Plan — les échecs sur les CAMPAGNES (lot 6, T2-T3), sortis de `PlanCampagneService` à la revue finale (plafond de
@@ -34,4 +37,25 @@ export function classer(e: unknown): unknown {
  */
 export function messageErreurCampagnes(e: unknown): string {
   return classer(e) instanceof AccesRefuse ? MESSAGE_RESERVE_ADMIN : messageErreurApi(e);
+}
+
+/**
+ * La campagne appartient-elle à l'ESPACE ACTIF (preuve du lot 6, D-1) ? `GET /api/admin/campaigns/[id]` ne la borne pas
+ * pour un super_admin, et React s'en sert : la route ne change pas, le contrôle est ici. La règle est celle de la liste
+ * (`GET /api/admin/campaigns`, celle du hall et du sélecteur) : espace « Toutes » (`active_org_id` nul), propriétaire,
+ * ou espace lié (`campaign_organizations`, lu seulement si l'espace actif n'est pas le propriétaire). Hors de l'espace :
+ * `CampagneIntrouvable` — « introuvable dans cet espace », paramètre retiré, ni brouillon ni lancement.
+ */
+export function verifierEspace(campagne: Campagne, organisations: OrganisationsApi, plan: PlanApi): Observable<null> {
+  const hors = () => throwError(() => new CampagneIntrouvable());
+  return organisations.lister().pipe(
+    switchMap(({ active_org_id: actif }) => {
+      if (!actif || campagne.organization_id === actif) return of(null);
+      return plan.organisationsCampagne(campagne.id).pipe(
+        catchError((e: unknown) => throwError(() => classer(e))),
+        switchMap((r) => (r.organizations.some((o) => o.id === actif) ? of(null) : hors())),
+      );
+    }),
+    map(() => null),
+  );
 }

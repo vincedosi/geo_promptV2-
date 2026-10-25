@@ -212,7 +212,8 @@ export class BandeauPlanComponent {
     const jeu = this.plan.brouillon().jeuZones;
     const x = this.plan.extraction();
     const lus = jeu && x ? this.plan.cpDe(jeu.id, x.version) : null;
-    return lus ? formaterNombre(lus.total) : '—';
+    // Codes CANONIQUES, l'unité de « dont M retenus » (`n_retenus`) ; `total` compte les lignes brutes (D-3).
+    return lus ? formaterNombre(lus.canoniques) : '—';
   });
   /** « dont M retenus » : les deux nombres de CP, partout (revue finale, V-4). */
   protected readonly noteCp = computed(() => {

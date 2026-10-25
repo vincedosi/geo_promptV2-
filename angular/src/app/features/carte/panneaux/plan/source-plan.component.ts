@@ -146,7 +146,8 @@ export class SourcePlanComponent {
     // Le type vient de la liste ; à défaut, un résumé absent dit un jeu risque (`plateformes` nul).
     const type = this.jeux.resultat()?.find((l) => l.id === j.id)?.type ?? (x.plateformes === null ? 'risque' : 'zone');
     // Les CP au plan : la lecture du bandeau (`chargerCp`, une par extraction, mise en cache par le service).
-    const auPlan = this.plan.cpDe(j.id, x.version)?.total;
+    // En codes CANONIQUES, comme `n_retenus` (preuve, D-3) : `total` compterait les membres d'un groupe un à un.
+    const auPlan = this.plan.cpDe(j.id, x.version)?.canoniques;
     return {
       nom: j.nom,
       repartition: REPARTITION[type],

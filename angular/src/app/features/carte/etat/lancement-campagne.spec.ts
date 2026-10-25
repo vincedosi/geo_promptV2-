@@ -170,7 +170,10 @@ describe('lancerCampagne — un seul chemin, séquentiel (T6, A-9, E2)', () => {
 describe('messageLancement', () => {
   const r = { codes_postaux: 1234, n_retenus: 1000, part_plan_en_zone: 77.94, taux_utile: 80.04 } as PlanRattache;
   it('N CP au plan, dont M retenus · X % du plan en zone · Y % d’utile · Z impressions prévues (V-4)', () => {
-    expect(messageLancement(r, 3000000).replace(/\s/g, ' ')).toBe('1 234 CP au plan, dont 1 000 retenus · 78 % du plan en zone · 80,0 % d’utile · 3 000 000 impressions prévues');
+    // Preuve D-3 : N en codes CANONIQUES (1 100), l'unité de `n_retenus` — pas les 1 234 LIGNES écrites.
+    expect(messageLancement(r, 3000000, 1100).replace(/\s/g, ' ')).toBe('1 100 CP au plan, dont 1 000 retenus · 78 % du plan en zone · 80,0 % d’utile · 3 000 000 impressions prévues');
+    // Plan pas encore lu : jamais les lignes brutes à côté des codes canoniques.
+    expect(messageLancement(r, null).replace(/\s/g, ' ')).toBe('1 000 CP retenus · 78 % du plan en zone · 80,0 % d’utile');
   });
   it('0 CP (aucune plateforme au CP) : dit, sans « 0 codes postaux »', () => {
     expect(messageLancement({ ...r, codes_postaux: 0 }, 500000).replace(/\s/g, ' '))
