@@ -1,6 +1,6 @@
 import { DEFAULT_PROG_DRAFT } from './brouillon';
 import type { ResolvedChannel } from './canaux';
-import { CANAL_DE_PLATEFORME, poserExtraction, preselectionDepuisExtraction } from './plateformes-canaux';
+import { CANAL_DE_PLATEFORME, poserExtraction, preselectionDepuisExtraction, resumeDuCanal, utilePlateforme } from './plateformes-canaux';
 
 const canal = (code: string, category: ResolvedChannel['category'], available = true): ResolvedChannel => ({
   code, label: code, category, connection_provider: null, active: true, available, connected: false,
@@ -62,5 +62,25 @@ describe('poserExtraction — l’extraction choisie en section Cible (T4, A-3, 
   it('sans catalogue (canaux pas encore lus) : la sélection reste, seule l’extraction change', () => {
     const avant = { ...DEFAULT_PROG_DRAFT, channels: { dsps: ['ttd'], socials: [], ad_server: null } };
     expect(poserExtraction(avant, jeu, x1, null).channels).toEqual(avant.channels);
+  });
+});
+
+describe('resumeDuCanal et utilePlateforme (revue finale, F-3, V-7)', () => {
+  const ZONE = {
+    n_retenus: 900, taux_utile: 81.2,
+    plateformes: [{ plateforme: 'dv360', maille: 'cp' as const, n_unites: 640, taux_utile: 12.34 }, { plateforme: 'meta', maille: 'cercle' as const, n_unites: 12, exacte: true }],
+  };
+  it('jeu de zone : la ligne de la plateforme du canal ; absente → null', () => {
+    expect(resumeDuCanal(ZONE, 'dv360')).toEqual({ maille: 'cp', nUnites: 640, utile: '12,3 %', auCp: true, filtreCp: 'dv360' });
+    expect(resumeDuCanal(ZONE, 'meta')).toMatchObject({ maille: 'cercle', utile: 'exacte', auCp: false });
+    expect(resumeDuCanal(ZONE, 'ttd')).toBeNull();
+    expect(resumeDuCanal(null, 'dv360')).toBeNull();
+  });
+  it('jeu risque (sans résumé) : tout canal au CP, sur le plan entier', () => {
+    expect(resumeDuCanal({ ...ZONE, plateformes: null }, 'ttd')).toEqual({ maille: 'cp', nUnites: 900, utile: '81,2 %', auCp: true, filtreCp: undefined });
+  });
+  it('utile : exacte, pourcentage, inconnu', () => {
+    expect(utilePlateforme({ exacte: true, taux_utile: 3 })).toBe('exacte');
+    expect(utilePlateforme({ taux_utile: null })).toBeNull();
   });
 });

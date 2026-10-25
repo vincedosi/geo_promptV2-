@@ -10,7 +10,7 @@
  * Non copiés (hors V1) : la courbe de pression, la diffusion, `strategyFieldsFromDraft`, `resolveDownloadStrategyId`,
  * les `*_META`, `fmtMult`. Verrouillée par `tests/unit/angular/plan-logique-paritaire.test.ts`.
  */
-import { formaterNombre } from '../../../../core/format/nombre';
+import { formaterDecimal, formaterNombre } from '../../../../core/format/nombre';
 import { type CampaignChannels, EMPTY_CHANNELS } from './canaux';
 import type { DspLinks } from './liens-plateformes';
 
@@ -139,6 +139,14 @@ export function deserializeDraft(raw: unknown): ProgDraft | null {
 export function fmtEUR(n: number | null): string {
   if (n == null) return '—';
   return formaterNombre(n) + ' €';
+}
+
+/**
+ * Un CPM en euros à deux décimales, « 7,25 € » ; `—` sans valeur. Angular seul (A-10, React n'a pas de CPM par
+ * plateforme) : une seule écriture pour la section Impressions, le bandeau et le pied (revue finale, F-3).
+ */
+export function fmtCpm(n: number | null): string {
+  return n == null ? '—' : `${formaterDecimal(n, 2)} €`;
 }
 
 /** Date courte `jj/mm/aa` (`fmtDateShort` de React) ; `—` vide ou illisible. */

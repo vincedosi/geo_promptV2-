@@ -5,31 +5,15 @@ import { KpiComponent } from '../../../../ui/kpi/kpi.component';
 import { Cellule, EnteteCellule } from '../../../../ui/tableau/cellules';
 import { PlanCampagneService } from '../../etat/plan-campagne.service';
 import { nombreUnites } from '../../logique/jeu/ecran';
-import type { Plateforme } from '../../logique/jeu/plateformes';
-import { fmtEUR } from '../../logique/plan/brouillon';
-import { resolveChannelAvailability } from '../../logique/plan/canaux';
+import { fmtCpm, fmtEUR } from '../../logique/plan/brouillon';
 import { repartitionParCp } from '../../logique/plan/impressions';
-import { CANAL_DE_PLATEFORME } from '../../logique/plan/plateformes-canaux';
+import { resumeDuCanal } from '../../logique/plan/plateformes-canaux';
 import { lireMontant, poserMontant } from '../../logique/plan/saisie';
 import { ENCART_ERREUR } from '../analyse/styles-analyse';
 import { SAISIE_MONTANT } from './styles-plan';
 
 /** Les lignes d'une répartition par CP affichées avant « Voir tout » (A-11). */
 export const LIGNES_CP_VISIBLES = 50;
-
-/** Le code `plateformes_geo` d'un canal (l'inverse de `CANAL_DE_PLATEFORME`, A-5) : la clé du résumé et de la route CP. */
-const PLATEFORME_DE_CANAL = new Map(Object.entries(CANAL_DE_PLATEFORME).map(([p, c]) => [c, p as Plateforme]));
-
-/** « 7,25 € » ; `—` sans valeur. */
-const euros2 = (n: number | null) => (n == null ? '—' : `${formaterDecimal(n, 2)} €`);
-
-/** Le libellé d'un code de canal, lu dans le catalogue des canaux de la campagne (le code à défaut). */
-function libellesCanaux(plan: PlanCampagneService) {
-  return computed(() => {
-    const c = plan.canaux();
-    return new Map((c ? resolveChannelAvailability(c.catalog, c.connectedProviders, c.is_demo) : []).map((r) => [r.code, r.label]));
-  });
-}
 
 /**
  * ⑥ Plan — la section « Impressions prévues » (lot 6, T5 ; A-10, A-11) : remplace le `ForecastStrip` de React (sans
@@ -120,30 +104,28 @@ export class SectionImpressionsComponent {
   /** Les plateformes dont la répartition par CP est dépliée, et celles montrées en entier. */
   private readonly ouverts = signal<ReadonlySet<string>>(new Set());
   private readonly entiers = signal<ReadonlySet<string>>(new Set());
-  private readonly libelles = libellesCanaux(this.plan);
 
   protected readonly lignes = computed(() => {
     const x = this.plan.extraction();
     const jeu = this.plan.brouillon().jeuZones;
     return this.plan.previsions().map((p) => {
-      const plateforme = PLATEFORME_DE_CANAL.get(p.code);
-      const resume = x?.plateformes?.find((r) => r.plateforme === plateforme);
-      const auCp = resume?.maille === 'cp' && !!jeu && !!x && !!plateforme;
+      const resume = resumeDuCanal(x, p.code);
+      const auCp = !!resume?.auCp && !!jeu && !!x;
       const ouvert = auCp && this.ouverts().has(p.code);
-      const lus = ouvert ? this.plan.cpDe(jeu!.id, x!.version, plateforme) : null;
+      const lus = ouvert ? this.plan.cpDe(jeu!.id, x!.version, resume?.filtreCp) : null;
       const reparties = lus ? repartitionParCp(p.impressions, lus.cp) : null;
       const limite = this.entiers().has(p.code) ? Infinity : LIGNES_CP_VISIBLES;
       return {
         code: p.code,
-        libelle: this.libelles().get(p.code) ?? p.code,
+        libelle: this.plan.libelleCanal(p.code),
         budget: fmtEUR(p.budget),
         cpm: p.cpm,
         impressions: p.impressions == null ? '—' : formaterNombre(p.impressions),
         chiffree: p.impressions != null,
-        maille: resume ? nombreUnites(resume.n_unites ?? 0, resume.maille) : x ? 'Hors de l’extraction' : '—',
+        maille: resume ? nombreUnites(resume.nUnites, resume.maille) : x ? 'Hors de l’extraction' : '—',
         auCp,
         ouvert,
-        erreur: ouvert ? this.plan.erreurCp(jeu!.id, x!.version, plateforme) : null,
+        erreur: ouvert ? this.plan.erreurCp(jeu!.id, x!.version, resume?.filtreCp) : null,
         cps: reparties && {
           visibles: reparties.slice(0, limite).map((c) => ({ code_postal: c.code_postal, poids: formaterDecimal(c.multiplicateur, 3), impressions: formaterNombre(c.impressions) })),
           reste: Math.max(0, reparties.length - limite),
@@ -155,12 +137,12 @@ export class SectionImpressionsComponent {
 
   protected readonly total = computed(() => {
     const t = this.plan.totaux();
-    return { budget: fmtEUR(t.budget), impressions: t.impressions == null ? '—' : formaterNombre(t.impressions), cpm: euros2(t.cpmMoyen) };
+    return { budget: fmtEUR(t.budget), impressions: t.impressions == null ? '—' : formaterNombre(t.impressions), cpm: fmtCpm(t.cpmMoyen) };
   });
 
   protected readonly manquants = computed(() => {
     const m = this.plan.totaux().cpmManquants;
-    return m.length ? `CPM prévu manquant : ${m.map((c) => this.libelles().get(c) ?? c).join(', ')}` : null;
+    return m.length ? `CPM prévu manquant : ${m.map(this.plan.libelleCanal).join(', ')}` : null;
   });
 
   protected poserCpm(code: string, e: Event): void {
@@ -174,8 +156,8 @@ export class SectionImpressionsComponent {
     this.ouverts.update((s) => bascule(s, code, ouvert));
     const jeu = this.plan.brouillon().jeuZones;
     const x = this.plan.extraction();
-    const plateforme = PLATEFORME_DE_CANAL.get(code);
-    if (ouvert && jeu && x && plateforme) this.plan.chargerCp(jeu.id, x.version, plateforme);
+    const resume = resumeDuCanal(x, code);
+    if (ouvert && jeu && x && resume?.auCp) this.plan.chargerCp(jeu.id, x.version, resume.filtreCp);
   }
 
   protected voirTout(code: string): void {
@@ -219,7 +201,7 @@ export class BandeauPlanComponent {
     const n = this.plan.totaux().impressions;
     return n == null ? '—' : formaterNombre(n);
   });
-  protected readonly cpm = computed(() => euros2(this.plan.totaux().cpmMoyen));
+  protected readonly cpm = computed(() => fmtCpm(this.plan.totaux().cpmMoyen));
   protected readonly plateformes = computed(() => formaterNombre(this.plan.previsions().length));
   protected readonly cp = computed(() => {
     const jeu = this.plan.brouillon().jeuZones;

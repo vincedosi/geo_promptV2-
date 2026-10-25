@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked,
 } from '@angular/core';
 import { type Observable, firstValueFrom } from 'rxjs';
+import { dateHeureFr } from '../../../../core/format/date';
 import { formaterDecimal, formaterNombre } from '../../../../core/format/nombre';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { type Extraction, JeuxZonesApi } from '../../data/jeux-zones.api';
@@ -33,15 +34,6 @@ interface ReponseExtraction {
 
 type EtatListe = 'chargement' | 'echec' | 'pret';
 
-/** Le jour et l'heure, en français (`PanneauExtractions.tsx:62-69`). */
-export function dateFr(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString('fr-FR', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  });
-}
 
 /**
  * Le message d'une réponse en erreur : le champ `error` du corps JSON, le message par défaut sinon ; une requête
@@ -222,7 +214,7 @@ export class PanneauExtractionsComponent {
     version: e.version,
     recalage: e.origine === 'recalage',
     commentaire: e.commentaire,
-    date: dateFr(e.created_at),
+    date: dateHeureFr(e.created_at),
     seuil: `${formaterDecimal(Number(e.seuil_couverture_cp), 0)} %`,
     retenus: formaterNombre(e.n_retenus),
     touches: formaterNombre(e.n_cp),

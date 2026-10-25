@@ -6,9 +6,10 @@ import { messageErreurApi } from '../../../core/http/erreurs';
 import type { ExtractionJeu } from '../data/jeux.api';
 import { type Campagne, type CanauxCampagne, type CorpsCampagne, type CpDExtraction, PlanApi, type StatutStrategie } from '../data/plan.api';
 import { DEFAULT_PROG_DRAFT, type ProgDraft, deserializeDraft, serializeDraft } from '../logique/plan/brouillon';
+import { type ResolvedChannel, resolveChannelAvailability } from '../logique/plan/canaux';
 import { previsions, totauxPrevus } from '../logique/plan/impressions';
 import { remplirCanaux, remplirDepuisStrategie, remplirIdentite } from '../logique/plan/preremplissage';
-import { lireZoneAnalyse } from '../logique/analyses/couverture';
+import { lireUuid } from '../logique/analyses/couverture';
 import { ecrireParametres } from './ecrire-parametres';
 
 /** Le paramètre d'URL de la campagne courante (spec § 5, A-1). */
@@ -97,6 +98,17 @@ export class PlanCampagneService {
   readonly strategieExistante: Signal<{ id: string; statut: StatutStrategie } | null> = this._strategie.asReadonly();
   /** Catalogue, connexions et sélection stockée des canaux de la campagne. */
   readonly canaux: Signal<CanauxCampagne | null> = this._canaux.asReadonly();
+  /**
+   * Le catalogue RÉSOLU (disponibilité selon les connexions de l'espace, ou démo), `null` avant la lecture des canaux.
+   * Une seule résolution pour la source, les plateformes, les impressions et le pied (revue finale, F-1).
+   */
+  readonly catalogue: Signal<readonly ResolvedChannel[] | null> = computed(() => {
+    const c = this._canaux();
+    return c ? resolveChannelAvailability(c.catalog, c.connectedProviders, c.is_demo) : null;
+  });
+  private readonly libelles = computed(() => new Map((this.catalogue() ?? []).map((r) => [r.code, r.label])));
+  /** Le libellé d'un code de canal, lu dans le catalogue (le code à défaut). Réactif : lit un `computed`. */
+  readonly libelleCanal = (code: string): string => this.libelles().get(code) ?? code;
   /** Un brouillon serveur a été restauré (bannière « Brouillon restauré · Repartir de zéro »). */
   readonly restaure: Signal<{ savedAt: string } | null> = this._restaure.asReadonly();
   /** Le préremplissage est fini : l'écran peut éditer, l'autosave écrire. */
@@ -155,7 +167,7 @@ export class PlanCampagneService {
 
   /** Ouvre (ou ferme, `null`) une campagne : l'URL est réécrite, le préremplissage repart de zéro. */
   choisirCampagne(id: string | null): void {
-    const valide = id === null ? null : lireZoneAnalyse(id);
+    const valide = id === null ? null : lireUuid(id);
     if (valide === this._campagne()) return;
     this.ouvrir(valide);
     this.ecrireUrl();
@@ -242,7 +254,7 @@ export class PlanCampagneService {
 
   /** Une valeur lue dans l'URL ; illisible (pas un uuid, même forme que `?zoneAnalyse=` et `?jeu=`), elle est retirée une fois. */
   private appliquerUrl(brut: string | null): void {
-    const id = brut === null ? null : lireZoneAnalyse(brut);
+    const id = brut === null ? null : lireUuid(brut);
     if (id !== this._campagne()) this.ouvrir(id);
     if (brut !== null && id === null) this.ecrireUrl();
   }

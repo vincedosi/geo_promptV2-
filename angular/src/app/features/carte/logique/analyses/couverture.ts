@@ -128,6 +128,9 @@ export function lireZoneAnalyse(brut: string | null | undefined): string | null 
   return typeof brut === 'string' && MOTIF_UUID.test(brut) ? brut.toLowerCase() : null;
 }
 
+/** Un uuid lu dans l'URL, en minuscules ; `null` sinon. Le même contrôle, nommé pour ce qu'il fait (`?campagne=`, lot 6). */
+export const lireUuid = lireZoneAnalyse;
+
 export type CleTriCouverture = 'code' | 'nom' | 'pop_en_zone' | 'pop_totale' | 'part';
 export type SensTri = 'asc' | 'desc';
 

@@ -3,7 +3,8 @@ import { TestBed } from '@angular/core/testing';
 import { Observable, Subject } from 'rxjs';
 import { ENREGISTRER_FICHIER } from '../../../../core/http/telecharger';
 import { type Extraction, JeuxZonesApi } from '../../data/jeux-zones.api';
-import { PanneauExtractionsComponent, TEXTES_EXTRACTIONS, dateFr } from './panneau-extractions.component';
+import { dateHeureFr } from '../../../../core/format/date';
+import { PanneauExtractionsComponent, TEXTES_EXTRACTIONS } from './panneau-extractions.component';
 
 interface Appel { nom: string; args: unknown[]; rep: Subject<unknown> }
 
@@ -68,18 +69,11 @@ describe('mg-panneau-extractions', () => {
     const lignes = [...el.querySelectorAll('tr[data-role="extraction"]')];
     expect(lignes).toHaveLength(2);
     const cellules = (tr: Element) => [...tr.querySelectorAll('td')].map((td) => texte(td));
-    expect(cellules(lignes[1])).toEqual(['v1', dateFr(V1.created_at), '20 %', '1 112 / 1 942', '72,3 %', 'Excel']);
+    expect(cellules(lignes[1])).toEqual(['v1', dateHeureFr(V1.created_at), '20 %', '1 112 / 1 942', '72,3 %', 'Excel']);
     expect(cellules(lignes[0])[0]).toBe('v2recalage Après la première semaine');
     expect(cellules(lignes[0])[4]).toBe('—');
     expect(lignes[0].querySelector('[data-role="commentaire"]')?.getAttribute('title')).toBe('Après la première semaine');
     expect(el.querySelector('[data-role="recalage"]')).not.toBeNull();
-  });
-
-  it('dateFr : jour et heure en français, « — » sur une date illisible', () => {
-    expect(dateFr('pas une date')).toBe('—');
-    expect(dateFr(V1.created_at)).toBe(new Date(V1.created_at).toLocaleString('fr-FR', {
-      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
-    }));
   });
 
   it('aucune extraction : le message de React, sans case de recalage', async () => {

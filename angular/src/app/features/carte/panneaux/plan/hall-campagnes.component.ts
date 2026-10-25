@@ -4,10 +4,9 @@ import { ConfirmationComponent } from '../../../../ui/confirmation/confirmation.
 import { type CampagneListe, type ModeDemo, PlanApi } from '../../data/plan.api';
 import { LectureAnnulable } from '../../etat/lecture-annulable';
 import { PlanCampagneService, messageErreurCampagnes } from '../../etat/plan-campagne.service';
+import { partitionHall } from '../../logique/plan/partition';
 import { ENCART_ERREUR } from '../analyse/styles-analyse';
-
-/** La source des campagnes nées dans l'application, sans import DSP (`MAGELIAN_SOURCE`, `lib/campaigns/blank-campaign.ts`). */
-const SOURCE_COQUILLE = 'magelian';
+import { CTA } from './styles-plan';
 
 /** Ce que le hall lit, en une passe : les campagnes, celles qui ont une stratégie, et la date du dernier autosave. */
 interface ListesHall {
@@ -60,8 +59,7 @@ const LIGNE = 'mb-1.5 flex items-center gap-3 rounded-[8px] border-fin border-su
       }
     </div>
 
-    <button type="button" data-nouvelle-campagne [disabled]="creation()" (click)="creer()"
-            class="self-start rounded-[6px] border-0 bg-primary px-5 py-[11px] text-[13px] font-medium text-page enabled:cursor-pointer disabled:cursor-wait">
+    <button type="button" data-nouvelle-campagne [disabled]="creation()" (click)="creer()" [class]="cta">
       {{ creation() ? 'Création…' : 'Nouvelle campagne' }}
     </button>
 
@@ -110,6 +108,7 @@ export class HallCampagnesComponent {
   private readonly api = inject(PlanApi);
 
   protected readonly ligne = LIGNE;
+  protected readonly cta = `${CTA} self-start px-5 py-[11px]`;
   protected readonly encartErreur = ENCART_ERREUR;
 
   protected readonly lecture = new LectureAnnulable<ListesHall>(messageErreurCampagnes);
@@ -124,17 +123,16 @@ export class HallCampagnesComponent {
 
   protected readonly erreur = computed(() => this.erreurAction() ?? this.lecture.erreur());
   private readonly campagnes = computed(() => (this.lecture.resultat()?.campagnes ?? []).filter((c) => !this.supprimees().has(c.id)));
+  /** Les deux listes du hall (`partitionCampaigns` de React, F-5). */
+  private readonly partition = computed(() => {
+    const l = this.lecture.resultat();
+    return l ? partitionHall(this.campagnes(), l.avecStrategie) : null;
+  });
   protected readonly coquilles = computed<LigneHall[]>(() => {
-    const l = this.lecture.resultat();
-    if (!l) return [];
-    return this.campagnes()
-      .filter((c) => c.dsp_source === SOURCE_COQUILLE && !l.avecStrategie.has(c.id))
-      .map((c) => ({ id: c.id, name: c.name, badge: badgeBrouillon(l.brouillonLe.get(c.id)) }));
+    const brouillonLe = this.lecture.resultat()?.brouillonLe;
+    return (this.partition()?.shells ?? []).map((c) => ({ id: c.id, name: c.name, badge: badgeBrouillon(brouillonLe?.get(c.id)) }));
   });
-  protected readonly lancees = computed<LigneHall[]>(() => {
-    const l = this.lecture.resultat();
-    return l ? this.campagnes().filter((c) => l.avecStrategie.has(c.id)).map((c) => ({ id: c.id, name: c.name, badge: null })) : [];
-  });
+  protected readonly lancees = computed<LigneHall[]>(() => (this.partition()?.launched ?? []).map((c) => ({ id: c.id, name: c.name, badge: null })));
   protected readonly messageSuppression = computed(() => {
     const c = this.aSupprimer();
     return c ? `« ${c.name} » et son brouillon seront supprimés — action irréversible.` : '';

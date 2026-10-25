@@ -53,13 +53,11 @@ import { lireGroupesCp } from '@/lib/zones/groupes';
 import { lireTout } from '@/lib/supabase/lire-tout';
 import { toJson } from '@/lib/supabase/rpc-json';
 import {
-  MESSAGE_AUCUN_CP, PLAFOND_CP_PLAN, planExtraction, refusPlan, type IssuePlan, type Plan,
+  MESSAGE_AUCUN_CP, PLAFOND_CP_PLAN, planExtraction, refusPlan, type ClientAdmin, type IssuePlan, type Plan,
 } from '@/lib/zones/plan-extraction';
 import type { Tables } from '@/types/database.types';
 
 export const dynamic = 'force-dynamic';
-
-type ClientAdmin = ReturnType<typeof createAdminClient>;
 
 const limiteur = createRateLimiter({
   max: 6,

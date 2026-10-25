@@ -17,7 +17,8 @@ import type { createAdminClient } from '@/lib/auth';
 import type { Tables } from '@/types/database.types';
 import { lireTout } from '@/lib/supabase/lire-tout';
 
-type ClientAdmin = ReturnType<typeof createAdminClient>;
+/** Le client `service_role` des routes, partagé avec `rattacher` (revue finale du lot 6, F-6). */
+export type ClientAdmin = ReturnType<typeof createAdminClient>;
 
 /** Au-delà, `lireTout` LÈVE plutôt que de rendre un début de plan (un plan national fait ~6 000 CP). */
 export const PLAFOND_CP_PLAN = 7000;

@@ -23,5 +23,12 @@ export const LIBELLE_NIVEAU = 'mb-1.5 block text-[10px] text-tertiary';
  */
 export const TEXTE_SUCCES = 'text-[color:light-dark(color-mix(in_srgb,var(--success)_50%,var(--text-primary)),var(--success))]';
 
+/**
+ * Le CTA principal (DESIGN_SYSTEM § 5) : `--text-primary` sur `--bg-primary`, inversé en clair par les jetons ; survol
+ * par l'opacité. Sans marges intérieures : le pied (« Créer la campagne → ») et le hall (« Nouvelle campagne ») gardent
+ * chacun celles de leur écran React (revue finale, F-6).
+ */
+export const CTA = 'rounded-[6px] border-0 bg-[var(--text-primary)] text-[13px] font-medium text-[var(--bg-primary)] transition-opacity duration-150 enabled:cursor-pointer enabled:hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-50';
+
 /** Le cadre d'un panneau de liaison (`border 0.5px`, rayon 8, `12px 14px`, colonnes espacées de 12). */
 export const CADRE_LIAISON = 'flex flex-col gap-3 rounded-[8px] border-fin border-subtle px-3.5 py-3';

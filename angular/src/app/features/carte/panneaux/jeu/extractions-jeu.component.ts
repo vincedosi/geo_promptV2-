@@ -2,8 +2,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { map } from 'rxjs';
 import type { Subscription } from 'rxjs';
+import { dateHeureFr } from '../../../../core/format/date';
 import { formaterDecimal, formaterNombre } from '../../../../core/format/nombre';
-import { dateFr } from '../../../risques/etapes/zones/panneau-extractions.component';
 import { type ExtractionJeu, JeuxApi } from '../../data/jeux.api';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { LectureAnnulable } from '../../etat/lecture-annulable';
@@ -35,7 +35,7 @@ interface LigneVersion {
  * plateforme arrive au lot 6 : un texte l'annonce, aucun bouton mort.
  *
  * Ce n'est PAS `mg-panneau-extractions` du module risque : celui-là montre un plan CP (seuil, CP retenus, classeur) ;
- * celui-ci un résumé par plateforme. Seul `dateFr` est partagé — la factorisation d'une liste commune forcerait l'un
+ * celui-ci un résumé par plateforme. Seul `dateHeureFr` (`core/format/date.ts`) est partagé — la factorisation d'une liste commune forcerait l'un
  * des deux à porter les colonnes de l'autre.
  */
 @Component({
@@ -96,7 +96,7 @@ export class ExtractionsJeuComponent {
     version: e.version,
     recalage: e.origine === 'recalage',
     commentaire: e.commentaire,
-    date: dateFr(e.created_at),
+    date: dateHeureFr(e.created_at),
     resume: (e.plateformes ?? []).map((p) => `${NOM_PLATEFORME[p.plateforme] ?? p.plateforme} : ${UNITE_MAILLE[p.maille]?.plusieurs ?? p.maille}`
       + ` ${formaterNombre(p.n_unites ?? 0)}, ${p.exacte ? 'exacte' : p.taux_utile == null ? '—' : `${formaterDecimal(Number(p.taux_utile))} %`}`).join(' · '),
   })));

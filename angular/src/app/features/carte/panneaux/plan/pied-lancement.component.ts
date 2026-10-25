@@ -1,17 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
-import { formaterDecimal, formaterNombre } from '../../../../core/format/nombre';
+import { formaterNombre } from '../../../../core/format/nombre';
 import { NotificationsComponent } from '../../../../ui/notifications/notifications.component';
 import { etatLancement } from '../../etat/lancement-campagne';
 import { LancementCampagneService } from '../../etat/lancement-campagne.service';
 import { ParcoursService } from '../../etat/parcours.service';
 import { PlanCampagneService } from '../../etat/plan-campagne.service';
-import { fmtDateShort, fmtEUR } from '../../logique/plan/brouillon';
-import { resolveChannelAvailability } from '../../logique/plan/canaux';
+import { fmtCpm, fmtDateShort, fmtEUR } from '../../logique/plan/brouillon';
 import { ENCART_ERREUR } from '../analyse/styles-analyse';
-import { TEXTE_SUCCES } from './styles-plan';
-
-/** Le CTA principal (DESIGN_SYSTEM § 5) : `--text-primary` sur `--bg-primary`, inversé en clair par les jetons ; survol par l'opacité. */
-const CTA = 'rounded-[6px] border-0 bg-[var(--text-primary)] px-4 py-2.5 text-[13px] font-medium text-[var(--bg-primary)] transition-opacity duration-150 enabled:cursor-pointer enabled:hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-50';
+import { CTA, TEXTE_SUCCES } from './styles-plan';
 
 /** Le bouton secondaire (« Modifier et relancer ») : contour neutre, texte secondaire. */
 const SECONDAIRE = 'cursor-pointer rounded-[6px] border-fin border-default bg-transparent px-4 py-2.5 text-[13px] text-secondary transition-colors duration-150 hover:border-hover hover:text-primary';
@@ -81,7 +77,7 @@ export class PiedLancementComponent {
   /** La coche « Je confirme ces liaisons » correspond à la sélection courante (section Plateformes). */
   readonly liaisonsConfirmees = input(false);
 
-  protected readonly cta = CTA;
+  protected readonly cta = `${CTA} px-4 py-2.5`;
   protected readonly secondaire = SECONDAIRE;
   protected readonly texteSucces = TEXTE_SUCCES;
   protected readonly encartErreur = ENCART_ERREUR;
@@ -102,11 +98,7 @@ export class PiedLancementComponent {
     return e?.statut === 'echec' ? e : null;
   });
 
-  private readonly libelles = computed(() => {
-    const c = this.plan.canaux();
-    return new Map((c ? resolveChannelAvailability(c.catalog, c.connectedProviders, c.is_demo) : []).map((r) => [r.code, r.label]));
-  });
-  private readonly libelle = (code: string) => this.libelles().get(code) ?? code;
+  private readonly libelle = this.plan.libelleCanal;
 
   protected readonly etat = computed(() => etatLancement({
     campagne: this.plan.campagne(),
@@ -131,11 +123,11 @@ export class PiedLancementComponent {
       extraction: d.jeuZones?.extraction ? `${d.jeuZones.nom} · extraction v${d.jeuZones.extraction.version}` : '—',
       plateformes: this.plan.previsions().map((p) => ({
         code: p.code, libelle: this.libelle(p.code), budget: fmtEUR(p.budget),
-        cpm: p.cpm == null ? '—' : `${formaterDecimal(p.cpm, 2)} €`, impressions: nombre(p.impressions),
+        cpm: fmtCpm(p.cpm), impressions: nombre(p.impressions),
       })),
       budget: fmtEUR(t.budget),
       impressions: nombre(t.impressions),
-      cpm: t.cpmMoyen == null ? '—' : `${formaterDecimal(t.cpmMoyen, 2)} €`,
+      cpm: fmtCpm(t.cpmMoyen),
       periode: `${fmtDateShort(d.startDate)} → ${fmtDateShort(d.endDate)}`,
     };
   });

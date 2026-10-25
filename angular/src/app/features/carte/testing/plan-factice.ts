@@ -4,6 +4,7 @@ import { vi } from 'vitest';
 import type { ExtractionJeu } from '../data/jeux.api';
 import type { Campagne, CanauxCampagne, CpDExtraction, StatutStrategie } from '../data/plan.api';
 import { DEFAULT_PROG_DRAFT, type ProgDraft } from '../logique/plan/brouillon';
+import { resolveChannelAvailability } from '../logique/plan/canaux';
 import { previsions as chiffrer, totauxPrevus } from '../logique/plan/impressions';
 
 /**
@@ -11,7 +12,7 @@ import { previsions as chiffrer, totauxPrevus } from '../logique/plan/impression
  * expose des lectures, et des espions sur ses gestes. Le service lui-même (URL, préremplissage, autosave) est éprouvé
  * par `plan-campagne.service.spec.ts` ; les écrans n'ont à prouver que ce qu'ils affichent et ce qu'ils demandent.
  * `modifier` applique VRAIMENT la mise à jour au brouillon : un geste se lit dans le signal. `previsions` et `totaux`
- * sont les VRAIS calculs (T5) ; les CP d'extraction se posent dans `cps` (clé `jeu|version|plateforme`).
+ * sont les VRAIS calculs (T5), comme `catalogue` et `libelleCanal` (revue finale, F-1) ; les CP d'extraction se posent dans `cps` (clé `jeu|version|plateforme`).
  */
 export function planFactice() {
   const brouillon = signal<ProgDraft>(DEFAULT_PROG_DRAFT);
@@ -22,12 +23,19 @@ export function planFactice() {
   });
   const cps = signal<ReadonlyMap<string, CpDExtraction>>(new Map());
   const cle = (jeu: string, version: number, plateforme?: string) => `${jeu}|${version}|${plateforme ?? ''}`;
+  const canaux = signal<CanauxCampagne | null>(null);
+  const catalogue = computed(() => {
+    const c = canaux();
+    return c ? resolveChannelAvailability(c.catalog, c.connectedProviders, c.is_demo) : null;
+  });
   return {
     campagne,
     brouillon,
     detail: signal<Campagne | null>(null),
     strategieExistante: signal<{ id: string; statut: StatutStrategie } | null>(null),
-    canaux: signal<CanauxCampagne | null>(null),
+    canaux,
+    catalogue,
+    libelleCanal: (code: string) => catalogue()?.find((c) => c.code === code)?.label ?? code,
     restaure: signal<{ savedAt: string } | null>(null),
     prerempli: signal(false),
     erreur: signal<string | null>(null),

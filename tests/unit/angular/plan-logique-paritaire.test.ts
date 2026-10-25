@@ -1,7 +1,7 @@
 /**
  * La logique du plan de campagne copiée dans angular/ pour ⑥ (lot 6, T2) rend la MÊME chose que celle du wizard React
  * (`components/campaign/wizard/steps/types.ts`, `useDraftAutosave.ts`, `ForecastStrip.tsx`) et de
- * `lib/campaigns/{channels,platform-links}.ts`. Ce test empêche la copie de dériver pendant la cohabitation (gel P5) :
+ * `lib/campaigns/{channels,platform-links,overlay-partition}.ts`. Ce test empêche la copie de dériver pendant la cohabitation (gel P5) :
  * un brouillon écrit par l'un doit se relire à l'identique par l'autre (A-2).
  */
 import { describe, expect, it } from 'vitest';
@@ -10,10 +10,13 @@ import * as Ra from '@/components/campaign/wizard/useDraftAutosave';
 import { computeForecast } from '@/components/campaign/wizard/steps/ForecastStrip';
 import * as Rc from '@/lib/campaigns/channels';
 import * as Rl from '@/lib/campaigns/platform-links';
+import { partitionCampaigns } from '@/lib/campaigns/overlay-partition';
+import { MAGELIAN_SOURCE } from '@/lib/campaigns/blank-campaign';
 import * as Ab from '../../../angular/src/app/features/carte/logique/plan/brouillon';
 import * as Ac from '../../../angular/src/app/features/carte/logique/plan/canaux';
 import * as Al from '../../../angular/src/app/features/carte/logique/plan/liens-plateformes';
 import { impressionsPrevues } from '../../../angular/src/app/features/carte/logique/plan/impressions';
+import { SOURCE_COQUILLE, partitionHall } from '../../../angular/src/app/features/carte/logique/plan/partition';
 
 const REG: Rc.ChannelRow[] = [
   { code: 'dv360', label: 'Google DV360', category: 'dsp', connection_provider: 'dv360', active: true },
@@ -100,6 +103,21 @@ describe('logique du plan de campagne : Angular = React', () => {
     for (const links of LIENS) for (const entry of [undefined, ...Object.values(links)]) for (const niveaux of NIVEAUX) {
       expect(Al.linksComplete(entry, niveaux)).toBe(Rl.linksComplete(entry, niveaux));
       expect(Al.linksSummary(entry, niveaux)).toBe(Rl.linksSummary(entry, niveaux));
+    }
+  });
+
+  it('partition du hall : coquilles et campagnes lancées (revue finale, F-5)', () => {
+    expect(SOURCE_COQUILLE).toBe(MAGELIAN_SOURCE);
+    const campagnes = [
+      { id: 'a', name: 'A', dsp_source: 'magelian', total_tracked_ads: 0 },
+      { id: 'b', name: 'B', dsp_source: 'magelian', total_tracked_ads: 12 },
+      { id: 'c', name: 'C', dsp_source: 'adform', total_tracked_ads: 3 },
+      { id: 'd', name: 'D', dsp_source: null, total_tracked_ads: null },
+    ];
+    for (const ids of [[], ['a'], ['b', 'c'], ['a', 'b', 'c', 'd']]) {
+      const avec = new Set(ids);
+      const { shells, launched } = partitionCampaigns(campagnes, avec);
+      expect(partitionHall(campagnes, avec)).toEqual({ shells, launched });
     }
   });
 });

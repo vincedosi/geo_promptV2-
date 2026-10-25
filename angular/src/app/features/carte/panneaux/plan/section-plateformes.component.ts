@@ -1,11 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, model } from '@angular/core';
-import { formaterDecimal } from '../../../../core/format/nombre';
 import { PlanCampagneService } from '../../etat/plan-campagne.service';
 import { NOM_PLATEFORME, nombreUnites } from '../../logique/jeu/ecran';
-import { draftTotalBudget, fmtEUR, linksSelectionHash } from '../../logique/plan/brouillon';
-import { type ResolvedChannel, resolveChannelAvailability } from '../../logique/plan/canaux';
+import { fmtEUR, linksSelectionHash } from '../../logique/plan/brouillon';
+import type { ResolvedChannel } from '../../logique/plan/canaux';
 import type { PlatformLinks } from '../../logique/plan/liens-plateformes';
-import { CANAL_DE_PLATEFORME, preselectionDepuisExtraction } from '../../logique/plan/plateformes-canaux';
+import { preselectionDepuisExtraction, resumeDuCanal } from '../../logique/plan/plateformes-canaux';
 import { basculerPlateforme, lireMontant, poserMontant } from '../../logique/plan/saisie';
 import { LIBELLE_CHAMP } from '../analyse/styles-analyse';
 import { LiaisonCanalComponent } from './liaison-canal.component';
@@ -133,25 +132,24 @@ export class SectionPlateformesComponent {
   protected readonly brouillon = this.plan.brouillon;
   protected readonly campagne = computed(() => this.plan.campagne() ?? '');
 
-  protected readonly catalogue = computed((): readonly ResolvedChannel[] => {
-    const c = this.plan.canaux();
-    return c ? resolveChannelAvailability(c.catalog, c.connectedProviders, c.is_demo) : [];
-  });
+  protected readonly catalogue = computed((): readonly ResolvedChannel[] => this.plan.catalogue() ?? []);
   protected readonly disponibles = computed(() => this.catalogue().filter((c) => c.available));
   protected readonly selection = computed(() => this.brouillon().channels.dsps.length + this.brouillon().channels.socials.length > 0);
   protected readonly empreinte = computed(() => linksSelectionHash(this.brouillon().channels, this.brouillon().channelLinks));
   protected readonly confirmee = computed(() => this.confirmation() === this.empreinte());
-  protected readonly budgetGlobal = computed(() => fmtEUR(draftTotalBudget(this.brouillon())));
+  /**
+   * Le budget global : `totaux().budget` du service, celui du bandeau, du pied et du PATCH (F-2). `draftTotalBudget`
+   * (React) donne la même somme ; il reste porté et verrouillé par le test de parité.
+   */
+  protected readonly budgetGlobal = computed(() => fmtEUR(this.plan.totaux().budget));
 
-  /** A-5 : la maille et le taux d'utile de chaque plateforme de l'extraction, par code de canal. */
-  private readonly resumeParCanal = computed(() => {
-    const m = new Map<string, string>();
-    for (const p of this.plan.extraction()?.plateformes ?? []) {
-      const utile = p.exacte ? 'exacte' : p.taux_utile == null ? null : `${formaterDecimal(Number(p.taux_utile))} % d’utile`;
-      m.set(CANAL_DE_PLATEFORME[p.plateforme], ['Extraction : ' + nombreUnites(p.n_unites ?? 0, p.maille), utile].filter(Boolean).join(' · '));
-    }
-    return m;
-  });
+  /** A-5 : la maille et le taux d'utile de la plateforme d'un canal dans l'extraction (un jeu risque : au CP, V-7). */
+  private resumeExtraction(code: string): string | null {
+    const r = resumeDuCanal(this.plan.extraction(), code);
+    if (!r) return null;
+    const utile = r.utile && (r.utile === 'exacte' ? r.utile : `${r.utile} d’utile`);
+    return ['Extraction : ' + nombreUnites(r.nUnites, r.maille), utile].filter(Boolean).join(' · ');
+  }
 
   /** Les plateformes de l'extraction qui ne se cochent pas : sans canal, ou ni connectées ni en démo. */
   protected readonly horsCatalogue = computed(() => {
@@ -168,12 +166,11 @@ export class SectionPlateformesComponent {
 
   protected readonly groupes = computed(() => {
     const d = this.brouillon();
-    const resumes = this.resumeParCanal();
     const lignes = (cat: 'dsp' | 'social', liste: Liste) => this.disponibles().filter((c) => c.category === cat).map((canal) => ({
       canal,
       cochee: d.channels[liste].includes(canal.code),
       budget: (d.channelBudgets[canal.code] as number | undefined) ?? null,
-      extraction: resumes.get(canal.code) ?? null,
+      extraction: this.resumeExtraction(canal.code),
     }));
     return [
       { liste: 'dsps' as const, titre: 'DSP', sous: 'DSP', vide: 'Aucun DSP disponible.', lignes: lignes('dsp', 'dsps') },

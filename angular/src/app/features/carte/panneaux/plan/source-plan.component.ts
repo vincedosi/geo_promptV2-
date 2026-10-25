@@ -1,15 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { map } from 'rxjs';
 import { messageErreurApi } from '../../../../core/http/erreurs';
+import { dateHeureFr } from '../../../../core/format/date';
 import { formaterDecimal, formaterNombre } from '../../../../core/format/nombre';
-import { dateFr } from '../../../risques/etapes/zones/panneau-extractions.component';
 import { type ExtractionJeu, type JeuListe, JeuxApi } from '../../data/jeux.api';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { LectureAnnulable } from '../../etat/lecture-annulable';
 import { PlanCampagneService } from '../../etat/plan-campagne.service';
 import { NOM_PLATEFORME, UNITE_MAILLE } from '../../logique/jeu/ecran';
-import { resolveChannelAvailability } from '../../logique/plan/canaux';
-import { poserExtraction } from '../../logique/plan/plateformes-canaux';
+import { poserExtraction, utilePlateforme } from '../../logique/plan/plateformes-canaux';
 import { ENCART_ERREUR, LIBELLE_CHAMP, PASTILLE, PASTILLE_INACTIVE } from '../analyse/styles-analyse';
 
 /** `GET /api/zones/jeux/[id]/extractions` : les versions d'un jeu, et le jeu lui-même (nom, version). */
@@ -116,10 +115,8 @@ export class SourcePlanComponent {
 
   private readonly jeuChoisi = computed(() => this.plan.brouillon().jeuZones);
   protected readonly extractionChoisie = computed(() => this.jeuChoisi()?.extraction?.id ?? null);
-  private readonly catalogue = computed(() => {
-    const c = this.plan.canaux();
-    return c ? resolveChannelAvailability(c.catalog, c.connectedProviders, c.is_demo) : null;
-  });
+  /** Sans catalogue (canaux pas encore lus), `poserExtraction` garde la sélection telle quelle. */
+  private readonly catalogue = this.plan.catalogue;
 
   protected readonly lignes = computed(() => (this.jeux.resultat() ?? []).map((j) => ({
     id: j.id,
@@ -130,7 +127,7 @@ export class SourcePlanComponent {
   })));
   protected readonly versionsOuvertes = computed(() => {
     const id = this.jeuOuvert();
-    return (id ? this.lues().get(id)?.extractions ?? [] : []).map((x) => ({ id: x.id, version: x.version, date: dateFr(x.created_at), commentaire: x.commentaire }));
+    return (id ? this.lues().get(id)?.extractions ?? [] : []).map((x) => ({ id: x.id, version: x.version, date: dateHeureFr(x.created_at), commentaire: x.commentaire }));
   });
 
   /** L'extraction choisie, avec ses chiffres figés, dès que les versions de son jeu sont lues. */
@@ -144,7 +141,7 @@ export class SourcePlanComponent {
       utile: x.taux_utile == null ? '—' : `${formaterDecimal(Number(x.taux_utile))} %`,
       enZone: x.part_plan_en_zone == null ? '—' : `${formaterDecimal(Number(x.part_plan_en_zone), 0)} %`,
       plateformes: (x.plateformes ?? []).map((p) => `${NOM_PLATEFORME[p.plateforme] ?? p.plateforme} : ${formaterNombre(p.n_unites ?? 0)} ${UNITE_MAILLE[p.maille]?.plusieurs ?? p.maille}`
-        + `, ${p.exacte ? 'exacte' : p.taux_utile == null ? '—' : `${formaterDecimal(Number(p.taux_utile))} %`}`).join(' · '),
+        + `, ${utilePlateforme(p) ?? '—'}`).join(' · '),
     };
   });
 
