@@ -17,8 +17,8 @@ type VersionsJeu = { extractions: ExtractionJeu[]; jeu: { id: string; nom: strin
 
 /** Où se fige un jeu qui n'a pas encore d'extraction (A-3). */
 const SANS_EXTRACTION: Readonly<Record<JeuListe['type'], string>> = {
-  zone: 'Aucune extraction : figez-la à l’étape ⑤',
-  risque: 'Aucune extraction : figez-la dans le module risque',
+  zone: 'Aucune extraction : fige-la à l’étape ⑤',
+  risque: 'Aucune extraction : fige-la dans le module risque',
 };
 const BADGE_TYPE: Readonly<Record<JeuListe['type'], string>> = { zone: 'Zone', risque: 'Risque' };
 
@@ -31,7 +31,7 @@ const BADGE_TYPE: Readonly<Record<JeuListe['type'], string>> = { zone: 'Zone', r
  * Rien avant la fin du préremplissage de la campagne (`prerempli`, ≤ 3 appels simultanés). Puis la liste des jeux
  * (`GET /api/zones/jeux?type=tous`, une fois par composant), puis — APRÈS elle — les versions du jeu déjà choisi par le
  * brouillon. Les versions d'un autre jeu ne sont lues qu'au CLIC sur ce jeu (une extraction est figée : jamais
- * relues). Un jeu dont la lecture rend zéro version est GRISÉ, avec l'endroit où le figer.
+ * relues). Un jeu sans extraction (`n_extractions` de la liste, relecture 2) est GRISÉ d'emblée, avec l'endroit où le figer.
  *
  * Choisir une version : `poserExtraction` (jeu + extraction au brouillon, plateformes re-pré-cochées, A-5) par
  * `PlanCampagneService.modifier` — autosauvé. Le jeu ouvert à l'étape ⑤ (`?jeu=&x=`) est PROPOSÉ, jamais pris d'office
@@ -52,7 +52,7 @@ const BADGE_TYPE: Readonly<Record<JeuListe['type'], string>> = { zone: 'Zone', r
     @if (jeux.enCours()) { <div class="font-mono text-[11px] text-tertiary">Lecture des jeux de zones…</div> }
     @if (jeux.erreur(); as e) { <div role="alert" [class]="encartErreur">La liste des jeux de zones est indisponible. {{ e }}</div> }
     @if (jeux.resultat()?.length === 0) {
-      <p data-aucun-jeu class="m-0 text-[11px] leading-[1.6] text-secondary">Aucun jeu de zones enregistré : faites-en un à l’étape ⑤, puis figez-le en extraction.</p>
+      <p data-aucun-jeu class="m-0 text-[11px] leading-[1.6] text-secondary">Aucun jeu de zones enregistré : fais-en un à l’étape ⑤, puis fige-le en extraction.</p>
     }
     <div class="flex flex-col gap-1">
       @for (l of lignes(); track l.id) {
@@ -69,6 +69,7 @@ const BADGE_TYPE: Readonly<Record<JeuListe['type'], string>> = { zone: 'Zone', r
         @if (l.id === jeuOuvert()) {
           @if (versions.enCours()) { <div class="pl-3 font-mono text-[11px] text-tertiary">Lecture des extractions…</div> }
           @if (versions.erreur(); as e) { <div role="alert" [class]="encartErreur">{{ e }}</div> }
+          @if (versionAbsente(); as m) { <div data-version-absente role="status" class="pl-3 text-[11px] text-secondary">{{ m }}</div> }
           <div class="flex flex-col gap-1 pl-3" data-versions>
             @for (v of versionsOuvertes(); track v.id) {
               <button type="button" [attr.data-extraction]="v.id" [attr.aria-pressed]="v.id === extractionChoisie()" (click)="choisir(v.id)"
@@ -110,6 +111,8 @@ export class SourcePlanComponent {
   private readonly lues = signal<ReadonlyMap<string, VersionsJeu>>(new Map());
   /** Le jeu dont les versions sont dépliées. */
   protected readonly jeuOuvert = signal<string | null>(null);
+  /** La version proposée par `?x=` n'est pas (plus) dans le jeu. */
+  protected readonly versionAbsente = signal<string | null>(null);
 
   private readonly jeuChoisi = computed(() => this.plan.brouillon().jeuZones);
   protected readonly extractionChoisie = computed(() => this.jeuChoisi()?.extraction?.id ?? null);
@@ -122,7 +125,8 @@ export class SourcePlanComponent {
     id: j.id,
     nom: j.nom,
     badge: BADGE_TYPE[j.type],
-    sansExtraction: this.lues().get(j.id)?.extractions.length === 0 ? SANS_EXTRACTION[j.type] : null,
+    // Dit par la liste (`n_extractions`), d'emblée ; une lecture des versions vide le confirme (extraction supprimée depuis).
+    sansExtraction: j.n_extractions === 0 || this.lues().get(j.id)?.extractions.length === 0 ? SANS_EXTRACTION[j.type] : null,
   })));
   protected readonly versionsOuvertes = computed(() => {
     const id = this.jeuOuvert();
@@ -163,6 +167,7 @@ export class SourcePlanComponent {
   }
 
   protected ouvrir(id: string): void {
+    this.versionAbsente.set(null);
     this.jeuOuvert.set(id);
     this.lireVersions(id);
   }
@@ -199,8 +204,11 @@ export class SourcePlanComponent {
     const choisir = (r: VersionsJeu) => {
       const x = choisirVersion === undefined ? undefined : r.extractions.find((e) => e.version === choisirVersion);
       if (x) this.plan.modifier((d) => poserExtraction(d, r.jeu, x, this.catalogue()));
+      // Une proposition `?x=` dont la version n'existe plus : dit, jamais un clic sans effet (relecture 2, M-4).
+      else if (choisirVersion !== undefined) this.versionAbsente.set(`La version v${choisirVersion} de ce jeu n’existe plus.`);
     };
     if (deja) return choisir(deja);
+    this.versionAbsente.set(null);
     this.versions.lancer(this.api.extractions(id), (r) => {
       this.lues.update((m) => new Map(m).set(id, r));
       choisir(r);

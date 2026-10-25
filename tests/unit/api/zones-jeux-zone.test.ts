@@ -260,17 +260,17 @@ describe('GET /api/zones/jeux — le type de la liste', () => {
     expect(h.lectures).toEqual([]);
   });
 
-  it('type=tous : les deux types, avec custom_geo_zone_id et le nom de la zone (aplati), sans l’objet imbriqué', async () => {
+  it('type=tous : les deux types, avec custom_geo_zone_id, le nom de la zone et le nombre d’extractions (aplatis)', async () => {
     h.donnees['zone_sets:select'] = [
-      { id: 'a', nom: 'Seveso', type: 'risque', custom_geo_zone_id: null, zone: null },
-      { id: 'b', nom: 'Bretagne', type: 'zone', custom_geo_zone_id: h.ZONE, zone: { name: 'CIRFA Bretagne' } },
+      { id: 'a', nom: 'Seveso', type: 'risque', custom_geo_zone_id: null, zone: null, extractions: [{ count: 2 }] },
+      { id: 'b', nom: 'Bretagne', type: 'zone', custom_geo_zone_id: h.ZONE, zone: { name: 'CIRFA Bretagne' }, extractions: [{ count: 0 }] },
     ];
     const r = await lister(new NextRequest(`${URL_LISTE}?type=tous`));
     expect(r.status).toBe(200);
     expect(h.lectures.at(-1)).toBe(`zone_sets:org_id=${h.ORG},brouillon=false`);
     expect((await r.json()).jeux).toEqual([
-      { id: 'a', nom: 'Seveso', type: 'risque', custom_geo_zone_id: null, zone_nom: null },
-      { id: 'b', nom: 'Bretagne', type: 'zone', custom_geo_zone_id: h.ZONE, zone_nom: 'CIRFA Bretagne' },
+      { id: 'a', nom: 'Seveso', type: 'risque', custom_geo_zone_id: null, zone_nom: null, n_extractions: 2 },
+      { id: 'b', nom: 'Bretagne', type: 'zone', custom_geo_zone_id: h.ZONE, zone_nom: 'CIRFA Bretagne', n_extractions: 0 },
     ]);
   });
 });

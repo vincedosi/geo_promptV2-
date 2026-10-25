@@ -40,6 +40,8 @@ export interface JeuListe {
   seuil_couverture_cp: number | null;
   custom_geo_zone_id: string | null;
   zone_nom: string | null;
+  /** Le nombre d'extractions figées (agrégat de la liste, lot 6) : 0 = le jeu n'est pas encore utilisable en ⑥. */
+  n_extractions: number;
 }
 
 /** Le choix d'une plateforme tel qu'il part (`ChoixPlateformeSchema`, strict) : un rayon pour le cercle, et lui seul. */

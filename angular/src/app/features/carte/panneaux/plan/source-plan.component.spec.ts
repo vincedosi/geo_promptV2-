@@ -11,7 +11,7 @@ const J1 = '16fd2706-8baf-433b-82eb-8c7fada847da';
 const J2 = '6ba7b810-9dad-41d1-80b4-00c04fd430c8';
 const J3 = '6ba7b811-9dad-41d1-80b4-00c04fd430c8';
 
-const jeu = (id: string, nom: string, type: JeuListe['type']) => ({ id, nom, type, version: 2 } as JeuListe);
+const jeu = (id: string, nom: string, type: JeuListe['type'], n_extractions = 1) => ({ id, nom, type, version: 2, n_extractions } as JeuListe);
 const extraction = (id: string, version: number, plateformes: string[]): ExtractionJeu => ({
   id, version, origine: 'initiale', commentaire: '', seuil_couverture_cp: 30, mode_plan: 'exclusif', n_cp: 120, n_retenus: 87,
   taux_utile: 76.4, part_plan_en_zone: 91.2, created_at: '2026-10-24T09:00:00Z',
@@ -73,7 +73,7 @@ describe('SourcePlanComponent — la cible V1 = une extraction figée (A-3)', ()
     expect(api.extractions).not.toHaveBeenCalled();
   });
 
-  it('un jeu SANS extraction est grisé après sa lecture, avec l’endroit où le figer (étape ⑤ ou module risque)', async () => {
+  it('un jeu dont les versions lues sont vides (extraction supprimée depuis la liste) est grisé lui aussi, avec l’endroit où le figer (étape ⑤ ou module risque)', async () => {
     const { el, plan, stable, cliquer } = await monter();
     plan.prerempli.set(true);
     await stable();
@@ -81,8 +81,8 @@ describe('SourcePlanComponent — la cible V1 = une extraction figée (A-3)', ()
     await cliquer(`[data-jeu="${J2}"]`);
     const j3 = el.querySelector<HTMLButtonElement>(`[data-jeu="${J3}"]`)!;
     expect(j3.disabled).toBe(true);
-    expect(j3.querySelector('[data-sans-extraction]')!.textContent!.trim()).toBe('Aucune extraction : figez-la à l’étape ⑤');
-    expect(el.querySelector(`[data-jeu="${J2}"] [data-sans-extraction]`)!.textContent!.trim()).toBe('Aucune extraction : figez-la dans le module risque');
+    expect(j3.querySelector('[data-sans-extraction]')!.textContent!.trim()).toBe('Aucune extraction : fige-la à l’étape ⑤');
+    expect(el.querySelector(`[data-jeu="${J2}"] [data-sans-extraction]`)!.textContent!.trim()).toBe('Aucune extraction : fige-la dans le module risque');
     expect(el.querySelector(`[data-jeu="${J1}"]`)!.hasAttribute('disabled')).toBe(false);
   });
 
@@ -142,5 +142,24 @@ describe('SourcePlanComponent — la cible V1 = une extraction figée (A-3)', ()
     expect(api.extractions).toHaveBeenCalledWith(J1);
     expect(el.querySelector('[data-extraction="x1"]')!.getAttribute('aria-pressed')).toBe('true');
     expect(el.querySelector('[data-extraction-choisie]')).not.toBeNull();
+  });
+
+  it('un jeu SANS extraction (n_extractions = 0 de la liste) est grisé D’EMBLÉE, sans clic ni lecture (relecture 2)', async () => {
+    const { el, plan, api, stable } = await monter({ lister: () => of({ jeux: [jeu(J1, 'Rentrée', 'zone'), jeu(J3, 'Brouillon', 'zone', 0)] }) });
+    plan.prerempli.set(true);
+    await stable();
+    const j3 = el.querySelector<HTMLButtonElement>(`[data-jeu="${J3}"]`)!;
+    expect(j3.disabled).toBe(true);
+    expect(j3.querySelector('[data-sans-extraction]')!.textContent!.trim()).toBe('Aucune extraction : fige-la à l’étape ⑤');
+    expect(api.extractions).not.toHaveBeenCalled();
+  });
+
+  it('proposition ?x= dont la version n’existe plus : dite, rien n’est choisi (relecture 2, M-4)', async () => {
+    const { el, plan, stable, cliquer } = await monter({ etape5: { jeu: J1, x: 9 } });
+    plan.prerempli.set(true);
+    await stable();
+    await cliquer('[data-proposition]');
+    expect(plan.modifier).not.toHaveBeenCalled();
+    expect(el.querySelector('[data-version-absente]')!.textContent!.trim()).toBe('La version v9 de ce jeu n’existe plus.');
   });
 });

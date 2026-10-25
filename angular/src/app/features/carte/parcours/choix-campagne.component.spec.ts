@@ -90,4 +90,17 @@ describe('ChoixCampagneComponent — le sélecteur de la barre (⑥-⑧, A-1)', 
     expect(e.defaultPrevented).toBe(true);
     expect(el.querySelector('[data-liste-campagnes]')).toBeNull();
   });
+
+  it('sortie du focus : vers l’extérieur la liste se ferme, vers la liste elle reste ouverte (relecture 2, M-6)', async () => {
+    const { el, ouvrir, stable } = await monter(() => NEVER);
+    await ouvrir();
+    const liste = el.querySelector<HTMLElement>('[data-liste-campagnes]')!;
+    const declencheur = el.querySelector('[data-declencheur-campagne]')!;
+    declencheur.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: liste }));
+    await stable();
+    expect(el.querySelector('[data-liste-campagnes]')).not.toBeNull();
+    declencheur.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+    await stable();
+    expect(el.querySelector('[data-liste-campagnes]')).toBeNull();
+  });
 });

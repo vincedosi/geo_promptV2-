@@ -40,13 +40,6 @@ const ORDRE_SECTIONS: readonly SectionPlan[] = ['cible', 'plateformes', 'impress
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col', 'data-panneau-plan': '' },
   template: `
-    @if (etat.filtre()) {
-      <div data-note-filtre class="mx-4 mb-1 mt-3 flex items-start gap-2 rounded-[6px] border-fin border-default bg-elevated px-3 py-2.5">
-        <mg-icone nom="info" [taille]="14" [trait]="1.5" class="mt-px shrink-0 text-teal" />
-        <span class="text-[12px] leading-[1.5] text-secondary">Un filtre de carte est actif. Il ne s’applique pas à cette stratégie : une stratégie couvre toute la campagne.</span>
-      </div>
-    }
-
     @if (!plan.campagne()) {
       @if (plan.erreur(); as e) { <div data-erreur-plan role="alert" [class]="'mx-4 mt-3 ' + encartErreur">{{ e }}</div> }
       <mg-hall-campagnes />
@@ -56,6 +49,13 @@ const ORDRE_SECTIONS: readonly SectionPlan[] = ['cible', 'plateformes', 'impress
                 class="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-[12px] text-tertiary hover:text-primary">← Choisir une autre campagne</button>
         <span data-titre-plan class="min-w-0 truncate text-[13px] font-medium text-primary">{{ titre() }}</span>
       </div>
+      <!-- A-8 : comme React, campagne ouverte seulement, sous l'en-tête (relecture 2, M-1). -->
+      @if (etat.filtre()) {
+        <div data-note-filtre class="mx-4 mb-3 flex items-start gap-2 rounded-[6px] border-fin border-default bg-elevated px-3 py-2.5">
+          <mg-icone nom="info" [taille]="14" [trait]="1.5" class="mt-px shrink-0 text-teal" />
+          <span class="text-[12px] leading-[1.5] text-secondary">Un filtre de carte est actif. Il ne s’applique pas à cette stratégie : une stratégie couvre toute la campagne.</span>
+        </div>
+      }
       @if (plan.erreur(); as e) { <div data-erreur-plan role="alert" [class]="'mx-4 mb-3 ' + encartErreur">{{ e }}</div> }
       @if (!plan.accesRefuse()) {
         @if (plan.restaure(); as r) {

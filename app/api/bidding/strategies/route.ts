@@ -1,7 +1,8 @@
 /**
  * GET  /api/bidding/strategies — liste les stratégies + métadonnées campagne, la plus récente d'abord.
  *      `?campaign_id=<uuid>` (lot 6, relecture 1) : la SEULE plus récente de cette campagne (`limit(1)`), au lieu de
- *      toutes celles de l'espace — l'étape ⑥ n'en cherche qu'une, et une liste d'espace dépasse `db-max-rows`.
+ *      toutes celles de l'espace — l'étape ⑥ n'en cherche qu'une. Sans paramètre, la liste entière est lue par
+ *      `lireTout` (lot 6, relecture 2) : elle dépasse `db-max-rows` un jour, et échoue alors au lieu de tronquer.
  * POST /api/bidding/strategies — crée une stratégie depuis le wizard A4.7 (5 steps)
  *
  * Eligibilité POST : la campagne doit exister ET son `dsp_source` doit être ≠ 'adform'.
@@ -26,6 +27,13 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { checkCampaignAccess, checkZoneAccess } from '@/lib/campaigns/access';
 import { toJson } from '@/lib/supabase/rpc-json';
+import { lireTout } from '@/lib/supabase/lire-tout';
+
+/**
+ * Plafond de la liste des stratégies sans `?campaign_id=` : au-delà, la route échoue au lieu de tronquer. Une
+ * stratégie par lancement, archivées comprises ; 20 000 est très au-dessus du volume mesuré (2 lignes en local).
+ */
+const PLAFOND_STRATEGIES = 20_000;
 
 export const dynamic = 'force-dynamic';
 
@@ -90,9 +98,29 @@ export async function GET(request: NextRequest) {
   const brut = request.nextUrl.searchParams.get('campaign_id');
   const campagne = brut === null ? null : z.string().uuid().safeParse(brut);
   if (campagne && !campagne.success) return NextResponse.json({ error: 'campaign_id invalide' }, { status: 400 });
-  /** Le filtre facultatif par campagne ; sans lui, la liste d'avant, inchangée. */
-  const borner = <Q extends { eq: (c: string, v: string) => Q; limit: (n: number) => Q }>(q: Q): Q =>
-    (campagne?.success ? q.eq('campaign_id', campagne.data).limit(1) : q);
+  /**
+   * Lit les stratégies d'une requête. Avec `?campaign_id=` : la seule plus récente (`limit(1)`). Sans : TOUTES, par
+   * `lireTout` (relecture 2 du lot 6) — la liste nourrit la partition du hall (React et ⑥ : « Reprendre » / « Modifier »),
+   * et une liste tronquée en silence à 1 000 lignes y classerait une campagne lancée en coquille, avec « Supprimer ».
+   * Au-delà de `PLAFOND_STRATEGIES`, la route ÉCHOUE (500) plutôt que de rendre un début. `id` départage `created_at`
+   * pour que les pages ne se recouvrent pas.
+   */
+  const lire = async (
+    filtrer: <Q extends { in: (c: string, v: string[]) => Q }>(q: Q) => Q,
+  ): Promise<{ data: unknown[]; error: null } | { data: null; error: string }> => {
+    const base = () => filtrer(supabase.from('bidding_strategies').select(SELECT)
+      .order('created_at', { ascending: false }).order('id', { ascending: true }));
+    if (campagne?.success) {
+      const { data, error } = await base().eq('campaign_id', campagne.data).limit(1);
+      return error ? { data: null, error: error.message } : { data: data ?? [], error: null };
+    }
+    try {
+      const { lignes } = await lireTout((de, a) => base().range(de, a), PLAFOND_STRATEGIES);
+      return { data: lignes, error: null };
+    } catch (e) {
+      return { data: null, error: e instanceof Error ? e.message : String(e) };
+    }
+  };
 
   const supabase = createAdminClient();
 
@@ -130,23 +158,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ strategies: [] });
     }
 
-    const { data, error } = await borner(supabase
-      .from('bidding_strategies')
-      .select(SELECT)
-      .in('campaign_id', accessibleCampaignIds)
-      .order('created_at', { ascending: false }));
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ strategies: data ?? [] });
+    const { data, error } = await lire((q) => q.in('campaign_id', accessibleCampaignIds));
+    if (error !== null) return NextResponse.json({ error }, { status: 500 });
+    return NextResponse.json({ strategies: data });
   }
 
-  const { data, error } = await borner(supabase
-    .from('bidding_strategies')
-    .select(SELECT)
-    .order('created_at', { ascending: false }));
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ strategies: data ?? [] });
+  // super_admin : toutes les organisations, comme avant.
+  const { data, error } = await lire((q) => q);
+  if (error !== null) return NextResponse.json({ error }, { status: 500 });
+  return NextResponse.json({ strategies: data });
 }
 
 export async function POST(request: NextRequest) {

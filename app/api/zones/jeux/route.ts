@@ -125,8 +125,9 @@ export async function GET(request: NextRequest) {
   let requete = supabase
     .from('zone_sets')
     // UNE chaîne littérale : supabase-js déduit le type des lignes de la valeur, une concaténation le perd. Le nom de
-    // la zone d'un jeu de zone vient par la clé étrangère (jointure PostgREST) : une requête, pas N.
-    .select('id, nom, description, version, created_at, construit_le, population_exposee, n_cp_retenus, taux_utile, mode_plan, seuil_couverture_cp, type, custom_geo_zone_id, zone:custom_geo_zones(name)')
+    // la zone d'un jeu de zone vient par la clé étrangère (jointure PostgREST) : une requête, pas N. Le nombre
+    // d'extractions aussi (agrégat `count` embarqué, index `idx_zse_jeu`) : ⑥ grise d'emblée un jeu jamais figé.
+    .select('id, nom, description, version, created_at, construit_le, population_exposee, n_cp_retenus, taux_utile, mode_plan, seuil_couverture_cp, type, custom_geo_zone_id, zone:custom_geo_zones(name), extractions:zone_set_extractions(count)')
     .eq('org_id', profile.organization_id)
     // Les brouillons d'atelier ne sont pas des jeux : ils n'ont pas de nom, ils
     // se purgent seuls, et les lister ferait croire à une bibliothèque pleine
@@ -145,8 +146,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Liste des jeux indisponible.' }, { status: 500 });
   }
 
-  // L'objet imbriqué est aplati en `zone_nom` (null pour un jeu risque) : la liste reste plate pour ses clients.
-  const jeux = (data ?? []).map(({ zone, ...jeu }) => ({ ...jeu, zone_nom: zone?.name ?? null }));
+  // Les objets imbriqués sont aplatis — `zone_nom` (null pour un jeu risque), `n_extractions` — : la liste reste plate.
+  const jeux = (data ?? []).map(({ zone, extractions, ...jeu }) => ({
+    ...jeu, zone_nom: zone?.name ?? null, n_extractions: extractions?.[0]?.count ?? 0,
+  }));
   return NextResponse.json({ jeux }, { headers: { 'Cache-Control': 'no-store' } });
 }
 

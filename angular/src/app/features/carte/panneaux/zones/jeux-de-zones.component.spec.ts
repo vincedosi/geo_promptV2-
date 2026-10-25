@@ -18,7 +18,7 @@ class Module {}
 const jeu = (p: Partial<JeuListe>): JeuListe => ({
   id: JEU, type: 'risque', nom: 'Vallée de la chimie', description: null, version: 2, created_at: '', construit_le: null,
   population_exposee: null, n_cp_retenus: 1234, taux_utile: 75.94, mode_plan: 'pondere', seuil_couverture_cp: 20,
-  custom_geo_zone_id: null, zone_nom: null, ...p,
+  custom_geo_zone_id: null, zone_nom: null, n_extractions: 1, ...p,
 });
 const ZONE_JEU = '16fd2706-8baf-433b-82eb-8c7fada847da';
 
