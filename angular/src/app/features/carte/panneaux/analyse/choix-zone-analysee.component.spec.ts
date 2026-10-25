@@ -45,6 +45,23 @@ describe('mg-choix-zone-analysee', () => {
     await cliquer('[data-ouvrir]');
     expect(lister).toHaveBeenCalledTimes(1);
   });
+  it('`revision` change (zone créée en ③) : aucune requête, puis la PROCHAINE ouverture relit la liste (lot 5, T14)', async () => {
+    const { f, lister, reponses, stable, cliquer, el } = monter();
+    await cliquer('[data-ouvrir]');
+    reponses[0].next({ zones: [zone(Z1, 'Lycées à 5 km')] });
+    await cliquer('[data-fermer]');
+    f.componentRef.setInput('revision', 1);
+    await stable();
+    expect(lister).toHaveBeenCalledTimes(1);
+    await cliquer('[data-ouvrir]');
+    expect(lister).toHaveBeenCalledTimes(2);
+    reponses[1].next({ zones: [zone(Z1, 'Lycées à 5 km'), zone('b', 'CP Marseille')] });
+    await stable();
+    expect(el.querySelectorAll('[data-zone]')).toHaveLength(2);
+    await cliquer('[data-fermer]');
+    await cliquer('[data-ouvrir]');
+    expect(lister).toHaveBeenCalledTimes(2);
+  });
   it('filtre par nom, sans casse ni accents ; choisir émet l’id et referme', async () => {
     const { reponses, stable, cliquer, el, f, choisies } = monter();
     await cliquer('[data-ouvrir]');

@@ -321,7 +321,9 @@ la plomberie ; l'écran est T10, la couche T11.
   ouvertes ; l'effet repasse quand le registre arrive et quand un choix change (aucune requête pour un seuil
   territorial, une au relâchement pour un cercle).
 - **Pastille ⑤** : `?zoneJeu=` ou `?jeu=` (`suivreJeuRenseigne`, `carte.fournisseurs.ts`).
-- **Réutilisé sans copie** : `mg-choix-zone-analysee` (entrées `libelle`, `proposee`, sortie `lue` ajoutées, ④ inchangé),
+- **Réutilisé sans copie** : `mg-choix-zone-analysee` (entrées `libelle`, `proposee`, `revision`, sortie `lue` ajoutées, ④ inchangé ;
+  `revision` = `OutilsCarteService.revisionZones()` : une zone créée en ③ après une première lecture de la liste y entre à la
+  PROCHAINE ouverture, sans requête d'ici là — T14 : elle manquait à ⑤ jusqu'au rechargement),
   `mg-choix-cible`, `mg-mode-plan`, `mg-dilution` (entrées FACULTATIVES `titre`, `sujet`, `accord`, `complement`, `libelleCurseur` :
   défauts = le texte du module risque, son spec inchangé et vert), `mg-kpi`, `mg-entete-section`.
 

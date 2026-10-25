@@ -10,6 +10,7 @@ import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { ParcoursService } from '../../etat/parcours.service';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
 import { NOM_PLATEFORME } from '../../logique/jeu/ecran';
+import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { PLATEFORMES, type Plateforme } from '../../logique/jeu/plateformes';
 import { ChoixCibleComponent } from '../analyse/choix-cible.component';
 import { ChoixZoneAnalyseeComponent } from '../analyse/choix-zone-analysee.component';
@@ -58,7 +59,7 @@ const LARGEUR_COLONNES = 900;
   template: `
     <mg-entete-section libelle="Source" />
     <div class="flex flex-col gap-3 px-4 py-3">
-      <mg-choix-zone-analysee libelle="Zone" [zoneId]="jeu.zoneId()" [proposee]="proposee()" [relire]="jeu.relectureZone()" (choisie)="jeu.choisirZone($event)" (lue)="zoneLue($event)" />
+      <mg-choix-zone-analysee libelle="Zone" [zoneId]="jeu.zoneId()" [proposee]="proposee()" [relire]="jeu.relectureZone()" [revision]="outils.revisionZones()" (choisie)="jeu.choisirZone($event)" (lue)="zoneLue($event)" />
       @if (jeu.zoneId() && (population() !== null || surface() !== null)) {
         <div data-forme class="font-mono text-[11px] text-secondary">{{ formeTexte() }}</div>
       }
@@ -102,6 +103,8 @@ export class PanneauJeuComponent {
   protected readonly jeu = inject(JeuZonesService);
   protected readonly parcours = inject(ParcoursService);
   private readonly analyse = inject(ZoneAnalyseeService);
+  /** `revisionZones` : une zone créée en ③ (ou supprimée) entre dans la liste de « Zone » à sa prochaine ouverture. */
+  protected readonly outils = inject(OutilsCarteService);
 
   protected readonly plateformes = PLATEFORMES;
   protected readonly encartErreur = ENCART_ERREUR;

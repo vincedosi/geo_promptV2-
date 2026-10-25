@@ -20,8 +20,10 @@ import { ZonesCustomApi } from '../data/zones-custom.api';
 import { CatalogueIndicateursService } from '../etat/catalogue-indicateurs.service';
 import { JeuZonesService } from '../etat/jeu-zones.service';
 import { ParcoursService } from '../etat/parcours.service';
+import { PileEchapService } from '../etat/pile-echap.service';
 import { ZoneAnalyseeService } from '../etat/zone-analysee.service';
 import type { PlateformeGeo } from '../logique/jeu/plateformes';
+import { OutilsCarteService } from '../outils/outils-carte.service';
 
 /**
  * Le banc des écrans de ⑤ Jeu de zones (lot 5, T10-T12) : l'état RÉEL (`JeuZonesService`, `ZoneAnalyseeService`,
@@ -79,7 +81,7 @@ function fournisseursJeu(lister: () => unknown = () => NEVER): Array<Provider | 
     { provide: CatalogueIndicateursService, useValue: { charger: () => of([]) } },
     { provide: ProfilRisqueApi, useValue: { cibles: () => NEVER } },
     // La carte de ⑤ (T11) : aucune carte publiée dans le banc, donc rien n'est peint ni lu tant qu'on ne regarde rien.
-    JeuCarteService, CouchesCarteService, EtatCarteService,
+    JeuCarteService, CouchesCarteService, EtatCarteService, OutilsCarteService, PileEchapService,
     { provide: AnnonceService, useValue: { annoncer: () => undefined } },
     { provide: IrisApi, useValue: { urlTuiles: () => '/api/tiles/iris/{z}/{x}/{y}' } },
     { provide: ContoursZonesService, useValue: { zones: () => NEVER } },

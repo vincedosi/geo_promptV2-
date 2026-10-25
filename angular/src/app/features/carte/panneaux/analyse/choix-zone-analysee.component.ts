@@ -104,6 +104,11 @@ export class ChoixZoneAnalyseeComponent {
   readonly proposee = input<string | null>(null);
   /** Change après un recalcul de la zone choisie : la liste est relue (jamais pour sa valeur initiale). */
   readonly relire = input(0);
+  /**
+   * Change quand la liste des zones de l'espace a changé AILLEURS (zone créée en ③, supprimée dans « Mes zones ») :
+   * la PROCHAINE ouverture relit la liste — aucune requête d'ici là (T14 du lot 5 : une zone créée en ③ manquait à ⑤).
+   */
+  readonly revision = input(0);
   /** L'id choisi, ou `null` (« Retirer »). */
   readonly choisie = output<string | null>();
   /** La ligne de la zone choisie, dès que la liste la connaît (une fois par zone et par lecture). */
@@ -115,6 +120,8 @@ export class ChoixZoneAnalyseeComponent {
   protected readonly PASTILLE_INACTIVE = PASTILLE_INACTIVE;
 
   protected readonly ouvert = signal(false);
+  /** La liste lue est périmée par `revision` : la prochaine ouverture la relit. */
+  private perimee = false;
   protected readonly filtre = signal('');
   private readonly lecture = new LectureAnnulable<ZoneCustomResume[]>((e) => (e === SANS_ESPACE ? SANS_ESPACE : messageErreurRequete(e)));
   protected readonly zones = computed(() => this.lecture.resultat() ?? []);
@@ -161,6 +168,7 @@ export class ChoixZoneAnalyseeComponent {
     surChangement(() => this.relire(), () => {
       if (this.zoneId()) this.lecture.lancer(this.source());
     });
+    surChangement(() => this.revision(), () => { this.perimee = true; });
     // Le patron de « Mes zones » : une lecture, seulement si un seuil sur territoires est listé.
     effect(() => {
       if (this.seuilListe()) untracked(() => this.lectureIndicateurs.chargerUneFois(() => this.catalogue.charger()));
@@ -169,7 +177,9 @@ export class ChoixZoneAnalyseeComponent {
 
   protected ouvrir(): void {
     this.ouvert.set(true);
-    this.charger();
+    if (!this.perimee) return this.charger();
+    this.perimee = false;
+    this.lecture.lancer(this.source());
   }
 
   protected choisir(id: string): void {
