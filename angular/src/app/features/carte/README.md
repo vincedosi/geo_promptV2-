@@ -54,12 +54,13 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   Chaque panneau est monté à la PREMIÈRE visite de son étape puis gardé (`invisible` + `inert`) : revenir ne relit rien.
 - **La boîte à outils** (`mg-boite-outils`) : Mes analyses, Mes zones, Fond de carte, Légende (bascule), Aide (celle de
   l'étape courante + raccourcis), Réglages (apparence, back office). Un tiroir à la fois, Échap le ferme.
-- **Dans la barre** : « Script bidding DV360 » (lien `?customZone=`) et « Plan média (n) » quand ils ont un objet,
+- **Dans la barre** : « Script bidding DV360 » (lien `?customZone=` ; masqué aux étapes ⑥-⑧, la V1 n'y fait pas de
+  custom bidding) et « Plan média (n) » quand ils ont un objet,
   « Tout effacer », mode immersif (sortie : bouton de la boîte à outils ou Échap), thème, session et espace.
 - ⑤ Jeu de zones (lot 5) a son panneau (`panneaux/jeu/`, voir plus bas) : React n'a rien d'équivalent hors du module
   risque. ⑥ Plan (lot 6) a le sien (`panneaux/plan/`, voir plus bas). ⑦-⑧ affichent « Bientôt dans le parcours. »,
-  avec un lien vers l'écran React si `urlApplicationReact` est posé ; le sélecteur de campagne de la barre y écrit déjà
-  `?campagne=`. Les outils de ③ et ④ n'ont pas bougé : rayons et isochrones comme types de zone de
+  avec un lien vers l'écran React si `urlApplicationReact` est posé — il porte la campagne courante (`&campaign=`, lu
+  par le deep-link React) ; le sélecteur de campagne de la barre y écrit déjà `?campagne=`. Les outils de ③ et ④ n'ont pas bougé : rayons et isochrones comme types de zone de
   ③, couverture par territoire dans ④, c'est aux lots 4-5.
 - **La pastille « renseignée »** d'une étape (`etatsEtapes`, `logique/parcours.ts`, table `RENSEIGNEE_PAR`) : ① un
   filtre posé, ② un jeu de ② affiché (`DonneesAfficheesService`, la même source que les pastilles des lignes ; ni OOH
@@ -361,20 +362,57 @@ la plomberie ; l'écran est T10, la couche T11.
 | `panneaux/jeu/bibliotheque-jeux.component.ts` | `mg-bibliotheque-jeux` : jeux de l'espace (les deux types, badge neutre), lus à la première ouverture (`GET /api/zones/jeux?type=tous` — sans paramètre, la route ne rend que les jeux risque) ; relue quand un jeu adopté (enregistré, renommé) n'y figure pas ; ouvrir, supprimer (`mg-dialogue-suppression-zone`, `titre` / `texte`) |
 | `etat/ouvrir-jeu.ts` | `ouvrirJeuListe` : un jeu risque → module (`risques`), un jeu de zone → ⑤ `?jeu=` ; partagé avec « Mes zones » (`jeux-de-zones.component.ts`, les deux types par `JeuxApi.lister`) |
 
-## ⑥ Plan : campagne, hall, panneau et cible (lot 6, T3-T4, 2026-10-25)
+## ⑥ Plan (lot 6, T1-T7, 2026-10-25)
 
-V1 = contrôle des impressions et du budget dépensé (spec § 19). L'état vit dans `etat/plan-campagne.service.ts`
-(fourni par la page, `FOURNISSEURS_PLAN`) ; les écrans n'écrivent `?campagne=` que par lui.
+V1 = contrôle des impressions et du budget dépensé (spec § 19). Deux services, fournis par la PAGE
+(`FOURNISSEURS_PLAN`), jamais à la racine :
+
+- **`etat/plan-campagne.service.ts`** (`PlanCampagneService`) — l'état de la campagne courante. Les écrans n'écrivent
+  `?campagne=` que par lui (`choisirCampagne`, `lireUuid`). Préremplissage SÉQUENTIEL annulable : campagne →
+  stratégie la plus récente (et sa cible, relue dans `in_zone_weights` : une campagne lancée rouverte retrouve son jeu
+  et son extraction) → brouillon serveur (il PRIME) → canaux. Autosave débouncé (1 s). `catalogue` et `libelleCanal`
+  (le catalogue résolu, une fois pour tous les écrans), `extraction` (résumé figé du choix), `previsions` et `totaux`
+  (la SEULE source des chiffres : section Impressions, bandeau, pied, PATCH), `cpDe` / `chargerCp` (CP d'une
+  extraction, mis en cache par clé). `jeterBrouillonsDe` est le SEUL chemin pour jeter un brouillon serveur
+  (« Repartir de zéro », lancement réussi, campagne ouverte ou quittée) ; la remise est tenue PAR CAMPAGNE.
+- **`etat/lancement-campagne.service.ts`** (`LancementCampagneService`) — la séquence du lancement, son état et ses
+  notifications ; il survit à la destruction du pied (autre campagne, autre étape). Un lancement à la fois. La logique
+  pure est dans `etat/lancement-campagne.ts` : `etatLancement` (validité, motifs en vouvoiement, demande),
+  `lancerCampagne` (PATCH identité → `rattacher` → PATCH stratégie → PUT canaux avec `cpm_prevus`, le premier échec
+  arrête tout ; un échec après `rattacher` porte la stratégie écrite), `messageEtape` (codes anglais des routes
+  traduits), `messageLancement` (« N CP au plan, dont M retenus · … »).
+
+**Le prévu par CP et par plateforme** (« Voir par CP ») = impressions de la plateforme × multiplicateur ÷ Σ
+multiplicateurs de SES CP. Ce n'est PAS `campaign_cp_rollup.planned_share` (agrégat campagne entière) : ⑧ le
+recalculera par la même formule (contrat écrit dans `ARCHITECTURE.md`, spec § 19.4).
 
 | Fichier | Rôle |
 |---|---|
 | `parcours/choix-campagne.component.ts` | `mg-choix-campagne`, dans la barre aux étapes `plan`, `activation`, `live` (`ETAPES_CAMPAGNE`) : liste lue au premier clic (relue si la campagne courante n'y est pas), « Nouvelle campagne » en tête (`creerCampagne`), nom de la campagne lue ; liste dans l'arbre, fermée à la sortie du focus ou sur Échap (aucun écouteur de document) |
-| `panneaux/plan/panneau-plan.component.ts` | `mg-panneau-plan` : note « filtre de carte » (A-8) ; sans campagne, le hall (et « introuvable dans cet espace ») ; avec, « ← Choisir une autre campagne », « Création / Modification — <nom> », bannière « Brouillon restauré », trois `mg-entete-section` repliables (la plus basse dépliée = `current_step` du brouillon, A-2) et le pied ; un refus de rôle est dit, sans sections |
-| `panneaux/plan/hall-campagnes.component.ts` | `mg-hall-campagnes`, port de `CreationHall` : campagnes → stratégies → brouillons en UNE chaîne séquentielle à chaque montage ; « Reprendre une création » (coquilles sans stratégie, badge brouillon, suppression confirmée), « Modifier une campagne lancée » ; mode démo (A-7) |
+| `panneaux/plan/panneau-plan.component.ts` | `mg-panneau-plan` : note « filtre de carte » (A-8, « le plan couvre toute la campagne ») ; sans campagne, le hall (et « introuvable dans cet espace ») ; avec, « ← Choisir une autre campagne », « Création / Modification — <nom> », bannière « Brouillon restauré », bandeau, trois `mg-entete-section` repliables (la plus basse dépliée = `current_step` du brouillon, A-2) et le pied ; sections grisées et inertes pendant le lancement de la campagne ouverte (V-9) ; un refus de rôle est dit, sans sections |
+| `panneaux/plan/hall-campagnes.component.ts` | `mg-hall-campagnes`, port de `CreationHall` : campagnes → stratégies → brouillons en UNE chaîne séquentielle à chaque montage ; « Reprendre une création » et « Modifier une campagne lancée » (`partitionHall`) ; badge brouillon, suppression confirmée ; mode démo (A-7) |
 | `panneaux/plan/section-cible.component.ts` | `mg-section-cible` (T4) : identité de `StepCible` (nom, annonceur, produit, par `modifier`), organisations de la campagne (lues une fois par campagne, après le préremplissage) ; panier et indicateur à seuil non portés (A-9) |
-| `panneaux/plan/source-plan.component.ts` | `mg-source-plan` (T4), port étendu de `SourcePlan` (A-3) : jeux des deux types (badge Zone / Risque) lus après le préremplissage, versions d'un jeu au clic (jamais relues : une extraction est figée), jeu sans extraction grisé d'emblée (`n_extractions` de la liste) ; proposition dont la version n'existe plus dite ; choisir une version = `poserExtraction` (jeu + extraction, plateformes re-pré-cochées, budgets gardés, A-5) ; `?jeu=&x=` de ⑤ PROPOSÉ ; chiffres figés et phrase du plan |
-| `logique/plan/plateformes-canaux.ts` | `poserExtraction` (T4) : la mise à jour pure du brouillon au choix d'une extraction |
-| `testing/plan-factice.ts` | la doublure de `PlanCampagneService` des specs d'écran |
+| `panneaux/plan/source-plan.component.ts` | `mg-source-plan` (T4), port étendu de `SourcePlan` (A-3) : jeux des deux types (badge Zone / Risque) lus après le préremplissage, versions d'un jeu au clic (jamais relues : une extraction est figée), jeu sans extraction grisé d'emblée (`n_extractions` de la liste) ; proposition dont la version n'existe plus dite ; choisir une version = `poserExtraction` (jeu + extraction, plateformes re-pré-cochées, budgets gardés, A-5) ; `?jeu=&x=` de ⑤ PROPOSÉ ; chiffres figés (« N CP au plan, dont M retenus », V-4), résumé par plateforme (« Toutes plateformes au code postal » pour un jeu risque, V-7), phrase du plan selon le type (classes pour un jeu risque, multiplicateurs de l'extraction pour un jeu de zone, V-3) |
+| `panneaux/plan/section-plateformes.component.ts` | `mg-section-plateformes` (T5), port de `StepCanaux` sans ad server ni absorption : DSP et réseaux disponibles (connectés, ou démo), une ligne € par plateforme cochée, budget global = `totaux().budget` ; maille et taux d'utile de l'extraction en face de chaque plateforme (`resumeDuCanal`) ; plateformes de l'extraction non cochables dites ; accordéons de liaison ; récapitulatif et coche « Je confirme ces liaisons » (réinitialisée par `linksSelectionHash`) ; période |
+| `panneaux/plan/liaison-canal.component.ts`, `liaison-dv360.component.ts`, `liaison-manuelle.component.ts`, `recap-canaux.component.ts` | la liaison d'une plateforme : cascade DV360 annonceur → campagne → insertion order (`GET /api/dsp/dv360/resources`) si DV360 est connecté, saisie manuelle sinon, récapitulatif du câblage |
+| `panneaux/plan/section-impressions.component.ts` | `mg-section-impressions` (T5) : CPM prévu par plateforme, impressions prévues (budget ÷ CPM × 1 000), maille de l'extraction ou « Hors de l'extraction » (accepté, V-6) ; « Voir par CP » au clic pour une plateforme au CP (jeu risque : toutes, sur le plan CP entier), 50 lignes puis « Voir tout » ; total et CPM manquants. Le même fichier porte `mg-bandeau-plan` (budget, impressions, CPM moyen, plateformes, « CP au plan » avec « dont M retenus ») |
+| `panneaux/plan/pied-lancement.component.ts` | `mg-pied-lancement` (T6) : récapitulatif, motifs de blocage (et « Un lancement est en cours sur une autre campagne. »), bouton « Créer la campagne → » (« Mettre à jour le plan → » en Modification, V-5), issue (« ✓ Campagne créée » / « ✓ Plan mis à jour », message, « Préparer l'activation → ⑦ », « Modifier et relancer »), échec nommé par étape ; affiche et déclenche, l'orchestration est au service |
+| `panneaux/plan/styles-plan.ts` | classes partagées : `SAISIE*`, `CTA` (pied et hall), `TEXTE_SUCCES`, `CADRE_LIAISON` |
+| `logique/plan/brouillon.ts` | `ProgDraft` et la logique copiée de React (`draftTotalBudget`, `linksSelectionHash`, `serializeDraft`…, `fmtEUR`, `fmtDateShort`) ; `fmtCpm` (Angular seul) |
+| `logique/plan/canaux.ts`, `liens-plateformes.ts` | copies de `lib/campaigns/{channels,platform-links}.ts` |
+| `logique/plan/impressions.ts` | `impressionsPrevues` (= `computeForecast`), `previsions`, `totauxPrevus` (CPM moyen pondéré), `repartitionParCp` (plus forts restes : la somme retombe sur le total) |
+| `logique/plan/plateformes-canaux.ts` | `CANAL_DE_PLATEFORME`, `preselectionDepuisExtraction`, `poserExtraction` (T4), `utilePlateforme` et `resumeDuCanal` (le résumé d'un canal coché dans l'extraction ; jeu risque = toutes plateformes au CP, V-7) |
+| `logique/plan/preremplissage.ts` | `remplirIdentite`, `remplirDepuisStrategie` (CPM, dates, mode, et la cible via `cibleDeStrategie`), `remplirCanaux` |
+| `logique/plan/saisie.ts` | `basculerPlateforme`, `lireMontant`, `poserMontant` |
+| `logique/plan/partition.ts` | `partitionHall`, copie de `partitionCampaigns` réduite au hall |
+| `etat/cps-extractions.ts` | `CpsExtractions`, le cache des CP lus des extractions (une lecture par jeu, version, plateforme), composé par `PlanCampagneService` |
+| `etat/erreurs-campagnes.ts` | `MESSAGE_RESERVE_ADMIN`, `classer`, `messageErreurCampagnes` : les échecs sur les campagnes (service, hall, sélecteur, Cible) |
+| `testing/plan-factice.ts` | la doublure de `PlanCampagneService` des specs d'écran (`catalogue`, `previsions`, `totaux` : les vrais calculs) |
+
+**Dupliqué à dessein** (verrouillé par `tests/unit/angular/plan-logique-paritaire.test.ts`, à retirer côté React à la
+bascule) : `brouillon.ts`, `canaux.ts`, `liens-plateformes.ts`, `impressionsPrevues`, `partition.ts`. Sans parité
+automatique, faute de fonction React à importer : `preremplissage.ts`, `etatLancement`, `messageLancement` (leurs specs
+Angular les couvrent ; écarts listés en tête de fichier).
 
 `messageErreurCampagnes` (service) : un 401/403 sur les campagnes se dit « La gestion des campagnes est réservée aux
 administrateurs. » (V1 : super_admin seul) — hall, sélecteur et panneau le disent, jamais en silence.
