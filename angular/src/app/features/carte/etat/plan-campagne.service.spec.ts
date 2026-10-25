@@ -241,6 +241,24 @@ describe('PlanCampagneService — relecture 1', () => {
     o.http.expectNone(`/api/bidding/strategies/drafts/${B1}`);
   });
 
+  it('changer de campagne pendant une sauvegarde en vol : le brouillon de la précédente n’est PAS supprimé, rien ne s’écrit dans la nouvelle', async () => {
+    const o = await ouvrir(`/carte?campagne=${C1}`);
+    await preremplirC1(o);
+    vi.useFakeTimers();
+    o.hote.plan.modifier((d) => ({ ...d, name: 'X' }));
+    vi.advanceTimersByTime(DELAI_AUTOSAVE_MS);
+    const enVol = o.http.expectOne('/api/bidding/strategies/drafts');
+    o.hote.plan.choisirCampagne(C2);
+    o.http.expectOne(`/api/admin/campaigns/${C2}?page=1`);
+    enVol.flush({ draft: { id: B1, current_step: 1, last_saved_at: '2026-10-25T11:00:00Z' } });
+    o.http.expectNone(`/api/bidding/strategies/drafts/${B1}`);
+    expect(o.hote.plan.campagne()).toBe(C2);
+    expect(o.hote.plan.sauveLe()).toBeNull();
+    // L'identifiant de C1 n'est pas devenu celui de C2 : « Repartir de zéro » sur C2 ne supprime pas le brouillon de C1.
+    o.hote.plan.repartirDeZero();
+    o.http.expectNone(`/api/bidding/strategies/drafts/${B1}`);
+  });
+
   it('repartirDeZero pendant la lecture du brouillon serveur : il n’est pas restauré par-dessus', async () => {
     const o = await ouvrir(`/carte?campagne=${C1}`);
     await repondre(o, `/api/admin/campaigns/${C1}?page=1`, campagne(C1, 'Rentrée'));

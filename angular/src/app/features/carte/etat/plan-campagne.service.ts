@@ -106,13 +106,17 @@ export class PlanCampagneService {
   /** L'heure de la dernière sauvegarde réussie (`last_saved_at`). */
   readonly sauveLe: Signal<string | null> = this._sauveLe.asReadonly();
 
-  /** Jeton du PRÉREMPLISSAGE : invalidé à chaque changement de campagne. */
+  /**
+   * Jeton de la CAMPAGNE : invalidé à chaque changement de campagne. Le préremplissage et la sauvegarde d'une campagne
+   * quittée ne s'écrivent plus dans l'état de la suivante — mais rien n'est supprimé : son brouillon reste valide.
+   */
   private jeton = 0;
   /**
-   * Génération du BROUILLON : invalidée au changement de campagne ET par `repartirDeZero`. Une sauvegarde déjà partie
-   * ou un brouillon serveur en cours de lecture d'une génération passée ne s'appliquent plus (relecture 1).
+   * Remise à zéro du BROUILLON : invalidée par `repartirDeZero` SEUL. Une sauvegarde déjà partie, ou un brouillon serveur
+   * en cours de lecture, d'avant la remise ne s'appliquent plus, et la ligne recréée par la sauvegarde est supprimée
+   * (relecture 1). Un changement de campagne ne la touche pas : sinon il supprimerait le brouillon en vol de la précédente.
    */
-  private generation = 0;
+  private remise = 0;
   private chargement: Subscription | null = null;
   private minuterie: ReturnType<typeof setTimeout> | null = null;
   private brouillonId: string | null = null;
@@ -160,7 +164,7 @@ export class PlanCampagneService {
   /** « Repartir de zéro » : le brouillon serveur est jeté, le défaut repart, prérempli de l'identité de la campagne. */
   repartirDeZero(): void {
     this.arreterMinuterie();
-    this.generation++;
+    this.remise++;
     const id = this.brouillonId;
     this.brouillonId = null;
     if (id) this.api.supprimerBrouillon(id).subscribe({ error: () => undefined });
@@ -223,7 +227,7 @@ export class PlanCampagneService {
   /** Campagne → stratégie → brouillon → canaux, une requête à la fois, dans UN abonnement annulable. */
   private preremplir(id: string): void {
     const jeton = this.jeton;
-    const generation = this.generation;
+    const remise = this.remise;
     const enCours = () => jeton === this.jeton;
     this.chargement = this.api.campagne(id).pipe(
       catchError((e: unknown) => throwError(() => classer(e))),
@@ -242,7 +246,7 @@ export class PlanCampagneService {
       tap((s) => { if (s) this._brouillon.update((d) => remplirDepuisStrategie(d, s)); }),
       switchMap(() => this.api.brouillons(id).pipe(catchError(() => of({ drafts: [] })))),
       // « Repartir de zéro » pendant la lecture : le brouillon jeté n'est pas restauré par-dessus.
-      tap(({ drafts }) => { if (generation === this.generation) this.restaurer(drafts[0]); }),
+      tap(({ drafts }) => { if (remise === this.remise) this.restaurer(drafts[0]); }),
       switchMap(() => this.api.canaux(id).pipe(catchError((e: unknown) => throwError(() => classer(e))))),
     ).subscribe({
       next: (c) => {
@@ -283,24 +287,27 @@ export class PlanCampagneService {
     const campagne = this._campagne();
     if (!campagne || !this._prerempli() || this._accesRefuse() || this.detruit) return;
     this.arreterMinuterie();
-    const generation = this.generation;
+    const jeton = this.jeton;
+    const remise = this.remise;
     this.minuterie = setTimeout(() => {
       this.minuterie = null;
-      this.sauver(campagne, generation).subscribe({ error: () => undefined });
+      this.sauver(campagne, jeton, remise).subscribe({ error: () => undefined });
     }, DELAI_AUTOSAVE_MS);
   }
 
   /**
-   * L'écriture du brouillon courant. Revenue d'une génération passée (campagne changée, ou « Repartir de zéro »
-   * pendant le vol) : son identifiant n'est pas repris, et la ligne qu'elle a recréée APRÈS la suppression est rejetée.
+   * L'écriture du brouillon courant. Revenue après « Repartir de zéro » : la ligne qu'elle a recréée APRÈS la suppression
+   * est rejetée. Revenue après un changement de campagne : seulement ignorée — c'est le brouillon VALIDE de la campagne
+   * quittée, et son identifiant ou son heure ne s'écrivent pas dans l'état de la nouvelle.
    */
-  private sauver(campagne: string, generation: number): Observable<unknown> {
+  private sauver(campagne: string, jeton: number, remise: number): Observable<unknown> {
     const corps = { campaign_id: campagne, current_step: this._etape(), draft_data: serializeDraft(this._brouillon()) };
     return this.api.sauverBrouillon(corps).pipe(tap(({ draft }) => {
-      if (generation !== this.generation) {
+      if (remise !== this.remise) {
         if (!this.detruit) this.api.supprimerBrouillon(draft.id).subscribe({ error: () => undefined });
         return;
       }
+      if (jeton !== this.jeton) return;
       this.brouillonId = draft.id;
       this._sauveLe.set(draft.last_saved_at);
     }));
@@ -312,7 +319,6 @@ export class PlanCampagneService {
     this.chargement = null;
     this.arreterMinuterie();
     this.jeton++;
-    this.generation++;
   }
 
   private arreterMinuterie(): void {
