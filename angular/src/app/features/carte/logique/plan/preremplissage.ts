@@ -6,8 +6,11 @@
  *
  * Écarts à React, tous hors V1 (spec § 19) : la stratégie ne repréremplit ni `pressure` (courbe d'enchère, non portée)
  * ni `cibles` (panier de zones, A-9) ; ils gardent leur valeur. Les canaux remplissent aussi `cpmPrevus` (A-10).
+ * Écart de fond (revue finale, I-1) : la stratégie d'une campagne LANCÉE rend sa cible — le jeu et l'extraction que
+ * `rattacher` a écrits dans `in_zone_weights` (`lib/zones/plan-extraction.ts`). React ne restaure pas `jeuZones` ;
+ * sans elle, une campagne lancée rouverte (le lancement jette le brouillon serveur) n'avait plus de cible.
  */
-import type { ProgDraft } from './brouillon';
+import type { JeuDuPlan, ProgDraft } from './brouillon';
 import type { StoredChannels } from './canaux';
 
 /** Ce qu'il faut d'une campagne pour préremplir (`dsp_campaigns`). */
@@ -25,6 +28,8 @@ export interface StrategieLue {
   start_date: string | null;
   end_date: string | null;
   execution_mode: ProgDraft['executionMode'] | null;
+  /** La SOURCE du plan écrite par `rattacher` ; seul le mode `zone_set` avec extraction est relu. */
+  in_zone_weights?: Record<string, unknown> | null;
 }
 
 const jour = (d: string | null) => (d ? d.slice(0, 10) : '');
@@ -41,7 +46,10 @@ export function remplirIdentite(d: ProgDraft, c: IdentiteCampagne): ProgDraft {
   };
 }
 
-/** CPM, dates et mode d'exécution d'une stratégie déjà enregistrée (re-programmation) : ils écrasent, comme React. */
+/**
+ * CPM, dates et mode d'exécution d'une stratégie déjà enregistrée (re-programmation) : ils écrasent, comme React. La
+ * cible aussi, quand la stratégie vient d'une extraction (I-1) ; le brouillon serveur, relu APRÈS, garde la priorité.
+ */
 export function remplirDepuisStrategie(d: ProgDraft, s: StrategieLue): ProgDraft {
   return {
     ...d,
@@ -49,6 +57,24 @@ export function remplirDepuisStrategie(d: ProgDraft, s: StrategieLue): ProgDraft
     startDate: s.start_date ? jour(s.start_date) : d.startDate,
     endDate: s.end_date ? jour(s.end_date) : d.endDate,
     executionMode: s.execution_mode ?? d.executionMode,
+    jeuZones: cibleDeStrategie(s.in_zone_weights) ?? d.jeuZones,
+  };
+}
+
+/**
+ * Le jeu et l'extraction d'un plan rattaché depuis une extraction (`source` de `planExtraction` : `mode: 'zone_set'`,
+ * `zone_set_id`, `zone_set_nom`, `zone_set_version`, `extraction_id`, `extraction_version`). Le chemin vivant de
+ * `rattacher` (sans extraction) et les autres modes rendent `null` : ⑥ ne cible qu'une extraction (A-9).
+ */
+export function cibleDeStrategie(source: Record<string, unknown> | null | undefined): JeuDuPlan | null {
+  if (!source || source['mode'] !== 'zone_set') return null;
+  const { zone_set_id: id, zone_set_nom: nom, zone_set_version: version, extraction_id: xId, extraction_version: xVersion } = source;
+  if (typeof id !== 'string' || typeof xId !== 'string' || typeof xVersion !== 'number') return null;
+  return {
+    id,
+    nom: typeof nom === 'string' ? nom : '',
+    version: typeof version === 'number' ? version : 0,
+    extraction: { id: xId, version: xVersion },
   };
 }
 

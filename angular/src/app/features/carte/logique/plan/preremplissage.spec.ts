@@ -1,5 +1,5 @@
 import { DEFAULT_PROG_DRAFT } from './brouillon';
-import { remplirCanaux, remplirDepuisStrategie, remplirIdentite } from './preremplissage';
+import { cibleDeStrategie, remplirCanaux, remplirDepuisStrategie, remplirIdentite } from './preremplissage';
 
 const CAMP = { name: 'Rentrée', advertiser: 'Annonceur', product: null, date_start: '2026-11-01T00:00:00Z', date_end: null };
 
@@ -20,6 +20,27 @@ describe('remplirDepuisStrategie', () => {
     const d = { ...DEFAULT_PROG_DRAFT, startDate: '2026-01-01', pressure: 2.9 };
     const r = remplirDepuisStrategie(d, { forecast_cpm: 4.2, start_date: null, end_date: '2026-03-31', execution_mode: null });
     expect(r).toMatchObject({ forecastCpm: 4.2, startDate: '2026-01-01', endDate: '2026-03-31', executionMode: 'auto', pressure: 2.9 });
+  });
+});
+
+describe('remplirDepuisStrategie — la cible d’une campagne lancée (revue finale, I-1)', () => {
+  const SOURCE = {
+    mode: 'zone_set', zone_set_id: 'j1', zone_set_nom: 'Lycées', zone_set_version: 3, mode_plan: 'pondere',
+    extraction_id: 'x1', extraction_version: 2, plateformes: null,
+  };
+  const S = { forecast_cpm: null, start_date: null, end_date: null, execution_mode: null };
+
+  it('in_zone_weights d’une extraction : le jeu et l’extraction reviennent au brouillon', () => {
+    expect(remplirDepuisStrategie(DEFAULT_PROG_DRAFT, { ...S, in_zone_weights: SOURCE }).jeuZones)
+      .toEqual({ id: 'j1', nom: 'Lycées', version: 3, extraction: { id: 'x1', version: 2 } });
+  });
+  it('chemin vivant de rattacher (sans extraction), autre mode ou rien : la cible courante est gardée', () => {
+    const d = { ...DEFAULT_PROG_DRAFT, jeuZones: { id: 'j0', nom: 'Avant', version: 1 } };
+    const { extraction_id: _x, extraction_version: _v, ...vivant } = SOURCE;
+    for (const in_zone_weights of [vivant, { ...SOURCE, mode: 'indicator' }, null, undefined]) {
+      expect(remplirDepuisStrategie(d, { ...S, in_zone_weights }).jeuZones).toBe(d.jeuZones);
+    }
+    expect(cibleDeStrategie({ ...SOURCE, extraction_version: '2' })).toBeNull();
   });
 });
 
