@@ -278,6 +278,14 @@ C'est l'étape RQ ④ rendue générale, telle que décidée le 25/09.
 
 ### ⑤ Plan — ce que je compte acheter
 
+> **V1 (Vincent, 25/10) — § 19 fait foi sur cette section** (numérotée ⑥ depuis
+> le § 16.1). La cible est l'**extraction figée** d'un jeu ; les sections
+> **Pression** (multiplicateur d'enchère, CPM min/max, diffusion) et
+> **Stratégie** (objectif, KPI, capping, rythme, autonomie) sont **retirées**,
+> l'ad server aussi ; une section **Impressions prévues** (par plateforme, par CP
+> quand la plateforme achète au CP) les remplace. Les lignes ci-dessous qui les
+> citent sont caduques.
+
 Le wizard React Cible › Canaux › Pression › Stratégie › Lancement, replié en
 UNE étape à sections (il n'y a pas de fil dans le fil).
 
@@ -291,9 +299,11 @@ UNE étape à sections (il n'y a pas de fil dans le fil).
      TikTok, ad server ; budget et période par canal ; chaque plateforme
      reprend sa ligne du tableau de ④ (maille, taux d'utile). C'est ICI que
      se fait le choix des plateformes (décision 25/09).
-  3. **Pression** — ×1 à ×3, CPM min/max, stricte ou nationale surpondérée ;
-     toujours chiffrée (×M + CPM €).
-  4. **Stratégie** — objectif, KPI, capping, rythme.
+  3. ~~**Pression** — ×1 à ×3, CPM min/max, stricte ou nationale surpondérée ;
+     toujours chiffrée (×M + CPM €).~~ Retirée en V1 (§ 19) : la pondération
+     par CP est celle de l'extraction, exprimée en impressions prévues.
+  4. ~~**Stratégie** — objectif, KPI, capping, rythme.~~ Retirée en V1 (§ 19),
+     temps 2.
   Pied : prévision d'impressions, bouton **Préparer l'activation → ⑥**.
   Optionnel : « Simuler une diffusion » (RQ ⑤ généralisé).
   Bandeau : budget, impressions prévues, CPM moyen, plateformes, CP au plan.
@@ -311,6 +321,12 @@ UNE étape à sections (il n'y a pas de fil dans le fil).
   des zones fusionné dans la section Plateformes (plus de bouton flottant).
 
 ### ⑥ Activation — ce que j'envoie, plateforme par plateforme
+
+> **V1 (Vincent, 25/10) — § 19 fait foi** (étape numérotée ⑦ depuis le
+> § 16.1). Activation = **envoi des zones** (CP, cercles, polygones, SDF DV360,
+> poussée du ciblage géographique DV360). L'export **`bidding_script`**, le
+> script de custom bidding poussé par `lib/dsp/push/dv360.ts` et tout pacing
+> algorithmique sont **hors V1** (temps 2).
 
 - **Écran** : une carte par plateforme cochée en ⑤. Chacune dit : **la
   nature envoyée** (ex. TTD « 3 polygones exacts » ; DV360 « 1 113 CP
@@ -336,6 +352,14 @@ UNE étape à sections (il n'y a pas de fil dans le fil).
   commune) — aujourd'hui seuls DV360 et `tiktok_geo` existent.
 
 ### ⑦ Live — la campagne en vol
+
+> **V1 (Vincent, 25/10) — § 19 fait foi** (étape numérotée ⑧ depuis le
+> § 16.1). Live = **impressions livrées contre prévues et dépense**, remontées
+> par l'API de chaque plateforme, par plateforme et par territoire à une maille
+> honnête (CP pour DV360, région pour Meta et TikTok, dite à l'écran) ; rythme
+> de livraison ; alertes retard et zone sous-livrée. **Hors V1** : « Recaler »,
+> réconciliation DSP ⇔ ad server, pression par classe, vignette « Variable du
+> plan », constats d'optimisation (`sur_pression`, `canal_cher`), conversions.
 
 - **Écran** : le Suivi V2, porté. Barre de contexte et maille France ›
   région › département › CP ; **score d'alignement géographique** ; pacing
@@ -871,3 +895,94 @@ Effort estimé : comparable au lot 3 (8 à 10 tâches) — onglets S-M, dossiers
 + versions M, enregistrement automatique + reprise M, partage S-M, activation
 figée S. Rang dans `C:\GENESIS\priorites-projets-dentsu-explore.xlsx` : P1,
 juste après le lot 6 d'administration.
+
+## 19. Décisions du 25/10 — V1 = contrôle des impressions et du budget dépensé
+
+Vincent, le 25/10 : « Pour cette V1 on est juste sur du contrôle de
+l'impression ; on verra dans un temps 2 si on passe à d'autres KPI », puis :
+« on doit remonter le budget des plateformes ». **Ce paragraphe fait foi sur
+les étapes ⑥ Plan, ⑦ Activation et ⑧ Live** (numérotation du § 16.1) et prime
+sur le § 4 (sections « ⑤ Plan », « ⑥ Activation », « ⑦ Live », numérotation
+d'origine), sur les lignes ⑥-⑧ du § 16.1 et sur le contenu des lots 7-8 du
+§ 16.5. Il ne touche ni à ① → ⑤, ni aux onglets et dossiers du § 18.
+
+### 19.1 La décision
+
+La V1 répond à une seule question : **les impressions prévues, zone par zone et
+plateforme par plateforme, ont-elles été livrées, et pour combien ?** Pas
+d'objectif d'optimisation, pas de KPI autre que l'impression, pas de levier
+d'enchère. Le plan dit ce qu'on attend, l'activation envoie les zones, le live
+compare.
+
+### 19.2 Périmètre V1, étape par étape
+
+| Étape | Dans la V1 | Hors V1 |
+|---|---|---|
+| **⑥ Plan** | sélecteur de campagne ; cible = l'**extraction figée** d'un jeu de zones (Q-1 du plan ⑥, tranchée le 25/10 : les deux types de jeu) ; plateformes cochées (pré-cochées depuis l'extraction) avec leurs liaisons DV360 ; période ; **budget prévu** par plateforme ; **CPM prévu** par plateforme → **impressions prévues** par plateforme (budget ÷ CPM × 1 000), et par CP quand la plateforme achète au CP (impressions de la plateforme × part du CP = multiplicateur de l'extraction ÷ leur somme, la formule de `planned_share` de `refresh_campaign_rollups`) | section **Stratégie** (objectif, KPI, capping, rythme de dépense, autonomie de l'agent — Q-2 tranchée le 25/10) ; section **Pression** (multiplicateur d'enchère ×1-×3, CPM min/max, diffusion stricte / nationale surpondérée) ; choix d'un **ad server** et absorption de coquilles importées ; fichiers **custom bidding** ; simulation de diffusion |
+| **⑦ Activation** | envoi des zones dans la maille de chaque plateforme : CP (DV360, TTD), cercles (Meta, DV360), polygones (TTD), communes / départements (TikTok), **SDF DV360** ; **poussée du ciblage géographique DV360** (pré-vol, journal NDJSON, historique, annulation) ; exports fichier pour les autres | **script de custom bidding** (export `bidding_script`, `lib/dsp/push/dv360.ts`, `lib/digital/dv360-bidding-script.ts`, `/api/bidding/strategies/[id]/export`) ; tout pacing algorithmique ; poussée API vers TTD / Meta / TikTok (reste hors champ, § 16.4) |
+| **⑧ Live** | **impressions livrées vs prévues et dépense**, remontées par l'API de chaque plateforme (DV360, TTD, Meta, TikTok), **par plateforme et par territoire** à une maille honnête — CP pour DV360, **région** pour Meta et TikTok, **dite à l'écran** (« Meta ne rend pas le code postal : comparaison à la région ») ; rythme de livraison (temps écoulé / budget dépensé / volume livré) ; alertes **retard** et **zone sous-livrée** ; CPM réel vs prévu | ad server (Adform, CM360 : décision du 25/10 — ils ne mesurent pas le social et leur coût n'est qu'un tarif saisi) ; réconciliation DSP ⇔ ad server ; conversions ; rebid, « Recaler », toute optimisation ; constats d'optimisation |
+
+Conséquences écrites :
+
+- **La stratégie de bidding reste le conteneur technique du plan**, pas un
+  écran : `rattacher` écrit déjà `objective_code = 'maximize_impressions'`, et
+  `get_campaign_expected` (sql/113, vérifié en base le 25/10) prend alors
+  `kpi_target` comme **volume d'impressions prévu**. ⑥ y écrit le total des
+  impressions prévues ; `total_budget`, `forecast_cpm` (CPM moyen pondéré),
+  `start_date`, `end_date` comme aujourd'hui. Les multiplicateurs par CP de
+  `bidding_zone_configs` servent de **poids d'impressions**, plus de
+  multiplicateurs d'enchère côté écran.
+- **La remontée de la dépense par API est la nouveauté de ⑧** : DV360 a un
+  connecteur de rapport (`lib/dsp/report/dv360.ts`), TikTok une plomberie
+  (`lib/dsp/tiktok/client.ts`), TTD et Meta n'ont rien. C'est le gros du lot ⑧,
+  à planifier avec lui (connexion de l'espace actif, règle 4 du § 16.2).
+- **La maille de comparaison est celle que la plateforme rapporte**, pas celle
+  du plan : une plateforme au CP dans le plan mais qui rapporte à la région se
+  compare à la région (somme des impressions prévues de ses CP par région). Le
+  lot 9 du § 16.5 (« plan et suivi au-delà du CP ») est en partie absorbé : la
+  région devient une maille de suivi dès la V1.
+
+### 19.3 Ce qui passe au temps 2
+
+Autres KPI (clics, conversions, leads, couverture/fréquence) ; objectif et KPI
+de stratégie, capping, rythme de dépense ; pression comme levier d'enchère et
+CPM min/max ; custom bidding (scripts, poussée) et pacing algorithmique ;
+rebid, « Recaler » et constats d'optimisation ; ad server et réconciliation
+DSP ⇔ ad server ; simulation de diffusion. React garde ces écrans tels quels
+jusqu'à la bascule (Q5) ; ils ne sont pas portés.
+
+### 19.4 Note pour ⑦ et ⑧ (pas encore planifiés) — porter / ne pas porter
+
+Relevé dans `components/` et `app/` le 25/10 :
+
+- **⑦, à porter** : `components/campaign/ActivationPanel.tsx` (pré-vol,
+  poussée NDJSON, historique, annulation) et ses routes
+  `/api/campaigns/[id]/activation/{prevol,pousser,historique,rollback}` — la
+  poussée y est celle du **ciblage géographique** ; les exports de
+  `/api/zones/jeux/[id]/extractions/[version]/export` et
+  `/api/custom-geo/[id]/export` hors `bidding_script`.
+- **⑦, à NE PAS porter** : les téléchargements custom bidding de
+  `StepLancement.tsx` et l'appel `/api/bidding/strategies/[id]/export` ;
+  `lib/dsp/push/dv360.ts` (script custom bidding + budget IO) ; la condition
+  « stratégie publiée » du pré-vol se garde (`/publier`), elle valide le
+  périmètre, pas une enchère.
+- **⑧, à porter** (de `components/campagne/suivi-v2/`) : `SuiviV2` (assemblage,
+  allégé), `BarreMaille`, `BandeauAvancement` (rythme), `CoutEtRythme` (CPM et
+  volume ; le « coût du déséquilibre » sort), `TableauDeregles` et
+  `GraphiqueEcart` (livré vs prévu par territoire), `ScoreAlignement` +
+  `TroisComposantes` pour les seules plateformes au CP, `QuiADiffuse` (dépense
+  et volume par plateforme), `ConstatsCorrection` limité au constat
+  `sous_pression` (zone sous-livrée ; l'alerte « retard » n'est pas un constat
+  aujourd'hui, elle vient du rythme de `BandeauAvancement` et de `get_campaign_suivi`), `CarteVignette` / `TrioCartes` réduits aux vignettes
+  Impressions et Alignement, `components/campagne/BarreContexteCampagne.tsx`.
+- **⑧, à NE PAS porter** : `PressionParClasse` (et `/api/campaigns/[id]/pression-classes`) ;
+  la vignette « Variable du plan » ; `DetailTechnique` pour sa partie
+  réconciliation, et `components/campaign/suivi/ReconciliationPanel.tsx`
+  (`/api/digital/[id]/reconcile`) ; les constats `sur_pression` et `canal_cher`
+  (`lib/campagne/constats.ts`) ; « Recaler » (`/api/zones/jeux/[id]/simulation/recaler`) ;
+  l'ancienne page `app/map/analyse/digital/_components/` (`PacingPanel`,
+  `BiddingRecommendation`, `ActionListTable`, `KpiSelector`) ; `lib/pacing/rebid.ts`,
+  `/api/demo/apply-rebid`.
+- **Question de maille à vérifier au plan ⑧** : la maille de rapport de TTD
+  (CP ou région) n'est pas relevée ; `plateformes_geo` porte la maille d'ACHAT,
+  il lui faudra une colonne de maille de RAPPORT.
