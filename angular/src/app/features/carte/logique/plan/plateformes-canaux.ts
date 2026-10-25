@@ -7,6 +7,7 @@
  * sans ligne ici est dite « non reliée » et n'est pas cochée, plutôt que de deviner son canal.
  */
 import type { Plateforme } from '../jeu/plateformes';
+import type { ProgDraft } from './brouillon';
 import type { CampaignChannels, ResolvedChannel } from './canaux';
 
 export const CANAL_DE_PLATEFORME: Readonly<Record<Plateforme, string>> = {
@@ -42,4 +43,25 @@ export function preselectionDepuisExtraction(
     else (canal.category === 'dsp' ? channels.dsps : channels.socials).push(canal.code);
   }
   return { channels, nonRelies, indisponibles };
+}
+
+/**
+ * Le brouillon après le choix d'une EXTRACTION en section Cible (lot 6, T4) : le jeu ET la version figée qui sera
+ * rattachée (A-3), puis la sélection pré-cochée par son résumé (A-5) — re-pré-cochée à chaque changement d'extraction.
+ * Budgets et CPM saisis ne sont PAS touchés : ceux des plateformes restantes survivent, ceux des plateformes retirées
+ * ne comptent plus (`draftTotalBudget` filtre par la sélection) et le serveur les élague (`pruneBudgets`). Sans
+ * catalogue (canaux pas encore lus), la sélection reste telle quelle.
+ */
+export function poserExtraction(
+  d: ProgDraft,
+  jeu: { id: string; nom: string; version: number },
+  extraction: { id: string; version: number; plateformes: readonly { plateforme: string }[] | null },
+  catalogue: readonly ResolvedChannel[] | null,
+): ProgDraft {
+  const channels = catalogue ? preselectionDepuisExtraction(extraction.plateformes, catalogue, d.channels).channels : d.channels;
+  return {
+    ...d,
+    jeuZones: { id: jeu.id, nom: jeu.nom, version: jeu.version, extraction: { id: extraction.id, version: extraction.version } },
+    channels,
+  };
 }

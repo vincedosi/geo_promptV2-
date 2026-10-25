@@ -6,6 +6,7 @@ import { PlanCampagneService } from '../../etat/plan-campagne.service';
 import { draftTotalBudget, fmtDateShort, fmtEUR } from '../../logique/plan/brouillon';
 import { ENCART_ERREUR } from '../analyse/styles-analyse';
 import { HallCampagnesComponent } from './hall-campagnes.component';
+import { SectionCibleComponent } from './section-cible.component';
 
 /** Les trois sections du panneau, de haut en bas. */
 type SectionPlan = 'cible' | 'plateformes' | 'impressions';
@@ -27,6 +28,7 @@ const ORDRE_SECTIONS: readonly SectionPlan[] = ['cible', 'plateformes', 'impress
  * - avec : « ← Choisir une autre campagne », l'en-tête « Création / Modification — <nom> » (Modification = une stratégie
  *   existe déjà), la bannière « Brouillon restauré (date) · Repartir de zéro », trois `mg-entete-section` repliables
  *   — Cible (T4), Plateformes et budget, Impressions prévues (T5) — et le pied (récapitulatif ; le lancement en T6).
+ *   Une section repliée est MASQUÉE, pas détruite : ses lectures (jeux, versions, organisations) et ses choix restent.
  *
  * La note « Un filtre de carte est actif… » est portée telle quelle (A-8), lue dans l'état de la carte, sans requête.
  * Un refus de rôle (`accesRefuse`, campagnes réservées au super_admin en V1) est DIT et les sections ne s'affichent
@@ -34,7 +36,7 @@ const ORDRE_SECTIONS: readonly SectionPlan[] = ['cible', 'plateformes', 'impress
  */
 @Component({
   selector: 'mg-panneau-plan',
-  imports: [EnteteSectionComponent, HallCampagnesComponent, IconeComponent],
+  imports: [EnteteSectionComponent, HallCampagnesComponent, IconeComponent, SectionCibleComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col', 'data-panneau-plan': '' },
   template: `
@@ -66,11 +68,11 @@ const ORDRE_SECTIONS: readonly SectionPlan[] = ['cible', 'plateformes', 'impress
         @if (!plan.prerempli()) { <div data-chargement-plan class="px-4 pb-3 font-mono text-[11px] text-tertiary">Chargement de la campagne…</div> }
 
         <mg-entete-section data-section="cible" libelle="Cible" repliable [ouvert]="ouvertes().cible" (ouvertChange)="basculer('cible', $event)" />
-        @if (ouvertes().cible) { <div data-corps-section="cible" class="flex flex-col gap-3 px-4 py-3"></div> }
+        <mg-section-cible data-corps-section="cible" class="px-4 py-3" [class.hidden]="!ouvertes().cible" />
         <mg-entete-section data-section="plateformes" libelle="Plateformes et budget" repliable [ouvert]="ouvertes().plateformes" (ouvertChange)="basculer('plateformes', $event)" />
-        @if (ouvertes().plateformes) { <div data-corps-section="plateformes" class="flex flex-col gap-3 px-4 py-3"></div> }
+        <div data-corps-section="plateformes" class="flex flex-col gap-3 px-4 py-3" [class.hidden]="!ouvertes().plateformes"></div>
         <mg-entete-section data-section="impressions" libelle="Impressions prévues" repliable [ouvert]="ouvertes().impressions" (ouvertChange)="basculer('impressions', $event)" />
-        @if (ouvertes().impressions) { <div data-corps-section="impressions" class="flex flex-col gap-3 px-4 py-3"></div> }
+        <div data-corps-section="impressions" class="flex flex-col gap-3 px-4 py-3" [class.hidden]="!ouvertes().impressions"></div>
 
         <div data-pied-plan class="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-subtle px-4 py-3 text-[12px] text-secondary">
           <span>Budget prévu <span data-recap-budget class="font-mono text-primary">{{ budget() }}</span></span>

@@ -361,7 +361,7 @@ la plomberie ; l'écran est T10, la couche T11.
 | `panneaux/jeu/bibliotheque-jeux.component.ts` | `mg-bibliotheque-jeux` : jeux de l'espace (les deux types, badge neutre), lus à la première ouverture (`GET /api/zones/jeux?type=tous` — sans paramètre, la route ne rend que les jeux risque) ; relue quand un jeu adopté (enregistré, renommé) n'y figure pas ; ouvrir, supprimer (`mg-dialogue-suppression-zone`, `titre` / `texte`) |
 | `etat/ouvrir-jeu.ts` | `ouvrirJeuListe` : un jeu risque → module (`risques`), un jeu de zone → ⑤ `?jeu=` ; partagé avec « Mes zones » (`jeux-de-zones.component.ts`, les deux types par `JeuxApi.lister`) |
 
-## ⑥ Plan : campagne, hall et panneau (lot 6, T3, 2026-10-25)
+## ⑥ Plan : campagne, hall, panneau et cible (lot 6, T3-T4, 2026-10-25)
 
 V1 = contrôle des impressions et du budget dépensé (spec § 19). L'état vit dans `etat/plan-campagne.service.ts`
 (fourni par la page, `FOURNISSEURS_PLAN`) ; les écrans n'écrivent `?campagne=` que par lui.
@@ -371,6 +371,9 @@ V1 = contrôle des impressions et du budget dépensé (spec § 19). L'état vit 
 | `parcours/choix-campagne.component.ts` | `mg-choix-campagne`, dans la barre aux étapes `plan`, `activation`, `live` (`ETAPES_CAMPAGNE`) : liste lue au premier clic (relue si la campagne courante n'y est pas), « Nouvelle campagne » en tête (`creerCampagne`), nom de la campagne lue ; liste dans l'arbre, fermée à la sortie du focus ou sur Échap (aucun écouteur de document) |
 | `panneaux/plan/panneau-plan.component.ts` | `mg-panneau-plan` : note « filtre de carte » (A-8) ; sans campagne, le hall (et « introuvable dans cet espace ») ; avec, « ← Choisir une autre campagne », « Création / Modification — <nom> », bannière « Brouillon restauré », trois `mg-entete-section` repliables (la plus basse dépliée = `current_step` du brouillon, A-2) et le pied ; un refus de rôle est dit, sans sections |
 | `panneaux/plan/hall-campagnes.component.ts` | `mg-hall-campagnes`, port de `CreationHall` : campagnes → stratégies → brouillons en UNE chaîne séquentielle à chaque montage ; « Reprendre une création » (coquilles sans stratégie, badge brouillon, suppression confirmée), « Modifier une campagne lancée » ; mode démo (A-7) |
+| `panneaux/plan/section-cible.component.ts` | `mg-section-cible` (T4) : identité de `StepCible` (nom, annonceur, produit, par `modifier`), organisations de la campagne (lues une fois par campagne, après le préremplissage) ; panier et indicateur à seuil non portés (A-9) |
+| `panneaux/plan/source-plan.component.ts` | `mg-source-plan` (T4), port étendu de `SourcePlan` (A-3) : jeux des deux types (badge Zone / Risque) lus après le préremplissage, versions d'un jeu au clic (jamais relues : une extraction est figée), jeu sans extraction grisé ; choisir une version = `poserExtraction` (jeu + extraction, plateformes re-pré-cochées, budgets gardés, A-5) ; `?jeu=&x=` de ⑤ PROPOSÉ ; chiffres figés et phrase du plan |
+| `logique/plan/plateformes-canaux.ts` | `poserExtraction` (T4) : la mise à jour pure du brouillon au choix d'une extraction |
 | `testing/plan-factice.ts` | la doublure de `PlanCampagneService` des specs d'écran |
 
 `messageErreurCampagnes` (service) : un 401/403 sur les campagnes se dit « La gestion des campagnes est réservée aux

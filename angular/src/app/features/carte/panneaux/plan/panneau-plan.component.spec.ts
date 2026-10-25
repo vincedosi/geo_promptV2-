@@ -1,8 +1,11 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { NEVER } from 'rxjs';
+import { JeuxApi } from '../../data/jeux.api';
 import { PlanApi } from '../../data/plan.api';
 import { AnnonceService } from '../../etat/annonce.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
+import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { MESSAGE_CAMPAGNE_INTROUVABLE, MESSAGE_RESERVE_ADMIN, PlanCampagneService } from '../../etat/plan-campagne.service';
 import { CAMPAGNE_A, detailCampagne, planFactice } from '../../testing/plan-factice';
 import { PanneauPlanComponent } from './panneau-plan.component';
@@ -13,7 +16,10 @@ async function monter(preparer: (p: ReturnType<typeof planFactice>) => void = ()
   TestBed.configureTestingModule({
     providers: [
       { provide: PlanCampagneService, useValue: plan },
-      { provide: PlanApi, useValue: { campagnes: () => NEVER, modeDemo: () => NEVER } },
+      { provide: PlanApi, useValue: { campagnes: () => NEVER, modeDemo: () => NEVER, organisationsCampagne: () => NEVER } },
+      // La section Cible (T4) et sa source : jamais rendues ici.
+      { provide: JeuxApi, useValue: { lister: () => NEVER } },
+      { provide: JeuZonesService, useValue: { jeuId: signal(null), extraction: signal(null) } },
       EtatCarteService, AnnonceService,
     ],
   });
@@ -83,7 +89,7 @@ describe('PanneauPlanComponent — le squelette de ⑥', () => {
     bandeau('impressions').click();
     await stable();
     expect(plan.definirEtape).toHaveBeenLastCalledWith(2);
-    expect(el.querySelector('[data-corps-section="impressions"]')).toBeNull();
+    expect(el.querySelector('[data-corps-section="impressions"]')!.classList).toContain('hidden');
     bandeau('plateformes').click();
     await stable();
     expect(plan.definirEtape).toHaveBeenLastCalledWith(1);

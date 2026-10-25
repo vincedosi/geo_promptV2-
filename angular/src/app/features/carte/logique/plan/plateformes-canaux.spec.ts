@@ -1,5 +1,6 @@
+import { DEFAULT_PROG_DRAFT } from './brouillon';
 import type { ResolvedChannel } from './canaux';
-import { CANAL_DE_PLATEFORME, preselectionDepuisExtraction } from './plateformes-canaux';
+import { CANAL_DE_PLATEFORME, poserExtraction, preselectionDepuisExtraction } from './plateformes-canaux';
 
 const canal = (code: string, category: ResolvedChannel['category'], available = true): ResolvedChannel => ({
   code, label: code, category, connection_provider: null, active: true, available, connected: false,
@@ -35,5 +36,31 @@ describe('preselectionDepuisExtraction', () => {
 
   it('une extraction sans résumé (jeu risque) : la sélection est gardée telle quelle', () => {
     expect(preselectionDepuisExtraction(null, CATALOGUE, avant)).toEqual({ channels: avant, nonRelies: [], indisponibles: [] });
+  });
+});
+
+describe('poserExtraction — l’extraction choisie en section Cible (T4, A-3, A-5)', () => {
+  const jeu = { id: 'j1', nom: 'Rentrée', version: 3 };
+  const x1 = { id: 'x1', version: 1, plateformes: [{ plateforme: 'dv360' }, { plateforme: 'meta' }] };
+  const x2 = { id: 'x2', version: 2, plateformes: [{ plateforme: 'dv360' }, { plateforme: 'tiktok' }] };
+
+  it('pose le jeu ET sa version d’extraction, et pré-coche les plateformes de son résumé', () => {
+    const d = poserExtraction(DEFAULT_PROG_DRAFT, jeu, x1, CATALOGUE);
+    expect(d.jeuZones).toEqual({ id: 'j1', nom: 'Rentrée', version: 3, extraction: { id: 'x1', version: 1 } });
+    expect(d.channels).toEqual({ dsps: ['dv360'], socials: ['meta'], ad_server: null });
+  });
+
+  it('changer d’extraction RE-pré-coche, sans perdre les budgets ni les CPM saisis des plateformes restantes', () => {
+    const saisi = { ...poserExtraction(DEFAULT_PROG_DRAFT, jeu, x1, CATALOGUE), channelBudgets: { dv360: 1200, meta: 800 }, cpmPrevus: { dv360: 4.5 } };
+    const d = poserExtraction(saisi, jeu, x2, CATALOGUE);
+    expect(d.channels).toEqual({ dsps: ['dv360'], socials: ['tiktok'], ad_server: null });
+    expect(d.channelBudgets['dv360']).toBe(1200);
+    expect(d.cpmPrevus).toEqual({ dv360: 4.5 });
+    expect(d.jeuZones?.extraction).toEqual({ id: 'x2', version: 2 });
+  });
+
+  it('sans catalogue (canaux pas encore lus) : la sélection reste, seule l’extraction change', () => {
+    const avant = { ...DEFAULT_PROG_DRAFT, channels: { dsps: ['ttd'], socials: [], ad_server: null } };
+    expect(poserExtraction(avant, jeu, x1, null).channels).toEqual(avant.channels);
   });
 });
