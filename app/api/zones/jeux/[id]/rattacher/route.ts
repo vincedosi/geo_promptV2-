@@ -6,7 +6,8 @@
  * Corps : `{ campagne: uuid, extraction?: uuid }`. Deux chemins, un seul écrivain (`ecrirePlan`) :
  * - SANS `extraction` (wizard React) : jeu RISQUE seul, plan recalculé depuis l'état VIVANT du jeu — inchangé ;
  * - AVEC `extraction` (étape ⑥ de la carte, lot 6, A-4) : jeu des deux types, plan RECOPIÉ de l'extraction figée,
- *   sans recalcul (`zone_set_extraction_cp.multiplicateur > 0`).
+ *   sans recalcul (`zone_set_extraction_cp.multiplicateur > 0`). Une extraction dont AUCUNE plateforme n'achète au CP
+ *   se rattache sans plan CP : stratégie écrite, `codes_postaux: 0`, aucune ligne de `bidding_zone_configs` (T6).
  *
  * ── CE QUE CETTE ROUTE ÉCRIT, ET OÙ ──────────────────────────────────────
  *

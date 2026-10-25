@@ -2,7 +2,8 @@
  * Le plan d'une campagne depuis une EXTRACTION (lot 6, T1 ; arbitrages A-4, A-10, A-11), contre la vraie base locale :
  * - `POST /api/zones/jeux/[id]/rattacher` avec `extraction` : `bidding_zone_configs` = les CP à multiplicateur > 0 de
  *   l'extraction, à l'unité près ; extraction d'un autre jeu → 404 ; jeu d'un autre espace → 404 du chargeur ; sans
- *   `extraction`, un jeu de zone reste refusé (409) et un jeu risque donne les chiffres d'avant le lot 6 ;
+ *   `extraction`, un jeu de zone reste refusé (409) et un jeu risque donne les chiffres d'avant le lot 6 ; une
+ *   extraction sans plateforme au CP se rattache avec 0 CP (T6) ;
  * - `GET /api/zones/jeux/[id]/extractions/[version]/cp` : le même compte que le plan écrit ; par plateforme, ses CP ;
  * - `PUT /api/campaigns/[campaignId]/channels` : `cpm_prevus` relu par le GET, élagué au retrait du canal ;
  * - `GET /api/bidding/strategies?campaign_id=` (relecture 1) : la seule plus récente de la campagne.
@@ -49,6 +50,9 @@ let autreJeu = '';
 let jeuAutreEspace = '';
 let extraction = '';
 let extractionAutreJeu = '';
+let jeuSansCp = '';
+let extractionSansCp = '';
+let campagneSansCp = '';
 
 const json = (methode: string, corps: unknown) =>
   ({ method: methode, body: JSON.stringify(corps), headers: { 'content-type': 'application/json' } });
@@ -120,8 +124,12 @@ beforeAll(async () => {
   ]);
   autreJeu = await creerJeu(org, zone, 'Lyon DV360 seul', [{ plateforme: 'dv360', maille: 'cp', seuil: 30 }]);
   jeuAutreEspace = await creerJeu(autreOrg, zoneAutre, 'Lyon autre espace', [{ plateforme: 'dv360', maille: 'cp', seuil: 20 }]);
+  // T6 : aucune plateforme au CP (TikTok seul, aux communes) — l'extraction n'a aucun plan CP.
+  jeuSansCp = await creerJeu(org, zone, 'Lyon TikTok seul', [{ plateforme: 'tiktok', maille: 'commune', seuil: 20 }]);
   extraction = await extraire(jeu);
   extractionAutreJeu = await extraire(autreJeu);
+  extractionSansCp = await extraire(jeuSansCp);
+  campagneSansCp = await nouvelleCampagne(org, 'campagne sans CP');
   campagne = await nouvelleCampagne(org, 'campagne');
   campagneRisque = await nouvelleCampagne(ORG_RISQUE, 'campagne risque');
 }, LONG);
@@ -203,6 +211,23 @@ describe('POST /api/zones/jeux/[id]/rattacher — avec une extraction', () => {
   it('un identifiant d’extraction qui n’est pas un UUID : 400', async () => {
     expect((await lier(jeu, { campagne, extraction: 'v1' })).status).toBe(400);
   });
+});
+
+describe('POST /api/zones/jeux/[id]/rattacher — extraction SANS plateforme au CP (T6)', () => {
+  it('201 : stratégie écrite et active, 0 CP, aucune ligne de bidding_zone_configs, résumé TikTok recopié', async () => {
+    expect(Number(psql(`select count(*) from public.zone_set_extraction_cp where extraction_id = '${extractionSansCp}';`))).toBe(0);
+    const r = await lier(jeuSansCp, { campagne: campagneSansCp, extraction: extractionSansCp });
+    expect(r.status).toBe(201);
+    const corps = await r.json() as { strategie: string; codes_postaux: number; extraction: string };
+    expect(corps).toMatchObject({ jeu: jeuSansCp, codes_postaux: 0, extraction: extractionSansCp, anciennes_archivees: true });
+    expect(Number(psql(`select count(*) from public.bidding_zone_configs where strategy_id = '${corps.strategie}';`))).toBe(0);
+    const { data: s, error } = await sb.from('bidding_strategies')
+      .select('status, objective_code, in_zone_weights').eq('id', corps.strategie).single();
+    if (error) throw new Error(error.message);
+    expect(s).toMatchObject({ status: 'active', objective_code: 'maximize_impressions' });
+    expect(((s.in_zone_weights as Record<string, unknown>).plateformes as { plateforme: string; maille: string }[]))
+      .toEqual([expect.objectContaining({ plateforme: 'tiktok', maille: 'commune' })]);
+  }, LONG);
 });
 
 describe('POST /api/zones/jeux/[id]/rattacher — jeu risque VIVANT (chemin du wizard React, inchangé)', () => {

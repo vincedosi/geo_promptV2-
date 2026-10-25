@@ -3,9 +3,10 @@ import { EnteteSectionComponent } from '../../../../ui/entete-section/entete-sec
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { PlanCampagneService } from '../../etat/plan-campagne.service';
-import { draftTotalBudget, fmtDateShort, fmtEUR } from '../../logique/plan/brouillon';
+import { linksSelectionHash } from '../../logique/plan/brouillon';
 import { ENCART_ERREUR } from '../analyse/styles-analyse';
 import { HallCampagnesComponent } from './hall-campagnes.component';
+import { PiedLancementComponent } from './pied-lancement.component';
 import { SectionCibleComponent } from './section-cible.component';
 import { BandeauPlanComponent, SectionImpressionsComponent } from './section-impressions.component';
 import { SectionPlateformesComponent } from './section-plateformes.component';
@@ -29,7 +30,7 @@ const ORDRE_SECTIONS: readonly SectionPlan[] = ['cible', 'plateformes', 'impress
  *   (le service a retiré le paramètre, A-1) ;
  * - avec : « ← Choisir une autre campagne », l'en-tête « Création / Modification — <nom> » (Modification = une stratégie
  *   existe déjà), la bannière « Brouillon restauré (date) · Repartir de zéro », trois `mg-entete-section` repliables
- *   — Cible (T4), Plateformes et budget, Impressions prévues (T5) — et le pied (récapitulatif ; le lancement en T6).
+ *   — Cible (T4), Plateformes et budget, Impressions prévues (T5) — et le pied « Lancement » (`mg-pied-lancement`, T6).
  *   Une section repliée est MASQUÉE, pas détruite : ses lectures (jeux, versions, organisations) et ses choix restent.
  *
  * La note « Un filtre de carte est actif… » est portée telle quelle (A-8), lue dans l'état de la carte, sans requête.
@@ -38,7 +39,7 @@ const ORDRE_SECTIONS: readonly SectionPlan[] = ['cible', 'plateformes', 'impress
  */
 @Component({
   selector: 'mg-panneau-plan',
-  imports: [BandeauPlanComponent, EnteteSectionComponent, HallCampagnesComponent, IconeComponent, SectionCibleComponent, SectionImpressionsComponent, SectionPlateformesComponent],
+  imports: [BandeauPlanComponent, EnteteSectionComponent, HallCampagnesComponent, IconeComponent, PiedLancementComponent, SectionCibleComponent, SectionImpressionsComponent, SectionPlateformesComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col', 'data-panneau-plan': '' },
   template: `
@@ -77,11 +78,7 @@ const ORDRE_SECTIONS: readonly SectionPlan[] = ['cible', 'plateformes', 'impress
         <mg-entete-section data-section="impressions" libelle="Impressions prévues" repliable [ouvert]="ouvertes().impressions" (ouvertChange)="basculer('impressions', $event)" />
         <mg-section-impressions data-corps-section="impressions" class="px-4 py-3" [class.hidden]="!ouvertes().impressions" />
 
-        <div data-pied-plan class="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-subtle px-4 py-3 text-[12px] text-secondary">
-          <span>Budget prévu <span data-recap-budget class="font-mono text-primary">{{ budget() }}</span></span>
-          <span>Période <span data-recap-periode class="font-mono text-primary">{{ periode() }}</span></span>
-          @if (plan.sauveLe()) { <span data-sauve class="ml-auto text-[11px] text-tertiary">Brouillon enregistré</span> }
-        </div>
+        <mg-pied-lancement class="mt-auto" [liaisonsConfirmees]="liaisonsConfirmees()" />
       }
     }
   `,
@@ -110,10 +107,10 @@ export class PanneauPlanComponent {
     const r = this.plan.restaure();
     return r ? new Date(r.savedAt).toLocaleString('fr-FR') : '';
   });
-  protected readonly budget = computed(() => fmtEUR(draftTotalBudget(this.plan.brouillon())));
-  protected readonly periode = computed(() => {
+  /** La coche de la section Plateformes vaut pour la sélection et les liaisons COURANTES (`linksSelectionHash`). */
+  protected readonly liaisonsConfirmees = computed(() => {
     const d = this.plan.brouillon();
-    return `${fmtDateShort(d.startDate)} → ${fmtDateShort(d.endDate)}`;
+    return this.confirmation() === linksSelectionHash(d.channels, d.channelLinks);
   });
 
   /** Un bandeau replié ou déplié : l'étape du brouillon devient la section dépliée la plus basse (A-2). */

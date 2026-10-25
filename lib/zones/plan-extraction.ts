@@ -8,7 +8,9 @@
  * Le même filtre (`multiplicateur > 0`) des deux côtés : les CP affichés sont ceux qui ont été écrits.
  *
  * Les deux types de jeu ont un plan CP d'extraction (`zone_set_extraction_cp`) ; un jeu de zone sans plateforme au
- * CP n'en a pas, et son extraction ne se rattache pas (409).
+ * CP (Meta seul en cercles, TikTok seul aux communes) n'en a pas. Son extraction se rattache QUAND MÊME (lot 6, T6) :
+ * la V1 contrôle les impressions et le budget PAR PLATEFORME (spec § 19), le plan CP n'en est que la répartition pour
+ * les plateformes qui achètent au CP. La stratégie naît alors sans `bidding_zone_configs` (0 CP).
  */
 import { NextResponse } from 'next/server';
 import type { createAdminClient } from '@/lib/auth';
@@ -97,7 +99,12 @@ export async function planExtraction(
     console.error('[zones/rattacher] lecture CP de l’extraction :', e instanceof Error ? e.message : e);
     return refusPlan('Codes postaux de l’extraction illisibles.', 500);
   }
-  if (lignes.length === 0) return refusPlan(MESSAGE_AUCUN_CP, 409);
+  // 0 CP : refusé seulement si une plateforme de l'extraction achète au CP (ou jeu risque, sans résumé) — son plan
+  // aurait dû en porter. Sans plateforme au CP, l'extraction est lancée sans plan CP (lot 6, T6).
+  const resumes = x.plateformes as Array<{ maille?: string }> | null;
+  if (lignes.length === 0 && (!Array.isArray(resumes) || resumes.some((p) => p.maille === 'cp'))) {
+    return refusPlan(MESSAGE_AUCUN_CP, 409);
+  }
 
   const seuil = Number(x.seuil_couverture_cp);
   return {
