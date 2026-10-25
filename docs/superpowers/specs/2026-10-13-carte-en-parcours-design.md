@@ -918,7 +918,7 @@ compare.
 
 | Étape | Dans la V1 | Hors V1 |
 |---|---|---|
-| **⑥ Plan** | sélecteur de campagne ; cible = l'**extraction figée** d'un jeu de zones (Q-1 du plan ⑥, tranchée le 25/10 : les deux types de jeu) ; plateformes cochées (pré-cochées depuis l'extraction) avec leurs liaisons DV360 ; période ; **budget prévu** par plateforme ; **CPM prévu** par plateforme → **impressions prévues** par plateforme (budget ÷ CPM × 1 000), et par CP quand la plateforme achète au CP (impressions de la plateforme × part du CP = multiplicateur de l'extraction ÷ leur somme, la formule de `planned_share` de `refresh_campaign_rollups`) | section **Stratégie** (objectif, KPI, capping, rythme de dépense, autonomie de l'agent — Q-2 tranchée le 25/10) ; section **Pression** (multiplicateur d'enchère ×1-×3, CPM min/max, diffusion stricte / nationale surpondérée) ; choix d'un **ad server** et absorption de coquilles importées ; fichiers **custom bidding** ; simulation de diffusion |
+| **⑥ Plan** | sélecteur de campagne ; cible = l'**extraction figée** d'un jeu de zones (Q-1 du plan ⑥, tranchée le 25/10 : les deux types de jeu) ; plateformes cochées (pré-cochées depuis l'extraction) avec leurs liaisons DV360 ; période ; **budget prévu** par plateforme ; **CPM prévu** par plateforme → **impressions prévues** par plateforme (budget ÷ CPM × 1 000), et par CP quand la plateforme achète au CP (impressions de la plateforme × part du CP = multiplicateur de l'extraction ÷ la somme des multiplicateurs des CP DE LA PLATEFORME — ce n'est pas `planned_share`, voir § 19.4) | section **Stratégie** (objectif, KPI, capping, rythme de dépense, autonomie de l'agent — Q-2 tranchée le 25/10) ; section **Pression** (multiplicateur d'enchère ×1-×3, CPM min/max, diffusion stricte / nationale surpondérée) ; choix d'un **ad server** et absorption de coquilles importées ; fichiers **custom bidding** ; simulation de diffusion |
 | **⑦ Activation** | envoi des zones dans la maille de chaque plateforme : CP (DV360, TTD), cercles (Meta, DV360), polygones (TTD), communes / départements (TikTok), **SDF DV360** ; **poussée du ciblage géographique DV360** (pré-vol, journal NDJSON, historique, annulation) ; exports fichier pour les autres | **script de custom bidding** (export `bidding_script`, `lib/dsp/push/dv360.ts`, `lib/digital/dv360-bidding-script.ts`, `/api/bidding/strategies/[id]/export`) ; tout pacing algorithmique ; poussée API vers TTD / Meta / TikTok (reste hors champ, § 16.4) |
 | **⑧ Live** | **impressions livrées vs prévues et dépense**, remontées par l'API de chaque plateforme (DV360, TTD, Meta, TikTok), **par plateforme et par territoire** à une maille honnête — CP pour DV360, **région** pour Meta et TikTok, **dite à l'écran** (« Meta ne rend pas le code postal : comparaison à la région ») ; rythme de livraison (temps écoulé / budget dépensé / volume livré) ; alertes **retard** et **zone sous-livrée** ; CPM réel vs prévu | ad server (Adform, CM360 : décision du 25/10 — ils ne mesurent pas le social et leur coût n'est qu'un tarif saisi) ; réconciliation DSP ⇔ ad server ; conversions ; rebid, « Recaler », toute optimisation ; constats d'optimisation |
 
@@ -983,6 +983,13 @@ Relevé dans `components/` et `app/` le 25/10 :
   l'ancienne page `app/map/analyse/digital/_components/` (`PacingPanel`,
   `BiddingRecommendation`, `ActionListTable`, `KpiSelector`) ; `lib/pacing/rebid.ts`,
   `/api/demo/apply-rebid`.
+- **⑧, prévu par CP et par plateforme (revue finale du lot 6, I-2, décision V-1)** : il suit la formule de ⑥
+  (impressions de la plateforme = budget ÷ CPM × 1 000, réparties sur SES unités retenues de l'extraction au
+  prorata des multiplicateurs) et se RECALCULE en ⑧ depuis `geo_strategy.channels.{budgets,cpm_prevus}` et les
+  unités de l'extraction (`GET /api/zones/jeux/[id]/extractions/[version]/cp?plateforme=`). Ne pas le lire dans
+  `campaign_cp_rollup.planned_share` × `get_campaign_expected` : `planned_share` est un agrégat sur la campagne
+  ENTIÈRE (tous les CP que `rattacher` écrit, hors zone compris en mode pondéré, toutes plateformes confondues) et
+  fausserait le prévu de chaque plateforme dès qu'il y en a deux.
 - **Question de maille à vérifier au plan ⑧** : la maille de rapport de TTD
   (CP ou région) n'est pas relevée ; `plateformes_geo` porte la maille d'ACHAT,
   il lui faudra une colonne de maille de RAPPORT.
