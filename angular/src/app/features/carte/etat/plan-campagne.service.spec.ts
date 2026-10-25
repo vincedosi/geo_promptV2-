@@ -7,7 +7,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { ConfigService } from '../../../core/config/config.service';
 import { PlanApi } from '../data/plan.api';
 import { DEFAULT_PROG_DRAFT } from '../logique/plan/brouillon';
-import { DELAI_AUTOSAVE_MS, MESSAGE_CAMPAGNE_INTROUVABLE, PlanCampagneService } from './plan-campagne.service';
+import { DELAI_AUTOSAVE_MS, MESSAGE_CAMPAGNE_INTROUVABLE, MESSAGE_RESERVE_ADMIN, PlanCampagneService } from './plan-campagne.service';
 
 const C1 = '0f8fad5b-d9cb-469f-a165-70867728950e';
 const C2 = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
@@ -56,7 +56,7 @@ async function repondre(o: Ouvert, url: string, corps: object, status = 200) {
 /** Le préremplissage complet de C1 : stratégie existante, brouillon serveur `drafts`, canaux stockés. */
 async function preremplirC1(o: Ouvert, drafts: object[] = []) {
   await repondre(o, `/api/admin/campaigns/${C1}?page=1`, campagne(C1, 'Rentrée'));
-  await repondre(o, '/api/bidding/strategies', { strategies: [{ id: S1, name: 's', campaign_id: C1, status: 'active', created_at: '' }] });
+  await repondre(o, `/api/bidding/strategies?campaign_id=${C1}`, { strategies: [{ id: S1, name: 's', campaign_id: C1, status: 'active', created_at: '' }] });
   await repondre(o, `/api/bidding/strategies/${S1}`, { strategy: strategie });
   await repondre(o, `/api/bidding/strategies/drafts?campaign_id=${C1}`, { drafts });
   await repondre(o, `/api/campaigns/${C1}/channels`, canaux);
@@ -109,7 +109,7 @@ describe('PlanCampagneService — la campagne dans l’URL', () => {
   it('campagne d’un autre espace (canaux en 404, checkCampaignAccess) : même message, paramètre retiré', async () => {
     const o = await ouvrir(`/carte?campagne=${C1}`);
     await repondre(o, `/api/admin/campaigns/${C1}?page=1`, campagne(C1, 'Ailleurs'));
-    await repondre(o, '/api/bidding/strategies', { strategies: [] });
+    await repondre(o, `/api/bidding/strategies?campaign_id=${C1}`, { strategies: [] });
     await repondre(o, `/api/bidding/strategies/drafts?campaign_id=${C1}`, { drafts: [] });
     await repondre(o, `/api/campaigns/${C1}/channels`, { error: 'campaign_not_found' }, 404);
     expect(o.hote.plan.erreur()).toBe(MESSAGE_CAMPAGNE_INTROUVABLE);
@@ -121,7 +121,7 @@ describe('PlanCampagneService — changement de campagne en cours de lecture', (
   it('la lecture de A est annulée, sa réponse tardive ne s’écrit jamais dans B', async () => {
     const o = await ouvrir(`/carte?campagne=${C1}`);
     await repondre(o, `/api/admin/campaigns/${C1}?page=1`, campagne(C1, 'A'));
-    const strategiesDeA = o.http.expectOne('/api/bidding/strategies');
+    const strategiesDeA = o.http.expectOne(`/api/bidding/strategies?campaign_id=${C1}`);
     await o.router.navigateByUrl(`/carte?campagne=${C2}`);
     await o.stable();
     expect(strategiesDeA.cancelled).toBe(true);
@@ -202,6 +202,57 @@ describe('PlanCampagneService — brouillon serveur et autosave', () => {
     o.hote.plan.choisirCampagne(C2);
     vi.advanceTimersByTime(DELAI_AUTOSAVE_MS * 2);
     o.http.expectNone('/api/bidding/strategies/drafts');
+  });
+});
+
+describe('PlanCampagneService — relecture 1', () => {
+  it.each([401, 403])('%i sur la campagne (réservée au super_admin) : préremplissage TERMINÉ, message, paramètre gardé, aucune écriture', async (status) => {
+    const o = await ouvrir(`/carte?campagne=${C1}`);
+    await repondre(o, `/api/admin/campaigns/${C1}?page=1`, { error: 'Accès réservé' }, status);
+    expect(o.hote.plan.prerempli()).toBe(true);
+    expect(o.hote.plan.accesRefuse()).toBe(true);
+    expect(o.hote.plan.erreur()).toBe(MESSAGE_RESERVE_ADMIN);
+    expect(o.hote.plan.campagne()).toBe(C1);
+    expect(o.router.url).toBe(`/carte?campagne=${C1}`);
+    vi.useFakeTimers();
+    o.hote.plan.modifier((d) => ({ ...d, name: 'X' }));
+    o.hote.plan.definirEtape(3);
+    vi.advanceTimersByTime(DELAI_AUTOSAVE_MS * 2);
+    o.http.verify();
+  });
+
+  it('repartirDeZero pendant une sauvegarde en vol : l’identifiant n’est pas repris, la ligne recréée est supprimée', async () => {
+    const o = await ouvrir(`/carte?campagne=${C1}`);
+    await preremplirC1(o);
+    vi.useFakeTimers();
+    o.hote.plan.modifier((d) => ({ ...d, name: 'X' }));
+    vi.advanceTimersByTime(DELAI_AUTOSAVE_MS);
+    const enVol = o.http.expectOne('/api/bidding/strategies/drafts');
+    o.hote.plan.repartirDeZero();
+    // Aucun identifiant connu encore : rien à supprimer avant le retour de la sauvegarde.
+    o.http.expectNone(`/api/bidding/strategies/drafts/${B1}`);
+    enVol.flush({ draft: { id: B1, current_step: 1, last_saved_at: '2026-10-25T11:00:00Z' } });
+    expect(o.http.expectOne(`/api/bidding/strategies/drafts/${B1}`).request.method).toBe('DELETE');
+    expect(o.hote.plan.sauveLe()).toBeNull();
+    // Un second « Repartir de zéro » ne connaît aucun brouillon : la sauvegarde rejetée n'a pas reposé son identifiant.
+    o.hote.plan.repartirDeZero();
+    o.http.expectNone(`/api/bidding/strategies/drafts/${B1}`);
+  });
+
+  it('repartirDeZero pendant la lecture du brouillon serveur : il n’est pas restauré par-dessus', async () => {
+    const o = await ouvrir(`/carte?campagne=${C1}`);
+    await repondre(o, `/api/admin/campaigns/${C1}?page=1`, campagne(C1, 'Rentrée'));
+    await repondre(o, `/api/bidding/strategies?campaign_id=${C1}`, { strategies: [] });
+    o.hote.plan.repartirDeZero();
+    await repondre(o, `/api/bidding/strategies/drafts?campaign_id=${C1}`, { drafts: [{
+      id: B1, campaign_id: C1, current_step: 4, last_saved_at: '2026-10-25T10:00:00Z', expires_at: null, created_at: '',
+      draft_data: { v: 1, draft: { ...DEFAULT_PROG_DRAFT, name: 'Jeté', forecastCpm: 9 } },
+    }] });
+    await repondre(o, `/api/campaigns/${C1}/channels`, canaux);
+    expect(o.hote.plan.brouillon()).toMatchObject({ name: 'Rentrée', forecastCpm: null });
+    expect(o.hote.plan.restaure()).toBeNull();
+    expect(o.hote.plan.etape()).toBe(1);
+    expect(o.hote.plan.prerempli()).toBe(true);
   });
 });
 

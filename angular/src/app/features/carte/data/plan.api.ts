@@ -76,7 +76,7 @@ export interface CorpsCanaux extends CampaignChannels {
 
 export type StatutStrategie = 'draft' | 'active' | 'paused' | 'completed' | 'archived';
 
-/** Une ligne de `GET /api/bidding/strategies` (accessibles à l'espace), la plus récente d'abord. */
+/** Une ligne de `GET /api/bidding/strategies?campaign_id=` : la plus récente de la campagne, seule. */
 export interface StrategieListe {
   id: string;
   name: string;
@@ -200,8 +200,10 @@ export class PlanApi extends HttpBaseService {
     return this.httpClient.put<{ ok: true }>(`${this.baseUrl}/campaigns/${encodeURIComponent(campagne)}/channels`, corps);
   }
 
-  strategies(): Observable<{ strategies: StrategieListe[] }> {
-    return this.httpClient.get<{ strategies: StrategieListe[] }>(`${this.baseUrl}/bidding/strategies`);
+  /** La SEULE stratégie la plus récente de la campagne (`?campaign_id=`, `limit(1)` côté route, relecture 1). */
+  strategies(campagne: string): Observable<{ strategies: StrategieListe[] }> {
+    const p = new URLSearchParams({ campaign_id: campagne });
+    return this.httpClient.get<{ strategies: StrategieListe[] }>(`${this.baseUrl}/bidding/strategies?${p.toString()}`);
   }
 
   strategie(id: string): Observable<{ strategy: Strategie }> {

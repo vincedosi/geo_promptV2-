@@ -56,8 +56,8 @@ describe('PlanApi — adresses sur HttpBaseService.baseUrl, jamais écrites en d
 
   it('stratégie : liste, lecture, PATCH partiel', () => {
     const { api, http } = preparer();
-    api.strategies().subscribe();
-    attendre(http, 'GET', `${BASE}/api/bidding/strategies`);
+    api.strategies(C).subscribe();
+    attendre(http, 'GET', `${BASE}/api/bidding/strategies?campaign_id=${C}`);
     api.strategie(J).subscribe();
     attendre(http, 'GET', `${BASE}/api/bidding/strategies/${J}`);
     api.modifierStrategie(J, { total_budget: 1500, kpi_target: 450000 }).subscribe();

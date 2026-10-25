@@ -22,13 +22,25 @@ export const DELAI_AUTOSAVE_MS = 1000;
 const ETAPE_MIN = 1;
 const ETAPE_MAX = 5;
 
+/**
+ * Le refus de RÔLE (401/403) : `/api/admin/campaigns` reste réservé au super_admin en V1 (décision de Vincent,
+ * relecture 1). Le préremplissage se TERMINE sur ce message, le paramètre reste, et rien n'est écrit.
+ */
+export const MESSAGE_RESERVE_ADMIN = 'La gestion des campagnes est réservée aux administrateurs.';
+
 class CampagneIntrouvable extends Error {}
+class AccesRefuse extends Error {}
 
 /**
- * Un 404 = campagne absente, ou d'un autre espace (`checkCampaignAccess` des canaux rend 404, jamais 403). Un 403 de
- * `GET /api/admin/campaigns/[id]` (`requireAdmin`) dit le RÔLE, pas l'absence : il reste une erreur, le paramètre reste.
+ * Un 404 = campagne absente, ou d'un autre espace (`checkCampaignAccess` des canaux rend 404, jamais 403). Un 401/403
+ * (`requireAdmin` de `GET /api/admin/campaigns/[id]`) dit le RÔLE, pas l'absence : `AccesRefuse`, le paramètre reste.
  */
-const introuvable = (e: unknown) => (e instanceof HttpErrorResponse && e.status === 404 ? new CampagneIntrouvable() : e);
+function classer(e: unknown): unknown {
+  if (!(e instanceof HttpErrorResponse)) return e;
+  if (e.status === 404) return new CampagneIntrouvable();
+  if (e.status === 401 || e.status === 403) return new AccesRefuse();
+  return e;
+}
 
 /**
  * ⑥ Plan — l'ÉTAT de la campagne courante (lot 6, T2) : la campagne (`?campagne=`), le brouillon `ProgDraft`, la
@@ -60,6 +72,7 @@ export class PlanCampagneService {
   private readonly _restaure = signal<{ savedAt: string } | null>(null);
   private readonly _prerempli = signal(false);
   private readonly _erreur = signal<string | null>(null);
+  private readonly _accesRefuse = signal(false);
   private readonly _etape = signal(ETAPE_MIN);
   private readonly _sauveLe = signal<string | null>(null);
   private readonly _cps = signal<ReadonlyMap<string, CpDExtraction>>(new Map());
@@ -78,12 +91,20 @@ export class PlanCampagneService {
   /** Le préremplissage est fini : l'écran peut éditer, l'autosave écrire. */
   readonly prerempli: Signal<boolean> = this._prerempli.asReadonly();
   readonly erreur: Signal<string | null> = this._erreur.asReadonly();
+  /** Le rôle ne permet pas la gestion des campagnes (401/403) : préremplissage terminé, aucune écriture. */
+  readonly accesRefuse: Signal<boolean> = this._accesRefuse.asReadonly();
   /** L'« étape » envoyée au brouillon : la section dépliée la plus basse (A-2). */
   readonly etape: Signal<number> = this._etape.asReadonly();
   /** L'heure de la dernière sauvegarde réussie (`last_saved_at`). */
   readonly sauveLe: Signal<string | null> = this._sauveLe.asReadonly();
 
+  /** Jeton du PRÉREMPLISSAGE : invalidé à chaque changement de campagne. */
   private jeton = 0;
+  /**
+   * Génération du BROUILLON : invalidée au changement de campagne ET par `repartirDeZero`. Une sauvegarde déjà partie
+   * ou un brouillon serveur en cours de lecture d'une génération passée ne s'appliquent plus (relecture 1).
+   */
+  private generation = 0;
   private chargement: Subscription | null = null;
   private minuterie: ReturnType<typeof setTimeout> | null = null;
   private brouillonId: string | null = null;
@@ -126,6 +147,7 @@ export class PlanCampagneService {
   /** « Repartir de zéro » : le brouillon serveur est jeté, le défaut repart, prérempli de l'identité de la campagne. */
   repartirDeZero(): void {
     this.arreterMinuterie();
+    this.generation++;
     const id = this.brouillonId;
     this.brouillonId = null;
     if (id) this.api.supprimerBrouillon(id).subscribe({ error: () => undefined });
@@ -178,6 +200,7 @@ export class PlanCampagneService {
     this._restaure.set(null);
     this._prerempli.set(false);
     this._erreur.set(null);
+    this._accesRefuse.set(false);
     this._etape.set(ETAPE_MIN);
     this._sauveLe.set(null);
     this.brouillonId = null;
@@ -187,15 +210,17 @@ export class PlanCampagneService {
   /** Campagne → stratégie → brouillon → canaux, une requête à la fois, dans UN abonnement annulable. */
   private preremplir(id: string): void {
     const jeton = this.jeton;
+    const generation = this.generation;
     const enCours = () => jeton === this.jeton;
     this.chargement = this.api.campagne(id).pipe(
-      catchError((e: unknown) => throwError(() => introuvable(e))),
+      catchError((e: unknown) => throwError(() => classer(e))),
       tap(({ campaign }) => {
         this._detail.set(campaign);
         this._brouillon.update((d) => remplirIdentite(d, campaign));
       }),
       // Best-effort comme React : une stratégie ou un brouillon illisible ne bloque pas le plan.
-      switchMap(() => this.api.strategies().pipe(catchError(() => of({ strategies: [] })))),
+      // La SEULE plus récente de la campagne (`?campaign_id=`, `limit(1)`), jamais toute la liste de l'espace.
+      switchMap(() => this.api.strategies(id).pipe(catchError(() => of({ strategies: [] })))),
       switchMap(({ strategies }) => {
         const s = strategies.find((x) => x.campaign_id === id);
         this._strategie.set(s ? { id: s.id, statut: s.status } : null);
@@ -203,8 +228,9 @@ export class PlanCampagneService {
       }),
       tap((s) => { if (s) this._brouillon.update((d) => remplirDepuisStrategie(d, s)); }),
       switchMap(() => this.api.brouillons(id).pipe(catchError(() => of({ drafts: [] })))),
-      tap(({ drafts }) => this.restaurer(drafts[0])),
-      switchMap(() => this.api.canaux(id).pipe(catchError((e: unknown) => throwError(() => introuvable(e))))),
+      // « Repartir de zéro » pendant la lecture : le brouillon jeté n'est pas restauré par-dessus.
+      tap(({ drafts }) => { if (generation === this.generation) this.restaurer(drafts[0]); }),
+      switchMap(() => this.api.canaux(id).pipe(catchError((e: unknown) => throwError(() => classer(e))))),
     ).subscribe({
       next: (c) => {
         if (!enCours()) return;
@@ -218,6 +244,10 @@ export class PlanCampagneService {
           this.ouvrir(null);
           this._erreur.set(MESSAGE_CAMPAGNE_INTROUVABLE);
           this.ecrireUrl();
+        } else if (e instanceof AccesRefuse) {
+          this._accesRefuse.set(true);
+          this._erreur.set(MESSAGE_RESERVE_ADMIN);
+          this._prerempli.set(true);
         } else {
           this._erreur.set(messageErreurApi(e));
         }
@@ -238,20 +268,26 @@ export class PlanCampagneService {
 
   private programmerSauvegarde(): void {
     const campagne = this._campagne();
-    if (!campagne || !this._prerempli() || this.detruit) return;
+    if (!campagne || !this._prerempli() || this._accesRefuse() || this.detruit) return;
     this.arreterMinuterie();
-    const jeton = this.jeton;
+    const generation = this.generation;
     this.minuterie = setTimeout(() => {
       this.minuterie = null;
-      this.sauver(campagne, jeton).subscribe({ error: () => undefined });
+      this.sauver(campagne, generation).subscribe({ error: () => undefined });
     }, DELAI_AUTOSAVE_MS);
   }
 
-  /** L'écriture du brouillon courant ; ignorée si la campagne a changé entre-temps (jeton). */
-  private sauver(campagne: string, jeton: number): Observable<unknown> {
+  /**
+   * L'écriture du brouillon courant. Revenue d'une génération passée (campagne changée, ou « Repartir de zéro »
+   * pendant le vol) : son identifiant n'est pas repris, et la ligne qu'elle a recréée APRÈS la suppression est rejetée.
+   */
+  private sauver(campagne: string, generation: number): Observable<unknown> {
     const corps = { campaign_id: campagne, current_step: this._etape(), draft_data: serializeDraft(this._brouillon()) };
     return this.api.sauverBrouillon(corps).pipe(tap(({ draft }) => {
-      if (jeton !== this.jeton) return;
+      if (generation !== this.generation) {
+        if (!this.detruit) this.api.supprimerBrouillon(draft.id).subscribe({ error: () => undefined });
+        return;
+      }
       this.brouillonId = draft.id;
       this._sauveLe.set(draft.last_saved_at);
     }));
@@ -263,6 +299,7 @@ export class PlanCampagneService {
     this.chargement = null;
     this.arreterMinuterie();
     this.jeton++;
+    this.generation++;
   }
 
   private arreterMinuterie(): void {

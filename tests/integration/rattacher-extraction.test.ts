@@ -4,7 +4,8 @@
  *   l'extraction, à l'unité près ; extraction d'un autre jeu → 404 ; jeu d'un autre espace → 404 du chargeur ; sans
  *   `extraction`, un jeu de zone reste refusé (409) et un jeu risque donne les chiffres d'avant le lot 6 ;
  * - `GET /api/zones/jeux/[id]/extractions/[version]/cp` : le même compte que le plan écrit ; par plateforme, ses CP ;
- * - `PUT /api/campaigns/[campaignId]/channels` : `cpm_prevus` relu par le GET, élagué au retrait du canal.
+ * - `PUT /api/campaigns/[campaignId]/channels` : `cpm_prevus` relu par le GET, élagué au retrait du canal ;
+ * - `GET /api/bidding/strategies?campaign_id=` (relecture 1) : la seule plus récente de la campagne.
  *
  * Seuls l'appelant et les quotas sont simulés. Deux espaces `[ESSAI lot6 T1]` sont créés puis supprimés ; jeux,
  * extractions, campagnes et stratégies partent avec eux (cascades). La campagne posée dans l'espace du jeu risque de
@@ -33,6 +34,7 @@ const rattacher = await import('@/app/api/zones/jeux/[id]/rattacher/route');
 const extractions = await import('@/app/api/zones/jeux/[id]/extractions/route');
 const cpExtraction = await import('@/app/api/zones/jeux/[id]/extractions/[version]/cp/route');
 const canaux = await import('@/app/api/campaigns/[campaignId]/channels/route');
+const strategies = await import('@/app/api/bidding/strategies/route');
 
 /** « Seveso France — test phase 4 », jeu RISQUE de référence (caractérisation du lot 5), espace GENESIS (Global). */
 const JEU_RISQUE = '0b7ece33-4903-4a0b-a57a-f6c54e78a729';
@@ -255,6 +257,29 @@ describe('GET /api/zones/jeux/[id]/extractions/[version]/cp', () => {
     const r = await cpExtraction.GET(new NextRequest(`http://localhost/api/zones/jeux/${jeu}/extractions/x/cp`),
       { params: Promise.resolve({ id: jeu, version: 'x' }) });
     expect(r.status).toBe(400);
+  });
+});
+
+describe('GET /api/bidding/strategies?campaign_id= (relecture 1)', () => {
+  const lister = (q: string) => strategies.GET(new NextRequest(`http://localhost/api/bidding/strategies${q}`));
+
+  it('la SEULE plus récente de la campagne (la stratégie active du rattachement), pas la liste de l’espace', async () => {
+    const r = await lister(`?campaign_id=${campagne}`);
+    expect(r.status).toBe(200);
+    const { strategies: lues } = await r.json() as { strategies: { id: string; campaign_id: string; status: string }[] };
+    const active = psql(`select id from public.bidding_strategies where campaign_id = '${campagne}' and status = 'active';`);
+    expect(lues).toHaveLength(1);
+    expect(lues[0]).toMatchObject({ id: active, campaign_id: campagne, status: 'active' });
+  });
+
+  it('un campaign_id qui n’est pas un UUID : 400 ; une campagne d’un autre espace : liste vide', async () => {
+    expect((await lister('?campaign_id=x')).status).toBe(400);
+    appelant.org = autreOrg;
+    try {
+      expect((await (await lister(`?campaign_id=${campagne}`)).json()).strategies).toEqual([]);
+    } finally {
+      appelant.org = org;
+    }
   });
 });
 

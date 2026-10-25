@@ -1,5 +1,7 @@
 /**
- * GET  /api/bidding/strategies — liste les stratégies + métadonnées campagne
+ * GET  /api/bidding/strategies — liste les stratégies + métadonnées campagne, la plus récente d'abord.
+ *      `?campaign_id=<uuid>` (lot 6, relecture 1) : la SEULE plus récente de cette campagne (`limit(1)`), au lieu de
+ *      toutes celles de l'espace — l'étape ⑥ n'en cherche qu'une, et une liste d'espace dépasse `db-max-rows`.
  * POST /api/bidding/strategies — crée une stratégie depuis le wizard A4.7 (5 steps)
  *
  * Eligibilité POST : la campagne doit exister ET son `dsp_source` doit être ≠ 'adform'.
@@ -85,6 +87,13 @@ export async function GET(request: NextRequest) {
   const profile = await requireAuth(request);
   if (!profile) return authUnauthorized();
 
+  const brut = request.nextUrl.searchParams.get('campaign_id');
+  const campagne = brut === null ? null : z.string().uuid().safeParse(brut);
+  if (campagne && !campagne.success) return NextResponse.json({ error: 'campaign_id invalide' }, { status: 400 });
+  /** Le filtre facultatif par campagne ; sans lui, la liste d'avant, inchangée. */
+  const borner = <Q extends { eq: (c: string, v: string) => Q; limit: (n: number) => Q }>(q: Q): Q =>
+    (campagne?.success ? q.eq('campaign_id', campagne.data).limit(1) : q);
+
   const supabase = createAdminClient();
 
   const SELECT = `
@@ -121,20 +130,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ strategies: [] });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await borner(supabase
       .from('bidding_strategies')
       .select(SELECT)
       .in('campaign_id', accessibleCampaignIds)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false }));
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ strategies: data ?? [] });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await borner(supabase
     .from('bidding_strategies')
     .select(SELECT)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false }));
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ strategies: data ?? [] });
