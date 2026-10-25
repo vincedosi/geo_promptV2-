@@ -41,7 +41,7 @@ const OPTION = 'flex w-full cursor-pointer items-center gap-2 rounded-md border-
     '(focusout)': 'sortieFocus($event)',
   },
   template: `
-    <button #declencheur type="button" data-declencheur-campagne [class]="declencheur" (click)="basculer()"
+    <button #declencheur type="button" data-declencheur-campagne [class]="classeDeclencheur" (click)="basculer()"
             [attr.aria-expanded]="ouvert()" aria-controls="mg-liste-campagnes" [attr.title]="'Campagne : ' + nomCourant()">
       <span class="shrink-0 text-tertiary">Campagne</span>
       <span data-nom-campagne class="min-w-0 truncate text-primary">{{ nomCourant() }}</span>
@@ -78,7 +78,7 @@ export class ChoixCampagneComponent {
   private readonly hote = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly declencheurBouton = viewChild.required<ElementRef<HTMLButtonElement>>('declencheur');
 
-  protected readonly declencheur = DECLENCHEUR;
+  protected readonly classeDeclencheur = DECLENCHEUR;
   protected readonly option = OPTION;
 
   protected readonly ouvert = signal(false);

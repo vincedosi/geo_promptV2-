@@ -57,6 +57,9 @@ describe('PiedLancementComponent — récapitulatif et lancement (T6)', () => {
     await stable();
     const t = (s: string) => el.querySelector(s)!.textContent!.replace(/\s+/g, ' ').trim();
     expect(t('[data-recap-extraction]')).toBe('Lyon · extraction v3');
+    // Le nom et l'identité restent séparés : Angular retire l'espace seul entre deux balises (preuve navigateur T7b).
+    const [nom, identite] = [...el.querySelectorAll('[data-recap-lancement] > div:first-child > span')].map((s) => s.textContent);
+    expect(el.querySelector('[data-recap-lancement] > div:first-child')!.textContent).toBe(`${nom} ${identite}`);
     expect(t('[data-recap-plateforme="dv360"]')).toBe('dv360 · 10 000 € · CPM 4,00 € · 2 500 000 imp.');
     expect(t('[data-recap-impressions]')).toBe('2 500 000');
     expect(t('[data-recap-periode]')).toBe('01/11/26 → 30/11/26');

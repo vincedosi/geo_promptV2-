@@ -26,6 +26,9 @@ describe('ChoixCampagneComponent — le sélecteur de la barre (⑥-⑧, A-1)', 
     const { el, api, ouvrir } = await monter();
     expect(api.campagnes).not.toHaveBeenCalled();
     expect(el.querySelector('[data-nom-campagne]')!.textContent!.trim()).toBe('Aucune');
+    // Le déclencheur porte ses classes : la référence `#declencheur` masquait la propriété du même nom, et `[class]`
+    // recevait l'élément (classe « __ngContext__ », bouton sans bordure ni espacement — preuve navigateur T7b).
+    expect(el.querySelector('[data-declencheur-campagne]')!.classList).toContain('border-default');
     await ouvrir();
     expect(api.campagnes).toHaveBeenCalledTimes(1);
     expect([...el.querySelectorAll('[data-campagne]')].map((b) => b.textContent!.trim())).toEqual(['Rentrée', 'Noël']);

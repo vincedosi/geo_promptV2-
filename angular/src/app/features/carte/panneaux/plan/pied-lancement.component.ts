@@ -48,7 +48,7 @@ const SECONDAIRE = 'cursor-pointer rounded-[6px] border-fin border-default bg-tr
       </div>
     } @else {
       <div data-recap-lancement class="flex flex-col gap-1.5">
-        <div><span class="text-[13px] font-medium text-primary">{{ recap().nom }}</span> <span class="text-[11.5px] text-tertiary">{{ recap().identite }}</span></div>
+        <div><span class="text-[13px] font-medium text-primary">{{ recap().nom }}</span>&ngsp;<span class="text-[11.5px] text-tertiary">{{ recap().identite }}</span></div>
         <div>Cible <span data-recap-extraction class="text-primary">{{ recap().extraction }}</span></div>
         @for (p of recap().plateformes; track p.code) {
           <div [attr.data-recap-plateforme]="p.code" class="font-mono text-[11px]">{{ p.libelle }} · {{ p.budget }} · CPM {{ p.cpm }} · {{ p.impressions }} imp.</div>
