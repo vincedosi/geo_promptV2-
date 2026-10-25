@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { Subject, of, throwError } from 'rxjs';
 import { NotificationsService } from '../../../../ui/notifications/notifications.service';
 import { PlanApi, type PlanRattache } from '../../data/plan.api';
+import { LancementCampagneService } from '../../etat/lancement-campagne.service';
 import { ParcoursService } from '../../etat/parcours.service';
 import { PlanCampagneService } from '../../etat/plan-campagne.service';
 import { DEFAULT_PROG_DRAFT, type ProgDraft } from '../../logique/plan/brouillon';
@@ -31,16 +32,22 @@ function monter(brouillon: ProgDraft = PRET, api: Partial<Record<keyof PlanApi, 
     modifierStrategie: vi.fn(() => of({ strategy: {} })),
     ecrireCanaux: vi.fn(() => of({ ok: true })),
     modifierCampagne: vi.fn(() => of({ success: true })),
+    brouillons: vi.fn(() => of({ drafts: [] })),
+    supprimerBrouillon: vi.fn(() => of({ deleted: true })),
     ...api,
   };
   const parcours = { choisir: vi.fn() };
   TestBed.configureTestingModule({
-    providers: [{ provide: PlanCampagneService, useValue: plan }, { provide: PlanApi, useValue: appels }, { provide: ParcoursService, useValue: parcours }],
+    // Comme la page (FOURNISSEURS_PLAN) : le service de lancement et les notifications vivent HORS du pied.
+    providers: [
+      { provide: PlanCampagneService, useValue: plan }, { provide: PlanApi, useValue: appels }, { provide: ParcoursService, useValue: parcours },
+      LancementCampagneService, NotificationsService,
+    ],
   });
   const fixture = TestBed.createComponent(PiedLancementComponent);
   fixture.componentRef.setInput('liaisonsConfirmees', true);
   const el = fixture.nativeElement as HTMLElement;
-  const notifs = fixture.debugElement.injector.get(NotificationsService);
+  const notifs = TestBed.inject(NotificationsService);
   return { fixture, el, plan, appels, parcours, notifs, stable: () => fixture.whenStable() };
 }
 
@@ -83,6 +90,11 @@ describe('PiedLancementComponent — récapitulatif et lancement (T6)', () => {
     expect(el.querySelector('[data-message-lancement]')!.textContent!.replace(/\s/g, ' ')).toBe('12 codes postaux · 90 % du plan en zone · 75,0 % d’utile · 2 500 000 impressions prévues');
     el.querySelector<HTMLButtonElement>('[data-vers-activation]')!.click();
     expect(parcours.choisir).toHaveBeenCalledWith('activation');
+    // « Modifier et relancer » (relecture 3, M4) : retour au récapitulatif, le bouton de lancement est rendu.
+    el.querySelector<HTMLButtonElement>('[data-relancer]')!.click();
+    await stable();
+    expect(el.querySelector('[data-lance]')).toBeNull();
+    expect(el.querySelector<HTMLButtonElement>('[data-lancer]')!.disabled).toBe(false);
   });
 
   it('échec de rattacher : notification au message de la route, ni PATCH ni PUT, rien de jeté', async () => {
@@ -96,6 +108,7 @@ describe('PiedLancementComponent — récapitulatif et lancement (T6)', () => {
     expect(appels.ecrireCanaux).not.toHaveBeenCalled();
     expect(plan.apresLancement).not.toHaveBeenCalled();
     expect(notifs.notifications()[0]).toMatchObject({ variante: 'error', titre: 'Rattachement impossible', message: 'Ce jeu de zones ne couvre aucun code postal.' });
+    expect(el.querySelector('[data-echec-lancement]')!.textContent!.trim()).toBe('Rattachement impossible. Ce jeu de zones ne couvre aucun code postal.');
     expect(el.querySelector<HTMLButtonElement>('[data-lancer]')!.disabled).toBe(false);
   });
 
@@ -111,9 +124,12 @@ describe('PiedLancementComponent — récapitulatif et lancement (T6)', () => {
     expect(appels.rattacher).toHaveBeenCalledTimes(1);
   });
 
-  it('une réponse revenue après un changement de campagne n’écrit rien dans la nouvelle', async () => {
+  it('une réponse revenue après un changement de campagne n’écrit rien dans la nouvelle ; son brouillon serveur est jeté', async () => {
     const enVol = new Subject<PlanRattache>();
-    const { el, plan, stable } = monter(PRET, { rattacher: vi.fn(() => enVol) });
+    const { el, plan, appels, stable } = monter(PRET, {
+      rattacher: vi.fn(() => enVol),
+      brouillons: vi.fn(() => of({ drafts: [{ id: 'b1', campaign_id: CAMPAGNE_A }] })),
+    });
     await stable();
     el.querySelector<HTMLButtonElement>('[data-lancer]')!.click();
     plan.campagne.set('7c9e6679-7425-40de-944b-e07fc1f90ae7');
@@ -122,5 +138,26 @@ describe('PiedLancementComponent — récapitulatif et lancement (T6)', () => {
     await stable();
     expect(plan.apresLancement).not.toHaveBeenCalled();
     expect(el.querySelector('[data-lance]')).toBeNull();
+    expect(appels.brouillons).toHaveBeenCalledWith(CAMPAGNE_A);
+    expect(appels.supprimerBrouillon).toHaveBeenCalledWith('b1');
+    // De retour sur sa campagne : l'issue est toujours là.
+    plan.campagne.set(CAMPAGNE_A);
+    await stable();
+    expect(el.querySelector('[data-lance]')).not.toBeNull();
+  });
+
+  it('pied DÉTRUIT après rattacher (autre campagne, autre étape) : le PATCH et le PUT partent quand même (relecture 3, I1)', async () => {
+    const enVol = new Subject<PlanRattache>();
+    const { fixture, el, plan, appels, notifs, stable } = monter(PRET, { rattacher: vi.fn(() => enVol) });
+    await stable();
+    el.querySelector<HTMLButtonElement>('[data-lancer]')!.click();
+    fixture.destroy();
+    enVol.next(RATTACHE);
+    enVol.complete();
+    expect(appels.modifierStrategie).toHaveBeenCalledWith('s1', expect.objectContaining({ kpi_target: 2500000 }));
+    expect(appels.ecrireCanaux).toHaveBeenCalledTimes(1);
+    expect(plan.apresLancement).toHaveBeenCalledWith('s1', null);
+    expect(notifs.notifications()[0]).toMatchObject({ variante: 'success', titre: 'Campagne créée' });
+    expect(TestBed.inject(LancementCampagneService).etat()).toMatchObject({ campagne: CAMPAGNE_A, statut: 'reussi' });
   });
 });

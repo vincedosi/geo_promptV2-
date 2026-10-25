@@ -34,5 +34,6 @@ describe('saisie du plan (T5)', () => {
     expect(lireMontant('-1')).toBeNull();
     expect(lireMontant('0')).toBe(0);
     expect(lireMontant('4.25')).toBe(4.25);
+    expect(lireMontant('1234.567')).toBe(1234.57);
   });
 });

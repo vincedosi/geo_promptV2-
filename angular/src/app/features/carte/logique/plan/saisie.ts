@@ -29,9 +29,12 @@ export function poserMontant(d: ProgDraft, champ: ChampMontant, code: string, va
   return { ...d, [champ]: valeur === null ? suite : { ...suite, [code]: valeur } };
 }
 
-/** La valeur d'un champ numérique : vide, illisible ou négative → `null` (ligne retirée, jamais un 0 inventé). */
+/**
+ * La valeur d'un champ numérique, ARRONDIE au centime (relecture 3, M2 : sinon les impressions se calculaient sur
+ * 1 234,567 € quand `total_budget` en stockait 1 234,57) ; vide, illisible ou négative → `null` (ligne retirée).
+ */
 export function lireMontant(brut: string): number | null {
   if (brut.trim() === '') return null;
   const n = Number(brut);
-  return Number.isFinite(n) && n >= 0 ? n : null;
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
 }

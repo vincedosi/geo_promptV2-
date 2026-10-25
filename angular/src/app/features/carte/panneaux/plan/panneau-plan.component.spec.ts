@@ -5,7 +5,9 @@ import { JeuxApi } from '../../data/jeux.api';
 import { PlanApi } from '../../data/plan.api';
 import { AnnonceService } from '../../etat/annonce.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
+import { LancementCampagneService } from '../../etat/lancement-campagne.service';
 import { ParcoursService } from '../../etat/parcours.service';
+import { NotificationsService } from '../../../../ui/notifications/notifications.service';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { MESSAGE_CAMPAGNE_INTROUVABLE, MESSAGE_RESERVE_ADMIN, PlanCampagneService } from '../../etat/plan-campagne.service';
 import { CAMPAGNE_A, detailCampagne, planFactice } from '../../testing/plan-factice';
@@ -23,6 +25,7 @@ async function monter(preparer: (p: ReturnType<typeof planFactice>) => void = ()
       { provide: JeuZonesService, useValue: { jeuId: signal(null), extraction: signal(null) } },
       EtatCarteService, AnnonceService,
       { provide: ParcoursService, useValue: { choisir: vi.fn() } },
+      LancementCampagneService, NotificationsService,
     ],
   });
   const fixture = TestBed.createComponent(PanneauPlanComponent);

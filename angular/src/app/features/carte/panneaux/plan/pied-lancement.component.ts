@@ -1,18 +1,20 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input, linkedSignal, signal } from '@angular/core';
-import type { Subscription } from 'rxjs';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { formaterDecimal, formaterNombre } from '../../../../core/format/nombre';
 import { NotificationsComponent } from '../../../../ui/notifications/notifications.component';
-import { NotificationsService } from '../../../../ui/notifications/notifications.service';
-import { PlanApi } from '../../data/plan.api';
-import { EchecLancement, etatLancement, lancerCampagne, messageLancement } from '../../etat/lancement-campagne';
+import { etatLancement } from '../../etat/lancement-campagne';
+import { LancementCampagneService } from '../../etat/lancement-campagne.service';
 import { ParcoursService } from '../../etat/parcours.service';
 import { PlanCampagneService } from '../../etat/plan-campagne.service';
 import { fmtDateShort, fmtEUR } from '../../logique/plan/brouillon';
 import { resolveChannelAvailability } from '../../logique/plan/canaux';
+import { ENCART_ERREUR } from '../analyse/styles-analyse';
 import { TEXTE_SUCCES } from './styles-plan';
 
 /** Le CTA principal (DESIGN_SYSTEM § 5) : `--text-primary` sur `--bg-primary`, inversé en clair par les jetons ; survol par l'opacité. */
 const CTA = 'rounded-[6px] border-0 bg-[var(--text-primary)] px-4 py-2.5 text-[13px] font-medium text-[var(--bg-primary)] transition-opacity duration-150 enabled:cursor-pointer enabled:hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-50';
+
+/** Le bouton secondaire (« Modifier et relancer ») : contour neutre, texte secondaire. */
+const SECONDAIRE = 'cursor-pointer rounded-[6px] border-fin border-default bg-transparent px-4 py-2.5 text-[13px] text-secondary transition-colors duration-150 hover:border-hover hover:text-primary';
 
 /**
  * ⑥ Plan — le pied « Lancement » (lot 6, T6) : port de `StepLancement.tsx` réduit au chemin extraction (A-9), sans
@@ -21,27 +23,28 @@ const CTA = 'rounded-[6px] border-0 bg-[var(--text-primary)] px-4 py-2.5 text-[1
  * - le RÉCAPITULATIF — identité (et le renommage à venir), extraction, plateformes avec budget, CPM et impressions
  *   prévues, période, totaux (les `totaux` du service : ceux de la section Impressions et du PATCH) ;
  * - la VALIDITÉ (`etatLancement`, un `computed`) : chaque motif de blocage est DIT, le bouton reste inactif ;
- * - « Créer la campagne → » : `lancerCampagne`, séquentiel ; tout échec est une notification (`mg-notifications`) au
- *   titre de l'étape et au message de la route ; la réussite aussi, avec « N codes postaux · X % du plan en zone ·
- *   Y % d'utile · Z impressions prévues ». Puis le brouillon serveur est jeté (`apresLancement`) et le pied propose
- *   « Préparer l'activation → ⑦ ». Relancer une campagne lancée suit le même chemin (`rattacher` archive l'ancienne).
- *
- * Une réponse revenue après un changement de campagne est notifiée (le serveur l'a écrite) mais n'écrit rien dans
- * l'état de la nouvelle.
+ * - « Créer la campagne → » : DÉCLENCHE `LancementCampagneService` (fourni par la page, relecture 3) et AFFICHE son
+ *   état — le pied peut être détruit en cours de séquence (autre campagne, autre étape), la séquence continue. Réussi :
+ *   « ✓ Campagne créée », « N codes postaux · X % du plan en zone · Y % d'utile · Z impressions prévues »,
+ *   « Préparer l'activation → ⑦ » et « Modifier et relancer » (relancer suit le même chemin, `rattacher` archive
+ *   l'ancienne stratégie). Échec : le titre de l'étape et le message de la route, dans le pied ET en notification.
+ *   L'issue s'affiche pour SA campagne seulement.
  */
 @Component({
   selector: 'mg-pied-lancement',
   imports: [NotificationsComponent],
-  providers: [NotificationsService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col gap-2.5 border-t border-subtle px-4 py-3 text-[12px] text-secondary', 'data-pied-plan': '' },
   template: `
     <mg-notifications />
-    @if (lance(); as message) {
+    @if (reussi(); as message) {
       <div data-lance class="flex flex-col gap-2">
         <span class="text-[12px]" [class]="texteSucces">✓ Campagne créée</span>
         <span data-message-lancement class="text-[12px] text-secondary">{{ message }}</span>
-        <button type="button" data-vers-activation [class]="cta + ' self-start'" (click)="parcours.choisir('activation')">Préparer l’activation → ⑦</button>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" data-vers-activation [class]="cta" (click)="parcours.choisir('activation')">Préparer l’activation → ⑦</button>
+          <button type="button" data-relancer [class]="secondaire" (click)="lancement.oublier(campagne())">Modifier et relancer</button>
+        </div>
       </div>
     } @else {
       <div data-recap-lancement class="flex flex-col gap-1.5">
@@ -62,6 +65,7 @@ const CTA = 'rounded-[6px] border-0 bg-[var(--text-primary)] px-4 py-2.5 text-[1
           @for (m of etat().motifs; track m) { <li>{{ m }}</li> }
         </ul>
       }
+      @if (echec(); as e) { <div data-echec-lancement role="alert" [class]="encartErreur"><strong class="font-medium">{{ e.titre }}.</strong> {{ e.message }}</div> }
       <div class="flex items-center gap-3">
         <button type="button" data-lancer [class]="cta" [disabled]="!etat().demande || enCours()" (click)="lancer()">{{ enCours() ? 'Création…' : 'Créer la campagne →' }}</button>
         @if (plan.sauveLe()) { <span data-sauve class="ml-auto text-[11px] text-tertiary">Brouillon enregistré</span> }
@@ -72,18 +76,31 @@ const CTA = 'rounded-[6px] border-0 bg-[var(--text-primary)] px-4 py-2.5 text-[1
 export class PiedLancementComponent {
   protected readonly plan = inject(PlanCampagneService);
   protected readonly parcours = inject(ParcoursService);
-  private readonly api = inject(PlanApi);
-  private readonly notifications = inject(NotificationsService);
+  protected readonly lancement = inject(LancementCampagneService);
 
   /** La coche « Je confirme ces liaisons » correspond à la sélection courante (section Plateformes). */
   readonly liaisonsConfirmees = input(false);
 
   protected readonly cta = CTA;
+  protected readonly secondaire = SECONDAIRE;
   protected readonly texteSucces = TEXTE_SUCCES;
-  protected readonly enCours = signal(false);
-  /** Le message du lancement réussi de CETTE campagne ; oublié quand on en change. */
-  protected readonly lance = linkedSignal<string | null, string | null>({ source: () => this.plan.campagne(), computation: () => null });
-  private abonnement: Subscription | null = null;
+  protected readonly encartErreur = ENCART_ERREUR;
+  protected readonly campagne = computed(() => this.plan.campagne() ?? '');
+  /** Une séquence est en vol (une seule à la fois, toutes campagnes confondues). */
+  protected readonly enCours = this.lancement.enCours;
+  /** L'issue du dernier lancement, s'il porte sur la campagne ouverte. */
+  private readonly issue = computed(() => {
+    const e = this.lancement.etat();
+    return e && e.campagne === this.plan.campagne() ? e : null;
+  });
+  protected readonly reussi = computed(() => {
+    const e = this.issue();
+    return e?.statut === 'reussi' ? e.message : null;
+  });
+  protected readonly echec = computed(() => {
+    const e = this.issue();
+    return e?.statut === 'echec' ? e : null;
+  });
 
   private readonly libelles = computed(() => {
     const c = this.plan.canaux();
@@ -123,29 +140,8 @@ export class PiedLancementComponent {
     };
   });
 
-  constructor() {
-    inject(DestroyRef).onDestroy(() => this.abonnement?.unsubscribe());
-  }
-
   protected lancer(): void {
     const demande = this.etat().demande;
-    if (!demande || this.enCours()) return;
-    const impressions = this.plan.totaux().impressions;
-    this.enCours.set(true);
-    this.abonnement = lancerCampagne(this.api, demande).subscribe({
-      next: (r) => {
-        const message = messageLancement(r, impressions);
-        this.notifications.success('Campagne créée', message);
-        if (this.plan.campagne() !== demande.campagne) return;
-        this.plan.apresLancement(r.strategie, demande.identite);
-        this.lance.set(message);
-      },
-      error: (e: unknown) => {
-        this.enCours.set(false);
-        if (e instanceof EchecLancement) this.notifications.error(e.titre, e.message);
-        else this.notifications.error('Lancement impossible', 'Une erreur inattendue est survenue.');
-      },
-      complete: () => this.enCours.set(false),
-    });
+    if (demande) this.lancement.lancer(demande, this.plan.totaux().impressions);
   }
 }

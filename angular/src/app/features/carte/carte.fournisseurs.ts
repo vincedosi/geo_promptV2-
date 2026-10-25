@@ -3,7 +3,9 @@ import { CouvertureService } from './couches/couverture.service';
 import { JeuCarteService } from './couches/jeu-carte.service';
 import { ScoreService } from './couches/score.service';
 import { ZonesRisqueService } from './couches/zones-risque.service';
+import { NotificationsService } from '../../ui/notifications/notifications.service';
 import { JeuZonesService } from './etat/jeu-zones.service';
+import { LancementCampagneService } from './etat/lancement-campagne.service';
 import { PlanCampagneService } from './etat/plan-campagne.service';
 import { ZoneAnalyseeService } from './etat/zone-analysee.service';
 
@@ -34,7 +36,13 @@ export const FOURNISSEURS_JEU: Provider[] = [
  * son brouillon autosauvé et les CP d'extraction lus survivent à ⑥ → ① → ⑥. Un changement d'espace recrée la page,
  * donc lui : le brouillon d'un espace ne s'écrit jamais dans l'autre.
  */
-export const FOURNISSEURS_PLAN: Provider[] = [PlanCampagneService];
+export const FOURNISSEURS_PLAN: Provider[] = [
+  PlanCampagneService,
+  // Le lancement (relecture 3) : à la page, il survit au pied détruit (autre campagne, autre étape) ; ses notifications
+  // aussi — la pile `mg-notifications` du pied lit ce service.
+  LancementCampagneService,
+  NotificationsService,
+];
 
 /**
  * La pastille « renseignée » de ④ (A2) : un score composite, des zones à risque ou une couverture de zone PEINTS. À

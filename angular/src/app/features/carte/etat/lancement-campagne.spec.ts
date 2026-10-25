@@ -63,6 +63,11 @@ describe('etatLancement — la validité de React restreinte au chemin extractio
     expect(etatLancement(entrees({ ...PRET, channels: { dsps: [], socials: [], ad_server: null } })).motifs).toEqual(['Choisis au moins un DSP ou un réseau.']);
   });
 
+  it('plus de 9 999 999 999 impressions (kpi_target numeric(14,4)) : bloqué (relecture 3, M1)', () => {
+    const r = etatLancement(entrees({ ...PRET, channelBudgets: { dv360: 10_000_000, meta: 3000 }, cpmPrevus: { dv360: 0.5, meta: 6 } }));
+    expect(r.motifs).toEqual(['Plus de 9 999 999 999 impressions prévues : vérifie budgets et CPM.']);
+  });
+
   it('identité inchangée : pas de PATCH de campagne', () => {
     const d = { ...PRET, name: 'Rentrée', advertiser: '' };
     expect(etatLancement(entrees(d)).demande!.identite).toBeNull();
@@ -117,6 +122,27 @@ describe('lancerCampagne — un seul chemin, séquentiel (T6, A-9, E2)', () => {
     http.verify();
     expect(erreur).toBeInstanceOf(EchecLancement);
     expect(erreur).toMatchObject({ titre: 'Rattachement impossible', message: 'Ce jeu de zones ne couvre aucun code postal.' });
+  });
+
+  it('échec du PATCH de stratégie : pas de PUT ; « Budget et période non enregistrés » (relecture 3, M6)', () => {
+    const { api, http } = monter();
+    let erreur: unknown = null;
+    lancerCampagne(api, { ...demande(), identite: null }).subscribe({ error: (e: unknown) => { erreur = e; } });
+    http.expectOne(`/api/zones/jeux/${J}/rattacher`).flush(rattache);
+    http.expectOne(`/api/bidding/strategies/${S}`).flush({ error: 'numeric field overflow' }, { status: 500, statusText: 'Erreur' });
+    http.verify();
+    expect(erreur).toMatchObject({ titre: 'Budget et période non enregistrés', message: 'numeric field overflow' });
+  });
+
+  it('échec du PUT des canaux : « Plateformes non enregistrées » (relecture 3, M6)', () => {
+    const { api, http } = monter();
+    let erreur: unknown = null;
+    lancerCampagne(api, { ...demande(), identite: null }).subscribe({ error: (e: unknown) => { erreur = e; } });
+    http.expectOne(`/api/zones/jeux/${J}/rattacher`).flush(rattache);
+    http.expectOne(`/api/bidding/strategies/${S}`).flush({ strategy: {} });
+    http.expectOne(`/api/campaigns/${C}/channels`).flush({ error: 'Canal inconnu : x' }, { status: 400, statusText: 'Erreur' });
+    http.verify();
+    expect(erreur).toMatchObject({ titre: 'Plateformes non enregistrées', message: 'Canal inconnu : x' });
   });
 
   it('échec du PATCH d’identité : rien d’autre ne part', () => {

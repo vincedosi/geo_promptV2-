@@ -25,6 +25,9 @@ import type { ProgDraft } from '../logique/plan/brouillon';
 import { pruneBudgets } from '../logique/plan/canaux';
 import type { PrevisionPlateforme, TotauxPrevus } from '../logique/plan/impressions';
 
+/** Le plus grand volume que `bidding_strategies.kpi_target` (`numeric(14,4)`) sait porter (relecture 3, M1). */
+export const IMPRESSIONS_MAX = 9_999_999_999;
+
 /** Ce qui part au serveur, dans l'ordre. */
 export interface DemandeLancement {
   campagne: string;
@@ -66,6 +69,7 @@ export function etatLancement(e: EntreesLancement): EtatLancement {
     e.previsions.length === 0 ? 'Choisis au moins un DSP ou un réseau.' : '',
     sansBudget.length ? `Budget manquant : ${sansBudget.join(', ')}` : '',
     e.totaux.cpmManquants.length ? `CPM prévu manquant : ${e.totaux.cpmManquants.map(e.libelle).join(', ')}` : '',
+    (e.totaux.impressions ?? 0) > IMPRESSIONS_MAX ? 'Plus de 9 999 999 999 impressions prévues : vérifie budgets et CPM.' : '',
     !d.startDate || !d.endDate ? 'Période incomplète.' : d.endDate < d.startDate ? 'La fin de la période précède son début.' : '',
     e.previsions.length > 0 && !e.liaisonsConfirmees ? 'Confirme les liaisons en section Plateformes et budget.' : '',
   ].filter(Boolean);
