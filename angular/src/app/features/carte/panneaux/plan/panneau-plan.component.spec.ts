@@ -106,7 +106,7 @@ describe('PanneauPlanComponent — le squelette de ⑥', () => {
     etat.filtre.set({ type: 'departement', code: '29', label: 'Finistère' });
     await stable();
     expect(el.querySelector('[data-note-filtre]')!.textContent!.trim())
-      .toBe('Un filtre de carte est actif. Il ne s’applique pas à cette stratégie : une stratégie couvre toute la campagne.');
+      .toBe('Un filtre de carte est actif. Il ne s’applique pas au plan : le plan couvre toute la campagne.');
   });
 
   it('note « filtre de carte » : jamais sur le hall (campagne fermée), comme React (relecture 2, M-1)', async () => {

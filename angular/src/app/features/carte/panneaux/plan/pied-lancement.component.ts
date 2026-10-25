@@ -9,6 +9,9 @@ import { fmtCpm, fmtDateShort, fmtEUR } from '../../logique/plan/brouillon';
 import { ENCART_ERREUR } from '../analyse/styles-analyse';
 import { CTA, TEXTE_SUCCES } from './styles-plan';
 
+/** Le motif d'un bouton inactif parce qu'une AUTRE campagne est en cours de lancement. */
+export const MOTIF_LANCEMENT_AILLEURS = 'Un lancement est en cours sur une autre campagne.';
+
 /** Le bouton secondaire (« Modifier et relancer ») : contour neutre, texte secondaire. */
 const SECONDAIRE = 'cursor-pointer rounded-[6px] border-fin border-default bg-transparent px-4 py-2.5 text-[13px] text-secondary transition-colors duration-150 hover:border-hover hover:text-primary';
 
@@ -56,14 +59,14 @@ const SECONDAIRE = 'cursor-pointer rounded-[6px] border-fin border-default bg-tr
           <span>Période <span data-recap-periode class="font-mono text-primary">{{ recap().periode }}</span></span>
         </div>
       </div>
-      @if (etat().motifs.length > 0) {
+      @if (motifs().length > 0) {
         <ul data-motifs class="m-0 flex list-none flex-col gap-0.5 p-0 text-[11px] text-tertiary">
-          @for (m of etat().motifs; track m) { <li>{{ m }}</li> }
+          @for (m of motifs(); track m) { <li>{{ m }}</li> }
         </ul>
       }
       @if (echec(); as e) { <div data-echec-lancement role="alert" [class]="encartErreur"><strong class="font-medium">{{ e.titre }}.</strong> {{ e.message }}</div> }
       <div class="flex items-center gap-3">
-        <button type="button" data-lancer [class]="cta" [disabled]="!etat().demande || enCours()" (click)="lancer()">{{ enCours() ? 'Création…' : 'Créer la campagne →' }}</button>
+        <button type="button" data-lancer [class]="cta" [disabled]="!etat().demande || enCours()" (click)="lancer()">{{ enCoursIci() ? 'Création…' : 'Créer la campagne →' }}</button>
         @if (plan.sauveLe()) { <span data-sauve class="ml-auto text-[11px] text-tertiary">Brouillon enregistré</span> }
       </div>
     }
@@ -82,8 +85,10 @@ export class PiedLancementComponent {
   protected readonly texteSucces = TEXTE_SUCCES;
   protected readonly encartErreur = ENCART_ERREUR;
   protected readonly campagne = computed(() => this.plan.campagne() ?? '');
-  /** Une séquence est en vol (une seule à la fois, toutes campagnes confondues). */
+  /** Une séquence est en vol (une seule à la fois, toutes campagnes confondues) : le bouton est inactif. */
   protected readonly enCours = this.lancement.enCours;
+  /** La séquence en vol est celle de la campagne ouverte : « Création… » ne se lit que là (revue finale). */
+  protected readonly enCoursIci = computed(() => this.enCours() && this.lancement.etat()?.campagne === this.plan.campagne());
   /** L'issue du dernier lancement, s'il porte sur la campagne ouverte. */
   private readonly issue = computed(() => {
     const e = this.lancement.etat();
@@ -109,6 +114,12 @@ export class PiedLancementComponent {
     liaisonsConfirmees: this.liaisonsConfirmees(),
     libelle: this.libelle,
   }));
+
+  /** Les motifs de blocage, et celui d'un lancement en vol sur une AUTRE campagne (un seul à la fois). */
+  protected readonly motifs = computed(() => [
+    ...this.etat().motifs,
+    ...(this.enCours() && !this.enCoursIci() ? [MOTIF_LANCEMENT_AILLEURS] : []),
+  ]);
 
   protected readonly recap = computed(() => {
     const d = this.plan.brouillon();

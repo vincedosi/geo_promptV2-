@@ -62,7 +62,7 @@ describe('LiaisonDv360Component — cascade annonceur → campagne → insertion
 
   it('connexion absente : le message de React', () => {
     const e = new HttpErrorResponse({ status: 409, error: { error: 'dv360_not_connected' } });
-    expect(messageDv360(e)).toBe('DV360 non connecté pour cette organisation (Réglages → Connexions API).');
+    expect(messageDv360(e)).toBe('DV360 non connecté pour cette organisation (Administration → Système → Connexions API).');
     expect(messageDv360(new HttpErrorResponse({ status: 502, error: { error: 'dv360_api_error', detail: 'quota' } }))).toBe('quota');
   });
 

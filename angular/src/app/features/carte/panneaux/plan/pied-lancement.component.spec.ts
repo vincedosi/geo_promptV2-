@@ -137,6 +137,19 @@ describe('PiedLancementComponent — récapitulatif et lancement (T6)', () => {
     expect(appels.rattacher).toHaveBeenCalledTimes(1);
   });
 
+  it('lancement de A en vol, B ouverte : bouton inactif, sans « Création… », le motif est dit (revue finale)', async () => {
+    const enVol = new Subject<PlanRattache>();
+    const { el, plan, stable } = monter(PRET, { rattacher: vi.fn(() => enVol) });
+    await stable();
+    el.querySelector<HTMLButtonElement>('[data-lancer]')!.click();
+    plan.campagne.set('7c9e6679-7425-40de-944b-e07fc1f90ae7');
+    await stable();
+    const bouton = el.querySelector<HTMLButtonElement>('[data-lancer]')!;
+    expect(bouton.disabled).toBe(true);
+    expect(bouton.textContent!.trim()).toBe('Créer la campagne →');
+    expect(el.querySelector('[data-motifs]')!.textContent).toContain('Un lancement est en cours sur une autre campagne.');
+  });
+
   it('une réponse revenue après un changement de campagne n’écrit rien dans la nouvelle ; son brouillon serveur est jeté', async () => {
     const enVol = new Subject<PlanRattache>();
     const { el, plan, stable } = monter(PRET, { rattacher: vi.fn(() => enVol) });

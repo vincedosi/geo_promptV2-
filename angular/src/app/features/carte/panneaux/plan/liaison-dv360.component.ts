@@ -11,7 +11,7 @@ type Element = RessourcesDv360['items'][number];
 /** Le message de `GET /api/dsp/dv360/resources` : connexion absente dite en français, détail de l'API DV360 sinon. */
 export function messageDv360(e: unknown): string {
   const corps = e instanceof HttpErrorResponse ? (e.error as { error?: unknown; detail?: unknown } | null) : null;
-  if (corps?.error === 'dv360_not_connected') return 'DV360 non connecté pour cette organisation (Réglages → Connexions API).';
+  if (corps?.error === 'dv360_not_connected') return 'DV360 non connecté pour cette organisation (Administration → Système → Connexions API).';
   if (typeof corps?.detail === 'string' && corps.detail) return corps.detail;
   return messageErreurApi(e);
 }

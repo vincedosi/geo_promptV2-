@@ -157,9 +157,15 @@ export function precisionDuPerimetre(scope: 'metro' | 'all' | null): string | un
   return scope === 'metro' ? 'métropole' : scope === 'all' ? 'métropole + DROM' : undefined;
 }
 
-/** Le lien d'une étape « bientôt » vers l'overlay React. Sans origine connue (hôte AIDA) : aucun lien, jamais une URL inventée. */
-export function lienApplicationReact(base: string | undefined, e: EtapeCarte): string | null {
+/**
+ * Le lien d'une étape « bientôt » vers l'overlay React. Sans origine connue (hôte AIDA) : aucun lien, jamais une URL
+ * inventée. La campagne courante (`?campagne=`) voyage en `&campaign=`, que le deep-link React lit
+ * (`components/magelian/deep-link.ts`) : « Préparer l'activation → ⑦ » ouvre l'overlay sur elle (revue finale, m5).
+ */
+export function lienApplicationReact(base: string | undefined, e: EtapeCarte, campagne?: string | null): string | null {
   const onglet = ONGLET_REACT[e];
   if (!base || !onglet) return null;
-  return `${base.replace(/\/+$/, '')}/map?tab=${onglet}`;
+  const params = new URLSearchParams({ tab: onglet });
+  if (campagne) params.set('campaign', campagne);
+  return `${base.replace(/\/+$/, '')}/map?${params.toString()}`;
 }

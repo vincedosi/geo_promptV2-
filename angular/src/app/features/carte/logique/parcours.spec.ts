@@ -121,5 +121,9 @@ describe('parcours de la carte — logique pure', () => {
     expect(lienApplicationReact('http://localhost:3000', 'zones')).toBeNull();
     expect(lienApplicationReact(undefined, 'activation')).toBeNull();
     expect(lienApplicationReact('', 'activation')).toBeNull();
+    // Revue finale du lot 6 (m5) : la campagne courante voyage, le deep-link React la lit en `campaign`.
+    expect(lienApplicationReact('http://localhost:3000', 'activation', '0f8fad5b-d9cb-469f-a165-70867728950e'))
+      .toBe('http://localhost:3000/map?tab=activation&campaign=0f8fad5b-d9cb-469f-a165-70867728950e');
+    expect(lienApplicationReact('http://localhost:3000', 'live', null)).toBe('http://localhost:3000/map?tab=suivi');
   });
 });

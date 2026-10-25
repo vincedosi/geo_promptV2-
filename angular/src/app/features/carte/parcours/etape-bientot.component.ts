@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { ConfigService } from '../../../core/config/config.service';
+import { PlanCampagneService } from '../etat/plan-campagne.service';
 import { type EtapeCarte, lienApplicationReact } from '../logique/parcours';
 
 /**
@@ -8,6 +9,8 @@ import { type EtapeCarte, lienApplicationReact } from '../logique/parcours';
  * configuration pas encore lue — aucun lien : on n'invente pas une adresse. ⑤ n'a pas d'écran React équivalent (hors
  * module risque) : jamais de lien, « Bientôt dans le parcours. » (`lienApplicationReact` rend `null`). Ce que l'étape fera (sa consigne) est dit UNE fois, par
  * l'en-tête du panneau d'étape (`mg-panneau-etape`) — le répéter ici l'affichait deux fois (relecture T4).
+ * Aux étapes ⑦-⑧, le lien porte la campagne courante de ⑥ (`PlanCampagneService`, fourni par la page ; facultatif
+ * hors de la page), pour que l'overlay React s'ouvre sur elle (revue finale du lot 6, m5).
  */
 @Component({
   selector: 'mg-etape-bientot',
@@ -29,7 +32,8 @@ import { type EtapeCarte, lienApplicationReact } from '../logique/parcours';
 export class EtapeBientotComponent {
   readonly etape = input.required<EtapeCarte>();
   private readonly config = inject(ConfigService);
-  protected readonly lien = computed(() => lienApplicationReact(this.origine(), this.etape()));
+  private readonly plan = inject(PlanCampagneService, { optional: true });
+  protected readonly lien = computed(() => lienApplicationReact(this.origine(), this.etape(), this.plan?.campagne()));
 
   /** `valeur` lève tant que la configuration n'est pas chargée : pas d'origine, pas de lien. */
   private origine(): string | undefined {

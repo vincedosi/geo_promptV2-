@@ -33,7 +33,8 @@ const ORDRE_SECTIONS: readonly SectionPlan[] = ['cible', 'plateformes', 'impress
  *   — Cible (T4), Plateformes et budget, Impressions prévues (T5) — et le pied « Lancement » (`mg-pied-lancement`, T6).
  *   Une section repliée est MASQUÉE, pas détruite : ses lectures (jeux, versions, organisations) et ses choix restent.
  *
- * La note « Un filtre de carte est actif… » est portée telle quelle (A-8), lue dans l'état de la carte, sans requête.
+ * La note « Un filtre de carte est actif… » est portée (A-8), lue dans l'état de la carte, sans requête ; elle dit « le
+ * plan » là où React disait « cette stratégie » (revue finale, m1 : aucune trace de stratégie à l'écran).
  * Un refus de rôle (`accesRefuse`, campagnes réservées au super_admin en V1) est DIT et les sections ne s'affichent
  * pas : rien n'y serait enregistrable. Tout l'état vit dans `PlanCampagneService` (page) ; le panneau reste monté (A1).
  */
@@ -56,7 +57,7 @@ const ORDRE_SECTIONS: readonly SectionPlan[] = ['cible', 'plateformes', 'impress
       @if (etat.filtre()) {
         <div data-note-filtre class="mx-4 mb-3 flex items-start gap-2 rounded-[6px] border-fin border-default bg-elevated px-3 py-2.5">
           <mg-icone nom="info" [taille]="14" [trait]="1.5" class="mt-px shrink-0 text-teal" />
-          <span class="text-[12px] leading-[1.5] text-secondary">Un filtre de carte est actif. Il ne s’applique pas à cette stratégie : une stratégie couvre toute la campagne.</span>
+          <span class="text-[12px] leading-[1.5] text-secondary">Un filtre de carte est actif. Il ne s’applique pas au plan : le plan couvre toute la campagne.</span>
         </div>
       }
       @if (plan.erreur(); as e) { <div data-erreur-plan role="alert" [class]="'mx-4 mb-3 ' + encartErreur">{{ e }}</div> }
