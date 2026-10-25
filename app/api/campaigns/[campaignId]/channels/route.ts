@@ -10,17 +10,11 @@ import { createAdminClient } from '@/lib/auth';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { toJson } from '@/lib/supabase/rpc-json';
 import {
-  CampaignChannelsSchema, validateSelection, EMPTY_CHANNELS,
-  ChannelBudgetsSchema, DspLinksSchema, pruneBudgets, pruneLinks,
+  ChannelsPutSchema, validateSelection, EMPTY_CHANNELS, pruneBudgets, pruneLinks,
   type ChannelRow, type StoredChannels,
 } from '@/lib/campaigns/channels';
 
 export const dynamic = 'force-dynamic';
-
-const PutBodySchema = CampaignChannelsSchema.extend({
-  budgets: ChannelBudgetsSchema.optional(),
-  links: DspLinksSchema.optional(),
-});
 
 async function loadContext(
   supabase: ReturnType<typeof createAdminClient>, campaignId: string, userId: string,
@@ -73,7 +67,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   let raw: unknown;
   try { raw = await request.json(); } catch { return NextResponse.json({ error: 'invalid_json' }, { status: 400 }); }
-  const parsed = PutBodySchema.safeParse(raw);
+  const parsed = ChannelsPutSchema.safeParse(raw);
   if (!parsed.success) return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
 
   const supabase = createAdminClient();
@@ -86,14 +80,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const check = validateSelection(sel, ctx.catalog, ctx.connectedProviders, ctx.is_demo);
   if (!check.ok) return NextResponse.json({ error: 'channel_not_available', code: check.badCode }, { status: 400 });
 
-  // Merge non destructif : préserve media_plan etc., ET les sous-clés budgets/links
+  // Merge non destructif : préserve media_plan etc., ET les sous-clés budgets/cpm_prevus/links
   // quand le client ne les renvoie pas (ex. StepCanaux qui ne gère que la sélection).
+  // Les CPM prévus (⑥, A-10) suivent les budgets : même fusion, même élagage au retrait d'un canal.
   const gs = (ctx.camp.geo_strategy ?? {}) as Record<string, unknown>;
   const prev = (gs.channels ?? {}) as StoredChannels;
   const budgets = pruneBudgets(parsed.data.budgets ?? prev.budgets, sel);
+  const cpmPrevus = pruneBudgets(parsed.data.cpm_prevus ?? prev.cpm_prevus, sel);
   const links = pruneLinks(parsed.data.links ?? prev.links, sel);
   const nextChannels: StoredChannels = {
-    ...sel, budgets, ...(Object.keys(links).length ? { links } : {}),
+    ...sel, budgets,
+    ...(Object.keys(cpmPrevus).length ? { cpm_prevus: cpmPrevus } : {}),
+    ...(Object.keys(links).length ? { links } : {}),
   };
   const nextGeoStrategy = { ...gs, channels: nextChannels };
   const { error } = await supabase.from('dsp_campaigns').update({ geo_strategy: toJson(nextGeoStrategy) }).eq('id', campaignId);

@@ -3,7 +3,7 @@
  * Le catalogue vient de dsp_channel_registry ; le « connecté » de dsp_connections.
  */
 import { z } from 'zod';
-import type { DspLinks, LinkLevel } from './platform-links';
+import { DspLinksSchema, type DspLinks, type LinkLevel } from './platform-links';
 
 // Liaison plateforme générique — définie dans platform-links.ts, ré-exportée
 // ici pour les importeurs historiques (routes, schémas, panels).
@@ -74,13 +74,25 @@ export type ChannelBudgets = Record<string, number>;
 /** Forme complète stockée dans geo_strategy.channels. */
 export interface StoredChannels extends CampaignChannels {
   budgets?: ChannelBudgets;
+  /**
+   * CPM prévu (€) par canal DSP/social (étape ⑥ de la carte, lot 6, A-10) : même forme, même élagage que `budgets`.
+   * Les impressions prévues n'y sont pas : elles se dérivent (budget ÷ CPM × 1 000), une seule formule.
+   */
+  cpm_prevus?: ChannelBudgets;
   links?: DspLinks;
 }
 
-export const ChannelBudgetsSchema = z.record(
+const ChannelBudgetsSchema = z.record(
   z.string().min(1).max(50),
   z.number().min(0).finite(),
 );
+
+/** Corps du PUT `/api/campaigns/[campaignId]/channels` : la sélection, et facultativement budgets, CPM et liens. */
+export const ChannelsPutSchema = CampaignChannelsSchema.extend({
+  budgets: ChannelBudgetsSchema.optional(),
+  cpm_prevus: ChannelBudgetsSchema.optional(),
+  links: DspLinksSchema.optional(),
+});
 
 /** Somme des lignes budget (0 si vide/absent). */
 export function sumBudgets(budgets: ChannelBudgets | null | undefined): number {

@@ -3,13 +3,18 @@
  *
  * POST — donne un jeu de zones comme PLAN à une campagne.
  *
+ * Corps : `{ campagne: uuid, extraction?: uuid }`. Deux chemins, un seul écrivain (`ecrirePlan`) :
+ * - SANS `extraction` (wizard React) : jeu RISQUE seul, plan recalculé depuis l'état VIVANT du jeu — inchangé ;
+ * - AVEC `extraction` (étape ⑥ de la carte, lot 6, A-4) : jeu des deux types, plan RECOPIÉ de l'extraction figée,
+ *   sans recalcul (`zone_set_extraction_cp.multiplicateur > 0`).
+ *
  * ── CE QUE CETTE ROUTE ÉCRIT, ET OÙ ──────────────────────────────────────
  *
  * Elle ne crée pas un nouveau chemin de plan : elle alimente celui qui existe.
  *
- *     zone_set_cp
- *         │  genererPlanCp (lib/zones/plan.ts) — fonction PURE, testée
- *         ▼
+ *     zone_set_cp                         zone_set_extraction_cp
+ *         │  genererPlanCp (lib/zones/plan.ts)    │  recopié tel quel
+ *         ▼                                       ▼
  *     bidding_zone_configs.bid_multiplier
  *         │  refresh_campaign_rollups : planned_share = m / SUM(m)
  *         ▼
@@ -23,7 +28,9 @@
  *
  * Le numéro de version du jeu est recopié dans la stratégie. Un jeu modifié
  * ensuite crée une NOUVELLE version : le plan d'une campagne en vol ne change
- * pas sous elle. Même raisonnement que `strategie_versions` (sql/157).
+ * pas sous elle. Même raisonnement que `strategie_versions` (sql/157). Une
+ * extraction est figée par construction : son identifiant et son numéro
+ * suivent dans `in_zone_weights`.
  *
  * ── LES LOTS DE 50 ───────────────────────────────────────────────────────
  *
@@ -43,8 +50,15 @@ import { normaliserJeu } from '@/lib/zones/jeu';
 import { genererPlanCp, type CpZone } from '@/lib/zones/plan';
 import { lireGroupesCp } from '@/lib/zones/groupes';
 import { lireTout } from '@/lib/supabase/lire-tout';
+import { toJson } from '@/lib/supabase/rpc-json';
+import {
+  MESSAGE_AUCUN_CP, PLAFOND_CP_PLAN, planExtraction, refusPlan, type IssuePlan, type Plan,
+} from '@/lib/zones/plan-extraction';
+import type { Tables } from '@/types/database.types';
 
 export const dynamic = 'force-dynamic';
+
+type ClientAdmin = ReturnType<typeof createAdminClient>;
 
 const limiteur = createRateLimiter({
   max: 6,
@@ -54,6 +68,7 @@ const limiteur = createRateLimiter({
 
 const CorpsSchema = z.object({
   campagne: z.string().uuid(),
+  extraction: z.string().uuid().optional(),
 });
 
 /** Taille de lot imposée par `CLAUDE.md`. */
@@ -87,16 +102,23 @@ export async function POST(
     return NextResponse.json({ error: 'Accès refusé à cette campagne.' }, { status: 403 });
   }
 
-  // Un jeu de zone (étape ⑤) ne se rattache pas ici (lot 5, A-3 et A-15 : lot 7) : 409 du chargeur. L'espace est
-  // vérifié par lui, et non par RLS (`createAdminClient()` contourne toute policy).
-  const charge = await chargerJeu(supabase, id, profile.organization_id ?? '', { type: 'risque' });
+  // L'espace est vérifié par le chargeur, et non par RLS (`createAdminClient()` contourne toute policy). Sans
+  // extraction, un jeu de zone (étape ⑤) n'a rien de vivant à donner : 409 du chargeur, comme avant le lot 6.
+  const { extraction } = corps.valeur;
+  const charge = await chargerJeu(supabase, id, profile.organization_id ?? '', extraction ? {} : { type: 'risque' });
   if (!charge.ok) return charge.reponse;
-  const jeuRow = charge.jeu;
+
+  const plan = extraction
+    ? await planExtraction(supabase, charge.jeu, extraction)
+    : await planVivant(supabase, charge.jeu);
+  if ('reponse' in plan) return plan.reponse;
+  return ecrirePlan(supabase, corps.valeur.campagne, charge.jeu, plan);
+}
+
+/** Le chemin VIVANT d'un jeu risque : `zone_set_cp` relu, puis `genererPlanCp`. Inchangé depuis le lot 5. */
+async function planVivant(supabase: ClientAdmin, jeuRow: Tables<'zone_sets'>): Promise<IssuePlan> {
   if (!jeuRow.construit_le) {
-    return NextResponse.json(
-      { error: 'Ce jeu de zones n’a pas été construit : il n’a aucun code postal à donner.' },
-      { status: 409 },
-    );
+    return refusPlan('Ce jeu de zones n’a pas été construit : il n’a aucun code postal à donner.', 409);
   }
 
   /*
@@ -121,22 +143,17 @@ export async function POST(
       (de, a) => supabase
         .from('zone_set_cp')
         .select('code_postal, classe, pop_en_zone, pop_totale, retenu')
-        .eq('zone_set_id', id)
+        .eq('zone_set_id', jeuRow.id)
         .order('code_postal')
         .range(de, a),
-      7000,
+      PLAFOND_CP_PLAN,
     ));
   } catch (e) {
     console.error('[zones/rattacher] lecture CP :', e instanceof Error ? e.message : e);
-    return NextResponse.json({ error: 'Codes postaux du jeu illisibles.' }, { status: 500 });
+    return refusPlan('Codes postaux du jeu illisibles.', 500);
   }
 
-  if (cpRows.length === 0) {
-    return NextResponse.json(
-      { error: 'Ce jeu de zones ne couvre aucun code postal.' },
-      { status: 409 },
-    );
-  }
+  if (cpRows.length === 0) return refusPlan(MESSAGE_AUCUN_CP, 409);
 
   const jeu = normaliserJeu({
     profil: jeuRow.profil,
@@ -162,19 +179,50 @@ export async function POST(
   // achète TOUS, sans quoi on cible un quart d'une ville (lib/zones/groupes.ts).
   const groupes = await lireGroupesCp(supabase);
   const plan = genererPlanCp(cps, jeu, groupes);
-  const aEcrire = plan.lignes.filter((l) => l.multiplicateur > 0);
+  const lignes = plan.lignes.filter((l) => l.multiplicateur > 0);
 
-  if (aEcrire.length === 0) {
-    return NextResponse.json(
-      {
-        error:
-          'Ce jeu ne produit aucun plan : aucun code postal ne franchit le seuil de '
-          + 'couverture. Abaissez le seuil, ou élargissez les rayons.',
-      },
-      { status: 409 },
+  if (lignes.length === 0) {
+    return refusPlan(
+      'Ce jeu ne produit aucun plan : aucun code postal ne franchit le seuil de '
+      + 'couverture. Abaissez le seuil, ou élargissez les rayons.',
+      409,
     );
   }
 
+  return {
+    lignes,
+    nom: `Jeu de zones — ${jeuRow.nom} (v${jeuRow.version})`,
+    description:
+      `Plan genere depuis le jeu de zones « ${jeuRow.nom} », version ${jeuRow.version}, `
+      + `mode ${jeu.mode_plan}, seuil de couverture ${jeu.seuil_couverture_cp} %.`,
+    source: {
+      mode: 'zone_set',
+      zone_set_id: jeuRow.id,
+      zone_set_nom: jeuRow.nom,
+      zone_set_version: jeuRow.version,
+      mode_plan: jeu.mode_plan,
+      seuil_couverture_cp: jeu.seuil_couverture_cp,
+      taux_utile: plan.taux_utile,
+      part_plan_en_zone: plan.part_plan_en_zone,
+    },
+    // Les deux chiffres qui doivent voyager avec le plan, et que l'écran
+    // affiche au moment du rattachement.
+    resume: {
+      mode_plan: jeu.mode_plan,
+      part_plan_en_zone: plan.part_plan_en_zone,
+      taux_utile: plan.taux_utile,
+      n_retenus: plan.n_retenus,
+    },
+  };
+}
+
+/**
+ * Écrit le plan d'un des deux chemins : stratégie, lignes par lots de 50 (rollback si un lot échoue), archivage des
+ * stratégies précédentes APRÈS, puis `refresh_campaign_rollups`. Rend la réponse finale.
+ */
+async function ecrirePlan(
+  supabase: ClientAdmin, campagne: string, jeuRow: Tables<'zone_sets'>, plan: Plan,
+): Promise<NextResponse> {
   /*
    * La stratégie porte le plan. `refresh_campaign_rollups` ne lit que la PLUS
    * RÉCENTE (`ORDER BY created_at DESC LIMIT 1`), donc celle qu'on insère ici
@@ -192,18 +240,17 @@ export async function POST(
   const { data: strat, error: erreurStrat } = await supabase
     .from('bidding_strategies')
     .insert({
-      name: `Jeu de zones — ${jeuRow.nom} (v${jeuRow.version})`,
-      description:
-        `Plan genere depuis le jeu de zones « ${jeuRow.nom} », version ${jeuRow.version}, `
-        + `mode ${jeu.mode_plan}, seuil de couverture ${jeu.seuil_couverture_cp} %.`,
-      campaign_id: corps.valeur.campagne,
+      name: plan.nom,
+      description: plan.description,
+      campaign_id: campagne,
       // ⚠ Ces deux codes sont des CLÉS ÉTRANGÈRES vers des catalogues
       // (`bidding_algorithms`, `bidding_objectives`), pas des chaînes libres.
       // `zone_set` y a été ajouté par sql/212 avec `is_enabled = false` : la
       // ligne existe pour que la clé tienne, le wizard ne la propose pas.
       algorithm_code: 'zone_set',
       // L'objectif n'est PAS ce que le jeu de zones décide — il décide le
-      // PLAN. `maximize_impressions` est le neutre du catalogue.
+      // PLAN. `maximize_impressions` est le neutre du catalogue, et c'est lui
+      // qui fait lire `kpi_target` comme volume prévu (`get_campaign_expected`).
       objective_code: 'maximize_impressions',
       granularity: 'postal_code',
       weighting_mode: 'by_zone_set',
@@ -211,16 +258,7 @@ export async function POST(
       // La SOURCE du plan, lue par le Suivi pour ses libellés : sans elle,
       // l'écran retomberait sur `abstention_pres_2022` et parlerait d'une
       // variable que personne n'a choisie.
-      in_zone_weights: {
-        mode: 'zone_set',
-        zone_set_id: id,
-        zone_set_nom: jeuRow.nom,
-        zone_set_version: jeuRow.version,
-        mode_plan: jeu.mode_plan,
-        seuil_couverture_cp: jeu.seuil_couverture_cp,
-        taux_utile: plan.taux_utile,
-        part_plan_en_zone: plan.part_plan_en_zone,
-      },
+      in_zone_weights: toJson(plan.source),
     })
     .select('id')
     .single();
@@ -236,8 +274,8 @@ export async function POST(
    * pour complet — et la campagne diffuserait sur la moitié de son plan sans
    * que rien ne le signale.
    */
-  for (let i = 0; i < aEcrire.length; i += LOT) {
-    const lot = aEcrire.slice(i, i + LOT).map((l) => ({
+  for (let i = 0; i < plan.lignes.length; i += LOT) {
+    const lot = plan.lignes.slice(i, i + LOT).map((l) => ({
       strategy_id: strat.id,
       postal_code: l.code_postal,
       country_code: 'FR',
@@ -285,7 +323,7 @@ export async function POST(
   const { error: erreurArchive } = await supabase
     .from('bidding_strategies')
     .update({ status: 'archived' })
-    .eq('campaign_id', corps.valeur.campagne)
+    .eq('campaign_id', campagne)
     .neq('id', strat.id)
     .in('status', ['draft', 'active', 'paused']);
   if (erreurArchive) {
@@ -293,7 +331,7 @@ export async function POST(
   }
 
   const { error: erreurRefresh } = await supabase.rpc('refresh_campaign_rollups', {
-    p_campaign_id: corps.valeur.campagne,
+    p_campaign_id: campagne,
   });
   if (erreurRefresh) {
     console.error('[zones/rattacher] rollups :', erreurRefresh.message);
@@ -304,16 +342,11 @@ export async function POST(
   }
 
   return NextResponse.json({
-    jeu: id,
+    jeu: jeuRow.id,
     version: jeuRow.version,
     strategie: strat.id,
-    codes_postaux: aEcrire.length,
-    mode_plan: jeu.mode_plan,
-    // Les deux chiffres qui doivent voyager avec le plan, et que l'écran
-    // affiche au moment du rattachement.
-    part_plan_en_zone: plan.part_plan_en_zone,
-    taux_utile: plan.taux_utile,
-    n_retenus: plan.n_retenus,
+    codes_postaux: plan.lignes.length,
+    ...plan.resume,
     // L'écran doit pouvoir dire que l'archivage a échoué : la campagne
     // diffuserait bien sur le bon plan, mais afficherait deux stratégies.
     anciennes_archivees: !erreurArchive,

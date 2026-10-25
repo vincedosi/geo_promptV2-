@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   CampaignChannelsSchema, resolveChannelAvailability, validateSelection,
-  EMPTY_CHANNELS, sumBudgets, pruneBudgets, pruneLinks, DspLinksSchema,
+  EMPTY_CHANNELS, sumBudgets, pruneBudgets, pruneLinks, DspLinksSchema, ChannelsPutSchema,
   type ChannelRow,
 } from '@/lib/campaigns/channels';
 
@@ -125,5 +125,25 @@ describe('liaisons DSP (links) — ré-export depuis platform-links', () => {
       dv360: { ...dv360Link, advertiser_name: 'ACME', campaign_name: 'Q3', insertion_order_name: 'IO 1' },
     });
     expect(parsed.success).toBe(true);
+  });
+});
+
+describe('ChannelsPutSchema — cpm_prevus (⑥, lot 6, A-10)', () => {
+  const sel = { dsps: ['dv360'], socials: ['meta'], ad_server: null };
+
+  it('accepte des CPM par canal, facultatifs (un PUT de sélection seule reste valide)', () => {
+    expect(ChannelsPutSchema.safeParse({ ...sel, cpm_prevus: { dv360: 4.5, meta: 0 } }).success).toBe(true);
+    expect(ChannelsPutSchema.safeParse(sel).success).toBe(true);
+  });
+
+  it('refuse un CPM négatif, non fini ou une clé vide', () => {
+    expect(ChannelsPutSchema.safeParse({ ...sel, cpm_prevus: { dv360: -1 } }).success).toBe(false);
+    expect(ChannelsPutSchema.safeParse({ ...sel, cpm_prevus: { dv360: Number.POSITIVE_INFINITY } }).success).toBe(false);
+    expect(ChannelsPutSchema.safeParse({ ...sel, cpm_prevus: { '': 3 } }).success).toBe(false);
+  });
+
+  it('une clé inconnue de la sélection est élaguée par pruneBudgets, comme un budget', () => {
+    const lu = ChannelsPutSchema.parse({ ...sel, cpm_prevus: { dv360: 4.5, inconnu: 9 } });
+    expect(pruneBudgets(lu.cpm_prevus, lu)).toEqual({ dv360: 4.5 });
   });
 });
