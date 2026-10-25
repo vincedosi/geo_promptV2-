@@ -56,6 +56,8 @@ export function planFactice() {
     chargerCp: vi.fn(),
     retenirExtractions: vi.fn(),
     apresLancement: vi.fn(),
+    poserStrategie: vi.fn(),
+    jeterBrouillonsDe: vi.fn(),
   };
 }
 

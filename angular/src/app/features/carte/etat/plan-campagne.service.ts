@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { DestroyRef, Injectable, type Signal, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { type Observable, type Subscription, catchError, map, of, switchMap, tap, throwError } from 'rxjs';
+import { type Observable, type Subscription, catchError, concatMap, from, map, of, switchMap, tap, throwError } from 'rxjs';
 import { messageErreurApi } from '../../../core/http/erreurs';
 import type { ExtractionJeu } from '../data/jeux.api';
 import { type Campagne, type CanauxCampagne, type CorpsCampagne, type CpDExtraction, PlanApi, type StatutStrategie } from '../data/plan.api';
@@ -143,11 +143,16 @@ export class PlanCampagneService {
    */
   private jeton = 0;
   /**
-   * Remise à zéro du BROUILLON : invalidée par `repartirDeZero` SEUL. Une sauvegarde déjà partie, ou un brouillon serveur
-   * en cours de lecture, d'avant la remise ne s'appliquent plus, et la ligne recréée par la sauvegarde est supprimée
-   * (relecture 1). Un changement de campagne ne la touche pas : sinon il supprimerait le brouillon en vol de la précédente.
+   * Remises à zéro du BROUILLON, PAR CAMPAGNE : incrémentée quand son brouillon est jeté (`jeterBrouillonsDe`). Une
+   * sauvegarde déjà partie, ou un brouillon serveur en cours de lecture, d'avant la remise ne s'appliquent plus, et la
+   * ligne recréée par la sauvegarde est supprimée (relecture 1). Un changement de campagne ne la touche pas : sinon il
+   * supprimerait le brouillon en vol de la précédente. Par campagne (revue finale) : « Repartir de zéro » sur B ne
+   * supprime pas la sauvegarde de A revenue après coup.
    */
-  private remise = 0;
+  private readonly remises = new Map<string, number>();
+  private remiseDe(campagne: string): number {
+    return this.remises.get(campagne) ?? 0;
+  }
   private chargement: Subscription | null = null;
   private minuterie: ReturnType<typeof setTimeout> | null = null;
   private brouillonId: string | null = null;
@@ -194,7 +199,8 @@ export class PlanCampagneService {
 
   /** « Repartir de zéro » : le brouillon serveur est jeté, le défaut repart, prérempli de l'identité de la campagne. */
   repartirDeZero(): void {
-    this.jeterBrouillonServeur();
+    const campagne = this._campagne();
+    if (campagne) this.jeterBrouillonsDe(campagne);
     const camp = this._detail();
     this._brouillon.set(camp ? remplirIdentite(DEFAULT_PROG_DRAFT, camp) : DEFAULT_PROG_DRAFT);
     this._restaure.set(null);
@@ -211,7 +217,8 @@ export class PlanCampagneService {
    * écrite devient l'existante (« Modification », pastille ⑥) et l'identité persistée remplace celle lue.
    */
   apresLancement(strategie: string, identite: CorpsCampagne | null): void {
-    this.jeterBrouillonServeur();
+    const campagne = this._campagne();
+    if (campagne) this.jeterBrouillonsDe(campagne);
     this._restaure.set(null);
     this._strategie.set({ id: strategie, statut: 'active' });
     if (identite) this._detail.update((c) => (c ? { ...c, ...identite, name: identite.name ?? c.name } : c));
@@ -243,13 +250,40 @@ export class PlanCampagneService {
     }));
   }
 
-  /** Supprime le brouillon serveur ; une sauvegarde partie avant ne le recrée pas (`remise`, relecture 1). */
-  private jeterBrouillonServeur(): void {
+  /**
+   * Une étape du lancement a échoué APRÈS `rattacher` (revue finale, m3) : la stratégie écrite est active en base. Sur
+   * la campagne ouverte, elle devient l'existante (titre « Modification », pastille ⑥) ; le brouillon est GARDÉ.
+   */
+  poserStrategie(campagne: string, strategie: string): void {
+    if (campagne === this._campagne()) this._strategie.set({ id: strategie, statut: 'active' });
+  }
+
+  /**
+   * Jette le brouillon serveur d'une campagne — LE seul chemin (« Repartir de zéro », lancement réussi, campagne ouverte
+   * ou non ; revue finale F-6). Campagne QUITTÉE : ses brouillons sont lus puis supprimés, au mieux (`discard` de
+   * React). Campagne OUVERTE : l'autosave s'arrête et la `remise` change (relecture 1) — l'identifiant connu est
+   * supprimé, une sauvegarde partie avant supprime la ligne qu'elle recrée, et un brouillon encore en lecture par le
+   * préremplissage est supprimé à son retour au lieu d'être restauré (m4 : lancement réussi pendant le préremplissage).
+   */
+  jeterBrouillonsDe(campagne: string): void {
+    if (this.detruit) return;
+    if (campagne !== this._campagne()) {
+      this.supprimerBrouillons(this.api.brouillons(campagne).pipe(map((r) => r.drafts.filter((d) => d.campaign_id === campagne))));
+      return;
+    }
     this.arreterMinuterie();
-    this.remise++;
+    this.remises.set(campagne, this.remiseDe(campagne) + 1);
     const id = this.brouillonId;
     this.brouillonId = null;
     if (id) this.api.supprimerBrouillon(id).subscribe({ error: () => undefined });
+  }
+
+  /** Supprime, une à une et au mieux, les lignes de brouillon données. */
+  private supprimerBrouillons(lignes: Observable<readonly { id: string }[]>): void {
+    lignes.pipe(
+      concatMap((l) => from(l)),
+      concatMap((d) => this.api.supprimerBrouillon(d.id)),
+    ).subscribe({ error: () => undefined });
   }
 
   /** Une valeur lue dans l'URL ; illisible (pas un uuid, même forme que `?zoneAnalyse=` et `?jeu=`), elle est retirée une fois. */
@@ -279,7 +313,7 @@ export class PlanCampagneService {
   /** Campagne → stratégie → brouillon → canaux, une requête à la fois, dans UN abonnement annulable. */
   private preremplir(id: string): void {
     const jeton = this.jeton;
-    const remise = this.remise;
+    const remise = this.remiseDe(id);
     const enCours = () => jeton === this.jeton;
     this.chargement = this.api.campagne(id).pipe(
       catchError((e: unknown) => throwError(() => classer(e))),
@@ -297,8 +331,11 @@ export class PlanCampagneService {
       }),
       tap((s) => { if (s) this._brouillon.update((d) => remplirDepuisStrategie(d, s)); }),
       switchMap(() => this.api.brouillons(id).pipe(catchError(() => of({ drafts: [] })))),
-      // « Repartir de zéro » pendant la lecture : le brouillon jeté n'est pas restauré par-dessus.
-      tap(({ drafts }) => { if (remise === this.remise) this.restaurer(drafts[0]); }),
+      // Brouillon jeté pendant la lecture (« Repartir de zéro », lancement réussi) : supprimé, jamais restauré par-dessus.
+      tap(({ drafts }) => {
+        if (remise === this.remiseDe(id)) this.restaurer(drafts[0]);
+        else if (!this.detruit) this.supprimerBrouillons(of(drafts.filter((d) => d.campaign_id === id)));
+      }),
       switchMap(() => this.api.canaux(id).pipe(catchError((e: unknown) => throwError(() => classer(e))))),
     ).subscribe({
       next: (c) => {
@@ -340,7 +377,7 @@ export class PlanCampagneService {
     if (!campagne || !this._prerempli() || this._accesRefuse() || this.detruit) return;
     this.arreterMinuterie();
     const jeton = this.jeton;
-    const remise = this.remise;
+    const remise = this.remiseDe(campagne);
     this.minuterie = setTimeout(() => {
       this.minuterie = null;
       this.sauver(campagne, jeton, remise).subscribe({ error: () => undefined });
@@ -355,7 +392,7 @@ export class PlanCampagneService {
   private sauver(campagne: string, jeton: number, remise: number): Observable<unknown> {
     const corps = { campaign_id: campagne, current_step: this._etape(), draft_data: serializeDraft(this._brouillon()) };
     return this.api.sauverBrouillon(corps).pipe(tap(({ draft }) => {
-      if (remise !== this.remise) {
+      if (remise !== this.remiseDe(campagne)) {
         if (!this.detruit) this.api.supprimerBrouillon(draft.id).subscribe({ error: () => undefined });
         return;
       }

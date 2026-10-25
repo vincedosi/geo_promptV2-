@@ -1,5 +1,5 @@
 import { DestroyRef, Injectable, type Signal, computed, inject, signal } from '@angular/core';
-import { type Subscription, concatMap, from, map, of } from 'rxjs';
+import type { Subscription } from 'rxjs';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
 import { PlanApi } from '../data/plan.api';
 import { type DemandeLancement, EchecLancement, lancerCampagne, messageLancement } from './lancement-campagne';
@@ -23,7 +23,9 @@ export type EtatLancementCampagne =
  * Un lancement à la fois. Son issue reste lisible au retour sur sa campagne (`etat`, porteur de la campagne) ; les
  * notifications partent du service (`NotificationsService` fourni par la page, la pile vit dans le pied).
  * Réussi sur la campagne ouverte : `apresLancement` (brouillon jeté, stratégie existante, identité). Réussi alors qu'on
- * en a ouvert une autre : son brouillon serveur est jeté quand même, sans toucher à l'état de la campagne ouverte.
+ * en a ouvert une autre : son brouillon serveur est jeté quand même (`jeterBrouillonsDe`), sans toucher à l'état de la
+ * campagne ouverte. Échoué APRÈS `rattacher` : la stratégie écrite est active en base, elle devient l'existante
+ * (`poserStrategie`, revue finale m3) ; le brouillon reste.
  */
 @Injectable()
 export class LancementCampagneService {
@@ -57,10 +59,11 @@ export class LancementCampagneService {
         this._etat.set({ campagne, statut: 'reussi', message });
         this.notifications.success('Campagne créée', message);
         if (this.plan.campagne() === campagne) this.plan.apresLancement(r.strategie, demande.identite);
-        else this.jeterBrouillonDe(campagne);
+        else this.plan.jeterBrouillonsDe(campagne);
       },
       error: (e: unknown) => {
         const { titre, message } = e instanceof EchecLancement ? e : { titre: 'Lancement impossible', message: 'Une erreur inattendue est survenue.' };
+        if (e instanceof EchecLancement && e.strategie) this.plan.poserStrategie(campagne, e.strategie);
         this._etat.set({ campagne, statut: 'echec', titre, message });
         this.notifications.error(titre, message);
       },
@@ -71,14 +74,5 @@ export class LancementCampagneService {
   oublier(campagne: string): void {
     const e = this._etat();
     if (e && e.campagne === campagne && e.statut !== 'en_cours') this._etat.set(null);
-  }
-
-  /** Le brouillon serveur d'une campagne qui n'est plus ouverte : lu puis supprimé, au mieux (comme `discard` de React). */
-  private jeterBrouillonDe(campagne: string): void {
-    this.api.brouillons(campagne).pipe(
-      map((r) => r.drafts.filter((d) => d.campaign_id === campagne)),
-      concatMap((lignes) => (lignes.length ? from(lignes) : of(null))),
-      concatMap((d) => (d ? this.api.supprimerBrouillon(d.id) : of(null))),
-    ).subscribe({ error: () => undefined });
   }
 }

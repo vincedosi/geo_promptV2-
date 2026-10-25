@@ -112,6 +112,19 @@ describe('PiedLancementComponent — récapitulatif et lancement (T6)', () => {
     expect(el.querySelector<HTMLButtonElement>('[data-lancer]')!.disabled).toBe(false);
   });
 
+  it('échec APRÈS rattacher : la stratégie écrite devient l’existante, rien n’est jeté (revue finale, m3)', async () => {
+    const { el, plan, stable } = monter(PRET, {
+      modifierStrategie: vi.fn(() => throwError(() => new HttpErrorResponse({ status: 400, error: { error: 'invalid_body' } }))),
+    });
+    await stable();
+    el.querySelector<HTMLButtonElement>('[data-lancer]')!.click();
+    await stable();
+    expect(plan.poserStrategie).toHaveBeenCalledWith(CAMPAGNE_A, 's1');
+    expect(plan.apresLancement).not.toHaveBeenCalled();
+    expect(plan.jeterBrouillonsDe).not.toHaveBeenCalled();
+    expect(el.querySelector('[data-echec-lancement]')!.textContent!.trim()).toBe('Budget et période non enregistrés. Le serveur a refusé les valeurs envoyées.');
+  });
+
   it('en cours : « Création… », un second clic ne relance pas', async () => {
     const enVol = new Subject<PlanRattache>();
     const { el, appels, stable } = monter(PRET, { rattacher: vi.fn(() => enVol) });
@@ -126,10 +139,7 @@ describe('PiedLancementComponent — récapitulatif et lancement (T6)', () => {
 
   it('une réponse revenue après un changement de campagne n’écrit rien dans la nouvelle ; son brouillon serveur est jeté', async () => {
     const enVol = new Subject<PlanRattache>();
-    const { el, plan, appels, stable } = monter(PRET, {
-      rattacher: vi.fn(() => enVol),
-      brouillons: vi.fn(() => of({ drafts: [{ id: 'b1', campaign_id: CAMPAGNE_A }] })),
-    });
+    const { el, plan, stable } = monter(PRET, { rattacher: vi.fn(() => enVol) });
     await stable();
     el.querySelector<HTMLButtonElement>('[data-lancer]')!.click();
     plan.campagne.set('7c9e6679-7425-40de-944b-e07fc1f90ae7');
@@ -138,8 +148,8 @@ describe('PiedLancementComponent — récapitulatif et lancement (T6)', () => {
     await stable();
     expect(plan.apresLancement).not.toHaveBeenCalled();
     expect(el.querySelector('[data-lance]')).toBeNull();
-    expect(appels.brouillons).toHaveBeenCalledWith(CAMPAGNE_A);
-    expect(appels.supprimerBrouillon).toHaveBeenCalledWith('b1');
+    // Le seul chemin (F-6) : PlanCampagneService.jeterBrouillonsDe, éprouvé par son spec.
+    expect(plan.jeterBrouillonsDe).toHaveBeenCalledWith(CAMPAGNE_A);
     // De retour sur sa campagne : l'issue est toujours là.
     plan.campagne.set(CAMPAGNE_A);
     await stable();

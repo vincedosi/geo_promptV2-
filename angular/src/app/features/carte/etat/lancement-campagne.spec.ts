@@ -5,7 +5,8 @@ import { ConfigService } from '../../../core/config/config.service';
 import { type Campagne, PlanApi, type PlanRattache } from '../data/plan.api';
 import { DEFAULT_PROG_DRAFT, type ProgDraft } from '../logique/plan/brouillon';
 import { previsions, totauxPrevus } from '../logique/plan/impressions';
-import { type DemandeLancement, EchecLancement, type EntreesLancement, etatLancement, lancerCampagne, messageLancement } from './lancement-campagne';
+import { HttpErrorResponse } from '@angular/common/http';
+import { type DemandeLancement, EchecLancement, type EntreesLancement, etatLancement, lancerCampagne, messageEtape, messageLancement } from './lancement-campagne';
 
 const C = '0f8fad5b-d9cb-469f-a165-70867728950e';
 const J = '16fd2706-8baf-433b-82eb-8c7fada847da';
@@ -131,7 +132,7 @@ describe('lancerCampagne — un seul chemin, séquentiel (T6, A-9, E2)', () => {
     http.expectOne(`/api/zones/jeux/${J}/rattacher`).flush(rattache);
     http.expectOne(`/api/bidding/strategies/${S}`).flush({ error: 'numeric field overflow' }, { status: 500, statusText: 'Erreur' });
     http.verify();
-    expect(erreur).toMatchObject({ titre: 'Budget et période non enregistrés', message: 'numeric field overflow' });
+    expect(erreur).toMatchObject({ titre: 'Budget et période non enregistrés', message: 'numeric field overflow', strategie: S });
   });
 
   it('échec du PUT des canaux : « Plateformes non enregistrées » (relecture 3, M6)', () => {
@@ -142,7 +143,18 @@ describe('lancerCampagne — un seul chemin, séquentiel (T6, A-9, E2)', () => {
     http.expectOne(`/api/bidding/strategies/${S}`).flush({ strategy: {} });
     http.expectOne(`/api/campaigns/${C}/channels`).flush({ error: 'Canal inconnu : x' }, { status: 400, statusText: 'Erreur' });
     http.verify();
-    expect(erreur).toMatchObject({ titre: 'Plateformes non enregistrées', message: 'Canal inconnu : x' });
+    expect(erreur).toMatchObject({ titre: 'Plateformes non enregistrées', message: 'Canal inconnu : x', strategie: S });
+  });
+
+  it('les codes anglais des routes sont traduits ; un canal refusé est nommé (revue finale, m2)', () => {
+    const http = (error: object, status = 400) => new HttpErrorResponse({ status, error });
+    expect(messageEtape(http({ error: 'channel_not_available', code: 'tiktok' }))).toBe('Une plateforme cochée n’est pas disponible pour cette campagne : tiktok.');
+    expect(messageEtape(http({ error: 'invalid_body', issues: [] }))).toBe('Le serveur a refusé les valeurs envoyées.');
+    expect(messageEtape(http({ error: 'strategy_not_found' }, 404))).toBe('Stratégie introuvable.');
+    expect(messageEtape(http({ error: 'Cannot modify campaign from another org' }, 403))).toBe('Cette campagne appartient à un autre espace.');
+    expect(messageEtape(http({ error: 'Internal server error' }, 500))).toBe('Erreur interne du serveur.');
+    // Hors table : le message de la route, tel quel (déjà en français).
+    expect(messageEtape(http({ error: 'Ce jeu de zones ne couvre aucun code postal.' }, 409))).toBe('Ce jeu de zones ne couvre aucun code postal.');
   });
 
   it('échec du PATCH d’identité : rien d’autre ne part', () => {

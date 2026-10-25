@@ -17,6 +17,7 @@
  * sans budgets ni liaisons, et ⑦/⑧ liraient des canaux périmés). La « deuxième validation » des liaisons de
  * `StepLancement` n'est pas reprise : la coche de la section Plateformes est la seule (une étape, plus de wizard).
  */
+import { HttpErrorResponse } from '@angular/common/http';
 import { type Observable, catchError, map, of, switchMap, throwError } from 'rxjs';
 import { formaterDecimal, formaterNombre } from '../../../core/format/nombre';
 import { messageErreurApi } from '../../../core/http/erreurs';
@@ -109,24 +110,54 @@ function identiteChangee(d: ProgDraft, c: Campagne, nom: string): CorpsCampagne 
   return Object.keys(corps).length ? corps : null;
 }
 
-/** Un échec nommé par son étape : le titre de la notification, et le message de la route. */
+/**
+ * Un échec nommé par son étape : le titre de la notification, et le message de la route. `strategie` : la stratégie
+ * que `rattacher` a DÉJÀ écrite quand une étape suivante échoue — elle est active en base, l'écran doit le savoir (m3).
+ */
 export class EchecLancement extends Error {
-  constructor(readonly titre: string, message: string) {
+  constructor(readonly titre: string, message: string, readonly strategie?: string) {
     super(message);
   }
 }
 
-/** L'étape échouée, nommée ; le message reste celui de la route (`messageErreurApi`). */
-const etape = <T>(titre: string, source: Observable<T>) =>
-  source.pipe(catchError((e: unknown) => throwError(() => new EchecLancement(titre, messageErreurApi(e)))));
+/**
+ * Les codes anglais que rendent les routes enchaînées (PUT canaux, PATCH stratégie, PATCH campagne), en français
+ * (revue finale, m2). Les routes, que React lit aussi, ne changent pas ; un message absent de la table passe tel quel.
+ */
+export const MESSAGES_ROUTES: Readonly<Record<string, string>> = {
+  campaign_not_found: 'Campagne introuvable dans cet espace.',
+  'Campaign not found': 'Campagne introuvable dans cet espace.',
+  'Cannot modify campaign from another org': 'Cette campagne appartient à un autre espace.',
+  'Organization not found or inactive': 'Organisation introuvable ou inactive.',
+  strategy_not_found: 'Stratégie introuvable.',
+  invalid_json: 'Requête illisible par le serveur.',
+  invalid_body: 'Le serveur a refusé les valeurs envoyées.',
+  channel_not_available: 'Une plateforme cochée n’est pas disponible pour cette campagne',
+  update_failed: 'L’enregistrement a échoué.',
+  'Internal server error': 'Erreur interne du serveur.',
+};
+
+/** Le message d'une étape échouée : la table des codes, sinon `messageErreurApi`. Un canal refusé est nommé. */
+export function messageEtape(e: unknown): string {
+  const corps = e instanceof HttpErrorResponse ? (e.error as { error?: unknown; code?: unknown } | null) : null;
+  const code = typeof corps?.error === 'string' ? corps.error : null;
+  const traduit = code ? MESSAGES_ROUTES[code] : undefined;
+  if (!traduit) return messageErreurApi(e);
+  if (code !== 'channel_not_available') return traduit;
+  return typeof corps?.code === 'string' ? `${traduit} : ${corps.code}.` : `${traduit}.`;
+}
+
+/** L'étape échouée, nommée ; son message est traduit (`messageEtape`). */
+const etape = <T>(titre: string, source: Observable<T>, strategie?: string) =>
+  source.pipe(catchError((e: unknown) => throwError(() => new EchecLancement(titre, messageEtape(e), strategie))));
 
 /** La séquence, une requête à la fois ; le premier échec arrête tout. Rend la réponse de `rattacher`. */
 export function lancerCampagne(api: PlanApi, d: DemandeLancement): Observable<PlanRattache> {
   const avant: Observable<unknown> = d.identite ? etape('Renommage impossible', api.modifierCampagne(d.campagne, d.identite)) : of(null);
   return avant.pipe(
     switchMap(() => etape('Rattachement impossible', api.rattacher(d.jeu, { campagne: d.campagne, extraction: d.extraction }))),
-    switchMap((r) => etape('Budget et période non enregistrés', api.modifierStrategie(r.strategie, d.strategie)).pipe(map(() => r))),
-    switchMap((r) => etape('Plateformes non enregistrées', api.ecrireCanaux(d.campagne, d.canaux)).pipe(map(() => r))),
+    switchMap((r) => etape('Budget et période non enregistrés', api.modifierStrategie(r.strategie, d.strategie), r.strategie).pipe(map(() => r))),
+    switchMap((r) => etape('Plateformes non enregistrées', api.ecrireCanaux(d.campagne, d.canaux), r.strategie).pipe(map(() => r))),
   );
 }
 

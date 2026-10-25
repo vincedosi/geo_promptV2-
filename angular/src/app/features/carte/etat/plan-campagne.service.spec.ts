@@ -259,7 +259,7 @@ describe('PlanCampagneService — relecture 1', () => {
     o.http.expectNone(`/api/bidding/strategies/drafts/${B1}`);
   });
 
-  it('repartirDeZero pendant la lecture du brouillon serveur : il n’est pas restauré par-dessus', async () => {
+  it('repartirDeZero pendant la lecture du brouillon serveur : il n’est pas restauré par-dessus, il est supprimé', async () => {
     const o = await ouvrir(`/carte?campagne=${C1}`);
     await repondre(o, `/api/admin/campaigns/${C1}?page=1`, campagne(C1, 'Rentrée'));
     await repondre(o, `/api/bidding/strategies?campaign_id=${C1}`, { strategies: [] });
@@ -268,11 +268,68 @@ describe('PlanCampagneService — relecture 1', () => {
       id: B1, campaign_id: C1, current_step: 4, last_saved_at: '2026-10-25T10:00:00Z', expires_at: null, created_at: '',
       draft_data: { v: 1, draft: { ...DEFAULT_PROG_DRAFT, name: 'Jeté', forecastCpm: 9 } },
     }] });
+    // Revue finale (F-6, m4) : la ligne lue après la remise est supprimée, pas seulement ignorée.
+    const suppression = o.http.expectOne(`/api/bidding/strategies/drafts/${B1}`);
+    expect(suppression.request.method).toBe('DELETE');
+    suppression.flush({ deleted: true });
     await repondre(o, `/api/campaigns/${C1}/channels`, canaux);
     expect(o.hote.plan.brouillon()).toMatchObject({ name: 'Rentrée', forecastCpm: null });
     expect(o.hote.plan.restaure()).toBeNull();
     expect(o.hote.plan.etape()).toBe(1);
     expect(o.hote.plan.prerempli()).toBe(true);
+  });
+});
+
+describe('PlanCampagneService — revue finale (F-6, m3, m4)', () => {
+  it('changer de campagne puis « Repartir de zéro » sur la nouvelle : la sauvegarde en vol de la précédente n’est PAS supprimée', async () => {
+    const o = await ouvrir(`/carte?campagne=${C1}`);
+    await preremplirC1(o);
+    vi.useFakeTimers();
+    o.hote.plan.modifier((d) => ({ ...d, name: 'X' }));
+    vi.advanceTimersByTime(DELAI_AUTOSAVE_MS);
+    const enVol = o.http.expectOne('/api/bidding/strategies/drafts');
+    o.hote.plan.choisirCampagne(C2);
+    o.http.expectOne(`/api/admin/campaigns/${C2}?page=1`);
+    o.hote.plan.repartirDeZero();
+    enVol.flush({ draft: { id: B1, current_step: 1, last_saved_at: '2026-10-25T11:00:00Z' } });
+    o.http.expectNone(`/api/bidding/strategies/drafts/${B1}`);
+  });
+
+  it('jeterBrouillonsDe une campagne quittée : ses brouillons sont lus puis supprimés', async () => {
+    const o = await ouvrir(`/carte?campagne=${C2}`);
+    o.http.expectOne(`/api/admin/campaigns/${C2}?page=1`);
+    o.hote.plan.jeterBrouillonsDe(C1);
+    o.http.expectOne(`/api/bidding/strategies/drafts?campaign_id=${C1}`).flush({ drafts: [{ id: B1, campaign_id: C1 }, { id: 'autre', campaign_id: C2 }] });
+    expect(o.http.expectOne(`/api/bidding/strategies/drafts/${B1}`).request.method).toBe('DELETE');
+    o.http.expectNone('/api/bidding/strategies/drafts/autre');
+  });
+
+  it('lancement réussi PENDANT le préremplissage de la même campagne : le brouillon lu ensuite est supprimé, pas restauré (m4)', async () => {
+    const o = await ouvrir(`/carte?campagne=${C1}`);
+    await repondre(o, `/api/admin/campaigns/${C1}?page=1`, campagne(C1, 'Rentrée'));
+    await repondre(o, `/api/bidding/strategies?campaign_id=${C1}`, { strategies: [] });
+    o.hote.plan.apresLancement(S1, null);
+    await repondre(o, `/api/bidding/strategies/drafts?campaign_id=${C1}`, { drafts: [{
+      id: B1, campaign_id: C1, current_step: 2, last_saved_at: '2026-10-25T10:00:00Z', expires_at: null, created_at: '',
+      draft_data: { v: 1, draft: { ...DEFAULT_PROG_DRAFT, name: 'Avant le lancement' } },
+    }] });
+    o.http.expectOne(`/api/bidding/strategies/drafts/${B1}`).flush({ deleted: true });
+    await repondre(o, `/api/campaigns/${C1}/channels`, canaux);
+    expect(o.hote.plan.restaure()).toBeNull();
+    expect(o.hote.plan.brouillon().name).toBe('Rentrée');
+    expect(o.hote.plan.strategieExistante()).toEqual({ id: S1, statut: 'active' });
+  });
+
+  it('poserStrategie (échec après rattacher, m3) : la stratégie devient l’existante de la campagne ouverte, le brouillon reste', async () => {
+    const o = await ouvrir(`/carte?campagne=${C1}`);
+    await preremplirC1(o, [{ id: B1, campaign_id: C1, current_step: 1, last_saved_at: '2026-10-25T10:00:00Z', expires_at: null, created_at: '',
+      draft_data: { v: 1, draft: DEFAULT_PROG_DRAFT } }]);
+    o.hote.plan.poserStrategie(C2, 'ailleurs');
+    expect(o.hote.plan.strategieExistante()).toEqual({ id: S1, statut: 'active' });
+    o.hote.plan.poserStrategie(C1, 's-neuve');
+    expect(o.hote.plan.strategieExistante()).toEqual({ id: 's-neuve', statut: 'active' });
+    expect(o.hote.plan.restaure()).not.toBeNull();
+    o.http.verify();
   });
 });
 
