@@ -11,10 +11,10 @@
  *   ramenées à leur code canonique pour garder un groupe de CP indiscernables entier, comme le plan l'achète.
  *   Une plateforme qui n'achète pas au CP (cercles, communes, polygone) rend une liste vide.
  *
- * Réponse : `{ cp: [{ code_postal, multiplicateur }], total, canoniques }`, `total` = nombre de lignes rendues (codes
- * postaux BRUTS : un groupe indiscernable écrit une ligne par membre, comme `bidding_zone_configs`), `canoniques` =
- * nombre de codes CANONIQUES distincts — l'unité de `n_retenus`, celle que l'écran ⑥ affiche (« N CP au plan, dont
- * M retenus », preuve du lot 6). Les deux types de jeu.
+ * Réponse : `{ cp: [{ code_postal, multiplicateur }], total, retenus }`, en codes postaux BRUTS — l'unité que
+ * `rattacher` écrit dans `bidding_zone_configs` (un groupe indiscernable : une ligne par membre). `total` = lignes
+ * rendues, `retenus` = celles qui sont retenues ; l'écran ⑥ en fait « N CP au plan, dont M retenus » (preuve du
+ * lot 6). `n_retenus` de l'extraction compte, lui, des codes canoniques. Les deux types de jeu.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -99,8 +99,8 @@ export async function GET(
       lignes = lignes.filter((l) => achetes.has(l.code_canonique));
     }
     const cp = lignes.map(({ code_postal, multiplicateur }) => ({ code_postal, multiplicateur }));
-    const canoniques = new Set(lignes.map((l) => l.code_canonique)).size;
-    return NextResponse.json({ cp, total: cp.length, canoniques });
+    const retenus = lignes.filter((l) => l.retenu).length;
+    return NextResponse.json({ cp, total: cp.length, retenus });
   } catch (e) {
     console.error('[zones/extraction cp] lignes :', e instanceof Error ? e.message : e);
     return NextResponse.json({ error: 'Codes postaux de l’extraction illisibles.' }, { status: 500 });

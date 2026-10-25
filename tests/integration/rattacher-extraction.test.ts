@@ -256,18 +256,18 @@ describe('GET /api/zones/jeux/[id]/extractions/[version]/cp', () => {
   it('sans plateforme : le même compte que le plan écrit dans bidding_zone_configs', async () => {
     const r = await lireCp(jeu, 1);
     expect(r.status).toBe(200);
-    const { cp, total, canoniques } = await r.json() as { cp: { code_postal: string; multiplicateur: number }[]; total: number; canoniques: number };
+    const { cp, total, retenus } = await r.json() as { cp: { code_postal: string; multiplicateur: number }[]; total: number; retenus: number };
     const strategie = psql(`select id from public.bidding_strategies where campaign_id = '${campagne}' and status = 'active';`);
     const ecrits = Number(psql(`select count(*) from public.bidding_zone_configs where strategy_id = '${strategie}';`));
     expect(total).toBe(ecrits);
     expect(cp).toHaveLength(ecrits);
     expect(cp.every((c) => c.multiplicateur > 0)).toBe(true);
-    // `canoniques` : les codes CANONIQUES distincts du plan écrit, l'unité de `n_retenus` (preuve du lot 6, D-3).
+    // `retenus` : les lignes RETENUES du plan écrit, dans l'unité de `total` (codes bruts, preuve du lot 6, D-3).
     const extraction = psql(`select id from public.zone_set_extractions where zone_set_id = '${jeu}' and version = 1;`);
-    expect(canoniques).toBe(Number(psql(
-      `select count(distinct code_canonique) from public.zone_set_extraction_cp where extraction_id = '${extraction}' and multiplicateur > 0;`,
+    expect(retenus).toBe(Number(psql(
+      `select count(*) from public.zone_set_extraction_cp where extraction_id = '${extraction}' and multiplicateur > 0 and retenu;`,
     )));
-    expect(canoniques).toBeLessThanOrEqual(total);
+    expect(retenus).toBeLessThanOrEqual(total);
   });
 
   it('par plateforme : Meta (seuil 50) ⊂ DV360 (seuil 20) ; TikTok (commune) n’a aucun CP', async () => {
@@ -279,7 +279,7 @@ describe('GET /api/zones/jeux/[id]/extractions/[version]/cp', () => {
     expect(meta.total).toBeLessThan(dv.total);
     const deDv = new Set(dv.cp.map((c) => c.code_postal));
     expect(meta.cp.every((c) => deDv.has(c.code_postal))).toBe(true);
-    expect(tiktok).toEqual({ cp: [], total: 0, canoniques: 0 });
+    expect(tiktok).toEqual({ cp: [], total: 0, retenus: 0 });
   });
 
   it('une version absente : 404 ; un jeu d’un autre espace : 404 ; une version qui n’est pas un entier : 400', async () => {

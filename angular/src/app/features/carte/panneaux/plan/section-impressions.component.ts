@@ -212,13 +212,15 @@ export class BandeauPlanComponent {
     const jeu = this.plan.brouillon().jeuZones;
     const x = this.plan.extraction();
     const lus = jeu && x ? this.plan.cpDe(jeu.id, x.version) : null;
-    // Codes CANONIQUES, l'unité de « dont M retenus » (`n_retenus`) ; `total` compte les lignes brutes (D-3).
-    return lus ? formaterNombre(lus.canoniques) : '—';
+    // Codes BRUTS, comme `rattacher` les écrit dans `bidding_zone_configs` (preuve, D-3).
+    return lus ? formaterNombre(lus.total) : '—';
   });
-  /** « dont M retenus » : les deux nombres de CP, partout (revue finale, V-4). */
+  /** « dont M retenus » (V-4), dans la même unité que N : les lignes retenues du plan lu. */
   protected readonly noteCp = computed(() => {
+    const jeu = this.plan.brouillon().jeuZones;
     const x = this.plan.extraction();
-    return x ? `dont ${formaterNombre(x.n_retenus)} retenus` : 'de l’extraction choisie';
+    const lus = jeu && x ? this.plan.cpDe(jeu.id, x.version) : null;
+    return lus ? `dont ${formaterNombre(lus.retenus)} retenus` : 'de l’extraction choisie';
   });
 
   private readonly jeu = computed(() => this.plan.brouillon().jeuZones?.id ?? null);

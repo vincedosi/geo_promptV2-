@@ -82,7 +82,7 @@ describe('SectionImpressionsComponent — impressions prévues (T5, A-10, A-11)'
     // 100 ÷ 3 × 1 000 = 33 333 impressions, réparties sur les poids 2, 1, 1 : 16 666,5 · 8 333,25 · 8 333,25.
     plan.cps.set(new Map([[`${J}|3|dv360`, { cp: [
       { code_postal: '69001', multiplicateur: 2 }, { code_postal: '69002', multiplicateur: 1 }, { code_postal: '69003', multiplicateur: 1 },
-    ], total: 3, canoniques: 3 }]]));
+    ], total: 3, retenus: 3 }]]));
     await stable();
     const cellules = [...el.querySelectorAll('[data-tableau-cp="dv360"] tbody tr')].map((tr) => Number(tr.lastElementChild!.textContent!.replace(/\s/g, '')));
     expect(cellules.reduce((s, v) => s + v, 0)).toBe(33333);
@@ -104,7 +104,7 @@ describe('SectionImpressionsComponent — impressions prévues (T5, A-10, A-11)'
     const { el, plan, stable } = await monter(SectionImpressionsComponent);
     el.querySelector<HTMLButtonElement>('[data-prevision="dv360"] [data-voir-cp]')!.click();
     const cp = Array.from({ length: 60 }, (_, i) => ({ code_postal: String(69000 + i), multiplicateur: 1 }));
-    plan.cps.set(new Map([[`${J}|3|dv360`, { cp, total: 60, canoniques: 60 }]]));
+    plan.cps.set(new Map([[`${J}|3|dv360`, { cp, total: 60, retenus: 60 }]]));
     await stable();
     expect(el.querySelectorAll('[data-tableau-cp="dv360"] tbody tr')).toHaveLength(LIGNES_CP_VISIBLES);
     el.querySelector<HTMLButtonElement>('[data-voir-tout]')!.click();
@@ -123,11 +123,10 @@ describe('BandeauPlanComponent — le bandeau de l’étape', () => {
     expect(kpi('plateformes')).toBe('2');
     expect(plan.chargerCp).toHaveBeenCalledWith(J, 3);
     expect(kpi('cp')).toBe('—');
-    // Preuve du lot 6 (D-3) : les CP au plan se comptent en codes CANONIQUES (unité de `n_retenus`), pas en lignes.
-    plan.cps.set(new Map([[`${J}|3|`, { cp: [], total: 1234, canoniques: 1100 }]]));
+    // Preuve du lot 6 (D-3) : N et M en codes BRUTS, comme `rattacher` les écrit — pas `n_retenus` (100, canonique).
+    plan.cps.set(new Map([[`${J}|3|`, { cp: [], total: 1234, retenus: 1150 }]]));
     await stable();
-    expect(kpi('cp')).toBe('1 100');
-    // V-4 : « dont M retenus » sous le nombre de CP au plan.
-    expect(el.querySelector('[data-kpi="cp"]')!.textContent!.replace(/\s+/g, ' ')).toContain('dont 100 retenus');
+    expect(kpi('cp')).toBe('1 234');
+    expect(el.querySelector('[data-kpi="cp"]')!.textContent!.replace(/\s+/g, ' ')).toContain('dont 1 150 retenus');
   });
 });

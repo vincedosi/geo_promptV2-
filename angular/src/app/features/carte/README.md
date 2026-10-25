@@ -382,7 +382,7 @@ V1 = contrôle des impressions et du budget dépensé (spec § 19). Deux service
   arrête tout ; un échec après `rattacher` porte la stratégie écrite), `messageEtape` (codes anglais des routes
   traduits), `messageLancement` (« N CP au plan, dont M retenus · … »).
 
-**« N CP au plan, dont M retenus »** : les deux en codes CANONIQUES (`canoniques` de la route `…/cp`, `n_retenus`) ; `total` compte les lignes brutes, un membre de groupe indiscernable par ligne.
+**« N CP au plan, dont M retenus »** : les deux en codes BRUTS, comme `rattacher` les écrit (`total` et `retenus` de la route `…/cp`, un membre de groupe indiscernable par ligne) — la même unité que « Voir tout (n) ». `n_retenus` de l'extraction compte des codes canoniques : il n'est pas affiché à côté.
 
 **Le prévu par CP et par plateforme** (« Voir par CP ») = impressions de la plateforme × multiplicateur ÷ Σ
 multiplicateurs de SES CP. Ce n'est PAS `campaign_cp_rollup.planned_share` (agrégat campagne entière) : ⑧ le

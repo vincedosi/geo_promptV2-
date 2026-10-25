@@ -146,13 +146,13 @@ export class SourcePlanComponent {
     // Le type vient de la liste ; à défaut, un résumé absent dit un jeu risque (`plateformes` nul).
     const type = this.jeux.resultat()?.find((l) => l.id === j.id)?.type ?? (x.plateformes === null ? 'risque' : 'zone');
     // Les CP au plan : la lecture du bandeau (`chargerCp`, une par extraction, mise en cache par le service).
-    // En codes CANONIQUES, comme `n_retenus` (preuve, D-3) : `total` compterait les membres d'un groupe un à un.
-    const auPlan = this.plan.cpDe(j.id, x.version)?.canoniques;
+    // En codes BRUTS, comme `rattacher` les écrit (preuve, D-3) : N et M dans la même unité, celle de « Voir tout ».
+    const lus = this.plan.cpDe(j.id, x.version);
     return {
       nom: j.nom,
       repartition: REPARTITION[type],
-      auPlan: auPlan == null ? '—' : formaterNombre(auPlan),
-      retenus: formaterNombre(x.n_retenus),
+      auPlan: lus ? formaterNombre(lus.total) : '—',
+      retenus: lus ? formaterNombre(lus.retenus) : '—',
       utile: x.taux_utile == null ? '—' : `${formaterDecimal(Number(x.taux_utile))} %`,
       enZone: x.part_plan_en_zone == null ? '—' : `${formaterDecimal(Number(x.part_plan_en_zone), 0)} %`,
       // Un jeu risque n'a pas de résumé par plateforme : tout son plan est au CP (V-7).

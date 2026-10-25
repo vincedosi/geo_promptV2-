@@ -155,14 +155,14 @@ export interface PlanRattache {
 }
 
 /**
- * `GET /api/zones/jeux/[id]/extractions/[version]/cp` : les CP achetés (d'une plateforme si demandée). `total` compte les
- * lignes (codes BRUTS, un membre de groupe indiscernable par ligne) ; `canoniques` les codes CANONIQUES distincts, l'unité
- * de `n_retenus` : c'est lui que l'écran affiche en « CP au plan » (preuve du lot 6, D-3).
+ * `GET /api/zones/jeux/[id]/extractions/[version]/cp` : les CP achetés (d'une plateforme si demandée), en codes BRUTS,
+ * comme `rattacher` les écrit (un membre de groupe indiscernable par ligne). `total` = lignes, `retenus` = lignes
+ * retenues : « N CP au plan, dont M retenus » (preuve du lot 6, D-3).
  */
 export interface CpDExtraction {
   cp: CpExtraction[];
   total: number;
-  canoniques: number;
+  retenus: number;
 }
 
 @Injectable()

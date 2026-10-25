@@ -55,15 +55,15 @@ export class LancementCampagneService {
   /**
    * Lance la séquence ; ignoré si une autre est en vol. `impressions` : le total affiché, repris dans le message.
    * `miseAJour` : la campagne avait déjà un plan — l'issue se dit « Plan mis à jour » (revue finale, V-5).
-   * `cpAuPlan` : les codes CANONIQUES du plan, lus par le bandeau (`cpDe(...).canoniques`), repris dans le message.
+   * `retenus` : les lignes retenues du plan CP, lues par le bandeau (`cpDe(...).retenus`), reprises dans le message.
    */
-  lancer(demande: DemandeLancement, impressions: number | null, miseAJour = false, cpAuPlan: number | null = null): void {
+  lancer(demande: DemandeLancement, impressions: number | null, miseAJour = false, retenus: number | null = null): void {
     if (this.enCours() || this.detruit) return;
     const campagne = demande.campagne;
     this._etat.set({ campagne, statut: 'en_cours' });
     this.abonnement = lancerCampagne(this.api, demande).subscribe({
       next: (r) => {
-        const message = messageLancement(r, impressions, cpAuPlan);
+        const message = messageLancement(r, impressions, retenus);
         this._etat.set({ campagne, statut: 'reussi', message, miseAJour });
         this.notifications.success(miseAJour ? TITRE_MISE_A_JOUR : TITRE_CREATION, message);
         if (this.plan.campagne() === campagne) this.plan.apresLancement(r.strategie, demande.identite);
