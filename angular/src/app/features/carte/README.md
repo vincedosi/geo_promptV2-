@@ -16,7 +16,7 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 
 | Dossier | Contenu |
 |---|---|
-| `parcours/` | la barre du parcours (`mg-barre-parcours` : fil d'Ariane, fil d'étapes, bouton « Autres » hors du fil, actions), le panneau d'étape (`mg-panneau-etape` : poignée, repli « carte seule »), les étapes « bientôt » ⑤-⑧ |
+| `parcours/` | la barre du parcours (`mg-barre-parcours` : fil d'Ariane, fil d'étapes, bouton « Autres » hors du fil, actions), le panneau d'étape (`mg-panneau-etape` : poignée, repli « carte seule »), l'étape « bientôt » qui reste (⑧) |
 | `outils/` | la boîte à outils (`mg-boite-outils`, `OutilsCarteService` : Mes analyses, Mes zones, Fond de carte, Légende, Aide, Réglages ; un tiroir à la fois, dans la pile Échap ; contenu monté à la première ouverture puis gardé) |
 | `panneaux/` | le contenu de chaque étape : `filtre/`, `calques/` (une section par couche, dépliée dans une ligne de ② ou dans « Autres »), `analyse/` (bataille d'isochrones, corrélation, score, clustering), `zones/` (création ; « Mes zones » et les jeux de zones, montés par l'outil Mes zones ; plan média), `autres/` (le panneau « Autres » : panneaux OOH et radio, hors du fil), `donnees/` (② « Données », T13 : `mg-panneau-donnees` — « Actifs », `mg-actions-poi`, « Chercher un jeu », données de l'espace, données communes recommandées, « Plus de données communes » — et la ligne uniforme d'un jeu, `mg-ligne-jeu`, T12) ; `aide` et `reglages`, contenus des tiroirs de la boîte à outils |
 | `couches/` | une couche = un service (`*.service.ts` : état, lectures, pose) + ses fonctions pures (`couche-*.ts` : sources, couches, peintures, popups) |
@@ -58,14 +58,16 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   custom bidding) et « Plan média (n) » quand ils ont un objet,
   « Tout effacer », mode immersif (sortie : bouton de la boîte à outils ou Échap), thème, session et espace.
 - ⑤ Jeu de zones (lot 5) a son panneau (`panneaux/jeu/`, voir plus bas) : React n'a rien d'équivalent hors du module
-  risque. ⑥ Plan (lot 6) a le sien (`panneaux/plan/`, voir plus bas). ⑦-⑧ affichent « Bientôt dans le parcours. »,
+  risque. ⑥ Plan (lot 6) a le sien (`panneaux/plan/`, voir plus bas), ⑦ Activation (lot 7) aussi
+  (`panneaux/activation/`, voir plus bas). ⑧ affiche « Bientôt dans le parcours. »,
   avec un lien vers l'écran React si `urlApplicationReact` est posé — il porte la campagne courante (`&campaign=`, lu
   par le deep-link React) ; le sélecteur de campagne de la barre y écrit déjà `?campagne=`. Les outils de ③ et ④ n'ont pas bougé : rayons et isochrones comme types de zone de
   ③, couverture par territoire dans ④, c'est aux lots 4-5.
 - **La pastille « renseignée »** d'une étape (`etatsEtapes`, `logique/parcours.ts`, table `RENSEIGNEE_PAR`) : ① un
   filtre posé, ② un jeu de ② affiché (`DonneesAfficheesService`, la même source que les pastilles des lignes ; ni OOH
   ni radio), ④ le score composite OU les zones à risque sur la carte (T14), ⑤ une zone ou un jeu, ⑥ une stratégie
-  existante pour la campagne courante (lot 6). ⑦-⑧ ne s'allument pas encore.
+  existante pour la campagne courante (lot 6), ⑦ un lot `termine` ou `partiel` (donc non annulé) de la campagne
+  courante, lu dans l'historique (lot 7, A-11). ⑧ ne s'allume pas encore.
 - **Aucune fonction perdue** : le describe « aucune fonction perdue (spec § 12, lot 1) » de `carte.page.spec.ts`
   (`INVENTAIRE`) dit où vit chaque fonction de l'ancienne carte. Une ligne rouge = une fonction perdue : la rétablir.
 
@@ -418,6 +420,55 @@ Angular les couvrent ; écarts listés en tête de fichier).
 
 `messageErreurCampagnes` (service) : un 401/403 sur les campagnes se dit « La gestion des campagnes est réservée aux
 administrateurs. » (V1 : super_admin seul) — hall, sélecteur et panneau le disent, jamais en silence.
+
+## ⑦ Activation (lot 7, T1-T6, 2026-10-26)
+
+Plan `docs/superpowers/plans/2026-10-25-carte-en-parcours-lot-7-activation.md`. V1 = **envoyer les zones**, rien
+d'autre : poussée API DV360 seule (ciblage géographique), fichiers pour The Trade Desk, Meta et TikTok ; aucun custom
+bidding, pacing, ad server, ni le mot « stratégie » à l'écran (E4). Port quasi tel quel d'`ActivationPanel.tsx`
+(onglet Activation de l'overlay React), découpé en UNE carte par plateforme cochée en ⑥ (A-4).
+
+- **Rien n'est lu avant l'espace validé** : `ActivationCampagneService.validee` attend que `PlanCampagneService` ait
+  fini son préremplissage pour CETTE campagne (`prerempli && detail.id === campagne`, accès non refusé) — les routes
+  admin ne filtrent pas l'espace pour le super_admin. Le serveur refait le contrôle (prevol et pousser, 404 avant
+  toute écriture).
+- **À la demande** (revue finale, M-3) : hors de ⑦, l'historique seul (la pastille) ; pré-vol → historique →
+  registre → versions du jeu en UN abonnement séquentiel annulable, à la première entrée dans ⑦ pour la campagne.
+- **Mode de la poussée** (`prevol.mode_dv360`, calculé côté serveur, jamais lu du corps) : `reel` avec une connexion
+  DV360 `connected` (liste blanche, `connexionUtilisable`) ; sinon **simulé** sur une campagne de démo — mêmes
+  contrôles et mêmes comptes que le réel, rien ne part chez Google, lot marqué `mode = 'simule'` (sql/281), carte
+  « Simulé », bouton « Simuler la poussée vers DV360 » ; sinon `indisponible` (fichier SDF en repli).
+- **La poussée appartient à SA campagne** (A-10) : changer de campagne ou d'étape ne l'interrompt pas ; sur une autre
+  campagne, Pousser est désactivé (« Une poussée est en cours sur une autre campagne. »). Le panneau reste MONTÉ hors
+  de l'étape. Un changement d'espace recrée la page : la requête est abandonnée, le serveur clôt le lot.
+- **Les comptes** : la nature d'une carte dit les unités RETENUES de l'extraction (« 63 CP — conversion de la zone
+  (95,0 % d'utile) », taux de `resumeDuCanal`, le même qu'en ⑥) ; la poussée et le pré-vol disent les CP bruts que
+  DV360 reçoit (`n_cp_dv360`, « 79 codes postaux bruts »), jamais `n_codes_postaux` (toutes plateformes, gardé pour
+  React, I-2).
+- **Les fichiers** : `mg-fichiers-extraction` (aussi sous chaque version en ⑤, A-14), par `mg-bouton-export` ; formats
+  par (plateforme, maille) recopiés du serveur (`formatsDe`, verrou `tests/unit/angular/activation-paritaire.test.ts`).
+
+| Fichier | Rôle |
+|---|---|
+| `data/activation.api.ts` | `ActivationApi` (`FOURNISSEURS_DISTANTS`) : `prevol`, `historique`, `pousser` (NDJSON par `lignesNdjson`), `annuler`, `publier`, `fichier` ; types `Prevol`, `MotifPrevol`, `LotActivation`, `LigneFlux` |
+| `etat/activation-campagne.service.ts` | `ActivationCampagneService` (page, `FOURNISSEURS_ACTIVATION`) : lecture, cartes, bandeau, pastille (`renseignee`), poussée, publication, annulation ; `messageGeste`, le SEUL lecteur du corps d'un refus (motif par `texteMotif`, puis `message ?? error`, F-5) |
+| `logique/activation/cartes.ts` | `cartesActivation` (PUR) : ordre du registre, nature, mode, motifs, avertissements réglementaires (A-13) ; `formatsDe` (copie verrouillée) |
+| `logique/activation/bandeau.ts` | `bandeauActivation`, `lotAbouti`, `estPrete` (PURS) ; dates par `dateHeureFr` (`core/format/date`) |
+| `logique/activation/motifs.ts` | `texteMotif` (réécrit les deux motifs qui disent « stratégie »), `motifDePublication`, `libellePublication` |
+| `logique/activation/line-items.ts` | parsing des line items de React rejoué ; `MAX_LINE_ITEMS` = `MAX_CIBLES` du serveur (verrou paritaire, F-6) |
+| `logique/activation/fichiers.ts` | libellés des formats, nom de repli d'un fichier |
+| `panneaux/activation/panneau-activation.component.ts` | `mg-panneau-activation` : renvois vers ⑥, pré-vol, cartes, flux, historique |
+| `panneaux/activation/carte-plateforme.component.ts` | `mg-carte-plateforme` : en-tête, mode, nature, motifs, avertissements ; contenu projeté |
+| `panneaux/activation/poussee-dv360.component.ts` | `mg-poussee-dv360` : publication, annonceur prérempli (liaison de ⑥), line items, bouton |
+| `panneaux/activation/fichiers-extraction.component.ts` | `mg-fichiers-extraction` : un bouton par format, « à vérifier » |
+| `panneaux/activation/flux-poussee.component.ts`, `historique-activation.component.ts`, `bandeau-activation.component.ts` | le flux de la poussée, l'historique (annulation par `mg-confirmation`), le bandeau de l'étape (A-12) |
+| `panneaux/activation/styles-activation.ts` | classes de ⑦ aux mesures de React : `CADRE`, `ENCART_MOTIF`, `ENCART_PRET`, `SAISIE_MONO`, `BOUTON_POUSSEE`, `BOUTON_NEUTRE`, `POINT_STATUT` |
+| `testing/activation-factice.ts` | la doublure de `ActivationCampagneService` des specs d'écran |
+
+**Dupliqué à dessein** : `formatsDe` / `FORMATS_FICHIER` et `MAX_LINE_ITEMS` (verrou
+`activation-paritaire.test.ts`) ; le parsing des line items (React l'écrit dans le composant, il ne s'importe pas :
+verrouillé par REJEU des cas de React dans `line-items.spec.ts`) ; `CodeMotif` / `ModeDv360` (Angular n'importe pas
+le serveur ; `texteMotif` retombe sur le message serveur pour un code inconnu).
 
 ## Cycle de vie d'une couche
 
