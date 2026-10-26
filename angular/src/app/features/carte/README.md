@@ -451,12 +451,13 @@ bidding, pacing, ad server, ni le mot « stratégie » à l'écran (E4). Port qu
 | Fichier | Rôle |
 |---|---|
 | `data/activation.api.ts` | `ActivationApi` (`FOURNISSEURS_DISTANTS`) : `prevol`, `historique`, `pousser` (NDJSON par `lignesNdjson`), `annuler`, `publier`, `fichier` ; types `Prevol`, `MotifPrevol`, `LotActivation`, `LigneFlux` |
-| `etat/activation-campagne.service.ts` | `ActivationCampagneService` (page, `FOURNISSEURS_ACTIVATION`) : lecture, cartes, bandeau, pastille (`renseignee`), poussée, publication, annulation ; `messageGeste`, le SEUL lecteur du corps d'un refus (motif par `texteMotif`, puis `message ?? error`, F-5) |
+| `etat/activation-campagne.service.ts` | `ActivationCampagneService` (page, `FOURNISSEURS_ACTIVATION`) : lecture, cartes, bandeau, pastille (`renseignee`), poussée, publication, annulation (`MESSAGE_ANNULATION`, texte clair au lieu de celui de la route, effacé au début d'une poussée, d'une publication ou d'un changement de campagne — preuve C-3, C-5) ; `messageGeste`, le SEUL lecteur du corps d'un refus (motif par `texteMotif`, puis `message ?? error`, F-5) |
 | `logique/activation/cartes.ts` | `cartesActivation` (PUR) : ordre du registre, nature, mode, motifs, avertissements réglementaires (A-13) ; `formatsDe` (copie verrouillée) |
 | `logique/activation/bandeau.ts` | `bandeauActivation`, `lotAbouti`, `estPrete` (PURS) ; dates par `dateHeureFr` (`core/format/date`) |
 | `logique/activation/motifs.ts` | `texteMotif` (réécrit les deux motifs qui disent « stratégie »), `motifDePublication`, `libellePublication` |
 | `logique/activation/line-items.ts` | parsing des line items de React rejoué ; `MAX_LINE_ITEMS` = `MAX_CIBLES` du serveur (verrou paritaire, F-6) |
 | `logique/activation/fichiers.ts` | libellés des formats, nom de repli d'un fichier |
+| `logique/activation/statuts.ts` | LA table des libellés de statut de lot et de cible (`libelleStatut`, `statutMinuscule`, `compteStatut`, `compteLineItems` accordés) : historique, détail d'un lot, flux — React affichait les codes bruts (preuve C-2) |
 | `panneaux/activation/panneau-activation.component.ts` | `mg-panneau-activation` : renvois vers ⑥, pré-vol, cartes, flux, historique |
 | `panneaux/activation/carte-plateforme.component.ts` | `mg-carte-plateforme` : en-tête, mode, nature, motifs, avertissements ; contenu projeté |
 | `panneaux/activation/poussee-dv360.component.ts` | `mg-poussee-dv360` : publication, annonceur prérempli (liaison de ⑥), line items, bouton |

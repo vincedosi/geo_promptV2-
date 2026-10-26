@@ -3,16 +3,20 @@ import { EnteteSectionComponent } from '../../../../ui/entete-section/entete-sec
 import type { LigneFlux } from '../../data/activation.api';
 import { ActivationCampagneService } from '../../etat/activation-campagne.service';
 import { PlanCampagneService } from '../../etat/plan-campagne.service';
+import { compteLineItems, compteStatut, statutMinuscule } from '../../logique/activation/statuts';
 
 /**
- * Le texte d'une ligne du flux, ceux de React (`ActivationPanel.tsx:382-384`). `total` vient de la ligne `debut` :
+ * Le texte d'une ligne du flux, ceux de React (`ActivationPanel.tsx:382-384`), statuts libellés et comptes accordés
+ * (`statuts.ts`, preuve C-2 : React écrivait « · en_cours », « 2 poussé(s) »). `total` vient de la ligne `debut` :
  * la route ne le répète que sur la ligne `en_cours` d'une cible, pas sur son issue (`pousse`/`echec`), où React
  * affichait « [1/undefined] ».
  */
 export function texteLigneFlux(l: LigneFlux, total: number | undefined): string {
-  if (l.etape === 'debut') return `Départ — ${l.total} line item(s)`;
-  if (l.etape === 'cible') return `[${l.n}/${l.total ?? total}] ${l.line_item_id} · ${l.statut}${l.erreur ? ` — ${l.erreur}` : ''}`;
-  if (l.etape === 'fin') return `Terminé — ${l.pousses} poussé(s), ${l.echecs} échec(s)`;
+  if (l.etape === 'debut') return `Départ — ${compteLineItems(l.total ?? 0)}`;
+  if (l.etape === 'cible') {
+    return `[${l.n}/${l.total ?? total}] ${l.line_item_id} · ${statutMinuscule(l.statut ?? '')}${l.erreur ? ` — ${l.erreur}` : ''}`;
+  }
+  if (l.etape === 'fin') return `Terminé — ${compteStatut(l.pousses ?? 0, 'pousse')}, ${compteStatut(l.echecs ?? 0, 'echec')}`;
   return '';
 }
 

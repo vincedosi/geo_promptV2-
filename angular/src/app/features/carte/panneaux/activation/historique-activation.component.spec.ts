@@ -39,11 +39,12 @@ describe('HistoriqueActivationComponent', () => {
     expect(lot.querySelector('[data-statut] span')!.classList.contains('bg-warning')).toBe(true);
     expect(lot.querySelector('[data-simule]')!.textContent!.trim()).toBe('Simulé');
     expect(lot.querySelector('[data-date]')!.textContent!.trim()).toBe(dateHeureFr('2026-10-26T09:00:00Z'));
-    expect(lot.querySelector('[data-detail]')!.textContent!.trim()).toBe('v1 · 2 line items · 1 pousse · 1 echec');
+    expect(lot.querySelector('[data-detail]')!.textContent!.trim()).toBe('v1 · 2 line items · 1 poussé · 1 échec');
   });
 
   it('detailLot : sans version, un seul line item (React)', () => {
-    expect(detailLot(lotDe({ version_strategie: null, n_cibles: 1, cibles: { pousse: 1 } }))).toBe('1 line item · 1 pousse');
+    expect(detailLot(lotDe({ version_strategie: null, n_cibles: 1, cibles: { pousse: 1 } }))).toBe('1 line item · 1 poussé');
+    expect(detailLot(lotDe({ n_cibles: 2, cibles: { annule: 2 } }))).toBe('v1 · 2 line items · 2 annulés');
   });
 
   it('« Annuler ce lot » → confirmation « Marquer ce lot annulé ? » → le service ; « Non » referme', () => {
@@ -61,7 +62,7 @@ describe('HistoriqueActivationComponent', () => {
     expect(activation.annuler).toHaveBeenCalledWith('l1');
   });
 
-  it('un lot annulé n’a pas de bouton ; le message de la route est affiché tel quel', () => {
+  it('un lot annulé n’a pas de bouton ; le message d’annulation est affiché', () => {
     const { el, activation, rafraichir } = rendre();
     activation.lots.set([lotDe({ statut: 'annule' })]);
     activation.messageAnnulation.set('Le lot est marqué annulé dans dentsu.explore.'); rafraichir();

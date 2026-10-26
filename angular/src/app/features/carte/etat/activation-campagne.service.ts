@@ -33,6 +33,14 @@ export function messageGeste(e: unknown): string {
   return messageErreurApi(e);
 }
 
+/**
+ * Le message d'une annulation réussie (preuve du lot 7, C-5) : la route rend un texte technique (« route de push »,
+ * « geo IDs »), partagé avec React et laissé tel quel côté serveur ; l'écran Angular dit la même chose clairement.
+ * DV360 est le seul canal poussé (`CorpsPoussee.canal`). Un REFUS garde le message de la route (`messageGeste`).
+ */
+export const MESSAGE_ANNULATION =
+  'Lot marqué annulé. Les zones déjà envoyées restent actives chez DV360 : retirez-les dans DV360 si nécessaire.';
+
 /** Un message lié à SA campagne : affiché sur elle seule. */
 interface MessageDe { campagne: string; texte: string }
 
@@ -91,7 +99,10 @@ export class ActivationCampagneService {
   readonly chargement: Signal<boolean> = this._chargement.asReadonly();
   /** L'erreur de lecture, sinon celle d'un geste (poussée, publication) de la campagne courante. */
   readonly erreur: Signal<string | null> = computed(() => this._erreurLecture() ?? this.deCourante(this._erreur()));
-  /** Le message de la route d'annulation, affiché tel quel (il dit ce qui N'A PAS été fait). */
+  /**
+   * Le message de la dernière annulation (il dit ce qui N'A PAS été fait) : `MESSAGE_ANNULATION`, ou le refus de la
+   * route. Effacé au début d'une poussée, d'une publication ou d'un changement de campagne (preuve du lot 7, C-3).
+   */
   readonly messageAnnulation: Signal<string | null> = computed(() => this.deCourante(this._annulation()));
   /** Le flux de la poussée de la campagne courante (en cours ou terminée), vide sinon. */
   readonly flux: Signal<readonly LigneFlux[]> = computed(() => {
@@ -181,6 +192,7 @@ export class ActivationCampagneService {
     }
     const { ids } = lireLineItems(lineItems);
     this._erreur.set(null);
+    this._annulation.set(null);
     this._pousseeEnCours.set({ campagne: c });
     this._flux.set({ campagne: c, lignes: [] });
     const fin = () => {
@@ -206,6 +218,7 @@ export class ActivationCampagneService {
     if (!c || !s || this.detruit || this._publication()) return;
     this._publication.set(c);
     this._erreur.set(null);
+    this._annulation.set(null);
     this.api.publier(s.id).subscribe({
       next: () => {
         this._publication.set(null);
@@ -218,14 +231,14 @@ export class ActivationCampagneService {
     });
   }
 
-  /** Marque un lot annulé (confirmé par l'écran) ; le message de la route est affiché tel quel, succès ou refus. */
+  /** Marque un lot annulé (confirmé par l'écran) : `MESSAGE_ANNULATION` en cas de succès, le message de la route sinon. */
   annuler(lot: string): void {
     const c = this.validee();
     if (!c || this.detruit) return;
     this._annulation.set(null);
     this.api.annuler(c, lot).subscribe({
-      next: (r) => {
-        this._annulation.set({ campagne: c, texte: r.message });
+      next: () => {
+        this._annulation.set({ campagne: c, texte: MESSAGE_ANNULATION });
         if (this.validee() === c) this.relire();
       },
       error: (e: unknown) => this._annulation.set({ campagne: c, texte: messageGeste(e) }),
@@ -242,6 +255,7 @@ export class ActivationCampagneService {
     this._prevol.set(null);
     this._lots.set([]);
     this._erreurLecture.set(null);
+    this._annulation.set(null);
     this.complete = null;
     if (c) this.lire(c, this.parcours.etape() === 'activation');
   }

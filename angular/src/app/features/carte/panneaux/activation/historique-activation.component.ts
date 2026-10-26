@@ -1,30 +1,26 @@
 import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal } from '@angular/core';
-import { formaterNombre } from '../../../../core/format/nombre';
 import { ConfirmationComponent } from '../../../../ui/confirmation/confirmation.component';
 import { EnteteSectionComponent } from '../../../../ui/entete-section/entete-section.component';
 import type { LotActivation } from '../../data/activation.api';
 import { ActivationCampagneService } from '../../etat/activation-campagne.service';
 import { PlanCampagneService } from '../../etat/plan-campagne.service';
 import { dateHeureFr } from '../../../../core/format/date';
+import { compteLineItems, compteStatut, libelleStatut } from '../../logique/activation/statuts';
 import { BOUTON_NEUTRE, ENCART_MOTIF, POINT_STATUT } from './styles-activation';
 
-/** Le libellé d'un statut de lot (React affichait le code brut : `termine`, `echec`…). */
-export const LIBELLE_STATUT: Readonly<Record<string, string>> = {
-  termine: 'Terminé', partiel: 'Partiel', echec: 'Échec', annule: 'Annulé', en_cours: 'En cours',
-};
-
-/** La seconde ligne d'un lot (`ActivationPanel.tsx:424-426`) : version, nombre de line items, puis les comptes par statut. */
+/** La seconde ligne d'un lot (`ActivationPanel.tsx:424-426`) : version, nombre de line items, puis les comptes par
+ * statut, libellés et accordés (`statuts.ts`, preuve C-2 : React écrivait « 2 pousse »). */
 export function detailLot(l: LotActivation): string {
   const version = l.version_strategie != null ? `v${l.version_strategie} · ` : '';
-  const cibles = Object.entries(l.cibles).map(([s, n]) => ` · ${n} ${s}`).join('');
-  return `${version}${formaterNombre(l.n_cibles)} line item${l.n_cibles > 1 ? 's' : ''}${cibles}`;
+  const cibles = Object.entries(l.cibles).map(([s, n]) => ` · ${compteStatut(n, s)}`).join('');
+  return `${version}${compteLineItems(l.n_cibles)}${cibles}`;
 }
 
 /**
  * ⑦ Activation — l'historique des poussées de la campagne courante (lot 7, T4) : port de la section « Historique des
  * activations » de `ActivationPanel.tsx`. Le statut se lit par un libellé en texte primaire et un POINT de sa couleur
  * (contraste en thème clair) ; « Simulé » marque un lot de démo (sql/281). « Annuler ce lot » ouvre `mg-confirmation`
- * (« Marquer ce lot annulé ? ») ; le message de la route est affiché tel quel, succès ou refus — il dit ce que
+ * (« Marquer ce lot annulé ? ») ; le message d'annulation (`ActivationCampagneService.messageAnnulation`) dit ce que
  * l'annulation NE fait PAS (rien n'est retiré du DSP).
  */
 @Component({
@@ -73,7 +69,7 @@ export class HistoriqueActivationComponent {
   protected readonly lignes = computed(() => this.activation.lots().map((lot) => ({
     lot,
     canal: this.plan.libelleCanal(lot.canal),
-    statut: LIBELLE_STATUT[lot.statut] ?? lot.statut,
+    statut: libelleStatut(lot.statut),
     point: POINT_STATUT[lot.statut] ?? 'bg-tertiary',
     date: dateHeureFr(lot.lance_le),
     detail: detailLot(lot),

@@ -5,7 +5,7 @@ import { Subject } from 'rxjs';
 import { ActivationApi, type CorpsPoussee, type LigneFlux, type Prevol } from '../data/activation.api';
 import { type ExtractionJeu, JeuxApi } from '../data/jeux.api';
 import type { EtapeCarte } from '../logique/parcours';
-import { ActivationCampagneService, messageGeste } from './activation-campagne.service';
+import { ActivationCampagneService, MESSAGE_ANNULATION, messageGeste } from './activation-campagne.service';
 import { ParcoursService } from './parcours.service';
 import { PlanCampagneService } from './plan-campagne.service';
 
@@ -302,17 +302,40 @@ describe('ActivationCampagneService — gestes', () => {
     expect(api.appels.filter((a) => a.nom === 'prevol')).toHaveLength(2);
   });
 
-  it('annuler : le message de la route tel quel, succès ou refus', () => {
+  it('annuler : un texte clair en cas de succès (C-5), le message de la route en cas de refus', () => {
     const { svc, api, tick, lireA } = preparer();
     lireA();
     svc.annuler('l1');
     const a = api.appels.find((x) => x.nom === 'annuler');
-    a?.s.next({ message: 'Le lot est marqué annulé.' }); a?.s.complete(); tick();
-    expect(svc.messageAnnulation()).toBe('Le lot est marqué annulé.');
+    a?.s.next({ message: 'Le ciblage déjà poussé n’a PAS été retiré du DSP (route de push, geo IDs).' }); a?.s.complete(); tick();
+    expect(svc.messageAnnulation()).toBe(MESSAGE_ANNULATION);
+    expect(MESSAGE_ANNULATION).toBe('Lot marqué annulé. Les zones déjà envoyées restent actives chez DV360 : retirez-les dans DV360 si nécessaire.');
     svc.annuler('l2');
     [...api.appels].reverse().find((x) => x.nom === 'annuler')?.s.error(new HttpErrorResponse({ status: 409, error: { error: 'Ce lot est déjà annulé.' } }));
     tick();
     expect(svc.messageAnnulation()).toBe('Ce lot est déjà annulé.');
+  });
+
+  it('C-3 — le message d’annulation est effacé au début d’une poussée, d’une publication et d’un changement de campagne', () => {
+    const { svc, plan, api, tick, lireA } = preparer();
+    /** Annule `l1` avec succès : le message est affiché (la relecture qui suit reste pendante, sans effet sur lui). */
+    const annulerL1 = () => {
+      svc.annuler('l1');
+      const a = [...api.appels].reverse().find((x) => x.nom === 'annuler');
+      a?.s.next({ message: 'm' }); a?.s.complete(); tick();
+      expect(svc.messageAnnulation()).toBe(MESSAGE_ANNULATION);
+    };
+    lireA();
+    annulerL1();
+    svc.publier();
+    expect(svc.messageAnnulation()).toBeNull();
+    annulerL1();
+    svc.pousser('12', '3');
+    expect(svc.messageAnnulation()).toBeNull();
+    annulerL1();
+    plan.ouvrir(B); plan.valider(B); tick();
+    plan.ouvrir(A); plan.valider(A); tick();
+    expect(svc.messageAnnulation()).toBeNull();
   });
 });
 
