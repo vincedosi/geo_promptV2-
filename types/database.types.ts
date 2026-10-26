@@ -82,6 +82,7 @@ export type Database = {
           id: string
           lance_le: string
           lance_par: string
+          mode: string
           org_id: string
           statut: string
           termine_le: string | null
@@ -93,6 +94,7 @@ export type Database = {
           id?: string
           lance_le?: string
           lance_par: string
+          mode?: string
           org_id: string
           statut?: string
           termine_le?: string | null
@@ -104,6 +106,7 @@ export type Database = {
           id?: string
           lance_le?: string
           lance_par?: string
+          mode?: string
           org_id?: string
           statut?: string
           termine_le?: string | null

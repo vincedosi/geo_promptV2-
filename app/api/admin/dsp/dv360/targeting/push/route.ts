@@ -11,15 +11,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDspAccess, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
-import { resolveAccessToken, bulkAssignGeoRegions, type Dv360ConnectionRow } from '@/lib/dsp/dv360/client';
-import { logDspEvent } from '@/lib/dsp/logger';
-import { mapPostalCodesToGeoIds, GEO_POSTAL_FR_VERSION } from '@/lib/digital/dv360-geo';
+import { pousserCiblageDv360 } from '@/lib/dsp/dv360/pousser-ciblage';
 import { lireCodesDeZone } from '@/lib/custom-geo/codes-zone';
 
 export const dynamic = 'force-dynamic';
-
-/** Garde-fou : au-delà, passer par l'export fichier (bulkEdit DV360 plafonne les opérations par requête). */
-const MAX_GEO_IDS_PER_PUSH = 2000;
 
 const PushSchema = z.object({
   zone_id: z.string().uuid(),
@@ -51,14 +46,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Zone introuvable.' }, { status: 404 });
   }
 
-  const { data: conn, error: connErr } = await supabase
-    .from('dsp_connections')
-    .select('auth_method, credentials_encrypted, oauth_refresh_token_encrypted, oauth_client_id, oauth_client_secret_encrypted, partner_id')
-    .eq('organization_id', orgId).eq('provider', 'dv360').single();
-  if (connErr || !conn) {
-    return NextResponse.json({ error: 'Aucune connexion DV360 enregistrée.' }, { status: 404 });
-  }
-
   // Lecture paginée : PostgREST coupe une table à 1 000 lignes (`db-max-rows`),
   // l'ancien `.limit(100000)` poussait 1 000 CP d'une zone de 1 641 sans
   // erreur (lib/custom-geo/codes-zone.ts).
@@ -69,62 +56,13 @@ export async function POST(request: NextRequest) {
     console.error('[dv360/targeting/push] codes', e instanceof Error ? e.message : String(e));
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-  if (cps.length === 0) {
-    return NextResponse.json({ error: 'Aucun code postal résolu pour cette zone.' }, { status: 400 });
-  }
 
-  const { mapped, unmapped } = mapPostalCodesToGeoIds(cps);
-  if (mapped.length === 0) {
-    return NextResponse.json({ error: 'Aucun code postal mappé vers un geo ID Google.' }, { status: 400 });
-  }
-  if (mapped.length > MAX_GEO_IDS_PER_PUSH) {
-    return NextResponse.json(
-      {
-        error: `Zone trop large : ${mapped.length} geo IDs (max ${MAX_GEO_IDS_PER_PUSH} par push). Utiliser l'export fichier.`,
-      },
-      { status: 400 },
-    );
-  }
-
-  const started = Date.now();
-  try {
-    const token = await resolveAccessToken(conn as Dv360ConnectionRow);
-    const result = await bulkAssignGeoRegions(
-      token,
-      advertiser_id,
-      line_item_id,
-      mapped.map((m) => m.geo_id),
-    );
-    const durationMs = Date.now() - started;
-
-    await logDspEvent({
-      orgId, provider: 'dv360', category: 'api_call', action: 'push_geo_targeting',
-      statusCode: 200, durationMs,
-      message: `${mapped.length} geo IDs poussés sur le line item ${line_item_id} (zone « ${zone.name} »)`,
-      detail: {
-        zone_id, advertiser_id, line_item_id,
-        geo_count: mapped.length,
-        unmapped_count: unmapped.length,
-        geotargets_version: GEO_POSTAL_FR_VERSION,
-        failed_line_item_ids: result.failedLineItemIds,
-      },
-    });
-
-    return NextResponse.json({
-      ok: true,
-      pushed_geo_ids: mapped.length,
-      unmapped_postal_codes: unmapped,
-      updated_line_item_ids: result.updatedLineItemIds,
-      failed_line_item_ids: result.failedLineItemIds,
-    });
-  } catch (e) {
-    const durationMs = Date.now() - started;
-    const msg = e instanceof Error ? e.message : String(e);
-    await logDspEvent({
-      orgId, provider: 'dv360', category: 'api_call', action: 'push_geo_targeting',
-      level: 'error', durationMs, message: msg,
-      detail: { zone_id, advertiser_id, line_item_id, geo_count: mapped.length },
-    });
-    return NextResponse.json({ error: msg }, { status: 502 });
-  }
+  // Connexion, mapping, plafond, appel Google et journal : `lib/dsp/dv360/pousser-ciblage.ts` (lot 7, A-2), partagé
+  // avec la poussée d'une campagne. Toujours en réel ici : cette route ne connaît pas de campagne de démo.
+  const issue = await pousserCiblageDv360({
+    supabase, orgId, cps, advertiserId: advertiser_id, lineItemId: line_item_id,
+    libelle: `zone « ${zone.name} »`, mode: 'reel', detail: { zone_id },
+  });
+  if (!issue.ok) return NextResponse.json({ error: issue.error }, { status: issue.status });
+  return NextResponse.json(issue);
 }

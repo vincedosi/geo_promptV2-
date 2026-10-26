@@ -5,6 +5,9 @@
  * ce qui était parti, vers quels line items, avec quel résultat. Un push raté à
  * moitié était donc indiscernable d'un push réussi.
  *
+ * Chaque lot porte son `mode` (`reel` | `simule`, sql/281, lot 7) : une poussée
+ * simulée ne doit jamais se lire comme partie chez DV360.
+ *
  * Borné à 50 lots — c'est un historique consulté, pas un journal exhaustif, et
  * une liste illimitée est interdite (CLAUDE.md).
  */
@@ -37,7 +40,7 @@ export async function GET(
 
   const { data: lots, error } = await supabase
     .from('activation_lots')
-    .select('id, canal, version_strategie, statut, lance_le, termine_le, lance_par')
+    .select('id, canal, version_strategie, statut, mode, lance_le, termine_le, lance_par')
     .eq('campaign_id', campaignId)
     .order('lance_le', { ascending: false })
     .limit(LIMITE_LOTS);

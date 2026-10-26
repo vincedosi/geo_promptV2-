@@ -30,14 +30,23 @@
  *
  * Les trois sont rendus comme des `blocages`, pas comme une erreur HTTP : la
  * page doit pouvoir montrer le reste du pré-vol en expliquant ce qui manque.
+ *
+ * ── Lot 7, ⑦ Activation (T1) ──────────────────────────────────────────────
+ * Lectures et règles partagées avec `pousser` (`lib/campaigns/etat-activation.ts`, `lib/campaigns/activation.ts`).
+ * Champs ajoutés, les anciens inchangés : `mode_dv360` (`reel` | `simule` | `indisponible`), `n_cp_dv360` (les CP
+ * que DV360 recevrait : ceux de la zone, ou ceux de l'extraction du plan), `extraction` (`{ zone_set_id, version }`)
+ * et `motifs` (`{ code, message, version? }`), dont `blocages` est la liste des messages. Deux motifs neufs : la
+ * connexion DV360 (une campagne de DÉMO sans connexion n'est plus bloquée, elle se pousse en simulé) et
+ * `aucun_cp_dv360` (rien à pousser — une extraction Meta + TikTok seuls est légitime, ce n'est pas une erreur).
+ * Depuis le lot 7, `pousser` n'appelle plus `targeting/push` en HTTP mais `pousserCiblageDv360` directement : le
+ * blocage 3 tient toujours, `pousser` refusant tout autre rôle que super_admin avant d'écrire.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient, isSuperAdmin } from '@/lib/auth';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
-import { zonesModifiees, type EmpreinteZones } from '@/lib/campaigns/version-strategie';
-import { rpcJson } from '@/lib/supabase/rpc-json';
+import { lireEtatActivation, type EtatActivation } from '@/lib/campaigns/etat-activation';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,101 +72,30 @@ export async function GET(
   const acces = await checkCampaignAccess(supabase, profile, campaignId);
   if (acces !== 'ok') return NextResponse.json({ error: 'Campagne introuvable.' }, { status: 404 });
 
-  // ── La stratégie de cette campagne ────────────────────────────────────
-  const { data: strategie, error: erreurStrat } = await supabase
-    .from('bidding_strategies')
-    .select('id, name, status, scope_type, zone_id, forecast_cpm, total_budget, updated_at')
-    .eq('campaign_id', campaignId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (erreurStrat) {
-    console.error('[prevol] strategie:', erreurStrat.message);
+  // ── Le pré-vol : les mêmes lectures et les mêmes règles que `pousser` (lot 7, T1) ──────────
+  let etat: EtatActivation;
+  try {
+    etat = await lireEtatActivation(supabase, campaignId, orgId, isSuperAdmin(profile));
+  } catch (e) {
+    console.error('[prevol]', e instanceof Error ? e.message : e);
     return NextResponse.json({ error: 'Erreur base de données.' }, { status: 500 });
   }
-
-  const blocages: string[] = [];
-  if (!strategie) {
-    blocages.push('Aucune stratégie n’est définie pour cette campagne.');
-  }
-
-  // Troisième blocage : le DROIT de pousser. `/activation/pousser` ré-appelle
-  // en HTTP `/api/admin/dsp/dv360/targeting/push`, dont le guard est
-  // `isSuperAdmin` strict — `requireAdmin()` de ce projet n'est pas « admin »,
-  // c'est « super_admin » (ARCHITECTURE.md, audit du 2026-09-10). Sans ce
-  // blocage, un `admin` ou un `client` de l'org propriétaire voyait un pré-vol
-  // `activable: true`, cliquait, et ne découvrait le refus qu'après l'écriture
-  // d'un lot et de ses 50 cibles, toutes en échec.
-  if (!isSuperAdmin(profile)) {
-    blocages.push(
-      'La poussée de ciblage vers un DSP est réservée aux super-administrateurs.',
-    );
-  }
-
-  // ── Version publiée et dérive (Tâche 19) ──────────────────────────────
-  let version: number | null = null;
-  let modifiees: string[] = [];
-
-  if (strategie) {
-    const { data: derniere } = await supabase
-      .from('strategie_versions')
-      .select('version, empreinte_zones')
-      .eq('strategie_id', strategie.id)
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (!derniere) {
-      blocages.push('La stratégie n’a jamais été publiée — publiez-la pour figer le périmètre poussé.');
-    } else {
-      version = derniere.version;
-      // Même empreinte de CONTENU que `/publier` (sql/159) : comparer deux
-      // mesures obtenues autrement rendrait la dérive systématique.
-      let courante: EmpreinteZones = {};
-      if (strategie.zone_id) {
-        const { data: emp } = await supabase.rpc('empreinte_zones', {
-          p_zone_ids: [strategie.zone_id],
-        });
-        courante = rpcJson<EmpreinteZones>(emp) ?? {};
-      }
-      modifiees = zonesModifiees((derniere.empreinte_zones ?? {}) as EmpreinteZones, courante);
-      if (modifiees.length) {
-        blocages.push(
-          `${modifiees.length} zone${modifiees.length > 1 ? 's ont' : ' a'} changé depuis la publication de la v${version} — republiez avant d’activer.`,
-        );
-      }
-    }
-  }
+  const { strategie } = etat;
 
   // ── Ce qui serait poussé : les codes postaux de la campagne ───────────
-  // Lu des ROLLUPS (déjà agrégés), jamais de `dsp_campaign_data`.
+  // Lu des ROLLUPS (déjà agrégés), jamais de `dsp_campaign_data`. Gardé pour React : il compte TOUTES les
+  // plateformes et le hors zone pondéré (E2) ; ce que DV360 reçoit est `n_cp_dv360`.
   const { data: nCp, error: erreurCp } = await supabase.rpc('compte_cp_campagne', {
     p_campaign_id: campaignId,
   });
   if (erreurCp) console.error('[prevol] compte cp:', erreurCp.message);
 
-  // ── Les canaux connectés de l'organisation ────────────────────────────
-  // Colonnes réelles : `organization_id` (pas `org_id`) et `auth_method` (pas
-  // `method`) — les types générés ont attrapé la confusion avant l'exécution.
-  const { data: connexions, error: erreurConn } = await supabase
-    .from('dsp_connections')
-    .select('provider, auth_method, status')
-    .eq('organization_id', orgId);
-  if (erreurConn) console.error('[prevol] connexions:', erreurConn.message);
-
   // Une connexion enregistrée mais en erreur ne permet PAS d'activer : la
   // compter comme un canal disponible ferait échouer le push au premier appel
   // sortant, après avoir laissé croire que tout était prêt.
-  const canaux = (connexions ?? [])
+  const canaux = etat.connexions
     .filter((c) => c.status !== 'error' && c.status !== 'revoked')
     .map((c) => ({ provider: c.provider, methode: c.auth_method, statut: c.status }));
-  if (!canaux.length) {
-    blocages.push(
-      (connexions ?? []).length
-        ? 'Les connexions DSP de cette organisation sont en erreur ou révoquées.'
-        : 'Aucun canal DSP n’est connecté pour cette organisation.',
-    );
-  }
 
   return NextResponse.json(
     {
@@ -168,14 +106,19 @@ export async function GET(
             cpm_previsionnel: strategie.forecast_cpm, budget: strategie.total_budget,
           }
         : null,
-      version_publiee: version,
-      zones_modifiees: modifiees,
+      version_publiee: etat.versionPubliee,
+      zones_modifiees: etat.zonesModifiees,
       n_codes_postaux: nCp ?? 0,
       canaux_connectes: canaux,
-      blocages,
+      // Lot 7 (E1-E4) : la source, le mode et les CP que DV360 recevrait ; les motifs codés.
+      mode_dv360: etat.mode,
+      n_cp_dv360: etat.cpsDv360.length,
+      extraction: etat.extraction ? { zone_set_id: etat.extraction.zone_set_id, version: etat.extraction.version } : null,
+      motifs: etat.motifs,
+      blocages: etat.motifs.map((m) => m.message),
       // Un pré-vol qui ne dit pas qu'il bloque serait pire qu'absent : c'est
       // ce booléen que l'UI branche sur le bouton d'activation.
-      activable: blocages.length === 0,
+      activable: etat.motifs.length === 0,
     },
     { headers: { 'Cache-Control': 'no-store' } },
   );

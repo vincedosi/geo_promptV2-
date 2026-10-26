@@ -9,7 +9,8 @@
  * - sans `?plateforme=` : le plan CP de l'extraction, celui que `rattacher` recopie (`multiplicateur > 0`) ;
  * - avec : les CP de CETTE plateforme — ses unités retenues à la maille CP (`zone_set_extraction_unites`, sql/278),
  *   ramenées à leur code canonique pour garder un groupe de CP indiscernables entier, comme le plan l'achète.
- *   Une plateforme qui n'achète pas au CP (cercles, communes, polygone) rend une liste vide.
+ *   Une plateforme qui n'achète pas au CP (cercles, communes, polygone) rend une liste vide ; un jeu RISQUE (sans
+ *   résumé `plateformes`) rend son plan entier (lot 7, A-1).
  *
  * Réponse : `{ cp: [{ code_postal, multiplicateur }], total, retenus }`, en codes postaux BRUTS — l'unité que
  * `rattacher` écrit dans `bidding_zone_configs` (un groupe indiscernable : une ligne par membre). `total` = lignes
@@ -22,8 +23,7 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { chargerJeu } from '@/lib/zones/charger-jeu';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
-import { lireTout } from '@/lib/supabase/lire-tout';
-import { PLAFOND_CP_PLAN, lireCpExtraction } from '@/lib/zones/plan-extraction';
+import { lireCpPlateforme } from '@/lib/zones/cp-plateforme';
 import { messageAnomalies } from '@/lib/api/valider-corps';
 
 export const dynamic = 'force-dynamic';
@@ -77,27 +77,8 @@ export async function GET(
   }
 
   try {
-    let lignes = await lireCpExtraction(supabase, x.id);
-    const { plateforme } = lus.data;
-    if (plateforme) {
-      // Lecture PAGINÉE (`db-max-rows = 1000`) : les CP d'une plateforme nationale dépassent le millier.
-      const { lignes: unites } = await lireTout<{ code: string | null }>(
-        (de, a) => supabase
-          .from('zone_set_extraction_unites')
-          .select('code')
-          .eq('extraction_id', x.id)
-          .eq('plateforme', plateforme)
-          .eq('maille', 'cp')
-          .eq('retenu', true)
-          .order('ordinal')
-          .range(de, a),
-        PLAFOND_CP_PLAN,
-      );
-      // Une unité peut nommer un MEMBRE de groupe (liste exacte d'une recette) : on la ramène à son canonique.
-      const canoniqueDe = new Map(lignes.map((l) => [l.code_postal, l.code_canonique]));
-      const achetes = new Set(unites.flatMap((u) => (u.code ? [canoniqueDe.get(u.code) ?? u.code] : [])));
-      lignes = lignes.filter((l) => achetes.has(l.code_canonique));
-    }
+    // Lecture partagée avec ⑦ (pré-vol, poussée, fichier) : `lib/zones/cp-plateforme.ts` (lot 7, A-1).
+    const lignes = await lireCpPlateforme(supabase, x.id, lus.data.plateforme);
     const cp = lignes.map(({ code_postal, multiplicateur }) => ({ code_postal, multiplicateur }));
     const retenus = lignes.filter((l) => l.retenu).length;
     return NextResponse.json({ cp, total: cp.length, retenus });

@@ -3,9 +3,20 @@
  * ligne, en disant ce qu'il fait (Tâche 20, 2026-09-13).
  *
  * **Cette route ENVELOPPE le push DV360 existant, elle ne le réécrit pas.**
- * `lib/dsp/dv360/client.ts` et `/api/admin/dsp/dv360/targeting/push` restent
- * intacts : ce qui manquait n'était pas le push, c'était tout ce qui
- * l'entoure — pré-vol, statut par line item, historique, retour arrière.
+ * Ce qui manquait n'était pas le push, c'était tout ce qui l'entoure — pré-vol,
+ * statut par line item, historique, retour arrière.
+ *
+ * ── Lot 7, ⑦ Activation (T1) ──────────────────────────────────────────────
+ * - Le push est appelé DIRECTEMENT (`lib/dsp/dv360/pousser-ciblage.ts`, le corps
+ *   extrait de `targeting/push`), plus par un aller-retour HTTP avec l'en-tête
+ *   d'autorisation recopié.
+ * - Les CP viennent de la zone (`zone_id`, chemin d'avant) OU de l'extraction du
+ *   plan (`in_zone_weights.extraction_id`, écrite par `rattacher` en ⑥ — E1) :
+ *   les CP que DV360 achète (`lireCpPlateforme(…, 'dv360')`).
+ * - Le pré-vol rejoué est celui de `prevol` (`lib/campaigns/etat-activation.ts`) ;
+ *   `mode` (`reel` | `simule`, sql/281) est écrit sur le lot, dans `etat_avant`
+ *   et dans la ligne `debut` du flux. En `simule` (démo sans connexion DV360
+ *   active), rien ne part chez Google.
  *
  * ── Progression NDJSON, et ce n'est pas optionnel ─────────────────────────
  * Règle CLAUDE.md : jamais de traitement silencieux. Un push de vingt line
@@ -31,9 +42,10 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient, isSuperAdmin } from '@/lib/auth';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { lireCorps } from '@/lib/api/valider-corps';
-import { zonesModifiees, type EmpreinteZones } from '@/lib/campaigns/version-strategie';
-import { fetchAvecDelai } from '@/lib/http/fetch-avec-delai';
-import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
+import { lireEtatActivation, type EtatActivation } from '@/lib/campaigns/etat-activation';
+import type { SourceActivation } from '@/lib/campaigns/activation';
+import { pousserCiblageDv360, type ModePoussee } from '@/lib/dsp/dv360/pousser-ciblage';
+import { toJson } from '@/lib/supabase/rpc-json';
 import type { TableInsert } from '@/lib/supabase/tables';
 
 export const dynamic = 'force-dynamic';
@@ -62,6 +74,26 @@ const CorpsSchema = z.object({
     line_item_nom: z.string().max(200).optional(),
   })).min(1).max(MAX_CIBLES),
 });
+
+/**
+ * Le 409 d'un pré-vol qui bloque, sur le PREMIER motif (le droit est vérifié avant, en 403). Les codes d'erreur
+ * d'avant le lot 7 sont gardés tels quels (React les affiche par `message ?? error`).
+ */
+function refusPrevol(etat: EtatActivation): NextResponse {
+  const m = etat.motifs[0];
+  const corps: Record<string, unknown> =
+    m.code === 'aucune_strategie' ? { error: 'Aucune stratégie pour cette campagne.' }
+    : m.code === 'jamais_publiee' ? { error: 'strategie_non_publiee', message: 'Publiez la stratégie avant d’activer.' }
+    : m.code === 'derive' ? {
+      error: 'strategie_derivee',
+      message: `${etat.zonesModifiees.length} zone(s) ont changé depuis la publication de la v${m.version}. Republiez avant d’activer.`,
+      zones_modifiees: etat.zonesModifiees,
+    }
+    : m.code === 'aucun_cp_dv360' && !etat.source
+      ? { error: 'strategie_sans_zone', message: 'Cette stratégie n’a pas de zone à pousser.' }
+    : { error: m.code, message: m.message };
+  return NextResponse.json({ ...corps, motifs: etat.motifs }, { status: 409 });
+}
 
 function ligne(objet: Record<string, unknown>): Uint8Array {
   return new TextEncoder().encode(`${JSON.stringify(objet)}\n`);
@@ -115,69 +147,36 @@ export async function POST(
 
   // ── Le pré-vol, rejoué côté serveur ───────────────────────────────────
   // Le client a pu l'appeler, mais on ne pousse pas sur la foi d'un appel
-  // client : une zone a pu bouger entre son pré-vol et son clic.
-  const { data: strategie } = await supabase
-    .from('bidding_strategies')
-    .select('id, zone_id')
-    .eq('campaign_id', campaignId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!strategie) {
-    return NextResponse.json({ error: 'Aucune stratégie pour cette campagne.' }, { status: 409 });
+  // client : une zone a pu bouger entre son pré-vol et son clic. Mêmes
+  // lectures et mêmes règles que `prevol` (lot 7, T1).
+  let etat: EtatActivation;
+  try {
+    etat = await lireEtatActivation(supabase, campaignId, orgId, true);
+  } catch (e) {
+    console.error('[activation/pousser] pré-vol:', e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: 'Erreur base de données.' }, { status: 500 });
   }
-
-  const { data: derniere } = await supabase
-    .from('strategie_versions')
-    .select('version, empreinte_zones')
-    .eq('strategie_id', strategie.id)
-    .order('version', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!derniere) {
-    return NextResponse.json(
-      { error: 'strategie_non_publiee', message: 'Publiez la stratégie avant d’activer.' },
-      { status: 409 },
-    );
-  }
-
-  let courante: EmpreinteZones = {};
-  if (strategie.zone_id) {
-    const { data: emp } = await supabase.rpc('empreinte_zones', {
-      p_zone_ids: [strategie.zone_id],
-    });
-    courante = rpcJson<EmpreinteZones>(emp) ?? {};
-  }
-  const modifiees = zonesModifiees((derniere.empreinte_zones ?? {}) as EmpreinteZones, courante);
-  if (modifiees.length) {
-    return NextResponse.json(
-      {
-        error: 'strategie_derivee',
-        message: `${modifiees.length} zone(s) ont changé depuis la publication de la v${derniere.version}. Republiez avant d’activer.`,
-        zones_modifiees: modifiees,
-      },
-      { status: 409 },
-    );
-  }
-
-  if (!strategie.zone_id) {
-    return NextResponse.json(
-      { error: 'strategie_sans_zone', message: 'Cette stratégie n’a pas de zone à pousser.' },
-      { status: 409 },
-    );
-  }
-  const zoneId = strategie.zone_id;
+  if (etat.motifs.length) return refusPrevol(etat);
+  // Activable : stratégie, version publiée, source et mode `reel`/`simule` sont établis.
+  const version = etat.versionPubliee as number;
+  const source = etat.source as SourceActivation;
+  const mode = etat.mode as ModePoussee;
+  const cps = etat.cpsDv360;
+  const zoneId = source.type === 'zone' ? source.zoneId : null;
+  const extractionId = etat.extraction?.id ?? null;
+  const libelle = etat.extraction
+    ? `extraction v${etat.extraction.version} du jeu ${etat.extraction.zone_set_id}`
+    : `zone ${zoneId}`;
 
   // ── Le lot, créé AVANT toute sortie ───────────────────────────────────
   const lotLigne: TableInsert<'activation_lots'> = {
     campaign_id: campaignId,
     org_id: orgId,
     canal,
-    version_strategie: derniere.version,
+    version_strategie: version,
     lance_par: profile.id,
     statut: 'en_cours',
+    mode,
   };
   const { data: lot, error: erreurLot } = await supabase
     .from('activation_lots').insert(lotLigne).select('id').single();
@@ -185,9 +184,6 @@ export async function POST(
     console.error('[activation/pousser] lot:', erreurLot?.message);
     return NextResponse.json({ error: 'Erreur base de données.' }, { status: 500 });
   }
-
-  const origine = new URL(request.url).origin;
-  const autorisation = request.headers.get('authorization') ?? '';
 
   // Partage entre `start()` et `cancel()` : le second signale l'abandon du
   // client, le premier le lit a chaque tour de boucle.
@@ -226,8 +222,8 @@ export async function POST(
       };
 
       emettre({
-        etape: 'debut', lot_id: lot.id, canal,
-        version_strategie: derniere.version, total: cibles.length,
+        etape: 'debut', lot_id: lot.id, canal, mode,
+        version_strategie: version, total: cibles.length,
       });
 
       try {
@@ -255,6 +251,7 @@ export async function POST(
             // relire au moment du retour arrière, plutôt que d'inventer une
             // valeur qu'on n'a pas.
             advertiser_id, line_item_id: cible.line_item_id, zone_id: zoneId,
+            extraction_id: extractionId, mode,
             releve_le: new Date().toISOString(),
           }),
         };
@@ -269,26 +266,15 @@ export async function POST(
           continue;
         }
 
-        // ── L'appel sortant : la route DV360 EXISTANTE, telle quelle ────
+        // ── L'appel sortant : `pousserCiblageDv360`, en direct (lot 7, A-2) ────
         try {
-          // `fetchAvecDelai` et non `fetch` nu : cet appel en déclenche un
-          // autre vers Google. Sans délai, un DV360 qui pend bloque les 49
-          // cibles suivantes jusqu'au `maxDuration` (ARCHITECTURE.md impose ce
-          // module pour tout appel sortant vers un tiers).
-          const res = await fetchAvecDelai(
-            `${origine}/api/admin/dsp/dv360/targeting/push`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', authorization: autorisation },
-              body: JSON.stringify({
-                zone_id: zoneId,
-                advertiser_id,
-                line_item_id: cible.line_item_id,
-              }),
-            },
-            60_000,
-          );
-          const resultat = await res.json().catch(() => ({}));
+          // Plus d'aller-retour HTTP vers `targeting/push` : même corps (mapping,
+          // plafond, jeton, Google, journal), sans en-tête recopié. En `simule`,
+          // mêmes contrôles et mêmes comptes, rien ne part chez Google.
+          const resultat = await pousserCiblageDv360({
+            supabase, orgId, cps, advertiserId: advertiser_id, lineItemId: cible.line_item_id, libelle, mode,
+            detail: { campaign_id: campaignId, lot_id: lot.id, zone_id: zoneId, extraction_id: extractionId },
+          });
 
           // ── LE point qui rendait cette tâche inutile ──────────────────
           // `bulkEditAssignedTargetingOptions` répond **HTTP 200 avec
@@ -300,27 +286,25 @@ export async function POST(
           // n'était parti. C'est exactement le défaut que cette tâche
           // prétendait corriger : « un push raté à moitié était
           // indiscernable d'un push réussi ».
-          const refuse = Array.isArray(resultat.failed_line_item_ids)
-            && resultat.failed_line_item_ids.includes(cible.line_item_id);
+          const refuse = resultat.ok && resultat.failed_line_item_ids.includes(cible.line_item_id);
 
-          if (res.ok && !refuse) {
+          if (resultat.ok && !refuse) {
             pousses++;
             await majCible(cibleCreee.id, { statut: 'pousse' });
             emettre({
               etape: 'cible', n: i + 1, line_item_id: cible.line_item_id,
               // Le champ rendu par la route s'appelle `pushed_geo_ids` — ni
               // `assigned` ni `count`, qui valaient donc toujours `null`.
-              statut: 'pousse', n_geo_ids: resultat.pushed_geo_ids ?? null,
+              statut: 'pousse', n_geo_ids: resultat.pushed_geo_ids,
               // Un CP sans geo ID Google n'est pas une erreur, mais c'est une
               // perte de couverture : la taire serait mentir par omission.
-              cp_non_resolus: Array.isArray(resultat.unmapped_postal_codes)
-                ? resultat.unmapped_postal_codes.length : null,
+              cp_non_resolus: resultat.unmapped_postal_codes.length,
             });
           } else {
             echecs++;
-            const message = refuse
+            const message = resultat.ok
               ? 'DV360 a refusé ce line item (réponse 200, line item dans failedLineItemIds).'
-              : (resultat.error ?? `HTTP ${res.status}`);
+              : resultat.error;
             await majCible(cibleCreee.id, { statut: 'echec', erreur: String(message).slice(0, 500) });
             emettre({
               etape: 'cible', n: i + 1, line_item_id: cible.line_item_id,
