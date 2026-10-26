@@ -145,22 +145,22 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
     expect(el.querySelector('[data-jeu="ooh:panneaux"], [data-jeu="radio:emetteurs"]')).toBeNull();
   });
 
-  it('sélection vide : 8 référentiels visibles et « POI communs (1) » fermé, aucun repli, « Aucune sélection : tout est visible »', async () => {
+  it('sélection vide : 8 référentiels visibles et « POI communs (1) » fermé, aucun repli, « Aucune sélection : aucun jeu n’est mis en avant »', async () => {
     const { el, rendre, cles } = monter();
     await rendre();
     expect(cles('commun')).toHaveLength(8);
     expect(el.querySelector('[data-poi-communs="recommandes"]')!.getAttribute('aria-expanded')).toBe('false');
     expect(el.querySelector('[data-repli-autres]')).toBeNull();
-    expect(el.querySelector('[data-precision]')!.textContent!.trim()).toBe('Aucune sélection : tout est visible');
+    expect(el.querySelector('[data-precision]')!.textContent!.trim()).toBe('Aucune sélection : aucun jeu n’est mis en avant');
   });
 
-  it('lecture de la sélection en échec : 8 référentiels, « POI communs (1) » et « Sélection recommandée indisponible : tout est visible. »', async () => {
+  it('lecture de la sélection en échec : 8 référentiels, « POI communs (1) » et « Sélection recommandée indisponible : aucun jeu n’est mis en avant. »', async () => {
     const { el, rendre, cles } = monter({ reco: throwError(() => new Error('500')) });
     await rendre();
     expect(cles('commun')).toHaveLength(8);
     expect(el.querySelector('[data-poi-communs="recommandes"]')).not.toBeNull();
     expect(el.querySelector('[data-repli-autres]')).toBeNull();
-    expect(el.querySelector('[data-precision]')!.textContent!.trim()).toBe('Sélection recommandée indisponible : tout est visible.');
+    expect(el.querySelector('[data-precision]')!.textContent!.trim()).toBe('Sélection recommandée indisponible : aucun jeu n’est mis en avant.');
   });
 
   it('pendant la lecture de la sélection : « Lecture de la sélection… » à la place des lignes communes', async () => {

@@ -70,9 +70,9 @@ const estPoi = (cle: string) => cle.startsWith(PREFIXE_POI);
  *    (boîte à outils, « Mes zones »).
  * 3. « Données communes » : la sélection recommandée de l'espace d'abord (`JeuxRecommandesService`), le reste replié
  *    dans « Plus de données communes (n) » (ruling contrôleur : « Autres » ne désigne que le bouton hors fil). Aucune
- *    sélection, une sélection périmée ou une lecture en échec : tout est visible, sans repli (`rangerJeux`).
+ *    sélection, une sélection périmée ou une lecture en échec : une seule liste, sans repli (`rangerJeux`).
  *    Dans chacune de ces deux listes, les types de POI communs (lycées, CIRFA… : toute catégorie de source commune,
- *    par sa nature, sans liste écrite) suivent les référentiels dans un sous-groupe « POI communs (n) »
+ *    par le préfixe de sa clé (`poi:`), sans liste écrite) suivent les référentiels dans un sous-groupe « POI communs (n) »
  *    (`decouperCommuns`, retours du 26/10, T6). Fermé par défaut ; déplié si l'une de ses cases est cochée ou si une
  *    recherche est tapée ; absent s'il n'a aucun POI. C'est un repli de LISTE : ses lignes ne lisent rien.
  *
@@ -241,8 +241,9 @@ export class PanneauDonneesComponent {
   protected readonly lecture = computed(() => this.reco.cles() === null);
   protected readonly plusVisibles = computed(() => this.plusOuverts() || this.recherche().trim() !== '');
   protected readonly precision = computed(() => {
-    if (this.reco.indisponible()) return 'Sélection recommandée indisponible : tout est visible.';
-    return this.rangement().sansSelection ? 'Aucune sélection : tout est visible' : 'Sélection recommandée';
+    // « tout est visible » jusqu'au 26/10 : faux depuis le sous-groupe « POI communs », fermé par défaut (T6, relecture m-1).
+    if (this.reco.indisponible()) return 'Sélection recommandée indisponible : aucun jeu n’est mis en avant.';
+    return this.rangement().sansSelection ? 'Aucune sélection : aucun jeu n’est mis en avant' : 'Sélection recommandée';
   });
   private readonly rangement = computed(() => rangerJeux(jeuxDeLaCarte(this.catalogue.types()), this.reco.cles() ?? []));
   protected readonly videEspace = computed(() => {

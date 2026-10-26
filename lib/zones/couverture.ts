@@ -18,8 +18,10 @@ import { formaterNombre } from '@/lib/format/nombre';
 import { MESSAGES_REFUS } from './recette';
 
 /**
- * Le quota `geo:rl:couverture`, 6 / min / compte, de la couverture d'une zone de ④ (T6). Il était partagé avec la radio
- * et le trafic de la zone (T13), retirés le 2026-10-26 (retours du 26/10, T5).
+ * Le quota `geo:rl:couverture`, 6 / min / compte, PARTAGÉ par deux lectures : la couverture d'une zone de ④
+ * (`/api/zones/[id]/couverture`, T6) et les contours de communes de ⑤ (`/api/zones/communes/contours`). Un seul
+ * limiteur : deux déclarations du même préfixe pourraient diverger. La radio et le trafic de la zone (T13), qui le
+ * partageaient aussi, ont été retirés le 2026-10-26 (retours du 26/10, T5).
  */
 export const quotaCouverture = createQuota({ max: 6, window: '60 s', prefix: 'geo:rl:couverture' });
 
