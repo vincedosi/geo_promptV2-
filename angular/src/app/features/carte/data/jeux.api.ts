@@ -4,6 +4,7 @@ import { HttpBaseService } from '../../../core/http/http-base.service';
 import type { Extraction } from '../../risques/data/jeux-zones.api';
 import type { MODES_PLAN } from '../../risques/logique/jeu';
 import type { ResultatCercles } from '../logique/jeu/bilan';
+import type { Avertissement } from '../logique/jeu/conversion';
 import type { Maille, Plateforme, PlateformeGeo } from '../logique/jeu/plateformes';
 import type { Recette } from '../logique/zones/recette';
 
@@ -121,6 +122,8 @@ export interface ResumeExtraction {
   exacte?: boolean;
   n_unites?: number;
   taux_utile?: number | null;
+  /** Les limites de la plateforme dépassées au moment de figer (`verifierLimites`), lues par ⑦ (lot 7, A-13). */
+  avertissements?: Avertissement[];
 }
 
 /** Une ligne de `GET …/extractions` : les colonnes d'une extraction, et pour un jeu de zone son résumé par plateforme. */

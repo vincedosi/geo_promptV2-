@@ -4,6 +4,7 @@ import { JeuCarteService } from './couches/jeu-carte.service';
 import { ScoreService } from './couches/score.service';
 import { ZonesRisqueService } from './couches/zones-risque.service';
 import { NotificationsService } from '../../ui/notifications/notifications.service';
+import { ActivationCampagneService } from './etat/activation-campagne.service';
 import { JeuZonesService } from './etat/jeu-zones.service';
 import { LancementCampagneService } from './etat/lancement-campagne.service';
 import { PlanCampagneService } from './etat/plan-campagne.service';
@@ -43,6 +44,12 @@ export const FOURNISSEURS_PLAN: Provider[] = [
   LancementCampagneService,
   NotificationsService,
 ];
+
+/**
+ * L'état de ⑦ Activation (lot 7, T3) fourni par la PAGE (P-e, A-10) : la poussée DV360 en cours survit à ⑦ → ① → ⑦ et
+ * au changement de campagne ; un changement d'espace recrée la page, donc lui — la poussée est alors abandonnée.
+ */
+export const FOURNISSEURS_ACTIVATION: Provider[] = [ActivationCampagneService];
 
 /**
  * La pastille « renseignée » de ④ (A2) : un score composite, des zones à risque ou une couverture de zone PEINTS. À

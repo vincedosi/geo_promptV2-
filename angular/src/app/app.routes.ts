@@ -25,6 +25,7 @@ import { ClusteringApi } from './features/carte/data/clustering.api';
 import { CouvertureApi } from './features/carte/data/couverture.api';
 import { JeuxApi } from './features/carte/data/jeux.api';
 import { PlanApi } from './features/carte/data/plan.api';
+import { ActivationApi } from './features/carte/data/activation.api';
 import { ZonesRisqueApi } from './features/risques/data/zones-risque.api';
 import { ProfilRisqueApi } from './features/risques/data/profil-risque.api';
 import { ReferentielApi } from './features/risques/data/referentiel.api';
@@ -72,6 +73,7 @@ const FOURNISSEURS_DISTANTS: (Provider | EnvironmentProviders)[] = [
   CouvertureApi,
   JeuxApi,
   PlanApi,
+  ActivationApi,
 ];
 
 /**
