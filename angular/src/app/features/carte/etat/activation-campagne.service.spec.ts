@@ -137,6 +137,57 @@ describe('ActivationCampagneService — aucune lecture avant l’espace validé 
   });
 });
 
+describe('ActivationCampagneService — relance en ⑥ (relecture 2)', () => {
+  const version = (v: number) => ({
+    id: `x${v}`, version: v, plateformes: [{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null, n_unites: 63, taux_utile: 95 }],
+  }) as unknown as ExtractionJeu;
+
+  /** A lancée sur J v1, versions de J lues = [v1]. */
+  function lanceeSurV1() {
+    const b = preparer();
+    const lots = [new Subject<unknown>(), new Subject<unknown>()];
+    b.jeux.extractions.mockReturnValueOnce(lots[0]).mockReturnValueOnce(lots[1]);
+    b.plan.ouvrir(A); b.plan.valider(A); b.tick();
+    b.repondre('prevol', A, { ...prevol(), extraction: { zone_set_id: 'j1', version: 1 } });
+    b.repondre('historique', A, { lots: [] });
+    const reg = b.jeux.plateformes.mock.results[0].value as Subject<unknown>;
+    reg.next({ plateformes: [] }); reg.complete();
+    lots[0].next({ extractions: [version(1)] }); lots[0].complete(); b.tick();
+    return { ...b, lots };
+  }
+
+  it('I-1 — relance sur J v2 : la liste de J est RELUE, cartes remplies, motif « jamais publié » et carte DV360 au CP (bouton Publier)', () => {
+    const { svc, plan, jeux, tick, repondre, lots } = lanceeSurV1();
+    expect(svc.cartes()[0].maille).toBe('cp');
+    plan.strategieExistante.set({ id: 's2' }); tick();
+    repondre('prevol', A, {
+      ...prevol(false), version_publiee: null, extraction: { zone_set_id: 'j1', version: 2 },
+      motifs: [{ code: 'jamais_publiee', message: 'La stratégie n’a jamais été publiée — publiez-la pour figer le périmètre poussé.' }],
+    });
+    repondre('historique', A, { lots: [] });
+    expect(jeux.extractions).toHaveBeenCalledTimes(2);
+    lots[1].next({ extractions: [version(2), version(1)] }); lots[1].complete(); tick();
+    const [dv] = svc.cartes();
+    expect(dv).toMatchObject({ maille: 'cp', nature: '63 CP — conversion de la zone (95 % d’utile)' });
+    expect(dv.motifs).toEqual(['Le plan n’a jamais été publié — publiez-le pour figer le périmètre poussé.']);
+  });
+
+  it('même version déjà lue : la liste n’est pas relue', () => {
+    const { plan, jeux, tick, repondre } = lanceeSurV1();
+    plan.strategieExistante.set({ id: 's2' }); tick();
+    repondre('prevol', A, { ...prevol(), extraction: { zone_set_id: 'j1', version: 1 } });
+    repondre('historique', A, { lots: [] });
+    expect(jeux.extractions).toHaveBeenCalledTimes(1);
+  });
+
+  it('I-2 — relance sans DV360 : les cartes suivent les canaux à jour, plus de carte DV360', () => {
+    const { svc, plan, tick } = lanceeSurV1();
+    expect(svc.cartes().map((c) => c.canal)).toEqual(['dv360']);
+    plan.canaux.set({ selected: { dsps: ['ttd'], socials: [] } }); tick();
+    expect(svc.cartes().map((c) => c.canal)).toEqual(['ttd']);
+  });
+});
+
 describe('ActivationCampagneService — changement de campagne (Review Focus 3)', () => {
   it('pendant le pré-vol : la réponse tardive de A est ignorée', () => {
     const { svc, plan, api, tick } = preparer();

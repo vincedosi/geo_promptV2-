@@ -421,6 +421,15 @@ describe('PlanCampagneService — extraction, prévisions et lancement (T5, T6)'
     expect(o.hote.plan.strategieExistante()).toEqual({ id: S1, statut: 'active' });
     expect(o.hote.plan.detail()).toMatchObject({ name: 'Nouveau nom', advertiser: 'Autre' });
   });
+
+  it('apresLancement : les canaux ÉCRITS remplacent ceux lus ; une sous-clé absente garde sa valeur (lot 7, relecture 2, I-2)', async () => {
+    const o = await ouvrir(`/carte?campagne=${C1}`);
+    await preremplirC1(o);
+    o.hote.plan.apresLancement(S1, null, { dsps: ['ttd'], socials: ['meta'], ad_server: null, links: { ttd: { advertiser_id: '9' } } });
+    expect(o.hote.plan.canaux()?.selected).toEqual({
+      dsps: ['ttd'], socials: ['meta'], ad_server: null, budgets: { dv360: 1000 }, links: { ttd: { advertiser_id: '9' } },
+    });
+  });
 });
 
 describe('PlanCampagneService — créer une campagne (hall et sélecteur, T3)', () => {

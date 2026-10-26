@@ -90,7 +90,8 @@ describe('PiedLancementComponent — récapitulatif et lancement (T6)', () => {
     await stable();
     expect(appels.modifierCampagne).not.toHaveBeenCalled();
     expect(appels.modifierStrategie).toHaveBeenCalledWith('s1', { total_budget: 10000, forecast_cpm: 4, kpi_target: 2500000, start_date: '2026-11-01', end_date: '2026-11-30' });
-    expect(plan.apresLancement).toHaveBeenCalledWith('s1', null);
+    // Les canaux ÉCRITS repartent au plan (relecture 2 du lot 7, I-2).
+    expect(plan.apresLancement).toHaveBeenCalledWith('s1', null, expect.objectContaining({ dsps: expect.any(Array), socials: expect.any(Array) }));
     expect(notifs.notifications()[0]).toMatchObject({ variante: 'success', titre: 'Campagne créée' });
     expect(el.querySelector('[data-titre-lance]')!.textContent!.trim()).toBe('✓ Campagne créée');
     expect(el.querySelector('[data-message-lancement]')!.textContent!.replace(/\s/g, ' ')).toBe('12 CP au plan, dont 11 retenus · 90 % du plan en zone · 75,0 % d’utile · 2 500 000 impressions prévues');
@@ -197,7 +198,8 @@ describe('PiedLancementComponent — récapitulatif et lancement (T6)', () => {
     enVol.complete();
     expect(appels.modifierStrategie).toHaveBeenCalledWith('s1', expect.objectContaining({ kpi_target: 2500000 }));
     expect(appels.ecrireCanaux).toHaveBeenCalledTimes(1);
-    expect(plan.apresLancement).toHaveBeenCalledWith('s1', null);
+    // Les canaux ÉCRITS repartent au plan (relecture 2 du lot 7, I-2).
+    expect(plan.apresLancement).toHaveBeenCalledWith('s1', null, expect.objectContaining({ dsps: expect.any(Array), socials: expect.any(Array) }));
     expect(notifs.notifications()[0]).toMatchObject({ variante: 'success', titre: 'Campagne créée' });
     expect(TestBed.inject(LancementCampagneService).etat()).toMatchObject({ campagne: CAMPAGNE_A, statut: 'reussi' });
   });

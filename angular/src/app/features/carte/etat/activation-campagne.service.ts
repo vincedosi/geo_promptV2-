@@ -38,7 +38,8 @@ interface MessageDe { campagne: string; texte: string }
  * LECTURE SÉQUENTIELLE ANNULABLE : pré-vol → historique → registre des plateformes (une fois) → versions du jeu dont le
  * pré-vol nomme l'extraction (une fois par jeu), en UN abonnement. L'extraction des cartes est celle du PLAN LANCÉ
  * (`prevol.extraction`, lue sur la stratégie), jamais celle du brouillon de ⑥, qui a pu changer depuis ; les versions
- * lues sont aussi retenues dans `PlanCampagneService` (une extraction est figée, la liste vaut pour la page). Changer de campagne le désabonne et invalide son
+ * lues sont aussi retenues dans `PlanCampagneService`. Une version absente des versions lues (relance sur une nouvelle
+ * extraction du même jeu) fait relire la liste du jeu. Changer de campagne le désabonne et invalide son
  * jeton : une réponse tardive de A ne s'écrit jamais dans B. Relue après une poussée, une publication, une annulation.
  *
  * LA POUSSÉE APPARTIENT À SA CAMPAGNE (A-10) : changer de campagne ou d'étape ne l'interrompt pas — son flux reste lié
@@ -237,8 +238,11 @@ export class ActivationCampagneService {
       concatMap(() => (this._registre() ? of(null) : this.jeux.plateformes().pipe(map((r) => r.plateformes)))),
       tap((r) => { if (r && valide()) this._registre.set(r); }),
       concatMap(() => {
-        const jeu = this._prevol()?.extraction?.zone_set_id;
-        if (!jeu || this._extractions().has(jeu)) return of(null);
+        // Par (jeu, version) : une extraction est figée, mais la LISTE d'un jeu grandit — une relance en ⑥ sur sa v2
+        // après une lecture de sa v1 doit relire la liste (relecture 2, I-1).
+        const x = this._prevol()?.extraction;
+        const jeu = x?.zone_set_id;
+        if (!x || !jeu || this._extractions().get(jeu)?.some((v) => v.version === x.version)) return of(null);
         return this.jeux.extractions(jeu).pipe(map((r) => ({ jeu, liste: r.extractions })));
       }),
     ).subscribe({

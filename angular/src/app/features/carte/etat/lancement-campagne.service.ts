@@ -66,7 +66,7 @@ export class LancementCampagneService {
         const message = messageLancement(r, impressions, retenus);
         this._etat.set({ campagne, statut: 'reussi', message, miseAJour });
         this.notifications.success(miseAJour ? TITRE_MISE_A_JOUR : TITRE_CREATION, message);
-        if (this.plan.campagne() === campagne) this.plan.apresLancement(r.strategie, demande.identite);
+        if (this.plan.campagne() === campagne) this.plan.apresLancement(r.strategie, demande.identite, demande.canaux);
         else this.plan.jeterBrouillonsDe(campagne);
       },
       error: (e: unknown) => {

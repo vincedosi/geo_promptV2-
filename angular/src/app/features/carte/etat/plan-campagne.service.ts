@@ -4,7 +4,7 @@ import { type Observable, type Subscription, catchError, concatMap, from, map, o
 import { messageErreurApi } from '../../../core/http/erreurs';
 import { OrganisationsApi } from '../../session/data/organisations.api';
 import type { ExtractionJeu } from '../data/jeux.api';
-import { type Campagne, type CanauxCampagne, type CorpsCampagne, type CpDExtraction, PlanApi, type StatutStrategie } from '../data/plan.api';
+import { type Campagne, type CanauxCampagne, type CorpsCampagne, type CorpsCanaux, type CpDExtraction, PlanApi, type StatutStrategie } from '../data/plan.api';
 import { DEFAULT_PROG_DRAFT, type ProgDraft, deserializeDraft, serializeDraft } from '../logique/plan/brouillon';
 import { type ResolvedChannel, resolveChannelAvailability } from '../logique/plan/canaux';
 import { previsions, totauxPrevus } from '../logique/plan/impressions';
@@ -188,12 +188,18 @@ export class PlanCampagneService {
 
   /**
    * Le lancement a réussi (T6) : le brouillon serveur n'a plus lieu d'être (`handleLaunched` de React), la stratégie
-   * écrite devient l'existante (« Modification », pastille ⑥) et l'identité persistée remplace celle lue.
+   * écrite devient l'existante (« Modification », pastille ⑥) et l'identité persistée remplace celle lue. Les canaux
+   * ÉCRITS par le lancement (`PUT canaux`) remplacent ceux lus au préremplissage — ⑦ en tire ses cartes et l'annonceur
+   * DV360 (lot 7, relecture 2, I-2) ; une sous-clé absente du corps garde sa valeur, comme côté serveur.
    */
-  apresLancement(strategie: string, identite: CorpsCampagne | null): void {
+  apresLancement(strategie: string, identite: CorpsCampagne | null, canaux?: CorpsCanaux): void {
     const campagne = this._campagne();
     if (campagne) this.jeterBrouillonsDe(campagne);
     this._restaure.set(null);
+    if (canaux) {
+      const ecrits = Object.fromEntries(Object.entries(canaux).filter(([, v]) => v !== undefined));
+      this._canaux.update((c) => (c ? { ...c, selected: { ...c.selected, ...ecrits } } : c));
+    }
     this._strategie.set({ id: strategie, statut: 'active' });
     if (identite) this._detail.update((c) => (c ? { ...c, ...identite, name: identite.name ?? c.name } : c));
   }
