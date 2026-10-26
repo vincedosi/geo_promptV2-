@@ -5,6 +5,7 @@ import { getSessionOrg } from '@/lib/auth/getSessionOrg';
 import { resolveCategory, normVille } from '@/lib/geo/locations';
 import { getDistinctCategories } from '@/lib/poi/categories';
 import type { ZoneData } from '@/types/spatial';
+import { BBOX_METRO } from '@/lib/carte/filtre';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +16,11 @@ const poisPostSchema = z.object({
   regions:      z.array(z.string()).default([]),
   depts:        z.array(z.string()).default([]),
   ville:        z.string().max(200).default(''),
-  rayon_poi:    z.string().max(20).nullable().default(null),
+  // Filtre « code postal » de l'étape ① (retours du 26/10, T1) : sans lui, un
+  // CP ne bornait rien (le filtre n'a pas de bbox) et TOUS les POI de la
+  // métropole s'affichaient. Lu par l'index (categorie, code_postal), sql/283.
+  code_postal:  z.string().regex(/^\d{5}$/, 'Code postal à 5 chiffres attendu').optional(),
+  rayon_poi:   z.string().max(20).nullable().default(null),
   poi_natures:  z.record(z.string(), z.array(z.string())).optional(),
   /**
    * Inclure les installations classees « En fin d'exploitation ».
@@ -51,7 +56,10 @@ import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
 import { getRegionNameMap, ecrituresDeLaRegion } from '@/lib/geo/region-lookup-server';
 import { getDeptNameMap, ecrituresDuDepartement } from '@/lib/geo/dept-lookup-server';
 
-// Codes départements DROM (exclus en mode France métro)
+// Codes départements DROM : repli de la branche « région d'outre-mer » (`hasDrom`).
+// Ils ne servent PLUS à la portée `metro` (retours du 26/10) : `departement`
+// porte un NOM pour les lycées et l'ICPE (« La Réunion »), et la liste n'avait
+// aucune COM (988 Nouméa…) — `not in (codes)` les laissait passer.
 const DROM_CODES = ['971', '972', '973', '974', '976'];
 // Codes région INSEE des DOM (pour détection "sélection DROM" par le user)
 const DROM_REGION_CODES = new Set(['01', '02', '03', '04', '06']);
@@ -71,7 +79,7 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues.map(i => i.message).join(', ') }, { status: 400 });
     }
-    const { poi_types, scope, regions, depts, ville, rayon_poi, poi_natures, bbox, poi_inclure_inactifs } = parsed.data;
+    const { poi_types, scope, regions, depts, ville, code_postal, rayon_poi, poi_natures, bbox, poi_inclure_inactifs } = parsed.data;
 
     const session   = await getSessionOrg(req);
     const supabase  = createAdminClient();
@@ -274,7 +282,21 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // 3. Par ville
+      // 3. Par code postal — égalité sur `code_postal`, index (categorie,
+      // code_postal) de sql/283 : 202 buffers pour l'ICPE du 56500, contre
+      // 16 470 par le seul index de catégorie (mesuré le 2026-10-26).
+      if (code_postal) {
+        await fetchAllPages((from, to) => {
+          let q = supabase.from('poi_france').select(SELECT_COLS)
+            .eq('code_postal', code_postal)
+            .order('id')
+            .range(from, to);
+          return applyFilters(q);
+        });
+        continue;
+      }
+
+      // 4. Par ville
       if (ville?.trim()) {
         const villeKey = normVille(ville.trim());
         await fetchAllPages((from, to) => {
@@ -287,10 +309,17 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // 4. Scope national
+      // 5. Scope national
+      //
+      // `metro` borne par BBOX_METRO sur lat/lng (Corse comprise), et plus par
+      // `departement not in (971…976)` : ce prédicat laissait passer le CIRFA
+      // de Nouméa (988) et 260 lycées d'outre-mer dont `departement` porte un
+      // nom (retours du 26/10, T1). Coût équivalent (≈ 3 900 buffers pour la
+      // première page ICPE, mesuré au pré-vol).
+      const [ouest, sud, est, nord] = BBOX_METRO;
       await fetchAllPages((from, to) => {
         let q = supabase.from('poi_france').select(SELECT_COLS).order('id').range(from, to);
-        if (scope === 'metro') q = q.or(`departement.is.null,departement.not.in.(${DROM_CODES.join(',')})`);
+        if (scope === 'metro') q = q.gte('lat', sud).lte('lat', nord).gte('lng', ouest).lte('lng', est);
         return applyFilters(q);
       }, 10000);
     }
@@ -321,6 +350,7 @@ export async function POST(req: NextRequest) {
       locationLabel = regionNames.get(regions[0]) ?? regions[0];
     }
     else if (regions?.length > 1) locationLabel = `${regions.length} régions`;
+    else if (code_postal) locationLabel = `Code postal ${code_postal}`;
     else if (scope === 'metro') locationLabel = 'France métropolitaine';
     else if (scope === 'all')   locationLabel = 'France entière';
 
