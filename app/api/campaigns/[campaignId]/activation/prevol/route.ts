@@ -21,9 +21,10 @@
  *    personne n'a validé, et qui ne correspond ni à la version publiée ni à ce
  *    qu'affiche la carte.
  *
- * 3. **Droit insuffisant** (2026-09-15). La poussée ré-appelle en HTTP
+ * 3. **Droit insuffisant** (2026-09-15). La poussée ré-appelait alors en HTTP
  *    `/api/admin/dsp/dv360/targeting/push`, dont le guard est `isSuperAdmin`
- *    STRICT. Un `admin` ou un `client` de l'org propriétaire lisait un pré-vol
+ *    STRICT (plus d'appel HTTP depuis le lot 7, voir plus bas ; le droit reste
+ *    super_admin). Un `admin` ou un `client` de l'org propriétaire lisait un pré-vol
  *    `activable: true`, cliquait, et découvrait le refus après l'écriture d'un
  *    `activation_lots` et de ses 50 `activation_cibles`, toutes en échec — 51
  *    lignes pour rien, et un historique vide de sens.
@@ -47,6 +48,7 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient, isSuperAdmin } from '@/lib/auth';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { lireEtatActivation, type EtatActivation } from '@/lib/campaigns/etat-activation';
+import { connexionUtilisable } from '@/lib/campaigns/activation';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,11 +96,11 @@ export async function GET(
   });
   if (erreurCp) console.error('[prevol] compte cp:', erreurCp.message);
 
-  // Une connexion enregistrée mais en erreur ne permet PAS d'activer : la
-  // compter comme un canal disponible ferait échouer le push au premier appel
-  // sortant, après avoir laissé croire que tout était prêt.
+  // Une connexion enregistrée mais inactive (en erreur, déconnectée, jamais testée) ne permet PAS d'activer : la
+  // compter comme un canal disponible ferait échouer le push au premier appel sortant, après avoir laissé croire
+  // que tout était prêt. La règle est celle de `modePoussee` (`connexionUtilisable`, revue finale du lot 7, I-1).
   const canaux = etat.connexions
-    .filter((c) => c.status !== 'error' && c.status !== 'revoked')
+    .filter(connexionUtilisable)
     .map((c) => ({ provider: c.provider, methode: c.auth_method, statut: c.status }));
 
   return NextResponse.json(

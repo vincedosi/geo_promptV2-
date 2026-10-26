@@ -17,7 +17,9 @@
 import { resolveAccessToken, bulkAssignGeoRegions, type Dv360ConnectionRow } from '@/lib/dsp/dv360/client';
 import { logDspEvent } from '@/lib/dsp/logger';
 import { mapPostalCodesToGeoIds, GEO_POSTAL_FR_VERSION } from '@/lib/digital/dv360-geo';
-import type { ClientAdmin } from '@/lib/zones/plan-extraction';
+import type { createAdminClient } from '@/lib/auth';
+
+type ClientAdmin = ReturnType<typeof createAdminClient>;
 
 /** Garde-fou : au-delà, passer par l'export fichier (bulkEdit DV360 plafonne les opérations par requête). */
 export const MAX_GEO_IDS_PER_PUSH = 2000;

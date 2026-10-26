@@ -16,6 +16,8 @@ import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
+import { MAX_CIBLES } from '@/lib/campaigns/activation';
+import { lireTout } from '@/lib/supabase/lire-tout';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,14 +58,21 @@ export async function GET(
   // Compteurs par lot en UNE requête, jamais une par lot : trois COUNT par
   // campagne ont déjà provoqué un timeout et une boucle infinie côté client
   // (CLAUDE.md, incident du 08/04).
-  const { data: cibles, error: erreurCibles } = await supabase
-    .from('activation_cibles')
-    .select('lot_id, statut')
-    .in('lot_id', lots.map((l) => l.id));
-  if (erreurCibles) console.error('[activation/historique] cibles:', erreurCibles.message);
+  // Paginée (`lireTout`) : 50 lots × 50 cibles = 2 500 lignes, au-delà des 1 000 de `db-max-rows` — un `select` nu
+  // rendait faux, en silence, les compteurs des lots anciens (revue finale du lot 7, N-2). Borne par construction.
+  let cibles: { lot_id: string; statut: string }[] = [];
+  try {
+    const ids = lots.map((l) => l.id);
+    ({ lignes: cibles } = await lireTout<{ lot_id: string; statut: string }>(
+      (de, a) => supabase.from('activation_cibles').select('lot_id, statut').in('lot_id', ids).order('id').range(de, a),
+      LIMITE_LOTS * MAX_CIBLES,
+    ));
+  } catch (e) {
+    console.error('[activation/historique] cibles:', e instanceof Error ? e.message : e);
+  }
 
   const compteurs = new Map<string, Record<string, number>>();
-  for (const c of cibles ?? []) {
+  for (const c of cibles) {
     const par = compteurs.get(c.lot_id) ?? {};
     par[c.statut] = (par[c.statut] ?? 0) + 1;
     compteurs.set(c.lot_id, par);

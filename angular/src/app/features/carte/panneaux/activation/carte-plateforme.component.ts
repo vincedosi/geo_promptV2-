@@ -31,7 +31,8 @@ export const LIBELLE_MODE: Readonly<Record<ModeCarte, string>> = { api: 'API', s
     }
     <ng-content />
     @if (carte().avertissements.length) {
-      <ul data-avertissements class="m-0 flex list-none flex-col gap-1 p-0 text-[10px] leading-[1.5] text-tertiary">
+      <!-- Texte réglementaire (A-13) : text-secondary, pas tertiaire (≈ 3,2:1 en clair, sous AA — revue T5, m-4). -->
+      <ul data-avertissements class="m-0 flex list-none flex-col gap-1 p-0 text-[10px] leading-[1.5] text-secondary">
         @for (a of carte().avertissements; track a) { <li>{{ a }}</li> }
       </ul>
     }

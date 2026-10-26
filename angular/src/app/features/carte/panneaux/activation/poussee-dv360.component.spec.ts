@@ -23,7 +23,7 @@ function rendre() {
 describe('PousseeDv360Component', () => {
   it('activable : « Prêt à activer », annonceur PRÉREMPLI de la liaison de ⑥, line items à saisir', () => {
     const { el, bouton } = rendre();
-    expect(el.querySelector('[data-pret]')!.textContent!.trim()).toBe('Prêt à activer — v1 sur 63 codes postaux.');
+    expect(el.querySelector('[data-pret]')!.textContent!.trim()).toBe('Prêt à activer — v1 sur 63 codes postaux bruts.');
     expect(el.querySelector<HTMLInputElement>('[data-annonceur]')!.value).toBe('4242');
     expect(el.querySelector<HTMLInputElement>('[data-annonceur]')!.placeholder).toBe('Identifiant annonceur DV360');
     expect(el.querySelector<HTMLTextAreaElement>('[data-line-items]')!.placeholder)

@@ -5,7 +5,8 @@
  * React ; `line-items.spec.ts` rejoue les cas de React.
  */
 
-/** Le plafond de la route (`MAX_CIBLES` de `…/activation/pousser`) : au-delà, la route refuse en 400. */
+/** Le plafond de la route (`MAX_CIBLES` de `lib/campaigns/activation.ts`) : au-delà, `pousser` refuse en 400.
+ * Copie verrouillée par `tests/unit/angular/activation-paritaire.test.ts`. */
 export const MAX_LINE_ITEMS = 50;
 
 /** React, mot pour mot : aucun jeton n'est fait de chiffres. */

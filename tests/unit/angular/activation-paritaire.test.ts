@@ -8,6 +8,16 @@ import { describe, expect, it } from 'vitest';
 import * as S from '@/lib/zones/fichiers-plateformes';
 import { MAILLES, PLATEFORMES } from '@/lib/zones/plateformes';
 import * as A from '../../../angular/src/app/features/carte/logique/activation/cartes';
+import { MAX_CIBLES } from '@/lib/campaigns/activation';
+import { MAX_LINE_ITEMS } from '../../../angular/src/app/features/carte/logique/activation/line-items';
+
+// Revue finale du lot 7, F-6 : au-delà, la route `pousser` refuse en 400 — un plafond Angular plus haut laisserait
+// saisir une liste que le serveur rejette.
+describe('plafond des line items de ⑦ : Angular = serveur', () => {
+  it('MAX_LINE_ITEMS = MAX_CIBLES', () => {
+    expect(MAX_LINE_ITEMS).toBe(MAX_CIBLES);
+  });
+});
 
 describe('formats de fichier de ⑦ : Angular = serveur', () => {
   it('mêmes formats, dans le même ordre', () => {

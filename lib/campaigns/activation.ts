@@ -11,6 +11,8 @@
  * - `motifsPrevol` : les raisons de ne pas pousser, avec un CODE (E4) ; leurs messages restent les `blocages` lus par
  *   React.
  *
+ * - `connexionUtilisable` : la seule règle « connexion active » (statut `connected`), lue par `modePoussee` et `prevol`.
+ *
  * ⚠ À ne pas confondre avec `sourceDuPlan` de `lib/campagne/source-plan.ts`, qui répond à une autre question
  * (indicateur ou jeu de zones, pour les libellés du Suivi).
  */
@@ -29,8 +31,21 @@ export interface Motif { code: CodeMotif; message: string; version?: number }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Statuts d'une connexion qui ne permettent PAS de pousser : la compter ferait échouer au premier appel sortant. */
-const STATUTS_INUTILISABLES = new Set(['error', 'revoked']);
+/** Au-delà, ce n'est plus une activation mais un import de masse. Lu par `pousser` et, en copie verrouillée par
+ * `tests/unit/angular/activation-paritaire.test.ts`, par `MAX_LINE_ITEMS` d'Angular (revue finale du lot 7, F-6). */
+export const MAX_CIBLES = 50;
+
+/**
+ * Une connexion avec laquelle on peut pousser : LISTE BLANCHE, le seul statut `connected` (revue finale du lot 7,
+ * I-1). La contrainte `dsp_connections_status_check` n'admet que `disconnected`, `connected` et `error` ;
+ * `disconnected` veut dire « déconnectée » (identifiants remis à `null` par `DELETE /dv360/connect`) OU « enregistrée,
+ * jamais testée » (`connect` et `oauth/callback` l'écrivent, `connected` n'arrive qu'après un test réussi). La compter
+ * ferait partir une démo en réel, ou rendrait activable une campagne qui échouerait au premier appel sortant.
+ * Lue par `modePoussee` et par le filtre `canaux_connectes` de `prevol` (F-1).
+ */
+export function connexionUtilisable(c: { status: string }): boolean {
+  return c.status === 'connected';
+}
 
 /**
  * La source des CP poussés. La zone d'abord : c'est le chemin d'avant le lot 7, il reste tel quel.
@@ -54,7 +69,7 @@ export function sourceDePoussee(s: { zone_id: string | null; in_zone_weights: un
  * @param isDemo - `dsp_campaigns.is_demo`.
  */
 export function modePoussee(connexions: { provider: string; status: string }[], isDemo: boolean): ModeDv360 {
-  if (connexions.some((c) => c.provider === 'dv360' && !STATUTS_INUTILISABLES.has(c.status))) return 'reel';
+  if (connexions.some((c) => c.provider === 'dv360' && connexionUtilisable(c))) return 'reel';
   return isDemo ? 'simule' : 'indisponible';
 }
 
@@ -66,7 +81,7 @@ export interface EntreeMotifs {
   /** Zones changées depuis la publication (`zonesModifiees`). */
   nZonesModifiees: number;
   mode: ModeDv360;
-  /** Une connexion DV360 existe (en erreur ou révoquée quand `mode` est `indisponible`). */
+  /** Une connexion DV360 existe (inactive — en erreur, déconnectée ou jamais testée — quand `mode` est `indisponible`). */
   connexionDv360: boolean;
   source: SourceActivation | null;
   nCpDv360: number;
@@ -104,7 +119,7 @@ export function motifsPrevol(e: EntreeMotifs): Motif[] {
     motifs.push(e.connexionDv360
       ? {
         code: 'connexion_en_erreur',
-        message: 'La connexion DV360 de cet espace est en erreur ou révoquée : téléchargez le fichier SDF.',
+        message: 'La connexion DV360 de cet espace est inactive : téléchargez le fichier SDF.',
       }
       : { code: 'aucune_connexion', message: 'Aucune connexion DV360 active dans cet espace : téléchargez le fichier SDF.' });
   }

@@ -86,8 +86,10 @@ interface FichiersPlateforme {
           @if (l.commentaire) { <span class="text-[11px] text-tertiary">{{ l.commentaire }}</span> }
           <span data-resume class="font-mono text-[10px] text-secondary">{{ l.resume }}</span>
         </button>
-        <!-- Hors du bouton de la version (pas de bouton dans un bouton) : un bloc par plateforme, sans campagne (Q-4). -->
-        @if (jeuId(); as id) {
+        <!-- Hors du bouton de la version (pas de bouton dans un bouton) : un bloc par plateforme, sans campagne (Q-4).
+             Masqué pendant une lecture : la liste affichée peut être celle du jeu QUITTÉ, et un fichier de B serait
+             étiqueté d'après A (revue T5, m-1). -->
+        @if (jeuId(); as id) { @if (!liste.enCours()) {
           @for (f of l.fichiers; track f.plateforme) {
             <div [attr.data-fichiers-version]="l.version" class="flex flex-wrap items-center gap-2 pb-1 pl-[10px]">
               <span class="min-w-[92px] text-[11px] text-secondary">{{ f.nom }}</span>
@@ -95,7 +97,7 @@ interface FichiersPlateforme {
                                       [mailleFichier]="f.maille" [formats]="f.formats" [aVerifier]="f.aVerifier" />
             </div>
           }
-        }
+        } }
       }
     </div>
   `,

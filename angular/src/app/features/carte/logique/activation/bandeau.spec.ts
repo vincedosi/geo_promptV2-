@@ -1,5 +1,6 @@
 import type { LotActivation } from '../../data/activation.api';
-import { bandeauActivation, dateLot, estPrete, lotAbouti } from './bandeau';
+import { dateHeureFr } from '../../../../core/format/date';
+import { bandeauActivation, estPrete, lotAbouti } from './bandeau';
 import type { CarteActivation } from './cartes';
 
 const carte = (canal: string, motifs: string[] = []): CarteActivation => ({
@@ -32,19 +33,19 @@ describe('bandeauActivation (A-12)', () => {
     ];
     const b = bandeauActivation([carte('dv360'), carte('ttd'), carte('meta')], lots);
     expect(b).toMatchObject({ poussees: 2, enErreur: 2 });
-    expect(b.derniere).toBe(dateLot('2026-10-26T09:00:00Z'));
+    expect(b.derniere).toBe(dateHeureFr('2026-10-26T09:00:00Z'));
   });
 
   it('l’ordre servi n’importe pas : le plus récent est retrouvé', () => {
     const b = bandeauActivation([], [lot('dv360', 'termine', '2026-10-01T09:00:00Z'), lot('dv360', 'echec', '2026-10-02T09:00:00Z')]);
-    expect(b).toMatchObject({ enErreur: 1, derniere: dateLot('2026-10-02T09:00:00Z') });
+    expect(b).toMatchObject({ enErreur: 1, derniere: dateHeureFr('2026-10-02T09:00:00Z') });
   });
 
   it('lotAbouti : terminé et partiel ; jamais annulé, échec ou en cours (A-11)', () => {
     expect(['termine', 'partiel', 'annule', 'echec', 'en_cours'].map((statut) => lotAbouti({ statut }))).toEqual([true, true, false, false, false]);
   });
 
-  it('dateLot : la forme courte fr-FR de React', () => {
-    expect(dateLot('2026-10-26T09:00:00Z')).toBe(new Date('2026-10-26T09:00:00Z').toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }));
+  it('F-3 — `dateHeureFr` rend la forme courte fr-FR de React (`dateStyle`/`timeStyle: short`)', () => {
+    expect(dateHeureFr('2026-10-26T09:00:00Z')).toBe(new Date('2026-10-26T09:00:00Z').toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }));
   });
 });

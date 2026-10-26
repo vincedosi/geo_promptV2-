@@ -14,10 +14,12 @@ import { zonesModifiees, type EmpreinteZones } from '@/lib/campaigns/version-str
 import { rpcJson } from '@/lib/supabase/rpc-json';
 import { lireCodesDeZone } from '@/lib/custom-geo/codes-zone';
 import { lireCpPlateforme } from '@/lib/zones/cp-plateforme';
-import type { ClientAdmin } from '@/lib/zones/plan-extraction';
+import type { createAdminClient } from '@/lib/auth';
 import {
   modePoussee, motifsPrevol, sourceDePoussee, type ModeDv360, type Motif, type SourceActivation,
 } from '@/lib/campaigns/activation';
+
+type ClientAdmin = ReturnType<typeof createAdminClient>;
 
 interface StrategieActivation {
   id: string; name: string; status: string; scope_type: string; zone_id: string | null;

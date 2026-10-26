@@ -48,8 +48,8 @@ export interface EnteteFichier {
   maille: Maille;
   /** `plateformes_geo.a_verifier` : la règle de la plateforme n'a pas été confirmée sur sa documentation. */
   aVerifier: boolean;
-  /** `plateformes_geo.releve_le` (AAAA-MM-JJ). */
-  releveLe: string;
+  /** `plateformes_geo.releve_le` (AAAA-MM-JJ) ; `null` quand la règle est inconnue : la ligne est alors omise. */
+  releveLe: string | null;
 }
 
 /** En-têtes de colonnes des CSV, une seule définition (lus aussi par les tests). */
@@ -88,7 +88,8 @@ function methodeCsv(e: EnteteFichier): string[] {
     `# Extraction : v${e.version}`,
     `# Plateforme : ${e.plateforme}`,
     `# Maille : ${e.maille}`,
-    `# Relevé des limites de la plateforme : ${e.releveLe}`,
+    // Revue finale du lot 7 (M-12) : jamais une ligne « Relevé … : » vide.
+    ...(e.releveLe ? [`# Relevé des limites de la plateforme : ${e.releveLe}`] : []),
     ...(e.aVerifier ? ['# À vérifier : la règle de ciblage de cette plateforme n’a pas été confirmée sur sa documentation.'] : []),
   ];
 }

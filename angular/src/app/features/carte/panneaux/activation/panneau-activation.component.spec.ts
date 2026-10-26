@@ -1,4 +1,3 @@
-import { formaterNombre } from '../../../../core/format/nombre';
 import { TestBed } from '@angular/core/testing';
 import { carteDe, lotDe, preparerActivation, prevolDe } from '../../testing/activation-factice';
 import { CAMPAGNE_A, CAMPAGNE_B } from '../../testing/plan-factice';
@@ -48,6 +47,13 @@ describe('PanneauActivationComponent — états', () => {
     expect(MESSAGE_SANS_PLAN).toBe('Cette campagne n’a pas encore de plan : lancez-la à l’étape ⑥.');
   });
 
+  it('M-6 — préremplissage échoué : le message du plan, pas « Pré-vol en cours… »', () => {
+    const { el, plan, activation, rafraichir } = rendre();
+    activation.prevol.set(null); plan.erreur.set('Erreur base de données.'); rafraichir();
+    expect(el.querySelector('[data-erreur-activation]')!.textContent!.trim()).toBe('Erreur base de données.');
+    expect(el.querySelector('[data-chargement-activation]')).toBeNull();
+  });
+
   it('pré-vol en cours tant qu’il n’est pas lu', () => {
     const { el, activation, rafraichir } = rendre();
     activation.prevol.set(null); rafraichir();
@@ -67,7 +73,7 @@ describe('PanneauActivationComponent — contenu', () => {
     activation.cartes.set([carteDe(), carteDe({ canal: 'meta', plateforme: 'meta', libelle: 'Meta', maille: 'cercle', mode: 'fichier' })]);
     rafraichir();
     const lignes = [...el.querySelectorAll('[data-prevol] > div')].map((d) => d.textContent!.trim());
-    expect(lignes).toEqual(['Version publiée : v1', `Codes postaux : ${formaterNombre(1200)}`, 'Canaux connectés : dv360']);
+    expect(lignes).toEqual(['Version publiée : v1', 'Codes postaux à pousser vers DV360 : 63', 'Canaux connectés : dv360']);
     expect(el.textContent).not.toMatch(/stratégie/i);
     expect([...el.querySelectorAll('[data-carte-plateforme]')].map((c) => c.getAttribute('data-carte-plateforme'))).toEqual(['dv360', 'meta']);
     expect(el.querySelectorAll('mg-poussee-dv360')).toHaveLength(1);

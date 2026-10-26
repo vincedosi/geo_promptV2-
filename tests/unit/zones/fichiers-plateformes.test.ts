@@ -78,6 +78,12 @@ describe('fichierPlateforme — CSV', () => {
       '"Nord; bis";43.500000;5.100000;1.5',
     ]);
   });
+  it('date de relevé inconnue : la ligne « Relevé » est omise, jamais écrite vide', () => {
+    const f = fichierPlateforme(entete({ releveLe: null }), [unite({ ordinal: 1, rayon_m: 5000,
+      centre: { type: 'Point', coordinates: [5, 43] } })], null, 'cercles');
+    expect(f.contenu).not.toContain('Relevé');
+    expect(f.contenu).toContain('# Maille : cercle');
+  });
   it('« à vérifier » dit dans la méthode ; Meta au CP préfixé `FR:` ; TTD au CP brut', () => {
     const unites = [unite({ code: '13001' }), unite({ code: '13002', retenu: false })];
     const meta = fichierPlateforme(entete({ maille: 'cp', aVerifier: true }), unites, null, 'cp');

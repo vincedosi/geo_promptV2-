@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { dateLot } from '../../logique/activation/bandeau';
+import { dateHeureFr } from '../../../../core/format/date';
 import { lotDe, preparerActivation } from '../../testing/activation-factice';
 import { HistoriqueActivationComponent, detailLot } from './historique-activation.component';
 
@@ -38,7 +38,7 @@ describe('HistoriqueActivationComponent', () => {
     expect(lot.querySelector('[data-statut]')!.textContent!.trim()).toBe('Partiel');
     expect(lot.querySelector('[data-statut] span')!.classList.contains('bg-warning')).toBe(true);
     expect(lot.querySelector('[data-simule]')!.textContent!.trim()).toBe('Simulé');
-    expect(lot.querySelector('[data-date]')!.textContent!.trim()).toBe(dateLot('2026-10-26T09:00:00Z'));
+    expect(lot.querySelector('[data-date]')!.textContent!.trim()).toBe(dateHeureFr('2026-10-26T09:00:00Z'));
     expect(lot.querySelector('[data-detail]')!.textContent!.trim()).toBe('v1 · 2 line items · 1 pousse · 1 echec');
   });
 

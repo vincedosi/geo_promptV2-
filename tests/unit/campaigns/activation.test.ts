@@ -2,7 +2,7 @@
  * La logique pure du pré-vol de ⑦ Activation (lot 7, T1) : source des CP poussés, mode de la poussée, motifs.
  */
 import { describe, expect, it } from 'vitest';
-import { modePoussee, motifsPrevol, sourceDePoussee, type EntreeMotifs } from '@/lib/campaigns/activation';
+import { connexionUtilisable, modePoussee, motifsPrevol, sourceDePoussee, type EntreeMotifs } from '@/lib/campaigns/activation';
 
 const EXTRACTION = '2fc8fd52-cacf-44c4-9071-fae8c782f09e';
 const ZONE = '11111111-2222-4333-8444-555555555555';
@@ -32,15 +32,20 @@ describe('modePoussee', () => {
     expect(modePoussee([{ provider: 'dv360', status: 'connected' }], true)).toBe('reel');
     expect(modePoussee([{ provider: 'dv360', status: 'connected' }], false)).toBe('reel');
   });
-  it('connexion en erreur, révoquée ou absente + démo : simulé', () => {
+  // `dsp_connections_status_check` : `disconnected` | `connected` | `error` — rien d'autre n'existe en base.
+  it('connexion en erreur, déconnectée (ou jamais testée) ou absente + démo : simulé', () => {
     expect(modePoussee([{ provider: 'dv360', status: 'error' }], true)).toBe('simule');
-    expect(modePoussee([{ provider: 'dv360', status: 'revoked' }], true)).toBe('simule');
+    expect(modePoussee([{ provider: 'dv360', status: 'disconnected' }], true)).toBe('simule');
     expect(modePoussee([], true)).toBe('simule');
   });
   it('les mêmes sans démo : indisponible', () => {
     expect(modePoussee([{ provider: 'dv360', status: 'error' }], false)).toBe('indisponible');
-    expect(modePoussee([{ provider: 'dv360', status: 'revoked' }], false)).toBe('indisponible');
+    expect(modePoussee([{ provider: 'dv360', status: 'disconnected' }], false)).toBe('indisponible');
     expect(modePoussee([], false)).toBe('indisponible');
+  });
+  it('liste blanche : seul `connected` est utilisable, un statut inconnu ne l’est pas', () => {
+    expect(['connected', 'disconnected', 'error', 'revoked', ''].map((status) => connexionUtilisable({ status })))
+      .toEqual([true, false, false, false, false]);
   });
   it('une connexion active d’une AUTRE plateforme ne rend pas DV360 disponible', () => {
     expect(modePoussee([{ provider: 'tiktok', status: 'connected' }], false)).toBe('indisponible');

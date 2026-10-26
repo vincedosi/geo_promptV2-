@@ -54,7 +54,11 @@ export interface CarteActivation {
   mode: ModeCarte;
   unites: number;
   formats: FormatFichier[];
-  /** Ce qui empêche d'envoyer (pousser ou télécharger), au vouvoiement ; vide : la carte est prête. */
+  /**
+   * Ce qui empêche de POUSSER (DV360 au CP : les motifs du pré-vol) ou ce qui dit qu'il n'y a rien à envoyer (hors
+   * extraction, jeu risque non acheté) ; au vouvoiement. Les fichiers d'une carte DV360 restent offerts malgré ses
+   * motifs (A-5). Vide : la carte est prête.
+   */
   motifs: string[];
   avertissements: string[];
   /** La règle (plateforme, maille) du registre est marquée `a_verifier` : l'écran le dit à côté des fichiers (T5). */
@@ -79,18 +83,15 @@ function modeDv360(prevol: Prevol | null): ModeCarte {
   return prevol?.mode_dv360 === 'simule' ? 'simule' : 'fichier';
 }
 
-/** « 95 % », « 81,5 % » : le taux d'utile tel que l'extraction le porte. */
-function pourcent(taux: number | null | undefined): string | null {
-  return taux == null ? null : `${formaterNombre(Number(taux))} %`;
-}
-
-/** La conversion dite en unités retenues (A-5). */
-function nature(maille: Maille, n: number, r: { exacte?: boolean; rayon_m?: number | null; taux_utile?: number | null }): string {
+/**
+ * La conversion dite en unités retenues (A-5). Le taux d'utile est celui du résumé de ⑥ (`resumeDuCanal().utile`, par
+ * `utilePlateforme`) : un seul formateur, ⑥ et ⑦ disent le même « 81,5 % » (revue finale du lot 7, F-2).
+ */
+function nature(maille: Maille, n: number, r: { exacte?: boolean; rayon_m?: number | null; utile: string | null }): string {
   const base = maille === 'cp' ? `${formaterNombre(n)} CP` : nombreUnites(n, maille);
   if (r.exacte) return `${base} exact${maille === 'commune' ? 'e' : ''}${n > 1 ? 's' : ''}`;
   if (maille === 'cercle' && r.rayon_m) return `${base} de ${formaterNombre(r.rayon_m / 1000)} km`;
-  const utile = pourcent(r.taux_utile);
-  if (maille === 'cp' && utile) return `${base} — conversion de la zone (${utile} d’utile)`;
+  if (maille === 'cp' && r.utile && r.utile !== 'exacte') return `${base} — conversion de la zone (${r.utile} d’utile)`;
   return base;
 }
 
@@ -114,8 +115,8 @@ function limites(r: ResumeExtraction | undefined, ligne: PlateformeGeo | undefin
 export interface EntreeCartes {
   /** Les canaux cochés en ⑥ (DSP puis réseaux), dans leur ordre. */
   canaux: string[];
+  /** `plateformes === null` : un jeu RISQUE (aucun résumé par plateforme). */
   extraction: ExtractionJeu | null;
-  typeJeu: 'zone' | 'risque' | null;
   prevol: Prevol | null;
   registre: PlateformeGeo[];
 }
@@ -148,7 +149,7 @@ function carte(canal: string, e: EntreeCartes): CarteActivation {
   }
   if (!plateforme) return { ...vide, motifs: [MESSAGE_HORS_EXTRACTION] };
 
-  const risque = e.typeJeu === 'risque' || e.extraction.plateformes === null;
+  const risque = e.extraction.plateformes === null;
   if (risque && plateforme === 'tiktok') return { ...vide, motifs: [messageRisqueNonAchete(libelle)] };
 
   const resume = resumeDuCanal(e.extraction, canal);
@@ -166,7 +167,7 @@ function carte(canal: string, e: EntreeCartes): CarteActivation {
     ...vide,
     maille,
     unites: nUnites,
-    nature: nature(maille, nUnites, risque ? { taux_utile: e.extraction.taux_utile } : (brut ?? {})),
+    nature: nature(maille, nUnites, { exacte: brut?.exacte, rayon_m: brut?.rayon_m, utile: resume.utile }),
     formats: formatsDe(plateforme, maille),
     aVerifier: ligne?.a_verifier ?? false,
     avertissements: [...vide.avertissements, ...limites(brut, ligne, maille, nUnites)],

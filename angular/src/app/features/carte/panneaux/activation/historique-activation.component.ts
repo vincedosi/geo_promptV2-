@@ -5,7 +5,7 @@ import { EnteteSectionComponent } from '../../../../ui/entete-section/entete-sec
 import type { LotActivation } from '../../data/activation.api';
 import { ActivationCampagneService } from '../../etat/activation-campagne.service';
 import { PlanCampagneService } from '../../etat/plan-campagne.service';
-import { dateLot } from '../../logique/activation/bandeau';
+import { dateHeureFr } from '../../../../core/format/date';
 import { BOUTON_NEUTRE, ENCART_MOTIF, POINT_STATUT } from './styles-activation';
 
 /** Le libellé d'un statut de lot (React affichait le code brut : `termine`, `echec`…). */
@@ -75,7 +75,7 @@ export class HistoriqueActivationComponent {
     canal: this.plan.libelleCanal(lot.canal),
     statut: LIBELLE_STATUT[lot.statut] ?? lot.statut,
     point: POINT_STATUT[lot.statut] ?? 'bg-tertiary',
-    date: dateLot(lot.lance_le),
+    date: dateHeureFr(lot.lance_le),
     detail: detailLot(lot),
   })));
 

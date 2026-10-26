@@ -43,7 +43,7 @@ import { createAdminClient, isSuperAdmin } from '@/lib/auth';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { lireEtatActivation, type EtatActivation } from '@/lib/campaigns/etat-activation';
-import type { SourceActivation } from '@/lib/campaigns/activation';
+import { MAX_CIBLES, type SourceActivation } from '@/lib/campaigns/activation';
 import { pousserCiblageDv360, type ModePoussee } from '@/lib/dsp/dv360/pousser-ciblage';
 import { toJson } from '@/lib/supabase/rpc-json';
 import type { TableInsert } from '@/lib/supabase/tables';
@@ -52,9 +52,6 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 const IdSchema = z.string().uuid();
-
-/** Au-delà, ce n'est plus une activation mais un import de masse. */
-const MAX_CIBLES = 50;
 
 /**
  * Seul canal réellement câblé. Accepter n'importe quelle chaîne enregistrait un
@@ -125,16 +122,15 @@ export async function POST(
   if (acces !== 'ok') return NextResponse.json({ error: 'Campagne introuvable.' }, { status: 404 });
 
   // ── Le droit de pousser, VÉRIFIÉ AVANT d'écrire quoi que ce soit ───────
-  // Chaque cible ré-appelle en HTTP `/api/admin/dsp/dv360/targeting/push`,
-  // dont le guard est `isSuperAdmin` STRICT — `requireAdmin()` de ce projet
-  // n'est pas « admin », c'est « super_admin » (ARCHITECTURE.md, audit du
-  // 2026-09-10). Un utilisateur `admin` ou `client` de l'org propriétaire
-  // franchissait `requireAuth` + `checkCampaignAccess`, écrivait un
-  // `activation_lots` et jusqu'à 50 `activation_cibles`, encaissait 50
-  // réponses 401 des appels internes, et refermait le lot en `echec` :
-  // 51 lignes écrites pour rien et un historique vide de sens. C'est
-  // fail-closed côté sécurité — rien ne part chez DV360 — mais le refus doit
-  // arriver en amont, pas se découvrir line item par line item.
+  // La poussée DV360 est réservée au super_admin (`requireAdmin()` de ce projet
+  // n'est pas « admin », c'est « super_admin » — ARCHITECTURE.md, audit du
+  // 2026-09-10). Jusqu'au lot 7, chaque cible ré-appelait en HTTP
+  // `targeting/push`, dont le guard le vérifiait : un `admin` ou un `client` de
+  // l'org propriétaire écrivait un `activation_lots` et jusqu'à 50
+  // `activation_cibles`, encaissait 50 refus, et refermait le lot en `echec` —
+  // 51 lignes pour rien. Depuis le lot 7, `pousserCiblageDv360` est appelé
+  // directement, sans guard propre : ce contrôle est donc le SEUL, et il doit
+  // rester avant toute écriture.
   if (!isSuperAdmin(profile)) {
     return NextResponse.json(
       {

@@ -3,7 +3,7 @@ import { formaterNombre } from '../../../../core/format/nombre';
 import { ActivationCampagneService } from '../../etat/activation-campagne.service';
 import { PlanCampagneService } from '../../etat/plan-campagne.service';
 import { libellePublication, motifDePublication } from '../../logique/activation/motifs';
-import { BOUTON_TEAL, ENCART_PRET, SAISIE_MONO } from './styles-activation';
+import { BOUTON_POUSSEE, ENCART_PRET, SAISIE_MONO } from './styles-activation';
 
 /** React, mot pour mot (`ActivationPanel.tsx:359-360`) : le geste est sortant et additif, il est dit AVANT. */
 export const AVERTISSEMENT_ADDITIF =
@@ -32,7 +32,8 @@ export const MESSAGE_POUSSEE_AILLEURS = 'Une poussée est en cours sur une autre
     }
     @if (prevol()?.activable) {
       <div data-pret [class]="encartPret">
-        Prêt à activer — v{{ prevol()?.version_publiee }} sur {{ nCp() }} codes postaux.
+        <!-- « bruts » (N-1) : la nature de la carte compte les unités RETENUES de la conversion, ceci les CP envoyés. -->
+        Prêt à activer — v{{ prevol()?.version_publiee }} sur {{ nCp() }} codes postaux bruts.
       </div>
       <input type="text" data-annonceur [value]="annonceur()" (input)="annonceur.set(valeur($event))"
              placeholder="Identifiant annonceur DV360" aria-label="Identifiant annonceur DV360" [class]="saisie" />
@@ -49,7 +50,7 @@ export const MESSAGE_POUSSEE_AILLEURS = 'Une poussée est en cours sur une autre
 export class PousseeDv360Component {
   protected readonly activation = inject(ActivationCampagneService);
   private readonly plan = inject(PlanCampagneService);
-  protected readonly boutonTeal = BOUTON_TEAL;
+  protected readonly boutonTeal = BOUTON_POUSSEE;
   protected readonly encartPret = ENCART_PRET;
   protected readonly saisie = SAISIE_MONO;
   protected readonly additif = AVERTISSEMENT_ADDITIF;

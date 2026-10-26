@@ -4,7 +4,9 @@ import { TestBed } from '@angular/core/testing';
 import { Subject } from 'rxjs';
 import { ActivationApi, type CorpsPoussee, type LigneFlux, type Prevol } from '../data/activation.api';
 import { type ExtractionJeu, JeuxApi } from '../data/jeux.api';
-import { ActivationCampagneService, messagePoussee } from './activation-campagne.service';
+import type { EtapeCarte } from '../logique/parcours';
+import { ActivationCampagneService, messageGeste } from './activation-campagne.service';
+import { ParcoursService } from './parcours.service';
 import { PlanCampagneService } from './plan-campagne.service';
 
 const A = '0f8fad5b-d9cb-469f-a165-70867728950e';
@@ -45,14 +47,17 @@ const prevol = (activable = true): Prevol => ({
   extraction: null, motifs: [], blocages: [], activable,
 });
 
-function preparer() {
+function preparer(etape: EtapeCarte = 'activation') {
   const plan = fauxPlan();
   const api = fausseApi();
   const plateformes = new Subject<{ plateformes: [] }>();
   const jeux = { plateformes: vi.fn(() => plateformes), extractions: vi.fn() };
+  // L'étape courante : ⑦ par défaut (lecture complète) ; un spec la change pour vérifier la lecture différée (M-3).
+  const parcours = { etape: signal<EtapeCarte>(etape) };
   TestBed.configureTestingModule({
     providers: [
       ActivationCampagneService,
+      { provide: ParcoursService, useValue: parcours },
       { provide: PlanCampagneService, useValue: plan },
       { provide: ActivationApi, useValue: api },
       { provide: JeuxApi, useValue: jeux },
@@ -75,8 +80,31 @@ function preparer() {
     repondre('historique', A, { lots: [] });
     plateformes.next({ plateformes: [] }); plateformes.complete(); tick();
   };
-  return { svc, plan, api, jeux, tick, repondre, lireA };
+  return { svc, plan, api, jeux, parcours, tick, repondre, lireA };
 }
+
+describe('ActivationCampagneService — lecture à la demande (revue finale, M-3)', () => {
+  it('hors de ⑦ : l’historique seul (la pastille), ni pré-vol ni registre', () => {
+    const { svc, plan, api, jeux, tick, repondre } = preparer('plan');
+    plan.ouvrir(A); plan.valider(A); tick();
+    expect(api.appels.map((a) => a.nom)).toEqual(['historique']);
+    repondre('historique', A, { lots: [{ id: 'l', canal: 'dv360', statut: 'termine', lance_le: '2026-10-26T09:00:00Z' }] });
+    expect(svc.renseignee()).toBe(true);
+    expect(svc.chargement()).toBe(false);
+    expect(jeux.plateformes).not.toHaveBeenCalled();
+  });
+
+  it('première entrée dans ⑦ : la lecture complète part, une seule fois', () => {
+    const { plan, api, parcours, tick, repondre } = preparer('plan');
+    plan.ouvrir(A); plan.valider(A); tick();
+    repondre('historique', A, { lots: [] });
+    parcours.etape.set('activation'); tick();
+    expect(api.appels.map((a) => a.nom)).toEqual(['historique', 'prevol']);
+    parcours.etape.set('plan'); tick();
+    parcours.etape.set('activation'); tick();
+    expect(api.appels.filter((a) => a.nom === 'prevol')).toHaveLength(1);
+  });
+});
 
 describe('ActivationCampagneService — aucune lecture avant l’espace validé (piège n° 3)', () => {
   it('?campagne= posé mais préremplissage en cours : aucun appel', () => {
@@ -126,7 +154,7 @@ describe('ActivationCampagneService — aucune lecture avant l’espace validé 
     const x1 = { id: 'x1', version: 1, plateformes: [{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null, n_unites: 63, taux_utile: 95 }] } as unknown as ExtractionJeu;
     ext.next({ extractions: [x1] }); ext.complete(); tick();
     expect(plan.retenirExtractions).toHaveBeenCalledWith('j1', [x1]);
-    expect(svc.cartes()[0].nature).toBe('63 CP — conversion de la zone (95 % d’utile)');
+    expect(svc.cartes()[0].nature).toBe('63 CP — conversion de la zone (95,0 % d’utile)');
   });
 
   it('une stratégie posée en ⑥ sur la campagne ouverte (lancement) : le pré-vol est relu', () => {
@@ -168,7 +196,7 @@ describe('ActivationCampagneService — relance en ⑥ (relecture 2)', () => {
     expect(jeux.extractions).toHaveBeenCalledTimes(2);
     lots[1].next({ extractions: [version(2), version(1)] }); lots[1].complete(); tick();
     const [dv] = svc.cartes();
-    expect(dv).toMatchObject({ maille: 'cp', nature: '63 CP — conversion de la zone (95 % d’utile)' });
+    expect(dv).toMatchObject({ maille: 'cp', nature: '63 CP — conversion de la zone (95,0 % d’utile)' });
     expect(dv.motifs).toEqual(['Le plan n’a jamais été publié — publiez-le pour figer le périmètre poussé.']);
   });
 
@@ -288,9 +316,23 @@ describe('ActivationCampagneService — gestes', () => {
   });
 });
 
-describe('messagePoussee', () => {
+describe('messageGeste (F-5)', () => {
   it('lit `message`, puis `error`, dans un corps texte ou objet', () => {
-    expect(messagePoussee(new HttpErrorResponse({ status: 403, error: '{"error":"droit_insuffisant","message":"Réservé."}' }))).toBe('Réservé.');
-    expect(messagePoussee(new HttpErrorResponse({ status: 404, error: { error: 'Campagne introuvable.' } }))).toBe('Campagne introuvable.');
+    expect(messageGeste(new HttpErrorResponse({ status: 403, error: '{"error":"droit_insuffisant","message":"Réservé."}' }))).toBe('Réservé.');
+    expect(messageGeste(new HttpErrorResponse({ status: 404, error: { error: 'Campagne introuvable.' } }))).toBe('Campagne introuvable.');
+  });
+
+  it('M-4 — refus d’annulation : le `message`, jamais le code `lot_en_cours`', () => {
+    expect(messageGeste(new HttpErrorResponse({ status: 409, error: {
+      error: 'lot_en_cours', message: 'Cette activation est encore en cours. Attendez qu’elle se termine avant de l’annuler.',
+    } }))).toBe('Cette activation est encore en cours. Attendez qu’elle se termine avant de l’annuler.');
+  });
+
+  it('M-5 — 409 de `pousser` avec motifs : le premier motif par `texteMotif`, jamais « stratégie »', () => {
+    const t = messageGeste(new HttpErrorResponse({ status: 409, error: JSON.stringify({
+      error: 'strategie_non_publiee', message: 'Publiez la stratégie avant d’activer.',
+      motifs: [{ code: 'jamais_publiee', message: 'La stratégie n’a jamais été publiée — publiez-la pour figer le périmètre poussé.' }],
+    }) }));
+    expect(t).toBe('Le plan n’a jamais été publié — publiez-le pour figer le périmètre poussé.');
   });
 });

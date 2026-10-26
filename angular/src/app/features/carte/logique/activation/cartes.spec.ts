@@ -29,7 +29,7 @@ const prevol = (mode: Prevol['mode_dv360'], motifs: MotifPrevol[] = [], n = 63):
 const TOUS = ['dv360', 'ttd', 'meta', 'tiktok'];
 
 describe('cartesActivation — l’extraction de démonstration', () => {
-  const cartes = cartesActivation({ canaux: ['tiktok', 'meta', 'ttd', 'dv360'], extraction: extraction(RESUMES), typeJeu: 'zone', prevol: prevol('reel'), registre: REGISTRE });
+  const cartes = cartesActivation({ canaux: ['tiktok', 'meta', 'ttd', 'dv360'], extraction: extraction(RESUMES), prevol: prevol('reel'), registre: REGISTRE });
 
   it('quatre cartes, dans l’ordre du registre', () => {
     expect(cartes.map((c) => c.canal)).toEqual(TOUS);
@@ -37,7 +37,7 @@ describe('cartesActivation — l’extraction de démonstration', () => {
 
   it('les natures disent la conversion en unités retenues (A-5)', () => {
     expect(cartes.map((c) => c.nature)).toEqual([
-      '63 CP — conversion de la zone (95 % d’utile)', '1 polygone exact', '53 cercles de 5 km', '1 département',
+      '63 CP — conversion de la zone (95,0 % d’utile)', '1 polygone exact', '53 cercles de 5 km', '1 département',
     ]);
   });
 
@@ -58,7 +58,7 @@ describe('cartesActivation — l’extraction de démonstration', () => {
 
 describe('cartesActivation — le mode de DV360', () => {
   const dv = (mode: Prevol['mode_dv360'], motifs: MotifPrevol[] = []) =>
-    cartesActivation({ canaux: ['dv360'], extraction: extraction(RESUMES), typeJeu: 'zone', prevol: prevol(mode, motifs), registre: REGISTRE })[0];
+    cartesActivation({ canaux: ['dv360'], extraction: extraction(RESUMES), prevol: prevol(mode, motifs), registre: REGISTRE })[0];
 
   it('réel → api ; démo sans connexion → simulé ; indisponible → fichier, avec son motif, fichiers gardés en repli', () => {
     expect(dv('reel').mode).toBe('api');
@@ -74,7 +74,7 @@ describe('cartesActivation — le mode de DV360', () => {
 
   it('DV360 en cercles : fichier seulement, sans motif de poussée', () => {
     const c = cartesActivation({
-      canaux: ['dv360'], extraction: extraction([{ ...RESUMES[1], plateforme: 'dv360' }]), typeJeu: 'zone',
+      canaux: ['dv360'], extraction: extraction([{ ...RESUMES[1], plateforme: 'dv360' }]),
       prevol: prevol('reel', [{ code: 'aucun_cp_dv360', message: 'Cette extraction n’achète pas DV360 au code postal : rien à pousser.' }], 0),
       registre: REGISTRE,
     })[0];
@@ -85,7 +85,7 @@ describe('cartesActivation — le mode de DV360', () => {
 describe('cartesActivation — Review Focus 1 : Meta et TikTok seuls', () => {
   const motif = { code: 'aucun_cp_dv360', message: 'Cette extraction n’achète pas DV360 au code postal : rien à pousser.' };
   const cartes = cartesActivation({
-    canaux: ['dv360', 'meta', 'tiktok'], extraction: extraction([RESUMES[1], RESUMES[2]]), typeJeu: 'zone',
+    canaux: ['dv360', 'meta', 'tiktok'], extraction: extraction([RESUMES[1], RESUMES[2]]),
     prevol: prevol('reel', [motif], 0), registre: REGISTRE,
   });
 
@@ -98,22 +98,22 @@ describe('cartesActivation — Review Focus 1 : Meta et TikTok seuls', () => {
 
 describe('cartesActivation — cas aux bords', () => {
   it('une plateforme cochée hors de l’extraction : rien à envoyer (V-6 du lot 6)', () => {
-    const [c] = cartesActivation({ canaux: ['ttd'], extraction: extraction([RESUMES[0]]), typeJeu: 'zone', prevol: prevol('reel'), registre: REGISTRE });
+    const [c] = cartesActivation({ canaux: ['ttd'], extraction: extraction([RESUMES[0]]), prevol: prevol('reel'), registre: REGISTRE });
     expect(c).toMatchObject({ canal: 'ttd', motifs: [MESSAGE_HORS_EXTRACTION], formats: [], maille: null });
   });
 
   it('un canal sans plateforme de ⑤ : rien à envoyer, nommé par son code, placé après le registre', () => {
-    const c = cartesActivation({ canaux: ['xandr', 'dv360'], extraction: extraction(RESUMES), typeJeu: 'zone', prevol: prevol('reel'), registre: REGISTRE });
+    const c = cartesActivation({ canaux: ['xandr', 'dv360'], extraction: extraction(RESUMES), prevol: prevol('reel'), registre: REGISTRE });
     expect(c.map((x) => x.canal)).toEqual(['dv360', 'xandr']);
     expect(c[1]).toMatchObject({ libelle: 'xandr', motifs: [MESSAGE_HORS_EXTRACTION] });
   });
 
   it('Review Focus 2 — jeu RISQUE : CP pour DV360 et TTD, Meta « à vérifier » sans fichier, TikTok ne les achète pas', () => {
-    const c = cartesActivation({ canaux: TOUS, extraction: extraction(null), typeJeu: 'risque', prevol: prevol('simule'), registre: REGISTRE });
+    const c = cartesActivation({ canaux: TOUS, extraction: extraction(null), prevol: prevol('simule'), registre: REGISTRE });
     expect(c.map((x) => [x.canal, x.nature, x.formats, x.motifs])).toEqual([
-      ['dv360', '63 CP — conversion de la zone (95 % d’utile)', ['cp', 'sdf'], []],
-      ['ttd', '63 CP — conversion de la zone (95 % d’utile)', ['cp'], []],
-      ['meta', '63 CP — conversion de la zone (95 % d’utile)', [], [MESSAGE_META_RISQUE]],
+      ['dv360', '63 CP — conversion de la zone (95,0 % d’utile)', ['cp', 'sdf'], []],
+      ['ttd', '63 CP — conversion de la zone (95,0 % d’utile)', ['cp'], []],
+      ['meta', '63 CP — conversion de la zone (95,0 % d’utile)', [], [MESSAGE_META_RISQUE]],
       ['tiktok', '', [], [messageRisqueNonAchete('TikTok')]],
     ]);
     expect(c[0].mode).toBe('simule');
@@ -121,26 +121,26 @@ describe('cartesActivation — cas aux bords', () => {
 
   it('un plan sans extraction (zone d’avant le lot 7) : DV360 compte les CP du pré-vol, les autres n’ont rien', () => {
     const p = { ...prevol('reel', [], 12), extraction: null };
-    const c = cartesActivation({ canaux: ['dv360', 'meta'], extraction: null, typeJeu: null, prevol: p, registre: REGISTRE });
+    const c = cartesActivation({ canaux: ['dv360', 'meta'], extraction: null, prevol: p, registre: REGISTRE });
     expect(c[0]).toMatchObject({ nature: '12 CP', mode: 'api', formats: [], motifs: [] });
     expect(c[1].motifs).toEqual([messageSansJeu('Meta')]);
   });
 
   it('pré-vol ou extraction pas encore lus : des cartes muettes, jamais un faux « rien à envoyer »', () => {
     for (const p of [null, prevol('reel')]) {
-      const c = cartesActivation({ canaux: ['dv360', 'meta'], extraction: null, typeJeu: null, prevol: p, registre: REGISTRE });
+      const c = cartesActivation({ canaux: ['dv360', 'meta'], extraction: null, prevol: p, registre: REGISTRE });
       expect(c.map((x) => [x.nature, x.motifs, x.formats])).toEqual([['', [], []], ['', [], []]]);
     }
   });
 
   it('max_unites :l’avertissement figé est repris, et le registre courant ajoute le sien s’il est dépassé', () => {
     const fige = cartesActivation({
-      canaux: ['meta'], typeJeu: 'zone', prevol: null, registre: REGISTRE,
+      canaux: ['meta'], prevol: null, registre: REGISTRE,
       extraction: extraction([{ ...RESUMES[1], avertissements: [{ code: 'max_unites', limite: 50, valeur: 53 }] }]),
     })[0];
     expect(fige.avertissements).toContain('53 cercles pour 50 admis par la plateforme : augmentez le rayon ou le seuil.');
     const courant = cartesActivation({
-      canaux: ['dv360'], typeJeu: 'zone', prevol: prevol('reel'), extraction: extraction(RESUMES),
+      canaux: ['dv360'], prevol: prevol('reel'), extraction: extraction(RESUMES),
       registre: [ligne('dv360', 'cp', 10, { max_unites: 60 })],
     })[0];
     expect(courant.avertissements).toEqual(['63 codes postaux pour 60 admis par la plateforme.']);
@@ -148,9 +148,9 @@ describe('cartesActivation — cas aux bords', () => {
 
   it('« à vérifier » : lu dans la règle (plateforme, maille) du registre, jamais sur une carte muette (T5)', () => {
     const registre = [ligne('dv360', 'cp', 10), { ...ligne('ttd', 'polygone', 20), a_verifier: true }];
-    const c = cartesActivation({ canaux: ['dv360', 'ttd'], extraction: extraction(RESUMES), typeJeu: 'zone', prevol: prevol('reel'), registre });
+    const c = cartesActivation({ canaux: ['dv360', 'ttd'], extraction: extraction(RESUMES), prevol: prevol('reel'), registre });
     expect(c.map((x) => x.aVerifier)).toEqual([false, true]);
-    const muette = cartesActivation({ canaux: ['ttd'], extraction: null, typeJeu: null, prevol: null, registre })[0];
+    const muette = cartesActivation({ canaux: ['ttd'], extraction: null, prevol: null, registre })[0];
     expect(muette.aVerifier).toBe(false);
   });
 

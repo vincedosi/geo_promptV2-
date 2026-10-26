@@ -70,6 +70,20 @@ describe('mg-extractions-jeu', () => {
     expect(el.querySelector('[data-fichiers-version]')).toBeNull();
   });
 
+  it('m-1 — pendant une relecture de la liste, aucun bouton de fichier (la liste affichée peut être d’un autre jeu)', async () => {
+    const { el, http, stable } = await ouvert();
+    expect(el.querySelector('[data-fichiers-version]')).not.toBeNull();
+    el.querySelector<HTMLButtonElement>('[data-extraire]')!.click();
+    await stable();
+    http.expectOne((r) => r.method === 'POST' && r.url === LISTE).flush({ ok: true, deja_extraite: false, id: 'x2', version: 2 }, { status: 201, statusText: 'Created' });
+    await stable();
+    const relue = http.expectOne(LISTE);
+    expect(el.querySelector('[data-fichiers-version]')).toBeNull();
+    relue.flush({ extractions: [version(2), version(1)], jeu: { id: J1, nom: 'Lycées BdR', version: 1 } });
+    await stable();
+    expect(el.querySelector('[data-fichiers-version="2"]')).not.toBeNull();
+  });
+
   it('« Extraire » : un POST, puis la liste RELUE ; la version créée est désignée dans ?x=', async () => {
     const { el, http, router, stable } = await ouvert();
     el.querySelector<HTMLButtonElement>('[data-extraire]')!.click();

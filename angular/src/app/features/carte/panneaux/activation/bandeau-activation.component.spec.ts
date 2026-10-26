@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { dateLot } from '../../logique/activation/bandeau';
+import { dateHeureFr } from '../../../../core/format/date';
 import { preparerActivation } from '../../testing/activation-factice';
 import { BandeauActivationComponent } from './bandeau-activation.component';
 
@@ -19,11 +19,11 @@ function rendre() {
 describe('mg-bandeau-activation (A-12)', () => {
   it('cinq tuiles : plateformes, prêtes, poussées, en erreur, dernière poussée', () => {
     const { activation, tuiles, rafraichir } = rendre();
-    activation.bandeau.set({ plateformes: 4, pretes: 3, poussees: 1, enErreur: 1, derniere: dateLot('2026-10-26T09:00:00Z') });
+    activation.bandeau.set({ plateformes: 4, pretes: 3, poussees: 1, enErreur: 1, derniere: dateHeureFr('2026-10-26T09:00:00Z') });
     rafraichir();
     expect(tuiles()).toEqual({
       plateformes: ['4', 'Plateformes'], pretes: ['3', 'Prêtes'], poussees: ['1', 'Poussées'], erreur: ['1', 'En erreur'],
-      derniere: [dateLot('2026-10-26T09:00:00Z'), 'Dernière poussée'],
+      derniere: [dateHeureFr('2026-10-26T09:00:00Z'), 'Dernière poussée'],
     });
   });
 

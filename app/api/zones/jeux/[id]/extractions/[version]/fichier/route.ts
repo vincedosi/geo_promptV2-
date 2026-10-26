@@ -161,7 +161,7 @@ export async function GET(
     fichier = fichierPlateforme(
       {
         jeu: jeu.nom, version: x.version, plateforme, maille,
-        aVerifier: regle?.a_verifier ?? false, releveLe: regle?.releve_le ?? '',
+        aVerifier: regle?.a_verifier ?? false, releveLe: regle?.releve_le || null,
       },
       unites, forme, format,
     );

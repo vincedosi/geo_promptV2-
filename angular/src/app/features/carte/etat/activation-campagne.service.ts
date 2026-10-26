@@ -2,22 +2,31 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { DestroyRef, Injectable, type Signal, computed, effect, inject, signal, untracked } from '@angular/core';
 import { type Subscription, concatMap, map, of, tap } from 'rxjs';
 import { messageErreurApi } from '../../../core/http/erreurs';
-import { ActivationApi, type LigneFlux, type LotActivation, type Prevol } from '../data/activation.api';
+import { ActivationApi, type LigneFlux, type LotActivation, type MotifPrevol, type Prevol } from '../data/activation.api';
 import { type ExtractionJeu, JeuxApi } from '../data/jeux.api';
 import { type BandeauActivation, bandeauActivation, lotAbouti } from '../logique/activation/bandeau';
 import { type CarteActivation, cartesActivation } from '../logique/activation/cartes';
 import { lireLineItems, refusLineItems } from '../logique/activation/line-items';
+import { texteMotif } from '../logique/activation/motifs';
 import type { PlateformeGeo } from '../logique/jeu/plateformes';
+import { ParcoursService } from './parcours.service';
 import { PlanCampagneService } from './plan-campagne.service';
 
-/** Le message d'une poussée refusée avant son flux : `message ?? error` comme React (`ActivationPanel.tsx:189`). */
-export function messagePoussee(e: unknown): string {
+/**
+ * Le message d'un geste refusé (poussée avant son flux, publication, annulation) — UN seul lecteur pour les trois
+ * (revue finale du lot 7, F-5) : le premier motif du corps s'il y en a (le 409 de `pousser`), par `texteMotif` pour ne
+ * jamais dire « stratégie » (M-5) ; sinon `message ?? error` comme React (`ActivationPanel.tsx:189`), jamais un code
+ * brut comme `lot_en_cours` (M-4) ; sinon `messageErreurApi`. Le corps peut être du texte (`responseType: 'text'`).
+ */
+export function messageGeste(e: unknown): string {
   if (e instanceof HttpErrorResponse && e.status !== 0) {
     let corps: unknown = e.error;
     if (typeof corps === 'string') {
       try { corps = JSON.parse(corps); } catch { corps = null; }
     }
-    const c = corps as { message?: unknown; error?: unknown } | null;
+    const c = corps as { message?: unknown; error?: unknown; motifs?: unknown } | null;
+    const m = Array.isArray(c?.motifs) ? (c.motifs[0] as Partial<MotifPrevol> | undefined) : undefined;
+    if (m && typeof m.code === 'string' && typeof m.message === 'string') return texteMotif({ code: m.code, message: m.message });
     if (c && typeof c.message === 'string' && c.message) return c.message;
     if (c && typeof c.error === 'string' && c.error) return c.error;
   }
@@ -41,6 +50,8 @@ interface MessageDe { campagne: string; texte: string }
  * lues sont aussi retenues dans `PlanCampagneService`. Une version absente des versions lues (relance sur une nouvelle
  * extraction du même jeu) fait relire la liste du jeu. Changer de campagne le désabonne et invalide son
  * jeton : une réponse tardive de A ne s'écrit jamais dans B. Relue après une poussée, une publication, une annulation.
+ * À LA DEMANDE (revue finale du lot 7, M-3) : hors de ⑦, seule l'historique est lue (elle sert la pastille, A-11) ; la
+ * lecture complète part à la première entrée dans ⑦ pour la campagne, puis à chaque relecture de celle-ci.
  *
  * LA POUSSÉE APPARTIENT À SA CAMPAGNE (A-10) : changer de campagne ou d'étape ne l'interrompt pas — son flux reste lié
  * à A et réapparaît quand on revient sur A ; sur B, `pousseeEnCours` dit qu'une poussée tourne ailleurs. Un changement
@@ -53,6 +64,7 @@ interface MessageDe { campagne: string; texte: string }
 @Injectable()
 export class ActivationCampagneService {
   private readonly plan = inject(PlanCampagneService);
+  private readonly parcours = inject(ParcoursService);
   private readonly api = inject(ActivationApi);
   private readonly jeux = inject(JeuxApi);
 
@@ -102,7 +114,6 @@ export class ActivationCampagneService {
     return cartesActivation({
       canaux: [...canaux.dsps, ...canaux.socials],
       extraction,
-      typeJeu: extraction ? (extraction.plateformes === null ? 'risque' : 'zone') : null,
       prevol: this._prevol(),
       registre: this._registre() ?? [],
     });
@@ -114,6 +125,8 @@ export class ActivationCampagneService {
   private poussee: Subscription | null = null;
   private derniere: string | null = null;
   private derniereStrategie: string | null = null;
+  /** La campagne dont la lecture COMPLÈTE a été lancée (pré-vol compris) ; `null` tant qu'on n'est pas entré dans ⑦. */
+  private complete: string | null = null;
   private detruit = false;
 
   constructor() {
@@ -121,6 +134,7 @@ export class ActivationCampagneService {
       const c = this.validee();
       // Un lancement en ⑥ pose la stratégie de la campagne ouverte : le pré-vol lu avant est périmé, il est relu.
       const strategie = this.plan.strategieExistante()?.id ?? null;
+      const dansActivation = this.parcours.etape() === 'activation';
       untracked(() => {
         if (c !== this.derniere) {
           this.derniere = c;
@@ -128,6 +142,9 @@ export class ActivationCampagneService {
           this.ouvrir(c);
         } else if (strategie !== this.derniereStrategie) {
           this.derniereStrategie = strategie;
+          this.relire();
+        } else if (dansActivation && c && this.complete !== c) {
+          // Première entrée dans ⑦ pour cette campagne : la lecture complète, différée jusqu'ici (M-3).
           this.relire();
         }
       });
@@ -140,10 +157,13 @@ export class ActivationCampagneService {
     });
   }
 
-  /** Relit pré-vol et historique de la campagne courante ; ce qui est affiché le reste jusqu'aux réponses. */
+  /**
+   * Relit la campagne courante ; ce qui est affiché le reste jusqu'aux réponses. Lecture complète (pré-vol, historique,
+   * registre, versions) dans ⑦ ou si elle y a déjà été faite ; ailleurs, l'historique seul, qui sert la pastille.
+   */
   relire(): void {
     const c = this.validee();
-    if (c && !this.detruit) this.lire(c);
+    if (c && !this.detruit) this.lire(c, this.parcours.etape() === 'activation' || this.complete === c);
   }
 
   /**
@@ -172,7 +192,7 @@ export class ActivationCampagneService {
       .subscribe({
         next: (l) => this._flux.update((f) => (f && f.campagne === c ? { campagne: c, lignes: [...f.lignes, l] } : f)),
         error: (e: unknown) => {
-          this._erreur.set({ campagne: c, texte: messagePoussee(e) });
+          this._erreur.set({ campagne: c, texte: messageGeste(e) });
           fin();
         },
         complete: fin,
@@ -193,7 +213,7 @@ export class ActivationCampagneService {
       },
       error: (e: unknown) => {
         this._publication.set(null);
-        this._erreur.set({ campagne: c, texte: messageErreurApi(e) });
+        this._erreur.set({ campagne: c, texte: messageGeste(e) });
       },
     });
   }
@@ -208,7 +228,7 @@ export class ActivationCampagneService {
         this._annulation.set({ campagne: c, texte: r.message });
         if (this.validee() === c) this.relire();
       },
-      error: (e: unknown) => this._annulation.set({ campagne: c, texte: messageErreurApi(e) }),
+      error: (e: unknown) => this._annulation.set({ campagne: c, texte: messageGeste(e) }),
     });
   }
 
@@ -222,15 +242,35 @@ export class ActivationCampagneService {
     this._prevol.set(null);
     this._lots.set([]);
     this._erreurLecture.set(null);
-    if (c) this.lire(c);
+    this.complete = null;
+    if (c) this.lire(c, this.parcours.etape() === 'activation');
   }
 
-  private lire(c: string): void {
+  /** `complet` faux : l'historique seul (la pastille de ⑦, A-11) — rien d'autre n'est lu hors de ⑦ (M-3). */
+  private lire(c: string, complet: boolean): void {
     this.annulerLecture();
     const jeton = this.jeton;
     const valide = () => jeton === this.jeton;
     this._chargement.set(true);
     this._erreurLecture.set(null);
+    if (!complet) {
+      this.lecture = this.api.historique(c).subscribe({
+        next: (h) => { if (valide()) this._lots.set(h.lots ?? []); },
+        error: (e: unknown) => {
+          if (!valide()) return;
+          this.lecture = null;
+          this._chargement.set(false);
+          this._erreurLecture.set(messageErreurApi(e));
+        },
+        complete: () => {
+          if (!valide()) return;
+          this.lecture = null;
+          this._chargement.set(false);
+        },
+      });
+      return;
+    }
+    this.complete = c;
     this.lecture = this.api.prevol(c).pipe(
       tap((p) => { if (valide()) this._prevol.set(p); }),
       concatMap(() => this.api.historique(c)),
@@ -258,6 +298,7 @@ export class ActivationCampagneService {
       error: (e: unknown) => {
         if (!valide()) return;
         this.lecture = null;
+        this.complete = null;
         this._chargement.set(false);
         this._erreurLecture.set(messageErreurApi(e));
       },

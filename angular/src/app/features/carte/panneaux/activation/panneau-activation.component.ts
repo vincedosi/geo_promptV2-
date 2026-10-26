@@ -24,8 +24,8 @@ export const MESSAGE_SANS_PLAN = 'Cette campagne n’a pas encore de plan : lanc
  *   dont le message est dit ;
  * - accès refusé : le message de `PlanCampagneService`, et rien n'est lu ;
  * - campagne sans plan (aucune stratégie) : le renvoi vers ⑥ ;
- * - sinon : le bandeau de l'étape (T5, A-12), le pré-vol (version publiée, codes postaux, canaux connectés — React,
- *   sans la ligne « Stratégie », E4), une carte par plateforme cochée en ⑥ (la carte DV360 au CP porte la poussée,
+ * - sinon : le bandeau de l'étape (T5, A-12), le pré-vol (version publiée, codes postaux POUR DV360, canaux connectés —
+ *   React, sans la ligne « Stratégie », E4, et avec `n_cp_dv360` au lieu de `n_codes_postaux`, I-2), une carte par plateforme cochée en ⑥ (la carte DV360 au CP porte la poussée,
  *   chaque carte ses fichiers — T5), le flux de la poussée, l'historique.
  *
  * Tout l'état vit dans `ActivationCampagneService` (page) ; le panneau reste MONTÉ quand on quitte l'étape (A1) — une
@@ -46,7 +46,12 @@ export const MESSAGE_SANS_PLAN = 'Cette campagne n’a pas encore de plan : lanc
     } @else {
       @if (activation.erreur(); as e) { <div data-erreur-activation role="alert" [class]="'mx-4 mt-3 ' + encartErreur">{{ e }}</div> }
       @if (!prevol() && !activation.erreur()) {
-        <div data-chargement-activation class="px-4 py-3 font-mono text-[12px] text-tertiary">Pré-vol en cours…</div>
+        <!-- Le préremplissage de la campagne a échoué : son message, jamais un « Pré-vol en cours… » éternel (M-6). -->
+        @if (plan.erreur(); as e) {
+          <div data-erreur-activation role="alert" [class]="'mx-4 mt-3 ' + encartErreur">{{ e }}</div>
+        } @else {
+          <div data-chargement-activation class="px-4 py-3 font-mono text-[12px] text-tertiary">Pré-vol en cours…</div>
+        }
       }
       @if (prevol(); as p) {
         @if (!p.strategie) {
@@ -56,7 +61,7 @@ export const MESSAGE_SANS_PLAN = 'Cette campagne n’a pas encore de plan : lanc
           <mg-entete-section libelle="Pré-vol" class="mt-2" />
           <div data-prevol class="px-3.5 py-3 font-mono text-[11px] leading-[1.8] text-secondary">
             <div>Version publiée : {{ p.version_publiee != null ? 'v' + p.version_publiee : 'jamais publiée' }}</div>
-            <div>Codes postaux : {{ nCp() }}</div>
+            <div>Codes postaux à pousser vers DV360 : {{ nCp() }}</div>
             <div>Canaux connectés : {{ canauxConnectes() }}</div>
           </div>
           <div data-cartes class="flex flex-col gap-2.5 px-3.5 pb-3">
@@ -96,7 +101,11 @@ export class PanneauActivationComponent {
   protected readonly messageSansPlan = MESSAGE_SANS_PLAN;
 
   protected readonly prevol = this.activation.prevol;
-  protected readonly nCp = computed(() => formaterNombre(this.prevol()?.n_codes_postaux));
+  /**
+   * Les CP que DV360 recevrait (`n_cp_dv360`), pas `n_codes_postaux` : celui-là compte toutes les plateformes et le hors
+   * zone pondéré (E2, gardé pour React) — trois nombres de CP sur le même écran (revue finale du lot 7, I-2).
+   */
+  protected readonly nCp = computed(() => formaterNombre(this.prevol()?.n_cp_dv360));
   protected readonly canauxConnectes = computed(() => {
     const c = this.prevol()?.canaux_connectes ?? [];
     return c.length ? c.map((x) => x.provider).join(', ') : 'aucun';

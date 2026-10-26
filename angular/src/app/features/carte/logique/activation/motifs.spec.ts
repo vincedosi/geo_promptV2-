@@ -8,7 +8,7 @@ const SERVEUR: Record<CodeMotif, string> = {
   jamais_publiee: 'La stratégie n’a jamais été publiée — publiez-la pour figer le périmètre poussé.',
   derive: '2 zones ont changé depuis la publication de la v1 — republiez avant d’activer.',
   aucune_connexion: 'Aucune connexion DV360 active dans cet espace : téléchargez le fichier SDF.',
-  connexion_en_erreur: 'La connexion DV360 de cet espace est en erreur ou révoquée : téléchargez le fichier SDF.',
+  connexion_en_erreur: 'La connexion DV360 de cet espace est inactive : téléchargez le fichier SDF.',
   aucun_cp_dv360: 'Cette extraction n’achète pas DV360 au code postal : rien à pousser.',
 };
 
@@ -21,7 +21,7 @@ describe('texteMotif', () => {
       'Le plan n’a jamais été publié — publiez-le pour figer le périmètre poussé.',
       '2 zones ont changé depuis la publication de la v1 — republiez avant d’activer.',
       'Aucune connexion DV360 active dans cet espace : téléchargez le fichier SDF.',
-      'La connexion DV360 de cet espace est en erreur ou révoquée : téléchargez le fichier SDF.',
+      'La connexion DV360 de cet espace est inactive : téléchargez le fichier SDF.',
       'Cette extraction n’achète pas DV360 au code postal : rien à pousser.',
     ]);
   });

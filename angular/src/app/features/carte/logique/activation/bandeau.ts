@@ -1,3 +1,4 @@
+import { dateHeureFr } from '../../../../core/format/date';
 import type { LotActivation } from '../../data/activation.api';
 import type { CarteActivation } from './cartes';
 
@@ -24,11 +25,6 @@ export function lotAbouti(l: Pick<LotActivation, 'statut'>): boolean {
   return l.statut === 'termine' || l.statut === 'partiel';
 }
 
-/** La date d'un lot telle que l'historique de React l'affiche (`ActivationPanel.tsx:420`). */
-export function dateLot(iso: string): string {
-  return new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
-}
-
 /**
  * Une carte prête : une maille connue et aucun motif bloquant. Une carte MUETTE (pré-vol ou extraction encore en
  * lecture : ni maille ni motif) n'est pas prête — elle ne dit encore rien (relecture 2, M-1).
@@ -47,6 +43,7 @@ export function bandeauActivation(cartes: readonly CarteActivation[], lots: read
     pretes: cartes.filter(estPrete).length,
     poussees: new Set(tries.filter(lotAbouti).map((l) => l.canal)).size,
     enErreur: [...dernierParCanal.values()].filter((l) => l.statut === 'echec' || l.statut === 'partiel').length,
-    derniere: tries.length ? dateLot(tries[0].lance_le) : null,
+    // `dateHeureFr` : la forme de l'historique de React (« 25/10/2026 14:05 »), avec sa garde NaN (F-3).
+    derniere: tries.length ? dateHeureFr(tries[0].lance_le) : null,
   };
 }
