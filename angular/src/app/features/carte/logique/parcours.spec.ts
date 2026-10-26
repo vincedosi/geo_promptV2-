@@ -29,7 +29,7 @@ describe('parcours de la carte — logique pure', () => {
     expect(LIBELLE_AUTRES).toBe('Autres');
     expect(CONSIGNE_AUTRES).toContain('pas encore');
     expect((ETAPES_CARTE as readonly string[]).includes(VUE_AUTRES)).toBe(false);
-    expect(etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: false, jeuRenseigne: false, planRenseigne: false }).map((e) => e.cle)).not.toContain(VUE_AUTRES);
+    expect(etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: false, jeuRenseigne: false, planRenseigne: false, activationRenseignee: false }).map((e) => e.cle)).not.toContain(VUE_AUTRES);
     expect(lireEtape('autres')).toBeNull();
     expect(lireVue('autres')).toBe('autres');
     expect(lireVue('zones')).toBe('zones');
@@ -82,23 +82,23 @@ describe('parcours de la carte — logique pure', () => {
     expect(etapeParRaccourci(alt('KeyC', 'c'))).toBeNull();
   });
   it('etapesDuFil : ① renseignée par le filtre, ② par un calque, les autres jamais (lot 1)', () => {
-    const fil = etapesDuFil({ filtrePose: true, calquesActifs: false, analyseAffichee: false, jeuRenseigne: false, planRenseigne: false });
+    const fil = etapesDuFil({ filtrePose: true, calquesActifs: false, analyseAffichee: false, jeuRenseigne: false, planRenseigne: false, activationRenseignee: false });
     expect(fil.map((e) => [e.cle, e.rang, e.renseignee])).toEqual([
       ['perimetre', 1, true], ['donnees', 2, false], ['zones', 3, false], ['analyse', 4, false],
       ['jeu', 5, false], ['plan', 6, false], ['activation', 7, false], ['live', 8, false],
     ]);
-    expect(etapesDuFil({ filtrePose: false, calquesActifs: true, analyseAffichee: false, jeuRenseigne: false, planRenseigne: false })[1].renseignee).toBe(true);
+    expect(etapesDuFil({ filtrePose: false, calquesActifs: true, analyseAffichee: false, jeuRenseigne: false, planRenseigne: false, activationRenseignee: false })[1].renseignee).toBe(true);
   });
   it('etapesDuFil : ④ renseignée par une analyse affichée (score composite ou zones à risque), et elle seule (T14)', () => {
-    const fil = etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: true, jeuRenseigne: false, planRenseigne: false });
+    const fil = etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: true, jeuRenseigne: false, planRenseigne: false, activationRenseignee: false });
     expect(fil.filter((e) => e.renseignee).map((e) => e.cle)).toEqual(['analyse']);
   });
   it('etapesDuFil : ⑤ renseignée par une zone ou un jeu (?zoneJeu= / ?jeu=), et elle seule (lot 5, T10)', () => {
-    const fil = etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: false, jeuRenseigne: true, planRenseigne: false });
+    const fil = etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: false, jeuRenseigne: true, planRenseigne: false, activationRenseignee: false });
     expect(fil.filter((e) => e.renseignee).map((e) => e.cle)).toEqual(['jeu']);
   });
   it('etapesDuFil : ⑥ renseignée par une stratégie existante de la campagne courante, et elle seule (lot 6, T3)', () => {
-    const fil = etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: false, jeuRenseigne: false, planRenseigne: true });
+    const fil = etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: false, jeuRenseigne: false, planRenseigne: true, activationRenseignee: false });
     expect(fil.filter((e) => e.renseignee).map((e) => e.cle)).toEqual(['plan']);
   });
   it('segmentsDuFiltre : « France entière » puis le filtre ; une zone ne montre pas son uuid', () => {
@@ -113,17 +113,21 @@ describe('parcours de la carte — logique pure', () => {
     expect(precisionDuPerimetre('metro')).toBe('métropole');
     expect(precisionDuPerimetre('all')).toBe('métropole + DROM');
   });
-  it('lienApplicationReact : seulement ⑦-⑧, seulement avec une origine — ⑤ n’a pas d’équivalent React, ⑥ a son panneau (lot 6)', () => {
+  it('lienApplicationReact : seulement ⑧, seulement avec une origine — ⑤ n’a pas d’équivalent React, ⑥ et ⑦ ont leur panneau (lots 6, 7)', () => {
     expect(lienApplicationReact('http://localhost:3000', 'jeu')).toBeNull();
     expect(lienApplicationReact('http://localhost:3000/', 'plan')).toBeNull();
-    expect(lienApplicationReact('http://localhost:3000', 'activation')).toBe('http://localhost:3000/map?tab=activation');
+    expect(lienApplicationReact('http://localhost:3000', 'activation')).toBeNull();
     expect(lienApplicationReact('http://localhost:3000', 'live')).toBe('http://localhost:3000/map?tab=suivi');
     expect(lienApplicationReact('http://localhost:3000', 'zones')).toBeNull();
-    expect(lienApplicationReact(undefined, 'activation')).toBeNull();
-    expect(lienApplicationReact('', 'activation')).toBeNull();
+    expect(lienApplicationReact(undefined, 'live')).toBeNull();
+    expect(lienApplicationReact('', 'live')).toBeNull();
     // Revue finale du lot 6 (m5) : la campagne courante voyage, le deep-link React la lit en `campaign`.
-    expect(lienApplicationReact('http://localhost:3000', 'activation', '0f8fad5b-d9cb-469f-a165-70867728950e'))
-      .toBe('http://localhost:3000/map?tab=activation&campaign=0f8fad5b-d9cb-469f-a165-70867728950e');
+    expect(lienApplicationReact('http://localhost:3000', 'live', '0f8fad5b-d9cb-469f-a165-70867728950e'))
+      .toBe('http://localhost:3000/map?tab=suivi&campaign=0f8fad5b-d9cb-469f-a165-70867728950e');
     expect(lienApplicationReact('http://localhost:3000', 'live', null)).toBe('http://localhost:3000/map?tab=suivi');
+  });
+  it('etapesDuFil : ⑦ renseignée par un lot poussé de la campagne courante, et elle seule (lot 7, T4)', () => {
+    const fil = etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: false, jeuRenseigne: false, planRenseigne: false, activationRenseignee: true });
+    expect(fil.filter((e) => e.renseignee).map((e) => e.cle)).toEqual(['activation']);
   });
 });

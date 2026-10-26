@@ -47,6 +47,7 @@ import { MeteoService } from './couches/meteo.service';
 import { PileEchapService } from './etat/pile-echap.service';
 import { PanneauFiltreComponent } from './panneaux/filtre/panneau-filtre.component';
 import { PlanApi } from './data/plan.api';
+import { ActivationApi } from './data/activation.api';
 import { CONSIGNE_ETAPE, ETAPES_CARTE, LIBELLE_ETAPE_CARTE } from './logique/parcours';
 
 @Component({ selector: 'mg-vide', template: '' })
@@ -135,6 +136,8 @@ async function ouvrir(options: OptionsOuverture = {}) {
       { provide: ProfilRisqueApi, useValue: { cibles: () => NEVER } },
       // ⑥ Plan (lot 6, T3) : le hall lit campagnes, stratégies, brouillons et mode démo à son montage ; jamais rendus ici.
       { provide: PlanApi, useValue: { campagnes: () => NEVER, strategies: () => NEVER, brouillons: () => NEVER, modeDemo: () => NEVER } },
+      // ⑦ (lot 7) : sans `?campagne=` validée, `ActivationCampagneService` ne lit rien.
+      { provide: ActivationApi, useValue: {} },
       { provide: CarteApi, useValue: { categories: options.categories ?? (() => of({ categories: ['lycee', 'panneaux', 'risque_industriel'] })), jeuxRecommandes: options.jeuxRecommandes ?? (() => of({ cles: [] })), pois: () => of(), campagnesOoh: options.campagnesOoh ?? (() => of({ campagnes: [], tronque: false })), campagneOoh: options.campagneOoh ?? (() => of()), transport: () => of(), urlTuilesTmja: () => '/api/tmja-tiles/{z}/{x}/{y}?v=v10' } },
       { provide: RadioApi, useValue: { optionsFiltre: () => of({}), emetteurs: () => of({ type: 'FeatureCollection', features: [] }), stations: () => of({}) } },
       { provide: MeteoApi, useValue: { donnees: () => of() } },

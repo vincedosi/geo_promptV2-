@@ -79,3 +79,11 @@ export function suivrePlanRenseigne(): Signal<boolean> {
   const plan = inject(PlanCampagneService);
   return computed(() => plan.strategieExistante() !== null);
 }
+
+/**
+ * La pastille « renseignée » de ⑦ (lot 7, A-11) : un lot `termine` ou `partiel`, non annulé, pour la campagne courante —
+ * lu dans l'historique déjà chargé par le service, aucune requête à part.
+ */
+export function suivreActivationRenseignee(): Signal<boolean> {
+  return inject(ActivationCampagneService).renseignee;
+}

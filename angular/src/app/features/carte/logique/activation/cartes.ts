@@ -138,6 +138,8 @@ function carte(canal: string, e: EntreeCartes): CarteActivation {
 
   // Un plan d'avant le lot 7 (une zone, pas une extraction) : seul DV360 reçoit ses CP, par la poussée.
   if (!e.extraction) {
+    // Pré-vol pas encore lu, ou extraction du plan pas encore relue : rien n'est dit plutôt qu'un faux « rien à envoyer ».
+    if (!e.prevol || e.prevol.extraction) return vide;
     if (plateforme !== 'dv360') return { ...vide, motifs: [messageSansJeu(libelle)] };
     const n = e.prevol?.n_cp_dv360 ?? 0;
     return { ...vide, maille: 'cp', nature: `${formaterNombre(n)} CP`, unites: n, mode: modeDv360(e.prevol), motifs: motifsPrevol };

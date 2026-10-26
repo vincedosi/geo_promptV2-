@@ -21,6 +21,7 @@ import { ProfilRisqueApi } from '../risques/data/profil-risque.api';
 import { CouvertureApi } from './data/couverture.api';
 import { JeuxApi } from './data/jeux.api';
 import { PlanApi } from './data/plan.api';
+import { ActivationApi } from './data/activation.api';
 import { IrisApi } from './data/iris.api';
 import { CarteApi } from './data/carte.api';
 import { RadioApi } from './data/radio.api';
@@ -121,6 +122,8 @@ async function ouvrir(url = '/carte', avant?: () => void) {
       { provide: JeuxApi, useValue: {} },
       // ⑥ Plan (lot 6) : `PlanCampagneService` naît avec la page (pastille de ⑥) ; sans `?campagne=`, rien n'est lu.
       { provide: PlanApi, useValue: {} },
+      // ⑦ (lot 7) : sans `?campagne=` validée, `ActivationCampagneService` ne lit rien.
+      { provide: ActivationApi, useValue: {} },
       { provide: ProfilRisqueApi, useValue: { cibles: () => NEVER } },
       { provide: RadioApi, useValue: faux.radio },
       { provide: MeteoApi, useValue: faux.meteo },

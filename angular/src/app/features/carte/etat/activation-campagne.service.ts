@@ -3,7 +3,7 @@ import { DestroyRef, Injectable, type Signal, computed, effect, inject, signal, 
 import { type Subscription, concatMap, map, of, tap } from 'rxjs';
 import { messageErreurApi } from '../../../core/http/erreurs';
 import { ActivationApi, type LigneFlux, type LotActivation, type Prevol } from '../data/activation.api';
-import { JeuxApi } from '../data/jeux.api';
+import { type ExtractionJeu, JeuxApi } from '../data/jeux.api';
 import { type BandeauActivation, bandeauActivation, lotAbouti } from '../logique/activation/bandeau';
 import { type CarteActivation, cartesActivation } from '../logique/activation/cartes';
 import { lireLineItems, refusLineItems } from '../logique/activation/line-items';
@@ -35,8 +35,10 @@ interface MessageDe { campagne: string; texte: string }
  * rien ne part tant que `PlanCampagneService` n'a pas fini son préremplissage (`verifierEspace`) pour CETTE campagne
  * (`prerempli && detail.id === campagne`, accès non refusé). Jamais sur le seul `?campagne=`.
  *
- * LECTURE SÉQUENTIELLE ANNULABLE : pré-vol → historique → registre des plateformes (une fois) → extractions du jeu du
- * plan si `PlanCampagneService` ne les a pas déjà, en UN abonnement. Changer de campagne le désabonne et invalide son
+ * LECTURE SÉQUENTIELLE ANNULABLE : pré-vol → historique → registre des plateformes (une fois) → versions du jeu dont le
+ * pré-vol nomme l'extraction (une fois par jeu), en UN abonnement. L'extraction des cartes est celle du PLAN LANCÉ
+ * (`prevol.extraction`, lue sur la stratégie), jamais celle du brouillon de ⑥, qui a pu changer depuis ; les versions
+ * lues sont aussi retenues dans `PlanCampagneService` (une extraction est figée, la liste vaut pour la page). Changer de campagne le désabonne et invalide son
  * jeton : une réponse tardive de A ne s'écrit jamais dans B. Relue après une poussée, une publication, une annulation.
  *
  * LA POUSSÉE APPARTIENT À SA CAMPAGNE (A-10) : changer de campagne ou d'étape ne l'interrompt pas — son flux reste lié
@@ -56,6 +58,7 @@ export class ActivationCampagneService {
   private readonly _prevol = signal<Prevol | null>(null);
   private readonly _lots = signal<readonly LotActivation[]>([]);
   private readonly _registre = signal<PlateformeGeo[] | null>(null);
+  private readonly _extractions = signal<ReadonlyMap<string, readonly ExtractionJeu[]>>(new Map());
   private readonly _chargement = signal(false);
   private readonly _erreurLecture = signal<string | null>(null);
   private readonly _erreur = signal<MessageDe | null>(null);
@@ -93,7 +96,8 @@ export class ActivationCampagneService {
   readonly cartes: Signal<CarteActivation[]> = computed(() => {
     const canaux = this.plan.canaux()?.selected;
     if (!this.validee() || !canaux) return [];
-    const extraction = this.plan.extraction();
+    const x = this._prevol()?.extraction;
+    const extraction = (x && this._extractions().get(x.zone_set_id)?.find((v) => v.version === x.version)) || null;
     return cartesActivation({
       canaux: [...canaux.dsps, ...canaux.socials],
       extraction,
@@ -108,15 +112,23 @@ export class ActivationCampagneService {
   private lecture: Subscription | null = null;
   private poussee: Subscription | null = null;
   private derniere: string | null = null;
+  private derniereStrategie: string | null = null;
   private detruit = false;
 
   constructor() {
     effect(() => {
       const c = this.validee();
+      // Un lancement en ⑥ pose la stratégie de la campagne ouverte : le pré-vol lu avant est périmé, il est relu.
+      const strategie = this.plan.strategieExistante()?.id ?? null;
       untracked(() => {
-        if (c === this.derniere) return;
-        this.derniere = c;
-        this.ouvrir(c);
+        if (c !== this.derniere) {
+          this.derniere = c;
+          this.derniereStrategie = strategie;
+          this.ouvrir(c);
+        } else if (strategie !== this.derniereStrategie) {
+          this.derniereStrategie = strategie;
+          this.relire();
+        }
       });
     });
     inject(DestroyRef).onDestroy(() => {
@@ -225,14 +237,17 @@ export class ActivationCampagneService {
       concatMap(() => (this._registre() ? of(null) : this.jeux.plateformes().pipe(map((r) => r.plateformes)))),
       tap((r) => { if (r && valide()) this._registre.set(r); }),
       concatMap(() => {
-        const jeu = this.plan.brouillon().jeuZones;
-        if (!jeu?.extraction || this.plan.extraction()) return of(null);
-        return this.jeux.extractions(jeu.id).pipe(map((r) => ({ jeu: jeu.id, liste: r.extractions })));
+        const jeu = this._prevol()?.extraction?.zone_set_id;
+        if (!jeu || this._extractions().has(jeu)) return of(null);
+        return this.jeux.extractions(jeu).pipe(map((r) => ({ jeu, liste: r.extractions })));
       }),
     ).subscribe({
       next: (x) => {
         if (!valide()) return;
-        if (x) this.plan.retenirExtractions(x.jeu, x.liste);
+        if (x) {
+          this._extractions.update((m) => new Map(m).set(x.jeu, x.liste));
+          this.plan.retenirExtractions(x.jeu, x.liste);
+        }
         this.lecture = null;
         this._chargement.set(false);
       },

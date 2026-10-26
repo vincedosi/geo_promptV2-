@@ -33,7 +33,7 @@ async function monter(entrees: { zoneScript?: string | null; planMedia?: number 
     ],
   });
   const fixture = TestBed.createComponent(BarreParcoursComponent);
-  fixture.componentRef.setInput('etapes', etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: false, jeuRenseigne: false, planRenseigne: false }));
+  fixture.componentRef.setInput('etapes', etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: false, jeuRenseigne: false, planRenseigne: false, activationRenseignee: false }));
   fixture.componentRef.setInput('courante', 'perimetre');
   fixture.componentRef.setInput('segments', [{ cle: 'france', libelle: 'France entière' }, { cle: 'region:53', libelle: 'Bretagne' }]);
   if (entrees.zoneScript !== undefined) fixture.componentRef.setInput('zoneScript', entrees.zoneScript);

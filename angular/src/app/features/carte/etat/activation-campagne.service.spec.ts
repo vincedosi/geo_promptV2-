@@ -20,6 +20,7 @@ function fauxPlan() {
   return {
     campagne, prerempli, detail, extraction, brouillon,
     accesRefuse: signal(false),
+    strategieExistante: signal<{ id: string } | null>(null),
     canaux: signal<{ selected: { dsps: string[]; socials: string[] } } | null>({ selected: { dsps: ['dv360'], socials: [] } }),
     retenirExtractions: vi.fn(),
     ouvrir(id: string | null) { campagne.set(id); prerempli.set(false); detail.set(null); },
@@ -110,19 +111,29 @@ describe('ActivationCampagneService — aucune lecture avant l’espace validé 
     expect(svc.renseignee()).toBe(true);
   });
 
-  it('les extractions du jeu du plan sont lues et retenues si le plan ne les a pas', () => {
-    const { plan, jeux, tick, repondre } = preparer();
+  it('les versions du jeu du plan LANCÉ (pré-vol) sont lues, retenues, et font les cartes', () => {
+    const { svc, plan, jeux, tick, repondre } = preparer();
     const ext = new Subject<{ extractions: ExtractionJeu[] }>();
     jeux.extractions.mockReturnValue(ext);
-    plan.brouillon.set({ jeuZones: { id: 'j1', extraction: { id: 'x1', version: 1 } } });
+    // Le brouillon de ⑥ a changé de jeu depuis le lancement : ⑦ suit le plan lancé.
+    plan.brouillon.set({ jeuZones: { id: 'autre', extraction: { id: 'x9', version: 9 } } });
     plan.ouvrir(A); plan.valider(A); tick();
-    repondre('prevol', A, prevol());
+    repondre('prevol', A, { ...prevol(), extraction: { zone_set_id: 'j1', version: 1 } });
     repondre('historique', A, { lots: [] });
     (jeux.plateformes.mock.results[0].value as Subject<unknown>).next({ plateformes: [] });
     (jeux.plateformes.mock.results[0].value as Subject<unknown>).complete();
     expect(jeux.extractions).toHaveBeenCalledWith('j1');
-    ext.next({ extractions: [] }); ext.complete();
-    expect(plan.retenirExtractions).toHaveBeenCalledWith('j1', []);
+    const x1 = { id: 'x1', version: 1, plateformes: [{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null, n_unites: 63, taux_utile: 95 }] } as unknown as ExtractionJeu;
+    ext.next({ extractions: [x1] }); ext.complete(); tick();
+    expect(plan.retenirExtractions).toHaveBeenCalledWith('j1', [x1]);
+    expect(svc.cartes()[0].nature).toBe('63 CP — conversion de la zone (95 % d’utile)');
+  });
+
+  it('une stratégie posée en ⑥ sur la campagne ouverte (lancement) : le pré-vol est relu', () => {
+    const { plan, api, tick, lireA } = preparer();
+    lireA();
+    plan.strategieExistante.set({ id: 's2' }); tick();
+    expect(api.appels.filter((a) => a.nom === 'prevol')).toHaveLength(2);
   });
 });
 

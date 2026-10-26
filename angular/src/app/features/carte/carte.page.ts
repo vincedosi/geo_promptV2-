@@ -63,6 +63,7 @@ import { PanneauZonesComponent } from './panneaux/zones/panneau-zones.component'
 import { PanneauAnalyseComponent } from './panneaux/analyse/panneau-analyse.component';
 import { PanneauJeuComponent } from './panneaux/jeu/panneau-jeu.component';
 import { PanneauPlanComponent } from './panneaux/plan/panneau-plan.component';
+import { PanneauActivationComponent } from './panneaux/activation/panneau-activation.component';
 import { PanneauAutresComponent } from './panneaux/autres/panneau-autres.component';
 import { BatailleV1Service } from './etat/bataille-v1.service';
 import { BatailleV2Service } from './etat/bataille-v2.service';
@@ -74,7 +75,7 @@ import { OutilsCarteService } from './outils/outils-carte.service';
 import { EtapeBientotComponent } from './parcours/etape-bientot.component';
 import { PanneauEtapeComponent } from './parcours/panneau-etape.component';
 import { suivreMargeCarte } from './couches/marge-carte';
-import { FOURNISSEURS_ANALYSE, FOURNISSEURS_JEU, FOURNISSEURS_PLAN, suivreAnalyseAffichee, suivreJeuRenseigne, suivrePlanRenseigne } from './carte.fournisseurs';
+import { FOURNISSEURS_ACTIVATION, FOURNISSEURS_ANALYSE, FOURNISSEURS_JEU, FOURNISSEURS_PLAN, suivreActivationRenseignee, suivreAnalyseAffichee, suivreJeuRenseigne, suivrePlanRenseigne } from './carte.fournisseurs';
 
 /** Centre et zoom d'ouverture de React (`useMapInit.ts:131-132`). */
 const CENTRE_INITIAL: [number, number] = [2.3, 46.6];
@@ -123,7 +124,7 @@ export function palierCarreaux(zoom: number): string {
   selector: 'mg-carte-principale',
   imports: [
     AnnonceComponent, BarreParcoursComponent, BarreProgressionComponent, BoiteOutilsComponent, CarteComponent, DetailIrisComponent, DialogueMeteoComponent,
-    EtapeBientotComponent, FicheEmplacementOohComponent, IconeComponent, LegendeCarteComponent, PanneauAnalyseComponent, PanneauAutresComponent, PanneauJeuComponent, PanneauDonneesComponent, PanneauEtapeComponent, PanneauPlanComponent,
+    EtapeBientotComponent, FicheEmplacementOohComponent, IconeComponent, LegendeCarteComponent, PanneauAnalyseComponent, PanneauAutresComponent, PanneauJeuComponent, PanneauDonneesComponent, PanneauEtapeComponent, PanneauPlanComponent, PanneauActivationComponent,
     PanneauFiltreComponent, PanneauZonesComponent, PlanMediaComponent, RouterOutlet, TiroirPanneauComponent, ZoneActiveComponent,
   ],
   providers: [ChargementService, ParcoursService, OutilsCarteService, EtatCarteService, CouchesCarteService, PileEchapService, AnnonceService, ReferentielGeoService, CarreauxService,
@@ -146,7 +147,7 @@ export function palierCarreaux(zoom: number): string {
     { provide: PONT_CARTE, useExisting: ZonesRisqueService },
     ...FOURNISSEURS_ANALYSE,
     ...FOURNISSEURS_JEU,
-    ...FOURNISSEURS_PLAN,
+    ...FOURNISSEURS_PLAN, ...FOURNISSEURS_ACTIVATION,
   ],
   templateUrl: './carte.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -202,10 +203,11 @@ export class CartePage {
   private readonly analyseAffichee = suivreAnalyseAffichee();
   private readonly jeuRenseigne = suivreJeuRenseigne();
   private readonly planRenseigne = suivrePlanRenseigne();
-  /** Les pastilles « renseignée » (A2) : ② = un jeu de ② affiché (T13, AT-4) ; ④ = score, zones à risque, couverture (T8) ; ⑤ = une zone ou un jeu (lot 5) ; ⑥ = une stratégie (lot 6). */
+  private readonly activationRenseignee = suivreActivationRenseignee();
+  /** Les pastilles « renseignée » (A2) : ② = un jeu de ② affiché (T13, AT-4) ; ④ = score, zones à risque, couverture (T8) ; ⑤ = une zone ou un jeu (lot 5) ; ⑥ = une stratégie (lot 6) ; ⑦ = un lot poussé (lot 7). */
   protected readonly etapes = computed(() => etapesDuFil({
     filtrePose: this.etat.filtre() !== null || this.etat.perimetreScope() !== null, calquesActifs: this.donnees.renseignee(),
-    analyseAffichee: this.analyseAffichee(), jeuRenseigne: this.jeuRenseigne(), planRenseigne: this.planRenseigne(),
+    analyseAffichee: this.analyseAffichee(), jeuRenseigne: this.jeuRenseigne(), planRenseigne: this.planRenseigne(), activationRenseignee: this.activationRenseignee(),
   }));
   protected readonly segmentsAriane = computed<SegmentAriane[]>(() => segmentsDuFiltre(this.etat.filtre()));
   protected readonly precisionAriane = computed(() => precisionDuPerimetre(this.etat.perimetreScope()));

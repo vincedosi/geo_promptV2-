@@ -126,7 +126,14 @@ describe('cartesActivation — cas aux bords', () => {
     expect(c[1].motifs).toEqual([messageSansJeu('Meta')]);
   });
 
-  it('max_unites : l’avertissement figé est repris, et le registre courant ajoute le sien s’il est dépassé', () => {
+  it('pré-vol ou extraction pas encore lus : des cartes muettes, jamais un faux « rien à envoyer »', () => {
+    for (const p of [null, prevol('reel')]) {
+      const c = cartesActivation({ canaux: ['dv360', 'meta'], extraction: null, typeJeu: null, prevol: p, registre: REGISTRE });
+      expect(c.map((x) => [x.nature, x.motifs, x.formats])).toEqual([['', [], []], ['', [], []]]);
+    }
+  });
+
+  it('max_unites :l’avertissement figé est repris, et le registre courant ajoute le sien s’il est dépassé', () => {
     const fige = cartesActivation({
       canaux: ['meta'], typeJeu: 'zone', prevol: null, registre: REGISTRE,
       extraction: extraction([{ ...RESUMES[1], avertissements: [{ code: 'max_unites', limite: 50, valeur: 53 }] }]),
