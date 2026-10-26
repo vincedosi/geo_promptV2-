@@ -27,7 +27,7 @@ export const SAISIE_MONO = 'w-full rounded-[6px] border-fin border-subtle bg-ele
  * revue finale du lot 7 (F-4) : homonyme du `BOUTON_TEAL` de `styles-analyse.ts`, qui est une pastille ACTIVE et non un
  * bouton. `BOUTON_CALCUL` (même dessin) n'est pas repris : 2 px de marge de plus et pas de survol, contre React.
  */
-export const BOUTON_POUSSEE ='rounded-[6px] border-fin border-teal bg-transparent px-3.5 py-[7px] text-[12px] font-medium text-teal enabled:cursor-pointer enabled:hover:bg-teal-10 disabled:cursor-not-allowed disabled:opacity-40';
+export const BOUTON_POUSSEE = 'rounded-[6px] border-fin border-teal bg-transparent px-3.5 py-[7px] text-[12px] font-medium text-teal enabled:cursor-pointer enabled:hover:bg-teal-10 disabled:cursor-not-allowed disabled:opacity-40';
 
 /** Le petit bouton neutre de l'historique (« Annuler ce lot »). */
 export const BOUTON_NEUTRE = 'cursor-pointer rounded-[4px] border-fin border-default bg-transparent px-2.5 py-1 text-[11px] text-secondary hover:border-hover hover:text-primary';
