@@ -11,7 +11,6 @@ import {
 import { libellesPaliers } from '../../couches/couche-unites';
 import { ChoixCibleComponent } from './choix-cible.component';
 import { ChoixZoneAnalyseeComponent } from './choix-zone-analysee.component';
-import { CroisementsZoneComponent } from './croisements-zone.component';
 import { EnteteOutilComponent } from './entete-outil.component';
 import { PastillesComponent } from './pastilles.component';
 import {
@@ -22,7 +21,8 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
 /**
  * ④ Analyse — l'outil « Couverture d'une zone » (lot 4, T8), en tête du panneau Analyse et ouvert par défaut : choisir
  * une zone enregistrée, la cible et le découpage, « Chiffrer la zone », lire les chiffres et les voir sur la carte
- * (`CouvertureService`) ; dessous, sa radio et son trafic (`mg-croisements-zone`, T13). Sans équivalent React.
+ * (`CouvertureService`). Sans équivalent React. Le bloc « Dans cette zone » (radio et trafic, T13) a été retiré le
+ * 2026-10-26 (retours du 26/10, T5).
  *
  * ── HORS GARDE DE PÉRIMÈTRE ① ─────────────────────────────────────────────
  * La zone EST le périmètre : l'outil appelle `ZoneAnalyseeService.chiffrer()` lui-même, sans `verifierPerimetreOutil`.
@@ -40,7 +40,7 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
  */
 @Component({
   selector: 'mg-outil-couverture',
-  imports: [EnteteOutilComponent, PastillesComponent, ChoixCibleComponent, ChoixZoneAnalyseeComponent, CroisementsZoneComponent, KpiComponent, TableauCouvertureZoneComponent],
+  imports: [EnteteOutilComponent, PastillesComponent, ChoixCibleComponent, ChoixZoneAnalyseeComponent, KpiComponent, TableauCouvertureZoneComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   template: `
@@ -60,8 +60,7 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
           <mg-pastilles libelle="Découpage" [options]="decoupages" [valeur]="z.decoupage()" (valeurChange)="z.regler({ decoupage: $event })" />
         </div>
 
-        <!-- Un refus radio/trafic qui retire la zone démonte son bloc : son message s'affiche ici (T13, ronde 2). -->
-        @if (z.erreur() ?? (z.zoneId() ? null : z.croisements.erreur()); as e) { <div data-erreur role="alert" [class]="encartErreur">{{ e }}</div> }
+        @if (z.erreur(); as e) { <div data-erreur role="alert" [class]="encartErreur">{{ e }}</div> }
 
         <button type="button" data-chiffrer [disabled]="!z.zoneId() || z.enCours()" (click)="z.chiffrer()" [class]="boutonCalcul">
           {{ z.enCours() ? 'Chiffrage…' : 'Chiffrer la zone' }}
@@ -119,9 +118,6 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
             <div data-calcule class="font-mono text-[10px] text-tertiary">Calculé le {{ date(r.calcule_le) }}@if (r.cache) { · en cache}</div>
           </div>
         }
-
-        <!-- Hors du résultat : ni la cible ni le découpage ne changent la radio et le trafic de la zone (T13). -->
-        @if (z.zoneId()) { <mg-croisements-zone /> }
       </div>
     }
   `,

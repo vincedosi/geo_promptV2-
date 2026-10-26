@@ -253,14 +253,19 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 | `etat/couverture-rayon.service.ts` | Couverture par rayon autour de TOUT type de POI (T12, `GET /api/analyses/couverture-rayon`) : catalogue de ② + sites ICPE ajoutés une fois le catalogue lu ; zone analysée introuvable (404) → retirée comme pour la couverture, le message reste ; état exposé en lecture seule |
 | `couches/couche-couverture-rayon.ts` | POI et cercles au rayon lu sur la courbe (cercles bornés à `APERCU_SITES_MAX`) |
 | `panneaux/analyse/outil-rayon.component.ts` | `mg-outil-rayon` : type, rayon maximal, détail par sous-catégorie, anneaux, cible, « Sur » ; la courbe `mg-courbe-population` du module risque |
-| `panneaux/analyse/croisements-zone.component.ts` | `mg-croisements-zone` (T13), sous la couverture : émetteurs radio dont le cercle touche la zone, comptages routiers qui la traversent ; état dans `ZoneAnalyseeService.croisements` (survit au repli, P-e) ; périmé par un chiffrage d'une autre version de la forme (`zone_maj`) |
 | `panneaux/analyse/entete-outil.component.ts`, `pastilles.component.ts` | `mg-entete-outil` (en-tête des quatre outils d'accordéon) et `mg-pastilles` (groupe exclusif : découpage, détail par champ, « Sur ») |
 
+- **Retiré le 2026-10-26 (retours du 26/10, T5)** : le bloc « Dans cette zone » de T13 (`mg-croisements-zone`,
+  émetteurs radio dont la couverture touche la zone, comptages routiers qui la traversent), son état dans
+  `ZoneAnalyseeService`, l'appel de `CouvertureApi`, la route `GET /api/zones/[id]/croisements` et ses tests. La RPC
+  `croisements_zone` (sql/273) reste en base : `sql/284_retrait_croisements_zone.sql` est ÉCRITE mais NON APPLIQUÉE
+  (d'autres worktrees montent encore ④ avec ce bloc). Elle s'applique au merge dans `feat/angular-lot0`, en même temps
+  que le retrait de l'entrée `croisements_zone` de `types/database.types.ts` (types générés : ils suivent la base).
 - **Bornes sous verrou** : `RAYON_MIN_M`, `RAYON_MAX_M`, `MAX_VALEURS`, `MAX_CARREAUX_COUVERTURE` sont copiés de
   `lib/zones/couverture.ts` dans `logique/analyses/couverture.ts` ; `couverture-paritaire.test.ts` compare les deux
   copies ET les nombres écrits dans sql/269 et sql/272.
 - **Une phrase par refus** : `zone_introuvable` = « Zone introuvable dans cet espace. » partout (recettes, couverture,
-  rayon, radio et trafic). Sur la zone analysée, le rayon dit « La zone analysée dépasse 12 000 km² », pas « l'étape ① ».
+  rayon). Sur la zone analysée, le rayon dit « La zone analysée dépasse 12 000 km² », pas « l'étape ① ».
 - **Ce qui reste dupliqué** : les pastilles « Haut = mieux / Bas = mieux » du score (une par indicateur) et l'en-tête
   « Analyse spatiale » du panneau (un accordéon de section, pas un outil) gardent leur gabarit ; le cycle du catalogue
   d'indicateurs du score (`basculerOuvert`, antérieur au lot) n'est pas encore sur `LectureAnnulable`.
