@@ -6,7 +6,9 @@ import { ActivationCampagneService } from '../../etat/activation-campagne.servic
 import { ParcoursService } from '../../etat/parcours.service';
 import { PlanCampagneService } from '../../etat/plan-campagne.service';
 import { ENCART_ERREUR } from '../analyse/styles-analyse';
+import { BandeauActivationComponent } from './bandeau-activation.component';
 import { CartePlateformeComponent } from './carte-plateforme.component';
+import { FichiersExtractionComponent } from './fichiers-extraction.component';
 import { FluxPousseeComponent } from './flux-poussee.component';
 import { HistoriqueActivationComponent } from './historique-activation.component';
 import { PousseeDv360Component } from './poussee-dv360.component';
@@ -22,15 +24,19 @@ export const MESSAGE_SANS_PLAN = 'Cette campagne n’a pas encore de plan : lanc
  *   dont le message est dit ;
  * - accès refusé : le message de `PlanCampagneService`, et rien n'est lu ;
  * - campagne sans plan (aucune stratégie) : le renvoi vers ⑥ ;
- * - sinon : le pré-vol (version publiée, codes postaux, canaux connectés — React, sans la ligne « Stratégie », E4), une
- *   carte par plateforme cochée en ⑥ (la carte DV360 porte la poussée), le flux de la poussée, l'historique.
+ * - sinon : le bandeau de l'étape (T5, A-12), le pré-vol (version publiée, codes postaux, canaux connectés — React,
+ *   sans la ligne « Stratégie », E4), une carte par plateforme cochée en ⑥ (la carte DV360 au CP porte la poussée,
+ *   chaque carte ses fichiers — T5), le flux de la poussée, l'historique.
  *
  * Tout l'état vit dans `ActivationCampagneService` (page) ; le panneau reste MONTÉ quand on quitte l'étape (A1) — une
  * poussée en cours lui survit, et au service de toute façon.
  */
 @Component({
   selector: 'mg-panneau-activation',
-  imports: [CartePlateformeComponent, NgTemplateOutlet, EnteteSectionComponent, FluxPousseeComponent, HistoriqueActivationComponent, PousseeDv360Component],
+  imports: [
+    BandeauActivationComponent, CartePlateformeComponent, NgTemplateOutlet, EnteteSectionComponent, FichiersExtractionComponent, FluxPousseeComponent, HistoriqueActivationComponent,
+    PousseeDv360Component,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col', 'data-panneau-activation': '' },
   template: `
@@ -46,6 +52,7 @@ export const MESSAGE_SANS_PLAN = 'Cette campagne n’a pas encore de plan : lanc
         @if (!p.strategie) {
           <ng-container [ngTemplateOutlet]="renvoi" [ngTemplateOutletContext]="{ $implicit: messageSansPlan }" />
         } @else {
+          <mg-bandeau-activation class="mt-2" />
           <mg-entete-section libelle="Pré-vol" class="mt-2" />
           <div data-prevol class="px-3.5 py-3 font-mono text-[11px] leading-[1.8] text-secondary">
             <div>Version publiée : {{ p.version_publiee != null ? 'v' + p.version_publiee : 'jamais publiée' }}</div>
@@ -56,6 +63,13 @@ export const MESSAGE_SANS_PLAN = 'Cette campagne n’a pas encore de plan : lanc
             @for (c of activation.cartes(); track c.canal) {
               <mg-carte-plateforme [carte]="c">
                 @if (c.plateforme === 'dv360' && c.maille === 'cp') { <mg-poussee-dv360 /> }
+                <!-- Les fichiers de l'extraction du plan lancé ; DV360 au CP les garde en repli, quel que soit son mode (A-5). -->
+                @if (p.extraction; as x) {
+                  @if (c.plateforme && c.maille && c.formats.length) {
+                    <mg-fichiers-extraction [jeuFichier]="x.zone_set_id" [versionFichier]="x.version" [plateformeFichier]="c.plateforme"
+                                            [mailleFichier]="c.maille" [formats]="c.formats" [aVerifier]="c.aVerifier" />
+                  }
+                }
               </mg-carte-plateforme>
             } @empty {
               <div data-aucune-plateforme class="text-[11px] text-tertiary">Aucune plateforme cochée à l’étape ⑥.</div>

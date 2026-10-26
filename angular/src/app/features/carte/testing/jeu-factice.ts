@@ -15,6 +15,7 @@ import { ContoursZonesService } from '../etat/contours-zones.service';
 import { CouchesCarteService } from '../etat/couches-carte.service';
 import { EtatCarteService } from '../etat/etat-carte.service';
 import { CouvertureApi } from '../data/couverture.api';
+import { ActivationApi } from '../data/activation.api';
 import { JeuxApi } from '../data/jeux.api';
 import { ZonesCustomApi } from '../data/zones-custom.api';
 import { CatalogueIndicateursService } from '../etat/catalogue-indicateurs.service';
@@ -74,7 +75,7 @@ export class VideJeu {}
 function fournisseursJeu(lister: () => unknown = () => NEVER): Array<Provider | EnvironmentProviders> {
   return [
     provideRouter([{ path: 'carte', component: VideJeu }]),
-    provideHttpClient(), JeuxApi, CouvertureApi, JeuZonesService, ParcoursService, ZoneAnalyseeService,
+    provideHttpClient(), JeuxApi, ActivationApi, CouvertureApi, JeuZonesService, ParcoursService, ZoneAnalyseeService,
     { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
     { provide: ZonesCustomApi, useValue: { lister, geometrie: () => NEVER } },
     { provide: AuthService, useValue: { lireProfil: async () => ({ role: 'admin', nom: 'A', organisation: 'o1' }) } },

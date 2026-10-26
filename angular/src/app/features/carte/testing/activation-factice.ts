@@ -1,9 +1,11 @@
 import { type Provider, signal } from '@angular/core';
+import { NEVER } from 'rxjs';
 import { vi } from 'vitest';
-import type { LigneFlux, LotActivation, Prevol } from '../data/activation.api';
+import { ActivationApi, type LigneFlux, type LotActivation, type Prevol } from '../data/activation.api';
 import { ActivationCampagneService } from '../etat/activation-campagne.service';
 import { ParcoursService } from '../etat/parcours.service';
 import { PlanCampagneService } from '../etat/plan-campagne.service';
+import type { BandeauActivation } from '../logique/activation/bandeau';
 import type { CarteActivation } from '../logique/activation/cartes';
 import { CAMPAGNE_A, planFactice } from './plan-factice';
 
@@ -18,6 +20,7 @@ export function activationFactice() {
     lots: signal<readonly LotActivation[]>([]),
     cartes: signal<CarteActivation[]>([carteDe()]),
     chargement: signal(false),
+    bandeau: signal<BandeauActivation>({ plateformes: 1, pretes: 1, poussees: 0, enErreur: 0, derniere: null }),
     erreur: signal<string | null>(null),
     messageAnnulation: signal<string | null>(null),
     flux: signal<readonly LigneFlux[]>([]),
@@ -45,7 +48,7 @@ export function lotDe(p: Partial<LotActivation> = {}): LotActivation {
 export function carteDe(p: Partial<CarteActivation> = {}): CarteActivation {
   return {
     canal: 'dv360', plateforme: 'dv360', libelle: 'DV360', maille: 'cp', nature: '63 CP — conversion de la zone (95 % d’utile)', mode: 'api',
-    unites: 63, formats: ['cp', 'sdf'], motifs: [], avertissements: [], ...p,
+    unites: 63, formats: ['cp', 'sdf'], motifs: [], avertissements: [], aVerifier: false, ...p,
   };
 }
 
@@ -60,10 +63,13 @@ export function preparerActivation() {
   });
   const activation = activationFactice();
   const parcours = { choisir: vi.fn() };
+  // Les fichiers des cartes (T5) : aucune requête tant qu'on ne clique pas ; un spec qui clique pose sa réponse.
+  const api = { fichier: vi.fn(() => NEVER) };
   const fournisseurs: Provider[] = [
     { provide: PlanCampagneService, useValue: plan },
     { provide: ActivationCampagneService, useValue: activation },
     { provide: ParcoursService, useValue: parcours },
+    { provide: ActivationApi, useValue: api },
   ];
-  return { plan, activation, parcours, fournisseurs };
+  return { plan, activation, parcours, api, fournisseurs };
 }

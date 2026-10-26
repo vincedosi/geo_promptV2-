@@ -8,7 +8,10 @@ import { type ExtractionJeu, JeuxApi } from '../../data/jeux.api';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { LectureAnnulable } from '../../etat/lecture-annulable';
 import { messageErreurCouverture } from '../../logique/analyses/couverture-erreurs';
+import { type FormatFichier, formatsDe } from '../../logique/activation/cartes';
 import { NOM_PLATEFORME, UNITE_MAILLE } from '../../logique/jeu/ecran';
+import type { Maille, Plateforme } from '../../logique/jeu/plateformes';
+import { FichiersExtractionComponent } from '../activation/fichiers-extraction.component';
 import { BOUTON_CALCUL, ENCART_ERREUR, LISTE_CHAMP } from '../analyse/styles-analyse';
 
 /** Une réponse PERDUE (aucune réponse lue) : l'extraction a peut-être été créée — leçon du lot 3, on ne relance pas à l'aveugle. */
@@ -21,6 +24,16 @@ interface LigneVersion {
   commentaire: string;
   date: string;
   resume: string;
+  /** Les fichiers par plateforme de la version (T5, A-14) : celles qui ont des unités et un format. */
+  fichiers: FichiersPlateforme[];
+}
+
+interface FichiersPlateforme {
+  plateforme: Plateforme;
+  nom: string;
+  maille: Maille;
+  formats: FormatFichier[];
+  aVerifier: boolean;
 }
 
 /**
@@ -31,8 +44,8 @@ interface LigneVersion {
  *
  * La liste montre, par version : son origine, sa date et le résumé FIGÉ par plateforme (maille, unités, taux d'utile).
  * Choisir une version la désigne dans `?x=` (`JeuZonesService.choisirExtraction`). Le serveur fige les réglages
- * ENREGISTRÉS : tant que l'écran en montre d'autres (`JeuZonesService.modifie`), « Extraire » attend qu'on les enregistre. Le téléchargement des fichiers par
- * plateforme arrive au lot 6 : un texte l'annonce, aucun bouton mort.
+ * ENREGISTRÉS : tant que l'écran en montre d'autres (`JeuZonesService.modifie`), « Extraire » attend qu'on les enregistre. Sous chaque version, ses
+ * fichiers par plateforme (`mg-fichiers-extraction`, lot 7, T5, A-14) : le même bloc que les cartes de ⑦, sans campagne.
  *
  * Ce n'est PAS `mg-panneau-extractions` du module risque : celui-là montre un plan CP (seuil, CP retenus, classeur) ;
  * celui-ci un résumé par plateforme. Seul `dateHeureFr` (`core/format/date.ts`) est partagé — la factorisation d'une liste commune forcerait l'un
@@ -40,6 +53,7 @@ interface LigneVersion {
  */
 @Component({
   selector: 'mg-extractions-jeu',
+  imports: [FichiersExtractionComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col gap-2 px-4 py-3', 'data-extractions-jeu': '' },
   template: `
@@ -72,9 +86,18 @@ interface LigneVersion {
           @if (l.commentaire) { <span class="text-[11px] text-tertiary">{{ l.commentaire }}</span> }
           <span data-resume class="font-mono text-[10px] text-secondary">{{ l.resume }}</span>
         </button>
+        <!-- Hors du bouton de la version (pas de bouton dans un bouton) : un bloc par plateforme, sans campagne (Q-4). -->
+        @if (jeuId(); as id) {
+          @for (f of l.fichiers; track f.plateforme) {
+            <div [attr.data-fichiers-version]="l.version" class="flex flex-wrap items-center gap-2 pb-1 pl-[10px]">
+              <span class="min-w-[92px] text-[11px] text-secondary">{{ f.nom }}</span>
+              <mg-fichiers-extraction [jeuFichier]="id" [versionFichier]="l.version" [plateformeFichier]="f.plateforme"
+                                      [mailleFichier]="f.maille" [formats]="f.formats" [aVerifier]="f.aVerifier" />
+            </div>
+          }
+        }
       }
     </div>
-    <p data-lot6 class="m-0 text-[11px] text-tertiary">Les fichiers par plateforme arrivent avec les exports.</p>
   `,
 })
 export class ExtractionsJeuComponent {
@@ -99,7 +122,15 @@ export class ExtractionsJeuComponent {
     date: dateHeureFr(e.created_at),
     resume: (e.plateformes ?? []).map((p) => `${NOM_PLATEFORME[p.plateforme] ?? p.plateforme} : ${UNITE_MAILLE[p.maille]?.plusieurs ?? p.maille}`
       + ` ${formaterNombre(p.n_unites ?? 0)}, ${p.exacte ? 'exacte' : p.taux_utile == null ? '—' : `${formaterDecimal(Number(p.taux_utile))} %`}`).join(' · '),
+    fichiers: (e.plateformes ?? []).flatMap((p) => {
+      const formats = formatsDe(p.plateforme, p.maille);
+      // Sans unité, la route répond 409 : aucun bouton plutôt qu'un échec promis.
+      if (!formats.length || !(p.n_unites ?? 0)) return [];
+      const regle = this.jeu.plateformes().find((r) => r.plateforme === p.plateforme && r.maille === p.maille);
+      return [{ plateforme: p.plateforme, nom: NOM_PLATEFORME[p.plateforme] ?? p.plateforme, maille: p.maille, formats, aVerifier: regle?.a_verifier ?? false }];
+    }),
   })));
+  protected readonly jeuId = this.jeu.jeuId;
 
   private envoi: Subscription | null = null;
 

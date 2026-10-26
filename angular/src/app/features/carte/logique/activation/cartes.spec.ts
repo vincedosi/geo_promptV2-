@@ -146,6 +146,14 @@ describe('cartesActivation — cas aux bords', () => {
     expect(courant.avertissements).toEqual(['63 codes postaux pour 60 admis par la plateforme.']);
   });
 
+  it('« à vérifier » : lu dans la règle (plateforme, maille) du registre, jamais sur une carte muette (T5)', () => {
+    const registre = [ligne('dv360', 'cp', 10), { ...ligne('ttd', 'polygone', 20), a_verifier: true }];
+    const c = cartesActivation({ canaux: ['dv360', 'ttd'], extraction: extraction(RESUMES), typeJeu: 'zone', prevol: prevol('reel'), registre });
+    expect(c.map((x) => x.aVerifier)).toEqual([false, true]);
+    const muette = cartesActivation({ canaux: ['ttd'], extraction: null, typeJeu: null, prevol: null, registre })[0];
+    expect(muette.aVerifier).toBe(false);
+  });
+
   it('formatsDe : une maille sans fichier (IRIS) n’en offre aucun', () => {
     expect(formatsDe('dv360', 'iris')).toEqual([]);
   });

@@ -1,9 +1,10 @@
 import type { LotActivation } from '../../data/activation.api';
-import { bandeauActivation, dateLot, lotAbouti } from './bandeau';
+import { bandeauActivation, dateLot, estPrete, lotAbouti } from './bandeau';
 import type { CarteActivation } from './cartes';
 
 const carte = (canal: string, motifs: string[] = []): CarteActivation => ({
   canal, plateforme: null, libelle: canal, maille: 'cp', nature: '', mode: 'fichier', unites: 1, formats: ['cp'], motifs, avertissements: [],
+  aVerifier: false,
 });
 const lot = (canal: string, statut: string, lance_le: string): LotActivation => ({
   id: `${canal}-${lance_le}`, canal, version_strategie: 1, statut, mode: 'reel', lance_le, termine_le: null, lance_par: null, cibles: {}, n_cibles: 1,
@@ -14,6 +15,12 @@ describe('bandeauActivation (A-12)', () => {
     expect(bandeauActivation([carte('dv360'), carte('meta', ['x'])], [])).toEqual({
       plateformes: 2, pretes: 1, poussees: 0, enErreur: 0, derniere: null,
     });
+  });
+
+  it('M-1 : une carte muette (lecture en cours : ni maille ni motif) n’est pas prête', () => {
+    const muette = { ...carte('ttd'), maille: null, formats: [] };
+    expect(estPrete(muette)).toBe(false);
+    expect(bandeauActivation([carte('dv360'), muette], [])).toMatchObject({ plateformes: 2, pretes: 1 });
   });
 
   it('poussées : canaux avec un lot terminé ou partiel ; en erreur : canaux dont le DERNIER lot est échec ou partiel', () => {

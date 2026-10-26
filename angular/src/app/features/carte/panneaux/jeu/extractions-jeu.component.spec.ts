@@ -33,11 +33,41 @@ async function ouvert(versions = [version(1)]) {
 const texte = (el: HTMLElement, sel: string) => el.querySelector(sel)?.textContent?.replace(/\s+/g, ' ').trim();
 
 describe('mg-extractions-jeu', () => {
-  it('les versions : origine, date et résumé FIGÉ par plateforme ; le lot 6 est annoncé, aucun bouton de fichier', async () => {
+  it('les versions : origine, date et résumé FIGÉ par plateforme', async () => {
     const { el } = await ouvert();
     expect(texte(el, '[data-version="1"] [data-resume]')).toBe('DV360 : codes postaux 2, 45,0 % · The Trade Desk : polygones 1, exacte');
-    expect(texte(el, '[data-lot6]')).toBe('Les fichiers par plateforme arrivent avec les exports.');
-    expect(el.querySelector('a[download], [data-telecharger]')).toBeNull();
+  });
+
+  it('T5 (A-14) : sous chaque version, ses fichiers par plateforme — l’annonce « arrivent avec les exports » a disparu', async () => {
+    const { el } = await ouvert([version(2), version(1)]);
+    expect(el.textContent).not.toContain('arrivent avec les exports');
+    expect(el.querySelector('[data-lot6]')).toBeNull();
+    const blocs = [...el.querySelectorAll('[data-fichiers-version="2"]')].map((b) => [
+      b.querySelector('span')!.textContent!.trim(), [...b.querySelectorAll('mg-bouton-export button')].map((x) => x.textContent!.trim()),
+    ]);
+    expect(blocs).toEqual([['DV360', ['Codes postaux', 'SDF DV360']], ['The Trade Desk', ['Polygone (GeoJSON)']]]);
+    expect(el.querySelectorAll('[data-fichiers-version="1"]')).toHaveLength(2);
+    // TTD au polygone est « à vérifier » dans le registre du banc ; DV360 au CP ne l'est pas.
+    expect(el.querySelector('[data-fichiers-version="2"] [data-fichiers-extraction="ttd"] [data-a-verifier]')).not.toBeNull();
+    expect(el.querySelector('[data-fichiers-version="2"] [data-fichiers-extraction="dv360"] [data-a-verifier]')).toBeNull();
+    expect(el.querySelector('a[href], a[download]')).toBeNull();
+  });
+
+  it('T5 : un téléchargement lit la route de la version ; son refus affiche le message de la route', async () => {
+    const { el, http, stable } = await ouvert();
+    el.querySelector<HTMLButtonElement>('[data-fichiers-version="1"] [data-fichiers-extraction="ttd"] button')!.click();
+    await stable();
+    const req = http.expectOne(`/api/zones/jeux/${J1}/extractions/1/fichier?plateforme=ttd&format=polygone`);
+    expect(req.request.responseType).toBe('blob');
+    req.flush(new Blob([JSON.stringify({ error: 'Aucune unité retenue pour cette plateforme.' })], { type: 'application/json' }), { status: 409, statusText: 'Conflict' });
+    await stable();
+    expect(texte(el, '[data-fichiers-extraction="ttd"] [role="alert"]')).toBe('Aucune unité retenue pour cette plateforme.');
+  });
+
+  it('T5 : une plateforme sans unité n’offre aucun bouton (la route répondrait 409)', async () => {
+    const vide = { ...version(1), plateformes: [{ ...version(1).plateformes[0], n_unites: 0 }] };
+    const { el } = await ouvert([vide]);
+    expect(el.querySelector('[data-fichiers-version]')).toBeNull();
   });
 
   it('« Extraire » : un POST, puis la liste RELUE ; la version créée est désignée dans ?x=', async () => {

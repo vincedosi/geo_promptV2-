@@ -74,6 +74,40 @@ describe('PanneauActivationComponent — contenu', () => {
     expect(el.querySelector('[data-carte-plateforme="dv360"] mg-poussee-dv360')).not.toBeNull();
   });
 
+  it('T5 — le bandeau en tête ; chaque carte offre ses fichiers, DV360 au CP en repli de la poussée ; avertissements A-13', () => {
+    const { el, activation, rafraichir } = rendre();
+    activation.cartes.set([
+      carteDe(),
+      carteDe({ canal: 'ttd', plateforme: 'ttd', libelle: 'The Trade Desk', maille: 'polygone', mode: 'fichier', formats: ['polygone'], aVerifier: true }),
+      carteDe({
+        canal: 'meta', plateforme: 'meta', libelle: 'Meta', maille: 'cercle', mode: 'fichier', formats: ['cercles'],
+        avertissements: ['Publicité politique interdite chez Meta dans l’Union européenne.', 'Catégorie sensible (emploi, logement, crédit) : pas de code postal, rayon ≥ 15 km.'],
+      }),
+      carteDe({ canal: 'tiktok', plateforme: 'tiktok', libelle: 'TikTok', maille: 'departement', mode: 'fichier', formats: ['territoires'] }),
+    ]);
+    rafraichir();
+    expect(el.querySelector('mg-bandeau-activation')).not.toBeNull();
+    const boutons = (canal: string) => [...el.querySelectorAll(`[data-carte-plateforme="${canal}"] mg-fichiers-extraction button`)].map((b) => b.textContent!.trim());
+    expect(boutons('dv360')).toEqual(['Codes postaux', 'SDF DV360']);
+    expect(el.querySelector('[data-carte-plateforme="dv360"] mg-poussee-dv360')).not.toBeNull();
+    expect(boutons('ttd')).toEqual(['Polygone (GeoJSON)']);
+    expect(el.querySelector('[data-carte-plateforme="ttd"] [data-a-verifier]')!.textContent!.trim()).toBe('à vérifier');
+    expect(boutons('meta')).toEqual(['Cercles (CSV)']);
+    expect(el.querySelector('[data-carte-plateforme="meta"] [data-avertissements]')!.textContent).toContain('Catégorie sensible');
+    expect(boutons('tiktok')).toEqual(['Départements (CSV)']);
+    expect(el.querySelector('a[href]')).toBeNull();
+  });
+
+  it('T5 — aucun fichier sans extraction (plan d’avant le lot 7) ni sans format (Meta d’un jeu risque, ruling 4)', () => {
+    const { el, activation, rafraichir } = rendre();
+    activation.cartes.set([carteDe({ canal: 'meta', plateforme: 'meta', libelle: 'Meta', maille: 'cp', mode: 'fichier', formats: [], motifs: ['x'] })]);
+    rafraichir();
+    expect(el.querySelector('mg-fichiers-extraction')).toBeNull();
+    activation.cartes.set([carteDe()]);
+    activation.prevol.set(prevolDe({ extraction: null })); rafraichir();
+    expect(el.querySelector('mg-fichiers-extraction')).toBeNull();
+  });
+
   it('jamais publiée, aucun canal : « jamais publiée », « aucun »', () => {
     const { el, activation, rafraichir } = rendre();
     activation.prevol.set(prevolDe({ version_publiee: null, canaux_connectes: [] })); rafraichir();

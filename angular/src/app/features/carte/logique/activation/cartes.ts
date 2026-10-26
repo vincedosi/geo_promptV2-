@@ -57,6 +57,8 @@ export interface CarteActivation {
   /** Ce qui empêche d'envoyer (pousser ou télécharger), au vouvoiement ; vide : la carte est prête. */
   motifs: string[];
   avertissements: string[];
+  /** La règle (plateforme, maille) du registre est marquée `a_verifier` : l'écran le dit à côté des fichiers (T5). */
+  aVerifier: boolean;
 }
 
 export const MESSAGE_HORS_EXTRACTION = 'Aucune unité dans l’extraction pour cette plateforme : rien à envoyer.';
@@ -131,7 +133,7 @@ function carte(canal: string, e: EntreeCartes): CarteActivation {
   const plateforme = PLATEFORME_DE_CANAL.get(canal) ?? null;
   const libelle = plateforme ? NOM_PLATEFORME[plateforme] : canal;
   const vide: CarteActivation = {
-    canal, plateforme, libelle, maille: null, nature: '', mode: 'fichier', unites: 0, formats: [], motifs: [],
+    canal, plateforme, libelle, maille: null, nature: '', mode: 'fichier', unites: 0, formats: [], motifs: [], aVerifier: false,
     avertissements: reglementaires(plateforme, libelle),
   };
   const motifsPrevol = (e.prevol?.motifs ?? []).map(texteMotif);
@@ -166,6 +168,7 @@ function carte(canal: string, e: EntreeCartes): CarteActivation {
     unites: nUnites,
     nature: nature(maille, nUnites, risque ? { taux_utile: e.extraction.taux_utile } : (brut ?? {})),
     formats: formatsDe(plateforme, maille),
+    aVerifier: ligne?.a_verifier ?? false,
     avertissements: [...vide.avertissements, ...limites(brut, ligne, maille, nUnites)],
   };
   if (risque && plateforme === 'meta') return { ...base, formats: [], motifs: [MESSAGE_META_RISQUE] };
