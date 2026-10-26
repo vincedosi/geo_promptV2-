@@ -1,8 +1,9 @@
 -- 285 — zone_rayon_poi : « Autour des POI » sur toute la France métropolitaine (retours du 26/10, T2)
 --
--- CREATE OR REPLACE du corps de sql/254, même signature, mêmes droits. Une seule branche neuve, AVANT
--- `resoudre_perimetre` (qui refuse tout périmètre `france`) : `('france', 'METRO')`. `('france', 'FR')` reste refusé
--- (`perimetre_national_refuse`), comme tout périmètre local garde son comportement d'avant, à l'octet.
+-- CREATE OR REPLACE du corps de sql/254, même signature, mêmes droits. Une branche neuve, AVANT `resoudre_perimetre`
+-- (qui refuse tout périmètre `france`) : `('france', 'METRO')`. `('france', 'FR')` reste refusé
+-- (`perimetre_national_refuse`). Un périmètre local garde son calcul de sql/254 ; seul son plafond change (voir
+-- « Plafond » : 5 000 → la capacité synchrone de 10 000, relecture 1, I-4).
 --
 -- ── LA BRANCHE MÉTROPOLE ───────────────────────────────────────────────────────────────────────────────────────────
 --
@@ -15,14 +16,19 @@
 --     perdu, sans cercle.
 --   • Le périmètre qui DÉCOUPE les cercles est l'union des `ref_regions` qui croisent BBOX_METRO (les 13 régions de
 --     métropole, ≈ 548 000 km²) : un cercle ne déborde ni en mer ni à l'étranger.
---   • Plafond : capacité SYNCHRONE mesurée, pas une borne produit (réponses de Vincent du 26/10, Q-1 : « on limite
---     pas »). `CAPACITE_SYNCHRONE_POI_RAYON` = 10 000 (`lib/zones/recette.ts`), refaite ici en dur : `least(p_max_poi,
---     10000)`, et un `p_max_poi` au-delà de 10 000 lève 22023 — l'appelant ne peut pas la contourner. Mesures du
---     26/10 (base locale, cache chaud, union + découpe + GeoJSON) : lycées 5 299 POI → 0,4 s à 20 km, 2,2 s et
---     3,7 Mo à 100 m ; 10 000 sites ICPE → 1,2 s à 50 km, 9,8 s et 7,7 Mo à 100 m ; 97 133 sites ICPE → 47 s et
---     70 Mo à 100 m (au-delà de ce qu'on sert en direct sous les 60 s de Kong). Au-delà : refus
---     `trop_de_poi_metropole`, que l'écran dit « tâche de fond, lot « calculs longs » ».
---   • Les périmètres locaux gardent leur plafond de 5 000 POI (sql/254).
+--
+-- ── PLAFOND, POUR TOUT PÉRIMÈTRE ───────────────────────────────────────────────────────────────────────────────────
+--
+--   Capacité SYNCHRONE mesurée, pas une borne produit (réponses de Vincent du 26/10, Q-1 : « on limite pas »), la
+--   MÊME pour un périmètre local et pour la métropole (relecture 1, I-4 : le coût suit le nombre de points, union des
+--   cercles + découpe, quel que soit le périmètre ; les 5 000 POI de sql/254 refusaient la Bretagne, 13 865 sites
+--   ICPE, plus sèchement que la métropole). `CAPACITE_SYNCHRONE_POI_RAYON` = 10 000 (`lib/zones/recette.ts`), refaite
+--   ici en dur : défaut et `least(p_max_poi, 10000)`, un `p_max_poi` au-delà de 10 000 lève 22023 — l'appelant ne peut
+--   pas la contourner. Mesures du 26/10 (base locale, cache chaud, union + découpe + GeoJSON) : lycées de métropole
+--   (5 324 POI) → 0,4 s à 20 km, 2,2 s et 3,7 Mo à 100 m ; 10 000 sites ICPE → 1,2 s à 50 km, 9,8 s et 7,7 Mo à
+--   100 m ; 97 133 sites ICPE → 47 s et 70 Mo à 100 m (au-delà de ce qu'on sert en direct sous les 60 s de Kong).
+--   Au-delà : refus `trop_de_poi` (local) ou `trop_de_poi_metropole`, que l'écran dit « tâche de fond, lot
+--   « calculs longs » ».
 --
 -- Rend jsonb (une géométrie, rien à tronquer). Droits : service_role. Rejouable. Aucun DROP.
 
@@ -30,7 +36,7 @@ begin;
 
 create or replace function public.zone_rayon_poi(
   p_categorie text, p_rayon_m integer, p_perimetre_type text, p_perimetre_code text,
-  p_org_id uuid, p_sources uuid[], p_max_poi integer default 5000
+  p_org_id uuid, p_sources uuid[], p_max_poi integer default 10000
 )
 returns jsonb
 language plpgsql
@@ -51,13 +57,12 @@ begin
   if p_rayon_m is null or p_rayon_m < 100 or p_rayon_m > 50000 then
     raise exception 'rayon hors bornes (100 m a 50 km) : %', p_rayon_m using errcode = '22023';
   end if;
-  if p_max_poi is null or p_max_poi < 1 or p_max_poi > (case when v_metro then 10000 else 5000 end) then
-    raise exception 'plafond de POI hors bornes (1 a %) : %', case when v_metro then '10 000' else '5 000' end, p_max_poi
-      using errcode = '22023';
+  if p_max_poi is null or p_max_poi < 1 or p_max_poi > 10000 then
+    raise exception 'plafond de POI hors bornes (1 a 10 000) : %', p_max_poi using errcode = '22023';
   end if;
+  v_max := least(p_max_poi, 10000);
 
   if v_metro then
-    v_max := least(p_max_poi, 10000);
     select ST_Multi(ST_Union(coalesce(r.geom_perimetre, r.geom))) into v_per
       from public.ref_regions r
      where coalesce(r.geom_perimetre, r.geom) && ST_MakeEnvelope(-5.5, 41.2, 9.8, 51.2, 4326);
@@ -81,7 +86,6 @@ begin
       return jsonb_build_object('refus', 'trop_de_poi_metropole', 'plafond', v_max);
     end if;
   else
-    v_max := p_max_poi;
     select r.g, r.refus into v_per, v_refus
       from public.resoudre_perimetre(p_perimetre_type, p_perimetre_code, p_org_id, 100000,
                                      array['region', 'departement', 'commune', 'cp', 'zone']) r;

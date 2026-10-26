@@ -52,12 +52,13 @@ export const SEUIL_CARREAUX_MAX = 100_000;
  * nombre fini » : un seuil de 1e300 n'est jamais une intention, c'est une faute de frappe.
  */
 export const SEUIL_TERRITOIRE_MAX_ABS = 10_000_000;
-export const MAX_POI_RAYON = 5_000;
 /**
- * « Autour des POI » sur toute la France métropolitaine : capacité SYNCHRONE mesurée, pas une borne produit (Vincent,
- * 26/10, Q-1). Mesures du 26/10, base locale, union + découpe + GeoJSON : lycées (5 299 POI, la plus grosse catégorie
- * commune) 0,4 s à 20 km et 2,2 s / 3,7 Mo à 100 m ; 10 000 sites ICPE 9,8 s / 7,7 Mo à 100 m ; 97 133 sites ICPE
- * 47 s / 70 Mo à 100 m. Refaite en base (sql/285) ; au-delà, le calcul se fera en tâche de fond (lot « calculs longs »).
+ * « Autour des POI », sur tout périmètre (local comme France métropolitaine) : capacité SYNCHRONE mesurée, pas une
+ * borne produit (Vincent, 26/10, Q-1 ; relecture 1, I-4 : une seule constante, elle remplace les 5 000 POI du local).
+ * Le coût suit le nombre de points, quel que soit le périmètre (union des cercles + découpe). Mesures du 26/10, base
+ * locale, union + découpe + GeoJSON : lycées de métropole (5 324 POI, la plus grosse catégorie commune) 0,4 s à 20 km
+ * et 2,2 s / 3,7 Mo à 100 m ; 10 000 sites ICPE 9,8 s / 7,7 Mo à 100 m ; 97 133 sites ICPE 47 s / 70 Mo à 100 m.
+ * Refaite en base (sql/285) ; au-delà, le calcul se fera en tâche de fond (lot « calculs longs »).
  */
 export const CAPACITE_SYNCHRONE_POI_RAYON = 10_000;
 export const MAX_CARREAUX_SEUIL = 20_000;
@@ -131,7 +132,9 @@ export const MESSAGES_REFUS: Readonly<Record<RefusRecette, string>> = {
   perimetre_trop_grand: 'Le périmètre est trop grand pour ce calcul : resserrez-le à l’étape ①.',
   perimetre_non_admis: 'Ce calcul se fait sur un département au plus : choisissez un département, une commune, un code postal ou une zone à l’étape ①.',
   commune_ambigue: 'Plusieurs communes portent ce nom : tapez son code INSEE (ex. 93066) ou choisissez son code postal à l’étape ①.',
-  trop_de_poi: `Plus de ${formaterNombre(MAX_POI_RAYON)} POI dans le périmètre : resserrez le périmètre.`,
+  trop_de_poi: `Plus de ${formaterNombre(CAPACITE_SYNCHRONE_POI_RAYON)} POI dans le périmètre : `
+    + 'ce calcul dépasse ce qu’on peut calculer en direct. Il se lancera en tâche de fond dès le lot « calculs longs » ; '
+    + 'en attendant, resserrez le périmètre à l’étape ①.',
   trop_de_carreaux: `Plus de ${formaterNombre(MAX_CARREAUX_SEUIL)} carreaux retenus : resserrez le périmètre ou relevez le seuil.`,
   trop_de_territoires: `Plus de ${formaterNombre(MAX_TERRITOIRES_SEUIL)} territoires retenus : resserrez le périmètre ou relevez le seuil.`,
   trop_de_sommets: `La forme dépasse ${formaterNombre(MAX_SOMMETS_FORME)} sommets : simplifiez-la avant de l’importer.`,

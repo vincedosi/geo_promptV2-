@@ -56,7 +56,7 @@ describe('executerRecette', () => {
     expect(r).toEqual({ ok: true, geometry: CARRE, surface_km2: 4.2, compte: 12, part_retenue: 0.9, population: null });
     expect(appels).toEqual([{ nom: 'zone_rayon_poi', args: {
       p_categorie: 'lycee', p_rayon_m: 5000, p_perimetre_type: 'departement', p_perimetre_code: '13',
-      p_org_id: ORG, p_sources: ['s1'], p_max_poi: 5000,
+      p_org_id: ORG, p_sources: ['s1'], p_max_poi: 10_000,
     } }]);
   });
 
@@ -72,6 +72,14 @@ describe('executerRecette', () => {
     expect(await exec({ ...recette, categorie: 'arret_transport' })).toEqual({
       ok: false, statut: 422, refus: 'trop_de_poi_metropole', message: MESSAGES_REFUS.trop_de_poi_metropole,
     });
+  });
+
+  it('rayon POI sur une région trop dense (ICPE de Bretagne, 13 865) : la capacité, et la même promesse de tâche de fond', async () => {
+    reponses.zone_rayon_poi = { data: { refus: 'trop_de_poi', plafond: 10_000 }, error: null };
+    const r = await exec({ v: 1, type: 'rayon_poi', categorie: 'risque_industriel', rayon_m: 2000, perimetre: { type: 'region', code: '53' } });
+    expect(r).toEqual({ ok: false, statut: 422, refus: 'trop_de_poi', message: MESSAGES_REFUS.trop_de_poi });
+    expect(r.ok ? '' : r.message).toContain('tâche de fond');
+    expect(appels[0].args.p_max_poi).toBe(10_000);
   });
 
   it('seuils sur la métropole : le message différé, SANS appel', async () => {

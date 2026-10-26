@@ -1,6 +1,7 @@
 /**
- * @file lib/isochrones/borne-nationale.ts — ce qu'une bataille d'isochrones peut calculer EN DIRECT quand elle n'a
- * aucun territoire (France métropolitaine ou France entière ; retours du 26/10, T2).
+ * @file lib/isochrones/borne-nationale.ts — ce qu'une bataille d'isochrones peut calculer EN DIRECT (retours du 26/10,
+ * T2) : la capacité de 700 anneaux vaut pour tout périmètre (`refusCapaciteAnneaux`, relecture 1, I-2) ; une bataille
+ * sans territoire (France métropolitaine ou entière) a en plus la limite de lecture (`refusBorneNationale`).
  *
  * Aucune borne PRODUIT sur le nombre de points (Vincent, 26/10, Q-1 : « on limite pas ! »). Les deux bornes ci-dessous
  * sont TECHNIQUES et ne refusent jamais un besoin : au-delà, le message promet le calcul en tâche de fond (lot différé
@@ -37,7 +38,8 @@ export function sansTerritoire(t: TerritoireBataille): boolean {
 }
 
 /**
- * Le message quand la bataille dépasse ce qu'on calcule en direct, sinon `null`.
+ * Bataille SANS territoire : le message quand elle dépasse ce qu'on calcule en direct, sinon `null`. Deux limites :
+ * la lecture tronquée (500 POI lus) et la capacité de 700 anneaux.
  *
  * @param points  POI lus (au plus `PLAFOND_LECTURE_POI`).
  * @param paliers Paliers demandés.
@@ -45,10 +47,21 @@ export function sansTerritoire(t: TerritoireBataille): boolean {
  *                avant lecture). Un palier absent du cache n'est pas calculé : seul le compte lu fait foi.
  */
 export function refusBorneNationale(points: number, paliers: number, anneaux: number = points * paliers): string | null {
-  const lectureTronquee = points >= PLAFOND_LECTURE_POI;
-  if (!lectureTronquee && anneaux <= CAPACITE_SYNCHRONE_ANNEAUX) return null;
+  return points >= PLAFOND_LECTURE_POI ? messageTacheDeFond(points, paliers, anneaux) : refusCapaciteAnneaux(points, paliers, anneaux);
+}
 
-  const ouPlus = lectureTronquee ? ' ou plus' : '';
+/**
+ * TOUT périmètre (local comme national ; relecture 1, I-2) : le message quand les anneaux dépassent la capacité
+ * synchrone, sinon `null`. La capacité décrit le calcul (`get_isochrone_battle`), pas le périmètre : une bataille
+ * locale de 150 lycées × 7 paliers (1 050 anneaux) passe les 60 s de Kong comme une nationale.
+ */
+export function refusCapaciteAnneaux(points: number, paliers: number, anneaux: number = points * paliers): string | null {
+  return anneaux > CAPACITE_SYNCHRONE_ANNEAUX ? messageTacheDeFond(points, paliers, anneaux) : null;
+}
+
+/** « Ce calcul (N POI × P paliers = A anneaux) dépasse ce qu'on peut calculer en direct… » (Vincent, 26/10, Q-1). */
+function messageTacheDeFond(points: number, paliers: number, anneaux: number): string {
+  const ouPlus = points >= PLAFOND_LECTURE_POI ? ' ou plus' : '';
   const p = `${formaterNombre(paliers)} ${paliers > 1 ? 'paliers' : 'palier'}`;
   const a = `${formaterNombre(anneaux)} anneaux`;
   const calcul = anneaux === points * paliers

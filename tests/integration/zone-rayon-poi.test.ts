@@ -100,8 +100,17 @@ describe('zone_rayon_poi — France métropolitaine', () => {
     expect((await metro({ p_max_poi: 20_000 })).error?.code).toBe('22023');
   });
 
-  it('un périmètre local garde son plafond de 5 000 POI', async () => {
-    expect((await appeler({ p_max_poi: 5001 })).error?.code).toBe('22023');
+  it('un périmètre local a la même capacité (relecture 1, I-4) : 22023 au-delà de 10 000 seulement', async () => {
+    expect((await appeler({ p_max_poi: 10_001 })).error?.code).toBe('22023');
+    expect((await appeler({ p_max_poi: 10_000 })).error).toBeNull();
+  });
+
+  it('sites ICPE de Bretagne (13 865) : au-delà de la capacité, refus « trop_de_poi » à 10 000 — plus « 5 000 »', async () => {
+    const { data, error } = await appeler({
+      p_categorie: 'risque_industriel', p_rayon_m: 2000, p_perimetre_type: 'region', p_perimetre_code: '53', p_sources: [], p_max_poi: 10_000,
+    });
+    expect(error).toBeNull();
+    expect(data).toEqual({ refus: 'trop_de_poi', plafond: 10_000 });
   });
 
   it('France entière (FR) : toujours refusée', async () => {

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { z } from 'zod';
 import { formaterNombre } from '@/lib/format/nombre';
 import {
-  MAX_CARREAUX_SEUIL, MAX_POI_RAYON, MAX_SOMMETS_FORME, MAX_TERRITOIRES_SEUIL, MESSAGES_REFUS, RAYON_POINT_MAX_M,
+  CAPACITE_SYNCHRONE_POI_RAYON, MAX_CARREAUX_SEUIL, MAX_SOMMETS_FORME, MAX_TERRITOIRES_SEUIL, MESSAGES_REFUS, RAYON_POINT_MAX_M,
   SEUIL_TERRITOIRE_MAX_ABS, type Recette,
 } from '@/lib/zones/recette';
 import { RecetteSchema, RecetteUnionSchema, lireRecette } from '@/lib/zones/recette-schema';
@@ -91,7 +91,7 @@ describe('MESSAGES_REFUS — revue de la Task 2', () => {
   });
 
   it('les plafonds cités viennent des constantes, mis en forme par formaterNombre', () => {
-    expect(MESSAGES_REFUS.trop_de_poi).toContain(`Plus de ${formaterNombre(MAX_POI_RAYON)} POI`);
+    expect(MESSAGES_REFUS.trop_de_poi).toContain(`Plus de ${formaterNombre(CAPACITE_SYNCHRONE_POI_RAYON)} POI`);
     expect(MESSAGES_REFUS.trop_de_carreaux).toContain(`Plus de ${formaterNombre(MAX_CARREAUX_SEUIL)} carreaux`);
     expect(MESSAGES_REFUS.trop_de_territoires).toContain(`Plus de ${formaterNombre(MAX_TERRITOIRES_SEUIL)} territoires`);
     expect(MESSAGES_REFUS.trop_de_sommets).toContain(`dépasse ${formaterNombre(MAX_SOMMETS_FORME)} sommets`);

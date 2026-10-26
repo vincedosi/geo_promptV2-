@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  CAPACITE_SYNCHRONE_ANNEAUX, PLAFOND_LECTURE_POI, refusBorneNationale, sansTerritoire,
+  CAPACITE_SYNCHRONE_ANNEAUX, PLAFOND_LECTURE_POI, refusBorneNationale, refusCapaciteAnneaux, sansTerritoire,
 } from '@/lib/isochrones/borne-nationale';
+import { formaterNombre } from '@/lib/format/nombre';
 
 /** La phrase de Vincent (26/10, Q-1) : jamais « refusé », la tâche de fond est promise. */
 const SUITE = ' dépasse ce qu’on peut calculer en direct. Il se lancera en tâche de fond dès le lot « calculs longs » ; '
@@ -30,6 +31,12 @@ describe('borne nationale de la bataille', () => {
   it('anneaux réellement trouvés en cache : le compte lu, pas le produit', () => {
     expect(refusBorneNationale(95, 8, 706)).toBe(`Ce calcul (95 POI × 8 paliers : 706 anneaux en cache)${SUITE}`);
     expect(refusBorneNationale(95, 8, 285)).toBeNull();
+  });
+
+  it('refusCapaciteAnneaux (tout périmètre) : seule la capacité, pas la lecture tronquée', () => {
+    expect(refusCapaciteAnneaux(150, 7)).toBe(`Ce calcul (150 POI × 7 paliers = ${formaterNombre(1050)} anneaux)${SUITE}`);
+    expect(refusCapaciteAnneaux(500, 1)).toBeNull();
+    expect(refusCapaciteAnneaux(95, 7)).toBeNull();
   });
 
   it('sansTerritoire : vrai seulement sans ville, sans région, sans département', () => {

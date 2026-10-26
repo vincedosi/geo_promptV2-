@@ -17,7 +17,9 @@ import { z } from 'zod';
 import {
   sourcesVisiblesDeLaRequete, filtrerParSourcesVisibles, empreintePerimetre,
 } from '@/lib/auth/perimetre-donnees';
-import { PLAFOND_LECTURE_POI, refusBorneNationale, sansTerritoire } from '@/lib/isochrones/borne-nationale';
+import {
+  PLAFOND_LECTURE_POI, refusBorneNationale, refusCapaciteAnneaux, sansTerritoire,
+} from '@/lib/isochrones/borne-nationale';
 import { paquetsDeCles } from '@/lib/isochrones/paquets-cles';
 
 export const dynamic = 'force-dynamic';
@@ -237,7 +239,11 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        const refusAnneaux = borneNationale ? refusBorneNationale(pois.length, PALIERS.length, rings.length) : null;
+        // La capacité de 700 anneaux vaut pour TOUT périmètre (relecture 1, I-2) : elle décrit le calcul, pas le
+        // territoire. Une bataille locale qui la dépasse partirait au-delà des 60 s de Kong.
+        const refusAnneaux = borneNationale
+          ? refusBorneNationale(pois.length, PALIERS.length, rings.length)
+          : refusCapaciteAnneaux(pois.length, PALIERS.length, rings.length);
         if (refusAnneaux) { send({ type: 'error', message: refusAnneaux }); return; }
 
         if (missingLog.length > 0) {

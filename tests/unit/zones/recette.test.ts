@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import {
-  CAPACITE_SYNCHRONE_POI_RAYON, INDICATEURS_SEUIL_CARREAUX, MAX_CARREAUX_SEUIL, MAX_POI_RAYON, MAX_TERRITOIRES_SEUIL, MESSAGES_REFUS, PERIMETRES_ADMIS,
+  CAPACITE_SYNCHRONE_POI_RAYON, INDICATEURS_SEUIL_CARREAUX, MAX_CARREAUX_SEUIL, MAX_TERRITOIRES_SEUIL, MESSAGES_REFUS, PERIMETRES_ADMIS,
   RAYON_POI_MAX_M, RAYON_POI_MIN_M, SURFACE_MAX_PERIMETRE_CARREAUX_KM2, SURFACE_MAX_PERIMETRE_KM2,
   TYPES_BORNES_PAR_PERIMETRE, TYPES_RECALCULABLES, TYPES_RECETTE, VERSION_RECETTE, estRecalculable, exigeGeometrie,
   exigePerimetre, libelleRecette, refusPerimetreLocal, type Recette,
@@ -71,8 +71,6 @@ describe('la recette d’une zone', () => {
     expect(litteral(CARREAUX, SURFACE)).toBe(SURFACE_MAX_PERIMETRE_CARREAUX_KM2);
     expect(litteral(POI, /p_rayon_m < (\d+) or/)).toBe(RAYON_POI_MIN_M);
     expect(litteral(POI, /p_rayon_m > (\d+) then/)).toBe(RAYON_POI_MAX_M);
-    expect(litteral(POI, /p_max_poi integer default (\d+)/)).toBe(MAX_POI_RAYON);
-    expect(litteral(POI, /p_max_poi > (\d+) then/)).toBe(MAX_POI_RAYON);
     expect(litteral(CARREAUX, /p_max_carreaux integer default (\d+)/)).toBe(MAX_CARREAUX_SEUIL);
     expect(litteral(CARREAUX, /p_max_carreaux > (\d+) then/)).toBe(MAX_CARREAUX_SEUIL);
     expect(litteral(TERRITOIRES, /p_max_territoires integer default (\d+)/)).toBe(MAX_TERRITOIRES_SEUIL);
@@ -110,11 +108,19 @@ describe('la recette d’une zone', () => {
       + 'un département (carreaux) ou une région (territoires).');
   });
 
-  it('la capacité de la métropole est le littéral écrit dans sql/285, qui garde la liste et la surface de sql/254', () => {
+  it('trop de POI dans un périmètre local : la même capacité et la même promesse de tâche de fond', () => {
+    expect(MESSAGES_REFUS.trop_de_poi).toBe(
+      `Plus de ${formaterNombre(10_000)} POI dans le périmètre : ce calcul dépasse ce qu’on peut calculer en direct. `
+      + 'Il se lancera en tâche de fond dès le lot « calculs longs » ; en attendant, resserrez le périmètre à l’étape ①.');
+  });
+
+  it('la capacité est le littéral écrit dans sql/285, qui garde la liste et la surface de sql/254', () => {
     const METROPOLE = /_zone_rayon_poi_metropole\.sql$/;
     expect(litteral(METROPOLE, /least\(p_max_poi, (\d+)\)/)).toBe(CAPACITE_SYNCHRONE_POI_RAYON);
-    expect(litteral(METROPOLE, /when v_metro then (\d+) else/)).toBe(CAPACITE_SYNCHRONE_POI_RAYON);
-    expect(litteral(METROPOLE, /when v_metro then \d+ else (\d+) end\)/)).toBe(MAX_POI_RAYON);
+    // Une seule capacité, local comme métropole (relecture 1, I-4) : le défaut et la garde de sql/285 (le corps actif ;
+    // les 5 000 de sql/254 sont l'historique).
+    expect(litteral(METROPOLE, /p_max_poi integer default (\d+)/)).toBe(CAPACITE_SYNCHRONE_POI_RAYON);
+    expect(litteral(METROPOLE, /p_max_poi > (\d+) then/)).toBe(CAPACITE_SYNCHRONE_POI_RAYON);
     expect(litteral(METROPOLE, /resoudre_perimetre\(p_perimetre_type, p_perimetre_code, p_org_id, (\d+),/)).toBe(SURFACE_MAX_PERIMETRE_KM2);
     expect(migration(METROPOLE)).toContain(liste('rayon_poi'));
   });

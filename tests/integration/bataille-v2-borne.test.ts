@@ -9,7 +9,7 @@
  * Isochrones en cache mesurés le 26/10 : CIRFA 95 POI × {10, 15, 20, 30, 40, 50, 60} min + 41 à 5 min ;
  * BMW 160 × {10, 15, 20, 30}. Aucun cas ne lance une bataille de plus de 300 anneaux (durée).
  */
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { creerClientTest } from './_client';
 import { formaterNombre } from '@/lib/format/nombre';
@@ -23,15 +23,37 @@ vi.mock('@/lib/auth/getSessionOrg', async (original) => ({
 const { POST } = await import('@/app/api/isochrone-battle-v2/route');
 const sb = creerClientTest();
 
-interface Ligne { type: string; message?: string; total?: number; count?: number; data?: { nb_pois: number } }
+interface Ligne {
+  type: string; message?: string; total?: number; count?: number;
+  data?: { nb_pois: number; battleCacheKey?: string; fromCache?: boolean };
+}
 
+/** Les résultats complets que ce test écrit dans `isochrones_cache` (base partagée) : effacés en `afterAll`. */
+const clesEcrites = new Set<string>();
+
+/**
+ * `force_battle: true` TOUJOURS : sans lui, la route rend le résultat complet déjà en cache AVANT toute borne, et la
+ * 2ᵉ exécution du test ne vérifierait plus rien (relecture 1, I-3).
+ */
 async function bataille(corps: Record<string, unknown>): Promise<Ligne[]> {
   const res = await POST(new NextRequest('http://localhost:3000/api/isochrone-battle-v2', {
-    method: 'POST', body: JSON.stringify(corps), headers: { 'content-type': 'application/json' },
+    method: 'POST', body: JSON.stringify({ ...corps }), headers: { 'content-type': 'application/json' },
   }));
   expect(res.status).toBe(200);
-  return (await res.text()).split('\n').filter(Boolean).map((l) => JSON.parse(l) as Ligne);
+  const lignes = (await res.text()).split('\n').filter(Boolean).map((l) => JSON.parse(l) as Ligne);
+  for (const l of lignes) {
+    expect(l.data?.fromCache).not.toBe(true);
+    if (l.type === 'result' && l.data?.battleCacheKey) clesEcrites.add(l.data.battleCacheKey);
+  }
+  return lignes;
 }
+
+afterAll(async () => {
+  if (clesEcrites.size === 0) return;
+  const { error, count } = await sb.from('isochrones_cache').delete({ count: 'exact' }).in('cache_key', [...clesEcrites]);
+  if (error) throw new Error(`nettoyage du cache : ${error.message}`);
+  expect(count).toBe(clesEcrites.size);
+});
 
 const SUITE = 'dépasse ce qu’on peut calculer en direct. Il se lancera en tâche de fond';
 let marine = '';
@@ -55,14 +77,14 @@ describe('bataille V2 — borne technique sans territoire, base locale', () => {
 
   it('lycées sans territoire : 500 POI lus, lecture tronquée → la tâche de fond, AVANT toute lecture du cache', async () => {
     espaceActif = marine;
-    const l = await bataille({ category: 'lycee', metropolitaine: true, paliers: [10, 20], force_battle: true });
+    const l = await bataille({ category: 'lycee', metropolitaine: true, paliers: [10, 20] });
     expect(l).toEqual([{ type: 'error', message: expect.stringContaining(`500 POI ou plus × 2 paliers = ${formaterNombre(1000)} anneaux ou plus`) }]);
     expect(l[0].message).toContain(SUITE);
   });
 
   it('CIRFA sans territoire, 8 paliers : 706 anneaux en cache > 700 → la tâche de fond, chiffrée sur le cache', async () => {
     espaceActif = marine;
-    const l = await bataille({ category: 'cirfa', metropolitaine: true, paliers: [5, 10, 15, 20, 30, 40, 50, 60], force_battle: true });
+    const l = await bataille({ category: 'cirfa', metropolitaine: true, paliers: [5, 10, 15, 20, 30, 40, 50, 60] });
     expect(l.map((x) => x.type)).toEqual(['pois_loaded', 'error']);
     expect(l[1].message).toBe(`Ce calcul (95 POI × 8 paliers : 706 anneaux en cache) ${SUITE} dès le lot « calculs longs » ; `
       + 'en attendant, retirez des paliers ou choisissez une région.');

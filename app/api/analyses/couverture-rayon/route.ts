@@ -27,12 +27,15 @@ import {
 } from '@/lib/zones/couverture';
 import { MESSAGES_REFUS, TYPES_PERIMETRE } from '@/lib/zones/recette';
 import { espaceDeZone } from '@/lib/zones/session-zones';
+import { formaterNombre } from '@/lib/format/nombre';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const quota = createQuota({ max: 6, window: '60 s', prefix: 'geo:rl:couverture-rayon' });
 const ECHEC = 'Calcul de la couverture par rayon impossible.';
+/** Le plafond de POI de `couverture_rayon_poi` (`p_max_poi default 5000`, sql/272), que la route ne passe pas. */
+const PLAFOND_POI_COUVERTURE = 5_000;
 
 /** Les refus de la RPC, dans les phrases déjà écrites pour les zones (T6, recettes) quand elles existent. */
 const MESSAGES = {
@@ -41,7 +44,9 @@ const MESSAGES = {
   perimetre_inconnu: MESSAGES_REFUS.perimetre_inconnu,
   perimetre_trop_grand: MESSAGES_REFUS.perimetre_trop_grand,
   commune_ambigue: MESSAGES_REFUS.commune_ambigue,
-  trop_de_poi: MESSAGES_REFUS.trop_de_poi,
+  // Pas `MESSAGES_REFUS.trop_de_poi` : depuis le 26/10 il dit la capacité de « Autour des POI » (10 000), alors que
+  // `couverture_rayon_poi` garde son plafond de 5 000 (`p_max_poi` par défaut, sql/272). Phrase d'avant, inchangée.
+  trop_de_poi: `Plus de ${formaterNombre(PLAFOND_POI_COUVERTURE)} POI dans le périmètre : resserrez le périmètre.`,
   cible_inconnue: MESSAGES_REFUS_COUVERTURE.cible_inconnue,
   couverture_non_construite: MESSAGES_REFUS_COUVERTURE.couverture_non_construite,
   champ_non_admis: 'Ce champ ne se détaille pas : seule la sous-catégorie est admise.',

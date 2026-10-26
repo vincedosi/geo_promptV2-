@@ -14,7 +14,7 @@
 import type { createAdminClient } from '@/lib/auth';
 import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
 import {
-  CAPACITE_SYNCHRONE_POI_RAYON, MAX_POI_RAYON, MAX_SOMMETS_FORME, MESSAGES_REFUS, refusPerimetreLocal, type Recette, type RefusRecette,
+  CAPACITE_SYNCHRONE_POI_RAYON, MAX_SOMMETS_FORME, MESSAGES_REFUS, refusPerimetreLocal, type Recette, type RefusRecette,
 } from './recette';
 
 type ClientAdmin = ReturnType<typeof createAdminClient>;
@@ -136,12 +136,11 @@ export async function executerRecette(supabase: ClientAdmin, recette: Recette, c
     case 'rayon_poi': {
       const p = recette.perimetre;
       if (!p) return refuser('perimetre_absent');
-      // France métropolitaine : la capacité synchrone mesurée, refaite en base (sql/285) ; ailleurs, le plafond local.
-      const metropole = p.type === 'france' && p.code === 'METRO';
+      // La capacité synchrone mesurée, la même pour tout périmètre, refaite en base (sql/285).
       return lire('zone_rayon_poi', supabase.rpc('zone_rayon_poi', {
         p_categorie: recette.categorie, p_rayon_m: recette.rayon_m,
         p_perimetre_type: p.type, p_perimetre_code: p.code,
-        p_org_id: ctx.orgId, p_sources: ctx.sources, p_max_poi: metropole ? CAPACITE_SYNCHRONE_POI_RAYON : MAX_POI_RAYON,
+        p_org_id: ctx.orgId, p_sources: ctx.sources, p_max_poi: CAPACITE_SYNCHRONE_POI_RAYON,
       }));
     }
     case 'seuil_carreaux': {

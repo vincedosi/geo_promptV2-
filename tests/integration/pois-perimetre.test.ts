@@ -96,6 +96,14 @@ describe('POST /api/map/pois — périmètre, base locale', () => {
     expect(r.map((p) => p.id)).toEqual([idCirfaCp]);
   });
 
+  it('cirfa du 06300 : le CIRFA de Nice, dont le CP était écrit « 6300 » (sql/286)', async () => {
+    const r = await pois({ poi_types: ['cirfa'], code_postal: '06300' });
+    expect(r).toHaveLength(1);
+    const { data, error } = await sb.from('poi_france').select('ville').eq('id', r[0].id).single();
+    if (error) throw new Error(error.message);
+    expect(data.ville).toBe('Nice');
+  });
+
   it('cirfa sur toute la France (outre-mer compris) : 101', async () => {
     expect(await pois({ poi_types: ['cirfa'], scope: 'all' })).toHaveLength(101);
   });
