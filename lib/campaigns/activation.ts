@@ -5,7 +5,7 @@
  * `POST …/activation/pousser` (qui rejoue le même pré-vol avant d'écrire quoi que ce soit) : un seul jeu de règles,
  * deux routes qui ne peuvent pas se contredire. Les lectures vivent dans `lib/campaigns/etat-activation.ts`.
  *
- * - `sourceDuPlan` : d'où viennent les CP poussés — une zone (`zone_id`, chemin d'avant le lot 7) ou une extraction
+ * - `sourceDePoussee` : d'où viennent les CP poussés — une zone (`zone_id`, chemin d'avant le lot 7) ou une extraction
  *   (`in_zone_weights.extraction_id`, écrite par `rattacher` en ⑥ — E1).
  * - `modePoussee` : réel, simulé (campagne de démo sans connexion DV360 active — E3, A-3) ou indisponible.
  * - `motifsPrevol` : les raisons de ne pas pousser, avec un CODE (E4) ; leurs messages restent les `blocages` lus par
@@ -38,7 +38,7 @@ const STATUTS_INUTILISABLES = new Set(['error', 'revoked']);
  * @param s - `bidding_strategies.zone_id` et `in_zone_weights`, tels que la base les rend.
  * @returns `null` si la stratégie ne porte ni zone ni extraction lisible (jamais d'exception).
  */
-export function sourceDuPlan(s: { zone_id: string | null; in_zone_weights: unknown }): SourceActivation | null {
+export function sourceDePoussee(s: { zone_id: string | null; in_zone_weights: unknown }): SourceActivation | null {
   if (s.zone_id) return { type: 'zone', zoneId: s.zone_id };
   const w = s.in_zone_weights;
   if (!w || typeof w !== 'object' || Array.isArray(w)) return null;

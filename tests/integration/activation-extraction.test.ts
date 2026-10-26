@@ -190,6 +190,19 @@ describe('⑦ campagne lancée depuis l’extraction v1 du jeu de zone de la pre
     expect((await historique(campagne)).find((l) => l.id === lotV1)).toMatchObject({ mode: 'simule', statut: 'termine' });
   }, LONG);
 
+  it('un super_admin dont l’espace actif est AUTRE que celui de l’extraction : 404, aucun lot (relecture 1, I-1)', async () => {
+    appelant.org = orgEssai;
+    try {
+      const avant = nLots(campagne);
+      const p = await prevolRoute.GET(new NextRequest(`http://localhost/api/campaigns/${campagne}/activation/prevol`), pC(campagne));
+      expect(p.status).toBe(404);
+      expect(await p.json()).toEqual({ error: 'Extraction introuvable dans cet espace.' });
+      const r = await pousser(campagne, ['111']);
+      expect(r.status).toBe(404);
+      expect(nLots(campagne)).toBe(avant);
+    } finally { appelant.org = ORG_JEU; }
+  }, LONG);
+
   it('campagne relancée en ⑥ (nouveau rattachement) : `jamais_publiee`, l’ancien lot reste listé (Review Focus 4)', async () => {
     const { strategie } = await lier(JEU, campagne, EXTRACTION);
     const p = await prevol(campagne);
@@ -276,6 +289,16 @@ describe('⑦ extraction Meta + TikTok seuls (Review Focus 1)', () => {
     expect(lignes.at(-1)).toMatchObject({ etape: 'fin', statut: 'termine' });
     expect(psql(`select etat_avant->>'zone_id' from public.activation_cibles c join public.activation_lots l on l.id = c.lot_id
       where l.campaign_id = '${campagne}';`)).toBe(zone);
+
+    // Relecture 1 (I-1) : vue depuis un AUTRE espace actif, la zone est introuvable — 404, rien d'écrit.
+    appelant.org = ORG_JEU;
+    const avant = nLots(campagne);
+    const refus = await prevolRoute.GET(new NextRequest(`http://localhost/api/campaigns/${campagne}/activation/prevol`), pC(campagne));
+    expect(refus.status).toBe(404);
+    expect(await refus.json()).toEqual({ error: 'Zone introuvable.' });
+    const r = await pousser(campagne, ['333']);
+    expect(r.status).toBe(404);
+    expect(nLots(campagne)).toBe(avant);
   }, LONG);
 });
 

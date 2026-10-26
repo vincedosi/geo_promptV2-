@@ -22,6 +22,23 @@ import type { ClientAdmin } from '@/lib/zones/plan-extraction';
 /** Garde-fou : au-delà, passer par l'export fichier (bulkEdit DV360 plafonne les opérations par requête). */
 export const MAX_GEO_IDS_PER_PUSH = 2000;
 
+/**
+ * Délai de la résolution du jeton Google (rafraîchissement OAuth ou compte de service). `google-auth-library` n'en
+ * pose aucun : un point de jeton qui ne répond plus bloquait la boucle de `pousser` sur la première cible, et le
+ * `finally` qui clôt le lot n'était jamais atteint (relecture 1 du lot 7, I-2). L'appel bulkEdit, lui, est borné par
+ * `fetchAvecDelai` dans `bulkAssignGeoRegions`. Avant le lot 7, `fetchAvecDelai(…, 60 s)` bornait la cible entière.
+ */
+export const DELAI_JETON_GOOGLE_MS = 30_000;
+
+/** Une promesse bornée : au-delà de `ms`, elle rejette avec un message qui nomme l'étape. */
+function avecDelai<T>(promesse: Promise<T>, ms: number, etape: string): Promise<T> {
+  let minuterie: ReturnType<typeof setTimeout> | undefined;
+  const delai = new Promise<never>((_, rejeter) => {
+    minuterie = setTimeout(() => rejeter(new Error(`${etape} : aucune réponse après ${ms / 1000} s.`)), ms);
+  });
+  return Promise.race([promesse, delai]).finally(() => clearTimeout(minuterie));
+}
+
 /** `reel` : le ciblage part chez Google ; `simule` : mêmes contrôles et mêmes comptes, aucun appel sortant. */
 export type ModePoussee = 'reel' | 'simule';
 
@@ -106,7 +123,9 @@ export async function pousserCiblageDv360(p: ParametresPoussee): Promise<IssuePo
 
   const started = Date.now();
   try {
-    const token = await resolveAccessToken(conn as Dv360ConnectionRow);
+    const token = await avecDelai(
+      resolveAccessToken(conn as Dv360ConnectionRow), DELAI_JETON_GOOGLE_MS, 'Jeton Google DV360',
+    );
     const result = await bulkAssignGeoRegions(token, advertiserId, lineItemId, mapped.map((m) => m.geo_id));
     await logDspEvent({
       orgId, provider: 'dv360', category: 'api_call', action: 'push_geo_targeting',

@@ -2,27 +2,27 @@
  * La logique pure du pré-vol de ⑦ Activation (lot 7, T1) : source des CP poussés, mode de la poussée, motifs.
  */
 import { describe, expect, it } from 'vitest';
-import { modePoussee, motifsPrevol, sourceDuPlan, type EntreeMotifs } from '@/lib/campaigns/activation';
+import { modePoussee, motifsPrevol, sourceDePoussee, type EntreeMotifs } from '@/lib/campaigns/activation';
 
 const EXTRACTION = '2fc8fd52-cacf-44c4-9071-fae8c782f09e';
 const ZONE = '11111111-2222-4333-8444-555555555555';
 
-describe('sourceDuPlan', () => {
+describe('sourceDePoussee', () => {
   it('une stratégie à zone : la zone (chemin d’avant le lot 7), même si une extraction est nommée', () => {
-    expect(sourceDuPlan({ zone_id: ZONE, in_zone_weights: { extraction_id: EXTRACTION } }))
+    expect(sourceDePoussee({ zone_id: ZONE, in_zone_weights: { extraction_id: EXTRACTION } }))
       .toEqual({ type: 'zone', zoneId: ZONE });
   });
   it('sans zone, l’extraction de `in_zone_weights.extraction_id` (écrite par rattacher en ⑥)', () => {
-    expect(sourceDuPlan({ zone_id: null, in_zone_weights: { mode: 'zone_set', extraction_id: EXTRACTION } }))
+    expect(sourceDePoussee({ zone_id: null, in_zone_weights: { mode: 'zone_set', extraction_id: EXTRACTION } }))
       .toEqual({ type: 'extraction', extractionId: EXTRACTION });
   });
   it('ni zone ni extraction : null', () => {
-    expect(sourceDuPlan({ zone_id: null, in_zone_weights: { mode: 'zone_set', zone_set_id: ZONE } })).toBeNull();
-    expect(sourceDuPlan({ zone_id: null, in_zone_weights: {} })).toBeNull();
+    expect(sourceDePoussee({ zone_id: null, in_zone_weights: { mode: 'zone_set', zone_set_id: ZONE } })).toBeNull();
+    expect(sourceDePoussee({ zone_id: null, in_zone_weights: {} })).toBeNull();
   });
   it('`in_zone_weights` illisible : null, jamais d’exception', () => {
     for (const w of [null, undefined, 'texte', 42, [EXTRACTION], { extraction_id: 12 }, { extraction_id: 'pas-un-uuid' }]) {
-      expect(sourceDuPlan({ zone_id: null, in_zone_weights: w })).toBeNull();
+      expect(sourceDePoussee({ zone_id: null, in_zone_weights: w })).toBeNull();
     }
   });
 });

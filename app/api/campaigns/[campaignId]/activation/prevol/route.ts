@@ -73,13 +73,17 @@ export async function GET(
   if (acces !== 'ok') return NextResponse.json({ error: 'Campagne introuvable.' }, { status: 404 });
 
   // ── Le pré-vol : les mêmes lectures et les mêmes règles que `pousser` (lot 7, T1) ──────────
-  let etat: EtatActivation;
+  let lu: Awaited<ReturnType<typeof lireEtatActivation>>;
   try {
-    etat = await lireEtatActivation(supabase, campaignId, orgId, isSuperAdmin(profile));
+    lu = await lireEtatActivation(supabase, campaignId, orgId, isSuperAdmin(profile));
   } catch (e) {
     console.error('[prevol]', e instanceof Error ? e.message : e);
     return NextResponse.json({ error: 'Erreur base de données.' }, { status: 500 });
   }
+  // Zone ou extraction d'un autre espace que l'espace ACTIF : 404, comme `targeting/push` avant le lot 7, et rien
+  // n'est écrit (relecture 1 du lot 7, I-1).
+  if ('horsEspace' in lu) return NextResponse.json({ error: lu.horsEspace }, { status: 404 });
+  const etat: EtatActivation = lu;
   const { strategie } = etat;
 
   // ── Ce qui serait poussé : les codes postaux de la campagne ───────────

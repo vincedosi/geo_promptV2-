@@ -149,13 +149,17 @@ export async function POST(
   // Le client a pu l'appeler, mais on ne pousse pas sur la foi d'un appel
   // client : une zone a pu bouger entre son pré-vol et son clic. Mêmes
   // lectures et mêmes règles que `prevol` (lot 7, T1).
-  let etat: EtatActivation;
+  let lu: Awaited<ReturnType<typeof lireEtatActivation>>;
   try {
-    etat = await lireEtatActivation(supabase, campaignId, orgId, true);
+    lu = await lireEtatActivation(supabase, campaignId, orgId, true);
   } catch (e) {
     console.error('[activation/pousser] pré-vol:', e instanceof Error ? e.message : e);
     return NextResponse.json({ error: 'Erreur base de données.' }, { status: 500 });
   }
+  // Zone ou extraction d'un autre espace que l'espace ACTIF : 404, comme `targeting/push` avant le lot 7, et rien
+  // n'est écrit (relecture 1 du lot 7, I-1).
+  if ('horsEspace' in lu) return NextResponse.json({ error: lu.horsEspace }, { status: 404 });
+  const etat: EtatActivation = lu;
   if (etat.motifs.length) return refusPrevol(etat);
   // Activable : stratégie, version publiée, source et mode `reel`/`simule` sont établis.
   const version = etat.versionPubliee as number;

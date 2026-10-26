@@ -16,7 +16,7 @@ import { lireCodesDeZone } from '@/lib/custom-geo/codes-zone';
 import { lireCpPlateforme } from '@/lib/zones/cp-plateforme';
 import type { ClientAdmin } from '@/lib/zones/plan-extraction';
 import {
-  modePoussee, motifsPrevol, sourceDuPlan, type ModeDv360, type Motif, type SourceActivation,
+  modePoussee, motifsPrevol, sourceDePoussee, type ModeDv360, type Motif, type SourceActivation,
 } from '@/lib/campaigns/activation';
 
 interface StrategieActivation {
@@ -38,6 +38,14 @@ export interface EtatActivation {
   motifs: Motif[];
 }
 
+/**
+ * La zone ou l'extraction du plan n'appartient pas à l'espace de l'appelant : la route répond 404 AVANT toute
+ * écriture. La campagne a beau être accessible (un super_admin les voit toutes), la poussée part avec la connexion
+ * DV360 de l'espace ACTIF — pousser les CP d'un autre espace avec elle est refusé, comme le faisait `targeting/push`
+ * avant le lot 7 (« Zone introuvable. »). Relecture 1 du lot 7, I-1.
+ */
+export interface HorsEspace { horsEspace: string }
+
 /** Une lecture a échoué : l'appelant répond 500, il ne devine pas un pré-vol. */
 class ErreurEtatActivation extends Error {}
 
@@ -49,11 +57,12 @@ const lu = <T>(etape: string, r: { data: T; error: { message: string } | null })
 /**
  * Lit l'état d'activation d'une campagne dont l'accès a DÉJÀ été vérifié (`checkCampaignAccess`).
  *
+ * @returns L'état, ou {@link HorsEspace} si la zone ou l'extraction du plan est d'un autre espace que `orgId`.
  * @throws {ErreurEtatActivation} Si une lecture échoue (y compris un plafond de lecture paginée franchi).
  */
 export async function lireEtatActivation(
   supabase: ClientAdmin, campaignId: string, orgId: string, superAdmin: boolean,
-): Promise<EtatActivation> {
+): Promise<EtatActivation | HorsEspace> {
   const strategie = lu('stratégie', await supabase
     .from('bidding_strategies')
     .select('id, name, status, scope_type, zone_id, forecast_cpm, total_budget, in_zone_weights')
@@ -64,7 +73,23 @@ export async function lireEtatActivation(
 
   let versionPubliee: number | null = null;
   let modifiees: string[] = [];
-  const source = strategie ? sourceDuPlan(strategie) : null;
+  const source = strategie ? sourceDePoussee(strategie) : null;
+
+  // ── L'espace de la source, vérifié AVANT toute autre lecture (I-1) ──────
+  let extraction: EtatActivation['extraction'] = null;
+  if (source?.type === 'zone') {
+    const zone = lu('zone', await supabase
+      .from('custom_geo_zones').select('org_id').eq('id', source.zoneId).maybeSingle());
+    if (!zone || zone.org_id !== orgId) return { horsEspace: 'Zone introuvable.' };
+  } else if (source?.type === 'extraction') {
+    extraction = lu('extraction', await supabase
+      .from('zone_set_extractions').select('id, zone_set_id, version').eq('id', source.extractionId).maybeSingle());
+    if (extraction) {
+      const jeu = lu('jeu', await supabase
+        .from('zone_sets').select('org_id').eq('id', extraction.zone_set_id).maybeSingle());
+      if (!jeu || jeu.org_id !== orgId) return { horsEspace: 'Extraction introuvable dans cet espace.' };
+    }
+  }
 
   if (strategie) {
     const derniere = lu('version publiée', await supabase
@@ -94,15 +119,12 @@ export async function lireEtatActivation(
     .from('dsp_campaigns').select('is_demo').eq('id', campaignId).maybeSingle());
   const mode = modePoussee(connexions, campagne?.is_demo === true);
 
-  let extraction: EtatActivation['extraction'] = null;
   let cpsDv360: string[] = [];
   try {
     if (source?.type === 'zone') {
       cpsDv360 = await lireCodesDeZone(supabase, source.zoneId, 'cp');
-    } else if (source?.type === 'extraction') {
-      extraction = lu('extraction', await supabase
-        .from('zone_set_extractions').select('id, zone_set_id, version').eq('id', source.extractionId).maybeSingle());
-      if (extraction) cpsDv360 = (await lireCpPlateforme(supabase, extraction.id, 'dv360')).map((l) => l.code_postal);
+    } else if (extraction) {
+      cpsDv360 = (await lireCpPlateforme(supabase, extraction.id, 'dv360')).map((l) => l.code_postal);
     }
   } catch (e) {
     if (e instanceof ErreurEtatActivation) throw e;
