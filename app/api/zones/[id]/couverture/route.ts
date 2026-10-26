@@ -13,7 +13,8 @@
  * client : c'est lui seul qui part en `p_org_id` (Review Focus 1). Les RLS sont dormantes (service_role) : le contrôle
  * d'espace est dans les deux RPC, sur ce `p_org_id`.
  *
- * Quota (A-16, correction R-4) : 6 / min / compte, partagé avec `croisements` (T13), consommé APRÈS la lecture du
+ * Quota (A-16, correction R-4) : 6 / min / compte (`quotaCouverture`), partagé avec les contours de communes de ⑤
+ * (`/api/zones/communes/contours`), consommé APRÈS la lecture du
  * cache — un chiffrage en cache ne coûte pas de jeton. Au pire (ARA par IRIS ≈ 68 000 accès mesurés en T5 ; 347 000 dans le plan), ≈ 2,1 M accès / min /
  * compte. Statuts des refus : `lib/zones/couverture.ts`.
  */

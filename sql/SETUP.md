@@ -165,7 +165,7 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `carreaux_de_forme()` | 269 | LA règle « carreaux d'une forme » (centroïde, `ST_Subdivide` + `ST_Intersects` + `distinct on`), inlinée dans ses deux appelants |
 | `courbes_par_palier()` | 272 | Mise en forme commune des courbes de couverture par rayon (cumul, grille, incréments) |
 | `couverture_rayon_poi()` | 272 | Couverture par rayon autour de tout type de POI, sans pré-calcul (`jsonb`, ≤ 12 000 km², ≤ 5 000 POI) |
-| `croisements_zone()` | 273 | Radio et trafic d'une zone de l'espace (`jsonb`, listes bornées, ≤ 100 000 km²) |
+| `croisements_zone()` | 273, 284 | Radio et trafic d'une zone de l'espace (`jsonb`, listes bornées, ≤ 100 000 km²). **Retirée du code le 2026-10-26** (retours du 26/10, T5) : plus aucun appelant ; sql/284 (`drop function if exists`) est écrite mais NON APPLIQUÉE, elle s'applique au merge dans `feat/angular-lot0` |
 | `carreaux_de_forme_codes()` | 275 | La jumelle qui porte le corps de `carreaux_de_forme` (devenue enveloppe) : mêmes carreaux, quatre codes (CP, IRIS, commune, département) |
 | `denominateur_construit_le()` | 275 | Date de construction du dénominateur d'un découpage (CP, IRIS, commune, département), lue par la couverture et son cache |
 | `couverture_geometrie()` · `couverture_zone_en_cache()` | 275 | Découpages `commune` et `departement` (maille TikTok) ; le CHECK de `couverture_zone_cache` les admet |

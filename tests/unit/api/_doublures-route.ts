@@ -1,5 +1,5 @@
 /**
- * Doublures communes des tests de route de ④ (couverture, croisements, couverture par rayon) : la session, le quota et
+ * Doublures communes des tests de route de ④ (couverture, couverture par rayon) : la session, le quota et
  * le client admin, tenus dans `etat`. Chaque fichier les charge par `vi.mock(module, () => import('./_doublures-route'))`
  * pour `@/lib/api/middleware`, `@/lib/api/rate-limit` et `@/lib/auth` — un seul module, des exports en trop sans effet.
  */

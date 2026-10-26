@@ -82,27 +82,6 @@ export interface ResultatCouverture {
   zone_maj: string;
 }
 
-/** La réponse 200 de `GET /api/zones/[id]/croisements` (sql/273, T13) : listes bornées, compteurs = totaux. */
-export interface ResultatCroisements {
-  /** La version de la forme lue (sql/273) : un chiffrage d'une autre version périme cette liste. */
-  zone_maj: string;
-  radio: {
-    n_emetteurs: number;
-    /** Émetteurs dans la zone sans rayon de couverture : non comptés dans `n_emetteurs`. */
-    n_sans_rayon: number;
-    /** `lieu` : lieu-dit ou adresse du site (« Pylône TDF »), jamais une commune. */
-    emetteurs: Array<{ site: string; lieu: string | null; stations: string[] }>;
-    tronque: boolean;
-  };
-  trafic: {
-    n_comptages: number;
-    tmja_max: number | null;
-    tmja_median: number | null;
-    comptages: Array<{ route: string; tmja: number; annee_mesure: number }>;
-    tronque: boolean;
-  };
-}
-
 /**
  * `?couverture=<cible>.<decoupage>` → cible et découpage DE ④ (`DECOUPAGES_ANALYSE`). Absent ou illisible : les
  * défauts. Ne lève jamais.

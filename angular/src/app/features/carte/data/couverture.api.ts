@@ -1,12 +1,11 @@
 import { Injectable } from '@angular/core';
 import type { Observable } from 'rxjs';
 import { HttpBaseService } from '../../../core/http/http-base.service';
-import type { Decoupage, ResultatCouverture, ResultatCroisements } from '../logique/analyses/couverture';
+import type { Decoupage, ResultatCouverture } from '../logique/analyses/couverture';
 import type { ResultatCouvertureRayon } from '../logique/analyses/couverture-rayon';
 
 /**
  * ④ Analyse — la couverture d'une zone enregistrée (lot 4, T7) : `GET /api/zones/[id]/couverture?cible=&decoupage=` ;
- * sa radio et son trafic (T13) : `GET /api/zones/[id]/croisements` ;
  * et la couverture par rayon autour d'un type de POI (T12) : `GET /api/analyses/couverture-rayon?<requeteRayon>`.
  * Un refus arrive en erreur HTTP (404 zone hors espace, 422 borne, 503 base non construite, 429 quota) avec
  * `{ error, refus }` ; `messageErreurCouverture` le lit.
@@ -19,10 +18,6 @@ export class CouvertureApi extends HttpBaseService {
   couverture(zoneId: string, cible: string, decoupage: Decoupage): Observable<ResultatCouverture> {
     const p = new URLSearchParams({ cible, decoupage });
     return this.httpClient.get<ResultatCouverture>(`${this.baseUrl}/zones/${encodeURIComponent(zoneId)}/couverture?${p.toString()}`);
-  }
-
-  croisements(zoneId: string): Observable<ResultatCroisements> {
-    return this.httpClient.get<ResultatCroisements>(`${this.baseUrl}/zones/${encodeURIComponent(zoneId)}/croisements`);
   }
 
   /** `requete` : la chaîne de `requeteRayon` (logique/analyses/couverture-rayon.ts). */

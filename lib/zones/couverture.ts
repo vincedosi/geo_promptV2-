@@ -18,8 +18,10 @@ import { formaterNombre } from '@/lib/format/nombre';
 import { MESSAGES_REFUS } from './recette';
 
 /**
- * Le quota `geo:rl:couverture`, 6 / min / compte, PARTAGÉ par les deux lectures d'une zone de ④ : sa couverture (T6)
- * et sa radio et son trafic (T13). Un seul limiteur : deux déclarations du même préfixe pourraient diverger.
+ * Le quota `geo:rl:couverture`, 6 / min / compte, PARTAGÉ par deux lectures : la couverture d'une zone de ④
+ * (`/api/zones/[id]/couverture`, T6) et les contours de communes de ⑤ (`/api/zones/communes/contours`). Un seul
+ * limiteur : deux déclarations du même préfixe pourraient diverger. La radio et le trafic de la zone (T13), qui le
+ * partageaient aussi, ont été retirés le 2026-10-26 (retours du 26/10, T5).
  */
 export const quotaCouverture = createQuota({ max: 6, window: '60 s', prefix: 'geo:rl:couverture' });
 
@@ -72,8 +74,7 @@ export const MESSAGES_REFUS_COUVERTURE: Readonly<Record<RefusCouverture, string>
 };
 
 /**
- * La réponse d'une RPC de couverture (`couverture_zone`, `couverture_zone_en_cache`, `couverture_rayon_poi`,
- * `croisements_zone`) en HTTP : 200 le chiffrage ; un refus de `messages` en `{ error, refus, …détails }` (`plafond`,
+ * La réponse d'une RPC de couverture (`couverture_zone`, `couverture_zone_en_cache`, `couverture_rayon_poi`) en HTTP : 200 le chiffrage ; un refus de `messages` en `{ error, refus, …détails }` (`plafond`,
  * `surface_km2`, `motif`…) au statut de l'en-tête — 404, 503, sinon 422 ; erreur Postgres ou hors contrat (refus
  * inconnu, pas un objet) : journalisée, 500 `echec`. Avec `invalide`, une erreur 22023 (argument que Zod n'a pas vu :
  * la requête est fausse, pas le serveur) répond 400.

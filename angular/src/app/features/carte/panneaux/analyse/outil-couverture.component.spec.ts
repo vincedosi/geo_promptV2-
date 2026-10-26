@@ -9,7 +9,6 @@ import { ZonesCustomApi } from '../../data/zones-custom.api';
 import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
 import type { ResultatCouverture } from '../../logique/analyses/couverture';
-import { croisementsFactices } from '../../testing/couverture-factice';
 import { OutilCouvertureComponent } from './outil-couverture.component';
 
 const A = '0f8fad5b-d9cb-469f-a165-70867728950e';
@@ -25,7 +24,7 @@ function zoneFactice(zone: string | null) {
   const z = {
     zoneId: signal(zone), cible: signal('ind'), decoupage: signal<ResultatCouverture['decoupage']>('forme'),
     resultat: signal<ResultatCouverture | null>(null), enCours: signal(false), erreur: signal<string | null>(null),
-    chiffrer: vi.fn(), choisir: vi.fn(), ...croisementsFactices(vi.fn()),
+    chiffrer: vi.fn(), choisir: vi.fn(),
     regler: vi.fn((r: { cible?: string; decoupage?: ResultatCouverture['decoupage'] }) => {
       if (r.decoupage) z.decoupage.set(r.decoupage);
       if (r.cible) z.cible.set(r.cible);
@@ -162,26 +161,12 @@ describe('mg-outil-couverture (lot 4, T8)', () => {
     expect(cibles).toHaveBeenCalledTimes(1);
   });
 
-  it('T13 : « Dans cette zone » sous le résultat dès qu’une zone est choisie, sans lecture ; absent sans zone', async () => {
+  it('retours du 26/10, T5 : plus de bloc « Dans cette zone » (radio et trafic), même avec une zone et un résultat', async () => {
     const { el, z, stable } = await monter();
     z.resultat.set(BASE);
     await stable();
-    const bloc = el.querySelector('mg-croisements-zone')!;
-    expect(el.querySelector('[data-resultat]')!.compareDocumentPosition(bloc) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(z.lireCroisements).not.toHaveBeenCalled();
-    z.zoneId.set(null);
-    await stable();
-    expect(el.querySelector('mg-croisements-zone')).toBeNull();
-  });
-
-  it('T13, ronde 2 (I3) : la radio et le trafic refusés pour zone introuvable — la zone part, le message RESTE à l’écran', async () => {
-    const { el, z, stable } = await monter();
-    z.croisements.erreur.set('Zone introuvable dans cet espace.');
-    await stable();
-    expect(el.querySelectorAll('[data-erreur]')).toHaveLength(1); // zone présente : le bloc le dit, une seule fois
-    z.zoneId.set(null);
-    await stable();
-    expect(el.querySelector('[data-erreur]')!.textContent).toContain('Zone introuvable dans cet espace');
+    expect(el.textContent).not.toContain('Dans cette zone');
+    expect(el.textContent).not.toContain('Voir la radio et le trafic');
   });
 
   it('Q2 : couche retirée de la carte → la ligne le dit, « Afficher sur la carte » la remet (sans re-chiffrer)', async () => {
