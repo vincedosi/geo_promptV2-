@@ -76,7 +76,10 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 - **Le panneau** `mg-panneau-donnees` remplace l'ancien « Calques » : « Actifs (n) », les actions POI, « Chercher un
   jeu », « Données de l'espace » (ses types de POI, ou « Cet espace n'a importé aucune donnée. »), « Données
   communes » (la sélection recommandée de l'espace) et, replié, « Plus de données communes (n) ». Sans sélection — ou
-  une sélection qui ne désigne aucun jeu présent — tout est déplié et le repli n'existe pas.
+  une sélection qui ne désigne aucun jeu présent — tout est déplié et le repli n'existe pas. Dans chacune des deux
+  listes communes, les types de POI de source commune (lycées, CIRFA…, sans liste écrite : la clé `poi:`) suivent les
+  référentiels dans un sous-groupe repliable « POI communs (n) » (`decouperCommuns`, retours du 26/10, T6) : fermé par
+  défaut, déplié par une case cochée ou une recherche, absent sans POI commun.
 - **Les jeux** : `logique/jeux-carte.ts` (registre, copie de `lib/carte/jeux-carte.ts`) — 8 référentiels communs (IRIS,
   carreaux, indicateurs CP, transport, TMJA, ICPE et PPRT, santé, météo) plus les types de POI ; OOH et radio vivent
   dans `JEUX_AUTRES`, jamais dans ②. `logique/rangement-jeux.ts` les range ; la recherche filtre APRÈS le rangement.

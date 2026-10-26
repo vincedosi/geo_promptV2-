@@ -10,7 +10,7 @@
  */
 import { plierTexte } from '../../../core/format/texte';
 import type { TypePoi } from '../etat/catalogue-poi.service';
-import { CATEGORIES_HORS_POI, JEUX_REFERENTIELS, type NatureJeu, cleJeuPoi } from './jeux-carte';
+import { CATEGORIES_HORS_POI, JEUX_REFERENTIELS, type NatureJeu, PREFIXE_POI, cleJeuPoi } from './jeux-carte';
 
 export interface JeuAffichable {
   readonly cle: string;
@@ -52,6 +52,19 @@ export function rangerJeux(jeux: readonly JeuAffichable[], recommandes: readonly
   const reco = communs.filter((j) => choisis.has(j.cle));
   if (reco.length === 0) return { espace, recommandes: communs, autres: [], sansSelection: true };
   return { espace, recommandes: reco, autres: communs.filter((j) => !choisis.has(j.cle)), sansSelection: false };
+}
+
+/**
+ * Découpe une liste de jeux communs (recommandés, ou « Plus de données communes ») en référentiels et POI (retours du
+ * 26/10, T6) : le panneau range les seconds dans un sous-groupe « POI communs ». Par la clé `poi:<catégorie>`
+ * (`PREFIXE_POI`, celle que `jeuxDeLaCarte` donne à tout type de POI), jamais par une liste de catégories : tout type
+ * importé depuis une source commune y entre seul. PAS par `nature === 'poi'`, comme l'écrivait le plan : deux
+ * référentiels (« Arrêts de transport », « Sites industriels (ICPE) ») sont aussi de nature `poi`, et ils déplient
+ * une section, ils ne se cochent pas. Ordre conservé. Pur.
+ */
+export function decouperCommuns(jeux: readonly JeuAffichable[]): { referentiels: JeuAffichable[]; pois: JeuAffichable[] } {
+  const estTypePoi = (j: JeuAffichable) => j.cle.startsWith(PREFIXE_POI);
+  return { referentiels: jeux.filter((j) => !estTypePoi(j)), pois: jeux.filter(estTypePoi) };
 }
 
 /** « Chercher un jeu par nom » (spec § 4 ②) : sans casse ni accents (`plierTexte`) ; une recherche vide rend tout. */

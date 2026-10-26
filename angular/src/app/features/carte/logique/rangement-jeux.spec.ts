@@ -1,4 +1,5 @@
-import { filtrerJeux, jeuxDeLaCarte, rangerJeux } from './rangement-jeux';
+import { JEUX_REFERENTIELS } from './jeux-carte';
+import { decouperCommuns, filtrerJeux, jeuxDeLaCarte, rangerJeux } from './rangement-jeux';
 
 const types = [
   { id: 'bmw', label: 'Concessions BMW', origine: 'espace' as const },
@@ -43,6 +44,14 @@ describe('rangement des jeux de ②', () => {
     const r = rangerJeux(jeuxDeLaCarte(types), ['poi:bmw', 'meteo:zones']);
     expect(r.espace.map((x) => x.cle)).toEqual(['poi:bmw']);
     expect(r.recommandes.map((x) => x.cle)).toEqual(['meteo:zones']);
+  });
+  it('decouperCommuns : référentiels d’un côté (arrêts et ICPE compris, bien que de nature « poi »), types de POI de l’autre, ordre conservé ; sans POI, liste vide', () => {
+    const communs = rangerJeux(jeuxDeLaCarte([...types, { id: 'cirfa', label: 'CIRFA', origine: 'commune' as const }]), []).recommandes;
+    const d = decouperCommuns(communs);
+    expect(d.referentiels.map((x) => x.cle)).toEqual(JEUX_REFERENTIELS.map((j) => j.cle));
+    expect(d.pois.map((x) => x.cle)).toEqual(['poi:lycee', 'poi:cirfa']);
+    expect(decouperCommuns(d.referentiels).pois).toEqual([]);
+    expect(decouperCommuns([])).toEqual({ referentiels: [], pois: [] });
   });
   it('filtrerJeux : sans casse ni accents, vide = tout', () => {
     const j = jeuxDeLaCarte(types);

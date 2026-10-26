@@ -15,7 +15,7 @@ import { JeuxRecommandesService } from '../../etat/jeux-recommandes.service';
 import { RisqueCarteService } from '../../etat/risque-carte.service';
 import { libelleDegrade } from '../../logique/degrades';
 import { PREFIXE_POI } from '../../logique/jeux-carte';
-import { type JeuAffichable, filtrerJeux, jeuxDeLaCarte, rangerJeux } from '../../logique/rangement-jeux';
+import { type JeuAffichable, decouperCommuns, filtrerJeux, jeuxDeLaCarte, rangerJeux } from '../../logique/rangement-jeux';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { SectionCarreauxComponent } from '../calques/section-carreaux.component';
 import { SectionCiviqueComponent } from '../calques/section-civique.component';
@@ -46,6 +46,18 @@ interface LigneVue {
   readonly indice: string | null;
 }
 
+type CleBloc = 'recommandes' | 'autres';
+
+/** Une liste de « Données communes » : ses référentiels, puis son sous-groupe « POI communs » (retours du 26/10, T6). */
+interface BlocCommun {
+  readonly cle: CleBloc;
+  readonly referentiels: readonly LigneVue[];
+  readonly pois: readonly LigneVue[];
+  /** Le sous-groupe est déplié : ouvert à la main, ou une de ses cases cochée, ou une recherche tapée. */
+  readonly poisVisibles: boolean;
+  readonly total: number;
+}
+
 const SANTE = 'sante:air-pollen';
 const estPoi = (cle: string) => cle.startsWith(PREFIXE_POI);
 
@@ -59,6 +71,10 @@ const estPoi = (cle: string) => cle.startsWith(PREFIXE_POI);
  * 3. « Données communes » : la sélection recommandée de l'espace d'abord (`JeuxRecommandesService`), le reste replié
  *    dans « Plus de données communes (n) » (ruling contrôleur : « Autres » ne désigne que le bouton hors fil). Aucune
  *    sélection, une sélection périmée ou une lecture en échec : tout est visible, sans repli (`rangerJeux`).
+ *    Dans chacune de ces deux listes, les types de POI communs (lycées, CIRFA… : toute catégorie de source commune,
+ *    par sa nature, sans liste écrite) suivent les référentiels dans un sous-groupe « POI communs (n) »
+ *    (`decouperCommuns`, retours du 26/10, T6). Fermé par défaut ; déplié si l'une de ses cases est cochée ou si une
+ *    recherche est tapée ; absent s'il n'a aucun POI. C'est un repli de LISTE : ses lignes ne lisent rien.
  *
  * Chaque jeu est une ligne uniforme (`mg-ligne-jeu`, arbitrage A12) : un type de POI se COCHE (la sélection reste
  * `EtatCarteService.poiSelectionnes`, ordre gardé) ; un référentiel se DÉPLIE sur sa section existante, en-tête interne
@@ -144,25 +160,39 @@ const estPoi = (cle: string) => cle.startsWith(PREFIXE_POI);
         <p class="m-0 px-[14px] py-2 text-[12px] text-tertiary">Lecture de la sélection…</p>
       } @else {
         <p data-precision class="m-0 px-[14px] pb-1.5 pt-2 text-[11px] text-tertiary">{{ precision() }}</p>
-        @for (l of vue().recommandes; track l.jeu.cle) {
-          <ng-container [ngTemplateOutlet]="ligne" [ngTemplateOutletContext]="{ $implicit: l }" />
-        }
+        <ng-container [ngTemplateOutlet]="blocCommun" [ngTemplateOutletContext]="{ $implicit: vue().recommandes }" />
         @if (aucunCommun()) {
           <p data-commun-vide class="m-0 px-[14px] py-2 text-[12px] text-tertiary">Aucun jeu commun ne correspond.</p>
         } @else if (!vue().sansSelection) {
           <button type="button" data-repli-autres [attr.aria-expanded]="plusVisibles()" (click)="plusOuverts.set(!plusOuverts())"
             class="flex w-full cursor-pointer items-center gap-1.5 border-0 border-t-fin border-subtle bg-transparent px-[14px] py-2 text-left text-[12px] text-secondary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--brand-teal-50)]">
             <span aria-hidden="true" class="w-2.5 text-tertiary">{{ plusVisibles() ? '▾' : '▸' }}</span>
-            Plus de données communes ({{ vue().autres.length }})
+            Plus de données communes ({{ vue().autres.total }})
           </button>
           @if (plusVisibles()) {
-            @for (l of vue().autres; track l.jeu.cle) {
-              <ng-container [ngTemplateOutlet]="ligne" [ngTemplateOutletContext]="{ $implicit: l }" />
-            }
+            <ng-container [ngTemplateOutlet]="blocCommun" [ngTemplateOutletContext]="{ $implicit: vue().autres }" />
           }
         }
       }
     </section>
+
+    <ng-template #blocCommun let-b>
+      @for (l of b.referentiels; track l.jeu.cle) {
+        <ng-container [ngTemplateOutlet]="ligne" [ngTemplateOutletContext]="{ $implicit: l }" />
+      }
+      @if (b.pois.length > 0) {
+        <button type="button" [attr.data-poi-communs]="b.cle" [attr.aria-expanded]="b.poisVisibles" (click)="basculerPoisCommuns(b.cle)"
+          class="flex w-full cursor-pointer items-center gap-1.5 border-0 border-t-fin border-subtle bg-transparent px-[14px] py-2 text-left text-[12px] text-secondary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--brand-teal-50)]">
+          <span aria-hidden="true" class="w-2.5 text-tertiary">{{ b.poisVisibles ? '▾' : '▸' }}</span>
+          POI communs ({{ b.pois.length }})
+        </button>
+        @if (b.poisVisibles) {
+          @for (l of b.pois; track l.jeu.cle) {
+            <ng-container [ngTemplateOutlet]="ligne" [ngTemplateOutletContext]="{ $implicit: l }" />
+          }
+        }
+      }
+    </ng-template>
 
     <ng-template #ligne let-l>
       <mg-ligne-jeu [jeu]="l.jeu" [mode]="l.mode" [affiche]="l.affiche" [coche]="l.coche" [deplie]="l.deplie" [indice]="l.indice"
@@ -201,6 +231,8 @@ export class PanneauDonneesComponent {
   protected readonly recherche = signal('');
   /** Le repli « Plus de données communes », fermé à l'ouverture. */
   protected readonly plusOuverts = signal(false);
+  /** Le sous-groupe « POI communs » de chaque liste, ouvert à la main (fermé à l'ouverture) — un état par bloc. */
+  private readonly poisCommunsOuverts = signal<Readonly<Record<CleBloc, boolean>>>({ recommandes: false, autres: false });
   /** Les référentiels dépliés — local au panneau, gardé avec lui (A1). */
   private readonly deplies = signal<ReadonlySet<string>>(new Set());
   /** Vrai dès que l'utilisateur a déplié la ligne santé une fois : l'invite « fiche santé » ne revient plus. */
@@ -230,7 +262,7 @@ export class PanneauDonneesComponent {
   /** Une recherche qui ne laisse aucun jeu commun : un message, jamais un repli vide (relecture T13, m3). */
   protected readonly aucunCommun = computed(() => {
     const v = this.vue();
-    return this.recherche().trim() !== '' && v.recommandes.length === 0 && v.autres.length === 0;
+    return this.recherche().trim() !== '' && v.recommandes.total === 0 && v.autres.total === 0;
   });
   protected readonly vue = computed(() => {
     const r = this.rangement();
@@ -243,7 +275,19 @@ export class PanneauDonneesComponent {
       jeu, mode: estPoi(jeu.cle) ? 'case' : 'reglages', affiche: affiches.has(jeu.cle), coche: choisis.has(jeu.cle),
       deplie: !estPoi(jeu.cle) && deplies.has(jeu.cle), indice: jeu.cle === SANTE ? indiceSante : null,
     }));
-    return { espace: lignes(r.espace), recommandes: lignes(r.recommandes), autres: lignes(r.autres), sansSelection: r.sansSelection };
+    const ouverts = this.poisCommunsOuverts();
+    const cherche = q.trim() !== '';
+    const bloc = (cle: CleBloc, jeux: readonly JeuAffichable[]): BlocCommun => {
+      const d = decouperCommuns(jeux);
+      const referentiels = lignes(d.referentiels);
+      const pois = lignes(d.pois);
+      const poisVisibles = ouverts[cle] || cherche || pois.some((l) => l.coche);
+      return { cle, referentiels, pois, poisVisibles, total: referentiels.length + pois.length };
+    };
+    return {
+      espace: lignes(r.espace), recommandes: bloc('recommandes', r.recommandes), autres: bloc('autres', r.autres),
+      sansSelection: r.sansSelection,
+    };
   });
 
   protected readonly actifs = computed<ActifCalque[]>(() => {
@@ -285,6 +329,11 @@ export class PanneauDonneesComponent {
   protected cocher(cle: string): void {
     const id = cle.slice(PREFIXE_POI.length);
     this.etat.poiSelectionnes.update((l) => (l.includes(id) ? l.filter((x) => x !== id) : [...l, id]));
+  }
+
+  /** Le repli « POI communs » d'une liste ; une case cochée ou une recherche le gardent déplié (`vue`). */
+  protected basculerPoisCommuns(cle: CleBloc): void {
+    this.poisCommunsOuverts.update((o) => ({ ...o, [cle]: !o[cle] }));
   }
 
   protected deplier(cle: string): void {

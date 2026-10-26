@@ -121,11 +121,13 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
     for (const [nom, f] of Object.entries(tuiles)) expect(f, nom).not.toHaveBeenCalled();
   });
 
-  it('sélection [IRIS, Lycées] : bloc espace = Concessions BMW ; bloc commun = IRIS puis Lycées ; « Plus de données communes (7) » fermé, puis 7 lignes', async () => {
+  it('sélection [IRIS, Lycées] : bloc espace = Concessions BMW ; bloc commun = IRIS puis « POI communs (1) » ; « Plus de données communes (7) » fermé, puis 7 lignes', async () => {
     const { el, rendre, cles } = monter({ reco: of({ cles: ['iris:socio-demo', 'poi:lycee'] }) });
     await rendre();
     expect(cles('espace')).toEqual(['poi:bmw']);
-    expect(cles('commun')).toEqual(['iris:socio-demo', 'poi:lycee']);
+    // Lycées est rangé dans le sous-groupe « POI communs », fermé (retours du 26/10, T6).
+    expect(cles('commun')).toEqual(['iris:socio-demo']);
+    expect(el.querySelector('[data-poi-communs="recommandes"]')!.textContent!.replace(/\s+/g, ' ').trim()).toBe('▸ POI communs (1)');
     expect(el.querySelector('[data-bloc="commun"] [data-precision]')!.textContent!.trim()).toBe('Sélection recommandée');
     const repli = el.querySelector<HTMLButtonElement>('[data-repli-autres]')!;
     expect(repli.textContent!.replace(/\s+/g, ' ').trim()).toBe('▸ Plus de données communes (7)');
@@ -133,26 +135,30 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
     repli.click();
     await rendre();
     expect(repli.textContent!.replace(/\s+/g, ' ').trim()).toBe('▾ Plus de données communes (7)');
-    expect(cles('commun')).toHaveLength(9);
-    expect(cles('commun').slice(2)).toEqual([
+    expect(cles('commun')).toHaveLength(8);
+    // Aucun POI commun dans le repli : pas de sous-groupe vide.
+    expect(el.querySelector('[data-poi-communs="autres"]')).toBeNull();
+    expect(cles('commun').slice(1)).toEqual([
       'carreaux:filosofi', 'civique:indicateurs-cp', 'transport:arrets', 'tmja:comptages', 'risques:icpe-pprt', 'sante:air-pollen', 'meteo:zones',
     ]);
     // Ni OOH ni radio : ils vivent dans « Autres », hors du fil (T11b).
     expect(el.querySelector('[data-jeu="ooh:panneaux"], [data-jeu="radio:emetteurs"]')).toBeNull();
   });
 
-  it('sélection vide : 9 lignes communes, aucun repli, « Aucune sélection : tout est visible »', async () => {
+  it('sélection vide : 8 référentiels visibles et « POI communs (1) » fermé, aucun repli, « Aucune sélection : tout est visible »', async () => {
     const { el, rendre, cles } = monter();
     await rendre();
-    expect(cles('commun')).toHaveLength(9);
+    expect(cles('commun')).toHaveLength(8);
+    expect(el.querySelector('[data-poi-communs="recommandes"]')!.getAttribute('aria-expanded')).toBe('false');
     expect(el.querySelector('[data-repli-autres]')).toBeNull();
     expect(el.querySelector('[data-precision]')!.textContent!.trim()).toBe('Aucune sélection : tout est visible');
   });
 
-  it('lecture de la sélection en échec : 9 lignes et « Sélection recommandée indisponible : tout est visible. »', async () => {
+  it('lecture de la sélection en échec : 8 référentiels, « POI communs (1) » et « Sélection recommandée indisponible : tout est visible. »', async () => {
     const { el, rendre, cles } = monter({ reco: throwError(() => new Error('500')) });
     await rendre();
-    expect(cles('commun')).toHaveLength(9);
+    expect(cles('commun')).toHaveLength(8);
+    expect(el.querySelector('[data-poi-communs="recommandes"]')).not.toBeNull();
     expect(el.querySelector('[data-repli-autres]')).toBeNull();
     expect(el.querySelector('[data-precision]')!.textContent!.trim()).toBe('Sélection recommandée indisponible : tout est visible.');
   });
@@ -165,7 +171,7 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
     expect(el.querySelector('[data-bloc="commun"]')!.textContent).toContain('Lecture de la sélection…');
     reponse.next({ cles: [] });
     await rendre();
-    expect(cles('commun')).toHaveLength(9);
+    expect(cles('commun')).toHaveLength(8);
     expect(el.querySelector('[data-bloc="commun"]')!.textContent).not.toContain('Lecture de la sélection…');
   });
 
@@ -192,6 +198,9 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
     await rendre();
     expect(el.querySelector('mg-actions-poi [data-afficher-poi]')).toBeNull();
     el.querySelector<HTMLInputElement>('[data-jeu="poi:bmw"] input[type="checkbox"]')!.click();
+    await rendre();
+    // Lycées est un POI commun : on ouvre son sous-groupe pour atteindre la case (retours du 26/10, T6).
+    el.querySelector<HTMLButtonElement>('[data-poi-communs="recommandes"]')!.click();
     await rendre();
     el.querySelector<HTMLInputElement>('[data-jeu="poi:lycee"] input[type="checkbox"]')!.click();
     await rendre();
@@ -268,7 +277,7 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
     champ.dispatchEvent(new Event('input'));
     await rendre();
     expect(cles('espace')).toEqual(['poi:bmw']);
-    expect(cles('commun')).toEqual(['iris:socio-demo', 'poi:lycee']);
+    expect(cles('commun')).toEqual(['iris:socio-demo']);
   });
 
   it('premier IRIS sélectionné : la ligne santé est SIGNALÉE, pas dépliée — aucune lecture de fiche sans geste ; le dépliage la lit et éteint le signal', async () => {
@@ -349,6 +358,92 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
     await rendre();
     expect(el.querySelector('[data-bloc="commun"]')!.textContent).toContain('Aucun jeu commun ne correspond.');
     expect(el.querySelector('[data-repli-autres]')).toBeNull();
+    expect(el.querySelector('[data-poi-communs]')).toBeNull();
+  });
+
+  describe('sous-groupe « POI communs » (retours du 26/10, T6)', () => {
+    // Le catalogue de démonstration : trois POI de source commune, aucun propre à l'espace.
+    const DEMO: CategoriePoi[] = [
+      { id: 'lycee', label: 'Lycées', origine: 'commune' }, { id: 'cirfa', label: 'CIRFA', origine: 'commune' },
+      { id: 'bmw', label: 'Concessions BMW', origine: 'commune' },
+    ];
+    const texte = (e: Element) => e.textContent!.replace(/\s+/g, ' ').trim();
+    const chercher = async (el: HTMLElement, rendre: () => Promise<void>, q: string) => {
+      const champ = el.querySelector<HTMLInputElement>('input[data-recherche]')!;
+      champ.value = q;
+      champ.dispatchEvent(new Event('input'));
+      await rendre();
+    };
+
+    it('« Données communes » : les référentiels, puis « POI communs (3) » fermé ; un clic l’ouvre sur les trois cases', async () => {
+      const { el, rendre, cles } = monter({ categories: DEMO });
+      await rendre();
+      expect(cles('commun')).toEqual(JEUX_REFERENTIELS.map((j) => j.cle));
+      const sg = el.querySelector<HTMLButtonElement>('[data-bloc="commun"] [data-poi-communs="recommandes"]')!;
+      expect(texte(sg)).toBe('▸ POI communs (3)');
+      expect(sg.getAttribute('aria-expanded')).toBe('false');
+      // Après le dernier référentiel : rien d'autre que le sous-groupe ne suit les lignes de référentiel.
+      const derniere = el.querySelector(`[data-jeu="${JEUX_REFERENTIELS.at(-1)!.cle}"]`)!;
+      expect(derniere.compareDocumentPosition(sg) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      sg.click();
+      await rendre();
+      expect(texte(sg)).toBe('▾ POI communs (3)');
+      expect(sg.getAttribute('aria-expanded')).toBe('true');
+      expect(cles('commun').slice(JEUX_REFERENTIELS.length)).toEqual(['poi:lycee', 'poi:cirfa', 'poi:bmw']);
+      for (const c of ['lycee', 'cirfa', 'bmw']) expect(el.querySelector(`[data-jeu="poi:${c}"] input[type="checkbox"]`), c).not.toBeNull();
+      sg.click();
+      await rendre();
+      expect(el.querySelector('[data-jeu="poi:lycee"]')).toBeNull();
+    });
+
+    it('une case cochée garde le sous-groupe ouvert au rendu suivant', async () => {
+      const { el, rendre, etat } = monter({ categories: DEMO });
+      await rendre();
+      etat.poiSelectionnes.set(['cirfa']);
+      await rendre();
+      expect(el.querySelector('[data-poi-communs="recommandes"]')!.getAttribute('aria-expanded')).toBe('true');
+      expect(el.querySelector<HTMLInputElement>('[data-jeu="poi:cirfa"] input')!.checked).toBe(true);
+    });
+
+    it('la recherche « lyc » ouvre le sous-groupe et n’y montre que les lycées ; vidée, il se referme', async () => {
+      const { el, rendre, cles } = monter({ categories: DEMO });
+      await rendre();
+      await chercher(el, rendre, 'lyc');
+      const sg = el.querySelector('[data-poi-communs="recommandes"]')!;
+      expect(sg.getAttribute('aria-expanded')).toBe('true');
+      expect(texte(sg)).toBe('▾ POI communs (1)');
+      expect(cles('commun')).toEqual(['poi:lycee']);
+      await chercher(el, rendre, '');
+      expect(el.querySelector('[data-poi-communs="recommandes"]')!.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('dans « Plus de données communes », même règle : son propre sous-groupe, fermé, que la recherche ouvre', async () => {
+      const { el, rendre, cles } = monter({ categories: DEMO, reco: of({ cles: ['iris:socio-demo', 'poi:cirfa'] }) });
+      await rendre();
+      expect(texte(el.querySelector('[data-poi-communs="recommandes"]')!)).toBe('▸ POI communs (1)');
+      el.querySelector<HTMLButtonElement>('[data-repli-autres]')!.click();
+      await rendre();
+      const sg = el.querySelector<HTMLButtonElement>('[data-poi-communs="autres"]')!;
+      expect(texte(sg)).toBe('▸ POI communs (2)');
+      expect(sg.getAttribute('aria-expanded')).toBe('false');
+      expect(cles('commun')).not.toContain('poi:lycee');
+      sg.click();
+      await rendre();
+      expect(cles('commun').slice(-2)).toEqual(['poi:lycee', 'poi:bmw']);
+      // L'un s'ouvre sans l'autre : un état par bloc.
+      expect(el.querySelector('[data-poi-communs="recommandes"]')!.getAttribute('aria-expanded')).toBe('false');
+      sg.click();
+      await rendre();
+      await chercher(el, rendre, 'bmw');
+      expect(el.querySelector('[data-poi-communs="autres"]')!.getAttribute('aria-expanded')).toBe('true');
+      expect(cles('commun')).toEqual(['poi:bmw']);
+    });
+
+    it('un bloc sans POI commun n’a pas de sous-groupe', async () => {
+      const { el, rendre } = monter({ categories: [{ id: 'bmw', label: 'Concessions BMW', origine: 'espace' }] });
+      await rendre();
+      expect(el.querySelector('[data-poi-communs]')).toBeNull();
+    });
   });
 
   it('« Chercher un jeu » reste collé en haut de la zone qui défile ; « Actifs » défile avec le reste (R4)', async () => {
