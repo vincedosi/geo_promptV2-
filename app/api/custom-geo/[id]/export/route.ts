@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
-import { mapPostalCodesToGeoIds, GEO_POSTAL_FR_VERSION } from '@/lib/digital/dv360-geo';
+import { texteCpDv360, texteSdfDv360 } from '@/lib/digital/fichiers-dv360';
 import { buildZoneBiddingScript, buildWeightedZoneBiddingScript } from '@/lib/digital/dv360-bidding-script';
 import { toSlug } from '@/lib/custom-geo/slug';
 import { checkZoneAccess } from '@/lib/campaigns/access';
@@ -170,8 +170,9 @@ export async function GET(
 
     if (format === 'dv360_cp') {
       // Un code postal par ligne : prêt à coller dans le ciblage géo DV360
-      // (bulk entry, type « Postal code », pays France).
-      return new Response(cps.join('\n'), {
+      // (bulk entry, type « Postal code », pays France). Même texte que le
+      // fichier d'une extraction (`lib/digital/fichiers-dv360.ts`, lot 7).
+      return new Response(texteCpDv360(cps), {
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
           'Content-Disposition': `attachment; filename="zone_${slug}_dv360_cp.txt"`,
@@ -192,24 +193,9 @@ export async function GET(
     }
 
     // dv360_sdf : geo IDs Google prêts à coller dans la colonne
-    // « Geography Targeting - Include » d'un SDF Line Items.
-    const { mapped, unmapped, sdfString } = mapPostalCodesToGeoIds(cps);
-    const lines = [
-      `Zone : ${zone?.name ?? id}`,
-      `Référentiel geotargets Google ${GEO_POSTAL_FR_VERSION} — ${mapped.length} CP mappés sur ${cps.length}`,
-      '',
-      'Geography Targeting - Include (à coller dans le SDF Line Items) :',
-      sdfString || '(aucun geo ID mappé)',
-    ];
-    if (unmapped.length > 0) {
-      lines.push(
-        '',
-        `Codes postaux sans geo ID Google (${unmapped.length}, à cibler manuellement) :`,
-        unmapped.join(', '),
-      );
-    }
-
-    return new Response(lines.join('\n'), {
+    // « Geography Targeting - Include » d'un SDF Line Items (texte partagé avec
+    // le fichier d'une extraction, lot 7).
+    return new Response(texteSdfDv360(zone?.name ?? id, cps), {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'Content-Disposition': `attachment; filename="zone_${slug}_dv360_sdf.txt"`,
