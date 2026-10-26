@@ -37,7 +37,7 @@ const clesEcrites = new Set<string>();
  */
 async function bataille(corps: Record<string, unknown>): Promise<Ligne[]> {
   const res = await POST(new NextRequest('http://localhost:3000/api/isochrone-battle-v2', {
-    method: 'POST', body: JSON.stringify({ ...corps }), headers: { 'content-type': 'application/json' },
+    method: 'POST', body: JSON.stringify({ ...corps, force_battle: true }), headers: { 'content-type': 'application/json' },
   }));
   expect(res.status).toBe(200);
   const lignes = (await res.text()).split('\n').filter(Boolean).map((l) => JSON.parse(l) as Ligne);
