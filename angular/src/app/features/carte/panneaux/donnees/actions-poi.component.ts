@@ -3,6 +3,7 @@ import { PoisService } from '../../couches/pois.service';
 import { CataloguePoiService } from '../../etat/catalogue-poi.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { PIN_COLORS, PIN_SIZES } from '../../logique/constantes-calques';
+import { corpsPoisDuFiltre, scopeDuFiltre } from '../../logique/perimetre-national';
 
 /** L'aide de l'ancien en-tête POI (`TOOLTIPS.poi`, `FilterSectionHeader.tsx:21`), gardée en infobulle du titre. */
 export const AIDE_POI = "Point d'Intérêt — commerce, service, lieu public";
@@ -15,7 +16,7 @@ export const AIDE_POI = "Point d'Intérêt — commerce, service, lieu public";
  * Repris tels quels : la ligne « Points d'intérêt — n sélectionné(s) » et « ↻ » (`?refresh=1`), l'erreur du catalogue
  * et son « réessayer », une carte de style par type choisi (épingle, couleur, croix qui retire le type ET son épingle),
  * « Afficher les POI sur la carte » (un geste explicite, arbitrage A12 ; CTA teal, plus vert) et « Densité », l'erreur de recherche. Le corps
- * de la recherche est celui de React : régions, départements et ville vides (`PanneauCalques.tsx:272-285`).
+ * de la recherche suit le filtre de ① (écart à React depuis le 26/10, voir `afficher`).
  *
  * Écart, ruling AT-5 : les libellés du bouton passent en sentence case (« Afficher les POI sur la carte »,
  * « Chargement... » ; React écrivait « AFFICHER LES POI SUR LA CARTE »). Écarts de couleur de `section-poi` gardés :
@@ -129,12 +130,18 @@ export class ActionsPoiComponent {
     this.pois.oublierStyle(id);
   }
 
-  /** `handleSearchPOI` (`PanneauCalques.tsx:272-285`) : régions, départements et ville partent vides, comme React. */
+  /**
+   * `handleSearchPOI` (`PanneauCalques.tsx:272-285`). ÉCART À REACT (retours du 26/10, T3, retour 5) : React envoie
+   * régions, départements et ville VIDES, et tous les CIRFA de métropole s'affichaient sur une région choisie. Ici, le
+   * territoire vient du filtre (`corpsPoisDuFiltre` : région, département, commune, code postal) et la portée de la
+   * métropole ou de la France entière aussi (`scopeDuFiltre`) ; une zone garde sa bbox (`PoisService.chercher`).
+   */
   protected afficher(): void {
     if (this.selection().length === 0 || this.pois.chargement()) return;
+    const filtre = this.etat.filtre();
     this.pois.chercher({
-      poi_types: this.selection(), scope: this.etat.perimetreScope(), regions: [], depts: [], ville: '', rayon_poi: null,
-      poi_natures: {},
+      poi_types: this.selection(), ...corpsPoisDuFiltre(filtre), scope: scopeDuFiltre(filtre, this.etat.perimetreScope()),
+      rayon_poi: null, poi_natures: {},
     });
   }
 }

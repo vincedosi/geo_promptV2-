@@ -210,7 +210,7 @@ export class CartePage {
     analyseAffichee: this.analyseAffichee(), jeuRenseigne: this.jeuRenseigne(), planRenseigne: this.planRenseigne(), activationRenseignee: this.activationRenseignee(),
   }));
   protected readonly segmentsAriane = computed<SegmentAriane[]>(() => segmentsDuFiltre(this.etat.filtre()));
-  protected readonly precisionAriane = computed(() => precisionDuPerimetre(this.etat.perimetreScope()));
+  protected readonly precisionAriane = computed(() => precisionDuPerimetre(this.etat.filtre(), this.etat.perimetreScope()));
 
   /**
    * L'id du fond (`MAP_STYLES[].id`), lu dans `localStorage['genesis_map_style']` à l'ouverture et écrit au choix
@@ -291,7 +291,7 @@ export class CartePage {
 
   /** « France entière » du fil d'Ariane : retire le filtre — la croix de l'ancienne puce. */
   protected remonterAriane(index: number): void {
-    if (index === 0) this.etat.filtre.set(null);
+    if (index === 0) { this.etat.filtre.set(null); this.etat.perimetreScope.set(null); }
   }
 
   protected basculerImmersif(): void {

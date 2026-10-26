@@ -7,6 +7,7 @@ import { AnnonceService } from '../../etat/annonce.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { ReferentielGeoService } from '../../etat/referentiel-geo.service';
 import type { FiltreActif } from '../../logique/filtre';
+import { FILTRE_FRANCE_ENTIERE, FILTRE_METROPOLE } from '../../logique/perimetre-national';
 import { ANTI_REBOND_RECHERCHE_MS, PanneauFiltreComponent } from './panneau-filtre.component';
 
 const REF = {
@@ -108,28 +109,77 @@ describe('PanneauFiltreComponent', () => {
     expect(liste(el, 'regions').querySelector('[data-declencheur]')!.textContent).toContain('Île-de-France');
   });
 
-  it('pastille « France + DROM » avec un filtre département : filtre retiré, perimetreScope = all', async () => {
+  it('pastille « France + DROM » avec un filtre département : le filtre France entière le remplace, perimetreScope = all', async () => {
     const { etat } = preparer({ filtre: { type: 'departement', code: '13', label: '13 — Bouches-du-Rhône' } });
     const { el, stable } = await monter();
     el.querySelector<HTMLButtonElement>('[data-scope="all"]')!.click();
     await stable();
-    expect(etat.filtre()).toBeNull();
+    expect(etat.filtre()).toEqual(FILTRE_FRANCE_ENTIERE);
     expect(etat.perimetreScope()).toBe('all');
     expect(el.querySelector('[data-territoire]')!.textContent).toContain('de France entière');
-    // Re-cliquer la même pastille la lève.
+    // Re-cliquer la même pastille la lève, filtre compris.
     el.querySelector<HTMLButtonElement>('[data-scope="all"]')!.click();
     await stable();
+    expect(etat.filtre()).toBeNull();
     expect(etat.perimetreScope()).toBeNull();
   });
 
-  it('filtre zone + pastille : le filtre est GARDÉ (une zone n\'est pas territoriale)', async () => {
+  it('filtre zone + pastille : la pastille REMPLACE la zone, comme tout filtre (A-3, écart voulu à React)', async () => {
     const zone: FiltreActif = { type: 'zone', code: 'z1', label: 'Zone essai', bbox: [5, 43, 6, 44] };
     const { etat } = preparer({ filtre: zone });
     const { el, stable } = await monter();
     el.querySelector<HTMLButtonElement>('[data-scope="metro"]')!.click();
     await stable();
-    expect(etat.filtre()).toBe(zone);
+    expect(etat.filtre()).toEqual(FILTRE_METROPOLE);
     expect(etat.perimetreScope()).toBe('metro');
+  });
+
+  it('pastille Métro : FILTRE_METROPOLE + metro ; re-cliquée : null/null ; puis Métro, puis une région la remplace (Review Focus 1)', async () => {
+    const { etat } = preparer();
+    const { el, stable } = await monter();
+    const metro = () => el.querySelector<HTMLButtonElement>('[data-scope="metro"]')!;
+    metro().click();
+    await stable();
+    expect(etat.filtre()).toEqual(FILTRE_METROPOLE);
+    expect(etat.perimetreScope()).toBe('metro');
+    expect(metro().getAttribute('aria-pressed')).toBe('true');
+    expect(el.querySelector('[data-territoire]')!.textContent).toContain('de France métropolitaine');
+    metro().click();
+    await stable();
+    expect(etat.filtre()).toBeNull();
+    expect(etat.perimetreScope()).toBeNull();
+    metro().click();
+    await stable();
+    await choisirDansListe(el, 'regions', '93', stable);
+    expect(etat.filtre()).toEqual({ type: 'region', code: '93', label: "Provence-Alpes-Côte d'Azur" });
+    expect(etat.perimetreScope()).toBeNull();
+    expect(metro().getAttribute('aria-pressed')).toBe('false');
+    metro().click();
+    await stable();
+    expect(etat.filtre()).toEqual(FILTRE_METROPOLE);
+    // « + DROM » remplace la métropole (même type, autre code).
+    el.querySelector<HTMLButtonElement>('[data-scope="all"]')!.click();
+    await stable();
+    expect(etat.filtre()).toEqual(FILTRE_FRANCE_ENTIERE);
+    expect(etat.perimetreScope()).toBe('all');
+  });
+
+  it('pastille Métro puis « ✕ Réinitialiser » : filtre et pastille retirés', async () => {
+    const { etat } = preparer();
+    const { el, stable } = await monter();
+    el.querySelector<HTMLButtonElement>('[data-scope="metro"]')!.click();
+    await stable();
+    el.querySelector<HTMLButtonElement>('[data-reinitialiser]')!.click();
+    await stable();
+    expect(etat.filtre()).toBeNull();
+    expect(etat.perimetreScope()).toBeNull();
+  });
+
+  it('la pastille affichée suit le filtre, pas un perimetreScope hérité (ex. après « Tout effacer »)', async () => {
+    const { etat } = preparer({ filtre: FILTRE_METROPOLE });
+    const { el } = await monter();
+    expect(etat.perimetreScope()).toBeNull();
+    expect(el.querySelector('[data-scope="metro"]')!.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('saisie « 13001 » : filtre cp après l\'anti-rebond, UNE seule écriture pour cinq frappes', async () => {
@@ -182,17 +232,11 @@ describe('PanneauFiltreComponent', () => {
     expect(etat.filtre()).toBeNull();
   });
 
-  it('« France entière » pose { type: france } sans bbox ; re-cliquer le retire', async () => {
-    const { etat } = preparer();
-    const { el, stable } = await monter();
-    const bouton = el.querySelector<HTMLButtonElement>('[data-france]')!;
-    bouton.click();
-    await stable();
-    expect(etat.filtre()).toEqual({ type: 'france', code: 'france', label: 'France entière' });
-    expect(bouton.getAttribute('aria-pressed')).toBe('true');
-    bouton.click();
-    await stable();
-    expect(etat.filtre()).toBeNull();
+  it('le bouton « France entière » est retiré (Vincent, 26/10, Q-2) : la pastille « France + DROM » suffit', async () => {
+    preparer();
+    const { el } = await monter();
+    expect(el.querySelector('[data-france]')).toBeNull();
+    expect(el.textContent).not.toContain('Périmètre national');
   });
 
   it('zones enregistrées : UN appel par instance, paramètres org_id + _t ; une zone pose un filtre AVEC sa bbox', async () => {

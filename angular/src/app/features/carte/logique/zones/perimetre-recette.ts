@@ -1,13 +1,15 @@
 import type { FiltreActif } from '../filtre';
+import { estMetropole } from '../perimetre-national';
 import type { PerimetreRecette } from './recette';
 
 /**
  * Le périmètre de ① (le filtre actif) tel qu'une recette l'enregistre (spec carte-en-parcours § 16.2-5). Le code est
- * celui du filtre ; la France s'écrit `FR`. Aucun filtre : `null` — une recette lourde est alors refusée avant tout appel.
+ * celui du filtre ; la France entière s'écrit `FR`, la France métropolitaine `METRO` (retours du 26/10, T3 : la pastille
+ * « France Metro » pose `FILTRE_METROPOLE`). Aucun filtre : `null` — une recette lourde est alors refusée avant tout appel.
  */
 export function perimetreDeFiltre(f: FiltreActif | null): PerimetreRecette | null {
   if (!f) return null;
-  if (f.type === 'france') return { type: 'france', code: 'FR' };
+  if (f.type === 'france') return { type: 'france', code: estMetropole(f) ? 'METRO' : 'FR' };
   return { type: f.type, code: f.code };
 }
 

@@ -9,6 +9,8 @@ describe('perimetreDeFiltre', () => {
     [{ type: 'cp', code: '13001', label: '13001' }, { type: 'cp', code: '13001' }],
     [{ type: 'zone', code: '3f2504e0-4f89-11d3-9a0c-0305e82c3301', label: 'Ma zone' }, { type: 'zone', code: '3f2504e0-4f89-11d3-9a0c-0305e82c3301' }],
     [{ type: 'france', code: 'france', label: 'France' }, { type: 'france', code: 'FR' }],
+    // La pastille « France Metro » (retours du 26/10, T3) : la métropole, que `zone_rayon_poi` reconnaît (sql/285).
+    [{ type: 'france', code: 'metro', label: 'France métropolitaine' }, { type: 'france', code: 'METRO' }],
   ] as const)('%o', (f, attendu) => {
     expect(perimetreDeFiltre(f as never)).toEqual(attendu);
   });

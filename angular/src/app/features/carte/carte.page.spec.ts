@@ -917,7 +917,8 @@ describe('CartePage — filtre unique : panneau ①, pastille, fil d’Ariane (T
     const { harness, hote, stable } = await ouvrir();
     const etat = injecteurPage(harness).get(EtatCarteService);
     expect(hote.querySelector('[data-panneau-etape="perimetre"] mg-panneau-filtre')).not.toBeNull();
-    hote.querySelector<HTMLButtonElement>('mg-panneau-filtre [data-france]')!.click();
+    // La pastille « France + DROM » pose le filtre France entière (le bouton « France entière » est retiré, Q-2 du 26/10).
+    hote.querySelector<HTMLButtonElement>('mg-panneau-filtre [data-scope="all"]')!.click();
     await stable();
     expect(etat.filtre()?.type).toBe('france');
     // Étape courante : pas de pastille (`mg-fil-etapes`). À ②, ① la porte, avec son texte pour les lecteurs d'écran.
@@ -938,12 +939,24 @@ describe('CartePage — filtre unique : panneau ①, pastille, fil d’Ariane (T
     expect(pastilles(hote)).toEqual([]);
   });
 
-  it('les pastilles Métro / +DROM de ① allument la pastille et précisent le fil d’Ariane', async () => {
+  it('les pastilles Métro / +DROM de ① allument la pastille ; la métropole a son segment, « + DROM » sa précision (retours 26/10)', async () => {
     const { harness, hote, stable } = await ouvrir({ url: '/carte?etape=donnees' });
-    injecteurPage(harness).get(EtatCarteService).perimetreScope.set('metro');
+    const etat = injecteurPage(harness).get(EtatCarteService);
+    etat.filtre.set({ type: 'france', code: 'metro', label: 'France métropolitaine' });
+    etat.perimetreScope.set('metro');
     await stable();
     expect(pastilles(hote)).toEqual(['1 Périmètre (renseignée)']);
-    expect(hote.querySelector('mg-fil-ariane')!.textContent).toContain('· métropole');
+    expect(ariane(hote)).toEqual(['France entière', 'France métropolitaine']);
+    expect(hote.querySelector('mg-fil-ariane')!.textContent).not.toContain('·');
+    // La racine retire le filtre ET la pastille : ils ne se contredisent pas.
+    hote.querySelector<HTMLButtonElement>('mg-fil-ariane button')!.click();
+    await stable();
+    expect(etat.filtre()).toBeNull();
+    expect(etat.perimetreScope()).toBeNull();
+    etat.filtre.set({ type: 'france', code: 'france', label: 'France entière' });
+    etat.perimetreScope.set('all');
+    await stable();
+    expect(hote.querySelector('mg-fil-ariane')!.textContent).toContain('· métropole + DROM');
   });
 
   it('un jeu de ② affiché allume sa pastille (POI choisis, carreaux allumés) ; un dégradé d’une AUTRE étape ne l’allume pas (T13, AT-4)', async () => {

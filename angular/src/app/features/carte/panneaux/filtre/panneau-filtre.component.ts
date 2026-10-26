@@ -5,9 +5,8 @@ import { type ZoneCustomResume, ZonesCustomApi } from '../../data/zones-custom.a
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { ReferentielGeoService } from '../../etat/referentiel-geo.service';
 import { type FiltreActif, poserFiltre } from '../../logique/filtre';
-import {
-  composerFiltreCodePostal, composerFiltreVille, filtreApresChangementScope, seedDepuisFiltre,
-} from '../../logique/panneau-filtre-logique';
+import { composerFiltreCodePostal, composerFiltreVille, seedDepuisFiltre } from '../../logique/panneau-filtre-logique';
+import { FILTRE_FRANCE_ENTIERE, FILTRE_METROPOLE, scopeDuFiltre } from '../../logique/perimetre-national';
 import { EnteteFiltreComponent, PerimetreComponent, type SectionPerimetre } from './perimetre.component';
 
 /** Anti-rebond de la recherche locale (ville / code postal) — `DEBOUNCE_MS` de `PanneauFiltre.tsx:109`. */
@@ -24,8 +23,14 @@ const SECTIONS_INITIALES: Record<SectionPerimetre, boolean> = {
 /**
  * Le panneau « Filtre » — portage de `app/map/_components/panneaux/PanneauFiltre.tsx` (et de
  * `use-territory-selection.ts` pour l'état du widget). Compose le filtre UNIQUE de la carte
- * (`EtatCarteService.filtre`) depuis trois sources : le découpage administratif + la recherche locale, le
- * « Périmètre national », et une zone enregistrée.
+ * (`EtatCarteService.filtre`) depuis trois sources : le découpage administratif + la recherche locale, les pastilles
+ * « France Metro » / « France + DROM », et une zone enregistrée.
+ *
+ * ── LES PASTILLES SONT DES FILTRES (retours du 26/10, T3) ────────────────
+ * « France Metro » pose `FILTRE_METROPOLE`, « France + DROM » `FILTRE_FRANCE_ENTIERE` ; `perimetreScope` suit le
+ * filtre à chaque écriture (`ecrire`), et la pastille affichée en est DÉRIVÉE (`scope`) : les deux ne se contredisent
+ * pas. Le bloc « Périmètre national » (bouton « France entière ») est retiré : il posait le même filtre que « + DROM »
+ * (Vincent, 26/10, Q-2). Écart à React : la pastille n'y est qu'un `perimeterScope`, sans filtre (A-1).
  *
  * ── RECRÉÉ À CHAQUE OUVERTURE, COMME REACT ───────────────────────────────
  * Le panneau est rendu sous le `@switch` du cadre : fermer puis rouvrir crée une nouvelle instance. Régions,
@@ -56,7 +61,7 @@ const SECTIONS_INITIALES: Record<SectionPerimetre, boolean> = {
   template: `
     <mg-perimetre-filtre
       [sections]="sections()"
-      [scope]="etat.perimetreScope()"
+      [scope]="scope()"
       [regions]="referentiel.regions()"
       [regionsChoisies]="regionsChoisies()"
       [departements]="deptsDisponibles()"
@@ -75,29 +80,6 @@ const SECTIONS_INITIALES: Record<SectionPerimetre, boolean> = {
       (saisirCodePostal)="saisirCodePostal($event)"
       (reinitialiser)="reinitialiser()"
     />
-
-    <!-- Périmètre national (spec-filtre-france.md) : une INTENTION explicite, pas un retrait de filtre. -->
-    <div>
-      <div class="flex items-center gap-2 border-t border-subtle bg-elevated px-[14px] py-[10px]">
-        <div class="size-1.5 shrink-0 rounded-full bg-teal"></div>
-        <span class="text-[12px] font-medium text-primary">Périmètre national</span>
-      </div>
-      <div class="flex flex-col gap-2 px-4 py-3">
-        <div class="text-[11px] leading-[1.5] text-tertiary">
-          Pose un filtre explicite sur la France entière — utile pour un calcul
-          dont le périmètre naturel est national. N'ajoute aucune restriction
-          géographique (aucune bbox), à la différence des autres filtres.
-        </div>
-        <button
-          type="button"
-          data-france
-          [attr.aria-pressed]="estFrance()"
-          (click)="choisirFrance()"
-          class="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[4px] border-fin px-[10px] py-2 text-[12px]"
-          [class]="estFrance() ? classeActive : classeInactive"
-        >France entière</button>
-      </div>
-    </div>
 
     <!-- Filtrer sur une zone enregistrée : liste dynamique, jamais en dur. -->
     <div>
@@ -163,7 +145,8 @@ export class PanneauFiltreComponent {
   protected readonly classeActive = 'bg-[var(--brand-teal-30)] border-teal text-teal';
   protected readonly classeInactive = 'bg-elevated border-subtle text-primary';
 
-  protected readonly estFrance = computed(() => this.etat.filtre()?.type === 'france');
+  /** La pastille allumée, dérivée du filtre (le `perimetreScope` hérité seulement sans filtre). */
+  protected readonly scope = computed(() => scopeDuFiltre(this.etat.filtre(), this.etat.perimetreScope()));
   protected readonly filtreZone = computed(() => this.etat.filtre()?.type === 'zone');
   protected readonly zoneActive = computed(() => {
     const f = this.etat.filtre();
@@ -197,13 +180,13 @@ export class PanneauFiltreComponent {
       const noms = regions.map((code) => this.referentiel.regions().find((r) => r.code_region === code)?.nom_region ?? code);
       return `en ${noms.join(' et ')}`;
     }
-    const scope = this.etat.perimetreScope();
+    const scope = this.scope();
     if (scope === 'metro') return 'de France métropolitaine';
     if (scope === 'all') return 'de France entière';
     return 'de France';
   });
   protected readonly aTerritoire = computed(() =>
-    this.etat.perimetreScope() !== null || this.regionsChoisies().length > 0 || this.deptsChoisis().length > 0
+    this.scope() !== null || this.regionsChoisies().length > 0 || this.deptsChoisis().length > 0
     || this.ville().trim().length > 0,
   );
 
@@ -246,8 +229,10 @@ export class PanneauFiltreComponent {
     });
   }
 
+  /** Toute écriture du filtre depuis ce panneau : `perimetreScope` le suit (métropole, France entière, ou rien). */
   private ecrire(prochain: FiltreActif | null): void {
     this.etat.filtre.set(prochain);
+    this.etat.perimetreScope.set(scopeDuFiltre(prochain, null));
   }
 
   protected basculerSection(cle: SectionPerimetre): void {
@@ -255,18 +240,17 @@ export class PanneauFiltreComponent {
   }
 
   /**
-   * Pastille Métro / +DROM (`selectScope` enveloppé, `PanneauFiltre.tsx:143-147`) : bascule le périmètre, vide le
-   * widget, et retire le filtre s'il est territorial — un filtre `zone` survit.
+   * Pastille Métro / +DROM (`selectScope` enveloppé, `PanneauFiltre.tsx:143-147`) : vide le widget et pose le filtre
+   * national — `FILTRE_METROPOLE` ou `FILTRE_FRANCE_ENTIERE` — par un seul `ecrire`, qui règle aussi `perimetreScope`.
+   * Re-cliquer la même pastille les retire tous deux. Comme tout filtre (`poserFiltre`), elle REMPLACE le précédent,
+   * zone enregistrée comprise : écart voulu au `filtreApresChangementScope` de React, qui gardait la zone (A-3, 26/10).
    */
   protected choisirScope(s: 'metro' | 'all'): void {
-    this.etat.perimetreScope.update((prev) => (prev === s ? null : s));
     this.regionsChoisies.set([]);
     this.deptsChoisis.set([]);
     this.ville.set('');
     this.codePostal.set('');
-    const courant = this.etat.filtre();
-    const prochain = filtreApresChangementScope(courant);
-    if (prochain !== courant) this.ecrire(prochain);
+    this.ecrire(poserFiltre(this.etat.filtre(), s === 'metro' ? FILTRE_METROPOLE : FILTRE_FRANCE_ENTIERE));
   }
 
   /** La liste des régions a changé (`onChange` de `PerimeterSections.tsx:134`). */
@@ -351,18 +335,14 @@ export class PanneauFiltreComponent {
     }, valeur.trim() ? ANTI_REBOND_RECHERCHE_MS : 0);
   }
 
-  /** « ✕ Réinitialiser » du résumé (`PerimeterSections.tsx:195`). */
+  /** « ✕ Réinitialiser » du résumé (`PerimeterSections.tsx:195`) : un filtre national posé par une pastille part aussi. */
   protected reinitialiser(): void {
+    if (this.etat.filtre()?.type === 'france') this.ecrire(null);
     this.etat.perimetreScope.set(null);
     this.changerRegions([]);
     this.changerDepts([]);
     this.saisirVille('');
     this.saisirCodePostal('');
-  }
-
-  /** « France entière » : bascule comme tout filtre, sans bbox (`PanneauFiltre.tsx:284-286`). */
-  protected choisirFrance(): void {
-    this.ecrire(poserFiltre(this.etat.filtre(), { type: 'france', code: 'france', label: 'France entière' }));
   }
 
   /** Une zone enregistrée : le seul filtre qui porte une bbox résolue (`PanneauFiltre.tsx:267-274`). */

@@ -6,6 +6,7 @@ import { CaptureService } from '../../etat/capture.service';
 import { CreationZoneService } from '../../etat/creation-zone.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { ParcoursService } from '../../etat/parcours.service';
+import { estMetropole } from '../../logique/perimetre-national';
 import type { Recette } from '../../logique/zones/recette';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { CaptureComponent } from './capture.component';
@@ -33,6 +34,10 @@ interface FormulaireRecette {
 const PREMIER_FORMULAIRE: Readonly<Record<Famille, CleRecette | null>> = {
   poi: 'rayon_poi', seuil: 'seuil_carreaux', main: 'import', capture: null,
 };
+
+/** La ligne de périmètre sur la métropole (retours du 26/10, T3) — aucun nombre : la capacité n'est pas une borne produit. */
+export const LIGNE_METROPOLE =
+  'Périmètre : France métropolitaine — « Autour des POI » s’y calcule ; « Par seuil » sur un département ou une région.';
 
 /**
  * Le panneau de l'étape ③ Zones (lot 3, T10 — spec carte-en-parcours § 16.3) : « Ce que je fabrique », rangé par
@@ -168,8 +173,10 @@ export class PanneauZonesComponent {
   protected readonly recetteActive = computed(() => this.formulaire()?.recette() ?? null);
   protected readonly geometrieActive = computed(() => this.formulaire()?.geometrie?.());
 
+  /** La métropole (pastille « France Metro », retours du 26/10) dit ce qui s'y calcule : « Par seuil » vient plus tard. */
   protected readonly lignePerimetre = computed(() => {
     const f = this.filtre();
+    if (estMetropole(f)) return LIGNE_METROPOLE;
     return f
       ? `Périmètre : ${f.label}`
       : 'Aucun périmètre : les calculs par seuil et autour des POI sont désactivés. Choisissez-en un à l’étape ①.';

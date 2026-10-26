@@ -118,6 +118,11 @@ describe('PanneauZonesComponent — ③ rangée par familles (lot 3, T10)', () =
     etat.filtre.set({ type: 'departement', code: '13', label: 'Bouches-du-Rhône' });
     await fixture.whenStable();
     expect(el.querySelector('[data-perimetre]')!.textContent!.trim()).toBe('Périmètre : Bouches-du-Rhône');
+    // La pastille « France Metro » (retours du 26/10, T3).
+    etat.filtre.set({ type: 'france', code: 'metro', label: 'France métropolitaine' });
+    await fixture.whenStable();
+    expect(el.querySelector('[data-perimetre]')!.textContent!.trim())
+      .toBe('Périmètre : France métropolitaine — « Autour des POI » s’y calcule ; « Par seuil » sur un département ou une région.');
   });
 
   it('le pied reçoit la recette du formulaire actif : le premier de la famille ouverte, puis le dernier touché', async () => {

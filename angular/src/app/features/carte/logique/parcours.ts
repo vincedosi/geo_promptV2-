@@ -10,6 +10,7 @@
 import type { EtapeAffichee } from '../../../ui/fil-etapes/fil-etapes.component';
 import type { SegmentAriane } from '../../../ui/fil-ariane/fil-ariane.component';
 import type { FiltreActif } from './filtre';
+import { estMetropole, scopeDuFiltre } from './perimetre-national';
 import { PARAM_ZONE_LIEN } from './zones/zone-du-lien';
 
 /**
@@ -150,14 +151,19 @@ const TITRE_TYPE_FILTRE: Readonly<Record<FiltreActif['type'], string>> = {
 /** « Où je regarde » : France entière, puis le filtre unique de ① (il remplace la puce de filtre du rail). */
 export function segmentsDuFiltre(f: FiltreActif | null): SegmentAriane[] {
   const racine: SegmentAriane = { cle: 'france', libelle: 'France entière' };
+  // La métropole est un filtre (retours du 26/10, T3) : son propre segment, que la racine retire.
+  if (estMetropole(f)) return [racine, { cle: 'france:metro', libelle: 'France métropolitaine' }];
   if (!f || f.type === 'france') return [racine];
   const titre = f.type === 'zone' ? TITRE_TYPE_FILTRE.zone : `${TITRE_TYPE_FILTRE[f.type]} ${f.code}`;
   return [racine, { cle: `${f.type}:${f.code}`, libelle: f.label, titre }];
 }
 
-/** La précision du fil d'Ariane : les pastilles Métro / +DROM de ①. */
-export function precisionDuPerimetre(scope: 'metro' | 'all' | null): string | undefined {
-  return scope === 'metro' ? 'métropole' : scope === 'all' ? 'métropole + DROM' : undefined;
+/**
+ * La précision du fil d'Ariane : la pastille « France + DROM » de ①. La métropole n'en a plus besoin : elle a son
+ * segment (retours du 26/10, T3).
+ */
+export function precisionDuPerimetre(f: FiltreActif | null, scope: 'metro' | 'all' | null): string | undefined {
+  return scopeDuFiltre(f, scope) === 'all' ? 'métropole + DROM' : undefined;
 }
 
 /**

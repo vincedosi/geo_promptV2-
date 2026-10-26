@@ -107,11 +107,16 @@ describe('parcours de la carte — logique pure', () => {
     expect(segmentsDuFiltre({ type: 'departement', code: '29', label: 'Finistère' })[1])
       .toEqual({ cle: 'departement:29', libelle: 'Finistère', titre: 'Département 29' });
     expect(segmentsDuFiltre({ type: 'zone', code: '0b7e-uuid', label: 'Brest' })[1].titre).toBe('Zone enregistrée');
+    // La pastille « France Metro » pose un filtre (retours du 26/10, T3) : son segment le dit.
+    expect(segmentsDuFiltre({ type: 'france', code: 'metro', label: 'France métropolitaine' }))
+      .toEqual([{ cle: 'france', libelle: 'France entière' }, { cle: 'france:metro', libelle: 'France métropolitaine' }]);
   });
-  it('precisionDuPerimetre', () => {
-    expect(precisionDuPerimetre(null)).toBeUndefined();
-    expect(precisionDuPerimetre('metro')).toBe('métropole');
-    expect(precisionDuPerimetre('all')).toBe('métropole + DROM');
+  it('precisionDuPerimetre : seulement « + DROM » (la métropole a son segment)', () => {
+    expect(precisionDuPerimetre(null, null)).toBeUndefined();
+    expect(precisionDuPerimetre({ type: 'france', code: 'metro', label: 'France métropolitaine' }, 'metro')).toBeUndefined();
+    expect(precisionDuPerimetre({ type: 'france', code: 'france', label: 'France entière' }, 'all')).toBe('métropole + DROM');
+    // Le filtre fait foi : un filtre région ne garde pas une précision héritée.
+    expect(precisionDuPerimetre({ type: 'region', code: '53', label: 'Bretagne' }, 'all')).toBeUndefined();
   });
   it('lienApplicationReact : seulement ⑧, seulement avec une origine — ⑤ n’a pas d’équivalent React, ⑥ et ⑦ ont leur panneau (lots 6, 7)', () => {
     expect(lienApplicationReact('http://localhost:3000', 'jeu')).toBeNull();

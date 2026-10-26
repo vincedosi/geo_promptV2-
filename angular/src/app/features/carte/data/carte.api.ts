@@ -76,6 +76,8 @@ export interface CorpsPois {
   regions: string[];
   depts: string[];
   ville: string;
+  /** Un filtre code postal (retours du 26/10, T1 côté route) ; absent sinon. */
+  code_postal?: string;
   rayon_poi: string | null;
   poi_natures: Record<string, string[]>;
   bbox?: readonly [number, number, number, number];

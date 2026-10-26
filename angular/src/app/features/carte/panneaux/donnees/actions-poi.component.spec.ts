@@ -61,7 +61,7 @@ describe('ActionsPoiComponent — ce que ② fait des types de POI cochés', () 
     expect(lectures).toEqual([true]);
   });
 
-  it('une carte par type choisi (épingle, couleur) ; « Afficher les POI sur la carte » envoie le corps de React (régions, départements, ville vides)', async () => {
+  it('une carte par type choisi (épingle, couleur) ; « Afficher les POI sur la carte » envoie, sans filtre, le corps de React (régions, départements, ville vides)', async () => {
     const { el, rendre, etat, corps, pois, recherche } = monter();
     etat.poiSelectionnes.set(['lycee']);
     etat.perimetreScope.set('metro');
@@ -97,6 +97,37 @@ describe('ActionsPoiComponent — ce que ② fait des types de POI cochés', () 
     recherche.next({ pois: [], categories: {} } as unknown as ZoneData);
     await rendre();
     expect(el.querySelector('[data-erreur]')!.textContent).toContain('Aucun POI trouvé pour "lycee"');
+  });
+
+  it.each([
+    ['région 93', { type: 'region', code: '93', label: "Provence-Alpes-Côte d'Azur" }, { regions: ['93'], scope: null }],
+    ['département 2A', { type: 'departement', code: '2A', label: '2A — Corse-du-Sud' }, { depts: ['2A'], scope: null }],
+    ['commune', { type: 'commune', code: 'brest', label: 'Brest' }, { ville: 'Brest', scope: null }],
+    ['code postal', { type: 'cp', code: '06300', label: 'CP 06300' }, { code_postal: '06300', scope: null }],
+    ['métropole', { type: 'france', code: 'metro', label: 'France métropolitaine' }, { scope: 'metro' }],
+    ['France entière', { type: 'france', code: 'france', label: 'France entière' }, { scope: 'all' }],
+  ] as const)('le corps des POI suit le filtre (retours 26/10, retour 5) : %s', async (_, filtre, attendu) => {
+    const { el, rendre, etat, corps } = monter();
+    etat.poiSelectionnes.set(['cirfa']);
+    etat.filtre.set(filtre);
+    // Un perimetreScope hérité ne contredit pas le filtre.
+    etat.perimetreScope.set(filtre.type === 'france' ? null : 'metro');
+    await rendre();
+    (el.querySelector('[data-afficher-poi]') as HTMLButtonElement).click();
+    expect(corps[0]).toEqual({
+      poi_types: ['cirfa'], regions: [], depts: [], ville: '', rayon_poi: null, poi_natures: {}, ...attendu,
+    });
+  });
+
+  it('une zone enregistrée garde sa bbox, sans territoire', async () => {
+    const { el, rendre, etat, corps } = monter();
+    etat.poiSelectionnes.set(['cirfa']);
+    etat.filtre.set({ type: 'zone', code: 'z1', label: 'Zone', bbox: [5, 43, 6, 44] });
+    await rendre();
+    (el.querySelector('[data-afficher-poi]') as HTMLButtonElement).click();
+    expect(corps[0]).toEqual({
+      poi_types: ['cirfa'], scope: null, regions: [], depts: [], ville: '', rayon_poi: null, poi_natures: {}, bbox: [5, 43, 6, 44],
+    });
   });
 
   it('« Densité » bascule le mode ; la croix d’une carte retire le type ET son épingle ; « 2 sélectionnés »', async () => {
