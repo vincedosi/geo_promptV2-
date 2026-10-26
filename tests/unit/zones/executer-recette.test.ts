@@ -60,6 +60,31 @@ describe('executerRecette', () => {
     } }]);
   });
 
+  it('rayon POI sur la métropole : la capacité synchrone (10 000) en p_max_poi ; son refus, le message de tâche de fond', async () => {
+    reponses.zone_rayon_poi = { data: { vide: false, compte: 5324, geometry: CARRE, surface_km2: 400_000, part_retenue: 0.8 }, error: null };
+    const recette: Recette = { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 20_000, perimetre: { type: 'france', code: 'METRO' } };
+    expect(await exec(recette)).toMatchObject({ ok: true, compte: 5324 });
+    expect(appels).toEqual([{ nom: 'zone_rayon_poi', args: {
+      p_categorie: 'lycee', p_rayon_m: 20_000, p_perimetre_type: 'france', p_perimetre_code: 'METRO',
+      p_org_id: ORG, p_sources: ['s1'], p_max_poi: 10_000,
+    } }]);
+    reponses.zone_rayon_poi = { data: { refus: 'trop_de_poi_metropole', plafond: 10_000 }, error: null };
+    expect(await exec({ ...recette, categorie: 'arret_transport' })).toEqual({
+      ok: false, statut: 422, refus: 'trop_de_poi_metropole', message: MESSAGES_REFUS.trop_de_poi_metropole,
+    });
+  });
+
+  it('seuils sur la métropole : le message différé, SANS appel', async () => {
+    const METRO = { type: 'france', code: 'METRO' } as const;
+    for (const r of [
+      { v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: METRO },
+      { v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '<=', seuil: 10, perimetre: METRO },
+    ] as const) {
+      expect(await exec(r)).toEqual({ ok: false, statut: 422, refus: 'seuil_metropole_differe', message: MESSAGES_REFUS.seuil_metropole_differe });
+    }
+    expect(appels).toEqual([]);
+  });
+
   it('seuil sur carreaux et sur territoires : le périmètre et l’espace, la population remontée', async () => {
     reponses.zone_seuil_carreaux = { data: { vide: false, compte: 40, geometry: CARRE, surface_km2: 1.6, population: 5200 }, error: null };
     const c = await exec({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: PER });

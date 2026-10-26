@@ -53,3 +53,58 @@ describe('zone_rayon_poi', () => {
     expect(error?.code).toBe('22023');
   });
 });
+
+/**
+ * Branche `('france', 'METRO')` (sql/285, retours du 26/10, T2) : aucune borne produit, seule la capacité synchrone
+ * mesurée (10 000 POI) ; points lus par catégorie d'abord et bornés par BBOX_METRO, cercles découpés par l'union des
+ * régions de métropole.
+ */
+describe('zone_rayon_poi — France métropolitaine', () => {
+  const SOURCE_CIRFA = admin.from('poi_france').select('data_source_id').eq('categorie', 'cirfa').limit(1);
+  let sourcesCirfa: string[] = [];
+  beforeAll(async () => {
+    const { data, error } = await SOURCE_CIRFA;
+    if (error || !data?.[0]?.data_source_id) throw new Error(`source des CIRFA : ${error?.message ?? 'absente'}`);
+    sourcesCirfa = [data[0].data_source_id as string];
+  });
+  const metro = (args: Record<string, unknown>) => appeler({
+    p_perimetre_type: 'france', p_perimetre_code: 'METRO', p_rayon_m: 20_000, p_max_poi: 10_000, ...args,
+  });
+  /** Toutes les positions d'un MultiPolygon GeoJSON. */
+  const positions = (g: { coordinates: number[][][][] }) => g.coordinates.flat(2);
+
+  it('CIRFA à 20 km : les 95 CIRFA de métropole (Nice compris), aucune partie hors métropole', async () => {
+    const { data, error } = await metro({ p_categorie: 'cirfa', p_sources: sourcesCirfa });
+    expect(error).toBeNull();
+    const r = data as { vide: boolean; compte: number; geometry: { type: string; coordinates: number[][][][] } };
+    expect(r.vide).toBe(false);
+    expect(r.compte).toBe(95);
+    expect(r.geometry.type).toBe('MultiPolygon');
+    const horsMetro = positions(r.geometry).filter(([x, y]) => x < -5.5 || x > 9.8 || y < 41.2 || y > 51.2);
+    expect(horsMetro).toEqual([]);
+  });
+
+  it('lycées à 20 km (la plus grosse catégorie commune, 5 324 en métropole) : calculés, sans plafond produit', async () => {
+    const { data, error } = await metro({});
+    expect(error).toBeNull();
+    expect(data).toMatchObject({ vide: false, compte: 5324 });
+  });
+
+  it('arrêts de transport (285 000) : au-delà de la capacité synchrone, refus « trop_de_poi_metropole »', async () => {
+    const { data, error } = await metro({ p_categorie: 'arret_transport', p_sources: [] });
+    expect(error).toBeNull();
+    expect(data).toEqual({ refus: 'trop_de_poi_metropole', plafond: 10_000 });
+  });
+
+  it('la capacité ne se contourne pas par p_max_poi : 22023 au-delà de 10 000', async () => {
+    expect((await metro({ p_max_poi: 20_000 })).error?.code).toBe('22023');
+  });
+
+  it('un périmètre local garde son plafond de 5 000 POI', async () => {
+    expect((await appeler({ p_max_poi: 5001 })).error?.code).toBe('22023');
+  });
+
+  it('France entière (FR) : toujours refusée', async () => {
+    expect((await appeler({ p_perimetre_type: 'france', p_perimetre_code: 'FR' })).data).toEqual({ refus: 'perimetre_national_refuse' });
+  });
+});

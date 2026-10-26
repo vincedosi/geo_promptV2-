@@ -17,6 +17,9 @@ import { getRegionNameMap }          from '@/lib/geo/region-lookup-server';
 import { z }                         from 'zod';
 import { lireCorps }                 from '@/lib/api/valider-corps';
 import { sourcesVisiblesDeLaRequete, filtrerParSourcesVisibles } from '@/lib/auth/perimetre-donnees';
+// Le même plafond que la route V2 : `total_pois` vaut 500 quand la lecture est tronquée (« 500 POI ou plus »).
+import { PLAFOND_LECTURE_POI }     from '@/lib/isochrones/borne-nationale';
+import { paquetsDeCles }           from '@/lib/isochrones/paquets-cles';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,8 +47,6 @@ const VerifCacheSchema = z.object({
   filtre_depts: z.array(z.union([z.string(), z.number()])).optional(),
 });
 
-const CACHE_CHUNK = 200;
-const MAX_POIS    = 500;
 
 function normKey(s: string): string {
   return s
@@ -109,7 +110,7 @@ export async function POST(req: NextRequest) {
     // des POI d'un autre client.
     q = filtrerParSourcesVisibles(q, await sourcesVisiblesDeLaRequete(req));
 
-    const { data: rawRows, error: poiErr } = await q.limit(MAX_POIS);
+    const { data: rawRows, error: poiErr } = await q.limit(PLAFOND_LECTURE_POI);
     if (poiErr) {
       return NextResponse.json({ error: `Erreur chargement POIs : ${poiErr.message}` }, { status: 500 });
     }
@@ -136,23 +137,22 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ── 2. Lookup cache — toutes les clés en une passe (chunked) ─────────────
+    // ── 2. Lookup cache — paquets lus en SÉQUENCE ────────────────────────────
+    // Pas de `Promise.all` : 500 POI × 7 paliers feraient des dizaines de lectures simultanées, au-delà des 3 appels
+    // Supabase simultanés de CLAUDE.md (§ Disk I/O ; retours du 26/10, T2). Paquets taillés pour l'URL
+    // (`paquetsDeCles`) : au-delà d'≈ 100 clés, un paquet était refusé « URI too long »
+    // sans que l'erreur soit lue, et ses clés comptées absentes du cache.
     const allKeys = pois.flatMap((p) =>
       paliers.map((l: number) => perPoiCacheKey(category, String(p.id), l, mode)),
     );
 
-    const chunks: string[][] = [];
-    for (let i = 0; i < allKeys.length; i += CACHE_CHUNK)
-      chunks.push(allKeys.slice(i, i + CACHE_CHUNK));
-
-    const results = await Promise.all(
-      chunks.map(chunk =>
-        supabase.from('isochrones_cache').select('cache_key').in('cache_key', chunk),
-      ),
-    );
-
     const cachedKeys = new Set<string>();
-    for (const { data } of results) {
+    for (const paquet of paquetsDeCles(allKeys)) {
+      const { data, error: cacheErr } = await supabase.from('isochrones_cache')
+        .select('cache_key').in('cache_key', paquet);
+      if (cacheErr) {
+        return NextResponse.json({ error: `Erreur lecture du cache : ${cacheErr.message}` }, { status: 500 });
+      }
       for (const row of data ?? []) cachedKeys.add(row.cache_key);
     }
 

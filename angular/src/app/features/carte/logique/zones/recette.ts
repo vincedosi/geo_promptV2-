@@ -28,9 +28,11 @@ export const TYPES_PERIMETRE = ['region', 'departement', 'commune', 'cp', 'zone'
 export type TypePerimetre = (typeof TYPES_PERIMETRE)[number];
 export interface PerimetreRecette {
   readonly type: TypePerimetre;
-  /** Code INSEE, code postal, UUID de zone ; `FR` pour la France. */
+  /** Code INSEE, code postal, UUID de zone ; `FR` pour la France entière, `METRO` pour la France métropolitaine. */
   readonly code: string;
 }
+/** Les seuls codes d'un périmètre `france` (schéma serveur ; `zone_rayon_poi` reconnaît `METRO`, sql/285). */
+export const CODES_FRANCE = ['FR', 'METRO'] as const;
 
 /*
  * Les plafonds sont ceux des RPC de recette : un dépassement est un REFUS dit à l'utilisateur, jamais une troncature.
@@ -51,6 +53,13 @@ export const SEUIL_CARREAUX_MAX = 100_000;
  */
 export const SEUIL_TERRITOIRE_MAX_ABS = 10_000_000;
 export const MAX_POI_RAYON = 5_000;
+/**
+ * « Autour des POI » sur toute la France métropolitaine : capacité SYNCHRONE mesurée, pas une borne produit (Vincent,
+ * 26/10, Q-1). Mesures du 26/10, base locale, union + découpe + GeoJSON : lycées (5 299 POI, la plus grosse catégorie
+ * commune) 0,4 s à 20 km et 2,2 s / 3,7 Mo à 100 m ; 10 000 sites ICPE 9,8 s / 7,7 Mo à 100 m ; 97 133 sites ICPE
+ * 47 s / 70 Mo à 100 m. Refaite en base (sql/285) ; au-delà, le calcul se fera en tâche de fond (lot « calculs longs »).
+ */
+export const CAPACITE_SYNCHRONE_POI_RAYON = 10_000;
 export const MAX_CARREAUX_SEUIL = 20_000;
 export const MAX_TERRITOIRES_SEUIL = 5_000;
 export const MAX_SOMMETS_FORME = 20_000;
@@ -112,6 +121,7 @@ export type RefusRecette =
   | 'perimetre_absent' | 'perimetre_national_refuse' | 'perimetre_inconnu' | 'perimetre_trop_grand'
   | 'perimetre_non_admis' | 'commune_ambigue'
   | 'trop_de_poi' | 'trop_de_carreaux' | 'trop_de_territoires' | 'trop_de_sommets'
+  | 'trop_de_poi_metropole' | 'seuil_metropole_differe'
   | 'indicateur_inconnu' | 'zone_introuvable' | 'zone_referencee' | 'forme_vide' | 'forme_figee';
 
 export const MESSAGES_REFUS: Readonly<Record<RefusRecette, string>> = {
@@ -125,6 +135,11 @@ export const MESSAGES_REFUS: Readonly<Record<RefusRecette, string>> = {
   trop_de_carreaux: `Plus de ${formaterNombre(MAX_CARREAUX_SEUIL)} carreaux retenus : resserrez le périmètre ou relevez le seuil.`,
   trop_de_territoires: `Plus de ${formaterNombre(MAX_TERRITOIRES_SEUIL)} territoires retenus : resserrez le périmètre ou relevez le seuil.`,
   trop_de_sommets: `La forme dépasse ${formaterNombre(MAX_SOMMETS_FORME)} sommets : simplifiez-la avant de l’importer.`,
+  trop_de_poi_metropole: `Plus de ${formaterNombre(CAPACITE_SYNCHRONE_POI_RAYON)} POI dans toute la France métropolitaine : `
+    + 'ce calcul dépasse ce qu’on peut calculer en direct. Il se lancera en tâche de fond dès le lot « calculs longs » ; '
+    + 'en attendant, choisissez une région ou un département à l’étape ①.',
+  seuil_metropole_differe: 'Le seuil sur toute la France métropolitaine arrive bientôt, en calcul de fond. En attendant, '
+    + 'choisissez à l’étape ① un département (carreaux) ou une région (territoires).',
   indicateur_inconnu: 'Cet indicateur n’est pas disponible pour un seuil.',
   zone_introuvable: 'Zone introuvable dans cet espace.',
   zone_referencee: 'Cette zone est utilisée par un plan, un jeu de zones ou une autre zone : elle ne peut pas être recalculée.',
@@ -148,11 +163,17 @@ export function exigePerimetre(r: Recette): boolean {
 /**
  * Le refus que l'écran pose AVANT tout appel ; la surface, l'appartenance d'une zone et la résolution d'une commune
  * se vérifient en base (`resoudre_perimetre`, migration `*_zones_a_recette.sql`).
+ *
+ * France métropolitaine (`METRO`, retours du 26/10) : « Autour des POI » se lance (sa capacité est refaite en base,
+ * sql/285) ; les deux seuils attendent le calcul en tâche de fond. La France entière (`FR`) reste refusée partout.
  */
 export function refusPerimetreLocal(r: Recette): RefusRecette | null {
   if (!exigePerimetre(r) || !('perimetre' in r)) return null;
   if (!r.perimetre) return 'perimetre_absent';
-  if (r.perimetre.type === 'france') return 'perimetre_national_refuse';
+  if (r.perimetre.type === 'france') {
+    if (r.perimetre.code !== 'METRO') return 'perimetre_national_refuse';
+    return r.type === 'rayon_poi' ? null : 'seuil_metropole_differe';
+  }
   const admis = PERIMETRES_ADMIS[r.type];
   if (admis && !admis.includes(r.perimetre.type)) return 'perimetre_non_admis';
   return null;

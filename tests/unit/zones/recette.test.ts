@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import {
-  INDICATEURS_SEUIL_CARREAUX, MAX_CARREAUX_SEUIL, MAX_POI_RAYON, MAX_TERRITOIRES_SEUIL, MESSAGES_REFUS, PERIMETRES_ADMIS,
+  CAPACITE_SYNCHRONE_POI_RAYON, INDICATEURS_SEUIL_CARREAUX, MAX_CARREAUX_SEUIL, MAX_POI_RAYON, MAX_TERRITOIRES_SEUIL, MESSAGES_REFUS, PERIMETRES_ADMIS,
   RAYON_POI_MAX_M, RAYON_POI_MIN_M, SURFACE_MAX_PERIMETRE_CARREAUX_KM2, SURFACE_MAX_PERIMETRE_KM2,
   TYPES_BORNES_PAR_PERIMETRE, TYPES_RECALCULABLES, TYPES_RECETTE, VERSION_RECETTE, estRecalculable, exigeGeometrie,
   exigePerimetre, libelleRecette, refusPerimetreLocal, type Recette,
@@ -88,6 +88,37 @@ describe('la recette d’une zone', () => {
     expect(refusPerimetreLocal({ v: 1, type: 'codes_postaux', codes: ['13001'] })).toBeNull();
   });
 
+  it('France métropolitaine (retours du 26/10) : « Autour des POI » passe, les seuils sont différés ; la France entière reste refusée', () => {
+    const METRO = { type: 'france', code: 'METRO' } as const;
+    const FR = { type: 'france', code: 'FR' } as const;
+    const rayon = (perimetre: typeof METRO | typeof FR): Recette => ({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 20_000, perimetre });
+    const carreaux = (perimetre: typeof METRO | typeof FR): Recette => ({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre });
+    const territoire = (perimetre: typeof METRO | typeof FR): Recette => ({ v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre });
+    expect(refusPerimetreLocal(rayon(METRO))).toBeNull();
+    expect(refusPerimetreLocal(carreaux(METRO))).toBe('seuil_metropole_differe');
+    expect(refusPerimetreLocal(territoire(METRO))).toBe('seuil_metropole_differe');
+    for (const r of [rayon(FR), carreaux(FR), territoire(FR)]) expect(refusPerimetreLocal(r)).toBe('perimetre_national_refuse');
+  });
+
+  it('les messages de la métropole : la tâche de fond pour le rayon, le calcul différé pour le seuil', () => {
+    expect(CAPACITE_SYNCHRONE_POI_RAYON).toBe(10_000);
+    expect(MESSAGES_REFUS.trop_de_poi_metropole).toBe(
+      `Plus de ${formaterNombre(10_000)} POI dans toute la France métropolitaine : ce calcul dépasse ce qu’on peut calculer en direct. `
+      + 'Il se lancera en tâche de fond dès le lot « calculs longs » ; en attendant, choisissez une région ou un département à l’étape ①.');
+    expect(MESSAGES_REFUS.seuil_metropole_differe).toBe(
+      'Le seuil sur toute la France métropolitaine arrive bientôt, en calcul de fond. En attendant, choisissez à l’étape ① '
+      + 'un département (carreaux) ou une région (territoires).');
+  });
+
+  it('la capacité de la métropole est le littéral écrit dans sql/285, qui garde la liste et la surface de sql/254', () => {
+    const METROPOLE = /_zone_rayon_poi_metropole\.sql$/;
+    expect(litteral(METROPOLE, /least\(p_max_poi, (\d+)\)/)).toBe(CAPACITE_SYNCHRONE_POI_RAYON);
+    expect(litteral(METROPOLE, /when v_metro then (\d+) else/)).toBe(CAPACITE_SYNCHRONE_POI_RAYON);
+    expect(litteral(METROPOLE, /when v_metro then \d+ else (\d+) end\)/)).toBe(MAX_POI_RAYON);
+    expect(litteral(METROPOLE, /resoudre_perimetre\(p_perimetre_type, p_perimetre_code, p_org_id, (\d+),/)).toBe(SURFACE_MAX_PERIMETRE_KM2);
+    expect(migration(METROPOLE)).toContain(liste('rayon_poi'));
+  });
+
   it('le seuil sur carreaux s’arrête au département ; les deux autres admettent la région', () => {
     const region = { type: 'region', code: '84' } as const;
     expect(refusPerimetreLocal({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: region })).toBe('perimetre_non_admis');
@@ -164,6 +195,14 @@ describe('la recette d’une zone', () => {
 describe('lireRecette (Zod)', () => {
   it('accepte une recette complète', () => {
     expect(lireRecette({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 5000, perimetre: PER }).ok).toBe(true);
+  });
+
+  it('un périmètre « france » ne porte que FR ou METRO', () => {
+    const avec = (code: string) => lireRecette({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 5000, perimetre: { type: 'france', code } }).ok;
+    expect(avec('FR')).toBe(true);
+    expect(avec('METRO')).toBe(true);
+    expect(avec('XX')).toBe(false);
+    expect(avec('metro')).toBe(false);
   });
 
   // `zone_referencee` compare des UUID en texte jsonb : un UUID en majuscules lui échapperait (revue de la Task 3).

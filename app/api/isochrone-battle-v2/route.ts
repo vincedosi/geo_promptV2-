@@ -17,12 +17,12 @@ import { z } from 'zod';
 import {
   sourcesVisiblesDeLaRequete, filtrerParSourcesVisibles, empreintePerimetre,
 } from '@/lib/auth/perimetre-donnees';
+import { PLAFOND_LECTURE_POI, refusBorneNationale, sansTerritoire } from '@/lib/isochrones/borne-nationale';
+import { paquetsDeCles } from '@/lib/isochrones/paquets-cles';
 
 export const dynamic = 'force-dynamic';
 
 export const maxDuration = 300;
-
-const CACHE_CHUNK = 200;
 
 const battleV2Schema = z.object({
   category:       z.string().min(1, 'category requis'),
@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
         if (deptFilter)     q = q.in('departement', deptFilter);
         q = filtrerParSourcesVisibles(q, sources);
 
-        const { data: rawRows, error: poiErr } = await q.limit(500);
+        const { data: rawRows, error: poiErr } = await q.limit(PLAFOND_LECTURE_POI);
         if (poiErr) { send({ type: 'error', message: `Erreur chargement POIs : ${poiErr.message}` }); return; }
 
         const pois = (rawRows ?? [])
@@ -189,24 +189,28 @@ export async function POST(req: NextRequest) {
         if (pois.length < 2) {
           send({ type: 'error', message: `Moins de 2 POIs trouvés pour "${category}"` }); return;
         }
+
+        // Borne TECHNIQUE d'une bataille sans territoire (retours du 26/10, T2 ; aucune borne produit, Q-1 de
+        // Vincent). D'abord la lecture : 500 POI lus, c'est une lecture tronquée — refus AVANT de lire le cache
+        // (3 500 géométries pour 7 paliers). Puis, une fois le cache lu, les anneaux RÉELLEMENT trouvés.
+        const borneNationale = sansTerritoire({ filtre_ville, filtre_regions, filtre_depts });
+        if (borneNationale && pois.length >= PLAFOND_LECTURE_POI) {
+          send({ type: 'error', message: refusBorneNationale(pois.length, PALIERS.length) }); return;
+        }
         send({ type: 'pois_loaded', total: pois.length });
 
-        // ── 2. Lecture cache — UNE seule requête chunked ──────────────────
+        // ── 2. Lecture cache — paquets lus en SÉQUENCE ─────────────────────
+        // Pas de `Promise.all` : 500 POI × 7 paliers feraient des dizaines de lectures simultanées de géométries,
+        // au-delà des 3 appels Supabase simultanés de CLAUDE.md (§ Disk I/O). Paquets taillés pour l'URL
+        // (`paquetsDeCles`) et erreur LUE : un paquet refusé ne fait plus une bataille partielle en silence.
         const allKeys = pois.flatMap(p =>
           PALIERS.map(l => perPoiCacheKey(category, p.id, l, normalizedMode)),
         );
-        const chunks: string[][] = [];
-        for (let i = 0; i < allKeys.length; i += CACHE_CHUNK)
-          chunks.push(allKeys.slice(i, i + CACHE_CHUNK));
-
-        const results = await Promise.all(
-          chunks.map(chunk =>
-            supabase.from('isochrones_cache').select('cache_key, geojson').in('cache_key', chunk),
-          ),
-        );
-
         const cacheHitMap = new Map<string, object>();
-        for (const { data } of results) {
+        for (const paquet of paquetsDeCles(allKeys)) {
+          const { data, error: cacheErr } = await supabase.from('isochrones_cache')
+            .select('cache_key, geojson').in('cache_key', paquet);
+          if (cacheErr) { send({ type: 'error', message: `Erreur lecture du cache : ${cacheErr.message}` }); return; }
           for (const row of data ?? []) {
             const geom = (row.geojson as any)?.features?.[0]?.geometry;
             if (geom) cacheHitMap.set(row.cache_key, geom);
@@ -232,6 +236,9 @@ export async function POST(req: NextRequest) {
             }
           }
         }
+
+        const refusAnneaux = borneNationale ? refusBorneNationale(pois.length, PALIERS.length, rings.length) : null;
+        if (refusAnneaux) { send({ type: 'error', message: refusAnneaux }); return; }
 
         if (missingLog.length > 0) {
           const sample = missingLog.slice(0, 5).map(m => `${m.poi}@${m.palier}min`).join(', ');

@@ -16,7 +16,7 @@
 import { z } from 'zod';
 import { messageAnomalies } from '@/lib/api/valider-corps';
 import {
-  INDICATEURS_SEUIL_CARREAUX, MAX_CODES_POSTAUX, RAYON_POINT_MAX_M, RAYON_POI_MAX_M, RAYON_POI_MIN_M,
+  CODES_FRANCE, INDICATEURS_SEUIL_CARREAUX, MAX_CODES_POSTAUX, RAYON_POINT_MAX_M, RAYON_POI_MAX_M, RAYON_POI_MIN_M,
   SEUIL_CARREAUX_MAX, SEUIL_TERRITOIRE_MAX_ABS, TYPES_PERIMETRE, VERSION_RECETTE, type OperateurSeuil, type PerimetreRecette,
   type Recette,
 } from './recette';
@@ -26,6 +26,7 @@ import {
 const Uuid = z.string().uuid().transform((s) => s.toLowerCase());
 const Perimetre = z.object({ type: z.enum(TYPES_PERIMETRE), code: z.string().min(1).max(64) }).strict()
   .refine((p) => p.type !== 'zone' || Uuid.safeParse(p.code).success, { message: 'le code d’une zone doit être un UUID', path: ['code'] })
+  .refine((p) => p.type !== 'france' || (CODES_FRANCE as readonly string[]).includes(p.code), { message: 'le code de la France est FR ou METRO', path: ['code'] })
   .transform((p): PerimetreRecette => (p.type === 'zone' ? { ...p, code: p.code.toLowerCase() } : p))
   .nullable();
 const OPERATEURS = ['>=', '<='] as const satisfies readonly OperateurSeuil[];
