@@ -65,10 +65,12 @@ export const LIGNE_METROPOLE =
  * une referme l'autre. Une famille repliée CACHE ses formulaires de recette et la liste de codes postaux, montés à son
  * premier dépli (A-12) : la saisie survit au repli, et la rouvrir ne relit rien. Ils ne lisent rien à leur construction
  * hors caches de page, ni sur un changement de filtre (leur recette est un `computed`). Replier la famille active vide
- * `actif` : le pied n'a plus rien à lancer. Les deux créateurs qui tiennent la CARTE — le rayon autour d'un point (clic
- * de pose, aperçu) et le dessin — restent DÉMONTÉS au repli (`@if`), comme avant : replier « À la main » pendant un
- * tracé arrête le dessin et rend la carte, et un aperçu de rayon ne reste pas peint sous une famille fermée. L'aperçu
- * des recettes est dans `AtelierZoneService`, fourni ICI et donc gardé tant que le panneau l'est (③ → ① → ③).
+ * `actif` : le pied n'a plus rien à lancer ; la rouvrir rend actif le DERNIER formulaire touché de la famille. Les deux
+ * créateurs qui tiennent la CARTE — le rayon autour d'un point (clic de pose, aperçu) et le dessin — restent montés
+ * eux aussi (relecture T7, I-1 : centre, rayon, nom, tracé et création en vol survivent, et « Mes zones » se relit
+ * quand elle aboutit) ; repliés, ils se mettent EN PAUSE (`enPause`) : pose arrêtée et aperçu retiré pour le rayon,
+ * dessin suspendu pour le tracé — la carte est rendue, et tout revient à la réouverture. L'aperçu des recettes est dans
+ * `AtelierZoneService`, fourni ICI et donc gardé tant que le panneau l'est (③ → ① → ③).
  *
  * Aucune lecture à l'ouverture de ③ : les types de POI viennent du catalogue de la page (déjà lu par ②), le catalogue
  * d'indicateurs n'est lu qu'à l'ouverture de « Par seuil », fermée par défaut.
@@ -89,7 +91,7 @@ export const LIGNE_METROPOLE =
     <mg-entete-section data-famille="poi" libelle="Autour des POI" repliable [ouvert]="tiroirs.ouvert() === 'poi'" (ouvertChange)="basculer('poi', $event)" />
     @if (tiroirs.dejaOuvert('poi')) {
       <div data-corps-famille="poi" [class.hidden]="tiroirs.ouvert() !== 'poi'">
-        @if (tiroirs.ouvert() === 'poi') { <div class="px-3.5 pb-1"><mg-creer-rayon (cree)="relire()" /></div> }
+        <div class="px-3.5 pb-1"><mg-creer-rayon [enPause]="tiroirs.ouvert() !== 'poi'" (cree)="relire()" /></div>
         <mg-recette-rayon-poi #rayonPoi [class.recette-active]="actif() === 'rayon_poi'" (focusin)="actif.set('rayon_poi')" (click)="actif.set('rayon_poi')" />
         <p data-renvoi-analyse class="m-0 px-3.5 pt-2 text-[12px] leading-[1.5] text-tertiary">
           Isochrones et bataille : lancez-les à l’étape ④, puis capturez le résultat ici.
@@ -110,7 +112,7 @@ export const LIGNE_METROPOLE =
     <mg-entete-section data-famille="main" libelle="À la main" repliable [ouvert]="tiroirs.ouvert() === 'main'" (ouvertChange)="basculer('main', $event)" />
     @if (tiroirs.dejaOuvert('main')) {
       <div data-corps-famille="main" [class.hidden]="tiroirs.ouvert() !== 'main'">
-        @if (tiroirs.ouvert() === 'main') { <div class="px-3.5 pb-1"><mg-creer-dessin (cree)="relire()" /></div> }
+        <div class="px-3.5 pb-1"><mg-creer-dessin [enPause]="tiroirs.ouvert() !== 'main'" (cree)="relire()" /></div>
         <mg-recette-import #importForme [class.recette-active]="actif() === 'import'" (focusin)="actif.set('import')" (click)="actif.set('import')" />
         <div class="px-3.5 pb-3"><mg-creer-codes-postaux (cree)="relire()" /></div>
       </div>
@@ -169,6 +171,8 @@ export class PanneauZonesComponent {
   /** Une famille ouverte à la fois ; « Autour des POI » à l'ouverture (A-11). */
   protected readonly tiroirs = new TiroirsExclusifs<Famille>('poi');
   protected readonly actif = signal<CleRecette | null>('rayon_poi');
+  /** Le dernier formulaire actif de chaque famille : la rouvrir le rend actif (relecture T7, m-1), le premier sinon. */
+  private readonly derniers: Partial<Record<Famille, CleRecette>> = {};
 
   // Par référence de gabarit (le contrat `FormulaireRecette`, pas la classe) : `undefined` tant que sa famille n'a jamais été dépliée.
   private readonly rayonPoi = viewChild<FormulaireRecette>('rayonPoi');
@@ -205,11 +209,14 @@ export class PanneauZonesComponent {
     inject(DestroyRef).onDestroy(() => ecrite.unsubscribe());
   }
 
-  /** Ouvrir une famille referme l'autre et rend actif son premier formulaire ; replier la famille ouverte vide `actif`. */
+  /** Ouvrir une famille referme l'autre et rend actif son dernier formulaire (le premier sinon) ; replier vide `actif`. */
   protected basculer(famille: Famille, ouvert: boolean): void {
+    // L'actif de la famille qui se replie (explicitement, ou parce qu'une autre s'ouvre) est retenu pour sa réouverture.
+    const actif = this.actif();
+    if (actif) this.derniers[FAMILLE_DU_FORMULAIRE[actif]] = actif;
     if (ouvert) {
       this.tiroirs.ouvrir(famille);
-      this.actif.set(PREMIER_FORMULAIRE[famille]);
+      this.actif.set(this.derniers[famille] ?? PREMIER_FORMULAIRE[famille]);
     } else if (this.tiroirs.estOuvert(famille)) {
       this.tiroirs.fermer();
       this.actif.set(null);

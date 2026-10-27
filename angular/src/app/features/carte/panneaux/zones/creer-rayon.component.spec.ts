@@ -2,7 +2,7 @@ import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type maplibregl from 'maplibre-gl';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { CarteFactice } from '../../../../carte/testing/carte-factice';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { CouleursService } from '../../../../core/theme/couleurs.service';
@@ -160,5 +160,41 @@ describe('CreerRayonComponent (CreerZoneRayon.tsx)', () => {
     carte.emettre('click', { lngLat: { lng: 5.37, lat: 43.3 }, point: { x: 0, y: 0 } });
     await stable();
     expect(el.querySelector('[data-centre]')!.textContent!.trim()).toBe('43.3000, 5.3700');
+  });
+
+  it('en pause (famille repliée, T7 I-1) : pose arrêtée et aperçu retiré, centre et nom GARDÉS ; la reprise rend l’aperçu', async () => {
+    const { fixture, el, carte, stable, etat } = monter();
+    await poserMarseille(el, carte, stable);
+    const nom = el.querySelector<HTMLInputElement>('[data-nom]')!;
+    nom.value = 'Autour de Marseille';
+    nom.dispatchEvent(new Event('input'));
+    bouton(el, '[data-poser]').click();
+    await stable();
+    expect(etat.carteOccupee()).toBe(true);
+    fixture.componentRef.setInput('enPause', true);
+    await stable();
+    expect(etat.carteOccupee()).toBe(false);
+    expect(carte.sources.has(SOURCE_APERCU_RAYON)).toBe(false);
+    fixture.componentRef.setInput('enPause', false);
+    await stable();
+    expect(carte.sources.has(SOURCE_APERCU_RAYON)).toBe(true);
+    expect(el.querySelector('[data-centre]')!.textContent!.trim()).toBe('43.2965, 5.3698');
+    expect(el.querySelector<HTMLInputElement>('[data-nom]')!.value).toBe('Autour de Marseille');
+  });
+
+  it('une création EN VOL n’est pas coupée par la pause : elle aboutit et émet `cree`', async () => {
+    const reponse = new Subject<unknown>();
+    const { fixture, el, carte, stable } = monter({ depuisRayon: vi.fn(() => reponse) });
+    let emis = 0;
+    fixture.componentInstance.cree.subscribe(() => emis++);
+    await poserMarseille(el, carte, stable);
+    bouton(el, '[data-creer]').click();
+    await stable();
+    fixture.componentRef.setInput('enPause', true);
+    await stable();
+    reponse.next({ geometry: GEOMETRIE, surface_km2: 760.4, part_retenue: 1 });
+    reponse.complete();
+    await stable();
+    expect(emis).toBe(1);
   });
 });

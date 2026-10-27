@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import type { Subscription } from 'rxjs';
 import { DessinService } from '../../couches/dessin.service';
 import { ZonesCustomApi } from '../../data/zones-custom.api';
@@ -83,6 +83,11 @@ export class CreerDessinComponent {
   protected readonly dessin = inject(DessinService);
 
   readonly cree = output<void>();
+  /**
+   * Sa famille de ③ est repliée (tiroirs exclusifs, retours du 26/10, T7) : le composant reste MONTÉ — nom, tracé et
+   * création en vol survivent — mais le dessin se met en pause et rend la carte ; il reprend à la réouverture.
+   */
+  readonly enPause = input(false);
 
   protected readonly ouvert = signal(false);
   protected readonly nom = signal('');
@@ -97,6 +102,14 @@ export class CreerDessinComponent {
   private abonnement: Subscription | null = null;
 
   constructor() {
+    effect(() => {
+      const pause = this.enPause();
+      untracked(() => {
+        if (!this.ouvert()) return;
+        if (pause) this.dessin.suspendre();
+        else this.dessin.reprendre();
+      });
+    });
     inject(DestroyRef).onDestroy(() => {
       this.abonnement?.unsubscribe();
       // Le panneau se ferme : le dessin s'arrête avec lui, comme `DessinLibre` démonté (`draw.stop()`).

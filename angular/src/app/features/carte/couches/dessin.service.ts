@@ -54,6 +54,8 @@ export class DessinService {
   private readonly couleurs = inject(CouleursService).palette({ teal: 'brand-teal' });
 
   private readonly actif = signal(false);
+  /** L'outil est ouvert mais EN PAUSE (sa famille de ③ repliée, retours du 26/10, T7) : tracé gardé, carte rendue. */
+  private suspendu = false;
   private readonly trace = signal(traceVide('polygone'));
   private readonly curseur = signal<Position | null>(null);
 
@@ -62,7 +64,8 @@ export class DessinService {
   /** Le tracé FERMÉ, tel qu'il partira à `/source/dessin` ; `null` tant qu'il ne l'est pas. */
   readonly traceFerme = computed(() => this.trace().ferme);
   readonly aide = computed(() => messageAideDessin(this.mode(), this.nombreSommets()));
-  private readonly enCours = computed(() => !this.trace().ferme && this.trace().sommets.length > 0);
+  /** Un tracé en cours SUR LA CARTE : un tracé en pause (`suspendre`) ne tient ni Échap ni le déplacement. */
+  private readonly enCours = computed(() => this.actif() && !this.trace().ferme && this.trace().sommets.length > 0);
   private readonly apercu = computed(() => apercuTrace(this.trace(), this.curseur()));
 
   /** L'instance où la source est posée. */
@@ -126,11 +129,34 @@ export class DessinService {
 
   /** Ferme l'outil : tracé perdu, couches retirées, carte rendue (« Quitter le dessin », panneau fermé). */
   arreter(): void {
+    this.suspendu = false;
     this.actif.set(false);
     this.trace.set(traceVide('polygone'));
     this.curseur.set(null);
     this.etat.rendreCarte(OUTIL);
     this.pile.depiler(ECHAP_TRACE);
+  }
+
+  /**
+   * Met l'outil en pause sans rien perdre (sa famille de ③ repliée, T7) : couches et écoutes retirées, curseur et
+   * déplacement rendus, la carte libérée — mais le TRACÉ reste, et `reprendre` le repeint tel quel.
+   */
+  suspendre(): void {
+    if (!this.actif()) return;
+    this.suspendu = true;
+    this.actif.set(false);
+    this.curseur.set(null);
+    this.couches.carteCourante()?.dragPan.enable();
+    this.etat.rendreCarte(OUTIL);
+    this.pile.depiler(ECHAP_TRACE);
+  }
+
+  /** Sort de la pause : l'outil reprend la carte, avec le tracé laissé à `suspendre`. Sans pause, ne fait rien. */
+  reprendre(): void {
+    if (!this.suspendu) return;
+    this.suspendu = false;
+    this.actif.set(true);
+    this.etat.prendreCarte(OUTIL);
   }
 
   /** Changer de mode repart d'un tracé vide. */

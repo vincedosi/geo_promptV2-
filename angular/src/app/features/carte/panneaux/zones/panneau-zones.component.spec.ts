@@ -1,6 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, input, output, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { AuthService } from '../../../../core/auth/auth.service';
@@ -38,14 +38,21 @@ import { RecetteSeuilTerritoireComponent } from './recette-seuil-territoire.comp
 @Component({ selector: 'mg-creer-codes-postaux', template: '' })
 class CodesPostauxFactice { readonly cree = output<void>(); }
 @Component({ selector: 'mg-creer-rayon', template: '' })
-class RayonFactice { readonly cree = output<void>(); }
-/** Le dessin factice prend la carte à sa création et la rend à sa destruction, comme le vrai (`basculer` / `arreter`). */
+class RayonFactice { readonly cree = output<void>(); readonly enPause = input(false); }
+/**
+ * Le dessin factice prend la carte à sa création, la rend en PAUSE (famille repliée, T7 I-1) et à sa destruction, comme
+ * le vrai (`suspendre` / `reprendre` / `arreter`).
+ */
 @Component({ selector: 'mg-creer-dessin', template: '' })
 class DessinFactice {
   readonly cree = output<void>();
+  readonly enPause = input(false);
   constructor() {
     const etat = inject(EtatCarteService);
-    etat.prendreCarte('dessin');
+    effect(() => {
+      if (this.enPause()) etat.rendreCarte('dessin');
+      else etat.prendreCarte('dessin');
+    });
     inject(DestroyRef).onDestroy(() => etat.rendreCarte('dessin'));
   }
 }
@@ -156,11 +163,16 @@ describe('PanneauZonesComponent — ③ rangée par familles (lot 3, T10)', () =
     expect(el.querySelector('[data-capturer]')!.textContent).toContain('Capturer zone custom');
   });
 
-  it('replier « À la main » pendant un tracé libère la carte', async () => {
+  it('replier « À la main » pendant un tracé libère la carte ; la rouvrir la reprend', async () => {
     const { etat, ouvrirFamille } = await monter();
     await ouvrirFamille('main');
     expect(etat.carteOccupee()).toBe(true);
     await ouvrirFamille('main');
+    expect(etat.carteOccupee()).toBe(false);
+    await ouvrirFamille('main');
+    expect(etat.carteOccupee()).toBe(true);
+    // Ouvrir une AUTRE famille met aussi le dessin en pause (tiroirs exclusifs).
+    await ouvrirFamille('seuil');
     expect(etat.carteOccupee()).toBe(false);
   });
 
@@ -199,11 +211,11 @@ describe('PanneauZonesComponent — ③ rangée par familles (lot 3, T10)', () =
   describe('tiroirs exclusifs (retours du 26/10, T7)', () => {
     const corps = (el: HTMLElement, f: string) => el.querySelector(`[data-corps-famille="${f}"]`);
 
-    it('ouvrir « Par seuil » ferme « Autour des POI » : son corps est caché, le créateur de rayon (qui tient la carte) démonté', async () => {
-      const { el, ouvrirFamille } = await monter();
+    it('ouvrir « Par seuil » ferme « Autour des POI » : son corps est caché, le créateur de rayon (qui tient la carte) en pause', async () => {
+      const { fixture, el, ouvrirFamille } = await monter();
       await ouvrirFamille('seuil');
       expect(corps(el, 'poi')!.classList).toContain('hidden');
-      expect(el.querySelector('mg-creer-rayon')).toBeNull();
+      expect((fixture.debugElement.query(By.directive(RayonFactice)).componentInstance as RayonFactice).enPause()).toBe(true);
       expect(corps(el, 'seuil')!.classList).not.toContain('hidden');
       expect([...el.querySelectorAll('mg-entete-section')].filter((h) => h.querySelector('[aria-expanded="true"]')).length).toBeLessThanOrEqual(1);
       // « À la main » jamais dépliée : rien n'est monté.
@@ -264,6 +276,43 @@ describe('PanneauZonesComponent — ③ rangée par familles (lot 3, T10)', () =
       etat.filtre.set({ type: 'region', code: '93', label: "Provence-Alpes-Côte d'Azur" });
       await fixture.whenStable();
       http.expectNone(() => true);
+    });
+  });
+
+  describe('relecture T7 : I-1 et m-1', () => {
+    it('I-1 : ouvrir une autre famille garde le rayon et le dessin MONTÉS (même instance), en pause ; une création qui aboutit relit « Mes zones »', async () => {
+      const { fixture, outils, ouvrirFamille } = await monter();
+      const rayon = () => fixture.debugElement.query(By.directive(RayonFactice)).componentInstance as RayonFactice;
+      const avant = rayon();
+      expect(avant.enPause()).toBe(false);
+      await ouvrirFamille('main');
+      const dessin = fixture.debugElement.query(By.directive(DessinFactice)).componentInstance as DessinFactice;
+      await ouvrirFamille('seuil');
+      expect(rayon()).toBe(avant);
+      expect(rayon().enPause()).toBe(true);
+      expect(fixture.debugElement.query(By.directive(DessinFactice)).componentInstance).toBe(dessin);
+      expect(dessin.enPause()).toBe(true);
+      const revision = outils.revisionZones();
+      rayon().cree.emit();
+      dessin.cree.emit();
+      expect(outils.revisionZones()).toBe(revision + 2);
+      await ouvrirFamille('poi');
+      expect(rayon().enPause()).toBe(false);
+    });
+
+    it('m-1 : rouvrir une famille rend actif son DERNIER formulaire touché, pas le premier', async () => {
+      const { fixture, el, ouvrirFamille } = await monter();
+      await ouvrirFamille('seuil');
+      el.querySelector<HTMLElement>('mg-recette-seuil-territoire')!.click();
+      await fixture.whenStable();
+      await ouvrirFamille('main');
+      await ouvrirFamille('seuil');
+      expect(el.querySelector('mg-recette-seuil-territoire')!.classList).toContain('recette-active');
+      expect(el.querySelector('mg-recette-seuil-carreaux')!.classList).not.toContain('recette-active');
+      // Replier puis rouvrir la même : idem.
+      await ouvrirFamille('seuil');
+      await ouvrirFamille('seuil');
+      expect(el.querySelector('mg-recette-seuil-territoire')!.classList).toContain('recette-active');
     });
   });
 });

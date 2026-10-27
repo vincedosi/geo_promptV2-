@@ -180,4 +180,44 @@ describe('DessinService — tracé libre maison (B8)', () => {
     flush();
     expect(carte.peintures.some((p) => p.valeur === '#3dbdb5')).toBe(true);
   });
+
+  it('suspendre (famille de ③ repliée, T7 I-1) : couches, écoutes et carte rendues, TRACÉ GARDÉ ; reprendre le repeint', () => {
+    const { dessin, carte, etat } = monter();
+    dessin.demarrer();
+    flush();
+    clic(carte, 0, 0);
+    clic(carte, 100, 0);
+    flush();
+    expect(carte.dragPan.isEnabled()).toBe(false);
+    dessin.suspendre();
+    flush();
+    expect(carte.sources.has(SOURCE_DESSIN)).toBe(false);
+    expect(carte.nombreEcouteurs('click')).toBe(0);
+    expect(carte.dragPan.isEnabled()).toBe(true);
+    expect(carte.doubleClickZoom.isEnabled()).toBe(true);
+    expect(etat.carteOccupee()).toBe(false);
+    expect(dessin.nombreSommets()).toBe(2);
+    dessin.reprendre();
+    flush();
+    expect(etat.carteOccupee()).toBe(true);
+    expect(carte.sources.has(SOURCE_DESSIN)).toBe(true);
+    expect(dessin.nombreSommets()).toBe(2);
+    clic(carte, 100, 100);
+    flush();
+    expect(dessin.nombreSommets()).toBe(3);
+  });
+
+  it('reprendre sans pause ne démarre rien ; arrêter après une pause oublie la pause', () => {
+    const { dessin, carte, etat } = monter();
+    dessin.reprendre();
+    flush();
+    expect(etat.carteOccupee()).toBe(false);
+    dessin.demarrer();
+    dessin.suspendre();
+    dessin.arreter();
+    dessin.reprendre();
+    flush();
+    expect(etat.carteOccupee()).toBe(false);
+    expect(carte.sources.has(SOURCE_DESSIN)).toBe(false);
+  });
 });

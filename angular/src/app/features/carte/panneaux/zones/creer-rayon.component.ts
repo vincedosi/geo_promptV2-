@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
 import type { Subscription } from 'rxjs';
 import { CouleursService } from '../../../../core/theme/couleurs.service';
@@ -83,6 +83,12 @@ export class CreerRayonComponent {
   private readonly couleurs = inject(CouleursService).palette({ teal: 'brand-teal' });
 
   readonly cree = output<void>();
+  /**
+   * Sa famille de ③ est repliée (tiroirs exclusifs, retours du 26/10, T7) : le composant reste MONTÉ — centre, rayon,
+   * nom et création en vol survivent — mais la pose s'arrête (carte rendue) et l'aperçu se retire ; il revient à la
+   * réouverture.
+   */
+  readonly enPause = input(false);
 
   protected readonly min = RAYON_MIN_M;
   protected readonly max = RAYON_MAX_M;
@@ -126,11 +132,16 @@ export class CreerRayonComponent {
       });
     });
 
-    // L'aperçu : posé tant que l'outil est ouvert avec un centre, redessiné à chaque rayon et au changement de thème.
+    // En pause (famille repliée) : la pose s'arrête, la carte est rendue. Rien d'autre n'est touché.
+    effect(() => {
+      if (this.enPause()) untracked(() => this.arreterPose());
+    });
+
+    // L'aperçu : posé tant que l'outil est ouvert (hors pause) avec un centre, redessiné à chaque rayon et au thème.
     effect((nettoyer) => {
       const carte = this.couches.carteCourante();
       const centre = this.centre();
-      if (!carte || !this.ouvert() || !centre) return;
+      if (!carte || !this.ouvert() || this.enPause() || !centre) return;
       const cercle = cercleApercu(centre.lon, centre.lat, this.rayonM());
       const teal = this.couleurs().teal;
       const attente = quandStyleCharge(carte, () => poserApercuRayon(carte, cercle, teal));

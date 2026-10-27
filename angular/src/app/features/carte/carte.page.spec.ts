@@ -1236,8 +1236,8 @@ describe('CartePage — le module risque, route ENFANT (T13, B2/B3)', () => {
     expect(hote.querySelector<HTMLButtonElement>('[data-capturer]')!.disabled).toBe(true);
     await famille('main');
     const outils = [...hote.querySelectorAll('mg-outil-creation [data-repli]')].map((b) => b.textContent!.trim());
-    // Tiroirs exclusifs (T7) : « À la main » ouverte a replié « Autour des POI », et son rayon (qui tient la carte) est démonté.
-    expect(outils).toEqual(['Dessiner une zone ▼', 'Importer une liste de codes postaux ▼']);
+    // Tiroirs exclusifs (T7) : « Autour des POI » est repliée, mais son rayon reste MONTÉ, caché, en pause (relecture T7, I-1).
+    expect(outils).toEqual(['Zone par rayon ▼', 'Dessiner une zone ▼', 'Importer une liste de codes postaux ▼']);
     hote.querySelector<HTMLButtonElement>('mg-creer-dessin [data-repli]')!.click();
     await stable();
     hote.querySelector('mg-carte')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }));
