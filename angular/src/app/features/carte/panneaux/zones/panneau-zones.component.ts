@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, type Signal, type WritableSignal, computed, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, type Signal, computed, inject, signal, viewChild } from '@angular/core';
 import { EnteteSectionComponent } from '../../../../ui/entete-section/entete-section.component';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { AtelierZoneService } from '../../etat/atelier-zone.service';
@@ -6,6 +6,7 @@ import { CaptureService } from '../../etat/capture.service';
 import { CreationZoneService } from '../../etat/creation-zone.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { ParcoursService } from '../../etat/parcours.service';
+import { TiroirsExclusifs } from '../../etat/tiroirs-exclusifs';
 import { estMetropole } from '../../logique/perimetre-national';
 import type { Recette } from '../../logique/zones/recette';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
@@ -34,6 +35,10 @@ interface FormulaireRecette {
 const PREMIER_FORMULAIRE: Readonly<Record<Famille, CleRecette | null>> = {
   poi: 'rayon_poi', seuil: 'seuil_carreaux', main: 'import', capture: null,
 };
+/** La famille qui porte chaque formulaire : un formulaire d'une famille repliée n'est pas lancé par le pied. */
+const FAMILLE_DU_FORMULAIRE: Readonly<Record<CleRecette, Famille>> = {
+  rayon_poi: 'poi', seuil_carreaux: 'seuil', seuil_territoire: 'seuil', import: 'main',
+};
 
 /** La ligne de périmètre sur la métropole (retours du 26/10, T3) — aucun nombre : la capacité n'est pas une borne produit. */
 export const LIGNE_METROPOLE =
@@ -55,9 +60,15 @@ export const LIGNE_METROPOLE =
  * autour d'un point, dessin, codes postaux) gardent leur propre bouton « Créer la zone » et écrivent eux aussi une
  * recette (`CreationZoneService`). Enfin, le renvoi vers « Mes zones » (boîte à outils).
  *
- * Une famille repliée DÉMONTE ses formulaires (`@if`) : aucun calcul n'y vit — l'aperçu est dans `AtelierZoneService`,
- * fourni ICI et donc gardé tant que le panneau l'est (③ → ① → ③). Replier « À la main » pendant un tracé arrête le
- * dessin et rend la carte (destruction de `mg-creer-dessin`).
+ * ── TIROIRS EXCLUSIFS (retours du 26/10, T7) ─────────────────────────────
+ * Les quatre familles sont UN jeu de tiroirs (`TiroirsExclusifs`, « Autour des POI » ouvert à l'ouverture) : en ouvrir
+ * une referme l'autre. Une famille repliée CACHE ses formulaires de recette et la liste de codes postaux, montés à son
+ * premier dépli (A-12) : la saisie survit au repli, et la rouvrir ne relit rien. Ils ne lisent rien à leur construction
+ * hors caches de page, ni sur un changement de filtre (leur recette est un `computed`). Replier la famille active vide
+ * `actif` : le pied n'a plus rien à lancer. Les deux créateurs qui tiennent la CARTE — le rayon autour d'un point (clic
+ * de pose, aperçu) et le dessin — restent DÉMONTÉS au repli (`@if`), comme avant : replier « À la main » pendant un
+ * tracé arrête le dessin et rend la carte, et un aperçu de rayon ne reste pas peint sous une famille fermée. L'aperçu
+ * des recettes est dans `AtelierZoneService`, fourni ICI et donc gardé tant que le panneau l'est (③ → ① → ③).
  *
  * Aucune lecture à l'ouverture de ③ : les types de POI viennent du catalogue de la page (déjà lu par ②), le catalogue
  * d'indicateurs n'est lu qu'à l'ouverture de « Par seuil », fermée par défaut.
@@ -75,32 +86,38 @@ export const LIGNE_METROPOLE =
   template: `
     <p data-perimetre class="m-0 px-3.5 py-2.5 text-[12px] leading-[1.5]" [class.text-secondary]="!!filtre()" [class.text-tertiary]="!filtre()">{{ lignePerimetre() }}</p>
 
-    <mg-entete-section data-famille="poi" libelle="Autour des POI" repliable [ouvert]="ouverts.poi()" (ouvertChange)="basculer('poi', $event)" />
-    @if (ouverts.poi()) {
-      <div class="px-3.5 pb-1"><mg-creer-rayon (cree)="relire()" /></div>
-      <mg-recette-rayon-poi #rayonPoi [class.recette-active]="actif() === 'rayon_poi'" (focusin)="actif.set('rayon_poi')" (click)="actif.set('rayon_poi')" />
-      <p data-renvoi-analyse class="m-0 px-3.5 pt-2 text-[12px] leading-[1.5] text-tertiary">
-        Isochrones et bataille : lancez-les à l’étape ④, puis capturez le résultat ici.
-      </p>
-      <button type="button" data-aller-analyse (click)="parcours.choisir('analyse')"
-        class="mx-3.5 mb-3 mt-1 cursor-pointer rounded-[6px] border-fin border-default bg-transparent px-3 py-1.5 text-[12px] text-secondary hover:border-hover hover:bg-elevated hover:text-primary">Aller à ④ Analyse</button>
+    <mg-entete-section data-famille="poi" libelle="Autour des POI" repliable [ouvert]="tiroirs.ouvert() === 'poi'" (ouvertChange)="basculer('poi', $event)" />
+    @if (tiroirs.dejaOuvert('poi')) {
+      <div data-corps-famille="poi" [class.hidden]="tiroirs.ouvert() !== 'poi'">
+        @if (tiroirs.ouvert() === 'poi') { <div class="px-3.5 pb-1"><mg-creer-rayon (cree)="relire()" /></div> }
+        <mg-recette-rayon-poi #rayonPoi [class.recette-active]="actif() === 'rayon_poi'" (focusin)="actif.set('rayon_poi')" (click)="actif.set('rayon_poi')" />
+        <p data-renvoi-analyse class="m-0 px-3.5 pt-2 text-[12px] leading-[1.5] text-tertiary">
+          Isochrones et bataille : lancez-les à l’étape ④, puis capturez le résultat ici.
+        </p>
+        <button type="button" data-aller-analyse (click)="parcours.choisir('analyse')"
+          class="mx-3.5 mb-3 mt-1 cursor-pointer rounded-[6px] border-fin border-default bg-transparent px-3 py-1.5 text-[12px] text-secondary hover:border-hover hover:bg-elevated hover:text-primary">Aller à ④ Analyse</button>
+      </div>
     }
 
-    <mg-entete-section data-famille="seuil" libelle="Par seuil" repliable [ouvert]="ouverts.seuil()" (ouvertChange)="basculer('seuil', $event)" />
-    @if (ouverts.seuil()) {
-      <mg-recette-seuil-carreaux #seuilCarreaux [class.recette-active]="actif() === 'seuil_carreaux'" (focusin)="actif.set('seuil_carreaux')" (click)="actif.set('seuil_carreaux')" />
-      <mg-recette-seuil-territoire #seuilTerritoire [class.recette-active]="actif() === 'seuil_territoire'" (focusin)="actif.set('seuil_territoire')" (click)="actif.set('seuil_territoire')" />
+    <mg-entete-section data-famille="seuil" libelle="Par seuil" repliable [ouvert]="tiroirs.ouvert() === 'seuil'" (ouvertChange)="basculer('seuil', $event)" />
+    @if (tiroirs.dejaOuvert('seuil')) {
+      <div data-corps-famille="seuil" [class.hidden]="tiroirs.ouvert() !== 'seuil'">
+        <mg-recette-seuil-carreaux #seuilCarreaux [class.recette-active]="actif() === 'seuil_carreaux'" (focusin)="actif.set('seuil_carreaux')" (click)="actif.set('seuil_carreaux')" />
+        <mg-recette-seuil-territoire #seuilTerritoire [class.recette-active]="actif() === 'seuil_territoire'" (focusin)="actif.set('seuil_territoire')" (click)="actif.set('seuil_territoire')" />
+      </div>
     }
 
-    <mg-entete-section data-famille="main" libelle="À la main" repliable [ouvert]="ouverts.main()" (ouvertChange)="basculer('main', $event)" />
-    @if (ouverts.main()) {
-      <div class="px-3.5 pb-1"><mg-creer-dessin (cree)="relire()" /></div>
-      <mg-recette-import #importForme [class.recette-active]="actif() === 'import'" (focusin)="actif.set('import')" (click)="actif.set('import')" />
-      <div class="px-3.5 pb-3"><mg-creer-codes-postaux (cree)="relire()" /></div>
+    <mg-entete-section data-famille="main" libelle="À la main" repliable [ouvert]="tiroirs.ouvert() === 'main'" (ouvertChange)="basculer('main', $event)" />
+    @if (tiroirs.dejaOuvert('main')) {
+      <div data-corps-famille="main" [class.hidden]="tiroirs.ouvert() !== 'main'">
+        @if (tiroirs.ouvert() === 'main') { <div class="px-3.5 pb-1"><mg-creer-dessin (cree)="relire()" /></div> }
+        <mg-recette-import #importForme [class.recette-active]="actif() === 'import'" (focusin)="actif.set('import')" (click)="actif.set('import')" />
+        <div class="px-3.5 pb-3"><mg-creer-codes-postaux (cree)="relire()" /></div>
+      </div>
     }
 
-    <mg-entete-section data-famille="capture" libelle="Capture" repliable [ouvert]="ouverts.capture()" (ouvertChange)="basculer('capture', $event)" />
-    @if (ouverts.capture()) {
+    <mg-entete-section data-famille="capture" libelle="Capture" repliable [ouvert]="tiroirs.ouvert() === 'capture'" (ouvertChange)="basculer('capture', $event)" />
+    @if (tiroirs.ouvert() === 'capture') {
       <div class="px-3.5 py-3">
         <button
           type="button"
@@ -149,20 +166,21 @@ export class PanneauZonesComponent {
   protected readonly parcours = inject(ParcoursService);
   protected readonly filtre = inject(EtatCarteService).filtre;
 
-  protected readonly ouverts: Readonly<Record<Famille, WritableSignal<boolean>>> = {
-    poi: signal(true), seuil: signal(false), main: signal(false), capture: signal(false),
-  };
+  /** Une famille ouverte à la fois ; « Autour des POI » à l'ouverture (A-11). */
+  protected readonly tiroirs = new TiroirsExclusifs<Famille>('poi');
   protected readonly actif = signal<CleRecette | null>('rayon_poi');
 
-  // Par référence de gabarit (le contrat `FormulaireRecette`, pas la classe) : `undefined` quand la famille est repliée.
+  // Par référence de gabarit (le contrat `FormulaireRecette`, pas la classe) : `undefined` tant que sa famille n'a jamais été dépliée.
   private readonly rayonPoi = viewChild<FormulaireRecette>('rayonPoi');
   private readonly seuilCarreaux = viewChild<FormulaireRecette>('seuilCarreaux');
   private readonly seuilTerritoire = viewChild<FormulaireRecette>('seuilTerritoire');
   private readonly importForme = viewChild<FormulaireRecette>('importForme');
 
-  /** Le formulaire actif s'il est MONTÉ (une famille repliée n'a plus de formulaire : rien à lancer). */
+  /** Le formulaire actif s'il est monté ET sa famille dépliée (une famille repliée cache ses formulaires : rien à lancer). */
   private readonly formulaire = computed(() => {
-    switch (this.actif()) {
+    const actif = this.actif();
+    if (!actif || !this.tiroirs.estOuvert(FAMILLE_DU_FORMULAIRE[actif])) return undefined;
+    switch (actif) {
       case 'rayon_poi': return this.rayonPoi();
       case 'seuil_carreaux': return this.seuilCarreaux();
       case 'seuil_territoire': return this.seuilTerritoire();
@@ -187,10 +205,15 @@ export class PanneauZonesComponent {
     inject(DestroyRef).onDestroy(() => ecrite.unsubscribe());
   }
 
+  /** Ouvrir une famille referme l'autre et rend actif son premier formulaire ; replier la famille ouverte vide `actif`. */
   protected basculer(famille: Famille, ouvert: boolean): void {
-    this.ouverts[famille].set(ouvert);
-    const premier = PREMIER_FORMULAIRE[famille];
-    if (ouvert && premier) this.actif.set(premier);
+    if (ouvert) {
+      this.tiroirs.ouvrir(famille);
+      this.actif.set(PREMIER_FORMULAIRE[famille]);
+    } else if (this.tiroirs.estOuvert(famille)) {
+      this.tiroirs.fermer();
+      this.actif.set(null);
+    }
   }
 
   /** Une zone créée : « Mes zones », dans la boîte à outils, se relit sans être recréé (sa sélection survit). */

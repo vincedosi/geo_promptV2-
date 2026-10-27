@@ -70,4 +70,26 @@ describe('mg-section-clustering (ClusteringSection.tsx)', () => {
     expect(relais).toBe(1);
     http.expectNone('/api/poi-clusters?duration=60');
   });
+
+  it('tiroir (retours du 26/10, T7) : rouvrir ne relit PAS la liste ; après un échec, la réouverture la relit', async () => {
+    const { http, ouvrir, fixture } = await monter();
+    await ouvrir();
+    http.expectOne('/api/poi-clusters/models').flush({ models: MODELES });
+    await fixture.whenStable();
+    await ouvrir();
+    await ouvrir();
+    http.expectNone('/api/poi-clusters/models');
+    // Un échec n'est pas retenu.
+    const echec = await (async () => {
+      TestBed.resetTestingModule();
+      return monter();
+    })();
+    await echec.ouvrir();
+    echec.http.expectOne('/api/poi-clusters/models').flush({ error: 'panne' }, { status: 500, statusText: 'Erreur' });
+    await echec.fixture.whenStable();
+    await echec.ouvrir();
+    await echec.ouvrir();
+    echec.http.expectOne('/api/poi-clusters/models').flush({ models: [] });
+    echec.http.verify();
+  });
 });

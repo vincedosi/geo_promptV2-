@@ -13,6 +13,7 @@ import { DonneesAfficheesService } from '../../etat/donnees-affichees.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { JeuxRecommandesService } from '../../etat/jeux-recommandes.service';
 import { RisqueCarteService } from '../../etat/risque-carte.service';
+import { TiroirsExclusifs } from '../../etat/tiroirs-exclusifs';
 import { libelleDegrade } from '../../logique/degrades';
 import { PREFIXE_POI } from '../../logique/jeux-carte';
 import { type JeuAffichable, decouperCommuns, filtrerJeux, jeuxDeLaCarte, rangerJeux } from '../../logique/rangement-jeux';
@@ -23,6 +24,7 @@ import { SectionIrisComponent } from '../calques/section-iris.component';
 import { SectionMeteoComponent } from '../calques/section-meteo.component';
 import { SectionRisqueComponent } from '../calques/section-risque.component';
 import { SectionSanteComponent } from '../calques/section-sante.component';
+import { CacheFichesSante } from '../calques/fiche-sante.component';
 import { SectionTmjaComponent } from '../calques/section-tmja.component';
 import { SectionTransportComponent } from '../calques/section-transport.component';
 import { SelectionsCalquesService } from '../calques/selections-calques.service';
@@ -79,6 +81,9 @@ const estPoi = (cle: string) => cle.startsWith(PREFIXE_POI);
  * Chaque jeu est une ligne uniforme (`mg-ligne-jeu`, arbitrage A12) : un type de POI se COCHE (la sélection reste
  * `EtatCarteService.poiSelectionnes`, ordre gardé) ; un référentiel se DÉPLIE sur sa section existante, en-tête interne
  * masqué (`integre`). Une section n'est INSTANCIÉE que dépliée : rien n'est lu tant qu'on ne l'a pas ouverte.
+ * Tiroirs EXCLUSIFS (retours du 26/10, T7) : déplier un référentiel replie l'autre (`TiroirsExclusifs`, aucun ouvert à
+ * l'ouverture). Replier DÉTRUIT la section, sans rien perdre ni relire : son état vit dans son service de couche, et la
+ * fiche santé lue est gardée par `CacheFichesSante`, fourni ici.
  * La pastille « affiché » vient de `DonneesAfficheesService`, la même source que la pastille de l'étape (AT-4).
  *
  * ── RECHERCHE ─────────────────────────────────────────────────────────────
@@ -102,7 +107,7 @@ const estPoi = (cle: string) => cle.startsWith(PREFIXE_POI);
     SectionCiviqueComponent, SectionIrisComponent, SectionMeteoComponent, SectionRisqueComponent, SectionSanteComponent,
     SectionTmjaComponent, SectionTransportComponent,
   ],
-  providers: [SelectionsCalquesService, JeuxRecommandesService],
+  providers: [SelectionsCalquesService, JeuxRecommandesService, CacheFichesSante],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full flex-col overflow-y-auto' },
   template: `
@@ -233,8 +238,8 @@ export class PanneauDonneesComponent {
   protected readonly plusOuverts = signal(false);
   /** Le sous-groupe « POI communs » de chaque liste, ouvert à la main (fermé à l'ouverture) — un état par bloc. */
   private readonly poisCommunsOuverts = signal<Readonly<Record<CleBloc, boolean>>>({ recommandes: false, autres: false });
-  /** Les référentiels dépliés — local au panneau, gardé avec lui (A1). */
-  private readonly deplies = signal<ReadonlySet<string>>(new Set());
+  /** Le référentiel déplié, un seul à la fois (T7) — local au panneau, gardé avec lui (A1). */
+  private readonly tiroirs = new TiroirsExclusifs<string>(null);
   /** Vrai dès que l'utilisateur a déplié la ligne santé une fois : l'invite « fiche santé » ne revient plus. */
   private readonly santeTouchee = signal(false);
 
@@ -270,11 +275,11 @@ export class PanneauDonneesComponent {
     const q = this.recherche();
     const affiches = this.affiches.cles();
     const choisis = new Set(this.etat.poiSelectionnes().map((id) => `${PREFIXE_POI}${id}`));
-    const deplies = this.deplies();
+    const deplie = this.tiroirs.ouvert();
     const indiceSante = this.indiceSante();
     const lignes = (jeux: readonly JeuAffichable[]): LigneVue[] => filtrerJeux(jeux, q).map((jeu) => ({
       jeu, mode: estPoi(jeu.cle) ? 'case' : 'reglages', affiche: affiches.has(jeu.cle), coche: choisis.has(jeu.cle),
-      deplie: !estPoi(jeu.cle) && deplies.has(jeu.cle), indice: jeu.cle === SANTE ? indiceSante : null,
+      deplie: !estPoi(jeu.cle) && deplie === jeu.cle, indice: jeu.cle === SANTE ? indiceSante : null,
     }));
     const ouverts = this.poisCommunsOuverts();
     const cherche = q.trim() !== '';
@@ -339,11 +344,6 @@ export class PanneauDonneesComponent {
 
   protected deplier(cle: string): void {
     if (cle === SANTE) this.santeTouchee.set(true);
-    this.deplies.update((d) => {
-      const n = new Set(d);
-      if (n.has(cle)) n.delete(cle);
-      else n.add(cle);
-      return n;
-    });
+    this.tiroirs.basculer(cle);
   }
 }

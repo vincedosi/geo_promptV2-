@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal } from '@angular/core';
 import { EnteteSectionComponent } from '../../../../ui/entete-section/entete-section.component';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { LancementCampagneService } from '../../etat/lancement-campagne.service';
 import { PlanCampagneService } from '../../etat/plan-campagne.service';
+import { TiroirsExclusifs } from '../../etat/tiroirs-exclusifs';
 import { linksSelectionHash } from '../../logique/plan/brouillon';
 import { ENCART_ERREUR } from '../analyse/styles-analyse';
 import { HallCampagnesComponent } from './hall-campagnes.component';
@@ -16,12 +17,11 @@ import { SectionPlateformesComponent } from './section-plateformes.component';
 type SectionPlan = 'cible' | 'plateformes' | 'impressions';
 
 /**
- * Le numéro d'« étape » que chaque section envoie au brouillon (A-2 : la section dépliée la plus basse), dans la
+ * Le numéro d'« étape » que chaque section envoie au brouillon (A-2 : la section dépliée — la seule depuis T7), dans la
  * numérotation du wizard React (`PROG_STEP_ORDER` : cible 1, canaux 2…) — un brouillon repris de l'autre côté rouvre
  * au même endroit. « Impressions prévues » est le `ForecastStrip` de l'étape Canaux de React : 2 aussi.
  */
 const ETAPE_DE_SECTION: Readonly<Record<SectionPlan, number>> = { cible: 1, plateformes: 2, impressions: 2 };
-const ORDRE_SECTIONS: readonly SectionPlan[] = ['cible', 'plateformes', 'impressions'];
 
 /**
  * ⑥ Plan — le panneau de l'étape (lot 6, T3 ; spec § 19, V1 = contrôle des impressions et du budget dépensé). Port de
@@ -33,6 +33,8 @@ const ORDRE_SECTIONS: readonly SectionPlan[] = ['cible', 'plateformes', 'impress
  *   existe déjà), la bannière « Brouillon restauré (date) · Repartir de zéro », trois `mg-entete-section` repliables
  *   — Cible (T4), Plateformes et budget, Impressions prévues (T5) — et le pied « Lancement » (`mg-pied-lancement`, T6).
  *   Une section repliée est MASQUÉE, pas détruite : ses lectures (jeux, versions, organisations) et ses choix restent.
+ *   Tiroirs EXCLUSIFS (retours du 26/10, T7) : une section ouverte à la fois, « Cible » à l'ouverture ; en ouvrir une
+ *   replie l'autre (elles étaient toutes ouvertes par défaut).
  *
  * La note « Un filtre de carte est actif… » est portée (A-8), lue dans l'état de la carte, sans requête ; elle dit « le
  * plan » là où React disait « cette stratégie » (revue finale, m1 : aucune trace de stratégie à l'écran).
@@ -103,8 +105,12 @@ export class PanneauPlanComponent {
    */
   protected readonly confirmation = linkedSignal<string | null, string | null>({ source: () => this.plan.campagne(), computation: () => null });
 
-  /** Les sections dépliées : locales à l'écran, jamais dans l'URL ; toutes ouvertes par défaut. */
-  protected readonly ouvertes = signal<Readonly<Record<SectionPlan, boolean>>>({ cible: true, plateformes: true, impressions: true });
+  /** La section dépliée, une à la fois (T7) : locale à l'écran, jamais dans l'URL ; « Cible » à l'ouverture. */
+  private readonly tiroirs = new TiroirsExclusifs<SectionPlan>('cible');
+  protected readonly ouvertes = computed<Readonly<Record<SectionPlan, boolean>>>(() => {
+    const o = this.tiroirs.ouvert();
+    return { cible: o === 'cible', plateformes: o === 'plateformes', impressions: o === 'impressions' };
+  });
 
   protected readonly titre = computed(() => {
     const mode = this.plan.strategieExistante() ? 'Modification' : 'Création';
@@ -122,11 +128,11 @@ export class PanneauPlanComponent {
     return this.confirmation() === linksSelectionHash(d.channels, d.channelLinks);
   });
 
-  /** Un bandeau replié ou déplié : l'étape du brouillon devient la section dépliée la plus basse (A-2). */
+  /** Un bandeau replié ou déplié : l'étape du brouillon devient celle de la section dépliée, « Cible » sinon (A-2). */
   protected basculer(section: SectionPlan, ouvert: boolean): void {
-    const suivantes = { ...this.ouvertes(), [section]: ouvert };
-    this.ouvertes.set(suivantes);
-    const basse = [...ORDRE_SECTIONS].reverse().find((s) => suivantes[s]);
-    this.plan.definirEtape(basse ? ETAPE_DE_SECTION[basse] : ETAPE_DE_SECTION.cible);
+    if (ouvert) this.tiroirs.ouvrir(section);
+    else if (this.tiroirs.estOuvert(section)) this.tiroirs.fermer();
+    const depliee = this.tiroirs.ouvert();
+    this.plan.definirEtape(depliee ? ETAPE_DE_SECTION[depliee] : ETAPE_DE_SECTION.cible);
   }
 }

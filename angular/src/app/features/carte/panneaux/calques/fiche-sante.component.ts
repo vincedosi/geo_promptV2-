@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, Injectable, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import type { Subscription } from 'rxjs';
 import { CiviqueApi, type ReponseSanteCommune, type SanteCommune } from '../../data/civique.api';
 import { JETONS_NIVEAUX_SANTE } from '../../logique/palettes-donnees-carte';
@@ -42,12 +42,23 @@ function formaterDate(iso: string): string {
 }
 
 /**
+ * Les fiches santé déjà lues, par code commune — fourni par le panneau ② (retours du 26/10, T7) : la ligne santé se
+ * replie en DÉTRUISANT la fiche (tiroirs exclusifs), et la rouvrir sur la même commune ne relit rien. Sans fournisseur
+ * (spec isolée), la fiche garde son cache à elle, comme avant.
+ */
+@Injectable()
+export class CacheFichesSante {
+  readonly fiches = new Map<string, SanteCommune>();
+}
+
+/**
  * La fiche air + pollen de la commune de l'IRIS sélectionné — portage de `components/donnees-terrain/HealthIndicatorCard.tsx`
  * (avec `AirSubBlock`, `PollenSubBlock`, `HealthCardSkeleton`), rendue en tête de « Santé environnementale ».
  *
  * Cinq états, textes de React : aucun IRIS (invite), chargement (squelette à deux colonnes), indisponible (message de la
- * route), erreur réseau (« Réessayer » relit en vidant le cache de la commune), fiche. Une commune lue est gardée pour la
- * vie du composant (`cacheRef` de React) : revenir sur elle ne relit rien.
+ * route), erreur réseau (« Réessayer » relit en vidant le cache de la commune), fiche. Une commune lue est gardée
+ * (`cacheRef` de React) dans `CacheFichesSante` quand le panneau le fournit — pour la vie du panneau, plus seulement de
+ * la fiche (T7) : revenir sur elle ne relit rien.
  *
  * Écarts, de couleur seulement : fonds `rgba(247,183,49,…)` du badge « cache » en jeton `--warning` ; squelette FLAT
  * (pulsation, sans dégradé — « flat total », même règle que les autres squelettes Angular). Défauts React listés, NON
@@ -210,7 +221,7 @@ export class FicheSanteComponent {
   private readonly api = inject(CiviqueApi);
   protected readonly etat = signal<EtatFiche>({ kind: 'idle' });
   protected readonly previsionsOuvertes = signal(false);
-  private readonly cache = new Map<string, SanteCommune>();
+  private readonly cache = inject(CacheFichesSante, { optional: true })?.fiches ?? new Map<string, SanteCommune>();
   private lecture: Subscription | null = null;
 
 

@@ -4,6 +4,7 @@ import { AuthService } from '../../../../core/auth/auth.service';
 import { type ZoneCustomResume, ZonesCustomApi } from '../../data/zones-custom.api';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { ReferentielGeoService } from '../../etat/referentiel-geo.service';
+import { TiroirsExclusifs } from '../../etat/tiroirs-exclusifs';
 import { type FiltreActif, poserFiltre } from '../../logique/filtre';
 import { composerFiltreCodePostal, composerFiltreVille, seedDepuisFiltre } from '../../logique/panneau-filtre-logique';
 import { FILTRE_FRANCE_ENTIERE, FILTRE_METROPOLE, scopeDuFiltre } from '../../logique/perimetre-national';
@@ -12,13 +13,8 @@ import { EnteteFiltreComponent, PerimetreComponent, type SectionPerimetre } from
 /** Anti-rebond de la recherche locale (ville / code postal) — `DEBOUNCE_MS` de `PanneauFiltre.tsx:109`. */
 export const ANTI_REBOND_RECHERCHE_MS = 400;
 
-/**
- * Sections ouvertes à l'ouverture, en mode overlay (`use-filter-sections.ts`, `TERRITORY_OPEN`) : la recherche
- * locale est REPLIÉE. Rien n'est persisté dans ce mode, comme React.
- */
-const SECTIONS_INITIALES: Record<SectionPerimetre, boolean> = {
-  perimetre: true, regions: true, departements: true, recherche: false,
-};
+/** Les tiroirs du panneau : les quatre sections du périmètre, puis « Filtrer sur une zone enregistrée ». */
+type TiroirFiltre = SectionPerimetre | 'zones';
 
 /**
  * Le panneau « Filtre » — portage de `app/map/_components/panneaux/PanneauFiltre.tsx` (et de
@@ -49,6 +45,12 @@ const SECTIONS_INITIALES: Record<SectionPerimetre, boolean> = {
  * Le référentiel ne porte pas de bbox ; `bboxPourRequete` repliera sur la métropole. Seule une zone enregistrée
  * porte une bbox résolue (`custom_geo_zones.bbox`).
  *
+ * ── TIROIRS EXCLUSIFS (retours du 26/10, T7) ─────────────────────────────
+ * Les quatre sections du périmètre et « Filtrer sur une zone enregistrée » sont UN jeu de tiroirs (`TiroirsExclusifs`) :
+ * en ouvrir un referme l'autre ; « Périmètre global » est ouvert à l'ouverture (A-11). Écart à React, qui ouvrait
+ * Périmètre, Régions, Départements et la liste des zones ensemble. Replier détruit le corps (`@if`) sans rien relire :
+ * la liste des zones et le référentiel sont lus par le panneau (une fois) et le service, la saisie vit dans ses signaux.
+ *
  * ── UN SEUL APPEL `/api/custom-geo/list` PAR OUVERTURE ───────────────────
  * Paramètres EXACTS de React (`org_id`, `_t`). L'organisation est l'organisation ACTIVE du profil ; sans elle
  * (« toutes », super_admin), aucun appel — et la liste annonce « Aucune zone enregistrée », comme React.
@@ -71,7 +73,7 @@ const SECTIONS_INITIALES: Record<SectionPerimetre, boolean> = {
       [territoire]="territoire()"
       [aTerritoire]="aTerritoire()"
       [erreurReferentiel]="referentiel.erreur()"
-      (basculerSection)="basculerSection($event)"
+      (basculerSection)="tiroirs.basculer($event)"
       (choisirScope)="choisirScope($event)"
       (changerRegions)="regionsDepuisListe($event)"
       (toutesRegions)="toutesRegions()"
@@ -85,11 +87,11 @@ const SECTIONS_INITIALES: Record<SectionPerimetre, boolean> = {
     <div>
       <mg-entete-filtre
         libelle="Filtrer sur une zone enregistrée"
-        [ouvert]="zonesOuvertes()"
+        [ouvert]="tiroirs.ouvert() === 'zones'"
         [compte]="filtreZone() ? 1 : 0"
-        (basculer)="zonesOuvertes.set(!zonesOuvertes())"
+        (basculer)="tiroirs.basculer('zones')"
       />
-      @if (zonesOuvertes()) {
+      @if (tiroirs.ouvert() === 'zones') {
         <div class="flex flex-col gap-1.5 px-4 py-3" data-zones>
           @if (zonesChargement()) {
             <div class="font-mono text-[11px] text-tertiary">Chargement…</div>
@@ -124,7 +126,13 @@ export class PanneauFiltreComponent {
   private readonly api = inject(ZonesCustomApi);
   private readonly auth = inject(AuthService);
 
-  protected readonly sections = signal({ ...SECTIONS_INITIALES });
+  /** Un tiroir ouvert à la fois ; « Périmètre global » à l'ouverture (A-11). */
+  protected readonly tiroirs = new TiroirsExclusifs<TiroirFiltre>('perimetre');
+  /** Ce que lit `mg-perimetre-filtre` : la section ouverte, les autres fermées. */
+  protected readonly sections = computed<Record<SectionPerimetre, boolean>>(() => {
+    const o = this.tiroirs.ouvert();
+    return { perimetre: o === 'perimetre', regions: o === 'regions', departements: o === 'departements', recherche: o === 'recherche' };
+  });
   protected readonly regionsChoisies = signal<readonly string[]>([]);
   protected readonly deptsChoisis = signal<readonly string[]>([]);
   protected readonly ville = signal('');
@@ -133,7 +141,6 @@ export class PanneauFiltreComponent {
   protected readonly zones = signal<readonly ZoneCustomResume[]>([]);
   protected readonly zonesChargement = signal(false);
   protected readonly zonesErreur = signal<string | null>(null);
-  protected readonly zonesOuvertes = signal(true);
   private zonesDemandees = false;
   private abonnementZones: Subscription | null = null;
   private detruit = false;
@@ -233,10 +240,6 @@ export class PanneauFiltreComponent {
   private ecrire(prochain: FiltreActif | null): void {
     this.etat.filtre.set(prochain);
     this.etat.perimetreScope.set(scopeDuFiltre(prochain, null));
-  }
-
-  protected basculerSection(cle: SectionPerimetre): void {
-    this.sections.update((s) => ({ ...s, [cle]: !s[cle] }));
   }
 
   /**

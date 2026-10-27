@@ -396,3 +396,67 @@ describe('PanneauAnalyseComponent — assistant de clustering (T20)', () => {
     m.fixture.destroy();
   });
 });
+
+describe('PanneauAnalyseComponent — tiroirs exclusifs (retours du 26/10, T7)', () => {
+  const entete = (el: HTMLElement, titre: string) =>
+    [...el.querySelectorAll<HTMLButtonElement>('[data-entete-outil]')].find((b) => b.textContent!.includes(titre))!;
+  const ouverts = (el: HTMLElement) =>
+    [...el.querySelectorAll('[data-entete-outil][aria-expanded="true"], [data-accordeon="clustering"][aria-expanded="true"]')]
+      .map((b) => b.textContent!.trim().replace(/\s*[▲▼]$/, ''));
+
+  it('la couverture est ouverte à l’ouverture ; ouvrir un outil referme l’autre, un seul à la fois', async () => {
+    const m = await monter({ filtre: DEPT_13, role: 'super_admin' });
+    await m.fixture.whenStable();
+    expect(ouverts(m.el)).toEqual(['Couverture d’une zone']);
+    entete(m.el, 'Score composite').click();
+    await m.fixture.whenStable();
+    m.http.expectOne('/api/cibles/indicators').flush({ indicators: [] });
+    await m.fixture.whenStable();
+    expect(ouverts(m.el)).toEqual(['Score composite']);
+    // Couverture repliée : son corps est CACHÉ (monté), pas détruit.
+    expect(m.el.querySelector('[data-outil-couverture]')!.classList).toContain('hidden');
+    entete(m.el, 'Couverture par rayon').click();
+    await m.fixture.whenStable();
+    expect(ouverts(m.el)).toEqual(['Couverture par rayon autour d’un type de POI']);
+    entete(m.el, 'Corrélation').click();
+    await m.fixture.whenStable();
+    m.http.expectOne('/api/digital/campaigns').flush([]);
+    await m.fixture.whenStable();
+    expect(ouverts(m.el)).toEqual(['Corrélation']);
+    await m.cliquer('[data-accordeon="clustering"]');
+    m.http.expectOne('/api/poi-clusters/models').flush({ models: [] });
+    await m.fixture.whenStable();
+    expect(ouverts(m.el)).toEqual(['Clustering']);
+    // « Analyse spatiale » est un en-tête de groupe, hors du jeu : l'ouvrir ne referme pas le clustering.
+    await m.cliquer('[data-accordeon="spatiale"]');
+    expect(ouverts(m.el)).toEqual(['Clustering']);
+    m.http.verify();
+  });
+
+  it('rouvrir chaque tiroir ne relit RIEN ; un filtre changé, tiroirs repliés, ne lit rien non plus', async () => {
+    const m = await monter({ filtre: DEPT_13, role: 'super_admin' });
+    await m.fixture.whenStable();
+    // Premier tour : chaque tiroir lit ce qu'il lit à sa première ouverture.
+    entete(m.el, 'Score composite').click();
+    await m.fixture.whenStable();
+    m.http.expectOne('/api/cibles/indicators').flush({ indicators: [] });
+    entete(m.el, 'Corrélation').click();
+    await m.fixture.whenStable();
+    m.http.expectOne('/api/digital/campaigns').flush([]);
+    await m.cliquer('[data-accordeon="clustering"]');
+    m.http.expectOne('/api/poi-clusters/models').flush({ models: [] });
+    await m.fixture.whenStable();
+    // Second tour : rien.
+    for (const titre of ['Couverture d’une zone', 'Couverture par rayon', 'Score composite', 'Corrélation']) {
+      entete(m.el, titre).click();
+      await m.fixture.whenStable();
+    }
+    await m.cliquer('[data-accordeon="clustering"]');
+    m.http.expectNone(() => true);
+    await m.cliquer('[data-accordeon="clustering"]');
+    m.etat.filtre.set({ type: 'region', code: '93', label: "Provence-Alpes-Côte d'Azur" });
+    await m.fixture.whenStable();
+    m.http.expectNone(() => true);
+    m.http.verify();
+  });
+});

@@ -112,16 +112,29 @@ describe('PanneauPlanComponent — le squelette de ⑥', () => {
     expect(el.querySelector('[data-pied-plan]')).toBeNull();
   });
 
-  it('replier une section : l’étape du brouillon devient la section dépliée la plus basse (A-2)', async () => {
+  it('tiroirs exclusifs (T7) : « Cible » seule ouverte ; en ouvrir une replie l’autre ; l’étape suit la section dépliée (A-2)', async () => {
     const { el, plan, stable } = await monter(ouverte);
     const bandeau = (s: string) => el.querySelector<HTMLElement>(`mg-entete-section[data-section="${s}"]`)!;
+    const cachees = () => [...el.querySelectorAll('[data-corps-section]')].filter((c) => c.classList.contains('hidden')).map((c) => c.getAttribute('data-corps-section'));
+    expect(cachees()).toEqual(['plateformes', 'impressions']);
+    const corpsCible = el.querySelector('[data-corps-section="cible"]');
     bandeau('impressions').click();
     await stable();
     expect(plan.definirEtape).toHaveBeenLastCalledWith(2);
-    expect(el.querySelector('[data-corps-section="impressions"]')!.classList).toContain('hidden');
+    expect(cachees()).toEqual(['cible', 'plateformes']);
     bandeau('plateformes').click();
     await stable();
+    expect(cachees()).toEqual(['cible', 'impressions']);
+    // Replier la seule section ouverte : tout est fermé, l'étape revient à la cible.
+    bandeau('plateformes').click();
+    await stable();
+    expect(cachees()).toEqual(['cible', 'plateformes', 'impressions']);
     expect(plan.definirEtape).toHaveBeenLastCalledWith(1);
+    // Rouvrir « Cible » : le MÊME corps, caché puis montré — rien n'est recréé, rien n'est relu.
+    bandeau('cible').click();
+    await stable();
+    expect(el.querySelector('[data-corps-section="cible"]')).toBe(corpsCible);
+    expect(cachees()).toEqual(['plateformes', 'impressions']);
   });
 
   it('note « filtre de carte » (A-8) : seulement quand un filtre de ① est posé', async () => {

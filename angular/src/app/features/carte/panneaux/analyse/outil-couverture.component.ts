@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, viewChild } from '@angular/core';
+import { injecterTiroirsAnalyse } from '../../etat/tiroirs-analyse';
 import { formaterNombre } from '../../../../core/format/nombre';
 import { KpiComponent } from '../../../../ui/kpi/kpi.component';
 import { CouvertureService } from '../../couches/couverture.service';
@@ -44,9 +45,9 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   template: `
-    <mg-entete-outil titre="Couverture d’une zone" [ouvert]="ouvert()" (basculer)="ouvert.set(!ouvert())" />
-    @if (ouvert()) {
-      <div [class]="corps" data-outil-couverture>
+    <mg-entete-outil titre="Couverture d’une zone" [ouvert]="ouvert()" (basculer)="tiroirs.basculer('couverture')" />
+    @if (tiroirs.dejaOuvert('couverture')) {
+      <div [class]="corps" [class.hidden]="!ouvert()" data-outil-couverture>
         <div class="text-[11px] leading-[1.5] text-tertiary">
           Combien de personnes de la cible vivent dans une zone enregistrée — telle quelle, ou territoire par territoire.
         </div>
@@ -128,8 +129,13 @@ export class OutilCouvertureComponent {
   /** Le sélecteur de cible : son libellé écrit le chiffre de tête. */
   private readonly choixCible = viewChild(ChoixCibleComponent);
 
-  /** Ouvert par défaut : c'est l'outil de tête de ④. Le panneau reste monté, l'état survit à ④ → ① → ④. */
-  protected readonly ouvert = signal(true);
+  /**
+   * Ouvert par défaut : c'est l'outil de tête de ④. Le panneau reste monté, l'état survit à ④ → ① → ④. Un tiroir de ④
+   * (T7) : ouvrir un autre outil le replie. Replié, son corps est CACHÉ, pas détruit (A-12) : le choix de zone et le
+   * sélecteur de cible lisent leurs listes une fois par composant — les détruire les ferait relire à la réouverture.
+   */
+  protected readonly tiroirs = injecterTiroirsAnalyse();
+  protected readonly ouvert = computed(() => this.tiroirs.estOuvert('couverture'));
 
   protected readonly decoupages = DECOUPAGES_ANALYSE.map((d) => ({ cle: d, valeur: d, libelle: libelleDecoupage(d) }));
   protected readonly nombre = formaterNombre;

@@ -1,16 +1,21 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { AuthService } from '../../../../core/auth/auth.service';
+import { ConfigService } from '../../../../core/config/config.service';
 import { ChargementService } from '../../../../core/chargement/chargement.service';
 import { CouleursService } from '../../../../core/theme/couleurs.service';
 import { AnalysesApi } from '../../data/analyses.api';
+import { CarteApi } from '../../data/carte.api';
 import { ZonesApi } from '../../data/zones.api';
 import { AnnonceService } from '../../etat/annonce.service';
 import { CouchesCarteService } from '../../etat/couches-carte.service';
 import { AtelierZoneService } from '../../etat/atelier-zone.service';
 import { CaptureService } from '../../etat/capture.service';
 import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
+import { CataloguePoiService } from '../../etat/catalogue-poi.service';
 import { CreationZoneService } from '../../etat/creation-zone.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import type { FiltreActif } from '../../logique/filtre';
@@ -130,13 +135,19 @@ describe('PanneauZonesComponent — ③ rangée par familles (lot 3, T10)', () =
     expect(pied().recette()).toEqual(R_POI);
     await ouvrirFamille('seuil');
     expect(pied().recette()).toEqual(R_CARREAUX);
-    el.querySelector<HTMLElement>('mg-recette-rayon-poi')!.click();
+    el.querySelector<HTMLElement>('mg-recette-seuil-territoire')!.click();
     await fixture.whenStable();
-    expect(pied().recette()).toEqual(R_POI);
-    expect(el.querySelector('mg-recette-rayon-poi')!.classList).toContain('recette-active');
-    // La famille de l'actif repliée : plus rien à lancer.
-    await ouvrirFamille('poi');
     expect(pied().recette()).toBeNull();
+    el.querySelector<HTMLElement>('mg-recette-seuil-carreaux')!.click();
+    await fixture.whenStable();
+    expect(pied().recette()).toEqual(R_CARREAUX);
+    expect(el.querySelector('mg-recette-seuil-carreaux')!.classList).toContain('recette-active');
+    // La famille de l'actif repliée : plus rien à lancer (T7 : tout est fermé).
+    await ouvrirFamille('seuil');
+    expect(pied().recette()).toBeNull();
+    // Rouvrir « Autour des POI » rend son premier formulaire actif.
+    await ouvrirFamille('poi');
+    expect(pied().recette()).toEqual(R_POI);
   });
 
   it('« Capture » : le bouton existant, libellé inchangé', async () => {
@@ -181,8 +192,78 @@ describe('PanneauZonesComponent — ③ rangée par familles (lot 3, T10)', () =
     for (const f of ['seuil', 'main', 'capture']) await ouvrirFamille(f);
     expect(el.querySelector('mg-outil-isochrones')).toBeNull();
     expect(el.querySelector('mg-outil-bataille-v2')).toBeNull();
-    // Replier « Autour des POI » retire aussi le renvoi.
-    await ouvrirFamille('poi');
-    expect(el.querySelector('[data-renvoi-analyse]')).toBeNull();
+    // Une autre famille ouverte CACHE « Autour des POI », renvoi compris (T7 : monté, caché).
+    expect(el.querySelector('[data-corps-famille="poi"]')!.classList).toContain('hidden');
+  });
+
+  describe('tiroirs exclusifs (retours du 26/10, T7)', () => {
+    const corps = (el: HTMLElement, f: string) => el.querySelector(`[data-corps-famille="${f}"]`);
+
+    it('ouvrir « Par seuil » ferme « Autour des POI » : son corps est caché, le créateur de rayon (qui tient la carte) démonté', async () => {
+      const { el, ouvrirFamille } = await monter();
+      await ouvrirFamille('seuil');
+      expect(corps(el, 'poi')!.classList).toContain('hidden');
+      expect(el.querySelector('mg-creer-rayon')).toBeNull();
+      expect(corps(el, 'seuil')!.classList).not.toContain('hidden');
+      expect([...el.querySelectorAll('mg-entete-section')].filter((h) => h.querySelector('[aria-expanded="true"]')).length).toBeLessThanOrEqual(1);
+      // « À la main » jamais dépliée : rien n'est monté.
+      expect(corps(el, 'main')).toBeNull();
+    });
+
+    it('rouvrir une famille retrouve le MÊME formulaire (saisie gardée) ; tout fermé, le pied n’a rien à lancer', async () => {
+      const { fixture, el, ouvrirFamille, pied } = await monter();
+      const avant = fixture.debugElement.query(By.directive(RayonPoiFactice)).componentInstance;
+      await ouvrirFamille('main');
+      await ouvrirFamille('poi');
+      expect(fixture.debugElement.query(By.directive(RayonPoiFactice)).componentInstance).toBe(avant);
+      await ouvrirFamille('poi');
+      expect(pied().recette()).toBeNull();
+      for (const f of ['poi', 'main']) expect(corps(el, f)!.classList).toContain('hidden');
+    });
+  });
+
+  describe('tiroirs exclusifs, formulaires RÉELS (Review Focus 5)', () => {
+    async function monterReel() {
+      TestBed.configureTestingModule({ providers: [
+        provideHttpClient(), provideHttpClientTesting(),
+        { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
+        { provide: ParcoursService, useValue: { choisir: vi.fn() } },
+        OutilsCarteService, PileEchapService, CaptureService, EtatCarteService, AnnonceService, CouchesCarteService, ChargementService,
+        { provide: ZonesApi, useValue: {} },
+        AnalysesApi, CarteApi, CatalogueIndicateursService, CataloguePoiService,
+        { provide: CouleursService, useValue: { palette: () => signal({ teal: '#4ecdc4' }) } },
+        { provide: AuthService, useValue: { lireProfil: async () => ({ role: null, nom: null, organisation: 'org-1' }) } },
+      ] });
+      TestBed.overrideComponent(PanneauZonesComponent, {
+        remove: { imports: [CaptureComponent, CreerCodesPostauxComponent, CreerDessinComponent, CreerRayonComponent, PiedRecetteComponent] },
+        add: { imports: [CaptureFactice, CodesPostauxFactice, DessinFactice, RayonFactice, PiedFactice] },
+      });
+      const http = TestBed.inject(HttpTestingController);
+      const etat = TestBed.inject(EtatCarteService);
+      etat.filtre.set({ type: 'departement', code: '13', label: 'Bouches-du-Rhône' });
+      const fixture = TestBed.createComponent(PanneauZonesComponent);
+      await fixture.whenStable();
+      const el = fixture.nativeElement as HTMLElement;
+      const ouvrirFamille = async (f: string) => { el.querySelector<HTMLElement>(`mg-entete-section[data-famille="${f}"]`)!.click(); await fixture.whenStable(); };
+      return { fixture, el, http, etat, ouvrirFamille };
+    }
+
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('rouvrir « Par seuil » ne relit pas le catalogue ; un corps caché ne lit rien quand le filtre change', async () => {
+      const { fixture, http, etat, ouvrirFamille } = await monterReel();
+      // Ouverture : le catalogue des types de POI (rayon autour des POI), une fois.
+      http.match((r) => r.url.includes('/map/categories')).forEach((r) => r.flush({ categories: [] }));
+      await ouvrirFamille('seuil');
+      http.expectOne((r) => r.url.includes('/cibles/indicators')).flush({ indicators: [] });
+      await fixture.whenStable();
+      await ouvrirFamille('main');
+      await ouvrirFamille('seuil');
+      await ouvrirFamille('poi');
+      http.expectNone(() => true);
+      etat.filtre.set({ type: 'region', code: '93', label: "Provence-Alpes-Côte d'Azur" });
+      await fixture.whenStable();
+      http.expectNone(() => true);
+    });
   });
 });

@@ -1,4 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { injecterTiroirsAnalyse } from './tiroirs-analyse';
 import { catchError, throwError } from 'rxjs';
 import { formaterNombre } from '../../../core/format/nombre';
 import { ScoreService } from '../couches/score.service';
@@ -45,7 +46,9 @@ export class ScoreCompositeService {
   private readonly creation = inject(CreationZoneService);
   private readonly analysee = inject(ZoneAnalyseeService);
 
-  readonly ouvert = signal(false);
+  /** Les tiroirs de ④ (T7) : l'outil est ouvert quand SON tiroir l'est — ouvrir un autre outil le referme. */
+  private readonly tiroirs = injecterTiroirsAnalyse();
+  readonly ouvert = computed(() => this.tiroirs.estOuvert('score'));
   readonly catalogue = signal<IndicateurRegistre[]>([]);
   readonly chargementCatalogue = signal(false);
   private catalogueLu = false;
@@ -80,8 +83,8 @@ export class ScoreCompositeService {
 
   /** Déplier charge le catalogue la PREMIÈRE fois ; un échec laisse le dépliage suivant relire. */
   basculerOuvert(): void {
-    const prochain = !this.ouvert();
-    this.ouvert.set(prochain);
+    this.tiroirs.basculer('score');
+    const prochain = this.ouvert();
     if (!prochain || this.catalogueLu) return;
     this.catalogueLu = true;
     this.chargementCatalogue.set(true);

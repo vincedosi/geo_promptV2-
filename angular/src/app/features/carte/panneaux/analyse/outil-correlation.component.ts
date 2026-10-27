@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { injecterTiroirsAnalyse } from '../../etat/tiroirs-analyse';
 import { forkJoin } from 'rxjs';
 import { formaterNombreAbrege } from '../../../../core/format/nombre';
 import { NuageComponent } from '../../../../graphiques/nuage.component';
@@ -111,7 +112,9 @@ export class OutilCorrelationComponent {
   private readonly api = inject(AnalysesApi);
   private readonly catalogue = inject(CatalogueIndicateursService);
 
-  protected readonly ouvert = signal(false);
+  /** Un tiroir de ④ (T7) : ouvrir un autre outil le replie ; ses listes et son résultat vivent ici, rien n'est relu. */
+  private readonly tiroirs = injecterTiroirsAnalyse();
+  protected readonly ouvert = computed(() => this.tiroirs.estOuvert('correlation'));
   private listesLues = false;
   protected readonly campagnes = signal<CampagneItem[]>([]);
   protected readonly indicateurs = signal<IndicateurRegistre[]>([]);
@@ -150,8 +153,8 @@ export class OutilCorrelationComponent {
 
   /** Premier dépliage : campagnes et catalogue ENSEMBLE ; un échec laisse le dépliage suivant relire. */
   protected basculer(): void {
-    const prochain = !this.ouvert();
-    this.ouvert.set(prochain);
+    this.tiroirs.basculer('correlation');
+    const prochain = this.ouvert();
     if (!prochain || this.listesLues) return;
     this.listesLues = true;
     this.chargementListes.set(true);

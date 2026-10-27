@@ -60,7 +60,22 @@ async function monter() {
 const liste = (el: HTMLElement, nom: 'regions' | 'departements') =>
   el.querySelector<HTMLElement>(`mg-liste-multiple[data-liste="${nom}"]`)!;
 
+const entete = (el: HTMLElement, texte: string) =>
+  [...el.querySelectorAll<HTMLElement>('mg-entete-filtre')].find((e) => e.textContent?.includes(texte))!;
+
+/** Tiroirs exclusifs (T7) : ouvre le tiroir s'il est fermé — ce qui referme l'autre. */
+async function ouvrirTiroir(el: HTMLElement, texte: string, stable: () => Promise<void>) {
+  const e = entete(el, texte);
+  if (e.getAttribute('aria-expanded') !== 'true') {
+    e.click();
+    await stable();
+  }
+}
+
+const LIBELLE_LISTE = { regions: 'Régions', departements: 'Départements' } as const;
+
 async function choisirDansListe(el: HTMLElement, nom: 'regions' | 'departements', code: string, stable: () => Promise<void>) {
+  await ouvrirTiroir(el, LIBELLE_LISTE[nom], stable);
   const l = liste(el, nom);
   if (!l.querySelector('[data-deroulant]')) {
     l.querySelector<HTMLButtonElement>('[data-declencheur]')!.click();
@@ -84,6 +99,7 @@ describe('PanneauFiltreComponent', () => {
     await choisirDansListe(el, 'regions', '93', stable);
     expect(etat.filtre()).toEqual({ type: 'region', code: '93', label: "Provence-Alpes-Côte d'Azur" });
     // La liste des départements suit la cascade : ceux de la région seulement.
+    await ouvrirTiroir(el, 'Départements', stable);
     liste(el, 'departements').querySelector<HTMLButtonElement>('[data-declencheur]')!.click();
     await stable();
     const depts = [...liste(el, 'departements').querySelectorAll('[data-element]')].map((b) => b.getAttribute('data-element'));
@@ -153,6 +169,8 @@ describe('PanneauFiltreComponent', () => {
     await choisirDansListe(el, 'regions', '93', stable);
     expect(etat.filtre()).toEqual({ type: 'region', code: '93', label: "Provence-Alpes-Côte d'Azur" });
     expect(etat.perimetreScope()).toBeNull();
+    // Tiroirs exclusifs (T7) : ouvrir « Régions » a replié « Périmètre global ».
+    await ouvrirTiroir(el, 'Périmètre global', stable);
     expect(metro().getAttribute('aria-pressed')).toBe('false');
     metro().click();
     await stable();
@@ -246,16 +264,16 @@ describe('PanneauFiltreComponent', () => {
     const params = (lister.mock.calls[0] as unknown as [URLSearchParams])[0];
     expect([...params.keys()]).toEqual(['org_id', '_t']);
     expect(params.get('org_id')).toBe('o1');
+    await ouvrirTiroir(el, 'zone enregistrée', stable);
     const bouton = el.querySelector<HTMLButtonElement>('[data-zone="z1"]')!;
     expect(bouton.textContent).toContain('4 CP · 12 IRIS');
     bouton.click();
     await stable();
     expect(etat.filtre()).toEqual({ type: 'zone', code: 'z1', label: 'Zone essai', bbox: [5, 43, 6, 44] });
     // Replier puis déplier la section dans la MÊME instance : aucun nouvel appel.
-    const entete = [...el.querySelectorAll<HTMLElement>('mg-entete-filtre')].find((e) => e.textContent?.includes('zone enregistrée'))!;
-    entete.click();
+    entete(el, 'zone enregistrée').click();
     await stable();
-    entete.click();
+    entete(el, 'zone enregistrée').click();
     await stable();
     expect(lister).toHaveBeenCalledTimes(1);
   });
@@ -270,21 +288,24 @@ describe('PanneauFiltreComponent', () => {
 
   it('sans organisation active : aucun appel, « Aucune zone enregistrée pour cette organisation. »', async () => {
     const { lister } = preparer({ org: null });
-    const { el } = await monter();
+    const { el, stable } = await monter();
+    await ouvrirTiroir(el, 'zone enregistrée', stable);
     expect(lister).not.toHaveBeenCalled();
     expect(el.querySelector('[data-zones]')!.textContent).toContain('Aucune zone enregistrée pour cette organisation.');
   });
 
   it('liste des zones en échec : « HTTP 500 »', async () => {
     preparer({ zones: new Error('x') });
-    const { el } = await monter();
+    const { el, stable } = await monter();
+    await ouvrirTiroir(el, 'zone enregistrée', stable);
     expect(el.querySelector('[data-zones]')!.textContent).toContain('HTTP 500');
   });
 
   it('semis à l\'ouverture : un filtre région présélectionne la région, un filtre cp remplit le champ — sans écrire le filtre', async () => {
     const region: FiltreActif = { type: 'region', code: '93', label: 'PACA' };
     const { etat } = preparer({ filtre: region });
-    const { el } = await monter();
+    const { el, stable } = await monter();
+    await ouvrirTiroir(el, 'Régions', stable);
     expect(liste(el, 'regions').querySelector('[data-declencheur]')!.textContent).toContain("Provence-Alpes-Côte d'Azur");
     expect(etat.filtre()).toBe(region);
   });
@@ -299,7 +320,40 @@ describe('PanneauFiltreComponent', () => {
 
   it('référentiel en échec : la liste le DIT (« Référentiel indisponible ») au lieu de « Chargement… » sans fin', async () => {
     preparer({ refEchec: true });
-    const { el } = await monter();
+    const { el, stable } = await monter();
+    await ouvrirTiroir(el, 'Régions', stable);
     expect(liste(el, 'regions').textContent).toContain('Référentiel indisponible');
+  });
+
+  describe('tiroirs exclusifs (retours du 26/10, T7)', () => {
+    const ouverts = (el: HTMLElement) => [...el.querySelectorAll<HTMLElement>('mg-entete-filtre')]
+      .filter((e) => e.getAttribute('aria-expanded') === 'true').map((e) => e.textContent?.trim().split(/\s/)[0]);
+
+    it('à l’ouverture, « Périmètre global » seul est ouvert ; ouvrir « Régions » le referme', async () => {
+      preparer();
+      const { el, stable } = await monter();
+      expect(ouverts(el)).toEqual(['Périmètre']);
+      expect(el.querySelector('[data-zones]')).toBeNull();
+      await ouvrirTiroir(el, 'Régions', stable);
+      expect(ouverts(el)).toEqual(['Régions']);
+      expect(el.querySelector('[data-scope="metro"]')).toBeNull();
+      await ouvrirTiroir(el, 'zone enregistrée', stable);
+      expect(ouverts(el)).toEqual(['Filtrer']);
+      expect(liste(el, 'regions')).toBeNull();
+    });
+
+    it('rouvrir un tiroir ne relit rien : un seul appel de zones et de référentiel, la saisie est gardée', async () => {
+      const { lister, geo } = preparer();
+      const { el, stable } = await monter();
+      await ouvrirTiroir(el, 'Recherche locale', stable);
+      taper(el.querySelector<HTMLInputElement>('[data-champ="ville"]')!, 'Brest');
+      await ouvrirTiroir(el, 'zone enregistrée', stable);
+      await ouvrirTiroir(el, 'Régions', stable);
+      await ouvrirTiroir(el, 'zone enregistrée', stable);
+      await ouvrirTiroir(el, 'Recherche locale', stable);
+      expect(el.querySelector<HTMLInputElement>('[data-champ="ville"]')!.value).toBe('Brest');
+      expect(lister).toHaveBeenCalledTimes(1);
+      expect(geo).toHaveBeenCalledTimes(1);
+    });
   });
 });

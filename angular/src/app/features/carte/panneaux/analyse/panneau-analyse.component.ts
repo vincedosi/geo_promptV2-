@@ -10,6 +10,7 @@ import { EtatCarteService } from '../../etat/etat-carte.service';
 import { ReferentielGeoService } from '../../etat/referentiel-geo.service';
 import { CouvertureRayonService } from '../../etat/couverture-rayon.service';
 import { ScoreCompositeService } from '../../etat/score-composite.service';
+import { FOURNIR_TIROIRS_ANALYSE } from '../../etat/tiroirs-analyse';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
 import type { FiltreActif } from '../../logique/filtre';
 import { messageRefusTerritoireBataille } from '../../logique/bataille/parametres';
@@ -68,6 +69,11 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
  * le score passent et où Voronoï et clustering refusent en nommant la métropole. Une bataille admise peut encore être
  * refusée par la capacité en direct (`ContexteBatailleService.refusBorne`, compté au clic) : ce refus s'affiche au même
  * endroit que la garde (`messageAffiche`), et part lui aussi quand le filtre change.
+ *
+ * ── TIROIRS EXCLUSIFS (retours du 26/10, T7) ─────────────────────────────
+ * Couverture, rayon, score, corrélation et clustering sont UN jeu de tiroirs (`TIROIRS_ANALYSE`, fourni ici) : en ouvrir
+ * un referme l'autre, la couverture est ouverte à l'ouverture. « Analyse spatiale » est un en-tête de groupe, hors du jeu
+ * (A-11) ; dedans, Bataille V2 et Isochrones s'excluent déjà (`outilOuvert`). Replier ne relit rien : voir chaque outil.
  */
 @Component({
   selector: 'mg-panneau-analyse',
@@ -77,7 +83,8 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
   ],
   // Le catalogue d'indicateurs (score, corrélation) vient de la PAGE (lot 3, X4), partagé avec ③ et « Mes zones ».
   // La couverture par rayon (T12) aussi : le panneau reste monté (P-e), sa couche se retire avec lui.
-  providers: [ScoreCompositeService, CouvertureRayonService, CreationZoneService, CalculClusteringService],
+  // Les tiroirs exclusifs de ④ (T7) : partagés par les outils et par les deux services ci-dessus, qui en dérivent `ouvert`.
+  providers: [FOURNIR_TIROIRS_ANALYSE, ScoreCompositeService, CouvertureRayonService, CreationZoneService, CalculClusteringService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full flex-col overflow-y-auto' },
   template: `

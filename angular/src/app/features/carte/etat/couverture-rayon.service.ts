@@ -1,4 +1,5 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { injecterTiroirsAnalyse } from './tiroirs-analyse';
 import { CouleursService } from '../../../core/theme/couleurs.service';
 import { CLE_TOUTES, RAYON_LECTURE_DEFAUT } from '../../risques/etapes/rayon/courbe-population.component';
 import { JETONS_RAYON, entitesRayon, poserCoucheRayon, retirerCoucheRayon } from '../couches/couche-couverture-rayon';
@@ -43,7 +44,9 @@ export class CouvertureRayonService {
   private readonly catalogue = inject(CataloguePoiService);
   private readonly palette = inject(CouleursService).palette(JETONS_RAYON);
 
-  readonly ouvert = signal(false);
+  /** Les tiroirs de ④ (T7) : l'outil est ouvert quand SON tiroir l'est — ouvrir un autre outil le referme. */
+  private readonly tiroirs = injecterTiroirsAnalyse();
+  readonly ouvert = computed(() => this.tiroirs.estOuvert('rayon'));
   /**
    * Le catalogue des POI de ②, plus les sites ICPE (leur calque est à part) — ajoutés une fois le catalogue LU : avant,
    * ICPE seul serait retenu et resterait (`typePoiRetenu` garde l'ancien), le défaut dépendrait de l'ordre de navigation.
@@ -112,7 +115,7 @@ export class CouvertureRayonService {
 
   /** Déplier lit le catalogue des types de POI de la page, une fois (`chargerUneFois` ne relit rien s'il l'a été). */
   basculerOuvert(): void {
-    this.ouvert.update((o) => !o);
+    this.tiroirs.basculer('rayon');
     if (this.ouvert()) this.catalogue.chargerUneFois();
   }
 

@@ -564,4 +564,37 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
       expect(el.textContent).toContain('Actifs (0)');
     });
   });
+
+  describe('tiroirs exclusifs (retours du 26/10, T7)', () => {
+    it('déplier un référentiel replie l’autre', async () => {
+      const { el, rendre, deplier } = monter();
+      await rendre();
+      await deplier('tmja:comptages');
+      await deplier('meteo:zones');
+      expect(el.querySelector('mg-section-tmja')).toBeNull();
+      expect(el.querySelector('[data-jeu="meteo:zones"] mg-section-meteo')).not.toBeNull();
+      expect(el.querySelectorAll('[data-jeu] button[aria-expanded="true"]').length).toBe(1);
+    });
+
+    it('rouvrir la ligne santé sur la même commune ne relit rien ; un filtre changé, tiroirs repliés, ne lit rien non plus', async () => {
+      const { el, rendre, iris, deplier, santeCommune, carteApi, etat } = monter();
+      santeCommune.mockImplementation(() => of({ data: { code_insee: '13056', commune: 'Martigues', air: null, pollen: null, source: 'test' } }) as never);
+      await rendre();
+      (iris as unknown as { donnees: { set(v: unknown): void } }).donnees.set({ code_iris: '130560101', code_commune: '13056', nom_commune: 'Martigues' });
+      await rendre();
+      await deplier('sante:air-pollen');
+      expect(santeCommune).toHaveBeenCalledTimes(1);
+      await deplier('tmja:comptages');
+      expect(el.querySelector('mg-section-sante')).toBeNull();
+      await deplier('sante:air-pollen');
+      expect(el.querySelector('[data-jeu="sante:air-pollen"] mg-section-sante')).not.toBeNull();
+      expect(santeCommune).toHaveBeenCalledTimes(1);
+      await deplier('sante:air-pollen');
+      const appels = Object.values(carteApi).reduce((n, f) => n + f.mock.calls.length, 0);
+      etat.filtre.set({ type: 'departement', code: '13', label: '13 — Bouches-du-Rhône' });
+      await rendre();
+      expect(Object.values(carteApi).reduce((n, f) => n + f.mock.calls.length, 0)).toBe(appels);
+      expect(santeCommune).toHaveBeenCalledTimes(1);
+    });
+  });
 });

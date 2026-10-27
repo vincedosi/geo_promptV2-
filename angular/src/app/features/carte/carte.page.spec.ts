@@ -1071,11 +1071,12 @@ describe('CartePage — IRIS : section, couche en cascade, panneau de détail (T
     await stable();
     frapper(hote, altChiffre('2'));
     await stable();
+    // Tiroirs exclusifs (retours du 26/10, T7) : un référentiel déplié à la fois — carreaux, puis IRIS.
     hote.querySelector<HTMLButtonElement>('mg-panneau-donnees [data-jeu="carreaux:filosofi"] button[aria-expanded]')!.click();
     await stable();
-    hote.querySelector<HTMLButtonElement>('mg-panneau-donnees [data-jeu="iris:socio-demo"] button[aria-expanded]')!.click();
-    await stable();
     hote.querySelector<HTMLButtonElement>('mg-section-carreaux button[data-entete-carreaux]')!.click();
+    await stable();
+    hote.querySelector<HTMLButtonElement>('mg-panneau-donnees [data-jeu="iris:socio-demo"] button[aria-expanded]')!.click();
     await stable();
     hote.querySelector<HTMLButtonElement>('mg-section-iris button[data-entete-iris]')!.click();
     await stable();
@@ -1235,7 +1236,8 @@ describe('CartePage — le module risque, route ENFANT (T13, B2/B3)', () => {
     expect(hote.querySelector<HTMLButtonElement>('[data-capturer]')!.disabled).toBe(true);
     await famille('main');
     const outils = [...hote.querySelectorAll('mg-outil-creation [data-repli]')].map((b) => b.textContent!.trim());
-    expect(outils).toEqual(['Zone par rayon ▼', 'Dessiner une zone ▼', 'Importer une liste de codes postaux ▼']);
+    // Tiroirs exclusifs (T7) : « À la main » ouverte a replié « Autour des POI », et son rayon (qui tient la carte) est démonté.
+    expect(outils).toEqual(['Dessiner une zone ▼', 'Importer une liste de codes postaux ▼']);
     hote.querySelector<HTMLButtonElement>('mg-creer-dessin [data-repli]')!.click();
     await stable();
     hote.querySelector('mg-carte')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }));

@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { injecterTiroirsAnalyse } from '../../../etat/tiroirs-analyse';
 import { ClustersService } from '../../../couches/clusters.service';
 import type { CorpsLancementClustering } from '../../../logique/clustering/assistant';
 import { dateCourte, jetonSilhouette } from '../../../logique/clustering/panneau';
@@ -7,7 +8,7 @@ import { RapportClustersComponent } from './rapport/rapport-clusters.component';
 
 /**
  * L'accordéon « Clustering » du panneau Analyse — portage de `filter-panel/ClusteringSection.tsx` (lot 4, T19) : la
- * liste des modèles calculés (lue à CHAQUE ouverture, jamais au montage), le rapport d'un modèle au clic, et le
+ * liste des modèles calculés (lue à la PREMIÈRE ouverture, jamais au montage — T7), le rapport d'un modèle au clic, et le
  * panneau de clusters sous « + Nouveau clustering ».
  *
  * « Charger les clusters » est RELAYÉ (`charger`) : le panneau Analyse garde le périmètre, puis charge. Le lancement d'un
@@ -90,16 +91,23 @@ export class SectionClusteringComponent {
   /** Le lancement d'un calcul par l'assistant, relayé au panneau Analyse qui le garde. */
   readonly lancerCalcul = output<CorpsLancementClustering>();
 
-  /** Fermée à l'ouverture du panneau (`analyseOpen.clustering: false`). */
-  protected readonly ouverte = signal(false);
+  /** Fermée à l'ouverture du panneau (`analyseOpen.clustering: false`) ; un tiroir de ④ (T7). */
+  private readonly tiroirs = injecterTiroirsAnalyse();
+  protected readonly ouverte = computed(() => this.tiroirs.estOuvert('clustering'));
   protected readonly nouveauCalcul = signal(false);
   protected readonly versionOuverte = signal<number | null>(null);
   protected readonly modeles = computed(() => this.clusters.modeles().map((m) => ({
     ...m, silhouette: m.silhouette_score.toFixed(3), teinte: `var(--${jetonSilhouette(m.silhouette_score)})`, date: dateCourte(m.created_at),
   })));
 
+  /**
+   * La liste des modèles est lue au PREMIER dépli seulement (T7 : rouvrir un tiroir ne relit rien), ou de nouveau si la
+   * lecture précédente a échoué. Un calcul terminé la relit de lui-même (`CalculClusteringService`). Écart à React, qui
+   * la relisait à chaque ouverture.
+   */
   protected basculer(): void {
-    this.ouverte.update((o) => !o);
-    if (this.ouverte()) this.clusters.chargerModeles();
+    const premier = !this.tiroirs.dejaOuvert('clustering');
+    this.tiroirs.basculer('clustering');
+    if (this.ouverte() && (premier || this.clusters.erreurModeles())) this.clusters.chargerModeles();
   }
 }
