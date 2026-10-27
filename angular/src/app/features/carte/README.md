@@ -479,6 +479,20 @@ bidding, pacing, ad server, ni le mot « stratégie » à l'écran (E4). Port qu
 verrouillé par REJEU des cas de React dans `line-items.spec.ts`) ; `CodeMotif` / `ModeDv360` (Angular n'importe pas
 le serveur ; `texteMotif` retombe sur le message serveur pour un code inconnu).
 
+## Le périmètre national (retours du 26/10, T3-T4)
+
+- **« France Metro » et « France + DROM » sont des FILTRES** (`logique/perimetre-national.ts`, propre à Angular, qui
+  enveloppe les copies VERBATIM sans les toucher) : `FILTRE_METROPOLE` (`{ type: 'france', code: 'metro' }`) et
+  `FILTRE_FRANCE_ENTIERE` (`code: 'france'`, la valeur d'avant). `perimetreScope` suit le filtre à chaque écriture de
+  ① et la pastille allumée en est dérivée (`scopeDuFiltre`) : les deux ne se contredisent pas. Le bloc « Périmètre
+  national » (bouton « France entière ») est retiré (Vincent, Q-2) ; une pastille remplace un filtre `zone`.
+- **Les POI suivent le filtre** : `afficher()` envoie région, département, commune ou code postal
+  (`corpsPoisDuFiltre`), et la portée `metro` / `all` du filtre. Avec un territoire, `PoisService.chercher` n'ajoute
+  plus la bbox de repli `BBOX_METRO` (elle vidait une région d'outre-mer).
+- **Écarts à React (A-1, non corrigé, gel P5)** : la pastille n'y est qu'un `perimeterScope` ; le corps des POI part
+  avec régions, départements et ville vides ; le bloc « France entière » y reste ; la bataille et « Autour des POI »
+  y restent refusés sur la métropole.
+
 ## Cycle de vie d'une couche
 
 1. **Allumée** par sa section de `panneaux/calques/`, dépliée dans sa ligne de ② (ou un outil) : le service passe `visible` à vrai.

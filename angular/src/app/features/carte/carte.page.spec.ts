@@ -458,7 +458,7 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
 
   it('changer d’étape alors que le focus est dans le panneau quitté : le focus revient à l’hôte', async () => {
     const { hote, stable } = await ouvrir();
-    const bouton = hote.querySelector<HTMLButtonElement>('[data-panneau-etape="perimetre"] mg-panneau-filtre [data-france]')!;
+    const bouton = hote.querySelector<HTMLButtonElement>('[data-panneau-etape="perimetre"] mg-panneau-filtre [data-scope="all"]')!;
     bouton.focus();
     expect(document.activeElement).toBe(bouton);
     frapper(bouton, altChiffre('2'));
@@ -1003,16 +1003,16 @@ describe('CartePage — filtre unique : panneau ①, pastille, fil d’Ariane (T
     expect(pastilles((await ouvrir()).hote)).toEqual([]);
   });
 
-  it('revenir à ① garde « France entière » pressée : panneau monté, aucune relecture du référentiel', async () => {
+  it('revenir à ① garde la pastille « France + DROM » pressée : panneau monté, aucune relecture du référentiel', async () => {
     const geo = vi.fn(() => of({ regions: [] }));
     const { hote, stable } = await ouvrir({ referentiel: geo });
-    hote.querySelector<HTMLButtonElement>('mg-panneau-filtre [data-france]')!.click();
+    hote.querySelector<HTMLButtonElement>('mg-panneau-filtre [data-scope="all"]')!.click();
     await stable();
     frapper(hote, altChiffre('2'));
     await stable();
     frapper(hote, altChiffre('1'));
     await stable();
-    expect(hote.querySelector('mg-panneau-filtre [data-france]')!.getAttribute('aria-pressed')).toBe('true');
+    expect(hote.querySelector('mg-panneau-filtre [data-scope="all"]')!.getAttribute('aria-pressed')).toBe('true');
     expect(geo).toHaveBeenCalledTimes(1);
   });
 });

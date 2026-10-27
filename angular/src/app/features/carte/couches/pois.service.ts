@@ -196,9 +196,15 @@ export class PoisService {
   /**
    * « AFFICHER LES POI SUR LA CARTE » (`useMapDirectActions.ts:91-118`) : la bbox ne part QUE si un filtre géographique
    * est actif (`bboxPourRequete`), jamais la métropole par défaut.
+   *
+   * Écart à React (retours du 26/10, T3) : quand le corps porte un territoire (région, département, ville, code
+   * postal — `corpsPoisDuFiltre`), c'est lui qui borne, et la bbox de repli `BBOX_METRO` n'est PAS ajoutée : elle
+   * aurait vidé une région ou un code postal d'outre-mer. Une zone enregistrée (territoire vide) garde sa bbox.
    */
   chercher(params: ParametresPois): void {
-    const bbox = bboxPourRequete(this.etat.filtre());
+    const aTerritoire = params.regions.length > 0 || params.depts.length > 0 || params.ville.trim().length > 0
+      || !!params.code_postal;
+    const bbox = aTerritoire ? undefined : bboxPourRequete(this.etat.filtre());
     this.lancer(this.api.pois({ ...params, ...(bbox ? { bbox } : {}) }), this.chargement, this.erreur,
       'Base de données lente — réessayez dans quelques instants',
       (data) => (data.pois?.length ? null : `Aucun POI trouvé pour "${params.poi_types.join(', ')}"`));

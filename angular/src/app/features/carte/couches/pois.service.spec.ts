@@ -118,6 +118,16 @@ describe('PoisService — corps de /api/map/pois (bboxPourRequete)', () => {
     expect(corps[0].bbox).toEqual(BBOX_METRO);
   });
 
+  it('un territoire dans le corps (retours 26/10) : AUCUNE bbox de repli — la Guadeloupe ne serait pas dans BBOX_METRO', () => {
+    const { service, etat, corps } = monter();
+    etat.filtre.set({ type: 'region', code: '01', label: 'Guadeloupe' });
+    service.chercher({ ...PARAMS, regions: ['01'] });
+    expect('bbox' in corps[0]).toBe(false);
+    etat.filtre.set({ type: 'cp', code: '97110', label: 'CP 97110' });
+    service.chercher({ ...PARAMS, code_postal: '97110' });
+    expect('bbox' in corps[1]).toBe(false);
+  });
+
   it('réponse sans POI → message de React, zone vide ; délai dépassé → sa phrase ; corps d’erreur → son texte', () => {
     const { service, reponses } = monter();
     service.chercher(PARAMS);
