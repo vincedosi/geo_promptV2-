@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { injecterTiroirsAnalyse } from '../../etat/tiroirs-analyse';
 import { formaterNombre } from '../../../../core/format/nombre';
 import { KpiComponent } from '../../../../ui/kpi/kpi.component';
@@ -66,9 +66,12 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
         <button type="button" data-chiffrer [disabled]="!z.zoneId() || z.enCours()" (click)="z.chiffrer()" [class]="boutonCalcul">
           {{ z.enCours() ? 'Chiffrage…' : 'Chiffrer la zone' }}
         </button>
-        @if (z.enCours()) {
-          <div data-en-cours role="progressbar" aria-label="Chiffrage de la zone en cours" class="h-[3px] overflow-hidden rounded-[2px] bg-overlay">
-            <div class="h-full w-1/3 animate-pulse bg-teal"></div>
+        @if (etape(); as e) {
+          <div data-en-cours class="flex flex-col gap-1.5">
+            <div role="progressbar" aria-busy="true" [attr.aria-label]="e.texte" class="relative h-[3px] overflow-hidden rounded-[2px] bg-overlay">
+              <span class="curseur" aria-hidden="true"></span>
+            </div>
+            <div data-etape class="font-mono text-[11px] text-tertiary">{{ e.total > 1 ? 'Étape ' + e.n + '/' + e.total + ' · ' : '' }}{{ e.texte }}… {{ secondes() }} s</div>
           </div>
         }
 
@@ -104,7 +107,6 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
 
             @if (r.decoupage !== 'forme' && r.lignes.length > 0) {
               @if (c.irisSousLeZoom()) { <div data-zoomer class="text-[11px] text-secondary">Zoomez pour voir les IRIS sur la carte (à partir du zoom 9).</div> }
-              @if (c.chargementContours()) { <div class="font-mono text-[11px] text-tertiary">Chargement des contours…</div> }
               @if (c.contoursIndisponibles()) { <div class="text-[11px] text-tertiary">Contours indisponibles : le tableau reste juste, la carte ne montre que la zone.</div> }
               <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-tertiary" data-legende-part>
                 <span>Part</span>
@@ -120,6 +122,20 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
           </div>
         }
       </div>
+    }
+  `,
+  styles: `
+    .curseur {
+      position: absolute; top: 0; left: 0; height: 100%; width: 25%;
+      background: var(--brand-teal);
+      animation: glisse 1.1s ease-in-out infinite;
+    }
+    @keyframes glisse {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(400%); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .curseur { animation: none; width: 100%; opacity: 0.45; }
     }
   `,
 })
@@ -171,6 +187,32 @@ export class OutilCouvertureComponent {
     return r ? ligneHorsTerritoire(r) : null;
   });
   protected readonly surface = computed(() => Math.round(this.z.resultat()?.surface_km2 ?? 0));
+
+  /**
+   * L'étape en cours du chiffrage (retours du 26/10, arbitrage 1 de Vincent le 27/10 : ④ s'ouvre sur la couverture, une
+   * barre de progression le temps du calcul). Le calcul est UN appel (`GET /api/zones/[id]/couverture`) sans avancement
+   * intermédiaire : la barre est une barre d'attente, sans pourcentage inventé, qui nomme l'étape et le temps écoulé.
+   * Par code postal, une deuxième étape suit : la lecture des contours CP (~3,8 Mo, une fois par page).
+   */
+  protected readonly etape = computed(() => {
+    const total = this.z.decoupage() === 'cp' ? 2 : 1;
+    if (this.z.enCours()) return { n: 1, total, texte: 'Calcul de la couverture' };
+    if (this.z.resultat()?.decoupage === 'cp' && this.c.chargementContours()) return { n: 2, total, texte: 'Chargement des contours des codes postaux' };
+    return null;
+  });
+  private readonly actif = computed(() => this.etape() !== null);
+  /** Secondes depuis le début du chiffrage, les deux étapes comprises. */
+  protected readonly secondes = signal(0);
+
+  constructor() {
+    effect((nettoyer) => {
+      if (!this.actif()) return;
+      const debut = Date.now();
+      this.secondes.set(0);
+      const t = setInterval(() => this.secondes.set(Math.floor((Date.now() - debut) / 1000)), 1000);
+      nettoyer(() => clearInterval(t));
+    });
+  }
 }
 
 /** « Ménages pauvres » → « ménages pauvres » ; un sigle (« CSP+ ») garde ses capitales. */

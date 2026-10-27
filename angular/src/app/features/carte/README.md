@@ -543,8 +543,10 @@ le serveur ; `texteMotif` retombe sur le message serveur pour un code inconnu).
   création en vol aboutit et relit « Mes zones ») ; rouvrir une famille rend actif son dernier formulaire touché ; la
   couverture de ④ est cachée ; la fiche santé de ② garde son cache dans `CacheFichesSante` ; le clustering ne lit sa
   liste qu'au premier dépli (ou après un échec).
-- **Écarts à React et arbitrages ouverts (pour Vincent)** : (1) ④ s'ouvre sur la couverture, pas sur « aucun » (A-11
-  disait « aucun » ; la couverture était l'outil de tête depuis le lot 4) ; (2) ① n'ouvre plus que « Périmètre
+- **Écarts à React, arbitrés par Vincent le 27/10 (tous acceptés)** : (1) ④ s'ouvre sur la couverture, pas sur « aucun »
+  (A-11 disait « aucun » ; la couverture était l'outil de tête depuis le lot 4) — accepté avec une barre de progression
+  pendant le chiffrage : barre d'attente (un seul appel, aucun avancement intermédiaire, donc pas de pourcentage),
+  étape nommée et secondes écoulées, deux étapes par code postal (calcul, puis contours CP) ; (2) ① n'ouvre plus que « Périmètre
   global » : enchaîner région puis département demande d'ouvrir le tiroir Départements, qui referme Régions ; (3) ⑥
   n'ouvre plus que « Cible » ; (4) le clustering ne relit plus sa liste à chaque ouverture : un modèle calculé dans un
   autre onglet n'apparaît qu'au rechargement ; (5) le cache de la fiche santé survit au repli de sa ligne.

@@ -81,6 +81,42 @@ describe('mg-outil-couverture (lot 4, T8)', () => {
     expect(z.chiffrer).toHaveBeenCalledTimes(1);
   });
 
+  it('barre de progression pendant le calcul : étape nommée et temps écoulé (arbitrage 1 du 27/10)', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+    try {
+      const { el, z, stable } = await monter();
+      expect(el.querySelector('[data-en-cours]')).toBeNull();
+      z.enCours.set(true);
+      await stable();
+      expect(el.querySelector('[data-en-cours] [role="progressbar"]')!.getAttribute('aria-label')).toBe('Calcul de la couverture');
+      expect(el.querySelector('[data-etape]')!.textContent!.trim()).toBe('Calcul de la couverture… 0 s');
+      vi.advanceTimersByTime(3000);
+      await stable();
+      expect(el.querySelector('[data-etape]')!.textContent).toContain('3 s');
+      z.enCours.set(false);
+      await stable();
+      expect(el.querySelector('[data-en-cours]')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('par code postal : deux étapes, le calcul puis les contours CP', async () => {
+    const { el, z, stable, couverture } = await monter();
+    z.decoupage.set('cp');
+    z.enCours.set(true);
+    await stable();
+    expect(el.querySelector('[data-etape]')!.textContent).toContain('Étape 1/2 · Calcul de la couverture');
+    z.enCours.set(false);
+    z.resultat.set({ ...BASE, decoupage: 'cp', n_territoires: 1, lignes: [] });
+    couverture.chargementContours.set(true);
+    await stable();
+    expect(el.querySelector('[data-etape]')!.textContent).toContain('Étape 2/2 · Chargement des contours des codes postaux');
+    couverture.chargementContours.set(false);
+    await stable();
+    expect(el.querySelector('[data-en-cours]')).toBeNull();
+  });
+
   it('un refus s’affiche en une ligne AU-DESSUS du CTA', async () => {
     const { el, z, stable } = await monter();
     z.erreur.set('La zone est trop vaste : la couverture se calcule jusqu’à la taille d’une région.');
