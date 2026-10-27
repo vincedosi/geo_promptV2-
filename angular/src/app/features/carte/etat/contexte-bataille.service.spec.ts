@@ -68,6 +68,35 @@ describe('ContexteBatailleService — capacité en direct sur la métropole (ret
     expect(vu).toContain('tâche de fond');
   });
 
+  it('capacité locale (V1, relecture 2, I-1) : avec un territoire, UN comptage et la capacité de 700 anneaux', () => {
+    const { ctx, corps, caches } = monter();
+    const vus: (string | null)[] = [];
+    ctx.verifierBorne(REGION, [10, 20, 30], true).subscribe((m) => vus.push(m));
+    expect(corps).toEqual([{ category: 'cirfa', mode: 'drive', paliers: [10], metropolitaine: true,
+      filtre_ville: undefined, filtre_regions: ['93'], filtre_depts: undefined }]);
+    caches[0].next(statut(300));
+    expect(espaces(vus[0]!)).toContain('Ce calcul (300 POI × 3 paliers = 900 anneaux) dépasse ce qu’on peut calculer en direct.');
+    // Sous la capacité : le calcul part.
+    ctx.verifierBorne(REGION, [10, 20, 30], true).subscribe((m) => vus.push(m));
+    caches[1].next(statut(200));
+    expect(vus[1]).toBeNull();
+  });
+
+  it('capacité locale : sousBorne(…, true) refuse avant la V1 sur une région ; sans l’option, aucun appel', () => {
+    const { ctx, etat, corps, caches } = monter();
+    etat.filtre.set({ type: 'region', code: '93', label: "Provence-Alpes-Côte d'Azur" });
+    const notes: string[] = [];
+    const suite = vi.fn();
+    ctx.sousBorne(REGION, SEPT, (l) => notes.push(l), suite);
+    expect(suite).toHaveBeenCalledTimes(1);
+    expect(corps).toEqual([]);
+    ctx.sousBorne(REGION, SEPT, (l) => notes.push(l), suite, true);
+    caches[0].next(statut(120));
+    expect(suite).toHaveBeenCalledTimes(1);
+    expect(notes[0]).toMatch(/^> ✕ Ce calcul \(120 POI × 7 paliers/);
+    expect(ctx.refusBorne()).toBe(notes[0].slice(4));
+  });
+
   it('sousBorne : refus noté « > ✕ … », affiché (refusBorne), suite non appelée ; un changement de filtre l’efface', () => {
     const { ctx, etat, caches } = monter();
     const notes: string[] = [];

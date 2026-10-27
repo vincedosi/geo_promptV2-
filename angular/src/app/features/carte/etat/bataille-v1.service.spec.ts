@@ -166,11 +166,12 @@ const refuser = (contexte: { sousBorne: ReturnType<typeof vi.fn> }) => contexte.
   (_c: unknown, _p: unknown, noter: (l: string) => void) => { noter('> ✕ Ce calcul dépasse'); return Subscription.EMPTY; });
 
 describe('BatailleV1Service — capacité en direct sur la métropole (retours 26/10, T4)', () => {
-  it('lancer passe par sousBorne ; un refus ne lance pas la bataille V1 (route protégée), noté au journal', () => {
+  it('lancer passe par sousBorne, capacité locale comprise ; un refus ne lance pas la bataille V1 (route protégée), noté au journal', () => {
     const { v1, corps, contexte } = monter();
     refuser(contexte);
     v1.lancer(false);
-    expect(contexte.sousBorne).toHaveBeenCalledWith(CTX, [10, 30], expect.any(Function), expect.any(Function));
+    // Avec la capacité LOCALE (relecture 2, I-1) : la route V1 protégée ne refait aucune borne, quel que soit le périmètre.
+    expect(contexte.sousBorne).toHaveBeenCalledWith(CTX, [10, 30], expect.any(Function), expect.any(Function), true);
     expect(corps['bataille']).toEqual([]);
     expect(v1.journal()).toEqual(['> ✕ Ce calcul dépasse']);
     expect(v1.chargement()).toBe(false);

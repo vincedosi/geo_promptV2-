@@ -2,7 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { type Observable, type Subscription, map, of } from 'rxjs';
 import { PoisService } from '../couches/pois.service';
 import { IsochronesApi } from '../data/isochrones.api';
-import { refusBorneNationale, sansTerritoire } from '../logique/bataille/borne-nationale';
+import { refusBorneNationale, refusCapaciteAnneaux, sansTerritoire } from '../logique/bataille/borne-nationale';
 import { messageEchecHttp, type PoiCategorise } from '../logique/bataille/flux';
 import { type ContexteBataille, corpsVerification, territoireDuFiltre } from '../logique/bataille/parametres';
 import type { FiltreActif } from '../logique/filtre';
@@ -23,8 +23,9 @@ import { ReferentielGeoService } from './referentiel-geo.service';
  *
  * « Sur la métropole » se lit comme côté serveur : un contexte SANS territoire (`sansTerritoire`). Après la garde, c'est
  * la seule façon d'en avoir un — absence de filtre, France entière, code postal et zone y sont refusés. Avec un
- * territoire, aucun appel : la route V2 refait la capacité de 700 anneaux sur tout périmètre (Ruling 4) ; la V1
- * (route protégée) garde son comportement local d'avant ce lot (Q-3).
+ * territoire, la capacité de 700 anneaux vaut aussi (Ruling 4) : la V2 n'appelle rien, sa route la refait ; la V1, dont
+ * la route est protégée et ne refait rien (Q-3), compte AUSSI avec un territoire (`capaciteLocale`, relecture 2, I-1)
+ * et applique `refusCapaciteAnneaux` — même message « tâche de fond », borne côté écran seulement.
  *
  * `@Injectable()` sans `providedIn` : fourni par la page carte, détruit avec elle.
  */
@@ -78,14 +79,18 @@ export class ContexteBatailleService {
   }
 
   /**
-   * Le refus de capacité d'une bataille sur la métropole, `null` si elle peut partir en direct. Hors métropole (un
-   * territoire), `of(null)` sans appel. Sinon UNE lecture de `POST /api/isochrone-cache-check` avec le premier palier
-   * seul (son `total_pois` suffit), puis `refusBorneNationale(total_pois, paliers.length)`.
+   * Le refus de capacité d'une bataille, `null` si elle peut partir en direct. UNE lecture de
+   * `POST /api/isochrone-cache-check` avec le premier palier seul (son `total_pois` suffit), puis, sur la métropole,
+   * `refusBorneNationale(total_pois, paliers.length)` (lecture tronquée et capacité). Avec un territoire : sans
+   * `capaciteLocale`, `of(null)` sans appel ; avec, `refusCapaciteAnneaux(total_pois, paliers.length)` (V1).
    */
-  verifierBorne(ctx: ContexteBataille, paliers: readonly number[]): Observable<string | null> {
+  verifierBorne(ctx: ContexteBataille, paliers: readonly number[], capaciteLocale = false): Observable<string | null> {
     const corps = corpsVerification(ctx, paliers.slice(0, 1));
-    if (!sansTerritoire(corps) || paliers.length === 0) return of(null);
-    return this.api.verifierCache(corps).pipe(map((s) => refusBorneNationale(s.total_pois ?? 0, paliers.length)));
+    const national = sansTerritoire(corps);
+    if (paliers.length === 0 || (!national && !capaciteLocale)) return of(null);
+    return this.api.verifierCache(corps).pipe(map((s) => (national
+      ? refusBorneNationale(s.total_pois ?? 0, paliers.length)
+      : refusCapaciteAnneaux(s.total_pois ?? 0, paliers.length))));
   }
 
   /**
@@ -93,11 +98,14 @@ export class ContexteBatailleService {
    * (`> ✕ <message>`) et affiché par le panneau. Une réponse arrivée après un changement de filtre ne lance rien et ne
    * refuse rien (Review Focus 3) : le lancement suivant recompte sur le nouveau filtre. L'abonnement rendu est annulé
    * par l'appelant (nouveau lancement, « Tout effacer », destruction). Un échec du comptage est noté, rien ne part.
+   * `capaciteLocale` : voir `verifierBorne` (la V1 le passe).
    */
-  sousBorne(ctx: ContexteBataille, paliers: readonly number[], noter: (ligne: string) => void, suite: () => void): Subscription {
+  sousBorne(
+    ctx: ContexteBataille, paliers: readonly number[], noter: (ligne: string) => void, suite: () => void, capaciteLocale = false,
+  ): Subscription {
     const filtre = this.etat.filtre();
     this.refus.set(null);
-    return this.verifierBorne(ctx, paliers).subscribe({
+    return this.verifierBorne(ctx, paliers, capaciteLocale).subscribe({
       next: (message) => {
         if (this.etat.filtre() !== filtre) return;
         if (message === null) { suite(); return; }

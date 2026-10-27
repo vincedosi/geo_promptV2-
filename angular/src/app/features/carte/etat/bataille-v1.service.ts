@@ -26,9 +26,9 @@ interface ResultatV1 {
  * (lot 4, T17). Les anneaux s'affichent BRUTS au fil du flux ; la découpe (« X BATAILLE ») les remplace.
  *
  * Aucune garde ici : le panneau Analyse appelle `verifierPerimetreOutil` AVANT chaque méthode de lancement (verrou
- * structurel `tests/unit/angular/panneau-analyse-garde.test.ts`). Sur la métropole, `lancer` passe en plus par la
- * capacité en direct (`ContexteBatailleService.sousBorne`, retours du 26/10, T4) : la route V1 est protégée et ne refait
- * aucune borne (Q-3), l'écran est sa seule garde de capacité.
+ * structurel `tests/unit/angular/panneau-analyse-garde.test.ts`). `lancer` passe en plus par la capacité en direct
+ * (`ContexteBatailleService.sousBorne`, retours du 26/10, T4), sur TOUT périmètre (relecture 2, I-1) : la route V1 est
+ * protégée et ne refait aucune borne (Q-3), l'écran est sa seule garde de capacité.
  *
  * Fourni par la PAGE carte, pas par le panneau : fermer le panneau ne coupe pas un calcul de deux minutes, et le
  * rouvrir retrouve son journal (React perdait l'un et l'autre en démontant le panneau). « Tout effacer » annule le flux
@@ -102,7 +102,10 @@ export class BatailleV1Service {
     const ctx = this.ctx.contexte();
     const durees = this.durees();
     this.borne?.unsubscribe();
-    this.borne = this.ctx.sousBorne(ctx, durees, (l) => this.journal.update((j) => [...j, l]), () => this.lancerDans(ctx, durees, force));
+    // Capacité LOCALE aussi (relecture 2, I-1) : la route V1 est protégée et ne refait aucune borne, quel que soit le
+    // périmètre — l'écran est sa seule garde contre les 60 s de Kong.
+    const noter = (l: string) => this.journal.update((j) => [...j, l]);
+    this.borne = this.ctx.sousBorne(ctx, durees, noter, () => this.lancerDans(ctx, durees, force), true);
   }
 
   private lancerDans(ctx: ContexteBataille, durees: readonly number[], force: boolean): void {

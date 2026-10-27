@@ -204,10 +204,15 @@ describe('PanneauAnalyseComponent (PanneauAnalyse.tsx, T17)', () => {
     expect(m.el.querySelector('[data-garde]')).toBeNull();
   });
 
-  it('filtre département 13 : la bataille V1 part avec le territoire dérivé', async () => {
+  it('filtre département 13 : la bataille V1 compte sa capacité (relecture 2, I-1), puis part avec le territoire dérivé', async () => {
     const m = await monter({ filtre: DEPT_13 });
     await ouvrirOutil(m, 'mg-outil-isochrones');
     await m.cliquer('mg-outil-isochrones [data-lancer]');
+    const compte = m.http.expectOne('/api/isochrone-cache-check');
+    expect(compte.request.body).toMatchObject({ paliers: [10], filtre_depts: ['13'] });
+    m.http.expectNone('/api/isochrone-battle');
+    compte.flush({ total_pois: 8, total_combos: 8, cached_combos: 8, missing_combos: 0, missing_pois: 0, cached_pois: 8 });
+    await m.fixture.whenStable();
     const req = m.http.expectOne('/api/isochrone-battle');
     expect(req.request.body).toMatchObject({ category: 'cirfa', mode: 'drive', durations: [10, 30], filtre_depts: ['13'], filtre_regions: null, filtre_ville: null });
     expect(m.el.querySelector('[data-garde]')).toBeNull();
