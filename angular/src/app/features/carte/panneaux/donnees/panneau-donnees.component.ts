@@ -16,7 +16,7 @@ import { RisqueCarteService } from '../../etat/risque-carte.service';
 import { TiroirsExclusifs } from '../../etat/tiroirs-exclusifs';
 import { libelleDegrade } from '../../logique/degrades';
 import { PREFIXE_POI } from '../../logique/jeux-carte';
-import { type JeuAffichable, decouperCommuns, filtrerJeux, jeuxDeLaCarte, rangerJeux } from '../../logique/rangement-jeux';
+import { type JeuAffichable, decouperCommuns, estClePoi as estPoi, filtrerJeux, jeuxDeLaCarte, rangerJeux } from '../../logique/rangement-jeux';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { SectionCarreauxComponent } from '../calques/section-carreaux.component';
 import { SectionCiviqueComponent } from '../calques/section-civique.component';
@@ -57,11 +57,12 @@ interface BlocCommun {
   readonly pois: readonly LigneVue[];
   /** Le sous-groupe est déplié : ouvert à la main, ou une de ses cases cochée, ou une recherche tapée. */
   readonly poisVisibles: boolean;
+  /** Ouvert de force (une case cochée, une recherche) : le bouton ne bascule rien et le dit (`aria-disabled`, m-3 de T6). */
+  readonly poisForces: boolean;
   readonly total: number;
 }
 
 const SANTE = 'sante:air-pollen';
-const estPoi = (cle: string) => cle.startsWith(PREFIXE_POI);
 
 /**
  * Le panneau ② « Données » (spec § 4 ②, lot 2) — il remplace le panneau « Calques ». « Rien n'est caché, tout est rangé » :
@@ -186,7 +187,7 @@ const estPoi = (cle: string) => cle.startsWith(PREFIXE_POI);
         <ng-container [ngTemplateOutlet]="ligne" [ngTemplateOutletContext]="{ $implicit: l }" />
       }
       @if (b.pois.length > 0) {
-        <button type="button" [attr.data-poi-communs]="b.cle" [attr.aria-expanded]="b.poisVisibles" (click)="basculerPoisCommuns(b.cle)"
+        <button type="button" [attr.data-poi-communs]="b.cle" [attr.aria-expanded]="b.poisVisibles" [attr.aria-disabled]="b.poisForces || null" (click)="basculerPoisCommuns(b)"
           class="flex w-full cursor-pointer items-center gap-1.5 border-0 border-t-fin border-subtle bg-transparent px-[14px] py-2 text-left text-[12px] text-secondary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--brand-teal-50)]">
           <span aria-hidden="true" class="w-2.5 text-tertiary">{{ b.poisVisibles ? '▾' : '▸' }}</span>
           POI communs ({{ b.pois.length }})
@@ -287,8 +288,8 @@ export class PanneauDonneesComponent {
       const d = decouperCommuns(jeux);
       const referentiels = lignes(d.referentiels);
       const pois = lignes(d.pois);
-      const poisVisibles = ouverts[cle] || cherche || pois.some((l) => l.coche);
-      return { cle, referentiels, pois, poisVisibles, total: referentiels.length + pois.length };
+      const poisForces = cherche || pois.some((l) => l.coche);
+      return { cle, referentiels, pois, poisVisibles: ouverts[cle] || poisForces, poisForces, total: referentiels.length + pois.length };
     };
     return {
       espace: lignes(r.espace), recommandes: bloc('recommandes', r.recommandes), autres: bloc('autres', r.autres),
@@ -338,8 +339,10 @@ export class PanneauDonneesComponent {
   }
 
   /** Le repli « POI communs » d'une liste ; une case cochée ou une recherche le gardent déplié (`vue`). */
-  protected basculerPoisCommuns(cle: CleBloc): void {
-    this.poisCommunsOuverts.update((o) => ({ ...o, [cle]: !o[cle] }));
+  /** Ouvert de force, le clic ne change rien : l'état manuel ne bascule pas en douce (relecture T5-T6, m-3). */
+  protected basculerPoisCommuns(b: BlocCommun): void {
+    if (b.poisForces) return;
+    this.poisCommunsOuverts.update((o) => ({ ...o, [b.cle]: !o[b.cle] }));
   }
 
   protected deplier(cle: string): void {

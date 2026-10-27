@@ -9,6 +9,9 @@ import type { FiltreActif } from '../logique/filtre';
 import { EtatCarteService } from './etat-carte.service';
 import { ReferentielGeoService } from './referentiel-geo.service';
 
+/** La ligne de journal d'un comptage de capacité en cours (métropole seulement : ailleurs, rien n'est compté). */
+export const LIGNE_VERIFICATION_CAPACITE = '> Vérification de la capacité en direct…';
+
 /**
  * Le contexte de la bataille d'isochrones V2 — la part commune de `use-isochrone-battle.ts` (lot 4, T17) : le mode de
  * transport, la catégorie de POI (le seul type choisi), le territoire dérivé du filtre unique, et l'affichage des POI de
@@ -96,6 +99,8 @@ export class ContexteBatailleService {
   sousBorne(ctx: ContexteBataille, paliers: readonly number[], noter: (ligne: string) => void, suite: () => void): Subscription {
     const filtre = this.etat.filtre();
     this.refus.set(null);
+    // Un comptage sur la métropole peut durer quelques secondes : le journal le dit (revue finale T8, m-1 de T3-T4).
+    if (paliers.length > 0 && sansTerritoire(corpsVerification(ctx, paliers.slice(0, 1)))) noter(LIGNE_VERIFICATION_CAPACITE);
     return this.verifierBorne(ctx, paliers).subscribe({
       next: (message) => {
         if (this.etat.filtre() !== filtre) return;

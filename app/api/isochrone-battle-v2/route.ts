@@ -196,8 +196,11 @@ export async function POST(req: NextRequest) {
         // Vincent). D'abord la lecture : 500 POI lus, c'est une lecture tronquée — refus AVANT de lire le cache
         // (3 500 géométries pour 7 paliers). Puis, une fois le cache lu, les anneaux RÉELLEMENT trouvés.
         const borneNationale = sansTerritoire({ filtre_ville, filtre_regions, filtre_depts });
-        if (borneNationale && pois.length >= PLAFOND_LECTURE_POI) {
-          send({ type: 'error', message: refusBorneNationale(pois.length, PALIERS.length) }); return;
+        // La troncature se lit sur les lignes LUES, pas sur les POI gardés après le retrait des coordonnées nulles
+        // (revue finale T8, m-1 du groupe A) : 500 lignes dont une sans coordonnées restent une lecture tronquée.
+        const lus = rawRows?.length ?? 0;
+        if (borneNationale && lus >= PLAFOND_LECTURE_POI) {
+          send({ type: 'error', message: refusBorneNationale(lus, PALIERS.length) }); return;
         }
         send({ type: 'pois_loaded', total: pois.length });
 

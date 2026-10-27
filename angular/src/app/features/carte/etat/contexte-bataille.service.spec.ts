@@ -6,7 +6,7 @@ import { IsochronesApi } from '../data/isochrones.api';
 import type { ContexteBataille } from '../logique/bataille/parametres';
 import { FILTRE_METROPOLE } from '../logique/perimetre-national';
 import { AnnonceService } from './annonce.service';
-import { ContexteBatailleService } from './contexte-bataille.service';
+import { ContexteBatailleService, LIGNE_VERIFICATION_CAPACITE } from './contexte-bataille.service';
 import { EtatCarteService } from './etat-carte.service';
 import { ReferentielGeoService } from './referentiel-geo.service';
 
@@ -87,9 +87,10 @@ describe('ContexteBatailleService — capacité en direct sur la métropole (ret
     ctx.sousBorne(METRO, SEPT, (l) => notes.push(l), suite);
     caches[0].next(statut(175));
     expect(suite).not.toHaveBeenCalled();
-    expect(notes).toHaveLength(1);
-    expect(notes[0]).toMatch(/^> ✕ Ce calcul \(175 POI × 7 paliers/);
-    expect(ctx.refusBorne()).toBe(notes[0].slice(4));
+    expect(notes).toHaveLength(2);
+    expect(notes[0]).toBe(LIGNE_VERIFICATION_CAPACITE);
+    expect(notes[1]).toMatch(/^> ✕ Ce calcul \(175 POI × 7 paliers/);
+    expect(ctx.refusBorne()).toBe(notes[1].slice(4));
     etat.filtre.set({ type: 'region', code: '93', label: "Provence-Alpes-Côte d'Azur" });
     expect(ctx.refusBorne()).toBeNull();
   });
@@ -114,7 +115,7 @@ describe('ContexteBatailleService — capacité en direct sur la métropole (ret
     etat.filtre.set({ type: 'region', code: '93', label: "Provence-Alpes-Côte d'Azur" });
     caches[0].next(statut(175));
     expect(suite).not.toHaveBeenCalled();
-    expect(notes).toEqual([]);
+    expect(notes).toEqual([LIGNE_VERIFICATION_CAPACITE]);
     expect(ctx.refusBorne()).toBeNull();
     // Le lancement suivant compte sur le NOUVEAU filtre : une région, donc aucun comptage, le calcul part.
     ctx.sousBorne(REGION, SEPT, (l) => notes.push(l), suite);
@@ -126,7 +127,8 @@ describe('ContexteBatailleService — capacité en direct sur la métropole (ret
     etat.filtre.set(null);
     caches[1].next(statut(95));
     expect(suite).toHaveBeenCalledTimes(1);
-    expect(notes).toEqual([]);
+    // Seules les lignes « vérification » des deux comptages métropole : ni refus ni lancement.
+    expect(notes).toEqual([LIGNE_VERIFICATION_CAPACITE, LIGNE_VERIFICATION_CAPACITE]);
   });
 
   it('échec du comptage : noté, rien ne part', () => {
@@ -136,6 +138,7 @@ describe('ContexteBatailleService — capacité en direct sur la métropole (ret
     ctx.sousBorne(METRO, SEPT, (l) => notes.push(l), suite);
     caches[0].error(new Error('réseau'));
     expect(suite).not.toHaveBeenCalled();
-    expect(notes[0]).toMatch(/^> ✕ Erreur vérif\. cache/);
+    expect(notes).toHaveLength(2);
+    expect(notes[1]).toMatch(/^> ✕ Erreur vérif\. cache/);
   });
 });

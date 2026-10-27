@@ -238,6 +238,18 @@ describe('PanneauFiltreComponent', () => {
     expect(etat.filtre()).toBeNull();
   });
 
+  it('une pastille cliquée pendant l’anti-rebond d’une ville gagne : la commune ne se pose pas par-dessus (T8, m-3)', async () => {
+    const { etat } = preparer();
+    const { f, el, stable } = await monter();
+    [...el.querySelectorAll<HTMLElement>('mg-entete-filtre')].find((e) => e.textContent?.includes('Recherche locale'))!.click();
+    await stable();
+    vi.useFakeTimers();
+    taper(el.querySelector<HTMLInputElement>('[data-champ="ville"]')!, 'Lyon');
+    (f.componentInstance as unknown as { choisirScope(s: 'metro' | 'all'): void }).choisirScope('metro');
+    vi.advanceTimersByTime(ANTI_REBOND_RECHERCHE_MS * 2);
+    expect(etat.filtre()?.type).toBe('france');
+  });
+
   it('fermer le panneau abandonne une saisie en suspens', async () => {
     const { etat } = preparer();
     const { f, el, stable } = await monter();

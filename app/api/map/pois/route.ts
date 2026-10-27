@@ -7,6 +7,7 @@ import { getDistinctCategories } from '@/lib/poi/categories';
 import type { ZoneData } from '@/types/spatial';
 import { BBOX_METRO } from '@/lib/carte/filtre';
 import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,12 +75,10 @@ interface PoiRow {
 
 export async function POST(req: NextRequest) {
   try {
-    const rawBody = await req.json();
-    const parsed = poisPostSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues.map(i => i.message).join(', ') }, { status: 400 });
-    }
-    const { poi_types, scope, regions, depts, ville, code_postal, rayon_poi, poi_natures, bbox, poi_inclure_inactifs } = parsed.data;
+    // `lireCorps` (CLAUDE.md) : un corps illisible répond 400, plus 500 (revue finale T8, m-6 du groupe A).
+    const corps = await lireCorps(req, poisPostSchema);
+    if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
+    const { poi_types, scope, regions, depts, ville, code_postal, rayon_poi, poi_natures, bbox, poi_inclure_inactifs } = corps.valeur;
 
     const session   = await getSessionOrg(req);
     const supabase  = createAdminClient();

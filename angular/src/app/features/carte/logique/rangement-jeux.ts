@@ -63,8 +63,15 @@ export function rangerJeux(jeux: readonly JeuAffichable[], recommandes: readonly
  * une section, ils ne se cochent pas. Ordre conservé. Pur.
  */
 export function decouperCommuns(jeux: readonly JeuAffichable[]): { referentiels: JeuAffichable[]; pois: JeuAffichable[] } {
-  const estTypePoi = (j: JeuAffichable) => j.cle.startsWith(PREFIXE_POI);
-  return { referentiels: jeux.filter((j) => !estTypePoi(j)), pois: jeux.filter(estTypePoi) };
+  return { referentiels: jeux.filter((j) => !estClePoi(j.cle)), pois: jeux.filter((j) => estClePoi(j.cle)) };
+}
+
+/**
+ * Une clé de jeu est-elle celle d'un TYPE de POI (`poi:<catégorie>`) ? La seule écriture du prédicat : le panneau ②
+ * s'en sert pour le mode « case » d'une ligne, `decouperCommuns` pour le sous-groupe (revue finale T8, m-4 de T6).
+ */
+export function estClePoi(cle: string): boolean {
+  return cle.startsWith(PREFIXE_POI);
 }
 
 /** « Chercher un jeu par nom » (spec § 4 ②) : sans casse ni accents (`plierTexte`) ; une recherche vide rend tout. */

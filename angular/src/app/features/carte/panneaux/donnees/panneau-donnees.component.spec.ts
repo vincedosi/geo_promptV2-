@@ -405,6 +405,22 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
       expect(el.querySelector<HTMLInputElement>('[data-jeu="poi:cirfa"] input')!.checked).toBe(true);
     });
 
+    it('ouvert de force par une case cochée, le bouton est aria-disabled et son clic ne bascule rien en douce (T8, m-3)', async () => {
+      const { el, rendre, etat } = monter({ categories: DEMO });
+      await rendre();
+      etat.poiSelectionnes.set(['cirfa']);
+      await rendre();
+      const sg = el.querySelector<HTMLButtonElement>('[data-poi-communs="recommandes"]')!;
+      expect(sg.getAttribute('aria-disabled')).toBe('true');
+      sg.click();
+      await rendre();
+      etat.poiSelectionnes.set([]);
+      await rendre();
+      const apres = el.querySelector('[data-poi-communs="recommandes"]')!;
+      expect(apres.getAttribute('aria-expanded')).toBe('false');
+      expect(apres.hasAttribute('aria-disabled')).toBe(false);
+    });
+
     it('la recherche « lyc » ouvre le sous-groupe et n’y montre que les lycées ; vidée, il se referme', async () => {
       const { el, rendre, cles } = monter({ categories: DEMO });
       await rendre();

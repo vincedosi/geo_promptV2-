@@ -3,7 +3,8 @@ import { TiroirsExclusifs } from './tiroirs-exclusifs';
 
 /**
  * Les tiroirs de ④ Analyse (retours du 26/10, T7) : les outils du premier niveau. « Analyse spatiale » est un en-tête
- * de GROUPE, pas un tiroir (A-11) ; à l'intérieur, Bataille V2 et Isochrones s'excluaient déjà (`outilOuvert`).
+ * de GROUPE, pas un tiroir (A-11) ; à l'intérieur, la Bataille V2 a son propre repli (`batailleOuverte`) depuis le
+ * retrait de la V1 (27/10) — Bataille V2 et Isochrones s'y excluaient (`outilOuvert`).
  */
 export type TiroirAnalyse = 'couverture' | 'rayon' | 'score' | 'correlation' | 'clustering';
 

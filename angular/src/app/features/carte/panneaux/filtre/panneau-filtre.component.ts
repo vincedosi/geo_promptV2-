@@ -249,6 +249,9 @@ export class PanneauFiltreComponent {
    * zone enregistrée comprise : écart voulu au `filtreApresChangementScope` de React, qui gardait la zone (A-3, 26/10).
    */
   protected choisirScope(s: 'metro' | 'all'): void {
+    // Une saisie de ville ou de CP encore dans son anti-rebond poserait sa commune PAR-DESSUS la pastille (T8, m-3).
+    clearTimeout(this.minuterieVille);
+    clearTimeout(this.minuterieCp);
     this.regionsChoisies.set([]);
     this.deptsChoisis.set([]);
     this.ville.set('');
