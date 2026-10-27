@@ -159,6 +159,7 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `resoudre_perimetre()` | 253, 265 | Le périmètre de ① en géométrie (département et région sur `geom_perimetre`, sql/265), avec les refus de bornes ; garde commune des calculs de zones |
 | `creer_zone_recette()` · `remplacer_geometrie_zone()` · `zone_referencee()` | 253 | Écrit une zone à recette (`custom_geo_zones.recette`), remplace sa forme en place, dit si elle est citée (plan, jeu, composite) |
 | `zone_rayon_poi()` | 254, 285 | Zone fabriquée : union des disques autour des POI d'une catégorie dans le périmètre ; sql/285 : branche `('france', 'METRO')` (catégorie d'abord) et capacité synchrone de 10 000 POI pour tout périmètre |
+| `codes_postaux_du_perimetre_jsonb()` | 168, 287 | Codes postaux d'un filtre de carte (`jsonb`, source unique ; l'enveloppe `RETURNS TABLE` est sql/169) ; sql/287 : `('france', 'metro')` exclut les départements 97x / 98x |
 | `zone_seuil_carreaux()` | 255 | Zone fabriquée : union des carreaux Filosofi au-delà d'un seuil d'indicateur, bornée au département |
 | `zone_seuil_territoire()` | 256 | Zone fabriquée : union des CP ou IRIS au-delà d'un seuil |
 | `boucher_interstices()` | 265 | Bouche les fentes de couture d'un contour de département ou de région, vraies enclaves gardées ; remplit `geom_perimetre` (migration psql : `\if :{?forcer_perimetres}`) |

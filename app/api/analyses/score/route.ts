@@ -140,7 +140,8 @@ const IndicateurSchema = z.object({
  * Miroir de `FiltreActif` (lib/carte/filtre.ts) — le périmètre tel que la
  * carte le pose. `'france'` ajouté le 2026-09-15 (spec-filtre-france.md) :
  * seul type qui n'a PAS besoin de `checkZoneAccess` (pas une zone) et dont
- * `code` est ignoré côté RPC (`codes_postaux_du_perimetre_jsonb`, sql/168).
+ * `code` ne sert côté RPC qu'à distinguer la métropole (`metro`, hors 97x/98x,
+ * sql/287) de la France entière (tout autre code, sql/168).
  */
 const PerimetreSchema = z.object({
   type: z.enum(['region', 'departement', 'commune', 'cp', 'zone', 'france']),

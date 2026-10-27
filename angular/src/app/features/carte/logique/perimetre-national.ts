@@ -47,8 +47,8 @@ const ADMIS_EN_METROPOLE: ReadonlySet<OutilAnalyse> = new Set<OutilAnalyse>([
 
 /**
  * La garde de ④ (A-4) : `messageGardeOutil` à l'identique, sauf sur la métropole. Là, les batailles et le score
- * passent ; Voronoï et clustering refusent avec un message qui nomme la métropole. Le score sur la métropole reste
- * national, DROM compris (route inchangée).
+ * passent ; Voronoï et clustering refusent avec un message qui nomme la métropole. Le score sur la métropole part avec
+ * `{ type: 'france', code: 'metro' }`, que `codes_postaux_du_perimetre_jsonb` résout sans l'outre-mer (sql/287).
  */
 export function messageGardeCarte(outil: OutilAnalyse, filtre: FiltreActif | null, zone?: string | null): string | null {
   if (!estMetropole(filtre)) return messageGardeOutil(outil, filtre, zone);
