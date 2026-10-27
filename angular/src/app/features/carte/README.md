@@ -489,9 +489,10 @@ le serveur ; `texteMotif` retombe sur le message serveur pour un code inconnu).
 - **Les POI suivent le filtre** : `afficher()` envoie région, département, commune ou code postal
   (`corpsPoisDuFiltre`), et la portée `metro` / `all` du filtre. Avec un territoire, `PoisService.chercher` n'ajoute
   plus la bbox de repli `BBOX_METRO` (elle vidait une région d'outre-mer).
-- **④ et ③ sur la métropole (T4)** : la garde est `messageGardeCarte` (batailles et score passent, Voronoï et
+- **④ et ③ sur la métropole (T4)** : la garde est `messageGardeCarte` (la Bataille V2 et le score passent, Voronoï et
   clustering refusent en nommant la métropole). Une bataille sans territoire compte ses POI AU CLIC
-  (`ContexteBatailleService.verifierBorne` : une vérification du cache, premier palier seul) et applique la copie de
+  (`ContexteBatailleService.verifierBorne` : une vérification du cache, premier palier seul ; le journal dit
+  « > Vérification de la capacité en direct… » pendant ce comptage, T8) et applique la copie de
   `lib/isochrones/borne-nationale.ts` (`logique/bataille/borne-nationale.ts`, parité verrouillée) : au-delà de 700
   anneaux ou de 500 POI lus, le message « tâche de fond » au journal et en tête du panneau, rien ne part. Le
   comptage est fait sur le contexte figé ; une réponse arrivée après un changement de filtre ne lance ni ne refuse
@@ -524,6 +525,32 @@ le serveur ; `texteMotif` retombe sur le message serveur pour un code inconnu).
   d'accueil annonçait « Isochrones routiers — Temps de trajet réel ORS ». Il annonce maintenant « Bataille V2
   (multi-paliers) — Temps de trajet ORS, lus dans le cache ».
 - **Écart à React** : React garde sa V1 (gel P5).
+
+## Les tiroirs exclusifs (retours du 26/10, T7 ; revue finale T8)
+
+- **Une brique** : `etat/tiroirs-exclusifs.ts` (`TiroirsExclusifs<K>`, sans DI, instanciée par panneau) — `ouvert`,
+  `estOuvert`, `basculer`, `ouvrir`, `fermer`, `dejaOuvert` (vrai dès le premier dépli : patron « monté puis caché »,
+  A-12). ④ la partage entre ses outils et ses services par le jeton `TIROIRS_ANALYSE` (`etat/tiroirs-analyse.ts`) :
+  `CouvertureRayonService.ouvert` et `ScoreCompositeService.ouvert` en DÉRIVENT (`computed`). Sans fournisseur (outil
+  monté seul en spec), `injecterTiroirsAnalyse` rend un jeu propre à l'appelant : l'exclusivité tombe alors sans
+  avertissement (m-2 de la relecture T7, non traité : un avertissement sonnerait dans chaque spec isolée).
+- **Par panneau** : ① cinq tiroirs (initial « Périmètre global »), ② un référentiel déplié à la fois, ③ une famille
+  (initial « Autour des POI »), ④ couverture · rayon · score · corrélation · clustering (« Analyse spatiale » est un
+  en-tête de groupe, hors du jeu, A-11), ⑥ cible · plateformes · impressions (initial « Cible »). ⑤ l'était déjà.
+- **Rouvrir ne relit rien** (vérifié à l'onglet réseau le 27/10, :4202) : ③ cache ses formulaires (le catalogue
+  d'indicateurs n'est lu qu'au premier dépli de « Par seuil ») ; le rayon et le dessin restent MONTÉS et passent EN
+  PAUSE (`enPause` : pose arrêtée et aperçu retiré, `DessinService.suspendre` / `reprendre`, tracé gardé ; une
+  création en vol aboutit et relit « Mes zones ») ; rouvrir une famille rend actif son dernier formulaire touché ; la
+  couverture de ④ est cachée ; la fiche santé de ② garde son cache dans `CacheFichesSante` ; le clustering ne lit sa
+  liste qu'au premier dépli (ou après un échec).
+- **Écarts à React et arbitrages ouverts (pour Vincent)** : (1) ④ s'ouvre sur la couverture, pas sur « aucun » (A-11
+  disait « aucun » ; la couverture était l'outil de tête depuis le lot 4) ; (2) ① n'ouvre plus que « Périmètre
+  global » : enchaîner région puis département demande d'ouvrir le tiroir Départements, qui referme Régions ; (3) ⑥
+  n'ouvre plus que « Cible » ; (4) le clustering ne relit plus sa liste à chaque ouverture : un modèle calculé dans un
+  autre onglet n'apparaît qu'au rechargement ; (5) le cache de la fiche santé survit au repli de sa ligne.
+- **② « POI communs »** : ouvert de force (une case cochée, une recherche), le bouton porte `aria-disabled` et son
+  clic ne bascule plus l'état manuel en douce (m-3 de T6, T8). Le prédicat « clé de type de POI » n'a plus qu'une
+  écriture, `estClePoi` (`rangement-jeux.ts`).
 
 ## Cycle de vie d'une couche
 
