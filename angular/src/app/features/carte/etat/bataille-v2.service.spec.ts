@@ -1,6 +1,6 @@
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Subject } from 'rxjs';
+import { Subject, Subscription } from 'rxjs';
 import { BatailleService } from '../couches/bataille.service';
 import { IsochronesApi, type EvenementFlux } from '../data/isochrones.api';
 import type { ContexteBataille } from '../logique/bataille/parametres';
@@ -22,7 +22,11 @@ function monter() {
     verifierCache: (c: unknown) => { corps['verifierCache'].push(c); const s = new Subject<unknown>(); caches.push(s); return s; },
   };
   const bataille = { viderPartiels: vi.fn(), ajouterPartiels: vi.fn(), appliquer: vi.fn() };
-  const contexte = { contexte: signal(CTX), unPoi: signal(true), regions: signal([]), afficherPois: vi.fn() };
+  const contexte = {
+    contexte: signal(CTX), unPoi: signal(true), regions: signal([]), afficherPois: vi.fn(), oublierRefus: vi.fn(),
+    // La capacité en direct (T4) : par défaut, le calcul peut partir ; un test la remplace pour refuser.
+    sousBorne: vi.fn((_c: unknown, _p: unknown, _n: (l: string) => void, suite: () => void) => { suite(); return Subscription.EMPTY; }),
+  };
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), BatailleV2Service, CouchesCarteService,
@@ -103,5 +107,30 @@ describe('BatailleV2Service (use-isochrone-battle.ts handleCheckV2 / handleFillM
     caches[1].complete();
     expect(v2.remplissage()).toBe(false);
     expect(corps['batailleV2']).toHaveLength(1);
+  });
+});
+
+const refuser = (contexte: { sousBorne: ReturnType<typeof vi.fn> }) => contexte.sousBorne.mockImplementation(
+  (_c: unknown, _p: unknown, noter: (l: string) => void) => { noter('> ✕ Ce calcul dépasse'); return Subscription.EMPTY; });
+
+describe('BatailleV2Service — capacité en direct sur la métropole (retours 26/10, T4)', () => {
+  it('lancer et remplir passent par sousBorne, sur le contexte et les paliers du clic', () => {
+    const { v2, contexte } = monter();
+    v2.lancer(false);
+    expect(contexte.sousBorne).toHaveBeenCalledWith(CTX, [10, 20, 30, 40, 50, 60, 90], expect.any(Function), expect.any(Function));
+    v2.remplir();
+    expect(contexte.sousBorne).toHaveBeenCalledTimes(2);
+  });
+
+  it('un refus ne lance ni la V2 ni le remplissage ORS ; il est noté au journal', () => {
+    const { v2, corps, contexte } = monter();
+    refuser(contexte);
+    v2.lancer(false);
+    v2.remplir();
+    expect(corps['batailleV2']).toEqual([]);
+    expect(corps['bataille']).toEqual([]);
+    expect(v2.journal()).toEqual(['> ✕ Ce calcul dépasse', '> ✕ Ce calcul dépasse']);
+    expect(v2.chargement()).toBe(false);
+    expect(v2.remplissage()).toBe(false);
   });
 });

@@ -110,8 +110,10 @@ describe('Panneau Analyse Angular — verrou structurel de la garde de périmèt
     }
   });
 
-  it('verifierPerimetreOutil lit messageGardeOutil(outil, filtre, zone) — la logique pure, jamais une copie', () => {
-    expect(corpsDeMethode('verifierPerimetreOutil')).toContain('messageGardeOutil(outil, this.etat.filtre(), zone)');
+  it('verifierPerimetreOutil lit messageGardeCarte(outil, filtre, zone), qui délègue à messageGardeOutil hors métropole (retours 26/10, T4)', () => {
+    expect(corpsDeMethode('verifierPerimetreOutil')).toContain('messageGardeCarte(outil, this.etat.filtre(), zone)');
+    const enveloppe = readFileSync(join(process.cwd(), 'angular/src/app/features/carte/logique/perimetre-national.ts'), 'utf-8');
+    expect(enveloppe).toContain('if (!estMetropole(filtre)) return messageGardeOutil(outil, filtre, zone);');
   });
 
   it('les deux batailles refusent EN PLUS un filtre code postal ou zone, qu’elles ne transmettent pas (registre, ligne 71)', () => {

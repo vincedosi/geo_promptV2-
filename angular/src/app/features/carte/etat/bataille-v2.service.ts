@@ -26,7 +26,9 @@ interface ResultatV2 {
  * `use-isochrone-battle.ts:103-117,136-219,307-336` et de `useMapDirectActions.ts:292-375,436-509` (lot 4, T17).
  *
  * Aucune garde ici : le panneau Analyse appelle `verifierPerimetreOutil` AVANT chaque méthode de lancement. Même
- * hébergement que `BatailleV1Service` (la page carte), même « Tout effacer ».
+ * hébergement que `BatailleV1Service` (la page carte), même « Tout effacer ». Sur la métropole, `lancer` et `remplir`
+ * passent en plus par la capacité en direct (`ContexteBatailleService.sousBorne`, retours du 26/10, T4) : un comptage au
+ * clic, sur le contexte figé ; un refus ne lance ni le remplissage ORS ni la V2.
  *
  * Défaut React corrigé : « ✓ Cache rempli (? isochrones) » — la fermeture lisait le compteur d'avant le flux ; ici le
  * nombre réellement reçu.
@@ -53,6 +55,8 @@ export class BatailleV2Service {
   private flux: Subscription | null = null;
   /** La revérification du cache après un remplissage, qui enchaîne sur la bataille. */
   private relecture: Subscription | null = null;
+  /** Le comptage de la capacité, avant un lancement ou un remplissage : un seul à la fois, le dernier clic gagne. */
+  private borne: Subscription | null = null;
 
   constructor() {
     inject(CouchesCarteService).inscrireEffacement('bataille-v2', () => this.reinitialiser());
@@ -89,6 +93,11 @@ export class BatailleV2Service {
     if (!this.ctx.unPoi() || this.paliers().length === 0 || this.remplissage()) return;
     const ctx = this.ctx.contexte();
     const paliers = this.paliers();
+    this.sousBorne(ctx, paliers, () => this.remplirDans(ctx, paliers));
+  }
+
+  private remplirDans(ctx: ContexteBataille, paliers: readonly number[]): void {
+    if (this.remplissage()) return;
     const params = parametresRemplissage(ctx, paliers);
     this.remplissage.set(true);
     this.cache.set(null);
@@ -118,8 +127,16 @@ export class BatailleV2Service {
 
   /** `handleBattleV2(force)`, sur le contexte du moment — appelé par le panneau APRÈS sa garde. */
   lancer(force: boolean): void {
-    if (!this.ctx.unPoi() || this.paliers().length === 0) return;
-    this.lancerDans(this.ctx.contexte(), this.paliers(), force);
+    if (!this.ctx.unPoi() || this.paliers().length === 0 || this.chargement()) return;
+    const ctx = this.ctx.contexte();
+    const paliers = this.paliers();
+    this.sousBorne(ctx, paliers, () => this.lancerDans(ctx, paliers, force));
+  }
+
+  /** La capacité en direct, puis `suite` (le comptage précédent, s'il court encore, est abandonné). */
+  private sousBorne(ctx: ContexteBataille, paliers: readonly number[], suite: () => void): void {
+    this.borne?.unsubscribe();
+    this.borne = this.ctx.sousBorne(ctx, paliers, (l) => this.noter(l), suite);
   }
 
   private lancerDans(ctx: ContexteBataille, paliers: readonly number[], force: boolean): void {
@@ -181,8 +198,10 @@ export class BatailleV2Service {
   private arreter(): void {
     this.flux?.unsubscribe();
     this.relecture?.unsubscribe();
+    this.borne?.unsubscribe();
     this.flux = null;
     this.relecture = null;
+    this.borne = null;
   }
 
   private noter(ligne: string): void {
@@ -196,5 +215,6 @@ export class BatailleV2Service {
     this.remplissage.set(false);
     this.cache.set(null);
     this.journal.set([]);
+    this.ctx.oublierRefus();
   }
 }

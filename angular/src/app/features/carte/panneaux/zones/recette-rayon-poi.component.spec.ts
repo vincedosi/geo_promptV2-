@@ -62,4 +62,10 @@ describe('RecetteRayonPoiComponent (lot 3, T10)', () => {
     expect(c.recette()).toBeNull();
     expect(el.querySelector('[data-garde]')!.textContent).toBe('Aucun type de POI disponible.');
   });
+  it('France métropolitaine (retours 26/10, T4) : la recette part, périmètre METRO, aucun refus local', async () => {
+    const { f, el, c } = monter({ type: 'france', code: 'metro', label: 'France métropolitaine' });
+    f.detectChanges(); await attendre();
+    expect(c.recette()).toEqual({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 5000, perimetre: { type: 'france', code: 'METRO' } });
+    expect(el.querySelector('[data-garde]')).toBeNull();
+  });
 });

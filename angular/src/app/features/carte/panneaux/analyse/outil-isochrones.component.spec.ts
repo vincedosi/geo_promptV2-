@@ -1,7 +1,7 @@
 import { CaptureService } from '../../etat/capture.service';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { of, Subject } from 'rxjs';
+import { of, Subject, Subscription } from 'rxjs';
 import { BatailleService } from '../../couches/bataille.service';
 import { IsochronesApi, type EvenementFlux } from '../../data/isochrones.api';
 import { BatailleV1Service } from '../../etat/bataille-v1.service';
@@ -21,7 +21,8 @@ async function monter() {
         bataille: () => flux,
         verifierCache: () => of({ total_pois: 2, total_combos: 4, cached_combos: 4, missing_combos: 0, missing_pois: 0, cached_pois: 2 }),
       } },
-      { provide: ContexteBatailleService, useValue: { contexte: signal(CTX), unPoi: signal(true), regions: signal([]), afficherPois: vi.fn() } },
+      { provide: ContexteBatailleService, useValue: { contexte: signal(CTX), unPoi: signal(true), regions: signal([]), afficherPois: vi.fn(),
+        oublierRefus: vi.fn(), sousBorne: (_c: unknown, _p: unknown, _n: unknown, suite: () => void) => { suite(); return Subscription.EMPTY; } } },
     ],
   });
   const fixture = TestBed.createComponent(OutilIsochronesComponent);

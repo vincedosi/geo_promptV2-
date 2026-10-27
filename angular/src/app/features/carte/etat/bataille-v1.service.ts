@@ -4,7 +4,9 @@ import { BatailleService } from '../couches/bataille.service';
 import { IsochronesApi, type StatutCache } from '../data/isochrones.api';
 import { anneauxBruts, anneauxPourDecoupe, erreurDeFlux, messageEchecHttp, messageEvenement, pctApplication, poisDeBataille, type EvenementFlux } from '../logique/bataille/flux';
 import { compteursProgression, journalInitialV1, remplacerProgression, tickJournal } from '../logique/bataille/journal';
-import { basculerPalier, corpsBatailleV1, corpsVerification, libelleTerritoire, parametresV1 } from '../logique/bataille/parametres';
+import {
+  type ContexteBataille, basculerPalier, corpsBatailleV1, corpsVerification, libelleTerritoire, parametresV1,
+} from '../logique/bataille/parametres';
 import type { BattleRing } from '../logique/modes-isochrones';
 import { ContexteBatailleService } from './contexte-bataille.service';
 import { CouchesCarteService } from './couches-carte.service';
@@ -24,7 +26,9 @@ interface ResultatV1 {
  * (lot 4, T17). Les anneaux s'affichent BRUTS au fil du flux ; la découpe (« X BATAILLE ») les remplace.
  *
  * Aucune garde ici : le panneau Analyse appelle `verifierPerimetreOutil` AVANT chaque méthode de lancement (verrou
- * structurel `tests/unit/angular/panneau-analyse-garde.test.ts`).
+ * structurel `tests/unit/angular/panneau-analyse-garde.test.ts`). Sur la métropole, `lancer` passe en plus par la
+ * capacité en direct (`ContexteBatailleService.sousBorne`, retours du 26/10, T4) : la route V1 est protégée et ne refait
+ * aucune borne (Q-3), l'écran est sa seule garde de capacité.
  *
  * Fourni par la PAGE carte, pas par le panneau : fermer le panneau ne coupe pas un calcul de deux minutes, et le
  * rouvrir retrouve son journal (React perdait l'un et l'autre en démontant le panneau). « Tout effacer » annule le flux
@@ -61,6 +65,8 @@ export class BatailleV1Service {
    */
   private decoupe: Subscription | null = null;
   private ticker: ReturnType<typeof setInterval> | null = null;
+  /** Le comptage de la capacité avant un lancement : un seul à la fois, le dernier clic gagne. */
+  private borne: Subscription | null = null;
 
   constructor() {
     inject(CouchesCarteService).inscrireEffacement('bataille-v1', () => this.reinitialiser());
@@ -94,7 +100,14 @@ export class BatailleV1Service {
   lancer(force: boolean): void {
     if (!this.ctx.unPoi() || this.durees().length === 0 || this.chargement()) return;
     const ctx = this.ctx.contexte();
-    const params = parametresV1(ctx, this.durees(), force);
+    const durees = this.durees();
+    this.borne?.unsubscribe();
+    this.borne = this.ctx.sousBorne(ctx, durees, (l) => this.journal.update((j) => [...j, l]), () => this.lancerDans(ctx, durees, force));
+  }
+
+  private lancerDans(ctx: ContexteBataille, durees: readonly number[], force: boolean): void {
+    if (this.chargement()) return;
+    const params = parametresV1(ctx, durees, force);
     // LANCER reste actif pendant une découpe, comme React (`disabled` ne lit que `battleLoading`) : la découpe des
     // anneaux PRÉCÉDENTS est abandonnée, sinon elle repeindrait l'ancienne bataille par-dessus la nouvelle.
     this.annulerDecoupe();
@@ -207,6 +220,8 @@ export class BatailleV1Service {
   private arreter(): void {
     this.flux?.unsubscribe();
     this.flux = null;
+    this.borne?.unsubscribe();
+    this.borne = null;
     this.annulerDecoupe();
     this.arreterTicker();
   }
@@ -220,5 +235,6 @@ export class BatailleV1Service {
     this.journal.set([]);
     this.anneauxDecoupe.set([]);
     this.meta.set(null);
+    this.ctx.oublierRefus();
   }
 }

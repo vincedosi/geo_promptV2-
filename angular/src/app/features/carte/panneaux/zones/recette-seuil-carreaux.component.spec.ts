@@ -1,6 +1,7 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { EtatCarteService } from '../../etat/etat-carte.service';
+import { MESSAGES_REFUS } from '../../logique/zones/recette';
 import { RecetteSeuilCarreauxComponent } from './recette-seuil-carreaux.component';
 
 const attendre = () => new Promise((r) => setTimeout(r, 0));
@@ -66,5 +67,12 @@ describe('RecetteSeuilCarreauxComponent (lot 3, T10)', () => {
     f.detectChanges(); await attendre();
     expect(c.recette()).toBeNull();
     expect(el.querySelector('[data-garde]')!.textContent).toContain('un département au plus');
+  });
+
+  it('France métropolitaine (retours 26/10, T4) : aucune recette, le texte exact de seuil_metropole_differe', async () => {
+    const { f, el, c } = monter({ type: 'france', code: 'metro', label: 'France métropolitaine' });
+    f.detectChanges(); await attendre();
+    expect(c.recette()).toBeNull();
+    expect(el.querySelector('[data-garde]')!.textContent!.trim()).toBe(MESSAGES_REFUS.seuil_metropole_differe);
   });
 });

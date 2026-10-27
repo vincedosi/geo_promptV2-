@@ -33,6 +33,7 @@ import { fournisseursCouvertureFactices } from '../../testing/couverture-factice
 
 const DEPT_13: FiltreActif = { type: 'departement', code: '13', label: 'Bouches-du-Rhône' };
 const FRANCE: FiltreActif = { type: 'france', code: 'france', label: 'France entière' };
+const METRO: FiltreActif = { type: 'france', code: 'metro', label: 'France métropolitaine' };
 
 async function monter(o: { filtre?: FiltreActif | null; pois?: string[]; role?: string | null; auth?: unknown } = {}) {
   TestBed.configureTestingModule({
@@ -217,6 +218,60 @@ describe('PanneauAnalyseComponent (PanneauAnalyse.tsx, T17)', () => {
     await ouvrirOutil(m, 'mg-outil-bataille-v2');
     await m.cliquer('mg-outil-bataille-v2 [data-verifier-cache]');
     expect(m.http.expectOne('/api/isochrone-cache-check').request.body).toMatchObject({ paliers: [10, 20, 30, 40, 50, 60, 90], filtre_depts: ['13'] });
+  });
+});
+
+describe('PanneauAnalyseComponent — la métropole (retours 26/10, T4)', () => {
+  const statut = (total_pois: number) => ({ total_pois, total_combos: 0, cached_combos: 0, missing_combos: 0, missing_pois: 0, cached_pois: 0 });
+
+  it('bataille V2 sur la métropole : aucun refus de garde ; UN comptage (premier palier), puis la V2 si la capacité suffit', async () => {
+    const m = await monter({ filtre: METRO });
+    await ouvrirOutil(m, 'mg-outil-bataille-v2');
+    await m.cliquer('mg-outil-bataille-v2 [data-lancer]');
+    expect(m.el.querySelector('[data-garde]')).toBeNull();
+    const compte = m.http.expectOne('/api/isochrone-cache-check');
+    expect(compte.request.body).toMatchObject({ paliers: [10], metropolitaine: true });
+    m.http.expectNone('/api/isochrone-battle-v2');
+    compte.flush(statut(95));
+    await m.fixture.whenStable();
+    // 95 POI × 7 paliers = 665 anneaux : sous la capacité de 700.
+    expect(m.http.expectOne('/api/isochrone-battle-v2').request.body).toMatchObject({ category: 'cirfa', filtre_depts: undefined });
+  });
+
+  it('au-delà de la capacité : le refus « tâche de fond » en tête du panneau, aucun calcul ; une région l’efface', async () => {
+    const m = await monter({ filtre: METRO });
+    await ouvrirOutil(m, 'mg-outil-isochrones');
+    await m.cliquer('mg-outil-isochrones [data-lancer]');
+    m.http.expectOne('/api/isochrone-cache-check').flush(statut(500));
+    await m.fixture.whenStable();
+    m.http.expectNone('/api/isochrone-battle');
+    const garde = m.el.querySelector('[data-garde]')!.textContent!.replace(/[  ]/g, ' ');
+    expect(garde).toContain('! Ce calcul (500 POI ou plus × 2 paliers = 1 000 anneaux ou plus)');
+    expect(garde).toContain('tâche de fond');
+    m.etat.filtre.set({ type: 'region', code: '93', label: "Provence-Alpes-Côte d'Azur" });
+    await m.fixture.whenStable();
+    expect(m.el.querySelector('[data-garde]')).toBeNull();
+  });
+
+  it('clustering sur la métropole : refus qui nomme la métropole (messageGardeCarte), zéro POST', async () => {
+    const m = await monter({ filtre: METRO, role: 'super_admin' });
+    await m.fixture.whenStable();
+    await m.cliquer('[data-accordeon="clustering"]');
+    m.http.expectOne('/api/poi-clusters/models').flush({ models: [] });
+    await m.fixture.whenStable();
+    await m.cliquer('[data-nouveau]');
+    await m.cliquer('[data-assistant]');
+    m.http.expectOne('/api/poi-clusters/poi-types').flush({ types: [{ type: 'bmw', total: 177, clustered: 0, has_clusters: false }] });
+    await m.fixture.whenStable();
+    await m.cliquer('[data-type-poi="bmw"]');
+    await m.cliquer('[data-suivant]');
+    await m.cliquer('[data-suivant]');
+    m.http.expectOne((r) => r.url === '/api/poi-clusters/count').flush({ count: 177 });
+    await m.fixture.whenStable();
+    await m.cliquer('[data-lancer]');
+    expect(m.el.querySelector('[data-garde]')!.textContent!.trim())
+      .toBe('! Le clustering ne peut pas être calculé sur toute la France métropolitaine — choisissez une région ou un département.');
+    m.http.expectNone('/api/poi-clusters/run');
   });
 });
 

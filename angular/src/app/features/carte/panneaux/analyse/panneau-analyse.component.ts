@@ -13,7 +13,8 @@ import { ScoreCompositeService } from '../../etat/score-composite.service';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
 import type { FiltreActif } from '../../logique/filtre';
 import { messageRefusTerritoireBataille } from '../../logique/bataille/parametres';
-import { type OutilAnalyse, messageGardeOutil, messageGardePerimetre } from '../../logique/garde-perimetre';
+import { type OutilAnalyse, messageGardePerimetre } from '../../logique/garde-perimetre';
+import { messageGardeCarte } from '../../logique/perimetre-national';
 import { ISO_MODES } from '../../logique/modes-isochrones';
 import type { CorpsLancementClustering } from '../../logique/clustering/assistant';
 import { CalculClusteringService } from './clustering/calcul-clustering.service';
@@ -61,6 +62,12 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
  * côté React depuis la refonte du panneau Filtre. Un filtre code postal ou zone passe la garde mais n'est PAS transmis
  * à la bataille : React la lançait alors sur toute la métropole. Ici, elle est REFUSÉE avec un message
  * (`messageRefusTerritoireBataille`) — défaut React corrigé, revue finale du lot 4 (registre, ligne 71).
+ *
+ * ── LA MÉTROPOLE (retours du 26/10, T4) ──────────────────────────────────
+ * La garde est `messageGardeCarte` : `messageGardeOutil` à l'identique, sauf sur `FILTRE_METROPOLE`, où les batailles et
+ * le score passent et où Voronoï et clustering refusent en nommant la métropole. Une bataille admise peut encore être
+ * refusée par la capacité en direct (`ContexteBatailleService.refusBorne`, compté au clic) : ce refus s'affiche au même
+ * endroit que la garde (`messageAffiche`), et part lui aussi quand le filtre change.
  */
 @Component({
   selector: 'mg-panneau-analyse',
@@ -74,7 +81,7 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full flex-col overflow-y-auto' },
   template: `
-    @if (gardeMessage(); as m) {
+    @if (messageAffiche(); as m) {
       <div data-garde role="alert"
         class="mx-[14px] mt-[10px] rounded-[4px] border-fin border-[color-mix(in_srgb,var(--danger)_25%,transparent)] bg-[color-mix(in_srgb,var(--danger)_8%,transparent)] px-[10px] py-2 text-[12px] leading-[1.5] text-danger">
         ! {{ m }}
@@ -173,6 +180,9 @@ export class PanneauAnalyseComponent {
     computation: (perimetre, precedent) => (perimetre ? null : (precedent?.value ?? null)),
   });
 
+  /** Ce que le bandeau affiche : la garde, sinon le refus de capacité d'une bataille sur la métropole. */
+  protected readonly messageAffiche = computed(() => this.gardeMessage() ?? this.contexte.refusBorne());
+
   private readonly auth = inject(AuthService);
   /** Le rôle de la session COURANTE, relu à chaque changement de compte (`session?.user.role` de React). */
   private readonly role = signal<string | null>(null);
@@ -200,7 +210,7 @@ export class PanneauAnalyseComponent {
   }
 
   /**
-   * La garde, pour UN outil : le message affiché, `true` si le calcul peut partir (`messageGardeOutil`). Les deux
+   * La garde, pour UN outil : le message affiché, `true` si le calcul peut partir (`messageGardeCarte`). Les deux
    * batailles refusent EN PLUS un filtre qu'elles ne savent pas transmettre (code postal, zone) : sans lui, elles
    * partiraient sur toute la métropole (`messageRefusTerritoireBataille`, défaut React corrigé). L'application de la
    * bataille n'est pas concernée : elle découpe des anneaux déjà calculés, sans territoire.
@@ -209,7 +219,7 @@ export class PanneauAnalyseComponent {
     const bataille = outil === 'bataille_v1' || outil === 'bataille_v2';
     // Seul le score sait lire une zone : pour lui, la zone analysée tient lieu de périmètre (lot 4, T10).
     const zone = outil === 'score_composite' ? this.scoreComposite.zoneScore() : null;
-    const message = messageGardeOutil(outil, this.etat.filtre(), zone)
+    const message = messageGardeCarte(outil, this.etat.filtre(), zone)
       ?? (bataille ? messageRefusTerritoireBataille(this.etat.filtre()) : null);
     this.outilRefuse.set(outil);
     this.gardeMessage.set(message);

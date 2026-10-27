@@ -489,6 +489,15 @@ le serveur ; `texteMotif` retombe sur le message serveur pour un code inconnu).
 - **Les POI suivent le filtre** : `afficher()` envoie région, département, commune ou code postal
   (`corpsPoisDuFiltre`), et la portée `metro` / `all` du filtre. Avec un territoire, `PoisService.chercher` n'ajoute
   plus la bbox de repli `BBOX_METRO` (elle vidait une région d'outre-mer).
+- **④ et ③ sur la métropole (T4)** : la garde est `messageGardeCarte` (batailles et score passent, Voronoï et
+  clustering refusent en nommant la métropole). Une bataille sans territoire compte ses POI AU CLIC
+  (`ContexteBatailleService.verifierBorne` : une vérification du cache, premier palier seul) et applique la copie de
+  `lib/isochrones/borne-nationale.ts` (`logique/bataille/borne-nationale.ts`, parité verrouillée) : au-delà de 700
+  anneaux ou de 500 POI lus, le message « tâche de fond » au journal et en tête du panneau, rien ne part. Le
+  comptage est fait sur le contexte figé ; une réponse arrivée après un changement de filtre ne lance ni ne refuse
+  rien. L'écran se règle sur `points × paliers` (plus strict que la V2 serveur, qui compte les anneaux en cache). Avec
+  un territoire, aucun comptage : la V2 serveur refait la capacité ; la V1 (route protégée) n'a pas de borne locale.
+  ③ : « Autour des POI » part en `METRO` ; les deux seuils disent `seuil_metropole_differe`.
 - **Écarts à React (A-1, non corrigé, gel P5)** : la pastille n'y est qu'un `perimeterScope` ; le corps des POI part
   avec régions, départements et ville vides ; le bloc « France entière » y reste ; la bataille et « Autour des POI »
   y restent refusés sur la métropole.

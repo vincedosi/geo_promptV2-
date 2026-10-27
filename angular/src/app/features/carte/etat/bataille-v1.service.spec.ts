@@ -1,6 +1,6 @@
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Subject } from 'rxjs';
+import { Subject, Subscription } from 'rxjs';
 import { BatailleService } from '../couches/bataille.service';
 import { IsochronesApi, type EvenementFlux } from '../data/isochrones.api';
 import type { ContexteBataille } from '../logique/bataille/parametres';
@@ -24,7 +24,11 @@ function monter() {
     verifierCache: (c: unknown) => { corps['verifierCache'].push(c); return cache; },
   };
   const bataille = { viderPartiels: vi.fn(), ajouterPartiels: vi.fn(), peindre: vi.fn(), retenir: vi.fn() };
-  const contexte = { contexte: signal(CTX), unPoi: signal(true), regions: signal([]), afficherPois: vi.fn() };
+  const contexte = {
+    contexte: signal(CTX), unPoi: signal(true), regions: signal([]), afficherPois: vi.fn(), oublierRefus: vi.fn(),
+    // La capacité en direct (T4) : par défaut, le calcul peut partir ; un test la remplace pour refuser.
+    sousBorne: vi.fn((_c: unknown, _p: unknown, _n: (l: string) => void, suite: () => void) => { suite(); return Subscription.EMPTY; }),
+  };
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), BatailleV1Service, CouchesCarteService,
@@ -155,5 +159,20 @@ describe('BatailleV1Service (use-isochrone-battle.ts handleBattle / handleCheckO
     expect(v1.chargement()).toBe(false);
     expect(v1.journal()).toEqual([]);
     expect(v1.anneauxDecoupe()).toEqual([]);
+  });
+});
+
+const refuser = (contexte: { sousBorne: ReturnType<typeof vi.fn> }) => contexte.sousBorne.mockImplementation(
+  (_c: unknown, _p: unknown, noter: (l: string) => void) => { noter('> ✕ Ce calcul dépasse'); return Subscription.EMPTY; });
+
+describe('BatailleV1Service — capacité en direct sur la métropole (retours 26/10, T4)', () => {
+  it('lancer passe par sousBorne ; un refus ne lance pas la bataille V1 (route protégée), noté au journal', () => {
+    const { v1, corps, contexte } = monter();
+    refuser(contexte);
+    v1.lancer(false);
+    expect(contexte.sousBorne).toHaveBeenCalledWith(CTX, [10, 30], expect.any(Function), expect.any(Function));
+    expect(corps['bataille']).toEqual([]);
+    expect(v1.journal()).toEqual(['> ✕ Ce calcul dépasse']);
+    expect(v1.chargement()).toBe(false);
   });
 });
