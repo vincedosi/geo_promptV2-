@@ -1,6 +1,5 @@
 import {
-  anneauxBruts, anneauxPourDecoupe, erreurDeFlux, messageEchecHttp, messageEvenement, messageEvenementV2, pctApplication,
-  poisDeBataille,
+  anneauxBruts, erreurDeFlux, messageEchecHttp, messageEvenement, messageEvenementV2, poisDeBataille,
 } from './flux';
 
 const anneau = (id: string, palier: number, extra: Record<string, unknown> = {}): GeoJSON.Feature => ({
@@ -29,11 +28,6 @@ describe('flux NDJSON des batailles (useMapDirectActions.ts)', () => {
     expect(messageEvenementV2({ type: 'progress' })).toBeNull();
   });
 
-  it('pourcentage de l’application par étape, 50 pour une étape inconnue', () => {
-    expect([pctApplication('clip'), pctApplication('clip_done'), pctApplication('battle'), pctApplication('done'), pctApplication('x')])
-      .toEqual([15, 45, 50, 85, 50]);
-  });
-
   it('erreur de flux : une page HTML devient « Service temporairement indisponible », le reste coupé à 200', () => {
     expect(erreurDeFlux('<html>521</html>')).toBe('Service temporairement indisponible (503/521)');
     expect(erreurDeFlux('x'.repeat(250))).toHaveLength(200);
@@ -51,14 +45,6 @@ describe('flux NDJSON des batailles (useMapDirectActions.ts)', () => {
     const sans = { type: 'Feature', geometry: null, properties: {} } as unknown as GeoJSON.Feature;
     const bruts = anneauxBruts([anneau('a', 10), sans]);
     expect(bruts).toEqual([{ cirfa_id: 'a', nom: 'CIRFA a', lat: 43.3, lng: 5.4, palier: 10, geojson: anneau('a', 10).geometry }]);
-  });
-
-  it('anneaux pour la découpe : seuls les `ring`, géométrie SÉRIALISÉE (contrat d’apply-battle)', () => {
-    const bordure = anneau('b', 0, { feature_type: 'border' });
-    const r = anneauxPourDecoupe([anneau('a', 10), bordure]);
-    expect(r).toHaveLength(1);
-    expect(r[0]).toMatchObject({ cirfa_id: 'a', palier: 10 });
-    expect(JSON.parse(r[0].geojson)).toEqual(anneau('a', 10).geometry);
   });
 
   it('POI de la bataille : `poisForMap` s’il existe, sinon un par POI des anneaux (anciens caches v3), catégorie posée', () => {

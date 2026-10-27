@@ -496,11 +496,34 @@ le serveur ; `texteMotif` retombe sur le message serveur pour un code inconnu).
   anneaux ou de 500 POI lus, le message « tâche de fond » au journal et en tête du panneau, rien ne part. Le
   comptage est fait sur le contexte figé ; une réponse arrivée après un changement de filtre ne lance ni ne refuse
   rien. L'écran se règle sur `points × paliers` (plus strict que la V2 serveur, qui compte les anneaux en cache). Avec
-  un territoire, aucun comptage : la V2 serveur refait la capacité ; la V1 (route protégée) n'a pas de borne locale.
+  un territoire, aucun comptage : la V2 serveur refait la capacité.
   ③ : « Autour des POI » part en `METRO` ; les deux seuils disent `seuil_metropole_differe`.
 - **Écarts à React (A-1, non corrigé, gel P5)** : la pastille n'y est qu'un `perimeterScope` ; le corps des POI part
   avec régions, départements et ville vides ; le bloc « France entière » y reste ; la bataille et « Autour des POI »
   y restent refusés sur la métropole.
+
+## La bataille V1 retirée (décision de Vincent, 27/10)
+
+- **Partis d'Angular** : l'outil « Isochrones routiers (ORS) » (`mg-outil-isochrones`), `BatailleV1Service`, son
+  application `ST_Difference` (`IsochronesApi.appliquer`, `POST /api/isochrone-battle/apply-battle`), le journal V1
+  (ticker, progression, teintes : `journalInitialV1`, `tickJournal`, `remplacerProgression`, `compteursProgression`,
+  `teinteLigneV1`), `parametresV1`, `libelleTerritoire`, `pctApplication`, `anneauxPourDecoupe`, la variante `v1` de
+  `mg-journal-bataille` et `mg-statut-cache`, la capacité locale de `ContexteBatailleService` (`capaciteLocale`), et
+  `bataille_v1` / `application_bataille` des outils admis sur la métropole (`perimetre-national.ts`).
+- **Reste** : la Bataille V2 et son **remplissage ORS** du cache (« CALCULER N POIS MANQUANTS (ORS) »). Ce remplissage
+  passe par `POST /api/isochrone-battle`, la route PROTÉGÉE de l'ancienne V1 (`IsochronesApi.remplirCache`, corps
+  `corpsRemplissage`, identique à celui de React). **La route a donc encore UN appelant Angular**, le remplissage, et
+  aucun pour la V1 elle-même. Elle n'est pas touchée (fichier protégé) ; elle partira, avec
+  `/api/isochrone-battle/apply-battle` (qui n'a plus d'appelant Angular), au retrait de React, à condition que le
+  remplissage de la V2 ait alors sa propre route.
+- **Gardés tels quels, parce que ce sont des copies VERBATIM que React emploie** : `logique/garde-perimetre.ts` (les outils
+  `bataille_v1` et `application_bataille` y restent) et `logique/modes-isochrones.ts` (`DirectBattleParams`).
+  `borne-nationale.ts` aussi (`refusCapaciteAnneaux` sert la route V2).
+- **Texte changé** : la V2 disait « Lance d'abord les isochrones v1 pour remplir le cache. ». Elle dit maintenant
+  « S’il en manque, vérifiez le cache puis calculez les POI manquants (ORS) avec le bouton qui apparaît. ». L'encart
+  d'accueil annonçait « Isochrones routiers — Temps de trajet réel ORS ». Il annonce maintenant « Bataille V2
+  (multi-paliers) — Temps de trajet ORS, lus dans le cache ».
+- **Écart à React** : React garde sa V1 (gel P5).
 
 ## Cycle de vie d'une couche
 

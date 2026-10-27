@@ -5,7 +5,7 @@ import { IsochronesApi, type EvenementFlux, type StatutCache } from '../data/iso
 import { anneauxBruts, erreurDeFlux, messageEchecHttp, messageEvenement, messageEvenementV2, poisDeBataille } from '../logique/bataille/flux';
 import { journalInitialRemplissage, journalInitialV2, lireMessageRemplissage } from '../logique/bataille/journal';
 import {
-  type ContexteBataille, basculerPalier, corpsBatailleV1, corpsVerification, parametresRemplissage, parametresV2,
+  type ContexteBataille, basculerPalier, corpsRemplissage, corpsVerification, parametresRemplissage, parametresV2,
 } from '../logique/bataille/parametres';
 import { ContexteBatailleService } from './contexte-bataille.service';
 import { CouchesCarteService } from './couches-carte.service';
@@ -25,8 +25,8 @@ interface ResultatV2 {
  * remplissage ORS des POI manquants reste un geste explicite, qui enchaîne sur la bataille — portage de
  * `use-isochrone-battle.ts:103-117,136-219,307-336` et de `useMapDirectActions.ts:292-375,436-509` (lot 4, T17).
  *
- * Aucune garde ici : le panneau Analyse appelle `verifierPerimetreOutil` AVANT chaque méthode de lancement. Même
- * hébergement que `BatailleV1Service` (la page carte), même « Tout effacer ». Sur la métropole, `lancer` et `remplir`
+ * Aucune garde ici : le panneau Analyse appelle `verifierPerimetreOutil` AVANT chaque méthode de lancement. Fourni par
+ * la page carte (la bataille V1, qui partageait cet hébergement, est retirée d'Angular le 27/10). Sur la métropole, `lancer` et `remplir`
  * passent en plus par la capacité en direct (`ContexteBatailleService.sousBorne`, retours du 26/10, T4) : un comptage au
  * clic, sur le contexte figé ; un refus ne lance ni le remplissage ORS ni la V2.
  *
@@ -107,7 +107,7 @@ export class BatailleV2Service {
     this.remplissageAnneaux.set(0);
     this.journal.set(journalInitialRemplissage(ctx.categorie, ctx.mode, paliers));
     this.bataille.viderPartiels();
-    this.flux = this.api.bataille(corpsBatailleV1(params, false)).subscribe({
+    this.flux = this.api.remplirCache(corpsRemplissage(params)).subscribe({
       next: (e) => this.lireRemplissage(e),
       error: (err: unknown) => {
         this.noter(`> ✕ ${messageEchecHttp(err)}`);

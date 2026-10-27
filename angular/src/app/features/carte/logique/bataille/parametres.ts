@@ -9,7 +9,7 @@
  * (appels ORS, I/O) que l'utilisateur croyait local. `messageRefusTerritoireBataille` le refuse (écart voulu, ci-dessous).
  */
 import type { FiltreActif } from '../filtre';
-import type { DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams } from '../modes-isochrones';
+import type { DirectBattleV2Params, FillIsochroneCacheParams } from '../modes-isochrones';
 
 /** Le territoire d'une bataille (`filtreVilleBattle` / `filtreRegionsBattle` / `filtreDeptsBattle`). */
 export interface TerritoireBataille {
@@ -18,19 +18,13 @@ export interface TerritoireBataille {
   depts: string[];
 }
 
-/** Ce que les quatre appels partagent : la catégorie unique, le mode, le territoire, la taille du référentiel régions. */
+/** Ce que les trois appels partagent : la catégorie unique, le mode, le territoire, la taille du référentiel régions. */
 export interface ContexteBataille {
   categorie: string;
   mode: string;
   territoire: TerritoireBataille;
   /** `REF_REGIONS.length` : 0 tant que le référentiel n'est pas lu. */
   nbRegionsRef: number;
-}
-
-/** Une région du référentiel, pour nommer le territoire dans le journal. */
-export interface RegionNommee {
-  code_region: string;
-  nom_region: string;
 }
 
 export function territoireDuFiltre(filtre: FiltreActif | null): TerritoireBataille {
@@ -70,7 +64,7 @@ export function basculerPalier(valeurs: readonly number[], p: number): number[] 
 }
 
 /**
- * La portée géographique commune aux quatre corps. Règle métier conservée : quand TOUTES les régions sont choisies,
+ * La portée géographique commune aux trois corps. Règle métier conservée : quand TOUTES les régions sont choisies,
  * aucun filtre région n'est envoyé — sinon la comparaison en base ne correspond pas (`use-isochrone-battle.ts:18-19`).
  */
 function portee(c: ContexteBataille) {
@@ -92,14 +86,6 @@ export function corpsVerification(c: ContexteBataille, paliers: readonly number[
   };
 }
 
-/** Les paramètres de la bataille V1 (`handleBattle`). */
-export function parametresV1(c: ContexteBataille, durees: readonly number[], force: boolean): DirectBattleParams {
-  return {
-    category: c.categorie, mode: c.mode, max_minutes: Math.max(...durees), durations: croissant(durees),
-    ...portee(c), force_recalculate: force,
-  };
-}
-
 /** Le remplissage du cache des paliers V2 manquants (`handleFillMissingV2`). */
 export function parametresRemplissage(c: ContexteBataille, paliers: readonly number[]): FillIsochroneCacheParams {
   return { category: c.categorie, mode: c.mode, durations: croissant(paliers), max_minutes: Math.max(...paliers), ...portee(c) };
@@ -111,21 +97,14 @@ export function parametresV2(c: ContexteBataille, paliers: readonly number[], fo
 }
 
 /**
- * Le corps EXACT envoyé à `POST /api/isochrone-battle` (`useMapDirectActions.ts:130-140,301-311`) : un filtre absent
- * part en `null`, jamais omis — la route protégée le reçoit ainsi depuis React.
+ * Le corps EXACT du remplissage V2, envoyé à `POST /api/isochrone-battle` (`useMapDirectActions.ts:301-311`) : un
+ * filtre absent part en `null`, jamais omis, et `force_recalculate` à `false` — la route protégée le reçoit ainsi depuis
+ * React. (`corpsBatailleV1` jusqu'au retrait de la V1, 27/10.)
  */
-export function corpsBatailleV1(p: DirectBattleParams | FillIsochroneCacheParams, force: boolean) {
+export function corpsRemplissage(p: FillIsochroneCacheParams) {
   return {
     category: p.category, mode: p.mode, max_minutes: p.max_minutes, durations: p.durations,
     filtre_ville: p.filtre_ville ?? null, filtre_regions: p.filtre_regions ?? null, filtre_depts: p.filtre_depts ?? null,
-    metropolitaine: p.metropolitaine, force_recalculate: force,
+    metropolitaine: p.metropolitaine, force_recalculate: false,
   };
-}
-
-/** « territoire : … » du journal V1 (`use-isochrone-battle.ts:239-242`). */
-export function libelleTerritoire(p: DirectBattleParams, t: TerritoireBataille, regionsRef: readonly RegionNommee[]): string {
-  return p.filtre_ville
-    ?? (t.depts.length > 0 ? `${t.depts.length} dept(s)` : null)
-    ?? (t.regions.length > 0 ? t.regions.map((code) => regionsRef.find((r) => r.code_region === code)?.nom_region ?? code).join(' + ') : null)
-    ?? 'France métropolitaine';
 }

@@ -65,7 +65,6 @@ import { PanneauJeuComponent } from './panneaux/jeu/panneau-jeu.component';
 import { PanneauPlanComponent } from './panneaux/plan/panneau-plan.component';
 import { PanneauActivationComponent } from './panneaux/activation/panneau-activation.component';
 import { PanneauAutresComponent } from './panneaux/autres/panneau-autres.component';
-import { BatailleV1Service } from './etat/bataille-v1.service';
 import { BatailleV2Service } from './etat/bataille-v2.service';
 import { ContexteBatailleService } from './etat/contexte-bataille.service';
 import { PlanMediaComponent } from './panneaux/zones/plan-media.component';
@@ -134,8 +133,8 @@ export function palierCarreaux(zoom: number): string {
     CaptureService, DessinService, DonneesAfficheesService,
     // Le score composite peint (T18) : à la PAGE — quitter l'étape Analyse ne l'éteint pas, comme React.
     ScoreService,
-    // Les batailles d'isochrones (T17) : à la PAGE, pas au panneau — changer d'étape ne coupe pas un calcul en cours.
-    ContexteBatailleService, BatailleV1Service, BatailleV2Service,
+    // La bataille d'isochrones V2 (T17) : à la PAGE, pas au panneau — changer d'étape ne coupe pas un calcul en cours.
+    ContexteBatailleService, BatailleV2Service,
     // Le clustering (T19) : à la PAGE — quitter l'étape Analyse laisse les clusters sur la carte, comme React (`page.tsx:245`).
     ClustersService,
     // L'aperçu des POI de l'assistant de clustering (T20) : une couche de la carte, pilotée par l'assistant.

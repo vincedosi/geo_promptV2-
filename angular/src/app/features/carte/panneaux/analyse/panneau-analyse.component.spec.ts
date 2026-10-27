@@ -16,7 +16,6 @@ import { PoisService } from '../../couches/pois.service';
 import { BatailleService } from '../../couches/bataille.service';
 import { IsochronesApi } from '../../data/isochrones.api';
 import { AnnonceService } from '../../etat/annonce.service';
-import { BatailleV1Service } from '../../etat/bataille-v1.service';
 import { BatailleV2Service } from '../../etat/bataille-v2.service';
 import { ContexteBatailleService } from '../../etat/contexte-bataille.service';
 import { CouchesCarteService } from '../../etat/couches-carte.service';
@@ -41,7 +40,7 @@ async function monter(o: { filtre?: FiltreActif | null; pois?: string[]; role?: 
       provideHttpClient(), provideHttpClientTesting(),
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       EtatCarteService, AnnonceService, CouchesCarteService, BatailleService, IsochronesApi,
-      ContexteBatailleService, BatailleV1Service, BatailleV2Service, ClusteringApi, ClustersService, PileEchapService,
+      ContexteBatailleService, BatailleV2Service, ClusteringApi, ClustersService, PileEchapService,
       // Score composite et corrélation (T18) : présents dans le panneau, sans requête tant qu'ils restent fermés.
       AnalysesApi, ZonesCustomApi, ZonesApi,
       // Fourni par la PAGE carte (lot 3, X4) : le test tient le rôle de la page.
@@ -70,8 +69,8 @@ async function monter(o: { filtre?: FiltreActif | null; pois?: string[]; role?: 
   return { fixture, el, etat, http: TestBed.inject(HttpTestingController), cliquer };
 }
 
-/** Ouvre l'accordéon puis l'outil voulu. */
-async function ouvrirOutil(m: Awaited<ReturnType<typeof monter>>, outil: 'mg-outil-isochrones' | 'mg-outil-bataille-v2') {
+/** Ouvre l'accordéon puis la Bataille V2 (seul outil de l'accordéon depuis le retrait de la V1, 27/10). */
+async function ouvrirOutil(m: Awaited<ReturnType<typeof monter>>, outil: 'mg-outil-bataille-v2') {
   await m.cliquer('[data-accordeon="spatiale"]');
   await m.cliquer(`${outil} [data-entete-outil]`);
 }
@@ -82,7 +81,8 @@ describe('PanneauAnalyseComponent (PanneauAnalyse.tsx, T17)', () => {
     expect(m.el.textContent).toContain('Analyse spatiale');
     expect(m.el.querySelector('[data-intro-vide]')).toBeNull();
     await m.cliquer('[data-accordeon="spatiale"]');
-    expect(m.el.querySelector('[data-intro-vide]')!.textContent).toContain('Isochrones routiers');
+    expect(m.el.querySelector('[data-intro-vide]')!.textContent).toContain('Bataille V2 (multi-paliers)');
+    expect(m.el.textContent).not.toContain('Isochrones routiers');
     expect(m.el.textContent).not.toContain('Voronoï géométrique');
   });
 
@@ -90,63 +90,52 @@ describe('PanneauAnalyseComponent (PanneauAnalyse.tsx, T17)', () => {
     const m = await monter({ pois: ['cirfa', 'lycee'] });
     await m.cliquer('[data-accordeon="spatiale"]');
     expect(m.el.querySelector('[data-intro-trop]')!.textContent).toContain('Retirez 1 type.');
-    expect(m.el.querySelector('mg-outil-isochrones')).toBeNull();
+    expect(m.el.querySelector('mg-outil-bataille-v2')).toBeNull();
   });
 
-  it('un type : mode de transport, Bataille V2 puis Isochrones routiers ; aucun outil Voronoï', async () => {
+  it('un type : mode de transport, puis la Bataille V2 seule — ni Isochrones routiers (V1 retirée, 27/10) ni Voronoï', async () => {
     const m = await monter({ filtre: DEPT_13 });
     await m.cliquer('[data-accordeon="spatiale"]');
     expect([...m.el.querySelectorAll('[data-mode]')].map((b) => b.textContent!.trim())).toEqual(['Pied', 'Velo', 'Voiture']);
     expect(m.el.querySelector('[data-mode="drive"]')!.getAttribute('aria-pressed')).toBe('true');
-    const outils = [...m.el.querySelectorAll('mg-outil-bataille-v2, mg-outil-isochrones')].map((e) => e.tagName.toLowerCase());
-    expect(outils).toEqual(['mg-outil-bataille-v2', 'mg-outil-isochrones']);
+    expect(m.el.querySelectorAll('mg-outil-bataille-v2')).toHaveLength(1);
+    expect(m.el.querySelector('mg-outil-isochrones')).toBeNull();
+    expect(m.el.textContent).not.toContain('Isochrones routiers');
     expect(m.el.textContent).not.toContain('Voronoï géométrique');
   });
 
-  it('exclusion mutuelle : ouvrir un outil ferme l’autre', async () => {
+  it('la Bataille V2 se replie et se déplie', async () => {
     const m = await monter({ filtre: DEPT_13 });
     await ouvrirOutil(m, 'mg-outil-bataille-v2');
     expect(m.el.querySelector('mg-outil-bataille-v2 [data-corps-outil]')).not.toBeNull();
-    await m.cliquer('mg-outil-isochrones [data-entete-outil]');
+    await m.cliquer('mg-outil-bataille-v2 [data-entete-outil]');
     expect(m.el.querySelector('mg-outil-bataille-v2 [data-corps-outil]')).toBeNull();
-    expect(m.el.querySelector('mg-outil-isochrones [data-corps-outil]')).not.toBeNull();
   });
 
-  it('sans filtre : « Choisissez un périmètre… », ZÉRO requête, pour les deux batailles', async () => {
+  it('sans filtre : « Choisissez un périmètre… », ZÉRO requête', async () => {
     const m = await monter({ filtre: null });
-    await ouvrirOutil(m, 'mg-outil-isochrones');
-    await m.cliquer('mg-outil-isochrones [data-lancer]');
-    expect(m.el.querySelector('[data-garde]')!.textContent!.trim()).toBe('! Choisissez un périmètre (filtre ou zone) avant de lancer un calcul');
-    await m.cliquer('mg-outil-isochrones [data-verifier-cache]');
-    await m.cliquer('mg-outil-bataille-v2 [data-entete-outil]');
+    await ouvrirOutil(m, 'mg-outil-bataille-v2');
     await m.cliquer('mg-outil-bataille-v2 [data-lancer]');
+    expect(m.el.querySelector('[data-garde]')!.textContent!.trim()).toBe('! Choisissez un périmètre (filtre ou zone) avant de lancer un calcul');
     await m.cliquer('mg-outil-bataille-v2 [data-verifier-cache]');
     m.http.verify();
   });
 
-  it('filtre France : refus qui NOMME l’outil, zéro requête ; le message suit l’outil tenté', async () => {
+  it('filtre France : refus qui NOMME l’outil, zéro requête', async () => {
     const m = await monter({ filtre: FRANCE });
-    await ouvrirOutil(m, 'mg-outil-isochrones');
-    await m.cliquer('mg-outil-isochrones [data-lancer]');
-    expect(m.el.querySelector('[data-garde]')!.textContent).toContain(
-      'La bataille isochrone ne peut pas être calculé sur la France entière — choisissez une région ou un département.',
-    );
-    await m.cliquer('mg-outil-bataille-v2 [data-entete-outil]');
+    await ouvrirOutil(m, 'mg-outil-bataille-v2');
     await m.cliquer('mg-outil-bataille-v2 [data-lancer]');
     expect(m.el.querySelector('[data-garde]')!.textContent).toContain('La bataille isochrone V2 ne peut pas');
     m.http.verify();
   });
 
-  it('filtre code postal ou zone : les deux batailles sont REFUSÉES, zéro requête (défaut React corrigé, registre ligne 71)', async () => {
+  it('filtre code postal ou zone : la bataille est REFUSÉE, zéro requête (défaut React corrigé, registre ligne 71)', async () => {
     const m = await monter({ filtre: { type: 'cp', code: '13001', label: '13001' } });
-    await ouvrirOutil(m, 'mg-outil-isochrones');
-    await m.cliquer('mg-outil-isochrones [data-lancer]');
+    await ouvrirOutil(m, 'mg-outil-bataille-v2');
+    await m.cliquer('mg-outil-bataille-v2 [data-lancer]');
     expect(m.el.querySelector('[data-garde]')!.textContent!.trim()).toBe(
       '! La bataille isochrone ne sait pas encore se borner à un code postal — choisissez une commune, un département ou une région.',
     );
-    await m.cliquer('mg-outil-isochrones [data-verifier-cache]');
-    await m.cliquer('mg-outil-bataille-v2 [data-entete-outil]');
-    await m.cliquer('mg-outil-bataille-v2 [data-lancer]');
     await m.cliquer('mg-outil-bataille-v2 [data-verifier-cache]');
     m.http.verify();
 
@@ -162,15 +151,12 @@ describe('PanneauAnalyseComponent (PanneauAnalyse.tsx, T17)', () => {
     expect(m.el.querySelector('[data-garde]')).toBeNull();
   });
 
-  it('zone analysée SANS filtre ①: la zone ne va qu’au score — bataille V1 et V2 refusées, zéro requête', async () => {
+  it('zone analysée SANS filtre ①: la zone ne va qu’au score — la bataille est refusée, zéro requête', async () => {
     const m = await monter({ filtre: null });
     (TestBed.inject(ZoneAnalyseeService).zoneId as WritableSignal<string | null>).set('z-1');
-    await ouvrirOutil(m, 'mg-outil-isochrones');
-    await m.cliquer('mg-outil-isochrones [data-lancer]');
-    expect(m.el.querySelector('[data-garde]')!.textContent!.trim()).toBe('! Choisissez un périmètre (filtre ou zone) avant de lancer un calcul');
-    await m.cliquer('mg-outil-isochrones [data-verifier-cache]');
-    await m.cliquer('mg-outil-bataille-v2 [data-entete-outil]');
+    await ouvrirOutil(m, 'mg-outil-bataille-v2');
     await m.cliquer('mg-outil-bataille-v2 [data-lancer]');
+    expect(m.el.querySelector('[data-garde]')!.textContent!.trim()).toBe('! Choisissez un périmètre (filtre ou zone) avant de lancer un calcul');
     await m.cliquer('mg-outil-bataille-v2 [data-verifier-cache]');
     // Seule lecture légitime : le nom de la zone choisie (liste des zones), pas un calcul.
     m.http.match((r) => r.url.includes('/api/custom-geo/list'));
@@ -180,8 +166,8 @@ describe('PanneauAnalyseComponent (PanneauAnalyse.tsx, T17)', () => {
   it('T10 R-1 : choisir une zone analysée efface le refus du SCORE, jamais celui d’un outil qui ne la lit pas', async () => {
     const m = await monter({ filtre: null });
     const zone = TestBed.inject(ZoneAnalyseeService).zoneId as WritableSignal<string | null>;
-    await ouvrirOutil(m, 'mg-outil-isochrones');
-    await m.cliquer('mg-outil-isochrones [data-lancer]');
+    await ouvrirOutil(m, 'mg-outil-bataille-v2');
+    await m.cliquer('mg-outil-bataille-v2 [data-lancer]');
     zone.set('z-1');
     await m.fixture.whenStable();
     expect(m.el.querySelector('[data-garde]')).not.toBeNull();
@@ -196,25 +182,22 @@ describe('PanneauAnalyseComponent (PanneauAnalyse.tsx, T17)', () => {
 
   it('le message de garde s’efface dès qu’un filtre est posé', async () => {
     const m = await monter({ filtre: null });
-    await ouvrirOutil(m, 'mg-outil-isochrones');
-    await m.cliquer('mg-outil-isochrones [data-lancer]');
+    await ouvrirOutil(m, 'mg-outil-bataille-v2');
+    await m.cliquer('mg-outil-bataille-v2 [data-lancer]');
     expect(m.el.querySelector('[data-garde]')).not.toBeNull();
     m.etat.filtre.set(DEPT_13);
     await m.fixture.whenStable();
     expect(m.el.querySelector('[data-garde]')).toBeNull();
   });
 
-  it('filtre département 13 : la bataille V1 compte sa capacité (relecture 2, I-1), puis part avec le territoire dérivé', async () => {
+  it('filtre département 13 : la V2 part sans comptage (la route refait la capacité), avec le territoire dérivé', async () => {
     const m = await monter({ filtre: DEPT_13 });
-    await ouvrirOutil(m, 'mg-outil-isochrones');
-    await m.cliquer('mg-outil-isochrones [data-lancer]');
-    const compte = m.http.expectOne('/api/isochrone-cache-check');
-    expect(compte.request.body).toMatchObject({ paliers: [10], filtre_depts: ['13'] });
+    await ouvrirOutil(m, 'mg-outil-bataille-v2');
+    await m.cliquer('mg-outil-bataille-v2 [data-lancer]');
+    m.http.expectNone('/api/isochrone-cache-check');
+    expect(m.http.expectOne('/api/isochrone-battle-v2').request.body).toMatchObject({ category: 'cirfa', mode: 'drive', filtre_depts: ['13'] });
+    // La route de l'ancienne V1 n'est plus appelée que par le remplissage (geste explicite).
     m.http.expectNone('/api/isochrone-battle');
-    compte.flush({ total_pois: 8, total_combos: 8, cached_combos: 8, missing_combos: 0, missing_pois: 0, cached_pois: 8 });
-    await m.fixture.whenStable();
-    const req = m.http.expectOne('/api/isochrone-battle');
-    expect(req.request.body).toMatchObject({ category: 'cirfa', mode: 'drive', durations: [10, 30], filtre_depts: ['13'], filtre_regions: null, filtre_ville: null });
     expect(m.el.querySelector('[data-garde]')).toBeNull();
   });
 
@@ -245,13 +228,13 @@ describe('PanneauAnalyseComponent — la métropole (retours 26/10, T4)', () => 
 
   it('au-delà de la capacité : le refus « tâche de fond » en tête du panneau, aucun calcul ; une région l’efface', async () => {
     const m = await monter({ filtre: METRO });
-    await ouvrirOutil(m, 'mg-outil-isochrones');
-    await m.cliquer('mg-outil-isochrones [data-lancer]');
+    await ouvrirOutil(m, 'mg-outil-bataille-v2');
+    await m.cliquer('mg-outil-bataille-v2 [data-lancer]');
     m.http.expectOne('/api/isochrone-cache-check').flush(statut(500));
     await m.fixture.whenStable();
-    m.http.expectNone('/api/isochrone-battle');
+    m.http.expectNone('/api/isochrone-battle-v2');
     const garde = m.el.querySelector('[data-garde]')!.textContent!.replace(/[  ]/g, ' ');
-    expect(garde).toContain('! Ce calcul (500 POI ou plus × 2 paliers = 1 000 anneaux ou plus)');
+    expect(garde).toContain('! Ce calcul (500 POI ou plus × 7 paliers = 3 500 anneaux ou plus)');
     expect(garde).toContain('tâche de fond');
     m.etat.filtre.set({ type: 'region', code: '93', label: "Provence-Alpes-Côte d'Azur" });
     await m.fixture.whenStable();

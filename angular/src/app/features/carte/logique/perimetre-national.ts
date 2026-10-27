@@ -40,13 +40,15 @@ export function scopeDuFiltre(f: FiltreActif | null, repli: ScopePerimetre): Sco
   return f ? null : repli;
 }
 
-/** Les outils de ④ admis sur la métropole : les batailles (bornées par leur capacité, T4) et le score. */
-const ADMIS_EN_METROPOLE: ReadonlySet<OutilAnalyse> = new Set<OutilAnalyse>([
-  'bataille_v1', 'bataille_v2', 'application_bataille', 'score_composite',
-]);
+/**
+ * Les outils de ④ admis sur la métropole : la bataille V2 (bornée par sa capacité, T4) et le score. La V1 et son
+ * application (`bataille_v1`, `application_bataille`, encore dans la copie VERBATIM de `garde-perimetre.ts`, que React
+ * emploie) ne sont plus appelées par Angular depuis leur retrait (27/10) : elles n'y sont plus admises.
+ */
+const ADMIS_EN_METROPOLE: ReadonlySet<OutilAnalyse> = new Set<OutilAnalyse>(['bataille_v2', 'score_composite']);
 
 /**
- * La garde de ④ (A-4) : `messageGardeOutil` à l'identique, sauf sur la métropole. Là, les batailles et le score
+ * La garde de ④ (A-4) : `messageGardeOutil` à l'identique, sauf sur la métropole. Là, la bataille V2 et le score
  * passent ; Voronoï et clustering refusent avec un message qui nomme la métropole. Le score sur la métropole part avec
  * `{ type: 'france', code: 'metro' }`, que `codes_postaux_du_perimetre_jsonb` résout sans l'outre-mer (sql/287).
  */

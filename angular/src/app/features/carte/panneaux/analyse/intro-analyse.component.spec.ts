@@ -12,8 +12,10 @@ describe('IntroAnalyseComponent (SpatialAnalysisIntro.tsx, T17)', () => {
   it('aucun POI : l’outil disponible et la condition, textes exacts — le Voronoï n’y est plus (absent du panneau)', async () => {
     const el = await monter(0);
     expect(el.querySelector('[data-intro-vide]')!.textContent).toContain('Analyses spatiales disponibles');
-    expect(el.textContent).toContain('Isochrones routiers');
-    expect(el.textContent).toContain('Temps de trajet réel ORS');
+    // L'outil annoncé est la V2 depuis le retrait de la V1 (27/10) — « Isochrones routiers » n'existe plus.
+    expect(el.textContent).toContain('Bataille V2 (multi-paliers)');
+    expect(el.textContent).toContain('Temps de trajet ORS, lus dans le cache');
+    expect(el.textContent).not.toContain('Isochrones routiers');
     expect(el.textContent).toContain('Sélectionnez 1 seul type de POI');
     expect(el.textContent).toContain('Isolez un réseau (ex: CIRFA) pour débloquer le calcul de zone de chalandise.');
     expect(el.textContent).not.toContain('Voronoï');

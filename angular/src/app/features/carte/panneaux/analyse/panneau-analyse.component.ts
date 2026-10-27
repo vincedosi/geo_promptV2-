@@ -2,7 +2,6 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, linkedSignal, signal, untracked } from '@angular/core';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { ClustersService } from '../../couches/clusters.service';
-import { BatailleV1Service } from '../../etat/bataille-v1.service';
 import { BatailleV2Service } from '../../etat/bataille-v2.service';
 import { ContexteBatailleService } from '../../etat/contexte-bataille.service';
 import { CreationZoneService } from '../../etat/creation-zone.service';
@@ -24,18 +23,13 @@ import { IntroAnalyseComponent } from './intro-analyse.component';
 import { OutilBatailleV2Component } from './outil-bataille-v2.component';
 import { OutilCorrelationComponent } from './outil-correlation.component';
 import { OutilCouvertureComponent } from './outil-couverture.component';
-import { OutilIsochronesComponent } from './outil-isochrones.component';
 import { OutilRayonComponent } from './outil-rayon.component';
 import { OutilScoreComponent } from './outil-score.component';
 import { ENTETE_ACCORDEON, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } from './styles-analyse';
 
-/** L'outil déplié : les deux s'excluent (chacun ferme l'autre, `PanneauAnalyse.tsx:176-179`). */
-type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
-
 /**
  * Le panneau « Analyse » de la carte — portage de `app/map/_components/panneaux/PanneauAnalyse.tsx` (lot 4, T17) :
- * le message de garde, puis l'accordéon « Analyse spatiale » (encarts d'accueil, mode de transport, Bataille V2,
- * Isochrones routiers), puis les accordéons « Score composite » et « Corrélation » (T18), puis « Clustering » (T19,
+ * le message de garde, puis l'accordéon « Analyse spatiale » (encarts d'accueil, mode de transport, Bataille V2), puis les accordéons « Score composite » et « Corrélation » (T18), puis « Clustering » (T19,
  * super admin seulement — `clusteringOuvert`, `PanneauAnalyse.tsx:162`, dans l'ordre de React).
  *
  * ── GARDE DE PÉRIMÈTRE (spec §5, incidents du 28/03 et du 08/04) ─────────
@@ -59,13 +53,18 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
  * délibérément : bornée par une campagne, elle ne balaie aucun territoire. Leur état (réglages, catalogue partagé) est
  * fourni ICI : fermer le panneau les perd, comme React ; le score peint reste sur la carte (`ScoreService`, page).
  *
- * Le territoire des batailles vient du FILTRE (`ContexteBatailleService`), pas du sélecteur de périmètre, code mort
+ * ── BATAILLE V1 RETIRÉE (décision de Vincent, 27/10) ─────────────────────
+ * L'outil « Isochrones routiers (ORS) », son application `ST_Difference` et `BatailleV1Service` sont partis : la V2
+ * couvre le besoin, et son remplissage ORS du cache (`remplirV2`) reste. La route protégée `/api/isochrone-battle` n'est
+ * plus appelée par Angular QUE pour ce remplissage ; React garde sa V1 jusqu'à son retrait.
+ *
+ * Le territoire de la bataille vient du FILTRE (`ContexteBatailleService`), pas du sélecteur de périmètre, code mort
  * côté React depuis la refonte du panneau Filtre. Un filtre code postal ou zone passe la garde mais n'est PAS transmis
  * à la bataille : React la lançait alors sur toute la métropole. Ici, elle est REFUSÉE avec un message
  * (`messageRefusTerritoireBataille`) — défaut React corrigé, revue finale du lot 4 (registre, ligne 71).
  *
  * ── LA MÉTROPOLE (retours du 26/10, T4) ──────────────────────────────────
- * La garde est `messageGardeCarte` : `messageGardeOutil` à l'identique, sauf sur `FILTRE_METROPOLE`, où les batailles et
+ * La garde est `messageGardeCarte` : `messageGardeOutil` à l'identique, sauf sur `FILTRE_METROPOLE`, où la bataille V2 et
  * le score passent et où Voronoï et clustering refusent en nommant la métropole. Une bataille admise peut encore être
  * refusée par la capacité en direct (`ContexteBatailleService.refusBorne`, compté au clic) : ce refus s'affiche au même
  * endroit que la garde (`messageAffiche`), et part lui aussi quand le filtre change.
@@ -73,13 +72,13 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
  * ── TIROIRS EXCLUSIFS (retours du 26/10, T7) ─────────────────────────────
  * Couverture, rayon, score, corrélation et clustering sont UN jeu de tiroirs (`TIROIRS_ANALYSE`, fourni ici) : en ouvrir
  * un referme l'autre, la couverture est ouverte à l'ouverture. « Analyse spatiale » est un en-tête de groupe, hors du jeu
- * (A-11) ; dedans, Bataille V2 et Isochrones s'excluent déjà (`outilOuvert`). Replier ne relit rien : voir chaque outil.
+ * (A-11) ; dedans, la Bataille V2 a son propre repli (`batailleOuverte`). Replier ne relit rien : voir chaque outil.
  */
 @Component({
   selector: 'mg-panneau-analyse',
   imports: [
-    IntroAnalyseComponent, NgTemplateOutlet, OutilBatailleV2Component, OutilCorrelationComponent, OutilCouvertureComponent, OutilIsochronesComponent,
-    OutilRayonComponent, OutilScoreComponent, SectionClusteringComponent,
+    IntroAnalyseComponent, NgTemplateOutlet, OutilBatailleV2Component, OutilCorrelationComponent, OutilCouvertureComponent, OutilRayonComponent,
+    OutilScoreComponent, SectionClusteringComponent,
   ],
   // Le catalogue d'indicateurs (score, corrélation) vient de la PAGE (lot 3, X4), partagé avec ③ et « Mes zones ».
   // La couverture par rayon (T12) aussi : le panneau reste monté (P-e), sa couche se retire avec lui.
@@ -124,18 +123,11 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
                   </div>
                 </div>
                 <mg-outil-bataille-v2
-                  [ouvert]="outilOuvert() === 'bataille-v2'"
-                  (basculer)="basculerOutil('bataille-v2')"
+                  [ouvert]="batailleOuverte()"
+                  (basculer)="batailleOuverte.set(!batailleOuverte())"
                   (verifierCache)="verifierCacheV2()"
                   (remplir)="remplirV2()"
                   (lancer)="lancerV2($event)"
-                />
-                <mg-outil-isochrones
-                  [ouvert]="outilOuvert() === 'isochrones'"
-                  (basculer)="basculerOutil('isochrones')"
-                  (verifierCache)="verifierCacheV1()"
-                  (lancer)="lancerV1($event)"
-                  (appliquer)="appliquerBataille()"
                 />
               </div>
             }
@@ -156,7 +148,6 @@ type OutilOuvert = 'bataille-v2' | 'isochrones' | null;
 export class PanneauAnalyseComponent {
   private readonly etat = inject(EtatCarteService);
   protected readonly contexte = inject(ContexteBatailleService);
-  private readonly v1 = inject(BatailleV1Service);
   private readonly v2 = inject(BatailleV2Service);
   private readonly clusters = inject(ClustersService);
   private readonly calculClustering = inject(CalculClusteringService);
@@ -176,7 +167,8 @@ export class PanneauAnalyseComponent {
   protected readonly pastilleInactive = PASTILLE_INACTIVE;
   /** Fermé à l'ouverture du panneau, comme React (`analyseOpen.spatiale: false`). */
   protected readonly spatialeOuverte = signal(false);
-  protected readonly outilOuvert = signal<OutilOuvert>(null);
+  /** La Bataille V2, repliée à l'ouverture (seul outil de l'accordéon depuis le retrait de la V1). */
+  protected readonly batailleOuverte = signal(false);
   protected readonly nombrePoi = computed(() => this.etat.poiSelectionnes().length);
   /** L'outil du dernier refus : seule la zone analysée du SCORE efface son refus (T10 R-1 — la bataille ne la lit pas). */
   private readonly outilRefuse = signal<OutilAnalyse | null>(null);
@@ -212,18 +204,13 @@ export class PanneauAnalyseComponent {
     inject(ReferentielGeoService).charger();
   }
 
-  protected basculerOutil(outil: Exclude<OutilOuvert, null>): void {
-    this.outilOuvert.update((o) => (o === outil ? null : outil));
-  }
-
   /**
-   * La garde, pour UN outil : le message affiché, `true` si le calcul peut partir (`messageGardeCarte`). Les deux
-   * batailles refusent EN PLUS un filtre qu'elles ne savent pas transmettre (code postal, zone) : sans lui, elles
-   * partiraient sur toute la métropole (`messageRefusTerritoireBataille`, défaut React corrigé). L'application de la
-   * bataille n'est pas concernée : elle découpe des anneaux déjà calculés, sans territoire.
+   * La garde, pour UN outil : le message affiché, `true` si le calcul peut partir (`messageGardeCarte`). La bataille
+   * refuse EN PLUS un filtre qu'elle ne sait pas transmettre (code postal, zone) : sans lui, elle partirait sur toute la
+   * métropole (`messageRefusTerritoireBataille`, défaut React corrigé).
    */
   protected verifierPerimetreOutil(outil: OutilAnalyse): boolean {
-    const bataille = outil === 'bataille_v1' || outil === 'bataille_v2';
+    const bataille = outil === 'bataille_v2';
     // Seul le score sait lire une zone : pour lui, la zone analysée tient lieu de périmètre (lot 4, T10).
     const zone = outil === 'score_composite' ? this.scoreComposite.zoneScore() : null;
     const message = messageGardeCarte(outil, this.etat.filtre(), zone)
@@ -251,22 +238,6 @@ export class PanneauAnalyseComponent {
   protected lancerClustering(corps: CorpsLancementClustering): void {
     if (!this.verifierPerimetreOutil('clustering')) return;
     this.calculClustering.lancer(corps);
-  }
-
-  protected verifierCacheV1(): void {
-    if (!this.verifierPerimetreOutil('bataille_v1')) return;
-    this.v1.verifierCache();
-  }
-
-  protected lancerV1(force: boolean): void {
-    if (!this.verifierPerimetreOutil('bataille_v1')) return;
-    this.v1.lancer(force);
-  }
-
-  /** « X BATAILLE (ST_Difference) » : un second calcul PostGIS, distinct du lancement — gardé à part. */
-  protected appliquerBataille(): void {
-    if (!this.verifierPerimetreOutil('application_bataille')) return;
-    this.v1.appliquer();
   }
 
   protected verifierCacheV2(): void {

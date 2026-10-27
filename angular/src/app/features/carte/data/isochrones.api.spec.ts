@@ -27,10 +27,10 @@ describe('IsochronesApi', () => {
     http.verify();
   });
 
-  it('bataille : POST /api/isochrone-battle (route protégée, appelée telle quelle), flux NDJSON lu au fil des morceaux', () => {
+  it('remplirCache : POST /api/isochrone-battle (route protégée, appelée telle quelle), flux NDJSON lu au fil des morceaux', () => {
     const { api, http } = preparer();
     const lus: EvenementFlux[] = [];
-    api.bataille({ category: 'cirfa' }).subscribe((e) => lus.push(e));
+    api.remplirCache({ category: 'cirfa' }).subscribe((e) => lus.push(e));
     const req = http.expectOne('/api/isochrone-battle');
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({ category: 'cirfa' });
@@ -50,12 +50,12 @@ describe('IsochronesApi', () => {
     http.verify();
   });
 
-  it('batailleV2 et appliquer : leurs routes, corps tels quels', () => {
+  it('batailleV2 : sa route, corps tel quel ; plus aucune méthode de la V1 retirée (appliquer, bataille)', () => {
     const { api, http } = preparer();
     api.batailleV2({ category: 'cirfa', mode: 'drive', metropolitaine: true, paliers: [10] }).subscribe();
     expect(http.expectOne('/api/isochrone-battle-v2').request.body).toEqual({ category: 'cirfa', mode: 'drive', metropolitaine: true, paliers: [10] });
-    api.appliquer([{ cirfa_id: 'a', nom: 'A', lat: 1, lng: 2, palier: 10, geojson: '{}' }]).subscribe();
-    expect(http.expectOne('/api/isochrone-battle/apply-battle').request.body).toEqual({ rings: [{ cirfa_id: 'a', nom: 'A', lat: 1, lng: 2, palier: 10, geojson: '{}' }] });
+    expect('appliquer' in api).toBe(false);
+    expect('bataille' in api).toBe(false);
     http.verify();
   });
 });

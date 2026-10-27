@@ -1,5 +1,5 @@
 import {
-  basculerPalier, corpsBatailleV1, corpsVerification, libelleTerritoire, parametresRemplissage, parametresV1, parametresV2,
+  basculerPalier, corpsRemplissage, corpsVerification, parametresRemplissage, parametresV2,
   messageRefusTerritoireBataille, territoireDuFiltre, type ContexteBataille,
 } from './parametres';
 
@@ -40,10 +40,9 @@ describe('paramètres de bataille (use-isochrone-battle.ts)', () => {
     expect(region(1, 0)).toEqual(['0']);
   });
 
-  it('V1 : durées triées, maximum, force ; corps de la route : filtres absents à null', () => {
-    const p = parametresV1(DEPT_13, [30, 10], false);
-    expect(p).toMatchObject({ category: 'cirfa', mode: 'drive', max_minutes: 30, durations: [10, 30], filtre_depts: ['13'], force_recalculate: false });
-    expect(corpsBatailleV1(p, false)).toEqual({
+  it('remplissage : le corps EXACT de la route protégée — filtres absents à null, force_recalculate à false', () => {
+    const p = parametresRemplissage(DEPT_13, [30, 10]);
+    expect(corpsRemplissage(p)).toEqual({
       category: 'cirfa', mode: 'drive', max_minutes: 30, durations: [10, 30],
       filtre_ville: null, filtre_regions: null, filtre_depts: ['13'], metropolitaine: true, force_recalculate: false,
     });
@@ -52,16 +51,6 @@ describe('paramètres de bataille (use-isochrone-battle.ts)', () => {
   it('remplissage V2 : durées = paliers triés, maximum ; V2 : paliers triés et force_battle', () => {
     expect(parametresRemplissage(DEPT_13, [90, 10])).toMatchObject({ durations: [10, 90], max_minutes: 90, filtre_depts: ['13'] });
     expect(parametresV2(DEPT_13, [20, 10], true)).toMatchObject({ category: 'cirfa', paliers: [10, 20], force_battle: true, metropolitaine: true });
-  });
-
-  it('libellé du territoire : ville, puis « N dept(s) », puis noms de régions, sinon France métropolitaine', () => {
-    const p = parametresV1(DEPT_13, [10], false);
-    expect(libelleTerritoire(p, DEPT_13.territoire, [])).toBe('1 dept(s)');
-    const reg = { ...DEPT_13, territoire: { ville: '', regions: ['93'], depts: [] } };
-    expect(libelleTerritoire(parametresV1(reg, [10], false), reg.territoire, [{ code_region: '93', nom_region: 'Provence-Alpes-Côte d’Azur' }]))
-      .toBe('Provence-Alpes-Côte d’Azur');
-    const rien = { ...DEPT_13, territoire: { ville: '', regions: [], depts: [] } };
-    expect(libelleTerritoire(parametresV1(rien, [10], false), rien.territoire, [])).toBe('France métropolitaine');
   });
 
   it('basculerPalier : ajoute en gardant l’ordre croissant, retire', () => {

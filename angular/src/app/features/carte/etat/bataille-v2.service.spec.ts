@@ -18,7 +18,7 @@ function monter() {
   const corps: Record<string, unknown[]> = { batailleV2: [], bataille: [], verifierCache: [] };
   const api = {
     batailleV2: (c: unknown) => { corps['batailleV2'].push(c); const s = new Subject<EvenementFlux>(); flux.batailleV2.push(s); return s; },
-    bataille: (c: unknown) => { corps['bataille'].push(c); const s = new Subject<EvenementFlux>(); flux.bataille.push(s); return s; },
+    remplirCache: (c: unknown) => { corps['bataille'].push(c); const s = new Subject<EvenementFlux>(); flux.bataille.push(s); return s; },
     verifierCache: (c: unknown) => { corps['verifierCache'].push(c); const s = new Subject<unknown>(); caches.push(s); return s; },
   };
   const bataille = { viderPartiels: vi.fn(), ajouterPartiels: vi.fn(), appliquer: vi.fn() };

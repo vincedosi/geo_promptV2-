@@ -14,7 +14,6 @@ import { IsochronesApi } from '../../data/isochrones.api';
 import { ZonesCustomApi } from '../../data/zones-custom.api';
 import { ZonesApi } from '../../data/zones.api';
 import { AnnonceService } from '../../etat/annonce.service';
-import { BatailleV1Service } from '../../etat/bataille-v1.service';
 import { BatailleV2Service } from '../../etat/bataille-v2.service';
 import { CaptureService } from '../../etat/capture.service';
 import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
@@ -51,7 +50,7 @@ async function monter(filtre: FiltreActif | null) {
       EtatCarteService, AnnonceService, CouchesCarteService, CaptureService, BatailleService, IsochronesApi, AnalysesApi, ZonesCustomApi, ZonesApi,
       // Fourni par la PAGE carte (lot 3, X4) : le test tient le rôle de la page.
       CatalogueIndicateursService,
-      ContexteBatailleService, BatailleV1Service, BatailleV2Service,
+      ContexteBatailleService, BatailleV2Service,
       { provide: ScoreService, useValue: score },
       { provide: AuthService, useValue: { session: signal(null), lireProfil: () => Promise.resolve({ organisation: 'org-1' }) } },
       // Le clustering (T19) : section absente pour ce compte (aucune session de super admin).

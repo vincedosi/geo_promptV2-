@@ -32,9 +32,13 @@ describe('perimetre-national', () => {
     expect(scopeDuFiltre(null, null)).toBeNull();
   });
 
-  it('messageGardeCarte sur la métropole : batailles et score passent, Voronoï et clustering refusent en la nommant', () => {
-    for (const o of ['bataille_v1', 'bataille_v2', 'application_bataille', 'score_composite'] as const) {
+  it('messageGardeCarte sur la métropole : la bataille V2 et le score passent, Voronoï et clustering refusent en la nommant', () => {
+    for (const o of ['bataille_v2', 'score_composite'] as const) {
       expect(messageGardeCarte(o, FILTRE_METROPOLE)).toBeNull();
+    }
+    // La V1 et son application, retirées d’Angular (27/10), ne sont plus admises sur la métropole.
+    for (const o of ['bataille_v1', 'application_bataille'] as const) {
+      expect(messageGardeCarte(o, FILTRE_METROPOLE)).toContain('sur toute la France métropolitaine');
     }
     expect(messageGardeCarte('voronoi', FILTRE_METROPOLE))
       .toBe('Le Voronoï ne peut pas être calculé sur toute la France métropolitaine — choisissez une région ou un département.');

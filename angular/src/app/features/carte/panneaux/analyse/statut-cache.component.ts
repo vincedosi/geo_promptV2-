@@ -2,10 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import type { StatutCache } from '../../data/isochrones.api';
 
 /**
- * La couverture du cache d'isochrones pour la sélection — le bandeau que `IsochronesTool.tsx:191-220` et
- * `BattleV2Tool.tsx:122-152` écrivaient deux fois, à trois libellés près : « N POIs à calculer » / « ✕ N POIs
- * manquants », la note de bas, et la teinte de la barre quand il manque des isochrones (danger en V1, le cyan de la V2
- * devenu `--brand-teal`). Complet : vert ; incomplet : ambre. Les `rgba` de React deviennent leurs jetons au même
+ * La couverture du cache d'isochrones pour la sélection — le bandeau de `BattleV2Tool.tsx:122-152` (la variante V1,
+ * `IsochronesTool.tsx:191-220`, est partie avec l'outil, 27/10) : « ✕ N POIs manquants », la note de bas, et la
+ * barre quand il manque des isochrones (le cyan de React devenu `--brand-teal`). Complet : vert ; incomplet : ambre. Les `rgba` de React deviennent leurs jetons au même
  * pourcentage, et le gris `#94a3b8` du compte `--text-tertiary`.
  */
 @Component({
@@ -30,19 +29,18 @@ import type { StatutCache } from '../../data/isochrones.api';
 })
 export class StatutCacheComponent {
   readonly statut = input.required<StatutCache>();
-  readonly variante = input.required<'v1' | 'v2'>();
 
   protected readonly complet = computed(() => this.statut().missing_combos === 0);
   protected readonly pct = computed(() => Math.round((this.statut().cached_combos / Math.max(this.statut().total_combos, 1)) * 100));
   protected readonly etat = computed(() => {
     if (this.complet()) return '✓ 100% en cache';
     const n = this.statut().missing_pois;
-    return this.variante() === 'v1' ? `${n} POI${n > 1 ? 's' : ''} à calculer` : `✕ ${n} POI${n > 1 ? 's' : ''} manquants`;
+    return `✕ ${n} POI${n > 1 ? 's' : ''} manquants`;
   });
-  protected readonly barre = computed(() => (this.complet() ? 'bg-success' : this.variante() === 'v1' ? 'bg-danger' : 'bg-teal'));
+  protected readonly barre = computed(() => (this.complet() ? 'bg-success' : 'bg-teal'));
   protected readonly note = computed(() => {
     const m = this.statut().missing_combos;
     if (m <= 0) return '';
-    return this.variante() === 'v1' ? ` · ORS calculera les ${m} manquants automatiquement` : ` · ${m} à calculer`;
+    return ` · ${m} à calculer`;
   });
 }

@@ -34,7 +34,7 @@ import {
       <div data-corps-outil class="flex flex-col gap-3 border-t-fin border-subtle bg-[color-mix(in_srgb,var(--text-primary)_1%,transparent)] p-[13px]">
         <div class="text-[12px] leading-[1.5] text-secondary">
           Lit le cache existant — <span class="text-primary">aucun appel ORS</span>. Paliers manquants skippés.
-          Lance d'abord les isochrones v1 pour remplir le cache.
+          S’il en manque, vérifiez le cache puis calculez les POI manquants (ORS) avec le bouton qui apparaît.
         </div>
 
         <div>
@@ -49,7 +49,7 @@ import {
 
         <div class="flex flex-col gap-1.5">
           @if (v2.cache(); as s) {
-            <mg-statut-cache [statut]="s" variante="v2" />
+            <mg-statut-cache [statut]="s" />
             @if (s.missing_pois > 0) {
               <button type="button" data-remplir [disabled]="remplirInactif()" (click)="remplir.emit()"
                 [class]="bouton + ' ' + (remplirInactif() ? desactive : avertissement)">{{ v2.remplissage() ? 'ORS EN COURS...' : 'CALCULER ' + s.missing_pois + ' POI' + (s.missing_pois > 1 ? 'S' : '') + ' MANQUANTS (ORS)' }}</button>
@@ -94,7 +94,7 @@ import {
         }
 
         @if (v2.journal().length > 0) {
-          <mg-journal-bataille [journal]="v2.journal()" variante="v2" [enCours]="v2.chargement() || v2.remplissage()" [hauteurMax]="140" />
+          <mg-journal-bataille [journal]="v2.journal()" [enCours]="v2.chargement() || v2.remplissage()" [hauteurMax]="140" />
         }
 
         @if (bataille.visible()) {

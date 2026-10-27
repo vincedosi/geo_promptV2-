@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 /** Les outils présentés dans l'encart d'accueil (`AVAILABLE_TOOLS`, `SpatialAnalysisIntro.tsx:17-20`). */
-const OUTILS_DISPONIBLES = [{ icone: '◎', libelle: 'Isochrones routiers', description: 'Temps de trajet réel ORS' }] as const;
+// « Isochrones routiers — Temps de trajet réel ORS » jusqu'au retrait de la V1 (27/10) : l'outil annoncé est la V2.
+const OUTILS_DISPONIBLES = [{ icone: '◎', libelle: 'Bataille V2 (multi-paliers)', description: 'Temps de trajet ORS, lus dans le cache' }] as const;
 
 /**
  * Les encarts d'accueil de l'analyse spatiale — portage de `filter-panel/SpatialAnalysisIntro.tsx` (lot 4, T17) :

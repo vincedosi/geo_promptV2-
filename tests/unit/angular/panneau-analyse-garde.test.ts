@@ -27,13 +27,11 @@ import { join } from 'node:path';
 const RACINE = join(process.cwd(), 'angular/src/app/features/carte/panneaux/analyse');
 const lire = (f: string) => readFileSync(join(RACINE, f), 'utf-8');
 const PANNEAU = lire('panneau-analyse.component.ts');
-const OUTILS = ['outil-isochrones.component.ts', 'outil-bataille-v2.component.ts', 'outil-score.component.ts'];
+// `outil-isochrones.component.ts` (bataille V1) est retiré d'Angular le 27/10 (décision de Vincent) : plus de V1 à garder.
+const OUTILS = ['outil-bataille-v2.component.ts', 'outil-score.component.ts'];
 
 /** [gestionnaire du panneau, outil de `garde-perimetre.ts`, appel de service qu'il garde]. */
 const HANDLERS_GARDE_OUTIL: Array<[nom: string, outil: string, appel: string]> = [
-  ['verifierCacheV1', 'bataille_v1', 'this.v1.verifierCache('],
-  ['lancerV1', 'bataille_v1', 'this.v1.lancer('],
-  ['appliquerBataille', 'application_bataille', 'this.v1.appliquer('],
   ['verifierCacheV2', 'bataille_v2', 'this.v2.verifierCache('],
   ['remplirV2', 'bataille_v2', 'this.v2.remplir('],
   ['lancerV2', 'bataille_v2', 'this.v2.lancer('],
@@ -55,9 +53,6 @@ const CLUSTERING = ['clustering/section-clustering.component.ts', 'clustering/pa
 
 /** [balise de l'outil, sortie, appel attendu dans le gabarit]. */
 const SORTIES: Array<[balise: string, sortie: string, appel: string]> = [
-  ['mg-outil-isochrones', 'verifierCache', 'verifierCacheV1()'],
-  ['mg-outil-isochrones', 'lancer', 'lancerV1($event)'],
-  ['mg-outil-isochrones', 'appliquer', 'appliquerBataille()'],
   ['mg-outil-bataille-v2', 'verifierCache', 'verifierCacheV2()'],
   ['mg-outil-bataille-v2', 'remplir', 'remplirV2()'],
   ['mg-outil-bataille-v2', 'lancer', 'lancerV2($event)'],
@@ -116,9 +111,9 @@ describe('Panneau Analyse Angular — verrou structurel de la garde de périmèt
     expect(enveloppe).toContain('if (!estMetropole(filtre)) return messageGardeOutil(outil, filtre, zone);');
   });
 
-  it('les deux batailles refusent EN PLUS un filtre code postal ou zone, qu’elles ne transmettent pas (registre, ligne 71)', () => {
+  it('la bataille V2 refuse EN PLUS un filtre code postal ou zone, qu’elle ne transmet pas (registre, ligne 71)', () => {
     const corps = corpsDeMethode('verifierPerimetreOutil');
-    expect(corps).toContain("outil === 'bataille_v1' || outil === 'bataille_v2'");
+    expect(corps).toContain("outil === 'bataille_v2'");
     expect(corps).toContain('messageRefusTerritoireBataille(this.etat.filtre())');
   });
 
@@ -176,5 +171,16 @@ describe('Panneau Analyse Angular — verrou structurel de la garde de périmèt
     const outil = lire('outil-rayon.component.ts');
     expect(outil).not.toMatch(/\.verifierPerimetre|messageGarde\w*\(|etat\.filtre/);
     expect(outil).toContain('s.lancer()');
+  });
+
+  it('la bataille V1 est RETIRÉE (27/10) : ni outil, ni service, ni gestionnaire, ni appel V1 dans le panneau', () => {
+    // Le code seul : les commentaires racontent le retrait et peuvent nommer ce qui est parti.
+    const code = PANNEAU.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '');
+    expect(code).not.toMatch(/mg-outil-isochrones|BatailleV1Service|verifierCacheV1|lancerV1|appliquerBataille|'bataille_v1'|'application_bataille'/);
+    const api = readFileSync(join(process.cwd(), 'angular/src/app/features/carte/data/isochrones.api.ts'), 'utf-8');
+    expect(api).not.toContain("'isochrone-battle/apply-battle'");
+    // La route protégée `/api/isochrone-battle` ne sert plus, côté Angular, QUE le remplissage ORS du cache de la V2.
+    expect(api.match(/this\.flux\('isochrone-battle'/g)).toHaveLength(1);
+    expect(api).toContain('remplirCache(');
   });
 });

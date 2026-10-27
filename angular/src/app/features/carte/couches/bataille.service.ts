@@ -137,7 +137,7 @@ export class BatailleService {
     if (emprise) this.couches.carteCourante()?.fitBounds(emprise, RECADRAGE);
   }
 
-  /** Les POI et la clé d'une bataille V1 (`setBattlePois`, `setBattleCacheKey`), sans toucher au rendu. */
+  /** Les POI et la clé du créneau (`setBattlePois`, `setBattleCacheKey`), sans toucher au rendu. */
   retenir(pois: PoiBataille[], cle: string | null): void {
     this._pois.set(pois);
     this._cle.set(cle);

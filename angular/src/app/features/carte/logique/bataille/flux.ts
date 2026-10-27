@@ -4,11 +4,11 @@
  * `core/http/ndjson.ts` ; ici, ce que chaque événement veut dire.
  *
  * Unifié volontairement (React recopiait trois boucles presque identiques) : un même événement donne le même message
- * dans la bataille V1 et dans le remplissage V2 — React écrivait « undefined POIs trouvés » au remplissage quand le
- * total manquait, « ? » en V1 ; c'est « ? » partout. Même règle pour une erreur : une page HTML (503/521 relayée)
+ * dans l'ancienne bataille V1 et dans le remplissage V2 (le même flux de `/api/isochrone-battle`) — React écrivait
+ * « undefined POIs trouvés » au remplissage quand le total manquait, « ? » en V1 ; c'est « ? » partout. L'application
+ * (`apply-battle`) est partie avec la V1 (27/10). Même règle pour une erreur : une page HTML (503/521 relayée)
  * devient une phrase, le reste est coupé à 200 caractères.
  */
-import type { BattleRing } from '../modes-isochrones';
 import { type PoiBataille, poisDesAnneaux } from './anneaux';
 
 /** Une ligne de flux : son `type` et ses champs, lus défensivement (rien n'est garanti par la route). */
@@ -59,12 +59,6 @@ export function messageEvenementV2(e: EvenementFlux): string | null {
   }
 }
 
-/** La progression de l'application par étape de la route (`useMapDirectActions.ts:404`) ; 50 pour une inconnue. */
-const PCT_ETAPES: Readonly<Record<string, number>> = { clip: 15, clip_done: 45, battle: 50, done: 85 };
-export function pctApplication(etape: unknown): number {
-  return PCT_ETAPES[String(etape ?? '')] ?? 50;
-}
-
 /** Le message d'un événement `error`, ou d'un `error` de résultat. */
 export function erreurDeFlux(brut: unknown): string {
   const texte = String(brut ?? 'Erreur inconnue');
@@ -98,17 +92,6 @@ export function anneauxBruts(features: readonly GeoJSON.Feature[]): AnneauBrut[]
     return {
       cirfa_id: String(p['cirfa_id'] ?? p['id'] ?? ''), nom: String(p['nom'] ?? ''), lat: Number(p['lat'] ?? 0),
       lng: Number(p['lng'] ?? 0), palier: Number(p['palier'] ?? 0), geojson: f.geometry as object,
-    };
-  });
-}
-
-/** Les anneaux à découper : seuls les `ring`, géométrie SÉRIALISÉE (contrat d'`apply-battle`, l.272-287). */
-export function anneauxPourDecoupe(features: readonly GeoJSON.Feature[]): BattleRing[] {
-  return features.filter((f) => proprietes(f)['feature_type'] === 'ring' && !!f?.geometry).map((f) => {
-    const p = proprietes(f);
-    return {
-      cirfa_id: String(p['cirfa_id'] ?? p['id'] ?? ''), nom: String(p['nom'] ?? ''), lat: Number(p['lat'] ?? 0),
-      lng: Number(p['lng'] ?? 0), palier: Number(p['palier'] ?? 0), geojson: JSON.stringify(f.geometry),
     };
   });
 }
