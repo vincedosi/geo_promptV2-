@@ -21,7 +21,12 @@ import {
  *   la saisie. Lecture en échec → message et « Réessayer ».
  * - « Groupe » (lot « Catalogue et groupes », A-9, option A) : un nom libre, prérempli, avec en
  *   suggestions (`<datalist>`) les groupes des autres espaces ; vide → `null`. Envoyé par
- *   « Enregistrer » avec le reste. Range la colonne d'Accès, ne porte aucun droit.
+ *   « Enregistrer » avec le reste. Range la colonne d'Accès, ne porte aucun droit. Affiché SANS condition de
+ *   rôle : toute la zone admin est réservée au super_admin (`cadre-admin.component.ts`, `requireAdmin`), et
+ *   `PATCH admin/organizations/:id` retire en silence `groupe_espace` du corps d'un autre rôle. Le jour où la
+ *   zone s'ouvre aux admins d'espace, conditionner ce champ au super_admin : sinon il paraîtrait enregistré
+ *   sans l'être.
+ * - Suppression d'un espace qui possède un indicateur : 409 lisible du serveur, notifié tel quel.
  * - « Enregistrer » envoie `{ name, description, groupe_espace, config }` où `config` est la config LUE, FUSIONNÉE
  *   avec les quatre clés du formulaire : la route REMPLACE la colonne `config` en bloc, d'autres clés
  *   peuvent y vivre. Quota vide → `null`, quota invalide → message en ligne et AUCUN envoi.

@@ -273,6 +273,16 @@ export class EspacesPage {
   /** L'espace affiché par la fiche (`…/acces/:id`), ou `null` (socle, comptes, invite). */
   private readonly selection = signal<string | null>(null);
 
+  /** L'espace affiché et son groupe ; ne notifie qu'au changement de l'un des deux (pas à chaque relecture de la liste). */
+  private readonly dossierDeLaSelection = computed(
+    () => {
+      const id = this.selection();
+      const groupe = id === null ? null : (this.lignes().find((l) => l.id === id)?.groupe ?? null);
+      return groupe === null ? null : { id, groupe };
+    },
+    { equal: (a, b) => a?.id === b?.id && a?.groupe === b?.groupe },
+  );
+
   protected readonly dossiers = computed<LigneDossier[]>(() => {
     const ouverts = this.ouverts();
     return this.rangee().dossiers.map((d, i) => ({
@@ -293,11 +303,11 @@ export class EspacesPage {
     // Écouteur coupé à la destruction (`@angular/core/rxjs-interop` n'est pas partagé par tout hôte : imports-partages).
     const navigations = this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(lireSelection);
     inject(DestroyRef).onDestroy(() => navigations.unsubscribe());
-    // Le dossier qui contient l'espace affiché s'ouvre, à la navigation comme à l'arrivée de la liste. Le replier
-    // ensuite reste possible : on n'ouvre qu'au changement de sélection ou de liste, jamais à chaque repli.
+    // Le dossier qui contient l'espace affiché s'ouvre, à la navigation comme à l'arrivée de la liste. On n'ouvre
+    // qu'au changement de la PAIRE (espace affiché, son groupe) : une liste relue à l'identique (enregistrement des
+    // Réglages, membre ajouté) ne rouvre pas un dossier que l'utilisateur a replié ; un changement de groupe, si.
     effect(() => {
-      const id = this.selection();
-      const groupe = id === null ? null : (this.lignes().find((l) => l.id === id)?.groupe ?? null);
+      const groupe = this.dossierDeLaSelection()?.groupe ?? null;
       if (groupe === null) return;
       untracked(() => {
         if (!this.ouverts().has(groupe)) this.ouverts.set(new Set([...this.ouverts(), groupe]));

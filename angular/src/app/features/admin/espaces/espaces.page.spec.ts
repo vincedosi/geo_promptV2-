@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { By } from '@angular/platform-browser';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -8,6 +9,7 @@ import { ConfigService } from '../../../core/config/config.service';
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
 import { EspacesApi } from './data/espaces.api';
 import { EspacesPage } from './espaces.page';
+import { EspacesEtatService } from './etat/espaces-etat.service';
 import type { EspaceResume, ReponseEspaces } from './logique/types';
 import { texte } from '../testing/dom';
 
@@ -292,6 +294,28 @@ describe('EspacesPage', () => {
       await TestBed.inject(Router).navigateByUrl('/admin/acces/org-marine');
       await stable();
       expect(dossiers(el)[0].getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('une liste relue à l\'identique ne rouvre pas le dossier replié ; un changement de groupe ouvre le nouveau', async () => {
+      const { el, http, stable, charger, harness } = await monter('/admin/acces/org-mini');
+      await charger(avecGroupes());
+      const etat = harness.fixture.debugElement.query(By.directive(EspacesPage)).injector.get(EspacesEtatService);
+      const bmw = dossiers(el)[1];
+      expect(bmw.getAttribute('aria-expanded')).toBe('true');
+      bmw.click();
+      await stable();
+      expect(bmw.getAttribute('aria-expanded')).toBe('false');
+      // Relecture (un enregistrement des Réglages appelle `etat.recharger()`), liste identique : le repli tient.
+      etat.recharger();
+      await charger(avecGroupes());
+      expect(dossiers(el).map((b) => b.getAttribute('aria-expanded'))).toEqual(['false', 'false']);
+      // MINI passe dans « Armées » : la paire (espace, groupe) change, le dossier « Armées » s'ouvre.
+      const deplace = avecGroupes();
+      deplace.espaces = deplace.espaces.map((e) => (e.id === 'org-mini' ? { ...e, groupe_espace: 'Armées' } : e));
+      etat.recharger();
+      await charger(deplace);
+      expect(dossiers(el).map((b) => b.getAttribute('aria-expanded'))).toEqual(['true', 'false']);
+      http.expectNone(() => true);
     });
 
     it('clavier : les flèches traversent en-têtes de dossier et espaces des dossiers ouverts, sautent les fermés', async () => {
