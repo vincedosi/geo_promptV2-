@@ -16,6 +16,10 @@
 --   · indicator_cp_values : par la ligne du registre de son indicateur (semi-jointure) ;
 --   · dataset_abstention_2022 : par l'indicateur du registre qui LIT cette table (data_source = 'abstention') —
 --     aucun identifiant écrit en dur.
+--     ⚠ La policy s'ouvre si UNE ligne du registre de data_source = 'abstention' est visible. Juste tant qu'une
+--     seule ligne lit cette table (vrai le 2026-10-28, verrouillé par tests/integration/indicateurs-rls.test.ts) :
+--     une seconde ligne SANS source (référentiel, source_visible(null) = vrai) ouvrirait la table brute à tous.
+--     Ajouter un indicateur sur cette table exige donc de revoir cette policy (revue finale du lot, n° 7).
 -- service_role contourne la RLS : les routes sont inchangées.
 --
 -- Coût mesuré (EXPLAIN dans le rapport du tour 1) : le registre fait 19 lignes ; la condition des deux autres tables

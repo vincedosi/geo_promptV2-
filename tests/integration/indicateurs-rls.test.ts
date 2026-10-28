@@ -96,4 +96,12 @@ describe('abstention privée à Bercy — PostgREST direct, jeton du compte', ()
   it('un compte Bercy lit les trois (contrôle positif)', async () => {
     expect(await lectures(comptes.bercy!.client)).toEqual({ registre: 1, valeurs: 5, table: 5 });
   });
+
+  it('une seule ligne du registre lit la table brute (prémisse de la policy de sql/290, revue finale n° 7)', async () => {
+    // La policy de `dataset_abstention_2022` s'ouvre dès qu'UNE ligne `data_source = 'abstention'` est visible : une
+    // seconde ligne sans source ouvrirait la table à tous. Si ce test échoue, revoir la policy avant de l'adapter.
+    const { data, error } = await admin.from('cible_indicator_registry').select('indicator_code, data_source_id').eq('data_source', 'abstention');
+    expect(error).toBeNull();
+    expect(data).toEqual([{ indicator_code: CODE, data_source_id: idAbstention }]);
+  });
 });
