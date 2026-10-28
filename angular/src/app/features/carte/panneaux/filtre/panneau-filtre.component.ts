@@ -83,8 +83,10 @@ type TiroirFiltre = SectionPerimetre | 'zones';
       (reinitialiser)="reinitialiser()"
     />
 
-    <!-- Filtrer sur une zone enregistrée : liste dynamique, jamais en dur. -->
-    <div>
+    <!-- Filtrer sur une zone enregistrée : liste dynamique, jamais en dur. Le px-4 rend à l'en-tête la gouttière que
+         sa marge négative (mx-[-16px]) suppose, comme les sections de mg-perimetre-filtre (sans lui : en-tête décalé et
+         barre de défilement horizontale, Excel n° 46). -->
+    <div class="px-4">
       <mg-entete-filtre
         libelle="Filtrer sur une zone enregistrée"
         [ouvert]="tiroirs.ouvert() === 'zones'"
@@ -92,7 +94,7 @@ type TiroirFiltre = SectionPerimetre | 'zones';
         (basculer)="tiroirs.basculer('zones')"
       />
       @if (tiroirs.ouvert() === 'zones') {
-        <div class="flex flex-col gap-1.5 px-4 py-3" data-zones>
+        <div class="flex flex-col gap-1.5 py-3" data-zones>
           @if (zonesChargement()) {
             <div class="font-mono text-[11px] text-tertiary">Chargement…</div>
           }
