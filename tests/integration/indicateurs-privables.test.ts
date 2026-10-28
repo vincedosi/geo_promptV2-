@@ -33,6 +33,9 @@ const score = await import('@/app/api/analyses/score/route');
 const correlation = await import('@/app/api/analyses/correlation/route');
 const apercuZone = await import('@/app/api/zones/apercu/route');
 const exportStrategie = await import('@/app/api/bidding/strategies/[id]/export/route');
+const apercuSeuilCibles = await import('@/app/api/cibles/preview/route');
+const zoneParScore = await import('@/app/api/custom-geo/source/score/route');
+const alignementCarte = await import('@/app/api/campaigns/[campaignId]/alignement/maille/map/route');
 const sb = creerClientTest();
 
 const CODE = 'abstention_pres_2022';
@@ -95,6 +98,8 @@ const ids: Record<'bercy' | 'bmw', string> = { bercy: '', bmw: '' };
 let origine: { visibilite: string; organization_id: string | null } | null = null;
 let campagne = '';
 let strategie = '';
+/** La campagne de cette stratégie : ses vignettes régionales ont des valeurs d'abstention (contrôle positif). */
+let campagnePlan = '';
 
 /** Un compte simulé par rôle et par espace : le quota d'appels (compteur en base) ne se partage pas entre eux. */
 function session(espace: 'bercy' | 'bmw', role: 'client' | 'super_admin' = 'client') {
@@ -133,6 +138,30 @@ async function lancerCorrelation(code: string) {
     `http://localhost:3000/api/analyses/correlation?campaignId=${campagne}&variable=${code}&enregistrer=false`)), code);
 }
 
+async function apercuCibles(code: string) {
+  const res = await apercuSeuilCibles.GET(new NextRequest(
+    `http://localhost:3000/api/cibles/preview?indicator=${code}&operator=%3E%3D&threshold=30`));
+  return { statut: res.status, corps: (await res.json()) as Record<string, unknown> };
+}
+
+async function zoneScore(code: string) {
+  const res = await zoneParScore.POST(new NextRequest('http://localhost:3000/api/custom-geo/source/score', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ indicateurs: [{ code, poids: 1, sens: 'croissant' }], codes_postaux: ['75001'], seuil: 0 }),
+  }));
+  return { statut: res.status, corps: (await res.json()) as Record<string, unknown> };
+}
+
+/** Vignettes régionales du Suivi V2 avec `?variable=` : statut et valeurs de la variable, une par région. */
+async function vignettesAlignement(code: string) {
+  const res = await alignementCarte.GET(
+    new NextRequest(`http://localhost:3000/api/campaigns/${campagnePlan}/alignement/maille/map?maille=region&variable=${code}`),
+    { params: Promise.resolve({ campaignId: campagnePlan }) },
+  );
+  const corps = (await res.json()) as { features?: { variable_valeur: number | null }[] };
+  return { statut: res.status, valeurs: (corps.features ?? []).map((f) => f.variable_valeur) };
+}
+
 async function apercuSeuil(code: string) {
   const recette = { v: 1, type: 'seuil_territoire', indicateur: code, operateur: '>=', seuil: 30, perimetre: { type: 'departement', code: '75' } };
   const res = await apercuZone.POST(new NextRequest('http://localhost:3000/api/zones/apercu', {
@@ -154,10 +183,11 @@ describe('l abstention privée à Bercy : invisible ailleurs, comme un indicateu
     campagne = (c?.id as string | undefined) ?? '';
 
     // Une stratégie à courbe bâtie sur l'abstention (relecture T1-T3, n° 1) : son export ne doit plus la lire.
-    const { data: st, error: es } = await sb.from('bidding_strategies').select('id')
+    const { data: st, error: es } = await sb.from('bidding_strategies').select('id, campaign_id')
       .eq('in_zone_weights->>variable_code', CODE).not('in_zone_weights->curve', 'is', null).limit(1).maybeSingle();
     if (es) throw new Error(es.message);
     strategie = (st?.id as string | undefined) ?? '';
+    campagnePlan = (st?.campaign_id as string | undefined) ?? '';
 
     const { data: avant, error: ea } = await sb.from('data_sources')
       .select('visibilite, organization_id').eq('id', idAbstention).single();
@@ -208,6 +238,34 @@ describe('l abstention privée à Bercy : invisible ailleurs, comme un indicateu
     expect(refuse).toEqual(await apercuSeuil(INCONNU));
   });
 
+  it('BMW : aperçu de seuil (cibles/preview) refusé comme un inconnu — 400 preview_failed', async () => {
+    session('bmw');
+    const refuse = await apercuCibles(CODE);
+    expect(refuse).toEqual({ statut: 400, corps: { error: 'preview_failed' } });
+    expect(refuse).toEqual(await apercuCibles(INCONNU));
+  });
+
+  it('BMW : zone par score composite (custom-geo/source/score) refusée comme un inconnu — 400 indicateur_inconnu', async () => {
+    session('bmw');
+    const refuse = await zoneScore(CODE);
+    expect(refuse).toEqual({ statut: 400, corps: { error: 'indicateur_inconnu' } });
+    expect(refuse).toEqual(await zoneScore(INCONNU));
+  });
+
+  it('super_admin dans l espace BMW : vignettes d alignement sans valeur de variable, sans erreur', async () => {
+    expect(campagnePlan, 'la campagne de la stratégie sur l abstention en base locale').not.toBe('');
+    session('bmw', 'super_admin');
+    const bmw = await vignettesAlignement(CODE);
+    expect(bmw.statut).toBe(200);
+    expect(bmw.valeurs.length).toBeGreaterThan(0);
+    expect(bmw.valeurs.every((v) => v === null)).toBe(true);
+    // Contrôle positif : chez Bercy, les mêmes vignettes portent les valeurs — le null de BMW vient de la visibilité.
+    session('bercy', 'super_admin');
+    const bercy = await vignettesAlignement(CODE);
+    expect(bercy.statut).toBe(200);
+    expect(bercy.valeurs.some((v) => v !== null)).toBe(true);
+  });
+
   it('super_admin dans l espace BMW : comme BMW (catalogue, corrélation)', async () => {
     session('bmw', 'super_admin');
     expect((await lireCatalogue()).map((i) => i.indicator_code)).not.toContain(CODE);
@@ -242,5 +300,7 @@ describe('l abstention privée à Bercy : invisible ailleurs, comme un indicateu
     expect(civ.corps.type).toBe('FeatureCollection');
     // Contrôle positif : le refus de BMW vient bien de la visibilité, pas d'une étape antérieure.
     expect((await lancerScore(CODE)).statut).toBe(200);
+    expect((await apercuCibles(CODE)).statut).toBe(200);
+    expect((await zoneScore(CODE)).corps.error).not.toBe('indicateur_inconnu');
   });
 });
