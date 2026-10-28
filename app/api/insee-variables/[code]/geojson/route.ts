@@ -7,7 +7,7 @@
  *
  * Sortie : GeoJSON FeatureCollection { features: [{ geometry, properties: {code_postal, value, inscrits, code_dept} }] }
  *
- * Cache 1h (data publique stable). Gzip côté Next.js.
+ * Réponse `no-store` : la donnée peut être privée à un espace. Gzip côté Next.js.
  *
  * Depuis sql/288 : l'abstention peut être privée à un espace. Un code invisible de l'espace actif répond comme un
  * code inconnu (404 `unknown_variable`) — on ne révèle pas qu'il existe.

@@ -113,6 +113,9 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   répondre `GET /api/insee-variables/abstention_pres_2022/geojson` en 404 (comme un code inconnu) et
   `CivicIndicatorsLayer.tsx` tombe dans son état d'erreur — échec journalisé en console, rien n'est peint. Aucune
   valeur ne fuit : le refus est serveur.
+  Second écart, côté administration : `/api/admin/sources` rend désormais la ligne de type `indicateur`, que
+  `typeBadge` (`app/admin/sources/_components/ui.tsx`) ne connaît pas — la page Sources React l'affiche « Carreaux
+  INSEE ». Libellé faux, aucune fuite ni casse (la suppression répond 409) ; Accès (Angular) la nomme « Indicateur ».
 - **Dupliqué par construction** (React / Angular, verrouillé par parité, jamais factorisable entre les deux
   applications) : le type `TypeJeu` (`'panneaux' | 'poi' | 'carreaux' | 'indicateur'`, `espaces-types-paritaires`)
   le registre `JEUX_REFERENTIELS` avec son champ `indicateurs` (`jeux-carte-paritaire`), et la forme de la fiche
