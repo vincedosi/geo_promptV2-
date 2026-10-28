@@ -80,6 +80,14 @@ vi.mock('@/lib/api/middleware', () => ({
 vi.mock('@/lib/campaigns/access', () => ({
   checkStrategyAccess: async () => 'ok',
 }));
+// Depuis le lot « Catalogue et groupes » (084b893f), l'export ne lit la variable que si elle est visible de l'espace
+// actif. Ce fichier teste la PAGINATION, pas les droits (couverts par tests/integration/indicateurs-privables) :
+// l'abstention est visible, comme au socle.
+vi.mock('@/lib/auth/perimetre-donnees', () => ({
+  indicateursVisibles: async () => ({
+    visibles: new Set(['abstention_pres_2022']), propres: new Set(), sourceDe: new Map(), echec: false,
+  }),
+}));
 
 const { GET } = await import('@/app/api/bidding/strategies/[id]/export/route');
 
