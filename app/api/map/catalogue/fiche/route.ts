@@ -23,7 +23,6 @@ import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
 import { indicateursVisiblesDeLaSession } from '@/lib/auth/perimetre-donnees';
 import { JEUX_REFERENTIELS, RE_CLE_JEU } from '@/lib/carte/jeux-carte';
 import { categorieDeCle, composerFiche, type SourceLue } from '@/lib/carte/fiche-jeu';
-import { lireEspacesBruts } from '@/lib/espaces/lister-espaces';
 import { nomAffiche } from '@/lib/espaces/nom-espace';
 
 export const dynamic = 'force-dynamic';
@@ -31,6 +30,7 @@ export const dynamic = 'force-dynamic';
 const Requete = z.object({ cle: z.string().regex(RE_CLE_JEU) });
 const INTROUVABLE = { error: 'Jeu introuvable.' };
 const COLONNES = 'id, name, type, category, visibilite, organization_id, shared_with, valid_count, import_date';
+const COLONNES_ESPACES = 'id, name, slug';
 
 export async function GET(req: NextRequest) {
   const profil = await requireAuth(req);
@@ -58,9 +58,12 @@ export async function GET(req: NextRequest) {
   let requete = sb.from('data_sources').select(COLONNES).in('id', ids);
   if (categorie !== null) requete = requete.eq('type', 'poi').eq('category', categorie);
   // Deux lectures en parallèle au plus (règle des trois appels simultanés).
-  const [{ data, error }, espaces] = await Promise.all([requete, lireEspacesBruts(sb).catch(() => null)]);
-  if (error || espaces === null) {
-    console.error('[map/catalogue/fiche] lecture :', error?.message ?? 'espaces');
+  // Les noms seuls (bornée : une ligne par organisation, quelques dizaines) — jamais `lireEspacesBruts`, qui lit
+  // aussi le groupe d'espaces : il ne sort pas de l'administration (verrou `groupe-ne-porte-rien`).
+  const noms = sb.from('organizations').select(COLONNES_ESPACES);
+  const [{ data, error }, { data: espaces, error: erreurEspaces }] = await Promise.all([requete, noms]);
+  if (error || erreurEspaces || !espaces) {
+    console.error('[map/catalogue/fiche] lecture :', error?.message ?? erreurEspaces?.message ?? 'espaces');
     return NextResponse.json({ error: 'Fiche indisponible.' }, { status: 500 });
   }
 
@@ -68,7 +71,7 @@ export async function GET(req: NextRequest) {
     espaceActif: session?.orgId ?? null,
     sources: (data ?? []) as SourceLue[],
     indicateursVisibles,
-    nomsEspaces: new Map(espaces.map((e) => [e.id, nomAffiche(e)])),
+    nomsEspaces: new Map((espaces as { id: string; name: string; slug: string }[]).map((e) => [e.id, nomAffiche(e)])),
   });
   if (!fiche) return NextResponse.json(INTROUVABLE, { status: 404 });
   return NextResponse.json(fiche);

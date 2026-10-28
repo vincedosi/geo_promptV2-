@@ -11,6 +11,7 @@ import { NextRequest } from 'next/server';
  * ici en simulant un second indicateur visible et sourcé.
  */
 const idsLus: string[][] = [];
+const selections: { table: string; colonnes: string }[] = [];
 
 vi.mock('@/lib/api/middleware', () => ({
   requireAuth: async () => ({ id: 'u1', role: 'client', organization_id: 'org-bercy' }),
@@ -18,7 +19,6 @@ vi.mock('@/lib/api/middleware', () => ({
 }));
 vi.mock('@/lib/auth/getSessionOrg', () => ({ getSessionOrg: async () => ({ orgId: 'org-bercy' }) }));
 vi.mock('@/lib/auth/getOrgSourceIds', () => ({ getOrgSourceIds: async () => [] }));
-vi.mock('@/lib/espaces/lister-espaces', () => ({ lireEspacesBruts: async () => [] }));
 vi.mock('@/lib/espaces/nom-espace', () => ({ nomAffiche: () => 'Bercy' }));
 vi.mock('@/lib/auth/perimetre-donnees', () => ({
   indicateursVisiblesDeLaSession: async () => ({
@@ -30,9 +30,9 @@ vi.mock('@/lib/auth/perimetre-donnees', () => ({
 }));
 vi.mock('@/lib/auth', () => ({
   createAdminClient: () => ({
-    from: () => {
+    from: (table: string) => {
       const c = {
-        select: () => c,
+        select: (colonnes: string) => { selections.push({ table, colonnes }); return c; },
         in: (_col: string, ids: string[]) => { idsLus.push(ids); return c; },
         eq: () => c,
         then: (ok: (r: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(ok),
@@ -45,7 +45,7 @@ vi.mock('@/lib/auth', () => ({
 const { GET } = await import('@/app/api/map/catalogue/fiche/route');
 const appeler = (cle: string) => GET(new NextRequest(`http://localhost/api/map/catalogue/fiche?cle=${encodeURIComponent(cle)}`));
 
-beforeEach(() => { idsLus.length = 0; });
+beforeEach(() => { idsLus.length = 0; selections.length = 0; });
 
 describe('GET /api/map/catalogue/fiche — sources d un référentiel', () => {
   it('civique : seule la source de l abstention est lue, pas celle d un autre indicateur visible', async () => {
@@ -57,5 +57,11 @@ describe('GET /api/map/catalogue/fiche — sources d un référentiel', () => {
     const r = await appeler('carreaux:filosofi');
     expect(idsLus).toEqual([[]]);
     expect(r.status).toBe(200);
+  });
+
+  it('les espaces sont lus par leurs noms seuls, jamais leur groupe (revue finale n° 3)', async () => {
+    await appeler('civique:indicateurs-cp');
+    const espaces = selections.filter((s) => s.table === 'organizations');
+    expect(espaces).toEqual([{ table: 'organizations', colonnes: 'id, name, slug' }]);
   });
 });

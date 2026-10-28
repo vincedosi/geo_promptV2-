@@ -8,8 +8,15 @@ import { join, relative, sep } from 'node:path';
  *
  * Le jour où une route de la carte lirait `organizations.groupe_espace`, un groupe se mettrait à décider de ce qu'on
  * voit — un second modèle de droits, sans écran ni règle écrite. Ce test l'interdit : seuls l'administration
- * (`app/api/admin`, `lib/espaces`) et l'écran Accès d'Angular (hors `features/carte`) le nomment.
+ * (`app/api/admin`, les deux lecteurs d'administration de `lib/espaces` ci-dessous) et l'écran Accès d'Angular (hors
+ * `features/carte`) le nomment.
+ *
+ * L'exemption de `lib/espaces` est NOMINATIVE (revue finale du lot, n° 4) : ce dossier porte aussi des fichiers de la
+ * règle de droits (`appartenance.ts`, importé par `lib/auth/getSessionOrg.ts`), où un `groupe_espace` deviendrait une
+ * règle de droit. Un lecteur exempté appelé hors administration ne doit pas exposer le groupe : la fiche d'un jeu
+ * (`app/api/map/catalogue/fiche`) lit donc les noms des espaces elle-même, sans `lireEspacesBruts`.
  */
+const EXEMPTES_LIB_ESPACES = new Set(['lib/espaces/lister-espaces.ts', 'lib/espaces/types.ts']);
 const RACINE = process.cwd();
 
 function fichiers(dossier: string): string[] {
@@ -28,7 +35,7 @@ const mentionne = (f: string) => readFileSync(join(RACINE, f), 'utf8').includes(
 describe('groupe d espaces — lu par l administration seule', () => {
   const surveilles = [
     ...fichiers(join(RACINE, 'app')).map(rel).filter((f) => !f.startsWith('app/api/admin/')),
-    ...fichiers(join(RACINE, 'lib')).map(rel).filter((f) => !f.startsWith('lib/espaces/')),
+    ...fichiers(join(RACINE, 'lib')).map(rel).filter((f) => !EXEMPTES_LIB_ESPACES.has(f)),
     ...fichiers(join(RACINE, 'angular', 'src', 'app', 'features', 'carte')).map(rel),
   ];
 
@@ -36,6 +43,8 @@ describe('groupe d espaces — lu par l administration seule', () => {
     expect(surveilles.length).toBeGreaterThan(300);
     expect(mentionne('lib/espaces/lister-espaces.ts')).toBe(true);
     expect(mentionne('app/api/admin/organizations/[id]/route.ts')).toBe(true);
+    // La règle de droits de `lib/espaces` est bien surveillée, elle.
+    expect(surveilles).toContain('lib/espaces/appartenance.ts');
   });
 
   it('aucun fichier de la carte ni route hors /api/admin ne mentionne groupe_espace', () => {
