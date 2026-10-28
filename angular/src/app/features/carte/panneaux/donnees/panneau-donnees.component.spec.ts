@@ -24,6 +24,7 @@ import { MeteoApi } from '../../data/meteo.api';
 import { RadioApi } from '../../data/radio.api';
 import { AnnonceService } from '../../etat/annonce.service';
 import { CaptureService } from '../../etat/capture.service';
+import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { CataloguePoiService } from '../../etat/catalogue-poi.service';
 import { ContoursZonesService } from '../../etat/contours-zones.service';
 import { CouchesCarteService } from '../../etat/couches-carte.service';
@@ -33,6 +34,7 @@ import { PileEchapService } from '../../etat/pile-echap.service';
 import { RisqueCarteService } from '../../etat/risque-carte.service';
 import { CARREAUX_INDICATEURS } from '../../logique/carreaux/catalogue';
 import { JEUX_REFERENTIELS } from '../../logique/jeux-carte';
+import type { IndicateurRegistre } from '../../logique/analyses/score';
 import type { MeteoZoneChunk } from '../../logique/meteo/types';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { PanneauDonneesComponent } from './panneau-donnees.component';
@@ -48,6 +50,8 @@ interface Options {
   categories?: CategoriePoi[];
   /** La réponse de `GET /api/map/jeux-recommandes` : un tableau de clés, ou une erreur, ou un flux laissé ouvert. */
   reco?: Observable<{ cles?: string[] }>;
+  /** Le catalogue d'indicateurs visibles (A-7) ; par défaut un flux laissé ouvert (catalogue pas encore arrivé). */
+  indicateurs?: Observable<IndicateurRegistre[]>;
 }
 
 function monter(o: Options = {}) {
@@ -56,8 +60,9 @@ function monter(o: Options = {}) {
     categories: vi.fn(() => of({ categories: o.categories ?? CATEGORIES })),
     jeuxRecommandes: vi.fn(() => o.reco ?? of({ cles: [] as string[] })),
     pois: vi.fn(() => NEVER), campagnesOoh: vi.fn(() => NEVER), campagneOoh: vi.fn(() => NEVER), transport: vi.fn(() => NEVER), pprt: vi.fn(() => NEVER),
-    urlTuilesTmja: vi.fn(() => ''), poiNatures: vi.fn(() => NEVER), territoryMask: vi.fn(() => NEVER),
+    urlTuilesTmja: vi.fn(() => ''), poiNatures: vi.fn(() => NEVER), territoryMask: vi.fn(() => NEVER), ficheJeu: vi.fn(() => NEVER),
   };
+  const catalogueIndicateurs = { charger: vi.fn(() => o.indicateurs ?? NEVER) };
   // La fiche santé d'une commune (`mg-fiche-sante`) : AUCUNE lecture sans geste sur la ligne santé (relecture T13, m1).
   const santeCommune = vi.fn(() => NEVER);
   const tuiles = { carreaux: vi.fn(() => '/api/tiles/{z}/{x}/{y}?v=19'), iris: vi.fn(() => ''), bornes: vi.fn(() => NEVER), detail: vi.fn(() => NEVER) };
@@ -79,6 +84,7 @@ function monter(o: Options = {}) {
       { provide: CarreauxApi, useValue: { urlTuiles: tuiles.carreaux } },
       { provide: IrisApi, useValue: { urlTuiles: tuiles.iris, bornes: tuiles.bornes, detail: tuiles.detail } },
       { provide: CouleursService, useValue: { palette: () => signal({ absente: '#9aa0a6', trait: '#555555' }) } },
+      { provide: CatalogueIndicateursService, useValue: catalogueIndicateurs },
     ],
   });
   const fixture = TestBed.createComponent(PanneauDonneesComponent);
@@ -87,11 +93,11 @@ function monter(o: Options = {}) {
   const rendre = async () => { fixture.detectChanges(); await fixture.whenStable(); };
   const cles = (bloc: 'espace' | 'commun') => [...el.querySelectorAll(`[data-bloc="${bloc}"] mg-ligne-jeu`)].map((l) => l.getAttribute('data-jeu'));
   const deplier = async (cle: string) => {
-    el.querySelector<HTMLButtonElement>(`[data-jeu="${cle}"] button[aria-expanded]`)!.click();
+    el.querySelector<HTMLButtonElement>(`[data-jeu="${cle}"] button[aria-expanded]:not([data-bouton-fiche])`)!.click();
     await rendre();
   };
   return {
-    el, rendre, cles, deplier, carteApi, tuiles, santeCommune,
+    el, rendre, cles, deplier, carteApi, tuiles, santeCommune, catalogueIndicateurs,
     pois: TestBed.inject(PoisService),
     carreaux: TestBed.inject(CarreauxService),
     iris: TestBed.inject(IrisService),
@@ -119,6 +125,46 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
       expect(carteApi[m], m).not.toHaveBeenCalled();
     }
     for (const [nom, f] of Object.entries(tuiles)) expect(f, nom).not.toHaveBeenCalled();
+  });
+
+  describe('A-7 : « Indicateurs au code postal » suit les droits de l’espace', () => {
+    const CIVIQUE = 'civique:indicateurs-cp';
+    const abstention = (origine: 'espace' | 'commune'): IndicateurRegistre =>
+      ({ indicator_code: 'abstention_pres_2022', label: 'Abstention', famille: null, origine });
+
+    it('le catalogue d’indicateurs est demandé UNE fois au service de la page ; tant qu’il n’est pas arrivé, la ligne reste', async () => {
+      const { rendre, cles, catalogueIndicateurs, carteApi } = monter();
+      await rendre();
+      expect(catalogueIndicateurs.charger).toHaveBeenCalledTimes(1);
+      expect(cles('commun')).toContain(CIVIQUE);
+      expect(carteApi.ficheJeu).not.toHaveBeenCalled();
+    });
+
+    it('aucun indicateur visible : la ligne disparaît', async () => {
+      const { rendre, cles } = monter({ indicateurs: of([]) });
+      await rendre();
+      expect(cles('commun')).not.toContain(CIVIQUE);
+      expect(cles('espace')).not.toContain(CIVIQUE);
+    });
+
+    it('catalogue en échec : la ligne reste (rien ne clignote)', async () => {
+      const { rendre, cles } = monter({ indicateurs: throwError(() => new Error('boum')) });
+      await rendre();
+      expect(cles('commun')).toContain(CIVIQUE);
+    });
+
+    it('indicateur propre à l’espace : la ligne se range dans « Données de l’espace »', async () => {
+      const { rendre, cles } = monter({ indicateurs: of([abstention('espace')]) });
+      await rendre();
+      expect(cles('espace')).toEqual(['poi:bmw', CIVIQUE]);
+      expect(cles('commun')).not.toContain(CIVIQUE);
+    });
+
+    it('indicateur commun : la ligne reste dans les données communes', async () => {
+      const { rendre, cles } = monter({ indicateurs: of([abstention('commune')]) });
+      await rendre();
+      expect(cles('commun')).toContain(CIVIQUE);
+    });
   });
 
   it('sélection [IRIS, Lycées] : bloc espace = Concessions BMW ; bloc commun = IRIS puis « POI communs (1) » ; « Plus de données communes (7) » fermé, puis 7 lignes', async () => {

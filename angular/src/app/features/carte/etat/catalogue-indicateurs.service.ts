@@ -5,8 +5,10 @@ import type { IndicateurRegistre } from '../logique/analyses/score';
 
 /**
  * Le catalogue d'indicateurs (`GET /api/cibles/indicators`) que le score composite ET la corrélation proposent (lot 4,
- * T18) : lu au PREMIER dépliage de l'un des deux, jamais au montage (pas de préchargement — CLAUDE.md), et partagé.
- * React le lisait une fois par outil, deux lectures de la même liste.
+ * T18) : lu au PREMIER dépliage de l'un des deux, ou à la première visite de ② qui range la ligne « Indicateurs au code
+ * postal » d'après lui (lot « Catalogue et groupes », A-7) — jamais au montage de la page (pas de préchargement —
+ * CLAUDE.md), et partagé. React le lisait une fois par outil, deux lectures de la même liste. La route ne rend que les
+ * indicateurs VISIBLES de l'espace, chacun avec son `origine` (A-6).
  *
  * Une lecture EN VOL est partagée (`shareReplay`) ; un échec n'est pas retenu : le dépliage suivant relit, comme le
  * `catalogueRef.current = false` de React.

@@ -53,6 +53,41 @@ describe('rangement des jeux de ②', () => {
     expect(decouperCommuns(d.referentiels).pois).toEqual([]);
     expect(decouperCommuns([])).toEqual({ referentiels: [], pois: [] });
   });
+  describe('A-7 : un référentiel à indicateurs privables suit les droits', () => {
+    const CIVIQUE = 'civique:indicateurs-cp';
+    const autre = { indicator_code: 'revenu_median', origine: 'commune' as const };
+
+    it('catalogue pas encore arrivé (`null`) : la ligne reste, commune — rien ne clignote', () => {
+      const j = jeuxDeLaCarte(types, null);
+      expect(j.find((x) => x.cle === CIVIQUE)).toMatchObject({ origine: 'commune' });
+      expect(j).toHaveLength(10);
+    });
+
+    it('aucun de ses indicateurs visible : la ligne est retirée (les autres référentiels restent)', () => {
+      const j = jeuxDeLaCarte(types, [autre]);
+      expect(j.some((x) => x.cle === CIVIQUE)).toBe(false);
+      expect(j).toHaveLength(9);
+      expect(jeuxDeLaCarte(types, []).some((x) => x.cle === CIVIQUE)).toBe(false);
+    });
+
+    it('visible et commun : rangé dans les données communes, à sa place', () => {
+      const j = jeuxDeLaCarte(types, [autre, { indicator_code: 'abstention_pres_2022', origine: 'commune' }]);
+      expect(j.map((x) => x.cle).slice(1, 4)).toEqual(['iris:socio-demo', 'carreaux:filosofi', CIVIQUE]);
+      expect(j.find((x) => x.cle === CIVIQUE)!.origine).toBe('commune');
+    });
+
+    it('propre à l’espace : rangé « Données de l’espace », après ses POI', () => {
+      const j = jeuxDeLaCarte(types, [{ indicator_code: 'abstention_pres_2022', origine: 'espace' }]);
+      const r = rangerJeux(j, []);
+      expect(r.espace.map((x) => x.cle)).toEqual(['poi:bmw', CIVIQUE]);
+      expect(r.recommandes.some((x) => x.cle === CIVIQUE)).toBe(false);
+    });
+
+    it('une ligne de ② ne porte pas la liste d’indicateurs du registre', () => {
+      expect(jeuxDeLaCarte(types, null).find((x) => x.cle === CIVIQUE)).not.toHaveProperty('indicateurs');
+    });
+  });
+
   it('filtrerJeux : sans casse ni accents, vide = tout', () => {
     const j = jeuxDeLaCarte(types);
     expect(filtrerJeux(j, 'METEO').map((x) => x.cle)).toEqual(['meteo:zones']);

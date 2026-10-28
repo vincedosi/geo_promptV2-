@@ -15,6 +15,18 @@ function preparer() {
 }
 
 describe('CarteApi', () => {
+  it('fiche d un jeu : GET /api/map/catalogue/fiche, la clé en paramètre encodé', () => {
+    const { api, http } = preparer();
+    let fiche: unknown;
+    api.ficheJeu('poi:lycee').subscribe((r) => (fiche = r));
+    const req = http.expectOne((r) => r.url === '/api/map/catalogue/fiche');
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.get('cle')).toBe('poi:lycee');
+    req.flush({ cle: 'poi:lycee', referentiel: false, sources: [] });
+    expect(fiche).toEqual({ cle: 'poi:lycee', referentiel: false, sources: [] });
+    http.verify();
+  });
+
   it('campagnes OOH : GET /api/map/ooh/campagnes, puis une campagne par son identifiant encodé', () => {
     const { api, http } = preparer();
     let liste: unknown;

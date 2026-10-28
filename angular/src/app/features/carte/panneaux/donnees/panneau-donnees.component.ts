@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { EnteteSectionComponent } from '../../../../ui/entete-section/entete-section.component';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { CarreauxService } from '../../couches/carreaux.service';
@@ -8,6 +8,7 @@ import { IrisService } from '../../couches/iris.service';
 import { MeteoService } from '../../couches/meteo.service';
 import { SanteService } from '../../couches/sante.service';
 import { TmjaService } from '../../couches/tmja.service';
+import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { CataloguePoiService } from '../../etat/catalogue-poi.service';
 import { DonneesAfficheesService } from '../../etat/donnees-affichees.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
@@ -16,7 +17,7 @@ import { RisqueCarteService } from '../../etat/risque-carte.service';
 import { TiroirsExclusifs } from '../../etat/tiroirs-exclusifs';
 import { libelleDegrade } from '../../logique/degrades';
 import { PREFIXE_POI } from '../../logique/jeux-carte';
-import { type JeuAffichable, decouperCommuns, estClePoi as estPoi, filtrerJeux, jeuxDeLaCarte, rangerJeux } from '../../logique/rangement-jeux';
+import { type IndicateurVu, type JeuAffichable, decouperCommuns, estClePoi as estPoi, filtrerJeux, jeuxDeLaCarte, rangerJeux } from '../../logique/rangement-jeux';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { SectionCarreauxComponent } from '../calques/section-carreaux.component';
 import { SectionCiviqueComponent } from '../calques/section-civique.component';
@@ -29,6 +30,7 @@ import { SectionTmjaComponent } from '../calques/section-tmja.component';
 import { SectionTransportComponent } from '../calques/section-transport.component';
 import { SelectionsCalquesService } from '../calques/selections-calques.service';
 import { ActionsPoiComponent } from './actions-poi.component';
+import { CacheFichesJeu } from './fiche-jeu.component';
 import { LigneJeuComponent } from './ligne-jeu.component';
 
 /** Un calque affiché, dans « Actifs (n) », avec la croix qui l'éteint (`PanneauCalques.tsx:327-358`). */
@@ -94,9 +96,14 @@ const SANTE = 'sante:air-pollen';
  * recherche qui ne trouvait aucun jeu recommandé.)
  *
  * ── CE QUE LA CONSTRUCTION LIT ───────────────────────────────────────────
- * Monté à la PREMIÈRE visite de ② puis gardé (arbitrage A1) : le catalogue des types de POI (`chargerUneFois`) et la
- * sélection recommandée (le service fourni ICI la lit à sa construction). Deux GET légers, aucun calque — la
- * recommandation range, elle ne précharge rien.
+ * Monté à la PREMIÈRE visite de ② puis gardé (arbitrage A1) : le catalogue des types de POI (`chargerUneFois`), la
+ * sélection recommandée (le service fourni ICI la lit à sa construction) et le catalogue des indicateurs VISIBLES
+ * (`CatalogueIndicateursService`, fourni par la page et partagé avec ③ et ④ : une seule lecture par page). Trois GET
+ * légers, aucun calque — la recommandation range, elle ne précharge rien. Le catalogue d'indicateurs range la ligne
+ * « Indicateurs au code postal » (A-7, lot « Catalogue et groupes ») : retirée si aucun de ses indicateurs n'est
+ * visible, « Données de l'espace » si l'un lui est propre ; tant qu'il n'est pas arrivé, ou s'il échoue, la ligne reste
+ * à sa place (pas de clignotement ; la route, elle, ne sert de toute façon que les indicateurs visibles).
+ * La fiche d'un jeu (bouton « i ») ne lit rien avant d'être ouverte ; `CacheFichesJeu`, fourni ici, la garde.
  *
  * `SelectionsCalquesService` est fourni ici (sections, types de transport) ; le panneau « Autres » a le sien (régies
  * OOH) : deux instances, à ne pas fusionner (T11b).
@@ -108,7 +115,7 @@ const SANTE = 'sante:air-pollen';
     SectionCiviqueComponent, SectionIrisComponent, SectionMeteoComponent, SectionRisqueComponent, SectionSanteComponent,
     SectionTmjaComponent, SectionTransportComponent,
   ],
-  providers: [SelectionsCalquesService, JeuxRecommandesService, CacheFichesSante],
+  providers: [SelectionsCalquesService, JeuxRecommandesService, CacheFichesSante, CacheFichesJeu],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full flex-col overflow-y-auto' },
   template: `
@@ -233,6 +240,8 @@ export class PanneauDonneesComponent {
   private readonly reco = inject(JeuxRecommandesService);
   private readonly affiches = inject(DonneesAfficheesService);
   protected readonly outils = inject(OutilsCarteService);
+  /** Les indicateurs visibles de l'espace (A-7) ; `null` tant que le catalogue n'est pas arrivé (ou en échec). */
+  private readonly indicateurs = signal<readonly IndicateurVu[] | null>(null);
 
   protected readonly recherche = signal('');
   /** Le repli « Plus de données communes », fermé à l'ouverture. */
@@ -251,7 +260,8 @@ export class PanneauDonneesComponent {
     if (this.reco.indisponible()) return 'Sélection recommandée indisponible : aucun jeu n’est mis en avant.';
     return this.rangement().sansSelection ? 'Aucune sélection : aucun jeu n’est mis en avant' : 'Sélection recommandée';
   });
-  private readonly rangement = computed(() => rangerJeux(jeuxDeLaCarte(this.catalogue.types()), this.reco.cles() ?? []));
+  private readonly rangement = computed(() =>
+    rangerJeux(jeuxDeLaCarte(this.catalogue.types(), this.indicateurs()), this.reco.cles() ?? []));
   protected readonly videEspace = computed(() => {
     if (this.rangement().espace.length > 0) return "Aucun jeu de l'espace ne correspond.";
     return this.catalogue.chargement() ? 'Lecture des types de POI…' : "Cet espace n'a importé aucune donnée.";
@@ -330,6 +340,10 @@ export class PanneauDonneesComponent {
   constructor() {
     // Le catalogue n'attend plus l'ouverture d'une section : chaque type de POI est une ligne de ②.
     this.catalogue.chargerUneFois();
+    // Un échec laisse `null` : la ligne civique reste (A-7), le service relira au prochain appelant.
+    const lecture = inject(CatalogueIndicateursService).charger()
+      .subscribe({ next: (l) => this.indicateurs.set(l), error: () => undefined });
+    inject(DestroyRef).onDestroy(() => lecture.unsubscribe());
   }
 
   /** La case d'un type de POI : l'ajoute à la fin de la sélection, ou l'en retire (l'ordre des autres est gardé). */

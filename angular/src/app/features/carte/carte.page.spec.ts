@@ -50,6 +50,9 @@ import { PlanApi } from './data/plan.api';
 import { ActivationApi } from './data/activation.api';
 import { CONSIGNE_ETAPE, ETAPES_CARTE, LIBELLE_ETAPE_CARTE } from './logique/parcours';
 
+/** L'indicateur privable de la migration sql/288, au socle (A-2) : ② garde la ligne « Indicateurs au code postal ». */
+const ABSTENTION_AU_SOCLE = { indicator_code: 'abstention_pres_2022', label: "Taux d'abstention (présidentielle 2022)", famille: null, origine: 'commune' as const };
+
 @Component({ selector: 'mg-vide', template: '' })
 class Vide {}
 
@@ -143,8 +146,9 @@ async function ouvrir(options: OptionsOuverture = {}) {
       { provide: MeteoApi, useValue: { donnees: () => of() } },
       { provide: IsochronesApi, useValue: {} },
       // Mes analyses (boîte à outils, T6) : la liste n'est lue qu'à l'ouverture de l'outil (inventaire, T7).
-      // `indicateurs` : le catalogue que lit « Par seuil » de ③ (lot 3), dépliée par l'inventaire.
-      { provide: AnalysesApi, useValue: { lister: options.analyses ?? (() => of({ analyses: [] })), indicateurs: () => of({ indicators: [] }) } },
+      // `indicateurs` : le catalogue que lit « Par seuil » de ③ (lot 3), dépliée par l'inventaire, et que ② lit pour ranger
+      // « Indicateurs au code postal » (A-7) : l'abstention y est visible, au socle, comme dans la base locale.
+      { provide: AnalysesApi, useValue: { lister: options.analyses ?? (() => of({ analyses: [] })), indicateurs: () => of({ indicators: [ABSTENTION_AU_SOCLE] }) } },
       { provide: ClusteringApi, useValue: {} },
       { provide: SitesRisqueApi, useValue: { carte: () => of(), exposition: () => of() } },
       { provide: CiviqueApi, useValue: { geojsonVariable: () => of(), detailCp: () => of(), zones: () => of(), santeDepartement: () => of(), santeCp: () => of(), santeCommune: () => of() } },
@@ -1033,7 +1037,7 @@ describe('CartePage — panneau Données, carreaux Filosofi, légende (T6)', () 
     expect(hote.querySelector('mg-panneau-donnees')).not.toBeNull();
     expect(hote.querySelector('mg-legende-carte [data-legende]')).toBeNull();
 
-    hote.querySelector<HTMLButtonElement>('mg-panneau-donnees [data-jeu="carreaux:filosofi"] button[aria-expanded]')!.click();
+    hote.querySelector<HTMLButtonElement>('mg-panneau-donnees [data-jeu="carreaux:filosofi"] button[aria-expanded]:not([data-bouton-fiche])')!.click();
     await stable();
     hote.querySelector<HTMLButtonElement>('mg-section-carreaux button[data-entete-carreaux]')!.click();
     await stable();
@@ -1072,11 +1076,11 @@ describe('CartePage — IRIS : section, couche en cascade, panneau de détail (T
     frapper(hote, altChiffre('2'));
     await stable();
     // Tiroirs exclusifs (retours du 26/10, T7) : un référentiel déplié à la fois — carreaux, puis IRIS.
-    hote.querySelector<HTMLButtonElement>('mg-panneau-donnees [data-jeu="carreaux:filosofi"] button[aria-expanded]')!.click();
+    hote.querySelector<HTMLButtonElement>('mg-panneau-donnees [data-jeu="carreaux:filosofi"] button[aria-expanded]:not([data-bouton-fiche])')!.click();
     await stable();
     hote.querySelector<HTMLButtonElement>('mg-section-carreaux button[data-entete-carreaux]')!.click();
     await stable();
-    hote.querySelector<HTMLButtonElement>('mg-panneau-donnees [data-jeu="iris:socio-demo"] button[aria-expanded]')!.click();
+    hote.querySelector<HTMLButtonElement>('mg-panneau-donnees [data-jeu="iris:socio-demo"] button[aria-expanded]:not([data-bouton-fiche])')!.click();
     await stable();
     hote.querySelector<HTMLButtonElement>('mg-section-iris button[data-entete-iris]')!.click();
     await stable();
@@ -1607,7 +1611,7 @@ const INVENTAIRE: readonly LigneInventaire[] = [
     n: 5, fonction: 'Zones à risque industriel (entrée dans ②)', lieu: { etape: 2 },
     preuves: ['[data-panneau-etape="donnees"] [data-jeu="risques:icpe-pprt"] mg-section-risque'],
     apres: async ({ hote, stable }) => {
-      hote.querySelector<HTMLButtonElement>('[data-panneau-etape="donnees"] [data-jeu="risques:icpe-pprt"] button[aria-expanded]')!.click();
+      hote.querySelector<HTMLButtonElement>('[data-panneau-etape="donnees"] [data-jeu="risques:icpe-pprt"] button[aria-expanded]:not([data-bouton-fiche])')!.click();
       await stable();
     },
   },

@@ -102,6 +102,25 @@ export interface CollectionPprt {
   tolerance_deg?: number;
 }
 
+/** Le niveau d'une source VU DE L'ESPACE ACTIF (`lib/carte/fiche-jeu.ts`, `NiveauSource`). */
+export type NiveauSourceFiche = 'socle' | 'prive' | 'partage';
+
+/** Une source de la fiche d'un jeu (`SourceDeFiche` de `lib/carte/fiche-jeu.ts`). */
+export interface SourceFicheJeu {
+  nom: string;
+  proprietaire: string;
+  niveau: NiveauSourceFiche;
+  effectif: number;
+  importe_le: string | null;
+}
+
+/** Réponse de `GET /api/map/catalogue/fiche` (`FicheJeu` de `lib/carte/fiche-jeu.ts`, lot « Catalogue et groupes », A-8). */
+export interface FicheJeu {
+  cle: string;
+  referentiel: boolean;
+  sources: SourceFicheJeu[];
+}
+
 /** Délai de React (`AbortSignal.timeout`, `useMapDirectActions.ts:101`). */
 export const DELAI_POIS_MS = 25000;
 
@@ -131,6 +150,14 @@ export class CarteApi extends HttpBaseService {
   /** `GET /api/map/jeux-recommandes` — la sélection recommandée de l'espace actif (parcours, lot 2). Ne précharge rien. */
   jeuxRecommandes(): Observable<{ cles?: string[]; error?: string }> {
     return this.httpClient.get<{ cles?: string[]; error?: string }>(`${this.baseUrl}/map/jeux-recommandes`);
+  }
+
+  /**
+   * `GET /api/map/catalogue/fiche?cle=` — la fiche d'un jeu de ② (A-8), lue à l'OUVERTURE de la fiche seulement. Un jeu
+   * inconnu ou invisible de l'espace répond 404, sans distinction.
+   */
+  ficheJeu(cle: string): Observable<FicheJeu> {
+    return this.httpClient.get<FicheJeu>(`${this.baseUrl}/map/catalogue/fiche`, { params: new HttpParams().set('cle', cle) });
   }
 
   /** `GET /api/map/categories` ; `rafraichir` rejoue le DISTINCT côté serveur (`?refresh=1`, `use-poi-catalog.ts:63-66`). */

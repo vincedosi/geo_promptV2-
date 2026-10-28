@@ -13,6 +13,8 @@ export interface IndicateurRegistre {
   label: string;
   famille: string | null;
   unit?: string | null;
+  /** A-6 (lot « Catalogue et groupes ») : `espace` si la source de l'indicateur est propre à l'espace actif. */
+  origine?: 'espace' | 'commune';
 }
 
 export type SensIndicateur = 'croissant' | 'decroissant';
