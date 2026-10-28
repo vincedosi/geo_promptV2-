@@ -22,6 +22,8 @@ export interface OrganisationComplete {
   description: string | null;
   active: boolean;
   config: Record<string, unknown> | null;
+  /** organizations.groupe_espace (sql/289) ; absent d'une réponse antérieure au lot, lu comme `null`. */
+  groupe_espace?: string | null;
 }
 
 /** Champs modifiables d'un espace (`PATCH /api/admin/organizations/:id`). */
@@ -30,6 +32,8 @@ export interface ChampsEspace {
   description?: string | null;
   active?: boolean;
   config?: Record<string, unknown>;
+  /** Groupe d'espaces : nom rogné de 1 à 60 caractères, ou `null` pour retirer l'espace de son groupe. */
+  groupe_espace?: string | null;
 }
 
 /** Réponse de `POST /api/admin/organizations`. */

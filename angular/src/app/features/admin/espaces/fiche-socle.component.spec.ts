@@ -9,6 +9,7 @@ import { EspacesApi } from './data/espaces.api';
 import { EspacesEtatService } from './etat/espaces-etat.service';
 import { FicheSocleComponent } from './fiche-socle.component';
 import type { EspaceResume, JeuDeDonnees, ReponseSocle } from './logique/types';
+import { texte } from '../testing/dom';
 
 const URL_SOCLE = '/api/admin/espaces/socle';
 
@@ -91,6 +92,26 @@ describe('FicheSocleComponent', () => {
     expect(section('prives').textContent).toContain('CIRFA');
     expect(section('prives').textContent).toContain('Panneaux');
     expect(section('prives').textContent).toContain('dentsu.explore (interne)');
+  });
+
+  it("un indicateur (sql/288) s'affiche « Indicateur » et offre le même geste qu'un POI", async () => {
+    const r = reponse();
+    r.jeux.push(jeu({ id: 'abst', nom: "Taux d'abstention (présidentielle 2022)", type: 'indicateur', visibilite: 'socle', nb_lignes: 6186 }));
+    const { f, http, section, bouton, dialogue, confirmer } = await monter(r);
+    expect(section('socle').textContent).toContain('Indicateur');
+    expect(section('socle').textContent).toContain(formaterNombre(6186));
+    expect(texte(bouton('abst'))).toBe(texte(bouton('lycee')));
+    bouton('abst').click();
+    await f.whenStable();
+    expect(dialogue().textContent).toContain("Retirer « Taux d'abstention (présidentielle 2022) » du socle ?");
+    confirmer().click();
+    await f.whenStable();
+    const req = http.expectOne('/api/admin/sources/abst');
+    expect(req.request.body).toEqual({ visibilite: 'privee' });
+    req.flush({ success: true });
+    await f.whenStable();
+    http.expectOne(URL_SOCLE).flush(r);
+    await f.whenStable();
   });
 
   it('référentiels système : deux lignes en lecture seule', async () => {

@@ -6,6 +6,7 @@ import { ConfirmationComponent } from '../../../ui/confirmation/confirmation.com
 import { NotificationsService } from '../../../ui/notifications/notifications.service';
 import { EspacesApi, type OrganisationComplete } from './data/espaces.api';
 import { EspacesEtatService } from './etat/espaces-etat.service';
+import { LONGUEUR_MAX_GROUPE, groupesDesAutres } from './logique/groupes';
 import { LONGUEUR_MAX_DESCRIPTION, messageErreur } from './logique/libelles';
 import {
   MESSAGE_QUOTA, lireQuota, messageDesactivation, messageSuppression, quotaEnSaisie, texteDeConfig,
@@ -18,7 +19,10 @@ import {
  *
  * - `espaceId` est un input RÉACTIF : chaque changement relit `GET admin/organizations/:id` et oublie
  *   la saisie. Lecture en échec → message et « Réessayer ».
- * - « Enregistrer » envoie `{ name, description, config }` où `config` est la config LUE, FUSIONNÉE
+ * - « Groupe » (lot « Catalogue et groupes », A-9, option A) : un nom libre, prérempli, avec en
+ *   suggestions (`<datalist>`) les groupes des autres espaces ; vide → `null`. Envoyé par
+ *   « Enregistrer » avec le reste. Range la colonne d'Accès, ne porte aucun droit.
+ * - « Enregistrer » envoie `{ name, description, groupe_espace, config }` où `config` est la config LUE, FUSIONNÉE
  *   avec les quatre clés du formulaire : la route REMPLACE la colonne `config` en bloc, d'autres clés
  *   peuvent y vivre. Quota vide → `null`, quota invalide → message en ligne et AUCUN envoi.
  * - « Espace actif » : `PATCH { active }` seul, sans mise à jour optimiste — l'interrupteur ne bouge
@@ -49,6 +53,7 @@ export class OngletReglagesComponent {
 
   protected readonly messageQuota = MESSAGE_QUOTA;
   protected readonly longueurMaxDescription = LONGUEUR_MAX_DESCRIPTION;
+  protected readonly longueurMaxGroupe = LONGUEUR_MAX_GROUPE;
 
   /** Ce que le serveur a rendu à la dernière lecture : la config à FUSIONNER, et l'état « actif ». */
   protected readonly organisation = signal<OrganisationComplete | null>(null);
@@ -56,6 +61,7 @@ export class OngletReglagesComponent {
 
   protected readonly nom = signal('');
   protected readonly description = signal('');
+  protected readonly groupe = signal('');
   protected readonly maxPoi = signal('');
   protected readonly maxAi = signal('');
   protected readonly siteUrl = signal('');
@@ -77,6 +83,8 @@ export class OngletReglagesComponent {
   protected readonly actif = computed(() => this.organisation()?.active ?? false);
   private readonly resume = computed(() => this.etat.espaces().find((e) => e.id === this.espaceId()) ?? null);
   protected readonly interne = computed(() => this.resume()?.interne ?? false);
+  /** Suggestions du champ « Groupe » : les groupes des AUTRES espaces, tirés de la liste déjà lue (aucun appel). */
+  protected readonly suggestionsGroupe = computed(() => groupesDesAutres(this.etat.espaces(), this.espaceId()));
   protected readonly libelleEnregistrer = computed(() => (this.ecriture() ? 'Enregistrement…' : 'Enregistrer'));
 
   protected readonly titreSuppression = computed(() => `Supprimer ${this.resume()?.nom_affiche ?? 'cet espace'} ?`);
@@ -137,6 +145,7 @@ export class OngletReglagesComponent {
     const config = o.config ?? {};
     this.nom.set(o.name);
     this.description.set(o.description ?? '');
+    this.groupe.set(o.groupe_espace ?? '');
     this.maxPoi.set(quotaEnSaisie(config, 'max_poi'));
     this.maxAi.set(quotaEnSaisie(config, 'max_ai_requests'));
     this.siteUrl.set(texteDeConfig(config, 'site_centric_url'));
@@ -169,6 +178,8 @@ export class OngletReglagesComponent {
       this.api.modifierEspace(this.espaceId(), {
         name: nom,
         description: this.description().trim() || null,
+        // Vide → `null` : l'espace sort de son groupe (le serveur refuse une chaîne vide).
+        groupe_espace: this.groupe().trim() || null,
         config: {
           ...(o.config ?? {}),
           site_centric_url: this.siteUrl().trim() || null,

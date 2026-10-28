@@ -17,6 +17,14 @@
             [value]="nom()" [disabled]="occupe()" (input)="saisir(nom, $event)" />
         </mg-champ>
         @if (erreurNom()) { <p class="erreur-champ" data-erreur-nom>Le nom est obligatoire.</p> }
+        <mg-champ libelle="Groupe">
+          <input data-groupe type="text" [attr.maxlength]="longueurMaxGroupe" autocomplete="off" placeholder="Aucun groupe"
+            list="groupes-connus" [value]="groupe()" [disabled]="occupe()" (input)="saisir(groupe, $event)" />
+        </mg-champ>
+        <datalist id="groupes-connus" data-suggestions-groupe>
+          @for (g of suggestionsGroupe(); track g) { <option [value]="g"></option> }
+        </datalist>
+        <p class="note">Range l'espace dans un dossier de la colonne d'Accès. Un groupe ne donne aucun droit.</p>
         <mg-champ libelle="Description">
           <input data-description type="text" [attr.maxlength]="longueurMaxDescription" autocomplete="off" placeholder="Description courte"
             [value]="description()" [disabled]="occupe()" (input)="saisir(description, $event)" />

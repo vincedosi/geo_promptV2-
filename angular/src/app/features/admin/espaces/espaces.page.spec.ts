@@ -235,6 +235,88 @@ describe('EspacesPage', () => {
     expect(liens(el).find((a) => a.classList.contains('actif'))?.getAttribute('href')).toBe('/admin/acces/org-neuf');
   });
 
+  describe('groupes d\'espaces (A-9)', () => {
+    /** BMW GROUP et MINI dans « BMW », MARINE dans « Armées » ; DRHAT et l'interne sans groupe. */
+    function avecGroupes(): ReponseEspaces {
+      const r = reponse();
+      r.espaces = [
+        espace({ id: 'org-bmw', nom_affiche: 'BMW GROUP', groupe_espace: 'BMW' }),
+        espace({ id: 'org-drhat', nom_affiche: 'DRHAT' }),
+        espace({ id: 'org-marine', nom_affiche: 'MARINE', groupe_espace: 'Armées' }),
+        espace({ id: 'org-mini', nom_affiche: 'MINI', groupe_espace: 'BMW' }),
+        espace({ id: 'org-int', nom: 'GENESIS (Global)', nom_affiche: 'dentsu.explore (interne)', slug: 'genesis-global', interne: true }),
+      ];
+      return r;
+    }
+    const dossiers = (el: HTMLElement) => [...el.querySelectorAll<HTMLButtonElement>('button[data-dossier]')];
+    const noms = (el: HTMLElement) => liens(el).map((a) => texte(a.querySelector('[data-nom]')));
+
+    it('aucun appel de plus ; sans groupe d\'abord, puis les dossiers « Armées » et « BMW » repliés', async () => {
+      const { el, http, charger } = await monter();
+      await charger(avecGroupes());
+      http.expectNone(() => true);
+      expect(noms(el)).toEqual(['Socle dentsu.explore', 'Tous les comptes', 'DRHAT', 'dentsu.explore (interne)']);
+      const d = dossiers(el);
+      expect(d.map((b) => texte(b.querySelector('[data-nom-groupe]')))).toEqual(['Armées', 'BMW']);
+      expect(d.map((b) => b.getAttribute('aria-expanded'))).toEqual(['false', 'false']);
+      expect(texte(d[1].querySelector('[title]'))).toBe('2');
+    });
+
+    it('un clic déplie le dossier (aria-expanded, aria-controls), un second le replie', async () => {
+      const { el, stable, charger } = await monter();
+      await charger(avecGroupes());
+      const bmw = dossiers(el)[1];
+      bmw.click();
+      await stable();
+      expect(bmw.getAttribute('aria-expanded')).toBe('true');
+      const liste = el.querySelector(`#${bmw.getAttribute('aria-controls')}`)!;
+      expect([...liste.querySelectorAll('[data-nom]')].map((n) => texte(n))).toEqual(['BMW GROUP', 'MINI']);
+      expect(liste.querySelector('a')!.getAttribute('href')).toBe('/admin/acces/org-bmw');
+      bmw.click();
+      await stable();
+      expect(bmw.getAttribute('aria-expanded')).toBe('false');
+      expect(noms(el)).not.toContain('MINI');
+    });
+
+    it('le dossier qui contient l\'espace affiché s\'ouvre, les autres restent repliés', async () => {
+      const { el, charger } = await monter('/admin/acces/org-mini');
+      await charger(avecGroupes());
+      expect(dossiers(el).map((b) => b.getAttribute('aria-expanded'))).toEqual(['false', 'true']);
+      const actif = liens(el).find((a) => a.classList.contains('actif'))!;
+      expect(texte(actif.querySelector('[data-nom]'))).toBe('MINI');
+    });
+
+    it('naviguer vers un espace d\'un dossier replié l\'ouvre', async () => {
+      const { el, stable, charger } = await monter();
+      await charger(avecGroupes());
+      await TestBed.inject(Router).navigateByUrl('/admin/acces/org-marine');
+      await stable();
+      expect(dossiers(el)[0].getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('clavier : les flèches traversent en-têtes de dossier et espaces des dossiers ouverts, sautent les fermés', async () => {
+      const { el, stable, charger } = await monter();
+      await charger(avecGroupes());
+      const [armees, bmw] = dossiers(el);
+      bmw.click();
+      await stable();
+      const bas = (cible: HTMLElement) => cible.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+      const haut = (cible: HTMLElement) => cible.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+      const interne = liens(el).find((a) => texte(a.querySelector('[data-nom]')) === 'dentsu.explore (interne)')!;
+      interne.focus();
+      bas(interne);
+      expect(document.activeElement).toBe(armees);
+      bas(armees);
+      // « Armées » est replié : MARINE n'est pas rendu, le focus passe à l'en-tête suivant.
+      expect(document.activeElement).toBe(bmw);
+      bas(bmw);
+      const bmwGroup = liens(el).find((a) => texte(a.querySelector('[data-nom]')) === 'BMW GROUP')!;
+      expect(document.activeElement).toBe(bmwGroup);
+      haut(bmwGroup);
+      expect(document.activeElement).toBe(bmw);
+    });
+  });
+
   it('description non enregistrée → l\'espace est créé, la page le dit et relit la liste', async () => {
     const { el, http, stable, charger } = await monter();
     await charger();

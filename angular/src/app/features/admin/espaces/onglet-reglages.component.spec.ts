@@ -49,13 +49,13 @@ beforeEach(() => {
   });
 });
 
-async function monter(interne = false, reponse: { organization: OrganisationComplete } | null = org()) {
+async function monter(interne = false, reponse: { organization: OrganisationComplete } | null = org(), autres: EspaceResume[] = []) {
   const recharger = vi.fn();
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(), provideHttpClientTesting(), EspacesApi, NotificationsService,
       provideRouter([{ path: 'espaces/:id', component: Hote }, { path: 'espaces', component: Vide }]),
-      { provide: EspacesEtatService, useValue: { espaces: signal([espace(A, 'Espace A', interne)]), recharger } },
+      { provide: EspacesEtatService, useValue: { espaces: signal([espace(A, 'Espace A', interne), ...autres]), recharger } },
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
     ],
   });
@@ -115,6 +115,7 @@ describe('OngletReglagesComponent', () => {
     expect(req.request.body).toEqual({
       name: 'Nouveau nom',
       description: null,
+      groupe_espace: null,
       config: { autre: 1, site_centric_url: 'https://autre.test', site_centric_key: 'cle-secrete', max_poi: 1000, max_ai_requests: 12 },
     });
     req.flush({ success: true });
@@ -124,6 +125,46 @@ describe('OngletReglagesComponent', () => {
     expect(JSON.stringify(ok.mock.calls)).not.toContain('cle-secrete');
     expect(recharger).toHaveBeenCalled();
     http.expectOne(URL_ORG).flush(org({ name: 'Nouveau nom' }));
+  });
+
+  describe('champ « Groupe » (A-9)', () => {
+    const autres = (): EspaceResume[] => [
+      { ...espace('B', 'Espace B'), groupe_espace: 'BMW' },
+      { ...espace('C', 'Espace C'), groupe_espace: 'Armées' },
+      { ...espace('D', 'Espace D'), groupe_espace: 'BMW' },
+    ];
+
+    it('prérempli depuis la lecture ; suggestions = groupes des autres espaces, distincts et triés', async () => {
+      const { q, el } = await monter(false, org({ groupe_espace: 'Marine' }), autres());
+      expect(q<HTMLInputElement>('[data-groupe]').value).toBe('Marine');
+      expect(q('[data-groupe]').getAttribute('maxlength')).toBe('60');
+      const liste = q('[data-suggestions-groupe]');
+      expect(q('[data-groupe]').getAttribute('list')).toBe(liste.id);
+      expect([...el.querySelectorAll<HTMLOptionElement>('[data-suggestions-groupe] option')].map((o) => o.value)).toEqual(['Armées', 'BMW']);
+    });
+
+    it('saisie rognée envoyée par « Enregistrer »', async () => {
+      const { harnais, http, q, saisir } = await monter(false, org(), autres());
+      expect(q<HTMLInputElement>('[data-groupe]').value).toBe('');
+      await saisir('[data-groupe]', '  BMW ');
+      q<HTMLButtonElement>('[data-enregistrer]').click();
+      const req = http.expectOne(URL_ORG);
+      expect((req.request.body as { groupe_espace: unknown }).groupe_espace).toBe('BMW');
+      req.flush({ success: true });
+      await harnais.fixture.whenStable();
+      http.expectOne(URL_ORG).flush(org({ groupe_espace: 'BMW' }));
+    });
+
+    it("vidé → `null` (l'espace sort de son groupe)", async () => {
+      const { harnais, http, q, saisir } = await monter(false, org({ groupe_espace: 'BMW' }));
+      await saisir('[data-groupe]', '   ');
+      q<HTMLButtonElement>('[data-enregistrer]').click();
+      const req = http.expectOne(URL_ORG);
+      expect((req.request.body as { groupe_espace: unknown }).groupe_espace).toBeNull();
+      req.flush({ success: true });
+      await harnais.fixture.whenStable();
+      http.expectOne(URL_ORG).flush(org());
+    });
   });
 
   it('quota vide → null, « 12 » → 12', async () => {

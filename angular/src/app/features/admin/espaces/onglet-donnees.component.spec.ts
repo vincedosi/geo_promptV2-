@@ -103,6 +103,29 @@ async function monter() {
 describe('OngletDonneesComponent', () => {
   afterEach(() => TestBed.inject(HttpTestingController).verify());
 
+  it("un indicateur (sql/288) s'affiche « Indicateur » et offre les mêmes gestes qu'un POI, selon son statut", async () => {
+    const recharger = vi.fn();
+    configurer(recharger);
+    const harnais = await RouterTestingHarness.create();
+    const http = TestBed.inject(HttpTestingController);
+    await harnais.navigateByUrl(`/espaces/${A}`, Hote);
+    const el = harnais.routeNativeElement as HTMLElement;
+    const r = reponse();
+    r.jeux = [
+      jeu('ind-prop', 'ABSTENTION', 'proprietaire', { type: 'indicateur' }),
+      jeu('poi-prop', 'POIJEU', 'proprietaire'),
+      jeu('ind-nv', 'ABSTENTION AILLEURS', 'non_visible', { type: 'indicateur' }),
+    ];
+    http.expectOne(URL_DONNEES).flush(r);
+    await harnais.fixture.whenStable();
+    const ligne = (id: string) => el.querySelector<HTMLElement>(`[data-jeu="${id}"]`)!;
+    const gestes = (id: string) => [...ligne(id).querySelectorAll('button')].map((b) => b.textContent!.trim());
+    expect(ligne('ind-prop').textContent).toContain('Indicateur');
+    expect(gestes('ind-prop')).toEqual(gestes('poi-prop'));
+    expect(gestes('ind-prop')).toEqual(['Transférer…', 'Mettre au socle']);
+    expect(gestes('ind-nv')).toEqual(['Partager avec cet espace']);
+  });
+
   it('un seul GET au montage ; une ligne par statut avec ses colonnes et ses actions', async () => {
     const { el, ligne, action } = await monter();
     const p = ligne('prop').textContent!;
