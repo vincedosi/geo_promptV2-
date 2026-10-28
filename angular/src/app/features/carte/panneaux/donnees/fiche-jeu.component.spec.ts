@@ -38,7 +38,9 @@ function monter(reponse: () => ReturnType<CarteApi['ficheJeu']> = () => of(FICHE
   return { el, rendre, hote: fixture.componentInstance, ficheJeu };
 }
 
-const texte = (e: Element | null) => e?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+/** Espaces normalisées : `formaterNombre` sépare les milliers par une espace insécable, que `\s` attrape aussi. */
+const normaliser = (s: string) => s.replace(/\s+/g, ' ').trim();
+const texte = (e: Element | null) => normaliser(e?.textContent ?? '');
 
 describe('FicheJeuComponent — la fiche d’un jeu de ② (A-8)', () => {
   it('fermée : aucune lecture, rien de rendu', async () => {
@@ -60,7 +62,7 @@ describe('FicheJeuComponent — la fiche d’un jeu de ② (A-8)', () => {
     expect(sources).toHaveLength(1);
     expect(texte(sources[0])).toContain('Concessions BMW 2026');
     const date = new Date('2026-10-12T09:30:00Z').toLocaleDateString('fr-FR');
-    expect(texte(sources[0])).toContain(texte({ textContent: `BMW GROUP · Privé · ${formaterNombre(12345)} · ${date}` } as Element));
+    expect(texte(sources[0])).toContain(normaliser(`BMW GROUP · Privé · ${formaterNombre(12345)} · ${date}`));
     hote.ouvert.set(false);
     await rendre();
     expect(el.querySelector('[data-fiche]')).toBeNull();
@@ -76,7 +78,7 @@ describe('FicheJeuComponent — la fiche d’un jeu de ② (A-8)', () => {
     hote.ouvert.set(true);
     await rendre();
     expect(texte(el.querySelector('[data-referentiel]'))).toBe('Socle dentsu.explore, référentiel système');
-    expect(texte(el.querySelector('[data-source]'))).toContain(`Bercy · Partagé · ${texte({ textContent: formaterNombre(6186) } as Element)} · —`);
+    expect(texte(el.querySelector('[data-source]'))).toContain(`Bercy · Partagé · ${normaliser(formaterNombre(6186))} · —`);
   });
 
   it('404 → « Ce jeu n’est plus disponible dans cet espace. », sans « Réessayer »', async () => {

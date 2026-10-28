@@ -93,6 +93,8 @@ interface OptionsOuverture {
   couverture?: (...args: unknown[]) => unknown;
   /** `ZonesApi.recalculer` (« Mes zones »). */
   recalculer?: (id: string) => unknown;
+  /** `AnalysesApi.indicateurs` (catalogue des indicateurs visibles : ② à sa première visite, ③ « Par seuil », ④). */
+  indicateurs?: () => unknown;
 }
 
 async function ouvrir(options: OptionsOuverture = {}) {
@@ -148,7 +150,7 @@ async function ouvrir(options: OptionsOuverture = {}) {
       // Mes analyses (boîte à outils, T6) : la liste n'est lue qu'à l'ouverture de l'outil (inventaire, T7).
       // `indicateurs` : le catalogue que lit « Par seuil » de ③ (lot 3), dépliée par l'inventaire, et que ② lit pour ranger
       // « Indicateurs au code postal » (A-7) : l'abstention y est visible, au socle, comme dans la base locale.
-      { provide: AnalysesApi, useValue: { lister: options.analyses ?? (() => of({ analyses: [] })), indicateurs: () => of({ indicators: [ABSTENTION_AU_SOCLE] }) } },
+      { provide: AnalysesApi, useValue: { lister: options.analyses ?? (() => of({ analyses: [] })), indicateurs: options.indicateurs ?? (() => of({ indicators: [ABSTENTION_AU_SOCLE] })) } },
       { provide: ClusteringApi, useValue: {} },
       { provide: SitesRisqueApi, useValue: { carte: () => of(), exposition: () => of() } },
       { provide: CiviqueApi, useValue: { geojsonVariable: () => of(), detailCp: () => of(), zones: () => of(), santeDepartement: () => of(), santeCp: () => of(), santeCommune: () => of() } },
@@ -241,6 +243,23 @@ describe('CartePage — la carte en parcours : barre, fil, panneau d’étape, c
     await stable();
     expect(panneauCourant(hote)).toBe('donnees');
     expect(routeur().url).toBe('/carte?etape=donnees');
+  });
+
+  it('catalogue des indicateurs (Disk I/O) : rien au montage sur ①, une lecture à la 1re visite de ②, aucune de plus sur ③ et ④', async () => {
+    const indicateurs = vi.fn(() => of({ indicators: [ABSTENTION_AU_SOCLE] }));
+    const { hote, stable } = await ouvrir({ indicateurs });
+    expect(panneauCourant(hote)).toBe('perimetre');
+    expect(indicateurs).not.toHaveBeenCalled();
+    frapper(hote, altChiffre('2'));
+    await stable();
+    expect(panneauCourant(hote)).toBe('donnees');
+    expect(indicateurs).toHaveBeenCalledTimes(1);
+    frapper(hote, altChiffre('3'));
+    await stable();
+    frapper(hote, altChiffre('4'));
+    await stable();
+    expect(panneauCourant(hote)).toBe('analyse');
+    expect(indicateurs).toHaveBeenCalledTimes(1);
   });
 
   it('Alt+pavé numérique 4 passe aussi à ④ Analyse ; Alt+pavé 8 à ⑧ Live ; Alt+9 ne fait rien', async () => {

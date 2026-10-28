@@ -154,10 +154,13 @@ describe('PanneauDonneesComponent — le panneau ② « Données »', () => {
     });
 
     it('indicateur propre à l’espace : la ligne se range dans « Données de l’espace »', async () => {
-      const { rendre, cles } = monter({ indicateurs: of([abstention('espace')]) });
+      const { el, rendre, cles, deplier } = monter({ indicateurs: of([abstention('espace')]) });
       await rendre();
       expect(cles('espace')).toEqual(['poi:bmw', CIVIQUE]);
       expect(cles('commun')).not.toContain(CIVIQUE);
+      // Rangée dans le bloc de l'espace, la ligne reste utilisable : son chevron déplie la section civique.
+      await deplier(CIVIQUE);
+      expect(el.querySelector('[data-bloc="espace"] [data-jeu="' + CIVIQUE + '"] mg-section-civique')).not.toBeNull();
     });
 
     it('indicateur commun : la ligne reste dans les données communes', async () => {
