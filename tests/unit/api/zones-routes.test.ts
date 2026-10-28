@@ -18,6 +18,11 @@ vi.mock('@/lib/api/middleware', () => ({
 }));
 const sessionsSources: unknown[] = [];
 vi.mock('@/lib/auth/getOrgSourceIds', () => ({ getOrgSourceIds: async (s: unknown, o: unknown) => { sessionsSources.push([s, o]); return ['s1']; } }));
+const sessionsIndicateurs: unknown[] = [];
+const VISIBLES = new Set(['taux_pauvrete']);
+vi.mock('@/lib/auth/perimetre-donnees', () => ({
+  indicateursVisiblesDeLaSession: async (s: unknown) => { sessionsIndicateurs.push(s); return { visibles: VISIBLES, propres: new Set() }; },
+}));
 let quotaOk = true;
 const quotas: string[] = [];
 vi.mock('@/lib/api/rate-limit', () => ({
@@ -114,12 +119,14 @@ describe('POST /api/zones/apercu', () => {
     expect(executions[0].ctx).toStrictEqual({ orgId: ORG, sources: [], geometrie: POLYGONE });
     expect(sessionsSources).toEqual([]);
   });
-  it('les sources de POI ne sont lues que pour un rayon autour des POI', async () => {
+  it('les sources de POI ne sont lues que pour un rayon autour des POI ; les indicateurs, que pour un seuil sur territoires', async () => {
     const SEUIL = { v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre: { type: 'departement', code: '13' } };
+    sessionsIndicateurs.length = 0;
     await apercu(req({ recette: SEUIL }));
     await apercu(req({ recette: { v: 1, type: 'codes_postaux', codes: ['13001'] } }));
     expect(sessionsSources).toEqual([]);
-    expect(executions.map((e) => e.ctx)).toStrictEqual([{ orgId: ORG, sources: [] }, { orgId: ORG, sources: [] }]);
+    expect(sessionsIndicateurs).toEqual([{ userId: 'u1', orgId: ORG, role: 'super_admin' }]);
+    expect(executions.map((e) => e.ctx)).toStrictEqual([{ orgId: ORG, sources: [], indicateurs: VISIBLES }, { orgId: ORG, sources: [] }]);
     await apercu(req({ recette: RAYON }));
     expect(sessionsSources).toHaveLength(1);
   });

@@ -20,11 +20,16 @@
  * Les indicateurs sont supposés DÉJÀ matérialisés : cette route suit toujours un
  * `POST /api/analyses/score` qui s'en est chargé. Un indicateur absent donne
  * donc simplement zéro ligne, jamais une agrégation surprise sur `iris`.
+ *
+ * Depuis sql/288, un indicateur hors du registre visible de l'espace actif (inconnu, ou privé à un autre espace)
+ * répond 400 `indicateur_inconnu`, les deux cas indiscernables : la route calculait jusque-là un score sur un
+ * indicateur privé pour qui en connaissait le code.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { indicateursVisibles } from '@/lib/auth/perimetre-donnees';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { rpcJson } from '@/lib/supabase/rpc-json';
@@ -103,6 +108,10 @@ export async function POST(request: NextRequest) {
   const codes = indicateurs.map((i) => i.code);
   if (new Set(codes).size !== codes.length) {
     return NextResponse.json({ error: 'indicateur_duplique' }, { status: 400 });
+  }
+  const { visibles } = await indicateursVisibles(request);
+  if (codes.some((c) => !visibles.has(c))) {
+    return NextResponse.json({ error: 'indicateur_inconnu' }, { status: 400 });
   }
 
   const supabase = createAdminClient();

@@ -3,11 +3,13 @@
  * Résout les codes passant le seuil (RPC registre) puis matérialise la
  * géométrie via les RPC existantes (IRIS ou CP). Le client sauvegarde ensuite
  * via /api/custom-geo/save (source_type 'indicator_threshold' + définition).
+ * Un indicateur invisible de l'espace actif (sql/288) répond comme un inconnu : 400 `selection_failed`.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { indicateursVisibles } from '@/lib/auth/perimetre-donnees';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 15;
@@ -26,6 +28,10 @@ export async function POST(request: NextRequest) {
   catch { return NextResponse.json({ error: 'invalid_json' }, { status: 400 }); }
   const parsed = BodySchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: 'invalid_body', issues: parsed.error.issues }, { status: 400 });
+  // Même réponse que la RPC sur un code inconnu (elle lève → `selection_failed`).
+  if (!(await indicateursVisibles(request)).visibles.has(parsed.data.indicator_code)) {
+    return NextResponse.json({ error: 'selection_failed' }, { status: 400 });
+  }
 
   const supabase = createAdminClient();
   const { data: selRaw, error: selError } = await supabase.rpc('get_indicator_threshold_selection', {

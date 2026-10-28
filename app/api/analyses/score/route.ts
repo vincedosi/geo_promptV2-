@@ -79,6 +79,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { indicateursVisibles } from '@/lib/auth/perimetre-donnees';
 import { checkZoneAccess } from '@/lib/campaigns/access';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
@@ -250,8 +251,10 @@ export async function POST(request: NextRequest) {
     console.error('[POST /api/analyses/score] registre:', erreurRegistre.message);
     return NextResponse.json({ error: 'Erreur base de données.' }, { status: 500 });
   }
+  // Un indicateur invisible de l'espace actif (sql/288) se répond comme un inconnu.
+  const { visibles } = await indicateursVisibles(request);
   const connus = new Set((registre ?? []).map((r) => r.indicator_code));
-  const inconnus = codes.filter((c) => !connus.has(c));
+  const inconnus = codes.filter((c) => !connus.has(c) || !visibles.has(c));
   if (inconnus.length) {
     return NextResponse.json(
       { error: `Indicateur inconnu ou inactif : ${inconnus.join(', ')}.` },

@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { indicateursVisibles } from '@/lib/auth/perimetre-donnees';
 import { createAdminClient } from '@/lib/auth';
 import { checkStrategyAccess, checkZoneAccess } from '@/lib/campaigns/access';
 import { toJson } from '@/lib/supabase/rpc-json';
@@ -212,6 +213,23 @@ export async function PATCH(
     return NextResponse.json({ strategy: current, changes: [] });
   }
 
+  // Si pondération a changé → relancer apply_zone_weights_to_strategy (plus bas)
+  const weightChanged =
+    'weighting_mode' in updates ||
+    'in_zone_weights' in updates ||
+    'out_zone_weights' in updates ||
+    'zone_id' in updates ||
+    'scope_type' in updates ||
+    body.subzones !== undefined;
+  const newInWeights = (updates.in_zone_weights as Record<string, unknown>) ?? cur.in_zone_weights ?? {};
+  const varCode = (newInWeights as { variable_code?: string }).variable_code;
+
+  // L'indicateur qui sera rematérialisé doit être visible de l'espace actif (sql/288), contrôlé AVANT toute écriture :
+  // inconnu ou privé à un autre espace, même réponse que l'échec de matérialisation d'un code inconnu.
+  if (weightChanged && varCode && !(await indicateursVisibles(request)).visibles.has(varCode)) {
+    return NextResponse.json({ error: 'indicator_not_ready', detail: `Indicateur inconnu ou inactif : ${varCode}.` }, { status: 422 });
+  }
+
   // UPDATE bidding_strategies
   if (Object.keys(updates).length > 0) {
     const { error: uErr } = await supabase
@@ -253,21 +271,10 @@ export async function PATCH(
     changes.push({ field: 'subzones', old: oldSubzonesResp.data ?? [], new: body.subzones });
   }
 
-  // Si pondération a changé → relancer apply_zone_weights_to_strategy
-  const weightChanged =
-    'weighting_mode' in updates ||
-    'in_zone_weights' in updates ||
-    'out_zone_weights' in updates ||
-    'zone_id' in updates ||
-    'scope_type' in updates ||
-    body.subzones !== undefined;
-
   if (weightChanged) {
-    const newInWeights = (updates.in_zone_weights as Record<string, unknown>) ?? cur.in_zone_weights ?? {};
     const newOutWeights = (updates.out_zone_weights as Record<string, unknown>) ?? cur.out_zone_weights ?? {};
 
     // L'indicateur de la courbe doit être matérialisé par CP (frais < 30 j) avant l'application.
-    const varCode = (newInWeights as { variable_code?: string }).variable_code;
     if (varCode) {
       const { data: fresh } = await supabase
         .from('indicator_cp_values')

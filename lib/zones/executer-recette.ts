@@ -25,6 +25,11 @@ export interface ContexteRecette {
   orgId: string;
   /** `getOrgSourceIds(…, { vueEspace: true })` : les sources de POI que l’espace voit (lues pour `rayon_poi` seulement, vide sinon). */
   sources: string[];
+  /**
+   * Les indicateurs visibles de l'espace (`indicateursVisiblesDeLaSession`, sql/288) — lus pour `seuil_territoire`
+   * seulement. Absent : tout indicateur est refusé (ferme par défaut).
+   */
+  indicateurs?: ReadonlySet<string>;
   /** La forme d'une recette figée ; ignorée pour une recette calculée par le serveur. */
   geometrie?: unknown;
 }
@@ -154,6 +159,9 @@ export async function executerRecette(supabase: ClientAdmin, recette: Recette, c
     case 'seuil_territoire': {
       const p = recette.perimetre;
       if (!p) return refuser('perimetre_absent');
+      // Un indicateur privé à un autre espace se refuse EXACTEMENT comme un inconnu, au même moment : la RPC teste
+      // l'indicateur avant le périmètre et rend `indicateur_inconnu`.
+      if (!ctx.indicateurs?.has(recette.indicateur)) return refuser('indicateur_inconnu');
       return lire('zone_seuil_territoire', supabase.rpc('zone_seuil_territoire', {
         p_indicateur: recette.indicateur, p_operateur: recette.operateur, p_seuil: recette.seuil,
         p_perimetre_type: p.type, p_perimetre_code: p.code, p_org_id: ctx.orgId,

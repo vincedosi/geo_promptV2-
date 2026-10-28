@@ -24,6 +24,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { indicateursVisibles } from '@/lib/auth/perimetre-donnees';
 import { createAdminClient } from '@/lib/auth';
 import { checkCampaignAccess, checkZoneAccess } from '@/lib/campaigns/access';
 import { toJson } from '@/lib/supabase/rpc-json';
@@ -209,6 +210,13 @@ export async function POST(request: NextRequest) {
     if (zoneAccess !== 'ok') return NextResponse.json({ error: 'zone_not_found' }, { status: 404 });
   }
 
+  // L'indicateur de la courbe doit être visible de l'espace actif (sql/288), contrôlé AVANT toute écriture : inconnu
+  // ou privé à un autre espace, même réponse — sans quoi la stratégie était créée puis la matérialisation échouait.
+  const varCode = (body.in_zone_weights as { variable_code?: string }).variable_code;
+  if (varCode && !(await indicateursVisibles(request)).visibles.has(varCode)) {
+    return NextResponse.json({ error: 'indicator_not_ready', detail: `Indicateur inconnu ou inactif : ${varCode}.` }, { status: 422 });
+  }
+
   // 1. Eligibilité : campagne non-Adform
   const { data: campaign, error: cErr } = await supabase
     .from('dsp_campaigns')
@@ -304,7 +312,6 @@ export async function POST(request: NextRequest) {
   }
 
   // L'indicateur de la courbe doit être matérialisé par CP (frais < 30 j) avant l'application.
-  const varCode = (body.in_zone_weights as { variable_code?: string }).variable_code;
   if (varCode) {
     const { data: fresh } = await supabase
       .from('indicator_cp_values')

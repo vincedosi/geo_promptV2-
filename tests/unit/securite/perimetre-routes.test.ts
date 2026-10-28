@@ -32,10 +32,18 @@ import { join, relative, sep } from 'node:path';
 
 const RACINE = process.cwd();
 
-/** Tables et RPC dont le contenu appartient à une organisation. */
+/**
+ * Tables et RPC dont le contenu appartient à une organisation.
+ *
+ * Depuis sql/288 (2026-10-28, lot « Catalogue et groupes »), un INDICATEUR peut être privé à un espace : le registre,
+ * ses valeurs matérialisées, la table de l'abstention et chaque RPC qui calcule sur un indicateur en font partie.
+ * Ces lectures passent par `indicateursVisibles` (perimetre-donnees.ts).
+ */
 const LECTURE_CLIENT = new RegExp(
-  String.raw`from\(\s*'(poi_france|panneaux_affichage|isochrones_cache|poi_clusters|poi_cluster_history|clustering_models|clustering_jobs|geography_zones)'\s*\)`
-  + String.raw`|rpc\(\s*'(get_voronoi[a-z_]*|get_battle_geometry|compte_poi_par_categorie|poi_count_by_categorie|get_poi_near_panneau|panneaux_near_point|count_poi_by_categorie_source|get_poi_categories|types_poi_clustering)'`,
+  String.raw`from\(\s*'(poi_france|panneaux_affichage|isochrones_cache|poi_clusters|poi_cluster_history|clustering_models|clustering_jobs|geography_zones`
+  + String.raw`|cible_indicator_registry|indicator_cp_values|dataset_abstention_2022)'\s*\)`
+  + String.raw`|rpc\(\s*'(get_voronoi[a-z_]*|get_battle_geometry|compte_poi_par_categorie|poi_count_by_categorie|get_poi_near_panneau|panneaux_near_point|count_poi_by_categorie_source|get_poi_categories|types_poi_clustering`
+  + String.raw`|get_civic_layer_geojson|get_indicator_threshold_selection|calculer_score_composite[a-z_]*|materialize_indicator_cp_values|etat_indicateur_cp|zone_seuil_territoire|alignement_par_maille_geo)'`,
 );
 
 const REGLE = /from '@\/lib\/auth\/(perimetre-donnees|getOrgSourceIds)'/;
@@ -61,6 +69,12 @@ const ASSUMEES = new Map<string, string>([
    + 'référentiel public) ; le jeu de zones est déjà contrôlé par org_id.'],
   ['app/api/zones/jeux/[id]/extractions/[version]/export/route.ts',
    'Même raison que l\'export du jeu : sites ICPE publics, jeu contrôlé par org_id.'],
+  ['lib/analyses/indicateurs.ts',
+   'Matérialisation d\'un indicateur (`assurerIndicateurCp`), appelée seulement par /api/analyses/score et '
+   + '/api/analyses/correlation, qui refusent un indicateur hors de `indicateursVisibles` AVANT de l\'appeler.'],
+  ['lib/zones/executer-recette.ts',
+   'La recette `seuil_territoire` refuse tout indicateur absent de `ctx.indicateurs` (absent = refus) ; son seul '
+   + 'appelant, `executerDansEspace` (lib/zones/session-zones.ts), le remplit par `indicateursVisiblesDeLaSession`.'],
   ['lib/clustering/lire-clusters.ts',
    'Lectures paginées de poi_clusters / poi_france pour les routes /api/poi-clusters, '
    + 'qui appellent reserverAuSuperAdmin AVANT (clustering réservé au super_admin, 2026-10-08).'],

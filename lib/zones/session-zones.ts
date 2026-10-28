@@ -6,6 +6,9 @@
  * l'écrit ; `getSessionOrg` lit le même champ). Le garde `requireAuth(` reste écrit DANS chaque route : c'est ce que
  * `tests/unit/api/routes-publiques.test.ts` reconnaît (arbitrage L3-7) ; `middleware.ts`, protégé, n'est pas touché.
  * Les sources de POI visibles : `getOrgSourceIds(…, { vueEspace: true })`, la règle de `sourcesVisiblesDeLaRequete`.
+ * Les indicateurs visibles (seuil sur territoires, sql/288) : `indicateursVisiblesDeLaSession`, la règle de
+ * `indicateursVisibles` — posée ICI, point de passage unique de la création, de l'aperçu et du recalcul, et non
+ * dans la RPC `zone_seuil_territoire` (plan du lot « Catalogue et groupes », T2).
  *
  * L'ORDRE est le contrat : profil → corps → recette → quota → SEULEMENT ALORS les sources et le calcul. Une requête
  * refusée (corps invalide, quota épuisé, zone figée ou citée) ne lit rien en base.
@@ -18,6 +21,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import type { UserProfile, createAdminClient } from '@/lib/auth';
 import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
+import { indicateursVisiblesDeLaSession } from '@/lib/auth/perimetre-donnees';
 import { createQuota } from '@/lib/api/rate-limit';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { executerRecette, type ContexteRecette, type IssueRecette } from './executer-recette';
@@ -84,7 +88,7 @@ export async function preparerRecette<S extends SchemaCorpsZone>(
 
 /**
  * Lit les sources visibles de l'espace — pour un rayon autour des POI SEULEMENT, la seule recette qui les emploie —
- * PUIS exécute la recette. Une recette calculée par le serveur (recalculable ou combinaison) ne reçoit jamais la
+ * et les indicateurs visibles — pour un seuil sur territoires seulement — PUIS exécute la recette. Une recette calculée par le serveur (recalculable ou combinaison) ne reçoit jamais la
  * géométrie du client (Review Focus 4) ; seule une forme figée la transmet (`exigeGeometrie`).
  */
 export async function executerDansEspace(
@@ -93,10 +97,10 @@ export async function executerDansEspace(
   recette: Recette,
   geometrie?: unknown,
 ): Promise<IssueRecette> {
-  const sources = recette.type === 'rayon_poi'
-    ? await getOrgSourceIds({ userId: espace.userId, orgId: espace.orgId, role: espace.role }, { vueEspace: true })
-    : null;
+  const session = { userId: espace.userId, orgId: espace.orgId, role: espace.role };
+  const sources = recette.type === 'rayon_poi' ? await getOrgSourceIds(session, { vueEspace: true }) : null;
   const ctx: ContexteRecette = { orgId: espace.orgId, sources: sources ?? [] };
+  if (recette.type === 'seuil_territoire') ctx.indicateurs = (await indicateursVisiblesDeLaSession(session)).visibles;
   if (exigeGeometrie(recette)) ctx.geometrie = geometrie;
   return executerRecette(supabase, recette, ctx);
 }

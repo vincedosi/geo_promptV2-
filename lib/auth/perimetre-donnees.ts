@@ -23,8 +23,9 @@
  */
 import { createHash } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
-import { getSessionOrg } from '@/lib/auth/getSessionOrg';
-import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
+import { createAdminClient } from '@/lib/auth';
+import { getSessionOrg, type SessionOrg } from '@/lib/auth/getSessionOrg';
+import { getOrgSourceIds, getSourcesPropresEspace } from '@/lib/auth/getOrgSourceIds';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -61,6 +62,57 @@ export async function reserverAuSuperAdmin(req: NextRequest): Promise<NextRespon
  */
 export async function sourcesVisiblesDeLaRequete(req: NextRequest): Promise<string[]> {
   return (await getOrgSourceIds(await getSessionOrg(req), { vueEspace: true })) ?? [];
+}
+
+/** Les indicateurs du registre qu'une session voit, et ceux qui sont PROPRES à son espace. */
+interface IndicateursVisibles {
+  /** Codes servis à l'appelant : référentiels du socle (sans source) + ceux dont la source est visible. */
+  visibles: Set<string>;
+  /** Sous-ensemble dont la source est privée à l'espace actif (possédée ou partagée) : « Données de l'espace ». */
+  propres: Set<string>;
+}
+
+/**
+ * LA règle des indicateurs servis (lot « Catalogue et groupes », sql/288) : un indicateur est visible s'il n'a pas de
+ * source (référentiel du socle) ou si sa source l'est — exactement la règle des jeux importés, appliquée au registre
+ * par `filtrerParSourcesVisibles(…, { referentiels: true })`. Aucune règle neuve : la ligne `data_sources` de
+ * l'indicateur porte socle / privé / partagé.
+ *
+ * Vue CARTE (`vueEspace`) : le super_admin voit comme son espace actif, comme partout hors /api/admin.
+ *
+ * Chaque route qui sert, calcule ou nomme un indicateur appelle cette fonction et répond à un code absent de
+ * `visibles` EXACTEMENT comme à un code inconnu — même statut, même message : on ne révèle pas qu'il existe.
+ *
+ * Coût : deux lectures de `data_sources` (une dizaine de lignes, 1 buffer) en parallèle, puis le registre (19 lignes,
+ * 1 buffer) — mesures dans le rapport T2. Une lecture en échec ferme : ensembles vides, tout indicateur se lit
+ * « inconnu ».
+ *
+ * @example
+ * const { visibles } = await indicateursVisibles(req);
+ * if (!visibles.has(code)) return NextResponse.json({ error: 'unknown_variable', code }, { status: 404 });
+ */
+export async function indicateursVisibles(req: NextRequest): Promise<IndicateursVisibles> {
+  return indicateursVisiblesDeLaSession(await getSessionOrg(req));
+}
+
+/**
+ * La même règle pour un appelant qui tient déjà sa session (les routes de zones : `lib/zones/session-zones.ts` lit
+ * l'espace dans le profil de `requireAuth`, sans requête à relire).
+ */
+export async function indicateursVisiblesDeLaSession(session: SessionOrg | null): Promise<IndicateursVisibles> {
+  const [sources, propres] = await Promise.all([
+    getOrgSourceIds(session, { vueEspace: true }),
+    getSourcesPropresEspace(session),
+  ]);
+  const requete = createAdminClient().from('cible_indicator_registry').select('indicator_code, data_source_id');
+  const { data, error } = await filtrerParSourcesVisibles(requete, sources ?? [], { referentiels: true });
+  if (error) return { visibles: new Set(), propres: new Set() };
+  const lignes = (data ?? []) as { indicator_code: string; data_source_id: string | null }[];
+  const ensemblePropres = new Set(propres);
+  return {
+    visibles: new Set(lignes.map((l) => l.indicator_code)),
+    propres: new Set(lignes.filter((l) => l.data_source_id && ensemblePropres.has(l.data_source_id)).map((l) => l.indicator_code)),
+  };
 }
 
 /**

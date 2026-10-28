@@ -8,10 +8,14 @@
  * Sortie : GeoJSON FeatureCollection { features: [{ geometry, properties: {code_postal, value, inscrits, code_dept} }] }
  *
  * Cache 1h (data publique stable). Gzip côté Next.js.
+ *
+ * Depuis sql/288 : l'abstention peut être privée à un espace. Un code invisible de l'espace actif répond comme un
+ * code inconnu (404 `unknown_variable`) — on ne révèle pas qu'il existe.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { indicateursVisibles } from '@/lib/auth/perimetre-donnees';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +30,7 @@ export async function GET(
   if (!profile) return authUnauthorized();
 
   const { code } = await params;
-  if (!SUPPORTED.has(code)) {
+  if (!SUPPORTED.has(code) || !(await indicateursVisibles(request)).visibles.has(code)) {
     return NextResponse.json({ error: 'unknown_variable', code }, { status: 404 });
   }
 

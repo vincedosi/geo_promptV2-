@@ -40,7 +40,9 @@ class FauxClient {
   }
 }
 
-const ctx = { orgId: ORG, sources: ['s1'] };
+const ctx: { orgId: string; sources: string[]; indicateurs?: ReadonlySet<string> } = {
+  orgId: ORG, sources: ['s1'], indicateurs: new Set(['taux_pauvrete']),
+};
 const exec = (r: Recette, c: Partial<typeof ctx & { geometrie: unknown }> = {}) =>
   executerRecette(new FauxClient() as never, r, { ...ctx, ...c });
 
@@ -129,6 +131,18 @@ describe('executerRecette', () => {
     reponses.zone_rayon_poi = { data: { refus: 'refus_pas_prevu' }, error: null };
     const r = await exec({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 5000, perimetre: PER });
     expect(r).toEqual({ ok: false, statut: 500, refus: null, message: 'Calcul de la zone impossible.' });
+  });
+
+  it('seuil sur territoires, indicateur invisible de l’espace (sql/288) : refusé comme un inconnu, SANS appel', async () => {
+    const SEUIL = { v: 1, type: 'seuil_territoire', indicateur: 'abstention_pres_2022', operateur: '>=', seuil: 30, perimetre: PER } as const;
+    const attendu = { ok: false, statut: 422, refus: 'indicateur_inconnu', message: MESSAGES_REFUS.indicateur_inconnu };
+    expect(await exec(SEUIL)).toEqual(attendu);
+    // Sans liste d'indicateurs : fermé par défaut.
+    expect(await exec({ ...SEUIL, indicateur: 'taux_pauvrete' }, { indicateurs: undefined })).toEqual(attendu);
+    expect(appels).toEqual([]);
+    // Même réponse que la RPC sur un code inconnu : `{ refus: 'indicateur_inconnu' }` → 422, même message.
+    reponses.zone_seuil_territoire = { data: { refus: 'indicateur_inconnu' }, error: null };
+    expect(await exec({ ...SEUIL, indicateur: 'taux_pauvrete' })).toEqual(attendu);
   });
 
   it('forme vide : 409 « forme_vide », jamais une zone sans surface', async () => {

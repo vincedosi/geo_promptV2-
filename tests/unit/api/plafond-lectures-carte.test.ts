@@ -139,6 +139,8 @@ vi.mock('@/lib/civic-health/provider', () => ({ getProvider: () => ({ name: 'auc
 vi.mock('@/lib/auth/perimetre-donnees', () => ({
   sourcesVisiblesDeLaRequete: async () => null,
   filtrerParSourcesVisibles: (q: unknown) => q,
+  // Le score accepte un indicateur visible (sql/288) ; ce test porte sur le plafond, pas sur les droits.
+  indicateursVisibles: async () => ({ visibles: { has: () => true }, propres: new Set() }),
 }));
 
 const ooh = await import('@/app/api/map/ooh/route');

@@ -23,6 +23,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { indicateursVisibles } from '@/lib/auth/perimetre-donnees';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { pearson, type PaireAppariee } from '@/lib/analyses/correlation';
@@ -81,7 +82,8 @@ export async function GET(request: NextRequest) {
     console.error('[GET /api/analyses/correlation] registre:', erreurRegistre.message);
     return NextResponse.json({ error: 'Erreur base de données.' }, { status: 500 });
   }
-  if (!meta) {
+  // Un indicateur invisible de l'espace actif (sql/288) se répond comme un inconnu.
+  if (!meta || !(await indicateursVisibles(request)).visibles.has(variable)) {
     return NextResponse.json({ error: `Indicateur inconnu ou inactif : ${variable}.` }, { status: 400 });
   }
 

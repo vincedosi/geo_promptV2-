@@ -1243,6 +1243,33 @@ Outils de `lib/auth/perimetre-donnees.ts` :
 
 - `filtrerParSourcesVisibles(q, sources, { referentiels })` — restreint une
   requete ; `referentiels: true` laisse passer les lignes sans source.
+- `indicateursVisibles(req)` / `indicateursVisiblesDeLaSession(session)` (lot
+  « Catalogue et groupes », T2, 2026-10-28) — LA regle des indicateurs servis :
+  `{ visibles, propres }`, ensembles de codes de `cible_indicator_registry`.
+  Visible = sans source (referentiel du socle) ou source visible
+  (`getOrgSourceIds` vue espace + `filtrerParSourcesVisibles(…, { referentiels:
+  true })` sur `data_source_id`, sql/288) ; propre = source privee a l'espace
+  actif (`getSourcesPropresEspace`). Aucune regle neuve. Echec de lecture →
+  ensembles vides (ferme). Chaque route qui sert, calcule ou nomme un indicateur
+  repond a un code hors de `visibles` EXACTEMENT comme a un code inconnu :
+  `cibles/indicators` (filtre + `origine`), `insee-variables/[code]/geojson`
+  (404 `unknown_variable`), `cibles/preview` (400 `preview_failed`),
+  `custom-geo/source/indicator-threshold` (400 `selection_failed`),
+  `custom-geo/source/score` (400 `indicateur_inconnu`), `analyses/score` et
+  `analyses/correlation` (400 « Indicateur inconnu ou inactif »),
+  `bidding/strategies` POST et `[id]` PATCH (422 `indicator_not_ready`, AVANT
+  toute ecriture), `alignement/maille/map` (« aucune variable »,
+  `p_variable_code` nul), recette `seuil_territoire` (422
+  `indicateur_inconnu`, controle dans `executerDansEspace` —
+  `lib/zones/session-zones.ts`, point de passage unique de l'apercu, de la
+  creation et du recalcul — via `ContexteRecette.indicateurs`, jamais dans la
+  RPC). `tests/unit/securite/perimetre-routes.test.ts` inscrit les tables
+  (`cible_indicator_registry`, `indicator_cp_values`,
+  `dataset_abstention_2022`) et RPC d'indicateurs dans `LECTURE_CLIENT` ;
+  `tests/integration/indicateurs-privables.test.ts` verrouille l'acces croise
+  (abstention privee a Bercy, vue de BMW, d'un super_admin dans BMW, et de
+  Bercy). Cout : deux lectures de `data_sources` en parallele (4 buffers et
+  1 buffer, < 0,1 ms) puis le registre (1 buffer, 0,04 ms) — mesure du 28/10.
 - `empreintePerimetre(sources)` — a mettre dans **toute cle de cache** d'un
   resultat calcule sur des POI (battle, isochrones du chat) : sans elle, la
   battle d'un super_admin sur toutes les concessions etait resservie a la
@@ -1802,7 +1829,7 @@ le Voronoi, a sa route directe `GET /api/voronoi` (lot 4).
 | Route | Methode | Description |
 |-------|---------|-------------|
 | `/api/campaigns/[campaignId]/channels` | GET/PUT | Canaux de diffusion d'une campagne (DSP / reseaux / ad server). Catalogue = `dsp_channel_registry`, « connecte » = `dsp_connections` de l'org ; persiste dans `geo_strategy.channels`. PUT (`ChannelsPutSchema`, `lib/campaigns/channels.ts`) : selection + `budgets`, **`cpm_prevus`** (lot 6, T1, A-10 : CPM prevu en euros par canal DSP/social, meme schema que `budgets`) et `links`, tous facultatifs ; fusion NON destructive (une sous-cle absente du corps garde sa valeur) et elagage au retrait d'un canal (`pruneBudgets`, applique aux budgets comme aux CPM). Les impressions prevues ne sont PAS stockees : elles se derivent (budget ÷ CPM × 1 000). GET rend `selected` tel quel, donc `cpm_prevus` compris |
-| `/api/cibles/indicators` | GET | Catalogue des indicateurs ciblables (`cible_indicator_registry`) |
+| `/api/cibles/indicators` | GET | Catalogue des indicateurs ciblables (`cible_indicator_registry`). Depuis le 2026-10-28 (lot « Catalogue et groupes », T2, A-6) : les SEULS indicateurs visibles de l'espace actif (`indicateursVisibles`), chacun avec **`origine`** — `espace` si sa source est privee a l'espace (possedee ou partagee), `commune` sinon ; React ignore ce champ |
 | `/api/cibles/preview` | GET | Apercu `count` / population d'un seuil (`?indicator=&operator=&threshold=`) — COUNT indexe, **jamais de geometrie** : c'est ce qui rend l'apercu utilisable a chaque mouvement de curseur |
 | `/api/bidding/strategies` | GET/POST | Strategies de bidding accessibles a l'espace (proprietaire ou liee ; super_admin : toutes), la plus recente d'abord ; POST cree une strategie (wizard React). **`?campaign_id=<uuid>` (lot 6, relecture 1)** : la SEULE plus recente de cette campagne (`.eq('campaign_id').limit(1)`, filtre d'espace inchange ; non UUID → 400) — l'etape ⑥ n'en cherche qu'une, et la liste d'un espace peut depasser `db-max-rows` (1 000) en silence. Sans le parametre, la liste d'avant, inchangee |
 | `/api/bidding/strategies/drafts` | GET/POST | Brouillons de strategie de l'utilisateur courant (`consumed_at IS NULL`) ; POST = upsert appele par l'autosave du wizard |

@@ -34,6 +34,7 @@ import { z } from 'zod';
 import { sourceDuPlan } from '@/lib/campagne/source-plan';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { indicateursVisibles } from '@/lib/auth/perimetre-donnees';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { rpcJson } from '@/lib/supabase/rpc-json';
@@ -149,16 +150,22 @@ export async function GET(
 
   // Variable par défaut = celle de la stratégie, jamais une constante
   // recopiée. `?variable=` la surcharge.
-  let variableCode = variable;
+  let variableCode: string | null = variable ?? null;
   if (!variableCode) {
     variableCode = source.type === 'indicateur' ? source.code : VARIABLE_DEFAUT;
   }
+  // Un indicateur invisible de l'espace actif (sql/288) — demandé, celui du plan ou le repli sur l'abstention — donne
+  // « aucune variable » (valeurs nulles), jamais une erreur : la vignette d'impressions et l'alignement restent dus.
+  if (!(await indicateursVisibles(request)).visibles.has(variableCode)) variableCode = null;
 
   const { data, error } = await supabase.rpc('alignement_par_maille_geo', {
     p_campaign_id: campaignId,
     p_maille: maille,
     p_parent: parent,
-    p_variable_code: variableCode,
+    // `null` et non `undefined` : omis, l'argument retomberait sur son défaut SQL, `abstention_pres_2022` — celui
+    // qu'on vient peut-être de refuser. Les types générés ne connaissent pas `null` pour un argument ; la fonction le
+    // reçoit (aucune ligne d'`indicator_cp_values` ne joint : `variable_valeur` nulle partout).
+    p_variable_code: variableCode as string,
     p_bbox_xmin: bboxEffective[0],
     p_bbox_ymin: bboxEffective[1],
     p_bbox_xmax: bboxEffective[2],
