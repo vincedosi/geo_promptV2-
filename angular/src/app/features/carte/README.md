@@ -86,9 +86,38 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 - **La ligne** `mg-ligne-jeu` : nom, nature · maille, pastille « affiché », puis une case (type de POI — « Afficher
   les POI » reste un geste) ou un chevron qui déplie la section `integre` (en-tête masqué, contenu ouvert), instanciée
   seulement dépliée.
-- **Ce que la première visite lit** : `GET /api/map/categories` et `GET /api/map/jeux-recommandes`, rien d'autre —
-  aucun calque ni tuile avant un geste. La sélection se règle dans Accès › fiche espace › Données
+- **Ce que la première visite lit** : `GET /api/map/categories`, `GET /api/map/jeux-recommandes` et, depuis le lot
+  « Catalogue et groupes » (A-7), le catalogue des indicateurs `GET /api/cibles/indicators` par
+  `CatalogueIndicateursService` (fourni par la page, partagé avec ③ « Par seuil » et ④ : UNE lecture par page, testée
+  dans `carte.page.spec.ts` — rien au montage sur ①, une à la 1ʳᵉ visite de ②, aucune de plus sur ③ et ④). Rien
+  d'autre — aucun calque ni tuile avant un geste. La sélection se règle dans Accès › fiche espace › Données
   (`mg-jeux-recommandes`) ; une recommandation range, elle ne donne ni ne retire aucun droit.
+
+### ② rangée par les droits, fiche d'un jeu (lot « Catalogue et groupes », T5-T6, 2026-10-28)
+
+- **Un indicateur privable suit les droits de sa source** (sql/288 : ligne `data_sources` de type `indicateur`).
+  `jeuxDeLaCarte(types, indicateurs)` (`logique/rangement-jeux.ts`) : un référentiel qui déclare des `indicateurs`
+  (aujourd'hui `civique:indicateurs-cp` → `abstention_pres_2022`) est **retiré** si aucun n'est dans le catalogue,
+  rangé dans « Données de l'espace » si l'un a `origine: 'espace'`, laissé dans les données communes sinon. Tant que
+  le catalogue n'est pas arrivé, ou s'il échoue, la ligne reste (affichage seulement : la route ne sert de toute
+  façon que les indicateurs visibles ; « pas de clignotement »).
+- **Fiche** : chaque ligne porte un bouton « i » (`data-bouton-fiche`, « Fiche du jeu <nom> », `aria-expanded`,
+  `aria-controls`) qui déplie `mg-fiche-jeu` (`panneaux/donnees/fiche-jeu.component.ts`) sous la ligne :
+  « Propriétaire · Niveau · Effectif · Importé le » par source, ou « Socle dentsu.explore, référentiel système ».
+  `GET /api/map/catalogue/fiche?cle=` à la PREMIÈRE ouverture seulement, puis `CacheFichesJeu` (fourni par ②, survit
+  à une ligne détruite par la recherche ou le repli « POI communs ») ; fermée = aucune lecture ; 404 → « Ce jeu n'est
+  plus disponible dans cet espace. » ; autre échec → message et « Réessayer ».
+- **Écart React (assumé, fichiers gelés non modifiés)** : React reçoit le même catalogue filtré par
+  `GET /api/cibles/indicators` (il ignore `origine`), mais sa section civique propose l'abstention en dur
+  (`app/map/_components/filter-panel/CivicIndicatorsSection.tsx`) : dans un espace qui ne la voit pas, la choisir fait
+  répondre `GET /api/insee-variables/abstention_pres_2022/geojson` en 404 (comme un code inconnu) et
+  `CivicIndicatorsLayer.tsx` tombe dans son état d'erreur — échec journalisé en console, rien n'est peint. Aucune
+  valeur ne fuit : le refus est serveur.
+- **Dupliqué par construction** (React / Angular, verrouillé par parité, jamais factorisable entre les deux
+  applications) : le type `TypeJeu` (`'panneaux' | 'poi' | 'carreaux' | 'indicateur'`, `espaces-types-paritaires`)
+  le registre `JEUX_REFERENTIELS` avec son champ `indicateurs` (`jeux-carte-paritaire`), et la forme de la fiche
+  (`FicheJeu`, `SourceFicheJeu`, `NiveauSourceFiche` de `data/carte.api.ts` ↔ `lib/carte/fiche-jeu.ts`,
+  `fiche-jeu-types-paritaires`, ajouté en T6).
 
 ## ③ Zones à recette : la plomberie (lot 3, T9, 2026-10-15)
 
