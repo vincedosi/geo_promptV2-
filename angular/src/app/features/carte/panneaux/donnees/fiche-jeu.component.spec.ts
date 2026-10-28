@@ -72,13 +72,41 @@ describe('FicheJeuComponent — la fiche d’un jeu de ② (A-8)', () => {
     expect(el.querySelectorAll('[data-source]')).toHaveLength(1);
   });
 
-  it('référentiel : « Socle dentsu.explore, référentiel système », niveau partagé, date absente « — »', async () => {
+  it('référentiel porté par une source privée ou partagée : pas de « Socle », seule la provenance réelle (D1)', async () => {
     const { el, rendre, hote } = monter(() => of(FICHE_CIVIQUE));
     hote.cle.set('civique:indicateurs-cp');
     hote.ouvert.set(true);
     await rendre();
-    expect(texte(el.querySelector('[data-referentiel]'))).toBe('Socle dentsu.explore, référentiel système');
+    expect(el.querySelector('[data-referentiel]')).toBeNull();
     expect(texte(el.querySelector('[data-source]'))).toContain(`Bercy · Partagé · ${normaliser(formaterNombre(6186))} · —`);
+  });
+
+  it('référentiel privé (abstention chez Bercy) : pas de « Socle » au-dessus de « Bercy · Privé » (D1)', async () => {
+    const prive: FicheJeu = { ...FICHE_CIVIQUE, sources: [{ ...FICHE_CIVIQUE.sources[0], niveau: 'prive' }] };
+    const { el, rendre, hote } = monter(() => of(prive));
+    hote.cle.set('civique:indicateurs-cp');
+    hote.ouvert.set(true);
+    await rendre();
+    expect(el.querySelector('[data-referentiel]')).toBeNull();
+    expect(texte(el.querySelector('[data-source]'))).toContain('Bercy · Privé');
+  });
+
+  it('référentiel au socle (source de niveau socle) : « Socle dentsu.explore, référentiel système »', async () => {
+    const socle: FicheJeu = { ...FICHE_CIVIQUE, sources: [{ ...FICHE_CIVIQUE.sources[0], proprietaire: 'dentsu.explore (interne)', niveau: 'socle' }] };
+    const { el, rendre, hote } = monter(() => of(socle));
+    hote.cle.set('civique:indicateurs-cp');
+    hote.ouvert.set(true);
+    await rendre();
+    expect(texte(el.querySelector('[data-referentiel]'))).toBe('Socle dentsu.explore, référentiel système');
+  });
+
+  it('référentiel sans source (IRIS, carreaux) : « Socle dentsu.explore, référentiel système »', async () => {
+    const { el, rendre, hote } = monter(() => of({ cle: 'iris', referentiel: true, sources: [] }));
+    hote.cle.set('iris');
+    hote.ouvert.set(true);
+    await rendre();
+    expect(texte(el.querySelector('[data-referentiel]'))).toBe('Socle dentsu.explore, référentiel système');
+    expect(el.querySelector('[data-source]')).toBeNull();
   });
 
   it('404 → « Ce jeu n’est plus disponible dans cet espace. », sans « Réessayer »', async () => {

@@ -29,7 +29,8 @@ type EtatFiche = 'repos' | 'lecture' | 'prete' | 'introuvable' | 'erreur';
  * La fiche d'un jeu de ② (lot « Catalogue et groupes », A-8 ; spec § 7.1, outil « Fiche » de § 6) : dépliée SOUS la
  * ligne par son bouton « i » (`mg-ligne-jeu`), au lieu d'un outil de plus dans la boîte à outils.
  *
- * Contenu : pour un référentiel, « Socle dentsu.explore, référentiel système » ; puis une ligne par source qui porte le
+ * Contenu : pour un référentiel au socle (sans source, ou avec une source de niveau socle), « Socle dentsu.explore,
+ * référentiel système » ; puis une ligne par source qui porte le
  * jeu — « Propriétaire · Niveau · Effectif · Importé le » (niveau vu de l'espace actif, effectif = `valid_count`,
  * chiffres par `formaterNombre`, date en `fr-FR`).
  *
@@ -88,7 +89,16 @@ export class FicheJeuComponent {
 
   protected readonly etat = signal<EtatFiche>('repos');
   private readonly fiche = signal<FicheJeu | null>(null);
-  protected readonly referentiel = computed(() => this.fiche()?.referentiel ?? false);
+  /**
+   * « Socle dentsu.explore » ne s'écrit que si c'est vrai : un référentiel sans source (IRIS, carreaux), ou porté par au
+   * moins une source de niveau `socle`. Un référentiel dont toutes les sources visibles sont privées ou partagées
+   * (l'abstention transférée à Bercy) ne montre que sa provenance réelle (D1 de la preuve navigateur).
+   */
+  protected readonly referentiel = computed(() => {
+    const f = this.fiche();
+    if (!f?.referentiel) return false;
+    return f.sources.length === 0 || f.sources.some((s) => s.niveau === 'socle');
+  });
   protected readonly sources = computed<LigneSource[]>(() => (this.fiche()?.sources ?? []).map((s) => ({
     nom: s.nom,
     valeurs: `${s.proprietaire} · ${LIBELLE_NIVEAU[s.niveau] ?? s.niveau} · ${formaterNombre(s.effectif)} · ${dateFr(s.importe_le)}`,
