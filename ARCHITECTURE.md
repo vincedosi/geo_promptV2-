@@ -1258,14 +1258,20 @@ Outils de `lib/auth/perimetre-donnees.ts` :
   `custom-geo/source/score` (400 `indicateur_inconnu`), `analyses/score` et
   `analyses/correlation` (400 « Indicateur inconnu ou inactif »),
   `bidding/strategies` POST et `[id]` PATCH (422 `indicator_not_ready`, AVANT
-  toute ecriture), `alignement/maille/map` (« aucune variable »,
+  toute ecriture), `bidding/strategies/[id]/export` (indicateur non lu → meme
+  chemin qu'un code inconnu : 422 `indicator_not_materialized` s'il y a une
+  courbe ; relecture T1-T3), `alignement/maille/map` (« aucune variable »,
   `p_variable_code` nul), recette `seuil_territoire` (422
   `indicateur_inconnu`, controle dans `executerDansEspace` —
   `lib/zones/session-zones.ts`, point de passage unique de l'apercu, de la
   creation et du recalcul — via `ContexteRecette.indicateurs`, jamais dans la
   RPC). `tests/unit/securite/perimetre-routes.test.ts` inscrit les tables
   (`cible_indicator_registry`, `indicator_cp_values`,
-  `dataset_abstention_2022`) et RPC d'indicateurs dans `LECTURE_CLIENT` ;
+  `dataset_abstention_2022`, reconnues en LITTERAL QUELCONQUE et non plus
+  seulement dans `from('…')` — l'export les lisait par une constante) et les
+  RPC d'indicateurs (dont `materialiser_indicateur_cp`,
+  `correlation_campagne_indicateur`, `apply_zone_weights_to_strategy`) dans
+  `LECTURE_CLIENT` ; il verifie l'IMPORT de la regle, pas son appel ;
   `tests/integration/indicateurs-privables.test.ts` verrouille l'acces croise
   (abstention privee a Bercy, vue de BMW, d'un super_admin dans BMW, et de
   Bercy). Cout : deux lectures de `data_sources` en parallele (4 buffers et

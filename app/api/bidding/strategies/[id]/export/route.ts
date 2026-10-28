@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { indicateursVisibles } from '@/lib/auth/perimetre-donnees';
 import { checkStrategyAccess } from '@/lib/campaigns/access';
 import { interpolateOnCurve } from '@/lib/strategy-wizard/multiplier';
 import { resolveWeightingTarget } from '@/lib/bidding/metric-labels';
@@ -114,8 +115,12 @@ export async function GET(
   // les `.eq()` ci-dessous.
   const variableCode = target.variableCode;
   if (variableCode) {
+    // Un indicateur invisible de l'espace actif (sql/288 : privé à un autre espace, même s'il était au socle quand la
+    // stratégie a été créée) n'est PAS lu : l'export suit alors exactement le chemin d'un code inconnu — aucune
+    // valeur, donc `indicator_not_materialized` (422) s'il y a une courbe.
+    const visible = (await indicateursVisibles(request)).visibles.has(variableCode);
     const source = INDICATOR_SOURCE;
-    if (zoneCps) {
+    if (visible && zoneCps) {
       for (let i = 0; i < zoneCps.length; i += CHUNK) {
         const { data, error } = await supabase
           .from(source.table)
@@ -127,7 +132,7 @@ export async function GET(
           values[String(r[source.cpCol])] = Number(r[source.valCol]);
         }
       }
-    } else {
+    } else if (visible) {
       // Pages triées sur `postal_code` : avec `indicator_code` fixé, c'est la
       // clé primaire (indicator_code, postal_code), donc un ordre TOTAL, servi
       // par l'index sans tri. Sans `order()` (jusqu'au 2026-10-11), rien ne

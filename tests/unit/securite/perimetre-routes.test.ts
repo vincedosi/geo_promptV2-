@@ -38,12 +38,20 @@ const RACINE = process.cwd();
  * Depuis sql/288 (2026-10-28, lot « Catalogue et groupes »), un INDICATEUR peut être privé à un espace : le registre,
  * ses valeurs matérialisées, la table de l'abstention et chaque RPC qui calcule sur un indicateur en font partie.
  * Ces lectures passent par `indicateursVisibles` (perimetre-donnees.ts).
+ *
+ * Les trois tables d'indicateurs sont reconnues en LITTÉRAL QUELCONQUE, pas seulement dans `from('…')` : l'export de
+ * stratégie écrivait `const SOURCE = { table: 'indicator_cp_values' }` puis `.from(SOURCE.table)`, et lisait les
+ * valeurs d'un indicateur privé sans que ce verrou le voie (relecture T1-T3, n° 1 et 3).
+ *
+ * ⚠ Le verrou vérifie que le fichier IMPORTE la règle, pas qu'il l'APPELLE au bon endroit : c'est à la relecture et
+ * aux tests d'accès croisé (tests/integration/indicateurs-privables.test.ts) de le prouver.
  */
 const LECTURE_CLIENT = new RegExp(
-  String.raw`from\(\s*'(poi_france|panneaux_affichage|isochrones_cache|poi_clusters|poi_cluster_history|clustering_models|clustering_jobs|geography_zones`
-  + String.raw`|cible_indicator_registry|indicator_cp_values|dataset_abstention_2022)'\s*\)`
+  String.raw`from\(\s*'(poi_france|panneaux_affichage|isochrones_cache|poi_clusters|poi_cluster_history|clustering_models|clustering_jobs|geography_zones)'\s*\)`
+  + String.raw`|'(cible_indicator_registry|indicator_cp_values|dataset_abstention_2022)'`
   + String.raw`|rpc\(\s*'(get_voronoi[a-z_]*|get_battle_geometry|compte_poi_par_categorie|poi_count_by_categorie|get_poi_near_panneau|panneaux_near_point|count_poi_by_categorie_source|get_poi_categories|types_poi_clustering`
-  + String.raw`|get_civic_layer_geojson|get_indicator_threshold_selection|calculer_score_composite[a-z_]*|materialize_indicator_cp_values|etat_indicateur_cp|zone_seuil_territoire|alignement_par_maille_geo)'`,
+  + String.raw`|get_civic_layer_geojson|get_indicator_threshold_selection|calculer_score_composite[a-z_]*|materialize_indicator_cp_values|etat_indicateur_cp|zone_seuil_territoire|alignement_par_maille_geo`
+  + String.raw`|materialiser_indicateur_cp|correlation_campagne_indicateur|apply_zone_weights_to_strategy)'`,
 );
 
 const REGLE = /from '@\/lib\/auth\/(perimetre-donnees|getOrgSourceIds)'/;
@@ -75,6 +83,9 @@ const ASSUMEES = new Map<string, string>([
   ['lib/zones/executer-recette.ts',
    'La recette `seuil_territoire` refuse tout indicateur absent de `ctx.indicateurs` (absent = refus) ; son seul '
    + 'appelant, `executerDansEspace` (lib/zones/session-zones.ts), le remplit par `indicateursVisiblesDeLaSession`.'],
+  ['lib/donnees/registre-fraicheur.ts',
+   'Descripteurs de la page Fraîcheur (administration, /api/admin/fraicheur-donnees) : le nom de table sert à mesurer '
+   + 'une DATE d\'ingestion (max(computed_at)), jamais une valeur d\'indicateur.'],
   ['lib/clustering/lire-clusters.ts',
    'Lectures paginées de poi_clusters / poi_france pour les routes /api/poi-clusters, '
    + 'qui appellent reserverAuSuperAdmin AVANT (clustering réservé au super_admin, 2026-10-08).'],

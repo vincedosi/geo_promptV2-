@@ -32,6 +32,7 @@ const civique = await import('@/app/api/insee-variables/[code]/geojson/route');
 const score = await import('@/app/api/analyses/score/route');
 const correlation = await import('@/app/api/analyses/correlation/route');
 const apercuZone = await import('@/app/api/zones/apercu/route');
+const exportStrategie = await import('@/app/api/bidding/strategies/[id]/export/route');
 const sb = creerClientTest();
 
 const CODE = 'abstention_pres_2022';
@@ -93,6 +94,7 @@ const INCONNU = 'indicateur_qui_n_existe_pas';
 const ids: Record<'bercy' | 'bmw', string> = { bercy: '', bmw: '' };
 let origine: { visibilite: string; organization_id: string | null } | null = null;
 let campagne = '';
+let strategie = '';
 
 /** Un compte simulé par rôle et par espace : le quota d'appels (compteur en base) ne se partage pas entre eux. */
 function session(espace: 'bercy' | 'bmw', role: 'client' | 'super_admin' = 'client') {
@@ -151,10 +153,21 @@ describe('l abstention privée à Bercy : invisible ailleurs, comme un indicateu
     if (ec) throw new Error(ec.message);
     campagne = (c?.id as string | undefined) ?? '';
 
+    // Une stratégie à courbe bâtie sur l'abstention (relecture T1-T3, n° 1) : son export ne doit plus la lire.
+    const { data: st, error: es } = await sb.from('bidding_strategies').select('id')
+      .eq('in_zone_weights->>variable_code', CODE).not('in_zone_weights->curve', 'is', null).limit(1).maybeSingle();
+    if (es) throw new Error(es.message);
+    strategie = (st?.id as string | undefined) ?? '';
+
     const { data: avant, error: ea } = await sb.from('data_sources')
       .select('visibilite, organization_id').eq('id', idAbstention).single();
     if (ea || !avant) throw new Error(`lecture de la source : ${ea?.message}`);
     origine = avant as typeof origine;
+    // Un passage précédent tué avant son `afterAll` aurait laissé l'abstention privée : la relire comme « origine »
+    // perpétuerait l'écart. On refuse de démarrer.
+    if (origine?.visibilite !== 'socle') {
+      throw new Error('l abstention n est pas au socle : remettez-la au socle (Accès › Socle) avant ce test');
+    }
     const { error: eu } = await sb.from('data_sources')
       .update({ visibilite: 'privee', organization_id: ids.bercy }).eq('id', idAbstention);
     if (eu) throw new Error(`passage à Bercy : ${eu.message}`);
@@ -184,6 +197,7 @@ describe('l abstention privée à Bercy : invisible ailleurs, comme un indicateu
     session('bmw');
     const refuse = await lancerScore(CODE);
     expect(refuse.statut).toBe(400);
+    expect(refuse.erreur).toMatch(/Indicateur inconnu/);
     expect(refuse).toEqual(await lancerScore(INCONNU));
   });
 
@@ -200,7 +214,22 @@ describe('l abstention privée à Bercy : invisible ailleurs, comme un indicateu
     expect(campagne, 'une campagne en base locale pour la corrélation').not.toBe('');
     const refuse = await lancerCorrelation(CODE);
     expect(refuse.statut).toBe(400);
+    expect(refuse.erreur).toMatch(/Indicateur inconnu/);
     expect(refuse).toEqual(await lancerCorrelation(INCONNU));
+  });
+
+  it('super_admin dans l espace BMW : l export de stratégie ne lit pas l abstention (422, comme un code inconnu)', async () => {
+    expect(strategie, 'une stratégie à courbe sur l abstention en base locale').not.toBe('');
+    const exporter = () => exportStrategie.GET(
+      new NextRequest(`http://localhost:3000/api/bidding/strategies/${strategie}/export?channel=dv360`),
+      { params: Promise.resolve({ id: strategie }) },
+    );
+    session('bmw', 'super_admin');
+    const refuse = await exporter();
+    expect(refuse.status).toBe(422);
+    expect(await refuse.json()).toEqual({ error: 'indicator_not_materialized', variable: CODE });
+    session('bercy', 'super_admin');
+    expect((await exporter()).status).toBe(200);
   });
 
   it('Bercy : le catalogue la rend, rangée « espace » ; la couche civique répond', async () => {
@@ -211,5 +240,7 @@ describe('l abstention privée à Bercy : invisible ailleurs, comme un indicateu
     const civ = await lireCivique(CODE);
     expect(civ.statut).toBe(200);
     expect(civ.corps.type).toBe('FeatureCollection');
+    // Contrôle positif : le refus de BMW vient bien de la visibilité, pas d'une étape antérieure.
+    expect((await lancerScore(CODE)).statut).toBe(200);
   });
 });
