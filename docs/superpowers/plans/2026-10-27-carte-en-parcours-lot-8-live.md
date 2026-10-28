@@ -2,163 +2,185 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development (ou superpowers:executing-plans). Skill `porting-react-to-angular` chargé AVANT chaque tâche Angular. Cases à cocher (`- [ ]`) pour le suivi.
 
-**Mode accéléré (Vincent, 24/10) :** 6 tâches en 3 groupes, **un implémenteur et une relecture par groupe**, seuls les défauts Critiques et Importants corrigés au fil de l'eau (les mineurs vont à T6), **une seule preuve navigateur**, en T6. Cible : **≈ 3 jours**.
+**Révisé le 28/10 avec les réponses de Vincent** (Q-1 à Q-7 de la version du 27/10, tableau « Décisions du 28/10 » plus bas). Objectif de Vincent : **aller le plus loin possible dans le fil d'Ariane, sans démo** — aucune simulation, aucun mode démo, aucune donnée de démonstration en base.
 
-**Goal :** à l'étape ⑧ de la carte Angular, pour la campagne courante lancée en ⑥ depuis une extraction, montrer **les impressions livrées contre prévues et la dépense, par plateforme et par territoire, à la maille que la plateforme rapporte** (CP pour DV360, région pour Meta et TikTok, dite à l'écran), le **rythme** (temps écoulé / budget dépensé / volume livré), les alertes **retard** et **zone sous-livrée**, le **CPM réel contre prévu** — avec un bouton qui **relève les livraisons** par une couche d'adaptateurs par plateforme, aujourd'hui alimentée par la **seule simulation** (aucune API de plateforme n'est branchable, voir pré-vol).
+**Mode accéléré (Vincent, 24/10) :** 10 tâches en 3 groupes et une revue finale, **un implémenteur et une relecture par groupe**, seuls les défauts Critiques et Importants corrigés au fil de l'eau (les mineurs vont à T10), **une seule preuve navigateur**, en T10. Cible : **≈ 5 jours**.
 
-**Architecture :** une table d'atterrissage neuve `livraison_plateformes` (un jour × une plateforme × une unité de rapport), écrite par des **adaptateurs** (`lib/optimisation/adaptateurs/`, contrat `lireLivraison(campagne, jour)`) ; un **noyau pur** (`lib/optimisation/noyau/`) qui recalcule le prévu par plateforme et par unité depuis `geo_strategy.channels` et l'extraction (spec § 19.4), puis l'écart, le rythme, l'alignement et les alertes ; une RPC `jsonb` d'agrégats ; deux routes (`GET …/live`, `POST …/live/relever`). Côté Angular : un panneau `mg-panneau-live` (port allégé de `SuiviV2`), un service `LiveCampagneService` fourni par la page, la grande carte peinte par les contours déjà partagés (`ContoursZonesService`). **Le navigateur ne calcule rien** : il filtre et met en forme un payload déjà chiffré par le serveur.
+**Goal :** à l'étape ⑧ de la carte Angular, pour la campagne courante lancée en ⑥ depuis une extraction, montrer **les impressions livrées contre prévues et la dépense, par plateforme et par territoire**, remontées par les **vraies API** de DV360 (Bid Manager reporting), Meta (Insights) et TikTok (Reporting), **mises à jour chaque matin** par une tâche Inngest ; le **rythme** (temps / budget / volume), les alertes **retard** et **zone sous-livrée**, le **CPM réel contre prévu** ; une **vue de retard en descente** (région → département → CP), plafonnée à la maille que la plateforme rapporte, sur la grande carte et dans une liste des territoires les plus en retard. **Sans plateforme connectée, un état vide honnête** : « Aucune donnée remontée — plateforme non connectée. »
 
-**Tech Stack :** Angular 21.2 standalone, zoneless, signals ; Tailwind 4 ; ECharts modulaire (`src/app/graphiques/`) ; Vitest (`cd angular && npx ng test --watch=false`). Next.js 15, supabase-js, Zod, Vitest racine (`npm run test:unit`, `npm run test:integration`). Postgres 17.6 local (`docker exec supabase_db_genesis_app psql -U postgres`).
+**Architecture :** une table d'atterrissage `livraison_plateformes` (jour × plateforme × unité de rapport), écrite par des **adaptateurs réels** (`lib/optimisation/adaptateurs/{dv360,meta,tiktok}.ts`, contrat `lireLivraison(campagne, jour)`) qui réutilisent les clients et les connexions OAuth existants (`lib/dsp/…`, `dsp_connections`) ; un service de relevé appelé par une **tâche Inngest quotidienne** (un step par campagne) et par un bouton « Relever maintenant » ; un **noyau pur** (`lib/optimisation/noyau/`) qui recalcule le prévu depuis `geo_strategy.channels` et l'extraction (§ 19.4), puis l'écart, le rythme, l'alignement et les alertes à chaque niveau de la descente ; une RPC `jsonb` d'agrégats ; une route `GET …/live`. Côté Angular : `mg-panneau-live` (port allégé de `SuiviV2`), `LiveCampagneService` fourni par la page, la grande carte peinte par les contours déjà partagés (`ContoursZonesService`). **Le navigateur ne calcule rien.**
 
-**Spec :** `docs/superpowers/specs/2026-10-13-carte-en-parcours-design.md` — **§ 19 fait foi** (19.2 ligne ⑧, 19.3, 19.4 « porter / ne pas porter », prévu par CP et par plateforme, maille de rapport) ; § 4 « ⑦ Live » (numérotation d'origine) pour l'écran ; § 16.1 ligne ⑧ ; § 16.2 règles 3 (règles des plateformes en table) et 4 (connexion par espace). Plans précédents : `…/2026-10-24-carte-en-parcours-lot-6-plan.md`, `…/2026-10-25-carte-en-parcours-lot-7-activation.md`. Mémoires : `project_suivi_sans_adserver`, `project_archi_algo_optimisation`, `project_ttd_premier_dsp`, `project_dv360_parked`, `project_tiktok_connexion`, `feedback_mode_accelere`, `feedback_angular_vigilance`, `feedback_agents_frugaux`, `feedback_no_hardcoded_colors`, `reference_postgrest_db_max_rows`, `reference_maplibre_paint_sans_var`.
+**Tech Stack :** Angular 21.2 standalone, zoneless, signals ; Tailwind 4 ; Vitest (`cd angular && npx ng test --watch=false`). Next.js 15, supabase-js, Zod, Inngest, papaparse, Vitest racine (`npm run test:unit`, `npm run test:integration`). Postgres 17.6 local (`docker exec supabase_db_genesis_app psql -U postgres`).
+
+**Spec :** `docs/superpowers/specs/2026-10-13-carte-en-parcours-design.md` — **§ 19 fait foi** (19.2 ligne ⑧, 19.3, 19.4 « porter / ne pas porter », prévu par CP et par plateforme, maille de rapport) ; § 4 « ⑦ Live » (numérotation d'origine) pour l'écran ; § 16.2 règles 3 (règles des plateformes en table) et 4 (connexion par espace). Plans précédents : `…/2026-10-24-carte-en-parcours-lot-6-plan.md`, `…/2026-10-25-carte-en-parcours-lot-7-activation.md`. Mémoires : `project_suivi_sans_adserver`, `project_archi_algo_optimisation`, `project_ttd_premier_dsp`, `project_dv360_parked`, `project_tiktok_connexion`, `feedback_api_first_no_file_imports`, `feedback_mode_accelere`, `feedback_angular_vigilance`, `feedback_agents_frugaux`, `feedback_no_hardcoded_colors`, `reference_postgrest_db_max_rows`, `reference_maplibre_paint_sans_var`, `reference_dsp_maille_geo`.
+
+## Décisions du 28/10 (Vincent)
+
+| # | Question du 27/10 | Décision |
+|---|---|---|
+| Q-1 | Livraison simulée pour les démos ? | **NON.** Aucune simulation, aucun mode démo, aucune donnée de démo. Pas d'adaptateur simulé, aucun recours à `diffuserJour` ni au seed. Sans plateforme connectée : état vide honnête. |
+| Q-2 | Maille de rapport TTD ? | **TTD mis de côté** (doc bientôt) : aucune tâche TTD dans ce lot. Une plateforme TTD cochée affiche « The Trade Desk : connecteur à venir. » |
+| Q-3 | Écart de répartition ? | **Oui** (comme React ; le retard de volume se lit dans le rythme). |
+| Q-4 | Grande carte au lieu des vignettes ? | **Oui** : une grande carte, zoomable. |
+| Q-5 | Graphique d'écart ? | **Pas d'histogramme CP.** Vue de retard **en descente** : région → département → CP → (IRIS ou polygone, comme TTD), **plafonnée à la maille que la plateforme rapporte réellement**, dite à l'écran. Sur la grande carte : écart livré / prévu par territoire au niveau choisi + liste triée des territoires les plus en retard ; clic = descendre d'un niveau. Prévu recalculé au même niveau (agrégation depuis le CP du plan, ou unité du jeu pour un polygone). |
+| Q-6 | Bouton seulement ? | **NON** : connexion API réelle + **mise à jour automatique** (tâche Inngest planifiée, un step par campagne, règles I/O). Bouton « Relever maintenant » gardé : il appelle le même service (quasi gratuit). |
+| Q-7 | Adaptateurs vides ? | **On code les vrais adaptateurs** DV360 reporting, Meta Insights, TikTok reporting (TTD plus tard) sur le contrat `lireLivraison`, d'après la doc publique, **testés par des réponses enregistrées** dans les tests unitaires (fixtures de test ≠ données de démo : rien n'entre en base). Réutiliser les clients existants et les connexions OAuth. |
 
 ## Global Constraints
 
-- V1 = **impressions et dépense** remontées par les plateformes. Ni ad server, ni réconciliation, ni conversions, ni rebid / « Recaler », ni constats d'optimisation (`sur_pression`, `canal_cher`), ni « coût du déséquilibre », ni pression par classe, ni vignette « Variable du plan » (§ 19.2-19.4).
-- **Aucun calcul dans le navigateur** : prévu, écart, rythme, alignement, alertes, tranches de dispersion arrivent chiffrés du serveur. Angular filtre (par plateforme, par parent), trie et colore.
-- **Le prévu n'est JAMAIS lu dans `campaign_cp_rollup.planned_share` ni `get_campaign_expected`** (§ 19.4) : il se recalcule depuis `geo_strategy.channels.{budgets,cpm_prevus}` et l'extraction.
-- **Aucune donnée simulée sur une campagne qui n'est pas de démo** (Q-1) : sans connecteur réel, une vraie campagne affiche « non branché », rien n'est écrit.
-- Campagnes réservées au **super_admin** en V1 ; `relever` le vérifie (403 avant toute écriture). **Contrôle d'espace côté Angular** comme ⑦ : rien n'est lu avant que `PlanCampagneService` ait validé la campagne dans l'espace actif ; le serveur refait le contrôle (404).
-- Troncature PostgREST (1 000 lignes) : la RPC est `RETURNS jsonb` avec une borne écrite et `tronque` ; les CP d'une extraction se lisent par `lireCpExtraction` / `lireCpPlateforme` (déjà paginés).
-- Écritures : **lots de 50, 3 en parallèle au plus**, erreur de CHAQUE lot lue, progression NDJSON (CLAUDE.md « Imports & batch DB ») ; upsert idempotent sur la clé primaire.
+- V1 = **impressions et dépense** remontées par les plateformes. Ni ad server, ni réconciliation, ni conversions, ni rebid / « Recaler », ni constats d'optimisation (`sur_pression`, `canal_cher`), ni « coût du déséquilibre », ni pression par classe, ni vignette « Variable du plan », ni histogramme CP (§ 19.2-19.4, Q-5).
+- **Aucune donnée inventée** : aucune ligne de `livraison_plateformes` n'est écrite autrement que par un adaptateur qui a lu une vraie réponse d'API. Les fixtures vivent dans `tests/` ; un test d'intégration qui écrit en base le fait sur une campagne de test qu'il crée et supprime lui-même (patron des lots 6 et 7), jamais sur une campagne visible.
+- **Aucun calcul dans le navigateur** : prévu, écart, rythme, alignement, alertes, classement des retards arrivent chiffrés du serveur. Angular filtre (plateforme, parent), trie déjà-trié et colore.
+- **Le prévu n'est JAMAIS lu dans `campaign_cp_rollup.planned_share` ni `get_campaign_expected`** (§ 19.4).
+- **Une connexion par espace** (règle 4) : un adaptateur lit la connexion de l'espace de la campagne (`dsp_connections`, `connexionUtilisable` du lot 7), et les identifiants de la campagne sur la plateforme dans `geo_strategy.channels.links` (liaisons de ⑥ : DV360 annonceur / campagne / insertion order ; Meta compte / campagne / ad set ; TikTok annonceur / campagne / ad group).
+- **Appels sortants** : `fetchAvecDelai` (délai borné), jeton rafraîchi par les fonctions existantes (`resolveAccessToken` DV360), erreurs lues et journalisées par `logDspEvent` ; aucune clé en dur (`aucun-secret-en-dur.test.ts`).
+- Écritures : **lots de 50, 3 en parallèle au plus**, erreur de CHAQUE lot lue, upsert idempotent sur la clé primaire ; progression NDJSON pour le bouton (CLAUDE.md « Imports & batch DB ») ; la tâche Inngest journalise ses compteurs par step.
+- Inngest : **une campagne à la fois** (un step par campagne, séquentiels), horaire creux, aucune campagne sans plateforme connectée n'est relue.
+- Troncature PostgREST (1 000 lignes) : RPC `RETURNS jsonb` avec borne écrite et `tronque` ; CP d'une extraction par `lireCpExtraction` / `lireCpPlateforme`.
+- Campagnes réservées au **super_admin** en V1 ; `relever` le vérifie (403). **Contrôle d'espace côté Angular** comme ⑦ ; le serveur refait le contrôle (404).
 - Aucun `DROP` ; migration additive rejouable ; base locale seulement, jamais le MCP Supabase.
 - Vouvoiement ; textes de React à la lettre là où on porte (écarts listés au rapport) ; sentence case ; jetons `var(--…)` seulement (valeurs CALCULÉES par `CouleursService` pour MapLibre) ; Inter + JetBrains Mono ; bordures 0,5 px.
-- Fichiers `.ts` < 400 lignes ; `carte.page.ts` est à 379/400 : une ligne de pastille, rien d'autre. `plan-campagne.service.ts` est à 391/400 : **rien n'y entre**.
-- Preuve sur les serveurs du worktree (:3002 / :4202 ou suivants libres), **jamais :3000 / :4200**, qu'on n'arrête pas.
+- Fichiers `.ts` < 400 lignes ; `carte.page.ts` 379/400 (une ligne de pastille) ; `plan-campagne.service.ts` 391/400 (**rien n'y entre**).
+- Preuve sur les serveurs du worktree, **jamais :3000 / :4200**, qu'on n'arrête pas.
 
 ## Review Focus
 
-1. **Deux plateformes au CP** (DV360 + TTD au CP, ou jeu risque) : le prévu de chacune = ses impressions (budget ÷ CPM × 1 000) réparties sur SES CP au prorata des multiplicateurs ; la somme par plateforme retombe exactement sur son total ; rien ne vient de `planned_share`. Test unitaire du noyau (T2) et d'intégration (T2).
-2. **Maille honnête** : Meta et TikTok n'ont aucune ligne sous la région ; l'écran dit « Meta ne rend pas le code postal : comparaison à la région. » ; le fil d'Ariane s'arrête à la région pour elles ; « Toutes plateformes » se lit à la région. Spec en T5, test du noyau en T2.
-3. **Campagne non démo** : `relever` n'écrit rien, rend `non_branche` par plateforme avec un message qui nomme le manque (« accès API The Trade Desk manquant ») ; aucune ligne `source = 'simule'` n'existe hors campagne de démo (test d'intégration T1).
-4. **Relevé idempotent et déterministe** : deux relevés successifs donnent les mêmes lignes à l'octet (graine par campagne et plateforme, upsert sur la clé) ; un relevé ne simule jamais un jour futur ni hors période.
-5. **Échelle nationale** : jeu risque « Seveso haut + bas » v1 (2 595 CP) rattaché à une campagne de démo de 30 jours : relevé ≈ 78 000 lignes avec progression, `GET …/live` sous 1 s et sous 500 Ko, `EXPLAIN (ANALYZE, BUFFERS)` noté (T1, T2).
-6. **Changement de campagne pendant une lecture ou un relevé** : une réponse tardive de A ne s'écrit jamais dans B ; un relevé en cours sur A continue, B voit « Un relevé est en cours sur une autre campagne. » (patron A-10 de ⑦). Spec en T3.
+1. **Aucune donnée inventée** : grep `diffuserJour`, `simul`, `demo`, `is_demo` dans tout fichier neuf du lot → aucun ; aucune ligne écrite sans réponse d'API ; état vide « Aucune donnée remontée — plateforme non connectée. » quand la connexion manque (tests T3, T7).
+2. **Deux plateformes au CP** : prévu de chacune = ses impressions (budget ÷ CPM × 1 000) réparties sur SES CP au prorata des multiplicateurs, somme exacte ; rien de `planned_share` (T2).
+3. **Descente plafonnée** : Meta et TikTok s'arrêtent à la région, DV360 au CP ; le niveau suivant est grisé avec la phrase de la plateforme ; « Toutes plateformes » à la région ; le prévu de chaque niveau est l'agrégat du CP du plan (T2, T9).
+4. **Adaptateurs fidèles à la doc** : chaque adaptateur, rejoué sur sa réponse enregistrée, rend exactement les lignes attendues (jour, maille, code, impressions, dépense en euros) ; pagination et rapport asynchrone (DV360) couverts ; une erreur d'API ne vide jamais les jours déjà relevés (T4-T6).
+5. **Inngest et I/O** : un step par campagne, séquentiels ; seules les campagnes en vol avec au moins une connexion utilisable sont relues ; re-relève idempotent ; coût mesuré (T3).
+6. **Changement de campagne pendant une lecture ou un relevé** : une réponse tardive de A ne s'écrit jamais dans B ; « Un relevé est en cours sur une autre campagne. » (patron A-10 de ⑦) (T7).
 
 ---
 
-## Pré-vol : ce qui existe vraiment (reconnaissance du 27/10, worktree `carte-live`, HEAD `b3610369`)
+## Pré-vol : ce qui existe vraiment (reconnaissance des 27-28/10, worktree `carte-live`, HEAD `b3610369`)
 
 ### Quelle source alimente ⑧ aujourd'hui — mesuré en base locale
 
-**Réponse honnête : aucune API de plateforme. Seule la simulation peut alimenter ⑧ en V1.**
+**Aucune.** Aucune API de plateforme n'est branchée, et aucune ligne de livraison n'existe pour une campagne lancée en ⑥. ⑧ affichera donc l'état vide honnête tant qu'aucune connexion n'est active ; le lot livre la plomberie complète pour que la première connexion remplisse l'écran sans autre code.
 
-| Source | État mesuré le 27/10 | Utilisable par ⑧ ? |
-|---|---|---|
-| API DV360 | `lib/dsp/report/dv360.ts` est un **bouchon** (`status: 'skipped'`, « droits Google en attente ») ; `dsp_connections` : **1 ligne**, DV360 en `error`, espace 00…01 ; BMW GROUP : aucune | non (droits Google, `project_dv360_parked`) |
-| API TikTok | `lib/dsp/tiktok/client.ts` : OAuth + liste des annonceurs, **aucun rapport** ; app dev non créée | non |
-| API The Trade Desk | **rien** (ni code, ni siège, ni identifiants, ni doc) | non |
-| API Meta | **rien** | non |
-| `dsp_campaign_data` (≈ 1,04 M lignes, 394 Mo) | 5 campagnes, **aucune** issue d'une API : `1c327461…` et `ffc231bd…` = simulation du module risque (`dsp_source = 'simulation'`, Partenaires A/B/C, 218 k et 168 k lignes) ; `d0000000…f1a5` [DEMO] Risque (175 k, seed) ; `dccc0000…02` Démo pilotage (306 k, seed sql/112, acteurs dv360/ttd/tiktok + 2 régies, avril 2026) ; `fd18d97c…` import Adform national (172 k lignes, **sans date ni impression**) | non : monde « ad server », grain CP×jour×acteur, pas de région, et rien pour une campagne lancée en ⑥ |
-| `campaign_dsp_report` (2 131 lignes) | **toutes** `source = 'simulated'` (`simulate_dsp_report`, dérivée de `dsp_campaign_data`), une seule campagne (`dccc…02`) ; grain contraint (jour SANS CP, ou CP SANS canal) | non : ni CP par canal, ni région |
-| `campaign_cp_rollup` / `campaign_daily_rollup` | 16 031 / 240 lignes, deux campagnes de seed (`dccc…02`, `d000…f1a5`) | non : `planned_share` campagne entière (interdit par § 19.4) |
-| Campagnes lancées en ⑥ (stratégie à `extraction_id`) | `4935811d…` (BMW GROUP, stratégie `fe2562a4…` active, `52a1fdce…` archivée) et `ba49acd8…` (« Brouillon preuve L6-T7 ») : **0 ligne de livraison**, `is_demo = false` toutes deux | — |
+| Plateforme | Client existant | Connexion en base (27/10) | Reporting | Ce que fait ce lot |
+|---|---|---|---|---|
+| DV360 | `lib/dsp/dv360/{auth,client}.ts` : OAuth et compte de service, `resolveAccessToken`, cascade annonceur → campagne → IO, poussée géo | **1 ligne**, espace 00…01, `error` ; BMW GROUP : aucune ; droits Google bloqués (`project_dv360_parked`) | `lib/dsp/report/dv360.ts` = **bouchon** `skipped` ; le scope `doubleclickbidmanager` est **commenté** dans `DV360_SCOPES` (« itération 2 ») | T4 : scope ajouté (reconsentement nécessaire, dit dans l'écran Connexions), adaptateur Bid Manager v2 |
+| Meta | **rien** (`dsp_channel_registry.meta.connection_provider = 'meta'`, liaisons `ad_account / campaign / ad_set`) | aucune | rien | T5 : connexion OAuth (patron TikTok) + adaptateur Insights |
+| TikTok | `lib/dsp/tiktok/client.ts` : OAuth, échange du code, liste des annonceurs ; routes `admin/dsp/tiktok/{connect,oauth/callback}` | aucune ; app développeur non créée (`project_tiktok_connexion`) | rien | T6 : adaptateur Reporting (`/report/integrated/get/`) |
+| TTD | rien | — | — | **à venir** (Q-2) |
 
-Conséquence : ⑧ a besoin d'une **table d'atterrissage neuve** et d'un **adaptateur simulé** pour les campagnes de démo ; les adaptateurs réels se brancheront sur le même contrat (Q-7).
+Le reste de la base n'apporte rien à ⑧ : `dsp_campaign_data` (≈ 1,04 M lignes, 394 Mo) n'est que seed, simulation du module risque et import Adform ; `campaign_dsp_report` (2 131 lignes) est tout entier `simulated` ; les rollups portent `planned_share` (interdit par § 19.4). Rien de cela n'est lu ni modifié par ce lot.
 
 ### Le plan d'une campagne lancée en ⑥ (mesuré sur `4935811d…`)
 
-- `geo_strategy.channels` : budgets dv360 10 000 / ttd 8 000 / meta 6 000 / tiktok 4 000 € ; CPM prévus 4,5 / 3,8 / 5,2 / 6 € → impressions prévues 2 222 222 / 2 105 263 / 1 153 846 / 666 667, **total 6 147 998 = `bidding_strategies.kpi_target`** (cohérent avec ⑥). Période 01/11 → 30/11/2026 : **future** — rien ne peut être livré le 27/10 (la preuve utilise une campagne de démo à dates passées).
-- Extraction `2fc8fd52…` (jeu « Lycées 5 km — BdR », v1) : plan CP 88 lignes (toutes `multiplicateur > 0`) ; DV360 63 unités CP retenues → **72 CP bruts** par `lireCpPlateforme` ; Meta 53 cercles de 5 km ; TikTok 1 département retenu sur 2 ; TTD 1 polygone exact. Régions du plan : **PACA 87 CP (1 561 527 hab. en zone) + Occitanie 1 CP (1 331)**.
-- `zone_set_extraction_unites` porte `pop_en_zone` par unité, mais **aucun multiplicateur hors CP** : le prévu d'une plateforme qui n'achète pas au CP ne peut se répartir qu'à la population (A-4).
-- `plateformes_geo` (13 lignes) porte la maille d'ACHAT ; **aucune maille de RAPPORT** (question ouverte du § 19.4).
+- `geo_strategy.channels` : budgets dv360 10 000 / ttd 8 000 / meta 6 000 / tiktok 4 000 € ; CPM prévus 4,5 / 3,8 / 5,2 / 6 € → impressions prévues 2 222 222 / 2 105 263 / 1 153 846 / 666 667, **total 6 147 998 = `kpi_target`**. Période 01/11 → 30/11/2026. `links` : vides sur cette campagne (aucune liaison faite en ⑥) — un adaptateur sans identifiant de campagne rend `non_lie` (A-3).
+- Extraction `2fc8fd52…` : plan CP 88 lignes ; DV360 63 unités CP retenues → **72 CP bruts** ; Meta 53 cercles ; TikTok 1 département retenu sur 2 ; TTD 1 polygone. Régions : PACA 87 CP (1 561 527 hab. en zone) + Occitanie 1.
+- `zone_set_extraction_unites` porte `pop_en_zone` par unité mais **aucun multiplicateur hors CP**.
 
-### L'existant React à porter (≈ 3 700 lignes d'écran) et ses données
+### Les mailles que les plateformes rapportent (doc publique, à confirmer à la première connexion)
 
-| Brique React (lignes) | Données aujourd'hui | Sort au lot 8 |
-|---|---|---|
-| `SuiviV2.tsx` (709) — assemblage, sémaphore à 3, 7 lectures | `/api/digital/[id]/suivi`, `/alignement`, `/alignement/maille`, `/maille/map`, `/dispersion`, `/constats`, `/actors` | **Porté allégé** : UNE lecture (`GET …/live`), drill en mémoire |
-| `BarreContexteCampagne.tsx` (273) | `/api/digital/campaigns` | **Déjà porté** : `mg-choix-campagne` (lot 6) |
-| `BarreMaille.tsx` (103) | session | **Porté** + sélecteur de plateforme + note de maille |
-| `BandeauAvancement.tsx` (160) | `get_campaign_suivi.pacing` | **Porté** (trois barres, repère, phrase) |
-| `CoutEtRythme.tsx` (116) | suivi + alignement | **Porté** sans « coût du déséquilibre » |
-| `ScoreAlignement.tsx` (251) + `TroisComposantes.tsx` (101) | `calculer_alignement_geo` | **Portés**, plateformes au CP seules ; variation 7 j gardée |
-| `TableauDeregles.tsx` (373) | `alignement_par_maille` | **Porté** (« Territoires déréglés ») |
-| `GraphiqueEcart.tsx` (253) | maille / dispersion | **Histogramme CP porté** en barres HTML ; courbe région/département non portée (Q-5) |
-| `QuiADiffuse.tsx` (156) | `get_campaign_actors` | **Porté** : une barre par PLATEFORME (dépense, volume, CPM réel vs prévu) |
-| `ConstatsCorrection.tsx` (134) | `calculerConstats` | **Porté**, constat `sous_pression` seul + alerte retard |
-| `TrioCartes.tsx` (178) + `CarteVignette.tsx` (335) | `alignement_par_maille_geo` | **Remplacés par la grande carte** (Écart / Impressions, Q-4) |
-| `PressionParClasse`, `DetailTechnique`, vignette « Variable du plan » | — | **Non portés** (§ 19.4) |
+| Plateforme | Dimension géographique du rapport | Maille de rapport retenue | Niveau le plus fin de la descente |
+|---|---|---|---|
+| DV360 (Bid Manager v2) | `FILTER_ZIP_POSTAL_CODE` (+ `FILTER_DATE`) | `cp` | CP |
+| Meta (Insights) | `breakdowns=region` (le code postal n'est pas une ventilation Insights en France) | `region` | région |
+| TikTok (Reporting, rapport AUDIENCE) | `province_id` (identifiant TikTok, nom via `/tool/region/`) | `region`, **à vérifier** pour la France | région |
+| TTD | — | à venir | — |
 
-TS serveur réutilisable tel quel : `calculerAlignement` (`lib/campagne/alignement.ts`, la formule jumelle de `calculer_alignement_geo`), `SEUIL_ECART_SIGNALE_PCT` et le constat sous-pression (`lib/campagne/constats.ts`, fonction à exporter), `diffuserJour` / `repartirEntier` (`lib/simulation/generateur.ts`, graine fixe, effet inventaire), `trancheDivergente` / `BORNES_DIVERGENTES` (`lib/campagne/palette-divergente.ts`), `lireCpExtraction` / `lireCpPlateforme`, `connexionUtilisable` (`lib/campaigns/activation.ts`), `insererLignes` (`lib/simulation/serveur.ts`, à généraliser), `rpcJson`, `lireTout`.
+**IRIS et polygone** : aucune de ces API ne rapporte sous le CP. La descente est donc construite sur une liste de niveaux ordonnée (`region` → `departement` → `cp` → `iris` | `unite`) plafonnée par `maille_rapport`, mais **les niveaux IRIS et unité du jeu ne sont pas codés tant qu'aucune plateforme ne les rapporte** (TTD, quand sa doc arrivera) : zéro code mort, et l'écran dit pourquoi on s'arrête (Q-11).
+
+### L'existant React à porter (≈ 3 700 lignes) et ses données
+
+| Brique React (lignes) | Sort au lot 8 |
+|---|---|
+| `SuiviV2.tsx` (709) — sept lectures, sémaphore à 3 | **Porté allégé** : UNE lecture (`GET …/live`), descente en mémoire |
+| `BarreContexteCampagne.tsx` (273) | **Déjà porté** (`mg-choix-campagne`, lot 6) |
+| `BarreMaille.tsx` (103) | **Porté** + sélecteur de plateforme + plafond de la descente |
+| `BandeauAvancement.tsx` (160) | **Porté** |
+| `CoutEtRythme.tsx` (116) | **Porté** sans « coût du déséquilibre » |
+| `ScoreAlignement.tsx` (251) + `TroisComposantes.tsx` (101) | **Portés**, plateformes au CP seules |
+| `TableauDeregles.tsx` (373) | **Porté** en « Territoires les plus en retard » (liste triée, clic = descendre) |
+| `GraphiqueEcart.tsx` (253) | **Non porté** (Q-5 : ni courbe ni histogramme ; la descente sur la carte le remplace) |
+| `QuiADiffuse.tsx` (156) | **Porté** : une barre par plateforme, état « non connectée » |
+| `ConstatsCorrection.tsx` (134) | **Porté**, constat `sous_pression` seul + alerte retard |
+| `TrioCartes.tsx` (178) + `CarteVignette.tsx` (335) | **Remplacés par la grande carte** (Q-4) |
+| `PressionParClasse`, `DetailTechnique`, vignette « Variable du plan » | **Non portés** (§ 19.4) |
+
+TS serveur réutilisé tel quel : `calculerAlignement` (`lib/campagne/alignement.ts`), `SEUIL_ECART_SIGNALE_PCT`, `SEUIL_CPM_CHER` et le constat sous-pression (`lib/campagne/constats.ts`, fonction à exporter), `trancheDivergente` (`lib/campagne/palette-divergente.ts`), `lireCpExtraction` / `lireCpPlateforme`, `sourceDePoussee` et `connexionUtilisable` (`lib/campaigns/activation.ts`), `resolveAccessToken` / `fetchAvecDelai` (`lib/dsp/dv360/client.ts`), `exchangeTiktokAuthCode` et le patron OAuth TikTok, `logDspEvent` (`lib/dsp/logger.ts`), `insererLignes` (`lib/simulation/serveur.ts`, boucle à généraliser), `rpcJson`, `lireTout`, `inngest` (`lib/inngest/client.ts`, patron `civicDailyIngest`).
 
 ### Côté Angular
 
-- `logique/parcours.ts` : étape `live` existe ; `carte.page.html` la rend par `@default { <mg-etape-bientot> }` ; `ONGLET_REACT.live = 'suivi'` ; `CONSIGNE_ETAPE.live` annonce « arrive dans le parcours » ; `ETAPES_CAMPAGNE` inclut `live` (le sélecteur de campagne y est déjà).
-- `etat/plan-campagne.service.ts` (391/400) : `campagne()`, `detail()`, `strategieExistante()`, `canaux()`, `brouillon().jeuZones`, `extraction()`, `prerempli()`, `accesRefuse()`, `libelleCanal`. `etat/activation-campagne.service.ts` : le patron « validée » et la tâche liée à SA campagne (A-10).
-- Briques : `ui/{entete-section, kpi, bandeau-kpi, tuile-chiffre, barre-progression, fil-ariane, pastille, tableau, notifications}`, `core/http/ndjson.ts` (`lignesNdjson`), `etat/lecture-annulable.ts`, `etat/contours-zones.service.ts` (polygones région / département / CP **déjà partagés**, ≈ 3,8 Mo au CP, lus une fois par écran), `couches/couche-unites.ts` (`ajouterCouche`), `features/risques/logique/palette-divergente.ts` (`trancheDivergente`, `LIBELLES_TRANCHES`, `RAMPE_CSS`, verrouillée) et `logique/carte-campagne.ts` (`JETONS_CAMPAGNE`, `couleurIndice`), `graphiques/` (ECharts : courbe et nuage seulement, **pas de barres**).
+- `logique/parcours.ts` : étape `live` (`@default { <mg-etape-bientot> }`), `ONGLET_REACT.live = 'suivi'`, `CONSIGNE_ETAPE.live` « arrive dans le parcours », `ETAPES_CAMPAGNE` inclut `live`.
+- `etat/plan-campagne.service.ts`, `etat/activation-campagne.service.ts` (patron « validée », tâche liée à SA campagne) ; écran Connexions API de l'admin (lot 6) pour la connexion Meta et le reconsentement DV360.
+- Briques : `ui/{entete-section, kpi, bandeau-kpi, tuile-chiffre, barre-progression, fil-ariane, pastille, tableau, notifications}`, `core/http/ndjson.ts`, `etat/lecture-annulable.ts`, `etat/contours-zones.service.ts` (région / département / CP, ≈ 3,8 Mo au CP, une lecture par écran), `couches/couche-unites.ts` (`ajouterCouche`), `features/risques/logique/palette-divergente.ts` et `logique/carte-campagne.ts` (`JETONS_CAMPAGNE`, `couleurIndice`).
 
-### Mesures locales (27/10)
+### Mesures locales (27-28/10)
 
 | Mesure | Valeur |
 |---|---|
-| Table synthétique « livraison » nationale (transaction annulée) : 30 j × 2 595 CP × 4 campagnes + 3 plateformes × 30 j × 18 régions | 313 020 lignes, 58 Mo (≈ 190 o/ligne) |
-| Agrégat par (plateforme, maille, code) + 7 derniers jours, une campagne (79 470 lignes) | **24 ms**, index de clé primaire, ≈ 2 060 buffers (16 Mo), 2 649 groupes |
-| Agrégat par (plateforme, jour), même campagne | **14 ms**, ≈ 2 060 buffers, 120 groupes |
-| Relevé national simulé, une plateforme au CP, 30 jours | ≈ 77 850 lignes → **1 557 lots de 50** (519 vagues de 3) |
-| Relevé de la démo BdR, 30 jours | DV360 72 CP + fuite ≈ 2 200 lignes ; Meta / TikTok / TTD ≤ 2 régions × 30 = ≤ 180 lignes chacune → ≈ 50 lots |
+| Table synthétique de livraison (transaction annulée), 30 j × 2 595 CP | 77 850 lignes par campagne-mois et plateforme au CP, ≈ 190 o/ligne (≈ 15 Mo) |
+| Agrégat livré par (plateforme, maille, code) + 7 derniers jours | **24 ms**, index de clé primaire, ≈ 2 060 buffers |
+| Agrégat par (plateforme, jour) | **14 ms**, ≈ 2 060 buffers |
+| **Descente complète** (Q-5) : livré + poids du plan agrégés aux trois niveaux région / département / CP en UN passage, plan national 2 595 CP | **37 ms**, 2 707 groupes (15 régions, 97 départements, 2 595 CP) ; ≈ 1 680 buffers partagés dont **1 552 pour un parcours séquentiel de `ref_codes_postaux`** (13 Mo, géométries comprises) — un index couvrant `(code_postal) include (code_dept)` le ramènerait à quelques dizaines (à mesurer en T1) |
+| Relevé quotidien d'une plateforme au CP, national | ≈ 2 600 lignes → 52 lots de 50 ; re-relève de 3 jours ≈ 156 lots |
 | Plan national (jeu risque `78f6911a…`) | 2 595 CP, 97 départements, 15 régions, 0 CP hors référentiel |
 
-### « Mode pays » (zone France entière > 100 000 km²) : **ne bloque pas ⑧**
+### « Mode pays » : ne bloque pas ⑧
 
-⑧ n'appelle ni `couverture_geometrie` (sql/269) ni aucune RPC bornée à 100 000 km² : il lit une extraction **déjà figée** et des agrégats. La borne bloque **en amont** (④ couverture, ⑤ extraction d'un jeu de ZONE national) : une campagne nationale d'un jeu de zone n'arrive jamais à ⑧. Un jeu **risque** national s'extrait déjà (Seveso, 2 595 CP) et sert de preuve d'échelle (Review Focus 5). **Pas de tâche dédiée dans ce lot** ; le « mode pays » reste une ligne ④/⑤ de l'Excel, à traiter avant la première campagne nationale d'un jeu de zone.
+⑧ n'appelle ni `couverture_geometrie` ni aucune RPC bornée à 100 000 km² ; il lit une extraction figée et des agrégats. La borne bloque **en amont** (④ couverture, ⑤ extraction d'un jeu de ZONE national). Un jeu risque national s'extrait déjà et sert de mesure d'échelle. **Pas de tâche dans ce lot** ; ligne ④/⑤ de l'Excel.
 
 ### Écarts relevés (corrigés par ce plan)
 
 | # | Constat | Ce que fait ce plan |
 |---|---|---|
-| E1 | Aucune source de livraison pour une campagne lancée en ⑥ ; les tables existantes sont le monde ad server (CP × acteur, pas de région) ou contraintes à deux grains. | T1 : `livraison_plateformes`, une ligne par (campagne, plateforme, jour, maille, code), `source ∈ (api, simule)`. |
-| E2 | `lib/dsp/report/*` (« miroir de push ») ne sert que la réconciliation React (hors V1) et n'a qu'un bouchon DV360. | Non touché (supprimé à la bascule React) ; ⑧ ne l'appelle pas. Les adaptateurs neufs ne créent **aucun fichier vide** (Q-7). |
-| E3 | La maille de RAPPORT des plateformes n'est écrite nulle part. | T1 : `plateformes_geo.maille_rapport` (dv360 → cp ; meta, tiktok → region ; ttd → region, `a_verifier`, Q-2). |
-| E4 | Les écrans React chiffrent dans le navigateur (`calculerConstats`, `preparerDispersion`, `pourcentageVolumeLivre`, sept lectures et un sémaphore). | T2 : tout est calculé côté serveur en UNE réponse ; Angular ne fait que filtrer et mettre en forme. |
-| E5 | La boucle d'écriture par lots de 50 vit dans `insererLignes`, liée à `dsp_campaign_data`. | T1 : extraite en `ecrireParLots` (générique), `insererLignes` l'appelle — aucune seconde copie. |
+| E1 | Aucune table pour une livraison par plateforme et par unité de rapport (`dsp_campaign_data` = ad server au CP × acteur ; `campaign_dsp_report` contraint à deux grains, sans région). | T1 : `livraison_plateformes`. |
+| E2 | `lib/dsp/report/*` (bouchon DV360, contrat sans maille) ne sert que la réconciliation React (hors V1). | Non touché ; supprimé à la bascule React. Les adaptateurs neufs portent la maille et les identifiants de liaison. |
+| E3 | La maille de RAPPORT n'est écrite nulle part (§ 19.4). | T1 : `plateformes_geo.maille_rapport` (dv360 → cp ; meta, tiktok → region ; ttd → null, à venir). |
+| E4 | Le scope reporting DV360 est commenté ; une connexion existante ne peut pas lire de rapport. | T4 : scope ajouté ; l'écran Connexions dit « Reconnectez DV360 pour autoriser la lecture des rapports. » quand le jeton n'a pas le scope. |
+| E5 | Aucune connexion Meta possible. | T5 : flux OAuth Meta (patron TikTok). |
+| E6 | Les écrans React chiffrent dans le navigateur. | T2 : tout est calculé côté serveur en UNE réponse. |
+| E7 | La boucle d'écriture par lots vit dans `insererLignes`, liée à `dsp_campaign_data`. | T1 : `ecrireParLots` générique ; `insererLignes` l'appelle. |
 
 ---
 
-## Routes API
+## Routes API et tâche planifiée
 
-**Deux routes neuves** : `GET /api/campaigns/[campaignId]/live` (T2) et `POST /api/campaigns/[campaignId]/live/relever` (T1, NDJSON). **Aucune route existante modifiée.**
+**Routes neuves** : `GET /api/campaigns/[campaignId]/live` (T2) ; `POST /api/campaigns/[campaignId]/live/relever` (T3, NDJSON) ; `GET /api/admin/dsp/meta/oauth/start` et `GET /api/admin/dsp/meta/oauth/callback` (T5). **Tâche Inngest neuve** : `releve-livraisons-quotidien` (T3), enregistrée dans `app/api/inngest/route.ts`. **Modifiés sans changement de contrat** : `DV360_SCOPES` (un scope ajouté), `lib/simulation/serveur.ts` (`insererLignes` délègue à `ecrireParLots`).
 
-Plus appelées par ⑧ (V1) : `/api/digital/[id]/{suivi,actors,reconcile,reconcile/pull}`, `/api/campaigns/[id]/alignement*`, `/api/campaigns/[id]/pression-classes`, `/api/demo/*`. Elles restent, React s'en sert.
+Plus appelées par ⑧ : `/api/digital/[id]/{suivi,actors,reconcile,reconcile/pull}`, `/api/campaigns/[id]/alignement*`, `/api/campaigns/[id]/pression-classes`. Elles restent pour React.
 
-**Charge I/O.** `GET …/live` : campagne + stratégie (2 lignes), `plateformes_geo` (13), le plan CP de l'extraction **lu une fois** (≤ 7 000, paginé) et ses sous-ensembles par plateforme dérivés en mémoire (A-1), puis UNE RPC d'agrégats (≈ 2 000 buffers à l'échelle nationale, mesuré). Séquentiel, jamais plus d'un appel Supabase à la fois. `relever` : lectures identiques puis écritures par lots de 50 (3 en parallèle), quota 2/min. Côté Angular : une lecture à l'entrée dans ⑧ pour la campagne (mise en cache par campagne), relue après un relevé ; changer de plateforme ou de maille ne relit rien ; les contours viennent de `ContoursZonesService` (déjà en cache s'ils ont servi à ②).
+**Charge I/O.** `GET …/live` : campagne + stratégie, `plateformes_geo`, le plan CP **lu une fois** (≤ 7 000, paginé), UNE RPC d'agrégats (≈ 2 000 buffers à l'échelle nationale, 37 ms mesurés pour la descente). Séquentiel. Inngest : chaque matin, pour chaque campagne en vol avec une connexion utilisable, une lecture du plan puis les appels API (hors base) puis ≈ 52 à 156 lots d'upsert ; une campagne à la fois. Côté Angular : une lecture à l'entrée dans ⑧ par campagne (cache), relue après un relevé ; descendre ou changer de plateforme ne relit rien.
 
 ---
 
 ## Arbitrages (tranchés ; coût si faux)
 
-Ceux de la spec § 16.8, § 19 et des lots 3 à 7 s'appliquent. Ajoutés :
-
 | # | Point | Tranché | Coût si faux |
 |---|---|---|---|
-| A-1 | Lecture du plan | `lireCpPlateforme` gagne un paramètre optionnel `plan?: LigneCpExtraction[]` (le plan déjà lu) pour ne pas relire `lireCpExtraction` à chaque plateforme ; ses quatre appelants actuels inchangés. | une relecture paginée par plateforme |
-| A-2 | Table d'atterrissage | `livraison_plateformes (campaign_id uuid FK cascade, plateforme text check (dv360,ttd,meta,tiktok), jour date, maille text check (cp,departement,region), code text, impressions bigint ≥ 0, depense numeric(12,4) ≥ 0, source text check (api,simule), lu_le timestamptz default now(), PK (campaign_id, plateforme, jour, maille, code))`. Pas de RLS active (comme les rollups), lue par la route admin seule. | une colonne |
-| A-3 | Contrat d'adaptateur | `interface AdaptateurLivraison { plateforme; source: 'api' \| 'simule'; lireLivraison(c: CampagneLive, jour: string): Promise<LigneLivraison[]> }` ; `choisirAdaptateur(plateforme, { connexions, isDemo })` → adaptateur réel si connexion `connexionUtilisable` ET connecteur écrit ; sinon `simule` si démo ; sinon `{ statut: 'non_branche', message }` (« Connecteur <libellé> non branché : <manque> » — DV360 « droits Google en attente », TTD « accès API manquant (siège, identifiants, documentation) », Meta « connecteur à écrire », TikTok « application développeur non créée »). Aucun fichier `ttd.ts`/`dv360.ts`/`meta.ts`/`tiktok.ts` tant qu'il n'y a rien à y écrire (Q-7). | quatre fichiers vides |
-| A-4 | Prévu par plateforme et par unité | **Impressions de la plateforme** = budget ÷ CPM × 1 000 (formule de ⑥). **Plateforme au CP** (unités CP dans l'extraction, ou jeu risque) : réparties sur SES CP bruts (`lireCpPlateforme`) au prorata des multiplicateurs, plus forts restes (la somme retombe exactement). **Autre maille d'achat** (cercles, polygone, communes, départements) : réparties sur les CP **canoniques** du plan au prorata de `pop_en_zone` (où vit la cible), puis agrégées à la région. Jamais `planned_share`. | une règle du noyau |
-| A-5 | Maille de comparaison | `maille_rapport` de `plateformes_geo` (A-2, E3) ; si la plateforme n'achète pas au CP, son prévu n'existe qu'à la région : comparaison à la **région** même si elle rapporte au CP. Drill : région › département › CP pour une comparaison au CP ; région seule sinon. « Toutes plateformes » = la région (somme des plateformes). Note à l'écran : « <Plateforme> ne rend pas le code postal : comparaison à la région. » / « <Plateforme> n'achète pas au code postal : comparaison à la région. » / TTD : « … (maille de rapport à vérifier). » | un libellé |
-| A-6 | Écart par territoire | Écart de **répartition**, comme React : prévu à date d'un territoire = part prévue × livré total de la plateforme ; `ecart_pct = (livré − prévu à date) ÷ prévu à date × 100` ; `hors_plan` si livré sur un territoire sans prévu. Le retard de VOLUME se lit dans le rythme (A-7), pas dans l'écart (Q-3). Tableau : livré, prévu (campagne entière), écart. | une formule |
-| A-7 | Rythme et alertes | Par plateforme et au total, au **dernier jour relevé** : `temps_pct` (jours écoulés ÷ jours de la période), `budget_pct` (dépense ÷ budget), `volume_pct` (livré ÷ prévu total), `indice = volume_pct ÷ temps_pct`. Alerte **retard** : indice < 0,85 (avertissement), < 0,70 (danger) — les seuils de `get_campaign_suivi` ; **avance** : > 1,15 / > 1,30. Alerte **zone sous-livrée** : le constat `sous_pression` de React (`SEUIL_ECART_SIGNALE_PCT` = 20, ≤ 3 territoires, « N impressions manquantes »), par plateforme. CPM réel = dépense ÷ livré × 1 000 contre CPM prévu ; alerte CPM > prévu × 1,25 (`SEUIL_CPM_CHER`). | des seuils importés |
-| A-8 | Alignement | `calculerAlignement` (TS, jumelle de `calculer_alignement_geo`) sur les CP d'une plateforme au CP, tolérance et poids de la campagne (`tolerance_pct`, `overpressure_weight`) ; variation 7 j sur la fenêtre précédente quand elle existe (sinon `null`, jamais « +93 points ») ; `sur_pression_eur` non rendu. Une plateforme qui n'est pas au CP : pas de score, phrase « Score calculé au code postal : non disponible pour <plateforme>. » | un bloc masqué |
-| A-9 | Simulation | Adaptateur `simule` = `diffuserJour` du module risque (`lib/simulation/generateur.ts`), **sans recopie** : pour chaque plateforme, plan = ses CP et multiplicateurs (CP) ou les CP canoniques pondérés par `pop_en_zone` (autres), `P = { ...PARAMS_DEFAUT, budget, jours, partenaires: [{ nom: plateforme, cpm: cpm_prevu, part: 1 }], graine: hash(campagne, plateforme) }`, puis agrégé à la `maille_rapport`. Un facteur de rythme par plateforme, tiré de la même graine dans [0,8 ; 1,05], applique un léger retard plausible — **aucun verdict écrit**, comme le générateur. Jours simulés : du début de période à `min(fin, hier)`. | un paramètre |
-| A-10 | Déclenchement du relevé | Bouton « Relever les livraisons » (super_admin) dans ⑧, NDJSON (`debut` par plateforme avec sa source, `progression` après chaque vague, `fin` avec compteurs) ; jours relus : toute la période écoulée (upsert idempotent) ; aucune tâche Inngest quotidienne tant qu'aucun connecteur réel n'existe (Q-6). Un relevé à la fois par campagne ; lié à SA campagne côté Angular (patron A-10 de ⑦). | une tâche Inngest |
-| A-11 | Campagne hors parcours | Stratégie sans `extraction_id` (campagnes de seed, wizard React) : « Cette campagne n'a pas été lancée depuis une extraction : son suivi reste dans l'application actuelle. » + lien `ONGLET_REACT.live` gardé pour ce cas. Période future : « La campagne commence le <date> : rien à relever avant. » Aucune ligne : « Aucune livraison relevée. » + bouton. | un message |
-| A-12 | Grande carte | Une couche `live` sur la carte principale, polygones de `ContoursZonesService` à la maille affichée (région, département d'une région, CP d'un département), deux modes : **Écart** (divergente, `--diverge-*`, `trancheDivergente`) et **Impressions** (séquentielle, `--seq-1…5`) ; couleurs calculées par `CouleursService` ; clic sur un territoire = descendre. Remplace les vignettes (Q-4). | des vignettes à porter |
-| A-13 | Pastille « renseignée » de ⑧ | Le payload de la campagne courante porte au moins un jour relevé (lu à l'entrée dans ⑧ ; aucune lecture hors de l'étape). | une règle |
-| A-14 | Bandeau de l'étape | `mg-bandeau-live` : livré / prévu, dépensé / budget, CPM réel / prévu, jours restants, dernier jour relevé et sa source (« Simulé » quand une plateforme l'est). | du texte |
+| A-1 | Lecture du plan | `lireCpPlateforme` gagne un paramètre optionnel `plan?: LigneCpExtraction[]` (plan déjà lu) ; ses quatre appelants inchangés. | une relecture par plateforme |
+| A-2 | Table d'atterrissage | `livraison_plateformes (campaign_id uuid FK cascade, plateforme text check (dv360,ttd,meta,tiktok), jour date, maille text check (cp,departement,region,iris,unite), code text, impressions bigint ≥ 0, depense numeric(12,4) ≥ 0, devise text not null default 'EUR', lu_le timestamptz default now(), PK (campaign_id, plateforme, jour, maille, code))`. Pas de colonne `source` : toute ligne vient d'une API. Pas de RLS active (lue par la route admin seule). | une colonne |
+| A-3 | Contrat d'adaptateur | `interface AdaptateurLivraison { plateforme; mailleRapport; lireLivraison(c: CampagneLive, jours: { de: string; a: string }): Promise<LigneLivraison[]> }` (une plage plutôt qu'un jour : DV360 produit un rapport par plage ; les autres paginent par jour). `choisirAdaptateur(plateforme, connexion, liens)` → l'adaptateur, ou un **état** : `non_connectee` (« Aucune donnée remontée — <plateforme> non connectée. »), `non_liee` (« Liez la campagne <plateforme> à l'étape ⑥ pour remonter ses données. »), `scope_manquant` (DV360, E4), `a_venir` (TTD). | un état de plus |
+| A-4 | Prévu par plateforme et par unité | Impressions de la plateforme = budget ÷ CPM × 1 000 (⑥). **Au CP** : sur SES CP bruts (`lireCpPlateforme`) au prorata des multiplicateurs, plus forts restes. **Autre maille d'achat** : sur les CP **canoniques** du plan au prorata de `pop_en_zone`. Chaque niveau de la descente = somme des CP (Q-5). Jamais `planned_share`. | une règle du noyau |
+| A-5 | Descente | Niveaux ordonnés `region → departement → cp` ; plafond = `maille_rapport` de la plateforme ; si elle n'achète pas au CP, son prévu n'existe qu'agrégé : la descente s'arrête à la région même si elle rapporte au CP. « Toutes plateformes » = région. Note : « Meta ne rend pas le code postal : la descente s'arrête à la région. » ; TikTok : « … (maille à vérifier). » | un libellé |
+| A-6 | Écart par territoire | Écart de **répartition** (Q-3) : prévu à date = part prévue × livré total de la plateforme ; `ecart_pct = (livré − prévu à date) ÷ prévu à date × 100` ; `hors_plan` si livré sans prévu ; `retard_imps = max(0, prévu à date − livré)`. | une formule |
+| A-7 | Liste des plus en retard | Au niveau affiché, triée par `retard_imps` décroissant (volume manquant, comme le tri de React par volume mal placé), 7 lignes puis « Voir les N … » en mémoire ; clic = descendre (Q-5). | un tri |
+| A-8 | Rythme et alertes | Au dernier jour relevé : `temps_pct`, `budget_pct`, `volume_pct`, `indice = volume_pct ÷ temps_pct` ; retard < 0,85 / < 0,70, avance > 1,15 / > 1,30 (seuils de `get_campaign_suivi`) ; zone sous-livrée = constat `sous_pression` de React (≤ 3, seuil 20 %) ; CPM réel > prévu × `SEUIL_CPM_CHER`. | des seuils importés |
+| A-9 | Alignement | `calculerAlignement` sur les CP d'une plateforme au CP, tolérance et poids de la campagne ; variation 7 j ou `null` ; pas de `sur_pression_eur`. Plateforme hors CP : « Score calculé au code postal : non disponible pour <plateforme>. » | un bloc masqué |
+| A-10 | Dépense | La dépense de la plateforme, en euros, telle que l'API la rend : DV360 `METRIC_REVENUE_ADVERTISER` (ce que l'annonceur paie, comparable au budget saisi en ⑥ ; Q-9), Meta `spend`, TikTok `spend`. Devise de la connexion ≠ EUR : ligne refusée et dite (« Devise <X> non prise en charge »), jamais convertie en silence. | une métrique |
+| A-11 | Relevé | `releverCampagne(supabase, campagneId, { onProgres })` : pour chaque plateforme cochée, `choisirAdaptateur` ; jours = du début de période à `min(fin, hier)`, **plafonnés aux 3 derniers jours** après le premier relevé complet (les plateformes corrigent leurs chiffres a posteriori ; Q-12) ; upsert par lots ; erreur d'une plateforme = journalisée, n'efface rien, n'arrête pas les autres. Appelé par Inngest et par le bouton (même fonction). | une fenêtre |
+| A-12 | Inngest | `releve-livraisons-quotidien`, cron `TZ=Europe/Paris 0 6 * * *` ; un step `lister` (campagnes dont la période couvre hier, stratégie à `extraction_id`, ≥ 1 plateforme `connected` avec adaptateur), puis **un step par campagne**, séquentiels ; `retries: 2` par step ; compteurs par campagne dans `dsp_api_logs` (`logDspEvent`). | un horaire |
+| A-13 | Campagne hors parcours / vide | Sans `extraction_id` : « Cette campagne n'a pas été lancée depuis une extraction : son suivi reste dans l'application actuelle. » + lien `ONGLET_REACT.live`. Période future : « La campagne commence le <date>. » Aucune plateforme connectée : « Aucune donnée remontée — plateforme non connectée. » + lien vers Connexions API. | un message |
+| A-14 | Grande carte | Couche `live` sur la carte principale, zoomable : polygones de `ContoursZonesService` au niveau affiché (régions ; départements d'une région ; CP d'un département), couleur par `trancheDivergente` de l'écart, `--donnee-absente` sans prévu ni livré ; clic = descendre et cadrer ; la couche se retire hors de ⑧. | une couche |
+| A-15 | Pastille et bandeau | Pastille ⑧ : le payload porte ≥ 1 jour relevé. Bandeau : livré / prévu, dépensé / budget, CPM réel / prévu, jours restants, dernier jour relevé et sa date de lecture. | du texte |
 
 ---
 
-## Questions pour Vincent (produit seulement ; recommandation entre crochets)
+## Questions pour Vincent (nouvelles, 28/10 ; recommandation entre crochets)
 
 | # | Question | Ce qui en dépend | Recommandation |
 |---|---|---|---|
-| Q-1 | Aucune API de plateforme n'est branchable : ⑧ s'alimente-t-il d'une **livraison simulée** pour les seules campagnes de démo (marquée « Simulé »), une vraie campagne affichant « non branché » ? | A-3, A-9, T1 | **[Oui, démo seulement, comme la poussée de ⑦.]** |
-| Q-2 | Maille de rapport de **TTD** (inconnue sans accès) : on la pose à la **région**, « à vérifier », jusqu'à l'accès API ? | A-5, sql | **[Oui, région à vérifier.]** |
-| Q-3 | « Zone sous-livrée » : écart de **répartition** (part du livré contre part du plan, comme React), le retard de volume étant dit par le rythme — ou écart au **prévu proratisé au temps** ? | A-6, A-7 | **[Répartition, comme React ; le retard par le rythme.]** |
-| Q-4 | Les trois vignettes carte de React deviennent **la grande carte** de la page (modes Écart / Impressions) ? | A-12, T5 | **[Oui, la carte est déjà l'écran.]** |
-| Q-5 | « Graphique d'écart » : on porte l'**histogramme CP** et on laisse la **courbe région/département** (redite du tableau des territoires) ? | T5 | **[Oui.]** |
-| Q-6 | Relevé : **bouton** dans ⑧ en V1, la tâche Inngest quotidienne venant avec le premier vrai connecteur (TTD) ? | A-10 | **[Oui.]** |
-| Q-7 | Adaptateurs : on n'écrit que le **contrat + simulé** ; `ttd.ts`, `dv360.ts`, `meta.ts`, `tiktok.ts` naissent avec leur accès API (zéro fichier vide) ? | A-3 | **[Oui.]** |
+| Q-8 | Sans aucune connexion active, l'écran **rempli** ne peut pas être montré dans le navigateur (pas de démo). Preuve du lot = specs Angular sur une réponse de test + preuve navigateur des états vides et de la navigation ; la preuve remplie se fait à la **première vraie connexion** ? | T10 | **[Oui.]** |
+| Q-9 | Dépense DV360 = **coût total annonceur** (`Revenue (Adv Currency)`, ce que couvre le budget saisi en ⑥) plutôt que le coût média seul ? | A-10, T4 | **[Coût total annonceur.]** |
+| Q-10 | Accès à obtenir hors code : **app Meta** (app id / secret, accès Marketing API `ads_read`, Business Manager dentsu), **app développeur TikTok**, **droits Google** + reconsentement DV360 pour le scope reporting. Qui les porte ? | T4-T6 en réel | **[Vincent ou le CP repreneur ; le code est livré et testé sans eux.]** |
+| Q-11 | Aucune API publique ne rapporte sous le CP : la descente s'arrête au **CP** en V1, les niveaux IRIS / polygone venant avec TTD ? | A-5 | **[Oui.]** |
+| Q-12 | Chaque matin, relire les **3 derniers jours** (chiffres corrigés a posteriori par les plateformes) ? | A-11 | **[Oui, 3 jours.]** |
 
 En attendant les réponses, le plan applique les recommandations ; chaque arbitrage dit son coût si la réponse est autre.
 
@@ -168,131 +190,122 @@ En attendant les réponses, le plan applique les recommandations ; chaque arbitr
 
 | Fichier | Responsabilité | Tâche |
 |---|---|---|
-| `sql/288_livraison_plateformes.sql` (créé ; numéro à confirmer au moment de coder) | table `livraison_plateformes` (A-2), `plateformes_geo.maille_rapport` + valeurs (E3), RPC `livraison_agregee_jsonb(p_campagne uuid, p_cps text[])` : livré par (plateforme, maille, code) total / 7 j / 7 j précédents, par (plateforme, jour), et région / département (codes + noms) des CP demandés ∪ livrés ; borne écrite 20 000 entrées + `tronque` | T1 |
-| `lib/supabase/ecrire-par-lots.ts` (créé) ; `lib/simulation/serveur.ts` (modifié : `insererLignes` l'appelle) | lots de 50, 3 en parallèle, erreur de chaque lot, `onConflict` optionnel (E5) | T1 |
-| `lib/optimisation/adaptateurs/{types,index,simule}.ts` (créés) | contrat, choix (A-3), simulé (A-9) | T1 |
-| `lib/campagne/live/campagne-live.ts` (créé) | lecture SERVEUR de la campagne de ⑧ : stratégie la plus récente, `extraction_id` (`sourceDePoussee` réutilisé), période, canaux, `plateformes_geo`, plan CP lu une fois et CP par plateforme (A-1) — partagée par les deux routes | T1 |
-| `lib/zones/cp-plateforme.ts` (modifié, A-1) | paramètre `plan?` | T1 |
-| `app/api/campaigns/[campaignId]/live/relever/route.ts` (créé) | relevé NDJSON (A-10), super_admin, quota `geo:rl:live-relever` 2/min | T1 |
-| `tests/unit/optimisation/adaptateurs.test.ts`, `tests/unit/supabase/ecrire-par-lots.test.ts`, `tests/integration/live-relever.test.ts` (créés) | T1 | T1 |
-| `lib/optimisation/noyau/{prevu,suivi}.ts` (créés) | `impressionsPrevues`, `repartitionParCp`, `repartitionParPopulation` (A-4) ; `territoires`, `rythme`, `alertes`, `dispersion` (A-5 à A-8) — PURS | T2 |
-| `lib/campagne/constats.ts` (modifié : `export` de `constatSousPression`) | réutilisé par `alertes` | T2 |
+| `sql/288_livraison_plateformes.sql` (créé ; numéro à reconfirmer) | `livraison_plateformes` (A-2), `plateformes_geo.maille_rapport` + valeurs (E3), index couvrant de `ref_codes_postaux` s'il paie (mesure), RPC `livraison_agregee_jsonb(p_campagne uuid, p_cps text[])` : livré par (plateforme, maille, code) total / 7 j / 7 j précédents, par (plateforme, jour), et département / région (codes, noms) des CP demandés ∪ livrés ; borne 20 000 entrées + `tronque` | T1 |
+| `lib/supabase/ecrire-par-lots.ts` (créé) ; `lib/simulation/serveur.ts` (modifié) | lots de 50, 3 en parallèle (E7) | T1 |
+| `lib/optimisation/adaptateurs/{types,index}.ts` (créés) | contrat, `choisirAdaptateur` et ses états (A-3) | T1 |
+| `lib/campagne/live/campagne-live.ts` (créé) ; `lib/zones/cp-plateforme.ts` (modifié, A-1) | lecture serveur de la campagne de ⑧ (stratégie, extraction, période, canaux, liens, connexions de l'espace, plan, CP par plateforme) | T1 |
+| `lib/optimisation/noyau/{prevu,suivi}.ts` (créés) ; `lib/campagne/constats.ts` (export) | prévu, descente, écart, retard, rythme, alignement, alertes — PURS | T2 |
 | `app/api/campaigns/[campaignId]/live/route.ts` (créé) | le payload unique de ⑧ | T2 |
-| `tests/unit/optimisation/noyau-prevu.test.ts`, `…/noyau-suivi.test.ts`, `tests/integration/live-suivi.test.ts` (créés) ; `tests/unit/angular/plan-logique-paritaire.test.ts` (étendu : `repartitionParCp` et `impressionsPrevues` du noyau = Angular) ; `tests/unit/db/troncature-postgrest.test.ts` (complété si besoin) | T2 | T2 |
-| `angular/.../carte/data/live.api.ts` (+ spec) ; `app.routes.ts` (`FOURNISSEURS_DISTANTS`) | `suivi(c)`, `relever(c): Observable<LigneReleve>` | T3 |
-| `angular/.../carte/etat/live-campagne.service.ts` (+ spec) ; `carte.fournisseurs.ts` | état de ⑧ (page) : validée, lecture annulable, cache par campagne, plateforme et parent choisis, relevé lié à SA campagne, `renseignee` | T3 |
-| `angular/.../carte/logique/live/{vue,textes}.ts` (+ specs) | filtrage par plateforme / parent, tri des déréglés (volume mal placé, comme React), libellés et notes de maille — aucune formule métier | T3 |
-| `angular/.../carte/panneaux/live/{panneau-live,releve-livraisons,bandeau-live}.component.ts` (+ specs) ; `carte.page.html`, `logique/parcours.ts`, `carte.page.ts` (une ligne) | squelette, états A-11, relevé, bandeau | T3 |
-| `angular/.../carte/panneaux/live/{bandeau-avancement,cout-rythme,qui-a-diffuse,score-alignement,trois-composantes}.component.ts` (+ specs) | ports de React | T4 |
-| `angular/.../carte/panneaux/live/{barre-maille,tableau-territoires,dispersion-cp,constats-live}.component.ts` (+ specs) | ports de React | T5 |
-| `angular/.../carte/couches/{couche-live.ts,live-carte.service.ts}` (+ specs) | grande carte (A-12) | T5 |
-| `angular/.../carte/testing/live-factice.ts` | doublure du service | T3 |
-| `ARCHITECTURE.md`, `angular/src/app/features/carte/README.md` | T1, T2, T6 | — |
+| `lib/campagne/live/relever.ts` (créé) ; `app/api/campaigns/[campaignId]/live/relever/route.ts` (créé) ; `lib/inngest/functions/releveLivraisonsQuotidien.ts` (créé) ; `app/api/inngest/route.ts` (modifié) | relevé (A-11, A-12) | T3 |
+| `lib/dsp/dv360/auth.ts` (scope) ; `lib/dsp/dv360/rapports.ts` (créé : `creerRequete`, `lancer`, `attendre`, `telecharger`) ; `lib/optimisation/adaptateurs/dv360.ts` (créé) | DV360 Bid Manager v2 | T4 |
+| `lib/dsp/meta/client.ts` (créé) ; `app/api/admin/dsp/meta/oauth/{start,callback}/route.ts` (créés) ; `lib/optimisation/adaptateurs/meta.ts` (créé) ; `lib/optimisation/adaptateurs/regions.ts` (créé : nom de région rendu par une API → `code_region` de `ref_regions`, partagé Meta / TikTok) | Meta | T5 |
+| `lib/dsp/tiktok/client.ts` (étendu : `lireRapport`) ; `lib/optimisation/adaptateurs/tiktok.ts` (créé) | TikTok | T6 |
+| `tests/unit/optimisation/**`, `tests/fixtures/dsp/{dv360,meta,tiktok}/*` (réponses enregistrées, anonymisées), `tests/integration/live-*.test.ts` | — | T1-T6 |
+| `angular/.../carte/data/live.api.ts`, `etat/live-campagne.service.ts`, `logique/live/{vue,textes}.ts`, `panneaux/live/{panneau-live,releve-livraisons,bandeau-live}.component.ts`, `testing/live-factice.ts` (+ specs) ; `carte.page.html`, `logique/parcours.ts`, `carte.fournisseurs.ts`, `carte.page.ts` (une ligne), `app.routes.ts` | état, squelette, relevé, bandeau | T7 |
+| `angular/.../carte/panneaux/live/{bandeau-avancement,cout-rythme,qui-a-diffuse,score-alignement,trois-composantes}.component.ts` (+ specs) | chiffres | T8 |
+| `angular/.../carte/panneaux/live/{barre-maille,territoires-retard,constats-live}.component.ts`, `couches/{couche-live.ts,live-carte.service.ts}` (+ specs) | descente et carte | T9 |
+| écran Connexions API (admin Angular, lot 6) | Meta connectable ; « Reconnectez DV360… » (E4) | T5 |
+| `ARCHITECTURE.md`, `angular/src/app/features/carte/README.md` | T1-T6, T10 | — |
 
 ---
 
 ## Pièges Angular / AIDA (à recopier dans CHAQUE brief de tâche Angular)
 
-- Contrat AIDA : aucun `position: fixed`, aucun écouteur `window`/`document`, aucun `localStorage` neuf, aucun portail hors de l'arbre, services d'état **fournis par la page** (`carte.fournisseurs.ts`), services d'API dans `FOURNISSEURS_DISTANTS`, adresses par `HttpBaseService.baseUrl`, pas de `@angular/core/rxjs-interop`.
-- **Aucune lecture avant la validation de l'espace** : `LiveCampagneService` attend `plan.prerempli() && plan.detail()?.id === plan.campagne()` et `!plan.accesRefuse()` (patron `ActivationCampagneService.validee`).
-- **Aucune formule dans Angular** : pas de `budget / cpm`, pas de `livré / prévu`, pas de seuil. Le relecteur grep `/ 1000`, `* 100`, `0.85`, `1.25` dans `logique/live/` et `panneaux/live/`.
-- Couleurs par jetons ; MapLibre reçoit des valeurs CALCULÉES (`CouleursService`), jamais `var()` dans `paint` ; palette divergente = `features/risques/logique/palette-divergente.ts` (ne pas recopier). Texte de statut sur fond clair : `--text-primary` pour le texte, la couleur de statut pour le point et la bordure.
-- Graphiques : `graphiques/` (ECharts) n'a ni barres ni aires ; les barres (avancement, dispersion, qui a diffusé, territoires) sont du **HTML/CSS**, comme React les dessine déjà.
-- Lectures en UN abonnement annulable par jeton (`lecture-annulable.ts`) ; flux NDJSON par `lignesNdjson`, une ligne = un `update` de signal ; dérivées en `computed`, jamais un `effect` qui recopie ; `inject()` jamais après un `await`.
-- Nombres, euros et dates par `core/format/*` (jamais un formateur local).
-- Le panneau de ⑧ reste MONTÉ hors de l'étape (le relevé lui survit) ; la couche `live` se retire quand on quitte ⑧.
-- `input()` qui masque un attribut natif : préfixer.
+- Contrat AIDA : aucun `position: fixed`, aucun écouteur `window`/`document`, aucun `localStorage` neuf, aucun portail hors de l'arbre, services d'état fournis par la page, services d'API dans `FOURNISSEURS_DISTANTS`, `HttpBaseService.baseUrl`, pas de `@angular/core/rxjs-interop`.
+- **Aucune lecture avant la validation de l'espace** (patron `ActivationCampagneService.validee`).
+- **Aucune formule dans Angular** : le relecteur grep `/ 1000`, `* 100`, `0.85`, `1.25` dans `logique/live/` et `panneaux/live/`.
+- **Aucune donnée de démo** : les doublures (`testing/live-factice.ts`) vivent dans les specs seulement.
+- MapLibre reçoit des couleurs CALCULÉES (`CouleursService`) ; palette divergente importée de `features/risques/logique/palette-divergente.ts`, jamais recopiée. Texte de statut sur fond clair : `--text-primary`, la couleur de statut pour le point et la bordure.
+- Barres (avancement, plateformes, territoires) en **HTML/CSS**, comme React ; `graphiques/` n'a ni barres ni aires.
+- Lecture annulable (`lecture-annulable.ts`) ; NDJSON par `lignesNdjson` ; dérivées en `computed` ; `inject()` jamais après un `await` ; formats par `core/format/*`.
+- Le panneau de ⑧ reste MONTÉ hors de l'étape ; la couche `live` se retire quand on quitte ⑧.
 
 ---
 
-## Groupe A — serveur (relecture 1)
+## Groupe A — socle serveur (relecture 1)
 
-### Task 1 : livraisons relevées — table, adaptateurs, relevé simulé
+### Task 1 : table, maille de rapport, contrat d'adaptateur, lecture de la campagne
 
-**Files :** voir File Structure, lignes T1.
+**Interfaces :** `ecrireParLots<T>(supabase, table, lignes, o: { onConflict?; onProgres? })` ; `LigneLivraison { plateforme; jour; maille; code; impressions; depense }` ; `AdaptateurLivraison`, `choisirAdaptateur` (A-3) ; `lireCampagneLive(supabase, campagneId, orgId): Promise<CampagneLive | { refus: 404 | 409; code; message }>` où `CampagneLive = { id; nom; debut; fin; tolerance; poids; extractionId; typeJeu; plan: LigneCpExtraction[]; plateformes: { code; budget; cpm; mailleAchat; mailleRapport; liens: Record<string, string>; connexion: { status; auth_method; … } | null; cps: LigneCpExtraction[] | null }[] }`.
 
-**Interfaces :**
-- Produces : `ecrireParLots<T>(supabase, table: string, lignes: T[], o: { onConflict?: string; onProgres?: (faites: number) => void }): Promise<void>` ; `LigneLivraison { plateforme: Plateforme; jour: string; maille: 'cp' | 'departement' | 'region'; code: string; impressions: number; depense: number }` ; `AdaptateurLivraison` et `choisirAdaptateur` (A-3) ; `lireCampagneLive(supabase, campagneId, orgId): Promise<CampagneLive | { refus: 404 | 409; code: string; message: string }>` où `CampagneLive = { id; nom; isDemo; debut; fin; tolerance; poids; extractionId; typeJeu; plateformes: { code; budget; cpm; mailleAchat; mailleRapport; aVerifier; cps: LigneCpExtraction[] | null }[]; plan: LigneCpExtraction[] }` ; flux NDJSON de `relever` : `{ type: 'debut', plateformes: [{ code, source: 'api' | 'simule' | 'non_branche', message? }], jours }` · `{ type: 'progression', faites, total }` · `{ type: 'fin', lignes, par_plateforme, dernier_jour }` · `{ type: 'erreur', message }`.
+- [ ] Tests d'abord : `ecrire-par-lots.test.ts` (101 lignes → 3 lots, ≤ 3 en vol, erreur de lot levée, progression cumulée) ; `adaptateurs-choix.test.ts` (connexion absente → `non_connectee` ; `error` → `non_connectee` ; liens vides → `non_liee` ; TTD → `a_venir` ; DV360 sans scope reporting → `scope_manquant`) ; `campagne-live` par l'intégration. Lancer : FAIL.
+- [ ] `sql/288_livraison_plateformes.sql` : table, colonne et valeurs, RPC (`SECURITY DEFINER`, `search_path`, `comment on function` avec la borne) ; mesurer la descente avec et sans l'index couvrant `(code_postal) include (code_dept)` sur `ref_codes_postaux`, ne le garder que s'il paie (chiffres au rapport) ; compléter `troncature-postgrest.test.ts`.
+- [ ] `ecrireParLots` extrait (`insererLignes` : contrat et tests inchangés).
+- [ ] `lireCampagneLive` (A-1, contrôle d'espace 404, `hors_parcours` 409).
+- [ ] `tests/integration/live-campagne.test.ts` : campagne de test créée et supprimée par le test, extraction `2fc8fd52…` ; plan lu une fois ; DV360 72 CP ; `hors_parcours` sur une stratégie sans extraction ; autre espace → 404.
+- [ ] `ARCHITECTURE.md` ; tsc, unitaires, intégration (codes de retour lus sans pipe). Commit `feat(api): ⑧ table des livraisons et contrat des adaptateurs (lot 8, T1)`.
 
-- [ ] Tests d'abord : `ecrire-par-lots.test.ts` (client factice : 101 lignes → 3 lots, au plus 3 en vol, une erreur de lot lève avec son message, `onProgres` cumulé) ; `adaptateurs.test.ts` — `choisirAdaptateur` (connexion `connected` sans connecteur écrit → `simule` si démo, sinon `non_branche` avec le message de la plateforme ; `error`/absente + démo → `simule` ; non démo → `non_branche`) ; `simule.lireLivraison` : déterministe (deux appels, mêmes lignes), aucun jour hors période, Meta/TikTok/TTD à la région seulement, DV360 au CP, somme des impressions d'une plateforme sur la période ≈ prévu × facteur de rythme (± fuite), CPM moyen dans [0,8 ; 1,3] × CPM prévu. Lancer : FAIL.
-- [ ] `sql/288_livraison_plateformes.sql` : `create table if not exists`, `alter table plateformes_geo add column if not exists maille_rapport text check (maille_rapport in ('cp','departement','region'))` + `update` des 13 lignes (A-5, Q-2), RPC `livraison_agregee_jsonb` (`SECURITY DEFINER`, `search_path`, `comment on function` avec la borne), index = clé primaire seule. Appliquer en local, `\d`, `EXPLAIN (ANALYZE, BUFFERS)` sur la campagne nationale de T1 (chiffre au rapport). Compléter `troncature-postgrest.test.ts` si la RPC y entre.
-- [ ] `ecrireParLots` extrait de `insererLignes` (contrat de `insererLignes` inchangé : les tests de la simulation du module risque restent verts).
-- [ ] `lireCampagneLive` : stratégie la plus récente (`bidding_strategies`), `sourceDePoussee` (lot 7) pour l'extraction, refus `hors_parcours` (409, A-11) sans extraction ; `checkCampaignAccess` + contrôle d'espace (404) ; plan lu UNE fois, `lireCpPlateforme(…, plan)` par plateforme au CP (A-1).
-- [ ] Adaptateurs (A-3, A-9) : `simule` importe `diffuserJour`, `PARAMS_DEFAUT`, `hashStr` ; pas de copie du générateur.
-- [ ] Route `relever` : `requireAuth` + super_admin (403), `lireCampagneLive`, quota, un relevé = toutes les plateformes cochées, jours du début à `min(fin, hier)` (aucun → `fin` avec 0 ligne et le message A-11), lignes de CHAQUE plateforme simulée écrites par `ecrireParLots(…, { onConflict: 'campaign_id,plateforme,jour,maille,code' })`, `source` posée par la route d'après l'adaptateur (jamais lue du corps) ; plateformes `non_branche` : aucune écriture.
-- [ ] `tests/integration/live-relever.test.ts` (campagne de démo créée et nettoyée par le test, extraction `2fc8fd52…`, dates passées) : NDJSON `debut` (4 plateformes `simule`), `progression`, `fin` ; lignes en base par plateforme et par maille (DV360 `cp`, autres `region`), `source = 'simule'` ; second relevé → même nombre de lignes, mêmes valeurs (Review Focus 4) ; même campagne `is_demo = false` → 4 `non_branche`, 0 ligne (Review Focus 3) ; campagne de seed sans extraction → 409 `hors_parcours` ; période future → 0 ligne ; jeu risque national (`78f6911a…`, 30 jours, DV360 seul) → ≈ 78 000 lignes, durée notée (Review Focus 5) ; un client admin non super_admin → 403 sans écriture.
-- [ ] `ARCHITECTURE.md` (par `Grep "plateformes_geo"`, `"dsp_campaign_data"`, `"lib/simulation"`) : table, colonne, RPC, route, adaptateurs ; `npx tsc --noEmit`, `npm run test:unit`, `npm run test:integration` (codes de retour lus sans pipe).
-- [ ] Commit `feat(api): ⑧ livraisons relevées par plateforme, adaptateur simulé (lot 8, T1)`.
+### Task 2 : le payload de ⑧ — prévu, descente, retard, rythme, alignement
 
-### Task 2 : le payload de ⑧ — prévu, écart, rythme, alignement, alertes
+**Interfaces :** `GET /api/campaigns/[campaignId]/live` → `{ campagne: { id, nom, debut, fin, dernier_jour, lu_le, jours_ecoules, jours_total, temps_pct }, plateformes: PlateformeLive[], total, descente: Record<string /* plateforme | 'toutes' */, { plafond: 'region' | 'departement' | 'cp'; note: string | null; region: Territoire[]; departement: Territoire[]; cp: Territoire[] }>, alertes: Alerte[], tronque }` ; `PlateformeLive = { code, libelle, etat: 'ok' | 'non_connectee' | 'non_liee' | 'scope_manquant' | 'a_venir' | 'aucune_donnee'; message; maille_rapport; budget; cpm_prevu; impressions_prevues; impressions_livrees; depense; cpm_reel; rythme; alignement | null }` ; `Territoire = { code; nom; parent; prevu; livre; depense; ecart_pct; retard_imps; hors_plan }` (chaque liste déjà triée par `retard_imps` décroissant) ; `Alerte = { type: 'retard' | 'avance' | 'sous_livree' | 'cpm'; plateforme; severite; titre; detail; cible }`.
 
-**Files :** voir File Structure, lignes T2.
+- [ ] Tests d'abord : `noyau-prevu.test.ts` (démo de calcul : 2 222 222 / 2 105 263 / 1 153 846 / 666 667 = 6 147 998 ; `repartitionParCp` = Angular, somme exacte ; deux plateformes au CP indépendantes — Review Focus 2 ; `repartitionParPopulation` sans membres non canoniques) ; `noyau-suivi.test.ts` (descente : sommes exactes CP → département → région, prévu et livré ; plafond région pour Meta — Review Focus 3 ; écart de répartition, `hors_plan`, `retard_imps`, tri ; rythme et seuils ; sous-livrée = texte de `constatSousPression` ; alignement = `calculerAlignement` ; plateforme sans ligne → `aucune_donnee` ou son état d'adaptateur).
+- [ ] `lib/optimisation/noyau/{prevu,suivi}.ts` (purs ; en tête de `prevu.ts` : « copie verrouillée d'`angular/…/logique/plan/impressions.ts` et de `computeForecast` ») ; export de `constatSousPression`.
+- [ ] Route `GET …/live` (séquentielle, `no-store`) ; étendre `plan-logique-paritaire.test.ts` au noyau.
+- [ ] `tests/integration/live-suivi.test.ts` : lignes de livraison **de test** insérées sur une campagne de test puis supprimées (jamais visibles) → payload attendu ; national (jeu risque, 2 595 CP, lignes de test sur 30 jours) : < 1 s, < 500 Ko, buffers notés ; aucune connexion → toutes `non_connectee`, payload vide valide.
+- [ ] `ARCHITECTURE.md` ; tsc, unitaires, intégration. Commit `feat(api): ⑧ suivi des livraisons par plateforme et en descente (lot 8, T2)`.
 
-**Interfaces :**
-- Consumes : `lireCampagneLive`, `livraison_agregee_jsonb` (T1).
-- Produces : `GET /api/campaigns/[campaignId]/live` →
-  `{ campagne: { id, nom, debut, fin, dernier_jour: string | null, jours_ecoules, jours_total, temps_pct }, plateformes: PlateformeLive[], total: Rythme & Montants, territoires: Record<string /* plateforme | 'toutes' */, { maille_comparaison: 'cp' | 'region'; note: string | null; region: Territoire[]; departement: Territoire[]; cp: Territoire[] }>, alertes: Alerte[], tronque: boolean }`
-  avec `PlateformeLive = { code, libelle, source: 'api' | 'simule' | 'non_branche' | 'aucune'; message: string | null; maille_achat; maille_rapport; a_verifier; budget; cpm_prevu; impressions_prevues; impressions_livrees; depense; cpm_reel; rythme: Rythme; alignement: { score; conformes_pct; sous_pression_pct; sur_pression_pct; sous_pression_imps; sur_pression_imps; variation_7j: number | null; tolerance_pct; n_cp } | null; dispersion: { borne_basse: number | null; borne_haute: number | null; n: number }[] | null }`, `Rythme = { temps_pct; budget_pct; volume_pct; indice; etat: 'retard' | 'avance' | 'dans_le_rythme' | null }`, `Territoire = { code; nom; parent: string | null; prevu; livre; depense; ecart_pct: number | null; hors_plan: boolean }`, `Alerte = { type: 'retard' | 'avance' | 'sous_livree' | 'cpm'; plateforme: string | 'toutes'; severite: 'warning' | 'danger'; titre; detail; cible: string | null }`.
-  Refus : 404 (espace, campagne), 409 `hors_parcours` (A-11) avec message français.
+### Task 3 : le relevé — service, bouton, tâche Inngest quotidienne
 
-- [ ] Tests d'abord : `noyau-prevu.test.ts` — `impressionsPrevues(10000, 4.5) = 2 222 222` (et les trois autres de la démo, total 6 147 998) ; `repartitionParCp` = celle d'Angular sur les cas de `impressions.spec.ts` (somme exacte, plus forts restes) ; **deux plateformes au CP** sur des CP qui se recouvrent → deux répartitions indépendantes, aucune n'utilise l'autre (Review Focus 1) ; `repartitionParPopulation` : membres non canoniques écartés, somme exacte. `noyau-suivi.test.ts` — écart de répartition (A-6) sur un cas à la main, `hors_plan` ; agrégation CP → département → région (sommes exactes) ; plateforme au cercle → territoires à la région seulement, note A-5 (Review Focus 2) ; rythme et seuils (0,84 → retard avertissement, 0,69 → danger, 1,16 → avance) ; sous-livrée = le texte de `constatSousPression` ; alignement = `calculerAlignement` sur les CP, `variation_7j = null` sans fenêtre précédente ; dispersion par `BORNES_DIVERGENTES`. Lancer : FAIL.
-- [ ] `lib/optimisation/noyau/prevu.ts` et `suivi.ts` : purs, sans I/O ; importent `calculerAlignement`, `constatSousPression` (export ajouté), `SEUIL_ECART_SIGNALE_PCT`, `SEUIL_CPM_CHER`, `trancheDivergente`/`BORNES_DIVERGENTES`. En tête de `prevu.ts` : « copie verrouillée de `angular/…/logique/plan/impressions.ts` et de `computeForecast` ; la version React disparaît à la bascule ».
-- [ ] Route `GET …/live` : `requireAuth`, `lireCampagneLive`, RPC (CP demandés = plan ∪ CP des plateformes), noyau, réponse `no-store` ; une plateforme cochée sans aucune ligne → `source: 'aucune'` (ou `non_branche` si l'adaptateur l'est, même règle que T1) ; aucun appel en parallèle.
-- [ ] Étendre `plan-logique-paritaire.test.ts` : noyau ↔ Angular ↔ `computeForecast`.
-- [ ] `tests/integration/live-suivi.test.ts` : après un relevé simulé (fixture de T1), `GET` → 4 plateformes, `impressions_prevues` = 6 147 998 au total, DV360 `maille_comparaison = 'cp'` avec 3 niveaux, Meta/TikTok/TTD `region` sans `departement` ni `cp`, `toutes` à la région ; Σ prévu des CP DV360 = prévu DV360 ; alignement DV360 calculable, Meta `null` ; campagne nationale de T1 → réponse < 1 s, < 500 Ko (mesures au rapport) ; autre espace → 404 ; seed `dccc…02` → 409 `hors_parcours`.
-- [ ] `ARCHITECTURE.md` (route, contrat ⑥ → ⑧ honoré : « prévu recalculé par le noyau ») ; tsc, unitaires, intégration.
-- [ ] Commit `feat(api): ⑧ suivi des livraisons par plateforme et par territoire (lot 8, T2)`.
+**Interfaces :** `releverCampagne(supabase, campagneId, o: { onProgres? }): Promise<{ par_plateforme: Record<string, { etat; lignes; jours; erreur? }>; dernier_jour }>` ; NDJSON de `relever` : `debut` (plateformes et leur état), `progression`, `fin`, `erreur` ; fonction Inngest `releve-livraisons-quotidien`.
 
-**Relecture 1** (T1 + T2, une passe, modèle le plus capable) : une ligne `simule` peut-elle naître sur une campagne non démo ? le prévu touche-t-il `planned_share` ou `get_campaign_expected` par un chemin quelconque ? `insererLignes` est-il strictement inchangé pour ses appelants ? la RPC peut-elle tronquer sans le dire ? un relevé peut-il écrire un jour futur ? Meta peut-elle sortir une ligne au CP ?
+- [ ] Tests d'abord : service avec adaptateurs factices (fenêtre de jours A-11 : première fois toute la période écoulée, ensuite les 3 derniers jours ; jour futur jamais demandé ; erreur d'une plateforme n'arrête pas les autres et n'efface rien ; idempotence sur la clé) ; Inngest : la liste ne retient que les campagnes en vol avec ≥ 1 connexion utilisable et un adaptateur ; un step par campagne, séquentiels (Review Focus 5).
+- [ ] `lib/campagne/live/relever.ts`, route `relever` (super_admin 403, quota `geo:rl:live-relever` 2/min, un relevé à la fois par campagne), `releveLivraisonsQuotidien.ts` (patron `civicDailyIngest`), enregistrement dans `app/api/inngest/route.ts`.
+- [ ] Intégration : sans connexion → `debut` avec 3 `non_connectee` et TTD `a_venir`, `fin` 0 ligne, rien écrit (Review Focus 1) ; non super_admin → 403 ; coût d'une passe Inngest à vide mesuré.
+- [ ] `ARCHITECTURE.md` (tâche planifiée, route) ; tsc, unitaires, intégration. Commit `feat(api): ⑧ relevé des livraisons, quotidien et à la demande (lot 8, T3)`.
 
-## Groupe B — état, squelette et chiffres (relecture 2)
+**Relecture 1** (T1-T3) : une ligne peut-elle naître sans réponse d'API ? le prévu touche-t-il `planned_share` ? `insererLignes` inchangé ? la RPC peut-elle tronquer sans le dire ? Inngest peut-il relire deux campagnes en parallèle ou une campagne sans connexion ?
 
-### Task 3 : Angular — API, état, squelette de ⑧, relevé, bandeau
+## Groupe B — adaptateurs réels (relecture 2)
 
-**Files :** voir File Structure, lignes T3.
+Chaque adaptateur est écrit d'après la **doc publique** (lien et date de lecture en tête de fichier), testé par des **réponses enregistrées** (`tests/fixtures/dsp/<plateforme>/`, construites d'après les exemples de la doc, aucun identifiant réel), et ne touche à la base que par `releverCampagne`. `fetchAvecDelai` partout ; `logDspEvent` à chaque appel (statut, durée, nombre de lignes).
 
-**Interfaces :**
-- Consumes : routes de T1 et T2 ; `PlanCampagneService` (`campagne`, `detail`, `prerempli`, `accesRefuse`, `libelleCanal`) ; `ParcoursService`.
-- Produces : `LiveApi { suivi(c): Observable<SuiviLive>; relever(c): Observable<LigneReleve> }` ; `LiveCampagneService { suivi; chargement; erreur; refus; plateforme: Signal<string>; parent: Signal<{ maille; code } | null>; vue: Signal<VueLive>; releve: Signal<{ campagne; lignes: LigneReleve[]; faites; total } | null>; releveEnCours; renseignee; choisirPlateforme(p); descendre(code); remonter(niveau); relever() }` ; `vueLive(suivi, plateforme, parent): VueLive` (filtrage pur : territoires du niveau, plateforme sélectionnée, fil d'Ariane, note de maille) ; `textes.ts` (états A-11, libellés de source « Simulé » / « API » / « Non branché », note A-5).
+### Task 4 : DV360 — Bid Manager reporting v2
 
-- [ ] Specs d'abord : `vue.spec.ts` (DV360 → région / département de la région / CP du département ; Meta → région seule et note ; « toutes » → région ; parent inconnu → région) ; `textes.spec.ts` ; service : rien n'est lu tant que l'espace n'est pas validé ; campagne d'un autre espace → aucun appel ; changement de campagne pendant la lecture → réponse ignorée ; relevé lié à SA campagne, B voit « Un relevé est en cours sur une autre campagne. » (Review Focus 6) ; relecture du suivi après `fin` ; cache par campagne (revenir sur A ne relit pas) ; panneau : sans campagne → « Choisissez une campagne dans la barre, ou créez-la à l'étape ⑥. » + « Aller à ⑥ Plan » ; `hors_parcours` → message A-11 + lien vers l'application actuelle ; période future ; aucune livraison → bouton ; relevé : barre `mg-barre-progression`, une ligne par plateforme avec sa source et le message `non_branche` tel quel ; bandeau A-14.
-- [ ] `live.api.ts` typé d'après les routes LUES ; `relever` par `lignesNdjson`.
-- [ ] `LiveCampagneService` (page) ; `carte.fournisseurs.ts` : `FOURNISSEURS_LIVE`, `suivreLiveRenseignee()`.
-- [ ] `carte.page.html` : `@case ('live') { <mg-panneau-live /> }` ; `parcours.ts` : `CONSIGNE_ETAPE.live` = « Suivez les impressions livrées et la dépense de chaque plateforme, comparées au plan. », `RENSEIGNEE_PAR.live` ; `ONGLET_REACT.live` gardé pour le seul cas `hors_parcours` ; `carte.page.ts` : une ligne.
-- [ ] `cd angular && npx ng test --watch=false`, `npx tsc --noEmit` racine, `npm run test:unit`. Commit `feat(angular): ⑧ état, squelette, relevé et bandeau du suivi (lot 8, T3)`.
+- [ ] Tests d'abord, sur fixtures : création de requête (`POST /v2/queries`, `metadata.dataRange` CUSTOM_DATES, `params.type = STANDARD`, `groupBys = [FILTER_DATE, FILTER_ZIP_POSTAL_CODE]`, `filters = FILTER_ADVERTISER + FILTER_INSERTION_ORDER` des liens de ⑥, `metrics = [METRIC_IMPRESSIONS, METRIC_REVENUE_ADVERTISER]`) ; `:run` ; attente bornée de `reports.get` jusqu'à `DONE` (délai et nombre d'essais écrits, échec dit) ; téléchargement du CSV `googleCloudStoragePath` ; analyse papaparse (ligne de totaux et pied ignorés, code postal normalisé sur 5 chiffres, dates ISO, devise vérifiée A-10) → `LigneLivraison` maille `cp` ; requête supprimée après lecture ; jeton sans scope reporting → `scope_manquant`.
+- [ ] Scope `https://www.googleapis.com/auth/doubleclickbidmanager` ajouté à `DV360_SCOPES` ; `lib/dsp/dv360/rapports.ts` ; `adaptateurs/dv360.ts`.
+- [ ] Commit `feat(dsp): ⑧ adaptateur DV360 reporting (lot 8, T4)`.
 
-### Task 4 : Angular — rythme, coût, plateformes, alignement
+### Task 5 : Meta — connexion OAuth et Insights
 
-**Files :** voir File Structure, lignes T4.
+- [ ] Tests d'abord : OAuth (URL de consentement avec `ads_read`, échange du code, jeton longue durée, état signé par `lib/dsp/oauth-state.ts`, connexion écrite par espace comme TikTok) ; Insights sur fixtures (`GET /{campaign_id}/insights?fields=impressions,spend,account_currency&breakdowns=region&time_increment=1&time_range=…&level=campaign`, pagination `paging.next`, région rendue par son nom → `code_region` par `regions.ts`, région inconnue journalisée et comptée, jamais devinée).
+- [ ] `lib/dsp/meta/client.ts`, routes `admin/dsp/meta/oauth/{start,callback}`, `adaptateurs/{meta,regions}.ts` ; écran Connexions API : Meta connectable, et la ligne DV360 « Reconnectez DV360… » quand `scope_manquant`.
+- [ ] Commit `feat(dsp): ⑧ connexion Meta et adaptateur Insights (lot 8, T5)`.
 
-**Interfaces :** Consumes `VueLive` (T3). Produces `mg-bandeau-avancement`, `mg-cout-rythme`, `mg-qui-a-diffuse`, `mg-score-alignement`, `mg-trois-composantes`.
+### Task 6 : TikTok — Reporting
 
-- [ ] Specs d'abord, **textes et mesures de React à la lettre** (lire chaque `.tsx` avant d'écrire) : trois barres sur la même échelle et repère du temps, phrase de fin de campagne (`BandeauAvancement`) ; CPM réel vs prévu et impressions livrées / prévues, **sans** la carte « coût du déséquilibre » (`CoutEtRythme`) ; une barre par plateforme : volume, dépense, CPM réel contre prévu, badge « Simulé » / « Non branché » (`QuiADiffuse`, « partenaire » → « plateforme », écart listé) ; score, mention « calculé au code postal », variation 7 j ou « inconnue », phrase A-8 pour une plateforme hors CP (`ScoreAlignement`) ; trois composantes avec la tolérance interpolée (`TroisComposantes`) ; « Toutes plateformes » : pas de score (il n'est défini que par plateforme au CP), le dire.
-- [ ] Implémenter ; aucune formule (piège n° 3).
-- [ ] `cd angular && npx ng test --watch=false`, `npx tsc --noEmit`. Commit `feat(angular): ⑧ rythme, coût, plateformes et alignement (lot 8, T4)`.
+- [ ] Tests d'abord, sur fixtures : `GET /report/integrated/get/` (`advertiser_id` et `campaign_ids` des liens, `report_type = AUDIENCE`, `data_level = AUC_CAMPAIGN`, `dimensions = ["stat_time_day","province_id"]`, `metrics = ["impressions","spend"]`, pagination `page_info`) ; `province_id` → nom (`/tool/region/`, mis en cache par relevé) → `code_region` par `regions.ts` ; province hors France ignorée et comptée.
+- [ ] `lireRapport` dans `lib/dsp/tiktok/client.ts` ; `adaptateurs/tiktok.ts`.
+- [ ] Commit `feat(dsp): ⑧ adaptateur TikTok reporting (lot 8, T6)`.
 
-**Relecture 2** (T3 + T4) : une lecture part-elle avant la validation de l'espace ? un relevé peut-il s'afficher sur la mauvaise campagne ? une formule s'est-elle glissée côté Angular ? chaque texte de React est-il repris, chaque écart listé ? aucun hex, aucun `effect` qui recopie ?
+**Relecture 2** (T4-T6) : chaque requête est-elle conforme à la doc citée ? une erreur d'API peut-elle effacer des jours relevés ? une devise étrangère passe-t-elle sans le dire ? un jeton ou un identifiant réel traîne-t-il dans les fixtures ?
 
-## Groupe C — territoires et carte (relecture 3)
+## Groupe C — Angular (relecture 3)
 
-### Task 5 : Angular — maille, territoires, dispersion, alertes, grande carte
+### Task 7 : API, état, squelette de ⑧, relevé, bandeau
 
-**Files :** voir File Structure, lignes T5.
+- [ ] Specs d'abord : `vue.spec.ts` (descente DV360 région → département → CP ; Meta plafonnée à la région avec sa note ; « toutes » à la région ; parent inconnu → région) ; `textes.spec.ts` (états A-3 et A-13 mot pour mot) ; service : rien avant l'espace validé ; autre espace → aucun appel ; réponse tardive ignorée ; relevé lié à SA campagne (Review Focus 6) ; relecture après `fin` ; cache par campagne ; panneau : sans campagne → renvoi ⑥ ; `hors_parcours` → message + lien ; période future ; aucune plateforme connectée → « Aucune donnée remontée — plateforme non connectée. » + lien Connexions API ; bouton « Relever maintenant » (super_admin) avec `mg-barre-progression` et l'état de chaque plateforme ; bandeau A-15.
+- [ ] `live.api.ts`, `LiveCampagneService`, `FOURNISSEURS_LIVE`, `@case ('live')`, `CONSIGNE_ETAPE.live` = « Suivez les impressions livrées et la dépense de chaque plateforme, comparées au plan. », `RENSEIGNEE_PAR.live`, une ligne dans `carte.page.ts`.
+- [ ] `ng test`, `tsc`, `test:unit`. Commit `feat(angular): ⑧ état, squelette, relevé et bandeau du suivi (lot 8, T7)`.
 
-**Interfaces :** Consumes `LiveCampagneService`, `VueLive`, `ContoursZonesService`, `CouleursService`, `palette-divergente.ts`, `ajouterCouche`. Produces `mg-barre-maille`, `mg-tableau-territoires`, `mg-dispersion-cp`, `mg-constats-live`, `couche-live.ts`, `LiveCarteService`.
+### Task 8 : rythme, coût, plateformes, alignement
 
-- [ ] Specs d'abord : barre de maille = sélecteur de plateforme (« Toutes plateformes » puis les cochées, ordre du registre) + fil d'Ariane France › région › département › CP (`mg-fil-ariane`), arrêté à la région quand `maille_comparaison = 'region'`, note A-5 (Review Focus 2) ; tableau des territoires (`TableauDeregles` : barre divergente centrée, bascule sous / sur, 7 lignes puis « Voir les N … » EN MÉMOIRE, « hors plan » jamais une cellule vide, tri par volume mal placé, titre qui suit la maille) ; histogramme CP en barres HTML, tranche conforme au centre, couleurs `--diverge-*` (Q-5) ; constats : ≤ 3 sous-livrés + retard / avance / CPM, « Voir sur la carte » qui descend et centre ; couche : un territoire par polygone de la maille affichée, couleur par `trancheDivergente` (Écart) ou `--seq-1…5` (Impressions), `--donnee-absente` sans prévu ni livré, clic = descendre ; la couche se retire hors de ⑧ ; changement de thème → couleurs recalculées.
-- [ ] Implémenter ; contours au CP lus seulement quand on descend dans un département (filtrés à ses CP) — ils sont partagés et mis en cache par `ContoursZonesService`.
-- [ ] `cd angular && npx ng test --watch=false`, `npx tsc --noEmit`. Commit `feat(angular): ⑧ territoires, dispersion, alertes et carte (lot 8, T5)`.
+- [ ] Specs d'abord, textes et mesures de React à la lettre (lire chaque `.tsx`) : `BandeauAvancement` ; `CoutEtRythme` sans « coût du déséquilibre » ; `QuiADiffuse` par plateforme, avec l'état d'une plateforme non connectée ou à venir ; `ScoreAlignement` (« calculé au code postal », variation 7 j ou « inconnue », phrase A-9) ; `TroisComposantes` (tolérance interpolée) ; « Toutes plateformes » : pas de score, dit.
+- [ ] Implémenter ; aucune formule. Commit `feat(angular): ⑧ rythme, coût, plateformes et alignement (lot 8, T8)`.
 
-**Relecture 3** (T5) : le fil d'Ariane peut-il descendre sous la région pour Meta / TikTok / TTD ? la palette divergente est-elle importée, pas recopiée ? le contraste des textes tient-il en thème clair ? la couche survit-elle à un changement d'étape ?
+### Task 9 : descente, territoires en retard, grande carte
 
-## Task 6 : revue finale, factorisation, preuve navigateur
+- [ ] Specs d'abord : barre de maille = sélecteur de plateforme + fil d'Ariane France › région › département › CP (`mg-fil-ariane`), niveau au-delà du plafond grisé avec la note A-5 (Review Focus 3) ; « Territoires les plus en retard » (A-7 : 7 lignes, « Voir les N … », barre divergente centrée, « hors plan » jamais vide, clic = descendre) ; constats (≤ 3 sous-livrés + retard / avance / CPM, « Voir sur la carte » descend et cadre) ; couche `live` (A-14 : couleurs par tranche, absence, clic = descendre, cadrage sur le territoire, retrait hors de ⑧, couleurs recalculées au changement de thème) ; contours CP lus seulement en descendant dans un département.
+- [ ] Implémenter. Commit `feat(angular): ⑧ descente, territoires en retard et carte (lot 8, T9)`.
 
-- [ ] Revue finale du lot (modèle le plus capable) : mineurs accumulés, passe de factorisation inter-tâches. Dire ce qui reste dupliqué : `impressionsPrevues` / `repartitionParCp` (noyau, Angular ⑥, React `computeForecast`) verrouillés par parité ; l'écran React de suivi, `lib/dsp/report/*`, `simulate_dsp_report`, `/api/digital/[id]/suivi` et `alignement*` restent pour React et partent à la bascule.
-- [ ] **Preuve navigateur, une seule fois, deux thèmes** (`L8-T6-*`), serveurs du worktree : espace BMW GROUP, mode démo ; campagne de DÉMO lancée en ⑥ sur l'extraction v1 du jeu des lycées BdR, **dates passées** (01/10 → 31/10/2026), 4 plateformes aux budgets de `4935811d…` ; ⑧ → « Aucune livraison relevée » → « Relever les livraisons » : flux, barre, 4 sources « Simulé » ; bandeau ; rythme et alerte retard s'il y a lieu ; plateformes ; DV360 : score, trois composantes, région PACA → Bouches-du-Rhône → CP, tableau, histogramme, carte Écart puis Impressions ; Meta : note « ne rend pas le code postal », fil arrêté à la région ; « Toutes plateformes » à la région ; second relevé → mêmes chiffres ; même campagne non démo → 4 « Non branché », rien écrit ; campagne de seed `dccc…02` → message A-11 et lien ; campagne d'un autre espace collée en Marine nationale → message de ⑥, aucun appel à `…/live` dans l'onglet réseau ; pastille ⑧ allumée ; campagne nationale (jeu risque Seveso, DV360) : temps du relevé et de l'affichage notés.
-- [ ] `ARCHITECTURE.md` (§ carte Angular : étape ⑧, services, source simulée), `angular/src/app/features/carte/README.md` (§ ⑧, table des fichiers, « dupliqué à dessein »). Tests complets : `npm test`, `cd angular && npx ng test --watch=false`, `npx tsc --noEmit`, `npm run build` avec `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY` locaux explicites, `cd angular && npx ng build`.
-- [ ] Commit `docs: ⑧ Live — revue finale et preuve navigateur (lot 8, T6)`.
+**Relecture 3** (T7-T9) : une lecture part-elle avant la validation de l'espace ? une formule ou une donnée de démo s'est-elle glissée ? la descente peut-elle dépasser le plafond ? palette importée, pas recopiée ? contraste en thème clair ?
+
+## Task 10 : revue finale, factorisation, preuve navigateur
+
+- [ ] Revue finale (modèle le plus capable) : mineurs, factorisation inter-tâches. Dupliqué à dessein : `impressionsPrevues` / `repartitionParCp` (noyau, Angular ⑥, React), verrouillés par parité. Laissé pour React jusqu'à la bascule : écran de suivi React, `lib/dsp/report/*`, `simulate_dsp_report`, `/api/digital/[id]/suivi`, `alignement*`.
+- [ ] **Preuve navigateur, deux thèmes** (`L8-T10-*`), sans aucune donnée inventée (Q-8) : campagne lancée en ⑥ (BMW GROUP, extraction des lycées BdR) → ⑧ : « Aucune donnée remontée — plateforme non connectée » pour DV360, Meta, TikTok, « connecteur à venir » pour TTD, lien Connexions API ; « Relever maintenant » → flux, états, 0 ligne ; campagne non liée en ⑥ (si une connexion existe) → « Liez la campagne… » ; campagne de seed → message hors parcours et lien ; campagne d'un autre espace → message de ⑥, aucun appel à `…/live` ; écran Connexions API : Meta connectable, phrase de reconsentement DV360. L'écran **rempli** est prouvé par les specs Angular (T7-T9) ; sa preuve navigateur est inscrite au registre pour la première vraie connexion.
+- [ ] `ARCHITECTURE.md`, `README.md` de la carte. Tests complets : `npm test`, `ng test`, `tsc`, `npm run build` (variables Supabase locales explicites), `ng build`. Inngest local : la fonction apparaît et s'exécute à vide.
+- [ ] Commit `docs: ⑧ Live — revue finale et preuve navigateur (lot 8, T10)`.
 
 ---
 
@@ -300,16 +313,16 @@ En attendant les réponses, le plan applique les recommandations ; chaque arbitr
 
 | Groupe | Tâches | Charge |
 |---|---|---|
-| A serveur | T1, T2 | 1,2 j (T1 : migration, extraction de `ecrireParLots`, adaptateurs, route NDJSON, intégration nationale ; T2 : noyau et payload) |
-| B état + chiffres | T3, T4 | 0,9 j |
-| C territoires + carte | T5 | 0,6 j |
-| Fin | T6 | 0,4 j |
-| **Total** | **6 tâches, 3 relectures, 1 preuve** | **≈ 3 jours** |
+| A socle serveur | T1, T2, T3 | 1,6 j |
+| B adaptateurs réels | T4 DV360, T5 Meta (OAuth + Insights), T6 TikTok | 1,7 j |
+| C Angular | T7, T8, T9 | 1,4 j |
+| Fin | T10 | 0,4 j |
+| **Total** | **10 tâches, 3 relectures, 1 preuve** | **≈ 5 jours** |
 
 ## Critères de fin du lot
 
-Pour une campagne de démo lancée en ⑥ depuis une extraction, ⑧ relève une livraison simulée par plateforme (idempotente, à la maille de rapport), puis affiche livré contre prévu, dépense, CPM réel contre prévu, rythme et alertes, par plateforme et par territoire — CP pour DV360, région pour Meta, TikTok et TTD, dit à l'écran ; le prévu est recalculé par le noyau depuis les canaux et l'extraction, jamais `planned_share` ; une vraie campagne affiche « non branché » sans rien écrire ; une campagne hors parcours renvoie à l'application actuelle ; aucun calcul dans le navigateur ; aucune trace d'ad server, de réconciliation, de rebid ni de constat d'optimisation dans l'écran Angular ; React inchangé ; tests et builds verts ; preuve navigateur dans les deux thèmes, échelle nationale mesurée.
+⑧ affiche, pour une campagne lancée en ⑥, ce que les API DV360, Meta et TikTok remontent — rien d'autre — avec livré contre prévu, dépense, CPM, rythme, alertes, alignement au CP et une descente région → département → CP plafonnée à la maille rapportée, sur la grande carte et dans la liste des territoires en retard ; le relevé tourne chaque matin (un step par campagne) et à la demande ; sans connexion, un état vide honnête qui dit quoi faire ; le prévu vient du noyau, jamais de `planned_share` ; aucune donnée de démo, aucune simulation, aucun calcul dans le navigateur ; adaptateurs verts sur leurs réponses enregistrées ; React inchangé ; tests et builds verts ; preuve navigateur des états vides dans les deux thèmes, preuve remplie à la première connexion.
 
-## Hors V1 (rappel, § 19.2-19.4)
+## À venir (hors lot)
 
-Connecteurs réels TTD, DV360, Meta, TikTok (naissent avec leurs accès, sur le contrat de T1) et la tâche Inngest quotidienne ; boucle d'optimisation (`lib/optimisation/boucle.ts`, `appliquerPoids`, `optimisation_cycles`, marches 1-3 de l'Excel) ; autres KPI ; ad server et réconciliation ; « Recaler » ; constats `sur_pression` / `canal_cher` ; coût du déséquilibre ; pression par classe ; vignette « Variable du plan » ; courbe région/département du graphique d'écart ; zones météo recalculées ; suivi au-delà de la région pour les plateformes sociales ; « mode pays » (④/⑤).
+**The Trade Desk** (Q-2) : adaptateur et niveaux IRIS / unité du jeu (polygone) quand sa doc et son accès arrivent. Boucle d'optimisation (`lib/optimisation/boucle.ts`, `appliquerPoids`, `optimisation_cycles`, marches 1-3 de l'Excel). Autres KPI ; ad server et réconciliation ; « Recaler » ; constats `sur_pression` / `canal_cher` ; coût du déséquilibre ; pression par classe ; zones météo recalculées ; « mode pays » (④/⑤).
