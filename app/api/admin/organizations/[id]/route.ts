@@ -142,6 +142,17 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   }
 
   const { error } = await sb.from('organizations').delete().eq('id', id);
+  // Un espace qui possède un indicateur (sql/288) : la suppression cascade sur sa
+  // source, que la FK `restrict` du registre bloque. Le résultat est le bon (rien
+  // ne redevient public, rien n'est supprimé) ; on le dit en français plutôt que
+  // de rendre le message brut de PostgreSQL en 500.
+  if (error && error.code === '23503' && /cible_indicator_registry/.test(error.message ?? '')) {
+    return NextResponse.json({
+      success: false,
+      refus: 'indicateur_possede',
+      error: 'Cet espace possède un indicateur : rendez-le au socle ou transférez-le avant de supprimer l\'espace.',
+    }, { status: 409 });
+  }
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
   return NextResponse.json({ success: true });
