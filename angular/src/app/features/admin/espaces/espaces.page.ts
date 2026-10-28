@@ -170,18 +170,24 @@ interface LigneDossier {
     :host { display: block; font-family: var(--font-sans); }
     .colonne { display: flex; flex-direction: column; gap: 8px; }
     .liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-    .ligne {
-      display: flex; flex-direction: column; gap: 2px;
+    /* En-tête de dossier : un <button> remis à plat AVANT la règle commune (dont le border-left doit gagner). */
+    .entete-dossier {
+      align-items: center; gap: 8px; width: 100%; min-width: 0; margin: 0;
+      background: transparent; border: none; font-family: inherit; text-align: left; cursor: pointer;
+    }
+    /* Ligne d'espace et en-tête de dossier : même boîte, même survol, même focus. */
+    .ligne, .entete-dossier {
+      display: flex;
       padding: 8px 10px 8px 12px;
       border-left: 2px solid transparent;
       border-radius: 0 6px 6px 0;
       color: var(--text-secondary);
-      text-decoration: none;
       font-size: 13px;
       transition: background-color 150ms var(--ease-hover), color 150ms var(--ease-hover);
     }
-    .ligne:hover { background: var(--bg-level-2); color: var(--text-primary); }
-    .ligne:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: -2px; }
+    .ligne { flex-direction: column; gap: 2px; text-decoration: none; }
+    .ligne:hover, .entete-dossier:hover { background: var(--bg-level-2); color: var(--text-primary); }
+    .ligne:focus-visible, .entete-dossier:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: -2px; }
     .ligne.actif { background: var(--bg-level-3); border-left-color: var(--text-primary); color: var(--text-primary); }
     .haut { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .nom { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -196,15 +202,6 @@ interface LigneDossier {
       background: var(--bg-level-3); border: 0.5px solid var(--border-default); color: var(--text-tertiary);
       font-size: 10px; border-radius: 4px; padding: 1px 6px;
     }
-    .entete-dossier {
-      display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0;
-      padding: 8px 10px 8px 12px; margin: 0;
-      background: transparent; border: none; border-left: 2px solid transparent; border-radius: 0 6px 6px 0;
-      color: var(--text-secondary); font-family: inherit; font-size: 13px; text-align: left; cursor: pointer;
-      transition: background-color 150ms var(--ease-hover), color 150ms var(--ease-hover);
-    }
-    .entete-dossier:hover { background: var(--bg-level-2); color: var(--text-primary); }
-    .entete-dossier:focus-visible { outline: 2px solid var(--brand-teal-50); outline-offset: -2px; }
     .chevron { width: 10px; flex-shrink: 0; font-size: 10px; color: var(--text-tertiary); }
     .sous-liste { margin-left: 17px; border-left: 0.5px solid var(--border-subtle); }
     .separateur { height: 0; border-top: 0.5px solid var(--border-subtle); margin: 6px 0; }
