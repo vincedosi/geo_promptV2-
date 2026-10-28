@@ -16,11 +16,11 @@ import type { EspaceResume, MembreEspace, ReponseEspaces, RoleEspace } from './t
 
 type Sb = ReturnType<typeof createAdminClient>;
 
-interface EspaceBrut { id: string; name: string; slug: string; active: boolean; interne: boolean }
+interface EspaceBrut { id: string; name: string; slug: string; active: boolean; groupe_espace: string | null; interne: boolean }
 
 /** Bornée : une ligne par organisation (dizaines), sous le plafond serveur de 1 000. */
 export async function lireEspacesBruts(sb: Sb): Promise<EspaceBrut[]> {
-  const { data, error } = await sb.from('organizations').select('id, name, slug, active');
+  const { data, error } = await sb.from('organizations').select('id, name, slug, active, groupe_espace');
   if (error) throw new Error(`lecture des espaces : ${error.message}`);
   return (data ?? []).map((o) => ({ ...o, interne: o.slug === SLUG_ORGANISATION_INTERNE }));
 }
@@ -53,7 +53,7 @@ async function resumerTous(sb: Sb): Promise<Omit<ReponseEspaces, 'nb_comptes'>> 
     socle: { nb_jeux: nbSocle },
     espaces: espaces.map((e): EspaceResume => ({
       id: e.id, nom: e.name, nom_affiche: nomAffiche(e), slug: e.slug, actif: e.active, interne: e.interne,
-      nb_membres: nbMembres.get(e.id) ?? 0, nb_jeux_prives: nbPrives.get(e.id) ?? 0,
+      nb_membres: nbMembres.get(e.id) ?? 0, nb_jeux_prives: nbPrives.get(e.id) ?? 0, groupe_espace: e.groupe_espace,
     })).sort(trier),
   };
 }

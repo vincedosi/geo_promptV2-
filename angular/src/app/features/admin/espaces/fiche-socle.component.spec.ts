@@ -31,8 +31,8 @@ function reponse(): ReponseSocle {
 }
 
 const ESPACES: EspaceResume[] = [
-  { id: 'o1', nom: 'Espace Un', nom_affiche: 'Espace Un', slug: 'un', actif: true, interne: false, nb_membres: 1, nb_jeux_prives: 1 },
-  { id: 'o2', nom: 'genesis', nom_affiche: 'dentsu.explore (interne)', slug: 'genesis-global', actif: true, interne: true, nb_membres: 1, nb_jeux_prives: 1 },
+  { id: 'o1', nom: 'Espace Un', nom_affiche: 'Espace Un', slug: 'un', actif: true, interne: false, nb_membres: 1, nb_jeux_prives: 1, groupe_espace: null },
+  { id: 'o2', nom: 'genesis', nom_affiche: 'dentsu.explore (interne)', slug: 'genesis-global', actif: true, interne: true, nb_membres: 1, nb_jeux_prives: 1, groupe_espace: null },
 ];
 
 /** jsdom n'implémente ni `showModal` ni `close` (patron de `dialogue-nouvel-espace.component.spec.ts`). */
@@ -148,7 +148,7 @@ describe('FicheSocleComponent', () => {
     };
     const { f, bouton, dialogue } = await monter(r, [
       ...ESPACES,
-      { id: 'o3', nom: 'Espace Trois', nom_affiche: 'Espace Trois', slug: 'trois', actif: true, interne: false, nb_membres: 1, nb_jeux_prives: 0 },
+      { id: 'o3', nom: 'Espace Trois', nom_affiche: 'Espace Trois', slug: 'trois', actif: true, interne: false, nb_membres: 1, nb_jeux_prives: 0, groupe_espace: null },
     ]);
     bouton('lycee').click();
     await f.whenStable();

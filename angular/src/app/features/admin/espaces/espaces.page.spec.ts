@@ -35,7 +35,7 @@ const ROUTES_DE_TEST: Routes = [
 const URL = '/api/admin/espaces';
 
 function espace(p: Partial<EspaceResume> & { id: string; nom_affiche: string }): EspaceResume {
-  return { nom: p.nom_affiche, slug: p.id, actif: true, interne: false, nb_membres: 0, nb_jeux_prives: 0, ...p };
+  return { nom: p.nom_affiche, slug: p.id, actif: true, interne: false, nb_membres: 0, nb_jeux_prives: 0, groupe_espace: null, ...p };
 }
 
 /** Les espaces de la base locale (relevé SQL du 2026-10-09), tri du serveur : internes en dernier. */

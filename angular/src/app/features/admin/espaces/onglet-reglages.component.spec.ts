@@ -22,7 +22,7 @@ class Hote { id = A; }
 class Vide {}
 
 function espace(id: string, nom: string, interne = false): EspaceResume {
-  return { id, nom, nom_affiche: nom, slug: nom, actif: true, interne, nb_membres: 3, nb_jeux_prives: 2 };
+  return { id, nom, nom_affiche: nom, slug: nom, actif: true, interne, nb_membres: 3, nb_jeux_prives: 2, groupe_espace: null };
 }
 
 function org(p: Partial<OrganisationComplete> = {}): { organization: OrganisationComplete } {

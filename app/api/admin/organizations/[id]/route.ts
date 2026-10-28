@@ -1,6 +1,6 @@
 /**
  * GET    /api/admin/organizations/[id] — Détail d'une organisation
- * PATCH  /api/admin/organizations/[id] — Mise à jour config workspace
+ * PATCH  /api/admin/organizations/[id] — Mise à jour config workspace (et groupe d'espaces, sql/289)
  * DELETE /api/admin/organizations/[id] — Suppression organisation (super_admin only)
  */
 import { NextRequest, NextResponse } from 'next/server';
@@ -14,7 +14,7 @@ import { FILTRE_SOURCE_NON_SUPPRIMEE } from '@/lib/auth/getOrgSourceIds';
 export const dynamic = 'force-dynamic';
 
 /**
- * Les cinq seules cles que la route recopie vers la base. Toutes optionnelles :
+ * Les six seules cles que la route recopie vers la base. Toutes optionnelles :
  * `undefined` signifie « ne pas toucher », et les `if (… !== undefined)` plus
  * bas en dependent.
  *
@@ -27,6 +27,10 @@ const ModifierOrganisationSchema = z.object({
   slug: z.string().optional(),
   config: z.unknown().optional(),
   active: z.boolean().optional(),
+  // Groupe d'espaces (sql/289, A-9) : un nom rogné de 1 à 60 caractères, ou `null` pour retirer l'espace de son
+  // groupe. Range la colonne d'Accès ; ne porte aucun droit. Le CHECK de la colonne refait la même borne.
+  groupe_espace: z.string().trim().min(1, 'Le groupe ne peut pas être vide.')
+    .max(60, 'Le groupe fait 60 caractères au plus.').nullable().optional(),
 });
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -78,6 +82,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     delete body.slug;
     delete body.config;
     delete body.active;
+    // Les groupes rangent la page Accès, réservée au super_admin.
+    delete body.groupe_espace;
   }
 
   // Le slug de l'espace interne est lu par des scripts et la démo : il ne
@@ -93,6 +99,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (body.slug !== undefined) updates.slug = body.slug;
   if (body.config !== undefined) updates.config = body.config;
   if (body.active !== undefined) updates.active = body.active;
+  if (body.groupe_espace !== undefined) updates.groupe_espace = body.groupe_espace;
 
   const { data, error } = await sb
     .from('organizations')

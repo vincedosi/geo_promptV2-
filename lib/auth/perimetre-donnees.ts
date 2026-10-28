@@ -70,6 +70,8 @@ interface IndicateursVisibles {
   visibles: Set<string>;
   /** Sous-ensemble dont la source est privée à l'espace actif (possédée ou partagée) : « Données de l'espace ». */
   propres: Set<string>;
+  /** La source de chaque indicateur visible qui en a une (la fiche d'un jeu la nomme). */
+  sourceDe: Map<string, string>;
 }
 
 /**
@@ -106,12 +108,13 @@ export async function indicateursVisiblesDeLaSession(session: SessionOrg | null)
   ]);
   const requete = createAdminClient().from('cible_indicator_registry').select('indicator_code, data_source_id');
   const { data, error } = await filtrerParSourcesVisibles(requete, sources ?? [], { referentiels: true });
-  if (error) return { visibles: new Set(), propres: new Set() };
+  if (error) return { visibles: new Set(), propres: new Set(), sourceDe: new Map() };
   const lignes = (data ?? []) as { indicator_code: string; data_source_id: string | null }[];
   const ensemblePropres = new Set(propres);
   return {
     visibles: new Set(lignes.map((l) => l.indicator_code)),
     propres: new Set(lignes.filter((l) => l.data_source_id && ensemblePropres.has(l.data_source_id)).map((l) => l.indicator_code)),
+    sourceDe: new Map(lignes.flatMap((l) => (l.data_source_id ? [[l.indicator_code, l.data_source_id] as const] : []))),
   };
 }
 

@@ -4464,6 +4464,7 @@ export type Database = {
           config: Json
           created_at: string | null
           description: string | null
+          groupe_espace: string | null
           id: string
           logo_url: string | null
           name: string
@@ -4475,6 +4476,7 @@ export type Database = {
           config?: Json
           created_at?: string | null
           description?: string | null
+          groupe_espace?: string | null
           id?: string
           logo_url?: string | null
           name: string
@@ -4486,6 +4488,7 @@ export type Database = {
           config?: Json
           created_at?: string | null
           description?: string | null
+          groupe_espace?: string | null
           id?: string
           logo_url?: string | null
           name?: string

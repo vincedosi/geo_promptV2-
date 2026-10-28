@@ -17,6 +17,8 @@ export interface EspaceResume {
   interne: boolean;       // slug === 'genesis-global'
   nb_membres: number;     // appartenances (organization_members)
   nb_jeux_prives: number; // sources privées possédées, non supprimées
+  /** organizations.groupe_espace (sql/289) : range la colonne d'Accès en dossiers, ne porte aucun droit. */
+  groupe_espace: string | null;
 }
 
 export interface ReponseEspaces {

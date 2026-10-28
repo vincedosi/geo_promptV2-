@@ -11,7 +11,7 @@ const URL = '/api/admin/espaces';
 
 function espace(p: Partial<EspaceResume> & { id: string }): EspaceResume {
   return {
-    nom: p.id, nom_affiche: p.id, slug: p.id, actif: true, interne: false, nb_membres: 0, nb_jeux_prives: 0, ...p,
+    nom: p.id, nom_affiche: p.id, slug: p.id, actif: true, interne: false, nb_membres: 0, nb_jeux_prives: 0, groupe_espace: null, ...p,
   };
 }
 

@@ -17,7 +17,7 @@ const B = '00000000-0000-4000-8000-00000000000b';
 const INCONNU = '00000000-0000-4000-8000-0000000000ff';
 
 function espace(id: string, nom: string, nb: number): EspaceResume {
-  return { id, nom, nom_affiche: nom, slug: nom.toLowerCase(), actif: true, interne: false, nb_membres: nb, nb_jeux_prives: 0 };
+  return { id, nom, nom_affiche: nom, slug: nom.toLowerCase(), actif: true, interne: false, nb_membres: nb, nb_jeux_prives: 0, groupe_espace: null };
 }
 
 /** `'reel'` : le vrai `EspacesEtatService` (lit `GET admin/espaces`) au lieu d'un double. */

@@ -14,7 +14,7 @@ const URL = '/api/admin/users';
 const LIEN = 'https://exemple.test/auth/v1/verify?token=initialisation-secrete-9';
 
 function espace(id: string, nom: string, actif = true): EspaceResume {
-  return { id, nom, nom_affiche: nom, slug: id, actif, interne: false, nb_membres: 0, nb_jeux_prives: 0 };
+  return { id, nom, nom_affiche: nom, slug: id, actif, interne: false, nb_membres: 0, nb_jeux_prives: 0, groupe_espace: null };
 }
 const ESPACES = [espace('org-b', 'BMW GROUP'), espace('org-d', 'DRHAT', false), espace('org-m', 'MARINE')];
 

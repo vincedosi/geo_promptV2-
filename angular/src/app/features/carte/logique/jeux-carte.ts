@@ -12,13 +12,19 @@ export interface JeuReferentiel {
   readonly nom: string;
   readonly nature: NatureJeu;
   readonly maille: string;
+  /**
+   * Les indicateurs du registre que ce référentiel montre (A-7, lot « Catalogue et groupes ») : un indicateur peut
+   * être privé à un espace (sql/288) ; un référentiel dont AUCUN n'est visible n'a rien à montrer. Absent : le
+   * référentiel ne dépend d'aucun indicateur privable.
+   */
+  readonly indicateurs?: readonly string[];
 }
 
 /** Les référentiels communs, dans l'ordre d'affichage de ② (maquette du 2026-10-13). */
 export const JEUX_REFERENTIELS: readonly JeuReferentiel[] = [
   { cle: 'iris:socio-demo', nom: 'IRIS socio-démographie (Filosofi)', nature: 'indicateur_iris', maille: 'IRIS' },
   { cle: 'carreaux:filosofi', nom: 'Carreaux Filosofi', nature: 'carreau', maille: 'carreau 200 m à 20 km' },
-  { cle: 'civique:indicateurs-cp', nom: 'Indicateurs au code postal', nature: 'indicateur_cp', maille: 'code postal' },
+  { cle: 'civique:indicateurs-cp', nom: 'Indicateurs au code postal', nature: 'indicateur_cp', maille: 'code postal', indicateurs: ['abstention_pres_2022'] },
   { cle: 'transport:arrets', nom: 'Arrêts de transport en commun', nature: 'poi', maille: 'point' },
   { cle: 'tmja:comptages', nom: 'Flux routier (TMJA)', nature: 'ligne', maille: 'tronçon' },
   { cle: 'risques:icpe-pprt', nom: 'Sites industriels (ICPE) et périmètres PPRT', nature: 'poi', maille: 'point et polygone' },

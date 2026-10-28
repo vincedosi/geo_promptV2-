@@ -34,7 +34,7 @@ function configurer(recharger: () => void) {
 }
 
 function espace(id: string, nom: string, interne = false, actif = true): EspaceResume {
-  return { id, nom, nom_affiche: nom, slug: nom, actif, interne, nb_membres: 1, nb_jeux_prives: 1 };
+  return { id, nom, nom_affiche: nom, slug: nom, actif, interne, nb_membres: 1, nb_jeux_prives: 1, groupe_espace: null };
 }
 
 function jeu(id: string, nom: string, statut: StatutJeu, p: Partial<JeuPourEspace> = {}): JeuPourEspace {

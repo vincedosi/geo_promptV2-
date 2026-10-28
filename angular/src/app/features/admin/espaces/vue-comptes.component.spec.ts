@@ -14,7 +14,7 @@ import { texte } from '../testing/dom';
 const URL = '/api/admin/espaces/comptes';
 
 function espace(id: string, nom: string): EspaceResume {
-  return { id, nom, nom_affiche: nom, slug: id, actif: true, interne: false, nb_membres: 1, nb_jeux_prives: 0 };
+  return { id, nom, nom_affiche: nom, slug: id, actif: true, interne: false, nb_membres: 1, nb_jeux_prives: 0, groupe_espace: null };
 }
 const ESPACES = [espace('org-b', 'BMW GROUP'), espace('org-m', 'MARINE')];
 const MARINE = { id: 'org-m', nom_affiche: 'MARINE' };
