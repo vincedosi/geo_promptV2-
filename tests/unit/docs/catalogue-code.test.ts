@@ -67,7 +67,12 @@ import { lancerKnip, construireRapport } from '../../../scripts/catalogue.mjs';
 // VERSION_RECETTE, PerimetreRecette et OperateurSeuil ; recette.test.ts confronte
 // les plafonds et les surfaces aux litteraux des RPC (sql/254-256), et
 // TYPES_RECALCULABLES / TYPES_BORNES_PAR_PERIMETRE a leurs regles. Promesse tenue.
-const CLIQUET_EXPORTS_MORTS = 141;
+// Descendu a 140 le 2026-10-28 (lot « Catalogue et groupes », T6) : T3 avait
+// ajoute deux exports morts (`NiveauSource`, `SourceDeFiche` de
+// `lib/carte/fiche-jeu.ts`, mesure 142) ; ils sont consommes par le test de
+// parite de leur copie Angular (`tests/unit/angular/fiche-jeu-types-paritaires`),
+// qui manquait. La mesure revient a 140, la valeur que le catalogue annoncait.
+const CLIQUET_EXPORTS_MORTS = 140;
 
 describe('catalogue du code', () => {
   it('existe et se declare genere', () => {
