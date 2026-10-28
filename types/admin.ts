@@ -19,7 +19,7 @@ export interface DataSource {
   id: string;
   name: string;
   description?: string;
-  type: 'panneaux' | 'poi' | 'carreaux';
+  type: 'panneaux' | 'poi' | 'carreaux' | 'indicateur'; // indicateur : sql/288
   category?: string;
   regie?: string;
   original_filename?: string;

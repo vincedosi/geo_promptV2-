@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   const profile = await requireAuth(request);
   if (!profile) return authUnauthorized();
   const supabase = createAdminClient();
-  const [{ data, error }, { visibles, propres }] = await Promise.all([
+  const [{ data, error }, { visibles, propres, echec }] = await Promise.all([
     supabase
       .from('cible_indicator_registry')
       .select('indicator_code, label, famille, unit, slider_min, slider_max, slider_step, default_operator, scale, dynamic')
@@ -25,8 +25,9 @@ export async function GET(request: NextRequest) {
       .order('label'),
     indicateursVisibles(request),
   ]);
-  if (error) {
-    console.error('[cibles/indicators]', error.message);
+  // Une règle illisible ne se dit pas « aucun indicateur » : 500, comme l'échec de la lecture du registre.
+  if (error || echec) {
+    console.error('[cibles/indicators]', error?.message ?? 'indicateurs visibles illisibles');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
   const indicators = (data ?? [])

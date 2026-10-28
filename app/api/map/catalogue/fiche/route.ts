@@ -21,7 +21,7 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { getSessionOrg } from '@/lib/auth/getSessionOrg';
 import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
 import { indicateursVisiblesDeLaSession } from '@/lib/auth/perimetre-donnees';
-import { RE_CLE_JEU } from '@/lib/carte/jeux-carte';
+import { JEUX_REFERENTIELS, RE_CLE_JEU } from '@/lib/carte/jeux-carte';
 import { categorieDeCle, composerFiche, type SourceLue } from '@/lib/carte/fiche-jeu';
 import { lireEspacesBruts } from '@/lib/espaces/lister-espaces';
 import { nomAffiche } from '@/lib/espaces/nom-espace';
@@ -48,7 +48,10 @@ export async function GET(req: NextRequest) {
   } else {
     const ind = await indicateursVisiblesDeLaSession(session);
     indicateursVisibles = ind.visibles;
-    ids = [...ind.sourceDe.values()];
+    // Les sources des indicateurs DE ce référentiel seulement : celle d'un autre indicateur privable n'a rien à faire
+    // dans cette fiche.
+    const codes = JEUX_REFERENTIELS.find((j) => j.cle === cle)?.indicateurs ?? [];
+    ids = codes.flatMap((c) => ind.sourceDe.get(c) ?? []);
   }
 
   const sb = createAdminClient();

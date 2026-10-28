@@ -72,6 +72,11 @@ interface IndicateursVisibles {
   propres: Set<string>;
   /** La source de chaque indicateur visible qui en a une (la fiche d'un jeu la nomme). */
   sourceDe: Map<string, string>;
+  /**
+   * Vrai si la lecture a échoué : les ensembles sont alors vides (fermé). Une route de calcul s'en contente (tout se
+   * lit « inconnu ») ; le catalogue, lui, doit répondre 500 et non une liste vide.
+   */
+  echec: boolean;
 }
 
 /**
@@ -108,13 +113,14 @@ export async function indicateursVisiblesDeLaSession(session: SessionOrg | null)
   ]);
   const requete = createAdminClient().from('cible_indicator_registry').select('indicator_code, data_source_id');
   const { data, error } = await filtrerParSourcesVisibles(requete, sources ?? [], { referentiels: true });
-  if (error) return { visibles: new Set(), propres: new Set(), sourceDe: new Map() };
+  if (error) return { visibles: new Set(), propres: new Set(), sourceDe: new Map(), echec: true };
   const lignes = (data ?? []) as { indicator_code: string; data_source_id: string | null }[];
   const ensemblePropres = new Set(propres);
   return {
     visibles: new Set(lignes.map((l) => l.indicator_code)),
     propres: new Set(lignes.filter((l) => l.data_source_id && ensemblePropres.has(l.data_source_id)).map((l) => l.indicator_code)),
     sourceDe: new Map(lignes.flatMap((l) => (l.data_source_id ? [[l.indicator_code, l.data_source_id] as const] : []))),
+    echec: false,
   };
 }
 
