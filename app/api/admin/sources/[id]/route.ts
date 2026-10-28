@@ -2,7 +2,7 @@
  * GENESIS — API Route — /api/admin/sources/[id]
  * GET    : Détail d'une data source
  * PATCH  : Modifier (nom, org, partage, status)
- * DELETE : Supprime la source + toutes ses données
+ * DELETE : Supprime la source + toutes ses données (409 pour un indicateur, sql/288)
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
@@ -165,6 +165,16 @@ export async function DELETE(
 
     if (profile.role !== 'super_admin' && sourceData.organization_id && sourceData.organization_id !== profile.organization_id) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Un indicateur (sql/288) n'a pas de lignes à lui : ses valeurs vivent dans des tables de référence partagées.
+    // Supprimer sa source ne retirerait que son entrée de catalogue — et le rendrait public, sans source. Refus
+    // AVANT toute écriture ; la FK `on delete restrict` du registre est le second verrou.
+    if (sourceData.type === 'indicateur') {
+      return NextResponse.json({
+        success: false,
+        error: 'Un indicateur ne se supprime pas : rendez-le au socle ou transférez-le.',
+      }, { status: 409 });
     }
 
     let deletedPoi = 0;

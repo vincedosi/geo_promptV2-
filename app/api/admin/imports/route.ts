@@ -18,8 +18,10 @@ export async function GET(request: NextRequest) {
       .select('*')
       .order('lance_le', { ascending: false })
       .limit(200),
+    // Un indicateur (sql/288) est un jeu, pas un import : il vit dans Accès, pas dans l'historique.
     sb.from('data_sources')
       .select('id, name, type, row_count, valid_count, error_count, import_date, status, organization_id, organizations(name, slug)')
+      .neq('type', 'indicateur')
       .order('import_date', { ascending: false })
       .limit(200),
   ]);

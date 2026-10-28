@@ -10,7 +10,7 @@ export const LIBELLES_STATUT: Record<StatutJeu, string> = {
   non_visible: 'Non visible',
 };
 
-export const LIBELLES_TYPE: Record<TypeJeu, string> = { poi: 'POI', panneaux: 'Panneaux', carreaux: 'Carreaux' };
+export const LIBELLES_TYPE: Record<TypeJeu, string> = { poi: 'POI', panneaux: 'Panneaux', carreaux: 'Carreaux', indicateur: 'Indicateur' };
 
 /**
  * Longueur maximale de la description d'un espace, à la création comme dans les Réglages. Le

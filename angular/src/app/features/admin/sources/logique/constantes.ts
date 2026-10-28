@@ -40,14 +40,15 @@ export interface BadgeType {
 /**
  * `category` n'est lu que pour les POI, `regie` que pour les panneaux ; un type inconnu retombe sur
  * un badge neutre libellé « Carreaux INSEE » — comme React (son `else` couvre tout type non POI et
- * non panneaux).
+ * non panneaux). Écart assumé : un indicateur (sql/288, A-4 du lot « Catalogue et groupes ») se libelle
+ * « Indicateur » — React, gelé, le dit encore « Carreaux INSEE ».
  */
 export function badgeType(type: string, category?: string | null, regie?: string | null): BadgeType {
   const libelle = type === 'poi'
     ? `POI${category ? ` — ${category}` : ''}`
     : type === 'panneaux'
       ? `OOH${regie ? ` — ${regie}` : ''}`
-      : 'Carreaux INSEE';
+      : type === 'indicateur' ? 'Indicateur' : 'Carreaux INSEE';
   const famille = type === 'poi' || type === 'panneaux' || type === 'carreaux' ? type : 'autre';
   return { libelle, famille };
 }

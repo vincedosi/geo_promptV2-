@@ -2143,6 +2143,7 @@ export type Database = {
           created_at: string
           data_column: string
           data_source: string
+          data_source_id: string | null
           default_operator: string
           dynamic: boolean
           famille: string
@@ -2160,6 +2161,7 @@ export type Database = {
           created_at?: string
           data_column: string
           data_source: string
+          data_source_id?: string | null
           default_operator?: string
           dynamic?: boolean
           famille: string
@@ -2177,6 +2179,7 @@ export type Database = {
           created_at?: string
           data_column?: string
           data_source?: string
+          data_source_id?: string | null
           default_operator?: string
           dynamic?: boolean
           famille?: string
@@ -2189,7 +2192,15 @@ export type Database = {
           slider_step?: number
           unit?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "cible_indicator_registry_data_source_id_fkey"
+            columns: ["data_source_id"]
+            isOneToOne: false
+            referencedRelation: "data_sources"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cibles_exposition: {
         Row: {

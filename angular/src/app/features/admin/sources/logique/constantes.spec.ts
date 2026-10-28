@@ -19,5 +19,7 @@ describe('Sources — constantes copiées de React (lot 6, T18)', () => {
     expect(badgeType('panneaux', null, null)).toEqual({ libelle: 'OOH', famille: 'panneaux' });
     expect(badgeType('carreaux', 'carreaux')).toEqual({ libelle: 'Carreaux INSEE', famille: 'carreaux' });
     expect(badgeType('autre')).toEqual({ libelle: 'Carreaux INSEE', famille: 'autre' });
+    // Écart à React (sql/288, A-4) : un indicateur garde la teinte neutre mais se nomme.
+    expect(badgeType('indicateur', 'abstention_pres_2022')).toEqual({ libelle: 'Indicateur', famille: 'autre' });
   });
 });

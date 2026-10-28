@@ -1,7 +1,8 @@
 /**
  * Copie de `lib/espaces/types.ts` (2026-10-09) ; parité : `tests/unit/angular/espaces-types-paritaires.test.ts`.
  */
-export type TypeJeu = 'poi' | 'panneaux' | 'carreaux';
+/** `indicateur` : un indicateur privable (sql/288), même règles et mêmes gestes d'Accès qu'un jeu importé. */
+export type TypeJeu = 'poi' | 'panneaux' | 'carreaux' | 'indicateur';
 export type Visibilite = 'socle' | 'privee';
 /** Statut d'un jeu POUR un espace donné (spec § 4.4), dans l'ordre de tri. */
 export type StatutJeu = 'proprietaire' | 'partage' | 'socle' | 'non_visible';
