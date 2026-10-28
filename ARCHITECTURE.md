@@ -1077,6 +1077,20 @@ clause `admin` ET « infinite recursion » 42P17 pour tout compte) ; ramene
 `tests/integration/politiques-for-all.test.ts` (lit `pg_policies` par
 `DATABASE_URL`) et le compte `admin` DRHAT de `cloisonnement-rls.test.ts`.
 
+**Indicateurs privables, lus par PostgREST direct (`sql/290`, 2026-10-28, lot
+« Catalogue et groupes »).** Depuis sql/288 un indicateur peut etre prive a un
+espace ; trois politiques laissaient pourtant tout compte connecte en lire les
+VALEURS (`cible_registry_read_auth` et `icv_read_auth` `USING (true)`,
+`abstention_2022_select` `auth.uid() IS NOT NULL`). Elles suivent desormais le
+patron de `poi_france_select` : registre par `source_visible(data_source_id)` ;
+`indicator_cp_values` par semi-jointure a la ligne du registre de son
+indicateur ; `dataset_abstention_2022` par l'indicateur du registre qui lit
+cette table (`data_source = 'abstention'`), sans identifiant en dur. Cout :
+semi-jointure hachee / initPlan sur les 19 lignes du registre (4,6 ms pour les
+22 429 valeurs visibles d'un compte DRHAT, 276 buffers). service_role inchange.
+Verrou : `tests/integration/indicateurs-rls.test.ts` (vrais comptes BMW et
+Bercy, abstention passee a Bercy le temps du bloc).
+
 **Appartenance aux espaces, tenue en base (`sql/236`, 2026-10-09).** Deux
 colonnes, une regle : `organization_members (user_id, organization_id)` dit a
 quels espaces l'utilisateur APPARTIENT (source de verite) ; `profiles.organization_id`
@@ -1182,7 +1196,7 @@ s'arrete si la source n'a pas pu etre creee.
 
 | Ou | Protege | Fichier |
 |---|---|---|
-| SQL | les acces directs PostgREST | `source_visible()` + politiques de `poi_france`, `panneaux_affichage`, `data_sources` (`sql/234`) |
+| SQL | les acces directs PostgREST | `source_visible()` + politiques de `poi_france`, `panneaux_affichage`, `data_sources` (`sql/234`) ; de `cible_indicator_registry`, `indicator_cp_values`, `dataset_abstention_2022` (`sql/290`) |
 | TypeScript | les routes (service_role) | `lib/auth/getOrgSourceIds.ts` (QUOI) + `lib/auth/perimetre-donnees.ts` (l'appliquer) |
 
 `getOrgSourceIds` **ferme par defaut** : `null` (« tout voir ») est reserve au
