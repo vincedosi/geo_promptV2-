@@ -218,6 +218,32 @@ describe('T3 — les 93 zones CIRFA rejoignent les zones de la Marine nationale 
     }
   });
 
+  it('dupliquer une zone CIRFA (relecture 1, I-1) : la copie ne se dit pas migrée, le compte reste à 93', async () => {
+    const source = psql(`select id from public.custom_geo_zones where ${ORIGINE} order by name limit 1;`);
+    const avant = { id: appelant.id, org: appelant.org };
+    appelant.org = marine();
+    appelant.id = psql('select id from auth.users order by created_at limit 1;');
+    let copie = '';
+    try {
+      const { POST } = await import('@/app/api/zones/[id]/dupliquer/route');
+      const res = await POST(
+        new NextRequest(`http://localhost/api/zones/${source}/dupliquer`, { method: 'POST', body: JSON.stringify({ nom: 'CIRFA (copie)' }), headers: { 'content-type': 'application/json' } }),
+        { params: Promise.resolve({ id: source.toUpperCase() }) },
+      );
+      expect([200, 207]).toContain(res.status);
+      copie = ((await res.json()) as { zone_id: string }).zone_id;
+      expect(psql(`select count(*) from public.custom_geo_zones where ${ORIGINE};`)).toBe('93');
+      expect(psql(`select coalesce(source_metadata->>'geography_zone_id', '-') || '|' || (source_metadata->>'duplique_de')
+                   from public.custom_geo_zones where id = '${copie}';`)).toBe(`-|${source}`);
+    } finally {
+      appelant.id = avant.id; appelant.org = avant.org;
+      if (copie) {
+        const { error } = await admin.from('custom_geo_zones').delete().eq('id', copie);
+        if (error) throw new Error(`nettoyage : ${error.message}`);
+      }
+    }
+  });
+
   it('rejouer la migration n’ajoute rien, et geography_zones n’est pas touchée', () => {
     const avant = empreinteSource();
     const r = psqlBrut(readFileSync('sql/293_cirfa_vers_zones.sql', 'utf8'));

@@ -8,6 +8,9 @@
 -- Pourquoi une RPC : la géométrie est copiée DANS la base (`insert … select`), elle ne transite jamais par Node ni par
 -- le navigateur (jusqu'à 378 Ko de géométrie pour la plus grosse zone locale, 23 073 sommets).
 --
+-- Relecture 1 (I-1) : les clés de MIGRATION (`origine`, `geography_zone_id`, `migre_le`, sql/293) ne sont pas
+-- recopiées — une copie de zone CIRFA n'est pas « migrée de geography_zones », et elle ne doit ni compter parmi les 93
+-- ni porter la clé d'idempotence de sql/293. Sa provenance est `duplique_de`.
 -- Ce qui est copié : nom (celui de l'appelant), description, source_type, source_metadata + `duplique_de`,
 -- geometry (bbox et updated_at par le déclencheur custom_geo_zones_before_write), recette TELLE QUELLE, et les
 -- sous-zones (une bataille capturée a une sous-zone par POI et par palier). PAS les codes CP / IRIS ni les compteurs
@@ -38,7 +41,8 @@ begin
 
   insert into public.custom_geo_zones (name, description, org_id, created_by, source_type, source_metadata, geometry, recette)
   select trim(p_nom), z.description, z.org_id, p_cree_par, z.source_type,
-         z.source_metadata || jsonb_build_object('duplique_de', z.id), z.geometry, z.recette
+         (z.source_metadata - 'origine' - 'geography_zone_id' - 'migre_le') || jsonb_build_object('duplique_de', z.id),
+         z.geometry, z.recette
     from public.custom_geo_zones z
    where z.id = p_zone_id and z.org_id = p_org_id
   returning id, round((ST_Area(geometry::geography) / 1e6)::numeric, 2) into v_id, v_km2;

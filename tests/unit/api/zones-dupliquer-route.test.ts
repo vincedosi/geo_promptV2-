@@ -115,6 +115,10 @@ describe('POST /api/zones/[id]/dupliquer', () => {
     expect(rpcs.map((r) => r.nom)).toEqual(['creer_zone_recette', 'resolve_custom_geo_zone_codes']);
     expect(rpcs[0].args).toMatchObject({ p_nom: 'Rayon (copie)', p_org_id: ORG, p_cree_par: 'u1', p_recette: RAYON });
     expect(ecritures).toEqual([{ table: 'custom_geo_zones', valeurs: { source_metadata: { duplique_de: ZONE } }, filtres: [['id', NOUVELLE], ['org_id', ORG]] }]);
+    // Relecture 1, m-2 : un id tapé en majuscules dans l'URL est rangé en minuscules, comme dans dupliquer_zone.
+    ecritures.length = 0;
+    expect((await appel({ nom: 'Rayon (copie)' }, ZONE.toUpperCase())).status).toBe(200);
+    expect(ecritures[0].valeurs).toEqual({ source_metadata: { duplique_de: ZONE } });
   });
 
   it('recalcul refusé (périmètre trop grand…) : le refus de l’exécuteur, rien d’écrit', async () => {

@@ -80,10 +80,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     console.error('[zones/dupliquer] creer_zone_recette :', cree.error?.message ?? 'réponse hors contrat', cree.error ? '' : cree.data);
     return echec('Duplication de la zone impossible.');
   }
-  // La provenance, sur la NOUVELLE zone seulement (`creer_zone_recette` écrit `{}`). Un échec ne défait pas la zone,
-  // qui existe : il se journalise, la réponse reste celle de la création.
+  // La provenance, sur la NOUVELLE zone seulement (`creer_zone_recette` écrit `{}`), l'UUID en minuscules comme
+  // `dupliquer_zone` (relecture 1, m-2). Un échec ne défait pas la zone, qui existe : il se journalise, la réponse
+  // reste celle de la création. L'écrire en un seul appel demanderait de modifier `creer_zone_recette` (sql/253),
+  // partagée avec `POST /api/zones` : laissé en deux temps (relecture 1, m-1).
   const prov = await supabase.from('custom_geo_zones')
-    .update({ source_metadata: { duplique_de: id } }).eq('id', issue.id).eq('org_id', orgId);
+    .update({ source_metadata: { duplique_de: id.toLowerCase() } }).eq('id', issue.id).eq('org_id', orgId);
   if (prov.error) console.error('[zones/dupliquer] provenance :', prov.error.message);
   return repondreResolue(supabase, issue.id, userId, r.surface_km2, 'creation');
 }
