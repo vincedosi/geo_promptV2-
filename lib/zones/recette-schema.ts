@@ -16,7 +16,7 @@
 import { z } from 'zod';
 import { messageAnomalies } from '@/lib/api/valider-corps';
 import {
-  CODES_FRANCE, INDICATEURS_SEUIL_CARREAUX, MAX_CODES_POSTAUX, RAYON_POINT_MAX_M, RAYON_POI_MAX_M, RAYON_POI_MIN_M,
+  CODES_FRANCE, INDICATEURS_SEUIL_CARREAUX, MAX_CODES_POSTAUX, MIN_MENAGES_CARREAUX_MAX, RAYON_POINT_MAX_M, RAYON_POI_MAX_M, RAYON_POI_MIN_M,
   SEUIL_CARREAUX_MAX, SEUIL_TERRITOIRE_MAX_ABS, TYPES_PERIMETRE, VERSION_RECETTE, type OperateurSeuil, type PerimetreRecette,
   type Recette,
 } from './recette';
@@ -24,10 +24,16 @@ import {
 // Tout UUID cité sort en MINUSCULES : `zone_referencee` (sql/253) le compare en texte jsonb, et un UUID en majuscules
 // lui échapperait — une zone citée par une combinaison serait alors recalculable sous le plan qui l'achète.
 const Uuid = z.string().uuid().transform((s) => s.toLowerCase());
-const Perimetre = z.object({ type: z.enum(TYPES_PERIMETRE), code: z.string().min(1).max(64) }).strict()
+// Codes taillés partout ; région et département en MAJUSCULES (V-8, Q-5) : `resoudre_perimetre` compare les codes tels
+// quels, et « 2a » rendait `perimetre_inconnu`. Normalisés ICI, à l'entrée : la base reçoit toujours des codes propres.
+const Perimetre = z.object({ type: z.enum(TYPES_PERIMETRE), code: z.string().trim().min(1).max(64) }).strict()
   .refine((p) => p.type !== 'zone' || Uuid.safeParse(p.code).success, { message: 'le code d’une zone doit être un UUID', path: ['code'] })
   .refine((p) => p.type !== 'france' || (CODES_FRANCE as readonly string[]).includes(p.code), { message: 'le code de la France est FR ou METRO', path: ['code'] })
-  .transform((p): PerimetreRecette => (p.type === 'zone' ? { ...p, code: p.code.toLowerCase() } : p))
+  .transform((p): PerimetreRecette => {
+    if (p.type === 'zone') return { ...p, code: p.code.toLowerCase() };
+    if (p.type === 'region' || p.type === 'departement') return { ...p, code: p.code.toUpperCase() };
+    return p;
+  })
   .nullable();
 const OPERATEURS = ['>=', '<='] as const satisfies readonly OperateurSeuil[];
 const Operateur = z.enum(OPERATEURS);
@@ -40,7 +46,7 @@ const Zones = z.array(Uuid).min(2).max(20)
 export const RecetteUnionSchema = z.discriminatedUnion('type', [
   z.object({ v: V, type: z.literal('rayon_point'), lon: z.number().min(-180).max(180), lat: z.number().min(-90).max(90), rayon_m: z.number().int().min(RAYON_POI_MIN_M).max(RAYON_POINT_MAX_M) }).strict(),
   z.object({ v: V, type: z.literal('rayon_poi'), categorie: z.string().regex(/^[a-z0-9_-]{1,64}$/), rayon_m: z.number().int().min(RAYON_POI_MIN_M).max(RAYON_POI_MAX_M), perimetre: Perimetre }).strict(),
-  z.object({ v: V, type: z.literal('seuil_carreaux'), indicateur: z.enum(IDS_CARREAUX), operateur: Operateur, seuil: z.number().finite().min(0).max(SEUIL_CARREAUX_MAX), perimetre: Perimetre }).strict(),
+  z.object({ v: V, type: z.literal('seuil_carreaux'), indicateur: z.enum(IDS_CARREAUX), operateur: Operateur, seuil: z.number().finite().min(0).max(SEUIL_CARREAUX_MAX), perimetre: Perimetre, min_menages: z.number().int().min(0).max(MIN_MENAGES_CARREAUX_MAX).optional() }).strict(),
   z.object({ v: V, type: z.literal('seuil_territoire'), indicateur: z.string().regex(/^[a-z0-9_]{1,64}$/), operateur: Operateur, seuil: z.number().finite().min(-SEUIL_TERRITOIRE_MAX_ABS).max(SEUIL_TERRITOIRE_MAX_ABS), perimetre: Perimetre }).strict(),
   z.object({ v: V, type: z.literal('codes_postaux'), codes: z.array(z.string().regex(/^\d{5}$/)).min(1).max(MAX_CODES_POSTAUX) }).strict(),
   z.object({ v: V, type: z.literal('dessin') }).strict(),

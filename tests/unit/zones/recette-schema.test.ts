@@ -79,6 +79,29 @@ describe('lireRecette (Zod) — revue de la Task 2', () => {
     }
   });
 
+  it('seuil sur carreaux : min_menages entier de 0 à 1 000, facultatif (absent = zone d’avant le lot)', () => {
+    const c = (extra: Record<string, unknown>) => lireRecette({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: PER, ...extra });
+    expect(c({}).ok).toBe(true);
+    const onze = c({ min_menages: 11 });
+    expect(onze.ok && onze.recette).toMatchObject({ min_menages: 11 });
+    expect(c({ min_menages: 0 }).ok).toBe(true);
+    expect(c({ min_menages: 1000 }).ok).toBe(true);
+    for (const v of [-1, 1001, 2.5, '11', null]) expect(c({ min_menages: v }).ok, String(v)).toBe(false);
+  });
+
+  it('codes de région et de département rangés en majuscules, sans espaces (V-8) ; les autres seulement taillés', () => {
+    const per = (type: string, code: string) => {
+      const r = lireRecette({ v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre: { type, code } });
+      return r.ok && r.recette.type === 'seuil_territoire' ? r.recette.perimetre : r;
+    };
+    expect(per('departement', ' 2a ')).toEqual({ type: 'departement', code: '2A' });
+    expect(per('departement', '2b')).toEqual({ type: 'departement', code: '2B' });
+    expect(per('region', ' 84')).toEqual({ type: 'region', code: '84' });
+    expect(per('commune', ' martigues ')).toEqual({ type: 'commune', code: 'martigues' });
+    expect(per('cp', '13001 ')).toEqual({ type: 'cp', code: '13001' });
+    expect((per('departement', '   ') as { ok: boolean }).ok).toBe(false);
+  });
+
   it('RecetteUnionSchema est l’union nue, avec ses dix options', () => {
     expect(RecetteUnionSchema.options).toHaveLength(10);
   });

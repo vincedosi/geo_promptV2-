@@ -38,7 +38,7 @@ export type IssueRecette =
   | { ok: true; geometry: FormeZone; surface_km2: number | null; compte: number | null; part_retenue: number | null; population: number | null }
   | { ok: false; statut: 400 | 404 | 409 | 422 | 500; refus: RefusRecette | null; message: string };
 
-/** La forme commune des réponses `jsonb` des RPC de zone (sql/151, 155, 156, 252, 254-256). */
+/** La forme commune des réponses `jsonb` des RPC de zone (sql/151, 155, 156, 252, 254-256, 292). */
 interface ReponseRpc {
   vide?: boolean; geometry?: unknown; surface_km2?: number | null; compte?: number | null;
   part_retenue?: number | null; population?: number | null; refus?: string;
@@ -151,9 +151,11 @@ export async function executerRecette(supabase: ClientAdmin, recette: Recette, c
     case 'seuil_carreaux': {
       const p = recette.perimetre;
       if (!p) return refuser('perimetre_absent');
-      return lire('zone_seuil_carreaux', supabase.rpc('zone_seuil_carreaux', {
+      // La jumelle (sql/292). Le minimum vient de la RECETTE enregistrée, jamais d'un défaut serveur : absent (zone
+      // d'avant le lot), il vaut 0 et la zone se recalcule à l'identique.
+      return lire('zone_seuil_carreaux_min', supabase.rpc('zone_seuil_carreaux_min', {
         p_indicateur: recette.indicateur, p_operateur: recette.operateur, p_seuil: recette.seuil,
-        p_perimetre_type: p.type, p_perimetre_code: p.code, p_org_id: ctx.orgId,
+        p_perimetre_type: p.type, p_perimetre_code: p.code, p_org_id: ctx.orgId, p_min_menages: recette.min_menages ?? 0,
       }));
     }
     case 'seuil_territoire': {

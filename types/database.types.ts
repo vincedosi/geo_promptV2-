@@ -9111,6 +9111,19 @@ export type Database = {
         }
         Returns: Json
       }
+      zone_seuil_carreaux_min: {
+        Args: {
+          p_indicateur: string
+          p_max_carreaux?: number
+          p_min_menages: number
+          p_operateur: string
+          p_org_id: string
+          p_perimetre_code: string
+          p_perimetre_type: string
+          p_seuil: number
+        }
+        Returns: Json
+      }
       zone_seuil_territoire: {
         Args: {
           p_indicateur: string

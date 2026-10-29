@@ -96,13 +96,16 @@ describe('executerRecette', () => {
   });
 
   it('seuil sur carreaux et sur territoires : le périmètre et l’espace, la population remontée', async () => {
-    reponses.zone_seuil_carreaux = { data: { vide: false, compte: 40, geometry: CARRE, surface_km2: 1.6, population: 5200 }, error: null };
+    reponses.zone_seuil_carreaux_min = { data: { vide: false, compte: 40, geometry: CARRE, surface_km2: 1.6, population: 5200 }, error: null };
     const c = await exec({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: PER });
     expect(c).toMatchObject({ ok: true, compte: 40, population: 5200, part_retenue: null });
-    expect(appels.at(-1)).toEqual({ nom: 'zone_seuil_carreaux', args: {
+    // Une recette d'avant le lot (sans `min_menages`) : 0, jamais un défaut serveur (zones recalculées à l'identique).
+    expect(appels.at(-1)).toEqual({ nom: 'zone_seuil_carreaux_min', args: {
       p_indicateur: 'part_men_pauv', p_operateur: '>=', p_seuil: 40,
-      p_perimetre_type: 'departement', p_perimetre_code: '13', p_org_id: ORG,
+      p_perimetre_type: 'departement', p_perimetre_code: '13', p_org_id: ORG, p_min_menages: 0,
     } });
+    await exec({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: PER, min_menages: 11 });
+    expect(appels.at(-1)).toMatchObject({ nom: 'zone_seuil_carreaux_min', args: { p_min_menages: 11 } });
     reponses.zone_seuil_territoire = { data: { vide: false, compte: 3, geometry: CARRE, surface_km2: 9 }, error: null };
     await exec({ v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '<=', seuil: 10, perimetre: PER });
     expect(appels.at(-1)).toEqual({ nom: 'zone_seuil_territoire', args: {
@@ -120,7 +123,7 @@ describe('executerRecette', () => {
   });
 
   it('refus SQL : 422 et le message français', async () => {
-    reponses.zone_seuil_carreaux = { data: { refus: 'trop_de_carreaux', plafond: 20000 }, error: null };
+    reponses.zone_seuil_carreaux_min = { data: { refus: 'trop_de_carreaux', plafond: 20000 }, error: null };
     const r = await exec({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 10, perimetre: PER });
     expect(r).toEqual({ ok: false, statut: 422, refus: 'trop_de_carreaux', message: MESSAGES_REFUS.trop_de_carreaux });
     // `formaterNombre` sépare les milliers par une espace insécable : `\s` la reconnaît, une espace tapée non.
@@ -227,7 +230,7 @@ describe('executerRecette', () => {
   });
 
   it('argument refusé par la base (22023) : 400, pas un 500', async () => {
-    reponses.zone_seuil_carreaux = { data: null, error: { message: 'seuil invalide', code: '22023' } as { message: string } };
+    reponses.zone_seuil_carreaux_min = { data: null, error: { message: 'seuil invalide', code: '22023' } as { message: string } };
     const r = await exec({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 10, perimetre: PER });
     expect(r).toEqual({ ok: false, statut: 400, refus: null, message: 'Paramètres de calcul invalides.' });
   });

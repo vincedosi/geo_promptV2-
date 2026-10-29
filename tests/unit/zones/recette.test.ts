@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import {
-  CAPACITE_SYNCHRONE_POI_RAYON, INDICATEURS_SEUIL_CARREAUX, MAX_CARREAUX_SEUIL, MAX_TERRITOIRES_SEUIL, MESSAGES_REFUS, PERIMETRES_ADMIS,
+  CAPACITE_SYNCHRONE_POI_RAYON, INDICATEURS_SEUIL_CARREAUX, MAX_CARREAUX_SEUIL, MIN_MENAGES_CARREAUX_DEFAUT, MIN_MENAGES_CARREAUX_MAX, MAX_TERRITOIRES_SEUIL, MESSAGES_REFUS, PERIMETRES_ADMIS,
   RAYON_POI_MAX_M, RAYON_POI_MIN_M, SURFACE_MAX_PERIMETRE_CARREAUX_KM2, SURFACE_MAX_PERIMETRE_KM2,
   TYPES_BORNES_PAR_PERIMETRE, TYPES_RECALCULABLES, TYPES_RECETTE, VERSION_RECETTE, estRecalculable, exigeGeometrie,
   exigePerimetre, libelleRecette, refusPerimetreLocal, type Recette,
@@ -64,7 +64,7 @@ describe('la recette d’une zone', () => {
   it('les plafonds de recette.ts sont les littéraux écrits dans les RPC (sql/254-256)', () => {
     const SURFACE = /resoudre_perimetre\(p_perimetre_type, p_perimetre_code, p_org_id, (\d+),/;
     const POI = /_zone_rayon_poi\.sql$/;
-    const CARREAUX = /_zone_seuil_carreaux\.sql$/;
+    const CARREAUX = /_zone_seuil_carreaux_min\.sql$/;   // le corps vit dans la jumelle (sql/292)
     const TERRITOIRES = /_zone_seuil_territoire\.sql$/;
     expect(litteral(POI, SURFACE)).toBe(SURFACE_MAX_PERIMETRE_KM2);
     expect(litteral(TERRITOIRES, SURFACE)).toBe(SURFACE_MAX_PERIMETRE_KM2);
@@ -72,6 +72,9 @@ describe('la recette d’une zone', () => {
     expect(litteral(POI, /p_rayon_m < (\d+) or/)).toBe(RAYON_POI_MIN_M);
     expect(litteral(POI, /p_rayon_m > (\d+) then/)).toBe(RAYON_POI_MAX_M);
     expect(litteral(CARREAUX, /p_max_carreaux integer default (\d+)/)).toBe(MAX_CARREAUX_SEUIL);
+    expect(litteral(CARREAUX, /p_min_menages > (\d+) then/)).toBe(MIN_MENAGES_CARREAUX_MAX);
+    // Q-2 (29/10) : 11 ménages, le seuil du secret statistique INSEE — sous lui, les valeurs du carreau sont imputées.
+    expect(MIN_MENAGES_CARREAUX_DEFAUT).toBe(11);
     expect(litteral(CARREAUX, /p_max_carreaux > (\d+) then/)).toBe(MAX_CARREAUX_SEUIL);
     expect(litteral(TERRITOIRES, /p_max_territoires integer default (\d+)/)).toBe(MAX_TERRITOIRES_SEUIL);
     expect(litteral(TERRITOIRES, /p_max_territoires > (\d+) then/)).toBe(MAX_TERRITOIRES_SEUIL);
@@ -139,7 +142,7 @@ describe('la recette d’une zone', () => {
   it('PERIMETRES_ADMIS est la liste écrite dans les RPC du rayon POI et du seuil sur carreaux', () => {
     for (const [type, suffixe] of [
       ['rayon_poi', /_zone_rayon_poi\.sql$/],
-      ['seuil_carreaux', /_zone_seuil_carreaux\.sql$/],
+      ['seuil_carreaux', /_zone_seuil_carreaux_min\.sql$/],
     ] as const) {
       const sql = migration(suffixe);
       expect(sql, `migration ${suffixe}`).toBeDefined();
@@ -164,6 +167,10 @@ describe('la recette d’une zone', () => {
     expect(libelleRecette({ v: 1, type: 'rayon_point', lon: 5.4, lat: 43.3, rayon_m: 300 })).toBe('Rayon de 300 m autour d’un point');
     expect(libelleRecette({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: PER }))
       .toBe('Carreaux où part des ménages pauvres ≥ 40 %');
+    expect(libelleRecette({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: PER, min_menages: 0 }))
+      .toBe('Carreaux où part des ménages pauvres ≥ 40 %');
+    expect(libelleRecette({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: PER, min_menages: 11 }))
+      .toBe('Carreaux où part des ménages pauvres ≥ 40 % · carreaux d’au moins 11 ménages');
     expect(libelleRecette({ v: 1, type: 'combinaison', operation: 'difference', zones: ['a', 'b', 'c'] })).toBe('Différence de 3 zones');
     expect(libelleRecette({ v: 1, type: 'codes_postaux', codes: ['13001'] })).toBe('1 code postal');
     expect(libelleRecette({ v: 1, type: 'codes_postaux', codes: ['13001', '13002'] })).toBe('2 codes postaux');

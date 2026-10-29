@@ -18,7 +18,7 @@ const appeler = (args: Record<string, unknown>) => admin.rpc('zone_seuil_carreau
 
 describe('zone_seuil_carreaux', () => {
   it('le case SQL connaît EXACTEMENT les 13 indicateurs de lib/zones/recette.ts', () => {
-    const f = readdirSync('sql').find((n) => /_zone_seuil_carreaux\.sql$/.test(n))!;
+    const f = readdirSync('sql').find((n) => /_zone_seuil_carreaux_min\.sql$/.test(n))!;   // le corps (sql/292)
     const sql = readFileSync(`sql/${f}`, 'utf8');
     const ids = [...sql.matchAll(/when '([a-z0-9_]+)'\s+then v_num/g)].map((m) => m[1]).sort();
     expect(ids).toEqual(INDICATEURS_SEUIL_CARREAUX.map((i) => i.id).sort());
