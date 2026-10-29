@@ -9111,6 +9111,15 @@ export type Database = {
         }
         Returns: Json
       }
+      dupliquer_zone: {
+        Args: {
+          p_cree_par: string
+          p_nom: string
+          p_org_id: string
+          p_zone_id: string
+        }
+        Returns: Json
+      }
       zone_seuil_carreaux_min: {
         Args: {
           p_indicateur: string

@@ -17,27 +17,12 @@ import { createAdminClient } from '@/lib/auth';
 import { requireAuth } from '@/lib/api/middleware';
 import { toJson } from '@/lib/supabase/rpc-json';
 import { MESSAGES_REFUS } from '@/lib/zones/recette';
-import { executerDansEspace, preparerRecette, repondreResolue, reponseRefus } from '@/lib/zones/session-zones';
+import { executerDansEspace, lireCreation, preparerRecette, repondreResolue, reponseRefus } from '@/lib/zones/session-zones';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const Corps = z.object({ nom: z.string().trim().min(1).max(200), recette: z.unknown(), geometrie: z.unknown().optional() }).strict();
-
-/** Les refus que `creer_zone_recette` (sql/253) peut rendre à la place de `{ id }`. */
-const REFUS_CREATION = ['zone_introuvable', 'perimetre_inconnu'] as const;
-type RefusCreation = (typeof REFUS_CREATION)[number];
-
-/** Rétrécit le `Json` généré : `{ id }`, `{ refus }` du contrat, ou `null` (hors contrat → 500). */
-function lireCreation(data: unknown): { id: string } | { refus: RefusCreation } | null {
-  if (data === null || typeof data !== 'object' || Array.isArray(data)) return null;
-  const o = data as Record<string, unknown>;
-  if (typeof o.refus === 'string') {
-    const refus = REFUS_CREATION.find((r) => r === o.refus);
-    return refus ? { refus } : null;
-  }
-  return typeof o.id === 'string' && o.id !== '' ? { id: o.id } : null;
-}
 
 export async function POST(req: NextRequest) {
   const p = await preparerRecette(await requireAuth(req), req, Corps);

@@ -78,7 +78,7 @@ beforeEach(() => {
 describe('garde des trois routes', () => {
   it('chaque source appelle requireAuth( — reconnu par routes-publiques.test.ts, middleware.ts intouché', async () => {
     const { readFileSync } = await import('node:fs');
-    for (const f of ['app/api/zones/apercu/route.ts', 'app/api/zones/route.ts', 'app/api/zones/[id]/recalculer/route.ts']) {
+    for (const f of ['app/api/zones/apercu/route.ts', 'app/api/zones/route.ts', 'app/api/zones/[id]/recalculer/route.ts', 'app/api/zones/[id]/dupliquer/route.ts']) {
       const source = readFileSync(f, 'utf8');
       expect(source, f).toContain('requireAuth(');
       expect(source, f).toContain("dynamic = 'force-dynamic'");
@@ -95,7 +95,7 @@ describe('garde des trois routes', () => {
     const s = readFileSync('lib/zones/session-zones.ts', 'utf8');
     expect(s).toMatch(/createQuota\(\{\s*max:\s*12,\s*window:\s*'60 s',\s*prefix:\s*'geo:rl:zones'\s*\}\)/);
     expect(s.match(/createQuota\(/g)).toHaveLength(1);
-    for (const f of ['app/api/zones/apercu/route.ts', 'app/api/zones/route.ts', 'app/api/zones/[id]/recalculer/route.ts']) {
+    for (const f of ['app/api/zones/apercu/route.ts', 'app/api/zones/route.ts', 'app/api/zones/[id]/recalculer/route.ts', 'app/api/zones/[id]/dupliquer/route.ts']) {
       expect(readFileSync(f, 'utf8'), f).not.toMatch(/createQuota\(|createRateLimiter\(/);
     }
   });

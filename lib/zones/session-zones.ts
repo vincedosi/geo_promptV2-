@@ -1,6 +1,7 @@
 /**
- * @file lib/zones/session-zones.ts — ce que les trois routes de zones à recette partagent (lot 3, spec
- * carte-en-parcours § 16) : `POST /api/zones/apercu`, `POST /api/zones`, `POST /api/zones/[id]/recalculer`.
+ * @file lib/zones/session-zones.ts — ce que les routes de zones à recette partagent (lot 3, spec
+ * carte-en-parcours § 16) : `POST /api/zones/apercu`, `POST /api/zones`, `POST /api/zones/[id]/recalculer`, et
+ * `POST /api/zones/[id]/dupliquer` (③ finitions, T2).
  *
  * L'espace : `profile.organization_id` du profil rendu par `requireAuth` — l'espace ACTIF (`/api/user/switch-org`
  * l'écrit ; `getSessionOrg` lit le même champ). Le garde `requireAuth(` reste écrit DANS chaque route : c'est ce que
@@ -13,7 +14,7 @@
  * L'ORDRE est le contrat : profil → corps → recette → quota → SEULEMENT ALORS les sources et le calcul. Une requête
  * refusée (corps invalide, quota épuisé, zone figée ou citée) ne lit rien en base.
  *
- * Le quota : UN limiteur pour l'aperçu, l'écriture et le recalcul (A-7) — 12 / min / compte. Un aperçu suivi d'un
+ * Le quota : UN limiteur pour l'aperçu, l'écriture, le recalcul et la duplication (A-7) — 12 / min / compte. Un aperçu suivi d'un
  * enregistrement coûte 2 jetons (6 zones / min au plus) ; au pire mesuré (≈ 90 000 buffers par appel : une
  * zone-périmètre dense de 12 000 km², l'IDF ; ≤ 69 000 pour un département), ≤ 1,1 M buffers / min / compte.
  */
@@ -48,7 +49,7 @@ export function espaceDeZone(profil: UserProfile | null): { ok: true; espace: Es
   return { ok: true, espace: { userId: profil.id, orgId: profil.organization_id, role: profil.role } };
 }
 
-/** Le quota partagé des trois routes ; `null` quand il reste un jeton. */
+/** Le quota partagé des routes de zone (dupliquer compris) ; `null` quand il reste un jeton. */
 export function quotaZones(espace: EspaceZone): Promise<NextResponse | null> {
   return limiteurZones(espace.userId);
 }
@@ -103,6 +104,25 @@ export async function executerDansEspace(
   if (recette.type === 'seuil_territoire') ctx.indicateurs = (await indicateursVisiblesDeLaSession(session)).visibles;
   if (exigeGeometrie(recette)) ctx.geometrie = geometrie;
   return executerRecette(supabase, recette, ctx);
+}
+
+/** Les refus que `creer_zone_recette` (sql/253) peut rendre à la place de `{ id }`. */
+const REFUS_CREATION = ['zone_introuvable', 'perimetre_inconnu'] as const;
+type RefusCreation = (typeof REFUS_CREATION)[number];
+
+/**
+ * Rétrécit le `Json` de `creer_zone_recette` : `{ id }`, `{ refus }` du contrat, ou `null` (hors contrat → 500).
+ * Partagé par `POST /api/zones` et `POST /api/zones/[id]/dupliquer` (une recette recalculable dupliquée s'écrit
+ * comme une création).
+ */
+export function lireCreation(data: unknown): { id: string } | { refus: RefusCreation } | null {
+  if (data === null || typeof data !== 'object' || Array.isArray(data)) return null;
+  const o = data as Record<string, unknown>;
+  if (typeof o.refus === 'string') {
+    const refus = REFUS_CREATION.find((r) => r === o.refus);
+    return refus ? { refus } : null;
+  }
+  return typeof o.id === 'string' && o.id !== '' ? { id: o.id } : null;
 }
 
 /** Un refus (exécuteur ou RPC) en réponse HTTP : `{ error, refus? }`, la clé `refus` absente quand il n'y en a pas. */

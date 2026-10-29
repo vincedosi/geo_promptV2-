@@ -5,12 +5,27 @@
  * statistique) peut être écarté ; une zone d'avant le lot (recette sans `min_menages`) se recalcule À L'IDENTIQUE.
  * Chiffres mesurés le 29/10 sur la base locale (Gironde, ménages pauvres ≥ 40 %) : 732 carreaux et 29,28 km² sans
  * minimum, 191 carreaux à 11 ménages (244 des 732 ont moins d'UN ménage). Codes de département normalisés à l'entrée.
+ *
+ * T2 — « Dupliquer » (`POST /api/zones/[id]/dupliquer`, sql/294) contre la vraie base : seuls l'appelant et le quota
+ * sont simulés (le quota partagé et son 429 sont prouvés en unitaire, `zones-dupliquer-route.test.ts`). Deux espaces
+ * `[ESSAI ③ finitions]` sont créés puis supprimés ; leurs zones partent avec eux.
  */
-import { describe, it, expect } from 'vitest';
+import { afterAll, beforeAll, describe, it, expect, vi } from 'vitest';
+import { NextRequest } from 'next/server';
 import { creerClientTest } from './_client';
 import { psql } from './_psql';
 import { executerRecette } from '@/lib/zones/executer-recette';
 import { lireRecette } from '@/lib/zones/recette-schema';
+
+const appelant = vi.hoisted(() => ({ id: '', org: '' }));
+vi.mock('@/lib/api/middleware', async (original) => ({
+  ...(await original<typeof import('@/lib/api/middleware')>()),
+  requireAuth: async () => ({ id: appelant.id, role: 'client', organization_id: appelant.org }),
+}));
+vi.mock('@/lib/api/rate-limit', async (original) => ({
+  ...(await original<typeof import('@/lib/api/rate-limit')>()),
+  createQuota: () => async () => null,
+}));
 
 const admin = creerClientTest();
 type ClientAdmin = Parameters<typeof executerRecette>[0];
@@ -80,5 +95,96 @@ describe('T1 — codes de territoire normalisés à l’entrée (V-8)', () => {
     const tape = await executerRecette(admin as unknown as ClientAdmin, recette(' 2a '), ctx);
     expect(propre.ok).toBe(true);
     expect(tape).toEqual(propre);
+  });
+});
+
+describe('T2 — dupliquer une zone', () => {
+  const route = import('@/app/api/zones/[id]/dupliquer/route');
+  const dupliquer = async (id: string, corps: unknown) => (await route).POST(
+    new NextRequest(`http://localhost/api/zones/${id}/dupliquer`, { method: 'POST', body: JSON.stringify(corps), headers: { 'content-type': 'application/json' } }),
+    { params: Promise.resolve({ id }) },
+  );
+  const CARRE = JSON.stringify({ type: 'Polygon', coordinates: [[[5.36, 43.29], [5.40, 43.29], [5.40, 43.32], [5.36, 43.32], [5.36, 43.29]]] });
+  const RAYON = { v: 1, type: 'rayon_point', lon: 5.38, lat: 43.30, rayon_m: 2000 };
+  let org = '';
+  let autreOrg = '';
+
+  async function nouvelleOrg(nom: string) {
+    const { data, error } = await admin.from('organizations')
+      .insert({ name: `[ESSAI ③ finitions] ${nom}`, slug: `essai-finitions-${nom}-${Date.now()}` }).select('id').single();
+    if (error || !data) throw new Error(error?.message);
+    return data.id as string;
+  }
+  async function creer(recette: unknown, o = org, geometrie = CARRE) {
+    const { data, error } = await admin.rpc('creer_zone_recette', { p_nom: 'Source', p_org_id: o, p_cree_par: null, p_recette: recette, p_geometry_geojson: geometrie });
+    if (error) throw new Error(error.message);
+    return (data as { id: string }).id;
+  }
+  const ligne = (id: string) => psql(`select name || '|' || source_type || '|' || round(st_area(geometry::geography)) || '|' || coalesce(recette::text, 'null')
+    || '|' || coalesce(source_metadata->>'duplique_de', '') || '|' || updated_at from public.custom_geo_zones where id = '${id}';`);
+
+  beforeAll(async () => {
+    org = await nouvelleOrg('a');
+    autreOrg = await nouvelleOrg('b');
+    appelant.org = org;
+    appelant.id = psql('select id from auth.users order by created_at limit 1;');
+  });
+  afterAll(async () => {
+    for (const o of [org, autreOrg]) {
+      const { error } = await admin.from('organizations').delete().eq('id', o);
+      if (error) throw new Error(`nettoyage : ${error.message}`);
+    }
+  });
+
+  it('forme figée : une NOUVELLE zone, même surface, recette et sous-zones copiées, duplique_de ; la source intacte', async () => {
+    const source = await creer({ v: 1, type: 'dessin' });
+    const { error: e } = await admin.from('custom_geo_zone_subzones')
+      .insert({ zone_id: source, name: 'Palier 1', geometry: 'SRID=4326;MULTIPOLYGON(((5.36 43.29,5.38 43.29,5.38 43.30,5.36 43.30,5.36 43.29)))' });
+    expect(e).toBeNull();
+    const avant = ligne(source);
+    const res = await dupliquer(source, { nom: 'Source (copie)' });
+    expect([200, 207]).toContain(res.status);
+    const id = ((await res.json()) as { zone_id: string }).zone_id;
+    expect(id).not.toBe(source);
+    const [nom, type, aire, recette, de] = ligne(id).split('|');
+    const [, typeS, aireS, recetteS] = avant.split('|');
+    expect([nom, type, aire, recette, de]).toEqual(['Source (copie)', typeS, aireS, recetteS, source]);
+    expect(psql(`select count(*) from public.custom_geo_zone_subzones where zone_id = '${id}';`)).toBe('1');
+    expect(ligne(source)).toBe(avant);
+    expect(psql(`select org_id from public.custom_geo_zones where id = '${id}';`)).toBe(org);
+  });
+
+  it('recette recalculable CITÉE (A-2) : nouvelle zone calculée à neuf, l’originale ne bouge pas (updated_at identique)', async () => {
+    // La forme stockée (le carré) n'est PAS celle de la recette (un disque de 2 km) : la copie doit être le disque.
+    const source = await creer(RAYON);
+    const b = await creer({ v: 1, type: 'dessin' });
+    await creer({ v: 1, type: 'combinaison', operation: 'union', zones: [source, b] });
+    expect((await admin.rpc('zone_referencee', { p_zone_id: source })).data).toBe('combinaison');
+    const avant = ligne(source);
+    const res = await dupliquer(source, { nom: 'Rayon recalculé' });
+    expect([200, 207]).toContain(res.status);
+    const id = ((await res.json()) as { zone_id: string }).zone_id;
+    expect(ligne(source)).toBe(avant);
+    const [, type, aire, recette, de] = ligne(id).split('|');
+    expect(type).toBe('recette_rayon_point');
+    expect(JSON.parse(recette)).toEqual(RAYON);
+    expect(de).toBe(source);
+    // La forme de la copie est celle que la recette rend AUJOURD'HUI (le disque découpé sur la côte), pas le carré stocké.
+    const disque = psql(`select round(st_area(st_geomfromgeojson(public.zone_rayon(5.38, 43.30, 2000)->>'geometry')::geography));`);
+    expect(aire).toBe(disque);
+    expect(aire).not.toBe(ligne(source).split('|')[2]);
+  });
+
+  it('zone d’un autre espace : 404, comme inconnue ; rien d’écrit', async () => {
+    const etrangere = await creer({ v: 1, type: 'dessin' }, autreOrg);
+    const avant = psql(`select count(*) from public.custom_geo_zones where org_id in ('${org}', '${autreOrg}');`);
+    const res = await dupliquer(etrangere, { nom: 'Vol' });
+    expect(res.status).toBe(404);
+    expect(psql(`select count(*) from public.custom_geo_zones where org_id in ('${org}', '${autreOrg}');`)).toBe(avant);
+  });
+
+  it('nom vide : 400', async () => {
+    const source = await creer({ v: 1, type: 'dessin' });
+    expect((await dupliquer(source, { nom: '  ' })).status).toBe(400);
   });
 });
