@@ -9,11 +9,15 @@
  * T2 — « Dupliquer » (`POST /api/zones/[id]/dupliquer`, sql/294) contre la vraie base : seuls l'appelant et le quota
  * sont simulés (le quota partagé et son 429 sont prouvés en unitaire, `zones-dupliquer-route.test.ts`). Deux espaces
  * `[ESSAI ③ finitions]` sont créés puis supprimés ; leurs zones partent avec eux.
+ *
+ * T3 — migration des 93 zones CIRFA de `geography_zones` (avril 2026) vers « Mes zones » de la Marine nationale
+ * (sql/293) : rejouable, la table source intacte.
  */
 import { afterAll, beforeAll, describe, it, expect, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { creerClientTest } from './_client';
-import { psql } from './_psql';
+import { readFileSync } from 'node:fs';
+import { psql, psqlBrut } from './_psql';
 import { executerRecette } from '@/lib/zones/executer-recette';
 import { lireRecette } from '@/lib/zones/recette-schema';
 
@@ -186,5 +190,40 @@ describe('T2 — dupliquer une zone', () => {
   it('nom vide : 400', async () => {
     const source = await creer({ v: 1, type: 'dessin' });
     expect((await dupliquer(source, { nom: '  ' })).status).toBe(400);
+  });
+});
+
+describe('T3 — les 93 zones CIRFA rejoignent les zones de la Marine nationale (sql/293)', () => {
+  const ORIGINE = `source_metadata->>'origine' = 'geography_zones'`;
+  const marine = () => psql(`select id from public.organizations where name = 'Marine nationale';`);
+  const empreinteSource = () => psql('select count(*) || \'|\' || round(sum(st_area(geom::geography))) || \'|\' || max(created_at) from public.geography_zones;');
+
+  it('93 zones dans l’espace Marine nationale, aucune ailleurs ; forme identique à la source', () => {
+    expect(psql(`select count(*) from public.custom_geo_zones where ${ORIGINE} and org_id = '${marine()}';`)).toBe('93');
+    expect(psql(`select count(*) from public.custom_geo_zones where ${ORIGINE} and org_id <> '${marine()}';`)).toBe('0');
+    // Chaque zone a la géométrie de SA ligne source (aucune résolution de codes : compteurs à 0, A-11).
+    expect(psql(`select count(*) from public.custom_geo_zones z join public.geography_zones g on g.id = (z.source_metadata->>'geography_zone_id')::uuid
+                  where z.${ORIGINE} and st_equals(z.geometry, g.geom) and z.name = g.name and z.feature_count_cp = 0;`)).toBe('93');
+  });
+
+  it('la recette écrite est une recette VALIDE pour le schéma serveur (sinon « Mes zones » la lirait illisible)', () => {
+    const recettes = psql(`select jsonb_agg(distinct recette) from public.custom_geo_zones where ${ORIGINE};`);
+    const liste = JSON.parse(recettes) as unknown[];
+    // Deux recettes distinctes mesurées le 29/10 : 76 CIRFA au palier maximal de 60 min, 17 à 30 min.
+    expect(liste.length).toBeGreaterThan(0);
+    for (const r of liste) {
+      const lue = lireRecette(r);
+      expect(lue.ok, JSON.stringify(r)).toBe(true);
+      expect(lue.ok && lue.recette.type).toBe('isochrone');
+    }
+  });
+
+  it('rejouer la migration n’ajoute rien, et geography_zones n’est pas touchée', () => {
+    const avant = empreinteSource();
+    const r = psqlBrut(readFileSync('sql/293_cirfa_vers_zones.sql', 'utf8'));
+    expect(r.status, r.stderr).toBe(0);
+    expect(psql(`select count(*) from public.custom_geo_zones where ${ORIGINE};`)).toBe('93');
+    expect(empreinteSource()).toBe(avant);
+    expect(avant.split('|')[0]).toBe('93');
   });
 });

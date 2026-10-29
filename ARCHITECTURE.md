@@ -1918,6 +1918,16 @@ jeu de DONNEES, pas un chemin de code separe (`sql/112`).
 >   **93 zones CIRFA** d'avril 2026, la donnee metier du plan media. De la
 >   geometrie faconnee, pas un cache. Les migrer vers `custom_geo_zones` ou les
 >   abandonner est un arbitrage produit.
+>   **Migrées le 2026-10-29** (Q-8 de Vincent : migrer ; sql/293, ③ finitions
+>   T3) : 93 zones de l'espace **Marine nationale** dans `custom_geo_zones`,
+>   `source_type 'isochrone_battle'` (ce sont les territoires d'une bataille
+>   d'isochrones V2, voiture, 30-60 min), recette FIGÉE `{ v: 1, type:
+>   'isochrone', parametres }` (origine, date, palier, mode), provenance dans
+>   `source_metadata` (`origine 'geography_zones'`, `geography_zone_id`,
+>   propriétés d'origine). Géométrie copiée telle quelle, AUCUN code CP / IRIS
+>   résolu (⑤ convertit). Rejouable (`geography_zone_id` déjà présent → rien).
+>   `geography_zones` elle-même n'est PAS touchée : la supprimer est un autre
+>   arbitrage.
 > - `laposte_hexasmal` (vide) et ses trois fonctions : `sql/119-120` les ont
 >   durcies apres avoir decouvert qu'un appel pouvait effacer les 6 187 codes
 >   postaux de `ref_codes_postaux`. Les retirer supprimerait ce risque — et le
