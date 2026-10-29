@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { DOCUMENT, DestroyRef, Injectable, effect, inject, signal, untracked } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
 import { type Observable, type Subscription, catchError, of, tap } from 'rxjs';
@@ -17,6 +18,18 @@ import {
 import { peindre } from './couche-carreaux';
 import { messagePoints } from './pois.service';
 import { DELAI_DEPLACEMENT_MS } from './radio.service';
+
+/**
+ * Le message d'échec de la section civique. `unknown_variable` (404 de `/api/insee-variables/[code]/geojson`,
+ * l'indicateur n'est pas visible pour l'espace) est un CODE, pas une phrase : il ne s'affiche pas tel quel
+ * (preuve D3). Les autres échecs gardent le texte de la route, comme les points.
+ */
+export function messageCivique(e: unknown): string {
+  if (e instanceof HttpErrorResponse && (e.error as { error?: unknown } | null)?.error === 'unknown_variable') {
+    return 'Indicateur indisponible pour cet espace.';
+  }
+  return messagePoints(e, 'Délai dépassé — réessayez dans quelques instants');
+}
 
 /**
  * La choroplèthe « Indicateurs civiques » par code postal — l'état que `app/map/page.tsx` tenait (`civicVariableCode`)
@@ -143,7 +156,7 @@ export class IndicateursCiviquesService {
       },
       error: (e: unknown) => {
         this.chargement.set(false);
-        this.erreur.set(messagePoints(e, 'Délai dépassé — réessayez dans quelques instants'));
+        this.erreur.set(messageCivique(e));
       },
     });
   }

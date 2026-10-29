@@ -194,6 +194,15 @@ describe('IndicateursCiviquesService', () => {
     expect(civique.chargement()).toBe(false);
   });
 
+  it('échec `unknown_variable` (404, preuve D3) : une phrase française, jamais le code brut', () => {
+    const { civique, reponses } = monter();
+    civique.choisir('abstention_pres_2022');
+    TestBed.tick();
+    reponses[0].error(new HttpErrorResponse({ status: 404, error: { error: 'unknown_variable', code: 'abstention_pres_2022' } }));
+    expect(civique.erreur()).toBe('Indicateur indisponible pour cet espace.');
+    expect(civique.chargement()).toBe(false);
+  });
+
   it('carte recréée (changement de fond) : re-posée avec les données gardées, SANS requête en double', () => {
     const { civique, bboxes, reponses, couches } = monter();
     civique.choisir('abstention_pres_2022');
