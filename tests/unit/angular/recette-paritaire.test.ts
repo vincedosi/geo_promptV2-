@@ -6,7 +6,7 @@ import * as A from '../../../angular/src/app/features/carte/logique/zones/recett
 describe('recette de zone : Angular = serveur', () => {
   it('mêmes constantes', () => {
     for (const k of ['VERSION_RECETTE', 'TYPES_RECETTE', 'TYPES_RECALCULABLES', 'TYPES_BORNES_PAR_PERIMETRE', 'TYPES_PERIMETRE',
-      'RAYON_POI_MIN_M', 'RAYON_POI_MAX_M', 'RAYON_POINT_MAX_M', 'SEUIL_CARREAUX_MAX', 'SEUIL_TERRITOIRE_MAX_ABS','CAPACITE_SYNCHRONE_POI_RAYON', 'CODES_FRANCE', 'MAX_CARREAUX_SEUIL', 'MIN_MENAGES_CARREAUX_DEFAUT', 'MIN_MENAGES_CARREAUX_MAX', 'MAX_TERRITOIRES_SEUIL', 'MAX_SOMMETS_FORME',
+      'RAYON_POI_MIN_M', 'RAYON_POI_MAX_M', 'RAYON_POINT_MAX_M', 'SEUIL_CARREAUX_MAX', 'SEUIL_TERRITOIRE_MAX_ABS','CAPACITE_SYNCHRONE_POI_RAYON', 'CODES_FRANCE', 'MAX_CARREAUX_SEUIL', 'MIN_MENAGES_CARREAUX_DEFAUT', 'MIN_MENAGES_CARREAUX_MAX', 'MAX_INDICATEURS_SCORE', 'MAX_TERRITOIRES_SEUIL', 'MAX_SOMMETS_FORME',
       'MAX_CODES_POSTAUX', 'SURFACE_MAX_PERIMETRE_KM2', 'SURFACE_MAX_PERIMETRE_CARREAUX_KM2', 'PERIMETRES_ADMIS',
       'INDICATEURS_SEUIL_CARREAUX', 'MESSAGES_REFUS'] as const) {
       expect((A as unknown as Record<string, unknown>)[k], k).toEqual((R as unknown as Record<string, unknown>)[k]);
@@ -24,6 +24,8 @@ describe('recette de zone : Angular = serveur', () => {
       { v: 1, type: 'isochrone', parametres: { mode: 'voiture', minutes: 15 } },
       { v: 1, type: 'combinaison', operation: 'union', zones: ['a', 'b'] },
       { v: 1, type: 'capture', source_type: 'isochrone_battle' },
+      { v: 1, type: 'capture', source_type: 'score', parametres: { indicateurs: [{ code: 'taux_pauvrete', poids: 1, sens: 'croissant' }], maille: 'cp', seuil_score: 70 } },
+      { v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: { type: 'departement', code: '33' }, min_menages: 11 },
     ];
     for (const r of cas) {
       expect(A.estRecalculable(r)).toBe(R.estRecalculable(r));

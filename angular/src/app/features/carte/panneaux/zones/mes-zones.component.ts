@@ -10,6 +10,7 @@ import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.se
 import { ExportZoneService } from '../../etat/export-zone.service';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import type { IndicateurRegistre } from '../../logique/analyses/score';
+import { MESSAGE_REPONSE_PERDUE, avecId, estRefusReferencee, issueDuplication, nomDeCopie, sansId } from '../../logique/zones/gestes-zone';
 import { libelleSource } from '../../logique/zones/libelle-zone';
 import { basculerDansSelection, selectionExistante } from '../../logique/zones/operations-zones';
 import { messageErreurZone } from '../../logique/zones/perimetre-recette';
@@ -118,7 +119,10 @@ const ANTI_REBOND_RECHERCHE_MS = 200;
               [recalculEnCours]="l.recalcul"
               [indicateurs]="indicateurs()"
               [rang]="l.rang"
+              [referencee]="l.referencee"
+              [duplicationEnCours]="l.duplication"
               (recalculer)="recalculer(l.zone.id)"
+              (dupliquer)="dupliquer(l.zone)"
               (afficher)="affichage.afficher(l.zone)"
               (masquer)="affichage.masquer(l.zone.id)"
               (supprimer)="aSupprimer.set(l.zone)"
@@ -164,7 +168,10 @@ export class MesZonesComponent {
   private readonly relecture = signal(0);
   /** Les zones dont le recalcul est en vol (une à la fois par zone : le second clic est ignoré). */
   protected readonly recalculs = signal<ReadonlySet<string>>(new Set());
-  /** L'issue d'un recalcul réussi mais incomplet (207) : la zone est recalculée, ses codes postaux non résolus. */
+  /** Zones au dernier recalcul refusé (citées par un plan, 409) ; zones à la duplication en vol (second clic ignoré). */
+  private readonly referencees = signal<ReadonlySet<string>>(new Set());
+  private readonly duplications = signal<ReadonlySet<string>>(new Set());
+  /** L'issue d'un geste réussi à dire : recalcul ou duplication incomplets (207), duplication faite. */
   protected readonly avis = signal<string | null>(null);
 
   /** Chaque carte avec ce qu'elle montre de l'affichage et de la sélection (aucune méthode appelée dans le gabarit). */
@@ -173,9 +180,11 @@ export class MesZonesComponent {
     const enCours = this.affichage.enCours();
     const selection = this.selection();
     const recalculs = this.recalculs();
+    const referencees = this.referencees();
+    const duplications = this.duplications();
     return this.zones().map((zone) => ({
       zone, couleur: couleurs.get(zone.id) ?? null, enCours: enCours === zone.id, rang: selection.indexOf(zone.id),
-      recalcul: recalculs.has(zone.id),
+      recalcul: recalculs.has(zone.id), referencee: referencees.has(zone.id), duplication: duplications.has(zone.id),
     }));
   });
   /**
@@ -262,7 +271,7 @@ export class MesZonesComponent {
   protected recalculer(id: string): void {
     if (this.recalculs().has(id)) return;
     const zone = this.zones().find((z) => z.id === id);
-    this.recalculs.update((s) => new Set(s).add(id));
+    this.recalculs.update((s) => avecId(s, id));
     this.erreur.set(null);
     this.avis.set(null);
     this.vols.set(id, this.zonesApi.recalculer(id).subscribe({
@@ -278,6 +287,7 @@ export class MesZonesComponent {
       },
       error: (e: { status?: number; error?: unknown }) => {
         this.retirerRecalcul(id);
+        if (estRefusReferencee(e)) this.referencees.update((s) => avecId(s, id));
         this.erreur.set(messageErreurZone(e));
       },
     }));
@@ -285,11 +295,30 @@ export class MesZonesComponent {
 
   private retirerRecalcul(id: string): void {
     this.vols.delete(id);
-    this.recalculs.update((s) => {
-      const c = new Set(s);
-      c.delete(id);
-      return c;
-    });
+    this.recalculs.update((s) => sansId(s, id));
+  }
+
+  /**
+   * « Dupliquer » / « Recalculer dans une nouvelle zone » (③ finitions, T5) : `POST /api/zones/[id]/dupliquer`, une fois
+   * par zone à la fois. Réussite (200, 207) ou réponse perdue (dite dans l'avis, que la relecture n'efface pas) : la
+   * liste est relue, la zone existe peut-être. Un refus (404, 409, 422, 429) n'a rien écrit : il est dit, sans relecture.
+   */
+  protected dupliquer(zone: ZoneCustomResume): void {
+    if (this.duplications().has(zone.id)) return;
+    const nom = nomDeCopie(zone.name);
+    const fin = (avis: string | null) => {
+      this.vols.delete(`d:${zone.id}`); this.duplications.update((s) => sansId(s, zone.id));
+      if (avis) { this.avis.set(avis); this.relecture.update((n) => n + 1); }
+    };
+    this.duplications.update((s) => avecId(s, zone.id));
+    this.erreur.set(null); this.avis.set(null);
+    this.vols.set(`d:${zone.id}`, this.zonesApi.dupliquer(zone.id, nom).subscribe({
+      next: (r) => fin(issueDuplication(r, nom)),
+      error: (e: { status?: number; error?: unknown }) => {
+        fin(e.status === 0 ? MESSAGE_REPONSE_PERDUE : null);
+        if (e.status !== 0) this.erreur.set(messageErreurZone(e, 'Duplication impossible.'));
+      },
+    }));
   }
 
   protected rechercher(q: string): void {
@@ -308,7 +337,7 @@ export class MesZonesComponent {
     this.relecture.update((n) => n + 1);
   }
 
-  /** Script DV360 ou ciblage TikTok : un échec s'affiche dans le bandeau d'erreur (React ne l'écrivait qu'en console). */
+  /** Ciblage TikTok : un échec s'affiche dans le bandeau d'erreur (React ne l'écrivait qu'en console). */
   protected exporter(id: string, format: FormatExportZone): void {
     void this.exports.exporter(id, format).then((echec) => {
       if (echec && !this.detruit) this.erreur.set(echec);

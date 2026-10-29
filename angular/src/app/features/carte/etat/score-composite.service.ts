@@ -132,7 +132,8 @@ export class ScoreCompositeService {
   /**
    * « Créer la zone » : la route sœur RECALCULE le score au-dessus du seuil (elle ne croit pas une liste de CP remontée
    * par le client), puis `POST /api/zones` ÉCRIT la zone avec la recette figée `{ type: 'capture', source_type: 'score' }`
-   * et sa géométrie — le geste commun des créations (`CreationZoneService`, lot 3).
+   * et sa géométrie — le geste commun des créations (`CreationZoneService`, lot 3). ③ finitions (T5, V-6, A-6) : la
+   * recette garde sa PROVENANCE (`parametres` : indicateurs, poids, sens, maille, seuil), sans devenir recalculable.
    */
   creerZone(): void {
     const resultat = this.resultat();
@@ -148,7 +149,8 @@ export class ScoreCompositeService {
       catchError((e: { status?: number; error?: unknown }) => throwError(() => ({ status: e.status, error: { message: messageZoneScore(e) } }))),
     );
     // La recette d'une forme figée (lot 3, `capture` de source `score`) : sa géométrie part avec elle.
-    this.creation.creer(source, () => nomZoneScore(seuil, choisis), () => ({ v: 1, type: 'capture', source_type: 'score' })).subscribe((issue) => {
+    const parametres = { indicateurs, maille: 'cp', seuil_score: seuil } as const;
+    this.creation.creer(source, () => nomZoneScore(seuil, choisis), () => ({ v: 1, type: 'capture', source_type: 'score', parametres })).subscribe((issue) => {
       this.messageZone.set('erreur' in issue ? issue.erreur : `Zone créée — ${formaterNombre(issue.geo.count)} codes postaux.`);
       this.creationZone.set(false);
     });

@@ -38,7 +38,11 @@ describe('ScoreCompositeService — « Créer la zone »', () => {
     s.creerZone();
     expect(creer).toHaveBeenCalledTimes(1);
     const [, nom, recette] = creer.mock.calls[0];
-    expect(recette({})).toEqual({ v: 1, type: 'capture', source_type: 'score' });
+    // ③ finitions (T5, V-6) : la zone garde sa provenance — indicateurs, poids, sens, maille, seuil — sans se rejouer.
+    expect(recette({})).toEqual({
+      v: 1, type: 'capture', source_type: 'score',
+      parametres: { indicateurs: [{ code: 'taux_pauvrete', poids: 1, sens: 'croissant' }], maille: 'cp', seuil_score: 70 },
+    });
     expect(nom({})).toContain('Score ≥ 70');
     expect(s.messageZone()).toBe('Zone créée — 3 codes postaux.');
     expect(s.creationZone()).toBe(false);

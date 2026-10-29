@@ -32,7 +32,7 @@ const SEUIL: ZoneCustomResume = {
 };
 
 function monter(o: {
-  organisation?: string | null; zones?: ZoneCustomResume[]; recalculer?: unknown; indicateurs?: unknown;
+  organisation?: string | null; zones?: ZoneCustomResume[]; recalculer?: unknown; dupliquer?: unknown; indicateurs?: unknown;
   api?: Partial<Record<keyof ZonesCustomApi, unknown>>;
 } = {}) {
   const base = {
@@ -49,7 +49,7 @@ function monter(o: {
       CatalogueIndicateursService,
       { provide: ZonesCustomApi, useValue: { ...base, ...o.api } },
       // Les opérations écrivent par `ZonesApi` (recette `combinaison`, lot 3).
-      { provide: ZonesApi, useValue: { recalculer: o.recalculer ?? vi.fn() } },
+      { provide: ZonesApi, useValue: { recalculer: o.recalculer ?? vi.fn(), dupliquer: o.dupliquer ?? vi.fn() } },
       { provide: AnalysesApi, useValue: { indicateurs: o.indicateurs ?? vi.fn(() => of({ indicators: [] })) } },
       { provide: ENREGISTRER_FICHIER, useValue: vi.fn() },
       { provide: AuthService, useValue: { lireProfil: async () => ({ role: null, nom: null, organisation: o.organisation === undefined ? 'org-1' : o.organisation }) } },
@@ -168,12 +168,13 @@ describe('MesZonesComponent (ZonesOverlay.tsx, T14)', () => {
     expect(api.lister.mock.calls.length).toBe(lectures + 1);
   });
 
-  it('script DV360 d’une carte : export `bidding_script` ; un échec s’affiche (React se taisait)', async () => {
+  it('export TikTok d’une carte : export `tiktok_geo` ; un échec s’affiche (React se taisait) ; plus de script DV360', async () => {
     const { el, api, stable } = await monter();
     await stable();
-    cartes(el)[0].querySelector<HTMLButtonElement>('button[data-export="bidding_script"]')!.click();
+    expect(el.querySelector('[data-export="bidding_script"]')).toBeNull();
+    cartes(el)[0].querySelector<HTMLButtonElement>('button[data-export="tiktok_geo"]')!.click();
     await stable();
-    expect(api.exporter).toHaveBeenCalledWith('a', 'bidding_script');
+    expect(api.exporter).toHaveBeenCalledWith('a', 'tiktok_geo');
     expect(el.querySelector('[data-erreur]')!.textContent).toBe('zone_not_found');
   });
 
@@ -372,5 +373,71 @@ describe('MesZonesComponent (ZonesOverlay.tsx, T14)', () => {
     await autre.stable();
     expect(autre.el.querySelector('[data-erreur]')!.textContent).toBe('HTTP 500');
     expect(autre.el.textContent).toContain('Aucune zone sauvegardée.');
+  });
+});
+
+describe('MesZonesComponent — Dupliquer (③ finitions, T5)', () => {
+  const bouton = (el: HTMLElement, i = 0) => cartes(el)[i].querySelector<HTMLButtonElement>('button[data-dupliquer]')!;
+
+  it('un clic = un appel `{ nom (copie) }` ; second clic ignoré en vol ; 200 → liste relue et « Zone dupliquée : <nom> »', async () => {
+    const vol = new Subject<HttpResponse<unknown>>();
+    const dupliquer = vi.fn(() => vol);
+    const { el, api, stable, fixture } = await monter({ dupliquer });
+    await stable();
+    const lectures = api.lister.mock.calls.length;
+    bouton(el).click();
+    await stable();
+    expect(bouton(el).disabled).toBe(true);
+    (fixture.componentInstance as unknown as { dupliquer: (z: ZoneCustomResume) => void }).dupliquer(ZONES[0]);
+    expect(dupliquer).toHaveBeenCalledExactlyOnceWith('a', 'CIRFA BRETAGNE (copie)');
+    vol.next(new HttpResponse({ status: 200, body: { zone_id: 'n1', count_cp: 4 } }));
+    vol.complete();
+    await stable();
+    expect(el.querySelector('[data-avis]')!.textContent).toBe('Zone dupliquée : CIRFA BRETAGNE (copie)');
+    expect(api.lister.mock.calls.length).toBe(lectures + 1);
+    expect(bouton(el).disabled).toBe(false);
+  });
+
+  it('207 → le message de la route (réussite, jamais renvoyée)', async () => {
+    const dupliquer = vi.fn(() => of(new HttpResponse({ status: 207, body: { zone_id: 'n1', warning: 'codes_non_resolus', message: 'Zone créée ; ses codes postaux n’ont pas pu être résolus.' } })));
+    const { el, stable } = await monter({ dupliquer });
+    await stable();
+    bouton(el).click();
+    await stable();
+    expect(dupliquer).toHaveBeenCalledTimes(1);
+    expect(el.querySelector('[data-avis]')!.textContent).toBe('Zone créée ; ses codes postaux n’ont pas pu être résolus.');
+  });
+
+  it('réponse perdue (statut 0) → « vérifiez Mes zones », liste relue ; 404 → message de la route', async () => {
+    const dupliquer = vi.fn()
+      .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 0 })))
+      .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 404, error: { error: 'Zone introuvable dans cet espace.', refus: 'zone_introuvable' } })));
+    const { el, api, stable } = await monter({ dupliquer });
+    await stable();
+    const lectures = api.lister.mock.calls.length;
+    bouton(el).click();
+    await stable();
+    expect(el.querySelector('[data-avis]')!.textContent).toBe('La réponse n’est pas arrivée : vérifiez Mes zones avant de réessayer.');
+    expect(api.lister.mock.calls.length).toBe(lectures + 1);
+    bouton(el).click();
+    await stable();
+    expect(el.querySelector('[data-erreur]')!.textContent).toBe('Zone introuvable dans cet espace.');
+    expect(el.querySelector('[data-avis]')).toBeNull();
+    expect(api.lister.mock.calls.length).toBe(lectures + 1);
+  });
+
+  it('un recalcul refusé (409 `zone_referencee`) fait dire « Recalculer dans une nouvelle zone » à la carte', async () => {
+    const recalculer = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 409, error: { error: 'Cette zone est utilisée par un plan : dupliquez-la avant de la recalculer.', refus: 'zone_referencee', par: 'strategie' } })));
+    const dupliquer = vi.fn(() => of(new HttpResponse({ status: 200, body: { zone_id: 'n1' } })));
+    const { el, stable } = monter({ zones: RECETTES, recalculer, dupliquer });
+    await stable();
+    expect(bouton(el).textContent!.trim()).toBe('Dupliquer');
+    cartes(el)[0].querySelector<HTMLButtonElement>('button[data-recalculer]')!.click();
+    await stable();
+    expect(bouton(el).textContent!.trim()).toBe('Recalculer dans une nouvelle zone');
+    expect(bouton(el, 1).textContent!.trim()).toBe('Dupliquer');
+    bouton(el).click();
+    await stable();
+    expect(dupliquer).toHaveBeenCalledExactlyOnceWith('z1', 'Lycées Gironde (copie)');
   });
 });

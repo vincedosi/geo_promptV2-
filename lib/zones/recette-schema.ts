@@ -16,7 +16,7 @@
 import { z } from 'zod';
 import { messageAnomalies } from '@/lib/api/valider-corps';
 import {
-  CODES_FRANCE, INDICATEURS_SEUIL_CARREAUX, MAX_CODES_POSTAUX, MIN_MENAGES_CARREAUX_MAX, RAYON_POINT_MAX_M, RAYON_POI_MAX_M, RAYON_POI_MIN_M,
+  CODES_FRANCE, INDICATEURS_SEUIL_CARREAUX, MAX_CODES_POSTAUX, MAX_INDICATEURS_SCORE, MIN_MENAGES_CARREAUX_MAX, RAYON_POINT_MAX_M, RAYON_POI_MAX_M, RAYON_POI_MIN_M,
   SEUIL_CARREAUX_MAX, SEUIL_TERRITOIRE_MAX_ABS, TYPES_PERIMETRE, VERSION_RECETTE, type OperateurSeuil, type PerimetreRecette,
   type Recette,
 } from './recette';
@@ -40,6 +40,13 @@ const Operateur = z.enum(OPERATEURS);
 /** La version unique des recettes : celle du CHECK `custom_geo_zones_recette_forme` (sql/253). */
 const V = z.literal(VERSION_RECETTE);
 const IDS_CARREAUX = INDICATEURS_SEUIL_CARREAUX.map((i) => i.id) as [string, ...string[]];
+// La provenance d'une zone du score composite (V-6, A-6) : les bornes de `/api/custom-geo/source/score`.
+const ParametresScore = z.object({
+  indicateurs: z.array(z.object({ code: z.string().min(1).max(100), poids: z.number().positive().finite(), sens: z.enum(['croissant', 'decroissant']) }).strict())
+    .min(1).max(MAX_INDICATEURS_SCORE),
+  maille: z.literal('cp'),
+  seuil_score: z.number().finite().min(0).max(100),
+}).strict();
 const Zones = z.array(Uuid).min(2).max(20)
   .refine((zs) => new Set(zs).size === zs.length, { message: 'Une zone ne peut figurer qu’une fois.' });
 
@@ -53,7 +60,7 @@ export const RecetteUnionSchema = z.discriminatedUnion('type', [
   z.object({ v: V, type: z.literal('import'), format: z.enum(['geojson', 'kml']), fichier: z.string().min(1).max(200) }).strict(),
   z.object({ v: V, type: z.literal('isochrone'), parametres: z.record(z.union([z.string().max(200), z.number(), z.boolean()])).refine((o) => Object.keys(o).length <= 20, { message: 'au plus 20 paramètres' }) }).strict(),
   z.object({ v: V, type: z.literal('combinaison'), operation: z.enum(['union', 'intersection', 'difference']), zones: Zones }).strict(),
-  z.object({ v: V, type: z.literal('capture'), source_type: z.string().min(1).max(100) }).strict(),
+  z.object({ v: V, type: z.literal('capture'), source_type: z.string().min(1).max(100), parametres: ParametresScore.optional() }).strict(),
 ]);
 
 export const RecetteSchema = RecetteUnionSchema.superRefine((r, ctx) => {

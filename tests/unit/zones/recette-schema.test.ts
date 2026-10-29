@@ -89,6 +89,24 @@ describe('lireRecette (Zod) — revue de la Task 2', () => {
     for (const v of [-1, 1001, 2.5, '11', null]) expect(c({ min_menages: v }).ok, String(v)).toBe(false);
   });
 
+  it('capture du score composite : sa provenance (indicateurs, poids, sens, maille, seuil) admise, facultative (V-6, A-6)', () => {
+    const c = (extra: Record<string, unknown>) => lireRecette({ v: 1, type: 'capture', source_type: 'score', ...extra });
+    expect(c({}).ok).toBe(true);
+    const parametres = { indicateurs: [{ code: 'taux_pauvrete', poids: 2, sens: 'croissant' }, { code: 'revenu_median', poids: 1, sens: 'decroissant' }], maille: 'cp', seuil_score: 70 };
+    const lue = c({ parametres });
+    expect(lue.ok && lue.recette).toEqual({ v: 1, type: 'capture', source_type: 'score', parametres });
+    const mauvais = [
+      { ...parametres, indicateurs: [] },
+      { ...parametres, indicateurs: Array.from({ length: 7 }, (_, i) => ({ code: `i${i}`, poids: 1, sens: 'croissant' })) },
+      { ...parametres, indicateurs: [{ code: 'x', poids: 0, sens: 'croissant' }] },
+      { ...parametres, indicateurs: [{ code: 'x', poids: 1, sens: 'haut' }] },
+      { ...parametres, maille: 'iris' },
+      { ...parametres, seuil_score: 101 },
+      { ...parametres, autre: 1 },
+    ];
+    for (const p of mauvais) expect(c({ parametres: p }).ok, JSON.stringify(p)).toBe(false);
+  });
+
   it('codes de région et de département rangés en majuscules, sans espaces (V-8) ; les autres seulement taillés', () => {
     const per = (type: string, code: string) => {
       const r = lireRecette({ v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre: { type, code } });

@@ -24,7 +24,8 @@ export interface ZoneEcrite {
 }
 
 /**
- * Les zones à recette (lot 3) : `POST /api/zones/apercu`, `POST /api/zones`, `POST /api/zones/[id]/recalculer`.
+ * Les zones à recette (lot 3) : `POST /api/zones/apercu`, `POST /api/zones`, `POST /api/zones/[id]/recalculer`, et
+ * `POST /api/zones/[id]/dupliquer` (③ finitions).
  * Fourni par la ROUTE (`FOURNISSEURS_DISTANTS`), jamais à la racine (intercepteurs du shell AIDA).
  * ⚠ `POST /api/zones` n'est PAS idempotent (deux envois, deux zones) : c'est l'appelant qui bloque le second clic.
  */
@@ -40,5 +41,13 @@ export class ZonesApi extends HttpBaseService {
 
   recalculer(id: string): Observable<HttpResponse<ZoneEcrite>> {
     return this.httpClient.post<ZoneEcrite>(`${this.baseUrl}/zones/${encodeURIComponent(id)}/recalculer`, null, { observe: 'response' });
+  }
+
+  /**
+   * `POST /api/zones/[id]/dupliquer` (③ finitions, T5) : une NOUVELLE zone, la source jamais écrite. ⚠ Pas idempotente
+   * (chaque appel crée une zone) : l'appelant bloque le second clic. 200, ou 207 si les codes postaux n'ont pas été résolus.
+   */
+  dupliquer(id: string, nom: string): Observable<HttpResponse<ZoneEcrite>> {
+    return this.httpClient.post<ZoneEcrite>(`${this.baseUrl}/zones/${encodeURIComponent(id)}/dupliquer`, { nom }, { observe: 'response' });
   }
 }

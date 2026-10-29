@@ -15,11 +15,15 @@ const FANTOME = 'flex cursor-pointer items-center justify-center gap-1 rounded-[
  * Une carte de « Mes zones » — `ZoneCard` (`components/map/overlays/ZonesOverlay.tsx:431-588`), présentationnelle :
  * case de sélection et son RANG (l'ordre de cochage désigne la base d'une soustraction), point et bord à la teinte de
  * la zone quand elle est affichée, type de source, comptes, composition en clair (dérivée, aucune requête), codes
- * département / région, date, puis Afficher / Masquer, script DV360, ciblage TikTok, supprimer.
+ * département / région, date, puis Afficher / Masquer, ciblage TikTok, supprimer.
  *
  * Lot 3 (T12) : la RECETTE de la zone en une ligne (`data-recette`, « Forme figée » sans recette) et « Recalculer »
  * quand elle se rejoue. Pour une zone à recette, la ligne de composition (qui ne lit que les métadonnées de React et
  * rendait « recette_codes_postaux ») disparaît, et la puce de source prend le libellé du type (`libelleSource`).
+ *
+ * ③ finitions (T5) : « Dupliquer » sur toute zone ; il devient « Recalculer dans une nouvelle zone » (et « Recalculer »
+ * s'efface) quand le dernier recalcul a été refusé parce que la zone sert à un plan (409 `zone_referencee`). Le script
+ * de custom bidding DV360 est retiré (spec § 19.3-19.4, temps 2 « à NE PAS porter », Q-6) ; React le garde.
  *
  * La teinte d'une zone affichée est une DONNÉE (`PALETTE_ZONES`, B12) : elle est posée en style, comme sur la carte.
  */
@@ -67,7 +71,7 @@ const FANTOME = 'flex cursor-pointer items-center justify-center gap-1 rounded-[
          (seuil, rayon, unité) qui distingue deux zones. -->
     <div class="flex items-start gap-1.5">
       <div data-recette class="min-w-0 flex-1 break-words text-[11px] leading-[1.5] text-tertiary">{{ recette() }}</div>
-      @if (recalculable()) {
+      @if (recalculable() && !referencee()) {
         <button
           type="button"
           data-recalculer
@@ -76,6 +80,16 @@ const FANTOME = 'flex cursor-pointer items-center justify-center gap-1 rounded-[
           class="shrink-0 cursor-pointer rounded-[6px] border-fin border-default bg-transparent px-2 py-1 text-[11px] text-secondary hover:border-hover hover:bg-elevated hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
         >Recalculer</button>
       }
+    </div>
+
+    <div class="flex justify-end">
+      <button
+        type="button"
+        data-dupliquer
+        [disabled]="duplicationEnCours()"
+        (click)="dupliquer.emit()"
+        class="shrink-0 cursor-pointer rounded-[6px] border-fin border-default bg-transparent px-2 py-1 text-[11px] text-secondary hover:border-hover hover:bg-elevated hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+      >{{ referencee() ? 'Recalculer dans une nouvelle zone' : 'Dupliquer' }}</button>
     </div>
 
     <!-- L'espace interpolée après « Dept: » : celle de React ; Angular retire un blanc seul entre deux balises. -->
@@ -115,15 +129,6 @@ const FANTOME = 'flex cursor-pointer items-center justify-center gap-1 rounded-[
       }
       <button
         type="button"
-        data-export="bidding_script"
-        title="Générer le script custom bidding DV360 (fichier à coller dans DV360)"
-        [class]="fantome + ' flex-none border-teal px-2 py-1 text-teal'"
-        (click)="exporter.emit('bidding_script')"
-      >
-        <mg-icone nom="fichier-bas" [taille]="11" />
-      </button>
-      <button
-        type="button"
         data-export="tiktok_geo"
         title="Exporter le ciblage géo TikTok Ads (régions + départements de la zone)"
         [class]="fantome + ' flex-none border-subtle px-2 py-1 text-secondary'"
@@ -158,6 +163,10 @@ export class CarteZoneComponent {
    * désactive « Afficher » et lui fait dire « Chargement… » — un recalcul ne doit pas passer pour un affichage.
    */
   readonly recalculEnCours = input(false);
+  /** Le dernier recalcul a été refusé : la zone sert à un plan (409 `zone_referencee`). */
+  readonly referencee = input(false);
+  /** Sa duplication est en vol : le bouton est désactivé (la route n'est pas idempotente). */
+  readonly duplicationEnCours = input(false);
   /** Position dans la sélection (0 = base d'une soustraction), -1 si non cochée. */
   readonly rang = input(-1);
 
@@ -168,6 +177,8 @@ export class CarteZoneComponent {
   readonly exporter = output<FormatExportZone>();
   /** « Recalculer » (lot 3) : rejouer la recette côté serveur. Émise seulement si la recette se recalcule. */
   readonly recalculer = output<void>();
+  /** « Dupliquer » / « Recalculer dans une nouvelle zone » (③ finitions, T5) : une nouvelle zone, la source intouchée. */
+  readonly dupliquer = output<void>();
   /**
    * Le catalogue d'indicateurs, pour nommer un seuil sur territoires (libellé et unité, jamais l'identifiant). Lu par
    * « Mes zones » seulement quand un tel seuil est listé ; vide sinon.

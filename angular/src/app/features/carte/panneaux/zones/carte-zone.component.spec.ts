@@ -13,13 +13,17 @@ const zone = (recette: Recette | null | undefined, source_type = 'composite'): Z
 
 @Component({
   imports: [CarteZoneComponent],
-  template: `<mg-carte-zone [zone]="zone()" [recalculEnCours]="enCours()" [indicateurs]="indicateurs()" (recalculer)="recalculs = recalculs + 1" />`,
+  template: `<mg-carte-zone [zone]="zone()" [recalculEnCours]="enCours()" [indicateurs]="indicateurs()" [referencee]="referencee()"
+    [duplicationEnCours]="duplication()" (recalculer)="recalculs = recalculs + 1" (dupliquer)="duplications = duplications + 1" />`,
 })
 class Hote {
   readonly zone = signal(zone(null));
   readonly enCours = signal(false);
   readonly indicateurs = signal<readonly IndicateurRegistre[]>([]);
+  readonly referencee = signal(false);
+  readonly duplication = signal(false);
   recalculs = 0;
+  duplications = 0;
 }
 
 async function monter(z: ZoneCustomResume) {
@@ -66,5 +70,46 @@ describe('CarteZoneComponent — la recette (lot 3, T12)', () => {
     fixture.componentInstance.indicateurs.set([{ indicator_code: 'taux_pauvrete', label: 'Taux de pauvreté', famille: null, unit: '%' }]);
     await fixture.whenStable();
     expect(el.querySelector('[data-recette]')!.textContent!.trim()).toBe('Territoires où taux de pauvreté ≥ 20 %');
+  });
+});
+
+describe('CarteZoneComponent — Dupliquer, sans script de bidding (③ finitions, T5)', () => {
+  const RAYON: Recette = { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 5000, perimetre: { type: 'departement', code: '33' } };
+  const dupliquer = (el: HTMLElement) => el.querySelector<HTMLButtonElement>('button[data-dupliquer]');
+
+  it('« Dupliquer » sur toute zone, figée ou non ; un clic émet une fois', async () => {
+    for (const r of [null, { v: 1, type: 'dessin' } as Recette, RAYON]) {
+      TestBed.resetTestingModule();
+      const { fixture, el } = await monter(zone(r));
+      expect(dupliquer(el)!.textContent!.trim()).toBe('Dupliquer');
+      dupliquer(el)!.click();
+      expect(fixture.componentInstance.duplications).toBe(1);
+    }
+  });
+
+  it('zone citée par un plan (dernier recalcul refusé, 409) : « Recalculer dans une nouvelle zone », plus de « Recalculer »', async () => {
+    const { fixture, el } = await monter(zone(RAYON, 'recette_rayon_poi'));
+    fixture.componentInstance.referencee.set(true);
+    await fixture.whenStable();
+    expect(dupliquer(el)!.textContent!.trim()).toBe('Recalculer dans une nouvelle zone');
+    expect(el.querySelector('[data-recalculer]')).toBeNull();
+  });
+
+  it('duplication en vol : le bouton est désactivé', async () => {
+    const { fixture, el } = await monter(zone(null));
+    fixture.componentInstance.duplication.set(true);
+    await fixture.whenStable();
+    expect(dupliquer(el)!.disabled).toBe(true);
+  });
+
+  it('aucun script de custom bidding (spec § 19, Q-6) ; « Exporter TikTok » reste', async () => {
+    const { el } = await monter(zone(null));
+    expect(el.querySelector('[data-export="bidding_script"]')).toBeNull();
+    expect(el.querySelector('[data-export="tiktok_geo"]')).not.toBeNull();
+  });
+
+  it('seuil sur carreaux : le minimum de ménages dans la ligne de recette', async () => {
+    const { el } = await monter(zone({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: { type: 'departement', code: '33' }, min_menages: 11 }, 'recette_seuil_carreaux'));
+    expect(el.querySelector('[data-recette]')!.textContent!.trim()).toMatch(/ · carreaux d’au moins 11 ménages$/);
   });
 });

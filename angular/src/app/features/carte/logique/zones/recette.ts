@@ -70,6 +70,8 @@ export const MAX_CARREAUX_SEUIL = 20_000;
  */
 export const MIN_MENAGES_CARREAUX_DEFAUT = 11;
 export const MIN_MENAGES_CARREAUX_MAX = 1_000;
+/** Le plafond d'indicateurs du score composite (`MAX_INDICATEURS` de `/api/custom-geo/source/score`), repris par sa recette. */
+export const MAX_INDICATEURS_SCORE = 6;
 export const MAX_TERRITOIRES_SEUIL = 5_000;
 export const MAX_SOMMETS_FORME = 20_000;
 export const MAX_CODES_POSTAUX = 3_000;
@@ -91,6 +93,17 @@ export const PERIMETRES_ADMIS: Readonly<Partial<Record<TypeRecette, readonly Typ
 };
 
 export type OperateurSeuil = '>=' | '<=';
+
+/**
+ * La PROVENANCE d'une zone créée par le score composite (V-6, Q-4 tranchée le 29/10, arbitrage A-6) : ce que l'outil
+ * envoie à `/api/custom-geo/source/score`, gardé dans la recette `capture` pour savoir d'où vient la zone. Elle reste
+ * FIGÉE : le score n'est jamais rejoué. Le score se calcule toujours au code postal (`maille: 'cp'`).
+ */
+export interface ParametresScore {
+  readonly indicateurs: readonly { readonly code: string; readonly poids: number; readonly sens: 'croissant' | 'decroissant' }[];
+  readonly maille: 'cp';
+  readonly seuil_score: number;
+}
 
 /**
  * Les indicateurs d'un seuil sur carreaux Filosofi 200 m — liste FERMÉE, la même que le `case` de
@@ -123,7 +136,7 @@ export type Recette =
   | { readonly v: 1; readonly type: 'import'; readonly format: 'geojson' | 'kml'; readonly fichier: string }
   | { readonly v: 1; readonly type: 'isochrone'; readonly parametres: Readonly<Record<string, string | number | boolean>> }
   | { readonly v: 1; readonly type: 'combinaison'; readonly operation: 'union' | 'intersection' | 'difference'; readonly zones: readonly string[] }
-  | { readonly v: 1; readonly type: 'capture'; readonly source_type: string };
+  | { readonly v: 1; readonly type: 'capture'; readonly source_type: string; readonly parametres?: ParametresScore };
 
 /** Les refus que rend une RPC de recette (`{ refus }`) ou que l'écran pose avant d'appeler. */
 export type RefusRecette =
