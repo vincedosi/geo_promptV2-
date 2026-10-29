@@ -17,6 +17,10 @@
 -- Règles :
 -- - espace « Marine nationale » lu PAR SON NOM ; absent ou en double → exception, rien n'est écrit ;
 -- - idempotente : une ligne n'est insérée que si aucune zone ne porte déjà son `geography_zone_id` ;
+-- - ne RESSUSCITE pas (relecture 1, m-3) : dès qu'une zone migrée existe dans l'espace, la migration a déjà eu lieu
+--   (une seule transaction, tout ou rien) et un nouveau passage n'insère rien — une CIRFA supprimée depuis par
+--   l'utilisateur reste supprimée. Limite : si les 93 sont supprimées, un nouveau passage les remet toutes. Les copies
+--   (« Dupliquer », sql/294) ne portent pas `origine`, elles ne comptent pas ;
 -- - géométrie copiée telle quelle (93 valides, MultiPolygon 4326, mesuré le 29/10) — `ST_MakeValid` +
 --   `ST_CollectionExtract` seulement pour une invalide, `ST_Multi` toujours ; bbox par le déclencheur ;
 -- - AUCUNE résolution de codes CP / IRIS (règle 2 du § 16.2 : la forme est la vérité ; ⑤ convertit) : compteurs à 0,
@@ -40,6 +44,11 @@ begin
     raise exception 'espace « Marine nationale » introuvable ou en double (% ligne(s)) : migration des CIRFA abandonnée', v_n;
   end if;
   select id into v_org from public.organizations where name = 'Marine nationale';
+  if exists (select 1 from public.custom_geo_zones
+              where org_id = v_org and source_metadata->>'origine' = 'geography_zones') then
+    raise notice 'CIRFA : déjà migrées, rien à faire (une zone supprimée depuis n''est pas remise)';
+    return;
+  end if;
 
   insert into public.custom_geo_zones (name, description, org_id, created_by, source_type, source_metadata, geometry, recette)
   select g.name,

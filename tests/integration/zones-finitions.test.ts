@@ -244,6 +244,18 @@ describe('T3 — les 93 zones CIRFA rejoignent les zones de la Marine nationale 
     }
   });
 
+  it('rejouer la migration ne ressuscite pas une CIRFA supprimée (relecture 1, m-3)', () => {
+    // Dans une transaction ANNULÉE : une CIRFA supprimée, la migration rejouée (sans son begin/commit), le compte lu.
+    const corps = readFileSync('sql/293_cirfa_vers_zones.sql', 'utf8').replace(/^begin;$/m, '').replace(/^commit;$/m, '');
+    const compte = psql(`begin;
+      delete from public.custom_geo_zones where id = (select id from public.custom_geo_zones where ${ORIGINE} order by name limit 1);
+      ${corps}
+      select count(*) from public.custom_geo_zones where ${ORIGINE};
+      rollback;`);
+    expect(compte).toBe('92');
+    expect(psql(`select count(*) from public.custom_geo_zones where ${ORIGINE};`)).toBe('93');
+  });
+
   it('rejouer la migration n’ajoute rien, et geography_zones n’est pas touchée', () => {
     const avant = empreinteSource();
     const r = psqlBrut(readFileSync('sql/293_cirfa_vers_zones.sql', 'utf8'));
