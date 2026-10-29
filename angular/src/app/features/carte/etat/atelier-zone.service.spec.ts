@@ -245,3 +245,53 @@ describe('AtelierZoneService', () => {
     expect(enregistrer).not.toHaveBeenCalled();
   });
 });
+
+/** ③ finitions (T6) : l'aperçu recadre la carte (A-8), le message de réussite s'oublie (A-9). */
+describe('AtelierZoneService — recadrage et message (③ finitions, T6)', () => {
+  /** Un conteneur de 1 000 × 1 000 px : la projection factice (lon, lat → x, y) tient le carré [5-5,1 ; 43-43,1]. */
+  function carteVisible(): CarteFactice {
+    const c = carteChargee();
+    Object.defineProperty(c.getContainer(), 'clientWidth', { value: 1000 });
+    Object.defineProperty(c.getContainer(), 'clientHeight', { value: 1000 });
+    return c;
+  }
+
+  it('un aperçu reçu hors de la vue recadre la carte UNE fois sur son emprise ; un aperçu identique ne recadre plus', () => {
+    const carte = carteChargee();
+    const s = monter({ apercu: () => of(APERCU) }, carte);
+    s.apercevoir(RECETTE);
+    expect(carte.cadrages).toHaveLength(1);
+    expect(carte.cadrages[0].cadre).toEqual([[5, 43], [5.1, 43.1]]);
+    s.apercevoir(RECETTE);
+    expect(carte.cadrages).toHaveLength(1);
+  });
+
+  it('une forme déjà entièrement visible (hors marge des panneaux) ne recadre pas ; masquée par la marge, si', () => {
+    const carte = carteVisible();
+    const autre = { ...APERCU, geometry: { ...CARRE, coordinates: [[[[6, 43], [6.1, 43], [6.1, 43.1], [6, 43]]]] } };
+    const apercu = vi.fn().mockReturnValueOnce(of(APERCU)).mockReturnValueOnce(of(autre));
+    const s = monter({ apercu }, carte);
+    s.apercevoir(RECETTE);
+    expect(carte.cadrages).toHaveLength(0);
+    // Le panneau d'étape couvre les 600 px de gauche : la forme suivante (x = 6) passe dessous.
+    carte.setPadding({ top: 0, bottom: 0, left: 600, right: 0 });
+    s.apercevoir(RECETTE);
+    expect(carte.cadrages).toHaveLength(1);
+  });
+
+  it('sans carte, aucun recadrage ni erreur', () => {
+    const s = monter({ apercu: () => of(APERCU) }, null);
+    s.apercevoir(RECETTE);
+    expect(s.apercu()).not.toBeNull();
+  });
+
+  it('oublierMessage efface le message de réussite (A-9), sans toucher à l’erreur ni à l’aperçu', () => {
+    const enregistrer = vi.fn(() => of(new HttpResponse({ status: 200, body: { zone_id: 'z1', count_cp: 2 } })));
+    const s = monter({ apercu: () => of(APERCU), enregistrer });
+    s.apercevoir(RECETTE);
+    s.enregistrer('Z');
+    expect(s.message()).not.toBeNull();
+    s.oublierMessage();
+    expect(s.message()).toBeNull();
+  });
+});

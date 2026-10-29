@@ -316,3 +316,23 @@ describe('PanneauZonesComponent — ③ rangée par familles (lot 3, T10)', () =
     });
   });
 });
+
+describe('PanneauZonesComponent — le message de réussite s’efface (③ finitions, T6, A-9)', () => {
+  it('au changement de famille, puis de formulaire actif ; pas sans changement', async () => {
+    const { fixture, el, ouvrirFamille } = await monter();
+    const atelier = fixture.debugElement.injector.get(AtelierZoneService);
+    atelier.message.set('Zone « Z » enregistrée — 2 codes postaux touchés.');
+    await fixture.whenStable();
+    expect(atelier.message()).not.toBeNull();
+    await ouvrirFamille('seuil');
+    expect(atelier.message()).toBeNull();
+    atelier.message.set('Zone « Z » enregistrée — 2 codes postaux touchés.');
+    await fixture.whenStable();
+    el.querySelector<HTMLElement>('mg-recette-seuil-carreaux')!.click();
+    await fixture.whenStable();
+    expect(atelier.message()).not.toBeNull();
+    el.querySelector<HTMLElement>('mg-recette-seuil-territoire')!.click();
+    await fixture.whenStable();
+    expect(atelier.message()).toBeNull();
+  });
+});
