@@ -46,5 +46,6 @@
 }
 .champ:focus { border-color: var(--brand-teal-50); }
 .actions { display: flex; flex-direction: column; gap: 6px; }
+.raison { margin: 0; font-size: 11px; line-height: 1.4; color: var(--text-tertiary); }
 
 @media (prefers-reduced-motion: reduce) { :host, .tourne { animation: none; } }

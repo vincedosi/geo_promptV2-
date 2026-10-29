@@ -92,9 +92,13 @@
         {{ edition() ? 'Annuler modification' : 'Modifier' }}
       </button>
       <a class="fantome large" data-action="reimporter" routerLink="../importer">Re-importer (meme config)</a>
-      <button type="button" class="danger" data-action="supprimer" [disabled]="suppressionEnCours()" (click)="supprimer.emit(source().id)">
+      <button type="button" class="danger" data-action="supprimer" [disabled]="suppressionEnCours() || estIndicateur()"
+        [attr.aria-describedby]="estIndicateur() ? 'raison-suppression' : null" (click)="supprimer.emit(source().id)">
         @if (suppressionEnCours()) { <mg-icone nom="chargement" [taille]="12" class="tourne" /> Suppression... } @else { Supprimer source + donnees }
       </button>
+      @if (estIndicateur()) {
+        <p id="raison-suppression" class="raison" data-raison-suppression>Un indicateur ne se supprime pas : rendez-le au socle ou transférez-le.</p>
+      }
     </div>
   </div>
 </div>

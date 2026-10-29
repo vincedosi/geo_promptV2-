@@ -87,6 +87,13 @@ export class DetailSourceComponent {
   private lectureCles: Subscription | null = null;
   private lectureExport: Subscription | null = null;
 
+  /**
+   * Un indicateur (sql/288) ne se supprime pas : le serveur répond 409 (« rendez-le au socle ou
+   * transférez-le »). On ne propose donc pas l'action — bouton désactivé, raison écrite dessous —
+   * plutôt qu'un dialogue qui promettrait une suppression irréversible qui n'aura pas lieu (preuve D2).
+   */
+  protected readonly estIndicateur = computed(() => this.source().type === 'indicateur');
+
   protected readonly vue = computed(() => {
     const s = this.source();
     return {

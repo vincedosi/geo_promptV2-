@@ -470,6 +470,32 @@ describe('SourcesPage — onglets, vue « Toutes », liste et détail d’une so
     expect([...el.querySelectorAll('[data-entete] [data-badge]')].map(texte)).toEqual(['Admin', '2 sources']);
   });
 
+  it('indicateur (preuve D2) : « Supprimer » désactivé, raison lisible, aucun dialogue ni DELETE', async () => {
+    const { el, http, servir, stable, carte, action } = await monter();
+    await servir([...SOURCES, source({ id: 'abst', name: 'Abstention 2022', type: 'indicateur', category: 'indicateur' })]);
+    carte('abst').click();
+    await stable();
+    const bouton = action('supprimer');
+    expect(bouton.disabled).toBe(true);
+    const raison = el.querySelector('mg-detail-source [data-raison-suppression]')!;
+    expect(texte(raison)).toBe('Un indicateur ne se supprime pas : rendez-le au socle ou transférez-le.');
+    expect(bouton.getAttribute('aria-describedby')).toBe(raison.id);
+    bouton.click();
+    await stable();
+    expect((el.querySelector('mg-sources mg-confirmation dialog') as HTMLDialogElement).open).toBe(false);
+    http.expectNone((r) => r.method === 'DELETE');
+  });
+
+  it('source qui n’est pas un indicateur : « Supprimer » actif, sans raison affichée', async () => {
+    const { el, servir, stable, carte, action } = await monter();
+    await servir();
+    carte('cirfa').click();
+    await stable();
+    expect(action('supprimer').disabled).toBe(false);
+    expect(action('supprimer').hasAttribute('aria-describedby')).toBe(false);
+    expect(el.querySelector('mg-detail-source [data-raison-suppression]')).toBeNull();
+  });
+
   it('suppression refusée 409 (panneaux d’une campagne) : « Suppression échouée » + le texte de la route ; la source reste', async () => {
     const { el, http, servir, stable, carte, action, detail, notifications } = await monter();
     await servir();
