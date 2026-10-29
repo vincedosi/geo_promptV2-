@@ -92,7 +92,8 @@ export function enrichissementBataille(meta: MetaBataille): { enrichissement: Re
   const plusGrand = new Map<string, { feature: GeoJSON.Feature; palier: number }>();
   for (const f of anneaux) {
     const p = (f.properties ?? {}) as Record<string, unknown>;
-    const id = String(p['poi_id'] ?? '');
+    // Les anneaux de la V2 (`get_isochrone_battle`) portent le POI sous `cirfa_id`, ceux de la V1 sous `poi_id` (T4).
+    const id = String(p['poi_id'] ?? p['cirfa_id'] ?? '');
     const palier = Number(p['palier'] ?? 0);
     if (!id || !Number.isFinite(palier)) continue;
     const courant = plusGrand.get(id);

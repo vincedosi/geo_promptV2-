@@ -67,6 +67,23 @@ describe('BatailleV2Service (use-isochrone-battle.ts handleCheckV2 / handleFillM
     expect(v2.chargement()).toBe(false);
   });
 
+  it('③ finitions (T4) : la clé de la route (périmètre de l’appelant) est posée sur le créneau — la capture la lit', () => {
+    const { v2, flux, bataille } = monter();
+    v2.lancer(false);
+    const cle = 'battle_v2_full__cirfa__drive__10-20-30-40-50-60-90min__metro__d13__pabc';
+    flux.batailleV2[0].next({ type: 'result', data: { battleGeoJSON: { type: 'FeatureCollection', features: [anneau] }, poisForMap: [], battleCacheKey: cle } });
+    flux.batailleV2[0].complete();
+    expect(bataille.appliquer).toHaveBeenCalledWith(expect.objectContaining({ cle }));
+  });
+
+  it('③ finitions (T4) : une clé vide ou absente pose `null` (rien de capturable)', () => {
+    const { v2, flux, bataille } = monter();
+    v2.lancer(false);
+    flux.batailleV2[0].next({ type: 'result', data: { battleGeoJSON: { type: 'FeatureCollection', features: [anneau] }, poisForMap: [], battleCacheKey: '' } });
+    flux.batailleV2[0].complete();
+    expect(bataille.appliquer).toHaveBeenCalledWith(expect.objectContaining({ cle: null }));
+  });
+
   it('réponse sans résultat : « > ✕ Réponse incomplète »', () => {
     const { v2, flux } = monter();
     v2.lancer(false);

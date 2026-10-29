@@ -136,6 +136,20 @@ describe('BatailleService (créneau de bataille, T14 + T17)', () => {
     expect(popups.at(-1)!.contenu!.textContent).toContain('⏱ Anneau 30 min');
   });
 
+  it('③ finitions (T4) : une bataille V2 avec sa clé compte pour la capture, mode lu dans la clé ; sans clé, rien', () => {
+    const { service } = monter();
+    const capture = TestBed.inject(CaptureService);
+    service.appliquer({ anneaux: [ANNEAU_30], pois: [{ id: 'a', nom: 'CIRFA Marseille', lat: 43, lng: 5 }], cle: null, categorie: 'cirfa' });
+    expect(capture.compte()).toBe(0);
+    const cle = 'battle_v2_full__cirfa__drive__10-20-30min__metro__d13__pabc';
+    service.appliquer({ anneaux: [ANNEAU_30], pois: [{ id: 'a', nom: 'CIRFA Marseille', lat: 43, lng: 5 }], cle, categorie: 'cirfa' });
+    expect(capture.compte()).toBe(1);
+    const source = capture.sources()[0];
+    expect(source.sourceType).toBe('isochrone_battle');
+    expect(source.metadata).toEqual(expect.objectContaining({ cache_key: cle, mode: 'drive', category: 'cirfa', poi_count: 1 }));
+    expect('route' in source.obtenir && source.obtenir.corps()).toEqual({ cache_keys: [cle] });
+  });
+
   it('« Tout effacer » → couches puis sources retirées, clé et catégorie vidées', () => {
     const { service, carte, couches } = monter();
     service.appliquer(CRENEAU);

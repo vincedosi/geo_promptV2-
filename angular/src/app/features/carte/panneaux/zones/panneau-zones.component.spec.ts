@@ -196,7 +196,7 @@ describe('PanneauZonesComponent — ③ rangée par familles (lot 3, T10)', () =
   it('lot 3 (T11) : « Autour des POI » renvoie vers ④ pour les isochrones et la bataille, sans les monter', async () => {
     const { el, parcours, ouvrirFamille } = await monter();
     const renvoi = el.querySelector('[data-renvoi-analyse]')!;
-    expect(renvoi.textContent!.trim()).toBe('Isochrones et bataille : lancez-les à l’étape ④, puis capturez le résultat ici.');
+    expect(renvoi.textContent!.trim()).toBe('La bataille d’isochrones se lance à l’étape ④ ; capturez ensuite son résultat ici.');
     const bouton = el.querySelector<HTMLButtonElement>('[data-aller-analyse]')!;
     expect(bouton.textContent!.trim()).toBe('Aller à ④ Analyse');
     bouton.click();

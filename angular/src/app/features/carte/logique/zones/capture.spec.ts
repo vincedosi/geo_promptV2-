@@ -42,6 +42,19 @@ describe('capture — logique pure de la capture des couches (CustomGeoCaptureMo
     expect(r.sousZones![0].default_multiplier).toBe(1);
   });
 
+  it('③ finitions (T4) : les anneaux de la V2 portent le POI sous `cirfa_id` (pas `poi_id`) — une sous-zone par POI quand même', () => {
+    const anneau = (id: string, palier: number): GeoJSON.Feature => ({
+      type: 'Feature', properties: { feature_type: 'ring', id, cirfa_id: id, palier }, geometry: { ...carre, coordinates: [[[palier, 0], [1, 1], [0, 1], [palier, 0]]] },
+    });
+    const r = enrichissementBataille({
+      cache_key: 'battle_v2_full__cirfa__drive__10-20min__metro__pabc', category: 'cirfa', mode: 'drive',
+      pois: [{ poi_id: 'a', poi_name: 'A', lat: 1, lng: 2 }, { poi_id: 'b', poi_name: 'B', lat: 3, lng: 4 }],
+      battle_features: [anneau('a', 10), anneau('a', 20), anneau('b', 10)],
+    })!;
+    expect(r.enrichissement['paliers']).toEqual([10, 20]);
+    expect(r.sousZones!.map((s) => [s.source_ref, (s.geometry as GeoJSON.Polygon).coordinates[0][0][0]])).toEqual([['a', 20], ['b', 10]]);
+  });
+
   it('bataille sans POI : rien à enrichir ; un seul POI : pas de sous-zones', () => {
     expect(enrichissementBataille({ pois: [] })).toBeNull();
     const un = enrichissementBataille({ pois: [{ poi_id: 'a', poi_name: 'A', lat: 1, lng: 2 }], battle_features: [] })!;

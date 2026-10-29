@@ -18,6 +18,11 @@ interface ResultatV2 {
   error?: string;
   battleGeoJSON?: { features?: GeoJSON.Feature[] };
   poisForMap?: { id: string; nom: string; lat: number; lng: number; categorie?: string; adresse?: string; ville?: string }[];
+  /**
+   * La clé de cache du résultat (`isochrone-battle-v2/route.ts`), suffixée `__p<empreinte>` du PÉRIMÈTRE de l'appelant :
+   * la capture la renvoie à `custom-geo/source/battle`, qui refuse toute clé d'un autre périmètre (③ finitions, T4).
+   */
+  battleCacheKey?: string;
 }
 
 /**
@@ -161,11 +166,14 @@ export class BatailleV2Service {
     });
   }
 
-  /** Le résultat : appliqué au créneau (qui perd une éventuelle clé `cg__`), POI pointés. */
+  /**
+   * Le résultat : appliqué au créneau avec SA clé (elle remplace une éventuelle clé `cg__`), POI pointés. La clé rend la
+   * bataille capturable en zone (③ « Capturer zone custom », T4) ; sans clé, rien à capturer.
+   */
   private terminer(r: ResultatV2, categorie: string, ville: string | undefined): void {
     const features = r.battleGeoJSON?.features ?? [];
     const pois = poisDeBataille(r.poisForMap ?? [], [], categorie);
-    if (features.length > 0) this.bataille.appliquer({ anneaux: features, pois, cle: null, categorie });
+    if (features.length > 0) this.bataille.appliquer({ anneaux: features, pois, cle: r.battleCacheKey || null, categorie });
     this.ctx.afficherPois(pois, categorie, ville);
     this.noter('> ✓ Bataille v2 affichée sur la carte');
   }

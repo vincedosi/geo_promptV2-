@@ -94,7 +94,7 @@ export const LIGNE_METROPOLE =
         <div class="px-3.5 pb-1"><mg-creer-rayon [enPause]="tiroirs.ouvert() !== 'poi'" (cree)="relire()" /></div>
         <mg-recette-rayon-poi #rayonPoi [class.recette-active]="actif() === 'rayon_poi'" (focusin)="actif.set('rayon_poi')" (click)="actif.set('rayon_poi')" />
         <p data-renvoi-analyse class="m-0 px-3.5 pt-2 text-[12px] leading-[1.5] text-tertiary">
-          Isochrones et bataille : lancez-les à l’étape ④, puis capturez le résultat ici.
+          La bataille d’isochrones se lance à l’étape ④ ; capturez ensuite son résultat ici.
         </p>
         <button type="button" data-aller-analyse (click)="parcours.choisir('analyse')"
           class="mx-3.5 mb-3 mt-1 cursor-pointer rounded-[6px] border-fin border-default bg-transparent px-3 py-1.5 text-[12px] text-secondary hover:border-hover hover:bg-elevated hover:text-primary">Aller à ④ Analyse</button>
