@@ -65,7 +65,8 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   ③, couverture par territoire dans ④, c'est aux lots 4-5.
 - **La pastille « renseignée »** d'une étape (`etatsEtapes`, `logique/parcours.ts`, table `RENSEIGNEE_PAR`) : ① un
   filtre posé, ② un jeu de ② affiché (`DonneesAfficheesService`, la même source que les pastilles des lignes ; ni OOH
-  ni radio), ④ le score composite OU les zones à risque sur la carte (T14), ⑤ une zone ou un jeu, ⑥ une stratégie
+  ni radio), ④ une analyse peinte — score composite, zones à risque, couverture, bataille, ou une analyse du panneau
+  publiée au registre `AnalysesPeintesService` (couverture par rayon, typologies ; ④ finitions, T5), ⑤ une zone ou un jeu, ⑥ une stratégie
   existante pour la campagne courante (lot 6), ⑦ un lot `termine` ou `partiel` (donc non annulé) de la campagne
   courante, lu dans l'historique (lot 7, A-11). ⑧ ne s'allume pas encore.
 - **Aucune fonction perdue** : le describe « aucune fonction perdue (spec § 12, lot 1) » de `carte.page.spec.ts`
@@ -329,9 +330,18 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   copies ET les nombres écrits dans sql/269 et sql/272.
 - **Une phrase par refus** : `zone_introuvable` = « Zone introuvable dans cet espace. » partout (recettes, couverture,
   rayon). Sur la zone analysée, le rayon dit « La zone analysée dépasse 12 000 km² », pas « l'étape ① ».
-- **Ce qui reste dupliqué** : les pastilles « Haut = mieux / Bas = mieux » du score (une par indicateur) et l'en-tête
-  « Analyse spatiale » du panneau (un accordéon de section, pas un outil) gardent leur gabarit ; le cycle du catalogue
-  d'indicateurs du score (`basculerOuvert`, antérieur au lot) n'est pas encore sur `LectureAnnulable`.
+- **Ce qui reste dupliqué** : l'en-tête « Analyse spatiale » du panneau (un accordéon de section, pas un outil) garde
+  son gabarit. Les pastilles « Haut = mieux / Bas = mieux » du score et son catalogue sont factorisés depuis les
+  finitions de ④ (T5 : `mg-pastilles marque="sens"`, `LectureAnnulable.chargerUneFois`).
+
+## ④ Finitions (plan `2026-10-30-carte-en-parcours-analyse.md`, T5-T8, 30/10/2026)
+
+| Fichier | Rôle |
+|---|---|
+| `etat/analyses-peintes.ts` | `AnalysesPeintesService` (page, `FOURNISSEURS_ANALYSE`) et `publierAnalysePeinte` : le registre des analyses peintes par un service du PANNEAU (couverture par rayon, typologies), lu par la pastille de ④ (A-8). La bataille peinte (`BatailleService.peinte`) l'allume aussi |
+
+- **Score sur une zone introuvable (T5, A-2)** : le 404 `zone_introuvable` de `POST /api/analyses/score` passe par
+  `ZoneAnalyseeService.siIntrouvable` (la zone quitte ④) ; le message reste affiché.
 
 ## ⑤ Jeu de zones : l'état (lot 5, T9, 2026-10-24)
 

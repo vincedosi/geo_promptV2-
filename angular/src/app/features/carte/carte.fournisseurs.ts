@@ -1,4 +1,5 @@
 import { type Provider, type Signal, computed, inject } from '@angular/core';
+import { BatailleService } from './couches/bataille.service';
 import { CouvertureService } from './couches/couverture.service';
 import { JeuCarteService } from './couches/jeu-carte.service';
 import { ScoreService } from './couches/score.service';
@@ -8,6 +9,7 @@ import { ActivationCampagneService } from './etat/activation-campagne.service';
 import { JeuZonesService } from './etat/jeu-zones.service';
 import { LancementCampagneService } from './etat/lancement-campagne.service';
 import { PlanCampagneService } from './etat/plan-campagne.service';
+import { AnalysesPeintesService } from './etat/analyses-peintes';
 import { ZoneAnalyseeService } from './etat/zone-analysee.service';
 
 /**
@@ -20,6 +22,8 @@ export const FOURNISSEURS_ANALYSE: Provider[] = [
   ZoneAnalyseeService,
   // Sa couverture peinte sur LA carte (T8, A-7) : contour, part par CP ou par IRIS, surbrillance.
   CouvertureService,
+  // Les analyses peintes par un service du PANNEAU (couverture par rayon, typologies) : la pastille de ④ (T5, A-8).
+  AnalysesPeintesService,
 ];
 
 /**
@@ -52,14 +56,18 @@ export const FOURNISSEURS_PLAN: Provider[] = [
 export const FOURNISSEURS_ACTIVATION: Provider[] = [ActivationCampagneService];
 
 /**
- * La pastille « renseignée » de ④ (A2) : un score composite, des zones à risque ou une couverture de zone PEINTS. À
+ * La pastille « renseignée » de ④ (A2) : un score composite, des zones à risque, une couverture de zone ou une bataille
+ * PEINTS — ou une analyse du panneau publiée au registre (couverture par rayon, typologies : ④ finitions, T5, A-8). À
  * appeler dans un contexte d'injection (initialiseur de champ de la page).
  */
 export function suivreAnalyseAffichee(): Signal<boolean> {
   const score = inject(ScoreService);
   const zonesRisque = inject(ZonesRisqueService);
   const couverture = inject(CouvertureService);
-  return computed(() => score.affiche() !== null || zonesRisque.affichees() !== null || couverture.affichee());
+  const bataille = inject(BatailleService);
+  const registre = inject(AnalysesPeintesService);
+  return computed(() => score.affiche() !== null || zonesRisque.affichees() !== null || couverture.affichee()
+    || bataille.peinte() || registre.une());
 }
 
 /**

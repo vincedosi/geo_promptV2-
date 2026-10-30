@@ -1,6 +1,7 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Subject, of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { ScoreService } from '../couches/score.service';
 import { AnalysesApi } from '../data/analyses.api';
 import type { Recette } from '../logique/zones/recette';
@@ -134,5 +135,52 @@ describe('ScoreCompositeService — sur la zone analysée', () => {
     expect(s.calcul()).toBe(false);
     expect(reponse.observed).toBe(false);
     expect(carte.afficher).not.toHaveBeenCalled();
+  });
+});
+
+/** ④ finitions (T5, A-2) : un 404 `zone_introuvable` retire la zone de ④ et garde son message ; un 400 dit son texte. */
+describe('ScoreCompositeService — échecs de la route', () => {
+  function monter(echec: HttpErrorResponse) {
+    const zoneId = signal<string | null>('z-1');
+    const siIntrouvable = vi.fn((e: unknown) => {
+      const introuvable = (e as HttpErrorResponse).error?.refus === 'zone_introuvable';
+      if (introuvable) zoneId.set(null);
+      return introuvable;
+    });
+    TestBed.configureTestingModule({
+      providers: [
+        ScoreCompositeService,
+        { provide: AnalysesApi, useValue: { score: () => throwError(() => echec) } },
+        { provide: EtatCarteService, useValue: { filtre: signal(null) } },
+        { provide: ScoreService, useValue: { afficher: vi.fn(), eteindre: vi.fn() } },
+        { provide: CatalogueIndicateursService, useValue: { charger: () => of([]) } },
+        { provide: CreationZoneService, useValue: { org: signal('org-1') } },
+        { provide: ZoneAnalyseeService, useValue: { zoneId, siIntrouvable } },
+      ],
+    });
+    const s = TestBed.inject(ScoreCompositeService);
+    s.choisis.set([{ code: 'rev_median', label: 'Revenu médian', poids: 1, sens: 'croissant' }]);
+    TestBed.tick();
+    return { s, zoneId, siIntrouvable };
+  }
+
+  it('404 zone_introuvable : la zone quitte ④, le message reste affiché', () => {
+    const { s, zoneId, siIntrouvable } = monter(new HttpErrorResponse({
+      status: 404, error: { error: 'Zone introuvable dans cet espace.', refus: 'zone_introuvable' },
+    }));
+    s.lancer();
+    TestBed.tick();
+    expect(siIntrouvable).toHaveBeenCalledTimes(1);
+    expect(zoneId()).toBeNull();
+    expect(s.erreur()).toBe('Zone introuvable dans cet espace.');
+    expect(s.calcul()).toBe(false);
+  });
+
+  it('400 de la route : son texte, et la zone reste', () => {
+    const { s, zoneId } = monter(new HttpErrorResponse({ status: 400, error: { error: 'Périmètre vide : aucun code postal à scorer.' } }));
+    s.lancer();
+    TestBed.tick();
+    expect(zoneId()).toBe('z-1');
+    expect(s.erreur()).toBe('Périmètre vide : aucun code postal à scorer.');
   });
 });

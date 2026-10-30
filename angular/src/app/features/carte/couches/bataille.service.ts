@@ -76,7 +76,8 @@ export class BatailleService {
   readonly palierMax = signal(90);
 
   private readonly filtre = computed(() => filtreAnneaux(this.contourVisible(), this.palierMax()));
-  private readonly presente = computed(() => {
+  /** Une bataille est sur la carte (anneaux, bordures ou points) : la pastille de ④ (④ finitions, T5, A-8). */
+  readonly peinte = computed(() => {
     const r = this.rendu();
     return r.anneaux.length > 0 || r.bordures.length > 0 || r.points.length > 0;
   });
@@ -93,7 +94,7 @@ export class BatailleService {
       const carte = this.couches.carteCourante();
       const rendu = this.rendu();
       if (!carte) { this.posee.set(null); return; }
-      if (!this.presente()) {
+      if (!this.peinte()) {
         untracked(() => retirerBataille(carte));
         this.posee.set(null);
         return;

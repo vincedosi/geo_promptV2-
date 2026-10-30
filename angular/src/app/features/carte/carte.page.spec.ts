@@ -32,6 +32,8 @@ import { PONT_CARTE } from './etat/pont-carte';
 import { DETAIL_ESSAI } from './testing/campagnes-ooh.fixture';
 import { ZonesRisqueService } from './couches/zones-risque.service';
 import { ScoreService } from './couches/score.service';
+import { BatailleService } from './couches/bataille.service';
+import { AnalysesPeintesService } from './etat/analyses-peintes';
 import { PROFIL_DEFAUT } from '../risques/logique/profil';
 import { ZonesCustomService } from './couches/zones-custom.service';
 import type { ZoneCustomResume } from './data/zones-custom.api';
@@ -1017,6 +1019,32 @@ describe('CartePage — filtre unique : panneau ①, pastille, fil d’Ariane (T
     injecteurPage(harness).get(CarreauxService).basculer(true);
     await stable();
     expect(pastilles(hote)).toEqual(['2 Données (renseignée)']);
+  });
+
+  it('④ s’allume sur une bataille V2 peinte, et sur une analyse publiée au registre de page (④ finitions, T5, A-8)', async () => {
+    const { harness, hote, stable } = await ouvrir();
+    const bataille = injecteurPage(harness).get(BatailleService);
+    expect(pastilles(hote)).toEqual([]);
+    bataille.appliquer({
+      anneaux: [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] }, properties: { id: 'a', nom: 'A', palier: 15 } }],
+      pois: [{ id: 'a', nom: 'A', lat: 0.5, lng: 0.5 }], cle: 'battle_full__lycee__driving-car__v2', categorie: 'lycee',
+    });
+    await stable();
+    expect(pastilles(hote)).toEqual(['4 Analyse (renseignée)']);
+    bataille.effacer();
+    await stable();
+    expect(pastilles(hote)).toEqual([]);
+    // La couverture par rayon et les typologies sont fournies par le PANNEAU (P-e) : elles publient au registre.
+    const peinte = signal(false);
+    const retirer = injecteurPage(harness).get(AnalysesPeintesService).inscrire(peinte);
+    await stable();
+    expect(pastilles(hote)).toEqual([]);
+    peinte.set(true);
+    await stable();
+    expect(pastilles(hote)).toEqual(['4 Analyse (renseignée)']);
+    retirer();
+    await stable();
+    expect(pastilles(hote)).toEqual([]);
   });
 
   it('⑤ : une zone à convertir dans l’URL (?zoneJeu=) allume sa pastille ; sans elle, rien (lot 5, T10)', async () => {

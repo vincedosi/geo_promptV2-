@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { injecterTiroirsAnalyse } from './tiroirs-analyse';
-import { catchError, throwError } from 'rxjs';
+import { catchError, tap, throwError } from 'rxjs';
 import { formaterNombre } from '../../../core/format/nombre';
 import { ScoreService } from '../couches/score.service';
 import { AnalysesApi } from '../data/analyses.api';
@@ -14,6 +14,8 @@ import { CreationZoneService } from './creation-zone.service';
 import { EtatCarteService } from './etat-carte.service';
 import { LectureAnnulable, surChangement } from './lecture-annulable';
 import { ZoneAnalyseeService } from './zone-analysee.service';
+
+const MESSAGE_CATALOGUE = 'Catalogue d’indicateurs indisponible.';
 
 /**
  * L'état de l'outil « Score composite » — `ScoreCompositeTool.tsx` (lot 4, T18), hors de son gabarit : le LANCEMENT
@@ -49,9 +51,10 @@ export class ScoreCompositeService {
   /** Les tiroirs de ④ (T7) : l'outil est ouvert quand SON tiroir l'est — ouvrir un autre outil le referme. */
   private readonly tiroirs = injecterTiroirsAnalyse();
   readonly ouvert = computed(() => this.tiroirs.estOuvert('score'));
-  readonly catalogue = signal<IndicateurRegistre[]>([]);
-  readonly chargementCatalogue = signal(false);
-  private catalogueLu = false;
+  /** Le catalogue, lu au premier dépli (`chargerUneFois`) ; un échec laisse le dépli suivant relire (T5, A-10). */
+  private readonly lectureCatalogue = new LectureAnnulable<IndicateurRegistre[]>(() => MESSAGE_CATALOGUE);
+  readonly catalogue = computed(() => this.lectureCatalogue.resultat() ?? []);
+  readonly chargementCatalogue = this.lectureCatalogue.enCours.asReadonly();
 
   readonly choisis = signal<IndicateurChoisi[]>([]);
   readonly enregistrer = signal(false);
@@ -84,19 +87,9 @@ export class ScoreCompositeService {
   /** Déplier charge le catalogue la PREMIÈRE fois ; un échec laisse le dépliage suivant relire. */
   basculerOuvert(): void {
     this.tiroirs.basculer('score');
-    const prochain = this.ouvert();
-    if (!prochain || this.catalogueLu) return;
-    this.catalogueLu = true;
-    this.chargementCatalogue.set(true);
-    this.catalogueService.charger().subscribe({
-      next: (liste) => this.catalogue.set(liste),
-      error: () => {
-        this.erreur.set('Catalogue d’indicateurs indisponible.');
-        this.catalogueLu = false;
-        this.chargementCatalogue.set(false);
-      },
-      complete: () => this.chargementCatalogue.set(false),
-    });
+    if (!this.ouvert()) return;
+    // L'échec s'affiche à la place de celui du calcul, comme avant la factorisation.
+    this.lectureCatalogue.chargerUneFois(() => this.catalogueService.charger().pipe(tap({ error: () => this.erreur.set(MESSAGE_CATALOGUE) })));
   }
 
   ajouter(code: string): void {
@@ -126,6 +119,10 @@ export class ScoreCompositeService {
     this.messageZone.set(null);
     this.lecture.lancer(this.api.score(corpsScore(choisis, perimetre, this.enregistrer())), (r) => {
       this.carte.afficher({ scores: r.scores, libelle: libelleScore(choisis.map((c) => c.label)), nIndicateurs: choisis.length });
+    }, (e) => {
+      // ④ finitions (T5, A-2) : zone supprimée ou d'un autre espace (404 `zone_introuvable`) → retirée de ④. Le
+      // changement de zone qui s'ensuit PÉRIME sans effacer le message (`perimer` garde l'erreur).
+      if (zone) this.analysee.siIntrouvable(e);
     });
   }
 

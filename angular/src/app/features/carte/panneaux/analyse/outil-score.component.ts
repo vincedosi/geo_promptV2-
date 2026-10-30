@@ -2,13 +2,11 @@ import { ChangeDetectionStrategy, Component, inject, output } from '@angular/cor
 import { formaterNombre } from '../../../../core/format/nombre';
 import { ScoreCompositeService } from '../../etat/score-composite.service';
 import { dateFr } from '../../logique/analyses/commun';
-import { MAX_INDICATEURS, libelleIndicateur, libelleRetenus } from '../../logique/analyses/score';
+import { type IndicateurChoisi, MAX_INDICATEURS, libelleIndicateur, libelleRetenus } from '../../logique/analyses/score';
 import { EnteteOutilComponent } from './entete-outil.component';
-import {
-  BOUTON_CALCUL, CORPS_ACCORDEON, ENCART_ERREUR, LIBELLE_CHAMP, LISTE_CHAMP, PASTILLE, PASTILLE_INACTIVE,
-  PASTILLE_PRIMAIRE_ACTIVE,
-} from './styles-analyse';
+import { BOUTON_CALCUL, CORPS_ACCORDEON, ENCART_ERREUR, LIBELLE_CHAMP, LISTE_CHAMP } from './styles-analyse';
 import { ChoixSurZoneComponent } from './choix-sur-zone.component';
+import { type OptionPastille, PastillesComponent } from './pastilles.component';
 
 /**
  * L'outil « Score composite » du panneau Analyse — le gabarit de `filter-panel/ScoreCompositeTool.tsx` (lot 4, T18).
@@ -20,7 +18,7 @@ import { ChoixSurZoneComponent } from './choix-sur-zone.component';
  */
 @Component({
   selector: 'mg-outil-score',
-  imports: [EnteteOutilComponent, ChoixSurZoneComponent],
+  imports: [EnteteOutilComponent, ChoixSurZoneComponent, PastillesComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   template: `
@@ -63,12 +61,7 @@ import { ChoixSurZoneComponent } from './choix-sur-zone.component';
                 (input)="poids(c.code, $event)" class="flex-1 accent-[var(--brand-teal)]" />
               <span class="w-7 text-right font-mono text-[11px] text-secondary">{{ c.poids.toFixed(1) }}</span>
             </div>
-            <div class="flex gap-[5px]">
-              <button type="button" data-sens="croissant" [attr.aria-pressed]="c.sens === 'croissant'" (click)="s.modifier(c.code, { sens: 'croissant' })"
-                [class]="pastille + ' flex-1 text-center ' + (c.sens === 'croissant' ? pastilleActive : pastilleInactive)">Haut = mieux</button>
-              <button type="button" data-sens="decroissant" [attr.aria-pressed]="c.sens === 'decroissant'" (click)="s.modifier(c.code, { sens: 'decroissant' })"
-                [class]="pastille + ' flex-1 text-center ' + (c.sens === 'decroissant' ? pastilleActive : pastilleInactive)">Bas = mieux</button>
-            </div>
+            <mg-pastilles marque="sens" [libelle]="'Sens de ' + c.label" [options]="sens" [valeur]="c.sens" (valeurChange)="s.modifier(c.code, { sens: $event })" />
           </div>
         }
 
@@ -138,9 +131,11 @@ export class OutilScoreComponent {
   protected readonly liste = LISTE_CHAMP;
   protected readonly boutonCalcul = BOUTON_CALCUL;
   protected readonly encartErreur = ENCART_ERREUR;
-  protected readonly pastille = PASTILLE;
-  protected readonly pastilleActive = PASTILLE_PRIMAIRE_ACTIVE;
-  protected readonly pastilleInactive = PASTILLE_INACTIVE;
+  /** Le sens d'un indicateur, sur `mg-pastilles` (④ finitions, T5, A-10). */
+  protected readonly sens: readonly OptionPastille<IndicateurChoisi['sens']>[] = [
+    { cle: 'croissant', valeur: 'croissant', libelle: 'Haut = mieux' },
+    { cle: 'decroissant', valeur: 'decroissant', libelle: 'Bas = mieux' },
+  ];
 
   /** La liste revient à « Ajouter un indicateur… » après chaque choix (`value=""` de React). */
   protected ajouter(e: Event): void {

@@ -8,6 +8,7 @@ import { APERCU_SITES_MAX } from '../../risques/cartes/couches-sites';
 import { COUCHE_POI_RAYON, entitesRayon } from '../couches/couche-couverture-rayon';
 import { CouvertureApi } from '../data/couverture.api';
 import type { ResultatCouvertureRayon } from '../logique/analyses/couverture-rayon';
+import { AnalysesPeintesService } from './analyses-peintes';
 import { CataloguePoiService } from './catalogue-poi.service';
 import { CouchesCarteService } from './couches-carte.service';
 import { CouvertureRayonService } from './couverture-rayon.service';
@@ -62,7 +63,7 @@ function monter() {
   };
   TestBed.configureTestingModule({
     providers: [
-      CouvertureRayonService,
+      CouvertureRayonService, AnalysesPeintesService,
       { provide: CouvertureApi, useValue: { rayon } },
       { provide: EtatCarteService, useValue: { filtre } },
       { provide: ZoneAnalyseeService, useValue: { zoneId, siIntrouvable } },
@@ -202,5 +203,22 @@ describe('CouvertureRayonService (lot 4, T12)', () => {
     const [cercles, ...points] = entitesRayon(poi, 1000).features;
     expect((cercles.geometry as GeoJSON.MultiPolygon).coordinates).toHaveLength(APERCU_SITES_MAX);
     expect(points).toHaveLength(APERCU_SITES_MAX + 50);
+  });
+});
+
+/** ④ finitions (T5, A-8) : la couverture par rayon peinte allume la pastille de ④, par le registre de page. */
+describe('CouvertureRayonService — pastille de ④', () => {
+  it('publie « peinte » au registre tant qu’un résultat est affiché ; détruit, il s’en retire', () => {
+    const { s, reponses, stable } = monter();
+    const registre = TestBed.inject(AnalysesPeintesService);
+    stable();
+    expect(registre.une()).toBe(false);
+    s.lancer();
+    reponses[0].next(RESULTAT);
+    stable();
+    expect(registre.une()).toBe(true);
+    s.rayonMax.set(1000);
+    stable();
+    expect(registre.une()).toBe(false);
   });
 });

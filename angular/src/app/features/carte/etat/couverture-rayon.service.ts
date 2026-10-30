@@ -11,6 +11,7 @@ import {
 } from '../logique/analyses/couverture-rayon';
 import { perimetreDeFiltre } from '../logique/zones/perimetre-recette';
 import { MESSAGES_REFUS } from '../logique/zones/recette';
+import { publierAnalysePeinte } from './analyses-peintes';
 import { CataloguePoiService, typePoiRetenu } from './catalogue-poi.service';
 import { CouchesCarteService, quandStyleCharge } from './couches-carte.service';
 import { EtatCarteService } from './etat-carte.service';
@@ -92,6 +93,8 @@ export class CouvertureRayonService {
 
   constructor() {
     this.couches.inscrireEffacement('couverture-rayon', () => this.lecture.perimer());
+    // La pastille de ④ (④ finitions, T5, A-8) : un résultat affiché est une couche peinte.
+    publierAnalysePeinte(computed(() => this.resultat() !== null));
     surChangement(this.requete, () => {
       if (this.zoneRetiree) this.lecture.annuler();
       else this.lecture.perimer();
