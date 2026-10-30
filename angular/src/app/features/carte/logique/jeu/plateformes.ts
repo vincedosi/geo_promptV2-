@@ -8,7 +8,8 @@
  */
 
 export const PLATEFORMES = ['dv360', 'ttd', 'meta', 'tiktok'] as const;
-export const MAILLES = ['polygone', 'cp', 'iris', 'commune', 'departement', 'cercle'] as const;
+/** `pays` (sql/300, ⑤ finitions) : le ciblage pays natif, pour une zone nationale (recette `pays`) seulement. */
+export const MAILLES = ['polygone', 'cp', 'iris', 'commune', 'departement', 'cercle', 'pays'] as const;
 
 export type Plateforme = (typeof PLATEFORMES)[number];
 export type Maille = (typeof MAILLES)[number];
@@ -33,4 +34,6 @@ export interface PlateformeGeo {
   a_verifier: boolean;
   note: string | null;
   ordre: number;
+  /** Ligne `pays` seulement (sql/300) : les codes ISO ciblés pour `METRO` et pour `FR` ; `null` ou absent sinon. */
+  codes_pays?: { METRO: string[]; FR: string[] } | null | undefined;
 }

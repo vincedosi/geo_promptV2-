@@ -19,7 +19,7 @@ type ClientAdmin = ReturnType<typeof createAdminClient>;
 
 /** Les colonnes d'une ligne de `plateformes_geo` — une chaîne LITTÉRALE : supabase-js en déduit le type des lignes. */
 const COLONNES_PLATEFORMES_GEO =
-  'plateforme, maille, libelle, natif, disponible, limites, doc_url, releve_le, a_verifier, note, ordre';
+  'plateforme, maille, libelle, natif, disponible, limites, doc_url, releve_le, a_verifier, note, ordre, codes_pays';
 
 /**
  * Les règles des plateformes demandées (toutes sans filtre : `GET /api/zones/plateformes`), triées par `ordre` et

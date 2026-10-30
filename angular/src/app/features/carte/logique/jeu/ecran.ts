@@ -43,6 +43,7 @@ export const UNITE_MAILLE: Readonly<Record<Maille, UniteMaille>> = {
   commune: { un: 'commune', plusieurs: 'communes', titre: 'Dilution à la commune', sujet: 'Une commune', accord: 'e', complement: 'sa commune' },
   departement: { un: 'département', plusieurs: 'départements', titre: 'Dilution au département', sujet: 'Un département', accord: '', complement: 'son département' },
   cercle: { un: 'cercle', plusieurs: 'cercles', titre: 'Dilution au cercle', sujet: 'Un cercle', accord: '', complement: 'son cercle' },
+  pays: { un: 'pays', plusieurs: 'pays', titre: 'Dilution au pays', sujet: 'Un pays', accord: '', complement: 'son pays' },
 };
 
 /** Le libellé accessible de la réglette de seuil d'une maille. */

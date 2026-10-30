@@ -4758,6 +4758,7 @@ export type Database = {
       plateformes_geo: {
         Row: {
           a_verifier: boolean
+          codes_pays: Json | null
           disponible: boolean
           doc_url: string | null
           libelle: string
@@ -4771,6 +4772,7 @@ export type Database = {
         }
         Insert: {
           a_verifier?: boolean
+          codes_pays?: Json | null
           disponible?: boolean
           doc_url?: string | null
           libelle: string
@@ -4784,6 +4786,7 @@ export type Database = {
         }
         Update: {
           a_verifier?: boolean
+          codes_pays?: Json | null
           disponible?: boolean
           doc_url?: string | null
           libelle?: string

@@ -146,8 +146,9 @@ export function exactitude(recette: Recette, maille: Maille, ligne?: PlateformeG
 /**
  * De la plus fine à la plus grossière. Le cercle avant la commune : son rayon se règle, une commune ne se découpe
  * pas. L'IRIS n'est acheté par aucune plateforme au 24/10 (A-5) ; il prend son rang si une ligne le porte un jour.
+ * Le pays en DERNIER (⑤ finitions, A-4) : il n'est jamais le défaut d'une zone qui n'est pas nationale.
  */
-const FINESSE: readonly Maille[] = ['polygone', 'iris', 'cp', 'cercle', 'commune', 'departement'];
+const FINESSE: readonly Maille[] = ['polygone', 'iris', 'cp', 'cercle', 'commune', 'departement', 'pays'];
 
 /**
  * La maille proposée par défaut (A-4) parmi les mailles natives et disponibles de la plateforme : d'abord écarter les

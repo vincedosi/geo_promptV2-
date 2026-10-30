@@ -5,7 +5,9 @@
  * - le seed : une ligne par (plateforme, maille) relevée le 14/10, clé unique (T6 y pose une clé étrangère) ;
  * - aucune maille NATIVE sans lien vers sa doc officielle, sauf TTD (doc derrière connexion), alors « à vérifier » :
  *   l'écran promet un lien, il ne doit pas en manquer un en silence ;
- * - la migration se rejoue deux fois à l'identique (base locale partagée : rejouer ne doit rien changer).
+ * - la migration se rejoue deux fois à l'identique (base locale partagée : rejouer ne doit rien changer) ;
+ * - sql/300 (finitions de ⑤, T1) : la maille `pays`, une ligne par plateforme, et ses codes pays en base (`codes_pays`,
+ *   un CHECK refuse une liste mal formée) ; rejouable à empreinte identique.
  * Le rejeu se fait dans une transaction ANNULÉE : rien ne reste.
  */
 import { readFileSync } from 'node:fs';
@@ -15,6 +17,7 @@ import { MAILLES, PLATEFORMES } from '@/lib/zones/plateformes';
 import { psql, psqlBrut, psqlLignes } from './_psql';
 
 const MIGRATION = readFileSync(join(process.cwd(), 'sql', '274_plateformes_geo.sql'), 'utf8');
+const MIGRATION_PAYS = readFileSync(join(process.cwd(), 'sql', '300_maille_pays.sql'), 'utf8');
 
 /** Empreinte du contenu ET des contraintes de la table : un rejeu qui en changerait l'un ou l'autre la changerait. */
 const EMPREINTE = `select md5(
@@ -23,9 +26,9 @@ const EMPREINTE = `select md5(
         from pg_constraint c where c.conrelid = 'public.plateformes_geo'::regclass));`;
 
 describe('sql/274 — plateformes_geo', () => {
-  it('le seed du relevé : 13 lignes, une par (plateforme, maille)', () => {
-    expect(psql('select count(*) from public.plateformes_geo;')).toBe('13');
-    expect(psql('select count(distinct (plateforme, maille)) from public.plateformes_geo;')).toBe('13');
+  it('le seed du relevé : 17 lignes, une par (plateforme, maille) — 13 de sql/274, 4 « pays » de sql/300', () => {
+    expect(psql('select count(*) from public.plateformes_geo;')).toBe('17');
+    expect(psql('select count(distinct (plateforme, maille)) from public.plateformes_geo;')).toBe('17');
   });
 
   it('la clé (plateforme, maille) est la clé primaire — T6 la référence', () => {
@@ -93,5 +96,85 @@ describe('sql/274 — plateformes_geo', () => {
     expect(psql(`select has_table_privilege('anon', 'public.plateformes_geo', 'select')
                      or has_table_privilege('authenticated', 'public.plateformes_geo', 'select');`)).toBe('f');
     expect(psql(`select has_table_privilege('service_role', 'public.plateformes_geo', 'select');`)).toBe('t');
+  });
+});
+
+/** Ce que sql/300 touche : le contenu et les contraintes de la table, et le commentaire de `pop_totale` (E7). */
+const EMPREINTE_PAYS = `select md5(
+  (select string_agg(t::text, ';' order by plateforme, maille) from public.plateformes_geo t)
+  || (select string_agg(c.conname || ':' || pg_get_constraintdef(c.oid), ';' order by c.conname)
+        from pg_constraint c where c.conrelid = 'public.plateformes_geo'::regclass)
+  || coalesce(col_description('public.zone_set_extraction_unites'::regclass,
+       (select attnum from pg_attribute where attrelid = 'public.zone_set_extraction_unites'::regclass
+                                          and attname = 'pop_totale')), ''));`;
+
+const CODES_PAYS = '{"METRO": ["FR"], "FR": ["FR", "GP", "MQ", "GF", "RE", "YT"]}';
+/** « CIRFA BRETAGNE », zone de l'espace interne présente dans le dump local (comme jeux-de-zone-schema.test.ts). */
+const ZONE = 'f001b479-b870-4958-978d-e7a98b90de57';
+const ORG = '00000000-0000-0000-0000-000000000001';
+
+describe('sql/300 — la maille pays', () => {
+  it('quatre lignes « pays », natives et disponibles ; « à vérifier » chez TTD seulement', () => {
+    expect(psql(`select string_agg(plateforme || ':' || natif::text || ':' || disponible::text || ':' || a_verifier::text,
+                                   ',' order by plateforme)
+                   from public.plateformes_geo where maille = 'pays';`))
+      .toBe('dv360:true:true:false,meta:true:true:false,tiktok:true:true:false,ttd:true:true:true');
+  });
+
+  it('les codes pays : METRO → FR ; FR → FR et les cinq DROM ; aucune autre maille n’en porte', () => {
+    expect(psql(`select count(*) from public.plateformes_geo
+                  where maille = 'pays' and codes_pays = '${CODES_PAYS}'::jsonb;`)).toBe('4');
+    expect(psql(`select count(*) from public.plateformes_geo where maille <> 'pays' and codes_pays is not null;`))
+      .toBe('0');
+  });
+
+  it.each([
+    ['une clé inconnue', `'{"METRO": ["FR"], "FR": ["FR"], "XX": ["FR"]}'`],
+    ['un code en minuscules', `'{"METRO": ["fr"], "FR": ["FR"]}'`],
+    ['un code de trois lettres', `'{"METRO": ["FRA"], "FR": ["FR"]}'`],
+    ['une liste vide', `'{"METRO": [], "FR": ["FR"]}'`],
+    ['une clé manquante', `'{"METRO": ["FR"]}'`],
+    ['un tableau au lieu d’un objet', `'["FR"]'`],
+    ['aucun code sur une ligne pays', 'null'],
+  ])('la base refuse des codes pays mal formés : %s', (_cas, valeur) => {
+    const r = psqlBrut(`begin;
+      update public.plateformes_geo set codes_pays = ${valeur}::jsonb where plateforme = 'meta' and maille = 'pays';
+      rollback;`);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/plateformes_geo_codes_pays_(valides|maille)/);
+  });
+
+  it('une ligne qui n’est pas « pays » ne porte pas de codes pays', () => {
+    const r = psqlBrut(`begin;
+      update public.plateformes_geo set codes_pays = '${CODES_PAYS}'::jsonb where plateforme = 'meta' and maille = 'cp';
+      rollback;`);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('plateformes_geo_codes_pays_maille');
+  });
+
+  it('zone_set_plateformes accepte (dv360, pays) par la clé étrangère (transaction annulée)', () => {
+    expect(psql(`begin;
+      insert into public.zone_sets (id, nom, org_id, type, custom_geo_zone_id)
+      values ('aaaaaaaa-0000-4000-8000-000000000300', 'T1 — pays', '${ORG}', 'zone', '${ZONE}');
+      insert into public.zone_set_plateformes (zone_set_id, plateforme, maille, seuil, rayon_m)
+      values ('aaaaaaaa-0000-4000-8000-000000000300', 'dv360', 'pays', 0, null);
+      select maille from public.zone_set_plateformes where zone_set_id = 'aaaaaaaa-0000-4000-8000-000000000300';
+      rollback;`)).toBe('pays');
+  });
+
+  it('pop_totale des unités figées dit ce qu’elle compte (E7)', () => {
+    const commentaire = psql(`select col_description('public.zone_set_extraction_unites'::regclass,
+        (select attnum from pg_attribute where attrelid = 'public.zone_set_extraction_unites'::regclass
+                                           and attname = 'pop_totale'));`);
+    expect(commentaire).toMatch(/cellule/i);
+    expect(commentaire).toMatch(/non carroy/i);
+  });
+
+  it('la migration rejouée deux fois : empreinte identique, et identique à la base', () => {
+    const base = psql(EMPREINTE_PAYS);
+    const lignes = psqlLignes(`begin;\n${MIGRATION_PAYS}\n${EMPREINTE_PAYS}\n${MIGRATION_PAYS}\n${EMPREINTE_PAYS}\nrollback;`);
+    const [premiere, seconde] = lignes.slice(-2);
+    expect(premiere).toBe(seconde);
+    expect(seconde).toBe(base);
   });
 });

@@ -77,7 +77,8 @@ export function estExacte(c: ChoixMaille, ligne: PlateformeGeo, recette: Recette
 export function lectureRequise(c: ChoixMaille, ligne: PlateformeGeo, recette: Recette | null): Decoupage | 'cercles' {
   if (estExacte(c, ligne, recette)) return 'forme';
   if (c.maille === 'cercle') return 'cercles';
-  return c.maille === 'polygone' ? 'forme' : c.maille;
+  // Le pays se chiffre par la couverture « telle quelle » de la zone nationale : aucun carreau lu (⑤ finitions, A-5).
+  return c.maille === 'polygone' || c.maille === 'pays' ? 'forme' : c.maille;
 }
 
 /**
