@@ -10,7 +10,9 @@ import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.se
 import { ExportZoneService } from '../../etat/export-zone.service';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import type { IndicateurRegistre } from '../../logique/analyses/score';
-import { MESSAGE_REPONSE_PERDUE, avecId, estRefusReferencee, estReponsePerdue, issueDuplication, nomDeCopie, sansId } from '../../logique/zones/gestes-zone';
+import {
+  MESSAGE_REPONSE_PERDUE, avecId, estRefusReferencee, estReponsePerdue, issueDuplication, issueRecalcul, lignesDeZones, nomDeCopie, sansId,
+} from '../../logique/zones/gestes-zone';
 import { libelleSource } from '../../logique/zones/libelle-zone';
 import { basculerDansSelection, selectionExistante } from '../../logique/zones/operations-zones';
 import { messageErreurZone } from '../../logique/zones/perimetre-recette';
@@ -177,18 +179,10 @@ export class MesZonesComponent {
   private readonly operations = viewChild(OperationsZonesComponent);
 
   /** Chaque carte avec ce qu'elle montre de l'affichage et de la sélection (aucune méthode appelée dans le gabarit). */
-  protected readonly lignes = computed(() => {
-    const couleurs = this.affichage.couleurs();
-    const enCours = this.affichage.enCours();
-    const selection = this.selection();
-    const recalculs = this.recalculs();
-    const referencees = this.referencees();
-    const duplications = this.duplications();
-    return this.zones().map((zone) => ({
-      zone, couleur: couleurs.get(zone.id) ?? null, enCours: enCours === zone.id, rang: selection.indexOf(zone.id),
-      recalcul: recalculs.has(zone.id), referencee: referencees.has(zone.id), duplication: duplications.has(zone.id),
-    }));
-  });
+  protected readonly lignes = computed(() => lignesDeZones(this.zones(), {
+    couleurs: this.affichage.couleurs(), enCours: this.affichage.enCours(), selection: this.selection(),
+    recalculs: this.recalculs(), referencees: this.referencees(), duplications: this.duplications(),
+  }));
   /**
    * Le catalogue d'indicateurs, pour nommer un seuil sur territoires : lu UNE fois, et seulement quand un tel seuil
    * est listé (aucune lecture à l'ouverture sinon — pas de préchargement, CLAUDE.md).
@@ -280,7 +274,8 @@ export class MesZonesComponent {
     this.vols.set(id, this.zonesApi.recalculer(id).subscribe({
       next: (r) => {
         this.retirerRecalcul(id);
-        if (r.status === 207) this.avis.set(r.body?.message ?? `Zone « ${zone?.name ?? ''} » recalculée ; ses codes postaux n’ont pas pu être résolus.`);
+        const avis = issueRecalcul(r, zone?.name ?? '');
+        if (avis) this.avis.set(avis);
         // Affichée : redessinée EN PLACE (même teinte, même rang) à l'arrivée de la liste relue, qui porte le nom et
         // l'emprise frais de la zone — la zone d'avant le recalcul n'est plus la bonne.
         if (this.affichage.couleurs().has(id)) this.aRelire.add(id);

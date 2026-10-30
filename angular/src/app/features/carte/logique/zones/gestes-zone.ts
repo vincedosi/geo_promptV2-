@@ -56,3 +56,31 @@ export function sansId(s: ReadonlySet<string>, id: string): ReadonlySet<string> 
   c.delete(id);
   return c;
 }
+
+/**
+ * Ce qu'on dit d'un recalcul RÉUSSI côté HTTP : rien pour un 200 ; pour un 207 (la forme est remplacée, seuls ses
+ * codes postaux n'ont pas été résolus), le message de la route, ou une phrase qui nomme la zone.
+ */
+export function issueRecalcul(r: HttpResponse<ZoneEcrite>, nom: string): string | null {
+  if (r.status !== 207) return null;
+  return r.body?.message ?? `Zone « ${nom} » recalculée ; ses codes postaux n’ont pas pu être résolus.`;
+}
+
+/** L'état de page et de gestes que chaque carte de « Mes zones » reflète. */
+export interface EtatCartesZones {
+  readonly couleurs: ReadonlyMap<string, string>;
+  readonly enCours: string | null;
+  /** Les zones cochées, dans l'ordre de cochage : le rang d'une carte est sa place dans cette liste (−1 sinon). */
+  readonly selection: readonly string[];
+  readonly recalculs: ReadonlySet<string>;
+  readonly referencees: ReadonlySet<string>;
+  readonly duplications: ReadonlySet<string>;
+}
+
+/** Chaque zone avec ce que sa carte montre de l'affichage, de la sélection et des gestes en vol. */
+export function lignesDeZones<Z extends { id: string }>(zones: readonly Z[], e: EtatCartesZones) {
+  return zones.map((zone) => ({
+    zone, couleur: e.couleurs.get(zone.id) ?? null, enCours: e.enCours === zone.id, rang: e.selection.indexOf(zone.id),
+    recalcul: e.recalculs.has(zone.id), referencee: e.referencees.has(zone.id), duplication: e.duplications.has(zone.id),
+  }));
+}

@@ -1,5 +1,7 @@
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
-import { MESSAGE_REPONSE_PERDUE, avecId, estRefusReferencee, estReponsePerdue, issueDuplication, nomDeCopie, sansId } from './gestes-zone';
+import {
+  MESSAGE_REPONSE_PERDUE, avecId, estRefusReferencee, estReponsePerdue, issueDuplication, issueRecalcul, lignesDeZones, nomDeCopie, sansId,
+} from './gestes-zone';
 import type { ZoneEcrite } from '../../data/zones.api';
 
 describe('gestes-zone — Dupliquer (③ finitions, T5)', () => {
@@ -35,5 +37,24 @@ describe('gestes-zone — Dupliquer (③ finitions, T5)', () => {
     expect([...b]).toEqual(['x', 'y']);
     expect([...a]).toEqual(['x']);
     expect([...sansId(b, 'x')]).toEqual(['y']);
+  });
+});
+
+describe('gestes-zone — Recalculer et cartes (④ finitions, T0)', () => {
+  it('issue d’un recalcul : rien pour un 200 ; un 207 dit le message de la route ou nomme la zone', () => {
+    expect(issueRecalcul(new HttpResponse({ status: 200, body: { zone_id: 'z' } }), 'Z')).toBeNull();
+    expect(issueRecalcul(new HttpResponse({ status: 207, body: { zone_id: 'z', message: 'm' } }), 'Z')).toBe('m');
+    expect(issueRecalcul(new HttpResponse({ status: 207, body: { zone_id: 'z' } }), 'Z')).toBe('Zone « Z » recalculée ; ses codes postaux n’ont pas pu être résolus.');
+  });
+
+  it('chaque carte reflète couleur, zone en cours, rang de sélection et gestes en vol', () => {
+    const lignes = lignesDeZones([{ id: 'a' }, { id: 'b' }], {
+      couleurs: new Map([['a', '#111']]), enCours: 'b', selection: ['b', 'a'],
+      recalculs: new Set(['a']), referencees: new Set(['b']), duplications: new Set(['a']),
+    });
+    expect(lignes).toEqual([
+      { zone: { id: 'a' }, couleur: '#111', enCours: false, rang: 1, recalcul: true, referencee: false, duplication: true },
+      { zone: { id: 'b' }, couleur: null, enCours: true, rang: 0, recalcul: false, referencee: true, duplication: false },
+    ]);
   });
 });
