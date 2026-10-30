@@ -68,6 +68,17 @@ export function texteAvertissement(a: Avertissement, maille: Maille): string {
 }
 
 /**
+ * Le refus `trop_de_cercles` du pavage, CHIFFRÉ (E4, ⑤ finitions T5) : le corps porte `n_cercles` et `plafond`
+ * (sql/276), dits par la phrase de l'avertissement `max_unites` — « 481 cercles pour 200 admis par la plateforme :
+ * augmentez le rayon ou le seuil. », sans seconde phrase. `null` pour tout autre corps (la phrase du serveur reste).
+ */
+export function texteTropDeCercles(corps: unknown): string | null {
+  const c = corps as { refus?: unknown; n_cercles?: unknown; plafond?: unknown } | null;
+  if (c?.refus !== 'trop_de_cercles' || typeof c.n_cercles !== 'number' || typeof c.plafond !== 'number') return null;
+  return texteAvertissement({ code: 'max_unites', limite: c.plafond, valeur: c.n_cercles }, 'cercle');
+}
+
+/**
  * Une unité d'une plateforme au pays : « La Réunion (RE) · 884 165 habitants ». Un territoire non carroyé (Guadeloupe,
  * Guyane, Mayotte : Filosofi 2021) se dit « population non carroyée », jamais « 0 habitant » (E10).
  */

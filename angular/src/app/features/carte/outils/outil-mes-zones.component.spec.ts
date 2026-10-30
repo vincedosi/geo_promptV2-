@@ -9,7 +9,10 @@ import { OutilsCarteService } from './outils-carte.service';
 
 /** Les deux listes, réduites à leur sélecteur : ce spec vérifie le câblage du tiroir, leurs specs vérifient le reste. */
 @Component({ selector: 'mg-jeux-de-zones', template: '' })
-class JeuxFactices {}
+class JeuxFactices {
+  readonly revision = input(0);
+  readonly visible = input(true);
+}
 @Component({ selector: 'mg-mes-zones', template: '' })
 class MesZonesFactice {
   readonly rafraichir = input(0);
@@ -24,7 +27,8 @@ async function monter() {
   const fixture = TestBed.createComponent(OutilMesZonesComponent);
   await fixture.whenStable();
   const mesZones = () => fixture.debugElement.query(By.directive(MesZonesFactice)).componentInstance as MesZonesFactice;
-  return { fixture, el: fixture.nativeElement as HTMLElement, outils: TestBed.inject(OutilsCarteService), mesZones };
+  const jeux = () => fixture.debugElement.query(By.directive(JeuxFactices)).componentInstance as JeuxFactices;
+  return { fixture, el: fixture.nativeElement as HTMLElement, outils: TestBed.inject(OutilsCarteService), mesZones, jeux };
 }
 
 describe('OutilMesZonesComponent — le tiroir « Mes zones » (spec § 6)', () => {
@@ -43,5 +47,14 @@ describe('OutilMesZonesComponent — le tiroir « Mes zones » (spec § 6)', () 
     await fixture.whenStable();
     expect(mesZones()).toBe(avant);
     expect(avant.rafraichir()).toBe(1);
+  });
+
+  it('E5 (⑤ finitions, T5) : un jeu enregistré en ⑤ (`jeuxModifies`) périme la liste des jeux, relue quand le tiroir est ouvert', async () => {
+    const { fixture, outils, jeux } = await monter();
+    expect([jeux().revision(), jeux().visible()]).toEqual([0, false]);
+    outils.jeuxModifies();
+    outils.ouvrir('zones');
+    await fixture.whenStable();
+    expect([jeux().revision(), jeux().visible()]).toEqual([1, true]);
   });
 });

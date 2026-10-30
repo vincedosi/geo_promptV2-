@@ -99,6 +99,11 @@ export function lireParamCouverture(brut: string | null | undefined): { cible: s
   return { cible, decoupage: decoupage as DecoupageAnalyse };
 }
 
+/** Un code de cible lu dans l'URL (`?cibleJeu=` de ⑤), ou `null` s'il n'en a pas la forme. Ne lève jamais. */
+export function lireCible(brut: string | null | undefined): string | null {
+  return typeof brut === 'string' && MOTIF_CIBLE.test(brut) ? brut : null;
+}
+
 /** La forme canonique de `?couverture=` : `null` (paramètre absent) pour les défauts. */
 export function ecrireParamCouverture(r: { cible: string; decoupage: DecoupageAnalyse }): string | null {
   return r.cible === CIBLE_PAR_DEFAUT && r.decoupage === DECOUPAGE_PAR_DEFAUT ? null : `${r.cible}.${r.decoupage}`;

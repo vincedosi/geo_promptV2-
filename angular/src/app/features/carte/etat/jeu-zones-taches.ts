@@ -1,8 +1,10 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import type { Observable } from 'rxjs';
 import { messageErreurCouverture, refusDeLErreur } from '../logique/analyses/couverture-erreurs';
 import type { ChoixMaille } from '../logique/jeu/mailles-url';
 import { lectureRequise } from '../logique/jeu/bilan';
+import { texteTropDeCercles } from '../logique/jeu/ecran';
 import type { Plateforme, PlateformeGeo } from '../logique/jeu/plateformes';
 import type { Recette } from '../logique/zones/recette';
 import { FileLectures } from './file-lectures';
@@ -76,7 +78,8 @@ export class TachesJeu {
   }
 
   private echec(cle: string, e: unknown): void {
-    const message = messageErreurCouverture(e);
+    // Trop de cercles : les chiffres du corps, dans la phrase de l'avertissement (E4) ; sinon la phrase du serveur.
+    const message = (e instanceof HttpErrorResponse ? texteTropDeCercles(e.error) : null) ?? messageErreurCouverture(e);
     if (refusDeLErreur(e) === 'zone_introuvable') {
       this.zonePerdue(message);
       return;

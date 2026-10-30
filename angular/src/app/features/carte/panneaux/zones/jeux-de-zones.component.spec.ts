@@ -88,4 +88,24 @@ describe('JeuxDeZonesComponent', () => {
     expect(router.url).toBe(`/carte?jeu=${ZONE_JEU}&etape=jeu`);
     expect(lister).toHaveBeenCalledTimes(1);
   });
+
+  it('E5 (⑤ finitions, T5) : une révision des jeux (jeu enregistré en ⑤) relit la liste au PROCHAIN affichage seulement', async () => {
+    const lister = vi.fn(() => of({ jeux: [jeu({})] }));
+    TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: JeuxApi, useValue: { lister } }] });
+    const fixture = TestBed.createComponent(JeuxDeZonesComponent);
+    fixture.componentRef.setInput('visible', false);
+    await fixture.whenStable();
+    expect(lister).toHaveBeenCalledTimes(1);
+    fixture.componentRef.setInput('revision', 1);
+    await fixture.whenStable();
+    expect(lister).toHaveBeenCalledTimes(1);
+    fixture.componentRef.setInput('visible', true);
+    await fixture.whenStable();
+    expect(lister).toHaveBeenCalledTimes(2);
+    fixture.componentRef.setInput('visible', false);
+    await fixture.whenStable();
+    fixture.componentRef.setInput('visible', true);
+    await fixture.whenStable();
+    expect(lister).toHaveBeenCalledTimes(2);
+  });
 });

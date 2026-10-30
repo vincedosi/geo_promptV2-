@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
+import type { Subscription } from 'rxjs';
 import { ActivatedRoute, Router } from '@angular/router';
 import { formaterDecimal, formaterNombre } from '../../../../core/format/nombre';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
@@ -36,8 +37,10 @@ export function detailJeu(j: JeuListe): string {
  * les DEUX types : un jeu risque ouvre le module à l'étape ④ sur ce jeu (`ouvrirJeuDeZones`, `page.tsx:232-240`), un
  * jeu de zone ouvre ⑤ sur `?jeu=` (`ouvrirJeuListe`, règle partagée avec la bibliothèque de ⑤).
  *
- * La liste est lue UNE fois, au montage — à la première ouverture de l'outil, qui est ensuite gardé (React :
- * `useEffect([], …)`, `cache: 'no-store'`).
+ * La liste est lue au montage — à la première ouverture de l'outil, qui est ensuite gardé (React :
+ * `useEffect([], …)`, `cache: 'no-store'`). Elle est relue quand `revision` a monté (un jeu enregistré ou réglé en ⑤,
+ * `OutilsCarteService.revisionJeux`), au PROCHAIN affichage du tiroir (`visible`) : aucune lecture d'ici là (E5,
+ * ⑤ finitions T5 — elle restait figée jusqu'au rechargement).
  */
 @Component({
   selector: 'mg-jeux-de-zones',
@@ -86,17 +89,46 @@ export class JeuxDeZonesComponent {
   protected readonly jeux = signal<LigneJeu[] | null>(null);
   protected readonly echec = signal(false);
 
+  /** Monte quand la liste est périmée (`OutilsCarteService.revisionJeux`). */
+  readonly revision = input(0);
+  /** Le tiroir qui porte la liste est ouvert : une liste périmée ne se relit qu'à ce moment-là. */
+  readonly visible = input(true);
+
+  private readonly api = inject(JeuxApi);
+  private abonnement: Subscription | null = null;
+
   constructor() {
-    const abonnement = inject(JeuxApi).lister().subscribe({
-      next: (r) => this.jeux.set((Array.isArray(r?.jeux) ? r.jeux : []).map((j) => ({
-        id: j.id, type: j.type, nom: j.nom, version: j.version, detail: detailJeu(j),
-      }))),
+    this.lire();
+    // P-a : l'effet ne fait que lire ; la lecture part hors suivi, une fois par révision vue. La première valeur (les
+    // entrées ne sont posées qu'après le constructeur) est celle de la lecture du montage.
+    let vue: number | null = null;
+    effect(() => {
+      const revision = this.revision();
+      const visible = this.visible();
+      untracked(() => {
+        if (vue === null) vue = revision;
+        if (!visible || revision === vue) return;
+        vue = revision;
+        this.lire();
+      });
+    });
+    inject(DestroyRef).onDestroy(() => this.abonnement?.unsubscribe());
+  }
+
+  private lire(): void {
+    this.abonnement?.unsubscribe();
+    this.abonnement = this.api.lister().subscribe({
+      next: (r) => {
+        this.echec.set(false);
+        this.jeux.set((Array.isArray(r?.jeux) ? r.jeux : []).map((j) => ({
+          id: j.id, type: j.type, nom: j.nom, version: j.version, detail: detailJeu(j),
+        })));
+      },
       error: () => {
         this.jeux.set([]);
         this.echec.set(true);
       },
     });
-    inject(DestroyRef).onDestroy(() => abonnement.unsubscribe());
   }
 
   /** Selon le type : le module risque (né sur ④ et ce jeu), ou ⑤ sur `?jeu=`. */

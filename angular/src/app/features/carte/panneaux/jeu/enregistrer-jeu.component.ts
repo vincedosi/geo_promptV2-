@@ -4,6 +4,7 @@ import { type ChoixPlateforme, type DetailJeuZone, JeuxApi } from '../../data/je
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { messageErreurCouverture } from '../../logique/analyses/couverture-erreurs';
 import { PLATEFORMES } from '../../logique/jeu/plateformes';
+import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { BOUTON_CALCUL, ENCART_ERREUR, LIBELLE_CHAMP, LISTE_CHAMP } from '../analyse/styles-analyse';
 
 /**
@@ -32,6 +33,7 @@ import { BOUTON_CALCUL, ENCART_ERREUR, LIBELLE_CHAMP, LISTE_CHAMP } from '../ana
 export class EnregistrerJeuComponent {
   protected readonly jeu = inject(JeuZonesService);
   private readonly api = inject(JeuxApi);
+  private readonly outils = inject(OutilsCarteService);
 
   /** Le nom proposé pour un jeu neuf : celui de la zone. */
   readonly nomPropose = input('');
@@ -101,6 +103,8 @@ export class EnregistrerJeuComponent {
   private terminer(quitte: () => boolean, detail: DetailJeuZone | null, texte: string): void {
     this.envoi = null;
     this.enCours.set(false);
+    // Enregistré ou réglé, même si l'écran a changé depuis : « Mes zones › Jeux de zones » le relira (E5).
+    if (detail) this.outils.jeuxModifies();
     if (quitte()) return;
     if (detail) {
       this.jeu.adopter(detail);

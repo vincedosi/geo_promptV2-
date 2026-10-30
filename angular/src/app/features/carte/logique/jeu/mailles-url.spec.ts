@@ -1,5 +1,5 @@
 import {
-  RAYON_PAR_DEFAUT_M, SEUIL_PAR_DEFAUT, ecrireMailles, lireMailles, lireParametresJeu, lireVersion, memesParametres, rayonParDefaut,
+  RAYON_PAR_DEFAUT_M, lireModeJeu, parametresDe, SEUIL_PAR_DEFAUT, ecrireMailles, lireMailles, lireParametresJeu, lireVersion, memesParametres, rayonParDefaut,
 } from './mailles-url';
 
 describe('?mailles= (A-10)', () => {
@@ -73,7 +73,7 @@ describe('les quatre paramètres bruts', () => {
   it('lus tels quels (absent = null), comparés clé à clé', () => {
     const url = new URLSearchParams('zoneJeu=z&mailles=dv360.cp.20&etape=jeu');
     const p = lireParametresJeu(url);
-    expect(p).toEqual({ zoneJeu: 'z', jeu: null, mailles: 'dv360.cp.20', x: null });
+    expect(p).toEqual({ zoneJeu: 'z', jeu: null, mailles: 'dv360.cp.20', x: null, cibleJeu: null, modeJeu: null });
     expect(memesParametres(p, { ...p })).toBe(true);
     expect(memesParametres(p, { ...p, x: '1' })).toBe(false);
   });
@@ -84,5 +84,19 @@ describe('?mailles= — la maille pays (⑤ finitions, T4)', () => {
     expect(lireMailles('dv360.pays')).toEqual({ dv360: { maille: 'pays', seuil: SEUIL_PAR_DEFAUT } });
     expect(lireMailles('dv360.pays.30')).toEqual({ dv360: { maille: 'pays', seuil: 30 } });
     expect(ecrireMailles({ dv360: { maille: 'pays', seuil: 20 }, meta: { maille: 'cp', seuil: 20 } })).toBe('dv360.pays,meta.cp.20');
+  });
+});
+
+describe('?cibleJeu= et ?modeJeu= (⑤ finitions, T5, Q-5)', () => {
+  it('écrits avec une zone seulement, hors défauts ; jamais avec un jeu (il les porte)', () => {
+    const avant = { cible: 'jeunes_15_29', mode: 'exclusif' } as const;
+    expect(parametresDe(null, 'z', {}, null, avant)).toMatchObject({ cibleJeu: 'jeunes_15_29', modeJeu: 'exclusif' });
+    expect(parametresDe('j', 'z', {}, null, avant)).toMatchObject({ cibleJeu: null, modeJeu: null });
+    expect(parametresDe(null, null, {}, null, avant)).toMatchObject({ cibleJeu: null, modeJeu: null });
+    expect(parametresDe(null, 'z', {}, null, { cible: 'ind', mode: 'pondere' })).toMatchObject({ cibleJeu: null, modeJeu: null });
+  });
+  it('le mode : un des modes de plan, sinon null, sans lever', () => {
+    expect(lireModeJeu('exclusif')).toBe('exclusif');
+    for (const v of ['zz', '', null, undefined]) expect(lireModeJeu(v)).toBeNull();
   });
 });

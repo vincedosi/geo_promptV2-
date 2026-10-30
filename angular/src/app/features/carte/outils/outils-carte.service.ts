@@ -23,6 +23,9 @@ export class OutilsCarteService {
   readonly legendeVisible = signal(true);
   private readonly _revisionZones = signal(0);
   readonly revisionZones: Signal<number> = this._revisionZones.asReadonly();
+  /** Monte quand un jeu est enregistré ou réglé en ⑤ : « Mes zones › Jeux de zones » relit sa liste (E5, ⑤ finitions T5). */
+  private readonly _revisionJeux = signal(0);
+  readonly revisionJeux: Signal<number> = this._revisionJeux.asReadonly();
 
   constructor() {
     effect((nettoyer) => {
@@ -48,5 +51,9 @@ export class OutilsCarteService {
 
   zonesModifiees(): void {
     this._revisionZones.update((n) => n + 1);
+  }
+
+  jeuxModifies(): void {
+    this._revisionJeux.update((n) => n + 1);
   }
 }

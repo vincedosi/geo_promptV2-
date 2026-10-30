@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { JeuxDeZonesComponent } from '../panneaux/zones/jeux-de-zones.component';
 import { MesZonesComponent } from '../panneaux/zones/mes-zones.component';
 import { OutilsCarteService } from './outils-carte.service';
@@ -14,7 +14,7 @@ import { OutilsCarteService } from './outils-carte.service';
   imports: [JeuxDeZonesComponent, MesZonesComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <mg-jeux-de-zones />
+    <mg-jeux-de-zones [revision]="outils.revisionJeux()" [visible]="ouvert()" />
     <section data-section="mes-zones" class="pt-3">
       <h4 class="mb-2 mt-0 px-4 text-[11px] font-medium text-secondary">Mes zones</h4>
       <mg-mes-zones [rafraichir]="outils.revisionZones()" />
@@ -23,4 +23,6 @@ import { OutilsCarteService } from './outils-carte.service';
 })
 export class OutilMesZonesComponent {
   protected readonly outils = inject(OutilsCarteService);
+  /** Le tiroir est ouvert : un jeu enregistré en ⑤ entre dans la liste à ce moment-là, pas avant (E5). */
+  protected readonly ouvert = computed(() => this.outils.outil() === 'zones');
 }

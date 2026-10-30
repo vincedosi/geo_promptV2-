@@ -1,5 +1,6 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { J1, REGISTRE, Z1, Z2, monterJeu } from '../../testing/jeu-factice';
 import { EnregistrerJeuComponent } from './enregistrer-jeu.component';
 
@@ -37,6 +38,8 @@ describe('mg-enregistrer-jeu', () => {
     await stable();
     http.verify();
     expect(router.url).toBe(`/carte?jeu=${J1}`);
+    // E5 (⑤ finitions, T5) : « Mes zones › Jeux de zones » relira sa liste à son prochain affichage.
+    expect(TestBed.inject(OutilsCarteService).revisionJeux()).toBe(1);
     expect(bouton.textContent?.trim()).toBe('Enregistrer les réglages');
     expect(el.querySelector('[data-message]')?.textContent?.trim()).toBe('Jeu enregistré.');
   });

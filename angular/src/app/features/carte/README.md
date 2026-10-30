@@ -416,7 +416,7 @@ la plomberie ; l'écran est T10, la couche T11.
 
 - **URL** : `?zoneJeu=<uuid>` (zone avant enregistrement) ou `?jeu=<uuid>` (jeu ouvert : il l'emporte, `?zoneJeu=`
   disparaît), `?mailles=` (les choix EXPLICITES : écarts aux défauts, ou au jeu ouvert), `?x=<version>` (avec un jeu
-  seulement). Lus à la construction, réécrits en `replaceUrl` par `ecrireParametres` (P-g), relus à toute navigation
+  seulement), `?cibleJeu=` / `?modeJeu=` (zone sans jeu, hors défauts). Lus à la construction, réécrits en `replaceUrl` par `ecrireParametres` (P-g), relus à toute navigation
   extérieure ; une valeur illisible est réécrite une fois.
 - **Aucune requête non demandée** : ouvrir ⑤ ne lit rien ; le registre se lit une fois par page, à l'arrivée d'une
   zone ou d'un jeu ; une conversion part par `valider` (ouverture de la colonne,
@@ -442,8 +442,14 @@ la plomberie ; l'écran est T10, la couche T11.
   `choisirZone(id, recette, maj)` ADOPTE la date (les couvertures lues passent sous la clé datée, `daterCouvertures`,
   et une lecture en vol n'est pas annulée : la clé d'une tâche ne porte pas la date, celle du rangement se calcule à
   l'arrivée). Une AUTRE date (zone recalculée en ③) vide tout. `GET /api/custom-geo/list` rend `updated_at`.
-- **Cible et mode de plan (T10)** : `choisirCible` / `choisirMode` avant enregistrement, hors URL (R4 de T9) ; un jeu
-  ouvert garde sa cible, son mode se change et part au PATCH. `choixDeBase` / `choixNeuf` (purs, `bilan.ts`).
+- **Cible et mode de plan (T10 ; URL depuis ⑤ finitions, T5, Q-5)** : `choisirCible` / `choisirMode` avant
+  enregistrement, écrits dans `?cibleJeu=` et `?modeJeu=` hors défauts (`parametresDe`), relus au chargement
+  (`lireCible`, `lireModeJeu` : illisible = défaut, URL réécrite), retirés quand `?jeu=` est posé (le jeu les porte) —
+  l'écart R4 de T9 est levé. Un jeu ouvert garde sa cible, son mode se change et part au PATCH. `choixDeBase` /
+  `choixNeuf` (purs, `bilan.ts`).
+- **Refus `trop_de_cercles` chiffré (E4, ⑤ finitions T5)** : `TachesJeu` dit « 481 cercles pour 200 admis par la
+  plateforme : augmentez le rayon ou le seuil. » par `texteTropDeCercles` (`ecran.ts`), qui réemploie la phrase de
+  l'avertissement `max_unites` ; sans chiffres dans le corps, la phrase du serveur.
 
 ## ⑤ Jeu de zones : l'écran (lot 5, T10, 2026-10-24)
 
@@ -511,6 +517,10 @@ la plomberie ; l'écran est T10, la couche T11.
 | `panneaux/jeu/extractions-jeu.component.ts` | `mg-extractions-jeu` : « Extraire » (commentaire, recalage) puis la liste relue ; `deja_extraite`, réponse perdue (statut 0 : « vérifiez la liste des versions ») ; résumé figé par plateforme ; une version choisie → `?x=` ; le lot 6 (fichiers) annoncé par un texte ; une extraction en vol est désabonnée quand le jeu change |
 | `panneaux/jeu/bibliotheque-jeux.component.ts` | `mg-bibliotheque-jeux` : jeux de l'espace (les deux types, badge neutre), lus à la première ouverture (`GET /api/zones/jeux?type=tous` — sans paramètre, la route ne rend que les jeux risque) ; relue quand un jeu adopté (enregistré, renommé) n'y figure pas ; ouvrir, supprimer (`mg-dialogue-suppression-zone`, `titre` / `texte`) |
 | `etat/ouvrir-jeu.ts` | `ouvrirJeuListe` : un jeu risque → module (`risques`), un jeu de zone → ⑤ `?jeu=` ; partagé avec « Mes zones » (`jeux-de-zones.component.ts`, les deux types par `JeuxApi.lister`) |
+
+- **« Mes zones › Jeux de zones » relue (E5, ⑤ finitions T5)** : un jeu enregistré ou réglé appelle
+  `OutilsCarteService.jeuxModifies()` ; `revisionJeux` monte, et `mg-jeux-de-zones` (entrées `revision`, `visible` =
+  tiroir « Mes zones » ouvert) relit sa liste au PROCHAIN affichage du tiroir — aucune lecture d'ici là.
 
 ## ⑥ Plan (lot 6, T1-T7, 2026-10-25)
 

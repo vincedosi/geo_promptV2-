@@ -5,14 +5,14 @@ import { map } from 'rxjs';
 import { CouvertureApi } from '../data/couverture.api';
 import { type DetailJeuZone, JeuxApi, type ModePlan } from '../data/jeux.api';
 import { MODES_PLAN } from '../../risques/logique/jeu';
-import { CIBLE_PAR_DEFAUT, DECOUPAGES, type Decoupage, type ResultatCouverture, lireZoneAnalyse } from '../logique/analyses/couverture';
+import { CIBLE_PAR_DEFAUT, DECOUPAGES, type Decoupage, type ResultatCouverture, lireCible, lireZoneAnalyse } from '../logique/analyses/couverture';
 import { messageErreurCouverture } from '../logique/analyses/couverture-erreurs';
 import {
   type BilanPlateforme, type ResultatCercles, bilanDe, choixDeBase, choixNeuf, cleCouverture, daterCouvertures, lectureRequise, parPlateforme, rangerCouverture,
 } from '../logique/jeu/bilan';
 import {
   type ChoixMaille, type ChoixParPlateforme, PARAM_EXTRACTION, PARAM_JEU, PARAM_MAILLES, PARAM_ZONE_JEU, type ParametresJeu, SEUIL_PAR_DEFAUT,
-  ecrireMailles, lireMailles, lireParametresJeu, lireVersion, memesParametres, parametresDe,
+  PARAM_CIBLE_JEU, PARAM_MODE_JEU, ecrireMailles, lireMailles, lireModeJeu, lireParametresJeu, lireVersion, memesParametres, parametresDe,
 } from '../logique/jeu/mailles-url';
 import { mailleSansObjet } from '../logique/jeu/conversion';
 import { MESSAGE_JEU_RISQUE } from '../logique/jeu/ecran';
@@ -31,7 +31,8 @@ class JeuRisque extends Error {
  * ⑤ Jeu de zones — l'ÉTAT (lot 5, T9) : la zone convertie, le jeu enregistré ouvert, le choix de maille par
  * plateforme, et ce que chaque choix perd. Reflété dans l'URL (A-10) : `?zoneJeu=<uuid>` (une zone, avant
  * enregistrement) ou `?jeu=<uuid>` (un jeu enregistré : sa zone et ses choix sont dedans, `?zoneJeu=` disparaît),
- * `?mailles=` (les choix EXPLICITES — écarts aux défauts, ou au jeu ouvert), `?x=<version>` (une extraction du jeu).
+ * `?mailles=` (les choix EXPLICITES — écarts aux défauts, ou au jeu ouvert), `?x=<version>` (une extraction du jeu),
+ * `?cibleJeu=` / `?modeJeu=` (cible et mode avant enregistrement, hors défauts ; ⑤ finitions, T5).
  *
  * PATRON DE `ZoneAnalyseeService` : lu à la construction, réécrit à chaque geste par `ecrireParametres` (P-g), relu
  * à toute navigation extérieure, valeur illisible réécrite une fois ; un 404 (zone ou jeu) retire son paramètre.
@@ -59,7 +60,7 @@ export class JeuZonesService {
   private readonly _extraction = signal<number | null>(null);
   /** La recette de la zone (exactitude, défauts) : du jeu ouvert, ou donnée par le sélecteur ; `null` inconnue. */
   private readonly _recette = signal<Recette | null>(null);
-  /** La cible et le mode de plan choisis AVANT enregistrement (R4 de T9 : hors URL) ; un jeu ouvert porte les siens. */
+  /** La cible et le mode choisis AVANT enregistrement (`?cibleJeu=`, `?modeJeu=`, ⑤ finitions T5) ; un jeu ouvert porte les siens. */
   private readonly _cibleChoisie = signal<string | null>(null);
   private readonly _modeChoisi = signal<ModePlan | null>(null);
   /** La date de mise à jour de la zone que le sélecteur connaît : elle entre dans la clé des couvertures (recalcul en ③). */
@@ -164,7 +165,7 @@ export class JeuZonesService {
     });
     // P-a : les effets ne font que LIRE ; navigation et lecture sont hors suivi.
     effect(() => {
-      this._zoneId(); this._jeuId(); this._reglages(); this._extraction();
+      this._zoneId(); this._jeuId(); this._reglages(); this._extraction(); this._cibleChoisie(); this._modeChoisi();
       untracked(() => this.ecrire());
     });
     effect(() => {
@@ -368,6 +369,10 @@ export class JeuZonesService {
       this._maj.set(null);
       this._zoneId.set(zone);
     }
+    if (!jeu) {
+      this._cibleChoisie.set(lireCible(b[PARAM_CIBLE_JEU]));
+      this._modeChoisi.set(lireModeJeu(b[PARAM_MODE_JEU]));
+    }
     const reglages = lireMailles(b[PARAM_MAILLES]);
     if (ecrireMailles(reglages) !== ecrireMailles(this._reglages())) this._reglages.set(reglages);
     this._extraction.set(jeu ? lireVersion(b[PARAM_EXTRACTION]) : null);
@@ -376,7 +381,8 @@ export class JeuZonesService {
   /** Écrit l'état courant sous sa forme canonique, si l'URL ne le porte pas déjà. Jamais après destruction. */
   private ecrire(): void {
     if (this.detruit) return;
-    const v = parametresDe(this._jeuId(), this._zoneId(), this._reglages(), this._extraction());
+    const avant = { cible: this._cibleChoisie(), mode: this._modeChoisi() };
+    const v = parametresDe(this._jeuId(), this._zoneId(), this._reglages(), this._extraction(), avant);
     if (memesParametres(v, this.dernier)) return;
     this.dernier = v;
     ecrireParametres(this.router, this.route.firstChild ?? this.route, v);

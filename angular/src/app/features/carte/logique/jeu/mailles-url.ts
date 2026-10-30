@@ -1,3 +1,5 @@
+import { MODES_PLAN } from '../../../risques/logique/jeu';
+import { CIBLE_PAR_DEFAUT } from '../analyses/couverture';
 import type { Recette } from '../zones/recette';
 import { MAILLES, PLATEFORMES, type Maille, type Plateforme, type PlateformeGeo } from './plateformes';
 
@@ -11,18 +13,32 @@ import { MAILLES, PLATEFORMES, type Maille, type Plateforme, type PlateformeGeo 
  * rayon est un entier positif ; ses bornes sont celles de `plateformes_geo`, vérifiées par le serveur).
  */
 
-/** Les quatre paramètres d'URL de ⑤ — ce que la version du § 18 sérialisera. */
+/**
+ * Les paramètres d'URL de ⑤ — ce que la version du § 18 sérialisera. `?cibleJeu=` et `?modeJeu=` (⑤ finitions, T5,
+ * Q-5) : la cible et le mode de plan choisis AVANT enregistrement — un lien partagé les rouvre ; un jeu ouvert porte
+ * les siens, ils disparaissent avec `?jeu=`.
+ */
 export const PARAM_ZONE_JEU = 'zoneJeu';
 export const PARAM_JEU = 'jeu';
 export const PARAM_MAILLES = 'mailles';
 export const PARAM_EXTRACTION = 'x';
+export const PARAM_CIBLE_JEU = 'cibleJeu';
+export const PARAM_MODE_JEU = 'modeJeu';
+const PARAMS = [PARAM_ZONE_JEU, PARAM_JEU, PARAM_MAILLES, PARAM_EXTRACTION, PARAM_CIBLE_JEU, PARAM_MODE_JEU] as const;
 
-/** Les valeurs BRUTES des quatre paramètres (`null` = absent) : l'état ne réécrit l'URL que si elle en diffère. */
-export type ParametresJeu = Record<typeof PARAM_ZONE_JEU | typeof PARAM_JEU | typeof PARAM_MAILLES | typeof PARAM_EXTRACTION, string | null>;
+/** Les valeurs BRUTES des paramètres (`null` = absent) : l'état ne réécrit l'URL que si elle en diffère. */
+export type ParametresJeu = Record<(typeof PARAMS)[number], string | null>;
 
-/** Les quatre paramètres d'un `ParamMap` (ou de tout objet qui sait `get`). */
+/** Les paramètres de ⑤ d'un `ParamMap` (ou de tout objet qui sait `get`). */
 export function lireParametresJeu(p: { get(cle: string): string | null }): ParametresJeu {
-  return { [PARAM_ZONE_JEU]: p.get(PARAM_ZONE_JEU), [PARAM_JEU]: p.get(PARAM_JEU), [PARAM_MAILLES]: p.get(PARAM_MAILLES), [PARAM_EXTRACTION]: p.get(PARAM_EXTRACTION) };
+  return Object.fromEntries(PARAMS.map((k) => [k, p.get(k)])) as ParametresJeu;
+}
+
+type ModeJeu = (typeof MODES_PLAN)[number];
+
+/** `?modeJeu=` → un des modes de plan, ou `null` (le défaut). Ne lève jamais. */
+export function lireModeJeu(brut: string | null | undefined): ModeJeu | null {
+  return (MODES_PLAN as readonly (string | null | undefined)[]).includes(brut) ? (brut as ModeJeu) : null;
 }
 
 export function memesParametres(a: ParametresJeu, b: ParametresJeu): boolean {
@@ -113,14 +129,21 @@ export function lireVersion(brut: string | null | undefined): number | null {
 }
 
 /**
- * La forme canonique des quatre paramètres pour un état : `?jeu=` l'emporte (zone et choix sont dedans, `?zoneJeu=`
- * disparaît) ; `?mailles=` seulement avec une zone ou un jeu ; `?x=` seulement avec un jeu.
+ * La forme canonique des paramètres pour un état : `?jeu=` l'emporte (zone et choix sont dedans, `?zoneJeu=`
+ * disparaît) ; `?mailles=` seulement avec une zone ou un jeu ; `?x=` seulement avec un jeu ; `?cibleJeu=` et
+ * `?modeJeu=` avec une zone SANS jeu, et hors défauts (`avant` : la cible et le mode choisis, `null` = aucun).
  */
-export function parametresDe(jeu: string | null, zone: string | null, reglages: ChoixParPlateforme, extraction: number | null): ParametresJeu {
+export function parametresDe(
+  jeu: string | null, zone: string | null, reglages: ChoixParPlateforme, extraction: number | null,
+  avant: { cible: string | null; mode: ModeJeu | null } = { cible: null, mode: null },
+): ParametresJeu {
+  const sansJeu = !jeu && !!zone;
   return {
     [PARAM_ZONE_JEU]: jeu ? null : zone,
     [PARAM_JEU]: jeu,
     [PARAM_MAILLES]: jeu || zone ? ecrireMailles(reglages) : null,
     [PARAM_EXTRACTION]: jeu && extraction !== null ? String(extraction) : null,
+    [PARAM_CIBLE_JEU]: sansJeu && avant.cible !== null && avant.cible !== CIBLE_PAR_DEFAUT ? avant.cible : null,
+    [PARAM_MODE_JEU]: sansJeu && avant.mode !== null && avant.mode !== MODES_PLAN[0] ? avant.mode : null,
   };
 }
