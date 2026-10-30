@@ -13,6 +13,7 @@ import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { CaptureComponent } from './capture.component';
 import { CreerCodesPostauxComponent } from './creer-codes-postaux.component';
 import { CreerDessinComponent } from './creer-dessin.component';
+import { CreerPaysComponent } from './creer-pays.component';
 import { CreerRayonComponent } from './creer-rayon.component';
 import { PiedRecetteComponent } from './pied-recette.component';
 import { RecetteImportComponent } from './recette-import.component';
@@ -51,7 +52,7 @@ export const LIGNE_METROPOLE =
  *   - « Autour des POI » : le rayon autour d'un point (`mg-creer-rayon`, lot 4) et le rayon autour d'un type de POI,
  *     puis le renvoi vers ④ (T11) : isochrones et bataille s'y lancent, inchangées, et leur capture devient une zone ;
  *   - « Par seuil » : carreaux de 200 m, IRIS ou codes postaux au-dessus d'un seuil ;
- *   - « À la main » : le dessin, l'import GeoJSON / KML, la liste de codes postaux ;
+ *   - « À la main » : le dessin, l'import GeoJSON / KML, la liste de codes postaux, la zone nationale (④ finitions, T6) ;
  *   - « Capture » : le bouton existant, libellé inchangé (arbitrage P25 : en dernier).
  *
  * En tête, la ligne du périmètre de ① — qui borne les familles lourdes. Sous les familles, UN pied
@@ -78,7 +79,7 @@ export const LIGNE_METROPOLE =
 @Component({
   selector: 'mg-panneau-zones',
   imports: [
-    CaptureComponent, CreerCodesPostauxComponent, CreerDessinComponent, CreerRayonComponent, EnteteSectionComponent, IconeComponent,
+    CaptureComponent, CreerCodesPostauxComponent, CreerDessinComponent, CreerPaysComponent, CreerRayonComponent, EnteteSectionComponent, IconeComponent,
     PiedRecetteComponent, RecetteImportComponent, RecetteRayonPoiComponent, RecetteSeuilCarreauxComponent, RecetteSeuilTerritoireComponent,
   ],
   // L'atelier (lot 3, T9) au panneau, qui reste monté entre les étapes. Le catalogue d'indicateurs vient de la PAGE (X4).
@@ -115,6 +116,8 @@ export const LIGNE_METROPOLE =
         <div class="px-3.5 pb-1"><mg-creer-dessin [enPause]="tiroirs.ouvert() !== 'main'" (cree)="relire()" /></div>
         <mg-recette-import #importForme [class.recette-active]="actif() === 'import'" (focusin)="actif.set('import')" (click)="actif.set('import')" />
         <div class="px-3.5 pb-3"><mg-creer-codes-postaux (cree)="relire()" /></div>
+        <!-- ④ finitions (T6, A-3) : la zone nationale, prête, sans formulaire (campagne nationale, décision du 25/10). -->
+        <div class="px-3.5 pb-3"><mg-creer-pays (cree)="relire()" /></div>
       </div>
     }
 

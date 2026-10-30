@@ -342,6 +342,11 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 
 - **Score sur une zone introuvable (T5, A-2)** : le 404 `zone_introuvable` de `POST /api/analyses/score` passe par
   `ZoneAnalyseeService.siIntrouvable` (la zone quitte ④) ; le message reste affiché.
+- **Zone nationale (T6, A-3, A-4)** : `panneaux/zones/creer-pays.component.ts` (`mg-creer-pays`, famille « À la main »
+  de ③) écrit `{ v: 1, type: 'pays', code: 'METRO' | 'FR' }` par `POST /api/zones` — deux boutons inactifs dès le premier
+  clic, 207 = réussite, réponse perdue → « vérifiez Mes zones ». En ④, `mg-outil-couverture` reconnaît la zone pays à sa
+  RECETTE (la ligne `lue` de `mg-choix-zone-analysee`, aucune lecture de plus) : « Par IRIS » y est inactive
+  (`mg-pastilles [inactives]`) avec la phrase `decoupage_trop_fin_pays`, et « Chiffrer » ne part pas sur IRIS.
 
 ## ⑤ Jeu de zones : l'état (lot 5, T9, 2026-10-24)
 

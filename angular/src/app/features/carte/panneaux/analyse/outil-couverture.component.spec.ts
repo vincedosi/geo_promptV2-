@@ -60,7 +60,7 @@ async function monter(zone: string | null = A) {
   const el = f.nativeElement as HTMLElement;
   const stable = async () => { await new Promise((r) => setTimeout(r, 0)); await f.whenStable(); };
   await stable();
-  return { f, el, z, cibles, stable, couverture };
+  return { f, el, z, cibles, stable, couverture, listes };
 }
 
 describe('mg-outil-couverture (lot 4, T8)', () => {
@@ -217,5 +217,59 @@ describe('mg-outil-couverture (lot 4, T8)', () => {
     await stable();
     expect(couverture.afficher).toHaveBeenCalledTimes(1);
     expect(z.chiffrer).not.toHaveBeenCalled();
+  });
+});
+
+/** ④ finitions (T6, A-4) : une zone « France entière » se chiffre par la population nationale, jamais par IRIS. */
+describe('mg-outil-couverture — zone pays', () => {
+  const PAYS = { id: A, name: 'France métropolitaine', recette: { v: 1, type: 'pays', code: 'METRO' } };
+  const servir = async (m: Awaited<ReturnType<typeof monter>>, zones: unknown[]) => {
+    m.listes.next({ zones: zones as never[] });
+    await m.stable();
+  };
+
+  it('« Par IRIS » inactive, et l’écran dit pourquoi ; « Par code postal » reste offerte', async () => {
+    const m = await monter();
+    await servir(m, [PAYS]);
+    const iris = m.el.querySelector<HTMLButtonElement>('[data-pastille="iris"]')!;
+    expect(iris.disabled).toBe(true);
+    expect(m.el.querySelector<HTMLButtonElement>('[data-pastille="cp"]')!.disabled).toBe(false);
+    expect(m.el.querySelector('[data-iris-pays]')!.textContent).toContain('choisissez le découpage par code postal');
+  });
+
+  it('une zone non pays garde « Par IRIS » ; un lien arrivé sur IRIS ne chiffre pas une zone pays', async () => {
+    const autre = await monter();
+    await servir(autre, [{ ...PAYS, recette: { v: 1, type: 'dessin' } }]);
+    expect(autre.el.querySelector<HTMLButtonElement>('[data-pastille="iris"]')!.disabled).toBe(false);
+    expect(autre.el.querySelector('[data-iris-pays]')).toBeNull();
+    TestBed.resetTestingModule();
+    const m = await monter();
+    m.z.decoupage.set('iris');
+    await servir(m, [PAYS]);
+    expect(m.el.querySelector<HTMLButtonElement>('[data-chiffrer]')!.disabled).toBe(true);
+  });
+
+  it('« Telle quelle » : la population nationale, avec la phrase de référence (Q-J)', async () => {
+    const m = await monter();
+    await servir(m, [PAYS]);
+    m.z.resultat.set({ ...BASE, surface_km2: 547779, n_carreaux: 2_300_000, population: 63_711_780 });
+    await m.stable();
+    expect(m.el.querySelector('[data-resultat]')!.textContent).toContain(formaterNombre(63_711_780));
+    expect(m.el.querySelector('[data-reference]')!.textContent).toContain('ménages fiscaux carroyés');
+  });
+
+  it('« Par code postal » : le tableau des CP, chacun à 100 %', async () => {
+    const m = await monter();
+    await servir(m, [PAYS]);
+    m.z.decoupage.set('cp');
+    m.z.resultat.set({
+      ...BASE, decoupage: 'cp', n_territoires: 2, population: 30,
+      lignes: [
+        { code: '75001', nom: 'Paris', commune: null, n_carreaux: 10, pop_en_zone: 20, pop_totale: 20, part: 100 },
+        { code: '01000', nom: 'Bourg-en-Bresse', commune: null, n_carreaux: 5, pop_en_zone: 10, pop_totale: 10, part: 100 },
+      ],
+    });
+    await m.stable();
+    expect(m.el.querySelector('mg-tableau-couverture-zone')).not.toBeNull();
   });
 });

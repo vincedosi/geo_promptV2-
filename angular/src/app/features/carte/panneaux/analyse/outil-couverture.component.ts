@@ -5,8 +5,9 @@ import { KpiComponent } from '../../../../ui/kpi/kpi.component';
 import { CouvertureService } from '../../couches/couverture.service';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
 import { dateFr } from '../../logique/analyses/commun';
+import type { ZoneCustomResume } from '../../data/zones-custom.api';
 import {
-  CIBLE_PAR_DEFAUT, DECOUPAGES_ANALYSE, avertissementNonCarroye, libelleDecoupage, ligneHorsTerritoire, messageZoneVide,
+  CIBLE_PAR_DEFAUT, DECOUPAGES_ANALYSE, type DecoupageAnalyse, MESSAGES_REFUS_COUVERTURE, avertissementNonCarroye, libelleDecoupage, ligneHorsTerritoire, messageZoneVide,
   phraseReference,
 } from '../../logique/analyses/couverture';
 import { libellesPaliers } from '../../couches/couche-unites';
@@ -52,18 +53,19 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
           Combien de personnes de la cible vivent dans une zone enregistrée — telle quelle, ou territoire par territoire.
         </div>
 
-        <mg-choix-zone-analysee [zoneId]="z.zoneId()" (choisie)="z.choisir($event)" />
+        <mg-choix-zone-analysee [zoneId]="z.zoneId()" (choisie)="z.choisir($event)" (lue)="lue.set($event)" />
 
         <mg-choix-cible [cible]="z.cible()" (choisie)="z.regler({ cible: $event })" />
 
         <div>
           <div [class]="libelleChamp">Découpage</div>
-          <mg-pastilles libelle="Découpage" [options]="decoupages" [valeur]="z.decoupage()" (valeurChange)="z.regler({ decoupage: $event })" />
+          <mg-pastilles libelle="Découpage" [options]="decoupages" [valeur]="z.decoupage()" [inactives]="decoupagesInactifs()" (valeurChange)="z.regler({ decoupage: $event })" />
+          @if (pays()) { <div data-iris-pays class="mt-1.5 text-[11px] leading-[1.5] text-tertiary">{{ irisPays }}</div> }
         </div>
 
         @if (z.erreur(); as e) { <div data-erreur role="alert" [class]="encartErreur">{{ e }}</div> }
 
-        <button type="button" data-chiffrer [disabled]="!z.zoneId() || z.enCours()" (click)="z.chiffrer()" [class]="boutonCalcul">
+        <button type="button" data-chiffrer [disabled]="!chiffrable()" (click)="z.chiffrer()" [class]="boutonCalcul">
           {{ z.enCours() ? 'Chiffrage…' : 'Chiffrer la zone' }}
         </button>
         @if (etape(); as e) {
@@ -187,6 +189,21 @@ export class OutilCouvertureComponent {
     return r ? ligneHorsTerritoire(r) : null;
   });
   protected readonly surface = computed(() => Math.round(this.z.resultat()?.surface_km2 ?? 0));
+
+  /**
+   * ④ finitions (T6, A-4) : la ligne de la zone choisie, rendue par `mg-choix-zone-analysee` (la liste qu'il lit déjà
+   * pour la nommer : aucune lecture de plus). Une zone PAYS se reconnaît à sa recette : « Par IRIS » y est inactive
+   * (48 872 lignes, refusé par la base sans lecture), et l'écran dit pourquoi.
+   */
+  protected readonly lue = signal<ZoneCustomResume | null>(null);
+  protected readonly pays = computed(() => {
+    const l = this.lue();
+    return l !== null && l.id === this.z.zoneId() && l.recette?.type === 'pays';
+  });
+  protected readonly decoupagesInactifs = computed<readonly DecoupageAnalyse[]>(() => (this.pays() ? ['iris'] : []));
+  protected readonly irisPays = MESSAGES_REFUS_COUVERTURE.decoupage_trop_fin_pays;
+  /** Un lien arrivé sur « Par IRIS » ne chiffre pas une zone pays : la phrase est déjà à l'écran. */
+  protected readonly chiffrable = computed(() => !!this.z.zoneId() && !this.z.enCours() && !(this.pays() && this.z.decoupage() === 'iris'));
 
   /**
    * L'étape en cours du chiffrage (retours du 26/10, arbitrage 1 de Vincent le 27/10 : ④ s'ouvre sur la couverture, une

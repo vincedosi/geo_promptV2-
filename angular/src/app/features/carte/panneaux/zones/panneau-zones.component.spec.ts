@@ -26,6 +26,7 @@ import { PileEchapService } from '../../etat/pile-echap.service';
 import { CaptureComponent } from './capture.component';
 import { CreerCodesPostauxComponent } from './creer-codes-postaux.component';
 import { CreerDessinComponent } from './creer-dessin.component';
+import { CreerPaysComponent } from './creer-pays.component';
 import { CreerRayonComponent } from './creer-rayon.component';
 import { PanneauZonesComponent } from './panneau-zones.component';
 import { PiedRecetteComponent } from './pied-recette.component';
@@ -56,6 +57,8 @@ class DessinFactice {
     inject(DestroyRef).onDestroy(() => etat.rendreCarte('dessin'));
   }
 }
+@Component({ selector: 'mg-creer-pays', template: '<button data-creer-pays>France métropolitaine</button><button data-creer-pays>France entière</button>' })
+class PaysFactice { readonly cree = output<void>(); }
 @Component({ selector: 'mg-capture', template: '' })
 class CaptureFactice { readonly cree = output<void>(); readonly fermer = output<void>(); }
 const R_POI: Recette = { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 5000, perimetre: { type: 'departement', code: '13' } };
@@ -86,11 +89,11 @@ async function monter(filtre: FiltreActif | null = null) {
   ] });
   TestBed.overrideComponent(PanneauZonesComponent, {
     remove: {
-      imports: [CaptureComponent, CreerCodesPostauxComponent, CreerDessinComponent, CreerRayonComponent, PiedRecetteComponent,
+      imports: [CaptureComponent, CreerCodesPostauxComponent, CreerDessinComponent, CreerPaysComponent, CreerRayonComponent, PiedRecetteComponent,
         RecetteImportComponent, RecetteRayonPoiComponent, RecetteSeuilCarreauxComponent, RecetteSeuilTerritoireComponent],
     },
     add: {
-      imports: [CaptureFactice, CodesPostauxFactice, DessinFactice, RayonFactice, PiedFactice, RayonPoiFactice, CarreauxFactice, TerritoireFactice, ImportFactice],
+      imports: [CaptureFactice, CodesPostauxFactice, DessinFactice, PaysFactice, RayonFactice, PiedFactice, RayonPoiFactice, CarreauxFactice, TerritoireFactice, ImportFactice],
     },
   });
   TestBed.inject(EtatCarteService).filtre.set(filtre);
@@ -183,6 +186,16 @@ describe('PanneauZonesComponent — ③ rangée par familles (lot 3, T10)', () =
     expect(outils.revisionZones()).toBe(1);
     (fixture.debugElement.query(By.directive(RayonFactice)).componentInstance as RayonFactice).cree.emit();
     expect(outils.revisionZones()).toBe(2);
+  });
+
+  it('④ finitions (T6) : « À la main » offre la zone nationale ; une zone pays créée relit « Mes zones »', async () => {
+    const { fixture, el, outils, ouvrirFamille } = await monter();
+    expect(el.querySelector('mg-creer-pays')).toBeNull();
+    await ouvrirFamille('main');
+    expect([...el.querySelectorAll('[data-corps-famille="main"] [data-creer-pays]')].map((b) => b.textContent!.trim()))
+      .toEqual(['France métropolitaine', 'France entière']);
+    (fixture.debugElement.query(By.directive(PaysFactice)).componentInstance as PaysFactice).cree.emit();
+    expect(outils.revisionZones()).toBe(1);
   });
 
   it('« Ouvrir « Mes zones » » ouvre l’outil, bouton neutre', async () => {
