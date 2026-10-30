@@ -49,7 +49,13 @@ export const MESSAGE_SANS_ZONE = 'Choisissez une zone en tête de ④.';
 /** Aucun POI typé dans la zone (A-7). */
 export const MESSAGE_AUCUN_POI_TYPE = 'Aucun POI typé dans cette zone : les typologies sont calculées par l’équipe dentsu (CIRFA aujourd’hui).';
 /** Plus de 5 000 POI typés : la carte n'en montre qu'une partie, le tableau compte tout. */
-export const MESSAGE_TRONQUE = 'Plus de 5 000 POI typés dans la zone : la carte n’en montre qu’une partie ; le tableau les compte tous.';
+/**
+ * La population d'une typologie est la SOMME des populations couvertes par les isochrones de ses POI : un habitant
+ * couvert par deux POI est compté deux fois (preuve T9, O-1 : 68,8 M à 60 min, plus que la France). Le calcul ne change
+ * pas, le libellé le dit.
+ */
+export const MESSAGE_POPULATION_CUMULEE = 'Population cumulée des zones couvertes par les POI : un habitant couvert par plusieurs POI est compté plusieurs fois.';
+export const MESSAGE_TRONQUE ='Plus de 5 000 POI typés dans la zone : la carte n’en montre qu’une partie ; le tableau les compte tous.';
 
 /** Les huit teintes qualitatives (`--nature-*`, catégories sans ordre) et le cerne des points. */
 export const JETONS_TYPOLOGIES = {

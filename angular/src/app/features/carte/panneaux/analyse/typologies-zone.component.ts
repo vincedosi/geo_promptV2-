@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { formaterNombre } from '../../../../core/format/nombre';
 import { TypologiesZoneService } from '../../etat/typologies-zone.service';
 import {
-  MESSAGE_AUCUN_POI_TYPE, MESSAGE_SANS_ZONE, MESSAGE_TRONQUE, type ModeleTypologies, cleModele, jetonTypologie, libelleModele,
+  MESSAGE_AUCUN_POI_TYPE, MESSAGE_POPULATION_CUMULEE, MESSAGE_SANS_ZONE, MESSAGE_TRONQUE, type ModeleTypologies, cleModele, jetonTypologie, libelleModele,
   libelleTypologie,
 } from '../../logique/analyses/typologies';
 import { EnteteOutilComponent } from './entete-outil.component';
@@ -52,7 +52,7 @@ import { CORPS_ACCORDEON, ENCART_ERREUR, LIBELLE_CHAMP } from './styles-analyse'
                   <tr class="text-left text-tertiary">
                     <th scope="col" class="py-1 font-normal">Typologie</th>
                     <th scope="col" class="py-1 text-right font-normal">POI</th>
-                    <th scope="col" class="py-1 text-right font-normal">Population</th>
+                    <th scope="col" class="py-1 text-right font-normal" [attr.title]="cumulee">Population cumulée</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -68,6 +68,7 @@ import { CORPS_ACCORDEON, ENCART_ERREUR, LIBELLE_CHAMP } from './styles-analyse'
                   }
                 </tbody>
               </table>
+              <div data-population-cumulee class="text-[11px] leading-[1.5] text-tertiary">{{ cumulee }}</div>
             }
             @if (r.tronque) { <div data-tronque class="text-[11px] leading-[1.5] text-secondary">{{ tronque }}</div> }
           }
@@ -84,6 +85,7 @@ export class TypologiesZoneComponent {
   protected readonly sansZone = MESSAGE_SANS_ZONE;
   protected readonly aucun = MESSAGE_AUCUN_POI_TYPE;
   protected readonly tronque = MESSAGE_TRONQUE;
+  protected readonly cumulee = MESSAGE_POPULATION_CUMULEE;
   protected readonly nombre = formaterNombre;
   protected readonly nom = libelleTypologie;
   protected readonly libelle = libelleModele;

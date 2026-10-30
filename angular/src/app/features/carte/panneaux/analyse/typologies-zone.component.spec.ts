@@ -10,7 +10,7 @@ import { CouchesCarteService } from '../../etat/couches-carte.service';
 import { FOURNIR_TIROIRS_ANALYSE, TIROIRS_ANALYSE } from '../../etat/tiroirs-analyse';
 import { TypologiesZoneService } from '../../etat/typologies-zone.service';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
-import { MESSAGE_AUCUN_POI_TYPE, MESSAGE_TRONQUE, type ResultatTypologies } from '../../logique/analyses/typologies';
+import { MESSAGE_AUCUN_POI_TYPE, MESSAGE_POPULATION_CUMULEE, MESSAGE_TRONQUE, type ResultatTypologies } from '../../logique/analyses/typologies';
 import { TypologiesZoneComponent } from './typologies-zone.component';
 
 const Z1 = '0f8fad5b-d9cb-469f-a165-70867728950e';
@@ -199,6 +199,16 @@ describe('mg-typologies-zone — relecture 2', () => {
     expect(m.typologies).toHaveBeenCalledTimes(2);
     await m.servir();
     expect(m.carte.couches.has(COUCHE_TYPOLOGIES)).toBe(true);
+  });
+
+  it('preuve T9 (O-1) : la population est dite cumulée, recouvrements comptés deux fois', async () => {
+    const m = await monter();
+    await m.basculer();
+    await m.servir();
+    const entete = m.el.querySelector('[data-tableau-typologies] th:nth-child(3)')!;
+    expect(entete.textContent!.trim()).toBe('Population cumulée');
+    expect(entete.getAttribute('title')).toBe(MESSAGE_POPULATION_CUMULEE);
+    expect(m.el.querySelector('[data-population-cumulee]')!.textContent!.trim()).toBe(MESSAGE_POPULATION_CUMULEE);
   });
 
   it('tronque : la phrase est dite, le tableau compte tout', async () => {
