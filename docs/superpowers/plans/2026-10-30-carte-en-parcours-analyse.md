@@ -219,17 +219,17 @@ En attendant les réponses, le plan applique les recommandations. Chaque arbitra
 
 ### Task 0 : la suite redevient verte (effort XS, 0,05 j)
 
-- [ ] `npx vitest run --project unit tests/unit/angular/taille-fichiers.test.ts` : FAIL constaté (404 lignes).
-- [ ] Extraire de `mes-zones.component.ts` un bloc cohérent (gestion des gestes : dupliquer et recalculer) dans `logique/zones/gestes-zone.ts`, comme l'autorisait la T5 de ③ finitions, à comportement constant. Les specs de `mes-zones` ne changent pas.
-- [ ] Test vert ; `cd angular && npx ng test --watch=false --include='src/app/features/carte/panneaux/zones/**'`.
-- [ ] Commit `fix(angular): Mes zones repasse sous 400 lignes (④ finitions, T0)`.
+- [x] `npx vitest run --project unit tests/unit/angular/taille-fichiers.test.ts` : FAIL constaté (404 lignes).
+- [x] Extraire de `mes-zones.component.ts` un bloc cohérent (gestion des gestes : dupliquer et recalculer) dans `logique/zones/gestes-zone.ts`, comme l'autorisait la T5 de ③ finitions, à comportement constant. Les specs de `mes-zones` ne changent pas.
+- [x] Test vert ; `cd angular && npx ng test --watch=false --include='src/app/features/carte/panneaux/zones/**'`.
+- [x] Commit `fix(angular): Mes zones repasse sous 400 lignes (④ finitions, T0)`.
 
 ## Groupe A — serveur (relecture 1)
 
 ### Task 1 : le score sur une zone prend les CP de la couverture (effort S, 0,3 j)
 
-- [ ] **Mesure d'abord** : prototype dans une transaction annulée, puis `EXPLAIN (ANALYZE, BUFFERS)` sur la zone composite (`919ca65d…`, 13 001 km²) et sur un disque de 2 km en (0,5 ; 45,9). Cibles : ≤ 0,6 s à chaud et ≤ 40 000 buffers ; 2 CP pour le disque.
-- [ ] Revérifier le numéro libre (295). **Tests d'abord**, dans `tests/integration/analyse-finitions.test.ts` :
+- [x] **Mesure d'abord** : prototype dans une transaction annulée, puis `EXPLAIN (ANALYZE, BUFFERS)` sur la zone composite (`919ca65d…`, 13 001 km²) et sur un disque de 2 km en (0,5 ; 45,9). Cibles : ≤ 0,6 s à chaud et ≤ 40 000 buffers ; 2 CP pour le disque.
+- [x] Revérifier le numéro libre (295). **Tests d'abord**, dans `tests/integration/analyse-finitions.test.ts` :
   - (a) zone-disque créée par le test, puis supprimée → `codes_postaux_de_zone_jsonb` rend les mêmes codes que `couverture_geometrie(…,'cp')->'lignes'[*].code` (égalité d'ensembles) ;
   - (b) zone composite → 895 codes (valeur mesurée, écrite dans le test) ;
   - (c) zone d'un autre espace → `zone_introuvable` ;
@@ -241,52 +241,52 @@ En attendant les réponses, le plan applique les recommandations. Chaque arbitra
   - les autres types sont inchangés, octet pour octet.
 
   FAIL attendu.
-- [ ] `sql/295_codes_postaux_de_zone.sql` (A-1). Appliquer en local deux fois. `comment on function`, `grant execute … to service_role` seulement.
-- [ ] Route : extraire la résolution du périmètre dans `lib/analyses/perimetre-score.ts` (la route redescend sous 370 lignes), puis brancher la zone sur la RPC (A-1, A-2). Régénérer `types/database.types.ts` (le diff n'ajoute que la RPC).
-- [ ] `ARCHITECTURE.md` (`Grep "api/analyses/score"`, `"codes_postaux_du_perimetre"`) : règle unique, écart React. `npx tsc --noEmit`, `npm run test:unit`, `npm run test:integration`, codes de retour lus sans pipe.
-- [ ] Commit `fix(api): le score sur une zone prend les codes postaux de la couverture (④ finitions, T1)`.
+- [x] `sql/295_codes_postaux_de_zone.sql` (A-1). Appliquer en local deux fois. `comment on function`, `grant execute … to service_role` seulement.
+- [x] Route : extraire la résolution du périmètre dans `lib/analyses/perimetre-score.ts` (la route redescend sous 370 lignes), puis brancher la zone sur la RPC (A-1, A-2). Régénérer `types/database.types.ts` (le diff n'ajoute que la RPC).
+- [x] `ARCHITECTURE.md` (`Grep "api/analyses/score"`, `"codes_postaux_du_perimetre"`) : règle unique, écart React. `npx tsc --noEmit`, `npm run test:unit`, `npm run test:integration`, codes de retour lus sans pipe.
+- [x] Commit `fix(api): le score sur une zone prend les codes postaux de la couverture (④ finitions, T1)`.
 
 ### Task 2 : la zone « France entière » et sa couverture nationale (effort M, 0,45 j — si Q-2 = oui)
 
-- [ ] **Mesure** : union des régions (métropole et France) ; `couverture_pays_jsonb` prototypée en `forme`, `cp` et `departement`, avec la cible `ind` puis une cible du catalogue (`rang_pop` 5). Cible : < 50 ms, < 2 000 buffers, `cp` < 300 Ko.
-- [ ] Revérifier le numéro libre (296). **Tests d'abord**, dans `analyse-finitions.test.ts` :
+- [x] **Mesure** : union des régions (métropole et France) ; `couverture_pays_jsonb` prototypée en `forme`, `cp` et `departement`, avec la cible `ind` puis une cible du catalogue (`rang_pop` 5). Cible : < 50 ms, < 2 000 buffers, `cp` < 300 Ko.
+- [x] Revérifier le numéro libre (296). **Tests d'abord**, dans `analyse-finitions.test.ts` :
   - recette `pays` `METRO` → zone créée, `ST_NumGeometries` ≥ 1, aucune intersection avec la région `03` ;
   - `couverture_zone` d'une zone pays : `forme` = somme de `cp_population_totale` hors DROM (valeur mesurée) ; `cp` = 100 % partout et nombre de lignes = nombre de CP métropolitains ; `iris` → `decoupage_trop_fin_pays`, sans lecture ;
   - une zone NON pays de plus de 100 000 km² → toujours `zone_trop_vaste` ;
   - rejouer la migration → aucun changement.
 
   Dans `tests/unit/zones/recette.test.ts` : schéma `pays` (`METRO` | `FR`, tout le reste refusé), `libelleRecette` (« France métropolitaine » / « France entière »), recette figée, message de ⑤ (A-5). FAIL attendu.
-- [ ] `sql/296_zone_pays.sql` : la géométrie pays (`zone_pays_geometrie(p_code)`), `couverture_pays_jsonb`, et `couverture_zone` en `create or replace` (branche pays AVANT la borne de surface ; corps sinon inchangé, diff relu ligne à ligne). Appliquer deux fois.
-- [ ] `recette-schema.ts`, `recette.ts`, `executer-recette.ts` (A-3), `lib/zones/couverture.ts` (refus `decoupage_trop_fin_pays` et message de ⑤, A-5). Types régénérés.
-- [ ] `ARCHITECTURE.md` (`Grep "couverture_zone"`, `"recette"`). tsc, unit, integration.
-- [ ] Commit `feat: zone « France entière » et sa couverture nationale, sans lecture de carreaux (④ finitions, T2)`.
+- [x] `sql/296_zone_pays.sql` : la géométrie pays (`zone_pays_geometrie(p_code)`), `couverture_pays_jsonb`, et `couverture_zone` en `create or replace` (branche pays AVANT la borne de surface ; corps sinon inchangé, diff relu ligne à ligne). Appliquer deux fois.
+- [x] `recette-schema.ts`, `recette.ts`, `executer-recette.ts` (A-3), `lib/zones/couverture.ts` (refus `decoupage_trop_fin_pays` et message de ⑤, A-5). Types régénérés.
+- [x] `ARCHITECTURE.md` (`Grep "couverture_zone"`, `"recette"`). tsc, unit, integration.
+- [x] Commit `feat: zone « France entière » et sa couverture nationale, sans lecture de carreaux (④ finitions, T2)`.
 
 ### Task 3 : la bataille V2 sur la zone analysée (effort S-M, 0,4 j — si Q-4 = oui)
 
-- [ ] **Mesure** : `poi_de_zone` prototypée, catégorie d'abord, sur la zone composite (`cirfa`, `lycee`) et sur une zone départementale (`lycee`). Cible : < 100 ms, < 2 000 buffers. Le plan sans `MATERIALIZED` est relevé et comparé (le piège GiST des retours du 26/10 : 306 000 buffers).
-- [ ] Revérifier le numéro libre (297). **Tests d'abord** : `tests/integration/bataille-v2-zone.test.ts` (handler appelé, auth mockée, patron de `bataille-v2-borne.test.ts`), avec quatre cas :
+- [x] **Mesure** : `poi_de_zone` prototypée, catégorie d'abord, sur la zone composite (`cirfa`, `lycee`) et sur une zone départementale (`lycee`). Cible : < 100 ms, < 2 000 buffers. Le plan sans `MATERIALIZED` est relevé et comparé (le piège GiST des retours du 26/10 : 306 000 buffers).
+- [x] Revérifier le numéro libre (297). **Tests d'abord** : `tests/integration/bataille-v2-zone.test.ts` (handler appelé, auth mockée, patron de `bataille-v2-borne.test.ts`), avec quatre cas :
   - `cirfa` sur une zone Bretagne → `result` dont tous les POI sont dans la zone ;
   - zone d'un autre espace → `error` « Zone introuvable dans cet espace. » sans lecture de POI ;
   - zone pays → la phrase d'A-6 ;
   - la clé rendue (`battleCacheKey`) contient `__z<id>_` et finit par `__p<empreinte>`.
 
   Plus un test de recalcul : une zone recalculée (`updated_at` changé) produit une clé différente. FAIL attendu.
-- [ ] `sql/297_poi_de_zone.sql` (A-6), la route (`zone_id`). Aucune autre ligne de la route ne change. La route protégée et les fonctions de bataille sont intactes (`git diff --stat`).
-- [ ] `ARCHITECTURE.md` (`Grep "isochrone-battle-v2"`). tsc, unit, integration (le test ne lance jamais plus de 300 anneaux).
-- [ ] Commit `feat(api): bataille V2 sur une zone enregistrée (④ finitions, T3)`.
+- [x] `sql/297_poi_de_zone.sql` (A-6), la route (`zone_id`). Aucune autre ligne de la route ne change. La route protégée et les fonctions de bataille sont intactes (`git diff --stat`).
+- [x] `ARCHITECTURE.md` (`Grep "isochrone-battle-v2"`). tsc, unit, integration (le test ne lance jamais plus de 300 anneaux).
+- [x] Commit `feat(api): bataille V2 sur une zone enregistrée (④ finitions, T3)`.
 
 ### Task 4 : les typologies d'une zone (effort S, 0,3 j — si Q-3 = oui)
 
-- [ ] **Mesure** : `typologies_de_zone` prototypée sur une zone Bretagne de la Marine (CIRFA typés) et sur une zone sans POI typé. `EXPLAIN` au rapport.
-- [ ] Revérifier le numéro libre (298). **Tests d'abord**, dans `analyse-finitions.test.ts` :
+- [x] **Mesure** : `typologies_de_zone` prototypée sur une zone Bretagne de la Marine (CIRFA typés) et sur une zone sans POI typé. `EXPLAIN` au rapport.
+- [x] Revérifier le numéro libre (298). **Tests d'abord**, dans `analyse-finitions.test.ts` :
   - zone Marine → les CIRFA de la zone, une ligne par POI et par (durée, mode) du DERNIER modèle ;
   - le même appel avec les sources d'un AUTRE espace → 0 POI (la source CIRFA est privée) ;
   - zone sans POI typé → liste vide et `motif: 'aucun_poi_type'`.
 
   Dans `tests/unit/api/typologies-route.test.ts` : 401, 404 (autre espace), 429 (quota `geo:rl:couverture`), 200, et le fait que la route n'exige PAS le super admin. FAIL attendu.
-- [ ] `sql/298_typologies_de_zone.sql` (A-7), la route (`getOrgSourceIds({…}, { vueEspace: true })`, `espaceDeZone`). Inscrire la route dans `perimetre-routes.test.ts` et dans les tests de validation.
-- [ ] `ARCHITECTURE.md` (route et RPC neuves ; § clustering : « lecture ouverte, calcul réservé »). tsc, unit, integration.
-- [ ] Commit `feat(api): typologies des POI d'une zone, en lecture pour tous (④ finitions, T4)`.
+- [x] `sql/298_typologies_de_zone.sql` (A-7), la route (`getOrgSourceIds({…}, { vueEspace: true })`, `espaceDeZone`). Inscrire la route dans `perimetre-routes.test.ts` et dans les tests de validation.
+- [x] `ARCHITECTURE.md` (route et RPC neuves ; § clustering : « lecture ouverte, calcul réservé »). tsc, unit, integration.
+- [x] Commit `feat(api): typologies des POI d'une zone, en lecture pour tous (④ finitions, T4)`.
 
 **Relecture 1** (T1 à T4, une passe, le modèle le plus capable). Questions :
 - Une RPC lit-elle un carreau pour une zone pays ?
@@ -299,42 +299,42 @@ En attendant les réponses, le plan applique les recommandations. Chaque arbitra
 
 ### Task 5 : le score suit la zone, la pastille dit vrai, le score factorisé (effort S, 0,3 j)
 
-- [ ] **Specs d'abord :**
+- [x] **Specs d'abord :**
   - `score-composite.service.spec.ts` : un 404 `zone_introuvable` retire la zone de ④ (`siIntrouvable`) et garde le message ; un 400 de la route affiche son texte.
   - `carte.page.spec.ts` / `carte.fournisseurs.spec.ts` : la pastille de ④ s'allume sur une bataille V2 peinte et sur un signal du registre `analyses-peintes` (A-8).
   - `outil-score.component.spec.ts` : inchangé, et vert après la factorisation (A-10).
-- [ ] Implémentation : A-2 côté écran, A-8, A-10.
-- [ ] ng test, tsc. Commit `fix(angular): ④ le score retire une zone introuvable, la pastille compte toutes les analyses peintes (④ finitions, T5)`.
+- [x] Implémentation : A-2 côté écran, A-8, A-10.
+- [x] ng test, tsc. Commit `fix(angular): ④ le score retire une zone introuvable, la pastille compte toutes les analyses peintes (④ finitions, T5)`.
 
 ### Task 6 : « France entière » en ③, couverture nationale en ④ (effort S, 0,35 j — si Q-2 = oui)
 
-- [ ] **Specs d'abord :**
+- [x] **Specs d'abord :**
   - ③ : deux boutons « France métropolitaine » et « France entière » dans « À la main », avec le nom par défaut ; un clic = un `POST /api/zones` portant la recette `pays` ; un second clic est ignoré en vol ; 207 = réussite ; statut 0 → « vérifiez Mes zones ».
   - `recette-paritaire.test.ts` vert après la recopie.
   - ④ : sur une zone pays, la pastille « Par IRIS » est inactive et dit pourquoi (le texte d'A-4) ; « Telle quelle » montre la population nationale avec la phrase Q-J ; « Par code postal » affiche le tableau, sans couche IRIS.
   - `carte.page.spec.ts` : aucune lecture neuve à l'ouverture de ③ ni de ④.
-- [ ] Implémentation (A-3, A-4). Si `panneau-zones.component.ts` dépasse 380 lignes, passer par un composant neuf, `creer-pays.component.ts`.
-- [ ] ng test, tsc. Commit `feat(angular): ③ zone France entière, ④ sa couverture nationale (④ finitions, T6)`.
+- [x] Implémentation (A-3, A-4). Si `panneau-zones.component.ts` dépasse 380 lignes, passer par un composant neuf, `creer-pays.component.ts`.
+- [x] ng test, tsc. Commit `feat(angular): ③ zone France entière, ④ sa couverture nationale (④ finitions, T6)`.
 
 ### Task 7 : la bataille V2 « Sur : la zone analysée » (effort S, 0,35 j — si Q-4 = oui)
 
-- [ ] **Specs d'abord :**
+- [x] **Specs d'abord :**
   - `bataille-v2.service.spec.ts` : avec une zone analysée et « Sur : la zone », le corps porte `zone_id` et aucun filtre région, département ou ville ; « Sur : le périmètre de ① » rend le corps d'aujourd'hui, octet pour octet.
   - Une réponse arrivée après un changement de zone est jetée. Un 404 `zone_introuvable` retire la zone.
   - `panneau-analyse.component.spec.ts` : la garde laisse passer une bataille sur la zone sans filtre ① ; la ligne A-9 (« Cet outil travaille sur le périmètre de l'étape ① ») ne s'affiche plus pour la bataille quand elle est « Sur : la zone ».
   - Le verrou `panneau-analyse-garde.test.ts` est complété, pas désactivé.
-- [ ] Implémentation : la bascule `mg-pastilles` « Sur » (le patron du score, T10 du lot 4 ; défaut = la zone quand il y en a une) et `messageRefusTerritoireBataille`, contournée quand la bataille est sur la zone.
-- [ ] ng test, tsc. Commit `feat(angular): ④ la bataille V2 sur la zone analysée (④ finitions, T7)`.
+- [x] Implémentation : la bascule `mg-pastilles` « Sur » (le patron du score, T10 du lot 4 ; défaut = la zone quand il y en a une) et `messageRefusTerritoireBataille`, contournée quand la bataille est sur la zone.
+- [x] ng test, tsc. Commit `feat(angular): ④ la bataille V2 sur la zone analysée (④ finitions, T7)`.
 
 ### Task 8 : le tiroir « Typologies » pour tous (effort S-M, 0,4 j — si Q-3 = oui)
 
-- [ ] **Specs d'abord :**
+- [x] **Specs d'abord :**
   - `typologies-zone.component.spec.ts` : aucune lecture avant le premier dépli ; une seule lecture par (zone, version) ; rouvrir ne relit rien ; sans zone analysée → « Choisissez une zone en tête de ④. » ; liste vide → le texte d'A-7.
   - Le résultat montre un tableau par (durée, mode) : typologie, nombre de POI, population couverte ; les POI se peignent sur la carte, colorés par typologie (palette `--nature-*`, valeurs calculées) ; survol → surbrillance.
   - `tiroirs-analyse` gagne `typologies` (exclusif avec les autres).
   - Le super admin garde l'assistant de calcul dessous (`mg-section-clustering`), inchangé.
-- [ ] Implémentation (A-7) : `CouvertureApi.typologies(zoneId)`, le composant, une couche `couverture-typologies` retirée au `DestroyRef` de son service.
-- [ ] ng test, tsc. Commit `feat(angular): ④ typologies des POI de la zone, visibles par tous (④ finitions, T8)`.
+- [x] Implémentation (A-7) : `CouvertureApi.typologies(zoneId)`, le composant, une couche `couverture-typologies` retirée au `DestroyRef` de son service.
+- [x] ng test, tsc. Commit `feat(angular): ④ typologies des POI de la zone, visibles par tous (④ finitions, T8)`.
 
 **Relecture 2** (T0, T5 à T8). Questions :
 - Une lecture part-elle à l'ouverture de ④ ?
@@ -346,8 +346,8 @@ En attendant les réponses, le plan applique les recommandations. Chaque arbitra
 
 ## Task 9 : revue finale, factorisation, preuve navigateur, docs (effort 0,4 j)
 
-- [ ] **Revue finale** du lot, par le modèle le plus capable : les mineurs accumulés, puis la passe de factorisation (mémoire `feedback_factorisation_fin_de_lot`). Dire ce qui reste dupliqué : `recette.ts` et `couverture.ts` le sont par construction et sont verrouillés ; `codes_postaux_du_perimetre_jsonb` garde sa branche `zone` (React l'appelle encore par d'autres routes, si `Grep` en trouve).
-- [ ] **Preuve navigateur, une seule fois, deux thèmes** (`L-A4-T9-*`, captures dans `.superpowers/sdd/2026-10-30-carte-en-parcours-analyse/`), sur **:3002 + :4202** :
+- [x] **Revue finale** du lot, par le modèle le plus capable : les mineurs accumulés, puis la passe de factorisation (mémoire `feedback_factorisation_fin_de_lot`). Dire ce qui reste dupliqué : `recette.ts` et `couverture.ts` le sont par construction et sont verrouillés ; `codes_postaux_du_perimetre_jsonb` garde sa branche `zone` (React l'appelle encore par d'autres routes, si `Grep` en trouve).
+- [x] **Preuve navigateur, une seule fois, deux thèmes** (`L-A4-T9-*`, captures dans `.superpowers/sdd/2026-10-30-carte-en-parcours-analyse/`), sur **:3002 + :4202** :
   1. Zone « rayon autour d'un point » de 2 km en zone rurale → score composite calculé (plus de « Périmètre vide »), mêmes CP que la couverture « Par code postal » ;
   2. ③ « France métropolitaine » → ④ telle quelle (population nationale), par CP, par IRIS refusé avec sa phrase ; ⑤ affiche le message d'A-5 ;
   3. Marine nationale : zone CIRFA Bretagne → bataille V2 « Sur : la zone », CIRFA de la zone seulement, puis ③ capture la bataille ;
@@ -357,14 +357,28 @@ En attendant les réponses, le plan applique les recommandations. Chaque arbitra
   7. onglet réseau : aucune lecture à l'ouverture de ④ ; rouvrir un tiroir ne relit rien.
 
   **React (:3002 `/map`)** : le score sur un filtre zone donne la même liste de CP (écart serveur assumé). Zones de preuve supprimées, espace actif rétabli.
-- [ ] **Docs :**
-  - spec : § 16.1 ligne ④ réécrite (A-9) ; § 17 ter et 17 quater recopiés de `ecarts-4a.md` / `ecarts-4b.md` (commit `docs(spec)` séparé) ; « 17 sexies — finitions de ④ » ;
+- [x] **Docs :**
+  - spec : § 16.1 ligne ④ réécrite (A-9) ; § 17 ter et 17 quater recopiés de `ecarts-4a.md` / `ecarts-4b.md` (dans le commit T9, pas un commit séparé) ; « 17 sexies — finitions de ④ » ;
   - README carte (§ ④) et `ARCHITECTURE.md` ;
-  - Excel : n° 34 (État) ; création de « Mode pays — ⑤ (ciblage France natif) » ; rappel n° 44 ;
-  - plan ⑧ : signaler le conflit sur sql/288 et la corrélation à déménager (Q-6), par une note au chef de ⑧, sans modifier sa branche ;
+  - Excel : n° 34 (État) ; création de « Mode pays — ⑤ (ciblage France natif) » ; rappel n° 44 — **au coordinateur, hors du dépôt** ;
+  - plan ⑧ : signaler le conflit sur sql/288 et la corrélation à déménager (Q-6), par une note au chef de ⑧, sans modifier sa branche — **au coordinateur** ;
   - sql/284 rappelée pour le merge.
-- [ ] **Tests complets** : `npm test`, `cd angular && npx ng test --watch=false`, `npx tsc --noEmit`, `npm run lint`, `npm run build` (avec `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY` locaux explicites), `cd angular && npx ng build`. Les 13 rouges connus de l'Excel n° 49 sont nommés, pas confondus avec ce lot.
-- [ ] Commit `docs: ④ Analyse — revue finale et preuve navigateur (finitions, T9)`.
+- [x] **Tests complets** : `npm test`, `cd angular && npx ng test --watch=false`, `npx tsc --noEmit`, `npm run lint`, `npm run build` (avec `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY` locaux explicites), `cd angular && npx ng build`. Les 13 rouges connus de l'Excel n° 49 sont nommés, pas confondus avec ce lot.
+- [x] Commit `docs: ④ Analyse — revue finale et preuve navigateur (finitions, T9)`.
+
+### Suites (résidus de la preuve T9, non traités dans ce lot)
+
+Rapport : `.superpowers/sdd/2026-10-30-carte-en-parcours-analyse/rapport-preuve-T9.md`, section « Après ce21b195 ».
+Corrigés avant la clôture : D-1 (`ce21b195`), D-2 (`ce21b195`), D-3 (corrigé de fait, refus 422 vu), D-6 (`ce21b195`),
+O-1 (« Population cumulée », `713e5baa`).
+
+| # | Résidu | Nature | Suite |
+|---|---|---|---|
+| O-2 | Les libellés de typologie sont sans accents (« Revenus eleves », « Peu de tres ages »). L'un porte un nom de colonne brut : « pct_55_79 / Familial (enfants)… » | données (script Python `clustering_poi_filosofi.py`) | à corriger à la source, au prochain calcul de modèle ; aucun code de ④ |
+| O-3 | Un lien `?customZone=` affiche « Script bidding DV360 » dans la barre et passe le fil d'étapes en numéros seuls | hors lot | **à confirmer** comme voulu (Vincent) |
+| D-4 | Après un changement de zone analysée, le journal de la bataille précédente reste affiché sous les boutons grisés | `outil-bataille-v2` | **arbitrage** : vider le journal au changement de zone, ou le garder comme trace |
+| D-5 | Les boutons de la bataille V2 sont en capitales (« VÉRIFIER CACHE », « LANCER », « FORCER »), comme React | parité avec React contre règle sentence case | **à trancher une fois** pour les deux applications |
+| — | sql/284 (retrait de `croisements_zone`) | dette datée | à appliquer au merge dans `feat/angular-lot0` |
 
 ---
 

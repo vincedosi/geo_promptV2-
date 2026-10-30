@@ -363,6 +363,40 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   tiroir ouvert, relit ; un tableau par (durée, mode) ; couche
   `couches/couche-typologies.ts` (`couverture-typologies-poi` / `-survol`, teintes `--nature-*` calculées), retirée au
   `DestroyRef` du service ; publiée au registre de la pastille. Le super admin garde `mg-section-clustering` dessous.
+  La colonne s'appelle « Population cumulée », avec sa phrase sous le tableau (`MESSAGE_POPULATION_CUMULEE`) : c'est la
+  SOMME des populations couvertes par les POI, recouvrements compris (68,8 M au modèle 60 min, plus que la France ;
+  preuve T9, O-1). Le calcul est inchangé.
+
+### ④ Finitions : ce qui est livré, écarts à React (T9, 30/10/2026)
+
+Q-1 à Q-7 ont été tranchés par Vincent le 30/10 : les recommandations sont acceptées, et Q-5 va plus loin (le Voronoï
+est supprimé partout).
+
+**Livré** (preuve navigateur T9, deux thèmes, `rapport-preuve-T9.md` du registre) :
+- le score sur une zone prend les CP de la couverture (`codes_postaux_de_zone_jsonb`, sql/295). Une zone rurale de
+  2 km n'est plus « vide » ;
+- les zones « France métropolitaine » et « France entière » se créent en ③ et se chiffrent en ④ sans lire de carreau
+  (sql/296) : par CP, 5 956 CP ; « Telle quelle », 62 528 975 habitants ; l'IRIS est refusé avec sa phrase. L'export
+  d'une zone pays répond 422 `zone_pays` ;
+- la bataille V2 « Sur : la zone analysée » (`poi_de_zone`, sql/297) ;
+- le tiroir « Typologies des POI » pour tous (`typologies_de_zone`, sql/298). Le calcul reste au super admin ;
+- la pastille de ④ dit vrai ; une zone créée en ③ apparaît dans le choix de ④ sans recharger (D-1).
+
+**Écarts à React** (gel P5) :
+- React n'a ni la couverture d'une zone, ni la zone pays, ni la bataille sur une zone, ni le tiroir des typologies ;
+- React reçoit la règle serveur de T1 : le score sur un filtre zone prend les CP de la couverture ;
+- **Voronoï supprimé partout** (Q-5, `287b05ed`) : routes `/api/voronoi` et `/api/custom-geo/source/voronoi`, outil
+  et calques React, garde `'voronoi'`, fonctions `get_voronoi_*` (sql/299). L'intro React « Analyses spatiales
+  disponibles » ne l'annonce plus (`ce21b195`, gel levé pour ce point). Une analyse `voronoi` enregistrée répond 410
+  au rejeu.
+
+**Corrélation** (Q-6) : elle reste en ④ et déménage en ⑧ Live quand ⑧ sera livré.
+
+**Résidus** (liste « Suites » du plan) :
+- libellés de typologies sans accents (données du script Python) ;
+- « Script bidding DV360 » dans la barre via `?customZone=` (à confirmer) ;
+- D-4, le journal de bataille qui reste affiché au changement de zone (arbitrage) ;
+- D-5, la casse des boutons de la bataille, identique à React (parité, à trancher une fois).
 
 ## ⑤ Jeu de zones : l'état (lot 5, T9, 2026-10-24)
 
@@ -580,8 +614,8 @@ le serveur ; `texteMotif` retombe sur le message serveur pour un code inconnu).
 - **Les POI suivent le filtre** : `afficher()` envoie région, département, commune ou code postal
   (`corpsPoisDuFiltre`), et la portée `metro` / `all` du filtre. Avec un territoire, `PoisService.chercher` n'ajoute
   plus la bbox de repli `BBOX_METRO` (elle vidait une région d'outre-mer).
-- **④ et ③ sur la métropole (T4)** : la garde est `messageGardeCarte` (la Bataille V2 et le score passent, Voronoï et
-  clustering refusent en nommant la métropole). Une bataille sans territoire compte ses POI AU CLIC
+- **④ et ③ sur la métropole (T4)** : la garde est `messageGardeCarte` (la Bataille V2 et le score passent, le
+  clustering refuse en nommant la métropole ; le Voronoï est supprimé depuis le 30/10). Une bataille sans territoire compte ses POI AU CLIC
   (`ContexteBatailleService.verifierBorne` : une vérification du cache, premier palier seul ; le journal dit
   « > Vérification de la capacité en direct… » pendant ce comptage, T8) et applique la copie de
   `lib/isochrones/borne-nationale.ts` (`logique/bataille/borne-nationale.ts`, parité verrouillée) : au-delà de 700

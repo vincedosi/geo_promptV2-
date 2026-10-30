@@ -43,6 +43,72 @@ Branche `feat/carte-zones-recette`, de `64b4944d` (fin du lot 2) à `7530beec` (
 
 **Preuves navigateur de la vague finale** (16/10, Angular :4200 + Next :3000 du worktree, deux thèmes, captures `L3-preuve-*` dans `.superpowers/sdd/2026-10-14-carte-en-parcours-lot-3/`) : (1) une combinaison (« Fusionner » de deux zones des Bouches-du-Rhône) n'offre pas « Recalculer », et le recalcul d'un membre rend le nouveau 409 ; (2) Analyse → ③ « Par seuil » → « Mes zones » (une zone seuil sur territoires listée) : **un** `GET /api/cibles/indicators` ; (3) catalogue retardé de 25 s : le nom saisi pendant la lecture reste ; (4) KML « 5, 43 » : 1 polygone, 4,5 km² sur le territoire (84 % des 5,41 km² du rectangle) ; (5) capture d'une bataille V1 seule (CIRFA Bretagne, Marine nationale) → `recette.parametres.paliers = "10,30"`, capture bataille + IRIS → `source_type = composite`, recette `capture` (lu en base). Aucun défaut trouvé ; vus en passant, préexistants : le bandeau vert « Zone créée » reste affiché, l'aperçu ne recadre pas la carte. Zones de test supprimées, espace actif rétabli (BMW GROUP).
 
+## 17 ter. Écarts à la livraison (lot 4a)
+
+Recopié le 30/10/2026 de `ecarts-4a.md` (registre du lot 4, non suivi par git), tel qu'écrit le 22/10.
+
+Branche `feat/carte-analyse`, de `1c19e0b8` (fin du lot 6 Angular) à `36a4f8d0` (preuve et documentation de 4a, 22/10) — non poussée, non fusionnée. Sept migrations, toutes appliquées deux fois en local à empreinte identique : sql/265 (périmètres sans interstices), 266 (`carreau_couverture`), 267 (dénominateur IRIS), 268 (certificat de complétude), 269 (`couverture_geometrie`), 270 (cache), 271 (`zone_maj`). La revue finale de 4a et sa vague de correctifs restent à faire.
+
+- **Une zone se chiffre sans se convertir** (§ 16.2-2, tenu) : ④ lit la forme EXACTE d'une zone de l'espace — un carreau Filosofi compte entier quand son centroïde est dedans — et la découpe par code postal ou par IRIS en LECTURE seule (« quelle part de chaque territoire la zone couvre »). Rien n'est écrit, aucune zone ni aucun jeu n'est créé. Le total d'un découpage égale toujours la population de la forme (lignes + « hors code postal » / « hors IRIS »).
+- **Une table étroite pré-calculée et non un calcul sur `carreaux_filosofi`** (A-1) : `carreau_couverture`, 2 324 577 lignes, 730 Mo avec ses index, construite par bandes en ≈ 5 min (`scripts/construire_carreau_couverture.mjs`, reprenable, étape de `11-reconstruire.sh`). ARA par IRIS : 26,9 s → 0,57 s. Pas de repli sur `carreaux_filosofi` : sans table complète, refus `couverture_non_construite` (503). Un **certificat de complétude** (`carreau_couverture_controle`, sql/268) a été ajouté à la relecture de T4 : la vérification initiale était tautologique.
+- **Le dénominateur IRIS** est `unite_population_totale` maille `iris` (48 872 IRIS), construit depuis la table étroite par la MÊME règle d'attribution ; ≈ 18 s de construction (CPU `numeric`), pas « quelques secondes ». IRIS et communes ne s'emboîtent pas pour 54 300 carreaux (803 132 habitants) : écrit dans `ARCHITECTURE.md`, sans effet sur les parts (numérateur et dénominateur lisent le même code IRIS).
+- **Les périmètres avaient des trous** (constat du 22/10, A-5) : les contours de département et de région sont des unions de communes simplifiées, percées de 45 834 trous ; dans les Bouches-du-Rhône, 78 834 habitants y disparaissaient (« 13100 couvert à 92,5 % »). Colonne `geom_perimetre` (sql/265), lue par `resoudre_perimetre` : 1 827 580 → 1 906 414 habitants pour le 13, Aix 13100 à 100 %. Règle des vraies enclaves AMENDÉE : un trou reste quand une commune d'une autre unité le couvre à plus de 50 %, ou quand des communes françaises en couvrent MOINS de 50 % et qu'il dépasse 5 km² (la règle « aucune commune française » aurait bouché Llívia, que des contours voisins débordent à 14,9 %). Douze trous gardés dans neuf départements. `geom` reste intacte (tuiles, React). Effet assumé : un recalcul de zone du lot 3 donne une forme pleine.
+- **Bornes** (A-4) : ≤ 100 000 km² et ≤ 400 000 carreaux ; la région est ADMISE (Nouvelle-Aquitaine, la plus grosse : 382 813 carreaux, à 4,3 % du plafond ; IRIS 1,60 s calculée, 5 ms en cache). Une zone plus vaste est refusée en une ligne (422), sans lecture de carreaux.
+- **ARA compte 5 498 IRIS habités**, pas 5 486 (chiffre d'avant les périmètres sans trous) ; la liste est rendue EN ENTIER dans le `jsonb` (≈ 650 Ko non compressés) et paginée à l'écran (50 lignes, « page 3 sur 110 »).
+- **Le cache et le quota** (A-16) : `couverture_zone_cache`, une ligne par (zone, cible, découpage), valide si la zone est de l'espace et si `updated_at` de la zone et la date de construction de la table n'ont pas bougé ; un refus ne s'écrit jamais. Le quota `geo:rl:couverture` (6/min/compte) n'est consommé qu'APRÈS le cache. L'espace est TOUJOURS celui de la session : un id de zone d'un autre espace rend 404 « Cette zone n'existe pas dans cet espace », le même qu'une zone supprimée (aucun oracle).
+- **La réponse porte `zone_maj`** (sql/271, revue T8) : la carte relit le contour quand (zone, version) change — un recalcul en ③ redessine la nouvelle forme au lieu de l'ancienne.
+- **L'état d'URL** : `?zoneAnalyse=<uuid>` et `?couverture=<cible>.<forme|cp|iris>` (défaut `ind.forme`, non écrit), indépendants du filtre ① et de `?customZone=`. Un écrivain de plus en `merge` (P-g) : `ecrireParametres` part de la navigation EN VOL ; seuls `ParcoursService` et `ZoneAnalyseeService` l'emploient (les quatre autres écrivains à la vague finale).
+- **« Ouvrir ④ ne lit rien »**, avec deux exceptions ratifiées : la liste des zones est lue quand une zone est déjà dans l'URL (pour la nommer, r4 de T7) ; le catalogue des cibles est lu quand la cible d'URL n'est pas `ind` (Q3 de T8).
+- **Q-J tenue** : « Population des carreaux Filosofi 2021 (63,78 M en France) » qualifie le chiffre de tête et suit le résultat dans les trois découpages (le plan disait 63,7 M ; le chiffre affiché est lu en base). Une zone en Guadeloupe, Guyane ou Mayotte, ou en mer, affiche un message, jamais « 0 ».
+- **Une seule choroplèthe à la fois — écart au gel P5 ratifié** : `'couverture'` entre au registre des dégradés, côté React (`lib/carte/degrades.ts`, `lib/carte/calques-actifs.ts`, un `case` sans légende dans `LegendeCarte.tsx`) comme côté Angular ; peinte, la couverture évince l'IRIS, les carreaux, le score ; évincée, elle se masque et le panneau propose « Afficher sur la carte » sans re-chiffrer. « Tout effacer » masque la couche et garde le chiffre au panneau.
+- **Outils qui ne prennent pas la zone** (A-9) : batailles V1/V2 et clustering restent sur ① et le disent en une ligne quand une zone est analysée. *(Levé pour la bataille V2 par les finitions de ④, § 17 sexies.)*
+- **Aucun équivalent React** de la couverture d'une zone : la comparaison visuelle s'est faite avec l'onglet Couverture du module risque (grammaire du tableau).
+- **Mesures (local)** : vérifications du 22/10 (T9) — `tsc` et `lint` propres ; 2 576 tests unitaires ; intégration **410/410** (48 fichiers, sérialisée, plus aucun échec admis : le test « habitants » est recoupé depuis T1, 41 025 366 à 220 près) ; Angular 2 932/2 933 dans la suite complète (`remote.spec` « les liens restent dans le préfixe de l'hôte » dépasse 30 s sous charge de l'hôte, 4,5 s seul, 26/26) ; builds Angular et Next propres ; knip inchangé à 140 exports morts (cliquet 141). Chiffrages : Bouches-du-Rhône 1 906 414 habitants carroyés, 5 108 km², 126 CP, 843 IRIS ; ARA 7 677 822, 816 CP, 5 498 IRIS — 1,13 s en SQL à chaud, 11,6 s au premier appel sur base froide, 0,8 s servi du cache ; Lyon 5 km 649 832 (mesure A du plan retrouvée) ; Brest 5 km 126 658, 29200 à 99,3 %.
+
+**Points pour Vincent** (tranchés par le chef de projet, coût si faux entre parenthèses) :
+
+| # | Constat | Tranché au lot 4a |
+|---|---|---|
+| Q-I | Couverture par rayon sur une région (lycées d'ARA à 10 km : 6,7 s, 2,2 M accès). | Département au lot 4 ; région par pré-calcul national par type de POI quand un client la demande. Pire cas dense (92, 93, IDF) à mesurer en T11 (un pré-calcul à écrire). |
+| Q-J | La part se lit « part des habitants CARROYÉS » (63,78 M), pas de la population légale (67,8 M) ; Guadeloupe, Guyane, Mayotte absentes. | Adoptée : phrase dans les trois découpages, message explicite outre-mer (une phrase). |
+| A-15 | Deux chiffres pour une zone : `audience_stats` (carreaux qui INTERSECTENT la zone, ≤ 5 000 km²), lu par le plan média des zones, contre la couverture (centroïde). Mesuré sur « CIRFA BRETAGNE » : 1 373 227 contre 1 355 354 habitants (+1,3 %). | Inchangé jusqu'au lot 7 (plan), qui unifiera ; ne pas présenter les deux côte à côte d'ici là (confusion côté client pendant trois lots). |
+| A-5 | Douze trous gardés comme vraies enclaves (enclave des Papes, Llívia, communes du Nord dans le 62…). | Gardés (revenir à `geom` dans une fonction). |
+
+**Preuves navigateur de 4a** (T8 et T9, Angular :4202 + Next :3002 du worktree, deux thèmes, BMW GROUP puis Marine nationale, captures `T8-*`, `T8b-*`, `T9-*` dans `.superpowers/sdd/2026-10-22-carte-en-parcours-lot-4/`) : (1) ④ ouvert sans zone : `user/organizations` et `ref/geo` seulement ; une zone d'un autre espace (lien partagé, dans les deux sens BMW ↔ Marine) ou supprimée → « Cette zone n'existe pas dans cet espace. » et `?zoneAnalyse=` retiré ; changement d'espace pendant un chiffrage (réponse RETENUE jusqu'après la bascule, puis relâchée) → rien d'affiché, rien de peint, aucune lecture de contour ; (2) renommage puis nouvelle forme (`remplacer_geometrie_zone`, la RPC de « Recalculer ») : « en cache » avant, recalcul après chacun des deux, contour relu (321 454 → 649 832 habitants) ; (3) totaux : lignes + hors territoire = population à l'arrondi par ligne près, aucune part au-dessus de 100 %, Aix 13100 à 100 % ; (4) zone rectangle de ≈ 285 000 km² → refus en une ligne, une seule requête (422), aucune lecture de contour ; ARA par IRIS : 5 498 lignes, « page 3 sur 110 » ; (5) parité avec le module risque : relève de 4b (T11) ; (6) ④ → ① → ④ : résultat et couche toujours là, aucune requête nouvelle hors la liste des zones. Aucun défaut trouvé.
+
+## 17 quater. Écarts à la livraison (lot 4b, et vague finale du lot 4)
+
+Recopié le 30/10/2026 de `ecarts-4b.md` (registre du lot 4, non suivi par git), tel qu'écrit le 23/10.
+
+Branche `feat/carte-analyse`, de `36a4f8d0` (fin de 4a) à la fin de la vague finale (23/10) — non poussée, non fusionnée. Deux migrations neuves en 4b : sql/272 (`couverture_rayon_poi`, `courbes_par_palier`) et sql/273 (`croisements_zone`). La vague finale a DÉDOUBLONNÉ les migrations du lot (base locale seule) : sql/271 repliée dans sql/270, sql/268 réduite au certificat (corps finaux de `vider_carreau_couverture` et `construire_denominateur_iris` écrits dans sql/266 et sql/267) ; la chaîne 265 → 273 rejouée de zéro dans une base de schéma seul rend des définitions, droits et index IDENTIQUES à la base locale.
+
+- **Le score composite sur la zone analysée** (T10) : « Sur : la zone analysée / le périmètre de ① » ; la route lisait déjà `{ type: 'zone' }`. Un périmètre absent n'est plus représentable (`corpsScore` prend `{ filtre } | { zone }`). Choisir une zone n'efface que le refus du SCORE (les batailles ne lisent pas la zone). Fermer le panneau pendant un calcul l'annule.
+- **La couverture par rayon autour de TOUT type de POI** (T11-T12, Q-I) : sans pré-calcul, périmètre ≤ 12 000 km² (département, commune, CP, zone ; région refusée), r_max ≤ 10 km, ≤ 5 000 POI, ≤ 8 valeurs. Plus proche POI par cellules de Voronoï, distance géodésique. Parité avec le module risque exacte sur les 99 premiers paliers du 13 ; au dernier, le pré-calcul perd 43 carreaux (tampon à 16 côtés) — ④ a raison. 28 habitants d'écart à 1 km sur les classes : `round(d)` du pré-calcul range à 1 000 m un carreau à 999,80 m. Les sites ICPE s'ajoutent au catalogue des POI (leur calque est à part), une fois le catalogue lu.
+- **Débord de département porté à 5 km** (vague finale, T11 M1) : des centroïdes de carreaux d'un département lu par code débordent son contour jusqu'à 4 289 m (29). Effet mesuré : ICPE toutes natures de l'Ille-et-Vilaine à 10 km dépasse désormais 5 000 sites → refus `trop_de_poi` (calculé en 1,8 s avant) ; pire cas admis : Nord, 1,8 s / ≈ 131 000 accès.
+- **Sur la zone analysée, les refus parlent de la zone** : `zone_introuvable` en 404 (la zone est retirée de ④, le message reste), « La zone analysée dépasse 12 000 km² » — plus « l'étape ① ». Une clé de profil d'anneaux hors des valeurs lève 22023 (une faute de frappe versait tout en « hors classes »).
+- **Radio et trafic d'une zone** (T13) : émetteurs dont le CERCLE de couverture touche la zone, comptages qui la traversent ; listes bornées (200) + totaux. Absents à dessein : fréquence (87,5 MHz sur 11 599 émetteurs), puissance (vide), type de comptage (une valeur) — jamais de donnée fausse affichée. Zone ≤ 100 000 km² (`zone_trop_vaste`, vague finale). La liste se périme quand un chiffrage porte une autre version de la forme (`zone_maj`, recalcul en ③). *(Retiré le 26/10 ; `croisements_zone` reste en base jusqu'à sql/284, appliquée au merge.)*
+- **Le pic de 165 s expliqué et corrigé** (vague finale) : plpgsql passait au plan GÉNÉRIQUE au 6e appel d'une même connexion (PostgREST les garde) — 1,3 s devenait 46-48 s. `plan_cache_mode = force_custom_plan` : sept appels successifs 1,28-1,46 s. La piste « distance planaire 3857 » de la revue a été mesurée PLUS lente (4,4 s contre 1,7 s : la distance `geography` a un cache d'arbre) et abandonnée.
+- **Le dénominateur CP se périme comme l'IRIS** (vague finale) : reconstruit après la table étroite, refus `denominateur_cp_plus_recent` et cache CP périmé.
+- **Une seule règle « carreaux d'une forme »** (`carreaux_de_forme`, SQL inlinée) pour ③ et ④ ; verrou par DONNÉES (carré de ±1 000 m sur la couture du carreau 457209 : 48 en ③, en ④ et en couverture par rayon, 47 sous `ST_Contains`). `zone_seuil_carreaux` (sql/255) garde sa copie : elle lit `carreaux_filosofi`.
+- **Index morts retirés** : commune, CP, IRIS de `carreau_couverture` (65 Mo, 2 à 12 parcours). Certificat de complétude non forgeable par `service_role`.
+- **P-g fermé** : `ecrireParametres` est le seul écrivain de paramètres de la carte, et suit l'arbre d'URL de la navigation en vol.
+- **Une phrase par refus** : « Zone introuvable dans cet espace. » partout (la couverture disait « Cette zone n'existe pas dans cet espace. »). Un id de zone illisible répond 404 sur les trois routes de zone (décision T6).
+- **Mesures (local, 23/10, vague finale)** : `croisements_zone` Bouches-du-Rhône 110 ms, ARA brute (21 811 sommets) 1,12 s, zone de 23 073 sommets 1,70 s ; `couverture_geometrie` ARA forme 0,79-0,96 s, IRIS 0,93-1,10 s, BdR CP 95-100 ms (contours bruts, avant = après) ; `couverture_rayon_poi` Nord 10 km 1,8 s.
+
+**Ce qui reste dupliqué, dit explicitement** :
+
+| Où | Quoi | Pourquoi gardé |
+|---|---|---|
+| sql/200 (`construire_couverture_rayon`) et sql/272 | la règle de palier `least(floor(d/100)*100, r_max)` | deux pipelines (pré-calcul / à la volée), une ligne ; la mise en forme des courbes, elle, est UNE (`courbes_par_palier`) — l'attendu du brief (« palier + cumul + grille écrite deux fois ») ne tient plus. `couverture_rayon_risque` remplaçable au lot 5 |
+| sql/255 et `carreaux_de_forme` | règle centroïde par `ST_Subdivide` + `distinct on` | sql/255 lit `carreaux_filosofi` (polygones, `metadata`), pas la table étroite ; l'égalité est verrouillée par données |
+| sql/254 et sql/272 | garde `p_max_poi`, prédicat de visibilité `data_source_id` | trois lignes (T11 M7, accepté) |
+| `lib/zones/couverture.ts` et `logique/analyses/couverture.ts` | bornes et messages | Angular n'importe jamais le serveur ; copies verrouillées (et contre le SQL) |
+| `outil-score` | pastilles « Haut / Bas = mieux » par indicateur ; cycle du catalogue d'indicateurs (`basculerOuvert`) | antérieurs au lot ; à porter sur `mg-pastilles` / `LectureAnnulable` *(fait aux finitions de ④, T5)* |
+| `panneau-analyse` | en-tête « Analyse spatiale » | accordéon de section, `data-accordeon` ; pas un outil |
+| `scripts/local/rapatrier-*.mjs`, `seed-demo-campagne-risque.ts`, `tests/integration/purge-panneaux-brest.test.ts` | leur `psql()` | antérieurs au lot ; les trois scripts de construction et les six tests du lot partagent `psql-conteneur.mjs` et `_psql.ts` |
+
+**Points ouverts pour Vincent** : (1) le débord de 5 km fait refuser l'Ille-et-Vilaine (ICPE toutes natures, 10 km) — relever `p_max_poi` ou calculer la marge exacte par département ; (2) A-15 (deux chiffres pour une zone) inchangé jusqu'au lot 7 ; (3) les captures de preuve de 4b et de la vague finale sont `FINAL-*` (deux thèmes, espace Bercy, zones d'essai supprimées).
+
 ## 17 quinquies. Écarts à la livraison du lot 5
 
 Branche `feat/carte-jeu-de-zones`, de `acbe5b6e` à la vague de correctifs de la revue finale (24/10) — non poussée,
@@ -79,6 +145,54 @@ non fusionnée. Six migrations, sql/274 à sql/279 (`plateformes_geo`, découpag
 - **Mode accéléré à partir de T9** (Vincent, 24/10) : seuls les défauts critiques et importants corrigés tâche par
   tâche ; les mineurs ont été traités en une vague, celle de la revue finale (11 corrigés, 9 laissés avec leur raison
   dans `final-review.md`).
+
+## 17 sexies. Finitions de ④ Analyse (30/10/2026)
+
+Plan `docs/superpowers/plans/2026-10-30-carte-en-parcours-analyse.md`, branche `feat/carte-finitions`, de `5a0dac84`
+à la preuve T9. Non poussée. Cinq migrations, appliquées deux fois en local : sql/295 (`codes_postaux_de_zone_jsonb`),
+296 (zone pays : `zone_pays_geometrie`, `pays_contient_code`, `couverture_pays_jsonb`, `compter_zone_pays`, branche
+pays de `couverture_zone`), 297 (`poi_de_zone`), 298 (`typologies_de_zone`) et 299 (suppression du Voronoï).
+
+**Décisions de Vincent du 30/10.** Q-1 à Q-7 sont tranchés : les recommandations du plan sont acceptées une par une.
+- Q-1 : le score sur une zone prend les CP de la couverture.
+- Q-2 : zone « France entière » en ③ et ④ ; ⑤ suivra.
+- Q-3 : typologies en lecture pour tous.
+- Q-4 : bataille V2 sur la zone.
+- **Q-5 va plus loin** : le Voronoï est **supprimé partout**, pas seulement abandonné dans la spec. Sont retirés les
+  routes `/api/voronoi` et `/api/custom-geo/source/voronoi`, l'outil et les calques React, la garde `'voronoi'`
+  (React et Angular) et les fonctions `get_voronoi_*` (sql/299). Aucune donnée n'est supprimée : une analyse
+  `voronoi` enregistrée répond 410 `outil_supprime` au rejeu.
+- **Q-6** : la corrélation reste en ④ et **déménage en ⑧ Live à sa livraison**.
+- Q-7 : les trois écarts du lot 4 sont gardés tels quels.
+
+**Ce que ④ est désormais** (§ 16.1, ligne ④, réécrite) :
+- **Score sur une zone** : une seule règle « CP d'une zone » pour ③, ④ et le score, les CP des carreaux de la forme.
+  Une zone rurale de 2 km donne 2 CP, plus « Périmètre vide ». Le 404 dit « Zone introuvable dans cet espace. »
+  (`refus: 'zone_introuvable'`). React reçoit la même règle (route partagée).
+- **Zone pays** : recette `{ v: 1, type: 'pays', code: 'METRO' | 'FR' }`, figée, créée par « À la main » en ③. Elle
+  est reconnue à sa recette, jamais à sa surface. ④ la chiffre sans lire un carreau, par CP, par département ou
+  « telle quelle » ; par IRIS et par commune, elle est refusée en une phrase. Mesures de la preuve T9 pour la
+  métropole : 5 956 CP en 317 ms et 62 528 975 habitants. Une zone pays est aussi refusée en opérande d'une
+  combinaison, à l'export (422 `zone_pays`), à la bataille et dans ⑤, avec le message d'A-5.
+- **Bataille V2 « Sur : la zone analysée »** : les POI de la catégorie situés dans la zone. La clé de cache porte
+  l'id et la version de la zone, et ③ la capture.
+- **Typologies des POI pour tous** : lecture des modèles déjà calculés. Le calcul reste au super admin. La colonne
+  « Population cumulée » est une SOMME, recouvrements comptés plusieurs fois (68,8 M au modèle 60 min), et l'écran
+  le dit.
+- **La pastille de ④** s'allume pour toute analyse peinte, mais pas pour la zone d'un lien `?customZone=`.
+
+**Écarts à React** (gel P5) : React n'a ni la zone pays, ni la bataille sur une zone, ni les typologies, ni la
+couverture d'une zone. Le Voronoï est supprimé des deux côtés ; l'intro React « Analyses spatiales disponibles » ne
+l'annonce plus (`ce21b195`, gel levé pour ce point).
+
+**Preuve navigateur T9** : deux thèmes, :3002 en `next start` et :4202, compte client de la Marine nationale.
+Rapport : `.superpowers/sdd/2026-10-30-carte-en-parcours-analyse/rapport-preuve-T9.md`. Défauts corrigés :
+- D-1 : ④ relit ses zones après une création en ③ ;
+- D-2 : intro React ;
+- D-6 : ligne A-9 du clustering ;
+- O-1 : population des typologies dite cumulée.
+
+Les résidus sont listés dans les « Suites » du plan.
 
 ## 2. Décisions de Vincent (12/10/2026) — non rediscutées ici
 
@@ -651,7 +765,7 @@ prime sur les §§ 2, 4, 8, 9, 10, 12 et 15** là où ils divergent.
 | ② | Données | POI, carreaux Filosofi 200 m, IRIS, CP, variables INSEE, flux routier (TMJA), transport, civique, santé (pollen/air), météo (pluie, température, prévisions) ; sélection recommandée par espace | lot 2 (en livraison) |
 | — | **Autres** (hors fil) | bouton de la barre du parcours, au même niveau que les étapes mais séparé, **non numéroté, sans Alt+N** : Panneaux OOH et Radio — on ne construit pas de zone avec | Task 11b du lot 2 |
 | ③ | Zones | **toute sélection devient une forme** (polygone), un SEUL objet « zone » quelle que soit sa recette, nommé, enregistré, qui **garde sa recette** pour être recalculé | rayon autour d'UN point, dessin (Polygon ≤ 5 000 sommets), liste de CP, capture, union/intersection/différence |
-| ④ | Analyse | plusieurs analyses au choix sur les zones : couverture (population et cible, sur le polygone **tel quel** ou découpé par CP ou IRIS), clustering des POI, score composite, isochrones comparées, croisements radio/trafic/météo. **Rien de l'existant n'est retiré** — sauf le Voronoï (supprimé le 30/10/2026, décision Vincent) : jamais porté en Angular, sa route, son outil React et ses fonctions SQL (sql/299) sont retirés. | outils du panneau Analyse ; couverture = module risque seul |
+| ④ | Analyse | plusieurs analyses au choix sur la zone analysée (réécrit le 30/10/2026, ce qui existe — § 17 sexies) : couverture (population et cible, sur le polygone **tel quel** ou découpé par CP ou IRIS ; zone pays par CP ou par département, IRIS refusé), couverture par rayon autour de tout type de POI, score composite (CP de la couverture), bataille V2 « Sur : la zone analysée » (isochrones comparées), typologies des POI de la zone pour tous (calcul au super admin), corrélation (jusqu'à la livraison de ⑧, où elle déménage). **Retirés** : croisements radio/trafic (26/10), bataille V1 (27/10), Voronoï (supprimé le 30/10/2026, décision Vincent : route, outil React, fonctions SQL sql/299). Météo : lot 10. | outils du panneau Analyse ; couverture = module risque seul |
 | ⑤ | Jeu de zones | on fige ce qui sera acheté ; **l'utilisateur choisit la maille plateforme par plateforme** (rien n'est forcé au plus fin) ; l'écran montre pour chaque plateforme ce qu'elle accepte, un **lien vers sa doc officielle**, et **ce que la maille choisie fait perdre** (diffusion hors zone, habitants manqués) | jeux de zones Seveso au CP |
 | ⑥ | Plan | le jeu de zones devient le plan média (budget, pression, CPM) | au CP seulement (React) |
 | ⑦ | Activation | export ou push dans le format natif de chaque plateforme, avec la connexion API de l'**espace actif** | DV360 CP/SDF/script + push ; TikTok fichier |
