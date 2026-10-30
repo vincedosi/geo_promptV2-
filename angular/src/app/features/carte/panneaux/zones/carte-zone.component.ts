@@ -11,6 +11,10 @@ import { dateZone } from '../../logique/zones/zones-affichees';
 const FANTOME = 'flex cursor-pointer items-center justify-center gap-1 rounded-[4px] border-fin bg-transparent text-[10px] '
   + 'transition-all duration-150 ease-[var(--ease-hover)]';
 
+/** Les gestes sur la recette d'une zone, « Recalculer » et « Dupliquer » : bouton outline neutre, 11 px, rayon 6. */
+const GESTE = 'shrink-0 cursor-pointer rounded-[6px] border-fin border-default bg-transparent px-2 py-1 text-[11px] text-secondary '
+  + 'hover:border-hover hover:bg-elevated hover:text-primary disabled:cursor-not-allowed disabled:opacity-40';
+
 /**
  * Une carte de « Mes zones » — `ZoneCard` (`components/map/overlays/ZonesOverlay.tsx:431-588`), présentationnelle :
  * case de sélection et son RANG (l'ordre de cochage désigne la base d'une soustraction), point et bord à la teinte de
@@ -77,7 +81,7 @@ const FANTOME = 'flex cursor-pointer items-center justify-center gap-1 rounded-[
           data-recalculer
           [disabled]="recalculEnCours()"
           (click)="recalculer.emit()"
-          class="shrink-0 cursor-pointer rounded-[6px] border-fin border-default bg-transparent px-2 py-1 text-[11px] text-secondary hover:border-hover hover:bg-elevated hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+          [class]="geste"
         >Recalculer</button>
       }
     </div>
@@ -88,7 +92,7 @@ const FANTOME = 'flex cursor-pointer items-center justify-center gap-1 rounded-[
         data-dupliquer
         [disabled]="duplicationEnCours()"
         (click)="dupliquer.emit()"
-        class="shrink-0 cursor-pointer rounded-[6px] border-fin border-default bg-transparent px-2 py-1 text-[11px] text-secondary hover:border-hover hover:bg-elevated hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+        [class]="geste"
       >{{ referencee() ? 'Recalculer dans une nouvelle zone' : 'Dupliquer' }}</button>
     </div>
 
@@ -186,6 +190,7 @@ export class CarteZoneComponent {
   readonly indicateurs = input<readonly IndicateurRegistre[]>([]);
 
   protected readonly fantome = FANTOME;
+  protected readonly geste = GESTE;
   protected readonly source = computed(() => libelleSource(this.zone().source_type));
   /** La recette en clair ; « Forme figée » pour une zone d'avant le lot 3 (aucune recette enregistrée). */
   protected readonly recette = computed(() => {

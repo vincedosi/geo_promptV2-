@@ -12,19 +12,19 @@ const SEUIL: ZoneCustomResume = {
 
 function monterRecettes(recalculer: unknown = vi.fn()) {
   const indicateurs = vi.fn(() => of({ indicators: [] }));
-  return { ...monter({ zones: RECETTES, recalculer, indicateurs }), indicateurs };
+  return { ...monter(TestBed, { zones: RECETTES, recalculer, indicateurs }), indicateurs };
 }
 
 describe('MesZonesComponent (ZonesOverlay.tsx, T14)', () => {
   it('sans organisation active : « Aucun workspace actif. », aucune requête', async () => {
-    const { el, api, stable } = await monter({ organisation: null });
+    const { el, api, stable } = await monter(TestBed, { organisation: null });
     await stable();
     expect(el.textContent).toContain('Aucun workspace actif.');
     expect(api.lister).not.toHaveBeenCalled();
   });
 
   it('liste ET chiffres lus ensemble avec l’organisation et un horodatage ; chiffres, cartes et puces rendus comme React', async () => {
-    const { el, api, stable } = await monter();
+    const { el, api, stable } = await monter(TestBed);
     await stable();
     expect(api.lister).toHaveBeenCalledTimes(1);
     const params = (api.lister.mock.calls[0] as unknown as [URLSearchParams])[0];
@@ -40,7 +40,7 @@ describe('MesZonesComponent (ZonesOverlay.tsx, T14)', () => {
   });
 
   it('une puce relit la liste avec `source_type` ; la recherche part après 200 ms, avec `q`', async () => {
-    const { el, api, stable } = await monter();
+    const { el, api, stable } = await monter(TestBed);
     await stable();
     el.querySelector<HTMLButtonElement>('[data-puce="admin_filter"]')!.click();
     await stable();
@@ -59,7 +59,7 @@ describe('MesZonesComponent (ZonesOverlay.tsx, T14)', () => {
   });
 
   it('cocher deux zones : rangs 1 et 2 dans l’ordre de cochage, barre des opérations', async () => {
-    const { el, stable } = await monter();
+    const { el, stable } = await monter(TestBed);
     await stable();
     const [a, b] = cartes(el);
     b.querySelector<HTMLInputElement>('input[data-selection]')!.click();
@@ -71,7 +71,7 @@ describe('MesZonesComponent (ZonesOverlay.tsx, T14)', () => {
   });
 
   it('Afficher → la zone est sur la carte, sa carte passe à « Masquer » avec sa teinte ; Masquer la retire', async () => {
-    const { el, stable, carte } = await monter();
+    const { el, stable, carte } = await monter(TestBed);
     await stable();
     cartes(el)[0].querySelector<HTMLButtonElement>('button[data-afficher]')!.click();
     await stable();
@@ -92,7 +92,7 @@ describe('MesZonesComponent (ZonesOverlay.tsx, T14)', () => {
     const supprimer = vi.fn(() => (echec
       ? throwError(() => new HttpErrorResponse({ status: 409, error: { error: MESSAGE, refus: 'zone_referencee', par: 'combinaison' } }))
       : of({ deleted: true, id: 'a' })));
-    const { el, api, stable } = await monter({ api: { supprimer } });
+    const { el, api, stable } = await monter(TestBed, { api: { supprimer } });
     await stable();
     cartes(el)[0].querySelector<HTMLButtonElement>('button[data-supprimer]')!.click();
     await stable();
@@ -111,7 +111,7 @@ describe('MesZonesComponent (ZonesOverlay.tsx, T14)', () => {
   });
 
   it('export TikTok d’une carte : export `tiktok_geo` ; un échec s’affiche (React se taisait) ; plus de script DV360', async () => {
-    const { el, api, stable } = await monter();
+    const { el, api, stable } = await monter(TestBed);
     await stable();
     expect(el.querySelector('[data-export="bidding_script"]')).toBeNull();
     cartes(el)[0].querySelector<HTMLButtonElement>('button[data-export="tiktok_geo"]')!.click();
@@ -136,7 +136,7 @@ describe('MesZonesComponent (ZonesOverlay.tsx, T14)', () => {
 
   it('un seuil sur territoires listé : catalogue lu une fois, libellé et unité affichés', async () => {
     const indicateurs = vi.fn(() => of({ indicators: [{ indicator_code: 'taux_pauvrete', label: 'Taux de pauvreté', famille: null, unit: '%' }] }));
-    const { el, stable } = await monter({ zones: [SEUIL], indicateurs });
+    const { el, stable } = await monter(TestBed, { zones: [SEUIL], indicateurs });
     await stable();
     expect(indicateurs).toHaveBeenCalledTimes(1);
     expect(cartes(el)[0].querySelector('[data-recette]')!.textContent!.trim()).toBe('Territoires où taux de pauvreté ≥ 20 %');
@@ -158,7 +158,7 @@ describe('MesZonesComponent (ZonesOverlay.tsx, T14)', () => {
     const recalculer = vi.fn(() => of(new HttpResponse({ status: 200, body: { zone_id: 'z1' } })));
     // Une lecture ASYNCHRONE, comme HTTP : un `of` synchrone laisse sa lecture inscrite comme « en vol » dans le service.
     const geometrie = vi.fn(() => of({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[1, 2], [3, 4], [1, 2]]] }, properties: { id: 'z1' } }).pipe(delay(0)));
-    const { el, stable, carte } = monter({ zones: RECETTES, recalculer, api: { geometrie } });
+    const { el, stable, carte } = monter(TestBed, { zones: RECETTES, recalculer, api: { geometrie } });
     await stable();
     cartes(el)[0].querySelector<HTMLButtonElement>('button[data-afficher]')!.click();
     await stable();
@@ -233,7 +233,7 @@ describe('MesZonesComponent (ZonesOverlay.tsx, T14)', () => {
   it('Supprimer : un échec sans message de la route garde le message par statut ; le réseau a le sien', async () => {
     let echec: HttpErrorResponse = new HttpErrorResponse({ status: 404, error: 'texte' });
     const supprimer = vi.fn(() => throwError(() => echec));
-    const { el, stable } = await monter({ api: { supprimer } });
+    const { el, stable } = await monter(TestBed, { api: { supprimer } });
     await stable();
     cartes(el)[0].querySelector<HTMLButtonElement>('button[data-supprimer]')!.click();
     await stable();
@@ -250,7 +250,7 @@ describe('MesZonesComponent (ZonesOverlay.tsx, T14)', () => {
   it('recalcul d’une zone affichée : sa teinte et son rang ne bougent pas, nom et forme sont ceux de la liste relue', async () => {
     const recalculer = vi.fn(() => of(new HttpResponse({ status: 200, body: { zone_id: 'z1' } })));
     const geometrie = vi.fn((id: string) => of({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[1, 2], [3, 4], [1, 2]]] }, properties: { id } }).pipe(delay(0)));
-    const { el, api, stable, carte } = monter({ zones: RECETTES, recalculer, api: { geometrie } });
+    const { el, api, stable, carte } = monter(TestBed, { zones: RECETTES, recalculer, api: { geometrie } });
     await stable();
     const service = TestBed.inject(ZonesCustomService);
     cartes(el)[0].querySelector<HTMLButtonElement>('button[data-afficher]')!.click();
@@ -271,7 +271,7 @@ describe('MesZonesComponent (ZonesOverlay.tsx, T14)', () => {
 
   it('Supprimer : tout message texte de la route est affiché, quel que soit `refus`', async () => {
     const supprimer = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 403, error: { error: 'Droit insuffisant sur cette zone.' } })));
-    const { el, stable } = await monter({ api: { supprimer } });
+    const { el, stable } = await monter(TestBed, { api: { supprimer } });
     await stable();
     cartes(el)[0].querySelector<HTMLButtonElement>('button[data-supprimer]')!.click();
     await stable();
@@ -306,12 +306,12 @@ describe('MesZonesComponent (ZonesOverlay.tsx, T14)', () => {
   });
 
   it('liste en échec → « HTTP 500 » ; chiffres en échec → liste quand même', async () => {
-    const { el, stable } = await monter({ api: { stats: () => throwError(() => new HttpErrorResponse({ status: 500 })) } });
+    const { el, stable } = await monter(TestBed, { api: { stats: () => throwError(() => new HttpErrorResponse({ status: 500 })) } });
     await stable();
     expect(cartes(el).length).toBe(2);
     expect(el.querySelector('[data-stats]')).toBeNull();
     TestBed.resetTestingModule();
-    const autre = await monter({ api: { lister: () => throwError(() => new HttpErrorResponse({ status: 500 })) } });
+    const autre = await monter(TestBed, { api: { lister: () => throwError(() => new HttpErrorResponse({ status: 500 })) } });
     await autre.stable();
     expect(autre.el.querySelector('[data-erreur]')!.textContent).toBe('HTTP 500');
     expect(autre.el.textContent).toContain('Aucune zone sauvegardée.');

@@ -29,7 +29,7 @@
 --
 -- Mesuré le 2026-10-29 (local) : 93 lignes, 1 146 Ko de géométrie (pg_column_size ; les « 5 Mo » de sql/133 comptaient
 -- aussi geom_simplified et les index), 72 820 sommets (max 1 433), 374 932 km² cumulés ; 0 invalide ; SRID 4326 ;
--- durée de la migration : voir le rapport de la tâche.
+-- durée de la migration : 0,67 s (second passage : 0,56 s, 0 ligne).
 
 begin;
 

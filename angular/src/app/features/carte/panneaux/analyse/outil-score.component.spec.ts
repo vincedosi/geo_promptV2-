@@ -192,11 +192,18 @@ describe('Outil « Score composite » (ScoreCompositeTool.tsx, T18)', () => {
     });
     const geometrie = { type: 'MultiPolygon', coordinates: [] };
     source.flush({ geometry: geometrie, count: 2, codes: ['13001', '13003'], scale: 'cp' });
-    // Lot 3 : POST /api/zones avec la recette figée `capture` (source `score`) et sa géométrie.
+    // Lot 3 : POST /api/zones avec la recette figée `capture` (source `score`) et sa géométrie ; ③ finitions (T5,
+    // V-6) : la recette garde sa provenance (indicateurs, maille, seuil).
     const save = m.http.expectOne((r) => r.url.endsWith('/api/zones'));
     expect(save.request.body).toEqual({
       nom: 'Score ≥ 70 — Revenu médian × Part des 15-29 ans',
-      recette: { v: 1, type: 'capture', source_type: 'score' },
+      recette: {
+        v: 1, type: 'capture', source_type: 'score',
+        parametres: {
+          indicateurs: [{ code: 'rev_median', poids: 1, sens: 'croissant' }, { code: 'part_15_29', poids: 1, sens: 'croissant' }],
+          maille: 'cp', seuil_score: 70,
+        },
+      },
       geometrie,
     });
     save.flush({ zone_id: 'z1', count_cp: 2 });

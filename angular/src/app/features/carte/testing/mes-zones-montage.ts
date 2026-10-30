@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { TestBed } from '@angular/core/testing';
+import type { TestBed } from '@angular/core/testing';
 import type maplibregl from 'maplibre-gl';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
@@ -32,7 +32,11 @@ export const RECETTES: ZoneCustomResume[] = [
   { ...zone('z2', 'Dessin', 'recette_dessin'), recette: { v: 1, type: 'dessin' } },
 ];
 
-export function monter(o: {
+/**
+ * `banc` : le `TestBed` du spec, passé en paramètre (patron de `jeu-factice.ts`) — un source hors `*.spec.ts` n'importe
+ * pas `@angular/core/testing` à l'exécution (`tests/unit/angular/imports-partages.test.ts`).
+ */
+export function monter(banc: typeof TestBed, o: {
   organisation?: string | null; zones?: ZoneCustomResume[]; recalculer?: unknown; dupliquer?: unknown; indicateurs?: unknown;
   api?: Partial<Record<keyof ZonesCustomApi, unknown>>;
 } = {}) {
@@ -43,7 +47,7 @@ export function monter(o: {
     supprimer: vi.fn(() => of({ deleted: true, id: 'a' })),
     exporter: vi.fn(() => throwError(() => new HttpErrorResponse({ status: 404, error: { error: 'zone_not_found' } }))),
   };
-  TestBed.configureTestingModule({
+  banc.configureTestingModule({
     providers: [
       ZonesCustomService, CouchesCarteService, ExportZoneService,
       // Fourni par la PAGE carte (lot 3, X4) : le test tient le rôle de la page.
@@ -58,8 +62,8 @@ export function monter(o: {
   });
   const carte = new CarteFactice();
   carte.styleCharge = true;
-  TestBed.inject(CouchesCarteService).publier(carte as unknown as maplibregl.Map);
-  const fixture = TestBed.createComponent(MesZonesComponent);
+  banc.inject(CouchesCarteService).publier(carte as unknown as maplibregl.Map);
+  const fixture = banc.createComponent(MesZonesComponent);
   const el = fixture.nativeElement as HTMLElement;
   const stable = async (ms = 0) => {
     for (let i = 0; i < 3; i++) { await attendre(ms); await fixture.whenStable(); }

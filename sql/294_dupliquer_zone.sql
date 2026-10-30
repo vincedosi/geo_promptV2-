@@ -19,8 +19,8 @@
 -- Une zone d'un autre espace, ou absente : `{ refus: 'zone_introuvable' }` (on ne dit pas qu'elle existe ailleurs).
 --
 -- Mesuré le 2026-10-29 (local, EXPLAIN (ANALYZE, BUFFERS) dans une transaction annulée) sur la plus grosse zone
--- (23 073 sommets, 378 756 octets de géométrie) : voir le rapport de la tâche — une ligne lue par la clé primaire,
--- une ligne écrite.
+-- (23 073 sommets, 378 756 octets de géométrie) : 85 ms, 1 245 accès — une ligne lue par la clé primaire, une ligne
+-- écrite.
 -- Rend jsonb. Droits : service_role. Rejouable (create or replace), aucun DROP.
 
 begin;

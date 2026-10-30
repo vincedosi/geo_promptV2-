@@ -17,7 +17,7 @@
 --   Bouches-du-Rhône  sans minimum : 573 carreaux, 22,92 km², 0,32 s, 53 900 buffers ; à 11 : 381 carreaux
 --   (sur les 54 495 carreaux de la Gironde, 39 918 ont moins de 11 ménages ; 21 505 sur 32 818 dans le 13)
 -- Le prédicat s'ajoute au filtre des carreaux DÉJÀ lus (jsonb du carreau) : aucune lecture de plus — buffers mesurés
--- après application, voir le rapport de la tâche.
+-- après application (revue finale, 30/10, Gironde, cache tiède) : 89 463 buffers à 0 comme à 11 ménages.
 -- Rend jsonb. Droits : service_role. Rejouable (create or replace).
 
 begin;

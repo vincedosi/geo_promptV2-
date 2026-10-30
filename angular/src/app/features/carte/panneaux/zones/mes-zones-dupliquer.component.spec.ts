@@ -1,3 +1,4 @@
+import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { Subject, of, throwError } from 'rxjs';
 import { type ZoneCustomResume } from '../../data/zones-custom.api';
@@ -9,7 +10,7 @@ describe('MesZonesComponent — Dupliquer (③ finitions, T5)', () => {
   it('un clic = un appel `{ nom (copie) }` ; second clic ignoré en vol ; 200 → liste relue et « Zone dupliquée : <nom> »', async () => {
     const vol = new Subject<HttpResponse<unknown>>();
     const dupliquer = vi.fn(() => vol);
-    const { el, api, stable, fixture } = await monter({ dupliquer });
+    const { el, api, stable, fixture } = await monter(TestBed, { dupliquer });
     await stable();
     const lectures = api.lister.mock.calls.length;
     bouton(el).click();
@@ -27,7 +28,7 @@ describe('MesZonesComponent — Dupliquer (③ finitions, T5)', () => {
 
   it('207 → le message de la route (réussite, jamais renvoyée)', async () => {
     const dupliquer = vi.fn(() => of(new HttpResponse({ status: 207, body: { zone_id: 'n1', warning: 'codes_non_resolus', message: 'Zone créée ; ses codes postaux n’ont pas pu être résolus.' } })));
-    const { el, stable } = await monter({ dupliquer });
+    const { el, stable } = await monter(TestBed, { dupliquer });
     await stable();
     bouton(el).click();
     await stable();
@@ -39,7 +40,7 @@ describe('MesZonesComponent — Dupliquer (③ finitions, T5)', () => {
     const dupliquer = vi.fn()
       .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 0 })))
       .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 404, error: { error: 'Zone introuvable dans cet espace.', refus: 'zone_introuvable' } })));
-    const { el, api, stable } = await monter({ dupliquer });
+    const { el, api, stable } = await monter(TestBed, { dupliquer });
     await stable();
     const lectures = api.lister.mock.calls.length;
     bouton(el).click();
@@ -55,7 +56,7 @@ describe('MesZonesComponent — Dupliquer (③ finitions, T5)', () => {
 
   it.each([502, 504])('passerelle %i → réponse perdue : « vérifiez Mes zones », liste relue, aucune erreur (relecture 2)', async (status) => {
     const dupliquer = vi.fn(() => throwError(() => new HttpErrorResponse({ status })));
-    const { el, api, stable } = await monter({ dupliquer });
+    const { el, api, stable } = await monter(TestBed, { dupliquer });
     await stable();
     const lectures = api.lister.mock.calls.length;
     bouton(el).click();
@@ -68,7 +69,7 @@ describe('MesZonesComponent — Dupliquer (③ finitions, T5)', () => {
   it('un recalcul refusé (409 `zone_referencee`) fait dire « Recalculer dans une nouvelle zone » à la carte', async () => {
     const recalculer = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 409, error: { error: 'Cette zone est utilisée par un plan : dupliquez-la avant de la recalculer.', refus: 'zone_referencee', par: 'strategie' } })));
     const dupliquer = vi.fn(() => of(new HttpResponse({ status: 200, body: { zone_id: 'n1' } })));
-    const { el, stable } = monter({ zones: RECETTES, recalculer, dupliquer });
+    const { el, stable } = monter(TestBed, { zones: RECETTES, recalculer, dupliquer });
     await stable();
     expect(bouton(el).textContent!.trim()).toBe('Dupliquer');
     cartes(el)[0].querySelector<HTMLButtonElement>('button[data-recalculer]')!.click();

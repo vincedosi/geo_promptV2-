@@ -17,8 +17,8 @@ import { z } from 'zod';
 import { messageAnomalies } from '@/lib/api/valider-corps';
 import {
   CODES_FRANCE, INDICATEURS_SEUIL_CARREAUX, MAX_CODES_POSTAUX, MAX_INDICATEURS_SCORE, MIN_MENAGES_CARREAUX_MAX, RAYON_POINT_MAX_M, RAYON_POI_MAX_M, RAYON_POI_MIN_M,
-  SEUIL_CARREAUX_MAX, SEUIL_TERRITOIRE_MAX_ABS, TYPES_PERIMETRE, VERSION_RECETTE, type OperateurSeuil, type PerimetreRecette,
-  type Recette,
+  SEUIL_CARREAUX_MAX, SEUIL_TERRITOIRE_MAX_ABS, TYPES_PERIMETRE, VERSION_RECETTE, type OperateurSeuil, type ParametresScore as ParametresScoreRecette,
+  type PerimetreRecette, type Recette,
 } from './recette';
 
 // Tout UUID cité sort en MINUSCULES : `zone_referencee` (sql/253) le compare en texte jsonb, et un UUID en majuscules
@@ -46,7 +46,7 @@ const ParametresScore = z.object({
     .min(1).max(MAX_INDICATEURS_SCORE),
   maille: z.literal('cp'),
   seuil_score: z.number().finite().min(0).max(100),
-}).strict();
+}).strict() satisfies z.ZodType<ParametresScoreRecette>;
 const Zones = z.array(Uuid).min(2).max(20)
   .refine((zs) => new Set(zs).size === zs.length, { message: 'Une zone ne peut figurer qu’une fois.' });
 
