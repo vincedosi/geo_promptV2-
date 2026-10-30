@@ -7,11 +7,12 @@ import { IsochronesApi } from '../../data/isochrones.api';
 import { BatailleV2Service } from '../../etat/bataille-v2.service';
 import { ContexteBatailleService } from '../../etat/contexte-bataille.service';
 import { CouchesCarteService } from '../../etat/couches-carte.service';
+import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
 import { OutilBatailleV2Component } from './outil-bataille-v2.component';
 
 const CTX = { categorie: 'cirfa', mode: 'drive', territoire: { ville: '', regions: [], depts: ['13'] }, nbRegionsRef: 18 };
 
-async function monter() {
+async function monter(zone = signal<string | null>(null)) {
   TestBed.configureTestingModule({
     providers: [CaptureService, 
       BatailleV2Service, BatailleService, CouchesCarteService,
@@ -20,6 +21,7 @@ async function monter() {
       } },
       { provide: ContexteBatailleService, useValue: { contexte: signal(CTX), unPoi: signal(true), regions: signal([]), afficherPois: vi.fn(),
         oublierRefus: vi.fn(), sousBorne: (_c: unknown, _p: unknown, _n: unknown, suite: () => void) => { suite(); return Subscription.EMPTY; } } },
+      { provide: ZoneAnalyseeService, useValue: { zoneId: zone, siIntrouvable: () => false } },
     ],
   });
   const fixture = TestBed.createComponent(OutilBatailleV2Component);
@@ -76,5 +78,22 @@ describe('OutilBatailleV2Component (BattleV2Tool.tsx, T17)', () => {
     bouton(el, '[data-masquer]').click();
     await fixture.whenStable();
     expect(bataille.visible()).toBe(false);
+  });
+});
+
+/** ④ finitions (T7) : la bascule « Sur » de la bataille, montée seulement avec une zone analysée. */
+describe('OutilBatailleV2Component — « Sur : la zone analysée »', () => {
+  it('sans zone : pas de bascule ; avec : « La zone analysée » pressée, cache et remplissage inactifs avec leur raison', async () => {
+    const sans = await monter();
+    expect(sans.el.querySelector('mg-choix-sur-zone')).toBeNull();
+    TestBed.resetTestingModule();
+    const { el, fixture, v2 } = await monter(signal<string | null>('z-1'));
+    expect(el.querySelector('mg-choix-sur-zone [data-pastille="zone"]')!.getAttribute('aria-pressed')).toBe('true');
+    expect(bouton(el, '[data-verifier-cache]').disabled).toBe(true);
+    expect(el.querySelector('[data-cache-sur-zone]')!.textContent).toContain('lit le cache existant');
+    v2.surZone.set(false);
+    await fixture.whenStable();
+    expect(bouton(el, '[data-verifier-cache]').disabled).toBe(false);
+    expect(el.querySelector('[data-cache-sur-zone]')).toBeNull();
   });
 });

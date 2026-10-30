@@ -1,4 +1,5 @@
-import { DestroyRef, Injectable, inject, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { finalize, type Observable, type Subscription } from 'rxjs';
 import { BatailleService } from '../couches/bataille.service';
 import { IsochronesApi, type EvenementFlux, type StatutCache } from '../data/isochrones.api';
@@ -6,9 +7,12 @@ import { anneauxBruts, erreurDeFlux, messageEchecHttp, messageEvenement, message
 import { journalInitialRemplissage, journalInitialV2, lireMessageRemplissage } from '../logique/bataille/journal';
 import {
   type ContexteBataille, basculerPalier, corpsRemplissage, corpsVerification, parametresRemplissage, parametresV2,
+  parametresV2Zone,
 } from '../logique/bataille/parametres';
 import { ContexteBatailleService } from './contexte-bataille.service';
 import { CouchesCarteService } from './couches-carte.service';
+import { surChangement } from './lecture-annulable';
+import { ZoneAnalyseeService } from './zone-analysee.service';
 
 /** Les paliers proposés, en minutes (`BattleV2Tool.tsx:18`) — tous choisis par défaut. */
 export const PALIERS_V2 = [10, 20, 30, 40, 50, 60, 90] as const;
@@ -38,6 +42,14 @@ interface ResultatV2 {
  * Défaut React corrigé : « ✓ Cache rempli (? isochrones) » — la fermeture lisait le compteur d'avant le flux ; ici le
  * nombre réellement reçu.
  *
+ * ── SUR LA ZONE ANALYSÉE (④ finitions, T7, A-6) ───────────────────────────
+ * Quand ④ analyse une zone, la bataille s'y applique par défaut (`surZone`, patron du score) : le corps porte `zone_id`
+ * et aucun filtre de ① (`parametresV2Zone`), sans comptage de capacité (la route refait les 700 anneaux). Changer de
+ * zone — ou basculer — ABANDONNE la bataille en vol : sa réponse ne peint jamais la carte (P-c). Un 404
+ * `zone_introuvable` retire la zone de ④ (`ZoneAnalyseeService.siIntrouvable`). La vérification du cache et le
+ * remplissage ORS restent sur ① (route protégée, qui ne connaît pas les zones ; la route de remplissage propre à la V2
+ * est le n° 44 de l'Excel) : sur la zone, ils ne partent pas.
+ *
  * `@Injectable()` sans `providedIn` : fourni par la page carte, détruit avec elle.
  */
 @Injectable()
@@ -45,6 +57,14 @@ export class BatailleV2Service {
   private readonly api = inject(IsochronesApi);
   private readonly bataille = inject(BatailleService);
   private readonly ctx = inject(ContexteBatailleService);
+  private readonly analysee = inject(ZoneAnalyseeService);
+
+  /** La zone analysée de ④, ou `null` : la bascule « Sur » n'a de sens qu'avec elle. */
+  readonly zoneAnalysee = this.analysee.zoneId;
+  /** « Sur : la zone analysée » (défaut) ou « le périmètre de ① ». */
+  readonly surZone = signal(true);
+  /** La zone sur laquelle la bataille part, ou `null` : le périmètre de ①. */
+  readonly zoneBataille = computed(() => (this.surZone() ? this.zoneAnalysee() : null));
 
   readonly paliers = signal<number[]>([...PALIERS_V2]);
   readonly cache = signal<StatutCache | null>(null);
@@ -66,6 +86,8 @@ export class BatailleV2Service {
   constructor() {
     inject(CouchesCarteService).inscrireEffacement('bataille-v2', () => this.reinitialiser());
     inject(DestroyRef).onDestroy(() => this.arreter());
+    // P-c : une bataille en vol sur une zone quittée (ou une bascule) est abandonnée, sa réponse jetée.
+    surChangement(this.zoneBataille, () => this.abandonner());
   }
 
   /** Un palier bascule ; le statut du cache devient caduc (`BattleV2Tool.tsx:106-111`). */
@@ -84,7 +106,7 @@ export class BatailleV2Service {
 
   /** `handleCheckV2`. */
   verifierCache(): void {
-    if (!this.ctx.unPoi() || this.paliers().length === 0) return;
+    if (!this.ctx.unPoi() || this.paliers().length === 0 || this.zoneBataille()) return;
     this.verification.set(true);
     this.cache.set(null);
     this.lireCache().pipe(finalize(() => this.verification.set(false))).subscribe({
@@ -95,7 +117,7 @@ export class BatailleV2Service {
 
   /** `handleFillMissingV2` : le flux ORS de `/api/isochrone-battle`, puis cache revérifié et bataille V2 lancée. */
   remplir(): void {
-    if (!this.ctx.unPoi() || this.paliers().length === 0 || this.remplissage()) return;
+    if (!this.ctx.unPoi() || this.paliers().length === 0 || this.remplissage() || this.zoneBataille()) return;
     const ctx = this.ctx.contexte();
     const paliers = this.paliers();
     this.sousBorne(ctx, paliers, () => this.remplirDans(ctx, paliers));
@@ -135,7 +157,10 @@ export class BatailleV2Service {
     if (!this.ctx.unPoi() || this.paliers().length === 0 || this.chargement()) return;
     const ctx = this.ctx.contexte();
     const paliers = this.paliers();
-    this.sousBorne(ctx, paliers, () => this.lancerDans(ctx, paliers, force));
+    const zone = this.zoneBataille();
+    // Sur une zone : aucun comptage (il compterait toute la métropole) — la route refait la capacité.
+    if (zone) this.lancerDans(ctx, paliers, force, zone);
+    else this.sousBorne(ctx, paliers, () => this.lancerDans(ctx, paliers, force));
   }
 
   /** La capacité en direct, puis `suite` (le comptage précédent, s'il court encore, est abandonné). */
@@ -144,9 +169,9 @@ export class BatailleV2Service {
     this.borne = this.ctx.sousBorne(ctx, paliers, (l) => this.noter(l), suite);
   }
 
-  private lancerDans(ctx: ContexteBataille, paliers: readonly number[], force: boolean): void {
+  private lancerDans(ctx: ContexteBataille, paliers: readonly number[], force: boolean, zone: string | null = null): void {
     if (this.chargement()) return;
-    const params = parametresV2(ctx, paliers, force);
+    const params = zone ? parametresV2Zone(ctx, paliers, force, zone) : parametresV2(ctx, paliers, force);
     this.chargement.set(true);
     this.journal.set(journalInitialV2(params.category, params.mode, paliers));
     this.bataille.viderPartiels();
@@ -157,11 +182,15 @@ export class BatailleV2Service {
         const msg = messageEvenementV2(e);
         if (msg) this.noter(msg);
       },
-      error: (err: unknown) => this.noter(`> ✕ ${messageEchecHttp(err)}`),
+      error: (err: unknown) => {
+        this.noter(`> ✕ ${messageEchecHttp(err)}`);
+        // Le flux lit son corps en TEXTE : le refus `zone_introuvable` (404, avant le flux) se relit en objet.
+        if (zone) this.analysee.siIntrouvable(corpsLu(err));
+      },
       complete: () => {
         if (!resultat) { this.noter('> ✕ Réponse incomplète'); return; }
         if (resultat.error) { this.noter(`> ✕ ${erreurDeFlux(resultat.error)}`); return; }
-        this.terminer(resultat, params.category, params.filtre_ville);
+        this.terminer(resultat, params.category, 'filtre_ville' in params ? params.filtre_ville : undefined);
       },
     });
   }
@@ -203,6 +232,15 @@ export class BatailleV2Service {
     return this.api.verifierCache(corpsVerification(ctx, paliers));
   }
 
+  /** La zone de la bataille a changé : le flux en vol est désabonné (sa réponse jetée), la ligne le dit. */
+  private abandonner(): void {
+    if (!this.chargement()) return;
+    this.flux?.unsubscribe();
+    this.flux = null;
+    this.chargement.set(false);
+    this.noter('> Zone changée : bataille abandonnée.');
+  }
+
   private arreter(): void {
     this.flux?.unsubscribe();
     this.relecture?.unsubscribe();
@@ -224,5 +262,15 @@ export class BatailleV2Service {
     this.cache.set(null);
     this.journal.set([]);
     this.ctx.oublierRefus();
+  }
+}
+
+/** Une erreur HTTP dont le corps est du texte JSON (flux NDJSON), relue en objet ; toute autre erreur, telle quelle. */
+function corpsLu(e: unknown): unknown {
+  if (!(e instanceof HttpErrorResponse) || typeof e.error !== 'string') return e;
+  try {
+    return new HttpErrorResponse({ status: e.status, statusText: e.statusText, url: e.url ?? undefined, error: JSON.parse(e.error) });
+  } catch {
+    return e;
   }
 }

@@ -347,6 +347,12 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   clic, 207 = réussite, réponse perdue → « vérifiez Mes zones ». En ④, `mg-outil-couverture` reconnaît la zone pays à sa
   RECETTE (la ligne `lue` de `mg-choix-zone-analysee`, aucune lecture de plus) : « Par IRIS » y est inactive
   (`mg-pastilles [inactives]`) avec la phrase `decoupage_trop_fin_pays`, et « Chiffrer » ne part pas sur IRIS.
+- **Bataille V2 sur la zone (T7, A-6)** : `BatailleV2Service.surZone` (bascule `mg-choix-sur-zone` dans
+  `mg-outil-bataille-v2`, défaut = la zone quand il y en a une) ; `zoneBataille` → corps `parametresV2Zone`
+  (`zone_id`, aucun filtre de ①), sans comptage de capacité. La garde du panneau (`zoneDeLOutil`) laisse passer la
+  bataille sur la zone sans filtre ①, et la ligne A-9 ne s'affiche plus pour elle. Changer de zone abandonne la
+  bataille en vol ; un 404 `zone_introuvable` (corps texte du flux, relu) retire la zone. Sur la zone, « Vérifier
+  cache » et le remplissage ORS restent sur ① et sont inactifs (route de remplissage propre à la V2 : n° 44).
 
 ## ⑤ Jeu de zones : l'état (lot 5, T9, 2026-10-24)
 

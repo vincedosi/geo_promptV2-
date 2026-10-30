@@ -59,7 +59,8 @@ import { ENTETE_ACCORDEON, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE
  * plus appelée par Angular QUE pour ce remplissage ; React garde sa V1 jusqu'à son retrait.
  *
  * Le territoire de la bataille vient du FILTRE (`ContexteBatailleService`), pas du sélecteur de périmètre, code mort
- * côté React depuis la refonte du panneau Filtre. Un filtre code postal ou zone passe la garde mais n'est PAS transmis
+ * côté React depuis la refonte du panneau Filtre — sauf « Sur : la zone analysée » (④ finitions, T7) : la zone est alors
+ * le périmètre, la garde de ① ne s'applique pas et la ligne A-9 ne s'affiche plus pour la bataille. Un filtre code postal ou zone passe la garde mais n'est PAS transmis
  * à la bataille : React la lançait alors sur toute la métropole. Ici, elle est REFUSÉE avec un message
  * (`messageRefusTerritoireBataille`) — défaut React corrigé, revue finale du lot 4 (registre, ligne 71).
  *
@@ -108,7 +109,7 @@ import { ENTETE_ACCORDEON, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE
       </button>
       @if (spatialeOuverte()) {
         <div class="border-b-fin border-subtle p-4">
-          @if (zoneAnalysee()) { <ng-container *ngTemplateOutlet="lignePerimetre1" /> }
+          @if (zoneAnalysee() && !v2.zoneBataille()) { <ng-container *ngTemplateOutlet="lignePerimetre1" /> }
           <div class="pb-1">
             <mg-intro-analyse [nombrePoi]="nombrePoi()" />
             @if (contexte.unPoi()) {
@@ -148,7 +149,7 @@ import { ENTETE_ACCORDEON, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE
 export class PanneauAnalyseComponent {
   private readonly etat = inject(EtatCarteService);
   protected readonly contexte = inject(ContexteBatailleService);
-  private readonly v2 = inject(BatailleV2Service);
+  protected readonly v2 = inject(BatailleV2Service);
   private readonly clusters = inject(ClustersService);
   private readonly calculClustering = inject(CalculClusteringService);
 
@@ -174,8 +175,9 @@ export class PanneauAnalyseComponent {
   private readonly outilRefuse = signal<OutilAnalyse | null>(null);
   /** Le dernier refus ; un filtre posé l'efface (`useEffect(() => { if (filtre) setGardeMessage(null) })`). */
   protected readonly gardeMessage = linkedSignal<FiltreActif | string | null, string | null>({
-    // Une zone analysée est un périmètre suffisant pour le score (T10) : la choisir efface le refus du score, pas des autres.
-    source: computed(() => this.etat.filtre() ?? (this.outilRefuse() === 'score_composite' ? this.scoreComposite.zoneScore() : null)),
+    // Une zone analysée est un périmètre suffisant pour le score (T10) et la bataille « Sur : la zone » (④ finitions, T7) :
+    // la choisir efface LEUR refus, pas celui des autres.
+    source: computed(() => this.etat.filtre() ?? this.zoneDeLOutil(this.outilRefuse())),
     computation: (perimetre, precedent) => (perimetre ? null : (precedent?.value ?? null)),
   });
 
@@ -211,13 +213,20 @@ export class PanneauAnalyseComponent {
    */
   protected verifierPerimetreOutil(outil: OutilAnalyse): boolean {
     const bataille = outil === 'bataille_v2';
-    // Seul le score sait lire une zone : pour lui, la zone analysée tient lieu de périmètre (lot 4, T10).
-    const zone = outil === 'score_composite' ? this.scoreComposite.zoneScore() : null;
-    const message = messageGardeCarte(outil, this.etat.filtre(), zone)
+    // Le score (lot 4, T10) et la bataille « Sur : la zone » (④ finitions, T7) lisent la zone : elle tient lieu de
+    // périmètre. La bataille sur une zone ne regarde pas ① (France comprise) : la route borne la zone (404, 422, 700 anneaux).
+    const zone = this.zoneDeLOutil(outil);
+    const message = bataille && zone ? null : messageGardeCarte(outil, this.etat.filtre(), zone)
       ?? (bataille ? messageRefusTerritoireBataille(this.etat.filtre()) : null);
     this.outilRefuse.set(outil);
     this.gardeMessage.set(message);
     return message === null;
+  }
+
+  /** La zone analysée qu'un outil LIT, ou `null` : le score et la bataille V2 (selon leur bascule « Sur »). */
+  private zoneDeLOutil(outil: OutilAnalyse | null): string | null {
+    if (outil === 'score_composite') return this.scoreComposite.zoneScore();
+    return outil === 'bataille_v2' ? this.v2.zoneBataille() : null;
   }
 
   /** La garde GÉNÉRIQUE (`verifierPerimetre` de React) : un périmètre, n'importe lequel — la France entière comprise. */

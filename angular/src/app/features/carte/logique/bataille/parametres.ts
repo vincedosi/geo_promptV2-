@@ -96,6 +96,23 @@ export function parametresV2(c: ContexteBataille, paliers: readonly number[], fo
   return { category: c.categorie, mode: c.mode, ...portee(c), paliers: croissant(paliers), force_battle: force };
 }
 
+/** Le corps de la bataille V2 sur une ZONE enregistrée (④ finitions, T7, A-6) : la route ignore les filtres de ①. */
+export interface CorpsBatailleV2Zone {
+  category: string;
+  mode: string;
+  paliers: number[];
+  force_battle: boolean;
+  zone_id: string;
+}
+
+/**
+ * Les paramètres de la bataille V2 sur une zone : ni région, ni département, ni ville — la forme de la zone borne la
+ * lecture des POI (`poi_de_zone`, sql/297), et la clé de cache porte l'id et la version de la zone.
+ */
+export function parametresV2Zone(c: ContexteBataille, paliers: readonly number[], force: boolean, zoneId: string): CorpsBatailleV2Zone {
+  return { category: c.categorie, mode: c.mode, paliers: croissant(paliers), force_battle: force, zone_id: zoneId };
+}
+
 /**
  * Le corps EXACT du remplissage V2, envoyé à `POST /api/isochrone-battle` (`useMapDirectActions.ts:301-311`) : un
  * filtre absent part en `null`, jamais omis, et `force_recalculate` à `false` — la route protégée le reçoit ainsi depuis

@@ -117,6 +117,17 @@ describe('Panneau Analyse Angular — verrou structurel de la garde de périmèt
     expect(corps).toContain('messageRefusTerritoireBataille(this.etat.filtre())');
   });
 
+  it('④ finitions (T7) : la bataille ne passe sans garde de ① QUE sur la zone analysée qu’elle lit (« Sur : la zone »)', () => {
+    const corps = corpsDeMethode('verifierPerimetreOutil');
+    expect(corps).toContain('const zone = this.zoneDeLOutil(outil);');
+    expect(corps).toContain('bataille && zone ? null : messageGardeCarte(outil, this.etat.filtre(), zone)');
+    expect(PANNEAU).toContain("return outil === 'bataille_v2' ? this.v2.zoneBataille() : null;");
+    // Le service : sur la zone, ni comptage de la métropole, ni vérification du cache, ni remplissage ORS (ils lisent ①).
+    const service = readFileSync(join(process.cwd(), 'angular/src/app/features/carte/etat/bataille-v2.service.ts'), 'utf-8');
+    expect(service).toContain('if (zone) this.lancerDans(ctx, paliers, force, zone);');
+    expect(service.match(/\|\| this\.zoneBataille\(\)\) return;/g)?.length).toBe(2);
+  });
+
   // ── Clustering (T19) : la RELECTURE d'un modèle déjà calculé (`GET /api/poi-clusters?duration=`) passe par la garde
   // GÉNÉRIQUE, sans refus national — `handleLoadClustersGarde` de `PanneauAnalyse.tsx:278` (« pas le calcul lourd »).
   // Le calcul lourd (`POST /api/poi-clusters/run`, T20) s'ajoutera à `HANDLERS_GARDE_OUTIL` avec l'outil `clustering`.

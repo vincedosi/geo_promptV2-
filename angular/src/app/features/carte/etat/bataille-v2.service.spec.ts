@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Subject, Subscription } from 'rxjs';
@@ -7,6 +8,7 @@ import type { ContexteBataille } from '../logique/bataille/parametres';
 import { BatailleV2Service } from './bataille-v2.service';
 import { ContexteBatailleService } from './contexte-bataille.service';
 import { CouchesCarteService } from './couches-carte.service';
+import { ZoneAnalyseeService } from './zone-analysee.service';
 
 const CTX: ContexteBataille = { categorie: 'cirfa', mode: 'drive', territoire: { ville: '', regions: [], depts: ['13'] }, nbRegionsRef: 18 };
 const STATUT_MANQUANT = { total_pois: 2, total_combos: 14, cached_combos: 7, missing_combos: 7, missing_pois: 1, cached_pois: 1 };
@@ -27,14 +29,22 @@ function monter() {
     // La capacité en direct (T4) : par défaut, le calcul peut partir ; un test la remplace pour refuser.
     sousBorne: vi.fn((_c: unknown, _p: unknown, _n: (l: string) => void, suite: () => void) => { suite(); return Subscription.EMPTY; }),
   };
+  // ④ finitions (T7) : la zone analysée de ④ ; aucune par défaut — la bataille garde alors son corps d'avant.
+  const zoneId = signal<string | null>(null);
+  const siIntrouvable = vi.fn((e: unknown) => {
+    const oui = (e as { error?: { refus?: string } }).error?.refus === 'zone_introuvable';
+    if (oui) zoneId.set(null);
+    return oui;
+  });
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), BatailleV2Service, CouchesCarteService,
       { provide: IsochronesApi, useValue: api }, { provide: BatailleService, useValue: bataille },
       { provide: ContexteBatailleService, useValue: contexte },
+      { provide: ZoneAnalyseeService, useValue: { zoneId, siIntrouvable } },
     ],
   });
-  return { v2: TestBed.inject(BatailleV2Service), flux, caches, corps, bataille, contexte };
+  return { v2: TestBed.inject(BatailleV2Service), flux, caches, corps, bataille, contexte, zoneId, siIntrouvable };
 }
 
 describe('BatailleV2Service (use-isochrone-battle.ts handleCheckV2 / handleFillMissingV2 / handleBattleV2)', () => {
@@ -149,5 +159,67 @@ describe('BatailleV2Service — capacité en direct sur la métropole (retours 2
     expect(v2.journal()).toEqual(['> ✕ Ce calcul dépasse', '> ✕ Ce calcul dépasse']);
     expect(v2.chargement()).toBe(false);
     expect(v2.remplissage()).toBe(false);
+  });
+});
+
+/** ④ finitions (T7, A-6) : « Sur : la zone analysée » — la bataille V2 lit les POI DANS la zone. */
+describe('BatailleV2Service — sur la zone analysée', () => {
+  const Z = '0f8fad5b-d9cb-469f-a165-70867728950e';
+  const CORPS_1 = {
+    category: 'cirfa', mode: 'drive', filtre_ville: undefined, filtre_regions: undefined, filtre_depts: ['13'],
+    metropolitaine: true, paliers: [10, 20, 30, 40, 50, 60, 90], force_battle: false,
+  };
+
+  it('avec une zone, « Sur : la zone » par défaut : zone_id, aucun filtre région, département ou ville, aucun comptage', () => {
+    const { v2, corps, contexte, zoneId } = monter();
+    zoneId.set(Z);
+    expect(v2.zoneBataille()).toBe(Z);
+    v2.lancer(true);
+    expect(corps['batailleV2'][0]).toEqual({ category: 'cirfa', mode: 'drive', paliers: [10, 20, 30, 40, 50, 60, 90], force_battle: true, zone_id: Z });
+    expect(contexte.sousBorne).not.toHaveBeenCalled();
+  });
+
+  it('« Sur : le périmètre de ① » : le corps d’aujourd’hui, octet pour octet', () => {
+    const { v2, corps, zoneId } = monter();
+    zoneId.set(Z);
+    v2.surZone.set(false);
+    expect(v2.zoneBataille()).toBeNull();
+    v2.lancer(false);
+    expect(JSON.stringify(corps['batailleV2'][0])).toBe(JSON.stringify(CORPS_1));
+  });
+
+  it('une réponse arrivée après un changement de zone est jetée : le flux est désabonné, rien n’est peint', () => {
+    const { v2, flux, bataille, zoneId } = monter();
+    zoneId.set(Z);
+    TestBed.tick();
+    v2.lancer(false);
+    expect(flux.batailleV2[0].observed).toBe(true);
+    zoneId.set('1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed');
+    TestBed.tick();
+    expect(flux.batailleV2[0].observed).toBe(false);
+    expect(v2.chargement()).toBe(false);
+    expect(bataille.appliquer).not.toHaveBeenCalled();
+  });
+
+  it('404 zone_introuvable (corps texte du flux) : la zone quitte ④, le journal dit la phrase', () => {
+    const { v2, flux, zoneId, siIntrouvable } = monter();
+    zoneId.set(Z);
+    TestBed.tick();
+    v2.lancer(false);
+    flux.batailleV2[0].error(new HttpErrorResponse({
+      status: 404, error: JSON.stringify({ error: 'Zone introuvable dans cet espace.', refus: 'zone_introuvable' }),
+    }));
+    expect(siIntrouvable).toHaveBeenCalledTimes(1);
+    expect(zoneId()).toBeNull();
+    expect(v2.journal().at(-1)).toBe('> ✕ Zone introuvable dans cet espace.');
+  });
+
+  it('sur la zone, ni vérification du cache ni remplissage ORS (ils travaillent sur ①) : aucun appel', () => {
+    const { v2, corps, zoneId } = monter();
+    zoneId.set(Z);
+    v2.verifierCache();
+    v2.remplir();
+    expect(corps['verifierCache']).toEqual([]);
+    expect(corps['bataille']).toEqual([]);
   });
 });

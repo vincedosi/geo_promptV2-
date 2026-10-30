@@ -6,6 +6,7 @@ import { map, type Observable } from 'rxjs';
 import { HttpBaseService } from '../../../core/http/http-base.service';
 import { lignesNdjson } from '../../../core/http/ndjson';
 import { erreurDeFlux, type EvenementFlux } from '../logique/bataille/flux';
+import type { CorpsBatailleV2Zone } from '../logique/bataille/parametres';
 import type { CacheStatus, DirectBattleV2Params } from '../logique/modes-isochrones';
 
 export type { EvenementFlux };
@@ -39,7 +40,7 @@ export class IsochronesApi extends HttpBaseService {
   }
 
   /** `POST /api/isochrone-battle-v2` : la découpe multi-paliers depuis le cache, sans appel ORS. */
-  batailleV2(corps: DirectBattleV2Params): Observable<EvenementFlux> {
+  batailleV2(corps: DirectBattleV2Params | CorpsBatailleV2Zone): Observable<EvenementFlux> {
     return this.flux('isochrone-battle-v2', corps);
   }
 

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { BatailleService } from '../../couches/bataille.service';
 import { BatailleV2Service, PALIERS_V2 } from '../../etat/bataille-v2.service';
+import { ChoixSurZoneComponent } from './choix-sur-zone.component';
 import { JournalBatailleComponent } from './journal-bataille.component';
 import { StatutCacheComponent } from './statut-cache.component';
 import {
@@ -20,7 +21,7 @@ import {
  */
 @Component({
   selector: 'mg-outil-bataille-v2',
-  imports: [JournalBatailleComponent, StatutCacheComponent],
+  imports: [ChoixSurZoneComponent, JournalBatailleComponent, StatutCacheComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block overflow-hidden rounded-[4px] border-fin', '[class.border-default]': 'ouvert()', '[class.border-subtle]': '!ouvert()' },
   template: `
@@ -36,6 +37,16 @@ import {
           Lit le cache existant — <span class="text-primary">aucun appel ORS</span>. Paliers manquants skippés.
           S’il en manque, vérifiez le cache puis calculez les POI manquants (ORS) avec le bouton qui apparaît.
         </div>
+
+        @if (v2.zoneAnalysee()) {
+          <mg-choix-sur-zone [(surZone)]="v2.surZone" objet="de la bataille" />
+        }
+        @if (v2.zoneBataille()) {
+          <div data-cache-sur-zone class="text-[11px] leading-[1.5] text-tertiary">
+            Sur la zone, la bataille lit le cache existant : les POI de la zone sans isochrones sont ignorés. La vérification
+            du cache et le calcul ORS se font sur le périmètre de l’étape ①.
+          </div>
+        }
 
         <div>
           <div class="mb-1.5 text-[11px] font-medium text-secondary">Paliers — {{ v2.paliers().join(', ') }} min</div>
@@ -126,8 +137,9 @@ export class OutilBatailleV2Component {
 
   private readonly sansPaliers = computed(() => this.v2.paliers().length === 0);
   protected readonly lancerInactif = computed(() => this.sansPaliers() || this.v2.chargement() || this.v2.remplissage());
-  protected readonly verifInactive = computed(() => this.lancerInactif() || this.v2.verification());
-  protected readonly remplirInactif = computed(() => this.v2.remplissage() || this.v2.chargement());
+  // Sur la zone (④ finitions, T7), cache et remplissage restent sur ① : inactifs, la raison est dite au-dessus.
+  protected readonly verifInactive = computed(() => this.lancerInactif() || this.v2.verification() || this.v2.zoneBataille() !== null);
+  protected readonly remplirInactif = computed(() => this.v2.remplissage() || this.v2.chargement() || this.v2.zoneBataille() !== null);
 
   /** `setV2CacheStatus(null); handleBattleV2(force)` (`BattleV2Tool.tsx:179,186`). */
   protected lancerApresOubli(force: boolean): void {

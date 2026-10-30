@@ -151,26 +151,46 @@ describe('PanneauAnalyseComponent (PanneauAnalyse.tsx, T17)', () => {
     expect(m.el.querySelector('[data-garde]')).toBeNull();
   });
 
-  it('zone analysée SANS filtre ①: la zone ne va qu’au score — la bataille est refusée, zéro requête', async () => {
+  it('④ finitions (T7) : zone analysée SANS filtre ① — la bataille part sur la zone (zone_id), sans comptage ni ligne A-9', async () => {
     const m = await monter({ filtre: null });
     (TestBed.inject(ZoneAnalyseeService).zoneId as WritableSignal<string | null>).set('z-1');
     await ouvrirOutil(m, 'mg-outil-bataille-v2');
+    expect(m.el.querySelector('[data-perimetre-etape-1]')).toBeNull();
     await m.cliquer('mg-outil-bataille-v2 [data-lancer]');
-    expect(m.el.querySelector('[data-garde]')!.textContent!.trim()).toBe('! Choisissez un périmètre (filtre ou zone) avant de lancer un calcul');
-    await m.cliquer('mg-outil-bataille-v2 [data-verifier-cache]');
-    // Seule lecture légitime : le nom de la zone choisie (liste des zones), pas un calcul.
-    m.http.match((r) => r.url.includes('/api/custom-geo/list'));
-    m.http.verify();
+    expect(m.el.querySelector('[data-garde]')).toBeNull();
+    m.http.expectNone('/api/isochrone-cache-check');
+    expect(m.http.expectOne('/api/isochrone-battle-v2').request.body).toEqual({
+      category: 'cirfa', mode: 'drive', paliers: [10, 20, 30, 40, 50, 60, 90], force_battle: false, zone_id: 'z-1',
+    });
   });
 
-  it('T10 R-1 : choisir une zone analysée efface le refus du SCORE, jamais celui d’un outil qui ne la lit pas', async () => {
+  it('④ finitions (T7) : « Sur : le périmètre de ① » rend la garde et la ligne A-9 à la bataille', async () => {
+    const m = await monter({ filtre: null });
+    (TestBed.inject(ZoneAnalyseeService).zoneId as WritableSignal<string | null>).set('z-1');
+    await ouvrirOutil(m, 'mg-outil-bataille-v2');
+    await m.cliquer('mg-outil-bataille-v2 mg-choix-sur-zone [data-pastille="filtre"]');
+    expect(m.el.querySelector('[data-perimetre-etape-1]')).not.toBeNull();
+    await m.cliquer('mg-outil-bataille-v2 [data-lancer]');
+    expect(m.el.querySelector('[data-garde]')!.textContent!.trim()).toBe('! Choisissez un périmètre (filtre ou zone) avant de lancer un calcul');
+    m.http.expectNone('/api/isochrone-battle-v2');
+  });
+
+  it('T10 R-1 : choisir une zone analysée efface le refus d’un outil qui la LIT (score, bataille sur la zone), pas des autres', async () => {
     const m = await monter({ filtre: null });
     const zone = TestBed.inject(ZoneAnalyseeService).zoneId as WritableSignal<string | null>;
-    await ouvrirOutil(m, 'mg-outil-bataille-v2');
-    await m.cliquer('mg-outil-bataille-v2 [data-lancer]');
+    // Le clustering ne lit pas la zone : son refus reste.
+    (m.fixture.componentInstance as unknown as { verifierPerimetreOutil(o: string): boolean }).verifierPerimetreOutil('clustering');
     zone.set('z-1');
     await m.fixture.whenStable();
     expect(m.el.querySelector('[data-garde]')).not.toBeNull();
+    // ④ finitions (T7) : la bataille « Sur : la zone » la lit — son refus part quand une zone est choisie.
+    zone.set(null);
+    await ouvrirOutil(m, 'mg-outil-bataille-v2');
+    await m.cliquer('mg-outil-bataille-v2 [data-lancer]');
+    expect(m.el.querySelector('[data-garde]')).not.toBeNull();
+    zone.set('z-1');
+    await m.fixture.whenStable();
+    expect(m.el.querySelector('[data-garde]')).toBeNull();
     zone.set(null);
     (m.fixture.componentInstance as unknown as { lancerScore(): void }).lancerScore();
     await m.fixture.whenStable();
