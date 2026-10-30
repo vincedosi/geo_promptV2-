@@ -51,7 +51,9 @@ const LECTURE_CLIENT = new RegExp(
   + String.raw`|'(cible_indicator_registry|indicator_cp_values|dataset_abstention_2022)'`
   + String.raw`|rpc\(\s*'(get_voronoi[a-z_]*|get_battle_geometry|compte_poi_par_categorie|poi_count_by_categorie|get_poi_near_panneau|panneaux_near_point|count_poi_by_categorie_source|get_poi_categories|types_poi_clustering`
   + String.raw`|get_civic_layer_geojson|get_indicator_threshold_selection|calculer_score_composite[a-z_]*|materialize_indicator_cp_values|etat_indicateur_cp|zone_seuil_territoire|alignement_par_maille_geo`
-  + String.raw`|materialiser_indicateur_cp|correlation_campagne_indicateur|apply_zone_weights_to_strategy)'`,
+  + String.raw`|materialiser_indicateur_cp|correlation_campagne_indicateur|apply_zone_weights_to_strategy`
+  // ④ finitions (2026-10-30) : POI d'une zone (bataille V2, sql/297) et typologies d'une zone (sql/298).
+  + String.raw`|poi_de_zone|typologies_de_zone)'`,
 );
 
 const REGLE = /from '@\/lib\/auth\/(perimetre-donnees|getOrgSourceIds)'/;

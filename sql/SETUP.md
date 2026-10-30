@@ -169,6 +169,7 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `pays_contient_code()` | 296 | La règle « pays » : FR contient tout, METRO hors 97x / 98x |
 | `compter_zone_pays()` | 296 | Compteurs de « Mes zones » d'une zone pays sans lecture géométrique |
 | `poi_de_zone()` | 297 | POI d'une catégorie dans une zone de l'espace, catégorie d'abord, `{ pois, tronque }` : la bataille V2 sur une zone |
+| `typologies_de_zone()` | 298 | Typologies déjà calculées (dernier modèle par durée et mode) des POI visibles d'une zone de l'espace, en lecture pour tous |
 | `zone_seuil_territoire()` | 256 | Zone fabriquée : union des CP ou IRIS au-delà d'un seuil |
 | `boucher_interstices()` | 265 | Bouche les fentes de couture d'un contour de département ou de région, vraies enclaves gardées ; remplit `geom_perimetre` (migration psql : `\if :{?forcer_perimetres}`) |
 | `carreaux_de_forme()` | 269 | LA règle « carreaux d'une forme » (centroïde, `ST_Subdivide` + `ST_Intersects` + `distinct on`), inlinée dans ses deux appelants |

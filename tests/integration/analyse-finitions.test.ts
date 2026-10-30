@@ -244,3 +244,69 @@ describe('T2 — la zone pays et sa couverture nationale (sql/296)', () => {
     expect(empreinte()).toBe(avant);
   });
 });
+
+describe('T4 — typologies_de_zone : les typologies déjà calculées des POI d’une zone (sql/298)', () => {
+  interface Typologies {
+    refus?: string; motif: string | null; tronque: boolean;
+    modeles: { duree: number; mode: string; version: number; typologies: { cluster_id: number; label: string | null; n_poi: number; population: number; profil: unknown }[] }[];
+    pois: { poi_id: string; nom: string; lat: number; lng: number; duree: number; mode: string; version: number; cluster_id: number; cluster_label: string | null; population: number | null }[];
+  }
+  const sourcesDe = (categorie: string) =>
+    psql(`select coalesce(string_agg(distinct data_source_id::text, ','), '') from public.poi_france where categorie = '${categorie}';`)
+      .split(',').filter(Boolean);
+  let bretagne = '';
+
+  async function typologies(zone: string, sources: string[], o = org): Promise<Typologies> {
+    const { data, error } = await admin.rpc('typologies_de_zone', { p_zone: zone, p_org: o, p_sources: sources });
+    if (error) throw new Error(`${error.code} ${error.message}`);
+    return data as Typologies;
+  }
+
+  beforeAll(() => {
+    bretagne = psql(`select public.creer_zone_recette('Bretagne (T4)', '${org}', null, '{"v":1,"type":"dessin"}', ST_AsGeoJSON(r.g))->>'id'
+                       from public.resoudre_perimetre('region', '53', null, 100000, array['region']) r;`);
+  });
+
+  it('zone Bretagne, sources de la Marine : les CIRFA de la zone, une ligne par POI et par (durée, mode) du DERNIER modèle', async () => {
+    const r = await typologies(bretagne, sourcesDe('cirfa'));
+    expect(r.refus).toBeUndefined();
+    expect(r.motif).toBeNull();
+    expect(r.tronque).toBe(false);
+    const attendus = psql(`select count(*) from public.poi_clusters pc join public.poi_france p on p.id = pc.poi_id,
+                                 public.custom_geo_zones z
+                           where z.id = '${bretagne}' and ST_Intersects(p.geom, z.geometry)
+                             and pc.model_version = (select max(m.version) from public.clustering_models m
+                                                      where m.duration_minutes = pc.duration_minutes and m.mode = pc.mode);`);
+    expect(r.pois.length).toBe(Number(attendus));
+    expect(r.pois.length).toBeGreaterThan(0);
+    const cles = r.pois.map((p) => `${p.poi_id}|${p.duree}|${p.mode}`);
+    expect(new Set(cles).size).toBe(cles.length);
+    // Le dernier modèle de chaque (durée, mode) : v3 pour 15 min, v4 pour 60 min au 30/10.
+    for (const m of r.modeles) {
+      const derniere = Number(psql(`select max(version) from public.clustering_models where duration_minutes = ${m.duree} and mode = '${m.mode}';`));
+      expect(m.version).toBe(derniere);
+      expect(m.typologies.reduce((s, t) => s + t.n_poi, 0)).toBe(r.pois.filter((p) => p.duree === m.duree && p.mode === m.mode).length);
+    }
+    const dehors = psql(`select count(*) from jsonb_to_recordset('${JSON.stringify(r.pois.map((p) => ({ lat: p.lat, lng: p.lng })))}'::jsonb)
+                                t(lat float8, lng float8), public.custom_geo_zones z
+                          where z.id = '${bretagne}' and not ST_Intersects(z.geometry, ST_SetSRID(ST_MakePoint(t.lng, t.lat), 4326));`);
+    expect(dehors).toBe('0');
+  });
+
+  it('le même appel avec les sources d’un AUTRE espace : aucun POI (la source CIRFA est privée)', async () => {
+    const r = await typologies(bretagne, sourcesDe('bmw'));
+    expect(r.pois).toEqual([]);
+    expect(r.motif).toBe('aucun_poi_type');
+  });
+
+  it('zone sans POI typé : liste vide et `motif: aucun_poi_type`', async () => {
+    const r = await typologies(zones.rural, sourcesDe('cirfa'));
+    expect(r.pois).toEqual([]);
+    expect(r.modeles).toEqual([]);
+    expect(r.motif).toBe('aucun_poi_type');
+  });
+
+  it('zone d’un autre espace : `zone_introuvable`', async () => {
+    expect((await typologies(bretagne, sourcesDe('cirfa'), autreOrg)).refus).toBe('zone_introuvable');
+  });
+});
