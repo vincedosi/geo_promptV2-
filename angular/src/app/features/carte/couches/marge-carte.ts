@@ -68,3 +68,32 @@ function recadrer(instance: maplibregl.Map, marge: MargeCarte): void {
   instance.setPadding(marge);
   instance.fitBounds([[nordOuest.lng, sudEst.lat], [sudEst.lng, nordOuest.lat]], { padding: 0, duration: DUREE_RECADRAGE_MARGE });
 }
+
+/** Une emprise `[[ouest, sud], [est, nord]]`, comme `fitBounds` la prend. */
+export type EmpriseCadre = [[number, number], [number, number]];
+
+/**
+ * Vrai si l'emprise tient ENTIÈRE dans la partie libre de la carte — le conteneur moins la marge `setPadding` (panneau
+ * d'étape à gauche, panneaux du bord droit). Un conteneur sans taille (pas encore mis en page) ne montre rien : faux.
+ */
+export function empriseVisible(instance: maplibregl.Map, [[ouest, sud], [est, nord]]: EmpriseCadre): boolean {
+  const conteneur = instance.getContainer();
+  const largeur = conteneur.clientWidth;
+  const hauteur = conteneur.clientHeight;
+  if (largeur <= 0 || hauteur <= 0) return false;
+  const { left = 0, top = 0, right = 0, bottom = 0 } = instance.getPadding();
+  const a = instance.project([ouest, nord]);
+  const b = instance.project([est, sud]);
+  return Math.min(a.x, b.x) >= left && Math.max(a.x, b.x) <= largeur - right
+    && Math.min(a.y, b.y) >= top && Math.max(a.y, b.y) <= hauteur - bottom;
+}
+
+/**
+ * Cadre l'emprise dans la partie libre si elle n'y est pas déjà entièrement (③ finitions, T6, A-8) ; rend vrai s'il a
+ * recadré. `fitBounds` ajoute de lui-même la marge de la carte au `padding` de l'appel (voir l'en-tête).
+ */
+export function cadrerSiHorsVue(instance: maplibregl.Map, emprise: EmpriseCadre, options: maplibregl.FitBoundsOptions): boolean {
+  if (empriseVisible(instance, emprise)) return false;
+  instance.fitBounds(emprise, options);
+  return true;
+}

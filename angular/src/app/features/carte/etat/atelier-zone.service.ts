@@ -3,12 +3,17 @@ import { Subject, type Subscription } from 'rxjs';
 import { ChargementService } from '../../../core/chargement/chargement.service';
 import { CouleursService } from '../../../core/theme/couleurs.service';
 import { poserApercuZone, retirerApercuZone } from '../couches/apercu-zone';
+import { cadrerSiHorsVue } from '../couches/marge-carte';
 import { type ApercuZone, ZonesApi } from '../data/zones.api';
 import { messageErreurZone } from '../logique/zones/perimetre-recette';
+import { bboxDeGeometrie } from '../logique/zones/zones-affichees';
 import { MESSAGES_REFUS, estRecalculable, refusPerimetreLocal, type Recette } from '../logique/zones/recette';
 import { CouchesCarteService, quandStyleCharge } from './couches-carte.service';
 
 type EchecHttp = { status?: number; error?: unknown };
+
+/** Le recadrage sur l'aperçu, aux réglages de l'affichage d'une zone custom (`zones-custom.service.ts`). */
+const RECADRAGE_APERCU = { padding: 50, duration: 800 } as const;
 
 /**
  * L'atelier de l'étape ③ (lot 3) : une recette → un aperçu dessiné → une zone enregistrée. Fourni par
@@ -25,6 +30,10 @@ type EchecHttp = { status?: number; error?: unknown };
  * réponse. Un 207 est une RÉUSSITE (la zone existe, seuls ses codes postaux n'ont pas été résolus) : jamais renvoyée,
  * l'atelier est vidé comme après un 200. Une réponse PERDUE (statut 0) ou un 2xx sans `zone_id` vident aussi l'atelier
  * (la zone existe peut-être) et renvoient à « Mes zones » avant tout nouvel essai.
+ *
+ * ③ finitions (T6) : un aperçu reçu recadre la carte sur SON emprise (lue dans la réponse déjà reçue, aucune requête),
+ * seulement si la forme n'est pas entièrement visible hors des panneaux (A-8) — jamais deux fois pour la même emprise.
+ * Le message de réussite s'oublie au changement de formulaire, de famille ou de recette (`oublierMessage`, A-9).
  */
 @Injectable()
 export class AtelierZoneService {
@@ -48,6 +57,8 @@ export class AtelierZoneService {
   private geometrieFigee: GeoJSON.Geometry | undefined;
   private volApercu: Subscription | null = null;
   private volEcriture: Subscription | null = null;
+  /** L'emprise du dernier aperçu reçu : un aperçu identique ne recadre plus (A-8). */
+  private derniereEmprise: string | null = null;
 
   constructor() {
     inject(ChargementService).suivre('atelier-zone', 'Calcul de la zone…', () => this.enCours());
@@ -91,9 +102,25 @@ export class AtelierZoneService {
     this.erreur.set(null);
     this.enCours.set(true);
     this.volApercu = this.api.apercu(geometrie ? { recette, geometrie } : { recette }).subscribe({
-      next: (a) => { this.apercu.set(a); this.enCours.set(false); },
+      next: (a) => { this.apercu.set(a); this.enCours.set(false); this.recadrer(a); },
       error: (e: EchecHttp) => { this.erreur.set(messageErreurZone(e)); this.enCours.set(false); },
     });
+  }
+
+  /** Cadre la carte sur la forme reçue si elle est hors de la partie libre ; pas sans carte, pas deux fois la même. */
+  private recadrer(a: ApercuZone): void {
+    const carte = this.couches.carteCourante();
+    const b = bboxDeGeometrie(a.geometry);
+    if (!carte || !b) return;
+    const cle = b.join(',');
+    if (cle === this.derniereEmprise) return;
+    this.derniereEmprise = cle;
+    cadrerSiHorsVue(carte, [[b[0], b[1]], [b[2], b[3]]], RECADRAGE_APERCU);
+  }
+
+  /** Efface le message de réussite (A-9) ; l'erreur et l'aperçu restent. */
+  oublierMessage(): void {
+    this.message.set(null);
   }
 
   enregistrer(nom: string): void {

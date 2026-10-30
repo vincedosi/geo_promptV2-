@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, type Signal, computed, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, type Signal, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { EnteteSectionComponent } from '../../../../ui/entete-section/entete-section.component';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { AtelierZoneService } from '../../etat/atelier-zone.service';
@@ -205,8 +205,16 @@ export class PanneauZonesComponent {
   });
 
   constructor() {
-    const ecrite = inject(AtelierZoneService).zoneCreee.subscribe(() => this.relire());
+    const atelier = inject(AtelierZoneService);
+    const ecrite = atelier.zoneCreee.subscribe(() => this.relire());
     inject(DestroyRef).onDestroy(() => ecrite.unsubscribe());
+    // ③ finitions (T6, A-9) : le message de réussite s'efface quand le formulaire actif (donc la famille) ou sa recette
+    // change ; un clic sur le formulaire déjà actif ne change rien, le message reste.
+    effect(() => {
+      this.actif();
+      this.recetteActive();
+      untracked(() => atelier.oublierMessage());
+    });
   }
 
   /** Ouvrir une famille referme l'autre et rend actif son dernier formulaire (le premier sinon) ; replier vide `actif`. */

@@ -2,12 +2,16 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { lireSeuil } from '../../logique/zones/lire-seuil';
 import { perimetreDeFiltre } from '../../logique/zones/perimetre-recette';
-import { INDICATEURS_SEUIL_CARREAUX, MESSAGES_REFUS, type OperateurSeuil, type Recette, refusPerimetreLocal } from '../../logique/zones/recette';
+import {
+  INDICATEURS_SEUIL_CARREAUX, MESSAGES_REFUS, MIN_MENAGES_CARREAUX_DEFAUT, MIN_MENAGES_CARREAUX_MAX, type OperateurSeuil, type Recette,
+  refusPerimetreLocal,
+} from '../../logique/zones/recette';
 import { STYLES_RECETTE } from './styles-recette';
 
 /**
  * « Carreaux au-dessus d'un seuil » (lot 3, spec § 16.3) : un indicateur Filosofi 200 m de la liste fermée, un
- * opérateur, un seuil ; la zone est l'union des carreaux retenus DANS le périmètre de ① (sql/255).
+ * opérateur, un seuil ; la zone est l'union des carreaux retenus DANS le périmètre de ① (sql/255). Un carreau de moins
+ * de N ménages (11 par défaut, ③ finitions T6, V-2) est écarté : sous ce seuil l'INSEE impute ses valeurs.
  *
  * Le formulaire ne fait que COMPOSER sa recette et dire sa garde (arbitrage P4) : « Aperçu », le nom et
  * « Enregistrer » sont au pied (`mg-pied-recette`), qui lit `recette()` du formulaire actif. Une recette refusée
@@ -30,6 +34,11 @@ import { STYLES_RECETTE } from './styles-recette';
       <input data-seuil type="number" aria-label="Seuil" class="champ w-24 font-mono" min="0" [value]="seuilSaisi()" (input)="seuilSaisi.set($any($event.target).value)" />
       <span data-unite class="libelle">{{ unite() }}</span>
     </div>
+    <label data-ligne-min-menages class="libelle flex items-center gap-2">
+      Carreaux d’au moins
+      <input data-min-menages type="number" class="champ w-20 font-mono" min="0" [max]="minMenagesMax" step="1" [value]="minMenagesSaisi()" (input)="minMenagesSaisi.set($any($event.target).value)" />
+      ménages
+    </label>
     @if (garde(); as g) { <p data-garde class="garde">{{ g }}</p> }
   `,
   styles: [STYLES_RECETTE],
@@ -42,15 +51,21 @@ export class RecetteSeuilCarreauxComponent {
   /** Le texte du champ, lu AVANT conversion : un champ vide n'est pas 0 (`+''` vaut 0 et passait la garde). */
   protected readonly seuilSaisi = signal('40');
   protected readonly seuil = computed(() => lireSeuil(this.seuilSaisi()));
+  protected readonly minMenagesMax = MIN_MENAGES_CARREAUX_MAX;
+  /** Le minimum de ménages d'un carreau retenu, lu comme le seuil (un champ vide n'est pas 0). */
+  protected readonly minMenagesSaisi = signal(String(MIN_MENAGES_CARREAUX_DEFAUT));
+  private readonly minMenages = computed(() => lireSeuil(this.minMenagesSaisi()));
   protected readonly unite = computed(() => INDICATEURS_SEUIL_CARREAUX.find((i) => i.id === this.indicateur())?.unite ?? '');
   private readonly composee = computed<Recette>(() => ({
     v: 1, type: 'seuil_carreaux', indicateur: this.indicateur(), operateur: this.operateur(), seuil: this.seuil(),
-    perimetre: perimetreDeFiltre(this.filtre()),
+    perimetre: perimetreDeFiltre(this.filtre()), min_menages: this.minMenages(),
   }));
   readonly garde = computed(() => {
     const r = refusPerimetreLocal(this.composee());
     if (r) return MESSAGES_REFUS[r];
-    return Number.isFinite(this.seuil()) && this.seuil() >= 0 ? null : 'Saisissez un seuil positif.';
+    if (!(Number.isFinite(this.seuil()) && this.seuil() >= 0)) return 'Saisissez un seuil positif.';
+    const m = this.minMenages();
+    return Number.isInteger(m) && m >= 0 && m <= MIN_MENAGES_CARREAUX_MAX ? null : 'Saisissez un nombre entier de ménages, de 0 à 1 000.';
   });
   /** La recette prête à lancer, ou `null` tant que la garde refuse. */
   readonly recette = computed<Recette | null>(() => (this.garde() ? null : this.composee()));
