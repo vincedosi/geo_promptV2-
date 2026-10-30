@@ -8196,6 +8196,16 @@ export type Database = {
           nb: number
         }[]
       }
+      poi_de_zone: {
+        Args: {
+          p_categorie: string
+          p_limite?: number
+          p_org: string
+          p_sources: string[]
+          p_zone: string
+        }
+        Returns: Json
+      }
       populate_carreaux_columns: {
         Args: { p_batch_size?: number }
         Returns: number

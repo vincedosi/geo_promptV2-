@@ -9,6 +9,13 @@
  * Utilise la fonction PostGIS get_isochrone_battle_v10 :
  *   - ST_Subdivide pour résoudre les chevauchements intra-palier
  *   - Attribution au POI le plus proche (ST_Distance) dans les zones de recouvrement
+ *
+ * Sur une ZONE enregistrée (`zone_id`, ④ finitions T3, A-6) : la zone est lue AVANT le flux dans l'espace de la session
+ * (`requireAuth`, `espaceDeZone`) — absente ou d'un autre espace, 404 `zone_introuvable` sans lire un POI ; zone pays,
+ * 422. Les POI de la catégorie sont ceux de la zone (`poi_de_zone`, sql/297, catégorie d'abord), les filtres région,
+ * département et ville sont ignorés, et la clé de cache porte l'id ET la version de la zone (`updated_at`) : une zone
+ * recalculée en ③ ne relit jamais la bataille de l'ancienne forme. Le suffixe `__p<empreinte>` reste le dernier (la
+ * capture de ③ le lit). La capacité de 700 anneaux s'applique telle quelle.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -21,6 +28,8 @@ import {
   PLAFOND_LECTURE_POI, refusBorneNationale, refusCapaciteAnneaux, sansTerritoire,
 } from '@/lib/isochrones/borne-nationale';
 import { paquetsDeCles } from '@/lib/isochrones/paquets-cles';
+import { requireAuth } from '@/lib/api/middleware';
+import { espaceDeZone, zoneIntrouvable } from '@/lib/zones/session-zones';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,7 +44,11 @@ const battleV2Schema = z.object({
   filtre_ville:   z.string().nullable().default(null),
   paliers:        z.array(z.number().int().min(1).max(180)).default([10, 20, 30, 40, 50, 60, 90]),
   force_battle:   z.boolean().default(false),
+  zone_id:        z.string().uuid().nullable().default(null),
 });
+
+/** Une zone pays (sql/296) : la bataille nationale garde sa borne de lecture, elle se lance depuis ① (A-6). */
+const REFUS_ZONE_PAYS = 'Sur toute la France, la bataille se lance depuis l’étape ① (France métropolitaine).';
 
 // Map code_region INSEE → nom_region depuis ref_regions (cache module).
 // Remplace l'ancien REGION_ID_TO_NAME hardcodé par des codes alpha ('ara',
@@ -90,12 +103,32 @@ export async function POST(req: NextRequest) {
     category,
     mode,
     metropolitaine,
-    filtre_regions,
-    filtre_depts,
-    filtre_ville,
     paliers,
     force_battle,
+    zone_id,
   } = parsed.data;
+  // Sur une zone, les filtres de ① sont ignorés (A-6) : la forme de la zone borne la lecture.
+  const filtre_regions = zone_id ? null : parsed.data.filtre_regions;
+  const filtre_depts   = zone_id ? null : parsed.data.filtre_depts;
+  const filtre_ville   = zone_id ? null : parsed.data.filtre_ville;
+
+  // La zone, AVANT le flux : un id d'un autre espace répond 404 sans qu'aucun POI soit lu.
+  let zone: { id: string; version: number; orgId: string } | null = null;
+  if (zone_id) {
+    const s = espaceDeZone(await requireAuth(req));
+    if (!s.ok) return s.reponse;
+    const { data: z, error: zErr } = await createAdminClient().from('custom_geo_zones')
+      .select('id, updated_at, recette').eq('id', zone_id).eq('org_id', s.espace.orgId).maybeSingle();
+    if (zErr) {
+      console.error('[battle-v2] zone :', zErr.message);
+      return NextResponse.json({ error: 'Lecture de la zone impossible.' }, { status: 500 });
+    }
+    if (!z) return zoneIntrouvable();
+    if ((z.recette as { type?: unknown } | null)?.type === 'pays') {
+      return NextResponse.json({ error: REFUS_ZONE_PAYS, refus: 'zone_pays' }, { status: 422 });
+    }
+    zone = { id: z.id, version: Date.parse(z.updated_at), orgId: s.espace.orgId };
+  }
 
   // deptCodesCanonical = format ALL_DEPTS reçu (cache key déterministe)
   // deptFilter = étendu pour matcher les 2 formats hétérogènes en DB
@@ -134,7 +167,8 @@ export async function POST(req: NextRequest) {
           ? (filtre_regions as string[]) : null;
         const regionKey   = regions ? [...regions].sort().join('+') : metropolitaine ? 'metro' : 'all';
         const deptKey     = deptCodesCanonical ? `__d${[...deptCodesCanonical].sort().join('-')}` : '';
-        const battleCacheKey = `battle_v2_full__${normKey(String(category))}__${normKey(normalizedMode)}__${PALIERS.join('-')}min__${regionKey}${deptKey}${filtre_ville ? '__' + normKey(String(filtre_ville)) : ''}__p${perimetre}`;
+        const territoireKey = zone ? `z${zone.id}_${zone.version}` : `${regionKey}${deptKey}${filtre_ville ? '__' + normKey(String(filtre_ville)) : ''}`;
+        const battleCacheKey = `battle_v2_full__${normKey(String(category))}__${normKey(normalizedMode)}__${PALIERS.join('-')}min__${territoireKey}__p${perimetre}`;
 
         if (!force_battle) {
           const { data: cached } = await supabase
@@ -165,16 +199,32 @@ export async function POST(req: NextRequest) {
           ? regions.map(r => normStr(regionNames.get(r) ?? r))
           : null;
 
-        let q = supabase.from('poi_france')
-          .select('id, nom, lat, lng, categorie, adresse, ville, region, departement')
-          .ilike('categorie', category);
-        if (metropolitaine) q = q.gte('lng', -5.5).lte('lng', 9.6).gte('lat', 41.3).lte('lat', 51.1);
-        if (filtre_ville)   q = q.ilike('ville', `%${filtre_ville}%`);
-        if (deptFilter)     q = q.in('departement', deptFilter);
-        q = filtrerParSourcesVisibles(q, sources);
+        let rawRows: any[] | null;
+        if (zone) {
+          // Catégorie d'abord, puis la forme (sql/297) ; `p_limite + 1` lu : une lecture tronquée est refusée.
+          const { data, error: poiErr } = await supabase.rpc('poi_de_zone', {
+            p_zone: zone.id, p_org: zone.orgId, p_categorie: category,
+            p_sources: sources, p_limite: PLAFOND_LECTURE_POI,
+          });
+          if (poiErr) { send({ type: 'error', message: `Erreur chargement POIs : ${poiErr.message}` }); return; }
+          const lu = rpcJson<{ pois?: any[]; tronque?: boolean; refus?: string }>(data);
+          if (lu?.refus === 'zone_introuvable') { send({ type: 'error', message: 'Zone introuvable dans cet espace.' }); return; }
+          if (!lu || !Array.isArray(lu.pois)) { send({ type: 'error', message: 'Erreur chargement POIs : réponse illisible' }); return; }
+          if (lu.tronque) { send({ type: 'error', message: refusBorneNationale(PLAFOND_LECTURE_POI, PALIERS.length) ?? '' }); return; }
+          rawRows = lu.pois;
+        } else {
+          let q = supabase.from('poi_france')
+            .select('id, nom, lat, lng, categorie, adresse, ville, region, departement')
+            .ilike('categorie', category);
+          if (metropolitaine) q = q.gte('lng', -5.5).lte('lng', 9.6).gte('lat', 41.3).lte('lat', 51.1);
+          if (filtre_ville)   q = q.ilike('ville', `%${filtre_ville}%`);
+          if (deptFilter)     q = q.in('departement', deptFilter);
+          q = filtrerParSourcesVisibles(q, sources);
 
-        const { data: rawRows, error: poiErr } = await q.limit(PLAFOND_LECTURE_POI);
-        if (poiErr) { send({ type: 'error', message: `Erreur chargement POIs : ${poiErr.message}` }); return; }
+          const { data, error: poiErr } = await q.limit(PLAFOND_LECTURE_POI);
+          if (poiErr) { send({ type: 'error', message: `Erreur chargement POIs : ${poiErr.message}` }); return; }
+          rawRows = data;
+        }
 
         const pois = (rawRows ?? [])
           .filter((p: any) => {
@@ -195,7 +245,7 @@ export async function POST(req: NextRequest) {
         // Borne TECHNIQUE d'une bataille sans territoire (retours du 26/10, T2 ; aucune borne produit, Q-1 de
         // Vincent). D'abord la lecture : 500 POI lus, c'est une lecture tronquée — refus AVANT de lire le cache
         // (3 500 géométries pour 7 paliers). Puis, une fois le cache lu, les anneaux RÉELLEMENT trouvés.
-        const borneNationale = sansTerritoire({ filtre_ville, filtre_regions, filtre_depts });
+        const borneNationale = !zone && sansTerritoire({ filtre_ville, filtre_regions, filtre_depts });
         // La troncature se lit sur les lignes LUES, pas sur les POI gardés après le retrait des coordonnées nulles
         // (revue finale T8, m-1 du groupe A) : 500 lignes dont une sans coordonnées restent une lecture tronquée.
         const lus = rawRows?.length ?? 0;
