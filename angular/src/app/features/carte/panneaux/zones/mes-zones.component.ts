@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { type Subscription, catchError, firstValueFrom, forkJoin, map, of } from 'rxjs';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { formaterNombre } from '../../../../core/format/nombre';
@@ -173,6 +173,8 @@ export class MesZonesComponent {
   private readonly duplications = signal<ReadonlySet<string>>(new Set());
   /** L'issue d'un geste réussi à dire : recalcul ou duplication incomplets (207), duplication faite. */
   protected readonly avis = signal<string | null>(null);
+  /** La barre des opérations : sa réussite s'efface au geste suivant (preuve T7, D-5). */
+  private readonly operations = viewChild(OperationsZonesComponent);
 
   /** Chaque carte avec ce qu'elle montre de l'affichage et de la sélection (aucune méthode appelée dans le gabarit). */
   protected readonly lignes = computed(() => {
@@ -274,6 +276,7 @@ export class MesZonesComponent {
     this.recalculs.update((s) => avecId(s, id));
     this.erreur.set(null);
     this.avis.set(null);
+    this.operations()?.oublierMessage();
     this.vols.set(id, this.zonesApi.recalculer(id).subscribe({
       next: (r) => {
         this.retirerRecalcul(id);
@@ -312,6 +315,7 @@ export class MesZonesComponent {
     };
     this.duplications.update((s) => avecId(s, zone.id));
     this.erreur.set(null); this.avis.set(null);
+    this.operations()?.oublierMessage();
     this.vols.set(`d:${zone.id}`, this.zonesApi.dupliquer(zone.id, nom).subscribe({
       next: (r) => fin(issueDuplication(r, nom)),
       error: (e: { status?: number; error?: unknown }) => {

@@ -20,11 +20,19 @@ export const maxDuration = 30;
 
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
 
+/**
+ * Une sous-zone porte UNE géométrie (`geometry`, React) ou PLUSIEURS (`geometries`, Angular), unies ici en base avant
+ * l'écriture. Preuve T7 (D-1) : les anneaux d'une bataille V2 sont des BANDES disjointes ; la sous-zone d'un POI est
+ * l'union de toutes ses bandes, et aucune opération booléenne n'existe côté client.
+ */
 const SubzoneSchema = z.object({
   name: z.string().min(1).max(200),
   source_ref: z.string().max(200).optional().nullable(),
-  geometry: z.record(z.unknown()),
+  geometry: z.record(z.unknown()).optional(),
+  geometries: z.array(z.record(z.unknown())).min(1).max(100).optional(),
   default_multiplier: z.number().min(0).max(5).optional(),
+}).refine((sz) => (sz.geometry === undefined) !== (sz.geometries === undefined), {
+  message: 'Une sous-zone porte `geometry` ou `geometries`, l’un des deux.',
 });
 
 const CaptureSchema = z.object({
@@ -112,14 +120,31 @@ export async function POST(request: NextRequest) {
   // Si subzones[] présent → RPC v2 qui persiste les sous-zones individuelles.
   // Sinon → RPC legacy (back-compat parfaite, comportement inchangé).
   const hasSubzones = (parsed.data.subzones?.length ?? 0) > 0;
-  const subzonesPayload = hasSubzones
-    ? parsed.data.subzones!.map(sz => ({
-        name: sz.name,
-        source_ref: sz.source_ref ?? null,
-        geometry_geojson: JSON.stringify(sz.geometry),
-        default_multiplier: sz.default_multiplier ?? 1.0,
-      }))
-    : null;
+  // Une sous-zone à plusieurs géométries est unie par la même RPC que la zone : une par une, en séquence (≤ 50).
+  const subzonesPayload: { name: string; source_ref: string | null; geometry_geojson: string; default_multiplier: number }[] = [];
+  for (const sz of hasSubzones ? parsed.data.subzones! : []) {
+    let geometrie: unknown = sz.geometry;
+    if (sz.geometries) {
+      const { data: unie, error: unionError } = await supabase.rpc('transform_geometries_for_save', {
+        p_geometries: toJson(sz.geometries),
+        p_method: 'union',
+      });
+      if (unionError || !unie) {
+        console.error('[custom-geo/capture] subzone union', unionError?.message);
+        return NextResponse.json(
+          { error: 'transform_failed', message: `Sous-zone « ${sz.name} » : ${unionError?.message ?? 'unknown'}` },
+          { status: 400 },
+        );
+      }
+      geometrie = unie;
+    }
+    subzonesPayload.push({
+      name: sz.name,
+      source_ref: sz.source_ref ?? null,
+      geometry_geojson: JSON.stringify(geometrie),
+      default_multiplier: sz.default_multiplier ?? 1.0,
+    });
+  }
 
   // Les deux RPC n'ont pas la meme signature (`p_subzones` n'existe que sur la
   // variante avec sous-zones) : un seul objet de params ne peut pas satisfaire

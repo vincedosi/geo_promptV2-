@@ -163,8 +163,8 @@ export class ListeMultipleComponent {
   });
   protected readonly libelleTout = computed(() =>
     this.toutFiltreChoisi()
-      ? 'Tout deselectionner'
-      : `Tout selectionner${this.recherche() ? ` (${this.filtres().length})` : ''}`,
+      ? 'Tout désélectionner'
+      : `Tout sélectionner${this.recherche() ? ` (${this.filtres().length})` : ''}`,
   );
   protected readonly libelleAffiche = computed(() => {
     const s = this.selection();

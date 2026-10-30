@@ -10,12 +10,15 @@ import { bboxDeGeometrie } from './zones-affichees';
 
 export type TransformationCapture = 'union' | 'convex_hull' | 'envelope' | 'raw';
 
-/** Le sélecteur de transformation, textes de React (`TRANSFORMATION_OPTIONS`) — sans accents, comme lui. */
+/**
+ * Le sélecteur de transformation (`TRANSFORMATION_OPTIONS` de React). Preuve T7 (D-7) : accentué — React écrit ces textes
+ * sans accents ; la langue de l'interface prime sur la recopie lettre à lettre.
+ */
 export const TRANSFORMATIONS: readonly { valeur: TransformationCapture; libelle: string; aide: string }[] = [
-  { valeur: 'union', libelle: 'Union des layers', aide: 'Forme naturelle dissoute (recommande)' },
-  { valeur: 'convex_hull', libelle: 'Enveloppe convexe', aide: 'Forme simplifiee englobante' },
+  { valeur: 'union', libelle: 'Union des layers', aide: 'Forme naturelle dissoute (recommandé)' },
+  { valeur: 'convex_hull', libelle: 'Enveloppe convexe', aide: 'Forme simplifiée englobante' },
   { valeur: 'envelope', libelle: 'Rectangle englobant', aide: 'Bounding box' },
-  { valeur: 'raw', libelle: 'Geometrie brute', aide: 'Sans transformation' },
+  { valeur: 'raw', libelle: 'Géométrie brute', aide: 'Sans transformation' },
 ];
 
 /** Ce qu'une couche contributive rend : rien, une géométrie, ou plusieurs (`ContributedGeometry`). */
@@ -67,12 +70,22 @@ export interface MetaBataille {
   battle_features?: GeoJSON.Feature[];
 }
 
-export interface SousZone { name: string; source_ref: string; geometry: GeoJSON.Geometry; default_multiplier: number }
+/**
+ * Une sous-zone de bataille : TOUTES les géométries du POI (`geometries`), que `/api/custom-geo/capture` unit en base
+ * (`transform_geometries_for_save`, `union`) avant de l'écrire — une seule forme, la zone entière atteignable du POI.
+ */
+export interface SousZone { name: string; source_ref: string; geometries: GeoJSON.Geometry[]; default_multiplier: number }
 
 /**
  * Ce qu'une bataille à POI ajoute à la capture (`handleSave`, `CustomGeoCaptureModal.tsx:243-299`) : les POI hissés en
- * tête de `source_metadata`, et — dès deux POI — une sous-zone par POI, la géométrie de son PLUS GRAND palier (qui
- * contient les autres par construction), dans l'ordre des POI. `null` sans POI.
+ * tête de `source_metadata`, et — dès deux POI — une sous-zone par POI portant TOUS ses anneaux, dans l'ordre des POI.
+ * `null` sans POI.
+ *
+ * Preuve T7 (D-1) : on ne garde plus le seul plus grand palier. Il ne contient les autres que pour la V1 (isochrones
+ * emboîtées) ; la V2 (`get_isochrone_battle`) rend des BANDES disjointes (`ST_Difference`), et son plus grand palier
+ * n'en est que l'anneau extérieur — 7 056 km² de sous-zones pour une zone de 25 130 km² en Bretagne, 720 IRIS au
+ * lieu de 1 799. L'union de toutes les bandes vaut, dans les deux cas, la zone entière du POI ; elle est faite en base
+ * par la route, aucune bibliothèque d'opérations booléennes n'étant embarquée côté client.
  */
 export function enrichissementBataille(meta: MetaBataille): { enrichissement: Record<string, unknown>; sousZones: SousZone[] | null } | null {
   const pois = Array.isArray(meta.pois) ? meta.pois : [];
@@ -89,19 +102,19 @@ export function enrichissementBataille(meta: MetaBataille): { enrichissement: Re
   };
   if (pois.length < 2) return { enrichissement, sousZones: null };
 
-  const plusGrand = new Map<string, { feature: GeoJSON.Feature; palier: number }>();
+  const parPoi = new Map<string, GeoJSON.Geometry[]>();
   for (const f of anneaux) {
     const p = (f.properties ?? {}) as Record<string, unknown>;
     // Les anneaux de la V2 (`get_isochrone_battle`) portent le POI sous `cirfa_id`, ceux de la V1 sous `poi_id` (T4).
     const id = String(p['poi_id'] ?? p['cirfa_id'] ?? '');
-    const palier = Number(p['palier'] ?? 0);
-    if (!id || !Number.isFinite(palier)) continue;
-    const courant = plusGrand.get(id);
-    if (!courant || palier > courant.palier) plusGrand.set(id, { feature: f, palier });
+    if (!id || !f.geometry) continue;
+    const liste = parPoi.get(id);
+    if (liste) liste.push(f.geometry);
+    else parPoi.set(id, [f.geometry]);
   }
   const sousZones = pois.flatMap((p): SousZone[] => {
-    const g = plusGrand.get(p.poi_id)?.feature.geometry;
-    return g ? [{ name: p.poi_name, source_ref: p.poi_id, geometry: g, default_multiplier: 1.0 }] : [];
+    const geometries = parPoi.get(p.poi_id);
+    return geometries ? [{ name: p.poi_name, source_ref: p.poi_id, geometries, default_multiplier: 1.0 }] : [];
   });
   return { enrichissement, sousZones: sousZones.length >= 2 ? sousZones : null };
 }

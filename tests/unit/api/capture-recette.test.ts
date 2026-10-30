@@ -9,6 +9,8 @@ vi.mock('@/lib/api/middleware', () => ({
 vi.mock('@/lib/campaigns/access', () => ({ resolveOrgWriteAccess: () => true }));
 const CARRE = { type: 'MultiPolygon', coordinates: [[[[5, 43], [5.1, 43], [5.1, 43.1], [5, 43.1], [5, 43]]]] };
 const rpcs: string[] = [];
+/** Les arguments de chaque RPC, pour lire les sous-zones envoyées à la création (preuve T7, D-1). */
+const argsRpc: { nom: string; args: Record<string, unknown> }[] = [];
 /** L'ordre des appels, RPC et écriture de recette mêlées : la recette doit précéder la résolution (P6). */
 const appels: string[] = [];
 const miseAJour: { valeur: unknown; id: unknown }[] = [];
@@ -16,13 +18,15 @@ let echecUpdate = false;
 let echecResolution = false;
 vi.mock('@/lib/auth', () => ({
   createAdminClient: () => ({
-    rpc(nom: string) {
+    rpc(nom: string, args: Record<string, unknown> = {}) {
       rpcs.push(nom);
+      argsRpc.push({ nom, args });
       appels.push(nom);
       if (nom === 'resolve_custom_geo_zone_codes' && echecResolution) return Promise.resolve({ data: null, error: { message: 'délai' } });
       const data = ({
-        transform_geometries_for_save: CARRE, create_custom_geo_zone: 'z1',
+        transform_geometries_for_save: CARRE, create_custom_geo_zone: 'z1', create_custom_geo_zone_with_subzones: 'z1',
         resolve_custom_geo_zone_codes: { count_cp: 2, count_iris: 5 }, compute_zone_audience_stats: {},
+        resolve_custom_geo_zone_codes_with_subzones: { count_cp: 2, count_iris: 5 },
       } as Record<string, unknown>)[nom] ?? null;
       return Promise.resolve({ data, error: null });
     },
@@ -50,7 +54,7 @@ const corps = (extra: Record<string, unknown> = {}) => new Request('http://local
 const ISO = { v: 1, type: 'isochrone', parametres: { mode: 'drive', minutes: 15, version: 'v2' } };
 
 beforeEach(() => {
-  rpcs.length = 0; appels.length = 0; miseAJour.length = 0; echecUpdate = false; echecResolution = false;
+  rpcs.length = 0; argsRpc.length = 0; appels.length = 0; miseAJour.length = 0; echecUpdate = false; echecResolution = false;
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
@@ -110,5 +114,36 @@ describe('POST /api/custom-geo/capture — recette facultative', () => {
       zone_id: 'z1', warning: 'zone_created_but_resolution_failed', recette_non_enregistree: true,
       message: 'Zone créée ; ses codes postaux n’ont pas pu être résolus, et sa recette n’a pas été enregistrée.',
     });
+  });
+});
+
+describe('POST /api/custom-geo/capture — sous-zones d’une bataille (③ finitions, preuve T7, D-1)', () => {
+  const BANDE = (x: number) => ({ type: 'Polygon', coordinates: [[[x, 43], [x + 0.1, 43], [x + 0.1, 43.1], [x, 43.1], [x, 43]]] });
+  it('une sous-zone à plusieurs `geometries` (bandes V2) : unies en base, la sous-zone écrite est l’union', async () => {
+    const r = await POST(corps({
+      subzones: [
+        { name: 'A', source_ref: 'a', geometries: [BANDE(5), BANDE(5.1), BANDE(5.2)] },
+        { name: 'B', source_ref: 'b', geometries: [BANDE(6)] },
+      ],
+    }));
+    expect(r.status).toBe(200);
+    const unions = argsRpc.filter((a) => a.nom === 'transform_geometries_for_save');
+    // Une union pour la zone entière, puis une par sous-zone.
+    expect(unions.map((u) => [(u.args['p_geometries'] as unknown[]).length, u.args['p_method']])).toEqual([[1, 'union'], [3, 'union'], [1, 'union']]);
+    const creation = argsRpc.find((a) => a.nom === 'create_custom_geo_zone_with_subzones')!;
+    const sz = creation.args['p_subzones'] as { name: string; geometry_geojson: string }[];
+    expect(sz.map((s) => [s.name, JSON.parse(s.geometry_geojson)])).toEqual([['A', CARRE], ['B', CARRE]]);
+  });
+  it('une sous-zone à `geometry` unique (React) : envoyée telle quelle, sans union', async () => {
+    const r = await POST(corps({ subzones: [{ name: 'A', geometry: BANDE(5) }, { name: 'B', geometry: BANDE(6) }] }));
+    expect(r.status).toBe(200);
+    expect(argsRpc.filter((a) => a.nom === 'transform_geometries_for_save')).toHaveLength(1);
+    const sz = argsRpc.find((a) => a.nom === 'create_custom_geo_zone_with_subzones')!.args['p_subzones'] as { geometry_geojson: string }[];
+    expect(JSON.parse(sz[0].geometry_geojson)).toEqual(BANDE(5));
+  });
+  it('une sous-zone sans géométrie : 400, rien n’est créé', async () => {
+    const r = await POST(corps({ subzones: [{ name: 'A' }] }));
+    expect(r.status).toBe(400);
+    expect(rpcs).toEqual([]);
   });
 });

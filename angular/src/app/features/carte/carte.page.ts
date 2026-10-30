@@ -327,6 +327,9 @@ export class CartePage {
    * d'invalidations à tenir à jour.
    */
   protected organisationChangee(): void {
+    // Comme `choisirFond` : aucun service de couche ne relit l'instance que l'hôte va détruire avec la page (preuve T7,
+    // D-6 : `retirerCoucheCouverture` appelait `getLayer` sur une carte déjà retirée).
+    this.couches.publier(null);
     this.espaceChange.emit();
   }
 

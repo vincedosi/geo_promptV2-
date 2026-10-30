@@ -29,7 +29,7 @@ interface Collecte { source: SourceCapture; geometries: GeoJSON.Geometry[]; erre
 
 /**
  * « Sauvegarder la vue comme zone custom » — `components/custom-geo/CustomGeoCaptureModal.tsx` (lot 4, T16), textes
- * exacts (sans accents, comme React).
+ * de React, accentués et en sentence case depuis la preuve T7 (D-7) : React les écrit sans accents ni casse de phrase.
  *
  * À l'ouverture, la géométrie de chaque couche contributive allumée est demandée (au plus trois appels à la fois, par
  * le limiteur), chacune isolée : un échec ou un dépassement de délai n'emporte que sa couche, les autres restent
@@ -75,7 +75,7 @@ export class CaptureComponent {
     const e = this.collectes().filter((c) => c.erreur);
     if (e.length === 0) return null;
     return {
-      titre: `${e.length} layer${e.length > 1 ? 's' : ''} non capture${e.length > 1 ? 's' : ''} :`,
+      titre: `${e.length} layer${e.length > 1 ? 's' : ''} non capturé${e.length > 1 ? 's' : ''} :`,
       detail: e.map((c) => `${c.source.label} (${c.erreur})`).join(' · '),
     };
   });

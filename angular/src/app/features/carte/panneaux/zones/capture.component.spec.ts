@@ -84,7 +84,7 @@ describe('CaptureComponent (CustomGeoCaptureModal.tsx)', () => {
     });
     await stable();
     expect(el.querySelector('[data-echecs]')!.textContent!.replace(/\s+/g, ' ').trim())
-      .toBe('1 layer non capture : IRIS 132010101 (HTTP 500 {"error":"iris_failed"})');
+      .toBe('1 layer non capturé : IRIS 132010101 (HTTP 500 {"error":"iris_failed"})');
     expect(annonce.annonces().map((a) => a.texte)).toEqual(['1 layer indisponible — Capture possible avec les autres. Non récupérés : IRIS 132010101.']);
     expect(el.querySelectorAll('[data-couche]')).toHaveLength(1);
   });

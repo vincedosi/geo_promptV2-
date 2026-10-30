@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { OperationsZonesComponent } from './operations-zones.component';
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { Subject, of, throwError } from 'rxjs';
 import { type ZoneCustomResume } from '../../data/zones-custom.api';
@@ -24,6 +26,24 @@ describe('MesZonesComponent — Dupliquer (③ finitions, T5)', () => {
     expect(el.querySelector('[data-avis]')!.textContent).toBe('Zone dupliquée : CIRFA BRETAGNE (copie)');
     expect(api.lister.mock.calls.length).toBe(lectures + 1);
     expect(bouton(el).disabled).toBe(false);
+  });
+
+  it('preuve T7 (D-5) : le message de réussite d’une opération s’efface au geste suivant (Dupliquer, Recalculer)', async () => {
+    const dupliquer = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 409, error: { error: 'Refus.' } })));
+    const recalculer = vi.fn(() => of(new HttpResponse({ status: 200, body: { zone_id: 'z1' } })));
+    const { el, stable, fixture } = await monter(TestBed, { zones: RECETTES, dupliquer, recalculer });
+    await stable();
+    const operations = fixture.debugElement.query(By.directive(OperationsZonesComponent)).componentInstance as unknown as { message: { set(m: string | null): void } };
+    const messagePuis = async (geste: () => void) => {
+      operations.message.set('Zone créée : 416 codes postaux');
+      await stable();
+      expect(el.querySelector('mg-operations-zones [data-message]')).not.toBeNull();
+      geste();
+      await stable();
+      expect(el.querySelector('mg-operations-zones [data-message]')).toBeNull();
+    };
+    await messagePuis(() => bouton(el).click());
+    await messagePuis(() => cartes(el).find((c) => c.querySelector('button[data-recalculer]'))!.querySelector<HTMLButtonElement>('button[data-recalculer]')!.click());
   });
 
   it('207 → le message de la route (réussite, jamais renvoyée)', async () => {

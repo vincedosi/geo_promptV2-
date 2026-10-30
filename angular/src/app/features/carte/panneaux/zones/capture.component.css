@@ -9,7 +9,8 @@ dialog::backdrop { background: color-mix(in srgb, black 50%, transparent); }
 
 .encart { background: var(--bg-level-2); border: 0.5px solid var(--border-subtle); border-radius: 4px; }
 /* React écrit ces titres en majuscules (`textTransform: uppercase`) : gardé pour la parité visuelle. */
-.etiquette { margin-bottom: 8px; font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; }
+/* Sentence case (preuve T7, D-7) : React met ces étiquettes en capitales (« TRANSFORMATION », « LAYERS INCLUS »). */
+.etiquette { margin-bottom: 8px; font-size: 11px; color: var(--text-tertiary); }
 
 .option {
   display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 4px; text-align: left; cursor: pointer;

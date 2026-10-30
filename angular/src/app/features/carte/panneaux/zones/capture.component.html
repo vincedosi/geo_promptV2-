@@ -12,7 +12,7 @@
       @if (resolution()) {
         <div data-resolution class="encart flex items-center gap-2.5 p-4 text-[12px] text-secondary">
           <mg-icone nom="chargement" [taille]="14" class="animate-spin text-teal" />
-          Recuperation des geometries...
+          Récupération des géométries…
         </div>
       } @else {
         <div data-apercu class="encart p-3 font-mono text-[11px] leading-[1.8] text-secondary">
@@ -74,7 +74,7 @@
           type="text"
           data-nom
           autofocus
-          placeholder="Ex : zone captee le 20/04"
+          placeholder="Ex : zone captée le 20/04"
           class="champ"
           [disabled]="enCours() || !!succes()"
           [value]="nom()"

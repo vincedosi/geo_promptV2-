@@ -21,7 +21,8 @@ import { messageErreurZone } from '../../logique/zones/perimetre-recette';
  *
  * Défaut de React corrigé : la réussite vide la sélection, et la barre disparaissait avec elle — « Zone créée : … »
  * n'était jamais vu au moment de la création, puis resurgissait, périmé, à la sélection suivante. Ici le message reste
- * affiché seul, sous la forme de React, jusqu'à la prochaine opération.
+ * affiché seul, sous la forme de React, jusqu'à la prochaine opération — ou jusqu'au prochain geste de « Mes zones »
+ * (`oublierMessage`, preuve T7 D-5 : il restait sous un 409 puis sous « Zone dupliquée »).
  */
 @Component({
   selector: 'mg-operations-zones',
@@ -108,6 +109,11 @@ export class OperationsZonesComponent {
 
   constructor() {
     inject(DestroyRef).onDestroy(() => this.abonnement?.unsubscribe());
+  }
+
+  /** Un autre geste de « Mes zones » commence (recalcul, duplication) : la réussite d'avant n'est plus à dire. */
+  oublierMessage(): void {
+    this.message.set(null);
   }
 
   protected lancer(op: OperationZones): void {

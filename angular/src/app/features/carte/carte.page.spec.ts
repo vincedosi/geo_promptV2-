@@ -1368,6 +1368,11 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     const page = harness.fixture.debugElement.query(By.directive(CartePage)).componentInstance as CartePage;
     const emis = vi.fn();
     page.espaceChange.subscribe(emis);
+    // Preuve T7 (D-6) : la carte est retirée du registre AVANT que l'hôte détruise la page — aucun service de couche
+    // ne relit une instance morte en se détruisant (`getLayer` de `retirerCoucheCouverture` levait).
+    const couches = injecteurPage(harness).get(CouchesCarteService);
+    const carteAuSignal: unknown[] = [];
+    page.espaceChange.subscribe(() => carteAuSignal.push(couches.carteCourante()));
     const etat = injecteurPage(harness).get(EtatCarteService);
     const barre = harness.fixture.debugElement.query(By.css('mg-barre-parcours')).componentInstance as { orgChangee: { emit(v: string | null): void } };
 
@@ -1375,6 +1380,7 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     barre.orgChangee.emit('org-2');
     await stable();
     expect(emis).toHaveBeenCalledTimes(1);
+    expect(carteAuSignal).toEqual([null]);
     // Plus de nettoyage manuel : filtre, zone du lien et URL restent tels quels — c'est la recréation qui les remet à zéro.
     expect(etat.filtre()?.code).toBe(ID);
     expect(hote.querySelector('button[data-script-dv360]')).not.toBeNull();
