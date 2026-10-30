@@ -25,6 +25,10 @@ function zoneFactice(zone: string | null) {
     zoneId: signal(zone), cible: signal('ind'), decoupage: signal<ResultatCouverture['decoupage']>('forme'),
     resultat: signal<ResultatCouverture | null>(null), enCours: signal(false), erreur: signal<string | null>(null),
     chiffrer: vi.fn(), choisir: vi.fn(),
+    // La ligne lue de la zone (T6-T8) : celle de la zone COURANTE seulement, comme le vrai service.
+    lue: signal<{ id: string; recette?: unknown } | null>(null),
+    ligne: () => (z.lue()?.id === z.zoneId() ? z.lue() : null),
+    noterLigne: (l: { id: string }) => z.lue.set(l),
     regler: vi.fn((r: { cible?: string; decoupage?: ResultatCouverture['decoupage'] }) => {
       if (r.decoupage) z.decoupage.set(r.decoupage);
       if (r.cible) z.cible.set(r.cible);

@@ -5,7 +5,6 @@ import { KpiComponent } from '../../../../ui/kpi/kpi.component';
 import { CouvertureService } from '../../couches/couverture.service';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
 import { dateFr } from '../../logique/analyses/commun';
-import type { ZoneCustomResume } from '../../data/zones-custom.api';
 import {
   CIBLE_PAR_DEFAUT, DECOUPAGES_ANALYSE, type DecoupageAnalyse, MESSAGES_REFUS_COUVERTURE, avertissementNonCarroye, libelleDecoupage, ligneHorsTerritoire, messageZoneVide,
   phraseReference,
@@ -53,7 +52,7 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
           Combien de personnes de la cible vivent dans une zone enregistrée — telle quelle, ou territoire par territoire.
         </div>
 
-        <mg-choix-zone-analysee [zoneId]="z.zoneId()" (choisie)="z.choisir($event)" (lue)="lue.set($event)" />
+        <mg-choix-zone-analysee [zoneId]="z.zoneId()" (choisie)="z.choisir($event)" (lue)="z.noterLigne($event)" />
 
         <mg-choix-cible [cible]="z.cible()" (choisie)="z.regler({ cible: $event })" />
 
@@ -192,14 +191,10 @@ export class OutilCouvertureComponent {
 
   /**
    * ④ finitions (T6, A-4) : la ligne de la zone choisie, rendue par `mg-choix-zone-analysee` (la liste qu'il lit déjà
-   * pour la nommer : aucune lecture de plus). Une zone PAYS se reconnaît à sa recette : « Par IRIS » y est inactive
-   * (48 872 lignes, refusé par la base sans lecture), et l'écran dit pourquoi.
+   * pour la nommer : aucune lecture de plus) et retenue par `ZoneAnalyseeService.ligne`. Une zone PAYS se reconnaît à
+   * sa recette : « Par IRIS » y est inactive (48 872 lignes, refusé par la base sans lecture), et l'écran dit pourquoi.
    */
-  protected readonly lue = signal<ZoneCustomResume | null>(null);
-  protected readonly pays = computed(() => {
-    const l = this.lue();
-    return l !== null && l.id === this.z.zoneId() && l.recette?.type === 'pays';
-  });
+  protected readonly pays = computed(() => this.z.ligne()?.recette?.type === 'pays');
   protected readonly decoupagesInactifs = computed<readonly DecoupageAnalyse[]>(() => (this.pays() ? ['iris'] : []));
   protected readonly irisPays = MESSAGES_REFUS_COUVERTURE.decoupage_trop_fin_pays;
   /** Un lien arrivé sur « Par IRIS » ne chiffre pas une zone pays : la phrase est déjà à l'écran. */

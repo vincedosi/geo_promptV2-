@@ -353,6 +353,12 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   bataille sur la zone sans filtre ①, et la ligne A-9 ne s'affiche plus pour elle. Changer de zone abandonne la
   bataille en vol ; un 404 `zone_introuvable` (corps texte du flux, relu) retire la zone. Sur la zone, « Vérifier
   cache » et le remplissage ORS restent sur ① et sont inactifs (route de remplissage propre à la V2 : n° 44).
+- **Typologies des POI (T8, A-7)** : `etat/typologies-zone.service.ts` (`TypologiesZoneService`, panneau) et
+  `panneaux/analyse/typologies-zone.component.ts` (`mg-typologies-zone`, tiroir `typologies` du jeu de ④, pour TOUS) :
+  `CouvertureApi.typologies` lu au premier dépli, une fois par (zone, version — `ZoneAnalyseeService.ligne`, posée
+  depuis la liste que `mg-choix-zone-analysee` lit déjà) ; un tableau par (durée, mode) ; couche
+  `couches/couche-typologies.ts` (`couverture-typologies-poi` / `-survol`, teintes `--nature-*` calculées), retirée au
+  `DestroyRef` du service ; publiée au registre de la pastille. Le super admin garde `mg-section-clustering` dessous.
 
 ## ⑤ Jeu de zones : l'état (lot 5, T9, 2026-10-24)
 

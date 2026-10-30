@@ -51,6 +51,8 @@ const SOURCES_REACT: Record<string, { fichier: string; idReact: string } | { eca
   'couverture-rayon-fill': { ecart: 'sans équivalent React : ④ cercles autour des POI retenus (lot 4, T12)' },
   'couverture-rayon-line': { ecart: 'sans équivalent React : ④ cercles autour des POI retenus (lot 4, T12)' },
   'couverture-rayon-poi': { ecart: 'sans équivalent React : ④ POI retenus par la couverture par rayon (lot 4, T12)' },
+  'couverture-typologies-poi': { ecart: 'sans équivalent React : ④ POI typés de la zone analysée (④ finitions, T8)' },
+  'couverture-typologies-survol': { ecart: 'sans équivalent React : ④ POI de la typologie survolée (④ finitions, T8)' },
   'campagne-ooh-points': { ecart: 'sans équivalent React : emplacements d’une campagne OOH (spec 2026-10-16-ooh-campagnes)' },
   'campagne-ooh-a-verifier': { ecart: 'sans équivalent React : anneau pointillé des emplacements à vérifier' },
   'apercu-rayon-fill': { fichier: 'app/map/_components/panneaux/CreerZoneRayon.tsx', idReact: 'apercu-rayon-fill' },
@@ -75,6 +77,7 @@ const POSEURS_ANGULAR = [
   // contours de zone et surbrillance par son `ajouterCouche`.
   'angular/src/app/features/carte/couches/couche-unites.ts',
   'angular/src/app/features/carte/couches/couche-couverture-rayon.ts',
+  'angular/src/app/features/carte/couches/couche-typologies.ts',
   // La pose des aperçus (rayon, zone à recette) est commune : `apercu-rayon.ts` et `apercu-zone.ts` y délèguent.
   'angular/src/app/features/carte/couches/apercu-forme.ts',
   'angular/src/app/features/carte/couches/dessin.service.ts',

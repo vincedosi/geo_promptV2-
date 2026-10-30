@@ -195,3 +195,17 @@ describe('ZoneAnalyseeService — le chiffrage', () => {
     expect(router.url).toBe('/ailleurs');
   });
 });
+
+/** ④ finitions (T6-T8) : la ligne de la zone analysée (recette, version), lue par la couverture et les typologies. */
+describe('ZoneAnalyseeService — la ligne de la zone', () => {
+  it('rendue pour la zone COURANTE seulement ; une autre zone la masque', async () => {
+    const { hote, stable } = await ouvrir(`/carte?zoneAnalyse=${Z1}`);
+    expect(hote.zone.ligne()).toBeNull();
+    const ligne = { id: Z1, updated_at: '2026-10-30T10:00:00Z' } as never;
+    hote.zone.noterLigne(ligne);
+    expect(hote.zone.ligne()).toBe(ligne);
+    hote.zone.choisir(Z2);
+    await stable();
+    expect(hote.zone.ligne()).toBeNull();
+  });
+});

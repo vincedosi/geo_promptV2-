@@ -436,6 +436,17 @@ describe('PanneauAnalyseComponent — tiroirs exclusifs (retours du 26/10, T7)',
     m.http.verify();
   });
 
+  it('④ finitions (T8) : « Typologies des POI » pour un CLIENT, un tiroir du jeu ; sans zone, aucune lecture ; le clustering reste au super admin', async () => {
+    const m = await monter({ filtre: DEPT_13, role: 'client' });
+    await m.fixture.whenStable();
+    expect(m.el.querySelector('[data-accordeon="clustering"]')).toBeNull();
+    entete(m.el, 'Typologies des POI').click();
+    await m.fixture.whenStable();
+    expect(ouverts(m.el)).toEqual(['Typologies des POI']);
+    expect(m.el.querySelector('[data-sans-zone]')!.textContent!.trim()).toBe('Choisissez une zone en tête de ④.');
+    m.http.verify();
+  });
+
   it('rouvrir chaque tiroir ne relit RIEN ; un filtre changé, tiroirs repliés, ne lit rien non plus', async () => {
     const m = await monter({ filtre: DEPT_13, role: 'super_admin' });
     await m.fixture.whenStable();

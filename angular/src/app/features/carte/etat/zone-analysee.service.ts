@@ -1,6 +1,7 @@
 import { DestroyRef, Injectable, type Signal, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CouvertureApi } from '../data/couverture.api';
+import type { ZoneCustomResume } from '../data/zones-custom.api';
 import {
   type DecoupageAnalyse, PARAM_COUVERTURE, PARAM_ZONE_ANALYSE, type ResultatCouverture, ecrireParamCouverture,
   lireParamCouverture,
@@ -52,6 +53,17 @@ export class ZoneAnalyseeService {
   /** Le message d'un refus ou d'un échec, en français ; `null` sinon. */
   readonly erreur: Signal<string | null> = this.lecture.erreur.asReadonly();
 
+  /**
+   * La ligne de la zone analysée dans la liste des zones de l'espace (recette, date de mise à jour), posée par
+   * `mg-outil-couverture` depuis la liste que `mg-choix-zone-analysee` lit déjà pour la nommer — aucune lecture de plus
+   * (④ finitions, T6-T8). `null` tant qu'elle n'est pas connue, ou si c'est celle d'une autre zone.
+   */
+  private readonly _ligne = signal<ZoneCustomResume | null>(null);
+  readonly ligne: Signal<ZoneCustomResume | null> = computed(() => {
+    const l = this._ligne();
+    return l !== null && l.id === this._zoneId() ? l : null;
+  });
+
   /** Les valeurs BRUTES lues ou écrites en dernier (`null` = absent) : on ne réécrit l'URL que si elle diffère. */
   private dernierZone: string | null = this.route.snapshot.queryParamMap.get(PARAM_ZONE_ANALYSE);
   private dernierCouverture: string | null = this.route.snapshot.queryParamMap.get(PARAM_COUVERTURE);
@@ -95,6 +107,11 @@ export class ZoneAnalyseeService {
     if (zone === this._zoneId()) return;
     this.lecture.perimer();
     this._zoneId.set(zone);
+  }
+
+  /** Retient la ligne lue de la zone analysée (voir `ligne`). */
+  noterLigne(l: ZoneCustomResume): void {
+    this._ligne.set(l);
   }
 
   /** Change la cible et/ou le découpage. Le résultat est effacé ; rien ne repart seul. */

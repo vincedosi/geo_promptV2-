@@ -47,6 +47,8 @@ export const COUCHES_APRES_LOAD: readonly string[] = [
   'jeu-unites-fill', 'jeu-unites-line', 'jeu-iris-fill', 'jeu-iris-line', 'jeu-zone-line',
   // ④ Couverture par rayon (lot 4, T12) : les cercles autour des POI retenus, puis les POI. Sans équivalent React.
   'couverture-rayon-fill', 'couverture-rayon-line', 'couverture-rayon-poi',
+  // ④ Typologies des POI de la zone (④ finitions, T8) : des points, puis ceux de la typologie survolée. Sans équivalent React.
+  'couverture-typologies-poi', 'couverture-typologies-survol',
   // Emplacements d'une campagne OOH (spec 2026-10-16-ooh-campagnes § 6) : des POINTS, au-dessus des zones
   // enregistrées (un aplat à 25 % ne les cache pas), sous l'aperçu du rayon et le tracé libre. Sans équivalent React.
   'campagne-ooh-points', 'campagne-ooh-a-verifier',

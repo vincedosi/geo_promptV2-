@@ -1518,7 +1518,7 @@ le Voronoi, a sa route directe `GET /api/voronoi` (lot 4).
 
 **Reserve au super_admin depuis le 2026-10-08** (`reserverAuSuperAdmin` sur chaque handler, section masquee dans `PanneauAnalyse` pour les autres) : les modeles portent sur les POI de toutes les organisations.
 
-**Lecture ouverte, calcul réservé (2026-10-30, ④ finitions T4, Excel n° 34)** : les typologies DÉJÀ calculées des POI d'une zone se lisent par TOUT compte de l'espace, `GET /api/zones/[id]/typologies` (`typologies_de_zone`, sql/298 : POI visibles de l'espace seulement, dernier modèle par durée et mode). Le calcul d'un modèle et la gestion des modèles (`/api/poi-clusters/*`) restent réservés au super admin, sans changement.
+**Lecture ouverte, calcul réservé (2026-10-30, ④ finitions T4, Excel n° 34)** : les typologies DÉJÀ calculées des POI d'une zone se lisent par TOUT compte de l'espace, `GET /api/zones/[id]/typologies` (`typologies_de_zone`, sql/298 : POI visibles de l'espace seulement, dernier modèle par durée et mode). Le calcul d'un modèle et la gestion des modèles (`/api/poi-clusters/*`) restent réservés au super admin, sans changement. Côté Angular, ④ les montre dans le tiroir « Typologies des POI » (`TypologiesZoneService`, ④ finitions T8) : lues au premier dépli, une fois par (zone, version), POI peints par typologie (`--nature-*`) ; l'assistant de calcul reste sous lui, pour le super admin.
 
 | Route | Methode | Description |
 |-------|---------|-------------|

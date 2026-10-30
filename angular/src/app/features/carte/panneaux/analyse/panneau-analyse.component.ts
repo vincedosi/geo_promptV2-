@@ -10,6 +10,7 @@ import { ReferentielGeoService } from '../../etat/referentiel-geo.service';
 import { CouvertureRayonService } from '../../etat/couverture-rayon.service';
 import { ScoreCompositeService } from '../../etat/score-composite.service';
 import { FOURNIR_TIROIRS_ANALYSE } from '../../etat/tiroirs-analyse';
+import { TypologiesZoneService } from '../../etat/typologies-zone.service';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
 import type { FiltreActif } from '../../logique/filtre';
 import { messageRefusTerritoireBataille } from '../../logique/bataille/parametres';
@@ -25,6 +26,7 @@ import { OutilCorrelationComponent } from './outil-correlation.component';
 import { OutilCouvertureComponent } from './outil-couverture.component';
 import { OutilRayonComponent } from './outil-rayon.component';
 import { OutilScoreComponent } from './outil-score.component';
+import { TypologiesZoneComponent } from './typologies-zone.component';
 import { ENTETE_ACCORDEON, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } from './styles-analyse';
 
 /**
@@ -79,12 +81,12 @@ import { ENTETE_ACCORDEON, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE
   selector: 'mg-panneau-analyse',
   imports: [
     IntroAnalyseComponent, NgTemplateOutlet, OutilBatailleV2Component, OutilCorrelationComponent, OutilCouvertureComponent, OutilRayonComponent,
-    OutilScoreComponent, SectionClusteringComponent,
+    OutilScoreComponent, SectionClusteringComponent, TypologiesZoneComponent,
   ],
   // Le catalogue d'indicateurs (score, corrélation) vient de la PAGE (lot 3, X4), partagé avec ③ et « Mes zones ».
   // La couverture par rayon (T12) aussi : le panneau reste monté (P-e), sa couche se retire avec lui.
   // Les tiroirs exclusifs de ④ (T7) : partagés par les outils et par les deux services ci-dessus, qui en dérivent `ouvert`.
-  providers: [FOURNIR_TIROIRS_ANALYSE, ScoreCompositeService, CouvertureRayonService, CreationZoneService, CalculClusteringService],
+  providers: [FOURNIR_TIROIRS_ANALYSE, ScoreCompositeService, CouvertureRayonService, CreationZoneService, CalculClusteringService, TypologiesZoneService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex h-full flex-col overflow-y-auto' },
   template: `
@@ -140,6 +142,8 @@ import { ENTETE_ACCORDEON, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE
     <!-- PanneauAnalyse.tsx:430-475 : le score composite (gardé, France admise), la corrélation (non gardée), le clustering. -->
     <mg-outil-score (lancer)="lancerScore()" />
     <mg-outil-correlation />
+    <!-- ④ finitions (T8) : les typologies déjà calculées des POI de la zone, pour TOUS ; le calcul reste au super admin. -->
+    <mg-typologies-zone />
     @if (clusteringOuvert() && zoneAnalysee()) { <div class="mx-[14px] mt-[10px]"><ng-container *ngTemplateOutlet="lignePerimetre1" /></div> }
     <!-- A-9 : la ligne des outils qui ne lisent pas la zone analysée, écrite une fois. -->
     <ng-template #lignePerimetre1><div data-perimetre-etape-1 class="mb-2 text-[11px] leading-[1.5] text-tertiary">Cet outil travaille sur le périmètre de l’étape ①.</div></ng-template>
