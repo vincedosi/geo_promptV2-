@@ -170,10 +170,15 @@ function carte(canal: string, e: EntreeCartes): CarteActivation {
     unites: nUnites,
     nature: nature(maille, nUnites, { exacte: brut?.exacte, rayon_m: brut?.rayon_m, utile: resume.utile }),
     formats: formatsDe(plateforme, maille),
-    aVerifier: ligne?.a_verifier ?? false,
+    // La ligne entière, ou le seul ciblage pays de « France entière » figé dans l'extraction — jamais la métropole.
+    aVerifier: (ligne?.a_verifier ?? false) || brut?.pays_a_verifier === true,
     avertissements: [...vide.avertissements, ...limites(brut, ligne, maille, nUnites)],
   };
   if (risque && plateforme === 'meta') return { ...base, formats: [], motifs: [MESSAGE_META_RISQUE] };
   if (plateforme === 'dv360' && maille === 'cp') return { ...base, mode: modeDv360(e.prevol), motifs: motifsPrevol };
+  // DV360 au pays (⑤ finitions, A-7) : la poussée reste au CP ; la raison du serveur le dit, le fichier « pays » reste offert.
+  if (plateforme === 'dv360' && maille === 'pays') {
+    return { ...base, motifs: (e.prevol?.motifs ?? []).filter((m) => m.code === 'aucun_cp_dv360').map(texteMotif) };
+  }
   return base.formats.length ? base : { ...base, motifs: [MESSAGE_HORS_EXTRACTION] };
 }

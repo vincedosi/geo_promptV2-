@@ -77,8 +77,9 @@ function lireEntree(entree: string): [Plateforme, ChoixMaille] | null {
     const seuil = lireSeuil(seuilBrut.join('.'));
     return seuil === null ? null : [plateforme, { maille, seuil, rayon_m: Number(rayon) }];
   }
-  // Le polygone est exact (A-6) : son seuil n'a pas de sens, il s'écrit sans ; on l'admet s'il est là.
-  if (maille === 'polygone' && reste.length === 0) return [plateforme, { maille, seuil: SEUIL_PAR_DEFAUT }];
+  // Le polygone et le pays sont exacts (A-6, ⑤ finitions) : leur seuil n'a pas de sens, ils s'écrivent sans ; on
+  // l'admet s'il est là.
+  if ((maille === 'polygone' || maille === 'pays') && reste.length === 0) return [plateforme, { maille, seuil: SEUIL_PAR_DEFAUT }];
   const seuil = lireSeuil(reste.join('.'));
   return seuil === null ? null : [plateforme, { maille, seuil }];
 }
@@ -100,7 +101,7 @@ export function ecrireMailles(choix: ChoixParPlateforme): string | null {
   const entrees = PLATEFORMES.flatMap((p) => {
     const c = choix[p];
     if (!c) return [];
-    if (c.maille === 'polygone') return [`${p}.polygone`];
+    if (c.maille === 'polygone' || c.maille === 'pays') return [`${p}.${c.maille}`];
     return [c.maille === 'cercle' ? `${p}.cercle.${c.rayon_m}.${c.seuil}` : `${p}.${c.maille}.${c.seuil}`];
   });
   return entrees.length > 0 ? entrees.join(',') : null;

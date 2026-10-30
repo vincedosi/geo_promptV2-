@@ -1,6 +1,6 @@
 import type { Decoupage, ResultatCouverture } from '../analyses/couverture';
 import type { Recette } from '../zones/recette';
-import { type Avertissement, type Resume, appliquerSeuil, exactitude, mailleParDefaut, resumeExact, verifierLimites } from './conversion';
+import { type Avertissement, type Resume, appliquerSeuil, exactitude, mailleParDefaut, resumeExact, unitesPays, verifierLimites } from './conversion';
 import { type ChoixMaille, type ChoixParPlateforme, SEUIL_PAR_DEFAUT, rayonParDefaut } from './mailles-url';
 import { type Maille, PLATEFORMES, type Plateforme, type PlateformeGeo } from './plateformes';
 
@@ -34,6 +34,19 @@ export interface ResultatCercles {
 export interface BilanPlateforme {
   resume: Resume;
   avertissements: Avertissement[];
+  /**
+   * Maille pays d'une zone pays : une unité par code ciblé (`unitesPays`, la règle de l'extraction) — code ISO,
+   * libellé, population carroyée, `null` pour un territoire non carroyé (jamais 0, E10) ; absent sinon.
+   */
+  pays?: ReturnType<typeof unitesPays>;
+}
+
+/**
+ * Les codes que la plateforme cible pour une zone pays (`plateformes_geo.codes_pays`, sql/300), dans l'ordre de la
+ * table ; vide pour une autre recette ou une autre maille.
+ */
+function codesPays(c: ChoixMaille, ligne: PlateformeGeo, recette: Recette | null): readonly string[] {
+  return c.maille === 'pays' && recette?.type === 'pays' ? ligne.codes_pays?.[recette.code] ?? [] : [];
 }
 
 /**
@@ -75,6 +88,9 @@ export function estExacte(c: ChoixMaille, ligne: PlateformeGeo, recette: Recette
 
 /** Ce qu'il faut lire pour chiffrer un choix : un découpage de couverture (la forme pour une maille exacte), ou un pavage. */
 export function lectureRequise(c: ChoixMaille, ligne: PlateformeGeo, recette: Recette | null): Decoupage | 'cercles' {
+  // Le pays d'une zone pays : la couverture par DÉPARTEMENT dès qu'un DROM est ciblé (« France entière ») — elle porte
+  // la population de la zone ET celle de chaque DROM, comme à l'extraction ; sinon la forme. Aucun carreau lu (sql/296).
+  if (codesPays(c, ligne, recette).some((k) => k !== 'FR')) return 'departement';
   if (estExacte(c, ligne, recette)) return 'forme';
   if (c.maille === 'cercle') return 'cercles';
   // Le pays se chiffre par la couverture « telle quelle » de la zone nationale : aucun carreau lu (⑤ finitions, A-5).
@@ -140,6 +156,13 @@ export function bilanDe(
   } else {
     const cv = lu as ResultatCouverture;
     // Une liste de codes postaux achetée au CP : une unité par code (comme l'extraction, `convertirExacte`).
+    // Une zone pays au pays : une unité par code ciblé (A-5).
+    const codes = codesPays(c, ligne, recette);
+    if (codes.length > 0) {
+      resume = resumeExact(cv.population, cv.surface_km2, codes.length);
+      const pays = unitesPays(codes, cv.population, cv.decoupage === 'departement' ? cv.lignes : null);
+      return { resume, avertissements: verifierLimites(resume, ligne), pays };
+    }
     const nCodes = c.maille === 'cp' && recette?.type === 'codes_postaux' ? new Set(recette.codes).size : 1;
     resume = estExacte(c, ligne, recette) ? resumeExact(cv.population, cv.surface_km2, nCodes) : appliquerSeuil(cv.lignes, cv.population, c.seuil);
   }

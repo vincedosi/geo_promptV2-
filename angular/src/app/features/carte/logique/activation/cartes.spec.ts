@@ -158,3 +158,23 @@ describe('cartesActivation — cas aux bords', () => {
     expect(formatsDe('dv360', 'iris')).toEqual([]);
   });
 });
+
+describe('cartesActivation — une extraction nationale au pays (⑤ finitions, T4)', () => {
+  const motif = { code: 'aucun_cp_dv360', message: 'Cette extraction n’achète pas DV360 au code postal : rien à pousser.' };
+  const auPays = (plateforme: ResumeExtraction['plateforme'], n: number, aVerifier = false): ResumeExtraction => ({
+    plateforme, maille: 'pays', seuil: 20, rayon_m: null, exacte: true, n_unites: n, taux_utile: 100, avertissements: [],
+    ...(aVerifier ? { pays_a_verifier: true as const } : {}),
+  });
+  const registre = [ligne('dv360', 'pays', 10), ligne('meta', 'pays', 30)];
+
+  it('DV360 au pays : le fichier « pays » offert, et la raison du serveur — rien à pousser au code postal', () => {
+    const [c] = cartesActivation({ canaux: ['dv360'], extraction: extraction([auPays('dv360', 1)]), prevol: prevol('reel', [motif], 0), registre });
+    expect(c).toMatchObject({ mode: 'fichier', formats: ['pays'], motifs: [motif.message], nature: '1 pays exact' });
+  });
+  it('« à vérifier » : France entière (résumé figé `pays_a_verifier`) seulement, jamais la métropole', () => {
+    const fr = cartesActivation({ canaux: ['meta'], extraction: extraction([auPays('meta', 6, true)]), prevol: null, registre })[0];
+    const metro = cartesActivation({ canaux: ['meta'], extraction: extraction([auPays('meta', 1)]), prevol: null, registre })[0];
+    expect([fr.aVerifier, metro.aVerifier]).toEqual([true, false]);
+    expect(fr.nature).toBe('6 pays exacts');
+  });
+});

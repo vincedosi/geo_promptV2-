@@ -124,6 +124,8 @@ export interface ResumeExtraction {
   taux_utile?: number | null;
   /** Les limites de la plateforme dépassées au moment de figer (`verifierLimites`), lues par ⑦ (lot 7, A-13). */
   avertissements?: Avertissement[];
+  /** Maille pays : le ciblage n'est pas confirmé pour la recette figée (« France entière », `paysAVerifier`) ; absent sinon. */
+  pays_a_verifier?: true;
 }
 
 /** Une ligne de `GET …/extractions` : les colonnes d'une extraction, et pour un jeu de zone son résumé par plateforme. */

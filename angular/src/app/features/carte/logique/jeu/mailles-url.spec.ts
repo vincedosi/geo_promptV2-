@@ -78,3 +78,11 @@ describe('les quatre paramètres bruts', () => {
     expect(memesParametres(p, { ...p, x: '1' })).toBe(false);
   });
 });
+
+describe('?mailles= — la maille pays (⑤ finitions, T4)', () => {
+  it('`dv360.pays` se lit et s’écrit sans seuil, comme le polygone (exacte) ; avec un seuil, il est admis', () => {
+    expect(lireMailles('dv360.pays')).toEqual({ dv360: { maille: 'pays', seuil: SEUIL_PAR_DEFAUT } });
+    expect(lireMailles('dv360.pays.30')).toEqual({ dv360: { maille: 'pays', seuil: 30 } });
+    expect(ecrireMailles({ dv360: { maille: 'pays', seuil: 20 }, meta: { maille: 'cp', seuil: 20 } })).toBe('dv360.pays,meta.cp.20');
+  });
+});

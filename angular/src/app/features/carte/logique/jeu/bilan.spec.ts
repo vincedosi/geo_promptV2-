@@ -75,3 +75,42 @@ describe('bilan d’un choix (logique pure de ⑤)', () => {
     expect(choixDeBase(null, regles, null)).toEqual({ dv360: { maille: 'cp', seuil: 20 }, meta: { maille: 'cercle', seuil: 20, rayon_m: 20000 } });
   });
 });
+
+describe('bilan d’une zone pays (⑤ finitions, T4)', () => {
+  const CODES = { METRO: ['FR'], FR: ['FR', 'GP', 'MQ', 'GF', 'RE', 'YT'] };
+  const pays = ligne({ plateforme: 'meta', maille: 'pays', codes_pays: CODES, pays_a_verifier: ['FR'] });
+  const metro = { v: 1, type: 'pays', code: 'METRO' } as const;
+  const france = { v: 1, type: 'pays', code: 'FR' } as const;
+  // La couverture par département de « France entière » : 972 et 974 carroyés, 971 sans dénominateur (E10).
+  const departements = {
+    decoupage: 'departement', zone_maj: 'v1', population: 64_000_000, surface_km2: 640_000,
+    lignes: [
+      { code: '13', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 2_000_000, pop_totale: 2_000_000, part: 100 },
+      { code: '971', nom: null, commune: null, n_carreaux: 0, pop_en_zone: 0, pop_totale: null, part: null },
+      { code: '972', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 300_000, pop_totale: 300_000, part: 100 },
+      { code: '974', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 800_000, pop_totale: 800_000, part: 100 },
+    ],
+  } as unknown as ResultatCouverture;
+
+  it('la lecture requise : la forme pour la métropole (le seul code FR) ; les départements dès qu’un DROM est ciblé', () => {
+    expect(lectureRequise({ maille: 'pays', seuil: 20 }, pays, metro)).toBe('forme');
+    expect(lectureRequise({ maille: 'pays', seuil: 20 }, pays, france)).toBe('departement');
+  });
+  it('« France métropolitaine » : exacte, une unité FR, la population de la zone', () => {
+    const b = bilanDe({ maille: 'pays', seuil: 20 }, pays, metro, couverture('forme', 'v1', 62_528_975))!;
+    expect(b.resume).toMatchObject({ exacte: true, n_unites: 1, population: 62_528_975, manques: 0, taux_utile: 100 });
+    expect(b.pays).toEqual([{ code: 'FR', nom: 'France', population: 62_528_975 }]);
+  });
+  it('« France entière » : six unités ; FR = la zone moins les DROM ; un DROM non carroyé vaut null, jamais 0 (E10)', () => {
+    const b = bilanDe({ maille: 'pays', seuil: 20 }, pays, france, departements)!;
+    expect(b.resume).toMatchObject({ exacte: true, n_unites: 6, population: 64_000_000 });
+    expect(b.pays).toEqual([
+      { code: 'FR', nom: 'France', population: 62_900_000 }, { code: 'GP', nom: 'Guadeloupe', population: null },
+      { code: 'MQ', nom: 'Martinique', population: 300_000 }, { code: 'GF', nom: 'Guyane', population: null },
+      { code: 'RE', nom: 'La Réunion', population: 800_000 }, { code: 'YT', nom: 'Mayotte', population: null },
+    ]);
+  });
+  it('une autre maille n’a pas d’unités pays', () => {
+    expect(bilanDe({ maille: 'cp', seuil: 20 }, ligne({ plateforme: 'dv360', maille: 'cp' }), metro, couverture('cp', 'v1'))?.pays).toBeUndefined();
+  });
+});

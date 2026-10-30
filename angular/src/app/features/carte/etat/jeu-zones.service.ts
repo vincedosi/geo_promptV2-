@@ -14,6 +14,7 @@ import {
   type ChoixMaille, type ChoixParPlateforme, PARAM_EXTRACTION, PARAM_JEU, PARAM_MAILLES, PARAM_ZONE_JEU, type ParametresJeu, SEUIL_PAR_DEFAUT,
   ecrireMailles, lireMailles, lireParametresJeu, lireVersion, memesParametres, parametresDe,
 } from '../logique/jeu/mailles-url';
+import { mailleSansObjet } from '../logique/jeu/conversion';
 import { MESSAGE_JEU_RISQUE } from '../logique/jeu/ecran';
 import type { Maille, Plateforme, PlateformeGeo } from '../logique/jeu/plateformes';
 import type { Recette } from '../logique/zones/recette';
@@ -98,8 +99,17 @@ export class JeuZonesService {
   /** Les choix de base : ceux du jeu ouvert, sinon la maille par défaut de chaque plateforme (A-4), seuil 20 %. */
   private readonly base = computed<ChoixParPlateforme>(() => choixDeBase(this.jeu()?.plateformes ?? null, this.plateformes(), this._recette()));
 
-  /** Le choix courant de chaque plateforme : la base, et par-dessus les choix explicites. Vide sans zone. */
-  readonly choix: Signal<ChoixParPlateforme> = computed(() => (this._zoneId() ? { ...this.base(), ...this._reglages() } : {}));
+  /**
+   * Le choix courant de chaque plateforme : la base, et par-dessus les choix explicites. Vide sans zone. Un choix
+   * explicite SANS OBJET pour la recette (`mailleSansObjet` : cercles sur une zone pays, pays sur une zone locale) est
+   * ignoré, sans être effacé — la plateforme garde son défaut et ne lance aucune lecture (⑤ finitions, T4).
+   */
+  readonly choix: Signal<ChoixParPlateforme> = computed(() => {
+    if (!this._zoneId()) return {};
+    const recette = this._recette();
+    const explicites = Object.entries(this._reglages()).filter(([, c]) => mailleSansObjet(recette, c.maille) === null);
+    return { ...this.base(), ...Object.fromEntries(explicites) };
+  });
   /**
    * Un jeu ouvert dont l'écran ne montre plus l'enregistré : des choix ou un mode qui en diffèrent. Une extraction fige
    * l'ENREGISTRÉ (A-11) : tant que c'est vrai, l'écran fait d'abord enregistrer les réglages (relecture T10-12).
@@ -242,7 +252,7 @@ export class JeuZonesService {
     if (!this._zoneId()) return;
     const actuel = this.choix()[plateforme];
     const maille = r.maille ?? actuel?.maille;
-    if (!maille) return;
+    if (!maille || mailleSansObjet(this._recette(), maille)) return;
     const suivant = choixNeuf(maille, r.seuil ?? actuel?.seuil ?? SEUIL_PAR_DEFAUT, r.rayon ?? actuel?.rayon_m, this.regle(plateforme, maille), this._recette());
     if (actuel && ecrireMailles({ [plateforme]: actuel }) === ecrireMailles({ [plateforme]: suivant })) return;
     this._reglages.update((avant) => ({ ...avant, [plateforme]: suivant }));

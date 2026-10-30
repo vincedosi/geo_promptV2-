@@ -57,7 +57,7 @@ function monter() {
   TestBed.inject(CouchesCarteService).publier(carte as unknown as maplibregl.Map);
   const service = TestBed.inject(JeuCarteService);
   TestBed.tick();
-  return { service, carte, zoneId, choix, couvertures, pavages, geos, zonesLues, communes, etat: TestBed.inject(EtatCarteService) };
+  return { service, carte, registre, zoneId, choix, couvertures, pavages, geos, zonesLues, communes, etat: TestBed.inject(EtatCarteService) };
 }
 
 const peintures = (carte: CarteFactice) => JSON.stringify(carte.couches.map((c) => c.couche['paint']));
@@ -187,5 +187,18 @@ describe('JeuCarteService (lot 5, T11)', () => {
     expect(m.carte.getLayer(COUCHE_JEU_ZONE)).toBeDefined();
     TestBed.resetTestingModule();
     for (const id of COUCHES_JEU) expect(m.carte.getLayer(id)).toBeUndefined();
+  });
+
+  it('A-9 : une plateforme au pays ne pose que le contour de la zone — aucune couche d’unités, aucun contour d’unité lu', () => {
+    const m = monter();
+    m.registre.update((r) => [...r, regle({ plateforme: 'meta', maille: 'pays' })]);
+    m.choix.update((c) => ({ ...c, meta: { maille: 'pays', seuil: 20 } }));
+    m.service.regarder('meta');
+    TestBed.tick();
+    m.geos[0].s.next(entite);
+    TestBed.tick();
+    expect(m.carte.getLayer(COUCHE_JEU_ZONE)).toBeDefined();
+    expect(m.carte.getLayer(COUCHE_JEU_UNITES_FOND)).toBeUndefined();
+    expect([m.zonesLues, m.communes]).toEqual([[], []]);
   });
 });

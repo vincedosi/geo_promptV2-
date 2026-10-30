@@ -113,3 +113,66 @@ describe('mg-colonne-plateforme', () => {
     expect(bouton.getAttribute('aria-pressed')).toBe('false');
   });
 });
+
+describe('mg-colonne-plateforme — une zone pays (⑤ finitions, T4)', () => {
+  const CODES = { METRO: ['FR'], FR: ['FR', 'GP', 'MQ', 'GF', 'RE', 'YT'] };
+  const PAYS = regle({ plateforme: 'meta', maille: 'pays', libelle: 'Pays', codes_pays: CODES, pays_a_verifier: ['FR'], ordre: 70 });
+  const REGISTRE_PAYS = [...REGISTRE, regle({ plateforme: 'meta', maille: 'commune', libelle: 'Communes', ordre: 65 }), PAYS];
+  const forme = { ...couvertureCp, decoupage: 'forme', population: 62_528_975, surface_km2: 547_779, lignes: [] };
+  const departements = {
+    ...couvertureCp, decoupage: 'departement', population: 64_000_000, surface_km2: 640_000,
+    lignes: [
+      { code: '13', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 2_000_000, pop_totale: 2_000_000, part: 100 },
+      { code: '972', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 300_000, pop_totale: 300_000, part: 100 },
+      { code: '974', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 800_000, pop_totale: 800_000, part: 100 },
+    ],
+  };
+  async function surZonePays(code: 'METRO' | 'FR') {
+    const o = await colonne('meta', REGISTRE_PAYS);
+    o.jeu.choisirZone(Z1, { v: 1, type: 'pays', code });
+    await o.stable();
+    return o;
+  }
+
+  it('« France métropolitaine » : « Pays » d’office, exacte, la population nationale et le code FR ; aucun « à vérifier »', async () => {
+    const { el, http, jeu, stable } = await surZonePays('METRO');
+    expect(el.querySelector('[data-maille="pays"]')?.getAttribute('aria-pressed')).toBe('true');
+    jeu.valider('meta');
+    http.expectOne(urlCouverture(Z1, 'forme')).flush(forme);
+    await stable();
+    expect(texte(el, '[data-exacte] span')).toBe('Exacte : aucune perte');
+    expect(texte(el, '[data-exacte] span.font-mono')).toBe('1 pays · 62 528 975 habitants carroyés');
+    expect(texte(el, '[data-codes-pays]')).toBe('FR');
+    expect(el.querySelector('[data-a-verifier]')).toBeNull();
+    expect(el.querySelector('mg-dilution')).toBeNull();
+    http.verify();
+  });
+  it('cercles et communes grisés, avec la phrase de la règle ; aucune lecture pour eux', async () => {
+    const { el, http } = await surZonePays('METRO');
+    const cercle = el.querySelector<HTMLButtonElement>('[data-maille="cercle"]')!;
+    const commune = el.querySelector<HTMLButtonElement>('[data-maille="commune"]')!;
+    expect([cercle.disabled, commune.disabled]).toEqual([true, true]);
+    const raisons = [...el.querySelectorAll('[data-raison]')].map((r) => r.textContent?.trim());
+    expect(raisons).toContain('Sur toute la France, le ciblage par cercles n’a pas de sens : choisissez le pays.');
+    expect(raisons.some((r) => r?.startsWith('Sur toute la France, le découpage par IRIS'))).toBe(true);
+    cercle.click();
+    http.verify();
+  });
+  it('« France entière » : les six codes, « population non carroyée » pour un DROM sans carreau, et « À vérifier »', async () => {
+    const { el, http, jeu, stable } = await surZonePays('FR');
+    jeu.valider('meta');
+    http.expectOne(urlCouverture(Z1, 'departement')).flush(departements);
+    await stable();
+    expect(texte(el, '[data-codes-pays]')).toBe('FR, GP, MQ, GF, RE, YT');
+    const unites = [...el.querySelectorAll('[data-unite-pays]')].map((u) => u.textContent?.replace(/\s+/g, ' ').trim());
+    expect(unites).toContain('Guadeloupe (GP) · population non carroyée');
+    expect(unites).toContain('La Réunion (RE) · 800 000 habitants');
+    expect(texte(el, '[data-a-verifier]')).toBe('À vérifier');
+    http.verify();
+  });
+  it('une zone qui n’est pas nationale : aucune pastille « Pays »', async () => {
+    const { el } = await colonne('meta', REGISTRE_PAYS);
+    expect(el.querySelector('[data-maille="pays"]')).toBeNull();
+    expect(el.querySelector('[data-maille="cercle"]')?.getAttribute('aria-pressed')).toBe('true');
+  });
+});

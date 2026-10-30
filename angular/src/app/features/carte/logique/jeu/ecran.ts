@@ -67,6 +67,14 @@ export function texteAvertissement(a: Avertissement, maille: Maille): string {
   return `Palier sous ${formaterNombre(a.limite)} personnes : ${formaterNombre(a.valeur)} achetées, la plateforme peut refuser la diffusion.`;
 }
 
+/**
+ * Une unité d'une plateforme au pays : « La Réunion (RE) · 884 165 habitants ». Un territoire non carroyé (Guadeloupe,
+ * Guyane, Mayotte : Filosofi 2021) se dit « population non carroyée », jamais « 0 habitant » (E10).
+ */
+export function texteUnitePays(u: { code: string; nom: string; population: number | null }): string {
+  return `${u.nom} (${u.code}) · ${u.population === null ? 'population non carroyée' : `${formaterNombre(u.population)} habitants`}`;
+}
+
 /** Pourquoi un pavage en cercles ne retient rien (`motif_vide`, sql/276) — trois causes, trois phrases. */
 export const MESSAGE_MOTIF_VIDE: Readonly<Record<NonNullable<ResultatCercles['motif_vide']>, string>> = {
   territoire_non_carroye: 'Le carroyage Filosofi ne couvre pas ce territoire : aucun habitant chiffrable. Ce n’est pas une population nulle, c’est une donnée absente à la source.',

@@ -465,6 +465,20 @@ la plomberie ; l'écran est T10, la couche T11.
   PROCHAINE ouverture, sans requête d'ici là — T14 : elle manquait à ⑤ jusqu'au rechargement),
   `mg-choix-cible`, `mg-mode-plan`, `mg-dilution` (entrées FACULTATIVES `titre`, `sujet`, `accord`, `complement`, `libelleCurseur` :
   défauts = le texte du module risque, son spec inchangé et vert), `mg-kpi`, `mg-entete-section`.
+- **Zone nationale au pays (⑤ finitions, T4, 2026-10-30)** : sur une zone pays (recette `pays`), chaque plateforme
+  prend « Pays » d'office (`mailleParDefaut`, FINESSE : le pays en dernier, jamais le défaut d'une zone locale) ;
+  « Exacte : aucune perte », la population de la zone et les codes ciblés (`plateformes_geo.codes_pays` :
+  « FR » ou « FR, GP, MQ, GF, RE, YT »), puis, pour « France entière », une ligne par territoire, « population non
+  carroyée » pour un DROM sans carreau (jamais 0, E10). Cercles, communes et IRIS sont grisés avec la phrase de
+  `mailleSansObjet` (`lignesChoix`) ; sur une zone locale, la pastille « Pays » n'existe pas (Q-4). Un choix sans objet
+  venu de l'URL (`?mailles=meta.cercle…` sur une zone pays, `meta.pays` sur une zone locale) est ignoré par `choix`
+  (sans être effacé) et `regler` le refuse : AUCUNE lecture. La maille pays lit la couverture « telle quelle »
+  (`forme`) pour la métropole, la couverture par `departement` dès qu'un DROM est ciblé — elle porte la population de
+  la zone ET celle de chaque DROM, comme à l'extraction ; une fois par (zone, cible), aucun carreau lu. `?mailles=`
+  écrit `dv360.pays`, sans seuil, comme le polygone. Badge « À vérifier » : la ligne entière (`a_verifier`), ou le
+  seul ciblage de « France entière » (`paysAVerifier`, note `NOTE_PAYS_A_VERIFIER`), jamais celui de la métropole. La
+  carte ne peint que le contour de la zone (A-9). En ⑦, DV360 au pays offre le fichier « Pays (CSV) » et dit la raison
+  du serveur (`aucun_cp_dv360`) ; « À vérifier » y suit `pays_a_verifier` du résumé figé.
 
 ## ⑤ Jeu de zones : la carte (lot 5, T11, 2026-10-24)
 

@@ -7,8 +7,10 @@ import { JeuCarteService } from '../../couches/jeu-carte.service';
 import { MAX_CODES_CONTOURS } from '../../data/jeux.api';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { estExacte } from '../../logique/jeu/bilan';
+import { NOTE_PAYS_A_VERIFIER, mailleSansObjet, paysAVerifier } from '../../logique/jeu/conversion';
 import {
   M_PAR_KM, MESSAGE_MOTIF_VIDE, NOM_PLATEFORME, UNITE_MAILLE, bornesRayon, dateReleve, libelleCurseurSeuil, nombreUnites, texteAvertissement,
+  texteUnitePays,
 } from '../../logique/jeu/ecran';
 import type { Maille, Plateforme } from '../../logique/jeu/plateformes';
 import { ENCART_AVERTISSEMENT_LISIBLE, ENCART_ERREUR, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } from '../analyse/styles-analyse';
@@ -48,11 +50,11 @@ import { ChoixMailleComponent } from './choix-maille.component';
         @if (lignes().length === 0) {
           <div class="font-mono text-[11px] text-tertiary">Lecture des règles de la plateforme…</div>
         } @else {
-          <mg-choix-maille [lignes]="lignes()" [maille]="choix()?.maille ?? null" (choisie)="regler({ maille: $event })" />
+          <mg-choix-maille [lignes]="lignesChoix()" [maille]="choix()?.maille ?? null" (choisie)="regler({ maille: $event })" />
           @if (ligne(); as l) {
             <div class="flex flex-wrap items-center gap-2 text-[10px] text-tertiary">
-              @if (l.a_verifier) {
-                <span data-a-verifier class="rounded-[4px] border-fin border-default bg-overlay px-2 py-[2px]" [attr.title]="l.note">À vérifier</span>
+              @if (aVerifier(); as v) {
+                <span data-a-verifier class="rounded-[4px] border-fin border-default bg-overlay px-2 py-[2px]" [attr.title]="v.note">À vérifier</span>
               }
               <span>relevé le {{ releve() }}</span>
               @if (l.doc_url) {
@@ -91,6 +93,8 @@ import { ChoixMailleComponent } from './choix-maille.component';
             <div data-exacte class="flex flex-col gap-1">
               <span class="text-[12px] text-primary">Exacte : aucune perte</span>
               <span class="font-mono text-[11px] text-secondary">{{ unitesTexte() }} · {{ nombre(b.resume.population) }} habitants carroyés</span>
+              @if (codesPays(); as codes) { <span data-codes-pays class="font-mono text-[11px] text-secondary">{{ codes }}</span> }
+              @for (u of unitesPays(); track u.code) { <span data-unite-pays class="font-mono text-[11px] text-tertiary">{{ u.texte }}</span> }
             </div>
           } @else {
             <dl data-chiffres class="m-0 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-[11px]">
@@ -160,12 +164,41 @@ export class ColonnePlateformeComponent {
 
   protected readonly nom = computed(() => NOM_PLATEFORME[this.plateforme()]);
   protected readonly lignes = computed(() => this.jeu.plateformes().filter((l) => l.plateforme === this.plateforme()));
+  /**
+   * Les mailles offertes au choix (⑤ finitions, A-3, Q-4) : une maille SANS OBJET pour la recette (`mailleSansObjet`)
+   * est grisée avec sa phrase sur une zone pays (cercles, communes, IRIS) ; sur toute autre zone, la seule maille sans
+   * objet est le pays, qui ne s'affiche pas.
+   */
+  protected readonly lignesChoix = computed(() => {
+    const recette = this.jeu.recette();
+    return this.lignes().flatMap((l) => {
+      const raison = mailleSansObjet(recette, l.maille);
+      if (!raison) return [l];
+      return recette?.type === 'pays' ? [{ ...l, disponible: false, note: raison }] : [];
+    });
+  });
   protected readonly choix = computed(() => this.jeu.choix()[this.plateforme()]);
   protected readonly ligne = computed(() => {
     const m = this.choix()?.maille;
     return this.lignes().find((l) => l.maille === m);
   });
   protected readonly bilan = computed(() => this.jeu.resumes()[this.plateforme()]);
+  /**
+   * Le badge neutre « À vérifier » et son infobulle : la ligne entière (`a_verifier`, sa note), ou le seul ciblage pays
+   * de « France entière » (`paysAVerifier` : les DROM comme pays distincts) — jamais celui de la métropole.
+   */
+  protected readonly aVerifier = computed(() => {
+    const l = this.ligne();
+    if (l?.a_verifier) return { note: l.note };
+    return paysAVerifier(this.jeu.recette(), l) ? { note: NOTE_PAYS_A_VERIFIER } : null;
+  });
+  /** Les codes ciblés par une plateforme au pays (« FR, GP, MQ… ») ; `null` pour une autre maille. */
+  protected readonly codesPays = computed(() => this.bilan()?.pays?.map((u) => u.code).join(', ') || null);
+  /** Une ligne par territoire, dès qu'il y en a plus d'un (« France entière ») : sa population, ou « non carroyée ». */
+  protected readonly unitesPays = computed(() => {
+    const pays = this.bilan()?.pays ?? [];
+    return pays.length > 1 ? pays.map((u) => ({ code: u.code, texte: texteUnitePays(u) })) : [];
+  });
   protected readonly unite = computed(() => UNITE_MAILLE[this.choix()?.maille ?? 'cp']);
   protected readonly curseur = computed(() => libelleCurseurSeuil(this.choix()?.maille ?? 'cp'));
   protected readonly releve = computed(() => dateReleve(this.ligne()?.releve_le ?? ''));
