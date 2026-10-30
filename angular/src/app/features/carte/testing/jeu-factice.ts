@@ -24,6 +24,7 @@ import { ParcoursService } from '../etat/parcours.service';
 import { PileEchapService } from '../etat/pile-echap.service';
 import { ZoneAnalyseeService } from '../etat/zone-analysee.service';
 import type { PlateformeGeo } from '../logique/jeu/plateformes';
+import type { Recette } from '../logique/zones/recette';
 import { OutilsCarteService } from '../outils/outils-carte.service';
 
 /**
@@ -105,7 +106,7 @@ export interface OutilsBanc {
  * vers `url`, puis le composant et ses entrées ; l'état de ⑤ à l'injecteur du banc. `lister` : la liste des zones.
  */
 export async function monterJeu<T>(
-  outils: OutilsBanc, composant: Type<T>, url = '/carte', o: { lister?: () => unknown; entrees?: Record<string, unknown> } = {},
+  outils: OutilsBanc, composant: Type<T>, url = '/carte', o: { lister?: () => unknown; entrees?: Record<string, unknown>; recette?: Recette | null } = {},
 ) {
   const { TestBed: banc } = outils;
   banc.configureTestingModule({ providers: [...fournisseursJeu(o.lister), outils.provideHttpClientTesting()] });
@@ -115,8 +116,17 @@ export async function monterJeu<T>(
   for (const [cle, valeur] of Object.entries(o.entrees ?? {})) fixture.componentRef.setInput(cle, valeur);
   const stable = async () => { for (let i = 0; i < 3; i++) { await new Promise((r) => setTimeout(r, 0)); await fixture.whenStable(); } };
   await stable();
+  const jeu = banc.inject(JeuZonesService);
+  // `recette` : la recette de la zone de l'URL, CONNUE comme le sélecteur la donne (`null` : illisible) ; sans elle,
+  // ⑤ ne lit rien (relecture 2). Absente : la recette reste inconnue.
+  const zone = new URL(url, 'http://h').searchParams.get('zoneJeu');
+  if (o.recette !== undefined && zone) {
+    await stable();
+    jeu.choisirZone(zone, o.recette);
+    await stable();
+  }
   return {
     fixture, el: fixture.nativeElement as HTMLElement, stable, router,
-    http: banc.inject(outils.HttpTestingController), jeu: banc.inject(JeuZonesService),
+    http: banc.inject(outils.HttpTestingController), jeu,
   };
 }

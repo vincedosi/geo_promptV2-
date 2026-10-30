@@ -41,8 +41,8 @@ class JeuRisque extends Error {
  * d'une zone ou d'un jeu ; une conversion part par `valider` (la colonne), dans une FILE — une lecture en vol, au plus
  * une couverture par (zone, cible, découpage). Un seuil déplacé ne requête RIEN : `resumes` rejoue la conversion pure
  * en mémoire. Un pavage en cercles est calculé au SERVEUR pour un rayon ET un seuil : régler l'un ou l'autre le
- * périme (bilan absent, aucune requête) jusqu'au `valider` suivant — l'écran l'appelle au relâchement.
- *
+ * périme (bilan absent, aucune requête) jusqu'au `valider` suivant — l'écran l'appelle au relâchement. Rien ne
+ * se lit tant que la recette de la zone n'est pas CONNUE (`_recetteConnue`).
  * P-c : chaque lecture porte un jeton (`FileLectures`, `LectureAnnulable`) ; changer de zone vide la file et tout
  * résultat. P-e : fourni par la PAGE (`carte.fournisseurs.ts`), le jeu survit à ⑤ → ① → ⑤ ; détruit (changement
  * d'espace), tout est annulé et plus rien n'est écrit dans l'URL.
@@ -60,6 +60,9 @@ export class JeuZonesService {
   private readonly _extraction = signal<number | null>(null);
   /** La recette de la zone (exactitude, défauts) : du jeu ouvert, ou donnée par le sélecteur ; `null` inconnue. */
   private readonly _recette = signal<Recette | null>(null);
+  /** Recette CONNUE (sélecteur, jeu), même illisible (`null`) ; sinon ni choix ni lecture : une zone pays aurait les
+   *  défauts d'une zone locale (DV360 au CP, 5 956 lignes ; pavage Meta refusé) — relecture 2. */
+  private readonly _recetteConnue = signal(false);
   /** La cible et le mode choisis AVANT enregistrement (`?cibleJeu=`, `?modeJeu=`, ⑤ finitions T5) ; un jeu ouvert porte les siens. */
   private readonly _cibleChoisie = signal<string | null>(null);
   private readonly _modeChoisi = signal<ModePlan | null>(null);
@@ -106,7 +109,7 @@ export class JeuZonesService {
    * ignoré, sans être effacé — la plateforme garde son défaut et ne lance aucune lecture (⑤ finitions, T4).
    */
   readonly choix: Signal<ChoixParPlateforme> = computed(() => {
-    if (!this._zoneId()) return {};
+    if (!this._zoneId() || !this._recetteConnue()) return {};
     const recette = this._recette();
     const explicites = Object.entries(this._reglages()).filter(([, c]) => mailleSansObjet(recette, c.maille) === null);
     return { ...this.base(), ...Object.fromEntries(explicites) };
@@ -186,11 +189,14 @@ export class JeuZonesService {
    * Choisit (ou retire, `null`) la zone à convertir. Une AUTRE zone ferme le jeu ouvert et efface tout résultat et
    * tout choix explicite. `recette` et `maj` (date de mise à jour) : ce que le sélecteur connaît — rappeler avec la
    * zone courante les renseigne (zone arrivée par l'URL) ; une autre `maj` (zone recalculée en ③) fait tout relire.
-   */
-  choisirZone(id: string | null, recette: Recette | null = null, maj: string | null = null): void {
+   * `recette` : `undefined` = inconnue (rien ne se lit), `null` = illisible. */
+  choisirZone(id: string | null, recette?: Recette | null, maj: string | null = null): void {
     const zone = id === null ? null : lireZoneAnalyse(id);
     if (zone === this._zoneId() && this._jeuId() === null) {
-      if (zone && recette) this._recette.set(recette);
+      if (zone && recette !== undefined) {
+        this._recette.set(recette);
+        this._recetteConnue.set(true);
+      }
       if (zone && maj !== null && maj !== this._maj()) {
         // Sans date jusqu'ici (zone venue de l'URL) : la date est ADOPTÉE, rien n'est jeté ni annulé ; une AUTRE date
         // (zone recalculée en ③) fait tout relire.
@@ -203,7 +209,8 @@ export class JeuZonesService {
     this.fermerJeu();
     this.viderResultats();
     this._reglages.set({});
-    this._recette.set(recette);
+    this._recette.set(recette ?? null);
+    this._recetteConnue.set(recette !== undefined);
     this._maj.set(maj);
     this._erreur.set(null);
     this._zoneId.set(zone);
@@ -237,6 +244,7 @@ export class JeuZonesService {
     this.lectureJeu.resultat.set(detail);
     this._reglages.set({});
     this._modeChoisi.set(null);
+    this._cibleChoisie.set(null); // le jeu porte sa cible (relecture 2)
     this._jeuId.set(detail.jeu.id);
   }
 
@@ -250,7 +258,7 @@ export class JeuZonesService {
    * (le choisi, l'ancien, sinon `rayonParDefaut`) ; une autre n'en porte pas. Sans zone : rien.
    */
   regler(plateforme: Plateforme, r: { maille?: Maille; seuil?: number; rayon?: number }): void {
-    if (!this._zoneId()) return;
+    if (!this._zoneId() || !this._recetteConnue()) return;
     const actuel = this.choix()[plateforme];
     const maille = r.maille ?? actuel?.maille;
     if (!maille || mailleSansObjet(this._recette(), maille)) return;
@@ -270,7 +278,7 @@ export class JeuZonesService {
     const zone = this._zoneId();
     const c = this.choix()[plateforme];
     const ligne = c ? this.regle(plateforme, c.maille) : undefined;
-    if (this.detruit || !zone || !c || !ligne) return;
+    if (this.detruit || !zone || !c || !ligne || !this._recetteConnue()) return;
     const cible = this.cible();
     const besoin = lectureRequise(c, ligne, this._recette());
     const tache = this.tache(plateforme, c, ligne);
@@ -345,6 +353,7 @@ export class JeuZonesService {
       }
       this._zoneId.set(r.jeu.custom_geo_zone_id);
       this._recette.set(r.zone.recette);
+      this._recetteConnue.set(true);
     }, (e) => {
       if (e instanceof JeuRisque || (e instanceof HttpErrorResponse && e.status === 404)) {
         this._jeuId.set(null);
@@ -366,6 +375,7 @@ export class JeuZonesService {
     if (!jeu && zone !== this._zoneId()) {
       this.viderResultats();
       this._recette.set(null);
+      this._recetteConnue.set(false);
       this._maj.set(null);
       this._zoneId.set(zone);
     }

@@ -99,7 +99,14 @@ export function lireParamCouverture(brut: string | null | undefined): { cible: s
   return { cible, decoupage: decoupage as DecoupageAnalyse };
 }
 
-/** Un code de cible lu dans l'URL (`?cibleJeu=` de ⑤), ou `null` s'il n'en a pas la forme. Ne lève jamais. */
+/**
+ * Un code de cible lu dans l'URL (`?cibleJeu=` de ⑤), ou `null` s'il n'en a pas la forme. Ne lève jamais.
+ *
+ * Contrôle de FORME seulement, à dessein (relecture 2, comportement gardé) : un code bien formé mais inconnu du
+ * catalogue des cibles (`ind_xyz`) est ADMIS ici — lire le catalogue au chargement serait une lecture de plus à
+ * l'ouverture de ⑤. La route de couverture le refuse ensuite (`cible_inconnue`, « Cette cible n’est pas connue. »),
+ * dit dans la colonne de chaque plateforme ; le choix d'une autre cible le remplace.
+ */
 export function lireCible(brut: string | null | undefined): string | null {
   return typeof brut === 'string' && MOTIF_CIBLE.test(brut) ? brut : null;
 }

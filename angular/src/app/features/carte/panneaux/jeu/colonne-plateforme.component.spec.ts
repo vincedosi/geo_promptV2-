@@ -9,7 +9,7 @@ const BANC = { TestBed, HttpTestingController, provideHttpClientTesting };
 
 /** Une colonne montée sur une zone de l'URL, le registre lu. */
 async function colonne(plateforme: string, registre: PlateformeGeo[] = REGISTRE) {
-  const o = await monterJeu(BANC, ColonnePlateformeComponent, `/carte?zoneJeu=${Z1}`, { entrees: { plateforme } });
+  const o = await monterJeu(BANC, ColonnePlateformeComponent, `/carte?zoneJeu=${Z1}`, { entrees: { plateforme }, recette: null });
   o.http.expectOne('/api/zones/plateformes').flush({ plateformes: registre });
   await o.stable();
   return o;

@@ -66,10 +66,15 @@ async function ouvrir(url: string) {
   return { hote, http: TestBed.inject(HttpTestingController), router: TestBed.inject(Router), stable };
 }
 
-/** Une zone arrivée par l'URL, le registre lu (une fois par page). */
+/**
+ * Une zone arrivée par l'URL, le registre lu (une fois par page), puis sa recette CONNUE comme le sélecteur la donne
+ * (`null` : illisible, les défauts d'un dessin) — sans elle, rien ne se lit (relecture 2).
+ */
 async function ouvrirAvecZone(suite = '') {
   const o = await ouvrir(`/carte?zoneJeu=${Z1}${suite}`);
   o.http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
+  await o.stable();
+  o.hote.jeu.choisirZone(Z1, null);
   await o.stable();
   return o;
 }

@@ -185,12 +185,16 @@ export class ColonnePlateformeComponent {
   protected readonly bilan = computed(() => this.jeu.resumes()[this.plateforme()]);
   /**
    * Le badge neutre « À vérifier » et son infobulle : la ligne entière (`a_verifier`, sa note), ou le seul ciblage pays
-   * de « France entière » (`paysAVerifier` : les DROM comme pays distincts) — jamais celui de la métropole.
+   * de « France entière » (`paysAVerifier` : les DROM comme pays distincts) — jamais celui de la métropole. Deux textes
+   * SÉPARÉS (relecture 2) : la note de la ligne ne vaut que pour la ligne (sql/301 en a retiré les DROM), la réserve
+   * « France entière » s'y ajoute pour la seule recette FR — TTD sur la métropole ne parle donc plus de FR + DROM.
    */
   protected readonly aVerifier = computed(() => {
     const l = this.ligne();
-    if (l?.a_verifier) return { note: l.note };
-    return paysAVerifier(this.jeu.recette(), l) ? { note: NOTE_PAYS_A_VERIFIER } : null;
+    const pays = paysAVerifier(this.jeu.recette(), l);
+    if (!l?.a_verifier && !pays) return null;
+    const notes = [l?.a_verifier ? l.note : null, pays ? NOTE_PAYS_A_VERIFIER : null].filter((n): n is string => !!n);
+    return { note: notes.length ? notes.join(' ') : null };
   });
   /** Les codes ciblés par une plateforme au pays (« FR, GP, MQ… ») ; `null` pour une autre maille. */
   protected readonly codesPays = computed(() => this.bilan()?.pays?.map((u) => u.code).join(', ') || null);

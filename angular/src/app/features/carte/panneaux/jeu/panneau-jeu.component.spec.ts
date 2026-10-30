@@ -6,6 +6,8 @@ import { REGISTRE, Z1, Z2, couvertureCp, monterJeu, urlCouverture } from '../../
 import { PanneauJeuComponent } from './panneau-jeu.component';
 
 const BANC = { TestBed, HttpTestingController, provideHttpClientTesting };
+/** La liste des zones nomme Z1, recette illisible : la recette est CONNUE, ⑤ peut lire (relecture 2). */
+const listerZ1 = () => of({ zones: [{ id: Z1, name: 'Z1', recette: null, updated_at: 'v1' } as unknown as ZoneCustomResume] });
 
 /** Un `ResizeObserver` qui annonce une largeur d'hôte fixe dès l'observation. */
 function largeurPanneau(px: number): void {
@@ -31,7 +33,7 @@ describe('mg-panneau-jeu', () => {
   });
 
   it('une zone : le registre lu une fois, puis la couverture de la SEULE colonne ouverte (empilées)', async () => {
-    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`);
+    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister: listerZ1 });
     http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
     await stable();
     http.expectOne(urlCouverture(Z1, 'cp')).flush(couvertureCp);
@@ -51,7 +53,7 @@ describe('mg-panneau-jeu', () => {
 
   it('900 px et plus : les quatre colonnes côte à côte, toutes ouvertes, chacune demande sa conversion (une à la fois)', async () => {
     largeurPanneau(1000);
-    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`);
+    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister: listerZ1 });
     http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
     await stable();
     expect(el.querySelector('[data-colonnes]')!.classList).toContain('grid-cols-4');

@@ -14,7 +14,7 @@ const detail = {
 
 describe('mg-enregistrer-jeu', () => {
   it('« Enregistrer le jeu » : UN POST (nom proposé, zone, cible, mode, choix) ; un double clic n’en lance pas deux ; URL réécrite', async () => {
-    const { el, http, router, stable } = await monterJeu(BANC, EnregistrerJeuComponent, `/carte?zoneJeu=${Z1}&mailles=dv360.cp.30`, { entrees: { nomPropose: 'Lycées 5 km' } });
+    const { el, http, router, stable } = await monterJeu(BANC, EnregistrerJeuComponent, `/carte?zoneJeu=${Z1}&mailles=dv360.cp.30`, { entrees: { nomPropose: 'Lycées 5 km' }, recette: null });
     http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
     await stable();
     expect((el.querySelector('input') as HTMLInputElement).value).toBe('Lycées 5 km');
@@ -45,7 +45,7 @@ describe('mg-enregistrer-jeu', () => {
   });
 
   it('P-c : un POST qui répond après un changement de zone n’est ni adopté ni dit « Jeu enregistré. » (revue finale, point 4)', async () => {
-    const { el, http, jeu, stable } = await monterJeu(BANC, EnregistrerJeuComponent, `/carte?zoneJeu=${Z1}`, { entrees: { nomPropose: 'Lycées 5 km' } });
+    const { el, http, jeu, stable } = await monterJeu(BANC, EnregistrerJeuComponent, `/carte?zoneJeu=${Z1}`, { entrees: { nomPropose: 'Lycées 5 km' }, recette: null });
     http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
     await stable();
     el.querySelector<HTMLButtonElement>('[data-enregistrer]')!.click();

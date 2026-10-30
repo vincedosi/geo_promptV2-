@@ -10,6 +10,9 @@ async function monter(url: string) {
   await o.stable();
   o.http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
   await o.stable();
+  const zone = new URL(url, 'http://h').searchParams.get('zoneJeu');
+  if (zone) o.jeu.choisirZone(zone, null); // la recette connue, illisible : les défauts d'un dessin (relecture 2)
+  await o.stable();
   return o;
 }
 const parametre = (url: string, cle: string) => new URL(url, 'http://h').searchParams.get(cle);
