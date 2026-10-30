@@ -15,8 +15,8 @@ export const etat = {
   quotas: [] as string[],
   limiteurs: [] as { max: number; window: string; prefix: string }[],
   rpcs: [] as { nom: string; args: Record<string, unknown> }[],
-  /** La réponse de chaque RPC par nom ; absente : `{ data: null, error: null }`. */
-  reponses: {} as Record<string, Reponse>,
+  /** La réponse de chaque RPC par nom (ou une fonction de ses arguments) ; absente : `{ data: null, error: null }`. */
+  reponses: {} as Record<string, Reponse | ((args: Record<string, unknown>) => Reponse)>,
   /** La réponse d'une lecture de table par nom ; une table absente d'ici LÈVE (aucune lecture attendue). */
   tables: {} as Record<string, Reponse>,
   /** Chaque table lue, avec ses filtres (`eq`, `in`) dans l'ordre d'appel. */
@@ -55,7 +55,8 @@ export function createQuota(o: { max: number; window: string; prefix: string }) 
 export const createAdminClient = () => ({
   rpc(nom: string, args: Record<string, unknown>) {
     etat.rpcs.push({ nom, args });
-    return Promise.resolve(etat.reponses[nom] ?? { data: null, error: null });
+    const r = etat.reponses[nom];
+    return Promise.resolve((typeof r === 'function' ? r(args) : r) ?? { data: null, error: null });
   },
   from(table: string) {
     const reponse = etat.tables[table];

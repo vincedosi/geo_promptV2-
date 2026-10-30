@@ -1,8 +1,9 @@
 /**
  * `extraireJeuZone` (lot 5, T8, relecture round 1) contre une base simulée (`_doublures-route.ts`) : les mailles
  * EXACTES figées sans calcul (ruling du contrôleur), et les chemins d'échec — aucune unité retenue, règle disparue de
- * `plateformes_geo`, refus d'une RPC préfixé de la plateforme, groupes de CP illisibles. Le chemin complet contre la
- * vraie base : `tests/integration/jeu-zone-extraction.test.ts`.
+ * `plateformes_geo`, refus d'une RPC préfixé de la plateforme, groupes de CP illisibles — et la zone PAYS (⑤ finitions,
+ * T2) : ses unités figées depuis `codes_pays`, une maille sans objet refusée, plus de 422 `zone_pays`. Le chemin complet
+ * contre la vraie base : `tests/integration/jeu-zone-extraction.test.ts`.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createAdminClient, etat, reinitialiser, ORG } from '../api/_doublures-route';
@@ -136,5 +137,108 @@ describe('chemins d’échec', () => {
     expect(r.status).toBe(500);
     expect(JSON.stringify(await r.json())).not.toContain('secret');
     expect(etat.rpcs.map((x) => x.nom)).not.toContain('creer_extraction_jeu_zone');
+  });
+});
+
+describe('zone pays (⑤ finitions, T2) : le ciblage pays des plateformes, sans carreau lu', () => {
+  const CODES = { METRO: ['FR'], FR: ['FR', 'GP', 'MQ', 'GF', 'RE', 'YT'] };
+  const reglePays = (plateforme: string) => ({ ...regle(plateforme, 'pays'), codes_pays: CODES });
+  const QUATRE = ['dv360', 'meta', 'tiktok', 'ttd'];
+  const METRO = { v: 1, type: 'pays', code: 'METRO' };
+  const FRANCE = { v: 1, type: 'pays', code: 'FR' };
+  const POP_FR = 63_711_780;
+  /** La couverture d'une zone pays : la forme (dénominateurs nationaux), les départements (deux DROM peuplés), les CP. */
+  function couverturePays(population: number) {
+    etat.reponses.couverture_zone = (args) => {
+      const d = args.p_decoupage;
+      if (d === 'forme') return { data: { population, surface_km2: 547_779, lignes: [] }, error: null };
+      if (d === 'departement') {
+        return {
+          data: {
+            population, surface_km2: 547_779,
+            lignes: [
+              { code: '13', nom: 'Bouches-du-Rhône', commune: null, n_carreaux: 9, pop_en_zone: 2_000_000, pop_totale: 2_000_000, part: 100 },
+              { code: '972', nom: 'Martinique', commune: null, n_carreaux: 9, pop_en_zone: 306_745, pop_totale: 306_745, part: 100 },
+              { code: '974', nom: 'La Reunion', commune: null, n_carreaux: 9, pop_en_zone: 884_165, pop_totale: 884_165, part: 100 },
+            ],
+          },
+          error: null,
+        };
+      }
+      return { data: { ...COUVERTURE, population }, error: null };
+    };
+  }
+  const decoupagesLus = () => etat.rpcs.filter((r) => r.nom === 'couverture_zone').map((r) => r.args.p_decoupage);
+
+  it('METRO, quatre plateformes au pays : une unité FR par plateforme, UNE lecture (forme), aucun pavage', async () => {
+    jeuAvec(QUATRE.map((p) => ({ plateforme: p, maille: 'pays', seuil: 0, rayon_m: null })), METRO, QUATRE.map(reglePays));
+    couverturePays(62_528_975);
+    expect((await extraire()).status).toBe(201);
+    expect(decoupagesLus()).toEqual(['forme']);
+    expect(etat.rpcs.map((r) => r.nom)).not.toContain('paver_cercles');
+    expect(argsCreation().p_cp).toEqual([]);
+    expect(argsCreation().p_unites).toEqual(QUATRE.map((p) => ({
+      plateforme: p, maille: 'pays', code: 'FR', nom: 'France', retenu: true,
+      pop_en_zone: 62_528_975, pop_totale: 62_528_975, part: 100,
+    })));
+    expect(argsCreation().p_resume.plateformes[0]).toMatchObject({
+      exacte: true, n_unites: 1, population: 62_528_975, couverte: 62_528_975, manques: 0, hors_zone: 0, taux_utile: 100,
+      avertissements: [],
+    });
+  });
+
+  it('France entière : FR = métropole, chaque DROM par son département, NULL (jamais 0) si non carroyé (E10)', async () => {
+    jeuAvec([{ plateforme: 'meta', maille: 'pays', seuil: 0, rayon_m: null }, { plateforme: 'tiktok', maille: 'pays', seuil: 0, rayon_m: null }],
+      FRANCE, [reglePays('meta'), reglePays('tiktok')]);
+    couverturePays(POP_FR);
+    expect((await extraire()).status).toBe(201);
+    // Deux lectures en tout, pour deux plateformes : la forme, les départements.
+    expect(decoupagesLus()).toEqual(['forme', 'departement']);
+    const meta = argsCreation().p_unites.filter((u) => u.plateforme === 'meta');
+    expect(meta.map((u) => [u.code, u.nom, u.pop_en_zone, u.part])).toEqual([
+      ['FR', 'France', POP_FR - 306_745 - 884_165, 100],
+      ['GP', 'Guadeloupe', null, null],
+      ['MQ', 'Martinique', 306_745, 100],
+      ['GF', 'Guyane', null, null],
+      ['RE', 'La Réunion', 884_165, 100],
+      ['YT', 'Mayotte', null, null],
+    ]);
+    expect(argsCreation().p_resume.plateformes[0]).toMatchObject({ exacte: true, n_unites: 6, population: POP_FR });
+  });
+
+  it('DV360 au CP sur une zone pays : le plan CP, comme pour toute zone (choix de l’utilisateur, § 16.1)', async () => {
+    jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null }, { plateforme: 'meta', maille: 'pays', seuil: 0, rayon_m: null }],
+      METRO, [regle('dv360', 'cp'), reglePays('meta')]);
+    couverturePays(62_528_975);
+    expect((await extraire()).status).toBe(201);
+    expect(argsCreation().p_cp.map((l) => l.code_postal).sort()).toEqual(['69001', '69002', '69003']);
+    expect(argsCreation().p_unites.filter((u) => u.maille === 'pays')).toHaveLength(1);
+  });
+
+  it('un choix sans objet (Meta en cercles, enregistré avant la règle) : 422 avec sa phrase, rien calculé', async () => {
+    jeuAvec([{ plateforme: 'meta', maille: 'cercle', seuil: 20, rayon_m: 10000 }], METRO, [regle('meta', 'cercle')]);
+    const r = await extraire();
+    expect(r.status).toBe(422);
+    expect(await r.json()).toEqual({
+      error: 'meta — Sur toute la France, le ciblage par cercles n’a pas de sens : choisissez le pays. Réglez à nouveau le jeu avant d’extraire.',
+      refus: 'maille_sans_objet', plateforme: 'meta',
+    });
+    expect(etat.rpcs).toEqual([]);
+  });
+
+  it('la maille pays sur une zone qui n’est pas nationale : 422, rien calculé', async () => {
+    jeuAvec([{ plateforme: 'meta', maille: 'pays', seuil: 0, rayon_m: null }], DESSIN, [reglePays('meta')]);
+    const r = await extraire();
+    expect(r.status).toBe(422);
+    expect((await r.json()).error).toBe('meta — La maille pays ne s’achète que pour une zone nationale. Réglez à nouveau le jeu avant d’extraire.');
+    expect(etat.rpcs).toEqual([]);
+  });
+
+  it('plus aucun 422 `zone_pays` : une zone pays au département s’extrait comme une autre zone', async () => {
+    jeuAvec([{ plateforme: 'tiktok', maille: 'departement', seuil: 20, rayon_m: null }], METRO, [regle('tiktok', 'departement')]);
+    couverturePays(62_528_975);
+    const r = await extraire();
+    expect(r.status).toBe(201);
+    expect(JSON.stringify(await r.json())).not.toContain('zone_pays');
   });
 });

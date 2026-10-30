@@ -79,10 +79,11 @@ export const MESSAGES_REFUS_COUVERTURE: Readonly<Record<RefusCouverture, string>
 };
 
 /**
- * ⑤ face à une zone pays (A-5) : hors de ce lot, l'extraction d'un jeu la refuse avec cette phrase
- * (`lib/zones/extraction-jeu-zone.ts`). La ligne Excel « Mode pays — ⑤ » porte la suite.
+ * Une zone pays n'a pas de liste de codes : l'export et le détail de « Mes zones » la refusent (422 `zone_pays`, un
+ * fichier de 48 000 codes n'aurait pas de sens) et disent où l'acheter — à l'étape ⑤, au ciblage par pays des
+ * plateformes (⑤ finitions, A-7 ; c'était « arrive avec les finitions de ⑤ » jusque-là).
  */
-export const MESSAGE_ZONE_PAYS_PLATEFORMES = 'Zone nationale : le ciblage France natif des plateformes arrive avec les finitions de ⑤.';
+export const MESSAGE_ZONE_PAYS_PLATEFORMES = 'Zone nationale : achetez-la à l’étape ⑤ (ciblage par pays des plateformes).';
 
 /** Vrai pour une recette `pays` (sql/296), lue brute de `custom_geo_zones.recette` : la règle unique des routes. */
 export function estRecettePays(recette: unknown): boolean {

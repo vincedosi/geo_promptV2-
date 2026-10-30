@@ -5,7 +5,11 @@
  *   unités de chaque plateforme dans `zone_set_extraction_unites`, `forme` copiée, quatre résumés ; rejouée →
  *   `deja_extraite` ; des unités envoyées par le client → 400, rien d'écrit ;
  * - `GET /api/zones/[id]/cercles` : la borne de rayon LUE dans `plateformes_geo` (400), la zone d'un autre espace (404) ;
- * - `POST /api/zones/communes/contours` : deux codes → deux géométries.
+ * - `POST /api/zones/communes/contours` : deux codes → deux géométries ;
+ * - ⑤ finitions, T2 : une zone « France entière » achetée au PAYS par les quatre plateformes → unités figées depuis
+ *   `plateformes_geo.codes_pays` (population `null` pour un DROM non carroyé, E10), relues à l'identique après une
+ *   `update` de la table (Review Focus 3) ; une zone « France métropolitaine » avec DV360 au CP → plan CP de 5 956
+ *   codes (sous `PLAFOND_CP_PLAN`).
  *
  * Seuls l'appelant et les quotas sont simulés (429 prouvés en unitaire). Deux espaces `[ESSAI lot5 T8]` sont créés
  * puis supprimés ; jeux, extractions et zones partent avec eux.
@@ -44,6 +48,31 @@ const extraire = (corps: unknown = {}) =>
   extractions.POST(new NextRequest(`http://localhost/api/zones/jeux/${jeu}/extractions`, json(corps)), { params: Promise.resolve({ id: jeu }) });
 const paver = (id: string, q: string) =>
   cercles.GET(new NextRequest(`http://localhost/api/zones/${id}/cercles${q}`), { params: Promise.resolve({ id }) });
+
+/** Une zone pays (sql/296) : la forme calculée par le serveur, comme `executerRecette`. */
+async function creerZonePays(code: 'METRO' | 'FR', orgId: string): Promise<string> {
+  const { data: forme, error: e1 } = await sb.rpc('zone_pays_geometrie', { p_code: code });
+  if (e1) throw new Error(e1.message);
+  const { data, error } = await sb.rpc('creer_zone_recette', {
+    p_nom: `France ${code}`, p_org_id: orgId, p_cree_par: null, p_recette: { v: 1, type: 'pays', code },
+    p_geometry_geojson: JSON.stringify((forme as { geometry: unknown }).geometry),
+  });
+  if (error) throw new Error(error.message);
+  return (data as { id: string }).id;
+}
+
+async function jeuSur(zoneId: string, nom: string, choix: { plateforme: string; maille: string; seuil: number }[]): Promise<string> {
+  const { data, error } = await sb.from('zone_sets').insert({
+    org_id: org, nom, type: 'zone', custom_geo_zone_id: zoneId, cible: 'ind', mode_plan: 'pondere', brouillon: false, version: 1,
+  }).select('id').single();
+  if (error || !data) throw new Error(error?.message);
+  const lignes = await sb.from('zone_set_plateformes').insert(choix.map((c) => ({ zone_set_id: data.id, rayon_m: null, ...c })));
+  if (lignes.error) throw new Error(lignes.error.message);
+  return data.id as string;
+}
+
+const extraireJeu = (id: string) =>
+  extractions.POST(new NextRequest(`http://localhost/api/zones/jeux/${id}/extractions`, json({})), { params: Promise.resolve({ id }) });
 
 async function nouvelleOrg(nom: string): Promise<string> {
   const { data, error } = await sb.from('organizations')
@@ -223,4 +252,57 @@ describe('POST /api/zones/communes/contours', () => {
     expect(communes.every((c) => /Polygon$/.test(c.geometry.type))).toBe(true);
     expect(manquants).toEqual([]);
   });
+});
+
+describe('zone pays (⑤ finitions, T2) : achetée au pays, unités figées', () => {
+  const QUATRE = ['dv360', 'meta', 'tiktok', 'ttd'];
+
+  it('France entière, quatre plateformes au pays : FR + 5 DROM, figés ; une update de codes_pays ne change rien après coup', async () => {
+    const zoneFr = await creerZonePays('FR', org);
+    const id = await jeuSur(zoneFr, 'France entière au pays', QUATRE.map((p) => ({ plateforme: p, maille: 'pays', seuil: 0 })));
+    const r = await extraireJeu(id);
+    expect(r.status).toBe(201);
+    const { id: x } = await r.json() as { id: string };
+
+    const lire = async () => {
+      const { data, error } = await sb.from('zone_set_extraction_unites')
+        .select('plateforme, maille, code, nom, pop_en_zone, retenu').eq('extraction_id', x).order('plateforme').order('ordinal');
+      if (error) throw new Error(error.message);
+      return data!;
+    };
+    const avant = await lire();
+    const meta = avant.filter((u) => u.plateforme === 'meta');
+    expect(meta.map((u) => u.code)).toEqual(['FR', 'GP', 'MQ', 'GF', 'RE', 'YT']);
+    expect(meta.every((u) => u.maille === 'pays' && u.retenu)).toBe(true);
+    // E10 : Guadeloupe, Guyane et Mayotte ne sont pas carroyées (Filosofi 2021) — population inconnue, jamais 0.
+    expect(meta.filter((u) => u.pop_en_zone === null).map((u) => u.code)).toEqual(['GP', 'GF', 'YT']);
+    expect(Number(meta.find((u) => u.code === 'FR')!.pop_en_zone)).toBeGreaterThan(60_000_000);
+    expect(new Set(avant.map((u) => u.plateforme))).toEqual(new Set(QUATRE));
+
+    const { data: ligne, error: e1 } = await sb.from('plateformes_geo').select('codes_pays').eq('plateforme', 'meta').eq('maille', 'pays').single();
+    if (e1) throw new Error(e1.message);
+    try {
+      const maj = await sb.from('plateformes_geo').update({ codes_pays: { METRO: ['FR'], FR: ['FR'] } }).eq('plateforme', 'meta').eq('maille', 'pays');
+      if (maj.error) throw new Error(maj.error.message);
+      expect(await lire()).toEqual(avant);
+    } finally {
+      const retour = await sb.from('plateformes_geo').update({ codes_pays: ligne!.codes_pays }).eq('plateforme', 'meta').eq('maille', 'pays');
+      if (retour.error) throw new Error(`codes_pays de Meta NON rétablis : ${retour.error.message}`);
+    }
+  }, LONG);
+
+  it('France métropolitaine, DV360 au CP et Meta au pays : plan CP des 5 956 codes, Meta au pays (FR)', async () => {
+    const zoneMetro = await creerZonePays('METRO', org);
+    const id = await jeuSur(zoneMetro, 'Métropole CP et pays', [
+      { plateforme: 'dv360', maille: 'cp', seuil: 20 }, { plateforme: 'meta', maille: 'pays', seuil: 0 },
+    ]);
+    const r = await extraireJeu(id);
+    expect(r.status).toBe(201);
+    const { id: x } = await r.json() as { id: string };
+    const { data: e, error } = await sb.from('zone_set_extractions').select('n_cp').eq('id', x).single();
+    if (error) throw new Error(error.message);
+    expect(e!.n_cp).toBe(5956);
+    const { data: u } = await sb.from('zone_set_extraction_unites').select('code').eq('extraction_id', x).eq('maille', 'pays');
+    expect(u).toEqual([{ code: 'FR' }]);
+  }, LONG);
 });

@@ -18,6 +18,8 @@ import type { Tables } from '@/types/database.types';
 import { zoneIntrouvable } from '@/lib/zones/session-zones';
 import { JeuZoneSchema, type ChoixPlateforme } from '@/lib/zones/jeu';
 import { lireRegles, refusDuChoix } from '@/lib/zones/conversion-serveur';
+import { mailleSansObjet } from '@/lib/zones/conversion';
+import { lireRecette } from '@/lib/zones/recette-schema';
 import type { PlateformeGeo } from '@/lib/zones/plateformes';
 
 type ClientAdmin = ReturnType<typeof createAdminClient>;
@@ -117,14 +119,29 @@ async function refusDesChoix(supabase: ClientAdmin, choix: ChoixPlateforme[]): P
   return null;
 }
 
+/**
+ * Un choix SANS OBJET pour la recette de la zone (⑤ finitions, A-3 : cercles ou commune sur une zone pays, pays sur une
+ * zone locale) → 400 `maille_sans_objet` avec la phrase de `mailleSansObjet`, la même règle que l'écran et
+ * l'extraction. `recette` : brute de `custom_geo_zones` ; illisible, seule la maille pays est refusée. `null` = admis.
+ */
+function refusSansObjet(recette: unknown, choix: ChoixPlateforme[]): NextResponse | null {
+  const lue = lireRecette(recette);
+  for (const c of choix) {
+    const phrase = mailleSansObjet(lue.ok ? lue.recette : null, c.maille);
+    if (phrase) return NextResponse.json({ error: phrase, refus: 'maille_sans_objet' }, { status: 400 });
+  }
+  return null;
+}
+
 const lignesChoix = (jeuId: string, choix: ChoixPlateforme[]) => choix.map((c) => ({
   zone_set_id: jeuId, plateforme: c.plateforme, maille: c.maille, seuil: c.seuil, rayon_m: c.rayon_m ?? null,
 }));
 
 /**
  * POST d'un jeu de zone, APRÈS le quota (la route le consomme). Zone de l'espace (404 sinon), cible active de
- * `cibles_exposition`, choix admis par `plateformes_geo` — trois lectures légères, en parallèle (≤ 3, `CLAUDE.md`) —
- * puis la version, puis UNE écriture par table ; si les choix échouent, le jeu est retiré.
+ * `cibles_exposition`, choix admis par `plateformes_geo` — trois lectures légères, en parallèle (≤ 3, `CLAUDE.md`) —,
+ * choix qui ont un sens pour la recette de la zone (`refusSansObjet`, sans lecture de plus), puis la version, puis
+ * UNE écriture par table ; si les choix échouent, le jeu est retiré.
  */
 export async function enregistrerJeuZone(
   supabase: ClientAdmin,
@@ -133,7 +150,7 @@ export async function enregistrerJeuZone(
 ): Promise<NextResponse> {
   const { jeu } = corps;
   const [zone, cible, refus] = await Promise.all([
-    supabase.from('custom_geo_zones').select('id').eq('id', jeu.zone_id).eq('org_id', espace.orgId).maybeSingle(),
+    supabase.from('custom_geo_zones').select('id, recette').eq('id', jeu.zone_id).eq('org_id', espace.orgId).maybeSingle(),
     supabase.from('cibles_exposition').select('code').eq('code', jeu.cible).eq('actif', true).maybeSingle(),
     refusDesChoix(supabase, jeu.plateformes),
   ]);
@@ -142,6 +159,8 @@ export async function enregistrerJeuZone(
   if (cible.error) return panne('cible', cible.error.message);
   if (!cible.data) return erreur(`Cible inconnue : ${jeu.cible}.`, 400);
   if (refus) return refus;
+  const sansObjet = refusSansObjet(zone.data.recette, jeu.plateformes);
+  if (sansObjet) return sansObjet;
 
   const version = await prochaineVersion(supabase, espace.orgId, corps.nom);
   if (version === null) return erreur(ECHEC_ENREGISTREMENT, 500);
@@ -209,8 +228,16 @@ export async function reglerJeuZone(
   relire: () => Promise<{ ok: true; jeu: LigneJeu } | { ok: false; reponse: NextResponse }>,
 ): Promise<NextResponse> {
   if (corps.plateformes) {
-    const refus = await refusDesChoix(supabase, corps.plateformes);
+    // Deux lectures légères en parallèle (≤ 3, `CLAUDE.md`) : les règles, la recette de la zone du jeu (A-3).
+    const [refus, zone] = await Promise.all([
+      refusDesChoix(supabase, corps.plateformes),
+      supabase.from('custom_geo_zones').select('recette').eq('id', jeu.custom_geo_zone_id ?? '').eq('org_id', jeu.org_id).maybeSingle(),
+    ]);
     if (refus) return refus;
+    // La zone ne peut manquer (clé étrangère `on delete restrict`) : son absence est une anomalie.
+    if (zone.error || !zone.data) return panne('zone du jeu', zone.error?.message ?? 'absente', 'Modification impossible.');
+    const sansObjet = refusSansObjet(zone.data.recette, corps.plateformes);
+    if (sansObjet) return sansObjet;
   }
 
   if (corps.plateformes) {

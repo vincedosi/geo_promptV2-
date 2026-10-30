@@ -9,7 +9,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
-  MESSAGES_CONVERSION, appliquerSeuil, estRetenue, exactitude, mailleParDefaut, resumeExact, verifierLimites,
+  MESSAGES_CONVERSION, MESSAGES_MAILLE_SANS_OBJET, NOMS_PAYS, appliquerSeuil, estRetenue, exactitude, mailleParDefaut,
+  mailleSansObjet, resumeExact, unitesPays, verifierLimites,
 } from '@/lib/zones/conversion';
 import { MESSAGES_REFUS_COUVERTURE } from '@/lib/zones/couverture';
 import { MAILLES, type PlateformeGeo } from '@/lib/zones/plateformes';
@@ -126,6 +127,20 @@ describe('MESSAGES_CONVERSION — les refus de paver_cercles en français', () =
       expect(MESSAGES_CONVERSION[k], k).toBe(MESSAGES_REFUS_COUVERTURE[k]);
     }
   });
+  it('E8 (⑤ finitions) : les clés sont EXACTEMENT les refus que sql/276 écrit — un refus ajouté sans phrase échoue ici', () => {
+    const sql = readFileSync('sql/276_paver_cercles.sql', 'utf8');
+    const refus = [...new Set([...sql.matchAll(/'refus',\s*'([a-z_]+)'/g)].map((m) => m[1]))].sort();
+    expect(refus.length).toBeGreaterThan(0);
+    expect(Object.keys(MESSAGES_CONVERSION).sort()).toEqual(refus);
+  });
+});
+
+describe('MESSAGES_MAILLE_SANS_OBJET — le refus « maille_sans_objet » a ses phrases (E8)', () => {
+  it('trois phrases, en français ; celle du découpage trop fin est celle de la couverture (copie verrouillée)', () => {
+    expect(Object.keys(MESSAGES_MAILLE_SANS_OBJET).sort()).toEqual(['cercles_pays', 'decoupage_pays', 'pays_hors_zone_nationale']);
+    for (const m of Object.values(MESSAGES_MAILLE_SANS_OBJET)) expect(m).toMatch(/^[A-ZÉ].+\.$/);
+    expect(MESSAGES_MAILLE_SANS_OBJET.decoupage_pays).toBe(MESSAGES_REFUS_COUVERTURE.decoupage_trop_fin_pays);
+  });
 });
 
 // Une recette valide de chaque type (formes de `RecetteSchema`).
@@ -144,9 +159,9 @@ const RECETTES: Record<Recette['type'], Recette> = {
   pays: { v: 1, type: 'pays', code: 'METRO' },
 };
 
-describe('exactitude — onze recettes × six mailles (A-6)', () => {
-  // Le polygone est exact pour toute recette ; hors de lui, ces deux cases seulement.
-  const EXACTES = new Set(['codes_postaux.cp', 'rayon_point.cercle']);
+describe('exactitude — onze recettes × sept mailles (A-6 ; le pays, ⑤ finitions A-4)', () => {
+  // Le polygone est exact pour toute recette ; hors de lui, ces trois cases seulement.
+  const EXACTES = new Set(['codes_postaux.cp', 'rayon_point.cercle', 'pays.pays']);
   for (const [type, recette] of Object.entries(RECETTES)) {
     for (const maille of MAILLES) {
       const attendu = EXACTES.has(`${type}.${maille}`) || maille === 'polygone' ? 'exacte' : 'calculee';
@@ -223,6 +238,90 @@ describe('mailleParDefaut (A-4)', () => {
   it('une maille indisponible ou non native n’est jamais proposée ; aucune ligne : null', () => {
     expect(mailleParDefaut(lignes.filter((l) => l.maille === 'polygone'), 'dv360', RECETTES.dessin)).toBeNull();
     expect(mailleParDefaut([], 'meta', RECETTES.dessin)).toBeNull();
+  });
+});
+
+describe('mailleSansObjet — une seule règle, serveur et écran (⑤ finitions, A-3)', () => {
+  const PAYS = RECETTES.pays;
+  it('zone pays : cercles et découpages trop fins sans objet, avec leur phrase ; le reste a un sens', () => {
+    expect(mailleSansObjet(PAYS, 'cercle')).toBe('Sur toute la France, le ciblage par cercles n’a pas de sens : choisissez le pays.');
+    expect(mailleSansObjet(PAYS, 'commune')).toBe(MESSAGES_REFUS_COUVERTURE.decoupage_trop_fin_pays);
+    expect(mailleSansObjet(PAYS, 'iris')).toBe(MESSAGES_REFUS_COUVERTURE.decoupage_trop_fin_pays);
+    for (const m of ['cp', 'departement', 'polygone', 'pays'] as const) expect(mailleSansObjet(PAYS, m), m).toBeNull();
+    expect(mailleSansObjet({ v: 1, type: 'pays', code: 'FR' }, 'cercle')).toBe(MESSAGES_MAILLE_SANS_OBJET.cercles_pays);
+  });
+  it('toute autre recette (et une recette illisible) : seule la maille pays est sans objet', () => {
+    for (const recette of [...Object.values(RECETTES).filter((r) => r.type !== 'pays'), null]) {
+      for (const m of MAILLES) {
+        const attendu = m === 'pays' ? 'La maille pays ne s’achète que pour une zone nationale.' : null;
+        expect(mailleSansObjet(recette, m), `${recette?.type ?? 'null'} × ${m}`).toBe(attendu);
+      }
+    }
+  });
+});
+
+describe('le pays : défaut d’une zone nationale, jamais d’une autre (⑤ finitions, A-4)', () => {
+  const CODES = { METRO: ['FR'], FR: ['FR', 'GP', 'MQ', 'GF', 'RE', 'YT'] };
+  const lignes: PlateformeGeo[] = [
+    ligne({ plateforme: 'dv360', maille: 'cp' }),
+    ligne({ plateforme: 'dv360', maille: 'cercle', limites: { rayon_min_m: 2_500 } }),
+    ligne({ plateforme: 'ttd', maille: 'polygone', a_verifier: true }),
+    ligne({ plateforme: 'ttd', maille: 'cercle', a_verifier: true }),
+    ligne({ plateforme: 'ttd', maille: 'cp', a_verifier: true }),
+    ligne({ plateforme: 'meta', maille: 'cercle' }),
+    ligne({ plateforme: 'meta', maille: 'cp', a_verifier: true }),
+    ligne({ plateforme: 'tiktok', maille: 'departement' }),
+    ligne({ plateforme: 'tiktok', maille: 'commune', a_verifier: true }),
+  ];
+  const pays: PlateformeGeo[] = (['dv360', 'ttd', 'meta', 'tiktok'] as const).map((p) =>
+    ligne({ plateforme: p, maille: 'pays', a_verifier: p === 'ttd', codes_pays: CODES }));
+  const avecPays = [...lignes, ...pays];
+  it('zone pays : les quatre plateformes au pays', () => {
+    for (const p of ['dv360', 'ttd', 'meta', 'tiktok'] as const) {
+      expect(mailleParDefaut(avecPays, p, RECETTES.pays), p).toBe('pays');
+      expect(mailleParDefaut(avecPays, p, { v: 1, type: 'pays', code: 'FR' }), p).toBe('pays');
+    }
+  });
+  it('zone pays sans ligne pays : une maille sans objet n’est jamais le défaut (Meta : pas le cercle)', () => {
+    expect(mailleParDefaut(lignes, 'meta', RECETTES.pays)).toBe('cp');
+    expect(mailleParDefaut(lignes, 'tiktok', RECETTES.pays)).toBe('departement');
+  });
+  it('AUCUNE autre recette ne change de défaut quand les lignes pays existent', () => {
+    for (const recette of Object.values(RECETTES).filter((r) => r.type !== 'pays')) {
+      for (const p of ['dv360', 'ttd', 'meta', 'tiktok'] as const) {
+        expect(mailleParDefaut(avecPays, p, recette), `${recette.type} × ${p}`).toBe(mailleParDefaut(lignes, p, recette));
+      }
+    }
+  });
+  it('verifierLimites : aucune limite, aucun avertissement', () => {
+    expect(verifierLimites(resumeExact(62_528_975, 547_779, 1), pays[0])).toEqual([]);
+  });
+});
+
+describe('unitesPays — les unités d’une plateforme au pays (⑤ finitions, A-6, E10)', () => {
+  const DEPARTEMENTS = [
+    { code: '13', pop_en_zone: 2_000_000, pop_totale: 2_000_000, part: 100 },
+    { code: '972', pop_en_zone: 306_745, pop_totale: 306_745, part: 100 },
+    { code: '974', pop_en_zone: 884_165, pop_totale: 884_165, part: 100 },
+  ];
+  it('METRO → FR seul, à la population de la zone, sans lire les départements', () => {
+    expect(unitesPays(['FR'], 62_528_975, null)).toEqual([{ code: 'FR', nom: 'France', population: 62_528_975 }]);
+  });
+  it('FR → la métropole (zone moins les DROM peuplés) et chaque DROM par son département ; non carroyé = null', () => {
+    expect(unitesPays(['FR', 'GP', 'MQ', 'GF', 'RE', 'YT'], 63_711_780, DEPARTEMENTS)).toEqual([
+      { code: 'FR', nom: 'France', population: 63_711_780 - 306_745 - 884_165 },
+      { code: 'GP', nom: 'Guadeloupe', population: null },
+      { code: 'MQ', nom: 'Martinique', population: 306_745 },
+      { code: 'GF', nom: 'Guyane', population: null },
+      { code: 'RE', nom: 'La Réunion', population: 884_165 },
+      { code: 'YT', nom: 'Mayotte', population: null },
+    ]);
+  });
+  it('un code inconnu de la table des noms garde son code, population inconnue', () => {
+    expect(unitesPays(['PM'], 100, DEPARTEMENTS)).toEqual([{ code: 'PM', nom: 'PM', population: null }]);
+  });
+  it('les six libellés, en français', () => {
+    expect(NOMS_PAYS).toEqual({ FR: 'France', GP: 'Guadeloupe', MQ: 'Martinique', GF: 'Guyane', RE: 'La Réunion', YT: 'Mayotte' });
   });
 });
 

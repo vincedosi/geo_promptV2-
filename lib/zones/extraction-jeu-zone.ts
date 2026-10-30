@@ -11,7 +11,14 @@
  * - maille territoriale calculée (`cp`, `commune`, `departement`, `iris`) : `couverture_zone` (servie du cache tant
  *   que la zone et la base n'ont pas changé) puis `appliquerSeuil` — la MÊME fonction que l'écran (A-5) ; toutes les
  *   unités touchées partent, marquées `retenu` par `estRetenue` ;
- * - cercle calculé : `paver_cercles` aux limites de la plateforme (seules les cellules retenues sont rendues).
+ * - cercle calculé : `paver_cercles` aux limites de la plateforme (seules les cellules retenues sont rendues) ;
+ * - PAYS, pour une zone pays (⑤ finitions, A-6) : une unité par code de `plateformes_geo.codes_pays` — FIGÉE ici, une
+ *   `update` de la table ne change pas une extraction relue —, chiffrée par la couverture « telle quelle » de la zone
+ *   et, si un DROM est ciblé, par sa couverture par département (`unitesPays`) : AUCUN carreau lu (dénominateurs
+ *   nationaux, sql/296). Mesuré le 30/10 sur « France entière » : forme 4,1 ms · 874 accès, départements 5,8 ms ·
+ *   1 279 accès, puis servies du cache (0,4 et 1,0 ms) ; « France métropolitaine » ne lit que la forme.
+ * Une maille SANS OBJET pour la recette (`mailleSansObjet` : cercles ou commune sur une zone pays, pays sur une zone
+ * locale) refuse l'extraction (422 `maille_sans_objet`) avant toute lecture : un jeu enregistré avant la règle.
  * Les conversions sont SÉQUENTIELLES (jamais en parallèle : chacune peut lire ≈ 100 000 accès), et un découpage lu
  * pour une plateforme sert les suivantes (deux plateformes au CP ne lisent la couverture qu'une fois).
  *
@@ -28,9 +35,10 @@ import type { createAdminClient } from '@/lib/auth';
 import type { Tables } from '@/types/database.types';
 import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
 import { formaterNombre } from '@/lib/format/nombre';
-import { MESSAGES_REFUS_COUVERTURE, MESSAGE_ZONE_PAYS_PLATEFORMES, repondreCouverture, type LigneCouverture } from './couverture';
+import { MESSAGES_REFUS_COUVERTURE, repondreCouverture, type LigneCouverture } from './couverture';
 import {
-  MESSAGES_CONVERSION, appliquerSeuil, estRetenue, exactitude, resumeExact, verifierLimites, type Avertissement, type Resume,
+  MESSAGES_CONVERSION, appliquerSeuil, estRetenue, exactitude, mailleSansObjet, resumeExact, unitesPays, verifierLimites,
+  type Avertissement, type Resume,
 } from './conversion';
 import { lireRegles, paverPourPlateforme, refusDuChoix } from './conversion-serveur';
 import { MESSAGE_JEU_INTROUVABLE, OU_SE_GERE } from './charger-jeu';
@@ -54,7 +62,7 @@ interface Choix { plateforme: string; maille: string; seuil: number; rayon_m: nu
 interface Unite {
   plateforme: string; maille: string; retenu: boolean;
   code?: string; nom?: string | null; lon?: number; lat?: number; rayon_m?: number;
-  pop_en_zone?: number; pop_totale?: number | null; part?: number | null;
+  pop_en_zone?: number | null; pop_totale?: number | null; part?: number | null;
 }
 
 /**
@@ -138,7 +146,17 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
   const r = ctx.recette;
   const toute = { pop_en_zone: forme.population, pop_totale: forme.population, part: 100, retenu: true };
   let unites: Unite[];
-  if (c.maille === 'cp' && r?.type === 'codes_postaux') {
+  if (c.maille === 'pays' && r?.type === 'pays') {
+    // Les codes FIGÉS depuis la table (A-6) ; la couverture par département seulement si un DROM est ciblé.
+    const codes = regle.codes_pays?.[r.code] ?? [];
+    if (codes.length === 0) return panne('codes pays', `${c.plateforme} : aucun code pour ${r.code}`);
+    const departements = codes.some((k) => k !== 'FR') ? await lireCouverture(ctx, c.plateforme, 'departement') : null;
+    if (departements && estEchec(departements)) return departements;
+    unites = unitesPays(codes, forme.population, departements?.lignes ?? null).map((u) => ({
+      plateforme: c.plateforme, maille: 'pays', code: u.code, nom: u.nom, retenu: true,
+      pop_en_zone: u.population, pop_totale: u.population, part: u.population === null ? null : 100,
+    }));
+  } else if (c.maille === 'cp' && r?.type === 'codes_postaux') {
     // La liste de la recette, seuil ignoré ; leurs populations sont portées par le plan CP (par canonique).
     unites = [...new Set(r.codes)].map((code) => ({ plateforme: c.plateforme, maille: 'cp', code, retenu: true }));
   } else if (c.maille === 'cercle' && r?.type === 'rayon_point') {
@@ -202,6 +220,16 @@ function convertir(ctx: Contexte, c: Choix, regles: readonly PlateformeGeo[]): P
   const regle = regles.find((l) => l.plateforme === c.plateforme && l.maille === c.maille);
   const refus = refusDuChoix(c, regle);
   if (refus || !regle) return erreur(`${refus} Réglez à nouveau le jeu avant d’extraire.`, 422);
+  // Un choix enregistré avant la règle « maille sans objet » (⑤ finitions, A-3) : refusé avant toute lecture.
+  const sansObjet = mailleSansObjet(ctx.recette, regle.maille);
+  if (sansObjet) {
+    return {
+      ok: false,
+      reponse: NextResponse.json({
+        error: `${c.plateforme} — ${sansObjet} Réglez à nouveau le jeu avant d’extraire.`, refus: 'maille_sans_objet', plateforme: c.plateforme,
+      }, { status: 422 }),
+    };
+  }
   // Sans recette lisible (zone d'avant le lot 3), seule la forme exacte est exacte.
   const exacte = ctx.recette
     ? exactitude(ctx.recette, regle.maille, regle, c.rayon_m ?? undefined) === 'exacte'
@@ -254,9 +282,6 @@ export async function extraireJeuZone(
   // La zone ne peut manquer (clé étrangère `on delete restrict`) : son absence est une anomalie.
   if (zoneLue.error || !zoneLue.data) return panne('zone du jeu', zoneLue.error?.message ?? 'absente').reponse;
   const lue = lireRecette(zoneLue.data.recette);
-  // Une zone pays (sql/296) : le ciblage France natif des plateformes n'est pas encore là (A-5) — refusée avant toute
-  // autre lecture (règles, couverture).
-  if (lue.ok && lue.recette.type === 'pays') return erreur(MESSAGE_ZONE_PAYS_PLATEFORMES, 422).reponse;
   const choix: Choix[] = (choixLus.data ?? []).map((c) => ({ ...c, seuil: Number(c.seuil) }));
   if (choix.length === 0) return erreur('Ce jeu n’a aucune plateforme : il n’y a rien à extraire.', 409).reponse;
 

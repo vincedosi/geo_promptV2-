@@ -129,7 +129,7 @@ function rayonAdmis(rayon_m: number, ligne?: PlateformeGeo): boolean {
 
 /**
  * La maille rend-elle la zone EXACTEMENT (A-6) ? Le polygone, toujours ; le CP pour une zone faite de codes postaux ;
- * le cercle pour un rayon autour d'un point, si la plateforme admet ce rayon ET si le rayon choisi pour la plateforme
+ * le pays pour une zone pays (⑤ finitions) ; le cercle pour un rayon autour d'un point, si la plateforme admet ce rayon ET si le rayon choisi pour la plateforme
  * (`rayonChoisi`) est absent ou égal à celui de la recette — l'unité achetée est alors LE cercle de la recette ; un
  * autre rayon pave la zone, et la perte se calcule. Pas `rayon_poi` : sa zone est découpée par le périmètre de ①
  * (obligatoire, `executerRecette`), les cercles entiers en débordent — la perte se calcule.
@@ -137,6 +137,8 @@ function rayonAdmis(rayon_m: number, ligne?: PlateformeGeo): boolean {
  */
 export function exactitude(recette: Recette, maille: Maille, ligne?: PlateformeGeo, rayonChoisi?: number): 'exacte' | 'calculee' {
   if (maille === 'polygone') return 'exacte';
+  // Le ciblage pays d'une zone nationale : la zone telle quelle (⑤ finitions, A-4).
+  if (maille === 'pays' && recette.type === 'pays') return 'exacte';
   if (maille === 'cp' && recette.type === 'codes_postaux') return 'exacte';
   if (maille === 'cercle' && recette.type === 'rayon_point' && rayonAdmis(recette.rayon_m, ligne)
       && (rayonChoisi === undefined || rayonChoisi === recette.rayon_m)) return 'exacte';
@@ -151,18 +153,87 @@ export function exactitude(recette: Recette, maille: Maille, ligne?: PlateformeG
 const FINESSE: readonly Maille[] = ['polygone', 'iris', 'cp', 'cercle', 'commune', 'departement', 'pays'];
 
 /**
+ * Les phrases d'une maille SANS OBJET pour la recette (⑤ finitions, A-3), refus `maille_sans_objet`.
+ *
+ * ⚠ COPIE DÉCLARÉE : `decoupage_pays` recopie `MESSAGES_REFUS_COUVERTURE.decoupage_trop_fin_pays`
+ * (`lib/zones/couverture.ts`) — ce module n'importe que des types, il est recopié côté Angular.
+ * `tests/unit/zones/conversion.test.ts` verrouille l'égalité.
+ */
+export const MESSAGES_MAILLE_SANS_OBJET = {
+  cercles_pays: 'Sur toute la France, le ciblage par cercles n’a pas de sens : choisissez le pays.',
+  decoupage_pays: 'Sur toute la France, le découpage par IRIS (48 872) ou par commune (34 918) est trop fin : '
+    + 'choisissez le découpage par code postal.',
+  pays_hors_zone_nationale: 'La maille pays ne s’achète que pour une zone nationale.',
+} as const;
+
+/**
+ * LA règle « cette maille a-t-elle un sens pour cette recette ? » (⑤ finitions, A-3), la même au serveur (refus
+ * d'enregistrer, d'extraire) et à l'écran (pastille grisée). Rend la phrase du refus, ou `null`.
+ * - Zone pays : le cercle (80 km au plus, sur 547 779 km²) et les découpages trop fins (commune, IRIS) n'ont pas de
+ *   sens ; CP, département, polygone et pays en ont (DV360 au CP reste le choix de l'utilisateur, § 16.1).
+ * - Toute autre zone, et une recette illisible : seule la maille pays est sans objet — une campagne nationale passe
+ *   par une zone nationale (Q-4 : on paierait 99 % de diffusion hors zone). L'écran ne l'affiche même pas.
+ */
+export function mailleSansObjet(recette: Recette | null, maille: Maille): string | null {
+  if (recette?.type !== 'pays') return maille === 'pays' ? MESSAGES_MAILLE_SANS_OBJET.pays_hors_zone_nationale : null;
+  if (maille === 'cercle') return MESSAGES_MAILLE_SANS_OBJET.cercles_pays;
+  if (maille === 'commune' || maille === 'iris') return MESSAGES_MAILLE_SANS_OBJET.decoupage_pays;
+  return null;
+}
+
+/** Les libellés des codes pays que `plateformes_geo.codes_pays` porte (sql/300) : la France et les cinq DROM. */
+export const NOMS_PAYS: Readonly<Record<string, string>> = {
+  FR: 'France', GP: 'Guadeloupe', MQ: 'Martinique', GF: 'Guyane', RE: 'La Réunion', YT: 'Mayotte',
+};
+
+/** Le département de chaque DROM ciblé comme un pays : sa population se lit dans la couverture par département. */
+const DEPARTEMENT_DROM: Readonly<Record<string, string>> = { GP: '971', MQ: '972', GF: '973', RE: '974', YT: '976' };
+
+/** Une unité d'une plateforme au pays : un code ISO, son libellé, sa population carroyée (`null` : non carroyé). */
+export interface UnitePays { code: string; nom: string; population: number | null }
+
+/**
+ * Les unités d'une plateforme au pays (⑤ finitions, A-6), une par code de `codes_pays[code de la recette]`, dans
+ * l'ordre de la table. `population` : celle de la zone (couverture « telle quelle », aucun carreau lu) ; `departements`
+ * : les lignes de sa couverture par département, nécessaires dès qu'un code n'est pas `FR` (sinon `null`, rien lu).
+ * - `FR` : la métropole, soit la zone moins les DROM qu'elle contient — la zone entière pour « France métropolitaine » ;
+ * - un DROM : la population de son département ; `null`, JAMAIS 0, s'il n'est pas carroyé (E10 : Filosofi 2021 ne
+ *   couvre que la Martinique et La Réunion) ou si le code est inconnu.
+ */
+export function unitesPays(
+  codes: readonly string[], population: number,
+  departements: readonly (Pick<LigneSeuil, 'pop_en_zone' | 'pop_totale'> & { code: string })[] | null,
+): UnitePays[] {
+  const drom = new Set(Object.values(DEPARTEMENT_DROM));
+  const lignesDrom = (departements ?? []).filter((l) => drom.has(l.code));
+  const popDrom = (dep: string | undefined) => {
+    const l = lignesDrom.find((d) => d.code === dep);
+    return l && l.pop_totale !== null ? l.pop_en_zone : null;
+  };
+  const metropole = population - lignesDrom.reduce((somme, l) => somme + l.pop_en_zone, 0);
+  return codes.map((code) => ({
+    code,
+    nom: NOMS_PAYS[code] ?? code,
+    population: code === 'FR' ? metropole : popDrom(DEPARTEMENT_DROM[code]),
+  }));
+}
+
+/**
  * La maille proposée par défaut (A-4) parmi les mailles natives et disponibles de la plateforme : d'abord écarter les
  * mailles « à vérifier » (une maille exacte mais douteuse ne passe pas devant une maille sûre), puis préférer la maille
  * exacte pour la recette, puis la plus fine. Si toutes sont « à vérifier » (TTD au 24/10), le même ordre parmi elles :
- * le badge le dit à l'écran. `null` si la plateforme n'a aucune maille achetable.
+ * le badge le dit à l'écran. `null` si la plateforme n'a aucune maille achetable. Une maille sans objet pour la recette
+ * n'est pas candidate (`mailleSansObjet`) ; le pays, qui ne l'est que pour une zone nationale, y passe devant le
+ * polygone, exact lui aussi (Q-1 du 30/10 : le ciblage pays d'office — TTD a les deux, toutes deux « à vérifier »).
  */
 export function mailleParDefaut(lignes: readonly PlateformeGeo[], plateforme: Plateforme, recette: Recette): Maille | null {
   const rang = (l: PlateformeGeo) => [
     l.a_verifier ? 1 : 0,
     exactitude(recette, l.maille, l) === 'exacte' ? 0 : 1,
-    FINESSE.indexOf(l.maille),
+    l.maille === 'pays' ? -1 : FINESSE.indexOf(l.maille),
   ];
-  const candidates = lignes.filter((l) => l.plateforme === plateforme && l.natif && l.disponible);
+  // Une maille sans objet pour la recette n'est jamais le défaut (⑤ finitions, A-4).
+  const candidates = lignes.filter((l) => l.plateforme === plateforme && l.natif && l.disponible && mailleSansObjet(recette, l.maille) === null);
   candidates.sort((a, b) => {
     const ra = rang(a);
     const rb = rang(b);

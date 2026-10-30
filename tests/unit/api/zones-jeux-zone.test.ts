@@ -90,6 +90,8 @@ const regle = (r: { plateforme: string; maille: string; disponible: boolean; lim
 });
 const REGLES = [
   regle({ plateforme: 'dv360', maille: 'cp', disponible: true, limites: {}, note: null }),
+  { ...regle({ plateforme: 'dv360', maille: 'pays', disponible: true, limites: {}, note: null }),
+    codes_pays: { METRO: ['FR'], FR: ['FR', 'GP', 'MQ', 'GF', 'RE', 'YT'] } },
   regle({ plateforme: 'dv360', maille: 'polygone', disponible: false, limites: {}, note: 'Pas de polygone (relevé du 14/10).' }),
   regle({ plateforme: 'meta', maille: 'cercle', disponible: true, limites: { rayon_min_m: 1000, rayon_max_m: 80000 }, note: null }),
 ];
@@ -370,5 +372,50 @@ describe('DELETE /api/zones/jeux/[id] — jeu de zone', () => {
       table: 'zone_sets', op: 'delete', valeur: undefined, options: { count: 'exact' },
       filtres: [`id=${h.JEU}`, `org_id=${h.ORG}`],
     }]);
+  });
+});
+
+describe('la garde « maille sans objet » (⑤ finitions, T2, A-3) : avant toute écriture', () => {
+  const PAYS = { v: 1, type: 'pays', code: 'METRO' };
+  const zonePays = () => { h.donnees['custom_geo_zones:select1'] = { id: h.ZONE, name: 'France', recette: PAYS }; };
+  const CERCLES_PAYS = 'Sur toute la France, le ciblage par cercles n’a pas de sens : choisissez le pays.';
+
+  it('POST : Meta en cercles sur une zone nationale → 400 avec sa phrase, rien écrit, la recette lue dans l’espace', async () => {
+    zonePays();
+    const r = await poster({ nom: 'France', jeu: jeuZone() });
+    expect(r.status).toBe(400);
+    expect(await r.json()).toEqual({ error: CERCLES_PAYS, refus: 'maille_sans_objet' });
+    expect(h.ecritures).toEqual([]);
+    expect(h.lectures).toContain(`custom_geo_zones:id=${h.ZONE},org_id=${h.ORG}`);
+  });
+
+  it('POST : la maille pays sur une zone qui n’est pas nationale → 400, rien écrit', async () => {
+    const r = await poster({ nom: 'Bretagne', jeu: jeuZone({ plateformes: [{ plateforme: 'dv360', maille: 'pays', seuil: 0 }] }) });
+    expect(r.status).toBe(400);
+    expect(await r.json()).toEqual({ error: 'La maille pays ne s’achète que pour une zone nationale.', refus: 'maille_sans_objet' });
+    expect(h.ecritures).toEqual([]);
+  });
+
+  it('POST : DV360 au pays et au CP restent possibles sur une zone nationale → 201', async () => {
+    zonePays();
+    expect((await poster({ nom: 'France', jeu: jeuZone({ plateformes: [{ plateforme: 'dv360', maille: 'pays', seuil: 0 }] }) })).status)
+      .toBe(201);
+    expect((await poster({ nom: 'France', jeu: jeuZone({ plateformes: [{ plateforme: 'dv360', maille: 'cp', seuil: 20 }] }) })).status)
+      .toBe(201);
+  });
+
+  it('PATCH : Meta en cercles sur la zone nationale du jeu → 400, rien écrit (recette lue dans l’espace du jeu)', async () => {
+    zonePays();
+    const r = await patcher({ plateformes: [{ plateforme: 'meta', maille: 'cercle', seuil: 25, rayon_m: 15000 }] });
+    expect(r.status).toBe(400);
+    expect(await r.json()).toEqual({ error: CERCLES_PAYS, refus: 'maille_sans_objet' });
+    expect(h.ecritures).toEqual([]);
+    expect(h.lectures).toContain(`custom_geo_zones:id=${h.ZONE},org_id=${h.ORG}`);
+  });
+
+  it('PATCH sans plateformes : aucune lecture de la zone avant l’écriture', async () => {
+    const r = await patcher({ nom: 'Bretagne v3' });
+    expect(r.status).toBe(200);
+    expect(h.ecritures.map((e) => `${e.table}:${e.op}`)).toEqual(['zone_sets:update']);
   });
 });

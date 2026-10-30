@@ -67,17 +67,18 @@ describe('couverture : le refus d’un découpage trop fin pour un pays', () => 
   });
 });
 
-describe('⑤ : une zone pays est refusée, avec le message d’A-5', () => {
-  it('extraction d’un jeu sur une zone pays → 422, sans lire la couverture', async () => {
+describe('⑤ : une zone pays s’achète au pays (⑤ finitions, T2, A-7)', () => {
+  it('l’extraction d’un jeu sur une zone pays ne répond plus 422 « zone_pays »', async () => {
     const jeu = { id: 'j', org_id: ORG, custom_geo_zone_id: ZONE, cible: 'ind', mode_plan: 'pondere', type: 'zone' } as Tables<'zone_sets'>;
     etat.tables.zone_set_plateformes = { data: [{ plateforme: 'meta', maille: 'cp', seuil: 30, rayon_m: null }], error: null };
     etat.tables.custom_geo_zones = { data: { recette: { v: 1, type: 'pays', code: 'FR' } }, error: null };
+    etat.tables.plateformes_geo = { data: [], error: null };
     const res = await extraireJeuZone(createAdminClient() as never, jeu, { origine: 'initiale', commentaire: '' }, 'u1');
     expect(res).toBeInstanceOf(NextResponse);
-    expect(res.status).toBe(422);
-    expect((await res.json()).error).toBe(MESSAGE_ZONE_PAYS_PLATEFORMES);
-    expect(MESSAGE_ZONE_PAYS_PLATEFORMES).toBe('Zone nationale : le ciblage France natif des plateformes arrive avec les finitions de ⑤.');
-    expect(etat.rpcs.map((r) => r.nom)).not.toContain('couverture_zone');
+    expect(JSON.stringify(await res.json())).not.toContain(MESSAGE_ZONE_PAYS_PLATEFORMES);
+  });
+  it('la phrase de « Mes zones » (export, détail) renvoie à l’étape ⑤', () => {
+    expect(MESSAGE_ZONE_PAYS_PLATEFORMES).toBe('Zone nationale : achetez-la à l’étape ⑤ (ciblage par pays des plateformes).');
   });
 });
 
