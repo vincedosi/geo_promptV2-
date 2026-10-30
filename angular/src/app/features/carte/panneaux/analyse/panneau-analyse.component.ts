@@ -144,9 +144,12 @@ import { ENTETE_ACCORDEON, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE
     <mg-outil-correlation />
     <!-- ④ finitions (T8) : les typologies déjà calculées des POI de la zone, pour TOUS ; le calcul reste au super admin. -->
     <mg-typologies-zone />
-    @if (clusteringOuvert() && zoneAnalysee()) { <div class="mx-[14px] mt-[10px]"><ng-container *ngTemplateOutlet="lignePerimetre1" /></div> }
-    <!-- A-9 : la ligne des outils qui ne lisent pas la zone analysée, écrite une fois. -->
-    <ng-template #lignePerimetre1><div data-perimetre-etape-1 class="mb-2 text-[11px] leading-[1.5] text-tertiary">Cet outil travaille sur le périmètre de l’étape ①.</div></ng-template>
+    <!-- Preuve T9, D-6 : sous les typologies, « Cet outil » ne disait pas lequel — la ligne nomme le clustering. -->
+    @if (clusteringOuvert() && zoneAnalysee()) {
+      <div data-perimetre-clustering class="mx-[14px] mt-[10px]"><ng-container *ngTemplateOutlet="lignePerimetre1; context: { $implicit: 'Le clustering' }" /></div>
+    }
+    <!-- A-9 : la ligne des outils qui ne lisent pas la zone analysée, écrite une fois ; le sujet par défaut est « Cet outil ». -->
+    <ng-template #lignePerimetre1 let-sujet><div data-perimetre-etape-1 class="mb-2 text-[11px] leading-[1.5] text-tertiary">{{ sujet ?? 'Cet outil' }} travaille sur le périmètre de l’étape ①.</div></ng-template>
     @if (clusteringOuvert()) { <mg-section-clustering [refusCalcul]="gardeMessage()" (charger)="chargerClusters()" (lancerCalcul)="lancerClustering($event)" /> }
   `,
 })

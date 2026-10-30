@@ -8,6 +8,9 @@ import { CouvertureService } from '../../couches/couverture.service';
 import { ZonesCustomApi } from '../../data/zones-custom.api';
 import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
+import { OutilsCarteService } from '../../outils/outils-carte.service';
+import { By } from '@angular/platform-browser';
+import { ChoixZoneAnalyseeComponent } from './choix-zone-analysee.component';
 import type { ResultatCouverture } from '../../logique/analyses/couverture';
 import { OutilCouvertureComponent } from './outil-couverture.component';
 
@@ -45,6 +48,7 @@ async function monter(zone: string | null = A) {
     { code: 'men_pauv', libelle: 'Ménages pauvres', famille: 'Ménages' },
   ] }));
   const listes = new Subject<{ zones: never[] }>();
+  const revisionZones = signal(0);
   const couverture = {
     survole: signal(null), survoler: vi.fn(), chargementContours: signal(false), contoursIndisponibles: signal(false), irisSousLeZoom: signal(false),
     masquee: signal(false), afficher: vi.fn(),
@@ -54,6 +58,7 @@ async function monter(zone: string | null = A) {
       provideZonelessChangeDetection(),
       { provide: ZoneAnalyseeService, useValue: z },
       { provide: CouvertureService, useValue: couverture },
+      { provide: OutilsCarteService, useValue: { revisionZones } },
       { provide: ProfilRisqueApi, useValue: { cibles } },
       { provide: ZonesCustomApi, useValue: { lister: () => listes } },
       { provide: AuthService, useValue: { lireProfil: async () => ({ organisation: 'o1' }) } },
@@ -64,7 +69,7 @@ async function monter(zone: string | null = A) {
   const el = f.nativeElement as HTMLElement;
   const stable = async () => { await new Promise((r) => setTimeout(r, 0)); await f.whenStable(); };
   await stable();
-  return { f, el, z, cibles, stable, couverture, listes };
+  return { f, el, z, cibles, stable, couverture, listes, revisionZones };
 }
 
 describe('mg-outil-couverture (lot 4, T8)', () => {
@@ -207,6 +212,15 @@ describe('mg-outil-couverture (lot 4, T8)', () => {
     await stable();
     expect(el.textContent).not.toContain('Dans cette zone');
     expect(el.textContent).not.toContain('Voir la radio et le trafic');
+  });
+
+  it('preuve T9, D-1 : une zone créée en ③ (`revisionZones`) périme la liste du choix de zone, comme en ⑤', async () => {
+    const { f, revisionZones, stable } = await monter();
+    const choix = f.debugElement.query(By.directive(ChoixZoneAnalyseeComponent)).componentInstance as ChoixZoneAnalyseeComponent;
+    expect(choix.revision()).toBe(0);
+    revisionZones.set(3);
+    await stable();
+    expect(choix.revision()).toBe(3);
   });
 
   it('Q2 : couche retirée de la carte → la ligne le dit, « Afficher sur la carte » la remet (sans re-chiffrer)', async () => {

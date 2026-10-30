@@ -274,4 +274,11 @@ describe('Voronoï supprimé le 30/10/2026 (décision Vincent)', () => {
   it('ni outil, ni handler, ni route dans le panneau Analyse React', () => {
     expect(SOURCE).not.toMatch(/VoronoiTool|handleVoronoi|onDirectVoronoi|api\/voronoi|'voronoi'/);
   });
+  it("l'encart d'accueil n'annonce plus « Voronoï géométrique » (preuve T9, D-2)", () => {
+    const intro = readFileSync(
+      join(process.cwd(), 'app', 'map', '_components', 'filter-panel', 'SpatialAnalysisIntro.tsx'),
+      'utf-8',
+    );
+    expect(intro).not.toMatch(/Vorono/);
+  });
 });

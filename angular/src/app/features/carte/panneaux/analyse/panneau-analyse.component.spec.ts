@@ -7,6 +7,7 @@ import { ClustersService } from '../../couches/clusters.service';
 import { CarteApi } from '../../data/carte.api';
 import { ClusteringApi } from '../../data/clustering.api';
 import { PileEchapService } from '../../etat/pile-echap.service';
+import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { type WritableSignal, signal } from '@angular/core';
@@ -40,7 +41,7 @@ async function monter(o: { filtre?: FiltreActif | null; pois?: string[]; role?: 
       provideHttpClient(), provideHttpClientTesting(),
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
       EtatCarteService, AnnonceService, CouchesCarteService, BatailleService, IsochronesApi,
-      ContexteBatailleService, BatailleV2Service, ClusteringApi, ClustersService, PileEchapService,
+      ContexteBatailleService, BatailleV2Service, ClusteringApi, ClustersService, PileEchapService, OutilsCarteService,
       // Score composite et corrélation (T18) : présents dans le panneau, sans requête tant qu'ils restent fermés.
       AnalysesApi, ZonesCustomApi, ZonesApi,
       // Fourni par la PAGE carte (lot 3, X4) : le test tient le rôle de la page.
@@ -298,6 +299,14 @@ describe('PanneauAnalyseComponent — clustering (T19)', () => {
     expect(m.el.querySelector('mg-section-clustering')).toBeNull();
     const admin = await monterAdmin();
     expect(admin.el.querySelector('mg-section-clustering')).not.toBeNull();
+  });
+
+  it('preuve T9, D-6 : avec une zone analysée, la ligne au-dessus du clustering NOMME le clustering', async () => {
+    const m = await monterAdmin({ filtre: null });
+    (TestBed.inject(ZoneAnalyseeService).zoneId as WritableSignal<string | null>).set('z-1');
+    await m.fixture.whenStable();
+    const ligne = m.el.querySelector('[data-perimetre-clustering] [data-perimetre-etape-1]');
+    expect(ligne?.textContent?.trim()).toBe('Le clustering travaille sur le périmètre de l’étape ①.');
   });
 
   it('« Charger les clusters » sans périmètre : « Choisissez un périmètre… », aucune requête de clusters', async () => {

@@ -13,9 +13,12 @@
 import React from 'react';
 import { C, fInter, fMono } from './tokens';
 
-/** Outils présentés dans l'encart d'accueil. */
+/**
+ * Outils présentés dans l'encart d'accueil. Le découpage géométrique « à vol
+ * d'oiseau » a été retiré de la liste le 30/10/2026 : l'outil est supprimé
+ * (décision de Vincent, gel React levé pour ce point).
+ */
 const AVAILABLE_TOOLS = [
-  { icon: '⬡', label: 'Voronoï géométrique', desc: 'Zones à vol d\'oiseau' },
   { icon: '◎', label: 'Isochrones routiers', desc: 'Temps de trajet réel ORS' },
 ];
 

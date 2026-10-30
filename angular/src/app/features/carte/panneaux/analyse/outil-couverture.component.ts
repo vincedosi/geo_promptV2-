@@ -4,6 +4,7 @@ import { formaterNombre } from '../../../../core/format/nombre';
 import { KpiComponent } from '../../../../ui/kpi/kpi.component';
 import { CouvertureService } from '../../couches/couverture.service';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
+import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { dateFr } from '../../logique/analyses/commun';
 import {
   CIBLE_PAR_DEFAUT, DECOUPAGES_ANALYSE, type DecoupageAnalyse, MESSAGES_REFUS_COUVERTURE, avertissementNonCarroye, libelleDecoupage, ligneHorsTerritoire, messageZoneVide,
@@ -52,7 +53,7 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
           Combien de personnes de la cible vivent dans une zone enregistrée — telle quelle, ou territoire par territoire.
         </div>
 
-        <mg-choix-zone-analysee [zoneId]="z.zoneId()" (choisie)="z.choisir($event)" (lue)="z.noterLigne($event)" />
+        <mg-choix-zone-analysee [zoneId]="z.zoneId()" [revision]="outils.revisionZones()" (choisie)="z.choisir($event)" (lue)="z.noterLigne($event)" />
 
         <mg-choix-cible [cible]="z.cible()" (choisie)="z.regler({ cible: $event })" />
 
@@ -143,6 +144,12 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
 export class OutilCouvertureComponent {
   protected readonly z = inject(ZoneAnalyseeService);
   protected readonly c = inject(CouvertureService);
+  /**
+   * `revisionZones` (preuve T9, D-1) : une zone créée en ③ ou supprimée dans « Mes zones » entre dans la liste à sa
+   * PROCHAINE ouverture, comme en ⑤ (`panneau-jeu`). C'est le seul choix de zone de ④ : score, bataille V2 et
+   * typologies lisent la zone choisie ICI (`ZoneAnalyseeService`), ils n'ont pas de liste à eux.
+   */
+  protected readonly outils = inject(OutilsCarteService);
   /** Le sélecteur de cible : son libellé écrit le chiffre de tête. */
   private readonly choixCible = viewChild(ChoixCibleComponent);
 

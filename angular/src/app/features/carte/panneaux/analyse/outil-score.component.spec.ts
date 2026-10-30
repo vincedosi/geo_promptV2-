@@ -22,6 +22,7 @@ import { CouchesCarteService } from '../../etat/couches-carte.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
 import { ReferentielGeoService } from '../../etat/referentiel-geo.service';
+import { OutilsCarteService } from '../../outils/outils-carte.service';
 import type { FiltreActif } from '../../logique/filtre';
 import { PanneauAnalyseComponent } from './panneau-analyse.component';
 import { fournisseursCouvertureFactices } from '../../testing/couverture-factice';
@@ -47,6 +48,8 @@ async function monter(filtre: FiltreActif | null) {
     providers: [
       provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting(), ...fournisseursCouvertureFactices(),
       { provide: ConfigService, useValue: { valeur: { apiBaseUrl: '' } } },
+      // Fourni par la page carte : la couverture y lit `revisionZones` (preuve T9, D-1).
+      { provide: OutilsCarteService, useValue: { revisionZones: signal(0) } },
       EtatCarteService, AnnonceService, CouchesCarteService, CaptureService, BatailleService, IsochronesApi, AnalysesApi, ZonesCustomApi, ZonesApi,
       // Fourni par la PAGE carte (lot 3, X4) : le test tient le rôle de la page.
       CatalogueIndicateursService,
