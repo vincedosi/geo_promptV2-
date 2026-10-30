@@ -4,7 +4,9 @@ import { ChargementService } from '../../../core/chargement/chargement.service';
 import { CouleursService } from '../../../core/theme/couleurs.service';
 import { poserApercuZone, retirerApercuZone } from '../couches/apercu-zone';
 import { cadrerSiHorsVue } from '../couches/marge-carte';
+import { RECADRAGE_ZONE } from '../couches/zones-custom.service';
 import { type ApercuZone, ZonesApi } from '../data/zones.api';
+import { MESSAGE_REPONSE_PERDUE, estReponsePerdue } from '../logique/zones/gestes-zone';
 import { messageErreurZone } from '../logique/zones/perimetre-recette';
 import { bboxDeGeometrie } from '../logique/zones/zones-affichees';
 import { MESSAGES_REFUS, estRecalculable, refusPerimetreLocal, type Recette } from '../logique/zones/recette';
@@ -12,8 +14,11 @@ import { CouchesCarteService, quandStyleCharge } from './couches-carte.service';
 
 type EchecHttp = { status?: number; error?: unknown };
 
-/** Le recadrage sur l'aperçu, aux réglages de l'affichage d'une zone custom (`zones-custom.service.ts`). */
-const RECADRAGE_APERCU = { padding: 50, duration: 800 } as const;
+/**
+ * Le recadrage sur l'aperçu : celui d'une zone custom affichée, borné au zoom 14 (comme les campagnes OOH) — une petite
+ * forme ne plonge pas au niveau de la rue.
+ */
+const RECADRAGE_APERCU = { ...RECADRAGE_ZONE, maxZoom: 14 } as const;
 
 /**
  * L'atelier de l'étape ③ (lot 3) : une recette → un aperçu dessiné → une zone enregistrée. Fourni par
@@ -118,9 +123,10 @@ export class AtelierZoneService {
     cadrerSiHorsVue(carte, [[b[0], b[1]], [b[2], b[3]]], RECADRAGE_APERCU);
   }
 
-  /** Efface le message de réussite (A-9) ; l'erreur et l'aperçu restent. */
+  /** Efface le message de réussite (A-9) et le renvoi d'un 207 qui l'accompagne ; l'erreur et l'aperçu restent. */
   oublierMessage(): void {
     this.message.set(null);
+    this.nonResolue.set(null);
   }
 
   enregistrer(nom: string): void {
@@ -147,8 +153,8 @@ export class AtelierZoneService {
       },
       error: (e: EchecHttp) => {
         this.enCours.set(false);
-        // Statut 0 : la requête est peut-être arrivée, la zone peut-être écrite — jamais de second envoi à l'aveugle.
-        if (e.status === 0) { this.reponsePerdue(); return; }
+        // Statut 0, 502, 504 : la requête est peut-être arrivée, la zone peut-être écrite — jamais de second envoi à l'aveugle.
+        if (estReponsePerdue(e)) { this.reponsePerdue(); return; }
         // Un refus HTTP n'a rien écrit : l'aperçu reste, l'utilisateur peut réessayer.
         this.erreur.set(messageErreurZone(e, 'Enregistrement impossible.'));
       },
@@ -159,11 +165,12 @@ export class AtelierZoneService {
     this.recette.set(null);
     this.apercu.set(null);
     this.geometrieFigee = undefined;
+    this.derniereEmprise = null;
   }
 
   /** On ne sait pas si la zone a été écrite : l'atelier est vidé (aucun second envoi), le message renvoie à « Mes zones ». */
   private reponsePerdue(): void {
-    this.erreur.set('La réponse n’est pas arrivée : vérifiez Mes zones avant de réessayer.');
+    this.erreur.set(MESSAGE_REPONSE_PERDUE);
     this.vider();
   }
 
@@ -177,5 +184,6 @@ export class AtelierZoneService {
     this.nonResolue.set(null);
     this.enCours.set(false);
     this.geometrieFigee = undefined;
+    this.derniereEmprise = null;
   }
 }

@@ -7,7 +7,8 @@ import { bboxDeZone, couleurZone, idsZone, messageHttp } from '../logique/zones/
 import { poserZoneCustom, retirerZoneCustom } from './couche-zones-custom';
 
 /** Le recadrage sur une zone affichée (`ZonesOverlay.tsx:245`). */
-const RECADRAGE = { padding: 50, duration: 800 } as const;
+/** Le recadrage sur une zone custom affichée ; l'aperçu de ③ l'étend (`atelier-zone.service.ts`). */
+export const RECADRAGE_ZONE = { padding: 50, duration: 800 } as const;
 
 /** Une zone sur la carte : ce que React gardait dans `loadedZones`, plus la donnée à re-poser après un changement de fond. */
 interface ZoneAffichee {
@@ -98,7 +99,7 @@ export class ZonesCustomService {
           },
         }]);
         const b = bboxDeZone(zone.bbox, f.geometry);
-        if (b) this.couches.carteCourante()?.fitBounds([[b[0], b[1]], [b[2], b[3]]], RECADRAGE);
+        if (b) this.couches.carteCourante()?.fitBounds([[b[0], b[1]], [b[2], b[3]]], RECADRAGE_ZONE);
       },
       error: (e: unknown) => {
         this.terminer(zone.id);

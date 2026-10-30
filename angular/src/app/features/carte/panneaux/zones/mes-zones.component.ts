@@ -10,7 +10,7 @@ import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.se
 import { ExportZoneService } from '../../etat/export-zone.service';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import type { IndicateurRegistre } from '../../logique/analyses/score';
-import { MESSAGE_REPONSE_PERDUE, avecId, estRefusReferencee, issueDuplication, nomDeCopie, sansId } from '../../logique/zones/gestes-zone';
+import { MESSAGE_REPONSE_PERDUE, avecId, estRefusReferencee, estReponsePerdue, issueDuplication, nomDeCopie, sansId } from '../../logique/zones/gestes-zone';
 import { libelleSource } from '../../logique/zones/libelle-zone';
 import { basculerDansSelection, selectionExistante } from '../../logique/zones/operations-zones';
 import { messageErreurZone } from '../../logique/zones/perimetre-recette';
@@ -315,8 +315,8 @@ export class MesZonesComponent {
     this.vols.set(`d:${zone.id}`, this.zonesApi.dupliquer(zone.id, nom).subscribe({
       next: (r) => fin(issueDuplication(r, nom)),
       error: (e: { status?: number; error?: unknown }) => {
-        fin(e.status === 0 ? MESSAGE_REPONSE_PERDUE : null);
-        if (e.status !== 0) this.erreur.set(messageErreurZone(e, 'Duplication impossible.'));
+        fin(estReponsePerdue(e) ? MESSAGE_REPONSE_PERDUE : null);
+        if (!estReponsePerdue(e)) this.erreur.set(messageErreurZone(e, 'Duplication impossible.'));
       },
     }));
   }

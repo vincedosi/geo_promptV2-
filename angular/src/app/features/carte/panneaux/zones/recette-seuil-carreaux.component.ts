@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { formaterNombre } from '../../../../core/format/nombre';
 import { EtatCarteService } from '../../etat/etat-carte.service';
 import { lireSeuil } from '../../logique/zones/lire-seuil';
 import { perimetreDeFiltre } from '../../logique/zones/perimetre-recette';
@@ -65,7 +66,7 @@ export class RecetteSeuilCarreauxComponent {
     if (r) return MESSAGES_REFUS[r];
     if (!(Number.isFinite(this.seuil()) && this.seuil() >= 0)) return 'Saisissez un seuil positif.';
     const m = this.minMenages();
-    return Number.isInteger(m) && m >= 0 && m <= MIN_MENAGES_CARREAUX_MAX ? null : 'Saisissez un nombre entier de ménages, de 0 à 1 000.';
+    return Number.isInteger(m) && m >= 0 && m <= MIN_MENAGES_CARREAUX_MAX ? null : `Saisissez un nombre entier de ménages, de 0 à ${formaterNombre(MIN_MENAGES_CARREAUX_MAX)}.`;
   });
   /** La recette prête à lancer, ou `null` tant que la garde refuse. */
   readonly recette = computed<Recette | null>(() => (this.garde() ? null : this.composee()));

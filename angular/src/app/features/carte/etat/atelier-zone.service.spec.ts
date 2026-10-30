@@ -248,22 +248,39 @@ describe('AtelierZoneService', () => {
 
 /** ③ finitions (T6) : l'aperçu recadre la carte (A-8), le message de réussite s'oublie (A-9). */
 describe('AtelierZoneService — recadrage et message (③ finitions, T6)', () => {
-  /** Un conteneur de 1 000 × 1 000 px : la projection factice (lon, lat → x, y) tient le carré [5-5,1 ; 43-43,1]. */
-  function carteVisible(): CarteFactice {
+  /**
+   * Un conteneur de 1 000 × 1 000 px par défaut : la projection factice (lon, lat → x, y) tient le carré [5-5,1 ;
+   * 43-43,1]. Haut de 40 px, la forme (y = 43) tombe sous le bord bas : hors cadre.
+   */
+  function carteVisible(hauteur = 1000): CarteFactice {
     const c = carteChargee();
     Object.defineProperty(c.getContainer(), 'clientWidth', { value: 1000 });
-    Object.defineProperty(c.getContainer(), 'clientHeight', { value: 1000 });
+    Object.defineProperty(c.getContainer(), 'clientHeight', { value: hauteur });
     return c;
   }
 
   it('un aperçu reçu hors de la vue recadre la carte UNE fois sur son emprise ; un aperçu identique ne recadre plus', () => {
-    const carte = carteChargee();
+    const carte = carteVisible(40);
     const s = monter({ apercu: () => of(APERCU) }, carte);
     s.apercevoir(RECETTE);
     expect(carte.cadrages).toHaveLength(1);
     expect(carte.cadrages[0].cadre).toEqual([[5, 43], [5.1, 43.1]]);
+    expect(carte.cadrages[0].options).toMatchObject({ maxZoom: 14 });
     s.apercevoir(RECETTE);
     expect(carte.cadrages).toHaveLength(1);
+  });
+
+  it('« Effacer » puis un enregistrement oublient l’emprise : le même aperçu recadre de nouveau (relecture 2)', () => {
+    const carte = carteVisible(40);
+    const enregistrer = vi.fn(() => of(new HttpResponse({ status: 200, body: { zone_id: 'z1', count_cp: 2 } })));
+    const s = monter({ apercu: () => of(APERCU), enregistrer }, carte);
+    s.apercevoir(RECETTE);
+    s.effacer();
+    s.apercevoir(RECETTE);
+    expect(carte.cadrages).toHaveLength(2);
+    s.enregistrer('Z');
+    s.apercevoir(RECETTE);
+    expect(carte.cadrages).toHaveLength(3);
   });
 
   it('une forme déjà entièrement visible (hors marge des panneaux) ne recadre pas ; masquée par la marge, si', () => {
@@ -293,5 +310,26 @@ describe('AtelierZoneService — recadrage et message (③ finitions, T6)', () =
     expect(s.message()).not.toBeNull();
     s.oublierMessage();
     expect(s.message()).toBeNull();
+  });
+
+  it('oublierMessage oublie aussi le renvoi d’un 207 (`nonResolue`, relecture 2)', () => {
+    const enregistrer = vi.fn(() => of(new HttpResponse({ status: 207, body: { zone_id: 'z2', warning: 'codes_non_resolus' } })));
+    const s = monter({ apercu: () => of(APERCU), enregistrer });
+    s.apercevoir(RECETTE);
+    s.enregistrer('Z');
+    expect(s.nonResolue()).not.toBeNull();
+    s.oublierMessage();
+    expect([s.message(), s.nonResolue()]).toEqual([null, null]);
+  });
+
+  it.each([502, 504])('« Enregistrer » en passerelle %i : réponse perdue, atelier vidé, aucun second envoi (relecture 2)', (status) => {
+    const enregistrer = vi.fn(() => throwError(() => new HttpErrorResponse({ status })));
+    const s = monter({ apercu: () => of(APERCU), enregistrer });
+    s.apercevoir(RECETTE);
+    s.enregistrer('Z');
+    expect(s.erreur()).toBe('La réponse n’est pas arrivée : vérifiez Mes zones avant de réessayer.');
+    expect([s.apercu(), s.recette()]).toEqual([null, null]);
+    s.enregistrer('Z');
+    expect(enregistrer).toHaveBeenCalledTimes(1);
   });
 });

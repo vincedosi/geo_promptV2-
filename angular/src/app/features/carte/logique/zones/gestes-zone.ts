@@ -16,6 +16,14 @@ const SUFFIXE = ' (copie)';
 /** Le message d'une réponse perdue : la zone existe peut-être, jamais de second envoi à l'aveugle (patron de l'atelier). */
 export const MESSAGE_REPONSE_PERDUE = 'La réponse n’est pas arrivée : vérifiez Mes zones avant de réessayer.';
 
+/**
+ * Vrai quand l'échec ne dit pas si la requête a abouti : statut 0 (réponse jamais reçue), 502 ou 504 (passerelle, la
+ * route a pu écrire avant que la réponse se perde). La zone existe peut-être : jamais de second envoi à l'aveugle.
+ */
+export function estReponsePerdue(e: { status?: number }): boolean {
+  return e.status === 0 || e.status === 502 || e.status === 504;
+}
+
 /** « <nom> (copie) », le nom tronqué pour que le tout tienne dans les 200 caractères de la route. */
 export function nomDeCopie(nom: string): string {
   return `${nom.trim().slice(0, NOM_MAX - SUFFIXE.length)}${SUFFIXE}`;

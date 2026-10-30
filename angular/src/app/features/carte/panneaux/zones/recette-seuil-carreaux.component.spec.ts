@@ -1,7 +1,8 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { formaterNombre } from '../../../../core/format/nombre';
 import { EtatCarteService } from '../../etat/etat-carte.service';
-import { MESSAGES_REFUS } from '../../logique/zones/recette';
+import { MESSAGES_REFUS, MIN_MENAGES_CARREAUX_MAX } from '../../logique/zones/recette';
 import { RecetteSeuilCarreauxComponent } from './recette-seuil-carreaux.component';
 
 const attendre = () => new Promise((r) => setTimeout(r, 0));
@@ -103,7 +104,7 @@ describe('RecetteSeuilCarreauxComponent — minimum de ménages (③ finitions, 
     for (const v of ['', '-1', '2.5', '1001']) {
       await saisir(f, el, v);
       expect(c.recette(), v).toBeNull();
-      expect(el.querySelector('[data-garde]')!.textContent).toBe('Saisissez un nombre entier de ménages, de 0 à 1 000.');
+      expect(el.querySelector('[data-garde]')!.textContent).toBe(`Saisissez un nombre entier de ménages, de 0 à ${formaterNombre(MIN_MENAGES_CARREAUX_MAX)}.`);
     }
   });
 });

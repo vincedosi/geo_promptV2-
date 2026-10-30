@@ -27,6 +27,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { MAX_INDICATEURS_SCORE } from '@/lib/zones/recette';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { indicateursVisibles } from '@/lib/auth/perimetre-donnees';
@@ -50,7 +51,6 @@ interface LigneScore {
  * troncature PostgREST (`db-max-rows` = 1 000 ne mord pas un scalaire jsonb).
  */
 const MAX_CP = 3000;
-const MAX_INDICATEURS = 6;
 
 /**
  * Au-delà, la géométrie unie devient trop lourde à rendre et à pousser vers un
@@ -82,7 +82,7 @@ const CorpsSchema = z.object({
     code: z.string().min(1).max(100),
     poids: z.number().positive().finite(),
     sens: z.enum(['croissant', 'decroissant']),
-  })).min(1).max(MAX_INDICATEURS),
+  })).min(1).max(MAX_INDICATEURS_SCORE),
   codes_postaux: z.array(z.string().min(2).max(10)).min(1).max(MAX_CP),
   seuil: z.number().min(0).max(100),
   /** `true` (défaut) : au-dessus du seuil. `false` : en dessous. */

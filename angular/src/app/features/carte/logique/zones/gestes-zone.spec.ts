@@ -1,5 +1,5 @@
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
-import { MESSAGE_REPONSE_PERDUE, avecId, estRefusReferencee, issueDuplication, nomDeCopie, sansId } from './gestes-zone';
+import { MESSAGE_REPONSE_PERDUE, avecId, estRefusReferencee, estReponsePerdue, issueDuplication, nomDeCopie, sansId } from './gestes-zone';
 import type { ZoneEcrite } from '../../data/zones.api';
 
 describe('gestes-zone — Dupliquer (③ finitions, T5)', () => {
@@ -21,6 +21,12 @@ describe('gestes-zone — Dupliquer (③ finitions, T5)', () => {
     expect(issueDuplication(new HttpResponse({ status: 207, body: { zone_id: 'n', message: 'm' } }), 'Z')).toBe('m');
     expect(issueDuplication(new HttpResponse({ status: 207, body: { zone_id: 'n' } }), 'Z')).toBe('Zone « Z » créée ; ses codes postaux n’ont pas pu être résolus.');
     expect(issueDuplication(new HttpResponse<ZoneEcrite>({ status: 200, body: null }), 'Z')).toBe(MESSAGE_REPONSE_PERDUE);
+  });
+
+  it('réponse perdue : statut 0, 502 et 504 seulement (relecture 2)', () => {
+    expect([0, 502, 504].map((status) => estReponsePerdue({ status }))).toEqual([true, true, true]);
+    expect([400, 404, 409, 422, 429, 500, 503].map((status) => estReponsePerdue({ status })).some(Boolean)).toBe(false);
+    expect(estReponsePerdue({})).toBe(false);
   });
 
   it('ensembles immuables : ajout et retrait rendent un nouvel ensemble', () => {
