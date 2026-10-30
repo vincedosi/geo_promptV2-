@@ -61,7 +61,7 @@ import { type OptionPastille, PastillesComponent } from './pastilles.component';
                 (input)="poids(c.code, $event)" class="flex-1 accent-[var(--brand-teal)]" />
               <span class="w-7 text-right font-mono text-[11px] text-secondary">{{ c.poids.toFixed(1) }}</span>
             </div>
-            <mg-pastilles marque="sens" [libelle]="'Sens de ' + c.label" [options]="sens" [valeur]="c.sens" (valeurChange)="s.modifier(c.code, { sens: $event })" />
+            <mg-pastilles [libelle]="'Sens de ' + c.label" [options]="sens" [valeur]="c.sens" (valeurChange)="s.modifier(c.code, { sens: $event })" />
           </div>
         }
 

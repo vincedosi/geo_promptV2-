@@ -31,6 +31,7 @@ function monter() {
   };
   // ④ finitions (T7) : la zone analysée de ④ ; aucune par défaut — la bataille garde alors son corps d'avant.
   const zoneId = signal<string | null>(null);
+  const ligne = signal<{ id: string; recette?: { type: string } } | null>(null);
   const siIntrouvable = vi.fn((e: unknown) => {
     const oui = (e as { error?: { refus?: string } }).error?.refus === 'zone_introuvable';
     if (oui) zoneId.set(null);
@@ -41,10 +42,10 @@ function monter() {
       provideZonelessChangeDetection(), BatailleV2Service, CouchesCarteService,
       { provide: IsochronesApi, useValue: api }, { provide: BatailleService, useValue: bataille },
       { provide: ContexteBatailleService, useValue: contexte },
-      { provide: ZoneAnalyseeService, useValue: { zoneId, siIntrouvable } },
+      { provide: ZoneAnalyseeService, useValue: { zoneId, ligne, siIntrouvable } },
     ],
   });
-  return { v2: TestBed.inject(BatailleV2Service), flux, caches, corps, bataille, contexte, zoneId, siIntrouvable };
+  return { v2: TestBed.inject(BatailleV2Service), flux, caches, corps, bataille, contexte, zoneId, ligne, siIntrouvable };
 }
 
 describe('BatailleV2Service (use-isochrone-battle.ts handleCheckV2 / handleFillMissingV2 / handleBattleV2)', () => {
@@ -221,5 +222,35 @@ describe('BatailleV2Service — sur la zone analysée', () => {
     v2.remplir();
     expect(corps['verifierCache']).toEqual([]);
     expect(corps['bataille']).toEqual([]);
+  });
+});
+
+/** ④ finitions (relecture 2) : zone pays refusée avant tout appel ; changer de zone abandonne aussi un comptage en vol. */
+describe('BatailleV2Service — relecture 2', () => {
+  const Z = '0f8fad5b-d9cb-469f-a165-70867728950e';
+
+  it('zone pays : « Lancer » ne part pas', () => {
+    const { v2, corps, zoneId, ligne } = monter();
+    zoneId.set(Z);
+    ligne.set({ id: Z, recette: { type: 'pays' } });
+    expect(v2.zonePays()).toBe(true);
+    v2.lancer(false);
+    expect(corps['batailleV2']).toEqual([]);
+    v2.surZone.set(false);
+    expect(v2.zonePays()).toBe(false);
+  });
+
+  it('un comptage de capacité en vol (sur ①) est abandonné quand une zone arrive', () => {
+    const { v2, contexte, zoneId, corps } = monter();
+    let suite: (() => void) | null = null;
+    const comptage = new Subscription();
+    contexte.sousBorne.mockImplementation((_c: unknown, _p: unknown, _n: unknown, s: () => void) => { suite = s; return comptage; });
+    v2.lancer(false);
+    expect(comptage.closed).toBe(false);
+    zoneId.set(Z);
+    TestBed.tick();
+    expect(comptage.closed).toBe(true);
+    expect(suite).not.toBeNull();
+    expect(corps['batailleV2']).toEqual([]);
   });
 });

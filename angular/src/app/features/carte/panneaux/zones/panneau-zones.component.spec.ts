@@ -260,8 +260,9 @@ describe('PanneauZonesComponent — ③ rangée par familles (lot 3, T10)', () =
         { provide: AuthService, useValue: { lireProfil: async () => ({ role: null, nom: null, organisation: 'org-1' }) } },
       ] });
       TestBed.overrideComponent(PanneauZonesComponent, {
-        remove: { imports: [CaptureComponent, CreerCodesPostauxComponent, CreerDessinComponent, CreerRayonComponent, PiedRecetteComponent] },
-        add: { imports: [CaptureFactice, CodesPostauxFactice, DessinFactice, RayonFactice, PiedFactice] },
+        // La zone nationale lit « Mes zones » au premier dépli de « À la main » (relecture 2) : sa propre spec le prouve.
+        remove: { imports: [CaptureComponent, CreerCodesPostauxComponent, CreerDessinComponent, CreerPaysComponent, CreerRayonComponent, PiedRecetteComponent] },
+        add: { imports: [CaptureFactice, CodesPostauxFactice, DessinFactice, PaysFactice, RayonFactice, PiedFactice] },
       });
       const http = TestBed.inject(HttpTestingController);
       const etat = TestBed.inject(EtatCarteService);

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { BatailleService } from '../../couches/bataille.service';
-import { BatailleV2Service, PALIERS_V2 } from '../../etat/bataille-v2.service';
+import { BatailleV2Service, PALIERS_V2, REFUS_BATAILLE_PAYS } from '../../etat/bataille-v2.service';
 import { ChoixSurZoneComponent } from './choix-sur-zone.component';
 import { JournalBatailleComponent } from './journal-bataille.component';
 import { StatutCacheComponent } from './statut-cache.component';
@@ -40,6 +40,9 @@ import {
 
         @if (v2.zoneAnalysee()) {
           <mg-choix-sur-zone [(surZone)]="v2.surZone" objet="de la bataille" />
+        }
+        @if (v2.zonePays()) {
+          <div data-refus-pays class="text-[11px] leading-[1.5] text-secondary">{{ refusPays }}</div>
         }
         @if (v2.zoneBataille()) {
           <div data-cache-sur-zone class="text-[11px] leading-[1.5] text-tertiary">
@@ -136,7 +139,9 @@ export class OutilBatailleV2Component {
   protected readonly avertissement = BOUTON_AVERTISSEMENT;
 
   private readonly sansPaliers = computed(() => this.v2.paliers().length === 0);
-  protected readonly lancerInactif = computed(() => this.sansPaliers() || this.v2.chargement() || this.v2.remplissage());
+  protected readonly lancerInactif = computed(() => this.sansPaliers() || this.v2.chargement() || this.v2.remplissage() || this.v2.zonePays());
+  /** La phrase de la route (`isochrone-battle-v2`, zone pays → 422), dite avant le clic (relecture 2). */
+  protected readonly refusPays = REFUS_BATAILLE_PAYS;
   // Sur la zone (④ finitions, T7), cache et remplissage restent sur ① : inactifs, la raison est dite au-dessus.
   protected readonly verifInactive = computed(() => this.lancerInactif() || this.v2.verification() || this.v2.zoneBataille() !== null);
   protected readonly remplirInactif = computed(() => this.v2.remplissage() || this.v2.chargement() || this.v2.zoneBataille() !== null);

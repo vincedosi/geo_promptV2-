@@ -16,8 +16,9 @@ import { ZoneAnalyseeService } from './zone-analysee.service';
  *
  * ── UNE LECTURE PAR (ZONE, VERSION), AU DÉPLI ─────────────────────────────
  * Rien n'est lu à l'ouverture de ④ : la première lecture part au premier dépli du tiroir « Typologies ». Elle est faite
- * une fois par (zone, version) — la version est la date de mise à jour de la zone (`ZoneAnalyseeService.ligne`) : une
- * zone recalculée en ③ est relue, rouvrir le tiroir ne relit rien. Tiroir replié, un changement de zone ne lit rien.
+ * une fois par (zone, version) — la version est la date de mise à jour de la zone (`ZoneAnalyseeService.ligne`, rien
+ * n'est lu tant qu'elle n'est pas connue) : une zone recalculée en ③ est relue, rouvrir le tiroir ne relit rien. Tiroir
+ * replié, un changement de zone ne lit rien. « Tout effacer », tiroir ouvert, relit.
  *
  * ── UNE RÉPONSE QUITTÉE N'EST JAMAIS AFFICHÉE (P-c) ───────────────────────
  * Changer de zone (ou de version) PÉRIME : la lecture en vol est désabonnée, le résultat et la couche retirés. Un 404
@@ -37,11 +38,18 @@ export class TypologiesZoneService {
   private readonly tiroirs = injecterTiroirsAnalyse();
   readonly ouvert = computed(() => this.tiroirs.estOuvert('typologies'));
   readonly zoneId = this.analysee.zoneId;
-  /** La clé de la lecture : zone et version ; `null` sans zone. */
+  /**
+   * La clé de la lecture : zone et version ; `null` sans zone, ou tant que la ligne de la zone courante n'est pas connue
+   * (lien `?zoneAnalyse=` : la liste se lit d'abord) — sans quoi une lecture partirait sans version, puis une seconde
+   * avec (relecture 2 : un seul GET par lien).
+   */
   private readonly cle = computed(() => {
     const zone = this.zoneId();
-    return zone ? `${zone}|${this.analysee.ligne()?.updated_at ?? ''}` : null;
+    const ligne = this.analysee.ligne();
+    return zone && ligne ? `${zone}|${ligne.updated_at ?? ''}` : null;
   });
+  /** « Tout effacer » tiroir ouvert : la révision relance la lecture (relecture 2). */
+  private readonly revision = signal(0);
   /** La clé du résultat affiché (ou lu en vol) : la même clé ne se relit pas. */
   private cleLue: string | null = null;
   private zoneRetiree = false;
@@ -74,6 +82,7 @@ export class TypologiesZoneService {
     });
     // Tiroir ouvert et clé pas encore lue : UNE lecture (au dépli, ou pour une nouvelle zone pendant qu'il est ouvert).
     effect(() => {
+      this.revision();
       const cle = this.cle();
       const zone = this.zoneId();
       if (!this.ouvert() || !cle || !zone) return;
@@ -114,9 +123,10 @@ export class TypologiesZoneService {
     });
   }
 
-  /** « Tout effacer » : le résultat et la couche partent ; rouvrir le tiroir relira. */
+  /** « Tout effacer » : le résultat et la couche partent ; tiroir ouvert, la lecture repart (sinon, au prochain dépli). */
   private oublier(): void {
     this.lecture.perimer();
     this.cleLue = null;
+    this.revision.update((n) => n + 1);
   }
 }

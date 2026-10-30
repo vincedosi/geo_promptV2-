@@ -10,7 +10,7 @@ import { CouchesCarteService } from '../../etat/couches-carte.service';
 import { FOURNIR_TIROIRS_ANALYSE, TIROIRS_ANALYSE } from '../../etat/tiroirs-analyse';
 import { TypologiesZoneService } from '../../etat/typologies-zone.service';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
-import { MESSAGE_AUCUN_POI_TYPE, type ResultatTypologies } from '../../logique/analyses/typologies';
+import { MESSAGE_AUCUN_POI_TYPE, MESSAGE_TRONQUE, type ResultatTypologies } from '../../logique/analyses/typologies';
 import { TypologiesZoneComponent } from './typologies-zone.component';
 
 const Z1 = '0f8fad5b-d9cb-469f-a165-70867728950e';
@@ -56,6 +56,7 @@ async function monter(zone: string | null = Z1) {
   const zoneId = signal<string | null>(zone);
   const ligne = signal<{ id: string; updated_at?: string } | null>(zone ? { id: zone, updated_at: '2026-10-30T10:00:00Z' } : null);
   const carte = carteFactice();
+  let effacer: () => void = () => undefined;
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), FOURNIR_TIROIRS_ANALYSE, TypologiesZoneService, AnalysesPeintesService,
@@ -65,7 +66,7 @@ async function monter(zone: string | null = Z1) {
         if (oui) zoneId.set(null);
         return oui;
       } } },
-      { provide: CouchesCarteService, useValue: { carteCourante: signal(carte), inscrireEffacement: () => undefined } },
+      { provide: CouchesCarteService, useValue: { carteCourante: signal(carte), inscrireEffacement: (_id: string, f: () => void) => { effacer = f; } } },
       { provide: CouleursService, useValue: { palette: (j: Record<string, string>) => () => Object.fromEntries(Object.keys(j).map((k) => [k, `couleur:${k}`])) } },
     ],
   });
@@ -75,7 +76,7 @@ async function monter(zone: string | null = Z1) {
   await stable();
   const basculer = async () => { el.querySelector<HTMLButtonElement>('[data-entete-outil]')!.click(); await stable(); };
   const servir = async (r: ResultatTypologies = RESULTAT, i = reponses.length - 1) => { reponses[i].next(r); reponses[i].complete(); await stable(); };
-  return { f, el, typologies, reponses, zoneId, ligne, carte, stable, basculer, servir, tiroirs: TestBed.inject(TIROIRS_ANALYSE) };
+  return { f, el, typologies, reponses, zoneId, ligne, carte, stable, basculer, servir, tiroirs: TestBed.inject(TIROIRS_ANALYSE), effacer: () => effacer() };
 }
 
 describe('mg-typologies-zone (④ finitions, T8)', () => {
@@ -173,5 +174,38 @@ describe('mg-typologies-zone (④ finitions, T8)', () => {
     await m.stable();
     expect(m.zoneId()).toBeNull();
     expect(m.el.querySelector('[data-erreur]')!.textContent!.trim()).toBe('Zone introuvable dans cet espace.');
+  });
+});
+
+/** ④ finitions (relecture 2) : lien sans ligne connue, « Tout effacer », liste tronquée. */
+describe('mg-typologies-zone — relecture 2', () => {
+  it('lien `?zoneAnalyse=` : aucune lecture tant que la ligne de la zone est inconnue, puis UNE', async () => {
+    const m = await monter();
+    m.ligne.set(null);
+    await m.stable();
+    await m.basculer();
+    expect(m.typologies).not.toHaveBeenCalled();
+    m.ligne.set({ id: Z1, updated_at: '2026-10-30T10:00:00Z' });
+    await m.stable();
+    expect(m.typologies).toHaveBeenCalledTimes(1);
+  });
+
+  it('« Tout effacer », tiroir ouvert : la couche part et la lecture repart', async () => {
+    const m = await monter();
+    await m.basculer();
+    await m.servir();
+    m.effacer();
+    await m.stable();
+    expect(m.typologies).toHaveBeenCalledTimes(2);
+    await m.servir();
+    expect(m.carte.couches.has(COUCHE_TYPOLOGIES)).toBe(true);
+  });
+
+  it('tronque : la phrase est dite, le tableau compte tout', async () => {
+    const m = await monter();
+    await m.basculer();
+    await m.servir({ ...RESULTAT, tronque: true });
+    expect(m.el.querySelector('[data-tronque]')!.textContent!.trim()).toBe(MESSAGE_TRONQUE);
+    expect(m.el.querySelectorAll('[data-typologie]')).toHaveLength(2);
   });
 });

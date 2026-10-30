@@ -162,7 +162,7 @@ describe('Outil « Score composite » (ScoreCompositeTool.tsx, T18)', () => {
     m.http.expectOne((r) => r.url.endsWith('/api/analyses/score')).flush(RESULTAT_13);
     await m.rendre();
     m.score.eteindre.mockClear();
-    await m.cliquer('mg-outil-score [data-indicateur="part_15_29"] [data-sens="decroissant"]');
+    await m.cliquer('mg-outil-score [data-indicateur="part_15_29"] [data-pastille="decroissant"]');
     expect(m.el.querySelector('mg-outil-score [data-resume]')).toBeNull();
     expect(m.score.eteindre).toHaveBeenCalledTimes(1);
   });
@@ -230,7 +230,7 @@ describe('Outil « Score composite » (ScoreCompositeTool.tsx, T18)', () => {
     await m.preparer();
     await m.cliquer('mg-outil-score [data-calculer]');
     const req = m.http.expectOne((r) => r.url.endsWith('/api/analyses/score'));
-    await m.cliquer('mg-outil-score [data-indicateur="part_15_29"] [data-sens="decroissant"]');
+    await m.cliquer('mg-outil-score [data-indicateur="part_15_29"] [data-pastille="decroissant"]');
     expect(req.cancelled).toBe(true);
     expect(m.el.querySelector('mg-outil-score [data-calculer]')!.textContent!.trim()).toBe('Calculer le score');
     expect(m.el.querySelector('mg-outil-score [data-resume]')).toBeNull();

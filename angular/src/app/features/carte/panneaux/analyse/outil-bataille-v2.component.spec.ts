@@ -12,7 +12,7 @@ import { OutilBatailleV2Component } from './outil-bataille-v2.component';
 
 const CTX = { categorie: 'cirfa', mode: 'drive', territoire: { ville: '', regions: [], depts: ['13'] }, nbRegionsRef: 18 };
 
-async function monter(zone = signal<string | null>(null)) {
+async function monter(zone = signal<string | null>(null), pays = false) {
   TestBed.configureTestingModule({
     providers: [CaptureService, 
       BatailleV2Service, BatailleService, CouchesCarteService,
@@ -21,7 +21,7 @@ async function monter(zone = signal<string | null>(null)) {
       } },
       { provide: ContexteBatailleService, useValue: { contexte: signal(CTX), unPoi: signal(true), regions: signal([]), afficherPois: vi.fn(),
         oublierRefus: vi.fn(), sousBorne: (_c: unknown, _p: unknown, _n: unknown, suite: () => void) => { suite(); return Subscription.EMPTY; } } },
-      { provide: ZoneAnalyseeService, useValue: { zoneId: zone, siIntrouvable: () => false } },
+      { provide: ZoneAnalyseeService, useValue: { zoneId: zone, ligne: () => (zone() ? { id: zone(), recette: pays ? { type: 'pays' } : null } : null), siIntrouvable: () => false } },
     ],
   });
   const fixture = TestBed.createComponent(OutilBatailleV2Component);
@@ -95,5 +95,18 @@ describe('OutilBatailleV2Component — « Sur : la zone analysée »', () => {
     await fixture.whenStable();
     expect(bouton(el, '[data-verifier-cache]').disabled).toBe(false);
     expect(el.querySelector('[data-cache-sur-zone]')).toBeNull();
+  });
+});
+
+/** ④ finitions (relecture 2) : sur une zone pays, « Lancer » est inactif et la phrase de la route est dite. */
+describe('OutilBatailleV2Component — zone pays', () => {
+  it('« Lancer » inactif, avec sa raison ; sur ①, il revient', async () => {
+    const { el, fixture, v2 } = await monter(signal<string | null>('z-1'), true);
+    expect(bouton(el, '[data-lancer]').disabled).toBe(true);
+    expect(el.querySelector('[data-refus-pays]')!.textContent!.trim()).toBe('Sur toute la France, la bataille se lance depuis l’étape ① (France métropolitaine).');
+    v2.surZone.set(false);
+    await fixture.whenStable();
+    expect(bouton(el, '[data-lancer]').disabled).toBe(false);
+    expect(el.querySelector('[data-refus-pays]')).toBeNull();
   });
 });

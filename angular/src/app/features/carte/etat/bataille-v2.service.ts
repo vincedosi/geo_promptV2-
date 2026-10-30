@@ -17,6 +17,9 @@ import { ZoneAnalyseeService } from './zone-analysee.service';
 /** Les paliers proposés, en minutes (`BattleV2Tool.tsx:18`) — tous choisis par défaut. */
 export const PALIERS_V2 = [10, 20, 30, 40, 50, 60, 90] as const;
 
+/** Une zone pays : la bataille nationale se lance depuis ① (phrase de `app/api/isochrone-battle-v2/route.ts`, A-6). */
+export const REFUS_BATAILLE_PAYS = 'Sur toute la France, la bataille se lance depuis l’étape ① (France métropolitaine).';
+
 /** Le résultat d'une bataille V2 (`BattleV2Result`, `useMapDirectActions.ts:455-459`). */
 interface ResultatV2 {
   error?: string;
@@ -65,6 +68,8 @@ export class BatailleV2Service {
   readonly surZone = signal(true);
   /** La zone sur laquelle la bataille part, ou `null` : le périmètre de ①. */
   readonly zoneBataille = computed(() => (this.surZone() ? this.zoneAnalysee() : null));
+  /** La bataille porterait sur une zone PAYS (sa recette, lue sans requête) : la route la refuse, l'écran aussi (relecture 2). */
+  readonly zonePays = computed(() => this.zoneBataille() !== null && this.analysee.ligne()?.recette?.type === 'pays');
 
   readonly paliers = signal<number[]>([...PALIERS_V2]);
   readonly cache = signal<StatutCache | null>(null);
@@ -154,7 +159,7 @@ export class BatailleV2Service {
 
   /** `handleBattleV2(force)`, sur le contexte du moment — appelé par le panneau APRÈS sa garde. */
   lancer(force: boolean): void {
-    if (!this.ctx.unPoi() || this.paliers().length === 0 || this.chargement()) return;
+    if (!this.ctx.unPoi() || this.paliers().length === 0 || this.chargement() || this.zonePays()) return;
     const ctx = this.ctx.contexte();
     const paliers = this.paliers();
     const zone = this.zoneBataille();
@@ -234,6 +239,9 @@ export class BatailleV2Service {
 
   /** La zone de la bataille a changé : le flux en vol est désabonné (sa réponse jetée), la ligne le dit. */
   private abandonner(): void {
+    // Un comptage de capacité en vol (lancement sur ①) part aussi : sa suite partirait sur le contexte quitté.
+    this.borne?.unsubscribe();
+    this.borne = null;
     if (!this.chargement()) return;
     this.flux?.unsubscribe();
     this.flux = null;

@@ -16,7 +16,7 @@ export interface OptionPastille<T> {
   template: `
     <div class="flex gap-[5px]" role="group" [attr.aria-label]="libelle()">
       @for (o of options(); track o.cle) {
-        <button type="button" [attr.data-pastille]="marque() === 'pastille' ? o.cle : null" [attr.data-sens]="marque() === 'sens' ? o.cle : null" [attr.aria-pressed]="o.valeur === valeur()" [disabled]="inactives().includes(o.valeur)" (click)="valeur.set(o.valeur)"
+        <button type="button" [attr.data-pastille]="o.cle" [attr.aria-pressed]="o.valeur === valeur()" [disabled]="inactives().includes(o.valeur)" (click)="valeur.set(o.valeur)"
           [class]="pastille + ' flex-1 text-center ' + (o.valeur === valeur() ? actif : inactif)">{{ o.libelle }}</button>
       }
     </div>
@@ -27,8 +27,6 @@ export class PastillesComponent<T> {
   readonly valeur = model.required<T>();
   /** Le libellé accessible du groupe. */
   readonly libelle = input.required<string>();
-  /** L'attribut qui porte la `cle` : `data-pastille` (défaut) ou `data-sens` (sens d'un indicateur du score, T5). */
-  readonly marque = input<'pastille' | 'sens'>('pastille');
   /** Les valeurs offertes mais inactives (« Par IRIS » sur une zone pays, T6) : le parent dit pourquoi, à côté. */
   readonly inactives = input<readonly T[]>([]);
   protected readonly pastille = PASTILLE;

@@ -332,19 +332,21 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   rayon). Sur la zone analysée, le rayon dit « La zone analysée dépasse 12 000 km² », pas « l'étape ① ».
 - **Ce qui reste dupliqué** : l'en-tête « Analyse spatiale » du panneau (un accordéon de section, pas un outil) garde
   son gabarit. Les pastilles « Haut = mieux / Bas = mieux » du score et son catalogue sont factorisés depuis les
-  finitions de ④ (T5 : `mg-pastilles marque="sens"`, `LectureAnnulable.chargerUneFois`).
+  finitions de ④ (T5 : `mg-pastilles`, `LectureAnnulable.chargerUneFois`).
 
 ## ④ Finitions (plan `2026-10-30-carte-en-parcours-analyse.md`, T5-T8, 30/10/2026)
 
 | Fichier | Rôle |
 |---|---|
-| `etat/analyses-peintes.ts` | `AnalysesPeintesService` (page, `FOURNISSEURS_ANALYSE`) et `publierAnalysePeinte` : le registre des analyses peintes par un service du PANNEAU (couverture par rayon, typologies), lu par la pastille de ④ (A-8). La bataille peinte (`BatailleService.peinte`) l'allume aussi |
+| `etat/analyses-peintes.ts` | `AnalysesPeintesService` (page, `FOURNISSEURS_ANALYSE`) et `publierAnalysePeinte` : le registre des analyses peintes par un service du PANNEAU (couverture par rayon, typologies), lu par la pastille de ④ (A-8). La bataille peinte (`BatailleService.peinte`) l'allume aussi — pas la zone ouverte par `?customZone=` (catégorie `custom_geo_zone`, clé `cg__`), qui n'est pas une analyse (relecture 2) |
 
 - **Score sur une zone introuvable (T5, A-2)** : le 404 `zone_introuvable` de `POST /api/analyses/score` passe par
   `ZoneAnalyseeService.siIntrouvable` (la zone quitte ④) ; le message reste affiché.
 - **Zone nationale (T6, A-3, A-4)** : `panneaux/zones/creer-pays.component.ts` (`mg-creer-pays`, famille « À la main »
   de ③) écrit `{ v: 1, type: 'pays', code: 'METRO' | 'FR' }` par `POST /api/zones` — deux boutons inactifs dès le premier
-  clic, 207 = réussite, réponse perdue → « vérifiez Mes zones ». En ④, `mg-outil-couverture` reconnaît la zone pays à sa
+  clic, 207 = réussite, réponse perdue → « vérifiez Mes zones » (en `role="alert"`). Une zone pays du même code déjà
+  dans « Mes zones » grise son bouton avec la raison : la liste est lue au montage (premier dépli de « À la main »,
+  jamais à l'ouverture de ③) et relue à chaque `revisionZones` (relecture 2). En ④, `mg-outil-couverture` reconnaît la zone pays à sa
   RECETTE (la ligne `lue` de `mg-choix-zone-analysee`, aucune lecture de plus) : « Par IRIS » y est inactive
   (`mg-pastilles [inactives]`) avec la phrase `decoupage_trop_fin_pays`, et « Chiffrer » ne part pas sur IRIS.
 - **Bataille V2 sur la zone (T7, A-6)** : `BatailleV2Service.surZone` (bascule `mg-choix-sur-zone` dans
@@ -352,11 +354,13 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   (`zone_id`, aucun filtre de ①), sans comptage de capacité. La garde du panneau (`zoneDeLOutil`) laisse passer la
   bataille sur la zone sans filtre ①, et la ligne A-9 ne s'affiche plus pour elle. Changer de zone abandonne la
   bataille en vol ; un 404 `zone_introuvable` (corps texte du flux, relu) retire la zone. Sur la zone, « Vérifier
-  cache » et le remplissage ORS restent sur ① et sont inactifs (route de remplissage propre à la V2 : n° 44).
+  cache » et le remplissage ORS restent sur ① et sont inactifs (route de remplissage propre à la V2 : n° 44). Sur une
+  zone pays (`zonePays`, recette lue sans requête), « Lancer » est inactif avec la phrase de la route (relecture 2).
 - **Typologies des POI (T8, A-7)** : `etat/typologies-zone.service.ts` (`TypologiesZoneService`, panneau) et
   `panneaux/analyse/typologies-zone.component.ts` (`mg-typologies-zone`, tiroir `typologies` du jeu de ④, pour TOUS) :
   `CouvertureApi.typologies` lu au premier dépli, une fois par (zone, version — `ZoneAnalyseeService.ligne`, posée
-  depuis la liste que `mg-choix-zone-analysee` lit déjà) ; un tableau par (durée, mode) ; couche
+  depuis la liste que `mg-choix-zone-analysee` lit déjà ; rien n'est lu tant qu'elle est inconnue) ; « Tout effacer »,
+  tiroir ouvert, relit ; un tableau par (durée, mode) ; couche
   `couches/couche-typologies.ts` (`couverture-typologies-poi` / `-survol`, teintes `--nature-*` calculées), retirée au
   `DestroyRef` du service ; publiée au registre de la pastille. Le super admin garde `mg-section-clustering` dessous.
 

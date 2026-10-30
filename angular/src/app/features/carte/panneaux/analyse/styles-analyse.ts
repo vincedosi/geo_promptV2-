@@ -23,7 +23,7 @@ export const BOUTON_TEAL = 'cursor-pointer border-teal text-teal bg-[color-mix(i
 /** Le gabarit commun de `primaryBtn` (taille, bord, transition). */
 export const BOUTON_PRIMAIRE = 'w-full rounded-[4px] border-fin px-[14px] py-[9px] text-[12px] transition-[background-color,border-color,color,opacity] duration-200 ease-[var(--ease-out)]';
 /** Le gabarit commun de `pill`. */
-export const PASTILLE = 'shrink-0 cursor-pointer rounded-[4px] border-fin px-[9px] py-[5px] text-[11px] transition-[background-color,border-color,color,opacity] duration-200 ease-[var(--ease-out)]';
+export const PASTILLE = 'shrink-0 cursor-pointer rounded-[4px] border-fin px-[9px] py-[5px] text-[11px] transition-[background-color,border-color,color,opacity] duration-200 ease-[var(--ease-out)] disabled:cursor-not-allowed disabled:opacity-50';
 
 /**
  * L'en-tête d'un accordéon du panneau (« Analyse spatiale », « Score composite », « Corrélation ») : bandeau

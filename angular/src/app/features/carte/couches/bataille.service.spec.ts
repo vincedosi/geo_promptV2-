@@ -177,3 +177,21 @@ describe('BatailleService (créneau de bataille, T14 + T17)', () => {
     expect(JSON.stringify(nouvelle.getLayer('battle-fill')!['filter'])).toContain('40');
   });
 });
+
+/** ④ finitions (relecture 2) : la pastille de ④ compte une bataille, pas la zone ouverte par `?customZone=`. */
+describe('BatailleService — peinte', () => {
+  it('une bataille peinte : vraie ; la zone du lien (catégorie custom_geo_zone, clé cg__) : peinte sur la carte, pas une analyse', () => {
+    const { service, carte } = monter();
+    expect(service.peinte()).toBe(false);
+    service.appliquer(CRENEAU);
+    TestBed.tick();
+    expect(carte.sources.size).toBeGreaterThan(0);
+    expect(service.peinte()).toBe(false);
+    service.appliquer({ ...CRENEAU, cle: 'battle_v2_full__cirfa__drive__10min__z1_2__pabc', categorie: 'cirfa' });
+    expect(service.peinte()).toBe(true);
+    service.appliquer({ ...CRENEAU, cle: 'cg__autre', categorie: 'cirfa' });
+    expect(service.peinte()).toBe(false);
+    service.effacer();
+    expect(service.peinte()).toBe(false);
+  });
+});

@@ -1,4 +1,5 @@
 import { DOCUMENT, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
+import { CATEGORIE_ZONE } from '../logique/zones/zone-du-lien';
 import type maplibregl from 'maplibre-gl';
 import { FABRIQUE_POPUP } from '../../../carte/fabrique-carte';
 import { CaptureService, type SourceCapture } from '../etat/capture.service';
@@ -76,11 +77,16 @@ export class BatailleService {
   readonly palierMax = signal(90);
 
   private readonly filtre = computed(() => filtreAnneaux(this.contourVisible(), this.palierMax()));
-  /** Une bataille est sur la carte (anneaux, bordures ou points) : la pastille de ④ (④ finitions, T5, A-8). */
-  readonly peinte = computed(() => {
+  private readonly presente = computed(() => {
     const r = this.rendu();
     return r.anneaux.length > 0 || r.bordures.length > 0 || r.points.length > 0;
   });
+  /**
+   * Une BATAILLE est sur la carte : la pastille de ④ (④ finitions, T5, A-8 ; relecture 2). La zone ouverte par le lien
+   * `?customZone=` occupe le même créneau (catégorie `custom_geo_zone`, clé `cg__`) mais n'est pas une analyse : elle
+   * est peinte, sans allumer ④.
+   */
+  readonly peinte = computed(() => this.presente() && this._categorie() !== CATEGORIE_ZONE && !(this._cle()?.startsWith('cg__') ?? false));
   /** L'instance où les couches sont POSÉES (null tant que rien n'est peint). */
   private readonly posee = signal<maplibregl.Map | null>(null);
 
@@ -94,7 +100,7 @@ export class BatailleService {
       const carte = this.couches.carteCourante();
       const rendu = this.rendu();
       if (!carte) { this.posee.set(null); return; }
-      if (!this.peinte()) {
+      if (!this.presente()) {
         untracked(() => retirerBataille(carte));
         this.posee.set(null);
         return;
