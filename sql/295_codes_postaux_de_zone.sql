@@ -14,8 +14,12 @@
 --   Refus, comme la couverture : `zone_introuvable` (absente OU d'un autre espace : même réponse), `zone_trop_vaste`
 --   (> 100 000 km², la borne de `couverture_geometrie`), `couverture_non_construite` + `motif` (table étroite non
 --   certifiée : une liste partielle ne doit pas passer pour la liste de la zone ; certificat ≈ 5 ms, 512 accès).
---   Une zone PAYS (recette `{ type: 'pays', code: 'METRO' | 'FR' }`, T2) ne lit aucun carreau : la branche `france` de
---   `codes_postaux_du_perimetre_jsonb` (métropole = hors 97x / 98x, sql/287), AVANT la borne de surface.
+--   Une zone PAYS (recette `{ type: 'pays', code: 'METRO' | 'FR' }`, sql/296) ne lit aucun carreau : les CP de
+--   `cp_population_totale` contenus dans le pays (`pays_contient_code`, sql/296) — exactement les lignes de la
+--   couverture nationale « Par code postal » —, AVANT la borne de surface.
+--   ⚠ Corps FINAL ici (relecture 1 du groupe A) : sql/296 ne redéfinit plus cette fonction, et rejouer 295 seul ne
+--   la fait pas régresser. `pays_contient_code` est créée par 296 ; PL/pgSQL ne la résout qu'à l'exécution, et aucune
+--   zone ne peut porter la recette `pays` avant 296 (contrainte `custom_geo_zones_recette_forme`).
 --
 -- `codes_postaux_du_perimetre_jsonb` n'est PAS modifiée : sa branche `zone` reste pour ses autres appelants éventuels
 -- (aucune fonction partagée réécrite).
@@ -51,10 +55,13 @@ begin
     return jsonb_build_object('refus', 'zone_introuvable');
   end if;
 
-  -- Zone pays (T2) : les CP du référentiel, sans lire un carreau ni mesurer la surface.
+  -- Zone pays (sql/296) : les CP de la couverture nationale (`cp_population_totale`), sans lire un carreau ni mesurer
+  -- la surface.
   if v_recette->>'type' = 'pays' then
-    return jsonb_build_object('codes', public.codes_postaux_du_perimetre_jsonb(
-      'france', case when v_recette->>'code' = 'METRO' then 'metro' else 'FR' end));
+    select coalesce(jsonb_agg(cp.code_postal order by cp.code_postal), '[]'::jsonb) into v_codes
+      from public.cp_population_totale cp
+     where public.pays_contient_code(v_recette->>'code', cp.code_postal);
+    return jsonb_build_object('codes', v_codes);
   end if;
 
   v_surface := ST_Area(v_geom::geography) / 1e6;
@@ -77,7 +84,8 @@ $fn$;
 comment on function public.codes_postaux_de_zone_jsonb(uuid, uuid) is
   'Codes postaux d''une zone de l''espace pour le score composite : CP des carreaux Filosofi dont le centroide est dans '
   'la zone (carreaux_de_forme), la regle de couverture_geometrie(cp). { codes } | { refus: zone_introuvable, '
-  'zone_trop_vaste (> 100 000 km2), couverture_non_construite + motif }. Zone pays : branche france, sans carreau. '
+  'zone_trop_vaste (> 100 000 km2), couverture_non_construite + motif }. Zone pays : CP de cp_population_totale du pays '
+  '(pays_contient_code, sql/296), sans carreau. '
   'sql/295 (finitions de l''analyse, T1).';
 
 revoke all on function public.codes_postaux_de_zone_jsonb(uuid, uuid) from public, anon, authenticated;

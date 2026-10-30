@@ -157,7 +157,8 @@ export type RefusRecette =
   | 'perimetre_non_admis' | 'commune_ambigue'
   | 'trop_de_poi' | 'trop_de_carreaux' | 'trop_de_territoires' | 'trop_de_sommets'
   | 'trop_de_poi_metropole' | 'seuil_metropole_differe'
-  | 'indicateur_inconnu' | 'zone_introuvable' | 'zone_referencee' | 'forme_vide' | 'forme_figee';
+  | 'indicateur_inconnu' | 'zone_introuvable' | 'zone_referencee' | 'forme_vide' | 'forme_figee'
+  | 'operande_pays';
 
 export const MESSAGES_REFUS: Readonly<Record<RefusRecette, string>> = {
   perimetre_absent: 'Choisissez un périmètre à l’étape ① avant ce calcul.',
@@ -182,6 +183,8 @@ export const MESSAGES_REFUS: Readonly<Record<RefusRecette, string>> = {
   zone_referencee: 'Cette zone est utilisée par un plan, un jeu de zones ou une autre zone : elle ne peut pas être recalculée.',
   forme_vide: 'Aucun territoire français dans cette forme : rien à enregistrer.',
   forme_figee: 'Cette zone a une forme figée (dessin, import, isochrone, capture ou combinaison) : elle ne se recalcule pas.',
+  operande_pays: 'Une zone nationale (France métropolitaine ou entière) ne se combine pas avec une autre zone : '
+    + 'combinez des zones locales, ou analysez la zone nationale telle quelle.',
 };
 
 export function estRecalculable(r: Recette): boolean {

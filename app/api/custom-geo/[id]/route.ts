@@ -4,6 +4,7 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { checkZoneAccess } from '@/lib/campaigns/access';
 import { lireTout } from '@/lib/supabase/lire-tout';
+import { refusZonePays } from '@/lib/zones/couverture';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,13 +27,18 @@ export async function GET(
 
   const { data, error } = await supabase
     .from('custom_geo_zones')
-    .select('id, name, description, org_id, source_type, source_metadata, feature_count_iris, feature_count_cp, resolved_at, created_at, updated_at, created_by, audience_stats, audience_computed_at')
+    .select('id, name, description, org_id, source_type, source_metadata, feature_count_iris, feature_count_cp, resolved_at, created_at, updated_at, created_by, audience_stats, audience_computed_at, recette')
     .eq('id', id)
     .single();
 
   if (error || !data) {
     return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
   }
+  // Une zone pays n'a pas de codes (sql/296) : « 0 code » se lirait comme une zone vide. La recette n'est lue que pour
+  // ce refus : la réponse garde ses clés d'avant.
+  const { recette, ...zone } = data;
+  const refusPays = refusZonePays(recette);
+  if (refusPays) return refusPays;
 
   // bbox : PostGIS geometry → tableau [minLng, minLat, maxLng, maxLat] propre
   // (le client en a besoin pour fitBounds MapLibre).
@@ -105,7 +111,7 @@ export async function GET(
     });
   }
 
-  return NextResponse.json({ ...data, bbox, subzones });
+  return NextResponse.json({ ...zone, bbox, subzones });
 }
 
 // PATCH — update name/description only

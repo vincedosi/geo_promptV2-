@@ -6,6 +6,7 @@ import { buildZoneBiddingScript, buildWeightedZoneBiddingScript } from '@/lib/di
 import { toSlug } from '@/lib/custom-geo/slug';
 import { checkZoneAccess } from '@/lib/campaigns/access';
 import { lireCodesDeZone } from '@/lib/custom-geo/codes-zone';
+import { refusZonePays } from '@/lib/zones/couverture';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,9 +61,12 @@ export async function GET(
   // Get zone name for filename
   const { data: zone } = await supabase
     .from('custom_geo_zones')
-    .select('name')
+    .select('name, recette')
     .eq('id', id)
     .single();
+  // Une zone pays n'a pas de codes : un fichier vide se lirait comme une zone vide (sql/296).
+  const refusPays = refusZonePays(zone?.recette);
+  if (refusPays) return refusPays;
 
   const slug = toSlug(zone?.name ?? id.slice(0, 8));
 

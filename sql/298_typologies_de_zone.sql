@@ -8,9 +8,10 @@
 --     espace n'en lit aucune typologie.
 --   • Pour chaque (`duration_minutes`, `mode`), le DERNIER modèle (`max(clustering_models.version)`) : une ligne
 --     `poi_clusters` d'une version plus ancienne n'est jamais rendue.
---   • `pois` : une ligne par POI et par (durée, mode), au plus 5 000 (`tronque`, lit 5 001) ; `modeles` : par (durée,
---     mode), chaque typologie (cluster) avec son libellé, son nombre de POI DANS la zone, la population couverte
---     sommée, et le profil moyen du cluster (`cluster_avg_profile`, le même pour tous ses POI).
+--   • `pois` : une ligne par POI et par (durée, mode), au plus 5 000 (`tronque`) ; `modeles` : par (durée, mode),
+--     chaque typologie (cluster) avec son libellé, son nombre de POI DANS la zone, la population couverte sommée, et
+--     le profil moyen du cluster (`cluster_avg_profile`, le même pour tous ses POI). Comptes et populations portent sur
+--     TOUS les POI typés de la zone, pas sur la liste tronquée (bornés par `poi_clusters` lui-même).
 --   • Aucune typologie dans la zone : `motif: 'aucun_poi_type'` (l'écran dit que l'équipe dentsu les calcule).
 --   • Le CALCUL d'un modèle (`/api/poi-clusters/run`, script Python, ORS) reste réservé au super admin : rien ici
 --     n'écrit.
@@ -23,6 +24,8 @@
 --     (1re passe : 28 ms · 2 317 accès dont 202 lus)
 --   zone composite 13 001 km²                          7,4 ms · 1 602 accès · 90 lignes (la forme de 23 000 sommets
 --                                                      compte pour l'essentiel des accès)
+--   relecture 1 (comptes par typologie sur TOUS les POI typés de la zone) : composite 79 ms · 1 946 accès en 1re passe ;
+--   Bretagne 4,3 ms · 1 005 accès.
 --   première version, SANS la barrière `typees` : composite 3,3 s · 342 354 hit + 83 273 lus — l'index GiST de
 --   `poi_france` d'abord. D'où la CTE MATERIALIZED.
 --
@@ -59,21 +62,21 @@ begin
       join public.poi_france p on p.id = pc.poi_id
      where pc.model_version = (select max(m.version) from public.clustering_models m
                                 where m.duration_minutes = pc.duration_minutes and m.mode = pc.mode)
-  ), lus as materialized (
+  ), dedans as materialized (
+    -- TOUS les POI typés de la zone (au plus le nombre de lignes de `poi_clusters` : 190 au 30/10) : les comptes et
+    -- populations par typologie sont exacts même quand la liste `pois` est tronquée (relecture 1, groupe A).
     select t.poi_id, t.nom, t.lat, t.lng, t.categorie, t.duree, t.mode, t.version, t.cluster_id, t.cluster_label,
            t.population, t.profil
       from typees t
      where (t.data_source_id is null or t.data_source_id = any (coalesce(p_sources, '{}'::uuid[])))
        and t.geom && v_geom and ST_Intersects(t.geom, v_geom)
-     order by t.duree, t.mode, t.cluster_id, t.poi_id
-     limit c_max + 1
-  ), gardes as materialized (
-    select * from lus order by duree, mode, cluster_id, poi_id limit c_max
+  ), gardes as (
+    select * from dedans order by duree, mode, cluster_id, poi_id limit c_max
   ), parcluster as (
-    select g.duree, g.mode, g.cluster_id, max(g.version) as version, max(g.cluster_label) as label,
-           count(*) as n, round(sum(g.population)) as pop, (array_agg(g.profil))[1] as profil
-      from gardes g
-     group by g.duree, g.mode, g.cluster_id
+    select d.duree, d.mode, d.cluster_id, max(d.version) as version, max(d.cluster_label) as label,
+           count(*) as n, round(sum(d.population)) as pop, (array_agg(d.profil))[1] as profil
+      from dedans d
+     group by d.duree, d.mode, d.cluster_id
   ), parmodele as (
     select c.duree, c.mode,
            jsonb_build_object('duree', c.duree, 'mode', c.mode, 'version', max(c.version),
@@ -82,7 +85,7 @@ begin
       from parcluster c
      group by c.duree, c.mode
   )
-  select (select count(*) from lus),
+  select (select count(*) from dedans),
          (select coalesce(jsonb_agg(jsonb_build_object(
                     'poi_id', g.poi_id, 'nom', g.nom, 'lat', g.lat, 'lng', g.lng, 'categorie', g.categorie,
                     'duree', g.duree, 'mode', g.mode, 'version', g.version, 'cluster_id', g.cluster_id,

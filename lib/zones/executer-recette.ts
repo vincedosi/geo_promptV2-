@@ -235,12 +235,15 @@ async function combiner(
   }
 
   // ≤ 20 identifiants (schéma) : une lecture bornée par construction, une seule requête.
-  const { data, error } = await supabase.from('custom_geo_zones').select('id').eq('org_id', ctx.orgId).in('id', zones);
+  const { data, error } = await supabase.from('custom_geo_zones').select('id, recette').eq('org_id', ctx.orgId).in('id', zones);
   if (error) {
     console.error('[zones/recette] opérandes :', error.message);
     return ECHEC;
   }
   if ((data ?? []).length !== new Set(zones).size) return refuser('zone_introuvable', 404);
+  // Une zone pays (sql/296) en opérande ferait une forme quasi nationale, que la résolution des codes lirait IRIS par
+  // IRIS (2,1 s, 48 540 accès) : refusée avant tout calcul (relecture 1 du groupe A, ④ finitions).
+  if ((data ?? []).some((z) => (z.recette as { type?: unknown } | null)?.type === 'pays')) return refuser('operande_pays');
 
   switch (recette.operation) {
     case 'union':

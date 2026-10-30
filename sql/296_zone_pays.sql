@@ -24,13 +24,14 @@
 -- `couverture_zone` (sql/270) l'appelle quand la recette de la zone est `pays`, AVANT `couverture_geometrie` et sa
 -- borne de 100 000 km² ; corps inchangé sinon (diff relu ligne à ligne), cache et quota inchangés.
 --
--- LES CODES DU SCORE. `codes_postaux_de_zone_jsonb` (sql/295) est redéfinie : une zone pays rend les CP de
--- `cp_population_totale` contenus dans le pays (les lignes de la couverture « Par code postal »), et non plus ceux de
--- `ref_codes_postaux` (6 051 en métropole, dont 95 sans carreau habité). Corps sinon identique à sql/295.
+-- LES CODES DU SCORE. `codes_postaux_de_zone_jsonb` (sql/295, corps final) rend pour une zone pays les CP de
+-- `cp_population_totale` contenus dans le pays (les lignes de la couverture « Par code postal »), et non ceux de
+-- `ref_codes_postaux` (6 051 en métropole, dont 95 sans carreau habité). Elle n'est PAS redéfinie ici.
 --
 -- LES COMPTEURS DE « MES ZONES ». `resolve_custom_geo_zone_codes` sur la métropole lit TOUS les IRIS par la géométrie
 -- (mesuré : 2,1 s · 48 540 accès dont 15 845 lus) et écrirait ≈ 48 000 lignes de codes. `compter_zone_pays(p_zone,
--- p_appelant)` pose `feature_count_cp` / `feature_count_iris` par des comptes d'index (≈ 400 accès), sans écrire de
+-- p_appelant)` pose `feature_count_cp` (CP de `cp_population_totale`, comme la couverture) / `feature_count_iris` par
+-- des comptes (≈ 600 accès), sans écrire de
 -- code : une zone pays n'a pas de `custom_geo_zone_codes` (⑤ la refuse, A-5 ; les exports par codes n'ont rien à
 -- rendre). Les routes l'appellent à la place de la résolution géométrique pour une recette `pays`.
 --
@@ -47,7 +48,8 @@
 --   couverture_pays_jsonb METRO `departement`   41 ms · 974 accès · 96 lignes
 --   couverture_pays_jsonb FR `iris`         0,13 ms · 0 accès (refus avant toute lecture)
 --   aucun de ces plans ne touche `carreau_couverture` ni `carreaux_filosofi` (hors l'index du millésime, 4 accès).
---   compter_zone_pays : 2 comptes d'index, ≈ 400 accès (ref_codes_postaux 8, unite_population_totale 383).
+--   compter_zone_pays (relecture 1 : CP de cp_population_totale) : 8,7 ms · 574 accès (1re passe : 54 ms · 892) ;
+--     METRO → 5 956 CP, 48 399 IRIS.
 --
 -- Droits : service_role. Rejouable (`create or replace`, contrainte gardée ; aucun `drop` de fonction ni de table).
 
@@ -298,54 +300,9 @@ comment on function public.couverture_zone(uuid, uuid, text, text) is
 revoke all on function public.couverture_zone(uuid, uuid, text, text) from public, anon, authenticated;
 grant execute on function public.couverture_zone(uuid, uuid, text, text) to service_role;
 
--- ── codes_postaux_de_zone_jsonb : sql/295, la branche pays sur la règle de la couverture ──────────────────────────────
-create or replace function public.codes_postaux_de_zone_jsonb(p_zone uuid, p_org uuid)
-returns jsonb
-language plpgsql
-stable
-security invoker
-set search_path to 'public', 'pg_catalog'
-as $fn$
-declare
-  c_max_km2 constant numeric := 100000;
-  v_geom    geometry;
-  v_recette jsonb;
-  v_surface numeric;
-  v_motif   text;
-  v_codes   jsonb;
-begin
-  -- Absente OU d'un autre espace : la même réponse, on ne révèle pas qu'elle existe ailleurs.
-  select g.geometry, g.recette into v_geom, v_recette
-    from public.custom_geo_zones g where g.id = p_zone and g.org_id = p_org;
-  if v_geom is null then
-    return jsonb_build_object('refus', 'zone_introuvable');
-  end if;
-
-  -- Zone pays (sql/296) : les CP de la couverture nationale (`cp_population_totale`), sans lire un carreau ni mesurer
-  -- la surface.
-  if v_recette->>'type' = 'pays' then
-    select coalesce(jsonb_agg(cp.code_postal order by cp.code_postal), '[]'::jsonb) into v_codes
-      from public.cp_population_totale cp
-     where public.pays_contient_code(v_recette->>'code', cp.code_postal);
-    return jsonb_build_object('codes', v_codes);
-  end if;
-
-  v_surface := ST_Area(v_geom::geography) / 1e6;
-  if v_surface > c_max_km2 then
-    return jsonb_build_object('refus', 'zone_trop_vaste', 'surface_km2', round(v_surface, 1), 'plafond_km2', c_max_km2);
-  end if;
-
-  v_motif := public.carreau_couverture_complete();
-  if v_motif is not null then
-    return jsonb_build_object('refus', 'couverture_non_construite', 'motif', v_motif);
-  end if;
-
-  select coalesce(jsonb_agg(s.code_postal order by s.code_postal), '[]'::jsonb) into v_codes
-    from (select distinct f.code_postal from public.carreaux_de_forme(v_geom, 1) f where f.code_postal is not null) s;
-
-  return jsonb_build_object('codes', v_codes);
-end
-$fn$;
+-- ── codes_postaux_de_zone_jsonb ───────────────────────────────────────────────────────────────────────────────────────
+-- Sa branche pays (CP de `cp_population_totale` via `pays_contient_code`) est écrite dans sql/295, qui porte le corps
+-- FINAL : une seule définition, rejouable dans les deux ordres (relecture 1 du groupe A).
 
 -- ── Les compteurs de « Mes zones » d'une zone pays, sans géométrie ────────────────────────────────────────────────────
 create or replace function public.compter_zone_pays(p_zone_id uuid, p_caller_user_id uuid)
@@ -376,7 +333,9 @@ begin
   end if;
   v_pays := v_recette->>'code';
 
-  select count(*) into v_cp from public.ref_codes_postaux r where public.pays_contient_code(v_pays, r.code_dept);
+  -- Les CP de la couverture nationale (`cp_population_totale`, 5 956 en métropole) : le même compte que le découpage
+  -- « Par code postal » de ④ et que la liste du score (relecture 1 : `ref_codes_postaux` en comptait 6 051).
+  select count(*) into v_cp from public.cp_population_totale cp where public.pays_contient_code(v_pays, cp.code_postal);
   select count(*) into v_iris from public.unite_population_totale u
    where u.maille = 'iris' and public.pays_contient_code(v_pays, u.code);
 

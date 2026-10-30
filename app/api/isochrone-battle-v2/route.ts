@@ -28,6 +28,7 @@ import {
   PLAFOND_LECTURE_POI, refusBorneNationale, refusCapaciteAnneaux, sansTerritoire,
 } from '@/lib/isochrones/borne-nationale';
 import { paquetsDeCles } from '@/lib/isochrones/paquets-cles';
+import { formaterNombre } from '@/lib/format/nombre';
 import { requireAuth } from '@/lib/api/middleware';
 import { espaceDeZone, zoneIntrouvable } from '@/lib/zones/session-zones';
 
@@ -49,6 +50,13 @@ const battleV2Schema = z.object({
 
 /** Une zone pays (sql/296) : la bataille nationale garde sa borne de lecture, elle se lance depuis ① (A-6). */
 const REFUS_ZONE_PAYS = 'Sur toute la France, la bataille se lance depuis l’étape ① (France métropolitaine).';
+
+/** Lecture tronquée sur une zone (`poi_de_zone` rend `tronque`) : la bataille ne part jamais sur un début de liste. */
+function refusZoneTronquee(categorie: string): string {
+  return `Plus de ${formaterNombre(PLAFOND_LECTURE_POI)} POI « ${categorie} » dans la zone : ce calcul dépasse ce qu’on `
+    + 'peut calculer en direct. Il se lancera en tâche de fond dès le lot « calculs longs » ; en attendant, choisissez '
+    + 'une zone plus petite.';
+}
 
 // Map code_region INSEE → nom_region depuis ref_regions (cache module).
 // Remplace l'ancien REGION_ID_TO_NAME hardcodé par des codes alpha ('ara',
@@ -210,7 +218,7 @@ export async function POST(req: NextRequest) {
           const lu = rpcJson<{ pois?: any[]; tronque?: boolean; refus?: string }>(data);
           if (lu?.refus === 'zone_introuvable') { send({ type: 'error', message: 'Zone introuvable dans cet espace.' }); return; }
           if (!lu || !Array.isArray(lu.pois)) { send({ type: 'error', message: 'Erreur chargement POIs : réponse illisible' }); return; }
-          if (lu.tronque) { send({ type: 'error', message: refusBorneNationale(PLAFOND_LECTURE_POI, PALIERS.length) ?? '' }); return; }
+          if (lu.tronque) { send({ type: 'error', message: refusZoneTronquee(String(category)) }); return; }
           rawRows = lu.pois;
         } else {
           let q = supabase.from('poi_france')

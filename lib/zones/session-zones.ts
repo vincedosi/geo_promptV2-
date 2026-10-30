@@ -138,7 +138,7 @@ export function reponseRefus(r: { statut: number; message: string; refus: RefusR
  *
  * Une zone PAYS (`pays`, sql/296) n'est pas résolue par la géométrie : `resolve_custom_geo_zone_codes` lirait tous les
  * IRIS de France (2,1 s, 48 540 accès, ≈ 48 000 lignes de codes écrites). `compter_zone_pays` pose les deux compteurs
- * par des comptes d'index (≈ 400 accès), sans écrire de code.
+ * par des comptes (8,7 ms, 574 accès), sans écrire de code.
  */
 export async function repondreResolue(
   supabase: ClientAdmin, zoneId: string, userId: string, surface: number | null, action: 'creation' | 'recalcul', pays = false,

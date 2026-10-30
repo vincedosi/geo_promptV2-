@@ -85,6 +85,16 @@ export const MESSAGES_REFUS_COUVERTURE: Readonly<Record<RefusCouverture, string>
 export const MESSAGE_ZONE_PAYS_PLATEFORMES = 'Zone nationale : le ciblage France natif des plateformes arrive avec les finitions de ⑤.';
 
 /**
+ * 422 `zone_pays` pour une recette `pays`, sinon `null` : les lectures par CODES d'une zone (export, détail de
+ * `/api/custom-geo/[id]`) n'ont rien à rendre pour une zone pays, qui n'a pas de `custom_geo_zone_codes` (sql/296,
+ * `compter_zone_pays`) — un fichier vide ou « 0 code » se lirait comme une zone vide (relecture 1, ④ finitions).
+ */
+export function refusZonePays(recette: unknown): NextResponse | null {
+  if ((recette as { type?: unknown } | null | undefined)?.type !== 'pays') return null;
+  return NextResponse.json({ error: MESSAGE_ZONE_PAYS_PLATEFORMES, refus: 'zone_pays' }, { status: 422 });
+}
+
+/**
  * La réponse d'une RPC de couverture (`couverture_zone`, `couverture_zone_en_cache`, `couverture_rayon_poi`) en HTTP : 200 le chiffrage ; un refus de `messages` en `{ error, refus, …détails }` (`plafond`,
  * `surface_km2`, `motif`…) au statut de l'en-tête — 404, 503, sinon 422 ; erreur Postgres ou hors contrat (refus
  * inconnu, pas un objet) : journalisée, 500 `echec`. Avec `invalide`, une erreur 22023 (argument que Zod n'a pas vu :

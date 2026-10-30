@@ -12,6 +12,8 @@ const Z3 = '3f2504e0-4f89-11d3-9a0c-0305e82c3304';
 let appels: { nom: string; args: Record<string, unknown> }[] = [];
 let reponses: Record<string, { data: unknown; error: { message: string } | null }> = {};
 let zonesDeLOrg: string[] = [];
+/** Les zones de l'espace dont la recette est `pays` (sql/296). */
+let zonesPays: string[] = [];
 let lectures: { table: string; filtres: [string, unknown][] }[] = [];
 
 /**
@@ -33,7 +35,10 @@ class FauxClient {
       eq(c: string, v: unknown) { lecture.filtres.push([c, v]); return chaine; },
       in(c: string, ids: string[]) {
         lecture.filtres.push([c, ids]);
-        return Promise.resolve({ data: ids.filter((i) => zonesDeLOrg.includes(i)).map((id) => ({ id })), error: null });
+        return Promise.resolve({
+          data: ids.filter((i) => zonesDeLOrg.includes(i)).map((id) => ({ id, recette: zonesPays.includes(id) ? { v: 1, type: 'pays', code: 'FR' } : null })),
+          error: null,
+        });
       },
     };
     return chaine;
@@ -47,7 +52,7 @@ const exec = (r: Recette, c: Partial<typeof ctx & { geometrie: unknown }> = {}) 
   executerRecette(new FauxClient() as never, r, { ...ctx, ...c });
 
 beforeEach(() => {
-  appels = []; reponses = {}; zonesDeLOrg = []; lectures = [];
+  appels = []; reponses = {}; zonesDeLOrg = []; zonesPays = []; lectures = [];
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
@@ -200,6 +205,17 @@ describe('executerRecette', () => {
     reponses.zone_intersection = { data: { vide: false, geometry: CARRE, surface_km2: 1 }, error: null };
     await exec({ v: 1, type: 'combinaison', operation: 'intersection', zones: [Z1, Z2] });
     expect(appels.at(-1)).toEqual({ nom: 'zone_intersection', args: { p_zone_ids: [Z1, Z2] } });
+  });
+
+  it('combinaison : une opérande pays (zone nationale) est refusée pour les trois opérations, sans calcul', async () => {
+    zonesDeLOrg = [Z1, Z2];
+    zonesPays = [Z2];
+    for (const operation of ['union', 'difference', 'intersection'] as const) {
+      const r = await exec({ v: 1, type: 'combinaison', operation, zones: [Z1, Z2] });
+      expect(r).toEqual({ ok: false, statut: 422, refus: 'operande_pays', message: MESSAGES_REFUS.operande_pays });
+    }
+    expect(appels).toEqual([]);
+    expect(MESSAGES_REFUS.operande_pays).toContain('zone nationale');
   });
 
   it('intersection : EXACTEMENT deux zones (la RPC calcule première ∩ union des autres), refus sinon et sans appel', async () => {

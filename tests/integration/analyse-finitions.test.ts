@@ -219,29 +219,32 @@ describe('T2 — la zone pays et sa couverture nationale (sql/296)', () => {
     expect(new Set(r.codes)).toEqual(new Set(couverture.lignes.map((l) => l.code)));
   }, LONG);
 
-  it('compteurs de « Mes zones » sans lecture géométrique : CP du référentiel métropolitain, aucun code écrit', () => {
+  it('compteurs de « Mes zones » sans lecture géométrique : CP de la couverture nationale, aucun code écrit', () => {
     // Un membre de l'espace de test (supprimé avec lui, en cascade), comme l'exige resolve_custom_geo_zone_codes.
     const user = psql(`select id from auth.users order by created_at limit 1;`);
     psql(`insert into public.organization_members (user_id, organization_id) values ('${user}', '${org}') on conflict do nothing;`);
     const o = JSON.parse(psql(`select public.compter_zone_pays('${zones.metro}', '${user}')::text;`)) as { count_cp: number; count_iris: number };
-    expect(o.count_cp).toBe(Number(psql(`select count(*) from public.ref_codes_postaux where code_dept not like '97%' and code_dept not like '98%';`)));
+    // Les CP de la couverture nationale (relecture 1) : 5 956, pas les 6 051 de ref_codes_postaux.
+    expect(o.count_cp).toBe(refMetro()[0]);
     expect(o.count_iris).toBeGreaterThan(45_000);
     expect(psql(`select count(*) from public.custom_geo_zone_codes where zone_id = '${zones.metro}';`)).toBe('0');
     const refus = psqlBrut(`select public.compter_zone_pays('${zones.rural}', '${user}');`);
     expect(refus.status).not.toBe(0);
   });
 
-  it('rejouer la migration ne change rien', () => {
-    const empreinte = () => psql(`select (select md5(string_agg(pg_get_functiondef(p.oid), '' order by p.proname))
-                                    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-                                   where n.nspname = 'public' and p.proname in ('pays_contient_code', 'zone_pays_geometrie',
-                                     'couverture_pays_jsonb', 'couverture_zone', 'codes_postaux_de_zone_jsonb', 'compter_zone_pays'))
-                                  || '|' || (select pg_get_constraintdef(oid) from pg_constraint
-                                              where conname = 'custom_geo_zones_recette_forme');`);
-    const avant = empreinte();
-    const r = psqlBrut(readFileSync('sql/296_zone_pays.sql', 'utf8'));
+  it('rejouer la migration ne change rien (essai dans BEGIN … ROLLBACK : la base partagée n’est jamais réécrite)', () => {
+    const empreinte = `select (select md5(string_agg(pg_get_functiondef(p.oid), '' order by p.proname))
+                                 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                                where n.nspname = 'public' and p.proname in ('pays_contient_code', 'zone_pays_geometrie',
+                                  'couverture_pays_jsonb', 'couverture_zone', 'codes_postaux_de_zone_jsonb', 'compter_zone_pays'))
+                               || '|' || (select pg_get_constraintdef(oid) from pg_constraint
+                                           where conname = 'custom_geo_zones_recette_forme');`;
+    const migrations = ['sql/295_codes_postaux_de_zone.sql', 'sql/296_zone_pays.sql'].map((f) => readFileSync(f, 'utf8')).join('\n');
+    const r = psqlBrut(`${empreinte}\nbegin;\n${migrations}\n${empreinte}\nrollback;\n`);
     expect(r.status, r.stderr).toBe(0);
-    expect(empreinte()).toBe(avant);
+    const lignes = r.stdout.trim().split('\n').filter((l) => l.includes('|'));
+    expect(lignes).toHaveLength(2);
+    expect(lignes[1]).toBe(lignes[0]);
   });
 });
 
