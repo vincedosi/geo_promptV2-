@@ -117,6 +117,7 @@ Mémoire : `reference_dsp_maille_geo`, `feedback_polygones_pas_que_cp`, `project
 **Mesures portées par les tâches** (avant tout code) :
 - T1 : `select * from plateformes_geo` après migration (17 lignes), deux passes de la migration, empreinte `md5(string_agg(...))` identique ;
 - T2 : extraction d'un jeu pays, quatre plateformes au pays : cible < 50 ms côté base (une lecture `forme` et une lecture `departement`, aucune autre) ; `EXPLAIN (ANALYZE, BUFFERS)` des deux lectures au rapport.
+  - **Mesuré en T2 (30/10, transaction annulée) — ÉCART À LA CIBLE, consigné à la relecture 1 :** « France entière », première lecture : `forme` 4,1 ms · 874 accès + `departement` 5,8 ms · 1 279 accès = **9,9 ms · 2 153 accès, au-dessus de la cible de 2 000 accès** (+ 8 %), sous celle de 50 ms. Gardé : une fois par (zone, cible), puis servi du cache (0,4 ms · 7 accès et 1,0 ms · 13 accès), sans carreau lu. « France métropolitaine » ne lit que la `forme` : 14,9 ms · 1 977 accès à froid, sous la cible.
 
 ### Lignes de l'Excel qui touchent ⑤ (relevées, pas entrées d'office)
 

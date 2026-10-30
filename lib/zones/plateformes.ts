@@ -59,6 +59,8 @@ export const PlateformeGeoSchema = z.object({
   note: z.string().nullable(),
   ordre: z.number().int(),
   codes_pays: CodesPaysSchema.nullable().optional(),
+  /** Ligne `pays` : les codes de recette dont le ciblage reste « à vérifier » (sql/300, relecture 1) ; absent = aucun. */
+  pays_a_verifier: z.array(z.enum(['METRO', 'FR'])).nullable().optional(),
 });
 
 export type PlateformeGeo = z.infer<typeof PlateformeGeoSchema>;

@@ -36,4 +36,6 @@ export interface PlateformeGeo {
   ordre: number;
   /** Ligne `pays` seulement (sql/300) : les codes ISO ciblés pour `METRO` et pour `FR` ; `null` ou absent sinon. */
   codes_pays?: { METRO: string[]; FR: string[] } | null | undefined;
+  /** Ligne `pays` : les codes de recette dont le ciblage reste « à vérifier » (sql/300, relecture 1) ; absent = aucun. */
+  pays_a_verifier?: ('METRO' | 'FR')[] | null | undefined;
 }

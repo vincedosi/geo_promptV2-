@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { MAILLES, PLATEFORMES } from '@/lib/zones/plateformes';
+import { unitesPays } from '@/lib/zones/conversion';
 import { psql, psqlBrut, psqlLignes } from './_psql';
 
 const MIGRATION = readFileSync(join(process.cwd(), 'sql', '274_plateformes_geo.sql'), 'utf8');
@@ -160,6 +161,35 @@ describe('sql/300 — la maille pays', () => {
       values ('aaaaaaaa-0000-4000-8000-000000000300', 'dv360', 'pays', 0, null);
       select maille from public.zone_set_plateformes where zone_set_id = 'aaaaaaaa-0000-4000-8000-000000000300';
       rollback;`)).toBe('pays');
+  });
+
+  it('pays_a_verifier (relecture 1) : {FR} sur les quatre lignes pays, METRO confirmé ; NULL ailleurs', () => {
+    expect(psql(`select count(*) from public.plateformes_geo where maille = 'pays' and pays_a_verifier = '{FR}';`)).toBe('4');
+    expect(psql(`select count(*) from public.plateformes_geo where maille <> 'pays' and pays_a_verifier is not null;`)).toBe('0');
+  });
+
+  it.each([
+    ['un code de recette inconnu', `'{XX}'`, 'pays'],
+    ['NULL sur une ligne pays', 'null', 'pays'],
+    ['une valeur sur une ligne qui n’est pas pays', `'{FR}'`, 'cp'],
+  ])('la base refuse pays_a_verifier : %s', (_cas, valeur, maille) => {
+    const r = psqlBrut(`begin;
+      update public.plateformes_geo set pays_a_verifier = ${valeur}::text[] where plateforme = 'meta' and maille = '${maille}';
+      rollback;`);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('plateformes_geo_pays_a_verifier_valide');
+  });
+
+  it('chaque code pays en base a son libellé et, hors FR, son département (NOMS_PAYS, DEPARTEMENT_DROM en dur)', () => {
+    const codes = psqlLignes(`select distinct c from public.plateformes_geo,
+        jsonb_each(codes_pays) e, jsonb_array_elements_text(e.value) c where maille = 'pays' order by 1;`);
+    expect(codes.length).toBeGreaterThan(0);
+    // Un département par DROM : chacun peuplé de 1 ici, un code sans département rendrait `null`.
+    const departements = ['971', '972', '973', '974', '976'].map((code) => ({ code, pop_en_zone: 1, pop_totale: 1 }));
+    for (const u of unitesPays(codes, 100, departements)) {
+      expect(u.nom, u.code).not.toBe(u.code);
+      expect(u.population, u.code).not.toBeNull();
+    }
   });
 
   it('pop_totale des unités figées dit ce qu’elle compte (E7)', () => {

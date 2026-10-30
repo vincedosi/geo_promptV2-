@@ -384,7 +384,7 @@ describe('la garde « maille sans objet » (⑤ finitions, T2, A-3) : avant tout
     zonePays();
     const r = await poster({ nom: 'France', jeu: jeuZone() });
     expect(r.status).toBe(400);
-    expect(await r.json()).toEqual({ error: CERCLES_PAYS, refus: 'maille_sans_objet' });
+    expect(await r.json()).toEqual({ error: `meta — ${CERCLES_PAYS}`, refus: 'maille_sans_objet', plateforme: 'meta' });
     expect(h.ecritures).toEqual([]);
     expect(h.lectures).toContain(`custom_geo_zones:id=${h.ZONE},org_id=${h.ORG}`);
   });
@@ -392,7 +392,9 @@ describe('la garde « maille sans objet » (⑤ finitions, T2, A-3) : avant tout
   it('POST : la maille pays sur une zone qui n’est pas nationale → 400, rien écrit', async () => {
     const r = await poster({ nom: 'Bretagne', jeu: jeuZone({ plateformes: [{ plateforme: 'dv360', maille: 'pays', seuil: 0 }] }) });
     expect(r.status).toBe(400);
-    expect(await r.json()).toEqual({ error: 'La maille pays ne s’achète que pour une zone nationale.', refus: 'maille_sans_objet' });
+    expect(await r.json()).toEqual({
+      error: 'dv360 — La maille pays ne s’achète que pour une zone nationale.', refus: 'maille_sans_objet', plateforme: 'dv360',
+    });
     expect(h.ecritures).toEqual([]);
   });
 
@@ -408,7 +410,7 @@ describe('la garde « maille sans objet » (⑤ finitions, T2, A-3) : avant tout
     zonePays();
     const r = await patcher({ plateformes: [{ plateforme: 'meta', maille: 'cercle', seuil: 25, rayon_m: 15000 }] });
     expect(r.status).toBe(400);
-    expect(await r.json()).toEqual({ error: CERCLES_PAYS, refus: 'maille_sans_objet' });
+    expect(await r.json()).toEqual({ error: `meta — ${CERCLES_PAYS}`, refus: 'maille_sans_objet', plateforme: 'meta' });
     expect(h.ecritures).toEqual([]);
     expect(h.lectures).toContain(`custom_geo_zones:id=${h.ZONE},org_id=${h.ORG}`);
   });

@@ -121,14 +121,17 @@ async function refusDesChoix(supabase: ClientAdmin, choix: ChoixPlateforme[]): P
 
 /**
  * Un choix SANS OBJET pour la recette de la zone (⑤ finitions, A-3 : cercles ou commune sur une zone pays, pays sur une
- * zone locale) → 400 `maille_sans_objet` avec la phrase de `mailleSansObjet`, la même règle que l'écran et
+ * zone locale) → 400 `{ error: « <plateforme> — <phrase> », refus: 'maille_sans_objet', plateforme }`, comme le 422
+ * de l'extraction (relecture 1) ; la phrase est celle de `mailleSansObjet`, la même règle que l'écran et
  * l'extraction. `recette` : brute de `custom_geo_zones` ; illisible, seule la maille pays est refusée. `null` = admis.
  */
 function refusSansObjet(recette: unknown, choix: ChoixPlateforme[]): NextResponse | null {
   const lue = lireRecette(recette);
   for (const c of choix) {
     const phrase = mailleSansObjet(lue.ok ? lue.recette : null, c.maille);
-    if (phrase) return NextResponse.json({ error: phrase, refus: 'maille_sans_objet' }, { status: 400 });
+    if (phrase) {
+      return NextResponse.json({ error: `${c.plateforme} — ${phrase}`, refus: 'maille_sans_objet', plateforme: c.plateforme }, { status: 400 });
+    }
   }
   return null;
 }

@@ -37,7 +37,7 @@ import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
 import { formaterNombre } from '@/lib/format/nombre';
 import { MESSAGES_REFUS_COUVERTURE, repondreCouverture, type LigneCouverture } from './couverture';
 import {
-  MESSAGES_CONVERSION, appliquerSeuil, estRetenue, exactitude, mailleSansObjet, resumeExact, unitesPays, verifierLimites,
+  MESSAGES_CONVERSION, appliquerSeuil, estRetenue, exactitude, mailleSansObjet, paysAVerifier, resumeExact, unitesPays, verifierLimites,
   type Avertissement, type Resume,
 } from './conversion';
 import { lireRegles, paverPourPlateforme, refusDuChoix } from './conversion-serveur';
@@ -77,6 +77,8 @@ interface ResumePlateforme {
   plateforme: string; exacte: boolean; n_unites: number; avertissements: Avertissement[];
   n_touchees?: number; n_candidates?: number; population: number; surface_km2?: number;
   couverte: number; achetee: number; manques: number; hors_zone: number; taux_utile: number | null;
+  /** Maille pays : le ciblage n'est pas confirmé pour CETTE recette (`paysAVerifier`, relecture 1) ; absent sinon. */
+  pays_a_verifier?: true;
 }
 
 type Echec = { ok: false; reponse: NextResponse };
@@ -166,7 +168,8 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
     unites = [{ plateforme: c.plateforme, maille: 'polygone', ...toute }];
   }
   const bilan = resumeExact(forme.population, forme.surface_km2, unites.length);
-  return { ok: true, unites, resume: { ...bilan, plateforme: c.plateforme, avertissements: verifierLimites(bilan, regle) } };
+  const aVerifier = paysAVerifier(r, regle) ? { pays_a_verifier: true as const } : {};
+  return { ok: true, unites, resume: { ...bilan, plateforme: c.plateforme, avertissements: verifierLimites(bilan, regle), ...aVerifier } };
 }
 
 /** Une maille territoriale calculée : la couverture du découpage, puis le seuil. */

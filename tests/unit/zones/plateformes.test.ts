@@ -14,6 +14,7 @@ const LIGNE = {
   doc_url: 'https://developers.google.com/display-video/api/guides/concepts/targeting/geography',
   releve_le: '2026-10-30', a_verifier: false, note: null, ordre: 5,
   codes_pays: { METRO: ['FR'], FR: ['FR', 'GP', 'MQ', 'GF', 'RE', 'YT'] },
+  pays_a_verifier: ['FR'],
 };
 
 describe('plateformes_geo — la maille pays (sql/300)', () => {
@@ -36,5 +37,12 @@ describe('plateformes_geo — la maille pays (sql/300)', () => {
     ['une clé inconnue', { METRO: ['FR'], FR: ['FR'], XX: ['FR'] }],
   ])('refuse des codes pays mal formés : %s', (_cas, codes_pays) => {
     expect(PlateformeGeoSchema.safeParse({ ...LIGNE, codes_pays }).success).toBe(false);
+  });
+});
+
+describe('plateformes_geo — pays_a_verifier (relecture 1)', () => {
+  it('lu tel quel ; un code de recette inconnu est refusé', () => {
+    expect(PlateformeGeoSchema.parse(LIGNE).pays_a_verifier).toEqual(['FR']);
+    expect(PlateformeGeoSchema.safeParse({ ...LIGNE, pays_a_verifier: ['XX'] }).success).toBe(false);
   });
 });

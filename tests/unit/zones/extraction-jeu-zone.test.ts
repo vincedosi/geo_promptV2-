@@ -142,7 +142,7 @@ describe('chemins d’échec', () => {
 
 describe('zone pays (⑤ finitions, T2) : le ciblage pays des plateformes, sans carreau lu', () => {
   const CODES = { METRO: ['FR'], FR: ['FR', 'GP', 'MQ', 'GF', 'RE', 'YT'] };
-  const reglePays = (plateforme: string) => ({ ...regle(plateforme, 'pays'), codes_pays: CODES });
+  const reglePays = (plateforme: string) => ({ ...regle(plateforme, 'pays'), codes_pays: CODES, pays_a_verifier: ['FR'] });
   const QUATRE = ['dv360', 'meta', 'tiktok', 'ttd'];
   const METRO = { v: 1, type: 'pays', code: 'METRO' };
   const FRANCE = { v: 1, type: 'pays', code: 'FR' };
@@ -185,6 +185,7 @@ describe('zone pays (⑤ finitions, T2) : le ciblage pays des plateformes, sans 
       exacte: true, n_unites: 1, population: 62_528_975, couverte: 62_528_975, manques: 0, hors_zone: 0, taux_utile: 100,
       avertissements: [],
     });
+    expect(argsCreation().p_resume.plateformes.every((r) => !('pays_a_verifier' in r))).toBe(true);
   });
 
   it('France entière : FR = métropole, chaque DROM par son département, NULL (jamais 0) si non carroyé (E10)', async () => {
@@ -204,6 +205,8 @@ describe('zone pays (⑤ finitions, T2) : le ciblage pays des plateformes, sans 
       ['YT', 'Mayotte', null, null],
     ]);
     expect(argsCreation().p_resume.plateformes[0]).toMatchObject({ exacte: true, n_unites: 6, population: POP_FR });
+    // Relecture 1 : France entière n'est confirmée chez aucune plateforme — le résumé le porte, sans changer le choix.
+    expect(argsCreation().p_resume.plateformes.map((r) => r.pays_a_verifier)).toEqual([true, true]);
   });
 
   it('DV360 au CP sur une zone pays : le plan CP, comme pour toute zone (choix de l’utilisateur, § 16.1)', async () => {

@@ -4767,6 +4767,7 @@ export type Database = {
           natif: boolean
           note: string | null
           ordre: number
+          pays_a_verifier: string[] | null
           plateforme: string
           releve_le: string
         }
@@ -4781,6 +4782,7 @@ export type Database = {
           natif: boolean
           note?: string | null
           ordre: number
+          pays_a_verifier?: string[] | null
           plateforme: string
           releve_le: string
         }
@@ -4795,6 +4797,7 @@ export type Database = {
           natif?: boolean
           note?: string | null
           ordre?: number
+          pays_a_verifier?: string[] | null
           plateforme?: string
           releve_le?: string
         }

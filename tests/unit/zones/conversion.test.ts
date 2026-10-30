@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
   MESSAGES_CONVERSION, MESSAGES_MAILLE_SANS_OBJET, NOMS_PAYS, appliquerSeuil, estRetenue, exactitude, mailleParDefaut,
-  mailleSansObjet, resumeExact, unitesPays, verifierLimites,
+  NOTE_PAYS_A_VERIFIER, mailleSansObjet, paysAVerifier, resumeExact, unitesPays, verifierLimites,
 } from '@/lib/zones/conversion';
 import { MESSAGES_REFUS_COUVERTURE } from '@/lib/zones/couverture';
 import { MAILLES, type PlateformeGeo } from '@/lib/zones/plateformes';
@@ -369,5 +369,22 @@ describe('les règles des plateformes vivent dans plateformes_geo', () => {
     expect('const MAX = 3_000;').toMatch(enContexte('3_000'));
     expect('Math.round(x * 1000) / 10').not.toMatch(enContexte('1000'));
     expect('max_unites ?? 3000').toMatch(/max_unites\s*\?\?\s*\d/);
+  });
+});
+
+describe('paysAVerifier — « à vérifier » propre au code de la recette (relecture 1)', () => {
+  const pays = ligne({ plateforme: 'meta', maille: 'pays', pays_a_verifier: ['FR'] });
+  it('France entière : à vérifier ; France métropolitaine : rien', () => {
+    expect(paysAVerifier({ v: 1, type: 'pays', code: 'FR' }, pays)).toBe(true);
+    expect(paysAVerifier({ v: 1, type: 'pays', code: 'METRO' }, pays)).toBe(false);
+  });
+  it('une autre maille, une autre recette, une ligne sans la colonne : rien', () => {
+    expect(paysAVerifier({ v: 1, type: 'pays', code: 'FR' }, ligne({ plateforme: 'meta', maille: 'cp' }))).toBe(false);
+    expect(paysAVerifier(RECETTES.dessin, pays)).toBe(false);
+    expect(paysAVerifier({ v: 1, type: 'pays', code: 'FR' }, ligne({ plateforme: 'meta', maille: 'pays' }))).toBe(false);
+  });
+  it('la note dit ce qui n’est pas confirmé, en français', () => {
+    expect(NOTE_PAYS_A_VERIFIER).toMatch(/^France entière/);
+    expect(NOTE_PAYS_A_VERIFIER).toMatch(/\.$/);
   });
 });

@@ -11,11 +11,23 @@
 -- comme des pays distincts (Q-2, à confirmer dans un compte). Une correction est une `update`, sans livraison.
 -- L'extraction FIGE ces codes dans ses unités (A-6) : changer la table après coup ne change pas une extraction relue.
 --
+-- CE QUI RESTE « À VÉRIFIER » PAR RECETTE (relecture 1) : `pays_a_verifier` liste les codes de recette (`METRO`, `FR`)
+-- dont le ciblage n'est pas confirmé dans un compte. Seed : `{FR}` partout — que les DROM soient des pays distincts
+-- n'est vérifié chez AUCUNE plateforme ; `METRO` → `FR` l'est (doc publique de DV360, Meta, TikTok ; TTD l'est déjà
+-- par sa ligne entière, `a_verifier`). AUCUN défaut ne change : c'est un avertissement, rendu par le serveur dans le
+-- résumé figé de l'extraction (`pays_a_verifier`) et lu par l'écran (`paysAVerifier`, lib/zones/conversion.ts).
+--
+-- EN DUR, À DESSEIN, côté code : les LIBELLÉS des codes (`NOMS_PAYS`) et le département de chaque DROM
+-- (`DEPARTEMENT_DROM`, GP → 971…) vivent dans lib/zones/conversion.ts (copie Angular) — des faits géographiques, pas
+-- des règles de plateforme. Un code ajouté ici sans libellé là-bas fait échouer `tests/integration/plateformes-geo.test.ts`.
+--
 -- CONTRÔLES (l'erreur tombe à l'écriture, chez celui qui la commet — patron de `plateformes_geo_limites_valides`) :
 --   • `plateformes_geo_codes_pays_valides` : un objet aux clés EXACTEMENT `FR` et `METRO`, chacune une liste non vide
 --     de codes ISO 3166 à deux lettres MAJUSCULES, sans doublon (un code deux fois ferait échouer l'index
 --     `zseu_code_unique` de l'extraction, sql/278) ;
---   • `plateformes_geo_codes_pays_maille` : une ligne `pays` a ses codes, toute autre ligne n'en a pas.
+--   • `plateformes_geo_codes_pays_maille` : une ligne `pays` a ses codes, toute autre ligne n'en a pas ;
+--   • `plateformes_geo_pays_a_verifier_valide` : `pays_a_verifier` ⊂ {METRO, FR}, présent sur une ligne `pays`
+--     seulement (`{}` = tout est confirmé).
 --   `PlateformeGeoSchema` (lib/zones/plateformes.ts) lit la même règle.
 --
 -- EXCEPTION ÉCRITE à « aucun DROP » (plan, Global Constraints) : la contrainte `plateformes_geo_maille_check` est
@@ -115,27 +127,52 @@ begin
 end
 $do$;
 
+-- ── Ce qui reste à vérifier, par code de recette (relecture 1) ──────────────────────────────────────────────────────
+alter table public.plateformes_geo add column if not exists pays_a_verifier text[];
+
+comment on column public.plateformes_geo.pays_a_verifier is
+  'Maille pays seulement : les codes de recette (METRO, FR) dont le ciblage n''est pas confirme dans un compte. '
+  'Avertissement seulement, aucun defaut n''en depend. {} = tout confirme ; NULL sur toute autre maille. sql/300.';
+
+-- Les lignes `pays` posées avant cette colonne (premier passage de sql/300) ; une ligne déjà réglée (`{}` après
+-- confirmation) n'est pas remise à `{FR}` par un rejeu. Posée AVANT l'insert : un CHECK se vérifie sur la ligne
+-- proposée, même quand `on conflict do nothing` l'écarte ensuite.
+update public.plateformes_geo set pays_a_verifier = '{FR}' where maille = 'pays' and pays_a_verifier is null;
+
+do $do$
+begin
+  if not exists (select 1 from pg_constraint
+                  where conrelid = 'public.plateformes_geo'::regclass and conname = 'plateformes_geo_pays_a_verifier_valide') then
+    alter table public.plateformes_geo
+      add constraint plateformes_geo_pays_a_verifier_valide check (
+        (maille = 'pays') = (pays_a_verifier is not null)
+        and (pays_a_verifier is null or pays_a_verifier <@ array['METRO', 'FR']::text[]));
+  end if;
+end
+$do$;
+
 -- ── Les quatre lignes `pays` (A-1) ───────────────────────────────────────────────────────────────────────────────────
 -- `doc_url` : celle de la ligne CP (DV360, Meta) ou département (TikTok) de la plateforme ; TTD : nulle (doc derrière
 -- connexion, comme ses trois autres lignes), donc « à vérifier ». `ordre` : la dernière de chaque plateforme.
 insert into public.plateformes_geo
-  (plateforme, maille, libelle, natif, disponible, limites, doc_url, releve_le, a_verifier, note, ordre, codes_pays)
+  (plateforme, maille, libelle, natif, disponible, limites, doc_url, releve_le, a_verifier, note, ordre, codes_pays,
+   pays_a_verifier)
 values
   ('dv360', 'pays', 'Pays', true, true, '{}',
    'https://developers.google.com/display-video/api/guides/concepts/targeting/geography', '2026-10-30', false,
    'Les DROM sont des pays distincts chez la plupart des plateformes : France entière = FR + 5 codes ; à confirmer dans un compte.',
-   28, '{"METRO": ["FR"], "FR": ["FR", "GP", "MQ", "GF", "RE", "YT"]}'),
+   28, '{"METRO": ["FR"], "FR": ["FR", "GP", "MQ", "GF", "RE", "YT"]}', '{FR}'),
   ('ttd', 'pays', 'Pays', true, true, '{}', null, '2026-10-30', true,
    'Les DROM sont des pays distincts chez la plupart des plateformes : France entière = FR + 5 codes ; à confirmer dans un compte. Doc derrière connexion.',
-   55, '{"METRO": ["FR"], "FR": ["FR", "GP", "MQ", "GF", "RE", "YT"]}'),
+   55, '{"METRO": ["FR"], "FR": ["FR", "GP", "MQ", "GF", "RE", "YT"]}', '{FR}'),
   ('meta', 'pays', 'Pays', true, true, '{}',
    'https://developers.facebook.com/docs/marketing-api/audiences/reference/basic-targeting', '2026-10-30', false,
    'Les DROM sont des pays distincts chez la plupart des plateformes : France entière = FR + 5 codes ; à confirmer dans un compte.',
-   78, '{"METRO": ["FR"], "FR": ["FR", "GP", "MQ", "GF", "RE", "YT"]}'),
+   78, '{"METRO": ["FR"], "FR": ["FR", "GP", "MQ", "GF", "RE", "YT"]}', '{FR}'),
   ('tiktok', 'pays', 'Pays', true, true, '{}',
    'https://ads.tiktok.com/help/article/location-targeting', '2026-10-30', false,
    'Les DROM sont des pays distincts chez la plupart des plateformes : France entière = FR + 5 codes ; à confirmer dans un compte.',
-   115, '{"METRO": ["FR"], "FR": ["FR", "GP", "MQ", "GF", "RE", "YT"]}')
+   115, '{"METRO": ["FR"], "FR": ["FR", "GP", "MQ", "GF", "RE", "YT"]}', '{FR}')
 on conflict (plateforme, maille) do nothing;
 
 -- ── E7 : ce que compte `pop_totale` d'une unité figée ────────────────────────────────────────────────────────────────

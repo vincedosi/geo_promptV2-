@@ -181,13 +181,32 @@ export function mailleSansObjet(recette: Recette | null, maille: Maille): string
   return null;
 }
 
-/** Les libellés des codes pays que `plateformes_geo.codes_pays` porte (sql/300) : la France et les cinq DROM. */
+/**
+ * Les libellés des codes pays que `plateformes_geo.codes_pays` porte (sql/300) : la France et les cinq DROM.
+ *
+ * EN DUR, À DESSEIN (relecture 1, déclaré dans l'en-tête de sql/300) : ces libellés et le département de chaque DROM
+ * (`DEPARTEMENT_DROM`) sont des faits géographiques, pas des règles de plateforme. Un code ajouté en base sans entrée
+ * ici fait échouer `tests/integration/plateformes-geo.test.ts`.
+ */
 export const NOMS_PAYS: Readonly<Record<string, string>> = {
   FR: 'France', GP: 'Guadeloupe', MQ: 'Martinique', GF: 'Guyane', RE: 'La Réunion', YT: 'Mayotte',
 };
 
 /** Le département de chaque DROM ciblé comme un pays : sa population se lit dans la couverture par département. */
 const DEPARTEMENT_DROM: Readonly<Record<string, string>> = { GP: '971', MQ: '972', GF: '973', RE: '974', YT: '976' };
+
+/** La note de `paysAVerifier` : ce qui n'est confirmé dans aucun compte pour « France entière » (Q-2). */
+export const NOTE_PAYS_A_VERIFIER =
+  'France entière : le ciblage des DROM comme pays distincts (GP, MQ, GF, RE, YT) n’est pas encore confirmé dans un compte.';
+
+/**
+ * Le ciblage pays de cette ligne est-il « à vérifier » POUR CETTE recette (relecture 1) ? Vrai quand le code de la
+ * recette (`METRO`, `FR`) figure dans `pays_a_verifier` de la ligne — `FR` au 30/10, chez toutes les plateformes.
+ * Un avertissement seulement : aucun défaut n'en dépend (la maille par défaut lit `a_verifier`, pas ceci).
+ */
+export function paysAVerifier(recette: Recette | null, ligne: PlateformeGeo | undefined): boolean {
+  return recette?.type === 'pays' && ligne?.maille === 'pays' && (ligne.pays_a_verifier ?? []).includes(recette.code);
+}
 
 /** Une unité d'une plateforme au pays : un code ISO, son libellé, sa population carroyée (`null` : non carroyé). */
 interface UnitePays { code: string; nom: string; population: number | null }
