@@ -119,3 +119,40 @@ describe('fichierPlateforme — GeoJSON', () => {
     });
   });
 });
+
+describe('le fichier « pays » d’une extraction nationale (⑤ finitions, T3, A-7)', () => {
+  const PAYS = [
+    unite({ ordinal: 1, code: 'FR', nom: 'France' }), unite({ ordinal: 2, code: 'GP', nom: 'Guadeloupe' }),
+    unite({ ordinal: 3, code: 'MQ', nom: 'Martinique' }),
+  ];
+  it('formatsDe(p, pays) = [pays] pour les quatre plateformes', () => {
+    for (const p of ['dv360', 'ttd', 'meta', 'tiktok'] as const) expect(formatsDe(p, 'pays'), p).toEqual(['pays']);
+  });
+  it('CSV `code_pays;nom` à BOM, méthode, consigne de réglage, « à vérifier » pour TTD', () => {
+    const f = fichierPlateforme(entete({ plateforme: 'ttd', maille: 'pays', aVerifier: true, releveLe: '2026-10-30' }), PAYS, null, 'pays');
+    expect(f.nom).toBe('extraction_lycees-5-km-bdr_v1_ttd_pays.csv');
+    expect(f.type).toBe('text/csv; charset=utf-8');
+    expect(f.contenu.startsWith('﻿# Jeu : Lycées 5 km — BdR\n')).toBe(true);
+    const lignes = f.contenu.replace(/^﻿/, '').split('\n');
+    expect(lignes.filter((l) => l.startsWith('#'))).toEqual([
+      '# Jeu : Lycées 5 km — BdR',
+      '# Extraction : v1',
+      '# Plateforme : ttd',
+      '# Maille : pays',
+      '# Relevé des limites de la plateforme : 2026-10-30',
+      '# À vérifier : la règle de ciblage de cette plateforme n’a pas été confirmée sur sa documentation.',
+      '# Réglage : ciblage par pays, à poser dans la plateforme (aucune liste de lieux à téléverser)',
+    ]);
+    expect(EN_TETES_CSV.pays).toBe('code_pays;nom');
+    expect(lignesDonnees(f.contenu)).toEqual(['code_pays;nom', 'FR;France', 'GP;Guadeloupe', 'MQ;Martinique']);
+  });
+  it('seules les unités retenues ; Meta sans « à vérifier »', () => {
+    const f = fichierPlateforme(entete({ plateforme: 'meta', maille: 'pays' }), [...PAYS.slice(0, 1), unite({ ordinal: 2, code: 'GP', nom: 'Guadeloupe', retenu: false })], null, 'pays');
+    expect(lignesDonnees(f.contenu)).toEqual(['code_pays;nom', 'FR;France']);
+    expect(f.contenu).not.toContain('À vérifier');
+  });
+  it('le format pays ne s’applique qu’à la maille pays, et une maille pays n’a pas d’autre format', () => {
+    expect(() => fichierPlateforme(entete({ maille: 'cp' }), PAYS, null, 'pays')).toThrow(/sans objet/);
+    expect(() => fichierPlateforme(entete({ maille: 'pays' }), PAYS, null, 'cp')).toThrow(/sans objet/);
+  });
+});

@@ -14,6 +14,7 @@ const LIBELLE: Readonly<Record<Exclude<FormatFichier, 'territoires'>, string>> =
   sdf: 'SDF DV360',
   cercles: 'Cercles (CSV)',
   polygone: 'Polygone (GeoJSON)',
+  pays: 'Pays (CSV)',
 };
 
 /** Le libellé d'un format ; `territoires` se dit d'après la maille (départements ou communes). */

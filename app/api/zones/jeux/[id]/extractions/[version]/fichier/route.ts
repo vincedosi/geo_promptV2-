@@ -1,15 +1,16 @@
 /**
  * @file app/api/zones/jeux/[id]/extractions/[version]/fichier/route.ts
  *
- * GET `?plateforme=<dv360|ttd|meta|tiktok>&format=<cp|sdf|cercles|polygone|territoires>` — le fichier d'UNE plateforme
+ * GET `?plateforme=<dv360|ttd|meta|tiktok>&format=<cp|sdf|cercles|polygone|territoires|pays>` — le fichier d'UNE plateforme
  * pour une extraction figée (lot 7, T2, A-6 ; écart E5). Lu dans l'extraction, jamais recalculé : ce sont les unités
  * montrées au moment de la figer. Écrit par `fichierPlateforme` (`lib/zones/fichiers-plateformes.ts`, pur).
  *
  * - Maille de la plateforme : son résumé figé (`zone_set_extractions.plateformes`). Jeu RISQUE (sans résumé) : CP
  *   seulement, et seulement DV360 et TTD (A-4) — Meta et TikTok n'achètent pas un plan CP de jeu risque.
  * - Unités : CP par `lireCpPlateforme` (les mêmes que le pré-vol et la poussée de ⑦, et que le tableau de ⑥) ;
- *   cercles et territoires par `lireTout` sur `zone_set_extraction_unites` (préfixe de la clé primaire, plafond
- *   7 000) ; polygone par la `forme` de l'extraction (une ligne).
+ *   cercles, territoires et pays (⑤ finitions, T3 : les codes pays figés, six au plus) par `lireTout` sur
+ *   `zone_set_extraction_unites` (préfixe de la clé primaire, plafond 7 000) ; polygone par la `forme` de
+ *   l'extraction (une ligne).
  * - `plateformes_geo` (une ligne par la clé) : `a_verifier` et `releve_le`, écrits dans l'en-tête de méthode.
  *
  * 400 : paramètre illisible, ou format sans objet pour la maille (« La plateforme meta n'achète pas au code postal

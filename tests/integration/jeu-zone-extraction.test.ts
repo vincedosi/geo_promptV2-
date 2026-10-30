@@ -34,6 +34,7 @@ vi.mock('@/lib/api/rate-limit', async (original) => ({
 }));
 
 const extractions = await import('@/app/api/zones/jeux/[id]/extractions/route');
+const fichier = await import('@/app/api/zones/jeux/[id]/extractions/[version]/fichier/route');
 const cercles = await import('@/app/api/zones/[id]/cercles/route');
 const contours = await import('@/app/api/zones/communes/contours/route');
 
@@ -271,6 +272,19 @@ describe('zone pays (⑤ finitions, T2) : achetée au pays, unités figées', ()
       return data!;
     };
     const avant = await lire();
+
+    // ⑦ (T3, A-7) : le fichier « pays » de Meta ; le format CP refusé sur cette extraction, avec la phrase existante.
+    const telecharger = (plateforme: string, format: string) => fichier.GET(
+      new NextRequest(`http://localhost/api/zones/jeux/${id}/extractions/1/fichier?plateforme=${plateforme}&format=${format}`),
+      { params: Promise.resolve({ id, version: '1' }) },
+    );
+    const f = await telecharger('meta', 'pays');
+    expect(f.status).toBe(200);
+    expect((await f.text()).replace(/^\uFEFF/, '').split('\n').filter((l) => !l.startsWith('#')))
+      .toEqual(['code_pays;nom', 'FR;France', 'GP;Guadeloupe', 'MQ;Martinique', 'GF;Guyane', 'RE;La Réunion', 'YT;Mayotte']);
+    const cp = await telecharger('dv360', 'cp');
+    expect(cp.status).toBe(400);
+    expect((await cp.json()).error).toBe('La plateforme dv360 n\'achète pas au code postal dans cette extraction.');
     const meta = avant.filter((u) => u.plateforme === 'meta');
     expect(meta.map((u) => u.code)).toEqual(['FR', 'GP', 'MQ', 'GF', 'RE', 'YT']);
     expect(meta.every((u) => u.maille === 'pays' && u.retenu)).toBe(true);

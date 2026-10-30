@@ -11,11 +11,16 @@
  * | `cercle` | `cercles` | CSV `nom;latitude;longitude;rayon_km` |
  * | `commune`, `departement` | `territoires` | CSV `code;nom` |
  * | `polygone` | `polygone` | GeoJSON `FeatureCollection` d'une `Feature` (la `forme` figée) |
+ * | `pays` | `pays` | CSV `code_pays;nom` + la consigne « # Réglage : … » — rien à téléverser (⑤ finitions, T3, A-7) |
  *
  * Seules les unités RETENUES. Les CSV : séparateur `;`, UTF-8 avec BOM (Excel FR), en-tête de méthode en lignes `#`
  * (jeu, version, plateforme, maille, date du relevé des limites, « à vérifier ») ; le GeoJSON la porte dans
  * `properties.methode`. Les deux fichiers DV360 n'ont NI BOM NI en-tête : ce sont des textes à coller tels quels dans
  * DV360, identiques à ceux de l'export de zone.
+ *
+ * Une extraction NATIONALE (maille `pays`) n'a pas de liste de lieux : son fichier dit les codes pays figés et ce qu'il
+ * faut régler dans la plateforme. La poussée DV360 par API reste au CP : un DV360 au pays n'a « aucun code postal à
+ * pousser » (motif existant `aucun_cp_dv360`), son fichier sert de consigne.
  *
  * ⚠ `formatsDe` est recopié dans l'Angular (T3) avec un test de parité : le changer ici, c'est le changer là-bas.
  */
@@ -26,7 +31,7 @@ import type { MAILLES, PLATEFORMES } from '@/lib/zones/plateformes';
 export type Plateforme = (typeof PLATEFORMES)[number];
 type Maille = (typeof MAILLES)[number];
 
-export const FORMATS_FICHIER = ['cp', 'sdf', 'cercles', 'polygone', 'territoires'] as const;
+export const FORMATS_FICHIER = ['cp', 'sdf', 'cercles', 'polygone', 'territoires', 'pays'] as const;
 export type FormatFichier = (typeof FORMATS_FICHIER)[number];
 
 /** Une unité d'extraction (`zone_set_extraction_unites`), `centre` en GeoJSON tel que PostgREST le rend. */
@@ -57,7 +62,11 @@ export const EN_TETES_CSV = {
   cp: 'code_postal',
   cercles: 'nom;latitude;longitude;rayon_km',
   territoires: 'code;nom',
+  pays: 'code_pays;nom',
 } as const;
+
+/** La ligne de plus d'un fichier « pays » : il n'y a rien à téléverser, le ciblage se pose dans la plateforme. */
+const REGLAGE_PAYS = '# Réglage : ciblage par pays, à poser dans la plateforme (aucune liste de lieux à téléverser)';
 
 const BOM = '﻿';
 
@@ -72,6 +81,7 @@ export function formatsDe(plateforme: Plateforme, maille: Maille): FormatFichier
     case 'polygone': return ['polygone'];
     case 'commune':
     case 'departement': return ['territoires'];
+    case 'pays': return ['pays'];
     default: return [];
   }
 }
@@ -142,6 +152,8 @@ export function fichierPlateforme(
       ]);
     case 'territoires':
       return csv([EN_TETES_CSV.territoires, ...retenues.map((u) => `${cellule(u.code ?? '')};${cellule(u.nom ?? '')}`)]);
+    case 'pays':
+      return csv([REGLAGE_PAYS, EN_TETES_CSV.pays, ...retenues.map((u) => `${cellule(u.code ?? '')};${cellule(u.nom ?? '')}`)]);
     case 'polygone':
       return {
         nom: `${base}.geojson`,

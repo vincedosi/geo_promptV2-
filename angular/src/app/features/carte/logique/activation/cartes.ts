@@ -24,7 +24,7 @@ import { texteMotif } from './motifs';
  *   d'après le registre COURANT (il a pu changer depuis l'extraction). Écrits, jamais une case à cocher (Q-2).
  */
 
-export const FORMATS_FICHIER = ['cp', 'sdf', 'cercles', 'polygone', 'territoires'] as const;
+export const FORMATS_FICHIER = ['cp', 'sdf', 'cercles', 'polygone', 'territoires', 'pays'] as const;
 export type FormatFichier = (typeof FORMATS_FICHIER)[number];
 
 /**
@@ -38,6 +38,7 @@ export function formatsDe(plateforme: Plateforme, maille: Maille): FormatFichier
     case 'polygone': return ['polygone'];
     case 'commune':
     case 'departement': return ['territoires'];
+    case 'pays': return ['pays'];
     default: return [];
   }
 }
